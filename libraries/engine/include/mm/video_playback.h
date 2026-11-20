@@ -44,6 +44,43 @@ int mm_video_stream_playing(MMVideoStream *, const MMVideoStreamServices *);
 int mm_video_stream_tick(MMVideoStream *, const MMVideoStreamServices *);
 int mm_video_stream_drawable(const MMVideoStream *, int device_controlled);
 
+typedef struct MMVideoWindow
+{
+    MMPixelRect bounds, placement;
+    MMI32 width, height, frames;
+    MMU32 palette;
+    int opened, playing, visible;
+} MMVideoWindow;
+
+/* Native child-window services. The device provides its own playback clock.
+ * open/info/start return true on success. stopped returns true only if the
+ * device reported a terminal mode. A failed info query still leaves an open
+ * device for mm_video_window_close to close and release its audio suspension. */
+typedef struct MMVideoWindowServices
+{
+    void *context;
+    int (*open)(void *, void *source);
+    void (*close)(void *);
+    void (*suspend_sound)(void *, int suspend);
+    int (*info)(void *, MMI32 *frames, MMPixelRect *source);
+    void (*origin)(void *, MMI32 *x, MMI32 *y);
+    void (*move)(void *, const MMPixelRect *);
+    void (*show)(void *);
+    MMU32 (*palette_generation)(void *);
+    void (*realize_palette)(void *);
+    int (*start)(void *);
+    void (*pause)(void *);
+    int (*stopped)(void *);
+} MMVideoWindowServices;
+
+int mm_video_window_open(MMVideoWindow *, const MMVideoWindowServices *, void *source);
+void mm_video_window_close(MMVideoWindow *, const MMVideoWindowServices *);
+void mm_video_window_bounds(MMVideoWindow *, const MMPixelRect *);
+void mm_video_window_place(MMVideoWindow *, const MMVideoWindowServices *);
+int mm_video_window_start(MMVideoWindow *, const MMVideoWindowServices *, const MMPixelRect *);
+void mm_video_window_stop(MMVideoWindow *, const MMVideoWindowServices *);
+int mm_video_window_playing(MMVideoWindow *, const MMVideoWindowServices *);
+
 typedef struct MMVideoPcmWindow
 {
     MMU32 bytes, byte_rate, source_offset, destination_offset, copy_bytes;

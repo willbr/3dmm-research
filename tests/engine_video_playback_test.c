@@ -1,6 +1,7 @@
 #include "mm/video_playback.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 static void check(int condition, int line)
 {
@@ -135,6 +136,173 @@ static void test_stream(void)
     CHECK(mm_video_stream_stop(&stream, &services) > 0 && host.stops == stopped + 2);
 }
 
+typedef struct WindowFixture
+{
+    char calls[16];
+    int count, fail_open, fail_info, fail_start, stopped;
+    MMI32 x, y;
+    MMU32 generation;
+    MMPixelRect moved;
+} WindowFixture;
+
+static void window_call(WindowFixture *host, char call)
+{
+    CHECK(host->count + 1 < (int)sizeof(host->calls));
+    host->calls[host->count++] = call;
+    host->calls[host->count] = '\0';
+}
+
+static void window_expect(WindowFixture *host, const char *calls)
+{
+    CHECK(strcmp(host->calls, calls) == 0);
+    host->count = 0;
+    host->calls[0] = '\0';
+}
+
+static int window_open(void *context, void *source)
+{
+    WindowFixture *host = (WindowFixture *)context;
+    CHECK(source == context);
+    window_call(host, 'O');
+    return !host->fail_open;
+}
+
+static void window_close(void *context)
+{
+    window_call((WindowFixture *)context, 'C');
+}
+
+static void window_suspend(void *context, int suspend)
+{
+    window_call((WindowFixture *)context, suspend ? 'S' : 'U');
+}
+
+static int window_info(void *context, MMI32 *frames, MMPixelRect *source)
+{
+    WindowFixture *host = (WindowFixture *)context;
+    MMPixelRect bounds = {2, 3, 18, 12};
+    window_call(host, 'I');
+    *frames = 27;
+    *source = bounds;
+    return !host->fail_info;
+}
+
+static void window_origin(void *context, MMI32 *x, MMI32 *y)
+{
+    WindowFixture *host = (WindowFixture *)context;
+    *x = host->x;
+    *y = host->y;
+}
+
+static void window_move(void *context, const MMPixelRect *rect)
+{
+    WindowFixture *host = (WindowFixture *)context;
+    window_call(host, 'M');
+    host->moved = *rect;
+}
+
+static void window_show(void *context)
+{
+    window_call((WindowFixture *)context, 'V');
+}
+
+static MMU32 window_palette(void *context)
+{
+    return ((WindowFixture *)context)->generation;
+}
+
+static void window_realize(void *context)
+{
+    WindowFixture *host = (WindowFixture *)context;
+    window_call(host, 'R');
+    ++host->generation;
+}
+
+static int window_start(void *context)
+{
+    WindowFixture *host = (WindowFixture *)context;
+    window_call(host, 'B');
+    return !host->fail_start;
+}
+
+static void window_pause(void *context)
+{
+    window_call((WindowFixture *)context, 'P');
+}
+
+static int window_stopped(void *context)
+{
+    WindowFixture *host = (WindowFixture *)context;
+    window_call(host, 'T');
+    return host->stopped;
+}
+
+static void test_window(void)
+{
+    WindowFixture host = {0};
+    MMVideoWindow window = {0};
+    MMVideoWindowServices services = {0, window_open, window_close, window_suspend, window_info,
+                                      window_origin, window_move, window_show, window_palette, window_realize,
+                                      window_start, window_pause, window_stopped};
+    MMPixelRect custom = {3, 2, 23, 22};
+    MMPixelRect empty = {1, 1, 1, 10}, other_empty = {9, 12, 20, 8};
+
+    services.context = &host;
+    host.fail_open = 1;
+    CHECK(!mm_video_window_open(&window, &services, &host));
+    mm_video_window_close(&window, &services);
+    window_expect(&host, "O");
+
+    host.fail_open = 0;
+    host.fail_info = 1;
+    CHECK(!mm_video_window_open(&window, &services, &host));
+    mm_video_window_close(&window, &services);
+    mm_video_window_close(&window, &services);
+    window_expect(&host, "OSICU");
+
+    host.fail_info = 0;
+    host.x = 10;
+    host.y = 20;
+    CHECK(mm_video_window_open(&window, &services, &host));
+    CHECK(window.width == 16 && window.height == 9 && window.frames == 27);
+    CHECK(!mm_video_window_playing(&window, &services));
+    mm_video_window_place(&window, &services);
+    CHECK(host.moved.left == 12 && host.moved.top == 23 && host.moved.right == 28 && host.moved.bottom == 32);
+    mm_video_window_place(&window, &services);
+    window_expect(&host, "OSIRMV");
+
+    ++host.generation;
+    CHECK(mm_video_window_start(&window, &services, &custom));
+    CHECK(host.moved.left == 13 && host.moved.top == 22 && host.moved.right == 33 && host.moved.bottom == 42);
+    CHECK(mm_video_window_playing(&window, &services));
+    window_expect(&host, "MRBT");
+
+    host.fail_start = 1;
+    CHECK(!mm_video_window_start(&window, &services, NULL));
+    CHECK(!mm_video_window_playing(&window, &services));
+    CHECK(host.moved.left == 10 && host.moved.top == 20 && host.moved.right == 26 && host.moved.bottom == 29);
+    window_expect(&host, "PMB");
+
+    host.fail_start = 0;
+    CHECK(mm_video_window_start(&window, &services, NULL));
+    host.stopped = 1;
+    CHECK(!mm_video_window_playing(&window, &services));
+    mm_video_window_stop(&window, &services);
+    window_expect(&host, "BT");
+
+    mm_video_window_bounds(&window, &empty);
+    mm_video_window_place(&window, &services);
+    mm_video_window_bounds(&window, &other_empty);
+    mm_video_window_place(&window, &services);
+    mm_video_window_bounds(&window, NULL);
+    mm_video_window_place(&window, &services);
+    host.x = 4;
+    mm_video_window_place(&window, &services);
+    CHECK(host.moved.left == 4 && host.moved.right == 20);
+    mm_video_window_close(&window, &services);
+    window_expect(&host, "MMMCU");
+}
+
 static void test_pcm(void)
 {
     MMVideoPcmWindow window;
@@ -197,6 +365,7 @@ static void test_device(void)
 int main(void)
 {
     test_stream();
+    test_window();
     test_pcm();
     test_device();
     return EXIT_SUCCESS;

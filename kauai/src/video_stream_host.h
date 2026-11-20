@@ -49,6 +49,5 @@ class StreamHost
 };
 StreamHost *NewStreamHost(); // Owned by caller; null on allocation failure.
 StreamHost *NewSDLStreamHost(bool withAudio);
-struct WindowState; // Private native-window implementation, not a window token.
 } // namespace KauaiVideo
 #endif

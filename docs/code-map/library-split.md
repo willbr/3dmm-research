@@ -7466,6 +7466,21 @@ Movie capture suite `20261120T061013Z-46c4ba63` matched 60 retail frame
 identities on SDL and Marcus, and 12 retail sound requests on SDL. Each host
 also matched its 60 previous seek images.
 
+The same C89 module coordinates Studio's Win32 AVI child window. It owns the
+open and close sequence with wave sound suspension, pause and restart, child
+placement, first show and palette refresh. The Win32 adapter issues MCI commands
+and maps the graphics object to its parent window. MCI supplies the current
+position and handles keyframe seeks. The playback test checks callback order,
+partial open cleanup, failed restart and redundant placement. The original
+`GOSTU.AVI` produced matching open, seek, placement, pause, completion and
+close results before and after the conversion on x86 and x64.
+`CNTDWN5.AVI` also matched on x86, and `PROJ1.AVI` matched on x64.
+SDL Studio's Movie Techniques run matched its previous 130 decoded frames,
+477,736 queued and consumed PCM bytes, and settled completion image.
+Capture suite `20261120T063807Z-a1324f59` matched 60 retail frame identities
+in seek and playback on each host and 12 retail sound requests on SDL. Each
+host also matched its 60 previous seek images.
+
 `kauai-sdl-video` adds `video_sdl.h/.cpp`: an SDK-free public player over the
 core decoder and SDL audio streams, with stop/restart, relative frame seeks,
 master gain and final-frame duration. Audio-backed playback follows fixed-format

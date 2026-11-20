@@ -837,6 +837,9 @@ services.
 C89 owns the frame scheduler for Studio's native and SDL video streams and
 the SDL device-clock policy for audio-backed AVI playback. Native adapters
 supply decoder positions, clocks, PCM device I/O and redraw requests.
+The Win32 AVI child window also uses C89 for device lifetime, sound
+suspension, playback state, placement and palette refresh. The Win32 adapter
+supplies MCI commands, the parent coordinate origin and window operations.
 Studio's portable AVI reader and Video 1 decoder also run in C89. The backend
 owns the file bytes, frame and palette index, PCM and seekable reference frame.
 C89 also owns Kauai's scalable application time and the registered 60 Hz alarm

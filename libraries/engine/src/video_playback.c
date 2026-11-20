@@ -1,6 +1,15 @@
-/* Video timing policy converted from Kauai video.cpp and video_sdl.cpp.
+/* Video policy converted from Kauai video.cpp, video_sdl.cpp and video_window.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/video_playback.h"
+
+static MMPixelRect video_bounds(MMI32 width, MMI32 height, const MMPixelRect *bounds)
+{
+    MMPixelRect full;
+    full.left = full.top = 0;
+    full.right = width;
+    full.bottom = height;
+    return bounds ? *bounds : full;
+}
 
 void mm_video_stream_init(MMVideoStream *stream, MMI32 width, MMI32 height, MMI32 frames)
 {
@@ -15,11 +24,7 @@ void mm_video_stream_init(MMVideoStream *stream, MMI32 width, MMI32 height, MMI3
 
 void mm_video_stream_bounds(MMVideoStream *stream, const MMPixelRect *bounds)
 {
-    MMPixelRect full;
-    full.left = full.top = 0;
-    full.right = stream->width;
-    full.bottom = stream->height;
-    stream->bounds = bounds ? *bounds : full;
+    stream->bounds = video_bounds(stream->width, stream->height, bounds);
 }
 
 int mm_video_stream_position(MMVideoStream *stream, const MMVideoStreamServices *s)
@@ -153,6 +158,105 @@ int mm_video_stream_drawable(const MMVideoStream *stream, int controlled)
 static MMAudioCounter divide_by(MMAudioCounter value, MMU32 denominator)
 {
     return mm_audio_count_divide(value, mm_audio_counter(denominator, 0), NULL);
+}
+
+static void video_window_realize(MMVideoWindow *window, const MMVideoWindowServices *s)
+{
+    s->realize_palette(s->context);
+    window->palette = s->palette_generation(s->context);
+}
+
+int mm_video_window_open(MMVideoWindow *window, const MMVideoWindowServices *s, void *source)
+{
+    MMVideoWindow empty = {0};
+    *window = empty;
+    if (!s->open(s->context, source))
+        return 0;
+    window->opened = 1;
+    s->suspend_sound(s->context, 1);
+    if (!s->info(s->context, &window->frames, &window->bounds))
+        return 0;
+    window->width = window->bounds.right - window->bounds.left;
+    window->height = window->bounds.bottom - window->bounds.top;
+    video_window_realize(window, s);
+    return 1;
+}
+
+void mm_video_window_close(MMVideoWindow *window, const MMVideoWindowServices *s)
+{
+    if (!window->opened)
+        return;
+    window->opened = 0;
+    s->close(s->context);
+    s->suspend_sound(s->context, 0);
+}
+
+void mm_video_window_bounds(MMVideoWindow *window, const MMPixelRect *bounds)
+{
+    window->bounds = video_bounds(window->width, window->height, bounds);
+}
+
+static int video_window_empty(const MMPixelRect *rect)
+{
+    return rect->right <= rect->left || rect->bottom <= rect->top;
+}
+
+static int video_window_same_placement(const MMPixelRect *a, const MMPixelRect *b)
+{
+    if (video_window_empty(a))
+        return video_window_empty(b);
+    return a->left == b->left && a->top == b->top && a->right == b->right && a->bottom == b->bottom;
+}
+
+void mm_video_window_place(MMVideoWindow *window, const MMVideoWindowServices *s)
+{
+    MMPixelRect target;
+    MMI32 x, y;
+    s->origin(s->context, &x, &y);
+    target = window->bounds;
+    target.left += x;
+    target.right += x;
+    target.top += y;
+    target.bottom += y;
+    if (!video_window_same_placement(&window->placement, &target) || !window->visible)
+    {
+        s->move(s->context, &target);
+        if (!window->visible)
+        {
+            s->show(s->context);
+            window->visible = 1;
+        }
+        window->placement = target;
+    }
+    if (window->palette != s->palette_generation(s->context))
+        video_window_realize(window, s);
+}
+
+int mm_video_window_start(MMVideoWindow *window, const MMVideoWindowServices *s, const MMPixelRect *bounds)
+{
+    mm_video_window_stop(window, s);
+    mm_video_window_bounds(window, bounds);
+    mm_video_window_place(window, s);
+    if (!s->start(s->context))
+        return 0;
+    window->playing = 1;
+    return 1;
+}
+
+void mm_video_window_stop(MMVideoWindow *window, const MMVideoWindowServices *s)
+{
+    if (window->playing)
+    {
+        s->pause(s->context);
+        window->playing = 0;
+    }
+}
+
+int mm_video_window_playing(MMVideoWindow *window, const MMVideoWindowServices *s)
+{
+    if (window->playing && s->stopped(s->context))
+        window->playing = 0;
+    return window->playing;
 }
 
 int mm_video_pcm_window(MMI32 first_time, MMI32 duration, MMU32 rate, MMU32 alignment,

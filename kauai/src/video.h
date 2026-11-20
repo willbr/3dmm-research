@@ -108,24 +108,14 @@ class VideoWindow : public VideoWindow_PAR
     ASSERT
 
   protected:
-    KauaiVideo::WindowState *_native;
-    long _dxp;
-    long _dyp;
-    RC _rc;
-    RC _rcPlay;
-    long _nfrMac;
-    PGraphicsObject _pgobBase;
-    long _cactPal;
-
-    bool _fDeviceOpen : 1;
-    bool _fPlaying : 1;
-    bool _fVisible : 1;
+    struct WindowHost;
+    WindowHost *_native;
+    MMVideoWindow _playback;
 
     VideoWindow(long hid);
     ~VideoWindow(void);
 
     virtual bool _FInit(PFilename pfni, PGraphicsObject pgobBase);
-    virtual void _SetRc(void);
 
   public:
     static PVideoWindow PgvdwNew(PFilename pfni, PGraphicsObject pgobBase, long hid = hidNil);
