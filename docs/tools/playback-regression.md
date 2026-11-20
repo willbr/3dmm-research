@@ -16032,3 +16032,21 @@ In `actor-event-edit` suite `20261120T153130Z-1e0a5f96`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## Template cache allocation retry in x86 Debug (20 November 2026)
+
+The 1,344-case template fixture now checks the missing-GGCM cases
+against the cache's allocation retry. The cache reserves five resource
+entries. On x86 they occupy 80 bytes, so the single injected failure of
+the preferred 128-byte allocation is followed by a successful exact-size
+allocation. On x64 the five entries occupy 160 bytes, and the first
+allocation is already exact. Only the two cases that omit GGCM and
+fail the first fixed allocation during load differed across Debug builds.
+
+The template fixture passed with 615 loads and 480 bodies on x86 Debug,
+613 and 478 on x64 Debug, and 672 and 588 on SDL Release. Both Debug
+template traces matched their own before-fix bytes. Native x64 and SDL
+Release finished the full movie test and produced the same saved
+archives. The x86 movie test advanced through template runtime and
+stopped at the physical WAVE import fixture in movie sound integration.
+Logs and traces are in `tmp/c89-typed-actor-transactions`.

@@ -2,6 +2,7 @@
 #define ENGINE_TEMPLATE_CREATE_FIXTURE_H
 #include "engine_template_costumes.h"
 #include "engine_part_indices.h"
+#include "mm/resource_cache.h"
 class TemplateCreateFixtureAccess : public Template
 {
   public:
@@ -75,6 +76,12 @@ static bool TestTemplateConstruction()
 {
     FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_TEMPLATE_CREATE_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
+#ifdef DEBUG
+    // The cache reserves five entries with a 128-byte preferred allocation.
+    // If those entries fit below 128 bytes, a failed preferred allocation
+    // can retry at the exact size after the single injected fault.
+    const bool cache_retries = 5 * sizeof(MMResourceEntry) < 128;
+#endif
     bool ok=true; int loaded=0,bodies=0;
     for (int shape=0;ok && shape<2;++shape) for (int variant=0;ok && variant<8;++variant)
     for (int stage=0;ok && stage<2;++stage) for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<14;++failure)
@@ -103,6 +110,10 @@ static bool TestTemplateConstruction()
             if (stage) inject(true);
             body=t->PbodyCreate(); inject(false); if (body) ++bodies;
         }
+#ifdef DEBUG
+        if (variant==2 && !stage && kind==2 && failure==1)
+            ok=ok && (t!=nullptr)==cache_retries && (body!=nullptr)==cache_retries;
+#endif
         LegacyLong values[]={shape,variant,stage,kind,failure,estimate,t!=nullptr,body!=nullptr,written};
         ok=record(values,sizeof(values)) && TemplateCreateFixtureAccess::Record(t,snapshot) && (!written || record(&wire,sizeof(wire))) && ok;
         if (body) { ok=ok && body->Cbact()==(shape?8:2) && body->Cbset()==(shape?2:0);
@@ -113,7 +124,8 @@ static bool TestTemplateConstruction()
     }
     std::fprintf(stderr,"[template construction] loaded=%d bodies=%d\n",loaded,bodies);
 #ifdef DEBUG
-    ok=ok && loaded==613 && bodies==478;
+    const int recovered = cache_retries ? 2 : 0;
+    ok=ok && loaded==613+recovered && bodies==478+recovered;
 #else
     ok=ok && loaded==672 && bodies==588;
 #endif
