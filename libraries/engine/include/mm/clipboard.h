@@ -89,6 +89,45 @@ int mm_clipboard_end_export(MMClipboard *, const MMClipboardServices *);
 size_t mm_clipboard_text_bytes(const void *, size_t bytes, unsigned unit);
 size_t mm_clipboard_normalize_paragraphs(unsigned short *, size_t units);
 
+typedef struct MMClipboardTextImport
+{
+    void *context;
+    MMI32 format;
+    unsigned unit;
+    void *(*get)(void *);
+    void (*publish)(void *, void *document);
+    void (*delay)(void *, int deferred);
+    int (*is_text)(void *, void *document);
+    int (*release)(void *, void *document);
+    int (*create)(void *, void **owned);
+    int (*suspend)(void *, void *document);
+    int (*characters)(void *, void *document, MMI32 *count);
+    int (*replace)(void *, void *document, void *data, MMI32 inserted, MMI32 deleted);
+    int (*resume)(void *, void *document);
+} MMClipboardTextImport;
+
+typedef struct MMClipboardTextExport
+{
+    void *context;
+    MMI32 format;
+    unsigned unit;
+    int (*characters)(void *, MMI32 *count);
+    int (*begin)(void *);
+    int (*buffer)(void *, MMI32 bytes, MMI32 format, void **out);
+    int (*fetch)(void *, MMI32 bytes, void *destination);
+    int (*end)(void *);
+} MMClipboardTextExport;
+
+/* Counts include the terminal character. The unit is one or two bytes.
+ * A null get callback probes support. Publish transfers the created
+ * document to the caller's slot. A delay callback allows inputs larger
+ * than 1024 bytes to defer replacement. Ordinary replacement failure still
+ * resumes undo and reports supported. Export closes a started session
+ * even when there is no buffer. Negative callbacks return the native
+ * exception immediately with the effects already completed. */
+int mm_clipboard_import_text(MMI32 format, void *data, MMI32 bytes, const MMClipboardTextImport *);
+int mm_clipboard_export_text(const MMClipboardTextExport *);
+
 #ifdef __cplusplus
 }
 #endif

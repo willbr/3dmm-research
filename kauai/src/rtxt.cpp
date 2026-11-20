@@ -13,6 +13,7 @@
 #include <exception>
 #include <new>
 #include "frame.h"
+#include "clipboard_view_host.h"
 ASSERTNAME
 #include "rich_text_live_store_host.h"
 #include "text_document_host.h"
@@ -608,19 +609,37 @@ void TextDocumentBase::ExportFormats(PClipboardObject pclip)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
-    void *pv;
-    long ccp = CpMac() - 1;
-
-    if (ccp <= 0)
-        return;
-
-    if (!pclip->FInitExport())
-        return;
-
-    if (pvNil != (pv = pclip->PvExport(ccp * size(achar), kclfmText)))
-        _pbsf->FetchRgb(0, ccp * size(achar), pv);
-
-    pclip->EndExport();
+    struct ExportHost : ClipboardViewHost
+    {
+        PTextDocumentBase document;
+        PClipboardObject clipboard;
+        static ExportHost &Get(void *p) { return *static_cast<ExportHost *>(p); }
+    } host;
+    host.document = this;
+    host.clipboard = pclip;
+    const MMClipboardTextExport services = {
+        &host, kclfmText, sizeof(achar),
+        [](void *p, MMI32 *count) {
+            auto &h = ExportHost::Get(p);
+            return h.Guard([&] { *count = h.document->CpMac(); return 1; });
+        },
+        [](void *p) {
+            auto &h = ExportHost::Get(p);
+            return h.Guard([&] { return h.clipboard->FInitExport(); });
+        },
+        [](void *p, MMI32 bytes, MMI32 format, void **out) {
+            auto &h = ExportHost::Get(p);
+            return h.Guard([&] { *out = h.clipboard->PvExport(bytes, format); return *out != nullptr; });
+        },
+        [](void *p, MMI32 bytes, void *destination) {
+            auto &h = ExportHost::Get(p);
+            return h.Guard([&] { h.document->_pbsf->FetchRgb(0, bytes, destination); return 1; });
+        },
+        [](void *p) {
+            auto &h = ExportHost::Get(p);
+            return h.Guard([&] { h.clipboard->EndExport(); return 1; });
+        }};
+    host.Check(mm_clipboard_export_text(&services));
 }
 
 /***************************************************************************

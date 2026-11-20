@@ -361,5 +361,67 @@ int mm_clipboard_end_export(MMClipboard *clip, const MMClipboardServices *s)
     return 1;
 }
 
+int mm_clipboard_import_text(MMI32 format, void *data, MMI32 bytes, const MMClipboardTextImport *s)
+{
+    void *document;
+    MMI32 count;
+    int result;
+
+    if (format != s->format)
+        return 0;
+    if (!data || !bytes || !s->get)
+        return 1;
+    document = s->get(s->context);
+    result = document ? s->is_text(s->context, document) : 0;
+    TRY(result);
+    if (!result)
+    {
+        if (document)
+        {
+            TRY(s->release(s->context, document));
+            s->publish(s->context, 0);
+        }
+        document = 0;
+        result = s->create(s->context, &document);
+        TRY(result);
+        s->publish(s->context, document);
+        if (!result)
+            return 0;
+    }
+    if (s->delay)
+    {
+        s->delay(s->context, bytes > 1024);
+        if (bytes > 1024)
+            return 1;
+    }
+    TRY(s->suspend(s->context, document));
+    TRY(s->characters(s->context, document, &count));
+    TRY(s->replace(s->context, document, data, bytes / (MMI32)s->unit, count - 1));
+    TRY(s->resume(s->context, document));
+    return 1;
+}
+
+int mm_clipboard_export_text(const MMClipboardTextExport *s)
+{
+    MMI32 count;
+    MMU32 bytes;
+    void *buffer = 0;
+    int result;
+
+    TRY(s->characters(s->context, &count));
+    if (count <= 1)
+        return 1;
+    bytes = (MMU32)(count - 1) * s->unit;
+    if (bytes > 0x7fffffffUL)
+        return 0;
+    result = s->begin(s->context);
+    if (result <= 0)
+        return result;
+    TRY(s->buffer(s->context, (MMI32)bytes, s->format, &buffer));
+    if (buffer)
+        TRY(s->fetch(s->context, (MMI32)bytes, buffer));
+    return s->end(s->context);
+}
+
 #undef TRY
 #undef CALL

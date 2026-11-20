@@ -6,6 +6,110 @@
 #include "legacy_text_maps.h"
 #include "legacy_byte_maps.h"
 
+int mm_text_encode_utf8(const unsigned short *units, size_t count, void *context,
+                        int (*write)(void *, const char *, size_t))
+{
+    size_t i, used;
+    MMU32 scalar, tail;
+    char octets[4];
+    int result;
+
+    for (i = 0; i < count; ++i)
+    {
+        scalar = units[i];
+        if (scalar >= 0xd800 && scalar <= 0xdfff)
+        {
+            if (scalar > 0xdbff || i + 1 >= count)
+                return 0;
+            tail = units[++i];
+            if (tail < 0xdc00 || tail > 0xdfff)
+                return 0;
+            scalar = 0x10000UL + ((scalar - 0xd800UL) << 10) + tail - 0xdc00UL;
+        }
+        used = 0;
+        if (scalar >= 0x10000UL)
+        {
+            octets[used++] = (char)(0xf0 | (scalar >> 18));
+            octets[used++] = (char)(0x80 | ((scalar >> 12) & 63));
+        }
+        else if (scalar >= 0x800)
+            octets[used++] = (char)(0xe0 | (scalar >> 12));
+        else if (scalar >= 0x80)
+            octets[used++] = (char)(0xc0 | (scalar >> 6));
+        if (scalar >= 0x800)
+            octets[used++] = (char)(0x80 | ((scalar >> 6) & 63));
+        octets[used++] = (char)(scalar < 0x80 ? scalar : 0x80 | (scalar & 63));
+        result = write(context, octets, used);
+        if (result <= 0)
+            return result;
+    }
+    return 1;
+}
+
+int mm_text_decode_utf8(const char *bytes, size_t count, void *context,
+                        int (*write)(void *, const unsigned short *, size_t))
+{
+    const unsigned char *text = (const unsigned char *)bytes;
+    size_t i = 0, used;
+    MMU32 scalar, minimum;
+    unsigned remaining, next;
+    unsigned short units[2];
+    int result;
+
+    while (i < count)
+    {
+        scalar = text[i++];
+        remaining = 0;
+        minimum = 0;
+        if (scalar >= 0xc2 && scalar <= 0xdf)
+        {
+            scalar &= 0x1f;
+            remaining = 1;
+            minimum = 0x80;
+        }
+        else if (scalar >= 0xe0 && scalar <= 0xef)
+        {
+            scalar &= 0x0f;
+            remaining = 2;
+            minimum = 0x800;
+        }
+        else if (scalar >= 0xf0 && scalar <= 0xf4)
+        {
+            scalar &= 7;
+            remaining = 3;
+            minimum = 0x10000UL;
+        }
+        else if (scalar >= 0x80)
+            return 0;
+        if (remaining > count - i)
+            return 0;
+        while (remaining)
+        {
+            next = text[i++];
+            if ((next & 0xc0) != 0x80)
+                return 0;
+            scalar = (scalar << 6) | (next & 63);
+            --remaining;
+        }
+        if (scalar < minimum || scalar > 0x10ffffUL || (scalar >= 0xd800 && scalar <= 0xdfff))
+            return 0;
+        used = 1;
+        if (scalar >= 0x10000UL)
+        {
+            scalar -= 0x10000UL;
+            units[0] = (unsigned short)(0xd800 | (scalar >> 10));
+            units[1] = (unsigned short)(0xdc00 | (scalar & 0x3ff));
+            used = 2;
+        }
+        else
+            units[0] = (unsigned short)scalar;
+        result = write(context, units, used);
+        if (result <= 0)
+            return result;
+    }
+    return 1;
+}
+
 static int wide(int encoding)
 {
     return encoding == MM_TEXT_UTF16_LE || encoding == MM_TEXT_UTF16_BE;

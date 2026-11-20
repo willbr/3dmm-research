@@ -208,10 +208,65 @@ static void translation(void)
     free(s.strings);
     free(s.entries);
 }
+typedef struct Utf8Test
+{
+    char bytes[24];
+    unsigned short units[12];
+    size_t written, limit;
+} Utf8Test;
+
+static int utf8_bytes(void *p, const char *bytes, size_t count)
+{
+    Utf8Test *t = p;
+    if (count > t->limit - t->written)
+        return -4;
+    memcpy(t->bytes + t->written, bytes, count);
+    t->written += count;
+    return 1;
+}
+
+static int utf8_units(void *p, const unsigned short *units, size_t count)
+{
+    Utf8Test *t = p;
+    if (count > t->limit - t->written)
+        return -4;
+    memcpy(t->units + t->written, units, count * sizeof(*units));
+    t->written += count;
+    return 1;
+}
+
+static void counted_utf8(void)
+{
+    static const unsigned short units[] = {'a', 0, 0x7f, 0x80, 0x7ff, 0x800, 0xdbff, 0xdfff};
+    static const char encoded[] = "a\0\x7f\xc2\x80\xdf\xbf\xe0\xa0\x80\xf4\x8f\xbf\xbf";
+    static const unsigned short bad_units[] = {'a', 0xd800, 'b'};
+    static const char bad[] = "a\xf0\x80\x80\x8a";
+    Utf8Test t = {0};
+
+    t.limit = sizeof(t.bytes);
+    CHECK(mm_text_encode_utf8(units, sizeof(units) / sizeof(*units), &t, utf8_bytes) == 1);
+    CHECK(t.written == sizeof(encoded) - 1 && !memcmp(t.bytes, encoded, t.written));
+    t.written = 0;
+    t.limit = sizeof(t.units) / sizeof(*t.units);
+    CHECK(mm_text_decode_utf8(encoded, sizeof(encoded) - 1, &t, utf8_units) == 1);
+    CHECK(t.written == sizeof(units) / sizeof(*units) && !memcmp(t.units, units, sizeof(units)));
+
+    t.written = 0;
+    CHECK(!mm_text_decode_utf8(bad, sizeof(bad) - 1, &t, utf8_units) && t.written == 1 && t.units[0] == 'a');
+    t.written = 0;
+    CHECK(!mm_text_encode_utf8(bad_units, 3, &t, utf8_bytes) && t.written == 1 && t.bytes[0] == 'a');
+    t.written = 0;
+    t.limit = 7;
+    CHECK(mm_text_decode_utf8(encoded, sizeof(encoded) - 1, &t, utf8_units) == -4 && t.written == 6);
+    t.written = 0;
+    CHECK(mm_text_encode_utf8(units, sizeof(units) / sizeof(*units), &t, utf8_bytes) == -4 && t.written == 7);
+}
+
 int main(void)
 {
     mutations();
     text();
     translation();
+    counted_utf8();
     return 0;
 }

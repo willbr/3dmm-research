@@ -222,6 +222,204 @@ static void exports(void)
     CHECK(mm_clipboard_end_export(&t.state, &t.services) == 1 && t.flushed_format == FOREIGN_FORMAT && t.closes == 1);
 }
 
+typedef struct TextTransfer
+{
+    void *slot, *input;
+    const void *expected_released;
+    char events[40], fail;
+    unsigned steps;
+    int failure, deferred, foreign;
+    MMI32 characters, inserted, deleted, requested;
+    unsigned char buffer[16];
+} TextTransfer;
+
+static int text_event(void *p, char code)
+{
+    TextTransfer *t = p;
+    CHECK(t->steps + 1 < sizeof(t->events));
+    t->events[t->steps++] = code;
+    t->events[t->steps] = 0;
+    return t->fail == code ? t->failure : 1;
+}
+
+static void *text_get(void *p)
+{
+    TextTransfer *t = p;
+    text_event(p, 'g');
+    return t->slot;
+}
+
+static void text_publish(void *p, void *document)
+{
+    TextTransfer *t = p;
+    text_event(p, document ? 'p' : '0');
+    t->slot = document;
+}
+
+static void text_delay(void *p, int deferred)
+{
+    text_event(p, 'd');
+    ((TextTransfer *)p)->deferred = deferred;
+}
+
+static int text_is_text(void *p, void *document)
+{
+    TextTransfer *t = p;
+    CHECK(document == t->slot);
+    text_event(p, 'i');
+    return !t->foreign;
+}
+
+static int text_release(void *p, void *document)
+{
+    TextTransfer *t = p;
+    CHECK(document == t->expected_released && t->slot == document);
+    return text_event(p, 'l');
+}
+
+static int text_create(void *p, void **document)
+{
+    TextTransfer *t = p;
+    int status = text_event(p, 'c');
+    CHECK(!t->slot);
+    if (status > 0)
+    {
+        *document = &t->slot;
+        t->foreign = 0;
+        t->characters = 1;
+    }
+    return status;
+}
+
+static int text_suspend(void *p, void *document)
+{
+    CHECK(((TextTransfer *)p)->slot == document);
+    return text_event(p, 's');
+}
+
+static int export_characters(void *p, MMI32 *characters)
+{
+    *characters = ((TextTransfer *)p)->characters;
+    return text_event(p, 'n');
+}
+
+static int text_characters(void *p, void *document, MMI32 *characters)
+{
+    CHECK(((TextTransfer *)p)->slot == document);
+    return export_characters(p, characters);
+}
+
+static int text_replace(void *p, void *document, void *data, MMI32 inserted, MMI32 deleted)
+{
+    TextTransfer *t = p;
+    CHECK(t->slot == document && data == t->input);
+    t->inserted = inserted;
+    t->deleted = deleted;
+    return text_event(p, 'w');
+}
+
+static int text_resume(void *p, void *document)
+{
+    CHECK(((TextTransfer *)p)->slot == document);
+    return text_event(p, 'r');
+}
+
+static int export_begin(void *p)
+{
+    return text_event(p, 'b');
+}
+
+static int export_buffer(void *p, MMI32 bytes, MMI32 format, void **buffer)
+{
+    TextTransfer *t = p;
+    int status = text_event(p, 'a');
+    CHECK(format == WIDE_FORMAT);
+    t->requested = bytes;
+    if (status > 0)
+        *buffer = t->buffer;
+    return status;
+}
+
+static int export_fetch(void *p, MMI32 bytes, void *buffer)
+{
+    TextTransfer *t = p;
+    CHECK(buffer == t->buffer && bytes == t->requested);
+    return text_event(p, 'f');
+}
+
+static int export_end(void *p)
+{
+    return text_event(p, 'e');
+}
+
+static void text_documents(void)
+{
+    TextTransfer t;
+    unsigned char input[1026] = {0};
+    MMClipboardTextImport import = {0};
+    MMClipboardTextExport export = {0};
+
+    memset(&t, 0, sizeof(t));
+    t.input = input;
+    import.context = &t;
+    import.format = WIDE_FORMAT;
+    import.unit = 2;
+    import.get = text_get;
+    import.publish = text_publish;
+    import.delay = text_delay;
+    import.is_text = text_is_text;
+    import.release = text_release;
+    import.create = text_create;
+    import.suspend = text_suspend;
+    import.characters = text_characters;
+    import.replace = text_replace;
+    import.resume = text_resume;
+    CHECK(!mm_clipboard_import_text(FOREIGN_FORMAT, input, 8, &import) && !t.steps);
+    CHECK(mm_clipboard_import_text(WIDE_FORMAT, NULL, 0, &import) == 1 && !t.steps);
+    CHECK(mm_clipboard_import_text(WIDE_FORMAT, input, 1026, &import) == 1);
+    CHECK(!strcmp(t.events, "gcpd") && t.slot == &t.slot && t.deferred);
+    t.steps = 0;
+    t.characters = 5;
+    t.fail = 'w';
+    CHECK(mm_clipboard_import_text(WIDE_FORMAT, input, 1024, &import) == 1);
+    CHECK(!strcmp(t.events, "gidsnwr") && !t.deferred && t.inserted == 512 && t.deleted == 4);
+    t.steps = 0;
+    t.failure = -2;
+    import.delay = NULL;
+    CHECK(mm_clipboard_import_text(WIDE_FORMAT, input, 1025, &import) == -2);
+    CHECK(!strcmp(t.events, "gisnw") && t.inserted == 512);
+    t.steps = 0;
+    t.foreign = 1;
+    t.slot = input;
+    t.expected_released = input;
+    t.fail = 'c';
+    t.failure = 0;
+    CHECK(!mm_clipboard_import_text(WIDE_FORMAT, input, 4, &import));
+    CHECK(!strcmp(t.events, "gil0c0") && !t.slot);
+
+    memset(&t, 0, sizeof(t));
+    export.context = &t;
+    export.format = WIDE_FORMAT;
+    export.unit = 2;
+    export.characters = export_characters;
+    export.begin = export_begin;
+    export.buffer = export_buffer;
+    export.fetch = export_fetch;
+    export.end = export_end;
+    t.characters = 1;
+    CHECK(mm_clipboard_export_text(&export) == 1 && !strcmp(t.events, "n"));
+    t.steps = 0;
+    t.characters = 5;
+    CHECK(mm_clipboard_export_text(&export) == 1 && !strcmp(t.events, "nbafe") && t.requested == 8);
+    t.steps = 0;
+    t.fail = 'a';
+    CHECK(mm_clipboard_export_text(&export) == 1 && !strcmp(t.events, "nbae"));
+    t.steps = 0;
+    t.fail = 'f';
+    t.failure = -2;
+    CHECK(mm_clipboard_export_text(&export) == -2 && !strcmp(t.events, "nbaf"));
+}
+
 int main(void)
 {
     unsigned short text[] = {'a', 10, 10, 13, 10, 'b', 13, 'c'};
@@ -235,6 +433,7 @@ int main(void)
     documents();
     imports();
     exports();
+    text_documents();
     puts("Clipboard ownership, import, export and text policy passed");
     return 0;
 }

@@ -18,6 +18,7 @@
 #include "midi_sdl.h"
 #endif
 #include "frame.h"
+#include "clipboard_view_host.h"
 #include "cmd_hooks.h"
 #include "legacy_wave_formats.h"
 #ifdef KAUAI_SDL3
@@ -1653,54 +1654,58 @@ bool ApplicationBase::FImportClip(long clfm, void *pv, long cb, PDocumentBase *p
     AssertPvCb(pv, cb);
     AssertNilOrVarMem(ppdocb);
     AssertNilOrVarMem(pfDelay);
-    long cpMac;
-
-    switch (clfm)
+    struct ImportHost : ClipboardViewHost
     {
-    default:
-        return fFalse;
+        PDocumentBase *document;
+        bool *delay;
+        static ImportHost &Get(void *p) { return *static_cast<ImportHost *>(p); }
+        static PTextDocumentBase Text(void *p) { return static_cast<PTextDocumentBase>(static_cast<PDocumentBase>(p)); }
+    } host;
+    host.document = ppdocb;
+    host.delay = pfDelay;
 
-    // we can only import these types
-    case kclfmText:
-        break;
-    }
-
-    if (pvNil == pv || 0 == cb || pvNil == ppdocb)
-        return fTrue;
-
-    switch (clfm)
-    {
-    default:
-        Bug("unknown clip format");
-        return fFalse;
-
-    case kclfmText:
-        AssertNilOrPo(*ppdocb, 0);
-
-        if (pvNil == *ppdocb || !(*ppdocb)->FIs(kclsTextDocumentBase))
-        {
-            ReleasePpo(ppdocb);
-            if (pvNil == (*ppdocb = RichTextDocument::PtxrdNew()))
-                return fFalse;
-        }
-
-        // if we can delay and there is more than 1K of text, delay it
-        if (pvNil != pfDelay)
-        {
-            if (cb > 0x0400)
-            {
-                *pfDelay = fTrue;
-                return fTrue;
-            }
-            *pfDelay = fFalse;
-        }
-
-        ((PTextDocumentBase)(*ppdocb))->SuspendUndo();
-        cpMac = ((PTextDocumentBase)(*ppdocb))->CpMac();
-        ((PTextDocumentBase)(*ppdocb))->FReplaceRgch(pv, cb / size(achar), 0, cpMac - 1);
-        ((PTextDocumentBase)(*ppdocb))->ResumeUndo();
-        return fTrue;
-    }
+    MMClipboardTextImport services = {};
+    services.context = &host;
+    services.format = kclfmText;
+    services.unit = sizeof(achar);
+    if (ppdocb)
+        services.get = [](void *p) -> void * {
+            auto document = *ImportHost::Get(p).document;
+            AssertNilOrPo(document, 0);
+            return document;
+        };
+    services.publish = [](void *p, void *document) {
+        *ImportHost::Get(p).document = static_cast<PDocumentBase>(document);
+    };
+    if (pfDelay)
+        services.delay = [](void *p, int delay) { *ImportHost::Get(p).delay = delay != 0; };
+    services.is_text = [](void *p, void *document) {
+        return ImportHost::Get(p).Guard([&] { return static_cast<PDocumentBase>(document)->FIs(kclsTextDocumentBase); });
+    };
+    services.release = [](void *p, void *document) {
+        return ImportHost::Get(p).Guard([&] { static_cast<PDocumentBase>(document)->Release(); return 1; });
+    };
+    services.create = [](void *p, void **owned) {
+        return ImportHost::Get(p).Guard([&] {
+            *owned = static_cast<PDocumentBase>(RichTextDocument::PtxrdNew());
+            return *owned != nullptr;
+        });
+    };
+    services.suspend = [](void *p, void *document) {
+        return ImportHost::Get(p).Guard([&] { ImportHost::Text(document)->SuspendUndo(); return 1; });
+    };
+    services.characters = [](void *p, void *document, MMI32 *count) {
+        return ImportHost::Get(p).Guard([&] { *count = ImportHost::Text(document)->CpMac(); return 1; });
+    };
+    services.replace = [](void *p, void *document, void *data, MMI32 inserted, MMI32 deleted) {
+        return ImportHost::Get(p).Guard([&] {
+            return ImportHost::Text(document)->FReplaceRgch(data, inserted, 0, deleted);
+        });
+    };
+    services.resume = [](void *p, void *document) {
+        return ImportHost::Get(p).Guard([&] { ImportHost::Text(document)->ResumeUndo(); return 1; });
+    };
+    return host.Check(mm_clipboard_import_text(clfm, pv, cb, &services)) > 0;
 }
 
 /***************************************************************************

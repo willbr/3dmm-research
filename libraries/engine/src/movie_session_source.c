@@ -4,36 +4,19 @@
 #include <stdlib.h>
 #include <string.h>
 
-static int utf8(const unsigned short *units, size_t count, char *out)
+typedef struct Utf8Name
 {
-    size_t i, written = 0;
-    MMU32 c, tail;
-    for (i = 0; i < count; ++i)
-    {
-        c = units[i];
-        if (c >= 0xd800 && c <= 0xdfff)
-        {
-            if (c > 0xdbff || i + 1 >= count)
-                return 0;
-            tail = units[++i];
-            if (tail < 0xdc00 || tail > 0xdfff)
-                return 0;
-            c = 0x10000UL + ((c - 0xd800UL) << 10) + tail - 0xdc00UL;
-        }
-        if (c >= 0x10000)
-        {
-            out[written++] = (char)(0xf0 | (c >> 18));
-            out[written++] = (char)(0x80 | ((c >> 12) & 63));
-        }
-        else if (c >= 0x800)
-            out[written++] = (char)(0xe0 | (c >> 12));
-        else if (c >= 0x80)
-            out[written++] = (char)(0xc0 | (c >> 6));
-        if (c >= 0x800)
-            out[written++] = (char)(0x80 | ((c >> 6) & 63));
-        out[written++] = (char)(c < 0x80 ? c : 0x80 | (c & 63));
-    }
-    out[written] = 0;
+    char bytes[MM_MOVIE_SOURCE_NAME_BYTES];
+    size_t written;
+} Utf8Name;
+
+static int append_name(void *context, const char *bytes, size_t count)
+{
+    Utf8Name *name = context;
+    if (count >= sizeof(name->bytes) - name->written)
+        return 0;
+    memcpy(name->bytes + name->written, bytes, count);
+    name->written += count;
     return 1;
 }
 
@@ -109,14 +92,16 @@ int mm_movie_source_table_at(const MMMovieSourceTable *table, MMU32 row, MMMovie
 int mm_movie_source_name_utf8(const MMMovieSourceName *row, char out[MM_MOVIE_SOURCE_NAME_BYTES])
 {
     unsigned short units[255];
-    char name[MM_MOVIE_SOURCE_NAME_BYTES];
+    Utf8Name name;
     size_t count;
     if (!row || !out || row->size > sizeof(row->bytes))
         return MM_MOVIE_BAD_FILE;
     count = mm_text_utf16(NULL, row->bytes, row->size, row->encoding, units, sizeof(units) / sizeof(units[0]));
-    if (!count || !utf8(units, count, name))
+    name.written = 0;
+    if (!count || !mm_text_encode_utf8(units, count, &name, append_name))
         return MM_MOVIE_BAD_FILE;
-    memcpy(out, name, strlen(name) + 1);
+    name.bytes[name.written] = 0;
+    memcpy(out, name.bytes, strlen(name.bytes) + 1);
     return MM_MOVIE_OK;
 }
 

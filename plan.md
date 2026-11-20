@@ -297,7 +297,7 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Actor undo creation, toggle, redo and snapshot ownership
   now execute in C89 too, including name swaps, replacement/removal, failure
   ordering and sound-queue selection. Scene/body/resource implementations
-  and remaining edit/clipboard integration still need conversion. Composite
+  and remaining edit integration still need conversion. Composite
   move/rename undo now uses C89 for factory/disposal, child reference ownership,
   ordered context propagation/dispatch, name swaps and partial failure policy.
 - Studio and Marcus preview now replace live text actor templates through
@@ -918,8 +918,10 @@ untitled counters now live in C registry/node data.
 The common document view uses C89 for Edit menu availability and clipboard
 command sequencing, including self-paste rejection and publish-before-cut order.
 Kauai's clipboard owner also uses C89 for document identity and references,
-lazy and delayed imports, staged export, and text normalization. SDL and
-Win32 supply clipboard I/O and native document operations.
+lazy and delayed imports, staged export, and text normalization. C89 also
+materializes and exports clipboard text documents. Kauai and movie source
+names share counted UTF-8 conversion. SDL and Win32 supply clipboard I/O
+and native document operations.
 Help topic metadata, wire codecs/read/save, string expansion, object/group argument
 normalization and picture/button/group edit transactions now also use C89 and
 plain C topic data. Help embedded-object bounds and drawing sequence now also use

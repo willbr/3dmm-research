@@ -474,6 +474,13 @@ walks and width-changing reconstruction are C89 and use the same conversion
 service as ordinary String readers. Internal length-first/signed-character
 sorting and user locale comparison remain distinct host comparison callbacks.
 
+Kauai's counted UTF-8 and movie source-name encoding share `text.c`.
+Conversions validate scalar ranges and surrogate pairs, preserve embedded
+zeros, and keep the valid output prefix on malformed input. C++ sinks append
+to native containers. The movie source-name sink writes to a bounded buffer.
+The migrated converter matched the original across all Unicode code points,
+all two-byte input sequences, and 250,000 generated input pairs.
+
 `engine-strings-test` covers storage moves and edits, metadata, free-slot reuse,
 allocation failures, search positions, endian offsets, one/two-byte strings,
 legacy map hashes, surrogate substitution and short output buffers. Native
@@ -3223,13 +3230,21 @@ pending for another request.
 SDL imports a complete text snapshot and normalizes LF and CRLF to CR.
 C89 also trims native text at the first zero unit, checks and pads export
 sizes, and flushes the current format before accepting the next one. Native
-callbacks handle SDL clipboard data and encoding, Win32 open/lock/transfer
+callbacks handle SDL clipboard I/O, native code pages, Win32 open/lock/transfer
 calls, and document factories and references.
+
+Clipboard text materialization and document export also run in C89. An import
+reuses a text document when possible and creates a rich-text document when
+needed. Deferred imports keep the document identity and defer replacement
+only above 1,024 bytes. Export omits the terminal character and ends the
+session even when allocating its payload buffer fails.
 
 The SDL Studio probe matched before and after for external text import,
 mixed line endings, local document identity, staged export, and clearing.
 C tests cover Windows format probing and delayed import, reentrancy guards,
-reference ordering, allocation failures, and export sizing.
+reference ordering, allocation failures, document replacement, and export
+sizing. The native document probe matched at the defer threshold and during
+materialization into an existing text document.
 
 ### Help document data and editing policy
 
