@@ -133,7 +133,7 @@ static int Run(int argc, char **argv)
         MM::Archive archive;
         MM::Error error;
         OutputFile staged(std::tmpfile(), &std::fclose);
-        if (!archive.Open(argv[3], error) || !staged || !Dump(staged.get(), archive, error) ||
+        if (!archive.OpenForInspection(argv[3], error) || !staged || !Dump(staged.get(), archive, error) ||
             std::fflush(staged.get()) || std::fseek(staged.get(), 0, SEEK_SET))
         {
             std::fprintf(stderr, "3mm: %s\n", error ? error.message.c_str() : "cannot stage archive dump");

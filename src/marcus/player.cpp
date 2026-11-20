@@ -1496,7 +1496,8 @@ static int ReadCatalogue(MarcusPlayer *player, const char *directory, int kind)
     const bool ok = Guard(player, [&](MM::Error &error) {
         if (!directory) return false;
         MM::Archive archive;
-        if (!archive.Open((std::filesystem::u8path(directory) / (kind == 3 ? "mtrls.3cn" : kind == 2 ? "tdfs.3cn" : "tmpls.3cn")).u8string(), error)) return false;
+        if (!archive.OpenForInspection((std::filesystem::u8path(directory) /
+            (kind == 3 ? "mtrls.3cn" : kind == 2 ? "tdfs.3cn" : "tmpls.3cn")).u8string(), error)) return false;
         std::vector<MarcusProp> entries;
         for (std::size_t index = 0; index < archive.Chunks().size(); ++index)
         {
@@ -2549,7 +2550,8 @@ extern "C"
         const bool ok = Guard(player, [&](MM::Error &error) {
             if (!directory) return false;
             MM::Archive archive;
-            if (!archive.Open((std::filesystem::u8path(directory) / "bkgds.3cn").u8string(), error)) return false;
+            if (!archive.OpenForInspection((std::filesystem::u8path(directory) / "bkgds.3cn").u8string(), error))
+                return false;
             std::vector<MarcusBackground> backgrounds;
             for (const auto &chunk : archive.Chunks())
                 if (chunk.id.type == 0x424b4744)

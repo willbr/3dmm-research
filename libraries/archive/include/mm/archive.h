@@ -151,6 +151,7 @@ class Archive
     void *NativeFile() const; // Private bridge to the engine preview adapter.
     MMArchiveReader *Reader() const;
     MMMovieSession *MovieSession() const;
+    bool OpenCore(const std::string &utf8Path, Error &, bool nativeGraph);
     struct Impl;
     std::unique_ptr<Impl> _impl;
 
@@ -162,6 +163,8 @@ class Archive
     // UTF-8 path; failed Open preserves the previous session. Windows retains
     // the legacy ANSI path repertoire and the core's 255-byte path limit.
     bool Open(const std::string &utf8Path, Error &error);
+    // Index the file's stored bytes for read-only archive inspection.
+    bool OpenForInspection(const std::string &utf8Path, Error &error);
     void Close();
     // References remain valid until a successful Open, Close, or destruction.
     const std::vector<Chunk> &Chunks() const;

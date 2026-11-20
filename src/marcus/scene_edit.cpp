@@ -348,7 +348,7 @@ std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::p
     MM::Archive archive;
     MM::MovieDirectory catalogue;
     MM::Error error;
-    if (!archive.Open(movie.u8string(), error) || !archive.ReadMovieDirectory(catalogue, error))
+    if (!archive.OpenForInspection(movie.u8string(), error) || !archive.ReadMovieDirectory(catalogue, error))
         throw std::runtime_error(error.message);
     auto result = std::make_unique<MarcusObjectClipboard>();
     result->sources = std::move(catalogue.sources);

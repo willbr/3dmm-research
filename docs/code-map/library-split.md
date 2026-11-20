@@ -7183,6 +7183,22 @@ The original-content preview suite passed. Capture suite
 Marcus in seek and playback, and 12 retail sound requests on SDL. Both
 hosts also matched all 60 of their previous seek images.
 
+The C89 archive reader can open a physical stream and own its validated
+index. It reads stored extents, keeps one decoded chunk and its parsed string
+table, and supplies the same record, name and movie-directory operations as
+the live reader. Both paths share the pre-v3 name conversion rules. The
+normalized `3mm dump` command and Marcus's actor, prop, material, font,
+background and sound catalogues use physical files through the C89 native
+file services. Marcus object copy uses the same reader for the source table.
+Standalone C reads passed on original backgrounds, sounds, templates and
+materials. The normalized dumps matched the previous reader across 20
+archives with 28,270 identical chunk rows. Four CHN2 v1 and v2 fixtures
+matched the previous names and payloads in both byte orders. The archive API
+fixtures pass through both open paths. Capture suite
+`20261120T073350Z-18abf67d` matched 60 retail frame identities in seek and
+playback on SDL and Marcus, and 12 retail sound requests on SDL. Both hosts
+matched all 60 of their previous seek images.
+
 The C89 archive reader now also owns the movie directory transaction and its
 retained session. It reads authored scene links and source rows through the
 cached graph. A rootless archive yields an empty directory. A movie with no

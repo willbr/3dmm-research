@@ -91,7 +91,8 @@ void CheckSoundArchive(int status)
 std::vector<MarcusSoundAsset> MarcusReadSoundAssets(const std::filesystem::path &path)
 {
     MM::Archive archive; MM::Error error;
-    Require(archive.Open(path.u8string(), error), "Cannot open the built-in sound library (snds.3cn). Check the content directory.");
+    Require(archive.OpenForInspection(path.u8string(), error),
+            "Cannot open the built-in sound library (snds.3cn). Check the content directory.");
     std::vector<MarcusSoundAsset> result;
     for (const auto &chunk : archive.Chunks())
     {

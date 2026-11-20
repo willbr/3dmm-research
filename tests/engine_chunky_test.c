@@ -2068,6 +2068,40 @@ static void archive_records(void)
     mm_chunk_index_close(index);
 }
 
+static int legacy_archive_name(void *context, const MMReadStream *stream)
+{
+    const unsigned char expected[] = {3, 3, 4, 'n', 'a', 'm', 'e', 0};
+    unsigned char actual[sizeof(expected)];
+    int *calls = (int *)context;
+    ++*calls;
+    CHECK(stream->length == sizeof(actual) && mm_read_exact(stream, 0, actual, sizeof(actual)));
+    CHECK(!memcmp(actual, expected, sizeof(actual)));
+    return MM_MOVIE_OK;
+}
+
+static void stream_archive(void)
+{
+    unsigned char bytes[1024];
+    const MMChunkPolicy policy = {1, 0, 516};
+    const MMArchiveReaderOptions options = {1024, 1024, 0x0303, NULL, NULL, NULL, NULL, NULL};
+    MMMemoryStream physical;
+    MMArchiveReader *reader;
+    MMChunkAccess access;
+    MMReadStream payload;
+    MMChunkEntry entry;
+    int name_calls = 0;
+
+    CHECK(mm_memory_stream_init(&physical, bytes, fixture(bytes, 0, 0, 32, 2)));
+    CHECK(mm_archive_reader_open_stream(&physical.stream, &policy, &options, &reader) == MM_ARCHIVE_READ_OK);
+    access = mm_archive_reader_access(reader);
+    CHECK(access.count == 3 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK && entry.bytes == 8);
+    CHECK(mm_archive_reader_name(reader, 0, legacy_archive_name, &name_calls) == MM_MOVIE_OK && name_calls == 1);
+    CHECK(mm_archive_reader_name(reader, 1, legacy_archive_name, &name_calls) == MM_MOVIE_BAD_FILE && name_calls == 1);
+    CHECK(mm_archive_reader_payload(reader, 0, &payload) == MM_ARCHIVE_READ_OK && payload.length == 8);
+    CHECK(mm_archive_reader_payload(reader, 1, &payload) == MM_ARCHIVE_BAD_PACKED_HEADER && payload.length == 8);
+    mm_archive_reader_close(reader);
+}
+
 int main(void)
 {
     wire_indexes();
@@ -2078,6 +2112,7 @@ int main(void)
     movie_actor_tags();
     movie_directory();
     archive_records();
+    stream_archive();
     movie_actors();
     movie_content();
     graphs();

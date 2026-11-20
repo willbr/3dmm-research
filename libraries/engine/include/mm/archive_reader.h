@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_ARCHIVE_READER_H
 #define MM_ENGINE_ARCHIVE_READER_H
 #include "chunk_storage.h"
+#include "chunk_loading.h"
 #include "movie_session.h"
 #ifdef __cplusplus
 extern "C" {
@@ -17,6 +18,7 @@ typedef struct MMArchiveReaderOptions
     void *context;
     int (*accept)(void *);
     MMMovieGraphBytes name; /* Optional. Receives the borrowed archive as context. */
+    MMChunkLegacyName legacy_name; /* Optional native conversion for stream archives before CHN2 v3. */
 } MMArchiveReaderOptions;
 
 enum MMArchiveReadResult
@@ -65,9 +67,16 @@ typedef struct MMArchiveRecord
  * of another chunk or close. Outputs are published only on success. */
 int mm_archive_reader_open(const MMChunkAccess *, void *archive, const MMChunkPayloadServices *,
                            const MMArchiveReaderOptions *, MMArchiveReader **);
+/* Own an immutable index and decoded cache over borrowed physical bytes. The
+ * caller keeps the stream context and file contents valid until close. */
+int mm_archive_reader_open_stream(const MMReadStream *, const MMChunkPolicy *,
+                                  const MMArchiveReaderOptions *, MMArchiveReader **);
 void mm_archive_reader_close(MMArchiveReader *);
 MMChunkAccess mm_archive_reader_access(const MMArchiveReader *);
 int mm_archive_reader_read_stored(const MMArchiveReader *, const MMChunkEntry *, void *bytes, MMU32 count);
+int mm_archive_reader_name(MMArchiveReader *, MMU32 position, MMReadReceiver, void *out);
+/* The graph borrows the reader. Pass NULL for a direct graph read's request. */
+MMMovieSessionGraph mm_archive_reader_graph(MMArchiveReader *);
 int mm_archive_reader_payload(MMArchiveReader *, MMU32 position, MMReadStream *);
 int mm_archive_reader_record(MMArchiveReader *, MMU32 position, MMArchiveRecord *);
 int mm_archive_reader_strings(MMArchiveReader *, MMU32 position, const MMMovieStringTable **);

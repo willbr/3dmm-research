@@ -1,3 +1,4 @@
+#include "mm/archive_reader.h"
 #include "mm/chunky_file.h"
 #include "mm/movie_content_resolver.h"
 #include "mm/native_files.h"
@@ -409,11 +410,12 @@ static int check_index(void *file, MMU32 type, int movie, SeekInput *seek, int a
 {
     const unsigned short native_order = 1;
     MMChunkPolicy policy = {0, 0, 516}; /* Legacy counted name plus terminator and encoding. */
+    const MMArchiveReaderOptions options = {0x7fffffffUL, 0x7fffffffUL, 0x0303, NULL, NULL, NULL, NULL, NULL};
     MMReadStream stream;
-    MMChunkIndex *index = NULL;
+    MMArchiveReader *reader;
     MMChunkAccess access;
     MMChunkEntry entry;
-    MMReadSlice payload;
+    MMReadStream payload;
     MMU32 position;
     unsigned char magic[4], prefix[4];
     int ok;
@@ -429,19 +431,20 @@ static int check_index(void *file, MMU32 type, int movie, SeekInput *seek, int a
         return check_movie(&stream, &policy);
     if (seek)
         return check_seek(&stream, &policy, seek, actors, auto_content, bodies);
-    if (mm_chunk_index_open(&stream, &policy, &index) != MM_CHUNK_OK)
+    if (mm_archive_reader_open_stream(&stream, &policy, &options, &reader) != MM_ARCHIVE_READ_OK)
         return 0;
 
-    access = mm_chunk_index_access(index);
+    access = mm_archive_reader_access(reader);
     ok = mm_chunk_type_at(&access, type, 0, &entry, &position) == MM_CHUNK_OK &&
-         mm_read_slice_init(&payload, &stream, entry.offset, entry.bytes) &&
-         mm_read_exact(&payload.stream, 0, prefix, sizeof(prefix)) &&
+         mm_archive_reader_read_stored(reader, &entry, prefix, sizeof(prefix)) &&
+         mm_archive_reader_payload(reader, position, &payload) == MM_ARCHIVE_READ_OK &&
+         mm_read_exact(&payload, 0, prefix, sizeof(prefix)) &&
          mm_read_exact(&stream, 0, prefix, sizeof(prefix)) &&
          memcmp(magic, prefix, sizeof(magic)) == 0;
     if (ok)
         printf("%lu indexed chunks, first requested type at chunk 0x%08lx (%lu stored bytes)\n",
                (unsigned long)access.count, (unsigned long)entry.number, (unsigned long)entry.bytes);
-    mm_chunk_index_close(index);
+    mm_archive_reader_close(reader);
     return ok;
 }
 

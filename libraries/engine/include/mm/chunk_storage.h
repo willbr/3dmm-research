@@ -120,6 +120,9 @@ extern "C"
         unsigned char *decoded;
         const MMReadStream *stream;
     } MMChunkStreamPayload;
+    /* Locate the stored bytes within the archive body. */
+    int mm_chunk_stored_slice(const MMReadStream *, const MMChunkHeader *, const MMChunkEntry *, MMReadSlice *);
+    MMU32 mm_chunk_packed_decoded_length(const unsigned char header[8]);
     /* Open a stored extent as a borrowed slice or an owned decoded buffer.
      * Zero exact_size allows any decoded length. max_packed_bytes bounds both
      * the stored and decoded sizes of packed chunks. Keep the output at a

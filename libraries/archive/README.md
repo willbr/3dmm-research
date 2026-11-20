@@ -9,6 +9,10 @@ boundary is shared by `3mm dump` and the SDL3/ImGui inspector. Its public surfac
 contains standard C++ types and fixed-width identifiers; legacy engine, Kauai,
 BRender and platform headers remain private implementation details.
 
+Use `OpenForInspection` for a directory, record or payload read from a stable
+file. It uses the C89 physical archive reader. Use `Open` when the Archive will
+be transferred to Preview for rendering.
+
 The separate `MM::Preview` target provides headless asset rendering through
 `<mm/preview.h>`. Linking the archive API alone does not initialize or link
 the preview adapter into a consumer.
@@ -22,7 +26,7 @@ target_link_libraries(my-tool PRIVATE MM::Archive)
 
 MM::Archive archive;
 MM::Error error;
-if (!archive.Open("movie.3mm", error)) {
+if (!archive.OpenForInspection("movie.3mm", error)) {
     // Inspect error.code and display error.message.
     return 1;
 }

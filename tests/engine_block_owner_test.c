@@ -665,7 +665,7 @@ static void archive_directory(void)
     MMBlockFileServices files;
     MMChunkPayloadServices payload = {0};
     MMChunkAccess chunks = {0, DIRECTORY_ROWS, directory_entry, directory_child};
-    MMArchiveReaderOptions options = {1024, 1024, 0, NULL, NULL, NULL, NULL};
+    MMArchiveReaderOptions options = {1024, 1024, 0, NULL, NULL, NULL, NULL, NULL};
     MMArchiveDirectorySink sink = {0, directory_root, directory_scene, directory_source};
     MMArchiveReader *reader;
     MMArchiveDirectoryError error;

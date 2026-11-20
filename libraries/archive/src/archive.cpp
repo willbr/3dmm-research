@@ -12,6 +12,7 @@
 #include "engine_movie_graph.h"
 #include "engine_movie_source.h"
 #include "mm/archive_reader.h"
+#include "mm/native_files.h"
 #include "mm/sound_resource.h"
 #include "platform_text.h"
 #undef size
@@ -23,6 +24,7 @@ struct Archive::Impl
 {
     Options options;
     PChunkyFile file = pvNil;
+    void *streamFile = nullptr;
     std::string path;
     std::vector<Chunk> chunks;
     MMArchiveReader *reader = nullptr;
@@ -33,6 +35,7 @@ struct Archive::Impl
     {
         mm_archive_reader_close(reader);
         ReleasePpo(&file);
+        mm_native_file_close(streamFile);
     }
     bool Check(int status, std::size_t index, Error &error) const;
     bool Load(std::size_t index, MMReadStream &stream, Error &error);
@@ -105,9 +108,10 @@ MMArchiveReader *Archive::Reader() const
 }
 bool ReadSoundCatalogStyle(const Archive &archive, std::uint32_t number, std::int32_t &style)
 {
-    if (!archive._impl->file)
+    const auto reader = archive.Reader();
+    if (!reader)
         return false;
-    const auto graph = EngineMovieGraph::FromFile(archive._impl->file);
+    const auto graph = mm_archive_reader_graph(reader);
     MMI32 value;
     if (!mm_sound_catalog_style(&graph, number, 0, &value))
         return false;
@@ -298,6 +302,16 @@ std::uint32_t Archive::NameCodeUnitBits() const
 }
 bool Archive::Open(const std::string &utf8Path, Error &error)
 {
+    return OpenCore(utf8Path, error, true);
+}
+
+bool Archive::OpenForInspection(const std::string &utf8Path, Error &error)
+{
+    return OpenCore(utf8Path, error, false);
+}
+
+bool Archive::OpenCore(const std::string &utf8Path, Error &error, bool nativeGraph)
+{
     error = {};
     Internal::ClearDiagnostic();
     try
@@ -308,9 +322,8 @@ bool Archive::Open(const std::string &utf8Path, Error &error)
         std::string message;
         if (!NativePath(utf8Path, path, message))
             return Fail(error, ErrorCode::invalid_path, message.c_str());
-        if (!filename.FBuildFromPath(&path) || !(opened->file = ChunkyFile::PcflOpen(&filename, fcflNil)))
+        if (!filename.FBuildFromPath(&path))
             return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-        const auto access = opened->file->ReadChunkAccess();
         const MMArchiveReaderOptions readerOptions = {
             opened->options.maxDecodedBytes,
             opened->options.maxStringTableBytes,
@@ -322,14 +335,52 @@ bool Archive::Open(const std::string &utf8Path, Error &error)
             nullptr,
             [](void *) -> int { return !Internal::AssertionFailed(); },
             EngineMovieGraph::Name,
+            [](void *, const char *legacy, void *out, MMU32 capacity, MMU32 *written) -> int {
+                String name;
+                name.SetSzs(const_cast<char *>(legacy));
+                const auto bytes = static_cast<MMU32>(name.CbData());
+                if (bytes > capacity)
+                    return false;
+                name.GetData(out);
+                *written = bytes;
+                return true;
+            },
         };
-        const int status = mm_archive_reader_open(&access, opened->file, KauaiChunkPayloadServices(), &readerOptions,
-                                                  &opened->reader);
+        int status;
+        if (nativeGraph)
+        {
+            opened->file = ChunkyFile::PcflOpen(&filename, fcflNil);
+            if (!opened->file)
+                return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
+            const auto access = opened->file->ReadChunkAccess();
+            status = mm_archive_reader_open(&access, opened->file, KauaiChunkPayloadServices(), &readerOptions,
+                                            &opened->reader);
+        }
+        else
+        {
+            filename.GetStnPath(&path);
+            MMNativeOpenOptions options;
+            mm_native_open_options_init(&options);
+            opened->streamFile = mm_native_file_open(reinterpret_cast<const MMNativePathChar *>(path.Psz()), &options);
+            MMReadStream stream;
+            if (!opened->streamFile || !mm_native_file_read_stream(opened->streamFile, &stream))
+                return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
+            const unsigned short order = 1;
+            MMChunkPolicy policy = {};
+#ifdef CHUNK_BIG_INDEX
+            policy.expanded_runtime = 1;
+#endif
+            policy.native_big_endian = *reinterpret_cast<const unsigned char *>(&order) == 0;
+            policy.max_name_bytes = kcbMaxDataStn;
+            status = mm_archive_reader_open_stream(&stream, &policy, &readerOptions, &opened->reader);
+        }
         if (status == MM_ARCHIVE_MEMORY)
             throw std::bad_alloc();
         if (status != MM_ARCHIVE_READ_OK)
-            return Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.");
+            return nativeGraph ? Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.") :
+                                 Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
         opened->path = utf8Path;
+        const auto access = mm_archive_reader_access(opened->reader);
         for (MMU32 i = 0; i < access.count; ++i)
         {
             MMChunkEntry entry;
@@ -342,7 +393,12 @@ bool Archive::Open(const std::string &utf8Path, Error &error)
             chunk.loner = (entry.flags & MM_CHUNK_LONER) != 0;
             chunk.forest = (entry.flags & MM_CHUNK_FOREST) != 0;
             String name;
-            opened->file->FGetName(entry.type, entry.number, &name);
+            const auto decodeName = [](void *out, const MMReadStream *stream) -> int {
+                unsigned char bytes[kcbMaxDataStn];
+                return stream->length <= sizeof(bytes) && mm_read_exact(stream, 0, bytes, stream->length) &&
+                       static_cast<PString>(out)->FSetData(bytes, stream->length);
+            };
+            mm_archive_reader_name(opened->reader, i, decodeName, &name);
             chunk.name = Utf8(name);
             for (LegacyLong j = 0; j < name.Cch(); ++j)
                 chunk.nameUnits.push_back(sizeof(achar) == 1 ? static_cast<byte>(name.Psz()[j]) : name.Psz()[j]);

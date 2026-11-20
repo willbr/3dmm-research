@@ -88,6 +88,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Preview checks archive budgets against C89 index entries and stored packed
   headers. Its common palette loads through the C89 archive reader and shares
   colour-word conversion with Studio background loading.
+- The archive reader opens immutable physical streams through the C89 chunk
+  index, codec and payload cache. `3mm dump` and Marcus catalogue reads use this
+  path. Marcus also uses it to read source names for an object being copied.
+  Preview's renderer obtains live resource objects through the native graph.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

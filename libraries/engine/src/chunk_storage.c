@@ -81,6 +81,11 @@ int mm_chunk_payload_cache_clear(MMChunkPayloadCache *cache)
                MM_CHUNK_PAYLOAD_OK : MM_CHUNK_PAYLOAD_INVALID;
 }
 
+MMU32 mm_chunk_packed_decoded_length(const unsigned char header[8])
+{
+    return ((MMU32)header[4] << 24) | ((MMU32)header[5] << 16) | ((MMU32)header[6] << 8) | header[7];
+}
+
 static int check_packed_length(MMOwnedBlock *block, MMU32 limit)
 {
     MMBlockIO io;
@@ -89,8 +94,7 @@ static int check_packed_length(MMOwnedBlock *block, MMU32 limit)
     if (mm_owned_block_io(block, &io) != MM_DATA_OK ||
         mm_block_read(&io, 0, header, sizeof(header), 1) != MM_DATA_OK)
         return MM_CHUNK_PAYLOAD_BAD_HEADER;
-    decoded = ((MMU32)header[4] << 24) | ((MMU32)header[5] << 16) |
-              ((MMU32)header[6] << 8) | header[7];
+    decoded = mm_chunk_packed_decoded_length(header);
     return decoded > limit || io.view.length > limit ? MM_CHUNK_PAYLOAD_LIMIT : MM_CHUNK_PAYLOAD_OK;
 }
 
@@ -145,18 +149,25 @@ static int decode(void *codec, MMI32 format, const void *input, MMU32 bytes, voi
     return mm_codec_decode(format, input, bytes, output, capacity, written) == MM_DATA_OK;
 }
 
-int mm_chunk_payload_open(const MMReadStream *stream, const MMChunkHeader *header, const MMChunkEntry *entry,
-                          MMU32 exact_size, MMU32 max_packed_bytes, MMChunkStreamPayload *payload)
+int mm_chunk_stored_slice(const MMReadStream *stream, const MMChunkHeader *header, const MMChunkEntry *entry,
+                          MMReadSlice *slice)
 {
     MMU32 start = entry->offset, bytes = entry->bytes;
     MMU32 end = header->index_offset;
+    return ((start >= MM_CHUNK_PREFIX_BYTES || (!start && !bytes)) && start <= end &&
+            bytes <= end - start && mm_read_slice_init(slice, stream, start, bytes));
+}
+
+int mm_chunk_payload_open(const MMReadStream *stream, const MMChunkHeader *header, const MMChunkEntry *entry,
+                          MMU32 exact_size, MMU32 max_packed_bytes, MMChunkStreamPayload *payload)
+{
+    MMU32 bytes = entry->bytes;
     unsigned char *packed;
     MMI32 expected, written;
     MMPackedDecoder decoder;
     int status;
     payload->decoded = NULL;
-    if ((start < MM_CHUNK_PREFIX_BYTES && (start || bytes)) || start > end || bytes > end - start ||
-        !mm_read_slice_init(&payload->slice, stream, start, bytes))
+    if (!mm_chunk_stored_slice(stream, header, entry, &payload->slice))
         return MM_CHUNK_BAD_FILE;
     payload->stream = &payload->slice.stream;
     if (!(entry->flags & MM_CHUNK_PACKED))

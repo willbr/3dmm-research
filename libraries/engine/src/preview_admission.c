@@ -17,7 +17,7 @@ int mm_preview_budget(const MMPreviewBudgetServices *s, MMChunkEntry *failed)
         {
             if (c.bytes < 8 || !s->header(s->context, &c, h))
                 return MM_PREVIEW_BUDGET_HEADER;
-            decoded = ((MMU32)h[4] << 24) | ((MMU32)h[5] << 16) | ((MMU32)h[6] << 8) | h[7];
+            decoded = mm_chunk_packed_decoded_length(h);
         }
         if (c.bytes > 64u * 1024 * 1024 || decoded > 64u * 1024 * 1024 || decoded > 512u * 1024 * 1024 - total)
         {

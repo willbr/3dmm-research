@@ -34,13 +34,17 @@ int main(int argc, char **argv)
     RecordHeader record;
     StringTablePage strings;
     MovieDirectory directory;
-    Check(!archive.Open("", error) && error.code == ErrorCode::invalid_path && !error.hasChunk);
+    const bool stream = argc == 6 && std::string(argv[5]) == "stream";
+    const auto open = [stream](Archive &input, const char *path, Error &error) {
+        return stream ? input.OpenForInspection(path, error) : input.Open(path, error);
+    };
+    Check(!open(archive, "", error) && error.code == ErrorCode::invalid_path && !error.hasChunk);
     Check(!archive.ReadPayload(0, 0, 16, payload, error) && error.code == ErrorCode::invalid_argument);
     Check(payload.bytes.empty());
     if (argc == 1)
         return 0; // Independent consumer needs no fixture or host callbacks.
-    Check(argc == 5);
-    Check(archive.Open(argv[1], error) && !error);
+    Check(argc == 6);
+    Check(open(archive, argv[1], error) && !error);
     Check(archive.Chunks().size() == 6 && archive.NameCodeUnitBits() == 8);
     const auto originalPath = archive.Path();
     const auto scene = Find(archive, "SCEN");
@@ -62,9 +66,9 @@ int main(int argc, char **argv)
     Check(!archive.ReadStrings(scene, 0, 128, strings, error) && error.code == ErrorCode::unsupported_format &&
           error.hasChunk);
     Check(error.chunk == archive.Chunks()[scene].id);
-    Check(!archive.Open("", error) && archive.Path() == originalPath && archive.Chunks().size() == 6);
+    Check(!open(archive, "", error) && archive.Path() == originalPath && archive.Chunks().size() == 6);
     Check(archive.ReadRecord(Find(archive, "MVIE"), record, error) && !error && record.kind == RecordKind::movie);
-    Check(archive.Open(argv[2], error));
+    Check(open(archive, argv[2], error));
     Check(!archive.ReadRecord(Find(archive, "SCEN"), record, error) && error.code == ErrorCode::corrupt_archive &&
           error.hasChunk);
     Check(record.kind == RecordKind::opaque);
@@ -74,18 +78,18 @@ int main(int argc, char **argv)
     Options limitedOptions;
     limitedOptions.maxDecodedBytes = 16;
     Archive limited(limitedOptions);
-    Check(limited.Open(argv[3], error));
+    Check(open(limited, argv[3], error));
     Check(!limited.ReadPayload(Find(limited, "ZZZZ"), 0, 16, payload, error) &&
           error.code == ErrorCode::resource_limit);
     Check(payload.bytes.empty() && error.hasChunk);
     Check(limited.ReadMovieDirectory(directory, error) && directory.scenes.size() == 1);
     Check(!limited.ReadPayload(Find(limited, "ZZZZ"), 0, 16, payload, error) &&
           error.code == ErrorCode::resource_limit);
-    Check(archive.Open(argv[3], error));
+    Check(open(archive, argv[3], error));
     Check(archive.ReadPayload(Find(archive, "ZZZZ"), 1000, 4096, payload, error));
     Check(payload.totalBytes == 1024 && payload.bytes.size() == 24);
     Check(std::all_of(payload.bytes.begin(), payload.bytes.end(), [](std::uint8_t b) { return b == 'a'; }));
-    Check(archive.Open(argv[4], error) && archive.Chunks().size() == 10);
+    Check(open(archive, argv[4], error) && archive.Chunks().size() == 10);
     Check(archive.ReadMovieDirectory(directory, error) && !directory.hasRoot &&
           directory.scenes.empty() && directory.sources.empty());
     Check(archive.ReadStrings(0, 0, 128, strings, error) && strings.totalEntries == 5);
@@ -109,7 +113,7 @@ int main(int argc, char **argv)
     Options stringLimit;
     stringLimit.maxStringTableBytes = 1;
     Archive limitedStrings(stringLimit);
-    Check(limitedStrings.Open(argv[4], error));
+    Check(open(limitedStrings, argv[4], error));
     for (auto i : {0u, 0u, 1u, 0u})
     {
         Check(!limitedStrings.ReadStrings(i, 0, 1, strings, error) && error.code == ErrorCode::resource_limit);

@@ -32,12 +32,18 @@ extern "C"
      * Current native byte order emits directly; opposite order uses a C scratch
      * buffer. Partial output remains on callback failure; ownership stays unchanged. */
     int mm_free_map_write(MMChunkFreeMap *, const MMStorageWriter *, int big_endian, int system);
+    typedef int (*MMChunkLegacyName)(void *, const char *, void *wire, MMU32 capacity, MMU32 *bytes);
+    enum { MM_CHUNK_NAME_WIRE_BYTES = 516 };
+    /* Names borrow index bytes or the caller's scratch for pre-v3 conversion. */
+    int mm_chunk_serialized_name(const MMChunkIndex *, MMU32 position, MMChunkLegacyName, void *context,
+                                  unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES],
+                                  const unsigned char **bytes, MMU32 *count);
     typedef struct MMChunkMaterializer
     {
         void *context;
         /* Input is bounded and zero-terminated by C. Host converts historical SZS
          * text into the existing String wire form, without normalizing encodings. */
-        int (*legacy_name)(void *, const char *, void *wire, MMU32 capacity, MMU32 *bytes);
+        MMChunkLegacyName legacy_name;
         int (*insert)(void *, MMU32 position, const MMChunkEntry *, const void *variable, MMU32 bytes);
     } MMChunkMaterializer;
     /* Owns reusable scratch storage. Child records are native U32 type/number/slot;

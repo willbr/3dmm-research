@@ -181,17 +181,43 @@ int mm_free_map_write(MMChunkFreeMap *map, const MMStorageWriter *writer, int bi
     mm_storage_dispose(&temporary);
     return result;
 }
+int mm_chunk_serialized_name(const MMChunkIndex *index, MMU32 position, MMChunkLegacyName convert, void *context,
+                              unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES],
+                              const unsigned char **out, MMU32 *count)
+{
+    const unsigned char *name;
+    char legacy[256];
+    MMU32 n;
+    if (mm_chunk_index_name(index, position, &name, &n) != MM_CHUNK_OK)
+        return MM_CHUNK_BAD_FILE;
+    if (mm_chunk_index_header(index)->version < 3 && n)
+    {
+        if (n >= sizeof(legacy))
+            n = 0;
+        else
+        {
+            memcpy(legacy, name, n);
+            legacy[n] = 0;
+            if (!convert || !convert(context, legacy, scratch, MM_CHUNK_NAME_WIRE_BYTES, &n) ||
+                n > MM_CHUNK_NAME_WIRE_BYTES)
+                return MM_CHUNK_BAD_FILE;
+            name = scratch;
+        }
+    }
+    *out = name;
+    *count = n;
+    return MM_CHUNK_OK;
+}
+
 int mm_chunk_materialize(MMChunkIndex *index, const MMChunkMaterializer *host,
-                               const MMStorageAllocator *allocator)
+                         const MMStorageAllocator *allocator)
 {
     MMCollectionStorage scratch;
     MMChunkAccess access;
     MMChunkEntry entry;
     MMChunkChild child;
-    const MMChunkHeader *header;
     const unsigned char *name;
-    unsigned char converted[516];
-    char legacy[256];
+    unsigned char converted[MM_CHUNK_NAME_WIRE_BYTES];
     MMU32 i, j, n, bytes;
     int result = MM_CHUNK_OK;
     if (!index || !host || !host->insert)
@@ -199,31 +225,13 @@ int mm_chunk_materialize(MMChunkIndex *index, const MMChunkMaterializer *host,
     if (mm_storage_init(&scratch, allocator) != MM_STORAGE_OK)
         return MM_CHUNK_BAD_FILE;
     access = mm_chunk_index_access(index);
-    header = mm_chunk_index_header(index);
     for (i = 0; i < access.count; ++i)
     {
         if (mm_chunk_at(&access, i, &entry) != MM_CHUNK_OK ||
-            mm_chunk_index_name(index, i, &name, &n) != MM_CHUNK_OK)
+            mm_chunk_serialized_name(index, i, host->legacy_name, host->context, converted, &name, &n) != MM_CHUNK_OK)
         {
             result = MM_CHUNK_BAD_FILE;
             goto done;
-        }
-        if (header->version < 3 && n)
-        {
-            if (n >= sizeof(legacy))
-                n = 0;
-            else
-            {
-                memcpy(legacy, name, n);
-                legacy[n] = 0;
-                if (!host->legacy_name || !host->legacy_name(host->context, legacy, converted, sizeof(converted), &n) ||
-                    n > sizeof(converted))
-                {
-                    result = MM_CHUNK_BAD_FILE;
-                    goto done;
-                }
-                name = converted;
-            }
         }
         bytes = entry.child_count * 12 + n;
         if (mm_storage_ensure(&scratch, bytes, 0, 0) != MM_STORAGE_OK)

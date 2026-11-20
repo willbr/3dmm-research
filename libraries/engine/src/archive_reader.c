@@ -3,6 +3,8 @@
 #include "mm/archive_reader.h"
 #include "mm/actor_data.h"
 #include "mm/scene_data.h"
+#include "mm/string_ops.h"
+#include "mm/string_wire.h"
 #include "mm/text.h"
 #include "mm/text_store.h"
 #include <stdlib.h>
@@ -20,6 +22,10 @@ struct MMArchiveReader
     MMArchiveReaderOptions options;
     MMChunkPayloadCache payload;
     MMBlockIO io;
+    MMChunkIndex *index;
+    MMReadStream wire;
+    MMChunkStreamPayload decoded;
+    MMU32 decoded_position;
     MMMovieStringTable *strings;
     int string_status;
     MMMovieSession *movie;
@@ -39,13 +45,25 @@ static int accept_read(void *context)
     return !reader->options.accept || reader->options.accept(reader->options.context);
 }
 
+static MMArchiveReader *allocate_reader(const MMArchiveReaderOptions *options)
+{
+    MMArchiveReader *reader = (MMArchiveReader *)calloc(1, sizeof(*reader));
+    if (reader)
+    {
+        reader->options = *options;
+        reader->string_status = -1;
+        reader->decoded_position = 0xffffffffUL;
+    }
+    return reader;
+}
+
 int mm_archive_reader_open(const MMChunkAccess *chunks, void *archive, const MMChunkPayloadServices *services,
                            const MMArchiveReaderOptions *options, MMArchiveReader **out)
 {
     MMArchiveReader *reader;
     if (!chunks || !archive || !options || !out || !mm_chunk_keys_ordered(chunks))
         return MM_ARCHIVE_INVALID_PAYLOAD;
-    reader = (MMArchiveReader *)calloc(1, sizeof(*reader));
+    reader = allocate_reader(options);
     if (!reader)
         return MM_ARCHIVE_MEMORY;
     if (mm_chunk_payload_cache_init(&reader->payload, services) != MM_CHUNK_PAYLOAD_OK)
@@ -55,8 +73,40 @@ int mm_archive_reader_open(const MMChunkAccess *chunks, void *archive, const MMC
     }
     reader->archive = archive;
     reader->chunks = *chunks;
-    reader->options = *options;
-    reader->string_status = -1;
+    *out = reader;
+    return MM_ARCHIVE_READ_OK;
+}
+
+int mm_archive_reader_open_stream(const MMReadStream *stream, const MMChunkPolicy *policy,
+                                  const MMArchiveReaderOptions *options, MMArchiveReader **out)
+{
+    MMArchiveReader *reader;
+    MMChunkIndex *index;
+    MMChunkAccess chunks;
+    int status;
+    if (!options || !out)
+        return MM_ARCHIVE_INVALID_PAYLOAD;
+    status = mm_chunk_index_open(stream, policy, &index);
+    if (status != MM_CHUNK_OK)
+        return status == MM_CHUNK_MEMORY ? MM_ARCHIVE_MEMORY : MM_ARCHIVE_INVALID_PAYLOAD;
+    chunks = mm_chunk_index_access(index);
+    status = mm_chunk_keys_ordered(&chunks) ?
+                 mm_chunk_validate_graph(&chunks, policy->expanded_runtime ? MM_STORAGE_LIMIT : 65535UL) :
+                 MM_CHUNK_BAD_FILE;
+    if (status != MM_CHUNK_OK)
+    {
+        mm_chunk_index_close(index);
+        return status == MM_CHUNK_MEMORY ? MM_ARCHIVE_MEMORY : MM_ARCHIVE_INVALID_PAYLOAD;
+    }
+    reader = allocate_reader(options);
+    if (!reader)
+    {
+        mm_chunk_index_close(index);
+        return MM_ARCHIVE_MEMORY;
+    }
+    reader->wire = *stream;
+    reader->index = index;
+    reader->chunks = chunks;
     *out = reader;
     return MM_ARCHIVE_READ_OK;
 }
@@ -67,7 +117,13 @@ void mm_archive_reader_close(MMArchiveReader *reader)
     {
         mm_movie_session_close(reader->movie);
         clear_strings(reader);
-        mm_chunk_payload_cache_clear(&reader->payload);
+        if (reader->index)
+        {
+            free(reader->decoded.decoded);
+            mm_chunk_index_close(reader->index);
+        }
+        else
+            mm_chunk_payload_cache_clear(&reader->payload);
         free(reader);
     }
 }
@@ -80,13 +136,55 @@ MMChunkAccess mm_archive_reader_access(const MMArchiveReader *reader)
 int mm_archive_reader_read_stored(const MMArchiveReader *reader, const MMChunkEntry *entry,
                                   void *bytes, MMU32 count)
 {
+    MMReadSlice slice;
+    if (reader->index)
+        return mm_chunk_stored_slice(&reader->wire, mm_chunk_index_header(reader->index), entry, &slice) &&
+               mm_read_exact(&slice.stream, 0, bytes, count);
     return mm_chunk_read_stored(reader->payload.services, reader->archive, entry->type, entry->number, bytes, count);
+}
+
+static int read_wire_payload(MMArchiveReader *reader, MMU32 position, const MMChunkEntry *entry, MMReadStream *out)
+{
+    MMU32 limit = reader->options.max_packed_bytes;
+    unsigned char prefix[8];
+    int packed = (entry->flags & MM_CHUNK_PACKED) != 0, status;
+    if (reader->decoded_position != position)
+    {
+        clear_strings(reader);
+        free(reader->decoded.decoded);
+        reader->decoded.decoded = NULL;
+        reader->decoded_position = 0xffffffffUL;
+        if (packed)
+        {
+            if (!mm_archive_reader_read_stored(reader, entry, prefix, sizeof(prefix)))
+                return MM_ARCHIVE_BAD_PACKED_HEADER;
+            if (entry->bytes > limit || mm_chunk_packed_decoded_length(prefix) > limit)
+                return MM_ARCHIVE_PACKED_LIMIT;
+        }
+        status = mm_chunk_payload_open(&reader->wire, mm_chunk_index_header(reader->index), entry, 0, limit,
+                                       &reader->decoded);
+        if (status == MM_CHUNK_MEMORY)
+            return MM_ARCHIVE_MEMORY;
+        if (status != MM_CHUNK_OK)
+            return packed ? MM_ARCHIVE_DECODE_FAILED : MM_ARCHIVE_INVALID_PAYLOAD;
+        if (!accept_read(reader))
+        {
+            free(reader->decoded.decoded);
+            reader->decoded.decoded = NULL;
+            return MM_ARCHIVE_INVALID_PAYLOAD;
+        }
+        reader->decoded_position = position;
+    }
+    *out = *reader->decoded.stream;
+    return MM_ARCHIVE_READ_OK;
 }
 
 static int read_payload(MMArchiveReader *reader, MMU32 position, const MMChunkEntry *entry, MMReadStream *out)
 {
     MMChunkPayloadCacheCallbacks callbacks;
     int status;
+    if (reader->index)
+        return read_wire_payload(reader, position, entry, out);
     callbacks.context = reader;
     callbacks.invalidate = clear_strings;
     callbacks.accept = accept_read;
@@ -273,16 +371,73 @@ static int graph_payload(void *context, const MMChunkEntry *entry, MMMovieReceiv
     MMArchiveReader *reader = (MMArchiveReader *)context;
     MMReadStream stream;
     MMU32 position;
-    if (mm_chunk_find(&reader->chunks, entry->type, entry->number, &position) != MM_CHUNK_OK ||
-        read_payload(reader, position, entry, &stream) != MM_ARCHIVE_READ_OK)
+    int status;
+    if (mm_chunk_find(&reader->chunks, entry->type, entry->number, &position) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
+    status = read_payload(reader, position, entry, &stream);
+    if (status != MM_ARCHIVE_READ_OK)
+        return status == MM_ARCHIVE_MEMORY ? MM_MOVIE_MEMORY : MM_MOVIE_BAD_FILE;
     return receive(out, &stream);
+}
+
+static int legacy_name(void *context, const char *text, void *out, MMU32 capacity, MMU32 *count)
+{
+    const MMArchiveReader *reader = (const MMArchiveReader *)context;
+    const unsigned short order = 1;
+    unsigned short characters[MM_STRING_MAX + 2];
+    MMStringValue value = {0};
+    MMStringWire wire = {0};
+    wire.current_encoding = reader->options.encoding;
+    wire.native_big_endian = *(const unsigned char *)&order == 0;
+    value.buffer = wire.buffer = characters;
+    value.unit = wire.unit = wire.current_encoding == MM_TEXT_UTF16_LE ||
+                             wire.current_encoding == MM_TEXT_UTF16_BE ? 2 : 1;
+    mm_string_from_ansi(&value, NULL, text, strlen(text));
+    if (!mm_string_wire_get(&wire, out, capacity))
+        return 0;
+    *count = mm_string_wire_size(&wire);
+    return 1;
+}
+
+int mm_archive_reader_name(MMArchiveReader *reader, MMU32 position, MMReadReceiver receive, void *out)
+{
+    MMChunkEntry entry;
+    if (reader->index)
+    {
+        unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES];
+        const unsigned char *bytes;
+        MMU32 count;
+        MMMemoryStream stream;
+        MMChunkLegacyName convert = reader->options.legacy_name ? reader->options.legacy_name : legacy_name;
+        void *context = reader->options.legacy_name ? reader->options.context : reader;
+        if (mm_chunk_serialized_name(reader->index, position, convert, context, scratch, &bytes, &count) != MM_CHUNK_OK ||
+            !count || !mm_memory_stream_init(&stream, bytes, count))
+            return MM_MOVIE_BAD_FILE;
+        return receive(out, &stream.stream);
+    }
+    if (!reader->options.name || mm_chunk_at(&reader->chunks, position, &entry) != MM_CHUNK_OK)
+        return MM_MOVIE_BAD_FILE;
+    return reader->options.name(reader->archive, &entry, receive, out);
 }
 
 static int graph_name(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
 {
-    const MMArchiveReader *reader = (const MMArchiveReader *)context;
-    return reader->options.name ? reader->options.name(reader->archive, entry, receive, out) : MM_MOVIE_BAD_FILE;
+    MMArchiveReader *reader = (MMArchiveReader *)context;
+    MMU32 position;
+    if (mm_chunk_find(&reader->chunks, entry->type, entry->number, &position) != MM_CHUNK_OK)
+        return MM_MOVIE_BAD_FILE;
+    return mm_archive_reader_name(reader, position, receive, out);
+}
+
+MMMovieSessionGraph mm_archive_reader_graph(MMArchiveReader *reader)
+{
+    MMMovieSessionGraph graph;
+    graph.context = reader;
+    graph.access = graph_access;
+    graph.read = graph_read;
+    graph.payload = graph_payload;
+    graph.name = graph_name;
+    return graph;
 }
 
 static int directory_sources(MMArchiveReader *reader, const MMMovieSession *movie, const MMArchiveDirectorySink *sink,
@@ -356,11 +511,7 @@ int mm_archive_reader_directory(MMArchiveReader *reader, const MMArchiveDirector
     error->payload_status = MM_ARCHIVE_READ_OK;
     if (!movie)
     {
-        graph.context = reader;
-        graph.access = graph_access;
-        graph.read = graph_read;
-        graph.payload = graph_payload;
-        graph.name = graph_name;
+        graph = mm_archive_reader_graph(reader);
         status = mm_movie_session_open_graph(&graph, error, &error->root, &movie);
         if (status == MM_MOVIE_ROOT_NOT_FOUND)
             return MM_ARCHIVE_DIRECTORY_OK;
