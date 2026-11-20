@@ -291,6 +291,54 @@ int mm_command_macro_after(const MMCommandMacro *macro, const MMCommandMacroRule
     return MM_MACRO_IGNORE;
 }
 
+int mm_command_admit_next(MMCommandDispatch *dispatch, const MMCommandMacro *macro,
+                          const MMCommandMacroRules *rules, const MMCommandAdmission *s)
+{
+    MMQueuedCommand next;
+    int status;
+    if (mm_commands_take(dispatch, &next))
+        s->publish(s->context, &next);
+    else
+    {
+        s->publish(s->context, NULL);
+        if (!s->track)
+            return MM_COMMAND_INPUT_EMPTY;
+        status = s->track(s->context);
+        if (status != MM_COMMAND_INPUT_READY)
+            return status;
+    }
+
+    if (macro->mode == MM_MACRO_PLAYING)
+    {
+        status = s->discard_group(s->context);
+        if (status < 0)
+            return status;
+        if (mm_command_macro_replaces(macro, rules, s->id(s->context)))
+        {
+            status = s->replay(s->context);
+            if (status <= 0)
+                return status < 0 ? status : MM_COMMAND_INPUT_FILTER;
+        }
+    }
+
+    status = s->allowed(s->context);
+    if (status)
+        return status < 0 ? status : MM_COMMAND_INPUT_READY;
+    status = s->reject(s->context);
+    if (status < 0)
+        return status;
+    status = s->discard_group(s->context);
+    return status < 0 ? status : MM_COMMAND_INPUT_FILTER;
+}
+
+int mm_command_admit_key(MMCommandDispatch *dispatch, const MMCommandMacro *macro, MMI32 key_id,
+                         MMQueuedCommand *key)
+{
+    if (macro->mode != MM_MACRO_IDLE)
+        return -1;
+    return mm_commands_take_key(dispatch, key_id, key);
+}
+
 static int native_big_endian(void)
 {
     const unsigned short one = 1;

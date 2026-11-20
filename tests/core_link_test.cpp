@@ -660,6 +660,7 @@ class DispatchProbe : public CommandHandler
     std::vector<int> &trace;
     int number;
     bool consume;
+    bool sawGroup = false;
     DispatchProbe *remove = nullptr;
     DispatchProbe *insert = nullptr;
 
@@ -669,6 +670,7 @@ class DispatchProbe : public CommandHandler
     bool FDoCmd(PCommand command) override
     {
         trace.push_back(100 * number + command->rglw[0]);
+        sawGroup = command->pgg != pvNil;
         if (remove)
         {
             vpcex->RemoveCmh(remove, 10);
@@ -832,6 +834,87 @@ static void TestCommandHandlerBindings()
     ReleasePpo(&probe);
 }
 
+class CommandInputProbe : public CommandExecutionManager
+{
+  public:
+    PCommandHandler blocked = pvNil, tracked = pvNil;
+    tribool trackingResult = tYes;
+    int trackCalls = 0, keyCalls = 0, rejections = 0;
+
+    bool Init() { return _FInit(4, 4); }
+
+    void SetTracking(PCommandHandler handler)
+    {
+        tracked = handler;
+        // The headless adapter only uses this marker to decide whether to sample.
+        _pgobTrack = reinterpret_cast<PGraphicsObject>(handler);
+    }
+
+  protected:
+    tribool _TGetTrackingMouseCmd() override
+    {
+        ++trackCalls;
+        _cmdCur.cid = cidTrackMouse;
+        _cmdCur.pcmh = tracked;
+        _cmdCur.rglw[0] = 7;
+        return trackingResult;
+    }
+
+    bool _FGetKeyFromOs(PCommand command) override
+    {
+        ++keyCalls;
+        *command = {};
+        command->cid = cidKey;
+        command->rglw[0] = 9;
+        return true;
+    }
+
+    bool _FCmhModalOk(PCommandHandler handler) override { return !blocked || handler != blocked; }
+
+    void _BadModalCmd(PCommand command) override
+    {
+        Check(command->pcmh == blocked && command->pgg && command->pgg->CactRef() == 2);
+        ++rejections;
+    }
+};
+
+static void TestCommandInput()
+{
+    std::vector<int> trace;
+    auto manager = NewObj CommandInputProbe;
+    auto filter = NewObj DispatchProbe(trace, 1);
+    auto target = NewObj DispatchProbe(trace, 2, true);
+    Check(manager && filter && target && manager->Init());
+    Check(manager->FAddCmh(filter, 0, kgrfcmmAll));
+    Check(!manager->FDispatchNextCmd());
+    Command key;
+    Check(manager->FGetNextKey(&key) && key.cid == cidKey && key.rglw[0] == 9);
+
+    manager->SetTracking(target);
+    manager->EnqueueCid(cidIdle, target, pvNil, 3);
+    Check(!manager->FGetNextKey(&key) && manager->keyCalls == 1);
+    Check(manager->FDispatchNextCmd() && manager->trackCalls == 0);
+    Check(manager->FDispatchNextCmd() && manager->trackCalls == 1);
+    manager->trackingResult = tMaybe;
+    Check(manager->FDispatchNextCmd() && manager->trackCalls == 2);
+    manager->SetTracking(pvNil);
+    Check(!manager->FDispatchNextCmd());
+    Check(trace == std::vector<int>({103, 203, 107, 207, 107, 207}));
+
+    manager->blocked = target;
+    auto group = GeneralGroup::PggNew(0);
+    Check(group != pvNil);
+    group->AddRef();
+    manager->EnqueueCid(cidIdle, target, group, 8);
+    Check(manager->FDispatchNextCmd() && manager->rejections == 1);
+    Check((trace.size)() == 7 && trace.back() == 108 && !filter->sawGroup && group->CactRef() == 1);
+    Check(manager->GrfedsForCid(cidIdle, target) == fedsDisable);
+    ReleasePpo(&group);
+    ReleasePpo(&manager);
+    ReleasePpo(&target);
+    ReleasePpo(&filter);
+}
+
 static void TestCommandReplay()
 {
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
@@ -902,6 +985,14 @@ static void TestCommandReplay()
     vpcex->FlushCid(cidCexPlayDone);
     vpcex->Play(file, recorded.cno);
     Check(vpcex->FPlaying());
+    auto incoming = GeneralGroup::PggNew(0);
+    Check(incoming != pvNil);
+    incoming->AddRef();
+    vpcex->EnqueueCid(cidIdle, pvNil, incoming);
+    Command ignoredKey;
+    Check(!vpcex->FGetNextKey(&ignoredKey));
+    Check(vpcex->FDispatchNextCmd() && incoming->CactRef() == 1 && s_replayTarget->calls == 1);
+    ReleasePpo(&incoming);
     for (LegacyLong attempt = 0; attempt < 8 && vpcex->FPlaying(); ++attempt)
     {
         vpcex->EnqueueCid(cidIdle);
@@ -4826,6 +4917,7 @@ int main()
     Check(vpcex != pvNil);
     TestCommandDispatch();
     TestCommandHandlerBindings();
+    TestCommandInput();
     TestCommandReplay();
     PClock clock = NewObj Clock(1000);
     Check(clock != pvNil);

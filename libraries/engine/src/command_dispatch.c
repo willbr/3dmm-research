@@ -271,11 +271,27 @@ void mm_commands_remove_filter(MMCommandDispatch *dispatch, void *handler, MMI32
     }
 }
 
+int mm_command_modal_allows(void *modal, void *target, MMCommandParent parent)
+{
+    if (!modal || !target)
+        return 1;
+    for (; target; target = parent(target))
+        if (target == modal)
+            return 1;
+    return 0;
+}
+
+static int send_to(const MMCommandRoute *route, void *context, void *handler)
+{
+    int allowed = route->allowed ? route->allowed(context, handler) : 1;
+    return allowed > 0 ? route->send(context, handler) : allowed;
+}
+
 int mm_commands_route(MMCommandDispatch *dispatch, void *context, const MMCommandRoute *route)
 {
     MMCommandFilter filter;
     void *target;
-    int status;
+    int status, discarded;
     if (dispatch->dispatching)
         return 0;
     dispatch->dispatching = 1;
@@ -288,13 +304,13 @@ int mm_commands_route(MMCommandDispatch *dispatch, void *context, const MMComman
         {
             entry_at(&dispatch->filters, dispatch->next_filter++, &filter);
             if (filter.mask & mm_command_target_mask(filter.handler, route->target(context)))
-                status = route->send(context, filter.handler);
+                status = send_to(route, context, filter.handler);
         }
         if (!status)
         {
             target = route->target(context);
             if (target)
-                status = route->send(context, target);
+                status = send_to(route, context, target);
         }
         if (status >= 0)
         {
@@ -303,8 +319,21 @@ int mm_commands_route(MMCommandDispatch *dispatch, void *context, const MMComman
                 status = 1;
         }
     }
+    if (status && route->discard_group)
+    {
+        discarded = route->discard_group(context);
+        if (status > 0 && discarded < 0)
+            status = discarded;
+    }
     dispatch->dispatching = 0;
     return status;
+}
+
+static int enable_at(const MMCommandEnable *query, void *context, void *handler, MMU32 *flags)
+{
+    int allowed = query->allowed ? query->allowed(context, handler) : 1;
+    *flags = 0;
+    return allowed > 0 ? query->enable(context, handler, flags) : allowed;
 }
 
 int mm_commands_enable(const MMCommandDispatch *dispatch, void *context, const MMCommandEnable *query,
@@ -317,12 +346,11 @@ int mm_commands_enable(const MMCommandDispatch *dispatch, void *context, const M
     for (index = 0; index < count && index < dispatch->filters.count; ++index)
     {
         entry_at(&dispatch->filters, index, &filter);
-        *flags = 0;
-        status = query->enable(context, filter.handler, flags);
+        status = enable_at(query, context, filter.handler, flags);
         if (status)
             return status;
     }
     target = query->target(context);
     *flags = 0;
-    return target ? query->enable(context, target, flags) : 0;
+    return target ? enable_at(query, context, target, flags) : 0;
 }

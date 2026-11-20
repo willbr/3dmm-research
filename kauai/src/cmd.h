@@ -228,10 +228,7 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     void _QueueCommand(PCommand, bool atHead);
 
     virtual bool _FCmhOk(PCommandHandler pcmh);
-    virtual tribool _TGetNextCmd(void);
-    virtual bool _FSendCmd(PCommandHandler pcmh);
-    virtual void _CleanUpCmd(void);
-    virtual bool _FEnableCmd(PCommandHandler pcmh, PCommand pcmd, LegacyUlong *pgrfeds);
+    void _FinishMacroCommand(void);
 
     /* Seam virtuals for the cmd_core split (Task 2 of plan
        2026-05-02-cmd-core-split.md). Defaults are headless-safe; the

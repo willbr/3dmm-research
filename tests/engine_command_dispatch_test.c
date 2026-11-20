@@ -18,6 +18,7 @@ typedef struct Fixture
     MMQueuedCommand current;
     int handlers[4];
     int trace[16], count, finished, released, fail_send, refuse_growth, live_buffers;
+    int blocked, discard_error;
 } Fixture;
 
 static void *resize(void *context, void *buffer, MMU32 old_bytes, MMU32 bytes, int priority)
@@ -69,12 +70,26 @@ static int finish(void *context)
 {
     Fixture *f = (Fixture *)context;
     ++f->finished;
-    if (f->current.group)
-        release_group(f, f->current.group);
     return 0;
 }
 
-static const MMCommandRoute route = {prepare, target, send, finish};
+static int allowed(void *context, void *handler)
+{
+    return *(int *)handler != ((Fixture *)context)->blocked;
+}
+
+static int discard(void *context)
+{
+    Fixture *f = (Fixture *)context;
+    if (f->current.group)
+    {
+        release_group(f, f->current.group);
+        f->current.group = NULL;
+    }
+    return f->discard_error;
+}
+
+static const MMCommandRoute route = {prepare, target, send, finish, allowed, discard};
 
 static int send(void *context, void *handler)
 {
@@ -180,17 +195,41 @@ static void test_ids(void)
     CHECK(mm_command_id_allocate(&last, 1, NULL, NULL, &first) == 1 && first == -2147483644L);
 }
 
+typedef struct Node
+{
+    struct Node *parent;
+} Node;
+
+static void *parent(void *object)
+{
+    return ((Node *)object)->parent;
+}
+
+static void test_modal_tree(void)
+{
+    Node root = {0}, modal = {0}, child = {0}, sibling = {0};
+    modal.parent = sibling.parent = &root;
+    child.parent = &modal;
+    CHECK(mm_command_modal_allows(NULL, &sibling, parent));
+    CHECK(mm_command_modal_allows(&modal, NULL, parent));
+    CHECK(mm_command_modal_allows(&modal, &modal, parent));
+    CHECK(mm_command_modal_allows(&modal, &child, parent));
+    CHECK(!mm_command_modal_allows(&modal, &root, parent));
+    CHECK(!mm_command_modal_allows(&modal, &sibling, parent));
+}
+
 int main(void)
 {
     Fixture f = {0};
     MMStorageAllocator allocator = {0, resize, free_buffer};
-    MMCommandEnable query = {target, enable};
+    MMCommandEnable query = {target, enable, allowed};
     MMQueuedCommand command = {0}, removed;
     MMU32 flags;
     int first_group = 1, second_group = 2, dispatch_group = 3, close_group = 4;
 
     test_map();
     test_ids();
+    test_modal_tree();
     allocator.context = &f;
     CHECK(mm_commands_init(&f.dispatch, &allocator, 1));
     f.refuse_growth = 1;
@@ -227,23 +266,28 @@ int main(void)
     f.count = 0;
     CHECK(mm_commands_enable(&f.dispatch, &f, &query, &flags) == 1 && flags == 8);
     CHECK(f.count == 2 && f.trace[0] == 2 && f.trace[1] == 4);
+    f.blocked = 4;
+    CHECK(mm_commands_enable(&f.dispatch, &f, &query, &flags) == 0 && flags == 0);
+    CHECK(f.count == 4 && f.trace[2] == 2 && f.trace[3] == 3);
+    f.blocked = 0;
 
     command.group = 0;
     CHECK(mm_commands_insert(&f.dispatch, &command, 0));
     CHECK(mm_commands_take_key(&f.dispatch, 2, &removed) == 1 && removed.id == 2);
-    CHECK(mm_commands_insert(&f.dispatch, &command, 0));
-    f.fail_send = 1;
-    CHECK(mm_commands_route(&f.dispatch, &f, &route) == -7);
-    CHECK(f.finished == 1 && !f.dispatch.dispatching);
-    CHECK(mm_commands_route(&f.dispatch, &f, &route) == 0);
     command.group = &first_group;
     CHECK(mm_commands_insert(&f.dispatch, &command, 0));
+    f.fail_send = 1;
+    f.discard_error = -9;
+    CHECK(mm_commands_route(&f.dispatch, &f, &route) == -7);
+    CHECK(f.finished == 1 && !f.dispatch.dispatching && f.released == 3121 && !f.current.group);
+    CHECK(mm_commands_route(&f.dispatch, &f, &route) == 0);
+    CHECK(mm_commands_insert(&f.dispatch, &command, 0));
     CHECK(mm_commands_bury(&f.dispatch, &f.handlers[2], &f, release_group) == 0);
-    CHECK(f.released == 3121 && f.dispatch.filters.count == 2);
+    CHECK(f.released == 31211 && f.dispatch.filters.count == 2);
     command.target = 0;
     command.group = &close_group;
     CHECK(mm_commands_insert(&f.dispatch, &command, 0));
     CHECK(mm_commands_dispose(&f.dispatch, &f, release_group) == 0);
-    CHECK(f.released == 31214 && f.live_buffers == 0);
+    CHECK(f.released == 312114 && f.live_buffers == 0);
     return EXIT_SUCCESS;
 }

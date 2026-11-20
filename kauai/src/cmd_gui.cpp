@@ -53,9 +53,8 @@ bool GuiCommandExecutionManager::_FGetKeyFromOs(PCommand pcmd)
 }
 
 /***************************************************************************
-    Synthesize a tracking-mouse command when the queue is empty and a
-    gob is tracking. This is the body that used to live inline in
-    CommandExecutionManager::_TGetNextCmd.
+    Synthesize a tracking-mouse command when the dispatcher requests a
+    sample from the GUI adapter.
 ***************************************************************************/
 tribool GuiCommandExecutionManager::_TGetTrackingMouseCmd(void)
 {
@@ -74,9 +73,7 @@ tribool GuiCommandExecutionManager::_TGetTrackingMouseCmd(void)
 
     if (!vpappb->FForeground())
     {
-        // if we're not in the foreground, toggle the state of fcustMouse
-        // repeatedly so most clients stop tracking. (Same comment as the
-        // original _TGetNextCmd body.)
+        // Toggle fcustMouse in the background so clients can stop tracking.
         static bool _fDown;
 
         _fDown = !_fDown;
@@ -99,26 +96,16 @@ void GuiCommandExecutionManager::_BadModalCmd(PCommand pcmd)
 }
 
 /***************************************************************************
-    Modal-gob walk: only allow commands targeting the modal gob's
-    subtree. Pulled out of CommandExecutionManager::_FCmhOk by the
-    cmd_core split because it dereferences PGraphicsObject (FIs +
-    PgobPar) which the base TU doesn't have visibility for.
+    Resolve the target as a graphics object for the C89 modal tree check.
 ***************************************************************************/
 bool GuiCommandExecutionManager::_FCmhModalOk(PCommandHandler pcmh)
 {
     AssertNilOrPo(pcmh, 0);
-    PGraphicsObject pgob;
-
-    if (pvNil == _pgobModal || pvNil == pcmh || !pcmh->FIs(kclsGraphicsObject))
-        return fTrue;
-
-    for (pgob = (PGraphicsObject)pcmh; pgob != _pgobModal; pgob = pgob->PgobPar())
-    {
-        if (pvNil == pgob)
-            return fFalse;
-    }
-
-    return fTrue;
+    auto target = (_pgobModal && pcmh && pcmh->FIs(kclsGraphicsObject))
+        ? static_cast<PGraphicsObject>(pcmh) : nullptr;
+    return mm_command_modal_allows(_pgobModal, target, [](void *object) -> void * {
+        return static_cast<PGraphicsObject>(object)->PgobPar();
+    }) != 0;
 }
 
 /***************************************************************************

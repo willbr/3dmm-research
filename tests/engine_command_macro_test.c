@@ -146,6 +146,128 @@ static int done(void *context, int mode, int error, MMU32 number)
 
 static const MMCommandMacroRules rules = {113, 114, 400, 600, 200, 400};
 
+typedef struct InputProbe
+{
+    MMQueuedCommand current;
+    char trace[16];
+    int count, track_result, play_result, modal_ok;
+} InputProbe;
+
+static void trace_input(InputProbe *probe, char step)
+{
+    CHECK(probe->count < (int)sizeof(probe->trace) - 1);
+    probe->trace[probe->count++] = step;
+    probe->trace[probe->count] = 0;
+}
+
+static void publish_input(void *context, const MMQueuedCommand *command)
+{
+    InputProbe *probe = (InputProbe *)context;
+    static const MMQueuedCommand empty = {0};
+    trace_input(probe, 'P');
+    probe->current = command ? *command : empty;
+}
+
+static int track_input(void *context)
+{
+    InputProbe *probe = (InputProbe *)context;
+    trace_input(probe, 'T');
+    probe->current.id = 22;
+    return probe->track_result;
+}
+
+static MMI32 input_id(void *context)
+{
+    return ((InputProbe *)context)->current.id;
+}
+
+static int discard_input(void *context)
+{
+    InputProbe *probe = (InputProbe *)context;
+    trace_input(probe, 'D');
+    probe->current.group = NULL;
+    return 0;
+}
+
+static int replay_input(void *context)
+{
+    InputProbe *probe = (InputProbe *)context;
+    trace_input(probe, 'R');
+    CHECK(!probe->current.group);
+    probe->current.id = 23;
+    return probe->play_result;
+}
+
+static int allow_input(void *context)
+{
+    InputProbe *probe = (InputProbe *)context;
+    trace_input(probe, 'A');
+    return probe->modal_ok;
+}
+
+static int reject_input(void *context)
+{
+    InputProbe *probe = (InputProbe *)context;
+    trace_input(probe, 'N');
+    CHECK(probe->current.group != NULL);
+    return 0;
+}
+
+static void test_admission(void)
+{
+    InputProbe probe = {0};
+    MMCommandDispatch dispatch;
+    MMCommandMacro macro;
+    MMQueuedCommand command = {0}, key;
+    MMCommandAdmission services = {0, publish_input, 0, input_id, discard_input, replay_input, allow_input,
+                                   reject_input};
+    services.context = &probe;
+    CHECK(mm_commands_init(&dispatch, NULL, 1));
+    CHECK(mm_command_macro_init(&macro, NULL, 1));
+    CHECK(mm_command_admit_next(&dispatch, &macro, &rules, &services) == MM_COMMAND_INPUT_EMPTY);
+    CHECK(!strcmp(probe.trace, "P") && !probe.current.id);
+    probe.count = 0;
+    services.track = track_input;
+    probe.track_result = MM_COMMAND_INPUT_FILTER;
+    CHECK(mm_command_admit_next(&dispatch, &macro, &rules, &services) == MM_COMMAND_INPUT_FILTER);
+    CHECK(!strcmp(probe.trace, "PT") && probe.current.id == 22);
+
+    probe.count = 0;
+    command.id = 24;
+    command.group = &probe;
+    CHECK(mm_commands_insert(&dispatch, &command, 0));
+    CHECK(mm_command_admit_next(&dispatch, &macro, &rules, &services) == MM_COMMAND_INPUT_FILTER);
+    CHECK(!strcmp(probe.trace, "PAND") && !probe.current.group && probe.current.id == 24);
+
+    probe.count = 0;
+    probe.modal_ok = probe.play_result = 1;
+    macro.mode = MM_MACRO_PLAYING;
+    CHECK(mm_commands_insert(&dispatch, &command, 0));
+    CHECK(mm_command_admit_key(&dispatch, &macro, 24, &key) == -1);
+    CHECK(mm_command_admit_next(&dispatch, &macro, &rules, &services) == MM_COMMAND_INPUT_READY);
+    CHECK(!strcmp(probe.trace, "PDRA") && probe.current.id == 23);
+
+    probe.count = 0;
+    probe.play_result = 0;
+    CHECK(mm_commands_insert(&dispatch, &command, 0));
+    CHECK(mm_command_admit_next(&dispatch, &macro, &rules, &services) == MM_COMMAND_INPUT_FILTER);
+    CHECK(!strcmp(probe.trace, "PDR") && !probe.current.group);
+
+    probe.count = 0;
+    command.id = rules.stop_play;
+    CHECK(mm_commands_insert(&dispatch, &command, 0));
+    CHECK(mm_command_admit_next(&dispatch, &macro, &rules, &services) == MM_COMMAND_INPUT_READY);
+    CHECK(!strcmp(probe.trace, "PDA") && probe.current.id == rules.stop_play && !probe.current.group);
+
+    macro.mode = MM_MACRO_IDLE;
+    CHECK(mm_command_admit_key(&dispatch, &macro, command.id, &key) == 0);
+    command.group = NULL;
+    CHECK(mm_commands_insert(&dispatch, &command, 0));
+    CHECK(mm_command_admit_key(&dispatch, &macro, 24, &key) == -1);
+    CHECK(mm_command_admit_key(&dispatch, &macro, command.id, &key) == 1 && key.id == command.id);
+    CHECK(mm_commands_dispose(&dispatch, NULL, NULL) == 0);
+}
+
 static void test_replay(Fixture *f, const MMCommandMacroServices *s)
 {
     MMQueuedCommand input = {0}, output = {0};
@@ -242,6 +364,7 @@ int main(void)
                                       store_group, erase_group, read_group, lookup, done};
     services.context = &fixture;
     fixture.system = 0x0303;
+    test_admission();
     CHECK(mm_command_macro_init(&fixture.macro, 0, 1));
     test_replay(&fixture, &services);
     test_failures(&fixture, &services);

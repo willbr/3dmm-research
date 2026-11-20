@@ -69,6 +69,30 @@ void mm_command_macro_bury(MMCommandMacro *, const void *target);
 int mm_command_macro_replaces(const MMCommandMacro *, const MMCommandMacroRules *, MMI32 id);
 int mm_command_macro_after(const MMCommandMacro *, const MMCommandMacroRules *, MMI32 id);
 
+enum { MM_COMMAND_INPUT_EMPTY, MM_COMMAND_INPUT_READY, MM_COMMAND_INPUT_FILTER };
+
+typedef struct MMCommandAdmission
+{
+    void *context;
+    void (*publish)(void *, const MMQueuedCommand *);
+    int (*track)(void *);
+    MMI32 (*id)(void *);
+    int (*discard_group)(void *);
+    int (*replay)(void *);
+    int (*allowed)(void *);
+    int (*reject)(void *);
+} MMCommandAdmission;
+
+/* Admit the next queued command, or ask the optional tracker to synthesize
+ * one. Publish installs the group in the host's active command and receives
+ * NULL to clear it. Replay operates on that same native command. A masked
+ * command or exhausted replay returns INPUT_FILTER, which keeps the legacy
+ * filter pass and cleanup. Negative callback results abort admission. */
+int mm_command_admit_next(MMCommandDispatch *, const MMCommandMacro *, const MMCommandMacroRules *,
+                          const MMCommandAdmission *);
+/* While recording or replaying, suppress both queued and platform key reads. */
+int mm_command_admit_key(MMCommandDispatch *, const MMCommandMacro *, MMI32 key_id, MMQueuedCommand *);
+
 /* GLCM payload. The GL header supplies count, row width, byte order and
  * system. Replay accepts the local byte order and the supplied system code.
  * Rows use four 32-bit arguments and a separate optional GG child slot. */

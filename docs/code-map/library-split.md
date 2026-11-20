@@ -6287,8 +6287,25 @@ run newest first. The dispatcher adjusts the cursor when a handler adds or
 removes filters and rereads the active target after callbacks. Enable queries
 retain their separate rule of visiting filters without applying the routing
 mask. Burial clears pending commands for a destroyed handler and releases their
-groups. Native code supplies the typed active command, modal and tracking
-services, and member-function calls.
+groups. C89 also controls the modal checks for dispatch and enable queries,
+walks the requested graphics object's ancestry, and releases the active group
+after routing even if a handler fails. Native code supplies the typed active
+command, graphics parent access and member-function calls.
+
+The input sequence in `command_macro.c` uses queued commands before asking
+for a tracking sample. During macro playback it clears the live payload before
+substitution and passes the stop command through. Both recording and replay
+suppress key polling. Modal rejection reports the original command before
+releasing its group, then permits eligible filters to observe it. Each handler
+still passes its own modal check. Native callbacks handle platform samples,
+replay I/O and modal feedback.
+The native fixture preserves the order of queue, tracking and modal callbacks
+and checks payload disposal during rejection and replay. The C-only fixtures
+also check modal ancestry and cleanup after a failed handler. In playback suite
+`20261120T055541Z-57928d5c`, both ports matched the 60 retail frame identities
+and their own previous seek images. SDL matched all 12 retail sound requests.
+The authored pause held the same frame for 696 ms, compared with 705 ms in the
+earlier SDL capture and 732 ms in retail.
 
 The command map data starts with C89 binding records. The resolver searches
 derived and base tables for the first mask-compatible explicit binding, then

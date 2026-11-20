@@ -89,30 +89,39 @@ int mm_command_binding_enable(const MMCommandBinding *, int has_command, int has
 int mm_commands_add_filter(MMCommandDispatch *, void *handler, MMI32 level, MMU32 mask);
 void mm_commands_remove_filter(MMCommandDispatch *, void *handler, MMI32 level);
 
+typedef void *(*MMCommandParent)(void *target);
+/* A null target represents a command outside the graphics tree. */
+int mm_command_modal_allows(void *modal, void *target, MMCommandParent);
+
 typedef struct MMCommandRoute
 {
     int (*prepare)(void *context);
     void *(*target)(void *context);
     int (*send)(void *context, void *handler);
     int (*finish)(void *context);
+    int (*allowed)(void *context, void *handler);
+    int (*discard_group)(void *context);
 } MMCommandRoute;
 
 /* Host keeps the currently dispatched command in its native representation.
  * Prepare returns zero for empty or positive to route the prepared command.
- * Send returns positive if handled. Handler callbacks may change the target
- * or update filters and the queue. The route reloads the target after each
- * send. Negative callback results abort and are propagated. */
+ * The optional allowed callback screens each filter and final target. Send
+ * returns positive if handled. Handler callbacks may change the target or
+ * update filters and the queue. The route reloads the target after each send.
+ * The optional discard callback releases any current group after finish or
+ * a negative result. Preserve the first negative result across cleanup. */
 int mm_commands_route(MMCommandDispatch *, void *context, const MMCommandRoute *);
 
 typedef struct MMCommandEnable
 {
     void *(*target)(void *context);
     int (*enable)(void *context, void *handler, MMU32 *flags);
+    int (*allowed)(void *context, void *handler);
 } MMCommandEnable;
 
 /* Enable queries visit all filters regardless of target mask and then the
- * target. Return positive with flags if answered, zero if unhandled, or a
- * negative host error. */
+ * target. The optional allowed callback screens each candidate. Return
+ * positive with flags if answered, zero if unhandled, or a negative error. */
 int mm_commands_enable(const MMCommandDispatch *, void *context, const MMCommandEnable *, MMU32 *flags);
 
 #ifdef __cplusplus

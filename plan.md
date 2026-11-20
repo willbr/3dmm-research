@@ -839,8 +839,9 @@ clocks used by Studio movie and sound playback. It preserves tied alarm order,
 late delivery with optional clock slip, input resets and callback reentrancy.
 Native code supplies timestamps, allocation and command delivery.
 C89 also owns Kauai's pending command queue, ordered filters and filter cursor.
-The dispatcher routes commands and enable queries while native callbacks supply
-the active command, modal checks and mouse tracking. C89 owns Kauai's command
+The dispatcher admits queued, tracked and replayed commands, screens modal
+targets and releases command groups after routing. Native callbacks supply the
+typed active command, platform input and modal feedback. C89 owns Kauai's command
 macro rows, repeat and replay state, GLCM serialization, and archive transaction
 order. Native callbacks supply chunky blocks, GG objects and handler lookup.
 C89 also selects inherited command bindings and allocates consecutive dynamic

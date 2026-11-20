@@ -55,6 +55,13 @@ static Command NativeCommand(const MMQueuedCommand &cmd)
             {cmd.arguments[0], cmd.arguments[1], cmd.arguments[2], cmd.arguments[3]}};
 }
 
+static_assert(static_cast<int>(tNo) == MM_COMMAND_INPUT_EMPTY &&
+              static_cast<int>(tYes) == MM_COMMAND_INPUT_READY &&
+              static_cast<int>(tMaybe) == MM_COMMAND_INPUT_FILTER, "command admission results");
+static const MMCommandMacroRules kMacroRules = {
+    cidCexStopRec, cidCexStopPlay, cidMinNoRecord, cidLimNoRecord, cidMinNoRepeat, cidLimNoRepeat
+};
+
 struct CommandExecutionManager::DispatchHost : DocumentStorageHost
 {
     PCommandExecutionManager manager;
@@ -75,8 +82,71 @@ struct CommandExecutionManager::DispatchHost : DocumentStorageHost
     static int Prepare(void *context)
     {
         auto &host = *static_cast<DispatchHost *>(context);
-        // Native dispatch historically normalized the tri-state result to bool.
-        return host.Guard([&] { return host.manager->_TGetNextCmd() != tNo; });
+        auto manager = host.manager;
+        const MMCommandAdmission admission = {
+            &host, Publish, manager->_pgobTrack ? Track : nullptr, Id, Discard, Replay, CanAdmit, Reject
+        };
+        return mm_command_admit_next(&manager->_dispatch, &manager->_macro, &kMacroRules, &admission);
+    }
+
+    static void Publish(void *context, const MMQueuedCommand *command)
+    {
+        *static_cast<DispatchHost *>(context)->command = command ? NativeCommand(*command) : Command{};
+    }
+
+    static int Track(void *context)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        return host.Guard([&] { return host.manager->_TGetTrackingMouseCmd(); });
+    }
+
+    static MMI32 Id(void *context)
+    {
+        return static_cast<DispatchHost *>(context)->command->cid;
+    }
+
+    static int Discard(void *context)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        auto group = host.command->pgg;
+        if (!group)
+            return 0;
+        host.command->pgg = pvNil;
+        const auto original = host.exception;
+        const int originalStatus = host.status;
+        const int result = ReleaseGroup(context, group);
+        if (original)
+        {
+            host.exception = original;
+            host.status = originalStatus;
+        }
+        return result;
+    }
+
+    static int Replay(void *context)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        return host.Guard([&] { return host.manager->_FReadCmd(host.command); });
+    }
+
+    static int Allowed(void *context, void *handler)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        return host.Guard([&] { return host.manager->_FCmhOk(static_cast<PCommandHandler>(handler)); });
+    }
+
+    static int CanAdmit(void *context)
+    {
+        return Allowed(context, Target(context));
+    }
+
+    static int Reject(void *context)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        return host.Guard([&] {
+            host.manager->_BadModalCmd(host.command);
+            return 0;
+        });
     }
 
     static void *Target(void *context)
@@ -87,14 +157,18 @@ struct CommandExecutionManager::DispatchHost : DocumentStorageHost
     static int Send(void *context, void *handler)
     {
         auto &host = *static_cast<DispatchHost *>(context);
-        return host.Guard([&] { return host.manager->_FSendCmd(static_cast<PCommandHandler>(handler)); });
+        return host.Guard([&] {
+            auto target = static_cast<PCommandHandler>(handler);
+            AssertPo(target, 0);
+            return target->FDoCmd(host.command);
+        });
     }
 
     static int Finish(void *context)
     {
         auto &host = *static_cast<DispatchHost *>(context);
         return host.Guard([&] {
-            host.manager->_CleanUpCmd();
+            host.manager->_FinishMacroCommand();
             return 0;
         });
     }
@@ -104,16 +178,13 @@ struct CommandExecutionManager::DispatchHost : DocumentStorageHost
         auto &host = *static_cast<DispatchHost *>(context);
         return host.Guard([&] {
             LegacyUlong nativeFlags = fedsNil;
-            const bool handled = host.manager->_FEnableCmd(static_cast<PCommandHandler>(handler),
-                                                           host.command, &nativeFlags);
+            auto target = static_cast<PCommandHandler>(handler);
+            AssertPo(target, 0);
+            const bool handled = target->FEnableCmd(host.command, &nativeFlags);
             *flags = nativeFlags;
             return handled;
         });
     }
-};
-
-static const MMCommandMacroRules kMacroRules = {
-    cidCexStopRec, cidCexStopPlay, cidMinNoRecord, cidLimNoRecord, cidMinNoRepeat, cidLimNoRepeat
 };
 
 struct CommandExecutionManager::MacroHost : DocumentStorageHost
@@ -847,75 +918,9 @@ void CommandExecutionManager::FlushCid(LegacyLong cid)
 }
 
 /***************************************************************************
-    Get the next command to be dispatched (put it in _cmdCur). Return tYes
-    if there was a command and it should be dispatched. Return tNo if there
-    wasn't a command (if the system queue should be checked). Return tMaybe
-    if the command shouldn't be dispatched, but we shouldn't check the
-    system queue.
+    Apply any macro action after handlers have processed the command.
 ***************************************************************************/
-tribool CommandExecutionManager::_TGetNextCmd(void)
-{
-    AssertThis(0);
-
-    // get the next command from the command stream
-    MMQueuedCommand next;
-    if (mm_commands_take(&_dispatch, &next))
-        _cmdCur = NativeCommand(next);
-    else
-    {
-        ClearPb(&_cmdCur, size(_cmdCur));
-        if (pvNil == _pgobTrack)
-            return tNo;
-
-        /* Synthesize a tracking-mouse command. Headless default returns
-           tNo; gui override fills _cmdCur via vpappb. */
-        tribool tRet = _TGetTrackingMouseCmd();
-        if (tYes != tRet)
-            return tRet;
-    }
-    AssertPo(&_cmdCur, 0);
-
-    // handle playing and recording
-    if (FPlaying())
-    {
-        // We're playing back. Throw away the incoming command and play
-        // one from the stream.
-        ReleasePpo(&_cmdCur.pgg);
-
-        // let a cidCexStopPlay go through and handle it at the end.
-        // this is so a cmh can intercept it.
-        if (mm_command_macro_replaces(&_macro, &kMacroRules, _cmdCur.cid) && !_FReadCmd(&_cmdCur))
-            return tMaybe;
-    }
-
-    if (!_FCmhOk(_cmdCur.pcmh))
-    {
-        _BadModalCmd(&_cmdCur);
-        ReleasePpo(&_cmdCur.pgg);
-        return tMaybe;
-    }
-
-    return tYes;
-}
-
-/***************************************************************************
-    Send the command (_cmdCur) to the given command handler.
-***************************************************************************/
-bool CommandExecutionManager::_FSendCmd(PCommandHandler pcmh)
-{
-    AssertPo(pcmh, 0);
-
-    if (!_FCmhOk(pcmh))
-        return fFalse;
-
-    return pcmh->FDoCmd(&_cmdCur);
-}
-
-/***************************************************************************
-    Handle post processing on the command - record it if we're recording,
-    free the pgg, etc.
-***************************************************************************/
-void CommandExecutionManager::_CleanUpCmd(void)
+void CommandExecutionManager::_FinishMacroCommand(void)
 {
     // If the handler went away during command dispatching, we should
     // have heard about it (via BuryCmh) and should have set _cmdCur.pcmh
@@ -935,8 +940,6 @@ void CommandExecutionManager::_CleanUpCmd(void)
         StopRecording();
         break;
     }
-
-    ReleasePpo(&_cmdCur.pgg);
 }
 
 /***************************************************************************
@@ -959,27 +962,10 @@ bool CommandExecutionManager::FDispatchNextCmd(void)
     }
     DispatchHost host(this, &_cmdCur);
     const MMCommandRoute route = {DispatchHost::Prepare, DispatchHost::Target, DispatchHost::Send,
-                                  DispatchHost::Finish};
+                                  DispatchHost::Finish, DispatchHost::Allowed, DispatchHost::Discard};
     const int result = mm_commands_route(&_dispatch, &host, &route);
-    if (result < 0)
-        ReleasePpo(&_cmdCur.pgg);
     host.Rethrow();
     return result > 0;
-}
-
-/***************************************************************************
-    Give the handler a crack at enabling/disabling the command.
-***************************************************************************/
-bool CommandExecutionManager::_FEnableCmd(PCommandHandler pcmh, PCommand pcmd, LegacyUlong *pgrfeds)
-{
-    AssertPo(pcmh, 0);
-    AssertPo(pcmd, 0);
-    AssertVarMem(pgrfeds);
-
-    if (!_FCmhOk(pcmh))
-        return fFalse;
-
-    return pcmh->FEnableCmd(pcmd, pgrfeds);
 }
 
 /***************************************************************************
@@ -991,16 +977,14 @@ LegacyUlong CommandExecutionManager::GrfedsForCmd(PCommand pcmd)
     AssertThis(0);
     AssertPo(pcmd, 0);
     DispatchHost host(this, pcmd);
-    const MMCommandEnable query = {DispatchHost::Target, DispatchHost::Enable};
+    const MMCommandEnable query = {DispatchHost::Target, DispatchHost::Enable, DispatchHost::Allowed};
     MMU32 flags;
     const int handled = mm_commands_enable(&_dispatch, &host, &query, &flags);
     host.Rethrow();
     if (handled > 0)
         return flags;
-    if ((pcmd->cid == cidCexStopRec && FRecording()) ||
-        (pcmd->cid == cidCexStopPlay && FPlaying()))
-        return fedsEnable;
-    return fedsDisable;
+    const int action = mm_command_macro_after(&_macro, &kMacroRules, pcmd->cid);
+    return action == MM_MACRO_FINISH_RECORD || action == MM_MACRO_FINISH_PLAY ? fedsEnable : fedsDisable;
 }
 
 /***************************************************************************
@@ -1033,18 +1017,15 @@ bool CommandExecutionManager::FGetNextKey(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    if (_macro.mode == MM_MACRO_IDLE)
+    MMQueuedCommand key;
+    const int status = mm_command_admit_key(&_dispatch, &_macro, cidKey, &key);
+    if (status > 0)
     {
-        MMQueuedCommand key;
-        const int status = mm_commands_take_key(&_dispatch, cidKey, &key);
-        if (status > 0)
-        {
-            *pcmd = NativeCommand(key);
-            return fTrue;
-        }
-        if (status == 0)
-            return _FGetKeyFromOs(pcmd);
+        *pcmd = NativeCommand(key);
+        return fTrue;
     }
+    if (status == 0)
+        return _FGetKeyFromOs(pcmd);
     TrashVar(pcmd);
     return fFalse;
 }
