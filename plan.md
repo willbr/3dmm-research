@@ -145,6 +145,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   are linked before either previous group is removed. Studio's event
   tracks and Marcus's stored camera and caption edits use the same dense
   group writer, which preserves the requested byte order.
+- Studio's live scene serializer builds its temporary wire tracks directly
+  from the C-owned live tracks. The C89 transaction also allocates and
+  links actor, caption, sound and thumbnail chunks through the shared
+  archive editor. Studio supplies typed object serialization, tag
+  conversion and thumbnail rendering.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

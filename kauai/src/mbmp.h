@@ -16,6 +16,7 @@
 #ifndef MBMP_H
 #define MBMP_H
 #include "color.h"
+#include "mm/collection_storage.h"
 #include "mm/masked_bitmap.h"
 class Region;
 typedef Region *PRegion;
@@ -118,6 +119,7 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
     bool FPtIn(LegacyLong xp, LegacyLong yp);
 
     virtual bool FWrite(PDataBlock pblck);
+    bool FWriteStream(MMStorageWriter writer);
     virtual LegacyLong CbOnFile(void);
 
     // a chunky resource reader for an MaskedBitmapMBMP

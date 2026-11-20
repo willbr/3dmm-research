@@ -161,6 +161,17 @@ bool MaskedBitmapMBMP::FWrite(PDataBlock block)
     auto s = _Services();
     return mm_masked_write(&_bitmap, block, &s) != 0;
 }
+bool MaskedBitmapMBMP::FWriteStream(MMStorageWriter writer)
+{
+    AssertThis(0);
+    auto s = _Services();
+    s.size = [](void *, void *p, int) -> MMI32 { return static_cast<MMStorageWriter *>(p)->length; };
+    s.write = [](void *, void *p, const void *data, MMI32 bytes) -> int {
+        auto &output = *static_cast<MMStorageWriter *>(p);
+        return output.write_at(output.context, 0, data, bytes);
+    };
+    return mm_masked_write(&_bitmap, &writer, &s) != 0;
+}
 void MaskedBitmapMBMP::GetRc(RC *out)
 {
     AssertThis(0);

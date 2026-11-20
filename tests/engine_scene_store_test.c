@@ -2,153 +2,125 @@
 #include "mm/background_resource.h"
 #include "mm/scene_data.h"
 #include "mm/movie_sound.h"
+#include "mm/text_store.h"
 #include "scene_sound_fixture.h"
-typedef union StorePayload {
-    void *pointer;
-    MMTag tag;
-    unsigned char bytes[192];
-} StorePayload;
+
+#define THUMBNAIL_TYPE 0x5448554dUL
+enum { SCENE_NUMBER = 42, THUMB_NUMBER = 55, FRAMES_NUMBER = 61, STARTS_NUMBER = 62 };
+
 typedef struct StoreEvent
 {
     unsigned char fixed[8];
     int bytes;
-    StorePayload payload;
-    MMSceneSound *sound;
+    unsigned char payload[192];
 } StoreEvent;
+
 typedef struct StoreGroup
 {
-    int type, count, live;
+    int count, type, live;
     StoreEvent events[8];
 } StoreGroup;
+
+typedef struct StoredChunk
+{
+    MMU32 type, length;
+    int linked;
+    unsigned char bytes[512];
+} StoredChunk;
+
 typedef struct StoreFixture
 {
     Fixture packets;
     MMSceneStoreServices s;
     MMSceneCollectServices collect;
     MMSceneOwner owner;
-    StoreGroup runtime[2], temp[2], wire[2];
-    int attempts, fail, created, live, deleted, thumb_deleted, with_thumb, thumb, updated, old_thumb;
-    int written, metadata, diagnostics, missing_background, empty_events, actor_error;
+    MMSceneState metadata;
+    MMMovieArchiveEditor editor;
+    MMSceneSound *sounds[2];
+    StoreGroup wire[2];
+    StoredChunk chunks[96];
+    StoredChunk *output;
+    int attempts, fail, deleted, thumb_deleted, with_thumb, thumb, updated, old_thumb;
+    int storage_live, exercise_storage, unassigned_scene, titled, live;
+    int diagnostics, missing_background, empty_events, actor_error;
     int missing_actor, missing_frames, list_failure, background_adoption_failed;
     int log[512], used, adopted, adoptions, objects, swap;
     MMU32 actor_id, text_id;
     MMTagList tags;
 } StoreFixture;
+
 static void note(StoreFixture *f, int n)
 {
     CHECK(f->used < 512);
     f->log[f->used++] = n;
 }
+
 static int step(StoreFixture *f, int n)
 {
     note(f, n);
     return ++f->attempts != f->fail;
 }
-static MMI32 count(void *p, void *g)
+
+static void *resize_track(void *p, void *bytes, MMU32 old_size, MMU32 size, int priority)
 {
-    (void)p;
-    return ((StoreGroup *)g)->count;
+    StoreFixture *f = p;
+    int fresh = !bytes;
+    void *result;
+    (void)old_size;
+    if (f->exercise_storage && (priority == MM_STORAGE_SPEED || !step(f, 20)))
+        return NULL;
+    result = realloc(bytes, (size_t)size);
+    CHECK(result);
+    f->storage_live += fresh;
+    return result;
 }
-static void fixed(void *p, void *g, MMI32 i, unsigned char *b)
+
+static void release_track(void *p, void *bytes, MMU32 size)
 {
-    (void)p;
-    memcpy(b, ((StoreGroup *)g)->events[i].fixed, 8);
+    StoreFixture *f = p;
+    (void)size;
+    CHECK(f->storage_live > 0);
+    --f->storage_live;
+    free(bytes);
 }
-static void *data(void *p, void *g, MMI32 i, MMI32 *bytes)
+
+static void free_sound_bytes(void *p, void *value)
 {
-    StoreEvent *e = &((StoreGroup *)g)->events[i];
-    (void)p;
-    *bytes = e->bytes;
-    return e->sound ? (void *)e->sound : e->payload.bytes;
-}
-static void release_group(void *p, void *g)
-{
-    StoreFixture *f = (StoreFixture *)p;
-    StoreGroup *group = (StoreGroup *)g;
-    CHECK(group && group->live == 1);
-    group->live = 0;
-    --f->live;
-    note(f, 100 + group->type);
-}
-static void free_raw(void *p, void *value)
-{
-    StoreFixture *f = (StoreFixture *)p;
+    StoreFixture *f = p;
     note(f, 30);
     raw_free(&f->packets, value);
 }
+
 static void *packet_allocate(void *p, MMI32 bytes)
 {
-    StoreFixture *f = (StoreFixture *)p;
+    StoreFixture *f = p;
     return step(f, 31) ? allocate(&f->packets, bytes) : NULL;
 }
+
 static void *packet_data(void *p, void *g, MMI32 i)
 {
-    MMI32 bytes;
-    return data(p, g, i, &bytes);
+    (void)p;
+    return mm_scene_track_payload(g, i, NULL);
 }
+
 static MMI32 packet_size(void *p, void *g, MMI32 i)
 {
-    MMI32 bytes;
-    data(p, g, i, &bytes);
+    MMI32 bytes = -1;
+    (void)p;
+    mm_scene_track_payload(g, i, &bytes);
     return bytes;
 }
+
 static void release_packet(void *p, MMSceneSound *sound)
 {
-    StoreFixture *f = (StoreFixture *)p;
+    StoreFixture *f = p;
     note(f, 32);
     drop(&f->packets, sound);
 }
-static int add_scene(void *p, MMU32 *number)
-{
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(*number == 0xffffffffUL);
-    *number = 42;
-    return step(f, 1);
-}
-static int add_scene_unchanged(void *p, MMU32 *number)
-{
-    (void)p;
-    CHECK(*number == 0xffffffffUL);
-    return 0;
-}
-static void delete_scene(void *p, MMU32 number)
-{
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(number == 42);
-    ++f->deleted;
-    note(f, 90);
-}
-static void *new_group(void *p)
-{
-    StoreFixture *f = (StoreFixture *)p;
-    StoreGroup *g = &f->temp[f->created];
-    CHECK(f->created < 2);
-    if (!step(f, 2 + f->created))
-        return NULL;
-    g->type = 10 + f->created++;
-    g->live = 1;
-    ++f->live;
-    return g;
-}
-static int insert(void *p, void *g, MMI32 i, MMI32 frame, int kind, MMI32 bytes, const void *value)
-{
-    StoreFixture *f = (StoreFixture *)p;
-    StoreGroup *group = (StoreGroup *)g;
-    StoreEvent *e;
-    CHECK(i == group->count && bytes <= 192 && frame == 3);
-    if (!step(f, 40 + kind))
-        return 0;
-    e = &group->events[i];
-    memcpy(e->fixed, &frame, 4);
-    memcpy(e->fixed + 4, &kind, 4);
-    e->bytes = bytes;
-    memcpy(e->payload.bytes, value, (size_t)bytes);
-    ++group->count;
-    return 1;
-}
+
 static int store_entry(void *p, MMU32 row, MMChunkEntry *entry)
 {
-    StoreFixture *f = (StoreFixture *)p;
+    StoreFixture *f = p;
     memset(entry, 0, sizeof(*entry));
     if (row == 0)
     {
@@ -159,14 +131,15 @@ static int store_entry(void *p, MMU32 row, MMChunkEntry *entry)
     {
         CHECK(row == 1);
         entry->type = MM_SCENE_CHUNK;
-        entry->number = 42;
+        entry->number = SCENE_NUMBER;
         entry->child_count = f->adopted ? 3 : 2;
     }
     return 1;
 }
+
 static int store_child(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
 {
-    StoreFixture *f = (StoreFixture *)p;
+    StoreFixture *f = p;
     CHECK(row == 1 && i < (f->adopted ? 3U : 2U));
     if (i == 0)
     {
@@ -182,196 +155,299 @@ static int store_child(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
     }
     return 1;
 }
+
 static MMChunkAccess store_chunks(void *p)
 {
     MMChunkAccess chunks = {NULL, 2, store_entry, store_child};
     chunks.context = p;
     return chunks;
 }
-static int adopt_sound(void *p, MMU32 scene, MMU32 number, MMU32 child)
+
+static int write_bytes(void *p, MMU32 offset, const void *data, size_t size)
 {
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(scene == 42 && number == 1 && child == 1);
-    if (!step(f, 70))
+    StoreFixture *f = p;
+    StoredChunk *chunk = f->output;
+    CHECK(chunk && !chunk->linked && offset <= chunk->length && size <= chunk->length - offset);
+    if (!step(f, chunk->type == THUMBNAIL_TYPE ? 84 : 81))
         return 0;
-    f->adopted |= 1 << child;
-    ++f->adoptions;
+    memcpy(chunk->bytes + offset, data, size);
     return 1;
 }
-static int add_child(void *p, MMU32 scene, int kind, MMU32 id, MMU32 *number)
+
+static int add_chunk(void *p, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
 {
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(scene == 42);
-    if (kind == MM_SCENE_ADD_ACTOR)
-        CHECK(id == f->actor_id++);
+    StoreFixture *f = p;
+    int effect;
+    if (type == MM_SCENE_CHUNK)
+    {
+        CHECK(!size && !writer && *number == 0xffffffffUL);
+        if (f->unassigned_scene)
+            return 0;
+        *number = SCENE_NUMBER;
+        effect = 1;
+    }
+    else if (type == MM_SCENE_ACTOR_CHUNK || type == MM_TEXT_BOX)
+    {
+        CHECK(!size && !writer);
+        *number = type == MM_SCENE_ACTOR_CHUNK ? 80 + f->actor_id++ : 88 + f->text_id++;
+        effect = 71;
+    }
+    else if (type == THUMBNAIL_TYPE)
+    {
+        CHECK(size == 65 && writer && f->updated);
+        *number = THUMB_NUMBER;
+        effect = 83;
+    }
     else
-        CHECK(kind == MM_SCENE_ADD_TEXT && id == f->text_id++);
-    *number = 80 + (MMU32)kind * 4 + id;
-    return step(f, 71 + kind);
+    {
+        CHECK((type == MM_SCENE_FRAME_GROUP || type == MM_SCENE_START_GROUP) && writer);
+        *number = type == MM_SCENE_FRAME_GROUP ? FRAMES_NUMBER : STARTS_NUMBER;
+        effect = 2;
+    }
+    f->output = &f->chunks[*number];
+    CHECK(!f->output->type && size <= sizeof(f->output->bytes));
+    if (!step(f, effect))
+        return 0;
+    f->output->type = type;
+    f->output->length = size;
+    if (writer)
+    {
+        writer->context = f;
+        writer->length = size;
+        writer->write_at = write_bytes;
+    }
+    return 1;
 }
-static void *object(void *p, void *g, MMI32 i)
+
+static int adopt_chunk(void *p, MMU32 parent_type, MMU32 scene, MMU32 type, MMU32 number, MMU32 slot)
 {
-    (void)p;
-    return ((StoreGroup *)g)->events[i].payload.pointer;
+    StoreFixture *f = p;
+    StoredChunk *chunk = &f->chunks[number];
+    CHECK(parent_type == MM_SCENE_CHUNK && scene == SCENE_NUMBER);
+    if (type == MM_SOUND_CHUNK)
+    {
+        CHECK(number == 1 && slot == 1 && !f->adopted);
+        if (!step(f, 70))
+            return 0;
+        f->adopted = 1;
+        ++f->adoptions;
+        return 1;
+    }
+    CHECK(chunk->type == type && !chunk->linked);
+    if (type == MM_SCENE_ACTOR_CHUNK || type == MM_TEXT_BOX)
+        CHECK(slot == number - (type == MM_SCENE_ACTOR_CHUNK ? 80 : 88));
+    else
+        CHECK(slot == (MMU32)(type == MM_SCENE_START_GROUP));
+    if (!step(f, type == THUMBNAIL_TYPE ? 85 : 74))
+        return 0;
+    chunk->linked = 1;
+    return 1;
 }
+
+static void discard_chunk(void *p, MMU32 type, MMU32 number)
+{
+    StoreFixture *f = p;
+    StoredChunk *chunk = &f->chunks[number];
+    unsigned i;
+    if (type == MM_SCENE_CHUNK)
+    {
+        CHECK(number == SCENE_NUMBER);
+        for (i = 0; i < sizeof(f->chunks) / sizeof(f->chunks[0]); ++i)
+            if (i != SCENE_NUMBER)
+            {
+                CHECK(!f->chunks[i].type || f->chunks[i].linked);
+                f->chunks[i].type = f->chunks[i].linked = 0;
+            }
+        f->adopted = 0;
+        ++f->deleted;
+        note(f, 90);
+    }
+    else
+    {
+        CHECK(chunk->type == type && !chunk->linked);
+        if (type == THUMBNAIL_TYPE)
+        {
+            ++f->thumb_deleted;
+            note(f, 86);
+        }
+    }
+    chunk->type = 0;
+}
+
+static void unlink_chunk(void *p, MMU32 parent_type, MMU32 scene, MMU32 type, MMU32 number, MMU32 slot)
+{
+    StoreFixture *f = p;
+    CHECK(parent_type == MM_SCENE_CHUNK && scene == SCENE_NUMBER && f->chunks[number].linked);
+    CHECK((type == MM_SCENE_FRAME_GROUP || type == MM_SCENE_START_GROUP) && slot == (MMU32)(type == MM_SCENE_START_GROUP));
+    f->chunks[number].linked = 0;
+    discard_chunk(p, type, number);
+}
+
 static int write_object(void *p, void *value, int kind, MMU32 number, MMU32 scene)
 {
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(value == f && scene == 42 && number >= 80);
+    StoreFixture *f = p;
+    CHECK(value == f && scene == SCENE_NUMBER && f->chunks[number].linked);
+    CHECK(f->chunks[number].type == (MMU32)(kind == MM_SCENE_ADD_ACTOR ? MM_SCENE_ACTOR_CHUNK : MM_TEXT_BOX));
     ++f->objects;
     return step(f, 75 + kind);
 }
-static int read_background(void *p, void *g, MMI32 i, MMTag *tag)
+
+static int read_background(void *p, const void *data, MMI32 bytes, MMTag *tag)
 {
     (void)p;
-    *tag = ((StoreGroup *)g)->events[i].payload.tag;
+    CHECK(bytes == sizeof(*tag));
+    memcpy(tag, data, sizeof(*tag));
     return 1;
 }
+
 static int copy_background(void *p, const MMTag *tag, MMU32 *number, int *created)
 {
-    StoreFixture *f = (StoreFixture *)p;
+    StoreFixture *f = p;
     CHECK(tag->sid == 0 && tag->number == 9 && tag->cache == &f->packets && tag->type == MM_BACKGROUND);
     *number = 19;
     *created = 1;
     return step(f, 80);
 }
+
 static int adopt_background(void *p, MMU32 type, MMU32 scene, const MMChunkChild *child, int clear_loner)
 {
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(type == MM_SCENE_CHUNK && scene == 42 && child->type == MM_BACKGROUND &&
+    StoreFixture *f = p;
+    CHECK(type == MM_SCENE_CHUNK && scene == SCENE_NUMBER && child->type == MM_BACKGROUND &&
           child->number == 19 && child->slot == 0 && clear_loner);
     f->background_adoption_failed = !step(f, 79);
     return !f->background_adoption_failed;
 }
+
 static void discard_background(void *p, MMU32 type, MMU32 number)
 {
     CHECK(type == MM_BACKGROUND && number == 19);
-    note((StoreFixture *)p, 78);
+    note(p, 78);
 }
-static int write_events(void *p, MMU32 scene, void *frames, void *starts)
-{
-    StoreFixture *f = (StoreFixture *)p;
-    MMU32 n;
-    StoreGroup *a = (StoreGroup *)frames, *b = (StoreGroup *)starts;
-    CHECK(scene == 42 && a->count == 4 && b->count == 6);
-    CHECK(a->events[0].bytes == 96 && b->events[0].bytes == 4 && b->events[1].bytes == 4);
-    memcpy(&n, b->events[0].payload.bytes, 4);
-    CHECK(n == 0);
-    memcpy(&n, b->events[1].payload.bytes, 4);
-    CHECK(n == 0);
-    memcpy(&n, b->events[2].payload.bytes, 4);
-    CHECK(n == 1);
-    memcpy(&n, b->events[3].payload.bytes, 4);
-    CHECK(n == 1);
-    memcpy(&n, b->events[4].payload.bytes + 4, 4);
-    CHECK(!n);
-    memcpy(&n, b->events[4].payload.bytes + 12, 4);
-    CHECK(n == 19);
-    CHECK(f->objects == 4 && f->actor_id == 2 && f->text_id == 2 && f->adoptions == 1);
-    f->written = 1;
-    return step(f, 81);
-}
+
 static void update_thumbnail(void *p)
 {
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(f->written && !f->updated);
+    StoreFixture *f = p;
+    CHECK(f->chunks[FRAMES_NUMBER].linked && f->chunks[STARTS_NUMBER].linked && !f->updated);
     f->updated = 1;
     note(f, 82);
     f->owner.owned[MM_SCENE_THUMBNAIL] = f->with_thumb ? &f->thumb : NULL;
 }
+
 static MMI32 thumbnail_size(void *p, void *thumbnail)
 {
-    StoreFixture *f = (StoreFixture *)p;
+    StoreFixture *f = p;
     CHECK(thumbnail == &f->thumb && f->updated);
     return 65;
 }
-static int add_thumbnail(void *p, MMI32 bytes, MMU32 *number)
+
+static int write_thumbnail(void *p, void *thumbnail, const MMStorageWriter *writer)
 {
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(bytes == 65);
-    *number = 55;
-    return step(f, 83);
+    StoreFixture *f = p;
+    unsigned char bytes[65] = {0};
+    CHECK(thumbnail == &f->thumb && writer->length == sizeof(bytes));
+    return writer->write_at(writer->context, 0, bytes, sizeof(bytes));
 }
-static int write_thumbnail(void *p, void *thumbnail)
+
+static int put_scene(void *p, MMU32 type, MMU32 scene, const void *data, MMU32 size)
 {
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(thumbnail == &f->thumb);
-    return step(f, 84);
-}
-static int adopt_thumbnail(void *p, MMU32 scene, MMU32 number)
-{
-    CHECK(scene == 42 && number == 55);
-    return step((StoreFixture *)p, 85);
-}
-static void delete_thumbnail(void *p, MMU32 number)
-{
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(number == 55);
-    ++f->thumb_deleted;
-    note(f, 86);
-}
-static void clear_loner(void *p, MMU32 number)
-{
-    CHECK(number == 55);
-    note((StoreFixture *)p, 87);
-}
-static int write_metadata(void *p, MMU32 scene)
-{
-    StoreFixture *f = (StoreFixture *)p;
-    CHECK(scene == 42 && f->updated);
-    f->metadata = 1;
+    StoreFixture *f = p;
+    MMMemoryStream stream;
+    MMSceneState state;
+    CHECK(type == MM_SCENE_CHUNK && scene == SCENE_NUMBER && f->updated);
+    CHECK(f->chunks[THUMB_NUMBER].linked == f->with_thumb);
+    CHECK(mm_scene_init(&state, 1) && mm_memory_stream_init(&stream, data, size));
+    CHECK(mm_scene_decode_header(&stream.stream, &state) && state.firstFrame == 2 && state.lastFrame == 9);
     return step(f, 88);
 }
+
+static int set_title(void *p, MMU32 type, MMU32 number, const MMMovieTitle *title)
+{
+    StoreFixture *f = p;
+    CHECK(type == MM_SCENE_CHUNK && number == SCENE_NUMBER &&
+          title->count == 5 && !memcmp(mm_movie_title_text(title), "Scene", 5));
+    f->titled = step(f, 89);
+    return f->titled;
+}
+
 static void diagnostic(void *p, int start)
 {
-    StoreFixture *f = (StoreFixture *)p;
+    StoreFixture *f = p;
     (void)start;
     ++f->diagnostics;
 }
-static void event(StoreGroup *g, int kind, const void *value, int bytes)
+
+static void add_event(MMSceneTrack *track, int kind, const void *value, MMI32 bytes)
 {
-    StoreEvent *e = &g->events[g->count++];
-    MMI32 frame = 3;
-    memcpy(e->fixed, &frame, 4);
-    memcpy(e->fixed + 4, &kind, 4);
-    e->bytes = bytes;
-    memcpy(e->payload.bytes, value, (size_t)bytes);
+    MMSceneTrackEvent event;
+    event.frame = 3;
+    event.kind = kind;
+    CHECK(mm_scene_track_insert(track, track->rows.count, bytes, value, &event));
 }
+
 static void init_store(StoreFixture *f)
 {
-    MMSceneStoreServices *s;
-    MMSceneStoreGroups *g;
-    MMSceneSound *sound;
-    MMI32 pause[] = {3, 230}, camera = 0x12345678, frame = 3, kind = 1;
+    MMSceneStoreServices *s = &f->s;
+    MMStorageAllocator allocator = {NULL, resize_track, release_track};
+    MMSceneTrack *frames = &f->owner.tracks[MM_SCENE_FRAMES];
+    MMSceneTrack *starts = &f->owner.tracks[MM_SCENE_STARTS];
+    MMI32 pause[] = {3, 230}, camera = 0x12345678;
+    const unsigned short one = 1;
     MMTag tag;
-    void *ptr;
+    void *ptr = f;
     int i;
     memset(f, 0, sizeof(*f));
     init(&f->packets);
-    s = &f->s;
+    allocator.context = f;
+    CHECK(mm_scene_track_init(frames, &allocator, 0) && mm_scene_track_init(starts, &allocator, 0));
+    f->owner.owned[MM_SCENE_THUMBNAIL] = &f->old_thumb;
+    f->with_thumb = 1;
+    f->packets.input[3].tag.sid = 0;
+    for (i = 0; i < 2; ++i)
+    {
+        f->sounds[i] = make(&f->packets, 4);
+        add_event(frames, MM_SCENE_PLAY_SOUND, f->sounds[i], mm_scene_sound_size(4, sizeof(Record)));
+    }
+    add_event(frames, MM_SCENE_CHANGE_CAMERA, &camera, 4);
+    add_event(frames, MM_SCENE_PAUSE, pause, 8);
+    for (i = 0; i < 2; ++i)
+    {
+        add_event(starts, MM_SCENE_ADD_ACTOR, &ptr, sizeof(ptr));
+        add_event(starts, MM_SCENE_ADD_TEXT, &ptr, sizeof(ptr));
+    }
+    tag.sid = 0;
+    tag.cache = &f->packets;
+    tag.type = MM_BACKGROUND;
+    tag.number = 9;
+    add_event(starts, MM_SCENE_SET_BACKGROUND, &tag, sizeof(tag));
+    add_event(starts, MM_SCENE_CHANGE_CAMERA, &camera, 4);
+
+    f->editor.context = f;
+    f->editor.text_unit = 1;
+    f->editor.system = 0x0303;
+    f->editor.big_endian = !*(const unsigned char *)&one;
+    f->editor.chunks = store_chunks;
+    f->editor.add = add_chunk;
+    f->editor.adopt = adopt_chunk;
+    f->editor.unlink = unlink_chunk;
+    f->editor.discard = discard_chunk;
+    f->editor.put = put_scene;
+    f->editor.set_title = set_title;
+    CHECK(mm_scene_init(&f->metadata, 1) && mm_movie_title_set(&f->metadata.name, "Scene", 5));
+    f->metadata.firstFrame = 2;
+    f->metadata.lastFrame = 9;
+
     s->context = f;
     s->owner = &f->owner;
-    g = &s->groups;
-    g->context = f;
-    g->count = count;
-    g->fixed = fixed;
-    g->data = data;
-    g->release = release_group;
-    g->free_raw = free_raw;
+    s->editor = &f->editor;
+    s->metadata = &f->metadata;
     s->values.context = f;
     s->values.packets = f->packets.s;
+    s->values.packets.context = f; /* The embedded sound fixture is the first member. */
     s->values.packets.allocate = packet_allocate;
     s->values.packets.group_data = packet_data;
     s->values.packets.group_size = packet_size;
     s->values.release = release_packet;
-    s->add_scene = add_scene;
-    s->delete_scene = delete_scene;
-    s->new_group = new_group;
-    s->insert = insert;
-    s->chunks = store_chunks;
-    s->adopt_sound = adopt_sound;
-    s->add_child = add_child;
-    s->object = object;
+    s->free_sound_bytes = free_sound_bytes;
     s->write_object = write_object;
     s->assets.context = f;
     s->assets.chunks = store_chunks;
@@ -379,96 +455,104 @@ static void init_store(StoreFixture *f)
     s->assets.adopt = adopt_background;
     s->assets.discard = discard_background;
     s->read_background = read_background;
-    s->write_events = write_events;
     s->update_thumbnail = update_thumbnail;
     s->thumbnail_size = thumbnail_size;
-    s->add_thumbnail = add_thumbnail;
     s->write_thumbnail = write_thumbnail;
-    s->adopt_thumbnail = adopt_thumbnail;
-    s->delete_thumbnail = delete_thumbnail;
-    s->clear_loner = clear_loner;
-    s->write_metadata = write_metadata;
     s->diagnostic = diagnostic;
-    f->owner.owned[0] = &f->runtime[0];
-    f->owner.owned[1] = &f->runtime[1];
-    f->owner.owned[MM_SCENE_THUMBNAIL] = &f->old_thumb;
-    f->with_thumb = 1;
-    f->packets.input[3].tag.sid = 0;
-    for (i = 0; i < 2; ++i)
-    {
-        sound = make(&f->packets, 4);
-        f->runtime[0].events[i].sound = sound;
-        f->runtime[0].events[i].bytes = 16 + 4 * sizeof(Record);
-        memcpy(f->runtime[0].events[i].fixed, &frame, 4);
-        memcpy(f->runtime[0].events[i].fixed + 4, &kind, 4);
-        ++f->runtime[0].count;
-    }
-    event(&f->runtime[0], 3, &camera, 4);
-    event(&f->runtime[0], 5, pause, 8);
-    ptr = f;
-    event(&f->runtime[1], 0, &ptr, sizeof(ptr));
-    event(&f->runtime[1], 2, &ptr, sizeof(ptr));
-    event(&f->runtime[1], 0, &ptr, sizeof(ptr));
-    event(&f->runtime[1], 2, &ptr, sizeof(ptr));
-    tag.sid = 0;
-    tag.cache = &f->packets;
-    tag.type = MM_BACKGROUND;
-    tag.number = 9;
-    event(&f->runtime[1], 4, &tag, sizeof(tag));
-    event(&f->runtime[1], 3, &camera, 4);
+    f->exercise_storage = 1;
 }
+
 static void clean_store(StoreFixture *f)
 {
+    MMTag background;
+    const MMSceneTrack *starts = &f->owner.tracks[MM_SCENE_STARTS];
     int i;
-    CHECK(!f->live);
+    CHECK(f->storage_live == 4);
+    CHECK(f->packets.refs[1] == 2 && f->packets.refs[3] == 2 && f->packets.refs[4] == 2);
+    memcpy(&background, mm_scene_track_payload(starts, 4, NULL), sizeof(background));
+    CHECK(background.number == 9 && background.cache == &f->packets);
     for (i = 0; i < 2; ++i)
-        if (f->runtime[0].events[i].sound)
-            drop(&f->packets, f->runtime[0].events[i].sound);
+    {
+        drop(&f->packets, f->sounds[i]);
+        mm_scene_track_dispose(&f->owner.tracks[i]);
+    }
+    CHECK(!f->storage_live);
     clean(&f->packets);
 }
+
+static void check_group(const StoredChunk *chunk, const MMI32 *kinds, const MMI32 *sizes, int count)
+{
+    MMMemoryStream stream;
+    MMCollectionHeader header;
+    MMU32 offset, value, i;
+    MMI32 bytes, kind, frame;
+    const unsigned char *rows, *data;
+    CHECK(mm_memory_stream_init(&stream, chunk->bytes, chunk->length));
+    CHECK(mm_collection_header_read(&stream.stream, MM_COLLECTION_GROUP, 0, &header) == MM_STORAGE_OK);
+    CHECK(header.count == (MMU32)count && header.width == MM_SCENE_EVENT_BYTES);
+    rows = chunk->bytes + header.header_bytes;
+    for (i = 0; i < header.count; ++i)
+    {
+        CHECK(mm_collection_group_row(&header, rows, i, &offset, &bytes) && bytes == sizes[i]);
+        memcpy(&frame, rows + offset, 4);
+        memcpy(&kind, rows + offset + 4, 4);
+        CHECK(frame == 3 && kind == kinds[i]);
+        data = rows + offset + MM_SCENE_EVENT_BYTES;
+        if (kind == MM_SCENE_ADD_ACTOR || kind == MM_SCENE_ADD_TEXT)
+        {
+            memcpy(&value, data, 4);
+            CHECK(value == i / 2);
+        }
+        if (kind == MM_SCENE_SET_BACKGROUND)
+        {
+            memcpy(&value, data + 4, 4);
+            CHECK(!value);
+            memcpy(&value, data + 12, 4);
+            CHECK(value == 19);
+        }
+    }
+}
+
 static void test_store(void)
 {
+    const MMI32 frames[] = {MM_SCENE_PLAY_SOUND, MM_SCENE_PLAY_SOUND, MM_SCENE_CHANGE_CAMERA, MM_SCENE_PAUSE};
+    const MMI32 starts[] = {MM_SCENE_ADD_ACTOR, MM_SCENE_ADD_TEXT, MM_SCENE_ADD_ACTOR, MM_SCENE_ADD_TEXT,
+                            MM_SCENE_SET_BACKGROUND, MM_SCENE_CHANGE_CAMERA};
+    const MMI32 frame_sizes[] = {96, 96, 4, 8}, start_sizes[] = {4, 4, 4, 4, 16, 4};
     StoreFixture f;
     MMU32 number;
-    int attempts, fail, j, last;
+    int attempts, fail, j;
     init_store(&f);
-    CHECK(mm_scene_store(&number, &f.s) && number == 42 && !f.deleted && f.metadata);
-    CHECK(f.runtime[1].events[4].payload.tag.number == 9);
+    CHECK(mm_scene_store(&number, &f.s) && number == SCENE_NUMBER && !f.deleted && f.titled);
+    CHECK(f.objects == 4 && f.actor_id == 2 && f.text_id == 2 && f.adoptions == 1);
+    check_group(&f.chunks[FRAMES_NUMBER], frames, frame_sizes, 4);
+    check_group(&f.chunks[STARTS_NUMBER], starts, start_sizes, 6);
     attempts = f.attempts;
-    CHECK(f.log[f.used - 2] == 110 && f.log[f.used - 1] == 111);
-    CHECK(f.packets.refs[1] == 2 && f.packets.refs[3] == 2 && f.packets.refs[4] == 2);
     clean_store(&f);
     for (fail = 1; fail <= attempts; ++fail)
     {
         init_store(&f);
         f.fail = fail;
-        CHECK(!mm_scene_store(&number, &f.s) && number == 42 && f.deleted == 1);
-        last = -1;
-        for (j = 0; j < f.used; ++j)
-            if (f.log[j] == 90)
-                last = j;
-        CHECK(last >= 0);
-        if (f.created == 2)
-            CHECK(f.log[last + 1] == 111 && f.log[last + 2] == 110);
-        else if (f.created == 1)
-            CHECK(f.log[last + 1] == 110);
+        CHECK(!mm_scene_store(&number, &f.s) && number == SCENE_NUMBER && f.deleted == 1);
+        CHECK(f.log[f.used - 1] == 90);
+        for (j = 0; j < (int)(sizeof(f.chunks) / sizeof(f.chunks[0])); ++j)
+            CHECK(!f.chunks[j].type && !f.chunks[j].linked);
         if (f.thumb_deleted)
-            CHECK(f.log[last - 1] == 86);
-        CHECK(f.packets.refs[1] == 2 && f.packets.refs[3] == 2 && f.packets.refs[4] == 2);
+            CHECK(f.log[f.used - 2] == 86);
         if (f.background_adoption_failed)
-            CHECK(last > 1 && f.log[last - 2] == 79 && f.log[last - 1] == 78);
-        CHECK(f.runtime[1].events[4].payload.tag.number == 9);
+            CHECK(f.used > 2 && f.log[f.used - 3] == 79 && f.log[f.used - 2] == 78);
         clean_store(&f);
     }
     init_store(&f);
     f.with_thumb = 0;
-    CHECK(mm_scene_store(&number, &f.s) && f.updated && f.metadata);
+    CHECK(mm_scene_store(&number, &f.s) && f.updated && f.titled);
     clean_store(&f);
     init_store(&f);
-    f.s.add_scene = add_scene_unchanged;
+    f.unassigned_scene = 1;
     CHECK(!mm_scene_store(&number, &f.s) && number == 0xffffffffUL && !f.deleted);
     clean_store(&f);
 }
+
 static void wire_word(void *p, MMU32 value, int swap)
 {
     unsigned char b[4];
@@ -486,7 +570,7 @@ static void wire_event(StoreFixture *f, int start, int kind, const MMU32 *words,
     wire_word(e->fixed, 3, f->swap);
     wire_word(e->fixed + 4, (MMU32)kind, f->swap);
     for (i = 0; i < n; ++i)
-        wire_word(e->payload.bytes + i * 4, words[i], f->swap);
+        wire_word(e->payload + i * 4, words[i], f->swap);
 }
 static int collect_entry(void *p, MMU32 row, MMChunkEntry *entry)
 {
@@ -592,11 +676,16 @@ static void read_event(void *p, const MMMovieSceneGroup *group, MMU32 i, MMMovie
     out->frame = (MMI32)mm_movie_scene_event_word(out, 0);
     out->kind = (MMI32)mm_movie_scene_event_word(out, 4);
     out->bytes = e->bytes;
-    out->data = e->payload.bytes;
+    out->data = e->payload;
 }
 static void close_group(void *p, MMMovieSceneGroup *group)
 {
-    release_group(p, group->handle);
+    StoreFixture *f = p;
+    StoreGroup *events = group->handle;
+    CHECK(events && events->live);
+    events->live = 0;
+    --f->live;
+    note(f, 100 + events->type);
 }
 static void *collect_resize(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
@@ -707,7 +796,7 @@ static void test_collect(void)
         check_collected(&f);
         clean_collect(&f);
         init_collect(&f, swap);
-        wire_word(f.wire[1].events[2].payload.bytes, 0, swap);
+        wire_word(f.wire[1].events[2].payload, 0, swap);
         CHECK(mm_scene_collect_tags(42, &f.tags, &f.collect));
         group.storage = &f.tags.storage;
         group.count = f.tags.count;

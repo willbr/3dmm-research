@@ -90,6 +90,5 @@ struct SceneData : MMSceneState
     // Wire groups contain chunk IDs and fixed-width TAGs, never object pointers.
     static PGeneralGroup PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents);
     static bool FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts);
-    static bool FWriteEvents(PChunkyFile file, ChunkNumber number, MMSceneTrack *frames, MMSceneTrack *starts);
 };
 #endif

@@ -10,14 +10,6 @@ extern "C"
 {
 #endif
     enum { MM_SCENE_ACTOR_CHUNK = 0x41435452 };
-    typedef struct MMSceneStoreGroups
-    {
-        void *context;
-        MMI32 (*count)(void *, void *group);
-        void (*fixed)(void *, void *group, MMI32 index, unsigned char bytes[8]);
-        void *(*data)(void *, void *group, MMI32 index, MMI32 *bytes);
-        void (*release)(void *, void *object), (*free_raw)(void *, void *allocation);
-    } MMSceneStoreGroups;
     typedef struct MMSceneCollectServices
     {
         void *context;
@@ -38,41 +30,29 @@ extern "C"
     {
         void *context;
         MMSceneOwner *owner;
-        MMSceneStoreGroups groups;
+        const MMSceneState *metadata;
+        const MMMovieArchiveEditor *editor;
         MMSceneSoundValueServices values;
         MMMovieEmbeddedArchive assets;
-        int (*add_scene)(void *, MMU32 *number);
-        void (*delete_scene)(void *, MMU32 number);
-        void *(*new_group)(void *);
-        int (*insert)(void *, void *group, MMI32 index, MMI32 frame, int kind, MMI32 bytes,
-                      const void *);
-        MMChunkAccess (*chunks)(void *);
-        int (*adopt_sound)(void *, MMU32 scene, MMU32 number, MMU32 child);
-        int (*add_child)(void *, MMU32 scene, int kind, MMU32 child, MMU32 *number);
-        void *(*object)(void *, void *group, MMI32 index);
+        void (*free_sound_bytes)(void *, void *);
         int (*write_object)(void *, void *object, int kind, MMU32 number, MMU32 scene);
-        int (*read_background)(void *, void *group, MMI32 index, MMTag *);
-        int (*write_events)(void *, MMU32 scene, void *frames, void *starts);
+        int (*read_background)(void *, const void *bytes, MMI32 size, MMTag *);
         void (*update_thumbnail)(void *);
         MMI32 (*thumbnail_size)(void *, void *thumbnail);
-        int (*add_thumbnail)(void *, MMI32 bytes, MMU32 *number);
-        int (*write_thumbnail)(void *, void *thumbnail);
-        int (*adopt_thumbnail)(void *, MMU32 scene, MMU32 number);
-        void (*delete_thumbnail)(void *, MMU32 number), (*clear_loner)(void *, MMU32 number);
-        int (*write_metadata)(void *, MMU32 scene);
+        int (*write_thumbnail)(void *, void *thumbnail, const MMStorageWriter *);
         void (*diagnostic)(void *, int start);
     } MMSceneStoreServices;
-    /* Borrows valid native-endian runtime groups; callbacks cannot reenter/resize them.
-     * Publishes nil before add_scene and retains its output even on failure. Sounds
+    /* Borrows the owner's native-endian event tracks and scene metadata. Callbacks
+     * cannot reenter, resize or modify the live tracks. The editor must support discard.
+     * Publishes nil before adding a scene and retains the assigned number on failure. Sounds
      * are independently duplicated/retained, adopted only if absent by child and
      * present by number, encoded, inserted, then released. Actor/text child counters
      * are independent. Document backgrounds are adopted by the new scene. Only
      * the wire tag uses the copied number. Events precede thumbnail update/write,
      * then header/name publication.
-     * Failure deletes an unadopted thumbnail explicitly, then the partial scene, then
-     * releases start/frame temporary groups. Success releases frame/start groups.
-     * Chunk operations, actor/caption serialization and thumbnail generation are
-     * supplied primitives; their own partial side effects follow their contracts. */
+     * The transaction owns both temporary tracks, using their live counterparts'
+     * allocators. Failure discards an unlinked child and the partial scene. The
+     * editor's adoption operation clears the loner flag. */
     int mm_scene_store(MMU32 *number, const MMSceneStoreServices *);
 #ifdef __cplusplus
 }

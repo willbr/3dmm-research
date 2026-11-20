@@ -15430,3 +15430,36 @@ In `actor-event-edit` suite `20261120T112308Z-701cc751`, both players
 matched the 60 frame identities in retained retail seek and playback
 captures. Both kept their 60 prior seek image hashes and matched the
 retail camera indices. SDL matched all 12 retail sound requests.
+
+## Live scene archive serialization in C89 (20 November 2026)
+
+The live scene save transaction builds and owns its two temporary C89
+event tracks. It uses the same archive editor as Marcus for chunk
+allocation, adoption, removal, event groups, and scene metadata. Studio
+supplies typed actor and caption serialization, native tag conversion
+and the rendered thumbnail. Thumbnail bytes use the existing masked
+bitmap writer through the archive stream.
+
+The C fixture injected failures throughout track allocation and archive
+I/O. It checked that temporary allocations and sound references were
+released, and that unlinked children and the partial scene were removed.
+The native and SDL save/reopen runs retained their complete movie bytes
+and live caption traces. Six scene fixtures and both Marcus scene saves
+matched their prior archives byte-for-byte.
+
+The production SDL authoring workflow matched its prior two-scene movie
+byte-for-byte. A separate save with imported WAVE audio and two linked
+thumbnails also matched the prior build byte-for-byte. Both builds
+reopened and played that movie in Studio. Retail opened the saved movie,
+rendered matching pixels at scene 1, frame 4, and issued the same WAVE
+request at frame 2.
+
+All 47 targeted x64 checks, six standalone C89 checks and five focused
+x86 checks passed. All ten Preview fingerprints matched. Both VMM seek
+images in `20261120T113618Z-8a7e6c7d` matched the retained SDL and Marcus
+captures. Logs and fixtures are in `tmp/c89-live-scene-store`.
+
+In `actor-event-edit` suite `20261120T113616Z-9429085f`, both players
+matched the 60 frame identities and seek camera indices in retained
+retail captures. Both kept their 60 prior seek image hashes. SDL matched
+all 12 retail sound requests.

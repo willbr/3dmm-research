@@ -52,9 +52,8 @@ struct MovieArchiveHost
                 return file->FFind(type, newNumber);
             },
             [](void *value, MMU32 type, MMU32 number, const MMMovieTitle *title) -> int {
-                String name;
-                name.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(title))), title->count);
-                return static_cast<MovieArchiveHost *>(value)->file->FSetName(type, number, &name);
+                const auto io = KauaiChunkTitleIO();
+                return mm_chunk_title_write(title, static_cast<MovieArchiveHost *>(value)->file, type, number, &io);
             },
             [](void *value, MMU32 type, MMU32 number, MMU32 bytes, MMStorageWriter *writer) -> int {
                 auto &io = *static_cast<MovieArchiveHost *>(value);

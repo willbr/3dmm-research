@@ -4,6 +4,7 @@
 #include "mm/background_resource.h"
 #include "mm/scene_data.h"
 #include "mm/movie_sound.h"
+#include "mm/text_store.h"
 #include "mm/wide.h"
 #include <string.h>
 static void tag_from_event(MMTag *tag, const MMMovieSceneEvent *event)
@@ -116,11 +117,14 @@ fail:
     read->close(read->context, &group);
     return 0;
 }
-static int store_sound(void *frames, MMI32 index, MMI32 frame, MMU32 scene,
-                       const MMSceneStoreServices *s)
+#define THUMBNAIL_TYPE 0x5448554dUL
+
+static int store_sound(MMSceneTrack *frames, MMI32 index, const MMSceneTrackEvent *event,
+                       MMU32 scene, const MMSceneStoreServices *s)
 {
     const MMSceneSoundPacketServices *v = &s->values.packets;
-    MMSceneSound *sound = mm_scene_sound_group(s->owner->owned[MM_SCENE_FRAMES], index, 1, v);
+    const MMMovieArchiveEditor *editor = s->editor;
+    MMSceneSound *sound = mm_scene_sound_group(&s->owner->tracks[MM_SCENE_FRAMES], index, 1, v);
     MMChunkAccess chunks;
     MMTag tag;
     MMU32 child, match;
@@ -135,130 +139,159 @@ static int store_sound(void *frames, MMI32 index, MMI32 frame, MMU32 scene,
         if (tag.sid != 0)
             continue;
         /* A previous adoption can shift rows or add this slot to the scene. */
-        chunks = s->chunks(s->context);
+        chunks = editor->chunks(editor->context);
         if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, child, MM_SOUND_CHUNK, &match) == MM_CHUNK_OK ||
             mm_chunk_find(&chunks, MM_SOUND_CHUNK, tag.number, &match) != MM_CHUNK_OK)
             continue;
-        if (!s->adopt_sound(s->context, scene, tag.number, child))
+        if (!editor->adopt(editor->context, MM_SCENE_CHUNK, scene, MM_SOUND_CHUNK, tag.number, child))
             goto done;
     }
     wire = mm_scene_sound_encode(sound, &bytes, v);
     if (wire)
     {
-        ok = s->insert(s->context, frames, index, frame, MM_SCENE_PLAY_SOUND, bytes, wire);
-        s->groups.free_raw(s->groups.context, wire);
+        ok = mm_scene_track_insert(frames, index, bytes, wire, event);
+        s->free_sound_bytes(s->context, wire);
     }
 done:
     s->values.release(s->values.context, sound);
     return ok;
 }
+
+static int copy_event(MMSceneTrack *out, const MMSceneTrack *source, MMI32 index,
+                      const MMSceneTrackEvent *event, MMI32 bytes)
+{
+    MMI32 available;
+    const void *data = mm_scene_track_payload(source, index, &available);
+    return data && available >= bytes && mm_scene_track_insert(out, index, bytes, data, event);
+}
+
+static int store_object(const MMSceneStoreServices *s, MMU32 scene, MMI32 kind, MMU32 slot,
+                        const MMSceneTrack *starts, MMI32 index)
+{
+    const MMMovieArchiveEditor *editor = s->editor;
+    MMU32 child, type = kind == MM_SCENE_ADD_ACTOR ? MM_SCENE_ACTOR_CHUNK : MM_TEXT_BOX;
+    MMI32 bytes;
+    const void *data;
+    void *object;
+    if (!editor->add(editor->context, type, 0, &child, NULL))
+        return 0;
+    if (!editor->adopt(editor->context, MM_SCENE_CHUNK, scene, type, child, slot))
+    {
+        editor->discard(editor->context, type, child);
+        return 0;
+    }
+    data = mm_scene_track_payload(starts, index, &bytes);
+    if (!data || bytes < (MMI32)sizeof(object))
+        return 0;
+    memcpy(&object, data, sizeof(object));
+    return s->write_object(s->context, object, kind, child, scene);
+}
+
+static int store_thumbnail(const MMSceneStoreServices *s, MMU32 scene)
+{
+    const MMMovieArchiveEditor *editor = s->editor;
+    MMStorageWriter writer;
+    void *thumbnail;
+    MMU32 child;
+    MMI32 bytes;
+    s->update_thumbnail(s->context);
+    thumbnail = s->owner->owned[MM_SCENE_THUMBNAIL];
+    if (!thumbnail)
+        return 1;
+    bytes = s->thumbnail_size(s->context, thumbnail);
+    if (bytes < 0 || !editor->add(editor->context, THUMBNAIL_TYPE, (MMU32)bytes, &child, &writer))
+        return 0;
+    if (s->write_thumbnail(s->context, thumbnail, &writer) &&
+        editor->adopt(editor->context, MM_SCENE_CHUNK, scene, THUMBNAIL_TYPE, child, 0))
+        return 1;
+    editor->discard(editor->context, THUMBNAIL_TYPE, child);
+    return 0;
+}
+
 int mm_scene_store(MMU32 *number, const MMSceneStoreServices *s)
 {
-    const MMSceneStoreGroups *g = &s->groups;
-    void *frames = NULL, *starts = NULL, *group, *data, *object, *thumbnail;
-    MMI32 i, frame, kind, bytes;
-    MMU32 actor = 0, text = 0, child, count;
+    const MMMovieArchiveEditor *editor = s->editor;
+    const MMSceneTrack *live_frames = &s->owner->tracks[MM_SCENE_FRAMES];
+    const MMSceneTrack *live_starts = &s->owner->tracks[MM_SCENE_STARTS];
+    MMSceneTrack frames, starts;
+    MMSceneTrackEvent event;
+    const void *data;
+    MMI32 i, bytes;
+    MMU32 actor = 0, text = 0, *slot;
+    int have_frames = 0, have_starts = 0;
     MMTag tag;
-    MMI32 fixed[2];
     unsigned char wire_tag[16];
     *number = 0xffffffffUL;
-    if (!s->add_scene(s->context, number))
+    if (!editor->add(editor->context, MM_SCENE_CHUNK, 0, number, NULL))
         goto fail;
-    frames = s->new_group(s->context);
-    if (!frames)
+    have_frames = mm_scene_track_init(&frames, &live_frames->storage.allocator, 0);
+    if (!have_frames)
         goto fail;
-    group = s->owner->owned[MM_SCENE_FRAMES];
-    for (i = 0; i < g->count(g->context, group); ++i)
+    for (i = 0; (MMU32)i < live_frames->rows.count; ++i)
     {
-        g->fixed(g->context, group, i, (unsigned char *)fixed);
-        frame = fixed[0];
-        kind = fixed[1];
-        if (kind == MM_SCENE_PLAY_SOUND)
+        if (!mm_scene_track_get(live_frames, i, &event))
+            goto fail;
+        if (event.kind == MM_SCENE_PLAY_SOUND)
         {
-            if (!store_sound(frames, i, frame, *number, s))
+            if (!store_sound(&frames, i, &event, *number, s))
                 goto fail;
         }
-        else if (kind == MM_SCENE_CHANGE_CAMERA || kind == MM_SCENE_PAUSE)
+        else if (event.kind == MM_SCENE_CHANGE_CAMERA || event.kind == MM_SCENE_PAUSE)
         {
-            data = g->data(g->context, group, i, &bytes);
-            if (!s->insert(s->context, frames, i, frame, kind, kind == MM_SCENE_PAUSE ? 8 : 4, data))
+            if (!copy_event(&frames, live_frames, i, &event, event.kind == MM_SCENE_PAUSE ? 8 : 4))
                 goto fail;
         }
         else
             s->diagnostic(s->context, 0);
     }
-    starts = s->new_group(s->context);
-    if (!starts)
+    have_starts = mm_scene_track_init(&starts, &live_starts->storage.allocator, 0);
+    if (!have_starts)
         goto fail;
-    group = s->owner->owned[MM_SCENE_STARTS];
-    for (i = 0; i < g->count(g->context, group); ++i)
+    for (i = 0; (MMU32)i < live_starts->rows.count; ++i)
     {
-        g->fixed(g->context, group, i, (unsigned char *)fixed);
-        frame = fixed[0];
-        kind = fixed[1];
-        if (kind == MM_SCENE_ADD_ACTOR || kind == MM_SCENE_ADD_TEXT)
+        if (!mm_scene_track_get(live_starts, i, &event))
+            goto fail;
+        if (event.kind == MM_SCENE_ADD_ACTOR || event.kind == MM_SCENE_ADD_TEXT)
         {
-            count = kind == MM_SCENE_ADD_ACTOR ? actor : text;
-            if (!s->add_child(s->context, *number, kind, count, &child))
+            slot = event.kind == MM_SCENE_ADD_ACTOR ? &actor : &text;
+            if (!store_object(s, *number, event.kind, *slot, live_starts, i) ||
+                !mm_scene_track_insert(&starts, i, 4, slot, &event))
                 goto fail;
-            object = s->object(s->context, group, i);
-            if (!s->write_object(s->context, object, kind, child, *number))
-                goto fail;
-            if (!s->insert(s->context, starts, i, frame, kind, 4, &count))
-                goto fail;
-            if (kind == MM_SCENE_ADD_ACTOR)
-                ++actor;
-            else
-                ++text;
+            ++*slot;
         }
-        else if (kind == MM_SCENE_SET_BACKGROUND)
+        else if (event.kind == MM_SCENE_SET_BACKGROUND)
         {
-            if (!s->read_background(s->context, group, i, &tag) ||
+            data = mm_scene_track_payload(live_starts, i, &bytes);
+            if (!data || !s->read_background(s->context, data, bytes, &tag) ||
                 (!tag.sid && !mm_movie_archive_embed_tag(&s->assets, MM_SCENE_CHUNK, *number, &tag)))
                 goto fail;
             memcpy(wire_tag, &tag.sid, 4);
             memset(wire_tag + 4, 0, 4);
             memcpy(wire_tag + 8, &tag.type, 4);
             memcpy(wire_tag + 12, &tag.number, 4);
-            if (!s->insert(s->context, starts, i, frame, kind, 16, wire_tag))
+            if (!mm_scene_track_insert(&starts, i, 16, wire_tag, &event))
                 goto fail;
         }
-        else if (kind == MM_SCENE_CHANGE_CAMERA)
+        else if (event.kind == MM_SCENE_CHANGE_CAMERA)
         {
-            data = g->data(g->context, group, i, &bytes);
-            if (!s->insert(s->context, starts, i, frame, kind, 4, data))
+            if (!copy_event(&starts, live_starts, i, &event, 4))
                 goto fail;
         }
         else
             s->diagnostic(s->context, 1);
     }
-    if (!s->write_events(s->context, *number, frames, starts))
+    if (!mm_scene_archive_write_tracks(editor, *number, &frames, &starts) ||
+        !store_thumbnail(s, *number) || !mm_scene_archive_write(editor, *number, s->metadata))
         goto fail;
-    s->update_thumbnail(s->context);
-    thumbnail = s->owner->owned[MM_SCENE_THUMBNAIL];
-    if (thumbnail)
-    {
-        bytes = s->thumbnail_size(s->context, thumbnail);
-        if (!s->add_thumbnail(s->context, bytes, &child))
-            goto fail;
-        if (!s->write_thumbnail(s->context, thumbnail) || !s->adopt_thumbnail(s->context, *number, child))
-        {
-            s->delete_thumbnail(s->context, child);
-            goto fail;
-        }
-        s->clear_loner(s->context, child);
-    }
-    if (!s->write_metadata(s->context, *number))
-        goto fail;
-    g->release(g->context, frames);
-    g->release(g->context, starts);
+    mm_scene_track_dispose(&frames);
+    mm_scene_track_dispose(&starts);
     return 1;
 fail:
     if (*number != 0xffffffffUL)
-        s->delete_scene(s->context, *number);
-    if (starts)
-        g->release(g->context, starts);
-    if (frames)
-        g->release(g->context, frames);
+        editor->discard(editor->context, MM_SCENE_CHUNK, *number);
+    if (have_starts)
+        mm_scene_track_dispose(&starts);
+    if (have_frames)
+        mm_scene_track_dispose(&frames);
     return 0;
 }

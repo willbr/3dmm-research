@@ -134,12 +134,6 @@ bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup
         }};
     return mm_scene_archive_write_events(&editor, number, frames, starts, &groups) != 0;
 }
-bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, MMSceneTrack *frames, MMSceneTrack *starts)
-{
-    MovieArchiveHost host{file, {}, {}};
-    const auto editor = host.Editor();
-    return mm_scene_archive_write_tracks(&editor, number, frames, starts) != 0;
-}
 bool SceneData::FCreate(PChunkyFile file, ChunkNumber *number)
 {
     MovieArchiveHost host{file, {}, {}};

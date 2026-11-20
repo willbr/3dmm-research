@@ -2381,22 +2381,6 @@ bool Scene::FGetTagBkgd(PTAG ptag)
  *  fFalse if it fails, else fTrue.
  *
  ****************************************************/
-static MMSceneStoreGroups SceneStoreGroups()
-{
-    MMSceneStoreGroups g = {};
-    g.count = [](void *, void *p) -> MMI32 { return static_cast<const MMSceneTrack *>(p)->rows.count; };
-    g.fixed = [](void *, void *p, MMI32 i, unsigned char *bytes) {
-        MMSceneTrackEvent event = {};
-        AssertDo(mm_scene_track_get(static_cast<const MMSceneTrack *>(p), i, &event), "invalid scene event index");
-        std::memcpy(bytes, &event, sizeof(event));
-    };
-    g.data = [](void *, void *p, MMI32 i, MMI32 *bytes) -> void * {
-        return mm_scene_track_payload(static_cast<const MMSceneTrack *>(p), i, bytes);
-    };
-    g.release = [](void *, void *p) { mm_scene_track_dispose(static_cast<MMSceneTrack *>(p)); };
-    g.free_raw = [](void *, void *p) { FreePpv(&p); };
-    return g;
-}
 bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
 {
     AssertThis(0);
@@ -2405,77 +2389,35 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     {
         PScene scene;
         PChunkyFile file;
-        DataBlock block;
-        MMSceneTrack tracks[2];
-        unsigned next_track;
-    } host = {this, pcrf->Pcfl(), {}, {}, 0};
+    } host = {this, pcrf->Pcfl()};
+    MovieArchiveHost archive{host.file, {}, {}};
+    const auto editor = archive.Editor();
     MovieEmbeddedArchive assets{host.file, nullptr};
     MMSceneStoreServices s = {};
     s.context = &host;
     s.owner = &_owner;
-    s.groups = SceneStoreGroups();
+    s.metadata = &_data;
+    s.editor = &editor;
     s.values = SceneSoundValues();
     s.assets = assets.Services();
-    s.add_scene = [](void *p, MMU32 *n) -> int { return static_cast<Host *>(p)->file->FAdd(0, kctgScen, n); };
-    s.delete_scene = [](void *p, MMU32 n) { static_cast<Host *>(p)->file->Delete(kctgScen, n); };
-    s.new_group = [](void *p) -> void * {
-        auto &h = *static_cast<Host *>(p);
-        const auto allocator = CollectionAllocator();
-        auto &track = h.tracks[h.next_track++];
-        return mm_scene_track_init(&track, &allocator, 0) ? &track : nullptr;
-    };
-    s.insert = [](void *, void *p, MMI32 i, MMI32 frame, int kind, MMI32 bytes,
-                  const void *data) -> int {
-        SceneEvent event = {frame, static_cast<SceneEventType>(kind)};
-        return InsertSceneTrackEvent(static_cast<MMSceneTrack *>(p), i, bytes, data, event);
-    };
-    s.chunks = [](void *p) {
-        return static_cast<Host *>(p)->file->ReadChunkAccess();
-    };
-    s.adopt_sound = [](void *p, MMU32 scene, MMU32 n, MMU32 child) -> int {
-        return static_cast<Host *>(p)->file->FAdoptChild(kctgScen, scene, kctgMsnd, n, child);
-    };
-    s.add_child = [](void *p, MMU32 scene, int kind, MMU32 child, MMU32 *n) -> int {
-        return static_cast<Host *>(p)->file->FAddChild(kctgScen, scene, child, 0,
-                                                       kind == MM_SCENE_ADD_ACTOR ? kctgActr : kctgTbox, n);
-    };
-    s.object = [](void *, void *p, MMI32 i) -> void * {
-        void *object;
-        std::memcpy(&object, mm_scene_track_payload(static_cast<const MMSceneTrack *>(p), i, nullptr), sizeof(object));
-        return object;
-    };
+    s.free_sound_bytes = [](void *, void *p) { FreePpv(&p); };
     s.write_object = [](void *p, void *object, int kind, MMU32 n, MMU32 scene) -> int {
         auto file = static_cast<Host *>(p)->file;
         return kind == MM_SCENE_ADD_ACTOR ? static_cast<PActor>(object)->FWrite(file, n, scene)
-                                                : static_cast<PTBOX>(object)->FWrite(file, n);
+                                        : static_cast<PTBOX>(object)->FWrite(file, n);
     };
-    s.read_background = [](void *, void *g, MMI32 i, MMTag *out) -> int {
+    s.read_background = [](void *, const void *data, MMI32 bytes, MMTag *out) -> int {
         TAG tag;
-        std::memcpy(&tag, mm_scene_track_payload(static_cast<const MMSceneTrack *>(g), i, nullptr), sizeof(tag));
+        if (bytes < static_cast<MMI32>(sizeof(tag)))
+            return false;
+        std::memcpy(&tag, data, sizeof(tag));
         *out = TagToCore(tag);
-        return 1;
-    };
-    s.write_events = [](void *p, MMU32 scene, void *frames, void *starts) -> int {
-        return SceneData::FWriteEvents(static_cast<Host *>(p)->file, scene, static_cast<MMSceneTrack *>(frames),
-                                       static_cast<MMSceneTrack *>(starts));
+        return true;
     };
     s.update_thumbnail = [](void *p) { static_cast<Host *>(p)->scene->_UpdateThumbnail(); };
     s.thumbnail_size = [](void *, void *p) -> MMI32 { return static_cast<PMaskedBitmapMBMP>(p)->CbOnFile(); };
-    s.add_thumbnail = [](void *p, MMI32 bytes, MMU32 *n) -> int {
-        auto h = static_cast<Host *>(p);
-        return h->file->FAdd(bytes, kctgThumbMbmp, n, &h->block);
-    };
-    s.write_thumbnail = [](void *p, void *thumbnail) -> int {
-        return static_cast<PMaskedBitmapMBMP>(thumbnail)->FWrite(&static_cast<Host *>(p)->block);
-    };
-    s.adopt_thumbnail = [](void *p, MMU32 scene, MMU32 n) -> int {
-        return static_cast<Host *>(p)->file->FAdoptChild(kctgScen, scene, kctgThumbMbmp, n, 0);
-    };
-    s.delete_thumbnail = [](void *p, MMU32 n) { static_cast<Host *>(p)->file->Delete(kctgThumbMbmp, n); };
-    s.clear_loner = [](void *p, MMU32 n) { static_cast<Host *>(p)->file->SetLoner(kctgThumbMbmp, n, false); };
-    s.write_metadata = [](void *p, MMU32 n) -> int {
-        auto h = static_cast<Host *>(p);
-        return h->scene->_data.FWrite(h->file, n);
+    s.write_thumbnail = [](void *, void *p, const MMStorageWriter *writer) -> int {
+        return static_cast<PMaskedBitmapMBMP>(p)->FWriteStream(*writer);
     };
     s.diagnostic = [](void *, int) { Bug("Bad event in frame event list"); };
     return mm_scene_store(pcno, &s) != 0;
