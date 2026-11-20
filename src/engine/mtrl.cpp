@@ -125,9 +125,6 @@ MMMaterialServices Material_MTRL::_Services(void *context)
     s.delete_chunk = [](void *, void *f, MMU32 type, MMU32 number) {
         static_cast<PChunkyFile>(f)->Delete(type, number);
     };
-    s.read_texture = [](void *, void *f, MMU32 type, MMU32 number) -> void * {
-        return TextureMap::PtmapRead(static_cast<PChunkyFile>(f), type, number);
-    };
     s.read_bitmap = [](void *, void *f, void *palette) -> void * {
         return TextureMap::PtmapReadNative(static_cast<PFilename>(f), static_cast<PDynamicArray>(palette));
     };
@@ -152,7 +149,12 @@ bool Material_MTRL::FSetShadeTable(PChunkyFile f, ChunkTagOrType t, ChunkNumber 
 {
     AssertPo(f, 0);
     auto s = _Services();
-    return mm_material_shade_set(&_shade, f, t, n, &s) != 0;
+    return mm_material_shade_set(&_shade, TextureMap::PtmapRead(f, t, n), &s) != 0;
+}
+bool Material_MTRL::FSetShadeTable(const MMReadStream &stream)
+{
+    auto s = _Services();
+    return mm_material_shade_set(&_shade, TextureMap::PtmapRead(stream), &s) != 0;
 }
 PMaterial_MTRL Material_MTRL::PmtrlNew(LegacyLong base, LegacyLong range)
 {

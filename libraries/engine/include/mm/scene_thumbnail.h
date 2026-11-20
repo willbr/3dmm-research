@@ -4,7 +4,7 @@
 #define MM_ENGINE_SCENE_THUMBNAIL_H
 #include "scene_events.h"
 #include "masked_bitmap.h"
-#include "chunk_storage.h"
+#include "archive_reader.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -26,8 +26,7 @@ extern "C"
     };
     typedef struct MMSceneThumbnailPreview
     {
-        const MMChunkPayloadServices *payload;
-        void *archive, *resources;
+        MMArchiveReader *archive, *resources;
         const unsigned char *palette; /* 256 native BGR0 colours used as a fallback. */
         void *context;
         unsigned char *(*image)(void *, MMU32 width, MMU32 height);
@@ -36,7 +35,7 @@ extern "C"
     /* Missing links succeed without an image. The 1 MiB stored-size and 1024px
      * dimension limits apply to preview. image supplies width*height*4 bytes
      * synchronously or returns null for an allocation failure. RGBA is opaque. */
-    int mm_scene_thumbnail_preview(const MMChunkAccess *, MMU32 scene, const MMSceneThumbnailPreview *);
+    int mm_scene_thumbnail_preview(MMU32 scene, const MMSceneThumbnailPreview *);
     typedef struct MMSceneDirtyServices
     {
         void *context;

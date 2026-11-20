@@ -42,7 +42,7 @@ extern "C"
         int (*resource)(void *, void *candidate, MMU32 type, MMU32 number, MMReadStream *out);
         unsigned char *(*palette_output)(void *, void *candidate);
         int (*display_palette)(void *, void *candidate);
-        int (*shade_load)(void *, void *candidate);
+        int (*shade_load)(void *, const MMReadStream *);
         int (*runtime_begin)(void *), (*depth_begin)(void *);
         int (*cache_new)(void *, void *candidate, void **cache);
         void (*publish)(void *, void **candidate);

@@ -60,20 +60,15 @@ void mm_preview_session_dispose(MMPreviewSession *p, const MMPreviewSessionServi
 }
 static int palette(void *candidate, const MMPreviewSessionServices *s)
 {
-    const unsigned short native_order = 1;
     MMReadStream stream;
-    MMCollectionHeader header;
     unsigned char bytes[1024];
     int r = s->resource(s->context, candidate, PALETTE_TYPE, 0, &stream);
     if (r == MM_PREVIEW_RESOURCE_MISSING)
         return MM_PREVIEW_SESSION_PALETTE_MISSING;
     if (r < 0)
         return failure(r);
-    if (!r || mm_collection_header_read(&stream, MM_COLLECTION_ARRAY, 0, &header) != MM_STORAGE_OK ||
-        header.width != 4 || header.count != 256 || !mm_read_exact(&stream, header.header_bytes, bytes, sizeof(bytes)))
+    if (!r || !mm_palette_read_256(&stream, bytes))
         return MM_PREVIEW_SESSION_PALETTE;
-    if (header.big_endian != (*(const unsigned char *)&native_order == 0))
-        mm_palette_swap_word_order(bytes, header.count);
     memcpy(s->palette_output(s->context, candidate), bytes, sizeof(bytes));
     r = s->display_palette(s->context, candidate);
     if (r <= 0)
@@ -88,6 +83,7 @@ int mm_preview_session_open(MMPreviewSession *p, const void *path, int require_a
 {
     void *candidate = 0;
     MMPreviewSession *next;
+    MMReadStream shade;
     int r, assets, result;
     if (require_asset && !s->input_present(s->context))
         return report(MM_PREVIEW_SESSION_TRANSFER, s);
@@ -165,7 +161,11 @@ int mm_preview_session_open(MMPreviewSession *p, const void *path, int require_a
         result = MM_PREVIEW_SESSION_CACHE;
         goto done;
     }
-    r = s->shade_load(s->context, candidate);
+    r = s->resource(s->context, candidate, SHADE_TYPE, 0, &shade);
+    if (r == 1)
+        r = s->shade_load(s->context, &shade);
+    else if (r == MM_PREVIEW_RESOURCE_MISSING)
+        r = 0;
     if (r <= 0)
     {
         result = r < 0 ? failure(r) : MM_PREVIEW_SESSION_SHADE;

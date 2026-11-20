@@ -26,7 +26,7 @@ struct Host
     Owner owners[8], *current;
     Source sources[16];
     unsigned char bytes[1024], palette_wire[1036];
-    MMMemoryStream palette_stream;
+    MMMemoryStream palette_stream, shade_stream;
     int calls, fail_at, failure, input, taken, candidates, published;
     int missing_palette, malformed_palette, short_palette, missing_shade, other_order, unhealthy;
     int begins, depths, ends, depth_ends, source_count, releases, report, report_failure;
@@ -129,8 +129,15 @@ static int resource(void *v, void *p, MMU32 type, MMU32 number, MMReadStream *ou
     assert(number == 0);
     if (type == 0x544d4150UL)
     {
-        assert(!out);
-        return h->missing_shade ? MM_PREVIEW_RESOURCE_MISSING : 1;
+        static const unsigned char shade[] = {1, 2, 3, 4};
+        if (h->missing_shade)
+            return MM_PREVIEW_RESOURCE_MISSING;
+        if (out)
+        {
+            assert(mm_memory_stream_init(&h->shade_stream, shade, sizeof(shade)));
+            *out = h->shade_stream.stream;
+        }
+        return 1;
     }
     assert(type == 0x474c4352UL && out);
     if (h->missing_palette)
@@ -159,9 +166,9 @@ static int display(void *v, void *p)
     ++host(v)->display_calls;
     return step(host(v));
 }
-static int shade_load(void *v, void *p)
+static int shade_load(void *v, const MMReadStream *stream)
 {
-    (void)p;
+    assert(stream->context == host(v)->shade_stream.stream.context);
     return step(host(v));
 }
 static int runtime_begin(void *v)

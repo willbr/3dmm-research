@@ -77,6 +77,7 @@ class Material_MTRL : public Material_MTRL_PAR
 
   public:
     static bool FSetShadeTable(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    static bool FSetShadeTable(const MMReadStream &stream);
     // Release after all materials, before shutting down BRender.
     static void ReleaseShadeTable(void);
     static PMaterial_MTRL PmtrlNew(LegacyLong iclrBase = ivNil, LegacyLong cclr = ivNil);

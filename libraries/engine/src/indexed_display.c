@@ -1,6 +1,7 @@
 /* Indexed display policy converted from Kauai pixel_stretch.cpp and palette_state.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/indexed_display.h"
+#include "mm/collections.h"
 #include "mm/region.h"
 #include "mm/wide.h"
 #include <string.h>
@@ -202,6 +203,19 @@ int mm_display_palette_overlay(unsigned char *base, size_t base_count, size_t fi
         return 0;
     if (count)
         memmove(base + 4 * first, colours, 4 * count);
+    return 1;
+}
+
+int mm_palette_read_256(const MMReadStream *stream, unsigned char colours[1024])
+{
+    const unsigned short native_order = 1;
+    MMCollectionHeader header;
+    if (mm_collection_header_read(stream, MM_COLLECTION_ARRAY, 0, &header) != MM_STORAGE_OK ||
+        header.width != 4 || header.count != 256 ||
+        !mm_read_exact(stream, header.header_bytes, colours, 1024))
+        return 0;
+    if (header.big_endian != (*(const unsigned char *)&native_order == 0))
+        mm_palette_swap_word_order(colours, header.count);
     return 1;
 }
 

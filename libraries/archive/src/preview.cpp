@@ -883,13 +883,13 @@ try
     image = {};
     error = {};
     if (_impl->IsVirtualScene(scene)) return true;
-    auto file = static_cast<PChunkyFile>(_impl->assets.NativeFile());
-    if (!file || scene.type != kctgScen)
+    auto reader = _impl->assets.Reader();
+    if (!reader || scene.type != kctgScen)
         return Fail(error, ErrorCode::invalid_argument, "Open a movie before reading scene thumbnails.");
+    Internal::ClearDiagnostic();
     static_assert(sizeof(Color) == 4, "Thumbnail palette colour layout");
-    const auto chunks = file->ReadChunkAccess();
     const MMSceneThumbnailPreview preview = {
-        KauaiChunkPayloadServices(), file, _impl->resources.NativeFile(),
+        reader, _impl->resources.Reader(),
         reinterpret_cast<const unsigned char *>(_impl->palette), &image,
         [](void *out, MMU32 width, MMU32 height) -> unsigned char * {
             auto &result = *static_cast<PreviewImage *>(out);
@@ -905,7 +905,7 @@ try
             result.height = height;
             return result.rgba.data();
         }};
-    switch (mm_scene_thumbnail_preview(&chunks, scene.number, &preview))
+    switch (mm_scene_thumbnail_preview(scene.number, &preview))
     {
     case MM_SCENE_THUMBNAIL_OK:
         return true;

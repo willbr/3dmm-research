@@ -329,17 +329,6 @@ static void delete_chunk(void *p, void *f, MMU32 type, MMU32 n)
     assert(t->deleted < 4);
     t->deletes[t->deleted++] = (int)n;
 }
-static void *read_texture(void *p, void *f, MMU32 type, MMU32 number)
-{
-    Test *t = test(p);
-    (void)f;
-    (void)type;
-    (void)number;
-    if (fail(t))
-        return NULL;
-    ++t->shading.refs;
-    return &t->shading;
-}
 static void *read_bitmap(void *p, void *filename, void *palette)
 {
     Test *t = test(p);
@@ -437,7 +426,6 @@ static void setup(Test *t)
     t->s.write_texture = write_texture;
     t->s.adopt = adopt;
     t->s.delete_chunk = delete_chunk;
-    t->s.read_texture = read_texture;
     t->s.read_bitmap = read_bitmap;
     t->s.pixelmap_path = pixelmap_path;
     t->s.read_pixelmap = read_pixelmap;
@@ -639,10 +627,9 @@ static void imports(void)
             balanced(&t);
         }
     setup(&t);
-    t.fail = 1;
-    assert(!mm_material_shade_set(&t.shade, &t, 1, 1, &t.s) && t.shading.refs == 1);
-    t.fail = 0;
-    assert(mm_material_shade_set(&t.shade, &t, 1, 1, &t.s) && t.shading.refs == 1);
+    assert(!mm_material_shade_set(&t.shade, NULL, &t.s) && t.shading.refs == 1);
+    ++t.shading.refs;
+    assert(mm_material_shade_set(&t.shade, &t.shading, &t.s) && t.shading.refs == 1);
     mm_material_shade_dispose(&t.shade, &t.s);
     assert(!t.shade.texture && !t.shading.refs);
 }

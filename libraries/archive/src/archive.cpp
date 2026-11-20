@@ -317,6 +317,11 @@ bool Archive::OpenForPreview(const std::string &utf8Path, Error &error)
     return OpenCore(utf8Path, error, OpenMode::preview);
 }
 
+bool Archive::OpenResources(const std::string &utf8Path, Error &error)
+{
+    return OpenCore(utf8Path, error, OpenMode::resources);
+}
+
 bool Archive::PrepareNativeFile(Error &error)
 {
     if (_impl->file || !_impl->previewFile)
@@ -367,8 +372,11 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
                 return true;
             },
         };
-        const bool nativeGraph =
-            mode == OpenMode::live || (mode == OpenMode::preview && FileObject::PfilFromFni(&filename));
+        const bool useKauaiFile = mode == OpenMode::preview || mode == OpenMode::resources;
+        const auto existingFile = useKauaiFile ? FileObject::PfilFromFni(&filename) : nullptr;
+        const bool nativeGraph = mode == OpenMode::live ||
+            (existingFile && (mode == OpenMode::preview || (existingFile->GrffilCur() & ffilWriteEnable) ||
+                              ChunkyFile::PcflFromFni(&filename)));
         int status;
         if (nativeGraph)
         {
@@ -382,7 +390,7 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
         else
         {
             MMReadStream stream = {};
-            if (mode == OpenMode::preview)
+            if (useKauaiFile)
             {
                 opened->previewFile = FileObject::PfilOpen(&filename);
                 if (!opened->previewFile)

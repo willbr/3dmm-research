@@ -240,10 +240,8 @@ int mm_material_write(const MMMaterialResource *m, void *file, MMU32 type, MMU32
     }
     return 1;
 }
-int mm_material_shade_set(MMMaterialShade *m, void *file, MMU32 type, MMU32 number,
-                                const MMMaterialServices *s)
+int mm_material_shade_set(MMMaterialShade *m, void *replacement, const MMMaterialServices *s)
 {
-    void *replacement = s->read_texture(s->context, file, type, number);
     if (!replacement)
         return 0;
     mm_material_shade_dispose(m, s);

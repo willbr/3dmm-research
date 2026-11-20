@@ -150,9 +150,10 @@ class Archive
     friend bool ReadSoundCatalogStyle(const Archive &, std::uint32_t, std::int32_t &);
     void *NativeFile() const; // Private bridge to the engine preview adapter.
     bool PrepareNativeFile(Error &);
+    bool OpenResources(const std::string &utf8Path, Error &);
     MMArchiveReader *Reader() const;
     MMMovieSession *MovieSession() const;
-    enum class OpenMode { live, inspection, preview };
+    enum class OpenMode { live, inspection, preview, resources };
     bool OpenCore(const std::string &utf8Path, Error &, OpenMode);
     struct Impl;
     std::unique_ptr<Impl> _impl;
@@ -167,9 +168,9 @@ class Archive
     bool Open(const std::string &utf8Path, Error &error);
     // Index the file's stored bytes for read-only archive inspection.
     bool OpenForInspection(const std::string &utf8Path, Error &error);
-    // Open a movie for inspection and subsequent transfer to Preview. Use the
-    // live path if Kauai already has the file open. Otherwise the archive reads
-    // a read-only stream and materializes the graph when Preview takes it.
+    // Open an archive for Preview. Use the live path if Kauai already has the
+    // file open. Otherwise read from a read-only stream, with native graph
+    // materialization deferred until the renderer needs it.
     bool OpenForPreview(const std::string &utf8Path, Error &error);
     void Close();
     // References remain valid until a successful Open, Close, or destruction.

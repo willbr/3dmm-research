@@ -89,7 +89,6 @@ extern "C"
         int (*write_texture)(void *, void *texture, void *file, MMU32 type, MMU32 *number);
         int (*adopt)(void *, void *file, MMU32 type, MMU32 number, const MMMaterialChild *);
         void (*delete_chunk)(void *, void *file, MMU32 type, MMU32 number);
-        void *(*read_texture)(void *, void *file, MMU32 type, MMU32 number);
         void *(*read_bitmap)(void *, void *filename, void *palette);
         const void *(*pixelmap_path)(void *, void *filename);
         void *(*read_pixelmap)(void *, const void *path);
@@ -111,8 +110,8 @@ extern "C"
     void *mm_material_texture(const MMMaterialResource *, const MMMaterialServices *);
     int mm_material_write(const MMMaterialResource *, void *file, MMU32 type, MMU32 *number,
                                 const MMMaterialServices *);
-    int mm_material_shade_set(MMMaterialShade *, void *file, MMU32 type, MMU32 number,
-                                    const MMMaterialServices *);
+    /* Take an owned texture reference. A null replacement leaves the table installed. */
+    int mm_material_shade_set(MMMaterialShade *, void *texture, const MMMaterialServices *);
     void mm_material_shade_dispose(MMMaterialShade *, const MMMaterialServices *);
     void *mm_material_import(void *filename, void *palette, int bitmap, const MMMaterialShade *,
                                    const MMMaterialServices *);

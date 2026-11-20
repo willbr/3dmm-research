@@ -1,6 +1,7 @@
 /* Texture map policy converted from bren/tmap.cpp. */
 #ifndef MM_ENGINE_TEXTURE_RESOURCE_H
 #define MM_ENGINE_TEXTURE_RESOURCE_H
+#include "read_stream.h"
 #include "types.h"
 #include <stddef.h>
 #ifdef __cplusplus
@@ -87,6 +88,8 @@ extern "C"
                                        const MMTextureDescription *);
     int mm_texture_payload(const MMTextureDescription *, MMI32 *bytes);
     MMI32 mm_texture_size(const MMTextureResource *);
+    /* Read a decoded TMAP extent without borrowing it beyond the call. */
+    void *mm_texture_read_stream(const MMReadStream *, const MMTextureServices *);
     void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *);
     int mm_texture_fetch(void *cache, MMU32 type, MMU32 number, void *estimate_block, void *object_out,
                                void *size_out, const MMTextureServices *);

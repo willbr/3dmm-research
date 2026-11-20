@@ -379,6 +379,19 @@ static void codecs_and_loads(void)
     assert(o);
     release(&t, o);
     balanced(&t);
+    {
+        MMMemoryStream stream;
+        setup(&t);
+        assert(mm_memory_stream_init(&stream, t.input, 27));
+        assert(!mm_texture_read_stream(&stream.stream, &t.s));
+        balanced(&t);
+        assert(mm_memory_stream_init(&stream, t.input, 28));
+        o = (Object *)mm_texture_read_stream(&stream.stream, &t.s);
+        assert(o && o->texture.description.row_bytes == 4 && ((unsigned char *)o->texture.pixels)[7] == 17);
+        assert(t.closed == 0);
+        release(&t, o);
+        balanced(&t);
+    }
 }
 static void constructors_and_import(void)
 {

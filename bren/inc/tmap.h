@@ -72,14 +72,8 @@ class TextureMap : public TextureMap_PAR
   public:
     ~TextureMap(void);
 
-    //  REVIEW *****(peted): MaskedBitmapMBMP's ...Read function just takes a PDataBlock; this
-    //  is more like the FRead... function, just without the BaseCacheableObject stuff.  Why
-    //  the difference?
-    //	Addendum: to enable compiling 'TMAP' chunks, I added an FWrite that does
-    //	take just a PDataBlock.  Should this be necessary for PtmapRead in the future,
-    //	it's a simple matter of extracting the code in PtmapRead that is needed,
-    //	like I did for FWrite.
     static PTextureMap PtmapRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    static PTextureMap PtmapRead(const MMReadStream &stream);
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TextureMap

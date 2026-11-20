@@ -86,15 +86,18 @@ priority over the older Project 0-4 ordering wherever they conflict.
   links, applies the source-table budget and supplies the retail source for a
   movie without a source table. The adapter publishes the public directory.
 - Preview checks archive budgets against C89 index entries and stored packed
-  headers. Its common palette loads through the C89 archive reader and shares
-  colour-word conversion with Studio background loading.
+  headers. Its common palette, shade table, and saved scene thumbnails load
+  through the C89 archive reader. The common resource archive can stay a
+  physical stream across Preview replacements, and external content builds its
+  native graph and resource cache after admission checks. Studio and Preview
+  share the texture-map stream decoder.
 - The archive reader opens immutable physical streams through the C89 chunk
   index, codec and payload cache. `3mm dump` and Marcus catalogue reads use this
   path. Marcus also uses it to read source names for an object being copied.
   On movie open Marcus reads the movie directory and metadata through the same
   C89 reader. Preview materializes its native resource graph from the
-  validated wire index over the same open file. Files already open in Kauai
-  use its live graph path.
+  validated wire index over the same open file. Movie files already open in
+  Kauai use its live graph path.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

@@ -1,7 +1,7 @@
 /* Scene thumbnails/dirty propagation converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_thumbnail.h"
-#include "mm/collections.h"
+#include "mm/indexed_display.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -23,47 +23,28 @@ static void dispose_bitmap(void *context, void **data)
     *data = NULL;
 }
 
-typedef struct ThumbnailPalette
+static int read_thumbnail_palette(MMArchiveReader *reader, unsigned char palette[1024])
 {
-    unsigned char bytes[256 * 4];
-    int big;
-} ThumbnailPalette;
-
-static int read_thumbnail_palette(void *context, const MMReadStream *stream)
-{
-    ThumbnailPalette *palette = (ThumbnailPalette *)context;
-    MMCollectionHeader header;
-    unsigned char *p, t;
-    unsigned i;
-    if (mm_collection_header_read(stream, MM_COLLECTION_ARRAY, 0, &header) != MM_STORAGE_OK ||
-        header.width != 4 || header.count != 256 ||
-        !mm_read_exact(stream, header.header_bytes, palette->bytes, sizeof(palette->bytes)))
-        return 0;
-    if (header.big_endian != palette->big)
-    {
-        p = palette->bytes;
-        for (i = 0; i < 256; ++i, p += 4)
-        {
-            t = p[0]; p[0] = p[3]; p[3] = t;
-            t = p[1]; p[1] = p[2]; p[2] = t;
-        }
-    }
-    return 1;
+    const MMChunkAccess access = mm_archive_reader_access(reader);
+    MMReadStream stream;
+    MMU32 position;
+    return mm_chunk_find(&access, 0x474c4352UL, 0x20001UL, &position) == MM_CHUNK_OK &&
+           mm_archive_reader_payload(reader, position, &stream) == MM_ARCHIVE_READ_OK &&
+           mm_palette_read_256(&stream, palette);
 }
 
-static int read_thumbnail(void *context, const MMReadStream *stream)
+static int read_thumbnail(const MMSceneThumbnailPreview *preview, const MMReadStream *stream)
 {
-    const MMSceneThumbnailPreview *preview = (const MMSceneThumbnailPreview *)context;
     const unsigned short one = 1;
     MMMaskedServices services;
     MMMaskedBitmap bitmap;
     MMMaskedRect bounds;
-    ThumbnailPalette palette;
+    unsigned char palette[1024];
     const unsigned char *colours, *colour;
     unsigned char *indices, *rgba;
     MMU32 width, height, rgba_bytes;
     size_t pixels, i;
-    int decoded, result;
+    int result;
     memset(&services, 0, sizeof(services));
     memset(&bitmap, 0, sizeof(bitmap));
     services.host_big_endian = *(const unsigned char *)&one == 0;
@@ -90,11 +71,8 @@ static int read_thumbnail(void *context, const MMReadStream *stream)
     {
         mm_masked_blit8(&bitmap, services.host_big_endian, indices, (MMI32)width, (MMI32)height, 0, 0, NULL, NULL);
         colours = preview->palette;
-        palette.big = services.host_big_endian;
-        if (preview->resources &&
-            mm_chunk_read_payload(preview->payload, preview->resources, 0x474c4352UL, 0x20001UL,
-                                  read_thumbnail_palette, &palette, &decoded) == MM_CHUNK_OK && decoded)
-            colours = palette.bytes;
+        if (preview->resources && read_thumbnail_palette(preview->resources, palette))
+            colours = palette;
         for (i = 0; i < pixels; ++i, rgba += 4)
         {
             colour = colours + 4 * (size_t)indices[i];
@@ -111,21 +89,22 @@ done:
     return result;
 }
 
-int mm_scene_thumbnail_preview(const MMChunkAccess *access, MMU32 scene, const MMSceneThumbnailPreview *preview)
+int mm_scene_thumbnail_preview(MMU32 scene, const MMSceneThumbnailPreview *preview)
 {
+    const MMChunkAccess access = mm_archive_reader_access(preview->archive);
     MMChunkEntry chunk;
+    MMReadStream stream;
     MMU32 number, position;
-    int status, result;
-    if (mm_scene_thumbnail_link(access, scene, &number) != MM_CHUNK_OK)
+    int status;
+    if (mm_scene_thumbnail_link(&access, scene, &number) != MM_CHUNK_OK)
         return MM_SCENE_THUMBNAIL_OK;
-    if (mm_chunk_find(access, MM_SCENE_THUMBNAIL_TYPE, number, &position) != MM_CHUNK_OK ||
-        mm_chunk_at(access, position, &chunk) != MM_CHUNK_OK || chunk.bytes > 1024UL * 1024UL)
+    if (mm_chunk_find(&access, MM_SCENE_THUMBNAIL_TYPE, number, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(&access, position, &chunk) != MM_CHUNK_OK || chunk.bytes > 1024UL * 1024UL)
         return MM_SCENE_THUMBNAIL_READ;
-    status = mm_chunk_read_payload(preview->payload, preview->archive, MM_SCENE_THUMBNAIL_TYPE, number,
-                                   read_thumbnail, (void *)preview, &result);
-    if (status == MM_CHUNK_NOT_FOUND)
+    status = mm_archive_reader_payload(preview->archive, position, &stream);
+    if (status == MM_ARCHIVE_MISSING_PAYLOAD)
         return MM_SCENE_THUMBNAIL_READ;
-    return status == MM_CHUNK_OK ? result : MM_SCENE_THUMBNAIL_DECODE;
+    return status == MM_ARCHIVE_READ_OK ? read_thumbnail(preview, &stream) : MM_SCENE_THUMBNAIL_DECODE;
 }
 
 void mm_scene_mark_dirty(const MMSceneOwner *owner, int dirty, const MMSceneDirtyServices *s)

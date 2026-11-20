@@ -116,37 +116,69 @@ void mm_texture_dispose(MMTextureResource *m, const MMTextureServices *s)
     else
         s->free_memory(s->context, &m->pixels);
 }
-static int read_at(void *block, void *data, MMI32 n, MMI32 offset, const MMTextureServices *s)
+typedef struct TextureBlock
 {
-    MMI32 size = s->size(s->context, block, 0);
-    return n >= 0 && offset >= 0 && offset <= size && n <= size - offset && s->read(s->context, block, data, n, offset);
+    void *block;
+    const MMTextureServices *services;
+} TextureBlock;
+
+static int read_block(void *context, MMU32 offset, void *bytes, size_t count)
+{
+    const TextureBlock *source = (const TextureBlock *)context;
+    const MMTextureServices *s = source->services;
+    return s->read(s->context, source->block, bytes, (MMI32)count, (MMI32)offset);
 }
-void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *s)
+static int load(void *object, const MMReadStream *stream, const MMTextureServices *s)
 {
-    void *object = s->create(s->context), *block;
     MMTextureResource *m;
     unsigned char b[20];
     MMTextureDescription d;
     MMI32 n;
     int bad, valid;
-    if (!object)
-        goto done;
-    block = s->find(s->context, file, type, number);
-    if (!block || !s->unpack(s->context, block) || !read_at(block, b, 20, 0, s))
-        goto fail;
+    if (!mm_read_exact(stream, 0, b, sizeof(b)))
+        return 0;
     valid = mm_texture_header_read(b, s->host_big_endian, &d, &bad);
     if (bad)
         s->diagnostic(s->context, MM_TEXTURE_ORDER);
     if (!valid || !mm_texture_payload(&d, &n))
-        goto fail;
+        return 0;
     m = s->state(s->context, object);
     if (!s->allocate(s->context, n, 1, &m->pixels))
-        goto fail;
+        return 0;
     m->description = d;
     s->publish(s->context, object, m);
-    if (!read_at(block, m->pixels, n, 20, s))
+    return mm_read_exact(stream, sizeof(b), m->pixels, (size_t)n);
+}
+void *mm_texture_read_stream(const MMReadStream *stream, const MMTextureServices *s)
+{
+    void *object = s->create(s->context);
+    if (object && !load(object, stream, s))
+    {
+        s->release(s->context, object);
+        object = NULL;
+    }
+    return object;
+}
+void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *s)
+{
+    void *object = s->create(s->context);
+    TextureBlock source;
+    MMReadStream stream;
+    MMI32 length;
+    if (!object)
+        goto done;
+    source.services = s;
+    source.block = s->find(s->context, file, type, number);
+    if (!source.block || !s->unpack(s->context, source.block))
         goto fail;
-    goto done;
+    length = s->size(s->context, source.block, 0);
+    if (length < 0)
+        goto fail;
+    stream.context = &source;
+    stream.length = (MMU32)length;
+    stream.read_at = read_block;
+    if (load(object, &stream, s))
+        goto done;
 fail:
     s->release(s->context, object);
     object = NULL;

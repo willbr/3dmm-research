@@ -134,6 +134,13 @@ PTextureMap TextureMap::PtmapRead(PChunkyFile file, ChunkTagOrType type, ChunkNu
     AssertNilOrPo(object, 0);
     return object;
 }
+PTextureMap TextureMap::PtmapRead(const MMReadStream &stream)
+{
+    auto s = _Services();
+    auto object = static_cast<PTextureMap>(mm_texture_read_stream(&stream, &s));
+    AssertNilOrPo(object, 0);
+    return object;
+}
 PTextureMap TextureMap::PtmapNewFromBpmp(BPMP *bpmp)
 {
     auto s = _Services();

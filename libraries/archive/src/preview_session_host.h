@@ -113,7 +113,7 @@ struct Preview::Impl::SessionHost
         s.open_resources = [](void *v, void *p, const void *path) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
-                return static_cast<Impl *>(p)->resources.Open(*static_cast<const std::string *>(path), *h.error);
+                return static_cast<Impl *>(p)->resources.OpenResources(*static_cast<const std::string *>(path), *h.error);
             });
         };
         s.has_assets = [](void *, void *p) -> int { return static_cast<Impl *>(p)->assets.NativeFile() != nullptr; };
@@ -158,11 +158,10 @@ struct Preview::Impl::SessionHost
                 return *out != nullptr;
             });
         };
-        s.shade_load = [](void *v, void *p) -> int {
+        s.shade_load = [](void *v, const MMReadStream *stream) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
-                return Material_MTRL::FSetShadeTable(
-                    static_cast<PChunkyFile>(static_cast<Impl *>(p)->resources.NativeFile()), kctgTmap, 0);
+                return Material_MTRL::FSetShadeTable(*stream);
             });
         };
         s.publish = [](void *v, void **p) {
@@ -185,7 +184,7 @@ struct Preview::Impl::SessionHost
         s.source_open = [](void *v, void *p, const void *path) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
-                return static_cast<Source *>(p)->archive.Open(*static_cast<const std::string *>(path), *h.error);
+                return static_cast<Source *>(p)->archive.OpenForPreview(*static_cast<const std::string *>(path), *h.error);
             });
         };
         s.source_budget = [](void *v, void *p) -> int {
@@ -199,6 +198,8 @@ struct Preview::Impl::SessionHost
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
                 auto i = static_cast<Source *>(p);
+                if (!i->archive.PrepareNativeFile(*h.error))
+                    return false;
                 i->cache = ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(i->archive.NativeFile()), 32L << 20);
                 return i->cache != nullptr;
             });
