@@ -329,6 +329,7 @@ target_sources(mm-engine-c89 PRIVATE src/clipboard.c)
 target_sources(mm-engine-c89 PRIVATE src/clock.c)
 target_sources(mm-engine-c89 PRIVATE src/command_dispatch.c)
 target_sources(mm-engine-c89 PRIVATE src/command_macro.c)
+target_sources(mm-engine-c89 PRIVATE src/video_playback.c)
 target_sources(mm-engine-c89 PRIVATE src/help_text.c)
 target_sources(mm-engine-c89 PRIVATE src/help_display.c)
 target_sources(mm-engine-c89 PRIVATE src/help_interaction.c)
@@ -413,6 +414,11 @@ add_executable(engine-command-macro-test EXCLUDE_FROM_ALL "${engine_command_macr
 target_link_libraries(engine-command-macro-test PRIVATE mm-engine-c89)
 set_target_properties(engine-command-macro-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-command-macro COMMAND engine-command-macro-test)
+get_filename_component(engine_video_playback_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_video_playback_test.c" ABSOLUTE)
+add_executable(engine-video-playback-test EXCLUDE_FROM_ALL "${engine_video_playback_test_source}")
+target_link_libraries(engine-video-playback-test PRIVATE mm-engine-c89)
+set_target_properties(engine-video-playback-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-video-playback COMMAND engine-video-playback-test)
 get_filename_component(engine_document_lifecycle_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_document_lifecycle_test.c" ABSOLUTE)
 add_executable(engine-document-lifecycle-test EXCLUDE_FROM_ALL "${engine_document_lifecycle_test_source}")
 target_link_libraries(engine-document-lifecycle-test PRIVATE mm-engine-c89)
@@ -1341,6 +1347,8 @@ if(ENGINE_C89_COMPILER)
     "${engine_command_dispatch_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/command_macro.c"
     "${engine_command_macro_test_source}"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/video_playback.c"
+    "${engine_video_playback_test_source}"
     "${engine_clipboard_test_source}"
     "${engine_document_views_test_source}"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/help_text.c"

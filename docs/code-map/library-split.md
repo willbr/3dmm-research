@@ -7439,6 +7439,24 @@ uses the documented format, with Windows VfW as a compatibility oracle:
 pixel, forward/backward seeks, fractional timeline conversion and exact PCM
 bytes. `avi-movie-test` covers synthetic palette changes, nested records,
 nonzero stream starts, malformed packets, truncation and size/time limits.
+
+`video_playback.c` owns Studio's native and SDL stream scheduling. It handles
+start, stop, seek, command-filter registration order, redraw suppression and
+frame bounds. Silent native streams use Kauai's wrapping millisecond clock.
+For SDL, C89 also computes the PCM seek window and advances frame time from the
+device's consumed input bytes. It preserves the output-buffer latency and
+drains the audio tail before finishing. Silent SDL streams use monotonic time.
+The video player supplies timestamps, decoding, device I/O and presentation.
+`engine-video-playback-test` checks clock wrap, seek alignment, failed-start
+cleanup, audio drain and final-frame duration without a host SDK. The native
+video host and SDL video checks passed. Both SDL Studio builds completed the
+original Movie Techniques clip with all 130 frames and 477,736 queued and
+consumed PCM bytes. The completed scene matched pixel for pixel after the
+original project script settled.
+Movie capture suite `20261120T061013Z-46c4ba63` matched 60 retail frame
+identities on SDL and Marcus, and 12 retail sound requests on SDL. Each host
+also matched its 60 previous seek images.
+
 `kauai-sdl-video` adds `video_sdl.h/.cpp`: an SDK-free public player over the
 core decoder and SDL audio streams, with stop/restart, relative frame seeks,
 master gain and final-frame duration. Audio-backed playback follows fixed-format

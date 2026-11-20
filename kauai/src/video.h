@@ -17,6 +17,7 @@
 #include "kauai_core.h"
 #include "cmd.h"
 #include "video_stream_host.h"
+#include "mm/video_playback.h"
 class GraphicsEnvironment;
 typedef GraphicsEnvironment *PGraphicsEnvironment;
 
@@ -66,17 +67,9 @@ class VideoStream : public VideoStream_PAR
     ASSERT
 
   protected:
-    long _nfrMac;
-    long _nfrCur;
-    long _nfrMarked;
-    long _dxp;
-    long _dyp;
-
+    struct PlaybackHost;
+    MMVideoStream _playback;
     PGraphicsObject _pgobBase;
-    RC _rcPlay;
-    ulong _tsPlay;
-
-    bool _fPlaying;
 
     KauaiVideo::StreamHost *_host;
 

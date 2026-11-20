@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "video_sdl.h"
 #include <SDL3/SDL.h>
-#include <algorithm>
+#include "mm/video_playback.h"
 #include <atomic>
 #include <cmath>
 #include <cstring>
@@ -39,11 +39,8 @@ struct SDLPlayback::Impl
 {
     AviMovie movie;
     SDL_AudioStream *stream = nullptr;
-    bool initialized = false, audio = false, playing = false;
-    std::int32_t position = 0, firstFrame = 0, firstTime = 0, duration = 0;
-    std::uint64_t ticks = 0, drained = 0, latency = 0;
-    std::uint32_t audioRate = 0, align = 0;
-    int queued = 0, lastQueued = 0;
+    bool initialized = false, audio = false;
+    MMVideoDeviceClock clock{};
     float gain = 1.0f;
     ~Impl()
     {
@@ -51,49 +48,27 @@ struct SDLPlayback::Impl
         if (initialized)
             SDL_QuitSubSystem(SDL_INIT_AUDIO);
     }
+    static MMAudioCounter Now()
+    {
+        const auto ticks = SDL_GetTicksNS();
+        return mm_audio_counter(static_cast<MMU32>(ticks), static_cast<MMU32>(ticks >> 32));
+    }
     void Update()
     {
-        if (!playing)
+        if (!clock.playing)
             return;
-        const auto now = SDL_GetTicksNS();
-        std::uint64_t elapsed = (now - ticks) / 1000000;
-        if (stream)
-        {
-            const int remaining = SDL_GetAudioStreamQueued(stream);
-            if (remaining < 0 || remaining > queued)
-            {
-                StopDevice();
-                playing = false;
-                return;
-            }
-            if (remaining < lastQueued)
-                consumedAudio += static_cast<unsigned>(lastQueued - remaining);
-            lastQueued = remaining;
-            // SDL queues input bytes; this fixed-format stream never changes
-            // format. Conversion/consumption therefore supplies a shared clock.
-            const auto consumedNS = std::uint64_t(queued - remaining) * 1000000000 / (audioRate * align);
-            auto audibleNS = consumedNS > latency ? consumedNS - latency : 0;
-            if (!remaining)
-            {
-                if (!drained)
-                    drained = now;
-                const auto tail = (std::min)(now - drained, latency);
-                audibleNS += tail;
-                if (now - drained >= latency)
-                    audibleNS = std::uint64_t(duration) * 1000000;
-            }
-            elapsed = audibleNS / 1000000;
-        }
-        position = (std::max)(
-            firstFrame,
-            movie.FrameForTime(firstTime + static_cast<std::int32_t>((std::min)(elapsed, std::uint64_t(duration)))));
-        if (elapsed >= static_cast<std::uint64_t>(duration))
-        {
-            position = movie.Info().frames - 1;
-            playing = false;
+        const auto now = Now();
+        const int remaining = stream ? SDL_GetAudioStreamQueued(stream) : 0;
+        MMU32 consumed;
+        const int result = mm_video_device_update(&clock, now, remaining, &movie, [](void *context, MMI32 time) {
+            return static_cast<AviMovie *>(context)->FrameForTime(time);
+        }, &consumed);
+        if (consumed)
+            consumedAudio += consumed;
+        if (result == MM_VIDEO_QUEUE_ERROR || result == MM_VIDEO_FINISHED)
             StopDevice();
+        if (result == MM_VIDEO_FINISHED)
             ++completed;
-        }
     }
     void StopDevice()
     {
@@ -104,22 +79,15 @@ struct SDLPlayback::Impl
     void Stop()
     {
         Update();
-        playing = false;
+        mm_video_device_stop(&clock);
         StopDevice();
     }
     bool Play(std::int32_t frame)
     {
         Stop();
         const auto info = movie.Info();
-        if (frame < 0 || frame >= info.frames)
+        if (!mm_video_device_prepare(&clock, frame, info.frames, movie.TimeForFrame(frame), movie.TimeForFrame(info.frames)))
             return false;
-        firstFrame = frame;
-        firstTime = movie.TimeForFrame(frame);
-        duration = movie.TimeForFrame(info.frames) - firstTime;
-        if (duration <= 0)
-            return false;
-        position = frame;
-        drained = 0;
         const auto &source = movie.Audio();
         if (audio && source.rate)
         {
@@ -129,28 +97,24 @@ struct SDLPlayback::Impl
                     return false;
                 initialized = true;
             }
-            audioRate = source.rate;
-            align = source.channels * (source.bits / 8);
-            const auto frames = (std::uint64_t(duration) * audioRate + 999) / 1000;
-            if (frames * align > INT32_MAX)
+            MMVideoPcmWindow window;
+            const MMU32 alignment = source.channels * (source.bits / 8);
+            if (!mm_video_pcm_window(clock.first_time, clock.duration, source.rate, alignment, source.start,
+                                     static_cast<MMU32>(source.pcm.size()), &window))
                 return false;
             const SDL_AudioSpec spec{source.bits == 8 ? SDL_AUDIO_U8 : SDL_AUDIO_S16LE, source.channels,
-                                     static_cast<int>(audioRate)};
+                                     static_cast<int>(source.rate)};
             stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
             if (!stream)
                 return false;
             try
             {
-                std::vector<std::uint8_t> pcm(static_cast<std::size_t>(frames * align), source.bits == 8 ? 128 : 0);
-                const auto first = std::int64_t(firstTime) * audioRate / 1000 - source.start;
-                const auto src = (std::max)(std::int64_t(0), first), dst = (std::max)(std::int64_t(0), -first);
-                const auto count =
-                    (std::min)(std::int64_t(source.pcm.size() / align) - src, std::int64_t(frames) - dst);
-                if (count > 0)
-                    std::memcpy(pcm.data() + dst * align, source.pcm.data() + src * align,
-                                static_cast<std::size_t>(count * align));
-                queued = lastQueued = static_cast<int>(pcm.size());
-                if (!SDL_PutAudioStreamData(stream, pcm.data(), queued) || !SDL_FlushAudioStream(stream))
+                std::vector<std::uint8_t> pcm(window.bytes, source.bits == 8 ? 128 : 0);
+                if (window.copy_bytes)
+                    std::memcpy(pcm.data() + window.destination_offset, source.pcm.data() + window.source_offset,
+                                window.copy_bytes);
+                if (!SDL_PutAudioStreamData(stream, pcm.data(), static_cast<int>(window.bytes)) ||
+                    !SDL_FlushAudioStream(stream))
                 {
                     StopDevice();
                     return false;
@@ -170,18 +134,17 @@ struct SDLPlayback::Impl
                 StopDevice();
                 return false;
             }
-            latency = std::uint64_t(deviceFrames) * 1000000000 / deviceSpec.freq;
-            ticks = SDL_GetTicksNS();
+            const auto now = Now();
             if (!SDL_SetAudioStreamGain(stream, gain) || !SDL_ResumeAudioStreamDevice(stream))
             {
                 StopDevice();
                 return false;
             }
-            queuedAudio += static_cast<unsigned>(queued);
+            mm_video_device_begin(&clock, now, window.bytes, window.byte_rate, deviceFrames, deviceSpec.freq);
+            queuedAudio += window.bytes;
         }
         else
-            ticks = SDL_GetTicksNS();
-        playing = true;
+            mm_video_device_begin(&clock, Now(), 0, 0, 0, 0);
         ++started;
         return true;
     }
@@ -209,7 +172,7 @@ void SDLPlayback::Close()
 {
     impl->Stop();
     impl->movie.Reset();
-    impl->position = 0;
+    impl->clock.position = 0;
 }
 AviInfo SDLPlayback::Info() const
 {
@@ -252,11 +215,11 @@ void SDLPlayback::Stop()
 bool SDLPlayback::Playing()
 {
     impl->Update();
-    return impl->playing;
+    return impl->clock.playing;
 }
 std::int32_t SDLPlayback::Position()
 {
     impl->Update();
-    return impl->position;
+    return impl->clock.position;
 }
 } // namespace KauaiVideo

@@ -9,6 +9,7 @@
     Graphical video object implementation.
 
 ***************************************************************************/
+#include <exception>
 #include "frame.h"
 ASSERTNAME
 
@@ -19,6 +20,114 @@ BEGIN_CMD_MAP_BASE(VideoStream)
 END_CMD_MAP(&VideoStream::FCmdAll, pvNil, kgrfcmmAll)
 
 const long kcmhlGvds = kswMin; // put videos at the head of the list
+
+struct VideoStream::PlaybackHost
+{
+    VideoStream *video;
+    std::exception_ptr error;
+
+    explicit PlaybackHost(VideoStream *owner) : video(owner) {}
+
+    template <class Action> int Guard(Action action)
+    {
+        try
+        {
+            return action();
+        }
+        catch (...)
+        {
+            if (!error)
+                error = std::current_exception();
+            return -1;
+        }
+    }
+
+    void Rethrow()
+    {
+        if (error)
+            std::rethrow_exception(error);
+    }
+
+    MMVideoStreamServices Services()
+    {
+        return {
+            this,
+            [](void *context, int add) {
+                auto &host = *static_cast<PlaybackHost *>(context);
+                return host.Guard([&] {
+                    if (add)
+                        return vpcex && vpcex->FAddCmh(host.video, kcmhlGvds, kgrfcmmAll) ? 1 : 0;
+                    if (vpcex)
+                        vpcex->RemoveCmh(host.video, kcmhlGvds);
+                    return 1;
+                });
+            },
+            [](void *context, MMI32 frame) {
+                auto &host = *static_cast<PlaybackHost *>(context);
+                return host.Guard([&] { return host.video->_host->Start(frame); });
+            },
+            video->_host ? StopDevice : nullptr,
+            [](void *context) {
+                auto &host = *static_cast<PlaybackHost *>(context);
+                return host.Guard([&] { return host.video->_host->ControlsPlayback(); });
+            },
+            [](void *context) {
+                auto &host = *static_cast<PlaybackHost *>(context);
+                return host.Guard([&] { return host.video->_host->Playing(); });
+            },
+            [](void *context, MMI32 *frame) {
+                auto &host = *static_cast<PlaybackHost *>(context);
+                return host.Guard([&] {
+                    *frame = host.video->_host->Position();
+                    return 1;
+                });
+            },
+            [](void *context, MMU32 time, MMI32 *frame) {
+                auto &host = *static_cast<PlaybackHost *>(context);
+                return host.Guard([&] {
+                    *frame = host.video->_host->FrameForTime(time);
+                    return 1;
+                });
+            },
+            [](void *context, MMI32 frame, MMI32 *time) {
+                auto &host = *static_cast<PlaybackHost *>(context);
+                return host.Guard([&] {
+                    *time = host.video->_host->TimeForFrame(frame);
+                    return 1;
+                });
+            },
+            [](void *context, MMU32 *time) {
+                auto &host = *static_cast<PlaybackHost *>(context);
+                return host.Guard([&] {
+                    *time = TsCurrent();
+                    return 1;
+                });
+            },
+            [](void *context, const MMPixelRect *bounds) {
+                auto &host = *static_cast<PlaybackHost *>(context);
+                return host.Guard([&] {
+                    RC rectangle(bounds->left, bounds->top, bounds->right, bounds->bottom);
+                    host.video->_pgobBase->InvalRc(&rectangle, kginMark);
+                    return 1;
+                });
+            }
+        };
+    }
+
+    static int StopDevice(void *context)
+    {
+        auto &host = *static_cast<PlaybackHost *>(context);
+        return host.Guard([&] {
+            host.video->_host->Stop();
+            return 1;
+        });
+    }
+};
+
+static MMPixelRect VideoBounds(const RC &rectangle)
+{
+    return {rectangle.xpLeft, rectangle.ypTop, rectangle.xpRight, rectangle.ypBottom};
+}
 
 /***************************************************************************
     Create a video - either an HWND based one, or just a video stream,
@@ -88,12 +197,7 @@ bool VideoStream::_FInit(PFilename pfni, PGraphicsObject pgobBase)
         return fFalse;
     }
     const auto info = _host->Info();
-    _dxp = info.width;
-    _dyp = info.height;
-    _nfrMac = info.frames;
-    _nfrCur = 0;
-    _nfrMarked = -1;
-    SetRcPlay(pvNil);
+    mm_video_stream_init(&_playback, info.width, info.height, info.frames);
     return fTrue;
 }
 
@@ -126,7 +230,7 @@ PVideoStream VideoStream::PgvdsNew(PFilename pfni, PGraphicsObject pgobBase, lon
 long VideoStream::NfrMac(void)
 {
     AssertThis(0);
-    return _nfrMac;
+    return _playback.frames;
 }
 
 /***************************************************************************
@@ -135,9 +239,11 @@ long VideoStream::NfrMac(void)
 long VideoStream::NfrCur(void)
 {
     AssertThis(0);
-    if (_fPlaying && _host->ControlsPlayback())
-        _nfrCur = _host->Position();
-    return _nfrCur;
+    PlaybackHost host(this);
+    const auto services = host.Services();
+    mm_video_stream_position(&_playback, &services);
+    host.Rethrow();
+    return _playback.frame;
 }
 
 /***************************************************************************
@@ -147,10 +253,11 @@ long VideoStream::NfrCur(void)
 void VideoStream::GotoNfr(long nfr)
 {
     AssertThis(0);
-    AssertIn(nfr, 0, _nfrMac);
-
-    Stop();
-    _nfrCur = nfr;
+    AssertIn(nfr, 0, _playback.frames);
+    PlaybackHost host(this);
+    const auto services = host.Services();
+    mm_video_stream_seek(&_playback, &services, nfr);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -159,9 +266,11 @@ void VideoStream::GotoNfr(long nfr)
 bool VideoStream::FPlaying(void)
 {
     AssertThis(0);
-    if (_fPlaying && _host->ControlsPlayback() && !_host->Playing())
-        Stop();
-    return _fPlaying;
+    PlaybackHost host(this);
+    const auto services = host.Services();
+    const int playing = mm_video_stream_playing(&_playback, &services);
+    host.Rethrow();
+    return playing > 0;
 }
 
 /***************************************************************************
@@ -173,22 +282,12 @@ bool VideoStream::FPlay(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
-
-    Stop();
-    if (!vpcex->FAddCmh(this, kcmhlGvds, kgrfcmmAll))
-        return fFalse;
-    if (!_host->Start(_nfrCur))
-    {
-        vpcex->RemoveCmh(this, kcmhlGvds);
-        return fFalse;
-    }
-
-    SetRcPlay(prc);
-    _fPlaying = fTrue;
-
-    _tsPlay = TsCurrent() - _host->TimeForFrame(_nfrCur);
-
-    return fTrue;
+    PlaybackHost host(this);
+    const auto services = host.Services();
+    const auto bounds = prc ? VideoBounds(*prc) : MMPixelRect{};
+    const int started = mm_video_stream_start(&_playback, &services, prc ? &bounds : nullptr);
+    host.Rethrow();
+    return started > 0;
 }
 
 /***************************************************************************
@@ -198,11 +297,8 @@ void VideoStream::SetRcPlay(RC *prc)
 {
     AssertThis(0);
     AssertNilOrVarMem(prc);
-
-    if (pvNil == prc)
-        _rcPlay.Set(0, 0, _dxp, _dyp);
-    else
-        _rcPlay = *prc;
+    const auto bounds = prc ? VideoBounds(*prc) : MMPixelRect{};
+    mm_video_stream_bounds(&_playback, prc ? &bounds : nullptr);
 }
 
 /***************************************************************************
@@ -211,16 +307,10 @@ void VideoStream::SetRcPlay(RC *prc)
 void VideoStream::Stop(void)
 {
     AssertThis(0);
-
-    if (_host)
-    {
-        if (_fPlaying && _host->ControlsPlayback())
-            _nfrCur = _host->Position();
-        _host->Stop();
-    }
-    if (vpcex)
-        vpcex->RemoveCmh(this, kcmhlGvds);
-    _fPlaying = fFalse;
+    PlaybackHost host(this);
+    const auto services = host.Services();
+    mm_video_stream_stop(&_playback, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -230,29 +320,10 @@ bool VideoStream::FCmdAll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-
-    if (!_fPlaying)
-    {
-        Stop();
-        return fFalse;
-    }
-
-    // update _nfrCur
-    const bool controlled = _host->ControlsPlayback();
-    _nfrCur = controlled ? _host->Position() : _host->FrameForTime(TsCurrent() - _tsPlay);
-    if (_nfrCur >= _nfrMac)
-        _nfrCur = _nfrMac - 1;
-    else if (_nfrCur < 0)
-        _nfrCur = 0;
-
-    if (_nfrCur != _nfrMarked)
-    {
-        _pgobBase->InvalRc(&_rcPlay, kginMark);
-        _nfrMarked = _nfrCur;
-    }
-    if (controlled ? !_host->Playing() : _nfrCur >= _nfrMac - 1)
-        Stop();
-
+    PlaybackHost host(this);
+    const auto services = host.Services();
+    mm_video_stream_tick(&_playback, &services);
+    host.Rethrow();
     return fFalse;
 }
 
@@ -264,9 +335,8 @@ void VideoStream::Draw(PGraphicsEnvironment pgnv, RC *prc)
     AssertThis(0);
     AssertPo(pgnv, 0);
     AssertVarMem(prc);
-    if (_host->ControlsPlayback() && _rcPlay.FEmpty())
-        return;
-    _host->DrawFrame(_nfrCur, pgnv, prc);
+    if (mm_video_stream_drawable(&_playback, _host->ControlsPlayback()))
+        _host->DrawFrame(_playback.frame, pgnv, prc);
 }
 
 /***************************************************************************
@@ -276,8 +346,7 @@ void VideoStream::GetRc(RC *prc)
 {
     AssertThis(0);
     AssertVarMem(prc);
-
-    prc->Set(0, 0, _dxp, _dyp);
+    prc->Set(0, 0, _playback.width, _playback.height);
 }
 
 #ifdef DEBUG

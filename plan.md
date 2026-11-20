@@ -834,6 +834,9 @@ C89 controls the timing, draw order and palette updates for wipe, slide, iris,
 fade and dissolve. It also owns dissolve's seeded pixel and cell permutation.
 Kauai supplies the clock, random seed selection, drawing, clip and palette
 services.
+C89 owns the frame scheduler for Studio's native and SDL video streams and
+the SDL device-clock policy for audio-backed AVI playback. Native adapters
+supply decoder positions, clocks, PCM device I/O and redraw requests.
 C89 also owns Kauai's scalable application time and the registered 60 Hz alarm
 clocks used by Studio movie and sound playback. It preserves tied alarm order,
 late delivery with optional clock slip, input resets and callback reentrancy.
