@@ -9,6 +9,7 @@
 extern "C"
 {
 #endif
+    struct MMActorUndoState;
     enum
     {
         MM_MOVIE_EDIT_ROTATE,
@@ -54,10 +55,8 @@ extern "C"
         int (*add_actor)(void *scene, void *actor), (*remove_actor)(void *scene, MMI32 id);
         int (*apply_actor)(void *actor, int kind, const MMMovieEditRequest *);
         int (*apply_scene)(void *scene, int kind, const MMMovieEditRequest *);
-        MMI32 (*frame)(void *scene), (*undo_count)(void *);
-        void *(*last_undo)(void *);
-        int (*actor_undo)(void *undo), (*time_undo)(void *undo);
-        void (*time_undo_frame)(void *undo, MMI32);
+        MMI32 (*frame)(void *scene);
+        struct MMActorUndoState *(*last_actor_undo)(void *);
         void (*place_actor)(void *view, int entire_scene), (*placement_undo)(void *view, void *owned_snapshot);
         int (*paste_actor)(void *scene, void *actor), (*paste_route)(void *actor, void *source);
         int (*create_actor_undo)(void *actor, void *snapshot);
@@ -79,7 +78,8 @@ extern "C"
     } MMMovieEditServices;
     /* Initialized, stable owners/handles and synchronous non-reentrant services
      * are required. Scene edits/selected edits require a current scene; selected
-     * actor edits require a selected actor. Getter/result tags are borrowed.
+     * actor edits require a selected actor. Time edits return failure when
+     * there is no open scene or primary actor. Getter/result tags are borrowed.
      * new_actor/duplicate_actor/new_scene_undo return one reference. Placement undo
      * takes that reference; scene-add/paste/undo factories manage their own retains.
      * Callbacks for Scene/Actor operations may use the existing C controllers and
@@ -96,6 +96,7 @@ extern "C"
     int mm_movie_insert_actor(const MMTag *, const MMMovieEditServices *);
     int mm_movie_onstage(MMI32 id, const MMMovieEditServices *);
     int mm_movie_edit_actor(int kind, const MMMovieEditRequest *, const MMMovieEditServices *);
+    int mm_movie_step_actor_time(MMI32 frames, const MMMovieEditServices *);
     int mm_movie_edit_scene(int kind, const MMMovieEditRequest *, const MMMovieEditServices *);
     int mm_movie_paste_actor(void *actor, const MMMovieEditServices *);
     int mm_movie_paste_route(void *source, const MMMovieEditServices *);

@@ -82,6 +82,11 @@ void mm_actor_drag_undo_begin(MMActorDragUndo *, void *actor, int freeze_pivot,
                              const struct MMActorOwnerServices *, const MMActorDragUndoServices *);
 void mm_actor_drag_undo_commit(MMActorDragUndo *, int single_only, const MMActorDragUndoServices *);
 void mm_actor_drag_undo_discard(MMActorDragUndo *, const MMActorDragUndoServices *);
+/* Capture and register the primary actor at the start of Sooner/Later. The
+ * same undo holds all shifts in this interaction. On failure clear history,
+ * report the edit as non-undoable and release any local handle. */
+void mm_actor_time_undo_begin(void *actor, MMI32 frame, const struct MMActorOwnerServices *,
+                             const MMActorDragUndoServices *);
 
 int mm_actor_rename_group_init(MMActorRenameGroup *, MMMovieUndoContext *, unsigned unit,
                               int encoding, const MMStorageAllocator *, int trash_unused);

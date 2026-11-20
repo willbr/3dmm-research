@@ -710,7 +710,8 @@ class Movie : public Movie_PAR
     bool FAddOnstage(long arid);                                 // Bring this actor onto the stage.
     bool FRotateActr(BRA xa, BRA ya, BRA za, bool fFromHereFwd); // Rotate selected actor by degrees
     bool FSquashStretchActr(BRS brs);                            // Squash/Stretch selected actor
-    bool FSoonerLaterActr(long nfrm);                            // Sooner/Later selected actor
+    bool FSoonerLaterActr(long nfrm);                            // Set the selected actor's destination frame
+    bool FStepActorTime(long frames);                            // Sooner/Later selected actor
     bool FScaleActr(BRS brs);                                    // Scale selected actor
     bool FCostumeActr(long ibprt, PTAG ptag, long cmid, tribool fCustom);
     bool FAddScen(PTAG ptag);         // Add a scene after the current one, or change

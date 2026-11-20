@@ -341,11 +341,6 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         return _owner.runtime.time_frozen;
     }
-    void SetTimeFreeze(bool fTimeFrozen)
-    {
-        AssertBaseThis(0);
-        _owner.runtime.time_frozen = fTimeFrozen;
-    }
     bool FIsPropBrws(void)
     {
         AssertThis(0);

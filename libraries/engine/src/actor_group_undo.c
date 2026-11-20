@@ -78,25 +78,49 @@ int mm_actor_move_group_toggle(const MMActorMoveGroup *group, void *document,
     return 1;
 }
 
-static void *capture_actor(void *actor, const MMActorOwnerServices *actors,
-                           const MMActorDragUndoServices *s)
+static MMActorUndoState *capture_actor(void *actor, void **undo, const MMActorOwnerServices *actors,
+                                       const MMActorDragUndoServices *s)
 {
     MMActorOwnerResult copy = {NULL, NULL, NULL};
     MMActorUndoState *state;
-    void *undo;
+    *undo = NULL;
     if (!actor)
         return NULL;
-    state = s->create_actor(s->context, &undo);
-    if (!state)
+    state = s->create_actor(s->context, undo);
+    if (!state || !mm_actor_owner_duplicate(actor, 1, &copy, actors))
         return NULL;
-    if (!mm_actor_owner_duplicate(actor, 1, &copy, actors))
-    {
-        s->release(s->context, undo);
-        return NULL;
-    }
     state->actor = copy.actor;
     state->actor_id = actors->owner(actors->context, actor)->runtime.actor;
-    return undo;
+    return state;
+}
+
+static void *capture_move(void *actor, const MMActorOwnerServices *actors, const MMActorDragUndoServices *s)
+{
+    void *undo;
+    if (capture_actor(actor, &undo, actors, s))
+        return undo;
+    if (undo)
+        s->release(s->context, undo);
+    return NULL;
+}
+
+void mm_actor_time_undo_begin(void *actor, MMI32 frame, const MMActorOwnerServices *actors,
+                             const MMActorDragUndoServices *s)
+{
+    void *undo;
+    MMActorUndoState *state = capture_actor(actor, &undo, actors, s);
+    if (state)
+    {
+        state->sooner_later = 1;
+        state->last_frame = frame;
+    }
+    if (!state || !s->commit(s->context, undo))
+    {
+        s->clear(s->context);
+        s->not_undoable(s->context);
+    }
+    if (undo)
+        s->release(s->context, undo);
 }
 
 static void *capture_group(MMI32 count, const MMSceneSelectionServices *selection,
@@ -110,7 +134,7 @@ static void *capture_group(MMI32 count, const MMSceneSelectionServices *selectio
         return NULL;
     for (i = 0; i < count; ++i)
     {
-        child = capture_actor(mm_scene_selection_at(i, selection), actors, s);
+        child = capture_move(mm_scene_selection_at(i, selection), actors, s);
         if (!child)
             break;
         added = mm_actor_move_group_add(group, child, &s->composite);
@@ -140,7 +164,7 @@ void mm_actor_drag_undo_begin(MMActorDragUndo *drag, void *actor, int freeze_piv
         *slot = capture_group(count, selection, actors, s);
     }
     else
-        *slot = capture_actor(actor, actors, s);
+        *slot = capture_move(actor, actors, s);
     if (!*slot)
     {
         s->clear(s->context);

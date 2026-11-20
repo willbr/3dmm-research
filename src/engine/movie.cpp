@@ -768,14 +768,13 @@ MMMovieEditServices Movie::_EditServices()
         }
     };
     s.frame = [](void *p) -> MMI32 { return static_cast<PScene>(p)->Nfrm(); };
-    s.undo_count = [](void *p) -> MMI32 { return static_cast<PMovie>(p)->CundbUndo(); };
-    s.last_undo = [](void *p) -> void * {
+    s.last_actor_undo = [](void *p) -> MMActorUndoState * {
         auto movie = static_cast<PMovie>(p);
-        return movie->_PundbGet(movie->_undoList.done - 1);
+        if (movie->CundbUndo() <= 0)
+            return nullptr;
+        auto undo = movie->_PundbGet(movie->_undoList.done - 1);
+        return undo->FIs(kclsActorUndo) ? &static_cast<PActorUndo>(undo)->_undoState : nullptr;
     };
-    s.actor_undo = [](void *p) -> int { return static_cast<PUndoBase>(p)->FIs(kclsActorUndo); };
-    s.time_undo = [](void *p) -> int { return static_cast<PActorUndo>(p)->FSoonerLater(); };
-    s.time_undo_frame = [](void *p, MMI32 frame) { static_cast<PActorUndo>(p)->SetNfrmLast(frame); };
     s.place_actor = [](void *p, int entire) { static_cast<PMovieView>(p)->StartPlaceActor(entire != 0); };
     s.placement_undo = [](void *p, void *owned) { static_cast<PMovieView>(p)->SetActrUndo(static_cast<PActor>(owned)); };
     s.paste_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FPasteActr(static_cast<PActor>(actor)); };
@@ -2090,11 +2089,18 @@ bool Movie::FSquashStretchActr(BRS brs)
  **************************************************************************/
 bool Movie::FSoonerLaterActr(long nfrm)
 {
-    AssertThis(0); AssertPo(Pscen(), 0);
+    AssertThis(0);
     const auto services = _EditServices();
-    MMMovieEditRequest q = {};
-    q.frame = nfrm;
-    return mm_movie_edit_actor(MM_MOVIE_EDIT_TIME, &q, &services) != 0;
+    MMMovieEditRequest request{};
+    request.frame = nfrm;
+    return mm_movie_edit_actor(MM_MOVIE_EDIT_TIME, &request, &services) != 0;
+}
+
+bool Movie::FStepActorTime(long frames)
+{
+    AssertThis(0);
+    const auto services = _EditServices();
+    return mm_movie_step_actor_time(frames, &services) != 0;
 }
 
 /***************************************************************************
@@ -3701,9 +3707,8 @@ void MovieView::SetTool(long tool)
         {
             Pmvie()->Pmcc()->EndSoonerLater();
 
-            if ((pactr != pvNil) && pactr->FTimeFrozen())
+            if (pactr && mm_actor_owner_freeze_time(&pactr->_owner, 0))
             {
-                pactr->SetTimeFreeze(fFalse);
                 pactr->Hilite();
                 Pmvie()->InvalViewsAndScb();
             }
@@ -4730,10 +4735,8 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         pactr = Pmvie()->Pscen()->PactrSelected();
         AssertNilOrPo(pactr, 0);
 
-        if ((pactr != pvNil) && pactr->FTimeFrozen())
-        {
-            pactr->SetTimeFreeze(fFalse);
-        }
+        if (pactr)
+            mm_actor_owner_freeze_time(&pactr->_owner, 0);
 
         pactrDup = Pmvie()->Pscen()->PactrFromPt(pcmd->xp, pcmd->yp, &ibset);
 
@@ -4947,7 +4950,7 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     case toolSoonerLater:
         if ((pactr != pvNil) && !_fMouseDownSeen)
         {
-            pactr->SetTimeFreeze(fTrue);
+            mm_actor_owner_freeze_time(&pactr->_owner, 1);
             pactr->Hilite();
             _fMouseDownSeen = fTrue;
             Pmvie()->Pmcc()->PlayUISound(Tool());
@@ -5659,32 +5662,9 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
         if (pactr != pvNil)
         {
             Assert(pactr->FTimeFrozen(), "Something odd is going on");
-
-            PActor pactrDup;
-            PActorUndo paund;
-
-            paund = ActorUndo::PaundNew();
-            if ((paund == pvNil) || !pactr->FDup(&pactrDup, fTrue))
-            {
-                Pmvie()->ClearUndo();
-                PushErc(ercSocNotUndoable);
-            }
-            else
-            {
-                paund->SetPactr(pactrDup);
-                ReleasePpo(&pactrDup);
-                paund->SetArid(pactr->Arid());
-                paund->SetSoonerLater(fTrue);
-                paund->SetNfrmLast(Pmvie()->Pscen()->Nfrm());
-
-                if (!Pmvie()->FAddUndo(paund))
-                {
-                    Pmvie()->ClearUndo();
-                    PushErc(ercSocNotUndoable);
-                }
-            }
-
-            ReleasePpo(&paund);
+            const auto actors = Actor::_OwnerServices();
+            const auto undo = ActorMoveGroupUndo::DragUndoServices(Pmvie());
+            mm_actor_time_undo_begin(pactr, pscen->Nfrm(), &actors, &undo);
 
             Pmvie()->Pbwld()->MarkDirty();
             Pmvie()->MarkViews();

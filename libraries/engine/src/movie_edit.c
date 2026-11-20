@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_edit.h"
 #include "mm/actor_motion.h"
+#include "mm/actor_undo.h"
 #include "mm/wide.h"
 static void changed(int bars, const MMMovieEditServices *s)
 {
@@ -109,12 +110,43 @@ int mm_movie_onstage(MMI32 id, const MMMovieEditServices *s)
     changed(0, s);
     return 1;
 }
+static int edit_time(MMMovieEditRequest request, int relative, const MMMovieEditServices *s)
+{
+    void *scene = s->scenes->open;
+    void *actor;
+    MMI32 current;
+    MMActorUndoState *undo;
+    if (!scene)
+        return 0;
+    current = s->frame(scene);
+    actor = s->selected_actor(scene);
+    if (!actor)
+        return 0;
+    if (relative)
+        request.frame = mm_fixed_add(current, request.frame);
+    request.shift = mm_fixed_sub(request.frame, current);
+    if (!s->apply_actor(actor, MM_MOVIE_EDIT_TIME, &request))
+        return 0;
+    undo = s->last_actor_undo(s->context);
+    if (undo && undo->sooner_later)
+        undo->last_frame = request.frame;
+    changed(0, s);
+    return 1;
+}
+
+int mm_movie_step_actor_time(MMI32 frames, const MMMovieEditServices *s)
+{
+    MMMovieEditRequest request = {0};
+    request.frame = frames;
+    return edit_time(request, 1, s);
+}
+
 int mm_movie_edit_actor(int kind, const MMMovieEditRequest *input, const MMMovieEditServices *s)
 {
     MMMovieEditRequest request = *input;
-    void *actor, *undo;
+    void *actor;
     if (kind == MM_MOVIE_EDIT_TIME)
-        request.shift = mm_fixed_sub(request.frame, s->frame(s->scenes->open));
+        return edit_time(request, 0, s);
     actor = s->selected_actor(s->scenes->open);
     if (kind == MM_MOVIE_EDIT_SQUASH)
     {
@@ -132,12 +164,6 @@ int mm_movie_edit_actor(int kind, const MMMovieEditRequest *input, const MMMovie
         return 0;
     if (kind == MM_MOVIE_EDIT_ACTOR_SOUND)
         return 1;
-    if (kind == MM_MOVIE_EDIT_TIME && s->undo_count(s->context) > 0)
-    {
-        undo = s->last_undo(s->context);
-        if (s->actor_undo(undo) && s->time_undo(undo))
-            s->time_undo_frame(undo, request.frame);
-    }
     changed(kind == MM_MOVIE_EDIT_SCALE || kind == MM_MOVIE_EDIT_REMOVE, s);
     if (kind == MM_MOVIE_EDIT_REMOVE)
         s->actor_nuked(s->context);

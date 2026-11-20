@@ -66,6 +66,9 @@ int mm_actor_owner_tweak(struct MMActorOwner *, const MMActorPoint *, MMU32 flag
                          const MMActorTransformEditServices *);
 int mm_actor_owner_move(struct MMActorOwner *, const MMActorPoint *, MMU32 flags, MMActorMoveResult *,
                         const MMActorTransformEditServices *);
+int mm_actor_owner_shift_time(struct MMActorOwner *, MMI32 shift, const MMActorTransformEditServices *);
+/* Return whether the Sooner/Later highlight state changed. */
+int mm_actor_owner_freeze_time(struct MMActorOwner *, int frozen);
 
 enum
 {

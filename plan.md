@@ -942,6 +942,9 @@ owns the active actor and replacement snapshot, restores the roll-call
 reference on forced end, and registers add or replacement undo on acceptance.
 Studio's record gesture now keeps its rollback snapshot, frame and cel cadence,
 temporary rerecord mode, and route-start/finish decisions in C89.
+Sooner/Later now uses shared actor snapshot capture, C89 frame stepping and
+direct updates to the C89 undo record. The actor owner publishes shifted state
+and controls the time-edit highlight flag.
 Physical views and final integration remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and

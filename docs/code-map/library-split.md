@@ -4464,6 +4464,17 @@ Sooner/later edits absorb subroute gaps in the native traversal order, publish
 first/last caches and the shifted actor frame, invalidate the range and seek the
 shifted scene frame. Failed lifetime queries report a diagnostic but editing
 continues. Failed seeking retains those edits and skips scrollbar notification.
+The C actor owner publishes the resulting runtime state and owns the selection
+highlight flag. The Studio controls send signed steps to the C movie editor,
+which resolves the target frame and updates the latest Sooner/Later undo's redo
+frame after a successful shift. Missing scene or selection leaves the edit and
+undo history untouched.
+
+The Sooner/Later tool uses the same C snapshot capture as the drag tools. On
+mouse release it registers one reset actor snapshot before the first shift.
+Subsequent shifts reuse that entry. Allocation or registration failure clears
+history, reports the edit as non-undoable and releases any local undo handle.
+Studio controls the buttons and redraws the frozen actor highlight.
 
 Native callbacks supply BRender distance/normalization primitives, scene/body
 effects, cached-origin writes and host scrollbar notification. BRender remains
@@ -4477,8 +4488,29 @@ moved publication, clipped movement, translation precedence, text/orient handlin
 partial orientation failure, costume ownership, gap shifting, failed lifetime
 queries and failed seeks. The native-before trace has 1,032,004 bytes across 1,152
 scenarios and matches exactly, including all transformed matrices, event payloads,
-origin caches, frame/range values and results. Undo, queue/runtime integration,
-body/resource implementations and final facade removal remain unfinished.
+origin caches, frame/range values and results. C actor-owner and movie-edit tests
+cover time snapshot ownership, allocation and registration failure order,
+relative stepping at the signed-frame boundaries, and absent scene/selection.
+All 12 actor traces, the Scene-content trace and the 61,552-byte native Movie
+edit trace matched the previous build. All eight Studio group-transform
+workflows also matched after sharing the snapshot capture.
+
+Four Studio Sooner/Later workflows matched the previous build. They exercised
+three earlier shifts, three later shifts, mixed directions and exiting without
+a shift. Undo returned to frame 7 in each case. Redo returned to the final
+shifted frame, and all 72 chunk entries, links and payloads matched in each
+saved movie. The raw save differences were 7 to 12 bytes of unused index row
+padding per movie. Retail reopened all four movies with the same actor poses and
+positions on the destination frame and both neighbors. Studio also handled
+both queued shift commands with no actor selected.
+
+Fresh SDL and Marcus runs (`20261120T030115Z-aee3751c`) matched all 60 scene
+and frame markers in each seek and playback run against the retained retail
+`actor-event-edit` capture. Seek image hashes matched the previous build in
+both ports. Camera indices and all 12 SDL playback sound events matched retail.
+
+Queue/runtime integration, body/resource implementations and final facade
+removal remain unfinished.
 
 ### Actor ownership and restoration
 

@@ -231,6 +231,23 @@ int mm_actor_transform_time(MMActorState *state,void *route,void *events,MMI32 s
     if (ok) s->scrollbars(e->context); return ok;
 }
 
+int mm_actor_owner_shift_time(MMActorOwner *actor, MMI32 shift, const MMActorTransformEditServices *services)
+{
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorState state = actor->runtime.state;
+    int ok = mm_actor_transform_time(&state, actor->track.route, actor->track.events, shift, &motion, services);
+    actor->runtime.state = state;
+    return ok;
+}
+
+int mm_actor_owner_freeze_time(MMActorOwner *actor, int frozen)
+{
+    int value = frozen != 0;
+    int changed = actor->runtime.time_frozen != value;
+    actor->runtime.time_frozen = value;
+    return changed;
+}
+
 int mm_actor_owner_rotate(MMActorOwner *actor, const unsigned short angles[3], int forward, int world,
                           const MMActorTransformEditServices *services)
 {

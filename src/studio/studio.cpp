@@ -1046,7 +1046,7 @@ bool Studio::FCmdSooner(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    if (!Pmvie()->FSoonerLaterActr(Pmvie()->Pscen()->Nfrm() - 1))
+    if (!Pmvie()->FStepActorTime(-1))
     {
         PMovieView pmvu;
         PKidspaceGraphicObject pgok;
@@ -1078,7 +1078,7 @@ bool Studio::FCmdLater(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    if (!Pmvie()->FSoonerLaterActr(Pmvie()->Pscen()->Nfrm() + 1))
+    if (!Pmvie()->FStepActorTime(1))
     {
         PMovieView pmvu;
         PKidspaceGraphicObject pgok;

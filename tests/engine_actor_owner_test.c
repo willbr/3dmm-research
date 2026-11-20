@@ -1,5 +1,8 @@
 #include "mm/actor_owner.h"
 #include "mm/actor_track.h"
+#include "mm/actor_group_undo.h"
+#include "mm/actor_transform_edit.h"
+#include "mm/actor_undo.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -311,6 +314,96 @@ static void check_storage(const Actor *actor, MMI32 point, MMI32 cel)
     CHECK(mm_actor_sounds_get(&actor->owner.sounds, 0, &sound) && sound.sound.cel == cel);
 }
 
+typedef struct TimeUndoFixture
+{
+    Fixture actors;
+    MMMovieUndoContext base;
+    MMActorUndoState undo;
+    char trace[8];
+    int count, fault, refs;
+} TimeUndoFixture;
+
+static void time_mark(TimeUndoFixture *f, char call)
+{
+    CHECK(f->count < 7);
+    f->trace[f->count++] = call;
+    f->trace[f->count] = 0;
+}
+
+static MMActorUndoState *time_create(void *p, void **handle)
+{
+    TimeUndoFixture *f = p;
+    time_mark(f, 'u');
+    if (f->fault == 1)
+        return NULL;
+    CHECK(mm_actor_undo_init(&f->undo, &f->base, 1));
+    *handle = &f->undo;
+    f->refs = 1;
+    return &f->undo;
+}
+
+static int time_commit(void *p, void *handle)
+{
+    TimeUndoFixture *f = p;
+    Actor *copy = &f->actors.copy;
+    CHECK(handle == &f->undo && f->undo.actor == copy && f->undo.actor_id == 25);
+    CHECK(f->undo.sooner_later && f->undo.last_frame == -2 && !f->undo.sound && !f->undo.name.count);
+    CHECK(copy->ref.count == 1 && !copy->owner.runtime.time_frozen && !copy->owner.runtime.body);
+    check_storage(copy, 11, 22);
+    time_mark(f, 'a');
+    if (f->fault == 3)
+        return 0;
+    ++f->refs;
+    return 1;
+}
+
+static void time_release(void *p, void *handle)
+{
+    TimeUndoFixture *f = p;
+    CHECK(handle == &f->undo && f->refs > 0);
+    time_mark(f, 'r');
+    if (!--f->refs && f->undo.actor)
+        release(&f->actors, f->undo.actor);
+}
+
+static void time_clear(void *p) { time_mark(p, 'c'); }
+static void time_diagnostic(void *p) { time_mark(p, 'd'); }
+
+static void check_time_undo(void)
+{
+    static const char *const traces[] = {"uar", "ucd", "ucdr", "uacdr"};
+    TimeUndoFixture f;
+    MMActorDragUndoServices s;
+    int fault;
+    memset(&s, 0, sizeof(s));
+    s.context = &f;
+    s.create_actor = time_create;
+    s.commit = time_commit;
+    s.release = time_release;
+    s.clear = time_clear;
+    s.not_undoable = time_diagnostic;
+    for (fault = 0; fault < 4; ++fault)
+    {
+        memset(&f, 0, sizeof(f));
+        init(&f.actors);
+        mm_movie_undo_context_init(&f.base);
+        f.actors.live.owner.runtime.actor = 25;
+        f.fault = fault;
+        f.actors.fail = fault == 2;
+        CHECK(mm_actor_owner_freeze_time(&f.actors.live.owner, 0));
+        CHECK(!mm_actor_owner_freeze_time(&f.actors.live.owner, 0));
+        CHECK(mm_actor_owner_freeze_time(&f.actors.live.owner, 1));
+        mm_actor_time_undo_begin(&f.actors.live, -2, &f.actors.services, &s);
+        CHECK(!strcmp(traces[fault], f.trace) && f.actors.created == (fault != 1));
+        CHECK(f.actors.live.owner.runtime.time_frozen && f.refs == !fault);
+        if (!fault)
+            time_release(&f, &f.undo);
+        CHECK(!f.actors.copy.ref.count);
+        release(&f.actors, &f.actors.live);
+        CHECK(!f.actors.tags && !f.actors.track_blocks && !f.actors.sound_blocks);
+    }
+}
+
 int main(void)
 {
     Fixture f;
@@ -364,5 +457,6 @@ int main(void)
         CHECK(!f.track_blocks && !f.sound_blocks);
     }
     template_replacement();
+    check_time_undo();
     puts("actor ownership C89 checks passed"); return 0;
 }

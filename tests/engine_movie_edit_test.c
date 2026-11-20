@@ -1,5 +1,6 @@
 /* Movie edit sequencing, placement ownership and undo failure contracts. */
 #include "mm/movie_edit.h"
+#include "mm/actor_undo.h"
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x)                                                                                                       \
@@ -75,7 +76,8 @@ typedef struct Undo
 {
     Test *test;
     MMMovieUndoContext base;
-    int refs, bound, actor, time, last;
+    MMActorUndoState actor_state;
+    int refs, bound, actor;
 } Undo;
 struct Test
 {
@@ -87,7 +89,7 @@ struct Test
     Undo undo;
     int view, inScene, fail, selectedCalls, selectionCalls, frame, kind, actorCalls, sceneCalls;
     int dirty, invalidates, bars, nuked, error, diagnostics, entire, resets, restore, placeCalls, undoCount;
-    int undoTypeCalls, undoTimeCalls, undoFrameCalls, notify, commits, clears, rowChanges;
+    int lastUndoCalls, notify, commits, clears, rowChanges;
     int begin, end, cacheBackground, defaults, empty, newScene, removeScene, removedIndex, backgroundUndoable;
     int soundEnabled, played, flushed, soundRefs, volumeCalls, styleCalls;
     int switchSelection, undoOnFresh;
@@ -212,31 +214,11 @@ static MMI32 frame(void *p)
     event(t, FRAME);
     return t->frame;
 }
-static MMI32 undo_count(void *p)
+static MMActorUndoState *last_actor_undo(void *p)
 {
-    return ((Test *)p)->undoCount;
-}
-static void *last_undo(void *p)
-{
-    return &((Test *)p)->undo;
-}
-static int actor_undo(void *p)
-{
-    Undo *u = p;
-    ++u->test->undoTypeCalls;
-    return u->actor;
-}
-static int time_undo(void *p)
-{
-    Undo *u = p;
-    ++u->test->undoTimeCalls;
-    return u->time;
-}
-static void time_frame(void *p, MMI32 value)
-{
-    Undo *u = p;
-    ++u->test->undoFrameCalls;
-    u->last = value;
+    Test *t = p;
+    ++t->lastUndoCalls;
+    return t->undoCount && t->undo.actor ? &t->undo.actor_state : NULL;
 }
 static void place(void *p, int entire)
 {
@@ -508,7 +490,7 @@ static void init(Test *t)
     t->actor.tag.type = 1;
     t->actor.tag.number = 1;
     t->undo.test = t;
-    t->undo.actor = t->undo.time = 1;
+    t->undo.actor = t->undo.actor_state.sooner_later = 1;
     t->undo.base.frame = 77;
     t->selected = &t->actor;
     t->scenes.open = t;
@@ -552,11 +534,7 @@ static void init(Test *t)
     s->apply_actor = apply_actor;
     s->apply_scene = apply_scene;
     s->frame = frame;
-    s->undo_count = undo_count;
-    s->last_undo = last_undo;
-    s->actor_undo = actor_undo;
-    s->time_undo = time_undo;
-    s->time_undo_frame = time_frame;
+    s->last_actor_undo = last_actor_undo;
     s->place_actor = place;
     s->placement_undo = placement;
     s->paste_actor = paste_actor;
@@ -696,7 +674,7 @@ static int actor_edits(void)
             if (kind == MM_MOVIE_EDIT_SQUASH)
                 CHECK(t.request.pull[0] == 49152 && t.request.pull[1] == 87381 && t.request.pull[2] == 49152);
             if (kind == MM_MOVIE_EDIT_TIME)
-                CHECK(t.request.shift == 8 && t.events[0] == FRAME && t.events[1] == SELECT);
+                CHECK(t.request.shift == 8 && t.events[0] == FRAME && t.events[1] == SELECT && t.lastUndoCalls == !fail);
             if (kind == MM_MOVIE_EDIT_ACTOR_SOUND)
                 CHECK(!t.request.tag && t.request.loop == 2);
             if (fail && kind != MM_MOVIE_EDIT_REMOVE)
@@ -706,21 +684,27 @@ static int actor_edits(void)
     q.factor = 0;
     CHECK(mm_movie_edit_actor(MM_MOVIE_EDIT_SQUASH, &q, &t.s) && !t.actorCalls && !t.dirty &&
           t.selectedCalls == 1);
-    for (type = 0; type < 4; ++type)
+    for (type = 0; type < 8; ++type)
     {
         init(&t);
-        t.undoCount = 1;
+        t.undoCount = (type & 4) != 0;
         t.undo.actor = type & 1;
-        t.undo.time = (type & 2) != 0;
+        t.undo.actor_state.sooner_later = (type & 2) != 0;
         CHECK(mm_movie_edit_actor(MM_MOVIE_EDIT_TIME, &q, &t.s));
-        CHECK(t.undoTypeCalls == 1 && t.undoTimeCalls == !!(type & 1) && t.undoFrameCalls == (type == 3));
-        if (type == 3)
-            CHECK(t.undo.last == 17);
+        CHECK(t.lastUndoCalls == 1 && t.undo.actor_state.last_frame == (type == 7 ? 17 : 0));
     }
     init(&t);
     t.frame = 2147483647;
     q.frame = (-2147483647 - 1);
     CHECK(mm_movie_edit_actor(MM_MOVIE_EDIT_TIME, &q, &t.s) && t.request.shift == 1);
+    CHECK(mm_movie_step_actor_time(1, &t.s) && t.request.shift == 1 && t.request.frame == q.frame);
+    t.frame = q.frame;
+    CHECK(mm_movie_step_actor_time(-1, &t.s) && t.request.shift == -1 && t.request.frame == 2147483647);
+    init(&t);
+    t.selected = NULL;
+    CHECK(!mm_movie_step_actor_time(1, &t.s) && t.selectedCalls == 1 && !t.actorCalls && !t.lastUndoCalls && !t.dirty);
+    t.scenes.open = NULL;
+    CHECK(!mm_movie_step_actor_time(-1, &t.s) && t.eventCount == 2);
     init(&t);
     t.selected = 0;
     CHECK(!mm_movie_onstage(-1, &t.s) && t.error == MM_MOVIE_EDIT_NO_ACTOR && !t.selectionCalls);

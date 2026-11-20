@@ -93,6 +93,7 @@ class ActorUndo : public ActorUndo_PAR
 {
     friend class Actor;
     friend class ActorMoveGroupUndo;
+    friend class Movie;
     RTCLASS_DEC
     MARKMEM
     ASSERT

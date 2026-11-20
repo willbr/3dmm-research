@@ -1176,10 +1176,8 @@ bool Actor::FScale(BRS rScale)
 bool Actor::FSoonerLater(long dnfrm)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=mm_actor_transform_time(&state,_owner.track.route,_owner.track.events,dnfrm,&tables,&services)!=0;
-    _owner.runtime.state = state; return ok;
+    const auto services = _TransformEditServices();
+    return mm_actor_owner_shift_time(&_owner, dnfrm, &services) != 0;
 }
 
 /***************************************************************************
