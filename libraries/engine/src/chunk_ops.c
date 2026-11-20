@@ -257,23 +257,64 @@ static void loner(const MMChunkEndpoint *endpoint, MMU32 type, MMU32 number)
         endpoint->edit.store(endpoint->edit.context, position, &entry, 0);
     }
 }
+static int copy_lookup(const MMChunkEndpoint *source, MMU32 type, MMU32 number, MMU32 *position,
+                       MMChunkEntry *entry)
+{
+    if (!source->stored)
+        return lookup(&source->edit, type, number, position, entry);
+    return mm_chunk_find(source->stored, type, number, position) == OK &&
+           (!entry || mm_chunk_at(source->stored, *position, entry) == OK);
+}
+static MMU32 stored_children(void *context, MMU32 type, MMU32 number)
+{
+    const MMChunkAccess *chunks = (const MMChunkAccess *)context;
+    MMU32 position;
+    MMChunkEntry entry;
+    if (mm_chunk_find(chunks, type, number, &position) != OK || mm_chunk_at(chunks, position, &entry) != OK)
+        return 0;
+    return entry.child_count;
+}
+static int stored_child(void *context, MMU32 type, MMU32 number, MMU32 ordinal, MMChunkChild *child)
+{
+    const MMChunkAccess *chunks = (const MMChunkAccess *)context;
+    MMU32 position;
+    return mm_chunk_find(chunks, type, number, &position) == OK &&
+           mm_chunk_child_at(chunks, position, ordinal, child) == OK;
+}
 static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
                       MMU32 number, int clone, MMU32 *copied, int *created)
 {
     MMCollectionStorage storage;
     MMArray map;
     MMChunkWalk walk;
+    MMChunkGraph graph;
     MMChunkChild node, parent, link;
     MMChunkEntry entry, target_entry;
     NumberMap item, parent_item;
+    void *payload;
+    const void *name;
     MMU32 position, target_position, map_position, flags, root = 0;
     MMI32 runtime;
     int skip = 0, free_root = 0, new_root = 0, result = OK;
-    if (!src || !dst || !copied || !src->identity || !dst->identity || !readable(&src->edit) || !readable(&dst->edit) ||
-        !src->runtime || !src->set_runtime || !dst->set_runtime || !dst->edit.store || !src->read_payload ||
+    if (!src || !dst || !copied || !src->identity || !dst->identity || !readable(&dst->edit) ||
+        !dst->set_runtime || !dst->edit.store || !src->read_payload ||
         !dst->put_payload || !dst->add_payload || !src->read_name || !dst->write_name)
         return BAD;
-    if (!lookup(&src->edit, type, number, &position, NULL))
+    if (src->stored)
+    {
+        if (!src->stored->entry || !src->stored->child || src->identity == dst->identity)
+            return BAD;
+        graph.context = (void *)src->stored;
+        graph.children = stored_children;
+        graph.child = stored_child;
+    }
+    else
+    {
+        if (!readable(&src->edit) || !src->runtime || !src->set_runtime)
+            return BAD;
+        graph = src->graph;
+    }
+    if (!copy_lookup(src, type, number, &position, NULL))
         return MM_CHUNK_NOT_FOUND;
     if (!clone && src->identity == dst->identity)
     {
@@ -296,7 +337,7 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
         mm_storage_dispose(&storage);
         return BAD;
     }
-    if (mm_chunk_walk_reset(&walk, &src->graph, type, number) != OK)
+    if (mm_chunk_walk_reset(&walk, &graph, type, number) != OK)
     {
         result = BAD;
         goto done;
@@ -315,42 +356,53 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
             skip = 1;
         else
         {
-            runtime = src->runtime(src->context, node.type, node.number);
+            runtime = src->stored ? 0 : src->runtime(src->context, node.type, node.number);
             item.type = node.type;
             item.source = node.number;
             if (runtime && !clone && mm_chunk_match(src, dst, node.type, node.number, &item.destination))
                 skip = 1;
             else
             {
-                if (!runtime && last_runtime < 0x7fffffffL &&
+                if (!src->stored && !runtime && last_runtime < 0x7fffffffL &&
                     src->set_runtime(src->context, node.type, node.number, last_runtime + 1))
                     runtime = ++last_runtime;
-                lookup(&src->edit, node.type, node.number, &position, NULL);
-                src->read_payload(src->context, position);
+                if (!copy_lookup(src, node.type, node.number, &position, &entry))
+                {
+                    result = BAD;
+                    goto done;
+                }
+                payload = src->read_payload(src->context, position, &entry);
+                if (!payload)
+                {
+                    result = MM_CHUNK_IO;
+                    goto done;
+                }
                 if (src->identity != dst->identity &&
                     !lookup(&dst->edit, node.type, node.number, &target_position, NULL))
                 {
                     item.destination = node.number;
-                    if (!dst->put_payload(dst->context, node.type, item.destination, src->context))
+                    if (!dst->put_payload(dst->context, node.type, item.destination, payload))
                     {
                         result = MM_CHUNK_IO;
                         goto done;
                     }
                 }
-                else if (!dst->add_payload(dst->context, node.type, src->context, &item.destination))
+                else if (!dst->add_payload(dst->context, node.type, payload, &item.destination))
                 {
                     result = MM_CHUNK_IO;
                     goto done;
                 }
-                lookup(&src->edit, node.type, node.number, &position, &entry);
+                /* Cloning into the source can move a live directory row. */
+                if (!src->stored)
+                    copy_lookup(src, node.type, node.number, &position, &entry);
                 lookup(&dst->edit, node.type, item.destination, &target_position, &target_entry);
                 if (entry.flags & FOREST)
                 {
                     target_entry.flags |= FOREST;
                     dst->edit.store(dst->edit.context, target_position, &target_entry, 0);
                 }
-                if (src->read_name(src->context, position) &&
-                    !dst->write_name(dst->context, target_position, src->context))
+                name = src->read_name(src->context, position);
+                if (name && !dst->write_name(dst->context, target_position, name))
                 {
                     mm_chunk_delete(&dst->edit, node.type, item.destination);
                     result = MM_CHUNK_IO;

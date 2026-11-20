@@ -259,7 +259,7 @@ RTCLASS(ChunkGraphEnumerator)
 /***************************************************************************
     Constructor for ChunkyFile - private.
 ***************************************************************************/
-ChunkyFile::ChunkyFile(bool registerFile)
+ChunkyFile::ChunkyFile(void)
 {
     int expanded = 0;
 #ifdef CHUNK_BIG_INDEX
@@ -268,8 +268,7 @@ ChunkyFile::ChunkyFile(bool registerFile)
     AssertDo(mm_chunk_owner_init(&_owner, KauaiCopyAllocator(), expanded) == MM_CHUNK_OK, "invalid container owner");
     // add it to the linked list
     mm_chunk_link_init(&_link, this);
-    if (registerFile)
-        AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
+    AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
     AssertBaseThis(0);
 }
 
@@ -297,32 +296,6 @@ PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, LegacyUlong grfcfl)
     const auto services = _ConstructionServices(pfni);
     auto owner = static_cast<PChunkyFile>(mm_chunk_construct(&services, grfcfl, 0));
     return owner;
-}
-
-PChunkyFile ChunkyFile::PcflOpenIndex(PFileObject file, const MMChunkIndex *index)
-{
-    AssertPo(file, 0);
-    if (!index || file->GrffilCur() & ffilWriteEnable)
-        return pvNil;
-
-    struct Input
-    {
-        PFileObject file;
-        const MMChunkIndex *index;
-    } input = {file, index};
-    auto services = _ConstructionServices(nullptr);
-    services.context = &input;
-    services.find = [](void *) -> void * { return nullptr; };
-    services.allocate = [](void *) -> void * { return NewObj ChunkyFile(false); };
-    services.file = [](void *context, int, MMU32) -> void * {
-        auto source = static_cast<Input *>(context)->file;
-        source->AddRef();
-        return source;
-    };
-    services.read_index = [](void *context, void *owner) -> int {
-        return static_cast<PChunkyFile>(owner)->_FMaterializeIndex(static_cast<Input *>(context)->index);
-    };
-    return static_cast<PChunkyFile>(mm_chunk_construct(&services, fcflNil, 0));
 }
 
 /***************************************************************************
@@ -2538,39 +2511,55 @@ MMChunkEndpoint ChunkyFile::_OpsServices(void *context)
     endpoint.set_runtime = [](void *c, MMU32 type, MMU32 number, MMI32 runtime) -> int {
         return static_cast<ChunkOpsHost *>(c)->edit.owner->_FSetRti(type, number, runtime);
     };
-    endpoint.read_payload = [](void *c, MMU32 position) {
-        auto h = static_cast<ChunkOpsHost *>(c); h->edit.owner->_GetBlck(position, &h->payload);
+    endpoint.read_payload = [](void *c, MMU32 position, const MMChunkEntry *) -> void * {
+        auto h = static_cast<ChunkOpsHost *>(c);
+        h->edit.owner->_GetBlck(position, &h->payload);
+        return &h->payload;
     };
-    endpoint.put_payload = [](void *c, MMU32 type, MMU32 number, void *source) -> int {
-        return static_cast<ChunkOpsHost *>(c)->edit.owner->FPutBlck(&static_cast<ChunkOpsHost *>(source)->payload, type, number);
+    endpoint.put_payload = [](void *c, MMU32 type, MMU32 number, void *payload) -> int {
+        return static_cast<ChunkOpsHost *>(c)->edit.owner->FPutBlck(static_cast<PDataBlock>(payload), type, number);
     };
-    endpoint.add_payload = [](void *c, MMU32 type, void *source, MMU32 *number) -> int {
+    endpoint.add_payload = [](void *c, MMU32 type, void *payload, MMU32 *number) -> int {
         ChunkNumber result;
-        const bool ok = static_cast<ChunkOpsHost *>(c)->edit.owner->FAddBlck(&static_cast<ChunkOpsHost *>(source)->payload, type, &result);
+        const bool ok = static_cast<ChunkOpsHost *>(c)->edit.owner->FAddBlck(static_cast<PDataBlock>(payload), type, &result);
         if (ok) *number = result;
         return ok;
     };
-    endpoint.read_name = [](void *c, MMU32 position) -> int {
-        auto h = static_cast<ChunkOpsHost *>(c); return h->edit.owner->_FGetName(position, &h->name);
+    endpoint.read_name = [](void *c, MMU32 position) -> const void * {
+        auto h = static_cast<ChunkOpsHost *>(c);
+        return h->edit.owner->_FGetName(position, &h->name) ? &h->name : nullptr;
     };
-    endpoint.write_name = [](void *c, MMU32 position, void *source) -> int {
-        return static_cast<ChunkOpsHost *>(c)->edit.owner->_FSetName(position, &static_cast<ChunkOpsHost *>(source)->name);
+    endpoint.write_name = [](void *c, MMU32 position, const void *name) -> int {
+        return static_cast<ChunkOpsHost *>(c)->edit.owner->_FSetName(position,
+            const_cast<PString>(static_cast<const String *>(name)));
     };
     return endpoint;
+}
+bool ChunkyFile::_FCopyFrom(const MMChunkEndpoint &source, ChunkTagOrType type, ChunkNumber number,
+                          ChunkNumber *out, bool clone, int *created)
+{
+    AssertThis(fcflFull);
+    AssertVarMem(out);
+    ChunkOpsHost destination(this);
+    const auto dst = _OpsServices(&destination);
+    MMU32 copied;
+    const int result = created ? mm_chunk_copy_reference(&source, &dst, type, number, &copied, created)
+                               : mm_chunk_copy(&source, &dst, type, number, clone, &copied);
+    if (result == MM_CHUNK_OK) *out = copied;
+    else { TrashVar(out); if (result == MM_CHUNK_NOT_FOUND) Bug("chunk not found"); }
+    AssertThis(fcflFull);
+    return result == MM_CHUNK_OK;
 }
 bool ChunkyFile::_FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone,
                        int *created)
 {
-    AssertThis(fcflFull); AssertPo(pcflDst, fcflFull); AssertVarMem(pcnoDst);
-    ChunkOpsHost source(this), destination(pcflDst);
-    const auto src = _OpsServices(&source); const auto dst = pcflDst->_OpsServices(&destination);
-    MMU32 copied;
-    const int result = created ? mm_chunk_copy_reference(&src, &dst, ctgSrc, cnoSrc, &copied, created)
-                               : mm_chunk_copy(&src, &dst, ctgSrc, cnoSrc, fClone, &copied);
-    if (result == MM_CHUNK_OK) *pcnoDst = copied;
-    else { TrashVar(pcnoDst); if (result == MM_CHUNK_NOT_FOUND) Bug("chunk not found"); }
-    AssertThis(fcflFull); AssertPo(pcflDst, fcflFull);
-    return result == MM_CHUNK_OK;
+    AssertThis(fcflFull);
+    AssertPo(pcflDst, fcflFull);
+    ChunkOpsHost source(this);
+    const auto services = _OpsServices(&source);
+    const bool result = pcflDst->_FCopyFrom(services, ctgSrc, cnoSrc, pcnoDst, fClone, created);
+    AssertThis(fcflFull);
+    return result;
 }
 
 /***************************************************************************

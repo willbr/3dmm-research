@@ -114,8 +114,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   cache's root block. Graph links and child payloads use the same archive source
   as the root. The legacy template costume-table builder keeps its own cache
   budget and inherits that source. Stored names, font glyphs, sound metadata,
-  and event-track replacements also read from that source. Copying a font
-  into a text preview uses a temporary native view for the copy operation.
+  and event-track replacements also read from that source. Font copies
+  traverse the stored index with the shared C89 chunk copier and write the
+  selected subgraph to the editable preview file.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

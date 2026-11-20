@@ -21,7 +21,8 @@ typedef struct Node
 } Node;
 typedef struct Host
 {
-    Node nodes[64], scratch;
+    Node nodes[64];
+    MMChunkEntry payload_entry;
     MMU32 count, end;
     unsigned char physical[8192], payload[64];
     const unsigned char *write_data;
@@ -29,7 +30,7 @@ typedef struct Host
     MMChunkWalk deletion;
     MMStorageAllocator memory;
     int live, calls, fail_map, fail_growth, fail_walk, fail_payload, fail_name, fail_link, fail_runtime;
-    int payloads, names, links, resets;
+    int payloads, names, links, resets, reads, fail_read;
 } Host;
 static MMU32 find(Host *h, MMU32 type, MMU32 number)
 {
@@ -238,12 +239,15 @@ static int move_bytes(void *c, MMU32 from, MMU32 offset, MMU32 to, MMU32 target,
     size(b);
     return 1;
 }
-static void read_payload(void *c, MMU32 i)
+static void *read_payload(void *c, MMU32 i, const MMChunkEntry *e)
 {
     Host *h = (Host *)c;
-    CHECK(i < h->count && h->nodes[i].e.bytes <= sizeof(h->payload));
-    h->scratch = h->nodes[i];
-    memcpy(h->payload, h->physical + h->nodes[i].e.offset, h->nodes[i].e.bytes);
+    CHECK(i < h->count && e->number == h->nodes[i].e.number && e->bytes <= sizeof(h->payload));
+    if (++h->reads == h->fail_read)
+        return NULL;
+    h->payload_entry = *e;
+    memcpy(h->payload, h->physical + e->offset, e->bytes);
+    return h;
 }
 static int put_payload(void *c, MMU32 type, MMU32 number, void *source)
 {
@@ -251,11 +255,11 @@ static int put_payload(void *c, MMU32 type, MMU32 number, void *source)
     MMU32 i;
     int result;
     h->write_data = src->payload;
-    result = mm_chunk_put(&h->ops.edit, type, number, src->scratch.e.bytes);
+    result = mm_chunk_put(&h->ops.edit, type, number, src->payload_entry.bytes);
     if (result != MM_CHUNK_OK)
         return 0;
     i = find(h, type, number);
-    h->nodes[i].e.flags = (h->nodes[i].e.flags & ~4U) | (src->scratch.e.flags & 4U);
+    h->nodes[i].e.flags = (h->nodes[i].e.flags & ~4U) | (src->payload_entry.flags & 4U);
     return 1;
 }
 static int add_payload(void *c, MMU32 type, void *source, MMU32 *number)
@@ -268,21 +272,20 @@ static int add_payload(void *c, MMU32 type, void *source, MMU32 *number)
     *number = n;
     return 1;
 }
-static int read_name(void *c, MMU32 i)
+static const void *read_name(void *c, MMU32 i)
 {
     Host *h = (Host *)c;
     CHECK(i < h->count);
-    memcpy(h->scratch.name, h->nodes[i].name, sizeof(h->scratch.name));
-    return h->scratch.name[0] != 0;
+    return h->nodes[i].name[0] ? h->nodes[i].name : NULL;
 }
-static int write_name(void *c, MMU32 i, void *source)
+static int write_name(void *c, MMU32 i, const void *name)
 {
     Host *h = (Host *)c;
     CHECK(i < h->count);
     ++h->names;
     if (h->fail_name == h->names)
         return 0;
-    memcpy(h->nodes[i].name, ((Host *)source)->scratch.name, sizeof(h->nodes[i].name));
+    memcpy(h->nodes[i].name, name, sizeof(h->nodes[i].name));
     size(h->nodes + i);
     return 1;
 }
@@ -513,6 +516,71 @@ static void copy_references(void)
     dispose(&src);
     dispose(&dst);
 }
+static int stored_entry(void *c, MMU32 i, MMChunkEntry *out)
+{
+    entry(c, i, out);
+    return 1;
+}
+static int stored_link(void *c, MMU32 parent, MMU32 i, MMChunkChild *out)
+{
+    child(c, parent, i, out);
+    return 1;
+}
+static void stored_copies(void)
+{
+    Host src, dst;
+    MMChunkAccess index;
+    MMChunkEndpoint source = {0};
+    MMU32 copied = 99, root, branch, shared;
+    MMI32 highest = mm_chunk_runtime_highest();
+    init(&src);
+    init(&dst);
+    graph(&src);
+    add(&dst, 0);
+    index.context = &src;
+    index.entry = stored_entry;
+    index.child = stored_link;
+    index.count = src.count;
+    source.identity = source.context = &src;
+    source.allocator = &src.memory;
+    source.stored = &index;
+    source.read_payload = read_payload;
+    source.read_name = read_name;
+
+    src.fail_read = 2;
+    CHECK(mm_chunk_copy(&source, &dst.ops, 10, 0, 0, &copied) == MM_CHUNK_IO);
+    CHECK(copied == 99 && dst.count == 1 && dst.nodes[0].e.number == 0);
+    CHECK(mm_chunk_copy(&source, &dst.ops, 10, 0, 0, &copied) == MM_CHUNK_OK);
+    CHECK(dst.count == 4 && copied != 0 && mm_chunk_runtime_highest() == highest);
+    root = find(&dst, 10, copied);
+    branch = find(&dst, 10, dst.nodes[root].kids[0].number);
+    shared = find(&dst, 10, dst.nodes[root].kids[1].number);
+    CHECK(root < dst.count && branch < dst.count && shared < dst.count);
+    CHECK(dst.nodes[root].e.flags & MM_CHUNK_FOREST);
+    CHECK(dst.nodes[branch].kids[0].number == dst.nodes[shared].e.number);
+    CHECK(dst.nodes[shared].e.parent_count == 2 && (dst.nodes[shared].e.flags & MM_CHUNK_PACKED));
+    CHECK(!strcmp(dst.nodes[root].name, "named") && dst.physical[dst.nodes[shared].e.offset] == 1);
+    dispose(&src);
+    dispose(&dst);
+}
+static void live_clone_moves_rows(void)
+{
+    Host h;
+    MMU32 copied, child_position;
+    init(&h);
+    add(&h, 0);
+    add(&h, 1);
+    h.nodes[0].e.number = 4;
+    h.nodes[1].e.number = 7;
+    link(&h, 4, 7, 0);
+    memcpy(h.nodes[1].name, "glyph", 6);
+    size(h.nodes + 1);
+    CHECK(mm_chunk_copy(&h.ops, &h.ops, 10, 4, 1, &copied) == MM_CHUNK_OK && copied == 0);
+    CHECK(!strcmp(h.nodes[0].name, "named") && h.nodes[0].e.child_count == 1);
+    child_position = find(&h, 10, h.nodes[0].kids[0].number);
+    CHECK(child_position < h.count && !strcmp(h.nodes[child_position].name, "glyph"));
+    dispose(&h);
+}
 static void swaps_moves(void)
 {
     Host h;
@@ -555,6 +623,8 @@ int main(void)
 {
     copies();
     copy_references();
+    stored_copies();
+    live_clone_moves_rows();
     swaps_moves();
     return 0;
 }

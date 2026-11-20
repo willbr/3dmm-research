@@ -113,7 +113,8 @@ class ChunkyFile : public ChunkyFile_PAR
 
   private:
     // private methods
-    explicit ChunkyFile(bool registerFile = true);
+    friend class ChunkyResourceFile;
+    ChunkyFile(void);
     ~ChunkyFile(void);
 
     static MMChunkConstruction _ConstructionServices(Filename *);
@@ -126,6 +127,7 @@ class ChunkyFile : public ChunkyFile_PAR
     MMChunkAccess _ChunkAccess();
     MMChunkEdit _EditServices(void *context);
     MMChunkEndpoint _OpsServices(void *context);
+    bool _FCopyFrom(const MMChunkEndpoint &, ChunkTagOrType, ChunkNumber, ChunkNumber *, bool clone, int *created);
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTagOrType ctgCreator);
     MMChunkStoragePolicy _StoragePolicy();
@@ -165,9 +167,6 @@ class ChunkyFile : public ChunkyFile_PAR
         return static_cast<PChunkyFile>(mm_chunk_context_next(&_link));
     }
     static PChunkyFile PcflOpen(Filename *pfni, LegacyUlong grfcfl);
-    // Build a private copy source from a validated index and its read-only file.
-    // Ordinary file opens continue to find the registered live graph.
-    static PChunkyFile PcflOpenIndex(PFileObject, const MMChunkIndex *);
     static PChunkyFile PcflCreate(Filename *pfni, LegacyUlong grfcfl);
     static PChunkyFile PcflCreateTemp(Filename *pfni = pvNil);
     static PChunkyFile PcflFromFni(Filename *pfni);

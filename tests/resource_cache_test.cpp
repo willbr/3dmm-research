@@ -255,11 +255,14 @@ static int WireSourceCase()
     CHECK(path.FGetTemp());
     const ChunkTagOrType type = 'TEST';
     const ChunkNumber root = 17, glyph = 21;
-    unsigned char stored = 42, changed = 99;
+    std::array<unsigned char, 512> stored;
+    stored.fill(42);
+    unsigned char changed = 99;
     String authored, name;
     authored.SetSzs(PszLit("Stored name"));
     auto live = ChunkyFile::PcflCreate(&path, fcflWriteEnable);
-    CHECK(live && live->FPutPv(&stored, 1, type, root) && live->FPutPv(&stored, 1, type, glyph));
+    CHECK(live && live->FPutPv(nullptr, 0, type, root) && live->FPutPv(stored.data(), stored.size(), type, glyph));
+    CHECK(live->FPackData(type, glyph));
     CHECK(live->FSetName(type, root, &authored) && live->FAdoptChild(type, root, type, glyph, 0) && live->FSave(type));
     ReleasePpo(&live);
 
@@ -283,18 +286,27 @@ static int WireSourceCase()
 
     live = ChunkyFile::PcflOpen(&path, fcflAddToExtra);
     CHECK(live && live->FPutPv(&changed, 1, type, glyph));
+    live->SetPacked(type, glyph, false);
     auto writable = ChunkyFile::PcflCreateTemp();
     ChunkNumber copied;
     CHECK(writable && cache->FCopyChunk(type, root, writable, &copied));
     CHECK(ChunkyFile::PcflFromFni(&path) == live);
     ChildChunkIdentification child;
-    DataBlock block;
+    DataBlock block, original;
     unsigned char value;
+    std::array<unsigned char, 512> decoded, packed;
     CHECK(copied == root && writable->FGetKidChid(type, copied, 0, &child) && child.cki.ctg == type);
-    CHECK(writable->FFind(type, child.cki.cno, &block) && block.FReadRgb(&value, 1, 0) && value == stored);
+    CHECK(writable->FFind(type, child.cki.cno, &block) && block.FPacked());
+    CHECK(cache->FReadBlock(type, glyph, original) && original.FPacked());
+    const auto packedBytes = original.Cb(true);
+    CHECK(packedBytes > 0 && packedBytes <= packed.size() && block.Cb(true) == packedBytes);
+    CHECK(original.FRead(packed.data(), true) && block.FRead(decoded.data(), true));
+    CHECK(!std::memcmp(packed.data(), decoded.data(), packedBytes) && block.FUnpackData());
+    CHECK(block.Cb() == decoded.size() && block.FRead(decoded.data()) && decoded == stored);
     CHECK(live->FFind(type, glyph, &block) && block.FReadRgb(&value, 1, 0) && value == changed);
     CHECK(writable->FGetName(type, copied, &name) && name.FEqual(&authored));
     block.Free();
+    original.Free();
     ReleasePpo(&writable);
     ReleasePpo(&live);
     ReleasePpo(&cache);

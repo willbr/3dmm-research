@@ -19,6 +19,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "handle_services.h"
+#include "mm/chunk_ops.h"
 #include "util.h"
 ASSERTNAME
 
@@ -292,6 +293,17 @@ bool ChunkyResourceFile::FReadBlock(ChunkTagOrType type, ChunkNumber number, Dat
     AssertThis(0);
     return mm_resource_cache_read_block(&_cache, type, number, &block._state) == MM_CHUNK_OK;
 }
+static bool ReadStoredName(const MMChunkIndex *index, MMU32 position, String &name)
+{
+    unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES];
+    const unsigned char *bytes;
+    MMU32 count;
+    if (mm_chunk_serialized_name(index, position, KauaiEncodeLegacyChunkName, nullptr, scratch, &bytes,
+                                 &count) != MM_CHUNK_OK ||
+        !count || !name.FSetData(const_cast<unsigned char *>(bytes), count))
+        name.SetNil();
+    return name.Cch() > 0;
+}
 bool ChunkyResourceFile::FGetName(ChunkTagOrType type, ChunkNumber number, PString name)
 {
     AssertThis(0);
@@ -299,27 +311,42 @@ bool ChunkyResourceFile::FGetName(ChunkTagOrType type, ChunkNumber number, PStri
     if (Pcfl())
         return Pcfl()->FGetName(type, number, name);
     const auto graph = ReadChunkAccess();
-    MMU32 position, count;
-    unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES];
-    const unsigned char *bytes;
-    if (mm_chunk_find(&graph, type, number, &position) != MM_CHUNK_OK ||
-        mm_chunk_serialized_name(_cache.wire_index, position, KauaiEncodeLegacyChunkName, nullptr, scratch, &bytes,
-                                 &count) != MM_CHUNK_OK ||
-        !count || !name->FSetData(const_cast<unsigned char *>(bytes), count))
-        name->SetNil();
-    return name->Cch() > 0;
+    MMU32 position;
+    if (mm_chunk_find(&graph, type, number, &position) == MM_CHUNK_OK)
+        return ReadStoredName(_cache.wire_index, position, *name);
+    name->SetNil();
+    return false;
 }
 bool ChunkyResourceFile::FCopyChunk(ChunkTagOrType type, ChunkNumber number, PChunkyFile destination, ChunkNumber *copied)
 {
     AssertThis(0);
+    AssertPo(destination, fcflFull);
     if (Pcfl())
         return Pcfl()->FCopy(type, number, destination, copied);
-    auto file = ChunkyFile::PcflOpenIndex(static_cast<PFileObject>(_cache.wire_file), _cache.wire_index);
-    if (!file)
+    if (static_cast<PFileObject>(_cache.wire_file)->GrffilCur() & ffilWriteEnable)
         return false;
-    const bool ok = file->FCopy(type, number, destination, copied);
-    ReleasePpo(&file);
-    return ok;
+    struct Source
+    {
+        ChunkyResourceFile &cache;
+        const MMChunkIndex *index;
+        DataBlock block;
+        String name;
+    } context{*this, _cache.wire_index, {}, {}};
+    const auto chunks = ReadChunkAccess();
+    MMChunkEndpoint source = {};
+    source.identity = this;
+    source.context = &context;
+    source.stored = &chunks;
+    source.allocator = KauaiCopyAllocator();
+    source.read_payload = [](void *p, MMU32, const MMChunkEntry *entry) -> void * {
+        auto &s = *static_cast<Source *>(p);
+        return s.cache.FReadBlock(entry->type, entry->number, s.block) ? &s.block : nullptr;
+    };
+    source.read_name = [](void *p, MMU32 position) -> const void * {
+        auto &s = *static_cast<Source *>(p);
+        return ReadStoredName(s.index, position, s.name) ? &s.name : nullptr;
+    };
+    return destination->_FCopyFrom(source, type, number, copied, false, nullptr);
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
 {

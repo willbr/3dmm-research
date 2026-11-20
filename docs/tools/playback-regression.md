@@ -15181,3 +15181,27 @@ In `actor-event-edit` suite `20261120T092230Z-e5402cb9`, Marcus and SDL
 matched all 60 retail frame identities in seek and playback. Both retained
 their 60 seek image hashes and matched the retail camera indices. SDL
 matched all 12 retail sound requests.
+
+## Copying Preview fonts directly from the stored index (20 November 2026)
+
+The shared C89 chunk copier walks the stored index while the editable
+destination supplies its existing writer. Packed bytes, names and shared
+child links are preserved. The copy walks only the selected subgraph and
+uses a per-copy map for its chunk numbers.
+
+The standalone checks covered a failed child read, shared links, packed
+flags and a same-file clone that moves source rows. The native cache test
+verified identical packed bytes on x64 and x86 while an open live graph had
+a different glyph. The Marcus insertion test prepared and rendered the font
+through its normal text-preview entry point. All 46 targeted x64 checks and
+eight standalone C89 checks passed.
+
+The x64 Preview integration and x86 session fixtures retained their
+fingerprints. Both VMM storyboard seek images in `20261120T093601Z-5235d3b6`
+matched the retained SDL and Marcus captures. Logs are in
+`tmp/c89-stored-chunk-copy`.
+
+In `actor-event-edit` suite `20261120T093559Z-08cad4e4`, Marcus and SDL
+matched all 60 retail frame identities in seek and playback. Both retained
+all 60 seek image hashes and matched the retail camera indices. SDL matched
+all 12 retail sound requests.
