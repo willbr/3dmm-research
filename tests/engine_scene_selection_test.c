@@ -73,12 +73,11 @@ static void notice(void *p)
 {
     event((Host *)p, 52);
 }
-static MMI32 name(void *p, void *o, unsigned short *out)
+static void name(void *p, void *o, MMMovieTitle *out)
 {
     Object *object = (Object *)o;
     (void)p;
-    memcpy(out, object->name, object->length * sizeof(*out));
-    return object->length;
+    CHECK(mm_movie_title_init(out, 2) && mm_movie_title_set(out, object->name, object->length));
 }
 static int position(void *p, void *o, MMActorPoint *out)
 {
@@ -127,6 +126,145 @@ static void named(Object *o, const char *text)
     CHECK(o->length <= 255);
     for (i = 0; i < o->length; ++i)
         o->name[i] = (unsigned char)text[i];
+}
+
+typedef struct TagEdit
+{
+    Host *host;
+    MMMovieUndoContext base;
+    MMActorRenameGroup undo;
+    int fail_create, fail_rename, fail_commit;
+    char order[16];
+    size_t used;
+} TagEdit;
+
+static void tag_event(TagEdit *edit, char code)
+{
+    CHECK(edit->used + 1 < sizeof(edit->order));
+    edit->order[edit->used++] = code;
+    edit->order[edit->used] = 0;
+}
+
+static MMActorRenameGroup *create_tag_undo(void *p, void **handle)
+{
+    TagEdit *edit = (TagEdit *)p;
+    tag_event(edit, 'A');
+    if (edit->fail_create)
+        return NULL;
+    *handle = &edit->undo;
+    mm_movie_undo_context_init(&edit->base);
+    CHECK(mm_actor_rename_group_init(&edit->undo, &edit->base, 2, 0, NULL, 0));
+    return &edit->undo;
+}
+
+static MMI32 tag_actor_id(void *p, void *actor)
+{
+    (void)p;
+    return ((Object *)actor)->id;
+}
+
+static int rename_for_tag(void *p, MMI32 id, const void *text, MMU32 count)
+{
+    TagEdit *edit = (TagEdit *)p;
+    Object *actor;
+    CHECK(id > 0 && id <= 5 && count <= MM_STRING_MAX);
+    actor = edit->host->objects + id - 1;
+    tag_event(edit, 'R');
+    if (id == edit->fail_rename)
+        return 0;
+    memcpy(actor->name, text, count * sizeof(actor->name[0]));
+    actor->length = count;
+    return 1;
+}
+
+static int commit_tag_undo(void *p, void *handle)
+{
+    TagEdit *edit = (TagEdit *)p;
+    CHECK(handle == &edit->undo && edit->undo.names.count);
+    tag_event(edit, 'U');
+    return !edit->fail_commit;
+}
+
+static void release_tag_undo(void *p, void *handle)
+{
+    TagEdit *edit = (TagEdit *)p;
+    CHECK(handle == &edit->undo);
+    mm_actor_rename_group_dispose(&edit->undo);
+    tag_event(edit, 'L');
+}
+
+static void clear_tag_undo(void *p) { tag_event((TagEdit *)p, 'C'); }
+static void tag_error(void *p) { tag_event((TagEdit *)p, 'E'); }
+static void tag_dirty(void *p) { tag_event((TagEdit *)p, 'D'); }
+
+static void check_name(const Object *actor, const char *expected)
+{
+    Object copy;
+    named(&copy, expected);
+    CHECK(actor->length == copy.length);
+    CHECK(!memcmp(actor->name, copy.name, copy.length * sizeof(copy.name[0])));
+}
+
+static void test_tag_edit(void)
+{
+    static const char *order[] = {"ARRULD", "AE", "ARRLCE", "ARRUECLD", "ARLCE"};
+    Host h;
+    TagEdit edit;
+    MMSceneSelectionServices s;
+    MMSceneTagEditServices services;
+    int mode;
+    char full[256];
+    memset(&services, 0, sizeof(services));
+    services.context = &edit;
+    services.create_undo = create_tag_undo;
+    services.actor_id = tag_actor_id;
+    services.rename = rename_for_tag;
+    services.commit_undo = commit_tag_undo;
+    services.release_undo = release_tag_undo;
+    services.clear_undo = clear_tag_undo;
+    services.not_undoable = tag_error;
+    services.dirty = tag_dirty;
+    memset(full, 'a', sizeof(full) - 1);
+    full[sizeof(full) - 1] = 0;
+    for (mode = 0; mode < 5; ++mode)
+    {
+        s = init(&h, 0);
+        memset(&edit, 0, sizeof(edit));
+        edit.host = &h;
+        edit.fail_create = mode == 1;
+        edit.fail_rename = mode == 2 ? 2 : 0;
+        edit.fail_commit = mode == 3;
+        mm_scene_selection_edit_tags(0, &s, &services);
+        CHECK(!edit.used);
+        named(h.objects, "First #2147483648x");
+        named(h.objects + 1, mode == 4 ? full : "Second");
+        /* This actor is in the scene outside the selection. Adjacent tags,
+         * leading zeros and a decimal carry across the signed 32-bit limit. */
+        named(h.objects + 2, "Other #00009#2147483647!");
+        CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects + 2));
+        h.selection.actor = h.objects;
+        CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, h.objects + 1));
+        mm_scene_selection_edit_tags(0, &s, &services);
+        CHECK(!strcmp(edit.order, order[mode]));
+        check_name(h.objects, mode == 1 ? "First #2147483648x" : "First #2147483648x #2147483648");
+        check_name(h.objects + 1, mode == 0 || mode == 3 ? "Second #2147483648" :
+                                  mode == 4 ? full : "Second");
+    }
+
+    s = init(&h, 0);
+    memset(&edit, 0, sizeof(edit));
+    edit.host = &h;
+    h.selection.actor = h.objects;
+    CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, h.objects + 1));
+    named(h.objects, "Caption #first  #LAST_2");
+    named(h.objects + 1, "Leave #this?");
+    mm_scene_selection_edit_tags(1, &s, &services);
+    CHECK(!strcmp(edit.order, "ARULD"));
+    check_name(h.objects, "Caption #first ");
+    check_name(h.objects + 1, "Leave #this?");
+    edit.used = 0;
+    mm_scene_selection_edit_tags(1, &s, &services);
+    CHECK(!strcmp(edit.order, "AL"));
 }
 static void test_views(void)
 {
@@ -339,6 +477,7 @@ int main(void)
     test_bulk();
     test_centroid();
     test_tag_units();
+    test_tag_edit();
     puts("Scene selection policy passed");
     return 0;
 }

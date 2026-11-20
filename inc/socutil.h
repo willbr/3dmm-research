@@ -194,6 +194,7 @@ typedef class ActorRenameGroupUndo *PActorRenameGroupUndo;
 #define kclsActorRenameGroupUndo 'ARGU'
 class ActorRenameGroupUndo : public ActorRenameGroupUndo_PAR
 {
+    friend class Scene;
     RTCLASS_DEC
     MARKMEM
     ASSERT

@@ -784,10 +784,11 @@ background resource implementations remain native dependencies. Scene actor/
 caption add/remove, actor paste and roll-call traversal, lookups, movie binding
 and persistent actor/caption undo ownership/control now also use C89. Actor/
 caption internals and native undo adapters remain dependencies. Scene selection
-state and actor/caption selection, toggling, bulk/tag selection and visible
-selection centroid policy now also use C89; typed view/object effects remain
-adapters. Scene forward/backward chopping, its public undo transaction and
-persistent snapshot resource ownership/save/swap control now also use C89.
+state and actor/caption selection, toggling, bulk/tag selection, group-tag edits
+and undo registration, and visible selection centroid policy now also use C89.
+Typed view/object effects remain adapters. Scene forward/backward chopping, its
+public undo transaction and persistent snapshot resource ownership/save/swap
+control now also use C89.
 Scene name/transition editing, persistent property undo payloads/swaps,
 transition-file read/modify/write and playback startup/shutdown now also use C89.
 Scene thumbnail generation, cache access and dirty propagation also use C89.
@@ -1626,9 +1627,9 @@ What landed:
 What landed:
 
 - `Scene::FSelectActrsByTag` parses ASCII `#tag` substrings out of actor names (case-insensitive) and replaces the current selection with every matching actor in the scene.
-- `ActorRenameGroupUndo` composite undo for batched actor-rename ops (mirrors `ActorMoveGroupUndo`'s shape but uses a `StringTable_GST` to store the swap state).
-- `Ctrl+G` appends the next free `#N` (auto-numbered, scene-local) to every selected actor's name. `Ctrl+Shift+G` strips the rightmost tag from each selected actor. `Ctrl+1`..`Ctrl+9` re-selects the matching numeric group.
-- Tags ride in the existing `_pgstmactr` string table inside the movie chunk — no on-disk format change. Original 1995 3DMM displays the tag suffix verbatim; round-trip is preserved.
+- `ActorRenameGroupUndo` stores counted names and actor IDs in a C89 table and swaps all names in one undo or redo.
+- `Ctrl+G` appends the scene's next `#N` to every selected name. `Ctrl+Shift+G` strips a trailing tag. `Ctrl+1`..`Ctrl+9` reselects the matching numeric group.
+- Tags live in the movie's roll-call names. Retail 3D Movie Maker displays and saves the suffix as part of the name.
 
 **Phase 2+ remaining work (still in scope for "UI-5"):**
 

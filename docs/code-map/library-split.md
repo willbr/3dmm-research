@@ -1998,11 +1998,11 @@ C-only integration remain.
 
 `scene_selection.c` owns actor/caption primary selection state and selection
 control: plain select/clear, count/index/membership, toggle with primary
-promotion, select-all, name-tag queries/shared tags and visible centroid
-arithmetic. Selection lists and primary pointers borrow object references.
-Native services provide container primitives, counted display-name access,
-body/view queries, highlight/caption effects and Movie menu/client notifications.
-Native typed primary fields are published views of the C state.
+promotion, select-all, name-tag queries and edits, shared-tag selection and
+visible centroid arithmetic. Selection lists and primary pointers borrow object
+references. Native services provide counted display-name access, body/view
+queries, highlight/caption effects and Movie menu/client notifications. Native
+typed primary fields are published views of the C state.
 
 Plain actor selection unhighlights/clears extras and deselects a caption only
 with an actor-mode view. No-view and text-mode calls retain extras, including
@@ -2022,13 +2022,32 @@ wrapping and division; no visible selection leaves outputs untouched. Invalid
 selection indices now return null from the C API; native debug range assertions
 remain.
 
+The group-tag commands read display names through the same counted native units
+as tag selection. `Ctrl+G` scans the current scene for numeric tokens and appends
+the decimal successor to each selected name. Decimal comparison and carry
+support tags beyond machine integer range, subject to the 255-unit name limit.
+`Ctrl+Shift+G` removes one trailing tag and one preceding space when present.
+C89 saves each old name before applying its replacement and registers a single
+rename undo. An edit failure keeps earlier renames and clears undo. A failed
+registration still marks the movie dirty.
+
 The native headless trace extends the Scene-content fixture with selection
 transitions, names and centroid outputs. C-only checks exercise all view modes,
 effect/notification ordering, caption early returns, allocation/append failures,
-tag boundaries/truncation/text units and centroid rounding/overflow. No Marcus
-UI tests were added. Chopping is covered below. Other Scene editing/undo,
-actor/caption internals, other Scene/Movie operations and final C-only integration
-remain conversion work.
+tag boundaries/truncation/text units, group-tag failure ordering and centroid
+rounding/overflow. The 31,048-byte Scene-content trace and the 12 native actor
+traces matched their baselines. SDL Studio verified tagging, numeric group recall,
+stripping, undo, redo and save/reopen for seven actors. A separate Studio run
+verified a 31-digit successor and undo/redo for eight actors. Retail reopened the
+seven-actor movie with matching IDs, actions, cels and positions at frame 7.
+Both stock actors' tag names survived a save in retail and another open in SDL
+Studio. After a retail save, the custom-material fixture produced the same
+missing `MTRL:2` error on both Studio builds.
+
+Capture suite `20261120T014251Z-6d409d24` matched 60 scene/frame markers from
+retail in each port's seek and playback runs. Both ports' seek image hashes
+matched their previous builds, and SDL's 12 playback sound events matched
+retail.
 
 ### Scene chop and snapshot undo
 

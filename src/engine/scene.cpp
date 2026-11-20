@@ -1384,14 +1384,11 @@ MMSceneSelectionServices Scene::_SelectionServices()
     s.invalidate = [](void *p) { static_cast<Scene *>(p)->_pmvie->InvalViews(); };
     s.action_menu = [](void *p) { static_cast<Scene *>(p)->_pmvie->BuildActionMenu(); };
     s.text_notice = [](void *p) { static_cast<Scene *>(p)->_pmvie->Pmcc()->TboxSelected(); };
-    s.name = [](void *, void *object, unsigned short *out) -> MMI32 {
-        static_assert(kcchMaxStn <= 256, "Selection name buffer");
+    s.name = [](void *, void *object, MMMovieTitle *out) {
         String name;
         static_cast<PActor>(object)->GetName(&name);
-        for (long i = 0; i < name.Cch(); ++i)
-            out[i] = sizeof(achar) == 1 ? static_cast<unsigned char>(name.Prgch()[i])
-                                        : static_cast<unsigned short>(name.Prgch()[i]);
-        return name.Cch();
+        mm_movie_title_init(out, sizeof(achar));
+        mm_movie_title_set(out, name.Prgch(), name.Cch());
     };
     s.visible_position = [](void *, void *object, MMActorPoint *out) {
         auto actor = static_cast<PActor>(object);
@@ -1466,6 +1463,31 @@ bool Scene::FSelectActrsByTag(PZString pszTag)
     AssertThis(0);
     auto s = _SelectionServices();
     return mm_scene_selection_tag(pszTag, CchSz(pszTag), sizeof(achar) == 2, &s) != 0;
+}
+
+void Scene::EditActorSelectionTags(bool strip)
+{
+    AssertThis(0);
+    const auto selection = _SelectionServices();
+    MMSceneTagEditServices edit{};
+    edit.context = Pmvie();
+    edit.create_undo = [](void *, void **handle) -> MMActorRenameGroup * {
+        auto undo = ActorRenameGroupUndo::PargNew();
+        *handle = undo;
+        return undo ? &undo->_group : nullptr;
+    };
+    edit.actor_id = [](void *, void *actor) -> MMI32 { return static_cast<PActor>(actor)->Arid(); };
+    edit.rename = [](void *movie, MMI32 id, const void *text, MMU32 count) {
+        return int(static_cast<PMovie>(movie)->FNameActr(id, static_cast<const achar *>(text), count));
+    };
+    edit.commit_undo = [](void *movie, void *undo) {
+        return int(static_cast<PMovie>(movie)->FAddUndo(static_cast<PActorRenameGroupUndo>(undo)));
+    };
+    edit.release_undo = [](void *, void *undo) { static_cast<PActorRenameGroupUndo>(undo)->Release(); };
+    edit.clear_undo = [](void *movie) { static_cast<PMovie>(movie)->ClearUndo(); };
+    edit.not_undoable = [](void *) { PushErc(ercSocNotUndoable); };
+    edit.dirty = [](void *movie) { static_cast<PMovie>(movie)->SetDirty(); };
+    mm_scene_selection_edit_tags(strip, &selection, &edit);
 }
 
 /****************************************************

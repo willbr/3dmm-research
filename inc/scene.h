@@ -329,6 +329,7 @@ class Scene : public Scene_PAR
     // string, or another '#'). Returns fFalse on alloc failure mid-build (in
     // which case the selection ends up empty).
     bool FSelectActrsByTag(PZString pszTag);
+    void EditActorSelectionTags(bool strip);
     // Select pactrSeed and every other actor in the current scene that
     // shares at least one #tag with it (set union across pactrSeed's tags).
     // If pactrSeed has no tags this collapses to SelectActr(pactrSeed) --
