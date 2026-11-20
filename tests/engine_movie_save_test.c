@@ -710,21 +710,16 @@ static int graph_child(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
     *out = t->children[i];
     return 1;
 }
-static MMChunkAccess chunks(void *p)
+static MMU32 edit_count(void *p)
 {
     Test *t = p;
-    MMChunkAccess access;
+    MMU32 count = t->extraCount + t->materialCount + t->templateCount + (t->rootNumber != NIL);
     MMU32 n;
-    access.context = p;
-    access.count = t->extraCount + t->materialCount + t->templateCount + (t->rootNumber != NIL);
     for (n = 0; n < sizeof(t->refs) / sizeof(t->refs[0]); ++n)
         if (t->soundPresent[n])
-            ++access.count;
-    access.entry = graph_entry;
-    access.child = graph_child;
-    return access;
+            ++count;
+    return count;
 }
-static MMU32 edit_count(void *p) { return chunks(p).count; }
 static void edit_store(void *p, MMU32 row, const MMChunkEntry *entry, int initialize)
 {
     Test *t = p;
@@ -904,7 +899,6 @@ static void init(Test *t)
     s->source_archive = source_archive;
     s->tag_graph = tag_graph;
     s->toss_cache = toss;
-    s->chunks = chunks;
     s->purge_sounds = purge;
     s->bad_child = bad_child;
     s->bad_sound_index = bad_sound_index;

@@ -1425,6 +1425,11 @@ creation also use it directly. The movie archive host supplies payload I/O
 and one live index for lookups and mutations. C89 takes a fresh read view
 after edits that change row positions, including when preserving assets
 before dropping a scene.
+Studio's scene ordering and composition, autosave, and close-time asset
+and sound collection read that same index. Sound attachment, copying,
+and importing use the shared editor to publish links and remove failed
+copies. During import, the destination captured before the temporary-file
+step receives the sound, while its slot comes from the current working file.
 Portable source tables and background event groups publish a replacement
 before releasing the old link. Native source registration retains its
 existing unlink-before-adopt order.

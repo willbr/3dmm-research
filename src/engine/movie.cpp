@@ -198,7 +198,6 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.persistent = [](void *p) {
         AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
     };
-    s.chunks = [](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
     s.edit = EditMovieArchive;
     s.create_root = [](void *, void *p, MMU32 *number) -> int { return MovieData::FCreateRoot(static_cast<PChunkyFile>(p), number); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
@@ -1041,7 +1040,6 @@ MMMovieSceneServices Movie::_SceneServices()
     s.scene_change = [](void *p) { static_cast<PMovie>(p)->_pmcc->SceneChange(); };
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
     s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.chunks = [](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
     s.edit = EditMovieArchive;
     s.write = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
@@ -1114,10 +1112,7 @@ MMMovieSoundServices Movie::_SoundServices()
         auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_scenes.index;
     };
     s.file=[](void *p)->void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.chunks=[](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
-    s.adopt=[](void *p,MMU32 type,MMU32 number,MMU32 childType,MMU32 child,MMU32 slot) {
-        return int(static_cast<PChunkyFile>(p)->FAdoptChild(type,number,childType,child,slot));
-    };
+    s.edit = EditMovieArchive;
     s.open_tag=[](void *,MMTag *v,void *cache) {
         TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FOpenTag(&tag,static_cast<PChunkyResourceFile>(cache));
         std::memcpy(v,&tag,sizeof(tag)); return int(ok);
@@ -1134,7 +1129,6 @@ MMMovieSoundServices Movie::_SoundServices()
         ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=static_cast<PChunkyFile>(p)->FCopy(type,number,static_cast<PChunkyFile>(destination),&value);
         std::memcpy(out,&value,sizeof(value)); return int(ok);
     };
-    s.delete_chunk=[](void *p,MMU32 type,MMU32 number) { static_cast<PChunkyFile>(p)->Delete(type,number); };
     s.save_file=[](void *p,MMU32 creator) { return int(static_cast<PChunkyFile>(p)->FSave(creator)); };
     s.is_midi=[](void *p) { Filename filename; static_cast<PFileObject>(p)->GetFni(&filename); return int(filename.Ftg()==kftgMidi); };
     s.copy_midi=[](void *p,void *destination,MMU32 *out,void *name) {
@@ -1153,6 +1147,8 @@ MMMovieSoundServices Movie::_SoundServices()
         case MM_SOUND_NO_CURRENT_SCENE: Bug("Scene chunk doesn't exist!"); break;
         case MM_SOUND_CANNOT_COPY: PushErc(ercSocCantCopyMsnd); break;
         case MM_SOUND_BAD_CHUNK_ENUM: Bug("Should never fail"); break;
+        case MM_SOUND_MISSING_CHUNK: Bug("parent or child not there"); break;
+        case MM_SOUND_DELETE_FAILED: Bug("chunk not deletable or missing"); break;
         default: Bug("Unknown movie sound diagnostic"); break;
         }
     };

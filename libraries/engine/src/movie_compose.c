@@ -88,9 +88,9 @@ static const MMStorageAllocator *compose_allocator(const MMMovieComposeServices 
 {
     return s->allocator.resize || s->allocator.release ? &s->allocator : NULL;
 }
-static int scene_link(void *file, MMU32 movie, MMU32 slot, MMU32 *number, const MMMovieSceneServices *s)
+static int scene_link(const MMChunkEdit *edit, MMU32 movie, MMU32 slot, MMU32 *number)
 {
-    const MMChunkAccess chunks = s->chunks(file);
+    const MMChunkAccess chunks = mm_chunk_edit_access(edit);
     return mm_chunk_link_number(&chunks, MM_MOVIE_CHUNK, movie, slot, MM_SCENE_CHUNK, number) == MM_CHUNK_OK;
 }
 
@@ -102,6 +102,7 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
     MMU32 position;
     MMComposeScene scene = {0};
     MMComposeMovie movie;
+    MMChunkEdit edit;
     void *file;
     if (count < 0 || *insertion < 0 || (MMU32)*insertion > state->scene_count ||
         (MMU32)count > (MM_STORAGE_LIMIT - 1) / sizeof(scene) - state->scene_count ||
@@ -118,11 +119,13 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
     movie.number = s->data->movieNumber;
     movie.actor_limit = s->data->actorIdLimit;
     file = s->scene_control.file(movie.resources);
+    if (count)
+        edit = s->scene_control.edit(file);
     position = (MMU32)*insertion;
     scene.movie = (MMI32)state->movie_count;
     while (inserted < count)
     {
-        if (!scene_link(file, movie.number, (MMU32)inserted, &scene.number, &s->scene_control))
+        if (!scene_link(&edit, movie.number, (MMU32)inserted, &scene.number))
         {
             s->diagnostic(s->context, MM_COMPOSE_MISSING_SCENE);
             goto fail;
@@ -336,7 +339,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         number = 0xffffffffU;
         if (descriptor.movie > 0)
         {
-            if (!scene_link(file, roots[descriptor.movie - 1], descriptor.child, &number, scenes))
+            if (!scene_link(&edit, roots[descriptor.movie - 1], descriptor.child, &number))
                 goto done;
             if (!descriptor.deleted)
             {

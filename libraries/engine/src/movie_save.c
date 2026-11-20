@@ -51,7 +51,8 @@ MMI32 mm_movie_save_command(MMI32 command, MMI32 save, MMI32 save_as,
 }
 static int refresh_root(void *file, const MMMovieSaveServices *s)
 {
-    const MMChunkAccess chunks = s->chunks(file);
+    const MMChunkEdit edit = s->edit(file);
+    const MMChunkAccess chunks = mm_chunk_edit_access(&edit);
     MMChunkEntry root;
     MMU32 row;
     if (mm_chunk_type_at(&chunks, MM_SOUND_MOVIE, 0, &root, &row) != MM_CHUNK_OK)
@@ -128,9 +129,9 @@ static int clean_actors(const MMMovieSaveServices *s)
     s->rollcall_changed(s->context);
     return 1;
 }
-static MMU32 saved_child(void *file, MMU32 type, MMU32 slot, const MMMovieSaveServices *s)
+static MMU32 saved_child(const MMChunkEdit *edit, MMU32 type, MMU32 slot, const MMMovieSaveServices *s)
 {
-    const MMChunkAccess chunks = s->chunks(file);
+    const MMChunkAccess chunks = mm_chunk_edit_access(edit);
     MMU32 number;
     if (mm_chunk_link_number(&chunks, MM_SOUND_MOVIE, s->data->movieNumber, slot, type, &number) != MM_CHUNK_OK)
         return NIL_NUMBER;
@@ -181,7 +182,7 @@ retry_save:
         if (!s->write_scene(s->context, s->scenes->open, &scene.number))
             goto fail;
         scene.slot = old_scene.slot = (MMU32)s->scenes->index;
-        old_scene.number = saved_child(file, scene.type, scene.slot, s);
+        old_scene.number = saved_child(&edit, scene.type, scene.slot, s);
         if (old_scene.number == NIL_NUMBER)
             s->missing_scene(s->context);
         if (!adopt_child(&edit, &scene, s))
@@ -192,10 +193,10 @@ retry_save:
     }
     if (clean_rollcall && !clean_actors(s))
         goto fail_scene;
-    old_actors.number = saved_child(file, actors.type, actors.slot, s);
+    old_actors.number = saved_child(&edit, actors.type, actors.slot, s);
     if (!s->write_rollcall(s->context, file, s->data->movieNumber, &s->data->actors, &actors.number))
         goto fail_scene;
-    old_sources.number = saved_child(file, sources.type, sources.slot, s);
+    old_sources.number = saved_child(&edit, sources.type, sources.slot, s);
     if (!s->add_sources(s->context, file, s->source_bytes(s->context), &sources.number))
         goto fail_actors;
     if (!s->write_sources(s->context) || !adopt_child(&edit, &sources, s))
@@ -396,7 +397,8 @@ int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
     doomed.storage = &storage;
     doomed.width = sizeof(chunk);
     doomed.free_count = -1;
-    chunks = s->chunks(file);
+    edit = s->edit(file);
+    chunks = mm_chunk_edit_access(&edit);
     for (type = 0; type < sizeof(types) / sizeof(types[0]); ++type)
     {
         for (ordinal = 0; mm_chunk_type_at(&chunks, types[type], ordinal, &entry, &row) == MM_CHUNK_OK; ++ordinal)
@@ -425,7 +427,6 @@ int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
             }
         }
     }
-    edit = s->edit(file);
     for (i = 0; i < doomed.count; ++i)
     {
         memcpy(chunk, storage.buffers[0].data + i * sizeof(chunk), sizeof(chunk));
@@ -448,14 +449,14 @@ void mm_movie_save_sounds(int purge_all, const MMMovieSaveServices *s)
     void *file;
     if (!s->data->resources || !(file = s->file(s->data->resources)))
         return;
-    chunks = s->chunks(file);
+    edit = s->edit(file);
+    chunks = mm_chunk_edit_access(&edit);
     if (mm_chunk_find(&chunks, MM_SOUND_MOVIE, movie, &root_row) != MM_CHUNK_OK ||
         mm_chunk_at(&chunks, root_row, &root) != MM_CHUNK_OK)
     {
         s->bad_child(s->context);
         return;
     }
-    edit = s->edit(file);
     for (i = root.child_count; i > 0; --i)
     {
         if (mm_chunk_child_at(&chunks, root_row, i - 1, &child) != MM_CHUNK_OK)
@@ -478,7 +479,7 @@ void mm_movie_save_sounds(int purge_all, const MMMovieSaveServices *s)
         /* Dropping a sound subtree can shift the movie row in the live index. */
         if (i > 1)
         {
-            chunks = s->chunks(file);
+            chunks = mm_chunk_edit_access(&edit);
             if (mm_chunk_find(&chunks, MM_SOUND_MOVIE, movie, &root_row) != MM_CHUNK_OK)
             {
                 s->bad_child(s->context);
@@ -489,12 +490,12 @@ void mm_movie_save_sounds(int purge_all, const MMMovieSaveServices *s)
 }
 int mm_movie_save_gc(void *file, const MMMovieSaveServices *s)
 {
-    MMChunkAccess chunks;
     void *working;
     int unused, valid, result = mm_movie_save_assets(file, s);
     if (s->state->closing && s->data->resources && (working = s->file(s->data->resources)))
     {
-        chunks = s->chunks(working);
+        const MMChunkEdit edit = s->edit(working);
+        const MMChunkAccess chunks = mm_chunk_edit_access(&edit);
         if (mm_movie_sound_scan_unused(&chunks, &unused, &valid) != MM_CHUNK_OK)
             s->bad_sound_index(s->context);
         if (unused)

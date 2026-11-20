@@ -7765,6 +7765,13 @@ index. The view captures the current row count and borrows the row and child
 readers. Callers reacquire it after changes to row positions. C89 uses the
 same key and child searches for live reads and mutations, with unreadable
 records reported through the existing chunk status values.
+Studio passes one `MMChunkEdit` per archive to its scene, save, and sound
+services. Scene reordering, composition, saved-root refresh, autosave, and
+asset collection look up the entries they edit through that index. The
+sound service uses it to find slots, adopt sounds, and remove a copied sound
+if adoption fails. Copy and import choose a movie slot from the working
+archive and link the sound in the destination archive. A failed physical
+save retains the sound link.
 
 Studio writes an actor through `mm_actor_store` when saving a scene or taking
 a scene undo snapshot. The C89 writer stores the header, route, and events,

@@ -359,7 +359,6 @@ static void init(Test *t, int count, int current)
     s->scene_change = change;
     s->invalidate = invalidate;
     s->file = file;
-    s->chunks = chunks;
     s->edit = edit_archive;
     s->write = write_scene;
     s->archive_issue = bad_archive_edit;

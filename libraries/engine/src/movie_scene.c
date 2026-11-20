@@ -225,9 +225,9 @@ int mm_movie_scene_switch(MMI32 index, const MMMovieSceneServices *s)
         return result;
     }
 }
-static void move_child(MMI32 from, MMI32 to, void *file, const MMChunkEdit *edit, const MMMovieSceneServices *s)
+static void move_child(MMI32 from, MMI32 to, const MMChunkEdit *edit, const MMMovieSceneServices *s)
 {
-    const MMChunkAccess chunks = s->chunks(file);
+    const MMChunkAccess chunks = mm_chunk_edit_access(edit);
     const MMU32 movie = s->movie->movieNumber;
     MMChunkChild child;
     child.type = MM_SCENE_CHUNK;
@@ -241,7 +241,7 @@ static void move_child(MMI32 from, MMI32 to, void *file, const MMChunkEdit *edit
     if (mm_chunk_change_slot(edit, MM_MOVIE_CHUNK, movie, &child, (MMU32)to) != MM_CHUNK_OK && s->archive_issue)
         s->archive_issue(s->context, MM_MOVIE_ARCHIVE_MOVE_FAILED);
 }
-static void shift_scenes(MMI32 index, MMI32 count, int down, void *file, const MMChunkEdit *edit,
+static void shift_scenes(MMI32 index, MMI32 count, int down, const MMChunkEdit *edit,
                          const MMMovieSceneServices *s)
 {
     MMI32 i;
@@ -250,12 +250,12 @@ static void shift_scenes(MMI32 index, MMI32 count, int down, void *file, const M
         for (i = count; i > index;)
         {
             --i;
-            move_child(i, i + 1, file, edit, s);
+            move_child(i, i + 1, edit, s);
         }
     }
     else
         for (i = index; i < count; ++i)
-            move_child(i + 1, i, file, edit, s);
+            move_child(i + 1, i, edit, s);
 }
 static void unlink_scene(const MMChunkEdit *edit, const MMChunkChild *child, const MMMovieSceneServices *s)
 {
@@ -281,14 +281,14 @@ int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *
     s->close(scene);
     edit = s->edit(file);
     previous_count = movie->sceneCount;
-    shift_scenes(index, previous_count, 1, file, &edit, s);
+    shift_scenes(index, previous_count, 1, &edit, s);
     ++movie->sceneCount;
     status = mm_chunk_adopt(&edit, MM_MOVIE_CHUNK, movie->movieNumber, &child, 1);
     if (status != MM_CHUNK_OK)
     {
         if (status == MM_CHUNK_NOT_FOUND && s->archive_issue)
             s->archive_issue(s->context, MM_MOVIE_ARCHIVE_MISSING_CHILD);
-        shift_scenes(index, previous_count, 0, file, &edit, s);
+        shift_scenes(index, previous_count, 0, &edit, s);
         if (mm_chunk_delete(&edit, child.type, child.number) != MM_CHUNK_OK && s->archive_issue)
             s->archive_issue(s->context, MM_MOVIE_ARCHIVE_DELETE_FAILED);
         return 0;
@@ -298,7 +298,7 @@ int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *
     {
         --movie->sceneCount;
         unlink_scene(&edit, &child, s);
-        shift_scenes(index, movie->sceneCount, 0, file, &edit, s);
+        shift_scenes(index, movie->sceneCount, 0, &edit, s);
         s->save(file);
         if (movie->sceneCount > 0)
             mm_movie_scene_switch(index < movie->sceneCount ? index : movie->sceneCount - 1, s);
@@ -356,7 +356,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     s->release(scene);
     unlink_scene(&edit, &child, s);
     --movie->sceneCount;
-    shift_scenes(index, movie->sceneCount, 0, file, &edit, s);
+    shift_scenes(index, movie->sceneCount, 0, &edit, s);
     s->save(file);
     if (movie->sceneCount == 0)
         return 1;

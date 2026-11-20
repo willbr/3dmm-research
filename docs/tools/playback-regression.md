@@ -16760,3 +16760,36 @@ matched all 60 archived retail frame identities in seek and playback and
 all retail seek camera indices. Both reproduced their earlier seek canvas
 hashes. SDL matched all 12 retail sound requests. Evidence is in
 `tmp/c89-archive-read-index`.
+
+## Studio scene, save, and sound operations on the live index (20 November 2026)
+
+Scene ordering and composition, autosave, and asset and sound collection
+query the same index they edit. Sound copy and import adopt through C89
+and delete the staged chunk after a failed adoption. The sound fixture uses
+the native link identity of slot, type, and number. It checks shared slots,
+failed adoption cleanup, and slot selection when the destination differs
+from the working archive.
+
+All 192 standalone checks passed after rebuilding their executables. Eight
+focused checks passed on SDL, native x64 and x86, and under AddressSanitizer.
+The x64 build passed 23 selected checks, including Marcus sound editing,
+player, playback, and C89 syntax. All 54 baseline traces, three saved movie
+fixtures, ten Preview fingerprints, and six Preview movies matched.
+
+Studio's authoring workflow saved the same movie byte for byte. Both
+scene-sorter sound imports reproduced the previous decoded archive. The
+actor and frame cues kept their source audio payloads and destination
+slots. Studio saved and reopened the scene-deletion fixtures, preserving
+the embedded background and both costume materials. Their decoded archives
+matched the previous build.
+
+Retail, SDL, and Marcus matched all three frame identities, camera indices,
+and canvas hashes from the retained-background movie in
+`20261120T205214Z-e745395a`. Both ports matched original v3dmm 0.14 on both
+saved storyboard frames in `20261120T205247Z-5397681e`.
+
+In `actor-event-edit` suite `20261120T204903Z-cb14d754`, both ports matched
+all 60 archived retail frame identities in seek and continuous playback
+and all retail seek camera indices. Both reproduced their 60 previous seek
+canvas hashes. SDL matched all 12 archived retail sound requests. Evidence
+is in `tmp/c89-studio-movie-index`.

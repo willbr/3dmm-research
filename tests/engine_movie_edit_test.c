@@ -1706,7 +1706,6 @@ static int insertion(void)
 }
 static int allow(void *p) { (void)p; return 1; }
 static void *background_file(void *p) { return p; }
-static MMChunkAccess background_chunks(void *p) { return fixture_chunk_access(&((Test *)p)->archive); }
 static int write_background_scene(void *p, void *scene, MMU32 *number)
 {
     Test *t = p;
@@ -1743,7 +1742,6 @@ static MMMovieSceneServices background_scenes(Test *t)
     s.close = s.retain = s.release = ignore_change;
     s.sound_frame = s.scene_change = s.invalidate = ignore_change;
     s.file = background_file;
-    s.chunks = background_chunks;
     s.edit = edit_background_movie;
     s.write = write_background_scene;
     s.save = s.remove_actors = s.add_actors = ignore_change;

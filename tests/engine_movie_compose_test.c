@@ -117,17 +117,19 @@ static ChunkIndexFixture *archive(void *p)
         abort();
     return &o->test->archives[o->id - 1];
 }
-static MMChunkAccess chunks(void *p)
+static MMU32 edit_count(void *p)
 {
-    Object *o = p;
-    MMChunkAccess access = fixture_chunk_access(archive(p));
-    if (fails(o->test, CHILD))
-        access.count = 0;
-    return access;
+    ChunkIndexFixture *index = p;
+    Test *t = index->observer;
+    if (t->fail == CHILD && !t->calls[CHILD] && fails(t, CHILD))
+        return 0;
+    return fixture_chunk_count(p);
 }
 static MMChunkEdit edit_archive(void *p)
 {
-    return fixture_chunk_edit(archive(p));
+    MMChunkEdit edit = fixture_chunk_edit(archive(p));
+    edit.count = edit_count;
+    return edit;
 }
 static int read_transition(void *p, MMU32 number, MMI32 *out)
 {
@@ -443,6 +445,7 @@ static void init(Test *t)
     fixture_scene_seed_movie(&t->archives[1], 20, 200, 1);
     fixture_scene_seed_movie(&t->archives[1], 30, 300, 0);
     t->archives[0].observer = t;
+    t->archives[1].observer = t;
     t->archives[0].before_insert = insert_link;
     t->archives[0].before_unlink = erase_link;
     t->archives[0].before_delete = erase_entry;
@@ -485,7 +488,6 @@ static void init(Test *t)
     s->scene_control.state = &t->scenes;
     s->scene_control.close = close_scene;
     s->scene_control.file = file;
-    s->scene_control.chunks = chunks;
     s->scene_control.edit = edit_archive;
     s->scene_control.read = read_scene;
     s->scene_control.archive_issue = bad_archive_edit;
@@ -579,6 +581,7 @@ static int adding(void)
     for (i = 1; i <= 2; ++i)
     {
         init(&t);
+        t.fail = CHILD;
         t.allocFailAt = i;
         index = 0;
         CHECK(!mm_movie_compose_add(&t.composite, &index, &t.s) && !index && !t.blocks);
@@ -769,7 +772,7 @@ static int applying(void)
     CHECK(t.calls[DELETE_CHILD] == 1 && t.open.refs == 1);
     CHECK(t.archives[0].count == 4 && fixture_scene_slot(&t.archives[0], 101) == 0 &&
           fixture_scene_slot(&t.archives[0], 1200) == 1 && fixture_scene_slot(&t.archives[0], 100) == -1);
-    index = chunks(&t.resources[0]);
+    index = mm_chunk_edit_access(&edit);
     CHECK(mm_chunk_find(&index, background.type, background.number, &row) == MM_CHUNK_OK &&
           mm_chunk_at(&index, row, &asset) == MM_CHUNK_OK && (asset.flags & MM_CHUNK_LONER) && !asset.parent_count);
     mm_composite_empty(&t.composite, release);

@@ -44,7 +44,6 @@ extern "C"
         void (*sound_frame)(void *scene), (*hide)(void *scene);
         void (*scene_change)(void *), (*invalidate)(void *);
         void *(*file)(void *resources);
-        MMChunkAccess (*chunks)(void *file);
         MMChunkEdit (*edit)(void *file);
         int (*write)(void *, void *scene, MMU32 *number);
         void (*save)(void *file);

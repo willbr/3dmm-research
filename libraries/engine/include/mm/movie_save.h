@@ -37,7 +37,6 @@ extern "C"
         void *(*new_resources)(void *, void *file, MMU32 cache_bytes);
         int (*is_temp)(void *file), (*save)(void *file, void *path);
         void (*set_temp)(void *file, int), (*mark_temporary)(void *file), (*persistent)(void *file);
-        MMChunkAccess (*chunks)(void *file);
         MMChunkEdit (*edit)(void *file);
         int (*create_root)(void *, void *file, MMU32 *);
         void *(*find_file)(void *, void *path);
