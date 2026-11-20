@@ -15947,3 +15947,31 @@ In `actor-event-edit` suite `20261120T145843Z-6e85911d`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## Studio recording gestures use the C89 actor owner (20 November 2026)
+
+Studio's recording gesture calls the C89 actor owner for recording
+validity, start, trim, cel cycling, frame and point samples, and finish.
+The owner keeps working state during edits and publishes intermediate
+state to the native effects. The gesture consumes the C recording
+result directly for cursor and scrollbar feedback.
+
+The C89 gesture fixture uses real actor route and event tables. It
+checks cadence across clock wrap, trim before the recording notification,
+freeze transitions, held and moved frames, failed begin and retry,
+failed sampling, and snapshot release when the actor is absent.
+
+All 14 targeted x64 checks, 20 standalone C89 checks, 11 checks each in
+x86 Debug and SDL Release, and four AddressSanitizer checks passed.
+Ten actor traces matched the previous build on all three builds.
+The native x64 and SDL Release movie archives matched byte-for-byte.
+The full x86 suite passed the actor checks and stopped at the existing
+template-construction failure. All ten Preview fingerprints, six
+fixture archives, and both VMM seek images in
+`20261120T151024Z-de7f042e` matched their baselines. Logs and fixtures
+are in `tmp/c89-record-gesture-owner`.
+
+In `actor-event-edit` suite `20261120T151024Z-eba02d6e`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

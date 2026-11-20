@@ -34,6 +34,16 @@ MMActorLifetime mm_actor_owner_lifetime(MMActorOwner *actor)
     return life;
 }
 
+int mm_actor_owner_set_action(MMActorOwner *owner, MMI32 action, MMI32 cel, int frozen, MMU32 external_child,
+                              const MMActorMotionServices *motion, const MMActorActionEditServices *services)
+{
+    MMActorState state = owner->runtime.state;
+    int ok = mm_actor_edit_set_action(&state, &owner->sounds, owner->track.events, owner->runtime.actor,
+                                      action, cel, frozen, external_child, motion, services);
+    owner->runtime.state = state;
+    return ok;
+}
+
 void mm_actor_owner_delete_forward(MMActorOwner *owner,int all,int *alive,MMI32 current,
                                   const MMActorRouteEditServices *services)
 {

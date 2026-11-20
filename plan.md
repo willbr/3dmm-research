@@ -1103,8 +1103,11 @@ the selected actor.
 Studio projects and depth-scales drag input in C89. The placement controller
 owns the active actor and replacement snapshot, restores the roll-call
 reference on forced end, and registers add or replacement undo on acceptance.
-Studio's record gesture now keeps its rollback snapshot, frame and cel cadence,
-temporary rerecord mode, and route-start/finish decisions in C89.
+Studio's record gesture keeps its rollback snapshot, frame and cel cadence, and
+temporary rerecord mode in C89. It calls the C89 actor owner directly for
+recording start, route trimming, cel cycling, frame and point samples, and
+recording finish. Studio supplies scene effects, clock and UI notifications,
+and the undoable action edit that opens a gesture.
 Sooner/Later now uses shared actor snapshot capture, C89 frame stepping and
 direct updates to the C89 undo record. The actor owner publishes shifted state
 and controls the time-edit highlight flag.

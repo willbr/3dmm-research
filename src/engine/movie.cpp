@@ -5082,30 +5082,8 @@ MMActorRecordGestureServices MovieView::_RecordGestureServices()
         *out = snapshot;
         return int(ok);
     };
-    services.valid = [](void *actor, const MMActorPoint *delta, MMU32 now) {
-        return int(static_cast<PActor>(actor)->FIsRecordValid(delta->dxr, delta->dyr, delta->dzr, now));
-    };
-    services.begin = [](void *actor, int replace, MMU32 now, void *snapshot) {
-        return int(static_cast<PActor>(actor)->FBeginRecord(now, replace != 0, static_cast<PActor>(snapshot)));
-    };
-    services.trim = [](void *actor) { static_cast<PActor>(actor)->DeleteFwdCore(false); };
     services.recording_started = [](void *p, int replace) {
         static_cast<PMovieView>(p)->Pmvie()->Pmcc()->Recording(true, replace != 0);
-    };
-    services.cycle = [](void *actor, MMI32 action, MMI32 cel, int frozen) {
-        return int(static_cast<PActor>(actor)->FSetActionCore(action, cel, frozen != 0));
-    };
-    services.move = [](void *actor, const MMActorPoint *delta, MMU32 flags, MMU32 now, void *snapshot,
-                       MMActorRecordResult *result) {
-        bool frame = false, route = false;
-        const bool ok = static_cast<PActor>(actor)->FRecordMove(delta->dxr, delta->dyr, delta->dzr, flags, now,
-                                                               &frame, &route, static_cast<PActor>(snapshot));
-        result->frame = frame;
-        result->route = route;
-        return int(ok);
-    };
-    services.end = [](void *actor, int replace, void *snapshot) {
-        static_cast<PActor>(actor)->FEndRecord(replace != 0, static_cast<PActor>(snapshot));
     };
     return services;
 }
@@ -5256,9 +5234,10 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         if (!_FRecordTemplateMatches(pactr))
             break;
         const auto recording = _RecordGestureServices();
-        const auto &runtime = pactr->_owner.runtime;
-        const int result = mm_actor_record_gesture_sample(&_recordGesture, pactr, &runtime.state, &runtime.recording,
-            &world, RecordGestureModifiers(pcmd->grfcust), _fRespectGround, now, &recording);
+        const auto owners = Actor::_OwnerServices();
+        const auto actorRecording = pactr->_RecordServices(&owners);
+        const int result = mm_actor_record_gesture_sample(&_recordGesture,
+            &world, RecordGestureModifiers(pcmd->grfcust), _fRespectGround, now, &actorRecording, &recording);
         if (result == MM_RECORD_GESTURE_FRAME || result == MM_RECORD_GESTURE_POINT)
         {
             Pmvie()->Pmcc()->UpdateScrollbars();
@@ -5405,7 +5384,9 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
         if (pactr != pvNil && !_FRecordTemplateMatches(pactr))
             break;
         const auto recording = _RecordGestureServices();
-        mm_actor_record_gesture_end(&_recordGesture, pactr, &recording);
+        const auto owners = Actor::_OwnerServices();
+        const auto actorRecording = pactr ? pactr->_RecordServices(&owners) : MMActorRecordServices{};
+        mm_actor_record_gesture_end(&_recordGesture, pactr ? &actorRecording : nullptr, &recording);
         if (pvNil != pactr)
         {
             Pmvie()->InvalViewsAndScb();

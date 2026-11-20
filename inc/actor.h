@@ -149,7 +149,7 @@ class Actor : public Actor_PAR
     MMActorActionEditServices _ActionEditServices();
     MMActorSubrouteEditServices _SubrouteEditServices();
     MMActorStageEditServices _StageEditServices();
-    MMActorRecordServices _RecordServices(const MMActorOwnerServices *owners = nullptr);
+    MMActorRecordServices _RecordServices(const MMActorOwnerServices *owners);
     MMActorTransformEditServices _TransformEditServices();
     static MMActorOwnerServices _OwnerServices();
     static MMActorCreateServices _CreateServices();
@@ -301,7 +301,6 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         return FPure(_owner.runtime.recording.recording);
     }
-    bool FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent);
     PTemplate Ptmpl(void)
     {
         AssertBaseThis(0);
@@ -406,15 +405,6 @@ class Actor : public Actor_PAR
     bool FResolveAllSndTags(ChunkNumber cnoScen);
 
     // Route Definition
-    void SetTsInsert(ulong tsCurrent)
-    {
-        AssertBaseThis(0);
-        _owner.runtime.recording.timestamp = tsCurrent;
-    }
-    bool FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore);
-    bool FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfLonger, bool *pfStep,
-                     PActor pactrRestore);
-    bool FEndRecord(bool fReplace, PActor pactrRestore);
     bool FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf = fmafNil);
     bool FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved = pvNil, ulong grfmaf = fmafNil);
 };

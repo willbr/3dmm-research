@@ -18,8 +18,8 @@ typedef struct MMActorRecordResult
 {
     int frame, route, written;
     void *context;
-    /* Optional observer for native bool outputs. Runs at the original output
-     * assignments, before scene seek/rollback, without mutation or reentry.
+    /* Optional output observer. Runs at the original output assignments,
+     * before scene seek/rollback, without mutation or reentry.
      * changed bit 1 writes frame, bit 2 writes route, preserving output aliasing. */
     void (*publish)(void *, int frame, int route, unsigned changed);
 } MMActorRecordResult;
@@ -69,6 +69,13 @@ int mm_actor_record_end(MMActorState *, MMActorRecording *, MMActorSounds *,
     void *route, void *events, MMI32 actor, int replace, void *undo,
     const MMActorMotionServices *, const MMActorRecordServices *);
 
+/* Run against the Studio owner bound in subroute.live. Use a working copy of
+ * state and recording while effects publish intermediate state to the owner. */
+int mm_actor_owner_record_begin(int replace, void *undo, const MMActorRecordServices *);
+int mm_actor_owner_record_move(const MMActorPoint *, MMU32 flags, MMU32 now,
+    MMActorRecordResult *, void *undo, const MMActorRecordServices *);
+int mm_actor_owner_record_end(int replace, void *undo, const MMActorRecordServices *);
+
 /* State for a record-tool gesture. The actor recording state above owns the
  * route splice. This record owns the gesture's rollback snapshot and cadence. */
 typedef struct MMActorRecordGesture
@@ -98,22 +105,17 @@ typedef struct MMActorRecordGestureServices
     MMU32 (*clock_now)(void *);
     void (*release)(void *snapshot);
     int (*set_action)(void *actor, MMI32 action, MMI32 cel, int frozen, void **snapshot);
-    int (*valid)(void *actor, const MMActorPoint *, MMU32 now);
-    int (*begin)(void *actor, int replace, MMU32 now, void *snapshot);
-    void (*trim)(void *actor);
     void (*recording_started)(void *, int replace);
-    int (*cycle)(void *actor, MMI32 action, MMI32 cel, int frozen);
-    int (*move)(void *actor, const MMActorPoint *, MMU32 flags, MMU32 now, void *snapshot, MMActorRecordResult *);
-    void (*end)(void *actor, int replace, void *snapshot);
 } MMActorRecordGestureServices;
 int mm_actor_record_gesture_start(MMActorRecordGesture *, void *actor, const MMActorState *,
     MMActorRecording *, unsigned modifiers, const MMActorRecordGestureServices *);
-int mm_actor_record_gesture_sample(MMActorRecordGesture *, void *actor, const MMActorState *,
-    const MMActorRecording *, const MMActorPoint *, unsigned modifiers, int ground, MMU32 now,
+int mm_actor_record_gesture_sample(MMActorRecordGesture *, const MMActorPoint *,
+    unsigned modifiers, int ground, MMU32 now, const MMActorRecordServices *,
     const MMActorRecordGestureServices *);
 /* End also restores the default mode after a temporary rerecord. An absent
  * actor still releases the snapshot and restores the mode. */
-void mm_actor_record_gesture_end(MMActorRecordGesture *, void *actor, const MMActorRecordGestureServices *);
+void mm_actor_record_gesture_end(MMActorRecordGesture *, const MMActorRecordServices *,
+    const MMActorRecordGestureServices *);
 void mm_actor_record_gesture_discard(MMActorRecordGesture *, const MMActorRecordGestureServices *);
 void mm_actor_record_gesture_filter_axes(const MMActorRecordGesture *, int recording, MMActorPoint *);
 #ifdef __cplusplus

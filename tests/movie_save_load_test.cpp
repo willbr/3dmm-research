@@ -773,16 +773,32 @@ class TrackTestActor : public Actor
         const ulong now=_owner.runtime.recording.timestamp+((mode&16)?750:749);
         const ulong flags=((mode&2)?fmafFreeze:0)|((mode&4)?fmafGround:0);
         BRS dx=(mode&2)?rEps:BR_SCALAR(6),dy=(mode&8)?-BR_SCALAR(9):rZero;
+        const auto owners = _OwnerServices();
+        const auto services = _RecordServices(&owners);
+        const MMActorPoint delta{dx, dy, rEps};
+        struct Outputs { bool *frame, *route; } outputs{&frame, aliasOutputs ? &frame : &route};
+        MMActorRecordResult result{};
+        result.context = &outputs;
+        result.publish = [](void *p, int frame, int route, unsigned changed) {
+            auto out = static_cast<Outputs *>(p);
+            if (changed & 1) *out->frame = frame != 0;
+            if (changed & 2) *out->route = route != 0;
+        };
+        const bool replace = (mode & 1) != 0;
         std::fprintf(stderr,"[record fixture] mode=%d\n",mode);
-        if (group==0) ok=FBeginRecord(now,(mode&1)!=0,restore);
-        else if (group==1) ok=FRecordMove(dx,dy,rEps,flags,now,&frame,aliasOutputs?&frame:&route,restore);
-        else if (group==2) ok=FEndRecord((mode&1)!=0,restore);
-        else if (group==3) ok=FIsRecordValid((mode&2)?kdwrThreshRte:kdwrThreshRte-rEps,rZero,rZero,now);
+        if (group==0) ok=mm_actor_owner_record_begin(replace,restore,&services)!=0;
+        else if (group==1) ok=mm_actor_owner_record_move(&delta,flags,now,&result,restore,&services)!=0;
+        else if (group==2) ok=mm_actor_owner_record_end(replace,restore,&services)!=0;
+        else if (group==3)
+        {
+            const MMActorPoint threshold{(mode&2)?kdwrThreshRte:kdwrThreshRte-rEps,rZero,rZero};
+            ok=mm_actor_record_valid(&_owner.runtime.recording,&threshold,now,&services)!=0;
+        }
         else
         {
-            ok=FBeginRecord(now,(mode&1)!=0,restore);
-            if (ok) ok=FRecordMove(dx,dy,rEps,flags,now,&frame,&route,restore);
-            if (ok) ok=FEndRecord((mode&1)!=0,restore);
+            ok=mm_actor_owner_record_begin(replace,restore,&services)!=0;
+            if (ok) ok=mm_actor_owner_record_move(&delta,flags,now,&result,restore,&services)!=0;
+            if (ok) ok=mm_actor_owner_record_end(replace,restore,&services)!=0;
         }
         tmpl->FailAfter(0); vpers->Clear(); ReleasePpo(&restore);
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };

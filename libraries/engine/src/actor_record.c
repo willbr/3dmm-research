@@ -259,6 +259,45 @@ fail:
     restore(state,record,undo,s); record->rejoining=record->recording=0; publish(state,record,s); return 0;
 }
 
+int mm_actor_owner_record_begin(int replace, void *undo, const MMActorRecordServices *s)
+{
+    MMActorOwner *owner = s->subroute.live;
+    MMActorState state = owner->runtime.state;
+    MMActorRecording recording = owner->runtime.recording;
+    int ok = mm_actor_record_begin(&state, &recording, owner->track.route, owner->track.events,
+                                    replace, undo, &s->subroute.timeline.motion, s);
+    owner->runtime.state = state;
+    owner->runtime.recording = recording;
+    return ok;
+}
+
+int mm_actor_owner_record_move(const MMActorPoint *delta, MMU32 flags, MMU32 now,
+    MMActorRecordResult *result, void *undo, const MMActorRecordServices *s)
+{
+    MMActorOwner *owner = s->subroute.live;
+    MMActorState state = owner->runtime.state;
+    MMActorRecording recording = owner->runtime.recording;
+    int ok = mm_actor_record_move(&state, &recording, &owner->sounds, owner->track.route,
+                                   owner->track.events, owner->runtime.actor, delta, flags, now,
+                                   result, undo, &s->subroute.timeline.motion, s);
+    owner->runtime.state = state;
+    owner->runtime.recording = recording;
+    return ok;
+}
+
+int mm_actor_owner_record_end(int replace, void *undo, const MMActorRecordServices *s)
+{
+    MMActorOwner *owner = s->subroute.live;
+    MMActorState state = owner->runtime.state;
+    MMActorRecording recording = owner->runtime.recording;
+    int ok = mm_actor_record_end(&state, &recording, &owner->sounds, owner->track.route,
+                                  owner->track.events, owner->runtime.actor, replace, undo,
+                                  &s->subroute.timeline.motion, s);
+    owner->runtime.state = state;
+    owner->runtime.recording = recording;
+    return ok;
+}
+
 void mm_actor_record_gesture_discard(MMActorRecordGesture *gesture, const MMActorRecordGestureServices *s)
 {
     if (gesture->restore)
@@ -293,10 +332,12 @@ int mm_actor_record_gesture_start(MMActorRecordGesture *gesture, void *actor, co
     return 1;
 }
 
-int mm_actor_record_gesture_sample(MMActorRecordGesture *gesture, void *actor, const MMActorState *state,
-    const MMActorRecording *record, const MMActorPoint *delta, unsigned modifiers, int ground, MMU32 now,
+int mm_actor_record_gesture_sample(MMActorRecordGesture *gesture, const MMActorPoint *delta,
+    unsigned modifiers, int ground, MMU32 now, const MMActorRecordServices *record,
     const MMActorRecordGestureServices *s)
 {
+    MMActorOwner *owner = record->subroute.live;
+    MMActorRuntime *runtime = &owner->runtime;
     MMActorRecordResult result = {0, 0, 0, NULL, NULL};
     const int command = (modifiers & MM_RECORD_GESTURE_COMMAND) != 0;
     const int frozen = !command && (modifiers & MM_RECORD_GESTURE_SHIFT);
@@ -308,12 +349,13 @@ int mm_actor_record_gesture_sample(MMActorRecordGesture *gesture, void *actor, c
         gesture->cycling = 0;
         gesture->last_sample = now;
     }
-    if (!gesture->cycling && !record->recording && s->valid(actor, delta, now))
+    if (!gesture->cycling && !runtime->recording.recording &&
+        mm_actor_record_valid(&runtime->recording, delta, now, record))
     {
-        if (!s->begin(actor, gesture->replace, now, gesture->restore))
+        if (!mm_actor_owner_record_begin(gesture->replace, gesture->restore, record))
             return MM_RECORD_GESTURE_IDLE;
         if (gesture->replace)
-            s->trim(actor);
+            mm_actor_owner_delete_forward(owner, 0, NULL, -1, &record->subroute.route);
         s->recording_started(s->context, gesture->replace);
     }
     if (gesture->cycling)
@@ -321,23 +363,25 @@ int mm_actor_record_gesture_sample(MMActorRecordGesture *gesture, void *actor, c
         if ((MMU32)(now - gesture->last_sample) < MM_RECORD_CEL_TICKS)
             return MM_RECORD_GESTURE_IDLE;
         gesture->last_sample = now;
-        if (s->cycle(actor, state->action, mm_fixed_add(state->cel, 1), frozen))
+        if (mm_actor_owner_set_action(owner, runtime->state.action, mm_fixed_add(runtime->state.cel, 1),
+                                      frozen, 0, &record->subroute.timeline.motion, &record->subroute.action))
             return MM_RECORD_GESTURE_CEL;
         return MM_RECORD_GESTURE_IDLE;
     }
-    if (record->recording && (MMU32)(now - gesture->last_sample) >= MM_RECORD_FRAME_TICKS)
+    if (runtime->recording.recording && (MMU32)(now - gesture->last_sample) >= MM_RECORD_FRAME_TICKS)
     {
         gesture->last_sample = now;
-        if (s->move(actor, delta, flags, now, gesture->restore, &result) && result.frame)
+        if (mm_actor_owner_record_move(delta, flags, now, &result, gesture->restore, record) && result.frame)
             return result.route ? MM_RECORD_GESTURE_POINT : MM_RECORD_GESTURE_FRAME;
     }
     return MM_RECORD_GESTURE_IDLE;
 }
 
-void mm_actor_record_gesture_end(MMActorRecordGesture *gesture, void *actor, const MMActorRecordGestureServices *s)
+void mm_actor_record_gesture_end(MMActorRecordGesture *gesture, const MMActorRecordServices *record,
+    const MMActorRecordGestureServices *s)
 {
-    if (actor && gesture->restore)
-        s->end(actor, gesture->replace, gesture->restore);
+    if (record && gesture->restore)
+        mm_actor_owner_record_end(gesture->replace, gesture->restore, record);
     mm_actor_record_gesture_discard(gesture, s);
     if (gesture->restore_default)
     {

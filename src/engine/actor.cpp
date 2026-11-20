@@ -659,14 +659,10 @@ MMActorSubrouteEditServices Actor::_SubrouteEditServices()
 bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
 {
     AssertThis(0); AssertIn(anid,0,klwMax); AssertIn(celn,klwMin,klwMax);
-    auto state=_owner.runtime.state;
     const auto tables=EngineActorMotion::Services();
     const auto services=_ActionEditServices();
     ChildChunkID external=0; TrashVar(&external);
-    bool ok=mm_actor_edit_set_action(&state,&_owner.sounds,_owner.track.events,_owner.runtime.actor,anid,celn,fFreeze,
-                                           external,&tables,&services)!=0;
-    _owner.runtime.state = state;
-    return ok;
+    return mm_actor_owner_set_action(&_owner,anid,celn,fFreeze,external,&tables,&services)!=0;
 }
 
 /***************************************************************************
@@ -1621,15 +1617,7 @@ bool Actor::_FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast)
 
 /***************************************************************************
 
-    Has the mouse been down long enough or moved far enough to qualify this
-    as a valid recording session (vs merely motion filling)?
-
-    NOTE:  ** If sufficient time has not elapsed, intended motion fill will
-    inadvertently delete the remaining subroute	is record is selected
-    instead of rerecord.
-
-    NOTE:  ** This requires that SetTsInsert() have been called on mouse
-    down to initialize the timing of the recording session
+    Bind the Studio recording owner to native distance and scene services.
 
 ***************************************************************************/
 MMActorRecordServices Actor::_RecordServices(const MMActorOwnerServices *owners)
@@ -1655,103 +1643,6 @@ MMActorRecordServices Actor::_RecordServices(const MMActorOwnerServices *owners)
         }
     };
     return s;
-}
-bool Actor::FIsRecordValid(BRS dxr, BRS dyr, BRS dzr, ulong tsCurrent)
-{
-    AssertThis(0);
-    const auto record=_owner.runtime.recording;
-    const auto services=_RecordServices();
-    const MMActorPoint delta{dxr,dyr,dzr};
-    return mm_actor_record_valid(&record,&delta,tsCurrent,&services)!=0;
-}
-
-/***************************************************************************
-
-    Begin a new route
-    fReplace = ftrue if recording, fFalse if rerecording
-    On failure, actor is restored from pactrRestore
-
-***************************************************************************/
-bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
-{
-    AssertThis(0);
-    (void)tsCurrent; // Native beginning deliberately preserves _owner.runtime.recording.timestamp.
-    auto state=_owner.runtime.state; auto record=_owner.runtime.recording;
-    const auto owners=_OwnerServices();
-    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices(&owners);
-    bool ok=mm_actor_record_begin(&state,&record,_owner.track.route,_owner.track.events,fReplace,pactrRestore,&tables,&services)!=0;
-    _owner.runtime.state = state; _owner.runtime.recording = record; return ok;
-}
-
-/***************************************************************************
-
-    Add to a new route
-
-    On Input:
-    grfmaf flags the Frozen/unfrozen state.
-    *pfStepFrm returns whether the frame was advanced
-    *pfStepRte returns whether the route was extended.
-
-    Note: During recording, dwr = rZero marks the end of the new subroute
-    NOTE: On failure, actor is restored from pactrRestore
-
-***************************************************************************/
-bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent, bool *pfStepFrm, bool *pfStepRte,
-                       PActor pactrRestore)
-{
-    AssertThis(0); AssertVarMem(pfStepFrm); AssertVarMem(pfStepRte);
-    Assert(_owner.runtime.state.onStage,"Recording an actor that wasn't selectable??");
-    auto state=_owner.runtime.state; auto record=_owner.runtime.recording;
-    const auto owners=_OwnerServices();
-    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices(&owners);
-    const MMActorPoint delta{dxr,dyr,dzr}; MMActorRecordResult result{};
-    struct Outputs { bool *frame,*route; } outputs{pfStepFrm,pfStepRte};
-    result.context=&outputs;
-    result.publish=[](void *p,int frame,int route,unsigned changed) {
-        auto out=static_cast<Outputs *>(p);
-        if ((changed&1) && out->frame) *out->frame=frame!=0;
-        if ((changed&2) && out->route) *out->route=route!=0;
-    };
-    bool ok=mm_actor_record_move(&state,&record,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                       &delta,grfmaf,tsCurrent,&result,pactrRestore,&tables,&services)!=0;
-    _owner.runtime.state = state; _owner.runtime.recording = record;
-    return ok;
-}
-
-/***************************************************************************
-
-    End recording a new route or route section	(mouse up)
-    Insert a freeze event if at the end of the subroute.
-
-    Input: fReplace is meaningful only if recording or rerecording (versus
-    motion fill.  _owner.runtime.recording.recording is false on motion fill).
-    fReplace = fTrue if recording, ie, if replacing the remaining subroute
-
-    Path splicing rule:  Never rejoin across Add events
-    Always reconnect to the existing subroute at the closest point which
-    occurs later in the route than where the initial re-recording began.
-
-    NOTE** Actn, Tweak, Freeze, Step & Rem events are deleted from the
-    section of the route being replaced.  Other events are pushed up to
-    the join point (if rejoining) or to the next dnfrm of the current point,
-    if not rejoining.
-
-    On Failure: The actor is restored from pactrRestore
-***************************************************************************/
-// REVIEW *****(*****): Ver 2.0 As motion fill is self sufficient,
-// 		FEndRecord() should be able to exit immediately on !_owner.runtime.recording.recording.
-//   	Also, pactrRestore should be state var _pactrRecordRestore.
-bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
-{
-    AssertThis(0);
-    auto state=_owner.runtime.state; auto record=_owner.runtime.recording;
-    const auto owners=_OwnerServices();
-    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices(&owners);
-    bool ok=mm_actor_record_end(&state,&record,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                      fReplace,pactrRestore,&tables,&services)!=0;
-    _owner.runtime.state = state; _owner.runtime.recording = record;
-    if (ok) { AssertThis(fobjAssertFull); }
-    return ok;
 }
 
 /***************************************************************************
