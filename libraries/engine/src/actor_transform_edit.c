@@ -12,7 +12,7 @@ static MMI32 bound(MMI32 value,MMI32 minimum,MMI32 maximum)
 static MMI32 factor(MMI32 value)
 { return bound(value,6553,mm_fixed_div(65536L,6553)); }
 static int reserve(const MMActorTransformEditServices *s,MMU32 count,MMU32 bytes)
-{ return s->subroute.route.reserve_events(s->subroute.route.edits.context,count,bytes); }
+{ return mm_actor_edit_reserve(&s->subroute.route.edits,count,bytes); }
 static void fill(MMActorState *state,void *events,MMI32 kind,const void *value,MMU32 bytes,
     MMU32 flags,const MMActorMotionServices *m,const MMActorTransformEditServices *s)
 {

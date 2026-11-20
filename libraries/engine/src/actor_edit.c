@@ -4,6 +4,11 @@
 #include "mm/actor_track.h"
 #include <string.h>
 
+static int reserve_events(void *events, MMU32 entries, MMU32 bytes)
+{
+    return mm_actor_events_reserve((MMActorEventTable *)events, entries, bytes);
+}
+
 static void close_event_tag(void *events, MMI32 index, const MMTagServices *tags)
 {
     mm_actor_track_close_tag((MMActorEventTable *)events, index, tags);
@@ -39,6 +44,7 @@ MMActorEditTables mm_actor_edit_tables(MMActorEventTable *events, const MMTagSer
     MMActorEditTables tables;
     tables.context = events;
     tables.tags = tags;
+    tables.reserve_events = reserve_events;
     tables.close_event_tag = close_event_tag;
     tables.delete_event = delete_event;
     tables.insert_event = insert_event;
@@ -46,6 +52,11 @@ MMActorEditTables mm_actor_edit_tables(MMActorEventTable *events, const MMTagSer
     tables.write_payload = write_payload;
     tables.copy_payload = copy_payload;
     return tables;
+}
+
+int mm_actor_edit_reserve(const MMActorEditServices *s, MMU32 entries, MMU32 bytes)
+{
+    return s->tables.reserve_events(s->tables.context, entries, bytes);
 }
 
 static void publish(const MMActorEditServices *s, const MMActorState *state)

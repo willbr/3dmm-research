@@ -10,19 +10,21 @@ enum { MM_ROUTE_BAD_ALIVE, MM_ROUTE_FREEZE_FAILED, MM_ROUTE_STEP_FAILED };
 typedef struct MMActorRouteEditServices
 {
     MMActorEditServices edits;
+    int (*reserve_points)(void *route,MMU32 count);
     int (*insert_point)(void *route,MMI32,const MMActorRoutePoint *);
     void (*write_point)(void *route,MMI32,const MMActorRoutePoint *);
     void (*delete_points)(void *route,MMI32,MMI32 count);
     void (*clear_route)(void *route);
     void (*write_event)(void *events,MMI32,const MMActorEvent *);
     void (*swap_events)(void *events,MMI32,MMI32);
-    int (*reserve_events)(void *context,MMU32 entries,MMU32 bytes);
     void (*life_dirty)(void *context);
     void (*recording)(void *context,int enabled);
     void (*hide_body)(void *context);
     void (*default_costume)(void *context);
     void (*diagnostic)(void *context,int fault);
 } MMActorRouteEditServices;
+/* Install the storage operations for MMActorPath and MMActorEventTable. */
+void mm_actor_route_edit_bind_tables(MMActorRouteEditServices *);
 /* Valid runtime tables/indices are required. Point input remains unchanged on
  * failed insertion. Success may update its distance. Epsilon is one 16.16 unit;
  * scalar arithmetic wraps. Zero-distance nodes retain their subroute meaning. */

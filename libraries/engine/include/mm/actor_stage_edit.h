@@ -10,7 +10,6 @@ enum { MM_STAGE_INSERT_FAILED };
 typedef struct MMActorStageEditServices
 {
     MMActorSubrouteEditServices subroute;
-    int (*reserve_points)(void *route, MMU32 count);
     /* Placement already uses the shared C placement policy. Supplies its result,
      * cached route origin and the background camera yaw; no edits or reentry. */
     void (*placement)(void *context, MMActorPoint *, MMActorPoint *route_origin,

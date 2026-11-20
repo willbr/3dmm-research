@@ -45,7 +45,7 @@ static int set_action(MMPreviewActor *actor, MMActorSounds *sounds, const MMActo
         return 1;
     /* Let a standalone action play in place at the end of an existing route. */
     disabled = 0;
-    return action->sounds.reserve_events(action->sounds.context, 1, sizeof(disabled)) &&
+    return mm_actor_edit_reserve(&action->sounds.edits, 1, sizeof(disabled)) &&
         mm_actor_edit_add_apply(&actor->state, sounds, actor->events, actor->header.actor_id,
                                 MM_ACTOR_FREEZE, sizeof(disabled), &disabled, &services->timeline.motion, edits);
 }

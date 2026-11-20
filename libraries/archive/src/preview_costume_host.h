@@ -28,17 +28,11 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         };
         return e;
     }
-    static int Reserve(void *v, MMU32 entries, MMU32 bytes)
-    {
-        auto &h = *static_cast<CostumeHost *>(v);
-        return h.Guard([&] { return int(mm_actor_events_reserve(h.actor->Track().events, entries, bytes)); }) > 0;
-    }
     MMActorCostumeEditServices Services()
     {
         MMActorCostumeEditServices s = {};
         s.context = this;
         s.edits = EventEdits();
-        s.reserve_events = Reserve;
         s.current = [](void *v, MMI32 set, int *custom) -> void * {
             bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
             static_cast<CostumeHost *>(v)->actor->Pbody()->GetPartSetMaterial(set, &plain, &material, &costume);

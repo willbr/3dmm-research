@@ -10,7 +10,6 @@ typedef struct MMActorCostumeEditServices
 {
     void *context;
     MMActorEditServices edits;
-    int (*reserve_events)(void *, MMU32 entries, MMU32 bytes);
     void *(*current)(void *, MMI32 body_set, int *custom); /* Borrowed. */
     void *(*fetch_material)(void *, const MMTag *); /* Owning or NULL. */
     void *(*fetch_custom)(void *, MMI32 costume); /* Owning or NULL. */

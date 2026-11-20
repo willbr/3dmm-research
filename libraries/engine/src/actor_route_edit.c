@@ -2,8 +2,56 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_route_edit.h"
 #include "mm/actor_action_edit.h"
+#include "mm/actor_path.h"
 #include "mm/actor_timeline.h"
 #include <string.h>
+
+static int reserve_points(void *route, MMU32 count)
+{
+    return mm_actor_path_reserve((MMActorPath *)route, count);
+}
+
+static int insert_point(void *route, MMI32 index, const MMActorRoutePoint *point)
+{
+    return mm_actor_path_insert((MMActorPath *)route, index, point);
+}
+
+static void write_point(void *route, MMI32 index, const MMActorRoutePoint *point)
+{
+    mm_actor_path_put((MMActorPath *)route, index, point);
+}
+
+static void delete_points(void *route, MMI32 index, MMI32 count)
+{
+    mm_array_delete(&((MMActorPath *)route)->rows, index, count);
+}
+
+static void clear_route(void *route)
+{
+    mm_array_set_count(&((MMActorPath *)route)->rows, 0);
+}
+
+static void write_event(void *events, MMI32 index, const MMActorEvent *event)
+{
+    mm_actor_events_set_fixed((MMActorEventTable *)events, index, event);
+}
+
+static void swap_events(void *events, MMI32 a, MMI32 b)
+{
+    mm_actor_events_swap((MMActorEventTable *)events, a, b);
+}
+
+void mm_actor_route_edit_bind_tables(MMActorRouteEditServices *s)
+{
+    s->reserve_points = reserve_points;
+    s->insert_point = insert_point;
+    s->write_point = write_point;
+    s->delete_points = delete_points;
+    s->clear_route = clear_route;
+    s->write_event = write_event;
+    s->swap_events = swap_events;
+}
+
 static void publish(const MMActorState *state,const MMActorRouteEditServices *s)
 { if (s->edits.publish) s->edits.publish(s->edits.context,state); }
 static void life(const MMActorState *state,const MMActorRouteEditServices *s)
@@ -178,18 +226,16 @@ void mm_actor_route_edit_delete_forward(MMActorState *state,MMActorSounds *list,
     const MMActorRouteEditServices *s)
 {
     int living; MMI32 i,frozen=1; MMActorEvent event; MMActorEditRange range;
-    MMActorSoundEditServices step;
     mm_actor_route_edit_delete_forward_core(state,route,events,all,&living,current,m,s);
     s->edits.get_range(s->edits.context,&range);
-    if (living && state->frame>=range.first && s->reserve_events(s->edits.context,2,8))
+    if (living && state->frame>=range.first && mm_actor_edit_reserve(&s->edits,2,8))
     {
         if (state->addEvent<0 || !m->event_count(events))
         { if (s->diagnostic) s->diagnostic(s->edits.context,MM_ROUTE_BAD_ALIVE); goto done; }
         if (!state->onStage) goto done;
         if (!mm_actor_edit_add_apply(state,list,events,actor,MM_ACTOR_FREEZE,4,&frozen,m,&s->edits) && s->diagnostic)
             s->diagnostic(s->edits.context,MM_ROUTE_FREEZE_FAILED);
-        memset(&step,0,sizeof(step)); step.context=s->edits.context; step.edits=s->edits; step.reserve_events=s->reserve_events;
-        if (!mm_actor_edit_set_step(state,list,events,actor,0,m,&step) && s->diagnostic)
+        if (!mm_actor_edit_set_step(state,list,events,actor,0,m,&s->edits) && s->diagnostic)
             s->diagnostic(s->edits.context,MM_ROUTE_STEP_FAILED);
         for (i=state->nextEvent-1;i>0;--i)
         {

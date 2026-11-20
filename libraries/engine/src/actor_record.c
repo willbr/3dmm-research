@@ -39,7 +39,7 @@ static int freeze(MMActorState *state,MMActorSounds *sounds,void *events,MMI32 a
 { return mm_actor_edit_add_apply(state,sounds,events,actor,MM_ACTOR_FREEZE,4,&enabled,m,&s->subroute.route.edits); }
 static int step(MMActorState *state,MMActorSounds *sounds,void *events,MMI32 actor,
     MMI32 distance,const MMActorMotionServices *m,const MMActorRecordServices *s)
-{ return mm_actor_edit_set_step(state,sounds,events,actor,distance,m,&s->subroute.action.sounds); }
+{ return mm_actor_edit_set_step(state,sounds,events,actor,distance,m,&s->subroute.action.sounds.edits); }
 static int advance_scene(MMActorState *state,MMActorRecording *record,const MMActorRecordServices *s)
 {
     const MMActorEditServices *e=&s->subroute.route.edits;
@@ -124,7 +124,7 @@ int mm_actor_record_move(MMActorState *state,MMActorRecording *record,MMActorSou
     MMActorEditRange range;
     MMI32 distance,mouse_distance,fraction,authored_step=-65536L;
     if (!record->recording) return 1;
-    if (!r->reserve_events(e->context,2,8) || !s->reserve_points(route,1)) return restore(state,record,undo,s);
+    if (!mm_actor_edit_reserve(e,2,8) || !r->reserve_points(route,1)) return restore(state,record,undo,s);
     movement.dxr=smooth(record->raw.dxr,delta->dxr);
     movement.dyr=smooth(record->raw.dyr,delta->dyr);
     movement.dzr=smooth(record->raw.dzr,delta->dzr);

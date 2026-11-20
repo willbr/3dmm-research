@@ -4077,10 +4077,11 @@ removal remain work; the full backend migration is incomplete.
 
 `actor_edit.c` owns general event insertion, merge scanning and the
 insert/merge/apply operation used by actor edits. The shared C table binding
-inserts and deletes rows, writes and copies payloads, and retains and closes row
-tags. SDL Studio, Marcus preview costume and animation drafts, and the C actor
-copy and paste paths use that binding. Host services still provide scene
-notifications and resource and renderer effects during event application.
+reserves storage, inserts and deletes rows, writes and copies payloads, and
+retains and closes row tags. SDL Studio, Marcus preview costume and animation
+drafts, and the C actor copy and paste paths use that binding. Host services
+provide scene notifications and resource and renderer effects during event
+application.
 
 Insertion preserves the distinct strict/equal cursor comparisons and NULL-payload
 reservation behavior. Merging retains event-specific scan and early-return rules,
@@ -4584,14 +4585,14 @@ prior seek image hashes, and SDL matched retail's 12 sound events.
 
 ### Actor route paste
 
-`actor_route_paste.c` owns route paste and calls the existing C route splitter,
-event removal/insertion, floating-step and pose implementations directly. It
-reserves before mutation, publishes the split cursor before insertion, deletes
+`actor_route_paste.c` takes the C89 actor owner and a typed clipboard path. It
+uses the shared C route splitter, event editor, floating step and pose evaluator.
+It reserves before mutation, publishes the split cursor before insertion, deletes
 from the current node using the native count, removes current-subroute events
-without cursor updates and shifts later-subroute event indices. Clipboard points
-are translated relative to the current point and remain unchanged. First-segment
-length retains epsilon 1; end Step/Freeze ordering and delayed dirty/range/body
-notification are preserved.
+without cursor updates and shifts later-subroute event indices. It translates
+copied points relative to the current point. The first-segment distance retains
+epsilon 1. The Step/Freeze order and delayed dirty, range and body notifications
+are preserved.
 
 Failures keep preceding edits for the caller's undo snapshot to unwind. Reserved
 point insertion failure diagnoses and continues, matching native AssertDo; other
@@ -4601,17 +4602,22 @@ while the normal build always floats. The split temporary's previously
 uninitialized distance is initialized to a nonzero epsilon before the existing
 splitter; the temporary node is removed/overwritten before the resulting route.
 
-The native actor now marshals state and supplies array reservation, external C
-BRender distance and diagnostics. Existing adapters still supply native scene/
-body/resource representations; they are not final backend boundaries. The
-167,168-byte native-before trace covers 256 scenarios, including empty/short
-clipboard paths, offsets/holds, later subroutes, terminal nodes, owning material/
-sound tags, state/transforms and reference balance, and matches exactly.
-`engine-route-paste-test` additionally checks reservation/split/event/apply
-failures, partial edits, tag closure, cursor/terminator ordering, optional STATIC
-metadata, diagnostic-and-continue insertion failure and unchanged clipboard data.
-Clipboard control, movie/scene/body/resource/runtime policy and final facade
-removal remain unfinished.
+Studio route editing and Marcus preview animation drafts share C bindings for
+path reservation, point writes, and event table writes. Studio supplies BRender
+distance, diagnostics, scene and body notifications, and action metadata.
+
+The 167,168-byte native reference trace covers 256 scenarios, including empty and
+short clipboard paths, offsets and holds, later subroutes, terminal nodes,
+material and sound tag references, and state and transforms. It matched byte for
+byte alongside 11 other actor-edit traces. `engine-route-paste-test` uses actual
+C path and event storage to check the allocation and partial failure paths,
+tag closure, cursor and terminator ordering, optional STATIC metadata, and
+clipboard data. In SDL Studio a copied route moved the target actor after paste.
+Undo, redo and save/reopen reproduced the expected motion. Retail reopened the
+saved movie with matching positions and exact fixed-point poses at frames 7,
+10 and 14. On the 60-frame `actor-event-edit` case, both ports matched retained
+retail frame sequences and seek camera indices and reproduced their own prior
+seek images. SDL also matched the 12 retail sound events.
 
 ### Full actor paste
 

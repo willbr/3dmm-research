@@ -197,7 +197,7 @@ int mm_actor_copy_route(const MMActorOwner *source, int entire, MMActorOwnerResu
                 }
             }
         count = limit - (location.irpt + 1);
-        if (count > 0 && mm_array_reserve(&path->rows, count, 0) != MM_STORAGE_OK)
+        if (count > 0 && !mm_actor_path_reserve(path, count))
             return fail(out, owner);
         for (i = location.irpt + 1; i < limit; ++i)
         {

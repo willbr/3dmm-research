@@ -32,7 +32,6 @@ enum { MM_RECORD_FREEZE = 1, MM_RECORD_GROUND = 2 };
 typedef struct MMActorRecordServices
 {
     MMActorSubrouteEditServices subroute;
-    int (*reserve_points)(void *route, MMU32);
     MMI32 (*distance)(void *context, const MMActorPoint *);
     void (*publish_record)(void *context, const MMActorRecording *);
     /* Temporary native undo transaction. May swap the owning route/event tables;

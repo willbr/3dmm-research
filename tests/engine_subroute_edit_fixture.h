@@ -55,10 +55,10 @@ static MMActorSubrouteEditServices sub_init(SubFixture *f)
     MMActorSubrouteEditServices s; int i;
     memset(f,0,sizeof(*f)); memset(&s,0,sizeof(s)); s.route=init(&f->base);
     for (i=0;i<f->base.events;++i) if (f->base.event[i].aet==MM_ACTOR_ADD) f->base.bytes[i]=20;
-    s.route.life_dirty=sub_life; s.route.reserve_events=sub_reserve;
+    s.route.life_dirty=sub_life; s.route.edits.tables.reserve_events=sub_reserve;
     s.route.edits.tables.duplicate_event_tag=retain_tag; s.route.edits.tables.close_event_tag=close_owned_tag; s.route.edits.apply_event=sub_apply;
     s.action.context=f; s.action.sounds.context=f; s.action.sounds.edits=s.route.edits;
-    s.action.sounds.reserve_events=sub_reserve; s.action.action_flags=action_flags;
+    s.action.action_flags=action_flags;
     s.action.text_template=text; s.action.mark_life_dirty=sub_life;
     s.timeline.motion=tables; s.timeline.context=f; s.timeline.resolve=resolve;
     s.timeline.put_event=write_event; s.timeline.publish_frame=last_frame;

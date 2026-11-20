@@ -38,7 +38,6 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.sounds.context = s.context;
         s.sounds.runtime.context = s.context;
         s.sounds.edits = EventEdits();
-        s.sounds.reserve_events = Reserve;
         s.sounds.runtime.cel_count = [](void *v, MMI32 action, MMI32 *out) -> int {
             auto &h = Get(v);
             return h.Guard([&] {
@@ -94,18 +93,8 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.action = Action();
         s.route.edits = s.action.sounds.edits;
         s.timeline = Host::Services().timeline;
-        s.route.insert_point = [](void *p, MMI32 i, const MMActorRoutePoint *value) {
-            try { return mm_actor_path_insert(static_cast<MMActorPath *>(p), i, value); }
-            catch (...) { return 0; }
-        };
-        s.route.write_point = [](void *p, MMI32 i, const MMActorRoutePoint *value) {
-            mm_actor_path_put(static_cast<MMActorPath *>(p), i, value);
-        };
-        s.route.delete_points = [](void *p, MMI32 i, MMI32 count) { mm_array_delete(&static_cast<MMActorPath *>(p)->rows, i, count); };
-        s.route.clear_route = [](void *p) { mm_array_set_count(&static_cast<MMActorPath *>(p)->rows, 0); };
-        s.route.write_event = s.timeline.put_event;
-        s.route.swap_events = [](void *p, MMI32 a, MMI32 b) { mm_actor_events_swap(static_cast<MMActorEventTable *>(p), a, b); };
-        s.route.reserve_events = Reserve;
+        mm_actor_route_edit_bind_tables(&s.route);
+        s.timeline.put_event = s.route.write_event;
         s.route.life_dirty = s.action.mark_life_dirty;
         s.route.recording = [](void *v, int enabled) { Get(v).record.recording = enabled; };
         s.route.hide_body = [](void *) {};
@@ -134,10 +123,6 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
     {
         MMActorRecordServices s{};
         s.subroute = Subroute();
-        s.reserve_points = [](void *p, MMU32 count) {
-            try { return int(mm_array_reserve(&static_cast<MMActorPath *>(p)->rows, count, 0) == MM_STORAGE_OK); }
-            catch (...) { return 0; }
-        };
         s.distance = [](void *, const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr, point->dyr, point->dzr)); };
         s.publish_record = [](void *, const MMActorRecording *) {};
         s.restore = [](void *, void *, MMActorState *, MMActorRecording *) {}; // The caller discards its private draft.

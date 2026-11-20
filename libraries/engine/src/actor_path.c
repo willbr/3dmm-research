@@ -22,7 +22,7 @@ MMActorPath *mm_actor_path_create(const MMStorageAllocator *allocator, MMU32 res
     path->rows.free_count = 0;
     path->rows.allocated = 0;
     path->rows.trash_unused = trash_unused;
-    if (reserve && mm_array_reserve(&path->rows, reserve, 0) != MM_STORAGE_OK)
+    if (reserve && !mm_actor_path_reserve(path, reserve))
     {
         mm_actor_path_release(path);
         return NULL;
@@ -63,6 +63,11 @@ int mm_actor_path_get(const MMActorPath *path, MMU32 index, void *row)
 MMI32 mm_actor_path_count(const MMActorPath *path)
 {
     return (MMI32)path->rows.count;
+}
+
+int mm_actor_path_reserve(MMActorPath *path, MMU32 additional)
+{
+    return mm_array_reserve(&path->rows, additional, 0) == MM_STORAGE_OK;
 }
 
 int mm_actor_path_insert(MMActorPath *path, MMU32 index, const void *row)

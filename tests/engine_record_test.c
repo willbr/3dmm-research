@@ -64,7 +64,7 @@ static MMActorRecordServices record_init(RecordFixture *f)
     f->saved_record=f->record; f->saved_record.timestamp=123; f->saved_record.gap=77;
     s.subroute.route.edits.scene_frame=current_frame; s.subroute.action.sounds.edits=s.subroute.route.edits;
     s.distance=metric; s.publish_record=record_publish; s.restore=record_restore; s.seek_scene=scene_seek;
-    s.reserve_points=record_points; s.diagnostic=record_diagnostic; record_publish(f,&f->record);
+    s.subroute.route.reserve_points=record_points; s.diagnostic=record_diagnostic; record_publish(f,&f->record);
     return s;
 }
 static MMActorMotionServices checked_tables(void)

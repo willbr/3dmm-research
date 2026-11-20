@@ -20,7 +20,6 @@ typedef struct MMActorSoundEditServices
     void (*query_release)(void *, void *query);
     int (*resolve_scene)(void *, MMTag *, MMU32 child, MMU32 scene);
     void (*sound_info)(void *, void *resource, MMActorSoundInfo *);
-    int (*reserve_events)(void *, MMU32 entries, MMU32 bytes);
     int (*sound_child)(void *, MMU32 number, MMU32 *child);
     int (*sounds_suppressed)(void *);
     void (*set_sound_frame)(void *);

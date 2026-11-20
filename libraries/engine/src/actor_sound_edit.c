@@ -211,7 +211,7 @@ int mm_actor_sound_set(MMActorState *state, MMActorSounds *list, void *events, M
     if (!resource) return 0;
     s->sound_info(s->context, resource, &info);
     if (info.style == 4) { s->midi_error(s->context); goto fail; }
-    if (!s->reserve_events(s->context, 2, 4 + sizeof(MMActorSound))) goto fail;
+    if (!mm_actor_edit_reserve(&s->edits, 2, 4 + sizeof(MMActorSound))) goto fail;
     memset(&sound, 0, sizeof(sound));
     sound.loop = loop; sound.queue = queue;
     sound.volume = volume == -1 ? info.volume : volume;

@@ -88,10 +88,10 @@ void mm_actor_edit_action_fill(MMActorState *state, void *events, MMI32 first,
     }
 }
 int mm_actor_edit_set_step(MMActorState *state, MMActorSounds *list, void *events, MMI32 actor,
-    MMI32 step, const MMActorMotionServices *m, const MMActorSoundEditServices *s)
+    MMI32 step, const MMActorMotionServices *m, const MMActorEditServices *s)
 {
-    if (!s->reserve_events(s->context,1,sizeof(step))) return 0;
-    return mm_actor_edit_add_apply(state,list,events,actor,MM_ACTOR_STEP,sizeof(step),&step,m,&s->edits);
+    if (!mm_actor_edit_reserve(s,1,sizeof(step))) return 0;
+    return mm_actor_edit_add_apply(state,list,events,actor,MM_ACTOR_STEP,sizeof(step),&step,m,s);
 }
 int mm_actor_edit_set_action(MMActorState *state, MMActorSounds *list, void *events, MMI32 actor,
     MMI32 action, MMI32 cel, int freeze, MMU32 external_child,
@@ -102,7 +102,7 @@ int mm_actor_edit_set_action(MMActorState *state, MMActorSounds *list, void *eve
     MMActorEditRange range;
     const MMActorEditServices *edits=&s->sounds.edits;
     int is_static, changed=state->action!=action;
-    if (!s->sounds.reserve_events(s->sounds.context,4,20)) return 0;
+    if (!mm_actor_edit_reserve(edits,4,20)) return 0;
     if (!s->action_flags(s->context,action,&flags)) return 0;
     is_static=state->actionEvent==-1 || (flags & 8)!=0;
     if (changed) mm_actor_sound_remove_motion(state,events,action,m,&s->sounds);
@@ -119,6 +119,6 @@ int mm_actor_edit_set_action(MMActorState *state, MMActorSounds *list, void *eve
     if (!mm_actor_edit_add_apply(state,list,events,actor,MM_ACTOR_FREEZE,sizeof(frozen),&frozen,m,edits)) return 0;
     if (!is_static && !s->text_template(s->context) &&
         !mm_actor_subroute_events_done(events,state->nextEvent,&state->location,m))
-        return mm_actor_edit_set_step(state,list,events,actor,-65536L,m,&s->sounds);
+        return mm_actor_edit_set_step(state,list,events,actor,-65536L,m,edits);
     return 1;
 }

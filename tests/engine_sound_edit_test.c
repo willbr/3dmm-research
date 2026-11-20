@@ -108,7 +108,7 @@ static MMActorSoundEditServices init(Fixture *f)
     s.edits.tables.write_payload=write_payload; s.edits.tables.copy_payload=copy_payload; s.edits.apply_event=apply_event;
     s.edits.dirty=dirty; s.edits.get_range=get_range; s.edits.invalidate_range=invalidate;
     s.write_sound=write_sound; s.dirty=dirty; s.query_new=query_new; s.query_add=query_add; s.query_release=query_release;
-    s.resolve_scene=resolve_scene; s.sound_info=info; s.reserve_events=reserve; s.sound_child=child;
+    s.resolve_scene=resolve_scene; s.sound_info=info; s.edits.tables.reserve_events=reserve; s.sound_child=child;
     s.sounds_suppressed=suppressed; s.set_sound_frame=set_frame; s.midi_error=midi;
     s.default_sound=default_sound;
     return s;

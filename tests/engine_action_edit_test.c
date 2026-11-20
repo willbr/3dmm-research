@@ -69,7 +69,7 @@ static MMActorActionEditServices init(Fixture *f)
     f->state.onStage=1; f->state.frame=3; f->state.location.dwrOffset=2*65536L;
     f->state.nextEvent=f->state.firstEventInFrame=2; f->state.addEvent=0; f->range.first=1; f->range.last=20;
     s.context=f; s.action_flags=metadata; s.text_template=text; s.mark_life_dirty=life;
-    s.sounds.context=f; s.sounds.reserve_events=reserve; s.sounds.runtime.context=f; s.sounds.runtime.cel_count=defaults;
+    s.sounds.context=f; s.sounds.edits.tables.reserve_events=reserve; s.sounds.runtime.context=f; s.sounds.runtime.cel_count=defaults;
     e=&s.sounds.edits; e->context=f; e->tables.context=f; e->tables.close_event_tag=tag; e->tables.delete_event=remove_event; e->scene_frame=scene;
     e->tables.insert_event=insert; e->tables.duplicate_event_tag=tag; e->tables.write_payload=write; e->tables.copy_payload=copy;
     e->apply_event=apply; e->dirty=dirty; e->get_range=range; e->invalidate_range=invalidate;

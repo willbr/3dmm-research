@@ -39,7 +39,7 @@ int mm_actor_edit_set_action(MMActorState *, MMActorSounds *, void *events, MMI3
     MMI32 action, MMI32 cel, int freeze, MMU32 external_child,
     const MMActorMotionServices *, const MMActorActionEditServices *);
 int mm_actor_edit_set_step(MMActorState *, MMActorSounds *, void *events, MMI32 actor,
-    MMI32 step, const MMActorMotionServices *, const MMActorSoundEditServices *);
+    MMI32 step, const MMActorMotionServices *, const MMActorEditServices *);
 #ifdef __cplusplus
 }
 #endif

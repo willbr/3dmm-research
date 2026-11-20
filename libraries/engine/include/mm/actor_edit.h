@@ -12,6 +12,7 @@ typedef struct MMActorEditTables
 {
     void *context;
     const MMTagServices *tags;
+    int (*reserve_events)(void *, MMU32 entries, MMU32 bytes);
     void (*close_event_tag)(void *, MMI32 index, const MMTagServices *);
     void (*delete_event)(void *, MMI32 index);
     int (*insert_event)(void *, MMI32 index, MMU32 bytes, const void *, const MMActorEvent *);
@@ -36,6 +37,7 @@ typedef struct MMActorEditServices
     void (*invalidate_range)(void *);
     void (*publish_range)(void *, const MMActorEditRange *);
 } MMActorEditServices;
+int mm_actor_edit_reserve(const MMActorEditServices *, MMU32 entries, MMU32 bytes);
 /* Borrow valid runtime tables/state. Close tags before deletion; adjust only
  * cursors strictly after the deleted entry, then notify the current-scene sound
  * indicator. Callbacks may observe published state, but cannot mutate/re-enter it. */

@@ -64,11 +64,11 @@ static MMActorStageEditServices stage_init(StageFixture *f)
     MMActorStageEditServices s;
     memset(f,0,sizeof(*f)); memset(&s,0,sizeof(s)); s.subroute=sub_init(&f->sub);
     s.subroute.route.edits.tables.insert_event=stage_insert;
+    s.subroute.route.edits.tables.reserve_events=stage_reserve;
     s.subroute.route.edits.apply_event=stage_apply;
     s.subroute.action.sounds.edits=s.subroute.route.edits;
-    s.subroute.route.reserve_events=s.subroute.action.sounds.reserve_events=stage_reserve;
     s.subroute.route.default_costume=stage_default; s.subroute.seek=stage_seek;
-    s.reserve_points=reserve_points; s.placement=placement; s.diagnostic=stage_diagnostic;
+    s.subroute.route.reserve_points=reserve_points; s.placement=placement; s.diagnostic=stage_diagnostic;
     return s;
 }
 static void empty(StageFixture *f)

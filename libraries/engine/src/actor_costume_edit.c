@@ -69,7 +69,7 @@ int mm_actor_edit_set_costume(MMActorState *state, MMActorSounds *list, void *ev
     }
     memset(&value,0,sizeof(value));
     value.body_set=set; value.tag=*tag; value.costume=costume; value.custom=custom;
-    if (!s->reserve_events(s->context,1,sizeof(value))) return 0;
+    if (!mm_actor_edit_reserve(&s->edits,1,sizeof(value))) return 0;
     mm_actor_edit_costume_fill(state,events,state->nextEvent,&value,m,s);
     return mm_actor_edit_add_apply(state,list,events,actor,MM_ACTOR_COSTUME,sizeof(value),&value,m,&s->edits);
 }

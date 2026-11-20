@@ -92,9 +92,6 @@ MMActorSoundEditServices Actor::_SoundEditServices()
         auto sound = static_cast<PMovieSoundMSND>(resource);
         info->style = sound->Sty(); info->volume = sound->Vlm(); info->no_sound = sound->FNoSound();
     };
-    s.reserve_events = [](void *p, MMU32 entries, MMU32 bytes) {
-        return int(mm_actor_events_reserve(static_cast<Actor *>(p)->_owner.track.events, entries, bytes));
-    };
     s.sound_child = [](void *p, MMU32 number, MMU32 *child) {
         ChildChunkID value = *child;
         bool ok = static_cast<Actor *>(p)->_Scene()->Pmvie()->FChidFromUserSndCno(number, &value);

@@ -65,7 +65,7 @@ static MMActorCostumeEditServices init(Fixture *f)
     { Resource *r=&f->resource[type][id]; r->id=id; r->custom=type; r->refs=1; }
     f->current=&f->resource[0][0];
     s.context=f; s.current=current; s.fetch_material=material; s.fetch_custom=custom; s.release=release;
-    s.body_set=body_set; s.reserve_events=reserve; s.edits.context=f; s.edits.tables.context=f; s.edits.tables.close_event_tag=close_tag;
+    s.body_set=body_set; s.edits.tables.reserve_events=reserve; s.edits.context=f; s.edits.tables.context=f; s.edits.tables.close_event_tag=close_tag;
     s.edits.tables.delete_event=remove_event; s.edits.scene_frame=scene; s.edits.tables.insert_event=insert;
     s.edits.tables.duplicate_event_tag=duplicate; s.edits.apply_event=apply; s.edits.dirty=dirty; s.edits.get_range=range;
     return s;

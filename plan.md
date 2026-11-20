@@ -316,10 +316,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   sequences tag retention and merges, rewrites current cels and event
   locations, and rewinds or disposes the destination. Studio supplies resource
   callbacks, movie sound-tag resolution and BRender distance.
-- Route paste now uses C89 for reservation, node splitting/deletion, tagged-event
-  removal, later-subroute index shifts, translated insertion, floating/terminal
-  steps, dirty/range notification and body positioning. It uses the existing C
-  edit/pose implementations and preserves partial failure behavior.
+- Route paste uses the C89 owner for path splitting and splicing, tagged-event
+  removal, later-subroute index shifts, floating and terminal steps, and body
+  positioning. Studio route editing and Marcus preview animation drafts share
+  the C bindings for path and event table mutation and reservation.
 - Full actor paste uses the C89 owner and typed tables for retiming, sound
   adoption and row removal, with shared scene binding and tag ownership.
   Studio actor edits and Marcus preview costume and animation drafts share the

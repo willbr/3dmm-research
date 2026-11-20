@@ -103,7 +103,7 @@ static MMActorRouteEditServices init(Fixture *f)
     e->tables.copy_payload=copy_payload; e->apply_event=apply; e->dirty=dirty; e->get_range=range;
     e->publish_range=publish_range; e->invalidate_range=invalidate;
     s.insert_point=insert_point; s.write_point=write_point; s.delete_points=delete_points; s.clear_route=clear_route;
-    s.write_event=write_event; s.swap_events=swap; s.reserve_events=reserve; s.life_dirty=life;
+    s.write_event=write_event; s.swap_events=swap; e->tables.reserve_events=reserve; s.life_dirty=life;
     s.recording=recording; s.hide_body=hidden; s.default_costume=defaults; s.diagnostic=diagnostic;
     return s;
 }

@@ -24,6 +24,7 @@ extern "C"
     MMActorPath *mm_actor_path_clone(const MMActorPath *);
     void mm_actor_path_release(MMActorPath *);
     MMI32 mm_actor_path_count(const MMActorPath *);
+    int mm_actor_path_reserve(MMActorPath *, MMU32 additional);
     int mm_actor_path_get(const MMActorPath *, MMU32 index, void *row);
     int mm_actor_path_insert(MMActorPath *, MMU32 index, const void *row);
     int mm_actor_path_put(MMActorPath *, MMU32 index, const void *row);

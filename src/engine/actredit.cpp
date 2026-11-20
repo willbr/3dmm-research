@@ -16,7 +16,6 @@
 ***************************************************************************/
 
 #include "soc.h"
-#include "engine_actor_motion.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_paste.h"
 
@@ -149,9 +148,7 @@ bool Actor::FPasteRte(PActor pactr)
 {
     AssertThis(0); AssertVarMem(pactr);
     static_assert(kdwrNil==-65536 && factnStatic==8 && kcbVarStep==4 && kcbVarFreeze==4,"Route paste ABI");
-    auto state=_owner.runtime.state; const auto motion=EngineActorMotion::Services();
     MMActorRoutePasteServices s{}; s.subroute=_SubrouteEditServices();
-    s.reserve_points=[](void *route,MMU32 count) { return int(mm_array_reserve(&static_cast<MMActorPath *>(route)->rows, count, 0) == MM_STORAGE_OK); };
     s.distance=[](void *,const MMActorPoint *p)->MMI32 { return BR_LENGTH3(p->dxr,p->dyr,p->dzr); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
@@ -165,9 +162,7 @@ bool Actor::FPasteRte(PActor pactr)
 #else
     const int static_mode=0;
 #endif
-    bool ok=mm_actor_route_paste(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-        pactr->_owner.track.route,static_mode,&motion,&s)!=0;
-    _owner.runtime.state = state; return ok;
+    return mm_actor_route_paste(&_owner,pactr->_owner.track.route,static_mode,&s)!=0;
 }
 
 /***************************************************************************

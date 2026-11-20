@@ -712,13 +712,7 @@ void Actor::_Hide(void)
 MMActorRouteEditServices Actor::_RouteEditServices()
 {
     MMActorRouteEditServices s={}; s.edits=_EventEditServices();
-    s.insert_point=[](void *p,MMI32 i,const MMActorRoutePoint *v) { return mm_actor_path_insert(static_cast<MMActorPath *>(p), i, v); };
-    s.write_point=[](void *p,MMI32 i,const MMActorRoutePoint *v) { AssertDo(mm_actor_path_put(static_cast<MMActorPath *>(p), i, v), "invalid actor path index"); };
-    s.delete_points=[](void *p,MMI32 i,MMI32 count) { AssertDo(mm_array_delete(&static_cast<MMActorPath *>(p)->rows, i, count) == MM_STORAGE_OK, "invalid actor path range"); };
-    s.clear_route=[](void *p) { mm_array_set_count(&static_cast<MMActorPath *>(p)->rows, 0); };
-    s.write_event=[](void *p,MMI32 i,const MMActorEvent *v) { mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(p), i, v); };
-    s.swap_events=[](void *p,MMI32 a,MMI32 b) { mm_actor_events_swap(static_cast<MMActorEventTable *>(p), a,b); };
-    s.reserve_events=[](void *p,MMU32 count,MMU32 bytes) { return int(mm_actor_events_reserve(static_cast<Actor *>(p)->_owner.track.events, count,bytes)); };
+    mm_actor_route_edit_bind_tables(&s);
     s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_owner.runtime.life_dirty=true; };
     s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_owner.runtime.recording.recording=enabled!=0; };
     s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Body()) actor->_Body()->Hide(); };
@@ -759,7 +753,7 @@ bool Actor::FSetStep(BRS dwrStep)
     AssertThis(0); Assert(kdwrNil==dwrStep || rZero<=dwrStep, "Invalid dwrStep argument");
     auto state=_owner.runtime.state;
     const auto tables=EngineActorMotion::Services();
-    const auto services=_SoundEditServices();
+    const auto services=_EventEditServices();
     bool ok=mm_actor_edit_set_step(&state,&_owner.sounds,_owner.track.events,_owner.runtime.actor,dwrStep,&tables,&services)!=0;
     _owner.runtime.state = state;
     return ok;
@@ -816,9 +810,6 @@ MMActorStageEditServices Actor::_StageEditServices()
                   kcbVarFreeze==4 && kcbVarStep==4 && kcbVarRot==48 && kcbVarSize==4 && kcbVarPull==12,
                   "Stage edit ABI");
     MMActorStageEditServices s{}; s.subroute=_SubrouteEditServices();
-    s.reserve_points=[](void *route,MMU32 count) {
-        return int(mm_array_reserve(&static_cast<MMActorPath *>(route)->rows, count, 0) == MM_STORAGE_OK);
-    };
     s.placement=[](void *p,MMActorPoint *point,MMActorPoint *origin,unsigned short *yaw) {
         auto actor=static_cast<Actor *>(p); BRS x,y,z;
         actor->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
@@ -1444,9 +1435,6 @@ void Actor::_PrepActnFill(long iaevMin, long anidPrev, long anidNew, ulong grfae
 MMActorCostumeEditServices Actor::_CostumeEditServices()
 {
     MMActorCostumeEditServices services={}; services.context=this; services.edits=_EventEditServices();
-    services.reserve_events=[](void *p,MMU32 entries,MMU32 bytes) {
-        return int(mm_actor_events_reserve(static_cast<Actor *>(p)->_owner.track.events, entries,bytes));
-    };
     services.current=[](void *p,MMI32 set,int *custom)->void * {
         bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
         static_cast<Actor *>(p)->_Body()->GetPartSetMaterial(set,&ordinary,&material,&costume);
@@ -1703,7 +1691,6 @@ MMActorRecordServices Actor::_RecordServices()
                   fmafFreeze==MM_RECORD_FREEZE && fmafGround==MM_RECORD_GROUND && sizeof(ulong)==4,
                   "Actor recording ABI");
     MMActorRecordServices s{}; s.subroute=_SubrouteEditServices();
-    s.reserve_points=[](void *route,MMU32 count) { return int(mm_array_reserve(&static_cast<MMActorPath *>(route)->rows, count, 0) == MM_STORAGE_OK); };
     s.distance=[](void *,const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
     s.publish_record=[](void *p,const MMActorRecording *record) { static_cast<Actor *>(p)->_owner.runtime.recording = *record; };
     s.restore=[](void *p,void *undo,MMActorState *state,MMActorRecording *record) {

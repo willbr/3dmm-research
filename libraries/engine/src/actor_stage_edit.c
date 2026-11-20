@@ -25,7 +25,7 @@ int mm_actor_stage_add(MMActorState *state, MMActorSounds *sounds, void *route, 
         count = 8;
         bytes += sizeof(MMActorCostume) + sizeof(MMActorMatrix) + 4 + sizeof(MMActorStretch);
     }
-    if (!sub->route.reserve_events(e->context, count, bytes) || !s->reserve_points(route, 1)) return 0;
+    if (!mm_actor_edit_reserve(e, count, bytes) || !sub->route.reserve_points(route, 1)) return 0;
     publish(state, e);
     s->placement(e->context, &placement, &origin, &add.y);
     add.translation.dxr = mm_fixed_sub(placement.dxr, origin.dxr);
@@ -57,7 +57,7 @@ int mm_actor_stage_add(MMActorState *state, MMActorSounds *sounds, void *route, 
         if (!mm_actor_subroute_from_previous(state, sounds, route, events, actor, state->nextEvent - 1, mask, m, sub)) return 0;
     }
     mm_actor_subroute_position_body(state, route, events, &state->position, m, sub);
-    if (!mm_actor_edit_set_step(state, sounds, events, actor, 0, m, &sub->action.sounds)) return 0;
+    if (!mm_actor_edit_set_step(state, sounds, events, actor, 0, m, &sub->action.sounds.edits)) return 0;
     if (!mm_actor_edit_add_apply(state, sounds, events, actor, MM_ACTOR_FREEZE, 4, &frozen, m, e)) return 0;
     if (update) e->invalidate_range(e->context);
     return 1;
@@ -95,7 +95,7 @@ int mm_actor_stage_remove(MMActorState *state, MMActorSounds *sounds, void *rout
     const MMActorEditServices *e = &s->subroute.route.edits;
     MMActorEvent event;
     if (!state->onStage) return 1;
-    if (!s->subroute.route.reserve_events(e->context, 1, 4)) return 0;
+    if (!mm_actor_edit_reserve(e, 1, 4)) return 0;
     m->event(events, state->addEvent, &event);
     if (state->frame == event.nfrm && !mm_actor_stage_delete_subroute(state, route, events, m, &s->subroute)) return 0;
     if (state->onStage)
