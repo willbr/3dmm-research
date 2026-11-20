@@ -14,10 +14,10 @@
 #include "sdl_host.h"
 #include "text_utf8.h"
 #include "platform_text.h"
-#include <algorithm>
 #endif
 #include "frame.h"
 ASSERTNAME
+#include "clipboard_view_host.h"
 #ifdef WIN
 static_assert(kclfmUniText == CF_UNICODETEXT && kclfmSbText == CF_TEXT, "clipboard format ABI changed");
 #endif
@@ -27,464 +27,100 @@ RTCLASS(ClipboardObject)
 PClipboardObject vpclip;
 ClipboardObject _clip;
 
-/***************************************************************************
-    Constructor for the clipboard.
-***************************************************************************/
-ClipboardObject::ClipboardObject(void)
+struct ClipboardObject::Host : ClipboardViewHost
 {
+    ClipboardObject *clip;
+    PDocumentBase *output = nullptr;
 #ifdef KAUAI_SDL3
-    _hqExport = hqNil;
-    _pvExport = pvNil;
+    std::vector<achar> text;
 #endif
-    vpclip = this;
-    AssertThis(0);
-}
 
-/***************************************************************************
-    Return whether the given document is the clipboard document.  If pdocb
-    is nil this returns true if the clipboard is empty and false if it's
-    not empty.
-***************************************************************************/
-bool ClipboardObject::FDocIsClip(PDocumentBase pdocb)
-{
-    AssertThis(0);
-    AssertNilOrPo(pdocb, 0);
+    explicit Host(ClipboardObject *clip) : clip(clip) {}
 
-    if (pvNil == pdocb)
-        _EnsureDoc();
-
-    return pdocb == _pdocb;
-}
-
-/***************************************************************************
-    Show the clipboard document.
-***************************************************************************/
-void ClipboardObject::Show(void)
-{
-    AssertThis(0);
-
-    _EnsureDoc();
-    _ImportCur();
-    if (pvNil != _pdocb)
+    int Check(int result)
     {
-        if (_pdocb->Cddg() > 0)
-            _pdocb->ActivateDmd();
-        else
-            _pdocb->PdmdNew();
-    }
-}
-
-/***************************************************************************
-    Make the given document the clipboard document.
-***************************************************************************/
-void ClipboardObject::Set(PDocumentBase pdocb, bool fExport)
-{
-    AssertThis(0);
-    AssertNilOrPo(pdocb, 0);
-
-    if (_fExporting || _fImporting)
-    {
-        Bug("can't change the clipboard while exporting or importing");
-        return;
+        return result < 0 ? ClipboardViewHost::Check(result) : result;
     }
 
-    if (pdocb == _pdocb)
-        return;
-
-    _fDocCurrent = fTrue;
-    _fDelayImport = fFalse;
-    _clfmImport = clfmNil;
-
-    // throw away the old clip document and replace it with the new one
-    SwapVars(&pdocb, &_pdocb);
-    if (pvNil != pdocb)
+    MMClipboardServices Services()
     {
-        if (pdocb->Cddg() > 0)
-            pdocb->UpdateName();
-        ReleasePpo(&pdocb);
-    }
-
-    if (pvNil != _pdocb)
-    {
-        _pdocb->AddRef();
-        if (_pdocb->Cddg() > 0)
-            _pdocb->UpdateName();
-
-        if (fExport)
-        {
-            _pdocb->ExportFormats(this);
-            EndExport();
-        }
-    }
-}
-
-/***************************************************************************
-    See if the clipboard supports this format and if so, get it.
-***************************************************************************/
-bool ClipboardObject::FGetFormat(long cls, PDocumentBase *ppdocb)
-{
-    AssertThis(0);
-    AssertNilOrVarMem(ppdocb);
-
-    _EnsureDoc();
-    if (pvNil != ppdocb)
-        _ImportCur();
-
-    if (pvNil == _pdocb)
-        return fFalse;
-
-    if (_pdocb->FIs(cls))
-    {
-        if (pvNil != ppdocb)
-        {
-            *ppdocb = _pdocb;
-            (*ppdocb)->AddRef();
-        }
-        return fTrue;
-    }
-
-    return _pdocb->FGetFormat(cls, ppdocb);
-}
-
-/***************************************************************************
-    Import stuff from the external clipboard.
-***************************************************************************/
-void ClipboardObject::Import(void)
-{
-    AssertThis(0);
-
-    if (pvNil != _pdocb && _pdocb->Cddg() > 0)
-        Set();
-    _fDocCurrent = fFalse;
-}
-
-/***************************************************************************
-    Make sure the _pdocb is current - import the current system clipboard
-    if it isn't.
-***************************************************************************/
-void ClipboardObject::_EnsureDoc(void)
-{
-    if (_fExporting || _fImporting)
-    {
-        Bug("can't import the clipboard while exporting or importing");
-        return;
-    }
-
-    if (_fDocCurrent)
-        return;
-
-    _fDocCurrent = fTrue;
-
-#ifdef KAUAI_SDL3
-    if (KauaiSDL::Main().OwnsClipboard())
-        return;
-    try
-    {
-        std::string utf8;
-        std::vector<std::uint16_t> units;
-        if (!KauaiSDL::Main().GetClipboardText(utf8) || !KauaiText::DecodeUtf8(utf8, units))
-            return;
-        // Kauai paragraphs end with CR. Accept LF and CRLF from SDL hosts.
-        std::vector<achar> text;
-        std::vector<std::uint16_t> paragraphs;
-        for (std::size_t i = 0; i < (units.size)(); ++i)
-            if (units[i] != '\n' || !i || units[i - 1] != '\r')
-                paragraphs.push_back(units[i] == '\n' ? '\r' : units[i]);
-#ifdef UNICODE
-        text.assign(paragraphs.begin(), paragraphs.end());
+        MMClipboardServices s = {};
+        s.context = this;
+#if defined(KAUAI_SDL3)
+        s.transport = MM_CLIPBOARD_TEXT;
+#elif defined(WIN)
+        s.transport = MM_CLIPBOARD_FORMATS;
 #else
-        std::vector<std::uint8_t> littleEndian;
-        for (auto unit : paragraphs)
-        {
-            littleEndian.push_back(static_cast<std::uint8_t>(unit));
-            littleEndian.push_back(static_cast<std::uint8_t>(unit >> 8));
-        }
-        const auto count =
-            KauaiText::ToAnsi(littleEndian.data(), (littleEndian.size)(), KauaiText::Encoding::Utf16LE, nullptr, 0);
-        text.resize(count);
-        if (count && !KauaiText::ToAnsi(littleEndian.data(), (littleEndian.size)(), KauaiText::Encoding::Utf16LE,
-                                        text.data(), count))
-            return;
+        s.transport = MM_CLIPBOARD_UNAVAILABLE;
 #endif
-        PDocumentBase pdocb = pvNil;
-        if (text.empty() || ((text.size)() <= kcbMax / size(achar) &&
-                             _FImportFormat(kclfmText, text.data(), (text.size)() * size(achar), &pdocb)))
-            Set(pdocb, fFalse);
-        ReleasePpo(&pdocb);
-    }
-    catch (const std::bad_alloc &)
-    {
-        return;
-    }
-#elif defined(WIN)
-    HN hn;
-    PDocumentBase pdocb;
-    bool fDelay;
-    long clfm;
-
-    if (GetClipboardOwner() == vwig.hwndApp || !OpenClipboard(vwig.hwndApp))
-        return;
-
-    for (clfm = 0; 0 != (clfm = EnumClipboardFormats(clfm));)
-    {
-        if (!_FImportFormat(clfm))
-            continue;
-
-        if (hNil == (hn = GetClipboardData(clfm)))
-            continue;
-
-        pdocb = pvNil;
-        fDelay = fFalse;
-        if (_FImportFormat(clfm, GlobalLock(hn), GlobalSize(hn), &pdocb, &fDelay))
-        {
-            GlobalUnlock(hn);
-            Set(pdocb, fFalse);
-            _fDelayImport = FPure(fDelay) && pdocb != pvNil;
-            _clfmImport = clfm;
-            ReleasePpo(&pdocb);
-            break;
-        }
-        GlobalUnlock(hn);
-    }
-    CloseClipboard();
-#endif // WIN
-
-#ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::Import
-#endif        // MAC
-}
-
-/***************************************************************************
-    Import the actual data for the current clipboard (if importing was
-    delayed).
-***************************************************************************/
-void ClipboardObject::_ImportCur(void)
-{
-    AssertThis(0);
-    Assert(_fDocCurrent, 0);
-
-    if (pvNil == _pdocb || !_fDelayImport || clfmNil == _clfmImport)
-        return;
-
-#ifdef KAUAI_SDL3
-    // SDL imports a complete owned text snapshot, never delayed native data.
-    return;
-#elif defined(WIN)
-    HN hn;
-    bool fRet;
-    PDocumentBase pdocb;
-
-    if (GetClipboardOwner() == vwig.hwndApp || !OpenClipboard(vwig.hwndApp))
-        return;
-
-    if (hNil != (hn = GetClipboardData(_clfmImport)))
-    {
-        pdocb = _pdocb;
-        if (pvNil != pdocb)
-            pdocb->AddRef();
-        fRet = _FImportFormat(_clfmImport, GlobalLock(hn), GlobalSize(hn), &pdocb);
-        GlobalUnlock(hn);
-        if (fRet)
-            Set(pdocb, fFalse);
-        _fDelayImport = fFalse;
-        _clfmImport = clfmNil;
-        ReleasePpo(&pdocb);
-    }
-    CloseClipboard();
-#endif // WIN
-
-#ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::_ImportCur
-#endif        // MAC
-}
-
-/***************************************************************************
-    Import a particular format.
-***************************************************************************/
-bool ClipboardObject::_FImportFormat(long clfm, void *pv, long cb, PDocumentBase *ppdocb, bool *pfDelay)
-{
-    AssertThis(0);
-    AssertPvCb(pv, cb);
-    AssertNilOrVarMem(ppdocb);
-    AssertNilOrVarMem(pfDelay);
-    Assert(_fDocCurrent, 0);
-    bool fRet;
-
 #ifdef WIN
-    if (pvNil != pv && cb > 0)
-    {
-        // adjust cb for text - remove the stupid trailing null and compensate
-        // for the fact that cb might be too big (GlobalSize(hn) might be bigger
-        // than what was allocated).
-        switch (clfm)
-        {
-        case kclfmUniText:
-            wchar *pchw, *pchwLim;
-
-            pchw = (wchar *)pv;
-            pchwLim = (wchar *)pv + cb / size(wchar);
-            while (pchw < pchwLim && *pchw != 0)
-                pchw++;
-            cb = BvSubPvs(pchw, pv);
-            break;
-
-        case kclfmSbText:
-            schar *pchs, *pchsLim;
-
-            pchs = (schar *)pv;
-            pchsLim = (schar *)pv + cb;
-            while (pchs < pchsLim && *pchs != 0)
-                pchs++;
-            cb = BvSubPvs(pchs, pv);
-            break;
-        }
-    }
-#endif // WIN
-
-    _fImporting = fTrue;
-    fRet = vpappb->FImportClip(clfm, pv, cb, ppdocb, pfDelay);
-    _fImporting = fFalse;
-
-    return fRet;
-}
-
-/***************************************************************************
-    Start an export session.
-***************************************************************************/
-bool ClipboardObject::FInitExport(void)
-{
-    AssertThis(0);
-
-    if (_fExporting || _fImporting)
-    {
-        Bug("Already exporting or importing");
-        return fFalse;
+        s.byte_format = kclfmSbText;
+        s.wide_format = kclfmUniText;
+#endif
+        s.text_format = kclfmText;
+        s.text_unit = sizeof(achar);
+        s.max_bytes = kcbMax;
+        s.call = Call;
+        return s;
     }
 
 #ifdef KAUAI_SDL3
-    _hqExport = hqNil;
-    _pvExport = pvNil;
-    _fExporting = fTrue;
-#elif defined(WIN)
-    _hnExport = hNil;
-    if (!OpenClipboard(vwig.hwndApp))
-        return fFalse;
-    if (!EmptyClipboard())
+    bool ReadText(MMClipboardRequest *q)
     {
-        CloseClipboard();
-        return fFalse;
-    }
-    _fExporting = fTrue;
-#endif // WIN
-
-#ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::FInitExport
-#endif        // MAC
-
-    return _fExporting;
-}
-
-/***************************************************************************
-    Allocate a buffer to export to.
-***************************************************************************/
-void *ClipboardObject::PvExport(long cb, long clfm)
-{
-    AssertThis(0);
-    AssertIn(cb, 1, kcbMax);
-
-    if (!_fExporting)
-    {
-        Bug("not exporting");
-        return pvNil;
-    }
-
-    _ExportCur();
-
-#ifdef KAUAI_SDL3
-    if (clfm != kclfmText || cb > kcbMax - size(achar))
-        return pvNil;
-    if (!FAllocHq(&_hqExport, cb + size(achar), fmemClear, mprNormal))
-        return pvNil;
-    _clfmExport = clfm;
-    return _pvExport = PvLockHq(_hqExport);
-#elif defined(WIN)
-    switch (clfm)
-    {
-    case kclfmText:
-        // need to add size(achar) for the terminating zero character
-        cb = LwRoundAway(cb + size(achar), size(achar));
-        break;
-    }
-
-    if (hNil == (_hnExport = GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE | GMEM_ZEROINIT, cb)))
-    {
-        return pvNil;
-    }
-
-    _clfmExport = clfm;
-    return GlobalLock(_hnExport);
-#endif // WIN
-
-#ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::PvExport
-    return pvNil;
-#endif // MAC
-}
-
-/***************************************************************************
-    End an exporting session.
-***************************************************************************/
-void ClipboardObject::EndExport(void)
-{
-    AssertThis(0);
-
-    if (!_fExporting)
-        return;
-
-    _ExportCur();
-
-#if defined(WIN) && !defined(KAUAI_SDL3)
-    CloseClipboard();
-#endif // WIN
-
-#ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::EndExport
-#endif        // MAC
-    _fExporting = fFalse;
-}
-
-/***************************************************************************
-    Export the current format.
-***************************************************************************/
-void ClipboardObject::_ExportCur(void)
-{
-    AssertThis(0);
-    Assert(_fExporting, 0);
-
-#ifdef KAUAI_SDL3
-    if (_hqExport != hqNil)
-    {
+        if (KauaiSDL::Main().OwnsClipboard())
+            return false;
         try
         {
-            const auto bytes = CbOfHq(_hqExport) - size(achar);
-            const auto count = KauaiText::ToUtf16(_pvExport, bytes,
+            std::string utf8;
+            std::vector<std::uint16_t> units;
+            if (!KauaiSDL::Main().GetClipboardText(utf8) || !KauaiText::DecodeUtf8(utf8, units))
+                return false;
+            units.resize(mm_clipboard_normalize_paragraphs(units.data(), (units.size)()));
 #ifdef UNICODE
-                                                  KauaiText::Encoding::Utf16LE,
+            text.assign(units.begin(), units.end());
 #else
-                                                  KauaiText::Encoding::WindowsAnsi,
-#endif
-                                                  nullptr, 0);
-            std::vector<std::uint16_t> units(count);
-            if (!count || KauaiText::ToUtf16(_pvExport, bytes,
-#ifdef UNICODE
-                                             KauaiText::Encoding::Utf16LE,
-#else
-                                             KauaiText::Encoding::WindowsAnsi,
-#endif
-                                             units.data(), count))
+            std::vector<std::uint8_t> littleEndian;
+            for (auto unit : units)
             {
-                // Clipboard text ends at the first NUL, as on the native path.
-                units.erase(std::find(units.begin(), units.end(), 0), units.end());
+                littleEndian.push_back(static_cast<std::uint8_t>(unit));
+                littleEndian.push_back(static_cast<std::uint8_t>(unit >> 8));
+            }
+            const auto count = KauaiText::ToAnsi(littleEndian.data(), (littleEndian.size)(),
+                                                KauaiText::Encoding::Utf16LE, nullptr, 0);
+            text.resize(count);
+            if (count && !KauaiText::ToAnsi(littleEndian.data(), (littleEndian.size)(), KauaiText::Encoding::Utf16LE,
+                                           text.data(), count))
+                return false;
+#endif
+            if ((text.size)() > 0x7fffffffUL / sizeof(achar))
+                return false;
+            q->buffer = text.data();
+            q->bytes = static_cast<MMI32>((text.size)() * sizeof(achar));
+            return true;
+        }
+        catch (const std::bad_alloc &)
+        {
+            return false;
+        }
+    }
+
+    void FlushText()
+    {
+        if (clip->_hqExport == hqNil)
+            return;
+        try
+        {
+#ifdef UNICODE
+            const auto encoding = KauaiText::Encoding::Utf16LE;
+#else
+            const auto encoding = KauaiText::Encoding::WindowsAnsi;
+#endif
+            const auto bytes = CbOfHq(clip->_hqExport) - sizeof(achar);
+            const auto count = KauaiText::ToUtf16(clip->_pvExport, bytes, encoding, nullptr, 0);
+            std::vector<std::uint16_t> units(count);
+            if (!count || KauaiText::ToUtf16(clip->_pvExport, bytes, encoding, units.data(), count))
+            {
+                units.resize(mm_clipboard_text_bytes(units.data(), (units.size)() * 2, 2) / 2);
                 std::string utf8;
                 if (KauaiText::EncodeUtf8(units, utf8))
                     KauaiSDL::Main().SetClipboardText(utf8);
@@ -493,22 +129,194 @@ void ClipboardObject::_ExportCur(void)
         catch (const std::bad_alloc &)
         {
         }
-        UnlockHq(_hqExport);
-        FreePhq(&_hqExport);
-        _pvExport = pvNil;
+        UnlockHq(clip->_hqExport);
+        FreePhq(&clip->_hqExport);
+        clip->_pvExport = pvNil;
     }
-#elif defined(WIN)
-    if (hNil != _hnExport)
-    {
-        GlobalUnlock(_hnExport);
-        SetClipboardData(_clfmExport, _hnExport);
-        _hnExport = hNil;
-    }
-#endif // WIN
+#endif
 
-#ifdef MAC
-    RawRtn(); // REVIEW shonk: Mac: implement ClipboardObject::_ExportCur
-#endif        // MAC
+    static int Call(void *context, MMClipboardOperation operation, MMClipboardRequest *q)
+    {
+        auto &host = *static_cast<Host *>(context);
+        auto clip = host.clip;
+        auto document = static_cast<PDocumentBase>(q->document);
+        return host.Guard([&]() -> int {
+            switch (operation)
+            {
+            case MM_CLIPBOARD_HAS_VIEWS: return document->Cddg() > 0;
+            case MM_CLIPBOARD_RENAME: document->UpdateName(); break;
+            case MM_CLIPBOARD_RETAIN: document->AddRef(); break;
+            case MM_CLIPBOARD_RELEASE: document->Release(); break;
+            case MM_CLIPBOARD_ACTIVATE: document->ActivateDmd(); break;
+            case MM_CLIPBOARD_SHOW: document->PdmdNew(); break;
+            case MM_CLIPBOARD_EXPORT_DOCUMENT: document->ExportFormats(clip); break;
+            case MM_CLIPBOARD_IS_FORMAT: return document->FIs(q->format);
+            case MM_CLIPBOARD_DOCUMENT_FORMAT: return document->FGetFormat(q->format, host.output);
+            case MM_CLIPBOARD_PUBLISH_DOCUMENT: *host.output = document; break;
+            case MM_CLIPBOARD_DIAGNOSTIC:
+                switch (q->diagnostic)
+                {
+                case MM_CLIPBOARD_BUSY_SET: Bug("can't change the clipboard while exporting or importing"); break;
+                case MM_CLIPBOARD_BUSY_READ: Bug("can't import the clipboard while exporting or importing"); break;
+                case MM_CLIPBOARD_BUSY_WRITE: Bug("Already exporting or importing"); break;
+                default: Bug("not exporting"); break;
+                }
+                break;
+            case MM_CLIPBOARD_IMPORT_DOCUMENT:
+            {
+                AssertPvCb(q->buffer, q->bytes);
+                Assert(clip->_clipboard.current, 0);
+                bool delay = q->delay != 0;
+                const bool imported = vpappb->FImportClip(q->format, q->buffer, q->bytes,
+                                                         q->output ? &document : nullptr,
+                                                         q->allow_delay ? &delay : nullptr);
+                q->document = document;
+                q->delay = delay;
+                return imported;
+            }
+
+#if defined(KAUAI_SDL3)
+            case MM_CLIPBOARD_READ_TEXT: return host.ReadText(q);
+            case MM_CLIPBOARD_OPEN_WRITE:
+                clip->_hqExport = hqNil;
+                clip->_pvExport = pvNil;
+                break;
+            case MM_CLIPBOARD_ALLOCATE_EXPORT:
+                if (!FAllocHq(&clip->_hqExport, q->bytes, fmemClear, mprNormal))
+                    return 0;
+                q->buffer = clip->_pvExport = PvLockHq(clip->_hqExport);
+                break;
+            case MM_CLIPBOARD_FLUSH_EXPORT: host.FlushText(); break;
+            case MM_CLIPBOARD_CLOSE: break;
+#elif defined(WIN)
+            case MM_CLIPBOARD_OPEN_READ:
+                return GetClipboardOwner() != vwig.hwndApp && OpenClipboard(vwig.hwndApp);
+            case MM_CLIPBOARD_NEXT_FORMAT:
+                q->format = static_cast<MMI32>(EnumClipboardFormats(q->format));
+                return q->format != 0;
+            case MM_CLIPBOARD_GET_DATA:
+                q->handle = GetClipboardData(q->format);
+                return q->handle != hNil;
+            case MM_CLIPBOARD_LOCK_DATA:
+                q->buffer = GlobalLock(q->handle);
+                q->bytes = static_cast<MMI32>(GlobalSize(q->handle));
+                break;
+            case MM_CLIPBOARD_UNLOCK_DATA: GlobalUnlock(q->handle); break;
+            case MM_CLIPBOARD_CLOSE: CloseClipboard(); break;
+            case MM_CLIPBOARD_OPEN_WRITE:
+                clip->_hnExport = hNil;
+                if (!OpenClipboard(vwig.hwndApp))
+                    return 0;
+                if (!EmptyClipboard())
+                {
+                    CloseClipboard();
+                    return 0;
+                }
+                break;
+            case MM_CLIPBOARD_ALLOCATE_EXPORT:
+                clip->_hnExport = GlobalAlloc(GMEM_DDESHARE | GMEM_MOVEABLE | GMEM_ZEROINIT, q->bytes);
+                if (clip->_hnExport == hNil)
+                    return 0;
+                q->buffer = GlobalLock(clip->_hnExport);
+                break;
+            case MM_CLIPBOARD_FLUSH_EXPORT:
+                if (clip->_hnExport != hNil)
+                {
+                    GlobalUnlock(clip->_hnExport);
+                    SetClipboardData(q->format, clip->_hnExport);
+                    clip->_hnExport = hNil;
+                }
+                break;
+#endif
+
+            default: Bug("unsupported clipboard transport operation"); return 0;
+            }
+            return 1;
+        });
+    }
+};
+
+ClipboardObject::ClipboardObject()
+{
+#ifdef KAUAI_SDL3
+    _hqExport = hqNil;
+    _pvExport = pvNil;
+#else
+    _hnExport = hNil;
+#endif
+    vpclip = this;
+    AssertThis(0);
+}
+
+bool ClipboardObject::FDocIsClip(PDocumentBase pdocb)
+{
+    AssertThis(0);
+    AssertNilOrPo(pdocb, 0);
+    Host host(this);
+    const auto services = host.Services();
+    return host.Check(mm_clipboard_is_document(&_clipboard, pdocb, &services)) > 0;
+}
+
+void ClipboardObject::Show()
+{
+    AssertThis(0);
+    Host host(this);
+    const auto services = host.Services();
+    host.Check(mm_clipboard_show(&_clipboard, &services));
+}
+
+void ClipboardObject::Set(PDocumentBase pdocb, bool fExport)
+{
+    AssertThis(0);
+    AssertNilOrPo(pdocb, 0);
+    Host host(this);
+    const auto services = host.Services();
+    host.Check(mm_clipboard_set(&_clipboard, pdocb, fExport, &services));
+}
+
+bool ClipboardObject::FGetFormat(long cls, PDocumentBase *ppdocb)
+{
+    AssertThis(0);
+    AssertNilOrVarMem(ppdocb);
+    Host host(this);
+    host.output = ppdocb;
+    const auto services = host.Services();
+    return host.Check(mm_clipboard_get(&_clipboard, cls, ppdocb != nullptr, &services)) > 0;
+}
+
+void ClipboardObject::Import()
+{
+    AssertThis(0);
+    Host host(this);
+    const auto services = host.Services();
+    host.Check(mm_clipboard_invalidate(&_clipboard, &services));
+}
+
+bool ClipboardObject::FInitExport()
+{
+    AssertThis(0);
+    Host host(this);
+    const auto services = host.Services();
+    return host.Check(mm_clipboard_begin_export(&_clipboard, &services)) > 0;
+}
+
+void *ClipboardObject::PvExport(long cb, long clfm)
+{
+    AssertThis(0);
+    AssertIn(cb, 1, kcbMax);
+    Host host(this);
+    const auto services = host.Services();
+    void *buffer;
+    host.Check(mm_clipboard_export_buffer(&_clipboard, cb, clfm, &buffer, &services));
+    return buffer;
+}
+
+void ClipboardObject::EndExport()
+{
+    AssertThis(0);
+    Host host(this);
+    const auto services = host.Services();
+    host.Check(mm_clipboard_end_export(&_clipboard, &services));
 }
 
 #ifdef DEBUG
@@ -518,8 +326,8 @@ void ClipboardObject::_ExportCur(void)
 void ClipboardObject::AssertValid(LegacyUlong grf)
 {
     ClipboardObject_PAR::AssertValid(0);
-    AssertNilOrPo(_pdocb, 0);
-    Assert(!_fExporting || !_fImporting, "both importing and exporting!");
+    AssertNilOrPo(static_cast<PDocumentBase>(_clipboard.document), 0);
+    Assert(!_clipboard.exporting || !_clipboard.importing, "both importing and exporting!");
 }
 
 /***************************************************************************
@@ -529,7 +337,7 @@ void ClipboardObject::MarkMem(void)
 {
     AssertValid(0);
     ClipboardObject_PAR::MarkMem();
-    MarkMemObj(_pdocb);
+    MarkMemObj(static_cast<PDocumentBase>(_clipboard.document));
 #ifdef KAUAI_SDL3
     MarkHq(_hqExport);
 #endif

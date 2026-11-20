@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef CLIP_H
 #define CLIP_H
+#include "mm/clipboard.h"
 
 /***************************************************************************
     Clipboard object.
@@ -29,12 +30,8 @@ class ClipboardObject : public ClipboardObject_PAR
     MARKMEM
 
   protected:
-    PDocumentBase _pdocb;
-
-    bool _fDocCurrent : 1;
-    bool _fExporting : 1;
-    bool _fImporting : 1;
-    bool _fDelayImport : 1;
+    struct Host;
+    MMClipboard _clipboard = {};
 
 #ifdef KAUAI_SDL3
     HQ _hqExport;
@@ -42,14 +39,6 @@ class ClipboardObject : public ClipboardObject_PAR
 #else
     HN _hnExport;
 #endif
-    long _clfmExport;
-    long _clfmImport;
-
-    void _EnsureDoc();
-    void _ExportCur(void);
-    void _ImportCur(void);
-    bool _FImportFormat(long clfm, void *pv = pvNil, long cb = 0, PDocumentBase *ppdocb = pvNil, bool *pfDelay = pvNil);
-
   public:
     ClipboardObject(void);
 

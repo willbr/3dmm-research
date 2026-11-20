@@ -3211,6 +3211,26 @@ physical/clipboard/window/dialog providers, help extensions and final C-only
 host/facade removal remain conversion work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
 
+### Clipboard ownership and transport
+
+`clipboard.c` owns the active document reference and the current, importing,
+exporting, and delayed-import state. Replacement publishes the new identity
+before renaming and releasing the old document. A format availability query
+can leave an imported document deferred. Acquiring it or opening its view
+fetches the delayed data. A missing Windows data handle leaves that import
+pending for another request.
+
+SDL imports a complete text snapshot and normalizes LF and CRLF to CR.
+C89 also trims native text at the first zero unit, checks and pads export
+sizes, and flushes the current format before accepting the next one. Native
+callbacks handle SDL clipboard data and encoding, Win32 open/lock/transfer
+calls, and document factories and references.
+
+The SDL Studio probe matched before and after for external text import,
+mixed line endings, local document identity, staged export, and clearing.
+C tests cover Windows format probing and delayed import, reentrancy guards,
+reference ordering, allocation failures, and export sizing.
+
 ### Help document data and editing policy
 
 `help_text.c` owns help topic initialization, 28/36-byte wire decoding/encoding,

@@ -2,6 +2,7 @@
 #define KAUAI_CLIPBOARD_VIEW_HOST_H
 
 #include <exception>
+#include <new>
 
 struct ClipboardViewHost
 {
@@ -13,10 +14,15 @@ struct ClipboardViewHost
         {
             return function();
         }
-        catch (...)
+        catch (const std::bad_alloc &)
         {
             exception = std::current_exception();
             return -1;
+        }
+        catch (...)
+        {
+            exception = std::current_exception();
+            return -2;
         }
     }
 

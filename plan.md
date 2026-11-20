@@ -917,6 +917,9 @@ clipboard/file/untitled name selection now also use C89 and C-owned view storage
 untitled counters now live in C registry/node data.
 The common document view uses C89 for Edit menu availability and clipboard
 command sequencing, including self-paste rejection and publish-before-cut order.
+Kauai's clipboard owner also uses C89 for document identity and references,
+lazy and delayed imports, staged export, and text normalization. SDL and
+Win32 supply clipboard I/O and native document operations.
 Help topic metadata, wire codecs/read/save, string expansion, object/group argument
 normalization and picture/button/group edit transactions now also use C89 and
 plain C topic data. Help embedded-object bounds and drawing sequence now also use
