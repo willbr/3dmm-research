@@ -1,3 +1,5 @@
+#include <vector>
+
 // A real host supplies assertion reporting; no GUI/application replacements.
 #if defined(TEST_ENGINE_CORE)
 #include "soc_core.h"
@@ -636,6 +638,88 @@ static void TestStringWire()
                         }
                     }
     if (snapshot) Check(std::fclose(snapshot) == 0);
+}
+
+class DispatchProbe : public CommandHandler
+{
+  public:
+    std::vector<int> &trace;
+    int number;
+    bool consume;
+    DispatchProbe *remove = nullptr;
+    DispatchProbe *insert = nullptr;
+
+    DispatchProbe(std::vector<int> &trace, int number, bool consume = false)
+        : CommandHandler(4300 + number), trace(trace), number(number), consume(consume) {}
+
+    bool FDoCmd(PCommand command) override
+    {
+        trace.push_back(100 * number + command->rglw[0]);
+        if (remove)
+        {
+            vpcex->RemoveCmh(remove, 10);
+            vpcex->RemoveCmh(this, 0);
+            Check(vpcex->FAddCmh(insert, 0, kgrfcmmAll));
+            remove = nullptr;
+        }
+        return consume;
+    }
+
+    bool FEnableCmd(PCommand, LegacyUlong *enabled) override
+    {
+        trace.push_back(100 * number + 99);
+        *enabled = fedsEnable | fedsCheck;
+        return consume;
+    }
+};
+
+static void TestCommandDispatch()
+{
+    const LegacyLong cid = 0x10001, flush = cid + 1;
+    std::vector<int> trace;
+    auto first = NewObj DispatchProbe(trace, 1);
+    auto removed = NewObj DispatchProbe(trace, 2);
+    auto inserted = NewObj DispatchProbe(trace, 3);
+    auto tied = NewObj DispatchProbe(trace, 4);
+    auto target = NewObj DispatchProbe(trace, 5, true);
+    Check(first && removed && inserted && tied && target);
+    first->remove = removed;
+    first->insert = inserted;
+    Check(vpcex->FAddCmh(tied, 10, fcmmOthers));
+    Check(vpcex->FAddCmh(removed, 10, fcmmThis));
+    Check(vpcex->FAddCmh(first, 0, kgrfcmmAll));
+    vpcex->EnqueueCid(cid, target, pvNil, 1);
+    vpcex->EnqueueCid(flush, pvNil, pvNil, 7);
+    vpcex->EnqueueCid(cid, pvNil, pvNil, 2);
+    vpcex->PushCid(cid, removed, pvNil, 3);
+    Check(vpcex->FCidIn(flush));
+    vpcex->FlushCid(flush);
+    Check(!vpcex->FCidIn(flush));
+    for (int i = 0; i < 3; ++i)
+        Check(vpcex->FDispatchNextCmd());
+    Check(!vpcex->FDispatchNextCmd());
+    Check(vpcex->GrfedsForCid(cid, target) == (fedsEnable | fedsCheck));
+    Check(trace == std::vector<int>({103, 403, 203, 301, 401, 501, 302, 399, 499, 599}));
+
+    auto payload = GeneralGroup::PggNew(0);
+    Check(payload != pvNil);
+    payload->AddRef();
+    vpcex->EnqueueCid(cid, target, payload, 8);
+    ReleasePpo(&target);
+    Check(!vpcex->FCidIn(cid) && payload->CactRef() == 1);
+    ReleasePpo(&payload);
+
+    Command key;
+    vpcex->EnqueueCid(cid, pvNil, pvNil, 4);
+    vpcex->EnqueueCid(cidKey, pvNil, pvNil, 5);
+    Check(!vpcex->FGetNextKey(&key));
+    Check(vpcex->FDispatchNextCmd());
+    Check(vpcex->FGetNextKey(&key) && key.cid == cidKey && key.rglw[0] == 5);
+    Check(!vpcex->FGetNextKey(&key));
+    ReleasePpo(&tied);
+    ReleasePpo(&inserted);
+    ReleasePpo(&removed);
+    ReleasePpo(&first);
 }
 
 static void TestCommandReplay()
@@ -4583,6 +4667,7 @@ int main()
     TestReadOnlyEmptyChunkSave();
     vpcex = CommandExecutionManager::PcexNew(20, 20);
     Check(vpcex != pvNil);
+    TestCommandDispatch();
     TestCommandReplay();
     PClock clock = NewObj Clock(1000);
     Check(clock != pvNil);

@@ -24,10 +24,13 @@
     The CommandExecutionManager class supports command stream recording and playback.
 
 ***************************************************************************/
+#include <exception>
+#include <new>
 #include "kauai_core.h"
 #include "cmd.h"
 #include "clok.h"
 #include "cmd_hooks.h"
+#include "document_storage_host.h"
 ASSERTNAME
 
 // command map shared by every command handler
@@ -38,6 +41,74 @@ RTCLASS(CommandHandler)
 RTCLASS(CommandExecutionManager)
 
 PCommandExecutionManager vpcex;
+
+static MMQueuedCommand QueueRecord(const Command &cmd)
+{
+    return {cmd.pcmh, cmd.cid, cmd.pgg, {cmd.rglw[0], cmd.rglw[1], cmd.rglw[2], cmd.rglw[3]}};
+}
+
+static Command NativeCommand(const MMQueuedCommand &cmd)
+{
+    return {static_cast<PCommandHandler>(cmd.target), cmd.id, static_cast<PGeneralGroup>(cmd.group),
+            {cmd.arguments[0], cmd.arguments[1], cmd.arguments[2], cmd.arguments[3]}};
+}
+
+struct CommandExecutionManager::DispatchHost : DocumentStorageHost
+{
+    PCommandExecutionManager manager;
+    PCommand command;
+
+    DispatchHost(PCommandExecutionManager owner, PCommand current = nullptr)
+        : DocumentStorageHost(nullptr), manager(owner), command(current) {}
+
+    static int ReleaseGroup(void *context, void *group)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        return host.Guard([&] {
+            static_cast<PGeneralGroup>(group)->Release();
+            return 0;
+        });
+    }
+
+    static int Prepare(void *context)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        // Native dispatch historically normalized the tri-state result to bool.
+        return host.Guard([&] { return host.manager->_TGetNextCmd() != tNo; });
+    }
+
+    static void *Target(void *context)
+    {
+        return static_cast<DispatchHost *>(context)->command->pcmh;
+    }
+
+    static int Send(void *context, void *handler)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        return host.Guard([&] { return host.manager->_FSendCmd(static_cast<PCommandHandler>(handler)); });
+    }
+
+    static int Finish(void *context)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        return host.Guard([&] {
+            host.manager->_CleanUpCmd();
+            return 0;
+        });
+    }
+
+    static int Enable(void *context, void *handler, MMU32 *flags)
+    {
+        auto &host = *static_cast<DispatchHost *>(context);
+        return host.Guard([&] {
+            LegacyUlong nativeFlags = fedsNil;
+            const bool handled = host.manager->_FEnableCmd(static_cast<PCommandHandler>(handler),
+                                                           host.command, &nativeFlags);
+            *flags = nativeFlags;
+            return handled;
+        });
+    }
+};
 
 LegacyLong CommandHandler::_hidLast;
 
@@ -211,14 +282,7 @@ bool CommandHandler::FDoCmd(PCommand pcmd)
     AssertThis(0);
     AssertPo(pcmd, 0);
     CommandMapEntry cmme;
-    LegacyUlong grfcmm;
-
-    if (pvNil == pcmd->pcmh)
-        grfcmm = fcmmNobody;
-    else if (this == pcmd->pcmh)
-        grfcmm = fcmmThis;
-    else
-        grfcmm = fcmmOthers;
+    const auto grfcmm = mm_command_target_mask(this, pcmd->pcmh);
 
     if (!_FGetCmme(pcmd->cid, grfcmm, &cmme) || pvNil == cmme.pfncmd)
         return fFalse;
@@ -237,14 +301,7 @@ bool CommandHandler::FEnableCmd(PCommand pcmd, LegacyUlong *pgrfeds)
     AssertPo(pcmd, 0);
     AssertVarMem(pgrfeds);
     CommandMapEntry cmme;
-    LegacyUlong grfcmm;
-
-    if (pvNil == pcmd->pcmh)
-        grfcmm = fcmmNobody;
-    else if (this == pcmd->pcmh)
-        grfcmm = fcmmThis;
-    else
-        grfcmm = fcmmOthers;
+    const auto grfcmm = mm_command_target_mask(this, pcmd->pcmh);
 
     if (!_FGetCmme(pcmd->cid, grfcmm, &cmme) || pvNil == cmme.pfncmd)
         return fFalse;
@@ -267,6 +324,13 @@ bool CommandHandler::FEnableCmd(PCommand pcmd, LegacyUlong *pgrfeds)
 CommandExecutionManager::CommandExecutionManager(void)
 {
     AssertBaseThis(0);
+#ifdef DEBUG
+    const int trash = 1;
+#else
+    const int trash = 0;
+#endif
+    const auto allocator = Group::CollectionAllocator();
+    AssertDo(mm_commands_init(&_dispatch, &allocator, trash), "invalid command allocator");
 }
 
 /***************************************************************************
@@ -275,20 +339,14 @@ CommandExecutionManager::CommandExecutionManager(void)
 CommandExecutionManager::~CommandExecutionManager(void)
 {
     AssertBaseThis(0);
-    Command cmd;
-    LegacyLong icmd;
-
-    if (pvNil != _pglcmd)
     {
-        for (icmd = _pglcmd->IvMac(); icmd-- != 0;)
-        {
-            _pglcmd->Get(icmd, &cmd);
-            ReleasePpo(&cmd.pgg);
-        }
-        ReleasePpo(&_pglcmd);
+        DocumentStorageHost queue(&_dispatch.queue_storage), filters(&_dispatch.filter_storage);
+        DispatchHost host(this);
+        mm_commands_dispose(&_dispatch, &host, DispatchHost::ReleaseGroup);
+        host.Rethrow();
+        queue.Rethrow();
+        filters.Rethrow();
     }
-
-    ReleasePpo(&_pglcmhe);
     ReleasePpo(&_pcfl);
     ReleasePpo(&_pglcmdf);
     ReleasePpo(&_cmdCur.pgg);
@@ -322,13 +380,11 @@ bool CommandExecutionManager::_FInit(LegacyLong ccmdInit, LegacyLong ccmhInit)
     AssertIn(ccmdInit, 0, kcbMax);
     AssertIn(ccmhInit, 0, kcbMax);
 
-    if (pvNil == (_pglcmd = DynamicArray::PglNew(size(Command), ccmdInit)) || pvNil == (_pglcmhe = DynamicArray::PglNew(size(CommandHandlerEntry), ccmhInit)))
-    {
-        return fFalse;
-    }
-
-    AssertThis(0);
-    return fTrue;
+    DocumentStorageHost queue(&_dispatch.queue_storage), filters(&_dispatch.filter_storage);
+    const bool ok = mm_commands_reserve(&_dispatch, ccmdInit, ccmhInit) != 0;
+    queue.Rethrow();
+    filters.Rethrow();
+    return ok;
 }
 
 /***************************************************************************
@@ -691,28 +747,18 @@ bool CommandExecutionManager::FAddCmh(PCommandHandler pcmh, LegacyLong cmhl, Leg
 {
     AssertThis(0);
     AssertPo(pcmh, 0);
-    CommandHandlerEntry cmhe;
-    LegacyLong icmhe;
 
-    if (fcmmNil == (grfcmm & kgrfcmmAll))
+    if (!(grfcmm & kgrfcmmAll))
     {
-        // no sense adding this
         Bug("why is grfcmm nil?");
         return fFalse;
     }
-
     if (!_FCmhOk(pcmh))
         return fFalse;
-
-    _FFindCmhl(cmhl, &icmhe);
-    cmhe.pcmh = pcmh;
-    cmhe.cmhl = cmhl;
-    cmhe.grfcmm = grfcmm;
-    if (!_pglcmhe->FInsert(icmhe, &cmhe))
-        return fFalse;
-    if (icmhe <= _icmheNext)
-        _icmheNext++;
-    return fTrue;
+    DocumentStorageHost host(&_dispatch.filter_storage);
+    const bool added = mm_commands_add_filter(&_dispatch, pcmh, cmhl, grfcmm) != 0;
+    host.Rethrow();
+    return added;
 }
 
 /***************************************************************************
@@ -722,25 +768,7 @@ void CommandExecutionManager::RemoveCmh(PCommandHandler pcmh, LegacyLong cmhl)
 {
     AssertThis(0);
     AssertPo(pcmh, 0);
-    LegacyLong icmhe, ccmhe;
-    CommandHandlerEntry cmhe;
-
-    if (!_FFindCmhl(cmhl, &icmhe))
-        return;
-
-    for (ccmhe = _pglcmhe->IvMac(); icmhe < ccmhe; icmhe++)
-    {
-        _pglcmhe->Get(icmhe, &cmhe);
-        if (cmhe.cmhl != cmhl)
-            break;
-        if (cmhe.pcmh == pcmh)
-        {
-            _pglcmhe->Delete(icmhe);
-            if (icmhe < _icmheNext)
-                _icmheNext--;
-            break;
-        }
-    }
+    mm_commands_remove_filter(&_dispatch, pcmh, cmhl);
 }
 
 /***************************************************************************
@@ -751,10 +779,6 @@ void CommandExecutionManager::BuryCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
     Assert(pcmh != pvNil, 0);
-    LegacyLong icmhe, icmd;
-    CommandHandlerEntry cmhe;
-    Command cmd;
-
     if (_cmdCur.pcmh == pcmh)
         _cmdCur.pcmh = pvNil;
     if (_cmd.pcmh == pcmh)
@@ -762,52 +786,9 @@ void CommandExecutionManager::BuryCmh(PCommandHandler pcmh)
         _cmd.pcmh = pvNil;
         _cact = 0;
     }
-
-    for (icmhe = _pglcmhe->IvMac(); icmhe-- != 0;)
-    {
-        _pglcmhe->Get(icmhe, &cmhe);
-        if (cmhe.pcmh == pcmh)
-        {
-            _pglcmhe->Delete(icmhe);
-            if (icmhe < _icmheNext)
-                _icmheNext--;
-        }
-    }
-
-    for (icmd = _pglcmd->IvMac(); icmd-- != 0;)
-    {
-        _pglcmd->Get(icmd, &cmd);
-        if (cmd.pcmh == pcmh)
-        {
-            _pglcmd->Delete(icmd);
-            ReleasePpo(&cmd.pgg);
-        }
-    }
-}
-
-/***************************************************************************
-    Finds the first item with the given cmhl in the handler list. If there
-    aren't any, still sets *picmhe to where they would be.
-***************************************************************************/
-bool CommandExecutionManager::_FFindCmhl(LegacyLong cmhl, LegacyLong *picmhe)
-{
-    AssertThis(0);
-    AssertVarMem(picmhe);
-    LegacyLong icmhe, icmheMin, icmheLim;
-    CommandHandlerEntry *qrgcmhe;
-
-    qrgcmhe = (CommandHandlerEntry *)_pglcmhe->QvGet(0);
-    for (icmheMin = 0, icmheLim = _pglcmhe->IvMac(); icmheMin < icmheLim;)
-    {
-        icmhe = (icmheMin + icmheLim) / 2;
-        if (qrgcmhe[icmhe].cmhl < cmhl)
-            icmheMin = icmhe + 1;
-        else
-            icmheLim = icmhe;
-    }
-
-    *picmhe = icmheMin;
-    return icmheMin < _pglcmhe->IvMac() && qrgcmhe[icmheMin].cmhl == cmhl;
+    DispatchHost host(this);
+    mm_commands_bury(&_dispatch, pcmh, &host, DispatchHost::ReleaseGroup);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -857,19 +838,7 @@ void CommandExecutionManager::PushCid(LegacyLong cid, PCommandHandler pcmh, PGen
 ***************************************************************************/
 void CommandExecutionManager::EnqueueCmd(PCommand pcmd)
 {
-    AssertThis(0);
-    AssertPo(pcmd, 0);
-    Assert(pcmd->cid != cidNil, "why enqueue a nil command?");
-
-    if (!_pglcmd->FEnqueue(pcmd))
-    {
-        Bug("event queue not big enough");
-        ReleasePpo(&pcmd->pgg);
-    }
-#ifdef DEBUG
-    if (_ccmdMax < _pglcmd->IvMac())
-        _ccmdMax = _pglcmd->IvMac();
-#endif // DEBUG
+    _QueueCommand(pcmd, false);
 }
 
 /***************************************************************************
@@ -879,19 +848,25 @@ void CommandExecutionManager::EnqueueCmd(PCommand pcmd)
 ***************************************************************************/
 void CommandExecutionManager::PushCmd(PCommand pcmd)
 {
+    _QueueCommand(pcmd, true);
+}
+
+void CommandExecutionManager::_QueueCommand(PCommand pcmd, bool atHead)
+{
     AssertThis(0);
     AssertPo(pcmd, 0);
     Assert(pcmd->cid != cidNil, "why enqueue a nil command?");
 
-    if (!_pglcmd->FPush(pcmd))
+    const auto record = QueueRecord(*pcmd);
     {
-        Bug("event queue not big enough");
-        ReleasePpo(&pcmd->pgg);
+        DocumentStorageHost host(&_dispatch.queue_storage);
+        const bool added = mm_commands_insert(&_dispatch, &record, atHead) != 0;
+        host.Rethrow();
+        if (added)
+            return;
     }
-#ifdef DEBUG
-    if (_ccmdMax < _pglcmd->IvMac())
-        _ccmdMax = _pglcmd->IvMac();
-#endif // DEBUG
+    Bug("event queue not big enough");
+    ReleasePpo(&pcmd->pgg);
 }
 
 /***************************************************************************
@@ -901,18 +876,7 @@ bool CommandExecutionManager::FCidIn(LegacyLong cid)
 {
     AssertThis(0);
     Assert(cid != cidNil, "why check for a nil command?");
-
-    LegacyLong icmd;
-    Command cmd;
-
-    for (icmd = _pglcmd->IvMac(); icmd-- > 0;)
-    {
-        _pglcmd->Get(icmd, &cmd);
-        if (cmd.cid == cid)
-            return fTrue;
-    }
-
-    return fFalse;
+    return mm_commands_contains(&_dispatch, cid) != 0;
 }
 
 /***************************************************************************
@@ -922,19 +886,9 @@ void CommandExecutionManager::FlushCid(LegacyLong cid)
 {
     AssertThis(0);
     Assert(cid != cidNil, "why flush a nil command?");
-
-    LegacyLong icmd;
-    Command cmd;
-
-    for (icmd = _pglcmd->IvMac(); icmd-- > 0;)
-    {
-        _pglcmd->Get(icmd, &cmd);
-        if (cmd.cid == cid)
-        {
-            _pglcmd->Delete(icmd);
-            ReleasePpo(&cmd.pgg);
-        }
-    }
+    DispatchHost host(this);
+    mm_commands_flush(&_dispatch, cid, &host, DispatchHost::ReleaseGroup);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -949,7 +903,10 @@ tribool CommandExecutionManager::_TGetNextCmd(void)
     AssertThis(0);
 
     // get the next command from the command stream
-    if (!_pglcmd->FPop(&_cmdCur))
+    MMQueuedCommand next;
+    if (mm_commands_take(&_dispatch, &next))
+        _cmdCur = NativeCommand(next);
+    else
     {
         ClearPb(&_cmdCur, size(_cmdCur));
         if (pvNil == _pgobTrack)
@@ -1037,61 +994,25 @@ void CommandExecutionManager::_CleanUpCmd(void)
     cidTrackMouse command is generated and dispatched to the gob.
 
     NOTE: care has to be taken here because a CommandHandler may go away while
-    dispatching the command. That's why _cmdCur and _icmheNext are
-    member variables - so BuryCmh can adjust them if needed.
+    dispatching the command. BuryCmh can clear the current target,
+    and the C dispatcher adjusts its filter cursor.
 ***************************************************************************/
 bool CommandExecutionManager::FDispatchNextCmd(void)
 {
     AssertThis(0);
-    CommandHandlerEntry cmhe;
-    bool fHandled;
-    bool tRet;
-
-    if (_fDispatching)
+    if (_dispatch.dispatching)
     {
         Bug("recursing into FDispatchNextCmd!");
         return fFalse;
     }
-    _fDispatching = fTrue;
-
-    tRet = _TGetNextCmd();
-    if (tYes != tRet)
-    {
-        _fDispatching = fFalse;
-        return tRet != tNo;
-    }
-
-    // pipe it through the command handlers, then to the target
-    fHandled = fFalse;
-    for (_icmheNext = 0; _icmheNext < _pglcmhe->IvMac() && !fHandled;)
-    {
-        _pglcmhe->Get(_icmheNext++, &cmhe);
-        if (pvNil == _cmdCur.pcmh)
-        {
-            if (!(cmhe.grfcmm & fcmmNobody))
-                continue;
-        }
-        else if (cmhe.pcmh == _cmdCur.pcmh)
-        {
-            if (!(cmhe.grfcmm & fcmmThis))
-                continue;
-        }
-        else if (!(cmhe.grfcmm & fcmmOthers))
-            continue;
-
-        fHandled = _FSendCmd(cmhe.pcmh);
-    }
-
-    if (!fHandled && pvNil != _cmdCur.pcmh)
-    {
-        AssertPo(_cmdCur.pcmh, 0);
-        fHandled = _FSendCmd(_cmdCur.pcmh);
-    }
-
-    _CleanUpCmd();
-
-    _fDispatching = fFalse;
-    return fTrue;
+    DispatchHost host(this, &_cmdCur);
+    const MMCommandRoute route = {DispatchHost::Prepare, DispatchHost::Target, DispatchHost::Send,
+                                  DispatchHost::Finish};
+    const int result = mm_commands_route(&_dispatch, &host, &route);
+    if (result < 0)
+        ReleasePpo(&_cmdCur.pgg);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -1117,44 +1038,17 @@ LegacyUlong CommandExecutionManager::GrfedsForCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
-    LegacyLong icmhe, ccmhe;
-    CommandHandlerEntry cmhe;
-    LegacyUlong grfeds;
-
-    // pipe it through the command handlers, then to the target
-    for (icmhe = 0, ccmhe = _pglcmhe->IvMac(); icmhe < ccmhe; icmhe++)
-    {
-        _pglcmhe->Get(icmhe, &cmhe);
-        grfeds = fedsNil;
-        if (_FEnableCmd(cmhe.pcmh, pcmd, &grfeds))
-            goto LDone;
-    }
-    if (pcmd->pcmh != pvNil)
-    {
-        AssertPo(pcmd->pcmh, 0);
-        grfeds = fedsNil;
-        if (_FEnableCmd(pcmd->pcmh, pcmd, &grfeds))
-            goto LDone;
-    }
-
-    // handle the CommandExecutionManager commands
-    switch (pcmd->cid)
-    {
-    case cidCexStopRec:
-        grfeds = rsRecording == _rs ? fedsEnable : fedsDisable;
-        break;
-
-    case cidCexStopPlay:
-        grfeds = rsPlaying == _rs ? fedsEnable : fedsDisable;
-        break;
-
-    default:
-        grfeds = fedsDisable;
-        break;
-    }
-
-LDone:
-    return grfeds;
+    DispatchHost host(this, pcmd);
+    const MMCommandEnable query = {DispatchHost::Target, DispatchHost::Enable};
+    MMU32 flags;
+    const int handled = mm_commands_enable(&_dispatch, &host, &query, &flags);
+    host.Rethrow();
+    if (handled > 0)
+        return flags;
+    if ((pcmd->cid == cidCexStopRec && _rs == rsRecording) ||
+        (pcmd->cid == cidCexStopPlay && _rs == rsPlaying))
+        return fedsEnable;
+    return fedsDisable;
 }
 
 /***************************************************************************
@@ -1187,25 +1081,20 @@ bool CommandExecutionManager::FGetNextKey(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    LegacyLong iv;
-
-    if (_rs != rsNormal)
-        goto LFail;
-    if ((iv = _pglcmd->IvMac()) > 0)
+    if (_rs == rsNormal)
     {
-        // get next cmd
-        _pglcmd->Get(iv - 1, pcmd);
-        if (pcmd->cid == cidKey)
+        MMQueuedCommand key;
+        const int status = mm_commands_take_key(&_dispatch, cidKey, &key);
+        if (status > 0)
         {
-            AssertDo(_pglcmd->FPop(pvNil), 0);
+            *pcmd = NativeCommand(key);
             return fTrue;
         }
-    LFail:
-        TrashVar(pcmd);
-        return fFalse;
+        if (status == 0)
+            return _FGetKeyFromOs(pcmd);
     }
-
-    return _FGetKeyFromOs(pcmd);
+    TrashVar(pcmd);
+    return fFalse;
 }
 
 /***************************************************************************
@@ -1244,8 +1133,8 @@ void CommandExecutionManager::SetModalGob(PGraphicsObject pgob)
 void CommandExecutionManager::AssertValid(LegacyUlong grf)
 {
     CommandExecutionManager_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pglcmhe, 0);
-    AssertPo(_pglcmd, 0);
+    Assert(_dispatch.queue.storage == &_dispatch.queue_storage, "invalid command queue");
+    Assert(_dispatch.filters.storage == &_dispatch.filter_storage, "invalid command filters");
     AssertNilOrPo(_pglcmdf, 0);
     AssertNilOrPo(_pcfl, 0);
     AssertNilOrPo(_cmdCur.pgg, 0);
@@ -1257,20 +1146,17 @@ void CommandExecutionManager::AssertValid(LegacyUlong grf)
 void CommandExecutionManager::MarkMem(void)
 {
     AssertThis(0);
-    Command cmd;
-    LegacyLong icmd;
-
     CommandExecutionManager_PAR::MarkMem();
-    MarkMemObj(_pglcmhe);
-    MarkMemObj(_pglcmd);
+    MarkPv(_dispatch.queue_storage.buffers[0].data);
+    MarkPv(_dispatch.filter_storage.buffers[0].data);
     MarkMemObj(_pglcmdf);
     MarkMemObj(_cmdCur.pgg);
 
-    for (icmd = _pglcmd->IvMac(); icmd-- != 0;)
+    MMQueuedCommand command;
+    for (MMU32 i = _dispatch.queue.count; i-- != 0;)
     {
-        _pglcmd->Get(icmd, &cmd);
-        if (cmd.pgg != pvNil)
-            MarkMemObj(cmd.pgg);
+        AssertDo(mm_commands_at(&_dispatch, i, &command), "missing queued command");
+        MarkMemObj(static_cast<PGeneralGroup>(command.group));
     }
 }
 #endif // DEBUG

@@ -6278,6 +6278,29 @@ removed; successful payloads retain their separate frozen trace. See
 `docs/tools/playback-regression.md` for host checks, retail comparisons and
 coverage limits. No Marcus UI tests were added.
 
+### Studio command dispatch
+
+`command_dispatch.c` owns the pending queue, its command group references,
+the priority-sorted filter table and the in-progress filter cursor. Tail
+enqueue and head push retain their original order. Filters at the same level
+run newest first. The dispatcher adjusts the cursor when a handler adds or
+removes filters and rereads the active target after callbacks. Enable queries
+retain their separate rule of visiting filters without applying the routing
+mask. Burial clears pending commands for a destroyed handler and releases their
+groups. Native code supplies the typed active command, modal and tracking
+services, macro recording and replay, and member-function calls.
+
+`engine-command-dispatch-test` covers C-only routing, ownership, failed growth,
+recursive dispatch and recovery from a host error. The native core regression
+checks the same queue and filter order before and after the migration, including
+filter edits from inside a handler, key retrieval and recorded-command replay.
+An authored 33-tick pause held the same frame for 702 ms before the dispatcher
+conversion and 705 ms afterward. Retail held that frame for 732 ms.
+In capture suite `20261120T051214Z-92bf58a2`, SDL and Marcus matched the 60
+retail frame identities for `actor-event-edit` in seek and normal playback,
+both from a fresh process and after replay. Each port matched its previous 60
+seek images. SDL matched the 12 retail sound requests in both playback runs.
+
 ### Studio application time and alarm clocks
 
 `clock.c` owns the scalable application clock, the alarm clock registry and

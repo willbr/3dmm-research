@@ -838,6 +838,9 @@ C89 also owns Kauai's scalable application time and the registered 60 Hz alarm
 clocks used by Studio movie and sound playback. It preserves tied alarm order,
 late delivery with optional clock slip, input resets and callback reentrancy.
 Native code supplies timestamps, allocation and command delivery.
+C89 also owns Kauai's pending command queue, ordered filters and filter cursor.
+The dispatcher routes commands and enable queries while native callbacks supply
+the active command, modal checks, mouse tracking and macro I/O.
 SDL Studio submits intermediate dissolve snapshots through its window
 presenter. Marcus uses the shared C89 dissolve permutation and phase lengths
 to compose RGBA movie-camera frames. Both use the C89 RGB555 bin-centre mapping

@@ -16,6 +16,7 @@
 ***************************************************************************/
 #ifndef CMD_H
 #define CMD_H
+#include "mm/command_dispatch.h"
 
 /***************************************************************************
     Command id, options and command struct
@@ -44,7 +45,7 @@ enum
 const LegacyUlong kgrfedsMark = fedsUncheck | fedsCheck | fedsBullet;
 
 // command
-#define kclwCmd 4 // if this ever changes, change the CMD_TYPE macro also
+#define kclwCmd MM_COMMAND_ARGUMENTS // if this ever changes, change the CMD_TYPE macro also
 struct Command
 {
     ASSERT
@@ -93,9 +94,9 @@ CMD_TYPE(MOUSE, xp, yp, grfcust, cact); // defines CMD_MOUSE and PCMD_MOUSE
 enum
 {
     fcmmNil = 0,
-    fcmmThis = 1,
-    fcmmNobody = 2,
-    fcmmOthers = 4,
+    fcmmThis = MM_COMMAND_SELF,
+    fcmmNobody = MM_COMMAND_UNTARGETED,
+    fcmmOthers = MM_COMMAND_OTHER,
 };
 const LegacyUlong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
 
@@ -220,13 +221,7 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     NOCOPY(CommandExecutionManager)
 
   protected:
-    // an entry in the command handler list
-    struct CommandHandlerEntry
-    {
-        PCommandHandler pcmh;
-        LegacyLong cmhl;
-        LegacyUlong grfcmm;
-    };
+    struct DispatchHost;
 
     // command recording/playback state
     enum
@@ -249,29 +244,20 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     Command _cmd;       // previous command recorded or played
 
     // dispatching
-    Command _cmdCur;     // command being dispatched
-    LegacyLong _icmheNext; // next command handler to dispatch to
+    Command _cmdCur;     // native command being dispatched
+    MMCommandDispatch _dispatch;
     PGraphicsObject _pgobTrack; // the gob that is tracking the mouse
 #ifdef WIN
     CoreNative::WindowHandle _hwndCapture; // native capture token; used only by the GUI adapter
 #endif                 // WIN
 
-    // filter list and command queue
-    PDynamicArray _pglcmhe;       // the command filter list
-    PDynamicArray _pglcmd;        // the command queue
-    bool _fDispatching; // whether we're currently in FDispatchNextCmd
-
     // Modal filtering
     PGraphicsObject _pgobModal;
-
-#ifdef DEBUG
-    LegacyLong _ccmdMax; // running max
-#endif             // DEBUG
 
     CommandExecutionManager(void);
 
     virtual bool _FInit(LegacyLong ccmdInit, LegacyLong ccmhInit);
-    virtual bool _FFindCmhl(LegacyLong cmhl, LegacyLong *picmhe);
+    void _QueueCommand(PCommand, bool atHead);
 
     virtual bool _FCmhOk(PCommandHandler pcmh);
     virtual tribool _TGetNextCmd(void);
