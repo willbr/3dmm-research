@@ -34,7 +34,6 @@
 #include <cstdint>
 
 #include "sound_queue.h"
-#include "mm/sound_resource.h"
 
 const long kSndSamplesPerSec = 22050;
 const long kSndBitsPerSample = 8;
@@ -59,13 +58,7 @@ const ByteOrderMask kbomMsndf = 0x5FC00000;
 
 const ChildChunkID kchidSnd = 0; // Movie Sound sound/music
 
-// Function to stop all movie sounds.
-inline void StopAllMovieSounds(void)
-{
-    vpsndm->StopAll(sqnNil, sclNonLoop);
-    vpsndm->StopAll(sqnNil, sclLoopWav);
-    vpsndm->StopAll(sqnNil, sclLoopMidi);
-}
+void StopAllMovieSounds(void);
 
 /****************************************
 
@@ -169,12 +162,13 @@ class MovieSoundQueue : public MovieSoundQueue_PAR
     CMD_MAP_DEC(MovieSoundQueue)
 
   protected:
-    SoundPlaybackQueue _queue; // Core owns pending references and duration policy
-    PClock _pclok;
+    MMFrameSoundQueue _queue;
+    MMFrameSoundOutput _Output();
 
   public:
     MovieSoundQueue(long hid) : MovieSoundQueue_PAR(hid)
     {
+        mm_frame_sound_queue_prepare(&_queue);
     }
     ~MovieSoundQueue(void);
 
@@ -202,19 +196,8 @@ class MovieSoundQueue : public MovieSoundQueue_PAR
         AssertThis(0);
         _queue.duration = kdtimLongMsq;
     }
-    void StopAll(void)
-    {
-        if (pvNil != _pclok)
-            _pclok->Stop();
-
-        StopAllMovieSounds();
-    }
-    bool FPlaying(bool fLoop)
-    {
-        AssertThis(0);
-        return (fLoop ? (vpsndm->FPlayingAll(sqnNil, sclLoopMidi) || vpsndm->FPlayingAll(sqnNil, sclLoopWav))
-                      : vpsndm->FPlayingAll(sqnNil, sclNonLoop));
-    }
+    void StopAll(void);
+    bool FPlaying(bool fLoop);
 
     // Save/Restore snd-on duration times
     long DtimSnd(void)

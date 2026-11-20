@@ -819,6 +819,129 @@ static void check_alarm_playback(void)
     ALARM_EXPECT(&f, retry_failed);
 }
 
+typedef struct SoundOutputFixture
+{
+    MMFrameSoundQueue queue;
+    char events[32];
+    size_t count;
+    int refs, alarm_ok, clock_ok, playing_class;
+    MMI32 interval;
+} SoundOutputFixture;
+static void output_record(SoundOutputFixture *f, char event)
+{
+    CHECK(f->count + 1 < sizeof(f->events));
+    f->events[f->count++] = event;
+    f->events[f->count] = '\0';
+}
+static void output_expect(SoundOutputFixture *f, const char *events)
+{
+    CHECK(!strcmp(f->events, events));
+    f->events[0] = '\0';
+    f->count = 0;
+}
+static void *output_create_clock(void *p)
+{
+    SoundOutputFixture *f = p;
+    CHECK(f->queue.initialized);
+    output_record(f, 'c');
+    return f->clock_ok ? p : NULL;
+}
+static void output_release_clock(void *p, void *clock)
+{
+    SoundOutputFixture *f = p;
+    CHECK(clock == p && f->refs == 1 && !f->queue.count && f->queue.initialized);
+    output_record(f, 'd');
+}
+static void output_start_clock(void *p, void *clock) { CHECK(p == clock); output_record(p, 's'); }
+static void output_stop_clock(void *p, void *clock) { CHECK(p == clock); output_record(p, 't'); }
+static int output_set_alarm(void *p, void *clock, MMI32 interval)
+{
+    SoundOutputFixture *f = p;
+    CHECK(clock == p);
+    f->interval = interval;
+    output_record(f, 'a');
+    return f->alarm_ok;
+}
+static void output_begin(void *p) { output_record(p, 'B'); }
+static void output_end(void *p) { output_record(p, 'E'); }
+static void output_play(void *p, const MMFrameSoundRequest *request)
+{
+    SoundOutputFixture *f = p;
+    CHECK(request->sound == p && f->refs > 1 && request->offset == 15 && request->queued);
+    output_record(f, (char)('i' + request->object));
+}
+static void output_stop_class(void *p, MMI32 id) { output_record(p, (char)('0' + id)); }
+static int output_playing_class(void *p, MMI32 id)
+{
+    SoundOutputFixture *f = p;
+    output_record(f, (char)('X' + id));
+    return f->playing_class == id;
+}
+static void output_retain(void *p) { ++((SoundOutputFixture *)p)->refs; }
+static void output_release(void *p)
+{
+    SoundOutputFixture *f = p;
+    CHECK(f->refs > 1);
+    --f->refs;
+    output_record(f, 'r');
+}
+static void check_sound_output(void)
+{
+    SoundOutputFixture f = {0};
+    MMFrameSoundRequest request = {NULL, 2, 0, 500, 6, 15, 0, 1, 1};
+    MMFrameSoundOutput s = {NULL, output_create_clock, output_release_clock, output_start_clock,
+        output_stop_clock, output_set_alarm, output_begin, output_end, output_play, output_stop_class,
+        output_playing_class};
+    s.context = request.sound = &f;
+    f.refs = f.alarm_ok = 1;
+    mm_frame_sound_queue_prepare(&f.queue);
+    CHECK(!mm_frame_sound_queue_open(&f.queue, NULL, output_retain, output_release, 0, &s));
+    CHECK(f.queue.initialized && !f.queue.clock);
+    mm_frame_sound_queue_close(&f.queue, &s);
+    CHECK(!f.queue.initialized);
+    output_expect(&f, "c012");
+    f.clock_ok = 1;
+    CHECK(mm_frame_sound_queue_open(&f.queue, NULL, output_retain, output_release, 0, &s));
+    CHECK(mm_frame_sound_queue_open(&f.queue, NULL, output_retain, output_release, 0, &s));
+    mm_frame_sound_queue_play(&f.queue, &s);
+    output_expect(&f, "c");
+
+    CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
+    request.object = 1;
+    CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 1) && f.refs == 3);
+    mm_frame_sound_queue_play(&f.queue, &s);
+    CHECK(f.refs == 1 && !f.queue.count && f.interval == MM_FRAME_SOUND_SHORT);
+    output_expect(&f, "BjrirEsa");
+
+    f.queue.duration = MM_FRAME_SOUND_LONG;
+    CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
+    mm_frame_sound_queue_play(&f.queue, &s);
+    output_expect(&f, "BjrE");
+    CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
+    f.queue.duration = MM_FRAME_SOUND_OFF;
+    mm_frame_sound_queue_play(&f.queue, &s);
+    output_expect(&f, "r");
+
+    f.queue.duration = 37;
+    f.alarm_ok = 0;
+    CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
+    mm_frame_sound_queue_play(&f.queue, &s);
+    CHECK(f.refs == 1 && f.interval == 37);
+    output_expect(&f, "BjrEsat012");
+    mm_frame_sound_queue_alarm(&f.queue, &s);
+    output_expect(&f, "tt012");
+    f.playing_class = 2;
+    CHECK(mm_frame_sound_playing(1, &s));
+    output_expect(&f, "Z");
+    f.playing_class = 1;
+    CHECK(mm_frame_sound_playing(1, &s) && !mm_frame_sound_playing(0, &s));
+    output_expect(&f, "ZYX");
+    CHECK(mm_frame_sound_queue_enqueue(&f.queue, &request, 0));
+    mm_frame_sound_queue_close(&f.queue, &s);
+    CHECK(f.refs == 1 && !f.queue.initialized && !f.queue.clock);
+    output_expect(&f, "t012rd");
+}
+
 /* This executable links with the C linker and only the C89 backend. Existing
  * engine-core-link and Marcus regressions cover the host adapters and policy
  * branches. These checks exercise the public C contract independently. */
@@ -903,6 +1026,7 @@ int main(void)
     check_polled_movie();
     check_alarm_playback();
     check_frame_sound();
+    check_sound_output();
     check_caption_render();
     check_timing_snapshot();
     check_sound_schedule_sources();

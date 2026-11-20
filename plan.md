@@ -1335,7 +1335,11 @@ The C89 engine now selects Marcus's frame cues and authored waits, including
 prior scene music, restart sample positions and motion-cue precedence. C89
 also owns Studio's pending movie sound queue, including the signed low-word
 lane key, replacement order, requests held for playback, and timeout policy.
-Studio supplies allocator diagnostics and native sound references.
+Studio embeds the queue and its owned clock reference in the native command
+handler. C89 prepares and drains synchronized batches, releases references,
+and orders short preview alarms and sound-class stops. The host supplies
+allocation, the clock, and device operations. Sound playback and pending
+replacement both compute Studio's queue key in C89.
 Marcus caption compositing also uses C89. The renderer shares text-box
 visibility rules with Studio and keeps visible captions in presentation
 order across seeks. C owns mask sampling, workspace clipping, blending

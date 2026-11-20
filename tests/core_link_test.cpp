@@ -3,6 +3,7 @@
 // A real host supplies assertion reporting; no GUI/application replacements.
 #if defined(TEST_ENGINE_CORE)
 #include "soc_core.h"
+#include "handle_services.h"
 #include "actor_track_fixture.h"
 #elif defined(TEST_BRENDER_CORE)
 #include "bren_core.h"
@@ -2805,7 +2806,7 @@ static void TestSoundQueueIdentity()
                 LegacyLong object=static_cast<LegacyLong>(0x7abc0000u | id);
                 LegacyLong expected=(actor ? sqnActr : sqnBkgd) | (style << ksqnStyShift) | SwLow(object);
                 Check(mm_sound_queue_number(style,object,actor)==expected);
-                Check(SoundPlaybackQueue::QueueNumber(style,object,actor!=0)==expected);
+                Check(mm_sound_queue_number(style,object,actor!=0)==expected);
             }
 }
 static void TestActorSoundStorage()
@@ -3928,113 +3929,126 @@ static void TestSoundQueueOwnership()
     BASE *second = NewObj QueuedSoundToken(&deaths);
     BASE *third = NewObj QueuedSoundToken(&deaths);
     Check(first != pvNil && second != pvNil && third != pvNil);
-    SoundPlaybackQueue queue;
-    SoundPlaybackRequest request;
+    const auto init = [](MMFrameSoundQueue &queue) {
+#ifdef DEBUG
+        constexpr int trashUnused = 1;
+#else
+        constexpr int trashUnused = 0;
+#endif
+        return mm_frame_sound_queue_init(&queue, KauaiCopyAllocator(),
+            [](void *p) { static_cast<BASE *>(p)->AddRef(); },
+            [](void *p) { static_cast<BASE *>(p)->Release(); }, trashUnused);
+    };
+    MMFrameSoundQueue queue;
+    mm_frame_sound_queue_prepare(&queue);
+    MMFrameSoundRequest request = {};
     request.sound = first;
     request.style = stySfx;
-    request.objectId = 7;
+    request.object = 7;
     request.actor = true;
-    SoundPlaybackRequest output;
-    output.objectId = 99;
-    Check(!queue.FEnqueue(request) && first->CactRef() == 1);
-    Check(!queue.FDequeue(&output) && output.objectId == 99);
-    Check(queue.FInit() && queue.Dispatch() == SoundQueueDispatch::Empty);
-    Check(queue.FEnqueue(request) && queue.Count() == 1 && first->CactRef() == 2);
-    Check(queue.FInit() && queue.Count() == 1); // Initialization is idempotent.
+    MMFrameSoundRequest output = {};
+    output.object = 99;
+    Check(!mm_frame_sound_queue_enqueue(&queue, &request, 0) && first->CactRef() == 1);
+    Check(!mm_frame_sound_queue_dequeue(&queue, &output) && output.object == 99);
+    Check(init(queue) && mm_frame_sound_queue_dispatch(&queue) == MM_FRAME_SOUND_EMPTY);
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0) && queue.count == 1 && first->CactRef() == 2);
+    Check(init(queue) && queue.count == 1); // Initialization is idempotent.
     request.sound = second;
-    Check(queue.FEnqueue(request, true) && first->CactRef() == 2 && second->CactRef() == 1);
-    Check(queue.FEnqueue(request) && first->CactRef() == 1 && second->CactRef() == 2);
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 1) && first->CactRef() == 2 && second->CactRef() == 1);
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0) && first->CactRef() == 1 && second->CactRef() == 2);
     request.sound = first;
     request.style = stySpeech;
-    Check(queue.FEnqueue(request));
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0));
     request.sound = third;
     request.style = stySfx;
     request.actor = false;
-    Check(queue.FEnqueue(request));
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0));
     request.sound = first;
     request.actor = true;
-    request.queue = true;
-    Check(queue.FEnqueue(request));
+    request.queued = true;
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0));
     request.sound = third;
     request.style = styMidi;
-    request.objectId = 9;
+    request.object = 9;
     request.loop = true;
     request.volume = 123;
     request.priority = 6;
-    request.startOffset = 456;
-    Check(queue.FEnqueue(request, true) && queue.Count() == 5);
+    request.offset = 456;
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 1) && queue.count == 5);
     BASE *order[] = {third, second, first, third, first};
     for (LegacyLong index = 0; index < 5; ++index)
     {
         LegacyLong before = order[index]->CactRef();
-        Check(queue.FDequeue(&output) && output.sound == order[index]);
-        Check(output.sound->CactRef() == before); // The reference transfers, rather than being released.
+        Check(mm_frame_sound_queue_dequeue(&queue, &output) && output.sound == order[index]);
+        Check(static_cast<BASE *>(output.sound)->CactRef() == before); // The reference transfers, rather than being released.
         if (index == 0)
-            Check(output.style == styMidi && output.objectId == 9 && output.actor && output.queue && output.loop &&
-                  output.volume == 123 && output.priority == 6 && output.startOffset == 456);
-        ReleasePpo(&output.sound);
+            Check(output.style == styMidi && output.object == 9 && output.actor && output.queued && output.loop &&
+                  output.volume == 123 && output.priority == 6 && output.offset == 456);
+        queue.release(output.sound);
     }
     Check(first->CactRef() == 1 && second->CactRef() == 1 && third->CactRef() == 1);
-    request = SoundPlaybackRequest();
+    request = {};
     request.sound = first;
     request.style = stySfx;
-    request.queue = true;
-    Check(queue.FEnqueue(request));
+    request.queued = true;
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0));
     request.sound = second;
-    Check(queue.FEnqueue(request));
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0));
     request.sound = third;
-    request.queue = false;
-    Check(queue.FEnqueue(request) && second->CactRef() == 1 && queue.Count() == 2);
-    Check(queue.FDequeue(&output) && output.sound == first); // Replace the first stored match, not every match.
-    ReleasePpo(&output.sound);
-    Check(queue.FDequeue(&output) && output.sound == third);
-    ReleasePpo(&output.sound);
-    Check(queue.FEnqueue(request));
+    request.queued = false;
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0) && second->CactRef() == 1 && queue.count == 2);
+    Check(mm_frame_sound_queue_dequeue(&queue, &output) && output.sound == first); // Replace the first stored match, not every match.
+    queue.release(output.sound);
+    Check(mm_frame_sound_queue_dequeue(&queue, &output) && output.sound == third);
+    queue.release(output.sound);
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0));
     queue.duration = kdtimOffMsq;
     request.sound = first;
-    Check(queue.FEnqueue(request) && first->CactRef() == 1 && queue.Count() == 1);
-    Check(queue.Dispatch() == SoundQueueDispatch::Flush);
-    queue.Clear();
-    queue.Clear();
-    Check(third->CactRef() == 1 && queue.Dispatch() == SoundQueueDispatch::Empty);
-    LegacyLong interval = -99;
-    Check(queue.FTimeout(&interval) && interval == 0);
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0) && first->CactRef() == 1 && queue.count == 1);
+    Check(mm_frame_sound_queue_dispatch(&queue) == MM_FRAME_SOUND_FLUSH);
+    mm_frame_sound_queue_clear(&queue);
+    mm_frame_sound_queue_clear(&queue);
+    Check(third->CactRef() == 1 && mm_frame_sound_queue_dispatch(&queue) == MM_FRAME_SOUND_EMPTY);
+    MMI32 interval = -99;
+    Check(mm_frame_sound_queue_timeout(&queue, &interval) && interval == 0);
     queue.duration = kdtim2Msq;
-    Check(queue.FTimeout(&interval) && interval == kdtim2Msq);
-    Check(queue.FEnqueue(request) && queue.Dispatch() == SoundQueueDispatch::Play);
+    Check(mm_frame_sound_queue_timeout(&queue, &interval) && interval == kdtim2Msq);
+    Check(mm_frame_sound_queue_enqueue(&queue, &request, 0) && mm_frame_sound_queue_dispatch(&queue) == MM_FRAME_SOUND_PLAY);
     queue.duration = kdtimLongMsq;
     interval = -99;
-    Check(!queue.FTimeout(&interval) && interval == -99);
-    queue.Clear();
-    Check(SoundPlaybackQueue::QueueNumber(stySfx, 7, true) == 0x10020007);
-    Check(SoundPlaybackQueue::QueueNumber(stySpeech, 7, false) == 0x20030007);
-    Check(SoundPlaybackQueue::QueueNumber(stySfx, 0x18001, true) == static_cast<LegacyLong>(static_cast<short>(0x8001)));
+    Check(!mm_frame_sound_queue_timeout(&queue, &interval) && interval == -99);
+    mm_frame_sound_queue_clear(&queue);
+    Check(mm_sound_queue_number(stySfx, 7, true) == 0x10020007);
+    Check(mm_sound_queue_number(stySpeech, 7, false) == 0x20030007);
+    Check(mm_sound_queue_number(stySfx, 0x18001, true) == static_cast<LegacyLong>(static_cast<short>(0x8001)));
 
 #ifdef DEBUG
     {
-        SoundPlaybackQueue failed;
+        MMFrameSoundQueue failed;
+        mm_frame_sound_queue_prepare(&failed);
         vmutxMem.Enter();
-        vdmglob.dmaglBase.cactDo = 0;
-        vdmglob.dmaglBase.cactFail = 1;
+        vdmglob.dmaglPv.cactDo = 0;
+        vdmglob.dmaglPv.cactFail = 2;
         vmutxMem.Leave();
-        bool initialized = failed.FInit();
+        bool initialized = init(failed);
         vmutxMem.Enter();
-        vdmglob.dmaglBase.cactFail = 0;
+        vdmglob.dmaglPv.cactFail = 0;
         vmutxMem.Leave();
         vpers->Clear();
-        Check(!initialized && failed.Count() == 0 && failed.FInit());
+        Check(!initialized && failed.count == 0 && init(failed));
+        mm_frame_sound_queue_dispose(&failed);
     }
-    request.queue = true;
+    request.queued = true;
     bool observedFailure = false;
     for (LegacyLong attempt = 0; attempt < 128; ++attempt)
     {
-        LegacyLong count = queue.Count();
+        LegacyLong count = queue.count;
         LegacyLong refs = first->CactRef();
         vmutxMem.Enter();
         vdmglob.dmaglPv.cactDo = vdmglob.dmaglHq.cactDo = vdmglob.dmaglBase.cactDo = 0;
         vdmglob.dmaglPv.cactFail = vdmglob.dmaglHq.cactFail = vdmglob.dmaglBase.cactFail = 1000;
         vmutxMem.Leave();
-        bool enqueued = queue.FEnqueue(request);
+        bool enqueued = mm_frame_sound_queue_enqueue(&queue, &request, 0);
         vmutxMem.Enter();
         vdmglob.dmaglPv.cactFail = vdmglob.dmaglHq.cactFail = vdmglob.dmaglBase.cactFail = 0;
         vmutxMem.Leave();
@@ -4042,28 +4056,31 @@ static void TestSoundQueueOwnership()
         if (!enqueued)
         {
             observedFailure = true;
-            Check(queue.Count() == count && first->CactRef() == refs);
+            Check(queue.count == count && first->CactRef() == refs);
             break;
         }
     }
     Check(observedFailure);
-    queue.Clear();
+    mm_frame_sound_queue_clear(&queue);
 #endif
     ReleasePpo(&first);
     ReleasePpo(&second);
     ReleasePpo(&third);
     Check(deaths == 3);
     {
-        SoundPlaybackQueue owned;
-        Check(owned.FInit());
+        MMFrameSoundQueue owned;
+        mm_frame_sound_queue_prepare(&owned);
+        Check(init(owned));
         BASE *token = NewObj QueuedSoundToken(&deaths);
         Check(token != pvNil);
         request.sound = token;
-        Check(owned.FEnqueue(request));
+        Check(mm_frame_sound_queue_enqueue(&owned, &request, 0));
         ReleasePpo(&token);
         Check(deaths == 3); // Only the queue now owns the resource.
+        mm_frame_sound_queue_dispose(&owned);
     }
     Check(deaths == 4);
+    mm_frame_sound_queue_dispose(&queue);
 }
 
 struct PlaybackTrace

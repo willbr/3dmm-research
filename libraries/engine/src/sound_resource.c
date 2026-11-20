@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/sound_resource.h"
+#include "mm/actor_sound.h"
 #include "mm/block_io.h"
 #include "mm/midi.h"
 #include "mm/movie_session.h"
@@ -210,14 +211,18 @@ int mm_sound_invalidate(void *object, const MMSoundResourceServices *s)
     *owner.invalid = 1;
     return 1;
 }
-MMI32 mm_sound_class(MMI32 style,int loop) { return loop?(style==4?2:1):0; }
+MMI32 mm_sound_class(MMI32 style,int loop)
+{
+    return loop ? (style == MM_SOUND_STYLE_MUSIC ? MM_SOUND_CLASS_LOOP_MIDI : MM_SOUND_CLASS_LOOP_WAVE)
+                : MM_SOUND_CLASS_NONLOOP;
+}
 MMI32 mm_sound_priority(MMI32 style,int tool)
 { if (style==4) return 1; if (style==3) return tool==0?1:tool==2?5:3; if (style==2) return tool==0?2:tool==2?6:4; return 0; }
 void mm_sound_play(void *object,MMSoundLastMidi *last,MMI32 object_id,int loop,int queue,MMI32 volume,MMI32 priority,int actor,MMU32 start,const MMSoundResourceServices *s)
 {
     MMSoundOwner o; MMI32 number,sound_class,instance=0;
     s->owner(s->context,object,&o); if (*o.invalid) return;
-    number=s->queue_number(s->context,o.resource->style,object_id,actor); sound_class=mm_sound_class(o.resource->style,loop);
+    number=mm_sound_queue_number(o.resource->style,object_id,actor); sound_class=mm_sound_class(o.resource->style,loop);
     if (o.resource->style==4 && o.resource->type==last->type && o.resource->number==last->number && s->playing(s->context,last->instance)) return;
     if (!queue || *o.silent) s->stop(s->context,number);
     if (!*o.silent) instance=s->play(s->context,o.resource,number,volume,loop?2147483647L:1,start,priority,sound_class);

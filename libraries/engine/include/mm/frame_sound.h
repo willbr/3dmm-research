@@ -44,7 +44,9 @@ typedef struct MMFrameSoundQueue
     MMCollectionStorage storage;
     MMU32 count;
     void (*retain)(void *), (*release)(void *);
-    int trash_unused;
+    MMI32 duration;
+    int trash_unused, initialized;
+    void *clock;
 } MMFrameSoundQueue;
 enum
 {
@@ -52,6 +54,7 @@ enum
     MM_FRAME_SOUND_FLUSH,
     MM_FRAME_SOUND_PLAY,
     MM_FRAME_SOUND_OFF = 0,
+    MM_FRAME_SOUND_SHORT = MM_PLAYBACK_TICKS_PER_SECOND * 2 * 10 / 12,
     MM_FRAME_SOUND_LONG = 2147483647
 };
 
@@ -60,16 +63,45 @@ enum
  * legacy queue number determines conflicts for Studio, including its signed
  * low word. A low-priority nonqueued conflict is ignored, a normal
  * nonqueued conflict replaces the first stored match. Callbacks may not
- * reenter the queue. */
+ * reenter the queue. Prepare a fresh record before initializing storage.
+ * Initialization can be retried after failure and is idempotent on success. */
+void mm_frame_sound_queue_prepare(MMFrameSoundQueue *);
 int mm_frame_sound_queue_init(MMFrameSoundQueue *, const MMStorageAllocator *,
                               void (*retain)(void *), void (*release)(void *), int trash_unused);
 void mm_frame_sound_queue_dispose(MMFrameSoundQueue *);
-int mm_frame_sound_queue_enqueue(MMFrameSoundQueue *, const MMFrameSoundRequest *, MMI32 duration, int low);
+int mm_frame_sound_queue_enqueue(MMFrameSoundQueue *, const MMFrameSoundRequest *, int low);
 int mm_frame_sound_queue_dequeue(MMFrameSoundQueue *, MMFrameSoundRequest *);
 void mm_frame_sound_queue_clear(MMFrameSoundQueue *);
 const MMFrameSoundRequest *mm_frame_sound_queue_at(const MMFrameSoundQueue *, MMU32 index);
-int mm_frame_sound_queue_dispatch(const MMFrameSoundQueue *, MMI32 duration);
-int mm_frame_sound_queue_timeout(MMI32 duration, MMI32 *interval);
+int mm_frame_sound_queue_dispatch(const MMFrameSoundQueue *);
+int mm_frame_sound_queue_timeout(const MMFrameSoundQueue *, MMI32 *interval);
+
+typedef struct MMFrameSoundOutput
+{
+    void *context;
+    void *(*create_clock)(void *);
+    void (*release_clock)(void *, void *clock), (*start_clock)(void *, void *clock), (*stop_clock)(void *, void *clock);
+    int (*set_alarm)(void *, void *clock, MMI32 interval);
+    void (*begin)(void *), (*end)(void *);
+    void (*play)(void *, const MMFrameSoundRequest *);
+    void (*stop_class)(void *, MMI32 sound_class);
+    int (*playing_class)(void *, MMI32 sound_class);
+} MMFrameSoundOutput;
+/* The host creates a clock after storage is initialized. Failed open leaves
+ * the prepared queue safe to close. Close stops outputs, releases pending
+ * references and the clock, then disposes storage. Output callbacks may
+ * observe the queue but must not reenter it. Play and alarm handling require
+ * an open clock. Play submits one synchronized batch. A long batch preserves
+ * any existing preview alarm. */
+int mm_frame_sound_queue_open(MMFrameSoundQueue *, const MMStorageAllocator *,
+                              void (*retain)(void *), void (*release)(void *), int trash_unused,
+                              const MMFrameSoundOutput *);
+void mm_frame_sound_queue_close(MMFrameSoundQueue *, const MMFrameSoundOutput *);
+void mm_frame_sound_queue_play(MMFrameSoundQueue *, const MMFrameSoundOutput *);
+void mm_frame_sound_queue_stop(const MMFrameSoundQueue *, const MMFrameSoundOutput *);
+void mm_frame_sound_queue_alarm(const MMFrameSoundQueue *, const MMFrameSoundOutput *);
+int mm_frame_sound_playing(int loop, const MMFrameSoundOutput *);
+void mm_frame_sound_stop_classes(void *, void (*stop_class)(void *, MMI32));
 
 #ifdef __cplusplus
 }

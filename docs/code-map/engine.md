@@ -61,12 +61,12 @@ that embed `TAG`: `Costume`/`CostumeOnFile`, `Sound`/`SoundOnFile`. See
 | `tdf.cpp`     | `inc/tdf.h`      | `ThreeDTextFont` — 3D-text font definition (`TDF `).          |
 | `tdt.cpp`     | `inc/tdt.h`      | `ThreeDTextTemplate` — 3D-text template (`TDT `, geometry generated from a font + string). |
 
-## Sound (pending queue policy in `engine-core`; devices/import in `engine`)
+## Sound (C89 queue policy and native device bindings)
 
 | File          | Header           | Purpose                                                       |
 |---------------|------------------|---------------------------------------------------------------|
-| `sound_queue.cpp` | `inc/sound_queue.h` | Core pending-request ownership, ordering and preview-duration policy. |
-| `msnd.cpp`    | `inc/msnd.h`     | `MovieSoundMSND` (the `MSND` chunk wrapper) + `MovieSoundQueue` (a `CommandHandler` subclass driving timeline-aware playback). |
+| `libraries/engine/src/frame_sound.c` | `libraries/engine/include/mm/frame_sound.h` | Frame cue selection, pending-request ownership, synchronized dispatch, and preview timeout policy. |
+| `msnd.cpp`    | `inc/msnd.h`     | Native MSND resource, clock, and sound-device bindings. |
 | `srec.cpp`    | `inc/srec.h`     | Sound record/import — capture from microphone, import WAV.    |
 
 ## Asset / tag management (`engine-core`)

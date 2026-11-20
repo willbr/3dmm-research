@@ -3,6 +3,8 @@
 #ifndef SOUND_QUEUE_H
 #define SOUND_QUEUE_H
 #include "kauai_core.h"
+#include "mm/frame_sound.h"
+#include "mm/sound_resource.h"
 
 enum
 {
@@ -13,9 +15,9 @@ enum
     styMidi,
     styLim
 };
-const LegacyLong sclNonLoop = 0;
-const LegacyLong sclLoopWav = 1;
-const LegacyLong sclLoopMidi = 2;
+const LegacyLong sclNonLoop = MM_SOUND_CLASS_NONLOOP;
+const LegacyLong sclLoopWav = MM_SOUND_CLASS_LOOP_WAVE;
+const LegacyLong sclLoopMidi = MM_SOUND_CLASS_LOOP_MIDI;
 #define vlmNil (-1)
 enum
 {
@@ -24,61 +26,7 @@ enum
     sqnLim
 };
 const LegacyLong ksqnStyShift = 16;
-const LegacyLong kdtimOffMsq = 0;
-const LegacyLong kdtimLongMsq = klwMax;
-const LegacyLong kdtim2Msq = ((kdtimSecond * 2) * 10) / 12;
-
-// A backend-owned resource plus explicit immutable sound metadata. Enqueue
-// borrows sound and acquires a reference; successful dequeue transfers that
-// reference to the caller. Core never casts the resource to a playback type.
-struct SoundPlaybackRequest
-{
-    BASE *sound = pvNil;
-    LegacyLong style = styNil;
-    LegacyLong objectId = 0;
-    bool loop = false;
-    bool queue = false;
-    LegacyLong volume = 0;
-    LegacyLong priority = 0;
-    bool actor = false;
-    LegacyUlong startOffset = 0;
-};
-
-enum class SoundQueueDispatch
-{
-    Empty,
-    Flush,
-    Play
-};
-
-// Adapts the C89 pending queue to native resource references.
-// High-priority entries retain FIFO ordering; low-priority entries are pushed
-// onto the next-to-play end. Replacement removes the first matching queue.
-class SoundPlaybackQueue
-{
-  public:
-    LegacyLong duration = kdtim2Msq;
-    SoundPlaybackQueue() = default;
-    ~SoundPlaybackQueue();
-    SoundPlaybackQueue(const SoundPlaybackQueue &) = delete;
-    SoundPlaybackQueue &operator=(const SoundPlaybackQueue &) = delete;
-    bool FInit();
-    bool FEnqueue(const SoundPlaybackRequest &request, bool lowPriority = false);
-    bool FDequeue(SoundPlaybackRequest *request);
-    void Clear();
-    LegacyLong Count() const;
-    SoundQueueDispatch Dispatch() const;
-    // Query after draining a nonempty playing batch; zero is an immediate
-    // timeout, while long mode requests no new alarm (existing alarms remain).
-    bool FTimeout(LegacyLong *interval) const;
-    static LegacyLong QueueNumber(LegacyLong style, LegacyLong objectId, bool actor);
-#ifdef DEBUG
-    void AssertValid() const;
-    void MarkMem() const;
-#endif
-
-  private:
-    class Storage;
-    Storage *_entries = pvNil;
-};
+const LegacyLong kdtimOffMsq = MM_FRAME_SOUND_OFF;
+const LegacyLong kdtimLongMsq = MM_FRAME_SOUND_LONG;
+const LegacyLong kdtim2Msq = MM_FRAME_SOUND_SHORT;
 #endif

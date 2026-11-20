@@ -11,6 +11,7 @@ extern "C" {
 enum { MM_SOUND_TYPE=0x4d534e44, MM_SOUND_MIDI=0x4d494453, MM_SOUND_WAVE=0x57415645 };
 enum { MM_SOUND_HEADER_BYTES = 16 };
 enum { MM_SOUND_STYLE_EFFECT = 2, MM_SOUND_STYLE_SPEECH = 3, MM_SOUND_STYLE_MUSIC = 4 };
+enum { MM_SOUND_CLASS_NONLOOP, MM_SOUND_CLASS_LOOP_WAVE, MM_SOUND_CLASS_LOOP_MIDI };
 struct MMMovieSessionGraph;
 typedef struct MMSoundHeader
 {
@@ -56,7 +57,6 @@ typedef struct MMSoundResourceServices
     int (*put)(void *,void *file,MMU32 type,MMU32 number,const void *header);
     void (*delete_child)(void *,void *file,MMU32 type,MMU32 number,const MMChunkChild *);
     void (*bad_order)(void *);
-    MMI32 (*queue_number)(void *,MMI32 style,MMI32 object,int actor);
     int (*playing)(void *,MMI32 instance);
     void (*stop)(void *,MMI32 queue);
     MMI32 (*play)(void *,const MMSoundResource *,MMI32 queue,MMI32 volume,MMI32 repeat,MMU32 start,MMI32 priority,MMI32 sound_class);

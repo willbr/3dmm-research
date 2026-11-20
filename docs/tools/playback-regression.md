@@ -16857,3 +16857,35 @@ matched all 60 archived retail frame identities in seek and continuous
 playback and all retail seek camera indices. Both reproduced their 60
 previous seek canvas hashes. SDL matched all 12 archived retail sound
 requests. Evidence is in `tmp/c89-alarm-playback`.
+
+## Movie sound batch dispatch and preview clock in C89 (20 November 2026)
+
+Studio embeds the C89 queue, duration, and clock reference. C89 drains
+pending entries as a synchronized batch and orders short preview alarms,
+sound-class stops, and closure. Pending replacement and playback use the
+same signed-low-word queue key. C-only tests exercise failed clock
+creation, batched reference release, short and long playback, off-mode
+flush, failed alarm cleanup, and sound-class query order.
+
+All 192 standalone checks passed after rebuilding their executables.
+The four focused checks and core-link passed on SDL and native x64 and
+x86. Four focused AddressSanitizer checks and ten selected x64 checks
+passed, including Marcus sound editing, playback, and player. All 54
+traces, three saved movie fixtures, ten Preview fingerprints, and six
+Preview movies matched the previous build.
+
+Both Studio sound-composition fixtures retained the decoded archive and
+the source wave payload for each actor and frame cue slot. Studio's native
+authoring workflow saved the same movie byte for byte. The options workflow
+also passed the startup MIDI and playback timing checks.
+
+Retail, SDL, and Marcus matched all three retained-background frame
+identities, camera indices, and canvas hashes in `20261120T213116Z-efbaf084`.
+Both ports matched original v3dmm 0.14 on all three Studio-saved VMM
+frames in `20261120T213146Z-dee904b9`.
+
+In `actor-event-edit` suite `20261120T212923Z-d92556e5`, SDL and Marcus
+matched all 60 archived retail frame identities in seek and continuous
+playback and all retail seek camera indices. Both reproduced their 60
+previous seek canvas hashes. SDL matched all 12 archived retail sound
+requests. Evidence is in `tmp/c89-sound-queue-output`.

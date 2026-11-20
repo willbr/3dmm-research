@@ -7998,20 +7998,20 @@ frame once, rather than necessarily reaching the requested frame (for example,
 -5 toward -2 with first frame 1 leaves -4). The new controller preserves and
 checks that behavior; its correction is separate from this extraction.
 
-`SoundPlaybackQueue` now owns pending sound requests, their resource references,
-queue identity/replacement, mixed-priority ordering and preview-duration policy.
-It stores explicit sound metadata and a backend resource through BASE; it never
-casts that resource to a playback implementation. Enqueue acquires a reference,
-dequeue transfers it, and clear/destruction release pending requests. Queueing
-retains duplicate identities; nonqueued high-priority requests remove the first
-stored match, while low-priority conflicts are ignored. Legacy signed-low-word
-queue IDs and replacement-before-insertion failure behavior are retained.
+`MMFrameSoundQueue` owns the live Studio pending requests, resource references,
+preview duration, and clock reference. Enqueue acquires a reference, dequeue
+transfers it, and clear releases pending requests. Queued entries retain
+duplicate identities. A nonqueued high-priority request replaces the first
+stored match, while low-priority conflicts are ignored. Pending replacement
+and device playback use the same C89 signed-low-word queue key.
 
-Runtime MovieSoundQueue composes this core queue. It synchronizes and invokes
-MovieSoundMSND playback, owns the Clock, handles alarm failures and stops device
-sounds. Short mode requests a timeout after dispatch; long mode requests no new
-alarm and preserves any existing preview alarm. Off mode flushes pending requests
-without dispatch. StopAll retains pending requests, matching prior behavior.
+C89 opens the clock after reserving queue storage. It begins a synchronized
+batch, submits and releases each request, and ends the batch before scheduling
+a short preview alarm. Long mode preserves the existing preview alarm. Off
+mode only flushes pending requests. Alarm failure and StopAll stop the clock
+and movie sound classes, keeping any pending entries. Close additionally
+releases pending references, the clock, and then storage. `MovieSoundQueue`
+supplies native resource and clock operations and forwards timer commands.
 
 Core checks cover reference transfer/destruction, replacement, duplicate IDs,
 ordering, off/short/long decisions and allocation failures. Runtime checks use
@@ -8020,16 +8020,12 @@ drain ownership, preview alarm creation/retention, off-mode flushing and failed
 alarm allocation cleanup. They establish control flow and ownership without
 claiming audible output or device/backend coverage.
 
-`MoviePlaybackState` holds playback flags, pause/fade values, transition and
-frame/time counters. Movie composes it without moving view, scene, Clock or sound
-ownership. `MoviePlaybackEvaluator` now sequences each render callback through
-explicit queries/effects: fade, scroll/pause handling, presentation, sound/view
-flush, elapsed-time alarm, scene/frame advancement and rendering. Scene effects
-may update the borrowed pause state at their original points. Idle/tracking
-render eligibility is also shared core policy.
-
-The runtime adapter retains stop cleanup and sound/volume restoration. Core
-emits Stop; acknowledging that command alone does not perform those effects.
+`MMPlaybackState` holds playback flags, pause and fade values, the transition,
+and frame and time counters. `MMPlaybackEvaluator` sequences fade, scroll and
+pause handling, presentation, elapsed-time alarms, scene and frame advancement,
+and rendering. Scene effects may update the borrowed pause state during those
+operations. The clock controller in C89 coordinates idle and tracking eligibility,
+stop cleanup, and sound and volume restoration.
 Presentation and ordinary alarm failures request immediate cleanup; scene/frame
 advance failures request a deferred stop. The timed-pause alarm retains its
 legacy best-effort return handling. Integer fade steps and original alarm timing
@@ -8041,7 +8037,7 @@ failure policy, deferred stop, scene replay and fade completion. Runtime checks
 exercise the real idle/alarm-to-render handoff without invoking window rendering.
 These checks do not constitute an end-to-end test of the native view/stop cleanup.
 
-`MoviePlayEvaluator` now owns play-button/startup decisions: stop-request toggles,
+`MMPlayEvaluator` owns play-button startup decisions, including stop requests,
 missing scenes, end-of-movie rewind, sound-state/frame/time setup, startup failure
 policy, opening refresh and final dispatch. The runtime adapter starts/publishes
 the Clock before its first alarm, replays a scene before prerendering and performs

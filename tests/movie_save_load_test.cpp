@@ -20,6 +20,7 @@
 
 #include <vector>
 #include "soc.h"
+#include "handle_services.h"
 #include "engine_template_costumes.h"
 #include "engine_part_indices.h"
 #include "engine_action_tables_fixture.h"
@@ -2185,26 +2186,27 @@ class QueueTestAdapter : public MovieSoundQueue
     }
     bool FInit()
     {
-        if (!_queue.FInit())
-            return false;
-        _pclok = NewObj QueueTestClock();
-        return _pclok != pvNil;
+        auto output = _Output();
+        output.create_clock = [](void *) -> void * { return static_cast<PClock>(NewObj QueueTestClock()); };
+        return mm_frame_sound_queue_open(&_queue, KauaiCopyAllocator(),
+            [](void *p) { static_cast<BASE *>(p)->AddRef(); },
+            [](void *p) { static_cast<BASE *>(p)->Release(); }, 0, &output) != 0;
     }
     long Pending() const
     {
-        return _queue.Count();
+        return _queue.count;
     }
     long Alarms() const
     {
-        return ((QueueTestClock *)_pclok)->AlarmCount();
+        return static_cast<QueueTestClock *>(static_cast<PClock>(_queue.clock))->AlarmCount();
     }
     ulong FirstAlarm() const
     {
-        return ((QueueTestClock *)_pclok)->FirstAlarm();
+        return static_cast<QueueTestClock *>(static_cast<PClock>(_queue.clock))->FirstAlarm();
     }
-    bool Take(SoundPlaybackRequest *request)
+    bool Take(MMFrameSoundRequest *request)
     {
-        return _queue.FDequeue(request);
+        return mm_frame_sound_queue_dequeue(&_queue, request) != 0;
     }
 };
 
@@ -2213,17 +2215,18 @@ static bool TestSoundQueueRuntime()
     QueueTestAdapter *queue = NewObj QueueTestAdapter();
     QueueTestSound *sound = NewObj QueueTestSound(stySfx);
     QueueTestAdapter *failedAlarm = pvNil;
-    SoundPlaybackRequest request;
+    MMFrameSoundRequest request = {};
     ulong firstAlarm = 0;
     bool ok = false;
     if (queue == pvNil || sound == pvNil || !queue->FInit() || queue->DtimSnd() != kdtim2Msq)
         goto done;
     if (!queue->FEnqueue(sound, 37, true, false, 123, 5, true, 456) || sound->CactRef() != 2 || !queue->Take(&request))
         goto done;
-    if (request.sound != sound || request.style != stySfx || request.objectId != 37 || !request.actor ||
-        !request.loop || request.queue || request.volume != 123 || request.priority != 5 || request.startOffset != 456)
+    if (request.sound != static_cast<BASE *>(sound) || request.style != stySfx || request.object != 37 || !request.actor ||
+        !request.loop || request.queued || request.volume != 123 || request.priority != 5 || request.offset != 456)
         goto done;
-    ReleasePpo(&request.sound);
+    static_cast<BASE *>(request.sound)->Release();
+    request.sound = nullptr;
     if (sound->CactRef() != 1 || MovieSoundMSND::SqnActr(stySfx, 37) != 0x10020025)
         goto done;
     if (!queue->FEnqueue(sound, 37, false, false, 123, 5))
@@ -2265,7 +2268,8 @@ static bool TestSoundQueueRuntime()
 #endif
     ok = true;
 done:
-    ReleasePpo(&request.sound);
+    if (request.sound)
+        static_cast<BASE *>(request.sound)->Release();
     ReleasePpo(&failedAlarm);
     ReleasePpo(&queue);
     ReleasePpo(&sound);
@@ -2499,7 +2503,7 @@ int __cdecl main(int argc, char **argv)
     LOG("initializing vpcex (CommandExecutionManager) -- needed by Clock::Stop");
     /* vpcex is normally created by ApplicationBase::_FInit. Clock::Stop
      * (called transitively from MovieSoundQueue::~MovieSoundQueue ->
-     * StopAll -> _pclok->Stop) does vpcex->RemoveCmh(this, ...) so we
+     * StopAll -> Clock::Stop) does vpcex->RemoveCmh(this, ...) so we
      * have to provide a real CommandExecutionManager. */
     vpcex = CommandExecutionManager::PcexNew(20, 20);
     if (vpcex == pvNil)

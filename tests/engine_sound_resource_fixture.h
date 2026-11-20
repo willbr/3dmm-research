@@ -1,6 +1,7 @@
 #ifndef ENGINE_SOUND_RESOURCE_FIXTURE_H
 #define ENGINE_SOUND_RESOURCE_FIXTURE_H
 #include "mm/codec.h"
+#include "mm/actor_sound.h"
 class SoundResourceFixtureAccess : public MovieSoundMSND
 {
   public:
@@ -56,7 +57,7 @@ static bool TestSoundResourceDispatch()
         SoundResourceFixtureAccess::SetPlayback(sound,style,silent!=0,invalid!=0,number);
         sound->Play(-65537,loop!=0,queue!=0,123,6,actor!=0,0xffffffffUL);
         ok=manager->stops==(!invalid && (!queue || silent)) && manager->plays==(!invalid && !silent) && !manager->queries && sound->FValid()==!invalid;
-        if (manager->stops || manager->plays) ok=manager->queue==SoundPlaybackQueue::QueueNumber(style,-65537,actor!=0) && ok;
+        if (manager->stops || manager->plays) ok=manager->queue==mm_sound_queue_number(style,-65537,actor!=0) && ok;
         if (manager->plays) ok=manager->type==(style==styMidi?kctgMidi:kctgWave) && manager->number==number && manager->volume==123 && manager->repeat==(loop?klwMax:1) &&
             manager->start==0xffffffffUL && manager->priority==6 && manager->soundClass==(loop?(style==styMidi?sclLoopMidi:sclLoopWav):sclNonLoop) && ok;
         ok=sound->Scl(loop!=0)==(loop?(style==styMidi?sclLoopMidi:sclLoopWav):sclNonLoop) && ok;

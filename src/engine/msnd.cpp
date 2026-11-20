@@ -26,6 +26,8 @@
 #include "sdl_audio.h"
 #endif
 #include "soc.h"
+#include "handle_services.h"
+#include "mm/actor_sound.h"
 #include "engine_movie_graph.h"
 #include "engine_read_stream.h"
 #include "engine_sound_writer.h"
@@ -86,9 +88,6 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices()
         static_cast<PChunkyFile>(file)->DeleteChild(type, number, child->type, child->number);
     };
     s.bad_order = [](void *) { Assert(false, "bad MovieSoundFile"); };
-    s.queue_number = [](void *, MMI32 style, MMI32 object, int actor) -> MMI32 {
-        return SoundPlaybackQueue::QueueNumber(style, object, actor != 0);
-    };
     s.playing = [](void *, MMI32 instance) -> int { return vpsndm->FPlaying(instance); };
     s.stop = [](void *, MMI32 queue) { vpsndm->StopAll(queue, sclNil); };
     s.play = [](void *, const MMSoundResource *sound, MMI32 queue, MMI32 volume, MMI32 repeat,
@@ -404,7 +403,8 @@ MovieSoundMSND::~MovieSoundMSND(void)
 ***************************************************************************/
 long MovieSoundMSND::SqnActr(long sty, long objid)
 {
-    return SoundPlaybackQueue::QueueNumber(sty, objid, true);
+    AssertIn(sty, 0, styLim);
+    return mm_sound_queue_number(static_cast<MMI32>(sty), static_cast<MMI32>(objid), 1);
 }
 
 /***************************************************************************
@@ -416,7 +416,8 @@ long MovieSoundMSND::SqnActr(long sty, long objid)
 ***************************************************************************/
 long MovieSoundMSND::SqnBkgd(long sty, long objid)
 {
-    return SoundPlaybackQueue::QueueNumber(sty, objid, false);
+    AssertIn(sty, 0, styLim);
+    return mm_sound_queue_number(static_cast<MMI32>(sty), static_cast<MMI32>(objid), 0);
 }
 
 /***************************************************************************
@@ -446,130 +447,108 @@ void MovieSoundMSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long sp
     mm_sound_play(this, &last, objID, fLoop, fQueue, vlm, spr, fActr, dtsStart, &services);
 }
 
-/***************************************************************************
+static void StopMovieSoundClass(void *, MMI32 soundClass)
+{
+    vpsndm->StopAll(sqnNil, soundClass);
+}
 
-    New MovieSoundQueue
+void StopAllMovieSounds(void)
+{
+    mm_frame_sound_stop_classes(nullptr, StopMovieSoundClass);
+}
 
-***************************************************************************/
+MMFrameSoundOutput MovieSoundQueue::_Output()
+{
+    MMFrameSoundOutput output = {};
+    output.context = this;
+    output.create_clock = [](void *) -> void * { return NewObj Clock(khidMsqClock); };
+    output.release_clock = [](void *, void *clock) { static_cast<PClock>(clock)->Release(); };
+    output.start_clock = [](void *, void *clock) { static_cast<PClock>(clock)->Start(0); };
+    output.stop_clock = [](void *, void *clock) { static_cast<PClock>(clock)->Stop(); };
+    output.set_alarm = [](void *p, void *clock, MMI32 interval) -> int {
+        return static_cast<PClock>(clock)->FSetAlarm(interval, static_cast<PMovieSoundQueue>(p));
+    };
+    output.begin = [](void *) { vpsndm->BeginSynch(); };
+    output.end = [](void *) { vpsndm->EndSynch(); };
+    output.play = [](void *, const MMFrameSoundRequest *request) {
+        auto sound = static_cast<PMovieSoundMSND>(static_cast<BASE *>(request->sound));
+        sound->Play(request->object, request->loop != 0, request->queued != 0, request->volume, request->priority,
+                    request->actor != 0, request->offset);
+    };
+    output.stop_class = StopMovieSoundClass;
+    output.playing_class = [](void *, MMI32 soundClass) -> int { return vpsndm->FPlayingAll(sqnNil, soundClass); };
+    return output;
+}
+
 PMovieSoundQueue MovieSoundQueue::PmsqNew(void)
 {
-    PMovieSoundQueue pmsq;
-    if (pvNil == (pmsq = NewObj MovieSoundQueue(khidMsq)))
+    auto queue = NewObj MovieSoundQueue(khidMsq);
+    if (!queue)
         return pvNil;
-
-    if (!pmsq->_queue.FInit())
-    {
-        ReleasePpo(&pmsq);
-        return pvNil;
-    }
-
-    if (pvNil == (pmsq->_pclok = NewObj Clock(khidMsqClock)))
-    {
-        ReleasePpo(&pmsq);
-        return pvNil;
-    }
-
-    return pmsq;
+    const auto output = queue->_Output();
+#ifdef DEBUG
+    constexpr int trashUnused = 1;
+#else
+    constexpr int trashUnused = 0;
+#endif
+    if (!mm_frame_sound_queue_open(&queue->_queue, KauaiCopyAllocator(),
+                                   [](void *p) { static_cast<BASE *>(p)->AddRef(); },
+                                   [](void *p) { static_cast<BASE *>(p)->Release(); }, trashUnused, &output))
+        ReleasePpo(&queue);
+    return queue;
 }
 
-/***************************************************************************
-
-    Enqueue a sound	in the MovieSoundQueue.  Overwrites sounds of the same type.
-
-***************************************************************************/
-bool MovieSoundQueue::FEnqueue(PMovieSoundMSND pmsnd, long objID, bool fLoop, bool fQueue, long vlm, long spr,
-                               bool fActr, ulong dtsStart, bool fLowPri)
+bool MovieSoundQueue::FEnqueue(PMovieSoundMSND sound, long object, bool loop, bool queued, long volume, long priority,
+                               bool actor, ulong offset, bool lowPriority)
 {
     AssertThis(0);
-    AssertPo(pmsnd, 0);
-    SoundPlaybackRequest request;
-    request.sound = pmsnd;
-    request.style = pmsnd->Sty();
-    request.objectId = objID;
-    request.loop = fLoop;
-    request.queue = fQueue;
-    request.volume = vlm;
-    request.priority = spr;
-    request.actor = fActr;
-    request.startOffset = dtsStart;
-    return _queue.FEnqueue(request, fLowPri);
+    AssertPo(sound, 0);
+    const MMFrameSoundRequest request = {static_cast<BASE *>(sound), static_cast<MMI32>(sound->Sty()),
+        static_cast<MMI32>(object), static_cast<MMI32>(volume), static_cast<MMI32>(priority),
+        static_cast<MMU32>(offset), loop, queued, actor};
+    return mm_frame_sound_queue_enqueue(&_queue, &request, lowPriority) != 0;
 }
 
-/***************************************************************************
-
-    Dequeue and Play the MovieSoundQueue sounds
-    If _dtim == kdtimOff, empty the queue
-
-***************************************************************************/
 void MovieSoundQueue::PlayMsq(void)
 {
     AssertThis(0);
-    switch (_queue.Dispatch())
-    {
-    case SoundQueueDispatch::Empty:
-        return;
-    case SoundQueueDispatch::Flush:
-        _queue.Clear();
-        return;
-    case SoundQueueDispatch::Play:
-        break;
-    }
-    vpsndm->BeginSynch();
-    SoundPlaybackRequest request;
-    while (_queue.FDequeue(&request))
-    {
-        ((PMovieSoundMSND)request.sound)
-            ->Play(request.objectId, request.loop, request.queue, request.volume, request.priority, request.actor,
-                   request.startOffset);
-        ReleasePpo(&request.sound);
-    }
-    vpsndm->EndSynch();
-    LegacyLong interval;
-    if (_queue.FTimeout(&interval))
-    {
-        _pclok->Start(0);
-        if (!_pclok->FSetAlarm(interval, this))
-            StopAll();
-    }
+    const auto output = _Output();
+    mm_frame_sound_queue_play(&_queue, &output);
 }
 
-/***************************************************************************
-
-    Flush Queue	 -  without playing the sounds
-
-***************************************************************************/
 void MovieSoundQueue::FlushMsq(void)
 {
     AssertThis(0);
-    _queue.Clear();
+    mm_frame_sound_queue_clear(&_queue);
 }
 
-/***************************************************************************
+void MovieSoundQueue::StopAll(void)
+{
+    const auto output = _Output();
+    mm_frame_sound_queue_stop(&_queue, &output);
+}
 
-    FCmdAlarm - Timeout has elapsed.  Stop all sounds
+bool MovieSoundQueue::FPlaying(bool loop)
+{
+    AssertThis(0);
+    const auto output = _Output();
+    return mm_frame_sound_playing(loop, &output) != 0;
+}
 
-***************************************************************************/
 bool MovieSoundQueue::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-
-    _pclok->Stop();
-    StopAll();
-    return fTrue;
+    const auto output = _Output();
+    mm_frame_sound_queue_alarm(&_queue, &output);
+    return true;
 }
 
-/***************************************************************************
-
-    Clean up and delete this movie sound queue
-
-***************************************************************************/
 MovieSoundQueue::~MovieSoundQueue(void)
 {
     AssertBaseThis(0);
-    StopAll();
-    FlushMsq();
-    ReleasePpo(&_pclok);
+    const auto output = _Output();
+    mm_frame_sound_queue_close(&_queue, &output);
 }
 
 #ifdef DEBUG
@@ -600,8 +579,10 @@ void MovieSoundMSND::MarkMem(void)
 void MovieSoundQueue::AssertValid(LegacyUlong grf)
 {
     MovieSoundQueue_PAR::AssertValid(fobjAllocated);
-    _queue.AssertValid();
-    AssertPo(_pclok, 0);
+    Assert(_queue.initialized, "Invalid sound request storage");
+    Assert(_queue.count <= _queue.storage.buffers[0].capacity / sizeof(MMFrameSoundRequest),
+           "Invalid sound request count");
+    AssertPo(static_cast<PClock>(_queue.clock), 0);
 }
 
 /***************************************************************************
@@ -611,8 +592,10 @@ void MovieSoundQueue::MarkMem(void)
 {
     AssertThis(0);
     MovieSoundQueue_PAR::MarkMem();
-    _queue.MarkMem();
-    MarkMemObj(_pclok);
+    MarkPv(_queue.storage.buffers[0].data);
+    for (MMU32 index = 0; index < _queue.count; ++index)
+        MarkMemObj(static_cast<BASE *>(mm_frame_sound_queue_at(&_queue, index)->sound));
+    MarkMemObj(static_cast<PClock>(_queue.clock));
 }
 
 #endif // DEBUG

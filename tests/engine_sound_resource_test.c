@@ -131,8 +131,6 @@ static int put(void *p,void *f,MMU32 type,MMU32 n,const void *header)
 static void delete_child(void *p,void *f,MMU32 type,MMU32 n,const MMChunkChild *kid)
 { Context *c=(Context *)p; assert(p==f && type==0x1234 && n==37 && kid->number==19 && !c->object.invalid); ++c->deleted_child; }
 static void bad_order(void *p) { ++((Context *)p)->order; }
-static MMI32 queue_number(void *p,MMI32 style,MMI32 object,int actor)
-{ Context *c=(Context *)p; assert(style==c->object.resource.style); return object+(actor?100:200); }
 static int playing(void *p,MMI32 instance) { Context *c=(Context *)p; assert(instance==8); ++c->queries; return c->playing; }
 static void stop(void *p,MMI32 queue) { Context *c=(Context *)p; ++c->stopped; c->queue=queue; }
 static MMI32 play(void *p,const MMSoundResource *r,MMI32 queue,MMI32 volume,MMI32 repeat,MMU32 start,MMI32 priority,MMI32 sound_class)
@@ -149,7 +147,7 @@ static void initialize(Context *c)
     c->writer.add_child = add_child;
     c->writer.set_name = set_name;
     c->writer.delete_parent = delete_parent;
-    s->binding=binding; s->put=put; s->delete_child=delete_child; s->bad_order=bad_order; s->queue_number=queue_number; s->playing=playing; s->stop=stop; s->play=play;
+    s->binding=binding; s->put=put; s->delete_child=delete_child; s->bad_order=bad_order; s->playing=playing; s->stop=stop; s->play=play;
 }
 static void loads(void)
 {
@@ -279,9 +277,11 @@ static void playback(void)
     {
         initialize(&c); c.object.resource.style=style; c.object.silent=silent; c.object.invalid=(unsigned char)invalid;
         last.instance=8; last.type=33; last.number=34;
-        mm_sound_play(&c.object,&last,-1,loop,queue,123,6,actor,0xffffffffU,&c.services);
+        mm_sound_play(&c.object,&last,37,loop,queue,123,6,actor,0xffffffffU,&c.services);
         assert(c.stopped==(!invalid && (!queue || silent)) && c.plays==(!invalid && !silent) && !c.queries);
-        if (c.plays) assert(c.queue==(actor?99:199) && c.volume==123 && c.repeat==(loop?2147483647L:1) && c.priority==6 && c.start==0xffffffffU && c.sound_class==(loop?(style==4?2:1):0));
+        if (c.stopped || c.plays)
+            assert(c.queue == (actor ? 0x10000000L : 0x20000000L) + style * 0x10000L + 37);
+        if (c.plays) assert(c.volume==123 && c.repeat==(loop?2147483647L:1) && c.priority==6 && c.start==0xffffffffU && c.sound_class==(loop?(style==4?2:1):0));
         if (style==4 && !invalid) assert(last.instance==(silent?0:9) && last.type==17 && last.number==18); else assert(last.instance==8 && last.type==33 && last.number==34);
     }
     for (queue=0;queue<2;++queue)
