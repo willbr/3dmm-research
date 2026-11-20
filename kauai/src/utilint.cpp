@@ -15,6 +15,7 @@
 #include "util.h"
 
 #include <cmath>
+#include <exception>
 
 ASSERTNAME
 
@@ -1068,9 +1069,7 @@ void RAT::AssertValid(LegacyUlong grf)
 UniversalScalableApplicationClock::UniversalScalableApplicationClock(void)
 {
     AssertThisMem();
-    _tsBaseSys = TsCurrentSystem();
-    _tsBaseApp = 0;
-    _luScale = kluTimeScaleNormal;
+    mm_scaled_clock_init(&_clock, TsCurrentSystem());
 }
 
 /***************************************************************************
@@ -1079,16 +1078,7 @@ UniversalScalableApplicationClock::UniversalScalableApplicationClock(void)
 LegacyUlong UniversalScalableApplicationClock::TsCur(void)
 {
     AssertThisMem();
-    LegacyUlong dtsSys = TsCurrentSystem() - _tsBaseSys;
-
-    if (_luScale != kluTimeScaleNormal)
-    {
-        LegacyUlong luHigh;
-        MulLu(dtsSys, _luScale, &luHigh, &dtsSys);
-        dtsSys = LwHighLow(SuLow(luHigh), SuHigh(dtsSys));
-    }
-
-    return _tsBaseApp + dtsSys;
+    return mm_scaled_clock_time(&_clock, TsCurrentSystem());
 }
 
 /***************************************************************************
@@ -1097,23 +1087,21 @@ LegacyUlong UniversalScalableApplicationClock::TsCur(void)
 void UniversalScalableApplicationClock::Scale(LegacyUlong luScale)
 {
     AssertThisMem();
-    LegacyUlong tsSys, dts;
-
-    if (luScale == _luScale)
-        return;
-
-    // set the _tsBaseSys and _tsBaseApp to now and set _luScale to luScale.
-    tsSys = TsCurrentSystem();
-    dts = tsSys - _tsBaseSys;
-    if (_luScale != kluTimeScaleNormal)
-    {
-        LegacyUlong luHigh;
-        MulLu(dts, _luScale, &luHigh, &dts);
-        dts = LwHighLow(SuLow(luHigh), SuHigh(dts));
-    }
-    _tsBaseApp += dts;
-    _tsBaseSys = tsSys;
-    _luScale = luScale;
+    std::exception_ptr exception;
+    mm_scaled_clock_scale(&_clock, luScale, &exception, [](void *context, MMU32 *stamp) {
+        try
+        {
+            *stamp = TsCurrentSystem();
+            return 1;
+        }
+        catch (...)
+        {
+            *static_cast<std::exception_ptr *>(context) = std::current_exception();
+            return -1;
+        }
+    });
+    if (exception)
+        std::rethrow_exception(exception);
 }
 
 /***************************************************************************

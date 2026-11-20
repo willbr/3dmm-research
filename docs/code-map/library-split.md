@@ -6278,6 +6278,26 @@ removed; successful payloads retain their separate frozen trace. See
 `docs/tools/playback-regression.md` for host checks, retail comparisons and
 coverage limits. No Marcus UI tests were added.
 
+### Studio application time and alarm clocks
+
+`clock.c` owns the scalable application clock, the alarm clock registry and
+scheduled alarm storage. Application time retains wrapping 16.16 scaling and
+continuity across scale changes. Alarm clocks project milliseconds to 60 Hz
+ticks, keep pending alarms when restarted, and dispatch tied alarms newest
+first. Late dispatch retains the original clock-slip policy. Input resets,
+target removal and schedule changes made during dispatch also run in C89.
+Kauai supplies the system timestamp and allocator. Command delivery remains
+native and reports whether a direct callback destroyed the clock.
+
+`engine-clock-test` exercises the C89 clock without Kauai, including wraparound,
+allocation failure and a callback that frees the active clock. The deterministic
+Studio command trace matches the pre-conversion build byte for byte. SDL and
+Marcus replayed all 60 captured frames in retail order, and SDL matched the
+12 retail sound events for the same fixture. An authored 33-tick pause added
+about 531 ms in SDL and 562 ms in retail, measured against each build's ordinary
+frame interval. SDL's total time on the paused frame changed from 701 ms to
+702 ms across the conversion.
+
 ### Sound queues, mixing and streamed MIDI runtime
 
 `sound_manager.c` owns device dispatch, sound-class filtering, activation and

@@ -15,12 +15,13 @@
 ***************************************************************************/
 #ifndef UTILGLOB_H
 #define UTILGLOB_H
+#include "mm/clock.h"
 
 /***************************************************************************
     Universal scalable application clock and other time stuff
 ***************************************************************************/
-const LegacyUlong kdtsSecond = 1000;
-const LegacyUlong kluTimeScaleNormal = 0x00010000;
+const LegacyUlong kdtsSecond = MM_CLOCK_MILLISECONDS_PER_SECOND;
+const LegacyUlong kluTimeScaleNormal = MM_CLOCK_NORMAL_SCALE;
 
 typedef class UniversalScalableApplicationClock *PUniversalScalableApplicationClock;
 #define UniversalScalableApplicationClock_PAR BASE
@@ -30,9 +31,7 @@ class UniversalScalableApplicationClock : public UniversalScalableApplicationClo
     RTCLASS_DEC
 
   private:
-    LegacyUlong _tsBaseSys; // base system time
-    LegacyUlong _tsBaseApp; // base application time
-    LegacyUlong _luScale;
+    MMScaledClock _clock;
 
   public:
     UniversalScalableApplicationClock(void);
@@ -41,11 +40,11 @@ class UniversalScalableApplicationClock : public UniversalScalableApplicationClo
     void Scale(LegacyUlong luScale);
     LegacyUlong LuScale(void)
     {
-        return _luScale;
+        return _clock.scale;
     }
     void Jump(LegacyUlong dtsJump)
     {
-        _tsBaseApp += dtsJump;
+        mm_scaled_clock_jump(&_clock, dtsJump);
     }
 };
 

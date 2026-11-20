@@ -15,12 +15,13 @@
 ***************************************************************************/
 #ifndef CLOK_H
 #define CLOK_H
+#include "mm/clock.h"
 
 enum
 {
     fclokNil = 0,
-    fclokReset = 1,
-    fclokNoSlip = 2,
+    fclokReset = MM_CLOCK_RESET_ON_INPUT,
+    fclokNoSlip = MM_CLOCK_NO_SLIP,
 };
 
 typedef class Clock *PClock;
@@ -34,24 +35,9 @@ class Clock : public Clock_PAR
     CMD_MAP_DEC(Clock)
 
   protected:
-    // alarm descriptor
-    struct AlarmDescriptor
-    {
-        PCommandHandler pcmh;
-        LegacyUlong tim;
-        LegacyLong lw;
-    };
-
-    static PClock _pclokFirst;
-
-    PClock _pclokNext;
-    LegacyUlong _tsBase;
-    LegacyUlong _timBase;
-    LegacyUlong _timCur;    // current time
-    LegacyUlong _dtimAlarm; // processing alarms up to _timCur + _dtimAlarm
-    LegacyUlong _timNext;   // next alarm time to process (for speed)
-    LegacyUlong _grfclok;
-    PDynamicArray _pglalad; // the registered alarms
+    struct Host;
+    static MMAlarmClock *_clocks;
+    MMAlarmClock _clock;
 
   public:
     Clock(LegacyLong hid, LegacyUlong grfclok = fclokNil);
@@ -65,7 +51,7 @@ class Clock : public Clock_PAR
     LegacyUlong TimCur(bool fAdjustForDelay = fFalse);
     LegacyUlong DtimAlarm(void)
     {
-        return _dtimAlarm;
+        return _clock.alarm_delay;
     }
 
     bool FSetAlarm(LegacyLong dtim, PCommandHandler pcmhNotify = pvNil, LegacyLong lwUser = 0, bool fAdjustForDelay = fFalse);

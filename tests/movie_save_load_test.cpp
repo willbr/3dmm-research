@@ -2116,13 +2116,13 @@ class QueueTestClock : public Clock
     }
     long AlarmCount() const
     {
-        return _pglalad == pvNil ? 0 : _pglalad->IvMac();
+        return _clock.count;
     }
     ulong FirstAlarm() const
     {
-        AlarmDescriptor alarm;
-        _pglalad->Get(0, &alarm);
-        return alarm.tim;
+        MMClockAlarm alarm = {};
+        AssertDo(mm_alarm_clock_at(&_clock, 0, &alarm), "missing alarm");
+        return alarm.time;
     }
 };
 
@@ -2199,13 +2199,13 @@ static bool TestSoundQueueRuntime()
         goto done;
     {
         vmutxMem.Enter();
-        vdmglob.dmaglBase.cactDo = 0;
-        vdmglob.dmaglBase.cactFail = 1;
+        vdmglob.dmaglHq.cactDo = 0;
+        vdmglob.dmaglHq.cactFail = 2;
         vmutxMem.Leave();
-        failedAlarm->PlayMsq(); // Clock's first alarm-table allocation fails after the batch drains.
+        failedAlarm->PlayMsq(); // Fail both growth attempts for the first alarm after the batch drains.
         vmutxMem.Enter();
-        bool consumed = vdmglob.dmaglBase.cactFail == 0;
-        vdmglob.dmaglBase.cactFail = 0;
+        bool consumed = vdmglob.dmaglHq.cactFail == 0;
+        vdmglob.dmaglHq.cactFail = 0;
         vmutxMem.Leave();
         vpers->Clear();
         if (!consumed || failedAlarm->Alarms() != 0 || failedAlarm->Pending() != 0 || sound->CactRef() != 1)

@@ -73,9 +73,13 @@
 /* kauai-core consumer (Task 5 of cmd_core split): only needs the
    chunky/util runtime + the cmd_core seam (CommandHandler / CEM) +
    clok's own header. No frame.h -- kauai-core has no UI headers. */
+#include <exception>
+#include <new>
 #include "kauai_core.h"
 #include "cmd.h"
 #include "clok.h"
+#include "document_storage_host.h"
+#include "mm/wide.h"
 ASSERTNAME
 
 RTCLASS(Clock)
@@ -84,267 +88,142 @@ BEGIN_CMD_MAP_BASE(Clock)
 END_CMD_MAP(&Clock::FCmdAll, pvNil, kgrfcmmAll)
 
 const LegacyLong kcmhlClok = kswMin; // put clocks at the head of the list
-PClock Clock::_pclokFirst;
+MMAlarmClock *Clock::_clocks;
 
-/***************************************************************************
-    Constructor for the clock - just zeros the time.  fclokReset specifies
-    that this clock should reset itself to zero on key or mouse input.
-    fclokNoSlip specifies that the clok should not let time slip.
-***************************************************************************/
+static_assert(kdtimSecond == MM_CLOCK_TICKS_PER_SECOND, "native alarm clock tick rate changed");
+static const MMClockCommandIds kClockCommands = {cidAlarm, cidKey, cidTrackMouse, cidMouseMove, cidMinNoMenu};
+
+struct Clock::Host : DocumentStorageHost
+{
+    PClock clock;
+
+    // Delivery can destroy the clock before this adapter goes out of scope.
+    explicit Host(PClock owner) : DocumentStorageHost(nullptr), clock(owner) {}
+    MMClockServices Services() { return {this, Now, Deliver}; }
+
+    static int Now(void *context, MMU32 *stamp)
+    {
+        auto &host = *static_cast<Host *>(context);
+        return host.Guard([&] {
+            *stamp = TsCurrent();
+            return 1;
+        });
+    }
+
+    static int Deliver(void *context, MMI32 id, const MMClockAlarm *alarm)
+    {
+        auto &host = *static_cast<Host *>(context);
+        return host.Guard([&] {
+            Command cmd;
+            ClearPb(&cmd, size(Command));
+            cmd.cid = cidAlarm;
+            cmd.pcmh = static_cast<PCommandHandler>(alarm->target);
+            cmd.rglw[0] = id;
+            cmd.rglw[1] = mm_signed_word(alarm->time);
+            cmd.rglw[2] = alarm->value;
+            if (!cmd.pcmh)
+            {
+                vpcex->EnqueueCmd(&cmd);
+                return 1;
+            }
+
+            PClock clock = host.clock;
+            clock->AddRef();
+            Assert(clock->_references.count > 1, 0);
+            cmd.pcmh->FDoCmd(&cmd);
+            const bool alive = clock->_references.count != 1;
+            clock->Release();
+            if (alive)
+                AssertPo(clock, 0);
+            return alive ? 1 : 0;
+        });
+    }
+};
+
 Clock::Clock(LegacyLong hid, LegacyUlong grfclok) : CommandHandler(hid)
 {
-    _pclokNext = _pclokFirst;
-    _pclokFirst = this;
-    _timBase = _timCur = _dtimAlarm = 0;
-    _timNext = kluMax;
-    _tsBase = 0;
-    _grfclok = grfclok;
-    _pglalad = pvNil;
+#ifdef DEBUG
+    const int trash = 1;
+#else
+    const int trash = 0;
+#endif
+    const auto allocator = Group::CollectionAllocator();
+    AssertDo(mm_alarm_clock_init(&_clock, this, Hid(), grfclok, &allocator, trash), "invalid clock allocator");
+    mm_clock_register(&_clocks, &_clock);
     AssertThis(0);
 }
 
-/***************************************************************************
-    Destructor for a Clock - remove it from the linked list of clocks.
-***************************************************************************/
-Clock::~Clock(void)
+Clock::~Clock()
 {
-    PClock *ppclok;
-
-    for (ppclok = &_pclokFirst; *ppclok != pvNil && *ppclok != this; ppclok = &(*ppclok)->_pclokNext)
-    {
-    }
-    if (*ppclok == this)
-        *ppclok = _pclokNext;
-    else
-        Bug("clok not in linked list");
-
-    ReleasePpo(&_pglalad);
+    AssertDo(mm_clock_unregister(&_clocks, &_clock), "clok not in linked list");
+    DocumentStorageHost host(&_clock.alarms);
+    AssertDo(mm_alarm_clock_dispose(&_clock), "invalid clock storage");
+    host.Rethrow();
 }
 
-/***************************************************************************
-    Static method to find the first clok with the given id.
-***************************************************************************/
 PClock Clock::PclokFromHid(LegacyLong hid)
 {
-    PClock pclok;
-
-    for (pclok = _pclokFirst; pvNil != pclok; pclok = pclok->_pclokNext)
-    {
-        AssertPo(pclok, 0);
-        if (pclok->Hid() == hid)
-            break;
-    }
-    return pclok;
+    auto found = mm_clock_find(_clocks, hid);
+    auto clock = found ? static_cast<PClock>(found->owner) : nullptr;
+    AssertNilOrPo(clock, 0);
+    return clock;
 }
 
-/***************************************************************************
-    Static method to remove all references to the given CommandHandler from the clok
-    AlarmDescriptor lists.
-***************************************************************************/
 void Clock::BuryCmh(PCommandHandler pcmh)
 {
-    PClock pclok;
-
-    for (pclok = _pclokFirst; pvNil != pclok; pclok = pclok->_pclokNext)
-        pclok->RemoveCmh(pcmh);
+    mm_clock_bury_target(_clocks, pcmh);
 }
 
-/***************************************************************************
-    Remove any alarms set by the given CommandHandler.
-***************************************************************************/
 void Clock::RemoveCmh(PCommandHandler pcmh)
 {
     AssertThis(0);
-    AlarmDescriptor *qalad;
-    LegacyLong ialad;
-
-    if (pvNil == _pglalad)
-        return;
-
-    for (ialad = _pglalad->IvMac(); ialad-- > 0;)
-    {
-        qalad = (AlarmDescriptor *)_pglalad->QvGet(ialad);
-        if (qalad->pcmh == pcmh)
-            _pglalad->Delete(ialad);
-    }
+    mm_clock_remove_target(&_clock, pcmh);
 }
 
-/***************************************************************************
-    Start the clock.
-***************************************************************************/
 void Clock::Start(LegacyUlong tim)
 {
     AssertThis(0);
-    _timBase = _timCur = tim;
-    _dtimAlarm = 0;
-    _tsBase = TsCurrent();
+    Host host(this);
+    const auto services = host.Services();
+    mm_alarm_clock_start(&_clock, tim, &services);
+    host.Rethrow();
     vpcex->RemoveCmh(this, kcmhlClok);
     vpcex->FAddCmh(this, kcmhlClok, kgrfcmmAll);
 }
 
-/***************************************************************************
-    Stop the clock. The time will no longer advance on this clock.
-***************************************************************************/
-void Clock::Stop(void)
+void Clock::Stop()
 {
     AssertThis(0);
     vpcex->RemoveCmh(this, kcmhlClok);
 }
 
-/***************************************************************************
-    Return the current time. If fAdjustForDelay is true, the time is a more
-    accurate time, but is not synchronized to the alarms or to the command
-    stream. Normally, the clok's time is only updated when a command gets
-    processed by the command dispatcher. If fAdjustForDelay is false, the
-    last computed time value is returned, otherwise the time is computed
-    from the current application time.
-***************************************************************************/
 LegacyUlong Clock::TimCur(bool fAdjustForDelay)
 {
     AssertThis(0);
-
-    if (!fAdjustForDelay)
-        return _timCur;
-
-    return _timBase + LuMulDiv(TsCurrent() - _tsBase, kdtimSecond, kdtsSecond);
+    const MMU32 stamp = fAdjustForDelay ? TsCurrent() : 0;
+    return mm_alarm_clock_time(&_clock, fAdjustForDelay, stamp);
 }
 
-/***************************************************************************
-    Set an alarm for the given time and for the given command handler.
-    Alarms are sorted in _decreasing_ order.
-***************************************************************************/
 bool Clock::FSetAlarm(LegacyLong dtim, PCommandHandler pcmhNotify, LegacyLong lwUser, bool fAdjustForDelay)
 {
     AssertThis(0);
     AssertIn(dtim, 0, kcbMax);
     AssertNilOrPo(pcmhNotify, 0);
-    AlarmDescriptor alad;
-    AlarmDescriptor *qalad;
-    LegacyLong ialad, ialadMin, ialadLim;
-
-    alad.pcmh = pcmhNotify;
-    alad.tim = TimCur(fAdjustForDelay) + LwMax(dtim, 1);
-    alad.lw = lwUser;
-    if (pvNil == _pglalad && pvNil == (_pglalad = DynamicArray::PglNew(size(AlarmDescriptor), 1)))
-        return fFalse;
-    for (ialadMin = 0, ialadLim = _pglalad->IvMac(); ialadMin < ialadLim;)
-    {
-        ialad = (ialadMin + ialadLim) / 2;
-        qalad = (AlarmDescriptor *)_pglalad->QvGet(ialad);
-        if (qalad->tim < alad.tim)
-            ialadLim = ialad;
-        else
-            ialadMin = ialad + 1;
-    }
-    if (!_pglalad->FInsert(ialadMin, &alad))
-        return fFalse;
-    if (_timNext > alad.tim)
-        _timNext = alad.tim;
-    return fTrue;
+    const MMU32 stamp = fAdjustForDelay ? TsCurrent() : 0;
+    DocumentStorageHost host(&_clock.alarms);
+    const int scheduled = mm_alarm_clock_schedule(&_clock, dtim, pcmhNotify, lwUser, fAdjustForDelay, stamp);
+    host.Rethrow();
+    return scheduled != 0;
 }
 
-/***************************************************************************
-    Advance the clock and sound an alarm if one is due to go off.  This
-    actually gets called every time through the command loop.
-***************************************************************************/
 bool Clock::FCmdAll(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-
-    Command cmd;
-    LegacyLong ialad;
-    AlarmDescriptor alad;
-    LegacyUlong tsCur, timCur;
-
-    _dtimAlarm = 0;
-    if (pcmd->cid == cidAlarm)
-        return fFalse;
-
-    tsCur = TsCurrent();
-    timCur = _timBase + LuMulDiv(tsCur - _tsBase, kdtimSecond, kdtsSecond);
-
-    if (_grfclok & fclokReset)
-    {
-        switch (pcmd->cid)
-        {
-        case cidKey:
-        case cidTrackMouse:
-        case cidMouseMove:
-            goto LReset;
-        default:
-            if (pcmd->cid < cidMinNoMenu)
-            {
-            LReset:
-                _tsBase = tsCur;
-                _timBase = 0;
-                timCur = 0;
-            }
-            break;
-        }
-    }
-
-    if (timCur < _timNext)
-    {
-        // just update the time
-        _timCur = timCur;
-        return fFalse;
-    }
-
-    // sound any alarms
-    for (;;)
-    {
-        if (pvNil == _pglalad || 0 > (ialad = _pglalad->IvMac() - 1))
-        {
-            _timNext = kluMax;
-            break;
-        }
-        _pglalad->Get(ialad, &alad);
-        if (alad.tim > timCur)
-        {
-            _timNext = alad.tim;
-            break;
-        }
-        _pglalad->Delete(ialad);
-
-        // adjust the current time
-        _timCur = alad.tim;
-        _timNext = kluMax;
-        if (timCur > alad.tim && !(_grfclok & fclokNoSlip))
-        {
-            // we've slipped
-            timCur = _timBase = alad.tim;
-            _tsBase = tsCur;
-        }
-
-        // send the alarm
-        ClearPb(&cmd, size(Command));
-        cmd.cid = cidAlarm;
-        cmd.pcmh = alad.pcmh;
-        cmd.rglw[0] = Hid();
-        cmd.rglw[1] = alad.tim;
-        cmd.rglw[2] = alad.lw;
-
-        if (pvNil != alad.pcmh)
-        {
-            // tell the CommandHandler that the alarm went off
-            AddRef();
-            Assert(_references.count > 1, 0);
-            _dtimAlarm = timCur - _timCur;
-            alad.pcmh->FDoCmd(&cmd);
-            if (_references.count == 1)
-            {
-                Release();
-                return fFalse;
-            }
-            Release();
-            AssertThis(0);
-        }
-        else
-            vpcex->EnqueueCmd(&cmd);
-    }
-
-    _timCur = timCur;
+    Host host(this);
+    const auto services = host.Services();
+    mm_alarm_clock_dispatch(&_clock, pcmd->cid, &kClockCommands, &services);
+    host.Rethrow();
     return fFalse;
 }
 
@@ -355,9 +234,8 @@ bool Clock::FCmdAll(PCommand pcmd)
 void Clock::AssertValid(LegacyUlong grf)
 {
     Clock_PAR::AssertValid(0);
-    AssertNilOrPo(_pglalad, 0);
-    Assert(_timCur <= _timNext, "_timNext too small");
-    Assert((_grfclok & fclokNoSlip) || _dtimAlarm == 0, "_dtimAlarm should be 0");
+    Assert(_clock.current <= _clock.next_time, "_timNext too small");
+    Assert((_clock.flags & fclokNoSlip) || _clock.alarm_delay == 0, "_dtimAlarm should be 0");
 }
 
 /***************************************************************************
@@ -367,7 +245,7 @@ void Clock::MarkMem(void)
 {
     AssertValid(0);
     Clock_PAR::MarkMem();
-    MarkMemObj(_pglalad);
+    MarkPv(_clock.alarms.buffers[0].data);
 }
 
 /***************************************************************************
@@ -375,12 +253,11 @@ void Clock::MarkMem(void)
 ***************************************************************************/
 void Clock::MarkAllCloks(void)
 {
-    PClock pclok;
-
-    for (pclok = _pclokFirst; pvNil != pclok; pclok = pclok->_pclokNext)
+    for (auto clock = _clocks; clock; clock = clock->next)
     {
-        AssertPo(pclok, 0);
-        MarkMemObj(pclok);
+        auto owner = static_cast<PClock>(clock->owner);
+        AssertPo(owner, 0);
+        MarkMemObj(owner);
     }
 }
 #endif // DEBUG
