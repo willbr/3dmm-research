@@ -7,11 +7,12 @@ static void check(int ok, int line)
     if (!ok) { fprintf(stderr, "actor sound failed at %d\n", line); exit(1); }
 }
 #define CHECK(x) check((x), __LINE__)
-enum { COUNT = 1, RESOLVE, WRITE, FETCH, PRIORITY, ENQUEUE, RELEASE, DIAGNOSTIC, CUE };
+enum { COUNT = 1, RESOLVE, FETCH, PRIORITY, ENQUEUE, RELEASE, DIAGNOSTIC, CUE };
 typedef struct Host
 {
     int log[128], calls, refs, token, count, bad_count, missing, bad_resolve, bad_enqueue, bad_cue;
-    int kind, low, queued, written;
+    int kind, low, queued;
+    MMActorEventTable *events;
     MMActorSound saved;
 } Host;
 static void log_call(Host *h, int op) { CHECK(h->calls < 128); h->log[h->calls++] = op; }
@@ -28,14 +29,17 @@ static int resolve(void *p, MMTag *tag, MMU32 child)
     tag->number += 1000; tag->sid = 7;
     return !failed;
 }
-static void write_event(void *p, MMI32 i, const MMActorSound *s)
-{
-    Host *h = (Host *)p; CHECK(i == 3); log_call(h, WRITE); ++h->written; h->saved = *s;
-}
 static void diagnostic(void *p) { log_call((Host *)p, DIAGNOSTIC); }
 static void *fetch(void *p, const MMTag *tag)
 {
-    Host *h = (Host *)p; log_call(h, FETCH);
+    Host *h = (Host *)p;
+    MMActorSound stored;
+    if (h->events)
+    {
+        CHECK(mm_actor_events_get_payload(h->events, 1, &stored));
+        CHECK(stored.tag.sid == tag->sid && stored.tag.number == tag->number);
+    }
+    log_call(h, FETCH);
     if ((int)tag->number == h->missing) return NULL;
     ++h->refs; return &h->token;
 }
@@ -66,7 +70,7 @@ static MMActorSoundServices services(Host *h)
     MMActorSoundServices s;
     memset(h, 0, sizeof(*h)); h->count = 4; h->missing = h->bad_resolve = h->bad_enqueue = h->bad_cue = -1;
     memset(&s, 0, sizeof(s)); s.context = h; s.cel_count = cel_count; s.resolve = resolve;
-    s.write_event = write_event; s.resolution_failed = diagnostic; s.fetch = fetch;
+    s.resolution_failed = diagnostic; s.fetch = fetch;
     s.priority = priority; s.enqueue = enqueue; s.release = release; s.cue = cue;
     return s;
 }
@@ -145,47 +149,68 @@ static void storage_tests(void)
 static void ordinary_tests(void)
 {
     MMActorSounds list;
+    MMActorEventTable *events = mm_actor_events_create(NULL, 0, 0);
     MMActorEvent e = event();
-    MMActorSound s;
+    MMActorSound s = sound(-1, 1, 21), stored;
+    MMI32 step = 0;
     MMActorSoundServices callbacks;
     Host h;
     int imported, loop, failure, ok;
     const int direct[] = {FETCH, PRIORITY, ENQUEUE, RELEASE};
-    const int resolved[] = {RESOLVE, WRITE, FETCH, PRIORITY, ENQUEUE, RELEASE};
+    const int resolved[] = {RESOLVE, FETCH, PRIORITY, ENQUEUE, RELEASE};
     const int bad_resolution[] = {RESOLVE, DIAGNOSTIC};
-    CHECK(mm_actor_sounds_init(&list, NULL));
+    CHECK(events && mm_actor_sounds_init(&list, NULL));
+    e.aet = MM_ACTOR_STEP;
+    CHECK(mm_actor_events_insert(events, 0, sizeof(step), &step, &e));
+    e.aet = MM_ACTOR_SOUND;
+    CHECK(mm_actor_events_insert(events, 1, sizeof(s), &s, &e));
+    CHECK(mm_actor_events_insert(events, 2, sizeof(step), &step, &e));
+    callbacks = services(&h);
+    CHECK(!mm_actor_sound_event(&list, events, -1, &callbacks));
+    CHECK(!mm_actor_sound_event(&list, events, 0, &callbacks));
+    CHECK(!mm_actor_sound_event(&list, events, 2, &callbacks));
+    CHECK(!mm_actor_sound_event(&list, events, 3, &callbacks) && h.calls == 0 && list.count == 0);
     for (imported = 0; imported < 2; ++imported)
         for (loop = -1; loop < 2; ++loop)
             for (failure = 0; failure < 4; ++failure)
             {
                 callbacks = services(&h); s = sound(-1, 1, 21); s.loop = loop; s.tag.sid = imported ? 0 : 2;
+                h.events = events;
+                CHECK(mm_actor_events_set_payload(events, 1, &s));
                 if (failure == 1) h.bad_resolve = 21;
                 if (failure == 2) h.missing = imported ? 1021 : 21;
                 if (failure == 3) h.bad_enqueue = imported ? 1021 : 21;
-                ok = mm_actor_sound_event(&list, &e, &s, 3, &callbacks);
-                CHECK(ok == (failure == 0 || (failure == 1 && !imported)) && list.count == 0 && s.tag.number == 21);
+                ok = mm_actor_sound_event(&list, events, 1, &callbacks);
+                CHECK(ok == (failure == 0 || (failure == 1 && !imported)) && list.count == 0);
                 if (imported && failure == 1) expect(&h, bad_resolution, 2);
-                else if (failure == 2) expect(&h, imported ? resolved : direct, imported ? 3 : 1);
+                else if (failure == 2) expect(&h, imported ? resolved : direct, imported ? 2 : 1);
                 else
                 {
-                    expect(&h, imported ? resolved : direct, imported ? 6 : 4);
+                    expect(&h, imported ? resolved : direct, imported ? 5 : 4);
                     CHECK(h.kind == (loop ? MM_ACTOR_SOUND_LOOP : MM_ACTOR_SOUND_ORDINARY) && !h.low);
                 }
-                CHECK(h.written == (imported && failure != 1));
-                if (h.written) CHECK(h.saved.tag.sid == 7 && h.saved.tag.number == 1021);
+                CHECK(mm_actor_events_get_payload(events, 1, &stored));
+                if (imported && failure != 1)
+                    CHECK(stored.tag.sid == 7 && stored.tag.number == 1021);
+                else
+                    CHECK(stored.tag.sid == s.tag.sid && stored.tag.number == s.tag.number);
             }
     callbacks = services(&h); callbacks.cues_only = 1;
     callbacks.resolve = NULL; callbacks.fetch = NULL; callbacks.enqueue = NULL;
     s = sound(-1, 1, 21); s.tag.sid = 0;
-    CHECK(mm_actor_sound_event(&list, &e, &s, 3, &callbacks) && h.calls == 1 && h.log[0] == CUE && h.saved.tag.sid == 0);
-    h.bad_cue = 21; CHECK(!mm_actor_sound_event(&list, &e, &s, 3, &callbacks));
+    CHECK(mm_actor_events_set_payload(events, 1, &s));
+    CHECK(mm_actor_sound_event(&list, events, 1, &callbacks) && h.calls == 1 && h.log[0] == CUE && h.saved.tag.sid == 0);
+    h.bad_cue = 21; CHECK(!mm_actor_sound_event(&list, events, 1, &callbacks));
+    CHECK(mm_actor_events_get_payload(events, 1, &stored) && stored.tag.sid == 0 && stored.tag.number == 21);
     mm_actor_sounds_dispose(&list);
+    mm_actor_events_release(events);
 }
 static void motion_tests(void)
 {
     MMActorSounds list;
+    MMActorEventTable *events = mm_actor_events_create(NULL, 0, 0);
     MMActorEvent e = event();
-    MMActorSound s;
+    MMActorSound s = sound(2, 1, 21), stored;
     MMActorMotionSound record;
     MMActorSoundServices callbacks;
     Host h;
@@ -193,14 +218,17 @@ static void motion_tests(void)
     const int success[] = {COUNT, FETCH, PRIORITY, ENQUEUE, RELEASE, FETCH, PRIORITY, ENQUEUE, RELEASE};
     const int missing[] = {COUNT, FETCH, FETCH, PRIORITY, ENQUEUE, RELEASE};
     const int resolving[] = {COUNT, RESOLVE, FETCH, PRIORITY, ENQUEUE, RELEASE, RESOLVE, FETCH, PRIORITY, ENQUEUE, RELEASE};
+    CHECK(events && mm_actor_events_insert(events, 0, sizeof(s), &s, &e));
     for (imported = 0; imported < 2; ++imported)
         for (failure = 0; failure < 4; ++failure)
         {
             CHECK(mm_actor_sounds_init(&list, NULL)); callbacks = services(&h);
             s = sound(2, 1, 21); s.tag.sid = imported ? 0 : 2;
-            CHECK(mm_actor_sound_event(&list, &e, &s, 3, &callbacks));
+            CHECK(mm_actor_events_set_payload(events, 0, &s));
+            CHECK(mm_actor_sound_event(&list, events, 0, &callbacks));
             s.style = 2; s.tag.number = 22;
-            CHECK(mm_actor_sound_event(&list, &e, &s, 3, &callbacks) && h.calls == 0 && list.count == 2);
+            CHECK(mm_actor_events_set_payload(events, 0, &s));
+            CHECK(mm_actor_sound_event(&list, events, 0, &callbacks) && h.calls == 0 && list.count == 2);
             if (failure == 1) h.missing = imported ? 1021 : 21;
             if (failure == 2) h.bad_resolve = 21;
             if (failure == 3) h.bad_enqueue = imported ? 1021 : 21;
@@ -219,7 +247,8 @@ static void motion_tests(void)
                 expect(&h, partial, 8);
             }
             else if (failure != 1) expect(&h, imported ? resolving : success, imported ? 11 : 9);
-            CHECK(h.written == 0);
+            CHECK(mm_actor_events_get_payload(events, 0, &stored));
+            CHECK(stored.tag.sid == s.tag.sid && stored.tag.number == s.tag.number);
             if (failure == 1) CHECK(h.queued == 1);
             if (h.queued) CHECK(h.low && h.kind == MM_ACTOR_SOUND_MATCH);
             mm_actor_sounds_dispose(&list);
@@ -236,6 +265,7 @@ static void motion_tests(void)
     callbacks = services(&h); callbacks.cues_only = 1;
     CHECK(mm_actor_sound_motion(&list, 4, 10, &callbacks) && h.calls == 1);
     mm_actor_sounds_dispose(&list);
+    mm_actor_events_release(events);
 }
 int main(void)
 {

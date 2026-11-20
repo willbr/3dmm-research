@@ -612,14 +612,14 @@ void Actor(PChunkyFile file, ChunkNumber scene, ChunkNumber sound, PGeneralGroup
     std::int32_t frozen = 1;
     CHECK(mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()), sizeof(frozen), &frozen, &event));
     event.aet = ActorEvent::aetSnd;
-    ActorEvent::Sound cue = {};
-    cue.sty = stySfx;
-    cue.vlm = 0x10000;
-    cue.celn = 0;
-    cue.chid = 7;
+    MMActorSound cue = {};
+    cue.style = stySfx;
+    cue.volume = 0x10000;
+    cue.cel = 0;
+    cue.child = 7;
     cue.tag = {0, nullptr, kctgMsnd, sound + 123}; // Resolve imported sound through SCEN child 7.
     CHECK(mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()), sizeof(cue), &cue, &event));
-    cue.celn = ivNil;
+    cue.cel = ivNil;
     CHECK(mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()), sizeof(cue), &cue, &event));
     DataBlock block;
     CHECK(file->FAddChild(kctgActr, number, 0, mm_actor_path_wire_size(track.Route()), kctgPath, &child, &block));

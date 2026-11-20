@@ -346,6 +346,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   C-owned motion-list storage shared by Studio and Marcus. Replacement, cloning,
   imported-tag updates, priority choice and fetch/queue/release failure ordering
   execute in C; native resource/device implementations remain.
+- Studio and Marcus dispatch sound events directly from the C89 actor event
+  table. Ordinary playback resolves local tags and writes them back to the
+  table before fetching audio. Motion-match bindings borrow their tags from the
+  track. Studio sound edits use the existing C89 event editor to update rows,
+  and actor and scene sounds use the same typed movie tag resolver.
 - Sound setting/default insertion, volume edits, queries, deletions, frame sound
   detection and bulk tag-resolution policy now execute in C89. General event
   deletion also uses C for cursor updates and sound-indicator ordering. Native

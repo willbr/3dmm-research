@@ -39,14 +39,11 @@ static const int kPostponedActorCopy = 0;
 ***************************************************************************/
 MMActorCopyServices Actor::_CopyServices()
 {
-    static_assert(sizeof(Sound)==sizeof(MMActorSound),"Copy sound ABI");
     MMActorCopyServices s{};
     s.context = this;
     s.create = _CreateServices();
     s.resolve_sound=[](void *p,MMActorSound *value) {
-        Sound sound; std::memcpy(&sound,value,sizeof(sound));
-        bool ok=static_cast<Actor *>(p)->_Scene()->Pmvie()->FResolveSndTag(&sound.tag,sound.chid);
-        std::memcpy(value,&sound,sizeof(sound)); return int(ok);
+        return int(static_cast<Actor *>(p)->_Scene()->Pmvie()->FResolveSndTag(value->tag, value->child));
     };
     s.distance=[](void *,const MMActorPoint *v)->MMI32 { return BR_LENGTH3(v->dxr,v->dyr,v->dzr); };
     s.unknown_event=[](void *) { Bug("Unknown event type... Copy or Not?"); };
@@ -174,7 +171,7 @@ bool Actor::FPasteRte(PActor pactr)
 bool Actor::FPaste(long nfrm, Scene *pscen)
 {
     AssertThis(0);
-    static_assert(sizeof(Add)==sizeof(MMActorEntrance) && sizeof(Sound)==sizeof(MMActorSound),"Paste payload ABI");
+    static_assert(sizeof(Add)==sizeof(MMActorEntrance),"Paste payload ABI");
     static_assert(ksidUseCrf==0,"Paste document tag ABI");
     MMActorPasteServices s{};
     s.context = this;

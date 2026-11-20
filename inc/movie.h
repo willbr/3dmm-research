@@ -744,6 +744,8 @@ class Movie : public Movie_PAR
     bool FEnsureAutosave(PChunkyResourceFile *pcrf = pvNil);
     bool FCopyMsndFromPcfl(PChunkyFile pcfl, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
     bool FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil, PChunkyResourceFile pcrf = pvNil);
+    bool FResolveSndTag(MMTag &tag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil,
+                        PChunkyResourceFile pcrf = pvNil);
     bool FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid);
     void SetDocClosing(bool fClose)
     {

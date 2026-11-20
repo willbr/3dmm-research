@@ -203,14 +203,14 @@ static bool ActorAudioEvents(ActorTrack &track, PChunkyResourceFile resource, co
     for (int i = 0; i < 5; ++i)
     {
         ActorEvent::Base event = {ActorEvent::aetSnd, frames[i], {0, BR_SCALAR((frames[i] - 1) * 2), 0}};
-        ActorEvent::Sound sound = {};
-        sound.celn = cels[i];
-        sound.sty = cels[i] < 0 ? 3 : 2;
-        sound.vlm = volumes[i];
-        sound.fQueue = cels[i] < 0 ? tYes : tNo;
-        sound.chid = cels[i] < 0 ? 0 : 1;
-        sound.tag = {0, resource, kctgMsnd, sounds[sound.chid]};
-        TagManager::DupTag(&sound.tag);
+        MMActorSound sound = {};
+        sound.cel = cels[i];
+        sound.style = cels[i] < 0 ? 3 : 2;
+        sound.volume = volumes[i];
+        sound.queue = cels[i] < 0 ? tYes : tNo;
+        sound.child = cels[i] < 0 ? 0 : 1;
+        sound.tag = {0, resource, kctgMsnd, sounds[sound.child]};
+        mm_tag_dup(&sound.tag, &EngineActorTagServices());
         LegacyLong index = 0;
         for (; index < mm_actor_events_count(track.Events()); ++index)
         {
@@ -221,7 +221,7 @@ static bool ActorAudioEvents(ActorTrack &track, PChunkyResourceFile resource, co
         }
         if (!mm_actor_events_insert(track.Events(), index, sizeof(sound), &sound, &event))
         {
-            TagManager::CloseTag(&sound.tag);
+            mm_tag_close(&sound.tag, &EngineActorTagServices());
             return false;
         }
     }

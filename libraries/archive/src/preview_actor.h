@@ -30,7 +30,7 @@ class PreviewActor
     MMActorSounds motionSounds;
     std::uint64_t *visibilityClock = nullptr;
     mutable std::uint64_t lastShown = 0;
-    PreviewSoundCue SoundCue(const ActorEvent::Sound &sound) const;
+    PreviewSoundCue SoundCue(const MMActorSound &sound) const;
 
   public:
     PreviewActor()

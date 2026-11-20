@@ -15775,3 +15775,30 @@ In `actor-event-edit` suite `20261120T134115Z-10f2ab28`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## C89 actor sound event table (20 November 2026)
+
+Studio and Marcus dispatch actor cues directly from the C89 event table.
+Tests cover four-byte-aligned rows, invalid rows, ordinary tag write-back
+before resource fetch, and motion bindings that borrow the track's tags.
+Studio writes edited sound rows through the shared C89 event editor.
+Actor and scene sounds use the same movie tag resolver.
+
+All 35 x64 checks passed, with the movie save/reopen test passing on an
+isolated rerun after an actor copy fixture failed in the parallel run.
+The native and SDL Release save/reopen checks also passed with retail
+assets, and both saved archives matched their prior builds byte-for-byte.
+The native actor codec, track, sound storage, frame, timeline, seek, copy,
+event editing, sound editing, owner and undo traces matched. The SDL
+Release owner trace matched the retained SDL build. Thirteen standalone
+C89 checks and the four focused checks in each of x86 Debug and SDL
+Release passed. All ten Preview fingerprints and six fixture archives matched.
+
+Both VMM seek images in `20261120T135531Z-02557838` matched the retained
+SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-actor-sound-table`.
+
+In `actor-event-edit` suite `20261120T135531Z-a9befe60`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

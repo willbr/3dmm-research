@@ -111,10 +111,10 @@ int mm_actor_sounds_clone(MMActorSounds *destination, const MMActorSounds *sourc
     return 1;
 }
 enum { EMIT_OK, EMIT_MISSING, EMIT_FAILED };
-static int emit(MMActorSound *sound, MMI32 index, int motion, const MMActorSoundServices *s)
+static int emit(MMActorSound *sound, MMActorEventTable *events, MMI32 index, const MMActorSoundServices *s)
 {
     void *resource;
-    int kind, success;
+    int kind, success, motion = events == NULL;
     MMI32 priority;
     if (s->cues_only)
         return s->cue(s->context, sound) ? EMIT_OK : EMIT_FAILED;
@@ -126,8 +126,8 @@ static int emit(MMActorSound *sound, MMI32 index, int motion, const MMActorSound
                 s->resolution_failed(s->context);
             return EMIT_FAILED;
         }
-        if (!motion)
-            s->write_event(s->context, index, sound);
+        if (events && !mm_actor_events_set_payload(events, index, sound))
+            return EMIT_FAILED;
     }
     resource = s->fetch(s->context, &sound->tag);
     if (!resource)
@@ -138,14 +138,22 @@ static int emit(MMActorSound *sound, MMI32 index, int motion, const MMActorSound
     s->release(s->context, resource);
     return success ? EMIT_OK : EMIT_FAILED;
 }
-int mm_actor_sound_event(MMActorSounds *list, const MMActorEvent *event, const MMActorSound *sound,
-                               MMI32 index, const MMActorSoundServices *s)
+int mm_actor_sound_event(MMActorSounds *list, MMActorEventTable *events, MMI32 index,
+                         const MMActorSoundServices *s)
 {
-    MMActorSound copy;
-    if (sound->cel != -1)
-        return mm_actor_sounds_insert(list, event, sound);
-    copy = *sound;
-    return emit(&copy, index, 0, s) == EMIT_OK;
+    MMActorEvent event;
+    MMActorSound sound;
+    MMI32 bytes;
+    const void *payload;
+    if (!mm_actor_events_get_fixed(events, index, &event) || event.aet != MM_ACTOR_SOUND)
+        return 0;
+    payload = mm_actor_events_payload(events, index, &bytes);
+    if (!payload || bytes != (MMI32)sizeof(sound))
+        return 0;
+    memcpy(&sound, payload, sizeof(sound));
+    if (sound.cel != -1)
+        return mm_actor_sounds_insert(list, &event, &sound);
+    return emit(&sound, events, index, s) == EMIT_OK;
 }
 int mm_actor_sound_motion(MMActorSounds *list, MMI32 action, MMI32 cel,
                                 const MMActorSoundServices *s)
@@ -160,7 +168,7 @@ int mm_actor_sound_motion(MMActorSounds *list, MMI32 action, MMI32 cel,
     for (i = 0; i < list->count; ++i)
         if (records[i].sound.cel == frame)
         {
-            result = emit(&records[i].sound, -1, 1, s);
+            result = emit(&records[i].sound, NULL, -1, s);
             if (result == EMIT_FAILED)
                 return 0;
             if (result == EMIT_MISSING)

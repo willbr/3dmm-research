@@ -41,7 +41,6 @@ static void indicator(void *p)
 { Fixture *f=(Fixture *)p; ++f->indicator; CHECK(f->view.nextEvent==f->state.nextEvent); }
 static int cel_count(void *p, MMI32 action, MMI32 *out)
 { Fixture *f=(Fixture *)p; (void)action; *out=4; return ++f->calls!=f->fail_count; }
-static void write_sound(void *p, MMI32 i, const MMActorSound *sound) { ((Fixture *)p)->data[i].sound=*sound; }
 static void dirty(void *p) { ++((Fixture *)p)->dirty; }
 static void *query_new(void *p)
 { Fixture *f=(Fixture *)p; if (f->new_fail) return NULL; ++f->query_live; f->query_count=0; return f; }
@@ -107,7 +106,7 @@ static MMActorSoundEditServices init(Fixture *f)
     s.edits.tables.insert_event=insert_event; s.edits.tables.duplicate_event_tag=duplicate_tag;
     s.edits.tables.write_payload=write_payload; s.edits.tables.copy_payload=copy_payload; s.edits.apply_event=apply_event;
     s.edits.dirty=dirty; s.edits.get_range=get_range; s.edits.invalidate_range=invalidate;
-    s.write_sound=write_sound; s.dirty=dirty; s.query_new=query_new; s.query_add=query_add; s.query_release=query_release;
+    s.dirty=dirty; s.query_new=query_new; s.query_add=query_add; s.query_release=query_release;
     s.resolve_scene=resolve_scene; s.sound_info=info; s.edits.tables.reserve_events=reserve; s.sound_child=child;
     s.sounds_suppressed=suppressed; s.set_sound_frame=set_frame; s.midi_error=midi;
     s.default_sound=default_sound;

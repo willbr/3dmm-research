@@ -11,12 +11,9 @@
 ***************************************************************************/
 
 #include "soc.h"
-#include <cstring>
 #include "engine_actor_motion.h"
 
 ASSERTNAME
-
-using namespace ActorEvent;
 
 /***************************************************************************
 
@@ -70,7 +67,6 @@ MMActorSoundEditServices Actor::_SoundEditServices()
     s.context = this;
     s.runtime = _SoundServices();
     s.edits = _EventEditServices();
-    s.write_sound = s.runtime.write_event;
     s.dirty = [](void *p) { static_cast<Actor *>(p)->_Scene()->MarkDirty(); };
     s.query_new = [](void *) -> void * {
         auto tags = DynamicArray::PglNew(sizeof(TAG), kctagSndGrow);
@@ -78,15 +74,13 @@ MMActorSoundEditServices Actor::_SoundEditServices()
         return tags;
     };
     s.query_add = [](void *, void *query, const MMTag *value) {
-        TAG tag; std::memcpy(&tag, value, sizeof(tag));
+        TAG tag;
+        TagFromCore(&tag, *value);
         return int(static_cast<PDynamicArray>(query)->FAdd(&tag));
     };
     s.query_release = [](void *, void *query) { auto tags = static_cast<PDynamicArray>(query); ReleasePpo(&tags); };
     s.resolve_scene = [](void *p, MMTag *value, MMU32 child, MMU32 scene) {
-        TAG tag; std::memcpy(&tag, value, sizeof(tag));
-        bool ok = static_cast<Actor *>(p)->_Scene()->Pmvie()->FResolveSndTag(&tag, child, scene);
-        std::memcpy(value, &tag, sizeof(tag));
-        return int(ok);
+        return int(static_cast<Actor *>(p)->_Scene()->Pmvie()->FResolveSndTag(*value, child, scene));
     };
     s.sound_info = [](void *, void *resource, MMActorSoundInfo *info) {
         auto sound = static_cast<PMovieSoundMSND>(resource);
@@ -104,7 +98,7 @@ MMActorSoundEditServices Actor::_SoundEditServices()
         TAG tag; bool found = false;
         bool ok = static_cast<Actor *>(p)->_Template()->FGetSndActnCel(action, cel, &found, &tag);
         *exists = found;
-        if (ok && found) std::memcpy(value, &tag, sizeof(tag));
+        if (ok && found) *value = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
         return int(ok);
     };
     return s;
@@ -115,7 +109,7 @@ bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotio
     AssertVarMem(ptag);
     AssertIn(sty, 0, styLim);
     static_assert(styMidi == 4 && styNil == 0 && vlmNil == -1, "sound style ABI");
-    MMTag tag; std::memcpy(&tag, ptag, sizeof(tag));
+    const MMTag tag = {ptag->sid, ptag->pcrf, ptag->ctg, ptag->cno};
     auto state = EngineActorMotion::Core(_owner.runtime.state);
     const auto tables = EngineActorMotion::Services();
     const auto services = _SoundEditServices();
@@ -145,21 +139,12 @@ MMActorSoundServices Actor::_SoundServices()
         return int(ok);
     };
     services.resolve = [](void *context, MMTag *value, MMU32 child) {
-        TAG tag;
-        std::memcpy(&tag, value, sizeof(tag));
-        bool ok = static_cast<Actor *>(context)->_Scene()->Pmvie()->FResolveSndTag(&tag, child);
-        std::memcpy(value, &tag, sizeof(tag));
-        return int(ok);
-    };
-    services.write_event = [](void *context, MMI32 index, const MMActorSound *value) {
-        Sound sound;
-        std::memcpy(&sound, value, sizeof(sound));
-        mm_actor_events_set_payload(static_cast<Actor *>(context)->_owner.track.events, index, &sound);
+        return int(static_cast<Actor *>(context)->_Scene()->Pmvie()->FResolveSndTag(*value, child));
     };
     services.resolution_failed = [](void *) { Bug("Actrsnd: Expected to resolve snd tag"); };
     services.fetch = [](void *, const MMTag *value) -> void * {
         TAG tag;
-        std::memcpy(&tag, value, sizeof(tag));
+        TagFromCore(&tag, *value);
         return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
     };
     services.priority = [](void *, void *resource, int kind) -> MMI32 {
@@ -181,12 +166,8 @@ bool Actor::_FEnqueueSnd(long iaev)
 {
     AssertThis(0);
     AssertIn(iaev, 0, mm_actor_events_count(_owner.track.events));
-    MMActorEvent event;
-    MMActorSound sound;
-    mm_actor_events_get_fixed(_owner.track.events, iaev, &event);
-    mm_actor_events_get_payload(_owner.track.events, iaev, &sound);
     const auto services = _SoundServices();
-    return mm_actor_sound_event(&_owner.sounds, &event, &sound, iaev, &services) != 0;
+    return mm_actor_sound_event(&_owner.sounds, _owner.track.events, iaev, &services) != 0;
 }
 bool Actor::_FEnqueueSmmInMsq(void)
 {

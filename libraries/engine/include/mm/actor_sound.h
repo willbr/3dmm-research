@@ -2,8 +2,8 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_ACTOR_SOUND_H
 #define MM_ENGINE_ACTOR_SOUND_H
+#include "actor_events.h"
 #include "actor_motion.h"
-#include "collections.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -49,7 +49,6 @@ extern "C"
         int cues_only;
         int (*cel_count)(void *, MMI32 action, MMI32 *);
         int (*resolve)(void *, MMTag *, MMU32 child);
-        void (*write_event)(void *, MMI32 index, const MMActorSound *);
         void (*resolution_failed)(void *);
         void *(*fetch)(void *, const MMTag *);
         MMI32 (*priority)(void *, void *resource, int kind);
@@ -57,12 +56,12 @@ extern "C"
         void (*release)(void *, void *resource);
         int (*cue)(void *, const MMActorSound *);
     } MMActorSoundServices;
-    /* Callbacks cannot mutate/re-enter the list. Runtime mode resolves imported
+    /* Callbacks cannot mutate/re-enter the list or event table. Runtime mode resolves imported
      * sid-0 tags, writes ordinary events after successful resolution, then fetches,
      * enqueues and releases. Cues-only mode emits borrowed cues without fetching.
      * Motion bindings are stored without playing on the binding event. */
-    int mm_actor_sound_event(MMActorSounds *, const MMActorEvent *, const MMActorSound *,
-                                   MMI32 event_index, const MMActorSoundServices *);
+    int mm_actor_sound_event(MMActorSounds *, MMActorEventTable *, MMI32 event_index,
+                             const MMActorSoundServices *);
     /* Always queries cel count, even for an empty list. Positive count required.
      * Negative cels use the original signed remainder without normalization.
      * Missing resources mark failure but allow later matches. Resolution/enqueue

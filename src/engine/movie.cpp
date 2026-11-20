@@ -1253,9 +1253,18 @@ bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
  ****************************************************/
 bool Movie::FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen, PChunkyResourceFile pcrf)
 {
-    AssertThis(0); AssertVarMem(ptag); AssertNilOrVarMem(pcrf); const auto services=_SoundServices();
-    MMTag tag; std::memcpy(&tag,ptag,sizeof(tag)); bool ok=mm_movie_sound_resolve(&tag,chid,cnoScen,pcrf,&services)!=0;
-    std::memcpy(ptag,&tag,sizeof(tag)); return ok;
+    AssertVarMem(ptag);
+    MMTag tag = {ptag->sid, ptag->pcrf, ptag->ctg, ptag->cno};
+    const bool ok = FResolveSndTag(tag, chid, cnoScen, pcrf);
+    TagFromCore(ptag, tag);
+    return ok;
+}
+bool Movie::FResolveSndTag(MMTag &tag, ChildChunkID chid, ChunkNumber cnoScen, PChunkyResourceFile pcrf)
+{
+    AssertThis(0);
+    AssertNilOrVarMem(pcrf);
+    const auto services = _SoundServices();
+    return mm_movie_sound_resolve(&tag, chid, cnoScen, pcrf, &services) != 0;
 }
 bool Movie::FSaveTagSnd(TAG *ptag)
 {

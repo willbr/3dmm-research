@@ -75,15 +75,6 @@ static_assert(kctgActr == MM_SCENE_ACTOR_CHUNK, "Scene actor link type");
 // Scene event
 //
 
-static bool ResolveSceneSoundTag(PMovie movie, MMSceneSoundTag &value, ChunkNumber scene = cnoNil)
-{
-    TAG tag;
-    TagFromCore(&tag, value.tag);
-    const bool ok = movie->FResolveSndTag(&tag, value.child, scene);
-    value.tag = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
-    return ok;
-}
-
 MMSceneSoundPacketServices ScenePacketServices(PMovie movie)
 {
     MMSceneSoundPacketServices s = {};
@@ -98,7 +89,7 @@ MMSceneSoundPacketServices ScenePacketServices(PMovie movie)
         TagManager::DupTag(&tag);
     };
     s.resolve = [](void *p, MMSceneSoundTag *record) -> int {
-        return ResolveSceneSoundTag(static_cast<PMovie>(p), *record);
+        return static_cast<PMovie>(p)->FResolveSndTag(record->tag, record->child);
     };
     s.fetch = [](void *, const MMSceneSoundTag *record) -> void * {
         TAG tag;
@@ -2156,7 +2147,7 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
         return static_cast<PActor>(actor)->FResolveAllSndTags(scene);
     };
     s.resolve = [](void *p, MMSceneSoundTag *record, MMU32 scene) -> int {
-        return ResolveSceneSoundTag(static_cast<PScene>(p)->Pmvie(), *record, scene);
+        return static_cast<PScene>(p)->Pmvie()->FResolveSndTag(record->tag, record->child, scene);
     };
     return mm_scene_resolve_sounds(cnoScen, &s) != 0;
 }

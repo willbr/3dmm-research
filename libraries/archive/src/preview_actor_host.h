@@ -169,9 +169,7 @@ struct PreviewActor::Host
                 };
                 sound.cue = [](void *a, const MMActorSound *value) {
                     auto actor = static_cast<PreviewActor *>(a);
-                    ActorEvent::Sound native;
-                    std::memcpy(&native, value, sizeof(native));
-                    actor->sounds.push_back(actor->SoundCue(native));
+                    actor->sounds.push_back(actor->SoundCue(*value));
                     return 1;
                 };
                 return mm_actor_sound_motion(&h.actor->motionSounds, h.actor->core.state.action,

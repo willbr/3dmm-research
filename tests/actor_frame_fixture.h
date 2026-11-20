@@ -53,13 +53,13 @@ inline bool FCreateTrack(MMActorTrack &track, bool includeSounds = true)
         return false;
     if (includeSounds)
     {
-        ActorEvent::Sound sound = {};
+        MMActorSound sound = {};
         sound.tag.sid = ksidInvalid;
-        sound.celn = ivNil;
+        sound.cel = ivNil;
         location.dwrOffset = BR_SCALAR(2);
         if (!append(ActorEvent::aetSnd, 2, location, &sound, sizeof(sound)))
             return false;
-        sound.celn = 1;
+        sound.cel = 1;
         if (!append(ActorEvent::aetSnd, 2, location, &sound, sizeof(sound)))
             return false;
     }

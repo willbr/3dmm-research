@@ -13,7 +13,6 @@ typedef struct MMActorSoundEditServices
     void *context;
     MMActorSoundServices runtime;
     MMActorEditServices edits;
-    void (*write_sound)(void *, MMI32, const MMActorSound *);
     void (*dirty)(void *);
     void *(*query_new)(void *);
     int (*query_add)(void *, void *query, const MMTag *);

@@ -17,10 +17,8 @@ static_assert(sizeof(TAG) == sizeof(MMTag) && offsetof(TAG, sid) == offsetof(MMT
                   offsetof(TAG, cno) == offsetof(MMTag, number),
               "actor tag ABI");
 static_assert(sizeof(tribool) == 4 && sizeof(Costume) == sizeof(MMActorCostume) &&
-                  offsetof(Costume, tag) == offsetof(MMActorCostume, tag) && offsetof(Costume, fCmtl) == 8 &&
-                  sizeof(Sound) == sizeof(MMActorSound) &&
-                  offsetof(Sound, tag) == offsetof(MMActorSound, tag) && offsetof(Sound, chid) == 24,
-              "actor runtime payload ABI");
+                  offsetof(Costume, tag) == offsetof(MMActorCostume, tag) && offsetof(Costume, fCmtl) == 8,
+              "actor costume payload ABI");
 static_assert(sizeof(Base) == 20 && sizeof(RouteDistancePoint) == 16 && sizeof(RoutePoint) == 12 &&
                   sizeof(BMAT34) == 48 && sizeof(Add) == 20 && offsetof(Add, xa) == 12 && offsetof(Add, ya) == 14 &&
                   offsetof(Add, za) == 16 && sizeof(Action) == 8 && sizeof(Stretch) == 12,

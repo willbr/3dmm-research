@@ -489,22 +489,16 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
         }
         case MM_EFFECT_ENQUEUE_SOUND:
         {
-            MMActorEvent event;
-            MMActorSound sound;
-            mm_actor_events_get_fixed(host.track->events, command->first, &event);
-            mm_actor_events_get_payload(host.track->events, command->first, &sound);
             MMActorSoundServices services = {};
             services.context = &host;
             services.cues_only = 1;
             services.cue = [](void *context, const MMActorSound *value) {
                 auto &host = *static_cast<Host *>(context);
-                Sound sound;
-                std::memcpy(&sound, value, sizeof(sound));
                 if (host.actor->core.sound_display)
-                    host.cues->push_back(host.actor->SoundCue(sound));
+                    host.cues->push_back(host.actor->SoundCue(*value));
                 return 1;
             };
-            reply->success = mm_actor_sound_event(host.motion, &event, &sound, command->first, &services);
+            reply->success = mm_actor_sound_event(host.motion, host.track->events, command->first, &services);
             break;
         }
         }
@@ -516,13 +510,10 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
                                          metadataOnly, &tables, &effects) != 0;
     return success;
 }
-PreviewSoundCue PreviewActor::SoundCue(const Sound &sound) const
+PreviewSoundCue PreviewActor::SoundCue(const MMActorSound &sound) const
 {
-    MMActorSound value;
-    static_assert(sizeof(value) == sizeof(sound), "Preview actor sound layout");
-    std::memcpy(&value, &sound, sizeof(value));
     MMPreviewCue cue;
-    mm_preview_actor_cue(&cue, &value, core.state.frame, core.header.actor_id);
+    mm_preview_actor_cue(&cue, &sound, core.state.frame, core.header.actor_id);
     return PreviewCue(cue);
 }
 bool PreviewActor::Translate(const float delta[3])

@@ -2347,13 +2347,13 @@ static void TestActorPersistence()
     costume.tag.cno = 7;
     Check(mm_actor_events_insert(events, 0, sizeof(costume), &costume, &event));
     event.aet = ActorEvent::aetSnd;
-    ActorEvent::Sound sound = {};
-    sound.fQueue = tYes;
-    sound.vlm = 234;
-    sound.chid = 9;
+    MMActorSound sound = {};
+    sound.queue = tYes;
+    sound.volume = 234;
+    sound.child = 9;
     sound.tag.sid = 2;
-    sound.tag.ctg = kctgMsnd;
-    sound.tag.cno = 13;
+    sound.tag.type = kctgMsnd;
+    sound.tag.number = 13;
     Check(mm_actor_events_insert(events, 1, sizeof(sound), &sound, &event));
     event.aet = ActorEvent::aetAdd;
     ActorEvent::Add addition = {};
@@ -2402,7 +2402,7 @@ static void TestActorPersistence()
         auto decoded = ActorData::PeventsRead(&block);
         Check(decoded != pvNil && mm_actor_events_count(decoded) == 3);
         ActorEvent::Costume gotCostume;
-        ActorEvent::Sound gotSound;
+        MMActorSound gotSound;
         mm_actor_events_get_payload(decoded, 0, &gotCostume);
         mm_actor_events_get_payload(decoded, 1, &gotSound);
         ActorEvent::Add gotAdd;
@@ -2413,7 +2413,7 @@ static void TestActorPersistence()
         Check(gotAdd.dxr == addition.dxr && gotAdd.dyr == addition.dyr && gotAdd.dzr == addition.dzr);
         Check(gotAdd.xa == addition.xa && gotAdd.ya == addition.ya && gotAdd.za == addition.za);
         Check(gotCostume.cmid == 3 && gotCostume.tag.cno == 7 && gotCostume.tag.pcrf == pvNil);
-        Check(gotSound.vlm == 234 && gotSound.chid == 9 && gotSound.tag.cno == 13 && gotSound.tag.pcrf == pvNil);
+        Check(gotSound.volume == 234 && gotSound.child == 9 && gotSound.tag.number == 13 && gotSound.tag.cache == pvNil);
         mm_actor_events_release(decoded);
     }
     mm_actor_events_release(wire);
@@ -2427,7 +2427,7 @@ static void TestActorPersistence()
     // Every event kind, including ignored cache identity and mixed-width Add.
     events = mm_actor_events_create(nullptr, 0, 0); Check(events);
     const LegacyLong widths[] = {sizeof(ActorEvent::Add), sizeof(ActorEvent::Action), sizeof(ActorEvent::Costume),
-        sizeof(BMAT34), sizeof(ActorEvent::Stretch), 4, sizeof(ActorEvent::Sound), 12, 4, 12, 4, 0, sizeof(BMAT34)};
+        sizeof(BMAT34), sizeof(ActorEvent::Stretch), 4, sizeof(MMActorSound), 12, 4, 12, 4, 0, sizeof(BMAT34)};
     for (int kind = 0; kind < ActorEvent::aetLim; ++kind)
     {
         byte payload[64]; std::memset(payload, 0x31 + kind, sizeof(payload));
@@ -2439,7 +2439,7 @@ static void TestActorPersistence()
         }
         if (kind == ActorEvent::aetSnd)
         {
-            ActorEvent::Sound s = {}; s.fLoop = static_cast<tribool>(2); s.fQueue = tMaybe; s.vlm = -99; s.chid = 73;
+            MMActorSound s = {}; s.loop = static_cast<tribool>(2); s.queue = tMaybe; s.volume = -99; s.child = 73;
             s.tag = {1, reinterpret_cast<PChunkyResourceFile>(uintptr_t(1)), kctgMsnd, 41}; std::memcpy(payload, &s, sizeof(s));
         }
         Check(mm_actor_events_insert(events, kind, widths[kind], payload, &e));
@@ -2487,16 +2487,16 @@ static void TestActorTrackOwnership()
         Check(mm_actor_path_insert(source.Route(), 0, &point));
         ActorEvent::Base event = {};
         event.aet = ActorEvent::aetSnd;
-        ActorEvent::Sound sound = {};
+        MMActorSound sound = {};
         sound.tag.sid = ksidUseCrf;
-        sound.tag.ctg = kctgMsnd;
-        sound.tag.cno = 7;
-        sound.tag.pcrf = resource;
+        sound.tag.type = kctgMsnd;
+        sound.tag.number = 7;
+        sound.tag.cache = resource;
         Check(mm_actor_events_insert(source.Events(), 0, sizeof(sound), &sound, &event));
-        TagManager::DupTag(&sound.tag); // Reference transferred to the inserted row.
+        mm_tag_dup(&sound.tag, &EngineActorTagServices()); // Reference transferred to the inserted row.
         event.aet = ActorEvent::aetCost;
         ActorEvent::Costume costume = {};
-        costume.tag = sound.tag;
+        TagFromCore(&costume.tag, sound.tag);
         Check(mm_actor_events_insert(source.Events(), 1, sizeof(costume), &costume, &event));
         TagManager::DupTag(&costume.tag);
         // A custom costume has no TAG, even if its unused bytes resemble one.
@@ -2636,7 +2636,7 @@ static void TestActorRouteEvaluation()
     ActorEvent::Base event = {};
     event.aet = ActorEvent::aetSnd;
     event.rtel = {0, BR_SCALAR(1), 0};
-    ActorEvent::Sound sound = {};
+    MMActorSound sound = {};
     sound.tag.sid = ksidInvalid;
     Check(mm_actor_events_insert(track.Events(), 0, sizeof(sound), &sound, &event));
     event.aet = ActorEvent::aetStep;
@@ -2813,45 +2813,40 @@ static void TestActorSoundStorage()
     FILE *before = nullptr, *after = nullptr;
     if (const char *p = std::getenv("MM_ACTOR_SOUND_EXPECTED")) { before = std::fopen(p, "wb"); Check(before); }
     if (const char *p = std::getenv("MM_ACTOR_SOUND_SNAPSHOT")) { after = std::fopen(p, "wb"); Check(after); }
-    auto native = DynamicArray::PglNew(sizeof(ActorEvent::SoundMotionMatch), 2);
+    auto native = DynamicArray::PglNew(sizeof(MMActorMotionSound), 2);
     Check(native);
-    static_assert(sizeof(ActorEvent::SoundMotionMatch) == sizeof(MMActorMotionSound) &&
-                  offsetof(ActorEvent::SoundMotionMatch, aevsnd) == offsetof(MMActorMotionSound, sound),
-                  "actor motion sound ABI");
     MMActorSounds list;
     Check(mm_actor_sounds_init(&list, nullptr) && mm_actor_sounds_reserve(&list, MM_ACTOR_SOUND_GROW));
     MMU32 seed = 67119;
     auto next = [&]() { seed = seed * 1664525u + 1013904223u; return seed; };
-    auto fields = [](const ActorEvent::SoundMotionMatch &r, MMU32 *v) {
-        const MMU32 data[] = {static_cast<MMU32>(r.aev.aet), static_cast<MMU32>(r.aev.nfrm),
-            static_cast<MMU32>(r.aev.rtel.irpt), static_cast<MMU32>(r.aev.rtel.dwrOffset),
-            static_cast<MMU32>(r.aev.rtel.dnfrm), static_cast<MMU32>(r.aevsnd.fLoop),
-            static_cast<MMU32>(r.aevsnd.fQueue), static_cast<MMU32>(r.aevsnd.vlm),
-            static_cast<MMU32>(r.aevsnd.celn), static_cast<MMU32>(r.aevsnd.sty),
-            static_cast<MMU32>(r.aevsnd.fNoSound), r.aevsnd.chid, static_cast<MMU32>(r.aevsnd.tag.sid),
-            r.aevsnd.tag.pcrf != nullptr, r.aevsnd.tag.ctg, r.aevsnd.tag.cno};
+    auto fields = [](const MMActorMotionSound &r, MMU32 *v) {
+        const MMU32 data[] = {static_cast<MMU32>(r.event.aet), static_cast<MMU32>(r.event.nfrm),
+            static_cast<MMU32>(r.event.rtel.irpt), static_cast<MMU32>(r.event.rtel.dwrOffset),
+            static_cast<MMU32>(r.event.rtel.dnfrm), static_cast<MMU32>(r.sound.loop),
+            static_cast<MMU32>(r.sound.queue), static_cast<MMU32>(r.sound.volume),
+            static_cast<MMU32>(r.sound.cel), static_cast<MMU32>(r.sound.style),
+            static_cast<MMU32>(r.sound.no_sound), r.sound.child, static_cast<MMU32>(r.sound.tag.sid),
+            r.sound.tag.cache != nullptr, r.sound.tag.type, r.sound.tag.number};
         std::memcpy(v, data, sizeof(data));
     };
     for (int i = 0; i < 256; ++i)
     {
-        ActorEvent::SoundMotionMatch row = {};
-        row.aev.aet = ActorEvent::aetSnd; row.aev.nfrm = i; row.aev.rtel.dnfrm = i * 3;
-        row.aevsnd.celn = static_cast<int>(next() % 6); row.aevsnd.sty = static_cast<int>(next() % 4);
-        row.aevsnd.tag.sid = 2; row.aevsnd.tag.ctg = kctgMsnd; row.aevsnd.tag.cno = next();
-        row.aevsnd.vlm = static_cast<int>(next() % 1000); row.aevsnd.fLoop = static_cast<tribool>(i & 1);
-        row.aevsnd.fQueue = static_cast<tribool>((i >> 1) & 1); row.aevsnd.chid = i + 50;
+        MMActorMotionSound row = {};
+        row.event.aet = MM_ACTOR_SOUND; row.event.nfrm = i; row.event.rtel.dnfrm = i * 3;
+        row.sound.cel = static_cast<int>(next() % 6); row.sound.style = static_cast<int>(next() % 4);
+        row.sound.tag.sid = 2; row.sound.tag.type = kctgMsnd; row.sound.tag.number = next();
+        row.sound.volume = static_cast<int>(next() % 1000); row.sound.loop = static_cast<tribool>(i & 1);
+        row.sound.queue = static_cast<tribool>((i >> 1) & 1); row.sound.child = i + 50;
         // Retained DynamicArray implementation of _FInsertSmm is the oracle.
         LegacyLong replace = -1;
         for (LegacyLong j = 0; j < native->IvMac(); ++j)
         {
-            ActorEvent::SoundMotionMatch old;
+            MMActorMotionSound old;
             native->Get(j, &old);
-            if (old.aevsnd.celn == row.aevsnd.celn && old.aevsnd.sty == row.aevsnd.sty) { replace = j; break; }
+            if (old.sound.cel == row.sound.cel && old.sound.style == row.sound.style) { replace = j; break; }
         }
         if (replace >= 0) native->Put(replace, &row); else Check(native->FAdd(&row));
-        MMActorMotionSound input;
-        std::memcpy(&input, &row, sizeof(input));
-        Check(mm_actor_sounds_insert(&list, &input.event, &input.sound));
+        Check(mm_actor_sounds_insert(&list, &row.event, &row.sound));
         if (i % 13 == 0 && native->IvMac()) { native->Delete(0); Check(mm_actor_sounds_delete(&list, 0)); }
         if (i % 17 == 0)
         {
@@ -2869,11 +2864,9 @@ static void TestActorSoundStorage()
         if (after) Check(std::fwrite(&count, 1, sizeof(count), after) == sizeof(count));
         for (MMU32 j = 0; j < list.count; ++j)
         {
-            ActorEvent::SoundMotionMatch a, b;
-            MMActorMotionSound value;
+            MMActorMotionSound a, b;
             native->Get(j, &a);
-            Check(mm_actor_sounds_get(&list, j, &value));
-            std::memcpy(&b, &value, sizeof(b));
+            Check(mm_actor_sounds_get(&list, j, &b));
             MMU32 expected[16], actual[16]; fields(a, expected); fields(b, actual);
             Check(!std::memcmp(expected, actual, sizeof(actual)));
             if (before) Check(std::fwrite(expected, 1, sizeof(expected), before) == sizeof(expected));
@@ -3260,9 +3253,9 @@ struct CoreFrameHost
                 state.onStage = false;
                 break;
             case ActorEvent::aetSnd: {
-                ActorEvent::Sound sound;
+                MMActorSound sound;
                 mm_actor_events_get_payload(track.Events(), command.eventIndex, &sound);
-                if (sound.celn == ivNil)
+                if (sound.cel == ivNil)
                     ++trace.ordinarySounds;
                 else
                     ++trace.motionRegistrations;
@@ -3472,9 +3465,9 @@ static void TestActorFrameSequencing()
     RoutePoint delta = {rOne, rZero, rZero};
     Check(mm_actor_events_insert(failures.Events(), 1, sizeof(delta), &delta, &event));
     event.aet = ActorEvent::aetSnd;
-    ActorEvent::Sound sound = {};
+    MMActorSound sound = {};
     sound.tag.sid = ksidInvalid;
-    sound.celn = ivNil;
+    sound.cel = ivNil;
     Check(mm_actor_events_insert(failures.Events(), 2, sizeof(sound), &sound, &event));
     state = ActorFrameState();
     state.frame = 2;

@@ -318,9 +318,9 @@ class TrackTestActor : public Actor
         if (!FGotoFrame(2)) return false;
         if (mode&2) { _Hide(); if (_Body()) { _Body()->Release(); _owner.runtime.body = nullptr; } }
         Base soundEvent={aetSnd,100,{2,rZero,5}};
-        Sound sound={}; TagFromCore(&sound.tag, _owner.runtime.template_tag); sound.tag.ctg=kctgMsnd;
+        MMActorSound sound={}; sound.tag = _owner.runtime.template_tag; sound.tag.type=kctgMsnd;
         if (!mm_actor_events_insert(_owner.track.events, mm_actor_events_count(_owner.track.events),sizeof(sound),&sound,&soundEvent)) return false;
-        TagManager::DupTag(&sound.tag);
+        mm_tag_dup(&sound.tag, &EngineActorTagServices());
         _owner.runtime.life_dirty=(mode&8)!=0; _owner.runtime.prerendered=(mode&32)!=0; _owner.runtime.time_frozen=true;
         _owner.runtime.recording.recording=(mode&4)!=0; _owner.runtime.recording.rejoining=(mode&16)!=0; _owner.runtime.recording.inserted=true;
         _owner.runtime.recording.insertion={1,123,4}; _owner.runtime.recording.timestamp=0xfffffff0UL; _owner.runtime.recording.gap=-17; _owner.runtime.recording.raw={11,-22,33};
@@ -368,7 +368,7 @@ class TrackTestActor : public Actor
             Base event; mm_actor_events_get_fixed(_owner.track.events, i,&event); LegacyLong bytes=mm_actor_events_size(_owner.track.events, i);
             if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_owner.track.events, i,payload);
             if (event.aet==aetSnd)
-            { Sound clean; std::memcpy(&clean,payload,sizeof(clean)); clean.tag.pcrf=nullptr; std::memcpy(payload,&clean,sizeof(clean)); }
+            { MMActorSound clean; std::memcpy(&clean,payload,sizeof(clean)); clean.tag.cache=nullptr; std::memcpy(payload,&clean,sizeof(clean)); }
             saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
         }
         return saved;
@@ -389,11 +389,11 @@ class TrackTestActor : public Actor
         if (!(mm_array_add(&track.Route()->rows, &point, nullptr) == MM_STORAGE_OK) || !mm_actor_events_insert(track.Events(), 0,sizeof(entrance),&entrance,&event)) return false;
         for (int i=0;i<3;++i)
         {
-            Sound sound={}; sound.celn=-1; sound.vlm=100; sound.sty=2; sound.chid=55;
+            MMActorSound sound={}; sound.cel=-1; sound.volume=100; sound.style=2; sound.child=55;
             sound.tag={((mode&2) && i==2)?1:ksidUseCrf,source,kctgMsnd,((mode&1) && i<2)?999999:soundNumber};
-            TagManager::DupTag(&sound.tag); event={aetSnd,2+i,{0,rZero,i}};
+            mm_tag_dup(&sound.tag, &EngineActorTagServices()); event={aetSnd,2+i,{0,rZero,i}};
             if (!mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(sound),&sound,&event))
-            { TagManager::CloseTag(&sound.tag); return false; }
+            { mm_tag_close(&sound.tag, &EngineActorTagServices()); return false; }
         }
         mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds); _owner.runtime.state=ActorFrameState();
         _owner.runtime.state.frame=3; _owner.runtime.state.nextEvent=3; _owner.runtime.state.firstEventInFrame=2; _owner.runtime.state.actionEvent=1; _owner.runtime.state.addEvent=0;
@@ -412,9 +412,9 @@ class TrackTestActor : public Actor
         for (long i=0;ok && i<mm_actor_events_count(_owner.track.events);++i)
         {
             Base header; mm_actor_events_get_fixed(_owner.track.events, i,&header); LegacyLong bytes=mm_actor_events_size(_owner.track.events, i);
-            unsigned char payload[sizeof(Sound)]={}; mm_actor_events_get_payload(_owner.track.events, i,payload);
+            unsigned char payload[sizeof(MMActorSound)]={}; mm_actor_events_get_payload(_owner.track.events, i,payload);
             if (i==0) payload[18]=payload[19]=0;
-            else { Sound sound; std::memcpy(&sound,payload,sizeof(sound)); sound.tag.pcrf=nullptr; std::memcpy(payload,&sound,sizeof(sound)); }
+            else { MMActorSound sound; std::memcpy(&sound,payload,sizeof(sound)); sound.tag.cache=nullptr; std::memcpy(payload,&sound,sizeof(sound)); }
             ok=record(&header,sizeof(header)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
         }
         return ok;
@@ -438,7 +438,7 @@ class TrackTestActor : public Actor
         }
         auto append=[&](int kind,int frame,int node) {
             Base event={kind,frame,{node,rZero,0}};
-            union { Add add; Action action; Costume costume; Sound sound; int32_t scalar; } data;
+            union { Add add; Action action; Costume costume; MMActorSound sound; int32_t scalar; } data;
             std::memset(&data,0,sizeof(data)); int bytes=4;
             switch (kind)
             {
@@ -447,12 +447,12 @@ class TrackTestActor : public Actor
             case aetSize: case aetStep: data.scalar=rOne; break;
             case aetCost: bytes=sizeof(Costume); data.costume.ibset=0; data.costume.fCmtl=tNo;
                 data.costume.tag={ksidUseCrf,resource,kctgMtrl,material}; TagManager::DupTag(&data.costume.tag); break;
-            case aetSnd: bytes=sizeof(Sound); data.sound.celn=-1; data.sound.sty=2; data.sound.vlm=100;
-                data.sound.tag={ksidUseCrf,resource,kctgMsnd,soundNumber}; TagManager::DupTag(&data.sound.tag); break;
+            case aetSnd: bytes=sizeof(MMActorSound); data.sound.cel=-1; data.sound.style=2; data.sound.volume=100;
+                data.sound.tag={ksidUseCrf,resource,kctgMsnd,soundNumber}; mm_tag_dup(&data.sound.tag, &EngineActorTagServices()); break;
             }
             if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&data,&event)) return true;
             if (kind==aetCost) TagManager::CloseTag(&data.costume.tag);
-            if (kind==aetSnd) TagManager::CloseTag(&data.sound.tag);
+            if (kind==aetSnd) mm_tag_close(&data.sound.tag, &EngineActorTagServices());
             return false;
         };
         bool ok=append(aetAdd,1,0) && append(aetActn,1,0) && append(aetStep,2,0) && append(aetSize,2,0) &&
@@ -486,7 +486,7 @@ class TrackTestActor : public Actor
             if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_owner.track.events, i,payload);
             if (event.aet==aetAdd) payload[18]=payload[19]=0;
             if (event.aet==aetCost) { Costume value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
-            if (event.aet==aetSnd) { Sound value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
+            if (event.aet==aetSnd) { MMActorSound value; std::memcpy(&value,payload,sizeof(value)); value.tag.cache=nullptr; std::memcpy(payload,&value,sizeof(value)); }
             saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
         }
         return saved;
@@ -507,7 +507,7 @@ class TrackTestActor : public Actor
         }
         auto append=[&](int kind,int frame,int node,int scalar=0) {
             Base event={kind,frame,{node,rZero,0}};
-            union { Add add; Action action; Costume costume; Sound sound; RoutePoint point; BMAT34 matrix; int32_t scalar; } data={};
+            union { Add add; Action action; Costume costume; MMActorSound sound; RoutePoint point; BMAT34 matrix; int32_t scalar; } data={};
             int bytes=4;
             switch (kind)
             {
@@ -515,16 +515,16 @@ class TrackTestActor : public Actor
             case aetActn: bytes=sizeof(Action); data.action={0,0}; break;
             case aetCost: bytes=sizeof(Costume); data.costume.ibset=0; data.costume.fCmtl=tNo;
                 data.costume.tag={ksidUseCrf,resource,kctgMtrl,materialNumber}; TagManager::DupTag(&data.costume.tag); break;
-            case aetSnd: bytes=sizeof(Sound); data.sound.celn=scalar; data.sound.sty=2; data.sound.vlm=100;
-                data.sound.chid=mode>=256?999999:child; data.sound.tag={ksidUseCrf,resource,kctgMsnd,soundNumber};
-                TagManager::DupTag(&data.sound.tag); break;
+            case aetSnd: bytes=sizeof(MMActorSound); data.sound.cel=scalar; data.sound.style=2; data.sound.volume=100;
+                data.sound.child=mode>=256?999999:child; data.sound.tag={ksidUseCrf,resource,kctgMsnd,soundNumber};
+                mm_tag_dup(&data.sound.tag, &EngineActorTagServices()); break;
             case aetRotF: case aetRotH: bytes=sizeof(BMAT34); BrMatrix34Identity(&data.matrix); break;
             case aetPull: case aetMove: case aetTweak: bytes=sizeof(RoutePoint); data.point={rOne,rOne,rOne}; break;
             case aetRem: bytes=0; break;
             default: data.scalar=scalar; break;
             }
             if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&data,&event)) return true;
-            if (kind==aetSnd) TagManager::CloseTag(&data.sound.tag);
+            if (kind==aetSnd) mm_tag_close(&data.sound.tag, &EngineActorTagServices());
             if (kind==aetCost) TagManager::CloseTag(&data.costume.tag);
             return false;
         };
@@ -576,7 +576,7 @@ class TrackTestActor : public Actor
                 Base event; mm_actor_events_get_fixed(track.events, i,&event); LegacyLong bytes=mm_actor_events_size(track.events, i);
                 if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(track.events, i,payload);
                 if (event.aet==aetAdd) payload[18]=payload[19]=0;
-                if (event.aet==aetSnd) { Sound value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
+                if (event.aet==aetSnd) { MMActorSound value; std::memcpy(&value,payload,sizeof(value)); value.tag.cache=nullptr; std::memcpy(payload,&value,sizeof(value)); }
                 if (event.aet==aetCost) { Costume value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
                 if (!record(&event,sizeof(event)) || !record(&bytes,sizeof(bytes)) || !record(payload,bytes)) return false;
             }
@@ -891,7 +891,7 @@ class TrackTestActor : public Actor
         }
         auto append=[&](int kind,int frame,int node,int offset,int hold,int scalar=0) {
             Base event={kind,frame,{node,BR_SCALAR(offset),hold}};
-            union { Add add; Action action; Costume costume; Sound sound; RoutePoint point; BMAT34 matrix; int32_t scalar; } data={};
+            union { Add add; Action action; Costume costume; MMActorSound sound; RoutePoint point; BMAT34 matrix; int32_t scalar; } data={};
             int bytes=4;
             switch (kind)
             {
@@ -901,7 +901,7 @@ class TrackTestActor : public Actor
                 bytes=sizeof(Costume); data.costume.ibset=0; data.costume.cmid=scalar; data.costume.fCmtl=owningCopy?tNo:tYes;
                 if (owningCopy) { data.costume.tag={ksidUseCrf,resource,kctgMtrl,materialNumber}; TagManager::DupTag(&data.costume.tag); }
                 break;
-            case aetSnd: bytes=sizeof(Sound); data.sound.celn=-1; data.sound.sty=2; data.sound.vlm=100; data.sound.tag={2,pvNil,kctgMsnd,0}; break;
+            case aetSnd: bytes=sizeof(MMActorSound); data.sound.cel=-1; data.sound.style=2; data.sound.volume=100; data.sound.tag={2,pvNil,kctgMsnd,0}; break;
             case aetRotF: case aetRotH: bytes=sizeof(BMAT34); BrMatrix34Identity(&data.matrix); data.matrix.m[3][0]=BR_SCALAR(2); break;
             case aetTweak: case aetPull: bytes=sizeof(RoutePoint); data.point={BR_SCALAR(2),rOne,rOne}; break;
             default: data.scalar=scalar; break;
@@ -985,7 +985,7 @@ class TrackTestActor : public Actor
             if (event.aet==aetCost)
             { Costume c; mm_actor_events_get_payload(_owner.track.events, i,&c); LegacyLong fields[]={c.ibset,c.cmid,c.fCmtl}; saved=saved && record(fields,sizeof(fields)); }
             else if (event.aet==aetSnd)
-            { Sound s; mm_actor_events_get_payload(_owner.track.events, i,&s); LegacyLong fields[]={s.celn,s.sty,s.vlm,s.tag.sid}; saved=saved && record(fields,sizeof(fields)); }
+            { MMActorSound s; mm_actor_events_get_payload(_owner.track.events, i,&s); LegacyLong fields[]={s.cel,s.style,s.volume,s.tag.sid}; saved=saved && record(fields,sizeof(fields)); }
             else { if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_owner.track.events, i,payload); saved=saved && record(payload,bytes); }
         }
         _Body()->Hide(); if (_Body()) { _Body()->Release(); _owner.runtime.body = nullptr; } mm_actor_track_dispose(&_owner.track, &EngineActorTagServices());
@@ -1279,7 +1279,7 @@ class TrackTestActor : public Actor
         RouteDistancePoint points[]={{{rZero,rZero,rZero},BR_SCALAR(10)},{{BR_SCALAR(10),rZero,rZero},rZero}};
         if (!mm_actor_path_insert(created.Route(), 0,&points[0]) || !mm_actor_path_insert(created.Route(), 1,&points[1])) return false;
         union Payload { ActorEvent::Add add; ActorEvent::Action action; ActorEvent::Costume costume;
-            ActorEvent::Sound sound; BMAT34 matrix; RoutePoint move; int32_t scalar; } value;
+            MMActorSound sound; BMAT34 matrix; RoutePoint move; int32_t scalar; } value;
         auto fill=[&](int kind,int seed) {
             std::memset(&value,0,sizeof(value));
             switch (kind)
@@ -1290,7 +1290,7 @@ class TrackTestActor : public Actor
                 value.costume.ibset=1; value.costume.tag={2,pvNil,kctgMtrl,static_cast<ChunkNumber>(seed)};
                 return int(sizeof(value.costume));
             case ActorEvent::aetSnd:
-                value.sound.celn=seed; value.sound.sty=2; value.sound.vlm=100+seed;
+                value.sound.cel=seed; value.sound.style=2; value.sound.volume=100+seed;
                 value.sound.tag={2,pvNil,kctgMsnd,static_cast<ChunkNumber>(seed)};
                 return int(sizeof(value.sound));
             case ActorEvent::aetRotH: case ActorEvent::aetRotF:
@@ -1317,8 +1317,8 @@ class TrackTestActor : public Actor
         if (!add(ActorEvent::aetAdd,0,1,0) || !add(oldKind,1,(mode==26 || mode==29) ? 3 : 4,0)) return false;
         if (mode==30 && !add(ActorEvent::aetRotH,1,4,0)) return false;
         if (!add(newKind,2,4,mode<26 ? mode%2 : 0)) return false;
-        if (mode==31) { value.sound.fQueue=tYes; mm_actor_events_set_payload(created.Events(), 2,&value.sound); }
-        if (mode==32 || mode==33) { value.sound.sty=3; mm_actor_events_set_payload(created.Events(), 2,&value.sound); }
+        if (mode==31) { value.sound.queue=tYes; mm_actor_events_set_payload(created.Events(), 2,&value.sound); }
+        if (mode==32 || mode==33) { value.sound.style=3; mm_actor_events_set_payload(created.Events(), 2,&value.sound); }
         if (mode==34) { value.costume.ibset=2; mm_actor_events_set_payload(created.Events(), 2,&value.costume); }
         if (mode==35)
         {
@@ -1370,8 +1370,8 @@ class TrackTestActor : public Actor
             ActorEvent::Base event; mm_actor_events_get_fixed(_owner.track.events, i,&event); saved=saved && record(&event,sizeof(event));
             if (event.aet==ActorEvent::aetSnd)
             {
-                ActorEvent::Sound sound; mm_actor_events_get_payload(_owner.track.events, i,&sound);
-                LegacyLong fields[]={sound.celn,sound.sty,sound.vlm,sound.fQueue,sound.tag.sid,static_cast<LegacyLong>(sound.tag.cno)};
+                MMActorSound sound; mm_actor_events_get_payload(_owner.track.events, i,&sound);
+                LegacyLong fields[]={sound.cel,sound.style,sound.volume,sound.queue,sound.tag.sid,static_cast<LegacyLong>(sound.tag.number)};
                 saved=saved && record(fields,sizeof(fields));
             }
             else if (event.aet==ActorEvent::aetCost)
@@ -1405,10 +1405,10 @@ class TrackTestActor : public Actor
             ActorEvent::Base event = {kinds[i],frames[i],{0,rZero,i}};
             ActorEvent::Add add = {};
             ActorEvent::Action action = {0,0};
-            ActorEvent::Sound sound = {};
+            MMActorSound sound = {};
             int32_t frozen = 1;
-            sound.celn = cels[i]; sound.sty = styles[i]; sound.vlm = 100 + i;
-            sound.fLoop = i & 1 ? tYes : tNo;
+            sound.cel = cels[i]; sound.style = styles[i]; sound.volume = 100 + i;
+            sound.loop = i & 1 ? tYes : tNo;
             sound.tag = {2,pvNil,kctgMsnd,static_cast<ChunkNumber>(30+i)};
             void *data = &sound;
             LegacyLong bytes = sizeof(sound);
@@ -1466,10 +1466,10 @@ class TrackTestActor : public Actor
             saved=saved && record(&event,sizeof(event));
             if (event.aet == ActorEvent::aetSnd)
             {
-                ActorEvent::Sound sound; mm_actor_events_get_payload(_owner.track.events, i,&sound);
-                LegacyUlong v[] = {static_cast<LegacyUlong>(sound.celn),static_cast<LegacyUlong>(sound.sty),
-                    static_cast<LegacyUlong>(sound.vlm),static_cast<LegacyUlong>(sound.fLoop),
-                    static_cast<LegacyUlong>(sound.tag.sid),sound.tag.ctg,sound.tag.cno};
+                MMActorSound sound; mm_actor_events_get_payload(_owner.track.events, i,&sound);
+                LegacyUlong v[] = {static_cast<LegacyUlong>(sound.cel),static_cast<LegacyUlong>(sound.style),
+                    static_cast<LegacyUlong>(sound.volume),static_cast<LegacyUlong>(sound.loop),
+                    static_cast<LegacyUlong>(sound.tag.sid),sound.tag.type,sound.tag.number};
                 saved=saved && record(v,sizeof(v));
             }
         }
@@ -1555,12 +1555,12 @@ class TrackTestActor : public Actor
         if (!mm_actor_path_insert(_owner.track.route, 0, &point) || !mm_actor_events_insert(_owner.track.events, 0, sizeof(addition), &addition, &event))
             return false;
         event.aet = ActorEvent::aetSnd;
-        ActorEvent::Sound sound = {};
-        TagFromCore(&sound.tag, _owner.runtime.template_tag);
-        sound.tag.ctg = kctgMsnd;
+        MMActorSound sound = {};
+        sound.tag = _owner.runtime.template_tag;
+        sound.tag.type = kctgMsnd;
         if (!mm_actor_events_insert(_owner.track.events, 1, sizeof(sound), &sound, &event))
             return false;
-        TagManager::DupTag(&sound.tag);
+        mm_tag_dup(&sound.tag, &EngineActorTagServices());
         MMActorMotionSound match = {};
         if (!mm_actor_sounds_insert(&_owner.sounds, &match.event, &match.sound))
             return false;

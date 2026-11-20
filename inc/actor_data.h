@@ -145,21 +145,7 @@ struct CostumeOnFile
 };
 static_assert(sizeof(CostumeOnFile) == 28, "ActorEvent::CostumeOnFile wire format drift");
 
-// Runtime form: embeds full TAG. Allowed to grow on x64.
-struct Sound
-{
-    tribool fLoop;     // loop count
-    tribool fQueue;    // queued sound
-    int32_t vlm;       // volume
-    int32_t celn;      // motion match	: ivNil if not
-    int32_t sty;       // sound type
-    tribool fNoSound;  // no sound
-    ChildChunkID chid; // user sound requires chid
-    TAG tag;
-};
-const ByteOrderMask kbomAevsnd = 0xfffffc00;
-
-// Wire format for Sound. Fixed at 44 bytes on every architecture.
+// Wire format for MMActorSound. Fixed at 44 bytes on every architecture.
 struct SoundOnFile
 {
     tribool fLoop;
@@ -187,7 +173,6 @@ const ByteOrderMask kbomAevrot = kbomBmat34;
 #define kcbVarRot (size(BMAT34))
 #define kcbVarSize (size(BRS))
 #define kcbVarPull (size(Stretch))
-#define kcbVarSnd (size(Sound))
 #define kcbVarFreeze (size(int32_t))
 #define kcbVarMove (size(RoutePoint))
 #define kcbVarTweak (size(RoutePoint))
@@ -225,17 +210,6 @@ enum
 // frame and frame forward orientations in the same frame and must not see the
 // actor jump in angle when choosing between the two methods of editing.
 //
-//
-// Current action Motion Match Sounds
-// Aev & Aevsnd grouped together form a gl
-// Not to be saved with a movie
-//
-struct SoundMotionMatch
-{
-    Base aev; // event for the sound
-    Sound aevsnd;
-};
-
 } // end of namespace ActorEvent
 struct ActorChunkOnFile // Actor chunk on file
 {

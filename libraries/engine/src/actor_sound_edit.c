@@ -45,6 +45,7 @@ int mm_actor_sound_volume(MMActorState *state, MMActorSounds *list, void *events
     MMActorEvent event;
     MMActorSound sound;
     MMActorMotionSound record;
+    const MMActorEditTables *tables = &s->edits.tables;
     int action_this_frame = 0;
     if (!cel(state, &frame, s)) return 0;
     for (i = state->firstEventInFrame; i < state->nextEvent; ++i)
@@ -55,7 +56,7 @@ int mm_actor_sound_volume(MMActorState *state, MMActorSounds *list, void *events
         m->payload(events, i, &sound);
         if ((sound.cel != -1) != (motion != 0) || sound.style != style) continue;
         sound.volume = volume;
-        s->write_sound(s->context, i, &sound);
+        tables->write_payload(tables->context, i, &sound);
     }
     if (motion && !action_this_frame)
         for (i = state->firstEventInFrame - 1; i > 0; --i)
@@ -66,7 +67,7 @@ int mm_actor_sound_volume(MMActorState *state, MMActorSounds *list, void *events
             m->payload(events, i, &sound);
             if (sound.style != style || sound.cel != frame) continue;
             sound.volume = volume;
-            s->write_sound(s->context, i, &sound);
+            tables->write_payload(tables->context, i, &sound);
             break;
         }
     if (motion)
@@ -186,6 +187,7 @@ int mm_actor_sound_resolve_all(void *events, MMU32 scene, const MMActorMotionSer
     MMI32 i;
     MMActorEvent event;
     MMActorSound sound;
+    const MMActorEditTables *tables = &s->edits.tables;
     int success = 1;
     for (i = 0; i < m->event_count(events); ++i)
     {
@@ -194,7 +196,7 @@ int mm_actor_sound_resolve_all(void *events, MMU32 scene, const MMActorMotionSer
         m->payload(events, i, &sound);
         if (sound.tag.sid) continue;
         if (!s->resolve_scene(s->context, &sound.tag, sound.child, scene)) { success = 0; continue; }
-        s->write_sound(s->context, i, &sound);
+        tables->write_payload(tables->context, i, &sound);
     }
     return success;
 }
