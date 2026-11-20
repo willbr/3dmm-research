@@ -92,7 +92,8 @@ class Material_MTRL : public Material_MTRL_PAR
     {
         return static_cast<PBMTL>(_material.handle);
     }
-    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
+    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno,
+                const MMMaterialDescription *appearance = nullptr, const MMI32 mapping[6] = nullptr);
 #ifdef DEBUG
     static void MarkShadeTable(void);
 #endif // DEBUG

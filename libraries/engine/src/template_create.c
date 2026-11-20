@@ -241,12 +241,16 @@ int mm_template_read_header(void *object,void *file,MMU32 type,MMU32 number,void
     state->flags = header.flags;
     return s->read_name(s->context,object,file,type,number);
 }
+void mm_template_encode_header(unsigned char *bytes, int big, MMU32 system, const MMTemplateState *state)
+{
+    put(bytes,2,1,big); put(bytes+2,2,system,big);
+    put(bytes+4,2,state->x,big); put(bytes+6,2,state->y,big); put(bytes+8,2,state->z,big);
+    bytes[10]=bytes[11]=0; put(bytes+12,4,state->flags,big);
+}
 int mm_template_write_header(void *object,void *file,MMU32 type,MMU32 *number,const MMTemplateCreateServices *s)
 {
-    MMTemplateState t; unsigned char bytes[16]; int big=s->host_big_endian;
-    t=*s->state(s->context,object); put(bytes,2,1,big); put(bytes+2,2,s->system,big);
-    put(bytes+4,2,t.x,big); put(bytes+6,2,t.y,big); put(bytes+8,2,t.z,big);
-    bytes[10]=bytes[11]=0; put(bytes+12,4,t.flags,big);
+    unsigned char bytes[MM_TEMPLATE_HEADER_BYTES];
+    mm_template_encode_header(bytes, s->host_big_endian, s->system, s->state(s->context,object));
     if (!s->add_chunk(s->context,file,type,bytes,sizeof(bytes),number)) return 0;
     if (!s->set_name(s->context,object,file,MM_TMPL,*number))
     { s->delete_chunk(s->context,file,type,*number); return 0; }

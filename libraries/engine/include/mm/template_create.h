@@ -168,6 +168,8 @@ int mm_template_read_header(void *,void *source,MMU32,MMU32,void *block,const MM
  * undefined. Name assignment deliberately uses TMPL even for another supplied
  * chunk type; failure deletes the added chunk and retains its published number. */
 int mm_template_write_header(void *,void *file,MMU32,MMU32 *,const MMTemplateCreateServices *);
+void mm_template_encode_header(unsigned char bytes[MM_TEMPLATE_HEADER_BYTES], int big_endian, MMU32 system,
+                               const MMTemplateState *);
 int mm_template_fetch(void *file,MMU32,MMU32,void *block,void **object,MMI32 *bytes,const MMTemplateCreateServices *);
 int mm_template_initialize(void *,void *source,MMU32,MMU32,void *block,const MMTemplateCreateServices *);
 void mm_template_dispose(void *,const MMTemplateCreateServices *);

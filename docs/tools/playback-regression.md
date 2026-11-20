@@ -15205,3 +15205,25 @@ In `actor-event-edit` suite `20261120T093559Z-08cad4e4`, Marcus and SDL
 matched all 60 retail frame identities in seek and playback. Both retained
 all 60 seek image hashes and matched the retail camera indices. SDL matched
 all 12 retail sound requests.
+
+## Writing Marcus text drafts with the C89 codecs (20 November 2026)
+
+Marcus writes the 3D-text template and descriptor before Preview builds the
+renderer objects. The C89 material writer saves edited lighting, texture
+children and texture placement together. Font rebinding updates the source
+and chunk number in the descriptor's original byte order.
+
+The native save/load fixture confirmed that the old and new draft writers
+produce identical archive bytes. Standalone C checks covered both byte
+orders, preservation of descriptor bytes during rebinding, and cleanup
+following failed chunk writes or adoption. All 42 targeted x64 checks and
+six standalone C89 checks passed. The focused x86 checks and x64 Preview
+integration passed, including the 188 stock cameras. Both VMM storyboard
+seek images in `20261120T095045Z-3baabf8d` matched the retained SDL and
+Marcus captures. Logs are in `tmp/c89-text-draft-writers`.
+
+In `actor-event-edit` suite `20261120T095043Z-32cc6132`, fresh SDL and
+Marcus captures matched all 60 frame identities in the retained retail
+seek and playback captures. Each player kept all 60 prior seek image
+hashes and matched the retail camera indices. SDL also matched the 12
+retail sound requests.

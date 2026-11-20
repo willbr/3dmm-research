@@ -218,7 +218,8 @@ PTextureMap Material_MTRL::Ptmap()
     auto s = _Services();
     return static_cast<PTextureMap>(mm_material_texture(&_material, &s));
 }
-bool Material_MTRL::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
+bool Material_MTRL::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number,
+                           const MMMaterialDescription *appearance, const MMI32 mapping[6])
 {
     AssertThis(0);
     AssertPo(file, 0);
@@ -226,7 +227,7 @@ bool Material_MTRL::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *n
     auto s = _Services();
     MMU32 n;
     std::memcpy(&n, number, sizeof(n));
-    bool ok = mm_material_write(&_material, file, type, &n, &s) != 0;
+    bool ok = mm_material_write_appearance(&_material, file, type, &n, appearance, mapping, &s) != 0;
     std::memcpy(number, &n, sizeof(n));
     return ok;
 }

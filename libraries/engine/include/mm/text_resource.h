@@ -2,12 +2,14 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_TEXT_RESOURCE_H
 #define MM_ENGINE_TEXT_RESOURCE_H
+#include "chunky_file.h"
 #include "text_generation.h"
 #include "tag.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 typedef struct MMTextDescriptor { MMI32 shape; MMTag font; } MMTextDescriptor;
+enum { MM_TEXT_DESCRIPTOR_BYTES = 24 };
 /* Decodes the descriptor even when its marker is invalid. The result reports
  * whether the marker was valid. A bad marker uses the opposite host order. */
 int mm_text_decode_descriptor(const unsigned char bytes[24], int host_big, MMTextDescriptor *);
@@ -67,6 +69,32 @@ void *mm_text_font(void *object,const MMTextResourceServices *);
  * on payload-write failure, and always writes a zero pointer pad. */
 int mm_text_read(void *object,void *source,MMU32 type,MMU32 number,void *block,const MMTextResourceServices *);
 int mm_text_write(void *object,void *file,MMU32 type,void *number_out,const MMTextResourceServices *);
+typedef struct MMTextDraftServices
+{
+    void *context;
+    int big_endian;
+    MMU32 system;
+    int (*add_chunk)(void *, MMU32 type, const void *bytes, size_t count, MMU32 *number);
+    int (*set_name)(void *, MMU32 type, MMU32 number, const void *name);
+    /* On failure the host removes any unlinked child it allocated. */
+    int (*add_child)(void *, MMU32 parent_type, MMU32 parent, MMU32 slot, MMU32 type,
+                     const void *bytes, size_t count);
+    void (*delete_chunk)(void *, MMU32 type, MMU32 number);
+} MMTextDraftServices;
+/* Write the two persisted chunks for new 3D text without generating renderer
+ * state. Only a successful draft publishes its template number. */
+int mm_text_write_draft(const void *name, const MMTextDescriptor *, MMU32 *number, const MMTextDraftServices *);
+typedef struct MMTextPreviewFontServices
+{
+    void *context;
+    int (*read)(void *, MMU32 descriptor, unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES]);
+    int (*copy_font)(void *, MMU32 font, MMU32 *copied);
+    int (*write)(void *, MMU32 descriptor, const unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES]);
+} MMTextPreviewFontServices;
+/* Localize the font tag in an editable text preview. The descriptor must be
+ * valid before the copy. Retains its byte order and fields outside the local
+ * source and new font number. The caller saves or discards the working file. */
+int mm_text_bind_preview_font(const MMChunkAccess *, MMU32 tmpl, MMU32 font, const MMTextPreviewFontServices *);
 void *mm_text_tags(void *file,MMU32 type,MMU32 number,void *error_out,const MMTextResourceServices *);
 /* Set-once table publishes before retain. Lookup takes the first matching ID;
  * an absent table clears silently, an absent entry warns before clearing. */

@@ -341,6 +341,34 @@ bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
     return mm_text_write(this, pcfl, ctg, pcno, &services) != 0;
 }
 
+bool ThreeDText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, const TAG &font, ChunkNumber *number)
+{
+    AssertPo(file, 0);
+    AssertPo(name, 0);
+    AssertVarMem(number);
+    MMTextDescriptor draft = {};
+    draft.shape = shape;
+    TextTagToCore(&font, &draft.font);
+    const unsigned short order = 1;
+    const MMTextDraftServices services = {
+        file, *reinterpret_cast<const unsigned char *>(&order) == 0, koskCur,
+        [](void *p, MMU32 type, const void *bytes, size_t count, MMU32 *out) -> int {
+            return static_cast<PChunkyFile>(p)->FAddPv(const_cast<void *>(bytes), static_cast<LegacyLong>(count),
+                                                    type, out);
+        },
+        [](void *p, MMU32 type, MMU32 chunk, const void *text) -> int {
+            return static_cast<PChunkyFile>(p)->FSetName(type, chunk, const_cast<PString>(static_cast<const String *>(text)));
+        },
+        [](void *p, MMU32 type, MMU32 parent, MMU32 slot, MMU32 child, const void *bytes, size_t count) -> int {
+            ChunkNumber out;
+            return static_cast<PChunkyFile>(p)->FAddChildPv(type, parent, slot, const_cast<void *>(bytes),
+                                                         static_cast<LegacyLong>(count), child, &out);
+        },
+        [](void *p, MMU32 type, MMU32 chunk) { static_cast<PChunkyFile>(p)->Delete(type, chunk); },
+    };
+    return mm_text_write_draft(name, &draft, number, &services) != 0;
+}
+
 /***************************************************************************
     Return the number of cels in the given action
 ***************************************************************************/

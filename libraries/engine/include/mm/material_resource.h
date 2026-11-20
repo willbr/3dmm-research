@@ -109,6 +109,10 @@ extern "C"
     void *mm_material_texture(const MMMaterialResource *, const MMMaterialServices *);
     int mm_material_write(const MMMaterialResource *, void *file, MMU32 type, MMU32 *number,
                                 const MMMaterialServices *);
+    /* Write a supplied appearance and optional slot-zero transform. */
+    int mm_material_write_appearance(const MMMaterialResource *, void *file, MMU32 type, MMU32 *number,
+                                     const MMMaterialDescription *, const MMI32 mapping[6],
+                                     const MMMaterialServices *);
     /* Take an owned texture reference. A null replacement leaves the table installed. */
     int mm_material_shade_set(MMMaterialShade *, void *texture, const MMMaterialServices *);
     void mm_material_shade_dispose(MMMaterialShade *, const MMMaterialServices *);

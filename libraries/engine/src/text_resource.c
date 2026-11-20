@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/text_resource.h"
+#include "mm/font_resource.h"
 #include <string.h>
 static void release(const MMTextResourceServices *s,void *object)
 { s->generation.release(s->generation.context,object); }
@@ -54,6 +55,12 @@ static MMU32 word(const unsigned char *p,int n,int big)
 { MMU32 v=0; int i; for (i=0;i<n;++i) v=(v<<8)|p[big?i:n-1-i]; return v; }
 static void put(unsigned char *p,int n,MMU32 v,int big)
 { int i; for (i=0;i<n;++i) { p[big?n-1-i:i]=(unsigned char)(v&255U); v>>=8; } }
+static void encode_descriptor(unsigned char *b, int big, MMU32 system, const MMTextDescriptor *d)
+{
+    put(b,2,1U,big); put(b+2,2,system,big); put(b+4,4,(MMU32)d->shape,big);
+    put(b+8,4,(MMU32)d->font.sid,big); put(b+12,4,0U,big);
+    put(b+16,4,d->font.type,big); put(b+20,4,d->font.number,big);
+}
 int mm_text_decode_descriptor(const unsigned char b[24], int big, MMTextDescriptor *d)
 {
     MMU32 v;
@@ -82,14 +89,50 @@ int mm_text_read(void *object,void *source,MMU32 type,MMU32 number,void *block,c
 }
 int mm_text_write(void *object,void *file,MMU32 type,void *number_out,const MMTextResourceServices *s)
 {
-    MMTextDescriptor *d; unsigned char b[24]; MMU32 number,child; void *block; int big;
+    unsigned char b[MM_TEXT_DESCRIPTOR_BYTES]; MMU32 number,child; void *block;
     if (!s->write_template(s->context,object,file,type,number_out)) return 0;
-    memcpy(&number,number_out,4); d=s->state(s->context,object); big=s->host_big_endian;
-    put(b,2,1U,big); put(b+2,2,s->system,big); put(b+4,4,(MMU32)d->shape,big);
-    put(b+8,4,(MMU32)d->font.sid,big); put(b+12,4,0U,big); put(b+16,4,d->font.type,big); put(b+20,4,d->font.number,big);
+    memcpy(&number,number_out,4);
+    encode_descriptor(b,s->host_big_endian,s->system,s->state(s->context,object));
     block=s->add(s->context,file,type,number,&child); if (!block) return 0;
-    if (s->write(s->context,block,b,24)) return 1;
+    if (s->write(s->context,block,b,sizeof(b))) return 1;
     s->delete_child(s->context,file,type,number,child); return 0;
+}
+int mm_text_write_draft(const void *name, const MMTextDescriptor *d, MMU32 *number, const MMTextDraftServices *s)
+{
+    MMTemplateState state = {0};
+    unsigned char header[MM_TEMPLATE_HEADER_BYTES], descriptor[MM_TEXT_DESCRIPTOR_BYTES];
+    MMU32 parent = 0;
+    if (d->shape < 0 || d->shape >= MM_TEXT_SHAPE_COUNT || d->font.type != MM_FONT_TYPE)
+        return 0;
+    state.flags = MM_TEMPLATE_TEXT;
+    mm_template_encode_header(header, s->big_endian, s->system, &state);
+    encode_descriptor(descriptor, s->big_endian, s->system, d);
+    if (!s->add_chunk(s->context, MM_TMPL, header, sizeof(header), &parent))
+        return 0;
+    if (!s->set_name(s->context, MM_TMPL, parent, name) ||
+        !s->add_child(s->context, MM_TMPL, parent, 0, MM_TDT, descriptor, sizeof(descriptor)))
+    {
+        s->delete_chunk(s->context, MM_TMPL, parent);
+        return 0;
+    }
+    *number = parent;
+    return 1;
+}
+int mm_text_bind_preview_font(const MMChunkAccess *chunks, MMU32 tmpl, MMU32 font, const MMTextPreviewFontServices *s)
+{
+    unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES];
+    MMU32 descriptor, copied;
+    int big;
+    if (mm_chunk_link_number(chunks, MM_TMPL, tmpl, 0, MM_TDT, &descriptor) != MM_CHUNK_OK ||
+        !s->read(s->context, descriptor, bytes))
+        return 0;
+    big = bytes[0] == 0;
+    if (word(bytes, 2, big) != 1 || word(bytes + 16, 4, big) != MM_FONT_TYPE ||
+        !s->copy_font(s->context, font, &copied))
+        return 0;
+    put(bytes + 8, 4, 0, big);
+    put(bytes + 20, 4, copied, big);
+    return s->write(s->context, descriptor, bytes);
 }
 void *mm_text_tags(void *file,MMU32 type,MMU32 number,void *error_out,const MMTextResourceServices *s)
 {

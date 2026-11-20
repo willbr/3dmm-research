@@ -24,6 +24,7 @@
 #include "mm/preview_media.h"
 #include "mm/scene_data.h"
 #include "mm/scene_thumbnail.h"
+#include "mm/text_resource.h"
 #include "preview_actor.h"
 #include "preview_actor_tree.h"
 #include "preview_background.h"
@@ -150,6 +151,21 @@ struct Preview::Impl
         return true;
     }
     PChunkyResourceFile Resolve(const TAGOnFile &tag);
+    PMaterial_MTRL FetchTextMaterial(int object, bool preset, MMI32 source, MMU32 number)
+    {
+        if (preset)
+        {
+            auto file = Resolve({source, 0, kctgMtrl, number});
+            return file ? static_cast<PMaterial_MTRL>(file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl))
+                        : nullptr;
+        }
+        if (object < 0 || std::size_t(object) >= actors.size())
+            return Material_MTRL::PmtrlNew();
+        auto material = actors[object]->TextMaterial();
+        if (material)
+            material->AddRef();
+        return material;
+    }
     bool ResolveGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph);
     void DescribeMissingResource(const TAGOnFile &tag);
     void RefreshStats()
@@ -465,16 +481,7 @@ bool Preview::SetObjectTextTemplate(int object, std::int32_t source, std::uint32
 bool Preview::TextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number, PreviewTextMaterial &out, Error &error)
 {
     error = {};
-    PMaterial_MTRL material = nullptr;
-    if (preset)
-    {
-        const TAGOnFile tag = {source, 0, kctgMtrl, number};
-        auto file = _impl->Resolve(tag);
-        material = file ? static_cast<PMaterial_MTRL>(file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl)) : nullptr;
-    }
-    else if (object >= 0 && std::size_t(object) < _impl->actors.size())
-    { material = _impl->actors[object]->TextMaterial(); if (material) material->AddRef(); }
-    else material = Material_MTRL::PmtrlNew();
+    auto material = _impl->FetchTextMaterial(object, preset, source, number);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot read the text material.");
     const auto b = material->Pbmtl();
     out.textured = b->colour_map != nullptr; out.colour = b->colour;
@@ -488,44 +495,29 @@ bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, st
     const PreviewTextMaterial &value, const std::string &path, Error &error)
 {
     error = {};
-    PMaterial_MTRL material = nullptr;
-    if (preset)
-    {
-        const TAGOnFile tag = {source, 0, kctgMtrl, number}; auto file = _impl->Resolve(tag);
-        material = file ? static_cast<PMaterial_MTRL>(file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl)) : nullptr;
-    }
-    else if (object >= 0 && std::size_t(object) < _impl->actors.size())
-    { material = _impl->actors[object]->TextMaterial(); if (material) material->AddRef(); }
-    else material = Material_MTRL::PmtrlNew();
+    auto material = _impl->FetchTextMaterial(object, preset, source, number);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot copy the text material.");
     struct Release { void operator()(BASE *p) const { if (p) p->Release(); } };
     std::unique_ptr<Material_MTRL, Release> owner(material);
     String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
     if (!filename.FBuildFromPath(&text)) return Fail(error, ErrorCode::invalid_argument, "Invalid text material path.");
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
-    ChunkNumber chunk;
-    if (!file || !material->FWrite(file.get(), kctgMtrl, &chunk) || chunk != 0)
+    MMMaterialDescription appearance = {};
+    appearance.colour = value.colour;
+    appearance.ambient = static_cast<br_ufraction>(std::lround(value.ambient * 65535));
+    appearance.diffuse = static_cast<br_ufraction>(std::lround(value.diffuse * 65535));
+    appearance.specular = static_cast<br_ufraction>(std::lround(value.specular * 65535));
+    appearance.power = BrFloatToScalar(value.shininess);
+    appearance.index_base = value.indexBase;
+    appearance.index_range = value.indexRange;
+    const bool textured = material->Pbmtl()->colour_map != nullptr;
+    MMI32 mapping[6];
+    if (textured)
+        for (int i = 0; i < 6; ++i)
+            mapping[i] = BrFloatToScalar(value.mapping[i]);
+    ChunkNumber chunk = 0;
+    if (!file || !material->FWrite(file.get(), kctgMtrl, &chunk, &appearance, textured ? mapping : nullptr) || chunk != 0)
         return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
-    MaterialOnFile header = {};
-    header.bo = kboCur; header.osk = koskCur; header.brc = value.colour;
-    header.brufKa = static_cast<br_ufraction>(std::lround(value.ambient * 65535));
-    header.brufKd = static_cast<br_ufraction>(std::lround(value.diffuse * 65535));
-    header.brufKs = static_cast<br_ufraction>(std::lround(value.specular * 65535));
-    header.rPower = BrFloatToScalar(value.shininess);
-    header.bIndexBase = static_cast<byte>(value.indexBase); header.cIndexRange = static_cast<byte>(value.indexRange);
-    DataBlock block;
-    if (!file->FFind(kctgMtrl, chunk, &block) || !block.FWriteRgb(&header, sizeof(header), 0))
-        return Fail(error, ErrorCode::decode_failed, "Cannot write material lighting.");
-    if (material->Pbmtl()->colour_map)
-    {
-        struct Transform { short bo, osk; BRS matrix[6]; } transform = {kboCur, koskCur};
-        static_assert(sizeof(transform) == 28, "Native texture transform layout");
-        for (int i = 0; i < 6; ++i) transform.matrix[i] = BrFloatToScalar(value.mapping[i]);
-        ChunkNumber mapping;
-        if (!file->FAddPv(&transform, sizeof(transform), kctgTxxf, &mapping) ||
-            !file->FAdoptChild(kctgMtrl, chunk, kctgTxxf, mapping, 0))
-            return Fail(error, ErrorCode::decode_failed, "Cannot write texture placement.");
-    }
     return file->FSave(kctgSoc) || Fail(error, ErrorCode::decode_failed, "Cannot save the text material.");
 }
 bool Preview::SetObjectTextMaterial(int object, std::int32_t source, std::uint32_t number, Error &error)
@@ -540,12 +532,35 @@ bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSourc
     if (!source || !filename.FBuildFromPath(&text)) return Fail(error, ErrorCode::decode_failed, "Cannot copy the preview font.");
     struct Release { void operator()(ChunkyFile *p) const { if (p) p->Release(); } };
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
-    ChunkNumber copied; ChildChunkIdentification child; DataBlock block;
-    if (!file || !source->FCopyChunk(kctgTdf, font, file.get(), &copied) ||
-        !file->FGetKidChidCtg(kctgTmpl, 0, 0, kctgTdt, &child) || !file->FFind(kctgTdt, child.cki.cno, &block))
+    if (!file)
         return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
-    std::int32_t local = 0;
-    return (block.FWriteRgb(&local, 4, 8) && block.FWriteRgb(&copied, 4, 20) && file->FSave(kctgSoc)) ||
+    struct FontDraft
+    {
+        PChunkyResourceFile source;
+        PChunkyFile file;
+        DataBlock descriptor;
+    } draft{source, file.get(), {}};
+    const MMTextPreviewFontServices services = {
+        &draft,
+        [](void *p, MMU32 number, unsigned char *bytes) -> int {
+            auto &h = *static_cast<FontDraft *>(p);
+            return h.file->FFind(kctgTdt, number, &h.descriptor) && !h.descriptor.FPacked() &&
+                   h.descriptor.Cb() >= MM_TEXT_DESCRIPTOR_BYTES &&
+                   h.descriptor.FReadRgb(bytes, MM_TEXT_DESCRIPTOR_BYTES, 0);
+        },
+        [](void *p, MMU32 number, MMU32 *copied) -> int {
+            auto &h = *static_cast<FontDraft *>(p);
+            return h.source->FCopyChunk(kctgTdf, number, h.file, copied);
+        },
+        [](void *p, MMU32, const unsigned char *bytes) -> int {
+            return static_cast<FontDraft *>(p)->descriptor.FWriteRgb(const_cast<unsigned char *>(bytes),
+                                                                   MM_TEXT_DESCRIPTOR_BYTES, 0);
+        },
+    };
+    const auto chunks = file->ReadChunkAccess();
+    if (!mm_text_bind_preview_font(&chunks, 0, font, &services))
+        return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
+    return file->FSave(kctgSoc) ||
         Fail(error, ErrorCode::decode_failed, "Cannot link the preview font.");
 }
 bool Preview::UseTextPreviewMaterial(Error &error)

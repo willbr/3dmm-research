@@ -38,6 +38,41 @@ class TextResourceFixtureAccess : public ThreeDText
         return true;
     }
 };
+static bool TextDraftMatchesNative(const TAG &font)
+{
+    String name;
+    name.SetSzs(PszLit("Saved 3D text"));
+    auto native = ChunkyFile::PcflCreateTemp();
+    auto draft = ChunkyFile::PcflCreateTemp();
+    TAG liveFont = font;
+    auto object = ThreeDText::PtdtNew(&name, 9, &liveFont);
+    ChunkNumber a = 0, b = 0;
+    bool ok = native && draft && object && object->FWrite(native, kctgTmpl, &a) &&
+              ThreeDText::FWriteDraft(draft, &name, 9, font, &b) && a == b &&
+              native->FSave(kctgSoc) && draft->FSave(kctgSoc);
+    if (ok)
+    {
+        Filename nativePath, draftPath;
+        native->GetFni(&nativePath);
+        draft->GetFni(&draftPath);
+        auto left = FileObject::PfilOpen(&nativePath);
+        auto right = FileObject::PfilOpen(&draftPath);
+        ok = left && right && left->FpMac() == right->FpMac();
+        if (ok)
+        {
+            const auto count = left->FpMac();
+            std::vector<byte> expected(count), actual(count);
+            ok = left->FReadRgb(expected.data(), count, 0) && right->FReadRgb(actual.data(), count, 0) &&
+                 expected == actual;
+        }
+        ReleasePpo(&right);
+        ReleasePpo(&left);
+    }
+    ReleasePpo(&object);
+    ReleasePpo(&draft);
+    ReleasePpo(&native);
+    return ok;
+}
 static bool TestTextResources()
 {
     FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_TEXT_RESOURCE_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
@@ -53,6 +88,7 @@ static bool TestTextResources()
     auto file=ChunkyFile::PcflCreateTemp(); auto cache=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr;
     bool ok=cache!=nullptr; int attempts=0,successful=0;
     TAG oldTag={ksidUseCrf,cache,kctgTdf,17},newTag={123,reinterpret_cast<PChunkyResourceFile>(0x1357),kctgTdf,29};
+    ok = ok && TextDraftMatchesNative(newTag);
     for (int text=0;ok && text<2;++text) for (int shape=0;ok && shape<2;++shape) for (int operation=0;ok && operation<3;++operation)
     for (int mask=0;ok && mask<(operation==1?8:1);++mask) for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<12;++failure)
     {

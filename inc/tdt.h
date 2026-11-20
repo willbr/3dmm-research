@@ -109,6 +109,7 @@ class ThreeDText : public ThreeDText_PAR
     void GetInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf);
     bool FChange(PString pstn, LegacyLong tdts = tdtsNil, PTAG ptagTdf = pvNil);
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
+    static bool FWriteDraft(PChunkyFile, PString name, LegacyLong shape, const TAG &font, ChunkNumber *);
     bool FAdjustBody(PBody pbody);
     virtual bool FSetDefaultCost(PBody pbody);
     virtual PCustomMaterial_CMTL PcmtlFetch(LegacyLong cmid);

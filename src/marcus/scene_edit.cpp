@@ -281,9 +281,8 @@ std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsi
     Require(filename.FBuildFromPath(&path), "Invalid 3D text working path.");
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable));
     TAG tag = {source, nullptr, kctgTdf, font};
-    std::unique_ptr<ThreeDText, Release> object(ThreeDText::PtdtNew(&text, shape, &tag));
     ChunkNumber number;
-    Require(file && object && object->FWrite(file.get(), kctgTmpl, &number) && number == 0 && file->FSave(kctgSoc),
+    Require(file && ThreeDText::FWriteDraft(file.get(), &text, shape, tag, &number) && number == 0 && file->FSave(kctgSoc),
         "Cannot create the 3D text template.");
     return result;
 }

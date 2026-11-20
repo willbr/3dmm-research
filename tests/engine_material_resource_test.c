@@ -27,7 +27,7 @@ typedef struct Test
     MMMaterialShade shade;
     int step, fail, objects, handles, arrays, raw, closed, diagnostic, order[128], ordered;
     int texture_child, transform_child, custom, transform, bad_model_target, adds, deletes[4], deleted;
-    unsigned char header[20], transform_header[28], custom_header[8], written[20];
+    unsigned char header[20], transform_header[28], custom_header[8], written[20], written_transform[28];
     MMI32 header_size, transform_size, custom_size;
     Ref texture, material, model, shading;
     int texture_view, shade_view;
@@ -293,12 +293,19 @@ static int add_chunk(void *p, void *f, MMU32 type, const void *data, MMI32 bytes
 {
     Test *t = test(p);
     (void)f;
-    (void)type;
-    assert(bytes == 20);
+    assert(bytes == (type == t->s.transform_type ? 28 : 20));
     if (fail(t))
         return 0;
-    memcpy(t->written, data, 20);
-    *number = 10;
+    if (type == t->s.transform_type)
+    {
+        memcpy(t->written_transform, data, 28);
+        *number = 12;
+    }
+    else
+    {
+        memcpy(t->written, data, 20);
+        *number = 10;
+    }
     return 1;
 }
 static int write_texture(void *p, void *o, void *f, MMU32 type, MMU32 *number)
@@ -313,7 +320,7 @@ static int adopt(void *p, void *f, MMU32 type, MMU32 n, const MMMaterialChild *c
 {
     (void)f;
     (void)type;
-    assert(n == 10 && c->id == 0 && c->number == 11);
+    assert(n == 10 && c->id == 0 && c->number == (c->type == test(p)->s.transform_type ? 12U : 11U));
     return !fail(test(p));
 }
 static void delete_chunk(void *p, void *f, MMU32 type, MMU32 n)
@@ -601,6 +608,57 @@ static void construction_and_writes(void)
         balanced(&t);
     }
 }
+static void appearance_writes(void)
+{
+    static const MMI32 mapping[6] = {-65536, 65536, 0, 257, -12, 393216};
+    static const int deletions[] = {0, 0, 1, 2, 1, 2};
+    Test t;
+    Object *o;
+    MMMaterialDescription appearance = {0}, decoded;
+    MMU32 number;
+    int big, n;
+    appearance.colour = 0x102030;
+    appearance.ambient = 62000;
+    appearance.diffuse = 17;
+    appearance.specular = 24000;
+    appearance.power = 24576;
+    appearance.index_base = 10;
+    appearance.index_range = 30;
+    for (big = 0; big < 2; ++big)
+        for (n = 0; n <= 5; ++n)
+        {
+            setup(&t);
+            t.s.host_big_endian = big;
+            o = (Object *)mm_material_new(-1, -1, &t.s);
+            assert(o);
+            ++t.texture.refs;
+            map(&t, o->material.handle, &t.texture_view, NULL);
+            t.step = 0;
+            t.fail = n;
+            number = 99;
+            assert(mm_material_write_appearance(&o->material, &t, 3, &number, &appearance, mapping, &t.s) == !n);
+            assert(t.deleted == deletions[n]);
+            if (n <= 1)
+                assert(number == (n ? 99U : 10U));
+            if (n > 1)
+                assert(t.deletes[t.deleted - 1] == 10);
+            if (n == 3 || n == 5)
+                assert(t.deletes[0] == (n == 3 ? 11 : 12));
+            if (!n)
+            {
+                assert(mm_material_header_read(t.written, big, 0x0303, &decoded));
+                assert(decoded.colour == appearance.colour && decoded.power == appearance.power &&
+                       decoded.ambient == appearance.ambient && decoded.diffuse == appearance.diffuse &&
+                       decoded.specular == appearance.specular && decoded.index_base == 10 && decoded.index_range == 30);
+                assert(t.written_transform[big ? 1 : 0] == 1 && t.written_transform[big ? 0 : 1] == 0);
+                assert(t.written_transform[big ? 4 : 7] == 255 && t.written_transform[big ? 7 : 4] == 0);
+                assert(t.written_transform[big ? 25 : 26] == 6);
+                assert(((Handle *)o->material.handle)->d.ambient == 6553);
+            }
+            release(&t, o);
+            balanced(&t);
+        }
+}
 static void imports(void)
 {
     Test t;
@@ -635,6 +693,7 @@ int main(void)
     loads();
     costume_slots();
     construction_and_writes();
+    appearance_writes();
     imports();
     puts("C89 material resources: wire codecs, partial owners, factories, imports, writes and failure cleanup passed.");
     return 0;
