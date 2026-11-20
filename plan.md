@@ -423,11 +423,13 @@ priority over the older Project 0-4 ordering wherever they conflict.
   body before committing its template and body handles. Studio's actor
   prerender decision and pull-tool world coordinates also execute in C89.
 - Actor edit transactions for action changes, stage add/remove, normalization,
-  costumes and deletion now execute in C89, including snapshots, rollback, undo
-  registration, optional snapshot transfer and deletion's partial-failure/output
-  ordering. Existing costume-duplication and failed-removal ownership quirks are
-  preserved and documented. The remaining movie, scene, body and resource
-  implementations still require conversion.
+  costumes, sound binding and deletion now execute in C89. The transactions
+  sequence snapshots, rollback, undo registration and optional snapshot transfer.
+  Sound binding marks undo for sound playback. Deletion reads its cursor,
+  entrance frame and surviving events from the C89 actor owner and refreshes its
+  lifetime through the C89 updater. Existing costume-duplication and failed-removal
+  ownership quirks are preserved and documented. The remaining movie, scene, body
+  and resource implementations still require conversion.
 - Full-actor and route-only copy use the C89 actor owner directly. C allocates
   the copy through the shared actor factory, slices typed routes and events,
   sequences tag retention and merges, rewrites current cels and event

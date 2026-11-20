@@ -1,5 +1,51 @@
 #ifndef ENGINE_EDIT_TRANSACTION_FIXTURE_H
 #define ENGINE_EDIT_TRANSACTION_FIXTURE_H
+static bool TestActorSoundTransaction(PMovie parent)
+{
+    auto movie = Movie::PmvieNew(fFalse, parent->Pmcc(), nullptr, cnoNil);
+    auto scene = movie ? NewObj StageTestScene(movie) : nullptr;
+    auto actor = NewObj TrackTestActor();
+    PChunkyResourceFile resource = nullptr;
+    bool ok = scene && actor && movie->FNewScenInsCore(0) && movie->FSwitchScen(0) && movie->FAutoSave() &&
+              movie->FEnsureAutosave(&resource) && scene->Init() && actor->FInitPlayback(scene, resource);
+    if (ok)
+    {
+        scene->Disable(fscenSounds);
+        auto file = resource->Pcfl();
+        MovieSoundFile header = {kboCur, koskCur, stySfx, 32768, false};
+        ChunkNumber number = 0;
+        String name;
+        name.SetSzs(PszLit("Silent actor sound"));
+        ok = file->FAddPv(&header, sizeof(header), kctgMsnd, &number) && file->FSetName(kctgMsnd, number, &name) &&
+             scene->TrackActor(actor, 2) && actor->FGotoFrame(2);
+        TAG tag = {ksidUseCrf, resource, kctgMsnd, number};
+        TAG missing = {ksidUseCrf, resource, kctgMsnd, 999999};
+        ok = ok && actor->FSetSnd(&tag, tYes, tNo, tNo, 24576, stySfx) &&
+             !actor->FSetSnd(&missing, tNo, tNo, tNo, 12345, stySfx);
+        PDynamicArray tags = nullptr;
+        LegacyLong volume = 0;
+        bool loop = false;
+        ok = ok && actor->FQuerySnd(stySfx, false, &tags, &volume, &loop) &&
+             tags && tags->IvMac() == 1 && volume == 24576 && loop;
+        if (ok)
+        {
+            TAG read;
+            tags->Get(0, &read);
+            ok = read.sid == tag.sid && read.ctg == tag.ctg && read.cno == tag.cno;
+        }
+        ReleasePpo(&tags);
+    }
+    if (movie)
+        movie->ClearUndo();
+    ReleasePpo(&actor);
+    ReleasePpo(&scene);
+    ReleasePpo(&movie);
+    vpers->Clear();
+    if (!ok)
+        std::fprintf(stderr, "Actor sound transaction fixture failed\n");
+    return ok;
+}
+
 static bool TestActorEditTransactions(PMovie parent)
 {
     FILE *snapshot=nullptr;
@@ -41,6 +87,7 @@ static bool TestActorEditTransactions(PMovie parent)
         if (resource->CactRef()!=refs) ok=false;
     }
     ReleasePpo(&resource); ReleasePpo(&file); vpers->Clear();
-    if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok;
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
+    return ok && TestActorSoundTransaction(parent);
 }
 #endif

@@ -15827,3 +15827,34 @@ In `actor-event-edit` suite `20261120T140847Z-90d5c3b1`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## Actor sound and delete transactions in C89 (20 November 2026)
+
+Studio sound binding uses the shared C89 snapshot and undo transaction.
+The controller configures undo to replay sound and restores the snapshot
+if the edit or undo registration fails. Actor deletion reads the live
+C89 actor owner and event table and refreshes lifetime through the same
+C89 updater used by seek and animation edits.
+
+The native and SDL Release tests bound a sound through the public actor
+editor and then verified that a failed replacement left the original tag,
+volume and loop flag intact. The C89 transaction fixture covers the sound
+undo flag, the cursor before seek, the alive output before the second seek,
+and sound notification suppression when the scene detaches. Seven actor
+traces and the saved archive matched byte-for-byte in each build.
+
+All 13 targeted x64 checks, 19 standalone C89 checks, and 10 focused
+checks each in x86 Debug and SDL Release passed. All ten Preview
+fingerprints and six fixture archives matched. Both VMM seek images in
+`20261120T142110Z-5b92654d` matched retained SDL and Marcus captures.
+Logs and fixtures are in `tmp/c89-actor-edit-owner`.
+
+The x86 actor edit transaction trace also matched the prior build.
+Both x86 builds passed the actor checks and later stopped at the
+template-construction fixture, which counted 615 loaded templates and
+480 bodies against its Debug expectations of 613 and 478.
+
+In `actor-event-edit` suite `20261120T142110Z-91be46f1`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

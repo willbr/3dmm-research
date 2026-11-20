@@ -14,7 +14,7 @@ int mm_actor_transaction_apply(int kind,MMActorTransactionResult *out,const MMAc
         if (kind!=MM_TRANSACTION_REMOVE) release(snapshot,s);
         return 0;
     }
-    if (!s->create_undo(s->context,snapshot))
+    if (!s->create_undo(s->context,snapshot,kind==MM_TRANSACTION_SOUND))
     { s->restore(s->context,snapshot); release(snapshot,s); return 0; }
     if (kind==MM_TRANSACTION_ACTION && out)
     { out->snapshot=snapshot; if (out->publish) out->publish(out->context,snapshot); }
@@ -27,28 +27,34 @@ static void alive(MMActorDeleteResult *out,int value,int trashed)
     out->alive=value; out->trashed=trashed;
     if (out->publish) out->publish(out->context,value,trashed);
 }
-int mm_actor_transaction_delete(int all,MMActorDeleteResult *out,const MMActorTransactionServices *s,
+int mm_actor_transaction_delete(MMActorOwner *actor,int all,MMActorDeleteResult *out,const MMActorTransactionServices *s,
     const MMActorDeleteServices *d)
 {
-    MMActorDeleteState state; MMI32 original; void *snapshot=NULL; int value;
+    MMActorRuntime *runtime=&actor->runtime;
+    MMActorLifetime lifetime=mm_actor_owner_lifetime(actor);
+    MMActorEvent entrance;
+    MMI32 original;
+    void *snapshot=NULL;
+    int value;
     if (!s->duplicate(s->context,&snapshot)) { alive(out,0,1); return 0; }
-    d->read(d->context,&state);
-    if (state.add_event>=0 && !all && state.frame==d->add_frame(d->context,state.add_event))
+    if (runtime->state.addEvent>=0 && !all &&
+        mm_actor_events_get_fixed(actor->track.events,runtime->state.addEvent,&entrance) &&
+        runtime->state.frame==entrance.nfrm)
     {
         if (!d->delete_subroute(d->context)) goto failed;
-        if (out) alive(out,d->event_count(d->context)>0,0);
+        if (out) alive(out,mm_actor_events_count(actor->track.events)>0,0);
     }
     else
     {
-        original=state.next_event;
-        if (!d->seek(d->context,mm_fixed_sub(state.frame,1))) goto failed;
+        original=runtime->state.nextEvent;
+        if (!d->seek(d->context,mm_fixed_sub(runtime->state.frame,1))) goto failed;
         value=d->delete_forward(d->context,all,out!=NULL,original); alive(out,value,0);
-        d->read(d->context,&state);
-        if (!d->seek(d->context,mm_fixed_add(state.frame,1))) goto failed;
-        d->read(d->context,&state); if (state.scene_present) d->sound_frame(d->context);
+        if (!d->seek(d->context,mm_fixed_add(runtime->state.frame,1))) goto failed;
+        if (runtime->scene) d->sound_frame(d->context);
     }
-    if (!d->lifetime(d->context)) d->diagnostic(d->context,MM_TRANSACTION_BAD_LIFETIME);
-    if (!s->create_undo(s->context,snapshot))
+    if (!mm_actor_refresh_lifetime(actor->track.route,actor->track.events,NULL,&lifetime,&d->timeline))
+        d->diagnostic(d->context,MM_TRANSACTION_BAD_LIFETIME);
+    if (!s->create_undo(s->context,snapshot,0))
     { s->restore(s->context,snapshot); release(snapshot,s); return 0; }
     release(snapshot,s); return 1;
 failed:

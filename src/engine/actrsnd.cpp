@@ -17,42 +17,6 @@ ASSERTNAME
 
 /***************************************************************************
 
-    Add a sound event to the actor event list, and create an undo object
-
-***************************************************************************/
-bool Actor::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatch, long vlm, long sty)
-{
-    AssertThis(0);
-    AssertVarMem(ptag);
-    AssertIn(sty, 0, styLim);
-
-    PActor pactrDup;
-
-    if (!FDup(&pactrDup))
-    {
-        return fFalse;
-    }
-
-    if (!FSetSndCore(ptag, fLoop, fQueue, fMotionMatch, vlm, sty))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return fFalse;
-    }
-
-    if (!FCreateUndo(pactrDup, fTrue))
-    {
-        Restore(pactrDup);
-        ReleasePpo(&pactrDup);
-        return fFalse;
-    }
-
-    ReleasePpo(&pactrDup);
-    return fTrue;
-}
-
-/***************************************************************************
-
     Add a sound event to the actor event list
     For user sounds, the chid must also be fetched for the argument *ptag
     and stored with the event, since for user sounds, the cno can change

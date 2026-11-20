@@ -372,6 +372,8 @@ struct Actor::EditContext
     long body_set,material;
     TAG *tag;
     tribool custom;
+    tribool loop,queue,motion_match;
+    long volume,style;
 };
 MMActorTransactionServices Actor::_TransactionServices(EditContext *context)
 {
@@ -380,28 +382,23 @@ MMActorTransactionServices Actor::_TransactionServices(EditContext *context)
         PActor value=nullptr; bool ok=static_cast<EditContext *>(p)->actor->FDup(&value); *snapshot=value; return int(ok);
     };
     s.restore=[](void *p,void *snapshot) { static_cast<EditContext *>(p)->actor->Restore(static_cast<PActor>(snapshot)); };
-    s.create_undo=[](void *p,void *snapshot) { return int(static_cast<EditContext *>(p)->actor->FCreateUndo(static_cast<PActor>(snapshot))); };
+    s.create_undo=[](void *p,void *snapshot,int sound) {
+        return int(static_cast<EditContext *>(p)->actor->FCreateUndo(static_cast<PActor>(snapshot),sound!=0));
+    };
     s.release=[](void *,void *snapshot) { static_cast<PActor>(snapshot)->Release(); };
     return s;
 }
-MMActorDeleteServices Actor::_DeleteServices(EditContext *context)
+MMActorDeleteServices Actor::_DeleteServices()
 {
-    MMActorDeleteServices s{}; s.context=context;
-    s.read=[](void *p,MMActorDeleteState *state) {
-        auto a=static_cast<EditContext *>(p)->actor; state->frame=a->_owner.runtime.state.frame; state->add_event=a->_owner.runtime.state.addEvent;
-        state->next_event=a->_owner.runtime.state.nextEvent; state->scene_present=a->_Scene()!=nullptr;
-    };
-    s.add_frame=[](void *p,MMI32 i)->MMI32 {
-        Base event; mm_actor_events_get_fixed(static_cast<EditContext *>(p)->actor->_owner.track.events, i,&event); return event.nfrm;
-    };
-    s.event_count=[](void *p)->MMI32 { return mm_actor_events_count(static_cast<EditContext *>(p)->actor->_owner.track.events); };
-    s.delete_subroute=[](void *p) { return int(static_cast<EditContext *>(p)->actor->_FDeleteEntireSubrte()); };
-    s.seek=[](void *p,MMI32 frame) { return int(static_cast<EditContext *>(p)->actor->FGotoFrame(frame)); };
+    MMActorDeleteServices s{};
+    s.context=this;
+    s.timeline=_TimelineServices();
+    s.delete_subroute=[](void *p) { return int(static_cast<Actor *>(p)->_FDeleteEntireSubrte()); };
+    s.seek=[](void *p,MMI32 frame) { return int(static_cast<Actor *>(p)->FGotoFrame(frame)); };
     s.delete_forward=[](void *p,int all,int wants_alive,MMI32 original) {
-        bool alive=false; static_cast<EditContext *>(p)->actor->DeleteFwdCore(all!=0,wants_alive?&alive:nullptr,original); return int(alive);
+        bool alive=false; static_cast<Actor *>(p)->DeleteFwdCore(all!=0,wants_alive?&alive:nullptr,original); return int(alive);
     };
-    s.lifetime=[](void *p) { return int(static_cast<EditContext *>(p)->actor->_FComputeLifetime()); };
-    s.sound_frame=[](void *p) { static_cast<EditContext *>(p)->actor->_Scene()->UpdateSndFrame(); };
+    s.sound_frame=[](void *p) { static_cast<Actor *>(p)->_Scene()->UpdateSndFrame(); };
     s.diagnostic=[](void *,int fault) { PushErc(fault==MM_TRANSACTION_SEEK_FAILED?ercSocGotoFrameFailure:ercSocBadFrameSlider); };
     return s;
 }
@@ -458,6 +455,32 @@ bool Actor::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
 
 /***************************************************************************
 
+    Add a sound event to the actor event list, and create an undo object
+
+***************************************************************************/
+bool Actor::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatch, long vlm, long sty)
+{
+    AssertThis(0);
+    AssertVarMem(ptag);
+    AssertIn(sty, 0, styLim);
+
+    EditContext context{this};
+    context.tag = ptag;
+    context.loop = fLoop;
+    context.queue = fQueue;
+    context.motion_match = fMotionMatch;
+    context.volume = vlm;
+    context.style = sty;
+    auto services = _TransactionServices(&context);
+    services.apply = [](void *p) {
+        const auto &c = *static_cast<EditContext *>(p);
+        return int(c.actor->FSetSndCore(c.tag, c.loop, c.queue, c.motion_match, c.volume, c.style));
+    };
+    return mm_actor_transaction_apply(MM_TRANSACTION_SOUND, nullptr, &services) != 0;
+}
+
+/***************************************************************************
+
     Delete the path and events from this frame and beyond
     **NOTE:  This does not send the actor offstage.	See FRemFromStageCore.
 
@@ -472,10 +495,10 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
 #ifndef BUG1870
 #error C89 actor edit transactions require enabled retail BUG1870 policy
 #endif
-    EditContext context{this}; const auto s=_TransactionServices(&context); const auto d=_DeleteServices(&context);
+    EditContext context{this}; const auto s=_TransactionServices(&context); const auto d=_DeleteServices();
     MMActorDeleteResult out{}; out.context=pfAlive;
     out.publish=[](void *p,int alive,int trashed) { if (trashed) { TrashVar(static_cast<bool *>(p)); } else *static_cast<bool *>(p)=alive!=0; };
-    return mm_actor_transaction_delete(fDeleteAll,pfAlive?&out:nullptr,&s,&d)!=0;
+    return mm_actor_transaction_delete(&_owner,fDeleteAll,pfAlive?&out:nullptr,&s,&d)!=0;
 }
 
 /***************************************************************************

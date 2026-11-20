@@ -155,7 +155,7 @@ class Actor : public Actor_PAR
     static void *_FetchTemplate(void *, const MMTag *);
     struct EditContext;
     static MMActorTransactionServices _TransactionServices(EditContext *);
-    static MMActorDeleteServices _DeleteServices(EditContext *);
+    MMActorDeleteServices _DeleteServices();
     MMActorCopyServices _CopyServices();
     MMActorSoundEditServices _SoundEditServices();
     bool _FEnqueueSnd(long iaev);
