@@ -3732,9 +3732,10 @@ opaque. Runtime Costume/Sound records use public C structs, with native ABI asse
 
 Reading consumes wire groups on every outcome, normalizing before allocation and
 releasing wire before partial runtime storage on failure. Writing borrows runtime
-groups and releases only partial output on failure. Tags stay unopened/unretained;
-read sets runtime cache pointers to null, while write zeros wire pointer slots and
-ignores cache identity.
+groups and releases only partial output on failure. The shared graph readers
+transfer typed tables on success and distinguish invalid event data from
+allocation failures. Decoding leaves tags unopened with null runtime cache
+pointers. Encoding zeros wire pointer slots and ignores cache identity.
 
 `actor_persistence.c` loads the live Studio actor into its C runtime and track.
 It resolves an embedded template's ACTR link with the header tag as fallback,
@@ -3812,8 +3813,10 @@ intact. For authoring drafts, C installs cloned route, event and motion-sound
 tables and a duplicate body. Closing a draft restores the original handles
 and evaluated state. Live event-track replacement clones the route, decodes
 the new event table and replays the frame. Failure restores the original
-track, actor state and costume. The portable C session evaluator still
-supplies its borrowed, bounds-checked table views.
+track, actor state and costume. The portable C session owns the same
+typed route and event tables and uses a checked route view during playback.
+An out-of-range node read sets the bad-file error and returns a zero point
+to the evaluator. The session disposes the track after the evaluation.
 
 The ownership, creation, all-event persistence, clone, edit, stage
 and recording snapshots match the immediately previous build byte for byte.

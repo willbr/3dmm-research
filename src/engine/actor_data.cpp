@@ -80,7 +80,8 @@ MMActorPath *ActorData::PpathRead(PChunkyFile file, ChunkNumber actor)
     const auto graph = EngineMovieGraph::FromFile(file);
     const auto allocator = CollectionAllocator();
     const MMActorPathFactory factory = {&allocator, DebugShip(1, 0)};
-    return mm_actor_movie_path(&graph, actor, &factory);
+    MMActorPath *path;
+    return mm_actor_movie_path(&graph, actor, &factory, &path) == MM_MOVIE_OK ? path : nullptr;
 }
 namespace
 {
@@ -116,7 +117,8 @@ MMActorEventTable *ActorData::PeventsRead(PChunkyFile file, ChunkNumber actor)
     const auto graph = EngineMovieGraph::FromFile(file);
     const auto allocator = CollectionAllocator();
     MMActorEventFactory factory = {&allocator, DebugShip(1, 0)};
-    return mm_actor_movie_events(&graph, actor, &factory);
+    MMActorEventTable *events;
+    return mm_actor_movie_events(&graph, actor, &factory, &events) == MM_MOVIE_OK ? events : nullptr;
 }
 MMActorEventTable *ActorData::PeventsEncode(MMActorEventTable *events)
 {

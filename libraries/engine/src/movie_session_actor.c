@@ -1,4 +1,5 @@
 #include "movie_session_internal.h"
+#include "mm/actor_persistence.h"
 #include "mm/preview_actor.h"
 #include "mm/scene_data.h"
 #include "mm/template_create.h"
@@ -10,21 +11,13 @@
 
 #define ACTOR_TYPE 0x41435452UL
 
-typedef struct ActorEvents
-{
-    MMCollectionStorage storage;
-    MMGroup group;
-    int *status;
-} ActorEvents;
-
 typedef struct ActorInput
 {
     const MMMovieSession *movie;
     const MMMovieSource *source;
     const MMMovieArchive *archive;
-    MMActorRoutePoint *route;
-    MMI32 route_count;
-    ActorEvents *events;
+    MMActorTrack track;
+    MMActorMotionServices motion;
     MMMovieTemplate tmpl;
     int text, status;
     MMI32 action, cel_count;
@@ -42,65 +35,6 @@ static int fail(ActorInput *input, int status)
     return 0;
 }
 
-static void *new_events(void *p, MMU32 width)
-{
-    ActorInput *input = (ActorInput *)p;
-    ActorEvents *events = (ActorEvents *)calloc(1, sizeof(*events));
-    if (!events)
-    {
-        fail(input, MM_MOVIE_MEMORY);
-        return NULL;
-    }
-    mm_storage_init(&events->storage, NULL);
-    events->status = &input->status;
-    events->group.storage = &events->storage;
-    events->group.fixed_bytes = width;
-    events->group.free_count = -1;
-    return events;
-}
-
-static void release_events(void *p)
-{
-    ActorEvents *events = (ActorEvents *)p;
-    if (events)
-    {
-        mm_storage_dispose(&events->storage);
-        free(events);
-    }
-}
-
-static MMU32 event_width(void *p) { return ((ActorEvents *)p)->group.fixed_bytes; }
-static MMU32 event_count(void *p) { return ((ActorEvents *)p)->group.count; }
-static void *event_fixed(void *p, MMU32 row)
-{
-    ActorEvents *events = (ActorEvents *)p;
-    MMGroupLocation location;
-    if (mm_group_location(&events->group, row, &location) != MM_STORAGE_OK)
-        return NULL;
-    return events->storage.buffers[0].data + location.offset;
-}
-static MMI32 event_size(void *p, MMU32 row)
-{
-    ActorEvents *events = (ActorEvents *)p;
-    MMGroupLocation location;
-    if (mm_group_location(&events->group, row, &location) != MM_STORAGE_OK)
-        return -1;
-    return location.bytes - (MMI32)events->group.fixed_bytes;
-}
-static void *event_data(void *p, MMU32 row)
-{
-    unsigned char *fixed = (unsigned char *)event_fixed(p, row);
-    return fixed ? fixed + event_width(p) : NULL;
-}
-static int event_insert(void *p, MMU32 row, MMU32 size, const void *data, const void *fixed)
-{
-    ActorEvents *events = (ActorEvents *)p;
-    int result = mm_group_insert(&events->group, row, size, data, fixed);
-    if (result != MM_STORAGE_OK)
-        *events->status = result == MM_STORAGE_MEMORY ? MM_MOVIE_MEMORY : MM_MOVIE_BAD_FILE;
-    return result == MM_STORAGE_OK;
-}
-
 static int read_actor_header(void *p, MMU32 number, MMActorHeader *out)
 {
     ActorInput *input = (ActorInput *)p;
@@ -108,54 +42,26 @@ static int read_actor_header(void *p, MMU32 number, MMActorHeader *out)
     return status == MM_MOVIE_OK ? 1 : fail(input, status);
 }
 
-static void *create_route(void *p, MMU32 count, void **rows)
-{
-    ActorInput *input = (ActorInput *)p;
-    if (count)
-    {
-        input->route = (MMActorRoutePoint *)malloc((size_t)count * sizeof(*input->route));
-        if (!input->route)
-            return NULL;
-    }
-    input->route_count = (MMI32)count;
-    *rows = input->route;
-    return input;
-}
-
-static void release_route(void *p)
-{
-    ActorInput *input = (ActorInput *)p;
-    free(input->route);
-    input->route = NULL;
-    input->route_count = 0;
-}
-
+/* The evaluator borrows this request as a checked view of its owned path. */
 static int read_route(void *p, MMU32 number, void **out)
 {
     ActorInput *input = (ActorInput *)p;
-    MMActorRouteReader reader = {NULL, create_route, release_route};
-    int status;
-    reader.context = input;
-    status = mm_movie_actor_route(&input->archive->graph, number, &reader, out);
-    return status == MM_MOVIE_OK ? 1 : fail(input, status);
+    const MMActorPathFactory factory = {NULL, 0};
+    int status = mm_actor_movie_path(&input->archive->graph, number, &factory, &input->track.route);
+    if (status != MM_MOVIE_OK)
+        return fail(input, status);
+    *out = input;
+    return 1;
 }
 
 static int read_events(void *p, MMU32 number, void **out)
 {
     ActorInput *input = (ActorInput *)p;
-    MMActorEventServices services;
-    void *events;
-    int status;
-    memset(&services, 0, sizeof(services));
-    services.context = input;
-    services.new_group = new_events;
-    services.insert = event_insert;
-    services.release = release_events;
-    status = mm_movie_actor_events(&input->archive->graph, number, &services, &events);
+    MMActorEventFactory factory = {NULL, 0};
+    int status = mm_actor_movie_events(&input->archive->graph, number, &factory, &input->track.events);
     if (status != MM_MOVIE_OK)
-        return fail(input, input->status ? input->status : status);
-    input->events = (ActorEvents *)events;
-    *out = events;
+        return fail(input, status);
+    *out = input->track.events;
     return 1;
 }
 
@@ -310,43 +216,26 @@ static int step(void *p, MMI32 action, MMI32 cel, MMI32 *out)
 }
 
 static MMU32 route_width(void *p) { (void)p; return MM_ACTOR_ROUTE_BYTES; }
-static MMI32 route_count(void *p) { return ((ActorInput *)p)->route_count; }
+
+static MMI32 route_count(void *p)
+{
+    return mm_actor_path_count(((ActorInput *)p)->track.route);
+}
+
 static void route_point(void *p, MMI32 row, MMActorRoutePoint *out)
 {
     ActorInput *input = (ActorInput *)p;
-    if (row < 0 || row >= input->route_count)
+    if (!mm_actor_path_get(input->track.route, row, out))
     {
         fail(input, MM_MOVIE_BAD_FILE);
         memset(out, 0, sizeof(*out));
     }
-    else
-        *out = input->route[row];
-}
-static MMI32 motion_count(void *p) { return (MMI32)event_count(p); }
-static MMI32 motion_size(void *p, MMI32 row) { return event_size(p, (MMU32)row); }
-static void motion_event(void *p, MMI32 row, MMActorEvent *out)
-{
-    const void *fixed = event_fixed(p, (MMU32)row);
-    if (fixed)
-        memcpy(out, fixed, sizeof(*out));
-    else
-        memset(out, 0, sizeof(*out));
-}
-static void motion_payload(void *p, MMI32 row, void *out)
-{
-    MMI32 size = motion_size(p, row);
-    if (size > 0)
-        memcpy(out, event_data(p, (MMU32)row), (size_t)size);
-}
-static void put_event(void *p, MMI32 row, const MMActorEvent *value)
-{
-    void *fixed = event_fixed(p, (MMU32)row);
-    if (fixed)
-        memcpy(fixed, value, sizeof(*value));
 }
 
-static const MMActorMotionServices motion = {route_width, route_count, route_point, event_width, motion_count,
-                                           motion_event, motion_size, motion_payload};
+static void put_event(void *events, MMI32 row, const MMActorEvent *value)
+{
+    mm_actor_events_set_fixed((MMActorEventTable *)events, row, value);
+}
 
 static MMMovieBodyInput body_input(ActorInput *input)
 {
@@ -455,8 +344,9 @@ static int apply(void *p, MMI32 index)
     origin.dxr = mm_signed_word(input->actor.header.translation[0]);
     origin.dyr = mm_signed_word(input->actor.header.translation[1]);
     origin.dzr = mm_signed_word(input->actor.header.translation[2]);
-    return mm_actor_effect_apply(&input->actor.state, p, input->events, index, &origin, input->evaluated_body != NULL,
-                                 input->evaluated_body == NULL, &motion, &effects) && input->status == MM_MOVIE_OK;
+    return mm_actor_effect_apply(&input->actor.state, p, input->track.events, index, &origin,
+                                 input->evaluated_body != NULL, input->evaluated_body == NULL,
+                                 &input->motion, &effects) && input->status == MM_MOVIE_OK;
 }
 static int fault(void *p) { return ((ActorInput *)p)->status == MM_MOVIE_OK ? 0 : -1; }
 static int bind(void *p, void *token) { (void)p; (void)token; return 1; }
@@ -509,7 +399,11 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     memset(&services, 0, sizeof(services));
     services.context = input;
     services.timeline.context = input;
-    services.timeline.motion = motion;
+    input->motion = mm_actor_track_motion_services();
+    input->motion.route_width = route_width;
+    input->motion.route_count = route_count;
+    input->motion.route_point = route_point;
+    services.timeline.motion = input->motion;
     services.timeline.resolve = step;
     services.timeline.put_event = put_event;
     services.fault = fault;
@@ -593,8 +487,7 @@ static int evaluate_slot(const MMMovieSession *movie, const MMMovieArchive *arch
         mm_movie_body_dispose(input.evaluated_body);
     clear_action(&input.resources);
     mm_session_template_dispose(&input.tmpl);
-    release_events(input.events);
-    release_route(&input);
+    mm_actor_track_dispose(&input.track, NULL);
     return status;
 }
 

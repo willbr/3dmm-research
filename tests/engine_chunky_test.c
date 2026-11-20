@@ -716,7 +716,7 @@ enum
 {
     ACTOR_FIXTURE_OK, ACTOR_FIXTURE_MISSING_PAINT, ACTOR_FIXTURE_BAD_MATRIX,
     ACTOR_FIXTURE_CUSTOM_DEFAULT, ACTOR_FIXTURE_MISSING_DEFAULT, ACTOR_FIXTURE_MISSING_MATRICES,
-    ACTOR_FIXTURE_BAD_COSTUME_TABLE
+    ACTOR_FIXTURE_BAD_COSTUME_TABLE, ACTOR_FIXTURE_BAD_EVENT_NODE, ACTOR_FIXTURE_BAD_ROUTE_END
 };
 
 static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
@@ -767,6 +767,8 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
     put32(row + 120, 1, big);
     put32(row + 140, MM_ACTOR_COSTUME, big);
     put32(row + 144, 3, big);
+    if (issue == ACTOR_FIXTURE_BAD_EVENT_NODE)
+        put32(row + 148, 2, big);
     put32(row + 152, 90000, big);
     put32(row + 180, types[MAT_PAINT], big);
     put32(row + 184, numbers[MAT_PAINT] + (issue == ACTOR_FIXTURE_MISSING_PAINT), big);
@@ -817,6 +819,13 @@ static MMU32 actor_fixture(unsigned char *out, int big, MMU32 source, int issue)
     put32(raw[PATH] + 8, 2, big);
     put32(raw[PATH] + 24, 655360, big);
     put32(raw[PATH] + 28, 655360, big);
+    if (issue == ACTOR_FIXTURE_BAD_ROUTE_END)
+    {
+        /* The first step reaches the last row and its false continuation. */
+        put32(raw[PATH] + 24, 32768, big);
+        put32(raw[PATH] + 28, 32768, big);
+        put32(raw[PATH] + 40, 32768, big);
+    }
     put32(raw[SCENE] + 4, 10, big);
     put32(raw[SCENE] + 8, 1, big);
     if (issue == ACTOR_FIXTURE_MISSING_MATRICES)
@@ -913,6 +922,26 @@ static void movie_actors(void)
         CHECK(mm_movie_session_actor(movie, 0, 1, 1, NULL, NULL, &actor) == MM_MOVIE_ACTOR_NOT_FOUND &&
               actor.number == 12);
         CHECK(mm_movie_session_actor(movie, 0, 11, 0, NULL, NULL, &actor) == MM_MOVIE_FRAME_OUT_OF_RANGE);
+        mm_movie_session_close(movie);
+
+        size = actor_fixture(bytes, big, 0, ACTOR_FIXTURE_BAD_ROUTE_END);
+        CHECK(mm_memory_stream_init(&input, bytes, size));
+        CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+        CHECK(mm_movie_session_actor(movie, 0, 1, 0, NULL, NULL, &actor) == MM_MOVIE_OK);
+        CHECK(mm_movie_session_body(movie, 0, 1, 0, NULL, NULL, &body) == MM_MOVIE_OK);
+        previous = body;
+        CHECK(mm_movie_session_actor(movie, 0, 2, 0, NULL, NULL, &actor) == MM_MOVIE_BAD_FILE &&
+              actor.state.frame == 1);
+        CHECK(mm_movie_session_body(movie, 0, 2, 0, NULL, NULL, &body) == MM_MOVIE_BAD_FILE && body == previous);
+        mm_movie_session_close(movie);
+
+        size = actor_fixture(bytes, big, 0, ACTOR_FIXTURE_BAD_EVENT_NODE);
+        CHECK(mm_memory_stream_init(&input, bytes, size));
+        CHECK(mm_movie_session_open(&input.stream, &policy, &movie) == MM_MOVIE_OK);
+        CHECK(mm_movie_session_actor(movie, 0, 1, 0, NULL, NULL, &actor) == MM_MOVIE_BAD_FILE &&
+              actor.state.frame == 1);
+        CHECK(mm_movie_session_body(movie, 0, 1, 0, NULL, NULL, &body) == MM_MOVIE_BAD_FILE && body == previous);
+        mm_movie_body_dispose(body);
         mm_movie_session_close(movie);
     }
     size = actor_fixture(bytes, 0, 2, ACTOR_FIXTURE_OK);

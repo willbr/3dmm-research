@@ -30,8 +30,9 @@ typedef struct MMActorLoadServices
     void (*diagnostic)(void *, int);
 } MMActorLoadServices;
 
-MMActorPath *mm_actor_movie_path(const MMMovieSessionGraph *, MMU32 number, const MMActorPathFactory *);
-MMActorEventTable *mm_actor_movie_events(const MMMovieSessionGraph *, MMU32 number, MMActorEventFactory *);
+/* Return a movie status and transfer an owned table on success only. */
+int mm_actor_movie_path(const MMMovieSessionGraph *, MMU32 number, const MMActorPathFactory *, MMActorPath **);
+int mm_actor_movie_events(const MMMovieSessionGraph *, MMU32 number, MMActorEventFactory *, MMActorEventTable **);
 
 /* On failure report the diagnostic before disposing any partially loaded actor.
  * The actor's owner releases tracks, opened tags and fetched template references. */

@@ -116,6 +116,7 @@ extern "C"
         MMI32 (*size)(void *, MMU32);
         void *(*data)(void *, MMU32);
         void *(*new_group)(void *, MMU32 fixed_bytes);
+        /* Positive for success, zero for allocation failure, negative for invalid data. */
         int (*insert)(void *group, MMU32 index, MMU32 bytes, const void *variable, const void *fixed);
         void (*release)(void *);
     } MMActorEventServices;

@@ -22,6 +22,7 @@ extern "C"
      * Close writes cleared cache pointers back to rows, and is idempotent.
      * Callbacks must not mutate/re-enter either participating track. */
     void mm_actor_track_init(MMActorTrack *);
+    /* Tag services may be NULL for a decoded track with unopened tags. */
     void mm_actor_track_dispose(MMActorTrack *, const MMTagServices *);
     /* Open tags in a newly decoded track. On failure close the completed prefix
      * in reverse order. A source file is optional for embedded resource copies. */

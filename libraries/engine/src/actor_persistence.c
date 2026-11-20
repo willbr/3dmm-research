@@ -5,19 +5,26 @@
 
 #define FRAME_INVALID 2147483647L
 
-MMActorPath *mm_actor_movie_path(const MMMovieSessionGraph *graph, MMU32 number, const MMActorPathFactory *factory)
+int mm_actor_movie_path(const MMMovieSessionGraph *graph, MMU32 number, const MMActorPathFactory *factory,
+                        MMActorPath **out)
 {
     MMActorRouteReader reader = mm_actor_path_reader(factory);
     void *path;
-    return mm_movie_actor_route(graph, number, &reader, &path) == MM_MOVIE_OK ? (MMActorPath *)path : NULL;
+    int status = mm_movie_actor_route(graph, number, &reader, &path);
+    if (status == MM_MOVIE_OK)
+        *out = (MMActorPath *)path;
+    return status;
 }
 
-MMActorEventTable *mm_actor_movie_events(const MMMovieSessionGraph *graph, MMU32 number, MMActorEventFactory *factory)
+int mm_actor_movie_events(const MMMovieSessionGraph *graph, MMU32 number, MMActorEventFactory *factory,
+                          MMActorEventTable **out)
 {
     MMActorEventServices services = mm_actor_events_services(factory);
     void *events;
-    return mm_movie_actor_events(graph, number, &services, &events) == MM_MOVIE_OK ?
-           (MMActorEventTable *)events : NULL;
+    int status = mm_movie_actor_events(graph, number, &services, &events);
+    if (status == MM_MOVIE_OK)
+        *out = (MMActorEventTable *)events;
+    return status;
 }
 
 static int read_runtime(const MMMovieSessionGraph *graph, MMU32 number, MMActorRuntime *runtime,
@@ -54,6 +61,8 @@ void *mm_actor_load(const MMMovieSessionGraph *graph, MMU32 number, void *cache,
     MMActorOwner *owner;
     MMActorRuntime *runtime;
     MMActorTrack *track;
+    MMActorPath *path;
+    MMActorEventTable *table;
     void *actor = s->create(s->context, &owner);
     if (!actor)
         goto fail;
@@ -63,12 +72,12 @@ void *mm_actor_load(const MMMovieSessionGraph *graph, MMU32 number, void *cache,
         goto fail;
     paths.allocator = events.allocator = s->allocator;
     paths.trash_unused = events.trash_unused = s->trash_unused;
-    mm_actor_track_adopt_route(track, mm_actor_movie_path(graph, number, &paths));
-    if (!track->route)
+    if (mm_actor_movie_path(graph, number, &paths, &path) != MM_MOVIE_OK)
         goto fail;
-    mm_actor_track_adopt_events(track, mm_actor_movie_events(graph, number, &events), s->tags);
-    if (!track->events)
+    mm_actor_track_adopt_route(track, path);
+    if (mm_actor_movie_events(graph, number, &events, &table) != MM_MOVIE_OK)
         goto fail;
+    mm_actor_track_adopt_events(track, table, s->tags);
     if (runtime->template_tag.sid < 0)
         s->diagnostic(s->context, MM_ACTOR_LOAD_TEMPLATE_SOURCE);
     if (!mm_tag_open(&runtime->template_tag, cache, NULL, s->tags) ||

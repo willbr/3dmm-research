@@ -210,6 +210,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   tables they own in C. Preview also uses C for draft cloning and event-track
   replacement and rollback. Native services supply decoded block input, tag
   references and body/costume operations.
+- The portable movie session loads and owns the same typed PATH and GGAE tables
+  used by Studio and preview. Its route view checks node reads during evaluation,
+  and malformed tracks preserve caller outputs and report bad-file errors.
 - Actor value-state initialization, rewind/origin updates and pure events now
   use C89, together with route advancement/interpolation and guarded 16.16
   arithmetic. Studio, Marcus and the session store the same C actor state.

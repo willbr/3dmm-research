@@ -2711,6 +2711,13 @@ SDL and Marcus matched the retained retail frame sequences and their
 respective previous seek images. Evidence is in
 `tmp/c89-preview-track-owner/`.
 
+The portable movie session now loads the same C89 actor path and event
+tables as Studio and Marcus preview. Its checked route view rejects
+out-of-range reads during playback. Native- and foreign-order fixtures
+cover bad cached node indexes and routes that continue past their final
+point. A failed evaluation leaves caller outputs unchanged. Evidence is
+in `tmp/c89-session-actor-track/`.
+
 The awards ZIP was measured again with headless drivers linked against the
 updated production libraries, using the same warm catalog/resources/content:
 

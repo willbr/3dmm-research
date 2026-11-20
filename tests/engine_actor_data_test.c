@@ -277,7 +277,7 @@ typedef struct Group
 } Group;
 struct Host
 {
-    int live, new_fail, fail_at, inserts, allocations;
+    int live, new_fail, fail_at, insert_failure, inserts, allocations;
     char log[64];
     int used, inspect_native;
 };
@@ -339,7 +339,7 @@ static int insert(void *p, MMU32 i, MMU32 bytes, const void *variable, const voi
     Host *h = g->host;
     event(h, 'i');
     if (h->fail_at >= 0 && h->inserts++ == h->fail_at)
-        return 0;
+        return h->insert_failure;
     CHECK(i == g->count && i < 13 && bytes <= 64);
     memcpy(g->fixed[i], meta, 20);
     if (bytes)
@@ -578,8 +578,13 @@ static void event_streams(void)
     h.fail_at = 4;
     out = NULL;
     CHECK(mm_actor_read_events_stream(&stream.stream, &s, &out) == MM_MOVIE_MEMORY && !out && h.live == 2);
+    h.inserts = 0;
+    h.insert_failure = -1;
+    out = source;
+    CHECK(mm_actor_read_events_stream(&stream.stream, &s, &out) == MM_MOVIE_BAD_FILE && out == source && h.live == 2);
     memset(locations + (header.count - 1) * 8, 0xff, 4);
     h.used = 0;
+    out = NULL;
     CHECK(mm_actor_read_events_stream(&stream.stream, &s, &out) == MM_MOVIE_BAD_FILE && !out && h.used == 0);
     release_group(wire);
     release_group(source);

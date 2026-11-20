@@ -189,7 +189,9 @@ static void *new_events(void *p, MMU32 width)
 }
 static int insert_event(void *p, MMU32 index, MMU32 bytes, const void *data, const void *fixed)
 {
-    return mm_actor_events_insert((MMActorEventTable *)p, index, bytes, data, fixed);
+    MMActorEventTable *table = (MMActorEventTable *)p;
+    int status = mm_group_insert(&table->rows, index, bytes, data, fixed);
+    return status == MM_STORAGE_OK ? 1 : status == MM_STORAGE_MEMORY ? 0 : -1;
 }
 static void release_events(void *p) { mm_actor_events_release((MMActorEventTable *)p); }
 

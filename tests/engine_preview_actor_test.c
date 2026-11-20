@@ -228,15 +228,6 @@ static void put_owned(void *events, MMI32 i, const MMActorEvent *value)
     assert(mm_actor_events_set_fixed((MMActorEventTable *)events, i, value));
 }
 
-static void write_event(void *p, MMI32 i, const MMActorEvent *value)
-{
-    Host *h = (Host *)p;
-    if (h->services.tags)
-        put_owned(h->actor.events, i, value);
-    else
-        put(p, i, value);
-}
-
 static int apply(void *v, MMI32 i)
 {
     Host *h = (Host *)v;
@@ -249,7 +240,7 @@ static int apply(void *v, MMI32 i)
     memset(&s, 0, sizeof(s));
     s.context = h;
     s.run = effect;
-    s.write_event = write_event;
+    s.write_event = h->services.tags ? put_owned : put;
     origin.dxr = (MMI32)h->actor.header.translation[0];
     origin.dyr = (MMI32)h->actor.header.translation[1];
     origin.dzr = (MMI32)h->actor.header.translation[2];

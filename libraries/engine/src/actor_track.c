@@ -212,7 +212,8 @@ static MMU32 event_width(void *p) { return ((const MMActorEventTable *)p)->rows.
 static MMI32 event_count(void *p) { return mm_actor_events_count((const MMActorEventTable *)p); }
 static void event_fixed(void *p, MMI32 i, MMActorEvent *out)
 {
-    mm_actor_events_get_fixed((const MMActorEventTable *)p, i, out);
+    if (!mm_actor_events_get_fixed((const MMActorEventTable *)p, i, out))
+        memset(out, 0, sizeof(*out));
 }
 static MMI32 event_size(void *p, MMI32 i) { return mm_actor_events_size((const MMActorEventTable *)p, i); }
 static void event_payload(void *p, MMI32 i, void *out)

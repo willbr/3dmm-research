@@ -324,7 +324,7 @@ void *mm_actor_read_events(void *wire, int order, const MMActorEventServices *s)
         type = kind(fixed, MM_ACTOR_NATIVE);
         data = (unsigned char *)s->data(wire, i);
         bytes = type == MM_ACTOR_COSTUME || type == MM_ACTOR_SOUND ? 0 : s->size(wire, i);
-        if (!insert_decoded_event(s, out, i, fixed, data, (MMU32)bytes))
+        if (insert_decoded_event(s, out, i, fixed, data, (MMU32)bytes) <= 0)
             goto fail;
     }
     s->release(wire);
@@ -343,7 +343,7 @@ int mm_actor_read_events_stream(const MMReadStream *stream, const MMActorEventSe
     MMU32 row, offset, total;
     MMI32 bytes, type;
     void *group = NULL;
-    int order, status = mm_collection_header_read(stream, MM_COLLECTION_GROUP, 0, &header);
+    int order, inserted, status = mm_collection_header_read(stream, MM_COLLECTION_GROUP, 0, &header);
     if (status != MM_STORAGE_OK)
         return collection_status(status);
     total = header.first_bytes + header.second_bytes;
@@ -384,8 +384,12 @@ int mm_actor_read_events_stream(const MMReadStream *stream, const MMActorEventSe
             swap_words(fixed, 5);
             swap_event_data(kind(fixed, MM_ACTOR_NATIVE), data);
         }
-        if (!insert_decoded_event(s, group, row, fixed, data, (MMU32)bytes))
+        inserted = insert_decoded_event(s, group, row, fixed, data, (MMU32)bytes);
+        if (inserted <= 0)
+        {
+            status = inserted < 0 ? MM_MOVIE_BAD_FILE : MM_MOVIE_MEMORY;
             goto done;
+        }
     }
     *out = group;
     status = MM_MOVIE_OK;
@@ -427,7 +431,7 @@ static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 ac
             memcpy(bytes + 4, &costume.costume, 4);
             memcpy(bytes + 8, &costume.custom, 4);
             write_tag(bytes + 12, &costume.tag);
-            if (!s->insert(out, i, 28, bytes, fixed))
+            if (s->insert(out, i, 28, bytes, fixed) <= 0)
                 goto fail;
         }
         else if (type == MM_ACTOR_SOUND)
@@ -441,10 +445,10 @@ static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 ac
             memcpy(bytes + 20, &sound.no_sound, 4);
             memcpy(bytes + 24, &sound.child, 4);
             write_tag(bytes + 28, &sound.tag);
-            if (!s->insert(out, i, 44, bytes, fixed))
+            if (s->insert(out, i, 44, bytes, fixed) <= 0)
                 goto fail;
         }
-        else if (!s->insert(out, i, (MMU32)s->size(runtime, i), data, fixed))
+        else if (s->insert(out, i, (MMU32)s->size(runtime, i), data, fixed) <= 0)
             goto fail;
     }
     return out;
