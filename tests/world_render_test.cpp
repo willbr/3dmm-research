@@ -80,7 +80,7 @@ struct Access : World
 {
     static void State(PWorld w)
     {
-        Value(w->*&Access::_fWorldChanged);
+        Value((w->*&Access::_render).changed);
         Value(begins);
         Value(rects);
         Value(rendered);
@@ -92,12 +92,12 @@ struct Access : World
             Value(mm_region_empty(region) != 0);
             Record(&r, sizeof(r));
         }
-        auto rgb = w->*&Access::_pgptWorking;
+        auto rgb = static_cast<PGraphicsPort>(buffers.owners[MM_WORLD_RGB_WORKING]);
         auto p = rgb->PrgbLockPixels();
-        Record(p, rgb->CbRow() * (w->*&Access::_rcBuffer).Dyp());
+        Record(p, rgb->CbRow() * buffers.buffer_height);
         rgb->Unlock();
-        auto z = w->*&Access::_pzbmpWorking;
-        Record(z->Prgb(), z->CbRow() * (w->*&Access::_rcBuffer).Dyp());
+        auto z = static_cast<PZBMP>(buffers.owners[MM_WORLD_DEPTH_WORKING]);
+        Record(z->Prgb(), z->CbRow() * buffers.buffer_height);
         Materials();
     }
 };

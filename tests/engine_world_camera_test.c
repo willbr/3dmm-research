@@ -78,11 +78,13 @@ static void camera_tests(void)
     mm_world_camera_set(&w, &w.matrix, -1, 1, 0, &s);
     assert(!memcmp(&matrix, &w.matrix, sizeof(matrix)));
 }
-static void point(const MMWorldBuffers *b, MMI32 ox, MMI32 oy, MMI32 x, MMI32 y, int valid,
+static void point(MMWorldBuffers *b, MMI32 ox, MMI32 oy, MMI32 x, MMI32 y, int valid,
                   MMI32 expected_x, MMI32 expected_y)
 {
     MMI32 rx = 123, ry = 456;
-    assert(mm_world_pick_point(b, ox, oy, x, y, &rx, &ry) == valid);
+    b->rgb.x = ox;
+    b->rgb.y = oy;
+    assert(mm_world_pick_point(b, x, y, &rx, &ry) == valid);
     assert(rx == (valid ? expected_x : 123));
     assert(ry == (valid ? expected_y : 456));
 }
@@ -134,12 +136,14 @@ static void coordinate_tests(void)
     s.context = &f;
     s.pick = pick;
     mm_world_camera_init(&w);
-    assert(mm_world_pick(&w, &b, 0, 0, 10, 20, &s) == NULL);
+    assert(mm_world_pick(&w, &b, 10, 20, &s) == NULL);
     assert(!f.calls && w.pick_depth == MAXIMUM);
     b.scale = 2;
-    assert(mm_world_pick(&w, &b, 3, -2, -9, 20, &s) == &f.actor_b);
+    b.rgb.x = 3;
+    b.rgb.y = -2;
+    assert(mm_world_pick(&w, &b, -9, 20, &s) == &f.actor_b);
     assert(f.calls == 1 && f.x == -21 && f.y == 42 && w.pick_depth == MINIMUM);
-    assert(!mm_world_pick(&w, &b, 0, 0, MAXIMUM, 20, &s));
+    assert(!mm_world_pick(&w, &b, MAXIMUM, 20, &s));
     assert(f.calls == 1 && !w.picked && w.pick_depth == MAXIMUM);
 }
 static void bounds_tests(void)

@@ -52,7 +52,7 @@ struct Access : World
 {
     static void Dirty(PWorld w)
     {
-        Value(w->*&Access::_fWorldChanged);
+        Value((w->*&Access::_render).changed);
         const auto &region = (w->*&Access::_buffers).dirty_working;
         const auto &bounds = region.bounds;
         RC r(bounds.left, bounds.top, bounds.right, bounds.bottom);
@@ -61,29 +61,27 @@ struct Access : World
     }
     static void Clear(PWorld w)
     {
-        w->*&Access::_fWorldChanged = false;
+        mm_world_render_init(&(w->*&Access::_render));
         mm_region_set_rect(&(w->*&Access::_buffers).dirty_working, nullptr);
     }
     static void Origin(PWorld w, int x, int y)
     {
-        (w->*&Access::_bpmpRGB).origin_x = x;
-        (w->*&Access::_bpmpRGB).origin_y = y;
+        auto &rgb = (w->*&Access::_buffers).rgb;
+        rgb.x = x;
+        rgb.y = y;
     }
     static void Begin(PWorld w)
     {
-#ifdef MM_ENGINE_WORLD_CAMERA_H
         mm_world_pick_begin(&(w->*&Access::_camera));
-#endif
-        w->*&Access::_pbactClosestClicked = nullptr;
-        w->*&Access::_dzpClosestClicked = BR_SCALAR_MAX;
     }
     static void Filter(PWorld w, PBACT a, BRS depth)
     {
         BVEC3 zero = {};
         Value(_FFilter(a, nullptr, nullptr, &zero, &zero, depth, depth, w));
-        auto picked = w->*&Access::_pbactClosestClicked;
+        const auto &camera = w->*&Access::_camera;
+        auto picked = static_cast<PBACT>(camera.picked);
         Value(picked ? picked->identifier[0] : 0);
-        Value(w->*&Access::_dzpClosestClicked);
+        Value(camera.pick_depth);
     }
     static void Bounds(PBACT actor, br_int_32 bounds[4])
     {

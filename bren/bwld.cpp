@@ -5,24 +5,15 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    To improve performance, World can render into a reduced area, then
-    enlarge the resulting image	at display time.  _fHalfX reduces the
-    horizontal resolution by half, and _fHalfY reduces the vertical
-    resolution by half.  Both modes can be used together to render 1/4 as
-    many pixels.  _rcBuffer is the area being rendered into; _rcView is
-    the area to copy _rcBuffer into (with stretching, if necessary).
-    dirty_working and dirty_screen are in _rcBuffer's coordinate
-    system.  However, in MarkRenderedRegn, dirty_screen is briefly
-    enlarged to _rcView's coordinate system, since the gob will be drawn at
-    full view resolution.
+    The C89 buffer owner defines the working resolution and full viewport.
+    Dirty regions use working-buffer coordinates until marking the screen,
+    when the renderer translates them to viewport coordinates.
 
 ***************************************************************************/
 #include <cstdlib>
 #include <cstdint>
 #include <cstring>
 #include "bren.h"
-
-// REVIEW *****: _pgptStretch is completely unused...remove it!
 
 ASSERTNAME
 
@@ -124,12 +115,30 @@ static void RenderRectOut(const RC &r, MMI32 out[4])
     out[2] = r.xpRight;
     out[3] = r.ypBottom;
 }
+static void BindPixelmap(BPMP &p, const MMWorldPixelView &view)
+{
+    p.type = static_cast<br_uint_8>(view.type);
+    p.row_bytes = static_cast<short>(view.row);
+    p.width = static_cast<ushort>(view.width);
+    p.height = static_cast<ushort>(view.height);
+    p.origin_x = static_cast<short>(view.x);
+    p.origin_y = static_cast<short>(view.y);
+    p.pixels = view.pixels;
+}
+
+void World::_SyncPixelmaps()
+{
+    BindPixelmap(_bpmpRGB, _buffers.rgb);
+    BindPixelmap(_bpmpZ, _buffers.z);
+}
+
 MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movie, const MMMovieLiveFrame *position)
 {
     MMWorldRenderServices s = {};
     s.context = context;
     s.movie = movie;
     s.position = position;
+    _SyncPixelmaps();
     mm_render_frame_borrow(&s.frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
     static_assert(sizeof(s.camera.matrix) == sizeof(_camera.matrix), "camera matrix layout");
     std::memcpy(s.camera.matrix, &_camera.matrix, sizeof(s.camera.matrix));
@@ -174,7 +183,7 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         *noTexture = World::NoTexture();
     };
     s.region_allocator = &static_cast<WorldRenderContext *>(context)->region_allocator;
-    s.depth_background = &_pzbmpBackground->_depth;
+    s.depth_background = &static_cast<PZBMP>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND])->_depth;
     s.lock = [](void *p, int kind, MMWorldPixels *out) -> int {
         auto port = static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind]);
         RC r;
@@ -195,23 +204,8 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         BrZbSceneRender(static_cast<PBACT>(frame->world), static_cast<PBACT>(frame->camera),
                         static_cast<PBPMP>(frame->colour), static_cast<PBPMP>(frame->depth));
     };
-    s.publish = [](void *p, const MMWorldRender *r) { RenderWorld(p)->_fWorldChanged = r->changed != 0; };
-    s.snapshot_depth = [](void *p) {
-        auto w = RenderWorld(p);
-        w->_pzbmpWorking->Draw(w->_pzbmpBackground->Prgb(), w->_pzbmpBackground->CbRow(), w->_rcBuffer.Dyp(), 0, 0,
-                               &w->_rcBuffer, nullptr);
-    };
-    s.detach_depth = [](void *p) { RenderWorld(p)->_pzbmpBackground->Detach(); };
-    s.snapshot_rgb = [](void *p) {
-        auto w = RenderWorld(p);
-        GraphicsEnvironment dst(w->_pgptBackground), src(w->_pgptWorking);
-        dst.CopyPixels(&src, &w->_rcBuffer, &w->_rcBuffer);
-    };
+    s.detach_depth = [](void *, void *depth) { static_cast<PZBMP>(depth)->Detach(); };
     s.flush = [](void *) { GraphicsPort::Flush(); };
-    s.restore_background = [](void *p) {
-        auto w = RenderWorld(p);
-        w->FSetBackground(w->_pcrf, w->_ctgRGB, w->_cnoRGB, w->_ctgZ, w->_cnoZ);
-    };
     s.screen_mark = [](void *p, const MMRegion *region) {
         auto c = static_cast<WorldRenderContext *>(p);
         vpappb->MarkRegion(region, c->gob);
@@ -219,7 +213,7 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
     s.draw = [](void *p, const MMI32 source[4], const MMI32 destination[4]) {
         auto c = static_cast<WorldRenderContext *>(p);
         auto src = RenderRect(source), dst = RenderRect(destination);
-        GraphicsEnvironment temp(c->world->_pgptWorking);
+        GraphicsEnvironment temp(static_cast<PGraphicsPort>(c->world->_buffers.owners[MM_WORLD_RGB_WORKING]));
         c->destination->CopyPixels(&temp, &src, &dst);
     };
     s.materials = WorldMaterialServices();
@@ -251,35 +245,6 @@ MMWorldBufferServices World::_BufferServices()
         auto d = static_cast<PZBMP>(p);
         *out = {static_cast<byte *>(d->_depth.pixels), d->_depth.row_bytes, d->_depth.bytes};
     };
-    s.publish = [](void *p, const MMWorldBuffers *b) {
-        auto w = static_cast<PWorld>(p);
-        w->_rcView.Set(0, 0, b->width, b->height);
-        w->_rcBuffer.Set(0, 0, b->buffer_width, b->buffer_height);
-        w->_fHalfX = b->half_x != 0;
-        w->_fHalfY = b->half_y != 0;
-        w->_renderScale = b->scale;
-        w->_pzbmpBackground = static_cast<PZBMP>(b->owners[MM_WORLD_DEPTH_BACKGROUND]);
-        w->_pzbmpWorking = static_cast<PZBMP>(b->owners[MM_WORLD_DEPTH_WORKING]);
-        w->_pgptBackground = static_cast<PGraphicsPort>(b->owners[MM_WORLD_RGB_BACKGROUND]);
-        w->_pgptWorking = static_cast<PGraphicsPort>(b->owners[MM_WORLD_RGB_WORKING]);
-        w->_pgptStretch = static_cast<PGraphicsPort>(b->owners[MM_WORLD_RGB_STRETCH]);
-        w->_pcrf = static_cast<PChunkyResourceFile>(b->owners[MM_WORLD_CACHE]);
-        w->_ctgRGB = b->rgb_type;
-        w->_cnoRGB = b->rgb_number;
-        w->_ctgZ = b->z_type;
-        w->_cnoZ = b->z_number;
-        auto view = [](BPMP &p, const MMWorldPixelView &v) {
-            p.type = static_cast<br_uint_8>(v.type);
-            p.row_bytes = static_cast<short>(v.row);
-            p.width = static_cast<ushort>(v.width);
-            p.height = static_cast<ushort>(v.height);
-            p.origin_x = static_cast<short>(v.x);
-            p.origin_y = static_cast<short>(v.y);
-            p.pixels = v.pixels;
-        };
-        view(w->_bpmpRGB, b->rgb);
-        view(w->_bpmpZ, b->z);
-    };
     s.setup_scene = [](void *p) {
         auto w = static_cast<PWorld>(p);
         w->_bactWorld.type = BR_ACTOR_NONE;
@@ -290,7 +255,7 @@ MMWorldBufferServices World::_BufferServices()
         w->_bactCamera.t.type = BR_TRANSFORM_MATRIX34;
         w->_bactCamera.type_data = &w->_bcam;
         w->_bcam.type = BR_CAMERA_PERSPECTIVE;
-        w->_bcam.aspect = BR_SCALAR(double(w->_rcView.Dxp()) / double(w->_rcView.Dyp()));
+        w->_bcam.aspect = BR_SCALAR(double(w->_buffers.width) / double(w->_buffers.height));
         BrActorAdd(&w->_bactWorld, &w->_bactCamera);
     };
     s.changed = [](void *p) { static_cast<PWorld>(p)->MarkDirty(); };
@@ -333,13 +298,8 @@ PWorld World::PbwldNew(long dxp, long dyp, bool fHalfX, bool fHalfY)
     Assert(dxp % 2 == 0, "dxp should be even");
     Assert(dyp % 2 == 0, "dyp should be even");
 
-    PWorld pbwld;
-
-    pbwld = NewObj World;
-    if (pbwld)
-        pbwld->_renderScale = _defaultRenderScale;
-
-    if (pbwld == pvNil || !pbwld->_FInit(dxp, dyp, fHalfX, fHalfY))
+    auto pbwld = NewObj World;
+    if (pbwld == pvNil || !pbwld->_FInit(dxp, dyp, _defaultRenderScale, fHalfX, fHalfY))
     {
         ReleasePpo(&pbwld);
         return pvNil;
@@ -352,7 +312,7 @@ PWorld World::PbwldNew(long dxp, long dyp, bool fHalfX, bool fHalfY)
 /***************************************************************************
     Initialize the World
 ***************************************************************************/
-bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
+bool World::_FInit(long dxp, long dyp, long scale, bool fHalfX, bool fHalfY)
 {
     AssertBaseThis(0);
     AssertIn(dxp, 1, ksuMax); // BPMP's width and height are ushorts
@@ -373,7 +333,7 @@ bool World::_FInit(long dxp, long dyp, bool fHalfX, bool fHalfY)
     mm_world_camera_init(&_camera);
     mm_world_render_init(&_render);
     auto s = _BufferServices();
-    if (!mm_world_buffers_init(&_buffers, dxp, dyp, _renderScale, fHalfX, fHalfY, &s))
+    if (!mm_world_buffers_init(&_buffers, dxp, dyp, scale, fHalfX, fHalfY, &s))
         return false;
     BrZbSetRenderBoundsCallback(_ActorRendered);
     return true;
@@ -390,11 +350,11 @@ World::~World()
 }
 bool World::FSetHalfMode(bool x, bool y)
 {
-    return _FSetBufferMode(x, y, _renderScale);
+    return _FSetBufferMode(x, y, _buffers.scale);
 }
 bool World::FSetRenderScale(long scale)
 {
-    return _FSetBufferMode(_fHalfX, _fHalfY, scale);
+    return _FSetBufferMode(FHalfX(), FHalfY(), scale);
 }
 bool World::FSetRenderResolution(long scale, bool reduced)
 {
@@ -463,6 +423,7 @@ MMWorldCameraServices World::_CameraServices()
     };
     s.pick = [](void *p, MMI32 x, MMI32 y) {
         auto w = static_cast<PWorld>(p);
+        w->_SyncPixelmaps();
         BrScenePick2D(&w->_bactWorld, &w->_bactCamera, &w->_bpmpRGB, x, y, World::_FFilter, w);
     };
     return s;
@@ -526,7 +487,8 @@ void World::Prerender(MMMovieSession *movie, const MMMovieLiveFrame *position)
     AssertThis(0);
     WorldRenderContext context = {this};
     auto services = _RenderServices(&context, movie, position);
-    mm_world_prerender(&_render, &_buffers, &services);
+    const auto buffers = _BufferServices();
+    mm_world_prerender(&_render, &_buffers, &services, &buffers);
 }
 
 /***************************************************************************
@@ -536,21 +498,9 @@ void World::Prerender(MMMovieSession *movie, const MMMovieLiveFrame *position)
 void World::Unprerender(void)
 {
     AssertThis(0);
-    WorldRenderContext context = {this};
-    auto services = _RenderServices(&context);
-    mm_world_unprerender(&services);
-}
-
-/***************************************************************************
-    Copy dirty_working from background Z and RGB buffers to working
-    Z and RGB buffers.
-***************************************************************************/
-void World::_CleanWorkingBuffers(void)
-{
-    AssertThis(0);
-    WorldRenderContext context = {this};
-    auto services = _RenderServices(&context);
-    mm_world_render_clean(&_buffers, &services);
+    AssertPo(static_cast<PChunkyResourceFile>(_buffers.owners[MM_WORLD_CACHE]), 0);
+    const auto buffers = _BufferServices();
+    mm_world_buffers_restore_background(&_buffers, &buffers);
 }
 
 /***************************************************************************
@@ -633,10 +583,7 @@ int World::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, 
     PWorld pbwld = (PWorld)pvData;
     AssertPo(pbwld, 0);
 
-    int result = mm_world_pick_visit(&pbwld->_camera, pbact, dzpNear);
-    pbwld->_pbactClosestClicked = static_cast<PBACT>(pbwld->_camera.picked);
-    pbwld->_dzpClosestClicked = pbwld->_camera.pick_depth;
-    return result;
+    return mm_world_pick_visit(&pbwld->_camera, pbact, dzpNear);
 }
 
 /***************************************************************************
@@ -649,8 +596,11 @@ void World::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp,
     if (xp < INT32_MIN || xp > INT32_MAX || yp < INT32_MIN || yp > INT32_MAX)
         return;
     MMI32 x, y;
-    if (mm_world_pick_point(&_buffers, _bpmpRGB.origin_x, _bpmpRGB.origin_y, xp, yp, &x, &y))
+    if (mm_world_pick_point(&_buffers, xp, yp, &x, &y))
+    {
+        _SyncPixelmaps();
         BrScenePick2D(&_bactWorld, &_bactCamera, &_bpmpRGB, x, y, pfnCallback, pvArg);
+    }
 }
 
 /***************************************************************************
@@ -666,13 +616,10 @@ bool World::FClickedActor(long xp, long yp, BACT **ppbact)
     if (xp < INT32_MIN || xp > INT32_MAX || yp < INT32_MIN || yp > INT32_MAX)
         mm_world_pick_begin(&_camera);
     else
-        mm_world_pick(&_camera, &_buffers, _bpmpRGB.origin_x, _bpmpRGB.origin_y, xp, yp, &s);
-    _pbactClosestClicked = static_cast<PBACT>(_camera.picked);
-    _dzpClosestClicked = _camera.pick_depth;
-
-    if (pvNil != _pbactClosestClicked)
+        mm_world_pick(&_camera, &_buffers, xp, yp, &s);
+    if (_camera.picked)
     {
-        *ppbact = _pbactClosestClicked;
+        *ppbact = static_cast<PBACT>(_camera.picked);
         return fTrue;
     }
 
@@ -688,15 +635,15 @@ bool World::FClickedActor(long xp, long yp, BACT **ppbact)
 void World::AssertValid(LegacyUlong grf)
 {
     World_PAR::AssertValid(fobjAllocated);
-    AssertPo(_pgptWorking, 0);
-    AssertPo(_pgptBackground, 0);
-    AssertPo(_pzbmpWorking, 0);
-    AssertPo(_pzbmpBackground, 0);
-    AssertNilOrPo(_pcrf, 0);
-    if (_renderScale == 1 && !_fHalfX && _fHalfY)
-        AssertPo(_pgptStretch, 0);
+    AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_WORKING]), 0);
+    AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_BACKGROUND]), 0);
+    AssertPo(static_cast<PZBMP>(_buffers.owners[MM_WORLD_DEPTH_WORKING]), 0);
+    AssertPo(static_cast<PZBMP>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]), 0);
+    AssertNilOrPo(static_cast<PChunkyResourceFile>(_buffers.owners[MM_WORLD_CACHE]), 0);
+    if (_buffers.scale == 1 && !_buffers.half_x && _buffers.half_y)
+        AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_STRETCH]), 0);
     else
-        Assert(pvNil == _pgptStretch, "don't need _pgptStretch!");
+        Assert(!_buffers.owners[MM_WORLD_RGB_STRETCH], "Unexpected stretch buffer");
 }
 
 /***************************************************************************
@@ -706,17 +653,13 @@ void World::MarkMem(void)
 {
     AssertThis(0);
     World_PAR::MarkMem();
-    MarkMemObj(_pgptWorking);
-    MarkMemObj(_pgptBackground);
-    MarkMemObj(_pzbmpWorking);
-    MarkMemObj(_pzbmpBackground);
+    for (void *owner : _buffers.owners)
+        MarkMemObj(static_cast<BASE *>(owner));
     for (auto region : {&_buffers.dirty_working, &_buffers.dirty_screen})
     {
         MarkPv(region->bands);
         MarkPv(const_cast<void *>(mm_region_band_data(region->bands)));
     }
-    MarkMemObj(_pcrf);
-    MarkMemObj(_pgptStretch);
 }
 
 // SDK descriptor construction is a typed primitive; export sequencing and
@@ -724,13 +667,7 @@ void World::MarkMem(void)
 static BPMP ExportPixelmap(const MMWorldPixelView &view)
 {
     BPMP p = {};
-    p.type = static_cast<br_uint_8>(view.type);
-    p.row_bytes = static_cast<short>(view.row);
-    p.width = static_cast<ushort>(view.width);
-    p.height = static_cast<ushort>(view.height);
-    p.origin_x = static_cast<short>(view.x);
-    p.origin_y = static_cast<short>(view.y);
-    p.pixels = view.pixels;
+    BindPixelmap(p, view);
     return p;
 }
 MMWorldExportServices World::_ExportServices(void *context)

@@ -897,14 +897,18 @@ hit testing, cache factories, BMP import control and pixel lifetime now also use
 C89. C-owned contiguous buffers replace persistent HQ owners. Native drawing
 adapters borrow the host-order header/row-table/RLE view.
 World buffer/depth/region/background-cache ownership, construction order, mode
-transactions, background loading and depth resampling now also use C89. Native
-World fields and SDK pixelmaps are borrowed views; graphics operations and SDK
-scene setup remain host primitives. Camera matrix/clip/FOV state, nearest-pick
-selection, pick-coordinate conversion, actor-root owner traversal and rendered
-bounds conversion now also use C89. The render-changed latch, begin/render/bounds
-sequencing, model-style traversal, temporary material overrides, clipped dirty
-RGB/depth cleanup, prerendering and screen/draw control now also use C89.
-The world buffer record directly owns its working and screen damage regions.
+transactions, background loading and depth resampling now also use C89. The C
+records are the live source for rendering, picking and export. Native adapters
+bind persistent SDK pixelmaps from those records before SDK use. Graphics
+operations and SDK scene setup remain host primitives. Camera matrix/clip/FOV
+state, nearest-pick selection, pick-coordinate conversion, actor-root owner
+traversal and rendered bounds conversion now also use C89. The render-changed
+latch, begin/render/bounds sequencing, model-style traversal, temporary material
+overrides, clipped dirty RGB/depth cleanup, prerendering and screen/draw control
+now also use C89.
+The C world buffer record directly owns its working and screen damage regions
+and supplies the viewport origin for picking and the buffer owners for
+prerender snapshots and background restoration.
 Native adapters provide SDK, graphics-port and window invalidation primitives.
 Current/scaled bitmap export sizing, background fill, resource/lock/material/
 callback cleanup and palette ownership now also use C89. Both live and export

@@ -34,12 +34,11 @@ extern "C"
     void mm_world_pick_begin(MMWorldCamera *);
     /* Equal depths retain the first actor; MAX is not a hit. Always continue. */
     int mm_world_pick_visit(MMWorldCamera *, void *actor, MMI32 depth);
-    /* No viewport clamp. Half-resolution division truncates toward zero.
+    /* Coordinates use the current RGB view's origin. No viewport clamp.
+     * Half-resolution division truncates toward zero.
      * Invalid scales or unrepresentable results fail without writing outputs. */
-    int mm_world_pick_point(const MMWorldBuffers *, MMI32 origin_x, MMI32 origin_y, MMI32 x,
-                                  MMI32 y, MMI32 *out_x, MMI32 *out_y);
-    void *mm_world_pick(MMWorldCamera *, const MMWorldBuffers *, MMI32 origin_x,
-                              MMI32 origin_y, MMI32 x, MMI32 y, const MMWorldCameraServices *);
+    int mm_world_pick_point(const MMWorldBuffers *, MMI32 x, MMI32 y, MMI32 *out_x, MMI32 *out_y);
+    void *mm_world_pick(MMWorldCamera *, const MMWorldBuffers *, MMI32 x, MMI32 y, const MMWorldCameraServices *);
     /* Inclusive SDK bounds become exclusive client bounds. Preserve the legacy
      * (exclusive + scale - 1) / scale expression, even for negative bounds.
      * Overflow fails without publishing a partial rectangle. */

@@ -45,7 +45,6 @@ extern "C"
         void *(*lock)(void *, void *);
         void (*unlock)(void *, void *);
         void (*depth_span)(void *, void *, MMWorldDepthSpan *);
-        void (*publish)(void *, const MMWorldBuffers *);
         void (*setup_scene)(void *);
         void (*changed)(void *);
         void *(*fetch)(void *, void *cache, int kind, MMU32 type, MMU32 number);
@@ -55,8 +54,8 @@ extern "C"
                          MMI32 destination_width, MMI32 destination_height);
         void (*draw_depth)(void *, void *source, void *destination, MMI32 width, MMI32 height);
     } MMWorldBufferServices;
-    /* Initialize a zeroed, unique owning record. Native objects/SDK pixelmaps are
-     * borrowed views published by the host. Viewports are capped at 4096 per axis.
+    /* Initialize a zeroed, unique owning record. Native SDK pixelmaps borrow
+     * the current buffer views. Viewports are capped at 4096 per axis.
      * Working RGB retains one lock until replacement/disposal. Scene setup occurs
      * after buffers and before dirty-region construction, matching the native order.
      * Callbacks must not reenter/mutate the same world. */
@@ -79,6 +78,8 @@ extern "C"
     int mm_world_buffers_background(MMWorldBuffers *, void *cache, MMU32 rgb_type,
                                           MMU32 rgb_number, MMU32 z_type, MMU32 z_number,
                                           const MMWorldBufferServices *);
+    /* Reload the retained background. Returns zero if it is absent or fails to load. */
+    int mm_world_buffers_restore_background(MMWorldBuffers *, const MMWorldBufferServices *);
 /* Copies opaque two-byte depth samples without interpolation. Reduced mode
  * samples every other column/row; scaled mode first draws into a full viewport
  * depth buffer, preserving source origins. Partial RGB work is retained if a

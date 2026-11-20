@@ -68,8 +68,7 @@ int mm_world_pick_visit(MMWorldCamera *w, void *actor, MMI32 depth)
     }
     return 0;
 }
-int mm_world_pick_point(const MMWorldBuffers *b, MMI32 origin_x, MMI32 origin_y, MMI32 x,
-                              MMI32 y, MMI32 *out_x, MMI32 *out_y)
+int mm_world_pick_point(const MMWorldBuffers *b, MMI32 x, MMI32 y, MMI32 *out_x, MMI32 *out_y)
 {
     if (!valid_scale(b->scale))
         return 0;
@@ -85,17 +84,16 @@ int mm_world_pick_point(const MMWorldBuffers *b, MMI32 origin_x, MMI32 origin_y,
         if (b->half_y)
             y = divide(y, 2);
     }
-    if (!subtract(x, origin_x, &x) || !subtract(y, origin_y, &y))
+    if (!subtract(x, b->rgb.x, &x) || !subtract(y, b->rgb.y, &y))
         return 0;
     *out_x = x;
     *out_y = y;
     return 1;
 }
-void *mm_world_pick(MMWorldCamera *w, const MMWorldBuffers *b, MMI32 origin_x, MMI32 origin_y,
-                          MMI32 x, MMI32 y, const MMWorldCameraServices *s)
+void *mm_world_pick(MMWorldCamera *w, const MMWorldBuffers *b, MMI32 x, MMI32 y, const MMWorldCameraServices *s)
 {
     mm_world_pick_begin(w);
-    if (mm_world_pick_point(b, origin_x, origin_y, x, y, &x, &y))
+    if (mm_world_pick_point(b, x, y, &x, &y))
         s->pick(s->context, x, y);
     return w->picked;
 }

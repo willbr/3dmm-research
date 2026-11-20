@@ -76,9 +76,8 @@ extern "C"
         /* A successful lock must be paired with unlock, including scan failure. */
         int (*lock)(void *, int buffer, MMWorldPixels *);
         void (*unlock)(void *, int);
-        void (*render)(void *, const MMRenderFrame *), (*publish)(void *, const MMWorldRender *);
-        void (*snapshot_depth)(void *), (*detach_depth)(void *), (*snapshot_rgb)(void *), (*flush)(void *);
-        void (*restore_background)(void *);
+        void (*render)(void *, const MMRenderFrame *);
+        void (*detach_depth)(void *, void *depth), (*flush)(void *);
         void (*screen_mark)(void *, const MMRegion *);
         void (*draw)(void *, const MMI32 source[4], const MMI32 destination[4]);
         MMWorldMaterialServices materials;
@@ -91,8 +90,8 @@ extern "C"
     void mm_world_render_styles(void *root, int style, const MMWorldRenderServices *);
     int mm_world_render_clean(const MMWorldBuffers *, const MMWorldRenderServices *);
     int mm_world_render(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *);
-    int mm_world_prerender(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *);
-    void mm_world_unprerender(const MMWorldRenderServices *);
+    int mm_world_prerender(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *,
+                           const MMWorldBufferServices *);
     void mm_world_render_mark(MMWorldBuffers *, MMI32 x, MMI32 y,
                                     const MMWorldRenderServices *);
     int mm_world_render_draw(const MMWorldBuffers *, MMI32 x, MMI32 y,

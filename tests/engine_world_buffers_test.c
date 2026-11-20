@@ -12,7 +12,7 @@ typedef struct Fixture
 {
     MMWorldBufferServices s;
     MMWorldBuffers *world;
-    int phase, fail, objects, locks, setups, changed, priorities, publishes, short_depth;
+    int phase, fail, objects, locks, setups, changed, priorities, short_depth;
 } Fixture;
 static int fail(Fixture *f)
 {
@@ -81,12 +81,6 @@ static void span(void *p, void *v, MMWorldDepthSpan *out)
     out->pixels = o->pixels;
     out->row = o->row;
     out->bytes = o->bytes;
-}
-static void publish(void *p, const MMWorldBuffers *w)
-{
-    Fixture *f = (Fixture *)p;
-    assert(w == f->world);
-    ++f->publishes;
 }
 static void scene(void *p)
 {
@@ -158,7 +152,6 @@ static void setup(Fixture *f, MMWorldBuffers *w)
     f->s.lock = lock;
     f->s.unlock = unlock;
     f->s.depth_span = span;
-    f->s.publish = publish;
     f->s.setup_scene = scene;
     f->s.changed = changed;
     f->s.fetch = fetch;
@@ -277,8 +270,29 @@ static void noops(void)
     assert(mm_world_buffers_mode(&w, 0, 0, 1, &f.s) && f.phase == phase);
     assert(!mm_world_buffers_mode(&w, 0, 0, 3, &f.s));
     assert(!mm_world_buffers_resolution(&w, 2, 1, &f.s));
+    assert(!mm_world_buffers_restore_background(&w, &f.s));
     assert(f.phase == phase && !f.changed);
     mm_world_buffers_dispose(&w, &f.s);
+    balanced(&f);
+}
+static void restore_background(void)
+{
+    Fixture f;
+    MMWorldBuffers w;
+    Object *cache, *rgb;
+    setup(&f, &w);
+    assert(mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
+    cache = object(&f, MM_WORLD_CACHE, 0, 0);
+    assert(mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
+    rgb = (Object *)w.owners[MM_WORLD_RGB_BACKGROUND];
+    rgb->pixels[0] = 0x99;
+    f.fail = f.phase + 2;
+    assert(!mm_world_buffers_restore_background(&w, &f.s));
+    assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb->pixels[0] == 0x99 && f.changed == 1);
+    assert(mm_world_buffers_restore_background(&w, &f.s));
+    assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb->pixels[0] == 0x31 && f.changed == 2);
+    mm_world_buffers_dispose(&w, &f.s);
+    release(&f, cache);
     balanced(&f);
 }
 static void partial_background(void)
@@ -338,6 +352,7 @@ int main(void)
     initialization();
     modes();
     noops();
+    restore_background();
     partial_background();
     short_depth();
     puts("C89 World buffers: ownership/locks, transactional modes, background failures, exact depth samples and "

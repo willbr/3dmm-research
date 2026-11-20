@@ -30,7 +30,6 @@ static int create_slot(MMWorldBuffers *w, int kind, MMI32 width, MMI32 height,
 {
     release_slot(w, kind, s);
     w->owners[kind] = s->create(s->context, kind, width, height);
-    s->publish(s->context, w);
     return w->owners[kind] != NULL;
 }
 static int build(MMWorldBuffers *w, int hx, int hy, const MMWorldBufferServices *s)
@@ -52,7 +51,6 @@ static int build(MMWorldBuffers *w, int hx, int hy, const MMWorldBufferServices 
         return 0;
     w->buffer_width = width;
     w->buffer_height = height;
-    s->publish(s->context, w);
     if (!create_slot(w, MM_WORLD_DEPTH_BACKGROUND, width, height, s) ||
         !create_slot(w, MM_WORLD_DEPTH_WORKING, width, height, s))
         return 0;
@@ -64,7 +62,6 @@ static int build(MMWorldBuffers *w, int hx, int hy, const MMWorldBufferServices 
     w->z.y = height / 2;
     w->z.type = s->depth_type;
     w->z.pixels = span.pixels;
-    s->publish(s->context, w);
     if (!create_slot(w, MM_WORLD_RGB_BACKGROUND, width, height, s) ||
         !create_slot(w, MM_WORLD_RGB_WORKING, width, height, s))
         return 0;
@@ -75,11 +72,9 @@ static int build(MMWorldBuffers *w, int hx, int hy, const MMWorldBufferServices 
     w->rgb.y = height / 2;
     w->rgb.type = s->rgb_type;
     w->rgb.pixels = s->lock(s->context, w->owners[MM_WORLD_RGB_WORKING]);
-    s->publish(s->context, w);
     release_slot(w, MM_WORLD_RGB_STRETCH, s);
     if (w->scale == 1 && !hx && hy && !create_slot(w, MM_WORLD_RGB_STRETCH, w->width, w->height, s))
         return 0;
-    s->publish(s->context, w);
     return 1;
 }
 int mm_world_buffers_init(MMWorldBuffers *w, MMI32 width, MMI32 height, MMI32 scale, int hx,
@@ -88,7 +83,6 @@ int mm_world_buffers_init(MMWorldBuffers *w, MMI32 width, MMI32 height, MMI32 sc
     w->width = width;
     w->height = height;
     w->scale = scale;
-    s->publish(s->context, w);
     if (!build(w, hx, hy, s))
         return 0;
     s->setup_scene(s->context);
@@ -112,7 +106,6 @@ void mm_world_buffers_dispose(MMWorldBuffers *w, const MMWorldBufferServices *s)
     mm_region_set_rect(&w->dirty_screen, NULL);
     release_slot(w, MM_WORLD_CACHE, s);
     w->rgb.pixels = w->z.pixels = NULL;
-    s->publish(s->context, w);
 }
 int mm_world_depth_resample(const MMWorldDepthSpan *src, const MMWorldDepthSpan *dst, MMI32 width,
                                   MMI32 height, MMI32 scale, int hx, int hy)
@@ -212,7 +205,6 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
         s->release(s->context, bitmap);
         release_slot(w, MM_WORLD_DEPTH_BACKGROUND, s);
         w->owners[MM_WORLD_DEPTH_BACKGROUND] = depth;
-        s->publish(s->context, w);
     }
     mm_world_buffers_dirty(w, 0);
     s->changed(s->context);
@@ -223,9 +215,14 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
     w->rgb_number = rgb_number;
     w->z_type = z_type;
     w->z_number = z_number;
-    s->publish(s->context, w);
     return 1;
 }
+int mm_world_buffers_restore_background(MMWorldBuffers *w, const MMWorldBufferServices *s)
+{
+    void *cache = w->owners[MM_WORLD_CACHE];
+    return cache && mm_world_buffers_background(w, cache, w->rgb_type, w->rgb_number, w->z_type, w->z_number, s);
+}
+
 int mm_world_buffers_mode(MMWorldBuffers *w, int hx, int hy, MMI32 scale,
                                 const MMWorldBufferServices *s)
 {
@@ -243,20 +240,16 @@ int mm_world_buffers_mode(MMWorldBuffers *w, int hx, int hy, MMI32 scale,
     for (i = 0; i <= MM_WORLD_RGB_STRETCH; ++i)
         w->owners[i] = NULL;
     w->scale = scale;
-    s->publish(s->context, w);
     if (!build(w, hx, hy, s) || (w->owners[MM_WORLD_CACHE] &&
-                                 !mm_world_buffers_background(w, w->owners[MM_WORLD_CACHE], w->rgb_type,
-                                                                    w->rgb_number, w->z_type, w->z_number, s)))
+                                 !mm_world_buffers_restore_background(w, s)))
     {
         release_buffers(w, s);
         *w = old;
-        s->publish(s->context, w);
         return 0;
     }
     release_buffers(&old, s);
     mm_world_buffers_dirty(w, 1);
     s->changed(s->context);
-    s->publish(s->context, w);
     return 1;
 }
 int mm_world_buffers_resolution(MMWorldBuffers *w, MMI32 scale, int reduced,

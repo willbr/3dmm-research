@@ -43,51 +43,31 @@ class World : public World_PAR
 
   protected:
     static bool _fBRenderInited; // Whether BrBegin() has been called
-    MMWorldBuffers _buffers; // owns resources; native fields below are borrowed views
+    MMWorldBuffers _buffers;
     MMWorldBufferServices _BufferServices();
     MMWorldCamera _camera; // authoritative camera and closest-pick state
     MMWorldCameraServices _CameraServices();
     MMWorldRender _render;
     MMWorldRenderServices _RenderServices(void *context, MMMovieSession *movie = nullptr,
                                           const MMMovieLiveFrame *position = nullptr);
-    RC _rcBuffer;                // Bounds of the rendering space
-    RC _rcView;                  // Bounds of view
     BACT _bactWorld;             // The world root actor
     BACT _bactCamera;            // The camera actor
     BCAM _bcam;                  // The camera data
-    PGraphicsPort _pgptBackground;        // Background RGB bitmap
-    PGraphicsPort _pgptWorking;           // RGB working buffer to render into
-    PGraphicsPort _pgptStretch;           // Stretched working buffer (if _fhalfY)
-    BPMP _bpmpRGB;               // BRender wrapper around _pgptWorking
-    PZBMP _pzbmpBackground;      // Background Z-buffer
-    PZBMP _pzbmpWorking;         // Working Z-buffer to render into
-    BPMP _bpmpZ;                 // BRender wrapper around _pzbmpWorking
-    bool _fHalfX;                // Render at half horizontal resolution
-    bool _fHalfY;                // Render at half vertical resolution
-    long _renderScale = 1;
+    BPMP _bpmpRGB, _bpmpZ; // BRender views refreshed from the C89 buffers before use.
     static long _defaultRenderScale;
-    bool _fWorldChanged;         // Mirror of the C render latch
     PFNBEGINREND _pfnbeginrend;  // Callback to each actor before rendering
     int (*_pfnreadbody)(PBACT, MMRenderBody *) = nullptr;
     void (*_pfnpreparebody)(const MMRenderBody *) = nullptr;
     PFNBACTREND _pfnbactrend;    // Callback when an actor is rendered
     PFNGETRECT _pfngetrect;      // Callback to get an actor's bounding rect
-    PBACT _pbactClosestClicked;  // Borrowed mirror of the C selection
-    BRS _dzpClosestClicked;      // Mirror of the C selection distance
-    // Keep reference to last background in case we switch to/from halfmode:
-    PChunkyResourceFile _pcrf;
-    ChunkTagOrType _ctgRGB;
-    ChunkNumber _cnoRGB;
-    ChunkTagOrType _ctgZ;
-    ChunkNumber _cnoZ;
 
   protected:
     World(void)
     {
     }
-    bool _FInit(long dxp, long dyp, bool fHalfX, bool fHalfY);
+    bool _FInit(long dxp, long dyp, long scale, bool fHalfX, bool fHalfY);
     bool _FSetBufferMode(bool fHalfX, bool fHalfY, long scale);
-    void _CleanWorkingBuffers(void);
+    void _SyncPixelmaps();
 #ifdef DEBUG
     MMWorldExportServices _ExportServices(void *context);
 #endif // DEBUG
@@ -106,7 +86,6 @@ class World : public World_PAR
     void MarkDirty(void)
     {
         mm_world_render_dirty(&_render);
-        _fWorldChanged = _render.changed != 0;
     }
     void MarkRenderedRegn(PGraphicsObject pgob, long dxp, long dyp);
 
@@ -168,7 +147,7 @@ class World : public World_PAR
     bool FSetRenderResolution(long scale, bool reduced);
     long RenderScale() const
     {
-        return _renderScale;
+        return _buffers.scale;
     }
     static long DefaultRenderScale()
     {
@@ -181,16 +160,16 @@ class World : public World_PAR
     }
     void GetRenderSize(long *width, long *height) const
     {
-        *width = _rcBuffer.xpRight;
-        *height = _rcBuffer.ypBottom;
+        *width = _buffers.buffer_width;
+        *height = _buffers.buffer_height;
     }
     bool FHalfX(void)
     {
-        return _fHalfX;
+        return _buffers.half_x != 0;
     }
     bool FHalfY(void)
     {
-        return _fHalfY;
+        return _buffers.half_y != 0;
     }
     void Render(MMMovieSession *movie = nullptr, const MMMovieLiveFrame *position = nullptr);
     void Prerender(MMMovieSession *movie = nullptr, const MMMovieLiveFrame *position = nullptr);

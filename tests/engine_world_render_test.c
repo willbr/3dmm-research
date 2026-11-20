@@ -15,6 +15,7 @@ typedef struct Fixture
     MMWorldRender r;
     MMWorldBuffers b;
     MMWorldRenderServices s;
+    MMWorldBufferServices buffers;
     MMWorldMaterial m[4], original[4];
     Actor a[7];
     MMBodyPartBinding bindings[2][2];
@@ -209,30 +210,27 @@ static void render(void *p, const MMRenderFrame *frame)
     if (f->change_in_render)
         mm_world_render_dirty(&f->r);
 }
-static void publish(void *p, const MMWorldRender *r)
+static void snapshot_depth(void *p, void *source, void *destination, MMI32 width, MMI32 height)
 {
-    assert(!r->changed);
-    event((Fixture *)p, 60);
+    Fixture *f = (Fixture *)p;
+    assert(source == f->z_working && destination == f->z_background && width == 6 && height == 4);
+    event(f, 80);
 }
-static void snapshot_depth(void *p)
+static void detach(void *p, void *depth)
 {
-    event((Fixture *)p, 80);
+    Fixture *f = (Fixture *)p;
+    assert(depth == f->z_background);
+    event(f, 81);
 }
-static void detach(void *p)
+static void snapshot_rgb(void *p, void *source, void *destination, MMI32 sw, MMI32 sh, MMI32 dw, MMI32 dh)
 {
-    event((Fixture *)p, 81);
-}
-static void snapshot_rgb(void *p)
-{
-    event((Fixture *)p, 82);
+    Fixture *f = (Fixture *)p;
+    assert(source == f->working && destination == f->background && sw == 6 && sh == 4 && dw == sw && dh == sh);
+    event(f, 82);
 }
 static void flush(void *p)
 {
     event((Fixture *)p, 83);
-}
-static void restore(void *p)
-{
-    event((Fixture *)p, 84);
 }
 static void mark(void *p, const MMRegion *region)
 {
@@ -268,6 +266,13 @@ static void init(Fixture *f)
     f->b.z.height = 4;
     f->b.z.row = 12;
     f->b.z.pixels = f->z_working;
+    f->b.owners[MM_WORLD_DEPTH_WORKING] = f->z_working;
+    f->b.owners[MM_WORLD_DEPTH_BACKGROUND] = f->z_background;
+    f->b.owners[RGB] = f->working;
+    f->b.owners[BG] = f->background;
+    f->buffers.context = f;
+    f->buffers.draw_depth = snapshot_depth;
+    f->buffers.copy_rgb = snapshot_rgb;
     memset(f->z_background, 0x52, sizeof(f->z_background));
     memset(f->z_working, 0xcc, sizeof(f->z_working));
     f->rect_enabled = 1;
@@ -325,12 +330,8 @@ static void init(Fixture *f)
     s->lock = lock;
     s->unlock = unlock;
     s->render = render;
-    s->publish = publish;
-    s->snapshot_depth = snapshot_depth;
     s->detach_depth = detach;
-    s->snapshot_rgb = snapshot_rgb;
     s->flush = flush;
-    s->restore_background = restore;
     s->screen_mark = mark;
     s->draw = draw;
     m = &s->materials;
@@ -457,7 +458,6 @@ static void render_tests(void)
         assert(position(&f, 200) < position(&f, 50) && position(&f, 151) > position(&f, 50));
         i = position(&f, 50);
         assert(f.events[i + 1] == 200 && f.events[i + 2] == 201 && f.events[i + 3] == 202);
-        assert(f.events[f.n - 1] == 60);
         assert(f.b.dirty_working.bounds.left == -1 && f.b.dirty_working.bounds.right == 3);
         assert(f.b.dirty_screen.bounds.left == -3 && f.b.dirty_screen.bounds.bottom == 9);
         for (i = 0; i < 4; ++i)
@@ -478,11 +478,11 @@ static void render_tests(void)
     init(&f);
     f.fail_alloc = f.flat = 1;
     mm_world_render_dirty(&f.r);
-    assert(!mm_world_prerender(&f.r, &f.b, &f.s));
+    assert(!mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
     assert(f.r.changed && position(&f, 50) < 0 && position(&f, 80) < 0);
     f.fail_alloc = 0;
     f.n = 0;
-    assert(mm_world_prerender(&f.r, &f.b, &f.s));
+    assert(mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
     assert(!f.r.changed);
     assert(f.events[f.n - 4] == 80 && f.events[f.n - 3] == 81 && f.events[f.n - 2] == 82 && f.events[f.n - 1] == 83);
     dispose_regions(&f);
@@ -491,7 +491,7 @@ static void render_tests(void)
     f.rect_overflow = 1;
     mm_world_render_dirty(&f.r);
     assert(!mm_world_render(&f.r, &f.b, &f.s));
-    assert(f.r.changed && !f.live && position(&f, 60) < 0);
+    assert(f.r.changed && !f.live);
     dispose_regions(&f);
     for (i = 0; i < 2; ++i)
     {
@@ -533,8 +533,6 @@ static void output_tests(void)
         assert(!f.n);
         assert(!mm_world_render_draw(&f.b, -2147483647, 0, &f.s));
         assert(!f.n);
-        mm_world_unprerender(&f.s);
-        assert(f.n == 1 && f.events[0] == 84);
     }
 }
 int main(void)

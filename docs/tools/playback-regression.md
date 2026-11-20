@@ -16889,3 +16889,37 @@ matched all 60 archived retail frame identities in seek and continuous
 playback and all retail seek camera indices. Both reproduced their 60
 previous seek canvas hashes. SDL matched all 12 archived retail sound
 requests. Evidence is in `tmp/c89-sound-queue-output`.
+
+## Live World rendering and picking state in C89 (20 November 2026)
+
+Rendering, picking and export use the C89 World buffer descriptions, resource
+owners, dirty latch and pick state directly. The native World refreshes
+persistent BRender pixelmaps before use. The C89 prerender path selects the RGB
+and depth owners and snapshot dimensions. Unprerendering and buffer mode changes
+reload the retained background through the same C entry point. The C fixtures
+check snapshot order, dimensions and owners, skip-on-render-failure behavior and
+retained background reloads on success, failure and absent cache.
+
+All 192 standalone C89 checks passed. The four focused World checks passed on
+SDL, native x64 and x86, and AddressSanitizer. Ten selected native x64 checks
+passed, including Marcus playback, player and sound editing. Eleven native/SDL
+World traces matched the previous build byte for byte. The buffer, camera, and
+render fingerprints were `35BEFB80`, `AD744449`, and `4FC7CD7D` respectively on
+all three builds. The two debug-native export traces matched `E235ADA9`.
+The Release SDL build passed the C export test; its native export fixture is
+debug-only. All 54 movie and scene traces, three saved movie fixtures, ten
+Preview fingerprints and six Preview movies matched the previous build.
+
+Studio's options, authoring, and scale-2 movie-only playback workflows passed.
+The authoring workflow saved the same movie byte for byte. Retail, SDL, and
+Marcus matched all three retained-background frame identities, camera indices,
+and canvas hashes in `20261120T214528Z-6bc36468`. Both ports matched original
+v3dmm 0.14 on all three Studio-saved VMM frames in `20261120T214602Z-6cc6cc86`.
+
+All four `actor-event-edit` captures completed in `20261120T214243Z-da8c6829`.
+An explicit comparison to the archived retail runs matched all 60 frame
+identities in seek and continuous playback for each port, all retail seek
+camera indices, and all 12 SDL sound requests. Each port reproduced its 60
+prior seek canvas hashes. The capture suite's automated comparison needs a
+retail run in the same suite. The archived comparison and trace evidence are
+in `tmp/c89-world-state`.

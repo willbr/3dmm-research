@@ -5778,10 +5778,11 @@ and import/source ownership. Full gates are in `docs/tools/playback-regression.m
 `world_buffers.c` owns World colour/depth/stretch buffers, dirty regions and the
 retained background cache, mode dimensions, renderer-view descriptions,
 construction/disposal ordering, mode rollback and background loading/control.
-Native World fields and BRender pixelmaps borrow this state. Typed host services
-provide allocation, locks, region creation, SDK scene setup and graphics blits;
-camera/picking, render and export policy are described next; final representation
-removal remains work.
+Native World adapters borrow typed resources directly from the C owners and
+populate stable BRender pixelmaps from the live C descriptions before render and
+pick. BRender retains the output pixelmap address across render calls. Typed host
+services provide allocation, locks, region creation, SDK scene setup and
+graphics blits.
 
 Scale values stay 1/2/4, with a 4,096-pixel limit per rendered axis. Half flags
 reduce dimensions only at scale 1; the extra stretch port remains exclusive to
@@ -5791,11 +5792,12 @@ background reload succeed, then release old owners in native order. Failure
 restores resources, descriptions, dimensions and flags without invalidating the
 old buffers. No-op/invalid modes allocate nothing.
 
-Background loading preserves fetch/priority/release order, dirty notification,
-retain-before-release of the cache, full-mode depth transfer and nearest depth
-sample selection in reduced/scaled modes. Partial colour writes remain if later
-depth work fails. The reduced-mode temporary-colour allocation now checks the
-new port rather than the existing destination, avoiding a null-port crash.
+Mode changes and unprerendering restore the retained background through the
+same C entry point. Background loading preserves fetch/priority/release order,
+dirty notification, retain-before-release of the cache, full-mode depth transfer
+and nearest depth sample selection in reduced/scaled modes. Partial colour writes
+remain if later depth work fails. The reduced-mode temporary-colour allocation
+now checks the new port, avoiding a null-port crash.
 Depth span arithmetic is bounded before copies; no depth interpolation occurs.
 
 Two original native traces, the original SDL trace and the converted trace match
@@ -5812,10 +5814,10 @@ capture limits are in `docs/tools/playback-regression.md`.
 `world_camera.c` owns persistent camera matrix/near/far/FOV and nearest-pick
 state, camera publication/working-region dirty ordering, pick reset/dispatch,
 coordinate conversion, actor-root owner traversal and rendered-bound conversion.
-The native camera is an SDK mirror. Typed adapters retain SDK field access,
-the actual SDK intersection query, region mutation and client callback dispatch.
-Temporary native pick fields mirror the C result. Render/export policy is
-described below; final SDK/object representation removal remains work.
+Both pick entry points read the viewport origin from the C RGB buffer
+description. The native camera is an SDK mirror. Typed adapters retain SDK field
+access, the SDK intersection query, region mutation and client callback dispatch.
+The World returns the nearest actor directly from the C pick state.
 
 Camera changes dirty the working region without setting the changed latch,
 matching the original behavior. Half-resolution picking truncates negative
@@ -5838,10 +5840,11 @@ Full validation and capture limits are in `docs/tools/playback-regression.md`.
 
 `world_render.c` owns the persistent changed latch, render sequencing, model-style
 traversal, temporary material snapshots and restoration, clipped dirty RGB and
-depth copies, prerender snapshots, background restoration dispatch and screen
-damage transforms. Native World fields borrow the C latch. Typed services
-supply actor fields, SDK rasterization, material-registry access, graphics-port
-locks and blits, and application marking.
+depth copies, prerender snapshots and screen damage transforms. The prerender
+evaluator routes the live RGB and depth owners and the rendered rectangle to
+the graphics services. Native World adapters read the changed latch directly
+from the C record. Typed services supply actor fields, SDK rasterization,
+material-registry access, graphics-port locks and blits, and application marking.
 
 Immediate NONE roots receive begin callbacks before cleaning. Working dirt is
 unioned into screen dirt before clearing; after render and material restoration,

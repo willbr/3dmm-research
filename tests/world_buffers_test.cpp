@@ -48,25 +48,24 @@ struct Access : World
 {
     static void State(PWorld w, bool pixels)
     {
-        auto view = w->*&Access::_rcView, buffer = w->*&Access::_rcBuffer;
+        const auto &buffers = w->*&Access::_buffers;
+        RC view(0, 0, buffers.width, buffers.height), buffer(0, 0, buffers.buffer_width, buffers.buffer_height);
         Record(&view, sizeof(view));
         Record(&buffer, sizeof(buffer));
-        Value(w->*&Access::_fHalfX);
-        Value(w->*&Access::_fHalfY);
-        Value(w->*&Access::_renderScale);
-        Value(w->*&Access::_fWorldChanged);
-        for (auto field : {&Access::_pgptBackground, &Access::_pgptWorking, &Access::_pgptStretch})
-            Value(w->*field != nullptr);
-        auto z = w->*&Access::_pzbmpWorking;
-        Value(z != nullptr);
-        Value(w->*&Access::_pzbmpBackground != nullptr);
+        Value(w->FHalfX());
+        Value(w->FHalfY());
+        Value(w->RenderScale());
+        Value((w->*&Access::_render).changed);
+        for (auto field : {MM_WORLD_RGB_BACKGROUND, MM_WORLD_RGB_WORKING, MM_WORLD_RGB_STRETCH,
+                           MM_WORLD_DEPTH_WORKING, MM_WORLD_DEPTH_BACKGROUND})
+            Value(buffers.owners[field] != nullptr);
+        (w->*&Access::_SyncPixelmaps)();
         for (auto field : {&Access::_bpmpRGB, &Access::_bpmpZ})
         {
             auto &b = w->*field;
             LegacyLong values[] = {b.type, b.row_bytes, b.width, b.height, b.origin_x, b.origin_y, b.pixels != nullptr};
             Record(values, sizeof(values));
         }
-        const auto &buffers = w->*&Access::_buffers;
         for (auto region : {&buffers.dirty_working, &buffers.dirty_screen})
         {
             const auto &bounds = region->bounds;
@@ -76,9 +75,9 @@ struct Access : World
         }
         if (pixels)
         {
-            auto depth = w->*&Access::_pzbmpBackground;
+            auto depth = static_cast<PZBMP>(buffers.owners[MM_WORLD_DEPTH_BACKGROUND]);
             Record(depth->Prgb(), depth->CbRow() * buffer.Dyp());
-            auto rgb = w->*&Access::_pgptBackground;
+            auto rgb = static_cast<PGraphicsPort>(buffers.owners[MM_WORLD_RGB_BACKGROUND]);
             auto p = rgb->PrgbLockPixels();
             Record(p, rgb->CbRow() * buffer.Dyp());
             rgb->Unlock();

@@ -208,25 +208,23 @@ int mm_world_render(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServ
         }
     mm_region_apply(&b->dirty_screen, MM_REGION_UNION, &b->dirty_working, NULL, s->region_allocator);
     r->changed = 0;
-    s->publish(s->context, r);
     ok = 1;
 done:
     mm_movie_render_scene_dispose(&scene);
     return ok;
 }
-int mm_world_prerender(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s)
+int mm_world_prerender(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s,
+                        const MMWorldBufferServices *buffers)
 {
     if (!mm_world_render(r, b, s))
         return 0;
-    s->snapshot_depth(s->context);
-    s->detach_depth(s->context);
-    s->snapshot_rgb(s->context);
+    buffers->draw_depth(buffers->context, b->owners[MM_WORLD_DEPTH_WORKING], b->owners[MM_WORLD_DEPTH_BACKGROUND],
+                        b->buffer_width, b->buffer_height);
+    s->detach_depth(s->context, b->owners[MM_WORLD_DEPTH_BACKGROUND]);
+    buffers->copy_rgb(buffers->context, b->owners[MM_WORLD_RGB_WORKING], b->owners[MM_WORLD_RGB_BACKGROUND],
+                      b->buffer_width, b->buffer_height, b->buffer_width, b->buffer_height);
     s->flush(s->context);
     return 1;
-}
-void mm_world_unprerender(const MMWorldRenderServices *s)
-{
-    s->restore_background(s->context);
 }
 void mm_world_render_mark(MMWorldBuffers *b, MMI32 x, MMI32 y, const MMWorldRenderServices *s)
 {

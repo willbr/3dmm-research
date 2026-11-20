@@ -86,7 +86,7 @@ struct Access : World
 {
     static void State(PWorld w)
     {
-        Value(w->*&Access::_fWorldChanged);
+        Value((w->*&Access::_render).changed);
         Value(begins);
         Value(rects);
         Value(rendered);
@@ -98,12 +98,12 @@ struct Access : World
             Value(mm_region_empty(region) != 0);
             Record(&r, sizeof(r));
         }
-        auto rgb = w->*&Access::_pgptWorking;
+        auto rgb = static_cast<PGraphicsPort>(buffers.owners[MM_WORLD_RGB_WORKING]);
         auto p = rgb->PrgbLockPixels();
-        Record(p, rgb->CbRow() * (w->*&Access::_rcBuffer).Dyp());
+        Record(p, rgb->CbRow() * buffers.buffer_height);
         rgb->Unlock();
-        auto z = w->*&Access::_pzbmpWorking;
-        Record(z->Prgb(), z->CbRow() * (w->*&Access::_rcBuffer).Dyp());
+        auto z = static_cast<PZBMP>(buffers.owners[MM_WORLD_DEPTH_WORKING]);
+        Record(z->Prgb(), z->CbRow() * buffers.buffer_height);
         Materials();
         BMAT34 matrix;
         BRS nearZ, farZ;
@@ -113,15 +113,17 @@ struct Access : World
         Value(nearZ);
         Value(farZ);
         Value(fov);
-        Record(&(w->*&Access::_rcView), sizeof(RC));
-        Record(&(w->*&Access::_rcBuffer), sizeof(RC));
+        RC view(0, 0, buffers.width, buffers.height), buffer(0, 0, buffers.buffer_width, buffers.buffer_height);
+        Record(&view, sizeof(RC));
+        Record(&buffer, sizeof(RC));
     }
     static void Seed(PWorld w)
     {
-        for (auto field : {&Access::_pgptBackground, &Access::_pgptWorking})
+        const auto &buffers = w->*&Access::_buffers;
+        for (auto field : {MM_WORLD_RGB_BACKGROUND, MM_WORLD_RGB_WORKING})
         {
-            auto port = w->*field;
-            std::memset(port->PrgbLockPixels(), 3, port->CbRow() * (w->*&Access::_rcBuffer).Dyp());
+            auto port = static_cast<PGraphicsPort>(buffers.owners[field]);
+            std::memset(port->PrgbLockPixels(), 3, port->CbRow() * buffers.buffer_height);
             port->Unlock();
         }
     }
