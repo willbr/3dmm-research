@@ -1,4 +1,5 @@
 #include "mm/text_resource.h"
+#include "engine_resource_block_fixture.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -11,7 +12,12 @@ typedef struct Object
 typedef struct Context
 {
     MMTextResourceServices services; char saved[256]; unsigned char wire[24];
-    MMI32 bytes; int fail,step,live,header,child,found,unpacked,appended,deleted;
+    ResourceTestBlock block;
+    MMChunkPayloadServices payloads;
+    MMResourceCache cache;
+    MMTextResourceSource source;
+    MMI32 bytes; int fail,step,live,header,child,found,packed,unpacked,appended,deleted;
+    int file_refs;
     int error,released_error,bad,warnings,custom,defaults,names_published;
     MMTextNames *names;
 } Context;
@@ -98,19 +104,94 @@ static MMTemplateCostumeTable *costumes_new(void *p)
     return &owner->table;
 }
 static void *material_new(void *p) { return list_new(p,0,0); }
-static int read_template(void *p,void *o,void *file,MMU32 type,MMU32 n,void *block)
-{ Context *c=(Context *)p; assert(file==p && block==p); (void)type; (void)n; copy_string(((Object *)o)->text,"loaded"); return c->header; }
+static int read_template(void *p,void *o,MMU32 type,MMU32 n,void *block)
+{ Context *c=(Context *)p; assert(block==p); (void)type; (void)n; copy_string(((Object *)o)->text,"loaded"); return c->header; }
 static int write_template(void *p,void *o,void *file,MMU32 type,void *out)
 { MMU32 n=37; (void)o; (void)file; (void)type; memcpy(out,&n,4); return ((Context *)p)->header; }
-static int child(void *p,void *file,MMU32 type,MMU32 n,MMU32 *out)
-{ (void)file; (void)type; assert(n==37); *out=19; return ((Context *)p)->child; }
-static void *find(void *p,void *file,MMU32 n) { (void)file; assert(n==19); return ((Context *)p)->found?p:NULL; }
-static int unpack(void *p,void *b) { assert(p==b); return ((Context *)p)->unpacked; }
-static MMI32 block_size(void *p,void *b) { (void)b; return ((Context *)p)->bytes; }
-static int read_block(void *p,void *b,void *out,MMI32 n) { (void)b; assert(n==24); memcpy(out,((Context *)p)->wire,24); return 1; }
-static void *add(void *p,void *file,MMU32 type,MMU32 n,MMU32 *out) { (void)file; (void)type; assert(n==37); *out=19; return ((Context *)p)->child?p:NULL; }
-static int write_block(void *p,void *b,const void *in,MMI32 n) { (void)b; assert(n==24); memcpy(((Context *)p)->wire,in,24); return ((Context *)p)->found; }
-static void delete_child(void *p,void *file,MMU32 type,MMU32 n,MMU32 kid) { (void)file; (void)type; assert(n==37 && kid==19); ++((Context *)p)->deleted; }
+static int graph_entry(void *p, MMU32 pos, MMChunkEntry *out)
+{
+    Context *c = (Context *)p;
+    assert(pos == 0);
+    memset(out, 0, sizeof(*out));
+    out->type = MM_TMPL;
+    out->number = 37;
+    out->child_count = c->child != 0;
+    return 1;
+}
+static int graph_child(void *p, MMU32 parent, MMU32 pos, MMChunkChild *out)
+{
+    assert(parent == 0 && pos == 0 && ((Context *)p)->child);
+    out->type = MM_TDT;
+    out->number = 19;
+    out->slot = 0;
+    return 1;
+}
+static MMChunkAccess live_chunks(void *file)
+{
+    return ((Context *)file)->source.chunks;
+}
+static int locate(void *file, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
+{
+    Context *c = (Context *)file;
+    assert(type == MM_TDT && number == 19);
+    if (!c->found)
+        return 0;
+    out->file = file;
+    out->offset = 5;
+    out->length = c->packed ? 12 : (MMU32)c->bytes;
+    *packed = c->packed;
+    return 1;
+}
+static void retain_file(void *p, void *file)
+{
+    Context *c = (Context *)p;
+    assert(file == p && !c->file_refs);
+    ++c->file_refs;
+}
+static void release_file(void *p, void *file)
+{
+    Context *c = (Context *)p;
+    assert(file == p && c->file_refs == 1);
+    --c->file_refs;
+}
+static int read_block(void *p, void *file, MMU32 offset, void *out, size_t count)
+{
+    Context *c = (Context *)p;
+    assert(file == p && c->file_refs == 1 && offset == 5 && count <= sizeof(c->wire));
+    memcpy(out, c->wire, count);
+    return 1;
+}
+static int decode(void *p, void **handle)
+{
+    Context *c = (Context *)p;
+    assert(resource_handle_size(NULL, *handle) == 12);
+    if (!c->unpacked)
+        return 0;
+    resource_block_decode(handle, c->wire, sizeof(c->wire));
+    return 1;
+}
+static int add(void *p, void *file, MMU32 type, MMU32 parent, MMU32 *out, MMOwnedBlock *block)
+{
+    Context *c = (Context *)p;
+    MMBlockFile extent;
+    assert(file == p && type == MM_TMPL && parent == 37);
+    if (!c->child)
+        return 0;
+    extent.file = file;
+    extent.offset = 5;
+    extent.length = sizeof(c->wire);
+    *out = 19;
+    return mm_owned_block_set_file(block, &extent, 0) == MM_DATA_OK;
+}
+static int write_block(void *p, void *file, MMU32 offset, const void *bytes, size_t count)
+{
+    Context *c = (Context *)p;
+    assert(file == p && c->file_refs == 1 && offset == 5 && count == sizeof(c->wire));
+    memcpy(c->wire, bytes, count);
+    return c->found;
+}
+static void delete_child(void *p,void *file,MMU32 type,MMU32 n,MMU32 kid)
+{ Context *c=(Context *)p; assert(file==p && type==MM_TMPL && n==37 && kid==19 && c->file_refs==1); ++c->deleted; }
 static void publish_error(void *p,void *out,int v) { ((Context *)p)->error=v; *(int *)out=v; }
 static void *tag_list(void *p) { assert(!((Context *)p)->error); return list_new(p,0,0); }
 static int append_tag(void *p,void *list,const MMTag *t) { (void)list; assert(!t->cache); ++((Context *)p)->appended; return ((Context *)p)->child!=2; }
@@ -123,11 +204,27 @@ static void init(Context *c)
 {
     MMTextResourceServices *s; MMTextGenerationServices *g;
     memset(c,0,sizeof(*c)); c->bytes=24; c->header=c->child=c->found=c->unpacked=1; s=&c->services; g=&s->generation;
+    resource_block_init(&c->block, c, read_block, write_block);
+    c->block.files.retain = retain_file;
+    c->block.files.release = release_file;
+    c->payloads.handles = c->block.owner.handles;
+    c->payloads.files = &c->block.files;
+    c->payloads.locate = locate;
+    c->payloads.decode = decode;
+    c->payloads.decode_context = c;
+    c->source.archive = c;
+    c->source.chunks.context = c;
+    c->source.chunks.count = 1;
+    c->source.chunks.entry = graph_entry;
+    c->source.chunks.child = graph_child;
+    c->cache.file = c;
+    c->cache.services.live_chunks = live_chunks;
+    c->cache.services.locate = locate;
     s->context=c; g->context=c; g->state=generated; g->length=length; g->template_state=template_state;
     g->indices_new=indices_new; g->costumes_new=costumes_new; g->material_new=material_new; g->retain=retain; g->release=release;
     s->state=state; s->create=create; s->text=text; s->assign=assign; s->space=space; s->clear=clear; s->saved_text=saved; s->provider_copy=provider_copy;
     s->has_provider=has_provider; s->provider_font=provider; s->default_font=default_font; s->publish_tag=publish_tag; s->read_template=read_template; s->write_template=write_template;
-    s->child=child; s->find=find; s->unpack=unpack; s->block_size=block_size; s->read=read_block; s->add=add; s->write=write_block; s->delete_child=delete_child;
+    s->payloads=&c->payloads; s->add=add; s->delete_child=delete_child;
     s->publish_error=publish_error; s->tag_list=tag_list; s->append_tag=append_tag; s->name_count=name_count; s->name_id=name_id; s->name_text=name_text; s->missing_name=missing; s->bad_order=bad;
 }
 static void lifecycle(void)
@@ -161,29 +258,33 @@ static void wire(void)
     for (endian=0;endian<2;++endian)
     {
         init(&c); c.services.host_big_endian=endian; c.services.system=0x1234; o=(Object *)mm_text_create("saved",9,&font,&c.services); assert(o);
-        assert(mm_text_write(o,&c,1,&number,&c.services) && number==37);
+        assert(mm_text_write(o,&c,MM_TMPL,&number,&c.services) && number==37 && !c.file_refs);
         assert(c.wire[endian?1:0]==1 && c.wire[2]==(endian?0x12:0x34) && c.wire[3]==(endian?0x34:0x12));
         assert(!c.wire[12] && !c.wire[13] && !c.wire[14] && !c.wire[15]);
+        c.source.cache = &c.cache;
         for (failure=0;failure<2;++failure)
         {
             loaded=(Object *)create(&c); c.services.host_big_endian=endian^failure;
-            assert(mm_text_read(loaded,&c,1,37,&c,&c.services));
+            c.packed = failure;
+            assert(mm_text_read(loaded,&c.source,MM_TMPL,37,&c,&c.services) && !c.file_refs);
             assert(loaded->descriptor.shape==9 && loaded->descriptor.font.sid==-1 && loaded->descriptor.font.type==font.type && loaded->descriptor.font.number==font.number && !loaded->descriptor.font.cache);
             release(&c,loaded);
         }
+        c.source.cache = NULL;
         for (failure=0;failure<7;++failure)
         {
             c.step=0; c.fail=failure==1?1:0; c.child=failure==2?0:failure==6?2:1; c.found=failure!=3; c.unpacked=failure!=4; c.bytes=failure==5?23:100;
-            error=-1; c.released_error=-1; tags=mm_text_tags(&c,1,37,&error,&c.services);
-            assert((tags!=NULL)==!failure && error==(failure!=0));
+            c.packed = failure == 4;
+            error=-1; c.released_error=-1; tags=mm_text_tags(&c.source,MM_TMPL,37,&error,&c.services);
+            assert((tags!=NULL)==!failure && error==(failure!=0) && !c.file_refs);
             if (tags) release(&c,tags); else if (failure!=1) assert(c.released_error==1);
         }
         c.fail=0; c.bytes=24; c.child=0; c.found=1;
-        assert(!mm_text_write(o,&c,1,&number,&c.services) && number==37 && !c.deleted);
-        c.child=1; c.found=0; assert(!mm_text_write(o,&c,1,&number,&c.services) && c.deleted==1);
-        c.header=0; c.found=1; loaded=(Object *)create(&c); assert(!mm_text_read(loaded,&c,1,37,&c,&c.services) && !strcmp(loaded->text,"loaded")); release(&c,loaded);
+        assert(!mm_text_write(o,&c,MM_TMPL,&number,&c.services) && number==37 && !c.deleted && !c.file_refs);
+        c.child=1; c.found=0; assert(!mm_text_write(o,&c,MM_TMPL,&number,&c.services) && c.deleted==1 && !c.file_refs);
+        c.header=0; c.found=1; loaded=(Object *)create(&c); assert(!mm_text_read(loaded,&c.source,MM_TMPL,37,&c,&c.services) && !strcmp(loaded->text,"loaded")); release(&c,loaded);
         c.header=1; c.wire[0]=c.wire[1]=0x7f; loaded=(Object *)create(&c);
-        assert(mm_text_read(loaded,&c,1,37,&c,&c.services) && c.bad==1); release(&c,loaded);
+        assert(mm_text_read(loaded,&c.source,MM_TMPL,37,&c,&c.services) && c.bad==1 && !c.file_refs); release(&c,loaded);
         release(&c,o); assert(!c.live);
     }
 }

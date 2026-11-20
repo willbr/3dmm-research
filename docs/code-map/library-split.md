@@ -6198,11 +6198,13 @@ Build identities and captures are in `tmp/c89-generated-actions`.
 `text_resource.c` owns construction, duplication, change rollback, info queries,
 font-provider selection, template/child resource loading and saving, embedded-tag
 enumeration and localized action-name policy. `MMTextDescriptor` holds shape
-and font tag; `MMTextNames` holds the optional retained names table. Both
-hosts use the same C controller through the temporary ThreeDText facade. Services
-still provide native String primitives, object creation, block/chunk operations,
-font providers and string-table entry access; those adapters are dependencies of
-the unfinished full C-only backend.
+and font tag. `MMTextNames` holds the optional retained names table. Both hosts
+use the same C controller through the ThreeDText facade. The C reader resolves
+the `TDT` link through the live cache or standalone archive graph and owns the
+block through decoding and the bounded descriptor read. C also owns the child
+block through a write and handles failure cleanup. Native services supply
+String primitives, object creation, base-template I/O, chunk creation, font
+providers and string-table entries.
 
 Construction/change normalize empty strings to one space; loading does not.
 Even a no-op change rebuilds generated owners. Failed changes restore text,

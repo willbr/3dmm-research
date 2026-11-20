@@ -102,32 +102,60 @@ int mm_text_decode_descriptor(const unsigned char b[24], int big, MMTextDescript
     d->font.type=word(b+16,4,big); d->font.number=word(b+20,4,big);
     return word(b,2,big)==1U;
 }
-static int descriptor(void *file,MMU32 type,MMU32 number,MMTextDescriptor *d,const MMTextResourceServices *s)
+static int descriptor(const MMTextResourceSource *source, MMU32 type, MMU32 number,
+                      MMTextDescriptor *d, const MMTextResourceServices *s)
 {
-    MMU32 child; void *block; unsigned char b[24];
-    if (!s->child(s->context,file,type,number,&child)) return 0;
-    block=s->find(s->context,file,child);
-    if (!block || !s->unpack(s->context,block) || s->block_size(s->context,block)<24 || !s->read(s->context,block,b,24)) return 0;
-    if (!mm_text_decode_descriptor(b,s->host_big_endian,d) && s->bad_order) s->bad_order(s->context);
-    return 1;
+    const MMChunkPayloadServices *payloads = s->payloads;
+    const MMChunkAccess chunks = source->cache ? mm_resource_cache_chunks(source->cache) : source->chunks;
+    MMOwnedBlock block;
+    MMBlockIO io;
+    MMU32 child;
+    unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES];
+    int found, ok;
+    if (mm_chunk_link_number(&chunks, type, number, 0, MM_TDT, &child) != MM_CHUNK_OK ||
+        mm_owned_block_init(&block, payloads->handles, payloads->files) != MM_DATA_OK)
+        return 0;
+    found = source->cache ? mm_resource_cache_read_block(source->cache, MM_TDT, child, &block) == MM_CHUNK_OK :
+                           mm_chunk_payload_bind_block(payloads, source->archive, MM_TDT, child, &block) ==
+                               MM_CHUNK_PAYLOAD_OK;
+    ok = found && mm_owned_block_code(&block, 0, payloads->decode_context, payloads->decode, NULL) == MM_DATA_OK &&
+         mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_read(&io, 0, bytes, sizeof(bytes), 0) == MM_DATA_OK;
+    if (ok && !mm_text_decode_descriptor(bytes, s->host_big_endian, d) && s->bad_order)
+        s->bad_order(s->context);
+    mm_owned_block_clear(&block);
+    return ok;
 }
-int mm_text_read(void *object,void *source,MMU32 type,MMU32 number,void *block,const MMTextResourceServices *s)
+int mm_text_read(void *object, const MMTextResourceSource *source, MMU32 type, MMU32 number, void *block,
+                 const MMTextResourceServices *s)
 {
     MMTextDescriptor read,*d;
-    if (!s->read_template(s->context,object,source,type,number,block) || !descriptor(source,type,number,&read,s))
+    if (!s->read_template(s->context,object,type,number,block) || !descriptor(source,type,number,&read,s))
         return 0;
     d=s->state(s->context,object); memcpy(&d->font,&read.font,sizeof(d->font)); d->shape=read.shape;
     return mm_text_initialize_lists(object,&s->generation);
 }
 int mm_text_write(void *object,void *file,MMU32 type,void *number_out,const MMTextResourceServices *s)
 {
-    unsigned char b[MM_TEXT_DESCRIPTOR_BYTES]; MMU32 number,child; void *block;
-    if (!s->write_template(s->context,object,file,type,number_out)) return 0;
-    memcpy(&number,number_out,4);
-    encode_descriptor(b,s->host_big_endian,s->system,s->state(s->context,object));
-    block=s->add(s->context,file,type,number,&child); if (!block) return 0;
-    if (s->write(s->context,block,b,sizeof(b))) return 1;
-    s->delete_child(s->context,file,type,number,child); return 0;
+    const MMChunkPayloadServices *payloads = s->payloads;
+    unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES];
+    MMOwnedBlock block;
+    MMBlockIO io;
+    MMU32 number, child;
+    int ok = 0;
+    if (!s->write_template(s->context, object, file, type, number_out) ||
+        mm_owned_block_init(&block, payloads->handles, payloads->files) != MM_DATA_OK)
+        return 0;
+    memcpy(&number, number_out, sizeof(number));
+    encode_descriptor(bytes, s->host_big_endian, s->system, s->state(s->context, object));
+    if (s->add(s->context, file, type, number, &child, &block))
+    {
+        ok = mm_owned_block_io(&block, &io) == MM_DATA_OK &&
+             mm_block_write(&io, 0, bytes, sizeof(bytes), 0) == MM_DATA_OK;
+        if (!ok)
+            s->delete_child(s->context, file, type, number, child);
+    }
+    mm_owned_block_clear(&block);
+    return ok;
 }
 int mm_text_write_draft(const void *name, const MMTextDescriptor *d, MMU32 *number, const MMTextDraftServices *s)
 {
@@ -166,11 +194,12 @@ int mm_text_bind_preview_font(const MMChunkAccess *chunks, MMU32 tmpl, MMU32 fon
     put(bytes + 20, 4, copied, big);
     return s->write(s->context, descriptor, bytes);
 }
-void *mm_text_tags(void *file,MMU32 type,MMU32 number,void *error_out,const MMTextResourceServices *s)
+void *mm_text_tags(const MMTextResourceSource *source, MMU32 type, MMU32 number, void *error_out,
+                   const MMTextResourceServices *s)
 {
     void *list; MMTextDescriptor d;
     s->publish_error(s->context,error_out,0); list=s->tag_list(s->context);
-    if (list && descriptor(file,type,number,&d,s) && s->append_tag(s->context,list,&d.font)) return list;
+    if (list && descriptor(source,type,number,&d,s) && s->append_tag(s->context,list,&d.font)) return list;
     s->publish_error(s->context,error_out,1); if (list) release(s,list); return NULL;
 }
 int mm_text_set_names(MMTextNames *names,void *table,const MMTextResourceServices *s)

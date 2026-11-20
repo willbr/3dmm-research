@@ -47,11 +47,10 @@ RTCLASS(ThreeDText)
 const ChildChunkID kchidTdt = 0; // ChildChunkID of ThreeDText under Template chunk
 
 
-struct TextResourceContext { DataBlock block; String saved; };
-struct TextReadSource
+struct TextResourceContext
 {
-    PChunkyResourceFile cache;
-    PChunkyFile file;
+    String saved;
+    PChunkyResourceFile cache = nullptr;
 };
 static void TextTagToCore(const TAG *tag, MMTag *out)
 {
@@ -64,6 +63,9 @@ static void TextTagFromCore(TAG *tag, const MMTag *in)
 MMTextResourceServices ThreeDText::_ResourceServices(void *context)
 {
     MMTextResourceServices s = {}; s.context = context; s.system = koskCur; s.generation = _GenerationServices();
+    const unsigned short order = 1;
+    s.host_big_endian = *reinterpret_cast<const unsigned char *>(&order) == 0;
+    s.payloads = KauaiChunkPayloadServices();
     static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 && sizeof(TAG) == sizeof(MMTag), "text resource ABI");
     s.state = [](void *, void *object) { return &static_cast<PThreeDText>(object)->_descriptor; };
     s.create = [](void *) -> void * { return NewObj ThreeDText; };
@@ -83,34 +85,22 @@ MMTextResourceServices ThreeDText::_ResourceServices(void *context)
         TAG tag; TextTagFromCore(&tag, in); return vptagm == nullptr ? nullptr : vptagm->PbacoFetch(&tag, ThreeDFont::FReadTdf);
     };
     s.publish_tag = [](void *, void *out, const MMTag *in) { TextTagFromCore(static_cast<PTAG>(out), in); };
-    s.read_template = [](void *, void *object, void *source, MMU32 type, MMU32 number, void *block) -> int {
-        return static_cast<PThreeDText>(object)->_FReadTmplf(static_cast<TextReadSource *>(source)->cache, type,
+    s.read_template = [](void *p, void *object, MMU32 type, MMU32 number, void *block) -> int {
+        return static_cast<PThreeDText>(object)->_FReadTmplf(static_cast<TextResourceContext *>(p)->cache, type,
                                                             number, static_cast<PDataBlock>(block));
     };
     s.write_template = [](void *, void *object, void *file, MMU32 type, void *number) -> int {
         return static_cast<PThreeDText>(object)->_FWriteTmplf(static_cast<PChunkyFile>(file), type, static_cast<ChunkNumber *>(number));
     };
-    s.child = [](void *, void *source, MMU32 type, MMU32 number, MMU32 *out) -> int {
-        const auto &read = *static_cast<TextReadSource *>(source);
-        const auto graph = read.cache ? read.cache->ReadChunkAccess() : read.file->ReadChunkAccess();
-        return mm_chunk_link_number(&graph, type, number, kchidTdt, kctgTdt, out) == MM_CHUNK_OK;
+    s.add = [](void *, void *file, MMU32 type, MMU32 number, MMU32 *out, MMOwnedBlock *block) -> int {
+        DataBlock view(*block);
+        ChunkNumber child;
+        if (!static_cast<PChunkyFile>(file)->FAddChild(type, number, kchidTdt, MM_TEXT_DESCRIPTOR_BYTES,
+                                                      kctgTdt, &child, &view))
+            return 0;
+        *out = child;
+        return 1;
     };
-    s.find = [](void *p, void *source, MMU32 number) -> void * {
-        const auto &read = *static_cast<TextReadSource *>(source);
-        auto block = &static_cast<TextResourceContext *>(p)->block;
-        const bool found = read.cache ? read.cache->FReadBlock(kctgTdt, number, *block) :
-                                        read.file->FFind(kctgTdt, number, block);
-        return found ? block : nullptr;
-    };
-    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.block_size = [](void *, void *block) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(); };
-    s.read = [](void *, void *block, void *data, MMI32 bytes) -> int { return static_cast<PDataBlock>(block)->FReadRgb(data, bytes, 0); };
-    s.add = [](void *p, void *file, MMU32 type, MMU32 number, MMU32 *out) -> void * {
-        auto block = &static_cast<TextResourceContext *>(p)->block; ChunkNumber child;
-        if (!static_cast<PChunkyFile>(file)->FAddChild(type, number, kchidTdt, 24, kctgTdt, &child, block)) return nullptr;
-        *out = child; return block;
-    };
-    s.write = [](void *, void *block, const void *data, MMI32 bytes) -> int { return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), bytes, 0); };
     s.delete_child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 child) { static_cast<PChunkyFile>(file)->DeleteChild(type, number, kctgTdt, child, kchidTdt); };
     s.publish_error = [](void *, void *out, int error) { *static_cast<bool *>(out) = error != 0; };
     s.tag_list = [](void *) -> void * { return DynamicArray::PglNew(sizeof(TAG)); };
@@ -154,7 +144,7 @@ PDynamicArray ThreeDText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, Chun
 {
     AssertPo(pcfl, 0); AssertVarMem(pfError);
     TextResourceContext context; auto services = _ResourceServices(&context);
-    TextReadSource source = {nullptr, pcfl};
+    const MMTextResourceSource source = {nullptr, pcfl, pcfl->ReadChunkAccess()};
     return static_cast<PDynamicArray>(mm_text_tags(&source, ctg, cno, pfError, &services));
 }
 
@@ -176,8 +166,10 @@ PThreeDText ThreeDText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf)
 bool ThreeDText::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl, PDataBlock block)
 {
     AssertBaseThis(0); AssertPo(cache, 0);
-    TextResourceContext context; auto services = _ResourceServices(&context);
-    TextReadSource source = {cache, nullptr};
+    TextResourceContext context;
+    context.cache = cache;
+    auto services = _ResourceServices(&context);
+    const MMTextResourceSource source = {cache->CoreCache(), nullptr, {}};
     return mm_text_read(this, &source, ctgTmpl, cnoTmpl, block, &services) != 0;
 }
 

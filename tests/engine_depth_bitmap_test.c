@@ -7,7 +7,7 @@
 typedef struct Fixture
 {
     MMDepthServices s;
-    BitmapTestBlock block;
+    ResourceTestBlock block;
     MMBlockIO output_io;
     unsigned char input[128], output[128];
     MMI32 size, packed, output_size;
@@ -69,11 +69,11 @@ static void warning(void *p)
 static int decode(void *p, void **handle)
 {
     Fixture *f = (Fixture *)p;
-    assert(bitmap_handle_size(NULL, *handle) == (MMU32)f->packed);
+    assert(resource_handle_size(NULL, *handle) == (MMU32)f->packed);
     ++f->unpacks;
     if (fail(f))
         return 0;
-    bitmap_block_decode(handle, f->input, (MMU32)f->size);
+    resource_block_decode(handle, f->input, (MMU32)f->size);
     return 1;
 }
 static int read(void *p, void *file, MMU32 at, void *out, size_t n)
@@ -143,7 +143,7 @@ static void setup(Fixture *f, int big)
     f->s.publish_fetch = publish;
     f->size = 24;
     f->packed = 9;
-    bitmap_block_init(&f->block, f, read, write);
+    resource_block_init(&f->block, f, read, write);
     put(f->input, 0x1234, big);
     put(f->input + 2, 0xffff, big);
     put(f->input + 4, 2, big);

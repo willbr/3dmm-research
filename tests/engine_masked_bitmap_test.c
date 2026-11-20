@@ -15,7 +15,7 @@
 typedef struct Fixture
 {
     MMMaskedServices s;
-    BitmapTestBlock block;
+    ResourceTestBlock block;
     unsigned char input[4096], output[4096], bitmap[24];
     MMI32 size, packed, written;
     int phase, fail, objects, memory, upside_down, unpacks, reads, writes, diagnostic, published, valid;
@@ -76,11 +76,11 @@ static void diagnostic(void *p, int reason)
 static int decode(void *p, void **handle)
 {
     Fixture *f = (Fixture *)p;
-    assert(bitmap_handle_size(NULL, *handle) == (MMU32)f->packed);
+    assert(resource_handle_size(NULL, *handle) == (MMU32)f->packed);
     ++f->unpacks;
     if (fail(f))
         return 0;
-    bitmap_block_decode(handle, f->input, (MMU32)f->size);
+    resource_block_decode(handle, f->input, (MMU32)f->size);
     return 1;
 }
 static int read(void *p, void *file, MMU32 at, void *out, size_t n)
@@ -142,7 +142,7 @@ static void setup(Fixture *f, int big)
     f->s.decode = decode;
     f->s.publish_fetch = publish;
     f->s.bitmap_read = bitmap_read;
-    bitmap_block_init(&f->block, f, read, write);
+    resource_block_init(&f->block, f, read, write);
 }
 static void put(unsigned char *b, unsigned n, MMU32 v, int big)
 {

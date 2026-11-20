@@ -735,7 +735,9 @@ Keep host presentation and device output outside the session.
    collections. Body construction and reshaping consume borrowed index views,
    and each live body owns its copy of the part sets. Live 3D text generates
    its cels and matrices directly into the shared C action tables, which the
-   action adopts. The standalone evaluator uses the same matrix generator
+   action adopts. C resolves and reads its descriptor through the live cache
+   or archive graph and writes the descriptor child through C-owned block I/O.
+   The standalone evaluator uses the same matrix generator
    for its requested cel. Live BRender model construction, geometry binding
    and prelighting use a C89 library. The live model loader and standalone
    mesh reader share the wire layout. The same C89 renderer library binds

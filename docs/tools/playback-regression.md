@@ -17123,3 +17123,33 @@ continuous playback for both ports, all retail seek camera indices and all 12
 SDL sound requests. Each port reproduced all 60 previous seek canvas hashes.
 The verifier used the archived retail runs for this suite. The comparison and
 fixture evidence are in `tmp/c89-background-blocks`.
+
+## 3D text descriptor I/O through C89 blocks (20 November 2026)
+
+Live template reads resolve the `TDT` child through the C89 resource cache.
+Tag enumeration reads the same descriptor through the standalone chunk graph.
+Both paths own the block through decode and read only the 24-byte descriptor.
+The C writer owns the child block through the write and deletes the child on
+payload failure. The parent and its published number remain available.
+
+All 192 standalone C checks, six focused AddressSanitizer checks, 16 selected
+x64 checks and 12 selected SDL checks passed. The x64 run included Marcus
+insertion. The six focused x86 C fixtures and core-link test passed.
+The 2,400-case text traces matched the corresponding pre-change builds byte
+for byte. Both native traces contained 279,277 bytes and SDL contained 284,193.
+The native fixture also verified that the 3D text draft and normal authoring
+paths produced identical files.
+
+All 54 movie and scene traces, three saved movie fixtures, ten Preview
+fingerprints and six Preview movies matched. The Studio authoring save matched
+byte for byte. Retail, SDL and Marcus matched all three retained-background
+frame identities, camera indices and canvas hashes in `20261120T231558Z-f2f222ac`.
+Both ports matched original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261120T231630Z-4dd39cce`.
+
+All four `actor-event-edit` captures completed in `20261120T231537Z-66c0dd17`.
+The movie includes 3D text. Against archived retail runs, both ports matched
+all 60 frame identities in seek and continuous playback and all retail seek
+camera indices. SDL matched all 12 retail sound requests, and each port
+reproduced its 60 previous seek canvas hashes. The archived comparison and
+fixture evidence are in `tmp/c89-text-block`.

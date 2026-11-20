@@ -2,7 +2,9 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_TEXT_RESOURCE_H
 #define MM_ENGINE_TEXT_RESOURCE_H
+#include "chunk_storage.h"
 #include "chunky_file.h"
+#include "resource_cache.h"
 #include "text_generation.h"
 #include "tag.h"
 #ifdef __cplusplus
@@ -19,6 +21,12 @@ int mm_text_author_name(const char *utf8, char name[MM_TEXT_NAME_BYTES]);
  * whether the marker was valid. A bad marker uses the opposite host order. */
 int mm_text_decode_descriptor(const unsigned char bytes[24], int host_big, MMTextDescriptor *);
 typedef struct MMTextNames { void *table; } MMTextNames;
+typedef struct MMTextResourceSource
+{
+    MMResourceCache *cache;
+    void *archive;
+    MMChunkAccess chunks;
+} MMTextResourceSource;
 typedef struct MMTextResourceServices
 {
     void *context;
@@ -36,15 +44,10 @@ typedef struct MMTextResourceServices
     void *(*provider_font)(void *,void *object,const MMTag *);
     void *(*default_font)(void *,const MMTag *);
     void (*publish_tag)(void *,void *output,const MMTag *);
-    int (*read_template)(void *,void *object,void *source,MMU32 type,MMU32 number,void *block);
+    int (*read_template)(void *,void *object,MMU32 type,MMU32 number,void *block);
     int (*write_template)(void *,void *object,void *file,MMU32 type,void *number_out);
-    int (*child)(void *,void *file,MMU32 type,MMU32 number,MMU32 *child_number);
-    void *(*find)(void *,void *file,MMU32 number);
-    int (*unpack)(void *,void *block);
-    MMI32 (*block_size)(void *,void *block);
-    int (*read)(void *,void *block,void *data,MMI32 bytes);
-    void *(*add)(void *,void *file,MMU32 type,MMU32 number,MMU32 *child_number);
-    int (*write)(void *,void *block,const void *data,MMI32 bytes);
+    const MMChunkPayloadServices *payloads;
+    int (*add)(void *,void *file,MMU32 type,MMU32 number,MMU32 *child_number,MMOwnedBlock *);
     void (*delete_child)(void *,void *file,MMU32 type,MMU32 number,MMU32 child_number);
     void (*publish_error)(void *,void *output,int value);
     void *(*tag_list)(void *);
@@ -72,7 +75,9 @@ void *mm_text_font(void *object,const MMTextResourceServices *);
  * trailing bytes and swaps whenever its marker differs from the native marker.
  * Write keeps the parent/output number on child failure, deletes only the child
  * on payload-write failure, and always writes a zero pointer pad. */
-int mm_text_read(void *object,void *source,MMU32 type,MMU32 number,void *block,const MMTextResourceServices *);
+/* Supply a live cache or a standalone archive and its chunk access. */
+int mm_text_read(void *object,const MMTextResourceSource *,MMU32 type,MMU32 number,void *block,
+                 const MMTextResourceServices *);
 int mm_text_write(void *object,void *file,MMU32 type,void *number_out,const MMTextResourceServices *);
 typedef struct MMTextDraftServices
 {
@@ -100,7 +105,8 @@ typedef struct MMTextPreviewFontServices
  * valid before the copy. Retains its byte order and fields outside the local
  * source and new font number. The caller saves or discards the working file. */
 int mm_text_bind_preview_font(const MMChunkAccess *, MMU32 tmpl, MMU32 font, const MMTextPreviewFontServices *);
-void *mm_text_tags(void *file,MMU32 type,MMU32 number,void *error_out,const MMTextResourceServices *);
+void *mm_text_tags(const MMTextResourceSource *,MMU32 type,MMU32 number,void *error_out,
+                   const MMTextResourceServices *);
 /* Set-once table publishes before retain. Lookup takes the first matching ID;
  * an absent table clears silently, an absent entry warns before clearing. */
 int mm_text_set_names(MMTextNames *,void *table,const MMTextResourceServices *);
