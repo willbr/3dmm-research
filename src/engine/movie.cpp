@@ -892,10 +892,16 @@ bool Movie::FGetName(long arid, PString pstn)
     AssertThis(0); AssertPo(pstn, 0);
     const void *name;
     MMU32 count;
-    if (!mm_movie_rollcall_name(&_data.actors, arid, &name, &count))
+    if (!FGetName(arid, &name, &count))
         return false;
     pstn->SetRgch(const_cast<achar *>(static_cast<const achar *>(name)), count);
     return true;
+}
+
+bool Movie::FGetName(long arid, const void **name, MMU32 *count)
+{
+    AssertThis(0);
+    return mm_movie_rollcall_name(&_data.actors, arid, name, count) != 0;
 }
 
 /****************************************************

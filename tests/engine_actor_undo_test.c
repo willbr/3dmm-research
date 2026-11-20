@@ -4,6 +4,8 @@
 #include <string.h>
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"undo check %d: %s\n",__LINE__,#c); exit(1); } } while (0)
 typedef struct Actor { int refs,id,reset; } Actor;
+static const char before[] = {'b',0,'f'};
+static const char after[] = {'a',0,'t'};
 typedef struct Fixture
 {
     MMMovieUndoContext base;
@@ -11,14 +13,15 @@ typedef struct Fixture
     MMActorUndoServices services;
     Actor old,incoming;
     Actor *live;
-    char trace[128]; int count,fail,empty,text,no_view,missing,rename_failure,dead;
-    int name,captured,assigned,selected,invalidated,cleared,flushes,plays,retained;
-    int create_refs,registered,created,named,reset,create_sound,create_id;
+    char trace[128]; int count,fail,text,no_view,missing,rename_failure,dead;
+    MMMovieTitle rollcall;
+    int assigned,selected,invalidated,cleared,flushes,plays,retained;
+    int create_refs,registered,created,reset;
     MMI32 sought;
 } Fixture;
 static void mark(Fixture *f,char c) { CHECK(!f->dead && f->count<126); f->trace[f->count++]=c; f->trace[f->count]=0; }
-static void read_state(void *p,MMActorUndoState *s) { Fixture *f=(Fixture *)p; CHECK(!f->dead); *s=f->state; }
-static void publish(void *p,const MMActorUndoState *s) { Fixture *f=(Fixture *)p; CHECK(!f->dead); f->state=*s; }
+static int matches(const MMMovieTitle *name,const void *text,MMU32 count)
+{ return name->count==count && (!count || !memcmp(mm_movie_title_text(name),text,count*name->unit)); }
 static int switch_scene(void *p,void *movie,MMI32 scene)
 { Fixture *f=(Fixture *)p; CHECK(movie==f && scene==3); mark(f,'S'); return f->fail!=1; }
 static void *current(void *p,void *movie) { CHECK(p==movie); return p; }
@@ -31,7 +34,7 @@ static void play(void *p,void *movie) { Fixture *f=(Fixture *)p; CHECK(movie==f)
 static void *find(void *p,void *scene,MMI32 id)
 { Fixture *f=(Fixture *)p; CHECK(scene==f && id==f->state.actor_id); mark(f,'L'); return f->missing?NULL:f->live; }
 static void retain(void *p,void *actor)
-{ Fixture *f=(Fixture *)p; mark(f,'R'); CHECK(actor); if (actor==&f->incoming) CHECK(f->state.actor==actor); ++((Actor *)actor)->refs; }
+{ Fixture *f=(Fixture *)p; mark(f,'R'); CHECK(actor && (actor==f->state.actor || actor==f->live)); ++((Actor *)actor)->refs; }
 static void release(void *p,void *actor)
 { Fixture *f=(Fixture *)p; Actor *a=(Actor *)actor; mark(f,'D'); CHECK(a && a->refs>0); if (a==&f->incoming) CHECK(f->state.actor==a); --a->refs; }
 static MMI32 id(void *p,void *actor) { (void)p; CHECK(actor); return ((Actor *)actor)->id; }
@@ -47,12 +50,23 @@ static int add(void *p,void *scene,void *actor)
     if (f->fail==3) return 0;
     ++((Actor *)actor)->refs; if (f->live) --f->live->refs; f->live=(Actor *)actor; return 1;
 }
-static int has_name(void *p) { return ((Fixture *)p)->name!=0; }
-static int capture(void *p,void *movie,MMI32 actor)
-{ Fixture *f=(Fixture *)p; CHECK(movie==f && actor==f->state.actor_id); mark(f,'N'); f->captured=42; return f->fail!=4; }
-static void assign(void *p,void *movie,MMI32 actor)
-{ Fixture *f=(Fixture *)p; CHECK(movie==f && actor==f->incoming.id); mark(f,'W'); f->assigned=f->rename_failure?0:f->name; }
-static void store(void *p) { Fixture *f=(Fixture *)p; mark(f,'B'); f->name=f->captured; }
+static int find_name(void *p,void *movie,MMI32 actor,const void **text,MMU32 *count)
+{
+    Fixture *f=(Fixture *)p; CHECK(movie==f && actor==f->state.actor_id); mark(f,'N');
+    if (f->fail==4) return 0;
+    *text=mm_movie_title_text(&f->rollcall); *count=f->rollcall.count;
+    return 1;
+}
+static void rename_actor(void *p,void *movie,MMI32 actor,const void *text,MMU32 count)
+{
+    Fixture *f=(Fixture *)p; CHECK(movie==f && actor==f->incoming.id); mark(f,'W');
+    CHECK(matches(&f->state.name,text,count));
+    if (!f->rename_failure)
+    {
+        CHECK(mm_movie_title_set(&f->rollcall,text,count));
+        ++f->assigned;
+    }
+}
 static void *view(void *p,void *movie) { Fixture *f=(Fixture *)p; CHECK(movie==f); mark(f,'V'); return f->no_view?NULL:f; }
 static int text(void *p,void *v) { CHECK(p==v); return ((Fixture *)p)->text; }
 static void select_actor(void *p,void *scene,void *actor)
@@ -63,11 +77,6 @@ static void reset_actor(void *p,void *actor)
 { Fixture *f=(Fixture *)p; CHECK(actor==f->state.actor); mark(f,'Z'); ++((Actor *)actor)->reset; }
 static int invoke(void *p)
 {
-    Fixture *f=(Fixture *)p; MMActorUndoState state=f->state;
-    return mm_actor_undo_toggle(&state,&f->services);
-}
-static int invoke_persistent(void *p)
-{
     Fixture *f=(Fixture *)p;
     return mm_actor_undo_toggle(&f->state,&f->services);
 }
@@ -75,24 +84,37 @@ static void init(Fixture *f)
 {
     MMActorUndoServices *s;
     memset(f,0,sizeof(*f)); s=&f->services; s->context=f;
-    s->read=read_state; s->publish=publish; s->invoke_undo=invoke; s->switch_scene=switch_scene; s->current_scene=current;
+    s->invoke_undo=invoke; s->switch_scene=switch_scene; s->current_scene=current;
     s->seek=seek; s->clear_undo=clear; s->flush=flush; s->play=play; s->find_actor=find; s->retain=retain; s->release=release;
-    s->actor_id=id; s->remove_actor=remove_actor; s->add_actor=add; s->has_name=has_name; s->capture_name=capture;
-    s->assign_name=assign; s->store_name=store; s->view=view; s->text_mode=text; s->select_actor=select_actor;
+    s->actor_id=id; s->remove_actor=remove_actor; s->add_actor=add;
+    s->find_name=find_name; s->rename=rename_actor; s->view=view; s->text_mode=text; s->select_actor=select_actor;
     s->invalidate_range=invalidate; s->reset_actor=reset_actor;
     mm_movie_undo_context_init(&f->base); CHECK(mm_actor_undo_init(&f->state,&f->base,1));
+    CHECK(mm_movie_title_init(&f->rollcall,1) && mm_movie_title_set(&f->rollcall,after,sizeof(after)));
     f->old.refs=f->incoming.refs=1; f->old.id=f->incoming.id=7; f->live=&f->old;
     f->base.movie=f; f->state.actor=&f->incoming; f->state.actor_id=7; f->base.scene=3;
     f->base.frame=11; f->state.last_frame=22;
 }
-static void *create_undo(void *p) { Fixture *f=(Fixture *)p; mark(f,'U'); ++f->created; if (f->fail==1) return NULL; f->create_refs=1; return f; }
-static void set_actor(void *p,void *undo,void *actor)
-{ Fixture *f=(Fixture *)p; CHECK(undo==f && actor==&f->incoming); mark(f,'a'); ++f->incoming.refs; }
-static void set_id(void *p,void *undo,MMI32 actor) { Fixture *f=(Fixture *)p; CHECK(undo==f); mark(f,'i'); f->create_id=actor; }
-static void set_sound(void *p,void *undo,int sound) { Fixture *f=(Fixture *)p; CHECK(undo==f); mark(f,'s'); f->create_sound=sound; }
-static void set_name(void *p,void *undo,const void *name) { Fixture *f=(Fixture *)p; CHECK(undo==f && name==&f->name); mark(f,'n'); ++f->named; }
+static MMActorUndoState *create_undo(void *p,void **undo)
+{
+    Fixture *f=(Fixture *)p; mark(f,'U'); ++f->created;
+    if (f->fail==1) return NULL;
+    CHECK(mm_actor_undo_init(&f->state,&f->base,1));
+    f->create_refs=1; *undo=f;
+    return &f->state;
+}
+static void retain_create(void *p,void *actor)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(actor==&f->incoming && f->state.actor==actor && !f->state.actor_id && !f->state.sound && !f->state.name.count);
+    mark(f,'a'); ++f->incoming.refs;
+}
 static int register_undo(void *p,void *undo)
-{ Fixture *f=(Fixture *)p; CHECK(undo==f); mark(f,'j'); if (f->fail==2) return 0; ++f->create_refs; ++f->registered; return 1; }
+{
+    Fixture *f=(Fixture *)p; CHECK(undo==f && f->state.actor==&f->incoming && f->state.actor_id==29 && f->state.sound);
+    CHECK(!f->state.name.count || matches(&f->state.name,before,sizeof(before)));
+    mark(f,'j'); if (f->fail==2) return 0; ++f->create_refs; ++f->registered; return 1;
+}
 static void clear_create(void *p) { Fixture *f=(Fixture *)p; mark(f,'c'); ++f->cleared; }
 static void release_create(void *p,void *undo)
 { Fixture *f=(Fixture *)p; CHECK(undo==f && f->create_refs>0); mark(f,'d'); if (!--f->create_refs) --f->incoming.refs; }
@@ -100,57 +122,62 @@ static void reset_create(void *p,void *actor)
 { Fixture *f=(Fixture *)p; CHECK(actor==&f->incoming && f->create_refs==1 && f->registered); mark(f,'z'); ++f->reset; }
 int main(void)
 {
-    Fixture f; MMActorUndoState state; MMActorUndoCreateServices c; int mode,fail,result;
+    Fixture f; MMActorUndoCreateServices c; int mode,fail,result;
     unsigned unit,i;
     unsigned short text_units[255];
     unsigned char text_bytes[255];
-    init(&f); state=f.state;
-    CHECK(mm_actor_undo_toggle(&state,&f.services));
+    init(&f);
+    CHECK(mm_actor_undo_toggle(&f.state,&f.services));
     CHECK(!strcmp(f.trace,"SGFLRAVQDIZF") && f.state.actor==&f.old && f.live==&f.incoming);
     CHECK(f.old.refs==1 && f.incoming.refs==1 && f.old.reset==1);
     for (mode=0;mode<64;++mode)
     {
-        init(&f); f.name=(mode&1)?17:0; f.state.sound=(mode&2)!=0;
+        init(&f); f.state.sound=(mode&2)!=0;
+        if (mode&1) CHECK(mm_actor_undo_set_name(&f.state,before,sizeof(before)));
         f.text=(mode&4)!=0; f.no_view=(mode&8)!=0; f.rename_failure=(mode&16)!=0;
         if (mode&32) f.incoming.id=9;
-        state=f.state; CHECK(mm_actor_undo_toggle(&state,&f.services));
+        CHECK(mm_actor_undo_toggle(&f.state,&f.services));
         CHECK(f.state.actor==&f.old && f.old.reset==1 && f.live==&f.incoming);
         CHECK(f.state.actor_id==f.incoming.id && f.old.refs==1 && f.incoming.refs==1);
         CHECK(f.selected==(!f.text && !f.no_view) && f.plays==f.state.sound && f.flushes==2-f.state.sound);
-        CHECK(!f.name || f.name==42); CHECK(f.assigned==((mode&1) && !f.rename_failure?17:0));
+        CHECK(matches(&f.state.name,after,(mode&1)?sizeof(after):0));
+        CHECK(f.assigned==((mode&1) && !f.rename_failure));
+        CHECK(matches(&f.rollcall,f.assigned?before:after,sizeof(after)));
     }
     for (fail=1;fail<=4;++fail)
     {
-        init(&f); f.fail=fail; f.name=17; f.incoming.id=9; state=f.state;
-        result=mm_actor_undo_toggle(&state,&f.services); CHECK(result==(fail==4));
+        init(&f); f.fail=fail; f.incoming.id=9;
+        CHECK(mm_actor_undo_set_name(&f.state,before,sizeof(before)));
+        result=mm_actor_undo_toggle(&f.state,&f.services); CHECK(result==(fail==4));
         if (fail==1) CHECK(!strcmp(f.trace,"S") && !f.cleared);
         if (fail==2) CHECK(!strcmp(f.trace,"SGC") && f.dead && f.cleared==1);
-        if (fail==3) CHECK(f.state.actor==&f.incoming && f.state.actor_id==9 && f.old.refs==0 && !f.live && f.name==42 && !f.invalidated);
-        if (fail==4) CHECK(f.name==17 && !f.assigned && !f.cleared);
+        if (fail==3) CHECK(f.state.actor==&f.incoming && f.state.actor_id==9 && f.old.refs==0 && !f.live && matches(&f.state.name,after,sizeof(after)) && !f.invalidated);
+        if (fail==4) CHECK(matches(&f.state.name,before,sizeof(before)) && !f.assigned && !f.cleared);
     }
-    init(&f); f.state.actor=NULL; state=f.state; CHECK(mm_actor_undo_toggle(&state,&f.services));
+    init(&f); f.state.actor=NULL; CHECK(mm_actor_undo_toggle(&f.state,&f.services));
     CHECK(!strcmp(f.trace,"SGFLRXIZF") && !f.live && f.state.actor==&f.old && f.old.refs==1);
-    init(&f); f.missing=1; f.live=NULL; f.old.refs=0; state=f.state;
-    CHECK(mm_actor_undo_toggle(&state,&f.services) && !f.state.actor && f.live==&f.incoming && !f.old.reset);
+    init(&f); f.missing=1; f.live=NULL; f.old.refs=0;
+    CHECK(mm_actor_undo_toggle(&f.state,&f.services) && !f.state.actor && f.live==&f.incoming && !f.old.reset);
     for (fail=0;fail<4;++fail)
     {
-        init(&f); f.state.sooner_later=1; f.fail=fail; f.retained=1; state=f.state;
-        CHECK(mm_actor_undo_redo(&state,&f.services)==!fail);
+        init(&f); f.state.sooner_later=1; f.fail=fail; f.retained=1;
+        CHECK(mm_actor_undo_redo(&f.state,&f.services)==!fail);
         CHECK(f.sought==(fail==1?0:22) && f.base.frame==11 && f.state.actor==(fail?&f.incoming:&f.old));
     }
-    init(&f); state=f.state; CHECK(mm_actor_undo_redo(&state,&f.services) && f.sought==11);
-    init(&f); f.state.actor=NULL; state=f.state; mm_actor_undo_set_actor(&state,&f.incoming,&f.services);
-    CHECK(f.state.actor==&f.incoming && f.incoming.refs==2); mm_actor_undo_dispose(&state,&f.services);
-    CHECK(!f.state.actor && f.incoming.refs==1); mm_actor_undo_dispose(&state,&f.services); CHECK(f.incoming.refs==1);
+    init(&f); CHECK(mm_actor_undo_redo(&f.state,&f.services) && f.sought==11);
+    init(&f); f.state.actor=NULL; mm_actor_undo_set_actor(&f.state,&f.incoming,&f.services);
+    CHECK(f.state.actor==&f.incoming && f.incoming.refs==2); mm_actor_undo_dispose(&f.state,&f.services);
+    CHECK(!f.state.actor && f.incoming.refs==1); mm_actor_undo_dispose(&f.state,&f.services); CHECK(f.incoming.refs==1);
     for (mode=0;mode<2;++mode) for (fail=0;fail<3;++fail)
     {
         init(&f); f.fail=fail; memset(&c,0,sizeof(c)); c.context=&f;
-        c.create=create_undo; c.set_actor=set_actor; c.set_id=set_id; c.set_sound=set_sound; c.set_name=set_name;
+        c.create=create_undo; c.retain_actor=retain_create;
         c.add=register_undo; c.clear=clear_create; c.release=release_create; c.reset_actor=reset_create;
-        CHECK(mm_actor_undo_create(&f.incoming,29,1,mode?&f.name:NULL,&c)==!fail);
+        CHECK(mm_actor_undo_create(&f.incoming,29,1,mode?before:NULL,mode?sizeof(before):0,&c)==!fail);
         CHECK(f.created==1 && f.reset==!fail && f.incoming.refs==(fail?1:2));
-        CHECK(!strcmp(f.trace,fail==1?"U":fail==2?(mode?"Uaisnjcd":"Uaisjcd"):(mode?"Uaisnjdz":"Uaisjdz")));
-        if (!fail) CHECK(f.create_id==29 && f.create_sound==1 && f.named==mode && f.create_refs==1);
+        CHECK(!strcmp(f.trace,fail==1?"U":fail==2?"Uajcd":"Uajdz"));
+        if (fail!=1) CHECK(matches(&f.state.name,before,mode?sizeof(before):0));
+        if (!fail) CHECK(f.create_refs==1);
     }
     for (i=0;i<255;++i) { text_units[i]=(unsigned short)(i==3?0:0x3a9+i); text_bytes[i]=(unsigned char)(i==3?0:128+i); }
     for (unit=1;unit<=2;++unit)
@@ -162,11 +189,18 @@ int main(void)
         CHECK(!mm_actor_undo_set_name(&f.state,text_units,256) && f.state.name.count==255);
         CHECK(!mm_actor_undo_init(&f.state,&f.base,4) && f.state.name.count==255);
     }
-    init(&f); f.services.read=NULL; f.services.publish=NULL; f.services.has_name=NULL;
-    f.services.invoke_undo=invoke_persistent; f.state.sooner_later=1;
-    CHECK(mm_actor_undo_set_name(&f.state,"before",6)); f.name=17;
+    init(&f);
+    CHECK(mm_actor_undo_init(&f.state,&f.base,2) && mm_movie_title_init(&f.rollcall,2));
+    f.state.actor=&f.incoming; f.state.actor_id=f.incoming.id;
+    CHECK(mm_actor_undo_set_name(&f.state,text_units,255) && mm_movie_title_set(&f.rollcall,text_units+2,5));
+    CHECK(mm_actor_undo_toggle(&f.state,&f.services));
+    CHECK(matches(&f.state.name,text_units+2,5) && matches(&f.rollcall,text_units,255));
+    CHECK(mm_actor_undo_redo(&f.state,&f.services));
+    CHECK(matches(&f.state.name,text_units,255) && matches(&f.rollcall,text_units+2,5));
+    init(&f); f.state.sooner_later=1;
+    CHECK(mm_actor_undo_set_name(&f.state,before,sizeof(before)));
     CHECK(mm_actor_undo_redo(&f.state,&f.services) && f.base.frame==11 && f.sought==22);
-    CHECK(f.state.actor==&f.old && f.name==42 && f.old.refs==1 && f.incoming.refs==1);
-    mm_actor_undo_dispose(&f.state,&f.services); CHECK(!f.state.actor && !f.old.refs && f.state.name.count==6);
+    CHECK(f.state.actor==&f.old && matches(&f.state.name,after,sizeof(after)) && f.old.refs==1 && f.incoming.refs==1);
+    mm_actor_undo_dispose(&f.state,&f.services); CHECK(!f.state.actor && !f.old.refs && matches(&f.state.name,after,sizeof(after)));
     puts("actor undo C89 checks passed"); return 0;
 }

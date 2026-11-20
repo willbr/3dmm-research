@@ -18,8 +18,6 @@ typedef struct MMActorUndoState
 typedef struct MMActorUndoServices
 {
     void *context;
-    void (*read)(void *,MMActorUndoState *);
-    void (*publish)(void *,const MMActorUndoState *);
     int (*invoke_undo)(void *);
     int (*switch_scene)(void *,void *movie,MMI32 scene);
     void *(*current_scene)(void *,void *movie);
@@ -33,10 +31,8 @@ typedef struct MMActorUndoServices
     MMI32 (*actor_id)(void *,void *actor);
     void (*remove_actor)(void *,void *scene,MMI32 id);
     int (*add_actor)(void *,void *scene,void *actor);
-    int (*has_name)(void *);
-    int (*capture_name)(void *,void *movie,MMI32 id);
-    void (*assign_name)(void *,void *movie,MMI32 id);
-    void (*store_name)(void *);
+    int (*find_name)(void *,void *movie,MMI32 id,const void **text,MMU32 *count);
+    void (*rename)(void *,void *movie,MMI32 id,const void *text,MMU32 count);
     void *(*view)(void *,void *movie);
     int (*text_mode)(void *,void *view);
     void (*select_actor)(void *,void *scene,void *actor);
@@ -48,36 +44,33 @@ typedef struct MMActorUndoServices
  * Dispose releases the actor; scalar/name values remain. Do not copy owners. */
 int mm_actor_undo_init(MMActorUndoState *, MMMovieUndoContext *, unsigned unit);
 int mm_actor_undo_set_name(MMActorUndoState *, const void *, MMU32 count);
-/* read/publish/has_name may be NULL for persistent C state. Present read/publish
- * hooks are observation/legacy-marshalling callbacks, not reentrant controllers. */
 /* Valid initialized movie/scene/actor handles are required. Callbacks cannot
  * reenter this controller except invoke_undo (virtual dispatch for redo).
- * Names use caller-owned scratch storage: capture, assign (failure ignored),
- * then store the captured name. No allocation is required for the scratch.
+ * find_name borrows native units until the next roll-call mutation. The
+ * controller copies them before renaming and saves the copy even if rename fails.
  * Failed seek may destroy the owner via clear_undo; toggle returns immediately
- * without publishing/touching that owner again. Redo requires a retained owner
- * through invoke_undo, as the original controller did. */
+ * without accessing that owner again. Redo requires a retained owner through
+ * invoke_undo. */
 int mm_actor_undo_toggle(MMActorUndoState *,const MMActorUndoServices *);
 int mm_actor_undo_redo(MMActorUndoState *,const MMActorUndoServices *);
-/* Set is for an empty/new owner and retains the non-NULL actor after publishing.
- * Dispose releases before clearing/publishing the pointer. */
+/* Set is for an empty/new owner and retains the non-NULL actor after storing it.
+ * Dispose releases before clearing the pointer. */
 void mm_actor_undo_set_actor(MMActorUndoState *,void *,const MMActorUndoServices *);
 void mm_actor_undo_dispose(MMActorUndoState *,const MMActorUndoServices *);
 typedef struct MMActorUndoCreateServices
 {
     void *context;
-    void *(*create)(void *);
-    void (*set_actor)(void *,void *undo,void *actor);
-    void (*set_id)(void *,void *undo,MMI32);
-    void (*set_sound)(void *,void *undo,int);
-    void (*set_name)(void *,void *undo,const void *name);
+    MMActorUndoState *(*create)(void *,void **undo);
+    void (*retain_actor)(void *,void *actor);
     int (*add)(void *,void *undo);
     void (*clear)(void *);
     void (*release)(void *,void *undo);
     void (*reset_actor)(void *,void *actor);
 } MMActorUndoCreateServices;
+/* create returns the initialized state and the owning handle used for register
+ * and release. The optional name is counted in the state's native units. */
 int mm_actor_undo_create(void *snapshot,MMI32 id,int sound,const void *name,
-    const MMActorUndoCreateServices *);
+    MMU32 count,const MMActorUndoCreateServices *);
 #ifdef __cplusplus
 }
 #endif

@@ -930,7 +930,9 @@ factories, duplication, edit/undo registration and replay, property selection an
 clipboard ownership/paste now also use C89 and plain C undo/clipboard state.
 MovieUndo's shared movie/scene/frame context, actor undo snapshot references,
 flags and counted names, and composite undo table handles now also live in
-persistent C state. Physical views and final integration remain work.
+persistent C state. Actor undo creation populates that record directly in C89,
+and its controller captures and swaps counted roll-call names. Physical views
+and final integration remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.

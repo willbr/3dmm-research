@@ -782,6 +782,8 @@ class Movie : public Movie_PAR
     bool FChooseArid(long arid);          // user chose arid in roll call
     long AridSelected(void);
     bool FGetName(long arid, PString pstn);      // Return the name of a specific actor.
+    // Borrows the name until the roll call changes.
+    bool FGetName(long arid, const void **name, MMU32 *count);
     bool FNameActr(long arid, PString pstn);     // Set the name of this actor.
     bool FNameActr(long arid, const achar *name, LegacyLong count);
     void ChangeActrTag(long arid, PTAG ptag); // Change an actor's Template tag

@@ -91,6 +91,7 @@ typedef class ActorUndo *PActorUndo;
 #define kclsActorUndo 'AUND'
 class ActorUndo : public ActorUndo_PAR
 {
+    friend class Actor;
     RTCLASS_DEC
     MARKMEM
     ASSERT

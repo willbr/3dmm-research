@@ -347,16 +347,18 @@ bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
 {
     AssertPo(pactrDup,0); AssertNilOrPo(pstn,0);
     MMActorUndoCreateServices s{}; s.context=this;
-    s.create=[](void *)->void * { return ActorUndo::PaundNew(); };
-    s.set_actor=[](void *,void *p,void *actor) { static_cast<PActorUndo>(p)->SetPactr(static_cast<PActor>(actor)); };
-    s.set_id=[](void *,void *p,MMI32 id) { static_cast<PActorUndo>(p)->SetArid(id); };
-    s.set_sound=[](void *,void *p,int sound) { static_cast<PActorUndo>(p)->SetSndUndo(sound!=0); };
-    s.set_name=[](void *,void *p,const void *name) { static_cast<PActorUndo>(p)->SetStn(static_cast<PString>(const_cast<void *>(name))); };
+    s.create=[](void *,void **handle)->MMActorUndoState * {
+        auto undo=ActorUndo::PaundNew();
+        *handle=undo;
+        return undo ? &undo->_undoState : nullptr;
+    };
+    s.retain_actor=[](void *,void *actor) { static_cast<PActor>(actor)->AddRef(); };
     s.add=[](void *p,void *undo) { return int(static_cast<PActor>(p)->_Scene()->Pmvie()->FAddUndo(static_cast<PActorUndo>(undo))); };
     s.clear=[](void *p) { static_cast<PActor>(p)->_Scene()->Pmvie()->ClearUndo(); };
     s.release=[](void *,void *p) { static_cast<PActorUndo>(p)->Release(); };
     s.reset_actor=[](void *,void *p) { static_cast<PActor>(p)->Reset(); };
-    return mm_actor_undo_create(pactrDup,_owner.runtime.actor,fSndUndo,pstn,&s)!=0;
+    return mm_actor_undo_create(pactrDup,_owner.runtime.actor,fSndUndo,
+                                pstn ? pstn->Prgch() : nullptr,pstn ? pstn->Cch() : 0,&s)!=0;
 }
 
 /***************************************************************************
@@ -519,7 +521,6 @@ struct ActorUndo::UndoContext
 {
     ActorUndo *owner;
     PDocumentBase document;
-    String captured;
 };
 MMActorUndoServices ActorUndo::_UndoServices(UndoContext *context)
 {
@@ -537,14 +538,12 @@ MMActorUndoServices ActorUndo::_UndoServices(UndoContext *context)
     s.actor_id=[](void *,void *p)->MMI32 { return static_cast<PActor>(p)->Arid(); };
     s.remove_actor=[](void *,void *p,MMI32 id) { static_cast<PScene>(p)->RemActrCore(id); };
     s.add_actor=[](void *,void *p,void *actor) { return int(static_cast<PScene>(p)->FAddActrCore(static_cast<PActor>(actor))); };
-    s.capture_name=[](void *p,void *movie,MMI32 id) { return int(static_cast<PMovie>(movie)->FGetName(id,&static_cast<UndoContext *>(p)->captured)); };
-    s.assign_name=[](void *p,void *movie,MMI32 id) {
-        const auto &value=static_cast<UndoContext *>(p)->owner->_undoState.name;
-        String name;
-        name.SetRgch(static_cast<achar *>(const_cast<void *>(mm_movie_title_text(&value))),value.count);
-        static_cast<PMovie>(movie)->FNameActr(id,&name);
+    s.find_name=[](void *,void *movie,MMI32 id,const void **text,MMU32 *count) {
+        return int(static_cast<PMovie>(movie)->FGetName(id,text,count));
     };
-    s.store_name=[](void *p) { auto c=static_cast<UndoContext *>(p); c->owner->SetStn(&c->captured); };
+    s.rename=[](void *,void *movie,MMI32 id,const void *text,MMU32 count) {
+        static_cast<PMovie>(movie)->FNameActr(id,static_cast<const achar *>(text),count);
+    };
     s.view=[](void *,void *p)->void * { return static_cast<PMovie>(p)->PddgGet(0); };
     s.text_mode=[](void *,void *p) { return int(static_cast<PMovieView>(p)->FTextMode()); };
     s.select_actor=[](void *,void *p,void *actor) { static_cast<PScene>(p)->SelectActr(static_cast<PActor>(actor)); };

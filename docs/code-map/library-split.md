@@ -3453,22 +3453,21 @@ target index; registering the common context must not overwrite that index.
 
 Actor undo keeps its snapshot reference, ID, flags, last frame and counted name
 in `MMActorUndoState`. Names reuse `MMMovieTitle` storage for up to 255 native
-one/two-byte units, including embedded zeroes; temporary native strings marshal
-captured/assigned names. Move/rename groups store their owned table handle in
+one/two-byte units, including embedded zeros. The actor undo controller works
+directly with that record and counted roll-call names. Move/rename groups store
+their owned table handle in
 `MMActorGroupState`. Typed table providers still supply child rows, references
 and rename data. Actor/move toggle snapshots the base context on entry, so child
 callbacks cannot change the context used by later operations in that toggle.
 Sooner/later redo temporarily replaces the shared frame, dispatches virtual undo
-and restores the saved frame. Native adapters no longer install state-copy
-read/publication observers; optional C test observers remain available.
+and restores the saved frame.
 
 The common tests check publication order, frame preservation, distinct operation
 indices and commit/clear destruction. Actor/group tests cover direct persistent
 storage, counted names, temporary-frame restoration and child context mutation.
 Original actor/group/movie traces remain the integration reference on Native
 Debug, SDL Release and SDL Debug. Native object lifetimes, physical views and
-final C-only facade integration remain work; this slice removes storage
-marshalling rather than those typed service dependencies.
+final C-only facade integration remain work.
 
 ### Movie scene-container control and undo
 
@@ -4440,11 +4439,12 @@ next; body/resource/scene policy and final facade removal remain unfinished.
 `actor_undo.c` owns actor undo creation, snapshot reference lifetime, undo toggle
 and redo frame switching. `MMActorUndoState` persistently holds a shared base
 context pointer, snapshot handle, identifier, last frame, flags and counted name.
-The native undo object supplies primitive movie/scene operations and temporary
-String scratch storage. C controls name capture, ignored rename failure and
-captured-name swap; the existing String implementation is already C-backed.
-These native object representations and movie/scene implementations remain
-temporary dependencies.
+The factory returns the initialized C record alongside its native registration
+handle. C retains the snapshot and populates its ID, sound flag and optional name
+before registration. The native object supplies primitive movie/scene operations
+and exposes the roll-call name as borrowed counted units. C copies the name
+before renaming, then stores the captured value even when rename fails. The C
+scratch value preserves native code units, including embedded zeros.
 
 Toggle preserves scene-switch versus seek-failure handling: only the latter
 clears undo, then returns without touching an owner that clearing can destroy.
@@ -4460,11 +4460,16 @@ undo reference before detaching/resetting the snapshot.
 `engine-actor-undo-test` checks callback order, references, name capture/rename
 failure, changed IDs, view/text selection, absent actors, removal, scene/seek/add
 failure, owner destruction on seek failure, redo failure/frame restoration,
-set/dispose and allocation/registration failure during creation. Both the
-3,240-byte native undo trace (32 cases) and 94,208-byte ownership trace (128 cases)
-remain identical. Composite undo is described next. Remaining edit/clipboard
-wrappers, movie/scene/body/resource implementations, queue runtime and facade
-removal remain work.
+set/dispose and allocation/registration failure during creation. It also checks
+name swaps when the roll-call buffer is overwritten, including a two-byte
+255-unit name and embedded zeros. Twelve native actor traces stayed byte
+identical, including the 3,240-byte undo trace (32 cases), the 2,100-byte
+composite undo trace and the 94,208-byte ownership trace (128 cases). SDL Studio
+route paste, undo, redo and save/reopen were verified. Retail reopened the saved
+route with matching poses at frames 7, 10 and 14. Capture suite
+`20261120T011928Z-4cdc20d9` matched the retained retail capture's 60 scene/frame
+markers in each port's seek and playback runs. Both ports' seek image hashes
+matched their previous builds, and SDL's 12 playback sound events matched retail.
 
 ### Composite actor undo
 
