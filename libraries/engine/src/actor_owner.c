@@ -33,6 +33,16 @@ MMActorLifetime mm_actor_owner_lifetime(MMActorOwner *actor)
     return life;
 }
 
+void mm_actor_owner_delete_forward(MMActorOwner *owner,int all,int *alive,MMI32 current,
+                                  const MMActorRouteEditServices *services)
+{
+    MMActorState state=owner->runtime.state;
+    const MMActorMotionServices motion=mm_actor_track_motion_services();
+    mm_actor_route_edit_delete_forward(&state,&owner->sounds,owner->track.route,owner->track.events,
+                                        owner->runtime.actor,all,alive,current,&motion,services);
+    owner->runtime.state=state;
+}
+
 int mm_actor_replace_template(MMActorRuntime *r, MMActorEventTable *events, const MMTag *tag,
                               const MMActorTemplateServices *s, const MMActorEditServices *edits)
 {

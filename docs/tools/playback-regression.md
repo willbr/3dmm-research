@@ -15889,3 +15889,30 @@ In `actor-event-edit` suite `20261120T143419Z-149d8170`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## Actor deletion and subroute seeks in C89 (20 November 2026)
+
+Studio actor deletion calls the C89 route editor for forward and whole
+subroute deletion. The transaction seeks through the C89 actor owner,
+including after a whole subroute is removed and after inherited events
+are pruned. C89 publishes offstage state after the renderer hides the
+actor, and Studio retains its batch seek diagnostics.
+
+The transaction fixture uses actual event and route tables to check
+surviving subroutes, the cursor saved before seek, alive-output timing,
+and the state retained after a failed seek. All 17 targeted x64 checks,
+23 standalone C89 checks, 14 focused checks each in x86 Debug and SDL
+Release, and six AddressSanitizer checks passed.
+
+Ten actor traces and the saved archive matched their baselines
+byte-for-byte in native x64 and SDL Release. The x86 edit transaction
+trace matched, and the full x86 suite reached the existing
+template-construction failure. All ten Preview fingerprints, six
+fixture archives, and both VMM seek images in
+`20261120T144622Z-d4837d8a` matched their baselines. Logs and fixtures
+are in `tmp/c89-actor-delete-core`.
+
+In `actor-event-edit` suite `20261120T144622Z-45f80918`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

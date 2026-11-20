@@ -23,9 +23,9 @@ typedef struct Fixture
     MMMovieUndoContext undo_context;
     int body_refs, template_refs, track_blocks, undo_refs;
     int edited, registered, restored, detached, publications, trash, alive_writes;
-    int fail_duplicate, fail_apply, fail_undo_create, fail_undo, fail_subroute, fail_seek, fail_lifetime;
-    int has_output, seeks, frames[2], all, wants_alive, original, sounds, faults, last_fault;
-    int override_frame, subroutes, empty_subroute, detach_on_seek, expect_sound;
+    int fail_duplicate, fail_apply, fail_undo_create, fail_undo, fail_seek, fail_lifetime;
+    int has_output, seeks, frames[2], sounds, faults, last_fault, hidden;
+    int second_subroute, keep_original, detach_on_seek, expect_sound;
     MMI32 add_frame;
     char trace[96];
     int count;
@@ -144,7 +144,7 @@ static void restored(void *p,void *scene)
     Fixture *f=(Fixture *)p;
     mark(f,'R');
     CHECK(scene==f);
-    CHECK(f->live.owner.runtime.state.frame==10 && f->live.owner.runtime.state.nextEvent==42);
+    CHECK(f->live.owner.runtime.state.frame==10 && f->live.owner.runtime.state.nextEvent==3);
     f->edited=0;
     ++f->restored;
 }
@@ -220,46 +220,95 @@ static void publish_alive(void *p,int value,int trashed)
         ++f->alive_writes;
 }
 
-static int subroute(void *p)
+static void publish_edit(void *p,const MMActorState *state)
 {
-    Fixture *f=(Fixture *)p;
-    MMActorEventTable *events=f->live.owner.track.events;
-    mark(f,'E');
-    ++f->edited;
-    ++f->subroutes;
-    if (f->empty_subroute)
-        while (mm_actor_events_count(events))
-            CHECK(mm_actor_events_delete(events,0));
-    return !f->fail_subroute;
+    ((Fixture *)p)->live.owner.runtime.state=*state;
 }
 
-static int seek(void *p,MMI32 frame)
+static void dirty_edit(void *p)
+{
+    Fixture *f=(Fixture *)p;
+    mark(f,'F');
+    ++f->edited;
+}
+
+static void get_range(void *p,MMActorEditRange *range)
+{
+    MMActorRuntime *runtime=&((Fixture *)p)->live.owner.runtime;
+    range->first=runtime->first;
+    range->last=runtime->last;
+}
+
+static void publish_range(void *p,const MMActorEditRange *range)
+{
+    MMActorRuntime *runtime=&((Fixture *)p)->live.owner.runtime;
+    runtime->first=range->first;
+    runtime->last=range->last;
+}
+
+static void dirty_life(void *p)
+{
+    ((Fixture *)p)->live.owner.runtime.life_dirty=1;
+}
+
+static void edit_recording(void *p,int enabled)
+{
+    ((Fixture *)p)->live.owner.runtime.recording.recording=enabled;
+}
+
+static void edit_costume(void *p)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(!f->live.owner.runtime.state.onStage);
+    mark(f,'E');
+}
+
+static int seek(void *p,MMActorState *state,MMI32 frame)
 {
     Fixture *f=(Fixture *)p;
     mark(f,'S');
     CHECK(f->seeks<2);
     if (f->seeks==1 && f->has_output)
         CHECK(f->alive_writes==1);
+    if (!f->seeks && state->frame!=2147483647L)
+    {
+        state->nextEvent=f->keep_original?3:2;
+        state->location.irpt=0;
+    }
     f->frames[f->seeks++]=frame;
-    f->live.owner.runtime.state.frame=frame;
-    f->live.owner.runtime.state.nextEvent=18;
+    state->frame=frame;
     if (f->seeks==2 && f->detach_on_seek)
         f->live.owner.runtime.scene=NULL;
     return f->seeks!=f->fail_seek;
 }
 
-static int forward(void *p,int all,int wants_alive,MMI32 original)
+static void hide_for_seek(void *p)
 {
     Fixture *f=(Fixture *)p;
-    mark(f,'F');
-    ++f->edited;
-    f->all=all;
-    f->wants_alive=wants_alive;
-    f->original=original;
-    f->live.owner.runtime.state.nextEvent=99;
-    if (f->override_frame)
-        f->live.owner.runtime.state.frame=f->override_frame;
+    CHECK(f->live.owner.runtime.state.onStage);
+    mark(f,'I');
+    ++f->hidden;
+}
+
+static int costume_for_seek(void *p)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(!f->live.owner.runtime.state.onStage && !f->live.owner.runtime.recording.recording);
+    mark(f,'K');
     return 1;
+}
+
+static int seek_fault(void *p)
+{
+    Fixture *f=(Fixture *)p;
+    return f->hidden && f->fail_seek ? -1 : 0;
+}
+
+static void seek_failed(void *p,MMI32 frame)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(frame==8 && !f->live.owner.runtime.state.onStage);
+    mark(f,'X');
 }
 
 static void sound(void *p)
@@ -281,6 +330,7 @@ static void init(Fixture *f)
 {
     MMActorOwnerServices *actors;
     MMActorUndoCreateServices *undo;
+    MMActorSubrouteEditServices *edit;
     memset(f,0,sizeof(*f));
     f->transaction.context=f;
     f->transaction.apply=apply;
@@ -306,10 +356,18 @@ static void init(Fixture *f)
     f->alive.context=f;
     f->alive.publish=publish_alive;
     f->deletion.context=f;
-    f->deletion.timeline=mm_actor_track_timeline_services();
-    f->deletion.delete_subroute=subroute;
-    f->deletion.seek=seek;
-    f->deletion.delete_forward=forward;
+    edit=&f->deletion.subroute;
+    edit->timeline=mm_actor_track_timeline_services();
+    edit->route.edits.context=f;
+    edit->route.edits.publish=publish_edit;
+    edit->route.edits.dirty=dirty_edit;
+    edit->route.edits.get_range=get_range;
+    edit->route.edits.publish_range=publish_range;
+    edit->route.life_dirty=dirty_life;
+    edit->route.recording=edit_recording;
+    edit->route.default_costume=edit_costume;
+    mm_actor_route_edit_bind_tables(&edit->route);
+    edit->seek=seek;
     f->deletion.sound_frame=sound;
     f->deletion.diagnostic=diagnostic;
     mm_movie_undo_context_init(&f->undo_context);
@@ -317,7 +375,7 @@ static void init(Fixture *f)
     f->live.owner.runtime.actor=23;
     f->live.owner.runtime.state.frame=10;
     f->live.owner.runtime.state.addEvent=0;
-    f->live.owner.runtime.state.nextEvent=42;
+    f->live.owner.runtime.state.nextEvent=3;
     f->live.owner.runtime.scene=f;
     f->live.owner.runtime.body=&f->body_refs;
     f->live.owner.runtime.template_object=&f->template_refs;
@@ -325,19 +383,37 @@ static void init(Fixture *f)
     f->add_frame=9;
 }
 
-static void create_track(Fixture *f)
+static void append_subroute(MMActorTrack *track,MMI32 frame,MMI32 node)
 {
     const unsigned short angles[]={0,0,0};
+    MMI32 index=mm_actor_events_count(track->events);
+    MMActorStationaryTrack rows;
+    mm_actor_stationary_track(&rows,frame,angles);
+    rows.events[0].rtel.irpt=rows.events[1].rtel.irpt=rows.events[2].rtel.irpt=node;
+    CHECK(mm_actor_path_insert(track->route,node,&rows.route));
+    CHECK(mm_actor_events_insert(track->events,index,sizeof(rows.entrance),&rows.entrance,&rows.events[0]));
+    CHECK(mm_actor_events_insert(track->events,index+1,sizeof(rows.action),&rows.action,&rows.events[1]));
+    CHECK(mm_actor_events_insert(track->events,index+2,sizeof(rows.step),&rows.step,&rows.events[2]));
+}
+
+static void create_track(Fixture *f)
+{
     MMStorageAllocator allocator={NULL,resize_track,free_track};
     MMActorTrack *track=&f->live.owner.track;
-    MMActorStationaryTrack rows;
     allocator.context=f;
     CHECK(mm_actor_track_create(track,&allocator,0,NULL));
-    mm_actor_stationary_track(&rows,f->add_frame,angles);
-    CHECK(mm_actor_path_insert(track->route,0,&rows.route));
-    CHECK(mm_actor_events_insert(track->events,0,sizeof(rows.entrance),&rows.entrance,&rows.events[0]));
-    CHECK(mm_actor_events_insert(track->events,1,sizeof(rows.action),&rows.action,&rows.events[1]));
-    CHECK(mm_actor_events_insert(track->events,2,sizeof(rows.step),&rows.step,&rows.events[2]));
+    append_subroute(track,f->add_frame,0);
+    if (f->second_subroute)
+        append_subroute(track,f->keep_original?10:20,1);
+    f->deletion.subroute.route.edits.tables=mm_actor_edit_tables(track->events,NULL);
+    if (f->keep_original)
+    {
+        MMActorState *state=&f->live.owner.runtime.state;
+        state->frame=11;
+        state->location.irpt=1;
+        state->addEvent=3;
+        state->nextEvent=4;
+    }
     f->live.owner.runtime.first=f->fail_lifetime?2147483647L:f->add_frame;
     f->live.owner.runtime.last=20;
     f->live.owner.runtime.life_dirty=1;
@@ -400,22 +476,29 @@ static void deletion(void)
 {
     Fixture f;
     int fail;
-    init(&f); f.override_frame=50; CHECK(delete_actor(&f,0,1));
-    CHECK(!strcmp(f.trace,"DSFOSHUJWZL") && f.frames[0]==9 && f.frames[1]==51);
-    CHECK(f.original==42 && f.wants_alive && !f.all && f.alive.alive==1 && f.copy.refs==1 && f.edited==1);
+    init(&f); CHECK(delete_actor(&f,0,1));
+    CHECK(!strcmp(f.trace,"DSFOSHUJWZL") && f.frames[0]==9 && f.frames[1]==10);
+    CHECK(f.alive.alive==1 && f.copy.refs==1 && f.edited==1);
+    CHECK(mm_actor_events_count(f.live.owner.track.events)==2);
     CHECK(f.live.owner.runtime.last==9 && !f.live.owner.runtime.life_dirty);
     done(&f);
-    init(&f); f.add_frame=10; CHECK(delete_actor(&f,0,1));
-    CHECK(!strcmp(f.trace,"DEOUJWZL") && !f.seeks && !f.sounds && f.subroutes==1);
+    init(&f); f.second_subroute=1; f.keep_original=1; CHECK(delete_actor(&f,0,1));
+    CHECK(f.frames[0]==10 && f.frames[1]==11 && f.alive.alive==1);
+    CHECK(mm_actor_events_count(f.live.owner.track.events)==3 && mm_actor_path_count(f.live.owner.track.route)==1);
     done(&f);
-    init(&f); f.add_frame=10; f.empty_subroute=1; CHECK(delete_actor(&f,0,1) && !f.alive.alive);
+    init(&f); f.add_frame=10; CHECK(delete_actor(&f,0,1));
+    CHECK(!strcmp(f.trace,"DFEOUJWZL") && !f.seeks && !f.sounds && !f.alive.alive);
+    done(&f);
+    init(&f); f.add_frame=10; f.second_subroute=1; CHECK(delete_actor(&f,0,1));
+    CHECK(!strcmp(f.trace,"DFESOUJWZL") && f.seeks==1 && f.frames[0]==10 && f.alive.alive);
+    CHECK(mm_actor_events_count(f.live.owner.track.events)==3 && f.live.owner.runtime.first==20);
     done(&f);
     init(&f); f.add_frame=10; CHECK(delete_actor(&f,0,0) && !f.alive_writes && f.alive.alive==7);
     done(&f);
-    init(&f); f.add_frame=10; CHECK(delete_actor(&f,1,1) && !f.subroutes && f.all);
+    init(&f); f.add_frame=10; CHECK(delete_actor(&f,1,1) && f.seeks==2 && !f.alive.alive);
     done(&f);
     init(&f); f.live.owner.runtime.state.addEvent=-1; f.live.owner.runtime.scene=NULL;
-    CHECK(delete_actor(&f,0,0) && !f.sounds && !f.wants_alive && !f.alive_writes);
+    CHECK(delete_actor(&f,0,0) && !f.sounds && !f.alive_writes);
     done(&f);
     init(&f); f.detach_on_seek=1; CHECK(delete_actor(&f,0,1) && f.seeks==2 && !f.sounds);
     done(&f);
@@ -424,8 +507,9 @@ static void deletion(void)
     done(&f);
     init(&f); f.fail_duplicate=1; CHECK(!delete_actor(&f,0,0) && !strcmp(f.trace,"D") && !f.trash);
     done(&f);
-    init(&f); f.add_frame=10; f.fail_subroute=1; CHECK(!delete_actor(&f,0,1));
-    CHECK(!strcmp(f.trace,"DEXL") && f.edited==1 && !f.restored && !f.copy.refs && f.alive.alive==7);
+    init(&f); f.add_frame=10; f.second_subroute=1; f.fail_seek=1; CHECK(!delete_actor(&f,0,1));
+    CHECK(!strcmp(f.trace,"DFESXL") && f.edited==1 && !f.restored && !f.copy.refs && f.alive.alive==7);
+    CHECK(mm_actor_events_count(f.live.owner.track.events)==3 && f.live.owner.runtime.first==20);
     done(&f);
     for (fail=1;fail<=2;++fail)
     {
@@ -443,10 +527,40 @@ static void deletion(void)
     done(&f);
 }
 
+static void owner_seek(void)
+{
+    Fixture f;
+    MMActorState working;
+    MMActorSubrouteEditServices *edit;
+    int fail;
+    for (fail=0;fail<=1;++fail)
+    {
+        init(&f);
+        create_track(&f);
+        edit=&f.deletion.subroute;
+        edit->live=&f.live.owner;
+        edit->playback.context=&f;
+        edit->playback.hide=hide_for_seek;
+        edit->playback.reset_costume=costume_for_seek;
+        edit->playback.fault=seek_fault;
+        edit->playback.seek_failed=seek_failed;
+        working=f.live.owner.runtime.state;
+        working.onStage=1;
+        f.live.owner.runtime.recording.recording=1;
+        f.fail_seek=fail;
+        CHECK(mm_actor_subroute_seek(&working,8,edit)==!fail);
+        CHECK(!strcmp(f.trace,fail?"IX":"IK") && !working.onStage && working.frame==8);
+        CHECK(!memcmp(&working,&f.live.owner.runtime.state,sizeof(working)));
+        CHECK(f.live.owner.runtime.recording.recording==fail);
+        done(&f);
+    }
+}
+
 int main(void)
 {
     edits();
     deletion();
+    owner_seek();
     puts("actor edit transaction C89 checks passed");
     return 0;
 }

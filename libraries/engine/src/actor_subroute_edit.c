@@ -2,12 +2,23 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_subroute_edit.h"
 #include "mm/actor_effect.h"
+#include "mm/actor_owner.h"
 #include <string.h>
 #define FLAG(kind) ((MMU32)1 << (kind))
 static void publish(const MMActorState *state,const MMActorSubrouteEditServices *s)
 { if (s->route.edits.publish) s->route.edits.publish(s->route.edits.context,state); }
 static void diagnostic(const MMActorSubrouteEditServices *s,int fault)
 { if (s->diagnostic) s->diagnostic(s->route.edits.context,fault); }
+int mm_actor_subroute_seek(MMActorState *state,MMI32 frame,const MMActorSubrouteEditServices *s)
+{
+    int result;
+    if (!s->live)
+        return s->seek(s->route.edits.context,state,frame);
+    s->live->runtime.state=*state;
+    result=mm_actor_owner_seek(s->live,frame,NULL,&s->timeline,&s->playback);
+    *state=s->live->runtime.state;
+    return result>0;
+}
 unsigned short mm_actor_edit_average_angle(unsigned short a,unsigned short b,MMI32 weight)
 {
     MMI32 result=0,other=mm_fixed_sub(65536L,weight),difference=(MMI32)a-(MMI32)b;
@@ -173,9 +184,9 @@ int mm_actor_subroute_from_previous(MMActorState *state,MMActorSounds *list,void
     { m->event(events,i,&event); if (state->frame==event.nfrm) { pruned=1; mm_actor_edit_remove(state,events,i,1,m,e); } }
     if (!pruned) return 1;
     saved=state->frame;
-    if (!s->seek(e->context,state,mm_fixed_sub(saved,1))) return 0;
+    if (!mm_actor_subroute_seek(state,mm_fixed_sub(saved,1),s)) return 0;
     mm_actor_route_edit_delete_forward(state,list,route,events,actor,0,NULL,state->nextEvent,m,&s->route);
-    return s->seek(e->context,state,saved);
+    return mm_actor_subroute_seek(state,saved,s);
 }
 int mm_actor_subroute_from_later(MMActorState *state,MMActorSounds *list,void *route,void *events,
     MMI32 actor,MMU32 external_child,const MMActorMotionServices *m,const MMActorSubrouteEditServices *s)

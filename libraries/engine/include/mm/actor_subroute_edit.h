@@ -10,6 +10,7 @@
 extern "C" {
 #endif
 enum { MM_SUBROUTE_BAD_LIFETIME, MM_SUBROUTE_BAD_HOLD, MM_SUBROUTE_OFFSTAGE_EVENT };
+struct MMActorOwner;
 typedef struct MMActorSubrouteEditServices
 {
     MMActorRouteEditServices route;
@@ -18,8 +19,9 @@ typedef struct MMActorSubrouteEditServices
     MMActorLifetime lifetime;
     void (*pose_inputs)(void *,MMActorPoseInputs *);
     void (*locate_body)(void *,const MMActorBodyPose *);
-    /* Temporary integration into the already C-owned seek policy. State is
-     * input/output even on failure; callbacks retain partial owner-side flags. */
+    struct MMActorOwner *live;
+    MMActorPlaybackEffects playback;
+    /* Draft actors and borrowed evaluator tables may supply their own seek. */
     int (*seek)(void *,MMActorState *,MMI32 frame);
     void (*diagnostic)(void *,int);
 } MMActorSubrouteEditServices;
@@ -34,6 +36,9 @@ void mm_actor_subroute_save_orientation(MMActorState *,void *route,void *events,
     const MMActorMotionServices *,const MMActorSubrouteEditServices *);
 void mm_actor_subroute_position_body(MMActorState *,void *route,void *events,const MMActorPoint *,
     const MMActorMotionServices *,const MMActorSubrouteEditServices *);
+/* Publishes the working state to a live owner before seeking. Copies back
+ * the resulting state on success and failure. */
+int mm_actor_subroute_seek(MMActorState *,MMI32 frame,const MMActorSubrouteEditServices *);
 /* Retain BUG1870/BUG1866 ordering, including the second offset subtraction after
  * a matching held-frame location. Lifetime failure reports diagnostics but editing
  * continues. Optional alive is published before reset/lifetime/invalidation. */

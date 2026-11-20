@@ -128,6 +128,8 @@ extern "C"
         int (*select_cel)(void *);
         void (*update_pose)(void *);
         int (*fault)(void *);
+        /* Optional observer of a failed live-owner seek. */
+        void (*seek_failed)(void *, MMI32 target);
     } MMActorPlaybackEffects;
     /* Seek and display the live actor using the given frame profile. Studio
      * accumulates position dirtiness across frames and considers motion sound

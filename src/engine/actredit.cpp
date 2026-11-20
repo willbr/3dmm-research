@@ -387,12 +387,7 @@ MMActorDeleteServices Actor::_DeleteServices()
 {
     MMActorDeleteServices s{};
     s.context=this;
-    s.timeline=_TimelineServices();
-    s.delete_subroute=[](void *p) { return int(static_cast<Actor *>(p)->_FDeleteEntireSubrte()); };
-    s.seek=[](void *p,MMI32 frame) { return int(static_cast<Actor *>(p)->FGotoFrame(frame)); };
-    s.delete_forward=[](void *p,int all,int wants_alive,MMI32 original) {
-        bool alive=false; static_cast<Actor *>(p)->DeleteFwdCore(all!=0,wants_alive?&alive:nullptr,original); return int(alive);
-    };
+    s.subroute=_SubrouteEditServices();
     s.sound_frame=[](void *p) { static_cast<Actor *>(p)->_Scene()->UpdateSndFrame(); };
     s.diagnostic=[](void *,int fault) { PushErc(fault==MM_TRANSACTION_SEEK_FAILED?ercSocGotoFrameFailure:ercSocBadFrameSlider); };
     return s;

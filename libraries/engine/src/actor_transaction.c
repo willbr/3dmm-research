@@ -1,6 +1,7 @@
 /* Actor edit transactions converted from engine actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_transaction.h"
+#include "mm/actor_stage_edit.h"
 #include <stddef.h>
 static int register_snapshot(void *actor,void *snapshot,int sound,const MMActorTransactionServices *s)
 {
@@ -35,6 +36,7 @@ static void alive(MMActorDeleteResult *out,int value,int trashed)
 int mm_actor_transaction_delete(void *actor,int all,MMActorDeleteResult *out,const MMActorTransactionServices *s,
     const MMActorDeleteServices *d)
 {
+    const MMActorSubrouteEditServices *edit=&d->subroute;
     MMActorOwner *owner;
     MMActorRuntime *runtime;
     MMActorLifetime lifetime;
@@ -53,19 +55,23 @@ int mm_actor_transaction_delete(void *actor,int all,MMActorDeleteResult *out,con
         mm_actor_events_get_fixed(owner->track.events,runtime->state.addEvent,&entrance) &&
         runtime->state.frame==entrance.nfrm)
     {
-        if (!d->delete_subroute(d->context)) goto failed;
+        MMActorState state=runtime->state;
+        value=mm_actor_stage_delete_subroute(&state,owner->track.route,owner->track.events,&edit->timeline.motion,edit);
+        runtime->state=state;
+        if (!value) goto failed;
         if (out) alive(out,mm_actor_events_count(owner->track.events)>0,0);
     }
     else
     {
         original=runtime->state.nextEvent;
-        if (!d->seek(d->context,mm_fixed_sub(runtime->state.frame,1))) goto failed;
-        value=d->delete_forward(d->context,all,out!=NULL,original); alive(out,value,0);
-        if (!d->seek(d->context,mm_fixed_add(runtime->state.frame,1))) goto failed;
+        if (!mm_actor_subroute_seek(&runtime->state,mm_fixed_sub(runtime->state.frame,1),edit)) goto failed;
+        mm_actor_owner_delete_forward(owner,all,out?&value:NULL,original,&edit->route);
+        if (out) alive(out,value,0);
+        if (!mm_actor_subroute_seek(&runtime->state,mm_fixed_add(runtime->state.frame,1),edit)) goto failed;
         if (runtime->scene) d->sound_frame(d->context);
     }
     lifetime=mm_actor_owner_lifetime(owner);
-    if (!mm_actor_refresh_lifetime(owner->track.route,owner->track.events,NULL,&lifetime,&d->timeline))
+    if (!mm_actor_refresh_lifetime(owner->track.route,owner->track.events,NULL,&lifetime,&edit->timeline))
         d->diagnostic(d->context,MM_TRANSACTION_BAD_LIFETIME);
     if (!register_snapshot(actor,copy.actor,0,s))
     {

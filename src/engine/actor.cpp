@@ -294,9 +294,23 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
 {
     AssertThis(0);
     AssertIn(nfrm, klwMin, klwMax);
+    const auto effects = _PlaybackEffects();
+    const auto timeline = _TimelineServices();
+    int sound = 0;
+    const bool success = mm_actor_owner_seek(&_owner, nfrm, &sound, &timeline, &effects) > 0;
+    if (pfSoundInFrame && sound)
+        *pfSoundInFrame = true;
+    return success;
+}
+
+MMActorPlaybackEffects Actor::_PlaybackEffects()
+{
     MMActorPlaybackEffects effects = {};
     effects.context = this;
-    effects.hide = [](void *p) { static_cast<Actor *>(p)->_Hide(); };
+    effects.hide = [](void *p) {
+        if (auto body = static_cast<Actor *>(p)->_Body())
+            body->Hide();
+    };
     effects.reset_costume = [](void *p) -> int {
         auto actor = static_cast<Actor *>(p);
         return actor->_Template()->FSetDefaultCost(actor->_Body());
@@ -319,24 +333,21 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
         BMAT34 matrix;
         actor->_MatrixRotUpdate(&actor->_owner.runtime.state.position, &matrix);
     };
-    const auto timeline = _TimelineServices();
-    int sound = 0;
-    const bool success = mm_actor_owner_seek(&_owner, nfrm, &sound, &timeline, &effects) > 0;
-    if (pfSoundInFrame && sound)
-        *pfSoundInFrame = true;
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
-    if (!success)
-    {
+    effects.seek_failed = [](void *p, MMI32 frame) {
         const auto batch = std::getenv("THREEDMM_BATCH_TEST");
         if (batch && std::strcmp(batch, "1") == 0)
+        {
+            const auto &runtime = static_cast<Actor *>(p)->_owner.runtime;
             std::fprintf(stderr, "BATCH_ACTOR_FRAME_FAILED actor=%ld frame=%ld action=%ld cel=%ld event=%ld "
                                  "template_sid=%ld template_cno=%08lx\n",
-                         _owner.runtime.actor, nfrm, static_cast<long>(_owner.runtime.state.action), static_cast<long>(_owner.runtime.state.cel),
-                         static_cast<long>(_owner.runtime.state.nextEvent), static_cast<long>(_owner.runtime.template_tag.sid),
-                         static_cast<unsigned long>(_owner.runtime.template_tag.number));
-    }
+                         static_cast<long>(runtime.actor), static_cast<long>(frame), static_cast<long>(runtime.state.action),
+                         static_cast<long>(runtime.state.cel), static_cast<long>(runtime.state.nextEvent),
+                         static_cast<long>(runtime.template_tag.sid), static_cast<unsigned long>(runtime.template_tag.number));
+        }
+    };
 #endif
-    return success;
+    return effects;
 }
 
 /***************************************************************************
@@ -634,10 +645,8 @@ MMActorSubrouteEditServices Actor::_SubrouteEditServices()
     s.locate_body=[](void *p,const MMActorBodyPose *pose) {
         static_cast<Actor *>(p)->_Body()->ApplyPose(*pose);
     };
-    s.seek=[](void *p,MMActorState *state,MMI32 frame) {
-        auto actor=static_cast<Actor *>(p); actor->_owner.runtime.state = *state;
-        bool ok=actor->FGotoFrame(frame); *state=actor->_owner.runtime.state; return int(ok);
-    };
+    s.live = &_owner;
+    s.playback = _PlaybackEffects();
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
         case MM_SUBROUTE_BAD_LIFETIME: PushErc(ercSocBadFrameSlider); break;
@@ -910,25 +919,6 @@ bool Actor::FRemFromStageCore(void)
     const auto services=_StageEditServices();
     bool ok=mm_actor_stage_remove(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
                                          &tables,&services)!=0;
-    _owner.runtime.state = state;
-    return ok;
-}
-
-/***************************************************************************
-
-    Delete the current entire subroute & reposition actor accordingly.
-    Based on current state variables
-
-***************************************************************************/
-bool Actor::_FDeleteEntireSubrte(void)
-{
-    AssertThis(0);
-    Assert(static_cast<Base *>(mm_actor_events_fixed(_owner.track.events, _owner.runtime.state.addEvent))->nfrm==_owner.runtime.state.frame,
-           "Logic error: trying to delete whole route from the middle");
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
-    const auto services=_SubrouteEditServices();
-    bool ok=mm_actor_stage_delete_subroute(&state,_owner.track.route,_owner.track.events,&tables,&services)!=0;
     _owner.runtime.state = state;
     return ok;
 }
@@ -1780,12 +1770,9 @@ void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 #ifndef BUG1932
 #error C89 route editing requires the enabled retail BUG1932 policy
 #endif
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
     const auto services=_RouteEditServices();
     int alive=0;
-    mm_actor_route_edit_delete_forward(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&tables,&services);
-    _owner.runtime.state = state;
+    mm_actor_owner_delete_forward(&_owner,fDeleteAll,pfAlive?&alive:nullptr,iaevCur,&services);
     if (pfAlive) *pfAlive=alive!=0;
 }
 

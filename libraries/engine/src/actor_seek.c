@@ -278,6 +278,8 @@ static int playback_seek_effect(void *context, const MMActorSeekCommand *command
     {
     case MM_ACTOR_SEEK_HIDE:
         e->hide(e->context);
+        if (p->owner)
+            state->onStage = 0;
         return 1;
     case MM_ACTOR_SEEK_RESET_COSTUME:
         if (p->owner)
@@ -324,6 +326,7 @@ int mm_actor_owner_seek(MMActorOwner *owner, MMI32 target, int *sound, const MMA
                         const MMActorPlaybackEffects *effects)
 {
     ActorPlayback playback;
+    int result;
     playback.route = owner->track.route;
     playback.events = owner->track.events;
     playback.owner = owner;
@@ -334,7 +337,10 @@ int mm_actor_owner_seek(MMActorOwner *owner, MMI32 target, int *sound, const MMA
     playback.profile = MM_ACTOR_FRAME_STUDIO;
     playback.dirty = 0;
     playback.sound = sound;
-    return run_playback(&playback, &owner->runtime.state, target);
+    result = run_playback(&playback, &owner->runtime.state, target);
+    if (result <= 0 && effects->seek_failed)
+        effects->seek_failed(effects->context, target);
+    return result;
 }
 
 int mm_actor_replay_frame_sounds(const MMActorState *state, void *events, int enabled,

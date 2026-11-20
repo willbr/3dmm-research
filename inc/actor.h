@@ -135,6 +135,7 @@ class Actor : public Actor_PAR
     bool _FGetStatic(long anid, bool *pfStatic);
     bool _FIsDoneAevSub(long iaev, RouteLocation rtel);
     MMActorTimelineServices _TimelineServices();
+    MMActorPlaybackEffects _PlaybackEffects();
     bool _FGetDwrRecord(BRS *pdwr); // Step size if recording
     bool _FDoAevCur(void);
     bool _FDoAevCore(long iaev);
@@ -176,7 +177,6 @@ class Actor : public Actor_PAR
     bool _FFindPrevAevAet(long aet, long iaevCur, long *piaevAdd);
     void _FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast);
     void _DeleteFwdCore(bool fDeleteAll, bool *pfAlive = pvNil, long iaevCur = ivNil);
-    bool _FDeleteEntireSubrte(void);
     void _DelAddFrame(long iaevAdd, long iaevLim);
 
     void _UpdateXyzRte(void);

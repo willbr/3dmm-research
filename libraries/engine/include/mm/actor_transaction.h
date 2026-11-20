@@ -33,10 +33,7 @@ typedef struct MMActorDeleteResult
 typedef struct MMActorDeleteServices
 {
     void *context;
-    MMActorTimelineServices timeline;
-    int (*delete_subroute)(void *);
-    int (*seek)(void *,MMI32 frame);
-    int (*delete_forward)(void *,int all,int wants_alive,MMI32 original_event);
+    MMActorSubrouteEditServices subroute;
     void (*sound_frame)(void *);
     void (*diagnostic)(void *,int fault);
 } MMActorDeleteServices;
@@ -50,7 +47,8 @@ int mm_actor_transaction_apply(void *actor,int kind,MMActorTransactionResult *,c
  * restores but does not undo prior alive-output writes. Lifetime failure reports
  * a diagnostic and continues. Only duplication failure trashes the alive output;
  * the native observer supplies its platform's debug trash representation.
- * Core deletion/seek effects may update the owner's state and track. */
+ * The same C route editor and seek controls serve deletion and stage edits.
+ * Subroute services must be bound to the supplied actor. */
 int mm_actor_transaction_delete(void *actor,int all,MMActorDeleteResult *,const MMActorTransactionServices *,
     const MMActorDeleteServices *);
 #ifdef __cplusplus

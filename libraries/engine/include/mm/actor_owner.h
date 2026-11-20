@@ -56,6 +56,8 @@ MMActorLifetime mm_actor_owner_lifetime(MMActorOwner *);
  * The host provides template metadata, animation, sound and renderer effects. */
 int mm_actor_owner_seek(MMActorOwner *, MMI32 target, int *sound, const MMActorTimelineServices *,
                         const MMActorPlaybackEffects *);
+void mm_actor_owner_delete_forward(MMActorOwner *,int all,int *alive,MMI32 current,
+                                  const MMActorRouteEditServices *);
 int mm_actor_owner_duplicate(void *source,int reset,MMActorOwnerResult *,const MMActorOwnerServices *);
 void mm_actor_owner_rewind(void *actor,const MMActorOwnerServices *);
 void mm_actor_owner_reset(void *actor,const MMActorOwnerServices *);

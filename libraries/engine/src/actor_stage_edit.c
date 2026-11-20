@@ -83,7 +83,7 @@ int mm_actor_stage_delete_subroute(MMActorState *state, void *route, void *event
         m->event(events, 0, &event);
         range.first = event.nfrm;
         e->publish_range(e->context, &range);
-        return s->seek(e->context, state, saved);
+        return mm_actor_subroute_seek(state, saved, s);
     }
     range.first = 2147483647L;
     e->publish_range(e->context, &range);
