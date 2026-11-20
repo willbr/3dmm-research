@@ -157,6 +157,18 @@ int mm_movie_scene_close(const MMMovieSceneServices *s)
     }
     return 1;
 }
+static int scene_number(MMI32 index, void *file, MMU32 *number, const MMMovieSceneServices *s)
+{
+    return mm_movie_state_scene_number(s->movie, (MMU32)index, number, file, s->context, s->open_session);
+}
+static void *read_scene(MMI32 index, const MMMovieSceneServices *s)
+{
+    void *resources = s->movie->resources;
+    MMU32 number;
+    if (!resources || !scene_number(index, s->file(resources), &number, s))
+        return NULL;
+    return s->read(s->context, resources, number, s->movie->session);
+}
 int mm_movie_scene_switch(MMI32 index, const MMMovieSceneServices *s)
 {
     MMI32 old;
@@ -173,7 +185,7 @@ int mm_movie_scene_switch(MMI32 index, const MMMovieSceneServices *s)
         return 1;
     for (;;)
     {
-        scene = s->read(s->context, index);
+        scene = read_scene(index, s);
         if (!scene || !s->start(scene))
         {
             s->state->open = 0;
@@ -212,49 +224,66 @@ int mm_movie_scene_switch(MMI32 index, const MMMovieSceneServices *s)
         return result;
     }
 }
-void mm_movie_scene_move(MMI32 index, int down, void *file, const MMMovieSceneServices *s)
+static void move_child(MMI32 from, MMI32 to, void *file, const MMMovieSceneServices *s)
+{
+    const MMChunkAccess chunks = s->chunks(file);
+    const MMU32 movie = s->movie->movieNumber;
+    MMChunkChild child;
+    child.type = MM_SCENE_CHUNK;
+    child.slot = (MMU32)from;
+    if (mm_chunk_link_number(&chunks, MM_MOVIE_CHUNK, movie, child.slot, child.type, &child.number) == MM_CHUNK_OK)
+        s->move_child(file, MM_MOVIE_CHUNK, movie, &child, (MMU32)to);
+    else if (s->missing_link)
+        s->missing_link(s->context);
+}
+static void shift_scenes(MMI32 index, MMI32 count, int down, void *file, const MMMovieSceneServices *s)
 {
     MMI32 i;
     if (down)
     {
-        for (i = *s->count; i > index;)
+        for (i = count; i > index;)
         {
             --i;
-            s->move_child(s->context, file, i, i + 1);
+            move_child(i, i + 1, file, s);
         }
     }
     else
-        for (i = index; i < *s->count; ++i)
-            s->move_child(s->context, file, i + 1, i);
+        for (i = index; i < count; ++i)
+            move_child(i + 1, i, file, s);
 }
 int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *s)
 {
-    MMU32 number;
+    MMChunkChild child;
+    MMMovieState *movie = s->movie;
+    MMI32 previous_count;
     void *file;
     if (!s->make_resources(s->context))
         return 0;
-    file = s->file(s->context);
-    if (!s->use_temporary(s->context) || !mm_movie_scene_close(s) || !s->write(s->context, scene, &number))
+    file = s->file(movie->resources);
+    child.type = MM_SCENE_CHUNK;
+    child.slot = (MMU32)index;
+    if (!s->use_temporary(s->context) || !mm_movie_scene_close(s) || !s->write(s->context, scene, &child.number))
         return 0;
     s->retain(scene);
     s->close(scene);
-    mm_movie_scene_move(index, 1, file, s);
-    ++*s->count;
-    if (!s->adopt(s->context, file, number, index))
+    previous_count = movie->sceneCount;
+    shift_scenes(index, previous_count, 1, file, s);
+    ++movie->sceneCount;
+    if (!s->adopt(file, MM_MOVIE_CHUNK, movie->movieNumber, &child))
     {
-        mm_movie_scene_move(index, 0, file, s);
-        s->delete_chunk(s->context, file, number);
+        shift_scenes(index, previous_count, 0, file, s);
+        s->delete_chunk(file, child.type, child.number);
         return 0;
     }
     s->save(file);
     if (!mm_movie_scene_switch(index, s))
     {
-        --*s->count;
-        s->delete_child(s->context, file, number, index);
-        mm_movie_scene_move(index, 0, file, s);
+        --movie->sceneCount;
+        s->delete_child(file, MM_MOVIE_CHUNK, movie->movieNumber, &child);
+        shift_scenes(index, movie->sceneCount, 0, file, s);
         s->save(file);
-        if (*s->count > 0)
-            mm_movie_scene_switch(index < *s->count ? index : *s->count - 1, s);
+        if (movie->sceneCount > 0)
+            mm_movie_scene_switch(index < movie->sceneCount ? index : movie->sceneCount - 1, s);
         return 0;
     }
     s->add_actors(s->state->open);
@@ -279,8 +308,10 @@ int mm_movie_scene_new(MMI32 index, const MMMovieSceneServices *s)
 int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
 {
     MMI32 old;
-    MMU32 number;
-    void *scene, *file = s->file(s->context);
+    int found;
+    MMChunkChild child;
+    MMMovieState *movie = s->movie;
+    void *scene, *file = s->file(movie->resources);
     if (!s->use_temporary(s->context))
         return 0;
     old = s->state->index;
@@ -290,8 +321,12 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
         return 0;
     }
     scene = s->state->open;
-    number = s->scene_number(s->context, file, index);
-    if (s->preserve_scene_assets && !s->preserve_scene_assets(file, number))
+    child.type = MM_SCENE_CHUNK;
+    child.slot = (MMU32)index;
+    found = scene_number(index, file, &child.number, s);
+    if (!found && s->missing_link)
+        s->missing_link(s->context);
+    if (!found || (s->preserve_scene_assets && !s->preserve_scene_assets(file, child.number)))
     {
         if (old != index)
             mm_movie_scene_switch(old, s);
@@ -301,13 +336,13 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     mm_movie_scene_close_open(s);
     s->remove_actors(scene);
     s->release(scene);
-    s->delete_child(s->context, file, number, index);
-    --*s->count;
-    mm_movie_scene_move(index, 0, file, s);
+    s->delete_child(file, MM_MOVIE_CHUNK, movie->movieNumber, &child);
+    --movie->sceneCount;
+    shift_scenes(index, movie->sceneCount, 0, file, s);
     s->save(file);
-    if (*s->count == 0)
+    if (movie->sceneCount == 0)
         return 1;
-    mm_movie_scene_switch(index < *s->count ? index : index - 1, s);
+    mm_movie_scene_switch(index < movie->sceneCount ? index : index - 1, s);
     s->dirty(s->context);
     if (!s->state->open)
         s->switch_error(s->context);
@@ -323,7 +358,7 @@ int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *s)
     }
     else
     {
-        scene = s->read(s->context, index);
+        scene = read_scene(index, s);
         if (!scene || !s->start(scene))
         {
             s->close(scene);

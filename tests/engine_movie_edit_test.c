@@ -4,6 +4,7 @@
 #include "mm/actor_undo.h"
 #include "mm/scene_selection.h"
 #include "actor_stage_owner_fixture.h"
+#include "movie_scene_archive_fixture.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -99,6 +100,7 @@ struct Test
     MMMovieEditServices s;
     MMMovieState data;
     MMMovieScenes scenes;
+    MovieSceneArchiveFixture archive;
     MMSceneOwner scene_owner;
     Actor actor, fresh, copy;
     Actor *selected, *placement;
@@ -404,24 +406,31 @@ static void *create_background_scene(void *p)
     event(t, NEW_SCENE);
     return t->fail == FAIL_NEW_SCENE ? NULL : t;
 }
-static void *read_background_scene(void *p, MMI32 index)
+static int open_background_movie(void *p, void *file, MMU32 *number, MMMovieSession **out)
+{
+    return p == file && fixture_scene_open(&((Test *)p)->archive, number, out);
+}
+static void *read_background_scene(void *p, void *resources, MMU32 number, const MMMovieSession *session)
 {
     Test *t = p;
     const MMSceneOwnerServices owners = scene_owners(t);
-    (void)index;
+    if (p != resources || session != t->data.session || fixture_scene_slot(&t->archive, number) < 0)
+        return NULL;
     mm_scene_owner_dispose(&t->scene_owner, &owners);
     if (!mm_scene_owner_init(&t->scene_owner, t, 1, NULL))
         return NULL;
     t->scene_owner.data.transition = 1;
     return t;
 }
-static void delete_background_scene(void *p, void *file, MMU32 number, MMI32 index)
+static void delete_background_scene(void *p, MMU32 type, MMU32 movie, const MMChunkChild *child)
 {
     Test *t = p;
-    (void)file;
-    (void)number;
+    if (type != MM_MOVIE_CHUNK || movie != FIXTURE_MOVIE_ROOT || child->type != MM_SCENE_CHUNK ||
+        t->archive.slots[child->slot] != child->number)
+        exit(1);
+    t->archive.slots[child->slot] = 0;
     ++t->removeScene;
-    t->removedIndex = index;
+    t->removedIndex = child->slot;
     event(t, REMOVE_SCENE);
 }
 static void *new_undo(void *p)
@@ -1699,42 +1708,40 @@ static int insertion(void)
 }
 static int allow(void *p) { (void)p; return 1; }
 static void *background_file(void *p) { return p; }
+static MMChunkAccess background_chunks(void *p) { return fixture_scene_chunks(&((Test *)p)->archive); }
 static int write_background_scene(void *p, void *scene, MMU32 *number)
 {
     (void)p;
     (void)scene;
-    *number = 100;
+    *number = 123;
     return 1;
 }
-static MMU32 background_scene_number(void *p, void *file, MMI32 index)
+static int adopt_background_scene(void *p, MMU32 type, MMU32 movie, const MMChunkChild *child)
 {
-    (void)p;
-    (void)file;
-    (void)index;
-    return 100;
-}
-static int adopt_background_scene(void *p, void *file, MMU32 number, MMI32 index)
-{
-    (void)p;
-    (void)file;
-    return number == 100 && index == ((Test *)p)->data.sceneCount - 1;
+    Test *t = p;
+    if (type != MM_MOVIE_CHUNK || movie != FIXTURE_MOVIE_ROOT || child->type != MM_SCENE_CHUNK ||
+        child->number != 123 || child->slot != (MMU32)t->data.sceneCount - 1 || t->archive.slots[child->slot])
+        return 0;
+    t->archive.slots[child->slot] = child->number;
+    return 1;
 }
 static MMMovieSceneServices background_scenes(Test *t)
 {
     MMMovieSceneServices s = {0};
     s.context = t;
     s.state = &t->scenes;
-    s.count = &t->data.sceneCount;
+    s.movie = &t->data;
     s.autosave = s.make_resources = s.use_temporary = allow;
     s.stop_loops = s.memory_cleanup = ignore_change;
     s.create = create_background_scene;
+    s.open_session = open_background_movie;
     s.read = read_background_scene;
     s.start = s.seek_first = allow;
     s.close = s.retain = s.release = ignore_change;
     s.sound_frame = s.scene_change = s.invalidate = ignore_change;
     s.file = background_file;
+    s.chunks = background_chunks;
     s.write = write_background_scene;
-    s.scene_number = background_scene_number;
     s.adopt = adopt_background_scene;
     s.delete_child = delete_background_scene;
     s.save = s.remove_actors = s.add_actors = ignore_change;
@@ -1748,6 +1755,9 @@ static int seed_background(Test *t)
     MMSceneTrackEvent event;
     event.frame = 0;
     event.kind = MM_SCENE_SET_BACKGROUND;
+    t->data.resources = t;
+    t->data.movieNumber = FIXTURE_MOVIE_ROOT;
+    fixture_scene_archive_init(&t->archive, t->data.sceneCount);
     if (!seed_scene(t))
         return 0;
     t->scene_owner.background_tag = tag;
@@ -1789,6 +1799,7 @@ static int backgrounds(void)
                       t.scene_owner.background_tag.number == tag.number);
             if (t.scenes.open)
                 dispose_scene(&t);
+            mm_movie_session_close(t.data.session);
         }
     init(&t);
     t.scenes.open = 0;

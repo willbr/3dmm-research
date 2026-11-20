@@ -336,12 +336,14 @@ static void ownership(void)
     h.fail = 0;
     original = m.session;
     h.scenes = 3;
-    CHECK(mm_movie_state_scene_number(&m, 2, &number, &s) && number == 3 && m.session == original);
+    CHECK(mm_movie_state_scene_number(&m, 2, &number, &h, s.context, s.open_session) &&
+          number == 3 && m.session == original);
     h.root_number = m.movieNumber = 11;
     h.fail = FAIL_VERIFY;
-    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &s) && number == 3 && m.session == original);
+    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &h, s.context, s.open_session) &&
+          number == 3 && m.session == original);
     h.fail = 0;
-    CHECK(mm_movie_state_scene_number(&m, 0, &number, &s) && number == 1 && m.session &&
+    CHECK(mm_movie_state_scene_number(&m, 0, &number, &h, s.context, s.open_session) && number == 1 && m.session &&
           mm_movie_session_root(m.session)->number == 11);
     reset(&h);
     mm_movie_state_dispose(&m, &s);

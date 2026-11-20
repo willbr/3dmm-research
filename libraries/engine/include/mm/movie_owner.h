@@ -15,6 +15,7 @@ extern "C"
         void *cache;
     } MMRollCallActor;
     struct MMMovieSession;
+    typedef int (*MMMovieOpenSession)(void *context, void *file, MMU32 *, struct MMMovieSession **);
     typedef struct MMMovieState
     {
         void *resources;
@@ -31,7 +32,7 @@ extern "C"
         int actor_encoding, actor_trash;
         void *(*create_file)(void *);
         void *(*open_file)(void *);
-        int (*open_session)(void *, void *file, MMU32 *, struct MMMovieSession **);
+        MMMovieOpenSession open_session;
         void *(*new_resources)(void *, void *file);
         void (*release_file)(void *);
         void (*release_resources)(void *);
@@ -63,7 +64,8 @@ extern "C"
     int mm_movie_load(MMMovieState *, MMU32 number, const MMMovieOwnerServices *);
     /* Resolve a scene from the live graph. A new or changed root is attached
      * only after validation. Failed lookups preserve the caller's number. */
-    int mm_movie_state_scene_number(MMMovieState *, MMU32 slot, MMU32 *number, const MMMovieOwnerServices *);
+    int mm_movie_state_scene_number(MMMovieState *, MMU32 slot, MMU32 *number, void *file,
+                                     void *context, MMMovieOpenSession);
     int mm_movie_save(MMMovieState *, const MMMovieOwnerServices *);
 
     typedef struct MMRollCallReader

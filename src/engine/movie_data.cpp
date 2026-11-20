@@ -52,10 +52,7 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
 #endif
         [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); },
         [](void *c) -> void * { return ChunkyFile::PcflOpen(static_cast<NativeMovieHost *>(c)->filename, fcflNil); },
-        [](void *, void *file, MMU32 *number, MMMovieSession **out) -> int {
-            const auto graph = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file));
-            return CheckMovieOpen(mm_movie_session_open_graph(&graph, nullptr, number, out));
-        },
+        OpenSession,
         [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
         [](void *p) { static_cast<PChunkyFile>(p)->Release(); },
         [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },
@@ -125,10 +122,10 @@ bool MovieData::FLoad(PFilename filename, ChunkNumber number)
     const auto s = _OwnerServices(&host);
     return mm_movie_load(this, number, &s) != 0;
 }
-bool MovieData::FResolveScene(ChildChunkID slot, ChunkNumber *number)
+int MovieData::OpenSession(void *, void *file, MMU32 *number, MMMovieSession **out)
 {
-    const auto s = _OwnerServices(nullptr);
-    return mm_movie_state_scene_number(this, slot, number, &s) != 0;
+    const auto graph = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file));
+    return CheckMovieOpen(mm_movie_session_open_graph(&graph, nullptr, number, out));
 }
 bool MovieData::FSave(PFilename filename)
 {

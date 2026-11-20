@@ -1,6 +1,7 @@
 #include "mm/scene_chop.h"
 #include "mm/scene_sound.h"
 #include "scene_member_fixture.h"
+#include "movie_scene_archive_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -33,7 +34,8 @@ typedef struct Host
     int trace[128], traces, fail, stage, removal_sticks, seek_fails, show_fails, write_calls, switch_calls, dead;
     int file, resource, undo, has_resource, sought;
     MMMovieScenes movie;
-    MMI32 scene_count;
+    MMMovieState data;
+    MovieSceneArchiveFixture archive;
     SnapshotScene loaded, old, initial, restored, neighbor;
     MMSceneChopUndo *record;
 } Host;
@@ -409,10 +411,16 @@ static int play(void *p)
     Host *h = scene->host;
     return scene != &h->loaded || step(h, 7);
 }
-static void *read_movie_scene(void *p, MMI32 index)
+static int open_movie(void *p, void *file, MMU32 *number, MMMovieSession **out)
+{
+    return p == file && fixture_scene_open(&((Host *)p)->archive, number, out);
+}
+static void *read_movie_scene(void *p, void *resources, MMU32 number, const MMMovieSession *session)
 {
     Host *h = (Host *)p;
+    const MMI32 index = fixture_scene_slot(&h->archive, number);
     SnapshotScene *scene;
+    CHECK(resources == p && h->data.session == session);
     if (index == 2 && ++h->switch_calls == 1)
     {
         if (!step(h, 8))
@@ -422,7 +430,7 @@ static void *read_movie_scene(void *p, MMI32 index)
     }
     else if (index == 2)
     {
-        if (h->scene_count == 4 && !step(h, 16))
+        if (h->data.sceneCount == 4 && !step(h, 16))
             return NULL;
         scene = &h->restored;
     }
@@ -468,35 +476,41 @@ static int open_archive(void *p)
 static int temporary(void *p)
 {
     Host *h = (Host *)p;
-    return h->scene_count == 4 || step(h, 15);
+    return h->data.sceneCount == 4 || step(h, 15);
 }
 static int write_movie_scene(void *p, void *scene, MMU32 *number)
 {
     Host *h = (Host *)p;
     CHECK(scene == &h->loaded);
-    *number = 10;
+    *number = 124;
     return 1;
 }
 static void *archive(void *p) { return p; }
+static MMChunkAccess chunks(void *p) { return fixture_scene_chunks(&((Host *)p)->archive); }
 static int succeed(void *p) { (void)p; return 1; }
 static void ignore(void *p) { (void)p; }
-static void move_child(void *p, void *f, MMI32 from, MMI32 to)
+static void move_child(void *p, MMU32 type, MMU32 parent, const MMChunkChild *child, MMU32 to)
 {
-    CHECK(p == f && (to == from + 1 || to == from - 1));
+    Host *h = p;
+    CHECK(type == MM_MOVIE_CHUNK && parent == FIXTURE_MOVIE_ROOT && child->type == MM_SCENE_CHUNK);
+    CHECK(h->archive.slots[child->slot] == child->number && !h->archive.slots[to]);
+    h->archive.slots[child->slot] = 0;
+    h->archive.slots[to] = child->number;
 }
-static MMU32 scene_number(void *p, void *f, MMI32 i)
+static int adopt(void *p, MMU32 type, MMU32 parent, const MMChunkChild *child)
 {
-    CHECK(p == f && i == 3);
-    return 11;
-}
-static int adopt(void *p, void *f, MMU32 n, MMI32 i)
-{
-    CHECK(p == f && n == 10 && i == 2);
+    Host *h = p;
+    CHECK(type == MM_MOVIE_CHUNK && parent == FIXTURE_MOVIE_ROOT && child->type == MM_SCENE_CHUNK &&
+          child->number == 124 && child->slot == 2 && !h->archive.slots[2]);
+    h->archive.slots[2] = child->number;
     return 1;
 }
-static void unlink_scene(void *p, void *f, MMU32 n, MMI32 i)
+static void unlink_scene(void *p, MMU32 type, MMU32 parent, const MMChunkChild *child)
 {
-    CHECK(p == f && n == 11 && i == 3);
+    Host *h = p;
+    CHECK(type == MM_MOVIE_CHUNK && parent == FIXTURE_MOVIE_ROOT && child->type == MM_SCENE_CHUNK &&
+          child->number == 102 && child->slot == 3 && h->archive.slots[3] == child->number);
+    h->archive.slots[3] = 0;
 }
 static MMMovieSceneServices scene_services(Host *h)
 {
@@ -505,14 +519,18 @@ static MMMovieSceneServices scene_services(Host *h)
     h->initial.refs = 1;
     h->movie.open = &h->initial;
     h->movie.index = 1;
-    h->scene_count = 4;
+    h->data.sceneCount = 4;
+    h->data.movieNumber = FIXTURE_MOVIE_ROOT;
+    h->data.resources = h;
+    fixture_scene_archive_init(&h->archive, h->data.sceneCount);
     s.context = h;
     s.state = &h->movie;
-    s.count = &h->scene_count;
+    s.movie = &h->data;
     s.autosave = succeed;
     s.make_resources = open_archive;
     s.use_temporary = temporary;
     s.stop_loops = s.memory_cleanup = ignore;
+    s.open_session = open_movie;
     s.read = read_movie_scene;
     s.start = play;
     s.seek_first = succeed;
@@ -521,9 +539,9 @@ static MMMovieSceneServices scene_services(Host *h)
     s.close = close_scene;
     s.sound_frame = s.scene_change = ignore;
     s.file = archive;
+    s.chunks = chunks;
     s.write = write_movie_scene;
     s.move_child = move_child;
-    s.scene_number = scene_number;
     s.adopt = adopt;
     s.delete_child = unlink_scene;
     s.save = s.dirty = s.rollcall_changed = ignore;
@@ -675,6 +693,7 @@ static void test_snapshot(void)
             free(h.record);
         }
         mm_movie_scene_close_open(&scenes);
+        mm_movie_session_close(h.data.session);
         CHECK(!h.loaded.refs && !h.old.refs && !h.initial.refs && !h.restored.refs && !h.neighbor.refs);
     }
 }

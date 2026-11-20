@@ -944,7 +944,10 @@ public undo transaction and persistent snapshot resource ownership/save/swap
 control now also use C89. Background placement, movie scene undo, and chop
 undo share the C89 movie scene container for insertion, removal, and switching.
 The chop transaction uses the container's selected scene when it seeks the
-saved frame.
+saved frame. The container resolves scene slots from the live movie session and
+selects exact archive links for slot moves, adoption, and removal. Movie
+composition uses the same typed archive operations, including lookups in
+cloned movie roots.
 Scene name/transition editing, persistent property undo payloads/swaps,
 transition-file read/modify/write and playback startup/shutdown now also use C89.
 Scene thumbnail generation, cache access and dirty propagation also use C89.

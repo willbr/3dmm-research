@@ -109,7 +109,8 @@ int mm_movie_load(MMMovieState *m, MMU32 number, const MMMovieOwnerServices *s)
     replace(m, &loaded, s);
     return 1;
 }
-int mm_movie_state_scene_number(MMMovieState *m, MMU32 slot, MMU32 *number, const MMMovieOwnerServices *s)
+int mm_movie_state_scene_number(MMMovieState *m, MMU32 slot, MMU32 *number, void *file,
+                                 void *context, MMMovieOpenSession open_session)
 {
     const MMMovieSessionRoot *root = mm_movie_session_root(m->session);
     MMMovieSession *opened;
@@ -118,7 +119,7 @@ int mm_movie_state_scene_number(MMMovieState *m, MMU32 slot, MMU32 *number, cons
         return 0;
     if (!root || root->number != requested)
     {
-        if (!s->open_session(s->context, s->file(m->resources), &requested, &opened))
+        if (!open_session(context, file, &requested, &opened))
             return 0;
         mm_movie_session_close(m->session);
         m->session = opened;

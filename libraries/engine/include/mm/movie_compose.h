@@ -46,22 +46,15 @@ extern "C"
         int temporary_before_save;
         int (*use_temporary)(void *), (*autosave)(void *);
         void (*retain)(void *), (*release)(void *);
-        void *(*file)(void *resources);
-        int (*scene_child)(void *file, MMU32 movie, MMU32 child, MMU32 *number);
         int (*read_transition)(void *resources, MMU32 number, MMI32 *);
         MMI32 (*transition)(void *scene);
         void *(*read_thumbnail)(void *file, MMU32 number), *(*thumbnail)(void *scene);
         int (*clone_movie)(void *source, MMU32 number, void *destination, MMU32 *number_out);
         int (*link_imported_sounds)(void *file, MMU32 movie);
         void (*delete_movie)(void *file, MMU32 number);
-        int (*adopt_scene)(void *file, MMU32 movie, MMU32 scene, MMU32 child),
-            (*adopt_sounds)(void *, void *file, MMU32 scene);
-        void *(*read_scene)(void *, void *resources, MMU32 scene);
+        int (*adopt_sounds)(void *, void *file, MMU32 scene);
         int (*start_scene)(void *scene), (*add_actors)(void *scene);
         void (*remove_actors)(void *scene), (*actor_tools)(void *), (*text_tools)(void *);
-        int (*preserve_scene_assets)(void *file, MMU32 scene);
-        void (*delete_scene_child)(void *file, MMU32 movie, MMU32 scene, MMU32 child),
-            (*change_child)(void *file, MMU32 movie, MMU32 scene, MMU32 old_child, MMU32 new_child);
         int (*write_transition)(void *resources, MMU32 scene, MMI32);
         void (*set_transition)(void *scene, MMI32);
         void (*dirty)(void *), (*scene_nuked)(void *), (*invalidate)(void *), (*rollcall_changed)(void *),

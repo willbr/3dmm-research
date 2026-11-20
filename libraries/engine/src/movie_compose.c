@@ -87,6 +87,11 @@ static const MMStorageAllocator *compose_allocator(const MMMovieComposeServices 
 {
     return s->allocator.resize || s->allocator.release ? &s->allocator : NULL;
 }
+static int scene_link(void *file, MMU32 movie, MMU32 slot, MMU32 *number, const MMMovieSceneServices *s)
+{
+    const MMChunkAccess chunks = s->chunks(file);
+    return mm_chunk_link_number(&chunks, MM_MOVIE_CHUNK, movie, slot, MM_SCENE_CHUNK, number) == MM_CHUNK_OK;
+}
 
 int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
                          const MMMovieComposeServices *s)
@@ -111,12 +116,12 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
     movie.resources = s->data->resources;
     movie.number = s->data->movieNumber;
     movie.actor_limit = s->data->actorIdLimit;
-    file = s->file(movie.resources);
+    file = s->scene_control.file(movie.resources);
     position = (MMU32)*insertion;
     scene.movie = (MMI32)state->movie_count;
     while (inserted < count)
     {
-        if (!s->scene_child(file, movie.number, (MMU32)inserted, &scene.number))
+        if (!scene_link(file, movie.number, (MMU32)inserted, &scene.number, &s->scene_control))
         {
             s->diagnostic(s->context, MM_COMPOSE_MISSING_SCENE);
             goto fail;
@@ -179,7 +184,7 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
     ComposeReference reference;
     MMU32 flags, i;
     int actor, background;
-    void *destination = s->file(s->data->resources);
+    void *destination = s->scene_control.file(s->data->resources);
     int ok = 0;
     if (mm_storage_init(&visited, compose_allocator(s)) != MM_STORAGE_OK)
         return 0;
@@ -279,6 +284,7 @@ int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServic
 }
 int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeServices *s)
 {
+    const MMMovieSceneServices *scenes = &s->scene_control;
     MMCollectionStorage cloned;
     MMI32 old = s->scenes->index, offset = 0;
     MMU32 i, copied = 0, slot = 0, number, current_slot, *roots = NULL;
@@ -288,7 +294,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
     int ok = 0;
     if (!state->movie_count || mm_storage_init(&cloned, compose_allocator(s)) != MM_STORAGE_OK)
         return 0;
-    file = s->file(resources);
+    file = scenes->file(resources);
     if (mm_storage_ensure(&cloned, (state->movie_count - 1) * sizeof(*roots), 0, 0) != MM_STORAGE_OK)
         goto done;
     roots = (MMU32 *)cloned.buffers[0].data;
@@ -297,7 +303,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         mm_composite_movie(state, i, &movie);
         if (i > 0)
         {
-            void *source = s->file(movie.resources);
+            void *source = scenes->file(movie.resources);
             if (!s->clone_movie(source, movie.number, file, &movie.number))
                 goto done;
             if ((s->link_imported_sounds && !s->link_imported_sounds(file, movie.number)) ||
@@ -315,20 +321,24 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
     }
     for (i = 0; i < state->scene_count; ++i)
     {
+        MMChunkChild link;
         mm_composite_scene(state, i, &descriptor);
+        link.type = MM_SCENE_CHUNK;
         current_slot = slot;
         number = 0xffffffffU;
         if (descriptor.movie > 0)
         {
-            if (!s->scene_child(file, roots[descriptor.movie - 1], descriptor.child, &number))
+            if (!scene_link(file, roots[descriptor.movie - 1], descriptor.child, &number, scenes))
                 goto done;
             if (!descriptor.deleted)
             {
-                if (!s->adopt_scene(file, s->data->movieNumber, number, slot++))
+                link.number = number;
+                link.slot = slot++;
+                if (!scenes->adopt(file, MM_MOVIE_CHUNK, s->data->movieNumber, &link))
                     goto done;
                 if (!s->adopt_sounds(s->context, file, number))
                     goto done;
-                scene = s->read_scene(s->context, resources, number);
+                scene = scenes->read(scenes->context, resources, number, NULL);
                 if (!scene || !s->start_scene(scene) || !s->add_actors(scene))
                     s->diagnostic(s->context, MM_COMPOSE_IMPORT_ACTORS);
                 s->actor_tools(s->context);
@@ -339,11 +349,11 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         }
         else if (descriptor.deleted)
         {
-            if (s->preserve_scene_assets && !s->preserve_scene_assets(file, descriptor.number))
+            if (scenes->preserve_scene_assets && !scenes->preserve_scene_assets(file, descriptor.number))
                 goto done;
             if (descriptor.child != (MMU32)old)
             {
-                scene = s->read_scene(s->context, resources, descriptor.number);
+                scene = scenes->read(scenes->context, resources, descriptor.number, NULL);
                 if (!scene || !s->start_scene(scene))
                     s->diagnostic(s->context, MM_COMPOSE_REMOVE_ACTORS);
             }
@@ -357,12 +367,16 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
                 s->remove_actors(scene);
                 s->release(scene);
             }
-            s->delete_scene_child(file, s->data->movieNumber, descriptor.number, descriptor.child);
+            link.number = descriptor.number;
+            link.slot = descriptor.child;
+            scenes->delete_child(file, MM_MOVIE_CHUNK, s->data->movieNumber, &link);
         }
         else
         {
             number = descriptor.number;
-            s->change_child(file, s->data->movieNumber, number, descriptor.child, slot++);
+            link.number = number;
+            link.slot = descriptor.child;
+            scenes->move_child(file, MM_MOVIE_CHUNK, s->data->movieNumber, &link, slot++);
         }
         if (descriptor.child != (MMU32)old || descriptor.movie != 0)
         {

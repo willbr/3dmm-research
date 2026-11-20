@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MOVIE_SCENE_H
 #define MM_ENGINE_MOVIE_SCENE_H
+#include "movie_owner.h"
 #include "playback.h"
 #include "scene_edit.h"
 #include "tag.h"
@@ -24,22 +25,25 @@ extern "C"
     {
         void *context;
         MMMovieScenes *state;
-        MMI32 *count;
+        MMMovieState *movie;
         int (*autosave)(void *), (*make_resources)(void *), (*use_temporary)(void *);
         void (*stop_loops)(void *), (*memory_cleanup)(void *);
-        void *(*read)(void *, MMI32), *(*create)(void *);
+        MMMovieOpenSession open_session;
+        void *(*read)(void *, void *resources, MMU32 number, const struct MMMovieSession *);
+        void *(*create)(void *);
         int (*start)(void *scene), (*seek_first)(void *scene);
         void (*close)(void *scene), (*retain)(void *scene), (*release)(void *scene);
         void (*sound_frame)(void *scene), (*hide)(void *scene);
         void (*scene_change)(void *), (*invalidate)(void *);
-        void *(*file)(void *);
+        void *(*file)(void *resources);
+        MMChunkAccess (*chunks)(void *file);
         int (*write)(void *, void *scene, MMU32 *number);
-        MMU32 (*scene_number)(void *, void *file, MMI32 index);
-        void (*move_child)(void *, void *file, MMI32 from, MMI32 to);
-        int (*adopt)(void *, void *file, MMU32 number, MMI32 index);
+        void (*move_child)(void *file, MMU32 type, MMU32 parent, const MMChunkChild *, MMU32 slot);
+        int (*adopt)(void *file, MMU32 type, MMU32 parent, const MMChunkChild *);
         int (*preserve_scene_assets)(void *file, MMU32 scene);
-        void (*delete_child)(void *, void *file, MMU32 number, MMI32 index);
-        void (*delete_chunk)(void *, void *file, MMU32 number), (*save)(void *file);
+        void (*delete_child)(void *file, MMU32 type, MMU32 parent, const MMChunkChild *);
+        void (*delete_chunk)(void *file, MMU32 type, MMU32 number), (*save)(void *file);
+        void (*missing_link)(void *);
         void (*remove_actors)(void *scene), (*add_actors)(void *scene);
         void (*dirty)(void *), (*rollcall_changed)(void *), (*switch_error)(void *);
         int (*sounds_enabled)(void *);
@@ -57,7 +61,10 @@ extern "C"
      * new_undo returns one reference;
      * configure_undo retains its scene, and successful add_undo retains the undo.
      * The host list releases committed records; C orders commit/release/clear.
-     * Native file handles remain borrowed throughout a transaction. start can fail
+     * Reads receive a resolved scene number. The live session is borrowed for
+     * scene switching and NULL for direct reads during composition.
+     * Link callbacks receive exact chunk identities. File handles remain borrowed
+     * throughout a transaction. start can fail
      * after changing the world. Scene publication precedes notification and index
      * publication follows it, including retry of the old scene after failure.
      * Save and roll-call refresh failures after publication are intentionally ignored.
@@ -69,7 +76,6 @@ extern "C"
     void mm_movie_scene_close_open(const MMMovieSceneServices *);
     int mm_movie_scene_close(const MMMovieSceneServices *);
     int mm_movie_scene_switch(MMI32 index, const MMMovieSceneServices *);
-    void mm_movie_scene_move(MMI32 index, int down, void *file, const MMMovieSceneServices *);
     int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *);
     int mm_movie_scene_new(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *);

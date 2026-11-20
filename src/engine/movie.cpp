@@ -1000,7 +1000,7 @@ MMMovieSceneServices Movie::_SceneServices()
     MMMovieSceneServices s = {};
     s.context = this;
     s.state = &_scenes;
-    s.count = &_data.sceneCount;
+    s.movie = &_data;
     s.autosave = [](void *p) -> int { return static_cast<PMovie>(p)->FAutoSave(pvNil, fFalse); };
     s.make_resources = [](void *p) -> int { return static_cast<PMovie>(p)->_FMakeCrfValid(); };
     s.use_temporary = [](void *p) -> int { return static_cast<PMovie>(p)->_FUseTempFile(); };
@@ -1018,13 +1018,9 @@ MMMovieSceneServices Movie::_SceneServices()
         }
 #endif
     };
-    s.read = [](void *p, MMI32 index) -> void * {
-        auto movie = static_cast<PMovie>(p);
-        auto resources = movie->_data.Resources();
-        ChunkNumber number;
-        if (!movie->_data.FResolveScene(index, &number))
-            return nullptr;
-        return Scene::PscenRead(movie, resources, number, movie->MovieSession());
+    s.open_session = MovieData::OpenSession;
+    s.read = [](void *p, void *resources, MMU32 number, const MMMovieSession *session) -> void * {
+        return Scene::PscenRead(static_cast<PMovie>(p), static_cast<PChunkyResourceFile>(resources), number, session);
     };
     s.create = [](void *p) -> void * { return Scene::PscenNew(static_cast<PMovie>(p)); };
     s.start = [](void *p) -> int { return static_cast<PScene>(p)->FPlayStartEvents(); };
@@ -1043,36 +1039,24 @@ MMMovieSceneServices Movie::_SceneServices()
     };
     s.scene_change = [](void *p) { static_cast<PMovie>(p)->_pmcc->SceneChange(); };
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
-    s.file = [](void *p) -> void * { return static_cast<PMovie>(p)->_data.Resources()->Pcfl(); };
+    s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
+    s.chunks = [](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
     s.write = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
     };
-    s.scene_number = [](void *p, void *file, MMI32 index) -> MMU32 {
-        auto &data = static_cast<PMovie>(p)->_data;
-        ChunkNumber number = cnoNil;
-        Assert(file == data.Resources()->Pcfl(), "Scene lookup should use the current movie graph");
-        (void)file;
-        AssertDo(data.FResolveScene(index, &number), "Should never fail");
-        return number;
+    s.move_child = [](void *file, MMU32 type, MMU32 parent, const MMChunkChild *child, MMU32 to) {
+        static_cast<PChunkyFile>(file)->ChangeChid(type, parent, child->type, child->number, child->slot, to);
     };
-    s.move_child = [](void *p, void *file, MMI32 from, MMI32 to) {
-        auto movie = static_cast<PMovie>(p);
-        auto archive = static_cast<PChunkyFile>(file);
-        ChildChunkIdentification kid;
-        AssertDo(archive->FGetKidChidCtg(kctgMvie, movie->_data.movieNumber, from, kctgScen, &kid), "Should never fail");
-        archive->ChangeChid(kctgMvie, movie->_data.movieNumber, kctgScen, kid.cki.cno, from, to);
-    };
-    s.adopt = [](void *p, void *file, MMU32 number, MMI32 index) -> int {
-        return static_cast<PChunkyFile>(file)->FAdoptChild(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
-            kctgScen, number, index);
+    s.adopt = [](void *file, MMU32 type, MMU32 parent, const MMChunkChild *child) -> int {
+        return static_cast<PChunkyFile>(file)->FAdoptChild(type, parent, child->type, child->number, child->slot);
     };
     s.preserve_scene_assets = PreserveSceneAssets;
-    s.delete_child = [](void *p, void *file, MMU32 number, MMI32 index) {
-        static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, static_cast<PMovie>(p)->_data.movieNumber,
-            kctgScen, number, index);
+    s.delete_child = [](void *file, MMU32 type, MMU32 parent, const MMChunkChild *child) {
+        static_cast<PChunkyFile>(file)->DeleteChild(type, parent, child->type, child->number, child->slot);
     };
-    s.delete_chunk = [](void *, void *file, MMU32 number) { static_cast<PChunkyFile>(file)->Delete(kctgScen, number); };
+    s.delete_chunk = [](void *file, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(file)->Delete(type, number); };
     s.save = [](void *file) { static_cast<PChunkyFile>(file)->FSave(kctgSoc); };
+    s.missing_link = [](void *) { Bug("Missing movie scene link"); };
     s.remove_actors = [](void *scene) { static_cast<PScene>(scene)->RemActrsFromRollCall(); };
     s.add_actors = [](void *scene) { static_cast<PScene>(scene)->FAddActrsToRollCall(); };
     s.dirty = [](void *p) { static_cast<PMovie>(p)->SetDirty(); };
@@ -2804,11 +2788,6 @@ MMMovieComposeServices Movie::_ComposeServices()
 #endif
     s.use_temporary=[](void *p)->int { return static_cast<PMovie>(p)->_FUseTempFile(); };
     s.autosave=[](void *p)->int { return static_cast<PMovie>(p)->FAutoSave(nullptr,false); };
-    s.file=[](void *p)->void* { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.scene_child=[](void *p,MMU32 movie,MMU32 child,MMU32 *out)->int {
-        ChildChunkIdentification kid; bool ok=static_cast<PChunkyFile>(p)->FGetKidChidCtg(kctgMvie,movie,child,kctgScen,&kid);
-        if(ok) *out=kid.cki.cno; return ok;
-    };
     s.read_transition=[](void *p,MMU32 number,MMI32 *out)->int {
         TRANS value; bool ok=Scene::FTransOnFile(static_cast<PChunkyResourceFile>(p),number,&value);
         if(ok) *out=value; return ok;
@@ -2846,21 +2825,12 @@ MMMovieComposeServices Movie::_ComposeServices()
         return mm_movie_archive_link_imported_sounds(&graph, movie, &archive);
     };
     s.delete_movie=[](void *p,MMU32 number) { static_cast<PChunkyFile>(p)->Delete(kctgMvie,number); };
-    s.adopt_scene=[](void *p,MMU32 movie,MMU32 scene,MMU32 child)->int {
-        return static_cast<PChunkyFile>(p)->FAdoptChild(kctgMvie,movie,kctgScen,scene,child);
-    };
     s.adopt_sounds=[](void *p,void *file,MMU32 scene)->int { return static_cast<PMovie>(p)->_FAdoptMsndInMvie(static_cast<PChunkyFile>(file),scene); };
-    s.read_scene=[](void *p,void *resources,MMU32 scene)->void* {
-        return Scene::PscenRead(static_cast<PMovie>(p),static_cast<PChunkyResourceFile>(resources),scene);
-    };
     s.start_scene=[](void *p)->int { return static_cast<PScene>(p)->FPlayStartEvents(true); };
     s.add_actors=[](void *p)->int { return static_cast<PScene>(p)->FAddActrsToRollCall(); };
     s.remove_actors=[](void *p) { static_cast<PScene>(p)->RemActrsFromRollCall(true); };
     s.actor_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableActorTools(); };
     s.text_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableTboxTools(); };
-    s.preserve_scene_assets = PreserveSceneAssets;
-    s.delete_scene_child=[](void *p,MMU32 movie,MMU32 scene,MMU32 child) { static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie,movie,kctgScen,scene,child); };
-    s.change_child=[](void *p,MMU32 movie,MMU32 scene,MMU32 before,MMU32 after) { static_cast<PChunkyFile>(p)->ChangeChid(kctgMvie,movie,kctgScen,scene,before,after); };
     s.write_transition=[](void *p,MMU32 number,MMI32 transition)->int { return Scene::FSetTransOnFile(static_cast<PChunkyResourceFile>(p),number,TRANS(transition)); };
     s.set_transition=[](void *p,MMI32 transition) { static_cast<PScene>(p)->SetTransitionCore(TRANS(transition)); };
     s.dirty=[](void *p) { static_cast<PMovie>(p)->SetDirty(); };

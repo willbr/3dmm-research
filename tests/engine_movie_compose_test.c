@@ -1,6 +1,7 @@
 /* Composition ownership, partial application, import remapping and C storage. */
 #include "mm/movie_compose.h"
 #include "mm/movie_rollcall.h"
+#include "mm/scene_data.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -108,13 +109,32 @@ static void *file(void *p)
 {
     return p;
 }
-static int child(void *p, MMU32 root, MMU32 slot, MMU32 *out)
+static int chunk_entry(void *p, MMU32 position, MMChunkEntry *entry)
+{
+    static const MMU32 roots[] = {10, 20, 120};
+    (void)p;
+    memset(entry, 0, sizeof(*entry));
+    entry->type = MM_MOVIE_CHUNK;
+    entry->number = roots[position];
+    entry->child_count = 3;
+    return 1;
+}
+static int chunk_child(void *p, MMU32 parent, MMU32 slot, MMChunkChild *out)
+{
+    (void)p;
+    out->type = MM_SCENE_CHUNK;
+    out->number = (parent == 0 ? 100 : 200) + slot;
+    out->slot = slot;
+    return 1;
+}
+static MMChunkAccess chunks(void *p)
 {
     Object *o = p;
+    MMChunkAccess access = {NULL, 3, chunk_entry, chunk_child};
+    access.context = p;
     if (fails(o->test, CHILD))
-        return 0;
-    *out = (root == 10 ? 100 : 200) + slot;
-    return 1;
+        access.count = 0;
+    return access;
 }
 static int read_transition(void *p, MMU32 number, MMI32 *out)
 {
@@ -262,12 +282,10 @@ static int rebind_materials(void *source, void *destination, MMU32 actor)
     Test *t = ((Object *)destination)->test;
     return source == &t->resources[1] && (actor == 100 || actor == 101) && !fails(t, REBIND_MATERIALS);
 }
-static int adopt(void *p, MMU32 root, MMU32 number, MMU32 slot)
+static int adopt(void *p, MMU32 type, MMU32 root, const MMChunkChild *child)
 {
     Object *o = p;
-    (void)root;
-    (void)number;
-    (void)slot;
+    CHECK(type == MM_MOVIE_CHUNK && root == 10 && child->type == MM_SCENE_CHUNK);
     if (fails(o->test, ADOPT))
         return 0;
     ++o->test->adopted;
@@ -279,11 +297,13 @@ static int sounds(void *p, void *f, MMU32 number)
     (void)number;
     return !fails(p, SOUNDS);
 }
-static void *read_scene(void *p, void *resources, MMU32 number)
+static void *read_scene(void *p, void *resources, MMU32 number, const struct MMMovieSession *session)
 {
     Test *t = p;
     (void)resources;
     (void)number;
+    if (session)
+        abort();
     if (fails(t, READ_SCENE))
         return 0;
     t->read.refs = 1;
@@ -309,21 +329,19 @@ static void text_tools(void *p)
 {
     fails(p, TEXT_TOOLS);
 }
-static void delete_child(void *p, MMU32 root, MMU32 number, MMU32 slot)
+static void delete_child(void *p, MMU32 type, MMU32 root, const MMChunkChild *child)
 {
     Object *o = p;
-    (void)root;
-    (void)number;
-    (void)slot;
+    if (type != MM_MOVIE_CHUNK || root != 10 || child->type != MM_SCENE_CHUNK)
+        abort();
     fails(o->test, DELETE_CHILD);
 }
-static void change_child(void *p, MMU32 root, MMU32 number, MMU32 before, MMU32 after)
+static void change_child(void *p, MMU32 type, MMU32 root, const MMChunkChild *child, MMU32 after)
 {
     Object *o = p;
-    (void)root;
-    (void)number;
-    (void)before;
     (void)after;
+    if (type != MM_MOVIE_CHUNK || root != 10 || child->type != MM_SCENE_CHUNK)
+        abort();
     fails(o->test, CHANGE_CHILD);
 }
 static int write_transition(void *p, MMU32 number, MMI32 value)
@@ -432,8 +450,6 @@ static void init(Test *t)
     s->autosave = save;
     s->retain = retain;
     s->release = release;
-    s->file = file;
-    s->scene_child = child;
     s->read_transition = read_transition;
     s->transition = transition;
     s->read_thumbnail = read_thumbnail;
@@ -446,16 +462,12 @@ static void init(Test *t)
     s->graph.context = t;
     s->graph.children = graph_count;
     s->graph.child = graph_child;
-    s->adopt_scene = adopt;
     s->adopt_sounds = sounds;
-    s->read_scene = read_scene;
     s->start_scene = start;
     s->add_actors = add_actors;
     s->remove_actors = remove_actors;
     s->actor_tools = actor_tools;
     s->text_tools = text_tools;
-    s->delete_scene_child = delete_child;
-    s->change_child = change_child;
     s->write_transition = write_transition;
     s->set_transition = set_transition;
     s->dirty = dirty;
@@ -466,6 +478,12 @@ static void init(Test *t)
     s->scene_control.context = t;
     s->scene_control.state = &t->scenes;
     s->scene_control.close = close_scene;
+    s->scene_control.file = file;
+    s->scene_control.chunks = chunks;
+    s->scene_control.read = read_scene;
+    s->scene_control.adopt = adopt;
+    s->scene_control.delete_child = delete_child;
+    s->scene_control.move_child = change_child;
     s->allocator.context = t;
     s->allocator.resize = resize;
     s->allocator.release = free_buffer;
