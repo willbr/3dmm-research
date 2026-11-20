@@ -122,11 +122,13 @@ struct MMActorGroupTransformServices;
 class Scene : public Scene_PAR
 {
     friend class Movie;
+    friend class MovieSceneUndo;
     friend class SceneActorUndo;
     friend class MovieView;
     friend class SceneUndoText;
     friend class SceneUndoTitle;
     friend class SceneUndoTransition;
+    friend struct SceneEditUndoHost;
     RTCLASS_DEC
     MARKMEM
     ASSERT
@@ -281,7 +283,6 @@ class Scene : public Scene_PAR
     {
         return _owner.runtime.disabled;
     }
-    bool FIsEmpty(void); // Is the scene empty?
 
     //
     // Actor functions

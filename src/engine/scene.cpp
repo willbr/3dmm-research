@@ -1875,25 +1875,6 @@ bool Scene::FSetBkgd(PTAG ptag)
 
 /****************************************************
  *
- * This routine returns if a scene is currently empty
- *
- * Parameters:
- *  None.
- *
- * Returns:
- *  fTrue if the scene contains only camera changes and sounds
- *    and is only 1 frame long, else fFalse.
- *
- ****************************************************/
-bool Scene::FIsEmpty(void)
-{
-    AssertThis(0);
-    auto s = _EditServices();
-    return mm_scene_is_empty(&s) != 0;
-}
-
-/****************************************************
- *
  * This routine changes the camera view point at this frame.
  *
  * Parameters:
@@ -3264,11 +3245,18 @@ SceneUndoPause::~SceneUndoPause(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-struct SceneEditUndoHost {PMovie movie;long scene,frame;};
-static MMSceneEditUndoServices SceneEditUndoServices(SceneEditUndoHost *host)
+struct SceneEditUndoHost
+{
+    PMovie movie;
+    long scene, frame;
+
+    MMSceneEditUndoServices Services();
+};
+
+MMSceneEditUndoServices SceneEditUndoHost::Services()
 {
     MMSceneEditUndoServices s = {};
-    s.context = host;
+    s.context = this;
     s.switch_scene = [](void *p) -> int {
         auto h = static_cast<SceneEditUndoHost *>(p);
         return h->movie->FSwitchScen(h->scene);
@@ -3277,37 +3265,8 @@ static MMSceneEditUndoServices SceneEditUndoServices(SceneEditUndoHost *host)
         auto h = static_cast<SceneEditUndoHost *>(p);
         return h->movie->Pscen()->FGotoFrm(h->frame);
     };
-    s.pause = [](void *p, MMI32 *reason, MMI32 *delay) -> int {
-        auto h = static_cast<SceneEditUndoHost *>(p);
-        WaitReason r = static_cast<WaitReason>(*reason);
-        long d = *delay;
-        bool ok = h->movie->Pscen()->FPauseCore(&r, &d);
-        *reason = r;
-        *delay = d;
-        return ok;
-    };
-    s.background_present = [](void *p) -> int {
-        return static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->Pbkgd() != nullptr;
-    };
-    s.current_camera = [](void *p) -> MMI32 {
-        return static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->Pbkgd()->Icam();
-    };
-    s.background = [](void *p, const MMTag *value, MMTag *old) -> int {
-        TAG tag, previous;
-        TagFromCore(&tag, *value);
-        bool ok = static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->FSetBkgdCore(&tag, &previous);
-        if (ok)
-            *old = SceneEditTag(previous);
-        return ok;
-    };
-    s.camera = [](void *p, MMI32 camera, MMI32 *old) -> int {
-        long previous;
-        bool ok = static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->FChangeCamCore(camera, &previous);
-        *old = previous;
-        return ok;
-    };
-    s.pause_type = [](void *p, MMI32 reason) {
-        static_cast<SceneEditUndoHost *>(p)->movie->Pmcc()->PauseType(static_cast<WaitReason>(reason));
+    s.scene_edit = [](void *p) -> MMSceneEditServices {
+        return static_cast<SceneEditUndoHost *>(p)->movie->Pscen()->_EditServices();
     };
     s.flush = [](void *p) { static_cast<SceneEditUndoHost *>(p)->movie->Pmsq()->FlushMsq(); };
     s.clear = [](void *p) { static_cast<SceneEditUndoHost *>(p)->movie->ClearUndo(); };
@@ -3317,7 +3276,7 @@ bool SceneUndoPause::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     SceneEditUndoHost host = {Pmvie(), Iscen(), Nfrm()};
-    auto s = SceneEditUndoServices(&host);
+    auto s = host.Services();
     return mm_scene_pause_undo(&_edit, &s) != 0;
 }
 
@@ -3406,7 +3365,7 @@ bool SceneUndoBackground::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     SceneEditUndoHost host = {Pmvie(), Iscen(), Nfrm()};
-    auto s = SceneEditUndoServices(&host);
+    auto s = host.Services();
     return mm_scene_background_undo(&_edit, &s) != 0;
 }
 

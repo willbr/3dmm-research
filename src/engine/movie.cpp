@@ -750,13 +750,8 @@ MMMovieEditServices Movie::_EditServices()
         TAG tag; TagFromCore(&tag, *value); return background ? Background::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);
     };
     s.default_title = [](void *p) { static_cast<PMovie>(p)->_SetTitle(); };
-    s.empty_scene = [](void *p) -> int { return static_cast<PScene>(p)->FIsEmpty(); };
     s.new_scene = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
     s.remove_scene = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
-    s.background = [](void *p, const MMTag *value, int undoable) -> int {
-        TAG tag, old; TagFromCore(&tag, *value); auto scene = static_cast<PMovie>(p)->Pscen();
-        return undoable ? scene->FSetBkgd(&tag) : scene->FSetBkgdCore(&tag, &old);
-    };
     s.new_scene_undo = [](void *) -> void * { return MovieSceneUndo::PmunsNew(); };
     s.configure_scene_undo = [](void *, void *p, MMI32 index, const MMTag *value) {
         auto undo = static_cast<PMovieSceneUndo>(p); TAG tag; TagFromCore(&tag, *value);
@@ -5912,10 +5907,8 @@ MMMovieSceneUndoServices MovieSceneUndo::_Services()
     s.insert = [](void *p, MMI32 index, void *scene) -> int {
         return static_cast<PMovie>(p)->FInsScenCore(index, static_cast<PScene>(scene));
     };
-    s.background = [](void *p, const MMTag *value) -> int {
-        TAG tag, old;
-        TagFromCore(&tag, *value);
-        return static_cast<PMovie>(p)->Pscen()->FSetBkgdCore(&tag, &old);
+    s.scene_edit = [](void *p) -> MMSceneEditServices {
+        return static_cast<PMovie>(p)->Pscen()->_EditServices();
     };
     s.notify = [](void *p, int removed) {
         auto client = static_cast<PMovie>(p)->Pmcc();

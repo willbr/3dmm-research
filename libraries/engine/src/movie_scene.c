@@ -370,9 +370,12 @@ int mm_movie_scene_undo(int kind, MMI32 index, void *scene, const MMTag *tag, in
     }
     else if (redo)
     {
+        MMSceneEditServices edit;
+        MMTag old;
         if (!s->create(s->context, index))
             goto fail;
-        if (!s->background(s->context, tag))
+        edit = s->scene_edit(s->context);
+        if (!mm_scene_background_edit(tag, &old, &edit))
         {
             s->remove(s->context, index);
             goto fail;

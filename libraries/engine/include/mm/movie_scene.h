@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_MOVIE_SCENE_H
 #define MM_ENGINE_MOVIE_SCENE_H
 #include "playback.h"
+#include "scene_edit.h"
 #include "tag.h"
 #include <stddef.h>
 #ifdef __cplusplus
@@ -155,7 +156,9 @@ extern "C"
     {
         void *context;
         int (*create)(void *, MMI32), (*remove)(void *, MMI32);
-        int (*insert)(void *, MMI32, void *scene), (*background)(void *, const MMTag *);
+        int (*insert)(void *, MMI32, void *scene);
+        /* Bind the scene opened by create. */
+        MMSceneEditServices (*scene_edit)(void *context);
         void (*notify)(void *, int removed), (*flush)(void *), (*clear)(void *), (*unknown)(void *);
     } MMMovieSceneUndoServices;
     /* tag and scene are borrowed native undo payloads. clear may destroy both

@@ -485,6 +485,7 @@ static int removal(void)
 
 typedef struct Undo
 {
+    MMSceneOwner owner;
     int create, remove, insert, background, notify, removed, flush, clear, unknown, fail;
 } Undo;
 static int ucreate(void *p, MMI32 i)
@@ -509,12 +510,44 @@ static int uinsert(void *p, MMI32 i, void *s)
     ++u->insert;
     return u->fail != WRITE;
 }
-static int background(void *p, const MMTag *tag)
+static void *fetch_background(void *p, MMTag *tag)
 {
     Undo *u = p;
     (void)tag;
     ++u->background;
-    return u->fail != START;
+    return u->fail == START ? NULL : u;
+}
+static int set_camera(void *p, void *background, MMI32 camera)
+{
+    return p == background && camera == 0;
+}
+static int transition(void *p)
+{
+    (void)p;
+    return MM_SCENE_EVENT_CUT_TRANSITION;
+}
+static void ignore_background(void *p, void *background)
+{
+    (void)p;
+    (void)background;
+}
+static void ignore_change(void *p) { (void)p; }
+static int cannot_notify(void *p) { (void)p; return 0; }
+static MMSceneEditServices bind_scene_edit(void *p)
+{
+    Undo *u = p;
+    MMSceneEditServices s = {0};
+    s.context = s.sound.context = s.sound.events.context = s.sound.events.owners.context = p;
+    s.sound.events.owner = &u->owner;
+    s.sound.events.owners.release = ignore_background;
+    s.sound.events.fetch_background = fetch_background;
+    s.sound.events.set_camera = set_camera;
+    s.sound.events.transition = transition;
+    s.sound.dirty = ignore_change;
+    s.background_name = ignore_change;
+    s.scene_change = ignore_change;
+    s.can_notify = cannot_notify;
+    return s;
 }
 static void notify(void *p, int removed)
 {
@@ -542,13 +575,15 @@ static int undoing(void)
 {
     MMMovieSceneUndoServices s;
     Undo u;
+    MMTag tag = {2, NULL, 4, 5};
+    const MMSceneOwnerServices owners = bind_scene_edit(&u).sound.events.owners;
     int kind, redo, fault, removed, result;
     memset(&s, 0, sizeof(s));
     s.context = &u;
     s.create = ucreate;
     s.remove = uremove;
     s.insert = uinsert;
-    s.background = background;
+    s.scene_edit = bind_scene_edit;
     s.notify = notify;
     s.flush = uflush;
     s.clear = uclear;
@@ -558,8 +593,9 @@ static int undoing(void)
             for (fault = 0; fault <= CREATE; ++fault)
             {
                 memset(&u, 0, sizeof(u));
+                CHECK(mm_scene_owner_init(&u.owner, NULL, 1, NULL));
                 u.fail = fault;
-                result = mm_movie_scene_undo(kind, 2, 0, 0, redo, &s);
+                result = mm_movie_scene_undo(kind, 2, NULL, &tag, redo, &s);
                 removed = (kind == MM_MOVIE_REMOVE_SCENE) == redo;
                 if (kind == 2)
                     CHECK(!result && u.unknown == 1);
@@ -571,10 +607,14 @@ static int undoing(void)
                 {
                     CHECK(result == (fault != CREATE && fault != START) && u.create == 1 && !u.insert);
                     CHECK(u.background == (fault != CREATE) && u.remove == (fault == START));
+                    CHECK(u.owner.tracks[MM_SCENE_STARTS].rows.count == (unsigned)result);
+                    if (result)
+                        CHECK(u.owner.background_tag.number == tag.number);
                 }
                 CHECK(u.flush == 1 && u.clear == !result && u.notify == result);
                 if (result)
                     CHECK(u.removed == removed);
+                mm_scene_owner_dispose(&u.owner, &owners);
             }
     return 0;
 }

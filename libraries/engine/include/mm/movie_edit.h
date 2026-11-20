@@ -72,8 +72,7 @@ extern "C"
         void (*long_op)(void *, int begin);
         int (*cache_tag)(void *, const MMTag *, int background);
         void (*default_title)(void *);
-        int (*empty_scene)(void *scene), (*new_scene)(void *, MMI32), (*remove_scene)(void *, MMI32);
-        int (*background)(void *, const MMTag *, int undoable);
+        int (*new_scene)(void *, MMI32), (*remove_scene)(void *, MMI32);
         void *(*new_scene_undo)(void *);
         void (*configure_scene_undo)(void *, void *undo, MMI32 index, const MMTag *);
         void (*release_undo)(void *undo);

@@ -926,9 +926,12 @@ traversal now also use C89. Scene tag-collection traversal and save transactions
 now also use C89, including sound adoption, wire-group construction and ordered
 thumbnail/metadata publication. Pause/camera/background editing, their public undo
 transactions and persistent undo payload/swap control now also use C89. Movie
-commands call the C89 camera, pause, transition and background sound editors
-directly. The scene sound editor passes typed tags through native resource lookup,
-and the movie command keeps document tag resolution local to the edit. Common
+commands call the C89 background, camera, pause, transition and background sound
+editors directly. C89 decides whether a background replaces the current one or
+starts a new scene. Scene insertion redo and persistent pause, camera and
+background undo use the same scene editor after selecting the target scene.
+The scene sound editor passes typed tags through native resource lookup, and
+the movie command keeps document tag resolution local to the edit. Common
 movie/undo services, other editing policy, thumbnail generation and
 background resource implementations remain native dependencies. Scene actor/
 caption add/remove, actor paste and roll-call traversal, lookups, movie binding

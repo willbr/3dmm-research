@@ -290,26 +290,11 @@ static int seek(void *p)
     ++e->seeks;
     return !e->seek_fail;
 }
-static int undo_pause(void *p, MMI32 *reason, MMI32 *delay)
+static MMSceneEditServices bind_scene_edit(void *p)
 {
-    Edit *e = (Edit *)p;
-    return mm_scene_pause_edit(reason, delay, &e->s);
+    return ((Edit *)p)->s;
 }
-static int has_background(void *p)
-{
-    return ((Edit *)p)->owner.owned[MM_SCENE_BACKGROUND] != NULL;
-}
-static int undo_background(void *p, const MMTag *tag, MMTag *old)
-{
-    Edit *e = (Edit *)p;
-    return mm_scene_background_edit(tag, old, &e->s);
-}
-static int undo_camera(void *p, MMI32 camera, MMI32 *old)
-{
-    Edit *e = (Edit *)p;
-    return mm_scene_camera_edit(camera, old, &e->s);
-}
-static void pause_type(void *p, MMI32 reason)
+static void pause_type(void *p, int reason)
 {
     ((Edit *)p)->pause_type = reason;
 }
@@ -362,6 +347,7 @@ static void init_edit(Edit *e)
     v->fetch_background = fetch_back;
     v->set_camera = set_camera;
     v->transition = transition;
+    v->pause_type = pause_type;
     v->diagnostic = event_issue;
     o = &v->owners;
     o->context = e;
@@ -376,12 +362,7 @@ static void init_edit(Edit *e)
     e->us.context = e;
     e->us.switch_scene = switch_scene;
     e->us.seek_frame = seek;
-    e->us.pause = undo_pause;
-    e->us.background_present = has_background;
-    e->us.current_camera = current_camera;
-    e->us.background = undo_background;
-    e->us.camera = undo_camera;
-    e->us.pause_type = pause_type;
+    e->us.scene_edit = bind_scene_edit;
     e->us.flush = flush;
     e->us.clear = clear;
 }

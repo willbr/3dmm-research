@@ -106,12 +106,9 @@ extern "C"
     {
         void *context;
         int (*switch_scene)(void *), (*seek_frame)(void *);
-        int (*pause)(void *, MMI32 *reason, MMI32 *delay);
-        int (*background_present)(void *);
-        MMI32 (*current_camera)(void *);
-        int (*background)(void *, const MMTag *, MMTag *old);
-        int (*camera)(void *, MMI32 camera, MMI32 *old);
-        void (*pause_type)(void *, MMI32 reason), (*flush)(void *), (*clear)(void *);
+        /* Bind the selected scene after any required seek. */
+        MMSceneEditServices (*scene_edit)(void *);
+        void (*flush)(void *), (*clear)(void *);
     } MMSceneEditUndoServices;
     /* Persistent payloads borrow tags without retaining. Background undo switches
      * scenes without seeking; camera and pause undo seek the saved frame. Later

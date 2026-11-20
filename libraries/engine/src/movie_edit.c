@@ -596,46 +596,52 @@ void mm_movie_clipboard_click(int tool, int hit_actor, const MMMovieClipboardSer
 
 int mm_movie_add_background(const MMTag *tag, const MMMovieEditServices *s)
 {
+    MMSceneEditServices edit;
+    MMTag old;
     MMI32 index;
     void *undo;
     if (!cache(tag, 1, s))
         return 0;
     if (!s->scenes->open && s->data->title.count == 0)
         s->default_title(s->context);
-    if (!s->scenes->open || !s->empty_scene(s->scenes->open))
+    if (s->scenes->open)
     {
-        index = mm_signed_word((MMU32)s->scenes->index + 1U);
-        if (!s->new_scene(s->context, index))
-            return 0;
-        if (!s->background(s->context, tag, 0))
+        edit = s->scene_edit(s->scenes->open);
+        if (mm_scene_is_empty(&edit))
         {
-            s->remove_scene(s->context, index);
-            return 0;
+            MMTag replacement = *tag;
+            if (!mm_scene_background_undo_edit(&replacement, &edit))
+            {
+                s->diagnostic(s->context, MM_MOVIE_EDIT_BACKGROUND_FAILED);
+                return 0;
+            }
+            changed(1, s);
+            return 1;
         }
-        if (s->sounds_enabled(s->context))
-            s->play_sound(s->context);
-        else
-            s->flush_sound(s->context);
-        undo = s->new_scene_undo(s->context);
-        if (!undo)
-        {
-            s->remove_scene(s->context, index);
-            return 0;
-        }
-        s->configure_scene_undo(s->context, undo, index, tag);
-        if (!mm_movie_undo_add(undo, &s->undo))
-        {
-            s->release_undo(undo);
-            s->remove_scene(s->context, index);
-            return 0;
-        }
-        s->release_undo(undo);
     }
-    else if (!s->background(s->context, tag, 1))
-    {
-        s->diagnostic(s->context, MM_MOVIE_EDIT_BACKGROUND_FAILED);
+    index = mm_signed_word((MMU32)s->scenes->index + 1U);
+    if (!s->new_scene(s->context, index))
         return 0;
+    edit = s->scene_edit(s->scenes->open);
+    if (!mm_scene_background_edit(tag, &old, &edit))
+        goto remove;
+    if (s->sounds_enabled(s->context))
+        s->play_sound(s->context);
+    else
+        s->flush_sound(s->context);
+    undo = s->new_scene_undo(s->context);
+    if (!undo)
+        goto remove;
+    s->configure_scene_undo(s->context, undo, index, tag);
+    if (!mm_movie_undo_add(undo, &s->undo))
+    {
+        s->release_undo(undo);
+        goto remove;
     }
+    s->release_undo(undo);
     changed(1, s);
     return 1;
+remove:
+    s->remove_scene(s->context, index);
+    return 0;
 }

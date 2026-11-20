@@ -371,32 +371,38 @@ static int undo_failed(const MMSceneEditUndoServices *s)
 }
 int mm_scene_pause_undo(MMScenePauseUndo *p, const MMSceneEditUndoServices *s)
 {
-    MMI32 reason = p->reason;
-    if (!s->switch_scene(s->context) || !s->seek_frame(s->context) || !s->pause(s->context, &p->reason, &p->delay))
+    const MMI32 reason = p->reason;
+    MMSceneEditServices edit;
+    if (!s->switch_scene(s->context) || !s->seek_frame(s->context))
         return undo_failed(s);
-    s->pause_type(s->context, reason);
+    edit = s->scene_edit(s->context);
+    if (!mm_scene_pause_edit(&p->reason, &p->delay, &edit))
+        return undo_failed(s);
+    edit.sound.events.pause_type(edit.sound.events.context, reason);
     s->flush(s->context);
     return 1;
 }
 int mm_scene_background_undo(MMSceneBackgroundUndo *p, const MMSceneEditUndoServices *s)
 {
+    MMSceneEditServices edit;
     MMTag old;
     MMI32 camera, previous;
-    if (!s->switch_scene(s->context))
+    if (!s->switch_scene(s->context) || (!p->background && !s->seek_frame(s->context)))
         return undo_failed(s);
+    edit = s->scene_edit(s->context);
     if (p->background)
     {
-        if (!s->background_present(s->context))
+        if (!edit.sound.events.owner->owned[MM_SCENE_BACKGROUND])
             return undo_failed(s);
-        camera = s->current_camera(s->context);
-        if (!s->background(s->context, &p->tag, &old) || !s->camera(s->context, p->camera, &previous))
+        camera = edit.current_camera(edit.context);
+        if (!mm_scene_background_edit(&p->tag, &old, &edit) || !mm_scene_camera_edit(p->camera, &previous, &edit))
             return undo_failed(s);
         p->tag = old;
         p->camera = camera;
     }
     else
     {
-        if (!s->seek_frame(s->context) || !s->camera(s->context, p->camera, &previous))
+        if (!mm_scene_camera_edit(p->camera, &previous, &edit))
             return undo_failed(s);
         p->camera = previous;
     }
