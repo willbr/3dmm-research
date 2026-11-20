@@ -712,7 +712,7 @@ MMMovieUndoServices Movie::_UndoServices()
 
 MMMovieEditServices Movie::_EditServices()
 {
-    static_assert(rOne == 65536 && vlmNil == -1 && styNil == 0, "Movie edit scalar/sound ABI");
+    static_assert(rOne == 65536 && vlmNil == -1 && styNil == 0 && styMidi == 4, "Movie edit scalar/sound ABI");
     MMMovieEditServices s = {};
     s.context = this; s.data = &_data; s.scenes = &_scenes;
     s.rollcall = _RollCallServices(); s.undo = _UndoServices();
@@ -725,22 +725,12 @@ MMMovieEditServices Movie::_EditServices()
     s.stage = Actor::_BindStageEdit;
     s.actors = Actor::_OwnerServices();
     s.actor_undo = [](void *p) { return static_cast<PActor>(p)->_UndoCreateServices(); };
+    s.transform = [](void *p) { return static_cast<PActor>(p)->_TransformEditServices(); };
+    s.costume = [](void *p) { return static_cast<PActor>(p)->_CostumeEditServices(); };
+    s.actor_sound = [](void *p) { return static_cast<PActor>(p)->_SoundEditServices(); };
+    TrashVar(&s.sound_external_child);
     s.add_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FAddActr(static_cast<PActor>(actor)); };
     s.remove_actor = [](void *p, MMI32 id) -> int { return static_cast<PScene>(p)->FRemActr(id); };
-    s.apply_actor = [](void *p, int kind, const MMMovieEditRequest *q) -> int {
-        auto actor = static_cast<PActor>(p); AssertPo(actor, 0);
-        TAG tag; if (q->tag) TagFromCore(&tag, *q->tag);
-        switch (kind)
-        {
-        case MM_MOVIE_EDIT_ROTATE: return actor->FRotate(q->rotation[0], q->rotation[1], q->rotation[2], q->forward != 0);
-        case MM_MOVIE_EDIT_SQUASH: return actor->FPull(q->pull[0], q->pull[1], q->pull[2]);
-        case MM_MOVIE_EDIT_TIME: return actor->FSoonerLater(q->shift);
-        case MM_MOVIE_EDIT_SCALE: return actor->FScale(q->factor);
-        case MM_MOVIE_EDIT_COSTUME: return actor->FSetCostume(q->part, q->tag ? &tag : nullptr, q->costume, tribool(q->custom));
-        case MM_MOVIE_EDIT_ACTOR_SOUND: return actor->FSetSnd(q->tag ? &tag : nullptr, tribool(q->loop), tribool(q->queue), tribool(q->cel), q->volume, q->style);
-        default: Bug("Invalid Movie actor primitive"); return 0;
-        }
-    };
     s.apply_scene = [](void *p, int kind, const MMMovieEditRequest *q) -> int {
         auto scene = static_cast<PScene>(p);
         TAG tag; if (q->tag) TagFromCore(&tag, *q->tag);

@@ -89,6 +89,13 @@ int mm_movie_insert_actor(const MMTag *tag, const MMMovieEditServices *s)
     changed(1, s);
     return 1;
 }
+static MMActorTransactionServices actor_transaction(void *actor, const MMMovieEditServices *s)
+{
+    MMActorTransactionServices transaction;
+    transaction.actors = s->actors;
+    transaction.undo = s->actor_undo(actor);
+    return transaction;
+}
 int mm_movie_onstage(MMI32 id, const MMMovieEditServices *s)
 {
     void *actor;
@@ -107,19 +114,20 @@ int mm_movie_onstage(MMI32 id, const MMMovieEditServices *s)
         return 0;
     }
     stage = s->stage(actor);
-    transaction.actors = s->actors;
-    transaction.undo = s->actor_undo(actor);
+    transaction = actor_transaction(actor, s);
     if (!mm_actor_transaction_stage(actor, 1, &stage, &transaction))
         return 0;
     changed(0, s);
     return 1;
 }
-static int edit_time(MMMovieEditRequest request, int relative, const MMMovieEditServices *s)
+static int edit_time(MMI32 target, int relative, const MMMovieEditServices *s)
 {
     void *scene = s->scenes->open;
     void *actor;
     MMI32 current;
     MMActorUndoState *undo;
+    MMActorTransformEditServices transform;
+    MMActorOwner *owner;
     if (!scene)
         return 0;
     current = s->frame(scene);
@@ -127,47 +135,81 @@ static int edit_time(MMMovieEditRequest request, int relative, const MMMovieEdit
     if (!actor)
         return 0;
     if (relative)
-        request.frame = mm_fixed_add(current, request.frame);
-    request.shift = mm_fixed_sub(request.frame, current);
-    if (!s->apply_actor(actor, MM_MOVIE_EDIT_TIME, &request))
+        target = mm_fixed_add(current, target);
+    owner = s->actors.owner(s->actors.context, actor);
+    transform = s->transform(actor);
+    if (!mm_actor_owner_shift_time(owner, mm_fixed_sub(target, current), &transform))
         return 0;
     undo = s->last_actor_undo(s->context);
     if (undo && undo->sooner_later)
-        undo->last_frame = request.frame;
+        undo->last_frame = target;
     changed(0, s);
     return 1;
 }
 
 int mm_movie_step_actor_time(MMI32 frames, const MMMovieEditServices *s)
 {
-    MMMovieEditRequest request = {0};
-    request.frame = frames;
-    return edit_time(request, 1, s);
+    return edit_time(frames, 1, s);
+}
+
+static int transform_actor(void *actor, int kind, const MMMovieEditRequest *input, const MMMovieEditServices *s)
+{
+    MMActorStretch stretch;
+    MMActorOwner *owner = s->actors.owner(s->actors.context, actor);
+    const MMActorTransformEditServices edit = s->transform(actor);
+    switch (kind)
+    {
+    case MM_MOVIE_EDIT_ROTATE:
+        return mm_actor_owner_rotate(owner, input->rotation, input->forward, 0, &edit);
+    case MM_MOVIE_EDIT_SQUASH:
+        stretch.rScaleX = stretch.rScaleZ = input->factor;
+        stretch.rScaleY = mm_fixed_div(65536L, input->factor);
+        return mm_actor_owner_pull(owner, &stretch, &edit);
+    default:
+        return mm_actor_owner_scale(owner, input->factor, &edit);
+    }
 }
 
 int mm_movie_edit_actor(int kind, const MMMovieEditRequest *input, const MMMovieEditServices *s)
 {
-    MMMovieEditRequest request = *input;
     void *actor;
     if (kind == MM_MOVIE_EDIT_TIME)
-        return edit_time(request, 0, s);
+        return edit_time(input->frame, 0, s);
     actor = s->selected_actor(s->scenes->open);
-    if (kind == MM_MOVIE_EDIT_SQUASH)
+    switch (kind)
     {
-        if (request.factor == 0)
+    case MM_MOVIE_EDIT_ROTATE:
+    case MM_MOVIE_EDIT_SCALE:
+    case MM_MOVIE_EDIT_SQUASH:
+        if (kind == MM_MOVIE_EDIT_SQUASH && input->factor == 0)
             return 1;
-        request.pull[0] = request.pull[2] = request.factor;
-        request.pull[1] = mm_fixed_div(65536, request.factor);
-    }
-    if (kind == MM_MOVIE_EDIT_REMOVE)
+        if (!transform_actor(actor, kind, input, s))
+            return 0;
+        break;
+    case MM_MOVIE_EDIT_COSTUME:
     {
+        const MMActorTransactionServices transaction = actor_transaction(actor, s);
+        const MMActorCostumeEditServices edit = s->costume(actor);
+        if (!mm_actor_transaction_costume(actor, input->part, input->tag, input->costume, input->custom,
+                                          &edit, &transaction))
+            return 0;
+        break;
+    }
+    case MM_MOVIE_EDIT_ACTOR_SOUND:
+    {
+        const MMActorTransactionServices transaction = actor_transaction(actor, s);
+        const MMActorSoundEditServices edit = s->actor_sound(actor);
+        return mm_actor_transaction_sound(actor, input->tag, input->loop, input->queue, input->cel != 0,
+                                          input->volume, input->style, s->sound_external_child,
+                                          &edit, &transaction);
+    }
+    case MM_MOVIE_EDIT_REMOVE:
         if (!s->remove_actor(s->scenes->open, s->rollcall.actor_id(actor)))
             return 0;
-    }
-    else if (!s->apply_actor(actor, kind, &request))
+        break;
+    default:
         return 0;
-    if (kind == MM_MOVIE_EDIT_ACTOR_SOUND)
-        return 1;
+    }
     changed(kind == MM_MOVIE_EDIT_SCALE || kind == MM_MOVIE_EDIT_REMOVE, s);
     if (kind == MM_MOVIE_EDIT_REMOVE)
         s->actor_nuked(s->context);

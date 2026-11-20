@@ -38,7 +38,7 @@ extern "C"
         const MMTag *tag;
         unsigned short rotation[3];
         int forward;
-        MMI32 factor, pull[3], frame, shift, part, costume, custom;
+        MMI32 factor, frame, part, costume, custom;
         MMI32 camera, reason, delay, transition, loop, queue, cel, volume, style;
     } MMMovieEditRequest;
     typedef struct MMMovieEditServices
@@ -55,8 +55,11 @@ extern "C"
         MMActorStageBind stage;
         MMActorOwnerServices actors;
         MMActorUndoCreateServices (*actor_undo)(void *actor);
+        MMActorTransformEditServices (*transform)(void *actor);
+        MMActorCostumeEditServices (*costume)(void *actor);
+        MMActorSoundEditServices (*actor_sound)(void *actor);
+        MMU32 sound_external_child; /* Unused child field for external sound sources. */
         int (*add_actor)(void *scene, void *actor), (*remove_actor)(void *scene, MMI32 id);
-        int (*apply_actor)(void *actor, int kind, const MMMovieEditRequest *);
         int (*apply_scene)(void *scene, int kind, const MMMovieEditRequest *);
         MMI32 (*frame)(void *scene);
         struct MMActorUndoState *(*last_actor_undo)(void *);
@@ -180,6 +183,7 @@ extern "C"
      * are required. Scene edits/selected edits require a current scene; selected
      * actor edits require a selected actor. Time edits return failure when
      * there is no open scene or primary actor. Getter/result tags are borrowed.
+     * Actor costume and sound requests require a tag.
      * new_actor/new_scene_undo return one reference. Placement undo takes ownership
      * of the reset actor snapshot. Scene-add/paste/undo manage their own retains.
      * Callbacks for Scene/Actor operations may use the existing C controllers and

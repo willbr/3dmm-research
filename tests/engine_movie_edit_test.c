@@ -1,8 +1,10 @@
 /* Movie edit sequencing, placement ownership and undo failure contracts. */
 #include "mm/movie_edit.h"
+#include "mm/actor_math.h"
 #include "mm/actor_undo.h"
 #include "mm/scene_selection.h"
 #include "actor_stage_owner_fixture.h"
+#include <stddef.h>
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x)                                                                                                       \
@@ -76,7 +78,7 @@ typedef struct Test Test;
 typedef struct Actor
 {
     Test *test;
-    int id, refs, visible, value;
+    int id, refs, visible;
     MMTag tag;
     StageOwnerFixture stage;
 } Actor;
@@ -95,7 +97,9 @@ struct Test
     Actor actor, fresh, copy;
     Actor *selected, *placement;
     Undo undo;
-    int view, inScene, fail, selectedCalls, selectionCalls, frame, kind, actorCalls, sceneCalls;
+    int view, inScene, fail, selectedCalls, selectionCalls, frame, kind, actorBindings, sceneCalls;
+    int actorSeeks, actorSoundFrames;
+    MMI32 actorSeekFrame;
     int dirty, invalidates, bars, nuked, error, diagnostics, entire, restore, placeCalls, undoCount;
     int lastUndoCalls, notify, commits, clears, rowChanges;
     int begin, end, cacheBackground, defaults, empty, newScene, removeScene, removedIndex, backgroundUndoable;
@@ -179,16 +183,120 @@ static int remove_actor(void *p, MMI32 id)
     t->inScene = 0;
     return t->fail != FAIL_APPLY;
 }
-static int apply_actor(void *p, int kind, const MMMovieEditRequest *q)
+static Test *actor_test(void *p)
 {
-    Actor *a = p;
+    Actor *a = (Actor *)((char *)p - offsetof(Actor, stage));
+    return a->test;
+}
+static MMActorSubrouteEditServices bind_actor_edit(Actor *a)
+{
     Test *t = a->test;
-    ++t->actorCalls;
-    t->kind = kind;
-    t->request = *q;
-    a->value = 555;
+    ++t->actorBindings;
     event(t, APPLY);
+    return stage_fixture_services(&a->stage).subroute;
+}
+static int fail_reserve(void *p, MMU32 entries, MMU32 bytes)
+{
+    (void)p;
+    (void)entries;
+    (void)bytes;
+    return 0;
+}
+static int edit_scene_frame(void *p, MMI32 *out)
+{
+    *out = actor_test(p)->frame;
+    return 1;
+}
+static int seek_actor_scene(void *p, MMActorState *state, MMI32 frame)
+{
+    Test *t = actor_test(p);
+    (void)state;
+    ++t->actorSeeks;
+    t->actorSeekFrame = frame;
     return t->fail != FAIL_APPLY;
+}
+static int flag_true(void *p) { (void)p; return 1; }
+static void lock_edit_events(void *p) { mm_actor_events_lock(p); }
+static void unlock_edit_events(void *p) { mm_actor_events_unlock(p); }
+static const void *edit_payload(void *p, MMI32 index) { return mm_actor_events_payload(p, index, NULL); }
+static MMActorTransformEditServices bind_transform(void *p)
+{
+    Actor *actor = p;
+    MMActorTransformEditServices s = {0};
+    s.subroute = bind_actor_edit(actor);
+    s.subroute.route.edits.scene_frame = edit_scene_frame;
+    if (actor->test->fail == FAIL_APPLY)
+        s.subroute.route.edits.tables.reserve_events = fail_reserve;
+    s.fill.edits = s.subroute.route.edits;
+    s.fill.lock_events = lock_edit_events;
+    s.fill.unlock_events = unlock_edit_events;
+    s.fill.payload_view = edit_payload;
+    s.scene_present = flag_true;
+    s.seek_scene = seek_actor_scene;
+    s.scrollbars = stage_fixture_effect;
+    return s;
+}
+static int apply_actor_resource(void *p, MMActorState *state, MMI32 index)
+{
+    Test *t = actor_test(p);
+    (void)index;
+    if (t->fail != FAIL_APPLY)
+        return 1;
+    state->cel = 555;
+    return 0;
+}
+static void *current_costume(void *p, MMI32 body_set, int *custom)
+{
+    (void)p;
+    (void)body_set;
+    *custom = 0;
+    return NULL;
+}
+static void *fetch_costume(void *p, MMI32 costume) { (void)costume; return p; }
+static MMI32 costume_set(void *p, void *resource) { (void)p; (void)resource; return 3; }
+static void release_actor_resource(void *p, void *resource) { (void)p; (void)resource; }
+static MMActorCostumeEditServices bind_costume(void *p)
+{
+    MMActorCostumeEditServices s = {0};
+    s.context = p;
+    s.edits = bind_actor_edit(p).route.edits;
+    s.edits.apply_event = apply_actor_resource;
+    s.current = current_costume;
+    s.fetch_custom = fetch_costume;
+    s.body_set = costume_set;
+    s.release = release_actor_resource;
+    return s;
+}
+static void *fetch_actor_sound(void *p, const MMTag *tag) { (void)tag; return p; }
+static int actor_cel_count(void *p, MMI32 action, MMI32 *count)
+{
+    (void)p;
+    (void)action;
+    *count = 4;
+    return 1;
+}
+static void actor_sound_info(void *p, void *sound, MMActorSoundInfo *info)
+{
+    (void)p;
+    (void)sound;
+    info->style = 2;
+    info->volume = 73;
+    info->no_sound = 0;
+}
+static void set_actor_sound_frame(void *p) { ++((Actor *)p)->test->actorSoundFrames; }
+static MMActorSoundEditServices bind_actor_sound(void *p)
+{
+    MMActorSoundEditServices s = {0};
+    s.context = s.runtime.context = p;
+    s.runtime.fetch = fetch_actor_sound;
+    s.runtime.release = release_actor_resource;
+    s.runtime.cel_count = actor_cel_count;
+    s.edits = bind_actor_edit(p).route.edits;
+    s.edits.apply_event = apply_actor_resource;
+    s.sound_info = actor_sound_info;
+    s.sounds_suppressed = flag_true;
+    s.set_sound_frame = set_actor_sound_frame;
+    return s;
 }
 static int apply_scene(void *p, int kind, const MMMovieEditRequest *q)
 {
@@ -609,9 +717,12 @@ static void init(Test *t)
     s->actors.route_services = stage_route;
     s->actors.invalidate_views = restored_actor_views;
     s->actor_undo = bind_actor_undo;
+    s->transform = bind_transform;
+    s->costume = bind_costume;
+    s->actor_sound = bind_actor_sound;
+    s->sound_external_child = 42;
     s->add_actor = add_actor;
     s->remove_actor = remove_actor;
-    s->apply_actor = apply_actor;
     s->apply_scene = apply_scene;
     s->frame = frame;
     s->last_actor_undo = last_actor_undo;
@@ -735,6 +846,25 @@ static int choosing(void)
     CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     return 0;
 }
+static int seed_edit_track(Test *t)
+{
+    MMActorOwner *owner = &t->actor.stage.owner;
+    MMActorRoutePoint point = {{0, 0, 0}, 0};
+    MMActorEntrance entrance = {0};
+    MMActorEvent event = {0};
+    if (!stage_fixture_init(&t->actor.stage, t->frame))
+        return 0;
+    owner->runtime.actor = t->actor.id;
+    owner->runtime.first = owner->runtime.last = t->frame;
+    owner->runtime.state.cel = 6;
+    owner->runtime.state.onStage = 1;
+    owner->runtime.state.addEvent = 0;
+    owner->runtime.state.firstEventInFrame = owner->runtime.state.nextEvent = 1;
+    event.aet = MM_ACTOR_ADD;
+    event.nfrm = t->frame;
+    return mm_actor_path_insert(owner->track.route, 0, &point) &&
+           mm_actor_events_insert(owner->track.events, 0, sizeof(entrance), &entrance, &event);
+}
 static int actor_edits(void)
 {
     Test t;
@@ -743,12 +873,19 @@ static int actor_edits(void)
     memset(&q, 0, sizeof(q));
     q.factor = 49152;
     q.frame = 17;
+    q.costume = 12;
     q.custom = 2;
-    q.loop = 2;
+    q.loop = q.queue = q.cel = 2;
+    q.volume = -1;
     for (kind = MM_MOVIE_EDIT_ROTATE; kind <= MM_MOVIE_EDIT_REMOVE; ++kind)
         for (fail = 0; fail <= 1; ++fail)
         {
+            MMActorEvent event;
+            MMActorOwner *owner = &t.actor.stage.owner;
+            const int has_undo = kind == MM_MOVIE_EDIT_COSTUME || kind == MM_MOVIE_EDIT_ACTOR_SOUND;
             init(&t);
+            CHECK(seed_edit_track(&t));
+            q.tag = &t.actor.tag;
             if (fail)
                 t.fail = FAIL_APPLY;
             CHECK(mm_movie_edit_actor(kind, &q, &t.s) == !fail);
@@ -756,18 +893,60 @@ static int actor_edits(void)
             CHECK(t.invalidates == t.dirty && t.nuked == (!fail && kind == MM_MOVIE_EDIT_REMOVE));
             if (t.invalidates)
                 CHECK(t.bars == (kind == MM_MOVIE_EDIT_SCALE || kind == MM_MOVIE_EDIT_REMOVE));
-            if (kind == MM_MOVIE_EDIT_SQUASH)
-                CHECK(t.request.pull[0] == 49152 && t.request.pull[1] == 87381 && t.request.pull[2] == 49152);
+            CHECK(t.restore == (has_undo && fail) && t.commits == (has_undo && !fail));
+            CHECK(owner->runtime.state.cel == 6);
             if (kind == MM_MOVIE_EDIT_TIME)
-                CHECK(t.request.shift == 8 && t.events[0] == FRAME && t.events[1] == SELECT && t.lastUndoCalls == !fail);
-            if (kind == MM_MOVIE_EDIT_ACTOR_SOUND)
-                CHECK(!t.request.tag && t.request.loop == 2);
-            if (fail && kind != MM_MOVIE_EDIT_REMOVE)
-                CHECK(t.actor.value == 555);
+            {
+                CHECK(t.events[0] == FRAME && t.events[1] == SELECT && t.lastUndoCalls == !fail);
+                CHECK(t.actorSeeks == 1 && t.actorSeekFrame == 17 && owner->runtime.state.frame == 17);
+                CHECK(mm_actor_events_get_fixed(owner->track.events, 0, &event) && event.nfrm == 17);
+            }
+            else if (fail || kind == MM_MOVIE_EDIT_REMOVE)
+                CHECK(mm_actor_events_count(owner->track.events) == 1);
+            else
+            {
+                CHECK(mm_actor_events_count(owner->track.events) == 2 &&
+                      mm_actor_events_get_fixed(owner->track.events, 1, &event));
+                if (kind == MM_MOVIE_EDIT_ROTATE)
+                    CHECK(event.aet == MM_ACTOR_ROTATE_HERE);
+                if (kind == MM_MOVIE_EDIT_SQUASH)
+                {
+                    MMActorStretch stretch;
+                    CHECK(event.aet == MM_ACTOR_STRETCH &&
+                          mm_actor_events_get_payload(owner->track.events, 1, &stretch));
+                    CHECK(stretch.rScaleX == 49152 && stretch.rScaleY == 87381 && stretch.rScaleZ == 49152);
+                }
+                if (kind == MM_MOVIE_EDIT_SCALE)
+                    CHECK(event.aet == MM_ACTOR_SIZE && owner->runtime.state.transform.rScaleStep == 49152);
+                if (kind == MM_MOVIE_EDIT_COSTUME)
+                {
+                    MMActorCostume costume;
+                    CHECK(event.aet == MM_ACTOR_COSTUME &&
+                          mm_actor_events_get_payload(owner->track.events, 1, &costume));
+                    CHECK(costume.custom == 2 && costume.costume == 12 && costume.body_set == 3);
+                }
+                if (kind == MM_MOVIE_EDIT_ACTOR_SOUND)
+                {
+                    MMActorSound sound;
+                    CHECK(event.aet == MM_ACTOR_SOUND &&
+                          mm_actor_events_get_payload(owner->track.events, 1, &sound));
+                    CHECK(sound.loop == 2 && sound.queue == 2 && sound.cel == 2 && sound.child == 42);
+                    CHECK(sound.volume == 73 && sound.style == 2 && t.actorSoundFrames == 1);
+                }
+            }
+            if (has_undo && !fail)
+            {
+                CHECK(t.undo.actor_state.actor == &t.copy && t.undo.actor_state.actor_id == t.actor.id &&
+                      t.undo.actor_state.sound == (kind == MM_MOVIE_EDIT_ACTOR_SOUND));
+                CHECK(mm_actor_events_count(t.copy.stage.owner.track.events) == 1);
+                release_actor_undo(&t, &t.undo);
+            }
+            CHECK(!t.undo.refs && !t.copy.refs);
+            stage_fixture_dispose(&t.actor.stage);
         }
     init(&t);
     q.factor = 0;
-    CHECK(mm_movie_edit_actor(MM_MOVIE_EDIT_SQUASH, &q, &t.s) && !t.actorCalls && !t.dirty &&
+    CHECK(mm_movie_edit_actor(MM_MOVIE_EDIT_SQUASH, &q, &t.s) && !t.actorBindings && !t.dirty &&
           t.selectedCalls == 1);
     for (type = 0; type < 8; ++type)
     {
@@ -775,19 +954,26 @@ static int actor_edits(void)
         t.undoCount = (type & 4) != 0;
         t.undo.actor = type & 1;
         t.undo.actor_state.sooner_later = (type & 2) != 0;
+        CHECK(seed_edit_track(&t));
         CHECK(mm_movie_edit_actor(MM_MOVIE_EDIT_TIME, &q, &t.s));
         CHECK(t.lastUndoCalls == 1 && t.undo.actor_state.last_frame == (type == 7 ? 17 : 0));
+        stage_fixture_dispose(&t.actor.stage);
     }
     init(&t);
     t.frame = 2147483647;
     q.frame = (-2147483647 - 1);
-    CHECK(mm_movie_edit_actor(MM_MOVIE_EDIT_TIME, &q, &t.s) && t.request.shift == 1);
-    CHECK(mm_movie_step_actor_time(1, &t.s) && t.request.shift == 1 && t.request.frame == q.frame);
+    CHECK(seed_edit_track(&t));
+    CHECK(mm_movie_edit_actor(MM_MOVIE_EDIT_TIME, &q, &t.s) && t.actorSeekFrame == q.frame);
+    CHECK(t.actor.stage.owner.runtime.first == q.frame);
+    CHECK(mm_movie_step_actor_time(1, &t.s) && t.actorSeekFrame == q.frame);
+    CHECK(t.actor.stage.owner.runtime.first == q.frame + 1);
     t.frame = q.frame;
-    CHECK(mm_movie_step_actor_time(-1, &t.s) && t.request.shift == -1 && t.request.frame == 2147483647);
+    CHECK(mm_movie_step_actor_time(-1, &t.s) && t.actorSeekFrame == 2147483647);
+    CHECK(t.actor.stage.owner.runtime.first == q.frame);
+    stage_fixture_dispose(&t.actor.stage);
     init(&t);
     t.selected = NULL;
-    CHECK(!mm_movie_step_actor_time(1, &t.s) && t.selectedCalls == 1 && !t.actorCalls && !t.lastUndoCalls && !t.dirty);
+    CHECK(!mm_movie_step_actor_time(1, &t.s) && t.selectedCalls == 1 && !t.actorBindings && !t.lastUndoCalls && !t.dirty);
     t.scenes.open = NULL;
     CHECK(!mm_movie_step_actor_time(-1, &t.s) && t.eventCount == 2);
     init(&t);
@@ -849,7 +1035,12 @@ static int actor_drag(void)
     owner.selected_actor = &t.actor;
     for (axis = 0; axis < 3; ++axis)
     {
+        MMActorEvent event;
+        MMActorMatrix actual, expected;
+        const unsigned short angle = axis == 1 ? 130 : 65406;
+        const int axes[] = {MM_MATRIX_X, MM_MATRIX_Y, MM_MATRIX_Z};
         init(&t);
+        CHECK(seed_edit_track(&t));
         memset(&drag, 0, sizeof(drag));
         drag.undo.single = &t.undo;
         t.undo.refs = 1;
@@ -858,21 +1049,27 @@ static int actor_drag(void)
         input.command = axis != 2;
         input.mouse.dxr = 3 * 65536L;
         input.mouse.dyr = -65536L;
+        mm_matrix_identity(&expected);
+        mm_matrix_rotate(&expected, axes[axis], angle, 1);
         mm_movie_actor_drag_sample(&drag, &input, &services);
-        CHECK(t.kind == MM_MOVIE_EDIT_ROTATE && t.request.forward == input.command);
-        CHECK(t.request.rotation[0] == (axis == 0 ? 65406 : 0));
-        CHECK(t.request.rotation[1] == (axis == 1 ? 130 : 0));
-        CHECK(t.request.rotation[2] == (axis == 2 ? 65406 : 0));
+        CHECK(mm_actor_events_get_fixed(t.actor.stage.owner.track.events, 1, &event) &&
+              event.aet == (input.command ? MM_ACTOR_ROTATE_FORWARD : MM_ACTOR_ROTATE_HERE));
+        CHECK(mm_actor_events_get_payload(t.actor.stage.owner.track.events, 1, &actual) &&
+              !memcmp(&actual, &expected, sizeof(actual)));
         CHECK(!drag.undo.single && drag.undo.group == &t.copy && t.undo.refs == 1);
         CHECK(t.eventCount == 9 && !memcmp(t.events, rotate_steps, sizeof(rotate_steps)));
+        stage_fixture_dispose(&t.actor.stage);
     }
 
     init(&t);
+    CHECK(seed_edit_track(&t));
     memset(&drag, 0, sizeof(drag));
     drag.undo.single = &t.undo;
     t.fail = FAIL_APPLY;
     mm_movie_actor_drag_sample(&drag, &input, &services);
     CHECK(drag.undo.single == &t.undo && t.eventCount == 5 && !memcmp(t.events, failure_steps, sizeof(failure_steps)));
+    CHECK(mm_actor_events_count(t.actor.stage.owner.track.events) == 1);
+    stage_fixture_dispose(&t.actor.stage);
 
     for (kind = MM_MOVIE_DRAG_RESIZE; kind <= MM_MOVIE_DRAG_SQUASH; ++kind)
     {
@@ -883,14 +1080,20 @@ static int actor_drag(void)
         input.mouse.dyr = 0;
         for (tick = 0; tick < 5; ++tick)
         {
+            MMActorEvent event;
+            MMActorState *state = &t.actor.stage.owner.runtime.state;
             int pixels = tick < 2 ? 1 : tick == 2 ? 0 : -1;
+            MMI32 factor = 65536L + (squash ? -65 : 65) * pixels;
+            CHECK(seed_edit_track(&t));
             t.eventCount = 0;
             input.mouse.dxr = pixels * 65536L;
             mm_movie_actor_drag_sample(&drag, &input, &services);
-            CHECK(t.kind == (squash ? MM_MOVIE_EDIT_SQUASH : MM_MOVIE_EDIT_SCALE) && t.bars == !squash);
-            CHECK(t.request.factor == 65536L + (squash ? -65 : 65) * pixels);
+            CHECK(mm_actor_events_get_fixed(t.actor.stage.owner.track.events, 1, &event) &&
+                  event.aet == (squash ? MM_ACTOR_STRETCH : MM_ACTOR_SIZE) && t.bars == !squash);
+            CHECK((squash ? state->transform.aevpull.rScaleX : state->transform.rScaleStep) == factor);
             CHECK(t.events[0] == (tick == 0 ? SIZE_SOUND : tick == 3 ? SIZE_SOUND_ALTERNATE : SELECT));
             CHECK(t.events[t.eventCount - 1] == CURSOR);
+            stage_fixture_dispose(&t.actor.stage);
         }
     }
 

@@ -435,6 +435,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   rollback, undo registration and optional snapshot transfer. Studio's
   non-undo stage, costume and normalization entry points share those owner
   operations.
+  Studio's movie controls call the C89 transform owner and the costume and
+  sound undo transactions directly. Sooner and Later record the destination
+  frame in their undo state after a successful seek.
   Sound binding marks undo for sound playback. Deletion reads its cursor,
   entrance frame and surviving events from the C89 actor owner and refreshes its
   lifetime through the C89 updater. Deletion and stage edits call the C89

@@ -16207,3 +16207,39 @@ Marcus matched all 60 retail frame identities in seek and playback,
 retail camera indices on seek, and their previous seek image hashes.
 SDL also matched all 12 retail sound requests. Logs, fixtures and
 comparison scripts are in `tmp/c89-actor-clipboard-dispatch`.
+
+## C89 movie actor edit dispatch (20 November 2026)
+
+Studio's movie controls use the C89 actor owner for rotation, scale,
+squash and stretch, and time shifts. Costume and sound use the C89
+undo transactions. Studio supplies the actor's renderer, template,
+sound and scene effects.
+
+The movie fixture examines the authored transform, costume and sound
+events, including drag axes, reciprocal squash factors, and the
+legacy sound flags and source child ID. It checks that failed time
+seeks keep the completed retiming. Failed costume and sound edits
+restore the actor. A successful sound edit marks its undo for playback.
+
+All 192 standalone checks, 10 targeted checks per host build, 14 Marcus
+syntax and playback checks, and six AddressSanitizer checks passed.
+Native x64, x86 and SDL save and reload
+matched the 12 previous actor traces and the saved movie on each build.
+All three scene-content traces retained fingerprint `5E56C170`.
+Ten Preview fingerprints and six Preview movies matched. Both VMM seek
+images in `20261120T164239Z-071d88f5` matched the archived captures.
+
+Production Studio's Sooner and Later controls moved the actor entrance
+from frame 1 to frame 2, and Undo and Redo returned to their respective
+frames. The two SDL builds matched on the actor observations and decoded
+archive. Their 12 differing raw bytes were chunk-index alignment padding.
+Retail reopened the edited movie and matched the actor across all eight
+sampled frames, including the entrance on frame 2 and the on-stage
+body matrices. The separate Studio authoring workflow also passed and
+saved a byte-identical movie.
+
+In `actor-event-edit` suite `20261120T164239Z-770f3443`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, the retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests. Evidence is in
+`tmp/c89-movie-actor-edit-dispatch`.
