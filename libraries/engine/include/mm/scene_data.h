@@ -4,6 +4,7 @@
 #define MM_ENGINE_SCENE_DATA_H
 #include "movie_title.h"
 #include "chunky_file.h"
+#include "collection_storage.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -40,6 +41,8 @@ extern "C"
     int mm_scene_decode_header(const MMReadStream *, MMSceneState *);
     struct MMMovieArchiveEditor;
     int mm_scene_archive_read_header(const struct MMMovieArchiveEditor *, MMU32 scene, MMSceneState *);
+    /* Write the SCEN header followed by its counted name. */
+    int mm_scene_archive_write(const struct MMMovieArchiveEditor *, MMU32 scene, const MMSceneState *);
     int mm_scene_encode_header(const MMSceneState *, int system, int big_endian, unsigned char bytes[16]);
     typedef struct MMSceneIO
     {
@@ -108,37 +111,25 @@ extern "C"
      * rewriting, host effects or reentrancy. native_big describes the host layout.
      * start=0/1 validates full frame/start layout. */
     void *mm_scene_read_event_group(int start, int native_big, int *order, const MMSceneReadGroupServices *);
-    typedef struct MMSceneEventIO
+    typedef struct MMSceneEventGroups
     {
-        void *context;
         MMSceneGroupServices groups;
         MMU32 (*wire_size)(void *group);
-        MMChunkAccess (*chunks)(void *);
-        int (*add)(void *, int start, MMU32 bytes, MMU32 *number);
-        int (*write)(void *, void *group);
-        int (*adopt)(void *, MMU32 scene, int start, MMU32 number);
-        void (*remove)(void *, MMU32 scene, int start, MMU32 number, int linked);
-        void (*clear_loner)(void *, int start, MMU32 number);
-    } MMSceneEventIO;
+        int (*write)(void *group, int system, const MMStorageWriter *);
+    } MMSceneEventGroups;
     /* Both new children are adopted before old links are removed. Failure cleans
      * frame then start, removing adopted links or unadopted chunks as appropriate.
      * Payload groups passed to write are native endian, synchronous and borrowed. */
-    int mm_scene_write_events(MMU32 scene, void *frames, void *starts, const MMSceneEventIO *);
-    typedef struct MMSceneCreateServices
-    {
-        MMSceneIO io;
-        MMSceneEventIO events;
-        /* Optional pair for callers supplying their own event storage. */
-        void *(*new_group)(void *);
-        void (*release_group)(void *);
-        int (*add_scene)(void *, MMU32 bytes, MMU32 *number);
-        void (*remove_scene)(void *, MMU32 number);
-    } MMSceneCreateServices;
-    /* Prepares both groups before adding the scene. Releases frame then start;
-     * deletes a successfully created scene on later failure. Every failure publishes
-     * nil, including an add callback that changed its output before failing. */
-    int mm_scene_create(const MMSceneState *, MMU32 *number, int system, int big_endian,
-                              const MMSceneCreateServices *);
+    int mm_scene_archive_write_events(const struct MMMovieArchiveEditor *, MMU32 scene, void *frames,
+                                      void *starts, const MMSceneEventGroups *);
+    struct MMSceneTrack;
+    int mm_scene_archive_write_tracks(const struct MMMovieArchiveEditor *, MMU32 scene,
+                                      struct MMSceneTrack *frames, struct MMSceneTrack *starts);
+    /* Create a scene with two empty event tracks. Any failure publishes nil. */
+    int mm_scene_archive_create(const struct MMMovieArchiveEditor *, const MMSceneState *, MMU32 *number);
+    /* Replace both event groups with an empty frame group and one background start. */
+    int mm_scene_archive_opening_background(const struct MMMovieArchiveEditor *, MMU32 scene, MMI32 first_frame,
+                                            MMI32 source, MMU32 background);
 #ifdef __cplusplus
 }
 #endif

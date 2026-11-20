@@ -380,13 +380,29 @@ static int archive_entry(void *context, MMU32 position, MMChunkEntry *entry)
     else
     {
         entry->type = ARCHIVE_SCENE;
-        entry->number = position == (host->adds != 0 ? 1U : 0U) ? 7 : 20;
+        if (host->adds)
+            --position;
+        if (host->adds >= 2 && position == (host->rekeyed ? 2U : 0U))
+        {
+            entry->number = host->rekeyed ? 80 : 0;
+            entry->child_count = host->linked_groups - host->old_groups;
+        }
+        else
+            entry->number = position == (host->adds >= 2 && !host->rekeyed ? 1U : 0U) ? 7 : 20;
     }
     return 1;
 }
 static int archive_child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
 {
     ArchiveHost *host = (ArchiveHost *)context;
+    if (parent)
+    {
+        CHECK(parent == (host->rekeyed ? 3U : 1U) && host->adds >= 2);
+        out->slot = (i + host->old_groups) % 2;
+        out->type = out->slot ? ARCHIVE_STARTS : ARCHIVE_FRAMES;
+        out->number = 3 + i + host->old_groups;
+        return 1;
+    }
     if (host->rollcall && i == 0)
     {
         out->type = ARCHIVE_ROLLCALL;
@@ -406,6 +422,8 @@ static MMChunkAccess archive_chunks(void *context)
     MMChunkAccess access = {NULL, 2, archive_entry, archive_child};
     access.context = context;
     if (((ArchiveHost *)context)->adds)
+        ++access.count;
+    if (((ArchiveHost *)context)->adds >= 2)
         ++access.count;
     return access;
 }

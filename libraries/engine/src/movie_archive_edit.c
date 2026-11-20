@@ -10,7 +10,6 @@
 
 #define MOVIE_TYPE 0x4d564945UL
 #define SCENE_TYPE 0x5343454eUL
-#define FRAME_GROUP_TYPE 0x47474652UL
 #define START_GROUP_TYPE 0x47475354UL
 #define ACTOR_TYPE 0x41435452UL
 #define ROLLCALL_TYPE 0x47535420UL
@@ -371,29 +370,12 @@ static int name_scene(MMSceneState *state, unsigned unit, MMU32 ordinal)
     return mm_movie_title_set(&state->name, wide, (MMU32)count);
 }
 
-typedef struct SceneGroups
-{
-    MMU32 frames, starts;
-} SceneGroups;
-
-static int add_groups(const MMMovieArchiveEditor *editor, MMU32 scene, const unsigned char *empty,
-                      const unsigned char *starts, MMU32 start_size, SceneGroups *groups)
-{
-    return add_record(editor, FRAME_GROUP_TYPE, empty, MM_SCENE_EMPTY_GROUP_BYTES, &groups->frames) &&
-           add_record(editor, START_GROUP_TYPE, starts, start_size, &groups->starts) &&
-           editor->adopt(editor->context, SCENE_TYPE, scene, FRAME_GROUP_TYPE, groups->frames, 0) &&
-           editor->adopt(editor->context, SCENE_TYPE, scene, START_GROUP_TYPE, groups->starts, 1);
-}
-
 int mm_movie_archive_append_scene(const MMMovieArchiveEditor *editor, MMU32 root, MMU32 scene,
                                   MMI32 source, MMU32 background)
 {
     MMChunkAccess chunks;
     MMSceneState state;
-    SceneGroups initial, final;
     MMU32 slot, number, position, first, end;
-    unsigned char header[MM_SCENE_HEADER_BYTES], empty[MM_SCENE_EMPTY_GROUP_BYTES];
-    unsigned char starts[MM_SCENE_BACKGROUND_GROUP_BYTES];
     int status;
     chunks = editor->chunks(editor->context);
     if (!mm_movie_archive_next_child(&chunks, MOVIE_TYPE, root, SCENE_TYPE, &slot))
@@ -406,21 +388,12 @@ int mm_movie_archive_append_scene(const MMMovieArchiveEditor *editor, MMU32 root
     status = mm_chunk_find(&chunks, SCENE_TYPE + 1, 0, &end);
     if ((status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND) ||
         !name_scene(&state, editor->text_unit, end - first + 1) ||
-        !mm_scene_encode_header(&state, editor->system, editor->big_endian, header) ||
-        !mm_scene_encode_empty_group(editor->system, editor->big_endian, empty) ||
-        !mm_scene_encode_background_group(editor->system, editor->big_endian, state.firstFrame, source,
-                                           background, starts) ||
-        !editor->add(editor->context, SCENE_TYPE, sizeof(header), &number, NULL) ||
-        !editor->put(editor->context, SCENE_TYPE, number, header, sizeof(header)) ||
-        !editor->set_title(editor->context, SCENE_TYPE, number, &state.name) ||
-        !add_groups(editor, number, empty, empty, sizeof(empty), &initial))
+        !mm_scene_archive_create(editor, &state, &number))
         return MM_MOVIE_SCENE_ARCHIVE_CREATE;
     if (number != scene && !editor->rekey(editor->context, SCENE_TYPE, number, scene))
         return MM_MOVIE_SCENE_ARCHIVE_CREATE;
-    if (!add_groups(editor, scene, empty, starts, sizeof(starts), &final))
+    if (!mm_scene_archive_opening_background(editor, scene, state.firstFrame, source, background))
         return MM_MOVIE_SCENE_ARCHIVE_LINK;
-    editor->unlink(editor->context, SCENE_TYPE, scene, FRAME_GROUP_TYPE, initial.frames, 0);
-    editor->unlink(editor->context, SCENE_TYPE, scene, START_GROUP_TYPE, initial.starts, 1);
     if (!editor->adopt(editor->context, MOVIE_TYPE, root, SCENE_TYPE, scene, slot))
         return MM_MOVIE_SCENE_ARCHIVE_LINK;
     return MM_MOVIE_SCENE_ARCHIVE_OK;

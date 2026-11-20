@@ -66,7 +66,8 @@ typedef struct MMMovieArchiveRoot
 int mm_movie_archive_ensure_root(const MMMovieArchiveEditor *, MMMovieArchiveRoot *);
 
 /* Append a named one-frame cut scene with the requested background.
- * Preserve the native allocation order for the initial and final event groups. */
+ * Preserve the native allocation order for the initial and final event groups.
+ * Requires discard for cleanup when a scene or group write fails. */
 int mm_movie_archive_append_scene(const MMMovieArchiveEditor *, MMU32 root, MMU32 scene,
                                   MMI32 source, MMU32 background);
 

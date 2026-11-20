@@ -317,6 +317,14 @@ int mm_scene_archive_read_header(const MMMovieArchiveEditor *editor, MMU32 scene
     return 1;
 }
 
+int mm_scene_archive_write(const MMMovieArchiveEditor *editor, MMU32 scene, const MMSceneState *state)
+{
+    unsigned char bytes[MM_SCENE_HEADER_BYTES];
+    return mm_scene_encode_header(state, editor->system, editor->big_endian, bytes) &&
+           editor->put(editor->context, MM_SCENE_CHUNK, scene, bytes, sizeof(bytes)) &&
+           editor->set_title(editor->context, MM_SCENE_CHUNK, scene, &state->name);
+}
+
 static unsigned char *event_record(const MMGroup *group, MMU32 row, MMI32 *size)
 {
     MMGroupLocation location;
@@ -358,23 +366,13 @@ static int read_archive_events(const MMReadStream *stream, int start, MMGroup *g
     return 1;
 }
 
-/* The caller owns the group and discards it after writing. */
 static int write_archive_events(const MMMovieArchiveEditor *editor, MMU32 type, MMGroup *group, int big,
                                 MMU32 *number)
 {
     MMStorageWriter writer;
-    unsigned char header[MM_SCENE_EMPTY_GROUP_BYTES];
-    const unsigned short one = 1;
-    MMU32 size;
-    if (!encode_group_header(editor->system, big, group->count, group->bytes, header))
-        return 0;
-    size = sizeof(header) + group->bytes + group->count * 8;
-    if (!editor->add(editor->context, type, size, number, &writer))
-        return 0;
-    if (big != (*(const unsigned char *)&one == 0))
-        mm_group_swap_locations(group);
-    return mm_storage_write(group->storage, &writer, header, sizeof(header), group->bytes,
-                            group->count * 8) == MM_STORAGE_OK;
+    MMU32 size = mm_scene_group_wire_size(group);
+    return size && editor->add(editor->context, type, size, number, &writer) &&
+           mm_scene_group_write(group, editor->system, big, &writer);
 }
 
 typedef struct SceneFrameEdit
@@ -1030,88 +1028,142 @@ void *mm_scene_read_event_group(int start, int native_big, int *order, const MMS
         *order = loaded_order;
     return group;
 }
-int mm_scene_write_events(MMU32 scene, void *frames, void *starts, const MMSceneEventIO *s)
+typedef struct SceneEventChild
 {
-    MMChunkAccess chunks;
-    MMChunkChild old_frame, old_start;
-    MMU32 scene_row, frame = 0xffffffffUL, start = 0xffffffffUL;
-    int had_frame = 0, had_start = 0, created_frame = 0, created_start = 0, adopted_frame = 0, adopted_start = 0;
-    const unsigned short one = 1;
-    int big = *(const unsigned char *)&one == 0;
-    if (!mm_scene_valid_events(frames, big, 0, &s->groups) ||
-        !mm_scene_valid_events(starts, big, 1, &s->groups))
+    MMU32 type, slot, number;
+    int created, linked, had_previous;
+    MMChunkChild previous;
+} SceneEventChild;
+
+static int add_event_child(const MMMovieArchiveEditor *editor, SceneEventChild *child, void *group,
+                           const MMSceneEventGroups *groups)
+{
+    MMStorageWriter writer;
+    MMU32 bytes = groups->wire_size(group);
+    if (!bytes || !editor->add(editor->context, child->type, bytes, &child->number, &writer))
         return 0;
-    chunks = s->chunks(s->context);
-    if (mm_chunk_find(&chunks, MM_SCENE_CHUNK, scene, &scene_row) == MM_CHUNK_OK)
-    {
-        had_frame = mm_chunk_child_exact(&chunks, scene_row, 0, MM_SCENE_FRAME_GROUP, &old_frame) == MM_CHUNK_OK;
-        had_start = mm_chunk_child_exact(&chunks, scene_row, 1, MM_SCENE_START_GROUP, &old_start) == MM_CHUNK_OK;
-    }
-    if (!s->add(s->context, 0, s->wire_size(frames), &frame))
-        goto fail;
-    created_frame = 1;
-    if (!s->write(s->context, frames))
-        goto fail;
-    if (!s->add(s->context, 1, s->wire_size(starts), &start))
-        goto fail;
-    created_start = 1;
-    if (!s->write(s->context, starts))
-        goto fail;
-    if (!s->adopt(s->context, scene, 0, frame))
-        goto fail;
-    adopted_frame = 1;
-    if (!s->adopt(s->context, scene, 1, start))
-        goto fail;
-    adopted_start = 1;
-    if (had_frame)
-        s->remove(s->context, scene, 0, old_frame.number, 1);
-    if (had_start)
-        s->remove(s->context, scene, 1, old_start.number, 1);
-    s->clear_loner(s->context, 0, frame);
-    s->clear_loner(s->context, 1, start);
-    return 1;
-fail:
-    if (adopted_frame || created_frame)
-        s->remove(s->context, scene, 0, frame, adopted_frame);
-    if (adopted_start || created_start)
-        s->remove(s->context, scene, 1, start, adopted_start);
-    return 0;
+    child->created = 1;
+    return groups->write(group, editor->system, &writer);
 }
-int mm_scene_create(const MMSceneState *state, MMU32 *number, int system, int big,
-                          const MMSceneCreateServices *s)
+
+static int link_event_child(const MMMovieArchiveEditor *editor, MMU32 scene, SceneEventChild *child)
 {
-    MMSceneTrack frame_track, start_track;
-    void *frames = &frame_track, *starts = &start_track;
+    child->linked = editor->adopt(editor->context, MM_SCENE_CHUNK, scene, child->type, child->number, child->slot);
+    return child->linked;
+}
+
+static int write_event_pair(const MMMovieArchiveEditor *editor, MMU32 scene, void *frames, void *starts,
+                             const MMSceneEventGroups *groups)
+{
+    SceneEventChild children[2] = {{0}, {0}};
+    MMChunkAccess chunks;
+    MMU32 row;
+    int i, success;
+    children[0].type = MM_SCENE_FRAME_GROUP;
+    children[1].type = MM_SCENE_START_GROUP;
+    children[1].slot = 1;
+    chunks = editor->chunks(editor->context);
+    if (mm_chunk_find(&chunks, MM_SCENE_CHUNK, scene, &row) == MM_CHUNK_OK)
+        for (i = 0; i < 2; ++i)
+            children[i].had_previous = mm_chunk_child_exact(&chunks, row, children[i].slot, children[i].type,
+                                                             &children[i].previous) == MM_CHUNK_OK;
+    success = add_event_child(editor, &children[0], frames, groups) &&
+              add_event_child(editor, &children[1], starts, groups) &&
+              link_event_child(editor, scene, &children[0]) && link_event_child(editor, scene, &children[1]);
+    for (i = 0; i < 2; ++i)
+    {
+        const SceneEventChild *child = &children[i];
+        if (success && child->had_previous)
+            editor->unlink(editor->context, MM_SCENE_CHUNK, scene, child->type, child->previous.number, child->slot);
+        else if (!success && child->linked)
+            editor->unlink(editor->context, MM_SCENE_CHUNK, scene, child->type, child->number, child->slot);
+        else if (!success && child->created)
+            editor->discard(editor->context, child->type, child->number);
+    }
+    return success;
+}
+
+int mm_scene_archive_write_events(const MMMovieArchiveEditor *editor, MMU32 scene, void *frames, void *starts,
+                                   const MMSceneEventGroups *groups)
+{
+    const unsigned short one = 1;
+    const int big = *(const unsigned char *)&one == 0;
+    return mm_scene_valid_events(frames, big, 0, &groups->groups) &&
+           mm_scene_valid_events(starts, big, 1, &groups->groups) &&
+           write_event_pair(editor, scene, frames, starts, groups);
+}
+
+static MMU32 track_wire_size(void *track)
+{
+    return mm_scene_track_wire_size(track);
+}
+
+static int write_track(void *track, int system, const MMStorageWriter *writer)
+{
+    return mm_scene_track_write(track, system, writer);
+}
+
+int mm_scene_archive_write_tracks(const MMMovieArchiveEditor *editor, MMU32 scene,
+                                   MMSceneTrack *frames, MMSceneTrack *starts)
+{
+    MMSceneEventGroups groups;
+    groups.groups = mm_scene_track_wire_groups();
+    groups.wire_size = track_wire_size;
+    groups.write = write_track;
+    return mm_scene_archive_write_events(editor, scene, frames, starts, &groups);
+}
+
+typedef struct SceneEventBytes
+{
+    const unsigned char *data;
+    MMU32 size;
+} SceneEventBytes;
+
+static MMU32 event_bytes_size(void *group)
+{
+    return ((const SceneEventBytes *)group)->size;
+}
+
+static int write_event_bytes(void *group, int system, const MMStorageWriter *writer)
+{
+    const SceneEventBytes *bytes = (const SceneEventBytes *)group;
+    (void)system;
+    return writer->write_at(writer->context, 0, bytes->data, bytes->size);
+}
+
+static const MMSceneEventGroups encoded_groups = {{0}, event_bytes_size, write_event_bytes};
+
+int mm_scene_archive_create(const MMMovieArchiveEditor *editor, const MMSceneState *state, MMU32 *number)
+{
+    unsigned char empty[MM_SCENE_EMPTY_GROUP_BYTES];
+    SceneEventBytes events;
     int created, success;
-    if (s->new_group)
-    {
-        frames = s->new_group(s->io.context);
-        starts = s->new_group(s->io.context);
-    }
-    else
-    {
-        mm_scene_track_init(&frame_track, NULL, 0);
-        mm_scene_track_init(&start_track, NULL, 0);
-    }
     *number = 0xffffffffUL;
-    created = frames && starts && s->add_scene(s->io.context, 16, number);
-    success = created && mm_scene_write(state, *number, system, big, &s->io) &&
-              mm_scene_write_events(*number, frames, starts, &s->events);
-    if (s->new_group)
-    {
-        if (frames)
-            s->release_group(frames);
-        if (starts)
-            s->release_group(starts);
-    }
-    else
-    {
-        mm_scene_track_dispose(&frame_track);
-        mm_scene_track_dispose(&start_track);
-    }
+    events.data = empty;
+    events.size = sizeof(empty);
+    if (!mm_scene_encode_empty_group(editor->system, editor->big_endian, empty))
+        return 0;
+    created = editor->add(editor->context, MM_SCENE_CHUNK, MM_SCENE_HEADER_BYTES, number, NULL);
+    success = created && mm_scene_archive_write(editor, *number, state) &&
+              write_event_pair(editor, *number, &events, &events, &encoded_groups);
     if (!success && created)
-        s->remove_scene(s->io.context, *number);
+        editor->discard(editor->context, MM_SCENE_CHUNK, *number);
     if (!success)
         *number = 0xffffffffUL;
     return success;
+}
+
+int mm_scene_archive_opening_background(const MMMovieArchiveEditor *editor, MMU32 scene, MMI32 first_frame,
+                                        MMI32 source, MMU32 background)
+{
+    unsigned char empty[MM_SCENE_EMPTY_GROUP_BYTES], initial[MM_SCENE_BACKGROUND_GROUP_BYTES];
+    SceneEventBytes frames, starts;
+    frames.data = empty;
+    frames.size = sizeof(empty);
+    starts.data = initial;
+    starts.size = sizeof(initial);
+    return mm_scene_encode_empty_group(editor->system, editor->big_endian, empty) &&
+           mm_scene_encode_background_group(editor->system, editor->big_endian, first_frame, source,
+                                            background, initial) &&
+           write_event_pair(editor, scene, &frames, &starts, &encoded_groups);
 }

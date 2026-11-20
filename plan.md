@@ -140,10 +140,15 @@ priority over the older Project 0-4 ordering wherever they conflict.
   bodies through the same C89 archive operations. Studio supplies its live
   property and argument objects through the shared collection streams and
   retains the destination TEXT extent for post-save redirection.
+- Studio scene saves and Marcus scene creation use the shared C89 archive
+  editor for SCEN headers, names and event-group links. Both new groups
+  are linked before either previous group is removed. Studio's event
+  tracks and Marcus's stored camera and caption edits use the same dense
+  group writer, which preserves the requested byte order.
 - The strict C89 syntax checks cover the migrated engine and native services
-  and the Marcus C frontend. The C-only engine tests exercise individual
-  operations. The first shared movie path still needs an end-to-end C-only link
-  and runtime check.
+  and the Marcus C frontend. The standalone C-only probe exercises actual
+  file open, seek and model reads. The live shared session still needs
+  end-to-end verification with C-only resource and renderer integration.
 - The chunky-file slice now reads CHN2 headers and GG indexes in C89 and shares
   live chunk/child lookup, enumeration and graph validation through `kauai-core`.
   It also accepts GG indexes with unpadded rows, as used by some v3dmm

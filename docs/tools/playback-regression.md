@@ -15389,3 +15389,44 @@ In `actor-event-edit` suite `20261120T110605Z-3b9059fd`, both players
 matched the 60 frame identities in the retained retail seek and playback
 captures. Each retained all 60 prior seek image hashes and matched the
 retail camera indices. SDL matched all 12 retail sound requests.
+
+## Scene persistence through the shared C89 archive editor (20 November 2026)
+
+Studio scene saves and Marcus scene creation share the SCEN header and
+name writer and the two-child event-group transaction. A failed write or
+adoption removes the new groups and leaves the existing links intact.
+Native event tracks and stored camera and caption edits use the same
+dense-group writer, with row offsets encoded in the selected wire order.
+
+The fault-injection fixture exercised all six add, write and adopt
+failure positions and checked scene creation cleanup. Six native fixture
+archives and two Marcus scene saves were byte-identical to the prior
+build. The Marcus flow created a scene, appended a second one, changed
+its camera, undid and reapplied the edit, then saved and reopened it.
+The native x64 and SDL Studio save/reopen runs retained their complete
+movie bytes and live caption traces.
+
+SDL Studio's authoring workflow saved, reopened and played a two-scene
+movie with actor transforms, a styled caption and three kinds of pause.
+Its saved movie matched the prior build byte-for-byte. The first prior
+build run reported an error during the playback scene switch. An
+isolated repeat passed and produced the same archive. Retail rendered
+scene 1, frame 4 of both builds identically, with both actors and the
+authored caption present.
+
+Retail opened the appended scene at camera 1 and the typography fixture
+with all twelve text boxes. Both rendered pixel-for-pixel like their
+prior saves. The standalone C consumer read both scene slots, resolved
+camera 1 from the stock content, and evaluated actors, body parts and
+meshes from the retail actor fixture at frame 25.
+
+All 46 targeted x64 checks, six standalone C89 checks and five focused
+x86 checks passed. The x64 Preview integration retained all ten
+fingerprints. Both VMM seek images in `20261120T112243Z-5589abdf` matched
+the retained SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-scene-archive-editor`.
+
+In `actor-event-edit` suite `20261120T112308Z-701cc751`, both players
+matched the 60 frame identities in retained retail seek and playback
+captures. Both kept their 60 prior seek image hashes and matched the
+retail camera indices. SDL matched all 12 retail sound requests.

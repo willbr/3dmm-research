@@ -46,7 +46,7 @@ struct Host
 {
     char log[128];
     int used, stage, active, have_old, old[2], created[2], linked[2], loner[2];
-    int group_calls, group_fail, groups, root_fail, root, read_fail, io_fail;
+    int root_fail, root, read_fail, io_fail;
     MMU32 *number, length;
     unsigned char header[16];
     unsigned char name_wire[32];
@@ -182,33 +182,65 @@ static MMChunkAccess event_chunks(void *c)
     event((Host *)c, 'p');
     return chunks;
 }
-static int add(void *c, int start, MMU32 bytes, MMU32 *out)
+static int write_event_bytes(void *c, MMU32 offset, const void *bytes, size_t count)
 {
     Host *h = (Host *)c;
-    CHECK(bytes == 32);
+    CHECK(offset == 0 && (count == 32 || count == MM_SCENE_EMPTY_GROUP_BYTES));
+    if (count == MM_SCENE_EMPTY_GROUP_BYTES)
+    {
+        MMCollectionHeader header;
+        MMMemoryStream stream;
+        CHECK(mm_memory_stream_init(&stream, bytes, count));
+        CHECK(mm_collection_header_read(&stream.stream, MM_COLLECTION_GROUP, 0, &header) == MM_STORAGE_OK);
+        CHECK(header.width == MM_SCENE_EVENT_BYTES && !header.count && header.system == MM_TEXT_WINDOWS);
+    }
+    event(h, h->active ? 'x' : 'w');
+    return h->stage != (h->active ? 4 : 2);
+}
+static int add(void *c, MMU32 type, MMU32 bytes, MMU32 *out, MMStorageWriter *writer)
+{
+    Host *h = (Host *)c;
+    int start = type == MM_SCENE_START_GROUP;
+    if (type == MM_SCENE_CHUNK)
+    {
+        CHECK(bytes == MM_SCENE_HEADER_BYTES && !writer && *out == 0xffffffffUL);
+        event(h, 'c');
+        *out = 7;
+        if (h->root_fail == 1)
+            return 0;
+        h->root = 1;
+        return 1;
+    }
+    CHECK((start || type == MM_SCENE_FRAME_GROUP) && (bytes == 32 || bytes == MM_SCENE_EMPTY_GROUP_BYTES) && writer);
     event(h, start ? 'b' : 'a');
     *out = 20 + start;
     h->active = start;
     if (h->stage == (start ? 3 : 1))
         return 0;
     h->created[start] = 1;
+    h->loner[start] = 1;
+    writer->context = h;
+    writer->length = bytes;
+    writer->write_at = write_event_bytes;
     return 1;
 }
-static int write_group(void *c, void *g)
+static int write_group(void *g, int system, const MMStorageWriter *writer)
 {
-    Host *h = (Host *)c;
-    CHECK(((Group *)g)->start == h->active);
-    event(h, h->active ? 'x' : 'w');
-    return h->stage != (h->active ? 4 : 2);
+    const Group *group = g;
+    CHECK(group->start == group->host->active && writer->context == group->host && system == MM_TEXT_WINDOWS);
+    return writer->write_at(writer->context, 0, group->payload[0], writer->length);
 }
-static int adopt(void *c, MMU32 scene, int start, MMU32 n)
+static int adopt(void *c, MMU32 parent_type, MMU32 scene, MMU32 type, MMU32 n, MMU32 slot)
 {
     Host *h = (Host *)c;
+    int start = type == MM_SCENE_START_GROUP;
+    CHECK(parent_type == MM_SCENE_CHUNK && (start || type == MM_SCENE_FRAME_GROUP) && slot == (MMU32)start);
     CHECK(scene == 7 && n == (MMU32)(20 + start) && h->created[start]);
     event(h, start ? 'B' : 'A');
     if (h->stage == (start ? 6 : 5))
         return 0;
     h->linked[start] = 1;
+    h->loner[start] = 0;
     return 1;
 }
 static void remove_child(void *c, MMU32 scene, int start, MMU32 n, int linked)
@@ -225,57 +257,73 @@ static void remove_child(void *c, MMU32 scene, int start, MMU32 n, int linked)
     CHECK(n == (MMU32)(20 + start) && h->created[start] && linked == h->linked[start]);
     event(h, start ? (linked ? 'E' : 'e') : (linked ? 'D' : 'd'));
     h->created[start] = h->linked[start] = 0;
+    h->loner[start] = 0;
 }
-static void clear_loner(void *c, int start, MMU32 n)
+static void unlink_event(void *c, MMU32 parent_type, MMU32 scene, MMU32 type, MMU32 n, MMU32 slot)
+{
+    int start = type == MM_SCENE_START_GROUP;
+    CHECK(parent_type == MM_SCENE_CHUNK && (start || type == MM_SCENE_FRAME_GROUP) && slot == (MMU32)start);
+    remove_child(c, scene, start, n, 1);
+}
+static void discard(void *c, MMU32 type, MMU32 n)
 {
     Host *h = (Host *)c;
-    CHECK(n == (MMU32)(20 + start) && h->linked[start]);
-    event(h, start ? 'L' : 'l');
-    h->loner[start] = 1;
+    if (type == MM_SCENE_CHUNK)
+    {
+        CHECK(n == 7 && *h->number == 7 && h->root && !h->created[0] && !h->created[1]);
+        event(h, 'X');
+        h->root = 0;
+        return;
+    }
+    CHECK(type == MM_SCENE_START_GROUP || type == MM_SCENE_FRAME_GROUP);
+    remove_child(c, 7, type == MM_SCENE_START_GROUP, n, 0);
 }
-static MMSceneEventIO events(Host *h)
+static MMMovieArchiveEditor event_editor(Host *h)
 {
-    MMSceneEventIO s;
-    s.context = h;
-    s.groups = group_services();
-    s.wire_size = wire_size;
-    s.chunks = event_chunks;
-    s.add = add;
-    s.write = write_group;
-    s.adopt = adopt;
-    s.remove = remove_child;
-    s.clear_loner = clear_loner;
-    return s;
+    MMMovieArchiveEditor editor = {0};
+    const unsigned short one = 1;
+    editor.context = h;
+    editor.text_unit = 1;
+    editor.system = MM_TEXT_WINDOWS;
+    editor.big_endian = *(const unsigned char *)&one == 0;
+    editor.chunks = event_chunks;
+    editor.add = add;
+    editor.adopt = adopt;
+    editor.unlink = unlink_event;
+    editor.discard = discard;
+    return editor;
 }
 static void transactions(void)
 {
     Host h;
     Group frames, starts;
-    MMSceneEventIO s;
+    MMMovieArchiveEditor editor;
+    MMSceneEventGroups groups;
     int stage;
-    const unsigned short one = 1;
-    int big = *(const unsigned char *)&one == 0;
-    const char *logs[] = {"pawbxABoOlL", "pa", "pawd", "pawbd", "pawbxde", "pawbxAde", "pawbxABDe"};
+    const char *logs[] = {"pawbxABoO", "pa", "pawd", "pawbd", "pawbxde", "pawbxAde", "pawbxABDe"};
     reset(&h);
-    s = events(&h);
-    init_group(&frames, &h, 0, 3, 4, big);
-    init_group(&starts, &h, 1, 3, 4, big);
-    CHECK(mm_scene_write_events(7, &frames, &starts, &s) && !strcmp(h.log, logs[0]) && !h.old[0] && !h.old[1] &&
-          h.loner[0] && h.loner[1]);
+    editor = event_editor(&h);
+    groups.groups = group_services();
+    groups.wire_size = wire_size;
+    groups.write = write_group;
+    init_group(&frames, &h, 0, 3, 4, editor.big_endian);
+    init_group(&starts, &h, 1, 3, 4, editor.big_endian);
+    CHECK(mm_scene_archive_write_events(&editor, 7, &frames, &starts, &groups) && !strcmp(h.log, logs[0]) &&
+          !h.old[0] && !h.old[1] && !h.loner[0] && !h.loner[1]);
     for (stage = 1; stage <= 6; ++stage)
     {
         reset(&h);
         h.stage = stage;
-        CHECK(!mm_scene_write_events(7, &frames, &starts, &s));
+        CHECK(!mm_scene_archive_write_events(&editor, 7, &frames, &starts, &groups));
         CHECK(!strcmp(h.log, logs[stage]) && h.old[0] && h.old[1] && !h.created[0] && !h.created[1] && !h.linked[0] &&
               !h.linked[1] && !h.loner[0] && !h.loner[1]);
     }
     reset(&h);
     h.have_old = 0;
-    CHECK(mm_scene_write_events(7, &frames, &starts, &s) && !strcmp(h.log, "pawbxABlL"));
+    CHECK(mm_scene_archive_write_events(&editor, 7, &frames, &starts, &groups) && !strcmp(h.log, "pawbxAB"));
     reset(&h);
     frames.sizes[0] = 5;
-    CHECK(!mm_scene_write_events(7, &frames, &starts, &s) && !h.used);
+    CHECK(!mm_scene_archive_write_events(&editor, 7, &frames, &starts, &groups) && !h.used);
 }
 static int read_at(void *c, MMU32 offset, void *out, size_t bytes)
 {
@@ -409,86 +457,42 @@ static void headers(void)
             h.root_fail = 0;
         }
 }
-static void *new_group(void *c)
+static int editor_put(void *c, MMU32 type, MMU32 number, const void *bytes, MMU32 size)
 {
-    Host *h = (Host *)c;
-    Group *g;
-    int index = h->group_calls++;
-    CHECK(h->number && *h->number == 99);
-    event(h, index ? '2' : '1');
-    if (h->group_fail == index + 1)
-        return NULL;
-    g = (Group *)calloc(1, sizeof(*g));
-    CHECK(g != NULL);
-    g->host = h;
-    g->start = index;
-    g->fixed_width = 8;
-    ++h->groups;
-    return g;
+    CHECK(type == MM_SCENE_CHUNK && size == MM_SCENE_HEADER_BYTES);
+    return put_header(c, number, bytes);
 }
-static void release_group(void *p)
+static int editor_title(void *c, MMU32 type, MMU32 number, const MMMovieTitle *title)
 {
-    Group *g = (Group *)p;
-    event(g->host, g->start ? 's' : 'r');
-    --g->host->groups;
-    free(g);
-}
-static int add_scene(void *c, MMU32 bytes, MMU32 *number)
-{
-    Host *h = (Host *)c;
-    CHECK(bytes == 16 && *number == 0xffffffffUL);
-    event(h, 'c');
-    *number = 7;
-    if (h->root_fail == 1)
-        return 0;
-    h->root = 1;
-    return 1;
-}
-static void remove_scene(void *c, MMU32 n)
-{
-    Host *h = (Host *)c;
-    CHECK(n == 7 && *h->number == 7 && !h->groups && h->root);
-    event(h, 'X');
-    h->root = 0;
+    const MMSceneIO io = scene_io(c, title->unit);
+    return mm_chunk_title_write(title, c, type, number, &io.titles);
 }
 static void creation(void)
 {
     Host h;
     MMSceneState state;
-    MMSceneCreateServices s;
+    MMMovieArchiveEditor editor;
     MMU32 number;
     int i;
     reset(&h);
-    s.io = scene_io(&h, 1);
-    s.events = events(&h);
-    s.new_group = new_group;
-    s.release_group = release_group;
-    s.add_scene = add_scene;
-    s.remove_scene = remove_scene;
+    editor = event_editor(&h);
+    editor.put = editor_put;
+    editor.set_title = editor_title;
     CHECK(mm_scene_init(&state, 1));
     set_text(&state.name, "Name");
     h.number = &number;
     number = 99;
     h.have_old = 0;
-    CHECK(mm_scene_create(&state, &number, 0x0303, 0, &s) && number == 7 && !h.groups && h.root &&
-          !strcmp(h.log, "12chnpawbxABlLrs"));
-    for (i = 1; i <= 2; ++i)
-    {
-        reset(&h);
-        h.number = &number;
-        number = 99;
-        h.group_fail = i;
-        CHECK(!mm_scene_create(&state, &number, 0x0303, 0, &s) && number == 0xffffffffUL && !h.groups && !h.root);
-        CHECK(!strcmp(h.log, i == 1 ? "12s" : "12r"));
-    }
+    CHECK(mm_scene_archive_create(&editor, &state, &number) && number == 7 && h.root &&
+          !strcmp(h.log, "chnpawbxAB"));
     for (i = 1; i <= 3; ++i)
     {
         reset(&h);
         h.number = &number;
         number = 99;
         h.root_fail = i;
-        CHECK(!mm_scene_create(&state, &number, 0x0303, 0, &s) && number == 0xffffffffUL && !h.groups && !h.root);
-        CHECK(!strcmp(h.log, i == 1 ? "12crs" : i == 2 ? "12chrsX" : "12chnrsX"));
+        CHECK(!mm_scene_archive_create(&editor, &state, &number) && number == 0xffffffffUL && !h.root);
+        CHECK(!strcmp(h.log, i == 1 ? "c" : i == 2 ? "chX" : "chnX"));
     }
     for (i = 1; i <= 6; ++i)
     {
@@ -497,7 +501,7 @@ static void creation(void)
         number = 99;
         h.stage = i;
         h.have_old = 0;
-        CHECK(!mm_scene_create(&state, &number, 0x0303, 0, &s) && number == 0xffffffffUL && !h.groups &&
+        CHECK(!mm_scene_archive_create(&editor, &state, &number) && number == 0xffffffffUL &&
               !h.root && !h.created[0] && !h.created[1]);
     }
 }

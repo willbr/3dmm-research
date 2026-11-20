@@ -98,35 +98,58 @@ MMSceneGroupServices mm_scene_track_wire_groups(void)
     return groups;
 }
 
-static int wire_header(const MMSceneTrack *track, MMCollectionHeader *header)
+static int native_big(void)
 {
     const unsigned short one = 1;
-    memset(header, 0, sizeof(*header));
-    header->kind = MM_COLLECTION_GROUP;
-    header->width = MM_SCENE_EVENT_BYTES;
-    header->count = track->rows.count;
-    header->bytes = track->rows.bytes;
-    header->free_count = -1;
-    header->big_endian = *(const unsigned char *)&one == 0;
-    return mm_collection_layout(header) == MM_STORAGE_OK;
+    return *(const unsigned char *)&one == 0;
 }
 
-MMU32 mm_scene_track_wire_size(const MMSceneTrack *track)
+static int wire_header(const MMGroup *group, MMCollectionHeader *header)
+{
+    memset(header, 0, sizeof(*header));
+    header->kind = MM_COLLECTION_GROUP;
+    header->width = group->fixed_bytes;
+    header->count = group->count;
+    header->bytes = group->bytes;
+    header->free_count = -1;
+    return group->fixed_bytes == MM_SCENE_EVENT_BYTES && group->free_count == -1 &&
+           mm_collection_layout(header) == MM_STORAGE_OK;
+}
+
+MMU32 mm_scene_group_wire_size(const MMGroup *group)
 {
     MMCollectionHeader header;
-    if (!wire_header(track, &header))
+    if (!wire_header(group, &header))
         return 0;
     return header.header_bytes + header.first_bytes + header.second_bytes;
 }
 
-int mm_scene_track_write(MMSceneTrack *track, int system, const MMStorageWriter *writer)
+int mm_scene_group_write(MMGroup *group, int system, int big, const MMStorageWriter *writer)
 {
     MMCollectionHeader header;
     unsigned char bytes[MM_SCENE_EMPTY_GROUP_BYTES];
-    if (!wire_header(track, &header))
+    int ok, swap = big != native_big();
+    if (!wire_header(group, &header))
         return 0;
     header.system = system;
-    return mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK &&
-           mm_storage_write(&track->storage, writer, bytes, header.header_bytes, header.first_bytes,
-                            header.second_bytes) == MM_STORAGE_OK;
+    header.big_endian = big;
+    if (mm_collection_header_write(&header, bytes, sizeof(bytes)) != MM_STORAGE_OK)
+        return 0;
+    if (swap)
+        mm_group_swap_locations(group);
+    ok = mm_storage_write(group->storage, writer, bytes, header.header_bytes, header.first_bytes,
+                          header.second_bytes) == MM_STORAGE_OK;
+    if (swap)
+        mm_group_swap_locations(group);
+    return ok;
+}
+
+MMU32 mm_scene_track_wire_size(const MMSceneTrack *track)
+{
+    return mm_scene_group_wire_size(&track->rows);
+}
+
+int mm_scene_track_write(MMSceneTrack *track, int system, const MMStorageWriter *writer)
+{
+    return mm_scene_group_write(&track->rows, system, native_big(), writer);
 }

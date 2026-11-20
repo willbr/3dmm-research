@@ -29,6 +29,10 @@ extern "C" {
     MMSceneGroupServices mm_scene_track_wire_groups(void);
     MMU32 mm_scene_track_wire_size(const MMSceneTrack *);
     int mm_scene_track_write(MMSceneTrack *, int system, const MMStorageWriter *);
+    /* The dense group's event bytes already use the requested wire order.
+     * Its location table stays in host order, including after failed writes. */
+    MMU32 mm_scene_group_wire_size(const MMGroup *);
+    int mm_scene_group_write(MMGroup *, int system, int big_endian, const MMStorageWriter *);
 #ifdef __cplusplus
 }
 #endif
