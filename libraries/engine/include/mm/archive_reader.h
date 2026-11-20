@@ -3,7 +3,7 @@
 #ifndef MM_ENGINE_ARCHIVE_READER_H
 #define MM_ENGINE_ARCHIVE_READER_H
 #include "chunk_storage.h"
-#include "movie_data.h"
+#include "movie_session.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -16,6 +16,7 @@ typedef struct MMArchiveReaderOptions
     MMStringConvert convert;
     void *context;
     int (*accept)(void *);
+    MMMovieGraphBytes name; /* Optional. Receives the borrowed archive as context. */
 } MMArchiveReaderOptions;
 
 enum MMArchiveReadResult
@@ -73,6 +74,43 @@ int mm_archive_reader_strings(MMArchiveReader *, MMU32 position, const MMMovieSt
  * headers require an exact RTXT link at the slot stored in the TBOX, but do
  * not read the linked text payload. */
 int mm_archive_decode_record(const MMChunkAccess *, MMU32 position, const MMReadStream *, MMArchiveRecord *);
+
+typedef struct MMArchiveDirectorySink
+{
+    void *context;
+    int (*root)(void *, MMU32 number);
+    int (*scene)(void *, MMU32 slot, const MMMovieSessionScene *);
+    int (*source)(void *, const MMMovieSourceName *);
+} MMArchiveDirectorySink;
+
+enum MMArchiveDirectoryResult
+{
+    MM_ARCHIVE_DIRECTORY_OK,
+    MM_ARCHIVE_DIRECTORY_ROOT,
+    MM_ARCHIVE_DIRECTORY_SCENE,
+    MM_ARCHIVE_DIRECTORY_SOURCE_LINK,
+    MM_ARCHIVE_DIRECTORY_SOURCE_LIMIT,
+    MM_ARCHIVE_DIRECTORY_SOURCE_TABLE,
+    MM_ARCHIVE_DIRECTORY_SOURCE_ROW,
+    MM_ARCHIVE_DIRECTORY_PAYLOAD,
+    MM_ARCHIVE_DIRECTORY_MEMORY,
+    MM_ARCHIVE_DIRECTORY_CANCELLED
+};
+
+typedef struct MMArchiveDirectoryError
+{
+    MMU32 root, position;
+    int payload_status;
+} MMArchiveDirectoryError;
+
+/* Visit the movie root, authored scene links and source rows in that order.
+ * Rootless archives succeed without calling the sink. Callbacks borrow each
+ * row, return positive to continue and must not re-enter. A failing call can
+ * have visited a prefix, so callers stage their output. The reader retains its
+ * movie session only after the whole visit succeeds. error is required. */
+int mm_archive_reader_directory(MMArchiveReader *, const MMArchiveDirectorySink *, MMArchiveDirectoryError *error);
+/* Borrow the retained movie until the reader closes. */
+MMMovieSession *mm_archive_reader_movie(const MMArchiveReader *);
 
 #ifdef __cplusplus
 }

@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <codecvt>
 #include <cstdio>
+#include <exception>
 #include <locale>
 #include <stdexcept>
 #include "soc_core.h"
@@ -22,7 +23,6 @@ struct Archive::Impl
 {
     Options options;
     PChunkyFile file = pvNil;
-    MMMovieSession *movie = nullptr;
     std::string path;
     std::vector<Chunk> chunks;
     MMArchiveReader *reader = nullptr;
@@ -31,13 +31,11 @@ struct Archive::Impl
     }
     ~Impl()
     {
-        mm_movie_session_close(movie);
         mm_archive_reader_close(reader);
         ReleasePpo(&file);
     }
     bool Check(int status, std::size_t index, Error &error) const;
     bool Load(std::size_t index, MMReadStream &stream, Error &error);
-    bool LoadSources(const MMMovieSession *, std::vector<MovieSourceEntry> &sources, Error &error);
 };
 namespace
 {
@@ -114,7 +112,7 @@ bool ReadSoundCatalogStyle(const Archive &archive, std::uint32_t number, std::in
 }
 MMMovieSession *Archive::MovieSession() const
 {
-    return _impl->movie;
+    return mm_archive_reader_movie(_impl->reader);
 }
 void Archive::Close()
 {
@@ -319,6 +317,7 @@ bool Archive::Open(const std::string &utf8Path, Error &error)
             },
             nullptr,
             [](void *) -> int { return !Internal::AssertionFailed(); },
+            EngineMovieGraph::Name,
         };
         const int status = mm_archive_reader_open(&access, opened->file, KauaiChunkPayloadServices(), &readerOptions,
                                                   &opened->reader);
@@ -490,143 +489,98 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
         return Fail(error, ErrorCode::out_of_memory, "Insufficient memory to decode record.");
     }
 }
-bool Archive::Impl::LoadSources(const MMMovieSession *session, std::vector<MovieSourceEntry> &sources, Error &error)
+namespace
 {
-    MMChunkEntry entry;
-    MMU32 position;
-    const int status = mm_movie_session_source_table(session, &entry, &position);
-    if (status == MM_MOVIE_ASSET_NOT_FOUND)
+struct DirectoryHost
+{
+    MovieDirectory directory;
+    std::exception_ptr exception;
+
+    template <class Write> int Append(Write write)
     {
-        sources.push_back({MM_MOVIE_RETAIL_SOURCE_ID, MM_MOVIE_RETAIL_SOURCE_NAME});
-        return true;
+        try
+        {
+            write();
+            return 1;
+        }
+        catch (...)
+        {
+            exception = std::current_exception();
+            return 0;
+        }
     }
-    if (status != MM_MOVIE_OK)
-        return Fail(error, ErrorCode::corrupt_archive, "The movie has an invalid source table link.");
-    const Id id = {entry.type, entry.number};
-    if (position >= chunks.size() || !(chunks[position].id == id))
-        return Fail(error, ErrorCode::corrupt_archive, "Cannot locate the movie source table.", &id);
-    MMReadStream stream;
-    if (!Load(position, stream, error))
-        return false;
-    MMMovieSourceTable table;
-    if (stream.length > options.maxStringTableBytes)
-        return Fail(error, ErrorCode::resource_limit, "Source table exceeds this session's preview budget.", &id);
-    const int opened = mm_movie_source_table_open(&stream, options.maxStringTableBytes, &table);
-    if (opened == MM_MOVIE_MEMORY)
-        throw std::bad_alloc();
-    if (opened != MM_MOVIE_OK)
-        return Fail(error, ErrorCode::corrupt_archive, "Invalid movie source table.", &id);
-    for (MMU32 i = 0; i < table.count; ++i)
+
+    MMArchiveDirectorySink Sink()
     {
-        MMMovieSourceName row;
-        if (mm_movie_source_table_at(&table, i, &row) != MM_MOVIE_OK)
-            return Fail(error, ErrorCode::io_error, "Cannot read a movie source name.", &id);
-        String text;
-        EngineMovieSource::ToString(row, text);
-        sources.push_back({row.id, Utf8(text)});
+        return {
+            this,
+            [](void *context, MMU32 number) -> int {
+                auto &out = static_cast<DirectoryHost *>(context)->directory;
+                out.hasRoot = true;
+                out.root = {kctgMvie, number};
+                return 1;
+            },
+            [](void *context, MMU32 slot, const MMMovieSessionScene *scene) -> int {
+                auto &host = *static_cast<DirectoryHost *>(context);
+                return host.Append([&] {
+                    host.directory.scenes.push_back({{kctgScen, scene->number}, slot,
+                                                     {scene->first_frame, scene->last_frame, scene->transition}});
+                });
+            },
+            [](void *context, const MMMovieSourceName *row) -> int {
+                auto &host = *static_cast<DirectoryHost *>(context);
+                return host.Append([&] {
+                    String text;
+                    EngineMovieSource::ToString(*row, text);
+                    host.directory.sources.push_back({row->id, Utf8(text)});
+                });
+            },
+        };
     }
-    return true;
-}
+};
+} // namespace
+
 bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
 {
     error = {};
     Internal::ClearDiagnostic();
-    if (!_impl->file)
+    if (!_impl->reader)
         return Fail(error, ErrorCode::invalid_argument, "Open an archive before listing its movie scenes.");
     try
     {
-        const MMMovieSessionGraph graph = {
-            _impl.get(),
-            [](void *context, MMChunkAccess *access) {
-                *access = static_cast<Impl *>(context)->file->ReadChunkAccess();
-            },
-            [](void *context, void *request, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size) -> int {
-                auto &archive = *static_cast<Impl *>(context);
-                const Id id = {entry->type, entry->number};
-                if (position >= archive.chunks.size() || !(archive.chunks[position].id == id))
-                    return MM_MOVIE_BAD_FILE;
-                try
-                {
-                    Error scratch;
-                    auto &error = request ? *static_cast<Error *>(request) : scratch;
-                    MMReadStream stream;
-                    if (!archive.Load(position, stream, error))
-                        return MM_MOVIE_IO;
-                    return mm_movie_read_fixed(&stream, bytes, size);
-                }
-                catch (const std::bad_alloc &)
-                {
-                    return MM_MOVIE_MEMORY;
-                }
-                catch (const std::exception &)
-                {
-                    return MM_MOVIE_BAD_FILE;
-                }
-            },
-            [](void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out) -> int {
-                auto &archive = *static_cast<Impl *>(context);
-                const auto access = archive.file->ReadChunkAccess();
-                MMU32 position;
-                if (mm_chunk_find(&access, entry->type, entry->number, &position) != MM_CHUNK_OK ||
-                    position >= archive.chunks.size() || !(archive.chunks[position].id == Id{entry->type, entry->number}))
-                    return MM_MOVIE_BAD_FILE;
-                try
-                {
-                    Error error;
-                    MMReadStream stream;
-                    if (!archive.Load(position, stream, error))
-                        return MM_MOVIE_BAD_FILE;
-                    return receive(out, &stream);
-                }
-                catch (const std::bad_alloc &)
-                {
-                    return MM_MOVIE_MEMORY;
-                }
-                catch (const std::exception &)
-                {
-                    return MM_MOVIE_BAD_FILE;
-                }
-            },
-            [](void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out) -> int {
-                return EngineMovieGraph::Name(static_cast<Impl *>(context)->file, entry, receive, out);
-            }};
-        MovieDirectory result;
-        std::unique_ptr<MMMovieSession, decltype(&mm_movie_session_close)> opened(nullptr, mm_movie_session_close);
-        auto session = _impl->movie;
-        if (!session)
+        DirectoryHost host;
+        const auto sink = host.Sink();
+        MMArchiveDirectoryError detail;
+        const int status = mm_archive_reader_directory(_impl->reader, &sink, &detail);
+        if (host.exception)
+            std::rethrow_exception(host.exception);
+        const Id root = {kctgMvie, detail.root};
+        switch (status)
         {
-            MMU32 root = cnoNil;
-            const int status = mm_movie_session_open_graph(&graph, &error, &root, &session);
-            if (status == MM_MOVIE_ROOT_NOT_FOUND)
-            {
-                directory = {};
-                return true;
-            }
-            if (status == MM_MOVIE_MEMORY)
-                throw std::bad_alloc();
-            const Id id = {kctgMvie, root};
-            if (status != MM_MOVIE_OK)
-                return error ? false : Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported record header.", &id);
-            opened.reset(session);
-        }
-        const Id id = {kctgMvie, mm_movie_session_root(session)->number};
-        result.hasRoot = true;
-        result.root = id;
-        MMU32 cursor = 0, slot;
-        MMMovieSessionScene scene;
-        int next;
-        while ((next = mm_movie_session_next_scene(session, &error, &cursor, &scene, &slot)) == MM_MOVIE_OK)
-            result.scenes.push_back({{kctgScen, scene.number}, slot, {scene.first_frame, scene.last_frame, scene.transition}});
-        if (next == MM_MOVIE_MEMORY)
+        case MM_ARCHIVE_DIRECTORY_OK:
+            directory = std::move(host.directory);
+            return true;
+        case MM_ARCHIVE_DIRECTORY_ROOT:
+            return Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported record header.", &root);
+        case MM_ARCHIVE_DIRECTORY_SCENE:
+            return Fail(error, ErrorCode::corrupt_archive, "The movie has an invalid scene link or header.", &root);
+        case MM_ARCHIVE_DIRECTORY_SOURCE_LINK:
+            return Fail(error, ErrorCode::corrupt_archive, "The movie has an invalid source table link.");
+        case MM_ARCHIVE_DIRECTORY_SOURCE_LIMIT:
+            return Fail(error, ErrorCode::resource_limit, "Source table exceeds this session's preview budget.",
+                        &_impl->chunks[detail.position].id);
+        case MM_ARCHIVE_DIRECTORY_SOURCE_TABLE:
+            return Fail(error, ErrorCode::corrupt_archive, "Invalid movie source table.",
+                        &_impl->chunks[detail.position].id);
+        case MM_ARCHIVE_DIRECTORY_SOURCE_ROW:
+            return Fail(error, ErrorCode::io_error, "Cannot read a movie source name.", &_impl->chunks[detail.position].id);
+        case MM_ARCHIVE_DIRECTORY_PAYLOAD:
+            return _impl->Check(detail.payload_status, detail.position, error);
+        case MM_ARCHIVE_DIRECTORY_MEMORY:
             throw std::bad_alloc();
-        if (next != MM_MOVIE_SCENE_NOT_FOUND)
-            return error ? false : Fail(error, ErrorCode::corrupt_archive, "The movie has an invalid scene link or header.", &id);
-        if (!_impl->LoadSources(session, result.sources, error))
-            return false;
-        directory = std::move(result);
-        if (opened)
-            _impl->movie = opened.release();
-        return true;
+        default:
+            return Fail(error, ErrorCode::unsupported_format, "Movie source names cannot be decoded.");
+        }
     }
     catch (const std::bad_alloc &)
     {

@@ -52,6 +52,7 @@ int main(int argc, char **argv)
     Check(archive.ReadMovieDirectory(directory, error) && directory.hasRoot && directory.scenes.size() == 1);
     Check(directory.root.number == 7 && directory.scenes[0].id == archive.Chunks()[scene].id &&
           directory.scenes[0].header.lastFrame == 12);
+    Check(directory.sources.size() == 1 && directory.sources[0].id == 2 && directory.sources[0].name == "3dmovie");
     Check(archive.ReadRecord(Find(archive, "ACTR"), record, error) && record.kind == RecordKind::actor &&
           record.actor.actorId == 23 && record.actor.lastFrame == 12);
     Check(archive.ReadMovieDirectory(directory, error) && directory.scenes[0].header.lastFrame == 12);
@@ -85,6 +86,8 @@ int main(int argc, char **argv)
     Check(payload.totalBytes == 1024 && payload.bytes.size() == 24);
     Check(std::all_of(payload.bytes.begin(), payload.bytes.end(), [](std::uint8_t b) { return b == 'a'; }));
     Check(archive.Open(argv[4], error) && archive.Chunks().size() == 10);
+    Check(archive.ReadMovieDirectory(directory, error) && !directory.hasRoot &&
+          directory.scenes.empty() && directory.sources.empty());
     Check(archive.ReadStrings(0, 0, 128, strings, error) && strings.totalEntries == 5);
     Check(strings.entries[1].text.empty() && strings.entries[2].text == "Line\nbreak");
     Check(strings.entries[0].text == strings.entries[4].text && strings.entries[4].index == 4);

@@ -7172,6 +7172,20 @@ The original-content preview suite passed. Capture suite
 Marcus in seek and playback, and 12 retail sound requests on SDL. Both
 hosts also matched all 60 of their previous seek images.
 
+The C89 archive reader now also owns the movie directory transaction and its
+retained session. It reads authored scene links and source rows through the
+cached graph. A rootless archive yields an empty directory. A movie with no
+source table gets the retail source, and a malformed table or an aborted
+visit leaves a previously retained session usable. Marcus hands the same
+reader to Preview, which borrows the session for scene and frame queries.
+The standalone C test covers cancellation, retry, sparse scenes, duplicate
+source IDs, source-table budgets and release. Before-and-after directory
+probes agreed on 26 files under the default and constrained budgets,
+including repeated reads and reads after close. The original-content preview
+suite passed. Capture suite `20261120T070611Z-95c31305` matched 60 retail
+frame identities on SDL and Marcus in seek and playback, and 12 retail sound
+requests on SDL. Both hosts matched all 60 of their previous seek images.
+
 `MM::Preview` now supplies a second public boundary for read-only 3D asset
 views. Its standard C++ header exposes resource source IDs, action/cel and frame
 selection, camera controls and owned RGBA images. BRender actors, engine bodies,

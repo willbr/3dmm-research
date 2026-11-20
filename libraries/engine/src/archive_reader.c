@@ -3,8 +3,10 @@
 #include "mm/archive_reader.h"
 #include "mm/actor_data.h"
 #include "mm/scene_data.h"
+#include "mm/text.h"
 #include "mm/text_store.h"
 #include <stdlib.h>
+#include <string.h>
 
 #define ACTOR_TYPE 0x41435452UL
 #define CAPTION_TYPE 0x54424f58UL
@@ -20,6 +22,7 @@ struct MMArchiveReader
     MMBlockIO io;
     MMMovieStringTable *strings;
     int string_status;
+    MMMovieSession *movie;
 };
 
 static void clear_strings(void *context)
@@ -62,6 +65,7 @@ void mm_archive_reader_close(MMArchiveReader *reader)
 {
     if (reader)
     {
+        mm_movie_session_close(reader->movie);
         clear_strings(reader);
         mm_chunk_payload_cache_clear(&reader->payload);
         free(reader);
@@ -222,4 +226,148 @@ int mm_archive_reader_strings(MMArchiveReader *reader, MMU32 position, const MMM
     if (reader->string_status == MM_ARCHIVE_READ_OK)
         *out = reader->strings;
     return reader->string_status;
+}
+
+static void graph_access(void *context, MMChunkAccess *out)
+{
+    *out = ((const MMArchiveReader *)context)->chunks;
+}
+
+static int directory_payload(MMArchiveReader *reader, MMU32 position, const MMChunkEntry *entry,
+                              MMReadStream *stream, MMArchiveDirectoryError *error)
+{
+    const int status = read_payload(reader, position, entry, stream);
+    if (status == MM_ARCHIVE_READ_OK)
+        return MM_ARCHIVE_DIRECTORY_OK;
+    if (error)
+    {
+        error->position = position;
+        error->payload_status = status;
+    }
+    return MM_ARCHIVE_DIRECTORY_PAYLOAD;
+}
+
+static int graph_read(void *context, void *request, MMU32 position, const MMChunkEntry *entry,
+                      void *out, MMU32 size)
+{
+    MMReadStream stream;
+    if (directory_payload((MMArchiveReader *)context, position, entry, &stream,
+                          (MMArchiveDirectoryError *)request) != MM_ARCHIVE_DIRECTORY_OK)
+        return MM_MOVIE_IO;
+    return mm_movie_read_fixed(&stream, out, size);
+}
+
+static int graph_payload(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    MMArchiveReader *reader = (MMArchiveReader *)context;
+    MMReadStream stream;
+    MMU32 position;
+    if (mm_chunk_find(&reader->chunks, entry->type, entry->number, &position) != MM_CHUNK_OK ||
+        read_payload(reader, position, entry, &stream) != MM_ARCHIVE_READ_OK)
+        return MM_MOVIE_BAD_FILE;
+    return receive(out, &stream);
+}
+
+static int graph_name(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    const MMArchiveReader *reader = (const MMArchiveReader *)context;
+    return reader->options.name ? reader->options.name(reader->archive, entry, receive, out) : MM_MOVIE_BAD_FILE;
+}
+
+static int directory_sources(MMArchiveReader *reader, const MMMovieSession *movie, const MMArchiveDirectorySink *sink,
+                              MMArchiveDirectoryError *error)
+{
+    MMMovieSourceTable table;
+    MMMovieSourceName row = {0};
+    MMChunkEntry entry;
+    MMReadStream stream;
+    MMU32 position, i;
+    int status = mm_movie_session_source_table(movie, &entry, &position);
+    if (status == MM_MOVIE_ASSET_NOT_FOUND)
+    {
+        row.id = MM_MOVIE_RETAIL_SOURCE_ID;
+        row.encoding = MM_TEXT_WINDOWS;
+        row.size = sizeof(MM_MOVIE_RETAIL_SOURCE_NAME) - 1;
+        memcpy(row.bytes, MM_MOVIE_RETAIL_SOURCE_NAME, row.size);
+        return sink->source(sink->context, &row) > 0 ? MM_ARCHIVE_DIRECTORY_OK : MM_ARCHIVE_DIRECTORY_CANCELLED;
+    }
+    if (status != MM_MOVIE_OK)
+        return MM_ARCHIVE_DIRECTORY_SOURCE_LINK;
+    status = directory_payload(reader, position, &entry, &stream, error);
+    if (status != MM_ARCHIVE_DIRECTORY_OK)
+        return status;
+    error->position = position;
+    if (stream.length > reader->options.max_string_bytes)
+        return MM_ARCHIVE_DIRECTORY_SOURCE_LIMIT;
+    status = mm_movie_source_table_open(&stream, reader->options.max_string_bytes, &table);
+    if (status == MM_MOVIE_MEMORY)
+        return MM_ARCHIVE_DIRECTORY_MEMORY;
+    if (status != MM_MOVIE_OK)
+        return MM_ARCHIVE_DIRECTORY_SOURCE_TABLE;
+    for (i = 0; i < table.count; ++i)
+    {
+        if (mm_movie_source_table_at(&table, i, &row) != MM_MOVIE_OK)
+            return MM_ARCHIVE_DIRECTORY_SOURCE_ROW;
+        if (sink->source(sink->context, &row) <= 0)
+            return MM_ARCHIVE_DIRECTORY_CANCELLED;
+    }
+    return MM_ARCHIVE_DIRECTORY_OK;
+}
+
+static int directory_rows(MMArchiveReader *reader, const MMMovieSession *movie, const MMArchiveDirectorySink *sink,
+                           MMArchiveDirectoryError *error)
+{
+    MMMovieSessionScene scene;
+    MMU32 cursor = 0, slot;
+    int status;
+    error->root = mm_movie_session_root(movie)->number;
+    if (sink->root(sink->context, error->root) <= 0)
+        return MM_ARCHIVE_DIRECTORY_CANCELLED;
+    while ((status = mm_movie_session_next_scene(movie, error, &cursor, &scene, &slot)) == MM_MOVIE_OK)
+        if (sink->scene(sink->context, slot, &scene) <= 0)
+            return MM_ARCHIVE_DIRECTORY_CANCELLED;
+    if (status == MM_MOVIE_MEMORY)
+        return MM_ARCHIVE_DIRECTORY_MEMORY;
+    if (error->payload_status != MM_ARCHIVE_READ_OK)
+        return MM_ARCHIVE_DIRECTORY_PAYLOAD;
+    if (status != MM_MOVIE_SCENE_NOT_FOUND)
+        return MM_ARCHIVE_DIRECTORY_SCENE;
+    return directory_sources(reader, movie, sink, error);
+}
+
+int mm_archive_reader_directory(MMArchiveReader *reader, const MMArchiveDirectorySink *sink,
+                                MMArchiveDirectoryError *error)
+{
+    MMMovieSessionGraph graph;
+    MMMovieSession *movie = reader->movie;
+    int status;
+    error->root = error->position = 0xffffffffUL;
+    error->payload_status = MM_ARCHIVE_READ_OK;
+    if (!movie)
+    {
+        graph.context = reader;
+        graph.access = graph_access;
+        graph.read = graph_read;
+        graph.payload = graph_payload;
+        graph.name = graph_name;
+        status = mm_movie_session_open_graph(&graph, error, &error->root, &movie);
+        if (status == MM_MOVIE_ROOT_NOT_FOUND)
+            return MM_ARCHIVE_DIRECTORY_OK;
+        if (status == MM_MOVIE_MEMORY)
+            return MM_ARCHIVE_DIRECTORY_MEMORY;
+        if (status != MM_MOVIE_OK)
+            return error->payload_status == MM_ARCHIVE_READ_OK ? MM_ARCHIVE_DIRECTORY_ROOT :
+                                                                MM_ARCHIVE_DIRECTORY_PAYLOAD;
+    }
+    status = directory_rows(reader, movie, sink, error);
+    if (status == MM_ARCHIVE_DIRECTORY_OK)
+        reader->movie = movie;
+    else if (movie != reader->movie)
+        mm_movie_session_close(movie);
+    return status;
+}
+
+MMMovieSession *mm_archive_reader_movie(const MMArchiveReader *reader)
+{
+    return reader ? reader->movie : NULL;
 }
