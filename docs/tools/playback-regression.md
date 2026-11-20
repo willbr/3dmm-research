@@ -15610,3 +15610,41 @@ In `actor-event-edit` suite `20261120T122804Z-0b2a2039`, SDL and Marcus
 matched all 60 frame identities in the retail seek and playback runs,
 the retail camera indices on seek and their prior seek image hashes.
 SDL matched all 12 retail sound requests.
+
+## Direct scene seek and replay in C89 (20 November 2026)
+
+Studio's C89 scheduler reads the frame track and dispatches events
+directly during seek and replay. It reads actor and caption lists
+directly for frame evaluation, range extension and prerendering.
+Studio, Marcus preview and saved scene-range edits use the same
+opening-camera traversal. Native services apply renderer,
+object and audio effects.
+
+The C89 fixtures use real tracks and lists to verify sound and pause
+suppression, forward and reverse failure prefixes, opening-camera
+order, and prerendering. Native runtime, event and content traces
+matched the prior build byte-for-byte with fingerprints `3434DECD`,
+`2B9558ED` and `5E56C170`.
+
+The headless Marcus range probe matched the retained prepend, append,
+undo and reopen traces. The extended movie matched its prior save byte-for-byte,
+including the opening camera and appended edge. Its SHA-256 was
+`84c2222738f6018686fa92958a78fa5ead1069c62495dd3558d5b938509927b8`.
+In fresh seek suite `20261120T124454Z-3f1ee5c2`, SDL and Marcus matched
+all 63 retail frame identities from the retained capture and six seek
+image hashes around the edited boundaries.
+
+Studio authored a byte-identical two-scene movie. Native and SDL
+save/reopen runs matched their prior archives and text traces. All ten
+Preview fingerprints and six Preview fixture archives matched. All 66
+targeted x64 checks, three SDL Release scene checks, 15 standalone C89
+checks and 16 focused x86 checks passed.
+
+Both VMM seek images in `20261120T124244Z-01dbc7e3` matched the retained
+SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-scene-seek-tracks`.
+
+In `actor-event-edit` suite `20261120T124243Z-71319286`, SDL and Marcus
+matched all 60 frame identities in the retail seek and playback runs,
+the retail camera indices on seek and their prior seek image hashes.
+SDL matched all 12 retail sound requests.

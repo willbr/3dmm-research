@@ -524,34 +524,7 @@ MMSceneRuntimeServices Scene::_RuntimeServices()
                   "Scene effect flags");
     MMSceneRuntimeServices s = {};
     s.context = this;
-    s.event_count = [](void *p) -> MMI32 { return static_cast<PScene>(p)->_FrameTrack()->rows.count; };
-    s.event = [](void *p, MMI32 i, MMI32 *frame, int *kind) {
-        auto event = ReadSceneTrackEvent(static_cast<PScene>(p)->_FrameTrack(), i);
-        *frame = event.nfrm;
-        *kind = event.sevt;
-    };
-    s.play = [](void *p, MMI32 i, MMU32 disabled) -> int {
-        auto services = static_cast<PScene>(p)->_EventServices();
-        return mm_scene_play_frame_event(i, disabled, &services);
-    };
-    s.unplay = [](void *p, MMI32 i) -> int {
-        auto scene = static_cast<PScene>(p);
-        auto services = scene->_EventServices();
-        return mm_scene_unplay_event(ReadSceneTrackEvent(scene->_FrameTrack(), i).sevt, &services);
-    };
-    s.move_camera = [](void *p, MMI32 i, MMI32 frame) {
-        auto track = static_cast<PScene>(p)->_FrameTrack();
-        auto event = ReadSceneTrackEvent(track, i);
-        event.nfrm = frame;
-        SetSceneTrackEvent(track, i, event);
-        AssertDo(mm_group_move(&track->rows, i, 0) == MM_STORAGE_OK, "cannot move scene camera");
-    };
-    s.object_count = [](void *p, int text) -> MMI32 {
-        return mm_scene_member_count(&static_cast<PScene>(p)->_owner, text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS);
-    };
-    s.object = [](void *p, int text, MMI32 i) -> void * {
-        return mm_scene_member_at(&static_cast<PScene>(p)->_owner, text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS, i);
-    };
+    s.events = _EventServices();
     s.seek = [](void *, int text, void *object, MMI32 frame, int *sound) -> int {
         if (text)
             return static_cast<PTBOX>(object)->FGotoFrame(frame);
@@ -823,9 +796,8 @@ MMSceneEventServices Scene::_EventServices()
 void Scene::_MoveBackFirstFrame(long nfrm)
 {
     AssertThis(0);
-    auto services = _RuntimeServices();
     Assert(nfrm < _data.firstFrame, "Can only be called to extend scene back.");
-    mm_scene_move_first(&_data, nfrm, &services);
+    mm_scene_move_first(&_data, nfrm, &_owner);
 }
 
 MMSceneSoundEditServices Scene::_SoundEditServices()

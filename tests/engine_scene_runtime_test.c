@@ -1,4 +1,6 @@
 #include "mm/scene_runtime.h"
+#include "mm/scene_sound.h"
+#include "scene_member_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,74 +18,70 @@ typedef struct Object
     int id, fail, has_lifetime, rendered, visible, queries, must[2], shows, hides;
     MMI32 first, last;
 } Object;
-typedef struct Event
-{
-    MMI32 frame;
-    int kind;
-} Event;
 typedef struct Fixture
 {
     MMSceneState data;
     MMSceneRuntime runtime;
     MMSceneRuntimeServices services;
-    Event events[8];
+    MMSceneOwner owner;
+    SceneMemberMemory members;
+    MMSceneTrack *frames;
     Object actors[3], texts[2];
-    int count, actors_count, texts_count, playing, recording, fail_play, fail_unplay, fail_replay;
+    int playing, recording, fail_camera, fail_replay;
     int notices[7], sound, snapshots, ends, until, grow;
-    int ops[128], used, seen_cursor[16], calls;
-    MMU32 masks[16];
+    int ops[128], used, sound_plays, sound_cursor, pause_cursor[4], camera, camera_calls, duplicates;
 } Fixture;
 static void log_op(Fixture *f, int op)
 {
     CHECK(f->used < 128);
     f->ops[f->used++] = op;
 }
-static MMI32 event_count(void *p)
-{
-    return ((Fixture *)p)->count;
-}
-static void event(void *p, MMI32 i, MMI32 *frame, int *kind)
+static void pause_type(void *p, int reason)
 {
     Fixture *f = (Fixture *)p;
-    CHECK(i >= 0 && i < f->count);
-    *frame = f->events[i].frame;
-    *kind = f->events[i].kind;
+    CHECK(reason == 1 || reason == 3);
+    f->pause_cursor[reason] = f->runtime.next_event;
+    log_op(f, 9 + reason);
 }
-static int play(void *p, MMI32 i, MMU32 mask)
+static void pause_movie(void *p, int reason, MMI32 delay)
+{
+    CHECK(delay == 10 * reason);
+    log_op((Fixture *)p, 13 + reason);
+}
+static void play_sound(void *p, void *payload)
 {
     Fixture *f = (Fixture *)p;
-    CHECK(f->calls < 16);
-    f->seen_cursor[f->calls] = f->runtime.next_event;
-    f->masks[f->calls++] = mask;
-    log_op(f, 10 + i);
-    return f->fail_play != i + 1;
+    CHECK(((MMSceneSound *)payload)->sty == 2);
+    ++f->sound_plays;
+    f->sound_cursor = f->runtime.next_event;
+    log_op(f, 11);
 }
-static int unplay(void *p, MMI32 i)
+static void *duplicate_sound(void *p, void *payload)
 {
     Fixture *f = (Fixture *)p;
-    log_op(f, 20 + i);
-    CHECK(f->runtime.next_event == i + 1);
-    return f->fail_unplay != i + 1;
+    CHECK(((MMSceneSound *)payload)->sty == MM_SCENE_EVENT_MIDI);
+    ++f->duplicates;
+    return NULL;
 }
-static void move_camera(void *p, MMI32 i, MMI32 frame)
+static int set_camera(void *p, void *background, MMI32 camera)
 {
     Fixture *f = (Fixture *)p;
-    Event e = f->events[i];
-    e.frame = frame;
-    memmove(f->events + 1, f->events, (size_t)i * sizeof(e));
-    f->events[0] = e;
-    log_op(f, 30 + i);
+    CHECK(background == &f->camera);
+    ++f->camera_calls;
+    f->camera = camera;
+    return !f->fail_camera;
 }
-static MMI32 object_count(void *p, int text)
+static void event_diagnostic(void *p, int issue)
 {
-    Fixture *f = (Fixture *)p;
-    return text ? f->texts_count : f->actors_count;
+    CHECK(issue == MM_SCENE_EVENT_FIRST_CAMERA_FAILED);
+    log_op((Fixture *)p, 30);
 }
-static void *object(void *p, int text, MMI32 i)
+static void add_members(Fixture *f, int list, int count)
 {
-    Fixture *f = (Fixture *)p;
-    CHECK(i >= 0 && i < (text ? f->texts_count : f->actors_count));
-    return text ? f->texts + i : f->actors + i;
+    Object *objects = list == MM_SCENE_TEXTS ? f->texts : f->actors;
+    MMI32 i;
+    for (i = mm_scene_member_count(&f->owner, list); i < count; ++i)
+        CHECK(mm_scene_member_append(&f->owner, list, &objects[i]));
 }
 static int seek(void *p, int text, void *o, MMI32 frame, int *sound)
 {
@@ -102,7 +100,7 @@ static int seek(void *p, int text, void *o, MMI32 frame, int *sound)
         *sound = 1;
     }
     if (f->grow && a->id == 0)
-        f->actors_count = 3;
+        add_members(f, MM_SCENE_ACTORS, 3);
     return !a->fail;
 }
 static int lifetime(void *p, int text, void *o, MMI32 *first, MMI32 *last)
@@ -184,8 +182,14 @@ static void init(Fixture *f)
 {
     int i;
     MMSceneRuntimeServices *s;
+    if (f->frames)
+        mm_scene_track_dispose(f->frames);
     memset(f, 0, sizeof(*f));
     mm_scene_runtime_init(&f->runtime);
+    init_scene_members(&f->owner, &f->members);
+    f->frames = &f->owner.tracks[MM_SCENE_FRAMES];
+    CHECK(mm_scene_track_init(f->frames, NULL, 0));
+    f->owner.owned[MM_SCENE_BACKGROUND] = &f->camera;
     f->data.firstFrame = f->data.currentFrame = 1;
     f->data.lastFrame = 10;
     for (i = 0; i < 3; ++i)
@@ -194,13 +198,16 @@ static void init(Fixture *f)
         f->texts[i].id = i + 3;
     s = &f->services;
     s->context = f;
-    s->event_count = event_count;
-    s->event = event;
-    s->play = play;
-    s->unplay = unplay;
-    s->move_camera = move_camera;
-    s->object_count = object_count;
-    s->object = object;
+    s->events.context = s->events.scene = f;
+    s->events.runtime = &f->runtime;
+    s->events.data = &f->data;
+    s->events.owner = &f->owner;
+    s->events.pause_type = pause_type;
+    s->events.pause = pause_movie;
+    s->events.play_sound = play_sound;
+    s->events.duplicate_sound = duplicate_sound;
+    s->events.set_camera = set_camera;
+    s->events.diagnostic = event_diagnostic;
     s->seek = seek;
     s->lifetime = lifetime;
     s->replay_actor = replay_actor;
@@ -213,104 +220,110 @@ static void init(Fixture *f)
     s->snapshot = snapshot;
     s->notice = notice;
 }
+static void append(Fixture *f, MMI32 frame, int kind, MMI32 bytes, const void *payload)
+{
+    MMSceneTrackEvent event;
+    event.frame = frame;
+    event.kind = kind;
+    CHECK(mm_scene_track_insert(f->frames, f->frames->rows.count, bytes, payload, &event));
+}
 static void events(Fixture *f)
 {
-    f->count = 4;
-    f->events[0].frame = 1;
-    f->events[0].kind = MM_SCENE_PAUSE;
-    f->events[1].frame = 3;
-    f->events[1].kind = MM_SCENE_PLAY_SOUND;
-    f->events[2].frame = 3;
-    f->events[2].kind = MM_SCENE_PAUSE;
-    f->events[3].frame = 7;
-    f->events[3].kind = MM_SCENE_CHANGE_CAMERA;
+    MMI32 pause[2] = {1, 10}, camera = 4;
+    MMSceneSound sound = {0, 2, 0, 0};
+    append(f, 1, MM_SCENE_PAUSE, sizeof(pause), pause);
+    append(f, 3, MM_SCENE_PLAY_SOUND, sizeof(sound), &sound);
+    pause[0] = 3;
+    pause[1] = 30;
+    append(f, 3, MM_SCENE_PAUSE, sizeof(pause), pause);
+    append(f, 7, MM_SCENE_CHANGE_CAMERA, sizeof(camera), &camera);
 }
 static void seeks(void)
 {
-    Fixture f;
-    int i, sound;
+    Fixture f = {0};
+    MMSceneSound midi = {0, MM_SCENE_EVENT_MIDI, 0, 0};
+    int sound;
     init(&f);
     events(&f);
     f.recording = 1;
-    f.actors_count = 1;
-    f.texts_count = 1;
+    add_members(&f, MM_SCENE_ACTORS, 1);
+    add_members(&f, MM_SCENE_TEXTS, 1);
     f.sound = 1;
     CHECK(mm_scene_goto(&f.runtime, &f.data, 3, &f.services));
     CHECK(f.runtime.next_event == 3 && f.data.currentFrame == 3);
-    CHECK(f.calls == 3 && f.masks[0] == 3 && f.masks[1] == 2 && f.masks[2] == 2);
-    CHECK(f.seen_cursor[0] == 0 && f.seen_cursor[2] == 2);
-    CHECK(f.ops[0] == 111 && f.ops[1] == 110 && f.sound == 1);
+    CHECK(f.sound_plays == 1 && f.sound_cursor == 1 && f.pause_cursor[1] == 0 && f.pause_cursor[3] == 2);
+    CHECK(f.used == 9 && f.ops[0] == 111 && f.ops[1] == 110 && f.ops[2] == 10 && f.ops[3] == 11 &&
+          f.ops[4] == 12 && f.ops[5] == 40 && f.ops[6] == 43 && f.ops[7] == 113 && f.ops[8] == 114 && f.sound);
     f.used = 0;
-    f.calls = 0;
+    f.sound_plays = 0;
     f.sound = 0;
     CHECK(mm_scene_goto(&f.runtime, &f.data, 3, &f.services));
-    CHECK(!f.calls && f.used == 3 && f.ops[0] == 40 && f.ops[1] == 43 && f.ops[2] == 113);
+    CHECK(!f.sound_plays && f.used == 3 && f.ops[0] == 40 && f.ops[1] == 43 && f.ops[2] == 113);
     f.used = 0;
-    f.calls = 0;
     CHECK(mm_scene_replay(&f.runtime, &f.data, 0, &f.services));
-    CHECK(f.used == 2 && f.ops[0] == 12 && f.ops[1] == 11);
-    CHECK(f.masks[0] == (MMU32) ~(MMU32)0);
+    CHECK(f.used == 1 && f.ops[0] == 12 && !f.sound_plays);
     f.used = 0;
-    f.calls = 0;
     CHECK(mm_scene_replay(&f.runtime, &f.data, (MMU32) ~(MMU32)0, &f.services));
-    CHECK(f.masks[0] == 64 && f.ops[2] == 60);
+    CHECK(f.used == 4 && f.ops[0] == 12 && f.ops[1] == 16 && f.ops[2] == 11 && f.ops[3] == 60);
     f.used = 0;
-    f.calls = 0;
     f.sound = 0;
     CHECK(mm_scene_goto(&f.runtime, &f.data, 1, &f.services));
-    CHECK(f.ops[0] == 110 && f.ops[1] == 22 && f.ops[2] == 21 && f.ops[3] == 10);
+    CHECK(f.ops[0] == 110 && f.ops[1] == 10);
     CHECK(f.runtime.next_event == 1 && f.sound == 1);
-    for (i = 1; i <= 3; ++i)
-    {
-        init(&f);
-        events(&f);
-        f.fail_play = i;
-        CHECK(!mm_scene_goto(&f.runtime, &f.data, 11, &f.services));
-        CHECK(f.runtime.next_event == i - 1 && f.data.currentFrame == 11 && f.data.lastFrame == 11);
-        CHECK(f.notices[MM_SCENE_GOTO_FAILURE] == 1 && !f.notices[MM_SCENE_INVALIDATE]);
-        CHECK(f.notices[MM_SCENE_DIRTY] == 1);
-    }
-    for (i = 2; i <= 4; ++i)
-    {
-        init(&f);
-        events(&f);
-        f.runtime.next_event = 4;
-        f.data.currentFrame = 8;
-        f.fail_unplay = i;
-        CHECK(!mm_scene_goto(&f.runtime, &f.data, 1, &f.services));
-        CHECK(f.runtime.next_event == i && f.data.currentFrame == 1);
-        CHECK(f.notices[MM_SCENE_GOTO_FAILURE] == 1);
-    }
+    init(&f);
+    events(&f);
+    CHECK(mm_scene_track_put(f.frames, 1, sizeof(midi), &midi));
+    CHECK(!mm_scene_goto(&f.runtime, &f.data, 11, &f.services));
+    CHECK(f.duplicates == 1 && !f.sound_plays && f.runtime.next_event == 1);
+    CHECK(f.data.currentFrame == 11 && f.data.lastFrame == 11 && f.notices[MM_SCENE_DIRTY] == 1);
+    CHECK(f.notices[MM_SCENE_GOTO_FAILURE] == 1 && !f.notices[MM_SCENE_INVALIDATE]);
+    init(&f);
+    events(&f);
+    f.fail_camera = 1;
+    CHECK(!mm_scene_goto(&f.runtime, &f.data, 7, &f.services));
+    CHECK(f.runtime.next_event == 3 && f.data.currentFrame == 7 && f.camera == 4 && !f.sound_plays);
+    CHECK(f.notices[MM_SCENE_GOTO_FAILURE] == 1 && !f.notices[MM_SCENE_INVALIDATE]);
+    init(&f);
+    events(&f);
+    f.runtime.next_event = 4;
+    f.data.currentFrame = 8;
+    f.fail_camera = 1;
+    CHECK(!mm_scene_goto(&f.runtime, &f.data, 1, &f.services));
+    CHECK(f.runtime.next_event == 4 && f.data.currentFrame == 1 && f.camera_calls == 1 && f.camera == 0);
+    CHECK(f.notices[MM_SCENE_GOTO_FAILURE] == 1 && f.ops[1] == 30);
     init(&f);
     events(&f);
     f.runtime.next_event = 3;
-    f.fail_play = 2;
+    CHECK(mm_scene_track_put(f.frames, 1, sizeof(midi), &midi));
     f.data.currentFrame = 3;
     CHECK(!mm_scene_replay(&f.runtime, &f.data, 8, &f.services));
     CHECK(f.runtime.next_event == 3 && f.notices[MM_SCENE_GOTO_FAILURE] == 1);
+    f.runtime.next_event = 4;
+    f.data.currentFrame = 7;
+    CHECK(mm_scene_replay(&f.runtime, &f.data, (MMU32) ~(MMU32)0, &f.services) && !f.camera_calls);
     init(&f);
-    f.actors_count = 2;
+    add_members(&f, MM_SCENE_ACTORS, 2);
     f.actors[1].fail = 1;
     CHECK(!mm_scene_goto(&f.runtime, &f.data, 2, &f.services));
     CHECK(!f.notices[MM_SCENE_GOTO_FAILURE] && !f.notices[MM_SCENE_INVALIDATE]);
     init(&f);
-    f.texts_count = 2;
+    add_members(&f, MM_SCENE_TEXTS, 2);
     f.texts[1].fail = 1;
     CHECK(!mm_scene_goto(&f.runtime, &f.data, 2, &f.services));
     CHECK(!f.notices[MM_SCENE_GOTO_FAILURE] && !f.notices[MM_SCENE_INVALIDATE]);
     init(&f);
-    f.actors_count = 2;
+    add_members(&f, MM_SCENE_ACTORS, 2);
     f.fail_replay = 2;
     CHECK(!mm_scene_replay(&f.runtime, &f.data, 8, &f.services));
     CHECK(f.used == 2 && !f.notices[MM_SCENE_GOTO_FAILURE]);
     init(&f);
     f.runtime.disabled = 12;
-    f.actors_count = 3;
-    f.texts_count = 2;
+    add_members(&f, MM_SCENE_ACTORS, 3);
+    add_members(&f, MM_SCENE_TEXTS, 2);
     CHECK(mm_scene_goto(&f.runtime, &f.data, 2, &f.services));
     CHECK(f.used == 3);
     init(&f);
-    f.actors_count = 1;
+    add_members(&f, MM_SCENE_ACTORS, 1);
     f.grow = 1;
     sound = 0;
     CHECK(mm_scene_force(1, 0, &sound, &f.services));
@@ -328,20 +341,20 @@ static void seeks(void)
     CHECK(f.data.firstFrame == (-2147483647 - 1));
     CHECK(mm_scene_goto(&f.runtime, &f.data, 2147483647, &f.services));
     CHECK(f.data.lastFrame == 2147483647);
+    mm_scene_track_dispose(f.frames);
 }
 static void ranges(void)
 {
-    Fixture f;
+    Fixture f = {0};
+    MMSceneTrackEvent row;
+    MMI32 first_camera = 1, last_camera = 2, pause[2] = {1, 10}, camera;
+    int i;
     init(&f);
-    events(&f);
-    f.count = 3;
-    f.events[0].kind = MM_SCENE_CHANGE_CAMERA;
-    f.events[1].kind = MM_SCENE_PAUSE;
-    f.events[1].frame = 1;
-    f.events[2].kind = MM_SCENE_CHANGE_CAMERA;
-    f.events[2].frame = 1;
-    f.actors_count = 2;
-    f.texts_count = 1;
+    append(&f, 1, MM_SCENE_CHANGE_CAMERA, sizeof(first_camera), &first_camera);
+    append(&f, 1, MM_SCENE_PAUSE, sizeof(pause), pause);
+    append(&f, 1, MM_SCENE_CHANGE_CAMERA, sizeof(last_camera), &last_camera);
+    add_members(&f, MM_SCENE_ACTORS, 2);
+    add_members(&f, MM_SCENE_TEXTS, 1);
     f.actors[0].has_lifetime = 1;
     f.actors[0].first = -2;
     f.actors[0].last = 12;
@@ -352,19 +365,26 @@ static void ranges(void)
     f.texts[0].last = 11;
     mm_scene_extend_range(&f.data, &f.services);
     CHECK(f.data.firstFrame == -4 && f.data.lastFrame == 12);
-    CHECK(f.events[0].frame == -4 && f.events[1].frame == -4 && f.events[2].frame == 1);
+    for (i = 0; i < 2; ++i)
+    {
+        CHECK(mm_scene_track_get(f.frames, i, &row) && row.frame == -4 && row.kind == MM_SCENE_CHANGE_CAMERA);
+        memcpy(&camera, mm_scene_track_payload(f.frames, i, NULL), sizeof(camera));
+        CHECK(camera == i + 1);
+    }
+    CHECK(mm_scene_track_get(f.frames, 2, &row) && row.frame == 1 && row.kind == MM_SCENE_PAUSE);
     CHECK(!f.notices[MM_SCENE_DIRTY]);
+    mm_scene_track_dispose(f.frames);
 }
 static void prerenders(void)
 {
-    Fixture f;
+    Fixture f = {0};
     int mode;
     for (mode = 0; mode < 4; ++mode)
     {
         init(&f);
         events(&f);
         f.playing = 1;
-        f.actors_count = 3;
+        add_members(&f, MM_SCENE_ACTORS, 3);
         f.actors[0].rendered = 1;
         f.actors[1].must[0] = f.actors[1].must[1] = 1;
         f.actors[1].rendered = 1;
@@ -380,7 +400,7 @@ static void prerenders(void)
     }
     init(&f);
     f.playing = 1;
-    f.actors_count = 1;
+    add_members(&f, MM_SCENE_ACTORS, 1);
     f.actors[0].must[0] = f.actors[0].must[1] = 1;
     mm_scene_prerender(&f.runtime, &f.data, 0, &f.services);
     CHECK(!f.snapshots && f.actors[0].queries == 2 && f.until == 10);
@@ -391,7 +411,7 @@ static void prerenders(void)
     f.runtime.next_event = 3;
     mm_scene_prerender(&f.runtime, &f.data, 0, &f.services);
     CHECK(!f.used);
-    f.actors_count = 1;
+    add_members(&f, MM_SCENE_ACTORS, 1);
     mm_scene_prerender(&f.runtime, &f.data, 1, &f.services);
     CHECK(f.snapshots == 1);
     init(&f);
@@ -399,15 +419,16 @@ static void prerenders(void)
     f.playing = 1;
     f.data.currentFrame = 7;
     f.runtime.next_event = 4;
-    f.actors_count = 1;
+    add_members(&f, MM_SCENE_ACTORS, 1);
     mm_scene_prerender(&f.runtime, &f.data, 0, &f.services);
     CHECK(f.snapshots == 1 && f.until == 10);
     init(&f);
-    f.actors_count = 1;
+    add_members(&f, MM_SCENE_ACTORS, 1);
     mm_scene_prerender(&f.runtime, &f.data, 1, &f.services);
     CHECK(!f.used);
     mm_scene_end_prerender(&f.services);
     CHECK(f.ends == 1);
+    mm_scene_track_dispose(f.frames);
 }
 int main(void)
 {

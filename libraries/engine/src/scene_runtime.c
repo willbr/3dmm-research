@@ -1,7 +1,6 @@
 /* Scene frame/replay and prerender policy converted from engine scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_runtime.h"
-#include "mm/movie_session.h"
 void mm_scene_runtime_init(MMSceneRuntime *r)
 {
     r->next_event = 0;
@@ -12,36 +11,55 @@ void mm_scene_runtime_init(MMSceneRuntime *r)
 }
 int mm_scene_force(MMI32 frame, int text, int *sound, const MMSceneRuntimeServices *s)
 {
+    const MMSceneOwner *owner = s->events.owner;
+    int list = text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS;
     MMI32 i;
-    for (i = 0; i < s->object_count(s->context, text); ++i)
-        if (!s->seek(s->context, text, s->object(s->context, text, i), frame, sound))
+    for (i = 0; i < mm_scene_member_count(owner, list); ++i)
+        if (!s->seek(s->context, text, mm_scene_member_at(owner, list, i), frame, sound))
             return 0;
     return 1;
 }
-void mm_scene_move_first(MMSceneState *d, MMI32 target, const MMSceneRuntimeServices *s)
+void mm_scene_move_opening_cameras(MMI32 first, MMI32 target, const MMMovieEventView *view,
+                                  MMSceneMoveCamera move)
 {
     MMI32 i, frame;
     int kind;
-    for (i = 0; i < s->event_count(s->context); ++i)
+    for (i = 0; i < view->count; ++i)
     {
-        s->event(s->context, i, &frame, &kind);
-        if (frame != d->firstFrame)
+        view->read(view->context, view->group, i, &frame, &kind);
+        if (frame != first)
             break;
         if (kind == MM_SCENE_CHANGE_CAMERA)
-            s->move_camera(s->context, i, target);
+            move(view->context, view->group, i, target);
     }
+}
+static void move_track_camera(void *context, void *group, MMI32 index, MMI32 frame)
+{
+    MMSceneTrack *track = (MMSceneTrack *)group;
+    MMSceneTrackEvent event;
+    (void)context;
+    event.frame = frame;
+    event.kind = MM_SCENE_CHANGE_CAMERA;
+    if (mm_scene_track_set(track, index, &event))
+        mm_group_move(&track->rows, (MMU32)index, 0);
+}
+void mm_scene_move_first(MMSceneState *d, MMI32 target, MMSceneOwner *owner)
+{
+    MMMovieEventView view = mm_scene_track_event_view(&owner->tracks[MM_SCENE_FRAMES]);
+    mm_scene_move_opening_cameras(d->firstFrame, target, &view, move_track_camera);
     d->firstFrame = target;
 }
 void mm_scene_extend_range(MMSceneState *d, const MMSceneRuntimeServices *s)
 {
+    MMSceneOwner *owner = s->events.owner;
     MMI32 i, first, last;
-    int text;
-    for (text = 0; text < 2; ++text)
-        for (i = 0; i < s->object_count(s->context, text); ++i)
-            if (s->lifetime(s->context, text, s->object(s->context, text, i), &first, &last))
+    int list;
+    for (list = MM_SCENE_ACTORS; list <= MM_SCENE_TEXTS; ++list)
+        for (i = 0; i < mm_scene_member_count(owner, list); ++i)
+            if (s->lifetime(s->context, list == MM_SCENE_TEXTS, mm_scene_member_at(owner, list, i), &first, &last))
             {
                 if (first < d->firstFrame)
-                    mm_scene_move_first(d, first, s);
+                    mm_scene_move_first(d, first, owner);
                 if (last > d->lastFrame)
                     d->lastFrame = last;
             }
@@ -54,14 +72,16 @@ int mm_scene_range_contains(MMI32 authored_first, MMI32 authored_last, long firs
 
 int mm_scene_range_store(MMSceneState *scene, long first, long last, const MMSceneRangeStoreServices *s)
 {
-    void *context = s->events->context;
+    void *context = s->context;
+    MMMovieEventView view;
     if (!mm_scene_range_contains(scene->firstFrame, scene->lastFrame, first, last))
         return MM_SCENE_RANGE_INVALID;
     if (first < scene->firstFrame)
     {
-        if (!s->open_events(context))
+        if (!s->open_events(context, &view))
             return 0;
-        mm_scene_move_first(scene, (MMI32)first, s->events);
+        mm_scene_move_opening_cameras(scene->firstFrame, (MMI32)first, &view, s->move_camera);
+        scene->firstFrame = (MMI32)first;
         if (!s->replace_events(context) || !s->drop_thumbnail(context))
             return 0;
     }
@@ -83,8 +103,9 @@ static int begin_seek(void *context, MMI32 target)
     MMSceneRuntime *r = seek->runtime;
     MMSceneState *d = seek->data;
     const MMSceneRuntimeServices *s = seek->services;
-    int kind;
-    MMI32 i, frame;
+    const MMSceneTrack *track = &s->events.owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    MMI32 i;
     MMU32 mask;
     void *c = s->context;
     seek->sound = 0;
@@ -94,26 +115,28 @@ static int begin_seek(void *context, MMI32 target)
         s->notice(c, MM_SCENE_RESET_PAUSE, 0);
         if (target < d->firstFrame)
         {
-            mm_scene_move_first(d, target, s);
+            mm_scene_move_first(d, target, s->events.owner);
             s->notice(c, MM_SCENE_DIRTY, 0);
         }
         d->currentFrame = target;
         for (; r->next_event > 0; --r->next_event)
         {
-            s->event(c, r->next_event - 1, &frame, &kind);
-            if (frame <= d->currentFrame)
+            if (!mm_scene_track_get(track, r->next_event - 1, &event))
+                goto failure;
+            if (event.frame <= d->currentFrame)
                 break;
-            if (!s->unplay(c, r->next_event - 1))
+            if (!mm_scene_unplay_event(event.kind, &s->events))
                 goto failure;
         }
         for (i = r->next_event - 1; i >= 0; --i)
         {
-            s->event(c, i, &frame, &kind);
-            if (frame < d->currentFrame)
-                break;
-            if (!s->play(c, i, r->disabled))
+            if (!mm_scene_track_get(track, i, &event))
                 goto failure;
-            if (kind == MM_SCENE_PLAY_SOUND && frame == d->currentFrame)
+            if (event.frame < d->currentFrame)
+                break;
+            if (!mm_scene_play_frame_event(i, r->disabled, &s->events))
+                goto failure;
+            if (event.kind == MM_SCENE_PLAY_SOUND && event.frame == d->currentFrame)
                 seek->sound = 1;
         }
     }
@@ -128,17 +151,18 @@ static int begin_seek(void *context, MMI32 target)
             d->lastFrame = d->currentFrame;
             s->notice(c, MM_SCENE_DIRTY, 0);
         }
-        for (; r->next_event < s->event_count(c); ++r->next_event)
+        for (; (MMU32)r->next_event < track->rows.count; ++r->next_event)
         {
-            s->event(c, r->next_event, &frame, &kind);
-            if (frame > d->currentFrame)
+            if (!mm_scene_track_get(track, r->next_event, &event))
+                goto failure;
+            if (event.frame > d->currentFrame)
                 break;
             mask = r->disabled;
-            if (frame != d->currentFrame)
+            if (event.frame != d->currentFrame)
                 mask |= MM_SCENE_EFFECT_SOUNDS | MM_SCENE_EFFECT_PAUSES;
-            if (!s->play(c, r->next_event, mask))
+            if (!mm_scene_play_frame_event(r->next_event, mask, &s->events))
                 goto failure;
-            if (kind == MM_SCENE_PLAY_SOUND && frame == d->currentFrame)
+            if (event.kind == MM_SCENE_PLAY_SOUND && event.frame == d->currentFrame)
                 seek->sound = 1;
         }
     }
@@ -152,16 +176,14 @@ failure:
 static MMU32 seek_actor_count(void *context)
 {
     const SceneSeek *seek = (const SceneSeek *)context;
-    const MMSceneRuntimeServices *s = seek->services;
-    MMI32 count = seek->actors_enabled ? s->object_count(s->context, 0) : 0;
-    return count > 0 ? (MMU32)count : 0;
+    return seek->actors_enabled ? (MMU32)mm_scene_member_count(seek->services->events.owner, MM_SCENE_ACTORS) : 0;
 }
 
 static int seek_actor(void *context, MMU32 ordinal, MMI32 target)
 {
     SceneSeek *seek = (SceneSeek *)context;
     const MMSceneRuntimeServices *s = seek->services;
-    void *actor = s->object(s->context, 0, (MMI32)ordinal);
+    void *actor = mm_scene_member_at(s->events.owner, MM_SCENE_ACTORS, (MMI32)ordinal);
     return s->seek(s->context, 0, actor, target, &seek->sound) ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
 }
 
@@ -207,31 +229,34 @@ int mm_scene_goto(MMSceneRuntime *r, MMSceneState *d, MMI32 target,
 int mm_scene_replay(MMSceneRuntime *r, const MMSceneState *d, MMU32 enabled,
                           const MMSceneRuntimeServices *s)
 {
-    MMI32 i, frame;
-    int kind;
+    const MMSceneOwner *owner = s->events.owner;
+    const MMSceneTrack *track = &owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    MMI32 i;
     void *c = s->context;
     for (i = r->next_event - 1; i >= 0; --i)
     {
-        s->event(c, i, &frame, &kind);
-        if (frame < d->currentFrame)
+        if (mm_scene_track_get(track, i, &event) && event.frame < d->currentFrame)
             break;
-        if (!s->play(c, i, (~enabled) | MM_SCENE_EFFECT_CAMERAS))
+        if (!mm_scene_play_frame_event(i, (~enabled) | MM_SCENE_EFFECT_CAMERAS, &s->events))
         {
             s->notice(c, MM_SCENE_GOTO_FAILURE, 0);
             return 0;
         }
     }
     if (enabled & MM_SCENE_EFFECT_ACTORS)
-        for (i = 0; i < s->object_count(c, 0); ++i)
-            if (!s->replay_actor(c, s->object(c, 0, i), enabled))
+        for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_ACTORS); ++i)
+            if (!s->replay_actor(c, mm_scene_member_at(owner, MM_SCENE_ACTORS, i), enabled))
                 return 0;
     return 1;
 }
 void mm_scene_prerender(const MMSceneRuntime *r, const MMSceneState *d, int start_now,
                               const MMSceneRuntimeServices *s)
 {
-    MMI32 i, frame, until, count;
-    int kind;
+    const MMSceneOwner *owner = s->events.owner;
+    const MMSceneTrack *track = &owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    MMI32 i, until, count;
     void *actor, *c = s->context;
     if (!s->playing(c))
         return;
@@ -239,29 +264,27 @@ void mm_scene_prerender(const MMSceneRuntime *r, const MMSceneState *d, int star
     {
         for (i = r->next_event - 1; i >= 0; --i)
         {
-            s->event(c, i, &frame, &kind);
-            if (frame != d->currentFrame)
+            if (!mm_scene_track_get(track, i, &event) || event.frame != d->currentFrame)
                 return;
-            if (kind == MM_SCENE_CHANGE_CAMERA)
+            if (event.kind == MM_SCENE_CHANGE_CAMERA)
                 break;
         }
         if (i < 0)
             return;
     }
     until = d->lastFrame;
-    for (i = r->next_event; i < s->event_count(c); ++i)
+    for (i = r->next_event; (MMU32)i < track->rows.count; ++i)
     {
-        s->event(c, i, &frame, &kind);
-        if (kind == MM_SCENE_CHANGE_CAMERA)
+        if (mm_scene_track_get(track, i, &event) && event.kind == MM_SCENE_CHANGE_CAMERA)
         {
-            until = frame;
+            until = event.frame;
             break;
         }
     }
     count = 0;
-    for (i = 0; i < s->object_count(c, 0); ++i)
+    for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_ACTORS); ++i)
     {
-        actor = s->object(c, 0, i);
+        actor = mm_scene_member_at(owner, MM_SCENE_ACTORS, i);
         if (s->must_render(c, actor, until))
             s->show(c, actor, 0);
         else
@@ -276,9 +299,9 @@ void mm_scene_prerender(const MMSceneRuntime *r, const MMSceneState *d, int star
     }
     if (count > 0)
         s->snapshot(c, 1);
-    for (i = 0; i < s->object_count(c, 0); ++i)
+    for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_ACTORS); ++i)
     {
-        actor = s->object(c, 0, i);
+        actor = mm_scene_member_at(owner, MM_SCENE_ACTORS, i);
         if (s->must_render(c, actor, until))
         {
             s->show(c, actor, 1);
@@ -299,12 +322,13 @@ void mm_scene_prerender(const MMSceneRuntime *r, const MMSceneState *d, int star
 }
 void mm_scene_end_prerender(const MMSceneRuntimeServices *s)
 {
+    const MMSceneOwner *owner = s->events.owner;
     MMI32 i;
     void *actor, *c = s->context;
     s->snapshot(c, 0);
-    for (i = 0; i < s->object_count(c, 0); ++i)
+    for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_ACTORS); ++i)
     {
-        actor = s->object(c, 0, i);
+        actor = mm_scene_member_at(owner, MM_SCENE_ACTORS, i);
         if (s->prerendered(c, actor))
         {
             s->show(c, actor, 1);

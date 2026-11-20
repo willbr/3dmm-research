@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_CHOP_H
 #define MM_ENGINE_SCENE_CHOP_H
-#include "scene_events.h"
+#include "scene_runtime.h"
 #ifdef __cplusplus
 extern "C"
 {

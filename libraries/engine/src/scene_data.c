@@ -447,10 +447,28 @@ static int insert_camera(void *context, MMI32 index, MMI32 frame, MMU32 camera)
     return 0;
 }
 
-static void move_opening_camera(void *context, MMI32 index, MMI32 frame)
+static void read_range_event(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
+{
+    (void)group;
+    frame_event(context, index, frame, kind);
+}
+
+static int open_range_events(void *context, MMMovieEventView *view)
+{
+    if (!open_frames(context))
+        return 0;
+    view->context = context;
+    view->group = NULL;
+    view->count = frame_count(context);
+    view->read = read_range_event;
+    return 1;
+}
+
+static void move_opening_camera(void *context, void *group, MMI32 index, MMI32 frame)
 {
     SceneFrameEdit *edit = (SceneFrameEdit *)context;
     unsigned char *row = frame_record(edit, (MMU32)index, NULL);
+    (void)group;
     if (row)
     {
         put(row, (MMU32)frame, 4, edit->big);
@@ -535,17 +553,13 @@ int mm_scene_archive_set_camera(const MMMovieArchiveEditor *editor, MMU32 scene,
 int mm_scene_archive_set_range(const MMMovieArchiveEditor *editor, MMU32 scene, long first, long last)
 {
     SceneFrameEdit edit;
-    MMSceneRuntimeServices events = {0};
-    MMSceneRangeStoreServices services = {NULL, open_frames, replace_frames, drop_frame_thumbnail, write_frame_range};
+    MMSceneRangeStoreServices services = {NULL, open_range_events, move_opening_camera, replace_frames,
+                                          drop_frame_thumbnail, write_frame_range};
     int result;
     init_frame_edit(&edit, editor, scene);
     if (!mm_scene_archive_read_header(editor, scene, &edit.scene))
         return MM_SCENE_ARCHIVE_EDIT_READ_SCENE;
-    events.context = &edit;
-    events.event_count = frame_count;
-    events.event = frame_event;
-    events.move_camera = move_opening_camera;
-    services.events = &events;
+    services.context = &edit;
     result = mm_scene_range_store(&edit.scene, first, last, &services);
     mm_storage_dispose(&edit.storage);
     return result == MM_SCENE_RANGE_INVALID ? MM_SCENE_ARCHIVE_EDIT_RANGE : edit.result;

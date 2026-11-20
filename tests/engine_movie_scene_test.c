@@ -716,20 +716,29 @@ static void range_publish(void *p)
     range_step(r, '!');
     r->published = r->live;
 }
-static MMI32 one_camera(void *p) { (void)p; return 1; }
-static void camera_at(void *p, MMI32 index, MMI32 *frame, int *kind)
+static void camera_at(void *p, void *group, MMI32 index, MMI32 *frame, int *kind)
 {
+    (void)group;
     (void)index;
     *frame = ((RangeTest *)p)->camera;
     *kind = MM_SCENE_CHANGE_CAMERA;
 }
-static void move_opening_camera(void *p, MMI32 index, MMI32 frame)
+static void move_opening_camera(void *p, void *group, MMI32 index, MMI32 frame)
 {
+    (void)group;
     (void)index;
     range_step(p, 'M');
     ((RangeTest *)p)->camera = frame;
 }
-static int range_open_events(void *p) { range_step(p, 'O'); return 1; }
+static int range_open_events(void *p, MMMovieEventView *view)
+{
+    range_step(p, 'O');
+    view->context = p;
+    view->group = NULL;
+    view->count = 1;
+    view->read = camera_at;
+    return 1;
+}
 static int range_replace_events(void *p) { range_step(p, 'E'); return !((RangeTest *)p)->fail; }
 static int range_drop_thumbnail(void *p) { range_step(p, 'T'); return 1; }
 static int range_write_scene(void *p) { range_step(p, 'W'); return 1; }
@@ -738,11 +747,10 @@ static int extending(void)
 {
     RangeTest r;
     MMMovieRangeServices edit = {NULL, NULL, NULL, range_position, range_effect, range_publish};
-    MMSceneRuntimeServices events;
-    MMSceneRangeStoreServices store = {NULL, range_open_events, range_replace_events, range_drop_thumbnail,
-                                      range_write_scene};
+    MMSceneRangeStoreServices store = {NULL, range_open_events, move_opening_camera, range_replace_events,
+                                      range_drop_thumbnail, range_write_scene};
     memset(&r, 0, sizeof(r));
-    edit.context = events.context = &r;
+    edit.context = store.context = &r;
     edit.selected = &r.selected;
     edit.playback = &r.playback;
     r.live.first = r.live.last = r.live.frame = 1;
@@ -767,12 +775,6 @@ static int extending(void)
     CHECK(!mm_movie_scene_extend(-1, &edit) && !strcmp(r.trace, "CPBFbx") && r.selected == -1);
     CHECK(r.published.first == 0);
     r.steps = 0;
-    memset(&events, 0, sizeof(events));
-    events.context = &r;
-    events.event_count = one_camera;
-    events.event = camera_at;
-    events.move_camera = move_opening_camera;
-    store.events = &events;
     r.stored.firstFrame = r.stored.lastFrame = r.camera = 1;
     CHECK(mm_scene_range_store(&r.stored, -2147483647L - 1L, 2, &store) == MM_SCENE_RANGE_INVALID);
     CHECK(!r.steps);

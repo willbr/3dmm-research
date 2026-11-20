@@ -278,36 +278,43 @@ done:
     mm_storage_dispose(&scenes.storage);
     return result;
 }
-static MMI32 camera_count(void *v)
+static void read_camera_change(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
 {
-    return (MMI32)((MMPreviewLiveArray *)v)->count;
-}
-static void camera_event(void *v, MMI32 i, MMI32 *frame, int *kind)
-{
-    *frame = ((MMPreviewLiveCamera *)data((MMPreviewLiveArray *)v))[i].frame;
+    const MMPreviewLiveCamera *changes = (const MMPreviewLiveCamera *)group;
+    (void)context;
+    *frame = changes[index].frame;
     *kind = MM_SCENE_CHANGE_CAMERA;
 }
-static void move_camera(void *v, MMI32 i, MMI32 frame)
+static MMMovieEventView camera_view(MMPreviewLiveArray *array)
 {
-    MMPreviewLiveArray *a = (MMPreviewLiveArray *)v;
-    MMArray list = view(a);
-    ((MMPreviewLiveCamera *)data(a))[i].frame = frame;
+    MMMovieEventView cameras;
+    cameras.context = array;
+    cameras.group = data(array);
+    cameras.count = (MMI32)array->count;
+    cameras.read = read_camera_change;
+    return cameras;
+}
+static MMI32 camera_count(void *context)
+{
+    return (MMI32)((const MMPreviewLiveArray *)context)->count;
+}
+static void camera_event(void *context, MMI32 index, MMI32 *frame, int *kind)
+{
+    read_camera_change(NULL, data((const MMPreviewLiveArray *)context), index, frame, kind);
+}
+static void move_camera(void *context, void *group, MMI32 i, MMI32 frame)
+{
+    MMArray list = view((MMPreviewLiveArray *)context);
+    ((MMPreviewLiveCamera *)group)[i].frame = frame;
     mm_array_move(&list, (MMU32)i, 0);
 }
 static void move_opening_camera(MMPreviewLiveArray *cameras, MMI32 first, MMI32 target)
 {
-    MMSceneState scene;
-    MMSceneRuntimeServices s;
+    MMMovieEventView view;
     if (target == first)
         return;
-    memset(&scene, 0, sizeof(scene));
-    memset(&s, 0, sizeof(s));
-    scene.firstFrame = first;
-    s.context = cameras;
-    s.event_count = camera_count;
-    s.event = camera_event;
-    s.move_camera = move_camera;
-    mm_scene_move_first(&scene, target, &s);
+    view = camera_view(cameras);
+    mm_scene_move_opening_cameras(first, target, &view, move_camera);
 }
 int mm_preview_live_range(MMPreviewLive *p, MMI32 first, MMI32 last)
 {
@@ -443,14 +450,6 @@ done:
     mm_storage_dispose(&candidate.storage);
     return result;
 }
-static void read_camera_change(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
-{
-    const MMPreviewLiveCamera *changes = (const MMPreviewLiveCamera *)group;
-    (void)context;
-    *frame = changes[index].frame;
-    *kind = MM_SCENE_CHANGE_CAMERA;
-}
-
 typedef struct PreviewSeek
 {
     MMPreviewLive *live;
@@ -506,10 +505,7 @@ static int finish_seek(void *context, MMI32 frame)
     int effect;
     if (p->status.background)
     {
-        view.context = NULL;
-        view.group = data(&p->cameras);
-        view.count = (MMI32)p->cameras.count;
-        view.read = read_camera_change;
+        view = camera_view(&p->cameras);
         selected = mm_movie_view_last_event(&view, MM_SCENE_CHANGE_CAMERA, frame, 1, NULL);
         if (selected >= 0)
             camera = ((const MMPreviewLiveCamera *)view.group)[selected].camera;

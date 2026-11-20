@@ -1,7 +1,6 @@
 /* Scene event dispatch converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "mm/scene_events.h"
-#include "mm/movie_session.h"
+#include "mm/scene_runtime.h"
 #include "mm/scene_sound.h"
 #include <stddef.h>
 #include <string.h>
@@ -137,17 +136,6 @@ int mm_scene_play_frame_event(MMI32 index, MMU32 disabled, const MMSceneEventSer
     MMSceneTrackEvent event;
     return mm_scene_track_get(track, index, &event) && play_row(track, index, &event, disabled, s);
 }
-static void read_frame_event(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
-{
-    MMSceneTrackEvent event;
-    (void)context;
-    *kind = -1;
-    if (mm_scene_track_get((const MMSceneTrack *)group, index, &event))
-    {
-        *frame = event.frame;
-        *kind = event.kind;
-    }
-}
 int mm_scene_unplay_event(int kind, const MMSceneEventServices *s)
 {
     MMMovieEventView view;
@@ -159,10 +147,8 @@ int mm_scene_unplay_event(int kind, const MMSceneEventServices *s)
         return 1;
     if (kind == MM_SCENE_CHANGE_CAMERA)
         require_background(s);
-    view.context = NULL;
-    view.group = track;
+    view = mm_scene_track_event_view(track);
     view.count = s->runtime->next_event;
-    view.read = read_frame_event;
     i = mm_movie_view_last_event(&view, kind, s->data->currentFrame, 0, &frame);
     if (i >= 0)
     {

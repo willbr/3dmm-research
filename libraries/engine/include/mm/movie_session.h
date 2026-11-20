@@ -150,6 +150,9 @@ typedef struct MMMovieEventView
     MMI32 count;
     void (*read)(void *, void *group, MMI32 index, MMI32 *frame, int *kind);
 } MMMovieEventView;
+struct MMSceneTrack;
+/* Borrows a native frame track and captures its current row count. */
+MMMovieEventView mm_scene_track_event_view(struct MMSceneTrack *);
 
 /* Return the last qualifying row in group order. Equal-frame events retain
  * their authored order and a later row wins. Use include_frame=0 when restoring

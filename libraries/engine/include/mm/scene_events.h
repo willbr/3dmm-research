@@ -3,7 +3,6 @@
 #ifndef MM_ENGINE_SCENE_EVENTS_H
 #define MM_ENGINE_SCENE_EVENTS_H
 #include "scene_owner.h"
-#include "scene_runtime.h"
 #include "tag.h"
 #ifdef __cplusplus
 extern "C"
@@ -23,10 +22,11 @@ extern "C"
         MM_SCENE_EVENT_NIL_TRANSITION = -1,
         MM_SCENE_EVENT_CUT_TRANSITION = 0
     };
+    struct MMSceneRuntime;
     typedef struct MMSceneEventServices
     {
         void *context, *scene;
-        MMSceneRuntime *runtime;
+        struct MMSceneRuntime *runtime;
         const MMSceneState *data;
         MMSceneOwner *owner;
         MMSceneOwnerServices owners;

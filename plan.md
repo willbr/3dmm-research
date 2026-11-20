@@ -166,6 +166,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   sound-tag cleanup as scene disposal. Sound editing and saving copy track
   packets through one C89 operation that reacquires the payload after
   allocation.
+- Studio seek, replay, range extension and prerender scheduling use the
+  C89 frame track and actor and caption lists directly. Studio, Marcus
+  preview and scene archive writes share the opening-camera traversal.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

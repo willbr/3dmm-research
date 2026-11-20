@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_THUMBNAIL_H
 #define MM_ENGINE_SCENE_THUMBNAIL_H
-#include "scene_events.h"
+#include "scene_runtime.h"
 #include "masked_bitmap.h"
 #include "archive_reader.h"
 #ifdef __cplusplus

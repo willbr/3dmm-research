@@ -1,6 +1,7 @@
 /* Scene event storage converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_track.h"
+#include "mm/movie_session.h"
 #include <string.h>
 
 int mm_scene_track_init(MMSceneTrack *track, const MMStorageAllocator *allocator, int trash_unused)
@@ -41,6 +42,31 @@ int mm_scene_track_get(const MMSceneTrack *track, MMI32 index, MMSceneTrackEvent
         return 0;
     memcpy(out, payload - MM_SCENE_EVENT_BYTES, MM_SCENE_EVENT_BYTES);
     return 1;
+}
+
+static void read_view_event(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
+{
+    MMSceneTrackEvent event;
+    (void)context;
+    if (mm_scene_track_get((const MMSceneTrack *)group, index, &event))
+    {
+        *frame = event.frame;
+        *kind = event.kind;
+    }
+    else
+    {
+        *frame = 0;
+        *kind = -1;
+    }
+}
+MMMovieEventView mm_scene_track_event_view(MMSceneTrack *track)
+{
+    MMMovieEventView view;
+    view.context = NULL;
+    view.group = track;
+    view.count = track->rows.count;
+    view.read = read_view_event;
+    return view;
 }
 
 int mm_scene_track_get_object(const MMSceneTrack *track, MMI32 index, void **out)

@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_SOUND_EDIT_H
 #define MM_ENGINE_SCENE_SOUND_EDIT_H
-#include "scene_events.h"
+#include "scene_runtime.h"
 #include "scene_sound.h"
 #ifdef __cplusplus
 extern "C"
