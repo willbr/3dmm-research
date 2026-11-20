@@ -307,7 +307,7 @@ struct Access : Scene
 {
     static void ControlState(PScene p)
     {
-        auto &d = p->*&Access::_data;
+        auto &d = (p->*&Access::_owner).data;
         Value(d.currentFrame);
         Value(d.transition);
         Value(d.name.count);
@@ -323,11 +323,11 @@ struct Access : Scene
         CHECK(InsertSceneTrackEvent(events, back ? 0 : events->rows.count, packet->Cb(), packet, e));
         FreePpv(reinterpret_cast<void **>(&packet));
         if (back)
-            ++(p->*&Access::_runtime).next_event;
+            ++(p->*&Access::_owner).runtime.next_event;
     }
     static void ChopSetup(PScene p, bool cameras = true)
     {
-        auto &d = p->*&Access::_data;
+        auto &d = (p->*&Access::_owner).data;
         d.firstFrame = 1;
         d.lastFrame = 40;
         d.currentFrame = 5;
@@ -336,7 +336,7 @@ struct Access : Scene
             CHECK(mm_group_delete(&events->rows, events->rows.count - 1) == MM_STORAGE_OK);
         if (!cameras)
         {
-            (p->*&Access::_runtime).next_event = 0;
+            (p->*&Access::_owner).runtime.next_event = 0;
             return;
         }
         for (long frame : {1, 3, 5, 5, 7})
@@ -345,13 +345,13 @@ struct Access : Scene
             long camera = 0;
             CHECK(InsertSceneTrackEvent(events, events->rows.count, sizeof(camera), &camera, e));
         }
-        (p->*&Access::_runtime).next_event = 4;
+        (p->*&Access::_owner).runtime.next_event = 4;
     }
     static void ChopState(PScene p)
     {
         State(p);
         auto events = (p->*&Access::_FrameTrack)();
-        Value((p->*&Access::_runtime).next_event);
+        Value((p->*&Access::_owner).runtime.next_event);
         Value(events->rows.count);
         for (long i = 0; i < events->rows.count; ++i)
         {
@@ -386,7 +386,7 @@ struct Access : Scene
         const auto &owner = p->*&Access::_owner;
         CHECK(p->PactrSelected() == owner.selected_actor);
         CHECK(p->PtboxSelected() == owner.selected_text);
-        auto &d = p->*&Access::_data;
+        const auto &d = owner.data;
         Value(d.currentFrame);
         Value(d.firstFrame);
         Value(d.lastFrame);

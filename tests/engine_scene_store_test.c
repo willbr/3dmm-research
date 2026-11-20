@@ -34,7 +34,6 @@ typedef struct StoreFixture
     MMSceneStoreServices s;
     MMSceneCollectServices collect;
     MMSceneOwner owner;
-    MMSceneState metadata;
     MMMovieArchiveEditor editor;
     MMSceneSound *sounds[2];
     StoreGroup wire[2];
@@ -410,14 +409,13 @@ static void init_store(StoreFixture *f)
     f->editor.discard = discard_chunk;
     f->editor.put = put_scene;
     f->editor.set_title = set_title;
-    CHECK(mm_scene_init(&f->metadata, 1) && mm_movie_title_set(&f->metadata.name, "Scene", 5));
-    f->metadata.firstFrame = 2;
-    f->metadata.lastFrame = 9;
+    CHECK(mm_scene_init(&f->owner.data, 1) && mm_movie_title_set(&f->owner.data.name, "Scene", 5));
+    f->owner.data.firstFrame = 2;
+    f->owner.data.lastFrame = 9;
 
     s->context = f;
     s->owner = &f->owner;
     s->editor = &f->editor;
-    s->metadata = &f->metadata;
     s->values.context = f;
     s->values.packets = f->packets.s;
     s->values.packets.context = f; /* The embedded sound fixture is the first member. */

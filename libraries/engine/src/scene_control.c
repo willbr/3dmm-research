@@ -65,17 +65,18 @@ int mm_scene_transition_swap(MMSceneTransitionUndo *p, const MMScenePropertyUndo
 }
 int mm_scene_start_playing(const MMScenePlaybackServices *s)
 {
+    const MMSceneOwner *owner = s->owner;
     MMI32 i, first, last;
     void *object, *view;
-    for (i = 0; i < s->count(s->context, 0); ++i)
-        if (!s->lifetime(s->context, 0, s->object(s->context, 0, i), &first, &last))
+    for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_ACTORS); ++i)
+        if (!s->lifetime(s->context, 0, mm_scene_member_at(owner, MM_SCENE_ACTORS, i), &first, &last))
             return 0;
-    for (i = 0; i < s->count(s->context, 1); ++i)
+    for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_TEXTS); ++i)
     {
-        object = s->object(s->context, 1, i);
+        object = mm_scene_member_at(owner, MM_SCENE_TEXTS, i);
         if ((s->story(s->context, object) && s->visible(s->context, object)) ||
             (!s->story(s->context, object) && s->lifetime(s->context, 1, object, &first, &last) &&
-             first == s->data->currentFrame))
+             first == owner->data.currentFrame))
         {
             view = s->view(s->context, object);
             if (view)
@@ -89,8 +90,9 @@ int mm_scene_start_playing(const MMScenePlaybackServices *s)
 }
 void mm_scene_stop_playing(const MMScenePlaybackServices *s)
 {
+    const MMSceneOwner *owner = s->owner;
     MMI32 i;
     s->prerender(s->context, 0);
-    for (i = 0; i < s->count(s->context, 1); ++i)
-        s->clean_text(s->context, s->object(s->context, 1, i));
+    for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_TEXTS); ++i)
+        s->clean_text(s->context, mm_scene_member_at(owner, MM_SCENE_TEXTS, i));
 }

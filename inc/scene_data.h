@@ -74,14 +74,15 @@ static_assert(sizeof(SceneOnFile) == 16, "SceneOnFile on-disk layout drift");
 
 const auto kbomScenh = 0x5FC00000;
 
-// Scene state shared by persistence and playback. currentFrame is a runtime
-// cursor; it is not stored in the scene header. Objects/audio live in Scene.
+void GetSceneName(const MMMovieTitle &name, PString out);
+void SetSceneName(MMMovieTitle &name, PString value);
+
+// Native archive adapter for storing or inspecting a detached scene header.
 struct SceneData : MMSceneState
 {
     SceneData() { mm_scene_init(this, sizeof(achar)); }
-    void GetName(PString) const;
-    void SetName(PString);
-    void LoadName(PChunkyFile, ChunkNumber);
+    void GetName(PString out) const { GetSceneName(name, out); }
+    void SetName(PString value) { SetSceneName(name, value); }
     bool FRead(PChunkyFile file, ChunkNumber number);
     bool FWrite(PChunkyFile file, ChunkNumber number);
     bool FCreate(PChunkyFile file, ChunkNumber *number);

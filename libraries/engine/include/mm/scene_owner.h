@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_OWNER_H
 #define MM_ENGINE_SCENE_OWNER_H
+#include "movie_frame.h"
 #include "scene_track.h"
 #include "tag.h"
 #ifdef __cplusplus
@@ -43,9 +44,18 @@ extern "C"
         MMCollectionStorage storage;
         MMU32 count;
     } MMSceneMemberList;
+    typedef struct MMSceneRuntime
+    {
+        MMI32 next_event; /* First frame event after the current frame. */
+        MMI32 background_frame;
+        MMU32 disabled;
+        MMMovieLiveFrame publication;
+    } MMSceneRuntime;
     typedef struct MMSceneOwner
     {
         void *movie; /* Borrowed; no reference cycle. */
+        MMSceneState data;
+        MMSceneRuntime runtime;
         void *owned[MM_SCENE_OWNERS];
         MMTag background_tag; /* Borrowed tag of the last successfully applied background. */
         void *selected_actor, *selected_text; /* Borrowed primary selections. */
@@ -75,12 +85,13 @@ extern "C"
         void (*diagnostic)(void *, int issue);
         MMSceneSoundServices sound;
     } MMSceneOwnerServices;
-    /* The factory initializes the owner and runtime before returning the scene.
+    /* The factory initializes the owner before returning the scene.
      * Assigning a vacant resource slot transfers one reference. Drop retains
      * the slot value until release returns. Lifecycle callbacks must not
      * reenter or change ownership. Both embedded tracks are initialized
-     * with the owner and start empty. */
-    void mm_scene_owner_init(MMSceneOwner *, void *movie, const MMStorageAllocator *);
+     * with the owner and start empty. Initialization accepts 1- or 2-byte title
+     * units and starts at frame one with pause effects disabled. */
+    int mm_scene_owner_init(MMSceneOwner *, void *movie, unsigned text_unit, const MMStorageAllocator *);
     void mm_scene_owner_drop(MMSceneOwner *, int slot, const MMSceneOwnerServices *);
     void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *);
     void mm_scene_owner_dispose(MMSceneOwner *, const MMSceneOwnerServices *);

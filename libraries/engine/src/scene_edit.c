@@ -11,13 +11,14 @@ static MMI32 camera_at(const MMSceneTrack *frames, MMI32 i)
 }
 int mm_scene_pause_edit(MMI32 *reason, MMI32 *delay, const MMSceneEditServices *s)
 {
-    MMSceneRuntime *r = s->sound.events.runtime;
-    MMSceneTrack *frames = &s->sound.events.owner->tracks[MM_SCENE_FRAMES];
+    MMSceneOwner *owner = s->sound.events.owner;
+    MMSceneRuntime *r = &owner->runtime;
+    MMSceneTrack *frames = &owner->tracks[MM_SCENE_FRAMES];
     MMSceneTrackEvent event;
     MMI32 i, old[2], value[2];
     for (i = r->next_event - 1; i >= 0; --i)
     {
-        if (!mm_scene_track_get(frames, i, &event) || event.frame != s->sound.events.data->currentFrame)
+        if (!mm_scene_track_get(frames, i, &event) || event.frame != owner->data.currentFrame)
             break;
         if (event.kind != MM_SCENE_PAUSE)
             continue;
@@ -41,7 +42,7 @@ int mm_scene_pause_edit(MMI32 *reason, MMI32 *delay, const MMSceneEditServices *
     }
     value[0] = *reason;
     value[1] = *delay;
-    if (!mm_scene_edit_insert(s->sound.events.data->currentFrame, MM_SCENE_PAUSE, sizeof(value), value, &s->sound))
+    if (!mm_scene_edit_insert(owner->data.currentFrame, MM_SCENE_PAUSE, sizeof(value), value, &s->sound))
         return 0;
     *reason = 0;
     *delay = 0;
@@ -49,8 +50,8 @@ int mm_scene_pause_edit(MMI32 *reason, MMI32 *delay, const MMSceneEditServices *
 }
 static int play_camera(MMI32 frame, MMI32 *camera, const MMSceneEditServices *s)
 {
-    return mm_scene_play_event(frame, MM_SCENE_CHANGE_CAMERA, camera, s->sound.events.runtime->disabled,
-                                     &s->sound.events);
+    const MMSceneEventServices *events = &s->sound.events;
+    return mm_scene_play_event(frame, MM_SCENE_CHANGE_CAMERA, camera, events->owner->runtime.disabled, events);
 }
 static void dirty(const MMSceneEditServices *s)
 {
@@ -64,8 +65,9 @@ static void old_camera(MMI32 *out, MMI32 value, const MMSceneEditServices *s)
 }
 int mm_scene_camera_edit(MMI32 camera, MMI32 *old, const MMSceneEditServices *s)
 {
-    MMSceneRuntime *r = s->sound.events.runtime;
-    MMSceneTrack *frames = &s->sound.events.owner->tracks[MM_SCENE_FRAMES];
+    MMSceneOwner *owner = s->sound.events.owner;
+    MMSceneRuntime *r = &owner->runtime;
+    MMSceneTrack *frames = &owner->tracks[MM_SCENE_FRAMES];
     MMSceneTrackEvent event;
     MMI32 i, j, frame;
     old_camera(old, 0, s);
@@ -74,7 +76,7 @@ int mm_scene_camera_edit(MMI32 camera, MMI32 *old, const MMSceneEditServices *s)
         if (!mm_scene_track_get(frames, i, &event) || event.kind != MM_SCENE_CHANGE_CAMERA)
             continue;
         frame = event.frame;
-        if (frame == s->sound.events.data->currentFrame)
+        if (frame == owner->data.currentFrame)
         {
             for (j = i - 1; j >= 0; --j)
                 if (mm_scene_track_get(frames, j, &event) && event.kind == MM_SCENE_CHANGE_CAMERA)
@@ -106,7 +108,7 @@ int mm_scene_camera_edit(MMI32 camera, MMI32 *old, const MMSceneEditServices *s)
     }
     if (*old == camera)
         goto success;
-    frame = s->sound.events.data->currentFrame;
+    frame = owner->data.currentFrame;
     if (!mm_scene_edit_insert(frame, MM_SCENE_CHANGE_CAMERA, sizeof(camera), &camera, &s->sound))
         return 0;
     if (!play_camera(frame, &camera, s))
@@ -186,7 +188,7 @@ int mm_scene_camera_journal(MMI32 scene, unsigned long camera, const MMSceneCame
 static int play_background(const MMTag *tag, const MMSceneEventServices *s)
 {
     MMTag value = *tag;
-    return mm_scene_play_event(0, MM_SCENE_SET_BACKGROUND, &value, s->runtime->disabled, s);
+    return mm_scene_play_event(0, MM_SCENE_SET_BACKGROUND, &value, s->owner->runtime.disabled, s);
 }
 int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServices *s)
 {
@@ -244,7 +246,7 @@ success:
     while (frames->rows.count)
         if (!mm_scene_owner_erase_frame(e->owner, frames->rows.count - 1, &e->owners))
             return 0;
-    e->runtime->next_event = 0;
+    e->owner->runtime.next_event = 0;
     s->scene_change(s->context);
     if (s->can_notify(s->context))
         s->loaded(s->context);
@@ -256,8 +258,8 @@ int mm_scene_is_empty(const MMSceneEditServices *s)
     const MMSceneTrack *frames = &owner->tracks[MM_SCENE_FRAMES];
     MMSceneTrackEvent event;
     MMI32 i;
-    if (owner->tracks[MM_SCENE_STARTS].rows.count != 1 || mm_signed_word((MMU32)s->sound.events.data->lastFrame -
-                                                 (MMU32)s->sound.events.data->firstFrame) > 0)
+    if (owner->tracks[MM_SCENE_STARTS].rows.count != 1 ||
+        mm_signed_word((MMU32)owner->data.lastFrame - (MMU32)owner->data.firstFrame) > 0)
         return 0;
     for (i = 0; (MMU32)i < frames->rows.count; ++i)
         if (!mm_scene_track_get(frames, i, &event) ||

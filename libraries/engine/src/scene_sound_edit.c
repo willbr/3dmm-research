@@ -16,11 +16,11 @@ static MMI32 find(MMI32 style, int *boundary, const MMSceneSoundEditServices *s)
     MMSceneTrackEvent event;
     MMI32 i;
     *boundary = 0;
-    for (i = s->events.runtime->next_event - 1; i >= 0; --i)
+    for (i = s->events.owner->runtime.next_event - 1; i >= 0; --i)
     {
         if (!mm_scene_track_get(track, i, &event))
             break;
-        if (event.frame != s->events.data->currentFrame)
+        if (event.frame != s->events.owner->data.currentFrame)
         {
             *boundary = 1;
             break;
@@ -33,7 +33,7 @@ static MMI32 find(MMI32 style, int *boundary, const MMSceneSoundEditServices *s)
 static void close_event(MMI32 index, const MMSceneSoundEditServices *s)
 {
     if (mm_scene_owner_erase_frame(s->events.owner, index, &s->events.owners))
-        --s->events.runtime->next_event;
+        --s->events.owner->runtime.next_event;
 }
 int mm_scene_edit_insert(MMI32 frame, int kind, MMI32 bytes, const void *p,
                                const MMSceneSoundEditServices *s)
@@ -42,12 +42,12 @@ int mm_scene_edit_insert(MMI32 frame, int kind, MMI32 bytes, const void *p,
     MMI32 index;
     int ok;
     s->dirty(s->context);
-    index = s->events.runtime->next_event++;
+    index = s->events.owner->runtime.next_event++;
     event.frame = frame;
     event.kind = kind;
     ok = mm_scene_track_insert(frames(s), index, bytes, p, &event);
     if (!ok)
-        --s->events.runtime->next_event;
+        --s->events.owner->runtime.next_event;
     return ok;
 }
 static MMI32 packet_bytes(const MMSceneSound *p, const MMSceneSoundEditServices *s)
@@ -88,7 +88,7 @@ int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 cou
     old = find(style, &boundary, s);
     if (old < 0)
         queue = 0;
-    frame = s->events.data->currentFrame;
+    frame = s->events.owner->data.currentFrame;
     if (!queue)
     {
         bytes = mm_scene_sound_size(count, v->tag_bytes);
@@ -167,7 +167,7 @@ int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 cou
         v->enqueue(v->context, sound, loop != 0, i != 0, volume, v->priority(v->context, sound, loop != 0), 0);
         v->release(v->context, sound);
     }
-    finish(p, frame, s->events.runtime->disabled | MM_SCENE_EFFECT_SOUNDS, s);
+    finish(p, frame, s->events.owner->runtime.disabled | MM_SCENE_EFFECT_SOUNDS, s);
     return 1;
 }
 int mm_scene_sound_restore(int loop, int queue, MMI32 volume, MMI32 style, MMI32 count,
@@ -179,7 +179,7 @@ int mm_scene_sound_restore(int loop, int queue, MMI32 volume, MMI32 style, MMI32
     if (count <= 0 || (queue && (count != 1 || loop)))
         return 0;
     old = find(style, &boundary, s);
-    frame = s->events.data->currentFrame;
+    frame = s->events.owner->data.currentFrame;
     if (queue && old >= 0)
     {
         s->diagnostic(s->context, MM_SCENE_SOUND_QUEUE_RESTORE);
@@ -188,7 +188,7 @@ int mm_scene_sound_restore(int loop, int queue, MMI32 volume, MMI32 style, MMI32
     p = mm_scene_sound_make(volume, style, loop, count, records, &s->values.packets);
     if (!p || !install(p, old, frame, s))
         return 0;
-    finish(p, frame, s->events.runtime->disabled, s);
+    finish(p, frame, s->events.owner->runtime.disabled, s);
     return 1;
 }
 int mm_scene_sound_get(MMI32 style, int *found, MMSceneSound **out,
@@ -212,9 +212,9 @@ void mm_scene_sound_update_indicator(const MMSceneSoundEditServices *s)
     MMSceneTrackEvent event;
     MMI32 i;
     int has = 0;
-    for (i = s->events.runtime->next_event - 1; i >= 0; --i)
+    for (i = s->events.owner->runtime.next_event - 1; i >= 0; --i)
     {
-        if (!mm_scene_track_get(track, i, &event) || event.frame != s->events.data->currentFrame)
+        if (!mm_scene_track_get(track, i, &event) || event.frame != s->events.owner->data.currentFrame)
             break;
         if (event.kind == MM_SCENE_PLAY_SOUND)
         {
@@ -325,7 +325,7 @@ void mm_scene_sound_background_play(const MMSceneSoundEditServices *s)
     int overflow;
     if (!p)
         return;
-    start = mm_scene_sound_background_offset(s->events.data->currentFrame, s->events.runtime->background_frame,
+    start = mm_scene_sound_background_offset(s->events.owner->data.currentFrame, s->events.owner->runtime.background_frame,
                                                    &overflow);
     if (overflow)
         s->diagnostic(s->context, MM_SCENE_SOUND_OFFSET_OVERFLOW);

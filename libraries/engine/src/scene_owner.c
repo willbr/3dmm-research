@@ -1,18 +1,22 @@
 /* Scene ownership/lifecycle converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "mm/scene_owner.h"
+#include "mm/scene_runtime.h"
 #include "mm/collections.h"
 #include "mm/scene_sound.h"
 #include <string.h>
-void mm_scene_owner_init(MMSceneOwner *w, void *movie, const MMStorageAllocator *allocator)
+int mm_scene_owner_init(MMSceneOwner *w, void *movie, unsigned unit, const MMStorageAllocator *allocator)
 {
     int i;
     memset(w, 0, sizeof(*w));
+    if (!mm_scene_init(&w->data, unit))
+        return 0;
     w->movie = movie;
+    w->runtime.disabled = MM_SCENE_EFFECT_PAUSES;
     for (i = 0; i < MM_SCENE_MEMBER_LISTS; ++i)
         mm_storage_init(&w->members[i].storage, allocator);
     for (i = 0; i < MM_SCENE_TRACKS; ++i)
         mm_scene_track_init(&w->tracks[i], allocator, 0);
+    return 1;
 }
 MMI32 mm_scene_member_count(const MMSceneOwner *w, int list)
 {

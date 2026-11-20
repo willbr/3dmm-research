@@ -26,14 +26,8 @@ extern "C"
         MM_SCENE_GOTO_FAILURE,
         MM_SCENE_PRERENDER_ASSERT
     };
-    typedef struct MMSceneRuntime
-    {
-        MMI32 next_event, background_frame;
-        MMU32 disabled;
-        MMMovieLiveFrame publication;
-    } MMSceneRuntime;
     /* Synchronous, borrowed services. Event groups must not be mutated/reentered
-     * during play/unplay; changing their length invalidates the native cursor too.
+     * during play/unplay; changing their length invalidates the event cursor too.
      * Object counts are queried each iteration, as in the original engine.
      * A seek's optional sound pointer is in/out, including on failure.
      * Frame metadata and runtime state are live throughout callbacks; failures
@@ -56,18 +50,15 @@ extern "C"
         void (*snapshot)(void *, int begin);
         void (*notice)(void *, int notice, int value);
     } MMSceneRuntimeServices;
-    void mm_scene_runtime_init(MMSceneRuntime *);
-    int mm_scene_goto(MMSceneRuntime *, MMSceneState *, MMI32,
-                            const MMSceneRuntimeServices *);
-    int mm_scene_replay(MMSceneRuntime *, const MMSceneState *, MMU32 enabled,
-                              const MMSceneRuntimeServices *);
+    int mm_scene_goto(MMI32 target, const MMSceneRuntimeServices *);
+    int mm_scene_replay(MMU32 enabled, const MMSceneRuntimeServices *);
     int mm_scene_force(MMI32 frame, int text, int *sound, const MMSceneRuntimeServices *);
-    void mm_scene_move_first(MMSceneState *, MMI32, MMSceneOwner *);
+    void mm_scene_move_first(MMSceneOwner *, MMI32 target);
     typedef void (*MMSceneMoveCamera)(void *context, void *group, MMI32 index, MMI32 frame);
     /* Move camera rows in the opening-frame prefix to the front in traversal order.
      * The reader observes each move and row count stays fixed. */
     void mm_scene_move_opening_cameras(MMI32 first, MMI32 target, const MMMovieEventView *, MMSceneMoveCamera);
-    void mm_scene_extend_range(MMSceneState *, const MMSceneRuntimeServices *);
+    void mm_scene_extend_range(const MMSceneRuntimeServices *);
     /* The minimum 32-bit frame is reserved. Extensions retain every authored frame. */
     int mm_scene_range_contains(MMI32 authored_first, MMI32 authored_last, long first, long last);
     typedef struct MMSceneRangeStoreServices
@@ -83,8 +74,7 @@ extern "C"
     /* Operates on a private working copy. Returns the invalid-range status or
      * 1/0 from the write effects. Callbacks never unwind. */
     int mm_scene_range_store(MMSceneState *, long first, long last, const MMSceneRangeStoreServices *);
-    void mm_scene_prerender(const MMSceneRuntime *, const MMSceneState *, int start_now,
-                                  const MMSceneRuntimeServices *);
+    void mm_scene_prerender(int start_now, const MMSceneRuntimeServices *);
     void mm_scene_end_prerender(const MMSceneRuntimeServices *);
 #ifdef __cplusplus
 }

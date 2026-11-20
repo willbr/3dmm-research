@@ -87,30 +87,28 @@ fail:
     read->close(read->context, &wire);
     return 0;
 }
-void *mm_scene_load(void *movie, MMU32 number, unsigned unit, const MMSceneLoadServices *s)
+void *mm_scene_load(void *movie, MMU32 number, const MMSceneLoadServices *s)
 {
-    MMSceneState metadata;
     MMMovieSessionScene header;
     const MMSceneOwnerServices *o = &s->owners;
     MMSceneOwner *owner;
     MMU32 child;
     void *scene;
-    if (!mm_scene_init(&metadata, unit) || s->read.header(s->read.context, number, &header) != MM_MOVIE_OK)
+    if (s->read.header(s->read.context, number, &header) != MM_MOVIE_OK)
         return NULL;
     scene = o->create_scene(o->context, movie);
     if (!scene)
         return NULL;
     owner = o->state(o->context, scene);
-    metadata.firstFrame = header.first_frame;
-    metadata.lastFrame = header.last_frame;
-    metadata.transition = header.transition;
-    metadata.currentFrame = metadata.firstFrame - 1;
-    s->publish_metadata(s->context, scene, &metadata);
+    owner->data.firstFrame = header.first_frame;
+    owner->data.lastFrame = header.last_frame;
+    owner->data.transition = header.transition;
+    owner->data.currentFrame = header.first_frame - 1;
     if (s->read.child(s->read.context, number, 0, MM_SCENE_THUMBNAIL_CHUNK, &child))
         owner->owned[MM_SCENE_THUMBNAIL] = s->thumbnail(s->context, child);
     if (!load_group(scene, owner, number, 0, s) || !load_group(scene, owner, number, 1, s))
         goto unwind;
-    s->load_name(s->context, scene, number);
+    mm_chunk_title_read(&owner->data.name, s->title_file, MM_SCENE_CHUNK, number, &s->titles);
     return scene;
 unwind:
     mm_scene_owner_unwind(owner, o);

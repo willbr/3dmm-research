@@ -270,12 +270,11 @@ Scene::Scene(PMovie pmvie)
 {
     AssertNilOrPo(pmvie, 0);
     const auto allocator = CollectionAllocator();
-    mm_scene_owner_init(&_owner, pmvie, &allocator);
+    AssertDo(mm_scene_owner_init(&_owner, pmvie, sizeof(achar), &allocator), "invalid scene title width");
 #ifdef DEBUG
     for (auto &track : _owner.tracks)
         track.rows.trash_unused = 1;
 #endif
-    mm_scene_runtime_init(&_runtime);
 }
 
 /****************************************************
@@ -388,7 +387,7 @@ void Scene::AssertValid(LegacyUlong grf)
 
     Scene_PAR::AssertValid(fobjAllocated);
 
-    Assert(_data.name.count <= 255 && _data.name.unit == sizeof(achar), "bad scene name");
+    Assert(_owner.data.name.count <= 255 && _owner.data.name.unit == sizeof(achar), "bad scene name");
     AssertNilOrPo(PactrSelected(), 0);
     for (MMI32 i = 0; i < mm_scene_member_count(&_owner, MM_SCENE_SELECTION); ++i)
         AssertPo(static_cast<PActor>(mm_scene_member_at(&_owner, MM_SCENE_SELECTION, i)), 0);
@@ -444,7 +443,7 @@ MMScenePropertyServices Scene::_PropertyServices()
 {
     MMScenePropertyServices s = {};
     s.context = this;
-    s.data = &_data;
+    s.data = &_owner.data;
     s.new_undo = [](void *, int kind) -> void * {
         return kind == MM_SCENE_CONTROL_NAME ? static_cast<void *>(SceneUndoTitle::PsuntNew())
                                                    : static_cast<void *>(SceneUndoTransition::PsunrNew());
@@ -599,7 +598,7 @@ bool Scene::FGotoFrm(long nfrm)
     AssertThis(0);
     auto services = _RuntimeServices();
     services.movie = Pmvie()->MovieSession();
-    return mm_scene_goto(&_runtime, &_data, nfrm, &services) != 0;
+    return mm_scene_goto(nfrm, &services) != 0;
 }
 
 /****************************************************
@@ -631,7 +630,7 @@ void Scene::_DoPrerenderingWork(bool fStartNow)
 {
     AssertThis(0);
     auto services = _RuntimeServices();
-    mm_scene_prerender(&_runtime, &_data, fStartNow, &services);
+    mm_scene_prerender(fStartNow, &services);
 }
 
 /****************************************************
@@ -670,7 +669,7 @@ bool Scene::FReplayFrm(ulong grfscen)
 {
     AssertThis(0);
     auto services = _RuntimeServices();
-    return mm_scene_replay(&_runtime, &_data, grfscen, &services) != 0;
+    return mm_scene_replay(grfscen, &services) != 0;
 }
 
 /****************************************************
@@ -688,7 +687,7 @@ void Scene::InvalFrmRange(void)
 {
     AssertThis(0);
     auto services = _RuntimeServices();
-    mm_scene_extend_range(&_data, &services);
+    mm_scene_extend_range(&services);
 }
 
 MMSceneEventServices Scene::_EventServices()
@@ -702,8 +701,6 @@ MMSceneEventServices Scene::_EventServices()
                   "Scene event kinds");
     MMSceneEventServices s = {};
     s.context = this;
-    s.runtime = &_runtime;
-    s.data = &_data;
     s.owner = &_owner;
     s.owners = _OwnerServices();
     s.duplicate_sound = [](void *, void *payload) -> void * {
@@ -772,8 +769,8 @@ MMSceneEventServices Scene::_EventServices()
 void Scene::_MoveBackFirstFrame(long nfrm)
 {
     AssertThis(0);
-    Assert(nfrm < _data.firstFrame, "Can only be called to extend scene back.");
-    mm_scene_move_first(&_data, nfrm, &_owner);
+    Assert(nfrm < _owner.data.firstFrame, "Can only be called to extend scene back.");
+    mm_scene_move_first(&_owner, nfrm);
 }
 
 MMSceneSoundEditServices Scene::_SoundEditServices()
@@ -1832,7 +1829,7 @@ MMSceneEditServices Scene::_EditServices()
         auto scene = static_cast<PScene>(p);
         String name;
         scene->Pbkgd()->GetName(&name);
-        scene->_data.SetName(&name);
+        scene->SetNameCore(&name);
     };
     s.scene_change = [](void *p) { static_cast<PScene>(p)->Pmvie()->Pmcc()->SceneChange(); };
     s.can_notify = [](void *) -> int { return vpcex != nullptr; };
@@ -2047,9 +2044,8 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
     s.owners = _OwnerServices();
     s.packets = ScenePacketServices(pmvie);
     s.read = mm_movie_scene_reader(&source);
-    s.publish_metadata = [](void *, void *scene, const MMSceneState *value) {
-        static_cast<MMSceneState &>(static_cast<PScene>(scene)->_data) = *value;
-    };
+    s.title_file = host.file;
+    s.titles = KauaiChunkTitleIO();
     s.thumbnail = [](void *p, MMU32 number) -> void * {
         return MaskedBitmapMBMP::PmbmpReadChunk(static_cast<Host *>(p)->file, kctgThumbMbmp, number);
     };
@@ -2068,10 +2064,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
         auto h = static_cast<Host *>(p);
         return TagManager::FOpenTag(static_cast<PSceneSoundEvent>(sound)->Ptag(index), h->resources, h->file);
     };
-    s.load_name = [](void *p, void *scene, MMU32 number) {
-        static_cast<PScene>(scene)->_data.LoadName(static_cast<Host *>(p)->file, number);
-    };
-    return static_cast<PScene>(mm_scene_load(pmvie, cno, sizeof(achar), &s));
+    return static_cast<PScene>(mm_scene_load(pmvie, cno, &s));
 }
 
 /****************************************************
@@ -2137,7 +2130,6 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
     MMSceneStoreServices s = {};
     s.context = &host;
     s.owner = &_owner;
-    s.metadata = &_data;
     s.editor = &editor;
     s.values = SceneSoundValues();
     s.assets = assets.Services();
@@ -2252,8 +2244,6 @@ MMSceneThumbnailServices Scene::_ThumbnailServices(void *graphics)
 {
     MMSceneThumbnailServices s = {};
     s.context = this;
-    s.data = &_data;
-    s.runtime = &_runtime;
     s.owner = &_owner;
     s.owners = _OwnerServices();
     s.selection = _SelectionServices();
@@ -2561,7 +2551,6 @@ MMSceneChopServices Scene::_ChopServices()
 {
     MMSceneChopServices s = {};
     s.context = this;
-    s.data = &_data;
     s.events = _EventServices();
     s.trim_actor = [](void *, void *object, int back) {
         bool alive;
@@ -2593,7 +2582,7 @@ MMSceneChopServices Scene::_ChopServices()
         text->SetStartFrame(frame);
     };
     s.dirty = [](void *p) { static_cast<Scene *>(p)->Pmvie()->SetDirty(); };
-    s.discard_background_frame = [](void *p) { TrashVar(&static_cast<Scene *>(p)->_runtime.background_frame); };
+    s.discard_background_frame = [](void *p) { TrashVar(&static_cast<Scene *>(p)->_owner.runtime.background_frame); };
     s.bad_lifetime = [](void *) { Bug("Bad caption lifetime while chopping Scene"); };
     s.new_undo = [](void *) -> void * { return SceneUndoChop::PsuncNew(); };
     s.save_undo = [](void *p, void *undo) {
@@ -2685,13 +2674,7 @@ MMScenePlaybackServices Scene::_PlaybackServices()
 {
     MMScenePlaybackServices s = {};
     s.context = this;
-    s.data = &_data;
-    s.count = [](void *p, int text) -> MMI32 {
-        return mm_scene_member_count(&static_cast<PScene>(p)->_owner, text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS);
-    };
-    s.object = [](void *p, int text, MMI32 i) -> void * {
-        return mm_scene_member_at(&static_cast<PScene>(p)->_owner, text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS, i);
-    };
+    s.owner = &_owner;
     s.lifetime = [](void *, int text, void *object, MMI32 *first, MMI32 *last) {
         long a, b;
         bool ok =
@@ -2858,7 +2841,7 @@ bool SceneUndoTitle::FDo(PDocumentBase pdocb)
     ScenePropertyUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = ScenePropertyUndoServices(&host);
     s.scene = [](void *p) -> MMSceneState * {
-        return &static_cast<ScenePropertyUndoHost *>(p)->movie->Pscen()->_data;
+        return &static_cast<ScenePropertyUndoHost *>(p)->movie->Pscen()->_owner.data;
     };
     return mm_scene_title_swap(&_title, &s) != 0;
 }
@@ -3278,7 +3261,7 @@ bool SceneUndoTransition::FDo(PDocumentBase pdocb)
     ScenePropertyUndoHost host = {Pmvie(), Iscen(), Nfrm()};
     auto s = ScenePropertyUndoServices(&host);
     s.scene = [](void *p) -> MMSceneState * {
-        return &static_cast<ScenePropertyUndoHost *>(p)->movie->Pscen()->_data;
+        return &static_cast<ScenePropertyUndoHost *>(p)->movie->Pscen()->_owner.data;
     };
     return mm_scene_transition_swap(&_transition, &s) != 0;
 }

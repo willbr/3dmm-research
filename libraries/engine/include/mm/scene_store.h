@@ -29,7 +29,6 @@ extern "C"
     {
         void *context;
         MMSceneOwner *owner;
-        const MMSceneState *metadata;
         const MMMovieArchiveEditor *editor;
         MMSceneSoundValueServices values;
         MMMovieEmbeddedArchive assets;

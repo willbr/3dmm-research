@@ -1,4 +1,5 @@
 #include "mm/scene_load.h"
+#include "mm/text.h"
 #include "mm/text_store.h"
 #define SCENE_SOUND_FIXTURE_NO_PACKET_HELPERS
 #include "scene_sound_fixture.h"
@@ -22,9 +23,9 @@ typedef struct Loader
     Fixture packets;
     MMSceneLoadServices s;
     MMSceneOwner owner;
-    MMSceneState metadata;
     LoadObject wire[2], background_cache, *scene;
-    int attempt, fail, live, swap, names, published, log[512], used;
+    unsigned title_unit;
+    int attempt, fail, live, swap, names, title_mode, bad_titles, log[512], used;
     int actor_calls, resolve_calls, actor_fail, resolve_fail, no_thumbnail, bad_kind;
     int track_allocations, fail_open, fail_track;
 } Loader;
@@ -77,7 +78,7 @@ static void *new_scene(void *p, void *movie)
     allocator.context = f;
     f->scene = (LoadObject *)new_object(f, 200);
     if (f->scene)
-        mm_scene_owner_init(&f->owner, movie, &allocator);
+        CHECK(mm_scene_owner_init(&f->owner, movie, f->title_unit, &allocator));
     return f->scene;
 }
 static MMSceneOwner *owner_state(void *p, void *scene)
@@ -150,20 +151,13 @@ static int metadata(void *p, MMU32 number, MMMovieSessionScene *out)
     out->number = number;
     return MM_MOVIE_OK;
 }
-static void publish_metadata(void *p, void *scene, const MMSceneState *value)
-{
-    Loader *f = (Loader *)p;
-    CHECK(scene == f->scene && !mm_scene_member_count(&f->owner, MM_SCENE_ACTORS) &&
-          !mm_scene_member_count(&f->owner, MM_SCENE_TEXTS));
-    CHECK(value->currentFrame == 2 && value->name.unit == 1);
-    f->metadata = *value;
-    f->published = 1;
-    note(f, 2);
-}
 static int child(void *p, MMU32 scene, MMU32 id, MMU32 type, MMU32 *number)
 {
     Loader *f = (Loader *)p;
-    CHECK(scene == 42 && f->published);
+    const MMSceneState *data = &f->owner.data;
+    CHECK(scene == 42 && f->scene && data->currentFrame == 2 && data->firstFrame == 3 &&
+          data->lastFrame == 19 && data->transition == 3 && data->name.unit == f->title_unit && !data->name.count);
+    CHECK(!f->owner.runtime.next_event && !f->names);
     if (!step(f) || (type == MM_SCENE_THUMBNAIL_CHUNK && f->no_thumbnail))
         return 0;
     CHECK(type == MM_SCENE_THUMBNAIL_CHUNK ? id == 0 :
@@ -181,7 +175,7 @@ static int read_group(void *p, MMU32 number, int start, MMMovieSceneGroup *out)
 {
     Loader *f = (Loader *)p;
     LoadObject *g = &f->wire[start];
-    CHECK(number == 42 && f->published);
+    CHECK(number == 42 && f->owner.data.currentFrame == 2 && !f->names);
     if (!step(f) || !step(f))
         return MM_MOVIE_BAD_FILE;
     CHECK(!g->refs);
@@ -240,13 +234,27 @@ static int open_tag(void *p, MMSceneSound *sound, MMI32 i)
     note(f, 30 + i);
     return 1;
 }
-static void load_name(void *p, void *scene, MMU32 number)
+static int read_title(void *p, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
 {
     Loader *f = (Loader *)p;
-    CHECK(scene == f->scene && number == 42 &&
+    static const unsigned char name[] = {3, 3, 5, 'S', 'c', 'e', 'n', 'e', 0};
+    unsigned short wide[] = {0, 5, 'S', 'c', 0x2014, 'n', 'e', 0};
+    const void *bytes = f->title_unit == 2 ? (const void *)wide : name;
+    size_t size = f->title_unit == 2 ? sizeof(wide) : sizeof(name);
+    CHECK(type == MM_SCENE_CHUNK && number == 42 && capacity >= size &&
           f->owner.tracks[MM_SCENE_FRAMES].rows.count == 3 && f->owner.tracks[MM_SCENE_STARTS].rows.count == 4);
     ++f->names;
     note(f, 3);
+    if (f->title_mode == 1)
+        return 0;
+    wide[0] = (unsigned short)f->s.titles.encoding;
+    memcpy(wire, bytes, size);
+    *written = f->title_mode == 2 ? 1 : (MMU32)size;
+    return 1;
+}
+static void bad_title(void *p)
+{
+    ++((Loader *)p)->bad_titles;
 }
 static void *packet_allocate(void *p, MMI32 bytes)
 {
@@ -283,6 +291,7 @@ static void init_loader(Loader *f, int swap)
     memset(f, 0, sizeof(*f));
     init(&f->packets);
     f->swap = swap;
+    f->title_unit = 1;
     f->wire[0].type = 100;
     f->wire[1].type = 101;
     wire_event(f, 0, 1, sound, 19);
@@ -302,12 +311,15 @@ static void init_loader(Loader *f, int swap)
     s->read.group = read_group;
     s->read.event = read_event;
     s->read.close = release_group;
-    s->publish_metadata = publish_metadata;
+    s->title_file = f;
+    s->titles.context = f;
+    s->titles.encoding = MM_TEXT_WINDOWS;
+    s->titles.read = read_title;
+    s->titles.bad_string = bad_title;
     s->thumbnail = thumbnail;
     s->object = read_object;
     s->retain_background_cache = retain_background_cache;
     s->open_tag = open_tag;
-    s->load_name = load_name;
     o = &s->owners;
     o->context = f;
     o->sound_tag_bytes = sizeof(Record);
@@ -341,8 +353,9 @@ static void test_load(void)
     for (swap = 0; swap < 2; ++swap)
     {
         init_loader(&f, swap);
-        scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
+        scene = (LoadObject *)mm_scene_load(&f, 42, &f.s);
         CHECK(scene && f.names == 1);
+        CHECK(f.owner.data.name.count == 5 && !memcmp(mm_movie_title_text(&f.owner.data.name), "Scene", 6));
         attempts = f.attempt;
         frames = &f.owner.tracks[MM_SCENE_FRAMES];
         CHECK(mm_scene_track_payload(frames, 0, &bytes) && bytes == (int)(16 + 3 * sizeof(Record)));
@@ -358,7 +371,7 @@ static void test_load(void)
         {
             init_loader(&f, swap);
             f.fail = fail;
-            scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
+            scene = (LoadObject *)mm_scene_load(&f, 42, &f.s);
             CHECK((scene != NULL) == (fail == 3 || fail == 4));
             if (scene)
             {
@@ -372,7 +385,7 @@ static void test_load(void)
         /* Failed second open closes only tag zero, before packet and wire release. */
         init_loader(&f, swap);
         f.fail_open = 2;
-        CHECK(!mm_scene_load(&f, 42, 1, &f.s));
+        CHECK(!mm_scene_load(&f, 42, &f.s));
         last = -1;
         for (j = 0; j < f.used; ++j)
             if (f.log[j] == 11)
@@ -382,7 +395,7 @@ static void test_load(void)
         /* Failed insertion closes all newly opened tags in reverse order. */
         init_loader(&f, swap);
         f.fail_track = 1;
-        CHECK(!mm_scene_load(&f, 42, 1, &f.s));
+        CHECK(!mm_scene_load(&f, 42, &f.s));
         last = -1;
         for (j = 0; j < f.used; ++j)
             if (f.log[j] == 13)
@@ -392,14 +405,31 @@ static void test_load(void)
         check_clean(&f);
         init_loader(&f, swap);
         f.no_thumbnail = 1;
-        scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
+        scene = (LoadObject *)mm_scene_load(&f, 42, &f.s);
         CHECK(scene && !f.owner.owned[MM_SCENE_THUMBNAIL]);
         release_object(&f, scene);
         check_clean(&f);
     }
-    init_loader(&f, 0);
-    CHECK(!mm_scene_load(&f, 42, 3, &f.s) && !f.attempt);
-    check_clean(&f);
+    for (j = 1; j <= 2; ++j)
+    {
+        init_loader(&f, 0);
+        f.title_mode = j;
+        scene = (LoadObject *)mm_scene_load(&f, 42, &f.s);
+        CHECK(scene && f.names == 1 && f.bad_titles == (j == 2) && !f.owner.data.name.count);
+        release_object(&f, scene);
+        check_clean(&f);
+    }
+    {
+        const unsigned short one = 1, expected[] = {'S', 'c', 0x2014, 'n', 'e', 0};
+        init_loader(&f, 0);
+        f.title_unit = 2;
+        f.s.titles.encoding = *(const unsigned char *)&one ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE;
+        scene = (LoadObject *)mm_scene_load(&f, 42, &f.s);
+        CHECK(scene && f.owner.data.name.count == 5);
+        CHECK(!memcmp(mm_movie_title_text(&f.owner.data.name), expected, sizeof(expected)));
+        release_object(&f, scene);
+        check_clean(&f);
+    }
 }
 static int resolve_actor(void *p, void *actor, MMU32 scene)
 {
@@ -431,7 +461,7 @@ static void test_resolve(void)
     for (fail = 0; fail < 6; ++fail)
     {
         init_loader(&f, 0);
-        scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
+        scene = (LoadObject *)mm_scene_load(&f, 42, &f.s);
         CHECK(scene);
         CHECK(mm_scene_member_append(&f.owner, MM_SCENE_ACTORS, &f.wire[0]));
         CHECK(mm_scene_member_append(&f.owner, MM_SCENE_ACTORS, &f.wire[1]));

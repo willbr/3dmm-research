@@ -15,7 +15,6 @@ extern "C"
     typedef struct MMSceneChopServices
     {
         void *context;
-        MMSceneState *data;
         MMSceneEventServices events;
         int (*trim_actor)(void *, void *, int back);
         void (*remove_actor)(void *, void *);

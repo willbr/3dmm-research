@@ -273,7 +273,7 @@ int mm_scene_store(MMU32 *number, const MMSceneStoreServices *s)
             s->diagnostic(s->context, 1);
     }
     if (!mm_scene_archive_write_tracks(editor, *number, &frames, &starts) ||
-        !store_thumbnail(s, *number) || !mm_scene_archive_write(editor, *number, s->metadata))
+        !store_thumbnail(s, *number) || !mm_scene_archive_write(editor, *number, &s->owner->data))
         goto fail;
     mm_scene_track_dispose(&frames);
     mm_scene_track_dispose(&starts);

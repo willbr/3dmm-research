@@ -101,8 +101,8 @@ struct Access : Scene
 #endif
     static void State(PScene p)
     {
-        auto &data = p->*&Access::_data;
-        auto &r = p->*&Access::_runtime;
+        auto &data = (p->*&Access::_owner).data;
+        auto &r = (p->*&Access::_owner).runtime;
         auto group = (p->*&Access::_FrameTrack)();
         Value(data.currentFrame);
         Value(data.firstFrame);

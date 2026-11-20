@@ -255,14 +255,15 @@ class StageTestScene : public Scene
     StageTestScene(PMovie movie) : Scene(movie) {}
     bool TrackActor(PActor actor,long frame)
     {
-        _data.currentFrame=frame; _data.firstFrame=1; _data.lastFrame=100; _runtime.next_event=0;
+        _owner.data.currentFrame=frame; _owner.data.firstFrame=1; _owner.data.lastFrame=100;
+        _owner.runtime.next_event=0;
         mm_scene_member_clear(&_owner, MM_SCENE_ACTORS);
         return mm_scene_member_append(&_owner, MM_SCENE_ACTORS, actor);
     }
     bool Init()
     {
         auto background=NewObj StageTestBackground(); _owner.owned[MM_SCENE_BACKGROUND]=background;
-        _data.firstFrame=1; _data.lastFrame=20; _data.currentFrame=3;
+        _owner.data.firstFrame=1; _owner.data.lastFrame=20; _owner.data.currentFrame=3;
         return background && background->Init();
     }
 };

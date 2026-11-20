@@ -1,4 +1,5 @@
 #include "mm/scene_control.h"
+#include "scene_member_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,9 +25,10 @@ typedef struct Undo
 typedef struct Host
 {
     MMSceneState data, other;
+    MMSceneOwner owner;
+    SceneMemberMemory members;
     Undo *undo;
     Object objects[8];
-    int actors, texts;
     int trace[128], traces, fail, allocations, releases, dead;
     unsigned char header[16];
     MMMemoryStream memory;
@@ -286,17 +288,6 @@ static void test_swaps(void)
             }
         }
 }
-static MMI32 count(void *p, int text_kind)
-{
-    Host *h = (Host *)p;
-    return text_kind ? h->texts : h->actors;
-}
-static void *object(void *p, int text_kind, MMI32 i)
-{
-    Host *h = (Host *)p;
-    CHECK(i >= 0 && i < (text_kind ? h->texts : h->actors));
-    return h->objects + i;
-}
 static int lifetime(void *p, int text_kind, void *o, MMI32 *first, MMI32 *last)
 {
     Host *h = (Host *)p;
@@ -346,9 +337,7 @@ static MMScenePlaybackServices playback(Host *h)
 {
     MMScenePlaybackServices s;
     s.context = h;
-    s.data = &h->data;
-    s.count = count;
-    s.object = object;
+    s.owner = &h->owner;
     s.lifetime = lifetime;
     s.story = story;
     s.visible = visible;
@@ -363,9 +352,12 @@ static void test_playback(void)
 {
     Host h;
     MMScenePlaybackServices s;
+    int i;
     init(&h, 1);
+    init_scene_members(&h.owner, &h.members);
     s = playback(&h);
-    h.actors = 3;
+    for (i = 0; i < 3; ++i)
+        CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, &h.objects[i]));
     h.objects[1].valid = 0;
     CHECK(!mm_scene_start_playing(&s));
     {
@@ -373,7 +365,8 @@ static void test_playback(void)
         expect(&h, e, 2);
     }
     h.objects[1].valid = 1;
-    h.texts = 6;
+    for (i = 0; i < 6; ++i)
+        CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, &h.objects[i]));
     h.objects[0].story = h.objects[0].visible = 1;
     h.objects[1].story = 1;
     h.objects[2].first = 1;
@@ -391,7 +384,8 @@ static void test_playback(void)
         const int e[] = {92, 100, 101, 102, 103, 104, 105};
         expect(&h, e, 7);
     }
-    h.texts = h.actors = 0;
+    mm_scene_member_clear(&h.owner, MM_SCENE_ACTORS);
+    mm_scene_member_clear(&h.owner, MM_SCENE_TEXTS);
     CHECK(mm_scene_start_playing(&s));
     {
         const int e[] = {91};

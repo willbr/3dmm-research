@@ -20,8 +20,6 @@ typedef struct Obj
 } Obj;
 typedef struct Host
 {
-    MMSceneState data;
-    MMSceneRuntime runtime;
     MMSceneOwner owner;
     SceneMemberMemory members;
     Obj objects[5];
@@ -132,7 +130,7 @@ static void discard(void *p)
 {
     Host *h = (Host *)p;
     CHECK(!h->owner.owned[MM_SCENE_BACKGROUND_SOUND]);
-    h->runtime.background_frame = -99;
+    h->owner.runtime.background_frame = -99;
     event(h, 143);
 }
 static void bad_lifetime(void *p)
@@ -176,9 +174,9 @@ static MMSceneChopServices init(Host *h)
     memset(h, 0, sizeof(*h));
     init_scene_members(&h->owner, &h->members);
     memset(&s, 0, sizeof(s));
-    h->data.firstFrame = 1;
-    h->data.lastFrame = 10;
-    h->data.currentFrame = 5;
+    h->owner.data.firstFrame = 1;
+    h->owner.data.lastFrame = 10;
+    h->owner.data.currentFrame = 5;
     for (i = 0; i < 5; ++i)
     {
         h->objects[i].id = i;
@@ -189,11 +187,8 @@ static MMSceneChopServices init(Host *h)
     h->frames = &h->owner.tracks[MM_SCENE_FRAMES];
     CHECK(mm_scene_track_init(h->frames, NULL, 0));
     s.context = h;
-    s.data = &h->data;
     s.events.context = h;
     s.events.owner = &h->owner;
-    s.events.runtime = &h->runtime;
-    s.events.data = &h->data;
     s.events.owners.context = h;
     s.events.owners.sound_tag_bytes = sizeof(MMU32);
     s.events.owners.release = release;
@@ -259,7 +254,7 @@ static void test_core(void)
         CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects + i));
     h.objects[0].first = 6;
     h.objects[2].last = 4;
-    h.runtime.next_event = 1;
+    h.owner.runtime.next_event = 1;
     append_frame(&h, 1, MM_SCENE_CHANGE_CAMERA, 0);
     append_frame(&h, 6, MM_SCENE_PLAY_SOUND, 2);
     append_frame(&h, 7, MM_SCENE_PAUSE, 0);
@@ -268,7 +263,7 @@ static void test_core(void)
     CHECK(mm_scene_member_count(&h.owner, MM_SCENE_ACTORS) == 1 &&
           mm_scene_member_at(&h.owner, MM_SCENE_ACTORS, 0) == h.objects + 1 &&
           mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 2 && h.frames->rows.count == 1 &&
-          h.data.lastFrame == 5);
+          h.owner.data.lastFrame == 5);
     CHECK(mm_scene_chop_edit(0, &s) && !h.traces);
     mm_scene_track_dispose(h.frames);
     s = init(&h);
@@ -277,7 +272,7 @@ static void test_core(void)
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects));
     h.objects[0].first = 6;
     CHECK(mm_scene_chop(0, &s) && mm_scene_member_count(&h.owner, MM_SCENE_ACTORS) == 1 &&
-          mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 1 && h.data.lastFrame == 5);
+          mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 1 && h.owner.data.lastFrame == 5);
     s = init(&h);
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects));
     h.objects[0].lifetime = 0;
@@ -308,7 +303,7 @@ static void test_core(void)
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects));
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects + 1));
     h.objects[0].last = 4;
-    h.runtime.next_event = 5;
+    h.owner.runtime.next_event = 5;
     append_frame(&h, 1, MM_SCENE_CHANGE_CAMERA, 0);
     append_frame(&h, 2, MM_SCENE_PLAY_SOUND, 1);
     append_frame(&h, 3, MM_SCENE_CHANGE_CAMERA, 0);
@@ -316,23 +311,23 @@ static void test_core(void)
     append_frame(&h, 5, MM_SCENE_PAUSE, 0);
     append_frame(&h, 7, MM_SCENE_PAUSE, 0);
     h.owner.owned[MM_SCENE_BACKGROUND_SOUND] = &h.resource;
-    h.runtime.background_frame = 2;
+    h.owner.runtime.background_frame = 2;
     CHECK(mm_scene_chop(1, &s));
     {
         const int e[] = {121, 133, 80, 142, 23, 143};
         expect(&h, e, sizeof(e) / sizeof(*e));
     }
-    CHECK(h.data.firstFrame == 5 && h.runtime.next_event == 3 && h.frames->rows.count == 4);
+    CHECK(h.owner.data.firstFrame == 5 && h.owner.runtime.next_event == 3 && h.frames->rows.count == 4);
     CHECK(mm_scene_track_get(h.frames, 0, &row) && row.kind == MM_SCENE_CHANGE_CAMERA && row.frame == 5);
     memcpy(&camera, mm_scene_track_payload(h.frames, 0, NULL), sizeof(camera));
     CHECK(camera == 3);
     CHECK(h.objects[1].first == 5 && mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 1 &&
-          h.runtime.background_frame == -99);
+          h.owner.runtime.background_frame == -99);
     CHECK(mm_scene_chop_edit(1, &s) && !h.traces);
     mm_scene_track_dispose(h.frames);
     s = init(&h);
     h.owner.owned[MM_SCENE_BACKGROUND_SOUND] = &h.resource;
-    h.runtime.background_frame = 5;
+    h.owner.runtime.background_frame = 5;
     CHECK(mm_scene_chop(1, &s) && h.owner.owned[MM_SCENE_BACKGROUND_SOUND] && h.traces == 1);
 }
 static void test_transaction(void)
@@ -345,7 +340,7 @@ static void test_transaction(void)
         s = init(&h);
         h.fail = i;
         CHECK(mm_scene_chop_edit(0, &s) == !i);
-        CHECK(h.data.lastFrame == (i ? 10 : 5));
+        CHECK(h.owner.data.lastFrame == (i ? 10 : 5));
         if (i == 0)
         {
             const int e[] = {150, 151, 152, 153, 142};

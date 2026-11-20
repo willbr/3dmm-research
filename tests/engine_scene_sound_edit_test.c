@@ -13,8 +13,6 @@ typedef struct List
 typedef struct Editor
 {
     Fixture base; /* Packet fixture context is the initial member. */
-    MMSceneState data;
-    MMSceneRuntime runtime;
     MMSceneOwner owner;
     MMSceneSoundEditServices s;
     MMSceneSoundUndoServices us;
@@ -139,7 +137,7 @@ static int child(void *p, MMU32 number, MMU32 *out)
 {
     Editor *e = (Editor *)p;
     if (e->child_changes_frame)
-        e->data.currentFrame = 7;
+        e->owner.data.currentFrame = 7;
     if (e->fail_child)
         return 0;
     *out = number;
@@ -368,13 +366,12 @@ static void editor_init(Editor *e)
     e->base.s.allocate = edit_allocate;
     e->base.s.resolve = packet_resolve;
     e->base.s.fetch = packet_fetch;
-    mm_scene_runtime_init(&e->runtime);
     allocator.context = e;
-    mm_scene_owner_init(&e->owner, NULL, &allocator);
+    CHECK(mm_scene_owner_init(&e->owner, NULL, 1, &allocator));
     e->frames = &e->owner.tracks[MM_SCENE_FRAMES];
     e->frames->storage.min_grow[0] = e->frames->storage.min_grow[1] = 0;
-    e->data.firstFrame = e->data.currentFrame = 1;
-    e->data.lastFrame = 10;
+    e->owner.data.firstFrame = e->owner.data.currentFrame = 1;
+    e->owner.data.lastFrame = 10;
     for (i = 0; i < 3; ++i)
         e->tags[i] = e->base.input[i].tag;
     s = &e->s;
@@ -405,8 +402,6 @@ static void editor_init(Editor *e)
     s->diagnostic = diagnostic;
     v = &s->events;
     v->context = e;
-    v->runtime = &e->runtime;
-    v->data = &e->data;
     v->owner = &e->owner;
     v->duplicate_sound = event_duplicate;
     v->play_sound = event_play;
@@ -447,12 +442,12 @@ static void seed(Editor *e, int style)
     MMSceneSound *p = make(&e->base, 1);
     p->sty = style;
     p->fLoop = 0;
-    ++e->runtime.next_event;
+    ++e->owner.runtime.next_event;
     CHECK(mm_scene_track_insert(e->frames, e->frames->rows.count, mm_scene_sound_size(1, sizeof(Record)), p, &event));
     if (style == 4)
     {
         e->owner.owned[MM_SCENE_BACKGROUND_SOUND] = mm_scene_sound_duplicate(p, &e->base.s);
-        e->runtime.background_frame = 1;
+        e->owner.runtime.background_frame = 1;
     }
     raw_free(&e->base, p);
     e->alloc_calls = e->base.used = e->base.plays = 0;
@@ -481,13 +476,13 @@ static void additions(void)
     editor_init(&e);
     CHECK(mm_scene_sound_add(0, 0, 83, 2, 3, e.tags, &e.s));
     p = frame_packet(&e, 0);
-    CHECK(p->ctagc == 3 && p->vlm == 83 && e.base.plays == 3 && e.dirty == 2 && e.runtime.next_event == 1);
+    CHECK(p->ctagc == 3 && p->vlm == 83 && e.base.plays == 3 && e.dirty == 2 && e.owner.runtime.next_event == 1);
     CHECK(e.base.refs[1] == 1 && e.base.refs[3] == 1 && !e.base.starts[1] && !e.base.queues[1] && e.base.queues[2]);
     e.relocate_at = e.alloc_calls + 1;
     CHECK(mm_scene_sound_add(0, 1, 29, 2, 1, e.tags, &e.s));
     CHECK(e.relocations == 1);
     p = frame_packet(&e, 0);
-    CHECK(p->ctagc == 4 && p->vlm == 83 && e.base.volumes[1] == 29 && e.base.refs[1] == 2 && e.runtime.next_event == 1);
+    CHECK(p->ctagc == 4 && p->vlm == 83 && e.base.volumes[1] == 29 && e.base.refs[1] == 2 && e.owner.runtime.next_event == 1);
     CHECK(mm_scene_sound_add(1, 0, 56, 2, 1, e.tags, &e.s));
     p = frame_packet(&e, 0);
     CHECK(p->ctagc == 1 && p->fLoop == 1 && e.base.refs[1] == 1 && !e.base.refs[3]);
@@ -519,7 +514,7 @@ static void additions(void)
         seed(&e, 2);
         e.fail_grow = e.grow_attempts + failure;
         CHECK(!mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
-        CHECK(e.grow_failures == 1 && e.dirty == 1 && e.base.refs[1] == 1 && e.runtime.next_event == 1);
+        CHECK(e.grow_failures == 1 && e.dirty == 1 && e.base.refs[1] == 1 && e.owner.runtime.next_event == 1);
         CHECK(e.frames->rows.count == 1 && frame_packet(&e, 0)->vlm == 80);
         editor_clean(&e);
     }
@@ -545,7 +540,7 @@ static void additions(void)
     editor_init(&e);
     e.child_changes_frame = 1;
     CHECK(mm_scene_sound_add(0, 0, 30, 4, 1, e.tags, &e.s));
-    CHECK(frame_row(&e, 0).frame == 1 && e.runtime.background_frame == 1 && e.data.currentFrame == 7);
+    CHECK(frame_row(&e, 0).frame == 1 && e.owner.runtime.background_frame == 1 && e.owner.data.currentFrame == 7);
     editor_clean(&e);
     editor_init(&e);
     e.fail_at = 3; /* MIDI cache duplicate fails after array+packet allocation. */
@@ -605,7 +600,7 @@ static void indicators_and_restore(void)
     editor_init(&e);
     e.actor_count = 3;
     e.actor_values[1] = 1;
-    e.runtime.disabled = 65535;
+    e.owner.runtime.disabled = 65535;
     mm_scene_sound_update_indicator(&e.s);
     CHECK(e.indicator && e.actor_calls == 2);
     seed(&e, 4);
@@ -617,14 +612,14 @@ static void indicators_and_restore(void)
           ((MMSceneSound *)e.owner.owned[MM_SCENE_BACKGROUND_SOUND])->vlm == 80);
     mm_scene_sound_remove(4, &e.s);
     CHECK(!e.frames->rows.count && !e.owner.owned[MM_SCENE_BACKGROUND_SOUND] && e.indicator &&
-          e.runtime.background_frame == 1);
+          e.owner.runtime.background_frame == 1);
     e.actor_values[1] = 0;
     mm_scene_sound_update_indicator(&e.s);
     CHECK(!e.indicator);
     editor_clean(&e);
     editor_init(&e);
     seed(&e, 2);
-    e.data.currentFrame = 2;
+    e.owner.data.currentFrame = 2;
     missing = e.issues[MM_SCENE_SOUND_MISSING];
     mm_scene_sound_volume(2, 20, &e.s);
     CHECK(e.issues[MM_SCENE_SOUND_MISSING] == missing + 2 && frame_packet(&e, 0)->vlm == 80);
@@ -637,7 +632,7 @@ static void indicators_and_restore(void)
     CHECK(e.event_plays == 1 && e.base.plays == 1 && e.frames->rows.count == 1);
     CHECK(!mm_scene_sound_restore(0, 1, 66, 2, 1, e.base.input, &e.s) &&
           e.issues[MM_SCENE_SOUND_QUEUE_RESTORE] == 1);
-    e.runtime.disabled |= 1;
+    e.owner.runtime.disabled |= 1;
     CHECK(mm_scene_sound_restore(0, 0, 20, 4, 1, e.base.input, &e.s));
     CHECK(e.owner.owned[MM_SCENE_BACKGROUND_SOUND]);
     editor_clean(&e);
@@ -673,7 +668,7 @@ static void transactions(void)
     editor_clean(&e);
     editor_init(&e);
     seed(&e, 2);
-    e.data.currentFrame = 2;
+    e.owner.data.currentFrame = 2;
     CHECK(mm_scene_sound_add(0, 0, 60, 2, 1, e.tags, &e.s));
     CHECK(e.frames->rows.count == 2);
     CHECK(mm_scene_sound_remove_undo(2, &e.s) && e.frames->rows.count == 1 && e.active->state.sound && frame_row(&e, 0).frame == 1);
@@ -770,7 +765,7 @@ static void background(void)
     mm_scene_sound_background_play(&e.s);
     CHECK(!e.base.plays);
     seed(&e, 4);
-    e.data.currentFrame = 3;
+    e.owner.data.currentFrame = 3;
     mm_scene_sound_background_play(&e.s);
     CHECK(e.base.starts[1] == 333);
     CHECK(mm_scene_sound_background_offset(2, 1, &overflow) == 166 && !overflow);
@@ -778,8 +773,8 @@ static void background(void)
     offset = mm_scene_sound_background_offset(2147483647, 0, &overflow);
     CHECK(overflow && offset == 1431655598U);
     CHECK(mm_scene_sound_background_offset((-2147483647 - 1), 2147483647, &overflow) == 166 && !overflow);
-    e.data.currentFrame = 2147483647;
-    e.runtime.background_frame = 0;
+    e.owner.data.currentFrame = 2147483647;
+    e.owner.runtime.background_frame = 0;
     mm_scene_sound_background_play(&e.s);
     CHECK(e.issues[MM_SCENE_SOUND_OFFSET_OVERFLOW] == 1 && e.base.starts[1] == offset);
     editor_clean(&e);

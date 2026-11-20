@@ -136,16 +136,6 @@ class Scene : public Scene_PAR
     MMSceneOwner _owner;
     static MMSceneOwnerServices _OwnerServices();
 
-    //
-    // These variables keep track of the internal frame numbers.
-    //
-    SceneData _data; // Frame range, title and transition, independent of playback.
-
-    //
-    // Frames with events in them.  This stuff works as follows.
-    //   _runtime.next_event is the index into the frame track of a sev with nfrm > nCurFrm.
-    //
-    MMSceneRuntime _runtime; // C-owned cursor, effect mask and background-sound frame.
     MMSceneRuntimeServices _RuntimeServices();
     MMSceneEventServices _EventServices();
     MMSceneSoundEditServices _SoundEditServices();
@@ -179,7 +169,7 @@ class Scene : public Scene_PAR
     // Dirtying stuff
     //
     void _MarkMovieDirty(void);
-    void _DoPrerenderingWork(bool fStartNow); // Does any prerendering for _data.currentFrame
+    void _DoPrerenderingWork(bool fStartNow); // Does any prerendering for _owner.data.currentFrame
     void _EndPrerendering(void);              // Stops prerendering
 
     //
@@ -217,20 +207,20 @@ class Scene : public Scene_PAR
     bool FGotoFrm(long nfrm);                         // Jumps to an arbitrary frame.
     const MMMovieLiveFrame *PlaybackFrame() const
     {
-        const auto &frame = _runtime.publication;
-        return frame.phase && frame.frame == _data.currentFrame ? &frame : nullptr;
+        const auto &frame = _owner.runtime.publication;
+        return frame.phase && frame.frame == _owner.data.currentFrame ? &frame : nullptr;
     }
     long Nfrm(void)                                   // Returns the current frame number
     {
-        return (_data.currentFrame);
+        return (_owner.data.currentFrame);
     }
     long NfrmFirst(void) // Returns the number of the first frame in the scene.
     {
-        return (_data.firstFrame);
+        return (_owner.data.firstFrame);
     }
     long NfrmLast(void) // Returns the number of the last frame in the scene.
     {
-        return (_data.lastFrame);
+        return (_owner.data.lastFrame);
     }
     bool FReplayFrm(ulong grfscen); // Replay events in this scene.
 
@@ -239,7 +229,7 @@ class Scene : public Scene_PAR
     //
     void SetNfrmCur(long nfrm)
     {
-        _data.currentFrame = nfrm;
+        _owner.data.currentFrame = nfrm;
     }
 
     //
@@ -248,11 +238,11 @@ class Scene : public Scene_PAR
     void SetMvie(PMovie pmvie); // Sets the associated movie.
     void GetName(PString pstn)    // Gets name of current scene.
     {
-        _data.GetName(pstn);
+        GetSceneName(_owner.data.name, pstn);
     }
     void SetNameCore(PString pstn) // Sets name of current scene.
     {
-        _data.SetName(pstn);
+        SetSceneName(_owner.data.name, pstn);
     }
     bool FSetName(PString pstn); // Sets name of current scene, and undo
     bool FChopCore(void);     // Chops off the rest of the scene.
@@ -265,12 +255,12 @@ class Scene : public Scene_PAR
     //
     void SetTransitionCore(TRANS trans) // Set the final transition to be.
     {
-        _data.transition = trans;
+        _owner.data.transition = trans;
     }
     bool FSetTransition(TRANS trans); // Set the final transition to be and undo.
     TRANS Trans(void)
     {
-        return static_cast<TRANS>(_data.transition);
+        return static_cast<TRANS>(_owner.data.transition);
     } // Returns the transition setting.
     // These two operate a specific Scene chunk rather than a Scene in memory
     static bool FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans);
@@ -281,15 +271,15 @@ class Scene : public Scene_PAR
     //
     void Disable(ulong grfscen) // Disables functionality.
     {
-        _runtime.disabled |= grfscen;
+        _owner.runtime.disabled |= grfscen;
     }
     void Enable(ulong grfscen) // Enables functionality.
     {
-        _runtime.disabled &= ~grfscen;
+        _owner.runtime.disabled &= ~grfscen;
     }
     long GrfScen(void) // Currently disabled functionality.
     {
-        return _runtime.disabled;
+        return _owner.runtime.disabled;
     }
     bool FIsEmpty(void); // Is the scene empty?
 

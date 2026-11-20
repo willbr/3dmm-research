@@ -28,8 +28,6 @@ typedef struct Test
     MMSceneContentUndoServices us;
     MMSceneOwner owner;
     SceneMemberMemory members;
-    MMSceneState data;
-    MMSceneRuntime runtime;
     MMSceneTrack *starts;
     Undo *active;
     int live, undo_live, next_id, dirty, invalid, indicator, updated, placement, bind_fail, seek_actor_fail,
@@ -310,7 +308,7 @@ static int seek(void *p, MMI32 frame)
     Test *t = (Test *)p;
     ++t->seek_calls;
     note(t, 21);
-    t->data.currentFrame = frame;
+    t->owner.data.currentFrame = frame;
     return t->seek_calls != t->seek_fail;
 }
 static MMSceneContentServices scene(void *p)
@@ -349,16 +347,14 @@ static void init(Test *t)
     t->starts = &t->owner.tracks[MM_SCENE_STARTS];
     CHECK(mm_scene_track_init(t->starts, &allocator, 0));
     t->next_id = 100;
-    t->data.currentFrame = t->data.firstFrame = 1;
-    t->data.lastFrame = 9;
+    t->owner.data.currentFrame = t->owner.data.firstFrame = 1;
+    t->owner.data.lastFrame = 9;
 
     s = &t->s;
     s->context = t;
     v = &s->events;
     v->context = t;
     v->owner = &t->owner;
-    v->data = &t->data;
-    v->runtime = &t->runtime;
     v->bind_actor = bind;
     v->seek = seek_object;
     o = &v->owners;

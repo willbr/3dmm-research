@@ -98,17 +98,17 @@ struct Access : Scene
         SceneEvent event = {1, sevtPlaySnd};
         CHECK(InsertSceneTrackEvent(g, g->rows.count, packet->Cb(), packet, event));
         FreePpv(reinterpret_cast<void **>(&packet));
-        (p->*&Access::_runtime).next_event = g->rows.count;
+        (p->*&Access::_owner).runtime.next_event = g->rows.count;
     }
     static void State(PScene p)
     {
-        auto &d = p->*&Access::_data;
+        auto &d = (p->*&Access::_owner).data;
         Value(d.currentFrame);
         Value(d.firstFrame);
         Value(d.lastFrame);
         Value(d.name.count);
         Record(mm_movie_title_text(&d.name), d.name.count * d.name.unit);
-        auto &r = p->*&Access::_runtime;
+        auto &r = (p->*&Access::_owner).runtime;
         Value(r.next_event);
         Value(r.disabled);
         auto bg = p->Pbkgd();
@@ -151,7 +151,7 @@ struct Access : Scene
         auto g = (p->*&Access::_FrameTrack)();
         while (g->rows.count)
             CHECK(mm_group_delete(&g->rows, g->rows.count - 1) == MM_STORAGE_OK);
-        (p->*&Access::_runtime).next_event = 0;
+        (p->*&Access::_owner).runtime.next_event = 0;
         p->SetNfrmCur(1);
     }
 };

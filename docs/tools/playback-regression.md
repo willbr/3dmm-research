@@ -15711,3 +15711,33 @@ In `actor-event-edit` suite `20261120T130959Z-4a4d7efb`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## Studio metadata and playback state in the C89 scene owner (20 November 2026)
+
+The C89 owner keeps the live scene title, transition, frame range, and
+playback cursor with its event tracks and rosters. The loader installs
+the header before loading child objects, then reads the stored name
+after both tracks succeed. The loader fixture covers narrow and wide
+names, missing names, and malformed names. Event dispatch, saving,
+seek, replay, trimming, playback startup and thumbnails use that state.
+
+All 42 targeted x64 checks, 23 standalone C89 checks, 18 x86 checks
+and 16 SDL Release scene checks passed. Native scene owner, runtime,
+event, load, edit, store and content traces matched byte-for-byte with
+fingerprints `D746FAE5`, `3434DECD`, `2B9558ED`, `2B38A1BD`,
+`116589AF`, `B5A4BB5D` and `5E56C170`.
+
+Native and SDL save/reopen archives, movie content traces and
+composition traces matched the prior build. Studio authored a
+byte-identical two-scene movie. Fresh retail seeks produced matching
+RGB images at scene-one frames 3, 4 and 6 and scene-two frame 1.
+All ten Preview fingerprints and six Preview fixture archives matched.
+
+Both VMM seek images in `20261120T132345Z-c3b687ad` matched the retained
+SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-scene-metadata-owner`.
+
+In `actor-event-edit` suite `20261120T132345Z-f12d34fa`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

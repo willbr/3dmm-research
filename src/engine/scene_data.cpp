@@ -41,14 +41,6 @@ bool NativeBig()
     const unsigned short one = 1;
     return *reinterpret_cast<const byte *>(&one) == 0;
 }
-void GetNameValue(const MMMovieTitle *name, PString out)
-{
-    out->SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(name))), name->count);
-}
-void SetNameValue(MMMovieTitle *name, PString value)
-{
-    AssertDo(mm_movie_title_set(name, value->Prgch(), value->Cch()), "bad scene name");
-}
 MMSceneIO SceneIO(PChunkyFile file)
 {
     return {file,
@@ -69,18 +61,13 @@ MMSceneGroupServices Groups()
             [](void *g, MMU32 i) -> const void * { return static_cast<PGeneralGroup>(g)->QvGet(i); }};
 }
 } // namespace
-void SceneData::GetName(PString out) const
+void GetSceneName(const MMMovieTitle &name, PString out)
 {
-    GetNameValue(&name, out);
+    out->SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(&name))), name.count);
 }
-void SceneData::SetName(PString value)
+void SetSceneName(MMMovieTitle &name, PString value)
 {
-    SetNameValue(&name, value);
-}
-void SceneData::LoadName(PChunkyFile file, ChunkNumber number)
-{
-    const auto titles = KauaiChunkTitleIO();
-    mm_chunk_title_read(&name, file, MM_SCENE_CHUNK, number, &titles);
+    AssertDo(mm_movie_title_set(&name, value->Prgch(), value->Cch()), "bad scene name");
 }
 bool SceneData::FRead(PChunkyFile file, ChunkNumber number)
 {

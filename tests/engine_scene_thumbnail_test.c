@@ -17,8 +17,6 @@ typedef struct Port
 } Port;
 typedef struct Host
 {
-    MMSceneState data;
-    MMSceneRuntime runtime;
     MMSceneOwner owner;
     int movie, background, view, actor, text, old_bitmap, new_bitmap, pixels;
     Port ports[2];
@@ -52,7 +50,7 @@ static void resume(void *p, MMI32 value)
 {
     Host *h = (Host *)p;
     CHECK(value == 123 && h->muted && !h->copy_live && !h->ports[0].refs && !h->ports[1].refs);
-    CHECK(h->runtime.disabled == h->initial_mask);
+    CHECK(h->owner.runtime.disabled == h->initial_mask);
     event(h, 5);
     h->muted = 0;
 }
@@ -93,7 +91,7 @@ static void *new_port(void *p, const MMMaskedRect *r)
 static void palette(void *p, void *port)
 {
     Host *h = (Host *)p;
-    CHECK(port == h->ports + 1 && h->runtime.disabled == h->initial_mask);
+    CHECK(port == h->ports + 1 && h->owner.runtime.disabled == h->initial_mask);
     event(h, 11);
 }
 static void release_port(void *p, void *port)
@@ -103,19 +101,19 @@ static void release_port(void *p, void *port)
     CHECK(v->refs > 0);
     --v->refs;
     event(h, v == h->ports ? 12 : 13);
-    CHECK(h->runtime.disabled == (h->fail_port == 2 ? h->initial_mask : h->initial_mask | 3U));
+    CHECK(h->owner.runtime.disabled == (h->fail_port == 2 ? h->initial_mask : h->initial_mask | 3U));
 }
 static int seek(void *p, MMI32 frame)
 {
     Host *h = (Host *)p;
     ++h->seek_calls;
-    event(h, frame == h->data.firstFrame ? 14 : 15);
-    CHECK(h->muted && h->runtime.disabled == (h->initial_mask | 3U));
+    event(h, frame == h->owner.data.firstFrame ? 14 : 15);
+    CHECK(h->muted && h->owner.runtime.disabled == (h->initial_mask | 3U));
     if (h->copy_live)
         CHECK(h->ports[0].refs == 1 && h->ports[1].refs == 1);
-    h->data.currentFrame = frame;
+    h->owner.data.currentFrame = frame;
     if (h->seek_calls == 2 && h->fail_seek == 2)
-        --h->data.currentFrame;
+        --h->owner.data.currentFrame;
     return h->seek_calls != h->fail_seek;
 }
 static int mode(void *p, void *v)
@@ -150,7 +148,7 @@ static void select_text(void *p, void *object, int value)
 static void invalidate(void *p)
 {
     Host *h = (Host *)p;
-    CHECK(h->muted && h->data.currentFrame == h->data.firstFrame);
+    CHECK(h->muted && h->owner.data.currentFrame == h->owner.data.firstFrame);
 }
 static void action_menu(void *p)
 {
@@ -167,7 +165,7 @@ static void draw(void *p, void *v, void *port, const MMMaskedRect *r)
 {
     Host *h = (Host *)p;
     CHECK(v == &h->view && port == h->ports && r->right == 320 && r->bottom == 240);
-    CHECK(h->muted && h->data.currentFrame == h->data.firstFrame);
+    CHECK(h->muted && h->owner.data.currentFrame == h->owner.data.firstFrame);
     CHECK(!(h->mode ? h->owner.selected_text : h->owner.selected_actor));
     CHECK(!h->actor_hilited && !h->text_selected);
     event(h, 21);
@@ -191,7 +189,7 @@ static void copy(void *p, void *src, void *dst, const MMMaskedRect *a, const MMM
 static void end_copy(void *p)
 {
     Host *h = (Host *)p;
-    CHECK(h->copy_live && h->runtime.disabled == h->initial_mask);
+    CHECK(h->copy_live && h->owner.runtime.disabled == h->initial_mask);
     CHECK(h->ports[0].refs == 1 && h->ports[1].refs == 1);
     h->copy_live = 0;
     --h->ports[1].refs;
@@ -250,20 +248,17 @@ static MMSceneThumbnailServices init(Host *h)
     MMSceneThumbnailServices s;
     memset(h, 0, sizeof(*h));
     memset(&s, 0, sizeof(s));
-    CHECK(mm_scene_init(&h->data, 1));
-    h->data.currentFrame = 5;
-    h->data.lastFrame = 9;
-    h->initial_mask = h->runtime.disabled = 128;
+    CHECK(mm_scene_owner_init(&h->owner, &h->movie, 1, NULL));
+    h->owner.data.currentFrame = 5;
+    h->owner.data.lastFrame = 9;
+    h->initial_mask = h->owner.runtime.disabled = 128;
     h->has_view = h->dirty = h->old_refs = 1;
-    h->owner.movie = &h->movie;
     h->owner.owned[MM_SCENE_BACKGROUND] = &h->background;
     h->owner.owned[MM_SCENE_THUMBNAIL] = &h->old_bitmap;
     h->owner.selected_actor = &h->actor;
     h->owner.selected_text = &h->text;
     h->actor_hilited = h->text_selected = 1;
     s.context = h;
-    s.data = &h->data;
-    s.runtime = &h->runtime;
     s.owner = &h->owner;
     s.owners.context = h;
     s.owners.release = release_bitmap;
@@ -316,7 +311,7 @@ static void test_gates(void)
         if (i == 4)
             h.fail_port = 2;
         CHECK(mm_scene_thumbnail(&s) == &h.old_bitmap && h.old_refs == 1);
-        CHECK(h.data.currentFrame == 5 && !h.new_refs && !h.muted);
+        CHECK(h.owner.data.currentFrame == 5 && !h.new_refs && !h.muted);
         CHECK(h.owner.selected_actor == &h.actor && h.owner.selected_text == &h.text);
         if (i < 2)
         {
@@ -351,7 +346,7 @@ static void test_render(void)
         h.mode = i == 1;
         h.mode_changes = i == 2;
         CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.new_refs == 1 && !h.old_refs);
-        CHECK(h.data.currentFrame == 5 && h.seek_calls == 2 && !h.muted);
+        CHECK(h.owner.data.currentFrame == 5 && h.seek_calls == 2 && !h.muted);
         {
             int e[] = {3,  4,  6,  7,  8,  9,  10, 11, 14, 16, 17, 21, 16,
                        19, 22, 24, 27, 28, 29, 30, 12, 13, 15, 23, 5};
@@ -364,30 +359,30 @@ static void test_render(void)
     }
     s = init(&h);
     h.fail_seek = 1;
-    CHECK(mm_scene_thumbnail(&s) == &h.old_bitmap && h.old_refs == 1 && h.data.currentFrame == 1);
+    CHECK(mm_scene_thumbnail(&s) == &h.old_bitmap && h.old_refs == 1 && h.owner.data.currentFrame == 1);
     {
         const int e[] = {3, 4, 6, 7, 8, 9, 10, 11, 14, 12, 13, 5};
         expect(&h, e, 12);
     }
     s = init(&h);
     h.fail_bitmap = 1;
-    CHECK(!mm_scene_thumbnail(&s) && !h.old_refs && !h.new_refs && h.data.currentFrame == 5);
+    CHECK(!mm_scene_thumbnail(&s) && !h.old_refs && !h.new_refs && h.owner.data.currentFrame == 5);
     CHECK(h.trace[h.traces - 2] == 23 && h.trace[h.traces - 1] == 5);
     s = init(&h);
     h.fail_seek = 2;
-    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 4 && h.seek_calls == 2);
+    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.owner.data.currentFrame == 4 && h.seek_calls == 2);
     s = init(&h);
-    h.data.currentFrame = 1;
+    h.owner.data.currentFrame = 1;
     CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && !h.seek_calls);
     s = init(&h);
-    h.data.currentFrame = 10;
-    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 1 && h.seek_calls == 1);
+    h.owner.data.currentFrame = 10;
+    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.owner.data.currentFrame == 1 && h.seek_calls == 1);
     s = init(&h);
-    h.data.currentFrame = 0;
-    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 1 && h.seek_calls == 1);
+    h.owner.data.currentFrame = 0;
+    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.owner.data.currentFrame == 1 && h.seek_calls == 1);
     s = init(&h);
-    h.data.currentFrame = 9;
-    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 9 && h.seek_calls == 2);
+    h.owner.data.currentFrame = 9;
+    CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.owner.data.currentFrame == 9 && h.seek_calls == 2);
 }
 static void test_dirty(void)
 {

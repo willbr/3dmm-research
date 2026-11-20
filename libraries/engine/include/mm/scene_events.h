@@ -22,12 +22,9 @@ extern "C"
         MM_SCENE_EVENT_NIL_TRANSITION = -1,
         MM_SCENE_EVENT_CUT_TRANSITION = 0
     };
-    struct MMSceneRuntime;
     typedef struct MMSceneEventServices
     {
         void *context;
-        struct MMSceneRuntime *runtime;
-        const MMSceneState *data;
         MMSceneOwner *owner;
         MMSceneOwnerServices owners;
         void *(*duplicate_sound)(void *, void *payload);

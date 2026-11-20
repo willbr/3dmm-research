@@ -15,15 +15,17 @@ extern "C"
         MMSceneOwnerServices owners;
         MMSceneSoundPacketServices packets;
         MMMovieSceneReader read;
-        void (*publish_metadata)(void *, void *scene, const MMSceneState *);
+        void *title_file;
+        MMChunkTitleIO titles;
         void *(*thumbnail)(void *, MMU32 number);
         void *(*object)(void *, MMU32 number, int kind, void *scene);
         void *(*retain_background_cache)(void *); /* Returns one reference to the document's live cache. */
         int (*open_tag)(void *, MMSceneSound *, MMI32 index);
-        void (*load_name)(void *, void *scene, MMU32 number);
     } MMSceneLoadServices;
     /* The reader supplies validated scene events.
-     * Reads metadata before creating the scene; optional thumbnail failure is ignored.
+     * Reads the header before creating the scene and fills the initialized owner
+     * before loading its children. Optional thumbnail failure is ignored. Reads the
+     * stored name after both tracks succeed using the owner's native text width.
      * The read group owns its wire bytes. Fixed headers and child/
      * background words are decoded into local values; pause/camera bytes pass through
      * unchanged, including opposite-order payloads. Document-owned background
@@ -35,7 +37,7 @@ extern "C"
      * the wire group, then unwinds completed start/frame prefixes before destruction.
      * The scene owns both C tracks. Native object factories and cache services
      * are supplied by the host. */
-    void *mm_scene_load(void *movie, MMU32 number, unsigned text_unit, const MMSceneLoadServices *);
+    void *mm_scene_load(void *movie, MMU32 number, const MMSceneLoadServices *);
     typedef struct MMSceneResolveServices
     {
         void *context;

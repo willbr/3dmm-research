@@ -65,7 +65,7 @@ static void *create_scene(void *p, void *movie)
     f->scene.refs = 1;
     f->live = 1;
     allocator.context = f;
-    mm_scene_owner_init(&f->owner, movie, &allocator);
+    assert(mm_scene_owner_init(&f->owner, movie, 1, &allocator));
     return &f->scene;
 }
 static void release(void *p, void *object)
@@ -257,6 +257,7 @@ static void factories(void)
     Fixture f;
     void *p;
     int i;
+    assert(!mm_scene_owner_init(&f.owner, NULL, 3, NULL));
     init(&f);
     f.fail = 1;
     assert(!mm_scene_owner_new(&f, &f.s));

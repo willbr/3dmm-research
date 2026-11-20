@@ -44,6 +44,6 @@ static void init_scene_members(MMSceneOwner *owner, SceneMemberMemory *memory)
 {
     MMStorageAllocator allocator = {NULL, resize_scene_members, release_scene_members};
     allocator.context = memory;
-    mm_scene_owner_init(owner, NULL, &allocator);
+    mm_scene_owner_init(owner, NULL, 1, &allocator);
 }
 #endif

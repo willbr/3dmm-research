@@ -178,6 +178,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   with the borrowed scene rosters. Content edits, undo and thumbnail drawing
   call the C89 selection policy directly. Studio supplies visual effects and
   notifications.
+- Studio's live scene metadata and playback cursor share the C89 owner with
+  the event tracks and rosters. Loading fills that state directly, and the
+  C89 title reader runs after both event tracks load. Saving, seek, replay,
+  trimming and playback startup use the same scene state.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

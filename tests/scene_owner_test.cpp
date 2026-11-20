@@ -112,9 +112,9 @@ struct Access : Scene
 #endif
     static void State(PScene s)
     {
-        Value((s->*&Access::_runtime).disabled);
-        Value((s->*&Access::_runtime).next_event);
-        auto &data = s->*&Access::_data;
+        Value((s->*&Access::_owner).runtime.disabled);
+        Value((s->*&Access::_owner).runtime.next_event);
+        auto &data = (s->*&Access::_owner).data;
         Value(data.currentFrame);
         Value(data.firstFrame);
         Value(data.lastFrame);

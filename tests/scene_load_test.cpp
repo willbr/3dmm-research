@@ -78,14 +78,14 @@ struct Access : Scene
     }
     static void State(PScene p)
     {
-        auto &d = p->*&Access::_data;
+        auto &d = (p->*&Access::_owner).data;
         Value(d.currentFrame);
         Value(d.firstFrame);
         Value(d.lastFrame);
         Value(d.transition);
         Value(d.name.count);
         Record(mm_movie_title_text(&d.name), d.name.count * d.name.unit);
-        Value((p->*&Access::_runtime).next_event);
+        Value((p->*&Access::_owner).runtime.next_event);
         Value(p->Cactr());
         Value(p->Ctbox());
         Value((p->*&Access::_owner).owned[MM_SCENE_THUMBNAIL] != nullptr);

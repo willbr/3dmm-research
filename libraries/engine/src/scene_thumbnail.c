@@ -123,14 +123,17 @@ void mm_scene_update_thumbnail(const MMSceneThumbnailServices *s)
 {
     MMMaskedRect full = {0, 0, 0, 0},
                       thumb = {0, 0, MM_SCENE_THUMBNAIL_WIDTH, MM_SCENE_THUMBNAIL_HEIGHT};
-    void *actor = s->owner->selected_actor, *text = s->owner->selected_text;
+    MMSceneOwner *owner = s->owner;
+    const MMSceneState *data = &owner->data;
+    MMSceneRuntime *runtime = &owner->runtime;
+    void *actor = owner->selected_actor, *text = owner->selected_text;
     MMI32 time, frame, stride;
     MMU32 disabled;
     void *view, *source, *target, *pixels, *bitmap;
     time = s->sound_time(s->context);
     s->mute(s->context);
     view = s->view(s->context);
-    if (!s->owner->owned[MM_SCENE_BACKGROUND] || !view || !s->dirty(s->context))
+    if (!owner->owned[MM_SCENE_BACKGROUND] || !view || !s->dirty(s->context))
         goto resume;
     s->dimensions(s->context, &full.right, &full.bottom);
     source = s->new_port(s->context, &full);
@@ -143,31 +146,31 @@ void mm_scene_update_thumbnail(const MMSceneThumbnailServices *s)
         goto resume;
     }
     s->palette(s->context, target);
-    disabled = s->runtime->disabled;
-    s->runtime->disabled |= MM_SCENE_EFFECT_PAUSES | MM_SCENE_EFFECT_SOUNDS;
-    frame = s->data->currentFrame;
-    if (s->data->currentFrame != s->data->firstFrame && !s->seek(s->context, s->data->firstFrame))
+    disabled = runtime->disabled;
+    runtime->disabled |= MM_SCENE_EFFECT_PAUSES | MM_SCENE_EFFECT_SOUNDS;
+    frame = data->currentFrame;
+    if (data->currentFrame != data->firstFrame && !s->seek(s->context, data->firstFrame))
     {
         s->release_port(s->context, source);
         s->release_port(s->context, target);
-        s->runtime->disabled = disabled;
+        runtime->disabled = disabled;
         goto resume;
     }
     select_for_view(view, NULL, NULL, s);
     s->draw(s->context, view, source, &full);
     select_for_view(view, actor, text, s);
     s->copy(s->copy_context, source, target, &full, &thumb);
-    mm_scene_owner_drop(s->owner, MM_SCENE_THUMBNAIL, &s->owners);
+    mm_scene_owner_drop(owner, MM_SCENE_THUMBNAIL, &s->owners);
     stride = s->row_bytes(s->context, target);
     pixels = s->lock(s->context, target);
     bitmap = s->bitmap(s->context, pixels, stride, &thumb, MM_SCENE_THUMBNAIL_TRANSPARENT);
-    s->owner->owned[MM_SCENE_THUMBNAIL] = bitmap;
+    owner->owned[MM_SCENE_THUMBNAIL] = bitmap;
     s->unlock(s->context, target);
     s->release_port(s->context, source);
     s->release_port(s->context, target);
-    if (frame > s->data->firstFrame && frame <= s->data->lastFrame)
+    if (frame > data->firstFrame && frame <= data->lastFrame)
         s->seek(s->context, frame);
-    s->runtime->disabled = disabled;
+    runtime->disabled = disabled;
     s->end_copy(s->copy_context);
 resume:
     s->resume(s->context, time);

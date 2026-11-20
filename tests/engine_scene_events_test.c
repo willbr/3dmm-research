@@ -48,8 +48,6 @@ typedef struct Payload
 } Payload;
 typedef struct Fixture
 {
-    MMSceneState data;
-    MMSceneRuntime runtime;
     MMSceneOwner owner;
     SceneMemberMemory members;
     MMSceneEventServices s;
@@ -156,7 +154,7 @@ static int seek(void *p, int text, void *object, MMI32 frame)
 {
     Fixture *f = (Fixture *)p;
     Object *o = (Object *)object;
-    CHECK(frame == f->data.currentFrame && (text || o->bound));
+    CHECK(frame == f->owner.data.currentFrame && (text || o->bound));
     ++o->seeks;
     log_op(f, SEEK);
     return f->seek_fail != o->id;
@@ -194,9 +192,8 @@ static void init(Fixture *f)
     int i;
     MMSceneEventServices *s;
     memset(f, 0, sizeof(*f));
-    mm_scene_runtime_init(&f->runtime);
     init_scene_members(&f->owner, &f->members);
-    f->data.currentFrame = 3;
+    f->owner.data.currentFrame = 3;
     f->transition = -1;
     f->packet.sound.sty = MM_SCENE_EVENT_MIDI;
     f->packet.tag.sid = 3;
@@ -210,8 +207,6 @@ static void init(Fixture *f)
     CHECK(mm_scene_track_init(f->frames, NULL, 0) && mm_scene_track_init(f->starts, NULL, 0));
     s = &f->s;
     s->context = f;
-    s->data = &f->data;
-    s->runtime = &f->runtime;
     s->owner = &f->owner;
     s->owners.context = f;
     s->owners.release = release;
@@ -269,16 +264,16 @@ static void sounds(void)
     static const int first[] = {DUP}, failed[] = {DUP};
     static const int replaced[] = {DUP, FREE, PLAY}, played[] = {PLAY};
     init(&f);
-    f.runtime.background_frame = 2;
+    f.owner.runtime.background_frame = 2;
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 1));
     expect(&f, first, 1);
-    CHECK(f.live == 1 && f.runtime.background_frame == 8 && !f.sounds);
+    CHECK(f.live == 1 && f.owner.runtime.background_frame == 8 && !f.sounds);
     old = f.owner.owned[MM_SCENE_BACKGROUND_SOUND];
     CHECK(old);
     f.dup_fail = 1;
     CHECK(!mm_scene_play_event(9, MM_SCENE_PLAY_SOUND, &f.packet.sound, 0, &f.s));
     expect(&f, failed, 1);
-    CHECK(f.owner.owned[MM_SCENE_BACKGROUND_SOUND] == old && f.runtime.background_frame == 8);
+    CHECK(f.owner.owned[MM_SCENE_BACKGROUND_SOUND] == old && f.owner.runtime.background_frame == 8);
     f.dup_fail = 0;
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 0));
     expect(&f, replaced, 3);
@@ -389,7 +384,7 @@ static void rewind_events(void)
     init(&f);
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 1));
     f.used = 0;
-    f.runtime.next_event = 4;
+    f.owner.runtime.next_event = 4;
     for (i = 0; i < 4; ++i)
     {
         sound.sty = i == 2 ? MM_SCENE_EVENT_MIDI : 2;
@@ -404,11 +399,11 @@ static void rewind_events(void)
     f.dup_fail = 1;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_PLAY_SOUND, &f.s));
-    CHECK(f.duplicate_volume == 11 && f.live == 1 && f.runtime.background_frame == 8);
-    f.data.currentFrame = 1;
+    CHECK(f.duplicate_volume == 11 && f.live == 1 && f.owner.runtime.background_frame == 8);
+    f.owner.data.currentFrame = 1;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_PLAY_SOUND, &f.s));
-    CHECK(!f.live && f.runtime.background_frame == 8);
+    CHECK(!f.live && f.owner.runtime.background_frame == 8);
     for (i = 0; i < 4; ++i)
     {
         event.kind = MM_SCENE_CHANGE_CAMERA;
@@ -417,9 +412,9 @@ static void rewind_events(void)
         CHECK(mm_scene_track_set(f.frames, i, &event));
         CHECK(mm_scene_track_put(f.frames, i, sizeof(camera_number), &camera_number));
     }
-    f.runtime.next_event = 3;
+    f.owner.runtime.next_event = 3;
     f.owner.owned[MM_SCENE_BACKGROUND] = &f.objects[3];
-    f.data.currentFrame = 3;
+    f.owner.data.currentFrame = 3;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
     CHECK(f.camera == 2 && f.used == 1 && f.ops[0] == CAMERA);
@@ -429,16 +424,16 @@ static void rewind_events(void)
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
     CHECK(f.issues[MM_SCENE_EVENT_RESTORE_FAILED] == 1);
-    f.data.currentFrame = 1;
+    f.owner.data.currentFrame = 1;
     f.used = 0;
     CHECK(!mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
     CHECK(f.camera == 0 && f.issues[MM_SCENE_EVENT_FIRST_CAMERA_FAILED] == 1);
-    f.runtime.disabled = 64;
+    f.owner.runtime.disabled = 64;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
     CHECK(!f.used);
     f.owner.owned[MM_SCENE_BACKGROUND] = NULL;
-    f.runtime.next_event = 0;
+    f.owner.runtime.next_event = 0;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
     CHECK(f.used == 2 && f.issues[MM_SCENE_EVENT_NO_BACKGROUND] == 2);
@@ -453,7 +448,7 @@ static void starts(void)
     Fixture f;
     int i;
     init(&f);
-    f.runtime.disabled = 65535;
+    f.owner.runtime.disabled = 65535;
     append(f.starts, 0, MM_SCENE_SET_BACKGROUND, sizeof(f.packet.tag), &f.packet.tag);
     add_start_object(&f, MM_SCENE_ADD_ACTOR, &f.objects[0]);
     add_start_object(&f, MM_SCENE_ADD_TEXT, &f.objects[1]);

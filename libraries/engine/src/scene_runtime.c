@@ -1,14 +1,6 @@
 /* Scene frame/replay and prerender policy converted from engine scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_runtime.h"
-void mm_scene_runtime_init(MMSceneRuntime *r)
-{
-    r->next_event = 0;
-    r->background_frame = 0;
-    r->disabled = MM_SCENE_EFFECT_PAUSES;
-    r->publication.frame = 0;
-    r->publication.phase = MM_MOVIE_FRAME_UNPUBLISHED;
-}
 int mm_scene_force(MMI32 frame, int text, int *sound, const MMSceneRuntimeServices *s)
 {
     const MMSceneOwner *owner = s->events.owner;
@@ -43,15 +35,16 @@ static void move_track_camera(void *context, void *group, MMI32 index, MMI32 fra
     if (mm_scene_track_set(track, index, &event))
         mm_group_move(&track->rows, (MMU32)index, 0);
 }
-void mm_scene_move_first(MMSceneState *d, MMI32 target, MMSceneOwner *owner)
+void mm_scene_move_first(MMSceneOwner *owner, MMI32 target)
 {
     MMMovieEventView view = mm_scene_track_event_view(&owner->tracks[MM_SCENE_FRAMES]);
-    mm_scene_move_opening_cameras(d->firstFrame, target, &view, move_track_camera);
-    d->firstFrame = target;
+    mm_scene_move_opening_cameras(owner->data.firstFrame, target, &view, move_track_camera);
+    owner->data.firstFrame = target;
 }
-void mm_scene_extend_range(MMSceneState *d, const MMSceneRuntimeServices *s)
+void mm_scene_extend_range(const MMSceneRuntimeServices *s)
 {
     MMSceneOwner *owner = s->events.owner;
+    MMSceneState *d = &owner->data;
     MMI32 i, first, last;
     int list;
     for (list = MM_SCENE_ACTORS; list <= MM_SCENE_TEXTS; ++list)
@@ -59,7 +52,7 @@ void mm_scene_extend_range(MMSceneState *d, const MMSceneRuntimeServices *s)
             if (s->lifetime(s->context, list == MM_SCENE_TEXTS, mm_scene_member_at(owner, list, i), &first, &last))
             {
                 if (first < d->firstFrame)
-                    mm_scene_move_first(d, first, owner);
+                    mm_scene_move_first(owner, first);
                 if (last > d->lastFrame)
                     d->lastFrame = last;
             }
@@ -91,8 +84,6 @@ int mm_scene_range_store(MMSceneState *scene, long first, long last, const MMSce
 
 typedef struct SceneSeek
 {
-    MMSceneRuntime *runtime;
-    MMSceneState *data;
     const MMSceneRuntimeServices *services;
     int sound, update, actors_enabled;
 } SceneSeek;
@@ -100,10 +91,11 @@ typedef struct SceneSeek
 static int begin_seek(void *context, MMI32 target)
 {
     SceneSeek *seek = (SceneSeek *)context;
-    MMSceneRuntime *r = seek->runtime;
-    MMSceneState *d = seek->data;
     const MMSceneRuntimeServices *s = seek->services;
-    const MMSceneTrack *track = &s->events.owner->tracks[MM_SCENE_FRAMES];
+    MMSceneOwner *owner = s->events.owner;
+    MMSceneRuntime *r = &owner->runtime;
+    MMSceneState *d = &owner->data;
+    const MMSceneTrack *track = &owner->tracks[MM_SCENE_FRAMES];
     MMSceneTrackEvent event;
     MMI32 i;
     MMU32 mask;
@@ -115,7 +107,7 @@ static int begin_seek(void *context, MMI32 target)
         s->notice(c, MM_SCENE_RESET_PAUSE, 0);
         if (target < d->firstFrame)
         {
-            mm_scene_move_first(d, target, s->events.owner);
+            mm_scene_move_first(owner, target);
             s->notice(c, MM_SCENE_DIRTY, 0);
         }
         d->currentFrame = target;
@@ -190,12 +182,12 @@ static int seek_actor(void *context, MMU32 ordinal, MMI32 target)
 static int finish_seek(void *context, MMI32 target)
 {
     const SceneSeek *seek = (const SceneSeek *)context;
-    const MMSceneRuntime *r = seek->runtime;
     const MMSceneRuntimeServices *s = seek->services;
+    const MMSceneRuntime *r = &s->events.owner->runtime;
     if (!(r->disabled & MM_SCENE_EFFECT_TEXTS) && !mm_scene_force(target, 1, 0, s))
         return MM_MOVIE_BAD_FILE;
     if (!(r->disabled & MM_SCENE_EFFECT_ACTORS))
-        mm_scene_prerender(r, seek->data, 0, s);
+        mm_scene_prerender(0, s);
     return MM_MOVIE_OK;
 }
 
@@ -209,34 +201,32 @@ static void published_seek(void *context)
         s->notice(c, MM_SCENE_SOUND_INDICATOR, seek->sound);
 }
 
-int mm_scene_goto(MMSceneRuntime *r, MMSceneState *d, MMI32 target,
-                        const MMSceneRuntimeServices *s)
+int mm_scene_goto(MMI32 target, const MMSceneRuntimeServices *s)
 {
+    MMSceneOwner *owner = s->events.owner;
     SceneSeek seek;
     MMMovieFrameServices services;
-    seek.runtime = r;
-    seek.data = d;
     seek.services = s;
     services.context = &seek;
     services.begin = begin_seek;
     services.actor_count = seek_actor_count;
     services.seek_actor = seek_actor;
     services.finish = finish_seek;
-    services.position = &d->currentFrame;
+    services.position = &owner->data.currentFrame;
     services.published = published_seek;
-    return mm_movie_session_seek_live(s->movie, &r->publication, target, &services) == MM_MOVIE_OK;
+    return mm_movie_session_seek_live(s->movie, &owner->runtime.publication, target, &services) == MM_MOVIE_OK;
 }
-int mm_scene_replay(MMSceneRuntime *r, const MMSceneState *d, MMU32 enabled,
-                          const MMSceneRuntimeServices *s)
+int mm_scene_replay(MMU32 enabled, const MMSceneRuntimeServices *s)
 {
     const MMSceneOwner *owner = s->events.owner;
+    const MMSceneRuntime *r = &owner->runtime;
     const MMSceneTrack *track = &owner->tracks[MM_SCENE_FRAMES];
     MMSceneTrackEvent event;
     MMI32 i;
     void *c = s->context;
     for (i = r->next_event - 1; i >= 0; --i)
     {
-        if (mm_scene_track_get(track, i, &event) && event.frame < d->currentFrame)
+        if (mm_scene_track_get(track, i, &event) && event.frame < owner->data.currentFrame)
             break;
         if (!mm_scene_play_frame_event(i, (~enabled) | MM_SCENE_EFFECT_CAMERAS, &s->events))
         {
@@ -250,10 +240,11 @@ int mm_scene_replay(MMSceneRuntime *r, const MMSceneState *d, MMU32 enabled,
                 return 0;
     return 1;
 }
-void mm_scene_prerender(const MMSceneRuntime *r, const MMSceneState *d, int start_now,
-                              const MMSceneRuntimeServices *s)
+void mm_scene_prerender(int start_now, const MMSceneRuntimeServices *s)
 {
     const MMSceneOwner *owner = s->events.owner;
+    const MMSceneRuntime *r = &owner->runtime;
+    const MMSceneState *d = &owner->data;
     const MMSceneTrack *track = &owner->tracks[MM_SCENE_FRAMES];
     MMSceneTrackEvent event;
     MMI32 i, until, count;

@@ -4,11 +4,11 @@
 #include <stddef.h>
 int mm_scene_chop(int back, const MMSceneChopServices *s)
 {
-    MMSceneState *d = s->data;
     MMSceneOwner *owner = s->events.owner;
+    MMSceneState *d = &owner->data;
     MMSceneTrack *frames = &owner->tracks[MM_SCENE_FRAMES];
     MMSceneTrackEvent event;
-    MMSceneRuntime *r = s->events.runtime;
+    MMSceneRuntime *r = &owner->runtime;
     const MMSceneOwnerServices *o = &s->events.owners;
     MMI32 i, first, last;
     void *p;
@@ -103,8 +103,9 @@ int mm_scene_chop(int back, const MMSceneChopServices *s)
 }
 int mm_scene_chop_edit(int back, const MMSceneChopServices *s)
 {
+    const MMSceneState *d = &s->events.owner->data;
     void *u;
-    if (s->data->currentFrame == (back ? s->data->firstFrame : s->data->lastFrame))
+    if (d->currentFrame == (back ? d->firstFrame : d->lastFrame))
         return 1;
     u = s->new_undo(s->context);
     if (!u || !s->save_undo(s->context, u) || !s->commit_undo(s->context, u))

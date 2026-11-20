@@ -66,7 +66,7 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
                 return 0;
             mm_scene_owner_drop(s->owner, MM_SCENE_BACKGROUND_SOUND, &s->owners);
             adopt(MM_SCENE_BACKGROUND_SOUND, copy, s);
-            s->runtime->background_frame = frame;
+            s->owner->runtime.background_frame = frame;
         }
         if (!(disabled & MM_SCENE_EFFECT_SOUNDS))
             s->play_sound(c, payload);
@@ -95,7 +95,7 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
             return 0;
         if (!text)
             s->bind_actor(c, object);
-        if (!s->seek(c, text, object, s->data->currentFrame))
+        if (!s->seek(c, text, object, s->owner->data.currentFrame))
         {
             mm_scene_member_remove(s->owner, list, mm_scene_member_count(s->owner, list) - 1);
             return 0;
@@ -148,12 +148,12 @@ int mm_scene_unplay_event(int kind, const MMSceneEventServices *s)
     if (kind == MM_SCENE_CHANGE_CAMERA)
         require_background(s);
     view = mm_scene_track_event_view(track);
-    view.count = s->runtime->next_event;
-    i = mm_movie_view_last_event(&view, kind, s->data->currentFrame, 0, &frame);
+    view.count = s->owner->runtime.next_event;
+    i = mm_movie_view_last_event(&view, kind, s->owner->data.currentFrame, 0, &frame);
     if (i >= 0)
     {
         result = mm_scene_play_event(frame, kind, mm_scene_track_payload(track, i, NULL),
-                    s->runtime->disabled | (kind == MM_SCENE_PLAY_SOUND ? MM_SCENE_EFFECT_SOUNDS : 0), s);
+                    s->owner->runtime.disabled | (kind == MM_SCENE_PLAY_SOUND ? MM_SCENE_EFFECT_SOUNDS : 0), s);
         if (kind == MM_SCENE_CHANGE_CAMERA && !result)
             s->diagnostic(c, MM_SCENE_EVENT_RESTORE_FAILED);
         return 1;
@@ -164,7 +164,7 @@ int mm_scene_unplay_event(int kind, const MMSceneEventServices *s)
     {
         /* Host-order camera payload; frame is unused by camera dispatch. */
         camera = 0;
-        if (!mm_scene_play_event(0, kind, &camera, s->runtime->disabled, s))
+        if (!mm_scene_play_event(0, kind, &camera, s->owner->runtime.disabled, s))
         {
             s->diagnostic(c, MM_SCENE_EVENT_FIRST_CAMERA_FAILED);
             return 0;
@@ -183,7 +183,7 @@ int mm_scene_start_events(int actors_only, const MMSceneEventServices *s)
             return 0;
         if (actors_only && event.kind != MM_SCENE_ADD_ACTOR)
             continue;
-        if (!play_row(track, i, &event, s->runtime->disabled, s))
+        if (!play_row(track, i, &event, s->owner->runtime.disabled, s))
             return 0;
     }
     return 1;

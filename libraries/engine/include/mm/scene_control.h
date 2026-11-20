@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_CONTROL_H
 #define MM_ENGINE_SCENE_CONTROL_H
-#include "scene_data.h"
+#include "scene_owner.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -51,9 +51,7 @@ extern "C"
     typedef struct MMScenePlaybackServices
     {
         void *context;
-        const MMSceneState *data;
-        MMI32 (*count)(void *, int text);
-        void *(*object)(void *, int text, MMI32 index);
+        const MMSceneOwner *owner;
         int (*lifetime)(void *, int text, void *, MMI32 *first, MMI32 *last);
         int (*story)(void *, void *), (*visible)(void *, void *);
         void *(*view)(void *, void *);

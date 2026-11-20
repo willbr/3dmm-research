@@ -15,8 +15,6 @@ typedef struct Edit
     Fixture packets;
     MMSceneEditServices s;
     MMSceneEditUndoServices us;
-    MMSceneState data;
-    MMSceneRuntime runtime;
     MMSceneOwner owner;
     MMSceneTrack *frames, *starts;
     Back backgrounds[3];
@@ -332,7 +330,7 @@ static void init_edit(Edit *e)
     memset(e, 0, sizeof(*e));
     init(&e->packets);
     allocator.context = e;
-    mm_scene_owner_init(&e->owner, NULL, &allocator);
+    CHECK(mm_scene_owner_init(&e->owner, NULL, 1, &allocator));
     e->frames = &e->owner.tracks[MM_SCENE_FRAMES];
     e->starts = &e->owner.tracks[MM_SCENE_STARTS];
     e->frames->storage.min_grow[0] = e->frames->storage.min_grow[1] = 0;
@@ -341,8 +339,6 @@ static void init_edit(Edit *e)
     s->sound.context = e;
     s->sound.events.context = e;
     s->sound.events.owner = &e->owner;
-    s->sound.events.data = &e->data;
-    s->sound.events.runtime = &e->runtime;
     s->sound.dirty = dirty;
     s->background_name = name_background;
     s->scene_change = scene_change;
@@ -375,7 +371,7 @@ static void init_edit(Edit *e)
     o->lights_off = lights_off;
     o->sound.context = e;
     o->sound.close = close_sound_tag;
-    e->data.currentFrame = e->data.firstFrame = e->data.lastFrame = 1;
+    e->owner.data.currentFrame = e->owner.data.firstFrame = e->owner.data.lastFrame = 1;
     e->available = 1;
     for (i = 0; i < 3; ++i)
         e->backgrounds[i].id = i;
@@ -451,7 +447,7 @@ static void test_pause(void)
     Edit e;
     MMI32 reason = 0, delay = 0;
     init_edit(&e);
-    CHECK(mm_scene_pause_edit(&reason, &delay, &e.s) && e.frames->rows.count == 1 && e.runtime.next_event == 1 &&
+    CHECK(mm_scene_pause_edit(&reason, &delay, &e.s) && e.frames->rows.count == 1 && e.owner.runtime.next_event == 1 &&
           e.dirty == 1);
     reason = 3;
     delay = 13;
@@ -459,18 +455,18 @@ static void test_pause(void)
     reason = 0;
     delay = 0;
     CHECK(mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 3 && delay == 13 && !e.frames->rows.count &&
-          !e.runtime.next_event && e.dirty == 1);
+          !e.owner.runtime.next_event && e.dirty == 1);
     add_camera(&e, 1, 1);
-    e.runtime.next_event = 1;
-    e.data.currentFrame = 3;
+    e.owner.runtime.next_event = 1;
+    e.owner.data.currentFrame = 3;
     reason = 1;
     delay = 17;
     CHECK(mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 0 && delay == 0 && e.frames->rows.count == 2);
-    e.data.currentFrame = 4;
+    e.owner.data.currentFrame = 4;
     e.insert_fail = 1;
     reason = 2;
     delay = 29;
-    CHECK(!mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 2 && delay == 29 && e.runtime.next_event == 2);
+    CHECK(!mm_scene_pause_edit(&reason, &delay, &e.s) && reason == 2 && delay == 29 && e.owner.runtime.next_event == 2);
     clean_edit(&e);
 }
 static void test_camera(void)
@@ -480,27 +476,27 @@ static void test_camera(void)
     init_edit(&e);
     existing_background(&e, 0);
     CHECK(mm_scene_camera_edit(0, &old, &e.s) && old == 0 && !e.dirty && !e.frames->rows.count);
-    CHECK(mm_scene_camera_edit(1, &old, &e.s) && old == 0 && e.runtime.next_event == 1 &&
+    CHECK(mm_scene_camera_edit(1, &old, &e.s) && old == 0 && e.owner.runtime.next_event == 1 &&
           e.backgrounds[0].camera == 1);
     e.camera_output_check = 1;
     e.expected_camera_output = 1;
     CHECK(mm_scene_camera_edit(2, &old, &e.s) && old == 1 && e.frames->rows.count == 1 && e.published_camera == 1);
-    CHECK(mm_scene_camera_edit(0, &old, &e.s) && old == 2 && !e.frames->rows.count && !e.runtime.next_event);
+    CHECK(mm_scene_camera_edit(0, &old, &e.s) && old == 2 && !e.frames->rows.count && !e.owner.runtime.next_event);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     add_camera(&e, 1, 1);
     add_camera(&e, 4, 2);
     add_camera(&e, 7, 2);
-    e.data.currentFrame = 4;
-    e.runtime.next_event = 2;
-    CHECK(mm_scene_camera_edit(1, &old, &e.s) && old == 2 && e.frames->rows.count == 2 && e.runtime.next_event == 1);
-    CHECK(mm_scene_camera_edit(2, &old, &e.s) && old == 1 && e.frames->rows.count == 2 && e.runtime.next_event == 2);
+    e.owner.data.currentFrame = 4;
+    e.owner.runtime.next_event = 2;
+    CHECK(mm_scene_camera_edit(1, &old, &e.s) && old == 2 && e.frames->rows.count == 2 && e.owner.runtime.next_event == 1);
+    CHECK(mm_scene_camera_edit(2, &old, &e.s) && old == 1 && e.frames->rows.count == 2 && e.owner.runtime.next_event == 2);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     add_camera(&e, 1, 1);
-    e.runtime.next_event = 1;
+    e.owner.runtime.next_event = 1;
     e.camera_fail = 1;
     CHECK(!mm_scene_camera_edit(2, &old, &e.s) && old == 1 && camera_value(e.frames, 0) == 2 &&
           e.dirty == 1);
@@ -508,19 +504,19 @@ static void test_camera(void)
     init_edit(&e);
     existing_background(&e, 0);
     e.camera_fail = 1;
-    CHECK(!mm_scene_camera_edit(1, &old, &e.s) && !e.frames->rows.count && !e.runtime.next_event && e.dirty == 1);
+    CHECK(!mm_scene_camera_edit(1, &old, &e.s) && !e.frames->rows.count && !e.owner.runtime.next_event && e.dirty == 1);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
     add_camera(&e, 1, 1);
-    e.runtime.next_event = 1;
+    e.owner.runtime.next_event = 1;
     e.camera_fail = 1;
-    CHECK(!mm_scene_camera_edit(0, &old, &e.s) && e.frames->rows.count == 1 && e.runtime.next_event == 1 &&
+    CHECK(!mm_scene_camera_edit(0, &old, &e.s) && e.frames->rows.count == 1 && e.owner.runtime.next_event == 1 &&
           !e.dirty);
     clean_edit(&e);
     init_edit(&e);
     existing_background(&e, 0);
-    e.runtime.disabled = MM_SCENE_EFFECT_CAMERAS;
+    e.owner.runtime.disabled = MM_SCENE_EFFECT_CAMERAS;
     CHECK(mm_scene_camera_edit(1, &old, &e.s) && !e.camera_calls);
     clean_edit(&e);
 }
@@ -537,15 +533,15 @@ static void test_background(void)
     e.owner.owned[MM_SCENE_BACKGROUND_SOUND] = cached;
     CHECK(insert_into(e.frames, 0, 1, MM_SCENE_PLAY_SOUND, 16 + 3 * sizeof(Record), sound));
     raw_free(&e.packets, sound);
-    e.runtime.next_event = 1;
+    e.owner.runtime.next_event = 1;
     CHECK(mm_scene_background_edit(&value, &old, &e.s) && old.sid == -1 && e.first && e.loaded == 1 &&
-          e.names == 1 && e.changes == 1 && !e.frames->rows.count && !e.runtime.next_event);
+          e.names == 1 && e.changes == 1 && !e.frames->rows.count && !e.owner.runtime.next_event);
     CHECK(e.closes == 3 && e.packets.refs[1] == 1 && e.packets.refs[3] == 1 &&
           e.owner.owned[MM_SCENE_BACKGROUND_SOUND] == cached);
     clean_edit(&e);
     init_edit(&e);
     e.available = 0;
-    e.runtime.disabled = 0xffffffffUL;
+    e.owner.runtime.disabled = 0xffffffffUL;
     CHECK(mm_scene_background_edit(&value, &old, &e.s) && !e.loaded && e.changes == 1 && e.camera_calls == 1);
     clean_edit(&e);
     init_edit(&e);
@@ -558,7 +554,7 @@ static void test_background(void)
         init_edit(&e);
         existing_background(&e, 0);
         add_camera(&e, 1, 2);
-        e.runtime.next_event = 1;
+        e.owner.runtime.next_event = 1;
         e.publish_check = 1;
         if (j == 1)
             e.fetch_fail = 1;
@@ -594,8 +590,8 @@ static void test_background(void)
     init_edit(&e);
     existing_background(&e, 0);
     CHECK(mm_scene_is_empty(&e.s));
-    e.data.firstFrame = -2147483647L;
-    e.data.lastFrame = 2147483647L;
+    e.owner.data.firstFrame = -2147483647L;
+    e.owner.data.lastFrame = 2147483647L;
     CHECK(mm_scene_is_empty(&e.s));
     clean_edit(&e);
 }

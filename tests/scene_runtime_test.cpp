@@ -87,12 +87,12 @@ struct Access : Scene
     }
     static void State(PScene s)
     {
-        auto &d = s->*&Access::_data;
+        auto &d = (s->*&Access::_owner).data;
         Value(d.currentFrame);
         Value(d.firstFrame);
         Value(d.lastFrame);
 #ifdef MM_ENGINE_SCENE_RUNTIME_H
-        auto &r = s->*&Access::_runtime;
+        auto &r = (s->*&Access::_owner).runtime;
         Value(r.next_event);
         Value(r.disabled);
         Value(r.background_frame);

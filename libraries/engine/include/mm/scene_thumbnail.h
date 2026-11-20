@@ -46,8 +46,6 @@ extern "C"
     typedef struct MMSceneThumbnailServices
     {
         void *context;
-        MMSceneState *data;
-        MMSceneRuntime *runtime;
         MMSceneOwner *owner;
         MMSceneOwnerServices owners;
         MMSceneSelectionServices selection;
