@@ -72,61 +72,51 @@ static int read_layout(const unsigned char header[12], MMU32 length, int big, MM
 {
     return mm_depth_header(header, big, m) && length == 12 + (MMU32)m->bytes;
 }
+static int read_depth(const MMReadStream *stream, MMDepthBitmap *m, const MMDepthServices *s)
+{
+    unsigned char header[12];
+    return mm_read_exact(stream, 0, header, sizeof(header)) &&
+           read_layout(header, stream->length, s->host_big_endian, m) &&
+           s->allocate(s->context, m->bytes, &m->pixels) &&
+           mm_read_exact(stream, sizeof(header), m->pixels, (size_t)m->bytes);
+}
 int mm_depth_read_stream(const MMReadStream *stream, MMDepthBitmap *out, const MMDepthServices *s)
 {
     MMDepthBitmap m = {0};
-    unsigned char header[12];
-    if (!mm_read_exact(stream, 0, header, sizeof(header)) ||
-        !read_layout(header, stream->length, s->host_big_endian, &m) ||
-        !s->allocate(s->context, m.bytes, &m.pixels))
-        return 0;
-    if (!mm_read_exact(stream, sizeof(header), m.pixels, (size_t)m.bytes))
+    if (!read_depth(stream, &m, s))
     {
-        mm_depth_dispose(&m, s);
+        if (m.pixels)
+            mm_depth_dispose(&m, s);
         return 0;
     }
     *out = m;
     return 1;
 }
-static int read_at(void *block, void *data, MMI32 n, MMI32 at, const MMDepthServices *s)
-{
-    MMI32 bytes = s->size(s->context, block, 0);
-    return n >= 0 && at >= 0 && at <= bytes && n <= bytes - at && s->read(s->context, block, data, n, at);
-}
-void *mm_depth_read(void *block, const MMDepthServices *s)
+void *mm_depth_read(MMOwnedBlock *block, const MMDepthServices *s)
 {
     void *object;
-    MMDepthBitmap *m;
-    unsigned char header[12];
-    if (!s->unpack(s->context, block))
+    MMBlockIO io;
+    MMReadStream stream;
+    if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK ||
+        mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK)
         return NULL;
     object = s->create(s->context);
-    if (!object)
-        goto fail;
-    m = s->state(s->context, object);
-    if (!read_at(block, header, 12, 0, s) ||
-        !read_layout(header, (MMU32)s->size(s->context, block, 0), s->host_big_endian, m) ||
-        !s->allocate(s->context, m->bytes, &m->pixels) ||
-        !read_at(block, m->pixels, m->bytes, 12, s))
-        goto fail;
-    return object;
-fail:
+    if (object && read_depth(&stream, s->state(s->context, object), s))
+        return object;
     s->warning(s->context);
     if (object)
         s->release(s->context, object);
     return NULL;
 }
-int mm_depth_fetch(void *block, int want, const MMDepthServices *s)
+int mm_depth_fetch(MMOwnedBlock *block, int want, const MMDepthServices *s)
 {
     void *object;
-    MMI32 n = s->size(s->context, block, 1);
+    MMI32 n;
     if (!want)
     {
-        s->publish_fetch(s->context, 1, NULL, n);
+        s->publish_fetch(s->context, 1, NULL, (MMI32)block->view.length);
         return 1;
     }
-    if (!s->unpack(s->context, block))
-        goto fail;
     object = mm_depth_read(block, s);
     if (!object)
         goto fail;
@@ -146,7 +136,8 @@ int mm_depth_write(const MMDepthBitmap *m, void *file, MMU32 type, MMU32 *number
                          const MMDepthServices *s)
 {
     unsigned char header[12];
-    void *block;
+    MMStorageWriter writer;
+    MMU32 size;
     if (m->bytes < 0 || m->bytes > MAXIMUM - 12)
         return 0;
     put(header, 1, s->host_big_endian);
@@ -155,8 +146,10 @@ int mm_depth_write(const MMDepthBitmap *m, void *file, MMU32 type, MMU32 *number
     put(header + 6, (MMU32)m->bounds.top, s->host_big_endian);
     put(header + 8, (MMU32)m->bounds.right - (MMU32)m->bounds.left, s->host_big_endian);
     put(header + 10, (MMU32)m->bounds.bottom - (MMU32)m->bounds.top, s->host_big_endian);
-    block = s->add(s->context, file, type, 12 + m->bytes, number);
-    return block && s->write(s->context, block, header, 12, 0) && s->write(s->context, block, m->pixels, m->bytes, 12);
+    size = (MMU32)m->bytes + sizeof(header);
+    return s->add(s->context, file, type, size, number, &writer) && writer.length == size && writer.write_at &&
+           writer.write_at(writer.context, 0, header, sizeof(header)) &&
+           writer.write_at(writer.context, sizeof(header), m->pixels, (size_t)m->bytes);
 }
 static int add(MMI32 a, MMI32 b, MMI32 *out)
 {

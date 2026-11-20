@@ -7,6 +7,7 @@
 
 ***************************************************************************/
 #include "bren_core.h"
+#include "handle_services.h"
 #include <cstring>
 ASSERTNAME
 namespace BRender
@@ -14,9 +15,13 @@ namespace BRender
 RTCLASS(ZBMP)
 namespace
 {
-struct DepthContext
+struct DepthWriteContext
 {
     DataBlock block;
+    MMBlockIO io;
+};
+struct DepthFetchContext
+{
     PBaseCacheableObject *object = nullptr;
     LegacyLong *bytes = nullptr;
 };
@@ -39,24 +44,18 @@ MMDepthServices ZBMP::_Services(void *context)
     s.allocate = [](void *, MMI32 n, void **p) -> int { return FAllocPv(p, n, fmemNil, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
     s.warning = [](void *) { Warn("Couldn't load ZBMP"); };
-    s.unpack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FUnpackData(); };
-    s.size = [](void *, void *p, int packed) -> MMI32 { return static_cast<PDataBlock>(p)->Cb(packed != 0); };
-    s.read = [](void *, void *p, void *data, MMI32 n, MMI32 at) -> int {
-        return static_cast<PDataBlock>(p)->FReadRgb(data, n, at);
-    };
-    s.write = [](void *, void *p, const void *data, MMI32 n, MMI32 at) -> int {
-        return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), n, at);
-    };
-    s.add = [](void *p, void *file, MMU32 type, MMI32 bytes, MMU32 *number) -> void * {
-        auto &block = static_cast<DepthContext *>(p)->block;
+    s.decode = KauaiDecodeBlockHandle;
+    s.add = [](void *p, void *file, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer) -> int {
+        auto &target = *static_cast<DepthWriteContext *>(p);
         ChunkNumber n;
         std::memcpy(&n, number, sizeof(n));
-        bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &n, &block);
+        bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &n, &target.block);
         std::memcpy(number, &n, sizeof(n));
-        return ok ? &block : nullptr;
+        return ok && mm_owned_block_io(target.block.CoreBlock(), &target.io) == MM_DATA_OK &&
+               mm_block_io_writer(&target.io, writer) == MM_DATA_OK;
     };
     s.publish_fetch = [](void *p, int valid, void *object, MMI32 bytes) {
-        auto c = static_cast<DepthContext *>(p);
+        auto c = static_cast<DepthFetchContext *>(p);
         if (valid)
         {
             if (c->object)
@@ -95,17 +94,17 @@ bool ZBMP::FReadZbmp(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber
     AssertVarMem(bytes);
     (void)type;
     (void)number;
-    DepthContext context;
+    DepthFetchContext context;
     context.object = out;
     context.bytes = bytes;
     auto s = _Services(&context);
-    return mm_depth_fetch(block, out != nullptr, &s) != 0;
+    return mm_depth_fetch(block->CoreBlock(), out != nullptr, &s) != 0;
 }
 PZBMP ZBMP::PzbmpRead(PDataBlock block)
 {
     AssertPo(block, 0);
     auto s = _Services();
-    auto object = static_cast<PZBMP>(mm_depth_read(block, &s));
+    auto object = static_cast<PZBMP>(mm_depth_read(block->CoreBlock(), &s));
     AssertNilOrPo(object, 0);
     return object;
 }
@@ -143,7 +142,7 @@ bool ZBMP::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
     AssertThis(0);
     AssertPo(file, 0);
     AssertVarMem(number);
-    DepthContext context;
+    DepthWriteContext context;
     auto s = _Services(&context);
     MMU32 n;
     std::memcpy(&n, number, sizeof(n));

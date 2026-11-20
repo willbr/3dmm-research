@@ -14,6 +14,7 @@
 #include "region.h"
 #include "mbmp.h"
 #include "bitmap_format.h"
+#include "handle_services.h"
 #include "mm/bitmap_file.h"
 ASSERTNAME
 
@@ -53,16 +54,7 @@ MMMaskedServices MaskedBitmapMBMP::_Services(void *context)
             Bug("Wrong sized block");
         }
     };
-    s.unpack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FUnpackData(); };
-    s.size = [](void *, void *p, int packed) -> MMI32 { return static_cast<PDataBlock>(p)->Cb(packed != 0); };
-    s.read = [](void *, void *p, void *out, MMI32 n) -> int {
-        return static_cast<PDataBlock>(p)->FReadRgb(out, n, 0);
-    };
-    s.write = [](void *, void *p, const void *data, MMI32 n) -> int {
-        return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), n, 0);
-    };
-    s.is_memory = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->CbMem() != 0; };
-    s.consume = [](void *, void *p) { static_cast<PDataBlock>(p)->Free(); };
+    s.decode = KauaiDecodeBlockHandle;
     s.publish_fetch = [](void *p, int valid, void *object, MMI32 bytes) {
         auto c = static_cast<MaskedContext *>(p);
         if (valid)
@@ -125,7 +117,7 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock block)
 {
     AssertPo(block, 0);
     auto s = _Services();
-    return static_cast<PMaskedBitmapMBMP>(mm_masked_read(block, &s));
+    return static_cast<PMaskedBitmapMBMP>(mm_masked_read(block->CoreBlock(), &s));
 }
 PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadChunk(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
@@ -158,18 +150,15 @@ bool MaskedBitmapMBMP::FWrite(PDataBlock block)
 {
     AssertThis(0);
     AssertPo(block, 0);
-    auto s = _Services();
-    return mm_masked_write(&_bitmap, block, &s) != 0;
+    MMBlockIO io;
+    MMStorageWriter writer;
+    return mm_owned_block_io(block->CoreBlock(), &io) == MM_DATA_OK &&
+           mm_block_io_writer(&io, &writer) == MM_DATA_OK && FWriteStream(writer);
 }
 bool MaskedBitmapMBMP::FWriteStream(MMStorageWriter writer)
 {
     AssertThis(0);
     auto s = _Services();
-    s.size = [](void *, void *p, int) -> MMI32 { return static_cast<MMStorageWriter *>(p)->length; };
-    s.write = [](void *, void *p, const void *data, MMI32 bytes) -> int {
-        auto &output = *static_cast<MMStorageWriter *>(p);
-        return output.write_at(output.context, 0, data, bytes);
-    };
     return mm_masked_write(&_bitmap, &writer, &s) != 0;
 }
 void MaskedBitmapMBMP::GetRc(RC *out)
@@ -224,7 +213,7 @@ bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile cache, ChunkTagOrType type,
     context.object = out;
     context.bytes = bytes;
     auto s = _Services(&context);
-    return mm_masked_fetch(block, out != nullptr, &s) != 0;
+    return mm_masked_fetch(block->CoreBlock(), out != nullptr, &s) != 0;
 }
 /***************************************************************************
     Given an Filename refering to a bitmap file, returns the interesting parts of

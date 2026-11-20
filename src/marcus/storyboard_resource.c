@@ -225,18 +225,11 @@ static void free_memory(void *context, void **memory)
     *memory = NULL;
 }
 
-static void *add_depth(void *context, void *file, MMU32 type, MMI32 bytes, MMU32 *number)
+static int add_depth(void *context, void *file, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer)
 {
     const MMMovieArchiveEditor *target = (const MMMovieArchiveEditor *)file;
-    MMStorageWriter *writer = (MMStorageWriter *)context;
-    return target->add(target->context, type, (MMU32)bytes, number, writer) ? writer : NULL;
-}
-
-static int write_depth_bytes(void *context, void *block, const void *bytes, MMI32 size, MMI32 offset)
-{
-    const MMStorageWriter *writer = (const MMStorageWriter *)block;
     (void)context;
-    return writer->write_at(writer->context, (MMU32)offset, bytes, (size_t)size);
+    return target->add(target->context, type, bytes, number, writer);
 }
 
 static int write_depth(const MMMovieArchiveEditor *target, MMU32 *number)
@@ -244,17 +237,14 @@ static int write_depth(const MMMovieArchiveEditor *target, MMU32 *number)
     MMDepthBitmap depth = {{0, 0, MARCUS_BOARD_WIDTH, MARCUS_BOARD_HEIGHT},
                            MARCUS_BOARD_WIDTH * 2, MARCUS_BOARD_PIXELS * 2, NULL};
     MMDepthServices services = {0};
-    MMStorageWriter writer;
     int ok;
     depth.pixels = malloc((size_t)depth.bytes);
     if (!depth.pixels)
         return 0;
     memset(depth.pixels, 255, (size_t)depth.bytes);
-    services.context = &writer;
     services.system = target->system;
     services.host_big_endian = target->big_endian;
     services.add = add_depth;
-    services.write = write_depth_bytes;
     ok = mm_depth_write(&depth, (void *)target, DEPTH_BITMAP, number, &services);
     free(depth.pixels);
     return ok;

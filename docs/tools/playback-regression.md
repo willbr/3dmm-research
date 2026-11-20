@@ -17091,3 +17091,35 @@ SDL sound requests. Each port reproduced all 60 seek canvas hashes from the
 previous build. The verifier compared the completed port captures with retail
 because this suite reused the archived retail runs. The comparison and fixture
 evidence are in `tmp/c89-model-block`.
+
+## Depth and masked bitmap I/O through C89 blocks (20 November 2026)
+
+The live bitmap readers borrow C89 blocks and share their wire readers with
+Preview. Cache estimates use stored lengths. Loaded depth entries report pixel
+storage plus object size, and masked bitmap entries report the decoded length
+before a memory-backed source is consumed. Studio and Marcus storyboard depth
+writes share a positional writer. Masked bitmap writes accept the same writer
+interface for both native blocks and archive output.
+
+All 192 standalone C checks, six focused AddressSanitizer checks, 19 selected
+x64 checks and 15 selected SDL checks passed. The x64 run included the Marcus
+storyboard test. The six focused x86 C fixtures and core-link test passed.
+All six depth and masked bitmap traces matched their pre-change builds byte for
+byte. The existing x86 debug depth fingerprint assertion still reports
+`AEAC95B4` against the x64 expectation `1BE82F14`, with the same 65,880 trace
+bytes and exit status before and after the change. The masked bitmap fingerprint
+was `65C24F63` on all three builds.
+
+All 54 movie and scene traces, three saved movie fixtures, ten Preview
+fingerprints and six Preview movies matched. The Studio authoring workflow
+produced the same movie byte for byte. Retail, SDL and Marcus matched all
+three retained-background frame identities, camera indices and canvas hashes
+in `20261120T230450Z-490814f9`. Both ports matched original v3dmm 0.14 on all
+three Studio-saved VMM frames in `20261120T230525Z-4721667d`.
+
+All four `actor-event-edit` captures completed in `20261120T230432Z-6a47eb61`.
+The archived retail comparison matched all 60 frame identities in seek and
+continuous playback for both ports, all retail seek camera indices and all 12
+SDL sound requests. Each port reproduced all 60 previous seek canvas hashes.
+The verifier used the archived retail runs for this suite. The comparison and
+fixture evidence are in `tmp/c89-background-blocks`.

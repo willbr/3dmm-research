@@ -7,6 +7,7 @@
 #include "mm/indexed_display.h"
 #include "mm/pixel_paint.h"
 #include "mm/region.h"
+#include "engine_bitmap_block_fixture.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,9 +15,10 @@
 typedef struct Fixture
 {
     MMMaskedServices s;
+    BitmapTestBlock block;
     unsigned char input[4096], output[4096], bitmap[24];
     MMI32 size, packed, written;
-    int phase, fail, objects, memory, consumed, is_memory, unpacks, reads, writes, diagnostic, published, valid;
+    int phase, fail, objects, memory, upside_down, unpacks, reads, writes, diagnostic, published, valid;
     void *result;
     MMI32 estimate;
 } Fixture;
@@ -71,53 +73,36 @@ static void diagnostic(void *p, int reason)
 {
     ((Fixture *)p)->diagnostic = reason + 1;
 }
-static int unpack(void *p, void *b)
+static int decode(void *p, void **handle)
 {
     Fixture *f = (Fixture *)p;
-    (void)b;
+    assert(bitmap_handle_size(NULL, *handle) == (MMU32)f->packed);
     ++f->unpacks;
-    return !fail(f);
+    if (fail(f))
+        return 0;
+    bitmap_block_decode(handle, f->input, (MMU32)f->size);
+    return 1;
 }
-static MMI32 size(void *p, void *b, int packed)
+static int read(void *p, void *file, MMU32 at, void *out, size_t n)
 {
     Fixture *f = (Fixture *)p;
-    (void)b;
-    return packed ? f->packed : f->size;
-}
-static int read(void *p, void *b, void *out, MMI32 n)
-{
-    Fixture *f = (Fixture *)p;
-    (void)b;
     ++f->reads;
-    assert(n == f->size);
+    assert(file == f && at == 3 && n <= (size_t)f->size);
     if (fail(f))
         return 0;
     memcpy(out, f->input, (size_t)n);
     return 1;
 }
-static int write(void *p, void *b, const void *data, MMI32 n)
+static int write(void *p, void *file, MMU32 at, const void *data, size_t n)
 {
     Fixture *f = (Fixture *)p;
-    (void)b;
     ++f->writes;
-    assert(n == f->size);
+    assert(file == f && at == 3 && n == (size_t)f->size);
     if (fail(f))
         return 0;
     memcpy(f->output, data, (size_t)n);
-    f->written = n;
+    f->written = (MMI32)n;
     return 1;
-}
-static int is_memory(void *p, void *b)
-{
-    (void)b;
-    return ((Fixture *)p)->is_memory;
-}
-static void consume(void *p, void *b)
-{
-    Fixture *f = (Fixture *)p;
-    (void)b;
-    ++f->consumed;
-    f->size = 0;
 }
 static void publish(void *p, int valid, void *o, MMI32 n)
 {
@@ -139,7 +124,7 @@ static int bitmap_read(void *p, void *name, unsigned char transparent, MMMaskedS
     memcpy(out->pixels, f->bitmap, 24);
     out->width = 3;
     out->height = 6;
-    out->upside_down = f->is_memory;
+    out->upside_down = f->upside_down;
     return 1;
 }
 static void setup(Fixture *f, int big)
@@ -154,14 +139,10 @@ static void setup(Fixture *f, int big)
     f->s.allocate = allocate;
     f->s.free_memory = free_memory;
     f->s.diagnostic = diagnostic;
-    f->s.unpack = unpack;
-    f->s.size = size;
-    f->s.read = read;
-    f->s.write = write;
-    f->s.is_memory = is_memory;
-    f->s.consume = consume;
+    f->s.decode = decode;
     f->s.publish_fetch = publish;
     f->s.bitmap_read = bitmap_read;
+    bitmap_block_init(&f->block, f, read, write);
 }
 static void put(unsigned char *b, unsigned n, MMU32 v, int big)
 {
@@ -175,6 +156,7 @@ static void put(unsigned char *b, unsigned n, MMU32 v, int big)
 static void balanced(Fixture *f)
 {
     assert(!f->memory && !f->objects);
+    assert(mm_owned_block_clear(&f->block.owner) == MM_DATA_OK);
 }
 static void seed(Fixture *f, int source_big)
 {
@@ -206,6 +188,8 @@ static void encode(void)
     Fixture f;
     MMMaskedBitmap m;
     MMMaskedRect r = {0, 0, 5, 4}, bounds;
+    MMBlockIO io;
+    MMStorageWriter writer;
     unsigned char pixels[20] = {0, 0, 0, 0, 0, 0, 1, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0};
     int big, flags, x, y, n;
     for (big = 0; big < 2; ++big)
@@ -224,10 +208,13 @@ static void encode(void)
                     assert(mm_masked_hit(&m, big, x - 7, y + 2) == expected);
                 }
             f.size = m.bytes;
-            assert(mm_masked_write(&m, &f, &f.s) && f.written == m.bytes &&
+            bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
+            assert(mm_owned_block_io(&f.block.owner, &io) == MM_DATA_OK &&
+                   mm_block_io_writer(&io, &writer) == MM_DATA_OK);
+            assert(mm_masked_write(&m, &writer, &f.s) && f.written == m.bytes &&
                    !memcmp(f.output, m.data, (size_t)m.bytes));
-            --f.size;
-            assert(!mm_masked_write(&m, &f, &f.s) && f.diagnostic == MM_MASKED_WRONG_SIZE + 1);
+            --writer.length;
+            assert(!mm_masked_write(&m, &writer, &f.s) && f.diagnostic == MM_MASKED_WRONG_SIZE + 1);
             mm_masked_dispose(&m, &f.s);
             balanced(&f);
         }
@@ -305,58 +292,66 @@ static void long_runs(void)
 }
 static void loading(void)
 {
+    const int failure_steps[] = {3, 4, 2};
     Fixture f;
     MMMaskedBitmap *m;
-    int big, foreign, memory, factory, n, ok;
+    int big, foreign, storage, factory, n, ok;
     for (big = 0; big < 2; ++big)
         for (foreign = 0; foreign < 2; ++foreign)
-            for (memory = 0; memory < 2; ++memory)
+            for (storage = 0; storage < 3; ++storage)
                 for (factory = 0; factory < 2; ++factory)
-                    for (n = 0; n < 8; ++n)
+                    for (n = 0; n <= failure_steps[storage]; ++n)
                     {
                         setup(&f, big);
                         seed(&f, big ^ foreign);
-                        f.is_memory = memory;
+                        bitmap_block_source(&f.block, f.input, (MMU32)f.size, (MMU32)f.packed, storage);
                         f.fail = n;
                         if (factory)
                         {
-                            ok = mm_masked_fetch(&f, 1, &f.s);
+                            ok = mm_masked_fetch(&f.block.owner, 1, &f.s);
                             m = (MMMaskedBitmap *)f.result;
                             assert(f.published == 1 && f.valid == ok);
                         }
                         else
                         {
-                            m = (MMMaskedBitmap *)mm_masked_read(&f, &f.s);
+                            m = (MMMaskedBitmap *)mm_masked_read(&f.block.owner, &f.s);
                             ok = m != NULL;
                         }
+                        assert(ok == !n);
                         if (ok)
                         {
                             assert(mm_masked_hit(m, big, -1, 3) && !mm_masked_hit(m, big, -2, 3) &&
                                    m->row_bytes == 4);
-                            assert(f.consumed == memory);
+                            assert(f.block.owner.view.kind == (storage == BITMAP_FILE ? MM_BLOCK_FILE : MM_BLOCK_EMPTY));
+                            assert(f.unpacks == (storage == BITMAP_PACKED_FILE));
                             if (factory)
-                                assert(f.estimate == 40 && f.unpacks == 2);
+                                assert(f.estimate == 40);
                             release(&f, m);
                         }
+                        else if (storage == BITMAP_MEMORY)
+                            assert(f.block.owner.view.kind == (n == 1 ? MM_BLOCK_MEMORY : MM_BLOCK_EMPTY));
                         balanced(&f);
                     }
     setup(&f, 0);
     seed(&f, 0);
-    assert(mm_masked_fetch(&f, 0, &f.s) && f.estimate == 17 && !f.reads && !f.unpacks);
+    bitmap_block_file(&f.block, 3, (MMU32)f.packed, 1);
+    assert(mm_masked_fetch(&f.block.owner, 0, &f.s) && f.estimate == 17 && !f.reads && !f.unpacks);
+    assert(f.block.owner.view.packed);
     balanced(&f);
     for (n = 0; n < 40; ++n)
     {
         setup(&f, 0);
         seed(&f, 0);
         f.size = n;
-        assert(!mm_masked_read(&f, &f.s));
+        bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
+        assert(!mm_masked_read(&f.block.owner, &f.s));
         balanced(&f);
     }
     setup(&f, 0);
     seed(&f, 0);
-    f.is_memory = 1;
     f.input[6] = 1;
-    assert(!mm_masked_read(&f, &f.s) && f.consumed == 1);
+    bitmap_block_memory(&f.block, f.input, (MMU32)f.size);
+    assert(!mm_masked_read(&f.block.owner, &f.s) && f.block.owner.view.kind == MM_BLOCK_EMPTY);
     balanced(&f);
 }
 static void malformed(void)
@@ -429,7 +424,7 @@ static void imports(void)
             for (n = 0; n < 7; ++n)
             {
                 setup(&f, 0);
-                f.is_memory = up;
+                f.upside_down = up;
                 f.bitmap[0] = 9;
                 f.bitmap[21] = 7;
                 f.fail = n;

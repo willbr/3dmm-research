@@ -903,12 +903,15 @@ palette admission, writing and failure cleanup now also use C89. The native
 bitmap facade supplies file/allocation and palette-object services.
 Depth-buffer construction, pixel ownership, native-order wire I/O, cache
 factory control, clipping and full/half-resolution drawing now use C89 as well.
-Native ZBMP objects retain typed allocation and block services. Depth drawing
-clips and scans C89 regions directly.
+Live ZBMP reads decode through C89 blocks and share the Preview stream reader.
+Studio and the Marcus storyboard use the same positional depth writer. Depth
+drawing clips and scans C89 regions directly.
 Masked-bitmap construction/cropping, RLE encoding, wire validation/normalization,
 hit testing, cache factories, BMP import control and pixel lifetime now also use
-C89. C-owned contiguous buffers replace persistent HQ owners. Native drawing
-adapters borrow the host-order header/row-table/RLE view.
+C89. Live masked bitmap readers use the same bounded stream transfer as Preview
+and C releases consumed memory blocks. Native block and archive writes use one
+positional writer. Native drawing adapters borrow the host-order
+header/row-table/RLE view.
 World buffer/depth/region/background-cache ownership, construction order, mode
 transactions, background loading and depth resampling now also use C89. The C
 records are the live source for rendering, picking and export. Native adapters

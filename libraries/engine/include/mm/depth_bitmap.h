@@ -1,6 +1,7 @@
 /* Depth bitmap policy converted from bren/zbmp.cpp. */
 #ifndef MM_ENGINE_DEPTH_BITMAP_H
 #define MM_ENGINE_DEPTH_BITMAP_H
+#include "block_owner.h"
 #include "region.h"
 #include "read_stream.h"
 #ifdef __cplusplus
@@ -26,11 +27,8 @@ extern "C"
         int (*allocate)(void *, MMI32, void **);
         void (*free_memory)(void *, void **);
         void (*warning)(void *);
-        int (*unpack)(void *, void *);
-        MMI32 (*size)(void *, void *, int packed);
-        int (*read)(void *, void *, void *, MMI32 bytes, MMI32 offset);
-        int (*write)(void *, void *, const void *, MMI32 bytes, MMI32 offset);
-        void *(*add)(void *, void *file, MMU32 type, MMI32 bytes, MMU32 *number);
+        MMBlockTransform decode;
+        int (*add)(void *, void *file, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *);
         void (*publish_fetch)(void *, int valid, void *object, MMI32 bytes);
     } MMDepthServices;
     /* Fresh host objects provide zeroed state. C owns pixel storage. New fills with
@@ -42,8 +40,8 @@ extern "C"
     int mm_depth_header(const unsigned char[12], int host_big, MMDepthBitmap *);
     /* Read a decoded ZBMP into an empty owner. Failure leaves it unchanged. */
     int mm_depth_read_stream(const MMReadStream *, MMDepthBitmap *, const MMDepthServices *);
-    void *mm_depth_read(void *block, const MMDepthServices *);
-    int mm_depth_fetch(void *block, int want_object, const MMDepthServices *);
+    void *mm_depth_read(MMOwnedBlock *, const MMDepthServices *);
+    int mm_depth_fetch(MMOwnedBlock *, int want_object, const MMDepthServices *);
     int mm_depth_write(const MMDepthBitmap *, void *file, MMU32 type, MMU32 *number,
                              const MMDepthServices *);
     /* No clip/region means no draw. Half mode doubles only the bottom bound and

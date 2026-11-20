@@ -671,16 +671,26 @@ done:
     return result;
 }
 
-int mm_masked_read_stream(const MMReadStream *stream, MMMaskedBitmap *out, const MMMaskedServices *s)
+static int read_masked_bytes(const MMReadStream *stream, MMMaskedBitmap *m, const MMMaskedServices *s)
 {
-    MMMaskedBitmap m;
-    memset(&m, 0, sizeof(m));
     if (stream->length < 28 || stream->length > MAXIMUM || (size_t)stream->length != stream->length)
         return 0;
-    m.bytes = (MMI32)stream->length;
-    if (!s->allocate(s->context, m.bytes, &m.data))
+    m->bytes = (MMI32)stream->length;
+    if (!s->allocate(s->context, m->bytes, &m->data))
         return 0;
-    if (!mm_read_exact(stream, 0, m.data, (size_t)m.bytes) || !mm_masked_validate(&m, s->host_big_endian))
+    if (!mm_read_exact(stream, 0, m->data, (size_t)m->bytes))
+    {
+        mm_masked_dispose(m, s);
+        return 0;
+    }
+    return 1;
+}
+int mm_masked_read_stream(const MMReadStream *stream, MMMaskedBitmap *out, const MMMaskedServices *s)
+{
+    MMMaskedBitmap m = {0};
+    if (!read_masked_bytes(stream, &m, s))
+        return 0;
+    if (!mm_masked_validate(&m, s->host_big_endian))
     {
         mm_masked_dispose(&m, s);
         return 0;
@@ -689,64 +699,44 @@ int mm_masked_read_stream(const MMReadStream *stream, MMMaskedBitmap *out, const
     return 1;
 }
 
-typedef struct MaskedBlockStream
-{
-    void *block;
-    const MMMaskedServices *services;
-} MaskedBlockStream;
-
-static int read_block(void *context, MMU32 offset, void *data, size_t bytes)
-{
-    MaskedBlockStream *source = (MaskedBlockStream *)context;
-    const MMMaskedServices *s = source->services;
-    if (offset || !s->read(s->context, source->block, data, (MMI32)bytes))
-        return 0;
-    if (s->is_memory(s->context, source->block))
-        s->consume(s->context, source->block);
-    return 1;
-}
-
-void *mm_masked_read(void *block, const MMMaskedServices *s)
+static void *read_masked_block(MMOwnedBlock *block, const MMMaskedServices *s)
 {
     MMMaskedBitmap m = {0};
-    MaskedBlockStream source;
+    MMBlockIO io;
     MMReadStream stream;
-    MMI32 bytes;
-    void *o;
-    if (!s->unpack(s->context, block))
+    void *object = NULL;
+    if (mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK ||
+        !read_masked_bytes(&stream, &m, s))
         return NULL;
-    bytes = s->size(s->context, block, 0);
-    if (bytes < 0)
-        return NULL;
-    source.block = block;
-    source.services = s;
-    stream.context = &source;
-    stream.read_at = read_block;
-    stream.length = (MMU32)bytes;
-    if (!mm_masked_read_stream(&stream, &m, s))
-        return NULL;
-    o = s->create(s->context);
-    if (!o)
-    {
+    if (io.view.kind == MM_BLOCK_MEMORY)
+        mm_owned_block_clear(block);
+    if (mm_masked_validate(&m, s->host_big_endian))
+        object = s->create(s->context);
+    if (object)
+        *s->state(s->context, object) = m;
+    else
         mm_masked_dispose(&m, s);
-        return NULL;
-    }
-    *s->state(s->context, o) = m;
-    return o;
+    return object;
 }
-int mm_masked_fetch(void *block, int want, const MMMaskedServices *s)
+void *mm_masked_read(MMOwnedBlock *block, const MMMaskedServices *s)
 {
-    MMI32 n = s->size(s->context, block, 1);
+    if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK)
+        return NULL;
+    return read_masked_block(block, s);
+}
+int mm_masked_fetch(MMOwnedBlock *block, int want, const MMMaskedServices *s)
+{
+    MMI32 n;
     void *o;
     if (!want)
     {
-        s->publish_fetch(s->context, 1, NULL, n);
+        s->publish_fetch(s->context, 1, NULL, (MMI32)block->view.length);
         return 1;
     }
-    if (!s->unpack(s->context, block))
+    if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK)
         goto fail;
-    n = s->size(s->context, block, 0);
-    o = mm_masked_read(block, s);
+    n = (MMI32)block->view.length;
+    o = read_masked_block(block, s);
     if (!o)
         goto fail;
     s->publish_fetch(s->context, 1, o, n);
@@ -755,17 +745,17 @@ fail:
     s->publish_fetch(s->context, 0, NULL, 0);
     return 0;
 }
-int mm_masked_write(MMMaskedBitmap *m, void *block, const MMMaskedServices *s)
+int mm_masked_write(MMMaskedBitmap *m, const MMStorageWriter *writer, const MMMaskedServices *s)
 {
     if (!m->data || m->bytes < 28)
         return 0;
     canonical((unsigned char *)m->data, m->bytes, s);
-    if (m->bytes != s->size(s->context, block, 0))
+    if ((MMU32)m->bytes != writer->length)
     {
         s->diagnostic(s->context, MM_MASKED_WRONG_SIZE);
         return 0;
     }
-    return s->write(s->context, block, m->data, m->bytes);
+    return writer->write_at && writer->write_at(writer->context, 0, m->data, (size_t)m->bytes);
 }
 void *mm_masked_import(void *filename, unsigned char transparent, MMI32 x, MMI32 y, unsigned flags,
                              unsigned char fill, const MMMaskedServices *s)

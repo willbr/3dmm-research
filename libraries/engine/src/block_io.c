@@ -115,6 +115,24 @@ int mm_block_write(const MMBlockIO *b, MMU32 offset, const void *input, MMU32 n,
     }
     return OK;
 }
+static int stream_write(void *context, MMU32 offset, const void *input, size_t bytes)
+{
+    return (size_t)(MMU32)bytes == bytes &&
+           mm_block_write((const MMBlockIO *)context, offset, input, (MMU32)bytes, 0) == OK;
+}
+int mm_block_io_writer(MMBlockIO *io, MMStorageWriter *out)
+{
+    int result;
+    if (!io || !out)
+        return BAD;
+    result = mm_block_check(&io->view, 0, io->view.length, 0, NULL);
+    if (result != OK)
+        return result;
+    out->context = io;
+    out->length = io->view.length;
+    out->write_at = stream_write;
+    return OK;
+}
 static int read_relative(void *context, MMU32 offset, void *p, size_t n)
 {
     const MMBlockIO *b = (const MMBlockIO *)context;

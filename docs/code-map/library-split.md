@@ -5496,7 +5496,10 @@ evidence is in `docs/tools/playback-regression.md`.
 `depth_bitmap.c` owns persistent depth bounds, row/byte counts and pixel storage,
 construction/contiguous renderer imports, cache estimate/load control, 12-byte
 headers, exact-size payload reads, chunk writing, clipping and full/half drawing.
-The native `ZBMP` facade supplies object, allocation and block services.
+The live native reader decodes a borrowed C89 block and uses the same bounded
+stream reader as Preview. Studio and Marcus storyboard writing use the same
+positional writer for the depth header and pixels. The native `ZBMP` facade
+supplies object, allocation, codec and chunk publication bindings.
 Bounds intersection, region scanning and span addressing execute in C. Pixel
 bytes remain mutable through `Prgb()` without a second owner.
 
@@ -5527,9 +5530,12 @@ Full gates and retail capture limits are in `docs/tools/playback-regression.md`.
 `masked_bitmap.c` owns persistent contiguous header/row-table/RLE buffers,
 construction/cropping, 255-byte run continuations, mask-only encoding,
 foreign-to-host normalization, bounded row validation, hit testing, cache
-factories, serialization and BMP import orientation/cleanup. Persistent HQ
-handles and their resize sequence are removed from `MaskedBitmapMBMP`. Native
-facades provide typed allocation, block and BMP services. The C89 drawing path
+factories, serialization and BMP import orientation/cleanup. Live readers use
+the C89 block decoder and the same bounded byte reader as Preview. A successful
+transfer releases a memory-backed block before validation or object creation.
+File-backed reads retain their source. Block and archive destinations use one
+positional writer. The native facade supplies typed allocation, codec and BMP
+services. The C89 drawing path
 handles unscaled indexed pixels, rectangular and region clips, 1-bit masks,
 and scaled masked bitmaps. The drawing adapters supply surface, palette and
 region views. The C reader validates every encoded row before drawing and

@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MASKED_BITMAP_H
 #define MM_ENGINE_MASKED_BITMAP_H
+#include "block_owner.h"
 #include "read_stream.h"
 #include "pixel_raster.h"
 #ifdef __cplusplus
@@ -36,12 +37,7 @@ extern "C"
         int (*allocate)(void *, MMI32, void **);
         void (*free_memory)(void *, void **);
         void (*diagnostic)(void *, int);
-        int (*unpack)(void *, void *);
-        MMI32 (*size)(void *, void *, int packed);
-        int (*read)(void *, void *, void *, MMI32 bytes);
-        int (*write)(void *, void *, const void *, MMI32 bytes);
-        int (*is_memory)(void *, void *);
-        void (*consume)(void *, void *);
+        MMBlockTransform decode;
         void (*publish_fetch)(void *, int valid, void *, MMI32 bytes);
         int (*bitmap_read)(void *, void *filename, unsigned char transparent, MMMaskedSource *);
     } MMMaskedServices;
@@ -101,9 +97,9 @@ extern "C"
      * object creation; file-backed blocks stay intact. Allocation/read failure leaves
      * the source block intact. Fetch estimates do not load/consume. Callbacks must
      * not reenter or mutate the same transaction. */
-    void *mm_masked_read(void *block, const MMMaskedServices *);
-    int mm_masked_fetch(void *block, int want_object, const MMMaskedServices *);
-    int mm_masked_write(MMMaskedBitmap *, void *block, const MMMaskedServices *);
+    void *mm_masked_read(MMOwnedBlock *, const MMMaskedServices *);
+    int mm_masked_fetch(MMOwnedBlock *, int want_object, const MMMaskedServices *);
+    int mm_masked_write(MMMaskedBitmap *, const MMStorageWriter *, const MMMaskedServices *);
     void *mm_masked_import(void *filename, unsigned char transparent, MMI32 x, MMI32 y, unsigned flags,
                                  unsigned char fill, const MMMaskedServices *);
 #ifdef __cplusplus

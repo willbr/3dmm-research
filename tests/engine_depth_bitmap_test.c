@@ -1,4 +1,5 @@
 #include "mm/depth_bitmap.h"
+#include "engine_bitmap_block_fixture.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -6,6 +7,8 @@
 typedef struct Fixture
 {
     MMDepthServices s;
+    BitmapTestBlock block;
+    MMBlockIO output_io;
     unsigned char input[128], output[128];
     MMI32 size, packed, output_size;
     int phase, fail, objects, memory, warnings, published, valid, unpacks, reads, writes, adds;
@@ -63,56 +66,50 @@ static void warning(void *p)
 {
     ++((Fixture *)p)->warnings;
 }
-static int unpack(void *p, void *b)
+static int decode(void *p, void **handle)
 {
     Fixture *f = (Fixture *)p;
-    (void)b;
+    assert(bitmap_handle_size(NULL, *handle) == (MMU32)f->packed);
     ++f->unpacks;
-    return !fail(f);
+    if (fail(f))
+        return 0;
+    bitmap_block_decode(handle, f->input, (MMU32)f->size);
+    return 1;
 }
-static MMI32 size(void *p, void *b, int packed)
+static int read(void *p, void *file, MMU32 at, void *out, size_t n)
 {
     Fixture *f = (Fixture *)p;
-    (void)b;
-    return packed ? f->packed : f->size;
-}
-static int read(void *p, void *b, void *out, MMI32 n, MMI32 at)
-{
-    Fixture *f = (Fixture *)p;
-    (void)b;
     ++f->reads;
-    assert(at >= 0 && n >= 0 && at <= f->size && n <= f->size - at);
+    assert(file == f && at >= 3 && at - 3 + n <= (size_t)f->size);
     if (fail(f))
         return 0;
-    if (n)
-        memcpy(out, f->input + at, (size_t)n);
+    memcpy(out, f->input + (at - 3), n);
     return 1;
 }
-static int write(void *p, void *b, const void *in, MMI32 n, MMI32 at)
+static int write(void *p, void *file, MMU32 at, const void *in, size_t n)
 {
     Fixture *f = (Fixture *)p;
-    (void)b;
     ++f->writes;
-    assert(at >= 0 && n >= 0 && at + n <= f->output_size);
+    assert(file == f && at >= 3 && at - 3 + n <= (size_t)f->output_size);
     if (fail(f))
         return 0;
-    if (n)
-        memcpy(f->output + at, in, (size_t)n);
+    memcpy(f->output + (at - 3), in, n);
     return 1;
 }
-static void *add(void *p, void *file, MMU32 type, MMI32 n, MMU32 *number)
+static int add(void *p, void *file, MMU32 type, MMU32 n, MMU32 *number, MMStorageWriter *writer)
 {
     Fixture *f = (Fixture *)p;
-    (void)file;
-    assert(type == 0x12345678UL);
+    assert(file == f && type == 0x12345678UL);
     ++f->adds;
     if (fail(f))
-        return NULL;
+        return 0;
     assert(n <= 128);
     f->output_size = n;
     *number = 99;
     memset(f->output, 0xcc, 128);
-    return p;
+    bitmap_block_file(&f->block, 3, n, 0);
+    return mm_owned_block_io(&f->block.owner, &f->output_io) == MM_DATA_OK &&
+           mm_block_io_writer(&f->output_io, writer) == MM_DATA_OK;
 }
 static void publish(void *p, int valid, void *o, MMI32 n)
 {
@@ -141,14 +138,12 @@ static void setup(Fixture *f, int big)
     f->s.allocate = allocate;
     f->s.free_memory = free_memory;
     f->s.warning = warning;
-    f->s.unpack = unpack;
-    f->s.size = size;
-    f->s.read = read;
-    f->s.write = write;
+    f->s.decode = decode;
     f->s.add = add;
     f->s.publish_fetch = publish;
     f->size = 24;
     f->packed = 9;
+    bitmap_block_init(&f->block, f, read, write);
     put(f->input, 0x1234, big);
     put(f->input + 2, 0xffff, big);
     put(f->input + 4, 2, big);
@@ -161,6 +156,7 @@ static void setup(Fixture *f, int big)
 static void balanced(Fixture *f)
 {
     assert(!f->objects && !f->memory);
+    assert(mm_owned_block_clear(&f->block.owner) == MM_DATA_OK);
 }
 static void constructors(void)
 {
@@ -199,44 +195,49 @@ static void constructors(void)
 }
 static void loading(void)
 {
+    const int failure_steps[] = {4, 4, 2};
     Fixture f;
     MMDepthBitmap *m;
     MMDepthBitmap decoded;
     MMMemoryStream stream;
-    int big, factory, n, i, ok;
+    int big, factory, storage, n, i, ok;
     for (big = 0; big < 2; ++big)
         for (factory = 0; factory < 2; ++factory)
-            for (n = 0; n < 8; ++n)
-            {
-                setup(&f, big);
-                f.fail = n;
-                if (factory)
+            for (storage = 0; storage < 3; ++storage)
+                for (n = 0; n <= failure_steps[storage]; ++n)
                 {
-                    ok = mm_depth_fetch(&f, 1, &f.s);
-                    m = (MMDepthBitmap *)f.result;
-                    assert(f.published == 1 && f.valid == ok);
-                }
-                else
-                {
-                    m = (MMDepthBitmap *)mm_depth_read(&f, &f.s);
-                    ok = m != NULL;
-                }
-                if (ok)
-                {
-                    assert(m && m->bounds.left == 2 && m->bounds.top == -1 && m->bounds.right == 5 &&
-                           m->bounds.bottom == 1 && m->bytes == 12 && !memcmp(m->pixels, f.input + 12, 12));
+                    setup(&f, big);
+                    f.fail = n;
+                    bitmap_block_source(&f.block, f.input, (MMU32)f.size, (MMU32)f.packed, storage);
                     if (factory)
-                        assert(f.estimate == 112 && f.unpacks == 2);
-                    release(&f, m);
+                    {
+                        ok = mm_depth_fetch(&f.block.owner, 1, &f.s);
+                        m = (MMDepthBitmap *)f.result;
+                        assert(f.published == 1 && f.valid == ok);
+                    }
+                    else
+                    {
+                        m = (MMDepthBitmap *)mm_depth_read(&f.block.owner, &f.s);
+                        ok = m != NULL;
+                    }
+                    assert(ok == !n);
+                    if (ok)
+                    {
+                        assert(m && m->bounds.left == 2 && m->bounds.top == -1 && m->bounds.right == 5 &&
+                               m->bounds.bottom == 1 && m->bytes == 12 && !memcmp(m->pixels, f.input + 12, 12));
+                        assert(f.unpacks == (storage == BITMAP_PACKED_FILE));
+                        assert(f.block.owner.view.kind == (storage == BITMAP_FILE ? MM_BLOCK_FILE : MM_BLOCK_MEMORY));
+                        if (factory)
+                            assert(f.estimate == 112);
+                        release(&f, m);
+                    }
+                    else
+                    {
+                        assert(!m);
+                        assert(f.warnings == !(storage == BITMAP_PACKED_FILE && n <= 2));
+                    }
+                    balanced(&f);
                 }
-                else
-                {
-                    assert(!m);
-                    if (n == 1)
-                        assert(!f.warnings);
-                }
-                balanced(&f);
-            }
     for (big = 0; big < 2; ++big)
     {
         setup(&f, big);
@@ -253,33 +254,40 @@ static void loading(void)
         balanced(&f);
     }
     setup(&f, 0);
-    assert(mm_depth_fetch(&f, 0, &f.s) && f.estimate == 9 && !f.result && !f.unpacks && !f.reads);
+    bitmap_block_file(&f.block, 3, (MMU32)f.packed, 1);
+    assert(mm_depth_fetch(&f.block.owner, 0, &f.s) && f.estimate == 9 && !f.result && !f.unpacks && !f.reads);
+    assert(f.block.owner.view.packed);
     balanced(&f);
     for (i = 0; i < 24; ++i)
     {
         setup(&f, 0);
         f.size = i;
-        assert(!mm_depth_read(&f, &f.s));
+        bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
+        assert(!mm_depth_read(&f.block.owner, &f.s));
         balanced(&f);
     }
     setup(&f, 0);
     f.size = 25;
-    assert(!mm_depth_read(&f, &f.s));
+    bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
+    assert(!mm_depth_read(&f.block.owner, &f.s));
     balanced(&f);
     setup(&f, 0);
     put(f.input + 8, 0, 0);
     f.size = 12;
-    m = (MMDepthBitmap *)mm_depth_read(&f, &f.s);
+    bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
+    m = (MMDepthBitmap *)mm_depth_read(&f.block.owner, &f.s);
     assert(m && !m->bytes && m->bounds.right == 2);
     release(&f, m);
     balanced(&f);
     setup(&f, 0);
     put(f.input + 8, 0xffff, 0);
-    assert(!mm_depth_read(&f, &f.s));
+    bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
+    assert(!mm_depth_read(&f.block.owner, &f.s));
     balanced(&f);
     setup(&f, 0);
     f.s.object_bytes = 2147483647;
-    assert(!mm_depth_fetch(&f, 1, &f.s) && !f.valid);
+    bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
+    assert(!mm_depth_fetch(&f.block.owner, 1, &f.s) && !f.valid);
     balanced(&f);
 }
 static void writing(void)
