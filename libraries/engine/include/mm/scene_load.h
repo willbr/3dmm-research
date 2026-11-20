@@ -22,7 +22,7 @@ extern "C"
         int (*open_tag)(void *, MMSceneSound *, MMI32 index);
         void (*load_name)(void *, void *scene, MMU32 number);
     } MMSceneLoadServices;
-    /* The reader supplies validated scene events; pointer_bytes is sizeof(void *).
+    /* The reader supplies validated scene events.
      * Reads metadata before creating the scene; optional thumbnail failure is ignored.
      * The read group owns its wire bytes. Fixed headers and child/
      * background words are decoded into local values; pause/camera bytes pass through
@@ -40,10 +40,7 @@ extern "C"
     {
         void *context;
         MMSceneOwner *owner;
-        MMI32 (*count)(void *, void *group), (*kind)(void *, void *group, MMI32 index);
         int (*actor)(void *, void *actor, MMU32 scene);
-        void (*lock)(void *, void *group), (*unlock)(void *, void *group);
-        MMSceneSound *(*sound)(void *, void *group, MMI32 index);
         MMSceneSoundPacketServices packets;
         int (*resolve)(void *, void *record, MMU32 scene);
     } MMSceneResolveServices;

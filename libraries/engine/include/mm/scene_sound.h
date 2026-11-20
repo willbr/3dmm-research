@@ -66,6 +66,9 @@ extern "C"
      * other header fields remain live. Callbacks must not resize packet storage
      * or reenter packet operations. */
     MMI32 mm_scene_sound_size(MMI32 count, size_t tag_bytes);
+    /* Returns the byte span of a complete native packet within the supplied data,
+     * or zero if the header or its tag records are truncated or invalid. */
+    MMI32 mm_scene_sound_span(const void *data, MMI32 bytes, size_t tag_bytes);
     MMSceneSound *mm_scene_sound_allocate(MMI32 count, const MMSceneSoundPacketServices *);
     MMSceneSound *mm_scene_sound_make(MMI32 volume, MMI32 style, int loop, MMI32 count,
                                                  const void *records, const MMSceneSoundPacketServices *);

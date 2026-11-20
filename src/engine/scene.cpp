@@ -251,8 +251,6 @@ MMSceneOwnerServices Scene::_OwnerServices()
 {
     static_assert(int(fscenPauses) == MM_SCENE_DEFAULT_DISABLED, "Scene defaults");
     MMSceneOwnerServices s = {};
-    s.pointer_bytes = sizeof(void *);
-    s.sound_header_bytes = sizeof(SceneSoundEvent);
     s.sound_tag_bytes = sizeof(TagChildPair);
     s.create_scene = [](void *, void *movie) -> void * { return NewObj Scene(static_cast<PMovie>(movie)); };
     s.state = [](void *, void *p) { return &static_cast<PScene>(p)->_owner; };
@@ -262,12 +260,6 @@ MMSceneOwnerServices Scene::_OwnerServices()
     s.loaded = [](void *, void *) { vpcex->EnqueueCid(cidSceneLoaded); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.count = [](void *, void *p) -> MMI32 { return static_cast<const MMSceneTrack *>(p)->rows.count; };
-    s.kind = [](void *, void *p, MMI32 i) -> MMI32 {
-        return ReadSceneTrackEvent(static_cast<const MMSceneTrack *>(p), i).sevt;
-    };
-    s.data = [](void *, void *p, MMI32 i, MMI32 *bytes) -> void * {
-        return mm_scene_track_payload(static_cast<const MMSceneTrack *>(p), i, bytes);
-    };
     s.object = [](void *, void *p, MMI32 i) -> void * {
         const auto track = static_cast<const MMSceneTrack *>(p);
         void *value;
@@ -2402,22 +2394,8 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
     s.context = this;
     s.owner = &_owner;
     s.packets = ScenePacketServices(_pmvie);
-    auto owners = _OwnerServices();
-    s.count = owners.count;
-    s.kind = owners.kind;
     s.actor = [](void *, void *actor, MMU32 scene) -> int {
         return static_cast<PActor>(actor)->FResolveAllSndTags(scene);
-    };
-    s.lock = [](void *, void *g) {
-        AssertDo(mm_storage_lock(&static_cast<MMSceneTrack *>(g)->storage, 0) == MM_STORAGE_OK,
-                 "cannot lock scene frames");
-    };
-    s.unlock = [](void *, void *g) {
-        AssertDo(mm_storage_unlock(&static_cast<MMSceneTrack *>(g)->storage, 0) == MM_STORAGE_OK,
-                 "cannot unlock scene frames");
-    };
-    s.sound = [](void *, void *g, MMI32 index) -> MMSceneSound * {
-        return static_cast<PSceneSoundEvent>(mm_scene_track_payload(static_cast<MMSceneTrack *>(g), index, nullptr));
     };
     s.resolve = [](void *p, void *record, MMU32 scene) -> int {
         auto tag = static_cast<PTagChildPair>(record);

@@ -308,9 +308,12 @@ int main()
     std::printf("Scene owner: bytes=%u fingerprint=%08X\n", recorded, hash);
     const unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one))
+    {
+        // The trace records the size of each actor and caption pointer.
 #ifdef DEBUG
-        CHECK(recorded == 8528 && hash == 0xD746FAE5U);
+        CHECK(recorded == 8528 && hash == (sizeof(void *) == 4 ? 0xDBF941E5U : 0xD746FAE5U));
 #else
-        CHECK(recorded == 8688 && hash == 0x2A12D054U);
+        CHECK(recorded == 8688 && hash == (sizeof(void *) == 4 ? 0xA8807C54U : 0x2A12D054U));
 #endif
+    }
 }

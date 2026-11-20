@@ -24,7 +24,7 @@ typedef struct Loader
     MMSceneOwner owner;
     MMSceneState metadata;
     LoadObject wire[2], background_cache, *scene;
-    int attempt, fail, live, swap, names, published, log[512], used, locks;
+    int attempt, fail, live, swap, names, published, log[512], used;
     int actor_calls, resolve_calls, actor_fail, resolve_fail, no_thumbnail, bad_kind;
     int track_allocations, fail_open, fail_track;
 } Loader;
@@ -109,30 +109,6 @@ static void release_object(void *p, void *value)
     --f->live;
     if (o->type < 100 || o->type >= 200)
         free(o);
-}
-static MMI32 group_count(void *p, void *g)
-{
-    (void)p;
-    return ((const MMSceneTrack *)g)->rows.count;
-}
-static MMI32 group_kind(void *p, void *g, MMI32 i)
-{
-    MMSceneTrackEvent event;
-    (void)p;
-    CHECK(mm_scene_track_get(g, i, &event));
-    return event.kind;
-}
-static void *group_payload(void *p, void *g, MMI32 i, MMI32 *bytes)
-{
-    (void)p;
-    return mm_scene_track_payload(g, i, bytes);
-}
-static void *group_object(void *p, void *g, MMI32 i)
-{
-    void *object;
-    (void)p;
-    memcpy(&object, mm_scene_track_payload(g, i, NULL), sizeof(object));
-    return object;
 }
 static MMI32 sound_count(void *p, void *sound)
 {
@@ -346,18 +322,12 @@ static void init_loader(Loader *f, int swap)
     s->load_name = load_name;
     o = &s->owners;
     o->context = f;
-    o->pointer_bytes = sizeof(void *);
-    o->sound_header_bytes = 16;
     o->sound_tag_bytes = sizeof(Record);
     o->create_scene = new_scene;
     o->state = owner_state;
     o->publish = publish_owner;
     o->reset_cursor = reset;
     o->release = release_object;
-    o->count = group_count;
-    o->kind = group_kind;
-    o->data = group_payload;
-    o->object = group_object;
     o->diagnostic = diagnostic;
     o->sound.context = f;
     o->sound.count = sound_count;
@@ -448,32 +418,16 @@ static void test_load(void)
 static int resolve_actor(void *p, void *actor, MMU32 scene)
 {
     Loader *f = (Loader *)p;
-    CHECK(scene == 42 && actor == &f->wire[f->actor_calls] && !f->locks);
+    CHECK(scene == 42 && actor == &f->wire[f->actor_calls]);
+    CHECK(!f->owner.tracks[MM_SCENE_FRAMES].storage.buffers[0].locks);
     ++f->actor_calls;
     return f->actor_calls != f->actor_fail;
-}
-static void lock_group(void *p, void *g)
-{
-    Loader *f = (Loader *)p;
-    CHECK(g == f->owner.owned[0] && !f->locks);
-    ++f->locks;
-}
-static void unlock_group(void *p, void *g)
-{
-    Loader *f = (Loader *)p;
-    CHECK(g == f->owner.owned[0] && f->locks == 1);
-    --f->locks;
-}
-static MMSceneSound *resolve_sound(void *p, void *g, MMI32 i)
-{
-    MMI32 bytes;
-    return (MMSceneSound *)group_payload(p, g, i, &bytes);
 }
 static int resolve_record(void *p, void *record, MMU32 scene)
 {
     Loader *f = (Loader *)p;
     Record *r = (Record *)record;
-    CHECK(scene == 42 && f->locks == 1 && !r->tag.sid);
+    CHECK(scene == 42 && f->owner.tracks[MM_SCENE_FRAMES].storage.buffers[0].locks == 1 && !r->tag.sid);
     ++f->resolve_calls;
     if (f->resolve_calls == f->resolve_fail)
         return 0;
@@ -485,8 +439,10 @@ static void test_resolve(void)
     Loader f;
     MMSceneResolveServices s;
     LoadObject *scene;
-    int fail;
-    for (fail = 0; fail < 5; ++fail)
+    MMSceneTrack *frames = &f.owner.tracks[MM_SCENE_FRAMES];
+    MMSceneSound *sound;
+    int fail, i;
+    for (fail = 0; fail < 6; ++fail)
     {
         init_loader(&f, 0);
         scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
@@ -496,33 +452,29 @@ static void test_resolve(void)
         memset(&s, 0, sizeof(s));
         s.context = &f;
         s.owner = &f.owner;
-        s.count = group_count;
-        s.kind = group_kind;
         s.actor = resolve_actor;
-        s.lock = lock_group;
-        s.unlock = unlock_group;
-        s.sound = resolve_sound;
         s.packets = f.packets.s;
         s.resolve = resolve_record;
         f.actor_fail = fail <= 2 ? fail : 0;
-        f.resolve_fail = fail >= 3 ? fail - 2 : 0;
+        f.resolve_fail = fail == 3 || fail == 4 ? fail - 2 : 0;
+        sound = (MMSceneSound *)mm_scene_track_payload(frames, 0, NULL);
+        CHECK(sound && sound->ctagc == 3);
+        if (fail == 5)
+            sound->ctagc = 1000;
         CHECK(mm_scene_resolve_sounds(42, &s) == (fail == 0));
-        CHECK(!f.locks);
-        if (fail == 1 || fail == 2)
+        CHECK(!frames->storage.buffers[0].locks);
+        if (fail == 1 || fail == 2 || fail == 5)
             CHECK(!f.resolve_calls);
         else
             CHECK(f.actor_calls == 2 && f.resolve_calls == (fail == 3 ? 1 : 2));
+        sound->ctagc = 3;
         /* Failed resolution retains just the completed tag mutation prefix. */
-        {
-            MMSceneSound *p = resolve_sound(&f, f.owner.owned[0], 0);
-            int i;
-            CHECK(at(p, 0)->tag.number == (fail == 0 || fail == 4 ? 5U : 1U));
-            CHECK(at(p, 1)->tag.number == 2);
-            CHECK(at(p, 2)->tag.number == (fail == 0 ? 7U : 3U));
-            for (i = 0; i < p->ctagc; ++i)
-                if (at(p, i)->tag.number >= 4)
-                    at(p, i)->tag.number -= 4;
-        }
+        CHECK(at(sound, 0)->tag.number == (fail == 0 || fail == 4 ? 5U : 1U));
+        CHECK(at(sound, 1)->tag.number == 2);
+        CHECK(at(sound, 2)->tag.number == (fail == 0 ? 7U : 3U));
+        for (i = 0; i < sound->ctagc; ++i)
+            if (at(sound, i)->tag.number >= 4)
+                at(sound, i)->tag.number -= 4;
         release_object(&f, scene);
         check_clean(&f);
     }

@@ -154,6 +154,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Studio loading and Marcus preview and presentation resolve scene children
   through the same reader. Live background events store C tags from loading
   through editing, playback and serialization.
+- Studio creates, releases and unwinds scene events through those same C89
+  tracks. C89 locks the frame track while resolving sound tags and checks
+  each packet's tag span before touching its references. Native services
+  release actor and caption objects and resolve resource tags.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

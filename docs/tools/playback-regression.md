@@ -15498,3 +15498,40 @@ In `actor-event-edit` suite `20261120T114839Z-69bf4917`, both players
 matched the 60 frame identities in the retained retail seek and
 playback runs, the retail camera indices, and their prior seek image
 hashes. SDL matched all 12 retail sound requests.
+
+## Scene event ownership and sound resolution in C89 (20 November 2026)
+
+Studio scene creation, loading, disposal and load rollback now use the
+owner's frame and start tracks directly. C89 releases actor and caption
+references in start-event order during normal disposal and walks completed
+prefixes in reverse during load rollback. Sound resolution visits actors
+first, validates the frame packets, resolves document-owned tags while
+holding the frame storage lock and releases the lock on failure.
+
+The native x64 scene-owner snapshot matched the prior build byte-for-byte
+with fingerprint `D746FAE5`. The x86 snapshot differed only in recorded
+pointer sizes and matched its corrected fingerprint `DBF941E5`. The
+scene-edit and scene-content fingerprints stayed `116589AF` and `5E56C170`.
+The wider x86 movie test saved and reopened its scene, then failed a
+template-construction fixture that expects 613 loads and 478 bodies.
+The fixture reported 615 loads and 480 bodies.
+
+Native and SDL save/reopen runs retained the prior movie bytes and text
+traces. Production SDL Studio authored a byte-identical two-scene movie.
+Fresh imports of the same WAVE from both SDL builds saved and reopened
+with two thumbnails and identical decoded archive records. The files
+differed in one SCEN index padding byte. Retail produced the same RGB
+hash at scene 1, frame 4, and the same WAVE request at frame 2.
+
+All 54 targeted x64 checks, nine standalone C89 checks and eight focused
+x86 checks passed. All ten Preview fingerprints and all six Preview
+fixture archives matched the prior build.
+
+Both VMM seek images in `20261120T120032Z-fbbd98aa` matched the retained
+SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-scene-owner-tracks`.
+
+In `actor-event-edit` suite `20261120T120030Z-2cebe678`, SDL and Marcus
+both matched the 60 frame identities in each retained retail seek and
+playback run. Both matched the retail camera indices on seek and their
+prior seek image hashes. SDL matched all 12 retail sound requests.

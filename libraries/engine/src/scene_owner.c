@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_owner.h"
 #include "mm/collections.h"
+#include "mm/scene_sound.h"
 #include <string.h>
 void mm_scene_owner_init(MMSceneOwner *w, void *movie, const MMStorageAllocator *allocator)
 {
@@ -88,56 +89,55 @@ void mm_scene_owner_drop(MMSceneOwner *w, void *scene, int slot, const MMSceneOw
         return;
     if (slot == MM_SCENE_BACKGROUND_SOUND)
         mm_scene_sound_release(&p, &s->sound);
-    else if (slot <= MM_SCENE_STARTS && p == &w->tracks[slot])
+    else if (slot <= MM_SCENE_STARTS)
         mm_scene_track_dispose(&w->tracks[slot]);
     else
         s->release(s->context, p);
     w->owned[slot] = NULL;
     s->publish(s->context, scene, w);
 }
-void *mm_scene_owner_open_events(MMSceneOwner *w, void *scene, int slot, const MMSceneOwnerServices *s)
+MMSceneTrack *mm_scene_owner_open_events(MMSceneOwner *w, void *scene, int slot, const MMSceneOwnerServices *s)
 {
-    void *track = s->create_slot ? s->create_slot(s->context, slot) : &w->tracks[slot];
-    if (track)
-        mm_scene_owner_set(w, scene, slot, track, s);
+    MMSceneTrack *track = &w->tracks[slot];
+    mm_scene_owner_set(w, scene, slot, track, s);
     return track;
 }
 void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *s)
 {
     void *scene = s->create_scene(s->context, movie);
     MMSceneOwner *w;
-    int slot;
     if (!scene)
         return NULL;
     w = s->state(s->context, scene);
-    for (slot = MM_SCENE_FRAMES; slot <= MM_SCENE_STARTS; ++slot)
-    {
-        if (!mm_scene_owner_open_events(w, scene, slot, s))
-        {
-            s->release(s->context, scene);
-            return NULL;
-        }
-        if (slot == MM_SCENE_FRAMES)
-            s->reset_cursor(s->context, scene);
-    }
+    mm_scene_owner_open_events(w, scene, MM_SCENE_FRAMES, s);
+    s->reset_cursor(s->context, scene);
+    mm_scene_owner_open_events(w, scene, MM_SCENE_STARTS, s);
     if (s->can_notify(s->context))
         s->loaded(s->context, scene);
     return scene;
 }
-static void release_object(void *group, MMI32 index, const MMSceneOwnerServices *s)
+static void release_object(const MMSceneTrack *track, MMI32 index, const MMSceneOwnerServices *s)
 {
     MMI32 bytes;
-    s->data(s->context, group, index, &bytes);
-    if (bytes != s->pointer_bytes)
+    const void *payload = mm_scene_track_payload(track, index, &bytes);
+    void *object;
+    if (!payload || bytes != (MMI32)sizeof(object))
         s->diagnostic(s->context, MM_SCENE_BAD_PAYLOAD);
     else
-        s->release(s->context, s->object(s->context, group, index));
+    {
+        memcpy(&object, payload, sizeof(object));
+        s->release(s->context, object);
+    }
 }
-static void start_event(void *group, MMI32 index, int unwind, const MMSceneOwnerServices *s)
+static void start_event(const MMSceneTrack *track, MMI32 index, int unwind, const MMSceneOwnerServices *s)
 {
-    MMI32 kind = s->kind(s->context, group, index);
+    MMSceneTrackEvent event;
+    MMI32 kind;
+    if (!mm_scene_track_get(track, index, &event))
+        return;
+    kind = event.kind;
     if (kind == MM_SCENE_ADD_ACTOR || kind == MM_SCENE_ADD_TEXT)
-        release_object(group, index, s);
+        release_object(track, index, s);
     else if (kind != MM_SCENE_CHANGE_CAMERA && kind != MM_SCENE_SET_BACKGROUND)
     {
         if (unwind)
@@ -147,28 +147,27 @@ static void start_event(void *group, MMI32 index, int unwind, const MMSceneOwner
                                       : MM_SCENE_UNKNOWN_EVENT);
     }
 }
-static void frame_event(void *group, MMI32 index, int unwind, const MMSceneOwnerServices *s)
+static void frame_event(const MMSceneTrack *track, MMI32 index, int unwind, const MMSceneOwnerServices *s)
 {
-    MMI32 kind = s->kind(s->context, group, index), count, i, bytes;
-    void *sound;
+    MMSceneTrackEvent event;
+    MMSceneSound *sound;
+    MMI32 kind, count, i, bytes = 0, span;
+    if (!mm_scene_track_get(track, index, &event))
+        return;
+    kind = event.kind;
     if (kind == MM_SCENE_PLAY_SOUND)
     {
-        sound = s->data(s->context, group, index, &bytes);
-        if (bytes < s->sound_header_bytes || s->sound_tag_bytes <= 0)
+        sound = (MMSceneSound *)mm_scene_track_payload(track, index, &bytes);
+        span = mm_scene_sound_span(sound, bytes, s->sound_tag_bytes);
+        if (!span || (unwind && span != bytes))
         {
             s->diagnostic(s->context, MM_SCENE_BAD_PAYLOAD);
             return;
         }
-        count = s->sound.count(s->sound.context, sound);
-        if (count < 0 || count > (bytes - s->sound_header_bytes) / s->sound_tag_bytes ||
-            (unwind && count * s->sound_tag_bytes != bytes - s->sound_header_bytes))
-        {
-            s->diagnostic(s->context, MM_SCENE_BAD_PAYLOAD);
-            return;
-        }
+        count = sound->ctagc;
         for (i = 0; i < count; ++i)
         {
-            sound = s->data(s->context, group, index, &bytes);
+            sound = (MMSceneSound *)mm_scene_track_payload(track, index, NULL);
             s->sound.close(s->sound.context, sound, i);
         }
     }
@@ -182,15 +181,13 @@ void mm_scene_owner_dispose(MMSceneOwner *w, void *scene, const MMSceneOwnerServ
 {
     MMI32 i;
     int slot;
-    void *group = w->owned[MM_SCENE_STARTS];
-    if (group)
-        for (i = 0; i < s->count(s->context, group); ++i)
-            start_event(group, i, 0, s);
+    const MMSceneTrack *track = &w->tracks[MM_SCENE_STARTS];
+    for (i = 0; (MMU32)i < track->rows.count; ++i)
+        start_event(track, i, 0, s);
     mm_scene_owner_drop(w, scene, MM_SCENE_STARTS, s);
-    group = w->owned[MM_SCENE_FRAMES];
-    if (group)
-        for (i = 0; i < s->count(s->context, group); ++i)
-            frame_event(group, i, 0, s);
+    track = &w->tracks[MM_SCENE_FRAMES];
+    for (i = 0; (MMU32)i < track->rows.count; ++i)
+        frame_event(track, i, 0, s);
     mm_scene_owner_drop(w, scene, MM_SCENE_FRAMES, s);
     for (slot = 0; slot < MM_SCENE_MEMBER_LISTS; ++slot)
     {
@@ -204,10 +201,10 @@ void mm_scene_owner_unwind(MMSceneOwner *w, void *scene, MMI32 starts, MMI32 fra
                                  const MMSceneOwnerServices *s)
 {
     while (starts > 0)
-        start_event(w->owned[MM_SCENE_STARTS], --starts, 1, s);
+        start_event(&w->tracks[MM_SCENE_STARTS], --starts, 1, s);
     mm_scene_owner_drop(w, scene, MM_SCENE_STARTS, s);
     while (frames > 0)
-        frame_event(w->owned[MM_SCENE_FRAMES], --frames, 1, s);
+        frame_event(&w->tracks[MM_SCENE_FRAMES], --frames, 1, s);
     mm_scene_owner_drop(w, scene, MM_SCENE_FRAMES, s);
 }
 void mm_scene_owner_actors(MMSceneOwner *w, int show, const MMSceneOwnerServices *s)

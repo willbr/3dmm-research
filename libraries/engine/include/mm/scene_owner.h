@@ -57,17 +57,15 @@ extern "C"
     typedef struct MMSceneOwnerServices
     {
         void *context;
-        MMI32 pointer_bytes, sound_header_bytes, sound_tag_bytes;
+        size_t sound_tag_bytes;
         void *(*create_scene)(void *, void *movie);
-        void *(*create_slot)(void *, int kind); /* Optional alternate event storage. */
         MMSceneOwner *(*state)(void *, void *scene);
         void (*publish)(void *, void *scene, const MMSceneOwner *);
         void (*reset_cursor)(void *, void *scene);
         int (*can_notify)(void *);
         void (*loaded)(void *, void *scene);
         void (*release)(void *, void *object);
-        MMI32 (*count)(void *, void *group), (*kind)(void *, void *group, MMI32 index);
-        void *(*data)(void *, void *group, MMI32 index, MMI32 *bytes);
+        MMI32 (*count)(void *, void *group);
         void *(*object)(void *, void *group, MMI32 index);
         void (*actor_visibility)(void *, void *actor, int show), (*lights_off)(void *, void *background);
         int (*text_lifetime)(void *, void *text, MMI32 *first);
@@ -85,7 +83,8 @@ extern "C"
     void mm_scene_owner_set(MMSceneOwner *, void *scene, int slot, void *,
                                   const MMSceneOwnerServices *);
     void mm_scene_owner_drop(MMSceneOwner *, void *scene, int slot, const MMSceneOwnerServices *);
-    void *mm_scene_owner_open_events(MMSceneOwner *, void *scene, int slot, const MMSceneOwnerServices *);
+    MMSceneTrack *mm_scene_owner_open_events(MMSceneOwner *, void *scene, int slot,
+                                            const MMSceneOwnerServices *);
     void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *);
     void mm_scene_owner_dispose(MMSceneOwner *, void *scene, const MMSceneOwnerServices *);
     /* Read-failure cleanup walks only completed prefixes, in reverse order.

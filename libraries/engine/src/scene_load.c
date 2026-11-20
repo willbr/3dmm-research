@@ -23,8 +23,7 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
     int ok, slot = start ? MM_SCENE_STARTS : MM_SCENE_FRAMES;
     if (read->group(read->context, number, start, &wire) != MM_MOVIE_OK)
         return 0;
-    group = &owner->tracks[slot];
-    mm_scene_owner_set(owner, scene, slot, group, o);
+    group = mm_scene_owner_open_events(owner, scene, slot, o);
     for (i = 0; i < wire.count; ++i)
     {
         read->event(read->context, &wire, i, &event);
@@ -129,29 +128,36 @@ unwind:
 }
 int mm_scene_resolve_sounds(MMU32 scene, const MMSceneResolveServices *s)
 {
-    void *group, *entry;
-    MMI32 i, j, count = mm_scene_member_count(s->owner, MM_SCENE_ACTORS);
+    MMSceneTrack *track = &s->owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    void *entry;
+    MMI32 i, j, bytes = 0, count = mm_scene_member_count(s->owner, MM_SCENE_ACTORS);
     MMSceneSound *sound;
+    int ok = 0;
     for (i = 0; i < count; ++i)
         if (!s->actor(s->context, mm_scene_member_at(s->owner, MM_SCENE_ACTORS, i), scene))
             return 0;
-    group = s->owner->owned[MM_SCENE_FRAMES];
-    s->lock(s->context, group);
-    count = s->count(s->context, group);
+    if (mm_storage_lock(&track->storage, 0) != MM_STORAGE_OK)
+        return 0;
+    count = track->rows.count;
     for (i = 0; i < count; ++i)
-        if (s->kind(s->context, group, i) == MM_SCENE_PLAY_SOUND)
+    {
+        if (!mm_scene_track_get(track, i, &event))
+            goto done;
+        if (event.kind == MM_SCENE_PLAY_SOUND)
         {
-            sound = s->sound(s->context, group, i);
+            sound = (MMSceneSound *)mm_scene_track_payload(track, i, &bytes);
+            if (!mm_scene_sound_span(sound, bytes, s->packets.tag_bytes))
+                goto done;
             for (j = 0; j < sound->ctagc; ++j)
             {
-                entry = (unsigned char *)sound + 16 + (size_t)j * s->packets.tag_bytes;
+                entry = (unsigned char *)sound + MM_SCENE_SOUND_HEADER_BYTES + (size_t)j * s->packets.tag_bytes;
                 if (s->packets.sid(s->packets.context, entry) == 0 && !s->resolve(s->context, entry, scene))
-                {
-                    s->unlock(s->context, group);
-                    return 0;
-                }
+                    goto done;
             }
         }
-    s->unlock(s->context, group);
-    return 1;
+    }
+    ok = 1;
+done:
+    return mm_storage_unlock(&track->storage, 0) == MM_STORAGE_OK && ok;
 }

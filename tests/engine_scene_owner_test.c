@@ -1,4 +1,5 @@
 #include "mm/scene_owner.h"
+#include "mm/scene_sound.h"
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
@@ -7,25 +8,24 @@ typedef struct Sound
     MMI32 count, style;
     int opened[4], closed[4], freed;
 } Sound;
-typedef struct Object Object;
-typedef struct Event
+typedef struct FrameSound
 {
-    int kind, bytes;
-    Object *object;
-    Sound *sound;
-} Event;
-struct Object
+    MMSceneSound header;
+    MMU32 records[3][2];
+} FrameSound;
+typedef struct Object
 {
-    int slot, id, refs, count, lifetime, first, seek_ok;
-    Event events[8];
-};
+    int slot, id, refs, lifetime, first, seek_ok;
+} Object;
 typedef struct Fixture
 {
     MMSceneOwner owner;
     void *published[MM_SCENE_OWNERS];
     MMSceneOwnerServices s;
     Object scene, slots[MM_SCENE_OWNERS], children[5];
-    Sound frame[2], background;
+    FrameSound frame[2];
+    Sound background;
+    int frame_closed[2][2];
     int events[256], n, live, attempts, fail, available, late_notify, cursor, loaded, diagnostics, seeks, last_frame;
 } Fixture;
 static void event(Fixture *f, int n)
@@ -36,7 +36,25 @@ static void event(Fixture *f, int n)
 static void publish(void *p, void *scene, const MMSceneOwner *w)
 {
     Fixture *f = (Fixture *)p;
+    int slot;
     assert(scene == &f->scene);
+    for (slot = MM_SCENE_FRAMES; slot <= MM_SCENE_STARTS; ++slot)
+        if (w->owned[slot] != f->published[slot])
+        {
+            if (w->owned[slot])
+            {
+                assert(w->owned[slot] == &w->tracks[slot] && !w->tracks[slot].rows.count);
+                if (f->late_notify && slot == MM_SCENE_STARTS)
+                    f->available = 1;
+                event(f, 10 + slot);
+            }
+            else
+            {
+                assert(!w->tracks[slot].rows.count && !w->tracks[slot].storage.buffers[0].data &&
+                       !w->tracks[slot].storage.buffers[1].data);
+                event(f, 200 + slot);
+            }
+        }
     memcpy(f->published, w->owned, sizeof(f->published));
 }
 static MMSceneOwner *state(void *p, void *scene)
@@ -55,18 +73,6 @@ static void *create_scene(void *p, void *movie)
     mm_scene_owner_init(&f->owner, movie, NULL);
     publish(f, &f->scene, &f->owner);
     return &f->scene;
-}
-static void *create_slot(void *p, int slot)
-{
-    Fixture *f = (Fixture *)p;
-    if (++f->attempts == f->fail)
-        return NULL;
-    f->slots[slot].refs = 1;
-    ++f->live;
-    if (f->late_notify && slot == MM_SCENE_STARTS)
-        f->available = 1;
-    event(f, 10 + slot);
-    return &f->slots[slot];
 }
 static void release(void *p, void *object)
 {
@@ -108,32 +114,9 @@ static void loaded(void *p, void *scene)
     int i;
     assert(scene == &f->scene && !f->cursor);
     for (i = MM_SCENE_FRAMES; i <= MM_SCENE_STARTS; ++i)
-        assert(f->owner.owned[i] == &f->slots[i] && f->published[i] == &f->slots[i]);
+        assert(f->owner.owned[i] == &f->owner.tracks[i] && f->published[i] == &f->owner.tracks[i]);
     ++f->loaded;
     event(f, 30);
-}
-static MMI32 count(void *p, void *group)
-{
-    (void)p;
-    assert(group);
-    return ((Object *)group)->count;
-}
-static MMI32 kind(void *p, void *group, MMI32 index)
-{
-    (void)p;
-    return ((Object *)group)->events[index].kind;
-}
-static void *data(void *p, void *group, MMI32 index, MMI32 *bytes)
-{
-    Event *e = &((Object *)group)->events[index];
-    (void)p;
-    *bytes = e->bytes;
-    return e->kind == MM_SCENE_PLAY_SOUND ? (void *)e->sound : (void *)&e->object;
-}
-static void *object(void *p, void *group, MMI32 index)
-{
-    (void)p;
-    return ((Object *)group)->events[index].object;
 }
 static void visibility(void *p, void *actor, int show)
 {
@@ -183,11 +166,21 @@ static int sound_open(void *p, void *sound, MMI32 i)
 static void sound_close(void *p, void *sound, MMI32 i)
 {
     Fixture *f = (Fixture *)p;
-    Sound *s = (Sound *)sound;
-    assert(i >= 0 && i < 4 && !s->closed[i]);
-    s->closed[i] = 1;
-    s->opened[i] = 0;
-    event(f, s == &f->background ? 450 + i : s == &f->frame[0] ? 400 + i : 420 + i);
+    if (sound == &f->background)
+    {
+        Sound *s = (Sound *)sound;
+        assert(i >= 0 && i < 4 && !s->closed[i]);
+        s->closed[i] = 1;
+        s->opened[i] = 0;
+        event(f, 450 + i);
+    }
+    else
+    {
+        MMI32 packet = ((const MMSceneSound *)sound)->vlm;
+        assert(packet >= 0 && packet < 2 && i >= 0 && i < 2 && !f->frame_closed[packet][i]);
+        f->frame_closed[packet][i] = 1;
+        event(f, 400 + 20 * packet + i);
+    }
 }
 static void sound_free(void *p, void *sound)
 {
@@ -212,21 +205,14 @@ static void init(Fixture *f)
     }
     s = &f->s;
     s->context = f;
-    s->pointer_bytes = sizeof(void *);
-    s->sound_header_bytes = 16;
-    s->sound_tag_bytes = 8;
+    s->sound_tag_bytes = sizeof(f->frame[0].records[0]);
     s->create_scene = create_scene;
-    s->create_slot = create_slot;
     s->state = state;
     s->publish = publish;
     s->reset_cursor = cursor;
     s->can_notify = available;
     s->loaded = loaded;
     s->release = release;
-    s->count = count;
-    s->kind = kind;
-    s->data = data;
-    s->object = object;
     s->actor_visibility = visibility;
     s->lights_off = lights;
     s->text_lifetime = lifetime;
@@ -243,27 +229,29 @@ static void init(Fixture *f)
 static void populate(Fixture *f)
 {
     int i;
-    Object *starts = &f->slots[MM_SCENE_STARTS], *frames = &f->slots[MM_SCENE_FRAMES];
+    MMSceneTrack *starts = &f->owner.tracks[MM_SCENE_STARTS], *frames = &f->owner.tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent row;
+    void *object;
     assert(mm_scene_owner_new(f, &f->s) == &f->scene);
     for (i = 0; i < 5; ++i)
     {
         f->children[i].refs = 1;
         ++f->live;
     }
-    starts->count = 3;
     for (i = 0; i < 3; ++i)
     {
-        starts->events[i].kind = i == 2 ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR;
-        starts->events[i].bytes = sizeof(void *);
-        starts->events[i].object = &f->children[i];
+        row.frame = i;
+        row.kind = i == 2 ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR;
+        object = &f->children[i];
+        assert(mm_scene_track_insert(starts, i, sizeof(object), &object, &row));
     }
-    frames->count = 2;
     for (i = 0; i < 2; ++i)
     {
-        f->frame[i].count = 2;
-        frames->events[i].kind = MM_SCENE_PLAY_SOUND;
-        frames->events[i].bytes = 32;
-        frames->events[i].sound = &f->frame[i];
+        f->frame[i].header.ctagc = 2;
+        f->frame[i].header.vlm = i;
+        row.frame = i + 1;
+        row.kind = MM_SCENE_PLAY_SOUND;
+        assert(mm_scene_track_insert(frames, i, mm_scene_sound_size(2, f->s.sound_tag_bytes), &f->frame[i], &row));
     }
     f->background.count = 3;
     f->background.style = 4;
@@ -284,16 +272,13 @@ static void factories(void)
 {
     Fixture f;
     void *p;
-    int fail, i;
-    for (fail = 1; fail <= 3; ++fail)
-    {
-        init(&f);
-        f.fail = fail;
-        assert(!mm_scene_owner_new(&f, &f.s));
-        assert(!f.live && !f.loaded);
-        for (i = 0; i < MM_SCENE_OWNERS; ++i)
-            assert(!f.owner.owned[i]);
-    }
+    int i;
+    init(&f);
+    f.fail = 1;
+    assert(!mm_scene_owner_new(&f, &f.s));
+    assert(!f.live && !f.loaded);
+    for (i = 0; i < MM_SCENE_OWNERS; ++i)
+        assert(!f.owner.owned[i]);
     init(&f);
     f.late_notify = 1;
     p = mm_scene_owner_new(&f, &f.s);
@@ -371,24 +356,37 @@ static void malformed(void)
     Fixture f;
     void *p;
     int scenario;
+    MMSceneTrack *frames = &f.owner.tracks[MM_SCENE_FRAMES], *starts = &f.owner.tracks[MM_SCENE_STARTS];
+    MMSceneTrackEvent row;
     for (scenario = 0; scenario < 5; ++scenario)
     {
         init(&f);
         populate(&f);
         if (scenario == 0)
-            f.slots[MM_SCENE_FRAMES].events[0].bytes = 15;
+            assert(mm_scene_track_put(frames, 0, MM_SCENE_SOUND_HEADER_BYTES - 1, &f.frame[0]));
         if (scenario == 1)
-            f.frame[0].count = 2147483647;
+        {
+            f.frame[0].header.ctagc = 2147483647;
+            assert(mm_scene_track_put(frames, 0, sizeof(f.frame[0]), &f.frame[0]));
+        }
         if (scenario == 2)
-            f.slots[MM_SCENE_STARTS].events[0].bytes = 0;
+            assert(mm_scene_track_put(starts, 0, 0, NULL));
         if (scenario == 3)
-            f.slots[MM_SCENE_STARTS].events[0].kind = MM_SCENE_PLAY_SOUND;
+        {
+            assert(mm_scene_track_get(starts, 0, &row));
+            row.kind = MM_SCENE_PLAY_SOUND;
+            assert(mm_scene_track_set(starts, 0, &row));
+        }
         if (scenario == 4)
-            f.slots[MM_SCENE_FRAMES].events[0].kind = MM_SCENE_SET_BACKGROUND;
+        {
+            assert(mm_scene_track_get(frames, 0, &row));
+            row.kind = MM_SCENE_SET_BACKGROUND;
+            assert(mm_scene_track_set(frames, 0, &row));
+        }
         mm_scene_owner_dispose(&f.owner, &f.scene, &f.s);
         assert(f.diagnostics == 1);
         if (scenario < 2)
-            assert(!f.frame[0].closed[0]);
+            assert(!f.frame_closed[0][0]);
     }
     init(&f);
     f.background.count = 1000;
@@ -399,9 +397,9 @@ static void malformed(void)
     assert(f.diagnostics == 1);
     init(&f);
     populate(&f);
-    f.slots[MM_SCENE_FRAMES].events[0].bytes = 40;
+    assert(mm_scene_track_put(frames, 0, sizeof(f.frame[0]), &f.frame[0]));
     mm_scene_owner_unwind(&f.owner, &f.scene, 3, 2, &f.s);
-    assert(f.diagnostics == 1 && !f.frame[0].closed[0] && f.frame[1].closed[0]);
+    assert(f.diagnostics == 1 && !f.frame_closed[0][0] && f.frame_closed[1][0]);
 }
 int main(void)
 {

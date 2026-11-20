@@ -12,6 +12,16 @@ MMI32 mm_scene_sound_size(MMI32 count, size_t stride)
     bytes = 16U + (MMU32)count * (MMU32)stride;
     return (size_t)bytes == bytes ? (MMI32)bytes : 0;
 }
+MMI32 mm_scene_sound_span(const void *data, MMI32 bytes, size_t stride)
+{
+    MMSceneSound header;
+    MMI32 span;
+    if (!data || bytes < MM_SCENE_SOUND_HEADER_BYTES)
+        return 0;
+    memcpy(&header, data, sizeof(header));
+    span = mm_scene_sound_size(header.ctagc, stride);
+    return span <= bytes ? span : 0;
+}
 static void *record(MMSceneSound *p, MMI32 i, const MMSceneSoundPacketServices *s)
 {
     return (unsigned char *)p + 16 + (size_t)i * s->tag_bytes;
