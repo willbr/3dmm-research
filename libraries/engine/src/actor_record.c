@@ -1,20 +1,29 @@
 /* Actor recording converted from engine actor.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_record.h"
+#include "mm/actor_owner.h"
+#include "mm/preview_actor.h"
 #include "mm/wide.h"
 #define FLAG(kind) ((MMU32)1 << (kind))
 static void publish(MMActorState *state, const MMActorRecording *record, const MMActorRecordServices *s)
 {
     const MMActorEditServices *e=&s->subroute.route.edits;
     if (e->publish) e->publish(e->context,state);
-    s->publish_record(e->context,record);
+    if (s->subroute.live) s->subroute.live->runtime.recording=*record;
+    else if (s->publish_record) s->publish_record(e->context,record);
 }
 static void diagnostic(const MMActorRecordServices *s,int fault)
 { if (s->diagnostic) s->diagnostic(s->subroute.route.edits.context,fault); }
 static int restore(MMActorState *state,MMActorRecording *record,void *undo,const MMActorRecordServices *s)
 {
     publish(state,record,s);
-    s->restore(s->subroute.route.edits.context,undo,state,record);
+    if (s->owners)
+    {
+        mm_actor_owner_restore_undo(s->live_actor,undo,s->owners,&s->subroute.timeline,&s->subroute.playback);
+        *state=s->subroute.live->runtime.state;
+        *record=s->subroute.live->runtime.recording;
+    }
+    else if (s->restore) s->restore(s->subroute.route.edits.context,undo,state,record);
     return 0;
 }
 static int after(const MMActorLocation *a,const MMActorLocation *b)
@@ -45,7 +54,13 @@ static int advance_scene(MMActorState *state,MMActorRecording *record,const MMAc
     const MMActorEditServices *e=&s->subroute.route.edits;
     MMI32 frame=0;
     publish(state,record,s); e->scene_frame(e->context,&frame);
-    return s->seek_scene(e->context,state,record,mm_fixed_add(frame,1));
+    frame=mm_fixed_add(frame,1);
+    if (s->draft)
+    {
+        if (frame>s->draft->header.last_frame) s->draft->header.last_frame=frame;
+        return mm_preview_actor_seek(s->draft,frame,s->draft_playback)>0 && s->draft->state.onStage;
+    }
+    return s->seek_scene(e->context,state,record,frame);
 }
 int mm_actor_record_valid(const MMActorRecording *record,const MMActorPoint *delta,MMU32 now,
     const MMActorRecordServices *s)

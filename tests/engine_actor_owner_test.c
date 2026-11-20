@@ -126,12 +126,17 @@ static void route_services(void *p,void *a,MMActorRouteEditServices *s)
     (void)p; memset(s,0,sizeof(*s)); s->edits.context=a; s->edits.publish=publish_state;
     s->life_dirty=dirty; s->recording=recording; s->hide_body=hide; s->default_costume=costume;
 }
-static int seek(void *p,void *a,MMI32 frame)
+static int fail_costume_reset(void *p)
 {
-    Fixture *f=(Fixture *)p; ++f->seeks; f->seek_frame=frame;
-    CHECK(!f->copy.owner.runtime.body && !f->copy.owner.runtime.scene);
-    ((Actor *)a)->owner.runtime.state.frame=frame; ((Actor *)a)->owner.runtime.state.cel=19;
-    return 0; /* Failure is intentionally ignored by undo restoration. */
+    Fixture *f=(Fixture *)p;
+    CHECK(f->views==1 && !f->copy.owner.runtime.body && !f->copy.owner.runtime.scene);
+    CHECK(f->live.owner.runtime.state.frame==23);
+    return -1;
+}
+static void seek_failed(void *p,MMI32 frame)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(f->views==1); ++f->seeks; f->seek_frame=frame;
 }
 static void views(void *p,void *scene) { Fixture *f=(Fixture *)p; CHECK(scene==f); ++f->views; }
 static void init(Fixture *f)
@@ -144,7 +149,7 @@ static void init(Fixture *f)
     MMI32 payload = 0;
     memset(f,0,sizeof(*f)); s=&f->services; s->context=f;
     s->owner=owner; s->create=create_actor; s->retain=retain; s->release=release;
-    s->tags=&owner_tags; s->route_services=route_services; s->seek=seek; s->invalidate_views=views;
+    s->tags=&owner_tags; s->route_services=route_services; s->invalidate_views=views;
     f->result.context=f; f->result.publish=publish_result;
     init_owner(&f->live, f);
     CHECK(f->live.owner.runtime.first==2147483647L && f->live.owner.runtime.last==(-2147483647L-1));
@@ -438,10 +443,13 @@ int main(void)
         f.copy.owner.runtime.actor=99;
         if (reset)
         {
+            const MMActorTimelineServices timeline=mm_actor_track_timeline_services();
+            MMActorPlaybackEffects playback={0};
+            playback.context=&f; playback.reset_costume=fail_costume_reset; playback.seek_failed=seek_failed;
             CHECK(!f.copy.owner.runtime.body && !f.copy.owner.runtime.scene && !f.copy.owner.runtime.recording.recording);
             CHECK(!f.copy.owner.runtime.state.onStage && f.copy.owner.runtime.state.frame==2147483647L);
-            mm_actor_owner_restore_undo(&f.live,&f.copy,&f.services);
-            CHECK(f.seeks==1 && f.seek_frame==23 && f.live.owner.runtime.state.cel==19 && f.views==2);
+            mm_actor_owner_restore_undo(&f.live,&f.copy,&f.services,&timeline,&playback);
+            CHECK(f.seeks==1 && f.seek_frame==23 && f.live.owner.runtime.state.frame==23 && f.views==2);
             CHECK(!f.copy.owner.runtime.body && !f.copy.owner.runtime.scene);
         }
         else

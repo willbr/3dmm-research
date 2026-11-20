@@ -56,6 +56,7 @@ extern "C"
         int (*default_costume)(void *, void *, void *), (*motion_cues)(void *);
         int (*duplicate_body)(void *, void *original, void **draft);
         int (*adjust_text_body)(void *, void *text, void *body);
+        int (*apply_material_override)(void *);
     } MMPreviewActorServices;
     /* Unique owning template/body handles. The track handles can also own
      * their tables when the services supply tags. Effects are synchronous

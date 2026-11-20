@@ -15916,3 +15916,34 @@ In `actor-event-edit` suite `20261120T144622Z-45f80918`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## C89 recording rollback and draft playback (20 November 2026)
+
+Studio recording rollback restores tracks and seeks to the saved live
+frame through the C89 actor owner. The owner detaches the snapshot's
+borrowed body and scene before seeking and invalidates views even when
+that seek fails. Marcus advances private recording drafts through the
+C89 Preview evaluator, which reapplies the text material override after
+a successful seek. Track replay keeps its existing costume behavior.
+
+The owner fixture checks snapshot detachment, the saved frame and view
+invalidation around a failed seek. The Preview fixture checks material
+override timing. The existing Marcus insertion test covers path
+recording, save and reopen, rerecording with a rejoin, stationary prop
+recording, and undo.
+
+All 18 targeted x64 checks, 23 standalone C89 checks, 14 checks each in
+x86 Debug and SDL Release, and four AddressSanitizer checks passed.
+Ten actor traces and the saved archive matched their baselines in
+native x64 and SDL Release. The x86 edit transaction trace matched its
+x86 baseline, and the recording trace matched the native x64 baseline.
+The full x86 suite passed the actor checks and stopped at the existing
+template-construction failure. All ten Preview fingerprints, six
+fixture archives, and both VMM seek images in
+`20261120T145843Z-a0767202` matched their baselines. Logs and fixtures
+are in `tmp/c89-actor-record-playback`.
+
+In `actor-event-edit` suite `20261120T145843Z-6e85911d`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

@@ -330,7 +330,8 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
     TrackDraft draft(*this);
     if (!draft.Begin()) return false;
     AnimationHost host(this, resolveSound);
-    const auto services = host.Record();
+    const auto playback = host.Host::Services();
+    const auto services = host.Record(playback);
     const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? Ptmpl()->Cactn() : 0;
     MMActorAnimationRange range;
     if (!host.Result(mm_actor_animation_edit(&core, &motionSounds, &host.record, &request, actionCount,
@@ -583,9 +584,7 @@ bool PreviewActor::Seek(LegacyLong frame)
 {
     Host host = {this};
     auto services = host.Services();
-    const bool ok = host.Result(mm_preview_actor_seek(&core, frame, &services));
-    if (ok && textMaterial && Pbody()) Pbody()->SetPartSetMtrl(0, textMaterial);
-    return ok;
+    return host.Result(mm_preview_actor_seek(&core, frame, &services));
 }
 
 } // namespace Internal

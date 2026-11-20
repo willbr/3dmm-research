@@ -90,12 +90,12 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.mark_life_dirty = [](void *v) { Get(v).lifeDirty = true; };
         return s;
     }
-    MMActorSubrouteEditServices Subroute()
+    MMActorSubrouteEditServices Subroute(const MMActorTimelineServices &timeline)
     {
         MMActorSubrouteEditServices s{};
         s.action = Action();
         s.route.edits = s.action.sounds.edits;
-        s.timeline = Host::Services().timeline;
+        s.timeline = timeline;
         mm_actor_route_edit_bind_tables(&s.route);
         s.route.life_dirty = s.action.mark_life_dirty;
         s.route.recording = [](void *v, int enabled) { Get(v).record.recording = enabled; };
@@ -112,25 +112,15 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
             inputs->fixedPathOrientation = tmpl->FIsTdt();
         };
         s.locate_body = [](void *, const MMActorBodyPose *) {};
-        s.seek = [](void *v, MMActorState *, MMI32 frame) -> int {
-            auto &h = Get(v);
-            return h.Guard([&] { return h.actor->Seek(frame); }) > 0;
-        };
         return s;
     }
-    MMActorRecordServices Record()
+    MMActorRecordServices Record(const MMPreviewActorServices &playback)
     {
         MMActorRecordServices s{};
-        s.subroute = Subroute();
+        s.subroute = Subroute(playback.timeline);
         s.distance = [](void *, const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr, point->dyr, point->dzr)); };
-        s.publish_record = [](void *, const MMActorRecording *) {};
-        s.restore = [](void *, void *, MMActorState *, MMActorRecording *) {}; // The caller discards its private draft.
-        s.seek_scene = [](void *v, MMActorState *, MMActorRecording *, MMI32 frame) -> int {
-            auto &h = Get(v);
-            auto &actor = *h.actor;
-            actor.core.header.last_frame = std::max(actor.core.header.last_frame, frame);
-            return h.Guard([&] { return actor.Seek(frame) && actor.Visible(); }) > 0;
-        };
+        s.draft = &actor->core;
+        s.draft_playback = &playback;
         s.stationary_step = BrFloatToScalar(2);
         return s;
     }

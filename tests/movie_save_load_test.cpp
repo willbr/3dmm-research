@@ -345,7 +345,10 @@ class TrackTestActor : public Actor
             if (reset)
             {
                 if (mode&32) tmpl->FailAfter(1);
-                _RestoreFromUndo(copy);
+                const auto owners = _OwnerServices();
+                const auto timeline = _TimelineServices();
+                const auto playback = _PlaybackEffects();
+                mm_actor_owner_restore_undo(this, copy, &owners, &timeline, &playback);
                 independent=independent && !copy->Pscen() && !copy->Pbody();
             }
             else Restore(copy);

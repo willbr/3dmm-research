@@ -1,6 +1,7 @@
 /* Actor ownership/undo restoration converted from actor.cpp and actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_owner.h"
+#include <assert.h>
 #include <string.h>
 
 void mm_actor_runtime_init(MMActorRuntime *runtime)
@@ -159,14 +160,17 @@ void mm_actor_owner_restore(void *actor, void *snapshot, const MMActorOwnerServi
     s->invalidate_views(s->context, stored->runtime.scene);
 }
 
-void mm_actor_owner_restore_undo(void *actor, void *snapshot, const MMActorOwnerServices *s)
+void mm_actor_owner_restore_undo(void *actor, void *snapshot, const MMActorOwnerServices *s,
+                                 const MMActorTimelineServices *timeline, const MMActorPlaybackEffects *playback)
 {
-    MMActorRuntime *live = &s->owner(s->context, actor)->runtime;
+    MMActorOwner *owner = s->owner(s->context, actor);
+    MMActorRuntime *live = &owner->runtime;
     MMActorRuntime *stored = &s->owner(s->context, snapshot)->runtime;
     MMActorState state = live->state;
     MMActorRouteEditServices route;
     void *scene = stored->scene;
     MMI32 frame = state.frame;
+    assert(!stored->body);
     stored->body = live->body;
     stored->scene = live->scene;
     s->route_services(s->context, actor, &route);
@@ -174,7 +178,7 @@ void mm_actor_owner_restore_undo(void *actor, void *snapshot, const MMActorOwner
     mm_actor_owner_restore(actor, snapshot, s);
     stored->body = NULL;
     stored->scene = scene;
-    s->seek(s->context, actor, frame);
+    mm_actor_owner_seek(owner, frame, NULL, timeline, playback);
     s->invalidate_views(s->context, live->scene);
 }
 

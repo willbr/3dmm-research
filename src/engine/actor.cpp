@@ -1632,7 +1632,7 @@ bool Actor::_FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast)
     down to initialize the timing of the recording session
 
 ***************************************************************************/
-MMActorRecordServices Actor::_RecordServices()
+MMActorRecordServices Actor::_RecordServices(const MMActorOwnerServices *owners)
 {
 #if !defined(BUG1961) || !defined(BUG1973)
 #error C89 actor recording requires the enabled retail BUG1961/BUG1973 policies
@@ -1641,12 +1641,8 @@ MMActorRecordServices Actor::_RecordServices()
                   fmafFreeze==MM_RECORD_FREEZE && fmafGround==MM_RECORD_GROUND && sizeof(ulong)==4,
                   "Actor recording ABI");
     MMActorRecordServices s{}; s.subroute=_SubrouteEditServices();
+    s.live_actor=this; s.owners=owners;
     s.distance=[](void *,const MMActorPoint *point) { return MMI32(BR_LENGTH3(point->dxr,point->dyr,point->dzr)); };
-    s.publish_record=[](void *p,const MMActorRecording *record) { static_cast<Actor *>(p)->_owner.runtime.recording = *record; };
-    s.restore=[](void *p,void *undo,MMActorState *state,MMActorRecording *record) {
-        auto actor=static_cast<Actor *>(p); actor->_RestoreFromUndo(static_cast<PActor>(undo));
-        *state=actor->_owner.runtime.state; *record=actor->_owner.runtime.recording;
-    };
     s.seek_scene=[](void *p,MMActorState *state,MMActorRecording *record,MMI32 frame) {
         auto actor=static_cast<Actor *>(p); bool ok=actor->_Scene()->FGotoFrm(frame);
         *state=actor->_owner.runtime.state; *record=actor->_owner.runtime.recording; return int(ok);
@@ -1681,7 +1677,8 @@ bool Actor::FBeginRecord(ulong tsCurrent, bool fReplace, PActor pactrRestore)
     AssertThis(0);
     (void)tsCurrent; // Native beginning deliberately preserves _owner.runtime.recording.timestamp.
     auto state=_owner.runtime.state; auto record=_owner.runtime.recording;
-    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
+    const auto owners=_OwnerServices();
+    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices(&owners);
     bool ok=mm_actor_record_begin(&state,&record,_owner.track.route,_owner.track.events,fReplace,pactrRestore,&tables,&services)!=0;
     _owner.runtime.state = state; _owner.runtime.recording = record; return ok;
 }
@@ -1705,7 +1702,8 @@ bool Actor::FRecordMove(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf, ulong tsCurrent
     AssertThis(0); AssertVarMem(pfStepFrm); AssertVarMem(pfStepRte);
     Assert(_owner.runtime.state.onStage,"Recording an actor that wasn't selectable??");
     auto state=_owner.runtime.state; auto record=_owner.runtime.recording;
-    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
+    const auto owners=_OwnerServices();
+    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices(&owners);
     const MMActorPoint delta{dxr,dyr,dzr}; MMActorRecordResult result{};
     struct Outputs { bool *frame,*route; } outputs{pfStepFrm,pfStepRte};
     result.context=&outputs;
@@ -1747,7 +1745,8 @@ bool Actor::FEndRecord(bool fReplace, PActor pactrRestore)
 {
     AssertThis(0);
     auto state=_owner.runtime.state; auto record=_owner.runtime.recording;
-    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices();
+    const auto owners=_OwnerServices();
+    const auto tables=EngineActorMotion::Services(); const auto services=_RecordServices(&owners);
     bool ok=mm_actor_record_end(&state,&record,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
                                       fReplace,pactrRestore,&tables,&services)!=0;
     _owner.runtime.state = state; _owner.runtime.recording = record;

@@ -81,7 +81,6 @@ MMActorOwnerServices Actor::_OwnerServices()
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.route_services=[](void *,void *p,MMActorRouteEditServices *r) { *r=static_cast<Actor *>(p)->_RouteEditServices(); };
-    s.seek=[](void *,void *p,MMI32 frame) { return int(static_cast<Actor *>(p)->FGotoFrame(frame)); };
     s.invalidate_views=[](void *,void *scene) { static_cast<PScene>(scene)->Pmvie()->InvalViews(); };
     return s;
 }
@@ -103,17 +102,6 @@ void Actor::Restore(PActor pactr)
     AssertThis(0); AssertVarMem(pactr);
     Assert(pactr->_Template()==_Template(),"Restore ptmpl logic error"); Assert(pactr->_Body()==_Body(),"Restore pbody logic error");
     const auto services=_OwnerServices(); mm_actor_owner_restore(this,pactr,&services);
-}
-
-/***************************************************************************
-
-    Restore this actor from an undo object pactrRestore.
-
-***************************************************************************/
-void Actor::_RestoreFromUndo(PActor pactrRestore)
-{
-    AssertBaseThis(0); AssertVarMem(pactrRestore); Assert(!pactrRestore->_Body(),"Not restoring from undo object");
-    const auto services=_OwnerServices(); mm_actor_owner_restore_undo(this,pactrRestore,&services);
 }
 
 /***************************************************************************

@@ -149,6 +149,15 @@ struct PreviewActor::Host
             });
         };
         s.clear_cues = [](void *v) { static_cast<Host *>(v)->actor->sounds.clear(); };
+        s.apply_material_override = [](void *v) {
+            auto &h = *static_cast<Host *>(v);
+            return h.Guard([&] {
+                auto actor = h.actor;
+                if (actor->textMaterial && actor->Pbody())
+                    actor->Pbody()->SetPartSetMtrl(0, actor->textMaterial);
+                return 1;
+            });
+        };
         s.clear_motion = [](void *v) { mm_actor_sounds_clear(&static_cast<Host *>(v)->actor->motionSounds); };
         s.default_costume = [](void *v, void *t, void *b) -> int {
             auto &h = *static_cast<Host *>(v);

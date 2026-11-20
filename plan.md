@@ -380,9 +380,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   ordering retain the preceding implementation's behavior.
 - Backward deletion and initialization-event propagation between subroutes now
   execute in C89. Orientation weighting, angle averaging, body-position policy
-  and lifetime/recording-cache decisions are shared C as well. Native services
-  still provide body/template metadata, primitive BRender distance math, scene
-  effects and a temporary adapter into the already C-owned seek evaluator.
+  and lifetime/recording-cache decisions are shared C as well. These edits
+  call the C89 seek evaluator directly. Native services supply body/template
+  metadata, primitive BRender distance math and scene effects.
   Copied tagged payloads now retain their own references before merge/application,
   fixing the borrowed-copy ownership bug without changing logical event data.
 - Actor placement now executes in C89, including authored-point detection,
@@ -395,9 +395,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Recording validity, record-step sizing, begin/move/end sequencing, mouse
   smoothing, route sampling, ground clipping and rejoining now execute in C89.
   Timestamp differences wrap at 32 bits; displaced event/tag handling, end-of-
-  route freeze/step and BUG1961/BUG1973 behavior retain native ordering. Native
-  services still provide BRender distance, scene seeking and a temporary undo
-  restoration transaction. Undo and remaining runtime integration need conversion.
+  route freeze/step and BUG1961/BUG1973 behavior retain native ordering. Studio
+  recording rolls back through the C89 actor owner, which restores the snapshot
+  and seeks to the saved frame. Marcus advances draft recordings through the
+  C89 Preview evaluator. Native services supply BRender distance and Studio's
+  scene-wide seek.
 - Local/world rotation, normalization, scale/stretch, route tweaks and composed
   movement now execute in C89, including orientation weighting/angular throttling,
   ground clipping, event fill and partial-failure ordering. Sooner/later subroute
@@ -409,8 +411,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   origin, resource handles, template tag references, and the owned track and
   motion-sound tables. C creates, clones, swaps and disposes those tables
   directly. Studio and preview use the motion-sound store without a native
-  wrapper. The native actor supplies resource operations, scene seeking and
-  view invalidation.
+  wrapper. The native actor supplies resource operations, renderer effects
+  and view invalidation.
   Actor undo creation, toggle, redo and snapshot ownership
   now execute in C89 too, including name swaps, replacement/removal, failure
   ordering and sound-queue selection. Scene/body/resource implementations

@@ -17,7 +17,7 @@ typedef struct Host
     MMI32 sizes[8], routes, count;
     int calls, fail_at, failure, fault, releases[4], released, templates, bodies;
     int prop, text, child_calls, fetches, poses, locations, clears, motions, resets, applies;
-    int fail_alloc, alloc_live, draft_bodies, costume_saved, costume_restored;
+    int fail_alloc, alloc_live, draft_bodies, costume_saved, costume_restored, material_overrides;
     MMStorageAllocator allocator;
     int token[4];
     MMActorPoint point;
@@ -550,6 +550,14 @@ static void playback(void)
     assert(mm_preview_actor_position(&h.actor, 1, &h.services) == -1 && h.actor.state.onStage == before.onStage);
     dispose(&h);
 }
+static int material_override(void *context)
+{
+    Host *h = (Host *)context;
+    assert(h->actor.state.frame == 2 && h->actor.state.onStage);
+    ++h->material_overrides;
+    return 1;
+}
+
 static void replace_events(void)
 {
     Host h;
@@ -557,11 +565,15 @@ static void replace_events(void)
     int failure;
     setup(&h);
     assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
+    h.services.apply_material_override = material_override;
+    assert(!mm_preview_actor_seek(&h.actor, 100002, &h.services) && !h.material_overrides);
     assert(mm_preview_actor_seek(&h.actor, 2, &h.services));
+    assert(h.material_overrides == 1);
     expected = h.actor.state;
     h.actor.state.action = 99;
     h.actor.state.nextEvent = h.count;
     assert(mm_preview_actor_replay_track(&h.actor, 2, &h.services));
+    assert(h.material_overrides == 1);
     assert(h.actor.state.frame == expected.frame && h.actor.state.action == expected.action);
     assert(h.actor.state.nextEvent == expected.nextEvent && h.actor.state.onStage == expected.onStage);
     assert(h.resets && h.clears && h.motions && h.actor.events == &h);

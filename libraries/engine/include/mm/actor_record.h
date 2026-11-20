@@ -29,14 +29,22 @@ enum
     MM_RECORD_FREEZE_FAILED, MM_RECORD_STEP_FAILED
 };
 enum { MM_RECORD_FREEZE = 1, MM_RECORD_GROUND = 2 };
+struct MMActorOwnerServices;
+struct MMPreviewActor;
+struct MMPreviewActorServices;
 typedef struct MMActorRecordServices
 {
     MMActorSubrouteEditServices subroute;
     MMI32 (*distance)(void *context, const MMActorPoint *);
+    /* Live actor identity and resources for restoring a recording snapshot.
+     * Restoration may swap track tables. Callers return immediately afterward. */
+    void *live_actor;
+    const struct MMActorOwnerServices *owners;
+    /* Private drafts advance their actor directly and are discarded on failure. */
+    struct MMPreviewActor *draft;
+    const struct MMPreviewActorServices *draft_playback;
     void (*publish_record)(void *context, const MMActorRecording *);
-    /* Temporary native undo transaction. May swap the owning route/event tables;
-     * failure paths return immediately afterward and never reuse those handles.
-     * Both state records are input/output, including on failed scene seeks. */
+    /* Optional rollback for callers with borrowed evaluator tables. */
     void (*restore)(void *context, void *undo, MMActorState *, MMActorRecording *);
     int (*seek_scene)(void *context, MMActorState *, MMActorRecording *, MMI32 frame);
     void (*diagnostic)(void *context, int fault);

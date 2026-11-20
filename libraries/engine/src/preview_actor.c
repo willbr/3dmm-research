@@ -3,6 +3,8 @@
 #include "mm/wide.h"
 #include <string.h>
 
+static int seek_actor(MMPreviewActor *, MMI32, const MMPreviewActorServices *);
+
 MMActorTrack mm_preview_actor_track(const MMPreviewActor *p)
 {
     MMActorTrack track;
@@ -59,7 +61,7 @@ int mm_preview_actor_replay_track(MMPreviewActor *p, MMI32 frame, const MMPrevie
     s->clear_motion(s->context);
     r = s->default_costume(s->context, p->tmpl, p->body);
     if (r <= 0) return r;
-    return mm_preview_actor_seek(p, frame, s);
+    return seek_actor(p, frame, s);
 }
 static void remember_origin(MMPreviewActor *p)
 {
@@ -533,7 +535,7 @@ static int seek_default_costume(void *context)
     return s->default_costume(s->context, p->tmpl, p->body);
 }
 
-int mm_preview_actor_seek(MMPreviewActor *p, MMI32 target, const MMPreviewActorServices *s)
+static int seek_actor(MMPreviewActor *p, MMI32 target, const MMPreviewActorServices *s)
 {
     PreviewActorHost host;
     MMActorPlaybackEffects effects;
@@ -558,4 +560,12 @@ int mm_preview_actor_seek(MMPreviewActor *p, MMI32 target, const MMPreviewActorS
     effects.fault = seek_fault;
     return mm_actor_playback_seek(&p->state, p->route, p->events, p->header.first_frame, p->header.last_frame, target,
                                   MM_ACTOR_FRAME_PREVIEW, 0, &s->timeline, &effects);
+}
+
+int mm_preview_actor_seek(MMPreviewActor *p, MMI32 target, const MMPreviewActorServices *s)
+{
+    int result = seek_actor(p, target, s);
+    if (result > 0 && s->apply_material_override)
+        return s->apply_material_override(s->context);
+    return result;
 }

@@ -149,7 +149,7 @@ class Actor : public Actor_PAR
     MMActorActionEditServices _ActionEditServices();
     MMActorSubrouteEditServices _SubrouteEditServices();
     MMActorStageEditServices _StageEditServices();
-    MMActorRecordServices _RecordServices();
+    MMActorRecordServices _RecordServices(const MMActorOwnerServices *owners = nullptr);
     MMActorTransformEditServices _TransformEditServices();
     static MMActorOwnerServices _OwnerServices();
     static MMActorCreateServices _CreateServices();
@@ -203,7 +203,6 @@ class Actor : public Actor_PAR
     bool _FComputeLifetime(long *pnfrmLast = pvNil);
     bool _FIsStalled(long iaevFirst, RouteLocation *prtel, long *piaevLast = pvNil);
 
-    void _RestoreFromUndo(PActor pactrRestore);
 
   public:
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)

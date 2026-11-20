@@ -39,7 +39,6 @@ typedef struct MMActorOwnerServices
     void (*retain)(void *,void *object);
     void (*release)(void *,void *object);
     void (*route_services)(void *,void *actor,MMActorRouteEditServices *);
-    int (*seek)(void *,void *actor,MMI32 frame);
     void (*invalidate_views)(void *,void *scene);
 } MMActorOwnerServices;
 /* Runtime is the actor's live record. template_tag owns its opened reference;
@@ -48,7 +47,7 @@ typedef struct MMActorOwnerServices
  * corresponding source references must remain live. BASE identity is untouched.
  * Callbacks provide native actor identity and primitive resources. They
  * cannot reenter the transaction. Route services publish state and
- * update dirty/recording flags; seek can update the complete runtime. */
+ * update dirty/recording flags. */
 void mm_actor_runtime_init(MMActorRuntime *);
 void mm_actor_owner_init(MMActorOwner *);
 MMActorLifetime mm_actor_owner_lifetime(MMActorOwner *);
@@ -65,7 +64,8 @@ void mm_actor_owner_restore(void *actor,void *snapshot,const MMActorOwnerService
 /* Snapshot body must be NULL. Borrow live body/scene, hide, restore/swap, restore
  * snapshot bindings, seek the saved live frame and invalidate again. Failed seek
  * is deliberately ignored, retaining partial state as in the native engine. */
-void mm_actor_owner_restore_undo(void *actor,void *snapshot,const MMActorOwnerServices *);
+void mm_actor_owner_restore_undo(void *actor,void *snapshot,const MMActorOwnerServices *,
+                                const MMActorTimelineServices *,const MMActorPlaybackEffects *);
 /* Close template/event tags, release body, dispose track, release template and
  * dispose motion storage. No wrapper-field destructor is required for ownership. */
 void mm_actor_owner_dispose(void *actor,const MMActorOwnerServices *);
