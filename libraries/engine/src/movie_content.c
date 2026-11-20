@@ -57,7 +57,8 @@ int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void 
     MMU32 i, count;
     MMTag tag;
     MMMovieEditRequest request = {0};
-    void *snapshot;
+    MMActorOwnerResult snapshot = {NULL, NULL, NULL};
+    const MMActorOwnerServices *actors = &s->edit.actors;
     int ok = 0;
     const void *units = s->name_units(name, &count);
     for (i = 0; i < count; ++i)
@@ -67,8 +68,7 @@ int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void 
         return mm_movie_edit_actor(MM_MOVIE_EDIT_REMOVE, &request, &s->edit);
     if (!author(name, shape, font, &tag, s))
         return 0;
-    snapshot = s->edit.duplicate_actor(actor, 0);
-    if (!snapshot)
+    if (!mm_actor_owner_duplicate(actor, 0, &snapshot, actors))
     {
         s->close_tag(&tag);
         return 0;
@@ -76,18 +76,18 @@ int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void 
     if (!s->change_template(actor, &tag))
     {
         s->close_tag(&tag);
-        s->edit.release_actor(snapshot);
+        actors->release(actors->context, snapshot.actor);
         return 0;
     }
     s->edit.rollcall.set_actor_id(actor, -1);
     if (!mm_movie_rollcall_add(actor, units, count, &s->edit.rollcall))
-        s->edit.restore_actor(actor, snapshot);
+        s->restore_template_edit(actor, snapshot.actor);
     else
     {
-        mm_movie_rollcall_remove(snapshot, 0, &s->edit.rollcall);
+        mm_movie_rollcall_remove(snapshot.actor, 0, &s->edit.rollcall);
         ok = 1;
     }
-    s->edit.release_actor(snapshot);
+    actors->release(actors->context, snapshot.actor);
     s->close_tag(&tag);
     if (ok)
         s->edit.dirty(s->edit.context);

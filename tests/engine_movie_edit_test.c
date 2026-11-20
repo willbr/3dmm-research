@@ -96,7 +96,7 @@ struct Test
     Actor *selected, *placement;
     Undo undo;
     int view, inScene, fail, selectedCalls, selectionCalls, frame, kind, actorCalls, sceneCalls;
-    int dirty, invalidates, bars, nuked, error, diagnostics, entire, resets, restore, placeCalls, undoCount;
+    int dirty, invalidates, bars, nuked, error, diagnostics, entire, restore, placeCalls, undoCount;
     int lastUndoCalls, notify, commits, clears, rowChanges;
     int begin, end, cacheBackground, defaults, empty, newScene, removeScene, removedIndex, backgroundUndoable;
     int soundEnabled, played, flushed, soundRefs, volumeCalls, styleCalls;
@@ -154,30 +154,12 @@ static MMActorStageEditServices bind_stage(void *p)
     a->stage.owner.runtime.actor = a->id;
     return stage_fixture_services(&a->stage);
 }
-static void *duplicate(void *p, int reset)
-{
-    Actor *a = p;
-    Test *t = a->test;
-    event(t, DUP);
-    t->resets = reset;
-    if (t->fail == FAIL_DUP)
-        return 0;
-    t->copy.refs = 1;
-    return &t->copy;
-}
 static void release(void *p)
 {
     Actor *a = p;
-    --a->refs;
+    if (!--a->refs)
+        stage_fixture_dispose(&a->stage);
     event(a->test, RELEASE);
-}
-static void restore(void *p, void *copy)
-{
-    Actor *a = p;
-    (void)copy;
-    ++a->test->restore;
-    a->value = 0;
-    event(a->test, RESTORE);
 }
 static int add_actor(void *p, void *a)
 {
@@ -251,19 +233,16 @@ static int paste_actor(void *p, void *a)
 static int paste_route(void *p, void *source)
 {
     Actor *a = p;
+    MMActorEvent edit;
     (void)source;
-    a->value = 777;
+    memset(&edit, 0, sizeof(edit));
+    edit.aet = MM_ACTOR_REMOVE;
+    if (!mm_actor_events_insert(a->stage.owner.track.events, 0, 0, NULL, &edit))
+        return 0;
+    a->stage.owner.runtime.state.cel = 777;
     if (a->test->switchSelection)
         a->test->selected = &a->test->fresh;
     return a->test->fail != FAIL_PASTE;
-}
-static int make_undo(void *p, void *copy)
-{
-    Actor *a = p;
-    (void)copy;
-    event(a->test, MAKE_UNDO);
-    a->test->undoOnFresh = a == &a->test->fresh;
-    return a->test->fail != FAIL_UNDO;
 }
 static void long_op(void *p, int begin)
 {
@@ -455,30 +434,31 @@ static void notify(void *p, int value)
     t->notify = value;
     event(t, NOTIFY);
 }
-static MMActorOwner *stage_owner(void *p, void *object)
+static MMActorOwner *actor_owner(void *p, void *object)
 {
     (void)p;
     return &((Actor *)object)->stage.owner;
 }
-static void *new_stage_snapshot(void *p)
+static void *new_actor_snapshot(void *p)
 {
     Test *t = p;
+    event(t, DUP);
+    if (t->fail == FAIL_DUP)
+        return NULL;
     mm_actor_owner_init(&t->copy.stage.owner);
     t->copy.refs = 1;
     return &t->copy;
 }
-static void retain_stage_snapshot(void *p, void *object)
+static void retain_actor_snapshot(void *p, void *object)
 {
     (void)p;
     if (object)
         ++((Actor *)object)->refs;
 }
-static void release_stage_snapshot(void *p, void *object)
+static void release_actor_ref(void *p, void *object)
 {
-    Actor *a = object;
     (void)p;
-    if (!--a->refs)
-        stage_fixture_dispose(&a->stage);
+    release(object);
 }
 static void stage_route(void *p, void *object, MMActorRouteEditServices *out)
 {
@@ -487,38 +467,41 @@ static void stage_route(void *p, void *object, MMActorRouteEditServices *out)
     (void)p;
     *out = stage.subroute.route;
 }
-static void stage_restore_views(void *p, void *scene) { (void)p; (void)scene; }
-static MMActorUndoState *new_stage_undo(void *p, void **handle)
+static void restored_actor_views(void *p, void *scene)
 {
     Test *t = p;
+    (void)scene;
+    ++t->restore;
+    event(t, RESTORE);
+}
+static MMActorUndoState *new_actor_undo(void *p, void **handle)
+{
+    Test *t = p;
+    event(t, MAKE_UNDO);
+    if (t->fail == FAIL_UNDO)
+        return NULL;
     t->undo.refs = 1;
     *handle = &t->undo;
     return mm_actor_undo_init(&t->undo.actor_state, &t->undo.base, 1) ? &t->undo.actor_state : NULL;
 }
-static void clear_stage_undo(void *p) { ++((Test *)p)->clears; }
-static void release_stage_undo(void *p, void *object)
+static void clear_actor_undo(void *p) { ++((Test *)p)->clears; }
+static void release_actor_undo(void *p, void *object)
 {
     Undo *u = object;
     if (!--u->refs)
-        release_stage_snapshot(p, u->actor_state.actor);
+        release_actor_ref(p, u->actor_state.actor);
 }
-static MMActorTransactionServices bind_stage_transaction(void *p)
+static MMActorUndoCreateServices bind_actor_undo(void *p)
 {
-    Test *t = ((Actor *)p)->test;
-    MMActorTransactionServices services;
-    memset(&services, 0, sizeof(services));
-    services.actors.context = t;
-    services.actors.owner = stage_owner;
-    services.actors.create = new_stage_snapshot;
-    services.actors.retain = retain_stage_snapshot;
-    services.actors.release = release_stage_snapshot;
-    services.actors.route_services = stage_route;
-    services.actors.invalidate_views = stage_restore_views;
-    services.undo.context = t;
-    services.undo.create = new_stage_undo;
-    services.undo.add = commit;
-    services.undo.clear = clear_stage_undo;
-    services.undo.release = release_stage_undo;
+    Actor *actor = p;
+    Test *t = actor->test;
+    MMActorUndoCreateServices services;
+    t->undoOnFresh = actor == &t->fresh;
+    services.context = t;
+    services.create = new_actor_undo;
+    services.add = commit;
+    services.clear = clear_actor_undo;
+    services.release = release_actor_undo;
     return services;
 }
 static int seed_rollcall(Test *t)
@@ -601,10 +584,14 @@ static void init(Test *t)
     s->new_actor = new_actor;
     s->actor_visible = visible;
     s->stage = bind_stage;
-    s->actor_transaction = bind_stage_transaction;
-    s->duplicate_actor = duplicate;
-    s->release_actor = release;
-    s->restore_actor = restore;
+    s->actors.context = t;
+    s->actors.owner = actor_owner;
+    s->actors.create = new_actor_snapshot;
+    s->actors.retain = retain_actor_snapshot;
+    s->actors.release = release_actor_ref;
+    s->actors.route_services = stage_route;
+    s->actors.invalidate_views = restored_actor_views;
+    s->actor_undo = bind_actor_undo;
     s->add_actor = add_actor;
     s->remove_actor = remove_actor;
     s->apply_actor = apply_actor;
@@ -615,7 +602,6 @@ static void init(Test *t)
     s->placement_undo = placement;
     s->paste_actor = paste_actor;
     s->paste_route = paste_route;
-    s->create_actor_undo = make_undo;
     s->long_op = long_op;
     s->cache_tag = cache;
     s->default_title = title;
@@ -688,13 +674,15 @@ static int choosing(void)
         CHECK(stage_fixture_init(&t.actor.stage, t.frame));
         t.fail = fault == 1 ? FAIL_DUP : fault == 2 ? FAIL_STAGE : 0;
         CHECK(mm_movie_choose_actor(5, &t.s) == !fault);
-        CHECK(t.resets == 1 && !t.dirty);
+        CHECK(!t.dirty);
         if (fault)
             CHECK(!t.copy.refs && !t.selectionCalls && !t.placeCalls && !t.invalidates);
         else
         {
             CHECK(t.copy.refs == 1 && t.placement == &t.copy && t.selectionCalls == 2 && t.placeCalls == 1 &&
                   !t.entire);
+            CHECK(t.copy.stage.owner.runtime.state.frame == 2147483647L &&
+                  !mm_actor_events_count(t.copy.stage.owner.track.events));
             CHECK(mm_rollcall_table_extra(&t.data.actors, 0, &row) && row.data.reference_count == 2 &&
                   t.rowChanges == 1 && t.invalidates == 1);
             release(t.placement);
@@ -804,7 +792,7 @@ static int actor_edits(void)
         {
             CHECK(t.undo.refs == 1 && t.copy.refs == 1 && t.undo.actor_state.actor == &t.copy);
             CHECK(t.copy.stage.owner.runtime.state.frame == 2147483647L && t.undo.actor_state.actor_id == 5);
-            release_stage_undo(&t, &t.undo);
+            release_actor_undo(&t, &t.undo);
         }
         CHECK(t.clears == (type == 2) && !t.copy.refs && !t.undo.refs);
         stage_fixture_dispose(&t.actor.stage);
@@ -949,16 +937,31 @@ static int pasting(void)
 {
     Test t;
     int fault;
-    for (fault = 0; fault <= 3; ++fault)
+    const int failures[] = {0, FAIL_DUP, FAIL_PASTE, FAIL_UNDO, FAIL_COMMIT};
+    for (fault = 0; fault < (int)(sizeof(failures) / sizeof(failures[0])); ++fault)
     {
+        int edited = !fault || failures[fault] == FAIL_PASTE;
         init(&t);
-        t.fail = fault == 1 ? FAIL_DUP : fault == 2 ? FAIL_PASTE : fault == 3 ? FAIL_UNDO : 0;
+        CHECK(stage_fixture_init(&t.actor.stage, t.frame));
+        t.actor.stage.owner.runtime.actor = t.actor.id;
+        t.fail = failures[fault];
         CHECK(mm_movie_paste_route(&t.fresh, &t.s) == !fault);
-        CHECK(!t.copy.refs && t.restore == (fault == 3) && t.dirty == !fault && t.invalidates == !fault);
-        if (fault == 2)
-            CHECK(t.actor.value == 777);
-        if (fault == 3)
-            CHECK(t.actor.value == 0 && t.events[t.eventCount - 2] == RESTORE && t.events[t.eventCount - 1] == RELEASE);
+        CHECK(t.copy.refs == !fault && t.undo.refs == !fault && t.dirty == !fault && t.invalidates == !fault);
+        CHECK(t.actor.stage.owner.runtime.state.cel == (edited ? 777 : 0) &&
+              mm_actor_events_count(t.actor.stage.owner.track.events) == edited);
+        CHECK(t.restore == (fault >= 3) && t.clears == (t.fail == FAIL_COMMIT));
+        if (fault >= 3)
+            CHECK(t.events[t.eventCount - 2] == RESTORE && t.events[t.eventCount - 1] == RELEASE);
+        if (!fault)
+        {
+            CHECK(t.undo.actor_state.actor == &t.copy && t.undo.actor_state.actor_id == t.actor.id);
+            CHECK(!mm_actor_events_count(t.copy.stage.owner.track.events) &&
+                  t.copy.stage.owner.runtime.state.frame == 2147483647L);
+            CHECK(t.events[t.eventCount - 2] == INVALIDATE && t.events[t.eventCount - 1] == RELEASE);
+            release_actor_undo(&t, &t.undo);
+        }
+        CHECK(!t.copy.refs && !t.undo.refs);
+        stage_fixture_dispose(&t.actor.stage);
     }
     init(&t);
     t.selected = 0;
@@ -974,10 +977,17 @@ static int pasting(void)
           t.actor.refs == 1);
     init(&t);
     t.switchSelection = 1;
-    t.fail = FAIL_UNDO;
-    t.fresh.value = 123;
-    CHECK(!mm_movie_paste_route(&t.fresh, &t.s) && t.undoOnFresh && t.actor.value == 777 && t.fresh.value == 0 &&
-          !t.copy.refs && !t.dirty);
+    t.fail = FAIL_COMMIT;
+    CHECK(stage_fixture_init(&t.actor.stage, t.frame) && stage_fixture_init(&t.fresh.stage, t.frame));
+    t.fresh.stage.owner.runtime.actor = 6;
+    t.fresh.stage.owner.runtime.state.cel = 123;
+    CHECK(!mm_movie_paste_route(&t.fresh, &t.s) && t.undoOnFresh && t.undo.actor_state.actor_id == 6 &&
+          t.selectedCalls == 4 && !t.copy.refs && !t.dirty);
+    CHECK(t.actor.stage.owner.runtime.state.cel == 777 && t.fresh.stage.owner.runtime.state.cel == 0 &&
+          mm_actor_events_count(t.actor.stage.owner.track.events) == 1 &&
+          !mm_actor_events_count(t.fresh.stage.owner.track.events));
+    stage_fixture_dispose(&t.fresh.stage);
+    stage_fixture_dispose(&t.actor.stage);
     return 0;
 }
 

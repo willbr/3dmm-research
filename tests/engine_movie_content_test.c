@@ -70,8 +70,8 @@ typedef struct Name
 typedef struct Actor
 {
     Test *test;
-    int refs, id, value;
-    MMTag tag;
+    int refs;
+    MMActorOwner owner;
 } Actor;
 typedef struct Caption
 {
@@ -182,56 +182,74 @@ static MMI32 character(const void *p, MMI32 i)
     ++n->test->characterCalls;
     return (unsigned char)n->text[i];
 }
-static void *duplicate(void *p, int reset)
+static MMActorOwner *actor_owner(void *p, void *actor)
 {
-    Actor *a = p;
-    Test *t = a->test;
+    (void)p;
+    return &((Actor *)actor)->owner;
+}
+static void *new_snapshot(void *p)
+{
+    Test *t = p;
     note(t, DUP);
-    if (reset || t->fail == FAIL_DUP)
+    if (t->fail == FAIL_DUP)
         return 0;
-    t->copy = *a;
+    t->copy.test = t;
+    mm_actor_owner_init(&t->copy.owner);
     t->copy.refs = 1;
     return &t->copy;
 }
-static void release_actor(void *p)
+static void retain_actor_resource(void *p, void *resource)
 {
-    Actor *a = p;
+    (void)p;
+    (void)resource;
+}
+static void release_actor(void *p, void *actor)
+{
+    Actor *a = actor;
+    (void)p;
     note(a->test, ACTOR_RELEASE);
-    --a->refs;
+    if (!--a->refs)
+    {
+        mm_actor_track_dispose(&a->owner.track, NULL);
+        mm_actor_sounds_dispose(&a->owner.sounds);
+    }
     ++a->test->releases;
 }
-static void restore(void *p, void *q)
+static void restored_actor_views(void *p, void *scene)
 {
-    Actor *a = p, *copy = q;
-    note(a->test, RESTORE);
-    ++a->test->restored;
-    a->id = copy->id;
-    a->value = copy->value;
-    a->tag = copy->tag;
+    Test *t = p;
+    (void)scene;
+    note(t, RESTORE);
+    ++t->restored;
+}
+static void restore_template_edit(void *p, void *snapshot)
+{
+    Actor *a = p;
+    mm_actor_owner_restore(a, snapshot, &a->test->s.edit.actors);
 }
 static int change(void *p, const MMTag *tag)
 {
     Actor *a = p;
     note(a->test, TEMPLATE);
-    a->value = 99;
+    a->owner.runtime.state.cel = 99;
     if (a->test->fail == FAIL_TEMPLATE)
         return 0;
-    a->tag = *tag;
+    a->owner.runtime.template_tag = *tag;
     return 1;
 }
 static MMI32 actor_id(void *p)
 {
-    return ((Actor *)p)->id;
+    return ((Actor *)p)->owner.runtime.actor;
 }
 static void set_id(void *p, MMI32 id)
 {
     Actor *a = p;
     note(a->test, SET_ID);
-    a->id = id;
+    a->owner.runtime.actor = id;
 }
 static void actor_tag(void *p, MMTag *tag)
 {
-    *tag = ((Actor *)p)->tag;
+    *tag = ((Actor *)p)->owner.runtime.template_tag;
 }
 static int is_prop(void *p)
 {
@@ -300,7 +318,7 @@ static void *new_actor(void *p, const MMTag *tag)
     Test *t = p;
     if (t->fail == FAIL_ACTOR)
         return 0;
-    t->inserted.tag = *tag;
+    t->inserted.owner.runtime.template_tag = *tag;
     t->inserted.refs = 1;
     return &t->inserted;
 }
@@ -417,11 +435,12 @@ static void init(Test *t)
     t->name.test = t;
     t->name.text = " A";
     t->actor.test = t;
-    t->actor.id = 7;
-    t->actor.value = 11;
+    mm_actor_owner_init(&t->actor.owner);
+    t->actor.owner.runtime.actor = 7;
+    t->actor.owner.runtime.state.cel = 11;
     t->actor.refs = 1;
     t->inserted.test = t;
-    t->inserted.id = -1;
+    mm_actor_owner_init(&t->inserted.owner);
     t->data.resources = &t->before;
     t->data.actorIdLimit = 10;
     t->scenes.open = t;
@@ -438,9 +457,12 @@ static void init(Test *t)
     e->rollcall.open_tag = open_row;
     e->rollcall.close_tag = close_tag;
     e->rollcall.changed = roll_changed;
-    e->duplicate_actor = duplicate;
-    e->release_actor = release_actor;
-    e->restore_actor = restore;
+    e->actors.context = t;
+    e->actors.owner = actor_owner;
+    e->actors.create = new_snapshot;
+    e->actors.retain = retain_actor_resource;
+    e->actors.release = release_actor;
+    e->actors.invalidate_views = restored_actor_views;
     e->dirty = dirty;
     e->invalidate = invalidate;
     e->cache_tag = cache;
@@ -463,6 +485,7 @@ static void init(Test *t)
     s->name_units = name_units;
     s->character = character;
     s->change_template = change;
+    s->restore_template_edit = restore_template_edit;
     s->new_caption = new_caption;
     s->default_font = default_font;
     s->caption_font = caption_font;
@@ -533,7 +556,7 @@ static int inserting(void)
             const int prefix[] = {NEW_TEXT,     VALID, FILE_GET,      TEMP,  WRITE,
                                   TEXT_RELEASE, OPEN,  ACTOR_RELEASE, DIRTY, CLOSE};
             CHECK(t.n == 10 && !memcmp(t.events, prefix, sizeof(prefix)) && t.bars && t.chunks == 1);
-            release_actor(&t.inserted);
+            release_actor(&t, &t.inserted);
         }
     }
     return 0;
@@ -557,6 +580,7 @@ static int changing(void)
     {
         init(&t);
         CHECK(seed_rollcall(&t));
+        CHECK(mm_actor_track_create(&t.actor.owner.track, NULL, 0, NULL));
         t.fail = faults[fault];
         if (t.fail == FAIL_APPEND)
             t.name.text = long_name;
@@ -568,7 +592,8 @@ static int changing(void)
         {
             const int suffix[] = {SET_ID, OPEN, ROLL_CHANGED, ACTOR_RELEASE, CLOSE, DIRTY};
             CHECK(mm_rollcall_table_extra(&t.data.actors, 0, &row));
-            CHECK(t.actor.id == 10 && t.actor.value == 99 && row.data.reference_count == 1);
+            CHECK(t.actor.owner.runtime.actor == 10 && t.actor.owner.runtime.state.cel == 99 &&
+                  row.data.reference_count == 1);
             CHECK(t.n >= 6 && !memcmp(t.events + t.n - 6, suffix, sizeof(suffix)));
             CHECK(mm_rollcall_table_name(&t.data.actors, 1, &name, &length) && length == 2 && !memcmp(name, " A", length));
             CHECK(mm_rollcall_table_extra(&t.data.actors, 1, &row));
@@ -579,11 +604,14 @@ static int changing(void)
         if (fault == 8)
         {
             CHECK(mm_rollcall_table_extra(&t.data.actors, 0, &row));
-            CHECK(t.actor.id == 7 && t.actor.value == 11 && row.data.reference_count == 2);
+            CHECK(t.actor.owner.runtime.actor == 7 && t.actor.owner.runtime.state.cel == 11 &&
+                  row.data.reference_count == 2);
         }
         if (fault == 7)
-            CHECK(t.actor.value == 99 && t.actor.id == 7 && t.events[t.n - 2] == CLOSE &&
+            CHECK(t.actor.owner.runtime.state.cel == 99 && t.actor.owner.runtime.actor == 7 &&
+                  t.events[t.n - 2] == CLOSE &&
                   t.events[t.n - 1] == ACTOR_RELEASE);
+        mm_actor_track_dispose(&t.actor.owner.track, NULL);
         CHECK(!t.refs && mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     }
     init(&t);

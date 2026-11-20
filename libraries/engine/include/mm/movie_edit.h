@@ -52,9 +52,8 @@ extern "C"
         void *(*first_view)(void *), *(*new_actor)(void *, const MMTag *);
         int (*actor_visible)(void *actor);
         MMActorStageBind stage;
-        MMActorTransactionServices (*actor_transaction)(void *actor);
-        void *(*duplicate_actor)(void *actor, int reset);
-        void (*release_actor)(void *actor), (*restore_actor)(void *actor, void *snapshot);
+        MMActorOwnerServices actors;
+        MMActorUndoCreateServices (*actor_undo)(void *actor);
         int (*add_actor)(void *scene, void *actor), (*remove_actor)(void *scene, MMI32 id);
         int (*apply_actor)(void *actor, int kind, const MMMovieEditRequest *);
         int (*apply_scene)(void *scene, int kind, const MMMovieEditRequest *);
@@ -62,7 +61,6 @@ extern "C"
         struct MMActorUndoState *(*last_actor_undo)(void *);
         void (*place_actor)(void *view, int entire_scene), (*placement_undo)(void *view, void *owned_snapshot);
         int (*paste_actor)(void *scene, void *actor), (*paste_route)(void *actor, void *source);
-        int (*create_actor_undo)(void *actor, void *snapshot);
         void (*long_op)(void *, int begin);
         int (*cache_tag)(void *, const MMTag *, int background);
         void (*default_title)(void *);
@@ -180,13 +178,13 @@ extern "C"
      * are required. Scene edits/selected edits require a current scene; selected
      * actor edits require a selected actor. Time edits return failure when
      * there is no open scene or primary actor. Getter/result tags are borrowed.
-     * new_actor/duplicate_actor/new_scene_undo return one reference. Placement undo
-     * takes that reference; scene-add/paste/undo factories manage their own retains.
+     * new_actor/new_scene_undo return one reference. Placement undo takes ownership
+     * of the reset actor snapshot. Scene-add/paste/undo manage their own retains.
      * Callbacks for Scene/Actor operations may use the existing C controllers and
      * publish their documented state. No implicit rollback of failed edits occurs.
-     * Path-paste rereads selection after duplicate/paste/failed-undo callbacks and
-     * restores only after undo-creation failure. Offstage choice retains
-     * its two selection notifications, roll-call refresh and snapshot transfer.
+     * Path-paste rereads selection after capture, paste and failed undo creation.
+     * It restores only after undo creation fails. Offstage choice retains its two
+     * selection notifications, roll-call refresh and snapshot transfer.
      * Sound defaults are fetched/released only when either field is missing
      * (volume -1, style 0). Scene creation removes its new scene after background/
      * undo failure, but preserves preceding title, sound and mutation prefixes.

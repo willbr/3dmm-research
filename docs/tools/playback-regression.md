@@ -16121,3 +16121,40 @@ In `actor-event-edit` suite `20261120T155738Z-335c7633`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## C89 movie actor snapshots (20 November 2026)
+
+The movie controller uses the C89 actor owner for snapshot capture,
+reset and release, and registers route paste undo through the C89
+undo factory. Roll-call placement transfers the reset snapshot to
+the Studio view. 3D text editing shares snapshot capture and release
+and calls Studio for template rollback.
+
+The movie fixtures use C actor tracks and undo records to exercise
+ownership transfer, snapshot and undo allocation failure, and failed
+undo registration. Failed route paste preserves its completed edit
+prefix. Failed undo creation restores the snapshot onto the current
+selection. The 3D text fixture verifies actor restoration and roll-call
+ID consumption after a failed row insert.
+
+All 192 standalone engine checks, 12 targeted x64 checks, 10 each in
+x86 Debug and SDL Release, and six AddressSanitizer checks passed.
+The 12 C89 checks in the Marcus build and the full movie tests on
+native x64, x86 Debug and SDL Release also passed. Ten actor
+traces per build, the three saved movies and the two scene-content
+traces matched their baselines. All ten Preview fingerprints and six
+Preview movies matched as well. The two VMM seek images in
+`20261120T161025Z-3415b5bb` matched the archived SDL and Marcus captures.
+
+Production SDL Studio saved and reopened a byte-identical authored
+movie. Retail reopened it in suite `20261120T161248Z-8535f9a0`. All
+11 seek frames and camera indices and 16 actor records matched across
+retail and SDL. Three viewport images differed from retail by 33 pixels
+in total. All 11 SDL image hashes matched the prior build captured in
+`20261120T161354Z-70270215`.
+
+In `actor-event-edit` suite `20261120T161025Z-db906188`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their previous seek image hashes. SDL
+matched all 12 retail sound requests. Logs and fixtures are in
+`tmp/c89-movie-actor-snapshots`.

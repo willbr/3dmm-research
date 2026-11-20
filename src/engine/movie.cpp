@@ -723,12 +723,8 @@ MMMovieEditServices Movie::_EditServices()
     s.new_actor = [](void *, const MMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return Actor::PactrNew(&tag); };
     s.actor_visible = [](void *p) -> int { return static_cast<PActor>(p)->FIsInView(); };
     s.stage = Actor::_BindStageEdit;
-    s.actor_transaction = [](void *p) { return static_cast<PActor>(p)->_TransactionServices(); };
-    s.duplicate_actor = [](void *p, int reset) -> void * {
-        PActor copy = nullptr; if (!static_cast<PActor>(p)->FDup(&copy, reset != 0)) return nullptr; return copy;
-    };
-    s.release_actor = [](void *p) { auto actor = static_cast<PActor>(p); ReleasePpo(&actor); };
-    s.restore_actor = [](void *p, void *copy) { static_cast<PActor>(p)->Restore(static_cast<PActor>(copy)); };
+    s.actors = Actor::_OwnerServices();
+    s.actor_undo = [](void *p) { return static_cast<PActor>(p)->_UndoCreateServices(); };
     s.add_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FAddActr(static_cast<PActor>(actor)); };
     s.remove_actor = [](void *p, MMI32 id) -> int { return static_cast<PScene>(p)->FRemActr(id); };
     s.apply_actor = [](void *p, int kind, const MMMovieEditRequest *q) -> int {
@@ -769,7 +765,6 @@ MMMovieEditServices Movie::_EditServices()
     s.placement_undo = [](void *p, void *owned) { static_cast<PMovieView>(p)->SetActrUndo(static_cast<PActor>(owned)); };
     s.paste_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FPasteActr(static_cast<PActor>(actor)); };
     s.paste_route = [](void *p, void *source) -> int { return static_cast<PActor>(p)->FPasteRte(static_cast<PActor>(source)); };
-    s.create_actor_undo = [](void *p, void *copy) -> int { return static_cast<PActor>(p)->FCreateUndo(static_cast<PActor>(copy)); };
     s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
     s.cache_tag = [](void *, const MMTag *value, int background) -> int {
         TAG tag; TagFromCore(&tag, *value); return background ? Background::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);
@@ -1449,6 +1444,9 @@ MMMovieContentServices Movie::_ContentServices()
     };
     s.change_template = [](void *p, const MMTag *value) -> int {
         return static_cast<PActor>(p)->FChangeTagTmpl(*value);
+    };
+    s.restore_template_edit = [](void *p, void *snapshot) {
+        static_cast<PActor>(p)->Restore(static_cast<PActor>(snapshot));
     };
     s.new_caption = [](void *scene, const void *bounds, int story) -> void * {
         return TextBox::PtboxNew(static_cast<PScene>(scene), const_cast<RC *>(static_cast<const RC *>(bounds)), story != 0);

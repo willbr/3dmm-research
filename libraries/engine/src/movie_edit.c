@@ -20,7 +20,7 @@ MMI32 mm_movie_selected_actor(const MMMovieEditServices *s)
 }
 int mm_movie_choose_actor(MMI32 id, const MMMovieEditServices *s)
 {
-    void *actor, *snapshot, *view = s->first_view(s->context);
+    void *actor, *view = s->first_view(s->context);
     MMRollCallActor row;
     MMTag tag;
     if (!view)
@@ -30,19 +30,19 @@ int mm_movie_choose_actor(MMI32 id, const MMMovieEditServices *s)
     {
         if (!s->actor_visible(actor))
         {
-            snapshot = s->duplicate_actor(actor, 1);
-            if (!snapshot)
+            MMActorOwnerResult snapshot = {NULL, NULL, NULL};
+            if (!mm_actor_owner_duplicate(actor, 1, &snapshot, &s->actors))
                 return 0;
             if (!mm_actor_stage_apply(actor, 1, s->stage))
             {
-                s->release_actor(snapshot);
+                s->actors.release(s->actors.context, snapshot.actor);
                 return 0;
             }
             s->select_actor(s->scenes->open, actor);
             if (!mm_movie_rollcall_add(actor, 0, 0, &s->rollcall))
                 s->diagnostic(s->context, MM_MOVIE_EDIT_ROLLCALL_FAILED);
             s->place_actor(view, 0);
-            s->placement_undo(view, snapshot);
+            s->placement_undo(view, snapshot.actor);
         }
         s->select_actor(s->scenes->open, actor);
         s->invalidate(s->context, 0);
@@ -57,11 +57,11 @@ int mm_movie_choose_actor(MMI32 id, const MMMovieEditServices *s)
     s->rollcall.set_actor_id(actor, id);
     if (!s->add_actor(s->scenes->open, actor))
     {
-        s->release_actor(actor);
+        s->actors.release(s->actors.context, actor);
         return 0;
     }
     s->place_actor(view, 0);
-    s->release_actor(actor);
+    s->actors.release(s->actors.context, actor);
     return 1;
 }
 static int cache(const MMTag *tag, int background, const MMMovieEditServices *s)
@@ -82,10 +82,10 @@ int mm_movie_insert_actor(const MMTag *tag, const MMMovieEditServices *s)
         return 0;
     if (!s->add_actor(s->scenes->open, actor))
     {
-        s->release_actor(actor);
+        s->actors.release(s->actors.context, actor);
         return 0;
     }
-    s->release_actor(actor);
+    s->actors.release(s->actors.context, actor);
     changed(1, s);
     return 1;
 }
@@ -107,7 +107,8 @@ int mm_movie_onstage(MMI32 id, const MMMovieEditServices *s)
         return 0;
     }
     stage = s->stage(actor);
-    transaction = s->actor_transaction(actor);
+    transaction.actors = s->actors;
+    transaction.undo = s->actor_undo(actor);
     if (!mm_actor_transaction_stage(actor, 1, &stage, &transaction))
         return 0;
     changed(0, s);
@@ -296,31 +297,35 @@ int mm_movie_paste_actor(void *actor, const MMMovieEditServices *s)
 }
 int mm_movie_paste_route(void *source, const MMMovieEditServices *s)
 {
-    void *actor = s->selected_actor(s->scenes->open), *snapshot;
+    void *actor = s->selected_actor(s->scenes->open);
+    MMActorOwnerResult snapshot = {NULL, NULL, NULL};
+    MMActorUndoCreateServices undo;
+    const MMActorOwner *owner;
     if (!actor)
     {
         s->diagnostic(s->context, MM_MOVIE_EDIT_NO_ACTOR);
         return 0;
     }
-    snapshot = s->duplicate_actor(actor, 0);
-    if (!snapshot)
+    if (!mm_actor_owner_duplicate(actor, 0, &snapshot, &s->actors))
         return 0;
     actor = s->selected_actor(s->scenes->open);
     if (!s->paste_route(actor, source))
     {
-        s->release_actor(snapshot);
+        s->actors.release(s->actors.context, snapshot.actor);
         return 0;
     }
     actor = s->selected_actor(s->scenes->open);
-    if (!s->create_actor_undo(actor, snapshot))
+    owner = s->actors.owner(s->actors.context, actor);
+    undo = s->actor_undo(actor);
+    if (!mm_actor_undo_create(snapshot.actor, owner->runtime.actor, 0, NULL, 0, &s->actors, &undo))
     {
         actor = s->selected_actor(s->scenes->open);
-        s->restore_actor(actor, snapshot);
-        s->release_actor(snapshot);
+        mm_actor_owner_restore(actor, snapshot.actor, &s->actors);
+        s->actors.release(s->actors.context, snapshot.actor);
         return 0;
     }
     changed(1, s);
-    s->release_actor(snapshot);
+    s->actors.release(s->actors.context, snapshot.actor);
     return 1;
 }
 

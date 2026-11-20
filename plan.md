@@ -395,6 +395,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Scene admission, roll-call placement, explicit stage entry with undo and
   the cut command's surviving-actor path call these C89 stage operations.
   Studio binds the live actor and its scene, template and renderer effects.
+  Roll-call placement captures and resets its undo snapshot through the C89
+  actor owner before passing ownership to the view.
 - Recording validity, record-step sizing, begin/move/end sequencing, mouse
   smoothing, route sampling, ground clipping and rejoining now execute in C89.
   Timestamp differences wrap at 32 bits; displaced event/tag handling, end-of-
@@ -450,6 +452,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   removal, later-subroute index shifts, floating and terminal steps, and body
   positioning. Studio route editing and Marcus preview animation drafts share
   the C bindings for path and event table mutation and reservation.
+  The movie controller captures and registers route paste snapshots through the
+  C89 actor owner and undo factory. Paste failure keeps the edit prefix. Undo
+  failure restores the snapshot onto the current selection. Movie 3D text edits
+  share snapshot capture and release, with Studio handling template rollback.
 - Full actor paste uses the C89 owner and typed tables for retiming, sound
   adoption and row removal, with shared scene binding and tag ownership.
   Studio actor edits and Marcus preview costume and animation drafts share the

@@ -21,6 +21,7 @@ extern "C"
         const void *(*name_units)(const void *name, MMU32 *count);
         MMI32 (*character)(const void *name, MMI32 index);
         int (*change_template)(void *actor, const MMTag *);
+        void (*restore_template_edit)(void *actor, void *snapshot); /* Studio template/body checks on rollback. */
         void *(*new_caption)(void *scene, const void *bounds, int story);
         MMI32 (*default_font)(void *);
         void (*caption_font)(void *caption, MMI32);
