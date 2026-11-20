@@ -164,7 +164,11 @@ MMResourceServices ChunkyResourceFile::_Services()
                 Filename file;
                 String path;
                 char name[kcchMaxStz];
-                static_cast<PChunkyResourceFile>(c)->Pcfl()->GetFni(&file);
+                auto cache = static_cast<PChunkyResourceFile>(c);
+                if (cache->_cache.wire_file)
+                    static_cast<PFileObject>(cache->_cache.wire_file)->GetFni(&file);
+                else
+                    cache->Pcfl()->GetFni(&file);
                 file.GetStnPath(&path);
                 path.GetSzs(name);
                 std::fprintf(stderr, "BATCH_RESOURCE_LOAD_FAILED ctg=%08lx cno=%08lx file=%s\n",
@@ -188,33 +192,39 @@ MMResourceServices ChunkyResourceFile::_Services()
     };
     return s;
 }
-ChunkyResourceFile::ChunkyResourceFile(PChunkyFile file, LegacyLong budget)
-{
-    AssertBaseThis(fobjAllocated);
-    AssertPo(file, 0);
-    AssertIn(budget, 0, kcbMax);
-    static_assert(kctgRsc == 0x52534320 && tNo == 0 && tYes == 1 && tMaybe == 2, "resource C contract");
-    const auto services = _Services();
-    int diagnostic = 0;
-    Debug(diagnostic = 1;)
-        AssertDo(mm_resource_cache_init(&_cache, this, &_references, file, budget, &services,
-                                       KauaiCopyAllocator(), diagnostic) == MM_STORAGE_OK,
-                 "invalid resource cache");
-}
 ChunkyResourceFile::~ChunkyResourceFile(void)
 {
     AssertBaseThis(fobjAllocated);
-    AssertDo(mm_resource_cache_dispose(&_cache) == MM_STORAGE_OK, "invalid resource cache disposal");
+    if (_cache.owner)
+        AssertDo(mm_resource_cache_dispose(&_cache) == MM_STORAGE_OK, "invalid resource cache disposal");
 }
-PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile file, LegacyLong budget,
-                                               const MMChunkIndex *index, PFileObject backing)
+PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile file, LegacyLong budget)
 {
     AssertPo(file, 0);
+    return _PcrfNew({file, nullptr, nullptr}, budget);
+}
+PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, PFileObject backing, LegacyLong budget)
+{
+    AssertPo(backing, 0);
+    return _PcrfNew({nullptr, index, backing}, budget);
+}
+PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source, LegacyLong budget)
+{
     AssertIn(budget, 0, kcbMax);
-    auto cache = NewObj ChunkyResourceFile(file, budget);
-    if (cache && index && mm_resource_cache_bind_index(&cache->_cache, index, backing) != MM_STORAGE_OK)
-        ReleasePpo(&cache);
-    if (cache && mm_resource_cache_reserve(&cache->_cache, 5) != MM_STORAGE_OK)
+    static_assert(kctgRsc == 0x52534320 && tNo == 0 && tYes == 1 && tMaybe == 2, "resource C contract");
+    auto cache = NewObj ChunkyResourceFile;
+    if (!cache)
+        return nullptr;
+    const auto services = cache->_Services();
+    int diagnostic = 0;
+    Debug(diagnostic = 1;)
+    if (mm_resource_cache_init(&cache->_cache, cache, &cache->_references, &source, budget, &services,
+                               KauaiCopyAllocator(), diagnostic) != MM_STORAGE_OK)
+    {
+        delete cache;
+        return nullptr;
+    }
+    if (mm_resource_cache_reserve(&cache->_cache, 5) != MM_STORAGE_OK)
         ReleasePpo(&cache);
     AssertNilOrPo(cache, 0);
     return cache;
@@ -282,16 +292,51 @@ bool ChunkyResourceFile::FReadBlock(ChunkTagOrType type, ChunkNumber number, Dat
     AssertThis(0);
     return mm_resource_cache_read_block(&_cache, type, number, &block._state) == MM_CHUNK_OK;
 }
+bool ChunkyResourceFile::FGetName(ChunkTagOrType type, ChunkNumber number, PString name)
+{
+    AssertThis(0);
+    AssertPo(name, 0);
+    if (Pcfl())
+        return Pcfl()->FGetName(type, number, name);
+    const auto graph = ReadChunkAccess();
+    MMU32 position, count;
+    unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES];
+    const unsigned char *bytes;
+    if (mm_chunk_find(&graph, type, number, &position) != MM_CHUNK_OK ||
+        mm_chunk_serialized_name(_cache.wire_index, position, KauaiEncodeLegacyChunkName, nullptr, scratch, &bytes,
+                                 &count) != MM_CHUNK_OK ||
+        !count || !name->FSetData(const_cast<unsigned char *>(bytes), count))
+        name->SetNil();
+    return name->Cch() > 0;
+}
+bool ChunkyResourceFile::FCopyChunk(ChunkTagOrType type, ChunkNumber number, PChunkyFile destination, ChunkNumber *copied)
+{
+    AssertThis(0);
+    if (Pcfl())
+        return Pcfl()->FCopy(type, number, destination, copied);
+    auto file = ChunkyFile::PcflOpenIndex(static_cast<PFileObject>(_cache.wire_file), _cache.wire_index);
+    if (!file)
+        return false;
+    const bool ok = file->FCopy(type, number, destination, copied);
+    ReleasePpo(&file);
+    return ok;
+}
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
 {
     AssertThis(0);
-    return PcrfNew(Pcfl(), budget, _cache.wire_index, static_cast<PFileObject>(_cache.wire_file));
+    return _PcrfNew({Pcfl(), _cache.wire_index, _cache.wire_file}, budget);
 }
 #ifdef DEBUG
 void ChunkyResourceFile::AssertValid(LegacyUlong flags)
 {
     ChunkyResourceFile_PAR::AssertValid(fobjAllocated);
-    AssertPo(Pcfl(), 0);
+    if (_cache.wire_index)
+    {
+        Assert(!Pcfl(), "wire cache with a live graph");
+        AssertPo(static_cast<PFileObject>(_cache.wire_file), 0);
+    }
+    else
+        AssertPo(Pcfl(), 0);
     AssertIn(_cache.budget, 0, kcbMax);
     Assert(_cache.resident.high >= 0, "negative cache size");
     AssertIn(_cache.releases, 0, kcbMax);

@@ -259,7 +259,7 @@ RTCLASS(ChunkGraphEnumerator)
 /***************************************************************************
     Constructor for ChunkyFile - private.
 ***************************************************************************/
-ChunkyFile::ChunkyFile(void)
+ChunkyFile::ChunkyFile(bool registerFile)
 {
     int expanded = 0;
 #ifdef CHUNK_BIG_INDEX
@@ -268,7 +268,8 @@ ChunkyFile::ChunkyFile(void)
     AssertDo(mm_chunk_owner_init(&_owner, KauaiCopyAllocator(), expanded) == MM_CHUNK_OK, "invalid container owner");
     // add it to the linked list
     mm_chunk_link_init(&_link, this);
-    AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
+    if (registerFile)
+        AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
     AssertBaseThis(0);
 }
 
@@ -301,7 +302,7 @@ PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, LegacyUlong grfcfl)
 PChunkyFile ChunkyFile::PcflOpenIndex(PFileObject file, const MMChunkIndex *index)
 {
     AssertPo(file, 0);
-    if (_PcflFromFile(file) || !index || file->GrffilCur() & ffilWriteEnable)
+    if (!index || file->GrffilCur() & ffilWriteEnable)
         return pvNil;
 
     struct Input
@@ -312,6 +313,7 @@ PChunkyFile ChunkyFile::PcflOpenIndex(PFileObject file, const MMChunkIndex *inde
     auto services = _ConstructionServices(nullptr);
     services.context = &input;
     services.find = [](void *) -> void * { return nullptr; };
+    services.allocate = [](void *) -> void * { return NewObj ChunkyFile(false); };
     services.file = [](void *context, int, MMU32) -> void * {
         auto source = static_cast<Input *>(context)->file;
         source->AddRef();
@@ -931,6 +933,18 @@ bool ChunkyFile::_FReadIndex(void)
     return _FMaterializeIndex(owner.value);
 }
 
+int KauaiEncodeLegacyChunkName(void *, const char *text, void *wire, MMU32 capacity, MMU32 *bytes)
+{
+    String converted;
+    converted.SetSzs(const_cast<char *>(text));
+    const auto size = static_cast<MMU32>(converted.CbData());
+    if (size > capacity)
+        return 0;
+    converted.GetData(wire);
+    *bytes = size;
+    return 1;
+}
+
 bool ChunkyFile::_FMaterializeIndex(const MMChunkIndex *index)
 {
     const auto header = *mm_chunk_index_header(index);
@@ -939,11 +953,7 @@ bool ChunkyFile::_FMaterializeIndex(const MMChunkIndex *index)
     if (!group)
         return fFalse;
     const MMChunkMaterializer materializer = {group,
-        [](void *, const char *text, void *wire, MMU32 capacity, MMU32 *bytes) -> int {
-            String converted; converted.SetSzs(const_cast<char *>(text));
-            if (converted.CbData() > capacity) return 0;
-            converted.GetData(wire); *bytes = converted.CbData(); return 1;
-        },
+        KauaiEncodeLegacyChunkName,
         [](void *context, MMU32 position, const MMChunkEntry *entry, const void *variable, MMU32 bytes) -> int {
             ChunkRepresentation row = {};
             mm_chunk_record_set(&row, expandedRecords, entry);

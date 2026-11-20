@@ -89,7 +89,7 @@ priority over the older Project 0-4 ordering wherever they conflict.
   headers. Its common palette, shade table, and saved scene thumbnails load
   through the C89 archive reader. The common resource archive can stay a
   physical stream across Preview replacements, and external content builds its
-  native graph and resource cache after admission checks. Studio and Preview
+  resource cache after admission checks. Studio and Preview
   share the texture-map stream decoder.
 - Preview resolves sound sources in the C89 session and reads movie sound
   links and decoded audio from the archive reader. Editable archives provide
@@ -104,9 +104,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   index, codec and payload cache. `3mm dump` and Marcus catalogue reads use this
   path. Marcus also uses it to read source names for an object being copied.
   On movie open Marcus reads the movie directory and metadata through the same
-  C89 reader. Preview materializes its native resource graph from the
-  validated wire index over the same open file. Movie files already open in
-  Kauai use its live graph path.
+  C89 reader. Read-only Preview caches retain the validated wire index and its
+  open file directly. Files with a live Kauai graph use that graph.
 - The C89 resource cache reads model and texture payloads from that index for
   read-only Preview archives. It retains the index and backing file while
   detached renderer objects still depend on the cache. Texture loaders use
@@ -114,7 +113,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Material, costume, action, template and 3D-text readers also consume the
   cache's root block. Graph links and child payloads use the same archive source
   as the root. The legacy template costume-table builder keeps its own cache
-  budget and inherits that source. Stored name conversion still uses Kauai.
+  budget and inherits that source. Stored names, font glyphs, sound metadata,
+  and event-track replacements also read from that source. Copying a font
+  into a text preview uses a temporary native view for the copy operation.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

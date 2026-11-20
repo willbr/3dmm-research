@@ -81,10 +81,15 @@ MMFontResourceServices ThreeDFont::_Services(FontResourceContext *context)
     s.binding = [](void *, void *object, void **cache, MMFontChunk *chunk) {
         auto font = static_cast<PThreeDFont>(object); *cache = font->Pcrf(); *chunk = {font->Ctg(), font->Cno()};
     };
-    s.child_id = [](void *, void *file, MMU32 type, MMU32 number, MMU32 id, MMFontChild *out) -> int {
-        ChildChunkIdentification child;
-        if (!static_cast<PChunkyFile>(file)->FGetKidChid(type, number, id, &child)) return false;
-        *out = {child.cki.ctg, child.cki.cno, child.chid}; return true;
+    s.child_id = [](void *, void *cache, MMU32 type, MMU32 number, MMU32 id, MMFontChild *out) -> int {
+        const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
+        MMU32 parent;
+        MMChunkChild child;
+        if (mm_chunk_find(&chunks, type, number, &parent) != MM_CHUNK_OK ||
+            mm_chunk_child_type(&chunks, parent, id, 0, &child) != MM_CHUNK_OK)
+            return false;
+        *out = {child.type, child.number, child.slot};
+        return true;
     };
     s.missing_model = [](void *, MMU32 id) {
         String message; message.FFormatSz(PszLit("Couldn't find BMDL for 3-D Font with chid %d."), id); Warn(message.Psz()); PushErc(ercSocNoModlForChar);

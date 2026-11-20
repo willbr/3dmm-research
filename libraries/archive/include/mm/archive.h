@@ -154,9 +154,8 @@ class Archive
 {
     friend class Preview;
     friend bool ReadSoundCatalogStyle(const Archive &, std::uint32_t, std::int32_t &);
-    void *NativeFile() const; // Private bridge to the engine preview adapter.
+    bool CanPreview() const;
     Chunky::ChunkyResourceFile *NewResourceCache(std::int32_t budget) const;
-    bool PrepareNativeFile(Error &);
     bool OpenResources(const std::string &utf8Path, Error &);
     MMArchiveReader *Reader() const;
     MMMovieSessionGraph PlaybackGraph() const;
@@ -176,9 +175,8 @@ class Archive
     bool Open(const std::string &utf8Path, Error &error);
     // Index the file's stored bytes for read-only archive inspection.
     bool OpenForInspection(const std::string &utf8Path, Error &error);
-    // Open an archive for Preview. Use the live path if Kauai already has the
-    // file open. Otherwise read from a read-only stream, with native graph
-    // materialization deferred until the renderer needs it.
+    // Open an archive for Preview. Reuse a live Kauai graph when present.
+    // Otherwise serve Preview directly from the validated read-only index.
     bool OpenForPreview(const std::string &utf8Path, Error &error);
     void Close();
     // References remain valid until a successful Open, Close, or destruction.

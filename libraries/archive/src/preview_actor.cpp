@@ -10,7 +10,6 @@
 #include "preview_actor.h"
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
-#include "engine_movie_graph.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_costume_edit.h"
 #include "mm/actor_animation.h"
@@ -316,7 +315,7 @@ bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, cons
     return draft.Write(path, false);
 }
 bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::string &path,
-                                  int &lastActorFrame, int &lastEditedFrame)
+                                  int &lastActorFrame, int &lastEditedFrame, const SoundGraphResolver &resolveSound)
 {
     if (!Visible() || !Ptmpl() || edit.points.size() > MM_ACTOR_ANIMATION_MAX_POINTS) return false;
     static_assert(int(PreviewAnimationEdit::Kind::action) == MM_ACTOR_ANIMATION_ACTION &&
@@ -330,7 +329,7 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
                                    points.data(), points.size()};
     TrackDraft draft(*this);
     if (!draft.Begin()) return false;
-    AnimationHost host(this);
+    AnimationHost host(this, resolveSound);
     const auto services = host.Record();
     const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? Ptmpl()->Cactn() : 0;
     MMActorAnimationRange range;
@@ -356,8 +355,8 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
             auto &input = *static_cast<EventSource *>(p);
             return input.host.Guard([&] {
                 const TAGOnFile tag = {source, 0, kctgGgae, 0};
-                auto file = input.host.actor->resolve(tag);
-                return file && file->Pcfl()->FFind(kctgGgae, 0, &input.block);
+                auto cache = input.host.actor->resolve(tag);
+                return cache && cache->FReadBlock(kctgGgae, 0, input.block);
             });
         },
         [](void *p, MMActorEventTable **out) -> int {

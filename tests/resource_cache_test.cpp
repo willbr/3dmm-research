@@ -249,6 +249,59 @@ static int LargeResidentCase()
     return 0;
 }
 
+static int WireSourceCase()
+{
+    Filename path;
+    CHECK(path.FGetTemp());
+    const ChunkTagOrType type = 'TEST';
+    const ChunkNumber root = 17, glyph = 21;
+    unsigned char stored = 42, changed = 99;
+    String authored, name;
+    authored.SetSzs(PszLit("Stored name"));
+    auto live = ChunkyFile::PcflCreate(&path, fcflWriteEnable);
+    CHECK(live && live->FPutPv(&stored, 1, type, root) && live->FPutPv(&stored, 1, type, glyph));
+    CHECK(live->FSetName(type, root, &authored) && live->FAdoptChild(type, root, type, glyph, 0) && live->FSave(type));
+    ReleasePpo(&live);
+
+    auto backing = FileObject::PfilOpen(&path);
+    CHECK(backing);
+    const auto stream = backing->ReadStream();
+    const unsigned short order = 1;
+    MMChunkPolicy policy = {};
+#ifdef CHUNK_BIG_INDEX
+    policy.expanded_runtime = 1;
+#endif
+    policy.native_big_endian = !*reinterpret_cast<const unsigned char *>(&order);
+    policy.max_name_bytes = kcbMaxDataStn;
+    MMChunkIndex *index;
+    CHECK(mm_chunk_index_open(&stream, &policy, &index) == MM_CHUNK_OK);
+    auto cache = ChunkyResourceFile::PcrfNewIndex(index, backing, 1024);
+    mm_chunk_index_close(index);
+    ReleasePpo(&backing);
+    CHECK(cache && !cache->Pcfl() && !ChunkyFile::PcflFromFni(&path));
+    CHECK(cache->FGetName(type, root, &name) && name.FEqual(&authored));
+
+    live = ChunkyFile::PcflOpen(&path, fcflAddToExtra);
+    CHECK(live && live->FPutPv(&changed, 1, type, glyph));
+    auto writable = ChunkyFile::PcflCreateTemp();
+    ChunkNumber copied;
+    CHECK(writable && cache->FCopyChunk(type, root, writable, &copied));
+    CHECK(ChunkyFile::PcflFromFni(&path) == live);
+    ChildChunkIdentification child;
+    DataBlock block;
+    unsigned char value;
+    CHECK(copied == root && writable->FGetKidChid(type, copied, 0, &child) && child.cki.ctg == type);
+    CHECK(writable->FFind(type, child.cki.cno, &block) && block.FReadRgb(&value, 1, 0) && value == stored);
+    CHECK(live->FFind(type, glyph, &block) && block.FReadRgb(&value, 1, 0) && value == changed);
+    CHECK(writable->FGetName(type, copied, &name) && name.FEqual(&authored));
+    block.Free();
+    ReleasePpo(&writable);
+    ReleasePpo(&live);
+    ReleasePpo(&cache);
+    CHECK(path.FDelete());
+    return 0;
+}
+
 int main()
 {
     if (const char *path = std::getenv("MM_RESOURCE_CACHE_SNAPSHOT"))
@@ -256,7 +309,7 @@ int main()
         resourceSnapshot = std::fopen(path, "wb");
         CHECK(resourceSnapshot);
     }
-    CHECK(CacheCases() == 0 && ManagerCases() == 0 && LargeResidentCase() == 0);
+    CHECK(CacheCases() == 0 && ManagerCases() == 0 && LargeResidentCase() == 0 && WireSourceCase() == 0);
     if (resourceSnapshot)
         CHECK(std::fclose(resourceSnapshot) == 0);
     return 0;

@@ -123,39 +123,41 @@ static MMI32 tick(MMResourceCache *c)
     return old;
 }
 int mm_resource_cache_init(MMResourceCache *c, void *owner, MMReference *references,
-                           void *file, MMI32 budget, const MMResourceServices *s,
+                           const MMResourceSource *source, MMI32 budget, const MMResourceServices *s,
                            const MMStorageAllocator *allocator, int diagnostic_refs)
 {
     MMOwnedBlock block;
-    if (!c || !owner || !references || !file || !s || budget < 0 || !s->compare_reader ||
-        !s->contains || !s->locate || !s->read || !s->retain_file || !s->release_file ||
+    if (!c || !owner || !references || !source || !s || budget < 0 || !s->compare_reader || !s->read ||
         !s->destroy_owner || !s->objects.state || !s->objects.references || !s->objects.destroy ||
         mm_owned_block_init(&block, s->handles, s->block_files) != MM_DATA_OK)
+        return MM_STORAGE_ARGUMENT;
+    if (source->live ?
+            source->index || source->backing || !s->contains || !s->locate || !s->retain_file || !s->release_file :
+            !source->index || !source->backing)
         return MM_STORAGE_ARGUMENT;
     memset(c, 0, sizeof(*c));
     if (mm_storage_init(&c->storage, allocator) != MM_STORAGE_OK)
         return MM_STORAGE_ARGUMENT;
+    if (source->index)
+    {
+        c->wire_index = mm_chunk_index_retain(source->index);
+        if (!c->wire_index)
+        {
+            mm_storage_dispose(&c->storage);
+            return MM_STORAGE_MEMORY;
+        }
+        c->wire_file = source->backing;
+        s->block_files->retain(s->block_files->context, c->wire_file);
+    }
+    else
+        s->retain_file(source->live);
     c->services = *s;
     c->owner = owner;
-    c->file = file;
+    c->file = source->live;
     c->references = references;
     c->budget = budget;
     c->diagnostic_refs = diagnostic_refs;
     c->storage.min_grow[0] = 128;
-    s->retain_file(file);
-    return MM_STORAGE_OK;
-}
-int mm_resource_cache_bind_index(MMResourceCache *c, const MMChunkIndex *index, void *file)
-{
-    const MMBlockFileServices *files;
-    if (!c || !c->file || !index || !file || c->wire_index || c->count)
-        return MM_STORAGE_ARGUMENT;
-    c->wire_index = mm_chunk_index_retain(index);
-    if (!c->wire_index)
-        return MM_STORAGE_ARGUMENT;
-    files = c->services.block_files;
-    files->retain(files->context, file);
-    c->wire_file = file;
     return MM_STORAGE_OK;
 }
 int mm_resource_cache_reserve(MMResourceCache *c, MMU32 additional)

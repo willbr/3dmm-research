@@ -92,8 +92,12 @@ fail:
 }
 void *mm_font_model(void *object,MMU32 id,const MMFontResourceServices *s)
 {
-    void *cache,*file; MMFontChunk chunk; MMFontChild child;
-    s->binding(s->context,object,&cache,&chunk); file=s->file(s->context,cache);
-    if (!s->child_id(s->context,file,chunk.type,chunk.number,id,&child)) { s->missing_model(s->context,id); return NULL; }
+    void *cache; MMFontChunk chunk; MMFontChild child;
+    s->binding(s->context,object,&cache,&chunk);
+    if (!cache || !s->child_id(s->context,cache,chunk.type,chunk.number,id,&child))
+    {
+        s->missing_model(s->context,id);
+        return NULL;
+    }
     return s->fetch_model(s->context,cache,child.type,child.number);
 }

@@ -76,6 +76,14 @@ extern "C"
         void (*destroy_owner)(void *owner);
         void (*issue)(void *, int kind, MMU32 type, MMU32 number);
     } MMResourceServices;
+    /* Select exactly one source. A wire index and backing file describe the
+     * same immutable archive. */
+    typedef struct MMResourceSource
+    {
+        void *live;
+        const MMChunkIndex *index;
+        void *backing;
+    } MMResourceSource;
     struct MMResourceCache
     {
         MMCollectionStorage storage;
@@ -102,11 +110,8 @@ extern "C"
      * Reader success transfers a fresh object reference and a nonnegative i32 charge.
      * Priority retains the original signed-16-bit storage behavior. */
     int mm_resource_cache_init(MMResourceCache *, void *owner, MMReference *references,
-                               void *file, MMI32 budget, const MMResourceServices *,
+                               const MMResourceSource *, MMI32 budget, const MMResourceServices *,
                                const MMStorageAllocator *, int diagnostic_refs);
-    /* Bind once before the first lookup. The index and block file must describe
-     * the same immutable archive. The cache retains both until disposal. */
-    int mm_resource_cache_bind_index(MMResourceCache *, const MMChunkIndex *, void *block_file);
     /* Fill an initialized block with the stored extent from this cache's
      * source. The caller owns the block, which is empty on a miss. */
     int mm_resource_cache_read_block(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);

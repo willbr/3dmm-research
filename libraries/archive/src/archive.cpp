@@ -100,14 +100,15 @@ Archive::Archive(Options options) : _impl(new Impl(options))
 {
 }
 Archive::~Archive() = default;
-void *Archive::NativeFile() const
+bool Archive::CanPreview() const
 {
-    return _impl->file;
+    return _impl->file || _impl->previewFile;
 }
 Chunky::ChunkyResourceFile *Archive::NewResourceCache(std::int32_t budget) const
 {
-    const auto index = _impl->previewFile ? mm_archive_reader_wire_index(_impl->reader) : nullptr;
-    return ChunkyResourceFile::PcrfNew(_impl->file, budget, index, _impl->previewFile);
+    if (_impl->file)
+        return ChunkyResourceFile::PcrfNew(_impl->file, budget);
+    return ChunkyResourceFile::PcrfNewIndex(mm_archive_reader_wire_index(_impl->reader), _impl->previewFile, budget);
 }
 MMArchiveReader *Archive::Reader() const
 {
@@ -333,20 +334,6 @@ bool Archive::OpenResources(const std::string &utf8Path, Error &error)
     return OpenCore(utf8Path, error, OpenMode::resources);
 }
 
-bool Archive::PrepareNativeFile(Error &error)
-{
-    if (_impl->file || !_impl->previewFile)
-        return true;
-    Internal::ClearDiagnostic();
-    _impl->file = ChunkyFile::PcflOpenIndex(_impl->previewFile, mm_archive_reader_wire_index(_impl->reader));
-    if (!_impl->file || Internal::AssertionFailed())
-    {
-        ReleasePpo(&_impl->file);
-        return Fail(error, ErrorCode::open_failed, "Cannot prepare the archive for preview.");
-    }
-    return true;
-}
-
 bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
 {
     error = {};
@@ -372,22 +359,12 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
             nullptr,
             [](void *) -> int { return !Internal::AssertionFailed(); },
             EngineMovieGraph::Name,
-            [](void *, const char *legacy, void *out, MMU32 capacity, MMU32 *written) -> int {
-                String name;
-                name.SetSzs(const_cast<char *>(legacy));
-                const auto bytes = static_cast<MMU32>(name.CbData());
-                if (bytes > capacity)
-                    return false;
-                name.GetData(out);
-                *written = bytes;
-                return true;
-            },
+            KauaiEncodeLegacyChunkName,
         };
         const bool useKauaiFile = mode == OpenMode::preview || mode == OpenMode::resources;
         const auto existingFile = useKauaiFile ? FileObject::PfilFromFni(&filename) : nullptr;
         const bool nativeGraph = mode == OpenMode::live ||
-            (existingFile && (mode == OpenMode::preview || (existingFile->GrffilCur() & ffilWriteEnable) ||
-                              ChunkyFile::PcflFromFni(&filename)));
+            (existingFile && ((existingFile->GrffilCur() & ffilWriteEnable) || ChunkyFile::PcflFromFni(&filename)));
         int status;
         if (nativeGraph)
         {

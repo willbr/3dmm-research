@@ -15156,3 +15156,28 @@ In `actor-event-edit` suite `20261120T090811Z-4b08e3be`, Marcus and SDL
 matched the 60 retail frame identities in seek and playback. Both kept all
 60 seek image hashes from the previous build and matched the retail camera
 indices. SDL matched all 12 retail sound requests.
+
+## Read-only Preview caches without native table materialization (20 November 2026)
+
+The resource cache can own the validated index and backing file directly.
+Resource names, 3D font glyphs, animation sound metadata and event-track
+replacements resolve through the same source. Font copying into a writable
+text preview constructs a private copy view for the duration of the write.
+
+The native cache test verified on x64 and x86 that copying from the stored
+index preserves names and selects stored glyph data alongside an edited live
+graph. The x64 Preview integration and focused x86 runs retained their prior
+fingerprints, including all 188 stock cameras. Marcus rendered both authored
+VMM storyboard frames. In suite `20261120T092512Z-7f61a878`, both seek
+image hashes for the portable storyboard matched the retained SDL and
+Marcus captures of the same VMM.
+
+Six standalone C89 checks passed. Of the 42 targeted x64 checks, 41 passed
+in the parallel run. The Kauai core link check passed on retry with an
+isolated temporary directory after a file-swap failure in the parallel run.
+Logs are in `tmp/c89-wire-preview-cache`.
+
+In `actor-event-edit` suite `20261120T092230Z-e5402cb9`, Marcus and SDL
+matched all 60 retail frame identities in seek and playback. Both retained
+their 60 seek image hashes and matched the retail camera indices. SDL
+matched all 12 retail sound requests.

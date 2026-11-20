@@ -70,8 +70,9 @@ class PreviewActor
     bool Actions(std::vector<PreviewAction> &) const;
     LegacyLong ActionCelCount(LegacyLong action) const;
     bool TryActionCel(LegacyLong action, LegacyLong cel);
-    bool WriteAnimation(const PreviewAnimationEdit &, const std::string &path,
-                        int &lastActorFrame, int &lastEditedFrame);
+    using SoundGraphResolver = std::function<bool(const TAGOnFile &, MMMovieSessionGraph &)>;
+    bool WriteAnimation(const PreviewAnimationEdit &, const std::string &path, int &lastActorFrame,
+                        int &lastEditedFrame, const SoundGraphResolver &);
     bool TryCostumes(const std::vector<PreviewCostume> &);
     void RestOrientation(BMAT34 &) const;
     bool CostumeBounds(int bodySet, PreviewBounds &) const;

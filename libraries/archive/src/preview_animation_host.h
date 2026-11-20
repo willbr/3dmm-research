@@ -3,7 +3,8 @@
 
 struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
 {
-    explicit AnimationHost(PreviewActor *actor) : CostumeHost(actor) {}
+    AnimationHost(PreviewActor *actor, const SoundGraphResolver &resolve) : CostumeHost(actor), resolveSound(resolve) {}
+    const SoundGraphResolver &resolveSound;
     MMActorRecording record{};
     bool lifeDirty = false;
     MMSoundResource sound{};
@@ -14,22 +15,25 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
     {
         return *static_cast<AnimationHost *>(static_cast<CostumeHost *>(value));
     }
-    bool ReadSound(PChunkyFile file, const MMTag &tag)
+    bool ReadSound(const MMTag &tag)
     {
+        MMMovieSessionGraph graph;
+        if (!resolveSound({tag.sid, 0, tag.type, tag.number}, graph))
+            return false;
         MMSoundResourceServices s{};
         const unsigned short one = 1;
         sound = {}; silent = 0; invalid = 0;
         s.context = this;
         s.host_big_endian = *reinterpret_cast<const unsigned char *>(&one) == 0;
         s.graph = [](void *, void *f, MMMovieSessionGraph *out) {
-            *out = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(f));
+            *out = *static_cast<const MMMovieSessionGraph *>(f);
         };
         s.read_name = [](void *, void *, MMU32, MMU32, void *) { return 1; };
         s.owner = [](void *v, void *, MMSoundOwner *out) {
             auto &h = *static_cast<AnimationHost *>(v);
             *out = {&h.sound, &h.silent, &h.invalid};
         };
-        return mm_sound_read(this, file, tag.type, tag.number, &s) && !invalid;
+        return mm_sound_read(this, &graph, tag.type, tag.number, &s) && !invalid;
     }
     MMActorActionEditServices Action()
     {
@@ -60,8 +64,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.sounds.runtime.fetch = [](void *v, const MMTag *tag) -> void * {
             auto &h = Get(v); void *sound = nullptr;
             h.Guard([&] {
-                auto source = h.actor->resolve({tag->sid, 0, tag->type, tag->number});
-                if (source && h.ReadSound(source->Pcfl(), *tag)) sound = &h;
+                if (h.ReadSound(*tag)) sound = &h;
                 return 1;
             });
             return sound;

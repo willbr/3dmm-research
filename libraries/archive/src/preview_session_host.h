@@ -97,7 +97,7 @@ struct Preview::Impl::SessionHost
         };
         s.healthy = [](void *) -> int { return !Internal::AssertionFailed(); };
         s.report = [](void *v, int r) { return static_cast<SessionHost *>(v)->Report(r); };
-        s.input_present = [](void *v) -> int { return static_cast<SessionHost *>(v)->input->NativeFile() != nullptr; };
+        s.input_present = [](void *v) -> int { return static_cast<SessionHost *>(v)->input->CanPreview(); };
         s.candidate_new = [](void *v, void **out) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
@@ -116,7 +116,7 @@ struct Preview::Impl::SessionHost
                 return static_cast<Impl *>(p)->resources.OpenResources(*static_cast<const std::string *>(path), *h.error);
             });
         };
-        s.has_assets = [](void *, void *p) -> int { return static_cast<Impl *>(p)->assets.NativeFile() != nullptr; };
+        s.has_assets = [](void *, void *p) -> int { return static_cast<Impl *>(p)->assets.CanPreview(); };
         s.budget = [](void *v, void *p, int resource) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
@@ -198,8 +198,6 @@ struct Preview::Impl::SessionHost
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
                 auto i = static_cast<Source *>(p);
-                if (!i->archive.PrepareNativeFile(*h.error))
-                    return false;
                 i->cache = i->archive.NewResourceCache(32L << 20);
                 return i->cache != nullptr;
             });

@@ -49,6 +49,7 @@ typedef uint32_t ChunkNumber;    // chunk number
 typedef uint32_t ChildChunkID;   // child chunk id
 
 const MMChunkPayloadServices *KauaiChunkPayloadServices();
+int KauaiEncodeLegacyChunkName(void *, const char *, void *, MMU32 capacity, MMU32 *written);
 MMChunkTitleIO KauaiChunkTitleIO();
 
 enum
@@ -112,7 +113,7 @@ class ChunkyFile : public ChunkyFile_PAR
 
   private:
     // private methods
-    ChunkyFile(void);
+    explicit ChunkyFile(bool registerFile = true);
     ~ChunkyFile(void);
 
     static MMChunkConstruction _ConstructionServices(Filename *);
@@ -164,8 +165,8 @@ class ChunkyFile : public ChunkyFile_PAR
         return static_cast<PChunkyFile>(mm_chunk_context_next(&_link));
     }
     static PChunkyFile PcflOpen(Filename *pfni, LegacyUlong grfcfl);
-    // Build a read-only graph from the same open file used to read the wire index.
-    // The caller retains the file and index through this call.
+    // Build a private copy source from a validated index and its read-only file.
+    // Ordinary file opens continue to find the registered live graph.
     static PChunkyFile PcflOpenIndex(PFileObject, const MMChunkIndex *);
     static PChunkyFile PcflCreate(Filename *pfni, LegacyUlong grfcfl);
     static PChunkyFile PcflCreateTemp(Filename *pfni = pvNil);

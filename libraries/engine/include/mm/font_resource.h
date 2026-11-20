@@ -43,7 +43,7 @@ typedef struct MMFontResourceServices
     MMI32 (*model_width)(void *,void *model);
     MMI32 (*model_height)(void *,void *model);
     void (*binding)(void *,void *object,void **cache,MMFontChunk *);
-    int (*child_id)(void *,void *file,MMU32 type,MMU32 number,MMU32 id,MMFontChild *);
+    int (*child_id)(void *,void *cache,MMU32 type,MMU32 number,MMU32 id,MMFontChild *);
     void (*missing_model)(void *,MMU32 id);
 } MMFontResourceServices;
 /* Fresh owners are zeroed. Count publishes before length validation, maximum

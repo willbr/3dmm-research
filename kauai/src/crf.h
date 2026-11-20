@@ -129,14 +129,15 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
 
   protected:
     friend class ChunkyResourceManager;
-    MMResourceCache _cache;
+    MMResourceCache _cache = {};
     MMResourceServices _Services();
-    ChunkyResourceFile(PChunkyFile pcfl, LegacyLong cbMax);
+    ChunkyResourceFile() = default;
+    static PChunkyResourceFile _PcrfNew(const MMResourceSource &, LegacyLong budget);
 
   public:
     ~ChunkyResourceFile(void);
-    static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax,
-                                     const MMChunkIndex *index = nullptr, PFileObject backing = nullptr);
+    static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax);
+    static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, PFileObject, LegacyLong cbMax);
     void Release(void) override;
 
     virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil,
@@ -148,6 +149,8 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
     MMChunkAccess ReadChunkAccess();
     bool FReadBlock(ChunkTagOrType, ChunkNumber, DataBlock &);
+    bool FGetName(ChunkTagOrType, ChunkNumber, PString);
+    bool FCopyChunk(ChunkTagOrType, ChunkNumber, PChunkyFile destination, ChunkNumber *copied);
     PChunkyResourceFile PcrfNewSibling(LegacyLong budget);
 
     LegacyLong CbMax(void)
@@ -156,6 +159,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     }
     void SetCbMax(LegacyLong cbMax);
 
+    // The mutable file backing a live cache.
     PChunkyFile Pcfl(void)
     {
         return static_cast<PChunkyFile>(_cache.file);

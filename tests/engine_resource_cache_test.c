@@ -313,7 +313,7 @@ static MMStorageAllocator allocator(Host *h)
     a.release = free_memory;
     return a;
 }
-static void init(Host *h, MMI32 budget)
+static void init_source(Host *h, MMI32 budget, const MMResourceSource *source)
 {
     MMResourceServices s;
     MMStorageAllocator a = allocator(h);
@@ -324,7 +324,6 @@ static void init(Host *h, MMI32 budget)
     s.context = h;
     s.objects = objects;
     s.compare_reader = compare_reader;
-    s.contains = contains;
     h->handles.context = h;
     h->handles.allocate = alloc_handle;
     h->handles.release = free_handle;
@@ -334,14 +333,24 @@ static void init(Host *h, MMI32 budget)
     h->handles.resize = resize_handle;
     s.handles = &h->handles;
     s.block_files = &block_files;
-    s.locate = locate_block;
     s.read = read_object;
-    s.retain_file = retain_file;
-    s.release_file = release_file;
+    if (source->live)
+    {
+        s.contains = contains;
+        s.locate = locate_block;
+        s.retain_file = retain_file;
+        s.release_file = release_file;
+    }
     s.destroy_owner = destroy_owner;
     s.issue = issue;
-    CHECK(mm_resource_cache_init(&h->cache, h, &h->refs, h, budget, &s, &a, 1) == 0);
-    CHECK(h->file_refs == 2);
+    CHECK(mm_resource_cache_init(&h->cache, h, &h->refs, source, budget, &s, &a, 1) == MM_STORAGE_OK);
+    CHECK(h->file_refs == (source->live ? 2 : 1));
+}
+static void init(Host *h, MMI32 budget)
+{
+    MMResourceSource source = {NULL, NULL, NULL};
+    source.live = h;
+    init_source(h, budget, &source);
 }
 static void finish(Host *h)
 {
@@ -539,6 +548,7 @@ static void wire_index_lifetime(void)
     MMMemoryStream memory;
     MMChunkPolicy policy = {0, 0, 516};
     MMChunkIndex *index;
+    MMResourceSource source = {NULL, NULL, NULL};
     Host h, backing = {0};
     Object *object;
     MMOwnedBlock block;
@@ -549,10 +559,10 @@ static void wire_index_lifetime(void)
     CHECK(mm_memory_stream_init(&memory, archive, sizeof(archive)));
     CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_OK);
     backing.wire = &memory.stream;
-    init(&h, 100);
-    h.missing = 1;
-    CHECK(mm_resource_cache_bind_index(&h.cache, index, &backing) == MM_STORAGE_OK);
-    CHECK(mm_resource_cache_bind_index(&h.cache, index, &backing) == MM_STORAGE_ARGUMENT);
+    source.index = index;
+    source.backing = &backing;
+    init_source(&h, 100, &source);
+    CHECK(!h.cache.file);
     mm_chunk_index_close(index);
     CHECK(backing.active_blocks == 1 && mm_resource_cache_contains(&h.cache, 1, 7, 0));
     CHECK(!mm_resource_cache_contains(&h.cache, 1, 7, 7));

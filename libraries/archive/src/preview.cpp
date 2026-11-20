@@ -254,15 +254,15 @@ bool Preview::SoundName(const PreviewSoundCue &cue, std::string &out) const
     TAGOnFile tag = {cue.source, 0, kctgMsnd, cue.sound.number};
     auto cache = _impl->Resolve(tag);
     if (!cache) return false;
-    auto file = cache->Pcfl(); ChunkNumber number = cue.sound.number;
+    MMU32 number = cue.sound.number;
     if (!cue.source)
     {
-        ChildChunkIdentification child;
+        const auto graph = cache->ReadChunkAccess();
         const auto scene = cue.scene.type ? cue.scene.number : _impl->live.status.asset_number;
-        if (file->FGetKidChidCtg(kctgScen, scene, cue.child, kctgMsnd, &child)) number = child.cki.cno;
+        mm_chunk_link_number(&graph, kctgScen, scene, cue.child, kctgMsnd, &number);
     }
     String name;
-    if (!file->FGetName(kctgMsnd, number, &name) || !name.Cch()) return false;
+    if (!cache->FGetName(kctgMsnd, number, &name)) return false;
     out.assign(name.Psz(), name.Cch()); return true;
 }
 bool Preview::ObjectCostumes(int object, std::vector<PreviewCostume> &out, Error &error) const
@@ -282,8 +282,11 @@ bool Preview::WriteObjectAnimation(int object, const PreviewAnimationEdit &edit,
                                    int &lastActorFrame, int &lastEditedFrame, Error &error)
 {
     error = {};
+    const auto resolveSound = [this](const TAGOnFile &tag, MMMovieSessionGraph &out) {
+        return _impl->ResolveGraph(tag, out);
+    };
     return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() &&
-            _impl->actors[object]->WriteAnimation(edit, path, lastActorFrame, lastEditedFrame)) ||
+            _impl->actors[object]->WriteAnimation(edit, path, lastActorFrame, lastEditedFrame, resolveSound)) ||
         Fail(error, ErrorCode::decode_failed, "Cannot apply the animation edit. Check the action and path bounds.");
 }
 bool Preview::WriteObjectCostumes(int object, const std::vector<PreviewCostume> &values, const std::string &path, Error &error)
@@ -538,7 +541,7 @@ bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSourc
     struct Release { void operator()(ChunkyFile *p) const { if (p) p->Release(); } };
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
     ChunkNumber copied; ChildChunkIdentification child; DataBlock block;
-    if (!file || !source->Pcfl()->FCopy(kctgTdf, font, file.get(), &copied) ||
+    if (!file || !source->FCopyChunk(kctgTdf, font, file.get(), &copied) ||
         !file->FGetKidChidCtg(kctgTmpl, 0, 0, kctgTdt, &child) || !file->FFind(kctgTdt, child.cki.cno, &block))
         return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
     std::int32_t local = 0;
@@ -883,8 +886,6 @@ void Preview::ClearScene() { _impl->ClearAsset(); }
 bool Preview::OpenCore(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming, bool requireAsset)
 try
 {
-    if (requireAsset && !archive.PrepareNativeFile(error))
-        return false;
     Impl::SessionHost host = {this, _impl.get(), &archive, &error};
     auto services = host.Services();
     return host.Result(mm_preview_session_open(&_impl->session, &resourcesPath, requireAsset, preserveFraming, &services));

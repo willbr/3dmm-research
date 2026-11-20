@@ -289,7 +289,7 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
     s.block_size = [](void *, void *block, int packed) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
     s.block_read = [](void *, void *block, void *bytes, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(bytes, static_cast<LegacyLong>(count), 0); };
     s.read_name = [](void *, void *object, void *cache, MMU32 type, MMU32 number) -> int {
-        return static_cast<PChunkyResourceFile>(cache)->Pcfl()->FGetName(type, number, &static_cast<PTemplate>(object)->_stn);
+        return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, &static_cast<PTemplate>(object)->_stn);
     };
     s.add_chunk = [](void *, void *file, MMU32 type, const void *data, size_t count, MMU32 *out) -> int {
         ChunkNumber number; CopyPb(out, &number, sizeof(number));
@@ -465,7 +465,7 @@ MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *cont
         return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, reader);
     };
     s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
-        return static_cast<PChunkyResourceFile>(cache)->Pcfl()->FGetName(type, number, static_cast<PString>(out));
+        return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, static_cast<PString>(out));
     };
     s.action = [](void *, void *object, MMI32 id) -> void * { return static_cast<PTemplate>(object)->_PactnFetch(id); };
     s.model = [](void *, void *object, MMU32 id, MMMovieAsset *asset) -> void * {
