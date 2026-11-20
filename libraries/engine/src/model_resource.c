@@ -236,37 +236,7 @@ void *mm_model_new(MMI32 vertices, const void *v, MMI32 faces, const void *f,
     s->add(s->context, m->handle);
     return object;
 }
-int mm_model_fetch(void *block, void *out, void *size, const MMModelServices *s)
-{
-    void *object = NULL;
-    MMI32 bytes = s->size(s->context, block, 1);
-    memcpy(size, &bytes, 4);
-    if (!out)
-        return 1;
-    if (!s->unpack(s->context, block))
-        goto fail;
-    bytes = s->size(s->context, block, 0);
-    memcpy(size, &bytes, 4);
-    object = s->create(s->context);
-    if (!object || !mm_model_read(object, block, s))
-        goto fail;
-    memcpy(out, &object, sizeof(object));
-    return 1;
-fail:
-    if (object)
-        s->release(s->context, object);
-    s->invalidate(s->context, out, sizeof(object));
-    s->invalidate(s->context, size, 4);
-    return 0;
-}
-static int read_at(void *block, void *buffer, MMI32 n, MMI32 at, const MMModelServices *s)
-{
-    MMI32 size = s->size(s->context, block, 0);
-    if (n < 0 || at < 0 || at > size || n > size - at)
-        return 0;
-    return s->read(s->context, block, buffer, n, at);
-}
-static int faces(void *block, void *handle, int prepared, MMI32 count, MMI32 offset,
+static int faces(const MMBlockIO *io, void *handle, int prepared, MMI32 count, MMI32 offset,
                  const MMModelServices *s)
 {
     void *memory = NULL;
@@ -277,7 +247,7 @@ static int faces(void *block, void *handle, int prepared, MMI32 count, MMI32 off
         return 1;
     if (!s->allocate(s->context, count * MM_MODEL_FACE_BYTES, 0, &memory))
         goto done;
-    if (!read_at(block, memory, count * MM_MODEL_FACE_BYTES, offset, s))
+    if (mm_block_read(io, offset, memory, count * MM_MODEL_FACE_BYTES, 0) != MM_DATA_OK)
         goto done;
     for (i = 0; i < count; ++i)
     {
@@ -289,14 +259,14 @@ done:
     s->free_memory(s->context, &memory);
     return ok;
 }
-int mm_model_read(void *object, void *block, const MMModelServices *s)
+static int read_model(void *object, const MMBlockIO *io, const MMModelServices *s)
 {
     MMModelResource *m = s->state(s->context, object);
     MMModelDescription d;
     unsigned char header[MM_MODEL_HEADER_BYTES];
     ModelWireLayout layout;
     int prepared, bad, valid;
-    if (!s->unpack(s->context, block) || !read_at(block, header, MM_MODEL_HEADER_BYTES, 0, s))
+    if (mm_block_read(io, 0, header, sizeof(header), 0) != MM_DATA_OK)
         return 0;
     valid = mm_model_header(header, s->host_big_endian, &d, &bad);
     if (bad && s->diagnostic)
@@ -319,8 +289,9 @@ int mm_model_read(void *object, void *block, const MMModelServices *s)
             !s->component(s->context, m->handle, MM_MODEL_FACES, d.faces * s->face_bytes))
             return 0;
     }
-    if (!read_at(block, s->vertex_data(s->context, m->handle, prepared), layout.vertex_bytes, MM_MODEL_HEADER_BYTES, s) ||
-        !faces(block, m->handle, prepared, d.faces, layout.face_offset, s))
+    if (mm_block_read(io, MM_MODEL_HEADER_BYTES, s->vertex_data(s->context, m->handle, prepared),
+                      layout.vertex_bytes, 0) != MM_DATA_OK ||
+        !faces(io, m->handle, prepared, d.faces, layout.face_offset, s))
         return 0;
     /* Native normalized the order marker before testing it here, so neither
      * prepared nor unprepared payloads were swapped. Preserve that policy. */
@@ -337,6 +308,37 @@ int mm_model_read(void *object, void *block, const MMModelServices *s)
     }
     s->add(s->context, m->handle);
     return 1;
+}
+int mm_model_read(void *object, MMOwnedBlock *block, const MMModelServices *s)
+{
+    MMBlockIO io;
+    return mm_owned_block_code(block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
+           mm_owned_block_io(block, &io) == MM_DATA_OK && read_model(object, &io, s);
+}
+int mm_model_fetch(MMOwnedBlock *block, void *out, void *size, const MMModelServices *s)
+{
+    void *object = NULL;
+    MMI32 bytes = (MMI32)block->view.length;
+    MMBlockIO io;
+    memcpy(size, &bytes, sizeof(bytes));
+    if (!out)
+        return 1;
+    if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK ||
+        mm_owned_block_io(block, &io) != MM_DATA_OK)
+        goto fail;
+    bytes = (MMI32)io.view.length;
+    memcpy(size, &bytes, sizeof(bytes));
+    object = s->create(s->context);
+    if (!object || !read_model(object, &io, s))
+        goto fail;
+    memcpy(out, &object, sizeof(object));
+    return 1;
+fail:
+    if (object)
+        s->release(s->context, object);
+    s->invalidate(s->context, out, sizeof(object));
+    s->invalidate(s->context, size, sizeof(bytes));
+    return 0;
 }
 int mm_model_write(const MMModelResource *m, void *file, MMU32 type, MMU32 number,
                          const MMModelServices *s)

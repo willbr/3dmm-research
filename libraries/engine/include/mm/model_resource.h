@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MODEL_RESOURCE_H
 #define MM_ENGINE_MODEL_RESOURCE_H
+#include "block_owner.h"
 #include "body_geometry.h"
 #include "read_stream.h"
 #include <stddef.h>
@@ -48,9 +49,7 @@ extern "C"
         MMModelResource *(*state)(void *, void *object);
         void *(*create)(void *);
         void (*release)(void *, void *object);
-        int (*unpack)(void *, void *block);
-        MMI32 (*size)(void *, void *block, int packed);
-        int (*read)(void *, void *block, void *, MMI32 bytes, MMI32 offset);
+        MMBlockTransform decode;
         int (*allocate)(void *, MMI32 bytes, int clear, void **out);
         void (*free_memory)(void *, void **);
         void (*invalidate)(void *, void *, size_t);
@@ -89,8 +88,10 @@ extern "C"
     void mm_model_init(MMModelResource *);
     void mm_model_dispose(MMModelResource *, const MMModelServices *);
     void *mm_model_new(MMI32, const void *, MMI32, const void *, const MMModelServices *);
-    int mm_model_fetch(void *block, void *object_out, void *size_out, const MMModelServices *);
-    int mm_model_read(void *object, void *block, const MMModelServices *);
+    /* Borrow the block for the call. Factory estimates use the stored extent
+     * without decoding. Actual reads decode the block in place. */
+    int mm_model_fetch(MMOwnedBlock *, void *object_out, void *size_out, const MMModelServices *);
+    int mm_model_read(void *object, MMOwnedBlock *, const MMModelServices *);
     int mm_model_write(const MMModelResource *, void *file, MMU32 type, MMU32 number,
                              const MMModelServices *);
     void *mm_model_dat(void *filename, const MMModelServices *);

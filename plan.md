@@ -882,7 +882,10 @@ references remain host adapters; removing temporary native collection/object
 facades is still part of final host integration.
 Model construction/loading, prepared/unprepared wire I/O, DAT import control,
 glyph geometry adjustments and prelighting lifetime/control now also use C89.
-The native Model facade retains BRender field/allocation and block/file services.
+Live model loading uses C89 block decoding and bounded reads. Cache estimates
+use stored lengths and update after decoding. The C89 BRender binding supplies
+renderer operations. The native Model facade supplies factory and codec
+bindings and publishes serialized bytes to the chunk graph.
 Material/custom-material construction, factories, wire I/O, shade-table
 replacement, texture/model reference ownership and PIX/BMP import orchestration
 now also use C89. The C readers load material, transform and costume payloads

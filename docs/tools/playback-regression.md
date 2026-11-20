@@ -17061,3 +17061,33 @@ in seek and continuous playback and all retail seek camera indices. Each port
 reproduced its 60 previous seek canvas hashes. SDL matched all 12 retail sound
 requests. The archived comparison and fixture evidence are in
 `tmp/c89-texture-block`.
+
+## Model payload reads through C89 blocks (20 November 2026)
+
+The native model factory and direct initializer borrow the caller's C89 block.
+The factory reports its stored extent when estimating cache use. When loading,
+the C reader decodes the block before creating the model and uses bounded
+positional reads for both prepared and unprepared geometry. The focused model
+fixture exercises packed estimates, successful and failed decode, file-backed
+reads at a nonzero offset, truncation and partial model disposal.
+
+All 192 standalone C checks, five focused AddressSanitizer checks, 11 selected
+x64 checks and eight selected SDL checks passed. The x86 C model and core-link
+executables passed. The x86 and x64 model traces reproduced all 277,360 bytes
+and fingerprint `78C575E5`. The SDL trace reproduced all 306,264 bytes and
+fingerprint `0E5F17CA`. All 54 movie and scene traces, three saved movies, ten Preview
+fingerprints and six Preview movies matched. The Studio authoring workflow
+produced the same saved movie byte for byte.
+
+Retail, SDL and Marcus matched all three retained-background frame identities,
+camera indices and canvas hashes in `20261120T225127Z-56f9b950`. Both ports
+matched original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261120T225205Z-e94eead7`.
+
+All four `actor-event-edit` captures completed in `20261120T225111Z-46822598`.
+The archived retail comparison matched all 60 frame identities in seek and
+continuous playback for both ports, all retail seek camera indices and all 12
+SDL sound requests. Each port reproduced all 60 seek canvas hashes from the
+previous build. The verifier compared the completed port captures with retail
+because this suite reused the archived retail runs. The comparison and fixture
+evidence are in `tmp/c89-model-block`.

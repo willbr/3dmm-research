@@ -5280,8 +5280,11 @@ coverage limits in `docs/tools/playback-regression.md`.
 construction/factories, packed/unpacked estimates, prepared/unprepared loading,
 partial ownership, disposal, writing, DAT import control, extent queries and
 glyph adjustment. The C89 `mm-brender-resources` library binds BRender allocation,
-geometry, DAT import and prelighting for both hosts. `modl.cpp` supplies object
-and block/file services and routes diagnostics. Header and face codecs read
+geometry, DAT import and prelighting for both hosts. The live reader borrows
+the caller's C block, estimates from the stored extent and decodes in place
+before creating a cached model. Prepared and unprepared reads use the same
+bounded block I/O. `modl.cpp` supplies the object factory, the codec binding,
+chunk publication for saves and diagnostics. Header and face codecs read
 48-byte headers and 32-byte faces. The 32-byte vertex records keep their native
 opaque representation. Runtime faces may be larger because their material
 field is a pointer. Serialized material slots and implicit face padding are
@@ -5313,8 +5316,9 @@ non-count chunk-handler argument in BRender; initializing it to zero removes
 the runtime-check failure. Count-bearing chunks retain their read argument.
 
 `engine-model-resource-test` links with C alone and covers wire byte orders,
-truncations, callback failures/publication, partial ownership, writer failures,
-glyph boundaries and lighting cleanup. `model-resource-test` exercises real
+truncations, packed block estimates and decode, file I/O and factory failures,
+partial ownership, writer failures, glyph boundaries and lighting cleanup.
+`model-resource-test` exercises real
 BRender factories, DAT import and temporary allocation balance. Its frozen
 277,360-byte native trace matches across 504 debug load attempts, 404 successful,
 SHA-256 `29157E1B47FE4DA9E1B36DF511026715326661B816075D887F4EECAD986F51D3`;

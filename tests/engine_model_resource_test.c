@@ -13,7 +13,13 @@ typedef struct Fixture
     MMI32 points[2][3];
     int size, fail, step, objects, models, memory, adds, removes, invalid, warnings, bad;
     int components, published, bound, reads, prepared, flags, identified, geometry;
+    int file_refs, decodes;
 } Fixture;
+typedef struct TestHandle
+{
+    MMU32 size;
+    unsigned char data[144];
+} TestHandle;
 static int next(Fixture *f)
 {
     return ++f->step != f->fail;
@@ -57,27 +63,103 @@ static void object_release(void *p, void *object)
     }
     --f->objects;
 }
-static int unpack(void *p, void *b)
+static int handle_allocate(void *p, MMU32 bytes, void **out)
 {
-    assert(p == b);
-    return next((Fixture *)p);
+    TestHandle *handle = (TestHandle *)malloc(sizeof(*handle));
+    (void)p;
+    assert(handle && bytes <= sizeof(handle->data));
+    handle->size = bytes;
+    *out = handle;
+    return 1;
 }
-static MMI32 size(void *p, void *b, int packed)
+static void handle_release(void *p, void *handle)
 {
-    Fixture *f = (Fixture *)p;
-    assert(p == b);
-    return packed ? 7 : f->size;
+    (void)p;
+    free(handle);
 }
-static int read_bytes(void *p, void *b, void *out, MMI32 bytes, MMI32 at)
+static MMU32 handle_size(void *p, void *handle)
 {
-    Fixture *f = (Fixture *)p;
-    assert(p == b && at >= 0 && at + bytes <= f->size);
+    (void)p;
+    return ((TestHandle *)handle)->size;
+}
+static void *handle_lock(void *p, void *handle)
+{
+    (void)p;
+    return ((TestHandle *)handle)->data;
+}
+static void handle_unlock(void *p, void *handle)
+{
+    (void)p;
+    (void)handle;
+}
+static int handle_resize(void *p, void **handle, MMU32 bytes)
+{
+    TestHandle *h = (TestHandle *)*handle;
+    (void)p;
+    assert(bytes <= sizeof(h->data));
+    h->size = bytes;
+    return 1;
+}
+static void retain_file(void *p, void *file)
+{
+    (void)p;
+    ++((Fixture *)file)->file_refs;
+}
+static void release_file(void *p, void *file)
+{
+    Fixture *f = (Fixture *)file;
+    (void)p;
+    assert(f->file_refs == 1);
+    --f->file_refs;
+}
+static void *temp_file(void *p)
+{
+    (void)p;
+    return NULL;
+}
+static int read_bytes(void *p, void *file, MMU32 at, void *out, size_t bytes)
+{
+    Fixture *f = (Fixture *)file;
+    (void)p;
+    assert(f->file_refs == 1 && at >= 3 && at - 3 + bytes <= (size_t)f->size);
     ++f->reads;
     if (!next(f))
         return 0;
-    if (bytes)
-        memcpy(out, f->block + at, (size_t)bytes);
+    memcpy(out, f->block + (at - 3), bytes);
     return 1;
+}
+static int write_bytes(void *p, void *file, MMU32 at, const void *data, size_t bytes)
+{
+    (void)p;
+    (void)file;
+    (void)at;
+    (void)data;
+    (void)bytes;
+    return 0;
+}
+static int decode(void *p, void **handle)
+{
+    Fixture *f = (Fixture *)p;
+    assert(handle_size(NULL, *handle) == 12);
+    ++f->decodes;
+    if (!next(f))
+        return 0;
+    handle_resize(NULL, handle, (MMU32)f->size);
+    memcpy(handle_lock(NULL, *handle), f->block, (size_t)f->size);
+    return 1;
+}
+static void model_block(MMOwnedBlock *block, Fixture *f, int packed)
+{
+    static const MMHandleServices handles = {
+        NULL, handle_allocate, handle_release, handle_size, handle_lock, handle_unlock, handle_resize
+    };
+    static const MMBlockFileServices files = {NULL, retain_file, release_file, temp_file, read_bytes, write_bytes};
+    MMBlockFile file;
+    file.file = f;
+    file.offset = 3;
+    file.length = packed ? 12 : (MMU32)f->size;
+    assert(mm_owned_block_init(block, &handles, &files) == MM_DATA_OK);
+    assert(mm_owned_block_set_file(block, &file, packed) == MM_DATA_OK);
 }
 static int allocate(void *p, MMI32 bytes, int clear, void **out)
 {
@@ -274,6 +356,7 @@ static void init(Fixture *f, int big, int prepared)
 static void load_tests(MMModelServices *s)
 {
     Fixture *f = (Fixture *)s->context;
+    MMOwnedBlock block;
     int big, prepared, fail, ok, steps;
     MMI32 bytes;
     void *out;
@@ -284,7 +367,10 @@ static void load_tests(MMModelServices *s)
         {
             s->host_big_endian = big;
             init(f, big, prepared);
-            assert(mm_model_fetch(f, &out, &bytes, s));
+            model_block(&block, f, 0);
+            assert(mm_model_fetch(&block, &out, &bytes, s));
+            assert(block.view.kind == MM_BLOCK_FILE && f->file_refs == 1 && !f->decodes);
+            assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
             steps = f->step;
             assert(out == f && bytes == 144 && f->adds == 1 && f->identified == 1 &&
                    !memcmp(f->vertices, f->block + 48, 64));
@@ -299,11 +385,19 @@ static void load_tests(MMModelServices *s)
                 f->fail = fail;
                 bytes = 9;
                 out = NULL;
-                ok = mm_model_fetch(f, &out, &bytes, s);
+                model_block(&block, f, 0);
+                ok = mm_model_fetch(&block, &out, &bytes, s);
+                assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
                 assert(!ok && f->invalid == 2 && !f->objects && !f->models && !f->memory);
             }
             init(f, big, prepared);
-            assert(mm_model_fetch(f, NULL, &bytes, s) && bytes == 7 && !f->step);
+            model_block(&block, f, 1);
+            assert(mm_model_fetch(&block, NULL, &bytes, s) && bytes == 12 && !f->step && block.view.packed);
+            assert(mm_model_fetch(&block, &out, &bytes, s) && bytes == 144 && out == f && f->decodes == 1);
+            assert(block.view.kind == MM_BLOCK_MEMORY && !block.view.packed && !f->file_refs);
+            assert(mm_owned_block_clear(&block) == MM_DATA_OK);
+            object_release(f, f);
+            assert(!f->models && !f->objects && !f->memory);
             /* Foreign header uses host-native payload unchanged, as legacy did. */
             init(f, big, prepared);
             {
@@ -323,18 +417,28 @@ static void load_tests(MMModelServices *s)
                     f->block[i + 3] = header[i];
                 }
             }
-            assert(mm_model_fetch(f, &out, &bytes, s) && f->face.normal[0] == -32768 &&
+            model_block(&block, f, 0);
+            assert(mm_model_fetch(&block, &out, &bytes, s) && f->face.normal[0] == -32768 &&
                    !memcmp(f->vertices, f->block + 48, 64));
+            assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
             object_release(f, f);
         }
     s->host_big_endian = 0;
+    init(f, 0, 1);
+    model_block(&block, f, 1);
+    f->fail = 2;
+    assert(!mm_model_fetch(&block, &out, &bytes, s) && f->decodes == 1 && f->invalid == 2);
+    assert(block.view.kind == MM_BLOCK_FILE && block.view.packed && f->file_refs == 1);
+    assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
     init(f, 0, 1);
     for (fail = 0; fail < 144; ++fail)
     {
         f->size = fail;
         mm_model_init(&f->owner);
         f->objects = 1;
-        assert(!mm_model_read(f, f, s));
+        model_block(&block, f, 0);
+        assert(!mm_model_read(f, &block, s));
+        assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
         object_release(f, f);
         assert(!f->models && !f->memory);
     }
@@ -343,12 +447,16 @@ static void load_tests(MMModelServices *s)
     f->block[5] = 0xff;
     assert(!mm_model_header(f->block, 0, &d, &bad) && !bad && d.vertices == -1);
     f->objects = 1;
-    assert(!mm_model_read(f, f, s) && !f->owner.handle && f->bad == 1);
+    model_block(&block, f, 0);
+    assert(!mm_model_read(f, &block, s) && !f->owner.handle && f->bad == 1);
+    assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
     object_release(f, f);
     init(f, 0, 1);
     f->block[0] = 2;
     f->objects = 1;
-    assert(mm_model_read(f, f, s) && f->bad == 1);
+    model_block(&block, f, 1);
+    assert(mm_model_read(f, &block, s) && f->bad == 1 && f->decodes == 1);
+    assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
     object_release(f, f);
 }
 static void mesh_tests(void)
@@ -605,9 +713,7 @@ int main(void)
     s.state = state;
     s.create = create;
     s.release = object_release;
-    s.unpack = unpack;
-    s.size = size;
-    s.read = read_bytes;
+    s.decode = decode;
     s.allocate = allocate;
     s.free_memory = free_memory;
     s.invalidate = invalidate;

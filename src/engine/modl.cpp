@@ -10,6 +10,7 @@
 
 ***************************************************************************/
 #include "soc_core.h"
+#include "handle_services.h"
 #include "model_renderer.h"
 ASSERTNAME
 
@@ -28,13 +29,7 @@ MMModelServices Model::_Services(void *context)
     s.state = [](void *, void *object) -> MMModelResource * { return &static_cast<PModel>(object)->_model; };
     s.create = [](void *) -> void * { return NewObj Model; };
     s.release = [](void *, void *object) { static_cast<PModel>(object)->Release(); };
-    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.size = [](void *, void *block, int packed) -> MMI32 {
-        return static_cast<PDataBlock>(block)->Cb(packed != 0);
-    };
-    s.read = [](void *, void *block, void *out, MMI32 bytes, MMI32 offset) -> int {
-        return static_cast<PDataBlock>(block)->FReadRgb(out, bytes, offset);
-    };
+    s.decode = KauaiDecodeBlockHandle;
     s.allocate = [](void *, MMI32 bytes, int clear, void **out) -> int {
         return FAllocPv(out, bytes, clear ? fmemClear : fmemNil, mprNormal);
     };
@@ -73,14 +68,14 @@ bool Model::FReadModl(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumbe
     AssertNilOrVarMem(out);
     AssertVarMem(bytes);
     auto s = _Services();
-    return mm_model_fetch(block, out, bytes, &s) != 0;
+    return mm_model_fetch(block->CoreBlock(), out, bytes, &s) != 0;
 }
 bool Model::_FInit(PDataBlock block)
 {
     AssertBaseThis(0);
     AssertPo(block, 0);
     auto s = _Services();
-    return mm_model_read(this, block, &s) != 0;
+    return mm_model_read(this, block->CoreBlock(), &s) != 0;
 }
 PModel Model::PmodlReadFromDat(Filename *filename)
 {
