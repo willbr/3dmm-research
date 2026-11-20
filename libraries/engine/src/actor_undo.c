@@ -79,17 +79,19 @@ int mm_actor_undo_redo(MMActorUndoState *state,const MMActorUndoServices *s)
     state->base->frame=frame; return result;
 }
 int mm_actor_undo_create(void *snapshot,MMI32 id,int sound,const void *name,MMU32 count,
-    const MMActorUndoCreateServices *s)
+    const MMActorOwnerServices *actors,const MMActorUndoCreateServices *s)
 {
     void *undo;
     MMActorUndoState *state=s->create(s->context,&undo);
     if (!state) return 0;
     state->actor=snapshot;
-    s->retain_actor(s->context,snapshot);
+    actors->retain(actors->context,snapshot);
     state->actor_id=id;
     state->sound=sound;
     if (name) mm_actor_undo_set_name(state,name,count);
     if (!s->add(s->context,undo))
     { s->clear(s->context); s->release(s->context,undo); return 0; }
-    s->release(s->context,undo); s->reset_actor(s->context,snapshot); return 1;
+    s->release(s->context,undo);
+    mm_actor_owner_reset(snapshot,actors);
+    return 1;
 }

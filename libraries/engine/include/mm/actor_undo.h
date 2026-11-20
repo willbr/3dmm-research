@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_ACTOR_UNDO_H
 #define MM_ENGINE_ACTOR_UNDO_H
+#include "actor_owner.h"
 #include "movie_undo.h"
 #include "movie_title.h"
 #ifdef __cplusplus
@@ -61,16 +62,16 @@ typedef struct MMActorUndoCreateServices
 {
     void *context;
     MMActorUndoState *(*create)(void *,void **undo);
-    void (*retain_actor)(void *,void *actor);
     int (*add)(void *,void *undo);
     void (*clear)(void *);
     void (*release)(void *,void *undo);
-    void (*reset_actor)(void *,void *actor);
 } MMActorUndoCreateServices;
 /* create returns the initialized state and the owning handle used for register
- * and release. The optional name is counted in the state's native units. */
+ * and release. The snapshot must be a live actor. Successful registration
+ * retains and resets it through the actor owner. The optional name is counted
+ * in the state's native units. */
 int mm_actor_undo_create(void *snapshot,MMI32 id,int sound,const void *name,
-    MMU32 count,const MMActorUndoCreateServices *);
+    MMU32 count,const MMActorOwnerServices *,const MMActorUndoCreateServices *);
 #ifdef __cplusplus
 }
 #endif

@@ -1137,6 +1137,27 @@ class TrackTestActor : public Actor
         _owner.runtime.first=1; _owner.runtime.last=8;
         Costume fresh={}; fresh.ibset=(mode&64)?1:0; fresh.fCmtl=static_cast<tribool>(mode%3);
         fresh.cmid=(mode>=128 && (mode&8))?2:1; fresh.tag={ksidUseCrf,resource,kctgMtrl,materials[1]};
+        bool snapshotFailureSafe = true;
+#ifdef DEBUG
+        if (transaction && mode == 128)
+        {
+            auto *events = _owner.track.events;
+            const auto eventCount = mm_actor_events_count(events);
+            const auto state = _owner.runtime.state;
+            vmutxMem.Enter();
+            vdmglob.dmaglBase.cactDo = 0;
+            vdmglob.dmaglBase.cactFail = 1;
+            vmutxMem.Leave();
+            const bool changed = FSetCostume(fresh.ibset, &fresh.tag, fresh.cmid, fresh.fCmtl);
+            vmutxMem.Enter();
+            const bool failureUsed = vdmglob.dmaglBase.cactFail == 0;
+            vdmglob.dmaglBase.cactFail = 0;
+            vmutxMem.Leave();
+            snapshotFailureSafe = failureUsed && !changed && _owner.track.events == events &&
+                                  mm_actor_events_count(_owner.track.events) == eventCount &&
+                                  ActorFrameTest::SameState(_owner.runtime.state, state);
+        }
+#endif
         if (mode>=128) ok=transaction ? FSetCostume(fresh.ibset,&fresh.tag,fresh.cmid,fresh.fCmtl) :
             FSetCostumeCore(fresh.ibset,&fresh.tag,fresh.cmid,fresh.fCmtl);
         else _PrepCostFill(1,&fresh);
@@ -1161,7 +1182,7 @@ class TrackTestActor : public Actor
         LegacyLong refs[]={a->CactRef(),b->CactRef(),ca->CactRef(),cb->CactRef()};
         saved=saved && record(refs,sizeof(refs));
         ReleasePpo(&a); ReleasePpo(&b); ReleasePpo(&ca); ReleasePpo(&cb);
-        return saved;
+        return saved && snapshotFailureSafe;
     }
     bool FTestFillEdit(int mode, FILE *snapshot)
     {

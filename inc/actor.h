@@ -154,7 +154,8 @@ class Actor : public Actor_PAR
     static MMActorCreateServices _CreateServices();
     static void *_FetchTemplate(void *, const MMTag *);
     struct EditContext;
-    static MMActorTransactionServices _TransactionServices(EditContext *);
+    MMActorUndoCreateServices _UndoCreateServices();
+    MMActorTransactionServices _TransactionServices(EditContext *);
     MMActorDeleteServices _DeleteServices();
     MMActorCopyServices _CopyServices();
     MMActorSoundEditServices _SoundEditServices();

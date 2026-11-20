@@ -427,9 +427,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   sequence snapshots, rollback, undo registration and optional snapshot transfer.
   Sound binding marks undo for sound playback. Deletion reads its cursor,
   entrance frame and surviving events from the C89 actor owner and refreshes its
-  lifetime through the C89 updater. Existing costume-duplication and failed-removal
-  ownership quirks are preserved and documented. The remaining movie, scene, body
-  and resource implementations still require conversion.
+  lifetime through the C89 updater. C89 directly clones, registers, resets and
+  releases the snapshots. All edits require a snapshot before they run, and a
+  failed removal releases its snapshot after rollback. The remaining movie,
+  scene, body and resource implementations still require conversion.
 - Full-actor and route-only copy use the C89 actor owner directly. C allocates
   the copy through the shared actor factory, slices typed routes and events,
   sequences tag retention and merges, rewrites current cels and event

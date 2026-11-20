@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_ACTOR_TRANSACTION_H
 #define MM_ENGINE_ACTOR_TRANSACTION_H
-#include "actor_owner.h"
+#include "actor_undo.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -15,11 +15,9 @@ enum { MM_TRANSACTION_BAD_LIFETIME,MM_TRANSACTION_SEEK_FAILED };
 typedef struct MMActorTransactionServices
 {
     void *context;
-    int (*duplicate)(void *,void **snapshot);
     int (*apply)(void *);
-    void (*restore)(void *,void *snapshot);
-    int (*create_undo)(void *,void *snapshot,int sound);
-    void (*release)(void *,void *snapshot);
+    MMActorOwnerServices actors;
+    MMActorUndoCreateServices undo;
 } MMActorTransactionServices;
 typedef struct MMActorTransactionResult
 {
@@ -42,22 +40,18 @@ typedef struct MMActorDeleteServices
     void (*sound_frame)(void *);
     void (*diagnostic)(void *,int fault);
 } MMActorDeleteServices;
-/* Apply is the selected C-backed core edit. Creation registers undo and resets
- * its snapshot only on success. Sound requests playback when undo is replayed.
- * Action alone can transfer the local snapshot reference through result;
- * failure leaves that result untouched.
- * Preserves legacy quirks: costume continues after failed duplication (snapshot
- * callbacks can receive NULL), and failed removal restores without releasing
- * the local snapshot. Those paths are not repaired by this conversion.
- * Callbacks cannot reenter this transaction. */
-int mm_actor_transaction_apply(int kind,MMActorTransactionResult *,const MMActorTransactionServices *);
+/* Clone before applying the edit. Failure to apply or register undo restores
+ * the actor and releases the local snapshot. Sound requests playback on undo.
+ * Action alone can transfer the local snapshot reference through result.
+ * Failure leaves that result untouched. Callbacks cannot reenter. */
+int mm_actor_transaction_apply(void *actor,int kind,MMActorTransactionResult *,const MMActorTransactionServices *);
 /* Enabled retail BUG1870 deletion policy. Failed deletion/seeks keep partial
  * state, report seek failure and release without restoring. Failed undo creation
  * restores but does not undo prior alive-output writes. Lifetime failure reports
  * a diagnostic and continues. Only duplication failure trashes the alive output;
  * the native observer supplies its platform's debug trash representation.
  * Core deletion/seek effects may update the owner's state and track. */
-int mm_actor_transaction_delete(MMActorOwner *,int all,MMActorDeleteResult *,const MMActorTransactionServices *,
+int mm_actor_transaction_delete(void *actor,int all,MMActorDeleteResult *,const MMActorTransactionServices *,
     const MMActorDeleteServices *);
 #ifdef __cplusplus
 }

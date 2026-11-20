@@ -2,23 +2,28 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_transaction.h"
 #include <stddef.h>
-static void release(void *snapshot,const MMActorTransactionServices *s)
-{ if (snapshot) s->release(s->context,snapshot); }
-int mm_actor_transaction_apply(int kind,MMActorTransactionResult *out,const MMActorTransactionServices *s)
+static int register_snapshot(void *actor,void *snapshot,int sound,const MMActorTransactionServices *s)
 {
-    void *snapshot=NULL; int copied=s->duplicate(s->context,&snapshot);
-    if (!copied && kind!=MM_TRANSACTION_COSTUME) return 0;
-    if (!s->apply(s->context))
+    const MMActorOwner *owner=s->actors.owner(s->actors.context,actor);
+    return mm_actor_undo_create(snapshot,owner->runtime.actor,sound,NULL,0,&s->actors,&s->undo);
+}
+int mm_actor_transaction_apply(void *actor,int kind,MMActorTransactionResult *out,const MMActorTransactionServices *s)
+{
+    MMActorOwnerResult copy={NULL,NULL,NULL};
+    if (!mm_actor_owner_duplicate(actor,0,&copy,&s->actors))
+        return 0;
+    if (!s->apply(s->context) || !register_snapshot(actor,copy.actor,kind==MM_TRANSACTION_SOUND,s))
     {
-        s->restore(s->context,snapshot);
-        if (kind!=MM_TRANSACTION_REMOVE) release(snapshot,s);
+        mm_actor_owner_restore(actor,copy.actor,&s->actors);
+        s->actors.release(s->actors.context,copy.actor);
         return 0;
     }
-    if (!s->create_undo(s->context,snapshot,kind==MM_TRANSACTION_SOUND))
-    { s->restore(s->context,snapshot); release(snapshot,s); return 0; }
     if (kind==MM_TRANSACTION_ACTION && out)
-    { out->snapshot=snapshot; if (out->publish) out->publish(out->context,snapshot); }
-    else release(snapshot,s);
+    {
+        out->snapshot=copy.actor;
+        if (out->publish) out->publish(out->context,copy.actor);
+    }
+    else s->actors.release(s->actors.context,copy.actor);
     return 1;
 }
 static void alive(MMActorDeleteResult *out,int value,int trashed)
@@ -27,22 +32,29 @@ static void alive(MMActorDeleteResult *out,int value,int trashed)
     out->alive=value; out->trashed=trashed;
     if (out->publish) out->publish(out->context,value,trashed);
 }
-int mm_actor_transaction_delete(MMActorOwner *actor,int all,MMActorDeleteResult *out,const MMActorTransactionServices *s,
+int mm_actor_transaction_delete(void *actor,int all,MMActorDeleteResult *out,const MMActorTransactionServices *s,
     const MMActorDeleteServices *d)
 {
-    MMActorRuntime *runtime=&actor->runtime;
-    MMActorLifetime lifetime=mm_actor_owner_lifetime(actor);
+    MMActorOwner *owner;
+    MMActorRuntime *runtime;
+    MMActorLifetime lifetime;
     MMActorEvent entrance;
     MMI32 original;
-    void *snapshot=NULL;
+    MMActorOwnerResult copy={NULL,NULL,NULL};
     int value;
-    if (!s->duplicate(s->context,&snapshot)) { alive(out,0,1); return 0; }
+    if (!mm_actor_owner_duplicate(actor,0,&copy,&s->actors))
+    {
+        alive(out,0,1);
+        return 0;
+    }
+    owner=s->actors.owner(s->actors.context,actor);
+    runtime=&owner->runtime;
     if (runtime->state.addEvent>=0 && !all &&
-        mm_actor_events_get_fixed(actor->track.events,runtime->state.addEvent,&entrance) &&
+        mm_actor_events_get_fixed(owner->track.events,runtime->state.addEvent,&entrance) &&
         runtime->state.frame==entrance.nfrm)
     {
         if (!d->delete_subroute(d->context)) goto failed;
-        if (out) alive(out,mm_actor_events_count(actor->track.events)>0,0);
+        if (out) alive(out,mm_actor_events_count(owner->track.events)>0,0);
     }
     else
     {
@@ -52,11 +64,19 @@ int mm_actor_transaction_delete(MMActorOwner *actor,int all,MMActorDeleteResult 
         if (!d->seek(d->context,mm_fixed_add(runtime->state.frame,1))) goto failed;
         if (runtime->scene) d->sound_frame(d->context);
     }
-    if (!mm_actor_refresh_lifetime(actor->track.route,actor->track.events,NULL,&lifetime,&d->timeline))
+    lifetime=mm_actor_owner_lifetime(owner);
+    if (!mm_actor_refresh_lifetime(owner->track.route,owner->track.events,NULL,&lifetime,&d->timeline))
         d->diagnostic(d->context,MM_TRANSACTION_BAD_LIFETIME);
-    if (!s->create_undo(s->context,snapshot,0))
-    { s->restore(s->context,snapshot); release(snapshot,s); return 0; }
-    release(snapshot,s); return 1;
+    if (!register_snapshot(actor,copy.actor,0,s))
+    {
+        mm_actor_owner_restore(actor,copy.actor,&s->actors);
+        s->actors.release(s->actors.context,copy.actor);
+        return 0;
+    }
+    s->actors.release(s->actors.context,copy.actor);
+    return 1;
 failed:
-    d->diagnostic(d->context,MM_TRANSACTION_SEEK_FAILED); release(snapshot,s); return 0;
+    d->diagnostic(d->context,MM_TRANSACTION_SEEK_FAILED);
+    s->actors.release(s->actors.context,copy.actor);
+    return 0;
 }

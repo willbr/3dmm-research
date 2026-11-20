@@ -15858,3 +15858,34 @@ In `actor-event-edit` suite `20261120T142110Z-91be46f1`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## C89 ownership of actor edit snapshots (20 November 2026)
+
+Studio edit transactions call the C89 actor owner to clone and restore
+tracks. C89 retains a snapshot for undo registration, detaches it from
+the live scene and body on success, and releases the transaction's
+reference on every failure. If a costume snapshot cannot be allocated,
+the edit returns before applying a costume. A failed stage removal
+releases its snapshot after restoring the actor.
+
+The transaction fixture exercises a failed allocation, a failed table
+clone, a partial edit, and failures in undo creation and registration.
+It checks the restored runtime and event table, output timing, and
+reference counts. The native Debug test forces a costume snapshot
+allocation failure through the public editor and checks that the actor
+state and event table are intact.
+
+All 13 targeted x64 checks, 19 standalone C89 checks, and 10 focused
+checks each in x86 Debug and SDL Release passed. AddressSanitizer passed
+the actor owner, undo, and transaction checks. Eight actor traces and the
+saved archive matched byte-for-byte in native x64 and SDL Release.
+The x86 transaction trace also matched. The full x86 test again stopped
+at the template-construction fixture with the same counts as the prior
+build. All ten Preview fingerprints, six fixture archives, and both VMM
+seek images in `20261120T143419Z-4f252d27` matched their baselines.
+Logs and fixtures are in `tmp/c89-actor-transaction-snapshots`.
+
+In `actor-event-edit` suite `20261120T143419Z-149d8170`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

@@ -11,6 +11,7 @@ typedef struct Fixture
     MMMovieUndoContext base;
     MMActorUndoState state;
     MMActorUndoServices services;
+    MMActorOwner create_snapshot;
     Actor old,incoming;
     Actor *live;
     char trace[128]; int count,fail,text,no_view,missing,rename_failure,dead;
@@ -118,11 +119,37 @@ static int register_undo(void *p,void *undo)
 static void clear_create(void *p) { Fixture *f=(Fixture *)p; mark(f,'c'); ++f->cleared; }
 static void release_create(void *p,void *undo)
 { Fixture *f=(Fixture *)p; CHECK(undo==f && f->create_refs>0); mark(f,'d'); if (!--f->create_refs) --f->incoming.refs; }
-static void reset_create(void *p,void *actor)
-{ Fixture *f=(Fixture *)p; CHECK(actor==&f->incoming && f->create_refs==1 && f->registered); mark(f,'z'); ++f->reset; }
+static MMActorOwner *create_owner(void *p,void *actor)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(actor==&f->incoming);
+    return &f->create_snapshot;
+}
+static void reset_create(void *p)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(f->create_refs==1 && f->registered && !f->create_snapshot.runtime.scene);
+    mark(f,'z');
+    ++f->reset;
+}
+static void clear_recording(void *p,int recording)
+{
+    ((Fixture *)p)->create_snapshot.runtime.recording.recording=recording;
+}
+static void default_costume(void *p) { (void)p; }
+static void route_services(void *p,void *actor,MMActorRouteEditServices *route)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(actor==&f->incoming);
+    memset(route,0,sizeof(*route));
+    route->edits.context=f;
+    route->life_dirty=reset_create;
+    route->recording=clear_recording;
+    route->default_costume=default_costume;
+}
 int main(void)
 {
-    Fixture f; MMActorUndoCreateServices c; int mode,fail,result;
+    Fixture f; MMActorUndoCreateServices c; MMActorOwnerServices actors; int mode,fail,result;
     unsigned unit,i;
     unsigned short text_units[255];
     unsigned char text_bytes[255];
@@ -171,13 +198,23 @@ int main(void)
     for (mode=0;mode<2;++mode) for (fail=0;fail<3;++fail)
     {
         init(&f); f.fail=fail; memset(&c,0,sizeof(c)); c.context=&f;
-        c.create=create_undo; c.retain_actor=retain_create;
-        c.add=register_undo; c.clear=clear_create; c.release=release_create; c.reset_actor=reset_create;
-        CHECK(mm_actor_undo_create(&f.incoming,29,1,mode?before:NULL,mode?sizeof(before):0,&c)==!fail);
+        c.create=create_undo; c.add=register_undo; c.clear=clear_create; c.release=release_create;
+        memset(&actors,0,sizeof(actors));
+        actors.context=&f; actors.owner=create_owner; actors.retain=retain_create; actors.route_services=route_services;
+        mm_actor_runtime_init(&f.create_snapshot.runtime);
+        f.create_snapshot.runtime.state.frame=11;
+        f.create_snapshot.runtime.scene=&f;
+        f.create_snapshot.runtime.recording.recording=1;
+        CHECK(mm_actor_undo_create(&f.incoming,29,1,mode?before:NULL,mode?sizeof(before):0,&actors,&c)==!fail);
         CHECK(f.created==1 && f.reset==!fail && f.incoming.refs==(fail?1:2));
         CHECK(!strcmp(f.trace,fail==1?"U":fail==2?"Uajcd":"Uajdz"));
         if (fail!=1) CHECK(matches(&f.state.name,before,mode?sizeof(before):0));
-        if (!fail) CHECK(f.create_refs==1);
+        if (!fail)
+            CHECK(f.create_refs==1 && !f.create_snapshot.runtime.scene &&
+                  !f.create_snapshot.runtime.recording.recording && f.create_snapshot.runtime.state.frame==2147483647L);
+        else
+            CHECK(f.create_snapshot.runtime.scene==&f && f.create_snapshot.runtime.recording.recording &&
+                  f.create_snapshot.runtime.state.frame==11);
     }
     for (i=0;i<255;++i) { text_units[i]=(unsigned short)(i==3?0:0x3a9+i); text_bytes[i]=(unsigned char)(i==3?0:128+i); }
     for (unit=1;unit<=2;++unit)

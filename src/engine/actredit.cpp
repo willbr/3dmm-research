@@ -340,22 +340,26 @@ void ActorClipboard::AssertValid(LegacyUlong grf)
     Create an undo object
 
 ***************************************************************************/
-bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
+MMActorUndoCreateServices Actor::_UndoCreateServices()
 {
-    AssertPo(pactrDup,0); AssertNilOrPo(pstn,0);
     MMActorUndoCreateServices s{}; s.context=this;
     s.create=[](void *,void **handle)->MMActorUndoState * {
         auto undo=ActorUndo::PaundNew();
         *handle=undo;
         return undo ? &undo->_undoState : nullptr;
     };
-    s.retain_actor=[](void *,void *actor) { static_cast<PActor>(actor)->AddRef(); };
     s.add=[](void *p,void *undo) { return int(static_cast<PActor>(p)->_Scene()->Pmvie()->FAddUndo(static_cast<PActorUndo>(undo))); };
     s.clear=[](void *p) { static_cast<PActor>(p)->_Scene()->Pmvie()->ClearUndo(); };
     s.release=[](void *,void *p) { static_cast<PActorUndo>(p)->Release(); };
-    s.reset_actor=[](void *,void *p) { static_cast<PActor>(p)->Reset(); };
+    return s;
+}
+bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
+{
+    AssertPo(pactrDup,0); AssertNilOrPo(pstn,0);
+    const auto actors = _OwnerServices();
+    const auto undo = _UndoCreateServices();
     return mm_actor_undo_create(pactrDup,_owner.runtime.actor,fSndUndo,
-                                pstn ? pstn->Prgch() : nullptr,pstn ? pstn->Cch() : 0,&s)!=0;
+                                pstn ? pstn->Prgch() : nullptr,pstn ? pstn->Cch() : 0,&actors,&undo)!=0;
 }
 
 /***************************************************************************
@@ -377,16 +381,7 @@ struct Actor::EditContext
 };
 MMActorTransactionServices Actor::_TransactionServices(EditContext *context)
 {
-    MMActorTransactionServices s{}; s.context=context;
-    s.duplicate=[](void *p,void **snapshot) {
-        PActor value=nullptr; bool ok=static_cast<EditContext *>(p)->actor->FDup(&value); *snapshot=value; return int(ok);
-    };
-    s.restore=[](void *p,void *snapshot) { static_cast<EditContext *>(p)->actor->Restore(static_cast<PActor>(snapshot)); };
-    s.create_undo=[](void *p,void *snapshot,int sound) {
-        return int(static_cast<EditContext *>(p)->actor->FCreateUndo(static_cast<PActor>(snapshot),sound!=0));
-    };
-    s.release=[](void *,void *snapshot) { static_cast<PActor>(snapshot)->Release(); };
-    return s;
+    return {context, nullptr, _OwnerServices(), _UndoCreateServices()};
 }
 MMActorDeleteServices Actor::_DeleteServices()
 {
@@ -410,7 +405,7 @@ bool Actor::FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup)
     s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FSetActionCore(c->action,c->cel,c->freeze)); };
     MMActorTransactionResult out{}; out.context=ppactrDup;
     out.publish=[](void *p,void *snapshot) { *static_cast<PActor *>(p)=static_cast<PActor>(snapshot); };
-    return mm_actor_transaction_apply(MM_TRANSACTION_ACTION,ppactrDup?&out:nullptr,&s)!=0;
+    return mm_actor_transaction_apply(this,MM_TRANSACTION_ACTION,ppactrDup?&out:nullptr,&s)!=0;
 }
 
 /***************************************************************************
@@ -423,7 +418,7 @@ bool Actor::FAddOnStage(void)
 {
     AssertThis(0); EditContext context{this}; auto s=_TransactionServices(&context);
     s.apply=[](void *p) { return int(static_cast<EditContext *>(p)->actor->FAddOnStageCore()); };
-    return mm_actor_transaction_apply(MM_TRANSACTION_ADD,nullptr,&s)!=0;
+    return mm_actor_transaction_apply(this,MM_TRANSACTION_ADD,nullptr,&s)!=0;
 }
 
 /***************************************************************************
@@ -435,7 +430,7 @@ bool Actor::FNormalize(ulong grfnorm)
 {
     AssertThis(0); EditContext context{this}; context.normalization=grfnorm; auto s=_TransactionServices(&context);
     s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FNormalizeCore(c->normalization)); };
-    return mm_actor_transaction_apply(MM_TRANSACTION_NORMALIZE,nullptr,&s)!=0;
+    return mm_actor_transaction_apply(this,MM_TRANSACTION_NORMALIZE,nullptr,&s)!=0;
 }
 
 /***************************************************************************
@@ -450,7 +445,7 @@ bool Actor::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
     EditContext context{this}; context.body_set=ibset; context.tag=ptag; context.material=cmid; context.custom=fCmtl;
     auto s=_TransactionServices(&context);
     s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FSetCostumeCore(c->body_set,c->tag,c->material,c->custom)); };
-    return mm_actor_transaction_apply(MM_TRANSACTION_COSTUME,nullptr,&s)!=0;
+    return mm_actor_transaction_apply(this,MM_TRANSACTION_COSTUME,nullptr,&s)!=0;
 }
 
 /***************************************************************************
@@ -476,7 +471,7 @@ bool Actor::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMat
         const auto &c = *static_cast<EditContext *>(p);
         return int(c.actor->FSetSndCore(c.tag, c.loop, c.queue, c.motion_match, c.volume, c.style));
     };
-    return mm_actor_transaction_apply(MM_TRANSACTION_SOUND, nullptr, &services) != 0;
+    return mm_actor_transaction_apply(this, MM_TRANSACTION_SOUND, nullptr, &services) != 0;
 }
 
 /***************************************************************************
@@ -498,7 +493,7 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
     EditContext context{this}; const auto s=_TransactionServices(&context); const auto d=_DeleteServices();
     MMActorDeleteResult out{}; out.context=pfAlive;
     out.publish=[](void *p,int alive,int trashed) { if (trashed) { TrashVar(static_cast<bool *>(p)); } else *static_cast<bool *>(p)=alive!=0; };
-    return mm_actor_transaction_delete(&_owner,fDeleteAll,pfAlive?&out:nullptr,&s,&d)!=0;
+    return mm_actor_transaction_delete(this,fDeleteAll,pfAlive?&out:nullptr,&s,&d)!=0;
 }
 
 /***************************************************************************
@@ -510,7 +505,7 @@ bool Actor::FRemFromStage(void)
 {
     AssertThis(0); EditContext context{this}; auto s=_TransactionServices(&context);
     s.apply=[](void *p) { return int(static_cast<EditContext *>(p)->actor->FRemFromStageCore()); };
-    return mm_actor_transaction_apply(MM_TRANSACTION_REMOVE,nullptr,&s)!=0;
+    return mm_actor_transaction_apply(this,MM_TRANSACTION_REMOVE,nullptr,&s)!=0;
 }
 
 /****************************************************
