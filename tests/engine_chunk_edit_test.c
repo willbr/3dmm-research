@@ -23,12 +23,11 @@ typedef struct Fixture
     Node nodes[32];
     MMU32 count;
     MMChunkEdit edit;
+    MMStorageAllocator walk_memory;
     MMChunkLocation output;
     MMChunkLocation freed[32];
     int frees, resets, clears, outputs, extra, fail;
-    int file, output_added, next, total, begun, issues[5], delete_root, descends, descendant;
-    MMChunkDeleteEvent events[16];
-    int skips[16];
+    int file, output_added, walk_allocations, live_walk_buffers, issues[5];
     char log[256];
     int logs;
     MMU32 stored_numbers[32];
@@ -145,21 +144,28 @@ static void reset(void *ctx, MMU32 type, MMU32 number)
         if (f->nodes[i].entry.type == type && f->nodes[i].entry.number == number)
             f->nodes[i].runtime = 0;
 }
-static void begin(void *ctx, MMU32 type, MMU32 number)
+static void *walk_resize(void *p, void *data, MMU32 old_bytes, MMU32 size, int priority)
 {
-    Fixture *f = (Fixture *)ctx;
-    CHECK(type == 10 && number == (MMU32)f->delete_root && !f->begun);
-    ++f->begun;
+    Fixture *f = p;
+    const int fresh = data == NULL;
+    void *buffer;
+    (void)old_bytes;
+    (void)priority;
+    ++f->walk_allocations;
+    if (f->fail == 5)
+        return NULL;
+    buffer = realloc(data, size);
+    if (buffer && fresh)
+        ++f->live_walk_buffers;
+    return buffer;
 }
-static int next(void *ctx, int skip, MMChunkDeleteEvent *out)
+static void walk_release(void *p, void *data, MMU32 bytes)
 {
-    Fixture *f = (Fixture *)ctx;
-    CHECK(f->begun == 1);
-    if (f->next == f->total)
-        return 0;
-    CHECK(skip == f->skips[f->next]);
-    *out = f->events[f->next++];
-    return 1;
+    Fixture *f = p;
+    (void)bytes;
+    CHECK(f->live_walk_buffers > 0);
+    --f->live_walk_buffers;
+    free(data);
 }
 static void issue(void *ctx, int kind)
 {
@@ -196,18 +202,15 @@ static void put_child(void *context, MMU32 parent, MMU32 i, const MMChunkChild *
     CHECK(parent < f->count && i < f->nodes[parent].entry.child_count);
     f->nodes[parent].children[i] = *child;
 }
-static int descendant(void *context, MMU32 type, MMU32 number, MMU32 target_type, MMU32 target)
-{
-    Fixture *f = (Fixture *)context;
-    CHECK(type == 10 && target_type == 10 && number == 1 && target == 0);
-    ++f->descends;
-    return f->descendant;
-}
 static void init(Fixture *f)
 {
     memset(f, 0, sizeof(*f));
     f->output.offset = 999;
     f->edit.context = f;
+    f->walk_memory.context = f;
+    f->walk_memory.resize = walk_resize;
+    f->walk_memory.release = walk_release;
+    f->edit.walk_allocator = &f->walk_memory;
     f->edit.count = count;
     f->edit.entry = entry;
     f->edit.child = child;
@@ -219,13 +222,10 @@ static void init(Fixture *f)
     f->edit.write = write;
     f->edit.output = output;
     f->edit.reset_runtime = reset;
-    f->edit.begin_delete = begin;
-    f->edit.next_delete = next;
     f->edit.issue = issue;
     f->edit.insert_child = insert_child;
     f->edit.erase_child = erase_child;
     f->edit.put_child = put_child;
-    f->edit.descendant = descendant;
 }
 static void node(Fixture *f, unsigned i, MMU32 number, MMU32 flags, MMU32 parents)
 {
@@ -336,13 +336,14 @@ static void simple(void)
     CHECK(mm_chunk_put(NULL, 0, 0, 0) == MM_CHUNK_BAD_FILE);
     CHECK(mm_chunk_add(&f.edit, 10, 5, 10, 3, NULL) == MM_CHUNK_BAD_FILE);
 }
-static void event(Fixture *f, unsigned i, unsigned number, unsigned flags, int skip)
+static void link_fixture_node(Fixture *f, MMU32 position, MMU32 target)
 {
-    f->events[i].type = 10;
-    f->events[i].number = number;
-    f->events[i].flags = flags;
-    f->skips[i] = skip;
-    f->total = (int)i + 1;
+    Node *parent = f->nodes + position;
+    MMU32 slot = parent->entry.child_count++;
+    CHECK(slot < 4);
+    parent->children[slot].type = 10;
+    parent->children[slot].number = target;
+    parent->children[slot].slot = slot;
 }
 static void deletes(void)
 {
@@ -355,22 +356,19 @@ static void deletes(void)
         node(&f, 1, 1, 0, 1);
         node(&f, 2, 2, 0, 1);
         node(&f, 3, 3, loner ? 2 : 0, 2);
-        event(&f, 0, 0, 5, 0);
-        event(&f, 1, 1, 1, 0);
-        event(&f, 2, 3, 3, 0);
-        event(&f, 3, 1, 2, 1);
-        event(&f, 4, 2, 1, 1);
-        event(&f, 5, 3, 3, 0);
-        event(&f, 6, 2, 2, !loner ? 0 : 1);
-        event(&f, 7, 0, 6, 1);
+        link_fixture_node(&f, 0, 1);
+        link_fixture_node(&f, 0, 2);
+        link_fixture_node(&f, 1, 3);
+        link_fixture_node(&f, 2, 3);
         CHECK(mm_chunk_delete(&f.edit, 10, 0) == MM_CHUNK_OK && f.count == (MMU32)loner);
         if (loner)
             CHECK(f.nodes[0].entry.number == 3 && !f.nodes[0].entry.parent_count && f.nodes[0].entry.flags == 2);
-        CHECK(f.frees == (loner ? 3 : 4) && !f.issues[0] && !f.issues[1]);
+        CHECK(f.frees == (loner ? 3 : 4) && !f.issues[0] && !f.issues[1] &&
+              f.walk_allocations && !f.live_walk_buffers);
     }
     init(&f);
     node(&f, 0, 0, 2, 1);
-    CHECK(mm_chunk_delete(&f.edit, 10, 0) == MM_CHUNK_OK && !f.begun && !f.nodes[0].entry.flags);
+    CHECK(mm_chunk_delete(&f.edit, 10, 0) == MM_CHUNK_OK && !f.walk_allocations && !f.nodes[0].entry.flags);
     CHECK(mm_chunk_delete(&f.edit, 10, 0) == MM_CHUNK_BAD_FILE);
     CHECK(mm_chunk_delete(&f.edit, 10, 99) == MM_CHUNK_NOT_FOUND);
     /* Failed traversal allocation: drop duplicate child references in reverse
@@ -380,25 +378,22 @@ static void deletes(void)
     node(&f, 1, 1, 0, 1);
     node(&f, 2, 2, 0, 2);
     node(&f, 3, 3, 0, 1);
-    f.nodes[1].entry.child_count = 3;
-    f.nodes[1].children[0].type = f.nodes[1].children[1].type = f.nodes[1].children[2].type = 10;
-    f.nodes[1].children[0].number = f.nodes[1].children[1].number = 2;
-    f.nodes[1].children[2].number = 3;
-    event(&f, 0, 0, 5, 0);
-    event(&f, 1, 1, 11, 0);
-    event(&f, 2, 0, 6, 0);
+    link_fixture_node(&f, 0, 1);
+    link_fixture_node(&f, 1, 2);
+    link_fixture_node(&f, 1, 2);
+    link_fixture_node(&f, 1, 3);
+    f.fail = 5;
     CHECK(mm_chunk_delete(&f.edit, 10, 0) == MM_CHUNK_OK && f.count == 2);
     CHECK(f.nodes[0].entry.number == 2 && !f.nodes[0].entry.parent_count && !f.nodes[0].entry.flags);
     CHECK(f.nodes[1].entry.number == 3 && !f.nodes[1].entry.parent_count && !f.nodes[1].entry.flags);
     CHECK(f.stores == 5 && f.stored_numbers[2] == 3 && f.stored_numbers[3] == 2 && f.stored_numbers[4] == 2);
-    CHECK(f.issues[MM_EDIT_LOW_MEMORY] == 1 && f.frees == 2);
+    CHECK(f.issues[MM_EDIT_LOW_MEMORY] == 1 && f.frees == 2 && f.walk_allocations == 1 && !f.live_walk_buffers);
 }
 static void links(void)
 {
     Fixture f;
     MMChunkChild key;
     Node parent, target;
-    int risk;
     init(&f);
     node(&f, 0, 0, 2, 0);
     node(&f, 1, 1, 22, 0);
@@ -409,8 +404,7 @@ static void links(void)
     CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 0, 3) == MM_CHUNK_OK);
     CHECK(f.nodes[0].entry.child_count == 1 && f.nodes[0].entry.variable_bytes == 28 &&
           f.nodes[1].entry.parent_count == 1 && f.nodes[1].entry.flags == 22);
-    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_OK && f.descends == 1 &&
-          f.nodes[1].entry.flags == 22);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_OK && f.nodes[1].entry.flags == 22);
     parent = f.nodes[0];
     target = f.nodes[1];
     key.slot = 1;
@@ -435,12 +429,9 @@ static void links(void)
           !memcmp(&parent, f.nodes, sizeof(parent)));
     CHECK(mm_chunk_change_slot(&f.edit, 99, 99, &key, 10) == MM_CHUNK_OK);
     key.slot = 1;
-    CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_OK && f.nodes[1].entry.parent_count == 1 &&
-          !f.begun);
+    CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_OK && f.nodes[1].entry.parent_count == 1);
     key.slot = 10;
-    f.delete_root = 1;
-    event(&f, 0, 1, 7, 0);
-    CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_OK && f.count == 1 && f.begun == 1);
+    CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_OK && f.count == 1 && f.frees == 1);
     CHECK(!f.nodes[0].entry.child_count && f.nodes[0].entry.variable_bytes == 16 &&
           !strcmp(f.nodes[0].name, "retained"));
     init(&f);
@@ -452,12 +443,18 @@ static void links(void)
     key.slot = 5;
     CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 1) == MM_CHUNK_BAD_FILE); /* Child-reference overflow. */
     CHECK(!memcmp(&parent, f.nodes, sizeof(parent)) && !memcmp(&target, f.nodes + 1, sizeof(target)));
-    for (risk = 1; risk <= 2; ++risk)
-    {
-        f.descendant = risk;
-        CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_BAD_FILE);
-        CHECK(f.issues[MM_EDIT_CYCLE_RISK] == risk && !memcmp(&parent, f.nodes, sizeof(parent)));
-    }
+    node(&f, 2, 2, 0, 1);
+    f.nodes[0].entry.parent_count = 1;
+    link_fixture_node(&f, 1, 2);
+    link_fixture_node(&f, 2, 0);
+    parent = f.nodes[0];
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_BAD_FILE);
+    CHECK(f.issues[MM_EDIT_CYCLE_RISK] == 1 && !memcmp(&parent, f.nodes, sizeof(parent)) &&
+          f.walk_allocations == 1 && !f.live_walk_buffers);
+    f.fail = 5;
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_BAD_FILE);
+    CHECK(f.issues[MM_EDIT_CYCLE_RISK] == 2 && !memcmp(&parent, f.nodes, sizeof(parent)) &&
+          f.walk_allocations == 2 && !f.live_walk_buffers);
     CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_NOT_FOUND);
     CHECK(mm_chunk_adopt(&f.edit, 10, 99, &key, 1, 3) == MM_CHUNK_NOT_FOUND);
 }
@@ -485,16 +482,14 @@ static void flag_cases(void)
     node(&f, 0, 5, 0, 1);
     CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 1) == MM_CHUNK_OK && f.nodes[0].entry.flags == 2 &&
           !f.resets && f.nodes[0].runtime == 99);
-    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == MM_CHUNK_OK && !f.nodes[0].entry.flags && !f.begun &&
+    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == MM_CHUNK_OK && !f.nodes[0].entry.flags && !f.walk_allocations &&
           f.count == 1 && !f.resets);
-    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == MM_CHUNK_OK && f.count == 1 && !f.begun);
+    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == MM_CHUNK_OK && f.count == 1 && !f.walk_allocations);
     CHECK(mm_chunk_set_flag(&f.edit, 99, 5, 4, 1) == MM_CHUNK_NOT_FOUND);
     CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 1, 1) == MM_CHUNK_BAD_FILE);
     init(&f);
     node(&f, 0, 5, 2, 0);
-    f.delete_root = 5;
-    event(&f, 0, 5, 7, 0);
-    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == MM_CHUNK_OK && !f.count && f.begun == 1);
+    CHECK(mm_chunk_set_flag(&f.edit, 10, 5, 2, 0) == MM_CHUNK_OK && !f.count && f.frees == 1);
 }
 int main(void)
 {

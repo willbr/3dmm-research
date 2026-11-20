@@ -27,7 +27,6 @@ typedef struct Host
     unsigned char physical[8192], payload[64];
     const unsigned char *write_data;
     MMChunkEndpoint ops;
-    MMChunkWalk deletion;
     MMStorageAllocator memory;
     int live, calls, fail_map, fail_growth, fail_walk, fail_payload, fail_name, fail_link, fail_runtime;
     int payloads, names, links, resets, reads, fail_read;
@@ -135,41 +134,6 @@ static void reset(void *c, MMU32 type, MMU32 number)
     ++h->resets;
     CHECK(set_runtime(c, type, number, 0));
 }
-static MMU32 children(void *c, MMU32 type, MMU32 number)
-{
-    Host *h = (Host *)c;
-    MMU32 i = find(h, type, number);
-    CHECK(i < h->count);
-    return h->nodes[i].e.child_count;
-}
-static int graph_child(void *c, MMU32 type, MMU32 number, MMU32 k, MMChunkChild *out)
-{
-    Host *h = (Host *)c;
-    MMU32 i = find(h, type, number);
-    CHECK(i < h->count);
-    if (k >= h->nodes[i].e.child_count)
-        return 0;
-    *out = h->nodes[i].kids[k];
-    return 1;
-}
-static void begin(void *c, MMU32 type, MMU32 number)
-{
-    Host *h = (Host *)c;
-    CHECK(mm_chunk_walk_reset(&h->deletion, &h->ops.graph, type, number) == MM_CHUNK_OK);
-}
-static int next(void *c, int skip, MMChunkDeleteEvent *out)
-{
-    Host *h = (Host *)c;
-    MMChunkChild node;
-    MMU32 flags;
-    if (!mm_chunk_walk_next(&h->deletion, skip, &node, NULL, &flags))
-        return 0;
-    out->type = node.type;
-    out->number = node.number;
-    out->flags = (flags & MM_WALK_PRE ? 1U : 0U) | (flags & MM_WALK_POST ? 2U : 0U) |
-                 (flags & MM_WALK_ROOT ? 4U : 0U) | (flags & MM_WALK_ERROR ? 8U : 0U);
-    return 1;
-}
 static int insert_child(void *c, MMU32 p, MMU32 i, const MMChunkChild *kid)
 {
     Host *h = (Host *)c;
@@ -197,14 +161,6 @@ static void put_child(void *c, MMU32 p, MMU32 i, const MMChunkChild *kid)
     Host *h = (Host *)c;
     CHECK(p < h->count && i < h->nodes[p].raw_count);
     h->nodes[p].kids[i] = *kid;
-}
-static int descendant(void *c, MMU32 type, MMU32 number, MMU32 target_type, MMU32 target_number)
-{
-    Host *h = (Host *)c;
-    MMU32 i = find(h, target_type, target_number);
-    CHECK(i < h->count);
-    return mm_chunk_reaches(&h->ops.graph, NULL, type, number, target_type, target_number,
-                                  h->nodes[i].e.parent_count);
 }
 static void move_entry(void *c, MMU32 from, MMU32 to)
 {
@@ -341,17 +297,11 @@ static void init(Host *h)
     e->free_space = free_space;
     e->write = write;
     e->reset_runtime = reset;
-    e->begin_delete = begin;
-    e->next_delete = next;
     e->insert_child = insert_child;
     e->erase_child = erase_child;
     e->put_child = put_child;
-    e->descendant = descendant;
     e->move_entry = move_entry;
     e->move_bytes = move_bytes;
-    h->ops.graph.context = h;
-    h->ops.graph.children = children;
-    h->ops.graph.child = graph_child;
     h->ops.runtime = runtime;
     h->ops.set_runtime = set_runtime;
     h->ops.read_payload = read_payload;
@@ -359,12 +309,10 @@ static void init(Host *h)
     h->ops.add_payload = add_payload;
     h->ops.read_name = read_name;
     h->ops.write_name = write_name;
-    CHECK(mm_chunk_walk_init(&h->deletion, NULL) == MM_CHUNK_OK);
 }
 static void dispose(Host *h)
 {
     CHECK(!h->live);
-    CHECK(mm_chunk_walk_dispose(&h->deletion) == MM_CHUNK_OK);
 }
 static void add(Host *h, MMU32 number)
 {

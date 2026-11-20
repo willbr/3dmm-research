@@ -11,9 +11,8 @@ extern "C"
     typedef struct MMChunkEndpoint
     {
         MMChunkEdit edit;
-        MMChunkGraph graph;
         /* An immutable copy source supplies stored access in place of edit,
-         * graph and runtime callbacks. Borrow it through the copy call. */
+         * and runtime callbacks. Borrow it through the copy call. */
         const MMChunkAccess *stored;
         const MMStorageAllocator *allocator;
         void *identity, *context;

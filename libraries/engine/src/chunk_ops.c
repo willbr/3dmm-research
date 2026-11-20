@@ -159,13 +159,13 @@ int mm_chunk_match(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32
                          MMU32 number, MMU32 *matched)
 {
     MMChunkWalk a, b;
+    MMChunkGraph source, destination;
     MMChunkChild node_a, node_b;
     MMU32 flags_a, flags_b, minimum = 0, target, children;
     MMI32 runtime, child_runtime;
     int has_a, has_b, result = 0;
     if (!src || !dst || !matched || !readable(&src->edit) || !readable(&dst->edit) || !src->runtime || !dst->runtime ||
-        !src->identity || !dst->identity || !src->graph.children || !src->graph.child || !dst->graph.children ||
-        !dst->graph.child || src->identity == dst->identity)
+        !src->identity || !dst->identity || !src->edit.child || !dst->edit.child || src->identity == dst->identity)
         return 0;
     runtime = src->runtime(src->context, type, number);
     if (!runtime)
@@ -177,13 +177,15 @@ int mm_chunk_match(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32
         mm_chunk_walk_dispose(&a);
         return 0;
     }
-    children = src->graph.children(src->graph.context, type, number);
+    source = mm_chunk_edit_graph(&src->edit);
+    destination = mm_chunk_edit_graph(&dst->edit);
+    children = source.children(source.context, type, number);
     while (candidate(dst, type, runtime, minimum, &target))
     {
-        if (dst->graph.children(dst->graph.context, type, target) == children)
+        if (destination.children(destination.context, type, target) == children)
         {
-            mm_chunk_walk_reset(&a, &src->graph, type, number);
-            mm_chunk_walk_reset(&b, &dst->graph, type, target);
+            mm_chunk_walk_reset(&a, &source, type, number);
+            mm_chunk_walk_reset(&b, &destination, type, target);
             for (;;)
             {
                 has_a = mm_chunk_walk_next(&a, 0, &node_a, NULL, &flags_a);
@@ -204,8 +206,8 @@ int mm_chunk_match(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32
                 if (((flags_a ^ flags_b) & (MM_WALK_PRE | MM_WALK_POST | MM_WALK_ROOT)) ||
                     node_a.type != node_b.type || (!(flags_a & MM_WALK_ROOT) && node_a.slot != node_b.slot) ||
                     child_runtime != dst->runtime(dst->context, node_b.type, node_b.number) ||
-                    src->graph.children(src->graph.context, node_a.type, node_a.number) !=
-                        dst->graph.children(dst->graph.context, node_b.type, node_b.number))
+                    source.children(source.context, node_a.type, node_a.number) !=
+                        destination.children(destination.context, node_b.type, node_b.number))
                     break;
             }
         }
@@ -310,9 +312,9 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
     }
     else
     {
-        if (!readable(&src->edit) || !src->runtime || !src->set_runtime)
+        if (!readable(&src->edit) || !src->edit.child || !src->runtime || !src->set_runtime)
             return BAD;
-        graph = src->graph;
+        graph = mm_chunk_edit_graph(&src->edit);
     }
     if (!copy_lookup(src, type, number, &position, NULL))
         return MM_CHUNK_NOT_FOUND;

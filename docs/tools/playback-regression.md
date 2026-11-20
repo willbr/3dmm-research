@@ -16394,3 +16394,46 @@ In `actor-event-edit` suite `20261120T174126Z-277ad2f1`, SDL and Marcus
 matched retail's 60 frame identities in seek and playback and its seek camera
 indices. Both matched their previous seek image hashes, and SDL matched all
 12 retail sound requests. Evidence is in `tmp/c89-movie-scene-archive`.
+
+## C89 live chunk graph operations (20 November 2026)
+
+The C89 chunk editor walks the live index directly for recursive deletion
+and adoption cycle checks. Live copying and graph matching use the same
+index view. The walker resolves each chunk by identity as index rows move.
+
+The chunk fixtures exercise deletion through shared descendants, loner
+preservation, cycle rejection, and allocation failure in the actual walker.
+The deletion fallback drops child references in reverse order and leaves
+those chunks in the index. Copy tests also cover cloning within the same
+archive as new chunks shift index rows.
+
+All 192 standalone checks and six AddressSanitizer checks passed. Eight
+focused engine checks passed with SDL and native x64 and x86. The Archive
+API checks passed with SDL and native x64. The 14 Marcus syntax, playback,
+and player checks passed.
+
+The native x64 and x86 Kauai persistence and forest traces matched their
+baseline executables byte for byte. The SDL forest trace also matched.
+The SDL persistence trace covered 42 saved archives and differed only
+in 15 bytes of chunk-index alignment padding. Ten Preview fingerprints
+and six Preview movies matched the previous build. All three builds matched
+12 actor traces, four scene traces, the composition trace, and the saved movie.
+
+Studio used the Scene Sorter to import two scenes with actors and move
+one ahead of the original scene. The two builds saved byte-identical
+movies. The reopened scenes had four, two, and three frames and one,
+zero, and one actors respectively.
+
+Both VMM seek images in `20261120T175421Z-84769007` matched the archived
+SDL and Marcus captures.
+
+In `20261120T175721Z-0e8129f7`, retail, SDL, and Marcus agreed on the nine
+scene, frame, and camera records for the combined movie. Retail and SDL
+also agreed on every actor count. SDL and Marcus matched all nine canvas
+images. Two immediate retail screenshots differed and matched on follow-up
+captures at 400 ms intervals.
+
+In `actor-event-edit` suite `20261120T175421Z-bc906f31`, SDL and Marcus
+matched retail's 60 frame identities in seek and playback and its seek
+camera indices. Both matched their previous seek image hashes, and SDL
+matched all 12 retail sound requests. Evidence is in `tmp/c89-live-chunk-graph`.

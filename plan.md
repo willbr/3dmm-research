@@ -287,6 +287,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - The writable chunk index now owns C table storage and compact/expanded C
   records. Group-object allocation, mutation, locking, size/flag access and wire
   output no longer require GeneralGroup or native record methods.
+- Deletion, adoption cycle checks, live copy, and graph matching now walk the
+  same C89 view of the writable chunk index. C89 owns the walker and resolves
+  chunk identities again as row positions change. The native chunk editor
+  supplies record and allocation primitives.
 - Tag open/save/duplicate/close, child construction, fetch dispatch and cache
   clearing now use C89. The C tag list owns group storage and preserves legacy
   sort, duplicate and borrowed-reference behavior.

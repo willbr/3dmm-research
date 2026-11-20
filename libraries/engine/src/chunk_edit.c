@@ -48,6 +48,35 @@ static int find(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 *positi
     *position = low;
     return 0;
 }
+static MMU32 index_children(void *p, MMU32 type, MMU32 number)
+{
+    const MMChunkEdit *edit = p;
+    MMChunkEntry entry;
+    MMU32 row;
+    if (!find(edit, type, number, &row))
+        return 0;
+    edit->entry(edit->context, row, &entry);
+    return entry.child_count;
+}
+static int index_child(void *p, MMU32 type, MMU32 number, MMU32 position, MMChunkChild *child)
+{
+    const MMChunkEdit *edit = p;
+    MMChunkEntry entry;
+    MMU32 row;
+    if (!find(edit, type, number, &row))
+        return 0;
+    edit->entry(edit->context, row, &entry);
+    if (position >= entry.child_count)
+        return 0;
+    edit->child(edit->context, row, position, child);
+    return 1;
+}
+MMChunkGraph mm_chunk_edit_graph(const MMChunkEdit *edit)
+{
+    MMChunkGraph graph = {NULL, index_children, index_child};
+    graph.context = (void *)edit;
+    return graph;
+}
 static void output(const MMChunkEdit *edit, const MMChunkLocation *location, int added)
 {
     if (edit->output)
@@ -205,35 +234,37 @@ int mm_chunk_decrement(const MMChunkEdit *edit, MMU32 position, int *should_dele
 }
 int mm_chunk_delete(const MMChunkEdit *edit, MMU32 type, MMU32 number)
 {
+    const MMChunkGraph graph = mm_chunk_edit_graph(edit);
+    MMChunkWalk walk;
     MMChunkEntry entry;
-    MMChunkChild child;
-    MMChunkDeleteEvent event;
-    MMU32 position, child_position, children;
+    MMChunkChild child, node;
+    MMU32 position, child_position, children, flags;
     int skip = 0, remove;
-    if (!readable(edit) || !edit->store || !edit->erase || !edit->free_space || !edit->reset_runtime || !edit->child ||
-        !edit->begin_delete || !edit->next_delete)
+    if (!readable(edit) || !edit->store || !edit->erase || !edit->free_space || !edit->reset_runtime || !edit->child)
         return BAD;
     if (!find(edit, type, number, &position))
         return MM_CHUNK_NOT_FOUND;
     edit->entry(edit->context, position, &entry);
     if (!(entry.flags & LONER) && entry.parent_count)
         return BAD;
+    if (!entry.parent_count && mm_chunk_walk_init(&walk, edit->walk_allocator) != MM_CHUNK_OK)
+        return BAD;
     entry.flags &= ~LONER;
     edit->store(edit->context, position, &entry, 0);
     if (entry.parent_count)
         return OK;
-    edit->begin_delete(edit->context, type, number);
-    while (edit->next_delete(edit->context, skip, &event))
+    mm_chunk_walk_reset(&walk, &graph, type, number);
+    while (mm_chunk_walk_next(&walk, skip, &node, NULL, &flags))
     {
         skip = 1;
-        if (!find(edit, event.type, event.number, &position))
+        if (!find(edit, node.type, node.number, &position))
         {
             issue(edit, MM_EDIT_MISSING_NODE);
             continue;
         }
-        if (event.flags & MM_DELETE_PRE)
+        if (flags & MM_WALK_PRE)
         {
-            if (!(event.flags & MM_DELETE_ROOT))
+            if (!(flags & MM_WALK_ROOT))
             {
                 if (mm_chunk_decrement(edit, position, &remove) != OK)
                 {
@@ -245,9 +276,9 @@ int mm_chunk_delete(const MMChunkEdit *edit, MMU32 type, MMU32 number)
             }
             skip = 0;
         }
-        if (event.flags & MM_DELETE_POST)
+        if (flags & MM_WALK_POST)
         {
-            if (event.flags & MM_DELETE_ERROR)
+            if (flags & MM_WALK_ERROR)
             {
                 issue(edit, MM_EDIT_LOW_MEMORY);
                 edit->entry(edit->context, position, &entry);
@@ -266,6 +297,7 @@ int mm_chunk_delete(const MMChunkEdit *edit, MMU32 type, MMU32 number)
             mm_chunk_remove(edit, position);
         }
     }
+    mm_chunk_walk_dispose(&walk);
     return OK;
 }
 static int find_child(const MMChunkEdit *edit, MMU32 parent, const MMChunkChild *key,
@@ -298,9 +330,10 @@ static int find_child(const MMChunkEdit *edit, MMU32 parent, const MMChunkChild 
 int mm_chunk_adopt_at(const MMChunkEdit *edit, MMU32 parent, MMU32 position,
                             const MMChunkChild *child, int clear_loner, MMU32 maximum)
 {
+    const MMChunkGraph graph = mm_chunk_edit_graph(edit);
     MMChunkEntry entry, target;
     MMU32 child_index;
-    if (!readable(edit) || !edit->store || !edit->insert_child || !edit->erase_child || !edit->descendant || !child ||
+    if (!readable(edit) || !edit->child || !edit->store || !edit->insert_child || !edit->erase_child || !child ||
         !maximum || maximum > 0x7fffffffUL || parent >= edit->count(edit->context))
         return BAD;
     if (!find(edit, child->type, child->number, &child_index))
@@ -308,7 +341,8 @@ int mm_chunk_adopt_at(const MMChunkEdit *edit, MMU32 parent, MMU32 position,
     edit->entry(edit->context, parent, &entry);
     if (position > entry.child_count)
         return BAD;
-    if (edit->descendant(edit->context, child->type, child->number, entry.type, entry.number) != 0)
+    if (mm_chunk_reaches(&graph, edit->walk_allocator, child->type, child->number,
+                         entry.type, entry.number, entry.parent_count) != 0)
     {
         issue(edit, MM_EDIT_CYCLE_RISK);
         return BAD;
@@ -356,7 +390,7 @@ int mm_chunk_unlink(const MMChunkEdit *edit, MMU32 parent_type, MMU32 parent_num
     MMU32 parent, target, position;
     int remove;
     if (!readable(edit) || !edit->child || !edit->store || !edit->erase_child || !child || !edit->erase ||
-        !edit->begin_delete || !edit->next_delete || !edit->free_space || !edit->reset_runtime)
+        !edit->free_space || !edit->reset_runtime)
         return BAD;
     if (!find(edit, parent_type, parent_number, &parent) || !find(edit, child->type, child->number, &target) ||
         !find_child(edit, parent, child, &position))
