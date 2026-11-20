@@ -5,8 +5,8 @@ class ClipboardFixtureAccess : public ActorClipboard
   public:
     static PActor ActorValue(PActorClipboard clipboard)
     { auto member=&ClipboardFixtureAccess::_clipboard; return static_cast<PActor>((clipboard->*member).actor); }
-    static PString Name(PActorClipboard clipboard)
-    { auto member=&ClipboardFixtureAccess::_stnName; return &(clipboard->*member); }
+    static const void *Name(PActorClipboard clipboard, MMI32 *count)
+    { auto member=&ClipboardFixtureAccess::_clipboard; return mm_actor_clipboard_name(&(clipboard->*member), count); }
 };
 static bool TestActorClipboard(PMovie parent)
 {
@@ -38,10 +38,12 @@ static bool TestActorClipboard(PMovie parent)
         if (ok)
         {
             movie->Pscen()->SelectActr(nullptr); /* No GUI view or selected route target. */
-            auto copied=ClipboardFixtureAccess::ActorValue(clipboard); auto stored=ClipboardFixtureAccess::Name(clipboard);
+            auto copied=ClipboardFixtureAccess::ActorValue(clipboard);
+            MMI32 count;
+            const auto stored=ClipboardFixtureAccess::Name(clipboard,&count);
             const bool pasted=clipboard->FPaste(movie);
-            LegacyLong values[]={mode,clipboard->FRouteOnly(),pasted,stored->Cch(),resource->CactRef()};
-            ok=record(values,sizeof(values)) && record(stored->Psz(),stored->Cch()*sizeof(achar)) &&
+            LegacyLong values[]={mode,clipboard->FRouteOnly(),pasted,count,resource->CactRef()};
+            ok=record(values,sizeof(values)) && record(stored,count*sizeof(achar)) &&
                 TrackTestActor::RecordClipboardActor(actor,snapshot) && TrackTestActor::RecordClipboardActor(copied,snapshot);
         }
         ReleasePpo(&clipboard); ReleasePpo(&actor); ReleasePpo(&movie); vpers->Clear();

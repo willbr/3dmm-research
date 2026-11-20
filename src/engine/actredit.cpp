@@ -25,6 +25,12 @@ using namespace ActorEvent;
 
 RTCLASS(ActorUndo)
 
+#ifdef BUG1950
+static const int kPostponedActorCopy = 1;
+#else
+static const int kPostponedActorCopy = 0;
+#endif
+
 /***************************************************************************
 
     Duplicate the actor from this frame through
@@ -52,12 +58,7 @@ bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
     AssertThis(0); AssertVarMem(ppactr); const auto services=_CopyServices();
     MMActorOwnerResult out{}; out.context=ppactr;
     out.publish=[](void *p,void *actor) { *static_cast<PActor *>(p)=static_cast<PActor>(actor); };
-#ifdef BUG1950
-    const int postponed=1;
-#else
-    const int postponed=0;
-#endif
-    bool ok=mm_actor_copy(&_owner,fEntireScene,postponed,&out,&services)!=0;
+    bool ok=mm_actor_copy(&_owner,fEntireScene,kPostponedActorCopy,&out,&services)!=0;
     if (ok) { AssertPo(*ppactr,0); }
     return ok;
 }
@@ -252,49 +253,53 @@ RTCLASS(ActorClipboard)
 ***************************************************************************/
 MMActorClipboardServices ActorClipboard::_Services()
 {
-    MMActorClipboardServices s{}; s.unit=sizeof(achar);
-    s.create=[](void *)->void * { return NewObj ActorClipboard(); };
+    MMActorClipboardServices s{};
+    s.create=[](void *, MMActorClipboard **storage)->void * {
+        auto clipboard = NewObj ActorClipboard();
+        if (clipboard)
+            *storage = &clipboard->_clipboard;
+        return clipboard;
+    };
     s.release_clipboard=[](void *,void *p) { static_cast<PActorClipboard>(p)->Release(); };
-    s.copy=[](void *,void *p,int route,int entire,void **out) {
-        PActor actor=nullptr; bool ok=route?static_cast<PActor>(p)->FCopyRte(&actor,entire!=0):static_cast<PActor>(p)->FCopy(&actor,entire!=0);
-        *out=actor; return int(ok);
+    s.source_name=[](void *, void *p, const MMStringValue *value) {
+        String name;
+        static_cast<PActor>(p)->GetName(&name);
+        mm_string_value_set(value, name.Prgch(), name.Cch());
     };
-    s.source_name=[](void *,void *p,void *name) { static_cast<PActor>(p)->GetName(static_cast<PString>(name)); };
-    s.copy_prefix=[](void *,void *p,void *name) { static_cast<PActor>(p)->Pscen()->Pmvie()->Pmcc()->GetStn(idsEngineCopyOf,static_cast<PString>(name)); };
-    s.text=[](void *p)->const void * { return static_cast<PString>(p)->Psz(); };
-    s.assign_name=[](void *p,void *name) { static_cast<PActorClipboard>(p)->_stnName=*static_cast<PString>(name); };
-    s.append_space=[](void *p) { return int(static_cast<PActorClipboard>(p)->_stnName.FAppendCh(kchSpace)); };
-    s.append_name=[](void *p,void *name) { return int(static_cast<PActorClipboard>(p)->_stnName.FAppendStn(static_cast<PString>(name))); };
+    s.copy_prefix=[](void *, void *p, const MMStringValue *value) {
+        String prefix;
+        static_cast<PActor>(p)->Pscen()->Pmvie()->Pmcc()->GetStn(idsEngineCopyOf, &prefix);
+        mm_string_value_set(value, prefix.Prgch(), prefix.Cch());
+    };
     s.name_too_long=[](void *) { PushErc(ercSocNameTooLong); };
-    s.set=[](void *p,void *actor,int route) {
-        auto clipboard=static_cast<PActorClipboard>(p); clipboard->_clipboard.actor=actor; clipboard->_clipboard.route_only=route;
-    };
-    s.release_actor=[](void *,void *p) { static_cast<PActor>(p)->Release(); };
-    s.duplicate=[](void *,void *p,int reset,void **out) {
-        PActor actor=nullptr; bool ok=static_cast<PActor>(p)->FDup(&actor,reset!=0); *out=actor; return int(ok);
-    };
     s.paste_route=[](void *,void *movie,void *actor) { return int(static_cast<PMovie>(movie)->FPasteActrPath(static_cast<PActor>(actor))); };
     s.paste_actor=[](void *,void *movie,void *actor) { return int(static_cast<PMovie>(movie)->FPasteActr(static_cast<PActor>(actor))); };
-    s.actor_id=[](void *p)->MMI32 { return static_cast<PActor>(p)->Arid(); };
-    s.rename=[](void *,void *movie,MMI32 actor,void *name) { return int(static_cast<PMovie>(movie)->FNameActr(actor,static_cast<PString>(name))); };
+    s.rename=[](void *, void *movie, MMI32 actor, const void *text, MMI32 count) {
+        return int(static_cast<PMovie>(movie)->FNameActr(actor, static_cast<const achar *>(text), count));
+    };
     s.remove=[](void *,void *movie,MMI32 actor) { static_cast<PMovie>(movie)->Pscen()->RemActrCore(actor); };
     return s;
 }
 PActorClipboard ActorClipboard::PaclpNew(PActor pactr, bool fRteOnly, bool fEntireScene)
 {
     AssertPo(pactr,0); Assert(!fRteOnly || !fEntireScene,"Expecting subroute only");
-    String name,prefix; auto services=_Services(); services.name=&name; services.prefix=&prefix;
-    auto clipboard=static_cast<PActorClipboard>(mm_actor_clipboard_create(pactr,fRteOnly,fEntireScene,&services));
+    const auto services = _Services();
+    const auto copy = pactr->_CopyServices();
+    auto clipboard = static_cast<PActorClipboard>(
+        mm_actor_clipboard_create(pactr, fRteOnly, fEntireScene, kPostponedActorCopy, &copy, &services));
     AssertNilOrPo(clipboard,0); return clipboard;
 }
 ActorClipboard::~ActorClipboard(void)
 {
-    const auto services=_Services(); mm_actor_clipboard_dispose(&_clipboard,&services);
+    const auto owner = Actor::_OwnerServices();
+    mm_actor_clipboard_dispose(&_clipboard, &owner);
 }
 bool ActorClipboard::FPaste(PMovie pmvie)
 {
-    AssertThis(0); AssertPo(pmvie,0); const auto services=_Services();
-    return mm_actor_clipboard_paste(&_clipboard,&_stnName,pmvie,&services)!=0;
+    AssertThis(0); AssertPo(pmvie,0);
+    const auto owner = Actor::_OwnerServices();
+    const auto services = _Services();
+    return mm_actor_clipboard_paste(&_clipboard, pmvie, &owner, &services) != 0;
 }
 
 #ifdef DEBUG

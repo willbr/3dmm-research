@@ -108,6 +108,8 @@ typedef class Actor *PActor;
 #define kclsActor 'ACTR'
 class Actor : public Actor_PAR
 {
+    friend class ActorClipboard;
+
     RTCLASS_DEC
     ASSERT
     MARKMEM
@@ -434,12 +436,13 @@ class ActorClipboard : public ActorClipboard_PAR
 
   protected:
     MMActorClipboard _clipboard;
-    String _stnName;
     static MMActorClipboardServices _Services();
 
     ActorClipboard(void)
     {
-        mm_actor_clipboard_init(&_clipboard);
+        static_assert((sizeof(achar) == 1 || sizeof(achar) == 2) && kcchMaxStn == MM_STRING_MAX,
+                      "Clipboard name ABI");
+        mm_actor_clipboard_init(&_clipboard, sizeof(achar));
     }
 
   public:

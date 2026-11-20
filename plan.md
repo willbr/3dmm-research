@@ -309,8 +309,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   costumes and deletion now execute in C89, including snapshots, rollback, undo
   registration, optional snapshot transfer and deletion's partial-failure/output
   ordering. Existing costume-duplication and failed-removal ownership quirks are
-  preserved and documented. Copy/paste/clipboard integration and the remaining
-  movie/scene/body/resource/runtime implementations still require conversion.
+  preserved and documented. The remaining movie, scene, body and resource
+  implementations still require conversion.
 - Full-actor and route-only copy use the C89 actor owner directly. C allocates
   the copy through the shared actor factory, slices typed routes and events,
   sequences tag retention and merges, rewrites current cels and event
@@ -324,6 +324,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   adoption and row removal, with shared scene binding and tag ownership.
   Studio actor edits and Marcus preview costume and animation drafts share the
   C event table binding for row mutation and tag ownership.
+- The actor clipboard owns its counted name in C and calls the shared C actor
+  copy and reset-duplication paths. Studio supplies the localized label and
+  movie/view hooks.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

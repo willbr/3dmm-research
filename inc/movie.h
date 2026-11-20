@@ -783,6 +783,7 @@ class Movie : public Movie_PAR
     long AridSelected(void);
     bool FGetName(long arid, PString pstn);      // Return the name of a specific actor.
     bool FNameActr(long arid, PString pstn);     // Set the name of this actor.
+    bool FNameActr(long arid, const achar *name, LegacyLong count);
     void ChangeActrTag(long arid, PTAG ptag); // Change an actor's Template tag
     long CmactrMac(void)
     {

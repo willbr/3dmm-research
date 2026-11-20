@@ -4664,35 +4664,37 @@ and SDL matched the 12 retail sound events.
 
 ### Actor clipboard control
 
-`actor_clipboard.c` owns clipboard creation, copy dispatch, name-prefix policy,
-actor ownership, route/full-paste dispatch, reset duplication and rename-failure
-removal/release ordering. `MMActorClipboard` stores the owned actor and
-route flag as plain C data. The native document facade retains the existing
-String name representation and provides primitive string assignment/append,
-movie/view operations and resource integration. Those String mutations and
-movie/scene/view dependencies still require conversion; they are not final
-backend host services.
+`MMActorClipboard` owns the actor handle, route flag and native counted name.
+`actor_clipboard.c` calls the C actor owners for frame-relative copy and reset
+duplication, and uses the C counted-string operations to build the name.
+Studio supplies the clipboard document, localized labels and movie/view hooks.
+The movie roll call accepts the stored name's counted units directly.
 
 The prefix comparison is raw and case-sensitive, scans to the prefix's first
 zero and does not require a following word boundary. Assignment and append
 retain counted embedded zeros. Failed append retains truncation. Creation
 assigns the copied actor after naming succeeds, preserving the known native
 name-overflow leak: the empty clipboard is released while its unassigned local
-actor is leaked. The C tests expose this with nonallocating reference-count
-objects; the native fixture avoids intentionally leaking actual actors.
+actor is leaked. The C fixture checks those references using real actor
+tables and releases the unassigned copy during test cleanup.
 
 The 41,344-byte native-before trace spans 64 successful clipboard creations with
 both scopes, case/empty/embedded-zero prefixes, preexisting prefix variations,
 stored names, copied/source actor tables/state and balanced references. It
 matches exactly, including native full-paste rejection without a MovieView and
-route-paste rejection without a selected target. Those headless rejection paths
-do not prove native paste success; C tests separately cover successful route and
-full paste, duplicate/paste/rename failure, removal before release, changed IDs
-between rename/removal, ownership visibility and source immutability. No Marcus
-UI tests were added. The separate full actor-paste native fixture still covers
-actual template/sound transfer. Actor creation control is described next.
-Template construction, remaining body/movie/scene/resource/runtime implementation and
-facade removal remain unfinished.
+route-paste rejection without a selected target. The C fixture exercises one-
+and two-byte names, reset duplication, route and full-paste dispatch,
+duplicate/paste/rename failures, and removal using the current actor ID before
+releasing the duplicate. Studio's full 3D-text and route clipboard workflows
+passed undo, redo and save/reopen. Retail reopened both saved movies with
+matching poses. The native paste fixture also exercises cross-resource template
+and sound transfers. A separate SDL cross-movie UI probe added zero actors on
+both the retained older build and the rebuilt Studio.
+
+All 12 native actor-edit traces matched after the migration. In the 60-frame
+`actor-event-edit` case, SDL Studio and Marcus matched the retained retail
+frame sequences and seek camera indices and reproduced their prior seek
+images. SDL also reproduced the 12 retail sound events.
 
 ### Actor template replacement and render decisions
 

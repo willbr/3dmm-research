@@ -912,9 +912,15 @@ bool Movie::FGetName(long arid, PString pstn)
  ****************************************************/
 bool Movie::FNameActr(long arid, PString pstn)
 {
-    AssertThis(0); AssertIn(arid, 0, 500); AssertPo(pstn, 0);
+    AssertPo(pstn, 0);
+    return FNameActr(arid, pstn->Prgch(), pstn->Cch());
+}
+
+bool Movie::FNameActr(long arid, const achar *name, LegacyLong count)
+{
+    AssertThis(0); AssertIn(arid, 0, 500);
     const auto services = _RollCallServices();
-    return mm_movie_rollcall_rename(arid, pstn->Prgch(), pstn->Cch(), &services) != 0;
+    return mm_movie_rollcall_rename(arid, name, count, &services) != 0;
 }
 
 /****************************************************
