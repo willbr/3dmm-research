@@ -6,13 +6,14 @@
 #include <string.h>
 typedef struct Sound
 {
-    MMI32 count, style;
-    int opened[4], closed[4], freed;
+    MMSceneSound header;
+    MMSceneSoundTag tags[4];
+    int closed[4], freed;
 } Sound;
 typedef struct FrameSound
 {
     MMSceneSound header;
-    MMU32 records[3][2];
+    MMSceneSoundTag records[3];
 } FrameSound;
 typedef struct Object
 {
@@ -135,39 +136,25 @@ static void diagnostic(void *p, int issue)
     ++f->diagnostics;
     event(f, 900 + issue);
 }
-static MMI32 sound_count(void *p, void *sound)
-{
-    (void)p;
-    return ((Sound *)sound)->count;
-}
-static MMI32 sound_style(void *p, void *sound)
-{
-    (void)p;
-    return ((Sound *)sound)->style;
-}
-static int sound_open(void *p, void *sound, MMI32 i)
-{
-    (void)p;
-    return ((Sound *)sound)->opened[i];
-}
-static void sound_close(void *p, void *sound, MMI32 i)
+static void sound_close(void *p, MMSceneSoundTag *tag)
 {
     Fixture *f = (Fixture *)p;
-    if (sound == &f->background)
+    MMU32 i = tag->child;
+    if (tag->tag.cache == &f->background)
     {
-        Sound *s = (Sound *)sound;
-        assert(i >= 0 && i < 4 && !s->closed[i]);
+        Sound *s = &f->background;
+        assert(i < 4 && !s->closed[i]);
         s->closed[i] = 1;
-        s->opened[i] = 0;
         event(f, 450 + i);
     }
     else
     {
-        MMI32 packet = ((const MMSceneSound *)sound)->vlm;
-        assert(packet >= 0 && packet < 2 && i >= 0 && i < 2 && !f->frame_closed[packet][i]);
+        MMU32 packet = tag->tag.number;
+        assert(packet < 2 && i < 2 && !f->frame_closed[packet][i]);
         f->frame_closed[packet][i] = 1;
         event(f, 400 + 20 * packet + i);
     }
+    tag->tag.cache = NULL;
 }
 static void sound_free(void *p, void *sound)
 {
@@ -191,7 +178,6 @@ static void init(Fixture *f)
     }
     s = &f->s;
     s->context = f;
-    s->sound_tag_bytes = sizeof(f->frame[0].records[0]);
     s->create_scene = create_scene;
     s->state = state;
     s->can_notify = available;
@@ -203,16 +189,13 @@ static void init(Fixture *f)
     s->text_seek = seek;
     s->diagnostic = diagnostic;
     s->sound.context = f;
-    s->sound.count = sound_count;
-    s->sound.style = sound_style;
-    s->sound.open = sound_open;
     s->sound.close = sound_close;
     s->sound.free = sound_free;
     s->sound.diagnostic = diagnostic;
 }
 static void populate(Fixture *f)
 {
-    int i;
+    int i, j;
     MMSceneTrack *starts = &f->owner.tracks[MM_SCENE_STARTS], *frames = &f->owner.tracks[MM_SCENE_FRAMES];
     MMSceneTrackEvent row;
     void *object;
@@ -232,14 +215,19 @@ static void populate(Fixture *f)
     for (i = 0; i < 2; ++i)
     {
         f->frame[i].header.ctagc = 2;
-        f->frame[i].header.vlm = i;
+        for (j = 0; j < 2; ++j)
+        {
+            f->frame[i].records[j].child = j;
+            f->frame[i].records[j].tag.number = i;
+        }
         row.frame = i + 1;
         row.kind = MM_SCENE_PLAY_SOUND;
-        assert(mm_scene_track_insert(frames, i, mm_scene_sound_size(2, f->s.sound_tag_bytes), &f->frame[i], &row));
+        assert(mm_scene_track_insert(frames, i, mm_scene_sound_size(2), &f->frame[i], &row));
     }
-    f->background.count = 3;
-    f->background.style = 4;
-    f->background.opened[1] = 1;
+    f->background.header.ctagc = 3;
+    f->background.header.sty = 4;
+    f->background.tags[1].child = 1;
+    f->background.tags[1].tag.cache = &f->background;
     f->owner.owned[MM_SCENE_BACKGROUND_SOUND] = &f->background;
     for (i = MM_SCENE_BACKGROUND; i <= MM_SCENE_THUMBNAIL; ++i)
     {
@@ -379,7 +367,7 @@ static void malformed(void)
             assert(!f.frame_closed[0][0]);
     }
     init(&f);
-    f.background.count = 1000;
+    f.background.header.ctagc = 1000;
     p = &f.background;
     mm_scene_sound_release(&p, &f.s.sound);
     assert(!p && f.background.freed && f.diagnostics == 1);

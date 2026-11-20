@@ -70,15 +70,16 @@ static void State(PSceneSoundEvent p)
     Value(p->sty);
     Value(p->fLoop);
     Value(p->ctagc);
-    Value(p->Cb());
+    Value(mm_scene_sound_size(p->ctagc));
     for (int i = 0; i < p->ctagc; ++i)
     {
-        auto tag = p->Ptag(i);
-        Value(*p->Pchid(i));
-        Value(tag->sid);
-        Value(tag->ctg);
-        Value(tag->cno);
-        Value(tag->pcrf != nullptr);
+        MMSceneSoundTag entry;
+        mm_scene_sound_get_tag(p, i, &entry);
+        Value(entry.child);
+        Value(entry.tag.sid);
+        Value(entry.tag.type);
+        Value(entry.tag.number);
+        Value(entry.tag.cache != nullptr);
     }
 }
 static void Inject(bool fail)
@@ -138,32 +139,39 @@ int main()
     CHECK(file);
     observed = ChunkyResourceFile::PcrfNew(file, 1 << 20);
     CHECK(observed);
+    auto services = ScenePacketServices();
+    services.group_data = [](void *, void *group, MMI32 index) {
+        return static_cast<PGeneralGroup>(group)->QvGet(index);
+    };
+    services.group_size = [](void *, void *group, MMI32 index) -> MMI32 {
+        return static_cast<PGeneralGroup>(group)->Cb(index);
+    };
     for (int count : {1, 2, 4})
         for (int loop : {0, 1})
             for (int failure : {0, 1})
             {
-                std::vector<TagChildPair> records(count);
+                std::vector<MMSceneSoundTag> records(count);
                 for (int i = 0; i < count; ++i)
                 {
-                    records[i].chid = 17 + i;
+                    records[i].child = 17 + i;
                     records[i].tag.sid = i % 2 ? 3 : 0;
-                    records[i].tag.pcrf = observed;
-                    records[i].tag.ctg = kctgMsnd;
-                    records[i].tag.cno = 42 + i;
+                    records[i].tag.cache = observed;
+                    records[i].tag.type = kctgMsnd;
+                    records[i].tag.number = 42 + i;
                 }
                 Inject(failure != 0);
-                auto sound = SceneSoundEvent::PsseNew(83, loop ? styMidi : stySfx, loop != 0, count, records.data());
+                auto sound = mm_scene_sound_make(83, loop ? styMidi : stySfx, loop != 0, count, records.data(), &services);
                 Inject(false);
                 State(sound);
                 vpers->Clear();
                 if (!sound)
                 {
-                    sound = SceneSoundEvent::PsseNew(83, loop ? styMidi : stySfx, loop != 0, count, records.data());
+                    sound = mm_scene_sound_make(83, loop ? styMidi : stySfx, loop != 0, count, records.data(), &services);
                     CHECK(sound);
                     State(sound);
                 }
                 Inject(failure != 0);
-                auto duplicate = sound->PsseDup();
+                auto duplicate = mm_scene_sound_duplicate(sound, &services);
                 Inject(false);
                 State(duplicate);
                 vpers->Clear();
@@ -172,10 +180,10 @@ int main()
                 auto group = GeneralGroup::PggNew(sizeof(SceneEvent));
                 CHECK(group);
                 SceneEvent event = {7, sevtPlaySnd};
-                CHECK(group->FInsert(0, sound->Cb(), sound, &event));
+                CHECK(group->FInsert(0, mm_scene_sound_size(sound->ctagc), sound, &event));
                 for (bool tags : {false, true})
                 {
-                    auto copy = SceneSoundEvent::PsseDupFromGg(group, 0, tags);
+                    auto copy = mm_scene_sound_group(group, 0, tags, &services);
                     CHECK(copy);
                     State(copy);
                     ReleasePpsse(&copy);
@@ -184,16 +192,16 @@ int main()
                 ReleasePpo(&group);
                 for (int swapped : {0, 1})
                 {
-                    long bytes = -1;
+                    MMI32 bytes = -1;
                     Inject(failure != 0);
-                    auto wire = SceneSoundToWire(sound, &bytes);
+                    auto wire = mm_scene_sound_encode(sound, &bytes, &services);
                     Inject(false);
                     Value(bytes);
                     Value(wire != nullptr);
                     vpers->Clear();
                     if (!wire)
                     {
-                        wire = SceneSoundToWire(sound, &bytes);
+                        wire = mm_scene_sound_encode(sound, &bytes, &services);
                         CHECK(wire);
                     }
                     Record(wire, bytes);
@@ -205,7 +213,7 @@ int main()
                                        ((words[i] >> 8) & 65280) | (words[i] >> 24);
                     }
                     Inject(failure != 0);
-                    auto decoded = SceneSoundFromWire(wire, bytes, swapped != 0);
+                    auto decoded = mm_scene_sound_decode(wire, bytes, swapped != 0, &services);
                     Inject(false);
                     State(decoded);
                     Record(wire, bytes);
@@ -213,9 +221,9 @@ int main()
                     FreePpv(reinterpret_cast<void **>(&decoded));
                     FreePpv(&wire);
                 }
-                TAG tag = {0, observed, kctgMsnd, 91};
+                const MMSceneSoundTag tag = {99, {0, observed, kctgMsnd, 91}};
                 Inject(failure != 0);
-                auto added = sound->PsseAddTagChid(&tag, 99);
+                auto added = mm_scene_sound_append(sound, &tag, &services);
                 Inject(false);
                 State(added);
                 vpers->Clear();
@@ -232,24 +240,24 @@ int main()
     // Supplemental bounded-failure cases; the native group helper crashed on
     // allocation failure, so these deliberately sit outside the frozen trace.
     recording = false;
-    TagChildPair one = {};
+    MMSceneSoundTag one = {};
     one.tag = {0, observed, kctgMsnd, 1};
-    auto packet = SceneSoundEvent::PsseNew(100, styMidi, false, 1, &one);
+    auto packet = mm_scene_sound_make(100, styMidi, false, 1, &one, &services);
     CHECK(packet);
     auto group = GeneralGroup::PggNew(sizeof(SceneEvent));
     CHECK(group);
     SceneEvent event = {1, sevtPlaySnd};
-    CHECK(group->FInsert(0, packet->Cb(), packet, &event));
+    CHECK(group->FInsert(0, mm_scene_sound_size(packet->ctagc), packet, &event));
 #ifdef DEBUG
     Inject(true);
-    auto failed = SceneSoundEvent::PsseDupFromGg(group, 0);
+    auto failed = mm_scene_sound_group(group, 0, true, &services);
     Inject(false);
     CHECK(!failed && observed->CactRef() == 2);
     vpers->Clear();
 #endif
-    long wireBytes;
-    auto wire = SceneSoundToWire(packet, &wireBytes);
-    CHECK(wire && !SceneSoundFromWire(wire, wireBytes - 1, false));
+    MMI32 wireBytes;
+    auto wire = mm_scene_sound_encode(packet, &wireBytes, &services);
+    CHECK(wire && !mm_scene_sound_decode(wire, wireBytes - 1, false, &services));
     FreePpv(&wire);
     ReleasePpo(&group);
     ReleasePpsse(&packet);
@@ -273,7 +281,7 @@ int main()
 
     std::printf("Scene sound: bytes=%u fingerprint=%08X\n", recorded, hash);
     const unsigned short endian = 1;
-    if (*reinterpret_cast<const byte *>(&endian) && sizeof(TagChildPair) == 32)
+    if (*reinterpret_cast<const byte *>(&endian) && sizeof(MMSceneSoundTag) == 32)
     {
 #ifdef DEBUG
         CHECK(recorded == 8232 && hash == 0x7C5AE3ADU);

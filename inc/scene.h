@@ -101,8 +101,7 @@ enum
     fscenAll = 0xFFFF
 };
 
-typedef struct SceneSoundEvent *PSceneSoundEvent;
-typedef struct TagChildPair *PTagChildPair;
+typedef MMSceneSound *PSceneSoundEvent;
 
 typedef class Scene *PScene;
 struct MMActorGroupTransformServices;
@@ -340,7 +339,7 @@ class Scene : public Scene_PAR
     //
     bool FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag,
                      PTAG prgtag); // Adds a sound to the current frame.
-    bool FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTagChildPair prgtagc);
+    bool FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, const MMSceneSoundTag *prgtagc);
     bool FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty); // Adds a sound to the current frame, and undo
     void RemSndCore(long sty);                                            // Removes the sound from current frame.
     bool FRemSnd(long sty);                             // Removes the sound from current frame, and undo

@@ -75,37 +75,35 @@ static_assert(kctgActr == MM_SCENE_ACTOR_CHUNK, "Scene actor link type");
 // Scene event
 //
 
-static MMSceneSoundPacketServices ScenePacketServices(PMovie movie = nullptr)
+static bool ResolveSceneSoundTag(PMovie movie, MMSceneSoundTag &value, ChunkNumber scene = cnoNil)
+{
+    TAG tag;
+    TagFromCore(&tag, value.tag);
+    const bool ok = movie->FResolveSndTag(&tag, value.child, scene);
+    value.tag = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
+    return ok;
+}
+
+MMSceneSoundPacketServices ScenePacketServices(PMovie movie)
 {
     MMSceneSoundPacketServices s = {};
     s.context = movie;
-    s.tag_bytes = size(TagChildPair);
     s.allocate = [](void *, MMI32 bytes) -> void * {
         void *p = nullptr;
         return FAllocPv(&p, bytes, fmemNil, mprNormal) ? p : nullptr;
     };
-    s.copy_record = [](void *, void *destination, const void *source) {
-        *static_cast<PTagChildPair>(destination) = *static_cast<const TagChildPair *>(source);
+    s.retain = [](void *, const MMSceneSoundTag *record) {
+        TAG tag;
+        TagFromCore(&tag, record->tag);
+        TagManager::DupTag(&tag);
     };
-    s.sid = [](void *, const void *record) -> MMI32 { return static_cast<const TagChildPair *>(record)->tag.sid; };
-    s.retain = [](void *, void *record) { TagManager::DupTag(&static_cast<PTagChildPair>(record)->tag); };
-    s.clear_cache = [](void *, void *record) { static_cast<PTagChildPair>(record)->tag.pcrf = nullptr; };
-    s.read_tag = [](void *, const void *record, MMU32 *child, MMTag *out) {
-        auto value = static_cast<const TagChildPair *>(record);
-        *child = value->chid;
-        *out = {value->tag.sid, value->tag.pcrf, value->tag.ctg, value->tag.cno};
+    s.resolve = [](void *p, MMSceneSoundTag *record) -> int {
+        return ResolveSceneSoundTag(static_cast<PMovie>(p), *record);
     };
-    s.write_tag = [](void *, void *record, MMU32 child, const MMTag *value) {
-        auto out = static_cast<PTagChildPair>(record);
-        out->chid = child;
-        TagFromCore(&out->tag, *value);
-    };
-    s.resolve = [](void *p, void *record) -> int {
-        auto tag = static_cast<PTagChildPair>(record);
-        return static_cast<PMovie>(p)->FResolveSndTag(&tag->tag, tag->chid);
-    };
-    s.fetch = [](void *, void *record) -> void * {
-        return vptagm->PbacoFetch(&static_cast<PTagChildPair>(record)->tag, MovieSoundMSND::FReadMsnd);
+    s.fetch = [](void *, const MMSceneSoundTag *record) -> void * {
+        TAG tag;
+        TagFromCore(&tag, record->tag);
+        return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
     };
     s.priority = [](void *, void *sound, int loopTool) -> MMI32 {
         return static_cast<PMovieSoundMSND>(sound)->Spr(loopTool ? toolLooper : toolSounder);
@@ -126,24 +124,8 @@ static MMSceneSoundValueServices SceneSoundValues(PMovie movie = nullptr)
 {
     MMSceneSoundValueServices v = {};
     v.packets = ScenePacketServices(movie);
-    v.release = [](void *, MMSceneSound *sound) {
-        auto p = static_cast<PSceneSoundEvent>(sound);
-        ReleasePpsse(&p);
-    };
+    v.release = [](void *, MMSceneSound *sound) { ReleasePpsse(&sound); };
     return v;
-}
-PSceneSoundEvent SceneSoundFromWire(void *bytes, long byteCount, bool swap)
-{
-    auto services = ScenePacketServices();
-    return static_cast<PSceneSoundEvent>(mm_scene_sound_decode(bytes, byteCount, swap, &services));
-}
-void *SceneSoundToWire(PSceneSoundEvent sound, long *bytes)
-{
-    auto services = ScenePacketServices();
-    MMI32 byteCount;
-    void *out = mm_scene_sound_encode(sound, &byteCount, &services);
-    *bytes = byteCount;
-    return out;
 }
 
 //
@@ -211,12 +193,12 @@ static MMSceneSoundServices SceneSoundServices()
 {
     static_assert(int(styNil) == 0 && int(styLim) == 5, "Scene sound style bounds");
     MMSceneSoundServices s = {};
-    s.count = [](void *, void *p) -> MMI32 { return static_cast<PSceneSoundEvent>(p)->ctagc; };
-    s.style = [](void *, void *p) -> MMI32 { return static_cast<PSceneSoundEvent>(p)->sty; };
-    s.open = [](void *, void *p, MMI32 i) -> int {
-        return static_cast<PSceneSoundEvent>(p)->Ptag(i)->pcrf != nullptr;
+    s.close = [](void *, MMSceneSoundTag *record) {
+        TAG tag;
+        TagFromCore(&tag, record->tag);
+        TagManager::CloseTag(&tag);
+        record->tag.cache = tag.pcrf;
     };
-    s.close = [](void *, void *p, MMI32 i) { TagManager::CloseTag(static_cast<PSceneSoundEvent>(p)->Ptag(i)); };
     s.free = [](void *, void *p) { FreePpv(&p); };
     s.diagnostic = SceneOwnerDiagnostic;
     return s;
@@ -224,7 +206,6 @@ static MMSceneSoundServices SceneSoundServices()
 MMSceneOwnerServices Scene::_OwnerServices()
 {
     MMSceneOwnerServices s = {};
-    s.sound_tag_bytes = sizeof(TagChildPair);
     s.create_scene = [](void *, void *movie) -> void * { return NewObj Scene(static_cast<PMovie>(movie)); };
     s.state = [](void *, void *p) { return &static_cast<PScene>(p)->_owner; };
     s.can_notify = [](void *) -> int { return vpcex != nullptr; };
@@ -704,10 +685,12 @@ MMSceneEventServices Scene::_EventServices()
     s.owner = &_owner;
     s.owners = _OwnerServices();
     s.duplicate_sound = [](void *, void *payload) -> void * {
-        return static_cast<PSceneSoundEvent>(payload)->PsseDup();
+        auto services = ScenePacketServices();
+        return mm_scene_sound_duplicate(static_cast<MMSceneSound *>(payload), &services);
     };
     s.play_sound = [](void *p, void *payload) {
-        static_cast<PSceneSoundEvent>(payload)->PlayAllSounds(static_cast<PScene>(p)->Pmvie());
+        auto services = ScenePacketServices(static_cast<PScene>(p)->Pmvie());
+        mm_scene_sound_play(static_cast<MMSceneSound *>(payload), 0, &services);
     };
     s.fetch_background = [](void *, MMTag *value) -> void * {
         TAG tag;
@@ -889,11 +872,12 @@ MMSceneSoundUndoServices SceneUndoSound::_Services()
         return ok;
     };
     s.remove = [](void *p, MMI32 style) { static_cast<PSceneUndoSound>(p)->Pmvie()->Pscen()->RemSndCore(style); };
-    s.restore = [](void *p, const MMSceneSound *value) -> int {
+    s.restore = [](void *p, const MMSceneSound *sound) -> int {
         auto u = static_cast<PSceneUndoSound>(p);
-        auto sound = static_cast<PSceneSoundEvent>(const_cast<MMSceneSound *>(value));
+        // Undo owns a separately allocated packet with aligned records.
+        auto tags = reinterpret_cast<const MMSceneSoundTag *>(sound + 1);
         return u->Pmvie()->Pscen()->FAddSndCoreTagc(sound->fLoop != 0, false, sound->vlm, sound->sty, sound->ctagc,
-                                                   sound->Ptagc(0));
+                                                   tags);
     };
     s.diagnostic = [](void *, int) { Bug("where's the sound event?"); };
     return s;
@@ -945,10 +929,10 @@ bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, 
  *	fTrue, if successful, else fFalse.
  *
  ****************************************************/
-bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, PTagChildPair prgtagc)
+bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, const MMSceneSoundTag *prgtagc)
 {
     AssertThis(0);
-    AssertPvCb(prgtagc, LwMul(ctagc, size(TagChildPair)));
+    AssertPvCb(const_cast<MMSceneSoundTag *>(prgtagc), LwMul(ctagc, size(MMSceneSoundTag)));
     Assert(!fQueue || ctagc == 1, "if queueing, add only one sound");
     Assert(!fQueue || !fLoop, "can't both queue and loop");
     AssertIn(sty, 0, styLim);
@@ -1047,7 +1031,7 @@ bool Scene::FGetSnd(long sty, bool *pfFound, PSceneSoundEvent *ppsse)
     MMSceneSound *sound = nullptr;
     bool ok = mm_scene_sound_get(sty, &found, &sound, &services) != 0;
     if (!ok || found)
-        *ppsse = static_cast<PSceneSoundEvent>(sound);
+        *ppsse = sound;
     *pfFound = found != 0;
     return ok;
 }
@@ -2060,9 +2044,13 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
         cache->AddRef();
         return cache;
     };
-    s.open_tag = [](void *p, MMSceneSound *sound, MMI32 index) -> int {
+    s.open_tag = [](void *p, MMSceneSoundTag *record) -> int {
         auto h = static_cast<Host *>(p);
-        return TagManager::FOpenTag(static_cast<PSceneSoundEvent>(sound)->Ptag(index), h->resources, h->file);
+        TAG tag;
+        TagFromCore(&tag, record->tag);
+        const bool ok = TagManager::FOpenTag(&tag, h->resources, h->file);
+        record->tag = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
+        return ok;
     };
     return static_cast<PScene>(mm_scene_load(pmvie, cno, &s));
 }
@@ -2164,13 +2152,11 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
     MMSceneResolveServices s = {};
     s.context = this;
     s.owner = &_owner;
-    s.packets = ScenePacketServices(Pmvie());
     s.actor = [](void *, void *actor, MMU32 scene) -> int {
         return static_cast<PActor>(actor)->FResolveAllSndTags(scene);
     };
-    s.resolve = [](void *p, void *record, MMU32 scene) -> int {
-        auto tag = static_cast<PTagChildPair>(record);
-        return static_cast<PScene>(p)->Pmvie()->FResolveSndTag(&tag->tag, tag->chid, scene);
+    s.resolve = [](void *p, MMSceneSoundTag *record, MMU32 scene) -> int {
+        return ResolveSceneSoundTag(static_cast<PScene>(p)->Pmvie(), *record, scene);
     };
     return mm_scene_resolve_sounds(cnoScen, &s) != 0;
 }
@@ -2985,8 +2971,8 @@ void SceneUndoSound::AssertValid(LegacyUlong grf)
     SceneUndoSound_PAR::AssertValid(grf);
     if (_sound.sound != pvNil)
     {
-        AssertPvCb(_sound.sound, size(SceneSoundEvent));
-        AssertPvCb(_sound.sound, mm_scene_sound_size(_sound.sound->ctagc, size(TagChildPair)));
+        AssertPvCb(_sound.sound, size(MMSceneSound));
+        AssertPvCb(_sound.sound, mm_scene_sound_size(_sound.sound->ctagc));
         Assert(_sound.style == _sound.sound->sty, "sty's don't match");
     }
 }
@@ -3701,85 +3687,11 @@ void SceneUndoChop::AssertValid(LegacyUlong grf)
 }
 #endif
 
-/***************************************************************************
-    Static function to allocate a SceneSoundEvent with room for ctag TAGs.
-***************************************************************************/
-PSceneSoundEvent SceneSoundEvent::PsseNew(long ctag)
-{
-    Assert(ctag > 0, 0);
-    auto services = ScenePacketServices();
-    return static_cast<PSceneSoundEvent>(mm_scene_sound_allocate(ctag, &services));
-}
-
-/***************************************************************************
-    Creates a new SceneSoundEvent
-***************************************************************************/
-PSceneSoundEvent SceneSoundEvent::PsseNew(long vlm, long sty, bool fLoop, long ctagc, TagChildPair *prgtagc)
-{
-    Assert(ctagc > 0, 0);
-    AssertPvCb(prgtagc, LwMul(ctagc, size(TagChildPair)));
-    auto services = ScenePacketServices();
-    return static_cast<PSceneSoundEvent>(mm_scene_sound_make(vlm, sty, fLoop, ctagc, prgtagc, &services));
-}
-
-/***************************************************************************
-    Properly cleans up and frees a SceneSoundEvent
-***************************************************************************/
-void ReleasePpsse(PSceneSoundEvent *ppsse)
+void ReleasePpsse(MMSceneSound **ppsse)
 {
     AssertVarMem(ppsse);
     void *sound = *ppsse;
     auto services = SceneSoundServices();
     mm_scene_sound_release(&sound, &services);
-    *ppsse = static_cast<PSceneSoundEvent>(sound);
-}
-
-/***************************************************************************
-    Static function to allocate and read a SceneSoundEvent from a GeneralGroup.  This is tricky
-    because I can't do a pgg->Get() since the SceneSoundEvent is variable-sized, and
-    I need to do QvGet twice since I'm allocating memory in this function.
-***************************************************************************/
-PSceneSoundEvent SceneSoundEvent::PsseDupFromGg(PGeneralGroup pgg, long iv, bool fDupTags)
-{
-    AssertPo(pgg, 0);
-    AssertIn(iv, 0, pgg->IvMac());
-    Assert(pgg->Cb(iv) >= size(SceneSoundEvent), "variable part too small");
-    auto services = ScenePacketServices();
-    services.group_data = [](void *, void *group, MMI32 index) {
-        return static_cast<PGeneralGroup>(group)->QvGet(index);
-    };
-    services.group_size = [](void *, void *group, MMI32 index) -> MMI32 {
-        return static_cast<PGeneralGroup>(group)->Cb(index);
-    };
-    return static_cast<PSceneSoundEvent>(mm_scene_sound_group(pgg, iv, fDupTags, &services));
-}
-
-/***************************************************************************
-    Returns a PSceneSoundEvent just like this SceneSoundEvent except with ptag & chid added
-***************************************************************************/
-PSceneSoundEvent SceneSoundEvent::PsseAddTagChid(PTAG ptag, long chid)
-{
-    AssertVarMem(ptag);
-    TagChildPair tag;
-    tag.tag = *ptag; tag.chid = chid;
-    auto services = ScenePacketServices();
-    return static_cast<PSceneSoundEvent>(mm_scene_sound_append(this, &tag, &services));
-}
-
-/***************************************************************************
-    Return a duplicate of this SceneSoundEvent
-***************************************************************************/
-PSceneSoundEvent SceneSoundEvent::PsseDup(void)
-{
-    auto services = ScenePacketServices();
-    return static_cast<PSceneSoundEvent>(mm_scene_sound_duplicate(this, &services));
-}
-
-/***************************************************************************
-    Play all sounds in this SceneSoundEvent	-> Enqueue the sounds in the SceneSoundEvent
-***************************************************************************/
-void SceneSoundEvent::PlayAllSounds(PMovie pmvie, ulong dtsStart)
-{
-    auto services = ScenePacketServices(pmvie);
-    mm_scene_sound_play(this, dtsStart, &services);
+    *ppsse = static_cast<MMSceneSound *>(sound);
 }

@@ -79,7 +79,7 @@ extern "C"
     int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 count, void *tags,
                                  const MMSceneSoundEditServices *);
     int mm_scene_sound_restore(int loop, int queue, MMI32 volume, MMI32 style, MMI32 count,
-                                     const void *records, const MMSceneSoundEditServices *);
+                                const MMSceneSoundTag *records, const MMSceneSoundEditServices *);
     int mm_scene_sound_get(MMI32 style, int *found, MMSceneSound **,
                                  const MMSceneSoundEditServices *);
     void mm_scene_sound_remove(MMI32 style, const MMSceneSoundEditServices *);

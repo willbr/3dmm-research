@@ -16,6 +16,7 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
     MMSceneTrack *group = &owner->tracks[start ? MM_SCENE_STARTS : MM_SCENE_FRAMES];
     void *object;
     MMSceneSound *sound;
+    MMSceneSoundTag sound_tag;
     MMTag tag;
     MMU32 i, child;
     MMI32 j;
@@ -33,13 +34,22 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
             if (!sound)
                 goto fail;
             for (j = 0; j < sound->ctagc; ++j)
-                if (!s->open_tag(s->context, sound, j))
+            {
+                mm_scene_sound_get_tag(sound, j, &sound_tag);
+                ok = s->open_tag(s->context, &sound_tag);
+                mm_scene_sound_put_tag(sound, j, &sound_tag);
+                if (!ok)
                     break;
+            }
             ok = j == sound->ctagc && mm_scene_track_insert(group, i,
-                         mm_scene_sound_size(sound->ctagc, v->tag_bytes), sound, &record);
+                         mm_scene_sound_size(sound->ctagc), sound, &record);
             if (!ok)
                 while (j > 0)
-                    o->sound.close(o->sound.context, sound, --j);
+                {
+                    mm_scene_sound_get_tag(sound, --j, &sound_tag);
+                    o->sound.close(o->sound.context, &sound_tag);
+                    mm_scene_sound_put_tag(sound, j, &sound_tag);
+                }
             o->sound.free(o->sound.context, sound);
             if (!ok)
                 goto fail;
@@ -119,7 +129,7 @@ int mm_scene_resolve_sounds(MMU32 scene, const MMSceneResolveServices *s)
 {
     MMSceneTrack *track = &s->owner->tracks[MM_SCENE_FRAMES];
     MMSceneTrackEvent event;
-    void *entry;
+    MMSceneSoundTag tag;
     MMI32 i, j, bytes = 0, count = mm_scene_member_count(s->owner, MM_SCENE_ACTORS);
     MMSceneSound *sound;
     int ok = 0;
@@ -136,13 +146,18 @@ int mm_scene_resolve_sounds(MMU32 scene, const MMSceneResolveServices *s)
         if (event.kind == MM_SCENE_PLAY_SOUND)
         {
             sound = (MMSceneSound *)mm_scene_track_payload(track, i, &bytes);
-            if (!mm_scene_sound_span(sound, bytes, s->packets.tag_bytes))
+            if (!mm_scene_sound_span(sound, bytes))
                 goto done;
             for (j = 0; j < sound->ctagc; ++j)
             {
-                entry = (unsigned char *)sound + MM_SCENE_SOUND_HEADER_BYTES + (size_t)j * s->packets.tag_bytes;
-                if (s->packets.sid(s->packets.context, entry) == 0 && !s->resolve(s->context, entry, scene))
-                    goto done;
+                mm_scene_sound_get_tag(sound, j, &tag);
+                if (!tag.tag.sid)
+                {
+                    int resolved = s->resolve(s->context, &tag, scene);
+                    mm_scene_sound_put_tag(sound, j, &tag);
+                    if (!resolved)
+                        goto done;
+                }
             }
         }
     }

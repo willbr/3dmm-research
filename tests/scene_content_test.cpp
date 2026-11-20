@@ -315,12 +315,13 @@ struct Access : Scene
     }
     static void ChopSound(PScene p, PChunkyResourceFile cache, bool back)
     {
-        TagChildPair tag = {0, {ksidUseCrf, cache, kctgMsnd, 123}};
-        auto packet = SceneSoundEvent::PsseNew(80, stySfx, false, 1, &tag);
+        MMSceneSoundTag tag = {0, {ksidUseCrf, cache, kctgMsnd, 123}};
+        auto services = ScenePacketServices();
+        auto packet = mm_scene_sound_make(80, stySfx, false, 1, &tag, &services);
         CHECK(packet);
         auto events = (p->*&Access::_FrameTrack)();
         SceneEvent e = {back ? 1 : 7, sevtPlaySnd};
-        CHECK(InsertSceneTrackEvent(events, back ? 0 : events->rows.count, packet->Cb(), packet, e));
+        CHECK(InsertSceneTrackEvent(events, back ? 0 : events->rows.count, mm_scene_sound_size(packet->ctagc), packet, e));
         FreePpv(reinterpret_cast<void **>(&packet));
         if (back)
             ++(p->*&Access::_owner).runtime.next_event;

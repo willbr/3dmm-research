@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_SCENE_OWNER_H
 #define MM_ENGINE_SCENE_OWNER_H
 #include "movie_frame.h"
+#include "scene_sound.h"
 #include "scene_track.h"
 #include "tag.h"
 #ifdef __cplusplus
@@ -65,15 +66,13 @@ extern "C"
     typedef struct MMSceneSoundServices
     {
         void *context;
-        MMI32 (*count)(void *, void *), (*style)(void *, void *);
-        int (*open)(void *, void *, MMI32 index);
-        void (*close)(void *, void *, MMI32 index), (*free)(void *, void *);
+        void (*close)(void *, MMSceneSoundTag *);
+        void (*free)(void *, void *);
         void (*diagnostic)(void *, int issue);
     } MMSceneSoundServices;
     typedef struct MMSceneOwnerServices
     {
         void *context;
-        size_t sound_tag_bytes;
         void *(*create_scene)(void *, void *movie);
         MMSceneOwner *(*state)(void *, void *scene);
         int (*can_notify)(void *);
@@ -114,7 +113,7 @@ extern "C"
     void mm_scene_member_clear(MMSceneOwner *, int list);
     /* Owned background/undo SSEs close only opened tags, then free and publish
      * NULL. Frame SSEs are embedded and close all tags without freeing payloads.
-     * Sound allocations must match their header count and native tag stride. */
+     * Sound allocations must contain their header and all declared tag records. */
     void mm_scene_sound_release(void **sound, const MMSceneSoundServices *);
 #ifdef __cplusplus
 }

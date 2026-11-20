@@ -134,12 +134,13 @@ struct Access : Scene
         Value(p->ctagc);
         for (int i = 0; i < p->ctagc; ++i)
         {
-            auto tag = p->Ptag(i);
-            Value(tag->sid);
-            Value(tag->ctg);
-            Value(tag->cno);
-            Value(tag->pcrf != nullptr);
-            Value(tag->sid == 0 ? *p->Pchid(i) : 0); // Ignore undefined unused built-in child words.
+            MMSceneSoundTag entry;
+            mm_scene_sound_get_tag(p, i, &entry);
+            Value(entry.tag.sid);
+            Value(entry.tag.type);
+            Value(entry.tag.number);
+            Value(entry.tag.cache != nullptr);
+            Value(entry.tag.sid == 0 ? entry.child : 0); // Ignore undefined unused built-in child words.
         }
     }
 };

@@ -47,10 +47,9 @@ static void *edit_allocate(void *p, MMI32 bytes)
     }
     return out;
 }
-static void close_tag(void *p, void *packet, MMI32 index)
+static void close_tag(void *p, MMSceneSoundTag *r)
 {
     Editor *e = (Editor *)p;
-    Record *r = at((MMSceneSound *)packet, index);
     ++e->closes;
     if (!r->tag.sid && r->tag.cache)
     {
@@ -72,7 +71,7 @@ static void release_packet(void *p, MMSceneSound *packet)
     }
     ++e->releases;
     for (i = 0; i < packet->ctagc; ++i)
-        close_tag(e, packet, i);
+        close_tag(e, at(packet, i));
     raw_free(&e->base, packet);
 }
 static void *resource(Editor *e, MMU32 number)
@@ -81,16 +80,15 @@ static void *resource(Editor *e, MMU32 number)
     ++e->base.resources;
     return e->base.input + number - 1;
 }
-static int packet_resolve(void *p, void *record)
+static int packet_resolve(void *p, MMSceneSoundTag *record)
 {
     (void)p;
     (void)record;
     return 1;
 }
-static void *packet_fetch(void *p, void *record)
+static void *packet_fetch(void *p, const MMSceneSoundTag *r)
 {
     Editor *e = (Editor *)p;
-    Record *r = (Record *)record;
     return e->packet_fetch_fail == (int)r->tag.number ? NULL : resource(e, r->tag.number);
 }
 static void *resize_track(void *p, void *data, MMU32 old_bytes, MMU32 bytes, int priority)
@@ -284,21 +282,6 @@ static void clear_undo(void *p)
     if (u)
         undo_release(e, u);
 }
-static MMI32 packet_count(void *p, void *value)
-{
-    (void)p;
-    return ((MMSceneSound *)value)->ctagc;
-}
-static MMI32 packet_style(void *p, void *value)
-{
-    (void)p;
-    return ((MMSceneSound *)value)->sty;
-}
-static int packet_open(void *p, void *value, MMI32 index)
-{
-    (void)p;
-    return at((MMSceneSound *)value, index)->tag.cache != NULL;
-}
 static void packet_free(void *p, void *value)
 {
     free_raw(p, value);
@@ -353,7 +336,7 @@ static int undo_restore(void *p, const MMSceneSound *value)
     if (e->fail_restore)
         return 0;
     return mm_scene_sound_restore(value->fLoop != 0, 0, value->vlm, value->sty, value->ctagc,
-                                        (const unsigned char *)value + 16, &e->s);
+                                  (const MMSceneSoundTag *)(value + 1), &e->s);
 }
 static void editor_init(Editor *e)
 {
@@ -406,11 +389,7 @@ static void editor_init(Editor *e)
     v->duplicate_sound = event_duplicate;
     v->play_sound = event_play;
     v->owners.context = e;
-    v->owners.sound_tag_bytes = sizeof(Record);
     v->owners.sound.context = e;
-    v->owners.sound.count = packet_count;
-    v->owners.sound.style = packet_style;
-    v->owners.sound.open = packet_open;
     v->owners.sound.close = close_tag;
     v->owners.sound.free = packet_free;
     e->us.context = e;
@@ -443,7 +422,7 @@ static void seed(Editor *e, int style)
     p->sty = style;
     p->fLoop = 0;
     ++e->owner.runtime.next_event;
-    CHECK(mm_scene_track_insert(e->frames, e->frames->rows.count, mm_scene_sound_size(1, sizeof(Record)), p, &event));
+    CHECK(mm_scene_track_insert(e->frames, e->frames->rows.count, mm_scene_sound_size(1), p, &event));
     if (style == 4)
     {
         e->owner.owned[MM_SCENE_BACKGROUND_SOUND] = mm_scene_sound_duplicate(p, &e->base.s);
@@ -454,16 +433,10 @@ static void seed(Editor *e, int style)
 }
 static void editor_clean(Editor *e)
 {
-    int i, j;
-    MMSceneSound *p;
     clear_undo(e);
     mm_scene_owner_drop(&e->owner, MM_SCENE_BACKGROUND_SOUND, &e->s.events.owners);
-    for (i = e->frames->rows.count; i > 0;)
-    {
-        p = frame_packet(e, --i);
-        for (j = 0; j < p->ctagc; ++j)
-            close_tag(e, p, j);
-    }
+    while (e->frames->rows.count)
+        CHECK(mm_scene_owner_erase_frame(&e->owner, e->frames->rows.count - 1, &e->s.events.owners));
     mm_scene_track_dispose(e->frames);
     CHECK(!e->undo_live && !e->list_live);
     clean(&e->base);
@@ -472,6 +445,7 @@ static void additions(void)
 {
     Editor e;
     MMSceneSound *p;
+    MMSceneSoundTag tag;
     int failure;
     editor_init(&e);
     CHECK(mm_scene_sound_add(0, 0, 83, 2, 3, e.tags, &e.s));
@@ -535,7 +509,8 @@ static void additions(void)
     editor_init(&e);
     e.input_mutate = 1;
     CHECK(mm_scene_sound_add(0, 0, 30, 2, 1, e.tags, &e.s));
-    CHECK(e.tags[0].number == 3 && at(frame_packet(&e, 0), 0)->tag.number == 1 && e.base.volumes[3] == 30);
+    mm_scene_sound_get_tag(frame_packet(&e, 0), 0, &tag);
+    CHECK(e.tags[0].number == 3 && tag.tag.number == 1 && e.base.volumes[3] == 30);
     editor_clean(&e);
     editor_init(&e);
     e.child_changes_frame = 1;

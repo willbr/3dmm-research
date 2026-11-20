@@ -109,12 +109,13 @@ struct Access : Scene
                     Value(p->ctagc);
                     for (long j = 0; j < p->ctagc; ++j)
                     {
-                        Value(*p->Pchid(j));
-                        auto t = p->Ptag(j);
-                        Value(t->sid);
-                        Value(t->pcrf != nullptr);
-                        Value(t->ctg);
-                        Value(t->cno);
+                        MMSceneSoundTag entry;
+                        mm_scene_sound_get_tag(p, j, &entry);
+                        Value(entry.child);
+                        Value(entry.tag.sid);
+                        Value(entry.tag.cache != nullptr);
+                        Value(entry.tag.type);
+                        Value(entry.tag.number);
                     }
                 }
                 else if (e.sevt == sevtSetBkgd)

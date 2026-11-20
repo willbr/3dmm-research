@@ -116,8 +116,8 @@ static int store_sound(MMSceneTrack *frames, MMI32 index, const MMSceneTrackEven
     const MMMovieArchiveEditor *editor = s->editor;
     MMSceneSound *sound = mm_scene_sound_track(&s->owner->tracks[MM_SCENE_FRAMES], index, v);
     MMChunkAccess chunks;
-    MMTag tag;
-    MMU32 child, match;
+    MMSceneSoundTag tag;
+    MMU32 match;
     MMI32 i, bytes;
     void *wire;
     int ok = 0;
@@ -125,15 +125,15 @@ static int store_sound(MMSceneTrack *frames, MMI32 index, const MMSceneTrackEven
         return 0;
     for (i = 0; i < sound->ctagc; ++i)
     {
-        v->read_tag(v->context, (unsigned char *)sound + 16 + (size_t)i * v->tag_bytes, &child, &tag);
-        if (tag.sid != 0)
+        mm_scene_sound_get_tag(sound, i, &tag);
+        if (tag.tag.sid != 0)
             continue;
         /* A previous adoption can shift rows or add this slot to the scene. */
         chunks = editor->chunks(editor->context);
-        if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, child, MM_SOUND_CHUNK, &match) == MM_CHUNK_OK ||
-            mm_chunk_find(&chunks, MM_SOUND_CHUNK, tag.number, &match) != MM_CHUNK_OK)
+        if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, tag.child, MM_SOUND_CHUNK, &match) == MM_CHUNK_OK ||
+            mm_chunk_find(&chunks, MM_SOUND_CHUNK, tag.tag.number, &match) != MM_CHUNK_OK)
             continue;
-        if (!editor->adopt(editor->context, MM_SCENE_CHUNK, scene, MM_SOUND_CHUNK, tag.number, child))
+        if (!editor->adopt(editor->context, MM_SCENE_CHUNK, scene, MM_SOUND_CHUNK, tag.tag.number, tag.child))
             goto done;
     }
     wire = mm_scene_sound_encode(sound, &bytes, v);

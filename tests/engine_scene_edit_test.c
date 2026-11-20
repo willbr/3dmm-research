@@ -169,10 +169,9 @@ static MMI32 current_camera(void *p)
     CHECK(e->owner.owned[MM_SCENE_BACKGROUND]);
     return ((Back *)e->owner.owned[MM_SCENE_BACKGROUND])->camera;
 }
-static void close_sound_tag(void *p, void *sound, MMI32 i)
+static void close_sound_tag(void *p, MMSceneSoundTag *r)
 {
     Edit *e = (Edit *)p;
-    Record *r = at((MMSceneSound *)sound, i);
     ++e->closes;
     note(e, 34);
     if (!r->tag.sid)
@@ -366,7 +365,6 @@ static void init_edit(Edit *e)
     v->diagnostic = event_issue;
     o = &v->owners;
     o->context = e;
-    o->sound_tag_bytes = sizeof(Record);
     o->release = release_back;
     o->lights_off = lights_off;
     o->sound.context = e;
@@ -417,23 +415,13 @@ static MMI32 camera_value(const MMSceneTrack *track, MMI32 index)
 }
 static void clean_edit(Edit *e)
 {
-    int i, j;
-    MMSceneTrackEvent row;
-    MMSceneSound *sound;
+    int i;
     clear(e);
     CHECK(!e->undo_live && !e->temp_refs);
     if (e->owner.owned[MM_SCENE_BACKGROUND])
         release_back(e, e->owner.owned[MM_SCENE_BACKGROUND]);
-    for (i = e->frames->rows.count; i > 0;)
-    {
-        CHECK(mm_scene_track_get(e->frames, --i, &row));
-        if (row.kind == MM_SCENE_PLAY_SOUND)
-        {
-            sound = (MMSceneSound *)mm_scene_track_payload(e->frames, i, NULL);
-            for (j = 0; j < sound->ctagc; ++j)
-                close_sound_tag(e, sound, j);
-        }
-    }
+    while (e->frames->rows.count)
+        CHECK(mm_scene_owner_erase_frame(&e->owner, e->frames->rows.count - 1, &e->s.sound.events.owners));
     mm_scene_track_dispose(e->frames);
     mm_scene_track_dispose(e->starts);
     if (e->owner.owned[MM_SCENE_BACKGROUND_SOUND])

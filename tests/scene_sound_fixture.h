@@ -13,27 +13,19 @@
             exit(1);                                                                                                   \
         }                                                                                                              \
     } while (0)
-typedef struct Record
-{
-    MMU32 child;
-    MMTag tag;
-} Record;
+typedef MMSceneSoundTag Record;
 typedef struct Fixture
 {
     MMSceneSoundPacketServices s;
     MMSceneSound *packet;
     Record input[4];
-    int refs[8], live, allocs, fail, retains, clears, lookups, relocate;
+    int refs[8], live, allocs, fail, retains, lookups, relocate;
     unsigned char *group, *stale;
     MMI32 group_bytes;
     int ops[64], used, resolve_fail, fetch_fail, enqueue_fail, resources, plays, mutate, shrink;
     int loop_tools[4], queues[4], loops[4], volumes[4];
     MMU32 starts[4];
 } Fixture;
-static Record *at(MMSceneSound *p, int i)
-{
-    return (Record *)((unsigned char *)p + 16) + i;
-}
 static void log_op(Fixture *f, int op)
 {
     CHECK(f->used < 64);
@@ -72,43 +64,15 @@ static void raw_free(Fixture *f, void *p)
         free(p);
     }
 }
-static void copy_record(void *p, void *to, const void *from)
-{
-    (void)p;
-    memcpy(to, from, sizeof(Record));
-}
-static MMI32 sid(void *p, const void *r)
-{
-    (void)p;
-    return ((const Record *)r)->tag.sid;
-}
-static void retain(void *p, void *r)
+static void retain(void *p, const MMSceneSoundTag *tag)
 {
     Fixture *f = (Fixture *)p;
-    Record *tag = (Record *)r;
     ++f->retains;
     if (!tag->tag.sid)
     {
         CHECK(tag->tag.cache == f && tag->tag.number < 8);
         ++f->refs[tag->tag.number];
     }
-}
-static void clear_cache(void *p, void *r)
-{
-    ++((Fixture *)p)->clears;
-    ((Record *)r)->tag.cache = NULL;
-}
-static void read_tag(void *p, const void *r, MMU32 *child, MMTag *tag)
-{
-    (void)p;
-    *child = ((const Record *)r)->child;
-    *tag = ((const Record *)r)->tag;
-}
-static void write_tag(void *p, void *r, MMU32 child, const MMTag *tag)
-{
-    (void)p;
-    ((Record *)r)->child = child;
-    ((Record *)r)->tag = *tag;
 }
 static void *group_data(void *p, void *g, MMI32 index)
 {
@@ -123,10 +87,9 @@ static MMI32 group_size(void *p, void *g, MMI32 index)
     CHECK(g == f && index == 0);
     return f->group_bytes;
 }
-static int resolve(void *p, void *r)
+static int resolve(void *p, MMSceneSoundTag *tag)
 {
     Fixture *f = (Fixture *)p;
-    Record *tag = (Record *)r;
     log_op(f, 10 + (int)tag->child);
     if (f->mutate && tag->child == 3)
     {
@@ -135,15 +98,14 @@ static int resolve(void *p, void *r)
     }
     return !(f->resolve_fail & (1 << tag->child));
 }
-static void *fetch(void *p, void *r)
+static void *fetch(void *p, const MMSceneSoundTag *tag)
 {
     Fixture *f = (Fixture *)p;
-    Record *tag = (Record *)r;
     log_op(f, 20 + (int)tag->child);
     if (f->fetch_fail == (int)tag->child)
         return NULL;
     ++f->resources;
-    return tag;
+    return f->input + tag->child - 1;
 }
 static MMI32 priority(void *p, void *sound, int tool)
 {
@@ -185,14 +147,8 @@ static void init(Fixture *f)
     memset(f, 0, sizeof(*f));
     s = &f->s;
     s->context = f;
-    s->tag_bytes = sizeof(Record);
     s->allocate = allocate;
-    s->copy_record = copy_record;
-    s->sid = sid;
     s->retain = retain;
-    s->clear_cache = clear_cache;
-    s->read_tag = read_tag;
-    s->write_tag = write_tag;
     s->group_data = group_data;
     s->group_size = group_size;
     s->resolve = resolve;
@@ -210,6 +166,10 @@ static void init(Fixture *f)
     }
 }
 #ifndef SCENE_SOUND_FIXTURE_NO_PACKET_HELPERS
+static Record *at(MMSceneSound *p, int i)
+{
+    return (Record *)(p + 1) + i;
+}
 static MMSceneSound *make(Fixture *f, int count)
 {
     MMSceneSound *p = mm_scene_sound_make(80, 4, 1, count, f->input, &f->s);

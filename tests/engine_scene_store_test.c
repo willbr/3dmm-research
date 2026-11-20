@@ -382,7 +382,7 @@ static void init_store(StoreFixture *f)
     for (i = 0; i < 2; ++i)
     {
         f->sounds[i] = make(&f->packets, 4);
-        add_event(frames, MM_SCENE_PLAY_SOUND, f->sounds[i], mm_scene_sound_size(4, sizeof(Record)));
+        add_event(frames, MM_SCENE_PLAY_SOUND, f->sounds[i], mm_scene_sound_size(4));
     }
     add_event(frames, MM_SCENE_CHANGE_CAMERA, &camera, 4);
     add_event(frames, MM_SCENE_PAUSE, pause, 8);

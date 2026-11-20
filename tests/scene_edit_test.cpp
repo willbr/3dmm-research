@@ -91,12 +91,13 @@ struct Access : Scene
 {
     static void OwnedSound(PScene p, PChunkyResourceFile cache)
     {
-        TagChildPair tag = {0, {0, cache, kctgMsnd, 123}};
-        auto packet = SceneSoundEvent::PsseNew(80, stySfx, false, 1, &tag);
+        MMSceneSoundTag tag = {0, {0, cache, kctgMsnd, 123}};
+        auto services = ScenePacketServices();
+        auto packet = mm_scene_sound_make(80, stySfx, false, 1, &tag, &services);
         CHECK(packet);
         auto g = (p->*&Access::_FrameTrack)();
         SceneEvent event = {1, sevtPlaySnd};
-        CHECK(InsertSceneTrackEvent(g, g->rows.count, packet->Cb(), packet, event));
+        CHECK(InsertSceneTrackEvent(g, g->rows.count, mm_scene_sound_size(packet->ctagc), packet, event));
         FreePpv(reinterpret_cast<void **>(&packet));
         (p->*&Access::_owner).runtime.next_event = g->rows.count;
     }

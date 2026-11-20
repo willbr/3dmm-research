@@ -125,7 +125,7 @@ static int valid_event(MMI32 type, MMI32 bytes, int big, int start, const unsign
         return !start && bytes == 8;
     case MM_SCENE_PLAY_SOUND:
         return !start && mm_scene_sound_wire(data, bytes, big, &sound) &&
-               bytes == mm_scene_sound_size(sound.header.ctagc, MM_SCENE_SOUND_WIRE_TAG_BYTES);
+               bytes == mm_scene_sound_wire_size(sound.header.ctagc);
     default:
         return 0;
     }
@@ -760,45 +760,18 @@ int mm_scene_archive_edit_text(const MMMovieArchiveEditor *editor, const MMScene
     return result;
 }
 
-typedef struct ArchiveSoundTag
-{
-    MMU32 child;
-    MMTag tag;
-} ArchiveSoundTag;
-
 static void *allocate_packet(void *context, MMI32 bytes)
 {
     (void)context;
     return malloc((size_t)bytes);
 }
-static void copy_packet_tag(void *context, void *out, const void *tag)
-{
-    (void)context;
-    memcpy(out, tag, sizeof(ArchiveSoundTag));
-}
-static void retain_packet_tag(void *context, void *tag)
+static void retain_packet_tag(void *context, const MMSceneSoundTag *tag)
 {
     (void)context;
     (void)tag; /* Archive tags have no runtime cache owner. */
 }
-static void read_packet_tag(void *context, const void *record, MMU32 *child, MMTag *tag)
-{
-    const ArchiveSoundTag *entry = (const ArchiveSoundTag *)record;
-    (void)context;
-    *child = entry->child;
-    *tag = entry->tag;
-}
-static void write_packet_tag(void *context, void *record, MMU32 child, const MMTag *tag)
-{
-    ArchiveSoundTag *entry = (ArchiveSoundTag *)record;
-    (void)context;
-    entry->child = child;
-    entry->tag = *tag;
-}
-
 static const MMSceneSoundPacketServices archive_packets = {
-    NULL, sizeof(ArchiveSoundTag), allocate_packet, copy_packet_tag, NULL, retain_packet_tag, NULL,
-    read_packet_tag, write_packet_tag, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+    NULL, allocate_packet, retain_packet_tag, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
 
 typedef struct FrameSoundChange
 {
@@ -849,7 +822,7 @@ static int store_packet(FrameSoundChange *change, MMSceneSound *packet, int big)
     return MM_SOUND_ARCHIVE_OK;
 }
 
-static MMSceneSound *new_sound_packet(const MMMovieSoundArchiveEdit *edit, const ArchiveSoundTag *added)
+static MMSceneSound *new_sound_packet(const MMMovieSoundArchiveEdit *edit, const MMSceneSoundTag *added)
 {
     return mm_scene_sound_make(edit->volume, edit->style, edit->loop, 1, added, &archive_packets);
 }
@@ -858,8 +831,8 @@ static int select_sound_change(SceneFrameEdit *frames, const MMMovieSoundArchive
                                FrameSoundChange *change)
 {
     const MMMovieSoundArchiveCue *cue = edit->cue;
-    ArchiveSoundTag added = {0};
-    ArchiveSoundTag *tags;
+    MMSceneSoundTag added = {0};
+    MMSceneSoundTag *tags;
     const unsigned char *row, *payload;
     MMSceneSound *packet, *next;
     MMU32 i;
@@ -884,7 +857,7 @@ static int select_sound_change(SceneFrameEdit *frames, const MMMovieSoundArchive
         packet = decode_packet(payload, size, frames->big);
         if (!packet)
             return MM_SOUND_ARCHIVE_PACKET;
-        tags = (ArchiveSoundTag *)(packet + 1);
+        tags = (MMSceneSoundTag *)(packet + 1);
         for (j = 0; cue && j < packet->ctagc; ++j)
             if (mm_sound_archive_match(cue, &tags[j].tag, tags[j].child, j > 0))
                 break;

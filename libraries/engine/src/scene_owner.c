@@ -66,18 +66,25 @@ void mm_scene_member_clear(MMSceneOwner *w, int list)
 }
 void mm_scene_sound_release(void **sound, const MMSceneSoundServices *s)
 {
-    void *p = *sound;
+    MMSceneSound *p = (MMSceneSound *)*sound;
+    MMSceneSoundTag tag;
     MMI32 i, count, style;
     if (!p)
         return;
-    count = s->count(s->context, p);
-    style = s->style(s->context, p);
+    count = p->ctagc;
+    style = p->sty;
     if (count < 0 || count >= 1000 || style < 0 || style >= 5)
         s->diagnostic(s->context, MM_SCENE_BAD_SOUND);
     else
         for (i = 0; i < count; ++i)
-            if (s->open(s->context, p, i))
-                s->close(s->context, p, i);
+        {
+            mm_scene_sound_get_tag(p, i, &tag);
+            if (tag.tag.cache)
+            {
+                s->close(s->context, &tag);
+                mm_scene_sound_put_tag(p, i, &tag);
+            }
+        }
     s->free(s->context, p);
     *sound = NULL;
 }
@@ -129,7 +136,8 @@ static void close_frame_sound(const MMSceneTrack *track, MMI32 index, int exact,
 {
     MMI32 i, count, bytes = 0, span;
     MMSceneSound *sound = (MMSceneSound *)mm_scene_track_payload(track, index, &bytes);
-    span = mm_scene_sound_span(sound, bytes, s->sound_tag_bytes);
+    MMSceneSoundTag tag;
+    span = mm_scene_sound_span(sound, bytes);
     if (!span || (exact && span != bytes))
     {
         s->diagnostic(s->context, MM_SCENE_BAD_PAYLOAD);
@@ -139,7 +147,10 @@ static void close_frame_sound(const MMSceneTrack *track, MMI32 index, int exact,
     for (i = 0; i < count; ++i)
     {
         sound = (MMSceneSound *)mm_scene_track_payload(track, index, NULL);
-        s->sound.close(s->sound.context, sound, i);
+        mm_scene_sound_get_tag(sound, i, &tag);
+        s->sound.close(s->sound.context, &tag);
+        sound = (MMSceneSound *)mm_scene_track_payload(track, index, NULL);
+        mm_scene_sound_put_tag(sound, i, &tag);
     }
 }
 int mm_scene_owner_erase_frame(MMSceneOwner *w, MMI32 index, const MMSceneOwnerServices *s)

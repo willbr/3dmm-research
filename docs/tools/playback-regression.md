@@ -15741,3 +15741,37 @@ In `actor-event-edit` suite `20261120T132345Z-f12d34fa`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## Shared C89 scene sound tags (20 November 2026)
+
+Studio's live sound packets and stored sound edits use the same C89
+child and tag records. C89 controls copying, playback, resolution and
+cleanup. It copies live event records through aligned values for each
+resource operation and preserves tag updates from failed resolution.
+The wire codec still uses 20-byte tag records.
+
+The native scene sound, sound-edit, load, store, owner, runtime, event,
+edit and content traces matched byte-for-byte. The sound and sound-edit
+fingerprints were `7C5AE3AD` and `D3F41FF2`. Native and SDL save/reopen
+archives and movie content, composition and actor sound traces also
+matched the prior build. The C89 fixtures exercise four-byte-aligned
+event storage and local reference cleanup after failed loads and edits.
+All 45 targeted x64 checks, 23 standalone C89 checks, 19 x86 checks,
+and 18 SDL Release scene checks passed. The x64 run includes Marcus
+sound editing. All ten Preview fingerprints and six fixture archives
+matched.
+
+Both SDL builds saved and reopened a two-scene movie with a local WAVE
+and two thumbnails. The decoded archives matched, with one differing
+SCEN index padding byte in the raw saves. Fresh retail runs produced
+the same scene-one frame-four RGB image and the same frame-two WAVE
+request.
+
+Both VMM seek images in `20261120T134115Z-919528ac` matched the retained
+SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-scene-sound-tags`.
+
+In `actor-event-edit` suite `20261120T134115Z-10f2ab28`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

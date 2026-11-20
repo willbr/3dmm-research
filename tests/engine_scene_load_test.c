@@ -100,25 +100,9 @@ static void release_object(void *p, void *value)
     if (o->type < 100 || o->type >= 200)
         free(o);
 }
-static MMI32 sound_count(void *p, void *sound)
-{
-    (void)p;
-    return ((MMSceneSound *)sound)->ctagc;
-}
-static MMI32 sound_style(void *p, void *sound)
-{
-    (void)p;
-    return ((MMSceneSound *)sound)->sty;
-}
-static int opened(void *p, void *sound, MMI32 i)
-{
-    (void)p;
-    return at((MMSceneSound *)sound, i)->tag.cache != NULL;
-}
-static void close_tag(void *p, void *sound, MMI32 i)
+static void close_tag(void *p, MMSceneSoundTag *r)
 {
     Loader *f = (Loader *)p;
-    Record *r = at((MMSceneSound *)sound, i);
     note(f, 10 + (int)r->child);
     if (!r->tag.sid)
     {
@@ -219,19 +203,18 @@ static void *retain_background_cache(void *p)
     ++f->live;
     return &f->background_cache;
 }
-static int open_tag(void *p, MMSceneSound *sound, MMI32 i)
+static int open_tag(void *p, MMSceneSoundTag *r)
 {
     Loader *f = (Loader *)p;
-    Record *r = at(sound, i);
-    if (!step(f) || f->fail_open == i + 1)
+    if (!step(f) || f->fail_open == (int)r->child)
         return 0;
-    CHECK(r->child == (MMU32)i + 1 && !r->tag.cache);
+    CHECK(r->child >= 1 && r->child <= 3 && !r->tag.cache);
     if (!r->tag.sid)
     {
         r->tag.cache = &f->packets;
         ++f->packets.refs[r->tag.number];
     }
-    note(f, 30 + i);
+    note(f, 29 + r->child);
     return 1;
 }
 static int read_title(void *p, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
@@ -322,15 +305,11 @@ static void init_loader(Loader *f, int swap)
     s->open_tag = open_tag;
     o = &s->owners;
     o->context = f;
-    o->sound_tag_bytes = sizeof(Record);
     o->create_scene = new_scene;
     o->state = owner_state;
     o->release = release_object;
     o->diagnostic = diagnostic;
     o->sound.context = f;
-    o->sound.count = sound_count;
-    o->sound.style = sound_style;
-    o->sound.open = opened;
     o->sound.close = close_tag;
     o->sound.free = free_sound;
     o->sound.diagnostic = diagnostic;
@@ -439,10 +418,9 @@ static int resolve_actor(void *p, void *actor, MMU32 scene)
     ++f->actor_calls;
     return f->actor_calls != f->actor_fail;
 }
-static int resolve_record(void *p, void *record, MMU32 scene)
+static int resolve_record(void *p, MMSceneSoundTag *r, MMU32 scene)
 {
     Loader *f = (Loader *)p;
-    Record *r = (Record *)record;
     CHECK(scene == 42 && f->owner.tracks[MM_SCENE_FRAMES].storage.buffers[0].locks == 1 && !r->tag.sid);
     ++f->resolve_calls;
     if (f->resolve_calls == f->resolve_fail)
@@ -457,6 +435,7 @@ static void test_resolve(void)
     LoadObject *scene;
     MMSceneTrack *frames = &f.owner.tracks[MM_SCENE_FRAMES];
     MMSceneSound *sound;
+    MMSceneSoundTag tag;
     int fail, i;
     for (fail = 0; fail < 6; ++fail)
     {
@@ -469,7 +448,6 @@ static void test_resolve(void)
         s.context = &f;
         s.owner = &f.owner;
         s.actor = resolve_actor;
-        s.packets = f.packets.s;
         s.resolve = resolve_record;
         f.actor_fail = fail <= 2 ? fail : 0;
         f.resolve_fail = fail == 3 || fail == 4 ? fail - 2 : 0;
@@ -485,12 +463,21 @@ static void test_resolve(void)
             CHECK(f.actor_calls == 2 && f.resolve_calls == (fail == 3 ? 1 : 2));
         sound->ctagc = 3;
         /* Failed resolution retains just the completed tag mutation prefix. */
-        CHECK(at(sound, 0)->tag.number == (fail == 0 || fail == 4 ? 5U : 1U));
-        CHECK(at(sound, 1)->tag.number == 2);
-        CHECK(at(sound, 2)->tag.number == (fail == 0 ? 7U : 3U));
+        mm_scene_sound_get_tag(sound, 0, &tag);
+        CHECK(tag.tag.number == (fail == 0 || fail == 4 ? 5U : 1U));
+        mm_scene_sound_get_tag(sound, 1, &tag);
+        CHECK(tag.tag.number == 2);
+        mm_scene_sound_get_tag(sound, 2, &tag);
+        CHECK(tag.tag.number == (fail == 0 ? 7U : 3U));
         for (i = 0; i < sound->ctagc; ++i)
-            if (at(sound, i)->tag.number >= 4)
-                at(sound, i)->tag.number -= 4;
+        {
+            mm_scene_sound_get_tag(sound, i, &tag);
+            if (tag.tag.number >= 4)
+            {
+                tag.tag.number -= 4;
+                mm_scene_sound_put_tag(sound, i, &tag);
+            }
+        }
         release_object(&f, scene);
         check_clean(&f);
     }

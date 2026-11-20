@@ -5,39 +5,54 @@
 #include "mm/wide.h"
 #include <string.h>
 typedef char scene_sound_header_must_be_16_bytes[sizeof(MMSceneSound) == 16 ? 1 : -1];
-MMI32 mm_scene_sound_size(MMI32 count, size_t stride)
+static MMI32 packet_size(MMI32 count, MMU32 stride)
 {
     MMU32 bytes;
-    if (count < 0 || !stride || stride > 2147483631UL || (MMU32)count > (2147483631UL / stride))
+    if (count < 0 || (MMU32)count > (2147483631UL / stride))
         return 0;
-    bytes = 16U + (MMU32)count * (MMU32)stride;
+    bytes = MM_SCENE_SOUND_HEADER_BYTES + (MMU32)count * stride;
     return (size_t)bytes == bytes ? (MMI32)bytes : 0;
 }
-MMI32 mm_scene_sound_span(const void *data, MMI32 bytes, size_t stride)
+MMI32 mm_scene_sound_size(MMI32 count)
+{
+    return packet_size(count, sizeof(MMSceneSoundTag));
+}
+MMI32 mm_scene_sound_wire_size(MMI32 count)
+{
+    return packet_size(count, MM_SCENE_SOUND_WIRE_TAG_BYTES);
+}
+MMI32 mm_scene_sound_span(const void *data, MMI32 bytes)
 {
     MMSceneSound header;
     MMI32 span;
     if (!data || bytes < MM_SCENE_SOUND_HEADER_BYTES)
         return 0;
     memcpy(&header, data, sizeof(header));
-    span = mm_scene_sound_size(header.ctagc, stride);
+    span = mm_scene_sound_size(header.ctagc);
     return span <= bytes ? span : 0;
 }
-static void *record(MMSceneSound *p, MMI32 i, const MMSceneSoundPacketServices *s)
+static size_t record_offset(MMI32 i)
 {
-    return (unsigned char *)p + 16 + (size_t)i * s->tag_bytes;
+    return MM_SCENE_SOUND_HEADER_BYTES + (size_t)i * sizeof(MMSceneSoundTag);
+}
+void mm_scene_sound_get_tag(const MMSceneSound *p, MMI32 i, MMSceneSoundTag *tag)
+{
+    memcpy(tag, (const unsigned char *)p + record_offset(i), sizeof(*tag));
+}
+void mm_scene_sound_put_tag(MMSceneSound *p, MMI32 i, const MMSceneSoundTag *tag)
+{
+    memcpy((unsigned char *)p + record_offset(i), tag, sizeof(*tag));
 }
 MMSceneSound *mm_scene_sound_allocate(MMI32 count, const MMSceneSoundPacketServices *s)
 {
-    MMI32 bytes = mm_scene_sound_size(count, s->tag_bytes);
+    MMI32 bytes = mm_scene_sound_size(count);
     return bytes ? (MMSceneSound *)s->allocate(s->context, bytes) : NULL;
 }
 MMSceneSound *mm_scene_sound_make(MMI32 volume, MMI32 style, int loop, MMI32 count,
-                                             const void *records, const MMSceneSoundPacketServices *s)
+                                  const MMSceneSoundTag *records, const MMSceneSoundPacketServices *s)
 {
     MMSceneSound *p = mm_scene_sound_allocate(count, s);
     MMI32 i;
-    void *out;
     if (!p)
         return NULL;
     p->vlm = volume;
@@ -46,17 +61,17 @@ MMSceneSound *mm_scene_sound_make(MMI32 volume, MMI32 style, int loop, MMI32 cou
     p->ctagc = count;
     for (i = 0; i < count; ++i)
     {
-        out = record(p, i, s);
-        s->copy_record(s->context, out, (const unsigned char *)records + (size_t)i * s->tag_bytes);
-        s->retain(s->context, out);
+        mm_scene_sound_put_tag(p, i, records + i);
+        s->retain(s->context, records + i);
     }
     return p;
 }
 MMSceneSound *mm_scene_sound_duplicate(const MMSceneSound *source,
                                                   const MMSceneSoundPacketServices *s)
 {
-    MMI32 bytes = mm_scene_sound_size(source->ctagc, s->tag_bytes), i;
+    MMI32 bytes = mm_scene_sound_size(source->ctagc), i;
     MMSceneSound *p;
+    MMSceneSoundTag tag;
     if (!bytes)
         return NULL;
     p = (MMSceneSound *)s->allocate(s->context, bytes);
@@ -64,22 +79,28 @@ MMSceneSound *mm_scene_sound_duplicate(const MMSceneSound *source,
         return NULL;
     memcpy(p, source, (size_t)bytes);
     for (i = 0; i < p->ctagc; ++i)
-        s->retain(s->context, record(p, i, s));
+    {
+        mm_scene_sound_get_tag(p, i, &tag);
+        s->retain(s->context, &tag);
+    }
     return p;
 }
 static void copy_group_sound(MMSceneSound *p, const void *source, MMI32 bytes, int retain_tags,
                              const MMSceneSoundPacketServices *s)
 {
     MMI32 i;
-    void *tag;
+    MMSceneSoundTag tag;
     memcpy(p, source, (size_t)bytes);
     for (i = 0; i < p->ctagc; ++i)
     {
-        tag = record(p, i, s);
+        mm_scene_sound_get_tag(p, i, &tag);
         if (!retain_tags)
-            s->clear_cache(s->context, tag);
-        else if (!s->sid(s->context, tag))
-            s->retain(s->context, tag);
+        {
+            tag.tag.cache = NULL;
+            mm_scene_sound_put_tag(p, i, &tag);
+        }
+        else if (!tag.tag.sid)
+            s->retain(s->context, &tag);
     }
 }
 MMSceneSound *mm_scene_sound_group(void *group, MMI32 index, int retain_tags,
@@ -91,7 +112,7 @@ MMSceneSound *mm_scene_sound_group(void *group, MMI32 index, int retain_tags,
     if (size < MM_SCENE_SOUND_HEADER_BYTES)
         return NULL;
     source = s->group_data(s->context, group, index);
-    bytes = mm_scene_sound_span(source, size, s->tag_bytes);
+    bytes = mm_scene_sound_span(source, size);
     if (bytes <= MM_SCENE_SOUND_HEADER_BYTES)
         return NULL;
     p = (MMSceneSound *)s->allocate(s->context, bytes);
@@ -105,7 +126,7 @@ MMSceneSound *mm_scene_sound_track(const MMSceneTrack *track, MMI32 index,
     MMSceneSound *p;
     MMI32 size = 0, bytes;
     const void *source = mm_scene_track_payload(track, index, &size);
-    bytes = mm_scene_sound_span(source, size, s->tag_bytes);
+    bytes = mm_scene_sound_span(source, size);
     if (bytes <= MM_SCENE_SOUND_HEADER_BYTES)
         return NULL;
     p = (MMSceneSound *)s->allocate(s->context, bytes);
@@ -113,41 +134,20 @@ MMSceneSound *mm_scene_sound_track(const MMSceneTrack *track, MMI32 index,
         copy_group_sound(p, mm_scene_track_payload(track, index, NULL), bytes, 1, s);
     return p;
 }
-static MMSceneSound *append_storage(const MMSceneSound *source, const MMSceneSoundPacketServices *s)
+MMSceneSound *mm_scene_sound_append(const MMSceneSound *source, const MMSceneSoundTag *tag,
+                                    const MMSceneSoundPacketServices *s)
 {
     MMSceneSound *p;
-    MMI32 bytes = mm_scene_sound_size(source->ctagc, s->tag_bytes);
-    if (!bytes || source->ctagc == 2147483647)
+    MMI32 bytes = mm_scene_sound_size(source->ctagc);
+    if (!bytes)
         return NULL;
     p = mm_scene_sound_allocate(source->ctagc + 1, s);
     if (!p)
         return NULL;
     memcpy(p, source, (size_t)bytes);
-    return p;
-}
-static void retain_appended(MMSceneSound *p, const MMSceneSoundPacketServices *s)
-{
+    mm_scene_sound_put_tag(p, p->ctagc, tag);
     ++p->ctagc;
-    s->retain(s->context, record(p, p->ctagc - 1, s));
-}
-MMSceneSound *mm_scene_sound_append(const MMSceneSound *source, const void *tag,
-                                               const MMSceneSoundPacketServices *s)
-{
-    MMSceneSound *p = append_storage(source, s);
-    if (!p)
-        return NULL;
-    s->copy_record(s->context, record(p, p->ctagc, s), tag);
-    retain_appended(p, s);
-    return p;
-}
-MMSceneSound *mm_scene_sound_append_tag(const MMSceneSound *source, MMU32 child,
-                                                   const MMTag *tag, const MMSceneSoundPacketServices *s)
-{
-    MMSceneSound *p = append_storage(source, s);
-    if (!p)
-        return NULL;
-    s->write_tag(s->context, record(p, p->ctagc, s), child, tag);
-    retain_appended(p, s);
+    s->retain(s->context, tag);
     return p;
 }
 static MMU32 reverse(MMU32 n)
@@ -180,7 +180,7 @@ int mm_scene_sound_wire(const void *bytes, MMI32 size, int big_endian, MMSceneSo
     count = mm_signed_word(wire_word(b + 12, swap));
     if (count <= 0)
         return 0;
-    width = mm_scene_sound_size(count, MM_SCENE_SOUND_WIRE_TAG_BYTES);
+    width = mm_scene_sound_wire_size(count);
     if (!width || width > size)
         return 0;
     out->header.vlm = mm_signed_word(wire_word(b, swap));
@@ -206,16 +206,15 @@ MMSceneSound *mm_scene_sound_decode(void *bytes, MMI32 size, int swap,
     const unsigned short one = 1;
     unsigned char *b = (unsigned char *)bytes;
     MMSceneSoundWire wire;
-    MMU32 child;
     MMI32 width, i;
-    MMTag tag;
+    MMSceneSoundTag tag = {0};
     MMSceneSound *p;
     if (!mm_scene_sound_wire(bytes, size, (*(const unsigned char *)&one == 0) != (swap != 0), &wire) ||
-        !mm_scene_sound_size(wire.header.ctagc, s->tag_bytes))
+        !mm_scene_sound_size(wire.header.ctagc))
         return NULL;
     if (swap)
     {
-        width = mm_scene_sound_size(wire.header.ctagc, MM_SCENE_SOUND_WIRE_TAG_BYTES);
+        width = mm_scene_sound_wire_size(wire.header.ctagc);
         for (i = 0; i < width; i += 4)
             put(b + i, reverse(word(b + i)));
         wire.swap = 0;
@@ -226,20 +225,19 @@ MMSceneSound *mm_scene_sound_decode(void *bytes, MMI32 size, int swap,
     *p = wire.header;
     for (i = 0; i < p->ctagc; ++i)
     {
-        mm_scene_sound_wire_tag(&wire, i, &child, &tag);
-        s->write_tag(s->context, record(p, i, s), child, &tag);
+        mm_scene_sound_wire_tag(&wire, i, &tag.child, &tag.tag);
+        mm_scene_sound_put_tag(p, i, &tag);
     }
     return p;
 }
 void *mm_scene_sound_encode(const MMSceneSound *p, MMI32 *size,
                                   const MMSceneSoundPacketServices *s)
 {
-    MMI32 width = mm_scene_sound_size(p->ctagc, 20), i;
+    MMI32 width = mm_scene_sound_wire_size(p->ctagc), i;
     unsigned char *b, *q;
-    MMU32 child;
-    MMTag tag;
+    MMSceneSoundTag tag;
     *size = 0;
-    if (!width || !mm_scene_sound_size(p->ctagc, s->tag_bytes))
+    if (!width || !mm_scene_sound_size(p->ctagc))
         return NULL;
     b = (unsigned char *)s->allocate(s->context, width);
     if (!b)
@@ -247,13 +245,13 @@ void *mm_scene_sound_encode(const MMSceneSound *p, MMI32 *size,
     memcpy(b, p, 16);
     for (i = 0; i < p->ctagc; ++i)
     {
-        s->read_tag(s->context, (const unsigned char *)p + 16 + (size_t)i * s->tag_bytes, &child, &tag);
-        q = b + 16 + (size_t)i * 20;
-        put(q, child);
-        put(q + 4, (MMU32)tag.sid);
+        mm_scene_sound_get_tag(p, i, &tag);
+        q = b + MM_SCENE_SOUND_HEADER_BYTES + (size_t)i * MM_SCENE_SOUND_WIRE_TAG_BYTES;
+        put(q, tag.child);
+        put(q + 4, (MMU32)tag.tag.sid);
         put(q + 8, 0);
-        put(q + 12, tag.type);
-        put(q + 16, tag.number);
+        put(q + 12, tag.tag.type);
+        put(q + 16, tag.tag.number);
     }
     *size = width;
     return b;
@@ -262,13 +260,19 @@ void mm_scene_sound_play(MMSceneSound *p, MMU32 start, const MMSceneSoundPacketS
 {
     MMI32 i, priority;
     int tool = p->fLoop != 0;
-    void *tag, *sound;
+    void *sound;
+    MMSceneSoundTag tag;
     for (i = 0; i < p->ctagc; ++i)
     {
-        tag = record(p, i, s);
-        if (!s->sid(s->context, tag) && !s->resolve(s->context, tag))
-            continue;
-        sound = s->fetch(s->context, tag);
+        mm_scene_sound_get_tag(p, i, &tag);
+        if (!tag.tag.sid)
+        {
+            int ready = s->resolve(s->context, &tag);
+            mm_scene_sound_put_tag(p, i, &tag);
+            if (!ready)
+                continue;
+        }
+        sound = s->fetch(s->context, &tag);
         if (!sound)
             return;
         priority = s->priority(s->context, sound, tool);

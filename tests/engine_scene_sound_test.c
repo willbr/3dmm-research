@@ -5,10 +5,11 @@ static void factories(void)
     MMSceneSound *p, *copy, *added;
     int before;
     init(&f);
-    CHECK(mm_scene_sound_size(0, 32) == 16 && !mm_scene_sound_size(-1, 32));
-    CHECK(!mm_scene_sound_size(1, 0) && !mm_scene_sound_size(1, (size_t)-1));
-    CHECK(mm_scene_sound_size(67108863, 32) == 2147483632 && !mm_scene_sound_size(67108864, 32));
-    CHECK(!mm_scene_sound_size(2147483647, 32));
+    CHECK(mm_scene_sound_size(0) == 16 && !mm_scene_sound_size(-1));
+    CHECK(mm_scene_sound_size(1) == 16 + sizeof(MMSceneSoundTag));
+    CHECK(mm_scene_sound_size(2147483631UL / sizeof(MMSceneSoundTag)) &&
+          !mm_scene_sound_size(2147483631UL / sizeof(MMSceneSoundTag) + 1));
+    CHECK(mm_scene_sound_wire_size(107374181) == 2147483636L && !mm_scene_sound_wire_size(107374182));
     p = mm_scene_sound_allocate(2, &f.s);
     CHECK(p && ((unsigned char *)p)[0] == 0xa5);
     raw_free(&f, p);
@@ -25,7 +26,7 @@ static void factories(void)
     p->fLoop = 0x01020304;
     copy = mm_scene_sound_duplicate(p, &f.s);
     CHECK(copy && f.retains == before + 3 && f.refs[1] == 2 && copy->fLoop == p->fLoop);
-    CHECK(!memcmp(p, copy, (size_t)mm_scene_sound_size(3, sizeof(Record))));
+    CHECK(!memcmp(p, copy, (size_t)mm_scene_sound_size(3)));
     drop(&f, copy);
     f.input[3].tag.sid = 0;
     before = f.retains;
@@ -53,7 +54,7 @@ static void groups(void)
     {
         init(&f);
         p = make(&f, 3);
-        f.group_bytes = mm_scene_sound_size(3, sizeof(Record));
+        f.group_bytes = mm_scene_sound_size(3);
         f.group = (unsigned char *)malloc((size_t)f.group_bytes);
         CHECK(f.group);
         memcpy(f.group, p, (size_t)f.group_bytes);
@@ -66,8 +67,10 @@ static void groups(void)
         f.lookups = 0;
         copy = mm_scene_sound_group(&f, 0, mode, &f.s);
         CHECK(copy && f.lookups == 2 && f.stale);
-        CHECK(f.retains == previous + (mode ? 2 : 0) && f.clears == (mode ? 0 : 3));
+        CHECK(f.retains == previous + (mode ? 2 : 0));
         CHECK(at(copy, 1)->tag.cache == (mode ? (void *)&f : NULL));
+        if (!mode)
+            CHECK(!at(copy, 0)->tag.cache && !at(copy, 2)->tag.cache);
         drop(&f, copy);
         f.group_bytes = 15;
         f.lookups = 0;
@@ -75,7 +78,7 @@ static void groups(void)
         CHECK(!mm_scene_sound_group(&f, 0, 1, &f.s) && !f.lookups && f.allocs == previous);
         f.group_bytes = 16;
         CHECK(!mm_scene_sound_group(&f, 0, 1, &f.s) && f.allocs == previous);
-        f.group_bytes = mm_scene_sound_size(3, sizeof(Record));
+        f.group_bytes = mm_scene_sound_size(3);
         ((MMSceneSound *)f.group)->ctagc = -1;
         CHECK(!mm_scene_sound_group(&f, 0, 1, &f.s));
         drop(&f, p);
@@ -242,12 +245,40 @@ static void playback(void)
     drop(&f, p);
     clean(&f);
 }
+static int fail_after_update(void *context, MMSceneSoundTag *tag)
+{
+    (void)context;
+    tag->tag.number = 200;
+    return 0;
+}
+static void four_byte_aligned_record(void)
+{
+    Fixture f;
+    MMSceneSound *p, *row;
+    MMSceneSoundTag tag;
+    unsigned char *storage;
+    MMI32 bytes = mm_scene_sound_size(1);
+    init(&f);
+    p = make(&f, 1);
+    storage = (unsigned char *)malloc(bytes + 4);
+    CHECK(storage);
+    row = (MMSceneSound *)(storage + 4);
+    memcpy(row, p, bytes);
+    f.s.resolve = fail_after_update;
+    mm_scene_sound_play(row, 0, &f.s);
+    mm_scene_sound_get_tag(row, 0, &tag);
+    CHECK(tag.child == 1 && tag.tag.number == 200 && tag.tag.cache == &f && !f.plays);
+    free(storage);
+    drop(&f, p);
+    clean(&f);
+}
 int main(void)
 {
     factories();
     groups();
     codecs();
     playback();
+    four_byte_aligned_record();
     puts("C89 Scene sound packets: ownership, relocation/faults, wire codecs and indexed playback passed.");
     return 0;
 }

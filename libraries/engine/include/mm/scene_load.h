@@ -20,7 +20,7 @@ extern "C"
         void *(*thumbnail)(void *, MMU32 number);
         void *(*object)(void *, MMU32 number, int kind, void *scene);
         void *(*retain_background_cache)(void *); /* Returns one reference to the document's live cache. */
-        int (*open_tag)(void *, MMSceneSound *, MMI32 index);
+        int (*open_tag)(void *, MMSceneSoundTag *);
     } MMSceneLoadServices;
     /* The reader supplies validated scene events.
      * Reads the header before creating the scene and fills the initialized owner
@@ -43,8 +43,7 @@ extern "C"
         void *context;
         MMSceneOwner *owner;
         int (*actor)(void *, void *actor, MMU32 scene);
-        MMSceneSoundPacketServices packets;
-        int (*resolve)(void *, void *record, MMU32 scene);
+        int (*resolve)(void *, MMSceneSoundTag *, MMU32 scene);
     } MMSceneResolveServices;
     /* Captures actor/event counts once, visits actors before locking frame storage,
      * resolves sid-zero tags in place and preserves the completed prefix on failure.

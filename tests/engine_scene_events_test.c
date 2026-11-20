@@ -77,17 +77,6 @@ static void release(void *p, void *object)
     ++f->releases;
     log_op(f, RELEASE);
 }
-static MMI32 sound_count(void *p, void *packet)
-{
-    (void)p;
-    (void)packet;
-    return 0;
-}
-static MMI32 owned_style(void *p, void *packet)
-{
-    (void)p;
-    return ((const MMSceneSound *)packet)->sty;
-}
 static void free_sound(void *p, void *packet)
 {
     Fixture *f = (Fixture *)p;
@@ -211,8 +200,6 @@ static void init(Fixture *f)
     s->owners.context = f;
     s->owners.release = release;
     s->owners.sound.context = f;
-    s->owners.sound.count = sound_count;
-    s->owners.sound.style = owned_style;
     s->owners.sound.free = free_sound;
     s->duplicate_sound = duplicate;
     s->play_sound = play;

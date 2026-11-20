@@ -182,6 +182,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   the event tracks and rosters. Loading fills that state directly, and the
   C89 title reader runs after both event tracks load. Saving, seek, replay,
   trimming and playback startup use the same scene state.
+- Studio's live scene sound packets and stored sound edits use the same
+  C89 child and tag records. Packet copies, undo, playback, and cleanup use
+  those records directly. The native host supplies resource operations and
+  the C89 codec writes the legacy 20-byte tag records.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs
