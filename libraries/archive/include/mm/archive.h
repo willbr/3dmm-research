@@ -11,6 +11,11 @@ struct MMMovieSession;
 struct MMMovieSessionGraph;
 struct MMArchiveReader;
 
+namespace Chunky
+{
+class ChunkyResourceFile;
+}
+
 namespace MM
 {
 struct Id
@@ -150,6 +155,7 @@ class Archive
     friend class Preview;
     friend bool ReadSoundCatalogStyle(const Archive &, std::uint32_t, std::int32_t &);
     void *NativeFile() const; // Private bridge to the engine preview adapter.
+    Chunky::ChunkyResourceFile *NewResourceCache(std::int32_t budget) const;
     bool PrepareNativeFile(Error &);
     bool OpenResources(const std::string &utf8Path, Error &);
     MMArchiveReader *Reader() const;

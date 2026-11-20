@@ -107,6 +107,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   C89 reader. Preview materializes its native resource graph from the
   validated wire index over the same open file. Movie files already open in
   Kauai use its live graph path.
+- The C89 resource cache reads model and texture payloads from that index for
+  read-only Preview archives. It retains the index and backing file while
+  detached renderer objects still depend on the cache. Texture loaders use
+  the block selected by the cache. Editable archives use live chunk lookup.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

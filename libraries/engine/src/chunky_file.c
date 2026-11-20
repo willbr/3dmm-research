@@ -10,7 +10,7 @@ struct MMChunkIndex
     MMChunkHeader header;
     MMChunkPolicy policy;
     unsigned char *wire;
-    MMU32 count, data_bytes, stride;
+    MMU32 references, count, data_bytes, stride;
     int big;
 };
 static unsigned int word16(const unsigned char *bytes, int big)
@@ -64,6 +64,12 @@ int mm_chunk_read_header(const MMReadStream *stream, MMChunkHeader *header)
         return MM_CHUNK_BAD_FILE;
     *header = result;
     return MM_CHUNK_OK;
+}
+int mm_chunk_stored_extent(const MMChunkHeader *header, const MMChunkEntry *entry)
+{
+    MMU32 start = entry->offset, bytes = entry->bytes;
+    MMU32 end = header->index_offset;
+    return (start >= MM_CHUNK_PREFIX_BYTES || (!start && !bytes)) && start <= end && bytes <= end - start;
 }
 static void write16(unsigned char *bytes, unsigned int value, int big)
 {
@@ -472,6 +478,7 @@ int mm_chunk_index_open(const MMReadStream *stream, const MMChunkPolicy *policy,
         free(index);
         return MM_CHUNK_MEMORY;
     }
+    index->references = 1;
     index->header = header;
     index->policy = *policy;
     memcpy(index->wire, group, sizeof(group));
@@ -522,9 +529,17 @@ bad:
     mm_chunk_index_close(index);
     return MM_CHUNK_BAD_FILE;
 }
+MMChunkIndex *mm_chunk_index_retain(const MMChunkIndex *index)
+{
+    MMChunkIndex *owner = (MMChunkIndex *)index;
+    if (!owner || owner->references == 0xffffffffUL)
+        return NULL;
+    ++owner->references;
+    return owner;
+}
 void mm_chunk_index_close(MMChunkIndex *index)
 {
-    if (index)
+    if (index && !--index->references)
     {
         free(index->wire);
         free(index);

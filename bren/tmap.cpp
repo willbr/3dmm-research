@@ -48,7 +48,6 @@ MMTextureServices TextureMap::_Services(void *context)
         else
             Assert(false, "upside down bitmap");
     };
-    s.file = [](void *, void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
     s.find = [](void *p, void *file, MMU32 type, MMU32 number) -> void * {
         auto &b = static_cast<TextureContext *>(p)->block;
         return static_cast<PChunkyFile>(file)->FFind(type, number, &b) ? &b : nullptr;
@@ -115,16 +114,15 @@ MMTextureServices TextureMap::_Services(void *context)
     };
     return s;
 }
-bool TextureMap::FReadTmap(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, PDataBlock block,
+bool TextureMap::FReadTmap(PChunkyResourceFile cache, ChunkTagOrType, ChunkNumber, PDataBlock block,
                            PBaseCacheableObject *out, br_int_32 *bytes)
 {
     AssertPo(cache, 0);
     AssertPo(block, 0);
     AssertNilOrVarMem(out);
     AssertVarMem(bytes);
-    TextureContext context;
-    auto s = _Services(&context);
-    return mm_texture_fetch(cache, type, number, block, out, bytes, &s) != 0;
+    auto s = _Services();
+    return mm_texture_fetch(block, out, bytes, &s) != 0;
 }
 PTextureMap TextureMap::PtmapRead(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {

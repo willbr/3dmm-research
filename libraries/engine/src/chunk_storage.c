@@ -170,10 +170,7 @@ static int decode(void *codec, MMI32 format, const void *input, MMU32 bytes, voi
 int mm_chunk_stored_slice(const MMReadStream *stream, const MMChunkHeader *header, const MMChunkEntry *entry,
                           MMReadSlice *slice)
 {
-    MMU32 start = entry->offset, bytes = entry->bytes;
-    MMU32 end = header->index_offset;
-    return ((start >= MM_CHUNK_PREFIX_BYTES || (!start && !bytes)) && start <= end &&
-            bytes <= end - start && mm_read_slice_init(slice, stream, start, bytes));
+    return mm_chunk_stored_extent(header, entry) && mm_read_slice_init(slice, stream, entry->offset, entry->bytes);
 }
 
 int mm_chunk_payload_open(const MMReadStream *stream, const MMChunkHeader *header, const MMChunkEntry *entry,

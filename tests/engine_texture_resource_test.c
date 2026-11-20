@@ -123,11 +123,6 @@ static void diagnostic(void *p, int n)
 {
     test(p)->diagnostic = n + 1;
 }
-static void *file(void *p, void *c)
-{
-    (void)c;
-    return p;
-}
 static void *find(void *p, void *f, MMU32 type, MMU32 number)
 {
     (void)f;
@@ -284,7 +279,6 @@ static void setup(Test *t)
     t->s.free_memory = free_memory;
     t->s.invalidate = invalidate;
     t->s.diagnostic = diagnostic;
-    t->s.file = file;
     t->s.find = find;
     t->s.unpack = unpack;
     t->s.size = size;
@@ -349,8 +343,10 @@ static void codecs_and_loads(void)
     {
         setup(&t);
         t.fail = i;
+        t.s.find = NULL;
+        t.s.close_block = NULL;
         o = NULL;
-        ok = mm_texture_fetch(&t, 1, 0, &t, &o, &estimate, &t.s);
+        ok = mm_texture_fetch(&t, &o, &estimate, &t.s);
         if (ok)
         {
             assert(estimate == 19 && o->texture.description.row_bytes == 4 &&
@@ -359,7 +355,6 @@ static void codecs_and_loads(void)
         }
         else
             assert(t.invalidated == 2);
-        assert(t.closed == 1);
         balanced(&t);
     }
     for (i = 0; i < 28; ++i)

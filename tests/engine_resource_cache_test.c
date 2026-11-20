@@ -28,6 +28,7 @@ struct Host
     int file_refs, objects, allocations, fail, fail_speed, issues;
     int destroyed[128], deaths, reads, estimates, scope_calls;
     int block_scans, active_blocks, active_handles, change_estimate_block;
+    const MMReadStream *wire;
     MMI32 bytes, estimate;
     int fail_read, fail_estimate, recursive, missing;
     MMResourceManager *manager;
@@ -170,8 +171,12 @@ static void *no_temp(void *context)
 }
 static int read_block(void *context, void *file, MMU32 offset, void *out, size_t bytes)
 {
+    const Host *h = (const Host *)file;
     (void)context;
-    CHECK(((Host *)file)->active_blocks > 0 && bytes == 1 && offset < 100);
+    CHECK(h->active_blocks > 0 && bytes == 1);
+    if (h->wire)
+        return mm_read_exact(h->wire, offset, out, bytes);
+    CHECK(offset < 100);
     *(unsigned char *)out = (unsigned char)offset;
     return 1;
 }
@@ -247,6 +252,8 @@ static int read_object(void *p, MMResourceReader reader, MMU32 type, MMU32 numbe
     int error;
     (void)type;
     CHECK(mm_owned_block_io(block, &io) == MM_DATA_OK);
+    if (block->file && block->file != h)
+        CHECK(io.view.packed && io.view.start == 128 && io.view.length == 1);
     CHECK(mm_block_read(&io, 0, &key, 1, 1) == MM_DATA_OK && key == number);
     if (!out)
     {
@@ -517,6 +524,47 @@ static void last_detached_reference(void)
     release(object);
     CHECK(closes == 1 && closed_file == 0);
 }
+static void wire_index_lifetime(void)
+{
+    static const unsigned char prefix[128] = {
+        'C','H','N','2', 0,0,0,0, 5,0,4,0, 1,0,3,3, 205,0,0,0, 129,0,0,0, 76,0,0,0, 205,0,0,0
+    };
+    static const unsigned char group[76] = {
+        1,0,3,3, 2,0,0,0, 40,0,0,0, 255,255,255,255, 20,0,0,0,
+        1,0,0,0, 7,0,0,0, 128,0,0,0, 6,1,0,0, 0,0,0,0,
+        1,0,0,0, 8,0,0,0, 128,0,0,0, 2,2,0,0, 0,0,0,0,
+        0,0,0,0, 20,0,0,0, 20,0,0,0, 20,0,0,0
+    };
+    unsigned char archive[205];
+    MMMemoryStream memory;
+    MMChunkPolicy policy = {0, 0, 516};
+    MMChunkIndex *index;
+    Host h, backing = {0};
+    Object *object;
+    int error = 1;
+    memcpy(archive, prefix, sizeof(prefix));
+    archive[128] = 7;
+    memcpy(archive + 129, group, sizeof(group));
+    CHECK(mm_memory_stream_init(&memory, archive, sizeof(archive)));
+    CHECK(mm_chunk_index_open(&memory.stream, &policy, &index) == MM_CHUNK_OK);
+    backing.wire = &memory.stream;
+    init(&h, 100);
+    h.missing = 1;
+    CHECK(mm_resource_cache_bind_index(&h.cache, index, &backing) == MM_STORAGE_OK);
+    CHECK(mm_resource_cache_bind_index(&h.cache, index, &backing) == MM_STORAGE_ARGUMENT);
+    mm_chunk_index_close(index);
+    CHECK(backing.active_blocks == 1 && mm_resource_cache_contains(&h.cache, 1, 7, 0));
+    CHECK(!mm_resource_cache_contains(&h.cache, 1, 7, 7));
+    CHECK(!mm_resource_cache_contains(&h.cache, 1, 9, 0));
+    CHECK(!fetch(&h, 8, reader_a, &error) && !error);
+    object = fetch(&h, 7, reader_a, &error);
+    CHECK(object && !error && !h.block_scans && backing.active_blocks == 1);
+    detach(object);
+    mm_resource_cache_release(&h.cache);
+    CHECK(backing.active_blocks == 1 && object->state.cache == &h.cache);
+    release(object);
+    CHECK(!backing.active_blocks && h.file_refs == 1 && !h.objects && !h.issues && !h.allocations);
+}
 typedef struct ManagerHost
 {
     MMResourceManager manager;
@@ -655,6 +703,7 @@ int main(void)
     wide_cases();
     cache_cases();
     last_detached_reference();
+    wire_index_lifetime();
     manager_cases();
     puts("resource cache C89 checks passed");
     return 0;

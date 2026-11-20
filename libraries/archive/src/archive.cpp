@@ -104,6 +104,11 @@ void *Archive::NativeFile() const
 {
     return _impl->file;
 }
+Chunky::ChunkyResourceFile *Archive::NewResourceCache(std::int32_t budget) const
+{
+    const auto index = _impl->previewFile ? mm_archive_reader_wire_index(_impl->reader) : nullptr;
+    return ChunkyResourceFile::PcrfNew(_impl->file, budget, index, _impl->previewFile);
+}
 MMArchiveReader *Archive::Reader() const
 {
     return _impl->reader;

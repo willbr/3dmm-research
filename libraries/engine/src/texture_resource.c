@@ -159,44 +159,46 @@ void *mm_texture_read_stream(const MMReadStream *stream, const MMTextureServices
     }
     return object;
 }
-void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *s)
+static int load_block(void *object, void *block, const MMTextureServices *s)
 {
-    void *object = s->create(s->context);
     TextureBlock source;
     MMReadStream stream;
     MMI32 length;
-    if (!object)
-        goto done;
-    source.services = s;
-    source.block = s->find(s->context, file, type, number);
-    if (!source.block || !s->unpack(s->context, source.block))
-        goto fail;
-    length = s->size(s->context, source.block, 0);
+    if (!block || !s->unpack(s->context, block))
+        return 0;
+    length = s->size(s->context, block, 0);
     if (length < 0)
-        goto fail;
+        return 0;
+    source.services = s;
+    source.block = block;
     stream.context = &source;
     stream.length = (MMU32)length;
     stream.read_at = read_block;
-    if (load(object, &stream, s))
-        goto done;
-fail:
-    s->release(s->context, object);
-    object = NULL;
-done:
+    return load(object, &stream, s);
+}
+void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *s)
+{
+    void *object = s->create(s->context);
+    if (object && !load_block(object, s->find(s->context, file, type, number), s))
+    {
+        s->release(s->context, object);
+        object = NULL;
+    }
     s->close_block(s->context);
     return object;
 }
-int mm_texture_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *out, void *size,
-                           const MMTextureServices *s)
+int mm_texture_fetch(void *block, void *out, void *size, const MMTextureServices *s)
 {
     MMI32 n = s->size(s->context, block, 1);
     void *object;
     memcpy(size, &n, 4);
     if (!out)
         return 1;
-    object = mm_texture_read(s->file(s->context, cache), type, number, s);
-    if (!object)
+    object = s->create(s->context);
+    if (!object || !load_block(object, block, s))
     {
+        if (object)
+            s->release(s->context, object);
         s->invalidate(s->context, out, sizeof(object));
         s->invalidate(s->context, size, 4);
         return 0;

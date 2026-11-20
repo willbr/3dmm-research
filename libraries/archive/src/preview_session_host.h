@@ -153,7 +153,7 @@ struct Preview::Impl::SessionHost
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
                 auto i = static_cast<Impl *>(p);
-                i->cache = ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(i->assets.NativeFile()), 32L << 20);
+                i->cache = i->assets.NewResourceCache(32L << 20);
                 *out = i->cache;
                 return *out != nullptr;
             });
@@ -200,7 +200,7 @@ struct Preview::Impl::SessionHost
                 auto i = static_cast<Source *>(p);
                 if (!i->archive.PrepareNativeFile(*h.error))
                     return false;
-                i->cache = ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(i->archive.NativeFile()), 32L << 20);
+                i->cache = i->archive.NewResourceCache(32L << 20);
                 return i->cache != nullptr;
             });
         };
@@ -229,7 +229,7 @@ PChunkyResourceFile Preview::Impl::Resolve(const TAGOnFile &tag)
 {
     const auto contains = [](void *context, void *source, MMU32 type, MMU32 number) -> int {
         auto file = source ? static_cast<Source *>(source)->cache : static_cast<Impl *>(context)->cache;
-        return file->Pcfl()->FFind(type, number);
+        return file->PcrfFindChunk(type, number) != nullptr;
     };
     void *source;
     if (mm_preview_session_resolve(&session, tag.sid, tag.ctg, tag.cno, contains, this, &source))

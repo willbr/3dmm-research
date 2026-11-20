@@ -39,6 +39,10 @@ extern "C"
         MMU32 type, number, slot;
     } MMChunkChild;
 
+    /* Stored payloads sit between the prefix and the index, with (0, 0) allowed
+     * for empty chunks. */
+    int mm_chunk_stored_extent(const MMChunkHeader *, const MMChunkEntry *);
+
     /* Accessors borrow live host storage. They return nonzero only after filling a
      * complete record. Query callbacks must not mutate/re-enter the index. This
      * lets editors use the same searches as immutable file indexes without a stale
@@ -110,6 +114,8 @@ extern "C"
                                    MMChunkHeader *committed);
     int mm_chunk_index_open(const MMReadStream *stream, const MMChunkPolicy *policy,
                                   MMChunkIndex **index);
+    /* A retained index can outlive the source stream and its original owner. */
+    MMChunkIndex *mm_chunk_index_retain(const MMChunkIndex *index);
     void mm_chunk_index_close(MMChunkIndex *index);
     MMChunkAccess mm_chunk_index_access(const MMChunkIndex *index);
     const MMChunkHeader *mm_chunk_index_header(const MMChunkIndex *index);

@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_RESOURCE_CACHE_H
 #define MM_ENGINE_RESOURCE_CACHE_H
+#include "chunky_file.h"
 #include "block_owner.h"
 #include "collections.h"
 #include "wide.h"
@@ -80,6 +81,8 @@ extern "C"
         MMCollectionStorage storage;
         MMResourceServices services;
         void *owner, *file;
+        MMChunkIndex *wire_index;
+        void *wire_file;
         MMReference *references;
         MMU32 count;
         MMI32 budget, releases;
@@ -101,6 +104,9 @@ extern "C"
     int mm_resource_cache_init(MMResourceCache *, void *owner, MMReference *references,
                                void *file, MMI32 budget, const MMResourceServices *,
                                const MMStorageAllocator *, int diagnostic_refs);
+    /* Bind once before the first lookup. The index and block file must describe
+     * the same immutable archive. The cache retains both until disposal. */
+    int mm_resource_cache_bind_index(MMResourceCache *, const MMChunkIndex *, void *block_file);
     int mm_resource_cache_reserve(MMResourceCache *, MMU32 additional);
     /* A final release may destroy the owner and cache before returning. */
     void mm_resource_cache_release(MMResourceCache *);

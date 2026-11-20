@@ -145,6 +145,19 @@ int mm_resource_cache_init(MMResourceCache *c, void *owner, MMReference *referen
     s->retain_file(file);
     return MM_STORAGE_OK;
 }
+int mm_resource_cache_bind_index(MMResourceCache *c, const MMChunkIndex *index, void *file)
+{
+    const MMBlockFileServices *files;
+    if (!c || !c->file || !index || !file || c->wire_index || c->count)
+        return MM_STORAGE_ARGUMENT;
+    c->wire_index = mm_chunk_index_retain(index);
+    if (!c->wire_index)
+        return MM_STORAGE_ARGUMENT;
+    files = c->services.block_files;
+    files->retain(files->context, file);
+    c->wire_file = file;
+    return MM_STORAGE_OK;
+}
 int mm_resource_cache_reserve(MMResourceCache *c, MMU32 additional)
 {
     MMArray a = view(c);
@@ -337,13 +350,38 @@ void mm_resource_cache_budget(MMResourceCache *c, MMI32 budget)
         mm_resource_cache_purge(c, mm_wide_subtract(c->resident, mm_wide_i32(budget)), 0x7fffffffL);
     c->budget = budget;
 }
+static int wire_find(MMResourceCache *c, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)
+{
+    MMChunkAccess access = mm_chunk_index_access(c->wire_index);
+    MMChunkEntry entry;
+    MMU32 position;
+    if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK)
+        return 0;
+    if (file)
+    {
+        if (mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK ||
+            !mm_chunk_stored_extent(mm_chunk_index_header(c->wire_index), &entry))
+            return 0;
+        file->file = c->wire_file;
+        file->offset = entry.offset;
+        file->length = entry.bytes;
+        *packed = (entry.flags & MM_CHUNK_PACKED) != 0;
+    }
+    return 1;
+}
+static int contains(MMResourceCache *c, MMU32 type, MMU32 number)
+{
+    if (c->wire_index)
+        return wire_find(c, type, number, NULL, NULL);
+    return c->services.contains(c->file, type, number);
+}
 static int scope(MMResourceCache *c, MMU32 rsc)
 {
-    return !rsc || c->services.contains(c->file, SCOPE_TYPE, rsc);
+    return !rsc || contains(c, SCOPE_TYPE, rsc);
 }
 int mm_resource_cache_contains(MMResourceCache *c, MMU32 type, MMU32 number, MMU32 rsc)
 {
-    return c->services.contains(c->file, type, number) && scope(c, rsc);
+    return contains(c, type, number) && scope(c, rsc);
 }
 static int charge(MMResourceCache *c, MMI32 bytes, void *object, MMU32 type, MMU32 number)
 {
@@ -368,7 +406,9 @@ static int open_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedBlo
 {
     MMBlockFile file;
     int packed;
-    if (!c->services.locate(c->file, q->type, q->number, &file, &packed))
+    int found = c->wire_index ? wire_find(c, q->type, q->number, &file, &packed) :
+                                c->services.locate(c->file, q->type, q->number, &file, &packed);
+    if (!found)
         return 0;
     if (mm_owned_block_init(out, c->services.handles, c->services.block_files) != MM_DATA_OK)
     {
@@ -570,6 +610,14 @@ int mm_resource_cache_dispose(MMResourceCache *c)
     if (c->diagnostic_refs && c->references->count != 1)
         issue(c, MM_RESOURCE_BAD_OWNER, 0, 0);
     result = mm_storage_dispose(&c->storage);
+    if (c->wire_index)
+    {
+        const MMBlockFileServices *files = c->services.block_files;
+        mm_chunk_index_close(c->wire_index);
+        files->release(files->context, c->wire_file);
+        c->wire_index = NULL;
+        c->wire_file = NULL;
+    }
     file = c->file;
     c->file = NULL;
     if (file)

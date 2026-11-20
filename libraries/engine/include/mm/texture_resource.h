@@ -55,7 +55,6 @@ extern "C"
         void (*free_memory)(void *, void **);
         void (*invalidate)(void *, void *, size_t);
         void (*diagnostic)(void *, int);
-        void *(*file)(void *, void *cache);
         void *(*find)(void *, void *file, MMU32 type, MMU32 number);
         int (*unpack)(void *, void *block);
         MMI32 (*size)(void *, void *block, int packed);
@@ -91,8 +90,8 @@ extern "C"
     /* Read a decoded TMAP extent without borrowing it beyond the call. */
     void *mm_texture_read_stream(const MMReadStream *, const MMTextureServices *);
     void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *);
-    int mm_texture_fetch(void *cache, MMU32 type, MMU32 number, void *estimate_block, void *object_out,
-                               void *size_out, const MMTextureServices *);
+    /* Fetch from the borrowed cache block; the caller owns the block. */
+    int mm_texture_fetch(void *block, void *object_out, void *size_out, const MMTextureServices *);
     int mm_texture_write(const MMTextureResource *, void *block, const MMTextureServices *);
     int mm_texture_write_chunk(const MMTextureResource *, void *file, MMU32 type, MMU32 *number,
                                      const MMTextureServices *);

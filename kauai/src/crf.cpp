@@ -206,11 +206,14 @@ ChunkyResourceFile::~ChunkyResourceFile(void)
     AssertBaseThis(fobjAllocated);
     AssertDo(mm_resource_cache_dispose(&_cache) == MM_STORAGE_OK, "invalid resource cache disposal");
 }
-PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile file, LegacyLong budget)
+PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile file, LegacyLong budget,
+                                               const MMChunkIndex *index, PFileObject backing)
 {
     AssertPo(file, 0);
     AssertIn(budget, 0, kcbMax);
     auto cache = NewObj ChunkyResourceFile(file, budget);
+    if (cache && index && mm_resource_cache_bind_index(&cache->_cache, index, backing) != MM_STORAGE_OK)
+        ReleasePpo(&cache);
     if (cache && mm_resource_cache_reserve(&cache->_cache, 5) != MM_STORAGE_OK)
         ReleasePpo(&cache);
     AssertNilOrPo(cache, 0);
@@ -285,6 +288,8 @@ void ChunkyResourceFile::MarkMem(void)
     ChunkyResourceFile_PAR::MarkMem();
     MarkPv(_cache.storage.buffers[0].data);
     MarkMemObj(Pcfl());
+    if (_cache.wire_file)
+        MarkMemObj(static_cast<PFileObject>(_cache.wire_file));
     MMResourceEntry row;
     for (MMU32 i = _cache.count; i-- > 0;)
     {

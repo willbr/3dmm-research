@@ -135,7 +135,8 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
 
   public:
     ~ChunkyResourceFile(void);
-    static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax);
+    static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax,
+                                     const MMChunkIndex *index = nullptr, PFileObject backing = nullptr);
     void Release(void) override;
 
     virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil,

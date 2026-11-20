@@ -15121,3 +15121,20 @@ In `actor-event-edit` suite `20261120T083755Z-585b87fa`, Marcus and SDL
 matched the 60 retail frame identities in seek and playback. Both retained
 their previous seek image hashes and matched the retail camera indices.
 SDL matched all 12 retail sound requests.
+
+## Preview model and texture payloads from the C89 archive index (20 November 2026)
+
+Read-only Preview resource caches locate stored payloads through the C89
+index. Models and textures use the cache's block, including its packed flag.
+The cache retains the backing file and index until detached renderer objects
+release it. Editable archives use the live chunk table.
+
+All 37 targeted x64 checks and five standalone C89 checks passed. The x64
+Preview integration and focused x86 tests kept their actor, prop and camera
+fingerprints, including the 188 stock cameras. Marcus also rendered both
+frames of the VMM storyboard. Logs are in `tmp/c89-preview-resource-cache`.
+
+In `actor-event-edit` suite `20261120T085244Z-5cef9943`, Marcus and SDL
+matched all 60 retail frame identities in seek and playback. Both kept their
+60 seek image hashes from the previous build and matched the retail camera
+indices. SDL also matched all 12 retail sound requests.
