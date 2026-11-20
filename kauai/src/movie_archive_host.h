@@ -46,11 +46,6 @@ struct MovieArchiveHost
             [](void *value, MMU32 type, MMU32 number, const void *bytes, MMU32 size) -> int {
                 return static_cast<MovieArchiveHost *>(value)->file->FPutPv(const_cast<void *>(bytes), size, type, number);
             },
-            [](void *value, MMU32 type, MMU32 number, MMU32 newNumber) -> int {
-                auto file = static_cast<MovieArchiveHost *>(value)->file;
-                file->Move(type, number, type, newNumber);
-                return file->FFind(type, newNumber);
-            },
             [](void *value, MMU32 type, MMU32 number, const MMMovieTitle *title) -> int {
                 const auto io = KauaiChunkTitleIO();
                 return mm_chunk_title_write(title, static_cast<MovieArchiveHost *>(value)->file, type, number, &io);

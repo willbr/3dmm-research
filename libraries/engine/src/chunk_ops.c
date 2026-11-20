@@ -80,61 +80,51 @@ int mm_chunk_swap_children(const MMChunkEdit *edit, MMU32 type, MMU32 number,
         return BAD;
     return OK;
 }
-int mm_chunk_move(const MMChunkEndpoint *endpoint, MMU32 type, MMU32 number, MMU32 new_type,
+int mm_chunk_move(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 new_type,
                         MMU32 new_number)
 {
-    const MMChunkEdit *edit;
     MMChunkEntry entry, parent;
     MMChunkChild child;
-    MMU32 source, target, remaining, i, k;
+    MMU32 source, target, remaining, extra, i, k;
     MMI32 runtime;
-    if (!endpoint)
-        return BAD;
-    edit = &endpoint->edit;
     if (!readable(edit) || !edit->store || !edit->move_entry || !edit->child || !edit->put_child ||
-        !endpoint->runtime || !endpoint->set_runtime)
+        !edit->runtime || !edit->set_runtime)
         return BAD;
     if (type == new_type && number == new_number)
         return OK;
     if (!lookup(edit, type, number, &source, &entry) || lookup(edit, new_type, new_number, &target, NULL))
         return MM_CHUNK_NOT_FOUND;
-    runtime = endpoint->runtime(endpoint->context, type, number);
+    runtime = edit->runtime(edit->context, type, number);
     if (runtime)
-        endpoint->set_runtime(endpoint->context, type, number, 0);
+        edit->set_runtime(edit->context, type, number, 0);
     remaining = entry.parent_count;
+    extra = remaining && edit->scan_all_references ? 1U : 0U;
     entry.type = new_type;
     entry.number = new_number;
     edit->store(edit->context, source, &entry, 0);
     edit->move_entry(edit->context, source, target);
-    if (remaining)
+    remaining += extra;
+    for (i = edit->count(edit->context); i-- > 0 && remaining;)
     {
-        if (endpoint->scan_all_references)
-            ++remaining;
-        for (i = edit->count(edit->context); i-- > 0 && remaining;)
+        edit->entry(edit->context, i, &parent);
+        for (k = 0; k < parent.child_count;)
         {
-            edit->entry(edit->context, i, &parent);
-            for (k = 0; k < parent.child_count;)
+            edit->child(edit->context, i, k, &child);
+            if (child.type != type || child.number != number)
             {
-                edit->child(edit->context, i, k, &child);
-                if (child.type != type || child.number != number)
-                {
-                    ++k;
-                    continue;
-                }
-                child.type = new_type;
-                child.number = new_number;
-                if (mm_chunk_retarget(edit, i, k, &child) != OK)
-                    return BAD;
-                --remaining;
+                ++k;
+                continue;
             }
+            child.type = new_type;
+            child.number = new_number;
+            if (mm_chunk_retarget(edit, i, k, &child) != OK)
+                return BAD;
+            --remaining;
         }
-        if (runtime && type == new_type)
-            endpoint->set_runtime(endpoint->context, new_type, new_number, runtime);
-        return remaining == (endpoint->scan_all_references ? 1U : 0U) ? OK : BAD;
     }
     if (runtime && type == new_type)
-        endpoint->set_runtime(endpoint->context, new_type, new_number, runtime);
-    return OK;
+        edit->set_runtime(edit->context, new_type, new_number, runtime);
+    return remaining == extra ? OK : BAD;
 }
 static int candidate(const MMChunkEndpoint *endpoint, MMU32 type, MMI32 runtime, MMU32 minimum,
                      MMU32 *number)
@@ -147,7 +137,7 @@ static int candidate(const MMChunkEndpoint *endpoint, MMU32 type, MMI32 runtime,
         endpoint->edit.entry(endpoint->edit.context, position, &entry);
         if (entry.type != type)
             break;
-        if (endpoint->runtime(endpoint->context, type, entry.number) == runtime)
+        if (endpoint->edit.runtime(endpoint->edit.context, type, entry.number) == runtime)
         {
             *number = entry.number;
             return 1;
@@ -164,10 +154,11 @@ int mm_chunk_match(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32
     MMU32 flags_a, flags_b, minimum = 0, target, children;
     MMI32 runtime, child_runtime;
     int has_a, has_b, result = 0;
-    if (!src || !dst || !matched || !readable(&src->edit) || !readable(&dst->edit) || !src->runtime || !dst->runtime ||
-        !src->identity || !dst->identity || !src->edit.child || !dst->edit.child || src->identity == dst->identity)
+    if (!src || !dst || !matched || !readable(&src->edit) || !readable(&dst->edit) || !src->edit.runtime ||
+        !dst->edit.runtime || !src->identity || !dst->identity || !src->edit.child || !dst->edit.child ||
+        src->identity == dst->identity)
         return 0;
-    runtime = src->runtime(src->context, type, number);
+    runtime = src->edit.runtime(src->edit.context, type, number);
     if (!runtime)
         return 0;
     if (mm_chunk_walk_init(&a, src->allocator) != OK)
@@ -189,7 +180,7 @@ int mm_chunk_match(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32
             for (;;)
             {
                 has_a = mm_chunk_walk_next(&a, 0, &node_a, NULL, &flags_a);
-                child_runtime = has_a ? src->runtime(src->context, node_a.type, node_a.number) : 0;
+                child_runtime = has_a ? src->edit.runtime(src->edit.context, node_a.type, node_a.number) : 0;
                 if (has_a && !child_runtime)
                     goto done;
                 has_b = mm_chunk_walk_next(&b, 0, &node_b, NULL, &flags_b);
@@ -205,7 +196,7 @@ int mm_chunk_match(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32
                     goto done;
                 if (((flags_a ^ flags_b) & (MM_WALK_PRE | MM_WALK_POST | MM_WALK_ROOT)) ||
                     node_a.type != node_b.type || (!(flags_a & MM_WALK_ROOT) && node_a.slot != node_b.slot) ||
-                    child_runtime != dst->runtime(dst->context, node_b.type, node_b.number) ||
+                    child_runtime != dst->edit.runtime(dst->edit.context, node_b.type, node_b.number) ||
                     source.children(source.context, node_a.type, node_a.number) !=
                         destination.children(destination.context, node_b.type, node_b.number))
                     break;
@@ -299,7 +290,7 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
     MMI32 runtime;
     int skip = 0, free_root = 0, new_root = 0, result = OK;
     if (!src || !dst || !copied || !src->identity || !dst->identity || !readable(&dst->edit) ||
-        !dst->set_runtime || !dst->edit.store || !src->read_payload ||
+        !dst->edit.set_runtime || !dst->edit.store || !src->read_payload ||
         !dst->put_payload || !dst->add_payload || !src->read_name || !dst->write_name)
         return BAD;
     if (src->stored)
@@ -312,7 +303,7 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
     }
     else
     {
-        if (!readable(&src->edit) || !src->edit.child || !src->runtime || !src->set_runtime)
+        if (!readable(&src->edit) || !src->edit.child || !src->edit.runtime || !src->edit.set_runtime)
             return BAD;
         graph = mm_chunk_edit_graph(&src->edit);
     }
@@ -358,7 +349,7 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
             skip = 1;
         else
         {
-            runtime = src->stored ? 0 : src->runtime(src->context, node.type, node.number);
+            runtime = src->stored ? 0 : src->edit.runtime(src->edit.context, node.type, node.number);
             item.type = node.type;
             item.source = node.number;
             if (runtime && !clone && mm_chunk_match(src, dst, node.type, node.number, &item.destination))
@@ -366,7 +357,7 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
             else
             {
                 if (!src->stored && !runtime && last_runtime < 0x7fffffffL &&
-                    src->set_runtime(src->context, node.type, node.number, last_runtime + 1))
+                    src->edit.set_runtime(src->edit.context, node.type, node.number, last_runtime + 1))
                     runtime = ++last_runtime;
                 if (!copy_lookup(src, node.type, node.number, &position, &entry))
                 {
@@ -411,7 +402,7 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
                     goto done;
                 }
                 if (runtime)
-                    dst->set_runtime(dst->context, node.type, item.destination, runtime);
+                    dst->edit.set_runtime(dst->edit.context, node.type, item.destination, runtime);
                 map_find(&map, node.type, node.number, NULL, &map_position);
                 if (mm_array_insert(&map, map_position, &item, 1) != MM_STORAGE_OK)
                 {

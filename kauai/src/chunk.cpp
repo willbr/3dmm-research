@@ -1556,6 +1556,15 @@ MMChunkEdit ChunkyFile::EditIndex()
     edit.reset_runtime = [](void *c, MMU32 type, MMU32 number) {
         static_cast<PChunkyFile>(c)->_FSetRti(type, number, rtiNil);
     };
+    edit.runtime = [](void *c, MMU32 type, MMU32 number) -> MMI32 {
+        return static_cast<PChunkyFile>(c)->_Rti(type, number);
+    };
+    edit.set_runtime = [](void *c, MMU32 type, MMU32 number, MMI32 runtime) -> int {
+        return static_cast<PChunkyFile>(c)->_FSetRti(type, number, runtime);
+    };
+#ifdef DEBUG
+    edit.scan_all_references = 1;
+#endif
     edit.issue = [](void *, int kind) {
         if (kind == MM_EDIT_LOW_MEMORY) Warn("memory failure in ChunkyFile::Delete - adjusting ref counts");
         else if (kind == MM_EDIT_CYCLE_RISK) Warn("Performing this adoption may cause a cycle");
@@ -1895,9 +1904,8 @@ void ChunkyFile::SwapChildren(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrT
 void ChunkyFile::Move(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagOrType ctgNew, ChunkNumber cnoNew)
 {
     AssertThis(0);
-    ChunkOpsHost host(this);
-    const auto endpoint = _OpsServices(&host);
-    if (mm_chunk_move(&endpoint, ctg, cno, ctgNew, cnoNew) != MM_CHUNK_OK) { Bug("bad move request or references"); return; }
+    const auto edit = EditIndex();
+    if (mm_chunk_move(&edit, ctg, cno, ctgNew, cnoNew) != MM_CHUNK_OK) { Bug("bad move request or references"); return; }
     AssertThis(fcflFull);
 }
 
@@ -2477,15 +2485,6 @@ MMChunkEndpoint ChunkyFile::_OpsServices(void *context)
     MMChunkEndpoint endpoint = {};
     endpoint.edit = EditIndex();
     endpoint.allocator = KauaiCopyAllocator(); endpoint.identity = this; endpoint.context = context;
-#ifdef DEBUG
-    endpoint.scan_all_references = 1;
-#endif
-    endpoint.runtime = [](void *c, MMU32 type, MMU32 number) -> MMI32 {
-        return static_cast<ChunkOpsHost *>(c)->owner->_Rti(type, number);
-    };
-    endpoint.set_runtime = [](void *c, MMU32 type, MMU32 number, MMI32 runtime) -> int {
-        return static_cast<ChunkOpsHost *>(c)->owner->_FSetRti(type, number, runtime);
-    };
     endpoint.read_payload = [](void *c, MMU32 position, const MMChunkEntry *) -> void * {
         auto h = static_cast<ChunkOpsHost *>(c);
         h->owner->_GetBlck(position, &h->payload);

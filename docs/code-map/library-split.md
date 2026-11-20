@@ -7748,6 +7748,12 @@ background start groups also adopt the new link before releasing the old link.
 Native source registration keeps its unlink-before-adopt order. Kauai still
 allocates chunks and supplies payload readers and writers.
 
+New scenes and actors move from their allocated numbers to their requested
+numbers through `mm_chunk_move`. The writable index supplies runtime ID
+access for moves and copies. A same-type move preserves the runtime ID and
+retargets parent links. Scene saves use the writable index for sounds, actors,
+captions, thumbnails, and cleanup of a failed candidate scene.
+
 Studio writes an actor through `mm_actor_store` when saving a scene or taking
 a scene undo snapshot. The C89 writer stores the header, route, and events,
 links embedded templates and actor sounds, and attaches each embedded costume
@@ -7773,7 +7779,8 @@ is outside the cloned graph. C89 adopts the material under the cloned actor
 and writes a replacement track when the number changes. It publishes the new
 track link before releasing the old link, preserving tracks shared by another
 actor. The adapter exposes the destination's live C89 editor and supplies
-source archive and payload access.
+source archive and payload access. If writing or linking a replacement track
+fails, C89 deletes the staged track and leaves the old track linked.
 
 That traversal also resolves document-owned background tags in cloned scenes.
 The source archive supplies the background subtree, including standalone

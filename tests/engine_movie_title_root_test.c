@@ -366,7 +366,7 @@ typedef struct ArchiveHost
     ChunkIndexFixture index;
     unsigned char records[7][MM_SCENE_BACKGROUND_GROUP_BYTES];
     MMU32 lengths[7], adds, linked_scenes, linked_groups, old_groups;
-    int fail_link, rekeyed, titled, rollcall;
+    int fail_link, titled, rollcall;
 } ArchiveHost;
 
 static MMChunkAccess archive_chunks(void *context)
@@ -413,22 +413,6 @@ static int archive_title(void *context, MMU32 type, MMU32 number, const MMMovieT
     host->titled = 1;
     return 1;
 }
-static int archive_rekey(void *context, MMU32 type, MMU32 old, MMU32 number)
-{
-    ArchiveHost *host = context;
-    const MMChunkAccess index = archive_chunks(host);
-    FixtureChunkRow saved, *replacement;
-    MMU32 row;
-    CHECK(type == ARCHIVE_SCENE && old == 0 && number == 80 && host->linked_groups == 2);
-    CHECK(mm_chunk_find(&index, type, old, &row) == MM_CHUNK_OK);
-    saved = host->index.rows[row];
-    fixture_chunk_erase(&host->index, row);
-    replacement = fixture_chunk_add(&host->index, type, number);
-    *replacement = saved;
-    replacement->entry.number = number;
-    host->rekeyed = 1;
-    return 1;
-}
 static int archive_insert_link(void *context, MMU32 parent, const MMChunkChild *child)
 {
     ArchiveHost *host = context;
@@ -449,7 +433,7 @@ static int archive_insert_link(void *context, MMU32 parent, const MMChunkChild *
     }
     else
     {
-        CHECK(parent == (host->rekeyed ? 80U : 0U));
+        CHECK(parent == (host->linked_groups >= 2 ? 80U : 0U));
         CHECK(child->slot == host->linked_groups % 2 &&
               child->type == (child->slot ? ARCHIVE_STARTS : ARCHIVE_FRAMES));
         CHECK(child->number == 3 + host->linked_groups);
@@ -481,12 +465,14 @@ static void archived_scenes(void)
     };
     ArchiveHost host;
     MMMovieArchiveEditor editor = {NULL, 2, MM_TEXT_UTF16_LE, 1, NULL, archive_chunks, NULL, archive_add,
-                                   NULL, NULL, archive_put, archive_rekey, archive_title, NULL, NULL, NULL, {0}};
+                                   NULL, NULL, archive_put, archive_title, NULL, NULL, NULL, {0}};
     MMMovieArchiveRoot root = {999, 0};
     MMMovieHeader header;
     MMCollectionHeader rollcall;
     MMSceneState scene;
     MMMemoryStream stream;
+    MMChunkAccess chunks;
+    MMU32 position;
     editor.context = &host;
     editor.edit = fixture_chunk_edit(&host.index);
     archive_init(&host);
@@ -503,7 +489,9 @@ static void archived_scenes(void)
     CHECK(mm_movie_archive_append_scene(&editor, root.number, 20, 2, 11) == MM_MOVIE_SCENE_ARCHIVE_CREATE);
     CHECK(host.adds == 1);
     CHECK(mm_movie_archive_append_scene(&editor, root.number, 80, 2, 11) == MM_MOVIE_SCENE_ARCHIVE_OK);
-    CHECK(host.titled && host.rekeyed && host.linked_scenes == 3 && host.adds == 6);
+    CHECK(host.titled && host.linked_scenes == 3 && host.adds == 6);
+    chunks = archive_chunks(&host);
+    CHECK(mm_chunk_find(&chunks, ARCHIVE_SCENE, 0, &position) == MM_CHUNK_NOT_FOUND);
     CHECK(mm_scene_init(&scene, 2) && mm_memory_stream_init(&stream, host.records[1], host.lengths[1]));
     CHECK(mm_scene_decode_header(&stream.stream, &scene));
     CHECK(scene.firstFrame == 1 && scene.lastFrame == 1 && scene.transition == 0);

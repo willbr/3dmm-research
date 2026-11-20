@@ -1415,6 +1415,10 @@ scenes in order, and writes the header and event groups for a new scene.
 The Studio and Marcus paths share the encoders and use the live C89 chunk
 editor to link movie roots, new scenes, roll calls and storyboard metadata.
 Scene saves stage both event groups before releasing either previous link.
+They also use the live index to link sounds, actors, captions and thumbnails
+and to discard a failed candidate scene. New scenes and inserted actors
+move to their requested chunk numbers through the same index, which supplies
+runtime ID access for chunk moves and copies.
 Portable source tables and background event groups publish a replacement
 before releasing the old link. Native source registration retains its
 existing unlink-before-adopt order.

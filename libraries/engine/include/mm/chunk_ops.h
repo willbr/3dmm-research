@@ -16,9 +16,6 @@ extern "C"
         const MMChunkAccess *stored;
         const MMStorageAllocator *allocator;
         void *identity, *context;
-        int scan_all_references;
-        MMI32 (*runtime)(void *, MMU32 type, MMU32 number);
-        int (*set_runtime)(void *, MMU32 type, MMU32 number, MMI32 runtime);
         /* Values returned by the readers are borrowed through the matching write.
          * A missing payload fails the copy. A missing name leaves the chunk unnamed. */
         void *(*read_payload)(void *, MMU32 position, const MMChunkEntry *);
@@ -34,7 +31,7 @@ extern "C"
      * valid native storage; this has no rollback for a violated transfer contract. */
     int mm_chunk_swap_children(const MMChunkEdit *, MMU32 type, MMU32 number,
                                      MMU32 other_type, MMU32 other_number);
-    int mm_chunk_move(const MMChunkEndpoint *, MMU32 type, MMU32 number, MMU32 new_type,
+    int mm_chunk_move(const MMChunkEdit *, MMU32 type, MMU32 number, MMU32 new_type,
                             MMU32 new_number);
     /* Matching retains traversal/RTI semantics and candidate-number order. 1 means
      * matched; 0 includes unknown after traversal allocation failure. Output is

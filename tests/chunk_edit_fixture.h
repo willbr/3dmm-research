@@ -7,8 +7,9 @@
 typedef struct FixtureChunkRow
 {
     MMChunkEntry entry;
-    MMChunkChild children[8];
+    MMChunkChild children[12];
     MMU32 links_used;
+    MMI32 runtime;
 } FixtureChunkRow;
 typedef struct ChunkIndexFixture
 {
@@ -136,11 +137,42 @@ static void fixture_chunk_free(void *p, int extra, MMU32 offset, MMU32 bytes)
     (void)offset;
     (void)bytes;
 }
+static MMI32 fixture_chunk_runtime(void *p, MMU32 type, MMU32 number)
+{
+    ChunkIndexFixture *f = p;
+    const MMChunkAccess access = fixture_chunk_access(f);
+    MMU32 position;
+    return mm_chunk_find(&access, type, number, &position) == MM_CHUNK_OK ? f->rows[position].runtime : 0;
+}
+static int fixture_chunk_set_runtime(void *p, MMU32 type, MMU32 number, MMI32 runtime)
+{
+    ChunkIndexFixture *f = p;
+    const MMChunkAccess access = fixture_chunk_access(f);
+    MMU32 position;
+    if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK)
+        return 0;
+    f->rows[position].runtime = runtime;
+    return 1;
+}
 static void fixture_chunk_reset(void *p, MMU32 type, MMU32 number)
 {
-    (void)p;
-    (void)type;
-    (void)number;
+    fixture_chunk_set_runtime(p, type, number, 0);
+}
+static void fixture_chunk_move_entry(void *p, MMU32 source, MMU32 target)
+{
+    ChunkIndexFixture *f = p;
+    FixtureChunkRow saved;
+    if (source >= f->count || target > f->count)
+        abort();
+    saved = f->rows[source];
+    if (source < target)
+    {
+        --target;
+        memmove(f->rows + source, f->rows + source + 1, (target - source) * sizeof(saved));
+    }
+    else
+        memmove(f->rows + target + 1, f->rows + target, (source - target) * sizeof(saved));
+    f->rows[target] = saved;
 }
 static MMChunkEdit fixture_chunk_edit(ChunkIndexFixture *f)
 {
@@ -157,6 +189,9 @@ static MMChunkEdit fixture_chunk_edit(ChunkIndexFixture *f)
     edit.insert_child = fixture_chunk_insert_link;
     edit.erase_child = fixture_chunk_erase_link;
     edit.put_child = fixture_chunk_put_link;
+    edit.move_entry = fixture_chunk_move_entry;
+    edit.runtime = fixture_chunk_runtime;
+    edit.set_runtime = fixture_chunk_set_runtime;
     return edit;
 }
 #endif

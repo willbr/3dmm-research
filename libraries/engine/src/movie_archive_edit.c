@@ -1,5 +1,6 @@
 #include "mm/movie_archive_edit.h"
 #include "mm/chunk_graph.h"
+#include "mm/chunk_ops.h"
 #include "mm/collections.h"
 #include "mm/material_resource.h"
 #include "mm/movie_root.h"
@@ -395,7 +396,7 @@ int mm_movie_archive_append_scene(const MMMovieArchiveEditor *editor, MMU32 root
         !name_scene(&state, editor->text_unit, end - first + 1) ||
         !mm_scene_archive_create(editor, &state, &number))
         return MM_MOVIE_SCENE_ARCHIVE_CREATE;
-    if (number != scene && !editor->rekey(editor->context, SCENE_TYPE, number, scene))
+    if (number != scene && mm_chunk_move(&editor->edit, SCENE_TYPE, number, SCENE_TYPE, scene) != MM_CHUNK_OK)
         return MM_MOVIE_SCENE_ARCHIVE_CREATE;
     if (!mm_scene_archive_opening_background(editor, scene, state.firstFrame, source, background))
         return MM_MOVIE_SCENE_ARCHIVE_LINK;

@@ -16632,3 +16632,47 @@ playback and all retail seek camera indices. Both matched their prior seek
 image hashes. SDL matched all 12 retail sound requests.
 
 Evidence is in `tmp/c89-archive-publication`.
+
+## C89 chunk key moves and scene-save links (20 November 2026)
+
+New scenes and inserted actors use the live C89 index to move allocated
+chunks to their requested numbers. Chunk moves and copies take runtime ID
+services from the same index. Scene saves use that index to link sounds,
+actors, captions, and thumbnails and to remove failed candidate scenes.
+The rollback fixture checks that a sound still referenced by the movie
+survives scene deletion. Imported costume track replacement leaves the
+original track linked on either a write or an adoption failure, and an
+actor sharing that track retains it after a successful replacement.
+
+All 192 standalone checks and 11 AddressSanitizer checks passed. Eleven
+focused engine checks and the Archive API passed on SDL and native x64
+and x86. The 14 Marcus syntax, playback, and player checks passed. All 54
+baseline traces, three saved movie fixtures, ten Preview fingerprints, and
+six Preview movies matched.
+
+Marcus storyboard, actor insertion, and costume save and reopen checks
+passed. All 11 native movie outputs were byte-identical to the previous
+build. All five storyboard VMM outputs matched after normalizing generated
+package names and background chunk numbers. Studio saved and reopened a
+native authored movie and a VMM, then imported, edited and reopened a
+standalone-background movie. Both decoded background archives and the
+native authoring output matched the previous build. Studio's standalone
+material import retained all six sampled viewports and texture bindings
+after reopen, including the prop that changed actor ID from 2 to 7. The
+decoded material archive matched the previous build.
+
+In `20261120T193026Z-ba85e247`, retail, SDL, and Marcus matched all 11
+seek frame and camera records from the newly authored Studio movie and
+both from the Marcus insertion movie. The canvas differences on Studio
+frames 4 through 6 and both Marcus insertion frames persisted in settled retail
+captures. SDL and Marcus each reproduced all 13 canvas hashes from their
+earlier builds in `20261120T193218Z-3eccbedf` and `20261120T193322Z-5c0804c5`.
+
+SDL and Marcus matched both original v3dmm 0.14 seek records and images
+from the newly published storyboard in `20261120T192955Z-ff00d15b`.
+
+In `actor-event-edit` suite `20261120T192919Z-53af4e6f`, SDL and Marcus
+matched all 60 archived retail frame identities in seek and continuous
+playback and all retail seek camera indices. Both matched their prior seek
+images. SDL matched all 12 retail sound requests. Evidence is in
+`tmp/c89-live-chunk-key`.

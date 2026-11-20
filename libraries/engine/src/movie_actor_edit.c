@@ -1,4 +1,5 @@
 #include "actor_archive_internal.h"
+#include "mm/chunk_ops.h"
 #include "mm/scene_data.h"
 #include "mm/template_create.h"
 
@@ -34,16 +35,13 @@ static int publish_actor(const MMMovieArchiveEditor *editor, MMU32 movie, const 
 
 static int create_actor(const MMMovieArchiveEditor *editor, MMU32 number, const MMActorHeader *header)
 {
-    MMChunkAccess chunks;
-    MMU32 assigned, position;
+    MMU32 assigned;
     if (!editor->add(editor->context, ACTOR_TYPE, sizeof(*header), &assigned, NULL) ||
         !editor->put(editor->context, ACTOR_TYPE, assigned, header, sizeof(*header)))
         return MM_ACTOR_AUTHOR_WRITE_ACTOR;
     if (assigned == number)
         return MM_ACTOR_AUTHOR_OK;
-    chunks = editor->chunks(editor->context);
-    if (mm_chunk_find(&chunks, ACTOR_TYPE, number, &position) != MM_CHUNK_NOT_FOUND ||
-        !editor->rekey(editor->context, ACTOR_TYPE, assigned, number))
+    if (mm_chunk_move(&editor->edit, ACTOR_TYPE, assigned, ACTOR_TYPE, number) != MM_CHUNK_OK)
         return MM_ACTOR_AUTHOR_ACTOR_NUMBER;
     return MM_ACTOR_AUTHOR_OK;
 }
@@ -56,6 +54,7 @@ int mm_actor_archive_insert(const MMActorAuthorHost *host, const MMActorInsert *
     MMMovieArchiveRoot root;
     MMActorHeader header = {0};
     MMActorArchivePlacement placement;
+    MMChunkChild text = {MM_TMPL, 0, 0};
     MMReadStream stream;
     unsigned char bytes[MM_TEMPLATE_HEADER_BYTES];
     unsigned short angles[3];
@@ -100,7 +99,8 @@ int mm_actor_archive_insert(const MMActorAuthorHost *host, const MMActorInsert *
     status = create_actor(editor, insert->number, &header);
     if (status != MM_ACTOR_AUTHOR_OK)
         return status;
-    if (insert->embedded_text && !editor->adopt(editor->context, ACTOR_TYPE, insert->number, MM_TMPL, number, 0))
+    text.number = number;
+    if (insert->embedded_text && mm_chunk_adopt(&editor->edit, ACTOR_TYPE, insert->number, &text, 1) != MM_CHUNK_OK)
         return MM_ACTOR_AUTHOR_LINK_TEMPLATE;
     angles[0] = tmpl.x;
     angles[1] = tmpl.y;
@@ -118,12 +118,14 @@ int mm_actor_archive_insert(const MMActorAuthorHost *host, const MMActorInsert *
 static int replace_child(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 type, MMU32 number)
 {
     MMChunkAccess chunks;
-    MMU32 old;
+    MMChunkChild previous = {0}, replacement = {0};
+    previous.type = replacement.type = type;
+    replacement.number = number;
     chunks = editor->chunks(editor->context);
-    if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, type, &old) == MM_CHUNK_OK)
+    if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, type, &previous.number) == MM_CHUNK_OK)
         /* A copied asset is a loner until adoption, even if the copy reused this key. */
-        editor->unlink(editor->context, ACTOR_TYPE, actor, type, old, 0);
-    return editor->adopt(editor->context, ACTOR_TYPE, actor, type, number, 0);
+        mm_chunk_unlink(&editor->edit, ACTOR_TYPE, actor, &previous);
+    return mm_chunk_adopt(&editor->edit, ACTOR_TYPE, actor, &replacement, 1) == MM_CHUNK_OK;
 }
 
 int mm_actor_archive_replace_text(const MMActorAuthorHost *host, const MMActorTextReplacement *request, int *detail)

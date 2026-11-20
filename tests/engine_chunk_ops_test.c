@@ -303,8 +303,8 @@ static void init(Host *h)
     e->put_child = put_child;
     e->move_entry = move_entry;
     e->move_bytes = move_bytes;
-    h->ops.runtime = runtime;
-    h->ops.set_runtime = set_runtime;
+    e->runtime = runtime;
+    e->set_runtime = set_runtime;
     h->ops.read_payload = read_payload;
     h->ops.put_payload = put_payload;
     h->ops.add_payload = add_payload;
@@ -555,16 +555,16 @@ static void swaps_moves(void)
     {
         init(&h);
         graph(&h);
-        h.ops.scan_all_references = scan;
+        h.ops.edit.scan_all_references = scan;
         h.nodes[1].runtime = 99;
         h.nodes[2].runtime = 88;
-        CHECK(mm_chunk_move(&h.ops, 10, 1, 11, 9) == MM_CHUNK_OK);
+        CHECK(mm_chunk_move(&h.ops.edit, 10, 1, 11, 9) == MM_CHUNK_OK);
         i = find(&h, 11, 9);
         CHECK(i < h.count && !h.nodes[i].runtime && h.nodes[i].e.parent_count == 2);
         CHECK(h.nodes[0].kids[1].type == 11 && h.nodes[1].kids[0].type == 11);
-        CHECK(mm_chunk_move(&h.ops, 10, 2, 10, 20) == MM_CHUNK_OK && runtime(&h, 10, 20) == 88);
-        CHECK(mm_chunk_move(&h.ops, 10, 20, 10, 2) == MM_CHUNK_OK && runtime(&h, 10, 2) == 88);
-        CHECK(mm_chunk_move(&h.ops, 10, 2, 10, 0) == MM_CHUNK_NOT_FOUND);
+        CHECK(mm_chunk_move(&h.ops.edit, 10, 2, 10, 20) == MM_CHUNK_OK && runtime(&h, 10, 20) == 88);
+        CHECK(mm_chunk_move(&h.ops.edit, 10, 20, 10, 2) == MM_CHUNK_OK && runtime(&h, 10, 2) == 88);
+        CHECK(mm_chunk_move(&h.ops.edit, 10, 2, 10, 0) == MM_CHUNK_NOT_FOUND);
         dispose(&h);
     }
 }

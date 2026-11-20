@@ -116,6 +116,7 @@ static int store_sound(MMSceneTrack *frames, MMI32 index, const MMSceneTrackEven
     const MMMovieArchiveEditor *editor = s->editor;
     MMSceneSound *sound = mm_scene_sound_track(&s->owner->tracks[MM_SCENE_FRAMES], index, v);
     MMChunkAccess chunks;
+    MMChunkChild child = {MM_SOUND_CHUNK, 0, 0};
     MMSceneSoundTag tag;
     MMU32 match;
     MMI32 i, bytes;
@@ -133,7 +134,9 @@ static int store_sound(MMSceneTrack *frames, MMI32 index, const MMSceneTrackEven
         if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, tag.child, MM_SOUND_CHUNK, &match) == MM_CHUNK_OK ||
             mm_chunk_find(&chunks, MM_SOUND_CHUNK, tag.tag.number, &match) != MM_CHUNK_OK)
             continue;
-        if (!editor->adopt(editor->context, MM_SCENE_CHUNK, scene, MM_SOUND_CHUNK, tag.tag.number, tag.child))
+        child.number = tag.tag.number;
+        child.slot = tag.child;
+        if (mm_chunk_adopt(&editor->edit, MM_SCENE_CHUNK, scene, &child, 1) != MM_CHUNK_OK)
             goto done;
     }
     wire = mm_scene_sound_encode(sound, &bytes, v);
@@ -159,22 +162,24 @@ static int store_object(const MMSceneStoreServices *s, MMU32 scene, MMI32 kind, 
                         const MMSceneTrack *starts, MMI32 index)
 {
     const MMMovieArchiveEditor *editor = s->editor;
-    MMU32 child, type = kind == MM_SCENE_ADD_ACTOR ? MM_SCENE_ACTOR_CHUNK : MM_TEXT_BOX;
+    MMChunkChild child;
     MMI32 bytes;
     const void *data;
     void *object;
-    if (!editor->add(editor->context, type, 0, &child, NULL))
+    child.type = kind == MM_SCENE_ADD_ACTOR ? MM_SCENE_ACTOR_CHUNK : MM_TEXT_BOX;
+    child.slot = slot;
+    if (!editor->add(editor->context, child.type, 0, &child.number, NULL))
         return 0;
-    if (!editor->adopt(editor->context, MM_SCENE_CHUNK, scene, type, child, slot))
+    if (mm_chunk_adopt(&editor->edit, MM_SCENE_CHUNK, scene, &child, 1) != MM_CHUNK_OK)
     {
-        editor->discard(editor->context, type, child);
+        mm_chunk_delete(&editor->edit, child.type, child.number);
         return 0;
     }
     data = mm_scene_track_payload(starts, index, &bytes);
     if (!data || bytes < (MMI32)sizeof(object))
         return 0;
     memcpy(&object, data, sizeof(object));
-    return s->write_object(s->context, object, kind, child, scene);
+    return s->write_object(s->context, object, kind, child.number, scene);
 }
 
 static int store_thumbnail(const MMSceneStoreServices *s, MMU32 scene)
@@ -182,19 +187,19 @@ static int store_thumbnail(const MMSceneStoreServices *s, MMU32 scene)
     const MMMovieArchiveEditor *editor = s->editor;
     MMStorageWriter writer;
     void *thumbnail;
-    MMU32 child;
+    MMChunkChild child = {MM_SCENE_THUMBNAIL_CHUNK, 0, 0};
     MMI32 bytes;
     s->update_thumbnail(s->context);
     thumbnail = s->owner->owned[MM_SCENE_THUMBNAIL];
     if (!thumbnail)
         return 1;
     bytes = s->thumbnail_size(s->context, thumbnail);
-    if (bytes < 0 || !editor->add(editor->context, MM_SCENE_THUMBNAIL_CHUNK, (MMU32)bytes, &child, &writer))
+    if (bytes < 0 || !editor->add(editor->context, child.type, (MMU32)bytes, &child.number, &writer))
         return 0;
     if (s->write_thumbnail(s->context, thumbnail, &writer) &&
-        editor->adopt(editor->context, MM_SCENE_CHUNK, scene, MM_SCENE_THUMBNAIL_CHUNK, child, 0))
+        mm_chunk_adopt(&editor->edit, MM_SCENE_CHUNK, scene, &child, 1) == MM_CHUNK_OK)
         return 1;
-    editor->discard(editor->context, MM_SCENE_THUMBNAIL_CHUNK, child);
+    mm_chunk_delete(&editor->edit, child.type, child.number);
     return 0;
 }
 
@@ -280,7 +285,7 @@ int mm_scene_store(MMU32 *number, const MMSceneStoreServices *s)
     return 1;
 fail:
     if (*number != 0xffffffffUL)
-        editor->discard(editor->context, MM_SCENE_CHUNK, *number);
+        mm_chunk_delete(&editor->edit, MM_SCENE_CHUNK, *number);
     if (have_starts)
         mm_scene_track_dispose(&starts);
     if (have_frames)

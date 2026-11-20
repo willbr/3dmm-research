@@ -51,6 +51,9 @@ extern "C"
         void (*move_entry)(void *, MMU32 source, MMU32 insertion_position);
         int (*move_bytes)(void *, MMU32 source, MMU32 offset, MMU32 destination,
                           MMU32 destination_offset, MMU32 bytes);
+        MMI32 (*runtime)(void *, MMU32 type, MMU32 number);
+        int (*set_runtime)(void *, MMU32 type, MMU32 number, MMI32 runtime);
+        int scan_all_references; /* Also validate the stored count when moving a key. */
     } MMChunkEdit;
     /* Borrows a live editor with count, entry and child readers. Each graph
      * callback resolves the current row by identity. */

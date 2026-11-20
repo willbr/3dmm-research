@@ -27,7 +27,6 @@ typedef struct MMMovieArchiveEditor
     int (*adopt)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
     void (*unlink)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
     int (*put)(void *, MMU32 type, MMU32 number, const void *bytes, MMU32 size);
-    int (*rekey)(void *, MMU32 type, MMU32 number, MMU32 new_number);
     int (*set_title)(void *, MMU32 type, MMU32 number, const MMMovieTitle *);
     /* Replace a chunk's payload through a writer while keeping its key and links. */
     int (*replace)(void *, MMU32 type, MMU32 number, MMU32 bytes, MMStorageWriter *);
