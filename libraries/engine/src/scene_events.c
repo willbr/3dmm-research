@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_events.h"
 #include "mm/movie_session.h"
+#include "mm/scene_sound.h"
 #include <stddef.h>
 #include <string.h>
 void *mm_scene_pick_actor(MMI32 x, MMI32 y, const MMScenePickServices *s)
@@ -21,15 +22,18 @@ void *mm_scene_pick_actor(MMI32 x, MMI32 y, const MMScenePickServices *s)
 }
 int mm_scene_background_tag(MMTag *out, const MMSceneEventServices *s)
 {
-    void *group = s->owner->owned[MM_SCENE_STARTS];
-    MMI32 i, frame;
-    int kind;
-    for (i = 0; i < s->owners.count(s->owners.context, group); ++i)
+    const MMSceneTrack *track = &s->owner->tracks[MM_SCENE_STARTS];
+    MMSceneTrackEvent event;
+    const void *payload;
+    MMI32 i, bytes;
+    for (i = 0; (MMU32)i < track->rows.count; ++i)
     {
-        s->event(s->context, group, i, &frame, &kind);
-        if (kind == MM_SCENE_SET_BACKGROUND)
+        if (mm_scene_track_get(track, i, &event) && event.kind == MM_SCENE_SET_BACKGROUND)
         {
-            memcpy(out, s->payload(s->context, group, i), sizeof(*out));
+            payload = mm_scene_track_payload(track, i, &bytes);
+            if (!payload || bytes < (MMI32)sizeof(*out))
+                return 0;
+            memcpy(out, payload, sizeof(*out));
             return 1;
         }
     }
@@ -51,11 +55,12 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
 {
     void *object, *copy, *c = s->context;
     MMTag tag;
-    int reason, text, list;
+    MMI32 value, delay;
+    int text, list;
     switch (kind)
     {
     case MM_SCENE_PLAY_SOUND:
-        if (s->sound_style(c, payload) == MM_SCENE_EVENT_MIDI)
+        if (((const MMSceneSound *)payload)->sty == MM_SCENE_EVENT_MIDI)
         {
             copy = s->duplicate_sound(c, payload);
             if (!copy)
@@ -86,7 +91,7 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
     case MM_SCENE_ADD_TEXT:
         text = kind == MM_SCENE_ADD_TEXT;
         list = text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS;
-        object = s->read_object(c, payload);
+        memcpy(&object, payload, sizeof(object));
         if (!mm_scene_member_append(s->owner, list, object))
             return 0;
         if (!text)
@@ -98,16 +103,20 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
         }
         break;
     case MM_SCENE_PAUSE:
-        reason = s->pause_reason(c, payload);
-        s->pause_type(c, reason);
+        memcpy(&value, payload, sizeof(value));
+        s->pause_type(c, value);
         if (!(disabled & MM_SCENE_EFFECT_PAUSES))
-            s->pause(c, reason, s->pause_delay(c, payload));
+        {
+            memcpy(&delay, (const unsigned char *)payload + sizeof(value), sizeof(delay));
+            s->pause(c, value, delay);
+        }
         break;
     case MM_SCENE_CHANGE_CAMERA:
         require_background(s);
         if (disabled & MM_SCENE_EFFECT_CAMERAS)
             return 1;
-        if (!s->set_camera(c, s->owner->owned[MM_SCENE_BACKGROUND], s->camera(c, payload)))
+        memcpy(&value, payload, sizeof(value));
+        if (!s->set_camera(c, s->owner->owned[MM_SCENE_BACKGROUND], value))
             return 0;
         break;
     default:
@@ -116,24 +125,48 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
     }
     return 1;
 }
+static int play_row(const MMSceneTrack *track, MMI32 index, const MMSceneTrackEvent *event,
+                    MMU32 disabled, const MMSceneEventServices *s)
+{
+    return mm_scene_play_event(event->frame, event->kind,
+                               mm_scene_track_payload(track, index, NULL), disabled, s);
+}
+int mm_scene_play_frame_event(MMI32 index, MMU32 disabled, const MMSceneEventServices *s)
+{
+    const MMSceneTrack *track = &s->owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    return mm_scene_track_get(track, index, &event) && play_row(track, index, &event, disabled, s);
+}
+static void read_frame_event(void *context, void *group, MMI32 index, MMI32 *frame, int *kind)
+{
+    MMSceneTrackEvent event;
+    (void)context;
+    *kind = -1;
+    if (mm_scene_track_get((const MMSceneTrack *)group, index, &event))
+    {
+        *frame = event.frame;
+        *kind = event.kind;
+    }
+}
 int mm_scene_unplay_event(int kind, const MMSceneEventServices *s)
 {
     MMMovieEventView view;
+    MMSceneTrack *track = &s->owner->tracks[MM_SCENE_FRAMES];
     MMI32 i, frame, camera;
     int result;
-    void *group = s->owner->owned[MM_SCENE_FRAMES], *c = s->context;
+    void *c = s->context;
     if (kind != MM_SCENE_PLAY_SOUND && kind != MM_SCENE_CHANGE_CAMERA)
         return 1;
     if (kind == MM_SCENE_CHANGE_CAMERA)
         require_background(s);
-    view.context = c;
-    view.group = group;
+    view.context = NULL;
+    view.group = track;
     view.count = s->runtime->next_event;
-    view.read = s->event;
+    view.read = read_frame_event;
     i = mm_movie_view_last_event(&view, kind, s->data->currentFrame, 0, &frame);
     if (i >= 0)
     {
-        result = mm_scene_play_event(frame, kind, s->payload(c, group, i),
+        result = mm_scene_play_event(frame, kind, mm_scene_track_payload(track, i, NULL),
                     s->runtime->disabled | (kind == MM_SCENE_PLAY_SOUND ? MM_SCENE_EFFECT_SOUNDS : 0), s);
         if (kind == MM_SCENE_CHANGE_CAMERA && !result)
             s->diagnostic(c, MM_SCENE_EVENT_RESTORE_FAILED);
@@ -155,16 +188,16 @@ int mm_scene_unplay_event(int kind, const MMSceneEventServices *s)
 }
 int mm_scene_start_events(int actors_only, const MMSceneEventServices *s)
 {
-    MMI32 i, frame;
-    int kind;
-    void *group = s->owner->owned[MM_SCENE_STARTS];
-    for (i = 0; i < s->owners.count(s->owners.context, group); ++i)
+    const MMSceneTrack *track = &s->owner->tracks[MM_SCENE_STARTS];
+    MMSceneTrackEvent event;
+    MMI32 i;
+    for (i = 0; (MMU32)i < track->rows.count; ++i)
     {
-        frame = 0; /* Non-sound start events do not consume a frame value. */
-        s->event(s->context, group, i, &frame, &kind);
-        if (actors_only && kind != MM_SCENE_ADD_ACTOR)
+        if (!mm_scene_track_get(track, i, &event))
+            return 0;
+        if (actors_only && event.kind != MM_SCENE_ADD_ACTOR)
             continue;
-        if (!mm_scene_play_event(frame, kind, s->payload(s->context, group, i), s->runtime->disabled, s))
+        if (!play_row(track, i, &event, s->runtime->disabled, s))
             return 0;
     }
     return 1;

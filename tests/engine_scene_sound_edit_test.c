@@ -356,11 +356,6 @@ static void packet_free(void *p, void *value)
 {
     free_raw(p, value);
 }
-static int event_style(void *p, void *value)
-{
-    (void)p;
-    return ((MMSceneSound *)value)->sty;
-}
 static void *event_duplicate(void *p, void *value)
 {
     Editor *e = (Editor *)p;
@@ -468,7 +463,6 @@ static void editor_init(Editor *e)
     e->owner.owned[MM_SCENE_FRAMES] = e;
     v->event = event_at;
     v->payload = data_at;
-    v->sound_style = event_style;
     v->duplicate_sound = event_duplicate;
     v->play_sound = event_play;
     v->owners.context = e;

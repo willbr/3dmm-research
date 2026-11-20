@@ -76,20 +76,19 @@ struct Access : Scene
 {
     static bool PauseWithoutFrame(PScene s)
     {
-        SceneEvent event;
-        event.sevt = sevtPause; // Match native callers that leave irrelevant fields unset.
         int32_t pause[2] = {witForTime, 3};
-        return (s->*&Access::_FPlaySev)(&event, pause, 0);
+        auto events = (s->*&Access::_EventServices)();
+        return mm_scene_play_event(0, MM_SCENE_PAUSE, pause, 0, &events);
     }
     static bool Play(PScene s, int kind, long frame, void *payload, unsigned mask)
     {
-        SceneEvent event = {int32_t(frame), SceneEventType(kind)};
-        return (s->*&Access::_FPlaySev)(&event, payload, mask);
+        auto events = (s->*&Access::_EventServices)();
+        return mm_scene_play_event(int32_t(frame), kind, payload, mask, &events);
     }
     static bool Unplay(PScene s, int kind)
     {
-        SceneEvent event = {0, SceneEventType(kind)};
-        return (s->*&Access::_FUnPlaySev)(&event, nullptr);
+        auto events = (s->*&Access::_EventServices)();
+        return mm_scene_unplay_event(kind, &events);
     }
     static void Populate(PScene s)
     {

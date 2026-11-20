@@ -118,16 +118,11 @@ void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *s)
 }
 static void release_object(const MMSceneTrack *track, MMI32 index, const MMSceneOwnerServices *s)
 {
-    MMI32 bytes;
-    const void *payload = mm_scene_track_payload(track, index, &bytes);
     void *object;
-    if (!payload || bytes != (MMI32)sizeof(object))
+    if (!mm_scene_track_get_object(track, index, &object))
         s->diagnostic(s->context, MM_SCENE_BAD_PAYLOAD);
     else
-    {
-        memcpy(&object, payload, sizeof(object));
         s->release(s->context, object);
-    }
 }
 static void start_event(const MMSceneTrack *track, MMI32 index, int unwind, const MMSceneOwnerServices *s)
 {

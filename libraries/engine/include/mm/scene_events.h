@@ -32,7 +32,6 @@ extern "C"
         MMSceneOwnerServices owners;
         void (*event)(void *, void *group, MMI32 index, MMI32 *frame, int *kind);
         void *(*payload)(void *, void *group, MMI32 index);
-        int (*sound_style)(void *, void *payload);
         void *(*duplicate_sound)(void *, void *payload);
         void (*play_sound)(void *, void *payload);
         void *(*fetch_background)(void *, MMTag *);
@@ -40,22 +39,19 @@ extern "C"
         int (*transition)(void *);
         void (*set_transition)(void *, int);
         void (*publish_tag)(void *, const MMTag *);
-        void *(*read_object)(void *, void *payload);
         void (*bind_actor)(void *, void *actor);
         int (*seek)(void *, int text, void *object, MMI32 frame);
-        int (*pause_reason)(void *, void *payload);
-        MMI32 (*pause_delay)(void *, void *payload);
         void (*pause_type)(void *, int reason);
         void (*pause)(void *, int reason, MMI32 delay);
-        MMI32 (*camera)(void *, void *payload);
         void (*diagnostic)(void *, int issue);
     } MMSceneEventServices;
     /* Valid native-order event payloads and initialized state/services required.
      * Synchronous callbacks must not reenter dispatch or mutate the event groups.
      * Groups/payloads and roll-call objects are borrowed; start events own objects.
-     * Background payloads hold an MMTag. Background fetch and duplicate_sound
-     * return newly owned references. Camera
-     * payloads are host-order MMI32 values, including synthetic zero.
+     * Native payloads hold an MMSceneSound packet, MMTag, object pointer,
+     * camera number, or a pause reason and delay. Camera and pause values
+     * are host-order MMI32. Background fetch and duplicate_sound return
+     * newly owned references.
      * Set-background requires a vacant owner slot. Sound/pause/camera suppression
      * does not suppress MIDI caching, pause notifications or the background-required diagnostic.
      * Failed actor seek removes the list entry but retains its scene binding.
@@ -65,11 +61,12 @@ extern "C"
      * when unplay clears the background sound, matching the native implementation. */
     int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
                                   const MMSceneEventServices *);
+    int mm_scene_play_frame_event(MMI32 index, MMU32 disabled, const MMSceneEventServices *);
     int mm_scene_unplay_event(int kind, const MMSceneEventServices *);
     int mm_scene_start_events(int actors_only, const MMSceneEventServices *);
     /* First background start event wins. The result borrows its cache; no retain,
-     * fetch, playback or selection effects. Absence leaves output unchanged, even
-     * when a live background object exists. Traversal cannot be reentered/mutated. */
+     * fetch, playback or selection effects. Absence or a truncated tag leaves
+     * output unchanged. Traversal cannot be reentered/mutated. */
     int mm_scene_background_tag(MMTag *, const MMSceneEventServices *);
     typedef struct MMScenePickServices
     {

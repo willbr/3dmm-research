@@ -1,4 +1,5 @@
 #include "mm/scene_events.h"
+#include "mm/scene_sound.h"
 #include "scene_member_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -14,8 +15,7 @@
     } while (0)
 enum
 {
-    STYLE = 1,
-    DUP,
+    DUP = 1,
     FREE,
     PUBLISH,
     PLAY,
@@ -24,15 +24,10 @@ enum
     TRANS,
     SET_TRANS,
     PUB_TAG,
-    OBJECT,
     BIND,
     SEEK,
-    REASON,
     PAUSE_TYPE,
-    DELAY,
     PAUSE,
-    EVENT,
-    PAYLOAD,
     DIAG,
     RELEASE,
     PICK,
@@ -48,22 +43,11 @@ typedef struct Object
 typedef struct Payload
 {
     MMI32 camera;
-    int style, reason;
-    MMI32 delay;
+    MMSceneSound sound;
+    MMI32 pause[2];
     Object *object;
     MMTag tag;
 } Payload;
-typedef struct Event
-{
-    MMI32 frame;
-    int kind;
-    Payload payload;
-} Event;
-typedef struct Group
-{
-    int count;
-    Event events[8];
-} Group;
 typedef struct Fixture
 {
     MMSceneState data;
@@ -71,12 +55,12 @@ typedef struct Fixture
     MMSceneOwner owner;
     SceneMemberMemory members;
     MMSceneEventServices s;
-    Group frames, starts;
+    MMSceneTrack *frames, *starts;
     Object objects[4];
-    Payload packet, *active;
+    Payload packet;
     MMTag published;
     int ops[128], used, issues[5], live, dup_fail, fetch_fail, camera_fail;
-    int seek_fail, transition, camera, releases, sounds, payloads, last_payload, mutate_delay;
+    int seek_fail, transition, camera, releases, sounds, duplicate_volume, mutate_delay;
     MMI32 published_frame;
     void *clicked;
     int hit_part, orphan_count;
@@ -91,11 +75,6 @@ static void expect(Fixture *f, const int *ops, size_t count)
     CHECK(f->used == (int)count);
     CHECK(!memcmp(f->ops, ops, count * sizeof(*ops)));
     f->used = 0;
-}
-static MMI32 count(void *p, void *group)
-{
-    (void)p;
-    return ((Group *)group)->count;
 }
 static void publish(void *p, void *scene, const MMSceneOwner *owner)
 {
@@ -117,15 +96,10 @@ static MMI32 sound_count(void *p, void *packet)
     (void)packet;
     return 0;
 }
-static int sound_style(void *p, void *packet)
-{
-    log_op((Fixture *)p, STYLE);
-    return ((Payload *)packet)->style;
-}
 static MMI32 owned_style(void *p, void *packet)
 {
     (void)p;
-    return ((Payload *)packet)->style;
+    return ((const MMSceneSound *)packet)->sty;
 }
 static void free_sound(void *p, void *packet)
 {
@@ -138,13 +112,14 @@ static void free_sound(void *p, void *packet)
 static void *duplicate(void *p, void *packet)
 {
     Fixture *f = (Fixture *)p;
-    Payload *copy;
+    MMSceneSound *copy;
     log_op(f, DUP);
+    f->duplicate_volume = ((const MMSceneSound *)packet)->vlm;
     if (f->dup_fail)
         return NULL;
-    copy = (Payload *)malloc(sizeof(*copy));
+    copy = (MMSceneSound *)malloc(sizeof(*copy));
     CHECK(copy);
-    *copy = *(Payload *)packet;
+    *copy = *(const MMSceneSound *)packet;
     ++f->live;
     return copy;
 }
@@ -190,11 +165,6 @@ static void publish_tag(void *p, const MMTag *tag)
     f->published = *tag;
     log_op(f, PUB_TAG);
 }
-static void *read_object(void *p, void *packet)
-{
-    log_op((Fixture *)p, OBJECT);
-    return ((Payload *)packet)->object;
-}
 static void bind(void *p, void *object)
 {
     ((Object *)object)->bound = 1;
@@ -209,38 +179,19 @@ static int seek(void *p, int text, void *object, MMI32 frame)
     log_op(f, SEEK);
     return f->seek_fail != o->id;
 }
-static int reason(void *p, void *packet)
-{
-    Fixture *f = (Fixture *)p;
-    f->active = (Payload *)packet;
-    log_op(f, REASON);
-    return f->active->reason;
-}
-static MMI32 delay(void *p, void *packet)
-{
-    log_op((Fixture *)p, DELAY);
-    return ((Payload *)packet)->delay;
-}
 static void pause_type(void *p, int reason)
 {
     Fixture *f = (Fixture *)p;
-    CHECK(reason == f->active->reason);
+    CHECK(reason == f->packet.pause[0]);
     log_op(f, PAUSE_TYPE);
     if (f->mutate_delay)
-        f->active->delay = 42;
+        f->packet.pause[1] = 42;
 }
 static void pause_movie(void *p, int reason, MMI32 delay)
 {
     Fixture *f = (Fixture *)p;
-    CHECK(reason == f->active->reason && delay == f->active->delay);
+    CHECK(reason == f->packet.pause[0] && delay == f->packet.pause[1]);
     log_op(f, PAUSE);
-}
-static MMI32 read_camera(void *p, void *packet)
-{
-    MMI32 value;
-    log_op((Fixture *)p, OBJECT);
-    memcpy(&value, packet, sizeof(value));
-    return value;
 }
 static void diagnostic(void *p, int issue)
 {
@@ -249,26 +200,12 @@ static void diagnostic(void *p, int issue)
     ++f->issues[issue];
     log_op(f, DIAG);
 }
-static void event(void *p, void *group, MMI32 index, MMI32 *frame, int *kind)
+static void append(MMSceneTrack *track, MMI32 frame, int kind, MMI32 bytes, const void *payload)
 {
-    Fixture *f = (Fixture *)p;
-    Group *g = (Group *)group;
-    CHECK(index >= 0 && index < g->count);
-    log_op(f, EVENT);
-    *kind = g->events[index].kind;
-    if (g != &f->starts || *kind == MM_SCENE_PLAY_SOUND)
-        *frame = g->events[index].frame;
-}
-static void *payload(void *p, void *group, MMI32 index)
-{
-    Fixture *f = (Fixture *)p;
-    Group *g = (Group *)group;
-    CHECK(index >= 0 && index < g->count);
-    ++f->payloads;
-    f->last_payload = index;
-    log_op(f, PAYLOAD);
-    return g->events[index].kind == MM_SCENE_SET_BACKGROUND ? (void *)&g->events[index].payload.tag
-                                                           : (void *)&g->events[index].payload;
+    MMSceneTrackEvent event;
+    event.frame = frame;
+    event.kind = kind;
+    CHECK(mm_scene_track_insert(track, track->rows.count, bytes, payload, &event));
 }
 static void init(Fixture *f)
 {
@@ -279,15 +216,18 @@ static void init(Fixture *f)
     init_scene_members(&f->owner, &f->members);
     f->data.currentFrame = 3;
     f->transition = -1;
-    f->packet.style = 4;
+    f->packet.sound.sty = MM_SCENE_EVENT_MIDI;
     f->packet.tag.sid = 3;
     f->packet.tag.cache = f;
     f->packet.tag.type = 7;
     f->packet.tag.number = 9;
     for (i = 0; i < 4; ++i)
         f->objects[i].id = i + 1;
-    f->owner.owned[MM_SCENE_FRAMES] = &f->frames;
-    f->owner.owned[MM_SCENE_STARTS] = &f->starts;
+    f->frames = &f->owner.tracks[MM_SCENE_FRAMES];
+    f->starts = &f->owner.tracks[MM_SCENE_STARTS];
+    CHECK(mm_scene_track_init(f->frames, NULL, 0) && mm_scene_track_init(f->starts, NULL, 0));
+    f->owner.owned[MM_SCENE_FRAMES] = f->frames;
+    f->owner.owned[MM_SCENE_STARTS] = f->starts;
     s = &f->s;
     s->context = s->scene = f;
     s->data = &f->data;
@@ -296,14 +236,10 @@ static void init(Fixture *f)
     s->owners.context = f;
     s->owners.publish = publish;
     s->owners.release = release;
-    s->owners.count = count;
     s->owners.sound.context = f;
     s->owners.sound.count = sound_count;
     s->owners.sound.style = owned_style;
     s->owners.sound.free = free_sound;
-    s->event = event;
-    s->payload = payload;
-    s->sound_style = sound_style;
     s->duplicate_sound = duplicate;
     s->play_sound = play;
     s->fetch_background = fetch;
@@ -311,52 +247,68 @@ static void init(Fixture *f)
     s->transition = transition;
     s->set_transition = set_transition;
     s->publish_tag = publish_tag;
-    s->read_object = read_object;
     s->bind_actor = bind;
     s->seek = seek;
-    s->pause_reason = reason;
-    s->pause_delay = delay;
     s->pause_type = pause_type;
     s->pause = pause_movie;
-    s->camera = read_camera;
     s->diagnostic = diagnostic;
 }
 static int dispatch(Fixture *f, int kind, unsigned mask)
 {
-    void *bytes = kind == MM_SCENE_SET_BACKGROUND ? (void *)&f->packet.tag : (void *)&f->packet;
-    return mm_scene_play_event(8, kind, bytes, mask, &f->s);
+    void *payload = NULL;
+    switch (kind)
+    {
+    case MM_SCENE_SET_BACKGROUND:
+        payload = &f->packet.tag;
+        break;
+    case MM_SCENE_PLAY_SOUND:
+        payload = &f->packet.sound;
+        break;
+    case MM_SCENE_ADD_ACTOR:
+    case MM_SCENE_ADD_TEXT:
+        payload = &f->packet.object;
+        break;
+    case MM_SCENE_PAUSE:
+        payload = f->packet.pause;
+        break;
+    case MM_SCENE_CHANGE_CAMERA:
+        payload = &f->packet.camera;
+        break;
+    }
+    return mm_scene_play_event(8, kind, payload, mask, &f->s);
 }
 static void cleanup(Fixture *f)
 {
     mm_scene_owner_drop(&f->owner, f, MM_SCENE_BACKGROUND_SOUND, &f->s.owners);
+    mm_scene_track_dispose(f->starts);
+    mm_scene_track_dispose(f->frames);
     CHECK(!f->live);
 }
 static void sounds(void)
 {
     Fixture f;
     void *old;
-    static const int first[] = {STYLE, DUP, PUBLISH}, failed[] = {STYLE, DUP};
-    static const int replaced[] = {STYLE, DUP, FREE, PUBLISH, PUBLISH, PLAY}, skipped[] = {STYLE},
-                     played[] = {STYLE, PLAY};
+    static const int first[] = {DUP, PUBLISH}, failed[] = {DUP};
+    static const int replaced[] = {DUP, FREE, PUBLISH, PUBLISH, PLAY}, played[] = {PLAY};
     init(&f);
     f.runtime.background_frame = 2;
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 1));
-    expect(&f, first, 3);
+    expect(&f, first, 2);
     CHECK(f.live == 1 && f.runtime.background_frame == 8 && f.published_frame == 2 && !f.sounds);
     old = f.owner.owned[MM_SCENE_BACKGROUND_SOUND];
     f.dup_fail = 1;
-    CHECK(!mm_scene_play_event(9, MM_SCENE_PLAY_SOUND, &f.packet, 0, &f.s));
-    expect(&f, failed, 2);
+    CHECK(!mm_scene_play_event(9, MM_SCENE_PLAY_SOUND, &f.packet.sound, 0, &f.s));
+    expect(&f, failed, 1);
     CHECK(f.owner.owned[MM_SCENE_BACKGROUND_SOUND] == old && f.runtime.background_frame == 8);
     f.dup_fail = 0;
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 0));
-    expect(&f, replaced, 6);
+    expect(&f, replaced, 5);
     CHECK(f.live == 1 && f.sounds == 1);
-    f.packet.style = 2;
+    f.packet.sound.sty = 2;
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 1));
-    expect(&f, skipped, 1);
+    CHECK(!f.used);
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 0));
-    expect(&f, played, 2);
+    expect(&f, played, 1);
     CHECK(f.live == 1);
     cleanup(&f);
 }
@@ -391,8 +343,7 @@ static void objects(void)
 {
     Fixture f;
     int text, list;
-    static const int failed[] = {OBJECT}, bound[] = {OBJECT, BIND, SEEK};
-    static const int caption[] = {OBJECT, SEEK};
+    static const int bound[] = {BIND, SEEK}, caption[] = {SEEK};
     for (text = 0; text < 2; ++text)
     {
         list = text ? MM_SCENE_TEXTS : MM_SCENE_ACTORS;
@@ -400,16 +351,16 @@ static void objects(void)
         f.packet.object = &f.objects[0];
         f.members.fail_at = 1;
         CHECK(!dispatch(&f, text ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR, 65535));
-        expect(&f, failed, 1);
+        CHECK(!f.used);
         CHECK(!mm_scene_member_count(&f.owner, list) && !f.objects[0].bound && !f.objects[0].seeks);
         f.members.fail_at = 0;
         f.seek_fail = 1;
         CHECK(!dispatch(&f, text ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR, 0));
-        expect(&f, text ? caption : bound, text ? 2 : 3);
+        expect(&f, text ? caption : bound, text ? 1 : 2);
         CHECK(!mm_scene_member_count(&f.owner, list) && f.objects[0].bound == !text);
         f.seek_fail = 0;
         CHECK(dispatch(&f, text ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR, 65535));
-        expect(&f, text ? caption : bound, text ? 2 : 3);
+        expect(&f, text ? caption : bound, text ? 1 : 2);
         CHECK(mm_scene_member_count(&f.owner, list) == 1 && mm_scene_member_at(&f.owner, list, 0) == &f.objects[0]);
         f.packet.object = &f.objects[1];
         CHECK(dispatch(&f, text ? MM_SCENE_ADD_TEXT : MM_SCENE_ADD_ACTOR, 0));
@@ -419,28 +370,28 @@ static void objects(void)
 static void pauses_and_cameras(void)
 {
     Fixture f;
-    static const int suppressed[] = {REASON, PAUSE_TYPE}, paused[] = {REASON, PAUSE_TYPE, DELAY, PAUSE};
-    static const int absent[] = {DIAG}, changed[] = {OBJECT, CAMERA};
+    static const int suppressed[] = {PAUSE_TYPE}, paused[] = {PAUSE_TYPE, PAUSE};
+    static const int absent[] = {DIAG}, changed[] = {CAMERA};
     init(&f);
-    f.packet.reason = 3;
-    f.packet.delay = (-2147483647 - 1);
+    f.packet.pause[0] = 3;
+    f.packet.pause[1] = (-2147483647 - 1);
     f.mutate_delay = 1;
     CHECK(dispatch(&f, MM_SCENE_PAUSE, 2));
-    expect(&f, suppressed, 2);
+    expect(&f, suppressed, 1);
     CHECK(dispatch(&f, MM_SCENE_PAUSE, 0));
-    expect(&f, paused, 4);
-    CHECK(f.packet.delay == 42);
+    expect(&f, paused, 2);
+    CHECK(f.packet.pause[1] == 42);
     CHECK(dispatch(&f, MM_SCENE_CHANGE_CAMERA, 64));
     expect(&f, absent, 1);
     CHECK(f.issues[MM_SCENE_EVENT_NO_BACKGROUND] == 1);
     f.owner.owned[MM_SCENE_BACKGROUND] = &f.objects[3];
     f.packet.camera = 2;
     CHECK(dispatch(&f, MM_SCENE_CHANGE_CAMERA, 0));
-    expect(&f, changed, 2);
+    expect(&f, changed, 1);
     CHECK(f.camera == 2);
     f.camera_fail = 1;
     CHECK(!dispatch(&f, MM_SCENE_CHANGE_CAMERA, 0));
-    expect(&f, changed, 2);
+    expect(&f, changed, 1);
     CHECK(dispatch(&f, 99, 0));
     CHECK(f.issues[MM_SCENE_EVENT_UNKNOWN] == 1);
     f.used = 0;
@@ -450,41 +401,48 @@ static void rewind_events(void)
 {
     Fixture f;
     int i;
+    MMSceneSound sound = {0};
+    MMSceneTrackEvent event;
+    MMI32 camera_number;
     init(&f);
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 1));
     f.used = 0;
-    f.frames.count = 4;
     f.runtime.next_event = 4;
     for (i = 0; i < 4; ++i)
     {
-        f.frames.events[i].kind = MM_SCENE_PLAY_SOUND;
-        f.frames.events[i].frame = i + 1;
-        f.frames.events[i].payload.style = 2;
+        sound.sty = i == 2 ? MM_SCENE_EVENT_MIDI : 2;
+        sound.vlm = 10 + i;
+        append(f.frames, i + 1, MM_SCENE_PLAY_SOUND, sizeof(sound), &sound);
     }
     CHECK(mm_scene_unplay_event(MM_SCENE_PLAY_SOUND, &f.s));
-    CHECK(f.last_payload == 1 && f.payloads == 1 && f.live == 1 && !f.sounds);
-    f.frames.events[1].payload.style = 4;
+    CHECK(!f.used && f.live == 1 && !f.sounds);
+    sound.sty = MM_SCENE_EVENT_MIDI;
+    sound.vlm = 11;
+    CHECK(mm_scene_track_put(f.frames, 1, sizeof(sound), &sound));
     f.dup_fail = 1;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_PLAY_SOUND, &f.s));
-    CHECK(f.live == 1 && f.runtime.background_frame == 8);
+    CHECK(f.duplicate_volume == 11 && f.live == 1 && f.runtime.background_frame == 8);
     f.data.currentFrame = 1;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_PLAY_SOUND, &f.s));
     CHECK(!f.live && f.runtime.background_frame == 8);
     for (i = 0; i < 4; ++i)
     {
-        f.frames.events[i].kind = MM_SCENE_CHANGE_CAMERA;
-        f.frames.events[i].payload.camera = i + 1;
+        event.kind = MM_SCENE_CHANGE_CAMERA;
+        event.frame = i == 0 ? 2 : i == 3 ? 1 : i + 1;
+        camera_number = i + 1;
+        CHECK(mm_scene_track_set(f.frames, i, &event));
+        CHECK(mm_scene_track_put(f.frames, i, sizeof(camera_number), &camera_number));
     }
-    f.frames.events[0].frame = 2;
-    f.frames.events[3].frame = 1;
     f.runtime.next_event = 3;
     f.owner.owned[MM_SCENE_BACKGROUND] = &f.objects[3];
     f.data.currentFrame = 3;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
-    CHECK(f.camera == 2 && f.last_payload == 1);
+    CHECK(f.camera == 2 && f.used == 1 && f.ops[0] == CAMERA);
+    CHECK(mm_scene_play_frame_event(3, 0, &f.s) && f.camera == 4);
+    CHECK(!mm_scene_play_frame_event(4, 0, &f.s) && f.camera == 4);
     f.camera_fail = 1;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
@@ -496,7 +454,7 @@ static void rewind_events(void)
     f.runtime.disabled = 64;
     f.used = 0;
     CHECK(mm_scene_unplay_event(MM_SCENE_CHANGE_CAMERA, &f.s));
-    CHECK(f.used == f.runtime.next_event);
+    CHECK(!f.used);
     f.owner.owned[MM_SCENE_BACKGROUND] = NULL;
     f.runtime.next_event = 0;
     f.used = 0;
@@ -504,50 +462,44 @@ static void rewind_events(void)
     CHECK(f.used == 2 && f.issues[MM_SCENE_EVENT_NO_BACKGROUND] == 2);
     cleanup(&f);
 }
+static void add_start_object(Fixture *f, int kind, Object *object)
+{
+    append(f->starts, 0, kind, sizeof(object), &object);
+}
 static void starts(void)
 {
     Fixture f;
     int i;
     init(&f);
-    f.starts.count = 3;
     f.runtime.disabled = 65535;
-    f.starts.events[0].kind = MM_SCENE_SET_BACKGROUND;
-    f.starts.events[0].payload = f.packet;
-    f.starts.events[1].kind = MM_SCENE_ADD_ACTOR;
-    f.starts.events[1].payload.object = &f.objects[0];
-    f.starts.events[2].kind = MM_SCENE_ADD_TEXT;
-    f.starts.events[2].payload.object = &f.objects[1];
+    append(f.starts, 0, MM_SCENE_SET_BACKGROUND, sizeof(f.packet.tag), &f.packet.tag);
+    add_start_object(&f, MM_SCENE_ADD_ACTOR, &f.objects[0]);
+    add_start_object(&f, MM_SCENE_ADD_TEXT, &f.objects[1]);
     CHECK(mm_scene_start_events(1, &f.s));
-    CHECK(f.payloads == 1 && f.last_payload == 1 && mm_scene_member_count(&f.owner, MM_SCENE_ACTORS) == 1 &&
+    CHECK(mm_scene_member_at(&f.owner, MM_SCENE_ACTORS, 0) == &f.objects[0] &&
           !mm_scene_member_count(&f.owner, MM_SCENE_TEXTS) && f.transition == -1);
+    cleanup(&f);
     init(&f);
-    f.starts.count = 3;
     for (i = 0; i < 3; ++i)
-    {
-        f.starts.events[i].kind = MM_SCENE_ADD_ACTOR;
-        f.starts.events[i].payload.object = &f.objects[i];
-    }
+        add_start_object(&f, MM_SCENE_ADD_ACTOR, &f.objects[i]);
     f.seek_fail = 2;
     CHECK(!mm_scene_start_events(0, &f.s));
-    CHECK(f.payloads == 2 && mm_scene_member_count(&f.owner, MM_SCENE_ACTORS) == 1 && f.objects[1].bound &&
+    CHECK(mm_scene_member_count(&f.owner, MM_SCENE_ACTORS) == 1 && f.objects[1].bound &&
           !f.objects[2].bound);
+    cleanup(&f);
     init(&f);
-    f.starts.count = 3;
-    f.starts.events[0].kind = MM_SCENE_SET_BACKGROUND;
-    f.starts.events[0].payload = f.packet;
-    f.starts.events[1].kind = MM_SCENE_ADD_ACTOR;
-    f.starts.events[1].payload.object = &f.objects[0];
-    f.starts.events[2].kind = MM_SCENE_ADD_TEXT;
-    f.starts.events[2].payload.object = &f.objects[1];
+    append(f.starts, 0, MM_SCENE_SET_BACKGROUND, sizeof(f.packet.tag), &f.packet.tag);
+    add_start_object(&f, MM_SCENE_ADD_ACTOR, &f.objects[0]);
+    add_start_object(&f, MM_SCENE_ADD_TEXT, &f.objects[1]);
     CHECK(mm_scene_start_events(0, &f.s));
-    CHECK(f.payloads == 3 && mm_scene_member_count(&f.owner, MM_SCENE_ACTORS) == 1 &&
+    CHECK(mm_scene_member_count(&f.owner, MM_SCENE_ACTORS) == 1 &&
           mm_scene_member_count(&f.owner, MM_SCENE_TEXTS) == 1 && f.transition == 0);
+    cleanup(&f);
 }
 static void background_query(void)
 {
     Fixture f;
-    MMTag out;
-    const int found[] = {EVENT, EVENT, PAYLOAD};
+    MMTag out, later;
     init(&f);
     out.sid = 99;
     out.cache = &f.objects[3];
@@ -556,20 +508,23 @@ static void background_query(void)
     f.owner.owned[MM_SCENE_BACKGROUND] = &f.objects[0];
     CHECK(!mm_scene_background_tag(&out, &f.s));
     CHECK(!f.used && out.sid == 99 && out.cache == &f.objects[3] && out.type == 12 && out.number == 34);
-    f.starts.count = 3;
-    f.starts.events[0].kind = MM_SCENE_ADD_ACTOR;
-    f.starts.events[1].kind = f.starts.events[2].kind = MM_SCENE_SET_BACKGROUND;
-    f.starts.events[1].payload.tag = f.packet.tag;
-    f.starts.events[2].payload.tag = f.packet.tag;
-    f.starts.events[2].payload.tag.number = 42;
+    add_start_object(&f, MM_SCENE_ADD_ACTOR, &f.objects[0]);
+    append(f.starts, 0, MM_SCENE_SET_BACKGROUND, sizeof(f.packet.tag), &f.packet.tag);
+    later = f.packet.tag;
+    later.number = 42;
+    append(f.starts, 0, MM_SCENE_SET_BACKGROUND, sizeof(later), &later);
     CHECK(mm_scene_background_tag(&out, &f.s));
     CHECK(out.sid == f.packet.tag.sid && out.cache == f.packet.tag.cache && out.type == f.packet.tag.type &&
           out.number == f.packet.tag.number);
-    expect(&f, found, sizeof(found) / sizeof(*found));
-    CHECK(!f.releases && !f.live && f.payloads == 1 && f.last_payload == 1);
-    f.starts.count = 1;
+    CHECK(!f.used && !f.releases && !f.live);
+    CHECK(mm_scene_track_put(f.starts, 1, 0, NULL));
     CHECK(!mm_scene_background_tag(&out, &f.s));
-    CHECK(out.number == f.packet.tag.number && f.used == 1 && f.ops[0] == EVENT);
+    CHECK(out.number == f.packet.tag.number && !f.used);
+    CHECK(mm_group_delete(&f.starts->rows, 2) == MM_STORAGE_OK);
+    CHECK(mm_group_delete(&f.starts->rows, 1) == MM_STORAGE_OK);
+    CHECK(!mm_scene_background_tag(&out, &f.s));
+    CHECK(out.number == f.packet.tag.number && !f.used);
+    cleanup(&f);
 }
 static void *pick_body(void *p, MMI32 x, MMI32 y)
 {

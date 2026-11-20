@@ -260,20 +260,6 @@ MMSceneOwnerServices Scene::_OwnerServices()
     s.loaded = [](void *, void *) { vpcex->EnqueueCid(cidSceneLoaded); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.count = [](void *, void *p) -> MMI32 { return static_cast<const MMSceneTrack *>(p)->rows.count; };
-    s.object = [](void *, void *p, MMI32 i) -> void * {
-        const auto track = static_cast<const MMSceneTrack *>(p);
-        void *value;
-        std::memcpy(&value, mm_scene_track_payload(track, i, nullptr), sizeof(value));
-        if (ReadSceneTrackEvent(track, i).sevt == sevtAddActr)
-        {
-            AssertPo(static_cast<PActor>(value), 0);
-        }
-        else
-        {
-            AssertPo(static_cast<PTBOX>(value), 0);
-        }
-        return value;
-    };
     s.actor_visibility = [](void *, void *p, int show) {
         auto actor = static_cast<PActor>(p);
         AssertPo(actor, 0);
@@ -554,16 +540,13 @@ MMSceneRuntimeServices Scene::_RuntimeServices()
         *kind = event.sevt;
     };
     s.play = [](void *p, MMI32 i, MMU32 disabled) -> int {
-        auto scene = static_cast<PScene>(p);
-        auto track = scene->_FrameTrack();
-        auto event = ReadSceneTrackEvent(track, i);
-        return scene->_FPlaySev(&event, mm_scene_track_payload(track, i, nullptr), disabled);
+        auto services = static_cast<PScene>(p)->_EventServices();
+        return mm_scene_play_frame_event(i, disabled, &services);
     };
     s.unplay = [](void *p, MMI32 i) -> int {
         auto scene = static_cast<PScene>(p);
-        auto track = scene->_FrameTrack();
-        auto event = ReadSceneTrackEvent(track, i);
-        return scene->_FUnPlaySev(&event, mm_scene_track_payload(track, i, nullptr));
+        auto services = scene->_EventServices();
+        return mm_scene_unplay_event(ReadSceneTrackEvent(scene->_FrameTrack(), i).sevt, &services);
     };
     s.move_camera = [](void *p, MMI32 i, MMI32 frame) {
         auto track = static_cast<PScene>(p)->_FrameTrack();
@@ -791,7 +774,6 @@ MMSceneEventServices Scene::_EventServices()
     s.payload = [](void *, void *group, MMI32 i) -> void * {
         return mm_scene_track_payload(static_cast<const MMSceneTrack *>(group), i, nullptr);
     };
-    s.sound_style = [](void *, void *payload) -> int { return static_cast<PSceneSoundEvent>(payload)->sty; };
     s.duplicate_sound = [](void *, void *payload) -> void * {
         return static_cast<PSceneSoundEvent>(payload)->PsseDup();
     };
@@ -811,18 +793,9 @@ MMSceneEventServices Scene::_EventServices()
     s.transition = [](void *p) -> int { return static_cast<PScene>(p)->Pmvie()->Trans(); };
     s.set_transition = [](void *p, int value) { static_cast<PScene>(p)->Pmvie()->SetTrans(static_cast<TRANS>(value)); };
     s.publish_tag = [](void *p, const MMTag *value) { TagFromCore(&static_cast<PScene>(p)->_tagBkgd, *value); };
-    s.read_object = [](void *, void *payload) -> void * {
-        void *object;
-        std::memcpy(&object, payload, sizeof(object));
-        return object;
-    };
     s.bind_actor = [](void *p, void *actor) { static_cast<PActor>(actor)->SetPscen(static_cast<PScene>(p)); };
     s.seek = [](void *, int text, void *object, MMI32 frame) -> int {
         return text ? static_cast<PTBOX>(object)->FGotoFrame(frame) : static_cast<PActor>(object)->FGotoFrame(frame);
-    };
-    s.pause_reason = [](void *, void *payload) -> int { return static_cast<const SceneEventPause *>(payload)->wit; };
-    s.pause_delay = [](void *, void *payload) -> MMI32 {
-        return static_cast<const SceneEventPause *>(payload)->dts;
     };
     s.pause_type = [](void *p, int reason) {
         static_cast<PScene>(p)->Pmvie()->Pmcc()->PauseType(static_cast<WaitReason>(reason));
@@ -830,7 +803,6 @@ MMSceneEventServices Scene::_EventServices()
     s.pause = [](void *p, int reason, MMI32 delay) {
         static_cast<PScene>(p)->Pmvie()->DoPause(static_cast<WaitReason>(reason), delay);
     };
-    s.camera = [](void *, void *payload) -> MMI32 { return *static_cast<const int32_t *>(payload); };
     s.diagnostic = [](void *, int issue) {
         switch (issue)
         {
@@ -852,53 +824,6 @@ MMSceneEventServices Scene::_EventServices()
         }
     };
     return s;
-}
-
-/****************************************************
- *
- * This routine plays a single event.
- *
- * Be careful not to modify the frame or start track from
- * within this routine.
- *
- * Parameters:
- *	psev - Pointer to the scene event to play.
- *	qvVar- Pointer to the variable part of the event.
- *	grfscen - Flags of currently disabled event types.
- *
- * Returns:
- *	fTrue if the event was played, fFalse in the case of failure.
- *
- ****************************************************/
-bool Scene::_FPlaySev(PSEV psev, void *qvVar, ulong grfscen)
-{
-    AssertThis(0);
-    auto services = _EventServices();
-    AssertVarMem(psev);
-    // Only sound dispatch consumes the event's frame. Other callers may leave it unset.
-    return mm_scene_play_event(psev->sevt == sevtPlaySnd ? psev->nfrm : 0, psev->sevt, qvVar, grfscen,
-                                    &services) != 0;
-}
-
-/****************************************************
- *
- * This routine undoes a single event.
- *
- * Parameters:
- *	psev - Pointer to the scene event to unplay.
- *	qvVar- Pointer to the variable part of the event.
- *
- *
- * Returns:
- *	fTrue if the unplay worked, else fFalse.
- *
- ****************************************************/
-bool Scene::_FUnPlaySev(PSEV psev, void *qvVar)
-{
-    AssertThis(0);
-    auto services = _EventServices();
-    AssertVarMem(psev);
-    return mm_scene_unplay_event(psev->sevt, &services) != 0;
 }
 
 /****************************************************
@@ -1694,18 +1619,6 @@ MMSceneContentServices Scene::_ContentServices()
         if (actor->Pbody())
             actor->Hide();
     };
-    s.insert_start = [](void *p, MMI32 i, int kind, void *object) -> int {
-        SceneEvent event = {0, static_cast<SceneEventType>(kind)};
-        return InsertSceneTrackEvent(static_cast<PScene>(p)->_StartTrack(), i, sizeof(object), &object, event);
-    };
-    s.put_start = [](void *p, MMI32 i, void *object) {
-        AssertDo(mm_scene_track_put(static_cast<PScene>(p)->_StartTrack(), i, sizeof(object), &object),
-                 "invalid scene start object");
-    };
-    s.erase = [](void *, void *p, MMI32 i) {
-        AssertDo(mm_group_delete(&static_cast<MMSceneTrack *>(p)->rows, i) == MM_STORAGE_OK,
-                 "invalid scene start event index");
-    };
     s.selected = [](void *p, int text) -> void * {
         auto scene = static_cast<Scene *>(p);
         return text ? scene->_selection.text : scene->_selection.actor;
@@ -2046,9 +1959,9 @@ MMSceneEditServices Scene::_EditServices()
         return InsertSceneTrackEvent(static_cast<PScene>(p)->_StartTrack(), 0, sizeof(*value), value, event);
     };
     s.play_background = [](void *p, MMI32 frame, const MMTag *value, MMU32 mask) -> int {
+        auto events = static_cast<PScene>(p)->_EventServices();
         auto tag = *value;
-        SceneEvent event = {frame, sevtSetBkgd};
-        return static_cast<PScene>(p)->_FPlaySev(&event, &tag, mask);
+        return mm_scene_play_event(frame, MM_SCENE_SET_BACKGROUND, &tag, mask, &events);
     };
     s.background_name = [](void *p) {
         auto scene = static_cast<PScene>(p);

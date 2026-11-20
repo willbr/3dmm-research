@@ -158,6 +158,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   tracks. C89 locks the frame track while resolving sound tags and checks
   each packet's tag span before touching its references. Native services
   release actor and caption objects and resolve resource tags.
+- Studio dispatches frame and start events from the C89 tracks. Rewind uses
+  the same event search as Marcus preview. Actor and caption insertion
+  and removal use the C89 start track directly, as does actor replacement.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

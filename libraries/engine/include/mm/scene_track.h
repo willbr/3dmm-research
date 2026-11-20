@@ -22,6 +22,7 @@ extern "C" {
     void mm_scene_track_dispose(MMSceneTrack *);
     int mm_scene_track_get(const MMSceneTrack *, MMI32 index, MMSceneTrackEvent *);
     void *mm_scene_track_payload(const MMSceneTrack *, MMI32 index, MMI32 *bytes);
+    int mm_scene_track_get_object(const MMSceneTrack *, MMI32 index, void **);
     int mm_scene_track_insert(MMSceneTrack *, MMI32 index, MMI32 bytes, const void *, const MMSceneTrackEvent *);
     int mm_scene_track_put(MMSceneTrack *, MMI32 index, MMI32 bytes, const void *);
     int mm_scene_track_set(MMSceneTrack *, MMI32 index, const MMSceneTrackEvent *);

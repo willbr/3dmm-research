@@ -2,24 +2,21 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_content.h"
 #include "mm/wide.h"
-static void *group(const MMSceneContentServices *s)
+static int insert_start(MMSceneTrack *track, MMI32 index, int kind, void *object)
 {
-    return s->events.owner->owned[MM_SCENE_STARTS];
+    MMSceneTrackEvent event;
+    event.frame = 0;
+    event.kind = kind;
+    return mm_scene_track_insert(track, index, sizeof(object), &object, &event);
 }
-static MMI32 count(void *p, const MMSceneContentServices *s)
+static void *start_object(const MMSceneTrack *track, MMI32 index, int kind)
 {
-    return s->events.owners.count(s->events.owners.context, p);
-}
-static int kind(MMI32 i, const MMSceneContentServices *s)
-{
-    MMI32 frame;
-    int type;
-    s->events.event(s->events.context, group(s), i, &frame, &type);
-    return type;
-}
-static void *object(MMI32 i, const MMSceneContentServices *s)
-{
-    return s->events.owners.object(s->events.owners.context, group(s), i);
+    MMSceneTrackEvent event;
+    void *object;
+    if (!mm_scene_track_get(track, index, &event) || event.kind != kind ||
+        !mm_scene_track_get_object(track, index, &object))
+        return NULL;
+    return object;
 }
 static void release(void *p, const MMSceneContentServices *s)
 {
@@ -51,15 +48,14 @@ void *mm_scene_actor_find(MMI32 id, const MMSceneContentServices *s)
 }
 int mm_scene_actor_add(void *actor, const MMSceneContentServices *s)
 {
+    MMSceneTrack *track = &s->events.owner->tracks[MM_SCENE_STARTS];
     MMI32 i, j;
     void *old;
     int ok;
-    for (i = 0; i < count(group(s), s); ++i)
+    for (i = 0; (MMU32)i < track->rows.count; ++i)
     {
-        if (kind(i, s) != MM_SCENE_ADD_ACTOR)
-            continue;
-        old = object(i, s);
-        if (s->actor_id(s->context, old) != s->actor_id(s->context, actor))
+        old = start_object(track, i, MM_SCENE_ADD_ACTOR);
+        if (!old || s->actor_id(s->context, old) != s->actor_id(s->context, actor))
             continue;
         for (j = 0; j < mm_scene_member_count(s->events.owner, MM_SCENE_ACTORS); ++j)
         {
@@ -69,12 +65,12 @@ int mm_scene_actor_add(void *actor, const MMSceneContentServices *s)
             s->retain(s->context, actor);
             s->events.bind_actor(s->events.context, actor);
             if (!s->events.seek(s->events.context, 0, actor, s->events.data->currentFrame) ||
-                !s->actor_ready(s->context, actor))
+                !s->actor_ready(s->context, actor) ||
+                !mm_scene_track_put(track, i, sizeof(actor), &actor))
             {
                 release(actor, s);
                 return 0;
             }
-            s->put_start(s->context, i, actor);
             mm_scene_member_replace(s->events.owner, MM_SCENE_ACTORS, j, actor);
             s->select(s->context, 0, actor);
             remove_extras(s->actor_id(s->context, old), s);
@@ -87,12 +83,12 @@ int mm_scene_actor_add(void *actor, const MMSceneContentServices *s)
         }
         s->diagnostic(s->context, MM_SCENE_CONTENT_ACTOR_ROLL_MISSING);
     }
-    if (!s->insert_start(s->context, 0, MM_SCENE_ADD_ACTOR, actor))
+    if (!insert_start(track, 0, MM_SCENE_ADD_ACTOR, actor))
         return 0;
     s->retain(s->context, actor);
     if (!s->add_roll(s->context, actor, 1))
     {
-        s->erase(s->context, group(s), 0);
+        mm_group_delete(&track->rows, 0);
         release(actor, s);
         return 0;
     }
@@ -106,7 +102,7 @@ int mm_scene_actor_add(void *actor, const MMSceneContentServices *s)
     if (!ok)
     {
         s->remove_roll(s->context, actor, 0);
-        s->erase(s->context, group(s), 0);
+        mm_group_delete(&track->rows, 0);
         release(actor, s);
         return 0;
     }
@@ -129,17 +125,17 @@ int mm_scene_actor_add_onstage(void *actor, const MMSceneContentServices *s)
 }
 void mm_scene_actor_remove(MMI32 id, const MMSceneContentServices *s)
 {
+    MMSceneTrack *track = &s->events.owner->tracks[MM_SCENE_STARTS];
     MMI32 i, j;
     void *actor, *removed;
-    for (i = 0; i < count(group(s), s); ++i)
+    for (i = 0; (MMU32)i < track->rows.count; ++i)
     {
-        if (kind(i, s) != MM_SCENE_ADD_ACTOR)
-            continue;
-        actor = object(i, s);
-        if (s->actor_id(s->context, actor) != id)
+        actor = start_object(track, i, MM_SCENE_ADD_ACTOR);
+        if (!actor || s->actor_id(s->context, actor) != id)
             continue;
         removed = actor;
-        s->erase(s->context, group(s), i);
+        if (mm_group_delete(&track->rows, i) != MM_STORAGE_OK)
+            return;
         for (j = 0; j < mm_scene_member_count(s->events.owner, MM_SCENE_ACTORS); ++j)
         {
             actor = mm_scene_member_at(s->events.owner, MM_SCENE_ACTORS, j);
@@ -233,13 +229,15 @@ void *mm_scene_text_at(MMI32 i, const MMSceneContentServices *s)
 }
 int mm_scene_text_add(void *text, const MMSceneContentServices *s)
 {
+    MMSceneTrack *track = &s->events.owner->tracks[MM_SCENE_STARTS];
+    MMI32 index = track->rows.count;
     s->bind_text(s->context, text);
-    if (!s->insert_start(s->context, count(group(s), s), MM_SCENE_ADD_TEXT, text))
+    if (!insert_start(track, index, MM_SCENE_ADD_TEXT, text))
         return 0;
     s->retain(s->context, text);
     if (!mm_scene_play_event(0, MM_SCENE_ADD_TEXT, &text, s->events.runtime->disabled, &s->events))
     {
-        s->erase(s->context, group(s), count(group(s), s) - 1);
+        mm_group_delete(&track->rows, index);
         release(text, s);
         return 0;
     }
@@ -248,6 +246,7 @@ int mm_scene_text_add(void *text, const MMSceneContentServices *s)
 }
 int mm_scene_text_remove(void *text, const MMSceneContentServices *s)
 {
+    MMSceneTrack *track = &s->events.owner->tracks[MM_SCENE_STARTS];
     MMI32 i, j, first, last;
     if (!text)
     {
@@ -259,11 +258,12 @@ int mm_scene_text_remove(void *text, const MMSceneContentServices *s)
         s->set_selected(s->context, 1, NULL);
         s->text_select(s->context, text, 0);
     }
-    for (i = 0; i < count(group(s), s); ++i)
+    for (i = 0; (MMU32)i < track->rows.count; ++i)
     {
-        if (kind(i, s) != MM_SCENE_ADD_TEXT || object(i, s) != text)
+        if (start_object(track, i, MM_SCENE_ADD_TEXT) != text)
             continue;
-        s->erase(s->context, group(s), i);
+        if (mm_group_delete(&track->rows, i) != MM_STORAGE_OK)
+            return 0;
         for (j = 0; j < mm_scene_member_count(s->events.owner, MM_SCENE_TEXTS); ++j)
             if (mm_scene_member_at(s->events.owner, MM_SCENE_TEXTS, j) == text)
             {

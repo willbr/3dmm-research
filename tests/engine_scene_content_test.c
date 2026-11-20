@@ -16,16 +16,6 @@ typedef struct Obj
 {
     int refs, id, text, ready, bound, roll, hidden, selected, first, last, life;
 } Obj;
-typedef struct Entry
-{
-    int kind;
-    Obj *object;
-} Entry;
-typedef struct Group
-{
-    int count;
-    Entry v[16];
-} Group;
 typedef struct Undo
 {
     MMSceneActorUndo actor;
@@ -40,7 +30,7 @@ typedef struct Test
     SceneMemberMemory members;
     MMSceneState data;
     MMSceneRuntime runtime;
-    Group starts;
+    MMSceneTrack *starts;
     Obj *selected[2];
     Undo *active;
     int live, undo_live, next_id, dirty, invalid, indicator, updated, placement, bind_fail, seek_actor_fail,
@@ -92,55 +82,18 @@ static void release(void *p, void *object)
         free(o);
     }
 }
-static MMI32 count(void *p, void *g)
-{
-    (void)p;
-    return ((Group *)g)->count;
-}
-static void *at(void *p, void *g, MMI32 i)
-{
-    (void)p;
-    CHECK(i >= 0 && i < ((Group *)g)->count);
-    return ((Group *)g)->v[i].object;
-}
-static void event(void *p, void *g, MMI32 i, MMI32 *frame, int *kind)
-{
-    (void)p;
-    *frame = 0;
-    *kind = ((Group *)g)->v[i].kind;
-}
-static void *read_object(void *p, void *value)
-{
-    (void)p;
-    return *(void **)value;
-}
-static int insert(void *p, MMI32 i, int kind, void *object)
+static void *resize_starts(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Test *t = (Test *)p;
-    CHECK(i >= 0 && i <= t->starts.count);
-    if (t->insert_fail)
-        return 0;
-    memmove(t->starts.v + i + 1, t->starts.v + i, (size_t)(t->starts.count - i) * sizeof(Entry));
-    t->starts.v[i].kind = kind;
-    t->starts.v[i].object = (Obj *)object;
-    ++t->starts.count;
-    note(t, 2);
-    return 1;
+    (void)old_bytes;
+    (void)priority;
+    return t->insert_fail ? NULL : realloc(old, (size_t)bytes);
 }
-static void erase(void *p, void *value, MMI32 i)
+static void release_starts(void *p, void *data, MMU32 bytes)
 {
-    Test *t = (Test *)p;
-    Group *g = (Group *)value;
-    CHECK(i >= 0 && i < g->count);
-    memmove(g->v + i, g->v + i + 1, (size_t)(g->count - i - 1) * sizeof(Entry));
-    --g->count;
-    note(t, 3);
-}
-static void put_start(void *p, MMI32 i, void *o)
-{
-    Test *t = (Test *)p;
-    t->starts.v[i].object = (Obj *)o;
-    note(t, 4);
+    (void)p;
+    (void)bytes;
+    free(data);
 }
 static void bind(void *p, void *object)
 {
@@ -394,12 +347,16 @@ static void init(Test *t)
     MMSceneContentServices *s;
     MMSceneEventServices *v;
     MMSceneOwnerServices *o;
+    MMStorageAllocator allocator = {NULL, resize_starts, release_starts};
     memset(t, 0, sizeof(*t));
     init_scene_members(&t->owner, &t->members);
+    allocator.context = t;
+    t->starts = &t->owner.tracks[MM_SCENE_STARTS];
+    CHECK(mm_scene_track_init(t->starts, &allocator, 0));
     t->next_id = 100;
     t->data.currentFrame = t->data.firstFrame = 1;
     t->data.lastFrame = 9;
-    t->owner.owned[1] = &t->starts;
+    t->owner.owned[MM_SCENE_STARTS] = t->starts;
 
     s = &t->s;
     s->context = t;
@@ -408,14 +365,10 @@ static void init(Test *t)
     v->owner = &t->owner;
     v->data = &t->data;
     v->runtime = &t->runtime;
-    v->event = event;
-    v->read_object = read_object;
     v->bind_actor = bind;
     v->seek = seek_object;
     o = &v->owners;
     o->context = t;
-    o->count = count;
-    o->object = at;
     o->release = release;
     o->publish = publish;
     s->retain = retain;
@@ -425,9 +378,6 @@ static void init(Test *t)
     s->actor_onstage = onstage;
     s->actor_paste = paste;
     s->hide_actor = hide_actor;
-    s->insert_start = insert;
-    s->put_start = put_start;
-    s->erase = erase;
     s->selected = selected;
     s->set_selected = set_selected;
     s->select = select;
@@ -462,12 +412,15 @@ static void init(Test *t)
 }
 static void clean(Test *t)
 {
+    MMI32 i;
+    void *object;
     clear(t);
-    while (t->starts.count)
+    for (i = t->starts->rows.count; i > 0;)
     {
-        Obj *o = t->starts.v[--t->starts.count].object;
-        release(t, o);
+        CHECK(mm_scene_track_get_object(t->starts, --i, &object));
+        release(t, object);
     }
+    mm_scene_track_dispose(t->starts);
     CHECK(!t->live && !t->undo_live);
 }
 static void test_actor(void)
@@ -479,7 +432,7 @@ static void test_actor(void)
     a = new_obj(&t, 0);
     CHECK(mm_scene_actor_add(a, &t.s) && a->refs == 2 && a->id == 100 &&
           mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) == 1 &&
-          t.starts.count == 1 && t.indicator == 1);
+          t.starts->rows.count == 1 && t.indicator == 1);
     b = new_obj(&t, 0);
     b->id = a->id;
     CHECK(mm_scene_member_append(&t.owner, MM_SCENE_SELECTION, a));
@@ -493,7 +446,7 @@ static void test_actor(void)
     CHECK(mm_scene_member_append(&t.owner, MM_SCENE_SELECTION, extra));
     b->roll = 1;
     mm_scene_actor_remove(b->id, &t.s);
-    CHECK(!t.starts.count && !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) &&
+    CHECK(!t.starts->rows.count && !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) &&
           mm_scene_member_count(&t.owner, MM_SCENE_SELECTION) == 1 && t.placement == 1 && b->refs == 1);
     release(&t, a);
     release(&t, b);
@@ -508,7 +461,7 @@ static void test_actor(void)
         t.members.fail_at = failure == 2;
         t.seek_actor_fail = failure == 3;
         t.bind_fail = failure == 4;
-        CHECK(!mm_scene_actor_add(a, &t.s) && a->refs == 1 && !t.starts.count &&
+        CHECK(!mm_scene_actor_add(a, &t.s) && a->refs == 1 && !t.starts->rows.count &&
               !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) && !a->roll &&
               !t.dirty);
         release(&t, a);
@@ -549,7 +502,7 @@ static void test_text(void)
         t.insert_fail = fail == 0;
         t.members.fail_at = fail == 1;
         t.seek_text_fail = fail == 2;
-        CHECK(!mm_scene_text_add(a, &t.s) && a->refs == 1 && !t.starts.count &&
+        CHECK(!mm_scene_text_add(a, &t.s) && a->refs == 1 && !t.starts->rows.count &&
               !mm_scene_member_count(&t.owner, MM_SCENE_TEXTS) && a->bound);
         release(&t, a);
         clean(&t);
@@ -578,7 +531,7 @@ static void test_text(void)
     a = new_obj(&t, 1);
     CHECK(mm_scene_text_add(a, &t.s));
     mm_scene_member_clear(&t.owner, MM_SCENE_TEXTS);
-    CHECK(!mm_scene_text_remove(a, &t.s) && a->refs == 1 && !t.starts.count && t.issues[3] == 1);
+    CHECK(!mm_scene_text_remove(a, &t.s) && a->refs == 1 && !t.starts->rows.count && t.issues[3] == 1);
     release(&t, a);
     clean(&t);
     init(&t);

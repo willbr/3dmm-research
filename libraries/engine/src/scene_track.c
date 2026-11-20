@@ -43,6 +43,16 @@ int mm_scene_track_get(const MMSceneTrack *track, MMI32 index, MMSceneTrackEvent
     return 1;
 }
 
+int mm_scene_track_get_object(const MMSceneTrack *track, MMI32 index, void **out)
+{
+    MMI32 bytes;
+    const void *data = mm_scene_track_payload(track, index, &bytes);
+    if (!data || bytes != (MMI32)sizeof(*out))
+        return 0;
+    memcpy(out, data, sizeof(*out));
+    return 1;
+}
+
 int mm_scene_track_insert(MMSceneTrack *track, MMI32 index, MMI32 bytes, const void *data,
                           const MMSceneTrackEvent *event)
 {

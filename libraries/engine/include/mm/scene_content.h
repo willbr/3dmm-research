@@ -44,9 +44,6 @@ extern "C"
         int (*actor_ready)(void *, void *actor), (*actor_onstage)(void *, void *actor),
             (*actor_paste)(void *, void *actor, MMI32 frame);
         void (*hide_actor)(void *, void *actor);
-        int (*insert_start)(void *, MMI32 index, int kind, void *object);
-        void (*put_start)(void *, MMI32 index, void *object),
-            (*erase)(void *, void *group, MMI32 index);
         void *(*selected)(void *, int text);
         void (*set_selected)(void *, int text, void *object), (*select)(void *, int text, void *object),
             (*end_placement)(void *);
@@ -65,8 +62,8 @@ extern "C"
     } MMSceneContentServices;
     /* Initialized groups/lists and valid object inputs are required. Start groups own
      * object references; roll/selection lists borrow them. Callbacks may relocate group
-     * storage but cannot reenter or change traversal contents. Start frames are unused
-     * and hosts write zero. Actor binding/ID and other completed prefixes survive later
+     * storage but cannot reenter or change traversal contents. New start events have
+     * frame zero. Actor binding/ID and other completed prefixes survive later
      * failure. Replacement retains/seeks before publishing pointers; selection precedes
      * old actor hide/release. Caption binding precedes insertion. Failed caption play
      * releases its just-retained reference. Removal clears selection before searches,

@@ -66,7 +66,6 @@ extern "C"
         void (*loaded)(void *, void *scene);
         void (*release)(void *, void *object);
         MMI32 (*count)(void *, void *group);
-        void *(*object)(void *, void *group, MMI32 index);
         void (*actor_visibility)(void *, void *actor, int show), (*lights_off)(void *, void *background);
         int (*text_lifetime)(void *, void *text, MMI32 *first);
         int (*text_seek)(void *, void *text, MMI32 frame);

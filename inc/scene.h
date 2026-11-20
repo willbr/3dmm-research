@@ -185,8 +185,6 @@ class Scene : public Scene_PAR
     //
     // Event stuff
     //
-    bool _FPlaySev(PSEV psev, void *qvVar, ulong grfscen); // Plays a single scene event.
-    bool _FUnPlaySev(PSEV psev, void *qvVar);              // Undoes a single scene event.
     bool _FAddSev(PSEV psev, long cbVar, void *pvVar);     // Adds scene event to the current frame.
     void _MoveBackFirstFrame(long nfrm);
 

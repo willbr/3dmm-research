@@ -150,11 +150,6 @@ static void *fetch_back(void *p, MMTag *tag)
     ++b->refs;
     return b;
 }
-static MMI32 camera_value(void *p, void *value)
-{
-    (void)p;
-    return *(MMI32 *)value;
-}
 static int set_camera(void *p, void *back, MMI32 camera)
 {
     Edit *e = (Edit *)p;
@@ -455,7 +450,6 @@ static void init_edit(Edit *e)
     v->payload = payload;
     v->fetch_background = fetch_back;
     v->set_camera = set_camera;
-    v->camera = camera_value;
     v->transition = transition;
     v->publish_tag = weak_tag;
     v->diagnostic = event_issue;
