@@ -232,68 +232,81 @@ static MMI32 table_size(const MMActionTable *table)
     return (MMI32)(table->header.header_bytes + table->header.first_bytes + table->header.second_bytes);
 }
 
-int mm_action_fetch(void *file,MMU32 type,MMU32 number,void *block,void *out,void *size,const MMActionDefinitionServices *s)
+int mm_action_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void *out, void *size,
+                    const MMActionDefinitionServices *s)
 {
-    MMI32 bytes; void *object; MMActionDefinition *a;
-    bytes=s->block_size(s->context,block,1); memcpy(size,&bytes,sizeof(bytes));
-    if (!out) return 1;
-    if (!s->unpack(s->context,block)) goto fail;
-    bytes=s->block_size(s->context,block,0); memcpy(size,&bytes,sizeof(bytes));
-    object=s->create(s->context);
-    if (!object || !mm_action_initialize(s->state(s->context,object),file,type,number,block,s))
-    { if (object) s->release(s->context,object); goto fail; }
-    memcpy(out,&object,sizeof(object)); a=s->state(s->context,object);
-    bytes=s->object_size(s->context)+table_size(a->cels)+table_size(a->matrices);
-    memcpy(size,&bytes,sizeof(bytes)); return 1;
+    MMI32 bytes = (MMI32)block->view.length;
+    void *object = NULL;
+    MMActionDefinition *a;
+    memcpy(size, &bytes, sizeof(bytes));
+    if (!out)
+        return 1;
+    if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK)
+        goto fail;
+    bytes = (MMI32)block->view.length;
+    memcpy(size, &bytes, sizeof(bytes));
+    object = s->create(s->context);
+    if (!object || !mm_action_initialize(s->state(s->context, object), cache, type, number, block, s))
+        goto fail;
+    memcpy(out, &object, sizeof(object));
+    a = s->state(s->context, object);
+    bytes = s->object_size(s->context) + table_size(a->cels) + table_size(a->matrices);
+    memcpy(size, &bytes, sizeof(bytes));
+    return 1;
 fail:
-    s->invalidate(s->context,out,sizeof(object)); s->invalidate(s->context,size,sizeof(bytes)); return 0;
+    if (object)
+        s->release(s->context, object);
+    s->invalidate(s->context, out, sizeof(object));
+    s->invalidate(s->context, size, sizeof(bytes));
+    return 0;
 }
-typedef struct NativeActionRead
+typedef struct LiveActionRead
 {
     const MMActionDefinitionServices *services;
-    void *file, *header;
+    MMResourceCache *cache;
+    MMOwnedBlock block, *header;
+    MMChunkAccess chunks;
     MMU32 type, number;
-} NativeActionRead;
+} LiveActionRead;
 
-static int native_header(void *context, unsigned char *bytes)
+static int live_header(void *context, unsigned char *bytes)
 {
-    NativeActionRead *read = (NativeActionRead *)context;
+    LiveActionRead *read = (LiveActionRead *)context;
     const MMActionDefinitionServices *s = read->services;
-    void *block = read->header;
+    MMOwnedBlock *block = read->header;
+    MMBlockIO io;
     if (!block)
     {
-        block = s->find(s->context, read->file, read->type, read->number);
-        if (!block || !s->unpack(s->context, block))
+        block = &read->block;
+        if (mm_resource_cache_read_block(read->cache, read->type, read->number, block) != MM_CHUNK_OK ||
+            mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK)
             return MM_MOVIE_BAD_FILE;
     }
-    if (s->block_size(s->context, block, 0) < MM_ACTION_HEADER_BYTES ||
-        !s->block_read(s->context, block, bytes, MM_ACTION_HEADER_BYTES))
+    if (mm_owned_block_io(block, &io) != MM_DATA_OK ||
+        mm_block_read(&io, 0, bytes, MM_ACTION_HEADER_BYTES, 0) != MM_DATA_OK)
         return MM_MOVIE_BAD_FILE;
     return MM_MOVIE_OK;
 }
 
-static int native_table(void *context, int kind, MMActionTable **out)
+static int live_table(void *context, int kind, MMActionTable **out)
 {
-    NativeActionRead *read = (NativeActionRead *)context;
+    LiveActionRead *read = (LiveActionRead *)context;
     const MMActionDefinitionServices *s = read->services;
     MMU32 child, type = mm_action_table_type(kind);
-    void *block;
     MMActionTable *table;
+    MMBlockIO io;
     MMReadStream stream;
     int status = MM_MOVIE_BAD_FILE;
-    if (!s->child(s->context, read->file, read->type, read->number, type, &child))
+    if (mm_chunk_link_number(&read->chunks, read->type, read->number, 0, type, &child) != MM_CHUNK_OK)
         return MM_MOVIE_ASSET_NOT_FOUND;
-    block = s->find(s->context, read->file, type, child);
-    if (!block)
+    if (mm_resource_cache_read_block(read->cache, type, child, &read->block) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
     table = s->new_table(s->context, kind);
     if (!table)
         return MM_MOVIE_MEMORY;
-    if (s->unpack(s->context, block))
-    {
-        stream = s->stream(s->context, block);
+    if (mm_owned_block_code(&read->block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
+        mm_owned_block_io(&read->block, &io) == MM_DATA_OK && mm_block_io_stream(&io, &stream) == MM_DATA_OK)
         status = mm_action_table_read(table, &stream, kind);
-    }
     if (status == MM_MOVIE_OK)
         *out = table;
     else
@@ -301,36 +314,42 @@ static int native_table(void *context, int kind, MMActionTable **out)
     return status;
 }
 
-static void native_bad_order(void *context)
+static void live_bad_order(void *context)
 {
-    const MMActionDefinitionServices *s = ((NativeActionRead *)context)->services;
+    const MMActionDefinitionServices *s = ((LiveActionRead *)context)->services;
     if (s->bad_order)
         s->bad_order(s->context);
 }
 
-int mm_action_initialize(MMActionDefinition *a,void *file,MMU32 type,MMU32 number,void *header,
+int mm_action_initialize(MMActionDefinition *a, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *header,
                          const MMActionDefinitionServices *s)
 {
-    NativeActionRead native;
-    MMActionRead read = {NULL, 0, native_header, native_table, native_bad_order};
+    LiveActionRead live;
+    MMActionRead read = {NULL, 0, live_header, live_table, live_bad_order};
     const unsigned char *p;
-    MMActionTable *wire, *sounds;
+    MMActionTable *wire = NULL, *sounds;
     int big,status;
     MMU32 i,count,sid;
     MMTag tag;
     int ok = 0;
-    native.services = s;
-    native.file = file;
-    native.header = header;
-    native.type = type;
-    native.number = number;
-    read.context = &native;
+    if (mm_owned_block_init(&live.block, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
+        return 0;
+    live.services = s;
+    live.cache = cache;
+    live.header = header;
+    live.chunks = mm_resource_cache_chunks(cache);
+    live.type = type;
+    live.number = number;
+    read.context = &live;
     read.host_big_endian = s->host_big_endian;
     if (mm_action_read_cels(a, &read) != MM_MOVIE_OK || mm_action_read_matrices(a, &read) != MM_MOVIE_OK)
-        return 0;
-    status = native_table(&native, MM_ACTION_WIRE_SOUNDS, &wire);
-    if (status == MM_MOVIE_ASSET_NOT_FOUND) return 1;
-    if (status != MM_MOVIE_OK) return 0;
+        goto done;
+    status = live_table(&live, MM_ACTION_WIRE_SOUNDS, &wire);
+    if (status != MM_MOVIE_OK)
+    {
+        ok = status == MM_MOVIE_ASSET_NOT_FOUND;
+        goto done;
+    }
     count = wire->header.count;
     big = wire->header.big_endian;
     sounds = s->new_table(s->context, MM_ACTION_SOUNDS);
@@ -353,6 +372,7 @@ int mm_action_initialize(MMActionDefinition *a,void *file,MMU32 type,MMU32 numbe
     ok = 1;
 done:
     mm_action_table_dispose(wire);
+    mm_owned_block_clear(&live.block);
     return ok;
 }
 void mm_action_dispose(MMActionDefinition *a)

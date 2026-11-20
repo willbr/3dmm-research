@@ -5,6 +5,7 @@
 #include "tag.h"
 #include "movie_data.h"
 #include "collections.h"
+#include "resource_cache.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C" {
@@ -68,12 +69,7 @@ typedef struct MMActionDefinitionServices
     void *(*create)(void *);
     void (*release)(void *,void *);
     MMActionTable *(*new_table)(void *,int kind);
-    void *(*find)(void *,void *file,MMU32,MMU32);
-    int (*unpack)(void *,void *block);
-    MMI32 (*block_size)(void *,void *block,int packed);
-    int (*block_read)(void *,void *block,void *,size_t);
-    int (*child)(void *,void *file,MMU32,MMU32,MMU32 child_type,MMU32 *number);
-    MMReadStream (*stream)(void *,void *block);
+    MMBlockTransform decode;
     void (*clear_sound_type)(void *,void *out);
     void (*publish_sound)(void *,void *out,const MMTag *);
     MMI32 (*object_size)(void *);
@@ -90,9 +86,11 @@ void *mm_action_create(MMActionTable *cels,MMActionTable *matrices,MMU32 flags,c
 /* Output storage bridges native pointer/32-bit integer representations without
  * typed pointer aliasing. Estimate-only reads do not unpack or allocate. The
  * final cache estimate deliberately excludes optional sounds, as in native. */
-int mm_action_fetch(void *file,MMU32,MMU32,void *block,void *object_out,void *size_out,const MMActionDefinitionServices *);
+int mm_action_fetch(MMResourceCache *,MMU32,MMU32,MMOwnedBlock *,void *object_out,void *size_out,
+                    const MMActionDefinitionServices *);
 /* A supplied header block is already unpacked. Pass NULL for a direct lookup. */
-int mm_action_initialize(MMActionDefinition *,void *file,MMU32,MMU32,void *header,const MMActionDefinitionServices *);
+int mm_action_initialize(MMActionDefinition *,MMResourceCache *,MMU32,MMU32,MMOwnedBlock *,
+                         const MMActionDefinitionServices *);
 /* Releases cels, matrices, then sounds, clearing each slot after release.
  * This includes the optional list omitted by the previous native destructor.
  * Sound tags loaded from wire borrow a NULL cache, never owning references. */

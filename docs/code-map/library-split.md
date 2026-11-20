@@ -6048,11 +6048,13 @@ tags and flags in `MMActionDefinition`. It implements adoption of generated
 tables, resource factory estimates and cleanup, header and table loading,
 disposal, and getters. GGCL location entries use
 native byte order. Cel and matrix payloads retain the authored byte order,
-and accessors decode each requested record. The native facade supplies block
-I/O, allocation, diagnostics and the TAG conversion at its sound query
-boundary. Generation writes the cel parts and matrices directly into native-order
-C tables. A successful action allocation takes both tables, and the text
-builder releases them on failure.
+and accessors decode each requested record. Live reads resolve the ACTN root
+and the GGCL, GLXF and GLMS links through the C89 cache. C decodes the caller's
+root block in place and owns the scratch block used for direct reads and child
+tables. The native facade supplies the codec, allocation, diagnostics and TAG
+conversion at its sound query boundary. Generation writes the cel parts and
+matrices directly into native-order C tables. A successful action allocation
+takes both tables. The text builder releases them if allocation fails.
 
 Header flags and partial table ownership publish in native order. Direct
 initialization failure leaves acquired tables owned by the caller; factories
@@ -6068,7 +6070,7 @@ tags. Invalid cel rows and matrix indices fail the checked accessors. Template
 cel evaluation releases any models already fetched and returns failure before
 publishing distance or changing the body.
 
-The 2,268-case native trace matches 258,592 bytes without masking, covering
+The initial conversion matched the 258,592-byte native trace across 2,268 cases, covering
 duplicated groups, native/opposite byte order, empty actions, missing/short/invalid
 chunks, partial initialization, sound marshalling and allocator failures. The
 baseline fixture manually detached/released leaked sound lists; the converted

@@ -25,7 +25,6 @@
 #include "mm/template_create.h"
 #include "mm/template_runtime.h"
 #include "mm/action_definition.h"
-struct ActionDefinitionContext;
 
 using namespace BRender;
 
@@ -111,7 +110,7 @@ class ActionDefinition : public ActionDefinition_PAR
     ActionDefinition(void)
     {
     } // can't instantiate directly; must use FReadActn
-    static MMActionDefinitionServices _Services(ActionDefinitionContext *);
+    static MMActionDefinitionServices _Services();
     bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
 
   public:

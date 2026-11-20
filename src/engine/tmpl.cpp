@@ -69,7 +69,6 @@
 #include "handle_services.h"
 #include "mm/movie_session.h"
 #include <typeinfo>
-#include "engine_read_stream.h"
 ASSERTNAME
 
 RTCLASS(ActionDefinition)
@@ -78,8 +77,6 @@ RTCLASS(Template)
 /***************************************************************************
     Create a new action
 ***************************************************************************/
-struct ActionDefinitionContext { DataBlock block; };
-
 namespace
 {
 class ActionTableAllocation : public BASE
@@ -111,29 +108,16 @@ MMActionTable *ActionDefinition::NewTable()
     return allocation ? &allocation->table : nullptr;
 }
 
-MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *context)
+MMActionDefinitionServices ActionDefinition::_Services()
 {
-    MMActionDefinitionServices s = {}; s.context = context;
+    MMActionDefinitionServices s = {};
     const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
     static_assert(sizeof(AnimationCel) == 8 && sizeof(CelPartSpec) == 4 && sizeof(BMAT34) == 48, "action ABI");
     s.state = [](void *, void *object) { return &static_cast<PActionDefinition>(object)->_action; };
     s.create = [](void *) -> void * { return NewObj ActionDefinition; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.new_table = [](void *, int) { return NewTable(); };
-    s.find = [](void *p, void *cache, MMU32 type, MMU32 number) -> void * {
-        auto block = &static_cast<ActionDefinitionContext *>(p)->block;
-        return static_cast<PChunkyResourceFile>(cache)->FReadBlock(type, number, *block) ? block : nullptr;
-    };
-    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.block_size = [](void *, void *block, int packed) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
-    s.block_read = [](void *, void *block, void *out, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(out, static_cast<LegacyLong>(count), 0); };
-    s.child = [](void *, void *cache, MMU32 type, MMU32 number, MMU32 childType, MMU32 *out) -> int {
-        const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
-        return mm_chunk_link_number(&chunks, type, number, 0, childType, out) == MM_CHUNK_OK;
-    };
-    s.stream = [](void *, void *block) {
-        return EngineReadStream::FromBlock(*static_cast<PDataBlock>(block));
-    };
+    s.decode = KauaiDecodeBlockHandle;
     s.clear_sound_type = [](void *, void *out) { static_cast<PTAG>(out)->ctg = ctgNil; };
     s.publish_sound = [](void *, void *out, const MMTag *tag) { TagFromCore(static_cast<PTAG>(out), *tag); };
     s.object_size = [](void *) -> MMI32 { return sizeof(ActionDefinition); };
@@ -154,7 +138,7 @@ PActionDefinition ActionDefinition::PactnNew(MMActionTable *cels, MMActionTable 
            "bad animation cel table");
     Assert(matrices && matrices->header.kind == MM_COLLECTION_ARRAY && matrices->header.width == MM_ACTION_MATRIX_BYTES,
            "bad action matrix table");
-    ActionDefinitionContext context; auto s = _Services(&context);
+    const auto s = _Services();
     return static_cast<PActionDefinition>(mm_action_create(cels, matrices, grfactn, &s));
 }
 
@@ -164,16 +148,15 @@ PActionDefinition ActionDefinition::PactnNew(MMActionTable *cels, MMActionTable 
 bool ActionDefinition::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
-    ActionDefinitionContext context; auto s = _Services(&context);
-    return mm_action_fetch(pcrf, ctg, cno, pblck, ppbaco, pcb, &s) != 0;
+    const auto s = _Services();
+    return mm_action_fetch(pcrf->CoreCache(), ctg, cno, pblck->CoreBlock(), ppbaco, pcb, &s) != 0;
 }
 
 bool ActionDefinition::_FInit(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
 {
     AssertPo(cache, 0);
-    ActionDefinitionContext context;
-    const auto services = _Services(&context);
-    return mm_action_initialize(&_action, cache, type, number, nullptr, &services) != 0;
+    const auto services = _Services();
+    return mm_action_initialize(&_action, cache->CoreCache(), type, number, nullptr, &services) != 0;
 }
 
 /***************************************************************************
@@ -215,7 +198,7 @@ bool ActionDefinition::FGetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pc
 void ActionDefinition::GetSnd(LegacyLong icel, PTAG ptag)
 {
     AssertThis(0); AssertIn(icel, 0, Ccel()); AssertVarMem(ptag);
-    ActionDefinitionContext context; auto s = _Services(&context);
+    const auto s = _Services();
     mm_action_get_sound(&_action, icel, ptag, &s);
 }
 

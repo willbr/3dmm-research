@@ -1,9 +1,12 @@
 #include "mm/action_definition.h"
+#include "engine_resource_block_fixture.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
-typedef struct Block { unsigned char bytes[108]; size_t length; } Block;
+enum { ACTION_TYPE = 0x4143544eUL, ACTION_NUMBER = 7 };
+enum { HEADER = 3, STORED_PACKED_BYTES = 12, FILE_BASE = 17, FILE_STRIDE = 128 };
+typedef struct Block { unsigned char bytes[108]; MMU32 length; } Block;
 typedef struct Test Test;
 typedef struct TableOwner
 {
@@ -16,8 +19,11 @@ struct Test
     MMActionDefinition state;
     MMActionDefinitionServices services;
     TableOwner tables[4];
-    Block header, blocks[3];
+    Block blocks[4];
+    ResourceTestBlock root;
+    MMResourceCache source;
     int phase, fail, object_live, invalidations, bad, optional_absent, header_lookups;
+    int lookup_phase[4], packed_kind, decodes, file_refs;
     int released[4], releases, clears, publishes;
 };
 
@@ -82,62 +88,132 @@ static MMActionTable *new_table(void *p, int kind)
     return &owner->table;
 }
 
-static void *find(void *p, void *file, MMU32 type, MMU32 number)
+static int graph_entry(void *p, MMU32 position, MMChunkEntry *out)
 {
-    Test *x=p;
-    assert(file==p);
-    if (type==0x4143544eUL) ++x->header_lookups;
-    if (checkpoint(x)) return NULL;
-    if (type==0x4143544eUL) { assert(number==7); return &x->header; }
-    assert(number<3 && type==mm_action_table_type((int)number));
-    return &x->blocks[number];
-}
-static int unpack(void *p, void *block) { (void)block; return !checkpoint((Test *)p); }
-static MMI32 block_size(void *p, void *block, int packed)
-{ assert(block==&((Test *)p)->header); return packed?88:(MMI32)((Block *)block)->length; }
-static int block_read(void *p, void *block, void *out, size_t n)
-{
-    assert(block==&((Test *)p)->header && n==8);
-    if (checkpoint((Test *)p)) return 0;
-    memcpy(out,((Block *)block)->bytes,n);
+    Test *x = p;
+    assert(position == 0);
+    memset(out, 0, sizeof(*out));
+    out->type = ACTION_TYPE;
+    out->number = ACTION_NUMBER;
+    out->child_count = x->optional_absent ? 2 : 3;
     return 1;
 }
-static int child(void *p, void *file, MMU32 type, MMU32 number, MMU32 ct, MMU32 *out)
+static int graph_child(void *p, MMU32 parent, MMU32 position, MMChunkChild *out)
 {
-    Test *x=p;
-    assert(file==p && type==0x4143544eUL && number==7);
-    if (checkpoint(x)) return 0;
-    *out=ct==MM_ACTION_GGCL?0:ct==MM_ACTION_GLXF?1:2;
-    return *out!=2 || !x->optional_absent;
+    static const MMChunkChild links[] = {
+        {MM_ACTION_GGCL, MM_ACTION_CELS, 0},
+        {MM_ACTION_GLMS, MM_ACTION_WIRE_SOUNDS, 0},
+        {MM_ACTION_GLXF, MM_ACTION_MATRICES, 0}
+    };
+    Test *x = p;
+    assert(parent == 0 && position < (x->optional_absent ? 2U : 3U));
+    if (position && x->optional_absent)
+        ++position;
+    *out = links[position];
+    return 1;
 }
-static int read_bytes(void *p, MMU32 offset, void *out, size_t bytes)
+static MMChunkAccess live_chunks(void *file)
 {
-    const Block *block=p;
-    if (offset>block->length || bytes>block->length-offset)
+    MMChunkAccess chunks = {NULL, 1, graph_entry, graph_child};
+    chunks.context = file;
+    return chunks;
+}
+static void extent(Test *x, int kind, MMBlockFile *out, int *packed)
+{
+    out->file = x;
+    out->offset = FILE_BASE + (MMU32)kind * FILE_STRIDE;
+    *packed = kind == x->packed_kind;
+    out->length = *packed ? STORED_PACKED_BYTES : x->blocks[kind].length;
+}
+static int locate(void *file, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
+{
+    Test *x = file;
+    int kind;
+    if (type == ACTION_TYPE)
+    {
+        assert(number == ACTION_NUMBER);
+        ++x->header_lookups;
+        kind = HEADER;
+    }
+    else
+    {
+        assert(number < 3 && type == mm_action_table_type((int)number));
+        kind = (int)number;
+    }
+    x->lookup_phase[kind] = x->phase + 1;
+    if (checkpoint(x))
         return 0;
-    memcpy(out,block->bytes+offset,bytes);
+    extent(x, kind, out, packed);
     return 1;
 }
-static MMReadStream stream(void *p, void *block)
+static MMOwnedBlock *borrow_root(Test *x)
 {
-    MMReadStream s={NULL,0,read_bytes};
-    (void)p;
-    s.context=block;
-    s.length=(MMU32)((Block *)block)->length;
-    return s;
+    MMBlockFile file;
+    int packed;
+    extent(x, HEADER, &file, &packed);
+    assert(mm_owned_block_set_file(&x->root.owner, &file, packed) == MM_DATA_OK);
+    return &x->root.owner;
+}
+static void retain_file(void *p, void *file)
+{
+    Test *x = p;
+    assert(file == p);
+    ++x->file_refs;
+}
+static void release_file(void *p, void *file)
+{
+    Test *x = p;
+    assert(file == p && x->file_refs);
+    --x->file_refs;
+}
+static int block_read(void *p, void *file, MMU32 offset, void *out, size_t count)
+{
+    Test *x = p;
+    MMU32 kind = (offset - FILE_BASE) / FILE_STRIDE;
+    MMU32 start = (offset - FILE_BASE) % FILE_STRIDE;
+    assert(file == p && x->file_refs && offset >= FILE_BASE && kind < 4);
+    if (checkpoint(x))
+        return 0;
+    if ((int)kind == x->packed_kind)
+    {
+        assert(!start && count == STORED_PACKED_BYTES);
+        memset(out, 0, count);
+        *(unsigned char *)out = (unsigned char)kind;
+    }
+    else
+    {
+        assert(start <= x->blocks[kind].length && count <= x->blocks[kind].length - start);
+        memcpy(out, x->blocks[kind].bytes + start, count);
+    }
+    return 1;
+}
+static int block_write(void *p, void *file, MMU32 offset, const void *bytes, size_t count)
+{
+    (void)p; (void)file; (void)offset; (void)bytes; (void)count;
+    return 0;
+}
+static int decode(void *p, void **handle)
+{
+    Test *x = p;
+    unsigned kind = *(const unsigned char *)resource_handle_lock(NULL, *handle);
+    assert(kind < 4 && (int)kind == x->packed_kind && resource_handle_size(NULL, *handle) == STORED_PACKED_BYTES);
+    ++x->decodes;
+    if (checkpoint(x))
+        return 0;
+    resource_block_decode(handle, x->blocks[kind].bytes, x->blocks[kind].length);
+    return 1;
 }
 static void clear_type(void *p, void *out)
 { ++((Test *)p)->clears; ((MMTag *)out)->type=0; }
 static void publish(void *p, void *out, const MMTag *tag)
 { ++((Test *)p)->publishes; assert(!((MMTag *)out)->type); *(MMTag *)out=*tag; }
-static int initialize(void *p, void *object, void *file, MMU32 type, MMU32 number)
+static int initialize(Test *x)
 {
-    assert(p==object);
-    return mm_action_initialize(&((Test *)p)->state,file,type,number,NULL,&((Test *)p)->services);
+    return mm_action_initialize(&x->state, &x->source, ACTION_TYPE, ACTION_NUMBER, NULL, &x->services);
 }
 static MMI32 object_size(void *p) { (void)p; return 80; }
 static void invalidate(void *p, void *out, size_t n)
-{ ++((Test *)p)->invalidations; memset(out,0xab,n); }
+{ Test *x=p; assert(!x->object_live); ++x->invalidations; memset(out,0xab,n); }
 static void bad_order(void *p) { ++((Test *)p)->bad; }
 
 static void setup(Test *x, int header_big, int big, MMU32 count)
@@ -146,9 +222,10 @@ static void setup(Test *x, int header_big, int big, MMU32 count)
     unsigned char *row;
     MMU32 i,j;
     memset(x,0,sizeof(*x));
-    x->header.length=8;
-    x->header.bytes[header_big?1:0]=1;
-    put(x->header.bytes+4,0x8000000dUL,header_big);
+    x->packed_kind = -1;
+    x->blocks[HEADER].length=8;
+    x->blocks[HEADER].bytes[header_big?1:0]=1;
+    put(x->blocks[HEADER].bytes+4,0x8000000dUL,header_big);
 
     x->blocks[0].length=20+24*count;
     x->blocks[0].bytes[big?1:0]=1;
@@ -180,9 +257,16 @@ static void setup(Test *x, int header_big, int big, MMU32 count)
         put(row+8,0x4d534e44UL,big);
         put(row+12,123+i,big);
     }
+    resource_block_init(&x->root, x, block_read, block_write);
+    x->root.files.retain = retain_file;
+    x->root.files.release = release_file;
+    x->source.file = x;
+    x->source.services.handles = x->root.owner.handles;
+    x->source.services.block_files = &x->root.files;
+    x->source.services.locate = locate;
+    x->source.services.live_chunks = live_chunks;
     s->context=x; s->host_big_endian=header_big; s->state=state; s->create=create; s->release=release;
-    s->find=find; s->unpack=unpack; s->block_size=block_size; s->block_read=block_read;
-    s->child=child; s->stream=stream; s->new_table=new_table;
+    s->decode=decode; s->new_table=new_table;
     s->clear_sound_type=clear_type; s->publish_sound=publish;
     s->object_size=object_size; s->invalidate=invalidate; s->bad_order=bad_order;
 }
@@ -192,6 +276,7 @@ static void empty(Test *x)
     int i;
     assert(!x->state.cels && !x->state.matrices && !x->state.sounds && !x->object_live);
     for (i=0;i<4;++i) assert(!x->tables[i].live);
+    assert(mm_owned_block_clear(&x->root.owner) == MM_DATA_OK && !x->file_refs);
 }
 
 int main(void)
@@ -204,14 +289,14 @@ int main(void)
     unsigned short part[2];
     unsigned char *first;
     MMActionTable cels,matrices;
-    MMReadStream input;
+    MMMemoryStream input;
     void *out;
     MMI32 size;
-    int host,big,fail,ok,i;
+    int host,big,fail,i,steps,flags_at,cels_at,matrices_at;
     for (host=0;host<2;++host) for (big=0;big<2;++big)
     {
         setup(&x,host,big,2);
-        assert(initialize(&x,&x,&x,0x4143544eUL,7) && x.state.flags==0x8000000dUL);
+        assert(initialize(&x) && x.state.flags==0x8000000dUL);
         assert(mm_action_cel_count(&x.state)==2 && mm_action_part_count(&x.state,1)==2);
         assert(mm_action_get_cel(&x.state,1,words) && words[0]==1 && words[1]==101);
         assert(mm_action_get_part(&x.state,1,1,part));
@@ -237,24 +322,33 @@ int main(void)
         assert(x.releases==4 && x.released[0]==2 && x.released[1]==0 && x.released[2]==1 && x.released[3]==3);
         mm_action_dispose(&x.state); assert(x.releases==4 && x.state.flags==0x8000000dUL);
     }
-    for (fail=0;fail<=21;++fail)
+    setup(&x,0,0,2);
+    assert(initialize(&x));
+    steps = x.phase;
+    flags_at = x.lookup_phase[MM_ACTION_CELS];
+    cels_at = x.lookup_phase[MM_ACTION_MATRICES];
+    matrices_at = x.lookup_phase[MM_ACTION_WIRE_SOUNDS];
+    mm_action_dispose(&x.state); empty(&x);
+    for (fail=1;fail<=steps;++fail)
     {
         setup(&x,0,0,2); x.fail=fail;
-        ok=initialize(&x,&x,&x,0x4143544eUL,7);
-        assert(ok==(fail==0 || fail==15));
-        if (fail>=4) assert(x.state.flags==0x8000000dUL);
-        if (fail>=10) assert(x.state.cels);
-        if (fail>=15) assert(x.state.matrices);
+        assert(!initialize(&x));
+        assert(x.state.flags==(fail>=flags_at?0x8000000dUL:0));
+        assert((x.state.cels!=NULL)==(fail>=cels_at));
+        assert((x.state.matrices!=NULL)==(fail>=matrices_at));
         assert(!x.tables[2].live);
         mm_action_dispose(&x.state); empty(&x);
     }
-    for (fail=0;fail<=21;++fail)
+    setup(&x,0,0,2);
+    assert(mm_action_fetch(&x.source,ACTION_TYPE,ACTION_NUMBER,borrow_root(&x),&out,&size,&x.services));
+    assert(out==&x && size==256 && !x.header_lookups);
+    steps = x.phase;
+    release(&x,&x); empty(&x);
+    for (fail=1;fail<=steps;++fail)
     {
         setup(&x,0,0,2); x.fail=fail; out=NULL; size=-77;
-        ok=mm_action_fetch(&x,0x4143544eUL,7,&x.header,&out,&size,&x.services);
-        assert(!x.header_lookups && ok==(fail==0 || fail==15));
-        if (ok) { assert(out==&x && size==256); release(&x,&x); }
-        else assert(x.invalidations==2 && size==(MMI32)-1414812757);
+        assert(!mm_action_fetch(&x.source,ACTION_TYPE,ACTION_NUMBER,borrow_root(&x),&out,&size,&x.services));
+        assert(!x.header_lookups && x.invalidations==2 && size==(MMI32)-1414812757);
         empty(&x);
     }
     for (fail=0;fail<=1;++fail)
@@ -262,8 +356,10 @@ int main(void)
         setup(&x,0,native_big,2);
         mm_action_table_init(&cels,NULL,NULL,NULL);
         mm_action_table_init(&matrices,NULL,NULL,NULL);
-        input=stream(&x,&x.blocks[0]); assert(mm_action_table_read(&cels,&input,MM_ACTION_CELS)==MM_MOVIE_OK);
-        input=stream(&x,&x.blocks[1]); assert(mm_action_table_read(&matrices,&input,MM_ACTION_MATRICES)==MM_MOVIE_OK);
+        assert(mm_memory_stream_init(&input,x.blocks[0].bytes,x.blocks[0].length));
+        assert(mm_action_table_read(&cels,&input.stream,MM_ACTION_CELS)==MM_MOVIE_OK);
+        assert(mm_memory_stream_init(&input,x.blocks[1].bytes,x.blocks[1].length));
+        assert(mm_action_table_read(&matrices,&input.stream,MM_ACTION_MATRICES)==MM_MOVIE_OK);
         x.fail=fail;
         out=mm_action_create(&cels,&matrices,0x8000000dUL,&x.services);
         assert((out!=NULL)==!fail);
@@ -282,24 +378,37 @@ int main(void)
         empty(&x);
     }
 
-    setup(&x,0,0,2); x.fail=1;
-    assert(mm_action_fetch(&x,0x4143544eUL,7,&x.header,NULL,&size,&x.services) && size==88 && !x.phase);
-    setup(&x,0,0,2); x.header.length=7;
-    assert(!initialize(&x,&x,&x,0x4143544eUL,7) && !x.state.flags); empty(&x);
+    setup(&x,0,0,2);
+    x.packed_kind = HEADER;
+    assert(mm_action_fetch(&x.source,ACTION_TYPE,ACTION_NUMBER,borrow_root(&x),NULL,&size,&x.services));
+    assert(size==STORED_PACKED_BYTES && !x.phase && !x.decodes && x.root.owner.view.packed);
+    assert(mm_action_fetch(&x.source,ACTION_TYPE,ACTION_NUMBER,&x.root.owner,&out,&size,&x.services));
+    assert(out==&x && size==256 && x.decodes==1 && x.root.owner.view.kind==MM_BLOCK_MEMORY && !x.file_refs);
+    release(&x,&x); empty(&x);
+    setup(&x,0,0,2);
+    x.packed_kind = HEADER; x.fail = 2;
+    assert(!mm_action_fetch(&x.source,ACTION_TYPE,ACTION_NUMBER,borrow_root(&x),&out,&size,&x.services));
+    assert(x.decodes==1 && x.invalidations==2 && x.root.owner.view.packed && x.file_refs==1); empty(&x);
+    setup(&x,0,0,2);
+    x.packed_kind = MM_ACTION_MATRICES;
+    assert(initialize(&x) && x.decodes==1 && x.state.matrices && x.state.sounds);
+    mm_action_dispose(&x.state); empty(&x);
+    setup(&x,0,0,2); x.blocks[HEADER].length=7;
+    assert(!initialize(&x) && !x.state.flags); empty(&x);
     setup(&x,0,0,2); --x.blocks[1].length;
-    assert(!initialize(&x,&x,&x,0x4143544eUL,7) && x.state.cels && !x.state.matrices);
+    assert(!initialize(&x) && x.state.cels && !x.state.matrices);
     mm_action_dispose(&x.state); empty(&x);
     setup(&x,0,1,2); put(x.blocks[0].bytes+52,32,1);
-    assert(initialize(&x,&x,&x,0x4143544eUL,7));
+    assert(initialize(&x));
     words[0]=99;
     assert(!mm_action_get_cel(&x.state,0,words) && words[0]==99 && mm_action_part_count(&x.state,0)==-1);
     mm_action_dispose(&x.state); empty(&x);
-    setup(&x,0,1,0); x.header.bytes[0]=3;
-    assert(initialize(&x,&x,&x,0x4143544eUL,7) && x.bad==1 && x.state.flags==0x8000000dUL);
+    setup(&x,0,1,0); x.blocks[HEADER].bytes[0]=3;
+    assert(initialize(&x) && x.bad==1 && x.state.flags==0x8000000dUL);
     assert(x.state.sounds && !x.state.sounds->header.count);
     mm_action_dispose(&x.state); empty(&x);
     setup(&x,0,0,2); x.optional_absent=1;
-    assert(initialize(&x,&x,&x,0x4143544eUL,7) && !x.state.sounds);
+    assert(initialize(&x) && !x.state.sounds);
     tag.sid=77; tag.cache=&x; tag.type=99; tag.number=88; mm_action_get_sound(&x.state,0,&tag,&x.services);
     assert(tag.sid==77 && tag.cache==&x && !tag.type && tag.number==88 && !x.publishes);
     mm_action_dispose(&x.state); empty(&x);

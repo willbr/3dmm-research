@@ -726,8 +726,9 @@ Keep host presentation and device output outside the session.
    and the native template cache share the template header decoder and the
    C-owned ACTN, GGCL cel and GLXF matrix representation. Snapshot seeks load
    the matrix table on first body evaluation and cache it per action. Live
-   actions also store decoded GLMS sound tags in the C collection. The same
-   C89 template reader loads GLPI, GLBS and authored GGCM tables into C-owned
+   actions resolve ACTN, GGCL, GLXF and GLMS through the C89 resource cache and
+   decode them through C89 blocks. Decoded GLMS tags live in the C collection.
+   The same C89 template reader loads GLPI, GLBS and authored GGCM tables into C-owned
    collections in both paths. Live templates resolve the root and child links
    through the C89 cache and decode their payloads through C89 blocks. The
    snapshot retains the template state, reuses
