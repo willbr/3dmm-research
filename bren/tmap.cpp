@@ -2,6 +2,7 @@
     Texture map (br_pixelmap wrapper) host services.
 ***************************************************************************/
 #include "bren_core.h"
+#include "handle_services.h"
 #include "texture_renderer.h"
 #include <cstring>
 ASSERTNAME
@@ -9,21 +10,13 @@ namespace BRender
 {
 RTCLASS(TextureMap)
 static_assert(sizeof(TextureMapFile) == 20, "texture header layout");
-namespace
-{
-struct TextureContext
-{
-    DataBlock block;
-};
-} // namespace
 void TextureMap::_Sync()
 {
     mm_brender_texture_sync(&_texture, &_bpmp);
 }
-MMTextureServices TextureMap::_Services(void *context)
+MMTextureServices TextureMap::_Services()
 {
     MMTextureServices s = {};
-    s.context = context;
     const unsigned short one = 1;
     s.host_big_endian = !*reinterpret_cast<const byte *>(&one);
     s.system = koskCur;
@@ -45,29 +38,21 @@ MMTextureServices TextureMap::_Services(void *context)
     s.diagnostic = [](void *, int code) {
         if (code == MM_TEXTURE_ORDER)
             Assert(false, "bad TextureMapFile");
+        else if (code == MM_TEXTURE_PACK_SHRINK)
+            Assert(false, "HQ shrink failed");
         else
             Assert(false, "upside down bitmap");
     };
-    s.find = [](void *p, void *file, MMU32 type, MMU32 number) -> void * {
-        auto &b = static_cast<TextureContext *>(p)->block;
-        return static_cast<PChunkyFile>(file)->FFind(type, number, &b) ? &b : nullptr;
-    };
-    s.unpack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FUnpackData(); };
-    s.size = [](void *, void *p, int packed) -> MMI32 { return static_cast<PDataBlock>(p)->Cb(packed != 0); };
-    s.read = [](void *, void *p, void *out, MMI32 n, MMI32 at) -> int {
-        return static_cast<PDataBlock>(p)->FReadRgb(out, n, at);
-    };
-    s.write = [](void *, void *p, const void *data, MMI32 n, MMI32 at) -> int {
-        return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), n, at);
-    };
-    s.close_block = [](void *p) { static_cast<TextureContext *>(p)->block.Free(); };
-    s.add = [](void *p, void *file, MMU32 type, MMI32 bytes, MMU32 *number) -> void * {
-        auto &b = static_cast<TextureContext *>(p)->block;
+    s.payloads = KauaiChunkPayloadServices();
+    s.copy_allocator = KauaiCopyAllocator();
+    s.encode = [](void *, void **handle) -> int { return vpcodmUtil->FCompressPhq(handle, cfmtNil); };
+    s.add = [](void *, void *file, MMU32 type, MMI32 bytes, MMU32 *number, MMOwnedBlock *block) -> int {
+        DataBlock view(*block);
         ChunkNumber n;
         std::memcpy(&n, number, sizeof(n));
-        bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &n, &b);
+        bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &n, &view);
         std::memcpy(number, &n, sizeof(n));
-        return ok ? &b : nullptr;
+        return ok;
     };
 #ifndef MAC
     s.read_bitmap = [](void *, void *filename, MMTextureBitmap *out) -> int {
@@ -93,18 +78,6 @@ MMTextureServices TextureMap::_Services(void *context)
         *out = {c.bRed, c.bGreen, c.bBlue};
     };
     s.create_file = [](void *, void *p) -> void * { return FileObject::PfilCreate(static_cast<PFilename>(p)); };
-    s.temp_block = [](void *p, MMI32 n) -> void * {
-        auto &b = static_cast<TextureContext *>(p)->block;
-        return b.FSetTemp(n) ? &b : nullptr;
-    };
-    s.pack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FPackData(); };
-    s.write_file = [](void *, void *p, const void *data, MMI32 n, MMI32 at) -> int {
-        return static_cast<PFileObject>(p)->FWriteRgb(const_cast<void *>(data), n, at);
-    };
-    s.copy_to_file = [](void *, void *b, void *f, MMI32 at, MMI32 n) -> int {
-        FileLocation loc = {static_cast<PFileObject>(f), at, n};
-        return static_cast<PDataBlock>(b)->FWriteToFlo(&loc, true);
-    };
     s.make_temporary = [](void *, void *p) { static_cast<PFileObject>(p)->SetTemp(); };
     s.report = [](void *, void *p, int error) {
         PZString message = error == MM_TEXTURE_FILE_CREATE   ? PszLit("Couldn't create destination file\n")
@@ -122,12 +95,11 @@ bool TextureMap::FReadTmap(PChunkyResourceFile cache, ChunkTagOrType, ChunkNumbe
     AssertNilOrVarMem(out);
     AssertVarMem(bytes);
     auto s = _Services();
-    return mm_texture_fetch(block, out, bytes, &s) != 0;
+    return mm_texture_fetch(block->CoreBlock(), out, bytes, &s) != 0;
 }
 PTextureMap TextureMap::PtmapRead(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
-    TextureContext context;
-    auto s = _Services(&context);
+    auto s = _Services();
     auto object = static_cast<PTextureMap>(mm_texture_read(file, type, number, &s));
     AssertNilOrPo(object, 0);
     return object;
@@ -154,8 +126,7 @@ TextureMap::~TextureMap()
 bool TextureMap::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
 {
     AssertThis(0);
-    TextureContext context;
-    auto s = _Services(&context);
+    auto s = _Services();
     _Sync();
     MMU32 n;
     std::memcpy(&n, number, sizeof(n));
@@ -167,7 +138,7 @@ bool TextureMap::FWrite(PDataBlock block)
 {
     _Sync();
     auto s = _Services();
-    return mm_texture_write(&_texture, block, &s) != 0;
+    return mm_texture_write(&_texture, block->CoreBlock(), &s) != 0;
 }
 #ifndef MAC
 PTextureMap TextureMap::PtmapReadNative(Filename *filename, PDynamicArray palette)
@@ -202,8 +173,7 @@ bool TextureMap::FWriteTmapChkFile(PFilename filename, bool compress, PMSNK sink
     AssertThis(0);
     AssertPo(filename, ffniFile);
     AssertNilOrPo(sink, 0);
-    TextureContext context;
-    auto s = _Services(&context);
+    auto s = _Services();
     _Sync();
     return mm_texture_standalone(&_texture, filename, compress, sink, &s) != 0;
 }

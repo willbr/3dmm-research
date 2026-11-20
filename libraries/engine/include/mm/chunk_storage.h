@@ -86,6 +86,10 @@ extern "C"
         MM_CHUNK_PAYLOAD_LIMIT,
         MM_CHUNK_PAYLOAD_DECODE_FAILED
     };
+    /* Bind the stored extent to an initialized empty block. The caller owns
+     * the block through decoding and reading. */
+    int mm_chunk_payload_bind_block(const MMChunkPayloadServices *, void *archive, MMU32 type, MMU32 number,
+                                    MMOwnedBlock *);
     /* Initialize once and keep the cache at a stable address. The borrowed
      * services must remain live until the cache has been cleared. */
     typedef struct MMChunkPayloadCache

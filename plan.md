@@ -891,6 +891,8 @@ their existing reader keys. Native adapters supply the codec binding, object
 factories and BRender and file primitives.
 TextureMap now uses C89 persistent pixel/descriptor/import-owner state, header
 I/O, cache factories, bitmap palette matching and standalone-file control.
+Cached and direct texture reads, chunk writes, and standalone packing use the
+C89 block owner and physical file services. Cache estimates use stored lengths.
 The native pixelmap is a renderer view. Imported PIX resources are released
 through their original BRender owner; bitmap import failures release decoded
 pixels. Shared indexed-BMP header validation, padded pixel I/O, RLE8 decoding,

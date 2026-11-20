@@ -5419,6 +5419,13 @@ and bitmap-reader services. Synchronization before serialization, size
 queries and disposal preserves changes through the exposed renderer view.
 The standalone engine policies build without BRender or C++.
 
+The texture loader decodes borrowed cache blocks in place and uses the C
+chunk payload provider to open direct reads. The writer uses C block I/O for
+chunk payloads and standalone files. C owns packing scratch storage, falls
+back to a temporary file when needed, and preserves the raw file signature
+when the encoder declines compression. Native code binds the default codec
+and supplies archive allocation and physical file operations.
+
 Loading preserves the legacy swap-on-any-non-native-marker policy and opaque
 pixel payloads. Truncated reads and negative/unrepresentable layouts fail before
 invalid native operations; writes retain partial-prefix and partial-chunk
@@ -5440,7 +5447,8 @@ dependencies; the uncompiled
 
 `engine-texture-resource-test` links with C alone and covers headers/orders,
 every read truncation, layout limits, ownership transfer, failure cleanup,
-palette ties/cache fallback, source indices and standalone file/packing failures.
+palette ties/cache fallback, packed cache estimates and file-backed scratch
+fallback. Tests also cover partial chunk writes and standalone file failures.
 The native `texture-resource-test` freezes 22,000 bytes over 192 load attempts,
 constructors, standalone writes, PIX wrapping and bitmap imports with padded
 rows and destination palettes of 0/1/2/7/256 colours or no mapping. SHA-256 is

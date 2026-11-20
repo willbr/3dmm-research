@@ -4,11 +4,13 @@
 #include "mm/codec.h"
 #include <stdlib.h>
 
-static int locate_payload(const MMChunkPayloadServices *s, void *archive, MMU32 type,
-                          MMU32 number, MMOwnedBlock *block)
+int mm_chunk_payload_bind_block(const MMChunkPayloadServices *s, void *archive, MMU32 type,
+                                MMU32 number, MMOwnedBlock *block)
 {
     MMBlockFile file;
     int packed;
+    if (!s || !s->locate || !archive || mm_owned_block_check(block) != MM_DATA_OK || block->view.kind != MM_BLOCK_EMPTY)
+        return MM_CHUNK_PAYLOAD_INVALID;
     if (!s->locate(archive, type, number, &file, &packed))
         return MM_CHUNK_PAYLOAD_MISSING;
     if ((file.file || file.offset || file.length) &&
@@ -33,7 +35,7 @@ static int visit_payload(const MMChunkPayloadServices *s, void *archive, MMU32 t
     if (!s || !s->locate || (decode_payload && !s->decode) || !archive || !receive || !result ||
         mm_owned_block_init(&block, s->handles, s->files) != MM_DATA_OK)
         return MM_CHUNK_BAD_FILE;
-    opened = locate_payload(s, archive, type, number, &block);
+    opened = mm_chunk_payload_bind_block(s, archive, type, number, &block);
     if (opened == MM_CHUNK_PAYLOAD_MISSING)
         return MM_CHUNK_NOT_FOUND;
     if (opened == MM_CHUNK_PAYLOAD_OK &&
@@ -73,7 +75,7 @@ int mm_chunk_read_stored(const MMChunkPayloadServices *s, void *archive, MMU32 t
     int located, ok;
     if (!s || !s->locate || !archive || mm_owned_block_init(&block, s->handles, s->files) != MM_DATA_OK)
         return 0;
-    located = locate_payload(s, archive, type, number, &block);
+    located = mm_chunk_payload_bind_block(s, archive, type, number, &block);
     ok = located == MM_CHUNK_PAYLOAD_OK && mm_owned_block_io(&block, &io) == MM_DATA_OK &&
          mm_block_read(&io, 0, bytes, count, 1) == MM_DATA_OK;
     mm_owned_block_clear(&block);
@@ -134,7 +136,7 @@ int mm_chunk_payload_cache_load(MMChunkPayloadCache *cache, void *archive, size_
     if (mm_chunk_payload_cache_clear(cache) != MM_CHUNK_PAYLOAD_OK)
         return MM_CHUNK_PAYLOAD_INVALID;
 
-    status = locate_payload(s, archive, entry->type, entry->number, &cache->block);
+    status = mm_chunk_payload_bind_block(s, archive, entry->type, entry->number, &cache->block);
     if (status == MM_CHUNK_PAYLOAD_OK && (entry->flags & MM_CHUNK_PACKED))
         status = check_packed_length(&cache->block, limit);
     if (status == MM_CHUNK_PAYLOAD_OK &&

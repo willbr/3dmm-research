@@ -116,18 +116,6 @@ void mm_texture_dispose(MMTextureResource *m, const MMTextureServices *s)
     else
         s->free_memory(s->context, &m->pixels);
 }
-typedef struct TextureBlock
-{
-    void *block;
-    const MMTextureServices *services;
-} TextureBlock;
-
-static int read_block(void *context, MMU32 offset, void *bytes, size_t count)
-{
-    const TextureBlock *source = (const TextureBlock *)context;
-    const MMTextureServices *s = source->services;
-    return s->read(s->context, source->block, bytes, (MMI32)count, (MMI32)offset);
-}
 static int load(void *object, const MMReadStream *stream, const MMTextureServices *s)
 {
     MMTextureResource *m;
@@ -159,37 +147,34 @@ void *mm_texture_read_stream(const MMReadStream *stream, const MMTextureServices
     }
     return object;
 }
-static int load_block(void *object, void *block, const MMTextureServices *s)
+static int load_block(void *object, MMOwnedBlock *block, const MMTextureServices *s)
 {
-    TextureBlock source;
+    const MMChunkPayloadServices *payloads = s->payloads;
+    MMBlockIO io;
     MMReadStream stream;
-    MMI32 length;
-    if (!block || !s->unpack(s->context, block))
-        return 0;
-    length = s->size(s->context, block, 0);
-    if (length < 0)
-        return 0;
-    source.services = s;
-    source.block = block;
-    stream.context = &source;
-    stream.length = (MMU32)length;
-    stream.read_at = read_block;
-    return load(object, &stream, s);
+    return mm_owned_block_code(block, 0, payloads->decode_context, payloads->decode, NULL) == MM_DATA_OK &&
+           mm_owned_block_io(block, &io) == MM_DATA_OK && mm_block_io_stream(&io, &stream) == MM_DATA_OK &&
+           load(object, &stream, s);
 }
 void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *s)
 {
-    void *object = s->create(s->context);
-    if (object && !load_block(object, s->find(s->context, file, type, number), s))
+    MMOwnedBlock block;
+    void *object;
+    if (mm_owned_block_init(&block, s->payloads->handles, s->payloads->files) != MM_DATA_OK)
+        return NULL;
+    object = s->create(s->context);
+    if (object && (mm_chunk_payload_bind_block(s->payloads, file, type, number, &block) != MM_CHUNK_PAYLOAD_OK ||
+                   !load_block(object, &block, s)))
     {
         s->release(s->context, object);
         object = NULL;
     }
-    s->close_block(s->context);
+    mm_owned_block_clear(&block);
     return object;
 }
-int mm_texture_fetch(void *block, void *out, void *size, const MMTextureServices *s)
+int mm_texture_fetch(MMOwnedBlock *block, void *out, void *size, const MMTextureServices *s)
 {
-    MMI32 n = s->size(s->context, block, 1);
+    MMI32 n = (MMI32)block->view.length;
     void *object;
     memcpy(size, &n, 4);
     if (!out)
@@ -206,39 +191,61 @@ int mm_texture_fetch(void *block, void *out, void *size, const MMTextureServices
     memcpy(out, &object, sizeof(object));
     return 1;
 }
-int mm_texture_write(const MMTextureResource *m, void *block, const MMTextureServices *s)
+int mm_texture_write(const MMTextureResource *m, MMOwnedBlock *block, const MMTextureServices *s)
 {
+    MMBlockIO io;
     unsigned char b[20];
     MMI32 n;
     if (!mm_texture_payload(&m->description, &n))
         return 0;
     mm_texture_header_write(b, s->host_big_endian, s->system, &m->description);
-    if (s->size(s->context, block, 0) < 20 || !s->write(s->context, block, b, 20, 0))
+    if (mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_write(&io, 0, b, sizeof(b), 0) != MM_DATA_OK)
         return 0;
-    return n <= s->size(s->context, block, 0) - 20 && s->write(s->context, block, m->pixels, n, 20);
+    return mm_block_write(&io, sizeof(b), m->pixels, (MMU32)n, 0) == MM_DATA_OK;
 }
 int mm_texture_write_chunk(const MMTextureResource *m, void *file, MMU32 type, MMU32 *number,
                                  const MMTextureServices *s)
 {
-    void *block;
+    MMOwnedBlock block;
     MMI32 bytes = mm_texture_size(m);
     int ok = 0;
-    if (bytes < 0)
+    if (bytes < 0 || mm_owned_block_init(&block, s->payloads->handles, s->payloads->files) != MM_DATA_OK)
         return 0;
-    block = s->add(s->context, file, type, bytes, number);
-    if (block)
-        ok = mm_texture_write(m, block, s);
-    s->close_block(s->context);
+    if (s->add(s->context, file, type, bytes, number, &block))
+        ok = mm_texture_write(m, &block, s);
+    mm_owned_block_clear(&block);
     return ok;
 }
+
+static int copy_to_file(MMOwnedBlock *source, void *file, const MMStorageAllocator *allocator)
+{
+    MMOwnedBlock destination;
+    MMBlockFile extent;
+    MMBlockIO from, to;
+    int ok;
+    if (mm_owned_block_init(&destination, source->handles, source->files) != MM_DATA_OK)
+        return 0;
+    extent.file = file;
+    extent.offset = 4;
+    extent.length = source->view.length;
+    ok = mm_owned_block_set_file(&destination, &extent, 0) == MM_DATA_OK &&
+         mm_owned_block_io(source, &from) == MM_DATA_OK && mm_owned_block_io(&destination, &to) == MM_DATA_OK &&
+         mm_block_copy(&from, &to, 1, allocator) == MM_DATA_OK;
+    mm_owned_block_clear(&destination);
+    return ok;
+}
+
 int mm_texture_standalone(const MMTextureResource *m, void *filename, int compress, void *sink,
                                 const MMTextureServices *s)
 {
-    void *file = s->create_file(s->context, filename), *block;
+    const MMChunkPayloadServices *payloads = s->payloads;
+    const MMBlockFileServices *files = payloads->files;
+    MMOwnedBlock block;
+    void *file = s->create_file(s->context, filename);
     MMI32 bytes = mm_texture_size(m);
     MMU32 signature = s->unpacked_signature;
     unsigned char b[20];
-    int error = MM_TEXTURE_FILE_CREATE, ok = 0;
+    int error = MM_TEXTURE_FILE_CREATE, ok = 0, shrink_failed, initialized = 0;
     if (!file)
         goto done;
     error = MM_TEXTURE_FILE_MEMORY;
@@ -246,32 +253,35 @@ int mm_texture_standalone(const MMTextureResource *m, void *filename, int compre
         goto done;
     if (compress)
     {
-        block = s->temp_block(s->context, bytes);
-        if (!block || !mm_texture_write(m, block, s))
+        initialized = mm_owned_block_init(&block, payloads->handles, files) == MM_DATA_OK;
+        if (!initialized || mm_owned_block_set_temp(&block, (MMU32)bytes, 0) != MM_DATA_OK ||
+            !mm_texture_write(m, &block, s))
             goto done;
-        if (s->pack(s->context, block))
-        {
+        shrink_failed = 0;
+        if (mm_owned_block_code(&block, 1, s->context, s->encode, &shrink_failed) == MM_DATA_OK)
             signature = s->packed_signature;
-            bytes = s->size(s->context, block, 1);
-        }
+        if (shrink_failed)
+            s->diagnostic(s->context, MM_TEXTURE_PACK_SHRINK);
         put(b, 4, signature, s->host_big_endian);
         error = MM_TEXTURE_FILE_WRITE;
-        if (!s->write_file(s->context, file, b, 4, 0) || !s->copy_to_file(s->context, block, file, 4, bytes))
+        if (!files->write(files->context, file, 0, b, 4) || !copy_to_file(&block, file, s->copy_allocator))
             goto done;
     }
     else
     {
         put(b, 4, signature, s->host_big_endian);
         error = MM_TEXTURE_FILE_WRITE;
-        if (!s->write_file(s->context, file, b, 4, 0))
+        if (!files->write(files->context, file, 0, b, 4))
             goto done;
         mm_texture_header_write(b, s->host_big_endian, s->system, &m->description);
-        if (!s->write_file(s->context, file, b, 20, 4) || !s->write_file(s->context, file, m->pixels, bytes - 20, 24))
+        if (!files->write(files->context, file, 4, b, 20) ||
+            !files->write(files->context, file, 24, m->pixels, (size_t)bytes - 20))
             goto done;
     }
     ok = 1;
 done:
-    s->close_block(s->context);
+    if (initialized)
+        mm_owned_block_clear(&block);
     if (!ok && sink)
         s->report(s->context, sink, error);
     if (file)

@@ -17029,3 +17029,35 @@ in seek and continuous playback and every retail seek camera index. Each port
 reproduced its 60 previous seek canvas hashes. SDL matched all 12 retail sound
 requests. The archived comparison and fixture evidence are in
 `tmp/c89-material-provider`.
+
+## Texture payload I/O and packing through C89 blocks (20 November 2026)
+
+Cached texture reads unpack the caller's C block in place and keep cache
+estimates based on the stored byte count. Direct reads acquire a block from
+the chunk payload provider. Chunk writing and standalone packing use the same
+C block and file primitives. The focused C fixture exercises packed decode,
+partial writes, a declined compression attempt, file-backed scratch and
+failure cleanup.
+
+All 192 standalone checks, five focused AddressSanitizer checks, 13 selected
+x64 checks and eight selected SDL checks passed. The five focused x86 C checks
+and x86 core-link check passed. The x64 and x86 texture traces reproduced all
+22,000 bytes and fingerprint `C5DC711A`. The SDL release trace reproduced all
+24,352 bytes and fingerprint `3C37DC26`.
+All three material traces matched the previous build. The pre-existing x86
+native material assertion still exits 1 while producing the same trace.
+All 54 movie and scene traces, three saved movies, ten Preview fingerprints
+and six Preview movies matched. The Studio authoring workflow saved the same
+movie byte for byte.
+
+Retail, SDL and Marcus matched all three retained-background frame identities,
+camera indices and canvas hashes in `20261120T223958Z-bf09ce41`. Both ports
+matched original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261120T224035Z-83ecac96`.
+
+All four `actor-event-edit` captures completed in `20261120T223942Z-44c81375`.
+Against archived retail runs, SDL and Marcus matched all 60 frame identities
+in seek and continuous playback and all retail seek camera indices. Each port
+reproduced its 60 previous seek canvas hashes. SDL matched all 12 retail sound
+requests. The archived comparison and fixture evidence are in
+`tmp/c89-texture-block`.

@@ -1,8 +1,7 @@
 /* Texture map policy converted from bren/tmap.cpp. */
 #ifndef MM_ENGINE_TEXTURE_RESOURCE_H
 #define MM_ENGINE_TEXTURE_RESOURCE_H
-#include "read_stream.h"
-#include "types.h"
+#include "chunk_storage.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C"
@@ -31,7 +30,8 @@ extern "C"
     enum
     {
         MM_TEXTURE_ORDER,
-        MM_TEXTURE_UPSIDE_DOWN
+        MM_TEXTURE_UPSIDE_DOWN,
+        MM_TEXTURE_PACK_SHRINK
     };
     enum
     {
@@ -55,21 +55,14 @@ extern "C"
         void (*free_memory)(void *, void **);
         void (*invalidate)(void *, void *, size_t);
         void (*diagnostic)(void *, int);
-        void *(*find)(void *, void *file, MMU32 type, MMU32 number);
-        int (*unpack)(void *, void *block);
-        MMI32 (*size)(void *, void *block, int packed);
-        int (*read)(void *, void *block, void *, MMI32 bytes, MMI32 offset);
-        int (*write)(void *, void *block, const void *, MMI32 bytes, MMI32 offset);
-        void (*close_block)(void *);
-        void *(*add)(void *, void *file, MMU32 type, MMI32 bytes, MMU32 *number);
+        const MMChunkPayloadServices *payloads;
+        const MMStorageAllocator *copy_allocator;
+        MMBlockTransform encode;
+        int (*add)(void *, void *file, MMU32 type, MMI32 bytes, MMU32 *number, MMOwnedBlock *);
         int (*read_bitmap)(void *, void *filename, MMTextureBitmap *);
         MMI32 (*palette_count)(void *, void *palette);
         void (*palette_colour)(void *, void *palette, MMI32 index, MMTextureColour *);
         void *(*create_file)(void *, void *filename);
-        void *(*temp_block)(void *, MMI32 bytes);
-        int (*pack)(void *, void *block);
-        int (*write_file)(void *, void *file, const void *, MMI32 bytes, MMI32 offset);
-        int (*copy_to_file)(void *, void *block, void *file, MMI32 offset, MMI32 bytes);
         void (*make_temporary)(void *, void *file);
         void (*report)(void *, void *sink, int error);
     } MMTextureServices;
@@ -90,9 +83,10 @@ extern "C"
     /* Read a decoded TMAP extent without borrowing it beyond the call. */
     void *mm_texture_read_stream(const MMReadStream *, const MMTextureServices *);
     void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *);
-    /* Fetch from the borrowed cache block; the caller owns the block. */
-    int mm_texture_fetch(void *block, void *object_out, void *size_out, const MMTextureServices *);
-    int mm_texture_write(const MMTextureResource *, void *block, const MMTextureServices *);
+    /* Fetch from the caller's owning cache block and unpack it in place.
+     * Estimates report the stored length without decoding. */
+    int mm_texture_fetch(MMOwnedBlock *, void *object_out, void *size_out, const MMTextureServices *);
+    int mm_texture_write(const MMTextureResource *, MMOwnedBlock *, const MMTextureServices *);
     int mm_texture_write_chunk(const MMTextureResource *, void *file, MMU32 type, MMU32 *number,
                                      const MMTextureServices *);
     /* Palette matching keeps the last equal-distance candidate. Cache allocation is

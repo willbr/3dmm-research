@@ -23,13 +23,23 @@ typedef struct Imported
     MMTextureDescription description;
     unsigned char pixels[8];
 } Imported;
+typedef struct File
+{
+    Ref ref;
+    unsigned char *bytes;
+    MMI32 *length;
+} File;
 typedef struct Test
 {
     MMTextureServices s;
-    int phase, fail, objects, memory, imports, files, closed, published, invalidated, diagnostic, temporary, reported,
-        pack_ok;
-    unsigned char input[128], output[128], physical[128];
-    MMI32 input_size, output_size, physical_size;
+    MMChunkPayloadServices payloads;
+    MMHandleServices handles;
+    MMBlockFileServices io;
+    File source_file, chunk_file, standalone_file, temp_file;
+    int phase, fail, objects, memory, imports, files, handles_live, published, invalidated, diagnostic, temporary,
+        reported, pack_ok, creates_temp;
+    unsigned char input[128], output[128], physical[128], temp[128];
+    MMI32 input_size, output_size, physical_size, temp_size;
     int packed_size, bitmap_invalid, cache_fail, object_fail;
     Palette source, target;
 } Test;
@@ -123,61 +133,93 @@ static void diagnostic(void *p, int n)
 {
     test(p)->diagnostic = n + 1;
 }
-static void *find(void *p, void *f, MMU32 type, MMU32 number)
+static int resize_handle(void *p, void **handle, MMU32 n)
 {
-    (void)f;
+    MMU32 *v = (MMU32 *)realloc(*handle, sizeof(*v) + n);
+    (void)p;
+    if (!v)
+        return 0;
+    *v = n;
+    *handle = v;
+    return 1;
+}
+static int allocate_handle(void *p, MMU32 n, void **handle)
+{
+    Test *t = test(p);
+    *handle = NULL;
+    if (fail(t) || !resize_handle(p, handle, n))
+        return 0;
+    ++t->handles_live;
+    return 1;
+}
+static void release_handle(void *p, void *handle) { --test(p)->handles_live; free(handle); }
+static MMU32 size_handle(void *p, void *handle) { (void)p; return *(MMU32 *)handle; }
+static void *lock_handle(void *p, void *handle) { (void)p; return (MMU32 *)handle + 1; }
+static void unlock_handle(void *p, void *handle) { (void)p; (void)handle; }
+
+static int locate(void *p, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
+{
+    Test *t = test(p);
     (void)type;
     (void)number;
-    return fail(test(p)) ? NULL : p;
-}
-static int unpack(void *p, void *b)
-{
-    (void)b;
-    return !fail(test(p));
-}
-static MMI32 size(void *p, void *b, int packed)
-{
-    (void)b;
-    return packed ? test(p)->packed_size : test(p)->input_size;
-}
-static int read(void *p, void *b, void *out, MMI32 n, MMI32 at)
-{
-    Test *t = test(p);
-    (void)b;
-    assert(n >= 0 && at >= 0 && at <= t->input_size && n <= t->input_size - at);
     if (fail(t))
         return 0;
-    if (n)
-        memcpy(out, t->input + at, n);
+    extent->file = &t->source_file;
+    extent->offset = 0;
+    extent->length = (MMU32)t->input_size;
+    *packed = 0;
     return 1;
 }
-static int write(void *p, void *b, const void *data, MMI32 n, MMI32 at)
+static int decode(void *p, void **handle)
 {
     Test *t = test(p);
-    (void)b;
-    assert(at >= 0 && n >= 0 && at <= t->input_size && n <= t->input_size - at);
-    if (fail(t))
+    assert(size_handle(p, *handle) == (MMU32)t->packed_size);
+    if (fail(t) || !resize_handle(p, handle, (MMU32)t->input_size))
         return 0;
-    if (n)
-        memcpy(t->output + at, data, n);
-    if (at + n > t->output_size)
-        t->output_size = at + n;
+    memcpy(lock_handle(p, *handle), t->input, (size_t)t->input_size);
     return 1;
 }
-static void close_block(void *p)
-{
-    ++test(p)->closed;
-}
-static void *add(void *p, void *f, MMU32 type, MMI32 n, MMU32 *number)
+static int encode(void *p, void **handle)
 {
     Test *t = test(p);
+    if (!t->pack_ok || fail(t))
+        return 0;
+    return resize_handle(p, handle, (MMU32)t->packed_size);
+}
+static void retain_file(void *p, void *file) { (void)p; ++((File *)file)->ref.refs; }
+static int read_io(void *p, void *file, MMU32 at, void *out, size_t n)
+{
+    File *f = file;
+    assert(at <= (MMU32)*f->length && n <= (MMU32)*f->length - at);
+    if (fail(test(p)))
+        return 0;
+    memcpy(out, f->bytes + at, n);
+    return 1;
+}
+static int write_io(void *p, void *file, MMU32 at, const void *data, size_t n)
+{
+    File *f = file;
+    assert(at <= 128 && n <= 128 - at);
+    if (fail(test(p)))
+        return 0;
+    memcpy(f->bytes + at, data, n);
+    if (at + n > (MMU32)*f->length)
+        *f->length = (MMI32)(at + n);
+    return 1;
+}
+static int add(void *p, void *f, MMU32 type, MMI32 n, MMU32 *number, MMOwnedBlock *block)
+{
+    Test *t = test(p);
+    MMBlockFile extent;
     (void)f;
     (void)type;
     if (fail(t))
-        return NULL;
-    t->input_size = n;
+        return 0;
+    extent.file = &t->chunk_file;
+    extent.offset = 0;
+    extent.length = (MMU32)n;
     *number = 7;
-    return p;
+    return mm_owned_block_set_file(block, &extent, 0) == MM_DATA_OK;
 }
 static int read_bitmap(void *p, void *filename, MMTextureBitmap *out)
 {
@@ -207,46 +249,24 @@ static void palette_colour(void *p, void *palette, MMI32 i, MMTextureColour *out
     assert(i >= 0 && i < v->count);
     *out = v->colours[i];
 }
-static Ref fake_file;
 static void *create_file(void *p, void *filename)
 {
     Test *t = test(p);
     (void)filename;
     if (fail(t))
         return NULL;
-    fake_file.kind = 3;
-    fake_file.refs = 1;
+    t->standalone_file.ref.refs = 1;
     ++t->files;
-    return &fake_file;
+    return &t->standalone_file;
 }
-static void *temp_block(void *p, MMI32 n)
-{
-    if (fail(test(p)))
-        return NULL;
-    test(p)->input_size = n;
-    return p;
-}
-static int pack(void *p, void *b)
-{
-    (void)b;
-    return test(p)->pack_ok && !fail(test(p));
-}
-static int write_file(void *p, void *f, const void *data, MMI32 n, MMI32 at)
+static void *create_temp(void *p)
 {
     Test *t = test(p);
-    (void)f;
-    assert(n >= 0 && at >= 0 && at + n <= 128);
-    if (fail(t))
-        return 0;
-    if (n)
-        memcpy(t->physical + at, data, n);
-    t->physical_size = at + n;
-    return 1;
-}
-static int copy_to_file(void *p, void *b, void *f, MMI32 at, MMI32 n)
-{
-    (void)b;
-    return write_file(p, f, test(p)->output, n, at);
+    if (!t->creates_temp)
+        return NULL;
+    t->temp_file.ref.refs = 1;
+    ++t->files;
+    return &t->temp_file;
 }
 static void make_temporary(void *p, void *f)
 {
@@ -279,21 +299,31 @@ static void setup(Test *t)
     t->s.free_memory = free_memory;
     t->s.invalidate = invalidate;
     t->s.diagnostic = diagnostic;
-    t->s.find = find;
-    t->s.unpack = unpack;
-    t->s.size = size;
-    t->s.read = read;
-    t->s.write = write;
-    t->s.close_block = close_block;
+    t->s.payloads = &t->payloads;
+    t->s.encode = encode;
+    t->payloads.handles = &t->handles;
+    t->payloads.files = &t->io;
+    t->payloads.locate = locate;
+    t->payloads.decode_context = t;
+    t->payloads.decode = decode;
+    t->handles.context = t;
+    t->handles.allocate = allocate_handle;
+    t->handles.release = release_handle;
+    t->handles.size = size_handle;
+    t->handles.lock = lock_handle;
+    t->handles.unlock = unlock_handle;
+    t->handles.resize = resize_handle;
+    t->io.context = t;
+    t->io.retain = retain_file;
+    t->io.release = release;
+    t->io.create_temp = create_temp;
+    t->io.read = read_io;
+    t->io.write = write_io;
     t->s.add = add;
     t->s.read_bitmap = read_bitmap;
     t->s.palette_count = palette_count;
     t->s.palette_colour = palette_colour;
     t->s.create_file = create_file;
-    t->s.temp_block = temp_block;
-    t->s.pack = pack;
-    t->s.write_file = write_file;
-    t->s.copy_to_file = copy_to_file;
     t->s.make_temporary = make_temporary;
     t->s.report = report;
     d.row_bytes = 4;
@@ -307,6 +337,15 @@ static void setup(Test *t)
     memset(t->input + 20, 17, 8);
     t->input_size = 28;
     t->packed_size = 19;
+    t->source_file.bytes = t->input;
+    t->source_file.length = &t->input_size;
+    t->chunk_file.bytes = t->output;
+    t->chunk_file.length = &t->output_size;
+    t->standalone_file.ref.kind = t->temp_file.ref.kind = 3;
+    t->standalone_file.bytes = t->physical;
+    t->standalone_file.length = &t->physical_size;
+    t->temp_file.bytes = t->temp;
+    t->temp_file.length = &t->temp_size;
     t->source.ref.kind = t->target.ref.kind = 2;
     t->source.count = t->target.count = 4;
     t->source.colours[1].red = 77;
@@ -316,11 +355,14 @@ static void setup(Test *t)
 }
 static void balanced(Test *t)
 {
-    assert(!t->objects && !t->memory && !t->imports && !t->files && !t->source.ref.refs);
+    assert(!t->objects && !t->memory && !t->imports && !t->files && !t->source.ref.refs && !t->handles_live);
+    assert(!t->source_file.ref.refs && !t->chunk_file.ref.refs && !t->standalone_file.ref.refs && !t->temp_file.ref.refs);
 }
 static void codecs_and_loads(void)
 {
     Test t;
+    MMOwnedBlock block;
+    MMBlockFile extent;
     MMTextureDescription d;
     unsigned char b[20];
     MMI32 n, estimate;
@@ -342,19 +384,25 @@ static void codecs_and_loads(void)
     for (i = 0; i < 10; ++i)
     {
         setup(&t);
+        assert(mm_owned_block_init(&block, &t.handles, &t.io) == MM_DATA_OK);
+        extent.file = &t.source_file;
+        extent.offset = 0;
+        extent.length = (MMU32)t.packed_size;
+        assert(mm_owned_block_set_file(&block, &extent, 1) == MM_DATA_OK);
+        assert(mm_texture_fetch(&block, NULL, &estimate, &t.s) && estimate == 19 && !t.phase && block.view.packed);
         t.fail = i;
-        t.s.find = NULL;
-        t.s.close_block = NULL;
         o = NULL;
-        ok = mm_texture_fetch(&t, &o, &estimate, &t.s);
+        ok = mm_texture_fetch(&block, &o, &estimate, &t.s);
         if (ok)
         {
             assert(estimate == 19 && o->texture.description.row_bytes == 4 &&
                    ((unsigned char *)o->texture.pixels)[7] == 17);
+            assert(block.view.length == 28 && !block.view.packed && !block.file && t.handles_live == 1);
             release(&t, o);
         }
         else
             assert(t.invalidated == 2);
+        assert(mm_owned_block_clear(&block) == MM_DATA_OK);
         balanced(&t);
     }
     for (i = 0; i < 28; ++i)
@@ -383,7 +431,7 @@ static void codecs_and_loads(void)
         assert(mm_memory_stream_init(&stream, t.input, 28));
         o = (Object *)mm_texture_read_stream(&stream.stream, &t.s);
         assert(o && o->texture.description.row_bytes == 4 && ((unsigned char *)o->texture.pixels)[7] == 17);
-        assert(t.closed == 0);
+        assert(!t.source_file.ref.refs && !t.handles_live);
         release(&t, o);
         balanced(&t);
     }
@@ -456,6 +504,8 @@ static void writes(void)
 {
     Test t;
     MMTextureResource m;
+    MMOwnedBlock block;
+    MMBlockFile extent;
     unsigned char pixels[8] = {0};
     MMU32 number;
     int n, compress, ok;
@@ -473,11 +523,17 @@ static void writes(void)
             assert(number == 7 && t.output_size == 28);
         else if (n > 1)
             assert(number == 7);
-        assert(t.closed == 1);
+        balanced(&t);
     }
     setup(&t);
-    t.input_size = 24;
-    assert(!mm_texture_write(&m, &t, &t.s) && t.output_size == 20);
+    assert(mm_owned_block_init(&block, &t.handles, &t.io) == MM_DATA_OK);
+    extent.file = &t.chunk_file;
+    extent.offset = 0;
+    extent.length = 24;
+    assert(mm_owned_block_set_file(&block, &extent, 0) == MM_DATA_OK);
+    assert(!mm_texture_write(&m, &block, &t.s) && t.output_size == 20);
+    assert(mm_owned_block_clear(&block) == MM_DATA_OK);
+    balanced(&t);
     for (compress = 0; compress < 2; ++compress)
         for (n = 0; n < 10; ++n)
         {
@@ -489,17 +545,25 @@ static void writes(void)
                 assert(!t.temporary && !t.reported && t.physical_size > 4);
             else
                 assert(t.reported && ((n == 1 && !t.temporary) || (n != 1 && t.temporary)));
-            assert(t.closed == 1);
             balanced(&t);
         }
     setup(&t);
     t.pack_ok = 0;
     assert(mm_texture_standalone(&m, &t, 1, NULL, &t.s));
-    assert(t.physical[0] == 'p' && t.physical[1] == 'u');
+    assert(t.physical[0] == 'p' && t.physical[1] == 'u' && t.physical_size == 32);
+    assert(!memcmp(t.physical + 24, pixels, sizeof(pixels)));
+    balanced(&t);
     setup(&t);
     t.pack_ok = 1;
     assert(mm_texture_standalone(&m, &t, 1, NULL, &t.s));
-    assert(t.physical[0] == 'a' && t.physical[1] == 'p');
+    assert(t.physical[0] == 'a' && t.physical[1] == 'p' && t.physical_size == 23);
+    balanced(&t);
+    setup(&t);
+    t.fail = 2;
+    t.creates_temp = 1;
+    assert(mm_texture_standalone(&m, &t, 1, NULL, &t.s));
+    assert(t.temp_size == 28 && t.physical_size == 32 && !memcmp(t.physical + 4, t.temp, 28));
+    balanced(&t);
 }
 int main(void)
 {

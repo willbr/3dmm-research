@@ -59,7 +59,7 @@ class TextureMap : public TextureMap_PAR
   protected:
     BPMP _bpmp;
     MMTextureResource _texture;
-    static MMTextureServices _Services(void *context = nullptr);
+    static MMTextureServices _Services();
     void _Sync();
 
   protected:
