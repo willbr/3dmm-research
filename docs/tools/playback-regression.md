@@ -15063,3 +15063,23 @@ worker were rebuilt, and Marcus was relaunched.
 
 The collision and reload probes, output files and test logs are in
 `tmp/c89-live-source-ids`.
+
+## Preview archive audio in C89 (20 November 2026)
+
+Preview searches external sound archives in registration order and reads
+linked audio through the C89 reader for physical archives. Editable archives
+supply their current graph. The Preview metadata fixture now opens through the
+physical reader and preserves its `0BD333B2` fingerprint, which includes decoded
+WAVE bytes and frame metadata. The Marcus sound-edit test also exercises
+original-library and imported MIDI.
+
+The `actor-audio` Marcus playback capture `20261120T081151Z-3bd40422` and
+retail reference `20261119T204846Z-1d565c9e` both passed the first-scene tone
+contract. The capture contains the ordinary 600 Hz cue and the motion-triggered
+1300 Hz cue. The SQLite database and per-run tone measurements are under
+`tmp/c89-chunk-titles/capture`.
+
+In `actor-event-edit` suite `20261120T081032Z-7557dab3`, SDL and Marcus
+matched the 60 retail frame identities in seek and playback. Both builds
+kept their previous seek image hashes and matched retail camera indices.
+SDL also matched the 12 retail sound requests.

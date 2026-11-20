@@ -22,6 +22,7 @@ extern "C"
     } MMPreviewSession;
     enum { MM_PREVIEW_RESOURCE_MISSING = 2 };
     struct MMArchiveReader;
+    struct MMMovieSessionGraph;
     int mm_preview_archive_resource(struct MMArchiveReader *, MMU32 type, MMU32 number, MMReadStream *out);
     typedef struct MMPreviewSessionServices
     {
@@ -51,8 +52,6 @@ extern "C"
         int (*source_new)(void *, void **);
         int (*source_open)(void *, void *, const void *path), (*source_budget)(void *, void *);
         int (*source_cache_new)(void *, void *);
-        void *(*source_cache)(void *, void *);
-        int (*contains)(void *, void *cache, MMU32 type, MMU32 number);
         void (*source_release)(void *, void *);
         void (*clear_asset)(void *), (*dispose_live)(void *), (*cache_release)(void *, void *);
         void (*shared_material_release)(void *), (*shade_release)(void *);
@@ -84,7 +83,7 @@ extern "C"
      * preserve the old session, without rolling back completed global SDK effects.
      * Source IDs/paths append in registration order; duplicate ID/path is a no-op.
      * Root sid zero precedes registered sources; a matching ID without the requested
-     * chunk does not stop lookup. Returned caches are borrowed until session disposal.
+     * chunk does not stop lookup. Returned owners are borrowed until session disposal.
      * Disposal clears live assets/tables, releases sources forward, root cache, shared
      * material/shade state, depth backend and runtime, in that order. */
     int mm_preview_session_init(MMPreviewSession *, const MMStorageAllocator *);
@@ -92,8 +91,16 @@ extern "C"
     int mm_preview_session_open(MMPreviewSession *, const void *resources_path, int require_asset, int preserve_framing,
                                 const MMPreviewSessionServices *);
     int mm_preview_session_add(MMPreviewSession *, MMI32 source_id, const void *path, const MMPreviewSessionServices *);
-    void *mm_preview_session_resolve(const MMPreviewSession *, MMI32 source_id, MMU32 type, MMU32 number,
-                                     const MMPreviewSessionServices *);
+    /* A null source denotes the root archive. Callbacks borrow the owner and
+     * return nonzero on a match. Failure leaves the output unchanged. */
+    typedef int (*MMPreviewSourceContains)(void *, void *source, MMU32 type, MMU32 number);
+    int mm_preview_session_resolve(const MMPreviewSession *, MMI32 source_id, MMU32 type, MMU32 number,
+                                    MMPreviewSourceContains, void *context, void **source);
+    /* Resolve the same ordered sources by their chunk graph, for readers that
+     * need the payload and have no use for the renderer's resource cache. */
+    typedef void (*MMPreviewSourceGraph)(void *, void *source, struct MMMovieSessionGraph *);
+    int mm_preview_session_resolve_graph(const MMPreviewSession *, MMI32 source_id, MMU32 type, MMU32 number,
+                                          MMPreviewSourceGraph, void *context, struct MMMovieSessionGraph *);
 #ifdef __cplusplus
 }
 #endif

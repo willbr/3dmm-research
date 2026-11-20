@@ -108,6 +108,12 @@ MMArchiveReader *Archive::Reader() const
 {
     return _impl->reader;
 }
+MMMovieSessionGraph Archive::PlaybackGraph() const
+{
+    if (mm_archive_reader_wire_index(_impl->reader))
+        return mm_archive_reader_graph(_impl->reader);
+    return EngineMovieGraph::FromFile(_impl->file);
+}
 bool ReadSoundCatalogStyle(const Archive &archive, std::uint32_t number, std::int32_t &style)
 {
     const auto reader = archive.Reader();

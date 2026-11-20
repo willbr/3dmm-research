@@ -249,16 +249,16 @@ done:
 typedef struct PreviewLookup
 {
     const MMPreviewSession *session;
-    const MMPreviewSessionServices *services;
+    MMPreviewSourceContains contains;
+    void *context;
     MMI32 id;
     MMU32 type, number;
 } PreviewLookup;
 
-static int next_source_cache(void *context, size_t *cursor, void **out)
+static int next_source(void *context, size_t *cursor, void **out)
 {
     const PreviewLookup *search = (const PreviewLookup *)context;
     const MMPreviewSession *p = search->session;
-    const MMPreviewSessionServices *s = search->services;
     const MMPreviewSessionSource *sources = (const MMPreviewSessionSource *)p->sources.buffers[0].data;
     const MMPreviewSessionSource *source;
     if (search->id == 0)
@@ -266,7 +266,7 @@ static int next_source_cache(void *context, size_t *cursor, void **out)
         if (*cursor != 0 || !p->cache)
             return MM_RESOURCE_LOOKUP_MISSING;
         ++*cursor;
-        *out = p->cache;
+        *out = NULL;
         return MM_RESOURCE_LOOKUP_OK;
     }
     while (*cursor < p->source_count)
@@ -275,37 +275,67 @@ static int next_source_cache(void *context, size_t *cursor, void **out)
         ++*cursor;
         if (source->id == search->id)
         {
-            *out = s->source_cache(s->context, source->owner);
+            *out = source->owner;
             return MM_RESOURCE_LOOKUP_OK;
         }
     }
     return MM_RESOURCE_LOOKUP_MISSING;
 }
 
-static int probe_source_cache(void *context, void *cache, void **out)
+static int probe_source(void *context, void *source, void **out)
 {
     const PreviewLookup *search = (const PreviewLookup *)context;
-    const MMPreviewSessionServices *s = search->services;
-    if (!s->contains(s->context, cache, search->type, search->number))
+    if (!search->contains(search->context, source, search->type, search->number))
         return MM_RESOURCE_LOOKUP_MISSING;
-    *out = cache;
+    *out = source;
     return MM_RESOURCE_LOOKUP_OK;
 }
 
-void *mm_preview_session_resolve(const MMPreviewSession *p, MMI32 id, MMU32 type, MMU32 number,
-                                 const MMPreviewSessionServices *s)
+int mm_preview_session_resolve(const MMPreviewSession *p, MMI32 id, MMU32 type, MMU32 number,
+                                MMPreviewSourceContains contains, void *context, void **source)
 {
     PreviewLookup search;
     MMResourceLookup lookup;
-    void *cache = 0;
     search.session = p;
-    search.services = s;
+    search.contains = contains;
+    search.context = context;
     search.id = id;
     search.type = type;
     search.number = number;
     lookup.context = &search;
-    lookup.next = next_source_cache;
-    lookup.probe = probe_source_cache;
-    mm_resource_lookup(&lookup, &cache);
-    return cache;
+    lookup.next = next_source;
+    lookup.probe = probe_source;
+    return mm_resource_lookup(&lookup, source) == MM_RESOURCE_LOOKUP_OK;
+}
+
+typedef struct PreviewGraphLookup
+{
+    MMPreviewSourceGraph graph;
+    void *context;
+    MMMovieSessionGraph *out;
+} PreviewGraphLookup;
+
+static int contains_graph_chunk(void *context, void *source, MMU32 type, MMU32 number)
+{
+    const PreviewGraphLookup *lookup = (const PreviewGraphLookup *)context;
+    MMMovieSessionGraph graph;
+    MMChunkAccess access;
+    MMU32 position;
+    lookup->graph(lookup->context, source, &graph);
+    graph.access(graph.context, &access);
+    if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK)
+        return 0;
+    *lookup->out = graph;
+    return 1;
+}
+
+int mm_preview_session_resolve_graph(const MMPreviewSession *p, MMI32 id, MMU32 type, MMU32 number,
+                                     MMPreviewSourceGraph graph, void *context, MMMovieSessionGraph *out)
+{
+    PreviewGraphLookup lookup;
+    void *source;
+    lookup.graph = graph;
+    lookup.context = context;
+    lookup.out = out;
+    return mm_preview_session_resolve(p, id, type, number, contains_graph_chunk, &lookup, &source);
 }

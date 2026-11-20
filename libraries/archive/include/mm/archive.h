@@ -8,6 +8,7 @@
 #include <vector>
 
 struct MMMovieSession;
+struct MMMovieSessionGraph;
 struct MMArchiveReader;
 
 namespace MM
@@ -152,6 +153,7 @@ class Archive
     bool PrepareNativeFile(Error &);
     bool OpenResources(const std::string &utf8Path, Error &);
     MMArchiveReader *Reader() const;
+    MMMovieSessionGraph PlaybackGraph() const;
     MMMovieSession *MovieSession() const;
     enum class OpenMode { live, inspection, preview, resources };
     bool OpenCore(const std::string &utf8Path, Error &, OpenMode);

@@ -147,6 +147,8 @@ struct Preview::Impl
         return true;
     }
     PChunkyResourceFile Resolve(const TAGOnFile &tag);
+    bool ResolveSoundGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph);
+    void DescribeMissingResource(const TAGOnFile &tag);
     void RefreshStats()
     {
         MMPreviewStatsServices s = {};
@@ -819,21 +821,20 @@ try
         [](void *p, MMI32 sid, MMU32 type, MMU32 number, MMMovieSessionGraph *out) {
             auto &host = *static_cast<SoundSource *>(p);
             return host.audio.Guard([&] {
-                const TAGOnFile tag = {sid, 0, type, number};
-                auto file = host.impl.Resolve(tag);
-                if (!file)
-                    return 0;
-                *out = EngineMovieGraph::FromFile(file->Pcfl());
-                return 1;
+                return host.impl.ResolveSoundGraph({sid, 0, type, number}, *out);
             });
         }};
     const auto input = Internal::PreviewCueCore(cue);
     MMChunkAccess chunks;
-    if (_impl->cache)
-        chunks = _impl->cache->Pcfl()->ReadChunkAccess();
+    const bool hasMovie = _impl->assets.Reader() != nullptr;
+    if (hasMovie)
+    {
+        const auto graph = _impl->assets.PlaybackGraph();
+        graph.access(graph.context, &chunks);
+    }
     MMU32 number;
     const int result = mm_preview_sound(&input, _impl->live.status.ready, _impl->live.status.asset_number,
-                                        _impl->cache ? &chunks : nullptr, &number, &services, &audioServices);
+                                        hasMovie ? &chunks : nullptr, &number, &services, &audioServices);
     if (output.exception) std::rethrow_exception(output.exception);
     if (result > 0) return true;
     if (result == MM_PREVIEW_SOUND_NOT_READY)

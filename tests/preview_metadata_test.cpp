@@ -3,6 +3,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <utility>
 #include "preview_admission_fixture.h"
 struct MetadataTrace : AdmissionTrace
 {
@@ -142,13 +143,16 @@ int main(int argc, char **argv)
     for (int file = 5; file < argc; ++file)
     {
         MM::Archive archive;
-        if (!archive.Open(argv[file], error) || !check(preview.Open(argv[file], argv[1], error)))
+        if (!archive.OpenForPreview(argv[file], error))
+            return 1;
+        const auto chunks = archive.Chunks();
+        if (!check(preview.Open(std::move(archive), argv[1], error)))
             return 1;
         for (int source = 1; source <= 2; ++source)
             for (int content = 2; content <= 4; ++content)
                 if (!check(preview.AddContent(source, argv[content], error)))
                     return 1;
-        for (const auto &chunk : archive.Chunks())
+        for (const auto &chunk : chunks)
         {
             if (chunk.id.type != 0x5343454e)
                 continue;

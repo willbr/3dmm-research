@@ -91,6 +91,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   physical stream across Preview replacements, and external content builds its
   native graph and resource cache after admission checks. Studio and Preview
   share the texture-map stream decoder.
+- Preview resolves sound sources in the C89 session and reads movie sound
+  links and decoded audio from the archive reader. Editable archives provide
+  their current graph so sound lookup sees live changes.
 - The archive reader opens immutable physical streams through the C89 chunk
   index, codec and payload cache. `3mm dump` and Marcus catalogue reads use this
   path. Marcus also uses it to read source names for an object being copied.

@@ -204,10 +204,6 @@ struct Preview::Impl::SessionHost
                 return i->cache != nullptr;
             });
         };
-        s.source_cache = [](void *, void *p) -> void * { return static_cast<Source *>(p)->cache; };
-        s.contains = [](void *, void *p, MMU32 type, MMU32 number) -> int {
-            return static_cast<PChunkyResourceFile>(p)->Pcfl()->FFind(type, number);
-        };
         s.source_release = [](void *, void *p) { delete static_cast<Source *>(p); };
         s.clear_asset = [](void *v) { static_cast<SessionHost *>(v)->impl->ClearAsset(); };
         s.dispose_live = [](void *v) {
@@ -231,14 +227,31 @@ struct Preview::Impl::SessionHost
 };
 PChunkyResourceFile Preview::Impl::Resolve(const TAGOnFile &tag)
 {
-    SessionHost host = {nullptr, this};
-    auto services = host.Services();
-    auto found = mm_preview_session_resolve(&session, tag.sid, tag.ctg, tag.cno, &services);
-    if (found)
-        return static_cast<PChunkyResourceFile>(found);
+    const auto contains = [](void *context, void *source, MMU32 type, MMU32 number) -> int {
+        auto file = source ? static_cast<Source *>(source)->cache : static_cast<Impl *>(context)->cache;
+        return file->Pcfl()->FFind(type, number);
+    };
+    void *source;
+    if (mm_preview_session_resolve(&session, tag.sid, tag.ctg, tag.cno, contains, this, &source))
+        return source ? static_cast<Source *>(source)->cache : cache;
+    DescribeMissingResource(tag);
+    return nullptr;
+}
+bool Preview::Impl::ResolveSoundGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph)
+{
+    const auto readGraph = [](void *context, void *source, MMMovieSessionGraph *out) {
+        auto &archive = source ? static_cast<Source *>(source)->archive : static_cast<Impl *>(context)->assets;
+        *out = archive.PlaybackGraph();
+    };
+    if (mm_preview_session_resolve_graph(&session, tag.sid, tag.ctg, tag.cno, readGraph, this, &graph))
+        return true;
+    DescribeMissingResource(tag);
+    return false;
+}
+void Preview::Impl::DescribeMissingResource(const TAGOnFile &tag)
+{
     resolveError = "Missing source " + std::to_string(tag.sid) + ": " + Identity({tag.ctg, tag.cno}) +
                    ". Add the content archive for this source.";
-    return nullptr;
 }
 Preview::Impl::~Impl()
 {

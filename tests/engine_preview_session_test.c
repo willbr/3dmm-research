@@ -1,4 +1,5 @@
 #include "mm/preview_session.h"
+#include "mm/movie_session.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -259,20 +260,41 @@ static int source_cache_new(void *v, void *p)
     }
     return r;
 }
-static void *source_cache(void *v, void *p)
+static Cache *source_cache(void *v, void *source)
 {
-    (void)v;
-    return &((Source *)p)->cache;
+    return source ? &((Source *)source)->cache : &((Owner *)v)->cache;
 }
-static int contains(void *v, void *p, MMU32 type, MMU32 number)
+static int contains(void *v, void *source, MMU32 type, MMU32 number)
 {
     Host *h = host(v);
-    Cache *cache = (Cache *)p;
+    const Cache *cache = source_cache(v, source);
     assert(cache->alive && type == 22);
     ++h->lookups;
-    if (p == &((Owner *)v)->cache)
+    if (!source)
         ++h->root_queries;
     return number == (MMU32)cache->key;
+}
+static int graph_entry(void *v, MMU32 position, MMChunkEntry *entry)
+{
+    const Cache *cache = (const Cache *)v;
+    assert(cache->alive && position == 0);
+    memset(entry, 0, sizeof(*entry));
+    entry->type = 22;
+    entry->number = (MMU32)cache->key;
+    return 1;
+}
+static void graph_access(void *v, MMChunkAccess *out)
+{
+    out->context = v;
+    out->count = 1;
+    out->entry = graph_entry;
+    out->child = NULL;
+}
+static void source_graph(void *v, void *source, MMMovieSessionGraph *out)
+{
+    memset(out, 0, sizeof(*out));
+    out->context = source_cache(v, source);
+    out->access = graph_access;
 }
 static void source_release(void *v, void *p)
 {
@@ -348,8 +370,6 @@ static MMPreviewSessionServices services(Owner *o)
     s.source_open = source_open;
     s.source_budget = source_budget;
     s.source_cache_new = source_cache_new;
-    s.source_cache = source_cache;
-    s.contains = contains;
     s.source_release = source_release;
     s.clear_asset = clear;
     s.dispose_live = dispose_live;
@@ -500,6 +520,8 @@ static void source_tests(void)
     Host h;
     MMPreviewSessionServices s;
     MMStorageAllocator a;
+    MMMovieSessionGraph graph;
+    void *source;
     int path = 101, other = 102, n, i, f, r;
     setup(&h);
     s = services(h.current);
@@ -515,13 +537,26 @@ static void source_tests(void)
     assert(mm_preview_session_add(&h.current->state, 5, &path, &s) == MM_PREVIEW_SESSION_OK && h.calls == n &&
            h.source_count == 1);
     assert(mm_preview_session_add(&h.current->state, 5, &other, &s) == MM_PREVIEW_SESSION_OK);
-    assert(mm_preview_session_resolve(&h.current->state, 0, 22, 11, &s) == &h.current->cache && h.root_queries == 1);
-    assert(mm_preview_session_resolve(&h.current->state, 5, 22, 102, &s) == &h.sources[1].cache);
-    assert(!mm_preview_session_resolve(&h.current->state, 6, 22, 101, &s));
+    assert(mm_preview_session_resolve(&h.current->state, 0, 22, 11, contains, h.current, &source) &&
+           !source && h.root_queries == 1);
+    assert(mm_preview_session_resolve(&h.current->state, 5, 22, 102, contains, h.current, &source) &&
+           source == &h.sources[1]);
+    assert(!mm_preview_session_resolve(&h.current->state, 6, 22, 101, contains, h.current, &source) &&
+           source == &h.sources[1]);
+    assert(mm_preview_session_resolve_graph(&h.current->state, 0, 22, 11, source_graph, h.current, &graph) &&
+           graph.context == &h.current->cache);
+    assert(mm_preview_session_resolve_graph(&h.current->state, 5, 22, 102, source_graph, h.current, &graph) &&
+           graph.context == &h.sources[1].cache);
+    assert(!mm_preview_session_resolve_graph(&h.current->state, 5, 23, 102, source_graph, h.current, &graph) &&
+           graph.context == &h.sources[1].cache);
     h.sources[1].cache.key = 101;
     h.lookups = 0;
-    assert(mm_preview_session_resolve(&h.current->state, 5, 22, 101, &s) == &h.sources[0].cache && h.lookups == 1);
-    assert(!mm_preview_session_resolve(&h.current->state, 0, 22, 101, &s) && h.lookups == 2 && h.root_queries == 2);
+    assert(mm_preview_session_resolve(&h.current->state, 5, 22, 101, contains, h.current, &source) &&
+           source == &h.sources[0] && h.lookups == 1);
+    assert(!mm_preview_session_resolve(&h.current->state, 0, 22, 101, contains, h.current, &source) &&
+           h.lookups == 2 && h.root_queries == 2);
+    assert(mm_preview_session_resolve_graph(&h.current->state, 5, 22, 101, source_graph, h.current, &graph) &&
+           graph.context == &h.sources[0].cache);
     h.logged = 0;
     dispose(&h);
     assert(!memcmp(h.log, "AL12CMHDB", 9));
@@ -557,7 +592,8 @@ static void source_tests(void)
     h.failure = -1;
     assert(mm_preview_session_add(&h.current->state, 5, &other, &s) == MM_PREVIEW_SESSION_MEMORY &&
            h.current->state.source_count == 1);
-    assert(mm_preview_session_resolve(&h.current->state, 5, 22, 101, &s) == &h.sources[0].cache);
+    assert(mm_preview_session_resolve(&h.current->state, 5, 22, 101, contains, h.current, &source) &&
+           source == &h.sources[0]);
     dispose(&h);
 }
 int main(void)
