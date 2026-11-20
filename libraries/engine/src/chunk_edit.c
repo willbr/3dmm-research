@@ -80,7 +80,7 @@ MMChunkGraph mm_chunk_edit_graph(const MMChunkEdit *edit)
 static void output(const MMChunkEdit *edit, const MMChunkLocation *location, int added)
 {
     if (edit->output)
-        edit->output(edit->context, location, added);
+        edit->output(edit->payload_context, location, added);
 }
 int mm_chunk_set_flag(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 flag,
                             int enabled)
@@ -189,7 +189,7 @@ int mm_chunk_put(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 bytes)
         result = mm_chunk_add(edit, type, number, position, bytes, &location);
         if (result != OK)
             return result;
-        if (edit->write && !edit->write(edit->context, &location, 1))
+        if (edit->write && !edit->write(edit->payload_context, &location, 1))
         {
             edit->entry(edit->context, position, &entry);
             entry.flags &= ~LONER;
@@ -204,7 +204,7 @@ int mm_chunk_put(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 bytes)
     if (!edit->allocate(edit->context, bytes, &location))
         return MM_CHUNK_IO;
     output(edit, &location, 0);
-    if (edit->write && !edit->write(edit->context, &location, 0))
+    if (edit->write && !edit->write(edit->payload_context, &location, 0))
     {
         edit->free_space(edit->context, (location.flags & EXTRA) != 0, location.offset, location.bytes);
         output(edit, NULL, 0);
@@ -327,14 +327,13 @@ static int find_child(const MMChunkEdit *edit, MMU32 parent, const MMChunkChild 
     *position = low;
     return 0;
 }
-int mm_chunk_adopt_at(const MMChunkEdit *edit, MMU32 parent, MMU32 position,
-                            const MMChunkChild *child, int clear_loner, MMU32 maximum)
+static int adopt_at(const MMChunkEdit *edit, MMU32 parent, MMU32 position,
+                    const MMChunkChild *child, int clear_loner)
 {
     const MMChunkGraph graph = mm_chunk_edit_graph(edit);
     MMChunkEntry entry, target;
-    MMU32 child_index;
-    if (!readable(edit) || !edit->child || !edit->store || !edit->insert_child || !edit->erase_child || !child ||
-        !maximum || maximum > 0x7fffffffUL || parent >= edit->count(edit->context))
+    MMU32 child_index, maximum = edit->max_references;
+    if (!edit->store || !edit->insert_child || !edit->erase_child || !maximum || maximum > 0x7fffffffUL)
         return BAD;
     if (!find(edit, child->type, child->number, &child_index))
         return MM_CHUNK_NOT_FOUND;
@@ -372,7 +371,7 @@ overflow:
     return BAD;
 }
 int mm_chunk_adopt(const MMChunkEdit *edit, MMU32 parent_type, MMU32 parent_number,
-                         const MMChunkChild *child, int clear_loner, MMU32 maximum)
+                         const MMChunkChild *child, int clear_loner)
 {
     MMU32 parent, position;
     if (!readable(edit) || !edit->child || !child)
@@ -381,7 +380,7 @@ int mm_chunk_adopt(const MMChunkEdit *edit, MMU32 parent_type, MMU32 parent_numb
         return MM_CHUNK_NOT_FOUND;
     if (find_child(edit, parent, child, &position))
         return OK;
-    return mm_chunk_adopt_at(edit, parent, position, child, clear_loner, maximum);
+    return adopt_at(edit, parent, position, child, clear_loner);
 }
 int mm_chunk_unlink(const MMChunkEdit *edit, MMU32 parent_type, MMU32 parent_number,
                           const MMChunkChild *child)

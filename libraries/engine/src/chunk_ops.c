@@ -437,8 +437,7 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
         link.type = node.type;
         link.number = item.destination;
         link.slot = node.slot;
-        if (mm_chunk_adopt(&dst->edit, parent.type, parent_item.destination, &link, !skip, dst->max_references) !=
-            OK)
+        if (mm_chunk_adopt(&dst->edit, parent.type, parent_item.destination, &link, !skip) != OK)
         {
             if (!skip)
                 mm_chunk_delete(&dst->edit, node.type, item.destination);

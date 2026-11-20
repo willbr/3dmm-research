@@ -192,6 +192,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
     };
     s.chunks = [](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
+    s.edit = [](void *p) { return static_cast<PChunkyFile>(p)->EditIndex(); };
     s.create_root = [](void *, void *p, MMU32 *number) -> int { return MovieData::FCreateRoot(static_cast<PChunkyFile>(p), number); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
     s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
@@ -216,14 +217,15 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.write_scene = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<SaveHost *>(p)->movie->_data.Resources(), number);
     };
-    s.adopt = [](void *p, MMU32 root, MMU32 type, MMU32 number, MMU32 slot) -> int {
-        return static_cast<PChunkyFile>(p)->FAdoptChild(kctgMvie, root, type, number, slot);
-    };
     s.preserve_scene_assets = PreserveSceneAssets;
-    s.delete_child = [](void *p, MMU32 root, MMU32 type, MMU32 number, MMU32 slot) {
-        static_cast<PChunkyFile>(p)->DeleteChild(kctgMvie, root, type, number, slot);
+    s.archive_issue = [](void *, int issue) {
+        switch (issue)
+        {
+        case MM_SAVE_EDIT_MISSING_CHILD: Bug("parent or child not there"); break;
+        case MM_SAVE_EDIT_UNLINK: Bug("chunk or child link missing"); break;
+        case MM_SAVE_EDIT_DELETE: Bug("chunk not deletable or missing"); break;
+        }
     };
-    s.delete_chunk = [](void *p, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(p)->Delete(type, number); };
     s.close_tag = [](void *, MMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->_pmcc->UpdateRollCall(); };
     s.write_rollcall = [](void *, void *p, MMU32 root, MMRollCallTable *table, MMU32 *number) -> int {

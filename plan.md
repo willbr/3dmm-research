@@ -289,8 +289,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   output no longer require GeneralGroup or native record methods.
 - Deletion, adoption cycle checks, live copy, and graph matching now walk the
   same C89 view of the writable chunk index. C89 owns the walker and resolves
-  chunk identities again as row positions change. The native chunk editor
-  supplies record and allocation primitives.
+  chunk identities again as row positions change. The native archive exposes
+  a borrowed editor for record and allocation primitives. Adding and replacing
+  payloads attaches transfer buffers for the duration of each operation.
 - Tag open/save/duplicate/close, child construction, fetch dispatch and cache
   clearing now use C89. The C tag list owns group storage and preserves legacy
   sort, duplicate and borrowed-reference behavior.
@@ -1178,7 +1179,9 @@ close/new/insert/remove transactions, undoable removal and scene undo/redo dispa
 now also use C89, including current-scene reference/index control and failure
 retry/rollback order. Movie autosave/save transactions, temporary-resource setup,
 saved-file ownership/flags, VMM save-format/publication policy, scene-tag collection
-and asset/sound garbage-collection control now also use C89. Studio and Marcus
+and asset/sound garbage-collection control now also use C89. Autosave publishes
+and rolls back links through the C89 editor on the live index. Garbage collection
+uses the same editor to remove obsolete assets and sound trees. Studio and Marcus
 share the C89 VMM v1 reader and writer for dependency names, embedded archive
 ranges and the inner movie. The same C89 package reader validates VXP directory
 rows, extraction budgets, PhysicsFS duplicate selection and Portable CFG data.

@@ -6,6 +6,7 @@
 #include "movie_scene.h"
 #include "collections.h"
 #include "chunky_file.h"
+#include "chunk_edit.h"
 #include "movie_session.h"
 #ifdef __cplusplus
 extern "C"
@@ -17,6 +18,12 @@ extern "C"
         MM_SAVE_TABLE = 0x47535420,
         MM_SAVE_MATERIAL = 0x4d54524c,
         MM_SAVE_TEMPLATE = 0x544d504c
+    };
+    enum
+    {
+        MM_SAVE_EDIT_MISSING_CHILD,
+        MM_SAVE_EDIT_UNLINK,
+        MM_SAVE_EDIT_DELETE
     };
     typedef struct MMMovieSaveState
     {
@@ -38,6 +45,7 @@ extern "C"
         int (*is_temp)(void *file), (*save)(void *file, void *path);
         void (*set_temp)(void *file, int), (*mark_temporary)(void *file), (*persistent)(void *file);
         MMChunkAccess (*chunks)(void *file);
+        MMChunkEdit (*edit)(void *file);
         int (*create_root)(void *, void *file, MMU32 *);
         void *(*find_file)(void *, void *path);
         void (*retain_saved)(void *file), (*release_saved)(void *file), (*flush_saved)(void *file);
@@ -47,10 +55,8 @@ extern "C"
         void (*set_container_name)(void *, void *path);
         void (*long_op)(void *, int begin), (*document_dirty)(void *, int);
         int (*write_scene)(void *, void *scene, MMU32 *);
-        int (*adopt)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
         int (*preserve_scene_assets)(void *file, MMU32 scene);
-        void (*delete_child)(void *file, MMU32 root, MMU32 type, MMU32 number, MMU32 slot);
-        void (*delete_chunk)(void *file, MMU32 type, MMU32 number);
+        void (*archive_issue)(void *, int issue);
         void (*close_tag)(void *, MMTag *);
         void (*rollcall_changed)(void *);
         int (*write_rollcall)(void *, void *file, MMU32 root, MMRollCallTable *, MMU32 *);

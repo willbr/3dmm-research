@@ -71,6 +71,8 @@ struct Test
     Path named, temporary, unique, publicName;
     Saved saved[2];
     MMChunkChild children[64];
+    MMChunkEntry extraChunks[64];
+    MMU32 extraCount, indexChildCount;
     int childCount, fail, left, skip, markError, error, resets, errors, clears, missing;
     int temp, marks, tempSets, persistent, missingRoot, archiveRefs, cacheBytes, savedCalls, tempCalls;
     MMU32 rootNumber, savedRootNumber;
@@ -82,7 +84,7 @@ struct Test
     MMU32 closedTags[8], remainingActors[8];
     int tagsClosed, rollcalls;
     int purgeAnswer, queries, badChildren, badSoundIndex, badIndex;
-    int refs[8], soundExists[8];
+    int refs[8], soundExists[8], soundPresent[8];
     MMU32 soundSlots[8];
     MMU32 materials[16], templates[16], materialChild;
     int materialCount, templateCount, tossed, deletedChunks, allocations, failAlloc, liveAlloc;
@@ -110,6 +112,30 @@ static int succeeds(Test *t, int kind)
         t->error = 1;
     return 0;
 }
+static MMChunkEntry *extra_chunk(Test *t, MMU32 type, MMU32 number, int create)
+{
+    MMU32 i;
+    MMChunkEntry *entry;
+    for (i = 0; i < t->extraCount; ++i)
+    {
+        entry = &t->extraChunks[i];
+        if (entry->type > type || (entry->type == type && entry->number > number))
+            break;
+        if (entry->type == type && entry->number == number)
+            return entry;
+    }
+    if (!create)
+        return NULL;
+    if (t->extraCount == sizeof(t->extraChunks) / sizeof(t->extraChunks[0]))
+        abort();
+    entry = &t->extraChunks[i];
+    memmove(entry + 1, entry, (t->extraCount++ - i) * sizeof(*entry));
+    memset(entry, 0, sizeof(*entry));
+    entry->type = type;
+    entry->number = number;
+    entry->flags = MM_CHUNK_LONER;
+    return entry;
+}
 static void append(Test *t, MMU32 type, MMU32 number, MMU32 slot)
 {
     int i = t->childCount++;
@@ -126,6 +152,13 @@ static void append(Test *t, MMU32 type, MMU32 number, MMU32 slot)
     c->type = type;
     c->number = number;
     c->slot = slot;
+    t->indexChildCount = (MMU32)t->childCount;
+    if (type == MM_SAVE_TABLE || type == MM_SAVE_SCENE)
+    {
+        MMChunkEntry *entry = extra_chunk(t, type, number, 1);
+        entry->flags &= ~MM_CHUNK_LONER;
+        ++entry->parent_count;
+    }
 }
 static int has(Test *t, MMU32 type, MMU32 number, MMU32 slot)
 {
@@ -293,35 +326,33 @@ static int scene(void *p, void *open, MMU32 *n)
     if (!succeeds(t, SCENE))
         return 0;
     *n = t->next++;
+    extra_chunk(t, MM_SAVE_SCENE, *n, 1);
     return 1;
 }
-static int adopt(void *p, MMU32 root_number, MMU32 type, MMU32 n, MMU32 slot)
+static int insert_child(void *p, MMU32 parent, MMU32 position, const MMChunkChild *child)
 {
     Test *t = p;
-    (void)root_number;
-    if (!succeeds(t, type == MM_SAVE_SCENE ? ADOPT_SCENE : ADOPT_SOURCE))
+    (void)parent;
+    if (!succeeds(t, child->type == MM_SAVE_SCENE ? ADOPT_SCENE : ADOPT_SOURCE))
         return 0;
-    append(t, type, n, slot);
+    if (position > (MMU32)t->childCount)
+        abort();
+    memmove(t->children + position + 1, t->children + position,
+            (t->childCount - position) * sizeof(*child));
+    t->children[position] = *child;
+    ++t->childCount;
     return 1;
 }
-static void delete_child(void *p, MMU32 root_number, MMU32 type, MMU32 n, MMU32 slot)
+static void erase_child(void *p, MMU32 parent, MMU32 position)
 {
     Test *t = p;
-    int i;
-    MMChunkChild *c = &t->deleted[t->deletedCount++];
-    (void)root_number;
-    c->type = type;
-    c->number = n;
-    c->slot = slot;
-    for (i = 0; i < t->childCount; ++i)
-        if (t->children[i].type == type && t->children[i].number == n && t->children[i].slot == slot)
-        {
-            memmove(t->children + i, t->children + i + 1, (t->childCount - i - 1) * sizeof(*c));
-            --t->childCount;
-            if (type == MM_SOUND_CHUNK)
-                --t->refs[n];
-            break;
-        }
+    (void)parent;
+    if (position >= (MMU32)t->childCount)
+        abort();
+    t->deleted[t->deletedCount++] = t->children[position];
+    --t->childCount;
+    memmove(t->children + position, t->children + position + 1,
+            (t->childCount - position) * sizeof(t->children[0]));
 }
 static void delete_chunk(void *p, MMU32 type, MMU32 n)
 {
@@ -390,6 +421,7 @@ static int add_sources(void *p, void *f, MMU32 bytes, MMU32 *n)
         return 0;
     t->sourceActive = 1;
     *n = t->next++;
+    extra_chunk(t, MM_SAVE_TABLE, *n, 1);
     return 1;
 }
 static int write_sources(void *p)
@@ -595,10 +627,19 @@ static void toss(void *p, MMU32 type, MMU32 n)
 static int graph_entry(void *p, MMU32 row, MMChunkEntry *entry)
 {
     Test *t = p;
-    MMU32 n;
+    MMU32 n, extra = 0;
     memset(entry, 0, sizeof(*entry));
+    while (extra < t->extraCount && t->extraChunks[extra].type == MM_SAVE_TABLE)
+    {
+        if (row-- == 0)
+        {
+            *entry = t->extraChunks[extra];
+            return 1;
+        }
+        ++extra;
+    }
     for (n = 0; n < sizeof(t->refs) / sizeof(t->refs[0]); ++n)
-        if (t->refs[n] && row-- == 0)
+        if (t->soundPresent[n] && row-- == 0)
         {
             entry->type = MM_SOUND_CHUNK;
             entry->number = n;
@@ -618,9 +659,15 @@ static int graph_entry(void *p, MMU32 row, MMChunkEntry *entry)
     {
         entry->type = MM_SOUND_MOVIE;
         entry->number = t->rootNumber;
-        entry->child_count = t->childCount;
+        entry->child_count = t->indexChildCount;
         return 1;
     }
+    if (row < t->extraCount - extra)
+    {
+        *entry = t->extraChunks[extra + row];
+        return 1;
+    }
+    row -= t->extraCount - extra;
     if (row >= (MMU32)t->templateCount)
         return 0;
     entry->type = MM_SAVE_TEMPLATE;
@@ -636,11 +683,11 @@ static int graph_child(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
     if (entry.type == MM_SOUND_CHUNK)
     {
         out->type = MM_SAVE_TABLE;
-        out->number = 20;
+        out->number = 256 + entry.number;
         out->slot = t->soundSlots[entry.number];
         return 1;
     }
-    if ((MMI32)i == t->badIndex)
+    if (entry.type != MM_MOVIE_CHUNK || (MMI32)i == t->badIndex)
         return 0;
     *out = t->children[i];
     return 1;
@@ -651,13 +698,84 @@ static MMChunkAccess chunks(void *p)
     MMChunkAccess access;
     MMU32 n;
     access.context = p;
-    access.count = t->materialCount + t->templateCount + (t->rootNumber != NIL);
+    access.count = t->extraCount + t->materialCount + t->templateCount + (t->rootNumber != NIL);
     for (n = 0; n < sizeof(t->refs) / sizeof(t->refs[0]); ++n)
-        if (t->refs[n])
+        if (t->soundPresent[n])
             ++access.count;
     access.entry = graph_entry;
     access.child = graph_child;
     return access;
+}
+static MMU32 edit_count(void *p) { return chunks(p).count; }
+static void edit_entry(void *p, MMU32 row, MMChunkEntry *entry)
+{
+    if (!graph_entry(p, row, entry))
+        abort();
+}
+static void edit_child(void *p, MMU32 parent, MMU32 position, MMChunkChild *child)
+{
+    if (!graph_child(p, parent, position, child))
+        abort();
+}
+static void edit_store(void *p, MMU32 row, const MMChunkEntry *entry, int initialize)
+{
+    Test *t = p;
+    (void)row;
+    if (initialize)
+        abort();
+    if (entry->type == MM_MOVIE_CHUNK)
+        t->indexChildCount = entry->child_count;
+    else if (entry->type == MM_SOUND_CHUNK)
+        t->refs[entry->number] = entry->parent_count;
+    else if (entry->type == MM_SAVE_TABLE || entry->type == MM_SAVE_SCENE)
+        *extra_chunk(t, entry->type, entry->number, 0) = *entry;
+}
+static void edit_erase(void *p, MMU32 row)
+{
+    Test *t = p;
+    MMChunkEntry entry, *extra;
+    edit_entry(p, row, &entry);
+    if (entry.type == MM_SOUND_CHUNK)
+    {
+        t->soundPresent[entry.number] = t->soundExists[entry.number] = 0;
+        t->refs[entry.number] = 0;
+    }
+    else if ((extra = extra_chunk(t, entry.type, entry.number, 0)) != NULL)
+    {
+        --t->extraCount;
+        memmove(extra, extra + 1, (t->extraChunks + t->extraCount - extra) * sizeof(*extra));
+    }
+    else
+        delete_chunk(p, entry.type, entry.number);
+}
+static void edit_free(void *p, int extra, MMU32 offset, MMU32 bytes)
+{
+    (void)p;
+    (void)extra;
+    (void)offset;
+    (void)bytes;
+}
+static void edit_reset(void *p, MMU32 type, MMU32 number)
+{
+    (void)p;
+    (void)type;
+    (void)number;
+}
+static MMChunkEdit edit_index(void *p)
+{
+    MMChunkEdit edit = {0};
+    edit.context = p;
+    edit.max_references = 65535;
+    edit.count = edit_count;
+    edit.entry = edit_entry;
+    edit.child = edit_child;
+    edit.store = edit_store;
+    edit.erase = edit_erase;
+    edit.free_space = edit_free;
+    edit.reset_runtime = edit_reset;
+    edit.insert_child = insert_child;
+    edit.erase_child = erase_child;
+    return edit;
 }
 static int purge(void *p)
 {
@@ -747,9 +865,7 @@ static void init(Test *t)
     s->long_op = long_op;
     s->document_dirty = dirty;
     s->write_scene = scene;
-    s->adopt = adopt;
-    s->delete_child = delete_child;
-    s->delete_chunk = delete_chunk;
+    s->edit = edit_index;
     s->close_tag = close_tag;
     s->rollcall_changed = rollcall;
     s->write_rollcall = write_actors;
@@ -816,7 +932,7 @@ static int autosaving(void)
                 {
                     CHECK(has(&t, MM_SAVE_SCENE, 10, 0) && has(&t, MM_SAVE_TABLE, 20, 0) &&
                           has(&t, MM_SAVE_TABLE, 30, 1));
-                    CHECK(t.childCount == 3);
+                    CHECK(t.childCount == 3 && t.indexChildCount == 3 && t.extraCount == 3);
                 }
                 else
                     CHECK(!has(&t, MM_SAVE_TABLE, 20, 0) && !has(&t, MM_SAVE_TABLE, 30, 1));
@@ -839,6 +955,8 @@ static int autosaving(void)
     CHECK(mm_rollcall_table_extra(&t.data.actors, 0, &actor) && actor.data.actor_id == 2);
     CHECK(!t.state.autosaveDirty && t.dirty == 1 && t.data.actors.count == 1);
     CHECK(t.tagsClosed == 2 && t.rollcalls == 1 && t.childCount == 3 && t.savedCalls == 1);
+    CHECK(t.extraCount == 3 && !extra_chunk(&t, MM_SAVE_SCENE, 10, 0) &&
+          !extra_chunk(&t, MM_SAVE_TABLE, 20, 0) && !extra_chunk(&t, MM_SAVE_TABLE, 30, 0));
     CHECK(t.events[1] == CLOSE_TAG && t.events[2] == CLOSE_TAG && t.closedTags[0] == 1 &&
           t.closedTags[1] == 3 && t.remainingActors[0] == 2 && t.remainingActors[1] == 1);
     CHECK(t.updates == 1 && t.lastTitle == 0 && t.begins == t.ends && t.errors == 0);
@@ -893,7 +1011,7 @@ static int ownership(void)
     init(&t);
     t.data.resources = 0;
     t.scenes.open = 0;
-    t.childCount = 0;
+    t.childCount = t.indexChildCount = 0;
     t.data.movieNumber = NIL;
     CHECK(mm_movie_save_resources(&t.s) && t.data.resources == &t && t.archiveRefs == 1 && t.cacheBytes == 0);
     init(&t);
@@ -1065,6 +1183,20 @@ static int packaging(void)
     CHECK(mm_movie_needs_container(&t.s) && t.begins == 1 && t.ends == 1 && !t.sceneTagCalls);
     return 0;
 }
+static void add_sound(Test *t, MMU32 number, MMU32 slot, int references, int has_payload, MMU32 payload_slot)
+{
+    append(t, MM_SOUND_CHUNK, number, slot);
+    t->soundPresent[number] = 1;
+    t->refs[number] = references;
+    t->soundExists[number] = has_payload;
+    t->soundSlots[number] = payload_slot;
+    if (has_payload)
+    {
+        MMChunkEntry *payload = extra_chunk(t, MM_SAVE_TABLE, 256 + number, 1);
+        payload->flags = 0;
+        payload->parent_count = 1;
+    }
+}
 static int collecting(void)
 {
     Test t, foreign;
@@ -1116,17 +1248,15 @@ static int collecting(void)
     for (purge_all = 0; purge_all <= 1; ++purge_all)
     {
         init(&t);
-        append(&t, MM_SOUND_CHUNK, 0, 20);
-        append(&t, MM_SOUND_CHUNK, 1, 21);
-        append(&t, MM_SOUND_CHUNK, 2, 22);
-        t.refs[0] = t.refs[1] = 1;
-        t.refs[2] = 2;
-        t.soundExists[0] = t.soundExists[1] = 1;
-        t.soundSlots[0] = 1;
+        add_sound(&t, 0, 20, 1, 1, 1);
+        add_sound(&t, 1, 21, 1, 1, 0);
+        add_sound(&t, 2, 22, 2, 0, 0);
         mm_movie_save_sounds(purge_all, &t.s);
         CHECK(!has(&t, MM_SOUND_CHUNK, 0, 20) && has(&t, MM_SOUND_CHUNK, 1, 21) == !purge_all &&
               has(&t, MM_SOUND_CHUNK, 2, 22) && !t.badChildren);
         CHECK(t.deletedCount == 1 + purge_all);
+        CHECK(!t.soundPresent[0] && !extra_chunk(&t, MM_SAVE_TABLE, 256, 0));
+        CHECK(t.soundPresent[1] == !purge_all && (extra_chunk(&t, MM_SAVE_TABLE, 257, 0) != NULL) == !purge_all);
         if (purge_all)
             CHECK(t.deleted[0].number == 1 && t.deleted[1].number == 0);
     }
@@ -1136,13 +1266,11 @@ static int collecting(void)
     CHECK(t.badChildren == 1 && !t.deletedCount);
     init(&t);
     t.state.closing = 1;
-    append(&t, MM_SOUND_CHUNK, 0, 20);
-    t.refs[0] = 1;
+    add_sound(&t, 0, 20, 1, 0, 0);
     CHECK(mm_movie_save_gc(&foreign, &t.s) && !has(&t, MM_SOUND_CHUNK, 0, 20) && !t.queries);
     init(&t);
     t.state.closing = 1;
-    append(&t, MM_SOUND_CHUNK, 1, 20);
-    t.refs[1] = t.soundExists[1] = 1;
+    add_sound(&t, 1, 20, 1, 1, 0);
     CHECK(mm_movie_save_gc(&t, &t.s) && t.queries == 1 && has(&t, MM_SOUND_CHUNK, 1, 20));
     t.purgeAnswer = 1;
     t.materials[0] = 1;

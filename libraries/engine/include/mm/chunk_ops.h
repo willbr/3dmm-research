@@ -16,7 +16,6 @@ extern "C"
         const MMChunkAccess *stored;
         const MMStorageAllocator *allocator;
         void *identity, *context;
-        MMU32 max_references;
         int scan_all_references;
         MMI32 (*runtime)(void *, MMU32 type, MMU32 number);
         int (*set_runtime)(void *, MMU32 type, MMU32 number, MMI32 runtime);

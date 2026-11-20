@@ -284,9 +284,10 @@ static void init(Host *h)
     h->ops.context = h;
     h->ops.identity = h;
     h->ops.allocator = &h->memory;
-    h->ops.max_references = 65535;
     e = &h->ops.edit;
     e->context = h;
+    e->payload_context = h;
+    e->max_references = 65535;
     e->count = count;
     e->entry = entry;
     e->child = child;
@@ -331,7 +332,7 @@ static void link(Host *h, MMU32 parent, MMU32 target, MMU32 slot)
     kid.type = 10;
     kid.number = target;
     kid.slot = slot;
-    CHECK(mm_chunk_adopt(&h->ops.edit, 10, parent, &kid, 1, 65535) == MM_CHUNK_OK);
+    CHECK(mm_chunk_adopt(&h->ops.edit, 10, parent, &kid, 1) == MM_CHUNK_OK);
 }
 static void graph(Host *h)
 {

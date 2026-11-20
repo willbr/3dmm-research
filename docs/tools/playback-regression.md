@@ -16437,3 +16437,39 @@ In `actor-event-edit` suite `20261120T175421Z-bc906f31`, SDL and Marcus
 matched retail's 60 frame identities in seek and playback and its seek
 camera indices. Both matched their previous seek image hashes, and SDL
 matched all 12 retail sound requests. Evidence is in `tmp/c89-live-chunk-graph`.
+
+## C89 movie saves on the live chunk index (20 November 2026)
+
+The movie save transaction adopts, unlinks, and discards chunks through the
+C89 editor on the live archive. The save fixture checks that failed staging
+removes new chunks and keeps the previously published scene, actor roll call,
+and source table. It also checks that sound collection drops unshared payloads.
+
+All 192 standalone checks and seven AddressSanitizer checks passed. Eight
+focused engine checks and the Archive API passed on SDL and native x64 and
+x86. The 14 Marcus syntax, player, and playback checks passed.
+
+The three builds produced identical movie save traces and matched the prior
+actor, scene, composition, and saved movie fixtures. The Kauai forest traces
+and native persistence traces matched. Across 42 SDL archives, the only 13
+changed bytes were chunk-index alignment padding. Ten Preview fingerprints and
+six Preview movies matched the prior build.
+
+Studio saved and reopened a movie with actor keyframes, captions, and click,
+timed, and sound pauses. The Scene Sorter imported and reordered scenes with
+actors. Both saved movies were byte-identical to the prior build's output.
+In `20261120T181109Z-34684f57`, retail, SDL, and Marcus agreed on all nine
+scene, frame, and camera records for the combined movie. SDL and Marcus
+matched every canvas. Two immediate retail screenshots matched after allowing
+the retail canvas to settle.
+
+Studio also extended a portable storyboard to three frames, saved it as VMM,
+and reopened it. One chunk-index padding byte differed from the prior build's
+save. Both VMM seek images in `20261120T180952Z-b7a1643a` matched the archived
+SDL and Marcus captures.
+
+In `actor-event-edit` suite `20261120T180952Z-8f43c976`, SDL and Marcus
+matched all 60 retail frame identities in seek and continuous playback and all
+retail seek camera indices. Both matched their prior seek image hashes, and
+SDL matched all 12 retail sound requests. Evidence is in
+`tmp/c89-movie-save-index`.

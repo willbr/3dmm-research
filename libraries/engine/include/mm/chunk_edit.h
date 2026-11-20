@@ -29,6 +29,7 @@ extern "C"
     {
         void *context;
         const MMStorageAllocator *walk_allocator; /* NULL selects the C heap. */
+        MMU32 max_references; /* Limit imposed by the live index record format. */
         MMU32 (*count)(void *);
         void (*entry)(void *, MMU32 position, MMChunkEntry *);
         void (*child)(void *, MMU32 parent, MMU32 position, MMChunkChild *);
@@ -37,10 +38,11 @@ extern "C"
         void (*erase)(void *, MMU32 position);
         int (*allocate)(void *, MMU32 bytes, MMChunkLocation *);
         void (*free_space)(void *, int on_extra, MMU32 offset, MMU32 bytes);
-        int (*write)(void *, const MMChunkLocation *, int added);
+        void *payload_context;
+        int (*write)(void *payload_context, const MMChunkLocation *, int added);
         /* NULL location clears an output block. added distinguishes new versus
          * existing writes, including a host's temporary new-chunk output block. */
-        void (*output)(void *, const MMChunkLocation *, int added);
+        void (*output)(void *payload_context, const MMChunkLocation *, int added);
         void (*reset_runtime)(void *, MMU32 type, MMU32 number);
         void (*issue)(void *, int kind);
         int (*insert_child)(void *, MMU32 parent, MMU32 position, const MMChunkChild *);
@@ -68,10 +70,8 @@ extern "C"
      * failure it drops child references in reverse order and leaves those child
      * chunks in the index, preserving the legacy fallback. */
     int mm_chunk_delete(const MMChunkEdit *, MMU32 type, MMU32 number);
-    int mm_chunk_adopt_at(const MMChunkEdit *, MMU32 parent, MMU32 position,
-                                const MMChunkChild *, int clear_loner, MMU32 max_references);
     int mm_chunk_adopt(const MMChunkEdit *, MMU32 parent_type, MMU32 parent_number,
-                             const MMChunkChild *, int clear_loner, MMU32 max_references);
+                             const MMChunkChild *, int clear_loner);
     int mm_chunk_unlink(const MMChunkEdit *, MMU32 parent_type, MMU32 parent_number,
                               const MMChunkChild *);
     int mm_chunk_change_slot(const MMChunkEdit *, MMU32 parent_type, MMU32 parent_number,

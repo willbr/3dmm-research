@@ -1507,43 +1507,43 @@ bool ChunkyFile::_FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *p
     Find an unused cno for the given ctg.  Fill in *picrp and *pcno.
 ***************************************************************************/
 namespace {
-struct ChunkEditHost
+struct ChunkPayloadHost
 {
-    ChunkyFile *owner;
     PDataBlock output, source, temporary;
     void *bytes;
 };
 struct ChunkOpsHost
 {
-    ChunkEditHost edit;
+    ChunkyFile *owner;
     DataBlock payload;
     String name;
-    explicit ChunkOpsHost(ChunkyFile *owner) : edit{owner, nullptr, nullptr, nullptr, nullptr} {}
+    explicit ChunkOpsHost(ChunkyFile *file) : owner(file) {}
 };
 }
-MMChunkEdit ChunkyFile::_EditServices(void *context)
+MMChunkEdit ChunkyFile::EditIndex()
 {
     MMChunkEdit edit = {};
-    edit.context = context;
+    edit.context = this;
+    edit.max_references = kckidMax;
     edit.walk_allocator = KauaiCopyAllocator();
-    edit.count = [](void *c) -> MMU32 { return static_cast<ChunkEditHost *>(c)->owner->_Index()->count; };
+    edit.count = [](void *c) -> MMU32 { return static_cast<PChunkyFile>(c)->_Index()->count; };
     edit.entry = [](void *c, MMU32 i, MMChunkEntry *entry) {
-        SaveEntry(static_cast<ChunkEditHost *>(c)->owner->_Index(), i, entry);
+        SaveEntry(static_cast<PChunkyFile>(c)->_Index(), i, entry);
     };
     edit.child = [](void *c, MMU32 parent, MMU32 i, MMChunkChild *entry) {
         ChildChunkIdentification child;
-        ChunkReadBytes(static_cast<ChunkEditHost *>(c)->owner->_Index(), parent, i * sizeof(child), sizeof(child), &child);
+        ChunkReadBytes(static_cast<PChunkyFile>(c)->_Index(), parent, i * sizeof(child), sizeof(child), &child);
         *entry = {child.cki.ctg, child.cki.cno, child.chid};
     };
-    edit.insert = [](void *c, MMU32 i) -> int { return ChunkInsert(static_cast<ChunkEditHost *>(c)->owner->_Index(), i, 0); };
+    edit.insert = [](void *c, MMU32 i) -> int { return ChunkInsert(static_cast<PChunkyFile>(c)->_Index(), i, 0); };
     edit.store = [](void *c, MMU32 i, const MMChunkEntry *entry, int initialize) {
-        auto row = static_cast<ChunkRepresentation *>(ChunkFixed(static_cast<ChunkEditHost *>(c)->owner->_Index(), i));
+        auto row = static_cast<ChunkRepresentation *>(ChunkFixed(static_cast<PChunkyFile>(c)->_Index(), i));
         if (initialize) ClearPb(row, sizeof(*row));
         mm_chunk_record_set(row, expandedRecords, entry);
     };
-    edit.erase = [](void *c, MMU32 i) { ChunkDelete(static_cast<ChunkEditHost *>(c)->owner->_Index(), i); };
+    edit.erase = [](void *c, MMU32 i) { ChunkDelete(static_cast<PChunkyFile>(c)->_Index(), i); };
     edit.allocate = [](void *c, MMU32 bytes, MMChunkLocation *location) -> int {
-        auto self = static_cast<ChunkEditHost *>(c)->owner;
+        auto self = static_cast<PChunkyFile>(c);
         FileLocation native;
         if (!self->_FAllocFlo(bytes, &native)) return 0;
         *location = {native.pfil, static_cast<MMU32>(native.fp), static_cast<MMU32>(native.cb),
@@ -1551,28 +1551,10 @@ MMChunkEdit ChunkyFile::_EditServices(void *context)
         return 1;
     };
     edit.free_space = [](void *c, int extra, MMU32 offset, MMU32 bytes) {
-        static_cast<ChunkEditHost *>(c)->owner->_FreeFpCb(extra != 0, offset, bytes);
-    };
-    edit.output = [](void *c, const MMChunkLocation *location, int added) {
-        auto host = static_cast<ChunkEditHost *>(c);
-        auto block = host->output ? host->output : added ? host->temporary : nullptr;
-        if (!block) return;
-        if (!location) { block->Free(); return; }
-        FileLocation native = {static_cast<PFileObject>(location->file), static_cast<FilePosition>(location->offset),
-            static_cast<LegacyLong>(location->bytes)};
-        block->Set(&native);
-    };
-    edit.write = [](void *c, const MMChunkLocation *location, int added) -> int {
-        auto host = static_cast<ChunkEditHost *>(c);
-        auto block = host->output ? host->output : host->temporary;
-        FileLocation native = {static_cast<PFileObject>(location->file), static_cast<FilePosition>(location->offset),
-            static_cast<LegacyLong>(location->bytes)};
-        if (host->bytes) return added ? block->FWrite(host->bytes) : native.FWrite(host->bytes);
-        if (host->source) return added ? host->source->FWriteToBlck(block, fTrue) : host->source->FWriteToFlo(&native, fTrue);
-        return 1;
+        static_cast<PChunkyFile>(c)->_FreeFpCb(extra != 0, offset, bytes);
     };
     edit.reset_runtime = [](void *c, MMU32 type, MMU32 number) {
-        static_cast<ChunkEditHost *>(c)->owner->_FSetRti(type, number, rtiNil);
+        static_cast<PChunkyFile>(c)->_FSetRti(type, number, rtiNil);
     };
     edit.issue = [](void *, int kind) {
         if (kind == MM_EDIT_LOW_MEMORY) Warn("memory failure in ChunkyFile::Delete - adjusting ref counts");
@@ -1581,35 +1563,58 @@ MMChunkEdit ChunkyFile::_EditServices(void *context)
     };
     edit.insert_child = [](void *c, MMU32 parent, MMU32 position, const MMChunkChild *child) -> int {
         ChildChunkIdentification native = {{child->type, child->number}, child->slot};
-        return ChunkInsertBytes(static_cast<ChunkEditHost *>(c)->owner->_Index(), parent, position * sizeof(native), sizeof(native), &native);
+        return ChunkInsertBytes(static_cast<PChunkyFile>(c)->_Index(), parent, position * sizeof(native), sizeof(native), &native);
     };
     edit.erase_child = [](void *c, MMU32 parent, MMU32 position) {
-        ChunkDeleteBytes(static_cast<ChunkEditHost *>(c)->owner->_Index(), parent, position * sizeof(ChildChunkIdentification), sizeof(ChildChunkIdentification));
+        ChunkDeleteBytes(static_cast<PChunkyFile>(c)->_Index(), parent, position * sizeof(ChildChunkIdentification), sizeof(ChildChunkIdentification));
     };
     edit.put_child = [](void *c, MMU32 parent, MMU32 position, const MMChunkChild *child) {
         ChildChunkIdentification native = {{child->type, child->number}, child->slot};
-        ChunkPutBytes(static_cast<ChunkEditHost *>(c)->owner->_Index(), parent, position * sizeof(native), sizeof(native), &native);
+        ChunkPutBytes(static_cast<PChunkyFile>(c)->_Index(), parent, position * sizeof(native), sizeof(native), &native);
     };
     edit.move_entry = [](void *c, MMU32 source, MMU32 destination) {
-        ChunkMove(static_cast<ChunkEditHost *>(c)->owner->_Index(), source, destination);
+        ChunkMove(static_cast<PChunkyFile>(c)->_Index(), source, destination);
     };
     edit.move_bytes = [](void *c, MMU32 source, MMU32 offset, MMU32 destination,
                          MMU32 destinationOffset, MMU32 bytes) -> int {
-        return ChunkMoveBytes(static_cast<ChunkEditHost *>(c)->owner->_Index(), source, offset, destination, destinationOffset, bytes);
+        return ChunkMoveBytes(static_cast<PChunkyFile>(c)->_Index(), source, offset, destination, destinationOffset, bytes);
+    };
+    return edit;
+}
+MMChunkEdit ChunkyFile::_PayloadEdit(void *context)
+{
+    auto edit = EditIndex();
+    edit.payload_context = context;
+    edit.output = [](void *c, const MMChunkLocation *location, int added) {
+        auto host = static_cast<ChunkPayloadHost *>(c);
+        auto block = host->output ? host->output : added ? host->temporary : nullptr;
+        if (!block) return;
+        if (!location) { block->Free(); return; }
+        FileLocation native = {static_cast<PFileObject>(location->file), static_cast<FilePosition>(location->offset),
+            static_cast<LegacyLong>(location->bytes)};
+        block->Set(&native);
+    };
+    edit.write = [](void *c, const MMChunkLocation *location, int added) -> int {
+        auto host = static_cast<ChunkPayloadHost *>(c);
+        auto block = host->output ? host->output : host->temporary;
+        FileLocation native = {static_cast<PFileObject>(location->file), static_cast<FilePosition>(location->offset),
+            static_cast<LegacyLong>(location->bytes)};
+        if (host->bytes) return added ? block->FWrite(host->bytes) : native.FWrite(host->bytes);
+        if (host->source) return added ? host->source->FWriteToBlck(block, fTrue) : host->source->FWriteToFlo(&native, fTrue);
+        return 1;
     };
     return edit;
 }
 void ChunkyFile::_SetChunkFlag(ChunkTagOrType type, ChunkNumber number, MMU32 flag, bool enabled)
 {
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr}; const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     if (mm_chunk_set_flag(&edit, type, number, flag, enabled) != MM_CHUNK_OK) Bug("chunk not there");
 }
 void ChunkyFile::_GetUniqueCno(ChunkTagOrType ctg, LegacyLong *picrp, ChunkNumber *pcno)
 {
     AssertBaseThis(0);
     AssertVarMem(picrp); AssertVarMem(pcno);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     MMU32 position, number;
     AssertDo(mm_chunk_unique(&edit, ctg, &position, &number) == MM_CHUNK_OK, "invalid chunk index");
     *picrp = position; *pcno = number;
@@ -1771,8 +1776,8 @@ bool ChunkyFile::FAddChildHq(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChu
 bool ChunkyFile::_FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong icrp, PDataBlock pblck)
 {
     AssertBaseThis(0); AssertIn(cb, 0, kcbMax); AssertNilOrPo(pblck, 0);
-    ChunkEditHost host = {this, pblck, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    ChunkPayloadHost host = {pblck, nullptr, nullptr, nullptr};
+    const auto edit = _PayloadEdit(&host);
     const bool ok = mm_chunk_add(&edit, ctg, cno, icrp, cb, nullptr) == MM_CHUNK_OK;
     AssertThis(0);
     return ok;
@@ -1846,8 +1851,8 @@ bool ChunkyFile::_FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PData
     AssertBaseThis(0); AssertIn(cb, 0, kcbMax); AssertNilOrPo(pblck, 0); AssertNilOrPo(pblckSrc, 0);
     Assert(!pv || !pblckSrc, 0);
     DataBlock temporary;
-    ChunkEditHost host = {this, pblck, pblckSrc, &temporary, pv};
-    const auto edit = _EditServices(&host);
+    ChunkPayloadHost host = {pblck, pblckSrc, &temporary, pv};
+    const auto edit = _PayloadEdit(&host);
     const bool ok = mm_chunk_put(&edit, ctg, cno, cb) == MM_CHUNK_OK;
     AssertThis(0);
     return ok;
@@ -1862,8 +1867,7 @@ bool ChunkyFile::_FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PData
 void ChunkyFile::SwapData(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType ctg2, ChunkNumber cno2)
 {
     AssertThis(0);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     if (mm_chunk_swap_data(&edit, ctg1, cno1, ctg2, cno2) != MM_CHUNK_OK) { Bug("can't find the chunks"); return; }
     AssertThis(fcflFull);
 }
@@ -1877,8 +1881,7 @@ void ChunkyFile::SwapData(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType 
 void ChunkyFile::SwapChildren(ChunkTagOrType ctg1, ChunkNumber cno1, ChunkTagOrType ctg2, ChunkNumber cno2)
 {
     AssertThis(0);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     if (mm_chunk_swap_children(&edit, ctg1, cno1, ctg2, cno2) != MM_CHUNK_OK) { Bug("invalid child swap"); return; }
     AssertThis(fcflFull);
 }
@@ -1907,8 +1910,7 @@ void ChunkyFile::Move(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagOrType ctgNew
 void ChunkyFile::Delete(ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     const int result = mm_chunk_delete(&edit, ctg, cno);
     if (result != MM_CHUNK_OK) { Bug("chunk not deletable or missing"); return; }
     AssertThis(fcflFull);
@@ -1922,7 +1924,7 @@ void ChunkyFile::Delete(ChunkTagOrType ctg, ChunkNumber cno)
 void ChunkyFile::SetLoner(ChunkTagOrType ctg, ChunkNumber cno, bool fLoner)
 {
     AssertThis(0);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr}; const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     if (mm_chunk_set_flag(&edit, ctg, cno, MM_CHUNK_LONER, fLoner) != MM_CHUNK_OK) Bug("chunk not there");
 }
 /***************************************************************************
@@ -1994,8 +1996,7 @@ tribool ChunkyFile::TIsDescendent(ChunkTagOrType ctg, ChunkNumber cno, ChunkTagO
 void ChunkyFile::DeleteChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid)
 {
     AssertThis(0);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     const MMChunkChild child = {ctgChild, cnoChild, chid};
     if (mm_chunk_unlink(&edit, ctgPar, cnoPar, &child) != MM_CHUNK_OK) { Bug("chunk or child link missing"); return; }
     AssertThis(fcflFull);
@@ -2008,8 +2009,7 @@ void ChunkyFile::DeleteChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTag
 bool ChunkyFile::_FDecRefCount(LegacyLong icrp)
 {
     AssertBaseThis(0);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     int remove = 0;
     if (mm_chunk_decrement(&edit, icrp, &remove) != MM_CHUNK_OK) Bug("ref count wrong");
     return remove != 0;
@@ -2021,8 +2021,7 @@ bool ChunkyFile::_FDecRefCount(LegacyLong icrp)
 void ChunkyFile::_DeleteCore(LegacyLong icrp)
 {
     AssertBaseThis(0);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     AssertDo(mm_chunk_remove(&edit, icrp) == MM_CHUNK_OK, "invalid chunk removal");
 }
 
@@ -2202,10 +2201,9 @@ MMChunkTitleIO KauaiChunkTitleIO()
 bool ChunkyFile::FAdoptChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, bool fClearLoner)
 {
     AssertThis(0);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     const MMChunkChild child = {ctgChild, cnoChild, chid};
-    const int result = mm_chunk_adopt(&edit, ctgPar, cnoPar, &child, fClearLoner, kckidMax);
+    const int result = mm_chunk_adopt(&edit, ctgPar, cnoPar, &child, fClearLoner);
     if (result == MM_CHUNK_NOT_FOUND) Bug("parent or child not there");
     AssertThis(0);
     return result == MM_CHUNK_OK;
@@ -2219,8 +2217,7 @@ bool ChunkyFile::FAdoptChild(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTag
 void ChunkyFile::ChangeChid(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chidOld, ChildChunkID chidNew)
 {
     AssertThis(0);
-    ChunkEditHost host = {this, nullptr, nullptr, nullptr, nullptr};
-    const auto edit = _EditServices(&host);
+    const auto edit = EditIndex();
     const MMChunkChild child = {ctgChild, cnoChild, chidOld};
     if (mm_chunk_change_slot(&edit, ctgPar, cnoPar, &child, chidNew) != MM_CHUNK_OK)
     { Bug("src not a child or dest already a child"); return; }
@@ -2477,40 +2474,38 @@ bool ChunkyFile::_FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkN
 
 MMChunkEndpoint ChunkyFile::_OpsServices(void *context)
 {
-    auto host = static_cast<ChunkOpsHost *>(context);
     MMChunkEndpoint endpoint = {};
-    endpoint.edit = _EditServices(&host->edit);
+    endpoint.edit = EditIndex();
     endpoint.allocator = KauaiCopyAllocator(); endpoint.identity = this; endpoint.context = context;
-    endpoint.max_references = kckidMax;
 #ifdef DEBUG
     endpoint.scan_all_references = 1;
 #endif
     endpoint.runtime = [](void *c, MMU32 type, MMU32 number) -> MMI32 {
-        return static_cast<ChunkOpsHost *>(c)->edit.owner->_Rti(type, number);
+        return static_cast<ChunkOpsHost *>(c)->owner->_Rti(type, number);
     };
     endpoint.set_runtime = [](void *c, MMU32 type, MMU32 number, MMI32 runtime) -> int {
-        return static_cast<ChunkOpsHost *>(c)->edit.owner->_FSetRti(type, number, runtime);
+        return static_cast<ChunkOpsHost *>(c)->owner->_FSetRti(type, number, runtime);
     };
     endpoint.read_payload = [](void *c, MMU32 position, const MMChunkEntry *) -> void * {
         auto h = static_cast<ChunkOpsHost *>(c);
-        h->edit.owner->_GetBlck(position, &h->payload);
+        h->owner->_GetBlck(position, &h->payload);
         return &h->payload;
     };
     endpoint.put_payload = [](void *c, MMU32 type, MMU32 number, void *payload) -> int {
-        return static_cast<ChunkOpsHost *>(c)->edit.owner->FPutBlck(static_cast<PDataBlock>(payload), type, number);
+        return static_cast<ChunkOpsHost *>(c)->owner->FPutBlck(static_cast<PDataBlock>(payload), type, number);
     };
     endpoint.add_payload = [](void *c, MMU32 type, void *payload, MMU32 *number) -> int {
         ChunkNumber result;
-        const bool ok = static_cast<ChunkOpsHost *>(c)->edit.owner->FAddBlck(static_cast<PDataBlock>(payload), type, &result);
+        const bool ok = static_cast<ChunkOpsHost *>(c)->owner->FAddBlck(static_cast<PDataBlock>(payload), type, &result);
         if (ok) *number = result;
         return ok;
     };
     endpoint.read_name = [](void *c, MMU32 position) -> const void * {
         auto h = static_cast<ChunkOpsHost *>(c);
-        return h->edit.owner->_FGetName(position, &h->name) ? &h->name : nullptr;
+        return h->owner->_FGetName(position, &h->name) ? &h->name : nullptr;
     };
     endpoint.write_name = [](void *c, MMU32 position, const void *name) -> int {
-        return static_cast<ChunkOpsHost *>(c)->edit.owner->_FSetName(position,
+        return static_cast<ChunkOpsHost *>(c)->owner->_FSetName(position,
             const_cast<PString>(static_cast<const String *>(name)));
     };
     return endpoint;

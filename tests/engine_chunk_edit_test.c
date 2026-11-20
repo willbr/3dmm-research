@@ -207,6 +207,8 @@ static void init(Fixture *f)
     memset(f, 0, sizeof(*f));
     f->output.offset = 999;
     f->edit.context = f;
+    f->edit.payload_context = f;
+    f->edit.max_references = 3;
     f->walk_memory.context = f;
     f->walk_memory.resize = walk_resize;
     f->walk_memory.release = walk_release;
@@ -401,20 +403,22 @@ static void links(void)
     key.type = 10;
     key.number = 1;
     key.slot = 9;
-    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 0, 3) == MM_CHUNK_OK);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 0) == MM_CHUNK_OK);
     CHECK(f.nodes[0].entry.child_count == 1 && f.nodes[0].entry.variable_bytes == 28 &&
           f.nodes[1].entry.parent_count == 1 && f.nodes[1].entry.flags == 22);
-    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_OK && f.nodes[1].entry.flags == 22);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_OK && f.nodes[1].entry.flags == 22);
     parent = f.nodes[0];
     target = f.nodes[1];
     key.slot = 1;
-    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 1) == MM_CHUNK_BAD_FILE);
+    f.edit.max_references = 1;
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_BAD_FILE);
     CHECK(!memcmp(&parent, f.nodes, sizeof(parent)) && !memcmp(&target, f.nodes + 1, sizeof(target)));
+    f.edit.max_references = 3;
     f.fail = 4;
-    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_MEMORY &&
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_MEMORY &&
           !memcmp(&parent, f.nodes, sizeof(parent)));
     f.fail = 0;
-    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_OK);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_OK);
     CHECK(f.nodes[0].entry.child_count == 2 && f.nodes[0].entry.variable_bytes == 40 &&
           f.nodes[1].entry.parent_count == 2 && f.nodes[1].entry.flags == 20);
     key.slot = 9;
@@ -441,22 +445,24 @@ static void links(void)
     parent = f.nodes[0];
     target = f.nodes[1];
     key.slot = 5;
-    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 1) == MM_CHUNK_BAD_FILE); /* Child-reference overflow. */
+    f.edit.max_references = 1;
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_BAD_FILE); /* Child-reference overflow. */
     CHECK(!memcmp(&parent, f.nodes, sizeof(parent)) && !memcmp(&target, f.nodes + 1, sizeof(target)));
+    f.edit.max_references = 3;
     node(&f, 2, 2, 0, 1);
     f.nodes[0].entry.parent_count = 1;
     link_fixture_node(&f, 1, 2);
     link_fixture_node(&f, 2, 0);
     parent = f.nodes[0];
-    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_BAD_FILE);
     CHECK(f.issues[MM_EDIT_CYCLE_RISK] == 1 && !memcmp(&parent, f.nodes, sizeof(parent)) &&
           f.walk_allocations == 1 && !f.live_walk_buffers);
     f.fail = 5;
-    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1, 3) == MM_CHUNK_BAD_FILE);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_BAD_FILE);
     CHECK(f.issues[MM_EDIT_CYCLE_RISK] == 2 && !memcmp(&parent, f.nodes, sizeof(parent)) &&
           f.walk_allocations == 2 && !f.live_walk_buffers);
     CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_NOT_FOUND);
-    CHECK(mm_chunk_adopt(&f.edit, 10, 99, &key, 1, 3) == MM_CHUNK_NOT_FOUND);
+    CHECK(mm_chunk_adopt(&f.edit, 10, 99, &key, 1) == MM_CHUNK_NOT_FOUND);
 }
 static void flag_cases(void)
 {

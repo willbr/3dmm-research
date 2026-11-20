@@ -125,7 +125,7 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FReadIndex(void);
     bool _FMaterializeIndex(const MMChunkIndex *);
     MMChunkAccess _ChunkAccess();
-    MMChunkEdit _EditServices(void *context);
+    MMChunkEdit _PayloadEdit(void *context);
     MMChunkEndpoint _OpsServices(void *context);
     bool _FCopyFrom(const MMChunkEndpoint &, ChunkTagOrType, ChunkNumber, ChunkNumber *, bool clone, int *created);
     tribool _TValidIndex(void);
@@ -259,6 +259,8 @@ class ChunkyFile : public ChunkyFile_PAR
     LegacyLong Ccki(void);
     // Borrow the current index for synchronous reads. Reacquire after edits.
     MMChunkAccess ReadChunkAccess() { return _ChunkAccess(); }
+    // Borrow writable index primitives for a synchronous operation on this archive.
+    MMChunkEdit EditIndex();
     bool FGetCki(LegacyLong icki, ChunkIdentification *pcki, LegacyLong *pckid = pvNil, PDataBlock pblck = pvNil);
     bool FGetIcki(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *picki);
     LegacyLong CckiCtg(ChunkTagOrType ctg);
