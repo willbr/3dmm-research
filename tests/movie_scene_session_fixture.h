@@ -20,7 +20,8 @@ static int fixture_scene_root(void *p, void *request, MMU32 position, const MMCh
     const unsigned char header[] = {1, 0, 3, 3, 2, 0, 2, 0};
     (void)p;
     (void)request;
-    if (position != 0 || entry->type != MM_MOVIE_CHUNK || size != sizeof(header))
+    (void)position;
+    if (entry->type != MM_MOVIE_CHUNK || size != sizeof(header))
         return MM_MOVIE_BAD_FILE;
     memcpy(bytes, header, sizeof(header));
     return MM_MOVIE_OK;

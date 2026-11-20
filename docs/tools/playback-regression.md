@@ -16512,3 +16512,44 @@ Both VMM seek images in `20261120T182225Z-aecd3760` matched the archived SDL
 and Marcus captures. Fresh SDL and Marcus captures also matched the two seek
 frames and canvas images from original v3dmm 0.14 in `20261120T182917Z-c48e4c97`.
 Evidence is in `tmp/c89-movie-scene-index`.
+
+## C89 preservation of embedded scene assets (20 November 2026)
+
+Scene removal, composition, and autosave now use the live C89 chunk editor
+to preserve embedded backgrounds and materials. The editor marks an asset
+as a loner only if the pending unlink would release its last parent. The
+fixtures exercise shared descendants, unreadable links, and failures in
+both workspace and walker allocations before any flags are published.
+
+All 192 standalone checks and eight AddressSanitizer checks passed. Eight
+focused engine checks and the Archive API passed on SDL and native x64 and
+x86. The 14 Marcus syntax, playback, and player checks passed. All 54
+baseline traces, three saved movie fixtures, ten Preview fingerprints, and
+six Preview movies matched. The Studio authoring and VMM save/reopen checks
+also passed.
+
+Studio edited a movie with an embedded background, deleted its owning scene
+in the Scene Sorter, and saved and reopened the result. The background became
+a loner, and all eight descendants remained unchanged. The complete decoded
+archive matched the previous build, with two bytes of index padding differing.
+Retail, SDL, and Marcus matched all three seek records and canvas images in
+`20261120T184034Z-a4eb5358`. All three also presented those frames in order in
+`20261120T184141Z-d8f72bd6`. SDL frame timing matched within the harness
+tolerance. Marcus timing and continuous images remained inconclusive.
+
+Studio deleted the owning scene in the legacy material fixture, undid and
+redid the deletion, then saved and reopened the surviving scene. Its actor
+texture bindings and frame-12 viewport matched the original at each step.
+Both retained material roots still linked to their texture chunks. The
+decoded archive matched the previously saved fixture. In
+`20261120T184314Z-e9b6c5db`, all three players agreed on 30 seek frame
+identities and each matched its own 30 archived images. The two-pixel
+difference from retail at frame 4 was present in the archived captures.
+
+In `actor-event-edit` suite `20261120T183721Z-9eda8b2c`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback and all retail
+seek camera indices. Both matched their prior seek image hashes. SDL matched
+all 12 retail sound requests.
+
+SDL and Marcus matched both seek records and images from original v3dmm 0.14
+in `20261120T183721Z-f3ac999d`. Evidence is in `tmp/c89-scene-asset-index`.

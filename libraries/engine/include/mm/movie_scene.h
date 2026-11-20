@@ -47,7 +47,6 @@ extern "C"
         MMChunkAccess (*chunks)(void *file);
         MMChunkEdit (*edit)(void *file);
         int (*write)(void *, void *scene, MMU32 *number);
-        int (*preserve_scene_assets)(void *file, MMU32 scene);
         void (*save)(void *file);
         void (*archive_issue)(void *, int issue);
         void (*missing_link)(void *);

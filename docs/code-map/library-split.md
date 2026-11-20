@@ -7752,7 +7752,7 @@ discards it. Dropping a failed candidate scene releases its adopted children.
 Before a scene is detached, `mm_movie_archive_preserve_scene_assets`
 projects which chunk references will be removed. The preview follows a shared
 child only after accounting for all of its parents. Once the preview succeeds,
-Studio marks the endangered background and material roots as loners. Their
+the C89 editor marks the endangered background and material roots as loners. Their
 subtrees remain reachable for event tags in older scenes and for scene undo.
 The save sweep can still remove unused material loners and leaves graph-owned
 resources attached.

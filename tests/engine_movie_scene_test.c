@@ -16,6 +16,7 @@
             return 1;                                                                                                  \
         }                                                                                                              \
     } while (0)
+enum { ACTR = 0x41435452, BKGD = 0x424b4744, MTRL = 0x4d54524c, SCEN = 0x5343454e };
 enum
 {
     MAKE = 1,
@@ -42,6 +43,7 @@ struct Test
     MMMovieScenes state;
     MMMovieState data;
     MovieSceneArchiveFixture archive;
+    MMStorageAllocator archive_allocator;
     MMMovieSceneServices s;
     Scene scenes[32];
     int used, fail, failures, skip;
@@ -64,11 +66,25 @@ static int succeeds(Test *t, int operation)
     --t->failures;
     return 0;
 }
-static int preserve_scene_assets(void *file, MMU32 scene)
+static void *resize_archive(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
 {
-    Test *t = (Test *)file;
-    CHECK(scene == 101 && !t->removes && !t->deletes);
-    return succeeds(t, PRESERVE_MATERIALS);
+    Test *t = p;
+    (void)before;
+    (void)priority;
+    if (t->fail == PRESERVE_MATERIALS)
+    {
+        if (t->removes || t->deletes)
+            abort();
+        if (!succeeds(t, PRESERVE_MATERIALS))
+            return NULL;
+    }
+    return realloc(old, bytes);
+}
+static void release_archive(void *p, void *data, MMU32 bytes)
+{
+    (void)p;
+    (void)bytes;
+    free(data);
 }
 static Scene *new_scene(Test *t, int index)
 {
@@ -175,7 +191,10 @@ static MMChunkAccess chunks(void *p)
 }
 static MMChunkEdit edit_archive(void *p)
 {
-    return fixture_scene_edit(&((Test *)p)->archive);
+    Test *t = p;
+    MMChunkEdit edit = fixture_scene_edit(&t->archive);
+    edit.walk_allocator = &t->archive_allocator;
+    return edit;
 }
 static int write_scene(void *p, void *s, MMU32 *n)
 {
@@ -305,6 +324,9 @@ static void init(Test *t, int count, int current)
     t->data.movieNumber = FIXTURE_MOVIE_ROOT;
     t->data.resources = t;
     fixture_scene_archive_init(&t->archive, count);
+    t->archive_allocator.context = t;
+    t->archive_allocator.resize = resize_archive;
+    t->archive_allocator.release = release_archive;
     t->archive.observer = t;
     t->archive.before_insert = insert_link;
     t->archive.before_unlink = erase_link;
@@ -463,6 +485,10 @@ static int removal(void)
     Test t;
     MMChunkEdit edit;
     const MMChunkChild missing = {MM_SCENE_CHUNK, 100, 0};
+    const MMChunkChild background = {BKGD, 2, 0};
+    MMChunkAccess index;
+    MMChunkEntry asset;
+    MMU32 row;
     int i;
     for (i = 0; i < 3; ++i)
     {
@@ -490,11 +516,23 @@ static int removal(void)
     CHECK(!mm_movie_scene_remove(0, &t.s) && t.state.index == 0 && t.data.sceneCount == 3 &&
           t.missing == 1 && !t.deletes && !t.removes && clean(&t));
     init(&t, 3, 0);
-    t.s.preserve_scene_assets = preserve_scene_assets;
+    fixture_scene_add(&t.archive, BKGD, background.number);
+    edit = edit_archive(&t);
+    t.archive.before_insert = NULL;
+    CHECK(mm_chunk_adopt(&edit, SCEN, 101, &background, 1) == MM_CHUNK_OK);
     t.fail = PRESERVE_MATERIALS;
     t.failures = 1;
     CHECK(!mm_movie_scene_remove(1, &t.s) && t.state.index == 0 && t.data.sceneCount == 3 && !t.removes &&
-          !t.deletes && !t.saves && !t.dirty && clean(&t));
+          !t.deletes && !t.saves && !t.dirty && !t.failures);
+    index = chunks(&t);
+    CHECK(mm_chunk_at(&index, 0, &asset) == MM_CHUNK_OK && asset.type == BKGD && !asset.flags &&
+          asset.parent_count == 1 && fixture_scene_slot(&t.archive, 101) == 1);
+    t.fail = 0;
+    CHECK(mm_movie_scene_remove(1, &t.s) && t.data.sceneCount == 2 && t.state.index == 1);
+    index = chunks(&t);
+    CHECK(mm_chunk_find(&index, SCEN, 101, &row) == MM_CHUNK_NOT_FOUND &&
+          mm_chunk_at(&index, 0, &asset) == MM_CHUNK_OK && asset.type == BKGD &&
+          (asset.flags & MM_CHUNK_LONER) && !asset.parent_count && clean(&t));
     init(&t, 3, 0);
     t.fail = READ;
     t.failures = 1;
@@ -911,15 +949,15 @@ static int journal(void)
     return 0;
 }
 
-enum { ACTR = 0x41435452, BKGD = 0x424b4744, MTRL = 0x4d54524c, SCEN = 0x5343454e };
 typedef struct MaterialGraph
 {
+    MMChunkEntry rows[12];
     MMChunkChild kept[4];
     MMU32 count;
-    int unreadable;
+    int unreadable, allocCalls, failAt, liveBlocks;
 } MaterialGraph;
 
-static int material_entry(void *p, MMU32 row, MMChunkEntry *entry)
+static void material_graph_init(MaterialGraph *graph)
 {
     static const MMChunkEntry rows[] = {
         {ACTR, 0, 0, 0, 0, 4, 1, 0}, {ACTR, 1, 0, 0, 0, 2, 1, 0},
@@ -930,8 +968,12 @@ static int material_entry(void *p, MMU32 row, MMChunkEntry *entry)
         {MTRL, 14, 0, 0, 0, 0, 1, 0}, {SCEN, 1, 0, 0, 0, 3, 1, 0},
         {SCEN, 2, 0, 0, 0, 1, 1, 0}
     };
-    (void)p;
-    *entry = rows[row];
+    memset(graph, 0, sizeof(*graph));
+    memcpy(graph->rows, rows, sizeof(rows));
+}
+static int material_entry(void *p, MMU32 row, MMChunkEntry *entry)
+{
+    *entry = ((MaterialGraph *)p)->rows[row];
     return 1;
 }
 
@@ -950,25 +992,79 @@ static int material_child(void *p, MMU32 row, MMU32 i, MMChunkChild *child)
     return 1;
 }
 
-static void keep_asset(void *p, MMU32 type, MMU32 number)
+static MMU32 material_count(void *p)
 {
-    MaterialGraph *graph = (MaterialGraph *)p;
-    graph->kept[graph->count].type = type;
-    graph->kept[graph->count++].number = number;
+    (void)p;
+    return 12;
+}
+static void material_edit_entry(void *p, MMU32 row, MMChunkEntry *entry)
+{
+    material_entry(p, row, entry);
+}
+static void material_store(void *p, MMU32 row, const MMChunkEntry *entry, int initialize)
+{
+    MaterialGraph *graph = p;
+    if (initialize || !(entry->flags & MM_CHUNK_LONER))
+        abort();
+    graph->rows[row] = *entry;
+    graph->kept[graph->count].type = entry->type;
+    graph->kept[graph->count++].number = entry->number;
+}
+static void *material_resize(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
+{
+    MaterialGraph *graph = p;
+    void *data;
+    (void)before;
+    (void)priority;
+    ++graph->allocCalls;
+    if (graph->failAt && graph->allocCalls >= graph->failAt)
+        return NULL;
+    data = realloc(old, bytes);
+    if (data && !old)
+        ++graph->liveBlocks;
+    return data;
+}
+static void material_release(void *p, void *data, MMU32 bytes)
+{
+    MaterialGraph *graph = p;
+    (void)bytes;
+    --graph->liveBlocks;
+    free(data);
 }
 
 static int remove_materials(void)
 {
-    MaterialGraph graph = {0};
+    MaterialGraph graph;
     MMChunkAccess chunks = {NULL, 12, material_entry, material_child};
+    MMChunkEdit edit = {0};
+    MMStorageAllocator allocator = {NULL, material_resize, material_release};
+    int i;
     chunks.context = &graph;
-    CHECK(mm_movie_archive_preserve_scene_assets(&chunks, 1, NULL, &graph, keep_asset));
+    allocator.context = &graph;
+    edit.context = &graph;
+    edit.walk_allocator = &allocator;
+    edit.count = material_count;
+    edit.entry = material_edit_entry;
+    edit.store = material_store;
+    material_graph_init(&graph);
+    CHECK(mm_movie_archive_preserve_scene_assets(&chunks, &edit, 1));
     CHECK(graph.count == 3 && graph.kept[0].type == BKGD && graph.kept[0].number == 10 &&
-          graph.kept[1].type == MTRL && graph.kept[1].number == 10 && graph.kept[2].number == 13);
-    graph.count = 0;
-    CHECK(mm_movie_archive_preserve_scene_assets(&chunks, 2, NULL, &graph, keep_asset) && !graph.count);
+          graph.kept[1].type == MTRL && graph.kept[1].number == 10 && graph.kept[2].number == 13 &&
+          !graph.liveBlocks);
+    CHECK(graph.rows[4].flags == MM_CHUNK_LONER && graph.rows[5].flags == MM_CHUNK_LONER &&
+          graph.rows[8].flags == MM_CHUNK_LONER && !graph.rows[6].flags && !graph.rows[9].flags);
+    material_graph_init(&graph);
+    CHECK(mm_movie_archive_preserve_scene_assets(&chunks, &edit, 2) && !graph.count && !graph.liveBlocks);
+    material_graph_init(&graph);
     graph.unreadable = 1;
-    CHECK(!mm_movie_archive_preserve_scene_assets(&chunks, 1, NULL, &graph, keep_asset) && !graph.count);
+    CHECK(!mm_movie_archive_preserve_scene_assets(&chunks, &edit, 1) && !graph.count && !graph.liveBlocks);
+    for (i = 1; i <= 2; ++i)
+    {
+        material_graph_init(&graph);
+        graph.failAt = i;
+        CHECK(!mm_movie_archive_preserve_scene_assets(&chunks, &edit, 1) &&
+              graph.allocCalls >= i && !graph.count && !graph.liveBlocks);
+    }
     return 0;
 }
 

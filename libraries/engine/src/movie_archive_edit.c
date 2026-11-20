@@ -1,12 +1,11 @@
 #include "mm/movie_archive_edit.h"
-#include "mm/chunk_edit.h"
 #include "mm/chunk_graph.h"
 #include "mm/collections.h"
 #include "mm/material_resource.h"
 #include "mm/movie_root.h"
 #include "mm/scene_data.h"
 #include <stdio.h>
-#include <stdlib.h>
+#include <string.h>
 
 #define MOVIE_TYPE 0x4d564945UL
 #define SCENE_TYPE 0x5343454eUL
@@ -239,18 +238,20 @@ static int scene_delete_child(void *p, MMU32 type, MMU32 number, MMU32 index, MM
     return 0;
 }
 
-int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *chunks, MMU32 scene,
-                                            const MMStorageAllocator *allocator, void *context,
-                                            void (*keep)(void *, MMU32 type, MMU32 number))
+int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *chunks, const MMChunkEdit *edit, MMU32 scene)
 {
     static const MMU32 types[] = {BACKGROUND_TYPE, MM_MATERIAL_CHUNK};
     SceneAssetGraph source = {NULL, 0};
     MMChunkGraph graph = {NULL, scene_delete_children, scene_delete_child};
+    MMCollectionStorage scratch;
     MMChunkWalk walk;
     MMChunkEntry entry;
     MMChunkChild node;
-    MMU32 row, flags, first[2], kept[2], count = 0, i, j, *removed;
+    MMU32 row, flags, bytes, first[2], count = 0, i, *removed;
     int status, skip = 0, ok = 0;
+    if (!chunks || !edit || !edit->count || !edit->entry || !edit->store ||
+        edit->count(edit->context) != chunks->count)
+        return 0;
     source.chunks = chunks;
     graph.context = &source;
     for (i = 0; i < 2; ++i)
@@ -268,13 +269,21 @@ int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *chunks, MMU32 sc
         return 0;
     if ((entry.flags & MM_CHUNK_LONER) || entry.parent_count > 1 || !entry.child_count)
         return 1;
-    if ((size_t)chunks->count > (size_t)-1 / sizeof(*removed) ||
-        mm_chunk_walk_init(&walk, allocator) != MM_CHUNK_OK)
+    if (chunks->count > (MM_STORAGE_LIMIT - 1) / sizeof(*removed) ||
+        mm_chunk_walk_init(&walk, edit->walk_allocator) != MM_CHUNK_OK)
         return 0;
-    removed = (MMU32 *)calloc((size_t)chunks->count, sizeof(*removed));
-    if (!removed || mm_chunk_walk_reset(&walk, &graph, SCENE_TYPE, scene) != MM_CHUNK_OK)
+    if (mm_storage_init(&scratch, edit->walk_allocator) != MM_STORAGE_OK)
+    {
+        mm_chunk_walk_dispose(&walk);
+        return 0;
+    }
+    bytes = chunks->count * (MMU32)sizeof(*removed);
+    if (mm_storage_resize_exact(&scratch, 0, bytes, MM_STORAGE_NORMAL) != MM_STORAGE_OK ||
+        mm_chunk_walk_reset(&walk, &graph, SCENE_TYPE, scene) != MM_CHUNK_OK)
         goto done;
-    /* Preview the same last-reference rule as ChunkyFile::DeleteChild. Follow
+    removed = (MMU32 *)scratch.buffers[0].data;
+    memset(removed, 0, bytes);
+    /* Preview the same last-reference rule as mm_chunk_unlink. Follow
      * a shared node once, if all of its incoming links are being dropped. */
     while (mm_chunk_walk_next(&walk, skip, &node, NULL, &flags))
     {
@@ -303,16 +312,19 @@ int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *chunks, MMU32 sc
             if (entry.type != types[i])
                 break;
             if (removed[row] == entry.parent_count && removed[row] && !(entry.flags & MM_CHUNK_LONER))
-                removed[count++] = entry.number;
+                removed[count++] = row;
         }
-        kept[i] = count;
     }
-    for (i = 0, j = 0; i < 2; ++i)
-        for (; j < kept[i]; ++j)
-            keep(context, types[i], removed[j]);
+    for (i = 0; i < count; ++i)
+    {
+        row = removed[i];
+        edit->entry(edit->context, row, &entry);
+        entry.flags |= MM_CHUNK_LONER;
+        edit->store(edit->context, row, &entry, 0);
+    }
     ok = 1;
 done:
-    free(removed);
+    mm_storage_dispose(&scratch);
     mm_chunk_walk_dispose(&walk);
     return ok;
 }

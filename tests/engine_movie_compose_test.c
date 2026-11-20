@@ -670,6 +670,11 @@ static int merging(void)
 static int applying(void)
 {
     Test t;
+    const MMChunkChild background = {0x424b4744UL, 2, 0};
+    MMChunkEdit edit;
+    MMChunkEntry asset;
+    MMChunkAccess index;
+    MMU32 row;
     int i;
     const int failures[] = {0, CLONE, READ_TABLE, CHILD, ADOPT, SOUNDS, WRITE_TRANS};
     for (i = 0; i < (int)(sizeof(failures) / sizeof(failures[0])); ++i)
@@ -752,13 +757,21 @@ static int applying(void)
         mm_composite_empty(&t.composite, release);
     }
     init(&t);
+    fixture_scene_add(&t.archives[0], background.type, background.number);
+    edit = edit_archive(&t.resources[0]);
+    t.archives[0].before_insert = NULL;
+    CHECK(mm_chunk_adopt(&edit, MM_SCENE_CHUNK, 100, &background, 1) == MM_CHUNK_OK);
+    t.archives[0].before_insert = insert_link;
     CHECK(apply_setup(&t, 1, 10));
     CHECK(mm_composite_remove_scene(&t.composite, 0) && mm_composite_move_scene(&t.composite, 2, 0));
     CHECK(mm_movie_compose_apply(&t.composite, &t.s) && t.scenes.index == 0 && t.data.sceneCount == 2 &&
           t.removedActors == 1);
     CHECK(t.calls[DELETE_CHILD] == 1 && t.open.refs == 1);
-    CHECK(t.archives[0].count == 3 && fixture_scene_slot(&t.archives[0], 101) == 0 &&
+    CHECK(t.archives[0].count == 4 && fixture_scene_slot(&t.archives[0], 101) == 0 &&
           fixture_scene_slot(&t.archives[0], 1200) == 1 && fixture_scene_slot(&t.archives[0], 100) == -1);
+    index = chunks(&t.resources[0]);
+    CHECK(mm_chunk_find(&index, background.type, background.number, &row) == MM_CHUNK_OK &&
+          mm_chunk_at(&index, row, &asset) == MM_CHUNK_OK && (asset.flags & MM_CHUNK_LONER) && !asset.parent_count);
     mm_composite_empty(&t.composite, release);
     init(&t);
     CHECK(apply_setup(&t, 0, 10));

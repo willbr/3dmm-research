@@ -1,6 +1,7 @@
 #ifndef MM_ENGINE_MOVIE_ARCHIVE_EDIT_H
 #define MM_ENGINE_MOVIE_ARCHIVE_EDIT_H
 #include "chunky_file.h"
+#include "chunk_edit.h"
 #include "collection_storage.h"
 #include "movie_title.h"
 #include "string_table.h"
@@ -138,11 +139,9 @@ int mm_movie_archive_embed_tag(const MMMovieEmbeddedArchive *, MMU32 parent_type
 
 /* Before detaching a scene, keep background and material subtrees that would
  * lose their last parent. Raw tags and undo can still refer to these by number.
- * The callback marks an existing asset as a loner without changing index
- * positions. No flags are published if the deletion preview fails. */
-int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *, MMU32 scene,
-                                              const MMStorageAllocator *, void *context,
-                                              void (*keep)(void *, MMU32 type, MMU32 number));
+ * Both views borrow the same live index. The editor publishes loner flags only
+ * after the full preview succeeds and keeps all rows and links in place. */
+int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *, const MMChunkEdit *, MMU32 scene);
 
 /* Write and adopt the replacement before unlinking the old child. */
 int mm_movie_archive_replace_child(const MMMovieArchiveEditor *, MMU32 parent_type, MMU32 parent,

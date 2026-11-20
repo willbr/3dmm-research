@@ -48,7 +48,6 @@ extern "C"
         void (*set_container_name)(void *, void *path);
         void (*long_op)(void *, int begin), (*document_dirty)(void *, int);
         int (*write_scene)(void *, void *scene, MMU32 *);
-        int (*preserve_scene_assets)(void *file, MMU32 scene);
         void (*archive_issue)(void *, int issue);
         void (*close_tag)(void *, MMTag *);
         void (*rollcall_changed)(void *);

@@ -1,6 +1,7 @@
 /* Movie composition converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_compose.h"
+#include "mm/movie_archive_edit.h"
 #include "mm/movie_rollcall.h"
 #include "mm/actor_data.h"
 #include "mm/scene_data.h"
@@ -361,7 +362,8 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         }
         else if (descriptor.deleted)
         {
-            if (scenes->preserve_scene_assets && !scenes->preserve_scene_assets(file, descriptor.number))
+            const MMChunkAccess chunks = scenes->chunks(file);
+            if (!mm_movie_archive_preserve_scene_assets(&chunks, &edit, descriptor.number))
                 goto done;
             if (descriptor.child != (MMU32)old)
             {

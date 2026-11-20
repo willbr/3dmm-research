@@ -86,7 +86,7 @@ struct Test
     int purgeAnswer, queries, badChildren, badSoundIndex, badIndex;
     int refs[8], soundExists[8], soundPresent[8];
     MMU32 soundSlots[8];
-    MMU32 materials[16], templates[16], materialChild;
+    MMU32 materials[16], templates[16], materialChild, materialParent, materialFlags, materialReferences;
     int materialCount, templateCount, tossed, deletedChunks, allocations, failAlloc, liveAlloc;
     int sourceActive, sourceReleases, badSourceLifetime;
     int events[512], eventCount, deletedCount;
@@ -651,7 +651,11 @@ static int graph_entry(void *p, MMU32 row, MMChunkEntry *entry)
     {
         entry->type = MM_SAVE_MATERIAL;
         entry->number = t->materials[row];
-        entry->parent_count = entry->number == t->materialChild;
+        if (entry->number == t->materialChild)
+        {
+            entry->parent_count = t->materialReferences;
+            entry->flags = t->materialFlags;
+        }
         return 1;
     }
     row -= t->materialCount;
@@ -685,6 +689,20 @@ static int graph_child(void *p, MMU32 row, MMU32 i, MMChunkChild *out)
         out->type = MM_SAVE_TABLE;
         out->number = 256 + entry.number;
         out->slot = t->soundSlots[entry.number];
+        return 1;
+    }
+    if (entry.type == MM_SAVE_SCENE && entry.number == t->materialParent && i == 0)
+    {
+        if (t->fail == PRESERVE_MATERIALS)
+        {
+            if (!has(t, MM_SAVE_SCENE, entry.number, 0) || !has(t, MM_SAVE_SCENE, 100, 0))
+                abort();
+            if (!succeeds(t, PRESERVE_MATERIALS))
+                return 0;
+        }
+        out->type = MM_SAVE_MATERIAL;
+        out->number = t->materialChild;
+        out->slot = 0;
         return 1;
     }
     if (entry.type != MM_MOVIE_CHUNK || (MMI32)i == t->badIndex)
@@ -727,6 +745,11 @@ static void edit_store(void *p, MMU32 row, const MMChunkEntry *entry, int initia
         t->indexChildCount = entry->child_count;
     else if (entry->type == MM_SOUND_CHUNK)
         t->refs[entry->number] = entry->parent_count;
+    else if (entry->type == MM_SAVE_MATERIAL && entry->number == t->materialChild)
+    {
+        t->materialReferences = entry->parent_count;
+        t->materialFlags = entry->flags;
+    }
     else if (entry->type == MM_SAVE_TABLE || entry->type == MM_SAVE_SCENE)
         *extra_chunk(t, entry->type, entry->number, 0) = *entry;
 }
@@ -830,6 +853,7 @@ static void init(Test *t)
     t->temp = 1;
     t->next = 100;
     t->badIndex = -1;
+    t->materialReferences = 1;
     append(t, MM_SAVE_SCENE, 10, 0);
     append(t, MM_SAVE_TABLE, 20, 0);
     append(t, MM_SAVE_TABLE, 30, 1);
@@ -899,13 +923,6 @@ static void init(Test *t)
     s->allocator.resize = resize;
     s->allocator.release = free_storage;
 }
-static int preserve_scene_assets(void *file, MMU32 scene)
-{
-    Test *t = (Test *)file;
-    return scene == 10 && has(t, MM_SAVE_SCENE, scene, 0) && has(t, MM_SAVE_SCENE, 100, 0) &&
-           succeeds(t, PRESERVE_MATERIALS);
-}
-
 static int autosaving(void)
 {
     Test t;
@@ -943,12 +960,21 @@ static int autosaving(void)
                 }
                 CHECK(!t.liveAlloc);
             }
-    init(&t);
-    t.s.preserve_scene_assets = preserve_scene_assets;
-    t.fail = PRESERVE_MATERIALS;
-    t.left = 1;
-    CHECK(!mm_movie_autosave(0, 0, &t.s) && !t.left && !t.savedCalls && !t.titleCalls);
-    CHECK(has(&t, MM_SAVE_SCENE, 10, 0) && t.childCount == 3 && !t.sourceActive);
+    for (fault = 0; fault <= 1; ++fault)
+    {
+        init(&t);
+        t.materials[0] = t.materialChild = 2;
+        t.materialCount = 1;
+        t.materialParent = 10;
+        extra_chunk(&t, MM_SAVE_SCENE, 10, 0)->child_count = 1;
+        t.fail = fault ? PRESERVE_MATERIALS : 0;
+        t.left = fault;
+        CHECK(mm_movie_autosave(0, 0, &t.s) == !fault && !t.left && t.savedCalls == !fault && t.titleCalls == !fault);
+        CHECK(has(&t, MM_SAVE_SCENE, 10, 0) == fault && has(&t, MM_SAVE_SCENE, 100, 0) == !fault &&
+              t.childCount == 3 && !t.sourceActive);
+        CHECK(t.materialCount == 1 && t.materialReferences == (MMU32)fault &&
+              t.materialFlags == (fault ? 0 : MM_CHUNK_LONER));
+    }
     init(&t);
     CHECK(seed_actor(&t, 1, 0) && seed_actor(&t, 2, 1) && seed_actor(&t, 3, 0));
     CHECK(mm_movie_autosave(0, 1, &t.s));

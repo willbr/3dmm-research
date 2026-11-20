@@ -1,6 +1,7 @@
 /* Movie scene-container control converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_scene.h"
+#include "mm/movie_archive_edit.h"
 
 int mm_movie_scene_cursor_select(MMI32 scene, size_t count, unsigned flags, const MMMovieSceneCursorServices *s)
 {
@@ -325,8 +326,8 @@ int mm_movie_scene_new(MMI32 index, const MMMovieSceneServices *s)
 int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
 {
     MMChunkEdit edit;
+    MMChunkAccess chunks;
     MMI32 old;
-    int found;
     MMChunkChild child;
     MMMovieState *movie = s->movie;
     void *scene, *file = s->file(movie->resources);
@@ -341,20 +342,20 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     scene = s->state->open;
     child.type = MM_SCENE_CHUNK;
     child.slot = (MMU32)index;
-    found = scene_number(index, file, &child.number, s);
-    if (!found && s->missing_link)
-        s->missing_link(s->context);
-    if (!found || (s->preserve_scene_assets && !s->preserve_scene_assets(file, child.number)))
+    if (!scene_number(index, file, &child.number, s))
     {
-        if (old != index)
-            mm_movie_scene_switch(old, s);
-        return 0;
+        if (s->missing_link)
+            s->missing_link(s->context);
+        goto restore_scene;
     }
+    edit = s->edit(file);
+    chunks = s->chunks(file);
+    if (!mm_movie_archive_preserve_scene_assets(&chunks, &edit, child.number))
+        goto restore_scene;
     s->retain(scene);
     mm_movie_scene_close_open(s);
     s->remove_actors(scene);
     s->release(scene);
-    edit = s->edit(file);
     unlink_scene(&edit, &child, s);
     --movie->sceneCount;
     shift_scenes(index, movie->sceneCount, 0, file, &edit, s);
@@ -366,6 +367,10 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     if (!s->state->open)
         s->switch_error(s->context);
     return 1;
+restore_scene:
+    if (old != index)
+        mm_movie_scene_switch(old, s);
+    return 0;
 }
 int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *s)
 {

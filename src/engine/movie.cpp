@@ -140,15 +140,6 @@ struct Movie::SaveHost
     explicit SaveHost(PMovie value) : movie(value) {}
 };
 
-static int PreserveSceneAssets(void *context, MMU32 scene)
-{
-    auto file = static_cast<PChunkyFile>(context);
-    const auto chunks = file->ReadChunkAccess();
-    const auto allocator = CollectionAllocator();
-    return mm_movie_archive_preserve_scene_assets(&chunks, scene, &allocator, file,
-        [](void *p, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(p)->SetLoner(type, number, true); });
-}
-
 static MMChunkEdit EditMovieArchive(void *file)
 {
     return static_cast<PChunkyFile>(file)->EditIndex();
@@ -233,7 +224,6 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.write_scene = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<SaveHost *>(p)->movie->_data.Resources(), number);
     };
-    s.preserve_scene_assets = PreserveSceneAssets;
     s.archive_issue = MovieArchiveIssue;
     s.close_tag = [](void *, MMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->_pmcc->UpdateRollCall(); };
@@ -1056,7 +1046,6 @@ MMMovieSceneServices Movie::_SceneServices()
     s.write = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
     };
-    s.preserve_scene_assets = PreserveSceneAssets;
     s.archive_issue = MovieArchiveIssue;
     s.save = [](void *file) { static_cast<PChunkyFile>(file)->FSave(kctgSoc); };
     s.missing_link = [](void *) { Bug("Missing movie scene link"); };

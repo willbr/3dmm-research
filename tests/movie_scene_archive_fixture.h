@@ -65,10 +65,17 @@ static void fixture_scene_seed_movie(MovieSceneArchiveFixture *f, MMU32 root, MM
 }
 static MMI32 fixture_scene_slot(const MovieSceneArchiveFixture *f, MMU32 number)
 {
-    MMU32 i;
-    for (i = 0; i < f->rows[0].links_used; ++i)
-        if (f->rows[0].children[i].number == number)
-            return (MMI32)f->rows[0].children[i].slot;
+    MMU32 row, i;
+    const FixtureSceneRow *movie;
+    for (row = 0; row < f->count; ++row)
+        if (f->rows[row].entry.type == MM_MOVIE_CHUNK)
+            break;
+    if (row == f->count)
+        return -1;
+    movie = &f->rows[row];
+    for (i = 0; i < movie->links_used; ++i)
+        if (movie->children[i].number == number)
+            return (MMI32)movie->children[i].slot;
     return -1;
 }
 static int fixture_scene_entry(void *p, MMU32 position, MMChunkEntry *entry)
