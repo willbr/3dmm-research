@@ -237,7 +237,7 @@ PChunkyResourceFile Preview::Impl::Resolve(const TAGOnFile &tag)
     DescribeMissingResource(tag);
     return nullptr;
 }
-bool Preview::Impl::ResolveSoundGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph)
+bool Preview::Impl::ResolveGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph)
 {
     const auto readGraph = [](void *context, void *source, MMMovieSessionGraph *out) {
         auto &archive = source ? static_cast<Source *>(source)->archive : static_cast<Impl *>(context)->assets;

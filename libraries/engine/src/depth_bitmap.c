@@ -68,6 +68,26 @@ void mm_depth_dispose(MMDepthBitmap *m, const MMDepthServices *s)
 {
     s->free_memory(s->context, &m->pixels);
 }
+static int read_layout(const unsigned char header[12], MMU32 length, int big, MMDepthBitmap *m)
+{
+    return mm_depth_header(header, big, m) && length == 12 + (MMU32)m->bytes;
+}
+int mm_depth_read_stream(const MMReadStream *stream, MMDepthBitmap *out, const MMDepthServices *s)
+{
+    MMDepthBitmap m = {0};
+    unsigned char header[12];
+    if (!mm_read_exact(stream, 0, header, sizeof(header)) ||
+        !read_layout(header, stream->length, s->host_big_endian, &m) ||
+        !s->allocate(s->context, m.bytes, &m.pixels))
+        return 0;
+    if (!mm_read_exact(stream, sizeof(header), m.pixels, (size_t)m.bytes))
+    {
+        mm_depth_dispose(&m, s);
+        return 0;
+    }
+    *out = m;
+    return 1;
+}
 static int read_at(void *block, void *data, MMI32 n, MMI32 at, const MMDepthServices *s)
 {
     MMI32 bytes = s->size(s->context, block, 0);
@@ -84,8 +104,9 @@ void *mm_depth_read(void *block, const MMDepthServices *s)
     if (!object)
         goto fail;
     m = s->state(s->context, object);
-    if (!read_at(block, header, 12, 0, s) || !mm_depth_header(header, s->host_big_endian, m) ||
-        s->size(s->context, block, 0) != 12 + m->bytes || !s->allocate(s->context, m->bytes, &m->pixels) ||
+    if (!read_at(block, header, 12, 0, s) ||
+        !read_layout(header, (MMU32)s->size(s->context, block, 0), s->host_big_endian, m) ||
+        !s->allocate(s->context, m->bytes, &m->pixels) ||
         !read_at(block, m->pixels, m->bytes, 12, s))
         goto fail;
     return object;

@@ -1,8 +1,189 @@
 /* Preview background image ownership and two-entry mesh cache. */
 #include "mm/background_preview.h"
+#include "mm/depth_bitmap.h"
+#include "mm/masked_bitmap.h"
+#include "mm/movie_session.h"
+#include <stdlib.h>
 #include <string.h>
 #define MINIMUM (-2147483647 - 1)
 typedef char depth_sample_must_be_two_bytes[sizeof(unsigned short) == 2 ? 1 : -1];
+
+typedef struct GraphRead
+{
+    MMReadReceiver receive;
+    void *context;
+    int called, result;
+} GraphRead;
+
+static int receive_graph_chunk(void *context, const MMReadStream *stream)
+{
+    GraphRead *read = (GraphRead *)context;
+    if (read->called)
+        return MM_MOVIE_BAD_FILE;
+    read->called = 1;
+    read->result = read->receive(read->context, stream);
+    return MM_MOVIE_OK;
+}
+
+int mm_background_preview_graph_payload(void *context, MMU32 type, MMU32 number, MMReadReceiver receive,
+                                         void *out, int *result)
+{
+    const MMMovieSessionGraph *graph = ((const MMBackgroundPreviewGraph *)context)->graph;
+    MMChunkAccess chunks;
+    MMChunkEntry entry;
+    MMU32 position;
+    GraphRead read;
+    int status;
+    graph->access(graph->context, &chunks);
+    status = mm_chunk_find(&chunks, type, number, &position);
+    if (status != MM_CHUNK_OK)
+        return status;
+    status = mm_chunk_at(&chunks, position, &entry);
+    if (status != MM_CHUNK_OK)
+        return status;
+    read.receive = receive;
+    read.context = out;
+    read.called = 0;
+    status = graph->payload(graph->context, &entry, receive_graph_chunk, &read);
+    if (status == MM_MOVIE_MEMORY)
+        return MM_CHUNK_MEMORY;
+    if (status != MM_MOVIE_OK || !read.called)
+        return MM_CHUNK_BAD_FILE;
+    *result = read.result;
+    return MM_CHUNK_OK;
+}
+
+static int image_child(void *context, MMU32 camera, int depth, MMU32 *number)
+{
+    const MMMovieSessionGraph *graph = ((const MMBackgroundPreviewGraph *)context)->graph;
+    MMChunkAccess chunks;
+    graph->access(graph->context, &chunks);
+    return mm_background_camera_image_link(&chunks, camera, depth, number) == MM_CHUNK_OK;
+}
+
+typedef struct GraphBitmap
+{
+    int depth;
+    union
+    {
+        MMMaskedBitmap colour;
+        MMDepthBitmap depth;
+    } data;
+} GraphBitmap;
+
+static int host_big_endian(void)
+{
+    const unsigned short one = 1;
+    return *(const unsigned char *)&one == 0;
+}
+
+static int allocate_pixels(void *context, MMI32 bytes, void **out)
+{
+    (void)context;
+    if (bytes < 0 || (size_t)bytes != (MMU32)bytes)
+        return 0;
+    *out = bytes ? malloc((size_t)bytes) : NULL;
+    return !bytes || *out != NULL;
+}
+
+static void free_pixels(void *context, void **pixels)
+{
+    (void)context;
+    free(*pixels);
+    *pixels = NULL;
+}
+
+static int read_bitmap(void *context, const MMReadStream *stream)
+{
+    GraphBitmap *bitmap = (GraphBitmap *)context;
+    if (bitmap->depth)
+    {
+        MMDepthServices services = {0};
+        services.host_big_endian = host_big_endian();
+        services.allocate = allocate_pixels;
+        services.free_memory = free_pixels;
+        return mm_depth_read_stream(stream, &bitmap->data.depth, &services);
+    }
+    else
+    {
+        MMMaskedServices services = {0};
+        services.host_big_endian = host_big_endian();
+        services.allocate = allocate_pixels;
+        services.free_memory = free_pixels;
+        return mm_masked_read_stream(stream, &bitmap->data.colour, &services);
+    }
+}
+
+static void release_bitmap(void *context, void *owner)
+{
+    GraphBitmap *bitmap = (GraphBitmap *)owner;
+    (void)context;
+    free(bitmap->depth ? bitmap->data.depth.pixels : bitmap->data.colour.data);
+    free(bitmap);
+}
+
+static void *fetch_bitmap(void *context, MMU32 number, int depth)
+{
+    const MMU32 type = depth ? 0x5a424d50UL : 0x4d424d50UL;
+    GraphBitmap *bitmap = (GraphBitmap *)calloc(1, sizeof(*bitmap));
+    int decoded;
+    if (!bitmap)
+        return NULL;
+    bitmap->depth = depth;
+    if (mm_background_preview_graph_payload(context, type, number, read_bitmap, bitmap, &decoded) != MM_CHUNK_OK ||
+        !decoded)
+    {
+        release_bitmap(context, bitmap);
+        return NULL;
+    }
+    return bitmap;
+}
+
+static void bitmap_bounds(void *context, void *owner, MMI32 out[4])
+{
+    const GraphBitmap *bitmap = (const GraphBitmap *)owner;
+    MMMaskedRect rect;
+    (void)context;
+    mm_masked_bounds(&bitmap->data.colour, host_big_endian(), &rect);
+    out[0] = rect.left;
+    out[1] = rect.top;
+    out[2] = rect.right;
+    out[3] = rect.bottom;
+}
+
+static void draw_colour(void *context, void *owner, unsigned char *pixels, MMU32 w, MMU32 h, MMI32 x, MMI32 y)
+{
+    const GraphBitmap *bitmap = (const GraphBitmap *)owner;
+    MMMaskedRect rect;
+    int big = host_big_endian();
+    (void)context;
+    mm_masked_bounds(&bitmap->data.colour, big, &rect);
+    mm_masked_blit8(&bitmap->data.colour, big, pixels, w, h, rect.left + x, rect.top + y, NULL, NULL);
+}
+
+static void draw_depth(void *context, void *owner, unsigned short *pixels, MMU32 w, MMU32 h)
+{
+    const GraphBitmap *bitmap = (const GraphBitmap *)owner;
+    MMDepthRect clip;
+    (void)context;
+    clip.left = clip.top = 0;
+    clip.right = (MMI32)w;
+    clip.bottom = (MMI32)h;
+    mm_depth_draw(&bitmap->data.depth, pixels, w * 2, h, 0, 0, &clip, NULL, 0);
+}
+
+void mm_background_preview_bind_graph(MMBackgroundPreviewServices *s, MMBackgroundPreviewGraph *context)
+{
+    s->context = context;
+    s->payload = mm_background_preview_graph_payload;
+    s->child = image_child;
+    s->fetch = fetch_bitmap;
+    s->release = release_bitmap;
+    s->bounds = bitmap_bounds;
+    s->draw_rgb = draw_colour;
+    s->draw_depth = draw_depth;
+}
+
 static int ensure(MMCollectionStorage *s, unsigned section, MMU32 count, MMU32 stride)
 {
     MMU32 bytes, capacity;
@@ -117,8 +298,8 @@ static int select_images(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundC
         s->selected(s->context, slot);
     return 1;
 }
-int mm_background_preview_apply(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundCameraBinding *binding,
-                                 const MMReadStream *stream, int update_placement, const MMBackgroundPreviewServices *s)
+static int stage_selection(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundCameraBinding *binding,
+                            const MMReadStream *stream, int update_placement)
 {
     int status;
     if (slot >= p->camera_count || binding->number != ((const MMU32 *)p->metadata.buffers[0].data)[slot])
@@ -131,11 +312,56 @@ int mm_background_preview_apply(MMBackgroundPreview *p, MMU32 slot, const MMBack
         if (status != MM_STORAGE_OK)
             return 0;
     }
+    return 1;
+}
+
+static int finish_selection(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundCameraBinding *binding,
+                             int update_placement, const MMBackgroundPreviewServices *s)
+{
     if (!select_images(p, slot, binding, s))
         return 0;
     if (update_placement)
         mm_background_placement_commit(&p->placement, (MMI32)slot, &p->camera, 1);
     return 1;
+}
+
+int mm_background_preview_apply(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundCameraBinding *binding,
+                                 const MMReadStream *stream, int update_placement, const MMBackgroundPreviewServices *s)
+{
+    int result = stage_selection(p, slot, binding, stream, update_placement);
+    return result > 0 ? finish_selection(p, slot, binding, update_placement, s) : result;
+}
+
+typedef struct GraphSelection
+{
+    MMBackgroundPreview *preview;
+    MMBackgroundCameraBinding binding;
+    MMU32 slot;
+    int update_placement;
+} GraphSelection;
+
+static int capture_selection(void *context, const MMBackgroundCameraBinding *binding, const MMReadStream *stream)
+{
+    GraphSelection *selection = (GraphSelection *)context;
+    int result = stage_selection(selection->preview, selection->slot, binding, stream, selection->update_placement);
+    if (result > 0)
+        selection->binding = *binding;
+    return result == MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY ? MM_MOVIE_MEMORY :
+               result > 0 ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+}
+
+int mm_background_preview_select_graph(MMBackgroundPreview *p, const MMMovieSessionGraph *graph, MMU32 background,
+                                        MMU32 slot, int update_placement, const MMBackgroundPreviewServices *s)
+{
+    GraphSelection selection;
+    int result;
+    selection.preview = p;
+    selection.slot = slot;
+    selection.update_placement = update_placement;
+    result = mm_movie_camera_graph(graph, background, slot, capture_selection, &selection, NULL);
+    if (result != MM_MOVIE_OK)
+        return result == MM_MOVIE_MEMORY ? MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY : 0;
+    return finish_selection(p, slot, &selection.binding, update_placement, s);
 }
 typedef struct CameraSelection
 {

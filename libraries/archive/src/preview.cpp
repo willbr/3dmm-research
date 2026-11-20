@@ -138,7 +138,7 @@ struct Preview::Impl
         });
     }
     std::unique_ptr<Internal::PreviewBackground> background;
-    bool LoadBackground(PChunkyResourceFile source, ChunkNumber number)
+    bool LoadBackground(const MMMovieSessionGraph &source, ChunkNumber number)
     {
         std::unique_ptr<Internal::PreviewBackground> loaded(new Internal::PreviewBackground);
         if (!loaded->Load(source, number, palette))
@@ -150,7 +150,7 @@ struct Preview::Impl
         return true;
     }
     PChunkyResourceFile Resolve(const TAGOnFile &tag);
-    bool ResolveSoundGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph);
+    bool ResolveGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph);
     void DescribeMissingResource(const TAGOnFile &tag);
     void RefreshStats()
     {
@@ -836,7 +836,7 @@ try
         [](void *p, MMI32 sid, MMU32 type, MMU32 number, MMMovieSessionGraph *out) {
             auto &host = *static_cast<SoundSource *>(p);
             return host.audio.Guard([&] {
-                return host.impl.ResolveSoundGraph({sid, 0, type, number}, *out);
+                return host.impl.ResolveGraph({sid, 0, type, number}, *out);
             });
         }};
     const auto input = Internal::PreviewCueCore(cue);
@@ -1012,6 +1012,7 @@ bool Preview::SetLiveDefinitions(const MMPreviewLiveDefinitions &input, Error &e
 bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error &error)
 {
     error = {};
+    Internal::ClearDiagnostic();
     Impl::LiveHost runtime = {this, _impl.get(), &error};
     struct Host
     {
@@ -1028,9 +1029,11 @@ bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error
         {
             TAGOnFile tag = {h.source, 0, kctgBkgd, h.number};
             auto impl = h.runtime.impl;
-            auto file = impl->Resolve(tag);
+            MMMovieSessionGraph graph;
+            if (!impl->ResolveGraph(tag, graph))
+                return 0;
             h.candidate = std::make_unique<Internal::PreviewBackground>();
-            if (!file || !h.candidate->Load(file, h.number, impl->palette))
+            if (!h.candidate->Load(graph, h.number, impl->palette))
                 return 0;
             *count = static_cast<MMU32>(h.candidate->cameras.size());
             return 1;

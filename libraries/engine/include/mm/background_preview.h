@@ -36,6 +36,17 @@ extern "C"
         void (*perspective)(void *, unsigned short, MMI32 aspect, MMI32 near_z, MMI32 far_z,
                             MMI32 out[16]);
     } MMBackgroundPreviewServices;
+    struct MMMovieSessionGraph;
+    typedef struct MMBackgroundPreviewGraph
+    {
+        const struct MMMovieSessionGraph *graph;
+        void *owner; /* Borrowed by the host publication and mesh services. */
+    } MMBackgroundPreviewGraph;
+    /* Bind decoded graph payloads and C bitmap services. The graph and context
+     * must stay live through the call. Image allocations belong to the reader
+     * until the matching release service. */
+    void mm_background_preview_bind_graph(MMBackgroundPreviewServices *, MMBackgroundPreviewGraph *);
+    int mm_background_preview_graph_payload(void *, MMU32 type, MMU32 number, MMReadReceiver, void *, int *result);
     /* Unique C owners. Metadata append operations copy their inputs and do not alias
      * storage. Fresh image selection publishes decoded camera before clip validation,
      * dimensions before RGB allocation, and active camera only after both draws.
@@ -59,6 +70,11 @@ extern "C"
      * image lookup uses only the keys already present in the binding. */
     int mm_background_preview_apply(MMBackgroundPreview *, MMU32 slot, const MMBackgroundCameraBinding *,
                                     const MMReadStream *, int update_placement, const MMBackgroundPreviewServices *);
+    /* Finish reading CAM and stage placement before fetching colour and depth
+     * chunks. Image fetch may reuse the graph provider's decoded buffer. */
+    int mm_background_preview_select_graph(MMBackgroundPreview *, const struct MMMovieSessionGraph *,
+                                           MMU32 background, MMU32 slot, int update_placement,
+                                           const MMBackgroundPreviewServices *);
     int mm_background_preview_place(MMBackgroundPreview *, MMActorPoint *);
     void mm_background_preview_reuse_place(MMBackgroundPreview *);
     /* Hits move to the most recent end. Misses build before evicting the oldest;

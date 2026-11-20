@@ -4,6 +4,7 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <utility>
 static FILE *snapshot;
 static unsigned bytesRecorded, fingerprint=2166136261U;
 static void Record(const void *data,std::size_t bytes)
@@ -26,7 +27,10 @@ int main(int argc, char **argv)
             std::fprintf(stderr, "%s\n", error.message.c_str());
         return ok;
     };
-    if (!check(archive.Open(argv[2], error)) || !check(preview.Open(argv[2], argv[1], error)))
+    if (!check(archive.OpenForPreview(argv[2], error)))
+        return 1;
+    const auto chunks = archive.Chunks();
+    if (!check(preview.Open(std::move(archive), argv[1], error)))
         return 1;
     unsigned backgrounds = 0, cameras = 0, depthCameras = 0, meshCameras = 0, backdropCameras = 0;
     MM::PreviewView view;
@@ -39,7 +43,7 @@ int main(int argc, char **argv)
         if(ok){Record(&out.width,sizeof(out.width));Record(&out.height,sizeof(out.height));Record(out.rgba.data(),out.rgba.size());Record(out.depth.data(),out.depth.size()*sizeof(out.depth[0]));}
         return ok;
     };
-    for (const auto &chunk : archive.Chunks())
+    for (const auto &chunk : chunks)
     {
         if (MM::TypeLabel(chunk.id.type) != "BKGD")
             continue;

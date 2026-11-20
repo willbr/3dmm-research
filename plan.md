@@ -97,6 +97,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Preview also reads scene admission, captions, timing, and actor tracks
   from that archive graph. Caption TEXT borrows the stored bytes while the
   other caption chunks use decoded streams.
+- Preview reads background lights, palettes, camera placement and colour and
+  depth bitmaps through the same graph. C stages placement before reusing the
+  decoded cache for images and commits it after both images load.
 - The archive reader opens immutable physical streams through the C89 chunk
   index, codec and payload cache. `3mm dump` and Marcus catalogue reads use this
   path. Marcus also uses it to read source names for an object being copied.

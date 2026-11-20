@@ -201,6 +201,8 @@ static void loading(void)
 {
     Fixture f;
     MMDepthBitmap *m;
+    MMDepthBitmap decoded;
+    MMMemoryStream stream;
     int big, factory, n, i, ok;
     for (big = 0; big < 2; ++big)
         for (factory = 0; factory < 2; ++factory)
@@ -235,6 +237,21 @@ static void loading(void)
                 }
                 balanced(&f);
             }
+    for (big = 0; big < 2; ++big)
+    {
+        setup(&f, big);
+        memset(&decoded, 0, sizeof(decoded));
+        assert(mm_memory_stream_init(&stream, f.input, 23));
+        assert(!mm_depth_read_stream(&stream.stream, &decoded, &f.s) && !decoded.pixels);
+        assert(mm_memory_stream_init(&stream, f.input, 24));
+        f.fail = f.phase + 1;
+        assert(!mm_depth_read_stream(&stream.stream, &decoded, &f.s) && !decoded.pixels);
+        assert(mm_depth_read_stream(&stream.stream, &decoded, &f.s));
+        assert(decoded.bounds.left == 2 && decoded.bounds.top == -1 && decoded.bytes == 12 &&
+               !memcmp(decoded.pixels, f.input + 12, 12));
+        mm_depth_dispose(&decoded, &f.s);
+        balanced(&f);
+    }
     setup(&f, 0);
     assert(mm_depth_fetch(&f, 0, &f.s) && f.estimate == 9 && !f.result && !f.unpacks && !f.reads);
     balanced(&f);

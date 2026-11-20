@@ -15102,3 +15102,22 @@ In `actor-event-edit` suite `20261120T082353Z-35b830d3`, Marcus and SDL
 matched the 60 retail frame identities in seek and playback. Both retained
 their previous seek image hashes and matched the retail camera indices.
 SDL also matched all 12 retail sound requests.
+
+## Preview backgrounds from the C89 archive graph (20 November 2026)
+
+Preview reads background metadata, camera placement, and colour and depth
+bitmaps from the owning archive graph. Camera reads finish before bitmap
+fetches reuse the decoded chunk buffer. Placement commits after both images
+have been drawn.
+
+A standalone C executable opened the retail `bkgds.3cn` and loaded colour,
+depth and placement for all 188 cameras in its 12 backgrounds. The x64 and
+x86 render fixtures both kept their `E1A71005` fingerprint across the same
+188 cameras. All 48 targeted x64 checks and seven standalone C89 checks
+passed. The VMM storyboard rendered both authored frames. The standalone
+probe and test logs are in `tmp/c89-preview-background-archive`.
+
+In `actor-event-edit` suite `20261120T083755Z-585b87fa`, Marcus and SDL
+matched the 60 retail frame identities in seek and playback. Both retained
+their previous seek image hashes and matched the retail camera indices.
+SDL matched all 12 retail sound requests.

@@ -2,9 +2,7 @@
 #include <algorithm>
 #include "mm/preview.h"
 #include "preview_background.h"
-#include "zbmp.h"
 #include "palette_state.h"
-#include "engine_movie_graph.h"
 #include "mm/background_camera.h"
 #include "mm/indexed_display.h"
 #include <cstring>
@@ -21,44 +19,47 @@ void ResolveDisplayPalette(Color *palette)
     display.Set(palette, 256, KauaiPixels::paletteIdentity);
     std::memcpy(palette, display.Colors(), 256 * sizeof(Color));
 }
-bool PreviewBackground::Load(PChunkyResourceFile file, ChunkNumber background, const Color *basePalette)
+namespace
+{
+PreviewBackground &BackgroundHost(void *context)
+{
+    return *static_cast<PreviewBackground *>(static_cast<MMBackgroundPreviewGraph *>(context)->owner);
+}
+} // namespace
+
+bool PreviewBackground::Load(const MMMovieSessionGraph &archive, ChunkNumber background, const Color *basePalette)
 {
     mm_preview_projection_cache_reset(&cameraProjections);
-    source = file;
+    graph = archive;
     number = background;
     std::memcpy(palette, basePalette, sizeof(palette));
-    struct Host
-    {
-        PreviewBackground *background;
-        PChunkyFile file;
-    } host = {this, source->Pcfl()};
+    MMBackgroundPreviewGraph host = {&graph, this};
     MMBackgroundServices s = {};
     s.context = &host;
     const unsigned short one = 1;
     s.host_big_endian = *reinterpret_cast<const byte *>(&one) == 0;
     s.retain_palette = 1;
     s.child = [](void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMU32 *out) {
-        const auto chunks = static_cast<Host *>(p)->file->ReadChunkAccess();
+        const auto graph = static_cast<MMBackgroundPreviewGraph *>(p)->graph;
+        MMChunkAccess chunks;
+        graph->access(graph->context, &chunks);
         return int(mm_chunk_link_number(&chunks, type, number, id, childType, out) == MM_CHUNK_OK);
     };
-    s.payload = [](void *p, MMU32 type, MMU32 number, MMReadReceiver read, void *out, int *result) {
-        return mm_chunk_read_payload(KauaiChunkPayloadServices(), static_cast<Host *>(p)->file, type, number,
-                                     read, out, result);
-    };
+    s.payload = mm_background_preview_graph_payload;
     s.palette_color = [](void *p, MMI32 index, const unsigned char *bytes) {
-        std::memcpy(&static_cast<Host *>(p)->background->palette[index], bytes, 4);
+        std::memcpy(&BackgroundHost(p).palette[index], bytes, 4);
     };
-    s.resolve_palette = [](void *p) { ResolveDisplayPalette(static_cast<Host *>(p)->background->palette); };
+    s.resolve_palette = [](void *p) { ResolveDisplayPalette(BackgroundHost(p).palette); };
     s.configure_light = [](void *p, MMBackgroundResource *, MMI32, const MMBackgroundLight *light) {
-        return mm_background_preview_light(&static_cast<Host *>(p)->background->preview, light);
+        return mm_background_preview_light(&BackgroundHost(p).preview, light);
     };
     s.append_camera = [](void *p, MMU32 number) {
-        return mm_background_preview_camera(&static_cast<Host *>(p)->background->preview, number);
+        return mm_background_preview_camera(&BackgroundHost(p).preview, number);
     };
     s.select_camera = [](void *p, MMI32 index) {
         try
         {
-            return int(static_cast<Host *>(p)->background->SetCamera(index));
+            return int(BackgroundHost(p).SetCamera(index));
         }
         catch (...)
         {
@@ -78,14 +79,6 @@ void PreviewBackground::OverlayAuthoredPalette(unsigned char bgrx[1024]) const
     mm_display_palette_overlay(bgrx, 256, base, bytes, count);
 }
 
-namespace
-{
-struct BackgroundImageHost
-{
-    PreviewBackground *background;
-    PChunkyResourceFile source;
-};
-} // namespace
 PreviewBackground::PreviewBackground()
 {
     if (!mm_preview_projection_cache_init(&cameraProjections, nullptr) ||
@@ -111,7 +104,7 @@ void PreviewBackground::Publish(const MMBackgroundPreview &p)
 bool PreviewBackground::CameraProjection(std::uint32_t slot, PreviewProjection &projection)
 {
     projection = {};
-    BackgroundImageHost host = {this, source};
+    MMBackgroundPreviewGraph host = {&graph, this};
     auto services = Services(&host);
     MMPreviewProjection p;
     const auto result = mm_preview_projection_cache_get(&cameraProjections,
@@ -125,42 +118,12 @@ bool PreviewBackground::CameraProjection(std::uint32_t slot, PreviewProjection &
     projection.displayDepth = p.display_depth; projection.orthoHeight = p.ortho_height;
     return result == MM_PREVIEW_CAMERA_OK;
 }
-MMBackgroundPreviewServices PreviewBackground::Services(void *host)
+MMBackgroundPreviewServices PreviewBackground::Services(MMBackgroundPreviewGraph *host)
 {
     MMBackgroundPreviewServices s = {};
-    s.context = host;
-    s.payload = [](void *p, MMU32 type, MMU32 number, MMReadReceiver read, void *out, int *result) {
-        auto h = static_cast<BackgroundImageHost *>(p);
-        return mm_chunk_read_payload(KauaiChunkPayloadServices(), h->source->Pcfl(), type, number, read, out, result);
-    };
-    s.child = [](void *p, MMU32 camera, int depth, MMU32 *out) {
-        auto h = static_cast<BackgroundImageHost *>(p);
-        const auto chunks = h->source->Pcfl()->ReadChunkAccess();
-        return int(mm_background_camera_image_link(&chunks, camera, depth, out) == MM_CHUNK_OK);
-    };
-    s.fetch = [](void *p, MMU32 number, int depth) -> void * {
-        auto h = static_cast<BackgroundImageHost *>(p);
-        return h->source->PbacoFetch(depth ? kctgZbmp : kctgMbmp, number,
-                                     depth ? ZBMP::FReadZbmp : MaskedBitmapMBMP::FReadMbmp);
-    };
-    s.release = [](void *, void *p) { static_cast<PBaseCacheableObject>(p)->Release(); };
-    s.bounds = [](void *, void *p, MMI32 out[4]) {
-        RC r;
-        static_cast<PMaskedBitmapMBMP>(p)->GetRc(&r);
-        out[0] = r.xpLeft;
-        out[1] = r.ypTop;
-        out[2] = r.xpRight;
-        out[3] = r.ypBottom;
-    };
-    s.draw_rgb = [](void *, void *bitmap, unsigned char *pixels, MMU32 w, MMU32 h, MMI32 x,
-                    MMI32 y) { static_cast<PMaskedBitmapMBMP>(bitmap)->Draw(pixels, w, h, x, y); };
-    s.draw_depth = [](void *, void *bitmap, unsigned short *pixels, MMU32 w, MMU32 h) {
-        RC clip;
-        clip.Set(0, 0, w, h);
-        static_cast<PZBMP>(bitmap)->Draw(reinterpret_cast<byte *>(pixels), w * 2, h, 0, 0, &clip);
-    };
+    mm_background_preview_bind_graph(&s, host);
     s.publish = [](void *p, const MMBackgroundPreview *state) {
-        static_cast<BackgroundImageHost *>(p)->background->Publish(*state);
+        BackgroundHost(p).Publish(*state);
     };
     s.mesh_new = [](void *) -> void * {
         try
@@ -203,28 +166,13 @@ MMBackgroundPreviewServices PreviewBackground::Services(void *host)
 }
 bool PreviewBackground::SetCamera(std::uint32_t slot, bool updatePlacement)
 {
-    BackgroundImageHost host = {this, source};
+    MMBackgroundPreviewGraph host = {&graph, this};
     auto s = Services(&host);
     s.child = nullptr;
-    struct Selection
-    {
-        MMBackgroundPreview *preview;
-        MMU32 slot;
-        bool placement;
-        const MMBackgroundPreviewServices *services;
-    } selection = {&preview, slot, updatePlacement, &s};
-    const auto graph = EngineMovieGraph::FromFile(source->Pcfl());
-    const int result = mm_movie_camera_graph(&graph, number, slot,
-        [](void *p, const MMBackgroundCameraBinding *binding, const MMReadStream *stream) -> int {
-            auto &s = *static_cast<Selection *>(p);
-            const int applied = mm_background_preview_apply(s.preview, s.slot, binding, stream, s.placement, s.services);
-            if (applied == MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY)
-                return MM_MOVIE_MEMORY;
-            return applied ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
-        }, &selection, nullptr);
-    if (result == MM_MOVIE_MEMORY)
+    const int result = mm_background_preview_select_graph(&preview, &graph, number, slot, updatePlacement, &s);
+    if (result == MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY)
         throw std::bad_alloc();
-    return result == MM_MOVIE_OK;
+    return result > 0;
 }
 bool PreviewBackground::NextPlacementPoint(float point[3])
 {
@@ -242,7 +190,7 @@ void PreviewBackground::ReusePlacementPoint()
 }
 PreviewBackgroundMesh &PreviewBackground::Mesh()
 {
-    BackgroundImageHost host = {this, source};
+    MMBackgroundPreviewGraph host = {&graph, this};
     auto s = Services(&host);
     auto mesh = static_cast<PreviewBackgroundMesh *>(mm_background_preview_mesh(&preview, &s));
     if (!mesh)

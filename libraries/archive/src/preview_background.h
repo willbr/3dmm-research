@@ -6,6 +6,7 @@
 #include "soc_core.h"
 #include "mm/background_resource.h"
 #include "mm/background_preview.h"
+#include "mm/movie_session.h"
 #include "mm/preview_camera.h"
 namespace MM
 {
@@ -16,10 +17,10 @@ namespace Internal
 void ResolveDisplayPalette(Color *palette);
 class PreviewBackground
 {
-    PChunkyResourceFile source = nullptr; // Borrowed from the preview's source set.
+    MMMovieSessionGraph graph = {}; // Borrows the owning Preview archive.
     ChunkNumber number = 0;
     MMBackgroundPreview preview;
-    MMBackgroundPreviewServices Services(void *host);
+    MMBackgroundPreviewServices Services(MMBackgroundPreviewGraph *host);
     void Publish(const MMBackgroundPreview &);
     MMBackgroundResource resource = {};
     MMPreviewProjectionCache cameraProjections = {};
@@ -36,7 +37,7 @@ class PreviewBackground
     ~PreviewBackground();
     PreviewBackground(const PreviewBackground &) = delete;
     PreviewBackground &operator=(const PreviewBackground &) = delete;
-    bool Load(PChunkyResourceFile file, ChunkNumber background, const Color *basePalette);
+    bool Load(const MMMovieSessionGraph &, ChunkNumber background, const Color *basePalette);
     void OverlayAuthoredPalette(unsigned char bgrx[1024]) const;
     bool SetCamera(std::uint32_t slot, bool updatePlacement = true);
     bool NextPlacementPoint(float point[3]);

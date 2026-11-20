@@ -218,14 +218,18 @@ struct Preview::Impl::AdmissionHost
         s.background = [](void *v, const MMPreviewAdmissionTag *t, int virtualScene) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                auto source = h.impl->cache;
+                auto graph = h.sceneSource.graph;
                 if (t)
                 {
                     TAGOnFile tag = {t->source, 0, virtualScene ? kctgBkgd : t->type, t->number};
-                    source = h.impl->Resolve(tag);
+                    if (!h.impl->ResolveGraph(tag, graph))
+                    {
+                        h.missingBackground = true;
+                        return false;
+                    }
                 }
-                h.missingBackground = !source;
-                return source && h.impl->LoadBackground(source, t ? t->number : h.impl->live.status.asset_number);
+                h.missingBackground = !graph.access;
+                return graph.access && h.impl->LoadBackground(graph, t ? t->number : h.impl->live.status.asset_number);
             });
         };
         if (impl->cache)

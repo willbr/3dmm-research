@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_DEPTH_BITMAP_H
 #define MM_ENGINE_DEPTH_BITMAP_H
 #include "region.h"
+#include "read_stream.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -39,6 +40,8 @@ extern "C"
     void *mm_depth_new(MMI32 width, MMI32 height, const void *initial, const MMDepthServices *);
     void mm_depth_dispose(MMDepthBitmap *, const MMDepthServices *);
     int mm_depth_header(const unsigned char[12], int host_big, MMDepthBitmap *);
+    /* Read a decoded ZBMP into an empty owner. Failure leaves it unchanged. */
+    int mm_depth_read_stream(const MMReadStream *, MMDepthBitmap *, const MMDepthServices *);
     void *mm_depth_read(void *block, const MMDepthServices *);
     int mm_depth_fetch(void *block, int want_object, const MMDepthServices *);
     int mm_depth_write(const MMDepthBitmap *, void *file, MMU32 type, MMU32 *number,
