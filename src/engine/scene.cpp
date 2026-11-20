@@ -221,33 +221,12 @@ static MMSceneSoundServices SceneSoundServices()
     s.diagnostic = SceneOwnerDiagnostic;
     return s;
 }
-void Scene::_PublishOwners()
-{
-    _pmvie = static_cast<PMovie>(_owner.movie);
-    _pbkgd = static_cast<PBackground>(_owner.owned[MM_SCENE_BACKGROUND]);
-    _pmbmp = static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]);
-    _psseBkgd = static_cast<PSceneSoundEvent>(_owner.owned[MM_SCENE_BACKGROUND_SOUND]);
-}
-void Scene::_SetOwner(int slot, void *object)
-{
-    Assert(_owner.owned[slot] == nullptr, "Scene owner slot must be empty");
-    auto services = _OwnerServices();
-    mm_scene_owner_set(&_owner, this, slot, object, &services);
-}
-void Scene::_DropOwner(int slot)
-{
-    auto services = _OwnerServices();
-    mm_scene_owner_drop(&_owner, this, slot, &services);
-}
 MMSceneOwnerServices Scene::_OwnerServices()
 {
-    static_assert(int(fscenPauses) == MM_SCENE_DEFAULT_DISABLED, "Scene defaults");
     MMSceneOwnerServices s = {};
     s.sound_tag_bytes = sizeof(TagChildPair);
     s.create_scene = [](void *, void *movie) -> void * { return NewObj Scene(static_cast<PMovie>(movie)); };
     s.state = [](void *, void *p) { return &static_cast<PScene>(p)->_owner; };
-    s.publish = [](void *, void *p, const MMSceneOwner *) { static_cast<PScene>(p)->_PublishOwners(); };
-    s.reset_cursor = [](void *, void *p) { static_cast<PScene>(p)->_runtime.next_event = 0; };
     s.can_notify = [](void *) -> int { return vpcex != nullptr; };
     s.loaded = [](void *, void *) { vpcex->EnqueueCid(cidSceneLoaded); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
@@ -296,7 +275,6 @@ Scene::Scene(PMovie pmvie)
     for (auto &track : _owner.tracks)
         track.rows.trash_unused = 1;
 #endif
-    _PublishOwners();
     mm_scene_runtime_init(&_runtime);
 }
 
@@ -336,7 +314,7 @@ Scene::~Scene(void)
 {
     AssertBaseThis(0);
     auto services = _OwnerServices();
-    mm_scene_owner_dispose(&_owner, this, &services);
+    mm_scene_owner_dispose(&_owner, &services);
 }
 
 /****************************************************
@@ -387,7 +365,7 @@ void Scene::MarkMem(void)
         MarkPv(track.storage.buffers[0].data);
         MarkPv(track.storage.buffers[1].data);
     }
-    MarkMemObj(_pmbmp);
+    MarkMemObj(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]));
     MarkMemObj(static_cast<PChunkyResourceFile>(_owner.owned[MM_SCENE_BACKGROUND_CACHE]));
 
     for (const auto &list : _owner.members)
@@ -397,8 +375,7 @@ void Scene::MarkMem(void)
     for (long i = 0; i < Ctbox(); ++i)
         MarkMemObj(static_cast<PTBOX>(mm_scene_member_at(&_owner, MM_SCENE_TEXTS, i)));
 
-    if (_psseBkgd != pvNil)
-        MarkPv(_psseBkgd);
+    MarkPv(_owner.owned[MM_SCENE_BACKGROUND_SOUND]);
 }
 
 /***************************************************************************
@@ -415,11 +392,11 @@ void Scene::AssertValid(LegacyUlong grf)
     AssertNilOrPo(_pactrSelected, 0);
     for (MMI32 i = 0; i < mm_scene_member_count(&_owner, MM_SCENE_SELECTION); ++i)
         AssertPo(static_cast<PActor>(mm_scene_member_at(&_owner, MM_SCENE_SELECTION, i)), 0);
-    AssertNilOrPo(_pbkgd, 0);
-    AssertNilOrPo(_pmbmp, 0);
-    Assert(_owner.owned[MM_SCENE_FRAMES] == _FrameTrack(), "missing scene frame track");
-    Assert(_owner.owned[MM_SCENE_STARTS] == _StartTrack(), "missing scene start track");
-    AssertPo(_pmvie, 0);
+    AssertNilOrPo(Pbkgd(), 0);
+    AssertNilOrPo(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]), 0);
+    for (const auto &track : _owner.tracks)
+        Assert(track.rows.storage == &track.storage, "bad scene track storage");
+    AssertPo(Pmvie(), 0);
 
     for (isev = 0; isev < _FrameTrack()->rows.count; isev++)
     {
@@ -724,7 +701,7 @@ MMSceneEventServices Scene::_EventServices()
                       sevtSetBkgd == MM_SCENE_SET_BACKGROUND && sevtPause == MM_SCENE_PAUSE,
                   "Scene event kinds");
     MMSceneEventServices s = {};
-    s.context = s.scene = this;
+    s.context = this;
     s.runtime = &_runtime;
     s.data = &_data;
     s.owner = &_owner;
@@ -743,11 +720,10 @@ MMSceneEventServices Scene::_EventServices()
         return background;
     };
     s.set_camera = [](void *p, void *background, MMI32 camera) -> int {
-        return static_cast<PBackground>(background)->FSetCamera(static_cast<PScene>(p)->_pmvie->Pbwld(), camera);
+        return static_cast<PBackground>(background)->FSetCamera(static_cast<PScene>(p)->Pmvie()->Pbwld(), camera);
     };
     s.transition = [](void *p) -> int { return static_cast<PScene>(p)->Pmvie()->Trans(); };
     s.set_transition = [](void *p, int value) { static_cast<PScene>(p)->Pmvie()->SetTrans(static_cast<TRANS>(value)); };
-    s.publish_tag = [](void *p, const MMTag *value) { TagFromCore(&static_cast<PScene>(p)->_tagBkgd, *value); };
     s.bind_actor = [](void *p, void *actor) { static_cast<PActor>(actor)->SetPscen(static_cast<PScene>(p)); };
     s.seek = [](void *, int text, void *object, MMI32 frame) -> int {
         return text ? static_cast<PTBOX>(object)->FGotoFrame(frame) : static_cast<PActor>(object)->FGotoFrame(frame);
@@ -1236,9 +1212,9 @@ MMSceneSelectionServices Scene::_SelectionServices()
     };
     s.text_selected = [](void *, void *object) { return int(static_cast<PTBOX>(object)->FSelected()); };
     s.select_text = [](void *, void *object, int selected) { static_cast<PTBOX>(object)->Select(selected != 0); };
-    s.invalidate = [](void *p) { static_cast<Scene *>(p)->_pmvie->InvalViews(); };
-    s.action_menu = [](void *p) { static_cast<Scene *>(p)->_pmvie->BuildActionMenu(); };
-    s.text_notice = [](void *p) { static_cast<Scene *>(p)->_pmvie->Pmcc()->TboxSelected(); };
+    s.invalidate = [](void *p) { static_cast<Scene *>(p)->Pmvie()->InvalViews(); };
+    s.action_menu = [](void *p) { static_cast<Scene *>(p)->Pmvie()->BuildActionMenu(); };
+    s.text_notice = [](void *p) { static_cast<Scene *>(p)->Pmvie()->Pmcc()->TboxSelected(); };
     s.name = [](void *, void *object, MMMovieTitle *out) {
         String name;
         static_cast<PActor>(object)->GetName(&name);
@@ -1587,7 +1563,7 @@ MMSceneContentServices Scene::_ContentServices()
             scene->SelectActr(static_cast<PActor>(object));
     };
     s.end_placement = [](void *p) {
-        auto view = static_cast<PMovieView>(static_cast<PScene>(p)->_pmvie->PddgGet(0));
+        auto view = static_cast<PMovieView>(static_cast<PScene>(p)->Pmvie()->PddgGet(0));
         if (view)
             view->EndPlaceActor();
     };
@@ -1598,15 +1574,15 @@ MMSceneContentServices Scene::_ContentServices()
             a->Ptmpl()->GetName(&name);
         else
             a->GetName(&name);
-        return static_cast<PScene>(p)->_pmvie->FAddToRollCall(a, &name);
+        return static_cast<PScene>(p)->Pmvie()->FAddToRollCall(a, &name);
     };
     s.remove_roll = [](void *p, void *a, int only) {
-        static_cast<PScene>(p)->_pmvie->RemFromRollCall(static_cast<PActor>(a), only != 0);
+        static_cast<PScene>(p)->Pmvie()->RemFromRollCall(static_cast<PActor>(a), only != 0);
     };
     s.dirty = [](void *p) { static_cast<PScene>(p)->_MarkMovieDirty(); };
     s.invalidate = [](void *p) { static_cast<PScene>(p)->InvalFrmRange(); };
     s.indicator = [](void *p) { static_cast<PScene>(p)->UpdateSndFrame(); };
-    s.update_roll = [](void *p) { static_cast<PScene>(p)->_pmvie->Pmcc()->UpdateRollCall(); };
+    s.update_roll = [](void *p) { static_cast<PScene>(p)->Pmvie()->Pmcc()->UpdateRollCall(); };
     s.bind_text = [](void *p, void *text) { static_cast<PTBOX>(text)->SetScen(static_cast<PScene>(p)); };
     s.text_select = [](void *, void *text, int selected) { static_cast<PTBOX>(text)->Select(selected != 0); };
     s.text_lifetime = [](void *, void *text, MMI32 *first, MMI32 *last) -> int {
@@ -1626,10 +1602,10 @@ MMSceneContentServices Scene::_ContentServices()
     s.actor_state = [](void *, void *u) { return static_cast<PSceneActorUndo>(u)->CoreState(); };
     s.text_state = [](void *, void *u) { return static_cast<PSceneUndoText>(u)->CoreState(); };
     s.commit_undo = [](void *p, void *u) -> int {
-        return static_cast<PScene>(p)->_pmvie->FAddUndo(static_cast<PMovieUndo>(u));
+        return static_cast<PScene>(p)->Pmvie()->FAddUndo(static_cast<PMovieUndo>(u));
     };
     s.release_undo = [](void *, void *u) { static_cast<PMovieUndo>(u)->Release(); };
-    s.clear_undo = [](void *p) { static_cast<PScene>(p)->_pmvie->ClearUndo(); };
+    s.clear_undo = [](void *p) { static_cast<PScene>(p)->Pmvie()->ClearUndo(); };
     s.not_undoable = [](void *) { PushErc(ercSocNotUndoable); };
     s.diagnostic = [](void *, int issue) {
         switch (issue)
@@ -1887,13 +1863,13 @@ MMSceneEditServices Scene::_EditServices()
     s.background_name = [](void *p) {
         auto scene = static_cast<PScene>(p);
         String name;
-        scene->_pbkgd->GetName(&name);
+        scene->Pbkgd()->GetName(&name);
         scene->_data.SetName(&name);
     };
-    s.scene_change = [](void *p) { static_cast<PScene>(p)->_pmvie->Pmcc()->SceneChange(); };
+    s.scene_change = [](void *p) { static_cast<PScene>(p)->Pmvie()->Pmcc()->SceneChange(); };
     s.can_notify = [](void *) -> int { return vpcex != nullptr; };
     s.loaded = [](void *) { vpcex->EnqueueCid(cidSceneLoaded); };
-    s.current_camera = [](void *p) -> MMI32 { return static_cast<PScene>(p)->_pbkgd->Icam(); };
+    s.current_camera = [](void *p) -> MMI32 { return static_cast<PScene>(p)->Pbkgd()->Icam(); };
     s.new_undo = [](void *, int kind) -> void * {
         return kind == MM_SCENE_UNDO_PAUSE ? static_cast<void *>(SceneUndoPause::PsunpNew())
                                                  : static_cast<void *>(SceneUndoBackground::PsunkNew());
@@ -1901,14 +1877,15 @@ MMSceneEditServices Scene::_EditServices()
     s.pause_state = [](void *, void *u) { return static_cast<PSceneUndoPause>(u)->CoreState(); };
     s.background_state = [](void *, void *u) { return static_cast<PSceneUndoBackground>(u)->CoreState(); };
     s.commit_undo = [](void *p, void *u) -> int {
-        return static_cast<PScene>(p)->_pmvie->FAddUndo(static_cast<PMovieUndo>(u));
+        return static_cast<PScene>(p)->Pmvie()->FAddUndo(static_cast<PMovieUndo>(u));
     };
     s.release_undo = [](void *, void *u) { static_cast<PMovieUndo>(u)->Release(); };
-    s.clear_undo = [](void *p) { static_cast<PScene>(p)->_pmvie->ClearUndo(); };
+    s.clear_undo = [](void *p) { static_cast<PScene>(p)->Pmvie()->ClearUndo(); };
     s.not_undoable = [](void *) { PushErc(ercSocNotUndoable); };
     s.camera_tag = [](void *p, MMI32 camera, MMTag *out) -> int {
-        TAG tag = {};
-        bool ok = vptagm->FBuildChildTag(&static_cast<PScene>(p)->_tagBkgd, camera, kctgCam, &tag);
+        TAG parent, tag = {};
+        TagFromCore(&parent, static_cast<PScene>(p)->_owner.background_tag);
+        bool ok = vptagm->FBuildChildTag(&parent, camera, kctgCam, &tag);
         if (ok)
             *out = SceneEditTag(tag);
         return ok;
@@ -2227,13 +2204,13 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
     MMSceneResolveServices s = {};
     s.context = this;
     s.owner = &_owner;
-    s.packets = ScenePacketServices(_pmvie);
+    s.packets = ScenePacketServices(Pmvie());
     s.actor = [](void *, void *actor, MMU32 scene) -> int {
         return static_cast<PActor>(actor)->FResolveAllSndTags(scene);
     };
     s.resolve = [](void *p, void *record, MMU32 scene) -> int {
         auto tag = static_cast<PTagChildPair>(record);
-        return static_cast<PScene>(p)->_pmvie->FResolveSndTag(&tag->tag, tag->chid, scene);
+        return static_cast<PScene>(p)->Pmvie()->FResolveSndTag(&tag->tag, tag->chid, scene);
     };
     return mm_scene_resolve_sounds(cnoScen, &s) != 0;
 }
@@ -2311,7 +2288,6 @@ MMSceneThumbnailServices Scene::_ThumbnailServices(void *graphics)
     s.runtime = &_runtime;
     s.owner = &_owner;
     s.owners = _OwnerServices();
-    s.scene = this;
     s.selected = [](void *p, int text) -> void * {
         auto scene = static_cast<Scene *>(p);
         return text ? scene->_selection.text : scene->_selection.actor;
@@ -2590,8 +2566,7 @@ void Scene::_MarkMovieDirty()
 void Scene::SetMvie(PMovie movie)
 {
     AssertThis(0);
-    auto s = _ContentServices();
-    mm_scene_content_bind_movie(movie, &s);
+    _owner.movie = movie;
 }
 
 /****************************************************

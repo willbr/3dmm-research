@@ -3,8 +3,7 @@
 #include "mm/scene_load.h"
 #include "mm/text_store.h"
 
-static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start, MMI32 *completed,
-                      const MMSceneLoadServices *s)
+static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start, const MMSceneLoadServices *s)
 {
     const MMSceneOwnerServices *o = &s->owners;
     const MMSceneSoundPacketServices *v = &s->packets;
@@ -14,16 +13,15 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
     MMMovieSceneGroup wire;
     MMMovieSceneEvent event;
     MMSceneTrackEvent record;
-    MMSceneTrack *group;
+    MMSceneTrack *group = &owner->tracks[start ? MM_SCENE_STARTS : MM_SCENE_FRAMES];
     void *object;
     MMSceneSound *sound;
     MMTag tag;
     MMU32 i, child;
     MMI32 j;
-    int ok, slot = start ? MM_SCENE_STARTS : MM_SCENE_FRAMES;
+    int ok;
     if (read->group(read->context, number, start, &wire) != MM_MOVIE_OK)
         return 0;
-    group = mm_scene_owner_open_events(owner, scene, slot, o);
     for (i = 0; i < wire.count; ++i)
     {
         read->event(read->context, &wire, i, &event);
@@ -66,8 +64,7 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
             if (!tag.sid)
             {
                 if (!owner->owned[MM_SCENE_BACKGROUND_CACHE])
-                    mm_scene_owner_set(owner, scene, MM_SCENE_BACKGROUND_CACHE,
-                                       s->retain_background_cache(s->context), o);
+                    owner->owned[MM_SCENE_BACKGROUND_CACHE] = s->retain_background_cache(s->context);
                 tag.cache = owner->owned[MM_SCENE_BACKGROUND_CACHE];
             }
             if (!mm_scene_track_insert(group, i, sizeof(tag), &tag, &record))
@@ -83,7 +80,6 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
             o->diagnostic(o->context, start ? MM_SCENE_BAD_START : MM_SCENE_BAD_FRAME);
             goto fail; /* Validated wire groups cannot contain these kinds. */
         }
-        ++*completed;
     }
     read->close(read->context, &wire);
     return 1;
@@ -97,7 +93,6 @@ void *mm_scene_load(void *movie, MMU32 number, unsigned unit, const MMSceneLoadS
     MMMovieSessionScene header;
     const MMSceneOwnerServices *o = &s->owners;
     MMSceneOwner *owner;
-    MMI32 starts = 0, frames = 0;
     MMU32 child;
     void *scene;
     if (!mm_scene_init(&metadata, unit) || s->read.header(s->read.context, number, &header) != MM_MOVIE_OK)
@@ -106,23 +101,19 @@ void *mm_scene_load(void *movie, MMU32 number, unsigned unit, const MMSceneLoadS
     if (!scene)
         return NULL;
     owner = o->state(o->context, scene);
-    o->reset_cursor(o->context, scene);
     metadata.firstFrame = header.first_frame;
     metadata.lastFrame = header.last_frame;
     metadata.transition = header.transition;
     metadata.currentFrame = metadata.firstFrame - 1;
     s->publish_metadata(s->context, scene, &metadata);
     if (s->read.child(s->read.context, number, 0, MM_SCENE_THUMBNAIL_CHUNK, &child))
-        mm_scene_owner_set(owner, scene, MM_SCENE_THUMBNAIL, s->thumbnail(s->context, child), o);
-    if (!load_group(scene, owner, number, 0, &frames, s))
-        goto unwind;
-    mm_scene_owner_drop(owner, scene, MM_SCENE_STARTS, o);
-    if (!load_group(scene, owner, number, 1, &starts, s))
+        owner->owned[MM_SCENE_THUMBNAIL] = s->thumbnail(s->context, child);
+    if (!load_group(scene, owner, number, 0, s) || !load_group(scene, owner, number, 1, s))
         goto unwind;
     s->load_name(s->context, scene, number);
     return scene;
 unwind:
-    mm_scene_owner_unwind(owner, scene, starts, frames, o);
+    mm_scene_owner_unwind(owner, o);
     o->release(o->context, scene);
     return NULL;
 }

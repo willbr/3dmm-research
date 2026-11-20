@@ -101,7 +101,7 @@ struct Access : Scene
         Value(s->*&Access::_grfscen);
         Value(s->*&Access::_nfrmSseBkgd);
 #endif
-        auto sound = s->*&Access::_psseBkgd;
+        auto sound = static_cast<PSceneSoundEvent>((s->*&Access::_owner).owned[MM_SCENE_BACKGROUND_SOUND]);
         Value(sound != nullptr);
         if (sound)
             Record(sound, sizeof(Header));

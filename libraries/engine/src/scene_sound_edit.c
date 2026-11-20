@@ -243,7 +243,7 @@ void mm_scene_sound_remove(MMI32 style, const MMSceneSoundEditServices *s)
     }
     close_event(i, s);
     if (style == MM_SCENE_EVENT_MIDI)
-        mm_scene_owner_drop(s->events.owner, s->events.scene, MM_SCENE_BACKGROUND_SOUND, &s->events.owners);
+        mm_scene_owner_drop(s->events.owner, MM_SCENE_BACKGROUND_SOUND, &s->events.owners);
     mm_scene_sound_update_indicator(s);
     s->dirty(s->context);
 }

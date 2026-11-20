@@ -42,7 +42,7 @@ static void adopt(int slot, void *object, const MMSceneEventServices *s)
 {
     if (s->owner->owned[slot])
         s->diagnostic(s->context, MM_SCENE_EVENT_OWNER_OCCUPIED);
-    mm_scene_owner_set(s->owner, s->scene, slot, object, &s->owners);
+    s->owner->owned[slot] = object;
 }
 static void require_background(const MMSceneEventServices *s)
 {
@@ -64,7 +64,7 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
             copy = s->duplicate_sound(c, payload);
             if (!copy)
                 return 0;
-            mm_scene_owner_drop(s->owner, s->scene, MM_SCENE_BACKGROUND_SOUND, &s->owners);
+            mm_scene_owner_drop(s->owner, MM_SCENE_BACKGROUND_SOUND, &s->owners);
             adopt(MM_SCENE_BACKGROUND_SOUND, copy, s);
             s->runtime->background_frame = frame;
         }
@@ -84,7 +84,7 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
         if (s->transition(c) == MM_SCENE_EVENT_NIL_TRANSITION)
             s->set_transition(c, MM_SCENE_EVENT_CUT_TRANSITION);
         adopt(MM_SCENE_BACKGROUND, object, s);
-        s->publish_tag(c, &tag);
+        s->owner->background_tag = tag;
         break;
     case MM_SCENE_ADD_ACTOR:
     case MM_SCENE_ADD_TEXT:
@@ -159,7 +159,7 @@ int mm_scene_unplay_event(int kind, const MMSceneEventServices *s)
         return 1;
     }
     if (kind == MM_SCENE_PLAY_SOUND)
-        mm_scene_owner_drop(s->owner, s->scene, MM_SCENE_BACKGROUND_SOUND, &s->owners);
+        mm_scene_owner_drop(s->owner, MM_SCENE_BACKGROUND_SOUND, &s->owners);
     else
     {
         /* Host-order camera payload; frame is unused by camera dispatch. */

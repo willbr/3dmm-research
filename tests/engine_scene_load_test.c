@@ -86,17 +86,6 @@ static MMSceneOwner *owner_state(void *p, void *scene)
     CHECK(scene == f->scene);
     return &f->owner;
 }
-static void publish_owner(void *p, void *scene, const MMSceneOwner *o)
-{
-    Loader *f = (Loader *)p;
-    CHECK(scene == f->scene && o == &f->owner);
-}
-static void reset(void *p, void *scene)
-{
-    Loader *f = (Loader *)p;
-    CHECK(scene == f->scene);
-    note(f, 1);
-}
 static void release_object(void *p, void *value)
 {
     Loader *f = (Loader *)p;
@@ -104,7 +93,7 @@ static void release_object(void *p, void *value)
     CHECK(o && o->refs == 1);
     note(f, 100 + o->type);
     if (o == f->scene)
-        mm_scene_owner_dispose(&f->owner, o, &f->s.owners);
+        mm_scene_owner_dispose(&f->owner, &f->s.owners);
     o->refs = 0;
     --f->live;
     if (o->type < 100 || o->type >= 200)
@@ -254,9 +243,8 @@ static int open_tag(void *p, MMSceneSound *sound, MMI32 i)
 static void load_name(void *p, void *scene, MMU32 number)
 {
     Loader *f = (Loader *)p;
-    CHECK(scene == f->scene && number == 42 && f->owner.owned[0] == &f->owner.tracks[0] &&
-          f->owner.owned[1] == &f->owner.tracks[1] &&
-          f->owner.tracks[0].rows.count == 3 && f->owner.tracks[1].rows.count == 4);
+    CHECK(scene == f->scene && number == 42 &&
+          f->owner.tracks[MM_SCENE_FRAMES].rows.count == 3 && f->owner.tracks[MM_SCENE_STARTS].rows.count == 4);
     ++f->names;
     note(f, 3);
 }
@@ -325,8 +313,6 @@ static void init_loader(Loader *f, int swap)
     o->sound_tag_bytes = sizeof(Record);
     o->create_scene = new_scene;
     o->state = owner_state;
-    o->publish = publish_owner;
-    o->reset_cursor = reset;
     o->release = release_object;
     o->diagnostic = diagnostic;
     o->sound.context = f;

@@ -11,7 +11,7 @@ void mm_scene_owner_init(MMSceneOwner *w, void *movie, const MMStorageAllocator 
     w->movie = movie;
     for (i = 0; i < MM_SCENE_MEMBER_LISTS; ++i)
         mm_storage_init(&w->members[i].storage, allocator);
-    for (i = MM_SCENE_FRAMES; i <= MM_SCENE_STARTS; ++i)
+    for (i = 0; i < MM_SCENE_TRACKS; ++i)
         mm_scene_track_init(&w->tracks[i], allocator, 0);
 }
 MMI32 mm_scene_member_count(const MMSceneOwner *w, int list)
@@ -77,42 +77,21 @@ void mm_scene_sound_release(void **sound, const MMSceneSoundServices *s)
     s->free(s->context, p);
     *sound = NULL;
 }
-void mm_scene_owner_set(MMSceneOwner *w, void *scene, int slot, void *p, const MMSceneOwnerServices *s)
-{
-    w->owned[slot] = p;
-    s->publish(s->context, scene, w);
-}
-void mm_scene_owner_drop(MMSceneOwner *w, void *scene, int slot, const MMSceneOwnerServices *s)
+void mm_scene_owner_drop(MMSceneOwner *w, int slot, const MMSceneOwnerServices *s)
 {
     void *p = w->owned[slot];
     if (!p)
         return;
     if (slot == MM_SCENE_BACKGROUND_SOUND)
         mm_scene_sound_release(&p, &s->sound);
-    else if (slot <= MM_SCENE_STARTS)
-        mm_scene_track_dispose(&w->tracks[slot]);
     else
         s->release(s->context, p);
     w->owned[slot] = NULL;
-    s->publish(s->context, scene, w);
-}
-MMSceneTrack *mm_scene_owner_open_events(MMSceneOwner *w, void *scene, int slot, const MMSceneOwnerServices *s)
-{
-    MMSceneTrack *track = &w->tracks[slot];
-    mm_scene_owner_set(w, scene, slot, track, s);
-    return track;
 }
 void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *s)
 {
     void *scene = s->create_scene(s->context, movie);
-    MMSceneOwner *w;
-    if (!scene)
-        return NULL;
-    w = s->state(s->context, scene);
-    mm_scene_owner_open_events(w, scene, MM_SCENE_FRAMES, s);
-    s->reset_cursor(s->context, scene);
-    mm_scene_owner_open_events(w, scene, MM_SCENE_STARTS, s);
-    if (s->can_notify(s->context))
+    if (scene && s->can_notify(s->context))
         s->loaded(s->context, scene);
     return scene;
 }
@@ -184,35 +163,37 @@ static void frame_event(const MMSceneTrack *track, MMI32 index, int unwind, cons
     else if (!unwind && kind != MM_SCENE_CHANGE_CAMERA && kind != MM_SCENE_PAUSE)
         s->diagnostic(s->context, MM_SCENE_UNKNOWN_EVENT);
 }
-void mm_scene_owner_dispose(MMSceneOwner *w, void *scene, const MMSceneOwnerServices *s)
+void mm_scene_owner_dispose(MMSceneOwner *w, const MMSceneOwnerServices *s)
 {
     MMI32 i;
     int slot;
-    const MMSceneTrack *track = &w->tracks[MM_SCENE_STARTS];
+    MMSceneTrack *track = &w->tracks[MM_SCENE_STARTS];
     for (i = 0; (MMU32)i < track->rows.count; ++i)
         start_event(track, i, 0, s);
-    mm_scene_owner_drop(w, scene, MM_SCENE_STARTS, s);
+    mm_scene_track_dispose(track);
     track = &w->tracks[MM_SCENE_FRAMES];
     for (i = 0; (MMU32)i < track->rows.count; ++i)
         frame_event(track, i, 0, s);
-    mm_scene_owner_drop(w, scene, MM_SCENE_FRAMES, s);
+    mm_scene_track_dispose(track);
     for (slot = 0; slot < MM_SCENE_MEMBER_LISTS; ++slot)
     {
         mm_storage_dispose(&w->members[slot].storage);
         w->members[slot].count = 0;
     }
-    for (slot = MM_SCENE_BACKGROUND; slot < MM_SCENE_OWNERS; ++slot)
-        mm_scene_owner_drop(w, scene, slot, s);
+    for (slot = 0; slot < MM_SCENE_OWNERS; ++slot)
+        mm_scene_owner_drop(w, slot, s);
 }
-void mm_scene_owner_unwind(MMSceneOwner *w, void *scene, MMI32 starts, MMI32 frames,
-                                 const MMSceneOwnerServices *s)
+void mm_scene_owner_unwind(MMSceneOwner *w, const MMSceneOwnerServices *s)
 {
-    while (starts > 0)
-        start_event(&w->tracks[MM_SCENE_STARTS], --starts, 1, s);
-    mm_scene_owner_drop(w, scene, MM_SCENE_STARTS, s);
-    while (frames > 0)
-        frame_event(&w->tracks[MM_SCENE_FRAMES], --frames, 1, s);
-    mm_scene_owner_drop(w, scene, MM_SCENE_FRAMES, s);
+    MMSceneTrack *track = &w->tracks[MM_SCENE_STARTS];
+    MMI32 i;
+    for (i = track->rows.count; i > 0;)
+        start_event(track, --i, 1, s);
+    mm_scene_track_dispose(track);
+    track = &w->tracks[MM_SCENE_FRAMES];
+    for (i = track->rows.count; i > 0;)
+        frame_event(track, --i, 1, s);
+    mm_scene_track_dispose(track);
 }
 void mm_scene_owner_actors(MMSceneOwner *w, int show, const MMSceneOwnerServices *s)
 {

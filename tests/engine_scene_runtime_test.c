@@ -198,7 +198,7 @@ static void init(Fixture *f)
         f->texts[i].id = i + 3;
     s = &f->services;
     s->context = f;
-    s->events.context = s->events.scene = f;
+    s->events.context = f;
     s->events.runtime = &f->runtime;
     s->events.data = &f->data;
     s->events.owner = &f->owner;

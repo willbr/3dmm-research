@@ -133,11 +133,8 @@ class Scene : public Scene_PAR
 
   protected:
     typedef struct SceneEvent *PSEV;
-    MMSceneOwner _owner; // Owns references; native pointer fields are borrowed views.
+    MMSceneOwner _owner;
     static MMSceneOwnerServices _OwnerServices();
-    void _PublishOwners();
-    void _SetOwner(int slot, void *object);
-    void _DropOwner(int slot);
 
     //
     // These variables keep track of the internal frame numbers.
@@ -167,16 +164,9 @@ class Scene : public Scene_PAR
     //
     MMSceneTrack *_FrameTrack() { return &_owner.tracks[MM_SCENE_FRAMES]; }
     MMSceneTrack *_StartTrack() { return &_owner.tracks[MM_SCENE_STARTS]; }
-    PMovie _pmvie;         // Movie this scene is a part of.
-    PBackground _pbkgd;         // Background for this scene.
     MMSceneSelection _selection = {}; // Authoritative borrowed primary selection.
     PActor _pactrSelected; // Published typed view of _selection.actor.
     PTBOX _ptboxSelected;            // Published typed view of _selection.text.
-    PMaskedBitmapMBMP _pmbmp;         // The thumbnail for this scene.
-    PSceneSoundEvent _psseBkgd;       // Background scene sound (starts playing
-                          // at start time even if snd event is
-                          // earlier)
-    TAG _tagBkgd;         // Tag to current Background
 
   protected:
     Scene(PMovie pmvie);
@@ -406,7 +396,7 @@ class Scene : public Scene_PAR
     bool FSetBkgd(PTAG ptag);                   // Sets the background for this scene, and undo
     Background *Pbkgd(void)
     {
-        return _pbkgd;
+        return static_cast<PBackground>(_owner.owned[MM_SCENE_BACKGROUND]);
     }                                               // Gets the background for this scene.
     bool FChangeCamCore(long icam, long *picamOld); // Changes camera viewpoint at current frame.
     bool FChangeCam(long icam);                     // Changes camera viewpoint at current frame, and undo
@@ -418,7 +408,7 @@ class Scene : public Scene_PAR
     //
     PMovie Pmvie()
     {
-        return (_pmvie);
+        return static_cast<PMovie>(_owner.movie);
     } // Get the parent movie
 
     //

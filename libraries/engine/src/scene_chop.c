@@ -95,7 +95,7 @@ int mm_scene_chop(int back, const MMSceneChopServices *s)
         }
         if (owner->owned[MM_SCENE_BACKGROUND_SOUND] && r->background_frame < d->firstFrame)
         {
-            mm_scene_owner_drop(s->events.owner, s->events.scene, MM_SCENE_BACKGROUND_SOUND, o);
+            mm_scene_owner_drop(owner, MM_SCENE_BACKGROUND_SOUND, o);
             s->discard_background_frame(s->context);
         }
     }

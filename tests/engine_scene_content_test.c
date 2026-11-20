@@ -36,7 +36,7 @@ typedef struct Test
     int live, undo_live, next_id, dirty, invalid, indicator, updated, placement, bind_fail, seek_actor_fail,
         seek_text_fail, insert_fail, roll_fail, roll_calls;
     int onstage_fail, paste_fail, new_fail, commit_fail, clears, not_undoable, dup_fail, dups, switched, switch_fail,
-        seek_calls, seek_fail, flushes, published, hide_text, issues[7];
+        seek_calls, seek_fail, flushes, hide_text, issues[7];
     int log[512], used;
     MMSceneActorUndo cleared_actor;
     MMSceneTextUndo cleared_text;
@@ -336,12 +336,6 @@ static void flush(void *p)
     ++t->flushes;
     note(t, 22);
 }
-static void publish(void *p, void *value, const MMSceneOwner *owner)
-{
-    Test *t = (Test *)p;
-    CHECK(value == t && owner == &t->owner);
-    ++t->published;
-}
 static void init(Test *t)
 {
     MMSceneContentServices *s;
@@ -356,12 +350,11 @@ static void init(Test *t)
     t->next_id = 100;
     t->data.currentFrame = t->data.firstFrame = 1;
     t->data.lastFrame = 9;
-    t->owner.owned[MM_SCENE_STARTS] = t->starts;
 
     s = &t->s;
     s->context = t;
     v = &s->events;
-    v->context = v->scene = t;
+    v->context = t;
     v->owner = &t->owner;
     v->data = &t->data;
     v->runtime = &t->runtime;
@@ -370,7 +363,6 @@ static void init(Test *t)
     o = &v->owners;
     o->context = t;
     o->release = release;
-    o->publish = publish;
     s->retain = retain;
     s->actor_id = actor_id;
     s->set_actor_id = set_id;
@@ -581,8 +573,6 @@ static void test_public(void)
     release(&t, b);
     clean(&t);
     init(&t);
-    mm_scene_content_bind_movie(&t, &t.s);
-    CHECK(t.owner.movie == &t && t.published == 1);
     clean(&t);
 }
 static void test_actor_undo(void)

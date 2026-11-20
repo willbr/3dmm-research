@@ -107,7 +107,7 @@ struct Access : Scene
         auto frames = (scene->*&Access::_FrameTrack)();
         CHECK(InsertSceneTrackEvent(frames, 0, packet.size(), packet.data(), event));
         auto services = _OwnerServices();
-        mm_scene_owner_unwind(&(scene->*&Access::_owner), scene, 0, 1, &services);
+        mm_scene_owner_unwind(&(scene->*&Access::_owner), &services);
     }
 #endif
     static void State(PScene s)
@@ -131,8 +131,9 @@ struct Access : Scene
         Value(sizeof(PTBOX));
         Value(s->Ctbox());
         Value(mm_scene_member_count(&(s->*&Access::_owner), MM_SCENE_SELECTION) != 0);
-        Value(s->*&Access::_pmbmp != nullptr);
-        Value(s->*&Access::_psseBkgd != nullptr);
+        const auto &owner = s->*&Access::_owner;
+        Value(owner.owned[MM_SCENE_THUMBNAIL] != nullptr);
+        Value(owner.owned[MM_SCENE_BACKGROUND_SOUND] != nullptr);
         Value(s->CactRef());
     }
     static void Populate(PScene s, int count)
@@ -159,10 +160,9 @@ struct Access : Scene
         void *sound = nullptr;
         CHECK(FAllocPv(&sound, background.size(), fmemNil, mprNormal));
         std::memcpy(sound, background.data(), background.size());
-        auto services = _OwnerServices();
         auto &owner = s->*&Access::_owner;
-        mm_scene_owner_set(&owner, s, MM_SCENE_THUMBNAIL, bitmap, &services);
-        mm_scene_owner_set(&owner, s, MM_SCENE_BACKGROUND_SOUND, sound, &services);
+        owner.owned[MM_SCENE_THUMBNAIL] = bitmap;
+        owner.owned[MM_SCENE_BACKGROUND_SOUND] = sound;
     }
 };
 static bool Missing(const MissingSourceRequest &)

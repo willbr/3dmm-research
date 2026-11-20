@@ -82,7 +82,6 @@ extern "C"
     int mm_scene_text_add_undo(void *, const MMSceneContentServices *);
     int mm_scene_text_remove_undo(void *, const MMSceneContentServices *);
     void *mm_scene_text_at(MMI32 index, const MMSceneContentServices *);
-    void mm_scene_content_bind_movie(void *movie, const MMSceneContentServices *);
     typedef struct MMSceneContentUndoServices
     {
         void *context;

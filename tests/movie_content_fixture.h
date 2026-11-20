@@ -29,6 +29,8 @@ class MovieContentSceneAccess : public Scene
   public:
     static bool PlacePoints(PScene scene)
     {
+        if (scene->Pbkgd())
+            return false;
         auto background = NewObj StageTestBackground();
         if (!background)
             return false;
@@ -37,8 +39,8 @@ class MovieContentSceneAccess : public Scene
             ReleasePpo(&background);
             return false;
         }
-        auto member = &MovieContentSceneAccess::_pbkgd;
-        scene->*member = background;
+        auto member = &MovieContentSceneAccess::_owner;
+        (scene->*member).owned[MM_SCENE_BACKGROUND] = background;
         return true;
     }
 };

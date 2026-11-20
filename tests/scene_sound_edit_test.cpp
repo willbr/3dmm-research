@@ -121,7 +121,7 @@ struct Access : Scene
                 continue;
             Packet(reinterpret_cast<PSceneSoundEvent>(mm_scene_track_payload(group, i, nullptr)));
         }
-        auto background = p->*&Access::_psseBkgd;
+        auto background = static_cast<PSceneSoundEvent>((p->*&Access::_owner).owned[MM_SCENE_BACKGROUND_SOUND]);
         Value(background != nullptr);
         if (background)
             Packet(background);

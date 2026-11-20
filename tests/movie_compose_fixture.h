@@ -12,8 +12,8 @@ class MovieComposeSceneAccess : public Scene
         auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 8, 6, &bounds, 0, 0, 0);
         if (!bitmap)
             return false;
-        auto set = &MovieComposeSceneAccess::_SetOwner;
-        (scene->*set)(MM_SCENE_THUMBNAIL, bitmap);
+        auto member = &MovieComposeSceneAccess::_owner;
+        (scene->*member).owned[MM_SCENE_THUMBNAIL] = bitmap;
         return true;
     }
 };

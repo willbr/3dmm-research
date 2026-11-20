@@ -169,6 +169,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Studio seek, replay, range extension and prerender scheduling use the
   C89 frame track and actor and caption lists directly. Studio, Marcus
   preview and scene archive writes share the opening-camera traversal.
+- Studio's C89 scene owner holds the frame and start tracks and the
+  scene's resources directly. Failed loads unwind the rows present in
+  each track. Native accessors read the owner for the movie, background,
+  thumbnail and cached sound. The owner also records the active background
+  tag used to resolve camera resources.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

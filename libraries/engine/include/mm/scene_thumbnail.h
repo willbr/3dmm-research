@@ -49,7 +49,6 @@ extern "C"
         MMSceneRuntime *runtime;
         MMSceneOwner *owner;
         MMSceneOwnerServices owners;
-        void *scene;
         void *(*selected)(void *, int text);
         MMI32 (*sound_time)(void *);
         void (*mute)(void *), (*resume)(void *, MMI32 time);

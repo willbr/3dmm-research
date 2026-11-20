@@ -211,7 +211,7 @@ int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServ
             if (!mm_scene_track_put(starts, i, sizeof(*tag), tag))
                 return 0;
             e->owners.lights_off(e->owners.context, e->owner->owned[MM_SCENE_BACKGROUND]);
-            mm_scene_owner_drop(e->owner, e->scene, MM_SCENE_BACKGROUND, &e->owners);
+            mm_scene_owner_drop(e->owner, MM_SCENE_BACKGROUND, &e->owners);
             dirty(s);
             if (!play_background(tag, e))
             {

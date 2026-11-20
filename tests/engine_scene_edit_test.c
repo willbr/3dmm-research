@@ -20,7 +20,7 @@ typedef struct Edit
     MMSceneOwner owner;
     MMSceneTrack *frames, *starts;
     Back backgrounds[3];
-    MMTag weak, published, undo_tag;
+    MMTag published, undo_tag;
     Undo *active;
     MMScenePauseUndo cleared_pause;
     MMSceneBackgroundUndo cleared_back;
@@ -64,12 +64,6 @@ static void dirty(void *p)
     Edit *e = (Edit *)p;
     ++e->dirty;
     note(e, 21);
-}
-static void publish_owner(void *p, void *scene, const MMSceneOwner *owner)
-{
-    Edit *e = (Edit *)p;
-    CHECK(scene == e && owner == &e->owner);
-    note(e, 23);
 }
 static void release_back(void *p, void *back)
 {
@@ -120,10 +114,6 @@ static int transition(void *p)
 {
     (void)p;
     return 0;
-}
-static void weak_tag(void *p, const MMTag *tag)
-{
-    ((Edit *)p)->weak = *tag;
 }
 static void event_issue(void *p, int issue)
 {
@@ -350,7 +340,6 @@ static void init_edit(Edit *e)
     s->context = e;
     s->sound.context = e;
     s->sound.events.context = e;
-    s->sound.events.scene = e;
     s->sound.events.owner = &e->owner;
     s->sound.events.data = &e->data;
     s->sound.events.runtime = &e->runtime;
@@ -378,18 +367,14 @@ static void init_edit(Edit *e)
     v->fetch_background = fetch_back;
     v->set_camera = set_camera;
     v->transition = transition;
-    v->publish_tag = weak_tag;
     v->diagnostic = event_issue;
     o = &v->owners;
     o->context = e;
     o->sound_tag_bytes = sizeof(Record);
-    o->publish = publish_owner;
     o->release = release_back;
     o->lights_off = lights_off;
     o->sound.context = e;
     o->sound.close = close_sound_tag;
-    e->owner.owned[MM_SCENE_FRAMES] = e->frames;
-    e->owner.owned[MM_SCENE_STARTS] = e->starts;
     e->data.currentFrame = e->data.firstFrame = e->data.lastFrame = 1;
     e->available = 1;
     for (i = 0; i < 3; ++i)
@@ -421,7 +406,7 @@ static void existing_background(Edit *e, int n)
     CHECK(insert_into(e->starts, 0, 0, MM_SCENE_SET_BACKGROUND, sizeof(value), &value));
     e->backgrounds[n].refs = 1;
     e->owner.owned[MM_SCENE_BACKGROUND] = &e->backgrounds[n];
-    e->weak = value;
+    e->owner.background_tag = value;
 }
 static void add_camera(Edit *e, int frame, int camera)
 {

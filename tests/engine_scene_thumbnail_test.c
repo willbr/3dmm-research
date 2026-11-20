@@ -179,18 +179,6 @@ static void release_bitmap(void *p, void *bitmap)
     --h->old_refs;
     event(h, 24);
 }
-static void publish(void *p, void *scene, const MMSceneOwner *owner)
-{
-    Host *h = (Host *)p;
-    CHECK(scene == h && owner == &h->owner);
-    if (owner->owned[MM_SCENE_THUMBNAIL])
-    {
-        CHECK(owner->owned[MM_SCENE_THUMBNAIL] == &h->new_bitmap && h->ports[1].locked);
-        event(h, 26);
-    }
-    else
-        event(h, 25);
-}
 static MMI32 stride(void *p, void *port)
 {
     Host *h = (Host *)p;
@@ -221,6 +209,7 @@ static void unlock(void *p, void *port)
 {
     Host *h = (Host *)p;
     CHECK(port == h->ports + 1 && h->ports[1].locked);
+    CHECK(h->owner.owned[MM_SCENE_THUMBNAIL] == (h->fail_bitmap ? NULL : &h->new_bitmap));
     h->ports[1].locked = 0;
     event(h, 30);
 }
@@ -247,10 +236,8 @@ static MMSceneThumbnailServices init(Host *h)
     s.data = &h->data;
     s.runtime = &h->runtime;
     s.owner = &h->owner;
-    s.scene = h;
     s.owners.context = h;
     s.owners.release = release_bitmap;
-    s.owners.publish = publish;
     s.selected = selected;
     s.sound_time = time;
     s.mute = mute;
@@ -330,12 +317,12 @@ static void test_render(void)
         CHECK(h.data.currentFrame == 5 && h.seek_calls == 2 && !h.muted);
         {
             int e[] = {1,  2,  3,  4,  6,  7,  8,  9,  10, 11, 14, 16, 17, 21, 16,
-                       19, 22, 24, 25, 27, 28, 29, 26, 30, 12, 13, 15, 23, 5};
+                       19, 22, 24, 27, 28, 29, 30, 12, 13, 15, 23, 5};
             if (i == 1)
                 e[12] = 18;
             if (i > 0)
                 e[15] = 20;
-            expect(&h, e, 29);
+            expect(&h, e, sizeof(e) / sizeof(*e));
         }
     }
     s = init(&h);
@@ -348,7 +335,7 @@ static void test_render(void)
     s = init(&h);
     h.fail_bitmap = 1;
     CHECK(!mm_scene_thumbnail(&s) && !h.old_refs && !h.new_refs && h.data.currentFrame == 5);
-    CHECK(h.trace[22] == 25 && h.trace[h.traces - 2] == 23 && h.trace[h.traces - 1] == 5);
+    CHECK(h.trace[h.traces - 2] == 23 && h.trace[h.traces - 1] == 5);
     s = init(&h);
     h.fail_seek = 2;
     CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.data.currentFrame == 4 && h.seek_calls == 2);

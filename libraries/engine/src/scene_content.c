@@ -344,11 +344,6 @@ int mm_scene_text_remove_undo(void *text, const MMSceneContentServices *s)
     }
     return 1;
 }
-void mm_scene_content_bind_movie(void *movie, const MMSceneContentServices *s)
-{
-    s->events.owner->movie = movie;
-    s->events.owners.publish(s->events.owners.context, s->events.scene, s->events.owner);
-}
 void mm_scene_actor_undo_dispose(MMSceneActorUndo *p, const MMSceneContentServices *s)
 {
     if (p->actor)

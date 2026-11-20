@@ -286,11 +286,6 @@ static void clear_undo(void *p)
     if (u)
         undo_release(e, u);
 }
-static void owner_publish(void *p, void *scene, const MMSceneOwner *owner)
-{
-    Editor *e = (Editor *)p;
-    CHECK(scene == e && owner == &e->owner);
-}
 static MMI32 packet_count(void *p, void *value)
 {
     (void)p;
@@ -409,15 +404,13 @@ static void editor_init(Editor *e)
     s->clear_undo = clear_undo;
     s->diagnostic = diagnostic;
     v = &s->events;
-    v->context = v->scene = e;
+    v->context = e;
     v->runtime = &e->runtime;
     v->data = &e->data;
     v->owner = &e->owner;
-    e->owner.owned[MM_SCENE_FRAMES] = e->frames;
     v->duplicate_sound = event_duplicate;
     v->play_sound = event_play;
     v->owners.context = e;
-    v->owners.publish = owner_publish;
     v->owners.sound_tag_bytes = sizeof(Record);
     v->owners.sound.context = e;
     v->owners.sound.count = packet_count;
@@ -469,7 +462,7 @@ static void editor_clean(Editor *e)
     int i, j;
     MMSceneSound *p;
     clear_undo(e);
-    mm_scene_owner_drop(&e->owner, e, MM_SCENE_BACKGROUND_SOUND, &e->s.events.owners);
+    mm_scene_owner_drop(&e->owner, MM_SCENE_BACKGROUND_SOUND, &e->s.events.owners);
     for (i = e->frames->rows.count; i > 0;)
     {
         p = frame_packet(e, --i);

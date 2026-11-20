@@ -25,7 +25,7 @@ extern "C"
     struct MMSceneRuntime;
     typedef struct MMSceneEventServices
     {
-        void *context, *scene;
+        void *context;
         struct MMSceneRuntime *runtime;
         const MMSceneState *data;
         MMSceneOwner *owner;
@@ -36,7 +36,6 @@ extern "C"
         int (*set_camera)(void *, void *background, MMI32 camera);
         int (*transition)(void *);
         void (*set_transition)(void *, int);
-        void (*publish_tag)(void *, const MMTag *);
         void (*bind_actor)(void *, void *actor);
         int (*seek)(void *, int text, void *object, MMI32 frame);
         void (*pause_type)(void *, int reason);

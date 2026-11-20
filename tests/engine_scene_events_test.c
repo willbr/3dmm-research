@@ -17,13 +17,11 @@ enum
 {
     DUP = 1,
     FREE,
-    PUBLISH,
     PLAY,
     FETCH,
     CAMERA,
     TRANS,
     SET_TRANS,
-    PUB_TAG,
     BIND,
     SEEK,
     PAUSE_TYPE,
@@ -58,10 +56,8 @@ typedef struct Fixture
     MMSceneTrack *frames, *starts;
     Object objects[4];
     Payload packet;
-    MMTag published;
     int ops[128], used, issues[5], live, dup_fail, fetch_fail, camera_fail;
     int seek_fail, transition, camera, releases, sounds, duplicate_volume, mutate_delay;
-    MMI32 published_frame;
     void *clicked;
     int hit_part, orphan_count;
 } Fixture;
@@ -75,13 +71,6 @@ static void expect(Fixture *f, const int *ops, size_t count)
     CHECK(f->used == (int)count);
     CHECK(!memcmp(f->ops, ops, count * sizeof(*ops)));
     f->used = 0;
-}
-static void publish(void *p, void *scene, const MMSceneOwner *owner)
-{
-    Fixture *f = (Fixture *)p;
-    CHECK(scene == f && owner == &f->owner);
-    f->published_frame = f->runtime.background_frame;
-    log_op(f, PUBLISH);
 }
 static void release(void *p, void *object)
 {
@@ -158,13 +147,6 @@ static void set_transition(void *p, int value)
     log_op(f, SET_TRANS);
     f->transition = value;
 }
-static void publish_tag(void *p, const MMTag *tag)
-{
-    Fixture *f = (Fixture *)p;
-    CHECK(f->owner.owned[MM_SCENE_BACKGROUND] == &f->objects[3]);
-    f->published = *tag;
-    log_op(f, PUB_TAG);
-}
 static void bind(void *p, void *object)
 {
     ((Object *)object)->bound = 1;
@@ -226,15 +208,12 @@ static void init(Fixture *f)
     f->frames = &f->owner.tracks[MM_SCENE_FRAMES];
     f->starts = &f->owner.tracks[MM_SCENE_STARTS];
     CHECK(mm_scene_track_init(f->frames, NULL, 0) && mm_scene_track_init(f->starts, NULL, 0));
-    f->owner.owned[MM_SCENE_FRAMES] = f->frames;
-    f->owner.owned[MM_SCENE_STARTS] = f->starts;
     s = &f->s;
-    s->context = s->scene = f;
+    s->context = f;
     s->data = &f->data;
     s->runtime = &f->runtime;
     s->owner = &f->owner;
     s->owners.context = f;
-    s->owners.publish = publish;
     s->owners.release = release;
     s->owners.sound.context = f;
     s->owners.sound.count = sound_count;
@@ -246,7 +225,6 @@ static void init(Fixture *f)
     s->set_camera = camera;
     s->transition = transition;
     s->set_transition = set_transition;
-    s->publish_tag = publish_tag;
     s->bind_actor = bind;
     s->seek = seek;
     s->pause_type = pause_type;
@@ -279,7 +257,7 @@ static int dispatch(Fixture *f, int kind, unsigned mask)
 }
 static void cleanup(Fixture *f)
 {
-    mm_scene_owner_drop(&f->owner, f, MM_SCENE_BACKGROUND_SOUND, &f->s.owners);
+    mm_scene_owner_drop(&f->owner, MM_SCENE_BACKGROUND_SOUND, &f->s.owners);
     mm_scene_track_dispose(f->starts);
     mm_scene_track_dispose(f->frames);
     CHECK(!f->live);
@@ -288,21 +266,22 @@ static void sounds(void)
 {
     Fixture f;
     void *old;
-    static const int first[] = {DUP, PUBLISH}, failed[] = {DUP};
-    static const int replaced[] = {DUP, FREE, PUBLISH, PUBLISH, PLAY}, played[] = {PLAY};
+    static const int first[] = {DUP}, failed[] = {DUP};
+    static const int replaced[] = {DUP, FREE, PLAY}, played[] = {PLAY};
     init(&f);
     f.runtime.background_frame = 2;
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 1));
-    expect(&f, first, 2);
-    CHECK(f.live == 1 && f.runtime.background_frame == 8 && f.published_frame == 2 && !f.sounds);
+    expect(&f, first, 1);
+    CHECK(f.live == 1 && f.runtime.background_frame == 8 && !f.sounds);
     old = f.owner.owned[MM_SCENE_BACKGROUND_SOUND];
+    CHECK(old);
     f.dup_fail = 1;
     CHECK(!mm_scene_play_event(9, MM_SCENE_PLAY_SOUND, &f.packet.sound, 0, &f.s));
     expect(&f, failed, 1);
     CHECK(f.owner.owned[MM_SCENE_BACKGROUND_SOUND] == old && f.runtime.background_frame == 8);
     f.dup_fail = 0;
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 0));
-    expect(&f, replaced, 5);
+    expect(&f, replaced, 3);
     CHECK(f.live == 1 && f.sounds == 1);
     f.packet.sound.sty = 2;
     CHECK(dispatch(&f, MM_SCENE_PLAY_SOUND, 1));
@@ -316,23 +295,26 @@ static void backgrounds(void)
 {
     Fixture f;
     static const int no_fetch[] = {FETCH}, no_camera[] = {FETCH, CAMERA, RELEASE};
-    static const int loaded[] = {FETCH, CAMERA, TRANS, SET_TRANS, PUBLISH, PUB_TAG};
-    static const int retained[] = {FETCH, CAMERA, TRANS, PUBLISH, PUB_TAG};
+    static const int loaded[] = {FETCH, CAMERA, TRANS, SET_TRANS};
+    static const int retained[] = {FETCH, CAMERA, TRANS};
     init(&f);
+    f.owner.background_tag.number = 41;
     f.fetch_fail = 1;
     CHECK(!dispatch(&f, MM_SCENE_SET_BACKGROUND, 65535));
     expect(&f, no_fetch, sizeof(no_fetch) / sizeof(*no_fetch));
-    CHECK(!f.owner.owned[MM_SCENE_BACKGROUND] && f.transition == -1);
+    CHECK(!f.owner.owned[MM_SCENE_BACKGROUND] && f.owner.background_tag.number == 41 && f.transition == -1);
     f.fetch_fail = 0;
     f.camera_fail = 1;
     CHECK(!dispatch(&f, MM_SCENE_SET_BACKGROUND, 0));
     expect(&f, no_camera, sizeof(no_camera) / sizeof(*no_camera));
-    CHECK(f.releases == 1 && !f.owner.owned[MM_SCENE_BACKGROUND] && f.transition == -1);
+    CHECK(f.releases == 1 && !f.owner.owned[MM_SCENE_BACKGROUND] && f.owner.background_tag.number == 41 &&
+          f.transition == -1);
     f.camera_fail = 0;
     CHECK(dispatch(&f, MM_SCENE_SET_BACKGROUND, 65535));
     expect(&f, loaded, sizeof(loaded) / sizeof(*loaded));
-    CHECK(f.transition == 0 && f.camera == 0 && f.published.number == 17 && f.published.cache == &f &&
-          f.published.sid == 3);
+    CHECK(f.owner.owned[MM_SCENE_BACKGROUND] == &f.objects[3] &&
+          f.owner.background_tag.number == 17 && f.owner.background_tag.cache == &f &&
+          f.owner.background_tag.sid == 3 && f.transition == 0 && f.camera == 0);
     init(&f);
     f.transition = 3;
     CHECK(dispatch(&f, MM_SCENE_SET_BACKGROUND, 0));

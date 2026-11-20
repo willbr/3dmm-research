@@ -261,9 +261,7 @@ class StageTestScene : public Scene
     }
     bool Init()
     {
-        _SetOwner(MM_SCENE_FRAMES, _FrameTrack());
-        _SetOwner(MM_SCENE_STARTS, _StartTrack());
-        auto background=NewObj StageTestBackground(); _pbkgd=background;
+        auto background=NewObj StageTestBackground(); _owner.owned[MM_SCENE_BACKGROUND]=background;
         _data.firstFrame=1; _data.lastFrame=20; _data.currentFrame=3;
         return background && background->Init();
     }

@@ -64,13 +64,6 @@ static void release(void *p, void *obj)
     if (obj == &h->resource && h->record)
         CHECK(h->record->resource == obj);
 }
-static void publish(void *p, void *scene, const MMSceneOwner *o)
-{
-    Host *h = (Host *)p;
-    (void)scene;
-    CHECK(!o->owned[MM_SCENE_BACKGROUND_SOUND]);
-    event(h, 24);
-}
 static int trim(void *p, void *o, int back)
 {
     Obj *v = (Obj *)o;
@@ -195,7 +188,6 @@ static MMSceneChopServices init(Host *h)
     }
     h->frames = &h->owner.tracks[MM_SCENE_FRAMES];
     CHECK(mm_scene_track_init(h->frames, NULL, 0));
-    h->owner.owned[MM_SCENE_FRAMES] = h->frames;
     s.context = h;
     s.data = &h->data;
     s.events.context = h;
@@ -205,7 +197,6 @@ static MMSceneChopServices init(Host *h)
     s.events.owners.context = h;
     s.events.owners.sound_tag_bytes = sizeof(MMU32);
     s.events.owners.release = release;
-    s.events.owners.publish = publish;
     s.events.owners.sound.context = h;
     s.events.owners.sound.count = tags;
     s.events.owners.sound.style = style;
@@ -328,7 +319,7 @@ static void test_core(void)
     h.runtime.background_frame = 2;
     CHECK(mm_scene_chop(1, &s));
     {
-        const int e[] = {121, 133, 80, 142, 23, 24, 143};
+        const int e[] = {121, 133, 80, 142, 23, 143};
         expect(&h, e, sizeof(e) / sizeof(*e));
     }
     CHECK(h.data.firstFrame == 5 && h.runtime.next_event == 3 && h.frames->rows.count == 4);

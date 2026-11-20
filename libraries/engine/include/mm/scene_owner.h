@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_SCENE_OWNER_H
 #define MM_ENGINE_SCENE_OWNER_H
 #include "scene_track.h"
+#include "tag.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -11,12 +12,15 @@ extern "C"
     {
         MM_SCENE_FRAMES,
         MM_SCENE_STARTS,
+        MM_SCENE_TRACKS
+    };
+    enum
+    {
         MM_SCENE_BACKGROUND,
         MM_SCENE_THUMBNAIL,
         MM_SCENE_BACKGROUND_SOUND,
         MM_SCENE_BACKGROUND_CACHE,
-        MM_SCENE_OWNERS,
-        MM_SCENE_DEFAULT_DISABLED = 2
+        MM_SCENE_OWNERS
     };
     enum
     {
@@ -43,7 +47,8 @@ extern "C"
     {
         void *movie; /* Borrowed; no reference cycle. */
         void *owned[MM_SCENE_OWNERS];
-        MMSceneTrack tracks[2]; /* Live frame and start tables. */
+        MMTag background_tag; /* Borrowed tag of the last successfully applied background. */
+        MMSceneTrack tracks[MM_SCENE_TRACKS];
         MMSceneMemberList members[MM_SCENE_MEMBER_LISTS];
     } MMSceneOwner;
     typedef struct MMSceneSoundServices
@@ -60,8 +65,6 @@ extern "C"
         size_t sound_tag_bytes;
         void *(*create_scene)(void *, void *movie);
         MMSceneOwner *(*state)(void *, void *scene);
-        void (*publish)(void *, void *scene, const MMSceneOwner *);
-        void (*reset_cursor)(void *, void *scene);
         int (*can_notify)(void *);
         void (*loaded)(void *, void *scene);
         void (*release)(void *, void *object);
@@ -71,26 +74,20 @@ extern "C"
         void (*diagnostic)(void *, int issue);
         MMSceneSoundServices sound;
     } MMSceneOwnerServices;
-    /* Unique owning state; callbacks cannot reenter lifecycle operations or
-     * replace the same scene's owners. Native fields are published borrowed
-     * views. Set transfers a new reference into a vacant slot; drop releases
-     * just that owner, not embedded event references. Publish follows release,
-     * retaining legacy visibility during destruction callbacks. Dispose/unwind
-     * support partial construction; close/visibility require initialized lists. */
+    /* The factory initializes the owner and runtime before returning the scene.
+     * Assigning a vacant resource slot transfers one reference. Drop retains
+     * the slot value until release returns. Lifecycle callbacks must not
+     * reenter or change ownership. Both embedded tracks are initialized
+     * with the owner and start empty. */
     void mm_scene_owner_init(MMSceneOwner *, void *movie, const MMStorageAllocator *);
-    void mm_scene_owner_set(MMSceneOwner *, void *scene, int slot, void *,
-                                  const MMSceneOwnerServices *);
-    void mm_scene_owner_drop(MMSceneOwner *, void *scene, int slot, const MMSceneOwnerServices *);
-    MMSceneTrack *mm_scene_owner_open_events(MMSceneOwner *, void *scene, int slot,
-                                            const MMSceneOwnerServices *);
+    void mm_scene_owner_drop(MMSceneOwner *, int slot, const MMSceneOwnerServices *);
     void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *);
-    void mm_scene_owner_dispose(MMSceneOwner *, void *scene, const MMSceneOwnerServices *);
+    void mm_scene_owner_dispose(MMSceneOwner *, const MMSceneOwnerServices *);
     /* Closes a sound row's native tag records before deleting it. The caller updates its cursor. */
     int mm_scene_owner_erase_frame(MMSceneOwner *, MMI32 index, const MMSceneOwnerServices *);
-    /* Read-failure cleanup walks only completed prefixes, in reverse order.
+    /* Read-failure cleanup walks each track's inserted rows in reverse order.
      * Valid sound payload size is variable bytes, excluding fixed event bytes. */
-    void mm_scene_owner_unwind(MMSceneOwner *, void *scene, MMI32 starts, MMI32 frames,
-                                     const MMSceneOwnerServices *);
+    void mm_scene_owner_unwind(MMSceneOwner *, const MMSceneOwnerServices *);
     void mm_scene_owner_actors(MMSceneOwner *, int show, const MMSceneOwnerServices *);
     void mm_scene_owner_hide_texts(MMSceneOwner *, const MMSceneOwnerServices *);
     void mm_scene_owner_close(void **scene, const MMSceneOwnerServices *);

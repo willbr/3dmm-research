@@ -367,8 +367,6 @@ struct Access : Scene
     static void CheckMovie(PScene p, PMovie movie)
     {
         CHECK((p->*&Access::_owner).movie == movie && p->Pmvie() == movie);
-        (p->*&Access::_SetOwner)(MM_SCENE_THUMBNAIL, nullptr);
-        CHECK(p->Pmvie() == movie);
     }
     static void Extra(PScene p, PActor actor)
     {
@@ -380,9 +378,8 @@ struct Access : Scene
     }
     static void FreshActorLists(PScene p)
     {
-        (p->*&Access::_DropOwner)(MM_SCENE_STARTS);
+        mm_scene_track_dispose((p->*&Access::_StartTrack)());
         mm_scene_member_clear(&(p->*&Access::_owner), MM_SCENE_ACTORS);
-        (p->*&Access::_SetOwner)(MM_SCENE_STARTS, (p->*&Access::_StartTrack)());
     }
     static void State(PScene p)
     {

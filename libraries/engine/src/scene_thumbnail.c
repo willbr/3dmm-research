@@ -153,11 +153,11 @@ void mm_scene_update_thumbnail(const MMSceneThumbnailServices *s)
     mode = s->text_mode(s->context, view);
     s->select(s->context, mode, mode ? text : actor);
     s->copy(s->copy_context, source, target, &full, &thumb);
-    mm_scene_owner_drop(s->owner, s->scene, MM_SCENE_THUMBNAIL, &s->owners);
+    mm_scene_owner_drop(s->owner, MM_SCENE_THUMBNAIL, &s->owners);
     stride = s->row_bytes(s->context, target);
     pixels = s->lock(s->context, target);
     bitmap = s->bitmap(s->context, pixels, stride, &thumb, MM_SCENE_THUMBNAIL_TRANSPARENT);
-    mm_scene_owner_set(s->owner, s->scene, MM_SCENE_THUMBNAIL, bitmap, &s->owners);
+    s->owner->owned[MM_SCENE_THUMBNAIL] = bitmap;
     s->unlock(s->context, target);
     s->release_port(s->context, source);
     s->release_port(s->context, target);

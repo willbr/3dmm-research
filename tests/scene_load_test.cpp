@@ -88,7 +88,7 @@ struct Access : Scene
         Value((p->*&Access::_runtime).next_event);
         Value(p->Cactr());
         Value(p->Ctbox());
-        Value((p->*&Access::_pmbmp) != nullptr);
+        Value((p->*&Access::_owner).owned[MM_SCENE_THUMBNAIL] != nullptr);
         for (auto g : {(p->*&Access::_FrameTrack)(), (p->*&Access::_StartTrack)()})
         {
             Value(g->rows.count);

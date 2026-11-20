@@ -111,15 +111,15 @@ struct Access : Scene
         auto &r = p->*&Access::_runtime;
         Value(r.next_event);
         Value(r.disabled);
-        auto bg = p->*&Access::_pbkgd;
+        auto bg = p->Pbkgd();
         Value(bg != nullptr);
         if (bg)
             Value(bg->Icam());
-        auto &t = p->*&Access::_tagBkgd;
+        auto &t = (p->*&Access::_owner).background_tag;
         Value(t.sid);
-        Value(t.ctg);
-        Value(t.cno);
-        Value(t.pcrf != nullptr);
+        Value(t.type);
+        Value(t.number);
+        Value(t.cache != nullptr);
         for (auto g : {(p->*&Access::_FrameTrack)(), (p->*&Access::_StartTrack)()})
         {
             Value(g->rows.count);
