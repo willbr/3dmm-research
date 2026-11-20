@@ -29,43 +29,71 @@ class TestMoveGroupUndo : public ActorMoveGroupUndo
 
 static bool TestMoveGroupActors(PMovie movie, TrackTestActor *const actors[2])
 {
-    auto group = ActorMoveGroupUndo::PamguNew();
-    PActor saved[2]{};
+    MMActorDragUndo drag{};
+    auto scene = movie->Pscen();
+    const auto undo = ActorMoveGroupUndo::DragUndoServices(movie);
     LegacyLong ids[2]{};
     BRS initial[2]{}, edited[2]{};
-    bool ok = group != nullptr;
+    scene->SelectActr(actors[0]);
+    bool ok = scene->FToggleActrSelected(actors[1]);
+#ifdef DEBUG
+    const auto firstRefs = actors[0]->Ptmpl()->CactRef();
+    const auto secondRefs = actors[1]->Ptmpl()->CactRef();
+    for (int allocation = 0; ok && allocation < 5; ++allocation)
+    {
+        vmutxMem.Enter();
+        vdmglob.dmaglBase.cactDo = allocation;
+        vdmglob.dmaglBase.cactFail = 1;
+        vmutxMem.Leave();
+        scene->CaptureActorDragUndo(&drag, actors[0], true, true);
+        vmutxMem.Enter();
+        vdmglob.dmaglBase.cactFail = 0;
+        vmutxMem.Leave();
+        ok = !drag.single && !drag.group && actors[0]->Ptmpl()->CactRef() == firstRefs &&
+             actors[1]->Ptmpl()->CactRef() == secondRefs;
+        mm_actor_drag_undo_discard(&drag, &undo);
+        vpers->Clear();
+    }
+#endif
+    if (ok)
+    {
+        scene->CaptureActorDragUndo(&drag, actors[0], false, false);
+        ok = drag.single != nullptr && !drag.group;
+        mm_actor_drag_undo_discard(&drag, &undo);
+    }
+    if (ok)
+    {
+        scene->CaptureActorDragUndo(&drag, actors[0], true, true);
+        auto group = static_cast<PActorMoveGroupUndo>(static_cast<PUndoBase>(drag.group));
+        ok = group && group->Cchild() == 2 && !drag.single;
+        mm_actor_drag_undo_commit(&drag, true, &undo);
+        ok = ok && drag.group && !drag.single;
+    }
     for (int i = 0; ok && i < 2; ++i)
     {
         ids[i] = actors[i]->Arid();
         initial[i] = actors[i]->EvaluatedFrameState().transform.rScaleStep;
-        auto child = ActorUndo::PaundNew();
-        ok = child && actors[i]->FDup(&saved[i], fTrue);
-        if (ok)
-        {
-            child->SetPactr(saved[i]);
-            child->SetArid(ids[i]);
-            ok = group->FAddChild(child) && actors[i]->FScale(BR_SCALAR(1.5 + i));
-            edited[i] = actors[i]->EvaluatedFrameState().transform.rScaleStep;
-            ok = ok && edited[i] != initial[i];
-        }
-        ReleasePpo(&child);
+        ok = actors[i]->FScale(BR_SCALAR(1.5 + i));
+        edited[i] = actors[i]->EvaluatedFrameState().transform.rScaleStep;
+        ok = ok && edited[i] != initial[i];
     }
-    ok = ok && movie->FAddUndo(group);
-    ReleasePpo(&group);
+    if (ok)
+    {
+        mm_actor_drag_undo_commit(&drag, false, &undo);
+        ok = !drag.group && !drag.single;
+    }
     for (int phase = 0; ok && phase < 2; ++phase)
     {
         ok = phase ? movie->FRedo() : movie->FUndo();
         for (int i = 0; ok && i < 2; ++i)
         {
             PActor live = movie->Pscen()->PactrFromArid(ids[i]);
-            PActor expected = phase ? actors[i] : saved[i];
-            ok = live == expected && live->EvaluatedFrameState().transform.rScaleStep ==
-                                     (phase ? edited[i] : initial[i]);
+            ok = live && (live == actors[i]) == (phase != 0) &&
+                 live->EvaluatedFrameState().transform.rScaleStep == (phase ? edited[i] : initial[i]);
         }
     }
     movie->ClearUndo();
-    for (auto &actor : saved)
-        ReleasePpo(&actor);
+    mm_actor_drag_undo_discard(&drag, &undo);
     return ok;
 }
 

@@ -109,6 +109,7 @@ typedef class Actor *PActor;
 class Actor : public Actor_PAR
 {
     friend class ActorClipboard;
+    friend class Scene;
 
     RTCLASS_DEC
     ASSERT

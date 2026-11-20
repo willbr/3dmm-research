@@ -1,7 +1,10 @@
 /* Composite actor undo converted from engine actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_group_undo.h"
+#include "mm/actor_owner.h"
+#include "mm/actor_undo.h"
 #include "mm/movie_title.h"
+#include "mm/scene_selection.h"
 #include <string.h>
 
 int mm_actor_move_group_init(MMActorMoveGroup *group, MMMovieUndoContext *base,
@@ -73,6 +76,104 @@ int mm_actor_move_group_toggle(const MMActorMoveGroup *group, void *document,
             return 0;
     }
     return 1;
+}
+
+static void *capture_actor(void *actor, const MMActorOwnerServices *actors,
+                           const MMActorDragUndoServices *s)
+{
+    MMActorOwnerResult copy = {NULL, NULL, NULL};
+    MMActorUndoState *state;
+    void *undo;
+    if (!actor)
+        return NULL;
+    state = s->create_actor(s->context, &undo);
+    if (!state)
+        return NULL;
+    if (!mm_actor_owner_duplicate(actor, 1, &copy, actors))
+    {
+        s->release(s->context, undo);
+        return NULL;
+    }
+    state->actor = copy.actor;
+    state->actor_id = actors->owner(actors->context, actor)->runtime.actor;
+    return undo;
+}
+
+static void *capture_group(MMI32 count, const MMSceneSelectionServices *selection,
+                           const MMActorOwnerServices *actors, const MMActorDragUndoServices *s)
+{
+    void *undo, *child;
+    MMActorMoveGroup *group = s->create_group(s->context, &undo);
+    MMI32 i;
+    int added;
+    if (!group)
+        return NULL;
+    for (i = 0; i < count; ++i)
+    {
+        child = capture_actor(mm_scene_selection_at(i, selection), actors, s);
+        if (!child)
+            break;
+        added = mm_actor_move_group_add(group, child, &s->composite);
+        s->release(s->context, child);
+        if (!added)
+            break;
+    }
+    if (i == count)
+        return undo;
+    s->release(s->context, undo);
+    return NULL;
+}
+
+void mm_actor_drag_undo_begin(MMActorDragUndo *drag, void *actor, int freeze_pivot,
+                             const MMSceneSelectionServices *selection,
+                             const MMActorOwnerServices *actors, const MMActorDragUndoServices *s)
+{
+    MMI32 count = selection ? mm_scene_selection_count(selection) : 1;
+    void **slot = count >= 2 ? &drag->group : &drag->single;
+    if (count >= 2)
+    {
+        if (freeze_pivot)
+        {
+            memset(&drag->pivot, 0, sizeof(drag->pivot));
+            mm_scene_selection_centroid(&drag->pivot, selection);
+        }
+        *slot = capture_group(count, selection, actors, s);
+    }
+    else
+        *slot = capture_actor(actor, actors, s);
+    if (!*slot)
+    {
+        s->clear(s->context);
+        s->not_undoable(s->context);
+    }
+}
+
+static void release_pending(void **slot, const MMActorDragUndoServices *s)
+{
+    if (*slot)
+    {
+        s->release(s->context, *slot);
+        *slot = NULL;
+    }
+}
+
+void mm_actor_drag_undo_commit(MMActorDragUndo *drag, int single_only, const MMActorDragUndoServices *s)
+{
+    void **slot = !single_only && drag->group ? &drag->group : &drag->single;
+    if (!*slot)
+        return;
+    if (!s->commit(s->context, *slot))
+    {
+        s->not_undoable(s->context);
+        s->clear(s->context);
+    }
+    release_pending(slot, s);
+}
+
+void mm_actor_drag_undo_discard(MMActorDragUndo *drag, const MMActorDragUndoServices *s)
+{
+    release_pending(&drag->single, s);
+    release_pending(&drag->group, s);
 }
 
 int mm_actor_rename_group_init(MMActorRenameGroup *group, MMMovieUndoContext *base, unsigned unit,

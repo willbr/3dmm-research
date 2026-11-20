@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_ACTOR_GROUP_UNDO_H
 #define MM_ENGINE_ACTOR_GROUP_UNDO_H
+#include "actor_motion.h"
 #include "movie_undo.h"
 #include "rollcall_storage.h"
 #ifdef __cplusplus
@@ -49,6 +50,38 @@ void mm_actor_move_group_dispose(MMActorMoveGroup *, const MMActorMoveGroupServi
  * destroy the group. Return before accessing its state again. */
 int mm_actor_move_group_toggle(const MMActorMoveGroup *, void *document,
                               const MMActorMoveGroupServices *);
+
+struct MMActorOwnerServices;
+struct MMActorUndoState;
+struct MMSceneSelectionServices;
+typedef struct MMActorDragUndo
+{
+    void *single, *group;
+    MMActorPoint pivot;
+} MMActorDragUndo;
+
+typedef struct MMActorDragUndoServices
+{
+    void *context;
+    MMActorMoveGroupServices composite;
+    struct MMActorUndoState *(*create_actor)(void *, void **undo);
+    MMActorMoveGroup *(*create_group)(void *, void **undo);
+    int (*commit)(void *, void *undo);
+    void (*release)(void *, void *undo);
+    void (*clear)(void *);
+    void (*not_undoable)(void *);
+} MMActorDragUndoServices;
+
+/* Start with an empty zero-initialized record. Selection is optional for a
+ * single-actor drag. For a group, optionally freeze its visible centroid,
+ * falling back to the origin. Publish the undo only after every snapshot has
+ * been captured. Failed capture releases the completed prefix and clears undo.
+ * Commit releases only the selected pending handle. Discard releases both. */
+void mm_actor_drag_undo_begin(MMActorDragUndo *, void *actor, int freeze_pivot,
+                             const struct MMSceneSelectionServices *,
+                             const struct MMActorOwnerServices *, const MMActorDragUndoServices *);
+void mm_actor_drag_undo_commit(MMActorDragUndo *, int single_only, const MMActorDragUndoServices *);
+void mm_actor_drag_undo_discard(MMActorDragUndo *, const MMActorDragUndoServices *);
 
 int mm_actor_rename_group_init(MMActorRenameGroup *, MMMovieUndoContext *, unsigned unit,
                               int encoding, const MMStorageAllocator *, int trash_unused);

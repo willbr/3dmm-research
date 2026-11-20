@@ -933,7 +933,9 @@ MovieUndo's shared movie/scene/frame context, actor undo snapshot references,
 flags and counted names now live in persistent C state. Actor undo creation
 populates that record directly in C89, and its controller captures and swaps
 counted roll-call names. Composite actor undo owns its child and counted-name
-tables in C89. Physical views and final integration remain work.
+tables in C89. Studio drag undo captures its snapshots through the shared
+selection and actor owner and keeps its pending handles and frozen pivot in C.
+Physical views and final integration remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and
 remaining host lifecycle/facade removal remain work.

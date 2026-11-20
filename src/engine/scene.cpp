@@ -1490,6 +1490,15 @@ void Scene::EditActorSelectionTags(bool strip)
     mm_scene_selection_edit_tags(strip, &selection, &edit);
 }
 
+void Scene::CaptureActorDragUndo(MMActorDragUndo *drag, PActor actor, bool useGroup, bool freezePivot)
+{
+    AssertThis(0);
+    const auto selection = _SelectionServices();
+    const auto actors = Actor::_OwnerServices();
+    const auto undo = ActorMoveGroupUndo::DragUndoServices(Pmvie());
+    mm_actor_drag_undo_begin(drag, actor, freezePivot, useGroup ? &selection : nullptr, &actors, &undo);
+}
+
 /****************************************************
  *
  * Mean of currently-visible selected actors' world positions.

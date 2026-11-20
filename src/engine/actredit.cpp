@@ -665,19 +665,45 @@ ActorMoveGroupUndo::ActorMoveGroupUndo()
 MMActorMoveGroupServices ActorMoveGroupUndo::_GroupServices()
 {
     MMActorMoveGroupServices services{};
-    services.retain = [](void *, void *p) { static_cast<PActorUndo>(p)->AddRef(); };
-    services.release = [](void *, void *p) { static_cast<PActorUndo>(p)->Release(); };
+    services.retain = [](void *, void *p) { static_cast<PUndoBase>(p)->AddRef(); };
+    services.release = [](void *, void *p) { static_cast<PUndoBase>(p)->Release(); };
     services.child_context = [](void *, void *p, void *movie, MMI32 scene, MMI32 frame) {
-        auto child = static_cast<PActorUndo>(p);
+        auto child = static_cast<PActorUndo>(static_cast<PUndoBase>(p));
         child->SetPmvie(static_cast<PMovie>(movie));
         child->SetIscen(scene);
         child->SetNfrm(frame);
     };
     services.undo_child = [](void *, void *p, void *document) {
-        return int(static_cast<PActorUndo>(p)->FUndo(static_cast<PDocumentBase>(document)));
+        return int(static_cast<PUndoBase>(p)->FUndo(static_cast<PDocumentBase>(document)));
     };
     return services;
 }
+
+MMActorDragUndoServices ActorMoveGroupUndo::DragUndoServices(PMovie movie)
+{
+    MMActorDragUndoServices services{};
+    services.context = movie;
+    services.composite = _GroupServices();
+    services.create_actor = [](void *, void **handle) -> MMActorUndoState * {
+        auto undo = ActorUndo::PaundNew();
+        *handle = static_cast<PUndoBase>(undo);
+        return undo ? &undo->_undoState : nullptr;
+    };
+    services.create_group = [](void *, void **handle) -> MMActorMoveGroup * {
+        auto undo = PamguNew();
+        *handle = static_cast<PUndoBase>(undo);
+        return undo ? &undo->_group : nullptr;
+    };
+    services.commit = [](void *p, void *undo) {
+        auto movieUndo = static_cast<PMovieUndo>(static_cast<PUndoBase>(undo));
+        return int(static_cast<PMovie>(p)->FAddUndo(movieUndo));
+    };
+    services.release = services.composite.release;
+    services.clear = [](void *p) { static_cast<PMovie>(p)->ClearUndo(); };
+    services.not_undoable = [](void *) { PushErc(ercSocNotUndoable); };
+    return services;
+}
+
 long ActorMoveGroupUndo::Cchild(void)
 {
     return _group.count;
@@ -716,7 +742,7 @@ bool ActorMoveGroupUndo::FAddChild(PActorUndo paund)
     AssertThis(0);
     AssertPo(paund, 0);
     const auto services = _GroupServices();
-    return mm_actor_move_group_add(&_group, paund, &services) != 0;
+    return mm_actor_move_group_add(&_group, static_cast<PUndoBase>(paund), &services) != 0;
 }
 
 /****************************************************
@@ -755,7 +781,7 @@ void ActorMoveGroupUndo::MarkMem(void)
     MarkPv(_group.storage.buffers[0].data);
     for (MMU32 index = 0; index < _group.count; ++index)
     {
-        auto child = static_cast<PActorUndo>(mm_actor_move_group_child(&_group, index));
+        auto child = static_cast<PUndoBase>(mm_actor_move_group_child(&_group, index));
         MarkMemObj(child);
     }
 }
@@ -771,7 +797,7 @@ void ActorMoveGroupUndo::MarkMem(void)
 ***************************************************************************/
 void ActorMoveGroupUndo::AssertValid(LegacyUlong grf)
 {
-    Assert(_group.count <= _group.storage.buffers[0].capacity / sizeof(PActorUndo), "short move undo table");
+    Assert(_group.count <= _group.storage.buffers[0].capacity / sizeof(PUndoBase), "short move undo table");
 }
 #endif
 

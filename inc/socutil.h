@@ -92,6 +92,7 @@ typedef class ActorUndo *PActorUndo;
 class ActorUndo : public ActorUndo_PAR
 {
     friend class Actor;
+    friend class ActorMoveGroupUndo;
     RTCLASS_DEC
     MARKMEM
     ASSERT
@@ -171,6 +172,7 @@ class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
 
   public:
     static PActorMoveGroupUndo PamguNew(void);
+    static MMActorDragUndoServices DragUndoServices(PMovie);
     ~ActorMoveGroupUndo(void);
 
     bool FAddChild(PActorUndo paund); // Adds and AddRefs the child undo.

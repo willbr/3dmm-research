@@ -182,12 +182,7 @@ class MovieView : public MovieView_PAR
     bool _fCyclingCels; // Are we cycling cels in toolRecord?
     long _tool;         // Current tool loaded on cursor
 
-    // REVIEW Seanse(SeanSe): Movie should not be creating/mucking with actor undo
-    //   objects.  V2.666 should revisit this issue and see if we can get Actor to
-    //   do all its own undo objects (e.g. Growing over a long drag could become
-    //   a StartGrow/Grow/EndGrow sequence).  This also effects _pactrRestore.
-    PActorUndo _paund;        // Actor undo object to save from mouse down to drag.
-    PActorMoveGroupUndo _paundGroup; // Composite undo for multi-select group drag (toolCompose only). pvNil unless N>=2.
+    MMActorDragUndo _actorDrag{};
     ulong _tsLast;       // Last time a cell was recorded.
     ulong _tsLastSample; // Last time mouse/kbd sampled
     RC _rcFrame;         // Frame for creating a text box.
@@ -208,10 +203,6 @@ class MovieView : public MovieView_PAR
     PActor _pactrSelToggle; // Actor under cursor at the armed shift-click.
     long _xpSelToggleDown;  // Mousedown x for drag-tolerance check.
     long _ypSelToggleDown;  // Mousedown y for drag-tolerance check.
-
-    // Group-rotate / -scale pivot, frozen at mousedown when cactrSel >= 2 and the
-    // tool is rotate / resize / squash. Centroid of the visible selected actors.
-    BRS _xrPivot, _yrPivot, _zrPivot;
 
     AbstractColor _acr;         // Color for painting text.
     long _onn;        // Font for text
@@ -235,7 +226,8 @@ class MovieView : public MovieView_PAR
     void _MouseDrag(CMD_MOUSE *pcmd);
     void _MouseUp(CMD_MOUSE *pcmd);
 
-    void _CommitMoveUndo(void); // commits whichever of _paundGroup / _paund is pending; nil-safe.
+    void _CommitMoveUndo(bool singleOnly = false);
+    void _DiscardMoveUndo();
 
     void _ActorClicked(PActor pactr, bool fDown);
 

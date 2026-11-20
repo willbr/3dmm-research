@@ -4525,6 +4525,33 @@ Capture suite `20261120T013059Z-f3e178a8` matched the retained retail capture's
 60 scene/frame markers in each port's seek and playback runs. Both ports' seek
 image hashes matched their previous builds. SDL's 12 sound events matched retail.
 
+### Actor drag undo capture
+
+The drag record in `actor_group_undo.c` owns pending single and composite undo
+handles and the frozen group pivot. It reads the selected actors from the C
+scene selection and captures detached snapshots through the C actor owner.
+Each child takes the reference returned by duplication. The group becomes
+pending after all children are captured. Failure releases the captured prefix
+before clearing the movie's undo list. The visible-selection centroid supplies
+the rotate, resize and squash pivot, with the origin as the fallback.
+
+The view commits on the first edit that its tool reports as successful and
+discards the remaining snapshots at the end of tracking or on destruction.
+The shift-drag retarget path discards the old snapshots before capturing the
+new actor. Capture failure also releases an allocated single undo whose actor
+could not be duplicated.
+
+Twelve native actor traces matched the prior build byte for byte. The native
+movie fixture injected five allocation failures, checked template references,
+discarded a single snapshot and verified grouped undo and redo. A headless SDL
+probe queued held-pointer commands directly to the movie view. A click left
+both observed poses unchanged, and a drag moved both actors. A single undo
+and redo restored the corresponding poses. Production Studio reopened the
+result. Retail reported matching actor poses and animation at frames 7 and 14.
+Capture suite `20261120T015504Z-857097fe` matched 60 retail scene/frame markers
+in each port's seek and playback runs. Both ports' seek image hashes matched
+their previous builds, and SDL's 12 playback sound events matched retail.
+
 ### Actor edit transactions
 
 `actor_transaction.c` owns public action, stage add/remove, normalization and

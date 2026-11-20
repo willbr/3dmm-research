@@ -3587,7 +3587,7 @@ MovieView::~MovieView(void)
 #endif
     if (_tagTool.sid != ksidInvalid)
         TagManager::CloseTag(&_tagTool);
-    ReleasePpo(&_paundGroup);
+    _DiscardMoveUndo();
 }
 
 /***************************************************************************
@@ -3636,10 +3636,6 @@ MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp,
     pmvu->_tagTool.sid = ksidInvalid;
     pmvu->_fSelToggleArmed = fFalse;
     pmvu->_pactrSelToggle = pvNil;
-    pmvu->_paundGroup = pvNil;
-    pmvu->_xrPivot = rZero;
-    pmvu->_yrPivot = rZero;
-    pmvu->_zrPivot = rZero;
 
     //
     // Make this the active view
@@ -4730,7 +4726,6 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     PActor pactr = pvNil;
     PActor pactrDup;
     PTBOX ptbox;
-    PActorUndo paund;
     PT pt;
     long ibset;
     PDocumentBase pdocb;
@@ -5002,95 +4997,7 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         {
             vpappb->HideCurs();
 
-            // For multi-selection drags (move / rotate / resize / squash):
-            // snapshot every selected actor and bundle into an
-            // ActorMoveGroupUndo. Single-select retains the _paund flow.
-            // Group rotate / scale also freeze a pivot here.
-            bool fGroupTool = (Tool() == toolCompose) || (Tool() == toolRotateX) ||
-                              (Tool() == toolRotateY) || (Tool() == toolRotateZ) ||
-                              (Tool() == toolResize) || (Tool() == toolSquashStretch);
-            long cactrSel = (fGroupTool && Pmvie()->Pscen() != pvNil)
-                                ? Pmvie()->Pscen()->CactrSelected()
-                                : 1;
-
-            if (cactrSel >= 2 && Tool() != toolCompose)
-            {
-                // Freeze the rotate / scale pivot at the selection centroid.
-                // If no selected actor is currently visible the centroid is
-                // undefined; default the pivot to origin -- every per-tick
-                // FMoveRoute will no-op on the offstage actors anyway, so the
-                // drag is harmlessly inert and the group undo entry is empty.
-                if (!Pmvie()->Pscen()->FXyzSelectionCentroid(&_xrPivot, &_yrPivot, &_zrPivot))
-                {
-                    _xrPivot = _yrPivot = _zrPivot = rZero;
-                }
-            }
-
-            if (cactrSel >= 2)
-            {
-                PActorMoveGroupUndo pamgu = ActorMoveGroupUndo::PamguNew();
-                bool fOk = (pamgu != pvNil);
-                for (long iactr = 0; fOk && iactr < cactrSel; iactr++)
-                {
-                    PActor pactrSel = Pmvie()->Pscen()->PactrSelectedAt(iactr);
-                    PActorUndo paundChild = ActorUndo::PaundNew();
-                    PActor pactrSnap = pvNil;
-                    if (paundChild == pvNil || !pactrSel->FDup(&pactrSnap, fTrue))
-                    {
-                        ReleasePpo(&paundChild);
-                        ReleasePpo(&pactrSnap);
-                        fOk = fFalse;
-                        break;
-                    }
-                    paundChild->SetPactr(pactrSnap);
-                    ReleasePpo(&pactrSnap);
-                    paundChild->SetArid(pactrSel->Arid());
-                    if (!pamgu->FAddChild(paundChild))
-                    {
-                        ReleasePpo(&paundChild);
-                        fOk = fFalse;
-                        break;
-                    }
-                    ReleasePpo(&paundChild); // pamgu holds its own ref via FAddChild
-                }
-
-                if (!fOk)
-                {
-                    ReleasePpo(&pamgu);
-                    Pmvie()->ClearUndo();
-                    PushErc(ercSocNotUndoable);
-                }
-                else
-                {
-                    Assert(_paundGroup == pvNil, "leaking previous group undo");
-                    _paundGroup = pamgu;
-                }
-            }
-            else
-            {
-                //
-                // Create an actor undo object (single-actor flow, unchanged).
-                //
-                paund = ActorUndo::PaundNew();
-                if ((paund == pvNil) || !pactr->FDup(&pactrDup, fTrue))
-                {
-                    Pmvie()->ClearUndo();
-                    PushErc(ercSocNotUndoable);
-                }
-                else
-                {
-                    paund->SetPactr(pactrDup);
-                    ReleasePpo(&pactrDup);
-                    paund->SetArid(pactr->Arid());
-
-                    //
-                    // Store it.  We will only add it if there is a change done
-                    // to the actor.
-                    //
-                    _paund = paund;
-                }
-            }
-
+            Pmvie()->Pscen()->CaptureActorDragUndo(&_actorDrag, pactr, true, Tool() != toolCompose);
             if ((Tool() != toolResize) && (Tool() != toolSquashStretch))
             {
                 Pmvie()->Pmcc()->PlayUISound(Tool(), _grfcust);
@@ -5248,28 +5155,17 @@ LEnd:
  * movie's undo stack. Releases the field afterwards. Nil-safe.
  *
  **************************************************************************/
-void MovieView::_CommitMoveUndo(void)
+void MovieView::_CommitMoveUndo(bool singleOnly)
 {
     AssertThis(0);
+    const auto undo = ActorMoveGroupUndo::DragUndoServices(Pmvie());
+    mm_actor_drag_undo_commit(&_actorDrag, singleOnly, &undo);
+}
 
-    if (_paundGroup != pvNil)
-    {
-        if (!Pmvie()->FAddUndo(_paundGroup))
-        {
-            PushErc(ercSocNotUndoable);
-            Pmvie()->ClearUndo();
-        }
-        ReleasePpo(&_paundGroup);
-    }
-    else if (_paund != pvNil)
-    {
-        if (!Pmvie()->FAddUndo(_paund))
-        {
-            PushErc(ercSocNotUndoable);
-            Pmvie()->ClearUndo();
-        }
-        ReleasePpo(&_paund);
-    }
+void MovieView::_DiscardMoveUndo()
+{
+    const auto undo = ActorMoveGroupUndo::DragUndoServices(nullptr);
+    mm_actor_drag_undo_discard(&_actorDrag, &undo);
 }
 
 /***************************************************************************
@@ -5345,34 +5241,10 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
 
         if (_pactrSelToggle != pvNil && !pscen->FIsActrSelected(_pactrSelToggle))
         {
-            // Clicked actor is not part of the current selection. Drop any
-            // undo state allocated for the previous selection in _MouseDown
-            // and rebuild it for the now-clicked actor (matches what the
-            // pre-MVP non-shift-arm mousedown path would have done).
-            ReleasePpo(&_paund);
-            ReleasePpo(&_paundGroup);
-
+            _DiscardMoveUndo();
             pscen->SelectActr(_pactrSelToggle);
-
             if (Tool() == toolCompose)
-            {
-                PActorUndo paundDrag = ActorUndo::PaundNew();
-                PActor pactrDup = pvNil;
-                if (paundDrag != pvNil && _pactrSelToggle->FDup(&pactrDup, fTrue))
-                {
-                    paundDrag->SetPactr(pactrDup);
-                    ReleasePpo(&pactrDup);
-                    paundDrag->SetArid(_pactrSelToggle->Arid());
-                    _paund = paundDrag;
-                }
-                else
-                {
-                    ReleasePpo(&paundDrag);
-                    ReleasePpo(&pactrDup);
-                    Pmvie()->ClearUndo();
-                    PushErc(ercSocNotUndoable);
-                }
-            }
+                pscen->CaptureActorDragUndo(&_actorDrag, _pactrSelToggle, false, false);
         }
 
         _fSelToggleArmed = fFalse;
@@ -5616,9 +5488,9 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
                 BRS xr, yr, zr;
                 pa->Pbody()->GetPosition(&xr, &yr, &zr);
                 br_vector3 vIn, vOut;
-                vIn.v[0] = BrsSub(xr, _xrPivot);
-                vIn.v[1] = BrsSub(yr, _yrPivot);
-                vIn.v[2] = BrsSub(zr, _zrPivot);
+                vIn.v[0] = BrsSub(xr, _actorDrag.pivot.dxr);
+                vIn.v[1] = BrsSub(yr, _actorDrag.pivot.dyr);
+                vIn.v[2] = BrsSub(zr, _actorDrag.pivot.dzr);
                 BrMatrix34ApplyV(&vOut, &vIn, &bmat);
                 BRS dxr = BrsSub(vOut.v[0], vIn.v[0]);
                 BRS dyr = BrsSub(vOut.v[1], vIn.v[1]);
@@ -5641,13 +5513,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         }
         else if (pmvie->FRotateActr(xa, ya, za, FPure(_grfcust & fcustCmd)))
         {
-            if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
-            {
-                PushErc(ercSocNotUndoable);
-                Pmvie()->ClearUndo();
-            }
-
-            ReleasePpo(&_paund);
+            _CommitMoveUndo(true);
         }
 
         Pmvie()->Pbwld()->MarkDirty();
@@ -5688,9 +5554,9 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
                 }
                 BRS xr, yr, zr;
                 pa->Pbody()->GetPosition(&xr, &yr, &zr);
-                BRS dxr = BrsMul(sm1, BrsSub(xr, _xrPivot));
-                BRS dyr = BrsMul(sm1, BrsSub(yr, _yrPivot));
-                BRS dzr = BrsMul(sm1, BrsSub(zr, _zrPivot));
+                BRS dxr = BrsMul(sm1, BrsSub(xr, _actorDrag.pivot.dxr));
+                BRS dyr = BrsMul(sm1, BrsSub(yr, _actorDrag.pivot.dyr));
+                BRS dzr = BrsMul(sm1, BrsSub(zr, _actorDrag.pivot.dzr));
                 bool fMovedThis = fFalse;
                 pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
                 if (pa->FScale(brs2))
@@ -5708,13 +5574,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         }
         else if (pmvie->FScaleActr(brs2))
         {
-            if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
-            {
-                PushErc(ercSocNotUndoable);
-                Pmvie()->ClearUndo();
-            }
-
-            ReleasePpo(&_paund);
+            _CommitMoveUndo(true);
         }
 
         Pmvie()->Pbwld()->MarkDirty();
@@ -5763,9 +5623,9 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
                 }
                 BRS xr, yr, zr;
                 pa->Pbody()->GetPosition(&xr, &yr, &zr);
-                BRS dxr = BrsMul(sxm1, BrsSub(xr, _xrPivot));
-                BRS dyr = BrsMul(sym1, BrsSub(yr, _yrPivot));
-                BRS dzr = BrsMul(szm1, BrsSub(zr, _zrPivot));
+                BRS dxr = BrsMul(sxm1, BrsSub(xr, _actorDrag.pivot.dxr));
+                BRS dyr = BrsMul(sym1, BrsSub(yr, _actorDrag.pivot.dyr));
+                BRS dzr = BrsMul(szm1, BrsSub(zr, _actorDrag.pivot.dzr));
                 bool fMovedThis = fFalse;
                 pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
                 if (pa->FPull(sx, sy, sz))
@@ -5783,13 +5643,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         }
         else if (pmvie->FSquashStretchActr(brs2))
         {
-            if ((_paund != pvNil) && !Pmvie()->FAddUndo(_paund))
-            {
-                PushErc(ercSocNotUndoable);
-                Pmvie()->ClearUndo();
-            }
-
-            ReleasePpo(&_paund);
+            _CommitMoveUndo(true);
         }
 
         Pmvie()->Pbwld()->MarkDirty();
@@ -6195,14 +6049,9 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     default:
         Bug("Tool unknown on mouse up");
     }
-    AssertNilOrPo(_paund, 0);
-    ReleasePpo(&_paund); // If you just did a mousedown then mouseup, we have a leftover
-                         // undo object that we don't want.  So nuke it.
-    AssertNilOrPo(_paundGroup, 0);
-    ReleasePpo(&_paundGroup); // Same cleanup for the multi-select group-undo path.
 
 LEndTracking:
-
+    _DiscardMoveUndo();
     vpcex->EndMouseTracking();
 
     // Remove any cursor clipping we may have begun when mouse tracking started.
@@ -6910,6 +6759,8 @@ void MovieView::MarkMem(void)
     AssertThis(0);
     MovieView_PAR::MarkMem();
     MarkMemObj(Pmvie());
+    MarkMemObj(static_cast<PUndoBase>(_actorDrag.single));
+    MarkMemObj(static_cast<PUndoBase>(_actorDrag.group));
 #ifdef KAUAI_SDL3
     MarkMemObj(_pgptSuperSize);
     MarkMemObj(_pgptSuperSizeIndexed);
