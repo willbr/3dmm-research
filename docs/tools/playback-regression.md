@@ -15306,3 +15306,31 @@ All 44 targeted x64 checks passed. In `actor-event-edit` suite
 in the retained retail seek and playback runs. Both retained all 60 prior
 seek image hashes and matched the retail camera indices. SDL matched all
 12 retail sound requests.
+
+## C89 caption text ownership and direct TEXT writes (20 November 2026)
+
+The shared caption editor owns both the decoded authored text and the
+normalized replacement words. Draft preview borrows the replacement
+through a read stream. Saving applies the existing encoding policy and
+writes the bytes directly into the TEXT child. The shared rich-text
+writer still copies the authored bytes when the edit changes only
+formatting. Font name preparation also uses the shared C89 codecs.
+
+Standalone fixtures covered preserving prepared words after a decode
+failure, publishing an empty replacement, and removing the partial
+rich-text body after a failed direct TEXT write. All twelve native
+caption saves matched the prior build byte-for-byte. The mixed-format
+draft matched all RGBA pixels. Retail opened the representative saves
+and rendered them at frame 25, including all twelve text boxes of the
+mixed-format case. Both VMM seek images in `20261120T103820Z-f94905df`
+matched the retained SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-caption-text-owner`.
+
+All 44 targeted x64 checks and eight standalone C89 checks passed after
+correcting the fixture's pointer assertion. The focused x86 checks passed,
+and the x64 Preview integration retained all ten fingerprints.
+
+In `actor-event-edit` suite `20261120T103819Z-8dd1d4d6`, Marcus and SDL
+matched all 60 frame identities in the retained retail seek and playback
+runs. Both matched prior seek image hashes and the retail camera indices.
+SDL matched all 12 retail sound requests.

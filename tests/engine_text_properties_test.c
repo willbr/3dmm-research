@@ -685,10 +685,8 @@ static void caption_edit(void)
 
 typedef struct CaptionFlow
 {
-    Host properties;
-    MMCaptionEditWords selected;
     char steps[16], fail;
-    int calls, diagnosed, rewrite;
+    int calls, rewrite;
 } CaptionFlow;
 
 static int caption_step(CaptionFlow *h, char step)
@@ -699,48 +697,24 @@ static int caption_step(CaptionFlow *h, char step)
     return h->fail != step;
 }
 
-static int caption_read(void *p, MMCaptionEditWords *out)
-{
-    static const unsigned short old[] = {'B'};
-    out->text = old;
-    out->count = 1;
-    return caption_step(p, 'r');
-}
-
-static void caption_select(void *p, const MMCaptionEditWords *words)
-{
-    CaptionFlow *h = p;
-    if (words)
-        h->selected = *words;
-    else
-    {
-        h->selected.text = NULL;
-        h->selected.count = 0;
-    }
-    caption_step(h, words ? 's' : 'c');
-}
-
-static int caption_write(void *p, const MMCaptionEditWords *words)
-{
-    CaptionFlow *h = p;
-    static const unsigned short normalized[] = {'A', 13, 'B'};
-    CHECK(words->count == 3 && words->text == h->selected.text);
-    CHECK(!memcmp(words->text, normalized, sizeof(normalized)));
-    CHECK(h->properties.clears == (h->rewrite ? 2 : 1));
-    return caption_step(h, 'w');
-}
-
 static void caption_flow(void)
 {
-    CaptionFlow h = {0};
-    MMCaptionEditHost host = {0};
+    static const unsigned char stored[] = {0, 'B'};
+    static const unsigned short normalized[] = {'A', 13, 'B'};
     MMCaptionEditInput before = {{0, 0, 90, 40, 1, 3, 0, 0, 18, 0, 0, 0, 1, 0, 0}, "Arial", "B"};
     MMCaptionEditInput value = before;
+    MMCaptionEditSource source = {NULL, NULL, MM_TEXT_WINDOWS};
     MMCaptionEditPlan plan;
     MMTextBoxState box = {0};
-    MMRichTextDefaults defaults = {0};
+    MMRichTextState body;
+    MMMemoryStream memory;
+    MMCaptionText replacement = {0};
+    unsigned short *previous;
+    MMU32 property[2];
+    MMMovieTitle font;
     int changed = -1;
 
+    CHECK(mm_rich_text_init(&body, 1, MM_TEXT_WINDOWS));
     CHECK(mm_caption_edit_plan(&value, &before, 20, &plan) == MM_CAPTION_EDIT_NO_CHANGE);
     value.text = "";
     CHECK(mm_caption_edit_plan(&value, NULL, 20, &plan) == MM_CAPTION_EDIT_TEXT_LIMIT);
@@ -750,37 +724,45 @@ static void caption_flow(void)
     CHECK(mm_caption_edit_plan(&value, &before, 20, &plan) == MM_CAPTION_EDIT_OK && !plan.text_changed);
     box.first = 1;
     box.end = 4;
-    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &defaults, &host, &changed) == MM_CAPTION_EDIT_OK);
+    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &body, &source, &replacement, &changed) == MM_CAPTION_EDIT_OK);
     CHECK(!changed && box.left == 20 && box.right == 110);
     value.options.font_size = 22;
-    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &defaults, &host, &changed) == MM_CAPTION_EDIT_OK);
-    CHECK(changed && defaults.height == 22);
+    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &body, &source, &replacement, &changed) == MM_CAPTION_EDIT_OK);
+    CHECK(changed && body.defaults.height == 22 && !replacement.text);
 
-    init(&h.properties);
-    host.context = &h;
-    host.read_text = caption_read;
-    host.select_words = caption_select;
-    host.properties = h.properties.s;
-    host.diagnosed = &h.diagnosed;
-    host.write_text = caption_write;
+    body.properties = mm_text_collection_new(MM_TEXT_PROPERTIES);
+    CHECK(body.properties != NULL);
+    CHECK(mm_memory_stream_init(&memory, stored, sizeof(stored)));
+    source.stored_text = &memory.stream;
+    body.text_system = MM_TEXT_UTF16_BE;
+    CHECK(mm_caption_edit_load_text(&memory.stream, NULL, body.text_system, &replacement) == MM_CAPTION_EDIT_OK);
+    CHECK(replacement.count == 1 && replacement.text[0] == 'B');
+    previous = replacement.text;
     value.text = "A\r\nB";
     value.options.bold = 1;
     value.options.x = 30;
     CHECK(mm_caption_edit_plan(&value, &before, 20, &plan) == MM_CAPTION_EDIT_OK && plan.text_changed);
-    h.fail = 'w';
+    memory.stream.length = 1;
     changed = -1;
-    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &defaults, &host, &changed) == MM_CAPTION_EDIT_WRITE_TEXT);
-    CHECK(!strcmp(h.steps, "rswc") && !h.selected.text && changed == -1 && box.left == 20);
+    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &body, &source, &replacement, &changed) == MM_CAPTION_EDIT_ENCODING);
+    CHECK(replacement.text == previous && changed == -1 && box.left == 20);
 
-    init(&h.properties);
-    h.calls = 0;
-    h.fail = 0;
-    h.rewrite = 1;
-    host.write_text = NULL;
-    host.draft_text = caption_write;
-    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &defaults, &host, &changed) == MM_CAPTION_EDIT_OK);
-    CHECK(!strcmp(h.steps, "rswc") && !h.selected.text && changed && box.left == 30);
-    CHECK(h.properties.count == 1 && h.properties.entries[0].key == key(MM_CAPTION_STYLE, 0));
+    memory.stream.length = sizeof(stored);
+    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &body, &source, &replacement, &changed) == MM_CAPTION_EDIT_OK);
+    CHECK(changed && box.left == 30 && replacement.count == 3 &&
+          !memcmp(replacement.text, normalized, sizeof(normalized)));
+    CHECK(mm_text_collection_count(body.properties) == 1 && mm_text_collection_property(body.properties, 0, property));
+    CHECK(property[0] == key(MM_CAPTION_STYLE, 0) && property[1] == 1);
+    mm_caption_edit_dispose_text(&replacement);
+    CHECK(!replacement.text && !replacement.count);
+    mm_text_collection_dispose(body.properties);
+
+    CHECK(mm_movie_title_init(&font, 1));
+    CHECK(mm_caption_edit_font("Arial", 5, NULL, &font) == MM_CAPTION_EDIT_OK && font.count == 5);
+    CHECK(mm_caption_edit_font("", 0, NULL, &font) == MM_CAPTION_EDIT_FONT_LENGTH && font.count == 5);
+    CHECK(mm_caption_edit_font("\xce\xa9", 2, NULL, &font) == MM_CAPTION_EDIT_FONT && font.count == 5);
+    CHECK(mm_movie_title_init(&font, 2));
+    CHECK(mm_caption_edit_font("\xce\xa9", 2, NULL, &font) == MM_CAPTION_EDIT_OK && font.text[0] == 0x3a9);
 }
 
 static int caption_clone_box(void *p, MMU32 original, MMU32 *number)

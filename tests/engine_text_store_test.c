@@ -1,4 +1,5 @@
 #include "mm/text_store.h"
+#include "mm/text.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,6 +23,7 @@ typedef struct Host
     MMRichTextWriteServices write;
     Token old[3], fresh[3], destination;
     unsigned char header[64], marker[2], written[36];
+    unsigned char payload[4];
     MMU32 length;
     int calls, fail_at, failure, own_failure, font_empty, missing_args, big;
     int root, removed, children, active, releases;
@@ -185,7 +187,14 @@ static int add_root(void *v, MMU32 bytes, MMU32 *out)
 static int write_bytes(void *v, MMU32 offset, const void *bytes, MMU32 n)
 {
     Host *h = (Host *)v;
-    int r = step(h, h->active ? 'm' : 'w');
+    int r = step(h, offset == 2 ? 'b' : h->active ? 'm' : 'w');
+    if (offset == 2)
+    {
+        CHECK(h->active == 1 && n == sizeof(h->payload));
+        if (r > 0)
+            memcpy(h->payload, bytes, n);
+        return r;
+    }
     CHECK(offset == 0 && n == (h->active ? 2U : 16U));
     if (r > 0)
         memcpy(h->written, bytes, n);
@@ -442,6 +451,35 @@ static void write_tests(void)
     h.old[2].count = 0;
     CHECK(mm_rich_text_write(&s, &out, 0, &h.write) == 1 && h.children == 2 && !strchr(h.log, 'a'));
 }
+
+static void encoded_tests(void)
+{
+    static const unsigned char words[] = {'A', 0, 13, 0};
+    Host h;
+    MMRichTextState state;
+    MMTextChunk chunk;
+    MMTextEncoded replacement = {words, 4, MM_TEXT_UTF16_LE};
+    int big;
+    for (big = 0; big < 2; ++big)
+    {
+        setup(&h, &state, 1, big);
+        CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, big, &h.write) == 1);
+        CHECK(chunk.type == MM_TEXT_ROOT && chunk.number == 41 && h.children == 3);
+        CHECK(!strcmp(h.log, "nwftmbpgaj") && !memcmp(h.payload, words, 4));
+        CHECK(h.written[0] == 5 && h.written[1] == 5 && h.old[0].refs == 1);
+
+        setup(&h, &state, 1, big);
+        h.fail_at = 6;
+        h.failure = -2;
+        CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, big, &h.write) == -2);
+        CHECK(!strcmp(h.log, "nwftmb!") && chunk.number == MM_TEXT_NIL && h.removed == 1 && !h.children);
+    }
+    setup(&h, &state, 1, 0);
+    replacement.bytes = 0;
+    replacement.text = NULL;
+    CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, 0, &h.write) == 1);
+    CHECK(!strcmp(h.log, "nwftmpgaj") && state.text.bytes == 4);
+}
 typedef struct Box
 {
     MMTextBoxServices services;
@@ -578,6 +616,7 @@ int main(void)
     codecs();
     read_tests();
     write_tests();
+    encoded_tests();
     puts("Stored text: both wire orders, transactional ownership, font fallback, output prefixes and exhaustive effect "
          "failures passed.");
     return 0;

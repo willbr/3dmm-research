@@ -16,8 +16,8 @@ enum
     MM_CAPTION_EDIT_FONT_SIZE, MM_CAPTION_EDIT_ALIGNMENT, MM_CAPTION_EDIT_MEMORY,
     MM_CAPTION_EDIT_ADJUST, MM_CAPTION_EDIT_INHERIT, MM_CAPTION_EDIT_NO_CHANGE,
     MM_CAPTION_EDIT_TEXT_LIMIT, MM_CAPTION_EDIT_PROPERTIES, MM_CAPTION_EDIT_FONT,
-    MM_CAPTION_EDIT_READ_TEXT, MM_CAPTION_EDIT_UTF8, MM_CAPTION_EDIT_WRITE_TEXT,
-    MM_CAPTION_EDIT_APPLY_FORMAT, MM_CAPTION_EDIT_DRAFT,
+    MM_CAPTION_EDIT_FONT_LENGTH, MM_CAPTION_EDIT_EXISTING_LIMIT, MM_CAPTION_EDIT_READ_TEXT,
+    MM_CAPTION_EDIT_ENCODING, MM_CAPTION_EDIT_UTF8, MM_CAPTION_EDIT_APPLY_FORMAT,
     MM_CAPTION_EDIT_COPY_BOX, MM_CAPTION_EDIT_ADD_BOX, MM_CAPTION_EDIT_WRITE_BODY,
     MM_CAPTION_EDIT_WRITE_BOX
 };
@@ -85,6 +85,21 @@ typedef struct MMCaptionEditWords
     size_t count;
 } MMCaptionEditWords;
 
+/* Owning UTF-16 text. Initialize to zero and dispose with this API. The
+ * load/edit operations replace it only after success. */
+typedef struct MMCaptionText
+{
+    unsigned short *text;
+    size_t count;
+} MMCaptionText;
+
+void mm_caption_edit_dispose_text(MMCaptionText *);
+int mm_caption_edit_load_text(const MMReadStream *, const MMTextHost *, int encoding, MMCaptionText *);
+int mm_caption_edit_font(const char *utf8, size_t length, const MMTextHost *, MMMovieTitle *);
+/* Borrow the prepared words during serialization. NULL keeps stored TEXT. */
+int mm_caption_edit_write_body(const MMRichTextState *, const MMCaptionText *, const MMTextHost *,
+                               MMTextChunk *, int big, const MMRichTextWriteServices *);
+
 typedef struct MMCaptionPropertyMap
 {
     MMRichTextState *body;
@@ -96,23 +111,17 @@ typedef struct MMCaptionPropertyMap
  * paragraph source and remain borrowed throughout the edit. */
 void mm_caption_edit_property_services(MMCaptionPropertyMap *, MMTextPropertyServices *);
 
-typedef struct MMCaptionEditHost
+typedef struct MMCaptionEditSource
 {
-    void *context;
-    int (*create_properties)(void *);
-    int (*set_font)(void *, const char *font);
-    int (*read_text)(void *, MMCaptionEditWords *borrowed);
-    void (*select_words)(void *, const MMCaptionEditWords *borrowed);
-    MMTextPropertyServices properties;
-    const int *diagnosed;
-    int (*write_text)(void *, const MMCaptionEditWords *); /* Optional save callback. */
-    int (*draft_text)(void *, const MMCaptionEditWords *); /* Optional draft callback. */
-} MMCaptionEditHost;
+    const MMTextHost *encoding;
+    const MMReadStream *stored_text;
+    int native_system;
+} MMCaptionEditSource;
 
-/* Mutates a private body. The caller discards it on failure. All callbacks
- * are synchronous and must not throw. Selected words are cleared before return. */
+/* Mutates a private body, which the caller discards on failure. Publishes the
+ * replacement words only after a successful text change. */
 int mm_caption_edit_apply(const MMCaptionEditPlan *, MMI32 first, MMI32 last, MMTextBoxState *,
-                          MMRichTextDefaults *, const MMCaptionEditHost *, int *body_changed);
+                          MMRichTextState *, const MMCaptionEditSource *, MMCaptionText *, int *body_changed);
 
 typedef struct MMCaptionArchiveBox
 {

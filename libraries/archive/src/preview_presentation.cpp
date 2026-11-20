@@ -8,7 +8,6 @@
 #include "mm/native_caption.h"
 #include "mm/preview_media.h"
 #include "platform_text.h"
-#include "mm/text.h"
 #undef size
 #include "preview_cue_view.h"
 ASSERTNAME
@@ -109,35 +108,14 @@ bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, Previe
 }
 } // namespace Internal
 
-bool ReadCaptionData(const MMTextBoxState &box, const MMRichTextState &text, const std::u16string *words,
+bool ReadCaptionData(const MMTextBoxState &box, const MMRichTextState &text, const MMReadStream &stream, int encoding,
                      PreviewCaption &out)
 {
     String font;
     font.SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(&text.font))), text.font.count);
     Internal::CaptionOutput output{font, out, {}};
     const auto services = output.Services();
-    const unsigned short one = 1;
-    const auto nativeEncoding = *reinterpret_cast<const byte *>(&one) ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE;
-    struct StoredText
-    {
-        FileLocation location;
-        Internal::CaptionOutput &sink;
-    } stored{{static_cast<PFileObject>(text.text.file), static_cast<FilePosition>(text.text.offset), text.text.bytes},
-             output};
-    MMReadStream stream{&stored, static_cast<MMU32>(text.text.bytes),
-        [](void *p, MMU32 offset, void *out, size_t count) -> int {
-            auto &source = *static_cast<StoredText *>(p);
-            return source.sink.Guard([&] {
-                return source.location.FReadRgb(out, static_cast<LegacyLong>(count), offset);
-            }) > 0;
-        }};
-    if (words)
-        stream = {const_cast<char16_t *>(words->data()), static_cast<MMU32>(words->size() * 2),
-            [](void *p, MMU32 offset, void *out, size_t count) -> int {
-                std::memcpy(out, static_cast<unsigned char *>(p) + offset, count);
-                return 1;
-            }};
-    const int result = mm_preview_caption_body(&box, &text, &stream, words ? nativeEncoding : text.text_system, &services);
+    const int result = mm_preview_caption_body(&box, &text, &stream, encoding, &services);
     if (output.exception) std::rethrow_exception(output.exception);
     if (result == -1) throw std::bad_alloc();
     return result > 0;

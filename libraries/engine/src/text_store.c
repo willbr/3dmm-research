@@ -267,27 +267,36 @@ int mm_rich_text_create(const MMRichTextDefaults *defaults, const MMMovieTitle *
     written->number = MM_TEXT_NIL;
     return r;
 }
-int mm_rich_text_write(const MMRichTextState *state, MMTextChunk *written, int big, const MMRichTextWriteServices *s)
+int mm_rich_text_write_encoded(const MMRichTextState *state, const MMTextEncoded *replacement,
+                               MMTextChunk *written, int big, const MMRichTextWriteServices *s)
 {
     const MMRichTextObjects *o = &s->objects;
     MMTextLocation destination;
     unsigned char marker[2];
+    MMU32 bytes = replacement ? replacement->bytes : (MMU32)state->text.bytes;
+    int encoding = replacement ? replacement->encoding : state->text_system;
     int r;
-    if (state->text.bytes < 0 || state->text.bytes > MM_TEXT_LIMIT - 2 || !state->properties ||
+    if (bytes > MM_TEXT_LIMIT - 2 || (replacement && bytes && !replacement->text) || !state->properties ||
         o->width(o->context, MM_TEXT_PROPERTIES, state->properties) != 8 ||
         (state->arguments && o->width(o->context, MM_TEXT_ARGUMENTS, state->arguments) != 4))
         return 0;
     r = mm_rich_text_create(&state->defaults, &state->font, written, big, s);
     if (r <= 0)
         return r;
-    r = s->add_child(s->context, written->number, MM_TEXT_BYTES, (MMU32)state->text.bytes + 2);
+    r = s->add_child(s->context, written->number, MM_TEXT_BYTES, bytes + 2);
     if (r <= 0)
         goto fail;
-    put(marker, (MMU32)state->text_system, 2, big);
+    put(marker, (MMU32)encoding, 2, big);
     r = s->write(s->context, 0, marker, 2);
     if (r <= 0)
         goto fail;
-    if (state->text.bytes > 0)
+    if (bytes && replacement)
+    {
+        r = s->write(s->context, 2, replacement->text, bytes);
+        if (r <= 0)
+            goto fail;
+    }
+    else if (bytes)
     {
         memset(&destination, 0, sizeof(destination));
         r = s->destination(s->context, &destination);
@@ -324,6 +333,11 @@ fail:
     s->remove(s->context, written->number);
     written->number = MM_TEXT_NIL;
     return r;
+}
+
+int mm_rich_text_write(const MMRichTextState *state, MMTextChunk *written, int big, const MMRichTextWriteServices *s)
+{
+    return mm_rich_text_write_encoded(state, NULL, written, big, s);
 }
 
 struct MMTextCollection

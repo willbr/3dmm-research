@@ -158,6 +158,98 @@ int mm_caption_edit_encode(const MMTextHost *host, const unsigned short *text, s
     return MM_TEXT_UTF16_LE;
 }
 
+void mm_caption_edit_dispose_text(MMCaptionText *text)
+{
+    free(text->text);
+    text->text = NULL;
+    text->count = 0;
+}
+
+int mm_caption_edit_load_text(const MMReadStream *stream, const MMTextHost *encoding_host, int encoding,
+                              MMCaptionText *out)
+{
+    MMCaptionText text = {0};
+    unsigned char *bytes;
+    int result = MM_CAPTION_EDIT_OK;
+    if (!stream)
+        return MM_CAPTION_EDIT_READ_TEXT;
+    if (stream->length > MM_CAPTION_EDIT_MAX_UNITS * 4UL)
+        return MM_CAPTION_EDIT_EXISTING_LIMIT;
+    if (stream->length)
+    {
+        bytes = malloc(stream->length);
+        if (!bytes)
+            return MM_CAPTION_EDIT_MEMORY;
+        if (!mm_read_exact(stream, 0, bytes, stream->length))
+            result = MM_CAPTION_EDIT_READ_TEXT;
+        else
+        {
+            text.count = mm_text_utf16(encoding_host, bytes, stream->length, encoding, NULL, 0);
+            if (!text.count || text.count > MM_CAPTION_EDIT_MAX_UNITS * 4UL)
+                result = MM_CAPTION_EDIT_ENCODING;
+            else
+            {
+                text.text = malloc(text.count * sizeof(*text.text));
+                if (!text.text)
+                    result = MM_CAPTION_EDIT_MEMORY;
+                else if (mm_text_utf16(encoding_host, bytes, stream->length, encoding, text.text, text.count) != text.count)
+                    result = MM_CAPTION_EDIT_ENCODING;
+            }
+        }
+        free(bytes);
+    }
+    if (result == MM_CAPTION_EDIT_OK)
+    {
+        mm_caption_edit_dispose_text(out);
+        *out = text;
+    }
+    else
+        mm_caption_edit_dispose_text(&text);
+    return result;
+}
+
+int mm_caption_edit_font(const char *utf8, size_t length, const MMTextHost *host, MMMovieTitle *out)
+{
+    unsigned short units[255];
+    char ansi[255];
+    size_t count;
+    if (mm_text_read_utf8(utf8, length, units, 255, &count) != 1 || !count)
+        return MM_CAPTION_EDIT_FONT_LENGTH;
+    if (out->unit == 2)
+        return mm_movie_title_set(out, units, (MMU32)count) ? MM_CAPTION_EDIT_OK : MM_CAPTION_EDIT_FONT;
+    count = mm_text_ansi_from_units(host, units, count, ansi, sizeof(ansi), 1);
+    return count && mm_movie_title_set(out, ansi, (MMU32)count) ? MM_CAPTION_EDIT_OK : MM_CAPTION_EDIT_FONT;
+}
+
+int mm_caption_edit_write_body(const MMRichTextState *body, const MMCaptionText *replacement,
+                               const MMTextHost *host, MMTextChunk *out, int big, const MMRichTextWriteServices *services)
+{
+    MMTextEncoded encoded;
+    unsigned char *bytes = NULL;
+    size_t count;
+    int result = 0;
+    if (!replacement)
+        return mm_rich_text_write(body, out, big, services);
+    if (replacement->count > MM_CAPTION_EDIT_MAX_UNITS)
+        return 0;
+    if (replacement->count)
+    {
+        bytes = malloc(replacement->count * 2);
+        if (!bytes)
+            return -1;
+    }
+    encoded.encoding = mm_caption_edit_encode(host, replacement->text, replacement->count, bytes,
+                                               replacement->count * 2, &count);
+    if (encoded.encoding)
+    {
+        encoded.text = bytes;
+        encoded.bytes = (MMU32)count;
+        result = mm_rich_text_write_encoded(body, &encoded, out, big, services);
+    }
+    free(bytes);
+    return result;
+}
+
 MMI32 mm_caption_edit_paragraph_end(const unsigned short *text, MMI32 count, MMI32 start)
 {
     MMI32 i;
@@ -382,59 +474,69 @@ int mm_caption_edit_plan(const MMCaptionEditInput *value, const MMCaptionEditInp
 }
 
 static int edit_text_and_properties(const MMCaptionEditPlan *plan, const MMCaptionEditFormat *format,
-                                    const MMCaptionEditHost *host)
+                                    MMRichTextState *body, const MMCaptionEditSource *source,
+                                    MMCaptionText *replacement)
 {
-    MMCaptionEditWords old = {0}, words;
-    unsigned short *text = NULL;
+    MMCaptionText old = {0}, text = {0};
+    const MMCaptionText *selected;
+    MMCaptionPropertyMap map = {0};
+    MMTextPropertyServices properties;
     size_t capacity = plan->text_bytes;
     MMI32 characters;
-    const MMTextPropertyServices *properties = &host->properties;
     int status = MM_CAPTION_EDIT_OK;
-    if (plan->before && host->read_text(host->context, &old) != 1)
-        return MM_CAPTION_EDIT_READ_TEXT;
-    if (old.count >= 0x00800000UL)
-        return MM_CAPTION_EDIT_ADJUST;
-    words = old;
+    if (plan->before)
+    {
+        status = mm_caption_edit_load_text(source->stored_text, source->encoding, body->text_system, &old);
+        if (status != MM_CAPTION_EDIT_OK)
+            return status;
+    }
     if (plan->text_changed)
     {
         if (capacity > MM_CAPTION_EDIT_MAX_UNITS * 2UL)
             capacity = MM_CAPTION_EDIT_MAX_UNITS * 2UL;
         if (capacity)
         {
-            text = malloc(capacity * sizeof(*text));
-            if (!text)
-                return MM_CAPTION_EDIT_MEMORY;
+            text.text = malloc(capacity * sizeof(*text.text));
+            if (!text.text)
+            {
+                status = MM_CAPTION_EDIT_MEMORY;
+                goto done;
+            }
         }
-        if (!mm_caption_edit_decode(plan->value->text, plan->text_bytes, text, capacity, &words.count))
+        if (!mm_caption_edit_decode(plan->value->text, plan->text_bytes, text.text, capacity, &text.count))
         {
-            free(text);
-            return MM_CAPTION_EDIT_UTF8;
+            status = MM_CAPTION_EDIT_UTF8;
+            goto done;
         }
-        words.text = text;
     }
-    host->select_words(host->context, &words);
-    characters = (MMI32)words.count + 1;
+    selected = plan->text_changed ? &text : &old;
+    map.body = body;
+    map.words.text = selected->text;
+    map.words.count = selected->count;
+    mm_caption_edit_property_services(&map, &properties);
+    characters = (MMI32)selected->count + 1;
     if (plan->text_changed)
-    {
-        status = mm_caption_edit_replace(old.text, (MMI32)old.count, words.text, characters - 1,
-                                         properties, host->diagnosed);
-        if (status == MM_CAPTION_EDIT_OK && host->write_text && host->write_text(host->context, &words) != 1)
-            status = MM_CAPTION_EDIT_WRITE_TEXT;
-    }
+        status = mm_caption_edit_replace(old.text, (MMI32)old.count, text.text, characters - 1,
+                                         &properties, &map.diagnosed);
     if (status == MM_CAPTION_EDIT_OK && format->count &&
-        (mm_text_properties_apply_changes(0, characters, characters, format->changes, format->count, properties) <= 0 ||
-         *host->diagnosed))
+        (mm_text_properties_apply_changes(0, characters, characters, format->changes, format->count, &properties) <= 0 ||
+         map.diagnosed))
         status = MM_CAPTION_EDIT_APPLY_FORMAT;
-    if (status == MM_CAPTION_EDIT_OK && plan->text_changed && host->draft_text &&
-        host->draft_text(host->context, &words) != 1)
-        status = MM_CAPTION_EDIT_DRAFT;
-    host->select_words(host->context, NULL);
-    free(text);
+    if (status == MM_CAPTION_EDIT_OK && plan->text_changed)
+    {
+        mm_caption_edit_dispose_text(replacement);
+        *replacement = text;
+        text.text = NULL;
+    }
+done:
+    mm_caption_edit_dispose_text(&old);
+    mm_caption_edit_dispose_text(&text);
     return status;
 }
 
 int mm_caption_edit_apply(const MMCaptionEditPlan *plan, MMI32 first, MMI32 last, MMTextBoxState *box,
-                          MMRichTextDefaults *defaults, const MMCaptionEditHost *host, int *body_changed)
+                          MMRichTextState *body, const MMCaptionEditSource *source,
+                          MMCaptionText *replacement, int *body_changed)
 {
     MMTextBoxState edited = *box;
     MMCaptionEditFormat format;
@@ -443,25 +545,34 @@ int mm_caption_edit_apply(const MMCaptionEditPlan *plan, MMI32 first, MMI32 last
     int status = mm_caption_edit_write_box(&edited, first, last, value, before);
     if (status != MM_CAPTION_EDIT_OK)
         return status;
-    if (!before && host->create_properties(host->context) != 1)
-        return MM_CAPTION_EDIT_PROPERTIES;
-    if (plan->font_changed && host->set_font(host->context, plan->value->font) != 1)
-        return MM_CAPTION_EDIT_FONT;
+    if (!before && !body->properties)
+    {
+        body->properties = mm_text_collection_new(MM_TEXT_PROPERTIES);
+        if (!body->properties)
+            return MM_CAPTION_EDIT_PROPERTIES;
+    }
+    if (plan->font_changed)
+    {
+        status = mm_caption_edit_font(plan->value->font, strlen(plan->value->font), source->encoding, &body->font);
+        if (status != MM_CAPTION_EDIT_OK)
+            return status;
+        body->defaults.font_system = source->native_system;
+    }
     status = mm_caption_edit_format(value, before, &format);
     if (status != MM_CAPTION_EDIT_OK)
         return status;
     if (plan->text_changed || format.count)
     {
-        status = edit_text_and_properties(plan, &format, host);
+        status = edit_text_and_properties(plan, &format, body, source, replacement);
         if (status != MM_CAPTION_EDIT_OK)
             return status;
     }
     if (format.defaults & MM_CAPTION_EDIT_SET_SIZE)
-        defaults->height = value->font_size;
+        body->defaults.height = value->font_size;
     if (format.defaults & MM_CAPTION_EDIT_SET_PAPER)
-        defaults->background = (MMU32)format.paper;
+        body->defaults.background = (MMU32)format.paper;
     if (format.defaults & MM_CAPTION_EDIT_SET_WIDTH)
-        defaults->width = value->width;
+        body->defaults.width = value->width;
     *box = edited;
     *body_changed = plan->font_changed || plan->text_changed || format.defaults || format.count;
     return MM_CAPTION_EDIT_OK;

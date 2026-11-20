@@ -7,7 +7,6 @@
 #include "platform_text.h"
 #include "font_catalog.h"
 #include "font_host.h"
-#include <algorithm>
 #include <cstring>
 #include <map>
 #include <exception>
@@ -20,12 +19,10 @@ ASSERTNAME
 
 namespace
 {
-using Encoding = KauaiText::Encoding;
 constexpr MMU32 Rgb = 0x01000000, Clear = 0xffffffffU;
 
 struct Release { template<class T> void operator()(T *p) const { if (p) p->Release(); } };
 template<class T> using Owned = std::unique_ptr<T, Release>;
-using Words = std::vector<unsigned short>;
 
 void Require(bool ok, const char *message)
 {
@@ -51,6 +48,8 @@ Owned<ChunkyFile> Open(const std::filesystem::path &path, bool write)
 struct CaptionBody
 {
     MMRichTextState state;
+    MMCaptionText words{};
+    std::exception_ptr readFailure;
 
     CaptionBody() { mm_rich_text_init(&state, sizeof(achar), koskCur); }
     CaptionBody(const CaptionBody &) = delete;
@@ -59,6 +58,7 @@ struct CaptionBody
     {
         const auto objects = Objects();
         mm_rich_text_dispose(&state, &objects);
+        mm_caption_edit_dispose_text(&words);
     }
 
     bool Read(PChunkyFile file, const ChunkIdentification &chunk)
@@ -88,7 +88,24 @@ struct CaptionBody
         return result > 0;
     }
 
-    bool Write(PChunkyFile file, MMTextChunk *out)
+    MMReadStream TextStream()
+    {
+        readFailure = {};
+        return {this, static_cast<MMU32>(state.text.bytes), [](void *p, MMU32 offset, void *out, size_t bytes) -> int {
+            auto &body = *static_cast<CaptionBody *>(p);
+            return CaptionCall(body.readFailure, [&] {
+                auto location = RichTextStoreHost::Location(body.state.text);
+                return location.FReadRgb(out, static_cast<LegacyLong>(bytes), offset) ? 1 : 0;
+            });
+        }};
+    }
+
+    void RethrowRead()
+    {
+        if (readFailure) std::rethrow_exception(readFailure);
+    }
+
+    bool Write(PChunkyFile file, bool replaced, MMTextChunk *out)
     {
         RichTextStoreHost::Host host{file};
         auto services = host.Write();
@@ -110,7 +127,8 @@ struct CaptionBody
                 }};
             return mm_text_collection_write(static_cast<MMTextCollection *>(collection), &writer, order, system);
         };
-        const auto result = mm_rich_text_write(&state, out, RichTextStoreHost::NativeBig(), &services);
+        const auto result = mm_caption_edit_write_body(&state, replaced ? &words : nullptr, KauaiText::Services(),
+                                                       out, RichTextStoreHost::NativeBig(), &services);
         host.Rethrow();
         return result > 0;
     }
@@ -130,27 +148,11 @@ struct CaptionBody
     }
 };
 
-Words Decode(const void *bytes, std::size_t length, Encoding encoding)
+std::string ToUtf8(const unsigned short *words, size_t count)
 {
-    if (!length) return {};
-    Words units(KauaiText::ToUtf16(bytes, length, encoding, nullptr, 0));
-    Require(!units.empty() && KauaiText::ToUtf16(bytes, length, encoding, units.data(), units.size()) == units.size(),
-            "Cannot decode the 2D text encoding.");
-    return units;
-}
-Words ReadText(const MMRichTextState &rich)
-{
-    Require(rich.text.bytes >= 0 && rich.text.bytes <= MM_CAPTION_EDIT_MAX_UNITS * 4, "The 2D text is too long to edit.");
-    std::vector<byte> bytes(rich.text.bytes);
-    auto location = RichTextStoreHost::Location(rich.text);
-    Require(bytes.empty() || location.FReadRgb(bytes.data(), rich.text.bytes, 0), "Cannot read the 2D text.");
-    return Decode(bytes.data(), bytes.size(), static_cast<Encoding>(rich.text_system));
-}
-std::string ToUtf8(const Words &words)
-{
-    std::string result(words.size() * 3, '\0');
+    std::string result(count * 3, '\0');
     auto end = result.data();
-    Require(mm_text_encode_utf8(words.data(), words.size(), &end, [](void *p, const char *bytes, std::size_t count) {
+    Require(mm_text_encode_utf8(words, count, &end, [](void *p, const char *bytes, std::size_t count) {
         auto &next = *static_cast<char **>(p);
         std::memcpy(next, bytes, count);
         next += count;
@@ -159,46 +161,13 @@ std::string ToUtf8(const Words &words)
     result.resize(end - result.data());
     return result;
 }
-void WriteText(MMRichTextState &rich, const MMCaptionEditWords &text)
-{
-    std::vector<byte> bytes(text.count * 2);
-    std::size_t count;
-    const auto encoding = mm_caption_edit_encode(KauaiText::Services(), text.text, text.count, bytes.data(),
-                                                 bytes.size(), &count);
-    Require(encoding != 0, "Cannot encode the 2D text.");
-    Owned<FileObject> stream(FileObject::PfilCreateTemp());
-    const auto length = static_cast<LegacyLong>(count);
-    Require(stream && (!length || stream->FWriteRgb(bytes.data(), length, 0)),
-            "Cannot write the 2D text.");
-    if (rich.text.file) static_cast<PFileObject>(rich.text.file)->Release();
-    rich.text = {stream.release(), 0, length};
-    rich.text_system = encoding;
-}
 std::string Font(const MMRichTextState &rich)
 {
-    return ToUtf8(Decode(mm_movie_title_text(&rich.font), rich.font.count * rich.font.unit,
-                                  static_cast<Encoding>(koskCur)));
-}
-LegacyLong EncodeFont(const unsigned short *units, std::size_t count, achar (&native)[kcchMaxStn])
-{
-#ifdef UNICODE
-    std::copy_n(units, count, native);
-    return static_cast<LegacyLong>(count);
-#else
-    return static_cast<LegacyLong>(mm_text_ansi_from_units(KauaiText::Services(), units, count, native, kcchMaxStn, 1));
-#endif
-}
-void SetFont(MMRichTextState &rich, const char *font)
-{
     unsigned short units[kcchMaxStn];
-    std::size_t count;
-    Require(mm_text_read_utf8(font, std::strlen(font), units, kcchMaxStn, &count) == 1 && count,
-            "Enter a font family of 1 to 255 characters in UTF-8.");
-    achar native[kcchMaxStn];
-    const auto length = EncodeFont(units, count, native);
-    Require(length > 0, "This font name cannot be represented in a native 3DMM text box.");
-    Require(mm_movie_title_set(&rich.font, native, length), "Cannot set the 2D text font.");
-    rich.defaults.font_system = koskCur;
+    const auto count = mm_text_utf16(KauaiText::Services(), mm_movie_title_text(&rich.font),
+                                    rich.font.count * rich.font.unit, koskCur, units, kcchMaxStn);
+    Require(!rich.font.count || count, "Cannot decode the 2D text encoding.");
+    return ToUtf8(units, count);
 }
 
 void CheckTextArchive(int status)
@@ -239,12 +208,13 @@ void CheckCaptionEdit(int status)
         nullptr,
         "Enter text for the new box within the length limit.",
         "Cannot allocate the 2D text properties.",
-        "Cannot set the 2D text font.",
+        "This font name cannot be represented in a native 3DMM text box.",
+        "Enter a font family of 1 to 255 characters in UTF-8.",
+        "The 2D text is too long to edit.",
         "Cannot read the 2D text.",
+        "Cannot decode the 2D text encoding.",
         "Enter valid UTF-8 within the 2D text length limit.",
-        "Cannot write the 2D text.",
         "Cannot apply the 2D text formatting.",
-        "Cannot prepare the 2D text preview.",
         "Cannot copy the selected 2D text box.",
         "Cannot allocate a new 2D text box.",
         "Cannot save the native 2D text.",
@@ -254,66 +224,14 @@ void CheckCaptionEdit(int status)
     Require(status == MM_CAPTION_EDIT_OK, messages[status]);
 }
 
-struct CaptionEditHost
+int ApplyCaption(const MMCaptionEditPlan &plan, const MarcusCaptionList &list, TextBoxData &box, CaptionBody &rich,
+                 int *bodyChanged)
 {
-    MMCaptionPropertyMap map;
-    Words oldText;
-    std::u16string *draft;
-    std::exception_ptr failure;
-
-    MMCaptionEditHost Services()
-    {
-        MMCaptionEditHost services = {
-            this,
-            [](void *p) {
-                auto &host = *static_cast<CaptionEditHost *>(p);
-                host.map.body->properties = mm_text_collection_new(MM_TEXT_PROPERTIES);
-                return host.map.body->properties != nullptr ? 1 : 0;
-            },
-            [](void *p, const char *font) {
-                auto &host = *static_cast<CaptionEditHost *>(p);
-                return CaptionCall(host.failure, [&] { SetFont(*host.map.body, font); return 1; });
-            },
-            [](void *p, MMCaptionEditWords *words) {
-                auto &host = *static_cast<CaptionEditHost *>(p);
-                return CaptionCall(host.failure, [&] {
-                    host.oldText = ReadText(*host.map.body);
-                    *words = {host.oldText.data(), host.oldText.size()};
-                    return 1;
-                });
-            },
-            [](void *p, const MMCaptionEditWords *words) {
-                static_cast<CaptionEditHost *>(p)->map.words = words ? *words : MMCaptionEditWords{};
-            },
-            {}, &map.diagnosed, nullptr, nullptr
-        };
-        mm_caption_edit_property_services(&map, &services.properties);
-        if (draft)
-            services.draft_text = [](void *p, const MMCaptionEditWords *words) {
-                auto &host = *static_cast<CaptionEditHost *>(p);
-                return CaptionCall(host.failure, [&] {
-                    if (words->count) host.draft->assign(words->text, words->text + words->count);
-                    else host.draft->clear();
-                    return 1;
-                });
-            };
-        else
-            services.write_text = [](void *p, const MMCaptionEditWords *words) {
-                auto &host = *static_cast<CaptionEditHost *>(p);
-                return CaptionCall(host.failure, [&] { WriteText(*host.map.body, *words); return 1; });
-            };
-        return services;
-    }
-};
-
-int ApplyCaption(const MMCaptionEditPlan &plan, const MarcusCaptionList &list, TextBoxData &box, MMRichTextState &rich,
-                 std::u16string *draft, int *bodyChanged)
-{
-    CaptionEditHost host{{&rich, {}, 0}, {}, draft, {}};
-    const auto services = host.Services();
-    const int status = mm_caption_edit_apply(&plan, list.firstFrame, list.lastFrame, &box.state, &rich.defaults, &services,
-                                            bodyChanged);
-    if (host.failure) std::rethrow_exception(host.failure);
+    const auto stream = rich.TextStream();
+    const MMCaptionEditSource source{KauaiText::Services(), &stream, koskCur};
+    const int status = mm_caption_edit_apply(&plan, list.firstFrame, list.lastFrame, &box.state, &rich.state, &source,
+                                             &rich.words, bodyChanged);
+    rich.RethrowRead();
     return status;
 }
 }
@@ -330,11 +248,9 @@ std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *b
     std::map<std::string, std::string> names;
     for (auto &family : families)
     {
-        unsigned short units[kcchMaxStn];
-        std::size_t count;
-        achar native[kcchMaxStn];
-        if (mm_text_read_utf8(family.name.data(), family.name.size(), units, kcchMaxStn, &count) != 1 ||
-            !count || !EncodeFont(units, count, native))
+        MMMovieTitle font;
+        mm_movie_title_init(&font, sizeof(achar));
+        if (mm_caption_edit_font(family.name.data(), family.name.size(), KauaiText::Services(), &font) != MM_CAPTION_EDIT_OK)
             continue;
         auto key = family.name;
         for (auto &c : key)
@@ -366,10 +282,12 @@ void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &pr
         CaptionBody rich;
         Require(box.FRead(file.get(), link.number, &body) && rich.Read(file.get(), body),
                 "Cannot read a native 2D text box.");
-        auto words = ReadText(rich.state);
-        auto display = words;
-        display.resize(mm_caption_edit_normalize(display.data(), display.size(), 10));
-        auto text = ToUtf8(display);
+        const auto stream = rich.TextStream();
+        const int status = mm_caption_edit_load_text(&stream, KauaiText::Services(), rich.state.text_system, &rich.words);
+        rich.RethrowRead();
+        CheckCaptionEdit(status);
+        const auto units = mm_caption_edit_normalize(rich.words.text, rich.words.count, 10);
+        auto text = ToUtf8(rich.words.text, units);
         Require(text.size() < MARCUS_CAPTION_UTF8_CAPACITY && text.find('\0') == std::string::npos,
                 "This 2D text cannot fit in the editor.");
         const auto &s = box.state;
@@ -423,12 +341,21 @@ MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const M
         Require(box.FRead(file.get(), entry->chunk, &body) && rich.Read(file.get(), body),
                 "Cannot read the authored text box.");
     }
-    std::u16string words;
     int bodyChanged;
-    CheckCaptionEdit(ApplyCaption(plan, list, box, rich.state, &words, &bodyChanged));
+    CheckCaptionEdit(ApplyCaption(plan, list, box, rich, &bodyChanged));
     MM::PreviewCaption preview;
-    Require(MM::ReadCaptionData(box.state, rich.state, plan.text_changed ? &words : nullptr, preview),
-            "Cannot prepare the 2D text preview.");
+    auto stream = rich.TextStream();
+    int encoding = rich.state.text_system;
+    MMMemoryStream draft;
+    if (plan.text_changed)
+    {
+        mm_memory_stream_init(&draft, rich.words.text, static_cast<MMU32>(rich.words.count * 2));
+        stream = draft.stream;
+        encoding = RichTextStoreHost::NativeBig() ? MM_TEXT_UTF16_BE : MM_TEXT_UTF16_LE;
+    }
+    const auto success = MM::ReadCaptionData(box.state, rich.state, stream, encoding, preview);
+    rich.RethrowRead();
+    Require(success, "Cannot prepare the 2D text preview.");
     return preview;
 }
 
@@ -485,12 +412,12 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
                 [](void *p, int *bodyChanged) {
                     auto &w = *static_cast<Write *>(p);
                     return CaptionCall(w.failure, [&] {
-                        return ApplyCaption(w.plan, w.list, w.box, w.rich.state, nullptr, bodyChanged);
+                        return ApplyCaption(w.plan, w.list, w.box, w.rich, bodyChanged);
                     }, MM_CAPTION_EDIT_WRITE_BOX);
                 },
                 [](void *p, MMTextChunk *body) {
                     auto &w = *static_cast<Write *>(p);
-                    return CaptionCall(w.failure, [&] { return w.rich.Write(w.file, body); });
+                    return CaptionCall(w.failure, [&] { return w.rich.Write(w.file, w.plan.text_changed != 0, body); });
                 },
                 [](void *p, MMU32 number) {
                     auto &w = *static_cast<Write *>(p);

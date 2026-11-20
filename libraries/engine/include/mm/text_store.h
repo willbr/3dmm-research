@@ -117,6 +117,16 @@ extern "C"
     int mm_rich_text_create(const MMRichTextDefaults *, const MMMovieTitle *, MMTextChunk *, int big,
                             const MMRichTextWriteServices *);
     int mm_rich_text_write(const MMRichTextState *, MMTextChunk *, int big, const MMRichTextWriteServices *);
+    typedef struct MMTextEncoded
+    {
+        const void *text;
+        MMU32 bytes;
+        int encoding;
+    } MMTextEncoded;
+    /* Use the caller's encoded bytes directly for TEXT. A null replacement
+     * keeps the authored encoding and copies from the existing file location. */
+    int mm_rich_text_write_encoded(const MMRichTextState *, const MMTextEncoded *replacement, MMTextChunk *,
+                                   int big, const MMRichTextWriteServices *);
 
     typedef struct MMTextCollection MMTextCollection;
     MMTextCollection *mm_text_collection_new(MMU32 kind);
