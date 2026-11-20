@@ -4076,11 +4076,11 @@ removal remain work; the full backend migration is incomplete.
 ### Actor event insertion and merging
 
 `actor_edit.c` owns general event insertion, merge scanning and the
-insert/merge/apply operation used by actor edits. `actor_sound_edit.c` calls it
-directly; the native `insert_apply` callback is removed. Native services supply
-table insertion/payload access, tag ownership, scene notifications and an adapter
-to the already shared C event evaluator. These services are still temporary
-dependencies, not completion of the C backend.
+insert/merge/apply operation used by actor edits. The shared C table binding
+inserts and deletes rows, writes and copies payloads, and retains and closes row
+tags. SDL Studio, Marcus preview costume and animation drafts, and the C actor
+copy and paste paths use that binding. Host services still provide scene
+notifications and resource and renderer effects during event application.
 
 Insertion preserves the distinct strict/equal cursor comparisons and NULL-payload
 reservation behavior. Merging retains event-specific scan and early-return rules,
@@ -4615,15 +4615,15 @@ removal remain unfinished.
 
 ### Full actor paste
 
-`actor_paste.c` owns `Actor::FPaste` policy: optional BUG1888 text-template
-transfer, tag/template ownership, lifetime and scene-binding order, placement,
-frame translation, sound filtering/adoption and camera-facing text entrances.
-The existing C placement, state-origin and event-removal implementations remain
-shared. Missing user sounds and failed sound saves diagnose and remove their
-rows while revisiting the shifted row. Failed child adoption returns immediately
-without publishing the locally rewritten sound tag. Earlier frame writes,
-resource transfers and deletions remain; final route translation and dirty
-notification occur only on success.
+`actor_paste.c` operates on the C89 actor owner and its typed path and event
+tables. It owns optional BUG1888 text-template transfer, tag/template ownership,
+lifetime changes, placement, frame translation, sound filtering and adoption,
+and camera-facing text entrances. It uses the shared C scene binding,
+state-origin and event editor. Missing user sounds and failed sound saves
+diagnose and remove their rows while revisiting the shifted row. Failed child
+adoption returns immediately without publishing the locally rewritten sound
+tag. Earlier frame writes, resource transfers and deletions remain. Final
+route translation and dirty notification occur only on success.
 
 Paste updates the live runtime record so body creation and cursor changes
 from event removal are visible immediately. Text transfer duplicates before
@@ -4640,15 +4640,21 @@ policy; it does not prove text rig creation or rendering. Dummy sound chunks
 exercise tag adoption without audio decoding. Playback captures supply the
 render/audio checks separately.
 
-`engine-actor-paste-test` covers template autosave/save/fetch failure and cleanup,
-replacement-before-binding order, changed text flags, disabled migration,
-wrapped frame arithmetic, no-op retiming, sound-save removal, child-failure
-partial state and preservation of removal cursor changes. The native facade
-still provides movie autosave/child lookup, template fetching, body creation,
-resource representations and diagnostics. These callbacks are temporary
-conversion dependencies, not the final host boundary. Clipboard control,
-actor/template creation, movie/scene/body/resource/runtime implementations and
-final facade removal remain unfinished.
+`engine-actor-paste-test` exercises real C track storage. It checks template
+autosave/save/fetch failures, reference counts, replacement-before-binding order,
+changed text flags, frame arithmetic, the scene sound indicator, cursor updates
+after removal and partial state after a failed child adoption. Studio supplies
+autosave and chunk transfer, movie sound and child lookup, body and template
+resources, placement, scene notifications and diagnostics.
+
+The C owner reproduced all 12 native actor-edit traces, including copy,
+full paste, route paste and clipboard. In SDL Studio the 3D-text copy,
+paste and placement workflow survived undo, redo and save/reopen. Retail
+reopened the saved movie with the pasted actor on stage at frame 7 and matching
+action, cel, position and part matrices. SDL Studio and Marcus matched the
+retained retail scene/frame sequences and seek camera indices in the 60-frame
+`actor-event-edit` case. Each port reproduced its own previous seek images,
+and SDL matched the 12 retail sound events.
 
 ### Actor clipboard control
 

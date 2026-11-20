@@ -2,23 +2,33 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_ACTOR_EDIT_H
 #define MM_ENGINE_ACTOR_EDIT_H
+#include "actor_events.h"
 #include "actor_sound.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 typedef struct MMActorEditRange { MMI32 first, last; } MMActorEditRange;
+typedef struct MMActorEditTables
+{
+    void *context;
+    const MMTagServices *tags;
+    void (*close_event_tag)(void *, MMI32 index, const MMTagServices *);
+    void (*delete_event)(void *, MMI32 index);
+    int (*insert_event)(void *, MMI32 index, MMU32 bytes, const void *, const MMActorEvent *);
+    void (*duplicate_event_tag)(void *, MMI32 index, const MMTagServices *);
+    void (*write_payload)(void *, MMI32 index, const void *);
+    void (*copy_payload)(void *, MMI32 destination, MMI32 source);
+} MMActorEditTables;
+/* Borrow the event table and its tag services for the duration of the edit. */
+MMActorEditTables mm_actor_edit_tables(MMActorEventTable *, const MMTagServices *);
 typedef struct MMActorEditServices
 {
     void *context;
-    void (*close_event_tag)(void *, MMI32 index);
-    void (*delete_event)(void *, MMI32 index);
+    MMActorEditTables tables;
+    /* Unbound actors can omit scene_frame and the corresponding notification. */
     int (*scene_frame)(void *, MMI32 *);
     void (*update_sound_frame)(void *);
     void (*publish)(void *, const MMActorState *);
-    int (*insert_event)(void *, MMI32 index, MMU32 bytes, const void *, const MMActorEvent *);
-    void (*duplicate_event_tag)(void *, MMI32 index);
-    void (*write_payload)(void *, MMI32 index, const void *);
-    void (*copy_payload)(void *, MMI32 destination, MMI32 source);
     /* Apply may update state, including on failure. Other callbacks observe it. */
     int (*apply_event)(void *, MMActorState *, MMI32 index);
     void (*dirty)(void *);

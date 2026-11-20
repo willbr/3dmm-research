@@ -27,14 +27,16 @@ static MMTag *tag(Fixture *f,int i)
     if (f->event[i].aet==MM_ACTOR_SOUND) return &f->payload[i].sound.tag;
     return NULL;
 }
-static void close_tag(void *p,MMI32 i)
+static void close_tag(void *p,MMI32 i, const MMTagServices *tags)
 {
-    Fixture *f=(Fixture *)p; MMTag *t=tag(f,i); ++f->closed;
+    Fixture *f=(Fixture *)p; MMTag *t=tag(f,i);
+    (void)tags; ++f->closed;
     if (t && !t->sid) { CHECK(t->cache && *(int *)t->cache>0); --*(int *)t->cache; }
 }
-static void duplicate(void *p,MMI32 i)
+static void duplicate(void *p,MMI32 i, const MMTagServices *tags)
 {
-    Fixture *f=(Fixture *)p; MMTag *t=tag(f,i); ++f->duplicated;
+    Fixture *f=(Fixture *)p; MMTag *t=tag(f,i);
+    (void)tags; ++f->duplicated;
     if (t && !t->sid) { CHECK(t->cache && *(int *)t->cache>0); ++*(int *)t->cache; }
 }
 static void remove_event(void *p,MMI32 i)
@@ -78,9 +80,9 @@ static MMActorEditServices init(Fixture *f)
     CHECK(mm_actor_sounds_init(&f->sounds,NULL)); f->state.onStage=1; f->state.frame=4;
     f->state.addEvent=0; f->state.firstEventInFrame=1; f->state.nextEvent=2; f->result=-99;
     f->range.first=1; f->range.last=30;
-    s.context=f; s.close_event_tag=close_tag; s.delete_event=remove_event; s.scene_frame=scene;
-    s.update_sound_frame=notify; s.publish=publish; s.insert_event=insert; s.duplicate_event_tag=duplicate;
-    s.write_payload=write_payload; s.copy_payload=copy_payload; s.apply_event=apply; s.dirty=dirty;
+    s.context=f; s.tables.context=f; s.tables.close_event_tag=close_tag; s.tables.delete_event=remove_event; s.scene_frame=scene;
+    s.update_sound_frame=notify; s.publish=publish; s.tables.insert_event=insert; s.tables.duplicate_event_tag=duplicate;
+    s.tables.write_payload=write_payload; s.tables.copy_payload=copy_payload; s.apply_event=apply; s.dirty=dirty;
     s.get_range=range; s.invalidate_range=invalidate; s.publish_range=publish_range;
     return s;
 }

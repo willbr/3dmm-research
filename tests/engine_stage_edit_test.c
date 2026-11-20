@@ -63,7 +63,7 @@ static MMActorStageEditServices stage_init(StageFixture *f)
 {
     MMActorStageEditServices s;
     memset(f,0,sizeof(*f)); memset(&s,0,sizeof(s)); s.subroute=sub_init(&f->sub);
-    s.subroute.route.edits.insert_event=stage_insert;
+    s.subroute.route.edits.tables.insert_event=stage_insert;
     s.subroute.route.edits.apply_event=stage_apply;
     s.subroute.action.sounds.edits=s.subroute.route.edits;
     s.subroute.route.reserve_events=s.subroute.action.sounds.reserve_events=stage_reserve;

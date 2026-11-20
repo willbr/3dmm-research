@@ -29,10 +29,9 @@ void *mm_actor_create(const MMTag *tag,const MMActorCreateServices *s)
     if (!mm_actor_initialize(actor,tag,s)) { s->owner.release(s->owner.context,actor); return NULL; }
     return actor;
 }
-void mm_actor_bind_scene(void *actor,void *scene,const MMActorCreateServices *s)
+void mm_actor_bind_scene(MMActorRuntime *r,void *scene,const MMActorCreateServices *s)
 {
     const MMActorOwnerServices *o = &s->owner;
-    MMActorRuntime *r = &o->owner(o->context, actor)->runtime;
     if (r->scene && r->scene != scene)
         s->diagnostic(o->context, MM_CREATE_WRONG_SCENE);
     if (r->scene)

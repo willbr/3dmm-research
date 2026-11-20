@@ -34,7 +34,7 @@ void mm_actor_edit_add_orientation(MMActorState *state,void *events,unsigned sho
         if (axes & MM_ACTOR_ROTATE_Y) add.y=mm_actor_edit_average_angle(y,add.y,weight);
         if (axes & MM_ACTOR_ROTATE_Z) add.z=mm_actor_edit_average_angle(z,add.z,weight);
     }
-    s->write_payload(s->context,state->addEvent,&add);
+    s->tables.write_payload(s->tables.context,state->addEvent,&add);
     state->transform.xaPath=add.x; state->transform.yaPath=add.y; state->transform.zaPath=add.z;
     if (s->publish) s->publish(s->context,state);
 }
@@ -103,13 +103,13 @@ void mm_actor_subroute_delete_back(MMActorState *state,MMActorSounds *list,void 
         if (!state->onStage || i<state->addEvent) { mm_actor_edit_remove(state,events,i,1,m,e); --i; continue; }
         switch (event.aet)
         {
-        case MM_ACTOR_ROTATE_HERE: e->write_payload(e->context,i,&state->transform.bmat34Cur); goto merge;
+        case MM_ACTOR_ROTATE_HERE: e->tables.write_payload(e->tables.context,i,&state->transform.bmat34Cur); goto merge;
         case MM_ACTOR_TWEAK: case MM_ACTOR_SOUND:
             if (i<state->firstEventInFrame) { mm_actor_edit_remove(state,events,i,1,m,e); --i; break; }
             if (i>0) goto merge;
             break;
         case MM_ACTOR_ACTION:
-            m->payload(events,i,action); action[1]=state->cel; e->write_payload(e->context,i,action); goto merge;
+            m->payload(events,i,action); action[1]=state->cel; e->tables.write_payload(e->tables.context,i,action); goto merge;
         case MM_ACTOR_REMOVE:
             mm_actor_edit_remove(state,events,i,1,m,e); --i; diagnostic(s,MM_SUBROUTE_OFFSTAGE_EVENT); break;
         default:
@@ -148,8 +148,8 @@ static int copy_apply(MMActorState *state,MMActorSounds *list,void *events,MMI32
     MMI32 bytes=m->event_size(events,source);
     if (!mm_actor_edit_insert(state,state->nextEvent,(MMU32)bytes,NULL,event,1,e)) return 0;
     if (!merge) ++source;
-    e->copy_payload(e->context,state->nextEvent,source);
-    e->duplicate_event_tag(e->context,state->nextEvent);
+    e->tables.copy_payload(e->tables.context,state->nextEvent,source);
+    e->tables.duplicate_event_tag(e->tables.context,state->nextEvent,e->tables.tags);
     if (merge) mm_actor_edit_merge(state,list,events,actor,state->firstEventInFrame,state->nextEvent,&result,m,e);
     publish(state,s);
     if (!e->apply_event(e->context,state,result)) { publish(state,s); return 0; }

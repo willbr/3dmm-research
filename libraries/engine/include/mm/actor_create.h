@@ -45,7 +45,7 @@ void *mm_actor_create(const MMTag *,const MMActorCreateServices *);
  * creation leaves the scene set and returns without world binding. A repeated
  * call with an existing scene returns immediately, including after that failure
  * (diagnosing its missing body); it does not retry allocation. */
-void mm_actor_bind_scene(void *actor,void *scene,const MMActorCreateServices *);
+void mm_actor_bind_scene(MMActorRuntime *,void *scene,const MMActorCreateServices *);
 #ifdef __cplusplus
 }
 #endif

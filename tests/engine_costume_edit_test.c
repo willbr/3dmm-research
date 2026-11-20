@@ -17,7 +17,7 @@ static MMI32 count(void *p) { return ((Fixture *)p)->count; }
 static void event(void *p,MMI32 i,MMActorEvent *out) { *out=((Fixture *)p)->event[i]; }
 static void payload(void *p,MMI32 i,void *out) { *(MMActorCostume *)out=((Fixture *)p)->value[i]; }
 static const MMActorMotionServices tables={0,0,0,0,count,event,0,payload};
-static void close_tag(void *p,MMI32 i) { record((Fixture *)p,700+i); }
+static void close_tag(void *p,MMI32 i, const MMTagServices *tags) { (void)tags; record((Fixture *)p,700+i); }
 static void remove_event(void *p,MMI32 i)
 {
     Fixture *f=(Fixture *)p; record(f,800+i);
@@ -49,7 +49,7 @@ static int insert(void *p,MMI32 i,MMU32 bytes,const void *value,const MMActorEve
     memmove(f->value+i+1,f->value+i,(size_t)(f->count-i)*sizeof(f->value[0]));
     f->event[i]=*e; f->value[i]=*(const MMActorCostume *)value; ++f->count; return 1;
 }
-static void duplicate(void *p,MMI32 i) { (void)p; (void)i; }
+static void duplicate(void *p,MMI32 i, const MMTagServices *tags) { (void)tags; (void)p; (void)i; }
 static int apply(void *p,MMActorState *state,MMI32 i)
 { Fixture *f=(Fixture *)p; CHECK(f->event[i].aet==MM_ACTOR_COSTUME); record(f,1000); ++f->applied; state->cel=99; return !f->fail_apply; }
 static void dirty(void *p) { ++((Fixture *)p)->dirty; }
@@ -65,9 +65,9 @@ static MMActorCostumeEditServices init(Fixture *f)
     { Resource *r=&f->resource[type][id]; r->id=id; r->custom=type; r->refs=1; }
     f->current=&f->resource[0][0];
     s.context=f; s.current=current; s.fetch_material=material; s.fetch_custom=custom; s.release=release;
-    s.body_set=body_set; s.reserve_events=reserve; s.edits.context=f; s.edits.close_event_tag=close_tag;
-    s.edits.delete_event=remove_event; s.edits.scene_frame=scene; s.edits.insert_event=insert;
-    s.edits.duplicate_event_tag=duplicate; s.edits.apply_event=apply; s.edits.dirty=dirty; s.edits.get_range=range;
+    s.body_set=body_set; s.reserve_events=reserve; s.edits.context=f; s.edits.tables.context=f; s.edits.tables.close_event_tag=close_tag;
+    s.edits.tables.delete_event=remove_event; s.edits.scene_frame=scene; s.edits.tables.insert_event=insert;
+    s.edits.tables.duplicate_event_tag=duplicate; s.edits.apply_event=apply; s.edits.dirty=dirty; s.edits.get_range=range;
     return s;
 }
 static MMActorCostume costume(int custom,int id,int set)

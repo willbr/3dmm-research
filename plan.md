@@ -319,9 +319,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Route paste now uses C89 for reservation, node splitting/deletion, tagged-event
   removal, later-subroute index shifts, translated insertion, floating/terminal
   steps, dirty/range notification and body positioning. It uses the existing C
-  edit/pose implementations and preserves partial failure behavior. Full actor
-  paste, clipboard control and underlying movie/scene/body/resource/runtime
-  implementations remain conversion work.
+  edit/pose implementations and preserves partial failure behavior.
+- Full actor paste uses the C89 owner and typed tables for retiming, sound
+  adoption and row removal, with shared scene binding and tag ownership.
+  Studio actor edits and Marcus preview costume and animation drafts share the
+  C event table binding for row mutation and tag ownership.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

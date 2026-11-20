@@ -32,7 +32,7 @@ static MMActorRoutePasteServices setup(PasteFixture *f,Fixture *clipboard)
     f->sub.base.state.location.irpt=f->sub.base.state.location.dwrOffset=f->sub.base.state.location.dnfrm=0;
     f->sub.base.state.position.dxr=f->sub.base.state.position.dyr=f->sub.base.state.position.dzr=0;
     f->sub.base.state.step=0; f->sub.base.view=f->sub.base.state; f->sub.base.range.last=10;
-    s.subroute.route.insert_point=paste_point; s.subroute.route.edits.insert_event=paste_event;
+    s.subroute.route.insert_point=paste_point; s.subroute.route.edits.tables.insert_event=paste_event;
     s.subroute.action.sounds.edits=s.subroute.route.edits; s.subroute.action.action_flags=paste_flags;
     s.reserve_points=reserve_points; s.distance=distance; s.diagnostic=paste_diagnostic;
     clipboard->nodes=3;

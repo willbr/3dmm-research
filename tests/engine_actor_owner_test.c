@@ -231,9 +231,10 @@ static MMI32 replacement_sets(void *p, void *body)
     return r->body;
 }
 
-static void close_costume(void *p, MMI32 index)
+static void close_costume(void *p, MMI32 index, const MMTagServices *tags)
 {
     Replacement *r = (Replacement *)p;
+    (void)tags;
     CHECK(index == (r->removed ? 0 : 3));
     mm_actor_track_close_tag(r->events, index, &replacement_tags);
 }
@@ -256,9 +257,9 @@ static void template_replacement(void)
     MMActorCostume costume = {0};
     MMTag tag = {0};
     int failure, i;
-    s.context = edits.context = &r;
-    edits.close_event_tag = close_costume;
-    edits.delete_event = remove_costume;
+    s.context = edits.context = edits.tables.context = &r;
+    edits.tables.close_event_tag = close_costume;
+    edits.tables.delete_event = remove_costume;
     for (failure = 0; failure <= 3; ++failure)
     {
         memset(&r, 0, sizeof(r));

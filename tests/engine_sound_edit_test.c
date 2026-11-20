@@ -27,7 +27,7 @@ static void payload(void *p, MMI32 i, void *out)
     memcpy(out,&f->data[i],f->event[i].aet==MM_ACTOR_ACTION ? 8 : sizeof(MMActorSound));
 }
 static const MMActorMotionServices tables={0,0,0,width,count,event,0,payload};
-static void close_tag(void *p, MMI32 i) { Fixture *f=(Fixture *)p; CHECK(i>=0 && i<f->count); ++f->closed; }
+static void close_tag(void *p, MMI32 i, const MMTagServices *tags) { Fixture *f=(Fixture *)p; (void)tags; CHECK(i>=0 && i<f->count); ++f->closed; }
 static int scene(void *p, MMI32 *out) { (void)p; *out=4; return 1; }
 static void delete_event(void *p, MMI32 i)
 {
@@ -79,7 +79,7 @@ static int insert_event(void *p, MMI32 index, MMU32 bytes, const void *payload, 
     if (payload) memcpy(&f->data[index],payload,bytes);
     ++f->count; return 1;
 }
-static void duplicate_tag(void *p, MMI32 index) { (void)p; (void)index; }
+static void duplicate_tag(void *p, MMI32 index, const MMTagServices *tags) { (void)tags; (void)p; (void)index; }
 static void write_payload(void *p, MMI32 index, const void *value)
 { ((Fixture *)p)->data[index].sound=*(const MMActorSound *)value; }
 static void copy_payload(void *p, MMI32 destination, MMI32 source)
@@ -102,10 +102,10 @@ static MMActorSoundEditServices init(Fixture *f)
     f->volume_seen=-7; f->info.style=2; f->info.volume=222; f->suppressed=1;
     s.context=f; s.runtime.context=f; s.runtime.cel_count=cel_count; s.runtime.resolve=resolve;
     s.runtime.fetch=fetch; s.runtime.release=release;
-    s.edits.context=f; s.edits.close_event_tag=close_tag; s.edits.delete_event=delete_event;
+    s.edits.context=f; s.edits.tables.context=f; s.edits.tables.close_event_tag=close_tag; s.edits.tables.delete_event=delete_event;
     s.edits.scene_frame=scene; s.edits.publish=publish; s.edits.update_sound_frame=indicator;
-    s.edits.insert_event=insert_event; s.edits.duplicate_event_tag=duplicate_tag;
-    s.edits.write_payload=write_payload; s.edits.copy_payload=copy_payload; s.edits.apply_event=apply_event;
+    s.edits.tables.insert_event=insert_event; s.edits.tables.duplicate_event_tag=duplicate_tag;
+    s.edits.tables.write_payload=write_payload; s.edits.tables.copy_payload=copy_payload; s.edits.apply_event=apply_event;
     s.edits.dirty=dirty; s.edits.get_range=get_range; s.edits.invalidate_range=invalidate;
     s.write_sound=write_sound; s.dirty=dirty; s.query_new=query_new; s.query_add=query_add; s.query_release=query_release;
     s.resolve_scene=resolve_scene; s.sound_info=info; s.reserve_events=reserve; s.sound_child=child;

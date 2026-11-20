@@ -3,52 +3,6 @@
 #include "mm/actor_copy.h"
 #include <stddef.h>
 
-typedef struct MMActorCopyEdit
-{
-    MMActorEventTable *events;
-    const MMTagServices *tags;
-} MMActorCopyEdit;
-
-static int insert_event(void *context, MMI32 i, MMU32 bytes, const void *payload, const MMActorEvent *event)
-{
-    return mm_actor_events_insert(((MMActorCopyEdit *)context)->events, i, bytes, payload, event);
-}
-
-static void retain_tag(void *context, MMI32 i)
-{
-    MMActorCopyEdit *edit = (MMActorCopyEdit *)context;
-    mm_actor_track_retain_tag(edit->events, i, edit->tags);
-}
-
-static void close_tag(void *context, MMI32 i)
-{
-    MMActorCopyEdit *edit = (MMActorCopyEdit *)context;
-    mm_actor_track_close_tag(edit->events, i, edit->tags);
-}
-
-static void delete_event(void *context, MMI32 i)
-{
-    mm_actor_events_delete(((MMActorCopyEdit *)context)->events, i);
-}
-
-static void write_payload(void *context, MMI32 i, const void *payload)
-{
-    mm_actor_events_set_payload(((MMActorCopyEdit *)context)->events, i, payload);
-}
-
-static void copy_payload(void *context, MMI32 to, MMI32 from)
-{
-    mm_actor_events_copy_payload(((MMActorCopyEdit *)context)->events, to, from);
-}
-
-static int scene_frame(void *context, MMI32 *frame)
-{
-    /* The newly allocated actor has no scene during copy. */
-    (void)context;
-    (void)frame;
-    return 0;
-}
-
 static void publish(MMActorOwnerResult *out, void *actor)
 {
     out->actor = actor;
@@ -95,7 +49,6 @@ int mm_actor_copy(MMActorOwner *source, int entire, int postponed,
     MMActorEvent event;
     MMActorSound sound;
     MMActorRoutePoint point;
-    MMActorCopyEdit edit;
     MMActorEditServices edits = {0};
     MMI32 i, limit, node, action[2], added;
     MMActorOwner *target = create_copy(source, out, &s->create);
@@ -103,17 +56,7 @@ int mm_actor_copy(MMActorOwner *source, int entire, int postponed,
     if (!target)
         return 0;
 
-    edit.events = target->track.events;
-    edit.tags = owner->tags;
-    edits.context = &edit;
-    edits.close_event_tag = close_tag;
-    edits.delete_event = delete_event;
-    edits.scene_frame = scene_frame;
-    edits.insert_event = insert_event;
-    edits.duplicate_event_tag = retain_tag;
-    edits.write_payload = write_payload;
-    edits.copy_payload = copy_payload;
-
+    edits.tables = mm_actor_edit_tables(target->track.events, owner->tags);
     mm_actor_path_get(route, state.location.irpt, &point);
     point.dwr = mm_fixed_sub(point.dwr, state.location.dwrOffset);
     for (i = state.addEvent; i < state.nextEvent; ++i)
@@ -152,16 +95,16 @@ int mm_actor_copy(MMActorOwner *source, int entire, int postponed,
             break;
         }
         event.rtel.irpt = event.rtel.dwrOffset = event.rtel.dnfrm = 0;
-        added = mm_actor_events_count(edit.events);
+        added = mm_actor_events_count(target->track.events);
         if (!insert(target, events, i, added, replacement, &event, &edits))
             return fail(out, owner);
-        mm_actor_edit_merge(&target->runtime.state, &target->sounds, edit.events, target->runtime.actor,
+        mm_actor_edit_merge(&target->runtime.state, &target->sounds, target->track.events, target->runtime.actor,
                             0, added, NULL, &motion, &edits);
     }
     for (i = state.nextEvent; i < mm_actor_events_count(events); ++i)
     {
         mm_actor_events_get_fixed(events, i, &event);
-        added = mm_actor_events_count(edit.events);
+        added = mm_actor_events_count(target->track.events);
         if (!entire && event.aet == MM_ACTOR_ADD && added > 0)
             break;
         event.rtel.irpt -= state.location.irpt;

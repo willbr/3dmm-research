@@ -1,75 +1,119 @@
 /* Actor paste policy converted from engine actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_paste.h"
-int mm_actor_paste(MMActorRuntime *r,void *route,void *events,MMI32 frame,void *scene,int migrate_text,
-    const MMActorMotionServices *m,const MMActorPasteServices *s)
+#include "mm/actor_effect.h"
+
+static int transfer_template(MMActorRuntime *r, void *scene, const MMActorPasteServices *s)
 {
+    const MMActorOwnerServices *owner = &s->create.owner;
+    MMTag tag;
+    void *cache, *object;
+    if (r->template_tag.sid != 0)
+        s->diagnostic(s->context, MM_PASTE_TEXT_NOT_DOCUMENT);
+    if (!s->ensure_autosave(s->context, scene, &cache))
+        return 0;
+    if (cache == r->template_tag.cache)
+        return 1;
+
+    tag = r->template_tag;
+    mm_tag_dup(&tag, owner->tags);
+    if (!s->save_template(s->context, &tag, cache))
+    {
+        mm_tag_close(&tag, owner->tags);
+        return 0;
+    }
+    object = s->create.fetch_template(owner->context, &tag);
+    if (!object)
+    {
+        mm_tag_close(&tag, owner->tags);
+        return 0;
+    }
+    mm_tag_close(&r->template_tag, owner->tags);
+    r->template_tag = tag;
+    owner->release(owner->context, r->template_object);
+    r->template_object = object;
+    return 1;
+}
+
+int mm_actor_paste(MMActorOwner *actor, MMI32 frame, void *scene, int migrate_text,
+                   const MMActorPasteServices *s)
+{
+    MMActorRuntime *r = &actor->runtime;
+    MMActorEventTable *events = actor->track.events;
+    MMActorEditServices edits = s->edits;
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
     MMActorEvent event;
     MMActorRoutePoint point;
     MMActorEntrance entrance;
     MMActorSound sound;
     MMActorPoint placement;
-    MMTag tag;
-    MMI32 delta,i;
-    void *cache,*template_object,*bound_scene;
-    if (migrate_text && s->is_text(s->context,r->template_object))
+    MMI32 delta, i;
+    void *bound_scene;
+
+    if (migrate_text && s->is_text(s->context, r->template_object) && !transfer_template(r, scene, s))
+        return 0;
+
+    r->first = frame;
+    r->life_dirty = 1;
+    r->state.frame = mm_fixed_sub(frame, 1);
+    mm_actor_bind_scene(r, scene, &s->create);
+    bound_scene = r->scene;
+    s->placement(s->context, &placement);
+    if (!mm_actor_events_get_fixed(events, 0, &event))
     {
-        if (r->template_tag.sid!=0) s->diagnostic(s->context,MM_PASTE_TEXT_NOT_DOCUMENT);
-        if (!s->ensure_autosave(s->context,scene,&cache)) return 0;
-        if (cache!=r->template_tag.cache)
-        {
-            tag=r->template_tag; s->duplicate_tag(s->context,&tag);
-            if (!s->save_template(s->context,&tag,cache))
-            { s->close_tag(s->context,&tag); return 0; }
-            template_object=s->fetch_template(s->context,&tag);
-            if (!template_object) { s->close_tag(s->context,&tag); return 0; }
-            s->close_tag(s->context,&r->template_tag);
-            r->template_tag=tag;
-            s->release_template(s->context,r->template_object);
-            r->template_object=template_object;
-        }
+        s->diagnostic(s->context, MM_PASTE_EMPTY);
+        return 0;
     }
-    r->first=frame; r->life_dirty=1; r->state.frame=mm_fixed_sub(frame,1);
-    s->bind_scene(s->context,scene);
-    bound_scene=r->scene; s->placement(s->context,&placement);
-    if (m->event_count(events)<=0) s->diagnostic(s->context,MM_PASTE_EMPTY);
-    m->event(events,0,&event);
-    if (event.aet!=MM_ACTOR_ADD) return 0;
-    delta=mm_fixed_sub(event.nfrm,frame);
-    m->route_point(route,0,&point);
-    r->state.subrouteTranslation.dxr=r->state.subrouteTranslation.dyr=r->state.subrouteTranslation.dzr=0;
-    m->payload(events,0,&entrance);
-    r->origin.dxr=mm_fixed_sub(mm_fixed_sub(placement.dxr,point.xyz.dxr),entrance.translation.dxr);
-    r->origin.dyr=mm_fixed_sub(mm_fixed_sub(placement.dyr,point.xyz.dyr),entrance.translation.dyr);
-    r->origin.dzr=mm_fixed_sub(mm_fixed_sub(placement.dzr,point.xyz.dzr),entrance.translation.dzr);
-    for (i=0;i<m->event_count(events);++i)
+    if (event.aet != MM_ACTOR_ADD)
+        return 0;
+    delta = mm_fixed_sub(event.nfrm, frame);
+    mm_actor_path_get(actor->track.route, 0, &point);
+    r->state.subrouteTranslation.dxr = r->state.subrouteTranslation.dyr = r->state.subrouteTranslation.dzr = 0;
+    mm_actor_events_get_payload(events, 0, &entrance);
+    r->origin.dxr = mm_fixed_sub(mm_fixed_sub(placement.dxr, point.xyz.dxr), entrance.translation.dxr);
+    r->origin.dyr = mm_fixed_sub(mm_fixed_sub(placement.dyr, point.xyz.dyr), entrance.translation.dyr);
+    r->origin.dzr = mm_fixed_sub(mm_fixed_sub(placement.dzr, point.xyz.dzr), entrance.translation.dzr);
+
+    edits.tables = mm_actor_edit_tables(events, s->create.owner.tags);
+    for (i = 0; i < mm_actor_events_count(events); ++i)
     {
-        m->event(events,i,&event);
+        mm_actor_events_get_fixed(events, i, &event);
         if (delta)
-        { event.nfrm=mm_fixed_sub(event.nfrm,delta); s->write_event(events,i,&event); }
-        if (event.aet!=MM_ACTOR_SOUND) continue;
-        m->payload(events,i,&sound);
-        if (sound.tag.sid!=0) continue;
-        if (!s->sound_exists(s->context,&sound.tag))
         {
-            s->diagnostic(s->context,MM_PASTE_MISSING_SOUND);
-            s->remove_event(s->context,i); --i; continue;
+            event.nfrm = mm_fixed_sub(event.nfrm, delta);
+            mm_actor_events_set_fixed(events, i, &event);
         }
-        if (!s->save_sound(s->context,bound_scene,&sound.tag))
+        if (event.aet != MM_ACTOR_SOUND)
+            continue;
+        mm_actor_events_get_payload(events, i, &sound);
+        if (sound.tag.sid != 0)
+            continue;
+        if (!s->sound_exists(s->context, &sound.tag))
         {
-            s->diagnostic(s->context,MM_PASTE_SAVE_SOUND_FAILED);
-            s->remove_event(s->context,i); --i; continue;
+            s->diagnostic(s->context, MM_PASTE_MISSING_SOUND);
+            mm_actor_edit_remove(&r->state, events, i, 1, &motion, &edits);
+            --i;
+            continue;
         }
-        if (!s->sound_child(s->context,bound_scene,sound.tag.number,&sound.child)) return 0;
-        s->write_payload(events,i,&sound);
+        if (!s->save_sound(s->context, bound_scene, &sound.tag))
+        {
+            s->diagnostic(s->context, MM_PASTE_SAVE_SOUND_FAILED);
+            mm_actor_edit_remove(&r->state, events, i, 1, &motion, &edits);
+            --i;
+            continue;
+        }
+        if (!s->sound_child(s->context, bound_scene, sound.tag.number, &sound.child))
+            return 0;
+        mm_actor_events_set_payload(events, i, &sound);
     }
-    /* Removal may change state/cursors. Never overwrite those changes with the
-     * pre-loop runtime mirror-> Query the current template after transfer-> */
-    if (s->is_text(s->context,r->template_object))
+
+    if (s->is_text(s->context, r->template_object))
     {
-        m->payload(events,0,&entrance); entrance.y=s->camera_yaw(s->context,r->scene);
-        s->write_payload(events,0,&entrance);
+        mm_actor_events_get_payload(events, 0, &entrance);
+        entrance.y = s->camera_yaw(s->context, r->scene);
+        mm_actor_events_set_payload(events, 0, &entrance);
     }
-    mm_actor_state_origin(&r->state,&r->origin);
-    s->dirty(s->context,r->scene); return 1;
+    mm_actor_state_origin(&r->state, &r->origin);
+    s->dirty(s->context, r->scene);
+    return 1;
 }

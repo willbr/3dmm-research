@@ -246,7 +246,7 @@ bool Actor::_FCreateGroups(void)
 void Actor::SetPscen(Scene *pscen)
 {
     AssertBaseThis(0); AssertVarMem(pscen); const auto services=_CreateServices();
-    mm_actor_bind_scene(this,pscen,&services);
+    mm_actor_bind_scene(&_owner.runtime,pscen,&services);
 }
 
 /***************************************************************************
@@ -1372,12 +1372,7 @@ MMActorEditServices Actor::_EventEditServices()
 {
     MMActorEditServices services = {};
     services.context = this;
-    services.close_event_tag = [](void *p, MMI32 index) {
-        mm_actor_track_close_tag(static_cast<Actor *>(p)->_owner.track.events, index, &EngineActorTagServices());
-    };
-    services.delete_event = [](void *context, MMI32 index) {
-        mm_actor_events_delete(static_cast<Actor *>(context)->_owner.track.events, index);
-    };
+    services.tables = mm_actor_edit_tables(_owner.track.events, &EngineActorTagServices());
     services.scene_frame = [](void *context, MMI32 *frame) {
         auto actor = static_cast<Actor *>(context);
         if (!actor->_Scene()) return 0;
@@ -1387,19 +1382,6 @@ MMActorEditServices Actor::_EventEditServices()
     services.update_sound_frame = [](void *context) { static_cast<Actor *>(context)->_Scene()->UpdateSndFrame(); };
     services.publish = [](void *context, const MMActorState *state) {
         static_cast<Actor *>(context)->_owner.runtime.state = *state;
-    };
-    services.insert_event = [](void *p, MMI32 index, MMU32 bytes, const void *payload, const MMActorEvent *value) {
-        return mm_actor_events_insert(static_cast<Actor *>(p)->_owner.track.events, index, bytes, payload, value);
-    };
-    services.duplicate_event_tag = [](void *p, MMI32 index) {
-        mm_actor_track_retain_tag(static_cast<Actor *>(p)->_owner.track.events, index, &EngineActorTagServices());
-    };
-    services.write_payload = [](void *p, MMI32 index, const void *value) {
-        mm_actor_events_set_payload(static_cast<Actor *>(p)->_owner.track.events, index, value);
-    };
-    services.copy_payload = [](void *p, MMI32 destination, MMI32 source) {
-        auto events=static_cast<Actor *>(p)->_owner.track.events;
-        AssertDo(mm_actor_events_copy_payload(events, destination, source), "invalid actor event payloads");
     };
     services.apply_event = [](void *p, MMActorState *state, MMI32 index) {
         auto actor=static_cast<Actor *>(p);

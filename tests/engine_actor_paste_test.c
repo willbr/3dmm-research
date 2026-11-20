@@ -1,194 +1,439 @@
+#include "mm/actor_effect.h"
 #include "mm/actor_paste.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define CHECK(c) do { if (!(c)) { fprintf(stderr,"paste check at %d: %s\n",__LINE__,#c); exit(1); } } while (0)
-typedef union Payload { MMActorEntrance entrance; MMActorSound sound; } Payload;
+
+#define CHECK(c) do { if (!(c)) { fprintf(stderr, "paste check at %d: %s\n", __LINE__, #c); exit(1); } } while (0)
+
 typedef struct Fixture
 {
-    MMActorRuntime r;
-    MMActorEvent events[8]; Payload payloads[8]; MMActorRoutePoint point;
-    MMActorMotionServices motion; MMActorPasteServices services;
-    int count,old_template,new_template,source_cache,target_cache,scene;
-    int fail,same_cache,text,new_text,tags,old_refs,new_refs,duplicated,closed,released;
-    int ensured,saved,fetched,bound,placed,dirty,writes,payload_writes,removed,exists,sounds,children,yaw;
+    MMActorOwner actor;
+    MMActorPasteServices services;
+    int old_template, new_template, body, source_refs, target_refs, scene;
+    int fail, same_cache, text, new_text, old_refs, new_refs, released;
+    int ensured, saved, fetched, bound, placed, dirty, exists, sounds, children, yaw, sound_updates;
     int diagnostics[4];
 } Fixture;
-static int is_text(void *p,void *object)
-{ Fixture *f=(Fixture *)p; CHECK(object==&f->old_template || object==&f->new_template); return object==&f->old_template ? f->text : f->new_text; }
-static int ensure(void *p,void *scene,void **cache)
+
+static int is_text(void *context, void *object)
 {
-    Fixture *f=(Fixture *)p; CHECK(scene==&f->scene && !f->bound); ++f->ensured;
-    CHECK(f->r.first==10); *cache=f->same_cache ? &f->source_cache : &f->target_cache; return f->fail!=1;
+    Fixture *f = (Fixture *)context;
+    CHECK(object == &f->old_template || object == &f->new_template);
+    return object == &f->old_template ? f->text : f->new_text;
 }
-static void duplicate(void *p,const MMTag *tag)
-{ Fixture *f=(Fixture *)p; CHECK(tag->cache==&f->source_cache); ++f->tags; ++f->duplicated; }
-static void close_tag(void *p,MMTag *tag)
+
+static int ensure(void *context, void *scene, void **cache)
 {
-    Fixture *f=(Fixture *)p; CHECK(f->tags>0); --f->tags; ++f->closed;
-    CHECK(!f->bound); tag->cache=NULL;
+    Fixture *f = (Fixture *)context;
+    CHECK(scene == &f->scene && !f->bound && f->actor.runtime.first == 10);
+    ++f->ensured;
+    *cache = f->same_cache ? &f->source_refs : &f->target_refs;
+    return f->fail != 1;
 }
-static int save_template(void *p,MMTag *tag,void *cache)
+
+static void retain_cache(void *cache) { ++*(int *)cache; }
+static void release_cache(void *cache) { CHECK(--*(int *)cache >= 0); }
+
+static const MMTagServices tags = {
+    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
+static MMActorOwner *owner(void *context, void *actor)
 {
-    Fixture *f=(Fixture *)p; CHECK(f->duplicated==1 && f->tags==2 && cache==&f->target_cache);
-    ++f->saved; if (f->fail==2) return 0; tag->cache=cache; tag->number=77; return 1;
+    (void)context;
+    return (MMActorOwner *)actor;
 }
-static void *fetch_template(void *p,const MMTag *tag)
+
+static void redirect_tag(MMTag *tag, void *cache, MMU32 number)
 {
-    Fixture *f=(Fixture *)p; CHECK(tag->cache==&f->target_cache && tag->number==77); ++f->fetched;
-    if (f->fail==3) return NULL;
-    ++f->new_refs; return &f->new_template;
+    retain_cache(cache);
+    release_cache(tag->cache);
+    tag->cache = cache;
+    tag->number = number;
 }
-static void release_template(void *p,void *object)
+
+static int save_template(void *context, MMTag *tag, void *cache)
 {
-    Fixture *f=(Fixture *)p; CHECK(object==&f->old_template && f->old_refs==1);
-    CHECK(f->r.template_object==object && f->r.template_tag.cache==&f->target_cache);
-    CHECK(f->closed==1 && f->new_refs==1); --f->old_refs; ++f->released;
+    Fixture *f = (Fixture *)context;
+    CHECK(f->source_refs == 2 && !f->target_refs && cache == &f->target_refs);
+    ++f->saved;
+    if (f->fail == 2)
+        return 0;
+    redirect_tag(tag, cache, 77);
+    return 1;
 }
-static void bind_scene(void *p,void *scene)
+
+static void *fetch_template(void *context, const MMTag *tag)
 {
-    Fixture *f=(Fixture *)p; CHECK(scene==&f->scene && f->r.life_dirty);
-    CHECK(f->r.state.frame==mm_fixed_sub(f->r.first,1));
-    f->r.scene=scene; f->r.state.cel=91; ++f->bound;
+    Fixture *f = (Fixture *)context;
+    CHECK(tag->cache == &f->target_refs && tag->number == 77);
+    CHECK(f->old_refs == 1 && f->source_refs == 1 && f->target_refs == 1);
+    ++f->fetched;
+    if (f->fail == 3)
+        return NULL;
+    ++f->new_refs;
+    return &f->new_template;
 }
-static void placement(void *p,MMActorPoint *point)
+
+static void release(void *context, void *object)
 {
-    Fixture *f=(Fixture *)p; CHECK(f->bound==1 && f->r.state.cel==91); ++f->placed;
-    point->dxr=100; point->dyr=200; point->dzr=-300;
+    Fixture *f = (Fixture *)context;
+    const MMActorRuntime *r = &f->actor.runtime;
+    if (object == &f->body)
+    {
+        CHECK(r->body == object && r->scene == &f->scene);
+        return;
+    }
+    CHECK(r->template_object == object);
+    if (object == &f->old_template)
+    {
+        if (r->template_tag.cache)
+        {
+            CHECK(r->template_tag.cache == &f->target_refs);
+            CHECK(!f->source_refs && f->new_refs == 1 && !f->bound);
+            ++f->released;
+        }
+        CHECK(--f->old_refs == 0);
+    }
+    else
+    {
+        CHECK(object == &f->new_template);
+        CHECK(--f->new_refs == 0);
+    }
 }
-static MMI32 event_count(void *p) { return ((Fixture *)p)->count; }
-static void event(void *p,MMI32 i,MMActorEvent *e)
-{ Fixture *f=(Fixture *)p; CHECK(i>=0 && i<f->count); *e=f->events[i]; }
-static void route_point(void *p,MMI32 i,MMActorRoutePoint *point)
-{ CHECK(i==0); *point=((Fixture *)p)->point; }
-static void payload(void *p,MMI32 i,void *data)
+
+static void *create_body(void *context, void *object)
 {
-    Fixture *f=(Fixture *)p; CHECK(i>=0 && i<f->count);
-    if (f->events[i].aet==MM_ACTOR_ADD) memcpy(data,&f->payloads[i].entrance,sizeof(MMActorEntrance));
-    else { CHECK(f->events[i].aet==MM_ACTOR_SOUND); memcpy(data,&f->payloads[i].sound,sizeof(MMActorSound)); }
+    Fixture *f = (Fixture *)context;
+    const MMActorRuntime *r = &f->actor.runtime;
+    CHECK(r->template_object == object && r->scene == &f->scene && !r->body && r->life_dirty);
+    CHECK(r->state.frame == mm_fixed_sub(r->first, 1));
+    return &f->body;
 }
-static void write_event(void *p,MMI32 i,const MMActorEvent *e)
-{ Fixture *f=(Fixture *)p; CHECK(i>=0 && i<f->count); f->events[i]=*e; ++f->writes; }
-static void write_payload(void *p,MMI32 i,const void *data)
+
+static void bind_body(void *context, void *body, void *scene)
 {
-    Fixture *f=(Fixture *)p; CHECK(i>=0 && i<f->count); ++f->payload_writes;
-    if (f->events[i].aet==MM_ACTOR_ADD) memcpy(&f->payloads[i].entrance,data,sizeof(MMActorEntrance));
-    else memcpy(&f->payloads[i].sound,data,sizeof(MMActorSound));
+    Fixture *f = (Fixture *)context;
+    CHECK(scene == &f->scene && body == &f->body && f->actor.runtime.body == body);
+    ++f->bound;
 }
-static int sound_exists(void *p,const MMTag *tag)
-{ Fixture *f=(Fixture *)p; CHECK(tag->cache==&f->source_cache); ++f->exists; return tag->number!=2; }
-static int save_sound(void *p,void *scene,MMTag *tag)
+
+static void placement(void *context, MMActorPoint *point)
 {
-    Fixture *f=(Fixture *)p; CHECK(scene==&f->scene); ++f->sounds;
-    if (tag->number==3) return 0;
-    /* The native tag rewrite is local until the child lookup succeeds. */
-    tag->cache=&f->target_cache; tag->number+=100; return 1;
+    Fixture *f = (Fixture *)context;
+    CHECK(f->bound == 1 && f->actor.runtime.body == &f->body);
+    ++f->placed;
+    point->dxr = 100;
+    point->dyr = 200;
+    point->dzr = -300;
 }
-static int sound_child(void *p,void *scene,MMU32 number,MMU32 *child)
+
+static int sound_exists(void *context, const MMTag *tag)
 {
-    Fixture *f=(Fixture *)p; CHECK(scene==&f->scene && number>=100); ++f->children;
-    *child=number+1000; return number!=104;
+    Fixture *f = (Fixture *)context;
+    CHECK(tag->cache == &f->source_refs);
+    ++f->exists;
+    return tag->number != 2;
 }
-static void remove_event(void *p,MMI32 i)
+
+static int save_sound(void *context, void *scene, MMTag *tag)
 {
-    Fixture *f=(Fixture *)p; CHECK(i>0 && i<f->count); ++f->removed; --f->count;
-    memmove(f->events+i,f->events+i+1,(size_t)(f->count-i)*sizeof(f->events[0]));
-    memmove(f->payloads+i,f->payloads+i+1,(size_t)(f->count-i)*sizeof(f->payloads[0]));
-    --f->r.state.nextEvent; f->r.state.cel+=10;
+    Fixture *f = (Fixture *)context;
+    CHECK(scene == &f->scene);
+    ++f->sounds;
+    if (tag->number == 3)
+        return 0;
+    redirect_tag(tag, &f->target_refs, tag->number + 100);
+    return 1;
 }
-static unsigned short camera_yaw(void *p,void *scene)
-{ Fixture *f=(Fixture *)p; CHECK(scene==&f->scene); ++f->yaw; return 0x1234; }
-static void dirty(void *p,void *scene)
-{ Fixture *f=(Fixture *)p; CHECK(scene==&f->scene && f->placed); ++f->dirty; }
-static void diagnostic(void *p,int which)
-{ Fixture *f=(Fixture *)p; CHECK(which>=0 && which<4); ++f->diagnostics[which]; }
+
+static int sound_child(void *context, void *scene, MMU32 number, MMU32 *child)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(scene == &f->scene && number >= 100);
+    ++f->children;
+    *child = number + 1000;
+    return number != 104;
+}
+
+static int scene_frame(void *context, MMI32 *frame)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(f->actor.runtime.scene == &f->scene);
+    *frame = 21;
+    return 1;
+}
+
+static void update_sound_frame(void *context)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(f->source_refs == 3 && f->actor.runtime.state.nextEvent == 4);
+    CHECK(mm_actor_events_count(f->actor.track.events) == 4);
+    ++f->sound_updates;
+}
+
+static unsigned short camera_yaw(void *context, void *scene)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(scene == &f->scene);
+    ++f->yaw;
+    return 0x1234;
+}
+
+static void dirty(void *context, void *scene)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(scene == &f->scene && f->placed);
+    ++f->dirty;
+}
+
+static void diagnostic(void *context, int which)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(which >= 0 && which < 4);
+    ++f->diagnostics[which];
+}
+
+static void append(Fixture *f, MMI32 kind, MMI32 frame, const void *payload, MMU32 bytes)
+{
+    MMActorEventTable *events = f->actor.track.events;
+    MMActorEvent event = {0};
+    event.aet = kind;
+    event.nfrm = frame;
+    CHECK(mm_actor_events_insert(events, mm_actor_events_count(events), bytes, payload, &event));
+}
+
 static void init(Fixture *f)
 {
     MMActorPasteServices *s;
-    memset(f,0,sizeof(*f)); s=&f->services; s->context=f;
-    s->is_text=is_text; s->ensure_autosave=ensure;
-    s->duplicate_tag=duplicate; s->close_tag=close_tag; s->save_template=save_template;
-    s->fetch_template=fetch_template; s->release_template=release_template;
-    s->bind_scene=bind_scene; s->placement=placement; s->sound_exists=sound_exists;
-    s->save_sound=save_sound; s->sound_child=sound_child; s->write_event=write_event;
-    s->write_payload=write_payload; s->remove_event=remove_event; s->camera_yaw=camera_yaw;
-    s->dirty=dirty; s->diagnostic=diagnostic;
-    f->motion.event_count=event_count; f->motion.event=event; f->motion.route_point=route_point; f->motion.payload=payload;
-    f->tags=1; f->old_refs=1; f->r.template_object=&f->old_template;
-    f->r.template_tag.sid=0; f->r.template_tag.cache=&f->source_cache;
-    f->r.first=10; f->r.last=99; f->r.state.frame=33; f->r.state.nextEvent=7;
-    f->r.state.routeTranslation.dxr=999; f->r.state.subrouteTranslation.dxr=555;
-    f->r.origin.dxr=777; f->r.origin.dyr=888; f->r.origin.dzr=999;
-    f->point.xyz.dxr=1; f->point.xyz.dyr=2; f->point.xyz.dzr=3;
-    f->count=1; f->events[0].aet=MM_ACTOR_ADD; f->events[0].nfrm=10;
-    f->payloads[0].entrance.translation.dxr=4; f->payloads[0].entrance.translation.dyr=5;
-    f->payloads[0].entrance.translation.dzr=6; f->payloads[0].entrance.y=321;
-    f->payloads[0].entrance.reserved=0xabcd;
+    MMActorRuntime *r;
+    MMActorRoutePoint point = {{1, 2, 3}, 0};
+    MMActorEntrance entrance = {0};
+
+    memset(f, 0, sizeof(*f));
+    s = &f->services;
+    s->context = s->edits.context = s->create.owner.context = f;
+    s->create.owner.tags = &tags;
+    s->create.owner.owner = owner;
+    s->create.owner.release = release;
+    s->create.fetch_template = fetch_template;
+    s->create.create_body = create_body;
+    s->create.bind_body = bind_body;
+    s->edits.scene_frame = scene_frame;
+    s->edits.update_sound_frame = update_sound_frame;
+    s->is_text = is_text;
+    s->ensure_autosave = ensure;
+    s->save_template = save_template;
+    s->placement = placement;
+    s->sound_exists = sound_exists;
+    s->save_sound = save_sound;
+    s->sound_child = sound_child;
+    s->camera_yaw = camera_yaw;
+    s->dirty = dirty;
+    s->diagnostic = diagnostic;
+
+    mm_actor_owner_init(&f->actor);
+    CHECK(mm_actor_track_create(&f->actor.track, NULL, 0, &tags));
+    f->source_refs = f->old_refs = 1;
+    r = &f->actor.runtime;
+    r->template_object = &f->old_template;
+    r->template_tag.sid = 0;
+    r->template_tag.cache = &f->source_refs;
+    r->first = 10;
+    r->last = 99;
+    r->state.frame = 33;
+    r->state.routeTranslation.dxr = 999;
+    r->state.subrouteTranslation.dxr = 555;
+    r->origin.dxr = 777;
+    CHECK(mm_actor_path_insert(f->actor.track.route, 0, &point));
+    entrance.translation.dxr = 4;
+    entrance.translation.dyr = 5;
+    entrance.translation.dzr = 6;
+    entrance.y = 321;
+    entrance.reserved = 0xabcd;
+    append(f, MM_ACTOR_ADD, 10, &entrance, sizeof(entrance));
 }
-static void add_sound(Fixture *f,int number,int sid)
+
+static void dispose(Fixture *f)
 {
-    int i=f->count++; CHECK(i<8); f->events[i].aet=MM_ACTOR_SOUND; f->events[i].nfrm=10+i;
-    f->payloads[i].sound.tag.sid=sid; f->payloads[i].sound.tag.cache=&f->source_cache;
-    f->payloads[i].sound.tag.number=(MMU32)number; f->payloads[i].sound.child=55;
+    mm_actor_owner_dispose(&f->actor, &f->services.create.owner);
+    CHECK(!f->source_refs && !f->target_refs && !f->old_refs && !f->new_refs);
 }
-static int paste(Fixture *f,MMI32 frame,int migrate)
-{ return mm_actor_paste(&f->r,f,f,frame,&f->scene,migrate,&f->motion,&f->services); }
-static void positioned(Fixture *f)
+
+static void add_sound(Fixture *f, MMU32 number, MMI32 sid)
 {
-    CHECK(f->r.origin.dxr==95 && f->r.origin.dyr==193 && f->r.origin.dzr==-309);
-    CHECK(!f->r.state.subrouteTranslation.dxr && !f->r.state.subrouteTranslation.dyr && !f->r.state.subrouteTranslation.dzr);
-    CHECK(f->r.last==99 && f->r.state.cel>=91);
+    MMActorSound sound = {0};
+    sound.tag.sid = sid;
+    sound.tag.number = number;
+    sound.child = 55;
+    if (!sid)
+    {
+        sound.tag.cache = &f->source_refs;
+        retain_cache(sound.tag.cache);
+    }
+    append(f, MM_ACTOR_SOUND, 10 + mm_actor_events_count(f->actor.track.events), &sound, sizeof(sound));
 }
+
+static int paste(Fixture *f, MMI32 frame, int migrate)
+{
+    return mm_actor_paste(&f->actor, frame, &f->scene, migrate, &f->services);
+}
+
+static MMActorEvent event_at(Fixture *f, MMU32 index)
+{
+    MMActorEvent event;
+    CHECK(mm_actor_events_get_fixed(f->actor.track.events, index, &event));
+    return event;
+}
+
+static MMActorEntrance entrance_at(Fixture *f)
+{
+    MMActorEntrance entrance;
+    CHECK(mm_actor_events_get_payload(f->actor.track.events, 0, &entrance));
+    return entrance;
+}
+
+static MMActorSound sound_at(Fixture *f, MMU32 index)
+{
+    MMActorSound sound;
+    CHECK(mm_actor_events_get_payload(f->actor.track.events, index, &sound));
+    return sound;
+}
+
+static void positioned(const MMActorRuntime *r)
+{
+    CHECK(r->origin.dxr == 95 && r->origin.dyr == 193 && r->origin.dzr == -309);
+    CHECK(!r->state.subrouteTranslation.dxr && !r->state.subrouteTranslation.dyr && !r->state.subrouteTranslation.dzr);
+    CHECK(r->last == 99);
+}
+
+static void test_templates(void)
+{
+    Fixture f;
+    int fail, mode;
+    for (mode = 0; mode < 16; ++mode)
+    {
+        int migrate = mode & 1;
+        int transfer;
+        init(&f);
+        f.same_cache = (mode >> 1) & 1;
+        f.text = (mode >> 2) & 1;
+        f.new_text = (mode >> 3) & 1;
+        transfer = migrate && f.text && !f.same_cache;
+        CHECK(paste(&f, 20, migrate));
+        positioned(&f.actor.runtime);
+        CHECK(f.actor.runtime.first == 20 && f.actor.runtime.state.frame == 19 && event_at(&f, 0).nfrm == 20);
+        CHECK(f.actor.runtime.state.routeTranslation.dxr == 95 && f.actor.runtime.state.routeTranslation.dyr == 193);
+        CHECK(f.actor.runtime.state.routeTranslation.dzr == -309);
+        CHECK(f.ensured == (migrate && f.text) && f.saved == transfer && f.fetched == transfer && f.released == transfer);
+        CHECK(f.source_refs == !transfer && f.target_refs == transfer);
+        CHECK(f.old_refs == !transfer && f.new_refs == transfer);
+        CHECK(f.yaw == (transfer ? f.new_text : f.text));
+        CHECK(entrance_at(&f).y == (f.yaw ? 0x1234 : 321));
+        CHECK(entrance_at(&f).reserved == 0xabcd && f.dirty == 1);
+        dispose(&f);
+    }
+
+    for (fail = 1; fail <= 3; ++fail)
+    {
+        init(&f);
+        f.text = 1;
+        f.fail = fail;
+        CHECK(!paste(&f, 20, 1) && !f.bound && !f.placed && !f.dirty);
+        CHECK(f.actor.runtime.first == 10 && f.actor.runtime.state.frame == 33);
+        CHECK(f.source_refs == 1 && !f.target_refs && f.old_refs == 1 && !f.new_refs);
+        CHECK(f.actor.runtime.template_object == &f.old_template && f.actor.runtime.template_tag.cache == &f.source_refs);
+        dispose(&f);
+    }
+}
+
+static void test_frames(void)
+{
+    Fixture f;
+    MMActorEvent event;
+
+    init(&f);
+    event = event_at(&f, 0);
+    event.aet = MM_ACTOR_REMOVE;
+    CHECK(mm_actor_events_set_fixed(f.actor.track.events, 0, &event));
+    CHECK(!paste(&f, 20, 1) && f.bound == 1 && f.placed == 1 && !f.dirty);
+    CHECK(f.actor.runtime.first == 20 && f.actor.runtime.state.frame == 19 && f.actor.runtime.origin.dxr == 777);
+    CHECK(event_at(&f, 0).nfrm == 10);
+    dispose(&f);
+
+    init(&f);
+    CHECK(mm_actor_events_delete(f.actor.track.events, 0));
+    CHECK(!paste(&f, 20, 1) && f.diagnostics[MM_PASTE_EMPTY] == 1 && f.bound && !f.dirty);
+    dispose(&f);
+
+    init(&f);
+    CHECK(paste(&f, 10, 1) && event_at(&f, 0).nfrm == 10 && f.dirty == 1);
+    dispose(&f);
+
+    init(&f);
+    event = event_at(&f, 0);
+    event.nfrm = (-2147483647L - 1L);
+    CHECK(mm_actor_events_set_fixed(f.actor.track.events, 0, &event));
+    CHECK(paste(&f, 2147483647L, 1) && event_at(&f, 0).nfrm == 2147483647L);
+    dispose(&f);
+
+    init(&f);
+    CHECK(paste(&f, (-2147483647L - 1L), 1) && f.actor.runtime.state.frame == 2147483647L);
+    dispose(&f);
+}
+
+static void test_sounds(void)
+{
+    Fixture f;
+    const MMActorState *state;
+    MMActorSound sound;
+
+    init(&f);
+    add_sound(&f, 2, 0);
+    add_sound(&f, 3, 0);
+    add_sound(&f, 1, 0);
+    add_sound(&f, 8, 7);
+    f.actor.runtime.state.nextEvent = 5;
+    f.actor.runtime.state.firstEventInFrame = 3;
+    CHECK(paste(&f, 20, 1));
+    positioned(&f.actor.runtime);
+    CHECK(mm_actor_events_count(f.actor.track.events) == 3 && f.sound_updates == 1);
+    CHECK(f.exists == 3 && f.sounds == 2 && f.children == 1);
+    CHECK(f.diagnostics[MM_PASTE_MISSING_SOUND] == 1 && f.diagnostics[MM_PASTE_SAVE_SOUND_FAILED] == 1);
+    state = &f.actor.runtime.state;
+    CHECK(state->nextEvent == 3 && state->firstEventInFrame == 1 && state->routeTranslation.dxr == 95);
+    CHECK(event_at(&f, 1).nfrm == 23 && event_at(&f, 2).nfrm == 24);
+    sound = sound_at(&f, 1);
+    CHECK(sound.tag.number == 101 && sound.tag.cache == &f.target_refs && sound.child == 1101);
+    CHECK(sound_at(&f, 2).tag.number == 8 && f.source_refs == 1 && f.target_refs == 1);
+    dispose(&f);
+
+    /* Child failure leaves the retimed row with its original tag and the tail untouched. */
+    init(&f);
+    f.text = f.same_cache = 1;
+    add_sound(&f, 1, 0);
+    add_sound(&f, 4, 0);
+    add_sound(&f, 1, 0);
+    CHECK(!paste(&f, 20, 1) && !f.dirty && !f.yaw && !f.sound_updates);
+    positioned(&f.actor.runtime);
+    CHECK(event_at(&f, 1).nfrm == 21 && event_at(&f, 2).nfrm == 22 && event_at(&f, 3).nfrm == 13);
+    CHECK(sound_at(&f, 1).tag.number == 101 && sound_at(&f, 2).tag.number == 4);
+    sound = sound_at(&f, 2);
+    CHECK(sound.tag.cache == &f.source_refs && sound.child == 55);
+    CHECK(f.actor.runtime.state.routeTranslation.dxr == 999 && entrance_at(&f).y == 321);
+    CHECK(f.source_refs == 2 && f.target_refs == 2);
+    /* Repair the test's synthetic references after observing the legacy partial failure. */
+    retain_cache(&f.source_refs);
+    release_cache(&f.target_refs);
+    dispose(&f);
+}
+
 int main(void)
 {
-    Fixture f; int fail,migrate,same,text,new_text;
-    for (migrate=0;migrate<2;++migrate) for (same=0;same<2;++same)
-    for (text=0;text<2;++text) for (new_text=0;new_text<2;++new_text)
-    {
-        int transfer=migrate && text && !same;
-        init(&f); f.text=text; f.new_text=new_text; f.same_cache=same;
-        CHECK(paste(&f,20,migrate)); positioned(&f);
-        CHECK(f.r.first==20 && f.r.state.frame==19 && f.events[0].nfrm==20);
-        CHECK(f.r.state.routeTranslation.dxr==95 && f.r.state.routeTranslation.dyr==193 && f.r.state.routeTranslation.dzr==-309);
-        CHECK(f.ensured==(migrate && text) && f.saved==transfer && f.fetched==transfer && f.released==transfer);
-        CHECK(f.tags==1 && f.old_refs==!transfer && f.new_refs==transfer);
-        CHECK(f.yaw==(transfer ? new_text : text));
-        CHECK(f.payloads[0].entrance.y==(f.yaw ? 0x1234 : 321));
-        CHECK(f.payloads[0].entrance.reserved==0xabcd && f.dirty==1);
-    }
-    for (fail=1;fail<=3;++fail)
-    {
-        init(&f); f.text=1; f.fail=fail;
-        CHECK(!paste(&f,20,1)); CHECK(!f.bound && !f.placed && !f.dirty);
-        CHECK(f.r.first==10 && f.r.state.frame==33 && f.tags==1 && f.old_refs==1 && !f.new_refs);
-        CHECK(f.closed==(fail!=1) && f.duplicated==(fail!=1));
-        CHECK(f.r.template_object==&f.old_template && f.r.template_tag.cache==&f.source_cache);
-    }
-    init(&f); f.events[0].aet=MM_ACTOR_REMOVE;
-    CHECK(!paste(&f,20,1)); CHECK(f.bound==1 && f.placed==1 && !f.dirty);
-    CHECK(f.r.first==20 && f.r.state.frame==19 && f.r.origin.dxr==777 && !f.writes);
-    init(&f); CHECK(paste(&f,10,1)); CHECK(!f.writes && f.dirty==1);
-    init(&f); f.events[0].nfrm=(MMI32)(-2147483647L-1L);
-    CHECK(paste(&f,2147483647L,1)); CHECK(f.events[0].nfrm==2147483647L);
-    init(&f); CHECK(paste(&f,(MMI32)(-2147483647L-1L),1)); CHECK(f.r.state.frame==2147483647L);
-    /* Consecutive deletions revisit the shifted row, preserve removal cursor
-     * changes, retime the tail once, and leave media sounds unadopted. */
-    init(&f); add_sound(&f,2,0); add_sound(&f,3,0); add_sound(&f,1,0); add_sound(&f,8,7);
-    CHECK(paste(&f,20,1)); positioned(&f);
-    CHECK(f.count==3 && f.removed==2 && f.writes==5 && f.exists==3 && f.sounds==2 && f.children==1);
-    CHECK(f.diagnostics[MM_PASTE_MISSING_SOUND]==1 && f.diagnostics[MM_PASTE_SAVE_SOUND_FAILED]==1);
-    CHECK(f.r.state.cel==111 && f.r.state.nextEvent==5 && f.r.state.routeTranslation.dxr==95);
-    CHECK(f.events[1].nfrm==23 && f.events[2].nfrm==24);
-    CHECK(f.payloads[1].sound.tag.number==101 && f.payloads[1].sound.tag.cache==&f.target_cache);
-    CHECK(f.payloads[1].sound.child==1101 && f.payloads[2].sound.tag.number==8);
-    /* Child failure retains earlier writes, a retimed but original failing row,
-     * and an untouched tail. It skips final yaw/origin update and dirty mark. */
-    init(&f); f.text=1; f.same_cache=1; add_sound(&f,1,0); add_sound(&f,4,0); add_sound(&f,1,0);
-    CHECK(!paste(&f,20,1)); positioned(&f);
-    CHECK(f.writes==3 && f.payload_writes==1 && !f.dirty && !f.yaw && !f.removed);
-    CHECK(f.events[1].nfrm==21 && f.events[2].nfrm==22 && f.events[3].nfrm==13);
-    CHECK(f.payloads[1].sound.tag.number==101 && f.payloads[2].sound.tag.number==4);
-    CHECK(f.payloads[2].sound.tag.cache==&f.source_cache && f.payloads[2].sound.child==55);
-    CHECK(f.r.state.routeTranslation.dxr==999 && f.payloads[0].entrance.y==321);
-    puts("C89 actor paste policy checks passed"); return 0;
+    test_templates();
+    test_frames();
+    test_sounds();
+    puts("C89 actor paste checks passed");
+    return 0;
 }

@@ -155,7 +155,7 @@ int mm_actor_transform_move(MMActorState *state,MMActorSounds *sounds,void *rout
         for (i=state->addEvent+1;i<state->nextEvent;++i)
         {
             m->event(events,i,&event);
-            if (event.aet==MM_ACTOR_ROTATE_HERE) e->write_payload(e->context,i,&state->transform.bmat34Cur);
+            if (event.aet==MM_ACTOR_ROTATE_HERE) e->tables.write_payload(e->tables.context,i,&state->transform.bmat34Cur);
             if (event.aet==MM_ACTOR_ROTATE_FORWARD && !add(state,sounds,events,actor,MM_ACTOR_ROTATE_HERE,&state->transform.bmat34Cur,48,m,s))
             { diagnostic(s,MM_TRANSFORM_MOVE_ROTATE_FAILED); return 0; }
         }
@@ -179,7 +179,7 @@ int mm_actor_transform_move(MMActorState *state,MMActorSounds *sounds,void *rout
             entrance.translation.dxr=mm_fixed_add(entrance.translation.dxr,movement.dxr);
             entrance.translation.dyr=mm_fixed_add(entrance.translation.dyr,movement.dyr);
             entrance.translation.dzr=mm_fixed_add(entrance.translation.dzr,movement.dzr);
-            e->write_payload(e->context,state->addEvent,&entrance);
+            e->tables.write_payload(e->tables.context,state->addEvent,&entrance);
         }
     }
     mm_actor_state_origin(state,origin); publish(state,s); e->dirty(e->context);

@@ -36,15 +36,17 @@ static int sub_apply(void *p,MMActorState *state,MMI32 i)
     { state->action=f->base.payload[i][0]; state->cel=f->base.payload[i][1]; state->actionEvent=i; return 1; }
     return mm_actor_state_apply(state,p,p,i,&origin,&tables)==MM_ACTOR_APPLIED;
 }
-static void retain_tag(void *p,MMI32 i)
+static void retain_tag(void *p,MMI32 i, const MMTagServices *tags)
 {
     SubFixture *f=(SubFixture *)p; MMActorCostume c;
+    (void)tags;
     if (f->base.event[i].aet!=MM_ACTOR_COSTUME) return;
     memcpy(&c,f->base.payload[i],sizeof(c)); if (!c.custom) ++f->refs;
 }
-static void close_owned_tag(void *p,MMI32 i)
+static void close_owned_tag(void *p,MMI32 i, const MMTagServices *tags)
 {
     SubFixture *f=(SubFixture *)p; MMActorCostume c;
+    (void)tags;
     if (f->base.event[i].aet!=MM_ACTOR_COSTUME) return;
     memcpy(&c,f->base.payload[i],sizeof(c)); if (!c.custom) { CHECK(f->refs>0); --f->refs; }
 }
@@ -54,7 +56,7 @@ static MMActorSubrouteEditServices sub_init(SubFixture *f)
     memset(f,0,sizeof(*f)); memset(&s,0,sizeof(s)); s.route=init(&f->base);
     for (i=0;i<f->base.events;++i) if (f->base.event[i].aet==MM_ACTOR_ADD) f->base.bytes[i]=20;
     s.route.life_dirty=sub_life; s.route.reserve_events=sub_reserve;
-    s.route.edits.duplicate_event_tag=retain_tag; s.route.edits.close_event_tag=close_owned_tag; s.route.edits.apply_event=sub_apply;
+    s.route.edits.tables.duplicate_event_tag=retain_tag; s.route.edits.tables.close_event_tag=close_owned_tag; s.route.edits.apply_event=sub_apply;
     s.action.context=f; s.action.sounds.context=f; s.action.sounds.edits=s.route.edits;
     s.action.sounds.reserve_events=sub_reserve; s.action.action_flags=action_flags;
     s.action.text_template=text; s.action.mark_life_dirty=sub_life;
@@ -72,5 +74,5 @@ static void owned(SubFixture *f,int node,int frame)
     f->base.bytes[i]=sizeof(c); memcpy(f->base.payload[i],&c,sizeof(c)); ++f->refs;
 }
 static void done(SubFixture *f)
-{ int i; for (i=0;i<f->base.events;++i) close_owned_tag(f,i); CHECK(!f->refs); mm_actor_sounds_dispose(&f->base.sounds); }
+{ int i; for (i=0;i<f->base.events;++i) close_owned_tag(f,i,NULL); CHECK(!f->refs); mm_actor_sounds_dispose(&f->base.sounds); }
 #endif

@@ -1,7 +1,53 @@
 /* Actor event editing converted from engine actor.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_edit.h"
+#include "mm/actor_track.h"
 #include <string.h>
+
+static void close_event_tag(void *events, MMI32 index, const MMTagServices *tags)
+{
+    mm_actor_track_close_tag((MMActorEventTable *)events, index, tags);
+}
+
+static void duplicate_event_tag(void *events, MMI32 index, const MMTagServices *tags)
+{
+    mm_actor_track_retain_tag((MMActorEventTable *)events, index, tags);
+}
+
+static void delete_event(void *events, MMI32 index)
+{
+    mm_actor_events_delete((MMActorEventTable *)events, index);
+}
+
+static int insert_event(void *events, MMI32 index, MMU32 bytes, const void *payload, const MMActorEvent *event)
+{
+    return mm_actor_events_insert((MMActorEventTable *)events, index, bytes, payload, event);
+}
+
+static void write_payload(void *events, MMI32 index, const void *payload)
+{
+    mm_actor_events_set_payload((MMActorEventTable *)events, index, payload);
+}
+
+static void copy_payload(void *events, MMI32 destination, MMI32 source)
+{
+    mm_actor_events_copy_payload((MMActorEventTable *)events, destination, source);
+}
+
+MMActorEditTables mm_actor_edit_tables(MMActorEventTable *events, const MMTagServices *tags)
+{
+    MMActorEditTables tables;
+    tables.context = events;
+    tables.tags = tags;
+    tables.close_event_tag = close_event_tag;
+    tables.delete_event = delete_event;
+    tables.insert_event = insert_event;
+    tables.duplicate_event_tag = duplicate_event_tag;
+    tables.write_payload = write_payload;
+    tables.copy_payload = copy_payload;
+    return tables;
+}
+
 static void publish(const MMActorEditServices *s, const MMActorState *state)
 {
     if (s->publish) s->publish(s->context, state);
@@ -9,14 +55,15 @@ static void publish(const MMActorEditServices *s, const MMActorState *state)
 void mm_actor_edit_remove(MMActorState *state, void *events, MMI32 index, int update,
                                 const MMActorMotionServices *m, const MMActorEditServices *s)
 {
+    const MMActorEditTables *t = &s->tables;
     MMActorEvent event;
     MMI32 frame;
     int sound;
-    if (s->publish) s->publish(s->context, state);
+    publish(s, state);
     m->event(events, index, &event);
-    s->close_event_tag(s->context, index);
-    sound = event.aet == MM_ACTOR_SOUND && s->scene_frame(s->context, &frame) && frame == event.nfrm;
-    s->delete_event(s->context, index);
+    t->close_event_tag(t->context, index, t->tags);
+    sound = event.aet == MM_ACTOR_SOUND && s->scene_frame && s->scene_frame(s->context, &frame) && frame == event.nfrm;
+    t->delete_event(t->context, index);
     if (update)
     {
         if (index < state->nextEvent) --state->nextEvent;
@@ -24,17 +71,18 @@ void mm_actor_edit_remove(MMActorState *state, void *events, MMI32 index, int up
         if (index < state->addEvent) --state->addEvent;
         if (index < state->firstEventInFrame) --state->firstEventInFrame;
     }
-    if (s->publish) s->publish(s->context, state);
+    publish(s, state);
     if (sound) s->update_sound_frame(s->context);
 }
 int mm_actor_edit_insert(MMActorState *state, MMI32 index, MMU32 bytes, const void *payload,
                                const MMActorEvent *event, int update, const MMActorEditServices *s)
 {
+    const MMActorEditTables *t = &s->tables;
     publish(s,state);
-    if (!s->insert_event(s->context,index,bytes,payload,event)) return 0;
+    if (!t->insert_event(t->context,index,bytes,payload,event)) return 0;
     if (payload)
     {
-        s->duplicate_event_tag(s->context,index);
+        t->duplicate_event_tag(t->context,index,t->tags);
         if (update)
         {
             if (index < state->nextEvent) ++state->nextEvent;
@@ -54,6 +102,7 @@ void mm_actor_edit_merge(MMActorState *state, MMActorSounds *list, void *events,
                                MMI32 first, MMI32 added, MMI32 *result,
                                const MMActorMotionServices *m, const MMActorEditServices *s)
 {
+    const MMActorEditTables *t = &s->tables;
     MMActorEvent old, fresh;
     MMActorPoint move, delta;
     MMActorCostume costume, replacement;
@@ -79,7 +128,7 @@ void mm_actor_edit_merge(MMActorState *state, MMActorSounds *list, void *events,
             move.dxr=mm_fixed_add(move.dxr,delta.dxr);
             move.dyr=mm_fixed_add(move.dyr,delta.dyr);
             move.dzr=mm_fixed_add(move.dzr,delta.dzr);
-            s->write_payload(s->context,i,&move);
+            t->write_payload(t->context,i,&move);
             goto delete_new;
         case MM_ACTOR_COSTUME:
             m->payload(events,i,&costume); m->payload(events,added,&replacement);
@@ -87,9 +136,9 @@ void mm_actor_edit_merge(MMActorState *state, MMActorSounds *list, void *events,
             if (!same_location(&old.rtel,&fresh.rtel)) goto delete_old;
             /* Both rows own their tags: replacement must retain one reference
              * after the added row is closed. Avoid the old overwrite leak. */
-            s->close_event_tag(s->context,i);
-            s->duplicate_event_tag(s->context,added);
-            s->write_payload(s->context,i,&replacement);
+            t->close_event_tag(t->context,i,t->tags);
+            t->duplicate_event_tag(t->context,added,t->tags);
+            t->write_payload(t->context,i,&replacement);
             goto delete_new;
         case MM_ACTOR_SOUND:
             m->payload(events,i,&sound); m->payload(events,added,&new_sound);
@@ -108,14 +157,14 @@ void mm_actor_edit_merge(MMActorState *state, MMActorSounds *list, void *events,
             { mm_actor_edit_remove(state,events,i,1,m,s); --added; --i; }
             if (fresh.aet!=MM_ACTOR_ROTATE_HERE) continue;
             if (!same_location(&old.rtel,&fresh.rtel)) goto delete_old;
-            s->copy_payload(s->context,i,added);
+            t->copy_payload(t->context,i,added);
             goto delete_new;
         case MM_ACTOR_ROTATE_FORWARD:
             mm_actor_edit_remove(state,events,i,1,m,s); --added; --i;
             continue;
         default:
             if (!same_location(&old.rtel,&fresh.rtel)) goto delete_old;
-            s->copy_payload(s->context,i,added);
+            t->copy_payload(t->context,i,added);
             goto delete_new;
         }
     }

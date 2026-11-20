@@ -57,7 +57,7 @@ static void swap(void *p,MMI32 a,MMI32 b)
     memcpy(f->payload[a],f->payload[b],sizeof(data)); memcpy(f->payload[b],data,sizeof(data));
     f->bytes[a]=f->bytes[b]; f->bytes[b]=bytes; ++f->swaps;
 }
-static void tag(void *p,MMI32 i) { (void)p; (void)i; }
+static void tag(void *p,MMI32 i, const MMTagServices *tags) { (void)tags; (void)p; (void)i; }
 static int scene(void *p,MMI32 *frame) { (void)p; (void)frame; return 0; }
 static void publish(void *p,const MMActorState *state) { ((Fixture *)p)->view=*state; }
 static void life(void *p) { ++((Fixture *)p)->lives; }
@@ -98,9 +98,9 @@ static MMActorRouteEditServices init(Fixture *f)
     f->state.onStage=1; f->state.frame=2; f->state.location.dwrOffset=2*ONE;
     f->state.nextEvent=2; f->state.firstEventInFrame=1; f->state.addEvent=0; f->state.actionEvent=-1;
     f->view=f->state; f->range.first=1; f->range.last=8; f->recording=1;
-    e=&s.edits; e->context=f; e->close_event_tag=tag; e->delete_event=remove_event; e->scene_frame=scene;
-    e->publish=publish; e->insert_event=insert_event; e->duplicate_event_tag=tag; e->write_payload=write_payload;
-    e->copy_payload=copy_payload; e->apply_event=apply; e->dirty=dirty; e->get_range=range;
+    e=&s.edits; e->context=f; e->tables.context=f; e->tables.close_event_tag=tag; e->tables.delete_event=remove_event; e->scene_frame=scene;
+    e->publish=publish; e->tables.insert_event=insert_event; e->tables.duplicate_event_tag=tag; e->tables.write_payload=write_payload;
+    e->tables.copy_payload=copy_payload; e->apply_event=apply; e->dirty=dirty; e->get_range=range;
     e->publish_range=publish_range; e->invalidate_range=invalidate;
     s.insert_point=insert_point; s.write_point=write_point; s.delete_points=delete_points; s.clear_route=clear_route;
     s.write_event=write_event; s.swap_events=swap; s.reserve_events=reserve; s.life_dirty=life;

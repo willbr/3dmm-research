@@ -31,7 +31,7 @@ static void remove_event(void *p,MMI32 i)
     memmove(f->data+i,f->data+i+1,(size_t)(f->count-i-1)*sizeof(f->data[0]));
     memmove(f->bytes+i,f->bytes+i+1,(size_t)(f->count-i-1)*sizeof(f->bytes[0])); --f->count;
 }
-static void tag(void *p,MMI32 i) { (void)p; (void)i; }
+static void tag(void *p,MMI32 i, const MMTagServices *tags) { (void)tags; (void)p; (void)i; }
 static int scene(void *p,MMI32 *frame) { (void)p; (void)frame; return 0; }
 static void copy(void *p,MMI32 dst,MMI32 src) { Fixture *f=(Fixture *)p; memcpy(f->data[dst],f->data[src],f->bytes[src]); }
 static void write(void *p,MMI32 i,const void *value) { Fixture *f=(Fixture *)p; memcpy(f->data[i],value,f->bytes[i]); }
@@ -70,8 +70,8 @@ static MMActorActionEditServices init(Fixture *f)
     f->state.nextEvent=f->state.firstEventInFrame=2; f->state.addEvent=0; f->range.first=1; f->range.last=20;
     s.context=f; s.action_flags=metadata; s.text_template=text; s.mark_life_dirty=life;
     s.sounds.context=f; s.sounds.reserve_events=reserve; s.sounds.runtime.context=f; s.sounds.runtime.cel_count=defaults;
-    e=&s.sounds.edits; e->context=f; e->close_event_tag=tag; e->delete_event=remove_event; e->scene_frame=scene;
-    e->insert_event=insert; e->duplicate_event_tag=tag; e->write_payload=write; e->copy_payload=copy;
+    e=&s.sounds.edits; e->context=f; e->tables.context=f; e->tables.close_event_tag=tag; e->tables.delete_event=remove_event; e->scene_frame=scene;
+    e->tables.insert_event=insert; e->tables.duplicate_event_tag=tag; e->tables.write_payload=write; e->tables.copy_payload=copy;
     e->apply_event=apply; e->dirty=dirty; e->get_range=range; e->invalidate_range=invalidate;
     return s;
 }

@@ -17,6 +17,7 @@
 
 #include "soc.h"
 #include "engine_actor_motion.h"
+#include "mm/actor_effect.h"
 #include "mm/actor_paste.h"
 
 ASSERTNAME
@@ -179,27 +180,19 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
     AssertThis(0);
     static_assert(sizeof(Add)==sizeof(MMActorEntrance) && sizeof(Sound)==sizeof(MMActorSound),"Paste payload ABI");
     static_assert(ksidUseCrf==0,"Paste document tag ABI");
-    MMActorPasteServices s{}; s.context=this;
+    MMActorPasteServices s{};
+    s.context = this;
+    s.create = _CreateServices();
+    s.edits = _EventEditServices();
     s.is_text=[](void *,void *p) { return int(static_cast<PTemplate>(p)->FIsTdt()); };
     s.ensure_autosave=[](void *,void *p,void **cache) {
         PChunkyResourceFile resource=nullptr; bool ok=static_cast<PScene>(p)->Pmvie()->FEnsureAutosave(&resource);
         *cache=resource; return int(ok);
     };
-    s.duplicate_tag=[](void *,const MMTag *v) {
-        TAG tag; std::memcpy(&tag,v,sizeof(tag)); TagManager::DupTag(&tag);
-    };
-    s.close_tag=[](void *,MMTag *v) {
-        TAG tag; std::memcpy(&tag,v,sizeof(tag)); TagManager::CloseTag(&tag); std::memcpy(v,&tag,sizeof(tag));
-    };
     s.save_template=[](void *,MMTag *v,void *cache) {
         TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FSaveTag(&tag,static_cast<PChunkyResourceFile>(cache),true);
         std::memcpy(v,&tag,sizeof(tag)); return int(ok);
     };
-    s.fetch_template=[](void *,const MMTag *v)->void * {
-        TAG tag; std::memcpy(&tag,v,sizeof(tag)); return vptagm->PbacoFetch(&tag,Template::FReadTmpl);
-    };
-    s.release_template=[](void *,void *p) { static_cast<PTemplate>(p)->Release(); };
-    s.bind_scene=[](void *p,void *scene) { static_cast<Actor *>(p)->SetPscen(static_cast<PScene>(scene)); };
     s.placement=[](void *p,MMActorPoint *point) {
         BRS x,y,z; static_cast<Actor *>(p)->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
     };
@@ -214,11 +207,6 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
         ChildChunkID value=*child; bool ok=static_cast<PScene>(scene)->Pmvie()->FChidFromUserSndCno(number,&value);
         *child=value; return int(ok);
     };
-    s.write_event=[](void *p,MMI32 i,const MMActorEvent *v) {
-        mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(p), i, v);
-    };
-    s.write_payload=[](void *p,MMI32 i,const void *v) { mm_actor_events_set_payload(static_cast<MMActorEventTable *>(p), i, v); };
-    s.remove_event=[](void *p,MMI32 i) { static_cast<Actor *>(p)->_RemoveAev(i); };
     s.camera_yaw=[](void *,void *p) { return static_cast<PScene>(p)->Pbkgd()->BraRotYCamera(); };
     s.dirty=[](void *,void *p) { static_cast<PScene>(p)->MarkDirty(); };
     s.diagnostic=[](void *,int fault) {
@@ -236,8 +224,7 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
 #else
     const int migrate_text=0;
 #endif
-    const auto motion=EngineActorMotion::Services();
-    return mm_actor_paste(&_owner.runtime,_owner.track.route,_owner.track.events,nfrm,pscen,migrate_text,&motion,&s)!=0;
+    return mm_actor_paste(&_owner,nfrm,pscen,migrate_text,&s)!=0;
 }
 
 /***************************************************************************

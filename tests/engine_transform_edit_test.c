@@ -52,7 +52,7 @@ static MMActorTransformEditServices init_transform(TransformFixture *f)
     f->sub.base.state.location.irpt=0; f->sub.base.state.location.dwrOffset=f->sub.base.state.location.dnfrm=0;
     f->sub.base.state.firstEventInFrame=0; f->sub.base.state.actionEvent=1; f->sub.base.state.celCount=4;
     f->sub.base.recording=0; f->present=1; f->scene_frame=2;
-    s.subroute.route.edits.insert_event=trans_insert; s.subroute.route.edits.scene_frame=scene_frame;
+    s.subroute.route.edits.tables.insert_event=trans_insert; s.subroute.route.edits.scene_frame=scene_frame;
     s.subroute.route.reserve_events=trans_reserve;
     s.subroute.action.sounds.edits=s.subroute.route.edits; s.subroute.action.sounds.reserve_events=trans_reserve;
     s.fill.edits=s.subroute.route.edits; s.fill.lock_events=lock; s.fill.unlock_events=unlock; s.fill.payload_view=view;

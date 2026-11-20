@@ -171,16 +171,16 @@ int main(void)
         {
             CHECK(f.actor.owner.runtime.first==2147483647L && f.actor.owner.runtime.last==(-2147483647L-1L) && f.actor.owner.runtime.actor==-1);
             CHECK(f.cache==2 && f.actor.owner.runtime.template_tag.number==23 && !f.actor.owner.runtime.scene && !f.actor.owner.runtime.body);
-            mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.bodies==1 && f.bound==1);
-            mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.bodies==1 && f.bound==1);
-            mm_actor_bind_scene(actor,&f.other_scene,&f.s); CHECK(f.diagnostics[MM_CREATE_WRONG_SCENE]==1 && f.actor.owner.runtime.scene==&f.scene);
+            mm_actor_bind_scene(&f.actor.owner.runtime,&f.scene,&f.s); CHECK(f.bodies==1 && f.bound==1);
+            mm_actor_bind_scene(&f.actor.owner.runtime,&f.scene,&f.s); CHECK(f.bodies==1 && f.bound==1);
+            mm_actor_bind_scene(&f.actor.owner.runtime,&f.other_scene,&f.s); CHECK(f.diagnostics[MM_CREATE_WRONG_SCENE]==1 && f.actor.owner.runtime.scene==&f.scene);
             release(&f,actor);
         }
         CHECK(f.releases==(fail!=1)); clean(&f);
     }
     init(&f); actor=mm_actor_create(&f.tag,&f.s); CHECK(actor); f.fail=6;
-    mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.actor.owner.runtime.scene==&f.scene && !f.actor.owner.runtime.body && !f.bound && f.bodies==1);
-    mm_actor_bind_scene(actor,&f.scene,&f.s); CHECK(f.bodies==1 && f.diagnostics[MM_CREATE_BOUND_WITHOUT_BODY]==1);
+    mm_actor_bind_scene(&f.actor.owner.runtime,&f.scene,&f.s); CHECK(f.actor.owner.runtime.scene==&f.scene && !f.actor.owner.runtime.body && !f.bound && f.bodies==1);
+    mm_actor_bind_scene(&f.actor.owner.runtime,&f.scene,&f.s); CHECK(f.bodies==1 && f.diagnostics[MM_CREATE_BOUND_WITHOUT_BODY]==1);
     release(&f,actor); clean(&f);
     /* Direct group creation leaves successful track storage for caller cleanup. */
     init(&f); actor=create(&f); f.fail=4; CHECK(!mm_actor_create_groups(&f.actor.owner,&f.s));
