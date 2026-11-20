@@ -15280,3 +15280,29 @@ In `actor-event-edit` suite `20261120T101419Z-c10d0e1d`, fresh SDL and Marcus
 captures matched all 60 frame identities in the retained retail seek and
 playback runs. Both players kept all 60 prior seek image hashes and matched
 the retail camera indices. SDL matched all 12 retail sound requests.
+
+## C89 caption property and argument collections (20 November 2026)
+
+The Marcus caption editor loads each private rich-text body into C-owned
+property arrays and argument groups. These collections serve the editor,
+its draft preview and the native writer. The archive adapter still
+provides file locations, physical reads and writes, and font conversion.
+
+The standalone fixture exercised both collection byte orders, font
+argument reference changes, and recovery after a failed write of opposite-
+endian argument locations. The native comparison produced twelve
+byte-identical saved movies. A draft containing inline Courier New text
+also produced identical RGBA pixels. Retail opened and rendered six edited
+movies, including the mixed-format save with all twelve text boxes.
+
+Eight standalone C89 checks and the focused x86 checks passed. The x64
+Preview integration retained all ten fingerprints, including the 188 stock
+cameras. Both VMM storyboard seek images in `20261120T102627Z-455a4c0a`
+matched the retained SDL and Marcus captures. Logs and native fixtures are
+in `tmp/c89-caption-collections`.
+
+All 44 targeted x64 checks passed. In `actor-event-edit` suite
+`20261120T102625Z-a22cf36e`, Marcus and SDL matched all 60 frame identities
+in the retained retail seek and playback runs. Both retained all 60 prior
+seek image hashes and matched the retail camera indices. SDL matched all
+12 retail sound requests.

@@ -196,6 +196,127 @@ static MMI32 inherit_first(const MMTextPropertyServices *s, MMTextPropertyChange
     return count;
 }
 
+static MMTextCollection *caption_properties(void *p)
+{
+    return ((MMCaptionPropertyMap *)p)->body->properties;
+}
+
+static MMI32 caption_property_count(void *p)
+{
+    return (MMI32)mm_text_collection_count(caption_properties(p));
+}
+
+static void caption_property_get(void *p, MMI32 row, MMTextPropertyEntry *out)
+{
+    MMU32 words[2] = {0, 0};
+    mm_text_collection_property(caption_properties(p), (MMU32)row, words);
+    out->key = words[0];
+    out->value = mm_signed_word(words[1]);
+}
+
+static int caption_property_set(void *p, MMI32 row, const MMTextPropertyEntry *entry, int insert)
+{
+    MMU32 words[2];
+    words[0] = entry->key;
+    words[1] = (MMU32)entry->value;
+    return mm_text_collection_put_property(caption_properties(p), (MMU32)row, words, insert);
+}
+
+static void caption_property_put(void *p, MMI32 row, const MMTextPropertyEntry *entry)
+{
+    if (!caption_property_set(p, row, entry, 0))
+        ((MMCaptionPropertyMap *)p)->diagnosed = 1;
+}
+
+static int caption_property_insert(void *p, MMI32 row, const MMTextPropertyEntry *entry)
+{
+    return caption_property_set(p, row, entry, 1) ? 1 : -1;
+}
+
+static void caption_property_remove(void *p, MMI32 row)
+{
+    if (!mm_text_collection_delete(caption_properties(p), (MMU32)row))
+        ((MMCaptionPropertyMap *)p)->diagnosed = 1;
+}
+
+static void caption_property_clear(void *p)
+{
+    (void)p;
+}
+
+static int caption_property_paragraph_end(void *p, MMI32 at, MMI32 *end)
+{
+    const MMCaptionEditWords *words = &((const MMCaptionPropertyMap *)p)->words;
+    *end = mm_caption_edit_paragraph_end(words->text, (MMI32)words->count, at);
+    return 1;
+}
+
+static void caption_property_diagnostic(void *p, int kind)
+{
+    (void)kind;
+    ((MMCaptionPropertyMap *)p)->diagnosed = 1;
+}
+
+static void *caption_argument_owner(void *p, int kind)
+{
+    (void)kind;
+    return ((MMCaptionPropertyMap *)p)->body->arguments;
+}
+
+static MMI32 caption_argument_count(void *p, void *group)
+{
+    (void)p;
+    return (MMI32)mm_text_collection_count(group);
+}
+
+static int caption_argument_free(void *p, void *group, MMI32 row)
+{
+    MMI32 bytes;
+    (void)p;
+    return mm_text_collection_argument(group, (MMU32)row, &bytes) == NULL;
+}
+
+static MMU32 caption_argument_ref(void *p, void *group, MMI32 row)
+{
+    (void)p;
+    return mm_text_collection_argument_ref(group, (MMU32)row);
+}
+
+static void caption_argument_put(void *p, void *group, MMI32 row, MMU32 value)
+{
+    if (!mm_text_collection_put_argument_ref(group, (MMU32)row, value))
+        ((MMCaptionPropertyMap *)p)->diagnosed = 1;
+}
+
+static void caption_argument_remove(void *p, void *group, MMI32 row)
+{
+    if (!mm_text_collection_delete(group, (MMU32)row))
+        ((MMCaptionPropertyMap *)p)->diagnosed = 1;
+}
+
+void mm_caption_edit_property_services(MMCaptionPropertyMap *map, MMTextPropertyServices *s)
+{
+    memset(s, 0, sizeof(*s));
+    s->context = map;
+    s->count = caption_property_count;
+    s->get = caption_property_get;
+    s->put = caption_property_put;
+    s->insert = caption_property_insert;
+    s->remove = caption_property_remove;
+    s->clear_cache = caption_property_clear;
+    s->paragraph_end = caption_property_paragraph_end;
+    s->diagnostic = caption_property_diagnostic;
+    s->arguments.context = map;
+    s->arguments.objects.context = map;
+    s->arguments.objects.get = caption_argument_owner;
+    s->arguments.count = caption_argument_count;
+    s->arguments.free_slot = caption_argument_free;
+    s->arguments.fixed = caption_argument_ref;
+    s->arguments.put_fixed = caption_argument_put;
+    s->arguments.remove = caption_argument_remove;
+    s->arguments.diagnostic = caption_property_diagnostic;
+}
+
 int mm_caption_edit_replace(const unsigned short *old_text, MMI32 old_count,
                             const unsigned short *new_text, MMI32 new_count,
                             const MMTextPropertyServices *s, const int *diagnosed)

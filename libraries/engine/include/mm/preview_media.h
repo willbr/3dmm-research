@@ -5,6 +5,7 @@
 #include "movie_session.h"
 #include "midi.h"
 #include "sound_resource.h"
+#include "text_store.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -79,6 +80,10 @@ extern "C"
      * scene children precedence over the first movie child and publishes source only
      * after decoding succeeds. Silent cues bypass readiness and source publication. */
     int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *);
+    /* Convert a private, edited body with C text collections. Text can be the
+     * original encoded stream or a draft UTF-16 view. */
+    int mm_preview_caption_body(const MMTextBoxState *, const MMRichTextState *, const MMReadStream *text,
+                                int encoding, const MMPreviewCaptionServices *);
     /* The archive supplies input callbacks. load_font falls back to an empty
      * name on invalid wire text and reports only hard failures. */
     int mm_preview_caption_graph(MMU32 number, const MMPreviewCaptionArchive *, const MMPreviewCaptionServices *);

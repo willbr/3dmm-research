@@ -128,6 +128,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Caption preview and save use the same C89 edit sequence. C89 detects no-op
   saves, selects default and property updates, and decides when to retain the
   existing rich-text body or link a replacement to the edited box.
+- Marcus caption edits now load and mutate C89 rich-text property arrays and
+  argument groups. Draft preview reads those same collections. The native
+  adapter handles archive blocks, file locations and font conversion.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

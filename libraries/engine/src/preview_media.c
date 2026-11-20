@@ -254,6 +254,67 @@ int mm_preview_caption(MMU32 number, const MMPreviewCaptionServices *s)
         s->release(s->input, owner);
     return result;
 }
+
+static int edited_caption_text(void *p, void *owner, void *out, MMU32 bytes)
+{
+    (void)owner;
+    return mm_read_exact((const MMReadStream *)p, 0, out, bytes);
+}
+
+static void edited_caption_property(void *p, void *owner, MMU32 row, MMU32 words[2])
+{
+    const MMRichTextState *body = owner;
+    (void)p;
+    mm_text_collection_property(body->properties, row, words);
+}
+
+static void edited_caption_argument_info(void *p, void *owner, MMU32 row, MMI32 *bytes, int *free_entry)
+{
+    const MMRichTextState *body = owner;
+    (void)p;
+    *bytes = 0;
+    *free_entry = mm_text_collection_argument(body->arguments, row, bytes) == NULL;
+}
+
+static void edited_caption_argument(void *p, void *owner, MMU32 row, void *out)
+{
+    const MMRichTextState *body = owner;
+    MMI32 bytes;
+    const void *data = mm_text_collection_argument(body->arguments, row, &bytes);
+    (void)p;
+    if (data && bytes)
+        memcpy(out, data, (size_t)bytes);
+}
+
+int mm_preview_caption_body(const MMTextBoxState *box, const MMRichTextState *body, const MMReadStream *text,
+                            int encoding, const MMPreviewCaptionServices *s)
+{
+    MMPreviewCaptionData data = {0};
+    MMPreviewCaptionServices services = *s;
+    if (!body->properties || text->length > 1024 * 1024)
+        return 0;
+    data.first = box->first;
+    data.end = box->end;
+    data.left = box->left;
+    data.top = box->top;
+    data.right = box->right;
+    data.bottom = box->bottom;
+    data.story = box->story;
+    data.bytes = (MMI32)text->length;
+    data.encoding = encoding;
+    data.font_size = body->defaults.height;
+    data.background = body->defaults.background;
+    data.properties = mm_text_collection_count(body->properties);
+    data.has_arguments = body->arguments != NULL;
+    data.arguments = mm_text_collection_count(body->arguments);
+    services.input = (void *)text;
+    services.read_text = edited_caption_text;
+    services.property = edited_caption_property;
+    services.argument_info = edited_caption_argument_info;
+    services.argument = edited_caption_argument;
+    return convert_caption(&data, (void *)body, &services);
+}
+
 typedef struct CaptionGroup
 {
     MMMoviePayload payload;

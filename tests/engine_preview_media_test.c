@@ -1,4 +1,6 @@
 #include "mm/preview_media.h"
+#include "mm/caption_edit.h"
+#include "mm/collections.h"
 #include "mm/text.h"
 #include <assert.h>
 #include <stdio.h>
@@ -222,6 +224,132 @@ static MMU32 swapped(MMU32 x)
 {
     return (x >> 24) | ((x >> 8) & 0xff00U) | ((x << 8) & 0xff0000U) | (x << 24);
 }
+
+typedef struct CaptionCollectionOutput
+{
+    unsigned char bytes[60];
+    MMU32 fail_at;
+} CaptionCollectionOutput;
+
+static int save_collection(void *p, MMU32 offset, const void *bytes, size_t count)
+{
+    CaptionCollectionOutput *out = p;
+    assert(offset <= sizeof(out->bytes) && count <= sizeof(out->bytes) - offset);
+    if (offset == out->fail_at)
+        return 0;
+    memcpy(out->bytes + offset, bytes, count);
+    return 1;
+}
+
+static void caption_wire_word(unsigned char *p, MMU32 n, int big)
+{
+    unsigned i;
+    for (i = 0; i < 4; ++i)
+        p[big ? 3 - i : i] = (unsigned char)(n >> (8 * i));
+}
+
+static int edited_font(void *p, void *owner)
+{
+    (void)owner;
+    return font(p, p);
+}
+
+static void edited_caption_collections(void)
+{
+    Caption h;
+    MMRichTextState body;
+    MMTextBoxState box = {0};
+    MMCaptionPropertyMap map = {0};
+    MMTextPropertyServices services;
+    MMTextCollection *properties, *arguments;
+    MMTextPropertyEntry property;
+    MMCollectionHeader table = {0};
+    MMMemoryStream memory, text;
+    CaptionCollectionOutput output;
+    MMStorageWriter writer;
+    unsigned char gl[28], ag[60];
+    MMI32 argument_bytes;
+    const unsigned char *font_row;
+    int big, order, system, arg_order, arg_system;
+    assert(mm_memory_stream_init(&text, "ABCD", 4));
+    map.body = &body;
+    writer.context = &output;
+    writer.write_at = save_collection;
+    box.right = 160;
+    box.bottom = 80;
+    for (big = 0; big < 2; ++big)
+    {
+        setup(&h);
+        h.services.font = edited_font;
+        memset(&table, 0, sizeof(table));
+        table.kind = MM_COLLECTION_ARRAY;
+        table.width = 8;
+        table.count = 2;
+        table.big_endian = big;
+        table.system = MM_TEXT_WINDOWS;
+        assert(mm_collection_header_write(&table, gl, sizeof(gl)) == MM_STORAGE_OK);
+        caption_wire_word(gl + 12, 0x01000001U, big);
+        caption_wire_word(gl + 16, 3, big);
+        caption_wire_word(gl + 20, 0x02000002U, big);
+        caption_wire_word(gl + 24, 1, big);
+        assert(mm_memory_stream_init(&memory, gl, sizeof(gl)));
+        assert(mm_text_collection_read(MM_TEXT_PROPERTIES, &memory.stream, &properties, &order, &system) == 1);
+
+        memset(ag, 0, sizeof(ag));
+        table.kind = MM_COLLECTION_GROUP;
+        table.width = 4;
+        table.count = 3;
+        table.bytes = 16;
+        table.free_count = 1;
+        assert(mm_collection_header_write(&table, ag, sizeof(ag)) == MM_STORAGE_OK);
+        caption_wire_word(ag + 20, 0x02000001U, big);
+        memcpy(ag + 24, h.argument, 8);
+        caption_wire_word(ag + 32, 0x40000001U, big);
+        caption_wire_word(ag + 40, 12, big);
+        caption_wire_word(ag + 44, 0xffffffffU, big);
+        caption_wire_word(ag + 52, 12, big);
+        caption_wire_word(ag + 56, 4, big);
+        assert(mm_memory_stream_init(&memory, ag, sizeof(ag)));
+        assert(mm_text_collection_read(MM_TEXT_ARGUMENTS, &memory.stream, &arguments, &arg_order, &arg_system) == 1);
+        assert(arg_order == order && arg_system == system);
+        assert(mm_rich_text_init(&body, 1, MM_TEXT_WINDOWS));
+        body.properties = properties;
+        body.arguments = arguments;
+        assert(mm_preview_caption_body(&box, &body, &text.stream, MM_TEXT_WINDOWS, &h.services) == 1);
+        assert(h.text_size == 4 && h.published == 1 && h.appended == 2 && h.fonts[1] && !h.live);
+        assert(h.properties[1].kind == 2 && h.properties[1].position == 2 && h.properties[1].value == 1);
+
+        mm_caption_edit_property_services(&map, &services);
+        services.get(services.context, 0, &property);
+        assert(property.key == 0x01000001U && property.value == 3);
+        assert(services.insert(services.context, 0, &property) == 1 && services.count(services.context) == 3);
+        services.remove(services.context, 0);
+        assert(services.count(services.context) == 2 && !map.diagnosed);
+        mm_text_property_ref(2, 1, 1, &services.arguments);
+        assert(mm_text_collection_argument_ref(arguments, 0) == 0x02000002U);
+        mm_text_property_ref(2, 1, 0, &services.arguments);
+        assert(!mm_text_collection_argument(arguments, 1, &argument_bytes));
+        font_row = mm_text_collection_argument(arguments, 0, &argument_bytes);
+        assert(font_row && argument_bytes == 8 && !memcmp(font_row, h.argument, 8));
+
+        writer.length = sizeof(gl);
+        output.fail_at = 0xffffffffU;
+        assert(mm_text_collection_write(properties, &writer, order, system) && !memcmp(output.bytes, gl, sizeof(gl)));
+        writer.length = sizeof(ag);
+        output.fail_at = 36;
+        assert(!mm_text_collection_write(arguments, &writer, order, system));
+        assert(mm_text_collection_argument_ref(arguments, 2) == 0x40000001U);
+        output.fail_at = 0xffffffffU;
+        assert(mm_text_collection_write(arguments, &writer, order, system) && !memcmp(output.bytes, ag, sizeof(ag)));
+
+        mm_text_property_ref(2, 1, 0, &services.arguments);
+        assert(!mm_text_collection_argument(arguments, 0, &argument_bytes));
+        assert(mm_text_collection_argument_ref(arguments, 2) == 0x40000001U);
+        mm_text_collection_dispose(arguments);
+        mm_text_collection_dispose(properties);
+    }
+}
+
 static void caption_tests(void)
 {
     Caption h;
@@ -668,6 +796,7 @@ static void sound_tests(void)
 int main(void)
 {
     caption_tests();
+    edited_caption_collections();
     audio_tests();
     sound_tests();
     puts("Preview media: caption prefixes/UTF-16/properties, stable sorting, envelope/MIDI budgets, source remapping "

@@ -1,6 +1,7 @@
 /* Stored rich-text and text-box persistence over typed file/collection services. */
 #ifndef MM_ENGINE_TEXT_STORE_H
 #define MM_ENGINE_TEXT_STORE_H
+#include "collection_storage.h"
 #include "movie_title.h"
 #include "read_stream.h"
 #ifdef __cplusplus
@@ -116,6 +117,23 @@ extern "C"
     int mm_rich_text_create(const MMRichTextDefaults *, const MMMovieTitle *, MMTextChunk *, int big,
                             const MMRichTextWriteServices *);
     int mm_rich_text_write(const MMRichTextState *, MMTextChunk *, int big, const MMRichTextWriteServices *);
+
+    typedef struct MMTextCollection MMTextCollection;
+    MMTextCollection *mm_text_collection_new(MMU32 kind);
+    void mm_text_collection_dispose(MMTextCollection *);
+    int mm_text_collection_read(MMU32 kind, const MMReadStream *, MMTextCollection **, int *order, int *system);
+    int mm_text_collection_write(MMTextCollection *, const MMStorageWriter *, int order, int system);
+    MMI32 mm_text_collection_width(const MMTextCollection *);
+    MMU32 mm_text_collection_count(const MMTextCollection *);
+    MMU32 mm_text_collection_bytes(const MMTextCollection *);
+    /* Property words and fixed argument references are native values. Variable
+     * argument bytes are borrowed in stored form until the next mutation. */
+    int mm_text_collection_property(const MMTextCollection *, MMU32 row, MMU32 words[2]);
+    int mm_text_collection_put_property(MMTextCollection *, MMU32 row, const MMU32 words[2], int insert);
+    const void *mm_text_collection_argument(const MMTextCollection *, MMU32 row, MMI32 *bytes);
+    MMU32 mm_text_collection_argument_ref(const MMTextCollection *, MMU32 row);
+    int mm_text_collection_put_argument_ref(MMTextCollection *, MMU32 row, MMU32 ref);
+    int mm_text_collection_delete(MMTextCollection *, MMU32 row);
 #ifdef __cplusplus
 }
 #endif

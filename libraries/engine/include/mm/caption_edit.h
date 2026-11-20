@@ -85,6 +85,17 @@ typedef struct MMCaptionEditWords
     size_t count;
 } MMCaptionEditWords;
 
+typedef struct MMCaptionPropertyMap
+{
+    MMRichTextState *body;
+    MMCaptionEditWords words;
+    int diagnosed;
+} MMCaptionPropertyMap;
+
+/* The body owns C text collections. Words are the currently selected
+ * paragraph source and remain borrowed throughout the edit. */
+void mm_caption_edit_property_services(MMCaptionPropertyMap *, MMTextPropertyServices *);
+
 typedef struct MMCaptionEditHost
 {
     void *context;
