@@ -1,4 +1,5 @@
 #include "mm/scene_selection.h"
+#include "mm/actor_owner.h"
 #include "scene_member_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,6 +19,8 @@ typedef struct Object
     unsigned short name[256];
     MMI32 length;
     MMActorPoint position;
+    MMActorOwner owner;
+    int refs;
 } Object;
 typedef struct Host
 {
@@ -27,6 +30,8 @@ typedef struct Host
     MMSceneSelection selection;
     int mode;
     int trace[256], trace_count;
+    Object *pick, *cover;
+    int undo_releases, undo_creates, undo_clears, undo_errors;
 } Host;
 static void event(Host *h, int code)
 {
@@ -470,6 +475,138 @@ static void test_tag_units(void)
     named(h.objects, "#a-b!");
     CHECK(mm_scene_selection_tag("a-b", 3, 0, &s) && h.selection.actor == h.objects);
 }
+static MMActorOwner *pointer_owner(void *p, void *actor)
+{
+    (void)p;
+    return &((Object *)actor)->owner;
+}
+
+static void pointer_retain(void *p, void *actor) { (void)p; ++((Object *)actor)->refs; }
+static void pointer_release(void *p, void *actor) { (void)p; CHECK(((Object *)actor)->refs-- > 0); }
+
+static void *pointer_pick(void *p, MMI32 x, MMI32 y, MMI32 *part)
+{
+    Host *h = p;
+    (void)x;
+    (void)y;
+    event(h, 60);
+    if (h->pick)
+        *part = 4;
+    return h->pick;
+}
+
+static int pointer_covers(void *p, void *actor, MMI32 x, MMI32 y, MMI32 *part)
+{
+    Host *h = p;
+    (void)x;
+    (void)y;
+    event(h, 61);
+    if (actor != h->cover)
+        return 0;
+    *part = 8;
+    return 1;
+}
+
+static void pointer_clicked(void *p, void *actor) { event(p, 70 + ((Object *)actor)->id); }
+static void pointer_dirty(void *p) { event(p, 62); }
+static void pointer_views(void *p) { event(p, 63); }
+
+static struct MMActorUndoState *pointer_undo_new(void *p, void **handle)
+{
+    Host *h = p;
+    (void)handle;
+    CHECK(h->selection.actor == h->objects + 1 && h->undo_releases == 1);
+    ++h->undo_creates;
+    return NULL;
+}
+
+static void pointer_undo_release(void *p, void *handle)
+{
+    Host *h = p;
+    CHECK(handle == h);
+    ++h->undo_releases;
+}
+
+static void pointer_undo_clear(void *p) { ++((Host *)p)->undo_clears; }
+static void pointer_undo_error(void *p) { ++((Host *)p)->undo_errors; }
+
+static void test_actor_pointer(void)
+{
+    Host h;
+    MMSceneSelectionServices s = init(&h, 0);
+    MMSceneSelectionServices other = s;
+    MMSceneOwner other_owner = {0};
+    MMSceneActorPointer pointer = {0};
+    MMSceneActorPointerInput in = {10, 20, MM_SCENE_POINTER_TRANSFORM, 0};
+    MMSceneActorPointerView view = {NULL, pointer_pick, pointer_covers, pointer_clicked, pointer_dirty, pointer_views};
+    MMActorOwnerServices actors = {0};
+    MMActorDragUndoServices undo = {0};
+    MMActorDragUndo pending = {0};
+    MMI32 part = 0;
+    view.context = &h;
+    actors.owner = pointer_owner;
+    actors.retain = pointer_retain;
+    actors.release = pointer_release;
+    undo.context = &h;
+    undo.create_actor = pointer_undo_new;
+    undo.release = pointer_undo_release;
+    undo.clear = pointer_undo_clear;
+    undo.not_undoable = pointer_undo_error;
+    other.owner = &other_owner;
+    CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects));
+    CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects + 1));
+    h.selection.actor = h.cover = h.objects;
+    h.pick = h.objects + 1;
+    h.objects[0].owner.runtime.time_frozen = 1;
+    CHECK(mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view) == h.objects);
+    CHECK(part == 8 && !h.objects[0].owner.runtime.time_frozen && !pointer.target);
+    CHECK(h.trace[0] == 60 && h.trace[1] == 61 && h.trace[2] == 71 && h.trace[h.trace_count - 1] == 62);
+    h.cover = NULL;
+    in.tool = MM_SCENE_POINTER_DEFAULT;
+    CHECK(mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view) == h.objects && part == 4);
+    in.tool = MM_SCENE_POINTER_TRANSFORM;
+    in.shift = 1;
+    CHECK(mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view) == h.objects);
+    CHECK(pointer.target == h.pick && h.pick->refs == 1 && mm_scene_selection_count(&s) == 1);
+    in.x = 13;
+    in.y = 17;
+    CHECK(mm_scene_actor_pointer_drag(&pointer, &in, &pending, &s, &actors, &undo));
+    CHECK(mm_scene_actor_pointer_up(&pointer, in.x, in.y, &s, &actors, &view));
+    CHECK(mm_scene_selection_count(&s) == 2 && !pointer.target && !h.pick->refs);
+    CHECK(h.trace[h.trace_count - 2] == 62 && h.trace[h.trace_count - 1] == 63);
+
+    in.shift = 0;
+    h.trace_count = 0;
+    CHECK(mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view) == h.objects);
+    CHECK(h.trace_count == 2 && h.trace[0] == 60 && h.trace[1] == 62 && mm_scene_selection_count(&s) == 2);
+    in.shift = 1;
+    mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view);
+    pending.single = &h;
+    in.x += 4;
+    CHECK(!mm_scene_actor_pointer_drag(&pointer, &in, &pending, &s, &actors, &undo));
+    CHECK(pending.single == &h && !h.undo_releases && mm_scene_selection_count(&s) == 2);
+
+    CHECK(mm_scene_selection_toggle(h.pick, &s));
+    mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view);
+    in.x += 4;
+    CHECK(!mm_scene_actor_pointer_drag(&pointer, &in, &pending, &s, &actors, &undo));
+    CHECK(!pending.single && h.undo_releases == 1 && h.undo_creates == 1 && h.undo_clears == 1 && h.undo_errors == 1);
+    CHECK(h.selection.actor == h.pick && mm_scene_selection_count(&s) == 1 && !h.pick->refs);
+
+    mm_scene_select_actor(h.objects, &s);
+    mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view);
+    CHECK(!mm_scene_actor_pointer_up(&pointer, in.x, in.y, &other, &actors, &view) && !h.pick->refs);
+    CHECK(h.selection.actor == h.objects && mm_scene_selection_count(&s) == 1);
+    mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view);
+    mm_scene_member_remove(&h.owner, MM_SCENE_ACTORS, 1);
+    in.x += 4;
+    CHECK(mm_scene_actor_pointer_drag(&pointer, &in, &pending, &s, &actors, &undo));
+    CHECK(pointer.cancelled && !pointer.target && !h.pick->refs);
+    CHECK(mm_scene_actor_pointer_drag(&pointer, &in, &pending, &s, &actors, &undo));
+    CHECK(!mm_scene_actor_pointer_up(&pointer, in.x, in.y, NULL, &actors, &view) && !pointer.cancelled);
+    CHECK(h.selection.actor == h.objects && mm_scene_selection_count(&s) == 1);
+}
+
 int main(void)
 {
     test_views();
@@ -478,6 +615,7 @@ int main(void)
     test_centroid();
     test_tag_units();
     test_tag_edit();
+    test_actor_pointer();
     puts("Scene selection policy passed");
     return 0;
 }

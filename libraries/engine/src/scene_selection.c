@@ -1,6 +1,8 @@
 /* Scene selection converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_selection.h"
+#include "mm/actor_owner.h"
+#include "mm/actor_transform_edit.h"
 #include "mm/wide.h"
 #include <stddef.h>
 #include <string.h>
@@ -94,6 +96,110 @@ int mm_scene_selection_contains(void *actor, const MMSceneSelectionServices *s)
             return 1;
     return 0;
 }
+
+void mm_scene_actor_pointer_reset(MMSceneActorPointer *pointer, const MMActorOwnerServices *actors)
+{
+    void *actor = pointer->target;
+    pointer->target = NULL;
+    pointer->origin = NULL;
+    pointer->cancelled = 0;
+    if (actor)
+        actors->release(actors->context, actor);
+}
+
+void *mm_scene_actor_pointer_down(MMSceneActorPointer *pointer, const MMSceneActorPointerInput *input, MMI32 *part,
+                                  const MMSceneSelectionServices *s, const MMActorOwnerServices *actors,
+                                  const MMSceneActorPointerView *view)
+{
+    void *actor = s->state->actor;
+    void *hit;
+    if (actor)
+        mm_actor_owner_freeze_time(actors->owner(actors->context, actor), 0);
+    hit = view->pick(view->context, input->x, input->y, part);
+    if (input->tool != MM_SCENE_POINTER_OTHER && hit && input->shift)
+    {
+        actors->retain(actors->context, hit);
+        pointer->target = hit;
+        pointer->origin = s->owner;
+        pointer->x = input->x;
+        pointer->y = input->y;
+    }
+    else if (input->tool == MM_SCENE_POINTER_OTHER || !hit ||
+             mm_scene_selection_count(s) < 2 || !mm_scene_selection_contains(hit, s))
+    {
+        if ((!actor || !view->covers(view->context, actor, input->x, input->y, part)) &&
+            input->tool != MM_SCENE_POINTER_DEFAULT)
+            actor = hit;
+        if (actor)
+        {
+            view->clicked(view->context, actor);
+            mm_scene_selection_shared(actor, s);
+        }
+        else
+            mm_scene_select_actor(NULL, s);
+    }
+    view->world_dirty(view->context);
+    return actor;
+}
+
+static int pointer_near(MMI32 a, MMI32 b)
+{
+    MMU32 distance = a < b ? (MMU32)b - (MMU32)a : (MMU32)a - (MMU32)b;
+    return distance <= 3U;
+}
+
+static int pointer_live(const MMSceneActorPointer *pointer, const MMSceneSelectionServices *s)
+{
+    MMI32 i, count;
+    if (!s || s->owner != pointer->origin)
+        return 0;
+    count = mm_scene_member_count(s->owner, MM_SCENE_ACTORS);
+    for (i = 0; i < count; ++i)
+        if (mm_scene_member_at(s->owner, MM_SCENE_ACTORS, i) == pointer->target)
+            return 1;
+    return 0;
+}
+
+int mm_scene_actor_pointer_drag(MMSceneActorPointer *pointer, const MMSceneActorPointerInput *input,
+                                MMActorDragUndo *pending, const MMSceneSelectionServices *s,
+                                const MMActorOwnerServices *actors, const MMActorDragUndoServices *undo)
+{
+    if (!pointer->target)
+        return pointer->cancelled;
+    if (s && s->owner == pointer->origin && pointer_near(pointer->x, input->x) && pointer_near(pointer->y, input->y))
+        return 1;
+    if (!pointer_live(pointer, s))
+    {
+        mm_scene_actor_pointer_reset(pointer, actors);
+        pointer->cancelled = 1;
+        return 1;
+    }
+    if (!mm_scene_selection_contains(pointer->target, s))
+    {
+        mm_actor_drag_undo_discard(pending, undo);
+        mm_scene_select_actor(pointer->target, s);
+        if (input->tool == MM_SCENE_POINTER_TRANSFORM)
+            mm_actor_drag_undo_begin(pending, pointer->target, 0, NULL, actors, undo);
+    }
+    mm_scene_actor_pointer_reset(pointer, actors);
+    return 0;
+}
+
+int mm_scene_actor_pointer_up(MMSceneActorPointer *pointer, MMI32 x, MMI32 y, const MMSceneSelectionServices *s,
+                              const MMActorOwnerServices *actors, const MMSceneActorPointerView *view)
+{
+    int toggled = pointer->target && pointer_near(pointer->x, x) && pointer_near(pointer->y, y) &&
+                  pointer_live(pointer, s);
+    if (toggled)
+    {
+        mm_scene_selection_toggle(pointer->target, s);
+        view->world_dirty(view->context);
+        view->mark_views(view->context);
+    }
+    mm_scene_actor_pointer_reset(pointer, actors);
+    return toggled;
+}
+
 int mm_scene_selection_toggle(void *actor, const MMSceneSelectionServices *s)
 {
     MMI32 i;

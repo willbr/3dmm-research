@@ -33,6 +33,7 @@
 #include "mm/actor_record.h"
 #include "mm/movie_content.h"
 #include "mm/movie_compose.h"
+#include "mm/scene_selection.h"
 
 //
 // Tools that can be "loaded" on the mouse cursor
@@ -192,12 +193,8 @@ class MovieView : public MovieView_PAR
     bool _fTextMode : 1;          // fTrue if Text boxes are active.
     bool _fRespectGround : 1;     // fTrue if Y=0 is enforced.
     bool _fMouseOn : 1;
-    bool _fSelToggleArmed : 1; // Shift-clicked an actor at mousedown; apply toggle on mouseup if no drag.
-
     bool _fMouseDownSeen; // Was the mouse depressed during a place.
-    PActor _pactrSelToggle; // Actor under cursor at the armed shift-click.
-    long _xpSelToggleDown;  // Mousedown x for drag-tolerance check.
-    long _ypSelToggleDown;  // Mousedown y for drag-tolerance check.
+    MMSceneActorPointer _pointerSelection{};
 
     AbstractColor _acr;         // Color for painting text.
     long _onn;        // Font for text
@@ -226,6 +223,7 @@ class MovieView : public MovieView_PAR
     bool _FRecordTemplateMatches(PActor actor);
 
     void _ActorClicked(PActor pactr, bool fDown);
+    MMSceneActorPointerView _ActorPointerView();
 
   public:
     static void SlowKeyboardRepeat(void);

@@ -3587,6 +3587,7 @@ MovieView::~MovieView(void)
         TagManager::CloseTag(&_tagTool);
     _DiscardMoveUndo();
     const auto actors = Actor::_OwnerServices();
+    mm_scene_actor_pointer_reset(&_pointerSelection, &actors);
     mm_actor_placement_discard(&_placement, &actors);
     const auto recording = _RecordGestureServices();
     mm_actor_record_gesture_discard(&_recordGesture, &recording);
@@ -3634,8 +3635,6 @@ MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp,
     pmvu->_dyp = dyp;
     pmvu->_tool = toolCompose;
     pmvu->_tagTool.sid = ksidInvalid;
-    pmvu->_fSelToggleArmed = fFalse;
-    pmvu->_pactrSelToggle = pvNil;
 
     //
     // Make this the active view
@@ -4654,6 +4653,44 @@ void MovieView::_ActorClicked(PActor pactr, bool fDown)
     }
 }
 
+static int ActorPointerTool(long tool)
+{
+    switch (tool)
+    {
+    case toolDefault: return MM_SCENE_POINTER_DEFAULT;
+    case toolActorSelect: return MM_SCENE_POINTER_SELECT;
+    case toolCompose:
+    case toolRotateX:
+    case toolRotateY:
+    case toolRotateZ:
+    case toolResize:
+    case toolSquashStretch: return MM_SCENE_POINTER_TRANSFORM;
+    default: return MM_SCENE_POINTER_OTHER;
+    }
+}
+
+MMSceneActorPointerView MovieView::_ActorPointerView()
+{
+    return {
+        this,
+        [](void *p, MMI32 x, MMI32 y, MMI32 *part) -> void * {
+            long native = *part;
+            auto hit = static_cast<PMovieView>(p)->Pmvie()->Pscen()->PactrFromPt(x, y, &native);
+            *part = native;
+            return hit;
+        },
+        [](void *, void *p, MMI32 x, MMI32 y, MMI32 *part) {
+            auto actor = static_cast<PActor>(p);
+            long native = *part;
+            const bool hit = actor->FIsInView() && actor->FPtIn(x, y, &native);
+            *part = native;
+            return int(hit);
+        },
+        [](void *p, void *actor) { static_cast<PMovieView>(p)->_ActorClicked(static_cast<PActor>(actor), true); },
+        [](void *p) { static_cast<PMovieView>(p)->Pmvie()->Pbwld()->MarkDirty(); },
+        [](void *p) { static_cast<PMovieView>(p)->Pmvie()->MarkViews(); }};
+}
+
 /***************************************************************************
  *
  * Handle Mousedown
@@ -4671,13 +4708,14 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     AssertVarMem(pcmd);
 
     PActor pactr = pvNil;
-    PActor pactrDup;
     PTBOX ptbox;
     PT pt;
-    long ibset;
+    MMI32 ibset = 0;
     PDocumentBase pdocb;
 
     SlowKeyboardRepeat();
+    const auto actors = Actor::_OwnerServices();
+    mm_scene_actor_pointer_reset(&_pointerSelection, &actors);
 
     if (Pmvie()->FPlaying())
     {
@@ -4700,73 +4738,12 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     }
     else if ((Tool() != toolPlace) && (Tool() != toolSceneChop) && (Tool() != toolSceneChopBack))
     {
-        //
-        // Select the actor under the cursor.
-        //
-        pactr = Pmvie()->Pscen()->PactrSelected();
-        AssertNilOrPo(pactr, 0);
-
-        if (pactr)
-            mm_actor_owner_freeze_time(&pactr->_owner, 0);
-
-        pactrDup = Pmvie()->Pscen()->PactrFromPt(pcmd->xp, pcmd->yp, &ibset);
-
-        // Shift-click on an actor with a selection-friendly tool: arm a toggle for mouseup.
-        // Tools that support multi-actor drags participate (move, rotate, resize, squash),
-        // plus the default and explicit-select tools. Other tools collapse to single-select
-        // via the existing path below.
-        bool fShiftSelectTool = (Tool() == toolCompose) || (Tool() == toolDefault) ||
-                                (Tool() == toolActorSelect) || (Tool() == toolRotateX) ||
-                                (Tool() == toolRotateY) || (Tool() == toolRotateZ) ||
-                                (Tool() == toolResize) || (Tool() == toolSquashStretch);
-        if (fShiftSelectTool && (pcmd->grfcust & fcustShift) && pactrDup != pvNil)
-        {
-            _fSelToggleArmed = fTrue;
-            _pactrSelToggle = pactrDup;
-            _xpSelToggleDown = pcmd->xp;
-            _ypSelToggleDown = pcmd->yp;
-            Pmvie()->Pbwld()->MarkDirty();
-            // Do NOT call SelectActr here. Toggle fires at mouseup if we didn't drag.
-            // Skip the rest of the mousedown selection flow; existing behavior resumes
-            // at the switch on Tool() below if the user goes on to drag.
-        }
-        else if (fShiftSelectTool && pactrDup != pvNil &&
-                 Pmvie()->Pscen()->CactrSelected() >= 2 && Pmvie()->Pscen()->FIsActrSelected(pactrDup))
-        {
-            // Plain click (no shift) on an actor that is already part of an existing
-            // multi-selection: do NOT collapse the selection via SelectActr, so a
-            // click-drag moves the whole group. Without this, SelectActr would clear
-            // the extras list and the drag would only translate the clicked actor.
-            Pmvie()->Pbwld()->MarkDirty();
-        }
-        else
-        {
-            //
-            // Use previously selected actor if mouse in the actor.
-            // Don't change the selected actor if we're using the default tool.
-            //
-            if (((pactr == pvNil) || !pactr->FIsInView() || !pactr->FPtIn(pcmd->xp, pcmd->yp, &ibset)) &&
-                Tool() != toolDefault)
-            {
-                pactr = pactrDup;
-                AssertNilOrPo(pactr, 0);
-            }
-
-            if (pvNil != pactr)
-            {
-                _ActorClicked(pactr, fTrue);
-                // Plain click on a tagged actor recalls its whole group;
-                // for actors with no tag this collapses to SelectActr, the
-                // pre-tag-feature behaviour. Shift-click bypasses this --
-                // shift-toggle is single-actor by design.
-                Pmvie()->Pscen()->FSelectActrsSharingTagsWith(pactr);
-            }
-            else
-            {
-                Pmvie()->Pscen()->SelectActr(pvNil);
-            }
-            Pmvie()->Pbwld()->MarkDirty();
-        }
+        const MMSceneActorPointerInput input{pcmd->xp, pcmd->yp, ActorPointerTool(Tool()),
+                                             (pcmd->grfcust & fcustShift) != 0};
+        const auto selection = Pmvie()->Pscen()->_SelectionServices();
+        const auto view = _ActorPointerView();
+        pactr = static_cast<PActor>(mm_scene_actor_pointer_down(&_pointerSelection, &input, &ibset,
+                                                               &selection, &actors, &view));
     }
 
 #ifdef DEBUG
@@ -5176,43 +5153,14 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         return;
     }
 
-    //
-    // Shift-click selection toggle, retroactive arm:
-    //   - If the user shift-clicked at mousedown and the mouse stays within
-    //     a 3 px tolerance, leave the toggle armed -- _MouseUp will fire it.
-    //   - Once the mouse moves past tolerance the click "becomes a drag".
-    //     For parity with original 3DMM (where shift+mousedown on a
-    //     non-selected actor would call SelectActr on it), retroactively
-    //     collapse the selection to the clicked actor and allocate the
-    //     drag-undo snapshot we skipped in _MouseDown. If the clicked actor
-    //     is already part of the current selection, just disarm so the
-    //     existing single-/multi-actor drag flow continues unchanged.
-    //
-    if (_fSelToggleArmed)
+    if (_pointerSelection.target || _pointerSelection.cancelled)
     {
-        const long kdxpSelToggleTol = 3;
-        const long kdypSelToggleTol = 3;
-        long dxpSel = LwAbs(pcmd->xp - _xpSelToggleDown);
-        long dypSel = LwAbs(pcmd->yp - _ypSelToggleDown);
-
-        if (dxpSel <= kdxpSelToggleTol && dypSel <= kdypSelToggleTol)
-        {
-            // Still within tolerance. Suppress drag application this tick so
-            // we don't translate the previous selection while the user might
-            // still be aiming at a click.
+        const MMSceneActorPointerInput input{pcmd->xp, pcmd->yp, ActorPointerTool(Tool()), 0};
+        const auto selection = pscen->_SelectionServices();
+        const auto actors = Actor::_OwnerServices();
+        const auto undo = ActorMoveGroupUndo::DragUndoServices(pmvie);
+        if (mm_scene_actor_pointer_drag(&_pointerSelection, &input, &_actorDrag.undo, &selection, &actors, &undo))
             return;
-        }
-
-        if (_pactrSelToggle != pvNil && !pscen->FIsActrSelected(_pactrSelToggle))
-        {
-            _DiscardMoveUndo();
-            pscen->SelectActr(_pactrSelToggle);
-            if (Tool() == toolCompose)
-                pscen->CaptureActorDragUndo(&_actorDrag.undo, _pactrSelToggle, false, false);
-        }
-
-        _fSelToggleArmed = fFalse;
-        _pactrSelToggle = pvNil;
     }
 
     pactr = pscen->PactrSelected();
@@ -5343,26 +5291,14 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     PActor pactr = pvNil;
     bool fJustToggledSel = fFalse; // user shift-click-released without dragging
 
-    // Shift-click selection toggle: if the user shift-clicked at mousedown
-    // and didn't drag past tolerance, fire the toggle now.
-    if (_fSelToggleArmed)
+    if (_pointerSelection.target || _pointerSelection.cancelled)
     {
-        const long kdxpSelToggleTol = 3;
-        const long kdypSelToggleTol = 3;
-        long dxp = LwAbs(pcmd->xp - _xpSelToggleDown);
-        long dyp = LwAbs(pcmd->yp - _ypSelToggleDown);
-        if (dxp <= kdxpSelToggleTol && dyp <= kdypSelToggleTol)
-        {
-            if (_pactrSelToggle != pvNil && Pmvie()->Pscen() != pvNil)
-            {
-                Pmvie()->Pscen()->FToggleActrSelected(_pactrSelToggle);
-                Pmvie()->Pbwld()->MarkDirty();
-                Pmvie()->MarkViews();
-                fJustToggledSel = fTrue;
-            }
-        }
-        _fSelToggleArmed = fFalse;
-        _pactrSelToggle = pvNil;
+        auto scene = Pmvie()->Pscen();
+        const auto selection = scene ? scene->_SelectionServices() : MMSceneSelectionServices{};
+        const auto actors = Actor::_OwnerServices();
+        const auto view = _ActorPointerView();
+        fJustToggledSel = mm_scene_actor_pointer_up(&_pointerSelection, pcmd->xp, pcmd->yp,
+                                                   scene ? &selection : nullptr, &actors, &view) != 0;
     }
 
     pmvie = Pmvie();
@@ -6234,6 +6170,7 @@ void MovieView::MarkMem(void)
     MarkMemObj(Pmvie());
     MarkMemObj(static_cast<PUndoBase>(_actorDrag.undo.single));
     MarkMemObj(static_cast<PUndoBase>(_actorDrag.undo.group));
+    MarkMemObj(static_cast<PActor>(_pointerSelection.target));
     MarkMemObj(static_cast<PActor>(_placement.actor));
     MarkMemObj(static_cast<PActor>(_placement.snapshot));
     MarkMemObj(static_cast<PActor>(_recordGesture.restore));

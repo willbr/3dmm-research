@@ -2004,6 +2004,17 @@ references. Native services provide counted display-name access, body/view
 queries, highlight/caption effects and Movie menu/client notifications. Native
 typed primary fields are published views of the C state.
 
+Studio's pointer selection uses the same C controller. On press it preserves
+the hit order, body-part index, default-tool behavior and existing group when
+clicking a member. A plain pick of a tagged actor recalls its named group.
+Shift holds a reference to the pressed actor and waits for release within three
+pixels on each axis before toggling. Movement beyond that tolerance preserves
+the group for a selected member. For a live nonmember, it selects that actor
+and captures single-actor undo before applying a transform. This restores undo
+for retargeted rotate, resize and squash gestures. A deleted target or a
+different scene cancels the pending selection. Studio supplies hit, click,
+cursor and redraw effects.
+
 Plain actor selection unhighlights/clears extras and deselects a caption only
 with an actor-mode view. No-view and text-mode calls retain extras, including
 their membership when a null primary makes the count zero. Toggling searches
@@ -2043,6 +2054,24 @@ seven-actor movie with matching IDs, actions, cels and positions at frame 7.
 Both stock actors' tag names survived a save in retail and another open in SDL
 Studio. After a retail save, the custom-material fixture produced the same
 missing `MTRL:2` error on both Studio builds.
+
+The pointer tests cover body-part precedence, the inclusive three-pixel
+boundary, target references, changing scenes, removal and undo allocation
+failure. Fourteen routed Studio workflows had matching selections and edited
+poses. The three corrected Shift-drags undid and redid the intended actor's
+edit. Their post-redo saves matched the previous build's equivalent plain
+drags with working undo. All six direct saves matched the previous build's 72
+chunk entries, links and payloads per movie. An initial post-redo move save
+showed different actor and scene end-frame caches. Repeating that move on the
+previous build reproduced both cache values, and the repeated save matched
+the new build. Retail reopened all six edited movies with matching actor poses
+and positions at frame 7. Removing the armed target during a Studio press
+preserved the other actor's selection and pose.
+
+Fresh SDL and Marcus seek and playback runs (`20261120T033629Z-98dd97ea`)
+matched all 60 scene and frame markers from the retained retail capture in
+each mode. Each port's seek images matched its previous build. Camera indices
+and all 12 SDL playback sound events matched retail.
 
 Capture suite `20261120T014251Z-6d409d24` matched 60 scene/frame markers from
 retail in each port's seek and playback runs. Both ports' seek image hashes
