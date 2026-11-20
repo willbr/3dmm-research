@@ -3,53 +3,37 @@
 #include "mm/scene_edit.h"
 #include "mm/wide.h"
 #include <string.h>
-static void *group(int start, const MMSceneEditServices *s)
-{
-    return s->sound.events.owner->owned[start ? MM_SCENE_STARTS : MM_SCENE_FRAMES];
-}
-static MMI32 count(int start, const MMSceneEditServices *s)
-{
-    const MMSceneOwnerServices *o = &s->sound.events.owners;
-    return o->count(o->context, group(start, s));
-}
-static int event(int start, MMI32 i, MMI32 *frame, const MMSceneEditServices *s)
-{
-    int kind;
-    s->sound.events.event(s->sound.events.context, group(start, s), i, frame, &kind);
-    return kind;
-}
-static void *payload(int start, MMI32 i, const MMSceneEditServices *s)
-{
-    return s->sound.events.payload(s->sound.events.context, group(start, s), i);
-}
-static MMI32 camera_at(MMI32 i, const MMSceneEditServices *s)
+static MMI32 camera_at(const MMSceneTrack *frames, MMI32 i)
 {
     MMI32 camera;
-    memcpy(&camera, payload(0, i, s), 4);
+    memcpy(&camera, mm_scene_track_payload(frames, i, NULL), sizeof(camera));
     return camera;
 }
 int mm_scene_pause_edit(MMI32 *reason, MMI32 *delay, const MMSceneEditServices *s)
 {
     MMSceneRuntime *r = s->sound.events.runtime;
-    MMI32 i, frame, old[2], value[2];
+    MMSceneTrack *frames = &s->sound.events.owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    MMI32 i, old[2], value[2];
     for (i = r->next_event - 1; i >= 0; --i)
     {
-        int kind = event(0, i, &frame, s);
-        if (frame != s->sound.events.data->currentFrame)
+        if (!mm_scene_track_get(frames, i, &event) || event.frame != s->sound.events.data->currentFrame)
             break;
-        if (kind != MM_SCENE_PAUSE)
+        if (event.kind != MM_SCENE_PAUSE)
             continue;
-        memcpy(old, payload(0, i, s), 8);
+        memcpy(old, mm_scene_track_payload(frames, i, NULL), sizeof(old));
         if (!*reason)
         {
-            s->erase(s->context, group(0, s), i);
+            if (mm_group_delete(&frames->rows, i) != MM_STORAGE_OK)
+                return 0;
             --r->next_event;
         }
         else
         {
             value[0] = *reason;
             value[1] = *delay;
-            s->put(s->context, group(0, s), i, value);
+            if (!mm_scene_track_put(frames, i, sizeof(value), value))
+                return 0;
         }
         *reason = old[0];
         *delay = old[1];
@@ -57,7 +41,7 @@ int mm_scene_pause_edit(MMI32 *reason, MMI32 *delay, const MMSceneEditServices *
     }
     value[0] = *reason;
     value[1] = *delay;
-    if (!mm_scene_edit_insert(s->sound.events.data->currentFrame, MM_SCENE_PAUSE, 8, value, &s->sound))
+    if (!mm_scene_edit_insert(s->sound.events.data->currentFrame, MM_SCENE_PAUSE, sizeof(value), value, &s->sound))
         return 0;
     *reason = 0;
     *delay = 0;
@@ -81,56 +65,61 @@ static void old_camera(MMI32 *out, MMI32 value, const MMSceneEditServices *s)
 int mm_scene_camera_edit(MMI32 camera, MMI32 *old, const MMSceneEditServices *s)
 {
     MMSceneRuntime *r = s->sound.events.runtime;
-    MMI32 i, j, frame, previous;
+    MMSceneTrack *frames = &s->sound.events.owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    MMI32 i, j, frame;
     old_camera(old, 0, s);
     for (i = r->next_event - 1; i >= 0; --i)
     {
-        if (event(0, i, &frame, s) != MM_SCENE_CHANGE_CAMERA)
+        if (!mm_scene_track_get(frames, i, &event) || event.kind != MM_SCENE_CHANGE_CAMERA)
             continue;
+        frame = event.frame;
         if (frame == s->sound.events.data->currentFrame)
         {
             for (j = i - 1; j >= 0; --j)
-                if (event(0, j, &previous, s) == MM_SCENE_CHANGE_CAMERA)
+                if (mm_scene_track_get(frames, j, &event) && event.kind == MM_SCENE_CHANGE_CAMERA)
                 {
-                    old_camera(old, camera_at(j, s), s);
+                    old_camera(old, camera_at(frames, j), s);
                     break;
                 }
             if (*old == camera)
             {
-                old_camera(old, camera_at(i, s), s);
+                old_camera(old, camera_at(frames, i), s);
                 if (!play_camera(frame, &camera, s))
                     return 0;
-                s->erase(s->context, group(0, s), i);
+                if (mm_group_delete(&frames->rows, i) != MM_STORAGE_OK)
+                    return 0;
                 --r->next_event;
                 dirty(s);
                 goto success;
             }
-            old_camera(old, camera_at(i, s), s);
-            s->put(s->context, group(0, s), i, &camera);
+            old_camera(old, camera_at(frames, i), s);
+            if (!mm_scene_track_put(frames, i, sizeof(camera), &camera))
+                return 0;
             dirty(s);
             if (!play_camera(frame, &camera, s))
                 return 0;
             goto success;
         }
-        old_camera(old, camera_at(i, s), s);
+        old_camera(old, camera_at(frames, i), s);
         break;
     }
     if (*old == camera)
         goto success;
     frame = s->sound.events.data->currentFrame;
-    if (!mm_scene_edit_insert(frame, MM_SCENE_CHANGE_CAMERA, 4, &camera, &s->sound))
+    if (!mm_scene_edit_insert(frame, MM_SCENE_CHANGE_CAMERA, sizeof(camera), &camera, &s->sound))
         return 0;
     if (!play_camera(frame, &camera, s))
     {
-        s->erase(s->context, group(0, s), --r->next_event);
+        mm_group_delete(&frames->rows, --r->next_event);
         return 0;
     }
 success:
-    for (i = r->next_event; i < count(0, s); ++i)
-        if (event(0, i, &frame, s) == MM_SCENE_CHANGE_CAMERA)
+    for (i = r->next_event; (MMU32)i < frames->rows.count; ++i)
+        if (mm_scene_track_get(frames, i, &event) && event.kind == MM_SCENE_CHANGE_CAMERA)
         {
-            if (camera_at(i, s) == camera)
-                s->erase(s->context, group(0, s), i);
+            if (camera_at(frames, i) == camera && mm_group_delete(&frames->rows, i) != MM_STORAGE_OK)
+                return 0;
             break;
         }
     return 1;
@@ -194,30 +183,40 @@ int mm_scene_camera_journal(MMI32 scene, unsigned long camera, const MMSceneCame
     return 1;
 }
 
+static int play_background(const MMTag *tag, const MMSceneEventServices *s)
+{
+    MMTag value = *tag;
+    return mm_scene_play_event(0, MM_SCENE_SET_BACKGROUND, &value, s->runtime->disabled, s);
+}
 int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServices *s)
 {
     const MMSceneEventServices *e = &s->sound.events;
-    MMI32 i, j, frame = 0;
+    MMSceneTrack *starts = &e->owner->tracks[MM_SCENE_STARTS];
+    MMSceneTrack *frames = &e->owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    MMI32 i, bytes;
+    const void *payload;
     MMTag value;
-    MMU32 mask;
     if (e->owner->owned[MM_SCENE_BACKGROUND])
     {
-        for (i = 0; i < count(1, s); ++i)
+        for (i = 0; (MMU32)i < starts->rows.count; ++i)
         {
-            if (event(1, i, &frame, s) != MM_SCENE_SET_BACKGROUND)
+            if (!mm_scene_track_get(starts, i, &event) || event.kind != MM_SCENE_SET_BACKGROUND)
                 continue;
-            memcpy(&value, payload(1, i, s), sizeof(value));
+            payload = mm_scene_track_payload(starts, i, &bytes);
+            if (!payload || bytes < (MMI32)sizeof(value))
+                return 0;
+            memcpy(&value, payload, sizeof(value));
             output_tag(old, &value, 0, s);
-            if (!s->put_background(s->context, i, tag))
+            if (!mm_scene_track_put(starts, i, sizeof(*tag), tag))
                 return 0;
             e->owners.lights_off(e->owners.context, e->owner->owned[MM_SCENE_BACKGROUND]);
             mm_scene_owner_drop(e->owner, e->scene, MM_SCENE_BACKGROUND, &e->owners);
             dirty(s);
-            mask = e->runtime->disabled;
-            if (!s->play_background(s->context, frame, tag, mask))
+            if (!play_background(tag, e))
             {
-                s->put_background(s->context, i, old);
-                s->play_background(s->context, frame, old, e->runtime->disabled);
+                mm_scene_track_put(starts, i, sizeof(*old), old);
+                play_background(old, e);
                 return 0;
             }
             s->background_name(s->context);
@@ -230,27 +229,21 @@ int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServ
     value.cache = NULL;
     value.type = value.number = 0;
     output_tag(old, &value, 1, s);
-    if (!s->insert_background(s->context, 0, tag))
+    event.frame = 0;
+    event.kind = MM_SCENE_SET_BACKGROUND;
+    if (!mm_scene_track_insert(starts, 0, sizeof(*tag), tag, &event))
         return 0;
-    if (!s->play_background(s->context, 0, tag, e->runtime->disabled))
+    if (!play_background(tag, e))
     {
-        s->erase(s->context, group(1, s), 0);
+        mm_group_delete(&starts->rows, 0);
         return 0;
     }
     s->background_name(s->context);
     dirty(s);
 success:
-    while (count(0, s))
-    {
-        i = count(0, s) - 1;
-        if (event(0, i, &frame, s) == MM_SCENE_PLAY_SOUND)
-        {
-            MMSceneSound *sound = (MMSceneSound *)payload(0, i, s);
-            for (j = 0; j < sound->ctagc; ++j)
-                e->owners.sound.close(e->owners.sound.context, payload(0, i, s), j);
-        }
-        s->erase(s->context, group(0, s), i);
-    }
+    while (frames->rows.count)
+        if (!mm_scene_owner_erase_frame(e->owner, frames->rows.count - 1, &e->owners))
+            return 0;
     e->runtime->next_event = 0;
     s->scene_change(s->context);
     if (s->can_notify(s->context))
@@ -259,17 +252,17 @@ success:
 }
 int mm_scene_is_empty(const MMSceneEditServices *s)
 {
-    MMI32 i, frame;
-    int kind;
-    if (count(1, s) != 1 || mm_signed_word((MMU32)s->sound.events.data->lastFrame -
+    const MMSceneOwner *owner = s->sound.events.owner;
+    const MMSceneTrack *frames = &owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    MMI32 i;
+    if (owner->tracks[MM_SCENE_STARTS].rows.count != 1 || mm_signed_word((MMU32)s->sound.events.data->lastFrame -
                                                  (MMU32)s->sound.events.data->firstFrame) > 0)
         return 0;
-    for (i = 0; i < count(0, s); ++i)
-    {
-        kind = event(0, i, &frame, s);
-        if (kind != MM_SCENE_CHANGE_CAMERA && kind != MM_SCENE_PLAY_SOUND)
+    for (i = 0; (MMU32)i < frames->rows.count; ++i)
+        if (!mm_scene_track_get(frames, i, &event) ||
+            (event.kind != MM_SCENE_CHANGE_CAMERA && event.kind != MM_SCENE_PLAY_SOUND))
             return 0;
-    }
     return 1;
 }
 int mm_scene_pause_undo_edit(MMI32 reason, MMI32 delay, const MMSceneEditServices *s)

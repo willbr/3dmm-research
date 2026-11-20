@@ -30,8 +30,6 @@ extern "C"
         const MMSceneState *data;
         MMSceneOwner *owner;
         MMSceneOwnerServices owners;
-        void (*event)(void *, void *group, MMI32 index, MMI32 *frame, int *kind);
-        void *(*payload)(void *, void *group, MMI32 index);
         void *(*duplicate_sound)(void *, void *payload);
         void (*play_sound)(void *, void *payload);
         void *(*fetch_background)(void *, MMTag *);

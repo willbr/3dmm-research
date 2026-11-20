@@ -2,46 +2,17 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_chop.h"
 #include <stddef.h>
-static void *group(int slot, const MMSceneChopServices *s)
-{
-    return s->events.owner->owned[slot];
-}
-static MMI32 count(int slot, const MMSceneChopServices *s)
-{
-    return s->events.owners.count(s->events.owners.context, group(slot, s));
-}
-static int kind(MMI32 i, MMI32 *frame, const MMSceneChopServices *s)
-{
-    int k;
-    s->events.event(s->events.context, group(MM_SCENE_FRAMES, s), i, frame, &k);
-    return k;
-}
-static void erase(MMI32 i, const MMSceneChopServices *s)
-{
-    const MMSceneSoundServices *v = &s->events.owners.sound;
-    MMI32 frame, j, n;
-    void *payload;
-    if (kind(i, &frame, s) == MM_SCENE_PLAY_SOUND)
-    {
-        payload = s->events.payload(s->events.context, group(MM_SCENE_FRAMES, s), i);
-        n = v->count(v->context, payload);
-        for (j = 0; j < n; ++j)
-        {
-            payload = s->events.payload(s->events.context, group(MM_SCENE_FRAMES, s), i);
-            v->close(v->context, payload, j);
-        }
-    }
-    s->erase_frame(s->context, i);
-}
 int mm_scene_chop(int back, const MMSceneChopServices *s)
 {
     MMSceneState *d = s->data;
     MMSceneOwner *owner = s->events.owner;
+    MMSceneTrack *frames = &owner->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
     MMSceneRuntime *r = s->events.runtime;
     const MMSceneOwnerServices *o = &s->events.owners;
-    MMI32 i, first, last, frame;
+    MMI32 i, first, last;
     void *p;
-    int k, copy_camera = 1;
+    int copy_camera = 1;
     if (d->currentFrame == (back ? d->firstFrame : d->lastFrame))
         return 1;
     for (i = 0; i < mm_scene_member_count(owner, MM_SCENE_ACTORS);)
@@ -88,8 +59,9 @@ int mm_scene_chop(int back, const MMSceneChopServices *s)
     }
     if (!back)
     {
-        while (r->next_event < count(MM_SCENE_FRAMES, s))
-            erase(r->next_event, s);
+        while ((MMU32)r->next_event < frames->rows.count)
+            if (!mm_scene_owner_erase_frame(owner, r->next_event, o))
+                return 0;
         if (d->lastFrame != d->currentFrame)
         {
             d->lastFrame = d->currentFrame;
@@ -101,27 +73,27 @@ int mm_scene_chop(int back, const MMSceneChopServices *s)
         while (r->next_event > 0)
         {
             --r->next_event;
-            k = kind(r->next_event, &frame, s);
-            if (k == MM_SCENE_CHANGE_CAMERA && copy_camera)
+            if (!mm_scene_track_get(frames, r->next_event, &event))
+                return 0;
+            if (event.kind == MM_SCENE_CHANGE_CAMERA && copy_camera)
             {
                 copy_camera = 0;
-                s->set_frame(s->context, r->next_event, d->currentFrame);
+                event.frame = d->currentFrame;
+                if (!mm_scene_track_set(frames, r->next_event, &event))
+                    return 0;
             }
-            else if (frame != d->currentFrame)
-                erase(r->next_event, s);
+            else if (event.frame != d->currentFrame && !mm_scene_owner_erase_frame(owner, r->next_event, o))
+                return 0;
         }
-        for (r->next_event = 0; r->next_event < count(MM_SCENE_FRAMES, s); ++r->next_event)
-        {
-            kind(r->next_event, &frame, s);
-            if (frame != d->currentFrame)
+        for (r->next_event = 0; (MMU32)r->next_event < frames->rows.count; ++r->next_event)
+            if (!mm_scene_track_get(frames, r->next_event, &event) || event.frame != d->currentFrame)
                 break;
-        }
         if (d->firstFrame != d->currentFrame)
         {
             d->firstFrame = d->currentFrame;
             s->dirty(s->context);
         }
-        if (group(MM_SCENE_BACKGROUND_SOUND, s) && r->background_frame < d->firstFrame)
+        if (owner->owned[MM_SCENE_BACKGROUND_SOUND] && r->background_frame < d->firstFrame)
         {
             mm_scene_owner_drop(s->events.owner, s->events.scene, MM_SCENE_BACKGROUND_SOUND, o);
             s->discard_background_frame(s->context);

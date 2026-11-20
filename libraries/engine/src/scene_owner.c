@@ -142,30 +142,42 @@ static void start_event(const MMSceneTrack *track, MMI32 index, int unwind, cons
                                       : MM_SCENE_UNKNOWN_EVENT);
     }
 }
+static void close_frame_sound(const MMSceneTrack *track, MMI32 index, int exact, const MMSceneOwnerServices *s)
+{
+    MMI32 i, count, bytes = 0, span;
+    MMSceneSound *sound = (MMSceneSound *)mm_scene_track_payload(track, index, &bytes);
+    span = mm_scene_sound_span(sound, bytes, s->sound_tag_bytes);
+    if (!span || (exact && span != bytes))
+    {
+        s->diagnostic(s->context, MM_SCENE_BAD_PAYLOAD);
+        return;
+    }
+    count = sound->ctagc;
+    for (i = 0; i < count; ++i)
+    {
+        sound = (MMSceneSound *)mm_scene_track_payload(track, index, NULL);
+        s->sound.close(s->sound.context, sound, i);
+    }
+}
+int mm_scene_owner_erase_frame(MMSceneOwner *w, MMI32 index, const MMSceneOwnerServices *s)
+{
+    MMSceneTrack *track = &w->tracks[MM_SCENE_FRAMES];
+    MMSceneTrackEvent event;
+    if (!mm_scene_track_get(track, index, &event))
+        return 0;
+    if (event.kind == MM_SCENE_PLAY_SOUND)
+        close_frame_sound(track, index, 0, s);
+    return mm_group_delete(&track->rows, (MMU32)index) == MM_STORAGE_OK;
+}
 static void frame_event(const MMSceneTrack *track, MMI32 index, int unwind, const MMSceneOwnerServices *s)
 {
     MMSceneTrackEvent event;
-    MMSceneSound *sound;
-    MMI32 kind, count, i, bytes = 0, span;
+    MMI32 kind;
     if (!mm_scene_track_get(track, index, &event))
         return;
     kind = event.kind;
     if (kind == MM_SCENE_PLAY_SOUND)
-    {
-        sound = (MMSceneSound *)mm_scene_track_payload(track, index, &bytes);
-        span = mm_scene_sound_span(sound, bytes, s->sound_tag_bytes);
-        if (!span || (unwind && span != bytes))
-        {
-            s->diagnostic(s->context, MM_SCENE_BAD_PAYLOAD);
-            return;
-        }
-        count = sound->ctagc;
-        for (i = 0; i < count; ++i)
-        {
-            sound = (MMSceneSound *)mm_scene_track_payload(track, index, NULL);
-            s->sound.close(s->sound.context, sound, i);
-        }
-    }
+        close_frame_sound(track, index, unwind, s);
     else if (kind == MM_SCENE_ADD_ACTOR || kind == MM_SCENE_ADD_TEXT ||
              (!unwind && kind == MM_SCENE_SET_BACKGROUND))
         s->diagnostic(s->context, MM_SCENE_BAD_FRAME);

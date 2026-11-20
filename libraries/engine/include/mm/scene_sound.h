@@ -76,6 +76,9 @@ extern "C"
                                                       const MMSceneSoundPacketServices *);
     MMSceneSound *mm_scene_sound_group(void *group, MMI32 index, int retain_tags,
                                                   const MMSceneSoundPacketServices *);
+    struct MMSceneTrack;
+    MMSceneSound *mm_scene_sound_track(const struct MMSceneTrack *, MMI32 index,
+                                      const MMSceneSoundPacketServices *);
     MMSceneSound *mm_scene_sound_append(const MMSceneSound *, const void *record,
                                                    const MMSceneSoundPacketServices *);
     MMSceneSound *mm_scene_sound_append_tag(const MMSceneSound *, MMU32 child, const MMTag *,

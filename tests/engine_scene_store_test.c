@@ -97,20 +97,6 @@ static void *packet_allocate(void *p, MMI32 bytes)
     return step(f, 31) ? allocate(&f->packets, bytes) : NULL;
 }
 
-static void *packet_data(void *p, void *g, MMI32 i)
-{
-    (void)p;
-    return mm_scene_track_payload(g, i, NULL);
-}
-
-static MMI32 packet_size(void *p, void *g, MMI32 i)
-{
-    MMI32 bytes = -1;
-    (void)p;
-    mm_scene_track_payload(g, i, &bytes);
-    return bytes;
-}
-
 static void release_packet(void *p, MMSceneSound *sound)
 {
     StoreFixture *f = p;
@@ -436,8 +422,6 @@ static void init_store(StoreFixture *f)
     s->values.packets = f->packets.s;
     s->values.packets.context = f; /* The embedded sound fixture is the first member. */
     s->values.packets.allocate = packet_allocate;
-    s->values.packets.group_data = packet_data;
-    s->values.packets.group_size = packet_size;
     s->values.release = release_packet;
     s->free_sound_bytes = free_sound_bytes;
     s->write_object = write_object;

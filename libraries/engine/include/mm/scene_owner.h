@@ -65,7 +65,6 @@ extern "C"
         int (*can_notify)(void *);
         void (*loaded)(void *, void *scene);
         void (*release)(void *, void *object);
-        MMI32 (*count)(void *, void *group);
         void (*actor_visibility)(void *, void *actor, int show), (*lights_off)(void *, void *background);
         int (*text_lifetime)(void *, void *text, MMI32 *first);
         int (*text_seek)(void *, void *text, MMI32 frame);
@@ -86,6 +85,8 @@ extern "C"
                                             const MMSceneOwnerServices *);
     void *mm_scene_owner_new(void *movie, const MMSceneOwnerServices *);
     void mm_scene_owner_dispose(MMSceneOwner *, void *scene, const MMSceneOwnerServices *);
+    /* Closes a sound row's native tag records before deleting it. The caller updates its cursor. */
+    int mm_scene_owner_erase_frame(MMSceneOwner *, MMI32 index, const MMSceneOwnerServices *);
     /* Read-failure cleanup walks only completed prefixes, in reverse order.
      * Valid sound payload size is variable bytes, excluding fixed event bytes. */
     void mm_scene_owner_unwind(MMSceneOwner *, void *scene, MMI32 starts, MMI32 frames,

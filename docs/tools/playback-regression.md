@@ -15571,3 +15571,42 @@ In `actor-event-edit` suite `20261120T121351Z-2a256abe`, SDL and Marcus
 both matched the 60 frame identities in the retail seek and playback
 runs, the retail camera indices on seek and their prior seek image
 hashes. SDL matched all 12 retail sound requests.
+
+## Direct scene track editing and trimming in C89 (20 November 2026)
+
+Studio edits pauses, camera cuts, backgrounds and sounds in its C89
+tracks. C89 also owns frame deletion and the camera retained by
+a backward trim. Sound replacement, trimming, background changes and
+disposal close embedded sound tags through the same C89 path. Sound
+editing and scene saves copy packets from the track and reacquire the
+payload after allocation.
+
+The native sound edit, scene edit and scene content traces matched the
+prior build byte-for-byte with fingerprints `D3F41FF2`, `116589AF` and
+`5E56C170`. The tests force the frame buffer to move during a queued
+sound copy and inject allocation failures in the payload and index
+buffers. They verify tag references and the event cursor after failure.
+Forward and backward trim tests check which rows survive and the sound
+tags closed before deletion.
+
+Production SDL Studio authored a byte-identical two-scene movie. Two
+fresh WAVE imports saved and reopened with two thumbnails and matching
+decoded archive records. The archives differed in one SCEN index
+padding byte. Retail matched the frame-4 RGB capture and frame-2 WAVE
+request across both archives. Replacing a WAVE at the same frame in both
+Studio builds produced matching decoded archives with one cue for the
+replacement. Retail requested that cue in both archives.
+
+Native and SDL save/reopen runs matched their prior archives and text
+traces. All 63 targeted x64 checks, three SDL Release scene checks,
+11 standalone C89 checks and 13 focused x86 checks passed. All ten
+Preview fingerprints and six Preview fixture archives matched.
+
+Both VMM seek images in `20261120T122806Z-2f92dfe4` matched the retained
+SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-frame-track-editing`.
+
+In `actor-event-edit` suite `20261120T122804Z-0b2a2039`, SDL and Marcus
+matched all 60 frame identities in the retail seek and playback runs,
+the retail camera indices on seek and their prior seek image hashes.
+SDL matched all 12 retail sound requests.

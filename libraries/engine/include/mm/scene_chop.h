@@ -23,7 +23,6 @@ extern "C"
         int (*lifetime)(void *, void *, MMI32 *first, MMI32 *last);
         int (*show_text)(void *, void *);
         void (*start_text)(void *, void *, MMI32 frame);
-        void (*erase_frame)(void *, MMI32), (*set_frame)(void *, MMI32 index, MMI32 frame);
         void (*dirty)(void *), (*discard_background_frame)(void *), (*bad_lifetime)(void *);
         void *(*new_undo)(void *);
         int (*save_undo)(void *, void *), (*commit_undo)(void *, void *);

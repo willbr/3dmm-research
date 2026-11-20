@@ -1,11 +1,5 @@
 #include "scene_sound_fixture.h"
 #include "mm/scene_sound_edit.h"
-typedef struct EditEvent
-{
-    MMI32 frame, bytes;
-    int kind;
-    void *data;
-} EditEvent;
 typedef struct Undo
 {
     MMSceneSoundUndo state;
@@ -24,11 +18,12 @@ typedef struct Editor
     MMSceneOwner owner;
     MMSceneSoundEditServices s;
     MMSceneSoundUndoServices us;
-    EditEvent events[8];
-    int count, group_live, dirty, indicator, indicators, actor_count, actor_calls, actor_values[3];
+    MMSceneTrack *frames;
+    int dirty, indicator, indicators, actor_count, actor_calls, actor_values[3];
     MMTag tags[3];
     Undo *active;
-    int alloc_calls, fail_at, fail_insert, fail_put, fail_child, fail_list, fail_resize, fail_new_undo, fail_commit;
+    int alloc_calls, fail_at, grow_attempts, fail_grow, grow_failures, relocate_at, relocations;
+    int fail_child, fail_list, fail_resize, fail_new_undo, fail_commit;
     int list_live, undo_live, commits, clears, issues[5], event_plays, publications, published_metadata,
         child_changes_frame;
     int input_resolve_fail, input_fetch_fail, input_mutate, packet_fetch_fail, closes, releases;
@@ -44,6 +39,14 @@ static void *edit_allocate(void *p, MMI32 bytes)
     e->base.fail = ++e->alloc_calls == e->fail_at;
     out = allocate(p, bytes);
     e->base.fail = 0;
+    if (out && e->alloc_calls == e->relocate_at)
+    {
+        MMCollectionStorage *storage = &e->frames->storage;
+        CHECK(storage->buffers[0].data);
+        CHECK(mm_storage_resize_exact(storage, 0, storage->buffers[0].capacity + 32, MM_STORAGE_NORMAL) ==
+              MM_STORAGE_OK);
+        ++e->relocations;
+    }
     return out;
 }
 static void close_tag(void *p, void *packet, MMI32 index)
@@ -92,77 +95,28 @@ static void *packet_fetch(void *p, void *record)
     Record *r = (Record *)record;
     return e->packet_fetch_fail == (int)r->tag.number ? NULL : resource(e, r->tag.number);
 }
-static void *data_at(void *p, void *group, MMI32 index)
-{
-    Editor *e = (Editor *)p;
-    CHECK(group == e && index >= 0 && index < e->count);
-    return e->events[index].data;
-}
-static MMI32 size_at(void *p, void *group, MMI32 index)
-{
-    Editor *e = (Editor *)p;
-    CHECK(group == e && index >= 0 && index < e->count);
-    return e->events[index].bytes;
-}
-static void event_at(void *p, void *group, MMI32 index, MMI32 *frame, int *kind)
-{
-    Editor *e = (Editor *)p;
-    CHECK(group == e && index >= 0 && index < e->count);
-    *frame = e->events[index].frame;
-    *kind = e->events[index].kind;
-}
-static int insert_event(void *p, MMI32 index, MMI32 frame, int kind, MMI32 bytes, const void *data)
+static void *resize_track(void *p, void *data, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Editor *e = (Editor *)p;
     void *copy;
-    int i;
-    CHECK(e->runtime.next_event == index + 1 && index >= 0 && index <= e->count && e->count < 8);
-    if (e->fail_insert)
-        return 0;
-    /* Move every old payload to catch stale pointers held across insertion. */
-    for (i = 0; i < e->count; ++i)
+    (void)priority;
+    if (++e->grow_attempts == e->fail_grow)
     {
-        copy = malloc((size_t)e->events[i].bytes);
-        CHECK(copy);
-        memcpy(copy, e->events[i].data, (size_t)e->events[i].bytes);
-        free(e->events[i].data);
-        e->events[i].data = copy;
+        ++e->grow_failures;
+        return NULL;
     }
     copy = malloc((size_t)bytes);
     CHECK(copy);
-    memcpy(copy, data, (size_t)bytes);
-    memmove(e->events + index + 1, e->events + index, (size_t)(e->count - index) * sizeof(EditEvent));
-    e->events[index].frame = frame;
-    e->events[index].kind = kind;
-    e->events[index].bytes = bytes;
-    e->events[index].data = copy;
-    ++e->count;
-    ++e->group_live;
-    return 1;
+    if (data)
+        memcpy(copy, data, old_bytes < bytes ? old_bytes : bytes);
+    free(data);
+    return copy;
 }
-static int put_event(void *p, MMI32 index, MMI32 bytes, const void *data)
+static void release_track(void *p, void *data, MMU32 bytes)
 {
-    Editor *e = (Editor *)p;
-    void *copy;
-    CHECK(index >= 0 && index < e->count);
-    if (e->fail_put)
-        return 0;
-    copy = malloc((size_t)bytes);
-    CHECK(copy);
-    memcpy(copy, data, (size_t)bytes);
-    free(e->events[index].data);
-    e->events[index].data = copy;
-    e->events[index].bytes = bytes;
-    return 1;
-}
-static void erase_event(void *p, MMI32 index)
-{
-    Editor *e = (Editor *)p;
-    CHECK(index >= 0 && index < e->count);
-    free(e->events[index].data);
-    memmove(e->events + index, e->events + index + 1, (size_t)(e->count - index - 1) * sizeof(EditEvent));
-    --e->count;
-    --e->group_live;
+    (void)p;
+    (void)bytes;
+    free(data);
 }
 static void *allocate_records(void *p, MMI32 bytes)
 {
@@ -413,15 +367,17 @@ static void editor_init(Editor *e)
     int i;
     MMSceneSoundEditServices *s;
     MMSceneEventServices *v;
+    MMStorageAllocator allocator = {NULL, resize_track, release_track};
     memset(e, 0, sizeof(*e));
     init(&e->base);
     e->base.s.allocate = edit_allocate;
-    e->base.s.group_data = data_at;
-    e->base.s.group_size = size_at;
     e->base.s.resolve = packet_resolve;
     e->base.s.fetch = packet_fetch;
     mm_scene_runtime_init(&e->runtime);
-    mm_scene_owner_init(&e->owner, NULL, NULL);
+    allocator.context = e;
+    mm_scene_owner_init(&e->owner, NULL, &allocator);
+    e->frames = &e->owner.tracks[MM_SCENE_FRAMES];
+    e->frames->storage.min_grow[0] = e->frames->storage.min_grow[1] = 0;
     e->data.firstFrame = e->data.currentFrame = 1;
     e->data.lastFrame = 10;
     for (i = 0; i < 3; ++i)
@@ -431,9 +387,6 @@ static void editor_init(Editor *e)
     s->values.context = e;
     s->values.packets = e->base.s;
     s->values.release = release_packet;
-    s->insert = insert_event;
-    s->put = put_event;
-    s->erase = erase_event;
     s->allocate_records = allocate_records;
     s->free_raw = free_raw;
     s->input_tag = input_tag;
@@ -460,13 +413,12 @@ static void editor_init(Editor *e)
     v->runtime = &e->runtime;
     v->data = &e->data;
     v->owner = &e->owner;
-    e->owner.owned[MM_SCENE_FRAMES] = e;
-    v->event = event_at;
-    v->payload = data_at;
+    e->owner.owned[MM_SCENE_FRAMES] = e->frames;
     v->duplicate_sound = event_duplicate;
     v->play_sound = event_play;
     v->owners.context = e;
     v->owners.publish = owner_publish;
+    v->owners.sound_tag_bytes = sizeof(Record);
     v->owners.sound.context = e;
     v->owners.sound.count = packet_count;
     v->owners.sound.style = packet_style;
@@ -485,18 +437,25 @@ static void editor_init(Editor *e)
     e->us.restore = undo_restore;
     e->us.diagnostic = diagnostic;
 }
+static MMSceneTrackEvent frame_row(const Editor *e, int index)
+{
+    MMSceneTrackEvent row;
+    CHECK(mm_scene_track_get(e->frames, index, &row));
+    return row;
+}
 static MMSceneSound *frame_packet(Editor *e, int index)
 {
-    CHECK(index >= 0 && index < e->count && e->events[index].kind == MM_SCENE_PLAY_SOUND);
-    return (MMSceneSound *)e->events[index].data;
+    CHECK(frame_row(e, index).kind == MM_SCENE_PLAY_SOUND);
+    return (MMSceneSound *)mm_scene_track_payload(e->frames, index, NULL);
 }
 static void seed(Editor *e, int style)
 {
+    const MMSceneTrackEvent event = {1, MM_SCENE_PLAY_SOUND};
     MMSceneSound *p = make(&e->base, 1);
     p->sty = style;
     p->fLoop = 0;
     ++e->runtime.next_event;
-    CHECK(insert_event(e, e->count, 1, MM_SCENE_PLAY_SOUND, mm_scene_sound_size(1, sizeof(Record)), p));
+    CHECK(mm_scene_track_insert(e->frames, e->frames->rows.count, mm_scene_sound_size(1, sizeof(Record)), p, &event));
     if (style == 4)
     {
         e->owner.owned[MM_SCENE_BACKGROUND_SOUND] = mm_scene_sound_duplicate(p, &e->base.s);
@@ -508,16 +467,17 @@ static void seed(Editor *e, int style)
 static void editor_clean(Editor *e)
 {
     int i, j;
+    MMSceneSound *p;
     clear_undo(e);
     mm_scene_owner_drop(&e->owner, e, MM_SCENE_BACKGROUND_SOUND, &e->s.events.owners);
-    for (i = e->count - 1; i >= 0; --i)
+    for (i = e->frames->rows.count; i > 0;)
     {
-        if (e->events[i].kind == MM_SCENE_PLAY_SOUND)
-            for (j = 0; j < frame_packet(e, i)->ctagc; ++j)
-                close_tag(e, e->events[i].data, j);
-        erase_event(e, i);
+        p = frame_packet(e, --i);
+        for (j = 0; j < p->ctagc; ++j)
+            close_tag(e, p, j);
     }
-    CHECK(!e->group_live && !e->undo_live && !e->list_live);
+    mm_scene_track_dispose(e->frames);
+    CHECK(!e->undo_live && !e->list_live);
     clean(&e->base);
 }
 static void additions(void)
@@ -530,7 +490,9 @@ static void additions(void)
     p = frame_packet(&e, 0);
     CHECK(p->ctagc == 3 && p->vlm == 83 && e.base.plays == 3 && e.dirty == 2 && e.runtime.next_event == 1);
     CHECK(e.base.refs[1] == 1 && e.base.refs[3] == 1 && !e.base.starts[1] && !e.base.queues[1] && e.base.queues[2]);
+    e.relocate_at = e.alloc_calls + 1;
     CHECK(mm_scene_sound_add(0, 1, 29, 2, 1, e.tags, &e.s));
+    CHECK(e.relocations == 1);
     p = frame_packet(&e, 0);
     CHECK(p->ctagc == 4 && p->vlm == 83 && e.base.volumes[1] == 29 && e.base.refs[1] == 2 && e.runtime.next_event == 1);
     CHECK(mm_scene_sound_add(1, 0, 56, 2, 1, e.tags, &e.s));
@@ -543,27 +505,31 @@ static void additions(void)
         seed(&e, 2);
         e.fail_at = failure;
         CHECK(!mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
-        CHECK(e.count == 1 && e.base.refs[1] == 1 && !e.dirty);
+        CHECK(e.frames->rows.count == 1 && e.base.refs[1] == 1 && !e.dirty);
         editor_clean(&e);
         editor_init(&e);
         seed(&e, 2);
         e.fail_at = failure;
         CHECK(!mm_scene_sound_add(0, 1, 70, 2, 1, e.tags, &e.s));
-        CHECK(e.count == 1 && e.base.refs[1] == 1 && !e.dirty);
+        CHECK(e.frames->rows.count == 1 && e.base.refs[1] == 1 && !e.dirty);
         editor_clean(&e);
     }
     editor_init(&e);
     seed(&e, 2);
-    e.fail_put = 1;
+    e.fail_grow = e.grow_attempts + 1;
     CHECK(!mm_scene_sound_add(0, 1, 70, 2, 1, e.tags, &e.s));
-    CHECK(e.base.refs[1] == 1 && e.base.live == 0 && frame_packet(&e, 0)->ctagc == 1);
+    CHECK(e.grow_failures && e.base.refs[1] == 1 && e.base.live == 0 && frame_packet(&e, 0)->ctagc == 1);
     editor_clean(&e);
-    editor_init(&e);
-    seed(&e, 2);
-    e.fail_insert = 1;
-    CHECK(!mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
-    CHECK(e.dirty == 1 && e.base.refs[1] == 1 && e.runtime.next_event == 1);
-    editor_clean(&e);
+    for (failure = 1; failure <= 2; ++failure)
+    {
+        editor_init(&e);
+        seed(&e, 2);
+        e.fail_grow = e.grow_attempts + failure;
+        CHECK(!mm_scene_sound_add(0, 0, 70, 2, 1, e.tags, &e.s));
+        CHECK(e.grow_failures == 1 && e.dirty == 1 && e.base.refs[1] == 1 && e.runtime.next_event == 1);
+        CHECK(e.frames->rows.count == 1 && frame_packet(&e, 0)->vlm == 80);
+        editor_clean(&e);
+    }
     editor_init(&e);
     seed(&e, 2);
     e.fail_child = 1;
@@ -586,12 +552,12 @@ static void additions(void)
     editor_init(&e);
     e.child_changes_frame = 1;
     CHECK(mm_scene_sound_add(0, 0, 30, 4, 1, e.tags, &e.s));
-    CHECK(e.events[0].frame == 1 && e.runtime.background_frame == 1 && e.data.currentFrame == 7);
+    CHECK(frame_row(&e, 0).frame == 1 && e.runtime.background_frame == 1 && e.data.currentFrame == 7);
     editor_clean(&e);
     editor_init(&e);
     e.fail_at = 3; /* MIDI cache duplicate fails after array+packet allocation. */
     CHECK(mm_scene_sound_add(0, 0, 30, 4, 1, e.tags, &e.s));
-    CHECK(e.count == 1 && !e.owner.owned[MM_SCENE_BACKGROUND_SOUND] && e.indicator);
+    CHECK(e.frames->rows.count == 1 && !e.owner.owned[MM_SCENE_BACKGROUND_SOUND] && e.indicator);
     editor_clean(&e);
     editor_init(&e);
     CHECK(!mm_scene_sound_add(0, 1, 30, 2, 3, e.tags, &e.s) && !e.alloc_calls);
@@ -657,7 +623,7 @@ static void indicators_and_restore(void)
     CHECK(frame_packet(&e, 0)->vlm == 45 &&
           ((MMSceneSound *)e.owner.owned[MM_SCENE_BACKGROUND_SOUND])->vlm == 80);
     mm_scene_sound_remove(4, &e.s);
-    CHECK(!e.count && !e.owner.owned[MM_SCENE_BACKGROUND_SOUND] && e.indicator &&
+    CHECK(!e.frames->rows.count && !e.owner.owned[MM_SCENE_BACKGROUND_SOUND] && e.indicator &&
           e.runtime.background_frame == 1);
     e.actor_values[1] = 0;
     mm_scene_sound_update_indicator(&e.s);
@@ -670,12 +636,12 @@ static void indicators_and_restore(void)
     mm_scene_sound_volume(2, 20, &e.s);
     CHECK(e.issues[MM_SCENE_SOUND_MISSING] == missing + 2 && frame_packet(&e, 0)->vlm == 80);
     mm_scene_sound_remove(2, &e.s);
-    CHECK(e.count == 1 && e.issues[MM_SCENE_SOUND_STYLE_MISSING] == 1);
+    CHECK(e.frames->rows.count == 1 && e.issues[MM_SCENE_SOUND_STYLE_MISSING] == 1);
     editor_clean(&e);
     editor_init(&e);
     e.packet_fetch_fail = 2;
     CHECK(mm_scene_sound_restore(0, 0, 66, 2, 3, e.base.input, &e.s));
-    CHECK(e.event_plays == 1 && e.base.plays == 1 && e.count == 1);
+    CHECK(e.event_plays == 1 && e.base.plays == 1 && e.frames->rows.count == 1);
     CHECK(!mm_scene_sound_restore(0, 1, 66, 2, 1, e.base.input, &e.s) &&
           e.issues[MM_SCENE_SOUND_QUEUE_RESTORE] == 1);
     e.runtime.disabled |= 1;
@@ -693,7 +659,7 @@ static void transactions(void)
         seed(&e, 2);
         e.fail_at = failure;
         CHECK(!mm_scene_sound_add_undo(0, 0, 60, 2, e.tags, &e.s));
-        CHECK(e.base.refs[1] == 1 && !e.undo_live && e.count == 1);
+        CHECK(e.base.refs[1] == 1 && !e.undo_live && e.frames->rows.count == 1);
         CHECK(e.clears == (failure > 2));
         editor_clean(&e);
     }
@@ -716,8 +682,8 @@ static void transactions(void)
     seed(&e, 2);
     e.data.currentFrame = 2;
     CHECK(mm_scene_sound_add(0, 0, 60, 2, 1, e.tags, &e.s));
-    CHECK(e.count == 2);
-    CHECK(mm_scene_sound_remove_undo(2, &e.s) && e.count == 1 && e.active->state.sound && e.events[0].frame == 1);
+    CHECK(e.frames->rows.count == 2);
+    CHECK(mm_scene_sound_remove_undo(2, &e.s) && e.frames->rows.count == 1 && e.active->state.sound && frame_row(&e, 0).frame == 1);
     editor_clean(&e);
     editor_init(&e);
     CHECK(!mm_scene_sound_remove_undo(2, &e.s) && !e.undo_live && !e.commits);
@@ -727,7 +693,7 @@ static void transactions(void)
         editor_init(&e);
         seed(&e, 2);
         e.fail_at = failure;
-        CHECK(!mm_scene_sound_remove_undo(2, &e.s) && !e.undo_live && e.count == 1 && e.base.refs[1] == 1);
+        CHECK(!mm_scene_sound_remove_undo(2, &e.s) && !e.undo_live && e.frames->rows.count == 1 && e.base.refs[1] == 1);
         editor_clean(&e);
     }
 }
@@ -745,7 +711,7 @@ static void swaps(void)
     for (i = 0; i < 4; ++i)
     {
         CHECK(mm_scene_sound_undo_swap(&u->state, &e.us));
-        CHECK((e.count == 0) == (u->state.sound != NULL));
+        CHECK((e.frames->rows.count == 0) == (u->state.sound != NULL));
     }
     CHECK(e.queue_plays == 4 && e.flushes == 4);
     editor_clean(&e);
@@ -783,7 +749,7 @@ static void swaps(void)
         CHECK(!mm_scene_sound_undo_swap(&u->state,
                                               &e.us)); /* clear destroys u: sanitizer checks no later access. */
         CHECK(!e.active && !e.undo_live && e.clears == 1 && !e.queue_plays);
-        CHECK(e.count == (mode == 3 ? 0 : 1));
+        CHECK(e.frames->rows.count == (mode == 3 ? 0 : 1));
         editor_clean(&e);
     }
     editor_init(&e);

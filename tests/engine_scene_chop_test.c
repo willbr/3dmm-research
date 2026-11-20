@@ -1,4 +1,5 @@
 #include "mm/scene_chop.h"
+#include "mm/scene_sound.h"
 #include "scene_member_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -17,11 +18,6 @@ typedef struct Obj
     int id, alive, lifetime;
     MMI32 first, last;
 } Obj;
-typedef struct Frame
-{
-    MMI32 frame;
-    int kind, tags;
-} Frame;
 typedef struct Host
 {
     MMSceneState data;
@@ -29,8 +25,7 @@ typedef struct Host
     MMSceneOwner owner;
     SceneMemberMemory members;
     Obj objects[5];
-    Frame frames[8];
-    int frame_count;
+    MMSceneTrack *frames;
     int trace[128], traces, fail, stage, removal_sticks, seek_fails, show_fails, write_calls, switch_calls, dead;
     int file, resource, loaded, old, undo, has_resource;
     MMSceneChopUndo *record;
@@ -45,30 +40,10 @@ static void expect(Host *h, const int *values, int n)
     CHECK(h->traces == n && !memcmp(h->trace, values, n * sizeof(*values)));
     h->traces = 0;
 }
-static MMI32 count(void *p, void *group)
-{
-    Host *h = (Host *)p;
-    CHECK(group == h->frames);
-    return h->frame_count;
-}
-static void read_event(void *p, void *g, MMI32 i, MMI32 *frame, int *kind)
-{
-    Host *h = (Host *)p;
-    (void)g;
-    CHECK(i >= 0 && i < h->frame_count);
-    *frame = h->frames[i].frame;
-    *kind = h->frames[i].kind;
-}
-static void *payload(void *p, void *g, MMI32 i)
-{
-    (void)g;
-    return &((Host *)p)->frames[i];
-}
 static MMI32 tags(void *p, void *data)
 {
-    if (data == &((Host *)p)->resource)
-        return 0;
-    return ((Frame *)data)->tags;
+    CHECK(data == &((Host *)p)->resource);
+    return 0;
 }
 static MMI32 style(void *p, void *data)
 {
@@ -78,7 +53,7 @@ static MMI32 style(void *p, void *data)
 }
 static void close_tag(void *p, void *data, MMI32 i)
 {
-    (void)data;
+    CHECK(i >= 0 && i < ((MMSceneSound *)data)->ctagc);
     event((Host *)p, 80 + (int)i);
 }
 static void release(void *p, void *obj)
@@ -156,20 +131,6 @@ static void start_text(void *p, void *o, MMI32 frame)
     ((Obj *)o)->first = frame;
     event((Host *)p, 133);
 }
-static void erase(void *p, MMI32 i)
-{
-    Host *h = (Host *)p;
-    CHECK(i >= 0 && i < h->frame_count);
-    event(h, 140);
-    memmove(h->frames + i, h->frames + i + 1, (h->frame_count - i - 1) * sizeof(Frame));
-    --h->frame_count;
-}
-static void set_frame(void *p, MMI32 i, MMI32 frame)
-{
-    Host *h = (Host *)p;
-    h->frames[i].frame = frame;
-    event(h, 141);
-}
 static void dirty(void *p)
 {
     event((Host *)p, 142);
@@ -232,6 +193,8 @@ static MMSceneChopServices init(Host *h)
         h->objects[i].first = 1;
         h->objects[i].last = 10;
     }
+    h->frames = &h->owner.tracks[MM_SCENE_FRAMES];
+    CHECK(mm_scene_track_init(h->frames, NULL, 0));
     h->owner.owned[MM_SCENE_FRAMES] = h->frames;
     s.context = h;
     s.data = &h->data;
@@ -240,7 +203,7 @@ static MMSceneChopServices init(Host *h)
     s.events.runtime = &h->runtime;
     s.events.data = &h->data;
     s.events.owners.context = h;
-    s.events.owners.count = count;
+    s.events.owners.sound_tag_bytes = sizeof(MMU32);
     s.events.owners.release = release;
     s.events.owners.publish = publish;
     s.events.owners.sound.context = h;
@@ -248,8 +211,6 @@ static MMSceneChopServices init(Host *h)
     s.events.owners.sound.style = style;
     s.events.owners.sound.free = release;
     s.events.owners.sound.close = close_tag;
-    s.events.event = read_event;
-    s.events.payload = payload;
     s.events.seek = seek;
     s.trim_actor = trim;
     s.remove_actor = remove_actor;
@@ -257,8 +218,6 @@ static MMSceneChopServices init(Host *h)
     s.lifetime = lifetime;
     s.show_text = show;
     s.start_text = start_text;
-    s.erase_frame = erase;
-    s.set_frame = set_frame;
     s.dirty = dirty;
     s.discard_background_frame = discard;
     s.bad_lifetime = bad_lifetime;
@@ -269,12 +228,39 @@ static MMSceneChopServices init(Host *h)
     s.clear_undo = clear_undo;
     return s;
 }
+static void append_frame(Host *h, MMI32 frame, int kind, MMI32 count)
+{
+    MMSceneTrackEvent row;
+    struct
+    {
+        MMSceneSound header;
+        MMU32 tags[2];
+    } sound = {{0}, {0}};
+    MMI32 pause[2] = {0, 0}, bytes = sizeof(frame);
+    const void *data = &frame;
+    row.frame = frame;
+    row.kind = kind;
+    if (kind == MM_SCENE_PLAY_SOUND)
+    {
+        sound.header.ctagc = count;
+        data = &sound;
+        bytes = mm_scene_sound_size(count, sizeof(sound.tags[0]));
+    }
+    else if (kind == MM_SCENE_PAUSE)
+    {
+        data = pause;
+        bytes = sizeof(pause);
+    }
+    CHECK(mm_scene_track_insert(h->frames, h->frames->rows.count, bytes, data, &row));
+}
 static void test_core(void)
 {
     Host h;
     MMSceneChopServices s = init(&h);
     int i;
-    const int forward[] = {100, 120, 101, 102, 120, 121, 130, 132, 131, 80, 81, 140, 140, 142};
+    MMSceneTrackEvent row;
+    MMI32 camera;
+    const int forward[] = {100, 120, 101, 102, 120, 121, 130, 132, 131, 80, 81, 142};
     for (i = 0; i < 3; ++i)
         CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects + i));
     h.objects[1].alive = 1;
@@ -283,18 +269,17 @@ static void test_core(void)
     h.objects[0].first = 6;
     h.objects[2].last = 4;
     h.runtime.next_event = 1;
-    h.frame_count = 3;
-    h.frames[0].frame = 1;
-    h.frames[1].kind = MM_SCENE_PLAY_SOUND;
-    h.frames[1].tags = 2;
-    h.frames[2].kind = MM_SCENE_PAUSE;
+    append_frame(&h, 1, MM_SCENE_CHANGE_CAMERA, 0);
+    append_frame(&h, 6, MM_SCENE_PLAY_SOUND, 2);
+    append_frame(&h, 7, MM_SCENE_PAUSE, 0);
     CHECK(mm_scene_chop(0, &s));
-    expect(&h, forward, 14);
+    expect(&h, forward, sizeof(forward) / sizeof(*forward));
     CHECK(mm_scene_member_count(&h.owner, MM_SCENE_ACTORS) == 1 &&
           mm_scene_member_at(&h.owner, MM_SCENE_ACTORS, 0) == h.objects + 1 &&
-          mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 2 && h.frame_count == 1 &&
+          mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 2 && h.frames->rows.count == 1 &&
           h.data.lastFrame == 5);
     CHECK(mm_scene_chop_edit(0, &s) && !h.traces);
+    mm_scene_track_dispose(h.frames);
     s = init(&h);
     h.removal_sticks = 1;
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects));
@@ -332,28 +317,28 @@ static void test_core(void)
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects));
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_TEXTS, h.objects + 1));
     h.objects[0].last = 4;
-    h.frame_count = 6;
     h.runtime.next_event = 5;
-    for (i = 0; i < 6; ++i)
-    {
-        h.frames[i].frame = i < 3 ? i + 1 : i == 5 ? 7 : 5;
-        h.frames[i].kind = MM_SCENE_PAUSE;
-    }
-    h.frames[0].kind = h.frames[2].kind = MM_SCENE_CHANGE_CAMERA;
-    h.frames[1].kind = MM_SCENE_PLAY_SOUND;
-    h.frames[1].tags = 1;
+    append_frame(&h, 1, MM_SCENE_CHANGE_CAMERA, 0);
+    append_frame(&h, 2, MM_SCENE_PLAY_SOUND, 1);
+    append_frame(&h, 3, MM_SCENE_CHANGE_CAMERA, 0);
+    append_frame(&h, 5, MM_SCENE_PAUSE, 0);
+    append_frame(&h, 5, MM_SCENE_PAUSE, 0);
+    append_frame(&h, 7, MM_SCENE_PAUSE, 0);
     h.owner.owned[MM_SCENE_BACKGROUND_SOUND] = &h.resource;
     h.runtime.background_frame = 2;
     CHECK(mm_scene_chop(1, &s));
     {
-        const int e[] = {121, 133, 141, 80, 140, 140, 142, 23, 24, 143};
-        expect(&h, e, 10);
+        const int e[] = {121, 133, 80, 142, 23, 24, 143};
+        expect(&h, e, sizeof(e) / sizeof(*e));
     }
-    CHECK(h.data.firstFrame == 5 && h.runtime.next_event == 3 && h.frame_count == 4 &&
-          h.frames[0].kind == MM_SCENE_CHANGE_CAMERA && h.frames[0].frame == 5);
+    CHECK(h.data.firstFrame == 5 && h.runtime.next_event == 3 && h.frames->rows.count == 4);
+    CHECK(mm_scene_track_get(h.frames, 0, &row) && row.kind == MM_SCENE_CHANGE_CAMERA && row.frame == 5);
+    memcpy(&camera, mm_scene_track_payload(h.frames, 0, NULL), sizeof(camera));
+    CHECK(camera == 3);
     CHECK(h.objects[1].first == 5 && mm_scene_member_count(&h.owner, MM_SCENE_TEXTS) == 1 &&
           h.runtime.background_frame == -99);
     CHECK(mm_scene_chop_edit(1, &s) && !h.traces);
+    mm_scene_track_dispose(h.frames);
     s = init(&h);
     h.owner.owned[MM_SCENE_BACKGROUND_SOUND] = &h.resource;
     h.runtime.background_frame = 5;

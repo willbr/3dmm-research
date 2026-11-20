@@ -81,12 +81,18 @@ struct Access : Scene
     static void FailPut(PScene scene, PTAG tag)
     {
         auto services = (scene->*&Access::_SoundEditServices)();
-        services.put = [](void *, MMI32, MMI32, const void *) -> int {
+        auto track = (scene->*&Access::_FrameTrack)();
+        auto &allocator = track->storage.allocator;
+        auto resize = allocator.resize;
+        CHECK(mm_storage_resize_exact(&track->storage, 0, track->rows.bytes, MM_STORAGE_NORMAL) == MM_STORAGE_OK);
+        allocator.resize = [](void *, void *, MMU32, MMU32, int) -> void * {
             put_called = true;
-            return 0;
+            return nullptr;
         };
         put_called = false;
-        CHECK(!mm_scene_sound_add(0, 1, 29, stySfx, 1, tag, &services) && put_called);
+        bool result = mm_scene_sound_add(0, 1, 29, stySfx, 1, tag, &services) != 0;
+        allocator.resize = resize;
+        CHECK(!result && put_called);
     }
     static long Count(PScene p)
     {

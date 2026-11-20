@@ -1,6 +1,7 @@
 /* Scene sound packets converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_sound.h"
+#include "mm/scene_track.h"
 #include "mm/wide.h"
 #include <string.h>
 typedef char scene_sound_header_must_be_16_bytes[sizeof(MMSceneSound) == 16 ? 1 : -1];
@@ -66,24 +67,12 @@ MMSceneSound *mm_scene_sound_duplicate(const MMSceneSound *source,
         s->retain(s->context, record(p, i, s));
     return p;
 }
-MMSceneSound *mm_scene_sound_group(void *group, MMI32 index, int retain_tags,
-                                              const MMSceneSoundPacketServices *s)
+static void copy_group_sound(MMSceneSound *p, const void *source, MMI32 bytes, int retain_tags,
+                             const MMSceneSoundPacketServices *s)
 {
-    MMSceneSound *p, *source;
-    MMI32 size = s->group_size(s->context, group, index), bytes, i;
+    MMI32 i;
     void *tag;
-    if (size < 16)
-        return NULL;
-    source = (MMSceneSound *)s->group_data(s->context, group, index);
-    if (!source || source->ctagc <= 0)
-        return NULL;
-    bytes = mm_scene_sound_size(source->ctagc, s->tag_bytes);
-    if (!bytes || bytes > size)
-        return NULL;
-    p = (MMSceneSound *)s->allocate(s->context, bytes);
-    if (!p)
-        return NULL;
-    memcpy(p, s->group_data(s->context, group, index), (size_t)bytes);
+    memcpy(p, source, (size_t)bytes);
     for (i = 0; i < p->ctagc; ++i)
     {
         tag = record(p, i, s);
@@ -92,6 +81,36 @@ MMSceneSound *mm_scene_sound_group(void *group, MMI32 index, int retain_tags,
         else if (!s->sid(s->context, tag))
             s->retain(s->context, tag);
     }
+}
+MMSceneSound *mm_scene_sound_group(void *group, MMI32 index, int retain_tags,
+                                              const MMSceneSoundPacketServices *s)
+{
+    MMSceneSound *p;
+    const void *source;
+    MMI32 size = s->group_size(s->context, group, index), bytes;
+    if (size < MM_SCENE_SOUND_HEADER_BYTES)
+        return NULL;
+    source = s->group_data(s->context, group, index);
+    bytes = mm_scene_sound_span(source, size, s->tag_bytes);
+    if (bytes <= MM_SCENE_SOUND_HEADER_BYTES)
+        return NULL;
+    p = (MMSceneSound *)s->allocate(s->context, bytes);
+    if (p)
+        copy_group_sound(p, s->group_data(s->context, group, index), bytes, retain_tags, s);
+    return p;
+}
+MMSceneSound *mm_scene_sound_track(const MMSceneTrack *track, MMI32 index,
+                                  const MMSceneSoundPacketServices *s)
+{
+    MMSceneSound *p;
+    MMI32 size = 0, bytes;
+    const void *source = mm_scene_track_payload(track, index, &size);
+    bytes = mm_scene_sound_span(source, size, s->tag_bytes);
+    if (bytes <= MM_SCENE_SOUND_HEADER_BYTES)
+        return NULL;
+    p = (MMSceneSound *)s->allocate(s->context, bytes);
+    if (p)
+        copy_group_sound(p, mm_scene_track_payload(track, index, NULL), bytes, 1, s);
     return p;
 }
 static MMSceneSound *append_storage(const MMSceneSound *source, const MMSceneSoundPacketServices *s)

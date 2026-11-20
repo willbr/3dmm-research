@@ -32,9 +32,6 @@ extern "C"
         void *context;
         MMSceneEventServices events;
         MMSceneSoundValueServices values;
-        int (*insert)(void *, MMI32 index, MMI32 frame, int kind, MMI32 bytes, const void *payload);
-        int (*put)(void *, MMI32 index, MMI32 bytes, const void *payload);
-        void (*erase)(void *, MMI32 index);
         void *(*allocate_records)(void *, MMI32 bytes);
         void (*free_raw)(void *, void *);
         void (*input_tag)(void *, void *tags, MMI32 index, MMTag *);

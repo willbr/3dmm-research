@@ -114,7 +114,7 @@ static int store_sound(MMSceneTrack *frames, MMI32 index, const MMSceneTrackEven
 {
     const MMSceneSoundPacketServices *v = &s->values.packets;
     const MMMovieArchiveEditor *editor = s->editor;
-    MMSceneSound *sound = mm_scene_sound_group(&s->owner->tracks[MM_SCENE_FRAMES], index, 1, v);
+    MMSceneSound *sound = mm_scene_sound_track(&s->owner->tracks[MM_SCENE_FRAMES], index, v);
     MMChunkAccess chunks;
     MMTag tag;
     MMU32 child, match;

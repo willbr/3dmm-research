@@ -2,50 +2,50 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_sound_edit.h"
 #include "mm/wide.h"
-static void *frames(const MMSceneSoundEditServices *s)
+static MMSceneTrack *frames(const MMSceneSoundEditServices *s)
 {
-    return s->events.owner->owned[MM_SCENE_FRAMES];
+    return &s->events.owner->tracks[MM_SCENE_FRAMES];
 }
 static MMSceneSound *payload(MMI32 i, const MMSceneSoundEditServices *s)
 {
-    return (MMSceneSound *)s->events.payload(s->events.context, frames(s), i);
+    return (MMSceneSound *)mm_scene_track_payload(frames(s), i, NULL);
 }
 static MMI32 find(MMI32 style, int *boundary, const MMSceneSoundEditServices *s)
 {
-    MMI32 i, frame;
-    int kind;
+    const MMSceneTrack *track = frames(s);
+    MMSceneTrackEvent event;
+    MMI32 i;
     *boundary = 0;
     for (i = s->events.runtime->next_event - 1; i >= 0; --i)
     {
-        s->events.event(s->events.context, frames(s), i, &frame, &kind);
-        if (frame != s->events.data->currentFrame)
+        if (!mm_scene_track_get(track, i, &event))
+            break;
+        if (event.frame != s->events.data->currentFrame)
         {
             *boundary = 1;
             break;
         }
-        if (kind == MM_SCENE_PLAY_SOUND && payload(i, s)->sty == style)
+        if (event.kind == MM_SCENE_PLAY_SOUND && payload(i, s)->sty == style)
             return i;
     }
     return -1;
 }
 static void close_event(MMI32 index, const MMSceneSoundEditServices *s)
 {
-    MMSceneSound *p = payload(index, s);
-    MMI32 i;
-    const MMSceneSoundServices *v = &s->events.owners.sound;
-    for (i = 0; i < p->ctagc; ++i)
-        v->close(v->context, p, i);
-    s->erase(s->context, index);
-    --s->events.runtime->next_event;
+    if (mm_scene_owner_erase_frame(s->events.owner, index, &s->events.owners))
+        --s->events.runtime->next_event;
 }
 int mm_scene_edit_insert(MMI32 frame, int kind, MMI32 bytes, const void *p,
                                const MMSceneSoundEditServices *s)
 {
+    MMSceneTrackEvent event;
     MMI32 index;
     int ok;
     s->dirty(s->context);
     index = s->events.runtime->next_event++;
-    ok = s->insert(s->context, index, frame, kind, bytes, p);
+    event.frame = frame;
+    event.kind = kind;
+    ok = mm_scene_track_insert(frames(s), index, bytes, p, &event);
     if (!ok)
         --s->events.runtime->next_event;
     return ok;
@@ -121,7 +121,7 @@ int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 cou
     }
     else
     {
-        previous = mm_scene_sound_group(frames(s), old, 1, v);
+        previous = mm_scene_sound_track(frames(s), old, v);
         if (!previous)
             return 0;
         s->input_tag(c, tags, 0, &tag);
@@ -143,7 +143,7 @@ int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 cou
             s->values.release(s->values.context, previous);
             return 0;
         }
-        if (!s->put(c, old, packet_bytes(p, s), p))
+        if (!mm_scene_track_put(frames(s), old, packet_bytes(p, s), p))
         {
             /* append transferred previous's prefix to p: dispose that prefix once. */
             s->free_raw(c, previous);
@@ -200,7 +200,7 @@ int mm_scene_sound_get(MMI32 style, int *found, MMSceneSound **out,
     i = find(style, &boundary, s);
     if (i < 0)
         return 1;
-    *out = mm_scene_sound_group(frames(s), i, 1, &s->values.packets);
+    *out = mm_scene_sound_track(frames(s), i, &s->values.packets);
     if (!*out)
         return 0;
     *found = 1;
@@ -208,14 +208,15 @@ int mm_scene_sound_get(MMI32 style, int *found, MMSceneSound **out,
 }
 void mm_scene_sound_update_indicator(const MMSceneSoundEditServices *s)
 {
-    MMI32 i, frame;
-    int kind, has = 0;
+    const MMSceneTrack *track = frames(s);
+    MMSceneTrackEvent event;
+    MMI32 i;
+    int has = 0;
     for (i = s->events.runtime->next_event - 1; i >= 0; --i)
     {
-        s->events.event(s->events.context, frames(s), i, &frame, &kind);
-        if (frame != s->events.data->currentFrame)
+        if (!mm_scene_track_get(track, i, &event) || event.frame != s->events.data->currentFrame)
             break;
-        if (kind == MM_SCENE_PLAY_SOUND)
+        if (event.kind == MM_SCENE_PLAY_SOUND)
         {
             has = 1;
             break;

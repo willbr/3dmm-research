@@ -32,11 +32,6 @@ extern "C"
     {
         void *context;
         MMSceneSoundEditServices sound;
-        void (*put)(void *, void *group, MMI32 index, const void *payload);
-        void (*erase)(void *, void *group, MMI32 index);
-        int (*put_background)(void *, MMI32 index, const MMTag *);
-        int (*insert_background)(void *, MMI32 frame, const MMTag *);
-        int (*play_background)(void *, MMI32 frame, const MMTag *, MMU32 disabled);
         void (*background_name)(void *), (*scene_change)(void *), (*loaded)(void *);
         int (*can_notify)(void *);
         MMI32 (*current_camera)(void *);

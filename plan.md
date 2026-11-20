@@ -161,6 +161,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Studio dispatches frame and start events from the C89 tracks. Rewind uses
   the same event search as Marcus preview. Actor and caption insertion
   and removal use the C89 start track directly, as does actor replacement.
+- Studio edits camera cuts, pauses, backgrounds and queued sounds directly
+  in the C89 tracks. Scene trimming and background replacement use the same
+  sound-tag cleanup as scene disposal. Sound editing and saving copy track
+  packets through one C89 operation that reacquires the payload after
+  allocation.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs
