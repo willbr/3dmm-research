@@ -5,14 +5,14 @@
 
 enum { FIXTURE_SCENE_BASE = 100, FIXTURE_MOVIE_ROOT = 7 };
 
-static void fixture_scene_archive_init(MovieSceneArchiveFixture *f, int count)
+static void fixture_scene_archive_init(ChunkIndexFixture *f, int count)
 {
     memset(f, 0, sizeof(*f));
     fixture_scene_seed_movie(f, FIXTURE_MOVIE_ROOT, FIXTURE_SCENE_BASE, (MMU32)count);
 }
 static void fixture_scene_access(void *p, MMChunkAccess *access)
 {
-    *access = fixture_scene_chunks(p);
+    *access = fixture_chunk_access(p);
 }
 static int fixture_scene_root(void *p, void *request, MMU32 position, const MMChunkEntry *entry,
                               void *bytes, MMU32 size)
@@ -26,7 +26,7 @@ static int fixture_scene_root(void *p, void *request, MMU32 position, const MMCh
     memcpy(bytes, header, sizeof(header));
     return MM_MOVIE_OK;
 }
-static int fixture_scene_open(MovieSceneArchiveFixture *f, MMU32 *number, MMMovieSession **out)
+static int fixture_scene_open(ChunkIndexFixture *f, MMU32 *number, MMMovieSession **out)
 {
     MMMovieSessionGraph graph = {NULL, fixture_scene_access, fixture_scene_root, NULL, NULL};
     graph.context = f;

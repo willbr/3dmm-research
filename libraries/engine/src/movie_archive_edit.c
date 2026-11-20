@@ -194,13 +194,13 @@ int mm_movie_archive_embed_tag(const MMMovieEmbeddedArchive *s, MMU32 parent_typ
             return 1;
         }
     if (!mm_movie_archive_next_child(&chunks, parent_type, parent, link.type, &link.slot) ||
-        !s->adopt(s->context, parent_type, parent, &link, created))
+        mm_chunk_adopt(&s->edit, parent_type, parent, &link, created) != MM_CHUNK_OK)
         goto fail;
     tag->number = link.number;
     return 1;
 fail:
     if (created)
-        s->discard(s->context, link.type, link.number);
+        mm_chunk_delete(&s->edit, link.type, link.number);
     return 0;
 }
 

@@ -1184,7 +1184,9 @@ destination movie. Movie autosave/save transactions, temporary-resource setup,
 saved-file ownership/flags, VMM save-format/publication policy, scene-tag collection
 and asset/sound garbage-collection control now also use C89. Autosave publishes
 and rolls back links through the C89 editor on the live index. Garbage collection
-uses the same editor to remove obsolete assets and sound trees. Scene removal,
+uses the same editor to remove obsolete assets and sound trees. Actor and scene
+serialization and Scene Sorter imports use it to attach embedded backgrounds,
+materials, templates, and sounds and discard failed copies. Scene removal,
 composition, and autosave use it to preserve embedded backgrounds and materials
 after a complete preview of the references they are about to release. Studio and Marcus
 share the C89 VMM v1 reader and writer for dependency names, embedded archive

@@ -8,6 +8,7 @@
 #include "mm/scene_data.h"
 #include "mm/template_create.h"
 #include "mm/text.h"
+#include "chunk_edit_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -39,6 +40,7 @@ typedef union Payload
 typedef struct Fixture
 {
     Graph source, destination;
+    ChunkIndexFixture embedded;
     MMActorHeader input, written;
     MMActorEvent events[TRANSFER_ROWS];
     Payload payloads[TRANSFER_ROWS];
@@ -1050,18 +1052,44 @@ static int add_rebound_events(void *context, MMU32 type, MMU32 size, MMU32 *numb
 
 static int copy_cloned_material(void *context, const MMTag *tag, MMU32 *number, int *created)
 {
+    Fixture *f = context;
     CHECK(tag->sid == 0 && !tag->cache && tag->type == MATERIAL && tag->number == 8);
+    if (!copy_asset(context, tag->type, tag->number, number))
+        return 0;
+    fixture_chunk_add(&f->embedded, tag->type, *number);
     *created = 1;
-    return copy_asset(context, tag->type, tag->number, number);
+    return 1;
 }
 
-static int adopt_cloned_material(void *context, MMU32 type, MMU32 actor, const MMChunkChild *child, int clear_loner)
+static MMChunkAccess embedded_index(void *context)
+{
+    return fixture_chunk_access(&((Fixture *)context)->embedded);
+}
+
+static int insert_cloned_material(void *context, MMU32 actor, const MMChunkChild *child)
 {
     Fixture *f = (Fixture *)context;
-    CHECK(type == ACTOR && actor == 2 && clear_loner && child->type == MATERIAL && child->number == 108 &&
-          child->slot == 2 && f->destination.entries[0].child_count == 3);
-    append_child(&f->destination, 0, child->type, child->number, child->slot);
+    CHECK(actor == 2 && child->type == MATERIAL && child->number == 108 &&
+          child->slot == 2 && f->embedded.rows[0].entry.child_count == 3);
     return 1;
+}
+
+static void init_rebound_materials(Fixture *f, int big)
+{
+    MMChunkEdit edit;
+    const MMChunkChild *link;
+    MMU32 i;
+    init(f, big);
+    fixture_chunk_add(&f->embedded, ACTOR, 2);
+    edit = fixture_chunk_edit(&f->embedded);
+    for (i = 0; i < f->destination.entries[0].child_count; ++i)
+    {
+        link = &f->destination.children[0][i];
+        fixture_chunk_add(&f->embedded, link->type, link->number);
+        CHECK(mm_chunk_adopt(&edit, ACTOR, 2, link, 1) == MM_CHUNK_OK);
+    }
+    f->embedded.observer = f;
+    f->embedded.before_insert = insert_cloned_material;
 }
 
 static int adopt_rebound_events(void *context, MMU32 type, MMU32 actor, MMU32 child_type, MMU32 number, MMU32 slot)
@@ -1090,23 +1118,32 @@ static void rebind_materials(void)
 {
     Fixture f;
     MMMovieArchiveEditor editor = {0};
-    MMMovieEmbeddedArchive materials = {NULL, destination, copy_cloned_material, adopt_cloned_material,
-                                        discard_rebound_events};
+    MMMovieEmbeddedArchive materials = {0};
+    MMChunkAccess index;
+    MMChunkEntry asset;
+    MMU32 row;
     editor.context = materials.context = &f;
+    materials.chunks = embedded_index;
+    materials.copy_reference = copy_cloned_material;
+    materials.edit = fixture_chunk_edit(&f.embedded);
     editor.system = MM_TEXT_WINDOWS;
-    editor.chunks = destination;
+    editor.chunks = embedded_index;
     editor.read = read_cloned_events;
     editor.add = add_rebound_events;
     editor.adopt = adopt_rebound_events;
     editor.unlink = unlink_original_events;
     editor.discard = discard_rebound_events;
-    init(&f, 1);
+    init_rebound_materials(&f, 1);
     CHECK(mm_actor_archive_rebind_materials(&editor, 2, &materials));
     CHECK(f.copies == 1 && f.writes == 1 && f.replacement_adopted == 1 && f.old_unlinked == 1);
+    index = embedded_index(&f);
+    CHECK(mm_chunk_find(&index, MATERIAL, 108, &row) == MM_CHUNK_OK &&
+          mm_chunk_at(&index, row, &asset) == MM_CHUNK_OK && asset.parent_count == 1 &&
+          !(asset.flags & MM_CHUNK_LONER));
     read_output_events(&f);
     CHECK(f.payloads[0].sound.tag.number == 777 && f.payloads[6].costume.tag.number == 108 &&
           f.payloads[7].costume.tag.number == 0 && f.events[7].nfrm == 17);
-    init(&f, 0);
+    init_rebound_materials(&f, 0);
     f.fail_write = 1;
     CHECK(!mm_actor_archive_rebind_materials(&editor, 2, &materials));
     CHECK(!f.old_unlinked && f.replacement_discarded == 1 && !f.replacement_adopted);
@@ -1115,42 +1152,14 @@ static void rebind_materials(void)
 typedef struct ImportedSounds
 {
     Fixture wire;
-    MMChunkChild scene[6];
-    MMU32 count;
+    ChunkIndexFixture index;
     int fail, adoptions;
 } ImportedSounds;
 
-static int import_sound_entry(void *p, MMU32 row, MMChunkEntry *entry)
+static void import_sound_access(void *p, MMChunkAccess *out)
 {
-    static const MMU32 types[] = {ACTOR, EVENTS, MM_SCENE_FRAME_GROUP, MM_SCENE_START_GROUP, MOVIE, MOVIE, MM_SOUND_SCENE};
-    static const MMU32 numbers[] = {1, 10, 4, 5, 0, 9, 3};
-    static const MMU32 children[] = {1, 0, 0, 0, 1, 5};
-    ImportedSounds *f = (ImportedSounds *)p;
-    memset(entry, 0, sizeof(*entry));
-    entry->type = types[row];
-    entry->number = numbers[row];
-    entry->child_count = row == 6 ? f->count : children[row];
-    return 1;
+    *out = fixture_chunk_access(&((ImportedSounds *)p)->index);
 }
-
-static int import_sound_child(void *p, MMU32 row, MMU32 index, MMChunkChild *out)
-{
-    static const MMChunkChild group = {EVENTS, 10, 0};
-    static const MMChunkChild other = {MM_SOUND_CHUNK, 55, 2};
-    static const MMChunkChild bank[] = {{MM_SOUND_SCENE, 3, 0}, {MM_SOUND_CHUNK, 21, 2},
-        {MM_SOUND_CHUNK, 24, 4}, {MM_SOUND_CHUNK, 25, 5}, {MM_SOUND_CHUNK, 26, 6}};
-    *out = row == 0 ? group : row == 4 ? other : row == 5 ? bank[index] : ((ImportedSounds *)p)->scene[index];
-    return 1;
-}
-
-static MMChunkAccess import_sound_chunks(void *p)
-{
-    MMChunkAccess access = {NULL, 7, import_sound_entry, import_sound_child};
-    access.context = p;
-    return access;
-}
-
-static void import_sound_access(void *p, MMChunkAccess *out) { *out = import_sound_chunks(p); }
 
 static int import_sound_payload(void *p, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
 {
@@ -1202,44 +1211,85 @@ static int import_sound_payload(void *p, const MMChunkEntry *entry, MMMovieRecei
     return receive(out, &memory.stream);
 }
 
-static int adopt_imported_sound(void *p, MMU32 type, MMU32 scene, const MMChunkChild *child, int clear_loner)
+static int insert_imported_sound(void *p, MMU32 scene, const MMChunkChild *child)
 {
     ImportedSounds *f = (ImportedSounds *)p;
-    CHECK(type == MM_SOUND_SCENE && scene == 3 && child->type == MM_SOUND_CHUNK && !clear_loner);
+    CHECK(scene == 3 && child->type == MM_SOUND_CHUNK);
     CHECK((child->slot == 2 && child->number == 21) || (child->slot == 4 && child->number == 24));
-    if (++f->adoptions == f->fail)
-        return 0;
-    CHECK(f->count < sizeof(f->scene) / sizeof(f->scene[0]));
-    f->scene[f->count] = f->scene[f->count - 1];
-    f->scene[f->count - 1] = *child;
-    ++f->count;
-    return 1;
+    return ++f->adoptions != f->fail;
+}
+
+static void seed_sound_links(ChunkIndexFixture *index, MMU32 type, MMU32 number,
+                             const MMChunkChild *links, size_t count)
+{
+    const MMChunkEdit edit = fixture_chunk_edit(index);
+    size_t i;
+    for (i = 0; i < count; ++i)
+        CHECK(mm_chunk_adopt(&edit, type, number, &links[i], 0) == MM_CHUNK_OK);
+}
+
+static void init_imported_sounds(ImportedSounds *f, int big)
+{
+    static const MMChunkChild scene[] = {{ACTOR, 1, 0}, {MM_SCENE_FRAME_GROUP, 4, 0},
+        {MM_SCENE_START_GROUP, 5, 1}, {MM_SOUND_CHUNK, 99, 5}};
+    static const MMChunkChild group = {EVENTS, 10, 0};
+    static const MMChunkChild other = {MM_SOUND_CHUNK, 55, 2};
+    static const MMChunkChild bank[] = {{MM_SOUND_SCENE, 3, 0}, {MM_SOUND_CHUNK, 21, 2},
+        {MM_SOUND_CHUNK, 24, 4}, {MM_SOUND_CHUNK, 25, 5}, {MM_SOUND_CHUNK, 26, 6}};
+    MMU32 i;
+    memset(f, 0, sizeof(*f));
+    init(&f->wire, big);
+    f->wire.payloads[5].sound.child = 6;
+    fixture_chunk_add(&f->index, MM_SOUND_SCENE, 3);
+    fixture_chunk_add(&f->index, MOVIE, 0);
+    fixture_chunk_add(&f->index, MOVIE, 9);
+    fixture_chunk_add(&f->index, EVENTS, 10);
+    fixture_chunk_add(&f->index, other.type, other.number);
+    for (i = 0; i < sizeof(scene) / sizeof(scene[0]); ++i)
+        fixture_chunk_add(&f->index, scene[i].type, scene[i].number);
+    for (i = 1; i < sizeof(bank) / sizeof(bank[0]); ++i)
+        fixture_chunk_add(&f->index, bank[i].type, bank[i].number);
+    seed_sound_links(&f->index, ACTOR, 1, &group, 1);
+    seed_sound_links(&f->index, MOVIE, 0, &other, 1);
+    seed_sound_links(&f->index, MOVIE, 9, bank, sizeof(bank) / sizeof(bank[0]));
+    seed_sound_links(&f->index, MM_SOUND_SCENE, 3, scene, sizeof(scene) / sizeof(scene[0]));
+    f->index.observer = f;
+    f->index.before_insert = insert_imported_sound;
 }
 
 static void link_imported_sounds(void)
 {
     ImportedSounds f;
-    const MMChunkChild initial[] = {{ACTOR, 1, 0}, {MM_SCENE_FRAME_GROUP, 4, 0},
-        {MM_SCENE_START_GROUP, 5, 1}, {MM_SOUND_CHUNK, 99, 5}};
     MMMovieSessionGraph graph = {NULL, import_sound_access, NULL, import_sound_payload, NULL};
-    MMMovieEmbeddedArchive archive = {NULL, import_sound_chunks, NULL, adopt_imported_sound, NULL};
+    const MMChunkEdit edit = fixture_chunk_edit(&f.index);
+    MMChunkAccess chunks;
+    MMChunkEntry entry;
+    MMU32 row, number;
     int big;
-    graph.context = archive.context = &f;
+    graph.context = &f;
     for (big = 0; big <= 1; ++big)
     {
-        memset(&f, 0, sizeof(f));
-        init(&f.wire, big);
-        f.wire.payloads[5].sound.child = 6;
-        memcpy(f.scene, initial, sizeof(initial));
-        f.count = 4;
-        CHECK(mm_movie_archive_link_imported_sounds(&graph, 9, &archive));
-        CHECK(f.adoptions == 2 && f.count == 6 && f.scene[5].number == 99);
-        CHECK(mm_movie_archive_link_imported_sounds(&graph, 9, &archive) && f.adoptions == 2);
+        init_imported_sounds(&f, big);
+        CHECK(mm_movie_archive_link_imported_sounds(&graph, 9, &edit) && f.adoptions == 2);
+        import_sound_access(&f, &chunks);
+        CHECK(mm_chunk_link_number(&chunks, MM_SOUND_SCENE, 3, 2, MM_SOUND_CHUNK, &number) == MM_CHUNK_OK &&
+              number == 21);
+        CHECK(mm_chunk_link_number(&chunks, MM_SOUND_SCENE, 3, 4, MM_SOUND_CHUNK, &number) == MM_CHUNK_OK &&
+              number == 24);
+        CHECK(mm_chunk_link_number(&chunks, MM_SOUND_SCENE, 3, 5, MM_SOUND_CHUNK, &number) == MM_CHUNK_OK &&
+              number == 99);
+        CHECK(mm_chunk_find(&chunks, MM_SOUND_CHUNK, 21, &row) == MM_CHUNK_OK &&
+              mm_chunk_at(&chunks, row, &entry) == MM_CHUNK_OK && entry.parent_count == 2 &&
+              (entry.flags & MM_CHUNK_LONER));
+        CHECK(mm_movie_archive_link_imported_sounds(&graph, 9, &edit) && f.adoptions == 2);
     }
-    f.count = 4;
-    memcpy(f.scene, initial, sizeof(initial));
-    f.fail = 4;
-    CHECK(!mm_movie_archive_link_imported_sounds(&graph, 9, &archive) && f.count == 5);
+    init_imported_sounds(&f, 1);
+    f.fail = 2;
+    CHECK(!mm_movie_archive_link_imported_sounds(&graph, 9, &edit) && f.adoptions == 2);
+    import_sound_access(&f, &chunks);
+    CHECK(mm_chunk_link_number(&chunks, MM_SOUND_SCENE, 3, 2, MM_SOUND_CHUNK, &number) == MM_CHUNK_OK &&
+          number == 21);
+    CHECK(mm_chunk_link_number(&chunks, MM_SOUND_SCENE, 3, 4, MM_SOUND_CHUNK, &number) == MM_CHUNK_NOT_FOUND);
 }
 
 int main(void)

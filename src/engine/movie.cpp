@@ -2812,9 +2812,8 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.link_imported_sounds = [](void *p, MMU32 movie) {
         auto file = static_cast<PChunkyFile>(p);
         const auto graph = EngineMovieGraph::FromFile(file);
-        MovieEmbeddedArchive assets{file, nullptr};
-        const auto archive = assets.Services();
-        return mm_movie_archive_link_imported_sounds(&graph, movie, &archive);
+        const auto edit = file->EditIndex();
+        return mm_movie_archive_link_imported_sounds(&graph, movie, &edit);
     };
     s.adopt_sounds=[](void *p,void *file,MMU32 scene)->int { return static_cast<PMovie>(p)->_FAdoptMsndInMvie(static_cast<PChunkyFile>(file),scene); };
     s.start_scene=[](void *p)->int { return static_cast<PScene>(p)->FPlayStartEvents(true); };

@@ -3,6 +3,7 @@
 #include "mm/scene_data.h"
 #include "mm/movie_sound.h"
 #include "mm/text_store.h"
+#include "chunk_edit_fixture.h"
 #include "scene_sound_fixture.h"
 
 #define THUMBNAIL_TYPE 0x5448554dUL
@@ -35,6 +36,7 @@ typedef struct StoreFixture
     MMSceneCollectServices collect;
     MMSceneOwner owner;
     MMMovieArchiveEditor editor;
+    ChunkIndexFixture asset_index;
     MMSceneSound *sounds[2];
     StoreGroup wire[2];
     StoredChunk chunks[96];
@@ -195,6 +197,8 @@ static int add_chunk(void *p, MMU32 type, MMU32 size, MMU32 *number, MMStorageWr
         return 0;
     f->output->type = type;
     f->output->length = size;
+    if (type == MM_SCENE_CHUNK)
+        fixture_chunk_add(&f->asset_index, type, *number);
     if (writer)
     {
         writer->context = f;
@@ -236,7 +240,10 @@ static void discard_chunk(void *p, MMU32 type, MMU32 number)
     unsigned i;
     if (type == MM_SCENE_CHUNK)
     {
+        const MMChunkEdit edit = fixture_chunk_edit(&f->asset_index);
         CHECK(number == SCENE_NUMBER);
+        if (f->asset_index.count)
+            CHECK(mm_chunk_delete(&edit, type, number) == MM_CHUNK_OK);
         for (i = 0; i < sizeof(f->chunks) / sizeof(f->chunks[0]); ++i)
             if (i != SCENE_NUMBER)
             {
@@ -283,22 +290,34 @@ static int copy_background(void *p, const MMTag *tag, MMU32 *number, int *create
     CHECK(tag->sid == 0 && tag->number == 9 && tag->cache == &f->packets && tag->type == MM_BACKGROUND);
     *number = 19;
     *created = 1;
-    return step(f, 80);
+    if (!step(f, 80))
+        return 0;
+    fixture_chunk_add(&f->asset_index, tag->type, *number);
+    return 1;
 }
 
-static int adopt_background(void *p, MMU32 type, MMU32 scene, const MMChunkChild *child, int clear_loner)
+static MMChunkAccess asset_chunks(void *p)
+{
+    return fixture_chunk_access(&((StoreFixture *)p)->asset_index);
+}
+
+static int insert_background(void *p, MMU32 scene, const MMChunkChild *child)
 {
     StoreFixture *f = p;
-    CHECK(type == MM_SCENE_CHUNK && scene == SCENE_NUMBER && child->type == MM_BACKGROUND &&
-          child->number == 19 && child->slot == 0 && clear_loner);
+    CHECK(scene == SCENE_NUMBER && child->type == MM_BACKGROUND && child->number == 19 && child->slot == 0);
     f->background_adoption_failed = !step(f, 79);
     return !f->background_adoption_failed;
 }
 
-static void discard_background(void *p, MMU32 type, MMU32 number)
+static void erase_background(void *p, const MMChunkEntry *entry)
 {
-    CHECK(type == MM_BACKGROUND && number == 19);
-    note(p, 78);
+    StoreFixture *f = p;
+    if (entry->type == MM_BACKGROUND)
+    {
+        CHECK(entry->number == 19 && !entry->parent_count);
+        if (f->background_adoption_failed)
+            note(f, 78);
+    }
 }
 
 static void update_thumbnail(void *p)
@@ -424,10 +443,12 @@ static void init_store(StoreFixture *f)
     s->free_sound_bytes = free_sound_bytes;
     s->write_object = write_object;
     s->assets.context = f;
-    s->assets.chunks = store_chunks;
+    s->assets.chunks = asset_chunks;
     s->assets.copy_reference = copy_background;
-    s->assets.adopt = adopt_background;
-    s->assets.discard = discard_background;
+    s->assets.edit = fixture_chunk_edit(&f->asset_index);
+    f->asset_index.observer = f;
+    f->asset_index.before_insert = insert_background;
+    f->asset_index.before_delete = erase_background;
     s->update_thumbnail = update_thumbnail;
     s->thumbnail_size = thumbnail_size;
     s->write_thumbnail = write_thumbnail;
@@ -498,6 +519,8 @@ static void test_store(void)
     init_store(&f);
     CHECK(mm_scene_store(&number, &f.s) && number == SCENE_NUMBER && !f.deleted && f.titled);
     CHECK(f.objects == 4 && f.actor_id == 2 && f.text_id == 2 && f.adoptions == 1);
+    CHECK(f.asset_index.count == 2 && f.asset_index.rows[0].entry.type == MM_BACKGROUND &&
+          f.asset_index.rows[0].entry.parent_count == 1 && !(f.asset_index.rows[0].entry.flags & MM_CHUNK_LONER));
     check_group(&f.chunks[FRAMES_NUMBER], frames, frame_sizes, 4);
     check_group(&f.chunks[STARTS_NUMBER], starts, start_sizes, 6);
     attempts = f.attempts;
@@ -507,7 +530,7 @@ static void test_store(void)
         init_store(&f);
         f.fail = fail;
         CHECK(!mm_scene_store(&number, &f.s) && number == SCENE_NUMBER && f.deleted == 1);
-        CHECK(f.log[f.used - 1] == 90);
+        CHECK(f.log[f.used - 1] == 90 && !f.asset_index.count);
         for (j = 0; j < (int)(sizeof(f.chunks) / sizeof(f.chunks[0])); ++j)
             CHECK(!f.chunks[j].type && !f.chunks[j].linked);
         if (f.thumb_deleted)

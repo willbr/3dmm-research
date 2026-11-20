@@ -36,14 +36,14 @@ typedef struct MMMovieArchiveEditor
     void (*discard)(void *, MMU32 type, MMU32 number); /* Optional unlinked chunk cleanup. */
 } MMMovieArchiveEditor;
 
-/* Primitive access for copying and linking document-owned asset subtrees. */
+/* Borrow the destination index across copies. Each copy may insert rows.
+ * copy_reference reports whether the destination subtree was newly created. */
 typedef struct MMMovieEmbeddedArchive
 {
     void *context;
     MMChunkAccess (*chunks)(void *);
     int (*copy_reference)(void *, const MMTag *, MMU32 *number, int *created);
-    int (*adopt)(void *, MMU32 parent_type, MMU32 parent, const MMChunkChild *, int clear_loner);
-    void (*discard)(void *, MMU32 type, MMU32 number);
+    MMChunkEdit edit;
 } MMMovieEmbeddedArchive;
 
 enum MMMovieSceneArchiveResult

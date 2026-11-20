@@ -100,7 +100,7 @@ struct Test
     MMMovieEditServices s;
     MMMovieState data;
     MMMovieScenes scenes;
-    MovieSceneArchiveFixture archive;
+    ChunkIndexFixture archive;
     MMSceneOwner scene_owner;
     Actor actor, fresh, copy;
     Actor *selected, *placement;
@@ -1706,13 +1706,13 @@ static int insertion(void)
 }
 static int allow(void *p) { (void)p; return 1; }
 static void *background_file(void *p) { return p; }
-static MMChunkAccess background_chunks(void *p) { return fixture_scene_chunks(&((Test *)p)->archive); }
+static MMChunkAccess background_chunks(void *p) { return fixture_chunk_access(&((Test *)p)->archive); }
 static int write_background_scene(void *p, void *scene, MMU32 *number)
 {
     Test *t = p;
     (void)scene;
     *number = 123;
-    fixture_scene_add(&t->archive, MM_SCENE_CHUNK, *number);
+    fixture_chunk_add(&t->archive, MM_SCENE_CHUNK, *number);
     return 1;
 }
 static int adopt_background_scene(void *p, MMU32 movie, const MMChunkChild *child)
@@ -1726,7 +1726,7 @@ static int adopt_background_scene(void *p, MMU32 movie, const MMChunkChild *chil
 static MMChunkEdit edit_background_movie(void *p)
 {
     Test *t = p;
-    return fixture_scene_edit(&t->archive);
+    return fixture_chunk_edit(&t->archive);
 }
 static MMMovieSceneServices background_scenes(Test *t)
 {

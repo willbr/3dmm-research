@@ -35,7 +35,7 @@ typedef struct Host
     int file, resource, undo, has_resource, sought;
     MMMovieScenes movie;
     MMMovieState data;
-    MovieSceneArchiveFixture archive;
+    ChunkIndexFixture archive;
     SnapshotScene loaded, old, initial, restored, neighbor;
     MMSceneChopUndo *record;
 } Host;
@@ -483,12 +483,12 @@ static int write_movie_scene(void *p, void *scene, MMU32 *number)
     Host *h = (Host *)p;
     CHECK(scene == &h->loaded);
     *number = 124;
-    fixture_scene_add(&h->archive, MM_SCENE_CHUNK, *number);
+    fixture_chunk_add(&h->archive, MM_SCENE_CHUNK, *number);
     return 1;
 }
 static void *archive(void *p) { return p; }
-static MMChunkAccess chunks(void *p) { return fixture_scene_chunks(&((Host *)p)->archive); }
-static MMChunkEdit edit_archive(void *p) { return fixture_scene_edit(&((Host *)p)->archive); }
+static MMChunkAccess chunks(void *p) { return fixture_chunk_access(&((Host *)p)->archive); }
+static MMChunkEdit edit_archive(void *p) { return fixture_chunk_edit(&((Host *)p)->archive); }
 static int succeed(void *p) { (void)p; return 1; }
 static void ignore(void *p) { (void)p; }
 static int insert_scene_link(void *p, MMU32 parent, const MMChunkChild *child)

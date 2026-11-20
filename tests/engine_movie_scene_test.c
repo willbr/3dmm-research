@@ -42,7 +42,7 @@ struct Test
 {
     MMMovieScenes state;
     MMMovieState data;
-    MovieSceneArchiveFixture archive;
+    ChunkIndexFixture archive;
     MMStorageAllocator archive_allocator;
     MMMovieSceneServices s;
     Scene scenes[32];
@@ -187,12 +187,12 @@ static void *file(void *p)
 }
 static MMChunkAccess chunks(void *p)
 {
-    return fixture_scene_chunks(&((Test *)p)->archive);
+    return fixture_chunk_access(&((Test *)p)->archive);
 }
 static MMChunkEdit edit_archive(void *p)
 {
     Test *t = p;
-    MMChunkEdit edit = fixture_scene_edit(&t->archive);
+    MMChunkEdit edit = fixture_chunk_edit(&t->archive);
     edit.walk_allocator = &t->archive_allocator;
     return edit;
 }
@@ -203,7 +203,7 @@ static int write_scene(void *p, void *s, MMU32 *n)
     if (!succeeds(t, WRITE))
         return 0;
     *n = 123;
-    fixture_scene_add(&t->archive, MM_SCENE_CHUNK, *n);
+    fixture_chunk_add(&t->archive, MM_SCENE_CHUNK, *n);
     return 1;
 }
 static void move(void *p, const MMChunkChild *old, const MMChunkChild *next)
@@ -516,7 +516,7 @@ static int removal(void)
     CHECK(!mm_movie_scene_remove(0, &t.s) && t.state.index == 0 && t.data.sceneCount == 3 &&
           t.missing == 1 && !t.deletes && !t.removes && clean(&t));
     init(&t, 3, 0);
-    fixture_scene_add(&t.archive, BKGD, background.number);
+    fixture_chunk_add(&t.archive, BKGD, background.number);
     edit = edit_archive(&t);
     t.archive.before_insert = NULL;
     CHECK(mm_chunk_adopt(&edit, SCEN, 101, &background, 1) == MM_CHUNK_OK);

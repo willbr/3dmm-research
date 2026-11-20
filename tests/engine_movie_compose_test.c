@@ -59,7 +59,7 @@ struct Test
     MMMovieState data;
     MMMovieScenes scenes;
     MMCompositeMovie composite;
-    MovieSceneArchiveFixture archives[2];
+    ChunkIndexFixture archives[2];
     Object resources[3], thumbs[3], open, read, tags[3];
     int fail, failAt, calls[40], events[256], n, badRef;
     int withActors, actorIds[2], adjusted[8], adjustCount;
@@ -110,7 +110,7 @@ static void *file(void *p)
 {
     return p;
 }
-static MovieSceneArchiveFixture *archive(void *p)
+static ChunkIndexFixture *archive(void *p)
 {
     Object *o = p;
     if (o->id != 1 && o->id != 2)
@@ -120,14 +120,14 @@ static MovieSceneArchiveFixture *archive(void *p)
 static MMChunkAccess chunks(void *p)
 {
     Object *o = p;
-    MMChunkAccess access = fixture_scene_chunks(archive(p));
+    MMChunkAccess access = fixture_chunk_access(archive(p));
     if (fails(o->test, CHILD))
         access.count = 0;
     return access;
 }
 static MMChunkEdit edit_archive(void *p)
 {
-    return fixture_scene_edit(archive(p));
+    return fixture_chunk_edit(archive(p));
 }
 static int read_transition(void *p, MMU32 number, MMI32 *out)
 {
@@ -159,7 +159,7 @@ static void *thumbnail(void *p)
 static int clone(void *p, MMU32 number, void *destination, MMU32 *out)
 {
     Object *o = p;
-    const MMChunkAccess source = fixture_scene_chunks(archive(p));
+    const MMChunkAccess source = fixture_chunk_access(archive(p));
     MMChunkEntry entry;
     MMU32 position;
     if (fails(o->test, CLONE))
@@ -757,7 +757,7 @@ static int applying(void)
         mm_composite_empty(&t.composite, release);
     }
     init(&t);
-    fixture_scene_add(&t.archives[0], background.type, background.number);
+    fixture_chunk_add(&t.archives[0], background.type, background.number);
     edit = edit_archive(&t.resources[0]);
     t.archives[0].before_insert = NULL;
     CHECK(mm_chunk_adopt(&edit, MM_SCENE_CHUNK, 100, &background, 1) == MM_CHUNK_OK);

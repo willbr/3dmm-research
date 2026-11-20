@@ -481,10 +481,10 @@ static int store_template(MMU32 actor, const MMActorHeader *header, void *object
             return 0;
         created = 1;
     }
-    if (archive->adopt(archive->context, MM_ACTOR_CHUNK, actor, &link, 1))
+    if (mm_chunk_adopt(&archive->edit, MM_ACTOR_CHUNK, actor, &link, 1) == MM_CHUNK_OK)
         return 1;
     if (created)
-        archive->discard(archive->context, link.type, link.number);
+        mm_chunk_delete(&archive->edit, link.type, link.number);
     return 0;
 }
 
@@ -511,7 +511,7 @@ static int store_sounds(MMU32 scene, MMActorEventTable *events, const MMMovieEmb
         link.type = MM_SOUND_CHUNK;
         link.number = sound.tag.number;
         link.slot = sound.child;
-        if (!archive->adopt(archive->context, MM_SCENE_CHUNK, scene, &link, 1))
+        if (mm_chunk_adopt(&archive->edit, MM_SCENE_CHUNK, scene, &link, 1) != MM_CHUNK_OK)
             return 0;
     }
     return 1;

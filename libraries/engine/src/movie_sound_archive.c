@@ -46,7 +46,7 @@ int mm_movie_archive_edit_sound(const MMMovieArchiveEditor *editor, MMU32 scene,
 
 typedef struct ImportedSoundLinks
 {
-    const MMMovieEmbeddedArchive *archive;
+    const MMChunkEdit *edit;
     const MMChunkAccess *chunks;
     MMU32 movie, scene;
 } ImportedSoundLinks;
@@ -65,7 +65,7 @@ static int link_imported_sound(const ImportedSoundLinks *links, MMU32 slot, cons
         return status == MM_CHUNK_NOT_FOUND;
     child.type = MM_SOUND_CHUNK;
     child.slot = slot;
-    return links->archive->adopt(links->archive->context, MM_SOUND_SCENE, links->scene, &child, 0);
+    return mm_chunk_adopt(links->edit, MM_SOUND_SCENE, links->scene, &child, 0) == MM_CHUNK_OK;
 }
 
 static void *actor_sound_sink(void *context, MMU32 width)
@@ -142,7 +142,7 @@ static int link_scene_sounds(MMMovieSceneSource *source, ImportedSoundLinks *lin
 }
 
 int mm_movie_archive_link_imported_sounds(const MMMovieSessionGraph *graph, MMU32 movie,
-                                          const MMMovieEmbeddedArchive *archive)
+                                          const MMChunkEdit *edit)
 {
     MMMovieSceneSource source;
     ImportedSoundLinks links;
@@ -150,7 +150,7 @@ int mm_movie_archive_link_imported_sounds(const MMMovieSessionGraph *graph, MMU3
     MMChunkEntry entry;
     MMChunkChild child;
     MMU32 row, i;
-    chunks = archive->chunks(archive->context);
+    graph->access(graph->context, &chunks);
     if (mm_chunk_find(&chunks, MM_SOUND_MOVIE, movie, &row) != MM_CHUNK_OK ||
         mm_chunk_at(&chunks, row, &entry) != MM_CHUNK_OK)
         return 0;
@@ -165,7 +165,7 @@ int mm_movie_archive_link_imported_sounds(const MMMovieSessionGraph *graph, MMU3
         return 1;
     source.movie = NULL;
     source.graph = *graph;
-    links.archive = archive;
+    links.edit = edit;
     links.chunks = &chunks;
     links.movie = movie;
     /* Adoption adds only a child to a scene, so the movie row stays current. */

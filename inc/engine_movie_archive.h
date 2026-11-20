@@ -21,13 +21,7 @@ struct MovieEmbeddedArchive
                 return file && file->FFind(tag->type, tag->number) &&
                        file->FCopyReference(tag->type, tag->number, archive.destination, number, created);
             },
-            [](void *value, MMU32 parent_type, MMU32 parent, const MMChunkChild *child, int clear_loner) -> int {
-                auto file = static_cast<MovieEmbeddedArchive *>(value)->destination;
-                return file->FAdoptChild(parent_type, parent, child->type, child->number, child->slot, clear_loner != 0);
-            },
-            [](void *value, MMU32 type, MMU32 number) {
-                static_cast<MovieEmbeddedArchive *>(value)->destination->Delete(type, number);
-            }};
+            destination->EditIndex()};
     }
 };
 #endif

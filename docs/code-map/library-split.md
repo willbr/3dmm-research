@@ -7743,9 +7743,10 @@ chunk's runtime ID after a name write, and supplies text conversion.
 Studio writes an actor through `mm_actor_store` when saving a scene or taking
 a scene undo snapshot. The C89 writer stores the header, route, and events,
 links embedded templates and actor sounds, and attaches each embedded costume
-material to the replacement actor. A foreign material can be copied or reused
-in the destination archive. The wire event uses that archive's chunk number
-and the live event retains its original tag. Reusing a material preserves its
+material to the replacement actor through the C89 chunk editor. A foreign
+material can be copied or reused in the destination archive. The wire event
+uses that archive's chunk number and the live event retains its original tag.
+Reusing a material preserves its
 loner flag. If a newly copied material cannot be adopted, the C89 writer
 discards it. Dropping a failed candidate scene releases its adopted children.
 
@@ -7763,7 +7764,8 @@ even when its chunk number overlaps another movie's material or its material
 is outside the cloned graph. C89 adopts the material under the cloned actor
 and writes a replacement track when the number changes. It publishes the new
 track link before releasing the old link, preserving tracks shared by another
-actor. Studio and Marcus use the same native archive adapter.
+actor. The adapter exposes the destination's live C89 editor and supplies
+source archive and payload access.
 
 That traversal also resolves document-owned background tags in cloned scenes.
 The source archive supplies the background subtree, including standalone
@@ -7775,10 +7777,11 @@ background children for precaching and leaves local child resolution to the
 loaded scene.
 
 The scene sorter installs sound links on the cloned scenes before publishing
-them. C89 visits actor and frame cues and attaches a missing scene slot to
-the matching slot in the cloned movie's sound bank. Existing scene links
-keep precedence, and external and silent actor cues keep their authored
-representation. This keeps the sound identity across chunk renumbering and
+them. C89 visits actor and frame cues and uses the live editor to attach a
+missing scene slot to the matching slot in the cloned movie's sound bank.
+Existing scene links keep precedence, copied sound roots keep their loner flags,
+and external and silent actor cues keep their authored representation. This
+keeps the sound identity across chunk renumbering and
 allows retail playback to resolve each cue from its scene.
 
 `MovieData` can initialize an empty archive, load a `.3MM` chunk graph and

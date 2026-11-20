@@ -49,8 +49,9 @@ int mm_movie_archive_edit_sound(const MMMovieArchiveEditor *, MMU32 scene, const
 
 /* Before publishing any scene from a cloned movie, install its missing MSND
  * links using the cloned movie's bank. Explicit scene links take precedence.
- * The caller discards the cloned graph on failure. */
-int mm_movie_archive_link_imported_sounds(const MMMovieSessionGraph *, MMU32 movie, const MMMovieEmbeddedArchive *);
+ * The graph and editor borrow the same destination. The caller discards the
+ * cloned graph on failure. */
+int mm_movie_archive_link_imported_sounds(const MMMovieSessionGraph *, MMU32 movie, const MMChunkEdit *);
 
 #ifdef __cplusplus
 }

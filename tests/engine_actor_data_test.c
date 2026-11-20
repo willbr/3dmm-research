@@ -1,4 +1,5 @@
 #include "mm/actor_data.h"
+#include "chunk_edit_fixture.h"
 #include "mm/actor_persistence.h"
 #include "mm/collections.h"
 #include "mm/movie_data.h"
@@ -594,36 +595,15 @@ static void event_streams(void)
 typedef struct ActorStore
 {
     HeaderIO header;
-    MMChunkChild link;
+    ChunkIndexFixture archive;
     unsigned char path[28], events[132];
     MMU32 event_bytes;
-    int copies, linked, tracks, discarded, reject;
+    int copies, linked, tracks, discarded, reject, reuse;
 } ActorStore;
-
-static int store_entry(void *p, MMU32 i, MMChunkEntry *out)
-{
-    ActorStore *store = (ActorStore *)p;
-    CHECK(i < 1);
-    memset(out, 0, sizeof(*out));
-    out->type = MM_ACTOR_CHUNK;
-    out->number = 7;
-    out->child_count = store->linked;
-    return 1;
-}
-
-static int store_child(void *p, MMU32 row, MMU32 child, MMChunkChild *out)
-{
-    ActorStore *store = (ActorStore *)p;
-    CHECK(row == 0 && child == 0 && store->linked);
-    *out = store->link;
-    return 1;
-}
 
 static MMChunkAccess store_chunks(void *p)
 {
-    MMChunkAccess access = {NULL, 1, store_entry, store_child};
-    access.context = p;
-    return access;
+    return fixture_chunk_access(&((ActorStore *)p)->archive);
 }
 
 static int write_track_bytes(void *p, MMU32 offset, const void *data, size_t bytes)
@@ -658,26 +638,27 @@ static int store_copy(void *p, const MMTag *tag, MMU32 *number, int *created)
     CHECK(tag->sid == 0 && tag->cache == p && tag->type == 0x4d54524cUL && tag->number == 77);
     ++store->copies;
     *number = 99;
-    *created = !store->linked;
+    *created = !store->linked && !store->reuse;
+    if (*created)
+        fixture_chunk_add(&store->archive, tag->type, *number);
     return 1;
 }
 
-static int store_adopt(void *p, MMU32 type, MMU32 parent, const MMChunkChild *child, int clear_loner)
+static int store_insert(void *p, MMU32 parent, const MMChunkChild *child)
 {
     ActorStore *store = (ActorStore *)p;
-    CHECK(type == MM_ACTOR_CHUNK && parent == 7 && child->type == 0x4d54524cUL &&
-          child->number == 99 && child->slot == 0 && clear_loner && !store->linked);
+    CHECK(parent == 7 && child->type == 0x4d54524cUL &&
+          child->number == 99 && child->slot == 0 && !store->linked);
     if (store->reject)
         return 0;
-    store->link = *child;
     store->linked = 1;
     return 1;
 }
 
-static void store_discard(void *p, MMU32 type, MMU32 number)
+static void store_erase(void *p, const MMChunkEntry *entry)
 {
     ActorStore *store = (ActorStore *)p;
-    CHECK(type == 0x4d54524cUL && number == 99 && !store->linked);
+    CHECK(entry->type == 0x4d54524cUL && entry->number == 99 && !entry->parent_count && !store->linked);
     ++store->discarded;
 }
 
@@ -693,7 +674,7 @@ static void store_actor(ActorStore *store)
     MMActorEvent event = {0};
     MMActorRoutePoint point = {0};
     void *out;
-    int reject;
+    int mode, reject, reuse;
     s.context = store;
     s.header.context = &store->header;
     s.header.put = put_header;
@@ -702,8 +683,6 @@ static void store_actor(ActorStore *store)
     s.materials.chunks = store_chunks;
     s.add_track = store_track;
     s.materials.copy_reference = store_copy;
-    s.materials.adopt = store_adopt;
-    s.materials.discard = store_discard;
     mm_actor_owner_init(&owner);
     owner.runtime.template_tag.sid = 2;
     owner.runtime.origin.dxr = -65537;
@@ -718,14 +697,33 @@ static void store_actor(ActorStore *store)
     event.aet = MM_ACTOR_COSTUME;
     CHECK(mm_actor_events_insert(owner.track.events, 0, sizeof(costume), &costume, &event));
     CHECK(mm_actor_events_insert(owner.track.events, 1, sizeof(costume), &costume, &event));
-    for (reject = 1; reject >= 0; --reject)
+    for (mode = 3; mode >= 0; --mode)
     {
+        MMChunkAccess index;
+        MMChunkEntry entry;
+        MMU32 row;
         memset(store, 0, sizeof(*store));
         store->header.length = sizeof(store->header.bytes);
-        store->reject = reject;
+        store->reject = reject = mode & 1;
+        store->reuse = reuse = (mode & 2) != 0;
+        fixture_chunk_add(&store->archive, MM_ACTOR_CHUNK, 7);
+        if (reuse)
+            fixture_chunk_add(&store->archive, costume.tag.type, 99);
+        store->archive.observer = store;
+        store->archive.before_insert = store_insert;
+        store->archive.before_delete = store_erase;
+        s.materials.edit = fixture_chunk_edit(&store->archive);
         CHECK(mm_actor_store(7, 8, &owner, &s) == !reject);
         CHECK(store->header.writes == 1 && store->tracks == 2 - reject && store->copies == 2 - reject &&
-              store->discarded == reject && store->linked == !reject);
+              store->discarded == (reject && !reuse) && store->linked == !reject);
+        index = store_chunks(store);
+        CHECK(mm_chunk_find(&index, costume.tag.type, 99, &row) ==
+              (reject && !reuse ? MM_CHUNK_NOT_FOUND : MM_CHUNK_OK));
+        if (!reject || reuse)
+        {
+            CHECK(mm_chunk_at(&index, row, &entry) == MM_CHUNK_OK && entry.parent_count == (MMU32)!reject);
+            CHECK((entry.flags & MM_CHUNK_LONER) == (reuse ? MM_CHUNK_LONER : 0));
+        }
         CHECK(!memcmp(mm_actor_events_payload(owner.track.events, 0, NULL), &costume, sizeof(costume)) &&
               !memcmp(mm_actor_events_payload(owner.track.events, 1, NULL), &costume, sizeof(costume)));
     }

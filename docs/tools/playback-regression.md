@@ -16553,3 +16553,42 @@ all 12 retail sound requests.
 
 SDL and Marcus matched both seek records and images from original v3dmm 0.14
 in `20261120T183721Z-f3ac999d`. Evidence is in `tmp/c89-scene-asset-index`.
+
+## C89 links for embedded movie assets (20 November 2026)
+
+Actor and scene saves and imported sound repair now use the live C89 chunk
+editor to adopt asset references and drop newly copied subtrees after failed
+adoption. The fixtures check that reused materials retain their loner flags,
+failed adoption leaves reused assets in place, and explicit scene sound links
+take precedence over imported movie-bank links.
+
+All 192 standalone checks and 11 AddressSanitizer checks passed. Eleven
+focused engine checks and the Archive API passed on SDL and native x64 and
+x86. The 14 Marcus syntax, playback, and player checks passed. All 54
+baseline traces, three saved movie fixtures, ten Preview fingerprints, and
+six Preview movies matched. Studio's .3MM and VMM authoring and reopen checks
+passed.
+
+Studio imported backgrounds stored under scenes and as standalone chunks.
+It saved and reopened the results, then edited and saved them again. The
+imported viewports matched their source in both workflows. Importing
+standalone materials kept six sampled viewports and texture bindings
+identical through reopen, including a prop whose ID changed from 2 to 7.
+The actor and frame sound fixtures both kept the correct wave payload in
+each imported slot and retained distinct explicit scene overrides.
+All seven output movies matched the previous build's decoded archives.
+Each raw file differed in two to five chunk-index padding bytes.
+
+In `20261120T185441Z-7d107665`, retail, SDL, and Marcus agreed on all 90
+seek frame and camera records in each imported sound fixture. Each player
+matched all 180 images from its archived captures. SDL and Marcus matched
+each other. Two images per movie differed from retail at frame 4, with the
+same differences present in the archived captures.
+
+In `actor-event-edit` suite `20261120T185132Z-d06b608a`, SDL and Marcus
+matched all 60 retail frame identities in seek and continuous playback and
+all retail seek camera indices. Both matched their prior seek image hashes.
+SDL matched all 12 retail sound requests.
+
+SDL and Marcus matched both original v3dmm 0.14 seek records and images
+in `20261120T185132Z-4c79cfa3`. Evidence is in `tmp/c89-embedded-asset-index`.
