@@ -30,6 +30,7 @@
 #include "mm/scene_chop.h"
 #include "mm/scene_control.h"
 #include "mm/scene_thumbnail.h"
+#include "mm/actor_placement.h"
 
 //
 // Undo object for actor operations
@@ -152,6 +153,7 @@ class Scene : public Scene_PAR
     MMSceneEditServices _EditServices();
     MMSceneContentServices _ContentServices();
     MMSceneSelectionServices _SelectionServices();
+    MMActorPlacementEditServices _PlacementServices();
     MMSceneChopServices _ChopServices();
     MMScenePropertyServices _PropertyServices();
     MMScenePlaybackServices _PlaybackServices();
@@ -332,6 +334,10 @@ class Scene : public Scene_PAR
     void EditActorSelectionTags(bool strip);
     void CaptureActorDragUndo(MMActorDragUndo *, PActor, bool useGroup, bool freezePivot);
     bool FTransformSelectedActors(const struct MMActorGroupTransform &);
+    void BeginActorPlacement(MMActorPlacementState *, PActor, bool entireScene);
+    void EndActorPlacement(MMActorPlacementState *);
+    bool FMoveActorPlacement(const MMActorPlacementState &, const MMActorPoint &, bool ground);
+    bool FFinishActorPlacement(MMActorPlacementState *);
     // Select pactrSeed and every other actor in the current scene that
     // shares at least one #tag with it (set union across pactrSeed's tags).
     // If pactrSeed has no tags this collapses to SelectActr(pactrSeed) --

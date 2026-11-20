@@ -29,6 +29,7 @@
 #include "mm/movie_scene.h"
 #include "mm/movie_save.h"
 #include "mm/movie_edit.h"
+#include "mm/actor_placement.h"
 #include "mm/movie_content.h"
 #include "mm/movie_compose.h"
 
@@ -183,11 +184,12 @@ class MovieView : public MovieView_PAR
     long _tool;         // Current tool loaded on cursor
 
     MMActorDragUndo _actorDrag{};
+    MMActorPlacementState _placement{};
     ulong _tsLast;       // Last time a cell was recorded.
     ulong _tsLastSample; // Last time mouse/kbd sampled
     RC _rcFrame;         // Frame for creating a text box.
 
-    BRS _rgrAxis[3][3];   // Conversion from mouse points to 3D points.
+    MMActorMatrix _mouseAxes{{{rOne, rZero, rZero}, {rZero, rZero, rOne}, {rZero, -rOne, rZero}}};
     bool _fRecordDefault; // fTrue = Record; fFalse = Rerecord
 
     bool _fPause : 1;             // fTrue if pausing play until a click.
@@ -195,11 +197,9 @@ class MovieView : public MovieView_PAR
     bool _fRespectGround : 1;     // fTrue if Y=0 is enforced.
     bool _fSetFRecordDefault : 1; // fTrue if using hotkeys to rerecord.
     bool _fMouseOn : 1;
-    bool _fEntireScene : 1;    // Does positioning effect the entire scene?
     bool _fSelToggleArmed : 1; // Shift-clicked an actor at mousedown; apply toggle on mouseup if no drag.
 
     bool _fMouseDownSeen; // Was the mouse depressed during a place.
-    PActor _pactrUndo;     // Actor to use for undo object when roll-calling.
     PActor _pactrSelToggle; // Actor under cursor at the armed shift-click.
     long _xpSelToggleDown;  // Mousedown x for drag-tolerance check.
     long _ypSelToggleDown;  // Mousedown y for drag-tolerance check.
@@ -308,7 +308,7 @@ class MovieView : public MovieView_PAR
     void MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, BRS *pdyrWld, BRS *pdzrWld, bool fRecord);
     void SetAxis(BRS rgrAxis[3][3])
     {
-        BltPb(rgrAxis, _rgrAxis, size(BRS) * 9);
+        BltPb(rgrAxis, _mouseAxes.m, size(BRS) * 9);
     }
     void SetFRecordDefault(bool f)
     {
@@ -342,10 +342,7 @@ class MovieView : public MovieView_PAR
     {
         return _fRespectGround;
     }
-    void SetActrUndo(PActor pactr)
-    {
-        _pactrUndo = pactr;
-    }
+    void SetActrUndo(PActor pactr);
     void SetPaintAcr(AbstractColor acr)
     {
         _acr = acr;

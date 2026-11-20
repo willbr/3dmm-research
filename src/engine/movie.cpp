@@ -38,13 +38,10 @@ Actors, Text boxes, etc.
 #include "mm/movie_sound_archive.h"
 ASSERTNAME
 
-#define krScaleMouseRecord BR_SCALAR(0.20)
-#define krScaleMouseNonRecord BR_SCALAR(0.02)
 #define kdwrMousePerSecond BR_SCALAR(100.0) // "mouse drag" speed for arrow keys
 
 #define kdtsFrame (kdtsSecond / kfps) // milliseconds per frame
 #define kdtsCycleCels (kdtsFrame * 3) // delay when cycling cels
-#define kzrMouseScalingFactor BR_SCALAR(100.0)
 
 const ChildChunkID kchidGstSource = 1;
 
@@ -3588,6 +3585,8 @@ MovieView::~MovieView(void)
     if (_tagTool.sid != ksidInvalid)
         TagManager::CloseTag(&_tagTool);
     _DiscardMoveUndo();
+    const auto actors = Actor::_OwnerServices();
+    mm_actor_placement_discard(&_placement, &actors);
 }
 
 /***************************************************************************
@@ -3610,7 +3609,6 @@ MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp,
     AssertVarMem(pgcb);
 
     MovieView *pmvu;
-    BRS rgr[3][3] = {{rOne, rZero, rZero}, {rZero, rZero, rOne}, {rZero, -rOne, rZero}};
 
     //
     // Create the new view
@@ -3627,7 +3625,6 @@ MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp,
         return (pvNil);
     }
 
-    CopyPb(rgr, pmvu->_rgrAxis, size(rgr));
     pmvu->_fRecordDefault = fTrue;
     pmvu->_fRespectGround = fFalse;
     pmvu->_dxp = dxp;
@@ -4190,27 +4187,16 @@ void MovieView::MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxr
     AssertVarMem(pdyrWld);
     AssertVarMem(pdzrWld);
 
-    BRS dxrScr, dyrScr, dzrScr;
-    BMAT34 bmat34Cam;
-    BRS rScaleMouse;
-
-    dxrScr = BR_MAC3(dxrMouse, _rgrAxis[0][0], dyrMouse, _rgrAxis[0][1], dzrMouse, _rgrAxis[0][2]);
-    dyrScr = BR_MAC3(dxrMouse, _rgrAxis[1][0], dyrMouse, _rgrAxis[1][1], dzrMouse, _rgrAxis[1][2]);
-    dzrScr = BR_MAC3(dxrMouse, _rgrAxis[2][0], dyrMouse, _rgrAxis[2][1], dzrMouse, _rgrAxis[2][2]);
-
-    rScaleMouse = fRecord ? krScaleMouseRecord : krScaleMouseNonRecord;
-
-    //
-    // apply some scaling so that 1 pixel of mouse movement is rScaleMouse world units
-    //
-    dxrScr = BrsMul(dxrScr, rScaleMouse);
-    dyrScr = BrsMul(dyrScr, rScaleMouse);
-    dzrScr = BrsMul(dzrScr, rScaleMouse);
-
-    Pmvie()->Pscen()->Pbkgd()->GetMouseMatrix(&bmat34Cam);
-    *pdxrWld = BR_MAC3(dxrScr, bmat34Cam.m[0][0], dyrScr, bmat34Cam.m[1][0], dzrScr, bmat34Cam.m[2][0]);
-    *pdyrWld = BR_MAC3(dxrScr, bmat34Cam.m[0][1], dyrScr, bmat34Cam.m[1][1], dzrScr, bmat34Cam.m[2][1]);
-    *pdzrWld = BR_MAC3(dxrScr, bmat34Cam.m[0][2], dyrScr, bmat34Cam.m[1][2], dzrScr, bmat34Cam.m[2][2]);
+    BMAT34 native;
+    MMActorMatrix camera;
+    MMActorPoint delta{dxrMouse, dyrMouse, dzrMouse};
+    Pmvie()->Pscen()->Pbkgd()->GetMouseMatrix(&native);
+    static_assert(sizeof(camera) == sizeof(native), "Mouse matrix ABI");
+    std::memcpy(&camera, &native, sizeof(camera));
+    mm_actor_mouse_to_world(&delta, &_mouseAxes, &camera, fRecord);
+    *pdxrWld = delta.dxr;
+    *pdyrWld = delta.dyr;
+    *pdzrWld = delta.dzr;
 }
 
 bool MovieView::_fKbdDelayed = fFalse;
@@ -4330,9 +4316,8 @@ void MovieView::StartPlaceActor(bool fEntireScene)
     vpappb->HideCurs();
     WarpCursToCenter();
 
-    _fEntireScene = fEntireScene;
     SetTool(toolPlace);
-    Pmvie()->RemFromRollCall(pactr, fFalse);
+    Pmvie()->Pscen()->BeginActorPlacement(&_placement, pactr, fEntireScene);
     Pmvie()->Pmcc()->NewActor();
     vpcex->TrackMouse(this);
 
@@ -4374,7 +4359,7 @@ void MovieView::EndPlaceActor()
     vpappb->ShowCurs();
     WarpCursToCenter();
     SetTool(toolCompose);
-    AssertDo(Pmvie()->FAddToRollCall(Pmvie()->Pscen()->PactrSelected(), pvNil), "Should never fail");
+    Pmvie()->Pscen()->EndActorPlacement(&_placement);
     Pmvie()->Pmcc()->ChangeTool(toolCompose);
     vpcex->EndMouseTracking();
 
@@ -4382,6 +4367,13 @@ void MovieView::EndPlaceActor()
 
     return;
 }
+
+void MovieView::SetActrUndo(PActor actor)
+{
+    const auto actors = Actor::_OwnerServices();
+    mm_actor_placement_snapshot(&_placement, actor, &actors);
+}
+
 /***************************************************************************
  *
  * Track the mouse moves and set the cursor appropriately.
@@ -4628,41 +4620,13 @@ void MovieView::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
     AssertThis(0);
     Assert(Tool() == toolPlace, "Wrong tool in effect");
 
-    PMovie pmvie;
-    PScene pscen;
-    bool fMoved;
-    PActor pactr = pvNil;
-    ulong grfmaf = fmafOrient;
-
-    pmvie = Pmvie();
-    AssertPo(pmvie, 0);
-
-    pscen = pmvie->Pscen();
-    AssertPo(pscen, 0);
-
-    pactr = pscen->PactrSelected();
-    AssertPo(pactr, 0);
-
-    if (_fEntireScene)
-    {
-        grfmaf |= fmafEntireScene;
-    }
-    else
-    {
-        grfmaf |= fmafEntireSubrte;
-    }
-
-    if (FRespectGround())
-    {
-        grfmaf |= fmafGround;
-    }
-
-    // FMoveRouteCore cannot fail on fmafEntireSubrte as no events are added
-    if (pactr->FMoveRoute(dxrWld, dyrWld, dzrWld, &fMoved, grfmaf) && fMoved)
+    auto scene = Pmvie()->Pscen();
+    const MMActorPoint delta{dxrWld, dyrWld, dzrWld};
+    if (scene->FMoveActorPlacement(_placement, delta, FRespectGround()))
     {
         Pmvie()->Pbwld()->MarkDirty();
         Pmvie()->MarkViews();
-        pscen->Pbkgd()->ReuseActorPlacePoint();
+        scene->Pbkgd()->ReuseActorPlacePoint();
     }
 }
 
@@ -5189,7 +5153,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     PActor pactr = pvNil;
     BRS dxrMouse, dyrMouse, dzrMouse;
     BRS dxrWld, dyrWld, dzrWld; // amount moved from previous point in world space
-    BRS zrActr, zrCam, dzrActr;
+    BRS zrActr, zrCam;
     bool fArrowKey = fFalse;
     RC rc;
     PT pt;
@@ -5305,15 +5269,11 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     //
     pactr->GetXyzWorld(pvNil, pvNil, &zrActr);
     pscen->Pbkgd()->GetCameraPos(pvNil, pvNil, &zrCam);
-    dzrActr = BrsAbs(BrsSub(zrActr, zrCam));
-    dzrActr = BrsDiv(dzrActr, kzrMouseScalingFactor);
-    if (dzrActr < rOne)
-    {
-        dzrActr = rOne;
-    }
-    dxrWld = BrsMul(dxrWld, BrsMul(dzrActr, BR_SCALAR(1.1)));
-    dyrWld = BrsMul(dyrWld, BrsMul(dzrActr, BR_SCALAR(1.1)));
-    dzrWld = BrsMul(dzrWld, BrsMul(dzrActr, BR_SCALAR(1.1)));
+    MMActorPoint world{dxrWld, dyrWld, dzrWld};
+    mm_actor_scale_drag_depth(&world, zrActr, zrCam);
+    dxrWld = world.dxr;
+    dyrWld = world.dyr;
+    dzrWld = world.dzr;
 
     switch (Tool())
     {
@@ -5621,8 +5581,6 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     PMovie pmvie;
     PScene pscen;
     PActor pactr = pvNil;
-    PActor pactrDup;
-    PSceneActorUndo psuna;
     bool fJustToggledSel = fFalse; // user shift-click-released without dragging
 
     // Shift-click selection toggle: if the user shift-clicked at mousedown
@@ -5710,86 +5668,16 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
             return;
         }
 
-        pactr = Pmvie()->Pscen()->PactrSelected();
+        pactr = static_cast<PActor>(_placement.actor);
         AssertPo(pactr, 0);
-        pactrDup = _pactrUndo;
-        AssertNilOrPo(pactrDup, 0);
-
         SetTool(toolCompose);
         Pmvie()->Pmcc()->ChangeTool(toolCompose);
-
-        //
-        // Now check if the actor is out of view
-        //
-        if (!pactr->FIsInView())
+        if (!pscen->FFinishActorPlacement(&_placement))
         {
-
-            //
-            // _pactrUndo is pvNil if this is a new actor, else it is
-            // an actor from the roll call.
-            //
-            if (_pactrUndo != pvNil)
-            {
-                Pmvie()->Pscen()->FAddActrCore(_pactrUndo); // Replace old actor with saved version.
-                vpcex->EnqueueCid(cidActorPlacedOutOfView, pvNil, pvNil, _pactrUndo->Arid());
-                ReleasePpo(&_pactrUndo);
-            }
-            else
-            {
-                pactr->AddRef();
-                AssertDo(Pmvie()->FAddToRollCall(pactr, pvNil), "Should never fail");
-                Pmvie()->Pscen()->RemActrCore(pactr->Arid());
-                vpcex->EnqueueCid(cidActorPlacedOutOfView, pvNil, pvNil, pactr->Arid());
-                ReleasePpo(&pactr);
-            }
-
             WarpCursToCenter();
             vpappb->ShowCurs();
             break;
         }
-        else if (_pactrUndo == pvNil)
-        {
-            //
-            // _pactrUndo is pvNil if this is a new actor, else it is
-            // an actor from the roll call.
-            //
-            AssertDo(Pmvie()->FAddToRollCall(pactr, pvNil), "Should never fail");
-        }
-
-        //
-        // Now build an undo object for the placing of the actor
-        //
-        psuna = SceneActorUndo::PsunaNew();
-
-        if ((psuna == pvNil) || ((_pactrUndo == pvNil) && !pactr->FDup(&pactrDup, fTrue)))
-        {
-
-            PushErc(ercSocNotUndoable);
-            ReleasePpo(&pactrDup);
-            Pmvie()->ClearUndo();
-        }
-        else
-        {
-
-            pactrDup->SetArid(pactr->Arid());
-            psuna->SetType(_pactrUndo == pvNil ? utAdd : utRep);
-            psuna->SetActr(pactrDup);
-            if (_pactrUndo != pvNil)
-            {
-                pactrDup->AddRef();
-            }
-
-            if (!Pmvie()->FAddUndo(psuna))
-            {
-                PushErc(ercSocNotUndoable);
-                Pmvie()->ClearUndo();
-            }
-
-            Pmvie()->Pmcc()->EnableActorTools();
-        }
-
-        ReleasePpo(&_pactrUndo);
-        ReleasePpo(&psuna);
         WarpCursToActor(pactr);
         vpappb->ShowCurs();
         vpcex->EnqueueCid(cidActorPlaced, pvNil, pvNil, pactr->Arid());
@@ -6621,6 +6509,8 @@ void MovieView::MarkMem(void)
     MarkMemObj(Pmvie());
     MarkMemObj(static_cast<PUndoBase>(_actorDrag.single));
     MarkMemObj(static_cast<PUndoBase>(_actorDrag.group));
+    MarkMemObj(static_cast<PActor>(_placement.actor));
+    MarkMemObj(static_cast<PActor>(_placement.snapshot));
 #ifdef KAUAI_SDL3
     MarkMemObj(_pgptSuperSize);
     MarkMemObj(_pgptSuperSizeIndexed);

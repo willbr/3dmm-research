@@ -4291,12 +4291,40 @@ and template-kind flag. Its camera callback remains lazy. Studio and Marcus
 link the same C implementation. Stage entrance/removal orchestration now uses
 the shared stage-edit module below.
 
+`actor_placement.c` also owns Studio's mouse projection and depth scaling.
+Studio supplies the active XY or XZ basis and the camera matrix. C uses the
+recording or editing scale, then applies the existing minimum depth multiplier
+and signed 16.16 rounding. Placement moves use the C actor owner with the
+appropriate scene or subroute flag, orientation and optional floor clipping.
+
+The placement record retains the active actor and owns any replacement snapshot.
+Begin temporarily removes the actor's roll-call reference. Forced end restores
+that reference using the retained actor after scene selection has been cleared.
+On acceptance, C registers a scene add or replacement undo. A rejected
+placement restores the old snapshot or removes the newly placed actor. Failed
+undo allocation releases the replacement snapshot once. Failed registration
+preserves the accepted edit and clears undo. Studio retains cursor capture,
+tool switches and view notifications.
+
 `engine-placement-test` checks single-coordinate authored points, camera query
 counts, floor/text policy, the exact 25-unit boundary, fractional midpoint
-rounding, matrix translation and scalar wrapping. The native save/load test
+rounding, matrix translation, scalar wrapping, mouse projection and placement
+ownership on allocation and registration failure. The native save/load test
 compares 4,096 authored/fallback/text/clipping/matrix combinations against the
-original BRender formula. Playback captures check existing movie behavior;
-they do not themselves exercise interactive actor placement.
+original BRender formula. All 12 native actor traces and the Scene-content trace
+matched. Routed Studio pointer commands verified subroute and whole-scene
+placement, replacement, cancellation and out-of-view rejection against the
+old build. Rejection removed a new actor and restored an existing actor's
+snapshot. The new build also handled removal during active placement. All
+75 chunk entries, links and payloads matched in each of the three saved movies.
+Retail opened those movies with matching positions and poses at frame 7. All
+eight Studio group-transform workflows also matched the previous build.
+
+Fresh SDL and Marcus seek and playback runs (`20261120T023247Z-9e1af531`)
+matched all 60 scene and frame markers in each mode against the retained
+retail `actor-event-edit` capture. Each port's 60 seek image hashes matched
+its previous build (`20261120T020904Z-3802926f`), with camera indices matching
+retail. The 12 SDL playback sound events also matched retail.
 
 ### Actor stage entrance and removal
 

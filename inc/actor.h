@@ -110,6 +110,7 @@ class Actor : public Actor_PAR
 {
     friend class ActorClipboard;
     friend class Scene;
+    friend class MovieView;
 
     RTCLASS_DEC
     ASSERT

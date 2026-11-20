@@ -937,6 +937,9 @@ tables in C89. Studio drag undo captures its snapshots through the shared
 selection and actor owner and keeps its pending handles and frozen pivot in C.
 Group translation, tweak, orbit rotation, resize and squash use the same C89
 actor-owner operations as the single-actor tools.
+Studio projects and depth-scales drag input in C89. The placement controller
+owns the active actor and replacement snapshot, restores the roll-call
+reference on forced end, and registers add or replacement undo on acceptance.
 Physical views and final integration remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and

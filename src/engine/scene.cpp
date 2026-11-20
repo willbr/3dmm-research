@@ -1517,6 +1517,56 @@ bool Scene::FTransformSelectedActors(const MMActorGroupTransform &edit)
     return mm_actor_group_transform(&edit, &selection, &services) != 0;
 }
 
+MMActorPlacementEditServices Scene::_PlacementServices()
+{
+    MMActorPlacementEditServices services{};
+    services.context = Pmvie();
+    services.remove_roll = [](void *p, void *actor) {
+        static_cast<PMovie>(p)->RemFromRollCall(static_cast<PActor>(actor), false);
+    };
+    services.add_roll = [](void *p, void *actor) {
+        AssertDo(static_cast<PMovie>(p)->FAddToRollCall(static_cast<PActor>(actor), nullptr),
+                 "Cannot restore actor roll-call reference");
+    };
+    services.visible = [](void *, void *actor) { return int(static_cast<PActor>(actor)->FIsInView()); };
+    services.out_of_view = [](void *, MMI32 id) {
+        vpcex->EnqueueCid(cidActorPlacedOutOfView, pvNil, pvNil, id);
+    };
+    services.enable_tools = [](void *movie) { static_cast<PMovie>(movie)->Pmcc()->EnableActorTools(); };
+    return services;
+}
+
+void Scene::BeginActorPlacement(MMActorPlacementState *state, PActor actor, bool entireScene)
+{
+    const auto actors = Actor::_OwnerServices();
+    const auto edit = _PlacementServices();
+    mm_actor_placement_begin(state, actor, entireScene, &actors, &edit);
+}
+
+void Scene::EndActorPlacement(MMActorPlacementState *state)
+{
+    const auto actors = Actor::_OwnerServices();
+    const auto edit = _PlacementServices();
+    mm_actor_placement_end(state, &actors, &edit);
+}
+
+bool Scene::FMoveActorPlacement(const MMActorPlacementState &state, const MMActorPoint &delta, bool ground)
+{
+    auto actor = static_cast<PActor>(state.actor);
+    AssertPo(actor, 0);
+    const auto actors = Actor::_OwnerServices();
+    const auto effects = actor->_TransformEditServices();
+    return mm_actor_placement_move(&state, &delta, ground, &actors, &effects) != 0;
+}
+
+bool Scene::FFinishActorPlacement(MMActorPlacementState *state)
+{
+    const auto actors = Actor::_OwnerServices();
+    const auto content = _ContentServices();
+    const auto edit = _PlacementServices();
+    return mm_actor_placement_finish(state, &actors, &content, &edit) != 0;
+}
+
 /****************************************************
  *
  * Mean of currently-visible selected actors' world positions.
