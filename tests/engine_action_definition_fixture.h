@@ -5,7 +5,7 @@ class ActionDefinitionFixtureAccess : public ActionDefinition
 {
   public:
     static ActionDefinitionFixtureAccess *Create() { return NewObj ActionDefinitionFixtureAccess; }
-    bool Initialize(PChunkyFile file,ChunkNumber number) { return _FInit(file,kctgActn,number); }
+    bool Initialize(PChunkyResourceFile cache,ChunkNumber number) { return _FInit(cache,kctgActn,number); }
     static bool CheckNoSoundMarkers(PActionDefinition a)
     {
         auto field=&ActionDefinitionFixtureAccess::_action;
@@ -94,7 +94,7 @@ static bool TestActionDefinition()
         allocator->cactDo=failure-1; allocator->cactFail=failure?1:0; vmutxMem.Leave();
 #endif
         if (stage==0) { PBaseCacheableObject out=nullptr; initialized=ActionDefinition::FReadActn(cache,kctgActn,number,&block,&out,&estimate); if (initialized) action=static_cast<PActionDefinition>(out); }
-        else if (stage==1) initialized=static_cast<ActionDefinitionFixtureAccess *>(action)->Initialize(file,number);
+        else if (stage==1) initialized=static_cast<ActionDefinitionFixtureAccess *>(action)->Initialize(cache,number);
         else if (ok) { action=tables.Create(0x8000000d); initialized=action!=nullptr; }
 #ifdef DEBUG
         vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();

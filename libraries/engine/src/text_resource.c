@@ -72,10 +72,11 @@ static int descriptor(void *file,MMU32 type,MMU32 number,MMTextDescriptor *d,con
     if (!mm_text_decode_descriptor(b,s->host_big_endian,d) && s->bad_order) s->bad_order(s->context);
     return 1;
 }
-int mm_text_read(void *object,void *file,MMU32 type,MMU32 number,const MMTextResourceServices *s)
+int mm_text_read(void *object,void *source,MMU32 type,MMU32 number,void *block,const MMTextResourceServices *s)
 {
     MMTextDescriptor read,*d;
-    if (!s->read_template(s->context,object,file,type,number) || !descriptor(file,type,number,&read,s)) return 0;
+    if (!s->read_template(s->context,object,source,type,number,block) || !descriptor(source,type,number,&read,s))
+        return 0;
     d=s->state(s->context,object); memcpy(&d->font,&read.font,sizeof(d->font)); d->shape=read.shape;
     return mm_text_initialize_lists(object,&s->generation);
 }

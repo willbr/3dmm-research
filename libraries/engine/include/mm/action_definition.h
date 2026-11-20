@@ -76,7 +76,6 @@ typedef struct MMActionDefinitionServices
     MMReadStream (*stream)(void *,void *block);
     void (*clear_sound_type)(void *,void *out);
     void (*publish_sound)(void *,void *out,const MMTag *);
-    int (*initialize)(void *,void *object,void *file,MMU32,MMU32);
     MMI32 (*object_size)(void *);
     void (*invalidate)(void *,void *out,size_t);
     void (*bad_order)(void *);
@@ -92,7 +91,8 @@ void *mm_action_create(MMActionTable *cels,MMActionTable *matrices,MMU32 flags,c
  * typed pointer aliasing. Estimate-only reads do not unpack or allocate. The
  * final cache estimate deliberately excludes optional sounds, as in native. */
 int mm_action_fetch(void *file,MMU32,MMU32,void *block,void *object_out,void *size_out,const MMActionDefinitionServices *);
-int mm_action_initialize(MMActionDefinition *,void *file,MMU32,MMU32,const MMActionDefinitionServices *);
+/* A supplied header block is already unpacked. Pass NULL for a direct lookup. */
+int mm_action_initialize(MMActionDefinition *,void *file,MMU32,MMU32,void *header,const MMActionDefinitionServices *);
 /* Releases cels, matrices, then sounds, clearing each slot after release.
  * This includes the optional list omitted by the previous native destructor.
  * Sound tags loaded from wire borrow a NULL cache, never owning references. */

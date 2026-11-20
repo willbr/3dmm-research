@@ -225,10 +225,11 @@ int mm_template_decode_header(const unsigned char *bytes, int host_big_endian, M
     return valid;
 }
 
-int mm_template_read_header(void *object,void *file,MMU32 type,MMU32 number,const MMTemplateCreateServices *s)
+int mm_template_read_header(void *object,void *file,MMU32 type,MMU32 number,void *block,
+                            const MMTemplateCreateServices *s)
 {
-    unsigned char bytes[MM_TEMPLATE_HEADER_BYTES]; void *block; MMTemplateState header, *state;
-    block=s->find(s->context,file,type,number);
+    unsigned char bytes[MM_TEMPLATE_HEADER_BYTES]; MMTemplateState header, *state;
+    if (!block) block=s->find(s->context,file,type,number);
     if (!block || !s->unpack(s->context,block) || s->block_size(s->context,block,0)<16 ||
         !s->block_read(s->context,block,bytes,sizeof(bytes))) return 0;
     if (!mm_template_decode_header(bytes, s->host_big_endian, &header))
@@ -257,7 +258,7 @@ int mm_template_fetch(void *file,MMU32 type,MMU32 number,void *block,void **out,
     *bytes=s->block_size(s->context,block,1); if (!out) return 1;
     text=s->child(s->context,file,type,number,0,MM_TDT,&child);
     object=s->create(s->context,text);
-    if (!object || !s->initialize(s->context,object,file,type,number))
+    if (!object || !s->initialize(s->context,object,file,type,number,block))
     {
         if (object) s->release(s->context,object);
         s->invalidate(s->context,out,sizeof(*out)); s->invalidate(s->context,bytes,sizeof(*bytes)); return 0;
@@ -383,7 +384,8 @@ static int native_part_set(void *context, MMI32 index, MMI32 *set)
     return MM_MOVIE_OK;
 }
 
-int mm_template_initialize(void *object, void *file, MMU32 type, MMU32 number, const MMTemplateCreateServices *s)
+int mm_template_initialize(void *object, void *file, MMU32 type, MMU32 number, void *block,
+                           const MMTemplateCreateServices *s)
 {
     NativeTemplateRead native;
     MMTemplateRead reader = {NULL, read_native_table, read_native_costumes};
@@ -391,7 +393,7 @@ int mm_template_initialize(void *object, void *file, MMU32 type, MMU32 number, c
     MMTemplateState *state;
     MMTemplateChild child;
     int status;
-    if (!s->header(s->context, object, file, type, number))
+    if (!s->header(s->context, object, file, type, number, block))
         return 0;
     state = s->state(s->context, object);
     native.services = s;

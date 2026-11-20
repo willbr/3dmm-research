@@ -111,6 +111,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   read-only Preview archives. It retains the index and backing file while
   detached renderer objects still depend on the cache. Texture loaders use
   the block selected by the cache. Editable archives use live chunk lookup.
+- Material, costume, action, template and 3D-text readers also consume the
+  cache's root block. Graph links and child payloads use the same archive source
+  as the root. The legacy template costume-table builder keeps its own cache
+  budget and inherits that source. Stored name conversion still uses Kauai.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

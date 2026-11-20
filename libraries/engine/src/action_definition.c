@@ -240,7 +240,7 @@ int mm_action_fetch(void *file,MMU32 type,MMU32 number,void *block,void *out,voi
     if (!s->unpack(s->context,block)) goto fail;
     bytes=s->block_size(s->context,block,0); memcpy(size,&bytes,sizeof(bytes));
     object=s->create(s->context);
-    if (!object || !s->initialize(s->context,object,file,type,number))
+    if (!object || !mm_action_initialize(s->state(s->context,object),file,type,number,block,s))
     { if (object) s->release(s->context,object); goto fail; }
     memcpy(out,&object,sizeof(object)); a=s->state(s->context,object);
     bytes=s->object_size(s->context)+table_size(a->cels)+table_size(a->matrices);
@@ -251,7 +251,7 @@ fail:
 typedef struct NativeActionRead
 {
     const MMActionDefinitionServices *services;
-    void *file;
+    void *file, *header;
     MMU32 type, number;
 } NativeActionRead;
 
@@ -259,8 +259,14 @@ static int native_header(void *context, unsigned char *bytes)
 {
     NativeActionRead *read = (NativeActionRead *)context;
     const MMActionDefinitionServices *s = read->services;
-    void *block = s->find(s->context, read->file, read->type, read->number);
-    if (!block || !s->unpack(s->context, block) || s->block_size(s->context, block, 0) < MM_ACTION_HEADER_BYTES ||
+    void *block = read->header;
+    if (!block)
+    {
+        block = s->find(s->context, read->file, read->type, read->number);
+        if (!block || !s->unpack(s->context, block))
+            return MM_MOVIE_BAD_FILE;
+    }
+    if (s->block_size(s->context, block, 0) < MM_ACTION_HEADER_BYTES ||
         !s->block_read(s->context, block, bytes, MM_ACTION_HEADER_BYTES))
         return MM_MOVIE_BAD_FILE;
     return MM_MOVIE_OK;
@@ -302,7 +308,8 @@ static void native_bad_order(void *context)
         s->bad_order(s->context);
 }
 
-int mm_action_initialize(MMActionDefinition *a,void *file,MMU32 type,MMU32 number,const MMActionDefinitionServices *s)
+int mm_action_initialize(MMActionDefinition *a,void *file,MMU32 type,MMU32 number,void *header,
+                         const MMActionDefinitionServices *s)
 {
     NativeActionRead native;
     MMActionRead read = {NULL, 0, native_header, native_table, native_bad_order};
@@ -314,6 +321,7 @@ int mm_action_initialize(MMActionDefinition *a,void *file,MMU32 type,MMU32 numbe
     int ok = 0;
     native.services = s;
     native.file = file;
+    native.header = header;
     native.type = type;
     native.number = number;
     read.context = &native;

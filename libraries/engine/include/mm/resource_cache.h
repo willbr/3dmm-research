@@ -107,6 +107,9 @@ extern "C"
     /* Bind once before the first lookup. The index and block file must describe
      * the same immutable archive. The cache retains both until disposal. */
     int mm_resource_cache_bind_index(MMResourceCache *, const MMChunkIndex *, void *block_file);
+    /* Fill an initialized block with the stored extent from this cache's
+     * source. The caller owns the block, which is empty on a miss. */
+    int mm_resource_cache_read_block(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);
     int mm_resource_cache_reserve(MMResourceCache *, MMU32 additional);
     /* A final release may destroy the owner and cache before returning. */
     void mm_resource_cache_release(MMResourceCache *);

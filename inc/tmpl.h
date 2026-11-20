@@ -113,7 +113,7 @@ class ActionDefinition : public ActionDefinition_PAR
     {
     } // can't instantiate directly; must use FReadActn
     static MMActionDefinitionServices _Services(ActionDefinitionContext *);
-    bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
 
   public:
     static MMActionTable *NewTable();
@@ -168,8 +168,8 @@ class Template : public Template_PAR
     } // can't instantiate directly; must use FReadTmpl
     static MMTemplateCreateServices _CreateServices(TemplateCreateContext *);
     static MMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
-    bool _FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    virtual bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl);
+    bool _FReadTmplf(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock);
+    virtual bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock);
     virtual PActionDefinition _PactnFetch(LegacyLong anid);
     virtual PModel _PmodlFetch(ChildChunkID chidModl);
     bool _FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);

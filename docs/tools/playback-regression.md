@@ -15138,3 +15138,21 @@ In `actor-event-edit` suite `20261120T085244Z-5cef9943`, Marcus and SDL
 matched all 60 retail frame identities in seek and playback. Both kept their
 60 seek image hashes from the previous build and matched the retail camera
 indices. SDL also matched all 12 retail sound requests.
+
+## Template, action and material reads through the C89 cache (20 November 2026)
+
+The material, costume, action, template and 3D-text readers use the root
+block supplied by the cache. They resolve child links and read child blocks
+through the same source. The temporary cache used to rebuild legacy costume
+tables inherits that source and keeps its own budget.
+
+All 28 targeted x64 checks and seven standalone C89 checks passed. The native
+save/load suite covered action, template and 3D-text allocation failures.
+The x64 Preview suite and focused x86 runs retained their previous
+fingerprints. Marcus also rendered both authored frames of the VMM
+storyboard. Logs are in `tmp/c89-assets-cache`.
+
+In `actor-event-edit` suite `20261120T090811Z-4b08e3be`, Marcus and SDL
+matched the 60 retail frame identities in seek and playback. Both kept all
+60 seek image hashes from the previous build and matched the retail camera
+indices. SDL matched all 12 retail sound requests.

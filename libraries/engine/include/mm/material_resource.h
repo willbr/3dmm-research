@@ -63,7 +63,6 @@ extern "C"
         MMCustomMaterial *(*custom_state)(void *, void *);
         void (*invalidate)(void *, void *, size_t);
         void (*diagnostic)(void *, int);
-        void *(*file)(void *, void *cache);
         void *(*find)(void *, void *file, MMU32 type, MMU32 number);
         int (*unpack)(void *, void *block);
         MMI32 (*size)(void *, void *block);
@@ -102,9 +101,9 @@ extern "C"
      * Material factory invalidates before release; custom factory releases first.
      * Callback inputs do not alias owned arrays and callbacks do not mutate owners. */
     void *mm_material_new(MMI32 base, MMI32 range, const MMMaterialServices *);
-    int mm_material_fetch(void *cache, MMU32 type, MMU32 number, void *object_out, void *size_out,
+    int mm_material_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *object_out, void *size_out,
                                 const MMMaterialShade *, const MMMaterialServices *);
-    int mm_material_read(void *object, void *cache, MMU32 type, MMU32 number,
+    int mm_material_read(void *object, void *cache, MMU32 type, MMU32 number, void *block,
                                const MMMaterialShade *, const MMMaterialServices *);
     void mm_material_dispose(MMMaterialResource *, const MMMaterialServices *);
     void *mm_material_texture(const MMMaterialResource *, const MMMaterialServices *);
@@ -122,7 +121,7 @@ extern "C"
                                         const MMMaterialDescription *);
     void *mm_custom_material_new(MMI32 set, MMI32 count, const void *materials,
                                        const MMMaterialServices *);
-    int mm_custom_material_fetch(void *cache, MMU32 type, MMU32 number, void *object_out,
+    int mm_custom_material_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *object_out,
                                        void *size_out, const MMMaterialServices *);
     /* Decode the CMTL header's set and optionally report an unrecognized order marker. */
     MMI32 mm_custom_material_read_set(const unsigned char[8], int host_big, int *bad_order);
@@ -131,7 +130,7 @@ extern "C"
      * without publishing the part. Returns an MMChunkResult. */
     int mm_custom_material_part(const MMChunkAccess *, MMU32 costume_position, MMU32 slot,
                                 MMCustomMaterialPart *);
-    int mm_custom_material_read(void *object, void *cache, MMU32 type, MMU32 number,
+    int mm_custom_material_read(void *object, void *cache, MMU32 type, MMU32 number, void *block,
                                       const MMMaterialServices *);
     void mm_custom_material_dispose(MMCustomMaterial *, const MMMaterialServices *);
     int mm_custom_material_has_models(const MMCustomMaterial *);

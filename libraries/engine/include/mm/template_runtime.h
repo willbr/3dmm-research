@@ -13,7 +13,7 @@ enum { MM_TEMPLATE_KEEP_MODEL = -1 };
 MMI32 mm_template_wrap_cel(MMI32 cel, MMI32 count);
 struct MMMovieAsset;
 struct MMActorMatrix;
-typedef struct MMTemplateBinding { void *file,*cache; MMU32 type,number; } MMTemplateBinding;
+typedef struct MMTemplateBinding { void *cache; MMU32 type,number; } MMTemplateBinding;
 typedef struct MMTemplateRuntimeServices
 {
     MMTemplateCreateServices storage;

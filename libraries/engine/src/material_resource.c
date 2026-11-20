@@ -120,19 +120,12 @@ static void attach(void *handle, void *texture, void *raw, const MMMaterialShade
     d.index_range = (unsigned)(s->height(s->context, index_shade) - 1) & 255U;
     s->configure(s->context, handle, &d);
 }
-static int read_header(void *file, MMU32 type, MMU32 number, void *b, MMI32 n, int exact,
-                       const MMMaterialServices *s)
+static int read_header(void *block, void *bytes, MMI32 size, const MMMaterialServices *s)
 {
-    void *block = s->find(s->context, file, type, number);
-    MMI32 bytes;
-    if (!block || !s->unpack(s->context, block))
-        return 0;
-    bytes = s->size(s->context, block);
-    if (exact ? bytes != n : bytes < n)
-        return 0;
-    return s->read(s->context, block, b, n);
+    return block && s->unpack(s->context, block) && s->size(s->context, block) >= size &&
+           s->read(s->context, block, bytes, size);
 }
-static int read_material(void *object, void *cache, MMU32 type, MMU32 number,
+static int read_material(void *object, void *cache, MMU32 type, MMU32 number, void *block,
                          const MMMaterialShade *shade, const MMMaterialServices *s)
 {
     MMMaterialResource *m = s->material_state(s->context, object);
@@ -142,8 +135,10 @@ static int read_material(void *object, void *cache, MMU32 type, MMU32 number,
     MMI32 matrix[6];
     unsigned i;
     int big;
-    void *file = s->file(s->context, cache), *texture;
-    if (!read_header(file, type, number, b, 20, 0, s))
+    void *texture;
+    if (!block)
+        block = s->find(s->context, cache, type, number);
+    if (!read_header(block, b, 20, s))
         return 0;
     if (!mm_material_header_read(b, s->host_big_endian, s->windows_system, &d))
     {
@@ -155,15 +150,16 @@ static int read_material(void *object, void *cache, MMU32 type, MMU32 number,
     d.opacity = 255;
     d.flags = s->light_flag | s->smooth_flag;
     s->configure(s->context, m->handle, &d);
-    if (s->child(s->context, file, type, number, 0, s->texture_type, &child))
+    if (s->child(s->context, cache, type, number, 0, s->texture_type, &child))
     {
         texture = s->fetch(s->context, cache, &child, MM_MATERIAL_TEXTURE);
         if (!texture)
             return 0;
         attach(m->handle, texture, NULL, shade, s);
-        if (s->child(s->context, file, type, number, 0, s->transform_type, &child))
+        if (s->child(s->context, cache, type, number, 0, s->transform_type, &child))
         {
-            if (!read_header(file, child.type, child.number, b, 28, 0, s))
+            block = s->find(s->context, cache, child.type, child.number);
+            if (!read_header(block, b, 28, s))
             {
                 s->release(s->context, texture);
                 s->map(s->context, m->handle, NULL, NULL);
@@ -184,14 +180,14 @@ static int read_material(void *object, void *cache, MMU32 type, MMU32 number,
     s->add_material(s->context, m->handle);
     return 1;
 }
-int mm_material_read(void *object, void *cache, MMU32 type, MMU32 number,
+int mm_material_read(void *object, void *cache, MMU32 type, MMU32 number, void *block,
                            const MMMaterialShade *shade, const MMMaterialServices *s)
 {
-    int ok = read_material(object, cache, type, number, shade, s);
+    int ok = read_material(object, cache, type, number, block, shade, s);
     s->close_block(s->context);
     return ok;
 }
-int mm_material_fetch(void *cache, MMU32 type, MMU32 number, void *out, void *size,
+int mm_material_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *out, void *size,
                             const MMMaterialShade *shade, const MMMaterialServices *s)
 {
     void *object;
@@ -199,7 +195,7 @@ int mm_material_fetch(void *cache, MMU32 type, MMU32 number, void *out, void *si
     if (!out)
         return 1;
     object = s->create(s->context, MM_MATERIAL);
-    if (!object || !mm_material_read(object, cache, type, number, shade, s))
+    if (!object || !mm_material_read(object, cache, type, number, block, shade, s))
     {
         s->invalidate(s->context, out, sizeof(object));
         s->invalidate(s->context, size, 4);

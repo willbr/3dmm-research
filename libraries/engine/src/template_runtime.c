@@ -7,7 +7,7 @@ static MMU32 resource_type(int kind)
 static int child(void *object,MMU32 id,int kind,MMTemplateBinding *b,MMTemplateChild *c,const MMTemplateRuntimeServices *s)
 {
     s->binding(s->storage.context,object,b);
-    return s->storage.child(s->storage.context,b->file,b->type,b->number,id,resource_type(kind),c);
+    return b->cache && s->storage.child(s->storage.context,b->cache,b->type,b->number,id,resource_type(kind),c);
 }
 void *mm_template_fetch_child(void *object,MMU32 id,int kind,const MMTemplateRuntimeServices *s)
 {
@@ -19,7 +19,7 @@ int mm_template_action_name(void *object,MMI32 id,void *out,const MMTemplateRunt
 {
     MMTemplateBinding b; MMTemplateChild c;
     if (!child(object,(MMU32)id,MM_TEMPLATE_ACTION,&b,&c,s)) return 0;
-    return s->name(s->storage.context,b.file,c.type,c.number,out);
+    return s->name(s->storage.context,b.cache,c.type,c.number,out);
 }
 MMI32 mm_template_wrap_cel(MMI32 cel, MMI32 count)
 {
@@ -186,8 +186,8 @@ int mm_template_is_accessory(void *object,MMI32 set,const MMTemplateRuntimeServi
     MMTemplateBinding b; MMTemplateChild c; MMI32 id;
     s->binding(s->storage.context,object,&b); if (!b.cache) return 0;
     id=mm_template_costume_id(object,set,0,s);
-    if (!s->storage.child(s->storage.context,b.file,b.type,b.number,(MMU32)id,MM_CMTL,&c)) return 0;
-    return mm_template_has_models(b.file,c.type,c.number,&s->storage);
+    if (!s->storage.child(s->storage.context,b.cache,b.type,b.number,(MMU32)id,MM_CMTL,&c)) return 0;
+    return mm_template_has_models(b.cache,c.type,c.number,&s->storage);
 }
 int mm_template_accessory_set(void *object,MMI32 set,void *out,const MMTemplateRuntimeServices *s)
 {
@@ -207,5 +207,5 @@ int mm_template_same_accessory(void *object,MMI32 first,MMI32 second,const MMTem
     MMTemplateBinding b; MMTemplateChild a,c;
     if (!child(object,(MMU32)first,MM_TEMPLATE_CUSTOM,&b,&a,s) ||
         !child(object,(MMU32)second,MM_TEMPLATE_CUSTOM,&b,&c,s)) return 0;
-    return mm_template_equal_models(b.file,a.number,c.number,&s->storage);
+    return mm_template_equal_models(b.cache,a.number,c.number,&s->storage);
 }

@@ -7,7 +7,7 @@ class TextResourceFixtureAccess : public ThreeDText
 {
   public:
     static TextResourceFixtureAccess *Create() { return NewObj TextResourceFixtureAccess; }
-    bool Initialize(PChunkyFile file,ChunkNumber n) { return _FInit(file,kctgTmpl,n); }
+    bool Initialize(PChunkyResourceFile cache,ChunkNumber n) { return _FInit(cache,kctgTmpl,n,nullptr); }
     static bool Provider(PThreeDText t,void *context)
     { auto c=&TextResourceFixtureAccess::_fontContext; auto f=&TextResourceFixtureAccess::_fontResolver; return t->*c==context && t->*f==TextResourceNoFont; }
     static PStringTable_GST DetachNames() { auto t=static_cast<PStringTable_GST>(_actionNames.table); _actionNames.table=nullptr; return t; }
@@ -98,7 +98,7 @@ static bool TestTextResources()
         LegacyLong estimate=-77; bool error=true,success=false;
         if (stage==1) ok=target->FFind(kctgTmpl,number,&block) && Template::FReadTmpl(crf,kctgTmpl,number,&block,nullptr,&estimate) && ok;
         inject(kind,failure,true);
-        if (!stage) success=static_cast<TextResourceFixtureAccess *>(t)->Initialize(target,number);
+        if (!stage) success=static_cast<TextResourceFixtureAccess *>(t)->Initialize(crf,number);
         else if (stage==1) { PBaseCacheableObject out=nullptr; success=Template::FReadTmpl(crf,kctgTmpl,number,&block,&out,&estimate); if (success) t=static_cast<PThreeDText>(out); }
         else { tags=ThreeDText::PgltagFetch(target,kctgTmpl,number,&error); success=!error; }
         inject(kind,failure,false); ++attempts; successful+=success;

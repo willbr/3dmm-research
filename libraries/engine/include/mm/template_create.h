@@ -131,10 +131,10 @@ typedef struct MMTemplateCreateServices
     int (*set_name)(void *,void *object,void *file,MMU32,MMU32);
     void (*delete_chunk)(void *,void *file,MMU32,MMU32);
     void *(*create)(void *,int text);
-    int (*initialize)(void *,void *object,void *file,MMU32,MMU32);
+    int (*initialize)(void *,void *object,void *source,MMU32,MMU32,void *block);
     MMI32 (*object_size)(void *,int text);
     void (*invalidate)(void *,void *,size_t);
-    int (*header)(void *,void *object,void *file,MMU32,MMU32);
+    int (*header)(void *,void *object,void *source,MMU32,MMU32,void *block);
     int (*read_part_indices)(void *,void *block,MMPartIndexList **out);
     int (*read_costumes)(void *, void *block, MMI32 expected, MMTemplateCostumeTable **out);
     void *(*create_cache)(void *,void *file);
@@ -162,13 +162,14 @@ void mm_template_state_init(MMTemplateState *);
  * signed 32-bit storage. Callbacks do not reenter or mutate unrelated state. */
 /* The legacy GGCM builder had 50 stack slots per set. Counts through 50 retain
  * that behavior; a 51st match now diagnoses/fails instead of overflowing. */
-int mm_template_read_header(void *,void *file,MMU32,MMU32,const MMTemplateCreateServices *);
+/* Read from a borrowed root block when supplied, or look it up on demand. */
+int mm_template_read_header(void *,void *source,MMU32,MMU32,void *block,const MMTemplateCreateServices *);
 /* Header padding is defined as zero; the native writer left two stack bytes
  * undefined. Name assignment deliberately uses TMPL even for another supplied
  * chunk type; failure deletes the added chunk and retains its published number. */
 int mm_template_write_header(void *,void *file,MMU32,MMU32 *,const MMTemplateCreateServices *);
 int mm_template_fetch(void *file,MMU32,MMU32,void *block,void **object,MMI32 *bytes,const MMTemplateCreateServices *);
-int mm_template_initialize(void *,void *file,MMU32,MMU32,const MMTemplateCreateServices *);
+int mm_template_initialize(void *,void *source,MMU32,MMU32,void *block,const MMTemplateCreateServices *);
 void mm_template_dispose(void *,const MMTemplateCreateServices *);
 void *mm_template_create_body(void *,const MMTemplateCreateServices *);
 /* Fetch every default custom material before applying any; failure releases

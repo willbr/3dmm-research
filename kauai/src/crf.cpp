@@ -272,6 +272,21 @@ PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTagOrType type, Chunk
     AssertThis(0);
     return mm_resource_cache_contains(&_cache, type, number, scope) ? this : nullptr;
 }
+MMChunkAccess ChunkyResourceFile::ReadChunkAccess()
+{
+    AssertThis(0);
+    return _cache.wire_index ? mm_chunk_index_access(_cache.wire_index) : Pcfl()->ReadChunkAccess();
+}
+bool ChunkyResourceFile::FReadBlock(ChunkTagOrType type, ChunkNumber number, DataBlock &block)
+{
+    AssertThis(0);
+    return mm_resource_cache_read_block(&_cache, type, number, &block._state) == MM_CHUNK_OK;
+}
+PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
+{
+    AssertThis(0);
+    return PcrfNew(Pcfl(), budget, _cache.wire_index, static_cast<PFileObject>(_cache.wire_file));
+}
 #ifdef DEBUG
 void ChunkyResourceFile::AssertValid(LegacyUlong flags)
 {

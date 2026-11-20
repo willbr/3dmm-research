@@ -146,6 +146,9 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, PFNRPO pfnrpo, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
+    MMChunkAccess ReadChunkAccess();
+    bool FReadBlock(ChunkTagOrType, ChunkNumber, DataBlock &);
+    PChunkyResourceFile PcrfNewSibling(LegacyLong budget);
 
     LegacyLong CbMax(void)
     {

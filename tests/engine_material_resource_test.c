@@ -100,11 +100,6 @@ static void diagnostic(void *p, int code)
 {
     test(p)->diagnostic = code + 1;
 }
-static void *file(void *p, void *cache)
-{
-    (void)cache;
-    return p;
-}
 static void *find(void *p, void *f, MMU32 type, MMU32 number)
 {
     Test *t = test(p);
@@ -399,7 +394,6 @@ static void setup(Test *t)
     t->s.custom_state = custom_state;
     t->s.invalidate = invalidate;
     t->s.diagnostic = diagnostic;
-    t->s.file = file;
     t->s.find = find;
     t->s.unpack = unpack;
     t->s.size = size;
@@ -475,7 +469,7 @@ static void costume_slots(void)
     t.bad_model_target = 1;
     assert(mm_custom_material_part(&graph, 1, 2, &part) == MM_CHUNK_BAD_FILE);
     assert(!part.material.type && part.model.number == 7);
-    assert(!mm_custom_material_fetch(&t, MM_CMTL, 1, &o, &bytes, &t.s));
+    assert(!mm_custom_material_fetch(&t, MM_CMTL, 1, &t, &o, &bytes, &t.s));
     balanced(&t);
 }
 static void codecs(void)
@@ -509,7 +503,7 @@ static void loads(void)
         t.texture_child = t.transform_child = 1;
         t.fail = n;
         o = NULL;
-        ok = mm_material_fetch(&t, 3, 1, &o, &bytes, &t.shade, &t.s);
+        ok = mm_material_fetch(&t, 3, 1, &t, &o, &bytes, &t.shade, &t.s);
         if (ok)
         {
             Handle *h = (Handle *)o->material.handle;
@@ -526,7 +520,8 @@ static void loads(void)
         t.custom = 1;
         t.fail = n;
         o = NULL;
-        ok = mm_custom_material_fetch(&t, MM_CMTL, 1, &o, &bytes, &t.s);
+        t.s.find = NULL;
+        ok = mm_custom_material_fetch(&t, MM_CMTL, 1, &t, &o, &bytes, &t.s);
         if (ok)
         {
             assert(o->custom.count == 5 && o->custom.set == 3 && bytes == 56 + 10 * (int)sizeof(void *));
@@ -543,21 +538,22 @@ static void loads(void)
     setup(&t);
     o = (Object *)create(&t, MM_MATERIAL);
     t.header_size = 19;
-    assert(!mm_material_read(o, &t, 3, 1, &t.shade, &t.s) && !o->material.handle);
+    assert(!mm_material_read(o, &t, 3, 1, NULL, &t.shade, &t.s) && !o->material.handle);
     release(&t, o);
     balanced(&t);
     setup(&t);
     o = (Object *)create(&t, MM_MATERIAL);
     t.texture_child = t.transform_child = 1;
     t.transform_size = 27;
-    assert(!mm_material_read(o, &t, 3, 1, &t.shade, &t.s) && !o->material.handle && !t.texture.refs);
+    assert(!mm_material_read(o, &t, 3, 1, NULL, &t.shade, &t.s) && !o->material.handle && !t.texture.refs);
     release(&t, o);
     balanced(&t);
     setup(&t);
     o = (Object *)create(&t, MM_CUSTOM_MATERIAL);
     t.custom = 1;
     t.custom_size = 9;
-    assert(!mm_custom_material_read(o, &t, MM_CMTL, 1, &t.s) && t.diagnostic == MM_MATERIAL_BAD_CUSTOM_SIZE + 1);
+    assert(!mm_custom_material_read(o, &t, MM_CMTL, 1, NULL, &t.s) &&
+           t.diagnostic == MM_MATERIAL_BAD_CUSTOM_SIZE + 1);
     release(&t, o);
     balanced(&t);
 }

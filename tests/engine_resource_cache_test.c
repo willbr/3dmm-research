@@ -541,6 +541,7 @@ static void wire_index_lifetime(void)
     MMChunkIndex *index;
     Host h, backing = {0};
     Object *object;
+    MMOwnedBlock block;
     int error = 1;
     memcpy(archive, prefix, sizeof(prefix));
     archive[128] = 7;
@@ -556,6 +557,11 @@ static void wire_index_lifetime(void)
     CHECK(backing.active_blocks == 1 && mm_resource_cache_contains(&h.cache, 1, 7, 0));
     CHECK(!mm_resource_cache_contains(&h.cache, 1, 7, 7));
     CHECK(!mm_resource_cache_contains(&h.cache, 1, 9, 0));
+    CHECK(mm_owned_block_init(&block, &h.handles, &block_files) == MM_DATA_OK);
+    CHECK(mm_resource_cache_read_block(&h.cache, 1, 7, &block) == MM_CHUNK_OK &&
+          block.file == &backing && block.view.packed && backing.active_blocks == 2);
+    CHECK(mm_resource_cache_read_block(&h.cache, 1, 8, &block) == MM_CHUNK_NOT_FOUND &&
+          !block.file && backing.active_blocks == 1);
     CHECK(!fetch(&h, 8, reader_a, &error) && !error);
     object = fetch(&h, 7, reader_a, &error);
     CHECK(object && !error && !h.block_scans && backing.active_blocks == 1);

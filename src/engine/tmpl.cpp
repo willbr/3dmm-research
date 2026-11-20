@@ -118,15 +118,15 @@ MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *
     s.create = [](void *) -> void * { return NewObj ActionDefinition; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.new_table = [](void *, int) { return NewTable(); };
-    s.find = [](void *p, void *file, MMU32 type, MMU32 number) -> void * {
+    s.find = [](void *p, void *cache, MMU32 type, MMU32 number) -> void * {
         auto block = &static_cast<ActionDefinitionContext *>(p)->block;
-        return static_cast<PChunkyFile>(file)->FFind(type, number, block) ? block : nullptr;
+        return static_cast<PChunkyResourceFile>(cache)->FReadBlock(type, number, *block) ? block : nullptr;
     };
     s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
     s.block_size = [](void *, void *block, int packed) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
     s.block_read = [](void *, void *block, void *out, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(out, static_cast<LegacyLong>(count), 0); };
-    s.child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 childType, MMU32 *out) -> int {
-        const auto chunks = static_cast<PChunkyFile>(file)->ReadChunkAccess();
+    s.child = [](void *, void *cache, MMU32 type, MMU32 number, MMU32 childType, MMU32 *out) -> int {
+        const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
         return mm_chunk_link_number(&chunks, type, number, 0, childType, out) == MM_CHUNK_OK;
     };
     s.stream = [](void *, void *block) {
@@ -134,7 +134,6 @@ MMActionDefinitionServices ActionDefinition::_Services(ActionDefinitionContext *
     };
     s.clear_sound_type = [](void *, void *out) { static_cast<PTAG>(out)->ctg = ctgNil; };
     s.publish_sound = [](void *, void *out, const MMTag *tag) { TagFromCore(static_cast<PTAG>(out), *tag); };
-    s.initialize = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PActionDefinition>(object)->_FInit(static_cast<PChunkyFile>(file), type, number); };
     s.object_size = [](void *) -> MMI32 { return sizeof(ActionDefinition); };
     s.invalidate = [](void *, void *out, size_t count) {
 #ifdef DEBUG
@@ -164,17 +163,15 @@ bool ActionDefinition::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, C
 {
     AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
     ActionDefinitionContext context; auto s = _Services(&context);
-    return mm_action_fetch(pcrf->Pcfl(), ctg, cno, pblck, ppbaco, pcb, &s) != 0;
+    return mm_action_fetch(pcrf, ctg, cno, pblck, ppbaco, pcb, &s) != 0;
 }
 
-/***************************************************************************
-    Read an ActionDefinition from a chunk
-***************************************************************************/
-bool ActionDefinition::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+bool ActionDefinition::_FInit(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
 {
-    AssertPo(pcfl, 0);
-    ActionDefinitionContext context; auto s = _Services(&context);
-    return mm_action_initialize(&_action, pcfl, ctg, cno, &s) != 0;
+    AssertPo(cache, 0);
+    ActionDefinitionContext context;
+    const auto services = _Services(&context);
+    return mm_action_initialize(&_action, cache, type, number, nullptr, &services) != 0;
 }
 
 /***************************************************************************
@@ -266,27 +263,34 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
 #endif
     s.state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PTemplate>(object)->_template; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMTemplateChild *out) -> int {
-        const auto chunks = static_cast<PChunkyFile>(file)->ReadChunkAccess();
+    s.child = [](void *, void *cache, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMTemplateChild *out) -> int {
+        const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
         MMU32 child;
         if (mm_chunk_link_number(&chunks, type, number, id, childType, &child) != MM_CHUNK_OK)
             return 0;
         *out = {childType, child, id};
         return 1;
     };
-    s.enumerate = [](void *, void *file, MMU32 type, MMU32 number, MMI32 index, MMTemplateChild *out) -> int {
-        ChildChunkIdentification child;
-        if (!static_cast<PChunkyFile>(file)->FGetKid(type, number, index, &child)) return 0;
-        *out = {child.cki.ctg, child.cki.cno, child.chid}; return 1;
+    s.enumerate = [](void *, void *cache, MMU32 type, MMU32 number, MMI32 index, MMTemplateChild *out) -> int {
+        const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
+        MMU32 parent;
+        MMChunkChild child;
+        if (mm_chunk_find(&chunks, type, number, &parent) != MM_CHUNK_OK ||
+            mm_chunk_child_at(&chunks, parent, index, &child) != MM_CHUNK_OK)
+            return 0;
+        *out = {child.type, child.number, child.slot};
+        return 1;
     };
-    s.find = [](void *p, void *file, MMU32 type, MMU32 number) -> void * {
+    s.find = [](void *p, void *cache, MMU32 type, MMU32 number) -> void * {
         auto ctx = static_cast<TemplateCreateContext *>(p);
-        return static_cast<PChunkyFile>(file)->FFind(type, number, &ctx->block) ? &ctx->block : nullptr;
+        return static_cast<PChunkyResourceFile>(cache)->FReadBlock(type, number, ctx->block) ? &ctx->block : nullptr;
     };
     s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
     s.block_size = [](void *, void *block, int packed) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
     s.block_read = [](void *, void *block, void *bytes, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(bytes, static_cast<LegacyLong>(count), 0); };
-    s.read_name = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PChunkyFile>(file)->FGetName(type, number, &static_cast<PTemplate>(object)->_stn); };
+    s.read_name = [](void *, void *object, void *cache, MMU32 type, MMU32 number) -> int {
+        return static_cast<PChunkyResourceFile>(cache)->Pcfl()->FGetName(type, number, &static_cast<PTemplate>(object)->_stn);
+    };
     s.add_chunk = [](void *, void *file, MMU32 type, const void *data, size_t count, MMU32 *out) -> int {
         ChunkNumber number; CopyPb(out, &number, sizeof(number));
         const bool ok = static_cast<PChunkyFile>(file)->FAddPv(const_cast<void *>(data), static_cast<LegacyLong>(count), type, &number);
@@ -295,7 +299,10 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
     s.set_name = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PChunkyFile>(file)->FSetName(type, number, &static_cast<PTemplate>(object)->_stn); };
     s.delete_chunk = [](void *, void *file, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(file)->Delete(type, number); };
     s.create = [](void *, int text) -> void * { return text ? static_cast<PTemplate>(NewObj ThreeDText) : NewObj Template; };
-    s.initialize = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyFile>(file), type, number); };
+    s.initialize = [](void *, void *object, void *cache, MMU32 type, MMU32 number, void *block) -> int {
+        return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyResourceFile>(cache), type, number,
+                                                     static_cast<PDataBlock>(block));
+    };
     s.object_size = [](void *, int text) -> MMI32 { return static_cast<MMI32>(text ? sizeof(ThreeDText) : sizeof(Template)); };
     s.invalidate = [](void *, void *out, size_t count) {
 #ifdef DEBUG
@@ -304,7 +311,10 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
         (void)out; (void)count;
 #endif
     };
-    s.header = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PTemplate>(object)->_FReadTmplf(static_cast<PChunkyFile>(file), type, number); };
+    s.header = [](void *, void *object, void *cache, MMU32 type, MMU32 number, void *block) -> int {
+        return static_cast<PTemplate>(object)->_FReadTmplf(static_cast<PChunkyResourceFile>(cache), type, number,
+                                                          static_cast<PDataBlock>(block));
+    };
     s.read_part_indices = [](void *, void *block, MMPartIndexList **out) -> int {
         auto list = EnginePartIndices::Create();
         if (!list)
@@ -339,7 +349,7 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
             mm_template_costumes_dispose(table);
         return status;
     };
-    s.create_cache = [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); };
+    s.create_cache = [](void *, void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->PcrfNewSibling(0); };
     s.create_costumes = [](void *) { return EngineTemplateCostumes::Create(); };
     s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, CustomMaterial_CMTL::FReadCmtl); };
     s.custom_set = [](void *, void *custom) -> MMI32 { return static_cast<PCustomMaterial_CMTL>(custom)->Ibset(); };
@@ -373,7 +383,7 @@ bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumb
     TemplateCreateContext context; auto s = _CreateServices(&context);
     void *object; MMI32 bytes;
     if (ppbaco) CopyPb(ppbaco, &object, sizeof(object));
-    const bool ok = mm_template_fetch(pcrf->Pcfl(), ctg, cno, pblck, ppbaco ? &object : nullptr, &bytes, &s) != 0;
+    const bool ok = mm_template_fetch(pcrf, ctg, cno, pblck, ppbaco ? &object : nullptr, &bytes, &s) != 0;
     if (ppbaco) CopyPb(&object, ppbaco, sizeof(object));
     CopyPb(&bytes, pcb, sizeof(bytes));
     return ok;
@@ -382,11 +392,11 @@ bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumb
 /***************************************************************************
     Read a Template from a chunk
 ***************************************************************************/
-bool Template::_FReadTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+bool Template::_FReadTmplf(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock block)
 {
     AssertBaseThis(0);
     TemplateCreateContext context; auto s = _CreateServices(&context);
-    return mm_template_read_header(this, pcfl, ctg, cno, &s) != 0;
+    return mm_template_read_header(this, cache, ctg, cno, block, &s) != 0;
 }
 
 /***************************************************************************
@@ -407,11 +417,11 @@ bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *p
 /***************************************************************************
     Read a Template from a chunk
 ***************************************************************************/
-bool Template::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+bool Template::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock block)
 {
-    AssertPo(pcfl, 0);
+    AssertPo(cache, 0);
     TemplateCreateContext context; auto s = _CreateServices(&context);
-    return mm_template_initialize(this, pcfl, ctg, cno, &s) != 0;
+    return mm_template_initialize(this, cache, ctg, cno, block, &s) != 0;
 }
 
 /***************************************************************************
@@ -447,15 +457,15 @@ MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *cont
     static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
     s.binding = [](void *, void *object, MMTemplateBinding *out) {
         auto t = static_cast<PTemplate>(object); auto cache = t->Pcrf();
-        *out = {cache ? cache->Pcfl() : nullptr, cache, t->Ctg(), t->Cno()};
+        *out = {cache, t->Ctg(), t->Cno()};
     };
     s.fetch = [](void *, void *cache, MMU32 type, MMU32 number, int kind) -> void * {
         auto reader = kind == MM_TEMPLATE_ACTION ? ActionDefinition::FReadActn :
             kind == MM_TEMPLATE_MODEL ? Model::FReadModl : CustomMaterial_CMTL::FReadCmtl;
         return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, reader);
     };
-    s.name = [](void *, void *file, MMU32 type, MMU32 number, void *out) -> int {
-        return static_cast<PChunkyFile>(file)->FGetName(type, number, static_cast<PString>(out));
+    s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
+        return static_cast<PChunkyResourceFile>(cache)->Pcfl()->FGetName(type, number, static_cast<PString>(out));
     };
     s.action = [](void *, void *object, MMI32 id) -> void * { return static_cast<PTemplate>(object)->_PactnFetch(id); };
     s.model = [](void *, void *object, MMU32 id, MMMovieAsset *asset) -> void * {
@@ -528,7 +538,7 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
     const auto cache = Pcrf();
     if (!cache)
         return nullptr;
-    const auto graph = cache->Pcfl()->ReadChunkAccess();
+    const auto graph = cache->ReadChunkAccess();
     MMU32 parent;
     MMMovieAsset asset;
     if (mm_chunk_find(&graph, Ctg(), Cno(), &parent) != MM_CHUNK_OK ||
@@ -682,7 +692,7 @@ PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
     const auto cache = Pcrf();
     if (cmid < 0 || !cache)
         return pvNil;
-    const auto graph = cache->Pcfl()->ReadChunkAccess();
+    const auto graph = cache->ReadChunkAccess();
     MMU32 parent;
     MMChunkEntry costume;
     if (mm_chunk_find(&graph, Ctg(), Cno(), &parent) != MM_CHUNK_OK ||

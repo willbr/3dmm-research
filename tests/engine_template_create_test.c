@@ -62,16 +62,17 @@ static int set_name(void *p,void *o,void *file,MMU32 type,MMU32 number)
 static void delete_chunk(void *p,void *file,MMU32 type,MMU32 number)
 { Fixture *f=p; CHECK(file==&f->file && number==123); ++f->deleted; f->delete_type=type; }
 static void *create(void *p,int text) { Fixture *f=p; CHECK(text==f->text); ++f->created; if (f->fail==11) return NULL; f->object.refs=1; return &f->object; }
-static int initialize(void *p,void *o,void *file,MMU32 type,MMU32 number)
+static int initialize(void *p,void *o,void *file,MMU32 type,MMU32 number,void *block)
 {
     Fixture *f=p; ++f->initialized; if (f->fail==12) return 0;
     if (f->text) { f->t.flags=2; return 1; }
-    return mm_template_initialize(o,file,type,number,&f->s);
+    CHECK(block==&f->blocks[0]);
+    return mm_template_initialize(o,file,type,number,block,&f->s);
 }
 static MMI32 object_size(void *p,int text) { (void)p; return text?200:100; }
 static void invalidate(void *p,void *out,size_t n) { Fixture *f=p; CHECK(!f->object.refs); memset(out,0xa5,n); ++f->invalidated; }
-static int header(void *p,void *o,void *file,MMU32 type,MMU32 number)
-{ Fixture *f=p; ++f->header_calls; return mm_template_read_header(o,file,type,number,&f->s); }
+static int header(void *p,void *o,void *file,MMU32 type,MMU32 number,void *block)
+{ Fixture *f=p; ++f->header_calls; return mm_template_read_header(o,file,type,number,block,&f->s); }
 static void release_parents(void *p)
 {
     Fixture *f=p;
@@ -235,7 +236,7 @@ int main(void)
     for (failure=1;failure<=10;++failure)
     {
         setup(&f,0,0); f.fail=failure; f.fallback=failure>=7;
-        CHECK(!mm_template_initialize(&f.object,&f.file,MM_TMPL,1,&f.s));
+        CHECK(!mm_template_initialize(&f.object,&f.file,MM_TMPL,1,NULL,&f.s));
         CHECK(f.t.parents==(failure<=2?NULL:&f.parents.list)); CHECK(f.t.sets==(failure<=4?NULL:&f.sets.list));
         if (failure>=9) CHECK(f.t.costumes==&f.group && f.group.rows==1);
         CHECK(!f.cache.refs); disposed(&f);
@@ -249,12 +250,12 @@ int main(void)
     setup(&f,0,0); f.text=1; out=NULL; CHECK(mm_template_fetch(&f.file,MM_TMPL,1,&f.blocks[0],&out,&bytes,&f.s)); CHECK(bytes==200 && !f.header_calls); release(&f,out);
     for (failure=13;failure<=15;++failure)
     {
-        setup(&f,0,0); CHECK(mm_template_initialize(&f.object,&f.file,MM_TMPL,1,&f.s)); f.fail=failure;
+        setup(&f,0,0); CHECK(mm_template_initialize(&f.object,&f.file,MM_TMPL,1,NULL,&f.s)); f.fail=failure;
         CHECK(!mm_template_create_body(&f.object,&f.s) && !f.applied);
         CHECK(f.body_released==(failure!=15) && f.default_calls==(failure!=15)); disposed(&f);
     }
     for (failure=16;failure<=18;++failure)
-    { setup(&f,0,0); f.fail=failure; CHECK(!mm_template_read_header(&f.object,&f.file,MM_TMPL,1,&f.s)); CHECK(f.t.flags==(failure==16?4U:0U)); disposed(&f); }
+    { setup(&f,0,0); f.fail=failure; CHECK(!mm_template_read_header(&f.object,&f.file,MM_TMPL,1,NULL,&f.s)); CHECK(f.t.flags==(failure==16?4U:0U)); disposed(&f); }
     for (failure=19;failure<=20;++failure)
     {
         setup(&f,0,0); f.fail=failure; number=777;
@@ -262,7 +263,7 @@ int main(void)
         CHECK(number==(failure==19?777U:123U) && f.deleted==(failure==20)); if (f.deleted) CHECK(f.delete_type==0x44415441U);
     }
     setup(&f,0,0); f.fallback=1; f.gap=1;
-    CHECK(mm_template_initialize(&f.object,&f.file,MM_TMPL,1,&f.s)); CHECK(f.t.custom_count==2 && f.group.rows==2 && f.fetched==8);
+    CHECK(mm_template_initialize(&f.object,&f.file,MM_TMPL,1,NULL,&f.s)); CHECK(f.t.custom_count==2 && f.group.rows==2 && f.fetched==8);
     f.fetched=0;
     body=mm_template_create_body(&f.object,&f.s);
     CHECK(body==&f.body && f.applied==2 && f.applied_ids[0]==0 && f.applied_ids[1]==1);
@@ -271,7 +272,7 @@ int main(void)
     {
         setup(&f,0,0); f.fallback=1; f.custom_count=i; f.sets.count=f.parents.count=1; put(f.sets.data,2,0,0);
         for (failure=0;failure<i;++failure) f.customs[failure].set=0;
-        ok=mm_template_initialize(&f.object,&f.file,MM_TMPL,1,&f.s); CHECK(ok==(i==50));
+        ok=mm_template_initialize(&f.object,&f.file,MM_TMPL,1,NULL,&f.s); CHECK(ok==(i==50));
         CHECK(f.diagnostics[MM_TEMPLATE_COSTUME_LIMIT]==(i==51)); if (ok) CHECK(mm_template_costumes_count(&f.group,0)==50); disposed(&f);
     }
     puts("C89 template construction, header and default costume checks passed"); return 0;

@@ -17,7 +17,7 @@ struct Test
     MMActionDefinitionServices services;
     TableOwner tables[4];
     Block header, blocks[3];
-    int phase, fail, object_live, invalidations, bad, optional_absent;
+    int phase, fail, object_live, invalidations, bad, optional_absent, header_lookups;
     int released[4], releases, clears, publishes;
 };
 
@@ -86,6 +86,7 @@ static void *find(void *p, void *file, MMU32 type, MMU32 number)
 {
     Test *x=p;
     assert(file==p);
+    if (type==0x4143544eUL) ++x->header_lookups;
     if (checkpoint(x)) return NULL;
     if (type==0x4143544eUL) { assert(number==7); return &x->header; }
     assert(number<3 && type==mm_action_table_type((int)number));
@@ -132,7 +133,7 @@ static void publish(void *p, void *out, const MMTag *tag)
 static int initialize(void *p, void *object, void *file, MMU32 type, MMU32 number)
 {
     assert(p==object);
-    return mm_action_initialize(&((Test *)p)->state,file,type,number,&((Test *)p)->services);
+    return mm_action_initialize(&((Test *)p)->state,file,type,number,NULL,&((Test *)p)->services);
 }
 static MMI32 object_size(void *p) { (void)p; return 80; }
 static void invalidate(void *p, void *out, size_t n)
@@ -182,7 +183,7 @@ static void setup(Test *x, int header_big, int big, MMU32 count)
     s->context=x; s->host_big_endian=header_big; s->state=state; s->create=create; s->release=release;
     s->find=find; s->unpack=unpack; s->block_size=block_size; s->block_read=block_read;
     s->child=child; s->stream=stream; s->new_table=new_table;
-    s->clear_sound_type=clear_type; s->publish_sound=publish; s->initialize=initialize;
+    s->clear_sound_type=clear_type; s->publish_sound=publish;
     s->object_size=object_size; s->invalidate=invalidate; s->bad_order=bad_order;
 }
 
@@ -247,11 +248,11 @@ int main(void)
         assert(!x.tables[2].live);
         mm_action_dispose(&x.state); empty(&x);
     }
-    for (fail=0;fail<=23;++fail)
+    for (fail=0;fail<=21;++fail)
     {
         setup(&x,0,0,2); x.fail=fail; out=NULL; size=-77;
         ok=mm_action_fetch(&x,0x4143544eUL,7,&x.header,&out,&size,&x.services);
-        assert(ok==(fail==0 || fail==17));
+        assert(!x.header_lookups && ok==(fail==0 || fail==15));
         if (ok) { assert(out==&x && size==256); release(&x,&x); }
         else assert(x.invalidations==2 && size==(MMI32)-1414812757);
         empty(&x);

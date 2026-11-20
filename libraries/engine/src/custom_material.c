@@ -125,10 +125,10 @@ int mm_custom_material_part(const MMChunkAccess *access, MMU32 position, MMU32 s
     return status;
 }
 
-static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, const MMMaterialServices *s)
+static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, void *block,
+                       const MMMaterialServices *s)
 {
     MMCustomMaterial *m = s->custom_state(s->context, object);
-    void *file = s->file(s->context, cache), *block;
     unsigned char b[8];
     int bad_order;
     MMI32 i, id, set;
@@ -137,7 +137,8 @@ static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, cons
     MMChunkEntry entry;
     MMChunkChild child;
     MMCustomMaterialPart part;
-    block = s->find(s->context, file, type, number);
+    if (!block)
+        block = s->find(s->context, cache, type, number);
     if (!block || !s->unpack(s->context, block))
         return 0;
     if (s->size(s->context, block) != 8)
@@ -152,7 +153,7 @@ static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, cons
         s->diagnostic(s->context, MM_MATERIAL_BAD_CUSTOM_ORDER);
     m->set = set;
     m->count = 0;
-    s->chunks(s->context, file, &access);
+    s->chunks(s->context, cache, &access);
     if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK ||
         mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK)
         return 0;
@@ -189,14 +190,14 @@ static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, cons
     }
     return 1;
 }
-int mm_custom_material_read(void *object, void *cache, MMU32 type, MMU32 number,
+int mm_custom_material_read(void *object, void *cache, MMU32 type, MMU32 number, void *block,
                                   const MMMaterialServices *s)
 {
-    int ok = read_custom(object, cache, type, number, s);
+    int ok = read_custom(object, cache, type, number, block, s);
     s->close_block(s->context);
     return ok;
 }
-int mm_custom_material_fetch(void *cache, MMU32 type, MMU32 number, void *out, void *size,
+int mm_custom_material_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *out, void *size,
                                    const MMMaterialServices *s)
 {
     void *object;
@@ -206,7 +207,7 @@ int mm_custom_material_fetch(void *cache, MMU32 type, MMU32 number, void *out, v
     if (!out)
         return 1;
     object = s->create(s->context, MM_CUSTOM_MATERIAL);
-    if (!object || !mm_custom_material_read(object, cache, type, number, s))
+    if (!object || !mm_custom_material_read(object, cache, type, number, block, s))
     {
         if (object)
             s->release(s->context, object);

@@ -98,8 +98,8 @@ static MMTemplateCostumeTable *costumes_new(void *p)
     return &owner->table;
 }
 static void *material_new(void *p) { return list_new(p,0,0); }
-static int read_template(void *p,void *o,void *file,MMU32 type,MMU32 n)
-{ Context *c=(Context *)p; (void)file; (void)type; (void)n; copy_string(((Object *)o)->text,"loaded"); return c->header; }
+static int read_template(void *p,void *o,void *file,MMU32 type,MMU32 n,void *block)
+{ Context *c=(Context *)p; assert(file==p && block==p); (void)type; (void)n; copy_string(((Object *)o)->text,"loaded"); return c->header; }
 static int write_template(void *p,void *o,void *file,MMU32 type,void *out)
 { MMU32 n=37; (void)o; (void)file; (void)type; memcpy(out,&n,4); return ((Context *)p)->header; }
 static int child(void *p,void *file,MMU32 type,MMU32 n,MMU32 *out)
@@ -167,7 +167,7 @@ static void wire(void)
         for (failure=0;failure<2;++failure)
         {
             loaded=(Object *)create(&c); c.services.host_big_endian=endian^failure;
-            assert(mm_text_read(loaded,&c,1,37,&c.services));
+            assert(mm_text_read(loaded,&c,1,37,&c,&c.services));
             assert(loaded->descriptor.shape==9 && loaded->descriptor.font.sid==-1 && loaded->descriptor.font.type==font.type && loaded->descriptor.font.number==font.number && !loaded->descriptor.font.cache);
             release(&c,loaded);
         }
@@ -181,9 +181,9 @@ static void wire(void)
         c.fail=0; c.bytes=24; c.child=0; c.found=1;
         assert(!mm_text_write(o,&c,1,&number,&c.services) && number==37 && !c.deleted);
         c.child=1; c.found=0; assert(!mm_text_write(o,&c,1,&number,&c.services) && c.deleted==1);
-        c.header=0; c.found=1; loaded=(Object *)create(&c); assert(!mm_text_read(loaded,&c,1,37,&c.services) && !strcmp(loaded->text,"loaded")); release(&c,loaded);
+        c.header=0; c.found=1; loaded=(Object *)create(&c); assert(!mm_text_read(loaded,&c,1,37,&c,&c.services) && !strcmp(loaded->text,"loaded")); release(&c,loaded);
         c.header=1; c.wire[0]=c.wire[1]=0x7f; loaded=(Object *)create(&c);
-        assert(mm_text_read(loaded,&c,1,37,&c.services) && c.bad==1); release(&c,loaded);
+        assert(mm_text_read(loaded,&c,1,37,&c,&c.services) && c.bad==1); release(&c,loaded);
         release(&c,o); assert(!c.live);
     }
 }

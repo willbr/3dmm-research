@@ -29,7 +29,7 @@ typedef struct MMTextResourceServices
     void *(*provider_font)(void *,void *object,const MMTag *);
     void *(*default_font)(void *,const MMTag *);
     void (*publish_tag)(void *,void *output,const MMTag *);
-    int (*read_template)(void *,void *object,void *file,MMU32 type,MMU32 number);
+    int (*read_template)(void *,void *object,void *source,MMU32 type,MMU32 number,void *block);
     int (*write_template)(void *,void *object,void *file,MMU32 type,void *number_out);
     int (*child)(void *,void *file,MMU32 type,MMU32 number,MMU32 *child_number);
     void *(*find)(void *,void *file,MMU32 number);
@@ -65,7 +65,7 @@ void *mm_text_font(void *object,const MMTextResourceServices *);
  * trailing bytes and swaps whenever its marker differs from the native marker.
  * Write keeps the parent/output number on child failure, deletes only the child
  * on payload-write failure, and always writes a zero pointer pad. */
-int mm_text_read(void *object,void *file,MMU32 type,MMU32 number,const MMTextResourceServices *);
+int mm_text_read(void *object,void *source,MMU32 type,MMU32 number,void *block,const MMTextResourceServices *);
 int mm_text_write(void *object,void *file,MMU32 type,void *number_out,const MMTextResourceServices *);
 void *mm_text_tags(void *file,MMU32 type,MMU32 number,void *error_out,const MMTextResourceServices *);
 /* Set-once table publishes before retain. Lookup takes the first matching ID;

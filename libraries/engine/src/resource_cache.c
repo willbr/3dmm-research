@@ -402,23 +402,32 @@ static void bind(MMResourceCache *c, void *object, MMU32 type, MMU32 number, MMI
     retain_cache(c);
     s->attached = 0;
 }
-static int open_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedBlock *out)
+int mm_resource_cache_read_block(MMResourceCache *c, MMU32 type, MMU32 number, MMOwnedBlock *out)
 {
     MMBlockFile file;
     int packed;
-    int found = c->wire_index ? wire_find(c, q->type, q->number, &file, &packed) :
-                                c->services.locate(c->file, q->type, q->number, &file, &packed);
+    int found = c->wire_index ? wire_find(c, type, number, &file, &packed) :
+                                c->services.locate(c->file, type, number, &file, &packed);
     if (!found)
-        return 0;
+    {
+        mm_owned_block_clear(out);
+        return MM_CHUNK_NOT_FOUND;
+    }
+    if (mm_owned_block_set_file(out, &file, packed) == MM_DATA_OK)
+        return MM_CHUNK_OK;
+    mm_owned_block_clear(out);
+    issue(c, MM_RESOURCE_BAD_BLOCK, type, number);
+    return MM_CHUNK_BAD_FILE;
+}
+static int open_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedBlock *out)
+{
     if (mm_owned_block_init(out, c->services.handles, c->services.block_files) != MM_DATA_OK)
     {
         issue(c, MM_RESOURCE_BAD_BLOCK, q->type, q->number);
         return 0;
     }
-    /* A found record with an unusable extent used to leave the fresh block empty. */
-    if (mm_owned_block_set_file(out, &file, packed) != MM_DATA_OK)
-        issue(c, MM_RESOURCE_BAD_BLOCK, q->type, q->number);
-    return 1;
+    /* A found record with an unusable extent leaves the fresh block empty. */
+    return mm_resource_cache_read_block(c, q->type, q->number, out) != MM_CHUNK_NOT_FOUND;
 }
 
 static void clear_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedBlock *block)

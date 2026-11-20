@@ -87,7 +87,7 @@ static int sound(void *p,void *a,MMI32 cel,void *tag)
 { assert(a==&t(p)->action && !t(p)->exists); *(int *)tag=cel==2?0:7+cel; return cel!=2; }
 static void sound_exists(void *p,void *out,int exists) { assert(out==&t(p)->exists); t(p)->exists=exists; }
 static void binding(void *p,void *object,MMTemplateBinding *out)
-{ assert(object==p); out->file=p; out->cache=t(p)->has_cache?p:NULL; out->type=MM_TMPL; out->number=1; }
+{ assert(object==p); out->cache=t(p)->has_cache?p:NULL; out->type=MM_TMPL; out->number=1; }
 static int child(void *p,void *file,MMU32 type,MMU32 number,MMU32 id,MMU32 ct,MMTemplateChild *out)
 {
     int i; assert(file==p);
