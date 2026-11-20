@@ -225,7 +225,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     };
     s.archive_issue = MovieArchiveIssue;
     s.close_tag = [](void *, MMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
-    s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->_pmcc->UpdateRollCall(); };
+    s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->Pmcc()->UpdateRollCall(); };
     s.write_rollcall = [](void *, void *p, MMU32 root, MMRollCallTable *table, MMU32 *number) -> int {
         return MovieData::FWriteRollCall(static_cast<PChunkyFile>(p), root, table, number);
     };
@@ -297,22 +297,82 @@ Movie::Movie(void) : _clok(khidMvieClock)
     SetCundbMax(1);
 }
 
-/******************************************************************************
-    _FSetPfilSave
-        Given an Filename, looks for and remembers if found the FileObject associated with
-        it.  If the FileObject was found, will also check to see if it's read-only.
-
-    Returns:
-        fFalse if the FileObject wasn't found.
-
-************************************************************ PETED ***********/
-bool Movie::_FSetPfilSave(PFilename pfni)
+struct Movie::RuntimeHost
 {
-    AssertBaseThis(0);
-    AssertPo(pfni, 0);
-    SaveHost host(this);
-    auto services = _SaveServices(&host);
-    return mm_movie_save_bind(pfni, &services) != 0;
+    SaveHost saveHost;
+    MMMovieSaveServices save;
+    MMMovieOwnerServices owner;
+    MMMovieSceneServices scenes;
+    Filename working;
+
+    explicit RuntimeHost(PMovie movie)
+        : saveHost(movie), save(movie->_SaveServices(&saveHost)), owner(MovieData::_OwnerServices(nullptr)),
+          scenes(movie->_SceneServices())
+    {
+    }
+};
+
+static void RetainRuntimeRef(void *p) { static_cast<BASE *>(p)->AddRef(); }
+static void ReleaseRuntimeRef(void *p) { static_cast<BASE *>(p)->Release(); }
+
+MMMovieRuntimeServices Movie::_RuntimeServices(RuntimeHost *host)
+{
+    MMMovieRuntimeServices s = {};
+    s.context = host;
+    s.owner = &host->owner;
+    s.save = &host->save;
+    s.scenes = &host->scenes;
+    s.prepare = [](void *p, void *original, void **working) -> int {
+        auto h = static_cast<RuntimeHost *>(p);
+        auto path = static_cast<PFilename>(original);
+        const bool bundled = MovieContainer::IsVmm(path);
+        if (!MovieContainer::prepare)
+        {
+            if (bundled)
+                PushErc(ercSocBadFile);
+            return !bundled;
+        }
+        if (!MovieContainer::prepare(path, &h->working, h->saveHost.movie->_container))
+            return 0;
+        if (bundled)
+            *working = &h->working;
+        return 1;
+    };
+    s.init_undo = [](void *p) -> int { return static_cast<RuntimeHost *>(p)->saveHost.movie->_FInitUndo(); };
+    s.create_world = [](void *, void *p, int half) -> void * {
+        auto client = static_cast<PMovieClientCallbacks>(static_cast<BASE *>(p));
+        return static_cast<BASE *>(World::PbwldNew(client->Dxp(), client->Dyp(), half != 0, half != 0));
+    };
+    s.create_sounds = [](void *) -> void * { return static_cast<BASE *>(MovieSoundQueue::PmsqNew()); };
+    s.retain = RetainRuntimeRef;
+    s.release = ReleaseRuntimeRef;
+    s.discard_document = [](void *p) { static_cast<RuntimeHost *>(p)->saveHost.movie->Release(); };
+    s.retain_archive = [](void *p) { static_cast<PChunkyFile>(p)->AddRef(); };
+    s.missing_saved_file = [](void *) { Bug("Hey, we just opened this file!"); };
+    s.merge_sources = [](void *file, MMU32 root) { vptagm->FMergeMovieSources(static_cast<PChunkyFile>(file), root); };
+    s.cache_tags = [](void *, MMTagList *tags) -> int { return vptagm->FCacheTagList(tags); };
+    s.resume_audio = [](void *) { if (vpsndm) vpsndm->ResumeAll(); };
+    s.stop_playback = [](void *p) {
+        auto client = static_cast<PMovieClientCallbacks>(static_cast<BASE *>(p));
+        AssertPo(client, 0);
+        client->EnableAccel();
+        client->PlayStopped();
+        vpsndm->StopAll();
+    };
+    s.audio_fades_disabled = [](void *) -> int { return CurrentStudioPreferences().disableAudioFades; };
+    s.set_volume = [](void *, MMI32 volume) { vpsndm->SetVlm(volume); };
+    s.update_roll_call = [](void *p) { static_cast<PMovieClientCallbacks>(static_cast<BASE *>(p))->UpdateRollCall(); };
+    return s;
+}
+
+void Movie::SetMcc(PMovieClientCallbacks pmcc)
+{
+    mm_movie_runtime_set_ref(&_runtime.client, static_cast<BASE *>(pmcc), RetainRuntimeRef, ReleaseRuntimeRef);
+}
+
+void Movie::SetThumbPalette(PDynamicArray palette)
+{
+    mm_movie_runtime_set_ref(&_runtime.thumbnail_palette, static_cast<BASE *>(palette), RetainRuntimeRef, ReleaseRuntimeRef);
 }
 
 /****************************************************
@@ -321,9 +381,9 @@ bool Movie::_FSetPfilSave(PFilename pfni)
  *
  * Parameters:
  *  pmcc - Pointer to the movie client class block to use.
- *	pfni - File to read from.
- *	cno - ChunkNumber of the movie chunk, cnoNil if using the
- *		the first one in the file.
+ *  pfni - File to read from.
+ *  cno - ChunkNumber of the movie chunk, cnoNil if using
+ *        the first one in the file.
  *
  * Returns:
  *  pvNil if failure, else a pointer to the movie object.
@@ -334,140 +394,13 @@ PMovie Movie::PmvieNew(bool fHalfMode, PMovieClientCallbacks pmcc, Filename *pfn
     AssertNilOrPo(pfni, 0);
     AssertPo(pmcc, 0);
 
-    bool fSuccess = fFalse, fBeganLongOp = fFalse;
-    PMovie pmvie;
-    PChunkyFile pcfl = pvNil;
-    Filename containerWorking;
-
-    //
-    // Create the movie object
-    //
-    pmvie = NewObj Movie;
-    if (pmvie == pvNil)
-    {
-        goto LFail;
-    }
-    if (MovieContainer::prepare)
-    {
-        if (!MovieContainer::prepare(pfni, &containerWorking, pmvie->_container))
-            goto LFail;
-        if (MovieContainer::IsVmm(pfni))
-        {
-            pmvie->_containerName = *pfni;
-            pmvie->_save.containerNamed = true;
-            pfni = &containerWorking;
-        }
-    }
-    else if (MovieContainer::IsVmm(pfni))
-    {
-        PushErc(ercSocBadFile);
-        goto LFail;
-    }
-
-    //
-    // Prepare the C-owned undo collection.
-    //
-    if (!pmvie->_FInitUndo())
-    {
-        goto LFail;
-    }
-
-    if (!pfni && !pmvie->_data.FInitActors())
-        goto LFail;
-
-    //
-    // Create the brender world
-    //
-    pmvie->_pbwld = World::PbwldNew(pmcc->Dxp(), pmcc->Dyp(), fHalfMode, fHalfMode);
-    if (pvNil == pmvie->_pbwld)
-    {
-        goto LFail;
-    }
-
-    //
-    // Create the movie sound queue
-    //
-    pmvie->_pmsq = MovieSoundQueue::PmsqNew();
-    if (pvNil == pmvie->_pmsq)
-    {
-        goto LFail;
-    }
-
-    //
-    // Save other variables
-    //
-    pmvie->_pmcc = pmcc;
-    pmcc->AddRef();
-
-    //
-    // Do we initialize from a file?
-    //
-    if (pfni == pvNil)
-    {
-        return (pmvie);
-    }
-
-    /* Don't bother putting up the wait cursor unless we're reading a movie */
-    vpappb->BeginLongOp();
-    fBeganLongOp = fTrue;
-
-    //
-    // Get file to read from
-    //
-    if (!pmvie->_data.FLoad(pfni, cno))
-        goto LFail;
-    cno = pmvie->_data.movieNumber;
-    pcfl = pmvie->_data.Resources()->Pcfl();
-    pcfl->AddRef();
-
-    if (!pmvie->_FSetPfilSave(pfni))
-    {
-        Bug("Hey, we just opened this file!");
-        goto LFail;
-    }
-
-    //
-    // Merge this document's source title list
-    //
-    vptagm->FMergeMovieSources(pcfl, cno); // Source titles are best-effort.
-
-    //
-    // Collect and cache the movie's content dependencies.
-    //
-    {
-        SaveHost host(pmvie);
-        const auto services = pmvie->_SaveServices(&host);
-        MMTagList tags;
-        if (!mm_movie_save_tags(&tags, &services))
-            goto LFail;
-        bool cached = vptagm->FCacheTagList(&tags);
-        mm_tag_list_dispose(&tags);
-        if (!cached)
-            goto LFail;
-    }
-
-    //
-    // Set the movie title
-    //
-    pmvie->_SetTitle(pmvie->_save.containerNamed ? &pmvie->_containerName : pfni);
-    if (pmvie->_save.containerNamed)
-    {
-        String path;
-        pmvie->_containerName.GetStnPath(&path);
-        KauaiFiles::PathInfo info;
-        pmvie->_save.readOnly = KauaiFiles::Info(path.Psz(), &info) == KauaiFiles::Status::Found && info.readOnly;
-    }
-
-    fSuccess = fTrue;
-
-LFail:
-    ReleasePpo(&pcfl);
-    if (!fSuccess)
-        ReleasePpo(&pmvie);
-    if (fBeganLongOp)
-        vpappb->EndLongOp();
-
-    return (pmvie);
+    auto movie = NewObj Movie;
+    if (movie == pvNil)
+        return pvNil;
+    RuntimeHost host(movie);
+    const auto services = _RuntimeServices(&host);
+    return mm_movie_runtime_open(&movie->_runtime, static_cast<BASE *>(pmcc), pfni, cno, fHalfMode, &services)
+               ? movie : pvNil;
 }
 
 /******************************************************************************
@@ -518,70 +451,9 @@ void Movie::_DoSndGarbageCollection(bool fPurgeAll)
 Movie::~Movie(void)
 {
     AssertBaseThis(0);
-
-    if (_fUserPaused && vpsndm)
-        vpsndm->ResumeAll();
-    _fUserPaused = false;
-
-    _data.ReleaseResources();
-    SaveHost saveHost(this);
-    auto saveServices = _SaveServices(&saveHost);
-    mm_movie_save_release(0, &saveServices);
-
-    if (FPlaying())
-    {
-        AssertPo(Pmcc(), 0);
-        Pmcc()->EnableAccel();
-        Pmcc()->PlayStopped();
-        vpsndm->StopAll();
-
-        // if we were fading, then restore sound volume
-        if (_playback.fadeOriginalVolume)
-        {
-            if (_playback.fadeChangedVolume || !CurrentStudioPreferences().disableAudioFades)
-                vpsndm->SetVlm(_playback.fadeOriginalVolume);
-            _playback.fadeOriginalVolume = 0;
-        }
-    }
-
-    if (Pmcc() != pvNil)
-    {
-        Pmcc()->UpdateRollCall();
-    }
-
-    if (Pscen() != pvNil)
-    {
-
-        //
-        // Release open scene.
-        //
-        auto services = _SceneServices();
-        mm_movie_scene_close_open(&services);
-    }
-
-    //
-    // Release the roll call
-    //
-    _data.ClearActors();
-
-    //
-    // Release the call back class
-    //
-    ReleasePpo(&_pmcc);
-
-    //
-    // Release the brender world
-    //
-    ReleasePpo(&_pbwld);
-
-    //
-    // Release the sound queue
-    //
-    ReleasePpo(&_pmsq);
-
-    ReleasePpo(&_pglclrThumbPalette);
-
-    return;
+    RuntimeHost host(this);
+    const auto services = _RuntimeServices(&host);
+    mm_movie_runtime_dispose(&_runtime, &_playback, &services);
 }
 
 #ifdef DEBUG
@@ -613,11 +485,11 @@ void Movie::MarkMem(void)
 
     MarkMemObj(Pbwld());
 
-    MarkMemObj(_pmcc);
+    MarkMemObj(Pmcc());
 
-    MarkMemObj(_pmsq);
+    MarkMemObj(Pmsq());
 
-    MarkMemObj(_pglclrThumbPalette);
+    MarkMemObj(static_cast<BASE *>(_runtime.thumbnail_palette));
 }
 
 /***************************************************************************
@@ -641,7 +513,7 @@ void Movie::AssertValid(LegacyUlong grf)
            "bad movie roll call");
     AssertNilOrPo(Pbwld(), 0);
     AssertPo(&_clok, 0);
-    AssertPo(_pmcc, 0);
+    AssertPo(Pmcc(), 0);
 }
 
 #endif // DEBUG
@@ -1037,7 +909,7 @@ MMMovieSceneServices Movie::_SceneServices()
         scene->HideActors();
         scene->HideTboxes();
     };
-    s.scene_change = [](void *p) { static_cast<PMovie>(p)->_pmcc->SceneChange(); };
+    s.scene_change = [](void *p) { static_cast<PMovie>(p)->Pmcc()->SceneChange(); };
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
     s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
     s.edit = EditMovieArchive;
@@ -1050,11 +922,11 @@ MMMovieSceneServices Movie::_SceneServices()
     s.remove_actors = [](void *scene) { static_cast<PScene>(scene)->RemActrsFromRollCall(); };
     s.add_actors = [](void *scene) { static_cast<PScene>(scene)->FAddActrsToRollCall(); };
     s.dirty = [](void *p) { static_cast<PMovie>(p)->SetDirty(); };
-    s.rollcall_changed = [](void *p) { static_cast<PMovie>(p)->_pmcc->UpdateRollCall(); };
+    s.rollcall_changed = [](void *p) { static_cast<PMovie>(p)->Pmcc()->UpdateRollCall(); };
     s.switch_error = [](void *) { PushErc(ercSocSceneSwitch); };
     s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
-    s.play_sound = [](void *p) { static_cast<PMovie>(p)->_pmsq->PlayMsq(); };
-    s.flush_sound = [](void *p) { static_cast<PMovie>(p)->_pmsq->FlushMsq(); };
+    s.play_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
+    s.flush_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
     s.new_undo = [](void *) -> void * { return MovieSceneUndo::PmunsNew(); };
     s.configure_undo = [](void *, void *p, MMI32 index, void *scene) {
         auto undo = static_cast<PMovieSceneUndo>(p);
@@ -1642,7 +1514,7 @@ bool Movie::FGetFniSave(Filename *pfni)
     AssertVarMem(pfni);
 
     String title; _data.GetTitle(&title);
-    const bool selected = _pmcc->GetFniSave(pfni, idsPortfMovieFilterLabel, idsPortfMovieFilterExt, idsPortfSaveMovieTitle,
+    const bool selected = Pmcc()->GetFniSave(pfni, idsPortfMovieFilterLabel, idsPortfMovieFilterExt, idsPortfSaveMovieTitle,
                               (achar *)(_FNeedsContainer() ? PszLit("vmm") : ksz3mm), &title);
     _data.SetTitle(&title);
     return selected;
@@ -1670,7 +1542,7 @@ PDocumentDisplayGraphicsObject Movie::PddgNew(PGraphicsObjectBlock pgcb)
 {
     AssertThis(0);
     AssertVarMem(pgcb);
-    return (MovieView::PmvuNew(this, pgcb, _pmcc->Dxp(), _pmcc->Dyp()));
+    return (MovieView::PmvuNew(this, pgcb, Pmcc()->Dxp(), Pmcc()->Dyp()));
 }
 
 /****************************************************
@@ -2148,7 +2020,7 @@ bool Movie::FAddScen(PTAG ptag)
 void Movie::Play()
 {
     AssertThis(0);
-    if (_fUserPaused && FPlaying())
+    if (_runtime.user_paused && FPlaying())
     {
         _playback.stopRequested = true;
         FCmdRender(nullptr); // The frozen clock cannot deliver the ordinary stop alarm.
@@ -2170,8 +2042,8 @@ void Movie::Play()
             reply.value = Pscen() != pvNil;
             break;
         case MoviePlayCommandKind::ResetSounds:
-            _pmsq->StopAll();
-            _pmsq->FlushMsq();
+            Pmsq()->StopAll();
+            Pmsq()->FlushMsq();
             break;
         case MoviePlayCommandKind::QueryEnd:
             reply.value = Iscen() + 1 == Cscen() && Pscen()->Nfrm() == Pscen()->NfrmLast();
@@ -2193,7 +2065,7 @@ void Movie::Play()
             reply.success = _playback.unpaced || _clok.FSetAlarm(0, this);
             break;
         case MoviePlayCommandKind::PrepareScene:
-            _pmsq->SndOnLong();
+            Pmsq()->SndOnLong();
             Pscen()->Enable(fscenPauses);
             Pscen()->SelectActr(pvNil);
             Pscen()->SelectTbox(pvNil);
@@ -2209,7 +2081,7 @@ void Movie::Play()
                 SetFStopPlaying(true);
             else
                 SetFPlaying(false);
-            _pmsq->PlayMsq();
+            Pmsq()->PlayMsq();
             SetFSoundsEnabled(_playback.oldSoundsEnabled);
             break;
         case MoviePlayCommandKind::DisableAccelerators:
@@ -2219,7 +2091,7 @@ void Movie::Play()
             reply.value = Iscen() == 0 && Pscen()->Nfrm() == Pscen()->NfrmFirst();
             break;
         case MoviePlayCommandKind::RefreshOpening:
-            _pmcc->UpdateScrollbars();
+            Pmcc()->UpdateScrollbars();
             InvalViews();
             vpappb->UpdateMarked();
             break;
@@ -2228,9 +2100,9 @@ void Movie::Play()
             break;
         case MoviePlayCommandKind::DispatchSounds:
             if (command.flag)
-                _pmsq->PlayMsq();
+                Pmsq()->PlayMsq();
             else
-                _pmsq->FlushMsq();
+                Pmsq()->FlushMsq();
             break;
         case MoviePlayCommandKind::Finished:
             break;
@@ -2257,9 +2129,9 @@ void Movie::Play()
  ***************************************************************************/
 void Movie::SetUserPaused(bool paused)
 {
-    if (_fUserPaused == paused || (paused && !FPlaying()))
+    if (_runtime.user_paused == paused || (paused && !FPlaying()))
         return;
-    _fUserPaused = paused;
+    _runtime.user_paused = paused;
     if (paused)
     {
         _playback.framePacer.Pause(TsCurrent());
@@ -2287,7 +2159,7 @@ void Movie::SetUserPaused(bool paused)
 void Movie::SetFIdleSeen(bool fIdle)
 {
     _playback.idleSeen = fIdle;
-    if (fIdle && FPlaying() && !_fUserPaused && _playback.framePacer.TakeDue(TsCurrent()))
+    if (fIdle && FPlaying() && !_runtime.user_paused && _playback.framePacer.TakeDue(TsCurrent()))
     {
         Command alarm = {};
         alarm.cid = cidAlarm;
@@ -2300,7 +2172,7 @@ bool Movie::FCmdAlarm(PCommand pcmd)
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    if (_fUserPaused && !_playback.stopRequested)
+    if (_runtime.user_paused && !_playback.stopRequested)
     {
         _fUserResumeRender = true;
         return true;
@@ -2358,7 +2230,7 @@ bool Movie::FCmdAlarm(PCommand pcmd)
             //
             // Set sound queue state
             //
-            _pmsq->SndOnShort();
+            Pmsq()->SndOnShort();
 
             Pmcc()->PlayStopped();
             vpsndm->StopAll();
@@ -2407,7 +2279,7 @@ void Movie::_StopRenderPlayback(PMovieView view)
     //
     // Set sound queue state
     //
-    _pmsq->SndOnShort();
+    Pmsq()->SndOnShort();
 
     Pmcc()->PlayStopped();
     vpsndm->StopAll();
@@ -2445,7 +2317,7 @@ bool Movie::FCmdRender(PCommand pcmd)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcmd);
-    if (_fUserPaused && !_playback.stopRequested)
+    if (_runtime.user_paused && !_playback.stopRequested)
     {
         _fUserResumeRender = true;
         return true;
@@ -2506,11 +2378,11 @@ bool Movie::FCmdRender(PCommand pcmd)
             if (_playbackFrameObserver)
                 _playbackFrameObserver(this);
 #endif
-            _pmcc->UpdateScrollbars();
+            Pmcc()->UpdateScrollbars();
             if (FSoundsEnabled())
-                _pmsq->PlayMsq();
+                Pmsq()->PlayMsq();
             else
-                _pmsq->FlushMsq();
+                Pmsq()->FlushMsq();
             vpappb->UpdateMarked();
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
             if (_playbackTest.active)
@@ -2535,7 +2407,7 @@ bool Movie::FCmdRender(PCommand pcmd)
             view->PauseUntilClick(command.flag);
             break;
         case MoviePlaybackCommandKind::QuerySound:
-            reply.value = _pmsq->FPlaying(false);
+            reply.value = Pmsq()->FPlaying(false);
             break;
         case MoviePlaybackCommandKind::ReadTime:
             reply.timestamp = TsCurrent();
@@ -3062,7 +2934,7 @@ void Movie::InvalViewsAndScb(void)
 {
     AssertThis(0);
 
-    _pmcc->UpdateScrollbars();
+    Pmcc()->UpdateScrollbars();
     InvalViews();
 }
 
@@ -3173,8 +3045,8 @@ void Movie::BuildActionMenu()
     {
         arid = Pscen()->PactrSelected()->Arid();
     }
-    _pmcc->ActorSelected(arid);
-    _pmcc->UpdateAction();
+    Pmcc()->ActorSelected(arid);
+    Pmcc()->UpdateAction();
 }
 
 static_assert(static_cast<int>(transCut) == MM_GRAPHICS_MOVIE_CUT &&

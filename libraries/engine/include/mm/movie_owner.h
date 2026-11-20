@@ -31,7 +31,7 @@ extern "C"
         MMStorageAllocator actor_allocator;
         int actor_encoding, actor_trash;
         void *(*create_file)(void *);
-        void *(*open_file)(void *);
+        void *(*open_file)(void *, void *path);
         MMMovieOpenSession open_session;
         void *(*new_resources)(void *, void *file);
         void (*release_file)(void *);
@@ -61,7 +61,7 @@ extern "C"
     void mm_movie_release_resources(MMMovieState *, const MMMovieOwnerServices *);
     void mm_movie_state_dispose(MMMovieState *, const MMMovieOwnerServices *);
     int mm_movie_init_empty(MMMovieState *, const MMMovieOwnerServices *);
-    int mm_movie_load(MMMovieState *, MMU32 number, const MMMovieOwnerServices *);
+    int mm_movie_load(MMMovieState *, void *path, MMU32 number, const MMMovieOwnerServices *);
     /* Resolve a scene from the live graph. A new or changed root is attached
      * only after validation. Failed lookups preserve the caller's number. */
     int mm_movie_state_scene_number(MMMovieState *, MMU32 slot, MMU32 *number, void *file,

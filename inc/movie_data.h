@@ -37,7 +37,6 @@ struct MovieData : MMMovieState
     void GetTitle(PString) const;
     void SetTitle(PString);
     PChunkyResourceFile Resources() const { return static_cast<PChunkyResourceFile>(resources); }
-    void ReleaseResources();
     ~MovieData();
     MovieData(const MovieData &) = delete;
     MovieData &operator=(const MovieData &) = delete;
@@ -56,6 +55,7 @@ struct MovieData : MMMovieState
                               MMI32 *limit = nullptr);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written);
   private:
+    friend class Movie;
     static MMMovieOwnerServices _OwnerServices(void *);
 };
 #endif

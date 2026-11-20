@@ -7773,6 +7773,17 @@ if adoption fails. Copy and import choose a movie slot from the working
 archive and link the sound in the destination archive. A failed physical
 save retains the sound link.
 
+`mm/movie_runtime.h` owns the live Studio document's client, world, sound
+queue, and thumbnail palette references. C89 orders blank startup and named
+open through the existing movie and save owners. For VMM, it opens and binds
+the extracted working file while using the original path for the title and
+read-only check. Failed named opens drop the temporary archive reference and
+tear down the partial document before ending the long operation. On close,
+C resumes paused audio, drops the movie session and saved file, stops
+playback, restores volume when needed, and releases the scene and roll call
+before the client, world, sound queue, and palette. Native code supplies
+container preparation, object factories, and renderer and audio effects.
+
 Studio writes an actor through `mm_actor_store` when saving a scene or taking
 a scene undo snapshot. The C89 writer stores the header, route, and events,
 links embedded templates and actor sounds, and attaches each embedded costume

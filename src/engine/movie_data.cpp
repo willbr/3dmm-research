@@ -51,7 +51,7 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         0,
 #endif
         [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); },
-        [](void *c) -> void * { return ChunkyFile::PcflOpen(static_cast<NativeMovieHost *>(c)->filename, fcflNil); },
+        [](void *, void *path) -> void * { return ChunkyFile::PcflOpen(static_cast<PFilename>(path), fcflNil); },
         OpenSession,
         [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
         [](void *p) { static_cast<PChunkyFile>(p)->Release(); },
@@ -98,11 +98,6 @@ bool MovieData::FInitActors()
     const auto s = _OwnerServices(nullptr);
     return mm_movie_init_actors(this, &s) != 0;
 }
-void MovieData::ReleaseResources()
-{
-    const auto s = _OwnerServices(nullptr);
-    mm_movie_release_resources(this, &s);
-}
 void MovieData::GetTitle(PString out) const
 {
     out->SetRgch(const_cast<achar *>(static_cast<const achar *>(mm_movie_title_text(&title))), title.count);
@@ -118,9 +113,8 @@ bool MovieData::FInitEmpty()
 }
 bool MovieData::FLoad(PFilename filename, ChunkNumber number)
 {
-    NativeMovieHost host = {filename};
-    const auto s = _OwnerServices(&host);
-    return mm_movie_load(this, number, &s) != 0;
+    const auto s = _OwnerServices(nullptr);
+    return mm_movie_load(this, filename, number, &s) != 0;
 }
 int MovieData::OpenSession(void *, void *file, MMU32 *number, MMMovieSession **out)
 {

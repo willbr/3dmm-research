@@ -74,7 +74,7 @@ int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
     replace(m, &fresh, s);
     return 1;
 }
-int mm_movie_load(MMMovieState *m, MMU32 number, const MMMovieOwnerServices *s)
+int mm_movie_load(MMMovieState *m, void *path, MMU32 number, const MMMovieOwnerServices *s)
 {
     MMMovieState loaded;
     void *file;
@@ -82,7 +82,7 @@ int mm_movie_load(MMMovieState *m, MMU32 number, const MMMovieOwnerServices *s)
     int valid;
     mm_movie_state_init(&loaded);
     mm_movie_title_init(&loaded.title, m->title.unit);
-    file = s->open_file(s->context);
+    file = s->open_file(s->context, path);
     if (!file)
         return 0;
     valid = s->open_session(s->context, file, &number, &loaded.session);

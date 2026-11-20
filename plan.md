@@ -1430,6 +1430,13 @@ and sound collection read that same index. Sound attachment, copying,
 and importing use the shared editor to publish links and remove failed
 copies. During import, the destination captured before the temporary-file
 step receives the sound, while its slot comes from the current working file.
+Studio's live document startup and teardown now run in C89 over the movie,
+save, and scene owners. The runtime owns the client, world, sound queue,
+and thumbnail palette references. C loads the working archive, binds the
+saved file, and orders source merge, dependency caching, and title
+publication. An unsuccessful open destroys the partial document before
+ending the wait cursor. The native host supplies container paths, typed
+files and objects, and display and audio effects.
 Portable source tables and background event groups publish a replacement
 before releasing the old link. Native source registration retains its
 existing unlink-before-adopt order.

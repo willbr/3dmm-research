@@ -27,6 +27,7 @@
 #include "movie_container.h"
 #include "mm/movie_sound.h"
 #include "mm/movie_scene.h"
+#include "mm/movie_runtime.h"
 #include "mm/movie_save.h"
 #include "mm/movie_edit.h"
 #include "mm/actor_placement.h"
@@ -563,7 +564,7 @@ class Movie : public Movie_PAR
 
   protected:
     MoviePlaybackState _playback; // Playback values, independent of views and clocks.
-    bool _fUserPaused = false, _fUserResumeRender = false;
+    bool _fUserResumeRender = false;
     LegacyUlong _timUserPause = 0;
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     MoviePlaybackTestProgress _playbackTest;
@@ -581,18 +582,13 @@ class Movie : public Movie_PAR
     MMMovieScenes _scenes; // Current scene reference and index owned by C control.
     bool _fGCSndsOnClose : 1;    // Garbage collection of sounds on close
 
-    PWorld _pbwld;   // The brender world for this movie
-    PMovieSoundQueue _pmsq;     // Message Sound Queue
-    Clock _clok;                // Clock for playing the film
-
-    PMovieClientCallbacks _pmcc; // Parameters and callbacks.
+    MMMovieRuntime _runtime{};
+    Clock _clok; // Clock for playing the film
 
 #ifdef DEBUG
     bool _fWriteBmps;
     LegacyLong _lwBmp;
 #endif // DEBUG
-
-    PDynamicArray _pglclrThumbPalette; // Palette to use for thumbnail rendering.
 
   private:
     Movie(void);
@@ -610,8 +606,9 @@ class Movie : public Movie_PAR
     MMMovieComposeServices _ComposeServices();
     struct SaveHost;
     MMMovieSaveServices _SaveServices(SaveHost *);
+    struct RuntimeHost;
+    static MMMovieRuntimeServices _RuntimeServices(RuntimeHost *);
     void _SetTitle(PFilename pfni = pvNil);            // Set the title of the movie based on given file name.
-    bool _FSetPfilSave(PFilename pfni);
 
   public:
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
@@ -667,14 +664,9 @@ class Movie : public Movie_PAR
     //
     PMovieClientCallbacks Pmcc(void)
     {
-        return _pmcc;
+        return static_cast<PMovieClientCallbacks>(static_cast<BASE *>(_runtime.client));
     } // Accessor for getting to client callbacks.
-    void SetMcc(PMovieClientCallbacks pmcc)
-    {
-        ReleasePpo(&_pmcc);
-        _pmcc = pmcc;
-        _pmcc->AddRef();
-    }
+    void SetMcc(PMovieClientCallbacks pmcc);
 
     //
     // Title stuff
@@ -721,7 +713,7 @@ class Movie : public Movie_PAR
     void SetUserPaused(bool paused);  // Freeze the live clock/audio without restarting the scene.
     bool FUserPaused() const
     {
-        return _fUserPaused;
+        return _runtime.user_paused != 0;
     }
     bool FPause(WaitReason wit, long dts);   // Insert a pause here.
 
@@ -871,7 +863,7 @@ class Movie : public Movie_PAR
     bool FPasteActrPath(PActor pactr);           // Pastes the path onto selected actor.
     PMovieSoundQueue Pmsq(void)
     {
-        return _pmsq;
+        return static_cast<PMovieSoundQueue>(static_cast<BASE *>(_runtime.sounds));
     } // Sound queue
 
     //
@@ -963,7 +955,7 @@ class Movie : public Movie_PAR
     //
     PWorld Pbwld(void)
     {
-        return _pbwld;
+        return static_cast<PWorld>(static_cast<BASE *>(_runtime.world));
     }
 
     //
@@ -984,14 +976,9 @@ class Movie : public Movie_PAR
     PDynamicArray PglclrThumbPalette(void)
     {
         AssertThis(0);
-        return _pglclrThumbPalette;
+        return static_cast<PDynamicArray>(static_cast<BASE *>(_runtime.thumbnail_palette));
     }
-    void SetThumbPalette(PDynamicArray pglclr)
-    {
-        ReleasePpo(&_pglclrThumbPalette);
-        _pglclrThumbPalette = pglclr;
-        pglclr->AddRef();
-    }
+    void SetThumbPalette(PDynamicArray pglclr);
 };
 
 #endif // !MOVIE_H

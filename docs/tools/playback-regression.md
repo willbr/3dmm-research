@@ -16793,3 +16793,32 @@ all 60 archived retail frame identities in seek and continuous playback
 and all retail seek camera indices. Both reproduced their 60 previous seek
 canvas hashes. SDL matched all 12 archived retail sound requests. Evidence
 is in `tmp/c89-studio-movie-index`.
+
+## Live movie startup and teardown in C89 (20 November 2026)
+
+Studio now opens and tears down live movie documents through the C89 runtime.
+The owner fixture checks blank startup, working-file versus original VMM
+path selection, and cleanup after failure during container preparation,
+undo initialization, renderer and sound construction, archive open, saved
+file binding, and dependency caching. It also checks reference release order
+and volume restoration when closing a paused movie.
+
+All 192 standalone checks passed after rebuilding their executables.
+The six focused engine checks passed on SDL, native x64 and x86, and
+AddressSanitizer. The x64 build passed 13 selected checks, including Marcus
+sound editing, player and playback. All 54 traces, three saved movie
+fixtures, ten Preview fingerprints, and six Preview movies matched the
+previous build. Studio's authoring movie was byte-identical and its
+retained-background movie matched after archive decoding. Studio also
+edited, saved, and reopened a three-frame VMM.
+
+Retail, SDL, and Marcus matched all three retained-background frame
+identities, camera indices, and canvas hashes in `20261120T210430Z-5dfafc27`.
+Both ports matched original v3dmm 0.14 on all three frames of the VMM
+saved by Studio in `20261120T210504Z-70d7ed0c`.
+
+In `actor-event-edit` suite `20261120T210226Z-7929d32c`, SDL and Marcus
+matched all 60 archived retail frame identities in seek and continuous
+playback, and all retail seek camera indices. Both reproduced their 60
+previous seek canvas hashes. SDL matched all 12 archived retail sound
+requests. Evidence is in `tmp/c89-movie-runtime-owner`.
