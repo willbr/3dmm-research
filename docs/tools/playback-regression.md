@@ -15083,3 +15083,22 @@ In `actor-event-edit` suite `20261120T081032Z-7557dab3`, SDL and Marcus
 matched the 60 retail frame identities in seek and playback. Both builds
 kept their previous seek image hashes and matched retail camera indices.
 SDL also matched the 12 retail sound requests.
+
+## Preview scene data from the C89 archive graph (20 November 2026)
+
+Preview uses the same archive graph for scene admission, presentation timing,
+captions and actor tracks. The caption fixture verifies that both the live and
+physical graph read the stored TEXT bytes when the packed flag is set. The
+42 targeted x64 checks and the standalone C89 checks passed. The x86 media and
+session fixtures kept their expected fingerprints.
+
+In `scrolling-text` suite `20261120T082353Z-d0491ece`, Marcus matched the
+60 retail frame identities in seek and playback. All 60 seek image hashes and
+327 playback images after collapsing adjacent duplicates matched the earlier
+Marcus build from suite `20261119T024307Z-dd382125`. Both sets of captures are
+in `tmp/c89-sound-schedule/capture/playback.sqlite`.
+
+In `actor-event-edit` suite `20261120T082353Z-35b830d3`, Marcus and SDL
+matched the 60 retail frame identities in seek and playback. Both retained
+their previous seek image hashes and matched the retail camera indices.
+SDL also matched all 12 retail sound requests.

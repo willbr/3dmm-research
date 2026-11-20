@@ -14,6 +14,7 @@
 #include <utility>
 #include "soc_core.h"
 #include "engine_movie_graph.h"
+#include "mm/archive_reader.h"
 #include "mm/scene_runtime.h"
 #include "mm/preview_pick.h"
 #include "mm/preview_camera.h"
@@ -92,6 +93,8 @@ struct Preview::Impl
     bool IsVirtualScene(Id scene) const
     { return scene.type == kctgScen && mm_preview_live_scene(&live, scene.number); }
     bool SyncActors(Error &error);
+    bool StoredPresentation(ChunkNumber scene, PreviewPresentation &, bool soundSheet = false,
+                            bool includeCaptions = false) const;
     Id Asset() const
     {
         return {live.status.asset_type, live.status.asset_number};
@@ -715,6 +718,17 @@ catch (const std::bad_alloc &)
 {
     return Fail(error, ErrorCode::out_of_memory, "Cannot allocate scene picking.");
 }
+bool Preview::Impl::StoredPresentation(ChunkNumber scene, PreviewPresentation &out, bool soundSheet,
+                                       bool includeCaptions) const
+{
+    auto reader = assets.Reader();
+    if (!reader)
+        return false;
+    Internal::ClearDiagnostic();
+    const auto graph = assets.PlaybackGraph();
+    const auto stored = mm_archive_reader_wire_index(reader) ? mm_archive_reader_stored_payload : EngineMovieGraph::Stored;
+    return Internal::ReadPresentation(graph, stored, scene, out, soundSheet, includeCaptions);
+}
 bool Preview::ReadPresentation(PreviewPresentation &presentation, Error &error)
 {
     return ReadPresentation(_impl->Asset(), presentation, error);
@@ -726,7 +740,7 @@ try
     presentation = {};
     if (_impl->IsVirtualScene(scene)) return true;
     if (!_impl->live.status.ready || scene.type != kctgScen ||
-        !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation))
+        !_impl->StoredPresentation(scene.number, presentation))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the movie's captions, sound cues or pauses.");
     return true;
 }
@@ -752,7 +766,7 @@ try
     presentation = {};
     if (_impl->IsVirtualScene(scene)) return true;
     if (!_impl->live.status.ready || scene.type != kctgScen ||
-        !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true, true))
+        !_impl->StoredPresentation(scene.number, presentation, true, true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read scene timing.");
     Internal::OrderPreviewCues(presentation.sounds, scene);
     return true;
@@ -770,7 +784,7 @@ try
     if (_impl->IsVirtualScene(scene)) return true;
     PreviewPresentation presentation;
     if (!_impl->live.status.ready || scene.type != kctgScen ||
-        !Internal::ReadPresentation(_impl->cache->Pcfl(), scene.number, presentation, true))
+        !_impl->StoredPresentation(scene.number, presentation, true))
         return Fail(error, ErrorCode::decode_failed, "Cannot read the scene's sound events.");
     cues = std::move(presentation.sounds);
     Internal::OrderPreviewCues(cues, scene);
@@ -808,6 +822,7 @@ bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &
 try
 {
     error = {};
+    Internal::ClearDiagnostic();
     Internal::AudioOutput output{audio, {}};
     const auto audioServices = output.Services();
     struct SoundSource

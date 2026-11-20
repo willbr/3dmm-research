@@ -18,6 +18,13 @@ inline int Payload(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes
     return mm_movie_block_payload(KauaiChunkPayloadServices(), context, entry, receive, out);
 }
 
+inline int Stored(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    int result;
+    return mm_chunk_visit_stored(KauaiChunkPayloadServices(), context, entry->type, entry->number,
+                                  receive, out, &result) == MM_CHUNK_OK ? result : MM_MOVIE_BAD_FILE;
+}
+
 inline int Name(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
 {
     unsigned char bytes[kcbMaxDataStn];

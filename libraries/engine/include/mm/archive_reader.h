@@ -76,6 +76,9 @@ const MMChunkIndex *mm_archive_reader_wire_index(const MMArchiveReader *);
 void mm_archive_reader_close(MMArchiveReader *);
 MMChunkAccess mm_archive_reader_access(const MMArchiveReader *);
 int mm_archive_reader_read_stored(const MMArchiveReader *, const MMChunkEntry *, void *bytes, MMU32 count);
+/* Graph-compatible stored read. The receiver borrows an independent extent
+ * through the call and can consume decoded chunks through the same reader. */
+int mm_archive_reader_stored_payload(void *, const MMChunkEntry *, MMReadReceiver, void *out);
 int mm_archive_reader_name(MMArchiveReader *, MMU32 position, MMReadReceiver, void *out);
 /* The graph borrows the reader. Pass NULL for a direct graph read's request. */
 MMMovieSessionGraph mm_archive_reader_graph(MMArchiveReader *);

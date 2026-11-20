@@ -53,7 +53,7 @@ class PreviewActor
     };
     std::vector<PreviewSoundCue> sounds;
     ~PreviewActor();
-    bool Load(PChunkyResourceFile file, ChunkNumber number,
+    bool Load(const MMMovieSessionGraph &, ChunkNumber number,
               std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
               std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
     bool Create(const PreviewPropDefinition &, std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,

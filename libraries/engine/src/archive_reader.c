@@ -385,6 +385,18 @@ static int graph_payload(void *context, const MMChunkEntry *entry, MMMovieReceiv
     return receive(out, &stream);
 }
 
+int mm_archive_reader_stored_payload(void *context, const MMChunkEntry *entry, MMReadReceiver receive, void *out)
+{
+    const MMArchiveReader *reader = (const MMArchiveReader *)context;
+    MMReadSlice slice;
+    int result;
+    if (reader->index)
+        return mm_chunk_stored_slice(&reader->wire, mm_chunk_index_header(reader->index), entry, &slice) ?
+                   receive(out, &slice.stream) : MM_MOVIE_BAD_FILE;
+    return mm_chunk_visit_stored(reader->payload.services, reader->archive, entry->type, entry->number,
+                                  receive, out, &result) == MM_CHUNK_OK ? result : MM_MOVIE_BAD_FILE;
+}
+
 static int legacy_name(void *context, const char *text, void *out, MMU32 capacity, MMU32 *count)
 {
     const MMArchiveReader *reader = (const MMArchiveReader *)context;

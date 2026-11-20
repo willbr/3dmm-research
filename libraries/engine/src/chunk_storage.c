@@ -23,28 +23,46 @@ static int payload_stream(MMOwnedBlock *block, MMBlockIO *io, MMReadStream *stre
            mm_block_io_stream(io, stream) == MM_DATA_OK;
 }
 
-int mm_chunk_read_payload(const MMChunkPayloadServices *s, void *archive, MMU32 type,
-                          MMU32 number, MMReadReceiver receive, void *context, int *result)
+static int visit_payload(const MMChunkPayloadServices *s, void *archive, MMU32 type, MMU32 number,
+                          int decode_payload, MMReadReceiver receive, void *context, int *result)
 {
     MMOwnedBlock block;
     MMBlockIO io;
     MMReadStream stream;
     int opened, status = MM_CHUNK_BAD_FILE;
-    if (!s || !s->locate || !s->decode || !archive || !receive || !result ||
+    if (!s || !s->locate || (decode_payload && !s->decode) || !archive || !receive || !result ||
         mm_owned_block_init(&block, s->handles, s->files) != MM_DATA_OK)
         return MM_CHUNK_BAD_FILE;
     opened = locate_payload(s, archive, type, number, &block);
     if (opened == MM_CHUNK_PAYLOAD_MISSING)
         return MM_CHUNK_NOT_FOUND;
     if (opened == MM_CHUNK_PAYLOAD_OK &&
-        mm_owned_block_code(&block, 0, s->decode_context, s->decode, NULL) == MM_DATA_OK &&
-        payload_stream(&block, &io, &stream))
+        (!decode_payload || mm_owned_block_code(&block, 0, s->decode_context, s->decode, NULL) == MM_DATA_OK) &&
+        mm_owned_block_io(&block, &io) == MM_DATA_OK)
     {
-        *result = receive(context, &stream);
-        status = MM_CHUNK_OK;
+        /* The local view exposes wire bytes without changing the block's flag. */
+        if (!decode_payload)
+            io.view.packed = 0;
+        if (mm_block_io_stream(&io, &stream) == MM_DATA_OK)
+        {
+            *result = receive(context, &stream);
+            status = MM_CHUNK_OK;
+        }
     }
     mm_owned_block_clear(&block);
     return status;
+}
+
+int mm_chunk_read_payload(const MMChunkPayloadServices *s, void *archive, MMU32 type,
+                          MMU32 number, MMReadReceiver receive, void *context, int *result)
+{
+    return visit_payload(s, archive, type, number, 1, receive, context, result);
+}
+
+int mm_chunk_visit_stored(const MMChunkPayloadServices *s, void *archive, MMU32 type,
+                          MMU32 number, MMReadReceiver receive, void *context, int *result)
+{
+    return visit_payload(s, archive, type, number, 0, receive, context, result);
 }
 
 int mm_chunk_read_stored(const MMChunkPayloadServices *s, void *archive, MMU32 type,

@@ -149,12 +149,16 @@ struct Preview::Impl::AdmissionHost
         };
         s.child = [](void *v, MMU32 type, MMU32 number, MMU32 slot, int actor, MMPreviewChunk *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
-            ChildChunkIdentification child;
-            if (!h.impl->cache->Pcfl()->FGetKidChidCtg(type, number, slot, actor ? kctgActr : kctgActn, &child))
+            const auto &graph = h.sceneSource.graph;
+            MMChunkAccess chunks;
+            graph.access(graph.context, &chunks);
+            const MMU32 childType = actor ? kctgActr : kctgActn;
+            MMU32 child;
+            if (mm_chunk_link_number(&chunks, type, number, slot, childType, &child) != MM_CHUNK_OK)
                 return 0;
             *out = {};
-            out->type = child.cki.ctg;
-            out->number = child.cki.cno;
+            out->type = childType;
+            out->number = child;
             return 1;
         };
         s.chunks = [](void *v) -> MMU32 {
@@ -225,21 +229,16 @@ struct Preview::Impl::AdmissionHost
             });
         };
         if (impl->cache)
-        {
-            auto file = impl->cache->Pcfl();
-            sceneSource = {file == impl->assets.NativeFile() ? impl->assets.MovieSession() : nullptr,
-                           EngineMovieGraph::FromFile(file)};
-        }
+            sceneSource = {impl->assets.MovieSession(), impl->assets.PlaybackGraph()};
         s.scene = mm_movie_scene_reader(&sceneSource);
         s.actor_header = [](void *v, MMU32 number, MMI32 *first, MMI32 *last) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                DataBlock block;
-                ActorChunkOnFile header;
-                if (!h.impl->cache->Pcfl()->FFind(kctgActr, number, &block) || !ActorData::FReadHeader(&block, &header))
+                MMActorHeader header;
+                if (mm_movie_actor_header(&h.sceneSource.graph, number, &header) != MM_MOVIE_OK)
                     return false;
-                *first = header.nfrmFirst;
-                *last = header.nfrmLast;
+                *first = header.first_frame;
+                *last = header.last_frame;
                 return true;
             });
         };
@@ -249,7 +248,7 @@ struct Preview::Impl::AdmissionHost
                 std::unique_ptr<Internal::PreviewActor> actor(new Internal::PreviewActor);
                 auto impl = h.impl;
                 bool ok = actor->Load(
-                    impl->cache, number, [impl](const TAGOnFile &tag) { return impl->Resolve(tag); },
+                    h.sceneSource.graph, number, [impl](const TAGOnFile &tag) { return impl->Resolve(tag); },
                     [impl](PTemplate t) { impl->BindTemplate(t); }, impl->visibilityClock);
                 *out = actor.release();
                 return ok;

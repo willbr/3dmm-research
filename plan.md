@@ -94,6 +94,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Preview resolves sound sources in the C89 session and reads movie sound
   links and decoded audio from the archive reader. Editable archives provide
   their current graph so sound lookup sees live changes.
+- Preview also reads scene admission, captions, timing, and actor tracks
+  from that archive graph. Caption TEXT borrows the stored bytes while the
+  other caption chunks use decoded streams.
 - The archive reader opens immutable physical streams through the C89 chunk
   index, codec and payload cache. `3mm dump` and Marcus catalogue reads use this
   path. Marcus also uses it to read source names for an object being copied.

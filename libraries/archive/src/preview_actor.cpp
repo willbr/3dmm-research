@@ -14,6 +14,7 @@
 #include "mm/actor_effect.h"
 #include "mm/actor_costume_edit.h"
 #include "mm/actor_animation.h"
+#include "mm/actor_persistence.h"
 #include "mm/sound_resource.h"
 #undef size
 #include "preview_cue_view.h"
@@ -36,16 +37,17 @@ PreviewActor::~PreviewActor()
     ReleasePpo(&textMaterial);
     mm_actor_sounds_dispose(&motionSounds);
 }
-bool PreviewActor::Load(PChunkyResourceFile file, ChunkNumber number,
+bool PreviewActor::Load(const MMMovieSessionGraph &graph, ChunkNumber number,
                         std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
                         std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock)
 {
     this->visibilityClock = &visibilityClock;
     this->number = number;
     resolve = resolver;
-    Host host = {this, file, &bindTemplate};
+    Host host = {this, &graph, &bindTemplate};
     auto services = host.Services();
-    const auto chunks = file->Pcfl()->ReadChunkAccess();
+    MMChunkAccess chunks;
+    graph.access(graph.context, &chunks);
     return host.Result(mm_preview_actor_load(&core, number, &chunks, 0, &services));
 }
 bool PreviewActor::Create(const PreviewPropDefinition &definition,

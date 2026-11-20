@@ -1,4 +1,5 @@
 #include "preview_presentation.h"
+#include "mm/archive_reader.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -266,6 +267,32 @@ int main(int argc, char **argv)
     bool ok = file->FSave(kctgSoc);
     ReleasePpo(&file);
     if (!ok || !trace.Finish("media", 1275, 0x1B3D6107U))
+        return 1;
+    // Exercise the same packed-flag quirk from a physical archive reader.
+    auto source = FileObject::PfilOpen(&filename);
+    if (!source)
+        return 1;
+    const auto stream = source->ReadStream();
+    const unsigned short one = 1;
+    MMChunkPolicy policy = {0, *reinterpret_cast<const unsigned char *>(&one) == 0, kcbMaxDataStn};
+#ifdef CHUNK_BIG_INDEX
+    policy.expanded_runtime = 1;
+#endif
+    MMArchiveReaderOptions options = {};
+    options.max_packed_bytes = 64u << 20;
+    MMArchiveReader *reader = nullptr;
+    if (mm_archive_reader_open_stream(&stream, &policy, &options, &reader) == MM_ARCHIVE_READ_OK)
+    {
+        const auto graph = mm_archive_reader_graph(reader);
+        MM::PreviewPresentation presentation;
+        ok = MM::Internal::ReadPresentation(graph, mm_archive_reader_stored_payload, rawTextScene, presentation) &&
+             presentation.captions.size() == 1 && presentation.captions.front().text == rawText.captions.front().text;
+    }
+    else
+        ok = false;
+    mm_archive_reader_close(reader);
+    ReleasePpo(&source);
+    if (!ok)
         return 1;
     std::puts("Preview media: envelope/MIDI boundaries, malformed tails, caption text/properties and failure prefixes "
               "passed.");

@@ -4,7 +4,7 @@
 struct PreviewActor::Host
 {
     PreviewActor *actor;
-    PChunkyResourceFile file = nullptr;
+    const MMMovieSessionGraph *graph = nullptr;
     const std::function<void(PTemplate)> *binder = nullptr;
     std::exception_ptr exception;
     int failure = 0;
@@ -57,20 +57,26 @@ struct PreviewActor::Host
         s.fault = [](void *v) { return static_cast<Host *>(v)->failure; };
         s.header = [](void *v, MMU32 n, MMActorHeader *out) -> int {
             auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] { return ActorData::FReadHeader(h.file->Pcfl(), n, out); });
+            return h.Guard([&] { return mm_movie_actor_header(h.graph, n, out) == MM_MOVIE_OK; });
         };
         s.route = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = ActorData::PpathRead(h.file->Pcfl(), n);
-                return *out != nullptr;
+                const MMActorPathFactory factory = {&h.trackAllocator, DebugShip(1, 0)};
+                MMActorPath *path = nullptr;
+                const int result = mm_actor_movie_path(h.graph, n, &factory, &path);
+                *out = path;
+                return result == MM_MOVIE_OK;
             });
         };
         s.events = [](void *v, MMU32 n, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = ActorData::PeventsRead(h.file->Pcfl(), n);
-                return *out != nullptr;
+                MMActorEventFactory factory = {&h.trackAllocator, DebugShip(1, 0)};
+                MMActorEventTable *events = nullptr;
+                const int result = mm_actor_movie_events(h.graph, n, &factory, &events);
+                *out = events;
+                return result == MM_MOVIE_OK;
             });
         };
         s.fetch = [](void *v, const MMActorHeader *header, void **out) -> int {
