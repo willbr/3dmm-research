@@ -15227,3 +15227,30 @@ Marcus captures matched all 60 frame identities in the retained retail
 seek and playback captures. Each player kept all 60 prior seek image
 hashes and matched the retail camera indices. SDL also matched the 12
 retail sound requests.
+
+## Marcus text authoring codecs in C89 (20 November 2026)
+
+The 3D-text editor, object clipboard and caption editor use the shared UTF-8
+reader. The 3D-text name validator checks representability in the original
+font character set. Caption draft and save share newline normalization. The
+caption writer preserves ANSI storage when the native code page round-trips
+the text with the same byte and UTF-16 unit counts. Other captions are stored
+as little-endian UTF-16.
+
+Seven caption edits produced byte-identical archives before and after the
+conversion, including accented ANSI, CRLF, and Unicode with a surrogate
+pair. Retail opened and rendered the ASCII, accented ANSI and Unicode
+movies at frame 25 with the expected text box counts. The existing headless
+Marcus playback test also checked Unicode draft, save and reopen.
+
+All 43 targeted x64 checks and six standalone C89 checks passed. Focused
+x86 tests passed and the x64 Preview integration retained its ten
+fingerprints, including all 188 stock cameras. Both VMM storyboard seek
+images in `20261120T100213Z-c4139f88` matched the retained SDL and Marcus
+captures. Logs are in `tmp/c89-text-authoring-codecs`.
+
+In `actor-event-edit` suite `20261120T100211Z-bf15f8df`, fresh SDL and
+Marcus captures matched all 60 frame identities in the retained retail
+seek and playback captures. Both players kept their prior seek image
+hashes and matched the retail camera indices. SDL also matched the 12
+retail sound requests.

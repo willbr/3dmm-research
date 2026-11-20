@@ -242,6 +242,7 @@ static void counted_utf8(void)
     static const unsigned short bad_units[] = {'a', 0xd800, 'b'};
     static const char bad[] = "a\xf0\x80\x80\x8a";
     Utf8Test t = {0};
+    size_t count = 12;
 
     t.limit = sizeof(t.bytes);
     CHECK(mm_text_encode_utf8(units, sizeof(units) / sizeof(*units), &t, utf8_bytes) == 1);
@@ -260,6 +261,14 @@ static void counted_utf8(void)
     CHECK(mm_text_decode_utf8(encoded, sizeof(encoded) - 1, &t, utf8_units) == -4 && t.written == 6);
     t.written = 0;
     CHECK(mm_text_encode_utf8(units, sizeof(units) / sizeof(*units), &t, utf8_bytes) == -4 && t.written == 7);
+
+    CHECK(mm_text_read_utf8(encoded, sizeof(encoded) - 1, t.units, 7, &count) == -1 && count == 12);
+    CHECK(mm_text_read_utf8(bad, sizeof(bad) - 1, t.units, 12, &count) == 0 && count == 12);
+    CHECK(mm_text_read_utf8(encoded, sizeof(encoded) - 1, t.units, 12, &count) == 1 && count == 8);
+    CHECK(!memcmp(t.units, units, sizeof(units)));
+    CHECK(mm_text_ansi_from_units(NULL, t.units + 6, 2, t.bytes, sizeof(t.bytes), 0) == 1 && t.bytes[0] == '?');
+    CHECK(!mm_text_ansi_from_units(NULL, t.units + 6, 2, t.bytes, sizeof(t.bytes), 1));
+    CHECK(mm_text_read_utf8(NULL, 0, NULL, 0, &count) == 1 && count == 0);
 }
 
 int main(void)

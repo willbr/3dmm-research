@@ -121,6 +121,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   C89 binds copied fonts to local preview tags in the descriptor's byte order
   and writes authored lighting, textures and placement through the shared
   material writer. Renderer objects are generated when the template loads.
+- Marcus uses C89 for 3D-text name validation, clipboard name conversion and
+  caption text encoding. Caption edits normalize line breaks and use ANSI
+  when the native code page round-trips the text with equal byte and UTF-16
+  unit counts. The caption adapter supplies native code-page services.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

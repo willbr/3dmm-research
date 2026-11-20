@@ -7,9 +7,8 @@
 #include "platform_text.h"
 #include "font_catalog.h"
 #include "font_host.h"
-#include <codecvt>
+#include <algorithm>
 #include <cstring>
-#include <locale>
 #include <map>
 #include <exception>
 #include <stdexcept>
@@ -22,12 +21,10 @@ ASSERTNAME
 namespace
 {
 using Encoding = KauaiText::Encoding;
-constexpr int MaxText = 65536;
 constexpr MMU32 Rgb = 0x01000000, Clear = 0xffffffffU;
 
 struct Release { template<class T> void operator()(T *p) const { if (p) p->Release(); } };
 template<class T> using Owned = std::unique_ptr<T, Release>;
-using Utf8 = std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t>;
 using Words = std::vector<unsigned short>;
 
 void Require(bool ok, const char *message)
@@ -55,45 +52,34 @@ Words Decode(const void *bytes, std::size_t length, Encoding encoding)
 }
 Words ReadText(RichTextData &rich)
 {
-    Require(rich.text.cb >= 0 && rich.text.cb <= MaxText * 4, "The 2D text is too long to edit.");
+    Require(rich.text.cb >= 0 && rich.text.cb <= MM_CAPTION_EDIT_MAX_UNITS * 4, "The 2D text is too long to edit.");
     std::vector<byte> bytes(rich.text.cb);
     Require(bytes.empty() || rich.text.FReadRgb(bytes.data(), rich.text.cb, 0), "Cannot read the 2D text.");
     return Decode(bytes.data(), bytes.size(), static_cast<Encoding>(rich.textOsk));
 }
 std::string ToUtf8(const Words &words)
 {
-    return Utf8().to_bytes(std::u16string(words.begin(), words.end()));
-}
-std::vector<byte> LittleEndianText(const Words &text)
-{
-    std::vector<byte> bytes;
-    bytes.reserve(text.size() * 2);
-    for (auto unit : text)
-    {
-        bytes.push_back(static_cast<byte>(unit));
-        bytes.push_back(static_cast<byte>(unit >> 8));
-    }
-    return bytes;
+    std::string result(words.size() * 3, '\0');
+    auto end = result.data();
+    Require(mm_text_encode_utf8(words.data(), words.size(), &end, [](void *p, const char *bytes, std::size_t count) {
+        auto &next = *static_cast<char **>(p);
+        std::memcpy(next, bytes, count);
+        next += count;
+        return 1;
+    }) == 1, "Cannot encode the 2D text as UTF-8.");
+    result.resize(end - result.data());
+    return result;
 }
 void WriteText(RichTextData &rich, const Words &text)
 {
-    auto bytes = LittleEndianText(text);
-    auto encoding = Encoding::Utf16LE;
-    if (!bytes.empty())
-    {
-        std::vector<byte> ansi(KauaiText::ToAnsi(bytes.data(), bytes.size(), encoding, nullptr, 0));
-        if (ansi.size() == text.size() &&
-            KauaiText::ToAnsi(bytes.data(), bytes.size(), encoding, reinterpret_cast<char *>(ansi.data()),
-                              ansi.size()) == ansi.size() &&
-            Decode(ansi.data(), ansi.size(), Encoding::WindowsAnsi) == text)
-        {
-            bytes = std::move(ansi);
-            encoding = Encoding::WindowsAnsi;
-        }
-    }
+    std::vector<byte> bytes(text.size() * 2);
+    std::size_t count;
+    const auto encoding = mm_caption_edit_encode(KauaiText::Services(), text.data(), text.size(), bytes.data(),
+                                                 bytes.size(), &count);
+    Require(encoding != 0, "Cannot encode the 2D text.");
     Owned<FileObject> stream(FileObject::PfilCreateTemp());
-    const auto length = static_cast<LegacyLong>(bytes.size());
-    Require(stream && (bytes.empty() || stream->FWriteRgb(bytes.data(), length, 0)),
+    const auto length = static_cast<LegacyLong>(count);
+    Require(stream && (!length || stream->FWriteRgb(bytes.data(), length, 0)),
             "Cannot write the 2D text.");
     ReleasePpo(&rich.text.pfil);
     rich.text = {stream.release(), 0, length};
@@ -104,20 +90,23 @@ std::string Font(RichTextData &rich)
     return ToUtf8(Decode(rich.fontName.Psz(), rich.fontName.Cch() * sizeof(achar),
                                   static_cast<Encoding>(koskCur)));
 }
-LegacyLong EncodeFont(const std::u16string &text, achar (&native)[kcchMaxStn])
+LegacyLong EncodeFont(const unsigned short *units, std::size_t count, achar (&native)[kcchMaxStn])
 {
-    const Words units(text.begin(), text.end());
-    auto bytes = LittleEndianText(units);
-    const auto length = CchTranslateRgb(bytes.data(), static_cast<LegacyLong>(bytes.size()),
-                                        static_cast<short>(Encoding::Utf16LE), native, kcchMaxStn);
-    return length > 0 && Decode(native, length * sizeof(achar), static_cast<Encoding>(koskCur)) == units ? length : 0;
+#ifdef UNICODE
+    std::copy_n(units, count, native);
+    return static_cast<LegacyLong>(count);
+#else
+    return static_cast<LegacyLong>(mm_text_ansi_from_units(KauaiText::Services(), units, count, native, kcchMaxStn, 1));
+#endif
 }
 void SetFont(RichTextData &rich, const char *font)
 {
-    const auto units = Utf8().from_bytes(font);
-    Require(!units.empty() && units.size() <= kcchMaxStn, "Enter a font family of 1 to 255 characters.");
+    unsigned short units[kcchMaxStn];
+    std::size_t count;
+    Require(mm_text_read_utf8(font, std::strlen(font), units, kcchMaxStn, &count) == 1 && count,
+            "Enter a font family of 1 to 255 characters in UTF-8.");
     achar native[kcchMaxStn];
-    const auto length = EncodeFont(units, native);
+    const auto length = EncodeFont(units, count, native);
     Require(length > 0, "This font name cannot be represented in a native 3DMM text box.");
     rich.fontName.SetRgch(native, length);
     rich.defaults.oskFont = koskCur;
@@ -262,12 +251,12 @@ bool UpdateRich(RichTextData &rich, const MarcusCaptionOptions &value, const Mar
     Words newText;
     if (wordsChanged)
     {
-        Utf8 utf8;
-        const auto decoded = utf8.from_bytes(text);
-        newText.assign(decoded.begin(), decoded.end());
-        newText.resize(mm_caption_edit_normalize(newText.data(), newText.size(), 13));
-        Require(utf8.converted() == std::strlen(text) && newText.size() <= MaxText,
+        const auto length = std::strlen(text);
+        newText.resize(std::min<std::size_t>(length, MM_CAPTION_EDIT_MAX_UNITS * 2));
+        std::size_t count;
+        Require(mm_caption_edit_decode(text, length, newText.data(), newText.size(), &count),
                 "Enter valid UTF-8 within the 2D text length limit.");
+        newText.resize(count);
     }
     const auto &words = wordsChanged ? newText : oldText;
     PropertyMap map{rich, words};
@@ -300,9 +289,11 @@ std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *b
     std::map<std::string, std::string> names;
     for (auto &family : families)
     {
-        auto units = Utf8().from_bytes(family.name);
+        unsigned short units[kcchMaxStn];
+        std::size_t count;
         achar native[kcchMaxStn];
-        if (units.empty() || units.size() > kcchMaxStn || !EncodeFont(units, native))
+        if (mm_text_read_utf8(family.name.data(), family.name.size(), units, kcchMaxStn, &count) != 1 ||
+            !count || !EncodeFont(units, count, native))
             continue;
         auto key = family.name;
         for (auto &c : key)

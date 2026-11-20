@@ -33,6 +33,13 @@ extern "C"
      * any nonpositive sink result stops conversion and is returned unchanged. */
     int mm_text_encode_utf8(const unsigned short *, size_t, void *, int (*write)(void *, const char *, size_t));
     int mm_text_decode_utf8(const char *, size_t, void *, int (*write)(void *, const unsigned short *, size_t));
+    /* Collect into a bounded buffer. A short buffer returns -1, invalid UTF-8
+     * returns 0. Only success sets the count. Failure may write a prefix. */
+    int mm_text_read_utf8(const char *, size_t, unsigned short *, size_t capacity, size_t *count);
+    /* Convert native UTF-16 units. Exact conversion requires a round trip
+     * through the same code page. It can leave rejected bytes in the buffer. */
+    size_t mm_text_ansi_from_units(const MMTextHost *, const unsigned short *, size_t,
+                                  char *, size_t capacity, int exact);
     /* Legacy lossy Mac/Windows maps; supports in-place counted conversion. */
     void mm_text_map_bytes(void *, size_t, int mac_to_windows);
     void mm_text_case_bytes(char *, size_t, int upper);

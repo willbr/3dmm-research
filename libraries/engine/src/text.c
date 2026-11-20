@@ -110,6 +110,35 @@ int mm_text_decode_utf8(const char *bytes, size_t count, void *context,
     return 1;
 }
 
+typedef struct UTF16Buffer
+{
+    unsigned short *units;
+    size_t capacity, count;
+} UTF16Buffer;
+
+static int collect_units(void *context, const unsigned short *units, size_t count)
+{
+    UTF16Buffer *buffer = context;
+    if (count > buffer->capacity - buffer->count)
+        return -1;
+    memcpy(buffer->units + buffer->count, units, count * sizeof(*units));
+    buffer->count += count;
+    return 1;
+}
+
+int mm_text_read_utf8(const char *bytes, size_t length, unsigned short *units, size_t capacity, size_t *count)
+{
+    UTF16Buffer buffer;
+    int result;
+    buffer.units = units;
+    buffer.capacity = capacity;
+    buffer.count = 0;
+    result = mm_text_decode_utf8(bytes, length, &buffer, collect_units);
+    if (result == 1)
+        *count = buffer.count;
+    return result;
+}
+
 static int wide(int encoding)
 {
     return encoding == MM_TEXT_UTF16_LE || encoding == MM_TEXT_UTF16_BE;
@@ -229,6 +258,44 @@ size_t mm_text_ansi(const MMTextHost *host, const void *input, size_t bytes, int
     }
     return needed;
 }
+
+size_t mm_text_ansi_from_units(const MMTextHost *host, const unsigned short *units, size_t count,
+                              char *output, size_t capacity, int exact)
+{
+    const unsigned short order = 1;
+    unsigned short *round_trip;
+    size_t bytes, i;
+    int encoding;
+    if (!count || count > 2147483647UL / 2 || !output)
+        return 0;
+    if (host && host->encode)
+        bytes = host->encode(host->context, units, count, output, capacity);
+    else
+    {
+        encoding = *(const unsigned char *)&order ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE;
+        bytes = mm_text_ansi(NULL, units, count * 2, encoding, output, capacity);
+    }
+    if (!bytes || !exact)
+        return bytes;
+    if (!host || !host->decode)
+    {
+        if (bytes != count)
+            return 0;
+        for (i = 0; i < count; ++i)
+            if (windows1252[(unsigned char)output[i]] != units[i])
+                return 0;
+        return bytes;
+    }
+    round_trip = malloc(count * sizeof(*units));
+    if (!round_trip)
+        return 0;
+    if (mm_text_utf16(host, output, bytes, MM_TEXT_WINDOWS, round_trip, count) != count ||
+        memcmp(units, round_trip, count * sizeof(*units)))
+        bytes = 0;
+    free(round_trip);
+    return bytes;
+}
+
 void mm_text_map_bytes(void *text, size_t count, int mac_to_windows)
 {
     unsigned char *bytes = (unsigned char *)text;

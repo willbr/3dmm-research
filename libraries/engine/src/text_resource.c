@@ -1,7 +1,39 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/text_resource.h"
 #include "mm/font_resource.h"
+#include "mm/text.h"
 #include <string.h>
+
+int mm_text_author_name(const char *utf8, char name[MM_TEXT_NAME_BYTES])
+{
+    unsigned short units[MM_TEXT_NAME_BYTES - 1];
+    char ansi[MM_TEXT_NAME_BYTES - 1];
+    size_t count, bytes, i;
+    int result, visible = 0, single_line = 1;
+    if (!utf8 || !*utf8)
+        return MM_TEXT_NAME_EMPTY;
+    result = mm_text_read_utf8(utf8, strlen(utf8), units, MM_TEXT_NAME_BYTES - 1, &count);
+    if (!result)
+        return MM_TEXT_NAME_UTF8;
+    if (result < 0)
+        return MM_TEXT_NAME_LENGTH;
+    for (i = 0; i < count; ++i)
+    {
+        if (units[i] == '\r' || units[i] == '\n' || units[i] == '\t')
+            single_line = 0;
+        else if (units[i] != ' ')
+            visible = 1;
+    }
+    if (!visible)
+        return MM_TEXT_NAME_LENGTH;
+    bytes = mm_text_ansi_from_units(NULL, units, count, ansi, sizeof(ansi), 1);
+    if (!single_line || !bytes)
+        return MM_TEXT_NAME_CHARACTERS;
+    memcpy(name, ansi, bytes);
+    name[bytes] = '\0';
+    return MM_TEXT_NAME_OK;
+}
+
 static void release(const MMTextResourceServices *s,void *object)
 { s->generation.release(s->generation.context,object); }
 static void normalize(void *object,const MMTextResourceServices *s)

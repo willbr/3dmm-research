@@ -306,6 +306,26 @@ static void drafts(void)
         assert(!memcmp(output.descriptor, c.wire, 8) && !memcmp(output.descriptor + 16, c.wire + 16, 4));
     }
 }
+static void author_names(void)
+{
+    char name[MM_TEXT_NAME_BYTES] = "old";
+    char long_name[MM_TEXT_NAME_BYTES + 1];
+    assert(mm_text_author_name(NULL, name) == MM_TEXT_NAME_EMPTY);
+    assert(mm_text_author_name("", name) == MM_TEXT_NAME_EMPTY);
+    assert(mm_text_author_name(" \t\r\n", name) == MM_TEXT_NAME_LENGTH);
+    assert(mm_text_author_name("A\xc3", name) == MM_TEXT_NAME_UTF8);
+    assert(mm_text_author_name("A\xed\xa0\x80", name) == MM_TEXT_NAME_UTF8);
+    assert(mm_text_author_name("\xf0\x9f\x98\x80", name) == MM_TEXT_NAME_CHARACTERS);
+    assert(mm_text_author_name("A\tB", name) == MM_TEXT_NAME_CHARACTERS);
+    assert(!strcmp(name, "old"));
+    assert(mm_text_author_name("\xc3\xa9 \xe2\x82\xac ?", name) == MM_TEXT_NAME_OK);
+    assert(!strcmp(name, "\xe9 \x80 ?"));
+    memset(long_name, 'X', sizeof(long_name) - 1);
+    long_name[sizeof(long_name) - 1] = '\0';
+    assert(mm_text_author_name(long_name, name) == MM_TEXT_NAME_LENGTH);
+    long_name[MM_TEXT_NAME_BYTES - 1] = '\0';
+    assert(mm_text_author_name(long_name, name) == MM_TEXT_NAME_OK && !strcmp(name, long_name));
+}
 static void names(void)
 {
     Context c; MMTextNames n={NULL}; void *table; char out[256];
@@ -316,4 +336,4 @@ static void names(void)
     assert(!mm_text_action_name(&n,15,out,&c.services) && !out[0] && c.warnings==1);
     release(&c,table); release(&c,table); assert(!c.live);
 }
-int main(void) { lifecycle(); wire(); drafts(); names(); return 0; }
+int main(void) { lifecycle(); wire(); drafts(); author_names(); names(); return 0; }

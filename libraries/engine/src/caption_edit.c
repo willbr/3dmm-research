@@ -125,6 +125,38 @@ size_t mm_caption_edit_normalize(unsigned short *text, size_t count, unsigned sh
     return written;
 }
 
+int mm_caption_edit_decode(const char *utf8, size_t length, unsigned short *text, size_t capacity, size_t *out)
+{
+    size_t count;
+    if (mm_text_read_utf8(utf8, length, text, capacity, &count) != 1)
+        return 0;
+    count = mm_caption_edit_normalize(text, count, 13);
+    if (count > MM_CAPTION_EDIT_MAX_UNITS)
+        return 0;
+    *out = count;
+    return 1;
+}
+
+int mm_caption_edit_encode(const MMTextHost *host, const unsigned short *text, size_t count,
+                           unsigned char *output, size_t capacity, size_t *bytes)
+{
+    size_t i;
+    if (count > MM_CAPTION_EDIT_MAX_UNITS || count > capacity / 2)
+        return 0;
+    if (count && mm_text_ansi_from_units(host, text, count, (char *)output, count, 1) == count)
+    {
+        *bytes = count;
+        return MM_TEXT_WINDOWS;
+    }
+    for (i = 0; i < count; ++i)
+    {
+        output[2 * i] = (unsigned char)text[i];
+        output[2 * i + 1] = (unsigned char)(text[i] >> 8);
+    }
+    *bytes = count * 2;
+    return MM_TEXT_UTF16_LE;
+}
+
 MMI32 mm_caption_edit_paragraph_end(const unsigned short *text, MMI32 count, MMI32 start)
 {
     MMI32 i;

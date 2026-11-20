@@ -563,6 +563,63 @@ static void adjust(void)
     init(&h);
     CHECK(mm_text_properties_adjust(0, 0, 0, 9, &h.s) == 1 && h.clears == 1);
 }
+static size_t caption_test_encode(void *p, const unsigned short *units, size_t count, char *out, size_t capacity)
+{
+    size_t bytes;
+    (void)p;
+    if (count != 1)
+        return 0;
+    bytes = units[0] == 0x3042 ? 2 : 1;
+    if (!out)
+        return bytes;
+    if (capacity < bytes)
+        return 0;
+    out[0] = bytes == 2 ? (char)0x82 : '?';
+    if (bytes == 2)
+        out[1] = (char)0xa0;
+    return bytes;
+}
+
+static size_t caption_test_decode(void *p, const void *input, size_t bytes, int encoding,
+                                  unsigned short *out, size_t capacity)
+{
+    const unsigned char *data = input;
+    (void)p;
+    if (!bytes || encoding != MM_TEXT_WINDOWS || (out && !capacity))
+        return 0;
+    if (out)
+        out[0] = bytes == 2 && data[0] == 0x82 && data[1] == 0xa0 ? 0x3042 : data[0];
+    return 1;
+}
+
+static void caption_encoding(void)
+{
+    static const char utf8[] = "A\r\n\xe2\x82\xac\nZ\r";
+    static const char unsupported[] = "\xe3\x81\x82\xf0\x9f\x98\x80";
+    static const unsigned char ansi[] = {'A', 13, 0x80, 13, 'Z', 13};
+    static const unsigned char wide[] = {0x42, 0x30, 0x3d, 0xd8, 0, 0xde};
+    MMTextHost host = {NULL, caption_test_decode, caption_test_encode};
+    unsigned short text[8];
+    unsigned char output[16];
+    size_t count = 12, bytes = 42;
+    CHECK(!mm_caption_edit_decode(utf8, sizeof(utf8) - 1, text, 6, &count) && count == 12);
+    CHECK(!mm_caption_edit_decode("a\xe2\x82", 3, text, 8, &count) && count == 12);
+    CHECK(mm_caption_edit_decode(utf8, sizeof(utf8) - 1, text, 8, &count) && count == 6);
+    CHECK(!mm_caption_edit_encode(NULL, text, count, output, 11, &bytes) && bytes == 42);
+    CHECK(mm_caption_edit_encode(NULL, text, count, output, 12, &bytes) == MM_TEXT_WINDOWS && bytes == 6);
+    CHECK(!memcmp(output, ansi, bytes));
+    CHECK(mm_caption_edit_decode(unsupported, sizeof(unsupported) - 1, text, 8, &count) && count == 3);
+    CHECK(mm_caption_edit_encode(NULL, text, count, output, 6, &bytes) == MM_TEXT_UTF16_LE && bytes == 6);
+    CHECK(!memcmp(output, wide, bytes));
+    CHECK(mm_text_ansi_from_units(&host, text, 1, (char *)output, 2, 1) == 2);
+    CHECK(mm_caption_edit_encode(&host, text, 1, output, 2, &bytes) == MM_TEXT_UTF16_LE && bytes == 2);
+    CHECK(!memcmp(output, wide, bytes));
+    text[0] = 0xe9;
+    CHECK(mm_caption_edit_encode(&host, text, 1, output, 2, &bytes) == MM_TEXT_UTF16_LE && bytes == 2);
+    CHECK(output[0] == 0xe9 && !output[1]);
+    CHECK(mm_caption_edit_encode(NULL, NULL, 0, NULL, 0, &bytes) == MM_TEXT_UTF16_LE && !bytes);
+}
+
 static void caption_edit(void)
 {
     static const unsigned short old_text[] = {'A', 'B', 'C'};
@@ -632,6 +689,7 @@ int main(void)
     lookup();
     apply();
     adjust();
+    caption_encoding();
     caption_edit();
     puts("Text property checks passed");
     return 0;

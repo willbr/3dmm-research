@@ -10,6 +10,11 @@ extern "C" {
 #endif
 typedef struct MMTextDescriptor { MMI32 shape; MMTag font; } MMTextDescriptor;
 enum { MM_TEXT_DESCRIPTOR_BYTES = 24 };
+enum { MM_TEXT_NAME_BYTES = 51 };
+enum { MM_TEXT_NAME_OK, MM_TEXT_NAME_EMPTY, MM_TEXT_NAME_LENGTH, MM_TEXT_NAME_UTF8, MM_TEXT_NAME_CHARACTERS };
+/* Validate an authored 3D text name and publish its terminated legacy text.
+ * Uses the fixed Windows character map used by the original glyph set. */
+int mm_text_author_name(const char *utf8, char name[MM_TEXT_NAME_BYTES]);
 /* Decodes the descriptor even when its marker is invalid. The result reports
  * whether the marker was valid. A bad marker uses the opposite host order. */
 int mm_text_decode_descriptor(const unsigned char bytes[24], int host_big, MMTextDescriptor *);

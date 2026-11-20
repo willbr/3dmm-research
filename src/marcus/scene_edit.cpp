@@ -2,15 +2,15 @@
 #include <algorithm>
 #include <exception>
 #include <chrono>
+#include <cstring>
 #include <stdexcept>
-#include <codecvt>
-#include <locale>
 #include "soc_core.h"
 #include "engine_movie_archive.h"
 #include "platform_text.h"
 #include "mm/actor_archive.h"
 #include "mm/scene_data.h"
 #include "mm/text.h"
+#include "mm/text_resource.h"
 #include "mm/scene_reframe.h"
 #include "storyboard_native.h"
 #undef size
@@ -255,20 +255,18 @@ static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusName
 
 std::string MarcusTextAnsi(const char *utf8)
 {
-    Require(utf8 && *utf8, "Enter some text first.");
-    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
-    const auto wide = convert.from_bytes(utf8);
-    Require(!wide.empty() && wide.size() <= 50 && wide.find_first_not_of(u" \t\r\n") != std::u16string::npos,
-        "3D text needs 1 to 50 characters, including at least one visible character.");
-    const auto bytes = mm_text_ansi(nullptr, wide.data(), wide.size() * 2, MM_TEXT_UTF16_LE, nullptr, 0);
-    std::string result(bytes, 0);
-    Require(bytes && bytes <= 50 && mm_text_ansi(nullptr, wide.data(), wide.size() * 2, MM_TEXT_UTF16_LE, result.data(), bytes) == bytes,
-        "This text cannot be used with the original 3D fonts.");
-    std::vector<std::uint16_t> roundTrip(wide.size());
-    const auto units = mm_text_utf16(nullptr, result.data(), result.size(), MM_TEXT_WINDOWS, roundTrip.data(), roundTrip.size());
-    Require(units == wide.size() && std::equal(wide.begin(), wide.end(), roundTrip.begin()) &&
-        result.find_first_of("\r\n\t") == std::string::npos, "Use a single line of characters supported by the original 3D fonts.");
-    return result;
+    static const char *const messages[] = {
+        nullptr,
+        "Enter some text first.",
+        "3D text needs 1 to 50 characters, including at least one visible character.",
+        "Enter valid UTF-8 for 3D text.",
+        "Use a single line of characters supported by the original 3D fonts."
+    };
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_TEXT_NAME_CHARACTERS + 1, "3D text diagnostics");
+    char name[MM_TEXT_NAME_BYTES];
+    const auto status = mm_text_author_name(utf8, name);
+    Require(status == MM_TEXT_NAME_OK, messages[status]);
+    return name;
 }
 std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsigned long font, long source, int shape)
 {
@@ -353,11 +351,14 @@ std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::p
     result->sources = std::move(catalogue.sources);
     if (!catalogue.hasRoot) result->sources.push_back({1, "3D Movie Maker/3DMOVIE"});
     result->frame = frame;
-    std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
-    const auto wide = convert.from_bytes(object.name);
-    result->name.resize(mm_text_ansi(nullptr, wide.data(), wide.size() * 2, MM_TEXT_UTF16_LE, nullptr, 0));
-    Require(result->name.empty() || mm_text_ansi(nullptr, wide.data(), wide.size() * 2, MM_TEXT_UTF16_LE,
-            result->name.data(), result->name.size()) == result->name.size(), "Cannot encode the object name.");
+    unsigned short name[sizeof(object.name)];
+    std::size_t units;
+    Require(mm_text_read_utf8(object.name, std::strlen(object.name), name, sizeof(name) / sizeof(name[0]), &units) == 1,
+            "Cannot decode the object name.");
+    char ansi[sizeof(object.name)];
+    const auto bytes = mm_text_ansi_from_units(nullptr, name, units, ansi, sizeof(ansi), 0);
+    Require(!units || bytes, "Cannot encode the object name.");
+    result->name.assign(ansi, bytes);
     result->browserFlags = object.text ? 2 : object.prop ? 1 : 0;
     result->file = MarcusCreateEventFile();
     auto original = ObjectFile(movie), clipboard = ObjectFile(result->file->path);
