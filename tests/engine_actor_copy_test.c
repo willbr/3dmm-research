@@ -2,159 +2,490 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define CHECK(c) do { if (!(c)) { fprintf(stderr,"copy check %d: %s\n",__LINE__,#c); exit(1); } } while (0)
+
+#define CHECK(c) do { if (!(c)) { fprintf(stderr, "copy check %d: %s\n", __LINE__, #c); exit(1); } } while (0)
 #define ONE 65536L
-typedef struct Table
-{
-    int count,locks;
-    MMActorRoutePoint points[8];
-    MMActorEvent events[24];
-    unsigned char data[24][64]; MMI32 sizes[24];
-} Table;
-typedef struct Actor { Table route,events; int rewound; } Actor;
+
 typedef struct Fixture
 {
-    Actor source,target;
-    MMActorState state;
-    MMActorCopyResult out;
+    MMActorOwner source, target;
+    MMActorOwnerResult result;
     MMActorCopyServices services;
-    int created,released,publications,template_refs,tag_refs,inserts,merges,resolves,writes,points,resizes,reserves,copies,copied,distances,unknown;
-    int fail_create,fail_event,fail_resolve,fail_point,fail_resize,fail_reserve,zero_distance;
+    int releases, publications, template_refs, tag_refs, resolves, distances, unknown, rewinds;
+    int fail_create, fail_resolve, fail_alloc, allocation_failures;
+    int event_capacity, route_capacity, events_before_failure, points_before_failure;
 } Fixture;
-static MMI32 count(void *p) { return ((Table *)p)->count; }
-static void point(void *p,MMI32 i,MMActorRoutePoint *v)
-{ Table *t=(Table *)p; CHECK(i>=0 && i<t->count); *v=t->points[i]; }
-static void event(void *p,MMI32 i,MMActorEvent *v)
-{ Table *t=(Table *)p; CHECK(i>=0 && i<t->count); *v=t->events[i]; }
-static MMI32 size(void *p,MMI32 i)
-{ Table *t=(Table *)p; CHECK(t->locks==1 && i>=0 && i<t->count); return t->sizes[i]; }
-static void payload(void *p,MMI32 i,void *v)
-{ Table *t=(Table *)p; CHECK(i>=0 && i<t->count); memcpy(v,t->data[i],(size_t)t->sizes[i]); }
-static void *create(void *p) { Fixture *f=(Fixture *)p; ++f->created; if (f->fail_create) return NULL; ++f->template_refs; return &f->target; }
-static void release(void *p,void *actor)
+
+static MMActorOwner *owner(void *context, void *actor)
 {
-    Fixture *f=(Fixture *)p; int i;
-    CHECK(actor==&f->target && f->out.actor==actor && !f->source.events.locks && !f->target.rewound);
-    for (i=0;i<f->target.events.count;++i) if (f->target.events.events[i].aet==MM_ACTOR_SOUND) --f->tag_refs;
-    --f->template_refs; ++f->released;
+    (void)context;
+    return (MMActorOwner *)actor;
 }
-static void publish(void *p,void *actor) { Fixture *f=(Fixture *)p; CHECK(f->out.actor==actor); ++f->publications; }
-static void *route(void *p,void *actor) { (void)p; return &((Actor *)actor)->route; }
-static void *events(void *p,void *actor) { (void)p; return &((Actor *)actor)->events; }
-static void lock(void *p,void *t) { (void)p; CHECK(!((Table *)t)->locks); ++((Table *)t)->locks; }
-static void unlock(void *p,void *t) { (void)p; CHECK(((Table *)t)->locks==1); --((Table *)t)->locks; }
-static const void *view(void *p,void *t,MMI32 i) { (void)p; CHECK(((Table *)t)->locks==1); return ((Table *)t)->data[i]; }
-static void write_payload(void *p,void *t,MMI32 i,const void *v)
-{ Fixture *f=(Fixture *)p; CHECK(t==&f->source.events); ++f->writes; memcpy(((Table *)t)->data[i],v,(size_t)((Table *)t)->sizes[i]); }
-static int resolve(void *p,MMActorSound *sound)
-{ Fixture *f=(Fixture *)p; if (++f->resolves==f->fail_resolve) return 0; sound->tag.number=99; return 1; }
-static int insert_event(void *p,void *actor,MMI32 i,MMU32 bytes,const void *v,const MMActorEvent *e)
+
+static void *create(void *context)
 {
-    Fixture *f=(Fixture *)p; Table *t=&f->target.events; CHECK(actor==&f->target && f->source.events.locks==1 && i==t->count);
-    if (++f->inserts==f->fail_event) return 0;
-    CHECK(i<24 && bytes<=64); t->events[i]=*e; t->sizes[i]=(MMI32)bytes; memcpy(t->data[i],v,bytes); ++t->count;
-    if (e->aet==MM_ACTOR_SOUND) ++f->tag_refs;
+    Fixture *f = (Fixture *)context;
+    if (f->fail_create)
+        return NULL;
+    mm_actor_owner_init(&f->target);
+    return &f->target;
+}
+
+static void *fetch_template(void *context, const MMTag *tag)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(tag->sid == 7 && tag->number == 18);
+    ++f->template_refs;
+    return &f->template_refs;
+}
+
+static int action_flags(void *context, void *object, MMI32 action, MMU32 *flags)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(object == &f->template_refs && action == 0 && f->rewinds == 1);
+    *flags = 8;
     return 1;
 }
-static void merge(void *p,void *actor,MMI32 first,MMI32 added)
-{ Fixture *f=(Fixture *)p; CHECK(actor==&f->target && !f->source.events.locks && first==0 && added==f->target.events.count-1); ++f->merges; }
-static int insert_point(void *p,void *t,MMI32 i,const MMActorRoutePoint *v)
+
+static void release(void *context, void *object)
 {
-    Fixture *f=(Fixture *)p; Table *table=(Table *)t; CHECK(t==&f->target.route && i==table->count);
-    if (++f->points==f->fail_point) return 0;
-    CHECK(i<8); table->points[i]=*v; ++table->count; return 1;
+    Fixture *f = (Fixture *)context;
+    if (object == &f->template_refs)
+    {
+        CHECK(--f->template_refs >= 0);
+        return;
+    }
+    CHECK(object == &f->target && f->result.actor == object);
+    CHECK(!f->source.track.events->storage.buffers[0].locks);
+    if (f->fail_alloc)
+    {
+        CHECK(mm_actor_events_count(f->target.track.events) == f->events_before_failure);
+        CHECK(mm_actor_path_count(f->target.track.route) == f->points_before_failure);
+    }
+    mm_actor_owner_dispose(object, &f->services.create.owner);
+    ++f->releases;
 }
-static void write_point(void *p,void *t,MMI32 i,const MMActorRoutePoint *v)
-{ (void)p; CHECK(i>=0 && i<((Table *)t)->count); ((Table *)t)->points[i]=*v; }
-static int resize(void *p,void *t,MMI32 n)
-{ Fixture *f=(Fixture *)p; ++f->resizes; CHECK(t==&f->target.route && n>0 && n<=8); if (f->fail_resize) return 0; ((Table *)t)->count=n; return 1; }
-static int reserve(void *p,void *t,MMI32 n)
-{ Fixture *f=(Fixture *)p; ++f->reserves; CHECK(t==&f->target.route && n>0); return !f->fail_reserve; }
-static void copy_points(void *p,void *source,MMI32 first,void *target,MMI32 to,MMI32 n)
+
+static void retain_cache(void *cache) { ++((Fixture *)cache)->tag_refs; }
+static void release_cache(void *cache) { CHECK(--((Fixture *)cache)->tag_refs >= 0); }
+
+static const MMTagServices tags = {
+    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+};
+
+static void set_recording(void *context, int enabled)
 {
-    Fixture *f=(Fixture *)p; ++f->copies; f->copied=n;
-    CHECK(source==&f->source.route && target==&f->target.route && first+n<=f->source.route.count && to+n<=f->target.route.count);
-    memcpy(((Table *)target)->points+to,((Table *)source)->points+first,(size_t)n*sizeof(MMActorRoutePoint));
+    Fixture *f = (Fixture *)context;
+    CHECK(!enabled && !f->source.track.events->storage.buffers[0].locks);
+    CHECK(f->rewinds == f->publications);
+    if (f->rewinds)
+    {
+        CHECK(f->result.actor == &f->target && mm_actor_path_count(f->target.track.route));
+        CHECK(f->target.runtime.recording.recording);
+    }
+    ++f->rewinds;
+    f->target.runtime.recording.recording = enabled;
 }
-static MMI32 distance(void *p,const MMActorPoint *v)
-{ Fixture *f=(Fixture *)p; ++f->distances; CHECK(!v->dyr && !v->dzr); return f->zero_distance?0:(v->dxr<0?-v->dxr:v->dxr); }
-static void rewind_actor(void *p,void *actor)
-{ Fixture *f=(Fixture *)p; CHECK(actor==&f->target && !f->source.events.locks && f->target.route.count>0); ++f->target.rewound; }
-static void unknown(void *p) { ++((Fixture *)p)->unknown; }
-static void append(Fixture *f,int kind,int node,int frame,const void *v,int bytes)
+
+static void route_services(void *context, void *actor, MMActorRouteEditServices *s)
 {
-    Table *t=&f->source.events; int i=t->count++; t->events[i].aet=kind; t->events[i].nfrm=frame; t->events[i].rtel.irpt=node;
-    t->sizes[i]=bytes; if (bytes) memcpy(t->data[i],v,(size_t)bytes);
+    Fixture *f = (Fixture *)context;
+    CHECK(actor == &f->target);
+    memset(s, 0, sizeof(*s));
+    s->edits.context = f;
+    s->recording = set_recording;
 }
+
+static void *resize(void *context, void *ptr, MMU32 previous, MMU32 size, int priority)
+{
+    Fixture *f = (Fixture *)context;
+    (void)priority;
+    if (f->fail_alloc && size > previous)
+    {
+        CHECK(f->result.actor == &f->target);
+        CHECK(f->source.track.events->storage.buffers[0].locks == (f->event_capacity >= 0 ? 1U : 0U));
+        ++f->allocation_failures;
+        return NULL;
+    }
+    return realloc(ptr, size);
+}
+
+static void free_block(void *context, void *ptr, MMU32 bytes)
+{
+    (void)context;
+    (void)bytes;
+    free(ptr);
+}
+
+static void publish(void *context, void *actor)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(f->result.actor == actor);
+    ++f->publications;
+    if (!actor)
+        return;
+    CHECK(actor == &f->target && f->rewinds == 1);
+    f->target.runtime.recording.recording = 1;
+    /* Tight capacities trigger real storage failures after the factory has returned. */
+    if (f->event_capacity >= 0)
+    {
+        CHECK(mm_storage_resize_exact(&f->target.track.events->storage, 1,
+              f->event_capacity * sizeof(MMGroupLocation), MM_STORAGE_NORMAL) == MM_STORAGE_OK);
+        f->fail_alloc = 1;
+    }
+    if (f->route_capacity >= 0)
+    {
+        CHECK(mm_storage_resize_exact(&f->target.track.route->storage, 0,
+              f->route_capacity * sizeof(MMActorRoutePoint), MM_STORAGE_NORMAL) == MM_STORAGE_OK);
+        f->fail_alloc = 1;
+    }
+}
+
+static int resolve(void *context, MMActorSound *sound)
+{
+    Fixture *f = (Fixture *)context;
+    CHECK(!f->source.track.events->storage.buffers[0].locks);
+    if (++f->resolves == f->fail_resolve)
+        return 0;
+    sound->tag.number = 99;
+    return 1;
+}
+
+static MMI32 distance(void *context, const MMActorPoint *v)
+{
+    Fixture *f = (Fixture *)context;
+    ++f->distances;
+    CHECK(!v->dyr && !v->dzr);
+    return v->dxr < 0 ? -v->dxr : v->dxr;
+}
+
+static void unknown(void *context) { ++((Fixture *)context)->unknown; }
+
+static void append(Fixture *f, int kind, int node, int frame, const void *payload, MMU32 bytes)
+{
+    MMActorEventTable *events = f->source.track.events;
+    MMActorEvent event = {0};
+    event.aet = kind;
+    event.nfrm = frame;
+    event.rtel.irpt = node;
+    CHECK(mm_actor_events_insert(events, mm_actor_events_count(events), bytes, payload, &event));
+}
+
+static MMActorEvent event_at(const MMActorOwner *actor, MMU32 index)
+{
+    MMActorEvent event;
+    CHECK(mm_actor_events_get_fixed(actor->track.events, index, &event));
+    return event;
+}
+
+static MMActorRoutePoint point_at(const MMActorOwner *actor, MMU32 index)
+{
+    MMActorRoutePoint point;
+    CHECK(mm_actor_path_get(actor->track.route, index, &point));
+    return point;
+}
+
+static MMActorSound sound_at(const MMActorOwner *actor, MMU32 index)
+{
+    MMActorSound sound;
+    CHECK(mm_actor_events_get_payload(actor->track.events, index, &sound));
+    return sound;
+}
+
+static void set_location(Fixture *f, MMU32 index, MMI32 node, MMI32 offset, MMI32 hold)
+{
+    MMActorEvent event = event_at(&f->source, index);
+    event.rtel.irpt = node;
+    event.rtel.dwrOffset = offset;
+    event.rtel.dnfrm = hold;
+    CHECK(mm_actor_events_set_fixed(f->source.track.events, index, &event));
+}
+
 static void init(Fixture *f)
 {
-    MMActorCopyServices *s; MMActorSound sound; MMI32 action[2]={0,1},scalar=ONE; unsigned char blank[48]; int i;
-    memset(f,0,sizeof(*f)); memset(&sound,0,sizeof(sound)); memset(blank,0,sizeof(blank));
-    s=&f->services; s->context=f; s->motion.route_count=count; s->motion.route_point=point; s->motion.event_count=count;
-    s->motion.event=event; s->motion.event_size=size; s->motion.payload=payload;
-    s->create_actor=create; s->release_actor=release; s->route=route; s->events=events; s->lock_events=lock; s->unlock_events=unlock;
-    s->payload_view=view; s->write_payload=write_payload; s->resolve_sound=resolve; s->insert_event=insert_event; s->merge_event=merge;
-    s->insert_point=insert_point; s->write_point=write_point; s->resize_route=resize; s->reserve_route=reserve; s->copy_points=copy_points;
-    s->distance=distance; s->rewind_actor=rewind_actor; s->unknown_event=unknown;
-    f->out.context=f; f->out.publish=publish; f->template_refs=1; f->tag_refs=2;
-    f->source.route.count=4;
-    for (i=0;i<4;++i) { f->source.route.points[i].xyz.dxr=i*10*ONE; f->source.route.points[i].dwr=(i==1 || i==3)?0:10*ONE; }
-    append(f,MM_ACTOR_ADD,0,1,blank,20); append(f,MM_ACTOR_ACTION,0,1,action,8);
-    sound.cel=-1; sound.tag.number=10; append(f,MM_ACTOR_SOUND,0,2,&sound,sizeof(sound));
-    append(f,MM_ACTOR_TWEAK,0,2,blank,12); append(f,MM_ACTOR_ROTATE_HERE,0,3,blank,48);
-    sound.cel=2; append(f,MM_ACTOR_SOUND,0,3,&sound,sizeof(sound)); append(f,MM_ACTOR_REMOVE,0,3,blank,0);
-    append(f,MM_ACTOR_STEP,0,4,&scalar,4); f->source.events.events[7].rtel.dwrOffset=7*ONE; f->source.events.events[7].rtel.dnfrm=1;
-    append(f,MM_ACTOR_ADD,2,8,blank,20); append(f,MM_ACTOR_ACTION,2,8,action,8); append(f,MM_ACTOR_STEP,3,9,&scalar,4);
-    mm_actor_state_init(&f->state); f->state.cel=3; f->state.addEvent=0; f->state.nextEvent=7;
-    f->state.firstEventInFrame=4; f->state.actionEvent=1; f->state.location.dwrOffset=5*ONE; f->state.location.dnfrm=2;
+    MMActorCopyServices *s;
+    MMActorState *state;
+    MMActorSound sound = {0};
+    MMActorRoutePoint point = {0};
+    MMI32 action[2] = {0, 1}, scalar = ONE;
+    unsigned char blank[48] = {0};
+    int i;
+
+    memset(f, 0, sizeof(*f));
+    s = &f->services;
+    s->context = f;
+    s->resolve_sound = resolve;
+    s->distance = distance;
+    s->unknown_event = unknown;
+    s->create.owner.context = f;
+    s->create.owner.tags = &tags;
+    s->create.owner.owner = owner;
+    s->create.owner.create = create;
+    s->create.owner.release = release;
+    s->create.owner.route_services = route_services;
+    s->create.fetch_template = fetch_template;
+    s->create.action_flags = action_flags;
+    s->create.track_allocator.context = f;
+    s->create.track_allocator.resize = resize;
+    s->create.track_allocator.release = free_block;
+    f->result.context = f;
+    f->result.publish = publish;
+    f->event_capacity = f->route_capacity = -1;
+
+    mm_actor_owner_init(&f->source);
+    f->source.runtime.template_tag.sid = 7;
+    f->source.runtime.template_tag.number = 18;
+    f->source.runtime.template_object = &f->template_refs;
+    f->template_refs = 1;
+    CHECK(mm_actor_track_create(&f->source.track, NULL, 0, &tags));
+    for (i = 0; i < 4; ++i)
+    {
+        point.xyz.dxr = i * 10 * ONE;
+        point.dwr = i == 1 || i == 3 ? 0 : 10 * ONE;
+        CHECK(mm_actor_path_insert(f->source.track.route, i, &point));
+    }
+    append(f, MM_ACTOR_ADD, 0, 1, blank, 20);
+    append(f, MM_ACTOR_ACTION, 0, 1, action, sizeof(action));
+    sound.tag.cache = f;
+    sound.tag.number = 10;
+    sound.cel = -1;
+    append(f, MM_ACTOR_SOUND, 0, 2, &sound, sizeof(sound));
+    append(f, MM_ACTOR_TWEAK, 0, 2, blank, 12);
+    append(f, MM_ACTOR_ROTATE_HERE, 0, 3, blank, 48);
+    sound.cel = 2;
+    append(f, MM_ACTOR_SOUND, 0, 3, &sound, sizeof(sound));
+    f->tag_refs = 2;
+    append(f, MM_ACTOR_REMOVE, 0, 3, NULL, 0);
+    append(f, MM_ACTOR_STEP, 0, 4, &scalar, sizeof(scalar));
+    set_location(f, 7, 0, 7 * ONE, 1);
+    append(f, MM_ACTOR_ADD, 2, 8, blank, 20);
+    append(f, MM_ACTOR_ACTION, 2, 8, action, sizeof(action));
+    append(f, MM_ACTOR_STEP, 3, 9, &scalar, sizeof(scalar));
+    state = &f->source.runtime.state;
+    state->cel = 3;
+    state->addEvent = 0;
+    state->nextEvent = 7;
+    state->firstEventInFrame = 4;
+    state->actionEvent = 1;
+    state->location.dwrOffset = 5 * ONE;
+    state->location.dnfrm = 2;
 }
-static int full(Fixture *f,int entire,int postponed)
-{ return mm_actor_copy(&f->state,&f->source.route,&f->source.events,entire,postponed,&f->out,&f->services); }
-static int path(Fixture *f,int entire)
-{ return mm_actor_copy_route(&f->state,&f->source.route,entire,&f->out,&f->services); }
-static MMActorSound sound_at(Table *t,int i) { MMActorSound sound; memcpy(&sound,t->data[i],sizeof(sound)); return sound; }
+
+static void dispose(Fixture *f)
+{
+    if (f->result.actor)
+        release(f, f->result.actor);
+    mm_actor_owner_dispose(&f->source, &f->services.create.owner);
+    CHECK(!f->template_refs && !f->tag_refs);
+}
+
+static int full(Fixture *f, int entire, int postponed)
+{
+    return mm_actor_copy(&f->source, entire, postponed, &f->result, &f->services);
+}
+
+static int path(Fixture *f, int entire)
+{
+    return mm_actor_copy_route(&f->source, entire, &f->result, &f->services);
+}
+
+static void rewound(const Fixture *f)
+{
+    CHECK(f->result.actor == &f->target && f->rewinds == 2 && f->publications == 1);
+    CHECK(f->target.runtime.state.location.dnfrm == -1 && f->target.runtime.state.actionFlags == 8);
+    CHECK(f->target.runtime.state.position.dxr == point_at(&f->target, 0).xyz.dxr);
+    CHECK(!f->target.runtime.state.nextEvent && !f->target.runtime.recording.recording);
+}
+
 static void failed(Fixture *f)
-{ CHECK(!f->out.actor && f->released==1 && f->publications==2 && f->template_refs==1 && f->tag_refs==2 && !f->source.events.locks && !f->target.rewound); }
+{
+    CHECK(!f->result.actor && f->releases == 1 && f->publications == 2 && f->rewinds == 1);
+    CHECK(f->template_refs == 1 && f->tag_refs == 2 && !f->source.track.events->storage.buffers[0].locks);
+    if (f->fail_alloc)
+        CHECK(f->allocation_failures);
+    dispose(f);
+}
+
+static void test_full(void)
+{
+    Fixture f;
+    MMI32 action[2];
+    MMActorEvent event;
+    int hold;
+
+    init(&f);
+    CHECK(full(&f, 0, 0));
+    rewound(&f);
+    CHECK(mm_actor_events_count(f.target.track.events) == 5 && mm_actor_path_count(f.target.track.route) == 2);
+    CHECK(!point_at(&f.target, 0).xyz.dxr && point_at(&f.target, 0).dwr == 5 * ONE);
+    CHECK(f.resolves == 2 && sound_at(&f.source, 2).tag.number == 99 && sound_at(&f.source, 5).tag.number == 99);
+    CHECK(f.tag_refs == 3 && f.template_refs == 2 && sound_at(&f.target, 3).cel == 2);
+    CHECK(mm_actor_events_get_payload(f.target.track.events, 1, action) && action[1] == 3);
+    CHECK(mm_actor_events_get_payload(f.source.track.events, 1, action) && action[1] == 1);
+    event = event_at(&f.target, 0);
+    CHECK(!event.rtel.irpt && !event.rtel.dnfrm && event.nfrm == 1);
+    event = event_at(&f.target, 4);
+    CHECK(event.rtel.dwrOffset == 2 * ONE && event.rtel.dnfrm == 1);
+    dispose(&f);
+
+    init(&f);
+    CHECK(full(&f, 1, 0) && mm_actor_path_count(f.target.track.route) == 4);
+    CHECK(mm_actor_events_count(f.target.track.events) == 8);
+    CHECK(mm_actor_events_get_payload(f.target.track.events, 6, action) && action[1] == 1);
+    CHECK(event_at(&f.target, 5).rtel.irpt == 2);
+    dispose(&f);
+
+    init(&f);
+    CHECK(full(&f, 0, 1) && mm_actor_events_count(f.target.track.events) == 4);
+    dispose(&f);
+
+    for (hold = 1; hold <= 4; hold += 3)
+    {
+        init(&f);
+        set_location(&f, 7, 0, 5 * ONE, hold);
+        CHECK(full(&f, 0, 0));
+        event = event_at(&f.target, 4);
+        CHECK(!event.rtel.dwrOffset && event.rtel.dnfrm == (hold == 1 ? 0 : 2));
+        dispose(&f);
+    }
+
+    init(&f);
+    f.source.runtime.state.location.dwrOffset = 10 * ONE;
+    CHECK(full(&f, 0, 0) && !event_at(&f.target, 4).rtel.dwrOffset);
+    dispose(&f);
+
+    init(&f);
+    f.source.runtime.state.nextEvent = f.source.runtime.state.addEvent = 0;
+    CHECK(full(&f, 0, 0) && mm_actor_events_count(f.target.track.events) == 8);
+    dispose(&f);
+
+    init(&f);
+    event = event_at(&f.source, 3);
+    event.aet = 99;
+    CHECK(mm_actor_events_set_fixed(f.source.track.events, 3, &event));
+    CHECK(full(&f, 0, 0) && f.unknown == 1);
+    dispose(&f);
+
+    init(&f);
+    f.source.runtime.state.location.irpt = 1;
+    f.source.runtime.state.location.dwrOffset = 0;
+    set_location(&f, 7, 1, 0, 1);
+    CHECK(full(&f, 0, 0) && mm_actor_path_count(f.target.track.route) == 1);
+    dispose(&f);
+
+    init(&f);
+    f.source.runtime.state.location.irpt = 3;
+    f.source.runtime.state.location.dwrOffset = 0;
+    f.source.runtime.state.addEvent = 8;
+    f.source.runtime.state.nextEvent = 11;
+    CHECK(full(&f, 0, 0) && mm_actor_path_count(f.target.track.route) == 1);
+    CHECK(!point_at(&f.target, 0).dwr && !f.resolves);
+    dispose(&f);
+}
+
+static void test_merge(void)
+{
+    Fixture f;
+    MMActorCostume costume = {0};
+    init(&f);
+    costume.tag.cache = &f;
+    costume.tag.number = 31;
+    append(&f, MM_ACTOR_COSTUME, 3, 9, &costume, sizeof(costume));
+    costume.tag.number = 32;
+    append(&f, MM_ACTOR_COSTUME, 3, 9, &costume, sizeof(costume));
+    f.tag_refs += 2;
+    f.source.runtime.state.addEvent = 11;
+    f.source.runtime.state.nextEvent = 13;
+    f.source.runtime.state.location.irpt = 3;
+    f.source.runtime.state.location.dwrOffset = 0;
+    CHECK(full(&f, 0, 0) && mm_actor_events_count(f.target.track.events) == 1);
+    CHECK(mm_actor_events_get_payload(f.target.track.events, 0, &costume));
+    CHECK(costume.tag.number == 32 && f.tag_refs == 5);
+    dispose(&f);
+}
+
+static void test_route(void)
+{
+    Fixture f;
+    init(&f);
+    CHECK(path(&f, 0));
+    rewound(&f);
+    CHECK(mm_actor_path_count(f.target.track.route) == 2 && !mm_actor_events_count(f.target.track.events));
+    CHECK(point_at(&f.target, 0).xyz.dxr == 5 * ONE && point_at(&f.target, 0).dwr == 5 * ONE);
+    CHECK(!f.resolves && f.distances == 1);
+    dispose(&f);
+
+    init(&f);
+    CHECK(path(&f, 1) && mm_actor_path_count(f.target.track.route) == 4);
+    dispose(&f);
+
+    init(&f);
+    f.source.runtime.state.location.dwrOffset = 0;
+    CHECK(path(&f, 0) && !f.distances && point_at(&f.target, 0).dwr == 10 * ONE);
+    dispose(&f);
+
+    init(&f);
+    f.source.runtime.state.location.irpt = 1;
+    f.source.runtime.state.location.dwrOffset = 0;
+    CHECK(path(&f, 0) && mm_actor_path_count(f.target.track.route) == 1);
+    dispose(&f);
+
+    init(&f);
+    f.source.runtime.state.location.dwrOffset = 10 * ONE;
+    CHECK(path(&f, 0) && point_at(&f.target, 0).dwr == 1);
+    dispose(&f);
+}
+
+static void test_failures(void)
+{
+    Fixture f;
+    int i;
+    for (i = 0; i < 5; ++i)
+    {
+        init(&f);
+        f.event_capacity = f.events_before_failure = i;
+        CHECK(!full(&f, 0, 0));
+        failed(&f);
+    }
+    for (i = 1; i <= 2; ++i)
+    {
+        init(&f);
+        f.fail_resolve = i;
+        CHECK(!full(&f, 0, 0));
+        CHECK(sound_at(&f.source, 2).tag.number == (i == 1 ? 10U : 99U));
+        CHECK(sound_at(&f.source, 5).tag.number == 10U);
+        failed(&f);
+    }
+    for (i = 0; i < 2; ++i)
+    {
+        init(&f);
+        f.route_capacity = f.points_before_failure = i;
+        f.events_before_failure = 5;
+        CHECK(!full(&f, 0, 0));
+        CHECK(sound_at(&f.source, 2).tag.number == 99 && sound_at(&f.source, 5).tag.number == 99);
+        failed(&f);
+
+        init(&f);
+        f.route_capacity = f.points_before_failure = i;
+        CHECK(!path(&f, 0));
+        failed(&f);
+    }
+    for (i = 0; i < 2; ++i)
+    {
+        init(&f);
+        f.fail_create = 1;
+        CHECK(!(i ? path(&f, 0) : full(&f, 0, 0)));
+        CHECK(!f.result.actor && !f.releases && f.publications == 1 && f.template_refs == 1);
+        dispose(&f);
+    }
+}
+
 int main(void)
 {
-    Fixture f; MMI32 action[2]; int fail;
-    init(&f); CHECK(full(&f,0,0)); CHECK(f.out.actor==&f.target && f.target.rewound==1 && f.target.events.count==5 && f.merges==4);
-    CHECK(f.target.route.count==2 && !f.target.route.points[0].xyz.dxr && f.target.route.points[0].dwr==5*ONE);
-    CHECK(f.resolves==2 && f.writes==2 && sound_at(&f.source.events,2).tag.number==99 && sound_at(&f.source.events,5).tag.number==99);
-    CHECK(f.tag_refs==3 && f.template_refs==2 && sound_at(&f.target.events,3).cel==2);
-    memcpy(action,f.target.events.data[1],8); CHECK(action[1]==3); memcpy(action,f.source.events.data[1],8); CHECK(action[1]==1);
-    CHECK(!f.target.events.events[0].rtel.irpt && !f.target.events.events[0].rtel.dnfrm && f.target.events.events[0].nfrm==1);
-    CHECK(f.target.events.events[4].rtel.dwrOffset==2*ONE && f.target.events.events[4].rtel.dnfrm==1);
-    init(&f); CHECK(full(&f,1,0) && f.target.route.count==4 && f.target.events.count==8);
-    memcpy(action,f.target.events.data[6],8); CHECK(action[1]==1 && f.target.events.events[5].rtel.irpt==2);
-    init(&f); CHECK(full(&f,0,1) && f.target.events.count==4 && f.merges==3);
-    init(&f); f.source.events.events[7].rtel.dwrOffset=5*ONE; CHECK(full(&f,0,0) && !f.target.events.events[4].rtel.dnfrm && !f.target.events.events[4].rtel.dwrOffset);
-    init(&f); f.source.events.events[7].rtel.dwrOffset=5*ONE; f.source.events.events[7].rtel.dnfrm=4;
-    CHECK(full(&f,0,0) && f.target.events.events[4].rtel.dnfrm==2);
-    init(&f); f.state.location.dwrOffset=10*ONE; CHECK(full(&f,0,0) && !f.target.events.events[4].rtel.dwrOffset);
-    init(&f); f.state.nextEvent=f.state.addEvent=0; CHECK(full(&f,0,0) && f.target.events.count==8 && !f.merges);
-    init(&f); f.source.events.events[3].aet=99; CHECK(full(&f,0,0) && f.unknown==1);
-    init(&f); f.state.location.irpt=1; f.state.location.dwrOffset=0; f.source.events.events[7].rtel.irpt=1; f.source.events.events[7].rtel.dwrOffset=0;
-    CHECK(full(&f,0,0) && f.target.route.count==1 && f.copies==1 && !f.copied);
-    init(&f); f.state.location.irpt=3; f.state.location.dwrOffset=0; f.state.addEvent=8; f.state.nextEvent=11;
-    CHECK(full(&f,0,0) && f.target.route.count==1 && !f.target.route.points[0].dwr && !f.resolves);
-    for (fail=1;fail<=5;++fail) { init(&f); f.fail_event=fail; CHECK(!full(&f,0,0)); failed(&f); }
-    for (fail=1;fail<=2;++fail)
-    {
-        init(&f); f.fail_resolve=fail; CHECK(!full(&f,0,0)); failed(&f); CHECK(f.writes==fail-1);
-        CHECK(sound_at(&f.source.events,2).tag.number==(fail==1?10U:99U));
-    }
-    init(&f); f.fail_point=1; CHECK(!full(&f,0,0)); failed(&f);
-    init(&f); f.fail_resize=1; CHECK(!full(&f,0,0)); failed(&f); CHECK(!f.copies);
-    init(&f); f.fail_create=1; CHECK(!full(&f,0,0) && !f.out.actor && f.publications==1 && !f.released && f.template_refs==1);
-    init(&f); CHECK(path(&f,0) && f.target.route.count==2 && !f.target.events.count && f.target.route.points[0].xyz.dxr==5*ONE && f.target.route.points[0].dwr==5*ONE);
-    CHECK(!f.resolves && !f.writes && f.reserves==1 && f.distances==1);
-    init(&f); CHECK(path(&f,1) && f.target.route.count==4);
-    init(&f); f.state.location.dwrOffset=0; CHECK(path(&f,0) && !f.distances && f.target.route.points[0].dwr==10*ONE);
-    init(&f); f.state.location.irpt=1; f.state.location.dwrOffset=0; CHECK(path(&f,0) && f.target.route.count==1 && !f.reserves);
-    init(&f); f.state.location.dwrOffset=10*ONE; CHECK(path(&f,0) && f.target.route.points[0].dwr==1);
-    for (fail=1;fail<=2;++fail) { init(&f); f.fail_point=fail; CHECK(!path(&f,0)); failed(&f); }
-    init(&f); f.fail_reserve=1; CHECK(!path(&f,0)); failed(&f);
-    init(&f); f.fail_create=1; CHECK(!path(&f,0) && !f.out.actor && !f.released);
-    puts("actor copy C89 checks passed"); return 0;
+    test_full();
+    test_merge();
+    test_route();
+    test_failures();
+    puts("actor copy C89 checks passed");
+    return 0;
 }

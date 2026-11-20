@@ -52,6 +52,7 @@ typedef struct MMActorOwnerServices
 void mm_actor_runtime_init(MMActorRuntime *);
 void mm_actor_owner_init(MMActorOwner *);
 int mm_actor_owner_duplicate(void *source,int reset,MMActorOwnerResult *,const MMActorOwnerServices *);
+void mm_actor_owner_rewind(void *actor,const MMActorOwnerServices *);
 void mm_actor_owner_reset(void *actor,const MMActorOwnerServices *);
 void mm_actor_owner_restore(void *actor,void *snapshot,const MMActorOwnerServices *);
 /* Snapshot body must be NULL. Borrow live body/scene, hide, restore/swap, restore

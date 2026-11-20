@@ -4529,7 +4529,8 @@ removal still need conversion.
 
 ### Actor and route copying
 
-`actor_copy.c` owns full-actor and route-only copy policy. Full copy selects
+`actor_copy.c` operates directly on the C89 actor owner and its typed event
+and path tables for full-actor and route-only copy. Full copy selects
 earlier events from the current subroute, rewrites action cels to the current
 cel, resolves/writes source sound tags before deciding whether to retain each
 sound, filters Remove and older Tweak/RotateHere events, resets earlier event
@@ -4540,26 +4541,27 @@ destination has events. The active BUG1950 setting is passed explicitly.
 Source payloads remain locked across insertion, including the action's stack
 replacement, and unlock before merge or failure destruction. Successful source
 sound-tag rewrites remain even when a later operation fails. Destination tag
-ownership uses the existing C insertion/merge/destruction implementations.
-Creation publishes the output; failure releases the partial actor before
-clearing it. Source actor state is read-only except those sound payload writes.
+ownership uses the shared C insertion, merge and destruction implementations.
+The shared C actor factory creates the unattached destination from the source
+template tag. Copy publishes the result after creation and releases a partial
+actor before clearing the result. It snapshots the source playback state
+before creation and writes back resolved sound payloads to the source track.
 
 Full copy keeps the current node's original coordinates and subtracts the
 current offset from its stored distance. Route-only copy interpolates the first
 point and recomputes distance to the next node with the existing external C
 BRender primitive, retaining epsilon 1 for zero length. Endpoints, subroute
-boundaries, bulk copy (including zero rows), reservation and rewind sequencing
-remain distinct between the operations.
+boundaries, bulk copy (including zero rows), and reservation remain distinct
+between the operations. Creation and both copy paths use the same C actor-owner
+rewind, including the recording-mode reset.
 
-Native callbacks marshal typed payloads/tables and provide array operations,
-unapplied C event insertion/merge and C rewind. Native actor/template creation
-and movie sound-tag resolution are still temporary C++ engine dependencies, not
-final host interfaces or converted resource policy. Paste controllers are
-described below. Clipboard, scene/body/resource/runtime implementation and
-final facade removal remain unfinished.
+Studio supplies actor allocation and resource callbacks, movie sound-tag
+resolution, BRender distance and diagnostics. Copy uses typed C tables for
+array operations and calls the shared C event editor directly.
 
-`engine-actor-copy-test` checks locks, source mutation before filtering, partial
-resolution/insert failure, resource cleanup, result publication, optional BUG1950
+`engine-actor-copy-test` exercises the actual C owner and tables, including
+payload locks, source mutation before filtering, storage and sound-resolution
+failures, merged costume references, result publication, optional BUG1950
 filtering, future offsets/holds, full versus interpolated points, epsilon and
 endpoint paths. The initial 405,760-byte native-before trace matched, but a later
 clipboard audit found all 320 copies failed at template creation: cache keys
@@ -4573,6 +4575,12 @@ It records owning material/sound tags, tables, rewound state and reference count
 The original trace remains preserved rather than silently relabeled. Fixture
 sound chunks support tag mapping without decoding audio; the playback corpus
 supplies actual audio checks.
+
+The typed-owner cutover reproduced the native copy, route paste, actor paste
+and clipboard traces byte for byte. In the `actor-event-edit` playback case,
+SDL Studio and Marcus matched the retained retail seek and playback frame
+sequences and seek camera indices across 60 frames. Each port reproduced its
+prior seek image hashes, and SDL matched retail's 12 sound events.
 
 ### Actor route paste
 

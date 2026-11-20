@@ -97,6 +97,17 @@ int mm_actor_owner_duplicate(void *source, int reset, MMActorOwnerResult *out, c
     return 1;
 }
 
+void mm_actor_owner_rewind(void *actor, const MMActorOwnerServices *s)
+{
+    MMActorOwner *owner = s->owner(s->context, actor);
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorState state = owner->runtime.state;
+    MMActorRouteEditServices route;
+    s->route_services(s->context, actor, &route);
+    mm_actor_route_edit_rewind(&state, owner->track.route, &motion, &route);
+    owner->runtime.state = state;
+}
+
 void mm_actor_owner_reset(void *actor, const MMActorOwnerServices *s)
 {
     MMActorOwner *owner = s->owner(s->context, actor);

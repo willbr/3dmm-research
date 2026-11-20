@@ -272,11 +272,8 @@ void Actor::_InitState(void)
 void Actor::_SetStateRewound(void)
 {
     AssertBaseThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
-    const auto services=_RouteEditServices();
-    mm_actor_route_edit_rewind(&state,_owner.track.route,&tables,&services);
-    _owner.runtime.state = state;
+    const auto services = _OwnerServices();
+    mm_actor_owner_rewind(this, &services);
 }
 
 /***************************************************************************

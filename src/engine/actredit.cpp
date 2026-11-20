@@ -34,60 +34,30 @@ RTCLASS(ActorUndo)
 MMActorCopyServices Actor::_CopyServices()
 {
     static_assert(sizeof(Sound)==sizeof(MMActorSound),"Copy sound ABI");
-    static_assert(sizeof(Action)==2*sizeof(MMI32),"Copy action ABI");
-    static_assert(sizeof(RouteDistancePoint)==sizeof(MMActorRoutePoint),"Copy point ABI");
-    MMActorCopyServices s{}; s.context=this; s.motion=EngineActorMotion::Services();
-    s.create_actor=[](void *p)->void * {
-        TAG tag;
-        static_cast<Actor *>(p)->GetTagTmpl(&tag);
-        return PactrNew(&tag);
-    };
-    s.release_actor=[](void *,void *p) { static_cast<PActor>(p)->Release(); };
-    s.route=[](void *,void *p)->void * { return static_cast<PActor>(p)->_owner.track.route; };
-    s.events=[](void *,void *p)->void * { return static_cast<PActor>(p)->_owner.track.events; };
-    s.lock_events=[](void *,void *p) { mm_actor_events_lock(static_cast<MMActorEventTable *>(p)); };
-    s.unlock_events=[](void *,void *p) { mm_actor_events_unlock(static_cast<MMActorEventTable *>(p)); };
-    s.payload_view=[](void *,void *p,MMI32 i)->const void * { return mm_actor_events_payload(static_cast<MMActorEventTable *>(p), i, nullptr); };
-    s.write_payload=[](void *,void *p,MMI32 i,const void *data) { mm_actor_events_set_payload(static_cast<MMActorEventTable *>(p), i, data); };
+    MMActorCopyServices s{};
+    s.context = this;
+    s.create = _CreateServices();
     s.resolve_sound=[](void *p,MMActorSound *value) {
         Sound sound; std::memcpy(&sound,value,sizeof(sound));
         bool ok=static_cast<Actor *>(p)->_Scene()->Pmvie()->FResolveSndTag(&sound.tag,sound.chid);
         std::memcpy(value,&sound,sizeof(sound)); return int(ok);
     };
-    s.insert_event=[](void *,void *p,MMI32 i,MMU32 bytes,const void *data,const MMActorEvent *value) {
-        Base event; std::memcpy(&event,value,sizeof(event));
-        return int(static_cast<PActor>(p)->_FInsertAev(i,bytes,const_cast<void *>(data),&event,false));
-    };
-    s.merge_event=[](void *,void *p,MMI32 first,MMI32 added) { static_cast<PActor>(p)->_MergeAev(first,added); };
-    s.insert_point=[](void *,void *p,MMI32 i,const MMActorRoutePoint *value) {
-        return mm_actor_path_insert(static_cast<MMActorPath *>(p), i, value);
-    };
-    s.write_point=[](void *,void *p,MMI32 i,const MMActorRoutePoint *value) {
-        AssertDo(mm_actor_path_put(static_cast<MMActorPath *>(p), i, value), "invalid actor path index");
-    };
-    s.resize_route=[](void *,void *p,MMI32 count) { return int(mm_array_set_count(&static_cast<MMActorPath *>(p)->rows, count) == MM_STORAGE_OK); };
-    s.reserve_route=[](void *,void *p,MMI32 count) { return int(mm_array_reserve(&static_cast<MMActorPath *>(p)->rows, count, 0) == MM_STORAGE_OK); };
-    s.copy_points=[](void *,void *source,MMI32 first,void *destination,MMI32 to,MMI32 count) {
-        AssertDo(mm_actor_path_copy(static_cast<MMActorPath *>(destination), to,
-                                   static_cast<const MMActorPath *>(source), first, count), "invalid actor path range");
-    };
     s.distance=[](void *,const MMActorPoint *v)->MMI32 { return BR_LENGTH3(v->dxr,v->dyr,v->dzr); };
-    s.rewind_actor=[](void *,void *p) { static_cast<PActor>(p)->_SetStateRewound(); };
     s.unknown_event=[](void *) { Bug("Unknown event type... Copy or Not?"); };
     return s;
 }
 
 bool Actor::FCopy(PActor *ppactr, bool fEntireScene)
 {
-    AssertThis(0); AssertVarMem(ppactr); const auto state=_owner.runtime.state; const auto services=_CopyServices();
-    MMActorCopyResult out{}; out.context=ppactr;
+    AssertThis(0); AssertVarMem(ppactr); const auto services=_CopyServices();
+    MMActorOwnerResult out{}; out.context=ppactr;
     out.publish=[](void *p,void *actor) { *static_cast<PActor *>(p)=static_cast<PActor>(actor); };
 #ifdef BUG1950
     const int postponed=1;
 #else
     const int postponed=0;
 #endif
-    bool ok=mm_actor_copy(&state,_owner.track.route,_owner.track.events,fEntireScene,postponed,&out,&services)!=0;
+    bool ok=mm_actor_copy(&_owner,fEntireScene,postponed,&out,&services)!=0;
     if (ok) { AssertPo(*ppactr,0); }
     return ok;
 }
@@ -158,10 +128,10 @@ void Actor::_RestoreFromUndo(PActor pactrRestore)
 ***************************************************************************/
 bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
 {
-    AssertThis(0); AssertVarMem(ppactr); const auto state=_owner.runtime.state; const auto services=_CopyServices();
-    MMActorCopyResult out{}; out.context=ppactr;
+    AssertThis(0); AssertVarMem(ppactr); const auto services=_CopyServices();
+    MMActorOwnerResult out{}; out.context=ppactr;
     out.publish=[](void *p,void *actor) { *static_cast<PActor *>(p)=static_cast<PActor>(actor); };
-    return mm_actor_copy_route(&state,_owner.track.route,fEntireScene,&out,&services)!=0;
+    return mm_actor_copy_route(&_owner,fEntireScene,&out,&services)!=0;
 }
 
 /***************************************************************************

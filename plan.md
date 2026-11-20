@@ -311,11 +311,11 @@ priority over the older Project 0-4 ordering wherever they conflict.
   ordering. Existing costume-duplication and failed-removal ownership quirks are
   preserved and documented. Copy/paste/clipboard integration and the remaining
   movie/scene/body/resource/runtime implementations still require conversion.
-- Full-actor and route-only copy now use C89 for event selection/merging,
-  sound-tag update sequencing, current-cel rewriting, relative event locations,
-  route slicing and failure cleanup. Native actor/template creation, movie
-  sound-tag resolution and underlying representations remain temporary engine
-  dependencies; paste and clipboard policy still need conversion.
+- Full-actor and route-only copy use the C89 actor owner directly. C allocates
+  the copy through the shared actor factory, slices typed routes and events,
+  sequences tag retention and merges, rewrites current cels and event
+  locations, and rewinds or disposes the destination. Studio supplies resource
+  callbacks, movie sound-tag resolution and BRender distance.
 - Route paste now uses C89 for reservation, node splitting/deletion, tagged-event
   removal, later-subroute index shifts, translated insertion, floating/terminal
   steps, dirty/range notification and body positioning. It uses the existing C

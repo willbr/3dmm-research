@@ -10,11 +10,8 @@ int mm_actor_create_groups(MMActorOwner *actor,const MMActorCreateServices *s)
 int mm_actor_initialize(void *actor,const MMTag *tag,const MMActorCreateServices *s)
 {
     const MMActorOwnerServices *o=&s->owner;
-    const MMActorMotionServices motion = mm_actor_track_motion_services();
     MMActorOwner *owner = o->owner(o->context, actor);
     MMActorRuntime *r = &owner->runtime;
-    MMActorState state;
-    MMActorRouteEditServices route;
     r->template_object = s->fetch_template(o->context, tag);
     if (!r->template_object)
         return 0;
@@ -22,10 +19,7 @@ int mm_actor_initialize(void *actor,const MMTag *tag,const MMActorCreateServices
     mm_tag_dup(&r->template_tag, o->tags);
     if (!mm_actor_create_groups(owner, s))
         return 0;
-    state = r->state;
-    o->route_services(o->context, actor, &route);
-    mm_actor_route_edit_rewind(&state, owner->track.route, &motion, &route);
-    r->state = state;
+    mm_actor_owner_rewind(actor, o);
     return s->action_flags(o->context, r->template_object, 0, &r->state.actionFlags);
 }
 void *mm_actor_create(const MMTag *tag,const MMActorCreateServices *s)

@@ -2,115 +2,267 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_copy.h"
 #include <stddef.h>
-static void publish(MMActorCopyResult *out,void *actor)
-{ out->actor=actor; if (out->publish) out->publish(out->context,actor); }
-static int fail(MMActorCopyResult *out,const MMActorCopyServices *s)
-{ s->release_actor(s->context,out->actor); publish(out,NULL); return 0; }
-static int insert(void *actor,void *source,void *target,MMI32 i,const void *replacement,
-    const MMActorEvent *event,int merge,const MMActorCopyServices *s)
+
+typedef struct MMActorCopyEdit
 {
-    MMI32 added=s->motion.event_count(target); int ok; const void *payload;
-    s->lock_events(s->context,source);
-    payload=replacement?replacement:s->payload_view(s->context,source,i);
-    ok=s->insert_event(s->context,actor,added,(MMU32)s->motion.event_size(source,i),payload,event);
-    s->unlock_events(s->context,source);
-    if (!ok) return 0;
-    if (merge) s->merge_event(s->context,actor,0,added);
-    return 1;
+    MMActorEventTable *events;
+    const MMTagServices *tags;
+} MMActorCopyEdit;
+
+static int insert_event(void *context, MMI32 i, MMU32 bytes, const void *payload, const MMActorEvent *event)
+{
+    return mm_actor_events_insert(((MMActorCopyEdit *)context)->events, i, bytes, payload, event);
 }
-int mm_actor_copy(const MMActorState *state,void *route,void *events,int entire,int postponed,
-    MMActorCopyResult *out,const MMActorCopyServices *s)
+
+static void retain_tag(void *context, MMI32 i)
 {
-    MMActorEvent event; MMActorSound sound; MMActorRoutePoint point;
-    MMI32 i,limit,node,action[2]; void *actor,*target_events,*target_route; const void *replacement;
-    actor=s->create_actor(s->context); publish(out,actor); if (!actor) return 0;
-    target_events=s->events(s->context,actor); target_route=s->route(s->context,actor);
-    s->motion.route_point(route,state->location.irpt,&point);
-    point.dwr=mm_fixed_sub(point.dwr,state->location.dwrOffset);
-    for (i=state->addEvent;i<state->nextEvent;++i)
+    MMActorCopyEdit *edit = (MMActorCopyEdit *)context;
+    mm_actor_track_retain_tag(edit->events, i, edit->tags);
+}
+
+static void close_tag(void *context, MMI32 i)
+{
+    MMActorCopyEdit *edit = (MMActorCopyEdit *)context;
+    mm_actor_track_close_tag(edit->events, i, edit->tags);
+}
+
+static void delete_event(void *context, MMI32 i)
+{
+    mm_actor_events_delete(((MMActorCopyEdit *)context)->events, i);
+}
+
+static void write_payload(void *context, MMI32 i, const void *payload)
+{
+    mm_actor_events_set_payload(((MMActorCopyEdit *)context)->events, i, payload);
+}
+
+static void copy_payload(void *context, MMI32 to, MMI32 from)
+{
+    mm_actor_events_copy_payload(((MMActorCopyEdit *)context)->events, to, from);
+}
+
+static int scene_frame(void *context, MMI32 *frame)
+{
+    /* The newly allocated actor has no scene during copy. */
+    (void)context;
+    (void)frame;
+    return 0;
+}
+
+static void publish(MMActorOwnerResult *out, void *actor)
+{
+    out->actor = actor;
+    if (out->publish)
+        out->publish(out->context, actor);
+}
+
+static MMActorOwner *create_copy(const MMActorOwner *source, MMActorOwnerResult *out, const MMActorCreateServices *s)
+{
+    void *actor = mm_actor_create(&source->runtime.template_tag, s);
+    publish(out, actor);
+    return actor ? s->owner.owner(s->owner.context, actor) : NULL;
+}
+
+static int fail(MMActorOwnerResult *out, const MMActorOwnerServices *s)
+{
+    s->release(s->context, out->actor);
+    publish(out, NULL);
+    return 0;
+}
+
+static int insert(MMActorOwner *target, MMActorEventTable *source, MMI32 i, MMI32 added,
+                  const void *replacement, const MMActorEvent *event, const MMActorEditServices *edits)
+{
+    const void *payload;
+    MMI32 bytes;
+    int ok;
+    mm_actor_events_lock(source);
+    payload = mm_actor_events_payload(source, i, &bytes);
+    ok = mm_actor_edit_insert(&target->runtime.state, added, bytes, replacement ? replacement : payload,
+                              event, 0, edits);
+    mm_actor_events_unlock(source);
+    return ok;
+}
+
+int mm_actor_copy(MMActorOwner *source, int entire, int postponed,
+                  MMActorOwnerResult *out, const MMActorCopyServices *s)
+{
+    const MMActorState state = source->runtime.state;
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    const MMActorPath *route = source->track.route;
+    MMActorEventTable *events = source->track.events;
+    const MMActorOwnerServices *owner = &s->create.owner;
+    MMActorEvent event;
+    MMActorSound sound;
+    MMActorRoutePoint point;
+    MMActorCopyEdit edit;
+    MMActorEditServices edits = {0};
+    MMI32 i, limit, node, action[2], added;
+    MMActorOwner *target = create_copy(source, out, &s->create);
+    const void *replacement;
+    if (!target)
+        return 0;
+
+    edit.events = target->track.events;
+    edit.tags = owner->tags;
+    edits.context = &edit;
+    edits.close_event_tag = close_tag;
+    edits.delete_event = delete_event;
+    edits.scene_frame = scene_frame;
+    edits.insert_event = insert_event;
+    edits.duplicate_event_tag = retain_tag;
+    edits.write_payload = write_payload;
+    edits.copy_payload = copy_payload;
+
+    mm_actor_path_get(route, state.location.irpt, &point);
+    point.dwr = mm_fixed_sub(point.dwr, state.location.dwrOffset);
+    for (i = state.addEvent; i < state.nextEvent; ++i)
     {
-        s->motion.event(events,i,&event); replacement=NULL;
+        mm_actor_events_get_fixed(events, i, &event);
+        replacement = NULL;
         switch (event.aet)
         {
         case MM_ACTOR_ACTION:
-            s->motion.payload(events,i,action); action[1]=state->cel; replacement=action; break;
+            mm_actor_events_get_payload(events, i, action);
+            action[1] = state.cel;
+            replacement = action;
+            break;
         case MM_ACTOR_ADD: case MM_ACTOR_COSTUME: case MM_ACTOR_STRETCH:
         case MM_ACTOR_SIZE: case MM_ACTOR_ROTATE_FORWARD: case MM_ACTOR_FREEZE:
-        case MM_ACTOR_STEP: case MM_ACTOR_MOVE: break;
+        case MM_ACTOR_STEP: case MM_ACTOR_MOVE:
+            break;
         case MM_ACTOR_SOUND:
-            s->motion.payload(events,i,&sound);
-            if (!s->resolve_sound(s->context,&sound)) return fail(out,s);
-            s->write_payload(s->context,events,i,&sound);
-            if (sound.cel==-1 && i>=state->firstEventInFrame) break;
-            if (i>state->actionEvent && sound.cel!=-1) break;
+            mm_actor_events_get_payload(events, i, &sound);
+            if (!s->resolve_sound(s->context, &sound))
+                return fail(out, owner);
+            mm_actor_events_set_payload(events, i, &sound);
+            if (sound.cel == -1 && i >= state.firstEventInFrame)
+                break;
+            if (i > state.actionEvent && sound.cel != -1)
+                break;
             continue;
         case MM_ACTOR_TWEAK: case MM_ACTOR_ROTATE_HERE:
-            if (i>=(postponed?state->nextEvent:state->firstEventInFrame)) break;
+            if (i >= (postponed ? state.nextEvent : state.firstEventInFrame))
+                break;
             continue;
-        case MM_ACTOR_REMOVE: continue;
-        default: s->unknown_event(s->context); break;
+        case MM_ACTOR_REMOVE:
+            continue;
+        default:
+            s->unknown_event(s->context);
+            break;
         }
-        event.rtel.irpt=event.rtel.dwrOffset=event.rtel.dnfrm=0;
-        if (!insert(actor,events,target_events,i,replacement,&event,1,s)) return fail(out,s);
+        event.rtel.irpt = event.rtel.dwrOffset = event.rtel.dnfrm = 0;
+        added = mm_actor_events_count(edit.events);
+        if (!insert(target, events, i, added, replacement, &event, &edits))
+            return fail(out, owner);
+        mm_actor_edit_merge(&target->runtime.state, &target->sounds, edit.events, target->runtime.actor,
+                            0, added, NULL, &motion, &edits);
     }
-    for (i=state->nextEvent;i<s->motion.event_count(events);++i)
+    for (i = state.nextEvent; i < mm_actor_events_count(events); ++i)
     {
-        s->motion.event(events,i,&event);
-        if (!entire && event.aet==MM_ACTOR_ADD && s->motion.event_count(target_events)>0) break;
-        event.rtel.irpt-=state->location.irpt;
+        mm_actor_events_get_fixed(events, i, &event);
+        added = mm_actor_events_count(edit.events);
+        if (!entire && event.aet == MM_ACTOR_ADD && added > 0)
+            break;
+        event.rtel.irpt -= state.location.irpt;
         if (!event.rtel.irpt)
         {
-            if (event.rtel.dwrOffset==state->location.dwrOffset)
+            if (event.rtel.dwrOffset == state.location.dwrOffset)
             {
-                event.rtel.dwrOffset=0;
-                event.rtel.dnfrm=event.rtel.dnfrm<state->location.dnfrm?0:event.rtel.dnfrm-state->location.dnfrm;
+                event.rtel.dwrOffset = 0;
+                event.rtel.dnfrm = event.rtel.dnfrm < state.location.dnfrm ? 0 : event.rtel.dnfrm - state.location.dnfrm;
             }
-            else event.rtel.dwrOffset=point.dwr?mm_fixed_sub(event.rtel.dwrOffset,state->location.dwrOffset):0;
+            else
+                event.rtel.dwrOffset = point.dwr ? mm_fixed_sub(event.rtel.dwrOffset, state.location.dwrOffset) : 0;
         }
-        if (!insert(actor,events,target_events,i,NULL,&event,0,s)) return fail(out,s);
+        if (!insert(target, events, i, added, NULL, &event, &edits))
+            return fail(out, owner);
     }
-    if (!s->insert_point(s->context,target_route,0,&point)) return fail(out,s);
-    if (state->location.irpt+1<s->motion.route_count(route))
+    if (!mm_actor_path_insert(target->track.route, 0, &point))
+        return fail(out, owner);
+    limit = mm_actor_path_count(route);
+    if (state.location.irpt + 1 < limit)
     {
-        limit=s->motion.route_count(route);
-        if (!entire) for (node=state->location.irpt;node<limit;++node)
-        { s->motion.route_point(route,node,&point); if (!point.dwr) { limit=node+1; break; } }
-        i=limit-(state->location.irpt+1);
-        if (!s->resize_route(s->context,target_route,s->motion.route_count(target_route)+i)) return fail(out,s);
-        s->copy_points(s->context,route,state->location.irpt+1,target_route,1,i);
+        if (!entire)
+            for (node = state.location.irpt; node < limit; ++node)
+            {
+                mm_actor_path_get(route, node, &point);
+                if (!point.dwr)
+                {
+                    limit = node + 1;
+                    break;
+                }
+            }
+        i = limit - (state.location.irpt + 1);
+        if (mm_array_set_count(&target->track.route->rows, 1 + i) != MM_STORAGE_OK)
+            return fail(out, owner);
+        mm_actor_path_copy(target->track.route, 1, route, state.location.irpt + 1, i);
     }
-    else { point.dwr=0; s->write_point(s->context,target_route,0,&point); }
-    s->rewind_actor(s->context,actor); return 1;
+    else
+    {
+        point.dwr = 0;
+        mm_actor_path_put(target->track.route, 0, &point);
+    }
+    mm_actor_owner_rewind(out->actor, owner);
+    return 1;
 }
-int mm_actor_copy_route(const MMActorState *state,void *route,int entire,
-    MMActorCopyResult *out,const MMActorCopyServices *s)
+
+int mm_actor_copy_route(const MMActorOwner *source, int entire, MMActorOwnerResult *out,
+                        const MMActorCopyServices *s)
 {
-    MMActorRoutePoint point,node,next; MMActorPoint delta;
-    MMI32 i,limit,count; void *actor,*target;
-    actor=s->create_actor(s->context); publish(out,actor); if (!actor) return 0;
-    target=s->route(s->context,actor); mm_actor_route_position(route,&state->location,&point.xyz,&s->motion);
-    s->motion.route_point(route,state->location.irpt,&node); point.dwr=0;
-    if (!state->location.dwrOffset) point.dwr=node.dwr;
-    else if (node.dwr>0 && state->location.irpt<s->motion.route_count(route)-1)
+    const MMActorLocation location = source->runtime.state.location;
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    const MMActorOwnerServices *owner = &s->create.owner;
+    MMActorPath *route = source->track.route;
+    MMActorRoutePoint point, node, next;
+    MMActorPoint delta;
+    MMI32 i, limit, count;
+    MMActorOwner *target = create_copy(source, out, &s->create);
+    MMActorPath *path;
+    if (!target)
+        return 0;
+
+    path = target->track.route;
+    mm_actor_route_position(route, &location, &point.xyz, &motion);
+    mm_actor_path_get(route, location.irpt, &node);
+    point.dwr = 0;
+    limit = mm_actor_path_count(route);
+    if (!location.dwrOffset)
+        point.dwr = node.dwr;
+    else if (node.dwr > 0 && location.irpt < limit - 1)
     {
-        s->motion.route_point(route,state->location.irpt+1,&next);
-        delta.dxr=mm_fixed_sub(next.xyz.dxr,point.xyz.dxr);
-        delta.dyr=mm_fixed_sub(next.xyz.dyr,point.xyz.dyr);
-        delta.dzr=mm_fixed_sub(next.xyz.dzr,point.xyz.dzr);
-        point.dwr=s->distance(s->context,&delta); if (!point.dwr) point.dwr=1;
+        mm_actor_path_get(route, location.irpt + 1, &next);
+        delta.dxr = mm_fixed_sub(next.xyz.dxr, point.xyz.dxr);
+        delta.dyr = mm_fixed_sub(next.xyz.dyr, point.xyz.dyr);
+        delta.dzr = mm_fixed_sub(next.xyz.dzr, point.xyz.dzr);
+        point.dwr = s->distance(s->context, &delta);
+        if (!point.dwr)
+            point.dwr = 1;
     }
-    if (!s->insert_point(s->context,target,0,&point)) return fail(out,s);
-    if (!entire && !point.dwr) { s->rewind_actor(s->context,actor); return 1; }
-    limit=s->motion.route_count(route);
-    if (!entire) for (i=state->location.irpt+1;i<limit;++i)
-    { s->motion.route_point(route,i,&point); if (!point.dwr) { limit=i+1; break; } }
-    count=limit-(state->location.irpt+1);
-    if (count>0 && !s->reserve_route(s->context,target,count)) return fail(out,s);
-    for (i=state->location.irpt+1;i<limit;++i)
+    if (!mm_actor_path_insert(path, 0, &point))
+        return fail(out, owner);
+    if (entire || point.dwr)
     {
-        s->motion.route_point(route,i,&point);
-        if (!s->insert_point(s->context,target,i-state->location.irpt,&point)) return fail(out,s);
-        if (!entire && !point.dwr) break;
+        if (!entire)
+            for (i = location.irpt + 1; i < limit; ++i)
+            {
+                mm_actor_path_get(route, i, &point);
+                if (!point.dwr)
+                {
+                    limit = i + 1;
+                    break;
+                }
+            }
+        count = limit - (location.irpt + 1);
+        if (count > 0 && mm_array_reserve(&path->rows, count, 0) != MM_STORAGE_OK)
+            return fail(out, owner);
+        for (i = location.irpt + 1; i < limit; ++i)
+        {
+            mm_actor_path_get(route, i, &point);
+            if (!mm_actor_path_insert(path, i - location.irpt, &point))
+                return fail(out, owner);
+        }
     }
-    s->rewind_actor(s->context,actor); return 1;
+    mm_actor_owner_rewind(out->actor, owner);
+    return 1;
 }
