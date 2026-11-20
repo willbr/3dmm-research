@@ -15361,3 +15361,31 @@ In `actor-event-edit` suite `20261120T105200Z-7bd98c98`, both Marcus and
 SDL matched the 60 frame identities in retained retail seek and playback
 captures. Each matched its 60 prior seek image hashes and the retail
 camera indices. SDL matched all 12 retail sound requests.
+
+## Shared C89 rich-text archive I/O in Studio (20 November 2026)
+
+Studio uses the same C89 rich-text archive reader and writer as Marcus.
+The native Studio adapter streams its existing property and argument
+collections through the C storage codec. During a live save it keeps
+the TEXT extent available until the byte stream can redirect to it.
+
+The native x64 and SDL Studio live-save traces were each byte-identical
+to the corresponding prior build across eight cases, including empty
+text, inline font arguments, embedded NULs and saved-extent redirection.
+Retail opened the Studio-exported mixed-format caption movie with all
+twelve text boxes. Its scene 1, frame 25 capture matched the original
+fixture pixel-for-pixel. Fourteen Marcus caption saves also matched
+their prior archives byte-for-byte, and the mixed-format draft retained
+all RGBA pixels.
+
+All 44 targeted x64 checks, eight standalone C89 checks and five focused
+x86 checks passed. The x64 Preview integration retained all ten
+fingerprints, including the stock camera coverage. Both VMM storyboard
+seek images in `20261120T110607Z-30fb2f42` matched the retained SDL and
+Marcus captures. Logs and fixtures are in
+`tmp/c89-studio-rich-text-archive`.
+
+In `actor-event-edit` suite `20261120T110605Z-3b9059fd`, both players
+matched the 60 frame identities in the retained retail seek and playback
+captures. Each retained all 60 prior seek image hashes and matched the
+retail camera indices. SDL matched all 12 retail sound requests.

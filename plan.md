@@ -136,9 +136,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   the shared rich-text writer. Formatting-only saves retain the authored
   stream and encoding.
 - The shared archive editor reads and writes native caption box headers and
-  resolves their rich-text links. Marcus reads and writes rich-text body
-  metadata, properties and arguments through that editor. Its host supplies
-  the original file extent and physical range reads for authored TEXT.
+  resolves their rich-text links. Marcus and Studio read and write rich-text
+  bodies through the same C89 archive operations. Studio supplies its live
+  property and argument objects through the shared collection streams and
+  retains the destination TEXT extent for post-save redirection.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

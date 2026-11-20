@@ -83,10 +83,10 @@ class GroupBase : public GroupBase_PAR
         return &_storage;
     }
     bool _ReadCollection(PDataBlock, int kind, bool allocated, MMCollectionHeader *, short *, short *);
+    bool _ReadCollection(const MMReadStream &, int kind, bool allocated, MMCollectionHeader *, short *, short *);
     bool _WriteCollection(PDataBlock, MMCollectionHeader, short bo, short osk);
+    bool _WriteCollection(const MMStorageWriter &, MMCollectionHeader, short bo, short osk);
     bool _FEnsureSizes(LegacyLong cbMin1, LegacyLong cbMin2, LegacyUlong grfgrp);
-    bool _FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb1, LegacyLong cb2);
-    bool _FReadData(PDataBlock pblck, LegacyLong cb1, LegacyLong cb2, LegacyLong ib);
     bool _FDup(PGroupBase pgrpbDst, LegacyLong cb1, LegacyLong cb2);
 
     GroupBase(void);
@@ -159,6 +159,7 @@ class DynamicArray : public DynamicArray_PAR
     static PDynamicArray PglNew(LegacyLong cb, LegacyLong cvInit = 0);
     static PDynamicArray PglRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
     static PDynamicArray PglRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
+    static PDynamicArray PglReadStream(const MMReadStream &, short *order, short *system);
 
     // duplication
     PDynamicArray PglDup(void);
@@ -167,6 +168,7 @@ class DynamicArray : public DynamicArray_PAR
     virtual bool FAdd(void *pv, LegacyLong *piv = pvNil);
     virtual void Delete(LegacyLong iv);
     virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
+    bool FWriteStream(const MMStorageWriter &, short order, short system);
     virtual LegacyLong CbOnFile(void);
     virtual bool FFree(LegacyLong iv);
 
@@ -274,12 +276,14 @@ class VirtualGroup : public VirtualGroup_PAR
         return (LogicalOffsetAndCount *)_Qb2(LwMul(iloc, size(LogicalOffsetAndCount)));
     }
     bool _FRead(PDataBlock pblck, short *pbo, short *posk);
+    void _ApplyStoredGroup(const MMCollectionHeader &);
 
     bool _FDup(PVirtualGroup pggbDst);
 
   public:
     // methods required by parent class
     virtual bool FWrite(PDataBlock pblck, short bo = kboCur, short osk = koskCur);
+    bool FWriteStream(const MMStorageWriter &, short order, short system);
     virtual LegacyLong CbOnFile(void);
     virtual bool FFree(LegacyLong iv);
 
@@ -368,6 +372,7 @@ class AllocatedGroup : public AllocatedGroup_PAR
     static PAllocatedGroup PagNew(LegacyLong cbFixed = 0, LegacyLong cvInit = 0, LegacyLong cbInit = 0);
     static PAllocatedGroup PagRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
     static PAllocatedGroup PagRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
+    static PAllocatedGroup PagReadStream(const MMReadStream &, short *order, short *system);
 
     // duplication
     PAllocatedGroup PagDup(void);

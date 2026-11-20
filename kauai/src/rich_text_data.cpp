@@ -23,7 +23,7 @@ void RichTextData::Clear()
 }
 bool RichTextData::FRead(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
-    RichTextStoreHost::Host host = {file};
+    RichTextStoreHost::Host host{file};
     auto services = host.Read();
     auto state = RichTextStoreHost::State(*this);
     int result = mm_rich_text_read(&state, type, number, koskCur, RichTextStoreHost::NativeBig(), &services);
@@ -35,7 +35,7 @@ bool RichTextData::FRead(PChunkyFile file, ChunkTagOrType type, ChunkNumber numb
 bool RichTextData::FCreateRoot(PChunkyFile file, ChunkIdentification *written, RichTextProperties *defaults,
                                PString fontName)
 {
-    RichTextStoreHost::Host host = {file};
+    RichTextStoreHost::Host host{file};
     auto services = host.Write();
     auto data = RichTextStoreHost::Defaults(*defaults);
     auto font = RichTextStoreHost::Font(*fontName);
@@ -51,11 +51,10 @@ bool RichTextData::FCreateRoot(PChunkyFile file, ChunkIdentification *written, R
 }
 bool RichTextData::FWrite(PChunkyFile file, ChunkIdentification *written)
 {
-    RichTextStoreHost::Host host = {file};
-    auto services = host.Write();
+    RichTextStoreHost::Host host{file};
     auto state = RichTextStoreHost::State(*this);
     MMTextChunk out = {0, 0};
-    int result = mm_rich_text_write(&state, &out, RichTextStoreHost::NativeBig(), &services);
+    int result = mm_rich_text_archive_write(&state, nullptr, &out, &host.archive);
     if (out.type == MM_TEXT_ROOT)
     {
         written->ctg = out.type;

@@ -1,5 +1,8 @@
 #ifndef RICH_TEXT_STORE_HOST_H
 #define RICH_TEXT_STORE_HOST_H
+#include <exception>
+#include <new>
+#include "movie_archive_host.h"
 #include "mm/text_store.h"
 // Native representations and primitive file/collection operations for C persistence.
 namespace RichTextStoreHost
@@ -73,167 +76,101 @@ inline MMRichTextObjects Objects()
 }
 struct Host
 {
-    PChunkyFile file;
-    DataBlock block;
+    MovieArchiveHost movie;
+    MMMovieArchiveEditor editor;
+    MMRichTextArchive archive;
+    MMRichTextArchiveReader reader;
+    MMRichTextArchiveWriter writer;
     std::exception_ptr exception;
+
+    explicit Host(PChunkyFile chunky)
+        : movie{chunky, {}, {}}, editor(movie.Editor()), archive{
+            &editor, this, MacWin(koskUniWin, koskUniMac),
+            [](void *v, MMU32 number, MMTextLocation *out) -> int {
+                auto &h = *static_cast<Host *>(v);
+                return h.Guard([&] {
+                    FileLocation location;
+                    if (!h.movie.file->FFindFlo(kctgText, number, &location))
+                        return false;
+                    *out = Location(location);
+                    return true;
+                });
+            },
+            [](void *v, const MMTextLocation *p, MMU32 offset, void *out, size_t count) -> int {
+                auto &h = *static_cast<Host *>(v);
+                return h.Guard([&] {
+                    auto location = Location(*p);
+                    return location.FReadRgb(out, static_cast<LegacyLong>(count), offset);
+                });
+            },
+            [](void *, void *file) { static_cast<PFileObject>(file)->AddRef(); },
+            [](void *, void *file) { static_cast<PFileObject>(file)->Release(); },
+            &Collections()}
+    {
+    }
+
     template <class F> int Guard(F f)
     {
-        try
-        {
-            return f();
-        }
-        catch (const std::bad_alloc &)
-        {
-            exception = std::current_exception();
-            return -1;
-        }
-        catch (...)
-        {
-            exception = std::current_exception();
-            return -2;
-        }
+        try { return f(); }
+        catch (const std::bad_alloc &) { exception = std::current_exception(); return -1; }
+        catch (...) { exception = std::current_exception(); return -2; }
     }
+
     void Rethrow()
     {
         if (exception)
             std::rethrow_exception(exception);
     }
+
     MMRichTextReadServices Read()
     {
-        MMRichTextReadServices s = {};
-        s.context = this;
-        s.objects = Objects();
-        s.root = [](void *v, MMU32 type, MMU32 number, MMReadStream *out) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                if (!h.file->FFind(type, number, &h.block) || !h.block.FUnpackData())
-                    return false;
-                *out = {&h, static_cast<MMU32>(h.block.Cb()), [](void *v, MMU32 offset, void *bytes, size_t n) -> int {
-                            auto &h = *static_cast<Host *>(v);
-                            return h.Guard(
-                                       [&] { return h.block.FReadRgb(bytes, static_cast<LegacyLong>(n), offset); }) > 0;
-                        }};
-                return true;
-            });
-        };
-        s.font = [](void *v, MMMovieTitle *out) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                String name;
-                if (!name.FRead(&h.block, 16))
-                    return false;
-                *out = Font(name);
-                return true;
-            });
-        };
-        s.child = [](void *v, MMU32 type, MMU32 number, MMU32 kind, MMU32 *out) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                ChildChunkIdentification child;
-                if (!h.file->FGetKidChidCtg(type, number, 0, kind, &child))
-                    return false;
-                *out = child.cki.cno;
-                return true;
-            });
-        };
-        s.location = [](void *v, MMU32 type, MMU32 number, MMTextLocation *out) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                FileLocation location;
-                if (!h.file->FFindFlo(type, number, &location))
-                    return false;
-                *out = Location(location);
-                return true;
-            });
-        };
-        s.read_text = [](void *v, const MMTextLocation *p, void *out, MMU32 n) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                auto location = Location(*p);
-                return location.FReadRgb(out, n, 0);
-            });
-        };
-        s.group = [](void *v, MMU32 kind, MMU32 number, void **out, int *order, int *system) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                if (!h.file->FFind(kind, number, &h.block))
-                    return false;
-                short bo, osk;
-                *out = kind == MM_TEXT_PROPERTIES ? static_cast<void *>(DynamicArray::PglRead(&h.block, &bo, &osk))
-                                                  : static_cast<void *>(AllocatedGroup::PagRead(&h.block, &bo, &osk));
-                if (!*out)
-                    return false;
-                *order = bo;
-                *system = osk;
-                return true;
-            });
-        };
-        return s;
+        MMRichTextReadServices services;
+        mm_rich_text_archive_reader(&reader, &archive, &services);
+        return services;
     }
-    MMRichTextWriteServices Write()
+
+    MMRichTextWriteServices Write(const MMMovieArchiveEditor *text = nullptr)
     {
-        MMRichTextWriteServices s = {};
-        s.context = this;
-        s.objects = Objects();
-        s.font_bytes = [](void *, const MMMovieTitle *p) -> MMU32 {
-            String font;
-            Font(*p, &font);
-            return font.CbData();
-        };
-        s.add_root = [](void *v, MMU32 bytes, MMU32 *number) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] { return h.file->FAdd(bytes, kctgRichText, number, &h.block); });
-        };
-        s.write = [](void *v, MMU32 offset, const void *p, MMU32 n) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] { return h.block.FWriteRgb(const_cast<void *>(p), n, offset); });
-        };
-        s.font = [](void *v, const MMMovieTitle *p) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                String name;
-                Font(*p, &name);
-                return name.FWrite(&h.block, 16);
-            });
-        };
-        s.remove = [](void *v, MMU32 number) { static_cast<Host *>(v)->file->Delete(kctgRichText, number); };
-        s.add_child = [](void *v, MMU32 root, MMU32 kind, MMU32 bytes) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                ChunkNumber child;
-                return h.file->FAddChild(kctgRichText, root, 0, bytes, kind, &child, &h.block);
-            });
-        };
-        s.destination = [](void *v, MMTextLocation *out) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                FileLocation location;
-                if (!h.block.FGetFlo(&location))
-                    return false;
-                *out = Location(location);
-                return true;
-            });
-        };
-        s.copy = [](void *v, const MMTextLocation *source, const MMTextLocation *destination) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                auto from = Location(*source), to = Location(*destination);
-                return from.FCopy(&to);
-            });
-        };
-        s.group_bytes = [](void *, MMU32 kind, void *p) -> MMU32 {
-            return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->CbOnFile()
-                                              : static_cast<PAllocatedGroup>(p)->CbOnFile();
-        };
-        s.count = [](void *, void *p) -> MMI32 { return static_cast<PAllocatedGroup>(p)->IvMac(); };
-        s.group = [](void *v, MMU32 kind, void *p, int order, int system) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->FWrite(&h.block, order, system)
-                                                  : static_cast<PAllocatedGroup>(p)->FWrite(&h.block, order, system);
-            });
-        };
-        return s;
+        MMRichTextWriteServices services;
+        mm_rich_text_archive_writer(&writer, &archive, text, &services);
+        return services;
+    }
+
+  private:
+    static const MMRichTextArchiveCollections &Collections()
+    {
+        static const MMRichTextArchiveCollections services{
+            [](void *, MMU32, void *p) { static_cast<BASE *>(p)->Release(); },
+            [](void *, MMU32 kind, void *p) -> MMI32 {
+                return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->CbEntry()
+                                                  : static_cast<PAllocatedGroup>(p)->CbFixed();
+            },
+            [](void *v, MMU32 kind, const MMReadStream *stream, void **out, int *order, int *system) {
+                auto &h = *static_cast<Host *>(v);
+                return h.Guard([&] {
+                    short bo, osk;
+                    *out = kind == MM_TEXT_PROPERTIES ? static_cast<void *>(DynamicArray::PglReadStream(*stream, &bo, &osk))
+                                                      : static_cast<void *>(AllocatedGroup::PagReadStream(*stream, &bo, &osk));
+                    if (!*out)
+                        return false;
+                    *order = bo;
+                    *system = osk;
+                    return true;
+                });
+            },
+            [](void *, MMU32 kind, void *p) -> MMU32 {
+                return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->CbOnFile()
+                                                  : static_cast<PAllocatedGroup>(p)->CbOnFile();
+            },
+            [](void *, void *p) -> MMI32 { return static_cast<PAllocatedGroup>(p)->IvMac(); },
+            [](void *v, MMU32 kind, const MMStorageWriter *writer, void *p, int order, int system) {
+                auto &h = *static_cast<Host *>(v);
+                return h.Guard([&] {
+                    return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->FWriteStream(*writer, order, system)
+                                                      : static_cast<PAllocatedGroup>(p)->FWriteStream(*writer, order, system);
+                });
+            }};
+        return services;
     }
 };
 } // namespace RichTextStoreHost

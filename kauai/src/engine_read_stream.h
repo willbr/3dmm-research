@@ -3,7 +3,7 @@
 #include "kauai_core.h"
 #include "mm/read_stream.h"
 
-/* Transitional host adapter. DataBlock owns decoding/storage; the C backend
+/* DataBlock owns decoding/storage; the C backend
  * sees only bounded positional reads. The block must outlive the stream. */
 namespace EngineReadStream
 {

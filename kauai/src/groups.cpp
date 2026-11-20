@@ -102,7 +102,12 @@ bool GroupBase::_ReadCollection(PDataBlock block, int kind, bool allocated, MMCo
         TrashVar(order); TrashVar(system);
         return false;
     }
-    MMReadStream reader = {block, static_cast<MMU32>(block->Cb()), ReadCollectionBlock};
+    const MMReadStream reader = {block, static_cast<MMU32>(block->Cb()), ReadCollectionBlock};
+    return _ReadCollection(reader, kind, allocated, header, order, system);
+}
+bool GroupBase::_ReadCollection(const MMReadStream &reader, int kind, bool allocated, MMCollectionHeader *header,
+                                short *order, short *system)
+{
     if (mm_collection_header_read(&reader, kind, allocated, header) != MM_STORAGE_OK)
     {
         Warn("file corrupt or not the requested collection");
@@ -116,7 +121,8 @@ bool GroupBase::_ReadCollection(PDataBlock block, int kind, bool allocated, MMCo
         if ((header->big_endian != 0) != NativeBigEndian()) value = static_cast<ushort>((value >> 8) | (value << 8));
         *system = static_cast<short>(value); // Preserve the original raw header output.
     }
-    if (!_FReadData(block, header->first_bytes, header->second_bytes, header->header_bytes))
+    _SetStorageGrowth();
+    if (mm_storage_read(&_storage, &reader, header->header_bytes, header->first_bytes, header->second_bytes) != MM_STORAGE_OK)
     {
         TrashVar(order); TrashVar(system);
         return false;
@@ -125,13 +131,20 @@ bool GroupBase::_ReadCollection(PDataBlock block, int kind, bool allocated, MMCo
 }
 bool GroupBase::_WriteCollection(PDataBlock block, MMCollectionHeader header, short order, short system)
 {
+    AssertPo(block, 0);
+    const MMStorageWriter writer = {block, static_cast<MMU32>(block->Cb()), WriteCollectionBlock};
+    return _WriteCollection(writer, header, order, system);
+}
+bool GroupBase::_WriteCollection(const MMStorageWriter &writer, MMCollectionHeader header, short order, short system)
+{
     Assert(order == kboCur || order == kboOther, "bad byte order");
     AssertOsk(system);
     byte wire[20];
     header.big_endian = order == kboCur ? NativeBigEndian() : !NativeBigEndian();
     header.system = static_cast<ushort>(system);
     if (mm_collection_header_write(&header, wire, sizeof(wire)) != MM_STORAGE_OK) return false;
-    return _FWrite(block, wire, header.header_bytes, header.first_bytes, header.second_bytes);
+    return mm_storage_write(&_storage, &writer, wire, header.header_bytes, header.first_bytes, header.second_bytes) ==
+           MM_STORAGE_OK;
 }
 MMArray VirtualArray::_ArrayView(bool allocated, LegacyLong freeCount)
 {
@@ -239,29 +252,6 @@ bool GroupBase::FWriteFlo(PFileLocation pflo, short bo, short osk)
 {
     DataBlock blck(pflo);
     return FWrite(&blck, bo, osk);
-}
-
-/***************************************************************************
-    Write the GroupBase data to the block.  First write the (pv, cb), then
-    cb1 bytes from the first section and cb2 bytes from the second.
-***************************************************************************/
-bool GroupBase::_FWrite(PDataBlock pblck, void *pv, LegacyLong cb, LegacyLong cb1, LegacyLong cb2)
-{
-    AssertPo(pblck, 0);
-    const MMStorageWriter writer = {pblck, static_cast<MMU32>(pblck->Cb()), WriteCollectionBlock};
-    return mm_storage_write(&_storage, &writer, pv, cb, cb1, cb2) == MM_STORAGE_OK;
-}
-
-/***************************************************************************
-    Read the two sections of data from the given location in the given
-    block.
-***************************************************************************/
-bool GroupBase::_FReadData(PDataBlock pblck, LegacyLong cb1, LegacyLong cb2, LegacyLong ib)
-{
-    AssertPo(pblck, fblckUnpacked);
-    _SetStorageGrowth();
-    const MMReadStream reader = {pblck, static_cast<MMU32>(pblck->Cb()), ReadCollectionBlock};
-    return mm_storage_read(&_storage, &reader, ib, cb1, cb2) == MM_STORAGE_OK;
 }
 
 #ifdef DEBUG
@@ -490,6 +480,27 @@ bool DynamicArray::FWrite(PDataBlock pblck, short bo, short osk)
 {
     AssertThis(fobjAssertFull);
     return _WriteCollection(pblck, CollectionHeader(MM_COLLECTION_ARRAY, _cbEntry, _ivMac, 0, -1), bo, osk);
+}
+
+bool DynamicArray::FWriteStream(const MMStorageWriter &writer, short order, short system)
+{
+    AssertThis(fobjAssertFull);
+    return _WriteCollection(writer, CollectionHeader(MM_COLLECTION_ARRAY, _cbEntry, _ivMac, 0, -1), order, system);
+}
+
+PDynamicArray DynamicArray::PglReadStream(const MMReadStream &stream, short *order, short *system)
+{
+    auto array = NewObj DynamicArray(4);
+    MMCollectionHeader header;
+    if (!array || !array->_ReadCollection(stream, MM_COLLECTION_ARRAY, false, &header, order, system))
+    {
+        ReleasePpo(&array);
+        return nullptr;
+    }
+    array->_cbEntry = header.width;
+    array->_ivMac = header.count;
+    AssertPo(array, 0);
+    return array;
 }
 
 /***************************************************************************
@@ -865,10 +876,16 @@ LegacyLong VirtualGroup::CbOnFile(void)
 ***************************************************************************/
 bool VirtualGroup::FWrite(PDataBlock pblck, short bo, short osk)
 {
+    AssertPo(pblck, 0);
+    const MMStorageWriter writer = {pblck, static_cast<MMU32>(pblck->Cb()), WriteCollectionBlock};
+    return FWriteStream(writer, bo, osk);
+}
+bool VirtualGroup::FWriteStream(const MMStorageWriter &writer, short bo, short osk)
+{
     AssertThis(fobjAssertFull);
     auto view = _GroupView();
     if (bo == kboOther) mm_group_swap_locations(&view);
-    const bool ok = _WriteCollection(pblck, CollectionHeader(MM_COLLECTION_GROUP, _cbFixed, _ivMac, _bvMac, _clocFree), bo, osk);
+    const bool ok = _WriteCollection(writer, CollectionHeader(MM_COLLECTION_GROUP, _cbFixed, _ivMac, _bvMac, _clocFree), bo, osk);
     if (bo == kboOther) mm_group_swap_locations(&view);
     return ok;
 }
@@ -880,13 +897,17 @@ bool VirtualGroup::_FRead(PDataBlock pblck, short *pbo, short *posk)
 {
     MMCollectionHeader header;
     if (!_ReadCollection(pblck, MM_COLLECTION_GROUP, _clocFree != cvNil, &header, pbo, posk)) return false;
+    _ApplyStoredGroup(header);
+    return true;
+}
+void VirtualGroup::_ApplyStoredGroup(const MMCollectionHeader &header)
+{
     _cbFixed = header.width; _ivMac = header.count; _bvMac = header.bytes; _clocFree = header.free_count;
     if ((header.big_endian != 0) != NativeBigEndian())
     {
         auto view = _GroupView();
         mm_group_swap_locations(&view);
     }
-    return true;
 }
 
 /***************************************************************************
@@ -1461,6 +1482,20 @@ PAllocatedGroup AllocatedGroup::PagRead(PDataBlock pblck, short *pbo, short *pos
     }
     AssertPo(pag, fobjAssertFull);
     return pag;
+}
+
+PAllocatedGroup AllocatedGroup::PagReadStream(const MMReadStream &stream, short *order, short *system)
+{
+    auto group = NewObj AllocatedGroup(0);
+    MMCollectionHeader header;
+    if (!group || !group->_ReadCollection(stream, MM_COLLECTION_GROUP, true, &header, order, system))
+    {
+        ReleasePpo(&group);
+        return nullptr;
+    }
+    group->_ApplyStoredGroup(header);
+    AssertPo(group, fobjAssertFull);
+    return group;
 }
 
 /***************************************************************************

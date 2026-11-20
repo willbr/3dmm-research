@@ -65,7 +65,7 @@ struct CaptionBody
             return location.FReadRgb(out, static_cast<LegacyLong>(bytes), offset);
         },
         [](void *, void *file) { static_cast<PFileObject>(file)->AddRef(); },
-        [](void *, void *file) { static_cast<PFileObject>(file)->Release(); }}
+        [](void *, void *file) { static_cast<PFileObject>(file)->Release(); }, nullptr}
     {
         mm_rich_text_init(&state, editor.text_unit, editor.system);
     }

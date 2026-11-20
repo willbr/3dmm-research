@@ -123,6 +123,15 @@ extern "C"
     int mm_rich_text_write_encoded(const MMRichTextState *, const MMTextEncoded *replacement, MMTextChunk *,
                                    int big, const MMRichTextWriteServices *);
 
+    typedef struct MMRichTextArchiveCollections
+    {
+        void (*release)(void *, MMU32 kind, void *);
+        MMI32 (*width)(void *, MMU32 kind, void *);
+        int (*read)(void *, MMU32 kind, const MMReadStream *, void **, int *order, int *system);
+        MMU32 (*bytes)(void *, MMU32 kind, void *);
+        MMI32 (*count)(void *, void *);
+        int (*write)(void *, MMU32 kind, const MMStorageWriter *, void *, int order, int system);
+    } MMRichTextArchiveCollections;
     typedef struct MMRichTextArchive
     {
         const struct MMMovieArchiveEditor *editor;
@@ -133,7 +142,24 @@ extern "C"
         int (*read_at)(void *, const MMTextLocation *, MMU32 offset, void *, size_t);
         void (*retain_file)(void *, void *);
         void (*release_file)(void *, void *);
+        const MMRichTextArchiveCollections *collections; /* NULL uses C collections. */
     } MMRichTextArchive;
+    typedef struct MMRichTextArchiveReader
+    {
+        const MMRichTextArchive *archive;
+        MMReadStream root;
+    } MMRichTextArchiveReader;
+    typedef struct MMRichTextArchiveWriter
+    {
+        const MMRichTextArchive *archive;
+        const struct MMMovieArchiveEditor *text_editor;
+        MMStorageWriter writer;
+    } MMRichTextArchiveWriter;
+    /* The supplied state must outlive the services. A separate editor for the
+     * same archive retains the live TEXT extent across later group writes. */
+    void mm_rich_text_archive_reader(MMRichTextArchiveReader *, const MMRichTextArchive *, MMRichTextReadServices *);
+    void mm_rich_text_archive_writer(MMRichTextArchiveWriter *, const MMRichTextArchive *,
+                                     const struct MMMovieArchiveEditor *text_editor, MMRichTextWriteServices *);
     typedef struct MMRichTextStream
     {
         MMReadStream stream;
@@ -141,7 +167,7 @@ extern "C"
         const MMTextLocation *location;
     } MMRichTextStream;
     void mm_rich_text_archive_stream(MMRichTextStream *, const MMRichTextArchive *, const MMTextLocation *);
-    /* Uses C collections. Archive callbacks are synchronous and do not throw.
+    /* Uses the configured collections. Archive callbacks are synchronous and do not throw.
      * The editable archive supplies discard for partial tree cleanup. */
     int mm_rich_text_archive_read(MMRichTextState *, const MMTextChunk *, const MMRichTextArchive *);
     int mm_rich_text_archive_write(const MMRichTextState *, const MMTextEncoded *, MMTextChunk *,

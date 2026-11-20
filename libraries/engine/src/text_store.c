@@ -392,14 +392,17 @@ static void archive_release(void *p, MMU32 kind, void *object)
     const MMRichTextArchive *archive = p;
     if (kind == MM_TEXT_BYTES)
         archive->release_file(archive->context, object);
+    else if (archive->collections)
+        archive->collections->release(archive->context, kind, object);
     else
         mm_text_collection_dispose(object);
 }
 
 static MMI32 archive_collection_width(void *p, MMU32 kind, void *group)
 {
-    (void)p;
-    (void)kind;
+    const MMRichTextArchive *archive = p;
+    if (archive->collections)
+        return archive->collections->width(archive->context, kind, group);
     return mm_text_collection_width(group);
 }
 
@@ -439,15 +442,9 @@ static MMStringWire archive_font_wire(const MMRichTextArchive *archive, const MM
     return wire;
 }
 
-typedef struct RichArchiveRead
-{
-    const MMRichTextArchive *archive;
-    MMReadStream root;
-} RichArchiveRead;
-
 static int archive_rich_root(void *p, MMU32 type, MMU32 number, MMReadStream *out)
 {
-    RichArchiveRead *read = p;
+    MMRichTextArchiveReader *read = p;
     const MMMovieArchiveEditor *editor = read->archive->editor;
     int result = editor->read(editor->context, type, number, &read->root);
     if (result > 0)
@@ -457,7 +454,7 @@ static int archive_rich_root(void *p, MMU32 type, MMU32 number, MMReadStream *ou
 
 static int archive_rich_read_font(void *p, MMMovieTitle *font)
 {
-    const RichArchiveRead *read = p;
+    const MMRichTextArchiveReader *read = p;
     unsigned short counted[MM_STRING_MAX + 2];
     const unsigned char *raw = (const unsigned char *)counted;
     const MMStringWire wire = archive_font_wire(read->archive, font, counted);
@@ -468,58 +465,63 @@ static int archive_rich_read_font(void *p, MMMovieTitle *font)
 
 static int archive_rich_child(void *p, MMU32 type, MMU32 number, MMU32 kind, MMU32 *out)
 {
-    const MMMovieArchiveEditor *editor = ((const RichArchiveRead *)p)->archive->editor;
+    const MMMovieArchiveEditor *editor = ((const MMRichTextArchiveReader *)p)->archive->editor;
     const MMChunkAccess chunks = editor->chunks(editor->context);
     return mm_chunk_link_number(&chunks, type, number, 0, kind, out) == MM_CHUNK_OK;
 }
 
 static int archive_rich_location(void *p, MMU32 type, MMU32 number, MMTextLocation *out)
 {
-    const MMRichTextArchive *archive = ((const RichArchiveRead *)p)->archive;
+    const MMRichTextArchive *archive = ((const MMRichTextArchiveReader *)p)->archive;
     return type == MM_TEXT_BYTES ? archive->location(archive->context, number, out) : 0;
 }
 
 static int archive_rich_read_text(void *p, const MMTextLocation *location, void *out, MMU32 bytes)
 {
-    const MMRichTextArchive *archive = ((const RichArchiveRead *)p)->archive;
+    const MMRichTextArchive *archive = ((const MMRichTextArchiveReader *)p)->archive;
     return archive->read_at(archive->context, location, 0, out, bytes);
 }
 
 static int archive_rich_read_group(void *p, MMU32 kind, MMU32 number, void **out, int *order, int *system)
 {
-    const MMMovieArchiveEditor *editor = ((const RichArchiveRead *)p)->archive->editor;
+    const MMRichTextArchive *archive = ((const MMRichTextArchiveReader *)p)->archive;
+    const MMMovieArchiveEditor *editor = archive->editor;
     MMReadStream stream;
     MMTextCollection *collection;
     int result = editor->read(editor->context, kind, number, &stream);
-    if (result > 0)
-        result = mm_text_collection_read(kind, &stream, &collection, order, system);
+    if (result <= 0)
+        return result;
+    if (archive->collections)
+        return archive->collections->read(archive->context, kind, &stream, out, order, system);
+    result = mm_text_collection_read(kind, &stream, &collection, order, system);
     if (result > 0)
         *out = collection;
     return result;
 }
 
-int mm_rich_text_archive_read(MMRichTextState *state, const MMTextChunk *chunk, const MMRichTextArchive *archive)
+void mm_rich_text_archive_reader(MMRichTextArchiveReader *read, const MMRichTextArchive *archive,
+                                 MMRichTextReadServices *services)
 {
-    RichArchiveRead read;
-    MMRichTextReadServices services = {0};
-    const MMMovieArchiveEditor *editor = archive->editor;
-    read.archive = archive;
-    services.context = &read;
-    services.objects = archive_objects(archive);
-    services.root = archive_rich_root;
-    services.font = archive_rich_read_font;
-    services.child = archive_rich_child;
-    services.location = archive_rich_location;
-    services.read_text = archive_rich_read_text;
-    services.group = archive_rich_read_group;
-    return mm_rich_text_read(state, chunk->type, chunk->number, editor->system, editor->big_endian, &services);
+    read->archive = archive;
+    memset(services, 0, sizeof(*services));
+    services->context = read;
+    services->objects = archive_objects(archive);
+    services->root = archive_rich_root;
+    services->font = archive_rich_read_font;
+    services->child = archive_rich_child;
+    services->location = archive_rich_location;
+    services->read_text = archive_rich_read_text;
+    services->group = archive_rich_read_group;
 }
 
-typedef struct RichArchiveWrite
+int mm_rich_text_archive_read(MMRichTextState *state, const MMTextChunk *chunk, const MMRichTextArchive *archive)
 {
-    const MMRichTextArchive *archive;
-    MMStorageWriter writer;
-} RichArchiveWrite;
+    MMRichTextArchiveReader read;
+    MMRichTextReadServices services;
+    const MMMovieArchiveEditor *editor = archive->editor;
+    mm_rich_text_archive_reader(&read, archive, &services);
+    return mm_rich_text_read(state, chunk->type, chunk->number, editor->system, editor->big_endian, &services);
+}
 
 static MMU32 archive_rich_font_bytes(void *p, const MMMovieTitle *font)
 {
@@ -529,20 +531,20 @@ static MMU32 archive_rich_font_bytes(void *p, const MMMovieTitle *font)
 
 static int archive_rich_add_root(void *p, MMU32 bytes, MMU32 *out)
 {
-    RichArchiveWrite *write = p;
+    MMRichTextArchiveWriter *write = p;
     const MMMovieArchiveEditor *editor = write->archive->editor;
     return editor->add(editor->context, MM_TEXT_ROOT, bytes, out, &write->writer);
 }
 
 static int archive_rich_put(void *p, MMU32 offset, const void *in, MMU32 bytes)
 {
-    const MMStorageWriter *writer = &((const RichArchiveWrite *)p)->writer;
+    const MMStorageWriter *writer = &((const MMRichTextArchiveWriter *)p)->writer;
     return writer->write_at(writer->context, offset, in, bytes);
 }
 
 static int archive_rich_write_font(void *p, const MMMovieTitle *font)
 {
-    const RichArchiveWrite *write = p;
+    const MMRichTextArchiveWriter *write = p;
     unsigned short counted[MM_STRING_MAX + 2];
     unsigned char *raw = (unsigned char *)counted;
     const MMStringWire wire = archive_font_wire(write->archive, font, counted);
@@ -560,14 +562,15 @@ static int archive_rich_write_font(void *p, const MMMovieTitle *font)
 
 static void archive_rich_remove(void *p, MMU32 number)
 {
-    const MMMovieArchiveEditor *editor = ((const RichArchiveWrite *)p)->archive->editor;
+    const MMMovieArchiveEditor *editor = ((const MMRichTextArchiveWriter *)p)->archive->editor;
     editor->discard(editor->context, MM_TEXT_ROOT, number);
 }
 
 static int archive_rich_add_child(void *p, MMU32 root, MMU32 kind, MMU32 bytes)
 {
-    RichArchiveWrite *write = p;
-    const MMMovieArchiveEditor *editor = write->archive->editor;
+    MMRichTextArchiveWriter *write = p;
+    const MMMovieArchiveEditor *editor = kind == MM_TEXT_BYTES && write->text_editor ?
+                                        write->text_editor : write->archive->editor;
     MMU32 child;
     int result = editor->add(editor->context, kind, bytes, &child, &write->writer);
     if (result <= 0)
@@ -580,43 +583,55 @@ static int archive_rich_add_child(void *p, MMU32 root, MMU32 kind, MMU32 bytes)
 
 static MMU32 archive_rich_group_bytes(void *p, MMU32 kind, void *collection)
 {
-    (void)p;
-    (void)kind;
+    const MMRichTextArchive *archive = ((const MMRichTextArchiveWriter *)p)->archive;
+    if (archive->collections)
+        return archive->collections->bytes(archive->context, kind, collection);
     return mm_text_collection_bytes(collection);
 }
 
 static MMI32 archive_rich_group_count(void *p, void *collection)
 {
-    (void)p;
+    const MMRichTextArchive *archive = ((const MMRichTextArchiveWriter *)p)->archive;
+    if (archive->collections)
+        return archive->collections->count(archive->context, collection);
     return mm_text_collection_count(collection);
 }
 
 static int archive_rich_write_group(void *p, MMU32 kind, void *collection, int order, int system)
 {
-    const RichArchiveWrite *write = p;
-    (void)kind;
+    const MMRichTextArchiveWriter *write = p;
+    if (write->archive->collections)
+        return write->archive->collections->write(write->archive->context, kind, &write->writer, collection, order, system);
     return mm_text_collection_write(collection, &write->writer, order, system);
+}
+
+void mm_rich_text_archive_writer(MMRichTextArchiveWriter *write, const MMRichTextArchive *archive,
+                                 const MMMovieArchiveEditor *text_editor, MMRichTextWriteServices *services)
+{
+    write->archive = archive;
+    write->text_editor = text_editor;
+    memset(services, 0, sizeof(*services));
+    services->context = write;
+    services->objects = archive_objects(archive);
+    services->font_bytes = archive_rich_font_bytes;
+    services->add_root = archive_rich_add_root;
+    services->write = archive_rich_put;
+    services->font = archive_rich_write_font;
+    services->remove = archive_rich_remove;
+    services->add_child = archive_rich_add_child;
+    services->group_bytes = archive_rich_group_bytes;
+    services->count = archive_rich_group_count;
+    services->group = archive_rich_write_group;
 }
 
 int mm_rich_text_archive_write(const MMRichTextState *state, const MMTextEncoded *replacement, MMTextChunk *out,
                                const MMRichTextArchive *archive)
 {
-    RichArchiveWrite write;
-    MMRichTextWriteServices services = {0};
+    MMRichTextArchiveWriter write;
+    MMRichTextWriteServices services;
     MMRichTextStream source;
     MMTextEncoded stored = {0};
-    write.archive = archive;
-    services.context = &write;
-    services.objects = archive_objects(archive);
-    services.font_bytes = archive_rich_font_bytes;
-    services.add_root = archive_rich_add_root;
-    services.write = archive_rich_put;
-    services.font = archive_rich_write_font;
-    services.remove = archive_rich_remove;
-    services.add_child = archive_rich_add_child;
-    services.group_bytes = archive_rich_group_bytes;
-    services.count = archive_rich_group_count;
-    services.group = archive_rich_write_group;
+    mm_rich_text_archive_writer(&write, archive, NULL, &services);
     if (!replacement)
     {
         mm_rich_text_archive_stream(&source, archive, &state->text);
