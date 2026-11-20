@@ -359,7 +359,6 @@ class Actor : public Actor_PAR
 
     // Event Editing
     bool FAddOnStageCore(void);
-    bool FSetActionCore(long anid, long celn, bool fFreeze);
     bool FRemFromStageCore(void);
     bool FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCustom);
     bool FSetStep(BRS dwrStep);

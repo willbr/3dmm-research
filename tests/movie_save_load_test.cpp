@@ -1251,7 +1251,10 @@ class TrackTestActor : public Actor
             if (variant&1) { _owner.runtime.state.action=-1; _owner.runtime.state.actionEvent=-1; }
             if (variant&2) _owner.runtime.state.location={0,BR_SCALAR(10),0};
             tmpl->FailAfter(variant>=8 ? (variant-8)/2+1 : 0);
-            ok=FSetActionCore(0,variant%4,(variant&4)!=0);
+            const auto services = _ActionEditServices();
+            const auto motion = mm_actor_track_motion_services();
+            ChildChunkID external=0; TrashVar(&external);
+            ok=mm_actor_owner_set_action(&_owner,0,variant%4,(variant&4)!=0,external,&motion,&services)!=0;
             tmpl->FailAfter(0);
         }
         else if (actionFill)

@@ -656,15 +656,6 @@ MMActorSubrouteEditServices Actor::_SubrouteEditServices()
     };
     return s;
 }
-bool Actor::FSetActionCore(long anid, long celn, bool fFreeze)
-{
-    AssertThis(0); AssertIn(anid,0,klwMax); AssertIn(celn,klwMin,klwMax);
-    const auto tables=EngineActorMotion::Services();
-    const auto services=_ActionEditServices();
-    ChildChunkID external=0; TrashVar(&external);
-    return mm_actor_owner_set_action(&_owner,anid,celn,fFreeze,external,&tables,&services)!=0;
-}
-
 /***************************************************************************
 
     Remove an actor from the stage

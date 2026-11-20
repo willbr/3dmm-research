@@ -30,6 +30,7 @@ enum
 };
 enum { MM_RECORD_FREEZE = 1, MM_RECORD_GROUND = 2 };
 struct MMActorOwnerServices;
+struct MMActorTransactionServices;
 struct MMPreviewActor;
 struct MMPreviewActorServices;
 typedef struct MMActorRecordServices
@@ -103,20 +104,20 @@ typedef struct MMActorRecordGestureServices
 {
     void *context;
     MMU32 (*clock_now)(void *);
-    void (*release)(void *snapshot);
-    int (*set_action)(void *actor, MMI32 action, MMI32 cel, int frozen, void **snapshot);
+    void (*hide_cursor)(void *);
     void (*recording_started)(void *, int replace);
 } MMActorRecordGestureServices;
-int mm_actor_record_gesture_start(MMActorRecordGesture *, void *actor, const MMActorState *,
-    MMActorRecording *, unsigned modifiers, const MMActorRecordGestureServices *);
+int mm_actor_record_gesture_start(MMActorRecordGesture *, unsigned modifiers,
+    const MMActorRecordServices *, const struct MMActorTransactionServices *,
+    const MMActorRecordGestureServices *);
 int mm_actor_record_gesture_sample(MMActorRecordGesture *, const MMActorPoint *,
     unsigned modifiers, int ground, MMU32 now, const MMActorRecordServices *,
     const MMActorRecordGestureServices *);
 /* End also restores the default mode after a temporary rerecord. An absent
  * actor still releases the snapshot and restores the mode. */
 void mm_actor_record_gesture_end(MMActorRecordGesture *, const MMActorRecordServices *,
-    const MMActorRecordGestureServices *);
-void mm_actor_record_gesture_discard(MMActorRecordGesture *, const MMActorRecordGestureServices *);
+    const struct MMActorOwnerServices *);
+void mm_actor_record_gesture_discard(MMActorRecordGesture *, const struct MMActorOwnerServices *);
 void mm_actor_record_gesture_filter_axes(const MMActorRecordGesture *, int recording, MMActorPoint *);
 #ifdef __cplusplus
 }

@@ -8,24 +8,38 @@ static int register_snapshot(void *actor,void *snapshot,int sound,const MMActorT
     const MMActorOwner *owner=s->actors.owner(s->actors.context,actor);
     return mm_actor_undo_create(snapshot,owner->runtime.actor,sound,NULL,0,&s->actors,&s->undo);
 }
-int mm_actor_transaction_apply(void *actor,int kind,MMActorTransactionResult *out,const MMActorTransactionServices *s)
+static int finish_edit(void *actor,void *snapshot,int applied,int sound,void **out,
+                       const MMActorTransactionServices *s)
+{
+    if (!applied || !register_snapshot(actor,snapshot,sound,s))
+    {
+        mm_actor_owner_restore(actor,snapshot,&s->actors);
+        s->actors.release(s->actors.context,snapshot);
+        return 0;
+    }
+    if (out) *out=snapshot;
+    else s->actors.release(s->actors.context,snapshot);
+    return 1;
+}
+int mm_actor_transaction_apply(void *actor,int sound,const MMActorTransactionServices *s)
 {
     MMActorOwnerResult copy={NULL,NULL,NULL};
     if (!mm_actor_owner_duplicate(actor,0,&copy,&s->actors))
         return 0;
-    if (!s->apply(s->context) || !register_snapshot(actor,copy.actor,kind==MM_TRANSACTION_SOUND,s))
-    {
-        mm_actor_owner_restore(actor,copy.actor,&s->actors);
-        s->actors.release(s->actors.context,copy.actor);
+    return finish_edit(actor,copy.actor,s->apply(s->context),sound,NULL,s);
+}
+int mm_actor_transaction_action(void *actor,MMI32 action,MMI32 cel,int frozen,MMU32 external_child,
+    void **snapshot,const MMActorMotionServices *motion,const MMActorActionEditServices *edit,
+    const MMActorTransactionServices *s)
+{
+    MMActorOwnerResult copy={NULL,NULL,NULL};
+    MMActorOwner *owner;
+    int applied;
+    if (!mm_actor_owner_duplicate(actor,0,&copy,&s->actors))
         return 0;
-    }
-    if (kind==MM_TRANSACTION_ACTION && out)
-    {
-        out->snapshot=copy.actor;
-        if (out->publish) out->publish(out->context,copy.actor);
-    }
-    else s->actors.release(s->actors.context,copy.actor);
-    return 1;
+    owner=s->actors.owner(s->actors.context,actor);
+    applied=mm_actor_owner_set_action(owner,action,cel,frozen,external_child,motion,edit);
+    return finish_edit(actor,copy.actor,applied,0,snapshot,s);
 }
 static void alive(MMActorDeleteResult *out,int value,int trashed)
 {

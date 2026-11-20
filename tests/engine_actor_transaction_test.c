@@ -16,13 +16,13 @@ typedef struct Fixture
 {
     MMActorTransactionServices transaction;
     MMActorDeleteServices deletion;
-    MMActorTransactionResult result;
+    void *snapshot;
     MMActorDeleteResult alive;
     Actor live, copy;
     MMActorUndoState undo;
     MMMovieUndoContext undo_context;
     int body_refs, template_refs, track_blocks, undo_refs;
-    int edited, registered, restored, detached, publications, trash, alive_writes;
+    int edited, registered, restored, detached, trash, alive_writes;
     int fail_duplicate, fail_apply, fail_undo_create, fail_undo, fail_seek, fail_lifetime;
     int has_output, seeks, frames[2], sounds, faults, last_fault, hidden;
     int second_subroute, keep_original, detach_on_seek, expect_sound;
@@ -113,6 +113,7 @@ static void reset_costume(void *p)
     Fixture *f=(Fixture *)p;
     mark(f,'Z');
     CHECK(f->registered && f->undo_refs==1);
+    CHECK(f->snapshot==f);
     CHECK(!f->copy.owner.runtime.body && !f->copy.owner.runtime.scene);
     CHECK(f->copy.owner.runtime.state.frame==2147483647L);
     ++f->detached;
@@ -180,6 +181,7 @@ static int add_undo(void *p,void *handle)
     Fixture *f=(Fixture *)p;
     MMActorEvent event;
     CHECK(handle==f && f->undo.actor==&f->copy && f->copy.refs==2);
+    CHECK(f->snapshot==f);
     CHECK(f->undo.sound==f->expect_sound && f->undo.actor_id==23);
     CHECK(mm_actor_events_get_fixed(f->copy.owner.track.events,0,&event) && event.nfrm==f->add_frame);
     mark(f,'J');
@@ -199,14 +201,6 @@ static void release_undo(void *p,void *handle)
     mark(f,'W');
     if (!--f->undo_refs)
         release(p,f->undo.actor);
-}
-
-static void publish_snapshot(void *p,void *snapshot)
-{
-    Fixture *f=(Fixture *)p;
-    mark(f,'O');
-    CHECK(snapshot==&f->copy && f->result.snapshot==snapshot && f->detached && f->copy.refs==2);
-    ++f->publications;
 }
 
 static void publish_alive(void *p,int value,int trashed)
@@ -348,9 +342,7 @@ static void init(Fixture *f)
     undo->add=add_undo;
     undo->clear=clear_undo;
     undo->release=release_undo;
-    f->result.snapshot=f;
-    f->result.context=f;
-    f->result.publish=publish_snapshot;
+    f->snapshot=f;
     f->alive.alive=7;
     f->alive.trashed=3;
     f->alive.context=f;
@@ -421,7 +413,7 @@ static void create_track(Fixture *f)
 
 static void done(Fixture *f)
 {
-    if (f->result.snapshot==&f->copy)
+    if (f->snapshot==&f->copy)
         release(f,&f->copy);
     if (f->undo_refs)
         release_undo(f,f);
@@ -437,13 +429,58 @@ static int delete_actor(Fixture *f,int all,int output)
     return mm_actor_transaction_delete(&f->live,all,output?&f->alive:NULL,&f->transaction,&f->deletion);
 }
 
+static int action_flags(void *p,MMI32 action,MMU32 *flags)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(action==0 && f->copy.refs==1 && f->copy.owner.track.events!=f->live.owner.track.events);
+    *flags=8;
+    return 1;
+}
+
+static int apply_action(void *p,MMActorState *state,MMI32 index)
+{
+    Fixture *f=(Fixture *)p;
+    MMActorEventTable *table=f->live.owner.track.events;
+    MMActorEvent event;
+    MMI32 value[2];
+    CHECK(mm_actor_events_get_fixed(table,index,&event));
+    CHECK(event.aet==MM_ACTOR_ACTION || event.aet==MM_ACTOR_FREEZE);
+    CHECK(mm_actor_events_get_payload(table,index,value));
+    if (event.aet==MM_ACTOR_ACTION)
+    {
+        state->action=value[0];
+        state->cel=value[1];
+        state->actionEvent=index;
+        return !f->fail_apply;
+    }
+    state->frozen=value[0]!=0;
+    return 1;
+}
+
+static int edit_action(Fixture *f,int output)
+{
+    MMActorActionEditServices services={0};
+    const MMActorMotionServices motion=mm_actor_track_motion_services();
+    services.context=f;
+    services.action_flags=action_flags;
+    services.mark_life_dirty=dirty_life;
+    services.sounds.edits=f->deletion.subroute.route.edits;
+    services.sounds.edits.apply_event=apply_action;
+    services.sounds.edits.invalidate_range=dirty_life;
+    f->live.owner.runtime.state.action=0;
+    f->live.owner.runtime.state.cel=0;
+    f->live.owner.runtime.state.actionEvent=1;
+    return mm_actor_transaction_action(&f->live,0,3,1,0,output?&f->snapshot:NULL,
+                                       &motion,&services,&f->transaction);
+}
+
 static void edits(void)
 {
     static const char *fail_traces[]={"D","DL","DARL","DAURL","DAUJCWLRL"};
     Fixture f;
     MMActorEvent event;
-    int kind,fail,output;
-    for (kind=0;kind<=MM_TRANSACTION_SOUND;++kind) for (output=0;output<2;++output) for (fail=0;fail<6;++fail)
+    int mode,fail;
+    for (mode=0;mode<4;++mode) for (fail=0;fail<6;++fail)
     {
         init(&f);
         create_track(&f);
@@ -451,22 +488,34 @@ static void edits(void)
         f.fail_apply=fail==3;
         f.fail_undo_create=fail==4;
         f.fail_undo=fail==5;
-        f.expect_sound=kind==MM_TRANSACTION_SOUND;
-        CHECK(mm_actor_transaction_apply(&f.live,kind,output?&f.result:NULL,&f.transaction)==!fail);
+        f.expect_sound=mode==1;
+        if (mode<2) CHECK(mm_actor_transaction_apply(&f.live,f.expect_sound,&f.transaction)==!fail);
+        else CHECK(edit_action(&f,mode==3)==!fail);
         CHECK(mm_actor_events_get_fixed(f.live.owner.track.events,0,&event));
         if (!fail)
         {
-            CHECK(f.registered==1 && f.detached && f.edited==1 && event.nfrm==17);
-            CHECK(f.publications==(kind==MM_TRANSACTION_ACTION && output));
-            CHECK(f.copy.refs==(f.publications?2:1) && f.body_refs==1 && f.template_refs==2);
-            CHECK(!strcmp(f.trace,f.publications?"DAUJWZO":"DAUJWZL"));
+            CHECK(f.registered==1 && f.detached && f.edited);
+            CHECK(f.snapshot==(mode==3?(void *)&f.copy:(void *)&f));
+            CHECK(f.copy.refs==(mode==3?2:1) && f.body_refs==1 && f.template_refs==2);
+            if (mode<2) CHECK(f.edited==1 && event.nfrm==17 && !strcmp(f.trace,"DAUJWZL"));
+            else
+            {
+                CHECK(f.live.owner.runtime.state.cel==3 && f.live.owner.runtime.state.frozen);
+                CHECK(mm_actor_events_get_fixed(f.live.owner.track.events,f.live.owner.runtime.state.actionEvent,&event));
+                CHECK(event.aet==MM_ACTOR_ACTION);
+            }
         }
         else
         {
-            CHECK(f.result.snapshot==&f && !f.publications && !f.registered && !f.edited);
-            CHECK(!strcmp(f.trace,fail_traces[fail-1]));
+            CHECK(f.snapshot==&f && !f.registered && !f.edited);
+            if (mode<2 || fail<=2) CHECK(!strcmp(f.trace,fail_traces[fail-1]));
             CHECK(!f.copy.refs && f.body_refs==1 && f.template_refs==1);
             CHECK(event.nfrm==f.add_frame && f.live.owner.runtime.state.frame==10);
+            if (mode>=2)
+            {
+                CHECK(f.live.owner.runtime.state.cel==0 && mm_actor_events_count(f.live.owner.track.events)==3);
+                CHECK(mm_actor_events_get_fixed(f.live.owner.track.events,1,&event) && event.aet==MM_ACTOR_ACTION);
+            }
         }
         done(&f);
     }

@@ -1106,8 +1106,10 @@ reference on forced end, and registers add or replacement undo on acceptance.
 Studio's record gesture keeps its rollback snapshot, frame and cel cadence, and
 temporary rerecord mode in C89. It calls the C89 actor owner directly for
 recording start, route trimming, cel cycling, frame and point samples, and
-recording finish. Studio supplies scene effects, clock and UI notifications,
-and the undoable action edit that opens a gesture.
+recording finish. The action browser and recording startup use the same C89
+action transaction to edit the actor and register undo. The gesture takes its
+rollback reference after the transaction resets the registered snapshot.
+Studio supplies native effects, clock and UI notifications.
 Sooner/Later now uses shared actor snapshot capture, C89 frame stepping and
 direct updates to the C89 undo record. The actor owner publishes shifted state
 and controls the time-edit highlight flag.

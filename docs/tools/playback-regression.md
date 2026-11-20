@@ -15975,3 +15975,32 @@ In `actor-event-edit` suite `20261120T151024Z-eba02d6e`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## C89 action undo and recording startup (20 November 2026)
+
+The action browser and recording gesture both use the C89 action
+transaction. It clones the actor, edits the live track and registers
+undo. Recording takes a reference to the reset snapshot only after
+registration succeeds and samples its start timestamp afterward.
+Failed edits and undo registration restore the pre-edit runtime and
+track through the same rollback used by the other actor edits.
+
+The action transaction fixture covers the optional snapshot reference,
+allocation and partial-edit failures, and undo creation and registration
+failures. The gesture fixture checks cursor effect ordering, timestamp
+publication, and reference ownership through start, failure and release.
+
+All 14 targeted x64 checks, 20 standalone C89 checks, 11 checks each in
+x86 Debug and SDL Release, and four AddressSanitizer checks passed.
+Ten actor traces matched their baselines across native x64, SDL Release,
+and x86 Debug. Both native x64 and SDL Release movie archives matched.
+The full x86 suite again passed the actor checks and stopped at the
+existing template-construction failure. All ten Preview fingerprints,
+six fixture archives, and both VMM seek images in
+`20261120T152124Z-0af11e70` matched their baselines. Logs and fixtures
+are in `tmp/c89-record-action-transaction`.
+
+In `actor-event-edit` suite `20261120T152124Z-c11cff86`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

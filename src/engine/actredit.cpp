@@ -358,8 +358,6 @@ bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
 struct Actor::EditContext
 {
     Actor *actor;
-    long action,cel;
-    bool freeze;
     ulong normalization;
     long body_set,material;
     TAG *tag;
@@ -383,12 +381,17 @@ MMActorDeleteServices Actor::_DeleteServices()
 
 bool Actor::FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup)
 {
-    AssertThis(0); AssertNilOrVarMem(ppactrDup); EditContext context{this}; context.action=anid; context.cel=celn; context.freeze=fFreeze;
-    auto s=_TransactionServices(&context);
-    s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FSetActionCore(c->action,c->cel,c->freeze)); };
-    MMActorTransactionResult out{}; out.context=ppactrDup;
-    out.publish=[](void *p,void *snapshot) { *static_cast<PActor *>(p)=static_cast<PActor>(snapshot); };
-    return mm_actor_transaction_apply(this,MM_TRANSACTION_ACTION,ppactrDup?&out:nullptr,&s)!=0;
+    AssertThis(0); AssertNilOrVarMem(ppactrDup); AssertIn(anid,0,klwMax); AssertIn(celn,klwMin,klwMax);
+    const auto transaction = _TransactionServices(nullptr);
+    const auto motion = mm_actor_track_motion_services();
+    const auto edit = _ActionEditServices();
+    ChildChunkID external=0; TrashVar(&external);
+    void *snapshot;
+    if (!mm_actor_transaction_action(this,anid,celn,fFreeze,external,
+                                     ppactrDup?&snapshot:nullptr,&motion,&edit,&transaction))
+        return false;
+    if (ppactrDup) *ppactrDup=static_cast<PActor>(snapshot);
+    return true;
 }
 
 /***************************************************************************
@@ -401,7 +404,7 @@ bool Actor::FAddOnStage(void)
 {
     AssertThis(0); EditContext context{this}; auto s=_TransactionServices(&context);
     s.apply=[](void *p) { return int(static_cast<EditContext *>(p)->actor->FAddOnStageCore()); };
-    return mm_actor_transaction_apply(this,MM_TRANSACTION_ADD,nullptr,&s)!=0;
+    return mm_actor_transaction_apply(this,0,&s)!=0;
 }
 
 /***************************************************************************
@@ -413,7 +416,7 @@ bool Actor::FNormalize(ulong grfnorm)
 {
     AssertThis(0); EditContext context{this}; context.normalization=grfnorm; auto s=_TransactionServices(&context);
     s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FNormalizeCore(c->normalization)); };
-    return mm_actor_transaction_apply(this,MM_TRANSACTION_NORMALIZE,nullptr,&s)!=0;
+    return mm_actor_transaction_apply(this,0,&s)!=0;
 }
 
 /***************************************************************************
@@ -428,7 +431,7 @@ bool Actor::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
     EditContext context{this}; context.body_set=ibset; context.tag=ptag; context.material=cmid; context.custom=fCmtl;
     auto s=_TransactionServices(&context);
     s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FSetCostumeCore(c->body_set,c->tag,c->material,c->custom)); };
-    return mm_actor_transaction_apply(this,MM_TRANSACTION_COSTUME,nullptr,&s)!=0;
+    return mm_actor_transaction_apply(this,0,&s)!=0;
 }
 
 /***************************************************************************
@@ -454,7 +457,7 @@ bool Actor::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMat
         const auto &c = *static_cast<EditContext *>(p);
         return int(c.actor->FSetSndCore(c.tag, c.loop, c.queue, c.motion_match, c.volume, c.style));
     };
-    return mm_actor_transaction_apply(this, MM_TRANSACTION_SOUND, nullptr, &services) != 0;
+    return mm_actor_transaction_apply(this, 1, &services) != 0;
 }
 
 /***************************************************************************
@@ -488,7 +491,7 @@ bool Actor::FRemFromStage(void)
 {
     AssertThis(0); EditContext context{this}; auto s=_TransactionServices(&context);
     s.apply=[](void *p) { return int(static_cast<EditContext *>(p)->actor->FRemFromStageCore()); };
-    return mm_actor_transaction_apply(this,MM_TRANSACTION_REMOVE,nullptr,&s)!=0;
+    return mm_actor_transaction_apply(this,0,&s)!=0;
 }
 
 /****************************************************

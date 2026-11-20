@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_record.h"
 #include "mm/actor_owner.h"
+#include "mm/actor_transaction.h"
 #include "mm/preview_actor.h"
 #include "mm/wide.h"
 #define FLAG(kind) ((MMU32)1 << (kind))
@@ -298,21 +299,24 @@ int mm_actor_owner_record_end(int replace, void *undo, const MMActorRecordServic
     return ok;
 }
 
-void mm_actor_record_gesture_discard(MMActorRecordGesture *gesture, const MMActorRecordGestureServices *s)
+void mm_actor_record_gesture_discard(MMActorRecordGesture *gesture, const MMActorOwnerServices *actors)
 {
     if (gesture->restore)
     {
-        s->release(gesture->restore);
+        actors->release(actors->context, gesture->restore);
         gesture->restore = NULL;
     }
 }
 
-int mm_actor_record_gesture_start(MMActorRecordGesture *gesture, void *actor, const MMActorState *state,
-    MMActorRecording *record, unsigned modifiers, const MMActorRecordGestureServices *s)
+int mm_actor_record_gesture_start(MMActorRecordGesture *gesture, unsigned modifiers,
+    const MMActorRecordServices *record, const MMActorTransactionServices *transaction,
+    const MMActorRecordGestureServices *s)
 {
+    const MMActorSubrouteEditServices *edit = &record->subroute;
+    MMActorRuntime *runtime = &edit->live->runtime;
     int shift = (modifiers & MM_RECORD_GESTURE_SHIFT) != 0;
     int command = (modifiers & MM_RECORD_GESTURE_COMMAND) != 0;
-    gesture->action = state->action;
+    gesture->action = runtime->state.action;
     gesture->cycling = command;
     if (shift && command && gesture->replace)
     {
@@ -323,12 +327,15 @@ int mm_actor_record_gesture_start(MMActorRecordGesture *gesture, void *actor, co
     }
     /* Reapply the action even when it already matches, so the edited route
      * starts on an action step and has a snapshot for rollback and undo. */
-    mm_actor_record_gesture_discard(gesture, s);
-    if (!s->set_action(actor, gesture->action, state->cel, shift, &gesture->restore))
+    mm_actor_record_gesture_discard(gesture, &transaction->actors);
+    s->hide_cursor(s->context);
+    if (!mm_actor_transaction_action(record->live_actor, gesture->action, runtime->state.cel,
+                                     shift, 0, &gesture->restore, &edit->timeline.motion,
+                                     &edit->action, transaction))
         return 0;
     gesture->action = -1;
     gesture->last_sample = s->clock_now(s->context);
-    record->timestamp = gesture->last_sample;
+    runtime->recording.timestamp = gesture->last_sample;
     return 1;
 }
 
@@ -378,11 +385,11 @@ int mm_actor_record_gesture_sample(MMActorRecordGesture *gesture, const MMActorP
 }
 
 void mm_actor_record_gesture_end(MMActorRecordGesture *gesture, const MMActorRecordServices *record,
-    const MMActorRecordGestureServices *s)
+    const MMActorOwnerServices *actors)
 {
     if (record && gesture->restore)
         mm_actor_owner_record_end(gesture->replace, gesture->restore, record);
-    mm_actor_record_gesture_discard(gesture, s);
+    mm_actor_record_gesture_discard(gesture, actors);
     if (gesture->restore_default)
     {
         gesture->restore_default = 0;

@@ -6,11 +6,6 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-enum
-{
-    MM_TRANSACTION_ACTION,MM_TRANSACTION_ADD,MM_TRANSACTION_NORMALIZE,
-    MM_TRANSACTION_COSTUME,MM_TRANSACTION_REMOVE,MM_TRANSACTION_SOUND
-};
 enum { MM_TRANSACTION_BAD_LIFETIME,MM_TRANSACTION_SEEK_FAILED };
 typedef struct MMActorTransactionServices
 {
@@ -19,11 +14,6 @@ typedef struct MMActorTransactionServices
     MMActorOwnerServices actors;
     MMActorUndoCreateServices undo;
 } MMActorTransactionServices;
-typedef struct MMActorTransactionResult
-{
-    void *snapshot,*context;
-    void (*publish)(void *,void *snapshot);
-} MMActorTransactionResult;
 typedef struct MMActorDeleteResult
 {
     int alive,trashed;
@@ -39,9 +29,13 @@ typedef struct MMActorDeleteServices
 } MMActorDeleteServices;
 /* Clone before applying the edit. Failure to apply or register undo restores
  * the actor and releases the local snapshot. Sound requests playback on undo.
- * Action alone can transfer the local snapshot reference through result.
- * Failure leaves that result untouched. Callbacks cannot reenter. */
-int mm_actor_transaction_apply(void *actor,int kind,MMActorTransactionResult *,const MMActorTransactionServices *);
+ * Callbacks cannot reenter. */
+int mm_actor_transaction_apply(void *actor,int sound,const MMActorTransactionServices *);
+/* On success, an optional snapshot output receives a local reference to the
+ * registered and reset undo actor. Failure leaves the output untouched. */
+int mm_actor_transaction_action(void *actor,MMI32 action,MMI32 cel,int frozen,MMU32 external_child,
+    void **snapshot,const MMActorMotionServices *,const MMActorActionEditServices *,
+    const MMActorTransactionServices *);
 /* Enabled retail BUG1870 deletion policy. Failed deletion/seeks keep partial
  * state, report seek failure and release without restoring. Failed undo creation
  * restores but does not undo prior alive-output writes. Lifetime failure reports

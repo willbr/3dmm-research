@@ -1,5 +1,5 @@
 #include "engine_subroute_edit_fixture.h"
-#include "mm/actor_owner.h"
+#include "mm/actor_transaction.h"
 typedef struct RecordFixture
 {
     SubFixture sub;
@@ -191,36 +191,87 @@ static void end_test(void)
 typedef struct GestureFixture
 {
     MMActorRecordGesture gesture;
-    MMActorOwner owner;
+    MMActorOwner owner, snapshot;
+    MMActorTransactionServices transaction;
+    MMActorUndoState undo;
+    MMMovieUndoContext undo_context;
     MMActorRecordServices record;
     MMActorState saved_state;
     MMActorRecording saved_record;
     MMU32 now;
     MMI32 scene_frame;
-    int fail_action, frozen, notifications, releases, restores;
+    int fail_action, frozen, notifications, restores, snapshot_refs, undo_refs, hides;
 } GestureFixture;
 
 static void *gesture_resize(void *p, void *data, MMU32 old, MMU32 bytes, int priority)
 { (void)p; (void)old; (void)priority; return realloc(data, bytes); }
 static void gesture_free(void *p, void *data, MMU32 bytes)
 { (void)p; (void)bytes; free(data); }
-static MMU32 gesture_clock(void *p) { return ((GestureFixture *)p)->now; }
-static void gesture_release(void *p)
+static MMU32 gesture_clock(void *p)
 {
     GestureFixture *f = p;
-    CHECK(!f->owner.runtime.recording.recording);
-    ++f->releases;
+    CHECK(f->gesture.restore == &f->snapshot && !f->snapshot.runtime.scene && f->undo_refs == 1);
+    return f->now;
 }
-static int gesture_action(void *p, MMI32 action, MMI32 cel, int frozen, void **snapshot)
+static MMActorOwner *gesture_owner(void *p, void *actor)
 {
     GestureFixture *f = p;
-    CHECK(action == 4 && cel == 6);
-    f->frozen = frozen;
-    if (f->fail_action) return 0;
+    CHECK(actor == &f->owner || actor == &f->snapshot);
+    return actor;
+}
+static void *gesture_copy(void *p)
+{
+    GestureFixture *f = p;
+    CHECK(f->hides && !f->snapshot_refs);
+    mm_actor_owner_init(&f->snapshot);
+    f->snapshot_refs = 1;
+    return &f->snapshot;
+}
+static void gesture_retain(void *p, void *actor)
+{
+    GestureFixture *f = p;
+    if (actor)
+    {
+        CHECK(actor == &f->snapshot && f->snapshot_refs > 0);
+        ++f->snapshot_refs;
+    }
+}
+static void gesture_release(void *p, void *actor)
+{
+    GestureFixture *f = p;
+    CHECK(actor == &f->snapshot && f->snapshot_refs > 0);
+    if (!--f->snapshot_refs)
+        mm_actor_owner_dispose(actor, &f->transaction.actors);
+}
+static void gesture_hide_cursor(void *p)
+{
+    GestureFixture *f = p;
+    CHECK(!f->gesture.restore);
     f->saved_state = f->owner.runtime.state;
     f->saved_record = f->owner.runtime.recording;
-    *snapshot = f;
+    ++f->hides;
+}
+static MMActorUndoState *gesture_create_undo(void *p, void **handle)
+{
+    GestureFixture *f = p;
+    CHECK(!f->undo_refs && mm_actor_undo_init(&f->undo, &f->undo_context, 1));
+    f->undo_refs = 1;
+    *handle = f;
+    return &f->undo;
+}
+static int gesture_add_undo(void *p, void *handle)
+{
+    GestureFixture *f = p;
+    CHECK(handle == f && f->undo.actor == &f->snapshot && f->snapshot_refs == 2);
+    CHECK(!f->gesture.restore && f->owner.runtime.recording.timestamp == f->saved_record.timestamp);
+    ++f->undo_refs;
     return 1;
+}
+static void gesture_release_undo(void *p, void *handle)
+{
+    GestureFixture *f = p;
+    CHECK(handle == f && f->undo_refs > 0);
+    if (!--f->undo_refs) gesture_release(f, f->undo.actor);
 }
 static void gesture_notify(void *p, int replace)
 {
@@ -243,6 +294,12 @@ static int gesture_apply(void *p, MMActorState *state, MMI32 index)
     MMActorEvent row;
     MMI32 value[2];
     CHECK(mm_actor_events_get_fixed(track->events, index, &row));
+    if (row.aet == MM_ACTOR_FREEZE)
+    {
+        CHECK(mm_actor_events_get_payload(track->events, index, value));
+        f->frozen = value[0] != 0;
+        if (f->fail_action) return 0;
+    }
     if (row.aet != MM_ACTOR_ACTION)
         return mm_actor_state_apply(state, track->route, track->events, index, &f->owner.runtime.origin,
                                     motion) == MM_ACTOR_APPLIED;
@@ -274,12 +331,25 @@ static int gesture_seek(void *p, MMActorState *state, MMActorRecording *record, 
 static void gesture_restore(void *p, void *snapshot, MMActorState *state, MMActorRecording *record)
 {
     GestureFixture *f = p;
-    CHECK(snapshot == f);
+    CHECK(snapshot == &f->snapshot && f->snapshot_refs == 2 && !f->snapshot.runtime.scene);
     *state = f->saved_state;
     *record = f->saved_record;
     ++f->restores;
 }
 static void gesture_noop(void *p) { (void)p; }
+static void gesture_invalidate(void *p, void *scene) { CHECK(p == scene); }
+static void gesture_copy_life(void *p) { ((MMActorOwner *)p)->runtime.life_dirty = 1; }
+static void gesture_copy_recording(void *p, int recording) { ((MMActorOwner *)p)->runtime.recording.recording = recording; }
+static void gesture_routes(void *p, void *actor, MMActorRouteEditServices *routes)
+{
+    GestureFixture *f = p;
+    CHECK(actor == &f->snapshot);
+    memset(routes, 0, sizeof(*routes));
+    routes->edits.context = actor;
+    routes->hide_body = routes->default_costume = gesture_noop;
+    routes->life_dirty = gesture_copy_life;
+    routes->recording = gesture_copy_recording;
+}
 static void gesture_life(void *p) { ((GestureFixture *)p)->owner.runtime.life_dirty = 1; }
 static int reject_point(void *p, MMI32 index, const MMActorRoutePoint *row)
 { (void)p; (void)index; (void)row; return 0; }
@@ -289,17 +359,29 @@ static int reject_events(void *p, MMU32 entries, MMU32 bytes)
 static MMActorRecordGestureServices gesture_init(GestureFixture *f)
 {
     static const MMStorageAllocator storage = {NULL, gesture_resize, gesture_free};
-    MMActorRecordGestureServices s = {NULL, gesture_clock, gesture_release, gesture_action, gesture_notify};
+    MMActorRecordGestureServices s = {NULL, gesture_clock, gesture_hide_cursor, gesture_notify};
     MMActorEntrance entrance = {0};
     MMActorEvent row = {0};
     MMActorRoutePoint first = {{0,0,0}, 4 * ONE}, last = {{4 * ONE,0,0}, 0};
-    MMI32 action[2] = {4, 6};
+    MMI32 action[2] = {4, 6}, size = ONE;
     MMActorEditServices *edit;
     MMActorActionEditServices *act;
     MMActorRuntime *runtime;
     memset(f, 0, sizeof(*f));
     s.context = f;
     mm_actor_owner_init(&f->owner);
+    mm_movie_undo_context_init(&f->undo_context);
+    f->transaction.actors.context = f;
+    f->transaction.actors.owner = gesture_owner;
+    f->transaction.actors.create = gesture_copy;
+    f->transaction.actors.retain = gesture_retain;
+    f->transaction.actors.release = gesture_release;
+    f->transaction.actors.route_services = gesture_routes;
+    f->transaction.actors.invalidate_views = gesture_invalidate;
+    f->transaction.undo.context = f;
+    f->transaction.undo.create = gesture_create_undo;
+    f->transaction.undo.add = gesture_add_undo;
+    f->transaction.undo.release = gesture_release_undo;
     CHECK(mm_actor_track_create(&f->owner.track, &storage, 0, NULL));
     CHECK(mm_actor_path_insert(f->owner.track.route, 0, &first));
     CHECK(mm_actor_path_insert(f->owner.track.route, 1, &last));
@@ -307,12 +389,17 @@ static MMActorRecordGestureServices gesture_init(GestureFixture *f)
     CHECK(mm_actor_events_insert(f->owner.track.events, 0, sizeof(entrance), &entrance, &row));
     row.aet = MM_ACTOR_ACTION;
     CHECK(mm_actor_events_insert(f->owner.track.events, 1, sizeof(action), action, &row));
+    row.aet = MM_ACTOR_SIZE; row.nfrm = 2; row.rtel.irpt = 1;
+    CHECK(mm_actor_events_insert(f->owner.track.events, 2, sizeof(size), &size, &row));
     runtime = &f->owner.runtime;
-    runtime->first = runtime->last = f->scene_frame = runtime->state.frame = 1;
+    runtime->scene = f;
+    runtime->first = f->scene_frame = runtime->state.frame = 1;
+    runtime->last = 2;
     runtime->state.onStage = 1; runtime->state.addEvent = 0; runtime->state.actionEvent = 1;
     runtime->state.nextEvent = 2; runtime->state.action = 4; runtime->state.cel = 6;
     runtime->state.step = -ONE;
     f->record.subroute.live = &f->owner;
+    f->record.live_actor = &f->owner;
     f->record.subroute.timeline = mm_actor_track_timeline_services();
     f->record.subroute.timeline.resolve = gesture_resolve;
     f->record.subroute.lifetime = mm_actor_owner_lifetime(&f->owner);
@@ -336,8 +423,17 @@ static MMActorRecordGestureServices gesture_init(GestureFixture *f)
 }
 static void gesture_done(GestureFixture *f)
 {
+    if (f->undo_refs) gesture_release_undo(f, f);
+    CHECK(!f->undo_refs && !f->snapshot_refs);
     mm_actor_track_dispose(&f->owner.track, NULL);
     mm_actor_sounds_dispose(&f->owner.sounds);
+}
+static int gesture_start(GestureFixture *f, unsigned modifiers, const MMActorRecordGestureServices *s)
+{
+    MMActorEditTables tables = mm_actor_edit_tables(f->owner.track.events, NULL);
+    f->record.subroute.route.edits.tables = tables;
+    f->record.subroute.action.sounds.edits.tables = tables;
+    return mm_actor_record_gesture_start(&f->gesture, modifiers, &f->record, &f->transaction, s);
 }
 static int gesture_sample(GestureFixture *f, unsigned advance, unsigned modifiers, MMI32 distance,
                           const MMActorRecordGestureServices *s)
@@ -354,8 +450,9 @@ static void gesture_test(void)
     MMActorRuntime *runtime = &f.owner.runtime;
     MMActorPoint axes = {ONE, -ONE, -5 * ONE};
     const unsigned shift = MM_RECORD_GESTURE_SHIFT, cmd = MM_RECORD_GESTURE_COMMAND;
-    CHECK(mm_actor_record_gesture_start(&f.gesture, &f, &runtime->state, &runtime->recording, cmd, &s));
-    CHECK(f.gesture.action == -1 && runtime->recording.timestamp == f.now);
+    CHECK(gesture_start(&f, cmd, &s));
+    CHECK(f.gesture.action == -1 && runtime->recording.timestamp == f.now && f.snapshot_refs == 2);
+    CHECK(f.gesture.restore == &f.snapshot && !f.snapshot.runtime.scene && f.snapshot.runtime.state.frame == 2147483647L);
     CHECK(gesture_sample(&f, 497, cmd, 0, &s) == MM_RECORD_GESTURE_IDLE);
     CHECK(gesture_sample(&f, 1, cmd | shift, 0, &s) == MM_RECORD_GESTURE_CEL);
     CHECK(runtime->state.cel == 7);
@@ -369,33 +466,33 @@ static void gesture_test(void)
     f.record.subroute.route.edits.tables.reserve_events = reject_events;
     CHECK(gesture_sample(&f, 166, 0, 4 * ONE, &s) == MM_RECORD_GESTURE_IDLE && f.restores == 1);
     f.record.subroute.route.edits.tables = f.record.subroute.action.sounds.edits.tables;
-    mm_actor_record_gesture_end(&f.gesture, &f.record, &s);
-    CHECK(!f.gesture.restore && f.releases == 1);
+    mm_actor_record_gesture_end(&f.gesture, &f.record, &f.transaction.actors);
+    CHECK(!f.gesture.restore && !runtime->recording.recording && f.snapshot_refs == 1);
     gesture_done(&f);
 
     s = gesture_init(&f);
     runtime->state.location.dwrOffset = ONE / 2;
-    CHECK(mm_actor_record_gesture_start(&f.gesture, &f, &runtime->state, &runtime->recording, shift | cmd, &s));
+    CHECK(gesture_start(&f, shift | cmd, &s));
     CHECK(!f.frozen && !f.gesture.replace && !f.gesture.cycling);
     f.record.subroute.route.insert_point = reject_point;
     CHECK(gesture_sample(&f, 166, 0, 4 * ONE, &s) == MM_RECORD_GESTURE_IDLE);
     CHECK(f.restores == 1 && !f.notifications);
     mm_actor_route_edit_bind_tables(&f.record.subroute.route);
     CHECK(gesture_sample(&f, 0, 0, 4 * ONE, &s) == MM_RECORD_GESTURE_POINT && f.notifications == 1);
-    mm_actor_record_gesture_end(&f.gesture, &f.record, &s);
-    CHECK(f.gesture.replace && !f.gesture.restore_default && f.releases == 1);
+    mm_actor_record_gesture_end(&f.gesture, &f.record, &f.transaction.actors);
+    CHECK(f.gesture.replace && !f.gesture.restore_default && !runtime->recording.recording && f.snapshot_refs == 1);
     gesture_done(&f);
 
     s = gesture_init(&f);
     f.fail_action = 1;
-    CHECK(!mm_actor_record_gesture_start(&f.gesture, &f, &runtime->state, &runtime->recording, shift, &s));
+    CHECK(!gesture_start(&f, shift, &s));
     CHECK(f.frozen && gesture_sample(&f, 200, 0, 4 * ONE, &s) == MM_RECORD_GESTURE_IDLE);
-    mm_actor_record_gesture_end(&f.gesture, &f.record, &s);
-    CHECK(!f.releases && !f.notifications);
+    mm_actor_record_gesture_end(&f.gesture, &f.record, &f.transaction.actors);
+    CHECK(!f.snapshot_refs && !f.notifications && !runtime->state.frozen && !runtime->recording.timestamp);
     f.fail_action = 0;
-    CHECK(mm_actor_record_gesture_start(&f.gesture, &f, &runtime->state, &runtime->recording, 0, &s));
-    mm_actor_record_gesture_end(&f.gesture, NULL, &s);
-    CHECK(!f.gesture.restore && f.releases == 1);
+    CHECK(gesture_start(&f, 0, &s));
+    mm_actor_record_gesture_end(&f.gesture, NULL, &f.transaction.actors);
+    CHECK(!f.gesture.restore && f.snapshot_refs == 1);
     gesture_done(&f);
 }
 int main(void)

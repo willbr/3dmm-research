@@ -3598,8 +3598,7 @@ MovieView::~MovieView(void)
     const auto actors = Actor::_OwnerServices();
     mm_scene_actor_pointer_reset(&_pointerSelection, &actors);
     mm_actor_placement_discard(&_placement, &actors);
-    const auto recording = _RecordGestureServices();
-    mm_actor_record_gesture_discard(&_recordGesture, &recording);
+    mm_actor_record_gesture_discard(&_recordGesture, &actors);
 }
 
 /***************************************************************************
@@ -4953,9 +4952,10 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         {
             _ptmplTool = pactr->Ptmpl();
             const auto recording = _RecordGestureServices();
-            auto &runtime = pactr->_owner.runtime;
-            if (mm_actor_record_gesture_start(&_recordGesture, pactr, &runtime.state, &runtime.recording,
-                                              RecordGestureModifiers(pcmd->grfcust), &recording))
+            const auto transaction = pactr->_TransactionServices(nullptr);
+            const auto actorRecording = pactr->_RecordServices(&transaction.actors);
+            if (mm_actor_record_gesture_start(&_recordGesture, RecordGestureModifiers(pcmd->grfcust),
+                                              &actorRecording, &transaction, &recording))
                 Pmvie()->Pmcc()->PlayUISound(Tool());
         }
         break;
@@ -5074,14 +5074,7 @@ MMActorRecordGestureServices MovieView::_RecordGestureServices()
     MMActorRecordGestureServices services{};
     services.context = this;
     services.clock_now = [](void *) { return MMU32(TsCurrent()); };
-    services.release = [](void *snapshot) { static_cast<PActor>(snapshot)->Release(); };
-    services.set_action = [](void *actor, MMI32 action, MMI32 cel, int frozen, void **out) {
-        PActor snapshot = nullptr;
-        vpappb->HideCurs();
-        const bool ok = static_cast<PActor>(actor)->FSetAction(action, cel, frozen != 0, &snapshot);
-        *out = snapshot;
-        return int(ok);
-    };
+    services.hide_cursor = [](void *) { vpappb->HideCurs(); };
     services.recording_started = [](void *p, int replace) {
         static_cast<PMovieView>(p)->Pmvie()->Pmcc()->Recording(true, replace != 0);
     };
@@ -5383,10 +5376,9 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
     case toolRecordSameAction: {
         if (pactr != pvNil && !_FRecordTemplateMatches(pactr))
             break;
-        const auto recording = _RecordGestureServices();
         const auto owners = Actor::_OwnerServices();
         const auto actorRecording = pactr ? pactr->_RecordServices(&owners) : MMActorRecordServices{};
-        mm_actor_record_gesture_end(&_recordGesture, pactr ? &actorRecording : nullptr, &recording);
+        mm_actor_record_gesture_end(&_recordGesture, pactr ? &actorRecording : nullptr, &owners);
         if (pvNil != pactr)
         {
             Pmvie()->InvalViewsAndScb();
