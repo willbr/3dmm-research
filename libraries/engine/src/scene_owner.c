@@ -180,6 +180,8 @@ void mm_scene_owner_dispose(MMSceneOwner *w, const MMSceneOwnerServices *s)
         mm_storage_dispose(&w->members[slot].storage);
         w->members[slot].count = 0;
     }
+    w->selected_actor = NULL;
+    w->selected_text = NULL;
     for (slot = 0; slot < MM_SCENE_OWNERS; ++slot)
         mm_scene_owner_drop(w, slot, s);
 }

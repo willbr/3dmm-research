@@ -6,14 +6,6 @@
 #include "mm/wide.h"
 #include <stddef.h>
 #include <string.h>
-static void set_selected(const MMSceneSelectionServices *s, int text, void *object)
-{
-    if (text)
-        s->state->text = object;
-    else
-        s->state->actor = object;
-    s->publish(s->context, text, object);
-}
 static void notify(const MMSceneSelectionServices *s)
 {
     s->invalidate(s->context);
@@ -36,18 +28,18 @@ void mm_scene_select_actor(void *actor, const MMSceneSelectionServices *s)
     void *old;
     if (s->view_mode(s->context) == 0)
     {
-        old = s->state->actor;
+        old = s->owner->selected_actor;
         if (old)
             s->hilite(s->context, old, 0);
         clear_extras(s);
         if (actor)
             s->hilite(s->context, actor, 1);
-        old = s->state->text;
+        old = s->owner->selected_text;
         if (old)
             s->select_text(s->context, old, 0);
     }
     s->invalidate(s->context);
-    set_selected(s, 0, actor);
+    s->owner->selected_actor = actor;
     s->action_menu(s->context);
 }
 void mm_scene_select_text(void *text, const MMSceneSelectionServices *s)
@@ -56,14 +48,14 @@ void mm_scene_select_text(void *text, const MMSceneSelectionServices *s)
     s->invalidate(s->context);
     if (s->view_mode(s->context) == 1)
     {
-        old = s->state->actor;
+        old = s->owner->selected_actor;
         if (old)
         {
             s->hilite(s->context, old, 0);
             s->action_menu(s->context);
         }
         clear_extras(s);
-        old = s->state->text;
+        old = s->owner->selected_text;
         if (text == old && (!text || s->text_selected(s->context, text)))
             return;
         if (old)
@@ -71,25 +63,25 @@ void mm_scene_select_text(void *text, const MMSceneSelectionServices *s)
         if (text)
             s->select_text(s->context, text, 1);
     }
-    set_selected(s, 1, text);
+    s->owner->selected_text = text;
     s->text_notice(s->context);
 }
 MMI32 mm_scene_selection_count(const MMSceneSelectionServices *s)
 {
-    return s->state->actor ? 1 + mm_scene_member_count(s->owner, MM_SCENE_SELECTION) : 0;
+    return s->owner->selected_actor ? 1 + mm_scene_member_count(s->owner, MM_SCENE_SELECTION) : 0;
 }
 void *mm_scene_selection_at(MMI32 index, const MMSceneSelectionServices *s)
 {
     if (index < 0 || index >= mm_scene_selection_count(s))
         return NULL;
-    return index == 0 ? s->state->actor : mm_scene_member_at(s->owner, MM_SCENE_SELECTION, index - 1);
+    return index == 0 ? s->owner->selected_actor : mm_scene_member_at(s->owner, MM_SCENE_SELECTION, index - 1);
 }
 int mm_scene_selection_contains(void *actor, const MMSceneSelectionServices *s)
 {
     MMI32 i;
     if (!actor)
         return 0;
-    if (actor == s->state->actor)
+    if (actor == s->owner->selected_actor)
         return 1;
     for (i = 0; i < mm_scene_member_count(s->owner, MM_SCENE_SELECTION); ++i)
         if (actor == mm_scene_member_at(s->owner, MM_SCENE_SELECTION, i))
@@ -111,7 +103,7 @@ void *mm_scene_actor_pointer_down(MMSceneActorPointer *pointer, const MMSceneAct
                                   const MMSceneSelectionServices *s, const MMActorOwnerServices *actors,
                                   const MMSceneActorPointerView *view)
 {
-    void *actor = s->state->actor;
+    void *actor = s->owner->selected_actor;
     void *hit;
     if (actor)
         mm_actor_owner_freeze_time(actors->owner(actors->context, actor), 0);
@@ -204,7 +196,7 @@ int mm_scene_selection_toggle(void *actor, const MMSceneSelectionServices *s)
 {
     MMI32 i;
     int hilite = s->view_mode(s->context) == 0;
-    if (actor == s->state->actor)
+    if (actor == s->owner->selected_actor)
     {
         if (hilite)
             s->hilite(s->context, actor, 0);
@@ -212,10 +204,10 @@ int mm_scene_selection_toggle(void *actor, const MMSceneSelectionServices *s)
         {
             void *promote = mm_scene_member_at(s->owner, MM_SCENE_SELECTION, 0);
             mm_scene_member_remove(s->owner, MM_SCENE_SELECTION, 0);
-            set_selected(s, 0, promote);
+            s->owner->selected_actor = promote;
         }
         else
-            set_selected(s, 0, NULL);
+            s->owner->selected_actor = NULL;
         notify(s);
         return 1;
     }
@@ -228,7 +220,7 @@ int mm_scene_selection_toggle(void *actor, const MMSceneSelectionServices *s)
             notify(s);
             return 1;
         }
-    if (!s->state->actor)
+    if (!s->owner->selected_actor)
     {
         mm_scene_select_actor(actor, s);
         return 1;

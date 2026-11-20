@@ -733,7 +733,6 @@ static int actor_drag(void)
     static const int failure_steps[] = {SELECT, APPLY, WORLD_DIRTY, MARK_VIEWS, CURSOR};
     Test t;
     MMActorDragUndoServices undo = {0};
-    MMSceneSelection state = {0};
     MMSceneSelectionServices selection = {0};
     MMSceneOwner owner = {0};
     MMMovieActorDrag drag;
@@ -743,7 +742,6 @@ static int actor_drag(void)
     undo.context = &t;
     undo.commit = commit;
     undo.release = drag_release;
-    selection.state = &state;
     selection.owner = &owner;
     services.selection = &selection;
     services.movie = &t.s;
@@ -753,7 +751,7 @@ static int actor_drag(void)
     services.size_sound = size_sound;
     services.world_dirty = world_dirty;
     services.mark_views = mark_views;
-    state.actor = &t.actor;
+    owner.selected_actor = &t.actor;
     for (axis = 0; axis < 3; ++axis)
     {
         init(&t);
@@ -803,7 +801,7 @@ static int actor_drag(void)
 
     init(&t);
     memset(&drag, 0, sizeof(drag));
-    state.actor = NULL;
+    owner.selected_actor = NULL;
     input.tool = MM_MOVIE_DRAG_COMPOSE;
     input.command = 0;
     mm_movie_actor_drag_sample(&drag, &input, &services);

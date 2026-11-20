@@ -24,7 +24,7 @@ typedef struct Host
     Port ports[2];
     int trace[128], traces, has_view, dirty, muted, mode, mode_changes, fail_port, port_calls, fail_seek, seek_calls,
         fail_bitmap;
-    int old_refs, new_refs, copy_live, mark_calls;
+    int old_refs, new_refs, copy_live, mark_calls, actor_hilited, text_selected;
     MMU32 initial_mask;
 } Host;
 static void event(Host *h, int n)
@@ -36,12 +36,6 @@ static void expect(Host *h, const int *values, int n)
 {
     CHECK(h->traces == n && !memcmp(h->trace, values, n * sizeof(*values)));
     h->traces = 0;
-}
-static void *selected(void *p, int text)
-{
-    Host *h = (Host *)p;
-    event(h, text ? 1 : 2);
-    return text ? (void *)&h->text : &h->actor;
 }
 static MMI32 time(void *p)
 {
@@ -131,23 +125,51 @@ static int mode(void *p, void *v)
     event(h, 16);
     return h->mode;
 }
-static void select_object(void *p, int text, void *object)
+static int selection_mode(void *p)
+{
+    return ((Host *)p)->mode;
+}
+static void hilite(void *p, void *object, int value)
 {
     Host *h = (Host *)p;
-    CHECK(text == h->mode);
-    if (object)
-    {
-        CHECK(object == (text ? (void *)&h->text : &h->actor));
-        event(h, text ? 20 : 19);
-    }
-    else
-        event(h, text ? 18 : 17);
+    CHECK(object == &h->actor);
+    h->actor_hilited = value;
+}
+static int text_selected(void *p, void *object)
+{
+    Host *h = (Host *)p;
+    CHECK(object == &h->text);
+    return h->text_selected;
+}
+static void select_text(void *p, void *object, int value)
+{
+    Host *h = (Host *)p;
+    CHECK(object == &h->text);
+    h->text_selected = value;
+}
+static void invalidate(void *p)
+{
+    Host *h = (Host *)p;
+    CHECK(h->muted && h->data.currentFrame == h->data.firstFrame);
+}
+static void action_menu(void *p)
+{
+    Host *h = (Host *)p;
+    if (!h->mode)
+        event(h, h->owner.selected_actor ? 19 : 17);
+}
+static void text_notice(void *p)
+{
+    Host *h = (Host *)p;
+    event(h, h->owner.selected_text ? 20 : 18);
 }
 static void draw(void *p, void *v, void *port, const MMMaskedRect *r)
 {
     Host *h = (Host *)p;
     CHECK(v == &h->view && port == h->ports && r->right == 320 && r->bottom == 240);
     CHECK(h->muted && h->data.currentFrame == h->data.firstFrame);
+    CHECK(!(h->mode ? h->owner.selected_text : h->owner.selected_actor));
+    CHECK(!h->actor_hilited && !h->text_selected);
     event(h, 21);
     if (h->mode_changes)
         h->mode = !h->mode;
@@ -156,6 +178,10 @@ static void copy(void *p, void *src, void *dst, const MMMaskedRect *a, const MMM
 {
     Host *h = (Host *)p;
     CHECK(src == h->ports && dst == h->ports + 1 && a->right == 320 && b->right == 144 && b->bottom == 81);
+    if (h->mode)
+        CHECK(h->owner.selected_text == &h->text && h->text_selected && !h->actor_hilited);
+    else
+        CHECK(h->owner.selected_actor == &h->actor && h->actor_hilited && !h->text_selected);
     CHECK(!h->copy_live);
     h->copy_live = 1;
     ++h->ports[0].refs;
@@ -232,13 +258,24 @@ static MMSceneThumbnailServices init(Host *h)
     h->owner.movie = &h->movie;
     h->owner.owned[MM_SCENE_BACKGROUND] = &h->background;
     h->owner.owned[MM_SCENE_THUMBNAIL] = &h->old_bitmap;
+    h->owner.selected_actor = &h->actor;
+    h->owner.selected_text = &h->text;
+    h->actor_hilited = h->text_selected = 1;
     s.context = h;
     s.data = &h->data;
     s.runtime = &h->runtime;
     s.owner = &h->owner;
     s.owners.context = h;
     s.owners.release = release_bitmap;
-    s.selected = selected;
+    s.selection.context = h;
+    s.selection.owner = &h->owner;
+    s.selection.view_mode = selection_mode;
+    s.selection.hilite = hilite;
+    s.selection.text_selected = text_selected;
+    s.selection.select_text = select_text;
+    s.selection.invalidate = invalidate;
+    s.selection.action_menu = action_menu;
+    s.selection.text_notice = text_notice;
     s.sound_time = time;
     s.mute = mute;
     s.resume = resume;
@@ -250,7 +287,6 @@ static MMSceneThumbnailServices init(Host *h)
     s.release_port = release_port;
     s.seek = seek;
     s.text_mode = mode;
-    s.select = select_object;
     s.draw = draw;
     s.copy_context = h;
     s.copy = copy;
@@ -281,25 +317,26 @@ static void test_gates(void)
             h.fail_port = 2;
         CHECK(mm_scene_thumbnail(&s) == &h.old_bitmap && h.old_refs == 1);
         CHECK(h.data.currentFrame == 5 && !h.new_refs && !h.muted);
+        CHECK(h.owner.selected_actor == &h.actor && h.owner.selected_text == &h.text);
         if (i < 2)
         {
-            const int e[] = {1, 2, 3, 4, 6, 5};
-            expect(&h, e, 6);
+            const int e[] = {3, 4, 6, 5};
+            expect(&h, e, 4);
         }
         if (i == 2)
         {
-            const int e[] = {1, 2, 3, 4, 6, 7, 5};
-            expect(&h, e, 7);
+            const int e[] = {3, 4, 6, 7, 5};
+            expect(&h, e, 5);
         }
         if (i == 3)
         {
-            const int e[] = {1, 2, 3, 4, 6, 7, 8, 9, 5};
-            expect(&h, e, 9);
+            const int e[] = {3, 4, 6, 7, 8, 9, 5};
+            expect(&h, e, 7);
         }
         if (i == 4)
         {
-            const int e[] = {1, 2, 3, 4, 6, 7, 8, 9, 10, 12, 5};
-            expect(&h, e, 11);
+            const int e[] = {3, 4, 6, 7, 8, 9, 10, 12, 5};
+            expect(&h, e, 9);
         }
     }
 }
@@ -316,12 +353,12 @@ static void test_render(void)
         CHECK(mm_scene_thumbnail(&s) == &h.new_bitmap && h.new_refs == 1 && !h.old_refs);
         CHECK(h.data.currentFrame == 5 && h.seek_calls == 2 && !h.muted);
         {
-            int e[] = {1,  2,  3,  4,  6,  7,  8,  9,  10, 11, 14, 16, 17, 21, 16,
+            int e[] = {3,  4,  6,  7,  8,  9,  10, 11, 14, 16, 17, 21, 16,
                        19, 22, 24, 27, 28, 29, 30, 12, 13, 15, 23, 5};
             if (i == 1)
-                e[12] = 18;
+                e[10] = 18;
             if (i > 0)
-                e[15] = 20;
+                e[13] = 20;
             expect(&h, e, sizeof(e) / sizeof(*e));
         }
     }
@@ -329,8 +366,8 @@ static void test_render(void)
     h.fail_seek = 1;
     CHECK(mm_scene_thumbnail(&s) == &h.old_bitmap && h.old_refs == 1 && h.data.currentFrame == 1);
     {
-        const int e[] = {1, 2, 3, 4, 6, 7, 8, 9, 10, 11, 14, 12, 13, 5};
-        expect(&h, e, 14);
+        const int e[] = {3, 4, 6, 7, 8, 9, 10, 11, 14, 12, 13, 5};
+        expect(&h, e, 12);
     }
     s = init(&h);
     h.fail_bitmap = 1;

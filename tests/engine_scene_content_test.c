@@ -31,7 +31,6 @@ typedef struct Test
     MMSceneState data;
     MMSceneRuntime runtime;
     MMSceneTrack *starts;
-    Obj *selected[2];
     Undo *active;
     int live, undo_live, next_id, dirty, invalid, indicator, updated, placement, bind_fail, seek_actor_fail,
         seek_text_fail, insert_fail, roll_fail, roll_calls;
@@ -154,23 +153,24 @@ static void remove_roll(void *p, void *o, int only)
     --a->roll;
     note(t, 11);
 }
-static void *selected(void *p, int text)
+static int view_mode(void *p)
 {
-    return ((Test *)p)->selected[text];
+    (void)p;
+    return -1;
 }
-static void set_selected(void *p, int text, void *o)
+static void selection_invalidate(void *p)
 {
-    ((Test *)p)->selected[text] = (Obj *)o;
-    note((Test *)p, 12);
+    (void)p;
 }
-static void select(void *p, int text, void *o)
+static void selection_notice(void *p)
 {
-    ((Test *)p)->selected[text] = (Obj *)o;
     note((Test *)p, 13);
 }
 static void end_place(void *p)
 {
-    ++((Test *)p)->placement;
+    Test *t = (Test *)p;
+    CHECK(!t->owner.selected_actor);
+    ++t->placement;
 }
 static void hide_actor(void *p, void *o)
 {
@@ -207,6 +207,7 @@ static void update(void *p)
 }
 static void text_select(void *p, void *o, int value)
 {
+    CHECK(!((Test *)p)->owner.selected_text && !value);
     ((Obj *)o)->selected = value;
     note((Test *)p, 16);
 }
@@ -370,9 +371,13 @@ static void init(Test *t)
     s->actor_onstage = onstage;
     s->actor_paste = paste;
     s->hide_actor = hide_actor;
-    s->selected = selected;
-    s->set_selected = set_selected;
-    s->select = select;
+    s->selection.context = t;
+    s->selection.owner = &t->owner;
+    s->selection.view_mode = view_mode;
+    s->selection.invalidate = selection_invalidate;
+    s->selection.action_menu = selection_notice;
+    s->selection.text_notice = selection_notice;
+    s->selection.select_text = text_select;
     s->end_placement = end_place;
     s->add_roll = add_roll;
     s->remove_roll = remove_roll;
@@ -381,7 +386,6 @@ static void init(Test *t)
     s->indicator = indicator;
     s->update_roll = update;
     s->bind_text = bind_text;
-    s->text_select = text_select;
     s->text_lifetime = lifetime;
     s->hide_text = hide_text;
     s->new_undo = new_undo;
@@ -428,7 +432,7 @@ static void test_actor(void)
     b = new_obj(&t, 0);
     b->id = a->id;
     CHECK(mm_scene_member_append(&t.owner, MM_SCENE_SELECTION, a));
-    CHECK(mm_scene_actor_add(b, &t.s) && a->refs == 1 && a->hidden && b->refs == 2 && t.selected[0] == b &&
+    CHECK(mm_scene_actor_add(b, &t.s) && a->refs == 1 && a->hidden && b->refs == 2 && t.owner.selected_actor == b &&
           ((Obj *)mm_scene_member_at(&t.owner, MM_SCENE_ACTORS, 0)) == b);
     CHECK(!mm_scene_member_count(&t.owner, MM_SCENE_SELECTION));
     extra = new_obj(&t, 0);
@@ -502,10 +506,10 @@ static void test_text(void)
     init(&t);
     a = new_obj(&t, 1);
     CHECK(mm_scene_text_add(a, &t.s) && a->refs == 2);
-    t.selected[1] = a;
+    t.owner.selected_text = a;
     a->selected = 1;
     CHECK(mm_scene_text_remove(a, &t.s) && a->refs == 1 && !mm_scene_member_count(&t.owner, MM_SCENE_TEXTS) &&
-          !t.selected[1] && !a->selected);
+          !t.owner.selected_text && !a->selected);
     release(&t, a);
     clean(&t);
     init(&t);
@@ -649,7 +653,7 @@ static void test_text_undo(void)
         u->text.last = 7;
         u->text.index = 5;
         t.active = u;
-        CHECK(mm_scene_text_undo(&u->text, redo, &t.us) && u->text.index == 0 && t.selected[1] == a &&
+        CHECK(mm_scene_text_undo(&u->text, redo, &t.us) && u->text.index == 0 && t.owner.selected_text == a &&
               t.hide_text == 1 && t.seek_calls == 2);
         clean(&t);
     }

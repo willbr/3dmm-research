@@ -15685,3 +15685,29 @@ In `actor-event-edit` suite `20261120T125725Z-259b1f84`, SDL and Marcus
 matched all 60 frame identities in the retail seek and playback runs,
 the retail camera indices on seek and their prior seek image hashes.
 SDL matched all 12 retail sound requests.
+
+## Studio selection in the C89 scene owner (20 November 2026)
+
+The C89 scene owner stores the primary actor and caption alongside the
+borrowed rosters and additional actor selections. Content edits, undo
+and thumbnail rendering call the C89 selection policy directly. The
+fixtures check which selection invalidation and notifications observe,
+when removal clears a selected object, and what thumbnail rendering
+restores if the view changes modes during a draw.
+
+All 37 targeted x64 checks, 15 standalone C89 checks, eight x86 checks
+and five SDL Release scene checks passed. The native scene content
+trace matched byte-for-byte at `5E56C170`. Native and SDL save/reopen
+archives, movie content traces and composition traces matched the
+prior build. Studio's two-scene authoring workflow wrote a byte-identical
+movie. Fresh retail seeks of both authored saves produced matching RGB
+images at scene-one frames 3, 4 and 6 and scene-two frame 1.
+
+Both VMM seek images in `20261120T130959Z-c7e833be` matched the retained
+SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-scene-selection-owner`.
+
+In `actor-event-edit` suite `20261120T130959Z-4a4d7efb`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

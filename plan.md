@@ -174,6 +174,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   each track. Native accessors read the owner for the movie, background,
   thumbnail and cached sound. The owner also records the active background
   tag used to resolve camera resources.
+- Studio's C89 scene owner keeps the primary actor and caption selections
+  with the borrowed scene rosters. Content edits, undo and thumbnail drawing
+  call the C89 selection policy directly. Studio supplies visual effects and
+  notifications.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

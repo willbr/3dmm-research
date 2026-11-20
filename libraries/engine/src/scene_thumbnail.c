@@ -112,15 +112,21 @@ void mm_scene_mark_dirty(const MMSceneOwner *owner, int dirty, const MMSceneDirt
     if (dirty && owner->movie)
         s->mark(s->context, owner->movie);
 }
+static void select_for_view(void *view, void *actor, void *text, const MMSceneThumbnailServices *s)
+{
+    if (s->text_mode(s->context, view))
+        mm_scene_select_text(text, &s->selection);
+    else
+        mm_scene_select_actor(actor, &s->selection);
+}
 void mm_scene_update_thumbnail(const MMSceneThumbnailServices *s)
 {
     MMMaskedRect full = {0, 0, 0, 0},
                       thumb = {0, 0, MM_SCENE_THUMBNAIL_WIDTH, MM_SCENE_THUMBNAIL_HEIGHT};
-    void *text = s->selected(s->context, 1), *actor = s->selected(s->context, 0);
+    void *actor = s->owner->selected_actor, *text = s->owner->selected_text;
     MMI32 time, frame, stride;
     MMU32 disabled;
     void *view, *source, *target, *pixels, *bitmap;
-    int mode;
     time = s->sound_time(s->context);
     s->mute(s->context);
     view = s->view(s->context);
@@ -147,11 +153,9 @@ void mm_scene_update_thumbnail(const MMSceneThumbnailServices *s)
         s->runtime->disabled = disabled;
         goto resume;
     }
-    mode = s->text_mode(s->context, view);
-    s->select(s->context, mode, NULL);
+    select_for_view(view, NULL, NULL, s);
     s->draw(s->context, view, source, &full);
-    mode = s->text_mode(s->context, view);
-    s->select(s->context, mode, mode ? text : actor);
+    select_for_view(view, actor, text, s);
     s->copy(s->copy_context, source, target, &full, &thumb);
     mm_scene_owner_drop(s->owner, MM_SCENE_THUMBNAIL, &s->owners);
     stride = s->row_bytes(s->context, target);

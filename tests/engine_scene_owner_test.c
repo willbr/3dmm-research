@@ -272,9 +272,12 @@ static void factories(void)
     init(&f);
     assert(mm_scene_owner_new(&f, &f.s));
     assert(!f.loaded);
+    f.owner.selected_actor = &f;
+    f.owner.selected_text = &f;
     assert(mm_storage_resize_exact(&f.owner.tracks[MM_SCENE_FRAMES].storage, 0, 16, MM_STORAGE_NORMAL) == MM_STORAGE_OK);
     mm_scene_owner_dispose(&f.owner, &f.s);
     assert(f.n == 1 && f.events[0] == 210 && !f.owner.tracks[MM_SCENE_FRAMES].storage.buffers[0].data);
+    assert(!f.owner.selected_actor && !f.owner.selected_text);
     i = f.n;
     mm_scene_owner_dispose(&f.owner, &f.s);
     assert(i == f.n);

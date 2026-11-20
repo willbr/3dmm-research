@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_SCENE_CONTENT_H
 #define MM_ENGINE_SCENE_CONTENT_H
 #include "scene_runtime.h"
+#include "scene_selection.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -38,19 +39,18 @@ extern "C"
     {
         void *context;
         MMSceneEventServices events;
+        MMSceneSelectionServices selection;
         void (*retain)(void *, void *object);
         MMI32 (*actor_id)(void *, void *actor);
         void (*set_actor_id)(void *, void *actor, MMI32 id);
         int (*actor_ready)(void *, void *actor), (*actor_onstage)(void *, void *actor),
             (*actor_paste)(void *, void *actor, MMI32 frame);
         void (*hide_actor)(void *, void *actor);
-        void *(*selected)(void *, int text);
-        void (*set_selected)(void *, int text, void *object), (*select)(void *, int text, void *object),
-            (*end_placement)(void *);
+        void (*end_placement)(void *);
         int (*add_roll)(void *, void *actor, int template_name);
         void (*remove_roll)(void *, void *actor, int delete_if_only);
         void (*dirty)(void *), (*invalidate)(void *), (*indicator)(void *), (*update_roll)(void *);
-        void (*bind_text)(void *, void *text), (*text_select)(void *, void *text, int selected);
+        void (*bind_text)(void *, void *text);
         int (*text_lifetime)(void *, void *text, MMI32 *first, MMI32 *last);
         void (*hide_text)(void *, void *text);
         void *(*new_undo)(void *, int text);
@@ -60,15 +60,16 @@ extern "C"
         void (*release_undo)(void *, void *undo), (*clear_undo)(void *), (*not_undoable)(void *);
         void (*diagnostic)(void *, int issue);
     } MMSceneContentServices;
-    /* Initialized groups/lists and valid object inputs are required. Start groups own
+    /* Event and selection services refer to the same initialized scene owner.
+     * Valid object inputs are required. Start groups own
      * object references; roll/selection lists borrow them. Callbacks may relocate group
      * storage but cannot reenter or change traversal contents. New start events have
      * frame zero. Actor binding/ID and other completed prefixes survive later
      * failure. Replacement retains/seeks before publishing pointers; selection precedes
      * old actor hide/release. Caption binding precedes insertion. Failed caption play
      * releases its just-retained reference. Removal clears selection before searches,
-     * hides before release and preserves dirty/notification order. Generic selection,
-     * actor/caption internals and common undo object/list lifetime are host primitives. */
+     * hides before release and preserves dirty/notification order. Actor/caption
+     * effects and common undo object/list lifetime are host primitives. */
     int mm_scene_actor_add(void *, const MMSceneContentServices *);
     int mm_scene_actor_add_onstage(void *, const MMSceneContentServices *);
     void mm_scene_actor_remove(MMI32 id, const MMSceneContentServices *);

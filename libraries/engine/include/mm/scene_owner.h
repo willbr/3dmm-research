@@ -48,6 +48,7 @@ extern "C"
         void *movie; /* Borrowed; no reference cycle. */
         void *owned[MM_SCENE_OWNERS];
         MMTag background_tag; /* Borrowed tag of the last successfully applied background. */
+        void *selected_actor, *selected_text; /* Borrowed primary selections. */
         MMSceneTrack tracks[MM_SCENE_TRACKS];
         MMSceneMemberList members[MM_SCENE_MEMBER_LISTS];
     } MMSceneOwner;

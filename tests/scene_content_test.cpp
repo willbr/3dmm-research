@@ -383,14 +383,15 @@ struct Access : Scene
     }
     static void State(PScene p)
     {
-        CHECK(p->PactrSelected() == (p->*&Access::_pactrSelected));
-        CHECK(p->PtboxSelected() == (p->*&Access::_ptboxSelected));
+        const auto &owner = p->*&Access::_owner;
+        CHECK(p->PactrSelected() == owner.selected_actor);
+        CHECK(p->PtboxSelected() == owner.selected_text);
         auto &d = p->*&Access::_data;
         Value(d.currentFrame);
         Value(d.firstFrame);
         Value(d.lastFrame);
-        Value((p->*&Access::_pactrSelected) != nullptr);
-        Value((p->*&Access::_ptboxSelected) != nullptr);
+        Value(p->PactrSelected() != nullptr);
+        Value(p->PtboxSelected() != nullptr);
         auto starts = (p->*&Access::_StartTrack)();
         Value(starts->rows.count);
         for (long i = 0; i < starts->rows.count; ++i)

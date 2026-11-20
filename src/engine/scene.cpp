@@ -389,7 +389,7 @@ void Scene::AssertValid(LegacyUlong grf)
     Scene_PAR::AssertValid(fobjAllocated);
 
     Assert(_data.name.count <= 255 && _data.name.unit == sizeof(achar), "bad scene name");
-    AssertNilOrPo(_pactrSelected, 0);
+    AssertNilOrPo(PactrSelected(), 0);
     for (MMI32 i = 0; i < mm_scene_member_count(&_owner, MM_SCENE_SELECTION); ++i)
         AssertPo(static_cast<PActor>(mm_scene_member_at(&_owner, MM_SCENE_SELECTION, i)), 0);
     AssertNilOrPo(Pbkgd(), 0);
@@ -1191,15 +1191,7 @@ MMSceneSelectionServices Scene::_SelectionServices()
 {
     MMSceneSelectionServices s = {};
     s.context = this;
-    s.state = &_selection;
     s.owner = &_owner;
-    s.publish = [](void *p, int text, void *object) {
-        auto scene = static_cast<Scene *>(p);
-        if (text)
-            scene->_ptboxSelected = static_cast<PTBOX>(object);
-        else
-            scene->_pactrSelected = static_cast<PActor>(object);
-    };
     s.view_mode = [](void *p) {
         auto view = static_cast<PMovieView>(static_cast<Scene *>(p)->Pmvie()->PddgGet(0));
         return view ? int(view->FTextMode()) : -1;
@@ -1525,6 +1517,7 @@ MMSceneContentServices Scene::_ContentServices()
     MMSceneContentServices s = {};
     s.context = this;
     s.events = _EventServices();
+    s.selection = _SelectionServices();
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
     s.actor_id = [](void *, void *p) -> MMI32 { return static_cast<PActor>(p)->Arid(); };
     s.set_actor_id = [](void *, void *p, MMI32 id) { static_cast<PActor>(p)->SetArid(id); };
@@ -1537,30 +1530,6 @@ MMSceneContentServices Scene::_ContentServices()
         auto actor = static_cast<PActor>(p);
         if (actor->Pbody())
             actor->Hide();
-    };
-    s.selected = [](void *p, int text) -> void * {
-        auto scene = static_cast<Scene *>(p);
-        return text ? scene->_selection.text : scene->_selection.actor;
-    };
-    s.set_selected = [](void *p, int text, void *object) {
-        auto scene = static_cast<Scene *>(p);
-        if (text)
-        {
-            scene->_selection.text = object;
-            scene->_ptboxSelected = static_cast<PTBOX>(object);
-        }
-        else
-        {
-            scene->_selection.actor = object;
-            scene->_pactrSelected = static_cast<PActor>(object);
-        }
-    };
-    s.select = [](void *p, int text, void *object) {
-        auto scene = static_cast<PScene>(p);
-        if (text)
-            scene->SelectTbox(static_cast<PTBOX>(object));
-        else
-            scene->SelectActr(static_cast<PActor>(object));
     };
     s.end_placement = [](void *p) {
         auto view = static_cast<PMovieView>(static_cast<PScene>(p)->Pmvie()->PddgGet(0));
@@ -1584,7 +1553,6 @@ MMSceneContentServices Scene::_ContentServices()
     s.indicator = [](void *p) { static_cast<PScene>(p)->UpdateSndFrame(); };
     s.update_roll = [](void *p) { static_cast<PScene>(p)->Pmvie()->Pmcc()->UpdateRollCall(); };
     s.bind_text = [](void *p, void *text) { static_cast<PTBOX>(text)->SetScen(static_cast<PScene>(p)); };
-    s.text_select = [](void *, void *text, int selected) { static_cast<PTBOX>(text)->Select(selected != 0); };
     s.text_lifetime = [](void *, void *text, MMI32 *first, MMI32 *last) -> int {
         long a, b;
         bool ok = static_cast<PTBOX>(text)->FGetLifetime(&a, &b);
@@ -2288,10 +2256,7 @@ MMSceneThumbnailServices Scene::_ThumbnailServices(void *graphics)
     s.runtime = &_runtime;
     s.owner = &_owner;
     s.owners = _OwnerServices();
-    s.selected = [](void *p, int text) -> void * {
-        auto scene = static_cast<Scene *>(p);
-        return text ? scene->_selection.text : scene->_selection.actor;
-    };
+    s.selection = _SelectionServices();
     s.sound_time = [](void *p) -> MMI32 { return static_cast<Scene *>(p)->Pmvie()->Pmsq()->DtimSnd(); };
     s.mute = [](void *p) { static_cast<Scene *>(p)->Pmvie()->Pmsq()->SndOff(); };
     s.resume = [](void *p, MMI32 time) { static_cast<Scene *>(p)->Pmvie()->Pmsq()->SndOnDtim(time); };
@@ -2312,13 +2277,6 @@ MMSceneThumbnailServices Scene::_ThumbnailServices(void *graphics)
     s.release_port = [](void *, void *port) { static_cast<PGraphicsPort>(port)->Release(); };
     s.seek = [](void *p, MMI32 frame) { return int(static_cast<Scene *>(p)->FGotoFrm(frame)); };
     s.text_mode = [](void *, void *view) { return int(static_cast<PMovieView>(view)->FTextMode()); };
-    s.select = [](void *p, int text, void *object) {
-        auto scene = static_cast<Scene *>(p);
-        if (text)
-            scene->SelectTbox(static_cast<PTBOX>(object));
-        else
-            scene->SelectActr(static_cast<PActor>(object));
-    };
     s.draw = [](void *, void *view, void *port, const MMMaskedRect *r) {
         auto bounds = ThumbnailRect(*r);
         static_cast<PMovieView>(view)->DrawTree(static_cast<PGraphicsPort>(port), nullptr, &bounds, fgobNoVis);

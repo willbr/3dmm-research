@@ -10,16 +10,10 @@
 extern "C"
 {
 #endif
-    typedef struct MMSceneSelection
-    {
-        void *actor, *text; /* Borrowed primary objects; no retain/release. */
-    } MMSceneSelection;
     typedef struct MMSceneSelectionServices
     {
         void *context;
-        MMSceneSelection *state;
         MMSceneOwner *owner;
-        void (*publish)(void *, int text, void *);
         /* -1: no view; 0: actor mode; 1: text mode. */
         int (*view_mode)(void *);
         void (*hilite)(void *, void *, int);
@@ -43,8 +37,7 @@ extern "C"
         void (*not_undoable)(void *);
         void (*dirty)(void *);
     } MMSceneTagEditServices;
-    /* Zero-initialize state before use. Publish observes the updated C state.
-     * Lists borrow actor references. Callbacks do not reenter or mutate traversed
+    /* Selection borrows its objects. Callbacks do not reenter or mutate traversed
      * lists. Plain actor selection clears extras/highlights only in actor view mode;
      * no-view and text-mode selection retain the original extras. Text selection
      * preserves the actor pointer, early-return and notification order. Allocation

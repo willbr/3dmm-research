@@ -27,7 +27,7 @@ typedef struct Host
     MMSceneOwner owner;
     SceneMemberMemory members;
     Object objects[5];
-    MMSceneSelection selection;
+    void *actor_at_invalidate, *actor_at_menu, *text_at_invalidate, *text_at_notice;
     int mode;
     int trace[256], trace_count;
     Object *pick, *cover;
@@ -37,12 +37,6 @@ static void event(Host *h, int code)
 {
     CHECK(h->trace_count < 256);
     h->trace[h->trace_count++] = code;
-}
-static void set_selected(void *p, int text, void *object)
-{
-    Host *h = (Host *)p;
-    CHECK((text ? h->selection.text : h->selection.actor) == object);
-    event(h, text ? 41 : 40);
 }
 static int mode(void *p)
 {
@@ -68,15 +62,22 @@ static void select_text(void *p, void *o, int value)
 }
 static void invalidate(void *p)
 {
-    event((Host *)p, 50);
+    Host *h = (Host *)p;
+    h->actor_at_invalidate = h->owner.selected_actor;
+    h->text_at_invalidate = h->owner.selected_text;
+    event(h, 50);
 }
 static void menu(void *p)
 {
-    event((Host *)p, 51);
+    Host *h = (Host *)p;
+    h->actor_at_menu = h->owner.selected_actor;
+    event(h, 51);
 }
 static void notice(void *p)
 {
-    event((Host *)p, 52);
+    Host *h = (Host *)p;
+    h->text_at_notice = h->owner.selected_text;
+    event(h, 52);
 }
 static void name(void *p, void *o, MMMovieTitle *out)
 {
@@ -104,9 +105,7 @@ static MMSceneSelectionServices init(Host *h, int view)
     for (i = 0; i < 5; ++i)
         h->objects[i].id = i + 1;
     s.context = h;
-    s.state = &h->selection;
     s.owner = &h->owner;
-    s.publish = set_selected;
     s.view_mode = mode;
     s.hilite = hilite;
     s.text_selected = text_selected;
@@ -247,7 +246,7 @@ static void test_tag_edit(void)
          * leading zeros and a decimal carry across the signed 32-bit limit. */
         named(h.objects + 2, "Other #00009#2147483647!");
         CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects + 2));
-        h.selection.actor = h.objects;
+        h.owner.selected_actor = h.objects;
         CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, h.objects + 1));
         mm_scene_selection_edit_tags(0, &s, &services);
         CHECK(!strcmp(edit.order, order[mode]));
@@ -259,7 +258,7 @@ static void test_tag_edit(void)
     s = init(&h, 0);
     memset(&edit, 0, sizeof(edit));
     edit.host = &h;
-    h.selection.actor = h.objects;
+    h.owner.selected_actor = h.objects;
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, h.objects + 1));
     named(h.objects, "Caption #first  #LAST_2");
     named(h.objects + 1, "Leave #this?");
@@ -276,41 +275,43 @@ static void test_views(void)
     Host h;
     MMSceneSelectionServices s;
     int view;
-    const int actor_trace[] = {201, 202, 103, 404, 50, 40, 51};
-    const int quiet_trace[] = {50, 40, 51};
-    const int text_trace[] = {50, 201, 51, 202, 404, 305, 41, 52};
+    const int actor_trace[] = {201, 202, 103, 404, 50, 51};
+    const int quiet_trace[] = {50, 51};
+    const int text_trace[] = {50, 201, 51, 202, 404, 305, 52};
     const int early_trace[] = {50, 201, 51};
-    const int text_quiet[] = {50, 41, 52};
+    const int text_quiet[] = {50, 52};
     for (view = -1; view <= 1; ++view)
     {
         s = init(&h, view);
-        h.selection.actor = h.objects;
-        h.selection.text = h.objects + 3;
+        h.owner.selected_actor = h.objects;
+        h.owner.selected_text = h.objects + 3;
         CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, h.objects + 1));
         CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, NULL));
         h.objects[0].selected = h.objects[1].selected = h.objects[3].selected = 1;
         mm_scene_select_actor(h.objects + 2, &s);
-        CHECK(h.selection.actor == h.objects + 2 && h.selection.text == h.objects + 3);
+        CHECK(h.owner.selected_actor == h.objects + 2 && h.owner.selected_text == h.objects + 3);
+        CHECK(h.actor_at_invalidate == h.objects && h.actor_at_menu == h.objects + 2);
         if (view == 0)
         {
-            trace(&h, actor_trace, 7);
+            trace(&h, actor_trace, 6);
             CHECK(mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 0 && !h.objects[3].selected);
         }
         else
         {
-            trace(&h, quiet_trace, 3);
+            trace(&h, quiet_trace, 2);
             CHECK(mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 2 && h.objects[3].selected);
         }
         s = init(&h, view);
-        h.selection.actor = h.objects;
-        h.selection.text = h.objects + 3;
+        h.owner.selected_actor = h.objects;
+        h.owner.selected_text = h.objects + 3;
         CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, h.objects + 1));
         h.objects[3].selected = 1;
         mm_scene_select_text(h.objects + 4, &s);
-        CHECK(h.selection.text == h.objects + 4 && h.selection.actor == h.objects);
+        CHECK(h.owner.selected_text == h.objects + 4 && h.owner.selected_actor == h.objects);
+        CHECK(h.text_at_invalidate == h.objects + 3 && h.text_at_notice == h.objects + 4);
         if (view == 1)
         {
-            trace(&h, text_trace, 8);
+            trace(&h, text_trace, 7);
             CHECK(mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 0 && !h.objects[3].selected &&
                   h.objects[4].selected);
             mm_scene_select_text(h.objects + 4, &s);
@@ -319,26 +320,26 @@ static void test_views(void)
             mm_scene_select_text(h.objects + 4, &s);
             CHECK(h.objects[4].selected && h.trace[h.trace_count - 1] == 52);
             h.trace_count = 0;
-            h.selection.text = NULL;
+            h.owner.selected_text = NULL;
             mm_scene_select_text(NULL, &s);
             trace(&h, early_trace, 3);
         }
         else
-            trace(&h, text_quiet, 3);
+            trace(&h, text_quiet, 2);
     }
 }
 static void test_toggle(void)
 {
     Host h;
     MMSceneSelectionServices s = init(&h, 0);
-    const int first[] = {101, 50, 40, 51};
+    const int first[] = {101, 50, 51};
     const int second[] = {102, 50, 51};
-    const int promote[] = {201, 40, 50, 51};
+    const int promote[] = {201, 50, 51};
     const int remove[] = {203, 50, 51};
     CHECK(!mm_scene_selection_contains(NULL, &s));
     CHECK(!mm_scene_selection_at(0, &s));
     CHECK(mm_scene_selection_toggle(h.objects, &s));
-    trace(&h, first, 4);
+    trace(&h, first, 3);
     CHECK(mm_scene_selection_toggle(h.objects + 1, &s));
     trace(&h, second, 3);
     CHECK(mm_scene_selection_toggle(h.objects + 2, &s));
@@ -347,24 +348,25 @@ static void test_toggle(void)
     CHECK(mm_scene_selection_at(0, &s) == h.objects && mm_scene_selection_at(2, &s) == h.objects + 2);
     CHECK(!mm_scene_selection_at(-1, &s) && !mm_scene_selection_at(3, &s));
     CHECK(mm_scene_selection_toggle(h.objects, &s));
-    trace(&h, promote, 4);
-    CHECK(h.selection.actor == h.objects + 1 && mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 1);
+    trace(&h, promote, 3);
+    CHECK(h.actor_at_invalidate == h.objects + 1 && h.actor_at_menu == h.objects + 1);
+    CHECK(h.owner.selected_actor == h.objects + 1 && mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 1);
     CHECK(mm_scene_selection_toggle(h.objects + 2, &s));
     trace(&h, remove, 3);
     CHECK(mm_scene_selection_toggle(h.objects + 1, &s));
-    CHECK(!h.selection.actor && mm_scene_selection_count(&s) == 0);
+    CHECK(!h.owner.selected_actor && mm_scene_selection_count(&s) == 0);
     s = init(&h, -1);
-    h.selection.actor = h.objects;
+    h.owner.selected_actor = h.objects;
     h.members.fail_at = 1;
     CHECK(!mm_scene_selection_toggle(h.objects + 1, &s));
-    CHECK(h.selection.actor == h.objects && !mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) && !h.trace_count);
+    CHECK(h.owner.selected_actor == h.objects && !mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) && !h.trace_count);
     h.members.fail_at = 0;
     CHECK(mm_scene_selection_toggle(h.objects + 1, &s));
     CHECK(!h.objects[1].selected);
     mm_scene_select_actor(NULL, &s);
     CHECK(!mm_scene_selection_count(&s) && mm_scene_selection_contains(h.objects + 1, &s));
     CHECK(mm_scene_selection_toggle(h.objects + 1, &s));
-    CHECK(!h.selection.actor && !mm_scene_member_count(&h.owner, MM_SCENE_SELECTION));
+    CHECK(!h.owner.selected_actor && !mm_scene_member_count(&h.owner, MM_SCENE_SELECTION));
 }
 static void test_bulk(void)
 {
@@ -372,13 +374,13 @@ static void test_bulk(void)
     MMSceneSelectionServices s;
     int i;
     s = init(&h, 0);
-    CHECK(mm_scene_selection_all(&s) && !h.selection.actor);
+    CHECK(mm_scene_selection_all(&s) && !h.owner.selected_actor);
     h.trace_count = 0;
     for (i = 0; i < 3; ++i)
         CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects + i));
     h.members.fail_at = h.members.attempts + 2;
     CHECK(!mm_scene_selection_all(&s));
-    CHECK(h.selection.actor == h.objects && mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 1 &&
+    CHECK(h.owner.selected_actor == h.objects && mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 1 &&
           mm_scene_member_at(&h.owner, MM_SCENE_SELECTION, 0) == h.objects + 1);
     h.trace_count = 0;
     h.members.fail_at = 0;
@@ -388,21 +390,21 @@ static void test_bulk(void)
     named(h.objects + 1, "Beta #teamwork #Two");
     named(h.objects + 2, "Gamma #team");
     CHECK(mm_scene_selection_tag("TeAm", 4, 0, &s));
-    CHECK(h.selection.actor == h.objects && mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 1 &&
+    CHECK(h.owner.selected_actor == h.objects && mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 1 &&
           mm_scene_member_at(&h.owner, MM_SCENE_SELECTION, 0) == h.objects + 2);
     h.trace_count = 0;
     CHECK(mm_scene_selection_shared(h.objects, &s) && mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 2);
     h.trace_count = 0;
     mm_scene_member_replace(&h.owner, MM_SCENE_ACTORS, 1, NULL);
-    CHECK(mm_scene_selection_tag("two", 3, 0, &s) && h.selection.actor == h.objects &&
+    CHECK(mm_scene_selection_tag("two", 3, 0, &s) && h.owner.selected_actor == h.objects &&
           mm_scene_member_count(&h.owner, MM_SCENE_SELECTION) == 0);
     h.trace_count = 0;
-    CHECK(mm_scene_selection_tag("", 0, 0, &s) && !h.selection.actor);
+    CHECK(mm_scene_selection_tag("", 0, 0, &s) && !h.owner.selected_actor);
     h.trace_count = 0;
-    CHECK(mm_scene_selection_tag("teamwork-longer-than-any-name", 28, 0, &s) && !h.selection.actor);
+    CHECK(mm_scene_selection_tag("teamwork-longer-than-any-name", 28, 0, &s) && !h.owner.selected_actor);
     h.trace_count = 0;
     named(h.objects, "no tags ## !");
-    CHECK(mm_scene_selection_shared(h.objects, &s) && h.selection.actor == h.objects &&
+    CHECK(mm_scene_selection_shared(h.objects, &s) && h.owner.selected_actor == h.objects &&
           !mm_scene_member_count(&h.owner, MM_SCENE_SELECTION));
     h.trace_count = 0;
     mm_scene_member_replace(&h.owner, MM_SCENE_ACTORS, 1, h.objects + 1);
@@ -414,7 +416,7 @@ static void test_bulk(void)
     h.trace_count = 0;
     {
         const unsigned short tag[] = {'T', 'W', 'O'};
-        CHECK(mm_scene_selection_tag(tag, 3, 1, &s) && h.selection.actor == h.objects + 2);
+        CHECK(mm_scene_selection_tag(tag, 3, 1, &s) && h.owner.selected_actor == h.objects + 2);
     }
     h.trace_count = 0;
     /* Native sharing truncates a long seed token before looking for a whole token. */
@@ -442,7 +444,7 @@ static void test_centroid(void)
     MMSceneSelectionServices s = init(&h, -1);
     MMActorPoint out = {11, 23, 47};
     CHECK(!mm_scene_selection_centroid(&out, &s) && out.dxr == 11 && out.dyr == 23 && out.dzr == 47);
-    h.selection.actor = h.objects;
+    h.owner.selected_actor = h.objects;
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, h.objects + 1));
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, NULL));
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_SELECTION, h.objects + 2));
@@ -466,14 +468,14 @@ static void test_tag_units(void)
     h.objects[0].name[0] = '#';
     h.objects[0].name[1] = 0xe9;
     h.objects[0].length = 2;
-    CHECK(mm_scene_selection_tag(byte_tag, 1, 0, &s) && h.selection.actor == h.objects);
+    CHECK(mm_scene_selection_tag(byte_tag, 1, 0, &s) && h.owner.selected_actor == h.objects);
     h.trace_count = 0;
     h.objects[0].name[1] = 0x1234;
-    CHECK(mm_scene_selection_tag(wide_tag, 1, 1, &s) && h.selection.actor == h.objects);
+    CHECK(mm_scene_selection_tag(wide_tag, 1, 1, &s) && h.owner.selected_actor == h.objects);
     h.trace_count = 0;
     /* Query matching does not impose the shared-tag parser's ASCII grammar. */
     named(h.objects, "#a-b!");
-    CHECK(mm_scene_selection_tag("a-b", 3, 0, &s) && h.selection.actor == h.objects);
+    CHECK(mm_scene_selection_tag("a-b", 3, 0, &s) && h.owner.selected_actor == h.objects);
 }
 static MMActorOwner *pointer_owner(void *p, void *actor)
 {
@@ -515,7 +517,7 @@ static struct MMActorUndoState *pointer_undo_new(void *p, void **handle)
 {
     Host *h = p;
     (void)handle;
-    CHECK(h->selection.actor == h->objects + 1 && h->undo_releases == 1);
+    CHECK(h->owner.selected_actor == h->objects + 1 && h->undo_releases == 1);
     ++h->undo_creates;
     return NULL;
 }
@@ -555,7 +557,7 @@ static void test_actor_pointer(void)
     other.owner = &other_owner;
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects));
     CHECK(mm_scene_member_append(&h.owner, MM_SCENE_ACTORS, h.objects + 1));
-    h.selection.actor = h.cover = h.objects;
+    h.owner.selected_actor = h.cover = h.objects;
     h.pick = h.objects + 1;
     h.objects[0].owner.runtime.time_frozen = 1;
     CHECK(mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view) == h.objects);
@@ -591,12 +593,12 @@ static void test_actor_pointer(void)
     in.x += 4;
     CHECK(!mm_scene_actor_pointer_drag(&pointer, &in, &pending, &s, &actors, &undo));
     CHECK(!pending.single && h.undo_releases == 1 && h.undo_creates == 1 && h.undo_clears == 1 && h.undo_errors == 1);
-    CHECK(h.selection.actor == h.pick && mm_scene_selection_count(&s) == 1 && !h.pick->refs);
+    CHECK(h.owner.selected_actor == h.pick && mm_scene_selection_count(&s) == 1 && !h.pick->refs);
 
     mm_scene_select_actor(h.objects, &s);
     mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view);
     CHECK(!mm_scene_actor_pointer_up(&pointer, in.x, in.y, &other, &actors, &view) && !h.pick->refs);
-    CHECK(h.selection.actor == h.objects && mm_scene_selection_count(&s) == 1);
+    CHECK(h.owner.selected_actor == h.objects && mm_scene_selection_count(&s) == 1);
     mm_scene_actor_pointer_down(&pointer, &in, &part, &s, &actors, &view);
     mm_scene_member_remove(&h.owner, MM_SCENE_ACTORS, 1);
     in.x += 4;
@@ -604,7 +606,7 @@ static void test_actor_pointer(void)
     CHECK(pointer.cancelled && !pointer.target && !h.pick->refs);
     CHECK(mm_scene_actor_pointer_drag(&pointer, &in, &pending, &s, &actors, &undo));
     CHECK(!mm_scene_actor_pointer_up(&pointer, in.x, in.y, NULL, &actors, &view) && !pointer.cancelled);
-    CHECK(h.selection.actor == h.objects && mm_scene_selection_count(&s) == 1);
+    CHECK(h.owner.selected_actor == h.objects && mm_scene_selection_count(&s) == 1);
 }
 
 int main(void)
