@@ -188,5 +188,154 @@ static void end_test(void)
         CHECK(!finish(&f,1,&s) && f.restores==1 && !f.record.recording && !f.record.rejoining && f.record.timestamp==123 && f.record.gap==77); done(&f.sub);
     }
 }
+typedef struct GestureFixture
+{
+    MMActorRecordGesture gesture;
+    MMActorState state;
+    MMActorRecording record;
+    MMU32 now, flags;
+    int fail_action, fail_begin, fail_move, frozen, route;
+    char calls[32];
+    unsigned count;
+} GestureFixture;
+
+static void gesture_call(GestureFixture *f, char call)
+{
+    CHECK(f->count + 1 < sizeof(f->calls));
+    f->calls[f->count++] = call;
+    f->calls[f->count] = 0;
+}
+static MMU32 gesture_clock(void *p)
+{
+    GestureFixture *f = p;
+    gesture_call(f, 't');
+    return f->now;
+}
+static void gesture_release(void *p) { gesture_call(p, 'r'); }
+static int gesture_action(void *p, MMI32 action, MMI32 cel, int frozen, void **snapshot)
+{
+    GestureFixture *f = p;
+    CHECK(action == 4 && cel == 6);
+    gesture_call(f, 'a');
+    f->frozen = frozen;
+    if (f->fail_action)
+        return 0;
+    *snapshot = f;
+    return 1;
+}
+static int gesture_valid(void *p, const MMActorPoint *delta, MMU32 now)
+{
+    GestureFixture *f = p;
+    CHECK(now == f->now);
+    gesture_call(f, 'v');
+    return delta->dxr != 0;
+}
+static int gesture_begin(void *p, int replace, MMU32 now, void *snapshot)
+{
+    GestureFixture *f = p;
+    CHECK(p == snapshot && now == f->now && replace == f->gesture.replace);
+    gesture_call(f, 'b');
+    f->record.recording = !f->fail_begin;
+    return f->record.recording;
+}
+static void gesture_trim(void *p) { gesture_call(p, 'd'); }
+static void gesture_notify(void *p, int replace)
+{
+    GestureFixture *f = p;
+    CHECK(replace == f->gesture.replace);
+    gesture_call(f, 'n');
+}
+static int gesture_cycle(void *p, MMI32 action, MMI32 cel, int frozen)
+{
+    GestureFixture *f = p;
+    CHECK(action == 4 && cel == f->state.cel + 1 && !frozen);
+    f->state.cel = cel;
+    gesture_call(f, 'c');
+    return 1;
+}
+static int gesture_move(void *p, const MMActorPoint *delta, MMU32 flags, MMU32 now, void *snapshot,
+    MMActorRecordResult *result)
+{
+    GestureFixture *f = p;
+    CHECK(p == snapshot && now == f->now && delta->dxr != 0);
+    f->flags = flags;
+    result->frame = 1;
+    result->route = f->route;
+    gesture_call(f, 'm');
+    return !f->fail_move;
+}
+static void gesture_end(void *p, int replace, void *snapshot)
+{
+    GestureFixture *f = p;
+    CHECK(p == snapshot && replace == f->gesture.replace);
+    f->record.recording = 0;
+    gesture_call(f, 'e');
+}
+static MMActorRecordGestureServices gesture_init(GestureFixture *f)
+{
+    MMActorRecordGestureServices s = {NULL, gesture_clock, gesture_release, gesture_action, gesture_valid,
+        gesture_begin, gesture_trim, gesture_notify, gesture_cycle, gesture_move, gesture_end};
+    memset(f, 0, sizeof(*f));
+    s.context = f;
+    f->state.action = 4;
+    f->state.cel = 6;
+    f->gesture.replace = 1;
+    f->now = 0xffffff00U;
+    return s;
+}
+static int gesture_sample(GestureFixture *f, unsigned advance, unsigned modifiers, const MMActorRecordGestureServices *s)
+{
+    const MMActorPoint delta = {ONE, 0, 0};
+    f->now += advance;
+    return mm_actor_record_gesture_sample(&f->gesture, f, &f->state, &f->record, &delta, modifiers, 1, f->now, s);
+}
+static void gesture_test(void)
+{
+    GestureFixture f;
+    MMActorRecordGestureServices s = gesture_init(&f);
+    MMActorPoint axes = {ONE, -ONE, -5 * ONE};
+    const unsigned shift = MM_RECORD_GESTURE_SHIFT, cmd = MM_RECORD_GESTURE_COMMAND;
+    CHECK(mm_actor_record_gesture_start(&f.gesture, &f, &f.state, &f.record, cmd, &s));
+    CHECK(f.gesture.action == -1 && f.record.timestamp == f.now);
+    CHECK(gesture_sample(&f, 497, cmd, &s) == MM_RECORD_GESTURE_IDLE);
+    CHECK(gesture_sample(&f, 1, cmd | shift, &s) == MM_RECORD_GESTURE_CEL);
+    CHECK(gesture_sample(&f, 0, 0, &s) == MM_RECORD_GESTURE_IDLE);
+    CHECK(gesture_sample(&f, 165, 0, &s) == MM_RECORD_GESTURE_IDLE);
+    CHECK(gesture_sample(&f, 1, shift, &s) == MM_RECORD_GESTURE_FRAME);
+    CHECK(f.flags == (MM_RECORD_FREEZE | MM_RECORD_GROUND));
+    f.route = 1;
+    CHECK(gesture_sample(&f, 166, cmd | shift, &s) == MM_RECORD_GESTURE_POINT);
+    CHECK(f.flags == MM_RECORD_GROUND);
+    mm_actor_record_gesture_filter_axes(&f.gesture, f.record.recording, &axes);
+    CHECK(axes.dxr == 0 && axes.dyr == 0 && axes.dzr == -5 * ONE);
+    f.fail_move = 1;
+    CHECK(gesture_sample(&f, 166, 0, &s) == MM_RECORD_GESTURE_IDLE);
+    mm_actor_record_gesture_end(&f.gesture, &f, &s);
+    CHECK(!f.gesture.restore && strcmp(f.calls, "atcvbdnmmmer") == 0);
+
+    s = gesture_init(&f);
+    CHECK(mm_actor_record_gesture_start(&f.gesture, &f, &f.state, &f.record, shift | cmd, &s));
+    CHECK(!f.frozen && !f.gesture.replace && !f.gesture.cycling);
+    f.fail_begin = 1;
+    CHECK(gesture_sample(&f, 166, 0, &s) == MM_RECORD_GESTURE_IDLE);
+    f.fail_begin = 0;
+    CHECK(gesture_sample(&f, 0, 0, &s) == MM_RECORD_GESTURE_FRAME);
+    mm_actor_record_gesture_end(&f.gesture, &f, &s);
+    CHECK(f.gesture.replace && !f.gesture.restore_default && strcmp(f.calls, "atvbvbnmer") == 0);
+
+    s = gesture_init(&f);
+    f.fail_action = 1;
+    CHECK(!mm_actor_record_gesture_start(&f.gesture, &f, &f.state, &f.record, shift, &s));
+    CHECK(f.frozen && gesture_sample(&f, 200, 0, &s) == MM_RECORD_GESTURE_IDLE);
+    mm_actor_record_gesture_end(&f.gesture, &f, &s);
+    CHECK(strcmp(f.calls, "a") == 0);
+    f.fail_action = 0;
+    CHECK(mm_actor_record_gesture_start(&f.gesture, &f, &f.state, &f.record, 0, &s));
+    mm_actor_record_gesture_end(&f.gesture, NULL, &s);
+    CHECK(!f.gesture.restore && strcmp(f.calls, "aatr") == 0);
+}
 int main(void)
-{ validity_test(); begin_test(); move_test(); end_test(); puts("actor recording checks passed"); return 0; }
+{
+    validity_test(); begin_test(); move_test(); end_test(); gesture_test();
+    puts("actor recording checks passed"); return 0;
+}

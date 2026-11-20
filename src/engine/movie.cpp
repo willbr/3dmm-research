@@ -40,8 +40,13 @@ ASSERTNAME
 
 #define kdwrMousePerSecond BR_SCALAR(100.0) // "mouse drag" speed for arrow keys
 
-#define kdtsFrame (kdtsSecond / kfps) // milliseconds per frame
-#define kdtsCycleCels (kdtsFrame * 3) // delay when cycling cels
+static_assert(kdtsSecond / kfps == MM_RECORD_FRAME_TICKS && ivNil == -1, "Actor recording gesture ABI");
+
+static unsigned RecordGestureModifiers(long modifiers)
+{
+    return ((modifiers & fcustShift) ? MM_RECORD_GESTURE_SHIFT : 0) |
+           ((modifiers & fcustCmd) ? MM_RECORD_GESTURE_COMMAND : 0);
+}
 
 const ChildChunkID kchidGstSource = 1;
 
@@ -3587,6 +3592,8 @@ MovieView::~MovieView(void)
     _DiscardMoveUndo();
     const auto actors = Actor::_OwnerServices();
     mm_actor_placement_discard(&_placement, &actors);
+    const auto recording = _RecordGestureServices();
+    mm_actor_record_gesture_discard(&_recordGesture, &recording);
 }
 
 /***************************************************************************
@@ -3625,7 +3632,7 @@ MovieView *MovieView::PmvuNew(PMovie pmvie, PGraphicsObjectBlock pgcb, long dxp,
         return (pvNil);
     }
 
-    pmvu->_fRecordDefault = fTrue;
+    pmvu->SetFRecordDefault(fTrue);
     pmvu->_fRespectGround = fFalse;
     pmvu->_dxp = dxp;
     pmvu->_dyp = dyp;
@@ -4989,66 +4996,15 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         break;
 
     case toolRecordSameAction:
-
         if (pactr != pvNil)
         {
-            long anidTool = pactr->AnidCur();
-            long anid = anidTool;
-            long celn = 0;
-            bool fFrozen;
-
-            SetAnidTool(pactr->AnidCur());
             _ptmplTool = pactr->Ptmpl();
-
-            if ((pcmd->grfcust & fcustShift) && (pcmd->grfcust & fcustCmd) && FRecordDefault())
-            {
-                fFrozen = fFalse;
-                _fCyclingCels = fFalse;
-                _fSetFRecordDefault = fTrue;
-                SetFRecordDefault(fFalse);
-            }
-            else
-            {
-                fFrozen = FPure(pcmd->grfcust & fcustShift);
-                _fCyclingCels = FPure(pcmd->grfcust & fcustCmd);
-            }
-
-            if ((pactr->Ptmpl() != _ptmplTool) && !(_ptmplTool->FIsTdt() && pactr->Ptmpl()->FIsTdt()))
-            {
-                PushErc(ercSocActionNotApplicable);
-                return;
-            }
-
-            vpappb->HideCurs();
-
-            // first, call FSetAction
-            if (anidTool == ivNil)
-            {
-                anid = pactr->AnidCur();
-            }
-            if (pactr->AnidCur() == anid)
-            {
-                celn = pactr->CelnCur();
-            }
-
-            // note that FSetAction creates an undo object
-            // NOTE:  FSetAction() must be called on each use
-            // of toolRecordSameAction. (It is not redundant).
-            // Otherwise, resizing can break wysiwyg, as the final
-            // path point probably won't be a complete cel's distance
-            // from the previous step.
-            Assert(pvNil == _pactrRestore, "_pactrRestore should not require releasing");
-            ReleasePpo(&_pactrRestore); // To be safe
-            if (!pactr->FSetAction(anid, celn, fFrozen, &_pactrRestore))
-            {
-                break; // an Oom erc has already been pushed
-            }
-            SetAnidTool(ivNil);
-            _tsLast = TsCurrent();
-            pactr->SetTsInsert(_tsLast);
-            Pmvie()->Pmcc()->PlayUISound(Tool());
+            const auto recording = _RecordGestureServices();
+            auto &runtime = pactr->_owner.runtime;
+            if (mm_actor_record_gesture_start(&_recordGesture, pactr, &runtime.state, &runtime.recording,
+                                              RecordGestureModifiers(pcmd->grfcust), &recording))
+                Pmvie()->Pmcc()->PlayUISound(Tool());
         }
-
         break;
 
     case toolAction:
@@ -5130,6 +5086,53 @@ void MovieView::_DiscardMoveUndo()
 {
     const auto undo = ActorMoveGroupUndo::DragUndoServices(nullptr);
     mm_actor_drag_undo_discard(&_actorDrag, &undo);
+}
+
+MMActorRecordGestureServices MovieView::_RecordGestureServices()
+{
+    MMActorRecordGestureServices services{};
+    services.context = this;
+    services.clock_now = [](void *) { return MMU32(TsCurrent()); };
+    services.release = [](void *snapshot) { static_cast<PActor>(snapshot)->Release(); };
+    services.set_action = [](void *actor, MMI32 action, MMI32 cel, int frozen, void **out) {
+        PActor snapshot = nullptr;
+        vpappb->HideCurs();
+        const bool ok = static_cast<PActor>(actor)->FSetAction(action, cel, frozen != 0, &snapshot);
+        *out = snapshot;
+        return int(ok);
+    };
+    services.valid = [](void *actor, const MMActorPoint *delta, MMU32 now) {
+        return int(static_cast<PActor>(actor)->FIsRecordValid(delta->dxr, delta->dyr, delta->dzr, now));
+    };
+    services.begin = [](void *actor, int replace, MMU32 now, void *snapshot) {
+        return int(static_cast<PActor>(actor)->FBeginRecord(now, replace != 0, static_cast<PActor>(snapshot)));
+    };
+    services.trim = [](void *actor) { static_cast<PActor>(actor)->DeleteFwdCore(false); };
+    services.recording_started = [](void *p, int replace) {
+        static_cast<PMovieView>(p)->Pmvie()->Pmcc()->Recording(true, replace != 0);
+    };
+    services.cycle = [](void *actor, MMI32 action, MMI32 cel, int frozen) {
+        return int(static_cast<PActor>(actor)->FSetActionCore(action, cel, frozen != 0));
+    };
+    services.move = [](void *actor, const MMActorPoint *delta, MMU32 flags, MMU32 now, void *snapshot,
+                       MMActorRecordResult *result) {
+        bool frame = false, route = false;
+        const bool ok = static_cast<PActor>(actor)->FRecordMove(delta->dxr, delta->dyr, delta->dzr, flags, now,
+                                                               &frame, &route, static_cast<PActor>(snapshot));
+        result->frame = frame;
+        result->route = route;
+        return int(ok);
+    };
+    services.end = [](void *actor, int replace, void *snapshot) {
+        static_cast<PActor>(actor)->FEndRecord(replace != 0, static_cast<PActor>(snapshot));
+    };
+    return services;
+}
+
+bool MovieView::_FRecordTemplateMatches(PActor actor)
+{
+    auto tmpl = actor->Ptmpl();
+    return tmpl == _ptmplTool || (_ptmplTool && _ptmplTool->FIsTdt() && tmpl->FIsTdt());
 }
 
 /***************************************************************************
@@ -5245,15 +5248,12 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         fArrowKey = fTrue;
         dzrMouse -= BrsMul(drSec, kdwrMousePerSecond);
     }
-    if (fArrowKey && Tool() == toolRecordSameAction && !_fCyclingCels && pactr->FIsModeRecord())
+    if (fArrowKey && Tool() == toolRecordSameAction)
     {
-        if ((BrsAbs(dxrMouse) * 4 < BrsAbs(dzrMouse)) && (BrsAbs(dyrMouse) * 4 < BrsAbs(dzrMouse)))
-        {
-            // When the up/down arrow keys are used, infinitesimal
-            // mouse movement should not be observed or determine path direction.
-            dxrMouse = rZero;
-            dyrMouse = rZero;
-        }
+        MMActorPoint delta{dxrMouse, dyrMouse, dzrMouse};
+        mm_actor_record_gesture_filter_axes(&_recordGesture, pactr->FIsModeRecord(), &delta);
+        dxrMouse = delta.dxr;
+        dyrMouse = delta.dyr;
     }
     _dzrPrev = dzrMouse;
     _tsLastSample = TsCurrent();
@@ -5479,84 +5479,21 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         break;
 
     case toolRecordSameAction: {
-        bool fLonger;
-        bool fStep;
-        ulong tsCurrent = TsCurrent();
-        ulong grfmaf = 0;
-        bool fFrozen = FPure((pcmd->grfcust & fcustShift) && !(pcmd->grfcust & fcustCmd));
-
-        if ((pactr->Ptmpl() != _ptmplTool) && !(_ptmplTool->FIsTdt() && pactr->Ptmpl()->FIsTdt()))
+        const auto now = TsCurrent();
+        if (!_FRecordTemplateMatches(pactr))
+            break;
+        const auto recording = _RecordGestureServices();
+        const auto &runtime = pactr->_owner.runtime;
+        const int result = mm_actor_record_gesture_sample(&_recordGesture, pactr, &runtime.state, &runtime.recording,
+            &world, RecordGestureModifiers(pcmd->grfcust), _fRespectGround, now, &recording);
+        if (result == MM_RECORD_GESTURE_FRAME || result == MM_RECORD_GESTURE_POINT)
         {
-            return;
+            Pmvie()->Pmcc()->UpdateScrollbars();
+            if (result == MM_RECORD_GESTURE_POINT)
+                AdjustCursor(pcmd->xp, pcmd->yp);
         }
-
-        // If have stopped cycling cels
-        if (_fCyclingCels && !(pcmd->grfcust & fcustCmd))
-        {
-            _fCyclingCels = fFalse;
-            _tsLast = tsCurrent;
-        }
-
-        // Start recording unless we're cycling cels
-        if (!_fCyclingCels && !pactr->FIsModeRecord() && pactr->FIsRecordValid(dxrWld, dyrWld, dzrWld, tsCurrent))
-        {
-            if (!pactr->FBeginRecord(tsCurrent, FRecordDefault(), _pactrRestore))
-                break; // an Oom erc has already been pushed
-
-            // If rerecording, nuke the remainder of the subroute
-            if (FRecordDefault())
-                pactr->DeleteFwdCore(fFalse);
-
-            Pmvie()->Pmcc()->Recording(fTrue, FRecordDefault());
-        }
-
-        if (_fCyclingCels)
-        {
-            if (pcmd->grfcust & fcustCmd) // still cycling
-            {
-                if ((tsCurrent - _tsLast) < kdtsCycleCels)
-                {
-                    break;
-                }
-                _tsLast = tsCurrent;
-                if (!pactr->FSetActionCore(pactr->AnidCur(), pactr->CelnCur() + 1, fFrozen))
-                {
-                    break; // an Oom erc has already been pushed
-                }
-                Pmvie()->MarkViews();
-            }
-        }
-        else if (pactr->FIsModeRecord()) // just recording
-        {
-            if ((tsCurrent - _tsLast) < kdtsFrame)
-            {
-                break;
-            }
-            _tsLast = tsCurrent;
-            if (fFrozen)
-            {
-                grfmaf |= fmafFreeze;
-            }
-
-            if (_fRespectGround)
-            {
-                grfmaf |= fmafGround;
-            }
-
-            if (!pactr->FRecordMove(dxrWld, dyrWld, dzrWld, grfmaf, tsCurrent, &fLonger, &fStep, _pactrRestore))
-            {
-                // Oom erc already pushed
-                break;
-            }
-            if (fLonger) // If a point was added to the path
-            {
-                // update scroll bars
-                Pmvie()->Pmcc()->UpdateScrollbars();
-                if (fStep)
-                    AdjustCursor(pcmd->xp, pcmd->yp);
-                Pmvie()->MarkViews();
-            }
-        }
+        if (result != MM_RECORD_GESTURE_IDLE)
+            Pmvie()->MarkViews();
     }
     break;
     }
@@ -5703,32 +5640,20 @@ void MovieView::_MouseUp(CMD_MOUSE *pcmd)
         }
         break;
 
-    case toolRecordSameAction:
-
+    case toolRecordSameAction: {
+        if (pactr != pvNil && !_FRecordTemplateMatches(pactr))
+            break;
+        const auto recording = _RecordGestureServices();
+        mm_actor_record_gesture_end(&_recordGesture, pactr, &recording);
         if (pvNil != pactr)
         {
-
-            if ((pactr->Ptmpl() != _ptmplTool) && !(_ptmplTool->FIsTdt() && pactr->Ptmpl()->FIsTdt()))
-            {
-                break;
-            }
-
-            pactr->FEndRecord(FRecordDefault(), _pactrRestore); // On error, Oom already pushed
-            ReleasePpo(&_pactrRestore);
             Pmvie()->InvalViewsAndScb();
             WarpCursToActor(pactr);
             vpappb->ShowCurs();
         }
-
-        if (_fSetFRecordDefault)
-        {
-            _fSetFRecordDefault = fFalse;
-            SetFRecordDefault(fTrue);
-        }
-
         Pmvie()->Pmcc()->Recording(fFalse, FRecordDefault());
-
         break;
+    }
 
     case toolSoonerLater:
         if (pactr != pvNil)
@@ -6511,6 +6436,7 @@ void MovieView::MarkMem(void)
     MarkMemObj(static_cast<PUndoBase>(_actorDrag.group));
     MarkMemObj(static_cast<PActor>(_placement.actor));
     MarkMemObj(static_cast<PActor>(_placement.snapshot));
+    MarkMemObj(static_cast<PActor>(_recordGesture.restore));
 #ifdef KAUAI_SDL3
     MarkMemObj(_pgptSuperSize);
     MarkMemObj(_pgptSuperSizeIndexed);

@@ -244,3 +244,107 @@ finished:
 fail:
     restore(state,record,undo,s); record->rejoining=record->recording=0; publish(state,record,s); return 0;
 }
+
+void mm_actor_record_gesture_discard(MMActorRecordGesture *gesture, const MMActorRecordGestureServices *s)
+{
+    if (gesture->restore)
+    {
+        s->release(gesture->restore);
+        gesture->restore = NULL;
+    }
+}
+
+int mm_actor_record_gesture_start(MMActorRecordGesture *gesture, void *actor, const MMActorState *state,
+    MMActorRecording *record, unsigned modifiers, const MMActorRecordGestureServices *s)
+{
+    int shift = (modifiers & MM_RECORD_GESTURE_SHIFT) != 0;
+    int command = (modifiers & MM_RECORD_GESTURE_COMMAND) != 0;
+    gesture->action = state->action;
+    gesture->cycling = command;
+    if (shift && command && gesture->replace)
+    {
+        gesture->replace = 0;
+        gesture->restore_default = 1;
+        gesture->cycling = 0;
+        shift = 0;
+    }
+    /* Reapply the action even when it already matches, so the edited route
+     * starts on an action step and has a snapshot for rollback and undo. */
+    mm_actor_record_gesture_discard(gesture, s);
+    if (!s->set_action(actor, gesture->action, state->cel, shift, &gesture->restore))
+        return 0;
+    gesture->action = -1;
+    gesture->last_sample = s->clock_now(s->context);
+    record->timestamp = gesture->last_sample;
+    return 1;
+}
+
+int mm_actor_record_gesture_sample(MMActorRecordGesture *gesture, void *actor, const MMActorState *state,
+    const MMActorRecording *record, const MMActorPoint *delta, unsigned modifiers, int ground, MMU32 now,
+    const MMActorRecordGestureServices *s)
+{
+    MMActorRecordResult result = {0, 0, 0, NULL, NULL};
+    const int command = (modifiers & MM_RECORD_GESTURE_COMMAND) != 0;
+    const int frozen = !command && (modifiers & MM_RECORD_GESTURE_SHIFT);
+    MMU32 flags = (frozen ? MM_RECORD_FREEZE : 0) | (ground ? MM_RECORD_GROUND : 0);
+    if (!gesture->restore)
+        return MM_RECORD_GESTURE_IDLE;
+    if (gesture->cycling && !command)
+    {
+        gesture->cycling = 0;
+        gesture->last_sample = now;
+    }
+    if (!gesture->cycling && !record->recording && s->valid(actor, delta, now))
+    {
+        if (!s->begin(actor, gesture->replace, now, gesture->restore))
+            return MM_RECORD_GESTURE_IDLE;
+        if (gesture->replace)
+            s->trim(actor);
+        s->recording_started(s->context, gesture->replace);
+    }
+    if (gesture->cycling)
+    {
+        if ((MMU32)(now - gesture->last_sample) < MM_RECORD_CEL_TICKS)
+            return MM_RECORD_GESTURE_IDLE;
+        gesture->last_sample = now;
+        if (s->cycle(actor, state->action, mm_fixed_add(state->cel, 1), frozen))
+            return MM_RECORD_GESTURE_CEL;
+        return MM_RECORD_GESTURE_IDLE;
+    }
+    if (record->recording && (MMU32)(now - gesture->last_sample) >= MM_RECORD_FRAME_TICKS)
+    {
+        gesture->last_sample = now;
+        if (s->move(actor, delta, flags, now, gesture->restore, &result) && result.frame)
+            return result.route ? MM_RECORD_GESTURE_POINT : MM_RECORD_GESTURE_FRAME;
+    }
+    return MM_RECORD_GESTURE_IDLE;
+}
+
+void mm_actor_record_gesture_end(MMActorRecordGesture *gesture, void *actor, const MMActorRecordGestureServices *s)
+{
+    if (actor && gesture->restore)
+        s->end(actor, gesture->replace, gesture->restore);
+    mm_actor_record_gesture_discard(gesture, s);
+    if (gesture->restore_default)
+    {
+        gesture->restore_default = 0;
+        gesture->replace = 1;
+    }
+}
+
+static MMI32 wrapped_abs(MMI32 value)
+{
+    return value < 0 ? mm_fixed_sub(0, value) : value;
+}
+
+void mm_actor_record_gesture_filter_axes(const MMActorRecordGesture *gesture, int recording, MMActorPoint *delta)
+{
+    MMI32 depth = wrapped_abs(delta->dzr);
+    if (!gesture->cycling && recording &&
+        mm_signed_word((MMU32)wrapped_abs(delta->dxr) << 2) < depth &&
+        mm_signed_word((MMU32)wrapped_abs(delta->dyr) << 2) < depth)
+    {
+        delta->dxr = 0;
+        delta->dyr = 0;
+    }
+}

@@ -4392,14 +4392,43 @@ Native services retain primitive BRender distance queries and scene seeks.
 described below. The underlying scene/body/resource implementations remain
 temporary native dependencies. Recording decisions execute in the C-only library.
 
+Studio's record gesture also uses `actor_record.c`. C reapplies the current
+action and cel through the actor edit transaction, keeps the rollback snapshot,
+and initializes the insertion timestamp after the action edit. It owns the
+166 ms route sample cadence, 498 ms cel cycle cadence, freeze/ground flags, and
+temporary rerecord mode selected by Shift and Command. Releasing Command stops
+cel cycling and restarts the sample clock. Replace mode trims the tail after
+beginning a route. Cursor capture, redraw, and Studio sound and tool controls
+are host services. A failed action edit leaves no snapshot and suppresses
+subsequent route sampling. Ending a gesture without a selected actor and closing
+the view both release any retained snapshot.
+
 `engine-record-test` covers thresholds and timestamp wrap, record-step failures,
 segment splitting, removed stubs, lifetime failure, reservation short-circuiting,
 written/untouched outputs, frame-only waits, sampling, clipping, smoothing overflow,
 gap extension, seek rollback and aliased-output assignment masks. It also checks
 tag ownership through merging/deletion, Add boundaries, epsilon joins, end failure
-cleanup and poisoned table handles after restoration. A 439,824-byte native-before
+cleanup and poisoned table handles after restoration. Gesture checks cover both
+cadence boundaries across timestamp rollover, cycling-to-recording order,
+temporary rerecord, missed action/route starts, snapshot release, and the small
+mouse delta filter for keyboard-directed movement. A 439,824-byte native-before
 trace across 640 scenarios matches exactly, including complete recording sequences
 and real undo restoration. An additional native aliased-output check passes.
+
+Routed Studio motion fill, cel cycling, record and rerecord workflows matched
+the previous build, including undo/redo state and all saved chunk entries, links
+and payloads. Record and rerecord advanced the playhead from frame 7 to frame 9.
+Redo retained the action transaction's frame 7, and reopening at frame 9
+reproduced the edited pose. Retail reopened all four movies with matching actor
+positions and pose matrices over frames 7 through 9. All 12 native actor traces
+and the Scene-content trace matched the previous build. The C89 recording test
+passed on x86 and x64.
+
+Fresh SDL and Marcus runs (`20261120T024627Z-031ce727`) matched the retained
+retail `actor-event-edit` capture's 60 scene and frame markers in both seek and
+playback. The 60 seek image hashes per port matched the previous build. Camera
+indices and all 12 SDL playback sound events also matched retail.
+
 Transform/time edits are described next. Undo, queue/runtime integration,
 body/resource implementations and final facade removal remain unfinished.
 

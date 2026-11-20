@@ -30,6 +30,7 @@
 #include "mm/movie_save.h"
 #include "mm/movie_edit.h"
 #include "mm/actor_placement.h"
+#include "mm/actor_record.h"
 #include "mm/movie_content.h"
 #include "mm/movie_compose.h"
 
@@ -40,7 +41,7 @@ enum
 {
     toolPlace, // (to position an actor when you first add it)
     toolCompose,
-    toolAction, // action is in _anidTool if we're motion filling
+    toolAction,
     toolTweak,
     toolRotateX,
     toolRotateY,
@@ -174,28 +175,22 @@ class MovieView : public MovieView_PAR
     long _grfcust;        // Options in effect when mouse was down.
     PCursor _pcursDefault;  // Default cursor for when a tool is not applicable.
     PActor _pactrListener; // Pactr of the actor being auditioned
-    PActor _pactrRestore;  // Restore for actor recording
 
-    long _anidTool;     // Current selected action
     TAG _tagTool;       // Tag associated with current tool.
     PTemplate _ptmplTool;   // Template associated with the current tool.
     long _cmidTool;     // Costume id associated with current tool.
-    bool _fCyclingCels; // Are we cycling cels in toolRecord?
     long _tool;         // Current tool loaded on cursor
 
     MMActorDragUndo _actorDrag{};
     MMActorPlacementState _placement{};
-    ulong _tsLast;       // Last time a cell was recorded.
+    MMActorRecordGesture _recordGesture{};
     ulong _tsLastSample; // Last time mouse/kbd sampled
     RC _rcFrame;         // Frame for creating a text box.
 
     MMActorMatrix _mouseAxes{{{rOne, rZero, rZero}, {rZero, rZero, rOne}, {rZero, -rOne, rZero}}};
-    bool _fRecordDefault; // fTrue = Record; fFalse = Rerecord
-
     bool _fPause : 1;             // fTrue if pausing play until a click.
     bool _fTextMode : 1;          // fTrue if Text boxes are active.
     bool _fRespectGround : 1;     // fTrue if Y=0 is enforced.
-    bool _fSetFRecordDefault : 1; // fTrue if using hotkeys to rerecord.
     bool _fMouseOn : 1;
     bool _fSelToggleArmed : 1; // Shift-clicked an actor at mousedown; apply toggle on mouseup if no drag.
 
@@ -228,6 +223,8 @@ class MovieView : public MovieView_PAR
 
     void _CommitMoveUndo(bool singleOnly = false);
     void _DiscardMoveUndo();
+    MMActorRecordGestureServices _RecordGestureServices();
+    bool _FRecordTemplateMatches(PActor actor);
 
     void _ActorClicked(PActor pactr, bool fDown);
 
@@ -281,7 +278,7 @@ class MovieView : public MovieView_PAR
     }
     long AnidTool(void)
     {
-        return _anidTool;
+        return _recordGesture.action;
     }
     long CmidTool(void)
     {
@@ -293,7 +290,7 @@ class MovieView : public MovieView_PAR
     }
     void SetAnidTool(long anid)
     {
-        _anidTool = anid;
+        _recordGesture.action = anid;
     }
     void SetTagTool(PTAG ptag);
     void SetCmidTool(long cmid)
@@ -312,7 +309,7 @@ class MovieView : public MovieView_PAR
     }
     void SetFRecordDefault(bool f)
     {
-        _fRecordDefault = f;
+        _recordGesture.replace = f;
     }
     void SetFRespectGround(bool f)
     {
@@ -320,7 +317,7 @@ class MovieView : public MovieView_PAR
     }
     bool FRecordDefault()
     {
-        return _fRecordDefault;
+        return _recordGesture.replace != 0;
     }
     void PauseUntilClick(bool fPause)
     {
