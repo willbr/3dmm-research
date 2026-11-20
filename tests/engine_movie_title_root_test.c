@@ -465,7 +465,7 @@ static void archived_scenes(void)
     };
     ArchiveHost host;
     MMMovieArchiveEditor editor = {NULL, 2, MM_TEXT_UTF16_LE, 1, NULL, archive_chunks, NULL, archive_add,
-                                   NULL, NULL, archive_put, archive_title, NULL, NULL, NULL, {0}};
+                                   archive_put, archive_title, NULL, NULL, {0}};
     MMMovieArchiveRoot root = {999, 0};
     MMMovieHeader header;
     MMCollectionHeader rollcall;

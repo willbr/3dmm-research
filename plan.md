@@ -1419,6 +1419,10 @@ They also use the live index to link sounds, actors, captions and thumbnails
 and to discard a failed candidate scene. New scenes and inserted actors
 move to their requested chunk numbers through the same index, which supplies
 runtime ID access for chunk moves and copies.
+Actor placement, animation, sound changes and reframing use the same index
+for graph edits. Caption edits, rich-text body saves and storyboard resource
+creation also use it directly. The movie archive host supplies payload I/O
+and a writable index.
 Portable source tables and background event groups publish a replacement
 before releasing the old link. Native source registration retains its
 existing unlink-before-adopt order.

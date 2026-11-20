@@ -480,14 +480,15 @@ static void move_opening_camera(void *context, void *group, MMI32 index, MMI32 f
 static int publish_frames(SceneFrameEdit *edit, MMGroup *group)
 {
     const MMMovieArchiveEditor *editor = edit->editor;
-    MMU32 number;
+    MMChunkChild frames = {MM_SCENE_FRAME_GROUP, 0, 0}, previous = {MM_SCENE_FRAME_GROUP, 0, 0};
     if (edit->result != MM_SCENE_ARCHIVE_EDIT_OK)
         return 0;
     edit->result = MM_SCENE_ARCHIVE_EDIT_WRITE_FRAMES;
-    if (!write_archive_events(editor, MM_SCENE_FRAME_GROUP, group, edit->big, &number))
+    if (!write_archive_events(editor, frames.type, group, edit->big, &frames.number))
         return 0;
-    editor->unlink(editor->context, MM_SCENE_CHUNK, edit->number, MM_SCENE_FRAME_GROUP, edit->previous, 0);
-    if (!editor->adopt(editor->context, MM_SCENE_CHUNK, edit->number, MM_SCENE_FRAME_GROUP, number, 0))
+    previous.number = edit->previous;
+    mm_chunk_unlink(&editor->edit, MM_SCENE_CHUNK, edit->number, &previous);
+    if (mm_chunk_adopt(&editor->edit, MM_SCENE_CHUNK, edit->number, &frames, 1) != MM_CHUNK_OK)
     {
         edit->result = MM_SCENE_ARCHIVE_EDIT_LINK_FRAMES;
         return 0;
@@ -507,10 +508,10 @@ static int drop_frame_thumbnail(void *context)
     SceneFrameEdit *edit = (SceneFrameEdit *)context;
     const MMMovieArchiveEditor *editor = edit->editor;
     MMChunkAccess chunks;
-    MMU32 thumb;
+    MMChunkChild thumb = {THUMB_TYPE, 0, 0};
     chunks = editor->chunks(editor->context);
-    if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, edit->number, 0, THUMB_TYPE, &thumb) == MM_CHUNK_OK)
-        editor->unlink(editor->context, MM_SCENE_CHUNK, edit->number, THUMB_TYPE, thumb, 0);
+    if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, edit->number, thumb.slot, thumb.type, &thumb.number) == MM_CHUNK_OK)
+        mm_chunk_unlink(&editor->edit, MM_SCENE_CHUNK, edit->number, &thumb);
     return 1;
 }
 
@@ -705,38 +706,38 @@ static int update_text_events(MMGroup *group, int big, const MMSceneArchiveTextE
 }
 
 static int publish_text_edit(const MMMovieArchiveEditor *editor, const MMSceneArchiveTextEdit *edit,
-                             const MMChunkAccess *chunks, MMU32 parent, MMGroup *group, int big, MMU32 previous)
+                             const MMChunkAccess *chunks, MMU32 parent, MMGroup *group, int big,
+                             const MMChunkChild *previous)
 {
-    MMChunkChild box;
-    MMU32 number, slot;
+    MMChunkChild box, new_box = {MM_TEXT_BOX, 0, 0}, start = *previous;
     int changes_start = !edit->original || !edit->write_box;
     if (edit->original)
     {
-        slot = edit->original->slot;
-        if (mm_chunk_child_exact(chunks, parent, slot, MM_TEXT_BOX, &box) != MM_CHUNK_OK ||
+        new_box.slot = edit->original->slot;
+        if (mm_chunk_child_exact(chunks, parent, new_box.slot, MM_TEXT_BOX, &box) != MM_CHUNK_OK ||
             box.number != edit->original->number)
             return MM_SCENE_ARCHIVE_TEXT_CHANGED;
     }
-    else if (!edit->write_box || !first_text_slot(chunks, parent, &slot))
+    else if (!edit->write_box || !first_text_slot(chunks, parent, &new_box.slot))
         return MM_SCENE_ARCHIVE_TEXT_LINK;
-    if (changes_start && !update_text_events(group, big, edit, slot))
+    if (changes_start && !update_text_events(group, big, edit, new_box.slot))
         return MM_SCENE_ARCHIVE_TEXT_WRITE_START;
     if (edit->write_box)
     {
-        if (!edit->write_box(edit->context, edit->original, &number))
+        if (!edit->write_box(edit->context, edit->original, &new_box.number))
             return MM_SCENE_ARCHIVE_TEXT_WRITE_BOX;
-        if (!editor->adopt(editor->context, MM_SCENE_CHUNK, edit->scene, MM_TEXT_BOX, number, slot))
+        if (mm_chunk_adopt(&editor->edit, MM_SCENE_CHUNK, edit->scene, &new_box, 1) != MM_CHUNK_OK)
             return MM_SCENE_ARCHIVE_TEXT_LINK;
     }
     if (changes_start)
     {
-        if (!write_archive_events(editor, MM_SCENE_START_GROUP, group, big, &number) ||
-            !editor->adopt(editor->context, MM_SCENE_CHUNK, edit->scene, MM_SCENE_START_GROUP, number, 1))
+        if (!write_archive_events(editor, start.type, group, big, &start.number) ||
+            mm_chunk_adopt(&editor->edit, MM_SCENE_CHUNK, edit->scene, &start, 1) != MM_CHUNK_OK)
             return MM_SCENE_ARCHIVE_TEXT_WRITE_START;
-        editor->unlink(editor->context, MM_SCENE_CHUNK, edit->scene, MM_SCENE_START_GROUP, previous, 1);
+        mm_chunk_unlink(&editor->edit, MM_SCENE_CHUNK, edit->scene, previous);
     }
     if (edit->original)
-        editor->unlink(editor->context, MM_SCENE_CHUNK, edit->scene, MM_TEXT_BOX, edit->original->number, slot);
+        mm_chunk_unlink(&editor->edit, MM_SCENE_CHUNK, edit->scene, &box);
     return MM_SCENE_ARCHIVE_TEXT_OK;
 }
 
@@ -755,7 +756,7 @@ int mm_scene_archive_edit_text(const MMMovieArchiveEditor *editor, const MMScene
     group.storage = &storage;
     result = open_text_events(editor, &chunks, parent, &previous, &group, &big);
     if (result == MM_SCENE_ARCHIVE_TEXT_OK)
-        result = publish_text_edit(editor, edit, &chunks, parent, &group, big, previous.number);
+        result = publish_text_edit(editor, edit, &chunks, parent, &group, big, &previous);
     mm_storage_dispose(&storage);
     return result;
 }

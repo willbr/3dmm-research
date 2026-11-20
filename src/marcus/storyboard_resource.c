@@ -130,8 +130,13 @@ static int add(const MMMovieArchiveEditor *editor, MMU32 type, const void *data,
 static int add_child(const MMMovieArchiveEditor *editor, MMU32 parent_type, MMU32 parent,
                      MMU32 type, MMU32 slot, const void *data, MMU32 size, MMU32 *number)
 {
-    return add(editor, type, data, size, number) &&
-           editor->adopt(editor->context, parent_type, parent, type, *number, slot);
+    MMChunkChild child;
+    if (!add(editor, type, data, size, number))
+        return 0;
+    child.type = type;
+    child.number = *number;
+    child.slot = slot;
+    return mm_chunk_adopt(&editor->edit, parent_type, parent, &child, 1) == MM_CHUNK_OK;
 }
 
 static int read_reference(const MMMovieArchiveEditor *retail, MMU32 type, MMReadStream *stream)
@@ -261,8 +266,10 @@ static int write_paint(const MMMovieArchiveEditor *target, MMU32 camera, MMU32 d
     const MMMaskedRect bounds = {0, 0, MARCUS_BOARD_WIDTH, MARCUS_BOARD_HEIGHT};
     MMMaskedBitmap bitmap = {0};
     MMMaskedServices services = {0};
+    MMChunkChild depth_link = {DEPTH_BITMAP, 0, 0};
     MMU32 image;
     int i, ok;
+    depth_link.number = depth;
     for (i = 0; i < MARCUS_BOARD_PIXELS; ++i)
         paint[i] = marcus_board_paint_index(&inks[pixels[i]], i % MARCUS_BOARD_WIDTH, i / MARCUS_BOARD_WIDTH);
     services.system = target->system;
@@ -271,7 +278,7 @@ static int write_paint(const MMMovieArchiveEditor *target, MMU32 camera, MMU32 d
     services.free_memory = free_memory;
     ok = mm_masked_init(&bitmap, paint, MARCUS_BOARD_WIDTH, MARCUS_BOARD_HEIGHT, &bounds, 0, 0, 255, 0, 0, &services) &&
          add_child(target, MM_BACKGROUND_CAMERA, camera, PAINT_BITMAP, 0, bitmap.data, (MMU32)bitmap.bytes, &image) &&
-         target->adopt(target->context, MM_BACKGROUND_CAMERA, camera, DEPTH_BITMAP, depth, 0);
+         mm_chunk_adopt(&target->edit, MM_BACKGROUND_CAMERA, camera, &depth_link, 1) == MM_CHUNK_OK;
     mm_masked_dispose(&bitmap, &services);
     return ok;
 }

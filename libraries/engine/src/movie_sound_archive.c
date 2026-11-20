@@ -14,12 +14,13 @@ int mm_sound_archive_match(const MMMovieSoundArchiveCue *cue, const MMTag *tag, 
 static int adopt_sound(const MMMovieArchiveEditor *editor, MMU32 parent_type, MMU32 parent, MMU32 number, MMU32 *slot)
 {
     const MMChunkAccess chunks = editor->chunks(editor->context);
-    MMU32 next;
-    if (mm_movie_sound_free_slot(&chunks, parent_type, parent, &next) != MM_CHUNK_OK ||
-        next >= 0x7fffffffUL || !editor->adopt(editor->context, parent_type, parent, MM_SOUND_CHUNK, number, next))
+    MMChunkChild sound = {MM_SOUND_CHUNK, 0, 0};
+    sound.number = number;
+    if (mm_movie_sound_free_slot(&chunks, parent_type, parent, &sound.slot) != MM_CHUNK_OK ||
+        sound.slot >= 0x7fffffffUL || mm_chunk_adopt(&editor->edit, parent_type, parent, &sound, 1) != MM_CHUNK_OK)
         return 0;
     if (slot)
-        *slot = next;
+        *slot = sound.slot;
     return 1;
 }
 

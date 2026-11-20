@@ -7,7 +7,7 @@
 #include "mm/scene_edit.h"
 #include "mm/text.h"
 #include "mm/text_store.h"
-#include "chunk_edit_fixture.h"
+#include "chunk_seed_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -655,6 +655,7 @@ enum { FRAME_WIRE_BYTES = 20 + 68 + 24 };
 
 typedef struct ArchivedFrames
 {
+    ChunkIndexFixture graph;
     MMMemoryStream reader;
     unsigned char scene[16], frames[FRAME_WIRE_BYTES], output[FRAME_WIRE_BYTES + 20];
     MMU32 output_size;
@@ -662,53 +663,9 @@ typedef struct ArchivedFrames
     int include_movie, linked_scene_sound, linked_movie_sound;
 } ArchivedFrames;
 
-static int scene_entry(void *context, MMU32 i, MMChunkEntry *out)
-{
-    ArchivedFrames *archive = (ArchivedFrames *)context;
-    CHECK(i <= (MMU32)archive->include_movie);
-    memset(out, 0, sizeof(*out));
-    if (archive->include_movie && i == 0)
-    {
-        out->type = MM_SOUND_MOVIE;
-        out->number = 2;
-        out->child_count = 1;
-        return 1;
-    }
-    out->type = SCEN;
-    out->number = 5;
-    out->child_count = archive->include_movie ? 4 : 2;
-    return 1;
-}
-static int scene_child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
-{
-    ArchivedFrames *archive = (ArchivedFrames *)context;
-    if (archive->include_movie)
-    {
-        CHECK(parent <= 1);
-        if (parent == 0 || i == 1 || i == 3)
-        {
-            CHECK(parent == 1 || i == 0);
-            out->type = MM_SOUND_CHUNK;
-            out->number = 8;
-            out->slot = parent == 0 ? 1 : i == 1 ? 0 : 3;
-            return 1;
-        }
-        CHECK(i == 0 || i == 2);
-        i /= 2;
-    }
-    else
-        CHECK(parent == 0 && i < 2);
-    out->type = i == 0 ? GGFR : THUM;
-    out->number = i == 0 ? 10 : 11;
-    out->slot = 0;
-    return 1;
-}
 static MMChunkAccess scene_chunks(void *context)
 {
-    MMChunkAccess chunks = {NULL, 1, scene_entry, scene_child};
-    chunks.context = context;
-    chunks.count += ((ArchivedFrames *)context)->include_movie;
-    return chunks;
+    return fixture_chunk_access(&((ArchivedFrames *)context)->graph);
 }
 static int read_archive(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
@@ -739,45 +696,46 @@ static int add_frames(void *context, MMU32 type, MMU32 size, MMU32 *number, MMSt
     CHECK(type == GGFR && size <= sizeof(archive->output));
     archive->output_size = size;
     *number = 12;
+    fixture_chunk_add(&archive->graph, type, *number);
     writer->context = context;
     writer->length = size;
     writer->write_at = write_frames;
     return 1;
 }
-static void unlink_archive(void *context, MMU32 type, MMU32 scene, MMU32 child, MMU32 number, MMU32 slot)
+static void unlink_archive(void *context, MMU32 scene, const MMChunkChild *child)
 {
     ArchivedFrames *archive = (ArchivedFrames *)context;
-    CHECK(type == SCEN && scene == 5 && slot == 0);
-    if (child == GGFR)
+    CHECK(scene == 5 && child->slot == 0);
+    if (child->type == GGFR)
     {
-        CHECK(number == 10 && !archive->linked);
+        CHECK(child->number == 10 && !archive->linked);
         ++archive->unlinked;
     }
     else
     {
-        CHECK(child == THUM && number == 11 && archive->linked);
+        CHECK(child->type == THUM && child->number == 11 && archive->linked);
         ++archive->thumbnail_removed;
     }
 }
-static int link_frames(void *context, MMU32 type, MMU32 scene, MMU32 child, MMU32 number, MMU32 slot)
+static int link_frames(void *context, MMU32 parent, const MMChunkChild *child)
 {
     ArchivedFrames *archive = (ArchivedFrames *)context;
-    if (child == MM_SOUND_CHUNK)
+    if (child->type == MM_SOUND_CHUNK)
     {
-        CHECK(archive->include_movie && number == 9);
-        if (type == SCEN)
+        CHECK(archive->include_movie && child->number == 9);
+        if (parent == 5)
         {
-            CHECK(scene == 5 && slot == 1 && !archive->linked_movie_sound);
+            CHECK(child->slot == 1 && !archive->linked_movie_sound);
             ++archive->linked_scene_sound;
         }
         else
         {
-            CHECK(type == MM_SOUND_MOVIE && scene == 2 && slot == 0 && archive->linked_scene_sound);
+            CHECK(parent == 2 && child->slot == 0 && archive->linked_scene_sound);
             ++archive->linked_movie_sound;
         }
         return 1;
     }
-    CHECK(type == SCEN && scene == 5 && child == GGFR && number == 12 && slot == 0 && archive->unlinked);
+    CHECK(parent == 5 && child->type == GGFR && child->number == 12 && child->slot == 0 && archive->unlinked);
     ++archive->linked;
     return 1;
 }
@@ -796,6 +754,11 @@ static void init_archive(ArchivedFrames *archive, int big)
     MMSceneState scene;
     unsigned char *p;
     memset(archive, 0, sizeof(*archive));
+    fixture_chunk_seed_link(&archive->graph, SCEN, 5, GGFR, 10, 0);
+    fixture_chunk_seed_link(&archive->graph, SCEN, 5, THUM, 11, 0);
+    archive->graph.observer = archive;
+    archive->graph.before_insert = link_frames;
+    archive->graph.before_unlink = unlink_archive;
     CHECK(mm_scene_init(&scene, 1));
     scene.lastFrame = 5;
     scene.transition = 2;
@@ -843,13 +806,14 @@ static void edit_archived_frames(void)
 {
     ArchivedFrames archive;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
-                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL, {0}};
+                                   add_frames, put_range, NULL, NULL, NULL, {0}};
     MMSceneState scene;
     MMMemoryStream stream;
     unsigned char value[4];
     MMU32 row;
     int big;
     editor.context = &archive;
+    editor.edit = fixture_chunk_edit(&archive.graph);
     for (big = 0; big <= 1; ++big)
     {
         init_archive(&archive, big);
@@ -913,13 +877,14 @@ static void edit_archived_sounds(void)
 {
     ArchivedFrames archive;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
-                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL, {0}};
+                                   add_frames, put_range, NULL, NULL, NULL, {0}};
     MMMovieSoundArchiveCue cue = {1, 4, 0, 2, -1, 3, 8, 0, 0};
     MMMovieSoundArchiveEdit edit = {NULL, NULL, 5, 12000, 1, 1, 0, 0};
     MMU32 offset, added = 9;
     unsigned char expected[44], tag[20] = {0};
     int big;
     editor.context = &archive;
+    editor.edit = fixture_chunk_edit(&archive.graph);
     for (big = 0; big <= 1; ++big)
     {
         init_archive_sound(&archive, big);
@@ -944,6 +909,12 @@ static void edit_archived_sounds(void)
 
         init_archive_sound(&archive, big);
         archive.include_movie = 1;
+        archive.graph.before_insert = NULL;
+        fixture_chunk_seed_link(&archive.graph, MM_SOUND_MOVIE, 2, MM_SOUND_CHUNK, 8, 1);
+        fixture_chunk_seed_link(&archive.graph, SCEN, 5, MM_SOUND_CHUNK, 8, 0);
+        fixture_chunk_seed_link(&archive.graph, SCEN, 5, MM_SOUND_CHUNK, 8, 3);
+        fixture_chunk_add(&archive.graph, MM_SOUND_CHUNK, added);
+        archive.graph.before_insert = link_frames;
         edit.cue = NULL;
         edit.added = &added;
         edit.frame = 1; edit.style = 2; edit.loop = 0; edit.queue = 1;
@@ -959,39 +930,16 @@ static void edit_archived_sounds(void)
 
 typedef struct ArchivedText
 {
+    ChunkIndexFixture graph;
     MMMemoryStream read;
     unsigned char original[100], written[120];
     int writes, box_link, start_link, box_unlink, start_unlink, fail_write;
     MMU32 size, adopted_slot, removed_slot;
 } ArchivedText;
 
-static int text_entry(void *context, MMU32 i, MMChunkEntry *out)
-{
-    (void)context;
-    CHECK(i == 0);
-    memset(out, 0, sizeof(*out));
-    out->type = SCEN;
-    out->number = 5;
-    out->child_count = 5;
-    return 1;
-}
-
-static int text_child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
-{
-    static const MMChunkChild children[] = {
-        {0x41435452UL, 4, 0}, {GGST, 6, 1}, {MM_TEXT_BOX, 9, 1}, {MM_TEXT_BOX, 12, 4}, {MM_TEXT_BOX, 13, 4}
-    };
-    (void)context;
-    CHECK(parent == 0 && i < sizeof(children) / sizeof(children[0]));
-    *out = children[i];
-    return 1;
-}
-
 static MMChunkAccess text_chunks(void *context)
 {
-    MMChunkAccess chunks = {NULL, 1, text_entry, text_child};
-    chunks.context = context;
-    return chunks;
+    return fixture_chunk_access(&((ArchivedText *)context)->graph);
 }
 
 static int text_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
@@ -1018,44 +966,46 @@ static int text_add(void *context, MMU32 type, MMU32 bytes, MMU32 *number, MMSto
     CHECK(type == GGST && bytes <= sizeof(f->written));
     f->size = bytes;
     *number = 7;
+    fixture_chunk_add(&f->graph, type, *number);
     writer->context = f;
     writer->length = bytes;
     writer->write_at = text_write;
     return 1;
 }
 
-static int text_adopt(void *context, MMU32 type, MMU32 scene, MMU32 child, MMU32 number, MMU32 slot)
+static int text_adopt(void *context, MMU32 scene, const MMChunkChild *child)
 {
     ArchivedText *f = (ArchivedText *)context;
-    CHECK(type == SCEN && scene == 5);
-    if (child == GGST)
+    CHECK(scene == 5);
+    if (child->type == GGST)
     {
-        CHECK(number == 7 && slot == 1 && !f->start_unlink);
+        CHECK(child->number == 7 && child->slot == 1 && !f->start_unlink);
         ++f->start_link;
     }
     else
     {
-        CHECK(child == MM_TEXT_BOX && number == 14 && f->writes == 1 && !f->box_unlink);
-        f->adopted_slot = slot;
+        CHECK(child->type == MM_TEXT_BOX && child->number == 14 && f->writes == 1 && !f->box_unlink);
+        f->adopted_slot = child->slot;
         ++f->box_link;
     }
     return 1;
 }
 
-static void text_unlink(void *context, MMU32 type, MMU32 scene, MMU32 child, MMU32 number, MMU32 slot)
+static void text_unlink(void *context, MMU32 scene, const MMChunkChild *child)
 {
     ArchivedText *f = (ArchivedText *)context;
-    CHECK(type == SCEN && scene == 5);
-    if (child == GGST)
+    CHECK(scene == 5);
+    if (child->type == GGST)
     {
-        CHECK(number == 6 && slot == 1 && f->start_link == 1);
+        CHECK(child->number == 6 && child->slot == 1 && f->start_link == 1);
         ++f->start_unlink;
     }
     else
     {
-        CHECK(child == MM_TEXT_BOX && ((number == 9 && slot == 1) || (number == 12 && slot == 4)));
-        CHECK(f->start_unlink == 1 || (f->box_link == 1 && f->adopted_slot == slot));
-        f->removed_slot = slot;
+        CHECK(child->type == MM_TEXT_BOX && ((child->number == 9 && child->slot == 1) ||
+                                            (child->number == 12 && child->slot == 4)));
+        CHECK(f->start_unlink == 1 || (f->box_link == 1 && f->adopted_slot == child->slot));
+        f->removed_slot = child->slot;
         ++f->box_unlink;
     }
 }
@@ -1066,6 +1016,7 @@ static int text_box(void *context, const MMSceneArchiveText *original, MMU32 *nu
     CHECK(!original || (original->number == 9 && original->slot == 1));
     ++f->writes;
     *number = 14;
+    fixture_chunk_add(&f->graph, MM_TEXT_BOX, *number);
     return 1;
 }
 
@@ -1076,6 +1027,14 @@ static void init_text_archive(ArchivedText *f, int big)
     MMCollectionHeader header = {0};
     MMU32 i;
     memset(f, 0, sizeof(*f));
+    fixture_chunk_seed_link(&f->graph, SCEN, 5, 0x41435452UL, 4, 0);
+    fixture_chunk_seed_link(&f->graph, SCEN, 5, GGST, 6, 1);
+    fixture_chunk_seed_link(&f->graph, SCEN, 5, MM_TEXT_BOX, 9, 1);
+    fixture_chunk_seed_link(&f->graph, SCEN, 5, MM_TEXT_BOX, 12, 4);
+    fixture_chunk_seed_link(&f->graph, SCEN, 5, MM_TEXT_BOX, 13, 4);
+    f->graph.observer = f;
+    f->graph.before_insert = text_adopt;
+    f->graph.before_unlink = text_unlink;
     header.kind = MM_COLLECTION_GROUP;
     header.system = MM_TEXT_MAC;
     header.big_endian = big;
@@ -1097,7 +1056,7 @@ static void edit_archived_text(void)
 {
     ArchivedText f;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, text_chunks, text_read,
-                                   text_add, text_adopt, text_unlink, NULL, NULL, NULL, NULL, NULL, {0}};
+                                   text_add, NULL, NULL, NULL, NULL, {0}};
     MMSceneArchiveTextEdit add = {5, -2, NULL, NULL, text_box};
     MMSceneArchiveTextEdit change = {5, 0, NULL, NULL, text_box};
     MMSceneArchiveTextEdit remove = {5, 0, NULL, NULL, NULL};
@@ -1110,6 +1069,7 @@ static void edit_archived_text(void)
     MMI32 bytes;
     int big;
     editor.context = add.context = change.context = remove.context = &f;
+    editor.edit = fixture_chunk_edit(&f.graph);
     remove.original = &four;
     for (big = 0; big <= 1; ++big)
     {
@@ -1140,7 +1100,7 @@ static void edit_archived_text(void)
         f.fail_write = 1;
         CHECK(mm_scene_archive_edit_text(&editor, &remove) == MM_SCENE_ARCHIVE_TEXT_WRITE_START);
         CHECK(!f.start_link && !f.start_unlink && !f.box_unlink);
-        f.fail_write = 0;
+        init_text_archive(&f, big);
         CHECK(mm_scene_archive_edit_text(&editor, &remove) == MM_SCENE_ARCHIVE_TEXT_OK);
         CHECK(!f.writes && f.start_unlink == 1 && f.removed_slot == 4 && f.box_unlink == 1);
         CHECK(mm_memory_stream_init(&output, f.written, f.size) &&

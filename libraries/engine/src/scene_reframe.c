@@ -431,6 +431,7 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
     MMActorHeader header;
     MMSceneReframePose pose;
     MMChunkAccess chunks;
+    MMChunkChild replacement = *link;
     Track track;
     MMU32 actor, copy, number, model, text, row;
     int result;
@@ -470,8 +471,9 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
         result = MM_SCENE_REFRAME_WRITE;
         goto done;
     }
-    editor->unlink(editor->context, SCENE_TYPE, scene, ACTOR_TYPE, actor, link->slot);
-    if (!editor->adopt(editor->context, SCENE_TYPE, scene, ACTOR_TYPE, copy, link->slot))
+    mm_chunk_unlink(&editor->edit, SCENE_TYPE, scene, link);
+    replacement.number = copy;
+    if (mm_chunk_adopt(&editor->edit, SCENE_TYPE, scene, &replacement, 1) != MM_CHUNK_OK)
         result = MM_SCENE_REFRAME_LINK;
 done:
     if (track.events)
@@ -488,8 +490,8 @@ int mm_scene_archive_reframe(const MMMovieArchiveEditor *editor, MMU32 scene, MM
     Reframe change;
     MMChunkAccess chunks;
     MMChunkEntry entry;
-    MMChunkChild child, *actors;
-    MMU32 position, i, count, thumb;
+    MMChunkChild child, *actors, thumb = {THUMB_TYPE, 0, 0};
+    MMU32 position, i, count;
     int result;
     result = lens_reframe(work, camera, &change);
     if (result != MM_SCENE_REFRAME_OK)
@@ -521,8 +523,8 @@ int mm_scene_archive_reframe(const MMMovieArchiveEditor *editor, MMU32 scene, MM
     if (result == MM_SCENE_REFRAME_OK)
     {
         chunks = editor->chunks(editor->context);
-        if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, 0, THUMB_TYPE, &thumb) == MM_CHUNK_OK)
-            editor->unlink(editor->context, SCENE_TYPE, scene, THUMB_TYPE, thumb, 0);
+        if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, thumb.slot, thumb.type, &thumb.number) == MM_CHUNK_OK)
+            mm_chunk_unlink(&editor->edit, SCENE_TYPE, scene, &thumb);
     }
     return result;
 }

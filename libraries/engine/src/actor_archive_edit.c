@@ -37,13 +37,15 @@ static int write_track(const MMMovieArchiveEditor *editor, MMActorEventTable *gr
                        const MMU32 *attach, int replace)
 {
     MMStorageWriter writer;
+    MMChunkChild link = {EVENTS_TYPE, 0, 0};
     MMU32 size = mm_actor_events_wire_size(group);
     if (!size)
         return 0;
     if (replace ? !editor->replace(editor->context, EVENTS_TYPE, *number, size, &writer)
                 : !editor->add(editor->context, EVENTS_TYPE, size, number, &writer))
         return 0;
-    return (!attach || editor->adopt(editor->context, ACTOR_TYPE, *attach, EVENTS_TYPE, *number, 0)) &&
+    link.number = *number;
+    return (!attach || mm_chunk_adopt(&editor->edit, ACTOR_TYPE, *attach, &link, 1) == MM_CHUNK_OK) &&
         mm_actor_events_write(group, editor->system, 0, &writer);
 }
 
@@ -72,12 +74,12 @@ int mm_actor_archive_write_route(const MMMovieArchiveEditor *editor, MMU32 actor
     MMCollectionHeader header;
     MMStorageWriter writer;
     unsigned char bytes[12];
-    MMU32 number;
+    MMChunkChild route = {ROUTE_TYPE, 0, 0};
     return mm_actor_path_layout(count, editor->system, &header) &&
         mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK &&
-        editor->add(editor->context, ROUTE_TYPE, header.header_bytes + header.first_bytes, &number, &writer) &&
+        editor->add(editor->context, route.type, header.header_bytes + header.first_bytes, &route.number, &writer) &&
         writer.length == header.header_bytes + header.first_bytes &&
-        editor->adopt(editor->context, ACTOR_TYPE, actor, ROUTE_TYPE, number, 0) &&
+        mm_chunk_adopt(&editor->edit, ACTOR_TYPE, actor, &route, 1) == MM_CHUNK_OK &&
         writer.write_at(writer.context, 0, bytes, sizeof(bytes)) &&
         (!count || writer.write_at(writer.context, sizeof(bytes), points, header.first_bytes));
 }
@@ -161,8 +163,11 @@ done:
 
 static int replace_track(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 old, MMU32 events)
 {
-    editor->unlink(editor->context, ACTOR_TYPE, actor, EVENTS_TYPE, old, 0);
-    return editor->adopt(editor->context, ACTOR_TYPE, actor, EVENTS_TYPE, events, 0)
+    MMChunkChild link = {EVENTS_TYPE, 0, 0};
+    link.number = old;
+    mm_chunk_unlink(&editor->edit, ACTOR_TYPE, actor, &link);
+    link.number = events;
+    return mm_chunk_adopt(&editor->edit, ACTOR_TYPE, actor, &link, 1) == MM_CHUNK_OK
         ? MM_ACTOR_EDIT_ARCHIVE_OK : MM_ACTOR_EDIT_ARCHIVE_LINK_EVENTS;
 }
 
@@ -384,7 +389,7 @@ static int copy_actor(const MMMovieArchiveEditor *editor, MMU32 actor, const MMA
             continue;
         if (events && child.type == EVENTS_TYPE && child.slot == 0)
             child.number = *events;
-        if (!editor->adopt(editor->context, ACTOR_TYPE, *copy, child.type, child.number, child.slot))
+        if (mm_chunk_adopt(&editor->edit, ACTOR_TYPE, *copy, &child, 1) != MM_CHUNK_OK)
             return MM_ACTOR_EDIT_ARCHIVE_CHILD;
     }
     return MM_ACTOR_EDIT_ARCHIVE_OK;
@@ -447,8 +452,9 @@ int mm_actor_archive_edit_sound(const MMMovieArchiveEditor *editor, MMU32 scene,
         return result;
     if (copy_actor(editor, link.number, &header, 1, &number, &copy) != MM_ACTOR_EDIT_ARCHIVE_OK)
         return MM_SOUND_ARCHIVE_COPY_ACTOR;
-    editor->unlink(editor->context, SCENE_TYPE, scene, ACTOR_TYPE, link.number, link.slot);
-    return editor->adopt(editor->context, SCENE_TYPE, scene, ACTOR_TYPE, copy, link.slot)
+    mm_chunk_unlink(&editor->edit, SCENE_TYPE, scene, &link);
+    link.number = copy;
+    return mm_chunk_adopt(&editor->edit, SCENE_TYPE, scene, &link, 1) == MM_CHUNK_OK
         ? MM_SOUND_ARCHIVE_OK : MM_SOUND_ARCHIVE_LINK_ACTOR;
 }
 
@@ -456,10 +462,12 @@ int mm_actor_archive_place(const MMMovieArchiveEditor *editor, const MMActorArch
 {
     MMChunkAccess chunks;
     MMActorHeader header;
-    MMU32 slot, copy, i, thumb;
+    MMChunkChild actor = {ACTOR_TYPE, 0, 0}, thumb = {THUMB_TYPE, 0, 0};
+    MMU32 copy, i;
     int result;
     chunks = editor->chunks(editor->context);
-    if (!actor_slot(&chunks, pose->scene, pose->actor, &slot))
+    actor.number = pose->actor;
+    if (!actor_slot(&chunks, pose->scene, pose->actor, &actor.slot))
         return MM_ACTOR_EDIT_ARCHIVE_SCENE;
     if (!mm_actor_archive_read_actor(editor, pose->actor, &header))
         return MM_ACTOR_EDIT_ARCHIVE_HEADER;
@@ -478,12 +486,13 @@ int mm_actor_archive_place(const MMMovieArchiveEditor *editor, const MMActorArch
     result = apply_shape(editor, copy, pose);
     if (result != MM_ACTOR_EDIT_ARCHIVE_OK)
         return result;
-    editor->unlink(editor->context, SCENE_TYPE, pose->scene, ACTOR_TYPE, pose->actor, slot);
-    if (!editor->adopt(editor->context, SCENE_TYPE, pose->scene, ACTOR_TYPE, copy, slot))
+    mm_chunk_unlink(&editor->edit, SCENE_TYPE, pose->scene, &actor);
+    actor.number = copy;
+    if (mm_chunk_adopt(&editor->edit, SCENE_TYPE, pose->scene, &actor, 1) != MM_CHUNK_OK)
         return MM_ACTOR_EDIT_ARCHIVE_LINK_ACTOR;
     chunks = editor->chunks(editor->context);
-    if (mm_chunk_link_number(&chunks, SCENE_TYPE, pose->scene, 0, THUMB_TYPE, &thumb) == MM_CHUNK_OK)
-        editor->unlink(editor->context, SCENE_TYPE, pose->scene, THUMB_TYPE, thumb, 0);
+    if (mm_chunk_link_number(&chunks, SCENE_TYPE, pose->scene, thumb.slot, thumb.type, &thumb.number) == MM_CHUNK_OK)
+        mm_chunk_unlink(&editor->edit, SCENE_TYPE, pose->scene, &thumb);
     return MM_ACTOR_EDIT_ARCHIVE_OK;
 }
 
@@ -500,16 +509,18 @@ static int install_animation_track(void *context, MMU32 actor)
     const MMActorArchiveAnimation *edit = track->edit;
     MMActorHeader header;
     MMChunkAccess chunks;
-    MMU32 old_route, route, events;
+    MMChunkChild route = {ROUTE_TYPE, 0, 0};
+    MMU32 replacement, events;
     chunks = editor->chunks(editor->context);
-    if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, ROUTE_TYPE, &old_route) != MM_CHUNK_OK ||
+    if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, route.slot, route.type, &route.number) != MM_CHUNK_OK ||
         !mm_actor_archive_read_actor(editor, actor, &header) ||
-        !edit->copy(edit->context, ROUTE_TYPE, 0, &route) ||
+        !edit->copy(edit->context, route.type, 0, &replacement) ||
         !edit->copy(edit->context, EVENTS_TYPE, 0, &events))
         return 0;
-    editor->unlink(editor->context, ACTOR_TYPE, actor, ROUTE_TYPE, old_route, 0);
+    mm_chunk_unlink(&editor->edit, ACTOR_TYPE, actor, &route);
+    route.number = replacement;
     header.last_frame = edit->actor_last;
-    return editor->adopt(editor->context, ACTOR_TYPE, actor, ROUTE_TYPE, route, 0) &&
+    return mm_chunk_adopt(&editor->edit, ACTOR_TYPE, actor, &route, 1) == MM_CHUNK_OK &&
         mm_actor_archive_link_events(editor, actor, events) == MM_ACTOR_EDIT_ARCHIVE_OK &&
         editor->put(editor->context, ACTOR_TYPE, actor, &header, sizeof(header)) &&
         (!edit->appearance || edit->appearance(edit->context, actor));

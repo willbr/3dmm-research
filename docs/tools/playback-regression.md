@@ -16676,3 +16676,41 @@ matched all 60 archived retail frame identities in seek and continuous
 playback and all retail seek camera indices. Both matched their prior seek
 images. SDL matched all 12 retail sound requests. Evidence is in
 `tmp/c89-live-chunk-key`.
+
+## C89 graph edits across the movie archive adapter (20 November 2026)
+
+Actor registration, placement, animation and sound, scene camera edits and
+reframing, captions, and rich-text and storyboard resources now publish their
+links through the live C89 index. The movie archive adapter supplies that
+index and payload services. The fixtures check operation order, a caption
+body shared by two boxes, and an edited actor shared by two scenes.
+
+All 192 standalone checks and 13 AddressSanitizer checks passed. Thirteen
+focused engine checks and the Archive API passed on SDL and native x64 and
+x86. The other 15 selected checks on the Marcus build passed, including its
+sound edit, player, and playback checks. All 54 baseline traces, three saved
+movie fixtures, ten Preview fingerprints, and six Preview movies matched.
+
+Fourteen Marcus caption saves and the mixed-format draft pixels matched their
+archived baselines byte for byte. Retail opened the newly saved mixed caption
+movie and rendered all twelve text boxes at frame 25. Retail also matched the
+original fixture's frame 25 image pixel for pixel after a Studio live save.
+The Studio live archive and the Studio authoring output matched prior saves
+byte for byte. Studio also edited, saved, and reopened a storyboard VMM.
+
+All 11 native Marcus storyboard, actor insertion and costume outputs matched
+the preceding build byte for byte. All five storyboard VMM outputs matched
+after normalizing generated package names and background chunk numbers.
+SDL and Marcus matched both seek records and images from original v3dmm 0.14
+on the newly generated storyboard in `20261120T194659Z-109a8809`.
+
+Retail, SDL, and Marcus matched all four seek frame and camera records from
+the newly saved actor sound fixture in `20261120T194756Z-f0e71678`. Both
+ports differed from retail on all four canvas captures. Each reproduced its
+four hashes from the preceding builds in `20261120T194851Z-66f5e6c5`.
+
+In `actor-event-edit` suite `20261120T194545Z-5061354c`, SDL and Marcus
+matched all 60 archived retail frame identities in seek and playback and
+all retail seek camera indices. Both matched their earlier seek images.
+SDL matched all 12 retail sound requests. Evidence is in
+`tmp/c89-archive-graph`.

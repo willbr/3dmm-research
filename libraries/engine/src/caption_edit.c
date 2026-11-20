@@ -598,11 +598,20 @@ int mm_caption_edit_archive_box(const MMMovieArchiveEditor *editor, const MMScen
         return status;
     if (changed)
     {
-        if (host->write_body(host->context, &body) != 1 ||
-            !editor->adopt(editor->context, MM_TEXT_BOX, number, body.type, body.number, host->box->child))
+        MMChunkChild link;
+        if (host->write_body(host->context, &body) != 1)
+            return MM_CAPTION_EDIT_WRITE_BODY;
+        link.type = body.type;
+        link.number = body.number;
+        link.slot = host->box->child;
+        if (mm_chunk_adopt(&editor->edit, MM_TEXT_BOX, number, &link, 1) != MM_CHUNK_OK)
             return MM_CAPTION_EDIT_WRITE_BODY;
         if (original)
-            editor->unlink(editor->context, MM_TEXT_BOX, number, previous.type, previous.number, host->box->child);
+        {
+            link.type = previous.type;
+            link.number = previous.number;
+            mm_chunk_unlink(&editor->edit, MM_TEXT_BOX, number, &link);
+        }
     }
     if (mm_text_box_write(host->box, number, editor) != 1)
         return MM_CAPTION_EDIT_WRITE_BOX;

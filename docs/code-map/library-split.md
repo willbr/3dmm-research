@@ -7754,6 +7754,13 @@ access for moves and copies. A same-type move preserves the runtime ID and
 retargets parent links. Scene saves use the writable index for sounds, actors,
 captions, thumbnails, and cleanup of a failed candidate scene.
 
+The same C89 index handles actor registration, placement and track changes,
+scene reframing, camera and sound edits, caption replacement, and rich-text
+body children. It also wires the paint and depth chunks for Marcus
+storyboards. `MMMovieArchiveEditor` supplies payload services and the live
+index to these paths. Caption body replacement adopts the new body before
+releasing the previous link, including when another box shares that body.
+
 Studio writes an actor through `mm_actor_store` when saving a scene or taking
 a scene undo snapshot. The C89 writer stores the header, route, and events,
 links embedded templates and actor sounds, and attaches each embedded costume

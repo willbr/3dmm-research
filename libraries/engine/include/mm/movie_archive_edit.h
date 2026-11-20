@@ -24,16 +24,13 @@ typedef struct MMMovieArchiveEditor
     MMChunkAccess (*chunks)(void *);
     int (*read)(void *, MMU32 type, MMU32 number, MMReadStream *);
     int (*add)(void *, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *);
-    int (*adopt)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
-    void (*unlink)(void *, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot);
     int (*put)(void *, MMU32 type, MMU32 number, const void *bytes, MMU32 size);
     int (*set_title)(void *, MMU32 type, MMU32 number, const MMMovieTitle *);
     /* Replace a chunk's payload through a writer while keeping its key and links. */
     int (*replace)(void *, MMU32 type, MMU32 number, MMU32 bytes, MMStorageWriter *);
     /* Update a byte range in an existing payload without changing its length. */
     int (*patch)(void *, MMU32 type, MMU32 number, MMU32 offset, const void *bytes, MMU32 size);
-    void (*discard)(void *, MMU32 type, MMU32 number); /* Optional unlinked chunk cleanup. */
-    MMChunkEdit edit; /* Borrowed writable index for scene and portable archive transactions. */
+    MMChunkEdit edit; /* Borrowed writable index for archive transactions. */
 } MMMovieArchiveEditor;
 
 /* Borrow the destination index across copies. Each copy may insert rows.

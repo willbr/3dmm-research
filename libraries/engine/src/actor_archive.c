@@ -47,12 +47,16 @@ static int embed(const MMActorArchiveHost *host, MMU32 parent_type, MMU32 parent
 {
     MMChunkAccess chunks;
     const MMMovieArchiveEditor *editor = host->destination;
+    MMChunkChild link;
     if (!host->copy_asset(host->context, type, source, copied))
         return MM_ACTOR_ARCHIVE_COPY_ASSET;
     chunks = editor->chunks(editor->context);
     if (!mm_movie_archive_next_child(&chunks, parent_type, parent, type, slot))
         return MM_ACTOR_ARCHIVE_SLOT;
-    if (!editor->adopt(editor->context, parent_type, parent, type, *copied, *slot))
+    link.type = type;
+    link.number = *copied;
+    link.slot = *slot;
+    if (mm_chunk_adopt(&editor->edit, parent_type, parent, &link, 1) != MM_CHUNK_OK)
         return parent_type == SCENE_TYPE ? MM_ACTOR_ARCHIVE_ADOPT_SOUND : MM_ACTOR_ARCHIVE_ADOPT_ASSET;
     return MM_ACTOR_ARCHIVE_OK;
 }
@@ -293,33 +297,36 @@ static int register_scene(const MMMovieArchiveEditor *editor, const MMActorArchi
 {
     MMChunkAccess chunks;
     MMReadStream stream;
-    MMU32 scene, slot, previous, thumb;
+    MMChunkChild actor = {ACTOR_TYPE, 0, 0}, group = {START_TYPE, 0, 1}, thumb = {THUMB_TYPE, 0, 0};
+    MMU32 scene;
     StartWrite start;
     int result;
     scene = placement->scene;
+    actor.number = placement->actor;
     chunks = editor->chunks(editor->context);
-    if (!mm_movie_archive_next_child(&chunks, SCENE_TYPE, scene, ACTOR_TYPE, &slot))
+    if (!mm_movie_archive_next_child(&chunks, SCENE_TYPE, scene, actor.type, &actor.slot))
         return MM_ACTOR_REGISTER_SLOT;
-    if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, 1, START_TYPE, &previous) != MM_CHUNK_OK ||
-        !editor->read(editor->context, START_TYPE, previous, &stream))
+    if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, group.slot, group.type, &group.number) != MM_CHUNK_OK ||
+        !editor->read(editor->context, group.type, group.number, &stream))
         return MM_ACTOR_REGISTER_SCENE_READ;
     start.editor = editor;
-    result = mm_scene_append_start_actor(&stream, editor->system, placement->first_frame, slot, write_start, &start);
+    result = mm_scene_append_start_actor(&stream, editor->system, placement->first_frame, actor.slot, write_start, &start);
     if (result == MM_MOVIE_BAD_FILE)
         return MM_ACTOR_REGISTER_SCENE_DATA;
     if (result == MM_MOVIE_MEMORY)
         return MM_ACTOR_REGISTER_MEMORY;
     if (result != MM_MOVIE_OK ||
-        !editor->adopt(editor->context, SCENE_TYPE, scene, ACTOR_TYPE, placement->actor, slot))
+        mm_chunk_adopt(&editor->edit, SCENE_TYPE, scene, &actor, 1) != MM_CHUNK_OK)
         return MM_ACTOR_REGISTER_SCENE_WRITE;
-    editor->unlink(editor->context, SCENE_TYPE, scene, START_TYPE, previous, 1);
-    if (!editor->adopt(editor->context, SCENE_TYPE, scene, START_TYPE, start.number, 1))
+    mm_chunk_unlink(&editor->edit, SCENE_TYPE, scene, &group);
+    group.number = start.number;
+    if (mm_chunk_adopt(&editor->edit, SCENE_TYPE, scene, &group, 1) != MM_CHUNK_OK)
         return MM_ACTOR_REGISTER_SCENE_LINK;
     if (placement->invalidate_thumbnail)
     {
         chunks = editor->chunks(editor->context);
-        if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, 0, THUMB_TYPE, &thumb) == MM_CHUNK_OK)
-            editor->unlink(editor->context, SCENE_TYPE, scene, THUMB_TYPE, thumb, 0);
+        if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, thumb.slot, thumb.type, &thumb.number) == MM_CHUNK_OK)
+            mm_chunk_unlink(&editor->edit, SCENE_TYPE, scene, &thumb);
     }
     return MM_ACTOR_REGISTER_OK;
 }
@@ -377,16 +384,17 @@ static int register_name(const MMMovieArchiveEditor *editor, MMU32 movie, const 
     MMChunkAccess chunks;
     MMRollCallTable table;
     MMStorageWriter writer;
-    MMU32 previous, number, size;
+    MMChunkChild roll = {ROLLCALL_TYPE, 0, 0};
+    MMU32 size;
     unsigned char bytes[MM_MOVIE_ACTOR_BYTES];
     int had_roll, replaced, result;
     chunks = editor->chunks(editor->context);
-    had_roll = mm_chunk_link_number(&chunks, MOVIE_TYPE, movie, 0, ROLLCALL_TYPE, &previous) == MM_CHUNK_OK;
+    had_roll = mm_chunk_link_number(&chunks, MOVIE_TYPE, movie, roll.slot, roll.type, &roll.number) == MM_CHUNK_OK;
     if (mm_rollcall_table_init(&table, MM_MOVIE_ACTOR_BYTES, editor->text_unit, editor->system, 0, NULL) !=
         MM_STORAGE_OK)
         return MM_ACTOR_REGISTER_MEMORY;
     replaced = 0;
-    result = had_roll ? read_rollcall(editor, previous, name, &table, &replaced) : MM_ACTOR_REGISTER_OK;
+    result = had_roll ? read_rollcall(editor, roll.number, name, &table, &replaced) : MM_ACTOR_REGISTER_OK;
     if (result != MM_ACTOR_REGISTER_OK)
         goto done;
     if (!replaced)
@@ -400,10 +408,10 @@ static int register_name(const MMMovieArchiveEditor *editor, MMU32 movie, const 
     }
     size = mm_rollcall_table_wire_size(&table);
     if (had_roll)
-        editor->unlink(editor->context, MOVIE_TYPE, movie, ROLLCALL_TYPE, previous, 0);
-    if (!size || !editor->add(editor->context, ROLLCALL_TYPE, size, &number, &writer) ||
+        mm_chunk_unlink(&editor->edit, MOVIE_TYPE, movie, &roll);
+    if (!size || !editor->add(editor->context, roll.type, size, &roll.number, &writer) ||
         mm_rollcall_table_write(&table, &writer, editor->big_endian) != MM_STORAGE_OK ||
-        !editor->adopt(editor->context, MOVIE_TYPE, movie, ROLLCALL_TYPE, number, 0))
+        mm_chunk_adopt(&editor->edit, MOVIE_TYPE, movie, &roll, 1) != MM_CHUNK_OK)
         result = MM_ACTOR_REGISTER_ROLL_WRITE;
 done:
     mm_rollcall_table_dispose(&table);

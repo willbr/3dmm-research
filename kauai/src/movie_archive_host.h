@@ -37,12 +37,6 @@ struct MovieArchiveHost
                 *writer = io.OutputWriter(bytes);
                 return true;
             },
-            [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) -> int {
-                return static_cast<MovieArchiveHost *>(value)->file->FAdoptChild(type, parent, childType, child, slot);
-            },
-            [](void *value, MMU32 type, MMU32 parent, MMU32 childType, MMU32 child, MMU32 slot) {
-                static_cast<MovieArchiveHost *>(value)->file->DeleteChild(type, parent, childType, child, slot);
-            },
             [](void *value, MMU32 type, MMU32 number, const void *bytes, MMU32 size) -> int {
                 return static_cast<MovieArchiveHost *>(value)->file->FPutPv(const_cast<void *>(bytes), size, type, number);
             },
@@ -62,9 +56,6 @@ struct MovieArchiveHost
                 const bool packed = io.output.FPacked();
                 return io.output.FUnpackData() && io.output.FWriteRgb(const_cast<void *>(bytes), size, offset) &&
                        (!packed || io.file->FPutBlck(&io.output, type, number));
-            },
-            [](void *value, MMU32 type, MMU32 number) {
-                static_cast<MovieArchiveHost *>(value)->file->Delete(type, number);
             },
             file->EditIndex()
         };

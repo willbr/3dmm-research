@@ -563,7 +563,7 @@ static int archive_rich_write_font(void *p, const MMMovieTitle *font)
 static void archive_rich_remove(void *p, MMU32 number)
 {
     const MMMovieArchiveEditor *editor = ((const MMRichTextArchiveWriter *)p)->archive->editor;
-    editor->discard(editor->context, MM_TEXT_ROOT, number);
+    mm_chunk_delete(&editor->edit, MM_TEXT_ROOT, number);
 }
 
 static int archive_rich_add_child(void *p, MMU32 root, MMU32 kind, MMU32 bytes)
@@ -571,14 +571,15 @@ static int archive_rich_add_child(void *p, MMU32 root, MMU32 kind, MMU32 bytes)
     MMRichTextArchiveWriter *write = p;
     const MMMovieArchiveEditor *editor = kind == MM_TEXT_BYTES && write->text_editor ?
                                         write->text_editor : write->archive->editor;
-    MMU32 child;
-    int result = editor->add(editor->context, kind, bytes, &child, &write->writer);
+    MMChunkChild child = {0};
+    int result = editor->add(editor->context, kind, bytes, &child.number, &write->writer);
     if (result <= 0)
         return result;
-    result = editor->adopt(editor->context, MM_TEXT_ROOT, root, kind, child, 0);
-    if (result <= 0)
-        editor->discard(editor->context, kind, child);
-    return result;
+    child.type = kind;
+    if (mm_chunk_adopt(&editor->edit, MM_TEXT_ROOT, root, &child, 1) == MM_CHUNK_OK)
+        return 1;
+    mm_chunk_delete(&editor->edit, child.type, child.number);
+    return 0;
 }
 
 static MMU32 archive_rich_group_bytes(void *p, MMU32 kind, void *collection)
