@@ -1,5 +1,6 @@
 #ifndef MM_ENGINE_CAPTION_EDIT_H
 #define MM_ENGINE_CAPTION_EDIT_H
+#include "movie_archive_edit.h"
 #include "text.h"
 #include "text_properties.h"
 #include "text_store.h"
@@ -13,7 +14,12 @@ enum
 {
     MM_CAPTION_EDIT_OK, MM_CAPTION_EDIT_SIZE, MM_CAPTION_EDIT_POSITION, MM_CAPTION_EDIT_RANGE,
     MM_CAPTION_EDIT_FONT_SIZE, MM_CAPTION_EDIT_ALIGNMENT, MM_CAPTION_EDIT_MEMORY,
-    MM_CAPTION_EDIT_ADJUST, MM_CAPTION_EDIT_INHERIT
+    MM_CAPTION_EDIT_ADJUST, MM_CAPTION_EDIT_INHERIT, MM_CAPTION_EDIT_NO_CHANGE,
+    MM_CAPTION_EDIT_TEXT_LIMIT, MM_CAPTION_EDIT_PROPERTIES, MM_CAPTION_EDIT_FONT,
+    MM_CAPTION_EDIT_READ_TEXT, MM_CAPTION_EDIT_UTF8, MM_CAPTION_EDIT_WRITE_TEXT,
+    MM_CAPTION_EDIT_APPLY_FORMAT, MM_CAPTION_EDIT_DRAFT,
+    MM_CAPTION_EDIT_COPY_BOX, MM_CAPTION_EDIT_ADD_BOX, MM_CAPTION_EDIT_WRITE_BODY,
+    MM_CAPTION_EDIT_WRITE_BOX
 };
 enum { MM_CAPTION_EDIT_SET_SIZE = 1, MM_CAPTION_EDIT_SET_PAPER = 2, MM_CAPTION_EDIT_SET_WIDTH = 4 };
 
@@ -54,6 +60,64 @@ MMI32 mm_caption_edit_paragraph_end(const unsigned short *text, MMI32 count, MMI
 int mm_caption_edit_replace(const unsigned short *old_text, MMI32 old_count,
                             const unsigned short *new_text, MMI32 new_count,
                             const MMTextPropertyServices *, const int *diagnosed);
+
+typedef struct MMCaptionEditInput
+{
+    MMCaptionEditOptions options;
+    const char *font, *text;
+} MMCaptionEditInput;
+
+typedef struct MMCaptionEditPlan
+{
+    const MMCaptionEditInput *value, *before;
+    size_t text_bytes;
+    int font_changed, text_changed;
+} MMCaptionEditPlan;
+
+/* Inputs are borrowed. A zero save capacity selects draft behavior, which
+ * permits an empty new caption and still prepares a view of an unchanged box. */
+int mm_caption_edit_plan(const MMCaptionEditInput *, const MMCaptionEditInput *before, size_t save_capacity,
+                         MMCaptionEditPlan *);
+
+typedef struct MMCaptionEditWords
+{
+    const unsigned short *text;
+    size_t count;
+} MMCaptionEditWords;
+
+typedef struct MMCaptionEditHost
+{
+    void *context;
+    int (*create_properties)(void *);
+    int (*set_font)(void *, const char *font);
+    int (*read_text)(void *, MMCaptionEditWords *borrowed);
+    void (*select_words)(void *, const MMCaptionEditWords *borrowed);
+    MMTextPropertyServices properties;
+    const int *diagnosed;
+    int (*write_text)(void *, const MMCaptionEditWords *); /* Optional save callback. */
+    int (*draft_text)(void *, const MMCaptionEditWords *); /* Optional draft callback. */
+} MMCaptionEditHost;
+
+/* Mutates a private body. The caller discards it on failure. All callbacks
+ * are synchronous and must not throw. Selected words are cleared before return. */
+int mm_caption_edit_apply(const MMCaptionEditPlan *, MMI32 first, MMI32 last, MMTextBoxState *,
+                          MMRichTextDefaults *, const MMCaptionEditHost *, int *body_changed);
+
+typedef struct MMCaptionArchiveBox
+{
+    void *context;
+    const MMTextBoxState *box;
+    int (*clone)(void *, MMU32 original, MMU32 *number);
+    int (*read)(void *, MMU32 number, MMTextChunk *body);
+    int (*apply)(void *, int *body_changed); /* Returns a caption edit status. */
+    int (*write_body)(void *, MMTextChunk *body);
+    int (*write_box)(void *, MMU32 number);
+} MMCaptionArchiveBox;
+
+/* Writes a replacement box in a private archive. A successful link to the
+ * new body precedes unlinking the cloned reference to the old body. */
+int mm_caption_edit_archive_box(const MMMovieArchiveEditor *, const MMSceneArchiveText *original,
+                                const MMCaptionArchiveBox *, MMU32 *number);
 
 #ifdef __cplusplus
 }

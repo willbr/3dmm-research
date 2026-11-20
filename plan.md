@@ -125,6 +125,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   caption text encoding. Caption edits normalize line breaks and use ANSI
   when the native code page round-trips the text with equal byte and UTF-16
   unit counts. The caption adapter supplies native code-page services.
+- Caption preview and save use the same C89 edit sequence. C89 detects no-op
+  saves, selects default and property updates, and decides when to retain the
+  existing rich-text body or link a replacement to the edited box.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

@@ -1,6 +1,7 @@
 #include "mm/caption_edit.h"
 #include "mm/wide.h"
 #include <stdlib.h>
+#include <string.h>
 
 #define RGB 0x01000000UL
 #define CLEAR 0xffffffffUL
@@ -228,4 +229,150 @@ int mm_caption_edit_replace(const unsigned short *old_text, MMI32 old_count,
         result = MM_CAPTION_EDIT_INHERIT;
     free(changes);
     return result;
+}
+
+static int same_options(const MMCaptionEditOptions *a, const MMCaptionEditOptions *b)
+{
+    return a->x == b->x && a->y == b->y && a->width == b->width && a->height == b->height &&
+           a->first == b->first && a->last == b->last && a->through_end == b->through_end &&
+           a->scrolling == b->scrolling && a->font_size == b->font_size && a->bold == b->bold &&
+           a->italic == b->italic && a->alignment == b->alignment && a->transparent == b->transparent &&
+           a->ink == b->ink && a->paper == b->paper;
+}
+
+int mm_caption_edit_plan(const MMCaptionEditInput *value, const MMCaptionEditInput *before, size_t save_capacity,
+                         MMCaptionEditPlan *out)
+{
+    MMCaptionEditPlan plan;
+    plan.value = value;
+    plan.before = before;
+    plan.font_changed = !before || strcmp(value->font, before->font) != 0;
+    plan.text_changed = !before || strcmp(value->text, before->text) != 0;
+    plan.text_bytes = plan.text_changed || save_capacity ? strlen(value->text) : 0;
+    if (save_capacity)
+    {
+        if (before && !plan.font_changed && !plan.text_changed && same_options(&value->options, &before->options))
+            return MM_CAPTION_EDIT_NO_CHANGE;
+        if (plan.text_bytes >= save_capacity || (!before && !plan.text_bytes))
+            return MM_CAPTION_EDIT_TEXT_LIMIT;
+    }
+    *out = plan;
+    return MM_CAPTION_EDIT_OK;
+}
+
+static int edit_text_and_properties(const MMCaptionEditPlan *plan, const MMCaptionEditFormat *format,
+                                    const MMCaptionEditHost *host)
+{
+    MMCaptionEditWords old = {0}, words;
+    unsigned short *text = NULL;
+    size_t capacity = plan->text_bytes;
+    MMI32 characters;
+    const MMTextPropertyServices *properties = &host->properties;
+    int status = MM_CAPTION_EDIT_OK;
+    if (plan->before && host->read_text(host->context, &old) != 1)
+        return MM_CAPTION_EDIT_READ_TEXT;
+    if (old.count >= 0x00800000UL)
+        return MM_CAPTION_EDIT_ADJUST;
+    words = old;
+    if (plan->text_changed)
+    {
+        if (capacity > MM_CAPTION_EDIT_MAX_UNITS * 2UL)
+            capacity = MM_CAPTION_EDIT_MAX_UNITS * 2UL;
+        if (capacity)
+        {
+            text = malloc(capacity * sizeof(*text));
+            if (!text)
+                return MM_CAPTION_EDIT_MEMORY;
+        }
+        if (!mm_caption_edit_decode(plan->value->text, plan->text_bytes, text, capacity, &words.count))
+        {
+            free(text);
+            return MM_CAPTION_EDIT_UTF8;
+        }
+        words.text = text;
+    }
+    host->select_words(host->context, &words);
+    characters = (MMI32)words.count + 1;
+    if (plan->text_changed)
+    {
+        status = mm_caption_edit_replace(old.text, (MMI32)old.count, words.text, characters - 1,
+                                         properties, host->diagnosed);
+        if (status == MM_CAPTION_EDIT_OK && host->write_text && host->write_text(host->context, &words) != 1)
+            status = MM_CAPTION_EDIT_WRITE_TEXT;
+    }
+    if (status == MM_CAPTION_EDIT_OK && format->count &&
+        (mm_text_properties_apply_changes(0, characters, characters, format->changes, format->count, properties) <= 0 ||
+         *host->diagnosed))
+        status = MM_CAPTION_EDIT_APPLY_FORMAT;
+    if (status == MM_CAPTION_EDIT_OK && plan->text_changed && host->draft_text &&
+        host->draft_text(host->context, &words) != 1)
+        status = MM_CAPTION_EDIT_DRAFT;
+    host->select_words(host->context, NULL);
+    free(text);
+    return status;
+}
+
+int mm_caption_edit_apply(const MMCaptionEditPlan *plan, MMI32 first, MMI32 last, MMTextBoxState *box,
+                          MMRichTextDefaults *defaults, const MMCaptionEditHost *host, int *body_changed)
+{
+    MMTextBoxState edited = *box;
+    MMCaptionEditFormat format;
+    const MMCaptionEditOptions *value = &plan->value->options;
+    const MMCaptionEditOptions *before = plan->before ? &plan->before->options : NULL;
+    int status = mm_caption_edit_write_box(&edited, first, last, value, before);
+    if (status != MM_CAPTION_EDIT_OK)
+        return status;
+    if (!before && host->create_properties(host->context) != 1)
+        return MM_CAPTION_EDIT_PROPERTIES;
+    if (plan->font_changed && host->set_font(host->context, plan->value->font) != 1)
+        return MM_CAPTION_EDIT_FONT;
+    status = mm_caption_edit_format(value, before, &format);
+    if (status != MM_CAPTION_EDIT_OK)
+        return status;
+    if (plan->text_changed || format.count)
+    {
+        status = edit_text_and_properties(plan, &format, host);
+        if (status != MM_CAPTION_EDIT_OK)
+            return status;
+    }
+    if (format.defaults & MM_CAPTION_EDIT_SET_SIZE)
+        defaults->height = value->font_size;
+    if (format.defaults & MM_CAPTION_EDIT_SET_PAPER)
+        defaults->background = (MMU32)format.paper;
+    if (format.defaults & MM_CAPTION_EDIT_SET_WIDTH)
+        defaults->width = value->width;
+    *box = edited;
+    *body_changed = plan->font_changed || plan->text_changed || format.defaults || format.count;
+    return MM_CAPTION_EDIT_OK;
+}
+
+int mm_caption_edit_archive_box(const MMMovieArchiveEditor *editor, const MMSceneArchiveText *original,
+                                const MMCaptionArchiveBox *host, MMU32 *out)
+{
+    MMTextChunk previous, body;
+    MMU32 number;
+    int changed, status;
+    if (original)
+    {
+        if (host->clone(host->context, original->number, &number) != 1 ||
+            host->read(host->context, number, &previous) != 1)
+            return MM_CAPTION_EDIT_COPY_BOX;
+    }
+    else if (!editor->add(editor->context, MM_TEXT_BOX, 0, &number, NULL))
+        return MM_CAPTION_EDIT_ADD_BOX;
+    status = host->apply(host->context, &changed);
+    if (status != MM_CAPTION_EDIT_OK)
+        return status;
+    if (changed)
+    {
+        if (host->write_body(host->context, &body) != 1 ||
+            !editor->adopt(editor->context, MM_TEXT_BOX, number, body.type, body.number, host->box->child))
+            return MM_CAPTION_EDIT_WRITE_BODY;
+        if (original)
+            editor->unlink(editor->context, MM_TEXT_BOX, number, previous.type, previous.number, host->box->child);
+    }
+    if (host->write_box(host->context, number) != 1)
+        return MM_CAPTION_EDIT_WRITE_BOX;
+    *out = number;
+    return MM_CAPTION_EDIT_OK;
 }

@@ -12,7 +12,6 @@
 #include <map>
 #include <exception>
 #include <stdexcept>
-#include <tuple>
 #include <utility>
 #include "soc_core.h"
 #undef size
@@ -30,6 +29,11 @@ using Words = std::vector<unsigned short>;
 void Require(bool ok, const char *message)
 {
     if (!ok) throw std::runtime_error(message);
+}
+template<class F> int CaptionCall(std::exception_ptr &failure, F function, int failed = 0)
+{
+    try { return function(); }
+    catch (...) { failure = std::current_exception(); return failed; }
 }
 Owned<ChunkyFile> Open(const std::filesystem::path &path, bool write)
 {
@@ -70,11 +74,11 @@ std::string ToUtf8(const Words &words)
     result.resize(end - result.data());
     return result;
 }
-void WriteText(RichTextData &rich, const Words &text)
+void WriteText(RichTextData &rich, const MMCaptionEditWords &text)
 {
-    std::vector<byte> bytes(text.size() * 2);
+    std::vector<byte> bytes(text.count * 2);
     std::size_t count;
-    const auto encoding = mm_caption_edit_encode(KauaiText::Services(), text.data(), text.size(), bytes.data(),
+    const auto encoding = mm_caption_edit_encode(KauaiText::Services(), text.text, text.count, bytes.data(),
                                                  bytes.size(), &count);
     Require(encoding != 0, "Cannot encode the 2D text.");
     Owned<FileObject> stream(FileObject::PfilCreateTemp());
@@ -115,7 +119,7 @@ void SetFont(RichTextData &rich, const char *font)
 struct PropertyMap
 {
     RichTextData &rich;
-    const Words &words;
+    MMCaptionEditWords words{};
     int diagnosed = 0;
     MMTextPropertyEntry Get(MMI32 index) const
     {
@@ -146,7 +150,7 @@ struct PropertyMap
         services.clear_cache = [](void *) {};
         services.paragraph_end = [](void *p, MMI32 at, MMI32 *end) -> int {
             const auto &text = static_cast<PropertyMap *>(p)->words;
-            *end = mm_caption_edit_paragraph_end(text.data(), static_cast<MMI32>(text.size()), at);
+            *end = mm_caption_edit_paragraph_end(text.text, static_cast<MMI32>(text.count), at);
             return 1;
         };
         services.diagnostic = [](void *p, int) { static_cast<PropertyMap *>(p)->diagnosed = 1; };
@@ -189,16 +193,11 @@ void CheckTextArchive(int status)
     Require(status == MM_SCENE_ARCHIVE_TEXT_OK, messages[status]);
 }
 
-auto Fields(const MarcusCaptionOptions &v)
+MMCaptionEditInput CaptionInput(const MarcusCaptionOptions &value, const char *text)
 {
-    return std::tie(v.x, v.y, v.width, v.height, v.first_frame, v.last_frame, v.through_end, v.font_size,
-                    v.bold, v.italic, v.alignment, v.scrolling, v.transparent, v.ink, v.paper);
-}
-MMCaptionEditOptions EngineOptions(const MarcusCaptionOptions &value)
-{
-    return {value.x, value.y, value.width, value.height, value.first_frame, value.last_frame,
-            value.through_end, value.scrolling, value.font_size, value.bold, value.italic,
-            value.alignment, value.transparent, value.ink, value.paper};
+    return {{value.x, value.y, value.width, value.height, value.first_frame, value.last_frame,
+             value.through_end, value.scrolling, value.font_size, value.bold, value.italic,
+             value.alignment, value.transparent, value.ink, value.paper}, value.font, text};
 }
 void CheckCaptionEdit(int status)
 {
@@ -211,69 +210,95 @@ void CheckCaptionEdit(int status)
         "Choose left, center or right alignment.",
         "Cannot allocate the 2D text formatting.",
         "Cannot retain the 2D text formatting.",
-        "Cannot retain the first characters' formatting."
+        "Cannot retain the first characters' formatting.",
+        nullptr,
+        "Enter text for the new box within the length limit.",
+        "Cannot allocate the 2D text properties.",
+        "Cannot set the 2D text font.",
+        "Cannot read the 2D text.",
+        "Enter valid UTF-8 within the 2D text length limit.",
+        "Cannot write the 2D text.",
+        "Cannot apply the 2D text formatting.",
+        "Cannot prepare the 2D text preview.",
+        "Cannot copy the selected 2D text box.",
+        "Cannot allocate a new 2D text box.",
+        "Cannot save the native 2D text.",
+        "Cannot save the native 2D text box."
     };
-    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_CAPTION_EDIT_INHERIT + 1, "caption edit diagnostics");
+    static_assert(sizeof(messages) / sizeof(messages[0]) == MM_CAPTION_EDIT_WRITE_BOX + 1, "caption edit diagnostics");
     Require(status == MM_CAPTION_EDIT_OK, messages[status]);
 }
-void UpdateBox(TextBoxData &box, const MarcusCaptionList &list, const MarcusCaptionOptions &value,
-               const MarcusCaptionOptions *before)
+
+struct CaptionEditHost
 {
-    const auto options = EngineOptions(value);
-    const auto prior = before ? EngineOptions(*before) : MMCaptionEditOptions{};
-    CheckCaptionEdit(mm_caption_edit_write_box(&box.state, list.firstFrame, list.lastFrame,
-                                               &options, before ? &prior : nullptr));
-}
-bool UpdateRich(RichTextData &rich, const MarcusCaptionOptions &value, const MarcusCaptionOptions *before,
-                const char *text, bool wordsChanged, std::u16string *draft = nullptr)
+    PropertyMap map;
+    Words oldText;
+    std::u16string *draft;
+    std::exception_ptr failure;
+
+    MMCaptionEditHost Services()
+    {
+        MMCaptionEditHost services = {
+            this,
+            [](void *p) {
+                auto &host = *static_cast<CaptionEditHost *>(p);
+                return CaptionCall(host.failure, [&] {
+                    host.map.rich.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
+                    return host.map.rich.properties != nullptr;
+                });
+            },
+            [](void *p, const char *font) {
+                auto &host = *static_cast<CaptionEditHost *>(p);
+                return CaptionCall(host.failure, [&] { SetFont(host.map.rich, font); return 1; });
+            },
+            [](void *p, MMCaptionEditWords *words) {
+                auto &host = *static_cast<CaptionEditHost *>(p);
+                return CaptionCall(host.failure, [&] {
+                    host.oldText = ReadText(host.map.rich);
+                    *words = {host.oldText.data(), host.oldText.size()};
+                    return 1;
+                });
+            },
+            [](void *p, const MMCaptionEditWords *words) {
+                static_cast<CaptionEditHost *>(p)->map.words = words ? *words : MMCaptionEditWords{};
+            },
+            map.Services(), &map.diagnosed, nullptr, nullptr
+        };
+        if (draft)
+            services.draft_text = [](void *p, const MMCaptionEditWords *words) {
+                auto &host = *static_cast<CaptionEditHost *>(p);
+                return CaptionCall(host.failure, [&] {
+                    if (words->count) host.draft->assign(words->text, words->text + words->count);
+                    else host.draft->clear();
+                    return 1;
+                });
+            };
+        else
+            services.write_text = [](void *p, const MMCaptionEditWords *words) {
+                auto &host = *static_cast<CaptionEditHost *>(p);
+                return CaptionCall(host.failure, [&] { WriteText(host.map.rich, *words); return 1; });
+            };
+        return services;
+    }
+};
+
+int ApplyCaption(const MMCaptionEditPlan &plan, const MarcusCaptionList &list, TextBoxData &box, RichTextData &rich,
+                 std::u16string *draft, int *bodyChanged)
 {
-    if (!before)
+    CaptionEditHost host{{rich}, {}, draft, {}};
+    const auto services = host.Services();
+    MMRichTextDefaults defaults{rich.defaults.bo, rich.defaults.oskFont, rich.defaults.dxpDef, rich.defaults.dypFont,
+                                static_cast<MMU32>(rich.defaults.lwAcrBack)};
+    const int status = mm_caption_edit_apply(&plan, list.firstFrame, list.lastFrame, &box.state, &defaults, &services,
+                                            bodyChanged);
+    if (host.failure) std::rethrow_exception(host.failure);
+    if (status == MM_CAPTION_EDIT_OK)
     {
-        rich.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
-        Require(rich.properties != nullptr, "Cannot allocate the 2D text properties.");
+        rich.defaults.dxpDef = defaults.width;
+        rich.defaults.dypFont = defaults.height;
+        rich.defaults.lwAcrBack = static_cast<MMI32>(defaults.background);
     }
-    const bool fontChanged = !before || std::strcmp(before->font, value.font);
-    if (fontChanged)
-        SetFont(rich, value.font);
-    const auto options = EngineOptions(value);
-    const auto prior = before ? EngineOptions(*before) : MMCaptionEditOptions{};
-    MMCaptionEditFormat format;
-    CheckCaptionEdit(mm_caption_edit_format(&options, before ? &prior : nullptr, &format));
-    if (format.defaults & MM_CAPTION_EDIT_SET_SIZE)
-        rich.defaults.dypFont = value.font_size;
-    if (format.defaults & MM_CAPTION_EDIT_SET_PAPER)
-        rich.defaults.lwAcrBack = format.paper;
-    if (format.defaults & MM_CAPTION_EDIT_SET_WIDTH)
-        rich.defaults.dxpDef = value.width;
-    if (!wordsChanged && !format.count)
-        return fontChanged || format.defaults;
-    const auto oldText = before ? ReadText(rich) : Words{};
-    Words newText;
-    if (wordsChanged)
-    {
-        const auto length = std::strlen(text);
-        newText.resize(std::min<std::size_t>(length, MM_CAPTION_EDIT_MAX_UNITS * 2));
-        std::size_t count;
-        Require(mm_caption_edit_decode(text, length, newText.data(), newText.size(), &count),
-                "Enter valid UTF-8 within the 2D text length limit.");
-        newText.resize(count);
-    }
-    const auto &words = wordsChanged ? newText : oldText;
-    PropertyMap map{rich, words};
-    const auto services = map.Services();
-    const auto characters = static_cast<MMI32>(words.size()) + 1;
-    if (wordsChanged)
-    {
-        CheckCaptionEdit(mm_caption_edit_replace(oldText.data(), static_cast<MMI32>(oldText.size()),
-                                                 newText.data(), characters - 1, &services, &map.diagnosed));
-        if (!draft) WriteText(rich, newText);
-    }
-    if (format.count)
-        Require(mm_text_properties_apply_changes(0, characters, characters, format.changes,
-                                                 format.count, &services) > 0 && !map.diagnosed,
-                "Cannot apply the 2D text formatting.");
-    if (draft && wordsChanged) draft->assign(newText.begin(), newText.end());
-    return true;
+    return status;
 }
 }
 
@@ -346,7 +371,7 @@ void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &pr
         const auto font = Font(rich);
         Require(font.size() < sizeof(v.font), "The 2D text font name is too long.");
         std::memcpy(v.font, font.c_str(), font.size() + 1);
-        const PropertyMap map{rich, words};
+        const PropertyMap map{rich};
         for (LegacyLong i = 0; i < rich.properties->IvMac(); ++i)
         {
             const auto property = map.Get(i);
@@ -366,7 +391,10 @@ MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const M
                                      const MarcusCaptionOptions &options, const char *text)
 {
     const auto *entry = index < 0 ? nullptr : &list.entries.at(index);
-    const bool wordsChanged = !entry || entry->text != text;
+    const auto value = CaptionInput(options, text);
+    const auto before = entry ? CaptionInput(entry->options, entry->text.c_str()) : MMCaptionEditInput{};
+    MMCaptionEditPlan plan;
+    CheckCaptionEdit(mm_caption_edit_plan(&value, entry ? &before : nullptr, 0, &plan));
     TextBoxData box;
     RichTextData rich;
     // Borrow the authored stream while applying the same changes as Save.
@@ -378,11 +406,11 @@ MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const M
         Require(box.FRead(file.get(), entry->chunk, &body) && rich.FRead(file.get(), body.ctg, body.cno),
                 "Cannot read the authored text box.");
     }
-    UpdateBox(box, list, options, entry ? &entry->options : nullptr);
     std::u16string words;
-    UpdateRich(rich, options, entry ? &entry->options : nullptr, text, wordsChanged, &words);
+    int bodyChanged;
+    CheckCaptionEdit(ApplyCaption(plan, list, box, rich, &words, &bodyChanged));
     MM::PreviewCaption preview;
-    Require(MM::ReadCaptionData(box, rich, wordsChanged ? &words : nullptr, preview),
+    Require(MM::ReadCaptionData(box, rich, plan.text_changed ? &words : nullptr, preview),
             "Cannot prepare the 2D text preview.");
     return preview;
 }
@@ -392,12 +420,16 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
     const MarcusCaptionOptions *options, const char *text)
 {
     const auto *entry = index < 0 ? nullptr : &list.entries.at(index);
-    const bool wordsChanged = !entry || (text && entry->text != text);
-    if (entry && text && !wordsChanged && Fields(entry->options) == Fields(*options) &&
-        !std::strcmp(entry->options.font, options->font)) return {};
+    MMCaptionEditPlan plan{};
+    const auto value = text ? CaptionInput(*options, text) : MMCaptionEditInput{};
+    const auto before = entry ? CaptionInput(entry->options, entry->text.c_str()) : MMCaptionEditInput{};
     if (text)
-        Require(std::strlen(text) < MARCUS_CAPTION_UTF8_CAPACITY && (entry || text[0]),
-                "Enter text for the new box within the length limit.");
+    {
+        const int status = mm_caption_edit_plan(&value, entry ? &before : nullptr, MARCUS_CAPTION_UTF8_CAPACITY, &plan);
+        if (status == MM_CAPTION_EDIT_NO_CHANGE)
+            return {};
+        CheckCaptionEdit(status);
+    }
     auto copy = MarcusCopyMovie(path, origin);
     auto file = Open(copy->path, true);
     MovieArchiveHost host{file.get(), {}, {}};
@@ -406,44 +438,61 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
     struct Write
     {
         PChunkyFile file;
+        const MMMovieArchiveEditor &editor;
         const MarcusCaptionList &list;
-        const MarcusCaptionOptions *options;
-        const MarcusCaptionEntry *entry;
-        const char *text;
-        bool wordsChanged;
+        const MMCaptionEditPlan &plan;
+        TextBoxData box;
+        RichTextData rich;
         std::exception_ptr failure;
-    } write{file.get(), list, options, entry, text, wordsChanged, {}};
+    } write{file.get(), editor, list, plan, {}, {}, {}};
     MMSceneArchiveTextEdit edit{list.scene, list.firstFrame, entry ? &original : nullptr, &write, nullptr};
     if (text)
         edit.write_box = [](void *context, const MMSceneArchiveText *original, MMU32 *number) -> int {
             auto &write = *static_cast<Write *>(context);
-            try
-            {
-                TextBoxData box;
-                RichTextData rich;
-                ChunkIdentification prior;
-                if (original)
-                {
-                    Require(write.file->FClone(kctgTbox, original->number, write.file, number) &&
-                            box.FRead(write.file, *number, &prior) && rich.FRead(write.file, prior.ctg, prior.cno),
-                            "Cannot copy the selected 2D text box.");
+            const MMCaptionArchiveBox io = {
+                &write, &write.box.state,
+                [](void *p, MMU32 original, MMU32 *number) {
+                    auto &w = *static_cast<Write *>(p);
+                    return CaptionCall(w.failure, [&] { return w.file->FClone(kctgTbox, original, w.file, number); });
+                },
+                [](void *p, MMU32 number, MMTextChunk *body) {
+                    auto &w = *static_cast<Write *>(p);
+                    return CaptionCall(w.failure, [&] {
+                        ChunkIdentification prior;
+                        if (!w.box.FRead(w.file, number, &prior) || !w.rich.FRead(w.file, prior.ctg, prior.cno))
+                            return 0;
+                        *body = {prior.ctg, prior.cno};
+                        return 1;
+                    });
+                },
+                [](void *p, int *bodyChanged) {
+                    auto &w = *static_cast<Write *>(p);
+                    return CaptionCall(w.failure, [&] {
+                        return ApplyCaption(w.plan, w.list, w.box, w.rich, nullptr, bodyChanged);
+                    }, MM_CAPTION_EDIT_WRITE_BOX);
+                },
+                [](void *p, MMTextChunk *body) {
+                    auto &w = *static_cast<Write *>(p);
+                    return CaptionCall(w.failure, [&] {
+                        ChunkIdentification written;
+                        if (!w.rich.FWrite(w.file, &written))
+                            return 0;
+                        *body = {written.ctg, written.cno};
+                        return 1;
+                    });
+                },
+                [](void *p, MMU32 number) {
+                    auto &w = *static_cast<Write *>(p);
+                    return CaptionCall(w.failure, [&] { return w.box.FWrite(w.file, number); });
                 }
-                else
-                    Require(write.file->FAdd(0, kctgTbox, number), "Cannot allocate a new 2D text box.");
-                const auto *before = write.entry ? &write.entry->options : nullptr;
-                UpdateBox(box, write.list, *write.options, before);
-                if (UpdateRich(rich, *write.options, before, write.text, write.wordsChanged))
-                {
-                    ChunkIdentification body;
-                    Require(rich.FWrite(write.file, &body) &&
-                            write.file->FAdoptChild(kctgTbox, *number, body.ctg, body.cno, box.state.child),
-                            "Cannot save the native 2D text.");
-                    if (original)
-                        write.file->DeleteChild(kctgTbox, *number, prior.ctg, prior.cno, box.state.child);
-                }
-                return box.FWrite(write.file, *number);
-            }
-            catch (...) { write.failure = std::current_exception(); return false; }
+            };
+            return CaptionCall(write.failure, [&] {
+                const int status = mm_caption_edit_archive_box(&write.editor, original, &io, number);
+                if (write.failure)
+                    return 0;
+                CheckCaptionEdit(status);
+                return 1;
+            });
         };
     const int result = mm_scene_archive_edit_text(&editor, &edit);
     if (write.failure) std::rethrow_exception(write.failure);

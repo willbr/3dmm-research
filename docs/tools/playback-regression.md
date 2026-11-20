@@ -15254,3 +15254,29 @@ Marcus captures matched all 60 frame identities in the retained retail
 seek and playback captures. Both players kept their prior seek image
 hashes and matched the retail camera indices. SDL also matched the 12
 retail sound requests.
+
+## Marcus caption edit sequencing in C89 (20 November 2026)
+
+Caption draft and save share the C89 sequence for text replacement,
+formatting, and default updates. A save with unchanged settings leaves the
+document revision alone. Geometry-only edits retain the existing rich-text
+body. A replacement adopts the new body before dropping the cloned link to
+the old body, and the caller publishes only a successful working copy.
+
+The C checks covered draft publication after formatting, failure during a
+text write, and preservation of the old link after failed adoption. All
+eleven native caption scenarios produced byte-identical movie files before
+and after the conversion. Retail opened and rendered five of those saves,
+including the Unicode, geometry-only, and formatting-only edits. The
+headless Marcus playback test passed its caption draft, save, and reopen
+checks. All 43 targeted x64 checks and seven standalone C89 checks passed
+after correcting a test initializer rejected by the strict syntax check.
+The focused x86 checks passed and the x64 Preview integration retained all
+ten fingerprints, including the 188 stock cameras. Both VMM storyboard
+seek images in `20261120T101421Z-4fdb2965` matched the retained SDL and
+Marcus captures. Logs are in `tmp/c89-caption-edit-flow`.
+
+In `actor-event-edit` suite `20261120T101419Z-c10d0e1d`, fresh SDL and Marcus
+captures matched all 60 frame identities in the retained retail seek and
+playback runs. Both players kept all 60 prior seek image hashes and matched
+the retail camera indices. SDL matched all 12 retail sound requests.

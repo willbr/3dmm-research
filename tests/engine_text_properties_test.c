@@ -683,6 +683,175 @@ static void caption_edit(void)
     CHECK(!h.slots[ref - 1].free && h.slots[ref - 1].fixed == ((2UL << 24) | 1));
 }
 
+typedef struct CaptionFlow
+{
+    Host properties;
+    MMCaptionEditWords selected;
+    char steps[16], fail;
+    int calls, diagnosed, rewrite;
+} CaptionFlow;
+
+static int caption_step(CaptionFlow *h, char step)
+{
+    CHECK(h->calls < 15);
+    h->steps[h->calls++] = step;
+    h->steps[h->calls] = 0;
+    return h->fail != step;
+}
+
+static int caption_read(void *p, MMCaptionEditWords *out)
+{
+    static const unsigned short old[] = {'B'};
+    out->text = old;
+    out->count = 1;
+    return caption_step(p, 'r');
+}
+
+static void caption_select(void *p, const MMCaptionEditWords *words)
+{
+    CaptionFlow *h = p;
+    if (words)
+        h->selected = *words;
+    else
+    {
+        h->selected.text = NULL;
+        h->selected.count = 0;
+    }
+    caption_step(h, words ? 's' : 'c');
+}
+
+static int caption_write(void *p, const MMCaptionEditWords *words)
+{
+    CaptionFlow *h = p;
+    static const unsigned short normalized[] = {'A', 13, 'B'};
+    CHECK(words->count == 3 && words->text == h->selected.text);
+    CHECK(!memcmp(words->text, normalized, sizeof(normalized)));
+    CHECK(h->properties.clears == (h->rewrite ? 2 : 1));
+    return caption_step(h, 'w');
+}
+
+static void caption_flow(void)
+{
+    CaptionFlow h = {0};
+    MMCaptionEditHost host = {0};
+    MMCaptionEditInput before = {{0, 0, 90, 40, 1, 3, 0, 0, 18, 0, 0, 0, 1, 0, 0}, "Arial", "B"};
+    MMCaptionEditInput value = before;
+    MMCaptionEditPlan plan;
+    MMTextBoxState box = {0};
+    MMRichTextDefaults defaults = {0};
+    int changed = -1;
+
+    CHECK(mm_caption_edit_plan(&value, &before, 20, &plan) == MM_CAPTION_EDIT_NO_CHANGE);
+    value.text = "";
+    CHECK(mm_caption_edit_plan(&value, NULL, 20, &plan) == MM_CAPTION_EDIT_TEXT_LIMIT);
+    CHECK(mm_caption_edit_plan(&value, NULL, 0, &plan) == MM_CAPTION_EDIT_OK && plan.text_changed);
+    value = before;
+    value.options.x = 20;
+    CHECK(mm_caption_edit_plan(&value, &before, 20, &plan) == MM_CAPTION_EDIT_OK && !plan.text_changed);
+    box.first = 1;
+    box.end = 4;
+    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &defaults, &host, &changed) == MM_CAPTION_EDIT_OK);
+    CHECK(!changed && box.left == 20 && box.right == 110);
+    value.options.font_size = 22;
+    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &defaults, &host, &changed) == MM_CAPTION_EDIT_OK);
+    CHECK(changed && defaults.height == 22);
+
+    init(&h.properties);
+    host.context = &h;
+    host.read_text = caption_read;
+    host.select_words = caption_select;
+    host.properties = h.properties.s;
+    host.diagnosed = &h.diagnosed;
+    host.write_text = caption_write;
+    value.text = "A\r\nB";
+    value.options.bold = 1;
+    value.options.x = 30;
+    CHECK(mm_caption_edit_plan(&value, &before, 20, &plan) == MM_CAPTION_EDIT_OK && plan.text_changed);
+    h.fail = 'w';
+    changed = -1;
+    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &defaults, &host, &changed) == MM_CAPTION_EDIT_WRITE_TEXT);
+    CHECK(!strcmp(h.steps, "rswc") && !h.selected.text && changed == -1 && box.left == 20);
+
+    init(&h.properties);
+    h.calls = 0;
+    h.fail = 0;
+    h.rewrite = 1;
+    host.write_text = NULL;
+    host.draft_text = caption_write;
+    CHECK(mm_caption_edit_apply(&plan, 1, 3, &box, &defaults, &host, &changed) == MM_CAPTION_EDIT_OK);
+    CHECK(!strcmp(h.steps, "rswc") && !h.selected.text && changed && box.left == 30);
+    CHECK(h.properties.count == 1 && h.properties.entries[0].key == key(MM_CAPTION_STYLE, 0));
+}
+
+static int caption_clone_box(void *p, MMU32 original, MMU32 *number)
+{
+    CHECK(original == 5);
+    *number = 11;
+    return caption_step(p, 'c');
+}
+static int caption_read_box(void *p, MMU32 number, MMTextChunk *body)
+{
+    CHECK(number == 11);
+    body->type = MM_TEXT_ROOT;
+    body->number = 9;
+    return caption_step(p, 'r');
+}
+static int caption_apply_box(void *p, int *changed)
+{
+    *changed = ((CaptionFlow *)p)->rewrite;
+    return caption_step(p, 'e') ? MM_CAPTION_EDIT_OK : MM_CAPTION_EDIT_RANGE;
+}
+static int caption_write_body(void *p, MMTextChunk *body)
+{
+    body->type = MM_TEXT_ROOT;
+    body->number = 25;
+    return caption_step(p, 'b');
+}
+static int caption_link_body(void *p, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot)
+{
+    CHECK(parent_type == MM_TEXT_BOX && parent == 11 && type == MM_TEXT_ROOT && number == 25 && slot == 3);
+    return caption_step(p, 'a');
+}
+static void caption_unlink_body(void *p, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot)
+{
+    CHECK(parent_type == MM_TEXT_BOX && parent == 11 && type == MM_TEXT_ROOT && number == 9 && slot == 3);
+    caption_step(p, 'u');
+}
+static int caption_write_box(void *p, MMU32 number)
+{
+    CHECK(number == 11);
+    return caption_step(p, 'w');
+}
+
+static void caption_archive_flow(void)
+{
+    CaptionFlow h = {0};
+    MMMovieArchiveEditor editor = {0};
+    MMTextBoxState box = {0};
+    MMCaptionArchiveBox host = {NULL, NULL, caption_clone_box, caption_read_box, caption_apply_box,
+                                caption_write_body, caption_write_box};
+    const MMSceneArchiveText original = {0, 5};
+    MMU32 number = 99;
+    editor.context = &h;
+    editor.adopt = caption_link_body;
+    editor.unlink = caption_unlink_body;
+    host.context = &h;
+    host.box = &box;
+    box.child = 3;
+    h.rewrite = 1;
+    h.fail = 'a';
+    CHECK(mm_caption_edit_archive_box(&editor, &original, &host, &number) == MM_CAPTION_EDIT_WRITE_BODY);
+    CHECK(number == 99 && !strcmp(h.steps, "creba"));
+    h.calls = 0;
+    h.fail = 0;
+    CHECK(mm_caption_edit_archive_box(&editor, &original, &host, &number) == MM_CAPTION_EDIT_OK);
+    CHECK(number == 11 && !strcmp(h.steps, "crebauw"));
+    h.calls = 0;
+    h.rewrite = 0;
+    CHECK(mm_caption_edit_archive_box(&editor, &original, &host, &number) == MM_CAPTION_EDIT_OK);
+    CHECK(number == 11 && !strcmp(h.steps, "crew"));
+}
+
 int main(void)
 {
     arguments();
@@ -691,6 +860,8 @@ int main(void)
     adjust();
     caption_encoding();
     caption_edit();
+    caption_flow();
+    caption_archive_flow();
     puts("Text property checks passed");
     return 0;
 }
