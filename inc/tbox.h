@@ -129,6 +129,7 @@ class TextBoxGobject : public TextBoxGobject_PAR
   private:
     PTextBoxBase _ptbxb; // Enclosing border.
     RC _rcOld;    // Old rectangle for the ddg.
+    struct ClipboardHost;
 
     TextBoxGobject(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb) : RichTextDocumentGraphicsObject(ptxrd, pgcb)
     {
@@ -182,7 +183,7 @@ class TextBoxGobject : public TextBoxGobject_PAR
     //
     // Only for TextBoxBase
     //
-    bool _FDoClip(long tool); // Actually does a clipboard command.
+    bool _FDoClip(long tool, bool inlineText = false);
 };
 
 enum

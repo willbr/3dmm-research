@@ -1252,16 +1252,9 @@ bool TextBoxGobject::FCmdTrackMouse(PCMD_MOUSE pcmd)
         switch (pmvu->Tool())
         {
         case toolCutObject:
-            _FDoClip(toolCutText);
-            break;
-
         case toolCopyObject:
-            _FDoClip(toolCopyText);
-            SetSel(_cpOther, _cpOther);
-            break;
-
         case toolPasteObject:
-            _FDoClip(toolPasteText);
+            _FDoClip(pmvu->Tool(), true);
             break;
 
         case toolTboxPaintText:
@@ -1395,249 +1388,195 @@ void TextBoxGobject::_NewRc(void)
     _Reformat(0, cpLim, cpLim);
 }
 
-/***************************************************************************
- *
- * Handles preparing for cut, copy or paste.
- *
- * Parameters:
- *	pcmd - The command to process.
- *
- * Returns:
- * 	fTrue if it handled the command, else fFalse.
- *
- **************************************************************************/
+static int TextBoxClipboardCommand(long command)
+{
+    switch (command)
+    {
+    case cidCut: return MM_BOX_CLIP_CUT;
+    case cidCopy: return MM_BOX_CLIP_COPY;
+    case cidPaste: return MM_BOX_CLIP_PASTE;
+    case cidCutTool: return MM_BOX_CLIP_CUT_TOOL;
+    case cidCopyTool: return MM_BOX_CLIP_COPY_TOOL;
+    case cidPasteTool: return MM_BOX_CLIP_PASTE_TOOL;
+    default: return MM_BOX_CLIP_UNKNOWN;
+    }
+}
+
+struct TextBoxGobject::ClipboardHost
+{
+    PTextBoxGobject view;
+    PTBOX box;
+    PMovie movie;
+    PCommand command;
+    std::exception_ptr exception;
+
+    ClipboardHost(PTextBoxGobject view, PCommand command = nullptr)
+        : view(view), box(static_cast<PTBOX>(view->_pdocb)),
+          movie(box->Pscen() ? box->Pscen()->Pmvie() : nullptr), command(command)
+    {
+    }
+
+    MMTextBoxClipboardServices Services() { return {this, Call}; }
+
+    int Check(int result)
+    {
+        if (exception)
+            std::rethrow_exception(exception);
+        return result;
+    }
+
+    static long CommandId(int action)
+    {
+        switch (action)
+        {
+        case MM_BOX_CLIP_CUT: return cidCut;
+        case MM_BOX_CLIP_COPY: return cidCopy;
+        default: return cidPaste;
+        }
+    }
+
+    static long SoundTool(int action, bool inlineText)
+    {
+        switch (action)
+        {
+        case MM_BOX_CLIP_CUT: return inlineText ? toolCutText : toolCutObject;
+        case MM_BOX_CLIP_COPY: return inlineText ? toolCopyText : toolCopyObject;
+        default: return inlineText ? toolPasteText : toolPasteObject;
+        }
+    }
+
+    static int Call(void *context, MMTextBoxClipboardOperation operation, MMTextBoxClipboardRequest *request)
+    {
+        auto &host = *static_cast<ClipboardHost *>(context);
+        auto &q = *request;
+        try
+        {
+            switch (operation)
+            {
+            case MM_BOX_CLIP_BOX_SELECTED: return host.box->FSelected();
+            case MM_BOX_CLIP_TEXT_SELECTED: return host.view->FTextSelected();
+            case MM_BOX_CLIP_EMPTY: return vpclip->FDocIsClip(pvNil);
+            case MM_BOX_CLIP_CAN_PASTE_TEXT: return host.view->_FPaste(vpclip, fFalse, cidPaste);
+            case MM_BOX_CLIP_HAS_ACTOR: return vpclip->FGetFormat(kclsActorClipboard);
+            case MM_BOX_CLIP_HAS_BOX: return vpclip->FGetFormat(kclsTextBoxClipboard);
+            case MM_BOX_CLIP_GET_ACTOR:
+            case MM_BOX_CLIP_GET_BOX:
+            {
+                PDocumentBase document;
+                long kind = operation == MM_BOX_CLIP_GET_ACTOR ? kclsActorClipboard : kclsTextBoxClipboard;
+                if (!vpclip->FGetFormat(kind, &document))
+                    return 0;
+                q.object = document;
+                break;
+            }
+            case MM_BOX_CLIP_ROUTE_ONLY:
+                return static_cast<PActorClipboard>(static_cast<PDocumentBase>(q.object))->FRouteOnly();
+            case MM_BOX_CLIP_RELEASE: static_cast<PDocumentBase>(q.object)->Release(); break;
+            case MM_BOX_CLIP_DUPLICATE:
+            {
+                PTBOX duplicate;
+                if (!host.box->FDup(&duplicate))
+                    return 0;
+                q.object = static_cast<PDocumentBase>(duplicate);
+                break;
+            }
+            case MM_BOX_CLIP_CREATE:
+                q.object = static_cast<PDocumentBase>(TextBoxClipboard::PtclpNew(
+                    static_cast<PTBOX>(static_cast<PDocumentBase>(q.object))));
+                return q.object != nullptr;
+            case MM_BOX_CLIP_HIDE: return host.movie->FHideTbox();
+            case MM_BOX_CLIP_PUBLISH: vpclip->Set(static_cast<PDocumentBase>(q.object)); break;
+            case MM_BOX_CLIP_PASTE_BOX:
+            {
+                auto scene = host.box->Pscen();
+                auto document = static_cast<PTextBoxClipboard>(static_cast<PDocumentBase>(q.object));
+                return scene && document->FPaste(scene);
+            }
+            case MM_BOX_CLIP_EDIT_TEXT:
+            {
+                Command cmd = {};
+                cmd.cid = CommandId(q.action);
+                return host.view->TextBoxGobject_PAR::FCmdClip(&cmd);
+            }
+            case MM_BOX_CLIP_COLLAPSE:
+                host.view->SetSel(host.view->_cpOther, host.view->_cpOther);
+                break;
+            case MM_BOX_CLIP_CUE:
+                if (host.movie)
+                    host.movie->Pmcc()->PlayUISound(SoundTool(q.action, q.inline_text != 0));
+                break;
+            case MM_BOX_CLIP_FORWARD:
+            {
+                Command cmd = *host.command;
+                cmd.pcmh = host.movie->PddgGet(0);
+                vpcex->EnqueueCmd(&cmd);
+                break;
+            }
+            case MM_BOX_CLIP_DIAGNOSTIC:
+                switch (q.action)
+                {
+                case MM_BOX_CLIP_UNSUPPORTED: PushErc(ercSocCannotPasteThatHere); break;
+                case MM_BOX_CLIP_NOTHING: PushErc(ercSocNothingToPaste); break;
+                default: Bug("Unknown tool type"); break;
+                }
+                break;
+            }
+            return 1;
+        }
+        catch (...)
+        {
+            host.exception = std::current_exception();
+            return -1;
+        }
+    }
+};
+
 bool TextBoxGobject::FCmdClip(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
 
-    PTBOX ptbox = (PTBOX)_pdocb;
-    PDocumentBase pdocb;
-    PMovieView pmvu;
-
-    pmvu = (PMovieView)ptbox->Pscen()->Pmvie()->PddgGet(0);
-    AssertPo(pmvu, 0);
-
-    Assert(pmvu->FTextMode(), "Bad mode");
-
-    if (((pcmd->cid == cidPaste) || (pcmd->cid == cidPasteTool)) && vpclip->FGetFormat(kclsActorClipboard, &pdocb))
-    {
-        Command cmd;
-
-        if (((PActorClipboard)pdocb)->FRouteOnly())
-        {
-            PushErc(ercSocCannotPasteThatHere);
-            ReleasePpo(&pdocb);
-            return (fTrue);
-        }
-        //
-        // Pass this onto the MovieView for pasting
-        //
-
-        cmd = *pcmd;
-        cmd.pcmh = pmvu;
-
-        vpcex->EnqueueCmd(&cmd);
-        ReleasePpo(&pdocb);
-        return (fTrue);
-    }
-
-    switch (pcmd->cid)
-    {
-
-    case cidPaste:
-        _FDoClip(vpclip->FGetFormat(kclsTextBoxClipboard) ? toolPasteObject : toolPasteText);
-        break;
-
-    case cidCut:
-        _FDoClip(FTextSelected() ? toolCutText : toolCutObject);
-        break;
-
-    case cidCopy:
-        _FDoClip(FTextSelected() ? toolCopyText : toolCopyObject);
-        break;
-
-    default:
-        return (fFalse);
-    }
-
-    return (fTrue);
+    ClipboardHost host(this, pcmd);
+#ifdef DEBUG
+    auto view = static_cast<PMovieView>(host.movie->PddgGet(0));
+    AssertPo(view, 0);
+    Assert(view->FTextMode(), "Bad mode");
+#endif
+    const auto services = host.Services();
+    return host.Check(mm_text_box_clipboard_command(TextBoxClipboardCommand(pcmd->cid), &services)) > 0;
 }
 
-/***************************************************************************
- *
- * Handles enabling of all cut, copy, paste commands.
- *
- * Parameters:
- *	pcmd - The command to process.
- *
- * Returns:
- * 	fTrue if it handled the command, else fFalse.
- *
- **************************************************************************/
 bool TextBoxGobject::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
     AssertVarMem(pgrfeds);
 
-    PTBOX ptbox = (PTBOX)_pdocb;
-    AssertPo(ptbox, 0);
-
+    ClipboardHost host(this);
+    const auto services = host.Services();
     *pgrfeds = fedsEnable;
-    switch (pcmd->cid)
-    {
-    case cidCutTool:
-    case cidCopyTool:
-        break;
-
-    case cidPaste:
-    case cidPasteTool:
-        //
-        // First check if the clipboard contains any text
-        // which we might need to paste *into* the text box.
-        //
-        if (ptbox->FSelected() && !vpclip->FDocIsClip(pvNil) && _FPaste(vpclip, fFalse, cidPaste))
-        {
-            *pgrfeds &= fedsEnable;
-            return (fTrue);
-        }
-
-        //
-        // Now check if clipboard is a text box.
-        //
-        if (!vpclip->FGetFormat(kclsTextBoxClipboard))
-        {
-            *pgrfeds = fedsDisable;
-        }
-        break;
-
-    default:
-        return (TextBoxGobject_PAR::FEnableDdgCmd(pcmd, pgrfeds));
-    }
-
-    return (fTrue);
+    const int result = host.Check(mm_text_box_clipboard_enable(TextBoxClipboardCommand(pcmd->cid), &services));
+    if (result == MM_BOX_CLIP_USE_PARENT)
+        return TextBoxGobject_PAR::FEnableDdgCmd(pcmd, pgrfeds);
+    if (result == MM_BOX_CLIP_DISABLED)
+        *pgrfeds = fedsDisable;
+    return fTrue;
 }
 
-/***************************************************************************
- *
- * Actually does cut, copy or paste command.
- *
- * Parameters:
- *	tool - The tool to use.
- *
- * Returns:
- * 	fTrue if it handled the command, else fFalse.
- *
- **************************************************************************/
-bool TextBoxGobject::_FDoClip(long tool)
+bool TextBoxGobject::_FDoClip(long tool, bool inlineText)
 {
-    AssertThis(0);
-
-    PTBOX ptbox = (PTBOX)_pdocb;
-    PTBOX ptboxDup;
-    PTextBoxClipboard ptclp;
-    Command cmd;
-
-    AssertPo(ptbox, 0);
-
+    int action = MM_BOX_CLIP_UNKNOWN;
     switch (tool)
     {
-    case toolCutText:
-    case toolCopyText:
-
-        if (FTextSelected())
-        {
-            ClearPb(&cmd, size(Command));
-            cmd.cid = (tool == toolCutText) ? cidCut : cidCopy;
-            ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
-            if (!TextBoxGobject_PAR::FCmdClip(&cmd))
-            {
-                return (fFalse);
-            }
-            return (fTrue);
-        }
-        return (fTrue);
-
-    case toolPasteText:
-
-        if (!vpclip->FGetFormat(kclsActorClipboard) && !vpclip->FGetFormat(kclsTextBoxClipboard))
-        {
-            ClearPb(&cmd, size(Command));
-            cmd.cid = cidPaste;
-            ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
-            return (TextBoxGobject_PAR::FCmdClip(&cmd));
-        }
-        else
-        {
-            PushErc(ercSocCannotPasteThatHere);
-        }
-        return (fTrue);
-
-    case toolCutObject:
-    case toolCopyObject:
-
-        //
-        // Copy the text box
-        //
-        if (!ptbox->FDup(&ptboxDup))
-        {
-            return (fFalse);
-        }
-        AssertPo(ptboxDup, 0);
-
-        //
-        // Create the clip board object
-        //
-        ptclp = TextBoxClipboard::PtclpNew(ptboxDup);
-        AssertNilOrPo(ptclp, 0);
-        if (ptclp == pvNil)
-        {
-            ReleasePpo(&ptboxDup);
-            return (fFalse);
-        }
-
-        //
-        // Hide the current tbox
-        //
-        if (tool == toolCutObject)
-        {
-            if (!ptbox->Pscen()->Pmvie()->FHideTbox())
-            {
-                ReleasePpo(&ptclp);
-                ReleasePpo(&ptboxDup);
-                return (fFalse);
-            }
-        }
-
-        vpclip->Set(ptclp);
-        ReleasePpo(&ptclp);
-        ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
-        break;
-
-    case toolPasteObject:
-
-        if (vpclip->FGetFormat(kclsTextBoxClipboard, (PDocumentBase *)&ptclp))
-        {
-            AssertPo(ptclp, 0);
-            bool fRet;
-
-            fRet = ptbox->Pscen() != pvNil && ptclp->FPaste(ptbox->Pscen());
-            ReleasePpo(&ptclp);
-            ptbox->Pscen()->Pmvie()->Pmcc()->PlayUISound(tool);
-            return fRet;
-        }
-        else
-        {
-            PushErc(ercSocNothingToPaste);
-        }
-        break;
-
-    default:
-        Bug("Unknown tool type");
+    case toolCutObject: action = MM_BOX_CLIP_CUT; break;
+    case toolCopyObject: action = MM_BOX_CLIP_COPY; break;
+    case toolPasteObject: action = MM_BOX_CLIP_PASTE; break;
     }
 
-    return (fTrue);
+    AssertThis(0);
+    ClipboardHost host(this);
+    const auto services = host.Services();
+    return host.Check(mm_text_box_clipboard_click(action, inlineText, &services)) > 0;
 }
 
 /****************************************************

@@ -931,6 +931,9 @@ show/hide core, bounds/type changes and scrolling/selection dispatch. Studio and
 Marcus share lifetime visibility and first-frame scrolling predicates. Text-box
 factories, duplication, edit/undo registration and replay, property selection and
 clipboard ownership/paste now also use C89 and plain C undo/clipboard state.
+Studio's text-box clipboard controller uses C89 for command enablement, inline
+text versus whole-box edits, actor paste forwarding, and clipboard ownership
+when cutting or copying a box.
 MovieUndo's shared movie/scene/frame context, actor undo snapshot references,
 flags and counted names now live in persistent C state. Actor undo creation
 populates that record directly in C89, and its controller captures and swaps

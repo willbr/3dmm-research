@@ -104,6 +104,62 @@ int mm_text_box_wrap_undo(void *record, const MMTextBoxEditServices *);
 int mm_text_box_clipboard_create(void *adopted_text, const MMTextBoxEditServices *);
 int mm_text_box_clipboard_dispose(MMTextBoxClipboard *, const MMTextBoxEditServices *);
 int mm_text_box_clipboard_paste(const MMTextBoxClipboard *, const MMTextBoxEditServices *);
+
+enum
+{
+    MM_BOX_CLIP_UNKNOWN,
+    MM_BOX_CLIP_CUT,
+    MM_BOX_CLIP_COPY,
+    MM_BOX_CLIP_PASTE,
+    MM_BOX_CLIP_CUT_TOOL,
+    MM_BOX_CLIP_COPY_TOOL,
+    MM_BOX_CLIP_PASTE_TOOL
+};
+enum { MM_BOX_CLIP_USE_PARENT, MM_BOX_CLIP_ENABLED, MM_BOX_CLIP_DISABLED };
+enum { MM_BOX_CLIP_UNSUPPORTED, MM_BOX_CLIP_NOTHING, MM_BOX_CLIP_BAD_TOOL };
+typedef enum MMTextBoxClipboardOperation
+{
+    MM_BOX_CLIP_BOX_SELECTED,
+    MM_BOX_CLIP_TEXT_SELECTED,
+    MM_BOX_CLIP_EMPTY,
+    MM_BOX_CLIP_CAN_PASTE_TEXT,
+    MM_BOX_CLIP_HAS_ACTOR,
+    MM_BOX_CLIP_HAS_BOX,
+    MM_BOX_CLIP_GET_ACTOR,
+    MM_BOX_CLIP_GET_BOX,
+    MM_BOX_CLIP_ROUTE_ONLY,
+    MM_BOX_CLIP_RELEASE,
+    MM_BOX_CLIP_DUPLICATE,
+    MM_BOX_CLIP_CREATE,
+    MM_BOX_CLIP_HIDE,
+    MM_BOX_CLIP_PUBLISH,
+    MM_BOX_CLIP_PASTE_BOX,
+    MM_BOX_CLIP_EDIT_TEXT,
+    MM_BOX_CLIP_COLLAPSE,
+    MM_BOX_CLIP_CUE,
+    MM_BOX_CLIP_FORWARD,
+    MM_BOX_CLIP_DIAGNOSTIC
+} MMTextBoxClipboardOperation;
+typedef struct MMTextBoxClipboardRequest
+{
+    void *object;
+    int action, inline_text;
+} MMTextBoxClipboardRequest;
+typedef struct MMTextBoxClipboardServices
+{
+    void *context;
+    int (*call)(void *, MMTextBoxClipboardOperation, MMTextBoxClipboardRequest *);
+} MMTextBoxClipboardServices;
+
+/* Synchronous callbacks return 1/0 or a negative error. Successful GET and
+ * DUPLICATE return an owned object. CREATE receives the duplicate, adopts it
+ * on success, and returns the owned clipboard document. On ordinary failure
+ * the duplicate remains caller-owned. PUBLISH retains its document. EDIT_TEXT
+ * and CUE receive the logical action; DIAGNOSTIC receives its code in action.
+ * Negative results preserve the completed native prefix. */
+int mm_text_box_clipboard_command(int command, const MMTextBoxClipboardServices *);
+int mm_text_box_clipboard_enable(int command, const MMTextBoxClipboardServices *);
+int mm_text_box_clipboard_click(int action, int inline_text, const MMTextBoxClipboardServices *);
 #ifdef __cplusplus
 }
 #endif

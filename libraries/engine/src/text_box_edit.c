@@ -289,3 +289,185 @@ int mm_text_box_clipboard_paste(const MMTextBoxClipboard *clipboard, const MMTex
     TRY(CALL(MM_BOX_SELECT)); TRY(CALL(MM_BOX_ATTACH_MOUSE));
     return release(text, p);
 }
+
+#define CLIP(op) s->call(s->context, op, &q)
+static int edit_clipboard(int action, int inline_text, const MMTextBoxClipboardServices *s)
+{
+    MMTextBoxClipboardRequest q;
+    void *duplicate;
+    int result;
+
+    q.object = NULL;
+    q.action = action;
+    q.inline_text = inline_text;
+    switch (action)
+    {
+    case MM_BOX_CLIP_CUT:
+    case MM_BOX_CLIP_COPY:
+        if (inline_text)
+        {
+            result = CLIP(MM_BOX_CLIP_TEXT_SELECTED);
+            if (result <= 0)
+                return result < 0 ? result : 1;
+            TRY(CLIP(MM_BOX_CLIP_CUE));
+            return CLIP(MM_BOX_CLIP_EDIT_TEXT);
+        }
+        result = CLIP(MM_BOX_CLIP_DUPLICATE);
+        if (result <= 0)
+            return result;
+        duplicate = q.object;
+        result = CLIP(MM_BOX_CLIP_CREATE);
+        TRY(result);
+        if (!result)
+        {
+            q.object = duplicate;
+            TRY(CLIP(MM_BOX_CLIP_RELEASE));
+            return 0;
+        }
+        if (action == MM_BOX_CLIP_CUT)
+        {
+            result = CLIP(MM_BOX_CLIP_HIDE);
+            TRY(result);
+            if (!result)
+            {
+                TRY(CLIP(MM_BOX_CLIP_RELEASE));
+                return 0;
+            }
+        }
+        TRY(CLIP(MM_BOX_CLIP_PUBLISH));
+        TRY(CLIP(MM_BOX_CLIP_RELEASE));
+        return CLIP(MM_BOX_CLIP_CUE);
+
+    case MM_BOX_CLIP_PASTE:
+        if (inline_text)
+        {
+            result = CLIP(MM_BOX_CLIP_HAS_ACTOR);
+            TRY(result);
+            if (!result)
+            {
+                result = CLIP(MM_BOX_CLIP_HAS_BOX);
+                TRY(result);
+            }
+            if (!result)
+            {
+                TRY(CLIP(MM_BOX_CLIP_CUE));
+                return CLIP(MM_BOX_CLIP_EDIT_TEXT);
+            }
+            q.action = MM_BOX_CLIP_UNSUPPORTED;
+            return CLIP(MM_BOX_CLIP_DIAGNOSTIC);
+        }
+        result = CLIP(MM_BOX_CLIP_GET_BOX);
+        TRY(result);
+        if (!result)
+        {
+            q.action = MM_BOX_CLIP_NOTHING;
+            return CLIP(MM_BOX_CLIP_DIAGNOSTIC);
+        }
+        result = CLIP(MM_BOX_CLIP_PASTE_BOX);
+        TRY(result);
+        TRY(CLIP(MM_BOX_CLIP_RELEASE));
+        TRY(CLIP(MM_BOX_CLIP_CUE));
+        return result;
+
+    default:
+        q.action = MM_BOX_CLIP_BAD_TOOL;
+        return CLIP(MM_BOX_CLIP_DIAGNOSTIC);
+    }
+}
+
+int mm_text_box_clipboard_command(int command, const MMTextBoxClipboardServices *s)
+{
+    MMTextBoxClipboardRequest q;
+    int result, inline_text;
+
+    q.object = NULL;
+    q.action = command;
+    q.inline_text = 0;
+    if (command == MM_BOX_CLIP_PASTE || command == MM_BOX_CLIP_PASTE_TOOL)
+    {
+        result = CLIP(MM_BOX_CLIP_GET_ACTOR);
+        TRY(result);
+        if (result)
+        {
+            result = CLIP(MM_BOX_CLIP_ROUTE_ONLY);
+            TRY(result);
+            if (result)
+            {
+                q.action = MM_BOX_CLIP_UNSUPPORTED;
+                TRY(CLIP(MM_BOX_CLIP_DIAGNOSTIC));
+            }
+            else
+                TRY(CLIP(MM_BOX_CLIP_FORWARD));
+            TRY(CLIP(MM_BOX_CLIP_RELEASE));
+            return 1;
+        }
+    }
+    switch (command)
+    {
+    case MM_BOX_CLIP_CUT:
+    case MM_BOX_CLIP_COPY:
+        inline_text = CLIP(MM_BOX_CLIP_TEXT_SELECTED);
+        TRY(inline_text);
+        break;
+    case MM_BOX_CLIP_PASTE:
+        result = CLIP(MM_BOX_CLIP_HAS_BOX);
+        TRY(result);
+        inline_text = !result;
+        break;
+    default:
+        return 0;
+    }
+    TRY(edit_clipboard(command, inline_text, s));
+    return 1;
+}
+
+int mm_text_box_clipboard_enable(int command, const MMTextBoxClipboardServices *s)
+{
+    MMTextBoxClipboardRequest q = {0};
+    int result;
+
+    q.action = command;
+    switch (command)
+    {
+    case MM_BOX_CLIP_CUT_TOOL:
+    case MM_BOX_CLIP_COPY_TOOL:
+        return MM_BOX_CLIP_ENABLED;
+    case MM_BOX_CLIP_PASTE:
+    case MM_BOX_CLIP_PASTE_TOOL:
+        result = CLIP(MM_BOX_CLIP_BOX_SELECTED);
+        TRY(result);
+        if (result)
+        {
+            result = CLIP(MM_BOX_CLIP_EMPTY);
+            TRY(result);
+            if (!result)
+            {
+                result = CLIP(MM_BOX_CLIP_CAN_PASTE_TEXT);
+                TRY(result);
+                if (result)
+                    return MM_BOX_CLIP_ENABLED;
+            }
+        }
+        result = CLIP(MM_BOX_CLIP_HAS_BOX);
+        TRY(result);
+        return result ? MM_BOX_CLIP_ENABLED : MM_BOX_CLIP_DISABLED;
+    default:
+        return MM_BOX_CLIP_USE_PARENT;
+    }
+}
+
+int mm_text_box_clipboard_click(int action, int inline_text, const MMTextBoxClipboardServices *s)
+{
+    MMTextBoxClipboardRequest q = {0};
+    int result = edit_clipboard(action, inline_text, s);
+
+    TRY(result);
+    if (inline_text && action == MM_BOX_CLIP_COPY)
+    {
+        q.action = action;
+        q.inline_text = inline_text;
+        TRY(CLIP(MM_BOX_CLIP_COLLAPSE));
+    }
+    return result;
+}
+#undef CLIP

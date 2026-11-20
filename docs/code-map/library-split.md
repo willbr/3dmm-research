@@ -3451,6 +3451,18 @@ disposal. All five native undo classes now store their saved type, rectangle,
 lifetime, background or wrapped document record in `MMTextBoxUndo`; clipboard
 references live in `MMTextBoxClipboard`.
 
+The text-box clipboard view controller in `text_box_edit.c` chooses inline
+versus whole-box operations, determines paste availability, and forwards full
+actor paste to the movie view. It rejects route-only clips in text mode and
+collapses the inline selection after a pointer copy. Studio supplies command
+IDs, rich-text view calls, and native clipboard and cue services. A clipboard
+document adopts the duplicate before a whole-box cut hides the source, so a
+failed hide releases the duplicate through the clipboard document once.
+Studio's before-and-after traces matched for inline cut, copy and paste,
+actor forwarding, and whole-box paste and cut through undo, redo, and
+save/reopen. Retail rendered the two saved movies identically. The pasted
+caption appeared within its box at frames 7 and 14 and was absent at frame 6.
+
 Factories initialize before reading input bounds, attach scene/type before clearing
 the background, and set one-level document undo last. Read errors publish the bad-
 file error only for an ordinary metadata failure. Duplication publishes its new

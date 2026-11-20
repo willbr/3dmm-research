@@ -21,6 +21,126 @@ static int invoke(int kind, BoxTestHost *h, const MMTextBoxEditServices *p)
     default: return mm_text_box_clipboard_paste(&h->objects[3].clipboard, p);
     }
 }
+
+typedef struct ViewClipboardTest
+{
+    MMTextBoxClipboardOperation calls[12];
+    int count, fail, exception;
+    int actor_refs, document_refs, duplicate_refs;
+    int actor, route, text_selected, box_selected, can_paste_text, error;
+} ViewClipboardTest;
+
+static int clipboard_call(void *context, MMTextBoxClipboardOperation operation, MMTextBoxClipboardRequest *q)
+{
+    ViewClipboardTest *t = context;
+    int *refs;
+    t->calls[t->count++] = operation;
+    if ((int)operation == t->exception)
+        return -73;
+    if ((int)operation == t->fail)
+    {
+        if (operation == MM_BOX_CLIP_CREATE)
+            q->object = NULL;
+        return 0;
+    }
+    switch (operation)
+    {
+    case MM_BOX_CLIP_DUPLICATE:
+        q->object = &t->duplicate_refs;
+        ++t->duplicate_refs;
+        break;
+    case MM_BOX_CLIP_CREATE:
+        q->object = &t->document_refs;
+        ++t->document_refs;
+        break;
+    case MM_BOX_CLIP_PUBLISH:
+        ++t->document_refs;
+        break;
+    case MM_BOX_CLIP_GET_ACTOR:
+        if (!t->actor)
+            return 0;
+        q->object = &t->actor_refs;
+        ++t->actor_refs;
+        break;
+    case MM_BOX_CLIP_RELEASE:
+        refs = q->object;
+        --*refs;
+        if (refs == &t->document_refs && !*refs)
+            --t->duplicate_refs;
+        break;
+    case MM_BOX_CLIP_ROUTE_ONLY: return t->route;
+    case MM_BOX_CLIP_TEXT_SELECTED: return t->text_selected;
+    case MM_BOX_CLIP_BOX_SELECTED: return t->box_selected;
+    case MM_BOX_CLIP_EMPTY: return !t->can_paste_text;
+    case MM_BOX_CLIP_CAN_PASTE_TEXT: return t->can_paste_text;
+    case MM_BOX_CLIP_HAS_BOX: return 0;
+    case MM_BOX_CLIP_DIAGNOSTIC:
+        t->error = q->action;
+        break;
+    default:
+        break;
+    }
+    return 1;
+}
+
+static void clipboard_init(ViewClipboardTest *t)
+{
+    memset(t, 0, sizeof(*t));
+    t->fail = t->exception = t->error = -1;
+}
+
+static int clipboard_view(void)
+{
+    static const MMTextBoxClipboardOperation cut[] = {
+        MM_BOX_CLIP_DUPLICATE, MM_BOX_CLIP_CREATE, MM_BOX_CLIP_HIDE,
+        MM_BOX_CLIP_PUBLISH, MM_BOX_CLIP_RELEASE, MM_BOX_CLIP_CUE
+    };
+    ViewClipboardTest t;
+    MMTextBoxClipboardServices s;
+    s.context = &t;
+    s.call = clipboard_call;
+
+    clipboard_init(&t);
+    t.fail = MM_BOX_CLIP_CREATE;
+    CHECK(!mm_text_box_clipboard_click(MM_BOX_CLIP_CUT, 0, &s));
+    CHECK(t.count == 3 && t.calls[2] == MM_BOX_CLIP_RELEASE && !t.duplicate_refs && !t.document_refs);
+    clipboard_init(&t);
+    t.fail = MM_BOX_CLIP_HIDE;
+    CHECK(!mm_text_box_clipboard_click(MM_BOX_CLIP_CUT, 0, &s));
+    CHECK(t.count == 4 && t.calls[3] == MM_BOX_CLIP_RELEASE && !t.duplicate_refs && !t.document_refs);
+    clipboard_init(&t);
+    CHECK(mm_text_box_clipboard_click(MM_BOX_CLIP_CUT, 0, &s) == 1);
+    CHECK(t.count == 6 && !memcmp(t.calls, cut, sizeof(cut)) && t.duplicate_refs == 1 && t.document_refs == 1);
+
+    clipboard_init(&t);
+    t.actor = t.route = 1;
+    CHECK(mm_text_box_clipboard_command(MM_BOX_CLIP_PASTE_TOOL, &s) == 1);
+    CHECK(t.count == 4 && t.calls[2] == MM_BOX_CLIP_DIAGNOSTIC && t.error == MM_BOX_CLIP_UNSUPPORTED &&
+          t.calls[3] == MM_BOX_CLIP_RELEASE && !t.actor_refs);
+    t.count = t.route = 0;
+    CHECK(mm_text_box_clipboard_command(MM_BOX_CLIP_PASTE_TOOL, &s) == 1);
+    CHECK(t.count == 4 && t.calls[2] == MM_BOX_CLIP_FORWARD && t.calls[3] == MM_BOX_CLIP_RELEASE && !t.actor_refs);
+
+    clipboard_init(&t);
+    t.text_selected = 1;
+    t.fail = MM_BOX_CLIP_EDIT_TEXT;
+    CHECK(!mm_text_box_clipboard_click(MM_BOX_CLIP_COPY, 1, &s));
+    CHECK(t.count == 4 && t.calls[1] == MM_BOX_CLIP_CUE && t.calls[3] == MM_BOX_CLIP_COLLAPSE);
+    t.count = 0;
+    t.exception = MM_BOX_CLIP_EDIT_TEXT;
+    CHECK(mm_text_box_clipboard_click(MM_BOX_CLIP_COPY, 1, &s) == -73 && t.count == 3);
+
+    clipboard_init(&t);
+    CHECK(mm_text_box_clipboard_enable(MM_BOX_CLIP_COPY, &s) == MM_BOX_CLIP_USE_PARENT && !t.count);
+    CHECK(mm_text_box_clipboard_enable(MM_BOX_CLIP_COPY_TOOL, &s) == MM_BOX_CLIP_ENABLED && !t.count);
+    CHECK(mm_text_box_clipboard_enable(MM_BOX_CLIP_PASTE, &s) == MM_BOX_CLIP_DISABLED);
+    t.count = 0;
+    t.box_selected = t.can_paste_text = 1;
+    CHECK(mm_text_box_clipboard_enable(MM_BOX_CLIP_PASTE_TOOL, &s) == MM_BOX_CLIP_ENABLED);
+    CHECK(t.count == 3 && t.calls[2] == MM_BOX_CLIP_CAN_PASTE_TEXT);
+    return 0;
+}
+
 int main(void)
 {
     BoxTestHost h, reference;
@@ -108,6 +228,7 @@ int main(void)
     CHECK(invoke(14, &h, &p) == 1 && !h.objects[1].state.right);
     p = box_setup(&h); h.objects[1].state.left = 2147483647L; h.objects[1].state.right = (-2147483647L - 1);
     CHECK(invoke(14, &h, &p) == 1 && h.objects[1].state.left == 177 && h.objects[1].state.right == 178);
-    puts("C89 text-box factories, transactions, property selection, clipboard geometry and failures passed");
+    CHECK(!clipboard_view());
+    puts("C89 text-box factories, transactions, property selection, clipboard commands and failures passed");
     return 0;
 }
