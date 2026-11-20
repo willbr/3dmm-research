@@ -77,6 +77,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   roll-call and Archive GST-layout readers. Studio, Archive and Marcus call
   these decoders. Later slices below migrate storage, codecs and persistence;
   tag ownership and complete save/edit integration remain dependencies.
+- Archive uses the shared C89 chunk index for metadata and child references.
+  C89 owns its decoded payload and string table cache, preview budgets and
+  header dispatch for movies, scenes, actors and captions. The Archive
+  adapter supplies native file access, name conversion and public results.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

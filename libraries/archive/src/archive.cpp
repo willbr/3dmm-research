@@ -10,8 +10,7 @@
 #include "soc_core.h"
 #include "engine_movie_graph.h"
 #include "engine_movie_source.h"
-#include "mm/actor_data.h"
-#include "mm/movie_data.h"
+#include "mm/archive_reader.h"
 #include "mm/sound_resource.h"
 #include "platform_text.h"
 #undef size
@@ -26,23 +25,18 @@ struct Archive::Impl
     MMMovieSession *movie = nullptr;
     std::string path;
     std::vector<Chunk> chunks;
-    MMChunkPayloadCache payload = {};
-    MMMovieStringTable *strings = nullptr;
-    bool stringsAttempted = false;
-    Error stringsError;
+    MMArchiveReader *reader = nullptr;
     explicit Impl(Options value) : options(value)
     {
-        AssertDo(mm_chunk_payload_cache_init(&payload, KauaiChunkPayloadServices()) == MM_CHUNK_PAYLOAD_OK,
-                 "invalid archive payload services");
     }
     ~Impl()
     {
         mm_movie_session_close(movie);
-        mm_movie_string_table_close(strings);
+        mm_archive_reader_close(reader);
         ReleasePpo(&file);
-        mm_chunk_payload_cache_clear(&payload);
     }
-    bool Load(std::size_t index, Error &error);
+    bool Check(int status, std::size_t index, Error &error) const;
+    bool Load(std::size_t index, MMReadStream &stream, Error &error);
     bool LoadSources(const MMMovieSession *, std::vector<MovieSourceEntry> &sources, Error &error);
 };
 namespace
@@ -314,33 +308,49 @@ bool Archive::Open(const std::string &utf8Path, Error &error)
             return Fail(error, ErrorCode::invalid_path, message.c_str());
         if (!filename.FBuildFromPath(&path) || !(opened->file = ChunkyFile::PcflOpen(&filename, fcflNil)))
             return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
+        const auto access = opened->file->ReadChunkAccess();
+        const MMArchiveReaderOptions readerOptions = {
+            opened->options.maxDecodedBytes,
+            opened->options.maxStringTableBytes,
+            koskCur,
+            [](void *, const void *input, size_t bytes, int source, void *output, size_t capacity) -> size_t {
+                return CchTranslateRgb(const_cast<void *>(input), bytes, source, static_cast<achar *>(output),
+                                       capacity);
+            },
+            nullptr,
+            [](void *) -> int { return !Internal::AssertionFailed(); },
+        };
+        const int status = mm_archive_reader_open(&access, opened->file, KauaiChunkPayloadServices(), &readerOptions,
+                                                  &opened->reader);
+        if (status == MM_ARCHIVE_MEMORY)
+            throw std::bad_alloc();
+        if (status != MM_ARCHIVE_READ_OK)
+            return Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.");
         opened->path = utf8Path;
-        for (LegacyLong i = 0; i < opened->file->Ccki(); ++i)
+        for (MMU32 i = 0; i < access.count; ++i)
         {
-            ChunkIdentification id;
-            MMBlockFile extent;
-            int packed;
-            if (!opened->file->FGetCki(i, &id) ||
-                !opened->file->FFindBlockFile(id.ctg, id.cno, &extent, &packed))
+            MMChunkEntry entry;
+            if (mm_chunk_at(&access, i, &entry) != MM_CHUNK_OK)
                 return Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.");
             Chunk chunk;
-            chunk.id = {id.ctg, id.cno};
-            chunk.storedBytes = extent.length;
-            chunk.packed = packed != 0;
-            chunk.loner = opened->file->FLoner(id.ctg, id.cno);
-            chunk.forest = opened->file->FForest(id.ctg, id.cno);
+            chunk.id = {entry.type, entry.number};
+            chunk.storedBytes = entry.bytes;
+            chunk.packed = (entry.flags & MM_CHUNK_PACKED) != 0;
+            chunk.loner = (entry.flags & MM_CHUNK_LONER) != 0;
+            chunk.forest = (entry.flags & MM_CHUNK_FOREST) != 0;
             String name;
-            opened->file->FGetName(id.ctg, id.cno, &name);
+            opened->file->FGetName(entry.type, entry.number, &name);
             chunk.name = Utf8(name);
             for (LegacyLong j = 0; j < name.Cch(); ++j)
                 chunk.nameUnits.push_back(sizeof(achar) == 1 ? static_cast<byte>(name.Psz()[j]) : name.Psz()[j]);
-            for (LegacyLong j = 0; j < opened->file->Ckid(id.ctg, id.cno); ++j)
+            for (MMU32 j = 0; j < entry.child_count; ++j)
             {
-                ChildChunkIdentification child;
-                if (!opened->file->FGetKid(id.ctg, id.cno, j, &child))
+                MMChunkChild child;
+                if (mm_chunk_child_at(&access, i, j, &child) != MM_CHUNK_OK)
                     return Fail(error, ErrorCode::corrupt_archive, "Cannot read a child reference.", &chunk.id);
-                chunk.children.push_back(
-                    {child.chid, {child.cki.ctg, child.cki.cno}, opened->file->FFind(child.cki.ctg, child.cki.cno)});
+                MMU32 position;
+                chunk.children.push_back({child.slot, {child.type, child.number},
+                                          mm_chunk_find(&access, child.type, child.number, &position) == MM_CHUNK_OK});
             }
             std::sort(chunk.children.begin(), chunk.children.end(), [](const Child &a, const Child &b) {
                 if (a.slot != b.slot)
@@ -350,9 +360,6 @@ bool Archive::Open(const std::string &utf8Path, Error &error)
             });
             opened->chunks.push_back(std::move(chunk));
         }
-        std::sort(opened->chunks.begin(), opened->chunks.end(), [](const Chunk &a, const Chunk &b) {
-            return a.id.type < b.id.type || (a.id.type == b.id.type && a.id.number < b.id.number);
-        });
         if (Internal::AssertionFailed())
             return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected the archive index.");
         _impl.swap(opened);
@@ -367,41 +374,43 @@ bool Archive::Open(const std::string &utf8Path, Error &error)
         return Fail(error, ErrorCode::unsupported_format, "Archive text cannot be decoded.");
     }
 }
-bool Archive::Impl::Load(std::size_t index, Error &error)
+bool Archive::Impl::Check(int status, std::size_t index, Error &error) const
 {
-    if (index >= chunks.size())
+    if (status == MM_ARCHIVE_INVALID_POSITION)
         return Fail(error, ErrorCode::invalid_argument, "Chunk index is out of range.");
-    const auto &chunk = chunks[index];
-    MMChunkEntry entry = {};
-    entry.type = chunk.id.type;
-    entry.number = chunk.id.number;
-    entry.flags = chunk.packed ? MM_CHUNK_PACKED : 0;
-    const MMChunkPayloadCacheCallbacks callbacks = {
-        this,
-        [](void *context) {
-            auto archive = static_cast<Impl *>(context);
-            mm_movie_string_table_close(archive->strings);
-            archive->strings = nullptr;
-            archive->stringsAttempted = false;
-            archive->stringsError = {};
-        },
-        [](void *) -> int { return !Internal::AssertionFailed(); },
-    };
-    switch (mm_chunk_payload_cache_load(&payload, file, index, &entry, options.maxDecodedBytes, &callbacks))
+    const auto &id = chunks[index].id;
+    switch (status)
     {
-    case MM_CHUNK_PAYLOAD_OK:
+    case MM_ARCHIVE_READ_OK:
         return true;
-    case MM_CHUNK_PAYLOAD_MISSING:
-        return Fail(error, ErrorCode::io_error, "Cannot read this chunk.", &chunk.id);
-    case MM_CHUNK_PAYLOAD_BAD_HEADER:
-        return Fail(error, ErrorCode::decode_failed, "Invalid compressed payload header.", &chunk.id);
-    case MM_CHUNK_PAYLOAD_LIMIT:
-        return Fail(error, ErrorCode::resource_limit, "Packed payload exceeds this session's decode budget.", &chunk.id);
-    case MM_CHUNK_PAYLOAD_DECODE_FAILED:
-        return Fail(error, ErrorCode::decode_failed, "Cannot decode this payload.", &chunk.id);
+    case MM_ARCHIVE_MISSING_PAYLOAD:
+        return Fail(error, ErrorCode::io_error, "Cannot read this chunk.", &id);
+    case MM_ARCHIVE_BAD_PACKED_HEADER:
+        return Fail(error, ErrorCode::decode_failed, "Invalid compressed payload header.", &id);
+    case MM_ARCHIVE_PACKED_LIMIT:
+        return Fail(error, ErrorCode::resource_limit, "Packed payload exceeds this session's decode budget.", &id);
+    case MM_ARCHIVE_DECODE_FAILED:
+        return Fail(error, ErrorCode::decode_failed, "Cannot decode this payload.", &id);
+    case MM_ARCHIVE_INVALID_RECORD:
+        return Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported record header.", &id);
+    case MM_ARCHIVE_WRONG_TYPE:
+        return Fail(error, ErrorCode::unsupported_format, "This chunk is not a General String Table.", &id);
+    case MM_ARCHIVE_STRING_LIMIT:
+        return Fail(error, ErrorCode::resource_limit, "String table exceeds this session's preview budget.", &id);
+    case MM_ARCHIVE_INVALID_STRINGS:
+        return Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported General String Table.", &id);
+    case MM_ARCHIVE_MEMORY:
+        throw std::bad_alloc();
     default:
-        return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected this payload.", &chunk.id);
+        return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected this payload.", &id);
     }
+}
+
+bool Archive::Impl::Load(std::size_t index, MMReadStream &stream, Error &error)
+{
+    const int status = index < chunks.size() ? mm_archive_reader_payload(reader, static_cast<MMU32>(index), &stream) :
+                                              MM_ARCHIVE_INVALID_POSITION;
+    return Check(status, index, error);
 }
 bool Archive::ReadPayload(std::size_t index, std::uint32_t offset, std::uint32_t count, PayloadPage &page, Error &error)
 {
@@ -412,13 +421,10 @@ bool Archive::ReadPayload(std::size_t index, std::uint32_t offset, std::uint32_t
         return Fail(error, ErrorCode::invalid_argument, "Payload pages are limited to 1 MiB.");
     try
     {
-        if (!_impl->Load(index, error))
-            return false;
-        MMBlockIO io;
         MMReadStream stream;
+        if (!_impl->Load(index, stream, error))
+            return false;
         const auto &id = _impl->chunks[index].id;
-        if (!mm_chunk_payload_cache_stream(&_impl->payload, &io, &stream))
-            return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected this payload.", &id);
         PayloadPage result;
         result.totalBytes = stream.length;
         result.offset = std::min(offset, result.totalBytes);
@@ -442,59 +448,40 @@ bool Archive::ReadRecord(std::size_t index, RecordHeader &record, Error &error)
     Internal::ClearDiagnostic();
     try
     {
-        if (!_impl->Load(index, error))
+        MMArchiveRecord decoded;
+        const int status = index < _impl->chunks.size() ?
+                               mm_archive_reader_record(_impl->reader, static_cast<MMU32>(index), &decoded) :
+                               MM_ARCHIVE_INVALID_POSITION;
+        if (!_impl->Check(status, index, error))
             return false;
         const auto &id = _impl->chunks[index].id;
-        RecordHeader result;
-        bool valid = true;
-        if (id.type == kctgMvie)
-        {
-            result.kind = RecordKind::movie;
-            MMMovieHeader prefix;
-            ChunkNumber number = id.number;
-            valid = MovieData::FVerifyVersion(_impl->file, &number, &prefix);
-            if (valid)
-            {
-                result.movie = {static_cast<short>(prefix.current_version), static_cast<short>(prefix.backward_version)};
-            }
-        }
-        else if (id.type == kctgScen)
-        {
-            result.kind = RecordKind::scene;
-            SceneData scene;
-            valid = scene.FRead(_impl->file, id.number);
-            if (valid)
-                result.scene = {scene.firstFrame, scene.lastFrame, static_cast<int32_t>(scene.transition)};
-        }
-        else if (id.type == kctgActr)
-        {
-            result.kind = RecordKind::actor;
-            ActorChunkOnFile actor;
-            MMBlockIO io;
-            MMReadStream stream;
-            valid = mm_chunk_payload_cache_stream(&_impl->payload, &io, &stream) &&
-                    mm_actor_read_header(&stream, &actor);
-            if (valid)
-                result.actor = {actor.arid, actor.nfrmFirst, actor.nfrmLast};
-        }
-        else if (id.type == kctgTbox)
-        {
-            result.kind = RecordKind::caption;
-            TextBoxData text;
-            ChunkIdentification rich;
-            valid = text.FRead(_impl->file, id.number, &rich);
-            if (valid)
-            {
-                result.caption.firstFrame = text.state.first;
-                result.caption.maxFrame = text.state.end;
-                result.caption.story = text.state.story;
-                result.caption.bounds = {text.state.left, text.state.top, text.state.right,
-                                         text.state.bottom};
-                result.caption.text = {rich.ctg, rich.cno};
-            }
-        }
-        if (!valid || Internal::AssertionFailed())
+        if (Internal::AssertionFailed())
             return Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported record header.", &id);
+        RecordHeader result;
+        switch (decoded.kind)
+        {
+        case MM_ARCHIVE_MOVIE:
+            result.kind = RecordKind::movie;
+            result.movie = {decoded.value.movie.version, decoded.value.movie.backward_version};
+            break;
+        case MM_ARCHIVE_SCENE:
+            result.kind = RecordKind::scene;
+            result.scene = {decoded.value.scene.first, decoded.value.scene.last, decoded.value.scene.transition};
+            break;
+        case MM_ARCHIVE_ACTOR:
+            result.kind = RecordKind::actor;
+            result.actor = {decoded.value.actor.id, decoded.value.actor.first, decoded.value.actor.last};
+            break;
+        case MM_ARCHIVE_CAPTION:
+        {
+            const auto &caption = decoded.value.caption;
+            result.kind = RecordKind::caption;
+            result.caption = {caption.first, caption.end, caption.story != 0,
+                              {caption.left, caption.top, caption.right, caption.bottom},
+                              {caption.text.type, caption.text.number}};
+            break;
+        }
+        }
         record = result;
         return true;
     }
@@ -518,12 +505,9 @@ bool Archive::Impl::LoadSources(const MMMovieSession *session, std::vector<Movie
     const Id id = {entry.type, entry.number};
     if (position >= chunks.size() || !(chunks[position].id == id))
         return Fail(error, ErrorCode::corrupt_archive, "Cannot locate the movie source table.", &id);
-    if (!Load(position, error))
-        return false;
-    MMBlockIO io;
     MMReadStream stream;
-    if (!mm_chunk_payload_cache_stream(&payload, &io, &stream))
-        return Fail(error, ErrorCode::corrupt_archive, "Invalid movie source table.", &id);
+    if (!Load(position, stream, error))
+        return false;
     MMMovieSourceTable table;
     if (stream.length > options.maxStringTableBytes)
         return Fail(error, ErrorCode::resource_limit, "Source table exceeds this session's preview budget.", &id);
@@ -565,12 +549,9 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
                 {
                     Error scratch;
                     auto &error = request ? *static_cast<Error *>(request) : scratch;
-                    if (!archive.Load(position, error))
-                        return MM_MOVIE_IO;
-                    MMBlockIO io;
                     MMReadStream stream;
-                    if (!mm_chunk_payload_cache_stream(&archive.payload, &io, &stream))
-                        return MM_MOVIE_BAD_FILE;
+                    if (!archive.Load(position, stream, error))
+                        return MM_MOVIE_IO;
                     return mm_movie_read_fixed(&stream, bytes, size);
                 }
                 catch (const std::bad_alloc &)
@@ -592,12 +573,10 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
                 try
                 {
                     Error error;
-                    if (!archive.Load(position, error))
-                        return error.code == ErrorCode::out_of_memory ? MM_MOVIE_MEMORY : MM_MOVIE_BAD_FILE;
-                    MMBlockIO io;
                     MMReadStream stream;
-                    return mm_chunk_payload_cache_stream(&archive.payload, &io, &stream) ?
-                               receive(out, &stream) : MM_MOVIE_BAD_FILE;
+                    if (!archive.Load(position, stream, error))
+                        return MM_MOVIE_BAD_FILE;
+                    return receive(out, &stream);
                 }
                 catch (const std::bad_alloc &)
                 {
@@ -669,45 +648,14 @@ bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t 
     if (index >= _impl->chunks.size())
         return Fail(error, ErrorCode::invalid_argument, "Chunk index is out of range.");
     const auto &id = _impl->chunks[index].id;
-    if (id.type != kctgGst)
-        return Fail(error, ErrorCode::unsupported_format, "This chunk is not a General String Table.", &id);
     try
     {
-        if (!_impl->Load(index, error))
+        const MMMovieStringTable *strings;
+        if (!_impl->Check(mm_archive_reader_strings(_impl->reader, static_cast<MMU32>(index), &strings),
+                          index, error))
             return false;
-        if (!_impl->stringsAttempted)
-        {
-            MMBlockIO io;
-            MMReadStream stream;
-            if (!mm_chunk_payload_cache_stream(&_impl->payload, &io, &stream))
-                return Fail(error, ErrorCode::corrupt_archive, "Invalid or unsupported General String Table.", &id);
-            if (stream.length > _impl->options.maxStringTableBytes)
-                Fail(_impl->stringsError, ErrorCode::resource_limit,
-                     "String table exceeds this session's preview budget.", &id);
-            else
-            {
-                const auto convert = [](void *, const void *input, size_t bytes, int source, void *output,
-                                        size_t capacity) -> size_t {
-                    return CchTranslateRgb(const_cast<void *>(input), bytes, source, static_cast<achar *>(output),
-                                           capacity);
-                };
-                const auto status = mm_movie_string_table_open(&stream, _impl->options.maxStringTableBytes, koskCur,
-                                                               convert, nullptr, &_impl->strings);
-                if (status == MM_MOVIE_MEMORY)
-                    throw std::bad_alloc();
-                if (status != MM_MOVIE_OK || Internal::AssertionFailed())
-                    Fail(_impl->stringsError, ErrorCode::corrupt_archive, "Invalid or unsupported General String Table.",
-                         &id);
-            }
-            _impl->stringsAttempted = true;
-        }
-        if (_impl->stringsError)
-        {
-            error = _impl->stringsError;
-            return false;
-        }
         MMMovieStringPage range;
-        mm_movie_string_table_page(_impl->strings, first, count, &range);
+        mm_movie_string_table_page(strings, first, count, &range);
         StringTablePage result;
         result.totalEntries = range.total;
         result.extraBytes = range.extra_bytes;
@@ -715,7 +663,7 @@ bool Archive::ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t 
         for (auto i = range.first; i < range.first + range.count; ++i)
         {
             MMMovieStringRow row;
-            if (!mm_movie_string_table_row(_impl->strings, i, &row))
+            if (!mm_movie_string_table_row(strings, i, &row))
                 return Fail(error, ErrorCode::corrupt_archive, "Invalid General String Table entry.", &id);
             StringTableEntry entry;
             entry.index = i;

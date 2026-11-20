@@ -7157,6 +7157,21 @@ entry points remain available to existing runtime code. This first public
 boundary covers read-only archive access; movie playback/editing APIs and
 independent concurrent engine instances remain separate work.
 
+`archive_reader.c` owns the Archive reader's payload and string-table cache,
+the two decode budgets, and record dispatch for MVIE, SCEN, ACTR and TBOX.
+Caption decoding resolves its exact RTXT child reference from the shared
+chunk index. Archive inspection and Preview's movie graph reads share the
+decoded payload cache. The C++ facade adapts file access, output containers,
+diagnostics and native name conversion. The C-only chunky test verifies
+big-endian record reads and an invalid caption link, and the archive API
+checks budget errors and cache reuse across chunks.
+Before-and-after `3mm dump` runs agreed on 20 inputs with 28,270 identical
+chunk rows, and both readers rejected a fixture with swapped index rows.
+The original-content preview suite passed. Capture suite
+`20261120T065315Z-9f39ab6a` matched 60 retail frame identities on SDL and
+Marcus in seek and playback, and 12 retail sound requests on SDL. Both
+hosts also matched all 60 of their previous seek images.
+
 `MM::Preview` now supplies a second public boundary for read-only 3D asset
 views. Its standard C++ header exposes resource source IDs, action/cel and frame
 selection, camera controls and owned RGBA images. BRender actors, engine bodies,

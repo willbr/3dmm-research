@@ -103,6 +103,16 @@ int main(int argc, char **argv)
     Check(archive.ReadStrings(4, 999, 128, strings, error) && strings.firstEntry == 300 && strings.entries.empty());
     for (auto i : {6u, 9u})
         Check(archive.ReadStrings(i, 0, 128, strings, error) && strings.entries[0].text == "Wide");
+    Options stringLimit;
+    stringLimit.maxStringTableBytes = 1;
+    Archive limitedStrings(stringLimit);
+    Check(limitedStrings.Open(argv[4], error));
+    for (auto i : {0u, 0u, 1u, 0u})
+    {
+        Check(!limitedStrings.ReadStrings(i, 0, 1, strings, error) && error.code == ErrorCode::resource_limit);
+        Check(error.hasChunk && error.chunk == limitedStrings.Chunks()[i].id && strings.entries.empty());
+        Check(limitedStrings.ReadPayload(i, 0, 16, payload, error) && payload.bytes.size() == 16);
+    }
     Check(!archive.ReadStrings(0, 0, 129, strings, error) && error.code == ErrorCode::invalid_argument);
     Check(!archive.ReadPayload(0, 0, 1024 * 1024 + 1, payload, error) && error.code == ErrorCode::invalid_argument);
     archive.Close();

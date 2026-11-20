@@ -1,3 +1,4 @@
+#include "mm/archive_reader.h"
 #include "mm/chunky_file.h"
 #include "mm/codec.h"
 #include "mm/data_stream.h"
@@ -2017,6 +2018,56 @@ static void rekey_portable(int big, int stride)
     mm_chunk_index_close(index);
 }
 
+static void archive_records(void)
+{
+    enum { ROOT, TEXT, SCENE, CAPTION, COUNT };
+    const MMU32 types[] = {MM_MOVIE_CHUNK, 0x52545854UL, MM_SCENE_CHUNK, 0x54424f58UL};
+    const MMU32 numbers[] = {2, 13, 7, 8};
+    const MMU32 lengths[] = {8, 4, 16, 36};
+    const MMI32 codecs[COUNT] = {0};
+    const MMU32 links[][3] = {{CAPTION, TEXT, 4}};
+    const MMChunkPolicy policy = {0, 0, 516};
+    unsigned char raw[COUNT][FIXTURE_RECORD_BYTES], bytes[1024];
+    MMMemoryStream archive, decoded;
+    MMChunkIndex *index;
+    MMChunkAccess access;
+    MMArchiveRecord record;
+    MMU32 size;
+    memset(raw, 0, sizeof(raw));
+    put16(raw[ROOT], 1, 1);
+    put16(raw[ROOT] + 4, 3, 1);
+    put16(raw[ROOT] + 6, 2, 1);
+    put16(raw[SCENE], 1, 1);
+    put32(raw[SCENE] + 4, 13, 1);
+    put32(raw[SCENE] + 8, 2, 1);
+    put32(raw[SCENE] + 12, 1, 1);
+    put16(raw[CAPTION], 1, 1);
+    put32(raw[CAPTION] + 4, 3, 1);
+    put32(raw[CAPTION] + 8, 14, 1);
+    put32(raw[CAPTION] + 16, 120, 1);
+    put32(raw[CAPTION] + 28, 4, 1);
+    raw[CAPTION][32] = 1;
+    size = write_fixture(bytes, sizeof(bytes), 1, COUNT, types, numbers, lengths, codecs, raw, links, 1);
+    CHECK(mm_memory_stream_init(&archive, bytes, size));
+    CHECK(mm_chunk_index_open(&archive.stream, &policy, &index) == MM_CHUNK_OK);
+    access = mm_chunk_index_access(index);
+    CHECK(mm_memory_stream_init(&decoded, raw[ROOT], lengths[ROOT]));
+    CHECK(mm_archive_decode_record(&access, ROOT, &decoded.stream, &record) == MM_ARCHIVE_READ_OK &&
+          record.kind == MM_ARCHIVE_MOVIE && record.value.movie.version == 3 && record.value.movie.backward_version == 2);
+    CHECK(mm_memory_stream_init(&decoded, raw[SCENE], lengths[SCENE]));
+    CHECK(mm_archive_decode_record(&access, SCENE, &decoded.stream, &record) == MM_ARCHIVE_READ_OK &&
+          record.kind == MM_ARCHIVE_SCENE && record.value.scene.first == 2 && record.value.scene.last == 13);
+    CHECK(mm_memory_stream_init(&decoded, raw[CAPTION], lengths[CAPTION]));
+    CHECK(mm_archive_decode_record(&access, CAPTION, &decoded.stream, &record) == MM_ARCHIVE_READ_OK &&
+          record.kind == MM_ARCHIVE_CAPTION && record.value.caption.story && record.value.caption.right == 120 &&
+          record.value.caption.text.number == 13);
+    put32(raw[CAPTION] + 28, 5, 1);
+    CHECK(mm_archive_decode_record(&access, CAPTION, &decoded.stream, &record) == MM_ARCHIVE_INVALID_RECORD &&
+          record.kind == MM_ARCHIVE_CAPTION && record.value.caption.text.number == 13);
+    CHECK(mm_archive_decode_record(&access, COUNT, &decoded.stream, &record) == MM_ARCHIVE_INVALID_POSITION);
+    mm_chunk_index_close(index);
+}
+
 int main(void)
 {
     wire_indexes();
@@ -2026,6 +2077,7 @@ int main(void)
     scene_tag_reader();
     movie_actor_tags();
     movie_directory();
+    archive_records();
     movie_actors();
     movie_content();
     graphs();
