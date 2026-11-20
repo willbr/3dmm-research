@@ -28,17 +28,11 @@ extern "C"
         MMU32 child;
         int story;
     } MMTextBoxState;
-    typedef struct MMTextBoxServices
-    {
-        void *context;
-        int (*read)(void *, MMU32, MMReadStream *);
-        int (*child)(void *, MMU32, MMU32, MMTextChunk *);
-        int (*put)(void *, MMU32, const unsigned char bytes[36]);
-    } MMTextBoxServices;
+    struct MMMovieArchiveEditor;
     int mm_text_box_decode(const MMReadStream *, MMTextBoxState *);
     int mm_text_box_encode(const MMTextBoxState *, int system, int big, unsigned char bytes[36]);
-    int mm_text_box_read(MMTextBoxState *, MMU32, MMTextChunk *optional_child, const MMTextBoxServices *);
-    int mm_text_box_write(const MMTextBoxState *, MMU32, int system, int big, const MMTextBoxServices *);
+    int mm_text_box_read(MMTextBoxState *, MMU32, MMTextChunk *optional_child, const struct MMMovieArchiveEditor *);
+    int mm_text_box_write(const MMTextBoxState *, MMU32, const struct MMMovieArchiveEditor *);
     typedef struct MMRichTextDefaults
     {
         int order, font_system;
@@ -122,11 +116,37 @@ extern "C"
         const void *text;
         MMU32 bytes;
         int encoding;
+        const MMReadStream *stream; /* Optional range source instead of text. */
     } MMTextEncoded;
     /* Use the caller's encoded bytes directly for TEXT. A null replacement
      * keeps the authored encoding and copies from the existing file location. */
     int mm_rich_text_write_encoded(const MMRichTextState *, const MMTextEncoded *replacement, MMTextChunk *,
                                    int big, const MMRichTextWriteServices *);
+
+    typedef struct MMRichTextArchive
+    {
+        const struct MMMovieArchiveEditor *editor;
+        void *context;
+        int swapped_unicode_encoding;
+        /* TEXT uses the stored file extent, including when flagged packed. */
+        int (*location)(void *, MMU32 number, MMTextLocation *borrowed);
+        int (*read_at)(void *, const MMTextLocation *, MMU32 offset, void *, size_t);
+        void (*retain_file)(void *, void *);
+        void (*release_file)(void *, void *);
+    } MMRichTextArchive;
+    typedef struct MMRichTextStream
+    {
+        MMReadStream stream;
+        const MMRichTextArchive *archive;
+        const MMTextLocation *location;
+    } MMRichTextStream;
+    void mm_rich_text_archive_stream(MMRichTextStream *, const MMRichTextArchive *, const MMTextLocation *);
+    /* Uses C collections. Archive callbacks are synchronous and do not throw.
+     * The editable archive supplies discard for partial tree cleanup. */
+    int mm_rich_text_archive_read(MMRichTextState *, const MMTextChunk *, const MMRichTextArchive *);
+    int mm_rich_text_archive_write(const MMRichTextState *, const MMTextEncoded *, MMTextChunk *,
+                                   const MMRichTextArchive *);
+    void mm_rich_text_archive_dispose(MMRichTextState *, const MMRichTextArchive *);
 
     typedef struct MMTextCollection MMTextCollection;
     MMTextCollection *mm_text_collection_new(MMU32 kind);

@@ -685,6 +685,7 @@ static void caption_edit(void)
 
 typedef struct CaptionFlow
 {
+    MMMemoryStream box_stream;
     char steps[16], fail;
     int calls, rewrite;
 } CaptionFlow;
@@ -771,12 +772,45 @@ static int caption_clone_box(void *p, MMU32 original, MMU32 *number)
     *number = 11;
     return caption_step(p, 'c');
 }
-static int caption_read_box(void *p, MMU32 number, MMTextChunk *body)
+static int caption_read_body(void *p, const MMTextChunk *body)
 {
-    CHECK(number == 11);
-    body->type = MM_TEXT_ROOT;
-    body->number = 9;
+    CHECK(body->type == MM_TEXT_ROOT && body->number == 9);
     return caption_step(p, 'r');
+}
+static int caption_graph_box(void *p, MMU32 row, MMChunkEntry *out)
+{
+    (void)p;
+    CHECK(!row);
+    memset(out, 0, sizeof(*out));
+    out->type = MM_TEXT_BOX;
+    out->number = 11;
+    out->child_count = 1;
+    return 1;
+}
+static int caption_graph_body(void *p, MMU32 parent, MMU32 row, MMChunkChild *out)
+{
+    (void)p;
+    CHECK(!parent && !row);
+    out->type = MM_TEXT_ROOT;
+    out->number = 9;
+    out->slot = 3;
+    return 1;
+}
+static MMChunkAccess caption_graph(void *p)
+{
+    MMChunkAccess access = {NULL, 1, caption_graph_box, caption_graph_body};
+    (void)p;
+    return access;
+}
+static int caption_read_box(void *p, MMU32 type, MMU32 number, MMReadStream *out)
+{
+    static const unsigned char wire[36] = {1, 0, 3, 3, 1, 0, 0, 0, 3, 0, 0, 0,
+        0, 0, 0, 0, 120, 0, 0, 0, 0, 0, 0, 0, 40, 0, 0, 0, 3, 0, 0, 0, 1};
+    CaptionFlow *h = p;
+    CHECK(type == MM_TEXT_BOX && number == 11);
+    CHECK(mm_memory_stream_init(&h->box_stream, wire, sizeof(wire)));
+    *out = h->box_stream.stream;
+    return 1;
 }
 static int caption_apply_box(void *p, int *changed)
 {
@@ -799,9 +833,10 @@ static void caption_unlink_body(void *p, MMU32 parent_type, MMU32 parent, MMU32 
     CHECK(parent_type == MM_TEXT_BOX && parent == 11 && type == MM_TEXT_ROOT && number == 9 && slot == 3);
     caption_step(p, 'u');
 }
-static int caption_write_box(void *p, MMU32 number)
+static int caption_write_box(void *p, MMU32 type, MMU32 number, const void *bytes, MMU32 count)
 {
-    CHECK(number == 11);
+    const unsigned char *wire = bytes;
+    CHECK(type == MM_TEXT_BOX && number == 11 && count == 36 && wire[28] == 3 && wire[32] == 1);
     return caption_step(p, 'w');
 }
 
@@ -810,11 +845,15 @@ static void caption_archive_flow(void)
     CaptionFlow h = {0};
     MMMovieArchiveEditor editor = {0};
     MMTextBoxState box = {0};
-    MMCaptionArchiveBox host = {NULL, NULL, caption_clone_box, caption_read_box, caption_apply_box,
-                                caption_write_body, caption_write_box};
+    MMCaptionArchiveBox host = {NULL, NULL, caption_clone_box, caption_read_body, caption_apply_box,
+                                caption_write_body};
     const MMSceneArchiveText original = {0, 5};
     MMU32 number = 99;
     editor.context = &h;
+    editor.system = MM_TEXT_WINDOWS;
+    editor.chunks = caption_graph;
+    editor.read = caption_read_box;
+    editor.put = caption_write_box;
     editor.adopt = caption_link_body;
     editor.unlink = caption_unlink_body;
     host.context = &h;

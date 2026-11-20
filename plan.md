@@ -135,6 +135,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   borrows the normalized UTF-16 words, and save encodes them into TEXT using
   the shared rich-text writer. Formatting-only saves retain the authored
   stream and encoding.
+- The shared archive editor reads and writes native caption box headers and
+  resolves their rich-text links. Marcus reads and writes rich-text body
+  metadata, properties and arguments through that editor. Its host supplies
+  the original file extent and physical range reads for authored TEXT.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

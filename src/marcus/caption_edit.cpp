@@ -13,7 +13,6 @@
 #include <stdexcept>
 #include <utility>
 #include "soc_core.h"
-#include "rich_text_store_host.h"
 #undef size
 ASSERTNAME
 
@@ -49,105 +48,46 @@ struct CaptionBody
 {
     MMRichTextState state;
     MMCaptionText words{};
-    std::exception_ptr readFailure;
+    MMRichTextArchive archive;
 
-    CaptionBody() { mm_rich_text_init(&state, sizeof(achar), koskCur); }
+    CaptionBody(PChunkyFile file, const MMMovieArchiveEditor &editor) : archive{
+        &editor, file, MacWin(koskUniWin, koskUniMac),
+        [](void *p, MMU32 number, MMTextLocation *out) -> int {
+            FileLocation location;
+            if (!static_cast<PChunkyFile>(p)->FFindFlo(MM_TEXT_BYTES, number, &location))
+                return 0;
+            *out = {location.pfil, static_cast<MMU32>(location.fp), location.cb};
+            return 1;
+        },
+        [](void *, const MMTextLocation *text, MMU32 offset, void *out, size_t bytes) -> int {
+            FileLocation location{static_cast<PFileObject>(text->file), static_cast<FilePosition>(text->offset),
+                                  text->bytes};
+            return location.FReadRgb(out, static_cast<LegacyLong>(bytes), offset);
+        },
+        [](void *, void *file) { static_cast<PFileObject>(file)->AddRef(); },
+        [](void *, void *file) { static_cast<PFileObject>(file)->Release(); }}
+    {
+        mm_rich_text_init(&state, editor.text_unit, editor.system);
+    }
+
     CaptionBody(const CaptionBody &) = delete;
     CaptionBody &operator=(const CaptionBody &) = delete;
     ~CaptionBody()
     {
-        const auto objects = Objects();
-        mm_rich_text_dispose(&state, &objects);
+        mm_rich_text_archive_dispose(&state, &archive);
         mm_caption_edit_dispose_text(&words);
     }
 
-    bool Read(PChunkyFile file, const ChunkIdentification &chunk)
+    bool Read(const MMTextChunk &chunk)
     {
-        RichTextStoreHost::Host host{file};
-        auto services = host.Read();
-        services.objects = Objects();
-        services.group = [](void *p, MMU32 kind, MMU32 number, void **out, int *order, int *system) {
-            auto &h = *static_cast<RichTextStoreHost::Host *>(p);
-            return h.Guard([&] {
-                if (!h.file->FFind(kind, number, &h.block) || !h.block.FUnpackData())
-                    return 0;
-                const MMReadStream stream{&h, static_cast<MMU32>(h.block.Cb()),
-                    [](void *p, MMU32 offset, void *bytes, size_t count) -> int {
-                        auto &h = *static_cast<RichTextStoreHost::Host *>(p);
-                        return h.Guard([&] { return h.block.FReadRgb(bytes, static_cast<LegacyLong>(count), offset); }) > 0;
-                    }};
-                MMTextCollection *collection;
-                const auto status = mm_text_collection_read(kind, &stream, &collection, order, system);
-                if (status > 0)
-                    *out = collection;
-                return status;
-            });
-        };
-        const auto result = mm_rich_text_read(&state, chunk.ctg, chunk.cno, koskCur, RichTextStoreHost::NativeBig(), &services);
-        host.Rethrow();
-        return result > 0;
+        return mm_rich_text_archive_read(&state, &chunk, &archive) > 0;
     }
 
-    MMReadStream TextStream()
+    bool Write(bool replaced, MMTextChunk *out)
     {
-        readFailure = {};
-        return {this, static_cast<MMU32>(state.text.bytes), [](void *p, MMU32 offset, void *out, size_t bytes) -> int {
-            auto &body = *static_cast<CaptionBody *>(p);
-            return CaptionCall(body.readFailure, [&] {
-                auto location = RichTextStoreHost::Location(body.state.text);
-                return location.FReadRgb(out, static_cast<LegacyLong>(bytes), offset) ? 1 : 0;
-            });
-        }};
-    }
-
-    void RethrowRead()
-    {
-        if (readFailure) std::rethrow_exception(readFailure);
-    }
-
-    bool Write(PChunkyFile file, bool replaced, MMTextChunk *out)
-    {
-        RichTextStoreHost::Host host{file};
-        auto services = host.Write();
-        services.objects = Objects();
-        services.group_bytes = [](void *, MMU32, void *p) {
-            return mm_text_collection_bytes(static_cast<MMTextCollection *>(p));
-        };
-        services.count = [](void *, void *p) -> MMI32 {
-            return mm_text_collection_count(static_cast<MMTextCollection *>(p));
-        };
-        services.group = [](void *p, MMU32, void *collection, int order, int system) {
-            auto &h = *static_cast<RichTextStoreHost::Host *>(p);
-            const MMStorageWriter writer{&h, static_cast<MMU32>(h.block.Cb()),
-                [](void *p, MMU32 offset, const void *bytes, size_t count) -> int {
-                    auto &h = *static_cast<RichTextStoreHost::Host *>(p);
-                    return h.Guard([&] {
-                        return h.block.FWriteRgb(const_cast<void *>(bytes), static_cast<LegacyLong>(count), offset);
-                    }) > 0;
-                }};
-            return mm_text_collection_write(static_cast<MMTextCollection *>(collection), &writer, order, system);
-        };
-        const auto result = mm_caption_edit_write_body(&state, replaced ? &words : nullptr, KauaiText::Services(),
-                                                       out, RichTextStoreHost::NativeBig(), &services);
-        host.Rethrow();
-        return result > 0;
-    }
-
-  private:
-    static MMRichTextObjects Objects()
-    {
-        auto objects = RichTextStoreHost::Objects();
-        objects.release = [](void *, MMU32 kind, void *p) {
-            if (kind == MM_TEXT_BYTES) static_cast<PFileObject>(p)->Release();
-            else mm_text_collection_dispose(static_cast<MMTextCollection *>(p));
-        };
-        objects.width = [](void *, MMU32, void *p) {
-            return mm_text_collection_width(static_cast<MMTextCollection *>(p));
-        };
-        return objects;
+        return mm_caption_edit_write_body(&state, replaced ? &words : nullptr, KauaiText::Services(), out, &archive) > 0;
     }
 };
-
 std::string ToUtf8(const unsigned short *words, size_t count)
 {
     std::string result(count * 3, '\0');
@@ -224,15 +164,14 @@ void CheckCaptionEdit(int status)
     Require(status == MM_CAPTION_EDIT_OK, messages[status]);
 }
 
-int ApplyCaption(const MMCaptionEditPlan &plan, const MarcusCaptionList &list, TextBoxData &box, CaptionBody &rich,
+int ApplyCaption(const MMCaptionEditPlan &plan, const MarcusCaptionList &list, MMTextBoxState &box, CaptionBody &rich,
                  int *bodyChanged)
 {
-    const auto stream = rich.TextStream();
-    const MMCaptionEditSource source{KauaiText::Services(), &stream, koskCur};
-    const int status = mm_caption_edit_apply(&plan, list.firstFrame, list.lastFrame, &box.state, &rich.state, &source,
-                                             &rich.words, bodyChanged);
-    rich.RethrowRead();
-    return status;
+    MMRichTextStream stream;
+    mm_rich_text_archive_stream(&stream, &rich.archive, &rich.state.text);
+    const MMCaptionEditSource source{KauaiText::Services(), &stream.stream, koskCur};
+    return mm_caption_edit_apply(&plan, list.firstFrame, list.lastFrame, &box, &rich.state, &source,
+                                 &rich.words, bodyChanged);
 }
 }
 
@@ -277,24 +216,23 @@ void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &pr
     for (MMU32 i = 0; i < count; ++i)
     {
         const auto &link = links[i];
-        ChunkIdentification body;
-        TextBoxData box;
-        CaptionBody rich;
-        Require(box.FRead(file.get(), link.number, &body) && rich.Read(file.get(), body),
+        MMTextChunk body;
+        MMTextBoxState box;
+        CaptionBody rich(file.get(), editor);
+        Require(mm_text_box_read(&box, link.number, &body, &editor) > 0 && rich.Read(body),
                 "Cannot read a native 2D text box.");
-        const auto stream = rich.TextStream();
-        const int status = mm_caption_edit_load_text(&stream, KauaiText::Services(), rich.state.text_system, &rich.words);
-        rich.RethrowRead();
-        CheckCaptionEdit(status);
+        MMRichTextStream stream;
+        mm_rich_text_archive_stream(&stream, &rich.archive, &rich.state.text);
+        CheckCaptionEdit(mm_caption_edit_load_text(&stream.stream, KauaiText::Services(), rich.state.text_system,
+                                                   &rich.words));
         const auto units = mm_caption_edit_normalize(rich.words.text, rich.words.count, 10);
         auto text = ToUtf8(rich.words.text, units);
         Require(text.size() < MARCUS_CAPTION_UTF8_CAPACITY && text.find('\0') == std::string::npos,
                 "This 2D text cannot fit in the editor.");
-        const auto &s = box.state;
         MarcusCaptionEntry entry{link.slot, link.number, {}, std::move(text)};
         auto &v = entry.options;
         MMCaptionEditOptions fields;
-        CheckCaptionEdit(mm_caption_edit_read_box(&s, list.firstFrame, list.lastFrame, &fields));
+        CheckCaptionEdit(mm_caption_edit_read_box(&box, list.firstFrame, list.lastFrame, &fields));
         v.x = fields.x; v.y = fields.y;
         v.width = fields.width; v.height = fields.height;
         v.first_frame = fields.first; v.last_frame = fields.last;
@@ -330,32 +268,32 @@ MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const M
     const auto before = entry ? CaptionInput(entry->options, entry->text.c_str()) : MMCaptionEditInput{};
     MMCaptionEditPlan plan;
     CheckCaptionEdit(mm_caption_edit_plan(&value, entry ? &before : nullptr, 0, &plan));
-    TextBoxData box;
-    CaptionBody rich;
-    // Borrow the authored stream while applying the same changes as Save.
-    Owned<ChunkyFile> file;
+    MMTextBoxState box{};
+    auto file = entry ? Open(path, false) : Owned<ChunkyFile>{};
+    MovieArchiveHost host{file.get(), {}, {}};
+    const auto editor = host.Editor();
+    CaptionBody rich(file.get(), editor);
     if (entry)
     {
-        file = Open(path, false);
-        ChunkIdentification body;
-        Require(box.FRead(file.get(), entry->chunk, &body) && rich.Read(file.get(), body),
+        MMTextChunk body;
+        Require(mm_text_box_read(&box, entry->chunk, &body, &editor) > 0 && rich.Read(body),
                 "Cannot read the authored text box.");
     }
     int bodyChanged;
     CheckCaptionEdit(ApplyCaption(plan, list, box, rich, &bodyChanged));
     MM::PreviewCaption preview;
-    auto stream = rich.TextStream();
+    MMRichTextStream stored;
+    mm_rich_text_archive_stream(&stored, &rich.archive, &rich.state.text);
+    const MMReadStream *stream = &stored.stream;
     int encoding = rich.state.text_system;
     MMMemoryStream draft;
     if (plan.text_changed)
     {
         mm_memory_stream_init(&draft, rich.words.text, static_cast<MMU32>(rich.words.count * 2));
-        stream = draft.stream;
-        encoding = RichTextStoreHost::NativeBig() ? MM_TEXT_UTF16_BE : MM_TEXT_UTF16_LE;
+        stream = &draft.stream;
+        encoding = editor.big_endian ? MM_TEXT_UTF16_BE : MM_TEXT_UTF16_LE;
     }
-    const auto success = MM::ReadCaptionData(box.state, rich.state, stream, encoding, preview);
-    rich.RethrowRead();
-    Require(success, "Cannot prepare the 2D text preview.");
+    Require(MM::ReadCaptionData(box, rich.state, *stream, encoding, preview), "Cannot prepare the 2D text preview.");
     return preview;
 }
 
@@ -385,29 +323,23 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
         const MMMovieArchiveEditor &editor;
         const MarcusCaptionList &list;
         const MMCaptionEditPlan &plan;
-        TextBoxData box;
+        MMTextBoxState box;
         CaptionBody rich;
         std::exception_ptr failure;
-    } write{file.get(), editor, list, plan, {}, {}, {}};
+    } write{file.get(), editor, list, plan, {}, CaptionBody(file.get(), editor), {}};
     MMSceneArchiveTextEdit edit{list.scene, list.firstFrame, entry ? &original : nullptr, &write, nullptr};
     if (text)
         edit.write_box = [](void *context, const MMSceneArchiveText *original, MMU32 *number) -> int {
             auto &write = *static_cast<Write *>(context);
             const MMCaptionArchiveBox io = {
-                &write, &write.box.state,
+                &write, &write.box,
                 [](void *p, MMU32 original, MMU32 *number) {
                     auto &w = *static_cast<Write *>(p);
                     return CaptionCall(w.failure, [&] { return w.file->FClone(kctgTbox, original, w.file, number); });
                 },
-                [](void *p, MMU32 number, MMTextChunk *body) {
+                [](void *p, const MMTextChunk *body) {
                     auto &w = *static_cast<Write *>(p);
-                    return CaptionCall(w.failure, [&] {
-                        ChunkIdentification prior;
-                        if (!w.box.FRead(w.file, number, &prior) || !w.rich.Read(w.file, prior))
-                            return 0;
-                        *body = {prior.ctg, prior.cno};
-                        return 1;
-                    });
+                    return CaptionCall(w.failure, [&] { return w.rich.Read(*body); });
                 },
                 [](void *p, int *bodyChanged) {
                     auto &w = *static_cast<Write *>(p);
@@ -417,11 +349,7 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
                 },
                 [](void *p, MMTextChunk *body) {
                     auto &w = *static_cast<Write *>(p);
-                    return CaptionCall(w.failure, [&] { return w.rich.Write(w.file, w.plan.text_changed != 0, body); });
-                },
-                [](void *p, MMU32 number) {
-                    auto &w = *static_cast<Write *>(p);
-                    return CaptionCall(w.failure, [&] { return w.box.FWrite(w.file, number); });
+                    return CaptionCall(w.failure, [&] { return w.rich.Write(w.plan.text_changed != 0, body); });
                 }
             };
             return CaptionCall(write.failure, [&] {

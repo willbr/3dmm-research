@@ -222,14 +222,14 @@ int mm_caption_edit_font(const char *utf8, size_t length, const MMTextHost *host
 }
 
 int mm_caption_edit_write_body(const MMRichTextState *body, const MMCaptionText *replacement,
-                               const MMTextHost *host, MMTextChunk *out, int big, const MMRichTextWriteServices *services)
+                               const MMTextHost *host, MMTextChunk *out, const MMRichTextArchive *archive)
 {
-    MMTextEncoded encoded;
+    MMTextEncoded encoded = {0};
     unsigned char *bytes = NULL;
     size_t count;
     int result = 0;
     if (!replacement)
-        return mm_rich_text_write(body, out, big, services);
+        return mm_rich_text_archive_write(body, NULL, out, archive);
     if (replacement->count > MM_CAPTION_EDIT_MAX_UNITS)
         return 0;
     if (replacement->count)
@@ -244,7 +244,7 @@ int mm_caption_edit_write_body(const MMRichTextState *body, const MMCaptionText 
     {
         encoded.text = bytes;
         encoded.bytes = (MMU32)count;
-        result = mm_rich_text_write_encoded(body, &encoded, out, big, services);
+        result = mm_rich_text_archive_write(body, &encoded, out, archive);
     }
     free(bytes);
     return result;
@@ -587,7 +587,8 @@ int mm_caption_edit_archive_box(const MMMovieArchiveEditor *editor, const MMScen
     if (original)
     {
         if (host->clone(host->context, original->number, &number) != 1 ||
-            host->read(host->context, number, &previous) != 1)
+            mm_text_box_read(host->box, number, &previous, editor) != 1 ||
+            host->read_body(host->context, &previous) != 1)
             return MM_CAPTION_EDIT_COPY_BOX;
     }
     else if (!editor->add(editor->context, MM_TEXT_BOX, 0, &number, NULL))
@@ -603,7 +604,7 @@ int mm_caption_edit_archive_box(const MMMovieArchiveEditor *editor, const MMScen
         if (original)
             editor->unlink(editor->context, MM_TEXT_BOX, number, previous.type, previous.number, host->box->child);
     }
-    if (host->write_box(host->context, number) != 1)
+    if (mm_text_box_write(host->box, number, editor) != 1)
         return MM_CAPTION_EDIT_WRITE_BOX;
     *out = number;
     return MM_CAPTION_EDIT_OK;

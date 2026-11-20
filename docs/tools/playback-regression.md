@@ -15334,3 +15334,30 @@ In `actor-event-edit` suite `20261120T103819Z-8dd1d4d6`, Marcus and SDL
 matched all 60 frame identities in the retained retail seek and playback
 runs. Both matched prior seek image hashes and the retail camera indices.
 SDL matched all 12 retail sound requests.
+
+## Caption I/O through the shared archive editor (20 November 2026)
+
+The C89 archive editor resolves TBOX child slots and reads or writes the
+box header for Marcus and the Studio text-box adapter. It also opens and
+writes Marcus rich-text bodies, including serialized font names, property
+arrays, and argument groups. For a formatting-only save it copies the
+original TEXT bytes in bounded blocks from the host's stored file extent.
+
+The standalone checks covered exact child lookup, both box byte orders,
+and a failure during the second block of an 8,193-byte TEXT write. The
+failed write removed the partial rich-text tree. All fourteen native
+caption saves were byte-identical to the prior build, including a
+formatting-only edit of an 8,193-character caption. The mixed-format
+draft matched all RGBA pixels. Retail opened and rendered seven saved
+fixtures, including the long-caption and mixed-format cases.
+
+All 44 targeted x64 checks and eight standalone C89 checks passed. The
+focused x86 checks passed and the x64 Preview integration retained all
+ten fingerprints. Both VMM seek images in `20261120T105202Z-883aeb89`
+matched the retained SDL and Marcus captures. Evidence is in
+`tmp/c89-caption-archive-io`.
+
+In `actor-event-edit` suite `20261120T105200Z-7bd98c98`, both Marcus and
+SDL matched the 60 frame identities in retained retail seek and playback
+captures. Each matched its 60 prior seek image hashes and the retail
+camera indices. SDL matched all 12 retail sound requests.

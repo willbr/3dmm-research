@@ -98,7 +98,7 @@ int mm_caption_edit_load_text(const MMReadStream *, const MMTextHost *, int enco
 int mm_caption_edit_font(const char *utf8, size_t length, const MMTextHost *, MMMovieTitle *);
 /* Borrow the prepared words during serialization. NULL keeps stored TEXT. */
 int mm_caption_edit_write_body(const MMRichTextState *, const MMCaptionText *, const MMTextHost *,
-                               MMTextChunk *, int big, const MMRichTextWriteServices *);
+                               MMTextChunk *, const MMRichTextArchive *);
 
 typedef struct MMCaptionPropertyMap
 {
@@ -126,12 +126,11 @@ int mm_caption_edit_apply(const MMCaptionEditPlan *, MMI32 first, MMI32 last, MM
 typedef struct MMCaptionArchiveBox
 {
     void *context;
-    const MMTextBoxState *box;
+    MMTextBoxState *box;
     int (*clone)(void *, MMU32 original, MMU32 *number);
-    int (*read)(void *, MMU32 number, MMTextChunk *body);
+    int (*read_body)(void *, const MMTextChunk *body);
     int (*apply)(void *, int *body_changed); /* Returns a caption edit status. */
     int (*write_body)(void *, MMTextChunk *body);
-    int (*write_box)(void *, MMU32 number);
 } MMCaptionArchiveBox;
 
 /* Writes a replacement box in a private archive. A successful link to the

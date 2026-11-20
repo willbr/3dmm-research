@@ -1,5 +1,6 @@
 #include "mm/text_store.h"
 #include "mm/text.h"
+#include "mm/movie_archive_edit.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -24,6 +25,8 @@ typedef struct Host
     Token old[3], fresh[3], destination;
     unsigned char header[64], marker[2], written[36];
     unsigned char payload[4];
+    const unsigned char *large_payload;
+    MMU32 large_bytes, large_written;
     MMU32 length;
     int calls, fail_at, failure, own_failure, font_empty, missing_args, big;
     int root, removed, children, active, releases;
@@ -187,7 +190,15 @@ static int add_root(void *v, MMU32 bytes, MMU32 *out)
 static int write_bytes(void *v, MMU32 offset, const void *bytes, MMU32 n)
 {
     Host *h = (Host *)v;
-    int r = step(h, offset == 2 ? 'b' : h->active ? 'm' : 'w');
+    int r = step(h, offset >= 2 ? 'b' : h->active ? 'm' : 'w');
+    if (offset >= 2 && h->large_payload)
+    {
+        CHECK(h->active == 1 && offset == h->large_written + 2 && n <= h->large_bytes - h->large_written);
+        CHECK(!memcmp(bytes, h->large_payload + h->large_written, n));
+        if (r > 0)
+            h->large_written += n;
+        return r;
+    }
     if (offset == 2)
     {
         CHECK(h->active == 1 && n == sizeof(h->payload));
@@ -217,7 +228,8 @@ static int add_child(void *v, MMU32 root, MMU32 kind, MMU32 bytes)
 {
     Host *h = (Host *)v;
     int r = step(h, kind == MM_TEXT_BYTES ? 't' : kind == MM_TEXT_PROPERTIES ? 'p' : 'a');
-    CHECK(root == 41 && h->root && (kind == MM_TEXT_BYTES ? (bytes == 6 || bytes == 2) : bytes == 20));
+    CHECK(root == 41 && h->root && (kind == MM_TEXT_BYTES ?
+          (h->large_payload ? bytes == h->large_bytes + 2 : bytes == 6 || bytes == 2) : bytes == 20));
     if (r > 0)
     {
         ++h->children;
@@ -458,7 +470,8 @@ static void encoded_tests(void)
     Host h;
     MMRichTextState state;
     MMTextChunk chunk;
-    MMTextEncoded replacement = {words, 4, MM_TEXT_UTF16_LE};
+    MMTextEncoded replacement = {words, 4, MM_TEXT_UTF16_LE, NULL};
+    MMMemoryStream memory;
     int big;
     for (big = 0; big < 2; ++big)
     {
@@ -475,14 +488,51 @@ static void encoded_tests(void)
         CHECK(!strcmp(h.log, "nwftmb!") && chunk.number == MM_TEXT_NIL && h.removed == 1 && !h.children);
     }
     setup(&h, &state, 1, 0);
+    CHECK(mm_memory_stream_init(&memory, words, sizeof(words)));
+    replacement.text = NULL;
+    replacement.stream = &memory.stream;
+    CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, 0, &h.write) == 1);
+    CHECK(!strcmp(h.log, "nwftmbpgaj") && !memcmp(h.payload, words, sizeof(words)));
+    setup(&h, &state, 1, 0);
     replacement.bytes = 0;
     replacement.text = NULL;
     CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, 0, &h.write) == 1);
     CHECK(!strcmp(h.log, "nwftmpgaj") && state.text.bytes == 4);
 }
+
+static void streamed_text_tests(void)
+{
+    unsigned char words[8193];
+    Host h;
+    MMRichTextState state;
+    MMTextChunk chunk;
+    MMTextEncoded replacement = {0};
+    MMMemoryStream memory;
+    int i;
+    for (i = 0; i < (int)sizeof(words); ++i)
+        words[i] = (unsigned char)(i % 251);
+    CHECK(mm_memory_stream_init(&memory, words, sizeof(words)));
+    replacement.stream = &memory.stream;
+    replacement.bytes = sizeof(words);
+    replacement.encoding = MM_TEXT_WINDOWS;
+    setup(&h, &state, 1, 0);
+    h.large_payload = words;
+    h.large_bytes = sizeof(words);
+    CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, 0, &h.write) == 1);
+    CHECK(!strcmp(h.log, "nwftmbbbpgaj") && h.large_written == sizeof(words));
+
+    setup(&h, &state, 1, 0);
+    h.large_payload = words;
+    h.large_bytes = sizeof(words);
+    h.fail_at = 7;
+    h.failure = -2;
+    CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, 0, &h.write) == -2);
+    CHECK(!strcmp(h.log, "nwftmbb!") && chunk.number == MM_TEXT_NIL && h.removed == 1 && !h.children);
+    CHECK(h.large_written == 4096);
+}
 typedef struct Box
 {
-    MMTextBoxServices services;
+    MMMovieArchiveEditor services;
     unsigned char bytes[37];
     MMU32 length;
     int calls, fail_at, failure;
@@ -500,29 +550,46 @@ static int box_bytes(void *v, MMU32 offset, void *out, size_t n)
         memcpy(out, h->bytes, n);
     return r > 0;
 }
-static int box_read(void *v, MMU32 number, MMReadStream *out)
+static int box_read(void *v, MMU32 type, MMU32 number, MMReadStream *out)
 {
     Box *h = (Box *)v;
     int r = box_step(h);
-    CHECK(number == 9);
+    CHECK(type == MM_TEXT_BOX && number == 9);
     out->context = h;
     out->length = h->length;
     out->read_at = box_bytes;
     return r;
 }
-static int box_child(void *v, MMU32 number, MMU32 slot, MMTextChunk *out)
+static int box_entry(void *v, MMU32 row, MMChunkEntry *out)
+{
+    (void)v;
+    CHECK(!row);
+    memset(out, 0, sizeof(*out));
+    out->type = MM_TEXT_BOX;
+    out->number = 9;
+    out->child_count = 1;
+    return 1;
+}
+static int box_child(void *v, MMU32 parent, MMU32 row, MMChunkChild *out)
 {
     Box *h = (Box *)v;
     int r = box_step(h);
-    CHECK(number == 9 && slot == 7);
+    CHECK(!parent && !row);
     out->type = MM_TEXT_ROOT;
     out->number = 12;
-    return r;
+    out->slot = 7;
+    return r > 0;
 }
-static int box_put(void *v, MMU32 number, const unsigned char *bytes)
+static MMChunkAccess box_graph(void *v)
+{
+    MMChunkAccess access = {NULL, 1, box_entry, box_child};
+    access.context = v;
+    return access;
+}
+static int box_put(void *v, MMU32 type, MMU32 number, const void *bytes, MMU32 count)
 {
     Box *h = (Box *)v;
-    CHECK(number == 9);
+    CHECK(type == MM_TEXT_BOX && number == 9 && count == 36);
     memcpy(h->bytes, bytes, 36);
     return box_step(h);
 }
@@ -538,8 +605,9 @@ static void codecs(void)
     memset(&h, 0, sizeof(h));
     h.services.context = &h;
     h.services.read = box_read;
-    h.services.child = box_child;
+    h.services.chunks = box_graph;
     h.services.put = box_put;
+    h.services.system = 0x303;
     memset(&s, 0, sizeof(s));
     s.first = -2;
     s.end = -8;
@@ -555,10 +623,11 @@ static void codecs(void)
         CHECK(h.bytes[big ? 1 : 0] == 1 && h.bytes[32] == 1 && !h.bytes[33] && !h.bytes[34] && !h.bytes[35]);
         h.length = 36;
         h.calls = 0;
+        h.services.big_endian = big;
         CHECK(mm_text_box_read(&out, 9, &child, &h.services) == 1 && out.current == -3 && out.end == -8 &&
               out.left == -10 && child.number == 12);
         for (f = -2; f <= 0; ++f)
-            for (i = 1; i <= 3; ++i)
+            for (i = 1; i <= 4; ++i)
             {
                 h.calls = 0;
                 h.fail_at = i;
@@ -567,12 +636,12 @@ static void codecs(void)
                 before = out;
                 child.type = 22;
                 child.number = 33;
-                CHECK(mm_text_box_read(&out, 9, &child, &h.services) == (i == 2 ? 0 : f) &&
+                CHECK(mm_text_box_read(&out, 9, &child, &h.services) == (i == 1 ? f : 0) &&
                       !memcmp(&before, &out, sizeof(out)) && child.type == 22 && child.number == 33);
             }
         h.fail_at = h.calls = 0;
         CHECK(mm_text_box_read(&out, 9, 0, &h.services) == 1 && h.calls == 2);
-        CHECK(mm_text_box_write(&s, 9, 0x303, big, &h.services) == 1);
+        CHECK(mm_text_box_write(&s, 9, &h.services) == 1);
         CHECK(mm_memory_stream_init(&memory, h.bytes, 36));
         h.bytes[32] = 2;
         before = out;
@@ -617,6 +686,7 @@ int main(void)
     read_tests();
     write_tests();
     encoded_tests();
+    streamed_text_tests();
     puts("Stored text: both wire orders, transactional ownership, font fallback, output prefixes and exhaustive effect "
          "failures passed.");
     return 0;
