@@ -1,6 +1,7 @@
 /* Command queue and filter policy converted from Kauai cmd_core.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/command_dispatch.h"
+#include "mm/wide.h"
 #include <string.h>
 
 typedef struct MMCommandFilter
@@ -159,6 +160,66 @@ MMU32 mm_command_target_mask(const void *handler, const void *target)
     if (!target)
         return MM_COMMAND_UNTARGETED;
     return handler == target ? MM_COMMAND_SELF : MM_COMMAND_OTHER;
+}
+
+int mm_command_id_allocate(MMU32 *last, MMU32 count, void *context, MMCommandIdInUse in_use, MMI32 *first)
+{
+    const MMU32 high = 0x80000000UL;
+    MMU32 remaining = count;
+    int occupied;
+    if (!last || !first || !count || count >= high)
+        return 0;
+    *last |= high;
+    while (remaining)
+    {
+        ++*last;
+        if (!(*last & high))
+        {
+            *last = high;
+            remaining = count;
+            continue;
+        }
+        occupied = in_use ? in_use(context, mm_signed_word(*last)) : 0;
+        if (occupied < 0)
+            return occupied;
+        if (occupied)
+            remaining = count;
+        else
+            --remaining;
+    }
+    *first = mm_signed_word(*last - (count - 1));
+    return 1;
+}
+
+const void *mm_command_map_find(const MMCommandMap *map, MMI32 id, MMU32 mask,
+                                int (*has_default)(const void *))
+{
+    const unsigned char *entry, *fallback = NULL;
+    MMCommandBinding binding;
+    for (; map; map = map->base)
+    {
+        entry = (const unsigned char *)map->entries;
+        for (;; entry += map->stride)
+        {
+            memcpy(&binding, entry, sizeof(binding));
+            if (!binding.id)
+                break;
+            if (binding.id == id && (binding.mask & mask))
+                return entry;
+        }
+        if (!fallback && (binding.mask & mask) && has_default(entry))
+            fallback = entry;
+    }
+    return fallback;
+}
+
+int mm_command_binding_enable(const MMCommandBinding *binding, int has_command, int has_enabler)
+{
+    if (!has_command)
+        return MM_COMMAND_ENABLE_NONE;
+    if (has_enabler)
+        return MM_COMMAND_ENABLE_CALLBACK;
+    return binding->id ? MM_COMMAND_ENABLE_EXPLICIT : MM_COMMAND_ENABLE_NONE;
 }
 
 static MMU32 first_at_level(const MMCommandDispatch *dispatch, MMI32 level)

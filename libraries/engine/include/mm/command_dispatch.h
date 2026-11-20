@@ -52,6 +52,40 @@ int mm_commands_bury(MMCommandDispatch *, void *target, void *context, MMCommand
 /* Key reads distinguish an empty queue (0) from a pending non-key (-1). */
 int mm_commands_take_key(MMCommandDispatch *, MMI32 key_id, MMQueuedCommand *);
 MMU32 mm_command_target_mask(const void *handler, const void *target);
+
+typedef int (*MMCommandIdInUse)(void *context, MMI32 id);
+
+/* last is an independent cursor, initially zero. Find a contiguous run of
+ * dynamic (high-bit) IDs, restarting the run at occupied IDs and at wrap.
+ * The owner registry must have an available run. The optional lookup
+ * returns occupied (>0), free (0), or a negative host error. The cursor
+ * advances through every probe, including on error. Return 1 on success,
+ * 0 for invalid input, or the host error. Publish first only on success. */
+int mm_command_id_allocate(MMU32 *last, MMU32 count, void *context, MMCommandIdInUse, MMI32 *first);
+
+typedef struct MMCommandBinding
+{
+    MMI32 id;
+    MMU32 mask;
+} MMCommandBinding;
+
+typedef struct MMCommandMap
+{
+    const struct MMCommandMap *base;
+    const void *entries;
+    size_t stride;
+} MMCommandMap;
+
+/* Trusted static tables. Each entry begins with MMCommandBinding, possibly
+ * followed by native call data. ID zero terminates each table and can supply
+ * a default. The default callback tests whether such an entry can execute.
+ * Return the first compatible exact match, including explicit empty
+ * bindings, or the most-derived compatible default. Result is borrowed. */
+const void *mm_command_map_find(const MMCommandMap *, MMI32 id, MMU32 mask, int (*has_default)(const void *));
+
+enum { MM_COMMAND_ENABLE_NONE, MM_COMMAND_ENABLE_EXPLICIT, MM_COMMAND_ENABLE_CALLBACK };
+int mm_command_binding_enable(const MMCommandBinding *, int has_command, int has_enabler);
+
 int mm_commands_add_filter(MMCommandDispatch *, void *handler, MMI32 level, MMU32 mask);
 void mm_commands_remove_filter(MMCommandDispatch *, void *handler, MMI32 level);
 

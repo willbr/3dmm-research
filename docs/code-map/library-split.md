@@ -6290,10 +6290,23 @@ mask. Burial clears pending commands for a destroyed handler and releases their
 groups. Native code supplies the typed active command, modal and tracking
 services, and member-function calls.
 
+The command map data starts with C89 binding records. The resolver searches
+derived and base tables for the first mask-compatible explicit binding, then
+uses the most-derived eligible default. An explicit empty binding still hides
+base entries. The same module decides when an explicit command is enabled by
+default and when a native enable callback must answer. Dynamic handler ID
+allocation uses an unsigned 32-bit cursor, restarts at an occupied ID, and
+skips the high-bit boundary marker when the cursor wraps.
+
 `engine-command-dispatch-test` covers C-only routing, ownership, failed growth,
-recursive dispatch and recovery from a host error. The native core regression
-checks the same queue and filter order before and after the migration, including
-filter edits from inside a handler, key retrieval and recorded-command replay.
+recursive dispatch, C89 map precedence, ID collision and wraparound, and host
+error recovery. The native core regression checks inherited binding selection,
+default command enabling and the HID collision sequence before and after the
+conversion. It also covers queue and filter order, filter edits during dispatch,
+key retrieval and recorded-command replay.
+After the binding and ID conversion, suite `20261120T054334Z-47fa8b78` matched
+the 60 retail playback frames on SDL and Marcus and the 12 retail sound requests
+on SDL. Each host's 60 seek images matched its pre-conversion capture.
 An authored 33-tick pause held the same frame for 702 ms before the dispatcher
 conversion and 705 ms afterward. Retail held that frame for 732 ms.
 In capture suite `20261120T051214Z-92bf58a2`, SDL and Marcus matched the 60

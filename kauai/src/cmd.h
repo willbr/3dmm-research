@@ -105,26 +105,26 @@ const LegacyUlong kgrfcmmAll = fcmmThis | fcmmNobody | fcmmOthers;
 
 // for defining the command map in a .cpp file
 #define BEGIN_CMD_MAP_BASE(cls)                                                                                        \
-    cls::CommandMap cls::_cmm##cls = {pvNil, cls::_rgcmme##cls};                                                              \
+    cls::CommandMap cls::_cmm##cls = {pvNil, cls::_rgcmme##cls, sizeof(cls::CommandMapEntry)};                             \
     cls::CommandMapEntry cls::_rgcmme##cls[] = {
 #define BEGIN_CMD_MAP(cls, clsBase)                                                                                    \
-    cls::CommandMap cls::_cmm##cls = {&(clsBase::_cmm##clsBase), cls::_rgcmme##cls};                                          \
+    cls::CommandMap cls::_cmm##cls = {&(clsBase::_cmm##clsBase), cls::_rgcmme##cls, sizeof(cls::CommandMapEntry)};         \
     cls::CommandMapEntry cls::_rgcmme##cls[] = {
 
-#define ON_CID(cid, pfncmd, pfneds, grfcmm) {cid, (PFNCMD)pfncmd, (PFNEDS)pfneds, grfcmm},
-#define ON_CID_ME(cid, pfncmd, pfneds) {cid, (PFNCMD)pfncmd, (PFNEDS)pfneds, fcmmThis},
-#define ON_CID_GEN(cid, pfncmd, pfneds) {cid, (PFNCMD)pfncmd, (PFNEDS)pfneds, fcmmThis | fcmmNobody},
-#define ON_CID_ALL(cid, pfncmd, pfneds) {cid, (PFNCMD)pfncmd, (PFNEDS)pfneds, kgrfcmmAll},
+#define ON_CID(cid, pfncmd, pfneds, grfcmm) {{cid, grfcmm}, (PFNCMD)pfncmd, (PFNEDS)pfneds},
+#define ON_CID_ME(cid, pfncmd, pfneds) ON_CID(cid, pfncmd, pfneds, fcmmThis)
+#define ON_CID_GEN(cid, pfncmd, pfneds) ON_CID(cid, pfncmd, pfneds, fcmmThis | fcmmNobody)
+#define ON_CID_ALL(cid, pfncmd, pfneds) ON_CID(cid, pfncmd, pfneds, kgrfcmmAll)
 
 #define END_CMD_MAP(pfncmdDef, pfnedsDef, grfcmm)                                                                      \
     {                                                                                                                  \
-        cidNil, (PFNCMD)pfncmdDef, (PFNEDS)pfnedsDef, grfcmm                                                           \
+        {cidNil, grfcmm}, (PFNCMD)pfncmdDef, (PFNEDS)pfnedsDef                                                          \
     }                                                                                                                  \
     }                                                                                                                  \
     ;
 #define END_CMD_MAP_NIL()                                                                                              \
     {                                                                                                                  \
-        cidNil, pvNil, pvNil, fcmmNil                                                                                  \
+        {cidNil, fcmmNil}, pvNil, pvNil                                                                                 \
     }                                                                                                                  \
     }                                                                                                                  \
     ;
@@ -140,7 +140,7 @@ class CommandHandler : public CommandHandler_PAR
     ASSERT
 
   private:
-    static LegacyLong _hidLast; // for HidUnique
+    static MMU32 _hidLast;       // for HidUnique
     LegacyLong _hid;            // handler id
 
   protected:
@@ -153,18 +153,13 @@ class CommandHandler : public CommandHandler_PAR
     // command map entry
     struct CommandMapEntry
     {
-        LegacyLong cid;
+        MMCommandBinding binding;
         PFNCMD pfncmd;
         PFNEDS pfneds;
-        LegacyUlong grfcmm;
     };
 
     // command map
-    struct CommandMap
-    {
-        CommandMap *pcmmBase;
-        CommandMapEntry *prgcmme;
-    };
+    using CommandMap = MMCommandMap;
 
     CMD_MAP_DEC(CommandHandler)
 

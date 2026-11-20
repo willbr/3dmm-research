@@ -843,6 +843,8 @@ The dispatcher routes commands and enable queries while native callbacks supply
 the active command, modal checks and mouse tracking. C89 owns Kauai's command
 macro rows, repeat and replay state, GLCM serialization, and archive transaction
 order. Native callbacks supply chunky blocks, GG objects and handler lookup.
+C89 also selects inherited command bindings and allocates consecutive dynamic
+handler IDs. Native adapters retain the typed member-function calls.
 SDL Studio submits intermediate dissolve snapshots through its window
 presenter. Marcus uses the shared C89 dissolve permutation and phase lengths
 to compose RGBA movie-camera frames. Both use the C89 RGB555 bin-centre mapping

@@ -24,6 +24,7 @@
     The CommandExecutionManager class supports command stream recording and playback.
 
 ***************************************************************************/
+#include <cstddef>
 #include <exception>
 #include <new>
 #include "kauai_core.h"
@@ -282,7 +283,7 @@ struct CommandExecutionManager::MacroHost : DocumentStorageHost
     }
 };
 
-LegacyLong CommandHandler::_hidLast;
+MMU32 CommandHandler::_hidLast;
 
 /***************************************************************************
     cmd_hooks.h seam: function pointers installed by the gui-side
@@ -349,23 +350,23 @@ void Command::AssertValid(LegacyUlong grf)
 LegacyLong CommandHandler::HidUnique(LegacyLong ccmh)
 {
     AssertIn(ccmh, 1, 1000);
-    LegacyLong ccmhT;
-
-    _hidLast |= 0x80000000L;
-    for (ccmhT = ccmh; ccmhT-- > 0;)
-    {
-        _hidLast++;
-        if (!(_hidLast & 0x80000000L))
+    MMI32 first = hidNil;
+    std::exception_ptr error;
+    const auto inUse = [](void *context, MMI32 id) -> int {
+        try
         {
-            _hidLast = 0x80000000L;
-            ccmhT = ccmh;
-            continue;
+            return PcmhFromHid_Hook(id) != pvNil;
         }
-        if (pvNil != PcmhFromHid_Hook(_hidLast))
-            ccmhT = ccmh;
-    }
-
-    return _hidLast - (ccmh - 1);
+        catch (...)
+        {
+            *static_cast<std::exception_ptr *>(context) = std::current_exception();
+            return -1;
+        }
+    };
+    mm_command_id_allocate(&_hidLast, ccmh, &error, inUse, &first);
+    if (error)
+        std::rethrow_exception(error);
+    return first;
 }
 
 /***************************************************************************
@@ -408,35 +409,16 @@ bool CommandHandler::_FGetCmme(LegacyLong cid, LegacyUlong grfcmmWanted, Command
     AssertThis(0);
     AssertVarMem(pcmme);
     Assert(cid != cidNil, "why is the cid nil?");
-    CommandMap *pcmm;
-    CommandMapEntry *pcmmeT;
-    CommandMapEntry *pcmmeDef = pvNil;
-
-    for (pcmm = Pcmm(); pcmm != pvNil; pcmm = pcmm->pcmmBase)
-    {
-        for (pcmmeT = pcmm->prgcmme; pcmmeT->cid != cidNil; pcmmeT++)
-        {
-            if (pcmmeT->cid == cid && (pcmmeT->grfcmm & grfcmmWanted))
-            {
-                *pcmme = *pcmmeT;
-                return fTrue;
-            }
-        }
-
-        // check for a default function
-        if (pcmmeT->pfncmd != pvNil && (pcmmeT->grfcmm & grfcmmWanted) && pcmmeDef == pvNil)
-        {
-            pcmmeDef = pcmmeT;
-        }
-    }
-
-    // no specific one found, return the default one
-    if (pcmmeDef != pvNil)
-    {
-        *pcmme = *pcmmeDef;
-        return fTrue;
-    }
-    return fFalse;
+    static_assert(offsetof(CommandMapEntry, binding) == 0 && cidNil == 0, "C89 command map layout");
+    const auto hasDefault = [](const void *entry) -> int {
+        return static_cast<const CommandMapEntry *>(entry)->pfncmd != pvNil;
+    };
+    const auto *entry = static_cast<const CommandMapEntry *>(
+        mm_command_map_find(Pcmm(), cid, grfcmmWanted, hasDefault));
+    if (!entry)
+        return fFalse;
+    *pcmme = *entry;
+    return fTrue;
 }
 
 /***************************************************************************
@@ -475,19 +457,19 @@ bool CommandHandler::FEnableCmd(PCommand pcmd, LegacyUlong *pgrfeds)
     CommandMapEntry cmme;
     const auto grfcmm = mm_command_target_mask(this, pcmd->pcmh);
 
-    if (!_FGetCmme(pcmd->cid, grfcmm, &cmme) || pvNil == cmme.pfncmd)
+    if (!_FGetCmme(pcmd->cid, grfcmm, &cmme))
         return fFalse;
 
-    if (cmme.pfneds == pvNil)
+    switch (mm_command_binding_enable(&cmme.binding, cmme.pfncmd != pvNil, cmme.pfneds != pvNil))
     {
-        if (cidNil == cmme.cid)
-            return fFalse;
+    case MM_COMMAND_ENABLE_EXPLICIT:
         *pgrfeds = fedsEnable;
-    }
-    else if (!(this->*cmme.pfneds)(pcmd, pgrfeds))
+        return fTrue;
+    case MM_COMMAND_ENABLE_CALLBACK:
+        return (this->*cmme.pfneds)(pcmd, pgrfeds);
+    default:
         return fFalse;
-
-    return fTrue;
+    }
 }
 
 /***************************************************************************

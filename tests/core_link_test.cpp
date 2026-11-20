@@ -736,6 +736,102 @@ static void TestCommandDispatch()
     ReleasePpo(&first);
 }
 
+class CommandMapBaseProbe : public CommandHandler
+{
+    CMD_MAP_DEC(CommandMapBaseProbe)
+
+  public:
+    CommandMapBaseProbe() : CommandHandler(4311) {}
+    int called = 0;
+
+    bool OnBase(PCommand)
+    {
+        called = 1;
+        return true;
+    }
+    bool OnBaseDefault(PCommand)
+    {
+        called = 2;
+        return true;
+    }
+    bool EnableBaseDefault(PCommand, LegacyUlong *flags)
+    {
+        *flags = fedsEnable | fedsCheck;
+        return true;
+    }
+};
+
+BEGIN_CMD_MAP(CommandMapBaseProbe, CommandHandler)
+ON_CID_ALL(0x10021, &CommandMapBaseProbe::OnBase, pvNil)
+ON_CID_ALL(0x10022, &CommandMapBaseProbe::OnBase, pvNil)
+END_CMD_MAP(&CommandMapBaseProbe::OnBaseDefault, &CommandMapBaseProbe::EnableBaseDefault, kgrfcmmAll)
+
+class CommandMapProbe : public CommandMapBaseProbe
+{
+    CMD_MAP_DEC(CommandMapProbe)
+
+  public:
+    bool OnOwn(PCommand)
+    {
+        called = 3;
+        return true;
+    }
+    bool OnDefault(PCommand)
+    {
+        called = 4;
+        return true;
+    }
+};
+
+BEGIN_CMD_MAP(CommandMapProbe, CommandMapBaseProbe)
+ON_CID_ME(0x10021, &CommandMapProbe::OnOwn, pvNil)
+ON_CID_ALL(0x10022, pvNil, pvNil)
+END_CMD_MAP(&CommandMapProbe::OnDefault, pvNil, fcmmNobody)
+
+static LegacyLong s_occupiedHid;
+static PCommandHandler s_hidProbe;
+static std::vector<LegacyLong> s_probedHids;
+
+static PCommandHandler CollisionLookup(LegacyLong hid)
+{
+    s_probedHids.push_back(hid);
+    return hid == s_occupiedHid ? s_hidProbe : pvNil;
+}
+
+static void TestCommandHandlerBindings()
+{
+    auto probe = NewObj CommandMapProbe;
+    Check(probe != pvNil);
+    Command command = {};
+    LegacyUlong enabled = fedsNil;
+    command.cid = 0x10021;
+    command.pcmh = probe;
+    Check(probe->FDoCmd(&command) && probe->called == 3);
+    Check(probe->FEnableCmd(&command, &enabled) && enabled == fedsEnable);
+    command.pcmh = pvNil;
+    Check(probe->FDoCmd(&command) && probe->called == 1);
+    command.cid = 0x10022;
+    Check(!probe->FDoCmd(&command) && !probe->FEnableCmd(&command, &enabled));
+    command.cid = 0x10023;
+    Check(probe->FDoCmd(&command) && probe->called == 4);
+    Check(!probe->FEnableCmd(&command, &enabled));
+    command.pcmh = probe;
+    Check(probe->FDoCmd(&command) && probe->called == 2);
+    Check(probe->FEnableCmd(&command, &enabled) && enabled == (fedsEnable | fedsCheck));
+
+    const LegacyLong first = CommandHandler::HidUnique();
+    Check(first < 0);
+    s_hidProbe = probe;
+    s_occupiedHid = first + 2;
+    s_probedHids.clear();
+    SetCmdHooks(CollisionLookup, pvNil);
+    Check(CommandHandler::HidUnique(3) == first + 3);
+    Check(s_probedHids == std::vector<LegacyLong>({first + 1, first + 2, first + 3, first + 4, first + 5}));
+    SetCmdHooks(pvNil, pvNil);
+    s_hidProbe = pvNil;
+    ReleasePpo(&probe);
+}
+
 static void TestCommandReplay()
 {
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
@@ -4729,6 +4825,7 @@ int main()
     vpcex = CommandExecutionManager::PcexNew(20, 20);
     Check(vpcex != pvNil);
     TestCommandDispatch();
+    TestCommandHandlerBindings();
     TestCommandReplay();
     PClock clock = NewObj Clock(1000);
     Check(clock != pvNil);

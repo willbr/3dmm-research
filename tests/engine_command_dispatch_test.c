@@ -105,6 +105,81 @@ static int enable(void *context, void *handler, MMU32 *flags)
     return number == 4;
 }
 
+typedef struct MapEntry
+{
+    MMCommandBinding binding;
+    unsigned char tag[7];
+} MapEntry;
+
+static int has_default(const void *entry)
+{
+    return ((const MapEntry *)entry)->tag[0] != 0;
+}
+
+static void test_map(void)
+{
+    static const MapEntry base[] = {{{19, MM_COMMAND_ALL}, {1}}, {{29, MM_COMMAND_ALL}, {2}},
+                                    {{0, MM_COMMAND_ALL}, {3}}};
+    static const MapEntry derived[] = {{{19, MM_COMMAND_SELF}, {4}}, {{29, MM_COMMAND_ALL}, {0}},
+                                       {{0, MM_COMMAND_UNTARGETED}, {5}}};
+    static const MapEntry empty_default[] = {{{0, MM_COMMAND_ALL}, {0}}};
+    static const MMCommandMap base_map = {NULL, base, sizeof(*base)};
+    static const MMCommandMap derived_map = {&base_map, derived, sizeof(*derived)};
+    static const MMCommandMap empty_map = {&derived_map, empty_default, sizeof(*empty_default)};
+    CHECK(mm_command_map_find(&empty_map, 19, MM_COMMAND_OTHER, has_default) == &base[0]);
+    CHECK(mm_command_map_find(&empty_map, 19, MM_COMMAND_SELF, has_default) == &derived[0]);
+    CHECK(mm_command_map_find(&empty_map, 29, MM_COMMAND_OTHER, has_default) == &derived[1]);
+    CHECK(mm_command_map_find(&empty_map, 33, MM_COMMAND_UNTARGETED, has_default) == &derived[2]);
+    CHECK(mm_command_map_find(&empty_map, 33, MM_COMMAND_SELF, has_default) == &base[2]);
+    CHECK(mm_command_map_find(&empty_map, 33, 0, has_default) == NULL);
+    CHECK(mm_command_binding_enable(&derived[1].binding, 0, 1) == MM_COMMAND_ENABLE_NONE);
+    CHECK(mm_command_binding_enable(&derived[0].binding, 1, 0) == MM_COMMAND_ENABLE_EXPLICIT);
+    CHECK(mm_command_binding_enable(&derived[2].binding, 1, 0) == MM_COMMAND_ENABLE_NONE);
+    CHECK(mm_command_binding_enable(&base[2].binding, 1, 1) == MM_COMMAND_ENABLE_CALLBACK);
+}
+
+typedef struct IdProbe
+{
+    MMI32 occupied, ids[8];
+    int count, error;
+} IdProbe;
+
+static int id_in_use(void *context, MMI32 id)
+{
+    IdProbe *probe = (IdProbe *)context;
+    CHECK(probe->count < (int)(sizeof(probe->ids) / sizeof(probe->ids[0])));
+    probe->ids[probe->count++] = id;
+    return probe->error ? probe->error : id == probe->occupied;
+}
+
+static void test_ids(void)
+{
+    IdProbe probe = {0};
+    MMU32 last = 0;
+    MMI32 first = 77;
+    CHECK(!mm_command_id_allocate(&last, 0, &probe, id_in_use, &first));
+    CHECK(!last && first == 77 && !probe.count);
+
+    probe.occupied = -2147483646L;
+    CHECK(mm_command_id_allocate(&last, 2, &probe, id_in_use, &first) == 1);
+    CHECK(first == -2147483645L && last == 0x80000004UL && probe.count == 4);
+    CHECK(probe.ids[0] == -2147483647L && probe.ids[1] == probe.occupied);
+    CHECK(probe.ids[2] == first && probe.ids[3] == first + 1);
+
+    last = 0xfffffffeUL;
+    probe.occupied = 0;
+    probe.count = 0;
+    CHECK(mm_command_id_allocate(&last, 2, &probe, id_in_use, &first) == 1);
+    CHECK(first == -2147483647L && last == 0x80000002UL && probe.count == 3);
+    CHECK(probe.ids[0] == -1 && probe.ids[1] == first && probe.ids[2] == first + 1);
+
+    probe.error = -17;
+    first = 77;
+    CHECK(mm_command_id_allocate(&last, 1, &probe, id_in_use, &first) == -17);
+    CHECK(probe.count == 4 && last == 0x80000003UL && first == 77);
+    CHECK(mm_command_id_allocate(&last, 1, NULL, NULL, &first) == 1 && first == -2147483644L);
+}
+
 int main(void)
 {
     Fixture f = {0};
@@ -114,6 +189,8 @@ int main(void)
     MMU32 flags;
     int first_group = 1, second_group = 2, dispatch_group = 3, close_group = 4;
 
+    test_map();
+    test_ids();
     allocator.context = &f;
     CHECK(mm_commands_init(&f.dispatch, &allocator, 1));
     f.refuse_growth = 1;
