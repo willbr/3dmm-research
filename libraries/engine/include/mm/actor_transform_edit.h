@@ -60,6 +60,7 @@ struct MMSceneSelectionServices;
  * failure, including the original partial-edit and move-output semantics. */
 int mm_actor_owner_rotate(struct MMActorOwner *, const unsigned short angles[3], int forward, int world,
                           const MMActorTransformEditServices *);
+int mm_actor_owner_normalize(struct MMActorOwner *, MMU32 flags, const MMActorTransformEditServices *);
 int mm_actor_owner_scale(struct MMActorOwner *, MMI32 factor, const MMActorTransformEditServices *);
 int mm_actor_owner_pull(struct MMActorOwner *, const MMActorStretch *, const MMActorTransformEditServices *);
 int mm_actor_owner_tweak(struct MMActorOwner *, const MMActorPoint *, MMU32 flags,

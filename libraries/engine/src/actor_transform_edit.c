@@ -261,6 +261,16 @@ int mm_actor_owner_rotate(MMActorOwner *actor, const unsigned short angles[3], i
     return ok;
 }
 
+int mm_actor_owner_normalize(MMActorOwner *actor, MMU32 flags, const MMActorTransformEditServices *services)
+{
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorState state = actor->runtime.state;
+    int ok = mm_actor_transform_normalize(&state, &actor->sounds, actor->track.route, actor->track.events,
+                                          actor->runtime.actor, flags, &motion, services);
+    actor->runtime.state = state;
+    return ok;
+}
+
 int mm_actor_owner_scale(MMActorOwner *actor, MMI32 value, const MMActorTransformEditServices *services)
 {
     const MMActorMotionServices motion = mm_actor_track_motion_services();

@@ -4952,7 +4952,7 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         {
             _ptmplTool = pactr->Ptmpl();
             const auto recording = _RecordGestureServices();
-            const auto transaction = pactr->_TransactionServices(nullptr);
+            const auto transaction = pactr->_TransactionServices();
             const auto actorRecording = pactr->_RecordServices(&transaction.actors);
             if (mm_actor_record_gesture_start(&_recordGesture, RecordGestureModifiers(pcmd->grfcust),
                                               &actorRecording, &transaction, &recording))

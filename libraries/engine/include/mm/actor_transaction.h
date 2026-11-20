@@ -3,14 +3,15 @@
 #ifndef MM_ENGINE_ACTOR_TRANSACTION_H
 #define MM_ENGINE_ACTOR_TRANSACTION_H
 #include "actor_undo.h"
+#include "actor_costume_edit.h"
+#include "actor_stage_edit.h"
+#include "actor_transform_edit.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 enum { MM_TRANSACTION_BAD_LIFETIME,MM_TRANSACTION_SEEK_FAILED };
 typedef struct MMActorTransactionServices
 {
-    void *context;
-    int (*apply)(void *);
     MMActorOwnerServices actors;
     MMActorUndoCreateServices undo;
 } MMActorTransactionServices;
@@ -27,10 +28,18 @@ typedef struct MMActorDeleteServices
     void (*sound_frame)(void *);
     void (*diagnostic)(void *,int fault);
 } MMActorDeleteServices;
-/* Clone before applying the edit. Failure to apply or register undo restores
- * the actor and releases the local snapshot. Sound requests playback on undo.
- * Callbacks cannot reenter. */
-int mm_actor_transaction_apply(void *actor,int sound,const MMActorTransactionServices *);
+/* Each edit clones the actor first. Failed edits or undo registration restore
+ * the actor and release the local snapshot. Sound requests playback on undo.
+ * Callbacks cannot reenter. Edit services must be bound to the supplied actor. */
+int mm_actor_transaction_stage(void *actor,int entrance,MMU32 external_child,
+    const MMActorStageEditServices *,const MMActorTransactionServices *);
+int mm_actor_transaction_normalize(void *actor,MMU32 flags,
+    const MMActorTransformEditServices *,const MMActorTransactionServices *);
+int mm_actor_transaction_costume(void *actor,MMI32 set,const MMTag *,MMI32 costume,MMI32 custom,
+    const MMActorCostumeEditServices *,const MMActorTransactionServices *);
+int mm_actor_transaction_sound(void *actor,const MMTag *,MMI32 loop,MMI32 queue,int motion,
+    MMI32 volume,MMI32 style,MMU32 external_child,const MMActorSoundEditServices *,
+    const MMActorTransactionServices *);
 /* On success, an optional snapshot output receives a local reference to the
  * registered and reset undo actor. Failure leaves the output untouched. */
 int mm_actor_transaction_action(void *actor,MMI32 action,MMI32 cel,int frozen,MMU32 external_child,

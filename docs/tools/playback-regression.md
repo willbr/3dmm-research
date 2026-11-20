@@ -16004,3 +16004,31 @@ In `actor-event-edit` suite `20261120T152124Z-c11cff86`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## C89 stage, normalization, costume and sound transactions (20 November 2026)
+
+Studio's undoable stage edits, normalization, costume changes and sound
+binding now call the C89 editors from the transaction. Non-undo stage,
+normalization and costume edits share the corresponding actor owner
+operations. The transaction still captures the actor before mutation and
+restores it when an edit or undo registration fails. Sound edits keep
+their playback flag on the registered undo.
+
+The sound transaction fixture checks the authored event, resource
+release and sound indicator before undo registration, and rollback
+after edit and registration failures. All 17 targeted x64 checks,
+22 standalone C89 checks, 13 checks each in x86 Debug and SDL Release,
+and seven AddressSanitizer checks passed.
+
+Ten actor traces matched their baselines in native x64, SDL Release
+and x86 Debug. The native x64 and SDL Release movie archives matched
+byte-for-byte. All ten Preview fingerprints, six fixture archives, and
+both VMM seek images in `20261120T153130Z-508d4c47` matched their
+baselines. The x86 movie suite passed the actor checks before reaching
+the existing template-construction count assertion. Logs and fixtures
+are in `tmp/c89-typed-actor-transactions`.
+
+In `actor-event-edit` suite `20261120T153130Z-1e0a5f96`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

@@ -1,8 +1,12 @@
 /* Actor edit transactions converted from engine actredit.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_transaction.h"
-#include "mm/actor_stage_edit.h"
 #include <stddef.h>
+static void *capture(void *actor,const MMActorTransactionServices *s)
+{
+    MMActorOwnerResult copy={NULL,NULL,NULL};
+    return mm_actor_owner_duplicate(actor,0,&copy,&s->actors)?copy.actor:NULL;
+}
 static int register_snapshot(void *actor,void *snapshot,int sound,const MMActorTransactionServices *s)
 {
     const MMActorOwner *owner=s->actors.owner(s->actors.context,actor);
@@ -21,25 +25,67 @@ static int finish_edit(void *actor,void *snapshot,int applied,int sound,void **o
     else s->actors.release(s->actors.context,snapshot);
     return 1;
 }
-int mm_actor_transaction_apply(void *actor,int sound,const MMActorTransactionServices *s)
+int mm_actor_transaction_stage(void *actor,int entrance,MMU32 external_child,
+    const MMActorStageEditServices *edit,const MMActorTransactionServices *s)
 {
-    MMActorOwnerResult copy={NULL,NULL,NULL};
-    if (!mm_actor_owner_duplicate(actor,0,&copy,&s->actors))
-        return 0;
-    return finish_edit(actor,copy.actor,s->apply(s->context),sound,NULL,s);
+    void *copy=capture(actor,s);
+    MMActorOwner *owner;
+    int applied;
+    if (!copy) return 0;
+    owner=s->actors.owner(s->actors.context,actor);
+    applied=mm_actor_owner_stage_edit(owner,entrance,external_child,edit);
+    return finish_edit(actor,copy,applied,0,NULL,s);
+}
+int mm_actor_transaction_normalize(void *actor,MMU32 flags,
+    const MMActorTransformEditServices *edit,const MMActorTransactionServices *s)
+{
+    void *copy=capture(actor,s);
+    MMActorOwner *owner;
+    int applied;
+    if (!copy) return 0;
+    owner=s->actors.owner(s->actors.context,actor);
+    applied=mm_actor_owner_normalize(owner,flags,edit);
+    return finish_edit(actor,copy,applied,0,NULL,s);
+}
+int mm_actor_transaction_costume(void *actor,MMI32 set,const MMTag *tag,MMI32 costume,MMI32 custom,
+    const MMActorCostumeEditServices *edit,const MMActorTransactionServices *s)
+{
+    void *copy=capture(actor,s);
+    MMActorOwner *owner;
+    int applied;
+    if (!copy) return 0;
+    owner=s->actors.owner(s->actors.context,actor);
+    applied=mm_actor_owner_set_costume(owner,set,tag,costume,custom,edit);
+    return finish_edit(actor,copy,applied,0,NULL,s);
+}
+int mm_actor_transaction_sound(void *actor,const MMTag *tag,MMI32 loop,MMI32 queue,int motion_match,
+    MMI32 volume,MMI32 style,MMU32 external_child,const MMActorSoundEditServices *edit,
+    const MMActorTransactionServices *s)
+{
+    const MMActorMotionServices motion=mm_actor_track_motion_services();
+    void *copy=capture(actor,s);
+    MMActorOwner *owner;
+    MMActorState state;
+    int applied;
+    if (!copy) return 0;
+    owner=s->actors.owner(s->actors.context,actor);
+    state=owner->runtime.state;
+    applied=mm_actor_sound_set(&state,&owner->sounds,owner->track.events,owner->runtime.actor,tag,
+                                loop,queue,motion_match,volume,style,external_child,&motion,edit);
+    owner->runtime.state=state;
+    return finish_edit(actor,copy,applied,1,NULL,s);
 }
 int mm_actor_transaction_action(void *actor,MMI32 action,MMI32 cel,int frozen,MMU32 external_child,
     void **snapshot,const MMActorMotionServices *motion,const MMActorActionEditServices *edit,
     const MMActorTransactionServices *s)
 {
-    MMActorOwnerResult copy={NULL,NULL,NULL};
+    void *copy=capture(actor,s);
     MMActorOwner *owner;
     int applied;
-    if (!mm_actor_owner_duplicate(actor,0,&copy,&s->actors))
-        return 0;
+    if (!copy) return 0;
     owner=s->actors.owner(s->actors.context,actor);
     applied=mm_actor_owner_set_action(owner,action,cel,frozen,external_child,motion,edit);
-    return finish_edit(actor,copy.actor,applied,0,snapshot,s);
+    return finish_edit(actor,copy,applied,0,snapshot,s);
 }
 static void alive(MMActorDeleteResult *out,int value,int trashed)
 {
@@ -56,9 +102,9 @@ int mm_actor_transaction_delete(void *actor,int all,MMActorDeleteResult *out,con
     MMActorLifetime lifetime;
     MMActorEvent entrance;
     MMI32 original;
-    MMActorOwnerResult copy={NULL,NULL,NULL};
+    void *copy=capture(actor,s);
     int value;
-    if (!mm_actor_owner_duplicate(actor,0,&copy,&s->actors))
+    if (!copy)
     {
         alive(out,0,1);
         return 0;
@@ -87,16 +133,9 @@ int mm_actor_transaction_delete(void *actor,int all,MMActorDeleteResult *out,con
     lifetime=mm_actor_owner_lifetime(owner);
     if (!mm_actor_refresh_lifetime(owner->track.route,owner->track.events,NULL,&lifetime,&edit->timeline))
         d->diagnostic(d->context,MM_TRANSACTION_BAD_LIFETIME);
-    if (!register_snapshot(actor,copy.actor,0,s))
-    {
-        mm_actor_owner_restore(actor,copy.actor,&s->actors);
-        s->actors.release(s->actors.context,copy.actor);
-        return 0;
-    }
-    s->actors.release(s->actors.context,copy.actor);
-    return 1;
+    return finish_edit(actor,copy,1,0,NULL,s);
 failed:
     d->diagnostic(d->context,MM_TRANSACTION_SEEK_FAILED);
-    s->actors.release(s->actors.context,copy.actor);
+    s->actors.release(s->actors.context,copy);
     return 0;
 }

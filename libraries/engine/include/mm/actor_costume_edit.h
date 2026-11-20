@@ -28,6 +28,9 @@ void mm_actor_edit_costume_fill(MMActorState *, void *events, MMI32 first,
 int mm_actor_edit_set_costume(MMActorState *, MMActorSounds *, void *events, MMI32 actor,
     MMI32 clicked_set, const MMTag *, MMI32 costume, MMI32 custom,
     const MMActorMotionServices *, const MMActorCostumeEditServices *);
+struct MMActorOwner;
+int mm_actor_owner_set_costume(struct MMActorOwner *, MMI32 clicked_set, const MMTag *, MMI32 costume,
+    MMI32 custom, const MMActorCostumeEditServices *);
 #ifdef __cplusplus
 }
 #endif

@@ -1,7 +1,18 @@
 /* Actor costume editing converted from engine actor.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_costume_edit.h"
+#include "mm/actor_owner.h"
 #include <string.h>
+int mm_actor_owner_set_costume(MMActorOwner *owner, MMI32 clicked_set, const MMTag *tag,
+    MMI32 costume, MMI32 custom, const MMActorCostumeEditServices *s)
+{
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorState state = owner->runtime.state;
+    int ok = mm_actor_edit_set_costume(&state, &owner->sounds, owner->track.events, owner->runtime.actor,
+                                       clicked_set, tag, costume, custom, &motion, s);
+    owner->runtime.state = state;
+    return ok;
+}
 static void release(const MMActorCostumeEditServices *s, void **p)
 {
     if (*p) s->release(s->context,*p);

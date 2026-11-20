@@ -426,7 +426,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   prerender decision and pull-tool world coordinates also execute in C89.
 - Actor edit transactions for action changes, stage add/remove, normalization,
   costumes, sound binding and deletion now execute in C89. The transactions
-  sequence snapshots, rollback, undo registration and optional snapshot transfer.
+  call the C89 owner and edit functions directly and sequence snapshots,
+  rollback, undo registration and optional snapshot transfer. Studio's
+  non-undo stage, costume and normalization entry points share those owner
+  operations.
   Sound binding marks undo for sound playback. Deletion reads its cursor,
   entrance frame and surviving events from the C89 actor owner and refreshes its
   lifetime through the C89 updater. Deletion and stage edits call the C89

@@ -794,14 +794,9 @@ MMActorStageEditServices Actor::_StageEditServices()
 bool Actor::FAddOnStageCore(void)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
     const auto services=_StageEditServices();
     ChildChunkID external=0; TrashVar(&external);
-    bool ok=mm_actor_stage_add(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                      external,&tables,&services)!=0;
-    _owner.runtime.state = state;
-    return ok;
+    return mm_actor_owner_stage_edit(&_owner,1,external,&services)!=0;
 }
 
 /***************************************************************************
@@ -901,13 +896,8 @@ void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
 bool Actor::FRemFromStageCore(void)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
     const auto services=_StageEditServices();
-    bool ok=mm_actor_stage_remove(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                         &tables,&services)!=0;
-    _owner.runtime.state = state;
-    return ok;
+    return mm_actor_owner_stage_edit(&_owner,0,0,&services)!=0;
 }
 
 /***************************************************************************
@@ -935,13 +925,8 @@ bool Actor::FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCm
 {
     AssertThis(0); Assert(fCmtl || ibsetClicked>=0,"Invalid body set"); AssertVarMem(ptag);
     MMTag tag; std::memcpy(&tag,ptag,sizeof(tag));
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services();
     const auto services=_CostumeEditServices();
-    bool ok=mm_actor_edit_set_costume(&state,&_owner.sounds,_owner.track.events,_owner.runtime.actor,ibsetClicked,
-                                            &tag,cmid,fCmtl,&tables,&services)!=0;
-    _owner.runtime.state = state;
-    return ok;
+    return mm_actor_owner_set_costume(&_owner,ibsetClicked,&tag,cmid,fCmtl,&services)!=0;
 }
 
 /***************************************************************************
@@ -1096,11 +1081,8 @@ bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 bool Actor::FNormalizeCore(ulong grfnorm)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=mm_actor_transform_normalize(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                                grfnorm,&tables,&services)!=0;
-    _owner.runtime.state = state; return ok;
+    const auto services=_TransformEditServices();
+    return mm_actor_owner_normalize(&_owner,grfnorm,&services)!=0;
 }
 
 /***************************************************************************

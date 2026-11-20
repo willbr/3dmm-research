@@ -25,7 +25,7 @@ typedef struct Fixture
     int edited, registered, restored, detached, trash, alive_writes;
     int fail_duplicate, fail_apply, fail_undo_create, fail_undo, fail_seek, fail_lifetime;
     int has_output, seeks, frames[2], sounds, faults, last_fault, hidden;
-    int second_subroute, keep_original, detach_on_seek, expect_sound;
+    int second_subroute, keep_original, detach_on_seek, expect_sound, sound_refs;
     MMI32 add_frame;
     char trace[96];
     int count;
@@ -148,20 +148,6 @@ static void restored(void *p,void *scene)
     CHECK(f->live.owner.runtime.state.frame==10 && f->live.owner.runtime.state.nextEvent==3);
     f->edited=0;
     ++f->restored;
-}
-
-static int apply(void *p)
-{
-    Fixture *f=(Fixture *)p;
-    MMActorEvent event;
-    mark(f,'A');
-    CHECK(f->copy.refs==1 && f->copy.owner.track.events!=f->live.owner.track.events);
-    CHECK(mm_actor_events_get_fixed(f->live.owner.track.events,0,&event));
-    event.nfrm=17;
-    CHECK(mm_actor_events_set_fixed(f->live.owner.track.events,0,&event));
-    f->live.owner.runtime.state.frame=17;
-    ++f->edited;
-    return !f->fail_apply;
 }
 
 static MMActorUndoState *create_undo(void *p,void **handle)
@@ -326,8 +312,6 @@ static void init(Fixture *f)
     MMActorUndoCreateServices *undo;
     MMActorSubrouteEditServices *edit;
     memset(f,0,sizeof(*f));
-    f->transaction.context=f;
-    f->transaction.apply=apply;
     actors=&f->transaction.actors;
     actors->context=f;
     actors->owner=owner;
@@ -474,13 +458,78 @@ static int edit_action(Fixture *f,int output)
                                        &motion,&services,&f->transaction);
 }
 
+static void *fetch_sound(void *p,const MMTag *tag)
+{
+    Fixture *f=(Fixture *)p;
+    mark(f,'A');
+    CHECK(f->copy.refs==1 && f->copy.owner.track.events!=f->live.owner.track.events);
+    CHECK(tag->sid==1 && tag->number==44 && !f->sound_refs);
+    ++f->sound_refs;
+    return &f->sound_refs;
+}
+
+static void sound_info(void *p,void *resource,MMActorSoundInfo *out)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(resource==&f->sound_refs && f->sound_refs==1);
+    out->style=2; out->volume=83; out->no_sound=0;
+}
+
+static void release_sound(void *p,void *resource)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(resource==&f->sound_refs && f->sound_refs==1);
+    --f->sound_refs;
+    mark(f,'V');
+}
+
+static int apply_sound(void *p,MMActorState *state,MMI32 index)
+{
+    Fixture *f=(Fixture *)p;
+    MMActorEventTable *table=f->live.owner.track.events;
+    MMActorEvent event;
+    MMActorSound sound;
+    CHECK(mm_actor_events_get_fixed(table,index,&event) && event.aet==MM_ACTOR_SOUND);
+    CHECK(mm_actor_events_size(table,index)==sizeof(sound));
+    CHECK(mm_actor_events_get_payload(table,index,&sound));
+    CHECK(sound.loop==2 && sound.queue==1 && sound.volume==83 && sound.style==2);
+    CHECK(sound.cel==-1 && sound.tag.number==44 && sound.child==21);
+    mark(f,'P');
+    if (f->fail_apply) state->cel=7;
+    return !f->fail_apply;
+}
+
+static int sounds_suppressed(void *p) { (void)p; return 1; }
+static void sound_indicator(void *p)
+{
+    Fixture *f=(Fixture *)p;
+    CHECK(!f->sound_refs);
+    mark(f,'G');
+}
+
+static int edit_sound(Fixture *f)
+{
+    const MMTag tag={1,NULL,0,44};
+    MMActorSoundEditServices services={0};
+    services.context=f;
+    services.runtime.context=f;
+    services.runtime.fetch=fetch_sound;
+    services.runtime.release=release_sound;
+    services.sound_info=sound_info;
+    services.sounds_suppressed=sounds_suppressed;
+    services.set_sound_frame=sound_indicator;
+    services.edits=f->deletion.subroute.route.edits;
+    services.edits.apply_event=apply_sound;
+    return mm_actor_transaction_sound(&f->live,&tag,2,1,0,-1,0,21,&services,&f->transaction);
+}
+
 static void edits(void)
 {
-    static const char *fail_traces[]={"D","DL","DARL","DAURL","DAUJCWLRL"};
+    static const char *sound_fail_traces[]={"D","DL","DAPVRL","DAPFVGURL","DAPFVGUJCWLRL"};
     Fixture f;
     MMActorEvent event;
     int mode,fail;
-    for (mode=0;mode<4;++mode) for (fail=0;fail<6;++fail)
+    for (mode=0;mode<3;++mode) for (fail=0;fail<6;++fail)
     {
         init(&f);
         create_track(&f);
@@ -488,16 +537,20 @@ static void edits(void)
         f.fail_apply=fail==3;
         f.fail_undo_create=fail==4;
         f.fail_undo=fail==5;
-        f.expect_sound=mode==1;
-        if (mode<2) CHECK(mm_actor_transaction_apply(&f.live,f.expect_sound,&f.transaction)==!fail);
-        else CHECK(edit_action(&f,mode==3)==!fail);
+        f.expect_sound=mode==0;
+        if (!mode) CHECK(edit_sound(&f)==!fail && !f.sound_refs);
+        else CHECK(edit_action(&f,mode==2)==!fail);
         CHECK(mm_actor_events_get_fixed(f.live.owner.track.events,0,&event));
         if (!fail)
         {
             CHECK(f.registered==1 && f.detached && f.edited);
-            CHECK(f.snapshot==(mode==3?(void *)&f.copy:(void *)&f));
-            CHECK(f.copy.refs==(mode==3?2:1) && f.body_refs==1 && f.template_refs==2);
-            if (mode<2) CHECK(f.edited==1 && event.nfrm==17 && !strcmp(f.trace,"DAUJWZL"));
+            CHECK(f.snapshot==(mode==2?(void *)&f.copy:(void *)&f));
+            CHECK(f.copy.refs==(mode==2?2:1) && f.body_refs==1 && f.template_refs==2);
+            if (!mode)
+            {
+                CHECK(f.edited==1 && !strcmp(f.trace,"DAPFVGUJWZL"));
+                CHECK(mm_actor_events_get_fixed(f.live.owner.track.events,3,&event) && event.aet==MM_ACTOR_SOUND);
+            }
             else
             {
                 CHECK(f.live.owner.runtime.state.cel==3 && f.live.owner.runtime.state.frozen);
@@ -508,14 +561,11 @@ static void edits(void)
         else
         {
             CHECK(f.snapshot==&f && !f.registered && !f.edited);
-            if (mode<2 || fail<=2) CHECK(!strcmp(f.trace,fail_traces[fail-1]));
+            if (!mode || fail<=2) CHECK(!strcmp(f.trace,sound_fail_traces[fail-1]));
             CHECK(!f.copy.refs && f.body_refs==1 && f.template_refs==1);
             CHECK(event.nfrm==f.add_frame && f.live.owner.runtime.state.frame==10);
-            if (mode>=2)
-            {
-                CHECK(f.live.owner.runtime.state.cel==0 && mm_actor_events_count(f.live.owner.track.events)==3);
-                CHECK(mm_actor_events_get_fixed(f.live.owner.track.events,1,&event) && event.aet==MM_ACTOR_ACTION);
-            }
+            CHECK(f.live.owner.runtime.state.cel==0 && mm_actor_events_count(f.live.owner.track.events)==3);
+            CHECK(mm_actor_events_get_fixed(f.live.owner.track.events,1,&event) && event.aet==MM_ACTOR_ACTION);
         }
         done(&f);
     }

@@ -154,9 +154,8 @@ class Actor : public Actor_PAR
     static MMActorOwnerServices _OwnerServices();
     static MMActorCreateServices _CreateServices();
     static void *_FetchTemplate(void *, const MMTag *);
-    struct EditContext;
     MMActorUndoCreateServices _UndoCreateServices();
-    MMActorTransactionServices _TransactionServices(EditContext *);
+    MMActorTransactionServices _TransactionServices();
     MMActorDeleteServices _DeleteServices();
     MMActorCopyServices _CopyServices();
     MMActorSoundEditServices _SoundEditServices();
@@ -396,7 +395,6 @@ class Actor : public Actor_PAR
 
     // ActrSnd Routines
     bool FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty);
-    bool FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnCel, long vlm, long sty);
     bool FSetVlmSnd(long sty, bool fMotionMatch, long vlm); // Set the volume of a sound
     bool FQuerySnd(long sty, bool fMotionMatch, PDynamicArray *pglTagSnd, long *pvlm, bool *pfLoop);
     bool FDeleteSndCore(long sty, bool fMotionMatch);

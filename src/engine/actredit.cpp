@@ -355,19 +355,9 @@ bool Actor::FCreateUndo(PActor pactrDup, bool fSndUndo, PString pstn)
     Add (or replace) an action, and create an undo object
 
 ***************************************************************************/
-struct Actor::EditContext
+MMActorTransactionServices Actor::_TransactionServices()
 {
-    Actor *actor;
-    ulong normalization;
-    long body_set,material;
-    TAG *tag;
-    tribool custom;
-    tribool loop,queue,motion_match;
-    long volume,style;
-};
-MMActorTransactionServices Actor::_TransactionServices(EditContext *context)
-{
-    return {context, nullptr, _OwnerServices(), _UndoCreateServices()};
+    return {_OwnerServices(), _UndoCreateServices()};
 }
 MMActorDeleteServices Actor::_DeleteServices()
 {
@@ -382,7 +372,7 @@ MMActorDeleteServices Actor::_DeleteServices()
 bool Actor::FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup)
 {
     AssertThis(0); AssertNilOrVarMem(ppactrDup); AssertIn(anid,0,klwMax); AssertIn(celn,klwMin,klwMax);
-    const auto transaction = _TransactionServices(nullptr);
+    const auto transaction = _TransactionServices();
     const auto motion = mm_actor_track_motion_services();
     const auto edit = _ActionEditServices();
     ChildChunkID external=0; TrashVar(&external);
@@ -402,9 +392,11 @@ bool Actor::FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup)
 ***************************************************************************/
 bool Actor::FAddOnStage(void)
 {
-    AssertThis(0); EditContext context{this}; auto s=_TransactionServices(&context);
-    s.apply=[](void *p) { return int(static_cast<EditContext *>(p)->actor->FAddOnStageCore()); };
-    return mm_actor_transaction_apply(this,0,&s)!=0;
+    AssertThis(0);
+    const auto transaction = _TransactionServices();
+    const auto edit = _StageEditServices();
+    ChildChunkID external=0; TrashVar(&external);
+    return mm_actor_transaction_stage(this,1,external,&edit,&transaction)!=0;
 }
 
 /***************************************************************************
@@ -414,9 +406,10 @@ bool Actor::FAddOnStage(void)
 ***************************************************************************/
 bool Actor::FNormalize(ulong grfnorm)
 {
-    AssertThis(0); EditContext context{this}; context.normalization=grfnorm; auto s=_TransactionServices(&context);
-    s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FNormalizeCore(c->normalization)); };
-    return mm_actor_transaction_apply(this,0,&s)!=0;
+    AssertThis(0);
+    const auto transaction = _TransactionServices();
+    const auto edit = _TransformEditServices();
+    return mm_actor_transaction_normalize(this,grfnorm,&edit,&transaction)!=0;
 }
 
 /***************************************************************************
@@ -428,36 +421,10 @@ bool Actor::FNormalize(ulong grfnorm)
 bool Actor::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
 {
     AssertThis(0); Assert(fCmtl || ibset>=0,"Invalid ibset argument"); AssertVarMem(ptag);
-    EditContext context{this}; context.body_set=ibset; context.tag=ptag; context.material=cmid; context.custom=fCmtl;
-    auto s=_TransactionServices(&context);
-    s.apply=[](void *p) { auto c=static_cast<EditContext *>(p); return int(c->actor->FSetCostumeCore(c->body_set,c->tag,c->material,c->custom)); };
-    return mm_actor_transaction_apply(this,0,&s)!=0;
-}
-
-/***************************************************************************
-
-    Add a sound event to the actor event list, and create an undo object
-
-***************************************************************************/
-bool Actor::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatch, long vlm, long sty)
-{
-    AssertThis(0);
-    AssertVarMem(ptag);
-    AssertIn(sty, 0, styLim);
-
-    EditContext context{this};
-    context.tag = ptag;
-    context.loop = fLoop;
-    context.queue = fQueue;
-    context.motion_match = fMotionMatch;
-    context.volume = vlm;
-    context.style = sty;
-    auto services = _TransactionServices(&context);
-    services.apply = [](void *p) {
-        const auto &c = *static_cast<EditContext *>(p);
-        return int(c.actor->FSetSndCore(c.tag, c.loop, c.queue, c.motion_match, c.volume, c.style));
-    };
-    return mm_actor_transaction_apply(this, 1, &services) != 0;
+    MMTag tag; std::memcpy(&tag,ptag,sizeof(tag));
+    const auto transaction = _TransactionServices();
+    const auto edit = _CostumeEditServices();
+    return mm_actor_transaction_costume(this,ibset,&tag,cmid,fCmtl,&edit,&transaction)!=0;
 }
 
 /***************************************************************************
@@ -476,7 +443,7 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
 #ifndef BUG1870
 #error C89 actor edit transactions require enabled retail BUG1870 policy
 #endif
-    EditContext context{this}; const auto s=_TransactionServices(&context); const auto d=_DeleteServices();
+    const auto s=_TransactionServices(); const auto d=_DeleteServices();
     MMActorDeleteResult out{}; out.context=pfAlive;
     out.publish=[](void *p,int alive,int trashed) { if (trashed) { TrashVar(static_cast<bool *>(p)); } else *static_cast<bool *>(p)=alive!=0; };
     return mm_actor_transaction_delete(this,fDeleteAll,pfAlive?&out:nullptr,&s,&d)!=0;
@@ -489,9 +456,10 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
 ***************************************************************************/
 bool Actor::FRemFromStage(void)
 {
-    AssertThis(0); EditContext context{this}; auto s=_TransactionServices(&context);
-    s.apply=[](void *p) { return int(static_cast<EditContext *>(p)->actor->FRemFromStageCore()); };
-    return mm_actor_transaction_apply(this,0,&s)!=0;
+    AssertThis(0);
+    const auto transaction = _TransactionServices();
+    const auto edit = _StageEditServices();
+    return mm_actor_transaction_stage(this,0,0,&edit,&transaction)!=0;
 }
 
 /****************************************************

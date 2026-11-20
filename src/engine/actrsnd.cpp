@@ -67,22 +67,19 @@ MMActorSoundEditServices Actor::_SoundEditServices()
     };
     return s;
 }
-bool Actor::FSetSndCore(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatch, long vlm, long sty)
+bool Actor::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMatch, long vlm, long sty)
 {
     AssertThis(0);
     AssertVarMem(ptag);
     AssertIn(sty, 0, styLim);
     static_assert(styMidi == 4 && styNil == 0 && vlmNil == -1, "sound style ABI");
     const MMTag tag = {ptag->sid, ptag->pcrf, ptag->ctg, ptag->cno};
-    auto state = EngineActorMotion::Core(_owner.runtime.state);
-    const auto tables = EngineActorMotion::Services();
-    const auto services = _SoundEditServices();
+    const auto transaction = _TransactionServices();
+    const auto edit = _SoundEditServices();
     ChildChunkID external = 0;
     TrashVar(&external);
-    bool ok = mm_actor_sound_set(&state, &_owner.sounds, _owner.track.events, _owner.runtime.actor, &tag, fLoop, fQueue,
-                                       fMotionMatch != 0, vlm, sty, external, &tables, &services) != 0;
-    EngineActorMotion::Publish(_owner.runtime.state, state);
-    return ok;
+    return mm_actor_transaction_sound(this,&tag,fLoop,fQueue,fMotionMatch!=0,vlm,sty,external,
+                                      &edit,&transaction)!=0;
 }
 
 /***************************************************************************

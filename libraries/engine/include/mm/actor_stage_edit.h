@@ -32,6 +32,8 @@ int mm_actor_stage_delete_subroute(MMActorState *, void *route, void *events,
     const MMActorMotionServices *, const MMActorSubrouteEditServices *);
 int mm_actor_stage_remove(MMActorState *, MMActorSounds *, void *route, void *events,
     MMI32 actor, const MMActorMotionServices *, const MMActorStageEditServices *);
+int mm_actor_owner_stage_edit(struct MMActorOwner *, int entrance, MMU32 external_child,
+    const MMActorStageEditServices *);
 #ifdef __cplusplus
 }
 #endif
