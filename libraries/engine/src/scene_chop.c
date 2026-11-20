@@ -138,48 +138,48 @@ int mm_scene_chop_save(MMSceneChopUndo *p, void *scene, const MMSceneSnapshotSer
     return ok;
 }
 int mm_scene_chop_swap(MMSceneChopUndo *p, MMI32 index, MMI32 frame,
-                             const MMSceneSnapshotServices *s)
+                       const MMSceneSnapshotServices *s, const MMMovieSceneServices *scenes)
 {
     void *loaded, *old;
     s->begin(s->context);
     loaded = s->read(s->context, p->resource, p->number);
     if (!loaded)
         goto fail;
-    if (!s->start(s->context, loaded) || !s->switch_scene(s->context, index))
+    if (!scenes->start(loaded) || !mm_movie_scene_switch(index, scenes))
     {
-        s->close(s->context, loaded);
+        scenes->close(loaded);
         goto fail;
     }
-    old = s->current(s->context);
-    s->retain(s->context, old);
-    if (!s->insert(s->context, index, loaded))
+    old = scenes->state->open;
+    scenes->retain(old);
+    if (!mm_movie_scene_insert(index, loaded, scenes))
     {
-        s->release(s->context, old);
-        s->close(s->context, loaded);
+        scenes->release(old);
+        scenes->close(loaded);
         goto fail;
     }
-    s->close(s->context, loaded);
+    scenes->close(loaded);
     s->delete_chunk(s->context, p->resource, p->number);
     s->rewind(s->context, old);
     if (!s->write(s->context, old, p->resource, &p->number))
     {
-        s->remove(s->context, index + 1);
-        s->close(s->context, old);
+        mm_movie_scene_remove(index + 1, scenes);
+        scenes->close(old);
         goto fail;
     }
-    s->close(s->context, old);
-    if (!s->remove(s->context, index + 1))
+    scenes->close(old);
+    if (!mm_movie_scene_remove(index + 1, scenes))
         goto fail;
-    if (s->switch_scene(s->context, index))
+    if (mm_movie_scene_switch(index, scenes))
     {
-        s->seek(s->context, frame);
-        s->invalidate(s->context);
+        s->seek(scenes->state->open, frame);
+        scenes->invalidate(scenes->context);
     }
     s->end(s->context);
     return 1;
 fail:
-    s->flush(s->context);
-    s->clear(s->context);
+    scenes->flush_sound(scenes->context);
+    scenes->clear_undo(scenes->context);
     s->end(s->context);
     return 0;
 }

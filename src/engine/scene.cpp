@@ -3425,14 +3425,10 @@ void SceneUndoBackground::AssertValid(LegacyUlong grf)
  ****************************************************/
 namespace
 {
-struct SceneSnapshotHost
-{
-    PMovie movie;
-};
-MMSceneSnapshotServices SceneSnapshotServices(SceneSnapshotHost *host)
+MMSceneSnapshotServices SceneSnapshotServices(PMovie movie)
 {
     MMSceneSnapshotServices s = {};
-    s.context = host;
+    s.context = movie;
     s.new_file = [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); };
     s.new_resource = [](void *, void *file) -> void * {
         return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0);
@@ -3444,24 +3440,8 @@ MMSceneSnapshotServices SceneSnapshotServices(SceneSnapshotHost *host)
         return int(static_cast<PScene>(scene)->FWrite(static_cast<PChunkyResourceFile>(resource), number));
     };
     s.read = [](void *p, void *resource, MMU32 number) -> void * {
-        return Scene::PscenRead(static_cast<SceneSnapshotHost *>(p)->movie, static_cast<PChunkyResourceFile>(resource),
+        return Scene::PscenRead(static_cast<PMovie>(p), static_cast<PChunkyResourceFile>(resource),
                                 number);
-    };
-    s.start = [](void *, void *scene) { return int(static_cast<PScene>(scene)->FPlayStartEvents()); };
-    s.switch_scene = [](void *p, MMI32 index) {
-        return int(static_cast<SceneSnapshotHost *>(p)->movie->FSwitchScen(index));
-    };
-    s.current = [](void *p) -> void * { return static_cast<SceneSnapshotHost *>(p)->movie->Pscen(); };
-    s.retain = [](void *, void *scene) { static_cast<PScene>(scene)->AddRef(); };
-    s.close = [](void *, void *scene) {
-        auto value = static_cast<PScene>(scene);
-        Scene::Close(&value);
-    };
-    s.insert = [](void *p, MMI32 index, void *scene) {
-        return int(static_cast<SceneSnapshotHost *>(p)->movie->FInsScenCore(index, static_cast<PScene>(scene)));
-    };
-    s.remove = [](void *p, MMI32 index) {
-        return int(static_cast<SceneSnapshotHost *>(p)->movie->FRemScenCore(index));
     };
     s.delete_chunk = [](void *, void *resource, MMU32 number) {
         static_cast<PChunkyResourceFile>(resource)->Pcfl()->Delete(kctgScen, number);
@@ -3470,10 +3450,7 @@ MMSceneSnapshotServices SceneSnapshotServices(SceneSnapshotHost *host)
         auto value = static_cast<PScene>(scene);
         value->SetNfrmCur(mm_fixed_sub(value->NfrmFirst(), 1));
     };
-    s.seek = [](void *p, MMI32 frame) { static_cast<SceneSnapshotHost *>(p)->movie->Pscen()->FGotoFrm(frame); };
-    s.invalidate = [](void *p) { static_cast<SceneSnapshotHost *>(p)->movie->InvalViewsAndScb(); };
-    s.flush = [](void *p) { static_cast<SceneSnapshotHost *>(p)->movie->Pmsq()->FlushMsq(); };
-    s.clear = [](void *p) { static_cast<SceneSnapshotHost *>(p)->movie->ClearUndo(); };
+    s.seek = [](void *scene, MMI32 frame) { static_cast<PScene>(scene)->FGotoFrm(frame); };
     return s;
 }
 } // namespace
@@ -3527,9 +3504,9 @@ bool SceneUndoChop::FSave(PScene pscen)
 bool SceneUndoChop::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    SceneSnapshotHost host = {Pmvie()};
-    auto s = SceneSnapshotServices(&host);
-    return mm_scene_chop_swap(&_snapshot, Iscen(), Nfrm(), &s) != 0;
+    const auto scenes = Pmvie()->_SceneServices();
+    const auto s = SceneSnapshotServices(Pmvie());
+    return mm_scene_chop_swap(&_snapshot, Iscen(), Nfrm(), &s, &scenes) != 0;
 }
 
 /****************************************************

@@ -72,7 +72,6 @@ extern "C"
         void (*long_op)(void *, int begin);
         int (*cache_tag)(void *, const MMTag *, int background);
         void (*default_title)(void *);
-        int (*new_scene)(void *, MMI32), (*remove_scene)(void *, MMI32);
         void *(*new_scene_undo)(void *);
         void (*configure_scene_undo)(void *, void *undo, MMI32 index, const MMTag *);
         void (*release_undo)(void *undo);
@@ -206,7 +205,7 @@ extern "C"
     int mm_movie_edit_scene(int kind, const MMMovieEditRequest *, const MMMovieEditServices *);
     int mm_movie_paste_actor(void *actor, const MMMovieEditServices *);
     int mm_movie_paste_route(void *source, const MMMovieEditServices *);
-    int mm_movie_add_background(const MMTag *, const MMMovieEditServices *);
+    int mm_movie_add_background(const MMTag *, const MMMovieEditServices *, const MMMovieSceneServices *);
 #ifdef __cplusplus
 }
 #endif

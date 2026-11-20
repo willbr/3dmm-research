@@ -594,7 +594,7 @@ void mm_movie_clipboard_click(int tool, int hit_actor, const MMMovieClipboardSer
     }
 }
 
-int mm_movie_add_background(const MMTag *tag, const MMMovieEditServices *s)
+int mm_movie_add_background(const MMTag *tag, const MMMovieEditServices *s, const MMMovieSceneServices *scenes)
 {
     MMSceneEditServices edit;
     MMTag old;
@@ -602,11 +602,11 @@ int mm_movie_add_background(const MMTag *tag, const MMMovieEditServices *s)
     void *undo;
     if (!cache(tag, 1, s))
         return 0;
-    if (!s->scenes->open && s->data->title.count == 0)
+    if (!scenes->state->open && s->data->title.count == 0)
         s->default_title(s->context);
-    if (s->scenes->open)
+    if (scenes->state->open)
     {
-        edit = s->scene_edit(s->scenes->open);
+        edit = s->scene_edit(scenes->state->open);
         if (mm_scene_is_empty(&edit))
         {
             MMTag replacement = *tag;
@@ -619,10 +619,10 @@ int mm_movie_add_background(const MMTag *tag, const MMMovieEditServices *s)
             return 1;
         }
     }
-    index = mm_signed_word((MMU32)s->scenes->index + 1U);
-    if (!s->new_scene(s->context, index))
+    index = mm_signed_word((MMU32)scenes->state->index + 1U);
+    if (!mm_movie_scene_new(index, scenes))
         return 0;
-    edit = s->scene_edit(s->scenes->open);
+    edit = s->scene_edit(scenes->state->open);
     if (!mm_scene_background_edit(tag, &old, &edit))
         goto remove;
     if (s->sounds_enabled(s->context))
@@ -642,6 +642,6 @@ int mm_movie_add_background(const MMTag *tag, const MMMovieEditServices *s)
     changed(1, s);
     return 1;
 remove:
-    s->remove_scene(s->context, index);
+    mm_movie_scene_remove(index, scenes);
     return 0;
 }

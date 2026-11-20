@@ -553,7 +553,9 @@ typedef class Movie *PMovie;
 class Movie : public Movie_PAR
 {
     friend class MovieSaveProbe;
+    friend class MovieSceneUndo;
     friend class MovieView;
+    friend class SceneUndoChop;
     RTCLASS_DEC
     MARKMEM
     ASSERT
@@ -863,7 +865,6 @@ class Movie : public Movie_PAR
     }                                           // The currently open scene.
     MMMovieSession *MovieSession() const { return _data.session; }
     void RenderWorld();
-    bool FInsScenCore(long iscen, Scene *pscen); // Insert this scene as scene number.
     bool FNewScenInsCore(long iscen);           // Inserts a blank scene before iscen
     bool FRemScenCore(long iscen);              // Removes a scene from the movie
     bool FPasteActr(PActor pactr);               // Pastes an actor into current scene.

@@ -154,12 +154,9 @@ extern "C"
 
     typedef struct MMMovieSceneUndoServices
     {
-        void *context;
-        int (*create)(void *, MMI32), (*remove)(void *, MMI32);
-        int (*insert)(void *, MMI32, void *scene);
-        /* Bind the scene opened by create. */
-        MMSceneEditServices (*scene_edit)(void *context);
-        void (*notify)(void *, int removed), (*flush)(void *), (*clear)(void *), (*unknown)(void *);
+        const MMMovieSceneServices *scenes;
+        MMSceneEditServices (*scene_edit)(void *scene);
+        void (*notify)(void *movie, int removed), (*unknown)(void *movie);
     } MMMovieSceneUndoServices;
     /* tag and scene are borrowed native undo payloads. clear may destroy both
      * the undo object and its payload, so neither is accessed after that callback.

@@ -485,37 +485,16 @@ static int removal(void)
 
 typedef struct Undo
 {
+    Test movie;
     MMSceneOwner owner;
-    int create, remove, insert, background, notify, removed, flush, clear, unknown, fail;
+    int background, notify, removed, unknown, fail_background;
 } Undo;
-static int ucreate(void *p, MMI32 i)
-{
-    Undo *u = p;
-    (void)i;
-    ++u->create;
-    return u->fail != CREATE;
-}
-static int uremove(void *p, MMI32 i)
-{
-    Undo *u = p;
-    (void)i;
-    ++u->remove;
-    return u->fail != TEMP;
-}
-static int uinsert(void *p, MMI32 i, void *s)
-{
-    Undo *u = p;
-    (void)i;
-    (void)s;
-    ++u->insert;
-    return u->fail != WRITE;
-}
 static void *fetch_background(void *p, MMTag *tag)
 {
     Undo *u = p;
     (void)tag;
     ++u->background;
-    return u->fail == START ? NULL : u;
+    return u->fail_background ? NULL : u;
 }
 static int set_camera(void *p, void *background, MMI32 camera)
 {
@@ -535,9 +514,9 @@ static void ignore_change(void *p) { (void)p; }
 static int cannot_notify(void *p) { (void)p; return 0; }
 static MMSceneEditServices bind_scene_edit(void *p)
 {
-    Undo *u = p;
+    Undo *u = (Undo *)((Scene *)p)->test;
     MMSceneEditServices s = {0};
-    s.context = s.sound.context = s.sound.events.context = s.sound.events.owners.context = p;
+    s.context = s.sound.context = s.sound.events.context = s.sound.events.owners.context = u;
     s.sound.events.owner = &u->owner;
     s.sound.events.owners.release = ignore_background;
     s.sound.events.fetch_background = fetch_background;
@@ -555,17 +534,10 @@ static void notify(void *p, int removed)
     ++u->notify;
     u->removed = removed;
 }
-static void uflush(void *p)
-{
-    ++((Undo *)p)->flush;
-}
 static void uclear(void *p)
 {
-    Undo *u = p;
-    if (u->flush != 1)
-        u->clear = -100;
-    else
-        ++u->clear;
+    Test *t = p;
+    t->cleared = t->flushed == 1 ? 1 : -1;
 }
 static void unknown(void *p)
 {
@@ -576,45 +548,52 @@ static int undoing(void)
     MMMovieSceneUndoServices s;
     Undo u;
     MMTag tag = {2, NULL, 4, 5};
-    const MMSceneOwnerServices owners = bind_scene_edit(&u).sound.events.owners;
-    int kind, redo, fault, removed, result;
+    int kind, redo, fault;
     memset(&s, 0, sizeof(s));
-    s.context = &u;
-    s.create = ucreate;
-    s.remove = uremove;
-    s.insert = uinsert;
+    s.scenes = &u.movie.s;
     s.scene_edit = bind_scene_edit;
     s.notify = notify;
-    s.flush = uflush;
-    s.clear = uclear;
     s.unknown = unknown;
     for (kind = 0; kind <= 2; ++kind)
         for (redo = 0; redo <= 1; ++redo)
             for (fault = 0; fault <= CREATE; ++fault)
             {
+                Scene *snapshot;
+                MMSceneOwnerServices owners;
+                int result, removed = (kind == MM_MOVIE_REMOVE_SCENE) == redo;
                 memset(&u, 0, sizeof(u));
+                init(&u.movie, 3, 2);
                 CHECK(mm_scene_owner_init(&u.owner, NULL, 1, NULL));
-                u.fail = fault;
-                result = mm_movie_scene_undo(kind, 2, NULL, &tag, redo, &s);
-                removed = (kind == MM_MOVIE_REMOVE_SCENE) == redo;
+                u.movie.s.clear_undo = uclear;
+                u.movie.fail = (removed && fault == TEMP) || (!removed && !redo && fault == WRITE) ||
+                                   (!removed && redo && fault == CREATE)
+                               ? fault : 0;
+                u.movie.failures = 1;
+                u.fail_background = fault == START;
+                snapshot = new_scene(&u.movie, 2);
+                owners = bind_scene_edit(snapshot).sound.events.owners;
+                result = mm_movie_scene_undo(kind, 2, snapshot, &tag, redo, &s);
                 if (kind == 2)
-                    CHECK(!result && u.unknown == 1);
+                    CHECK(!result && u.unknown == 1 && u.movie.count == 3);
                 else if (removed)
-                    CHECK(result == (fault != TEMP) && u.remove == 1 && !u.create && !u.insert);
+                    CHECK(result == (fault != TEMP) && u.movie.deletes == result && u.movie.count == 3 - result);
                 else if (!redo)
-                    CHECK(result == (fault != WRITE) && u.insert == 1 && !u.create && !u.remove);
+                    CHECK(result == (fault != WRITE) && u.movie.adds == result && u.movie.count == 3 + result);
                 else
                 {
-                    CHECK(result == (fault != CREATE && fault != START) && u.create == 1 && !u.insert);
-                    CHECK(u.background == (fault != CREATE) && u.remove == (fault == START));
+                    CHECK(result == (fault != CREATE && fault != START));
+                    CHECK(u.background == (fault != CREATE) && u.movie.deletes == (fault == START));
+                    CHECK(u.movie.count == 3 + result);
                     CHECK(u.owner.tracks[MM_SCENE_STARTS].rows.count == (unsigned)result);
                     if (result)
                         CHECK(u.owner.background_tag.number == tag.number);
                 }
-                CHECK(u.flush == 1 && u.clear == !result && u.notify == result);
+                CHECK(u.movie.flushed == 1 && u.movie.cleared == !result && u.notify == result);
                 if (result)
                     CHECK(u.removed == removed);
                 mm_scene_owner_dispose(&u.owner, &owners);
+                release(snapshot);
+                CHECK(clean(&u.movie));
             }
     return 0;
 }

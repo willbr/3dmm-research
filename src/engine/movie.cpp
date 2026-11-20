@@ -83,7 +83,7 @@ class MovieSceneUndo : public MovieSceneUndo_PAR
     TAG _tag;
     PScene _pscen;
     MUNST _munst;
-    MMMovieSceneUndoServices _Services();
+    bool _Apply(bool redo);
     MovieSceneUndo(void)
     {
     }
@@ -750,8 +750,6 @@ MMMovieEditServices Movie::_EditServices()
         TAG tag; TagFromCore(&tag, *value); return background ? Background::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);
     };
     s.default_title = [](void *p) { static_cast<PMovie>(p)->_SetTitle(); };
-    s.new_scene = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
-    s.remove_scene = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
     s.new_scene_undo = [](void *) -> void * { return MovieSceneUndo::PmunsNew(); };
     s.configure_scene_undo = [](void *, void *p, MMI32 index, const MMTag *value) {
         auto undo = static_cast<PMovieSceneUndo>(p); TAG tag; TagFromCore(&tag, *value);
@@ -2144,29 +2142,6 @@ bool Movie::FAddActrSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fActnC
     return mm_movie_edit_actor(MM_MOVIE_EDIT_ACTOR_SOUND, &q, &services) != 0;
 }
 
-/****************************************************
- *
- * Takes a scene and inserts it as scene number iscen,
- * and switches to the scene.
- *
- * Parameters:
- *	iscen - Scene number to insert the new scene as.
- *	pscen - Pointer to the scene to insert.
- *
- * Returns:
- *  fFalse if there was a failure, else fTrue.
- *
- ****************************************************/
-bool Movie::FInsScenCore(long iscen, Scene *pscen)
-{
-    AssertThis(0);
-    AssertIn(iscen, 0, Cscen() + 1);
-    AssertPo(pscen, 0);
-    Assert(pscen->Pmvie() == this, "Cannot insert a scene from another movie");
-    auto services = _SceneServices();
-    return mm_movie_scene_insert(iscen, pscen, &services) != 0;
-}
-
 /***************************************************************************
  *
  * Adds a new scene after the current scene.
@@ -2182,8 +2157,9 @@ bool Movie::FAddScen(PTAG ptag)
 {
     AssertThis(0); AssertPvCb(ptag, size(TAG));
     const auto services = _EditServices();
+    const auto scenes = _SceneServices();
     const auto tag = TagToCore(*ptag);
-    return mm_movie_add_background(&tag, &services) != 0;
+    return mm_movie_add_background(&tag, &services, &scenes) != 0;
 }
 
 /***************************************************************************
@@ -5898,36 +5874,28 @@ MovieSceneUndo::~MovieSceneUndo(void)
  *  fTrue if successful, else fFalse.
  *
  ****************************************************/
-MMMovieSceneUndoServices MovieSceneUndo::_Services()
+bool MovieSceneUndo::_Apply(bool redo)
 {
+    const auto scenes = Pmvie()->_SceneServices();
     MMMovieSceneUndoServices s = {};
-    s.context = Pmvie();
-    s.create = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FNewScenInsCore(index); };
-    s.remove = [](void *p, MMI32 index) -> int { return static_cast<PMovie>(p)->FRemScenCore(index); };
-    s.insert = [](void *p, MMI32 index, void *scene) -> int {
-        return static_cast<PMovie>(p)->FInsScenCore(index, static_cast<PScene>(scene));
-    };
+    s.scenes = &scenes;
     s.scene_edit = [](void *p) -> MMSceneEditServices {
-        return static_cast<PMovie>(p)->Pscen()->_EditServices();
+        return static_cast<PScene>(p)->_EditServices();
     };
     s.notify = [](void *p, int removed) {
         auto client = static_cast<PMovie>(p)->Pmcc();
         if (removed) client->SceneNuked();
         else client->SceneUnnuked();
     };
-    s.flush = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
-    s.clear = [](void *p) { static_cast<PMovie>(p)->ClearUndo(); };
     s.unknown = [](void *) { Bug("Unknown munst"); };
-    return s;
+    const MMTag tag = redo && _munst == munstInsScen ? TagToCore(_tag) : MMTag{};
+    return mm_movie_scene_undo(_munst, _iscen, _pscen, &tag, redo, &s) != 0;
 }
 
 bool MovieSceneUndo::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    auto services = _Services();
-    MMTag tag = {};
-    if (_munst == munstInsScen) tag = TagToCore(_tag);
-    return mm_movie_scene_undo(_munst, _iscen, _pscen, &tag, 1, &services) != 0;
+    return _Apply(true);
 }
 
 /****************************************************
@@ -5944,8 +5912,7 @@ bool MovieSceneUndo::FDo(PDocumentBase pdocb)
 bool MovieSceneUndo::FUndo(PDocumentBase pdocb)
 {
     AssertThis(0);
-    auto services = _Services();
-    return mm_movie_scene_undo(_munst, _iscen, _pscen, nullptr, 0, &services) != 0;
+    return _Apply(false);
 }
 
 #ifdef DEBUG

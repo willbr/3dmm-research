@@ -397,35 +397,32 @@ static void title(void *p)
     event(t, TITLE);
 }
 static MMSceneOwnerServices scene_owners(Test *t);
-static int new_scene(void *p, MMI32 index)
+static void *create_background_scene(void *p)
 {
     Test *t = p;
-    const MMSceneOwnerServices owners = scene_owners(t);
     ++t->newScene;
     event(t, NEW_SCENE);
-    if (t->fail == FAIL_NEW_SCENE)
-        return 0;
-    if (t->scenes.open)
-        mm_scene_owner_dispose(&t->scene_owner, &owners);
-    if (!mm_scene_owner_init(&t->scene_owner, t, 1, NULL))
-        return 0;
-    t->scene_owner.data.transition = 1;
-    t->scenes.open = t;
-    t->scenes.index = index;
-    ++t->data.sceneCount;
-    return 1;
+    return t->fail == FAIL_NEW_SCENE ? NULL : t;
 }
-static int remove_scene(void *p, MMI32 index)
+static void *read_background_scene(void *p, MMI32 index)
 {
     Test *t = p;
     const MMSceneOwnerServices owners = scene_owners(t);
+    (void)index;
+    mm_scene_owner_dispose(&t->scene_owner, &owners);
+    if (!mm_scene_owner_init(&t->scene_owner, t, 1, NULL))
+        return NULL;
+    t->scene_owner.data.transition = 1;
+    return t;
+}
+static void delete_background_scene(void *p, void *file, MMU32 number, MMI32 index)
+{
+    Test *t = p;
+    (void)file;
+    (void)number;
     ++t->removeScene;
     t->removedIndex = index;
-    --t->data.sceneCount;
-    t->scenes.open = NULL;
-    mm_scene_owner_dispose(&t->scene_owner, &owners);
     event(t, REMOVE_SCENE);
-    return 1;
 }
 static void *new_undo(void *p)
 {
@@ -890,8 +887,6 @@ static void init(Test *t)
     s->long_op = long_op;
     s->cache_tag = cache;
     s->default_title = title;
-    s->new_scene = new_scene;
-    s->remove_scene = remove_scene;
     s->new_scene_undo = new_undo;
     s->configure_scene_undo = configure;
     s->release_undo = release_undo;
@@ -1702,6 +1697,51 @@ static int insertion(void)
     }
     return 0;
 }
+static int allow(void *p) { (void)p; return 1; }
+static void *background_file(void *p) { return p; }
+static int write_background_scene(void *p, void *scene, MMU32 *number)
+{
+    (void)p;
+    (void)scene;
+    *number = 100;
+    return 1;
+}
+static MMU32 background_scene_number(void *p, void *file, MMI32 index)
+{
+    (void)p;
+    (void)file;
+    (void)index;
+    return 100;
+}
+static int adopt_background_scene(void *p, void *file, MMU32 number, MMI32 index)
+{
+    (void)p;
+    (void)file;
+    return number == 100 && index == ((Test *)p)->data.sceneCount - 1;
+}
+static MMMovieSceneServices background_scenes(Test *t)
+{
+    MMMovieSceneServices s = {0};
+    s.context = t;
+    s.state = &t->scenes;
+    s.count = &t->data.sceneCount;
+    s.autosave = s.make_resources = s.use_temporary = allow;
+    s.stop_loops = s.memory_cleanup = ignore_change;
+    s.create = create_background_scene;
+    s.read = read_background_scene;
+    s.start = s.seek_first = allow;
+    s.close = s.retain = s.release = ignore_change;
+    s.sound_frame = s.scene_change = s.invalidate = ignore_change;
+    s.file = background_file;
+    s.write = write_background_scene;
+    s.scene_number = background_scene_number;
+    s.adopt = adopt_background_scene;
+    s.delete_child = delete_background_scene;
+    s.save = s.remove_actors = s.add_actors = ignore_change;
+    s.dirty = s.rollcall_changed = s.flush_sound = ignore_change;
+    s.sounds_enabled = cannot_notify;
+    return s;
+}
 static int seed_background(Test *t)
 {
     MMTag tag = {2, NULL, 4, 11};
@@ -1717,6 +1757,7 @@ static int backgrounds(void)
 {
     Test t;
     MMTag tag = {2, NULL, 4, 5};
+    const MMMovieSceneServices scenes = background_scenes(&t);
     int fault, enabled;
     for (enabled = 0; enabled <= 1; ++enabled)
         for (fault = 0; fault < 6; ++fault)
@@ -1731,9 +1772,10 @@ static int backgrounds(void)
                      : fault == 4 ? FAIL_NEW_UNDO
                      : fault == 5 ? FAIL_COMMIT
                                   : 0;
-            CHECK(mm_movie_add_background(&tag, &t.s) == !fault);
+            CHECK(mm_movie_add_background(&tag, &t.s, &scenes) == !fault);
             CHECK(t.begin == 1 && t.end == 1 && t.cacheBackground && t.dirty == !fault && t.invalidates == !fault);
             CHECK(t.newScene == (fault != 1) && t.removeScene == (fault >= 3));
+            CHECK(t.data.sceneCount == (fault ? 3 : 4) && t.scenes.index == (fault ? 2 : 3));
             CHECK(t.played == (enabled && (fault == 0 || fault >= 4)) &&
                   t.flushed == (!enabled && (fault == 0 || fault >= 4)));
             CHECK(t.undo.refs == !fault && !t.clears);
@@ -1753,14 +1795,15 @@ static int backgrounds(void)
     t.scenes.index = -1;
     t.data.title.count = 0;
     t.fail = FAIL_NEW_SCENE;
-    CHECK(!mm_movie_add_background(&tag, &t.s) && t.defaults == 1 && t.data.title.count == 7 && !t.removeScene);
+    CHECK(!mm_movie_add_background(&tag, &t.s, &scenes) && t.defaults == 1 && t.data.title.count == 7 &&
+          !t.removeScene);
     for (fault = 0; fault < 4; ++fault)
     {
         init(&t);
         CHECK(seed_background(&t));
         t.camera = 2;
         t.fail = fault == 1 ? FAIL_BACKGROUND : fault == 2 ? FAIL_NEW_UNDO : fault == 3 ? FAIL_COMMIT : 0;
-        CHECK(mm_movie_add_background(&tag, &t.s) == !fault);
+        CHECK(mm_movie_add_background(&tag, &t.s, &scenes) == !fault);
         CHECK(!t.newScene && !t.removeScene && !t.played && t.dirty == !fault && t.undo.refs == !fault);
         CHECK(t.scene_owner.tracks[MM_SCENE_STARTS].rows.count == 1);
         CHECK(t.scene_owner.background_tag.number == (fault ? 11 : tag.number));

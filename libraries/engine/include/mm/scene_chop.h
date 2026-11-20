@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_SCENE_CHOP_H
 #define MM_ENGINE_SCENE_CHOP_H
+#include "movie_scene.h"
 #include "scene_runtime.h"
 #ifdef __cplusplus
 extern "C"
@@ -45,12 +46,8 @@ extern "C"
         void (*release)(void *, void *), (*begin)(void *), (*end)(void *);
         int (*write)(void *, void *scene, void *resource, MMU32 *number);
         void *(*read)(void *, void *resource, MMU32 number);
-        int (*start)(void *, void *scene), (*switch_scene)(void *, MMI32 index);
-        void *(*current)(void *);
-        void (*retain)(void *, void *scene), (*close)(void *, void *scene);
-        int (*insert)(void *, MMI32 index, void *scene), (*remove)(void *, MMI32 index);
         void (*delete_chunk)(void *, void *resource, MMU32 number), (*rewind)(void *, void *scene);
-        void (*seek)(void *, MMI32 frame), (*invalidate)(void *), (*flush)(void *), (*clear)(void *);
+        void (*seek)(void *scene, MMI32 frame);
     } MMSceneSnapshotServices;
     /* Fresh zero-initialized save records own their resource even on failed write.
      * Swap inserts the restored Scene before deleting/rewriting the saved snapshot.
@@ -61,7 +58,7 @@ extern "C"
      * clear. The same swap implements do and undo. Dispose releases before NULL. */
     int mm_scene_chop_save(MMSceneChopUndo *, void *scene, const MMSceneSnapshotServices *);
     int mm_scene_chop_swap(MMSceneChopUndo *, MMI32 index, MMI32 frame,
-                                 const MMSceneSnapshotServices *);
+                           const MMSceneSnapshotServices *, const MMMovieSceneServices *);
     void mm_scene_chop_dispose(MMSceneChopUndo *, const MMSceneSnapshotServices *);
 #ifdef __cplusplus
 }

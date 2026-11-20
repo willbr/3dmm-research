@@ -18,6 +18,11 @@ typedef struct Obj
     int id, alive, lifetime;
     MMI32 first, last;
 } Obj;
+typedef struct SnapshotScene
+{
+    struct Host *host;
+    int refs;
+} SnapshotScene;
 typedef struct Host
 {
     MMSceneOwner owner;
@@ -26,7 +31,10 @@ typedef struct Host
     Obj objects[5];
     MMSceneTrack *frames;
     int trace[128], traces, fail, stage, removal_sticks, seek_fails, show_fails, write_calls, switch_calls, dead;
-    int file, resource, loaded, old, undo, has_resource;
+    int file, resource, undo, has_resource, sought;
+    MMMovieScenes movie;
+    MMI32 scene_count;
+    SnapshotScene loaded, old, initial, restored, neighbor;
     MMSceneChopUndo *record;
 } Host;
 static void event(Host *h, int value)
@@ -48,7 +56,7 @@ static void release(void *p, void *obj)
 {
     Host *h = (Host *)p;
     CHECK(obj);
-    event(h, obj == &h->file ? 21 : obj == &h->old ? 22 : 23);
+    event(h, obj == &h->file ? 21 : 23);
     if (obj == &h->resource && h->record)
         CHECK(h->record->resource == obj);
 }
@@ -390,48 +398,139 @@ static void *read_snapshot(void *p, void *r, MMU32 number)
 {
     Host *h = (Host *)p;
     CHECK(r == &h->resource && number == 17);
-    return step(h, 6) ? &h->loaded : NULL;
+    if (!step(h, 6))
+        return NULL;
+    h->loaded.refs = 1;
+    return &h->loaded;
 }
-static int play(void *p, void *scene)
+static int play(void *p)
+{
+    SnapshotScene *scene = p;
+    Host *h = scene->host;
+    return scene != &h->loaded || step(h, 7);
+}
+static void *read_movie_scene(void *p, MMI32 index)
+{
+    Host *h = (Host *)p;
+    SnapshotScene *scene;
+    if (index == 2 && ++h->switch_calls == 1)
+    {
+        if (!step(h, 8))
+            return NULL;
+        event(h, 9);
+        scene = &h->old;
+    }
+    else if (index == 2)
+    {
+        if (h->scene_count == 4 && !step(h, 16))
+            return NULL;
+        scene = &h->restored;
+    }
+    else
+    {
+        CHECK(index == 1 || index == 3);
+        scene = index == 1 ? &h->initial : &h->neighbor;
+    }
+    CHECK(!scene->refs);
+    scene->refs = 1;
+    return scene;
+}
+static void retain(void *p)
+{
+    SnapshotScene *scene = p;
+    Host *h = scene->host;
+    CHECK(scene->refs > 0);
+    if (scene == &h->old)
+        event(h, 10);
+    ++scene->refs;
+}
+static void close_scene(void *p)
+{
+    SnapshotScene *scene = p;
+    Host *h = scene->host;
+    CHECK(scene->refs > 0);
+    if (!--scene->refs && (scene == &h->loaded || scene == &h->old))
+        event(h, scene == &h->loaded ? 25 : 26);
+}
+static void release_movie_scene(void *p)
+{
+    SnapshotScene *scene = p;
+    Host *h = scene->host;
+    CHECK(scene->refs > 0);
+    if (scene == &h->old)
+        event(h, 22);
+    --scene->refs;
+}
+static int open_archive(void *p)
+{
+    return step(p, 11);
+}
+static int temporary(void *p)
+{
+    Host *h = (Host *)p;
+    return h->scene_count == 4 || step(h, 15);
+}
+static int write_movie_scene(void *p, void *scene, MMU32 *number)
 {
     Host *h = (Host *)p;
     CHECK(scene == &h->loaded);
-    return step(h, 7);
+    *number = 10;
+    return 1;
 }
-static int switch_scene(void *p, MMI32 index)
+static void *archive(void *p) { return p; }
+static int succeed(void *p) { (void)p; return 1; }
+static void ignore(void *p) { (void)p; }
+static void move_child(void *p, void *f, MMI32 from, MMI32 to)
 {
-    Host *h = (Host *)p;
-    CHECK(index == 2);
-    return step(h, ++h->switch_calls == 1 ? 8 : 16);
+    CHECK(p == f && (to == from + 1 || to == from - 1));
 }
-static void *current(void *p)
+static MMU32 scene_number(void *p, void *f, MMI32 i)
 {
-    Host *h = (Host *)p;
-    CHECK(step(h, 9));
-    return &h->old;
+    CHECK(p == f && i == 3);
+    return 11;
 }
-static void retain(void *p, void *scene)
+static int adopt(void *p, void *f, MMU32 n, MMI32 i)
 {
-    Host *h = (Host *)p;
-    CHECK(scene == &h->old);
-    CHECK(step(h, 10));
+    CHECK(p == f && n == 10 && i == 2);
+    return 1;
 }
-static void close_scene(void *p, void *scene)
+static void unlink_scene(void *p, void *f, MMU32 n, MMI32 i)
 {
-    Host *h = (Host *)p;
-    event(h, scene == &h->loaded ? 25 : 26);
+    CHECK(p == f && n == 11 && i == 3);
 }
-static int insert(void *p, MMI32 index, void *scene)
+static MMMovieSceneServices scene_services(Host *h)
 {
-    Host *h = (Host *)p;
-    CHECK(index == 2 && scene == &h->loaded);
-    return step(h, 11);
-}
-static int remove_scene(void *p, MMI32 index)
-{
-    Host *h = (Host *)p;
-    CHECK(index == 3);
-    return step(h, 15);
+    MMMovieSceneServices s = {0};
+    h->initial.host = h->loaded.host = h->old.host = h->restored.host = h->neighbor.host = h;
+    h->initial.refs = 1;
+    h->movie.open = &h->initial;
+    h->movie.index = 1;
+    h->scene_count = 4;
+    s.context = h;
+    s.state = &h->movie;
+    s.count = &h->scene_count;
+    s.autosave = succeed;
+    s.make_resources = open_archive;
+    s.use_temporary = temporary;
+    s.stop_loops = s.memory_cleanup = ignore;
+    s.read = read_movie_scene;
+    s.start = play;
+    s.seek_first = succeed;
+    s.retain = retain;
+    s.release = release_movie_scene;
+    s.close = close_scene;
+    s.sound_frame = s.scene_change = ignore;
+    s.file = archive;
+    s.write = write_movie_scene;
+    s.move_child = move_child;
+    s.scene_number = scene_number;
+    s.adopt = adopt;
+    s.delete_child = unlink_scene;
+    s.save = s.dirty = s.rollcall_changed = ignore;
+    s.remove_actors = s.add_actors = ignore;
+    s.sounds_enabled = succeed;
+    s.play_sound = ignore;
+    return s;
 }
 static void delete_chunk(void *p, void *r, MMU32 number)
 {
@@ -447,13 +546,17 @@ static void rewind_scene(void *p, void *scene)
 }
 static void seek_scene(void *p, MMI32 frame)
 {
-    Host *h = (Host *)p;
-    CHECK(frame == 9);
+    SnapshotScene *scene = p;
+    Host *h = scene->host;
+    CHECK(frame == 9 && scene == &h->restored && h->movie.index == 2);
+    h->sought = 1;
     CHECK(step(h, 17));
 }
 static void invalidate(void *p)
 {
-    CHECK(step((Host *)p, 18));
+    Host *h = p;
+    if (h->sought)
+        CHECK(step(h, 18));
 }
 static void flush(void *p)
 {
@@ -479,19 +582,9 @@ static MMSceneSnapshotServices snapshots(Host *h)
     s.end = end;
     s.write = write;
     s.read = read_snapshot;
-    s.start = play;
-    s.switch_scene = switch_scene;
-    s.current = current;
-    s.retain = retain;
-    s.close = close_scene;
-    s.insert = insert;
-    s.remove = remove_scene;
     s.delete_chunk = delete_chunk;
     s.rewind = rewind_scene;
     s.seek = seek_scene;
-    s.invalidate = invalidate;
-    s.flush = flush;
-    s.clear = clear_snapshot;
     return s;
 }
 static void test_snapshot(void)
@@ -535,15 +628,20 @@ static void test_snapshot(void)
     }
     for (i = 0; i < 8; ++i)
     {
+        MMMovieSceneServices scenes;
         int ok;
         memset(&h, 0, sizeof(h));
         s = snapshots(&h);
+        scenes = scene_services(&h);
+        scenes.invalidate = invalidate;
+        scenes.flush_sound = flush;
+        scenes.clear_undo = clear_snapshot;
         h.fail = failures[i];
         h.record = (MMSceneChopUndo *)malloc(sizeof(*h.record));
         CHECK(h.record);
         h.record->resource = &h.resource;
         h.record->number = 17;
-        ok = mm_scene_chop_swap(h.record, 2, 9, &s);
+        ok = mm_scene_chop_swap(h.record, 2, 9, &s, &scenes);
         CHECK(ok == (i == 0 || i == 7));
         if (!ok)
         {
@@ -576,6 +674,8 @@ static void test_snapshot(void)
             mm_scene_chop_dispose(h.record, &s);
             free(h.record);
         }
+        mm_movie_scene_close_open(&scenes);
+        CHECK(!h.loaded.refs && !h.old.refs && !h.initial.refs && !h.restored.refs && !h.neighbor.refs);
     }
 }
 int main(void)

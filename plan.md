@@ -941,7 +941,10 @@ state and actor/caption selection, toggling, bulk/tag selection, group-tag edits
 and undo registration, and visible selection centroid policy now also use C89.
 Typed view/object effects remain adapters. Scene forward/backward chopping, its
 public undo transaction and persistent snapshot resource ownership/save/swap
-control now also use C89.
+control now also use C89. Background placement, movie scene undo, and chop
+undo share the C89 movie scene container for insertion, removal, and switching.
+The chop transaction uses the container's selected scene when it seeks the
+saved frame.
 Scene name/transition editing, persistent property undo payloads/swaps,
 transition-file read/modify/write and playback startup/shutdown now also use C89.
 Scene thumbnail generation, cache access and dirty propagation also use C89.

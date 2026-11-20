@@ -354,40 +354,42 @@ int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *s)
     return 1;
 }
 int mm_movie_scene_undo(int kind, MMI32 index, void *scene, const MMTag *tag, int redo,
-                              const MMMovieSceneUndoServices *s)
+                        const MMMovieSceneUndoServices *s)
 {
+    const MMMovieSceneServices *scenes = s->scenes;
+    void *context = scenes->context;
     int removed;
     if (kind != MM_MOVIE_INSERT_SCENE && kind != MM_MOVIE_REMOVE_SCENE)
     {
-        s->unknown(s->context);
+        s->unknown(context);
         goto fail;
     }
     removed = (kind == MM_MOVIE_REMOVE_SCENE) == !!redo;
     if (removed)
     {
-        if (!s->remove(s->context, index))
+        if (!mm_movie_scene_remove(index, scenes))
             goto fail;
     }
     else if (redo)
     {
         MMSceneEditServices edit;
         MMTag old;
-        if (!s->create(s->context, index))
+        if (!mm_movie_scene_new(index, scenes))
             goto fail;
-        edit = s->scene_edit(s->context);
+        edit = s->scene_edit(scenes->state->open);
         if (!mm_scene_background_edit(tag, &old, &edit))
         {
-            s->remove(s->context, index);
+            mm_movie_scene_remove(index, scenes);
             goto fail;
         }
     }
-    else if (!s->insert(s->context, index, scene))
+    else if (!mm_movie_scene_insert(index, scene, scenes))
         goto fail;
-    s->notify(s->context, removed);
-    s->flush(s->context);
+    s->notify(context, removed);
+    scenes->flush_sound(context);
     return 1;
 fail:
-    s->flush(s->context);
-    s->clear(s->context);
+    scenes->flush_sound(context);
+    scenes->clear_undo(context);
     return 0;
 }

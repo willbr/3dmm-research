@@ -16323,3 +16323,39 @@ matched retail's 60 frame identities in seek and playback and its seek
 camera indices. Both hosts matched their previous seek image hashes.
 SDL matched all 12 retail sound requests. Evidence is in
 `tmp/c89-movie-background-dispatch`.
+
+## C89 scene lifecycle in background placement and undo (20 November 2026)
+
+Studio background placement and movie scene undo call the C89 container
+directly to create, insert, and remove scenes. Scene chop undo uses the same
+controller to switch scenes and replace the chopped scene from its snapshot.
+The engine checks exercise both the archive callbacks and the selected scene
+through these transactions. They check reference release, cleanup after a
+failed first background, and the order of snapshot replacement and undo clear
+on failure.
+
+All 192 standalone checks and six AddressSanitizer checks passed. Seven
+targeted engine checks passed in SDL and native x64 and x86 builds. Ten Preview
+fingerprints and six Preview movies matched. Both VMM seek images in
+`20261120T172716Z-eee2c4e6` matched the archived SDL and Marcus captures.
+The three builds matched the frozen movie scene trace, 12 actor traces,
+three scene traces and the saved movie. The 14 Marcus syntax, playback
+and player checks passed.
+
+Studio exercised forward and backward chops on the middle scene of a
+three-scene movie, restored and reapplied the chops with Undo and Redo, and
+exercised scene removal Undo and Redo. The two Studio builds produced
+byte-identical movies for all four cases and reopened them at the expected
+scene ranges. Six background-placement and undo checkpoints also saved
+byte-identical movies, as did the separate Studio authoring workflow.
+
+In `20261120T172859Z-0ebf16b7`, retail, SDL and Marcus agreed on all 15
+scene, frame and camera records when seeking the saved forward chop. The
+two hosts agreed on every canvas image. Eleven immediate retail screenshots
+matched. A follow-up retail capture sampled the other four after allowing
+the display to settle. All four matched by the third sample at 400 ms intervals.
+
+In `actor-event-edit` suite `20261120T172716Z-72af7e36`, SDL and Marcus
+matched retail's 60 frame identities in seek and playback and its seek camera
+indices. Both matched their previous seek image hashes, and SDL matched all
+12 retail sound requests. Evidence is in `tmp/c89-movie-scene-lifecycle`.
