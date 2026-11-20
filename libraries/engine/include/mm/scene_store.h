@@ -9,7 +9,6 @@
 extern "C"
 {
 #endif
-    enum { MM_SCENE_ACTOR_CHUNK = 0x41435452 };
     typedef struct MMSceneCollectServices
     {
         void *context;
@@ -36,7 +35,6 @@ extern "C"
         MMMovieEmbeddedArchive assets;
         void (*free_sound_bytes)(void *, void *);
         int (*write_object)(void *, void *object, int kind, MMU32 number, MMU32 scene);
-        int (*read_background)(void *, const void *bytes, MMI32 size, MMTag *);
         void (*update_thumbnail)(void *);
         MMI32 (*thumbnail_size)(void *, void *thumbnail);
         int (*write_thumbnail)(void *, void *thumbnail, const MMStorageWriter *);

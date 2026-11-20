@@ -112,18 +112,25 @@ static int cels(void *v, void *t, MMU32 i, MMI32 *out)
         return 0;
     return step(h);
 }
-static int child(void *v, MMU32 type, MMU32 number, MMU32 slot, int actor, MMPreviewChunk *out)
+static int action_child(void *v, MMU32 type, MMU32 number, MMU32 slot, MMPreviewChunk *out)
 {
-    Host *h = (Host *)v;
+    (void)v;
     (void)type;
     assert(number == 9);
-    if (actor && h->missing_child)
-        return 0;
-    if (!actor && slot == 1)
+    if (slot == 1)
         return 0;
     memset(out, 0, sizeof(*out));
     out->type = 22;
-    out->number = actor ? slot + 90 : 50;
+    out->number = 50;
+    return 1;
+}
+static int scene_child(void *v, MMU32 number, MMU32 slot, MMU32 type, MMU32 *out)
+{
+    Host *h = (Host *)v;
+    assert(number == 9 && type == MM_SCENE_ACTOR_CHUNK);
+    if (h->missing_child)
+        return 0;
+    *out = slot + 90;
     return 1;
 }
 static MMU32 chunks(void *v)
@@ -323,7 +330,7 @@ static void setup(Host *h, MMPreviewAdmission *p, MMPreviewAdmissionServices *s,
     s->prop = prop;
     s->actions = actions;
     s->cels = cels;
-    s->child = child;
+    s->action_child = action_child;
     s->chunks = chunks;
     s->chunk = chunk;
     s->action_add = action_add;
@@ -336,6 +343,7 @@ static void setup(Host *h, MMPreviewAdmission *p, MMPreviewAdmissionServices *s,
     s->background = background;
     s->scene.context = h;
     s->scene.header = scene_header;
+    s->scene.child = scene_child;
     s->scene.group = group_read;
     s->scene.close = group_release;
     s->scene.event = event;

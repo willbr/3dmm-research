@@ -5,15 +5,7 @@
 #include "mm/scene_data.h"
 #include "mm/movie_sound.h"
 #include "mm/text_store.h"
-#include "mm/wide.h"
 #include <string.h>
-static void tag_from_event(MMTag *tag, const MMMovieSceneEvent *event)
-{
-    tag->sid = mm_signed_word(mm_movie_scene_event_word(event, 0));
-    tag->cache = NULL;
-    tag->type = mm_movie_scene_event_word(event, 8);
-    tag->number = mm_movie_scene_event_word(event, 12);
-}
 typedef struct CollectActorTags
 {
     MMTagList *list;
@@ -73,7 +65,7 @@ int mm_scene_collect_tags(MMU32 scene, MMTagList *tags, const MMSceneCollectServ
             {
                 if (event.bytes != 16)
                     goto fail;
-                tag_from_event(&tag, &event);
+                mm_movie_scene_event_tag(&event, &tag);
                 /* The movie already provides local backgrounds and their children. */
                 if (tag.sid ? !mm_background_tags(tags, &tag)
                             : mm_tag_list_insert(tags, &tag, 0) != MM_STORAGE_OK)
@@ -117,8 +109,6 @@ fail:
     read->close(read->context, &group);
     return 0;
 }
-#define THUMBNAIL_TYPE 0x5448554dUL
-
 static int store_sound(MMSceneTrack *frames, MMI32 index, const MMSceneTrackEvent *event,
                        MMU32 scene, const MMSceneStoreServices *s)
 {
@@ -199,12 +189,12 @@ static int store_thumbnail(const MMSceneStoreServices *s, MMU32 scene)
     if (!thumbnail)
         return 1;
     bytes = s->thumbnail_size(s->context, thumbnail);
-    if (bytes < 0 || !editor->add(editor->context, THUMBNAIL_TYPE, (MMU32)bytes, &child, &writer))
+    if (bytes < 0 || !editor->add(editor->context, MM_SCENE_THUMBNAIL_CHUNK, (MMU32)bytes, &child, &writer))
         return 0;
     if (s->write_thumbnail(s->context, thumbnail, &writer) &&
-        editor->adopt(editor->context, MM_SCENE_CHUNK, scene, THUMBNAIL_TYPE, child, 0))
+        editor->adopt(editor->context, MM_SCENE_CHUNK, scene, MM_SCENE_THUMBNAIL_CHUNK, child, 0))
         return 1;
-    editor->discard(editor->context, THUMBNAIL_TYPE, child);
+    editor->discard(editor->context, MM_SCENE_THUMBNAIL_CHUNK, child);
     return 0;
 }
 
@@ -262,8 +252,10 @@ int mm_scene_store(MMU32 *number, const MMSceneStoreServices *s)
         else if (event.kind == MM_SCENE_SET_BACKGROUND)
         {
             data = mm_scene_track_payload(live_starts, i, &bytes);
-            if (!data || !s->read_background(s->context, data, bytes, &tag) ||
-                (!tag.sid && !mm_movie_archive_embed_tag(&s->assets, MM_SCENE_CHUNK, *number, &tag)))
+            if (!data || bytes < (MMI32)sizeof(tag))
+                goto fail;
+            memcpy(&tag, data, sizeof(tag));
+            if (!tag.sid && !mm_movie_archive_embed_tag(&s->assets, MM_SCENE_CHUNK, *number, &tag))
                 goto fail;
             memcpy(wire_tag, &tag.sid, 4);
             memset(wire_tag + 4, 0, 4);

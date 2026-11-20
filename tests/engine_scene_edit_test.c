@@ -115,11 +115,6 @@ static void put(void *p, void *g, MMI32 i, const void *value)
     ++e->puts;
     note(e, 22);
 }
-static void event_tag(void *p, void *value, MMTag *tag)
-{
-    (void)p;
-    *tag = *(MMTag *)value;
-}
 static void publish_owner(void *p, void *scene, const MMSceneOwner *owner)
 {
     Edit *e = (Edit *)p;
@@ -458,7 +453,6 @@ static void init_edit(Edit *e)
     v = &s->sound.events;
     v->event = event;
     v->payload = payload;
-    v->read_tag = event_tag;
     v->fetch_background = fetch_back;
     v->set_camera = set_camera;
     v->camera = camera_value;

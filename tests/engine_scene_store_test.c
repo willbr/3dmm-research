@@ -292,14 +292,6 @@ static int write_object(void *p, void *value, int kind, MMU32 number, MMU32 scen
     return step(f, 75 + kind);
 }
 
-static int read_background(void *p, const void *data, MMI32 bytes, MMTag *tag)
-{
-    (void)p;
-    CHECK(bytes == sizeof(*tag));
-    memcpy(tag, data, sizeof(*tag));
-    return 1;
-}
-
 static int copy_background(void *p, const MMTag *tag, MMU32 *number, int *created)
 {
     StoreFixture *f = p;
@@ -454,7 +446,6 @@ static void init_store(StoreFixture *f)
     s->assets.copy_reference = copy_background;
     s->assets.adopt = adopt_background;
     s->assets.discard = discard_background;
-    s->read_background = read_background;
     s->update_thumbnail = update_thumbnail;
     s->thumbnail_size = thumbnail_size;
     s->write_thumbnail = write_thumbnail;

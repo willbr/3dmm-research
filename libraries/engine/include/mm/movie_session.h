@@ -106,6 +106,8 @@ typedef struct MMMovieSceneReader
 {
     void *context;
     int (*header)(void *, MMU32 number, MMMovieSessionScene *);
+    /* Resolve the exact link type and slot. The caller loads the linked chunk. */
+    int (*child)(void *, MMU32 scene, MMU32 slot, MMU32 type, MMU32 *number);
     int (*group)(void *, MMU32 number, int start, MMMovieSceneGroup *);
     void (*event)(void *, const MMMovieSceneGroup *, MMU32 index, MMMovieSceneEvent *);
     void (*close)(void *, MMMovieSceneGroup *);
@@ -123,6 +125,8 @@ MMMovieSceneReader mm_movie_scene_reader(MMMovieSceneSource *);
 MMMovieSceneReader mm_movie_scene_tag_reader(MMMovieSceneSource *);
 /* Read a complete 32-bit word within a validated event payload. */
 MMU32 mm_movie_scene_event_word(const MMMovieSceneEvent *, MMU32 offset);
+/* Decode the asset tag in a validated background start event. */
+void mm_movie_scene_event_tag(const MMMovieSceneEvent *, MMTag *);
 
 /* A null number or the nil chunk number selects the first MVIE. A successful
  * lookup publishes its number before validation, even if the header is invalid. */

@@ -3,6 +3,7 @@
 #include "mm/scene_events.h"
 #include "mm/movie_session.h"
 #include <stddef.h>
+#include <string.h>
 void *mm_scene_pick_actor(MMI32 x, MMI32 y, const MMScenePickServices *s)
 {
     MMI32 i;
@@ -28,7 +29,7 @@ int mm_scene_background_tag(MMTag *out, const MMSceneEventServices *s)
         s->event(s->context, group, i, &frame, &kind);
         if (kind == MM_SCENE_SET_BACKGROUND)
         {
-            s->read_tag(s->context, s->payload(s->context, group, i), out);
+            memcpy(out, s->payload(s->context, group, i), sizeof(*out));
             return 1;
         }
     }
@@ -67,7 +68,7 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
             s->play_sound(c, payload);
         break;
     case MM_SCENE_SET_BACKGROUND:
-        s->read_tag(c, payload, &tag);
+        memcpy(&tag, payload, sizeof(tag));
         object = s->fetch_background(c, &tag);
         if (!object)
             return 0;

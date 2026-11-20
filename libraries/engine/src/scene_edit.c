@@ -206,7 +206,7 @@ int mm_scene_background_edit(const MMTag *tag, MMTag *old, const MMSceneEditServ
         {
             if (event(1, i, &frame, s) != MM_SCENE_SET_BACKGROUND)
                 continue;
-            e->read_tag(e->context, payload(1, i, s), &value);
+            memcpy(&value, payload(1, i, s), sizeof(value));
             output_tag(old, &value, 0, s);
             if (!s->put_background(s->context, i, tag))
                 return 0;

@@ -66,7 +66,7 @@ extern "C"
         int (*prop)(void *, void *);
         MMI32 (*actions)(void *, void *);
         int (*cels)(void *, void *, MMU32, MMI32 *);
-        int (*child)(void *, MMU32 type, MMU32 number, MMU32 slot, int actor, MMPreviewChunk *);
+        int (*action_child)(void *, MMU32 type, MMU32 number, MMU32 slot, MMPreviewChunk *);
         MMU32 (*chunks)(void *);
         void (*chunk)(void *, MMU32, MMPreviewChunk *);
         int (*action_add)(void *, MMU32 action, MMU32 cels, MMI32 name_index);

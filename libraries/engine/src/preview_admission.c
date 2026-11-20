@@ -1,7 +1,6 @@
 #include "mm/preview_admission.h"
 #include "mm/archive_reader.h"
 #include "mm/scene_data.h"
-#include "mm/wide.h"
 #include <string.h>
 int mm_preview_budget(const MMPreviewBudgetServices *s, MMChunkEntry *failed)
 {
@@ -86,7 +85,7 @@ static int template_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices
         if (!r || count <= 0)
             break;
         name = -1;
-        if (s->child(s->context, p->type, p->number, i, 0, &child))
+        if (s->action_child(s->context, p->type, p->number, i, &child))
         {
             n = s->chunks(s->context);
             for (j = 0; j < n; ++j)
@@ -124,10 +123,10 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
     MMMovieSessionScene header;
     MMMovieSceneEvent event;
     MMPreviewAdmissionTag tag;
-    MMPreviewChunk child;
+    MMTag background_tag;
     MMPreviewLive *live = p->live;
     const MMMovieSceneReader *reader = &s->scene;
-    MMU32 i, word;
+    MMU32 i, word, child;
     MMI32 first, last;
     void *actor = 0;
     int r, result = MM_PREVIEW_ADMIT_OK, has_background = 0;
@@ -165,14 +164,14 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
             if (event.kind == MM_SCENE_ADD_ACTOR)
             {
                 word = mm_movie_scene_event_word(&event, 0);
-                if (!s->child(s->context, p->type, p->number, word, 1, &child))
+                if (!reader->child(reader->context, p->number, word, MM_SCENE_ACTOR_CHUNK, &child))
                 {
                     p->detail = word;
                     p->mark_chunk = 1;
                     result = MM_PREVIEW_ADMIT_ACTOR_CHILD;
                     goto done;
                 }
-                if (mm_array_add(&actors, &child.number, 0) != MM_STORAGE_OK)
+                if (mm_array_add(&actors, &child, 0) != MM_STORAGE_OK)
                 {
                     result = MM_PREVIEW_ADMIT_MEMORY;
                     goto done;
@@ -180,9 +179,10 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
             }
             else if (event.kind == MM_SCENE_SET_BACKGROUND)
             {
-                tag.source = mm_signed_word(mm_movie_scene_event_word(&event, 0));
-                tag.type = mm_movie_scene_event_word(&event, 8);
-                tag.number = mm_movie_scene_event_word(&event, 12);
+                mm_movie_scene_event_tag(&event, &background_tag);
+                tag.source = background_tag.sid;
+                tag.type = background_tag.type;
+                tag.number = background_tag.number;
                 has_background = 1;
             }
             else if (event.kind == MM_SCENE_CHANGE_CAMERA)

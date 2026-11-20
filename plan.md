@@ -148,8 +148,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Studio's live scene serializer builds its temporary wire tracks directly
   from the C-owned live tracks. The C89 transaction also allocates and
   links actor, caption, sound and thumbnail chunks through the shared
-  archive editor. Studio supplies typed object serialization, tag
+  archive editor. Studio supplies typed object serialization, sound-tag
   conversion and thumbnail rendering.
+- Studio also loads decoded scene events directly into the C-owned tracks.
+  Studio loading and Marcus preview and presentation resolve scene children
+  through the same reader. Live background events store C tags from loading
+  through editing, playback and serialization.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

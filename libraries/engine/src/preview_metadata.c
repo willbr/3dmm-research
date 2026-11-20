@@ -2,6 +2,7 @@
 #include "mm/movie_session.h"
 #include "mm/scene_data.h"
 #include "mm/scene_sound.h"
+#include "mm/text_store.h"
 #include <string.h>
 static int marker(void *events, MMI32 index, const MMActorEvent *e, const MMActorState *state, MMPreviewMarker *out,
                   const MMActorMotionServices *m)
@@ -291,14 +292,12 @@ static int present_sound(const MMMovieSceneEvent *event, const MMPreviewPresenta
     return 1;
 }
 
-static int present_group(const MMMovieSessionGraph *graph, const MMChunkAccess *chunks, MMU32 parent,
+static int present_group(const MMMovieSessionGraph *graph, MMU32 scene,
                          const MMMovieSceneReader *reader, const MMMovieSceneGroup *group, int sound_sheet,
                          int include_captions, const MMPreviewPresentationServices *s)
 {
-    const MMU32 actor_type = 0x41435452UL, text_type = 0x54424f58UL;
     MMMovieSceneEvent event;
-    MMChunkChild child;
-    MMU32 row, slot;
+    MMU32 row, slot, child;
     MMI32 kind, duration;
     int actor, result;
     for (row = 0; row < group->count; ++row)
@@ -308,9 +307,9 @@ static int present_group(const MMMovieSessionGraph *graph, const MMChunkAccess *
         if (actor || ((!sound_sheet || include_captions) && event.kind == MM_SCENE_ADD_TEXT))
         {
             slot = mm_movie_scene_event_word(&event, 0);
-            if (mm_chunk_child_exact(chunks, parent, slot, actor ? actor_type : text_type, &child) != MM_CHUNK_OK)
+            if (!reader->child(reader->context, scene, slot, actor ? MM_SCENE_ACTOR_CHUNK : MM_TEXT_BOX, &child))
                 return 0;
-            result = actor ? present_actor(graph, child.number, s) : s->caption(s->context, child.number);
+            result = actor ? present_actor(graph, child, s) : s->caption(s->context, child);
         }
         else if (event.kind == MM_SCENE_PAUSE)
         {
@@ -333,13 +332,10 @@ static int present_group(const MMMovieSessionGraph *graph, const MMChunkAccess *
 int mm_preview_presentation(const MMMovieSessionGraph *graph, MMU32 scene, int sound_sheet, int include_captions,
                             const MMPreviewPresentationServices *s)
 {
-    const MMU32 scene_type = 0x5343454eUL;
     MMMovieSceneSource source;
     MMMovieSceneReader reader;
     MMMovieSessionScene metadata;
     MMMovieSceneGroup group;
-    MMChunkAccess chunks;
-    MMU32 parent;
     int start, status, result;
     s->reset(s->context);
     source.movie = NULL;
@@ -349,15 +345,12 @@ int mm_preview_presentation(const MMMovieSessionGraph *graph, MMU32 scene, int s
     if (status != MM_MOVIE_OK)
         return presentation_status(status);
     s->transition(s->context, metadata.transition);
-    graph->access(graph->context, &chunks);
-    if (mm_chunk_find(&chunks, scene_type, scene, &parent) != MM_CHUNK_OK)
-        return 0;
     for (start = 1; start >= 0; --start)
     {
         status = reader.group(reader.context, scene, start, &group);
         if (status != MM_MOVIE_OK)
             return presentation_status(status);
-        result = present_group(graph, &chunks, parent, &reader, &group, sound_sheet, include_captions, s);
+        result = present_group(graph, scene, &reader, &group, sound_sheet, include_captions, s);
         reader.close(reader.context, &group);
         if (result <= 0)
             return result;

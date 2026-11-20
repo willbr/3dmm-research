@@ -761,6 +761,14 @@ MMU32 mm_movie_scene_event_word(const MMMovieSceneEvent *event, MMU32 offset)
     return mm_session_word(event->data + offset, event->big_endian);
 }
 
+void mm_movie_scene_event_tag(const MMMovieSceneEvent *event, MMTag *tag)
+{
+    tag->sid = mm_signed_word(mm_movie_scene_event_word(event, 0));
+    tag->cache = NULL;
+    tag->type = mm_movie_scene_event_word(event, 8);
+    tag->number = mm_movie_scene_event_word(event, 12);
+}
+
 static MMU32 event_width(void *p) { return ((const MMMovieGroup *)p)->header.width; }
 static MMU32 event_count(void *p) { return ((const MMMovieGroup *)p)->header.count; }
 static void event_fixed(void *p, MMU32 i, unsigned char out[8])
@@ -937,6 +945,17 @@ static int scene_reader_header(void *context, MMU32 number, MMMovieSessionScene 
     return read_scene(&view, &entry, position, out);
 }
 
+static int scene_reader_child(void *context, MMU32 scene, MMU32 slot, MMU32 type, MMU32 *number)
+{
+    const MMMovieSceneSource *source = (const MMMovieSceneSource *)context;
+    const MMMovieSessionGraph *graph = source->movie ? &source->movie->graph : &source->graph;
+    MMChunkAccess chunks;
+    if (!graph->access)
+        return 0;
+    graph->access(graph->context, &chunks);
+    return mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, slot, type, number) == MM_CHUNK_OK;
+}
+
 static int scene_reader_open_group(void *context, MMU32 number, int start, int for_tags, MMMovieSceneGroup *out)
 {
     const MMMovieSceneSource *source = (const MMMovieSceneSource *)context;
@@ -1005,6 +1024,7 @@ MMMovieSceneReader mm_movie_scene_reader(MMMovieSceneSource *source)
     MMMovieSceneReader reader;
     reader.context = source;
     reader.header = scene_reader_header;
+    reader.child = scene_reader_child;
     reader.group = scene_reader_group;
     reader.event = scene_reader_event;
     reader.close = scene_reader_close;

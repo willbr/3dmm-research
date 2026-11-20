@@ -30,7 +30,9 @@ extern "C"
     {
         MM_SCENE_CHUNK = 0x5343454e,
         MM_SCENE_FRAME_GROUP = 0x47474652,
-        MM_SCENE_START_GROUP = 0x47475354
+        MM_SCENE_START_GROUP = 0x47475354,
+        MM_SCENE_ACTOR_CHUNK = 0x41435452,
+        MM_SCENE_THUMBNAIL_CHUNK = 0x5448554d
     };
     typedef struct MMSceneState
     {

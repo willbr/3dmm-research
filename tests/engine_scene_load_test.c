@@ -1,4 +1,5 @@
 #include "mm/scene_load.h"
+#include "mm/text_store.h"
 #define SCENE_SOUND_FIXTURE_NO_PACKET_HELPERS
 #include "scene_sound_fixture.h"
 typedef union Payload {
@@ -25,6 +26,7 @@ typedef struct Loader
     LoadObject wire[2], background_cache, *scene;
     int attempt, fail, live, swap, names, published, log[512], used, locks;
     int actor_calls, resolve_calls, actor_fail, resolve_fail, no_thumbnail, bad_kind;
+    int track_allocations, fail_open, fail_track;
 } Loader;
 static void note(Loader *f, int value)
 {
@@ -34,6 +36,27 @@ static void note(Loader *f, int value)
 static int step(Loader *f)
 {
     return ++f->attempt != f->fail;
+}
+static void *resize_track(void *p, void *data, MMU32 old_bytes, MMU32 bytes, int priority)
+{
+    Loader *f = p;
+    int fresh = !data;
+    void *replacement;
+    (void)old_bytes;
+    if (priority == MM_STORAGE_SPEED || f->fail_track || !step(f))
+        return NULL;
+    replacement = realloc(data, (size_t)bytes);
+    CHECK(replacement);
+    f->track_allocations += fresh;
+    return replacement;
+}
+static void release_track(void *p, void *data, MMU32 bytes)
+{
+    Loader *f = p;
+    (void)bytes;
+    CHECK(f->track_allocations > 0);
+    --f->track_allocations;
+    free(data);
 }
 static void *new_object(Loader *f, int type)
 {
@@ -50,9 +73,11 @@ static void *new_object(Loader *f, int type)
 static void *new_scene(void *p, void *movie)
 {
     Loader *f = (Loader *)p;
+    MMStorageAllocator allocator = {NULL, resize_track, release_track};
+    allocator.context = f;
     f->scene = (LoadObject *)new_object(f, 200);
     if (f->scene)
-        mm_scene_owner_init(&f->owner, movie, NULL);
+        mm_scene_owner_init(&f->owner, movie, &allocator);
     return f->scene;
 }
 static MMSceneOwner *owner_state(void *p, void *scene)
@@ -60,10 +85,6 @@ static MMSceneOwner *owner_state(void *p, void *scene)
     Loader *f = (Loader *)p;
     CHECK(scene == f->scene);
     return &f->owner;
-}
-static void *new_slot(void *p, int type)
-{
-    return new_object((Loader *)p, type);
 }
 static void publish_owner(void *p, void *scene, const MMSceneOwner *o)
 {
@@ -92,27 +113,25 @@ static void release_object(void *p, void *value)
 static MMI32 group_count(void *p, void *g)
 {
     (void)p;
-    return ((LoadObject *)g)->count;
+    return ((const MMSceneTrack *)g)->rows.count;
 }
 static MMI32 group_kind(void *p, void *g, MMI32 i)
 {
-    MMI32 kind;
+    MMSceneTrackEvent event;
     (void)p;
-    memcpy(&kind, ((LoadObject *)g)->events[i].fixed + 4, 4);
-    return kind;
+    CHECK(mm_scene_track_get(g, i, &event));
+    return event.kind;
 }
 static void *group_payload(void *p, void *g, MMI32 i, MMI32 *bytes)
 {
-    LoadEvent *e = &((LoadObject *)g)->events[i];
     (void)p;
-    *bytes = e->bytes;
-    return e->payload.bytes;
+    return mm_scene_track_payload(g, i, bytes);
 }
 static void *group_object(void *p, void *g, MMI32 i)
 {
     void *object;
     (void)p;
-    memcpy(&object, ((LoadObject *)g)->events[i].payload.bytes, sizeof(object));
+    memcpy(&object, mm_scene_track_payload(g, i, NULL), sizeof(object));
     return object;
 }
 static MMI32 sound_count(void *p, void *sound)
@@ -176,15 +195,16 @@ static void publish_metadata(void *p, void *scene, const MMSceneState *value)
     f->published = 1;
     note(f, 2);
 }
-static int child(void *p, MMU32 scene, int kind, MMU32 id, MMU32 *number)
+static int child(void *p, MMU32 scene, MMU32 id, MMU32 type, MMU32 *number)
 {
     Loader *f = (Loader *)p;
     CHECK(scene == 42 && f->published);
-    if (!step(f) || (kind == MM_SCENE_THUMBNAIL && f->no_thumbnail))
+    if (!step(f) || (type == MM_SCENE_THUMBNAIL_CHUNK && f->no_thumbnail))
         return 0;
-    if (kind == MM_SCENE_ACTORS || kind == MM_SCENE_TEXTS)
-        CHECK(id == 7);
-    *number = (MMU32)kind + 100;
+    CHECK(type == MM_SCENE_THUMBNAIL_CHUNK ? id == 0 :
+          (type == MM_SCENE_ACTOR_CHUNK || type == MM_TEXT_BOX) && id == 7);
+    *number = type == MM_SCENE_THUMBNAIL_CHUNK ? (100 + MM_SCENE_THUMBNAIL) :
+              type == MM_SCENE_ACTOR_CHUNK ? (100 + MM_SCENE_ACTORS) : (100 + MM_SCENE_TEXTS);
     return 1;
 }
 static void *thumbnail(void *p, MMU32 number)
@@ -231,29 +251,6 @@ static void *read_object(void *p, MMU32 number, int kind, void *scene)
     CHECK(number == (kind == MM_SCENE_ADD_ACTOR ? 100 + MM_SCENE_ACTORS : 100 + MM_SCENE_TEXTS));
     return new_object(f, 300 + kind);
 }
-static int insert(void *p, void *g, MMI32 i, MMI32 frame, int kind, MMI32 bytes, const void *payload)
-{
-    Loader *f = (Loader *)p;
-    LoadObject *group = (LoadObject *)g;
-    LoadEvent *e;
-    CHECK(i == group->count && i < 8 && bytes >= 0 && bytes <= 160);
-    CHECK(frame == 3);
-    if (!step(f))
-        return 0;
-    e = &group->events[i];
-    memcpy(e->fixed, &frame, 4);
-    memcpy(e->fixed + 4, &kind, 4);
-    e->bytes = bytes;
-    memcpy(e->payload.bytes, payload, (size_t)bytes);
-    ++group->count;
-    return 1;
-}
-static int insert_tag(void *p, void *g, MMI32 i, MMI32 frame, const MMTag *tag)
-{
-    Loader *f = (Loader *)p;
-    CHECK(tag->sid == 0 && tag->cache == &f->background_cache && tag->type == 23 && tag->number == 9);
-    return insert(p, g, i, frame, MM_SCENE_SET_BACKGROUND, sizeof(*tag), tag);
-}
 static void *retain_background_cache(void *p)
 {
     Loader *f = (Loader *)p;
@@ -267,7 +264,7 @@ static int open_tag(void *p, MMSceneSound *sound, MMI32 i)
 {
     Loader *f = (Loader *)p;
     Record *r = at(sound, i);
-    if (!step(f))
+    if (!step(f) || f->fail_open == i + 1)
         return 0;
     CHECK(r->child == (MMU32)i + 1 && !r->tag.cache);
     if (!r->tag.sid)
@@ -281,8 +278,9 @@ static int open_tag(void *p, MMSceneSound *sound, MMI32 i)
 static void load_name(void *p, void *scene, MMU32 number)
 {
     Loader *f = (Loader *)p;
-    CHECK(scene == f->scene && number == 42 && ((LoadObject *)f->owner.owned[0])->count == 3 &&
-          ((LoadObject *)f->owner.owned[1])->count == 4);
+    CHECK(scene == f->scene && number == 42 && f->owner.owned[0] == &f->owner.tracks[0] &&
+          f->owner.owned[1] == &f->owner.tracks[1] &&
+          f->owner.tracks[0].rows.count == 3 && f->owner.tracks[1].rows.count == 4);
     ++f->names;
     note(f, 3);
 }
@@ -336,15 +334,13 @@ static void init_loader(Loader *f, int swap)
     s->packets.allocate = packet_allocate;
     s->read.context = f;
     s->read.header = metadata;
+    s->read.child = child;
     s->read.group = read_group;
     s->read.event = read_event;
     s->read.close = release_group;
     s->publish_metadata = publish_metadata;
-    s->child = child;
     s->thumbnail = thumbnail;
     s->object = read_object;
-    s->insert = insert;
-    s->insert_tag = insert_tag;
     s->retain_background_cache = retain_background_cache;
     s->open_tag = open_tag;
     s->load_name = load_name;
@@ -354,7 +350,6 @@ static void init_loader(Loader *f, int swap)
     o->sound_header_bytes = 16;
     o->sound_tag_bytes = sizeof(Record);
     o->create_scene = new_scene;
-    o->create_slot = new_slot;
     o->state = owner_state;
     o->publish = publish_owner;
     o->reset_cursor = reset;
@@ -374,14 +369,18 @@ static void init_loader(Loader *f, int swap)
 }
 static void check_clean(Loader *f)
 {
-    CHECK(!f->live);
+    CHECK(!f->live && !f->track_allocations);
     CHECK(!f->wire[0].refs && !f->wire[1].refs);
     clean(&f->packets);
 }
 static void test_load(void)
 {
     Loader f;
-    LoadObject *scene, *frames;
+    LoadObject *scene;
+    MMSceneTrack *frames;
+    MMSceneTrackEvent event;
+    MMTag tag;
+    MMI32 bytes;
     int swap, fail, attempts, j, last;
     for (swap = 0; swap < 2; ++swap)
     {
@@ -389,10 +388,13 @@ static void test_load(void)
         scene = (LoadObject *)mm_scene_load(&f, 42, 1, &f.s);
         CHECK(scene && f.names == 1);
         attempts = f.attempt;
-        frames = (LoadObject *)f.owner.owned[0];
-        CHECK(frames->events[0].bytes == (int)(16 + 3 * sizeof(Record)));
-        CHECK(!memcmp(frames->events[1].payload.bytes, f.wire[0].events[1].payload.bytes, 4));
-        CHECK(!memcmp(frames->events[2].payload.bytes, f.wire[0].events[2].payload.bytes, 8));
+        frames = &f.owner.tracks[MM_SCENE_FRAMES];
+        CHECK(mm_scene_track_payload(frames, 0, &bytes) && bytes == (int)(16 + 3 * sizeof(Record)));
+        CHECK(mm_scene_track_get(frames, 0, &event) && event.frame == 3 && event.kind == MM_SCENE_PLAY_SOUND);
+        CHECK(!memcmp(mm_scene_track_payload(frames, 1, NULL), f.wire[0].events[1].payload.bytes, 4));
+        CHECK(!memcmp(mm_scene_track_payload(frames, 2, NULL), f.wire[0].events[2].payload.bytes, 8));
+        memcpy(&tag, mm_scene_track_payload(&f.owner.tracks[MM_SCENE_STARTS], 0, NULL), sizeof(tag));
+        CHECK(tag.sid == 0 && tag.cache == &f.background_cache && tag.type == 23 && tag.number == 9);
         CHECK(f.packets.refs[1] == 1 && f.packets.refs[3] == 1 && !f.packets.refs[2]);
         release_object(&f, scene);
         check_clean(&f);
@@ -413,7 +415,7 @@ static void test_load(void)
         }
         /* Failed second open closes only tag zero, before packet and wire release. */
         init_loader(&f, swap);
-        f.fail = 10;
+        f.fail_open = 2;
         CHECK(!mm_scene_load(&f, 42, 1, &f.s));
         last = -1;
         for (j = 0; j < f.used; ++j)
@@ -423,7 +425,7 @@ static void test_load(void)
         check_clean(&f);
         /* Failed insertion closes all newly opened tags in reverse order. */
         init_loader(&f, swap);
-        f.fail = 12;
+        f.fail_track = 1;
         CHECK(!mm_scene_load(&f, 42, 1, &f.s));
         last = -1;
         for (j = 0; j < f.used; ++j)

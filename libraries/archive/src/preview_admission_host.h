@@ -147,17 +147,16 @@ struct Preview::Impl::AdmissionHost
                 return ok;
             });
         };
-        s.child = [](void *v, MMU32 type, MMU32 number, MMU32 slot, int actor, MMPreviewChunk *out) -> int {
+        s.action_child = [](void *v, MMU32 type, MMU32 number, MMU32 slot, MMPreviewChunk *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             const auto &graph = h.sceneSource.graph;
             MMChunkAccess chunks;
             graph.access(graph.context, &chunks);
-            const MMU32 childType = actor ? kctgActr : kctgActn;
             MMU32 child;
-            if (mm_chunk_link_number(&chunks, type, number, slot, childType, &child) != MM_CHUNK_OK)
+            if (mm_chunk_link_number(&chunks, type, number, slot, kctgActn, &child) != MM_CHUNK_OK)
                 return 0;
             *out = {};
-            out->type = childType;
+            out->type = kctgActn;
             out->number = child;
             return 1;
         };

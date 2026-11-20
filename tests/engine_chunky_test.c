@@ -1193,13 +1193,21 @@ static void check_scene_reader(MMMovieSceneSource *source, int big, MMU32 backgr
     MMMovieSessionScene header;
     MMMovieSceneGroup group = {NULL, 0};
     MMMovieSceneEvent event;
+    MMTag tag;
+    MMU32 child = 99;
     CHECK(reader.header(reader.context, 36, &header) == MM_MOVIE_OK && header.number == 36 &&
           header.first_frame == 1 && header.last_frame == 10);
     CHECK(reader.header(reader.context, 17, &header) == MM_MOVIE_SCENE_NOT_FOUND && header.number == 36);
+    CHECK(reader.child(reader.context, 36, 0, MM_SCENE_FRAME_GROUP, &child) && child == 13);
+    CHECK(!reader.child(reader.context, 36, 0, MM_SCENE_START_GROUP, &child) && child == 13);
+    CHECK(!reader.child(reader.context, 17, 0, MM_SCENE_FRAME_GROUP, &child) && child == 13);
+    CHECK(reader.child(reader.context, 36, 1, MM_SCENE_START_GROUP, &child) && child == 14);
     CHECK(reader.group(reader.context, 36, 1, &group) == MM_MOVIE_OK && group.count == 1);
     reader.event(reader.context, &group, 0, &event);
     CHECK(event.kind == MM_SCENE_SET_BACKGROUND && event.big_endian == big && event.bytes == 16 &&
           mm_movie_scene_event_word(&event, 0) == background_source && mm_movie_scene_event_word(&event, 12) == 4);
+    mm_movie_scene_event_tag(&event, &tag);
+    CHECK(tag.sid == (MMI32)background_source && !tag.cache && tag.type == 0x424b4744UL && tag.number == 4);
     reader.close(reader.context, &group);
     CHECK(!group.handle && !group.count);
     CHECK(reader.group(reader.context, 36, 0, &group) == MM_MOVIE_OK && group.count == 3);

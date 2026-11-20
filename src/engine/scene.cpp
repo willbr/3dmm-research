@@ -806,11 +806,6 @@ MMSceneEventServices Scene::_EventServices()
     s.play_sound = [](void *p, void *payload) {
         static_cast<PSceneSoundEvent>(payload)->PlayAllSounds(static_cast<PScene>(p)->Pmvie());
     };
-    s.read_tag = [](void *, void *payload, MMTag *out) {
-        auto tag = static_cast<PTAG>(payload);
-        // Preserve even the unused cache field of non-cache source tags.
-        *out = {tag->sid, tag->pcrf, tag->ctg, tag->cno};
-    };
     s.fetch_background = [](void *, MMTag *value) -> void * {
         TAG tag;
         TagFromCore(&tag, *value);
@@ -2052,19 +2047,14 @@ MMSceneEditServices Scene::_EditServices()
                  "invalid scene event index");
     };
     s.put_background = [](void *p, MMI32 i, const MMTag *value) -> int {
-        TAG tag;
-        TagFromCore(&tag, *value);
-        return mm_scene_track_put(static_cast<PScene>(p)->_StartTrack(), i, sizeof(tag), &tag);
+        return mm_scene_track_put(static_cast<PScene>(p)->_StartTrack(), i, sizeof(*value), value);
     };
     s.insert_background = [](void *p, MMI32 frame, const MMTag *value) -> int {
-        TAG tag;
-        TagFromCore(&tag, *value);
         SceneEvent event = {frame, sevtSetBkgd};
-        return InsertSceneTrackEvent(static_cast<PScene>(p)->_StartTrack(), 0, sizeof(tag), &tag, event);
+        return InsertSceneTrackEvent(static_cast<PScene>(p)->_StartTrack(), 0, sizeof(*value), value, event);
     };
     s.play_background = [](void *p, MMI32 frame, const MMTag *value, MMU32 mask) -> int {
-        TAG tag;
-        TagFromCore(&tag, *value);
+        auto tag = *value;
         SceneEvent event = {frame, sevtSetBkgd};
         return static_cast<PScene>(p)->_FPlaySev(&event, &tag, mask);
     };
@@ -2289,15 +2279,6 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
     s.publish_metadata = [](void *, void *scene, const MMSceneState *value) {
         static_cast<MMSceneState &>(static_cast<PScene>(scene)->_data) = *value;
     };
-    s.child = [](void *p, MMU32 scene, int kind, MMU32 child, MMU32 *number) -> int {
-        const ChunkTagOrType type = kind == MM_SCENE_ACTORS ? kctgActr
-                                  : kind == MM_SCENE_TEXTS ? kctgTbox : kctgThumbMbmp;
-        ChildChunkIdentification kid;
-        if (!static_cast<Host *>(p)->file->FGetKidChidCtg(kctgScen, scene, child, type, &kid))
-            return 0;
-        *number = kid.cki.cno;
-        return 1;
-    };
     s.thumbnail = [](void *p, MMU32 number) -> void * {
         return MaskedBitmapMBMP::PmbmpReadChunk(static_cast<Host *>(p)->file, kctgThumbMbmp, number);
     };
@@ -2306,17 +2287,6 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
         return kind == MM_SCENE_ADD_ACTOR
                    ? static_cast<void *>(Actor::PactrRead(resources, number))
                    : static_cast<void *>(TextBox::PtboxRead(resources, number, static_cast<PScene>(scene)));
-    };
-    s.insert = [](void *, void *g, MMI32 index, MMI32 frame, int kind, MMI32 bytes,
-                  const void *payload) -> int {
-        SceneEvent event = {frame, static_cast<SceneEventType>(kind)};
-        return InsertSceneTrackEvent(static_cast<MMSceneTrack *>(g), index, bytes, payload, event);
-    };
-    s.insert_tag = [](void *, void *g, MMI32 index, MMI32 frame, const MMTag *value) -> int {
-        TAG tag;
-        TagFromCore(&tag, *value);
-        SceneEvent event = {frame, sevtSetBkgd};
-        return InsertSceneTrackEvent(static_cast<MMSceneTrack *>(g), index, sizeof(tag), &tag, event);
     };
     s.retain_background_cache = [](void *p) -> void * {
         auto cache = static_cast<Host *>(p)->resources;
@@ -2405,14 +2375,6 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         auto file = static_cast<Host *>(p)->file;
         return kind == MM_SCENE_ADD_ACTOR ? static_cast<PActor>(object)->FWrite(file, n, scene)
                                         : static_cast<PTBOX>(object)->FWrite(file, n);
-    };
-    s.read_background = [](void *, const void *data, MMI32 bytes, MMTag *out) -> int {
-        TAG tag;
-        if (bytes < static_cast<MMI32>(sizeof(tag)))
-            return false;
-        std::memcpy(&tag, data, sizeof(tag));
-        *out = TagToCore(tag);
-        return true;
     };
     s.update_thumbnail = [](void *p) { static_cast<Host *>(p)->scene->_UpdateThumbnail(); };
     s.thumbnail_size = [](void *, void *p) -> MMI32 { return static_cast<PMaskedBitmapMBMP>(p)->CbOnFile(); };

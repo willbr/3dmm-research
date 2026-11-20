@@ -16,12 +16,8 @@ extern "C"
         MMSceneSoundPacketServices packets;
         MMMovieSceneReader read;
         void (*publish_metadata)(void *, void *scene, const MMSceneState *);
-        int (*child)(void *, MMU32 scene, int kind, MMU32 child, MMU32 *number);
         void *(*thumbnail)(void *, MMU32 number);
         void *(*object)(void *, MMU32 number, int kind, void *scene);
-        int (*insert)(void *, void *group, MMI32 index, MMI32 frame, int kind, MMI32 bytes,
-                      const void *payload);
-        int (*insert_tag)(void *, void *group, MMI32 index, MMI32 frame, const MMTag *);
         void *(*retain_background_cache)(void *); /* Returns one reference to the document's live cache. */
         int (*open_tag)(void *, MMSceneSound *, MMI32 index);
         void (*load_name)(void *, void *scene, MMU32 number);
@@ -31,13 +27,14 @@ extern "C"
      * The read group owns its wire bytes. Fixed headers and child/
      * background words are decoded into local values; pause/camera bytes pass through
      * unchanged, including opposite-order payloads. Document-owned background
-     * tags borrow a cache retained by the scene. Sound decoding normalizes its
-     * private wire payload before allocation, as in the packet codec. Insert copies
+     * MMTag payloads borrow a cache retained by the scene. Sound decoding normalizes its
+     * private wire payload before allocation, as in the packet codec. Track insertion copies
      * payload bytes and transfers embedded references only on success. Callbacks must
      * not reenter loading, mutate input groups or resize live temporary packets.
      * Failure closes the current sound's opened prefix in reverse order, releases
      * the wire group, then unwinds completed start/frame prefixes before destruction.
-     * Native objects, lists, file lookup and codecs are supplied as host primitives. */
+     * The scene owns both C tracks. Native object factories and cache services
+     * are supplied by the host. */
     void *mm_scene_load(void *movie, MMU32 number, unsigned text_unit, const MMSceneLoadServices *);
     typedef struct MMSceneResolveServices
     {

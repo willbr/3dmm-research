@@ -19,7 +19,6 @@ enum
     FREE,
     PUBLISH,
     PLAY,
-    TAG,
     FETCH,
     CAMERA,
     TRANS,
@@ -156,11 +155,6 @@ static void play(void *p, void *packet)
     ++f->sounds;
     log_op(f, PLAY);
 }
-static void read_tag(void *p, void *packet, MMTag *tag)
-{
-    log_op((Fixture *)p, TAG);
-    *tag = ((Payload *)packet)->tag;
-}
 static void *fetch(void *p, MMTag *tag)
 {
     Fixture *f = (Fixture *)p;
@@ -273,7 +267,8 @@ static void *payload(void *p, void *group, MMI32 index)
     ++f->payloads;
     f->last_payload = index;
     log_op(f, PAYLOAD);
-    return &g->events[index].payload;
+    return g->events[index].kind == MM_SCENE_SET_BACKGROUND ? (void *)&g->events[index].payload.tag
+                                                           : (void *)&g->events[index].payload;
 }
 static void init(Fixture *f)
 {
@@ -311,7 +306,6 @@ static void init(Fixture *f)
     s->sound_style = sound_style;
     s->duplicate_sound = duplicate;
     s->play_sound = play;
-    s->read_tag = read_tag;
     s->fetch_background = fetch;
     s->set_camera = camera;
     s->transition = transition;
@@ -329,7 +323,8 @@ static void init(Fixture *f)
 }
 static int dispatch(Fixture *f, int kind, unsigned mask)
 {
-    return mm_scene_play_event(8, kind, &f->packet, mask, &f->s);
+    void *bytes = kind == MM_SCENE_SET_BACKGROUND ? (void *)&f->packet.tag : (void *)&f->packet;
+    return mm_scene_play_event(8, kind, bytes, mask, &f->s);
 }
 static void cleanup(Fixture *f)
 {
@@ -368,28 +363,28 @@ static void sounds(void)
 static void backgrounds(void)
 {
     Fixture f;
-    static const int no_fetch[] = {TAG, FETCH}, no_camera[] = {TAG, FETCH, CAMERA, RELEASE};
-    static const int loaded[] = {TAG, FETCH, CAMERA, TRANS, SET_TRANS, PUBLISH, PUB_TAG};
-    static const int retained[] = {TAG, FETCH, CAMERA, TRANS, PUBLISH, PUB_TAG};
+    static const int no_fetch[] = {FETCH}, no_camera[] = {FETCH, CAMERA, RELEASE};
+    static const int loaded[] = {FETCH, CAMERA, TRANS, SET_TRANS, PUBLISH, PUB_TAG};
+    static const int retained[] = {FETCH, CAMERA, TRANS, PUBLISH, PUB_TAG};
     init(&f);
     f.fetch_fail = 1;
     CHECK(!dispatch(&f, MM_SCENE_SET_BACKGROUND, 65535));
-    expect(&f, no_fetch, 2);
+    expect(&f, no_fetch, sizeof(no_fetch) / sizeof(*no_fetch));
     CHECK(!f.owner.owned[MM_SCENE_BACKGROUND] && f.transition == -1);
     f.fetch_fail = 0;
     f.camera_fail = 1;
     CHECK(!dispatch(&f, MM_SCENE_SET_BACKGROUND, 0));
-    expect(&f, no_camera, 4);
+    expect(&f, no_camera, sizeof(no_camera) / sizeof(*no_camera));
     CHECK(f.releases == 1 && !f.owner.owned[MM_SCENE_BACKGROUND] && f.transition == -1);
     f.camera_fail = 0;
     CHECK(dispatch(&f, MM_SCENE_SET_BACKGROUND, 65535));
-    expect(&f, loaded, 7);
+    expect(&f, loaded, sizeof(loaded) / sizeof(*loaded));
     CHECK(f.transition == 0 && f.camera == 0 && f.published.number == 17 && f.published.cache == &f &&
           f.published.sid == 3);
     init(&f);
     f.transition = 3;
     CHECK(dispatch(&f, MM_SCENE_SET_BACKGROUND, 0));
-    expect(&f, retained, 6);
+    expect(&f, retained, sizeof(retained) / sizeof(*retained));
     CHECK(f.transition == 3);
 }
 static void objects(void)
@@ -552,7 +547,7 @@ static void background_query(void)
 {
     Fixture f;
     MMTag out;
-    const int found[] = {EVENT, EVENT, PAYLOAD, TAG};
+    const int found[] = {EVENT, EVENT, PAYLOAD};
     init(&f);
     out.sid = 99;
     out.cache = &f.objects[3];

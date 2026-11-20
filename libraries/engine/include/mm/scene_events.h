@@ -35,7 +35,6 @@ extern "C"
         int (*sound_style)(void *, void *payload);
         void *(*duplicate_sound)(void *, void *payload);
         void (*play_sound)(void *, void *payload);
-        void (*read_tag)(void *, void *payload, MMTag *);
         void *(*fetch_background)(void *, MMTag *);
         int (*set_camera)(void *, void *background, MMI32 camera);
         int (*transition)(void *);
@@ -54,7 +53,8 @@ extern "C"
     /* Valid native-order event payloads and initialized state/services required.
      * Synchronous callbacks must not reenter dispatch or mutate the event groups.
      * Groups/payloads and roll-call objects are borrowed; start events own objects.
-     * Background fetch/duplicate_sound return newly owned references. Camera
+     * Background payloads hold an MMTag. Background fetch and duplicate_sound
+     * return newly owned references. Camera
      * payloads are host-order MMI32 values, including synthetic zero.
      * Set-background requires a vacant owner slot. Sound/pause/camera suppression
      * does not suppress MIDI caching, pause notifications or the background-required diagnostic.
