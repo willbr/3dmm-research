@@ -120,24 +120,25 @@ static void attach(void *handle, void *texture, void *raw, const MMMaterialShade
     d.index_range = (unsigned)(s->height(s->context, index_shade) - 1) & 255U;
     s->configure(s->context, handle, &d);
 }
-static int read_header(void *block, void *bytes, MMI32 size, const MMMaterialServices *s)
+static int read_header(MMOwnedBlock *block, void *bytes, MMU32 size, const MMMaterialServices *s)
 {
-    return block && s->unpack(s->context, block) && s->size(s->context, block) >= size &&
-           s->read(s->context, block, bytes, size);
+    MMBlockIO io;
+    return mm_owned_block_code(block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
+           block->view.length >= size && mm_owned_block_io(block, &io) == MM_DATA_OK &&
+           mm_block_read(&io, 0, bytes, size, 0) == MM_DATA_OK;
 }
-static int read_material(void *object, void *cache, MMU32 type, MMU32 number, void *block,
-                         const MMMaterialShade *shade, const MMMaterialServices *s)
+static int read_material(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                         MMOwnedBlock *scratch, const MMMaterialShade *shade, const MMMaterialServices *s)
 {
     MMMaterialResource *m = s->material_state(s->context, object);
     MMMaterialDescription d;
-    MMMaterialChild child;
+    MMChunkAccess graph;
+    MMU32 child;
     unsigned char b[28];
     MMI32 matrix[6];
     unsigned i;
     int big;
     void *texture;
-    if (!block)
-        block = s->find(s->context, cache, type, number);
     if (!read_header(block, b, 20, s))
         return 0;
     if (!mm_material_header_read(b, s->host_big_endian, s->windows_system, &d))
@@ -150,16 +151,18 @@ static int read_material(void *object, void *cache, MMU32 type, MMU32 number, vo
     d.opacity = 255;
     d.flags = s->light_flag | s->smooth_flag;
     s->configure(s->context, m->handle, &d);
-    if (s->child(s->context, cache, type, number, 0, s->texture_type, &child))
+    graph = mm_resource_cache_chunks(cache);
+    if (mm_chunk_link_number(&graph, type, number, 0, s->texture_type, &child) == MM_CHUNK_OK)
     {
-        texture = s->fetch(s->context, cache, &child, MM_MATERIAL_TEXTURE);
+        texture = mm_resource_cache_fetch_chunk(cache, s->texture_type, child, s->texture_reader);
         if (!texture)
             return 0;
         attach(m->handle, texture, NULL, shade, s);
-        if (s->child(s->context, cache, type, number, 0, s->transform_type, &child))
+        graph = mm_resource_cache_chunks(cache);
+        if (mm_chunk_link_number(&graph, type, number, 0, s->transform_type, &child) == MM_CHUNK_OK)
         {
-            block = s->find(s->context, cache, child.type, child.number);
-            if (!read_header(block, b, 28, s))
+            if (mm_resource_cache_read_block(cache, s->transform_type, child, scratch) != MM_CHUNK_OK ||
+                !read_header(scratch, b, 28, s))
             {
                 s->release(s->context, texture);
                 s->map(s->context, m->handle, NULL, NULL);
@@ -180,15 +183,20 @@ static int read_material(void *object, void *cache, MMU32 type, MMU32 number, vo
     s->add_material(s->context, m->handle);
     return 1;
 }
-int mm_material_read(void *object, void *cache, MMU32 type, MMU32 number, void *block,
-                           const MMMaterialShade *shade, const MMMaterialServices *s)
+int mm_material_read(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                     const MMMaterialShade *shade, const MMMaterialServices *s)
 {
-    int ok = read_material(object, cache, type, number, block, shade, s);
-    s->close_block(s->context);
+    MMOwnedBlock scratch;
+    int ok = 0;
+    if (mm_owned_block_init(&scratch, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
+        return 0;
+    if (block || mm_resource_cache_read_block(cache, type, number, &scratch) == MM_CHUNK_OK)
+        ok = read_material(object, cache, type, number, block ? block : &scratch, &scratch, shade, s);
+    mm_owned_block_clear(&scratch);
     return ok;
 }
-int mm_material_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *out, void *size,
-                            const MMMaterialShade *shade, const MMMaterialServices *s)
+int mm_material_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void *out, void *size,
+                      const MMMaterialShade *shade, const MMMaterialServices *s)
 {
     void *object;
     memcpy(size, &s->material_bytes, 4);

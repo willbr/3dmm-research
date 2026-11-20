@@ -885,8 +885,10 @@ glyph geometry adjustments and prelighting lifetime/control now also use C89.
 The native Model facade retains BRender field/allocation and block/file services.
 Material/custom-material construction, factories, wire I/O, shade-table
 replacement, texture/model reference ownership and PIX/BMP import orchestration
-now also use C89. Native adapters retain BRender field access, object references
-and TextureMap/file primitives.
+now also use C89. The C readers load material, transform and costume payloads
+through the shared cache and fetch linked textures, materials and models with
+their existing reader keys. Native adapters supply the codec binding, object
+factories and BRender and file primitives.
 TextureMap now uses C89 persistent pixel/descriptor/import-owner state, header
 I/O, cache factories, bitmap palette matching and standalone-file control.
 The native pixelmap is a renderer view. Imported PIX resources are released

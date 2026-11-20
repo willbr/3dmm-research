@@ -11,6 +11,7 @@
 ***************************************************************************/
 #include "soc_core.h"
 #include "mm/template_runtime.h"
+#include "handle_services.h"
 #include "material_renderer.h"
 #include <cstring>
 static_assert(sizeof(MaterialOnFile) == 20 && sizeof(CustomMaterialOnFile) == 8 && sizeof(TXXFF) == 28,
@@ -23,7 +24,6 @@ namespace
 {
 struct MaterialContext
 {
-    DataBlock block;
     String path;
 };
 } // namespace
@@ -71,34 +71,10 @@ MMMaterialServices Material_MTRL::_Services(void *context)
             break;
         }
     };
-    s.find = [](void *p, void *cache, MMU32 type, MMU32 number) -> void * {
-        auto &b = static_cast<MaterialContext *>(p)->block;
-        return static_cast<PChunkyResourceFile>(cache)->FReadBlock(type, number, b) ? &b : nullptr;
-    };
-    s.unpack = [](void *, void *p) -> int { return static_cast<PDataBlock>(p)->FUnpackData(); };
-    s.size = [](void *, void *p) -> MMI32 { return static_cast<PDataBlock>(p)->Cb(); };
-    s.read = [](void *, void *p, void *out, MMI32 n) -> int {
-        return static_cast<PDataBlock>(p)->FReadRgb(out, n, 0);
-    };
-    s.close_block = [](void *p) { static_cast<MaterialContext *>(p)->block.Free(); };
-    s.child = [](void *, void *cache, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type,
-                 MMMaterialChild *out) -> int {
-        const auto graph = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
-        MMU32 child;
-        if (mm_chunk_link_number(&graph, type, number, id, child_type, &child) != MM_CHUNK_OK)
-            return 0;
-        *out = {child_type, child, id};
-        return 1;
-    };
-    s.chunks = [](void *, void *cache, MMChunkAccess *out) {
-        *out = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
-    };
-    s.fetch = [](void *, void *p, const MMMaterialChild *child, int kind) -> void * {
-        PFNRPO reader = kind == MM_MATERIAL_TEXTURE ? TextureMap::FReadTmap
-                        : kind == MM_MATERIAL_MODEL ? Model::FReadModl
-                                                          : Material_MTRL::FReadMtrl;
-        return static_cast<PChunkyResourceFile>(p)->PbacoFetch(child->type, child->number, reader);
-    };
+    s.decode = KauaiDecodeBlockHandle;
+    s.texture_reader = reinterpret_cast<MMResourceReader>(TextureMap::FReadTmap);
+    s.material_reader = reinterpret_cast<MMResourceReader>(Material_MTRL::FReadMtrl);
+    s.model_reader = reinterpret_cast<MMResourceReader>(Model::FReadModl);
     s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemClear, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
     s.texture_pixelmap = [](void *, void *object) -> void * {
@@ -174,9 +150,8 @@ bool Material_MTRL::FReadMtrl(PChunkyResourceFile cache, ChunkTagOrType type, Ch
     AssertPo(block, 0);
     AssertVarMem(bytes);
     AssertNilOrVarMem(out);
-    MaterialContext context;
-    auto s = _Services(&context);
-    bool ok = mm_material_fetch(cache, type, number, block, out, bytes, &_shade, &s) != 0;
+    const auto s = _Services();
+    bool ok = mm_material_fetch(cache->CoreCache(), type, number, block->CoreBlock(), out, bytes, &_shade, &s) != 0;
     if (ok && out)
         AssertPo(*out, 0);
     return ok;
@@ -185,9 +160,8 @@ bool Material_MTRL::_FInit(PChunkyResourceFile cache, ChunkTagOrType type, Chunk
 {
     AssertBaseThis(0);
     AssertPo(cache, 0);
-    MaterialContext context;
-    auto s = _Services(&context);
-    return mm_material_read(this, cache, type, number, nullptr, &_shade, &s) != 0;
+    const auto s = _Services();
+    return mm_material_read(this, cache->CoreCache(), type, number, nullptr, &_shade, &s) != 0;
 }
 PMaterial_MTRL Material_MTRL::PmtrlNewFromPix(PFilename file)
 {
@@ -284,9 +258,8 @@ bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile cache, ChunkTagOrType ty
     AssertPo(block, 0);
     AssertVarMem(bytes);
     AssertNilOrVarMem(out);
-    MaterialContext context;
-    auto s = Material_MTRL::_Services(&context);
-    bool ok = mm_custom_material_fetch(cache, type, number, block, out, bytes, &s) != 0;
+    const auto s = Material_MTRL::_Services();
+    bool ok = mm_custom_material_fetch(cache->CoreCache(), type, number, block->CoreBlock(), out, bytes, &s) != 0;
     if (ok && out)
         AssertPo(*out, 0);
     return ok;
@@ -295,9 +268,8 @@ bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile cache, ChunkTagOrType type,
 {
     AssertBaseThis(0);
     AssertPo(cache, 0);
-    MaterialContext context;
-    auto s = Material_MTRL::_Services(&context);
-    return mm_custom_material_read(this, cache, type, number, nullptr, &s) != 0;
+    const auto s = Material_MTRL::_Services();
+    return mm_custom_material_read(this, cache->CoreCache(), type, number, nullptr, &s) != 0;
 }
 CustomMaterial_CMTL::~CustomMaterial_CMTL()
 {

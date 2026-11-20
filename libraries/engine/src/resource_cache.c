@@ -586,6 +586,17 @@ void *mm_resource_cache_fetch(MMResourceCache *c, const MMResourceRequest *q, in
         *error = failed;
     return object;
 }
+void *mm_resource_cache_fetch_chunk(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceReader reader)
+{
+    MMResourceRequest request;
+    request.type = type;
+    request.number = number;
+    request.scope = 0;
+    request.reader = reader;
+    request.priority = MM_RESOURCE_NORMAL_PRIORITY;
+    return mm_resource_cache_fetch(c, &request, NULL);
+}
+
 void *mm_resource_cache_find(MMResourceCache *c, MMU32 type, MMU32 number,
                                    MMResourceReader reader, MMU32 rsc)
 {

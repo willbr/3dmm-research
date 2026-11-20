@@ -128,6 +128,8 @@ extern "C"
     int mm_resource_cache_purge(MMResourceCache *, MMWide bytes, MMI32 last_priority);
     int mm_resource_cache_load(MMResourceCache *, const MMResourceRequest *);
     void *mm_resource_cache_fetch(MMResourceCache *, const MMResourceRequest *, int *error);
+    /* Fetch an unscoped chunk with normal priority and return its owned reference. */
+    void *mm_resource_cache_fetch_chunk(MMResourceCache *, MMU32 type, MMU32 number, MMResourceReader);
     int mm_resource_cache_contains(MMResourceCache *, MMU32 type, MMU32 number, MMU32 scope);
     void *mm_resource_cache_find(MMResourceCache *, MMU32 type, MMU32 number,
                                        MMResourceReader, MMU32 scope);

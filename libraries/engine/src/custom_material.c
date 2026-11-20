@@ -125,7 +125,7 @@ int mm_custom_material_part(const MMChunkAccess *access, MMU32 position, MMU32 s
     return status;
 }
 
-static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, void *block,
+static int read_custom(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                        const MMMaterialServices *s)
 {
     MMCustomMaterial *m = s->custom_state(s->context, object);
@@ -134,26 +134,25 @@ static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, void
     MMI32 i, id, set;
     MMU32 position, ordinal;
     MMChunkAccess access;
+    MMBlockIO io;
     MMChunkEntry entry;
     MMChunkChild child;
     MMCustomMaterialPart part;
-    if (!block)
-        block = s->find(s->context, cache, type, number);
-    if (!block || !s->unpack(s->context, block))
+    if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK)
         return 0;
-    if (s->size(s->context, block) != 8)
+    if (block->view.length != sizeof(b))
     {
         s->diagnostic(s->context, MM_MATERIAL_BAD_CUSTOM_SIZE);
         return 0;
     }
-    if (!s->read(s->context, block, b, 8))
+    if (mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_read(&io, 0, b, sizeof(b), 0) != MM_DATA_OK)
         return 0;
     set = mm_custom_material_read_set(b, s->host_big_endian, &bad_order);
     if (bad_order)
         s->diagnostic(s->context, MM_MATERIAL_BAD_CUSTOM_ORDER);
     m->set = set;
     m->count = 0;
-    s->chunks(s->context, cache, &access);
+    access = mm_resource_cache_chunks(cache);
     if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK ||
         mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK)
         return 0;
@@ -177,28 +176,36 @@ static int read_custom(void *object, void *cache, MMU32 type, MMU32 number, void
             return 0;
         if (part.material.type)
         {
-            m->materials[i] = s->fetch(s->context, cache, &part.material, MM_MATERIAL);
+            m->materials[i] = mm_resource_cache_fetch_chunk(cache, part.material.type, part.material.number,
+                                                               s->material_reader);
             if (!m->materials[i])
                 return 0;
         }
         if (part.model.type)
         {
-            m->models[i] = s->fetch(s->context, cache, &part.model, MM_MATERIAL_MODEL);
+            m->models[i] = mm_resource_cache_fetch_chunk(cache, part.model.type, part.model.number, s->model_reader);
             if (!m->models[i])
                 return 0;
         }
     }
     return 1;
 }
-int mm_custom_material_read(void *object, void *cache, MMU32 type, MMU32 number, void *block,
-                                  const MMMaterialServices *s)
+int mm_custom_material_read(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                            const MMMaterialServices *s)
 {
-    int ok = read_custom(object, cache, type, number, block, s);
-    s->close_block(s->context);
+    MMOwnedBlock scratch;
+    int ok;
+    if (block)
+        return read_custom(object, cache, type, number, block, s);
+    if (mm_owned_block_init(&scratch, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
+        return 0;
+    ok = mm_resource_cache_read_block(cache, type, number, &scratch) == MM_CHUNK_OK &&
+         read_custom(object, cache, type, number, &scratch, s);
+    mm_owned_block_clear(&scratch);
     return ok;
 }
-int mm_custom_material_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *out, void *size,
-                                   const MMMaterialServices *s)
+int mm_custom_material_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void *out,
+                             void *size, const MMMaterialServices *s)
 {
     void *object;
     MMI32 bytes = s->custom_bytes;

@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MATERIAL_RESOURCE_H
 #define MM_ENGINE_MATERIAL_RESOURCE_H
-#include "chunky_file.h"
+#include "resource_cache.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C"
@@ -39,9 +39,7 @@ extern "C"
     enum
     {
         MM_MATERIAL,
-        MM_CUSTOM_MATERIAL,
-        MM_MATERIAL_TEXTURE,
-        MM_MATERIAL_MODEL
+        MM_CUSTOM_MATERIAL
     };
     enum
     {
@@ -63,15 +61,8 @@ extern "C"
         MMCustomMaterial *(*custom_state)(void *, void *);
         void (*invalidate)(void *, void *, size_t);
         void (*diagnostic)(void *, int);
-        void *(*find)(void *, void *file, MMU32 type, MMU32 number);
-        int (*unpack)(void *, void *block);
-        MMI32 (*size)(void *, void *block);
-        int (*read)(void *, void *block, void *, MMI32 bytes);
-        void (*close_block)(void *);
-        int (*child)(void *, void *file, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type,
-                     MMMaterialChild *);
-        void (*chunks)(void *, void *file, MMChunkAccess *);
-        void *(*fetch)(void *, void *cache, const MMMaterialChild *, int kind);
+        MMBlockTransform decode;
+        MMResourceReader texture_reader, material_reader, model_reader;
         int (*allocate)(void *, MMI32 bytes, void **);
         void (*free_memory)(void *, void **);
         void *(*allocate_material)(void *);
@@ -99,11 +90,14 @@ extern "C"
     /* Zero-initialize fresh owners. Direct read failure keeps partial ownership,
      * except transform failure explicitly releases texture and renderer material.
      * Material factory invalidates before release; custom factory releases first.
+     * Input blocks are borrowed and may be unpacked in place. With no block,
+     * the reader owns a temporary block obtained from the cache. The same
+     * cache supplies the archive graph and fetched dependencies.
      * Callback inputs do not alias owned arrays and callbacks do not mutate owners. */
     void *mm_material_new(MMI32 base, MMI32 range, const MMMaterialServices *);
-    int mm_material_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *object_out, void *size_out,
+    int mm_material_fetch(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void *object_out, void *size_out,
                                 const MMMaterialShade *, const MMMaterialServices *);
-    int mm_material_read(void *object, void *cache, MMU32 type, MMU32 number, void *block,
+    int mm_material_read(void *object, MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
                                const MMMaterialShade *, const MMMaterialServices *);
     void mm_material_dispose(MMMaterialResource *, const MMMaterialServices *);
     void *mm_material_texture(const MMMaterialResource *, const MMMaterialServices *);
@@ -125,7 +119,7 @@ extern "C"
                                         const MMMaterialDescription *);
     void *mm_custom_material_new(MMI32 set, MMI32 count, const void *materials,
                                        const MMMaterialServices *);
-    int mm_custom_material_fetch(void *cache, MMU32 type, MMU32 number, void *block, void *object_out,
+    int mm_custom_material_fetch(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void *object_out,
                                        void *size_out, const MMMaterialServices *);
     /* Decode the CMTL header's set and optionally report an unrecognized order marker. */
     MMI32 mm_custom_material_read_set(const unsigned char[8], int host_big, int *bad_order);
@@ -134,7 +128,7 @@ extern "C"
      * without publishing the part. Returns an MMChunkResult. */
     int mm_custom_material_part(const MMChunkAccess *, MMU32 costume_position, MMU32 slot,
                                 MMCustomMaterialPart *);
-    int mm_custom_material_read(void *object, void *cache, MMU32 type, MMU32 number, void *block,
+    int mm_custom_material_read(void *object, MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
                                       const MMMaterialServices *);
     void mm_custom_material_dispose(MMCustomMaterial *, const MMMaterialServices *);
     int mm_custom_material_has_models(const MMCustomMaterial *);

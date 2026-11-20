@@ -6,7 +6,9 @@
 #include <string.h>
 typedef struct Ref
 {
-    int kind, refs;
+    int kind;
+    MMReference refs;
+    MMResourceObject binding;
 } Ref;
 typedef struct Handle
 {
@@ -25,10 +27,14 @@ typedef struct Test
 {
     MMMaterialServices s;
     MMMaterialShade shade;
-    int step, fail, objects, handles, arrays, raw, closed, diagnostic, order[128], ordered;
-    int texture_child, transform_child, custom, transform, bad_model_target, adds, deletes[4], deleted;
-    unsigned char header[20], transform_header[28], custom_header[8], written[20], written_transform[28];
-    MMI32 header_size, transform_size, custom_size;
+    MMResourceCache cache;
+    MMReference cache_refs;
+    MMHandleServices storage;
+    MMOwnedBlock input;
+    int step, fail, objects, handles, arrays, raw, file_refs, payload_handles, diagnostic, order[128], ordered;
+    int texture_child, transform_child, custom, bad_model_target, adds, deletes[4], deleted;
+    unsigned char header[20], transform_header[28], custom_header[9], written[20], written_transform[28];
+    MMU32 header_size, transform_size, custom_size;
     Ref texture, material, model, shading;
     int texture_view, shade_view;
 } Test;
@@ -55,21 +61,26 @@ static void *create(void *p, int kind)
     o = (Object *)calloc(1, sizeof(*o));
     assert(o);
     o->ref.kind = kind;
-    o->ref.refs = 1;
+    mm_reference_init(&o->ref.refs);
     ++t->objects;
     return o;
 }
 static void retain(void *p, void *o)
 {
     (void)p;
-    ++((Ref *)o)->refs;
+    mm_reference_add(&((Ref *)o)->refs);
 }
 static void release(void *p, void *v)
 {
     Test *t = test(p);
     Ref *r = (Ref *)v;
-    assert(r && r->refs > 0);
-    if (--r->refs)
+    assert(r && r->refs.count > 0);
+    if (r->binding.cache)
+    {
+        mm_resource_object_release(r, &t->cache.services.objects);
+        return;
+    }
+    if (mm_reference_drop(&r->refs))
         return;
     if (r->kind >= 100)
         return;
@@ -100,56 +111,97 @@ static void diagnostic(void *p, int code)
 {
     test(p)->diagnostic = code + 1;
 }
-static void *find(void *p, void *f, MMU32 type, MMU32 number)
+static int resize_payload(void *p, void **handle, MMU32 bytes)
 {
-    Test *t = test(p);
-    (void)f;
-    (void)number;
-    if (fail(t))
-        return NULL;
-    t->transform = type == 2;
-    return p;
-}
-static int unpack(void *p, void *b)
-{
-    (void)b;
-    return !fail(test(p));
-}
-static MMI32 size(void *p, void *b)
-{
-    Test *t = test(p);
-    (void)b;
-    return t->transform ? t->transform_size : t->custom ? t->custom_size : t->header_size;
-}
-static int read(void *p, void *b, void *out, MMI32 n)
-{
-    Test *t = test(p);
-    (void)b;
-    if (fail(t))
+    MMU32 *v = (MMU32 *)realloc(*handle, sizeof(*v) + bytes);
+    (void)p;
+    if (!v)
         return 0;
-    memcpy(out, t->transform ? t->transform_header : t->custom ? t->custom_header : t->header, (size_t)n);
+    *v = bytes;
+    *handle = v;
     return 1;
 }
-static void close_block(void *p)
+static int alloc_payload(void *p, MMU32 bytes, void **handle)
 {
-    ++test(p)->closed;
+    *handle = NULL;
+    if (!resize_payload(p, handle, bytes))
+        return 0;
+    ++test(p)->payload_handles;
+    return 1;
 }
-static int child(void *p, void *f, MMU32 type, MMU32 n, MMU32 id, MMU32 wanted,
-                 MMMaterialChild *out)
+static void free_payload(void *p, void *handle)
+{
+    --test(p)->payload_handles;
+    free(handle);
+}
+static MMU32 payload_size(void *p, void *handle) { (void)p; return *(MMU32 *)handle; }
+static void *lock_payload(void *p, void *handle) { (void)p; return (MMU32 *)handle + 1; }
+static void unlock_payload(void *p, void *handle) { (void)p; (void)handle; }
+static int decode(void *p, void **handle)
+{
+    assert(*handle);
+    return !fail(test(p));
+}
+
+static void retain_file(void *file) { ++test(file)->file_refs; }
+static void release_file(void *file) { --test(file)->file_refs; }
+static void retain_block(void *p, void *file) { (void)p; retain_file(file); }
+static void release_block(void *p, void *file) { (void)p; release_file(file); }
+static void *no_temp(void *p) { (void)p; return NULL; }
+static int no_write(void *p, void *file, MMU32 offset, const void *bytes, size_t count)
+{
+    (void)p; (void)file; (void)offset; (void)bytes; (void)count;
+    return 0;
+}
+static int read_block(void *p, void *file, MMU32 offset, void *out, size_t count)
+{
+    Test *t = test(file);
+    (void)p;
+    if (fail(t))
+        return 0;
+    assert(count <= (offset == 64 ? t->custom_size : offset == 32 ? t->transform_size : t->header_size));
+    memcpy(out, offset == 64 ? t->custom_header : offset == 32 ? t->transform_header : t->header, count);
+    return 1;
+}
+static const MMBlockFileServices files = {NULL, retain_block, release_block, no_temp, read_block, no_write};
+
+static int locate(void *file, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
+{
+    Test *t = test(file);
+    if (fail(t))
+        return 0;
+    out->file = file;
+    out->offset = type == MM_CMTL ? 64 : type == 2 ? 32 : 0;
+    out->length = type == MM_CMTL ? t->custom_size : type == 2 ? t->transform_size : type == 3 ? t->header_size : 0;
+    *packed = out->length != 0;
+    return number == 1 || number == 7;
+}
+static int contains(void *file, MMU32 type, MMU32 number)
+{
+    (void)file; (void)type;
+    return number == 1 || number == 7;
+}
+
+static int material_entry(void *p, MMU32 index, MMChunkEntry *out)
 {
     Test *t = test(p);
-    int found;
-    (void)f;
-    (void)type;
-    (void)n;
-    found = id == 0 && ((wanted == 1 && t->texture_child) || (wanted == 2 && t->transform_child));
-    if (found)
-    {
-        out->type = wanted;
-        out->number = 7;
-        out->id = id;
-    }
-    return found;
+    if (index >= 3)
+        return 0;
+    memset(out, 0, sizeof(*out));
+    out->type = index + 1;
+    out->number = index == 2 ? 1 : 7;
+    out->child_count = index == 2 ? t->texture_child + t->transform_child : 0;
+    return 1;
+}
+static int material_child(void *p, MMU32 parent, MMU32 index, MMChunkChild *out)
+{
+    Test *t = test(p);
+    if (parent != 2 || index >= (MMU32)(t->texture_child + t->transform_child))
+        return 0;
+    out->type = index == 0 && t->texture_child ? 1 : 2;
+    out->number = 7;
+    out->slot = 0;
+    return 1;
 }
 static int costume_entry(void *p, MMU32 position, MMChunkEntry *out)
 {
@@ -173,28 +225,50 @@ static int costume_child(void *p, MMU32 parent, MMU32 position, MMChunkChild *ou
     out->slot = position * 2;
     return 1;
 }
-static void costume_chunks(void *p, void *f, MMChunkAccess *out)
+static MMChunkAccess chunks(void *p)
 {
-    assert(p == f);
-    out->context = p;
-    out->count = 3;
-    out->entry = costume_entry;
-    out->child = costume_child;
+    MMChunkAccess out;
+    out.context = p;
+    out.count = 3;
+    out.entry = test(p)->custom ? costume_entry : material_entry;
+    out.child = test(p)->custom ? costume_child : material_child;
+    return out;
 }
-static void *fetch(void *p, void *c, const MMMaterialChild *child_, int kind)
+static void texture_reader(void) {}
+static void material_reader(void) {}
+static void model_reader(void) {}
+static int compare_reader(MMResourceReader a, MMResourceReader b) { assert(a == b); return 0; }
+static MMResourceObject *resource_state(void *o) { return &((Ref *)o)->binding; }
+static MMReference *resource_refs(void *o) { return &((Ref *)o)->refs; }
+static void destroy_resource(void *o) { assert(!((Ref *)o)->binding.cache); }
+static void destroy_cache(void *p) { assert(mm_resource_cache_dispose(&test(p)->cache) == MM_STORAGE_OK); }
+static int read_resource(void *p, MMResourceReader reader, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                         void **object, MMI32 *bytes)
 {
     Test *t = test(p);
     Ref *r;
-    (void)c;
-    if (t->custom)
-        assert(child_->number == 7 &&
-               (kind == MM_MATERIAL ? child_->id == 0 && child_->type == MM_MATERIAL_CHUNK
-                                     : child_->id == 2 && child_->type == MM_TEMPLATE_BMDL));
+    assert(number == 7 && block->file == t);
+    if (reader == texture_reader)
+    {
+        assert(!t->custom && type == 1);
+        r = &t->texture;
+    }
+    else if (reader == material_reader)
+    {
+        assert(t->custom && type == MM_MATERIAL_CHUNK);
+        r = &t->material;
+    }
+    else
+    {
+        assert(reader == model_reader && t->custom && type == MM_TEMPLATE_BMDL);
+        r = &t->model;
+    }
     if (fail(t))
-        return NULL;
-    r = kind == MM_MATERIAL_TEXTURE ? &t->texture : kind == MM_MATERIAL_MODEL ? &t->model : &t->material;
-    ++r->refs;
-    return r;
+        return 0;
+    mm_reference_init(&r->refs);
+    *object = r;
+    *bytes = 1;
+    return 1;
 }
 static int allocate(void *p, MMI32 n, void **out)
 {
@@ -338,7 +412,7 @@ static void *read_bitmap(void *p, void *filename, void *palette)
     (void)palette;
     if (fail(t))
         return NULL;
-    ++t->texture.refs;
+    mm_reference_add(&t->texture.refs);
     return &t->texture;
 }
 static const void *pixelmap_path(void *p, void *filename)
@@ -381,6 +455,8 @@ static void *material_handle(void *p, void *o)
 static void setup(Test *t)
 {
     MMMaterialDescription d;
+    MMResourceServices resources = {0};
+    MMResourceSource source = {0};
     memset(t, 0, sizeof(*t));
     memset(&d, 0, sizeof(d));
     t->texture.kind = t->material.kind = t->model.kind = t->shading.kind = 100;
@@ -401,14 +477,10 @@ static void setup(Test *t)
     t->s.custom_state = custom_state;
     t->s.invalidate = invalidate;
     t->s.diagnostic = diagnostic;
-    t->s.find = find;
-    t->s.unpack = unpack;
-    t->s.size = size;
-    t->s.read = read;
-    t->s.close_block = close_block;
-    t->s.child = child;
-    t->s.chunks = costume_chunks;
-    t->s.fetch = fetch;
+    t->s.decode = decode;
+    t->s.texture_reader = texture_reader;
+    t->s.material_reader = material_reader;
+    t->s.model_reader = model_reader;
     t->s.allocate = allocate;
     t->s.free_memory = free_memory;
     t->s.allocate_material = allocate_material;
@@ -449,13 +521,47 @@ static void setup(Test *t)
     t->transform_header[4] = 7;
     t->custom_header[0] = 1;
     t->custom_header[4] = 3;
-    t->shading.refs = 1;
+    mm_reference_init(&t->shading.refs);
     t->shade.texture = &t->shading;
+    t->storage.context = t;
+    t->storage.allocate = alloc_payload;
+    t->storage.release = free_payload;
+    t->storage.size = payload_size;
+    t->storage.lock = lock_payload;
+    t->storage.unlock = unlock_payload;
+    t->storage.resize = resize_payload;
+    resources.context = t;
+    resources.objects.state = resource_state;
+    resources.objects.references = resource_refs;
+    resources.objects.destroy = destroy_resource;
+    resources.compare_reader = compare_reader;
+    resources.contains = contains;
+    resources.live_chunks = chunks;
+    resources.handles = &t->storage;
+    resources.block_files = &files;
+    resources.locate = locate;
+    resources.read = read_resource;
+    resources.retain_file = retain_file;
+    resources.release_file = release_file;
+    resources.destroy_owner = destroy_cache;
+    source.live = t;
+    mm_reference_init(&t->cache_refs);
+    assert(mm_resource_cache_init(&t->cache, t, &t->cache_refs, &source, 64, &resources, NULL, 1) == MM_STORAGE_OK);
+    assert(mm_owned_block_init(&t->input, &t->storage, &files) == MM_DATA_OK);
 }
 static void balanced(Test *t)
 {
-    assert(!t->objects && !t->handles && !t->arrays && !t->raw && !t->texture.refs && !t->material.refs &&
-           !t->model.refs);
+    assert(!t->objects && !t->handles && !t->arrays && !t->raw && !t->texture.refs.count &&
+           !t->material.refs.count && !t->model.refs.count);
+    assert(mm_owned_block_clear(&t->input) == MM_DATA_OK);
+    mm_resource_cache_release(&t->cache);
+    assert(!t->file_refs && !t->payload_handles);
+}
+
+static void primary_block(Test *t, MMU32 type)
+{
+    assert(mm_resource_cache_read_block(&t->cache, type, 1, &t->input) == MM_CHUNK_OK);
+    t->step = 0;
 }
 static void costume_slots(void)
 {
@@ -466,7 +572,7 @@ static void costume_slots(void)
     MMI32 bytes;
     setup(&t);
     t.custom = 1;
-    costume_chunks(&t, &t, &graph);
+    graph = mm_resource_cache_chunks(&t.cache);
     assert(mm_custom_material_part(&graph, 1, 0, &part) == MM_CHUNK_OK);
     assert(part.material.type == MM_MATERIAL_CHUNK && part.material.number == 7 && !part.model.type);
     assert(mm_custom_material_part(&graph, 1, 4, &part) == MM_CHUNK_OK);
@@ -476,7 +582,8 @@ static void costume_slots(void)
     t.bad_model_target = 1;
     assert(mm_custom_material_part(&graph, 1, 2, &part) == MM_CHUNK_BAD_FILE);
     assert(!part.material.type && part.model.number == 7);
-    assert(!mm_custom_material_fetch(&t, MM_CMTL, 1, &t, &o, &bytes, &t.s));
+    primary_block(&t, MM_CMTL);
+    assert(!mm_custom_material_fetch(&t.cache, MM_CMTL, 1, &t.input, &o, &bytes, &t.s));
     balanced(&t);
 }
 static void codecs(void)
@@ -497,6 +604,7 @@ static void codecs(void)
         b[2] = b[3] = 0;
         assert(!mm_material_header_read(b, big, 0x0303, &e));
     }
+    balanced(&t);
 }
 static void loads(void)
 {
@@ -508,13 +616,15 @@ static void loads(void)
     {
         setup(&t);
         t.texture_child = t.transform_child = 1;
+        primary_block(&t, 3);
         t.fail = n;
         o = NULL;
-        ok = mm_material_fetch(&t, 3, 1, &t, &o, &bytes, &t.shade, &t.s);
+        ok = mm_material_fetch(&t.cache, 3, 1, &t.input, &o, &bytes, &t.shade, &t.s);
         if (ok)
         {
             Handle *h = (Handle *)o->material.handle;
             assert(bytes == 32 && h->texture == &t.texture && h->d.index_range == 7 && h->matrix[0] == 7);
+            assert(!t.input.view.packed && t.input.view.length == t.header_size && t.payload_handles == 1);
             release(&t, o);
         }
         else if (t.ordered >= 3 && t.order[2] == 20)
@@ -525,10 +635,10 @@ static void loads(void)
     {
         setup(&t);
         t.custom = 1;
+        primary_block(&t, MM_CMTL);
         t.fail = n;
         o = NULL;
-        t.s.find = NULL;
-        ok = mm_custom_material_fetch(&t, MM_CMTL, 1, &t, &o, &bytes, &t.s);
+        ok = mm_custom_material_fetch(&t.cache, MM_CMTL, 1, &t.input, &o, &bytes, &t.s);
         if (ok)
         {
             assert(o->custom.count == 5 && o->custom.set == 3 && bytes == 56 + 10 * (int)sizeof(void *));
@@ -545,21 +655,28 @@ static void loads(void)
     setup(&t);
     o = (Object *)create(&t, MM_MATERIAL);
     t.header_size = 19;
-    assert(!mm_material_read(o, &t, 3, 1, NULL, &t.shade, &t.s) && !o->material.handle);
+    assert(!mm_material_read(o, &t.cache, 3, 1, NULL, &t.shade, &t.s) && !o->material.handle);
     release(&t, o);
     balanced(&t);
     setup(&t);
     o = (Object *)create(&t, MM_MATERIAL);
     t.texture_child = t.transform_child = 1;
     t.transform_size = 27;
-    assert(!mm_material_read(o, &t, 3, 1, NULL, &t.shade, &t.s) && !o->material.handle && !t.texture.refs);
+    assert(!mm_material_read(o, &t.cache, 3, 1, NULL, &t.shade, &t.s) && !o->material.handle && !t.texture.refs.count);
+    release(&t, o);
+    balanced(&t);
+    setup(&t);
+    o = (Object *)create(&t, MM_MATERIAL);
+    t.transform_child = 1;
+    t.transform_size = 1;
+    assert(mm_material_read(o, &t.cache, 3, 1, NULL, &t.shade, &t.s) && !t.payload_handles && !t.cache.count);
     release(&t, o);
     balanced(&t);
     setup(&t);
     o = (Object *)create(&t, MM_CUSTOM_MATERIAL);
     t.custom = 1;
     t.custom_size = 9;
-    assert(!mm_custom_material_read(o, &t, MM_CMTL, 1, NULL, &t.s) &&
+    assert(!mm_custom_material_read(o, &t.cache, MM_CMTL, 1, NULL, &t.s) &&
            t.diagnostic == MM_MATERIAL_BAD_CUSTOM_SIZE + 1);
     release(&t, o);
     balanced(&t);
@@ -579,7 +696,7 @@ static void construction_and_writes(void)
         o = (Object *)mm_custom_material_new(-3, 2, input, &t.s);
         if (o)
         {
-            assert(o->custom.set == -3 && t.material.refs == 2);
+            assert(o->custom.set == -3 && t.material.refs.count == 2);
             release(&t, o);
         }
         balanced(&t);
@@ -593,7 +710,7 @@ static void construction_and_writes(void)
         o = (Object *)mm_material_new(-1, -1, &t.s);
         assert(o);
         assert(((Handle *)o->material.handle)->d.ambient == 6553 && ((Handle *)o->material.handle)->d.index_base == 15);
-        ++t.texture.refs;
+        mm_reference_add(&t.texture.refs);
         map(&t, o->material.handle, &t.texture_view, NULL);
         t.step = 0;
         t.fail = n;
@@ -631,7 +748,7 @@ static void appearance_writes(void)
             t.s.host_big_endian = big;
             o = (Object *)mm_material_new(-1, -1, &t.s);
             assert(o);
-            ++t.texture.refs;
+            mm_reference_add(&t.texture.refs);
             map(&t, o->material.handle, &t.texture_view, NULL);
             t.step = 0;
             t.fail = n;
@@ -681,11 +798,12 @@ static void imports(void)
             balanced(&t);
         }
     setup(&t);
-    assert(!mm_material_shade_set(&t.shade, NULL, &t.s) && t.shading.refs == 1);
-    ++t.shading.refs;
-    assert(mm_material_shade_set(&t.shade, &t.shading, &t.s) && t.shading.refs == 1);
+    assert(!mm_material_shade_set(&t.shade, NULL, &t.s) && t.shading.refs.count == 1);
+    mm_reference_add(&t.shading.refs);
+    assert(mm_material_shade_set(&t.shade, &t.shading, &t.s) && t.shading.refs.count == 1);
     mm_material_shade_dispose(&t.shade, &t.s);
-    assert(!t.shade.texture && !t.shading.refs);
+    assert(!t.shade.texture && !t.shading.refs.count);
+    balanced(&t);
 }
 int main(void)
 {

@@ -247,6 +247,7 @@ class DataBlock : public DataBlock_PAR
     // Borrow the caller's owner. Mutations are shared and the caller clears it.
     explicit DataBlock(MMOwnedBlock &state);
     ~DataBlock(void);
+    MMOwnedBlock *CoreBlock() { return &_state; }
 
     void Set(PFileLocation pflo, bool fPacked = fFalse);
     void Set(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked = fFalse);

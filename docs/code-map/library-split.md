@@ -5350,9 +5350,12 @@ construction/retains, child loading, factory estimates and disposal/queries.
 The C89 renderer library allocates BRender materials and binds colour maps,
 shade maps and texture transforms. The material controller resolves texture
 and shade references to borrowed pixelmap views before mapping them.
-`mtrl.cpp` supplies object references, chunk and file services, texture lookup
-and PIX paths. The custom-material graph comparisons remain in the shared
-template controller.
+Both readers now use the cache's C chunk graph, block owner and resource fetch
+API. They unpack a caller's borrowed block in place, or obtain and release a
+temporary block from the cache. The same cache resolves and loads linked
+textures, materials and models. `mtrl.cpp` supplies registered reader keys,
+the codec binding, object services and native writing and import primitives.
+The custom-material graph comparisons use the shared template controller.
 
 Material headers remain 20 bytes, custom headers 8 and texture transforms 28.
 Both host orders and the narrow zero-order Windows material-header exception
@@ -5377,8 +5380,9 @@ disposal. Successfully imported PIX allocations now use the C-owned texture
 lifetime described below.
 
 `engine-material-resource-test` links with C alone and covers endian codecs,
-legacy markers, sparse child IDs, partial arrays/references, invalid counts,
-factory ordering, shade replacement, imports and write/adoption failures.
+legacy markers, borrowed packed blocks, skipped transforms, sparse child IDs,
+partial arrays/references, invalid counts, factory ordering, shade replacement,
+imports and write/adoption failures.
 `material-resource-test` freezes 102,316 native bytes over 588 material/custom
 load attempts plus construction, writing and real PIX import, SHA-256
 `F31D5481A64AC6D49CA63F6E5FDD288D4C4C70246F196760B158B1E519775225`.

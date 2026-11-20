@@ -7,7 +7,6 @@ void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int ki
 {
     MMChunkAccess graph;
     MMChunkEntry entry;
-    MMResourceRequest request;
     MMMovieAsset resolved;
     MMU32 parent;
     void *object;
@@ -38,12 +37,7 @@ void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int ki
         resolved.type = child.type;
         resolved.number = child.number;
     }
-    request.type = resolved.type;
-    request.number = resolved.number;
-    request.scope = 0;
-    request.reader = reader;
-    request.priority = MM_RESOURCE_NORMAL_PRIORITY;
-    object = mm_resource_cache_fetch(resource->cache, &request, NULL);
+    object = mm_resource_cache_fetch_chunk(resource->cache, resolved.type, resolved.number, reader);
     if (object && asset)
         *asset = resolved;
     return object;
