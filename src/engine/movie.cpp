@@ -731,18 +731,8 @@ MMMovieEditServices Movie::_EditServices()
     TrashVar(&s.sound_external_child);
     s.add_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FAddActr(static_cast<PActor>(actor)); };
     s.remove_actor = [](void *p, MMI32 id) -> int { return static_cast<PScene>(p)->FRemActr(id); };
-    s.apply_scene = [](void *p, int kind, const MMMovieEditRequest *q) -> int {
-        auto scene = static_cast<PScene>(p);
-        TAG tag; if (q->tag) TagFromCore(&tag, *q->tag);
-        switch (kind)
-        {
-        case MM_MOVIE_EDIT_CAMERA: return scene->FChangeCam(q->camera);
-        case MM_MOVIE_EDIT_PAUSE: return scene->FPause(WaitReason(q->reason), q->delay);
-        case MM_MOVIE_EDIT_TRANSITION: return scene->FSetTransition(TRANS(q->transition));
-        case MM_MOVIE_EDIT_BACKGROUND_SOUND: return scene->FAddSnd(q->tag ? &tag : nullptr, tribool(q->loop), tribool(q->queue), q->volume, q->style);
-        default: Bug("Invalid Movie scene primitive"); return 0;
-        }
-    };
+    s.scene_edit = [](void *p) { return static_cast<PScene>(p)->_EditServices(); };
+    s.scene_properties = [](void *p) { return static_cast<PScene>(p)->_PropertyServices(); };
     s.frame = [](void *p) -> MMI32 { return static_cast<PScene>(p)->Nfrm(); };
     s.last_actor_undo = [](void *p) -> MMActorUndoState * {
         auto movie = static_cast<PMovie>(p);

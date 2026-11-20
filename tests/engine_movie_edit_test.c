@@ -6,6 +6,7 @@
 #include "actor_stage_owner_fixture.h"
 #include <stddef.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #define CHECK(x)                                                                                                       \
     do                                                                                                                 \
@@ -87,6 +88,10 @@ typedef struct Undo
     Test *test;
     MMMovieUndoContext base;
     MMActorUndoState actor_state;
+    MMScenePauseUndo pause;
+    MMSceneBackgroundUndo background;
+    MMSceneTransitionUndo transition;
+    MMSceneSoundUndo sound;
     int refs, bound, actor;
 } Undo;
 struct Test
@@ -94,19 +99,21 @@ struct Test
     MMMovieEditServices s;
     MMMovieState data;
     MMMovieScenes scenes;
+    MMSceneOwner scene_owner;
     Actor actor, fresh, copy;
     Actor *selected, *placement;
     Undo undo;
-    int view, inScene, fail, selectedCalls, selectionCalls, frame, kind, actorBindings, sceneCalls;
+    int view, inScene, fail, selectedCalls, selectionCalls, frame, actorBindings, sceneBindings;
     int actorSeeks, actorSoundFrames;
     MMI32 actorSeekFrame;
+    int sceneDirty, sceneSoundFrames, camera, cameraCloses;
+    MMU32 sceneInputNumber;
     int dirty, invalidates, bars, nuked, error, diagnostics, entire, restore, placeCalls, undoCount;
     int lastUndoCalls, notify, commits, clears, rowChanges;
     int begin, end, cacheBackground, defaults, empty, newScene, removeScene, removedIndex, backgroundUndoable;
     int soundEnabled, played, flushed, soundRefs, volumeCalls, styleCalls;
     int switchSelection, undoOnFresh;
     int events[128], eventCount;
-    MMMovieEditRequest request;
 };
 static void event(Test *t, int e)
 {
@@ -254,7 +261,7 @@ static void *current_costume(void *p, MMI32 body_set, int *custom)
 }
 static void *fetch_costume(void *p, MMI32 costume) { (void)costume; return p; }
 static MMI32 costume_set(void *p, void *resource) { (void)p; (void)resource; return 3; }
-static void release_actor_resource(void *p, void *resource) { (void)p; (void)resource; }
+static void release_resource(void *p, void *resource) { (void)p; (void)resource; }
 static MMActorCostumeEditServices bind_costume(void *p)
 {
     MMActorCostumeEditServices s = {0};
@@ -264,7 +271,7 @@ static MMActorCostumeEditServices bind_costume(void *p)
     s.current = current_costume;
     s.fetch_custom = fetch_costume;
     s.body_set = costume_set;
-    s.release = release_actor_resource;
+    s.release = release_resource;
     return s;
 }
 static void *fetch_actor_sound(void *p, const MMTag *tag) { (void)tag; return p; }
@@ -289,7 +296,7 @@ static MMActorSoundEditServices bind_actor_sound(void *p)
     MMActorSoundEditServices s = {0};
     s.context = s.runtime.context = p;
     s.runtime.fetch = fetch_actor_sound;
-    s.runtime.release = release_actor_resource;
+    s.runtime.release = release_resource;
     s.runtime.cel_count = actor_cel_count;
     s.edits = bind_actor_edit(p).route.edits;
     s.edits.apply_event = apply_actor_resource;
@@ -297,15 +304,6 @@ static MMActorSoundEditServices bind_actor_sound(void *p)
     s.sounds_suppressed = flag_true;
     s.set_sound_frame = set_actor_sound_frame;
     return s;
-}
-static int apply_scene(void *p, int kind, const MMMovieEditRequest *q)
-{
-    Test *t = p;
-    ++t->sceneCalls;
-    t->kind = kind;
-    t->request = *q;
-    event(t, APPLY);
-    return t->fail != FAIL_APPLY;
 }
 static MMI32 frame(void *p)
 {
@@ -553,6 +551,149 @@ static void clear(void *p)
     t->undo.refs = 0;
     event(t, CLEAR);
 }
+static void *scene_sound_allocate(void *p, MMI32 bytes)
+{
+    return ((Test *)p)->fail == FAIL_APPLY ? NULL : malloc((size_t)bytes);
+}
+static void scene_sound_free(void *p, void *value) { (void)p; free(value); }
+static void scene_sound_release(void *p, MMSceneSound *value) { scene_sound_free(p, value); }
+static void scene_sound_retain(void *p, const MMSceneSoundTag *tag) { (void)p; (void)tag; }
+static void scene_sound_close(void *p, MMSceneSoundTag *tag) { (void)p; (void)tag; }
+static MMSceneSoundValueServices scene_sound_values(Test *t)
+{
+    MMSceneSoundValueServices values = {0};
+    values.context = values.packets.context = t;
+    values.release = scene_sound_release;
+    values.packets.allocate = scene_sound_allocate;
+    values.packets.retain = scene_sound_retain;
+    return values;
+}
+static void *scene_duplicate_sound(void *p, void *packet)
+{
+    const MMSceneSoundValueServices values = scene_sound_values(p);
+    return mm_scene_sound_duplicate(packet, &values.packets);
+}
+static int scene_camera_tag(void *p, MMI32 camera, MMTag *tag)
+{
+    (void)p;
+    tag->sid = 2;
+    tag->number = camera;
+    return 1;
+}
+static int scene_cache_camera(void *p, const MMTag *tag)
+{
+    (void)tag;
+    return ((Test *)p)->fail != FAIL_CACHE;
+}
+static void scene_close_camera(void *p, MMTag *tag) { (void)tag; ++((Test *)p)->cameraCloses; }
+static int set_scene_camera(void *p, void *background, MMI32 camera)
+{
+    Test *t = p;
+    (void)background;
+    t->camera = camera;
+    return 1;
+}
+static int scene_sound_child(void *p, MMU32 number, MMU32 *child)
+{
+    (void)p;
+    *child = number + 7;
+    return 1;
+}
+static MMU32 scene_sound_unused(void *p) { (void)p; return 29; }
+static int scene_sound_resolve(void *p, MMTag *tag, MMU32 child)
+{
+    (void)p;
+    tag->number = child;
+    return 1;
+}
+static void *scene_sound_fetch(void *p, const MMTag *tag)
+{
+    ((Test *)p)->sceneInputNumber = tag->number;
+    return NULL;
+}
+static void scene_edit_dirty(void *p) { ++((Test *)p)->sceneDirty; }
+static void scene_sound_frame(void *p, int value) { ((Test *)p)->sceneSoundFrames += value; }
+static void *new_scene_edit_undo(void *p, int kind) { (void)kind; return new_undo(p); }
+static MMSceneBackgroundUndo *scene_background_undo(void *p, void *u) { (void)p; return &((Undo *)u)->background; }
+static MMScenePauseUndo *scene_pause_undo(void *p, void *u) { (void)p; return &((Undo *)u)->pause; }
+static MMSceneTransitionUndo *scene_transition_undo(void *p, void *u) { (void)p; return &((Undo *)u)->transition; }
+static MMSceneSoundUndo *scene_sound_undo(void *p, void *u) { (void)p; return &((Undo *)u)->sound; }
+static void release_scene_edit_undo(void *p, void *object)
+{
+    Undo *u = object;
+    const MMSceneSoundValueServices values = scene_sound_values(p);
+    release_undo(u);
+    if (!u->refs)
+        mm_scene_sound_undo_dispose(&u->sound, &values);
+}
+static void clear_scene_edit_undo(void *p)
+{
+    Test *t = p;
+    const MMSceneSoundValueServices values = scene_sound_values(t);
+    mm_scene_sound_undo_dispose(&t->undo.sound, &values);
+    clear(t);
+}
+static MMSceneOwnerServices scene_owners(Test *t)
+{
+    MMSceneOwnerServices s = {0};
+    s.context = s.sound.context = t;
+    s.release = release_resource;
+    s.sound.close = scene_sound_close;
+    s.sound.free = scene_sound_free;
+    return s;
+}
+static void note_scene_binding(Test *t)
+{
+    ++t->sceneBindings;
+    event(t, APPLY);
+}
+static MMSceneEditServices bind_scene_edit(void *p)
+{
+    Test *t = p;
+    MMSceneEditServices s = {0};
+    note_scene_binding(t);
+    s.context = s.sound.context = s.sound.events.context = t;
+    s.sound.events.owner = &t->scene_owner;
+    s.sound.events.owners = scene_owners(t);
+    s.sound.events.set_camera = set_scene_camera;
+    s.sound.events.duplicate_sound = scene_duplicate_sound;
+    s.sound.values = scene_sound_values(t);
+    s.sound.allocate_records = scene_sound_allocate;
+    s.sound.free_raw = scene_sound_free;
+    s.sound.child = scene_sound_child;
+    s.sound.unused_child = scene_sound_unused;
+    s.sound.resolve_input = scene_sound_resolve;
+    s.sound.fetch_input = scene_sound_fetch;
+    s.sound.dirty = scene_edit_dirty;
+    s.sound.sound_frame = scene_sound_frame;
+    s.sound.new_undo = new_undo;
+    s.sound.undo_state = scene_sound_undo;
+    s.sound.commit_undo = commit;
+    s.sound.release_undo = release_scene_edit_undo;
+    s.sound.clear_undo = clear_scene_edit_undo;
+    s.new_undo = new_scene_edit_undo;
+    s.background_state = scene_background_undo;
+    s.pause_state = scene_pause_undo;
+    s.commit_undo = commit;
+    s.release_undo = release_scene_edit_undo;
+    s.camera_tag = scene_camera_tag;
+    s.cache_tag = scene_cache_camera;
+    s.close_tag = scene_close_camera;
+    return s;
+}
+static MMScenePropertyServices bind_scene_properties(void *p)
+{
+    Test *t = p;
+    MMScenePropertyServices s = {0};
+    note_scene_binding(t);
+    s.context = t;
+    s.data = &t->scene_owner.data;
+    s.new_undo = new_scene_edit_undo;
+    s.transition = scene_transition_undo;
+    s.commit = commit;
+    s.release = release_scene_edit_undo;
+    return s;
+}
 static void notify(void *p, int value)
 {
     Test *t = p;
@@ -723,7 +864,8 @@ static void init(Test *t)
     s->sound_external_child = 42;
     s->add_actor = add_actor;
     s->remove_actor = remove_actor;
-    s->apply_scene = apply_scene;
+    s->scene_edit = bind_scene_edit;
+    s->scene_properties = bind_scene_properties;
     s->frame = frame;
     s->last_actor_undo = last_actor_undo;
     s->place_actor = place;
@@ -1110,46 +1252,125 @@ static int actor_drag(void)
     return 0;
 }
 
+static int seed_scene(Test *t)
+{
+    if (!mm_scene_owner_init(&t->scene_owner, t, 1, NULL))
+        return 0;
+    t->scene_owner.owned[MM_SCENE_BACKGROUND] = t;
+    t->scene_owner.data.transition = 1;
+    return 1;
+}
+static void dispose_scene(Test *t)
+{
+    const MMSceneOwnerServices owners = scene_owners(t);
+    if (t->undo.refs)
+        release_scene_edit_undo(t, &t->undo);
+    mm_scene_owner_dispose(&t->scene_owner, &owners);
+}
 static int scene_edits(void)
 {
     Test t;
     MMMovieEditRequest q;
-    MMTag tag;
+    MMTag tag = {2, NULL, 0, 5};
+    MMSceneTrack *track = &t.scene_owner.tracks[MM_SCENE_FRAMES];
+    const MMSceneSound *packet;
+    MMSceneSoundTag record;
     int kind, fail, missing;
     memset(&q, 0, sizeof(q));
+    q.camera = 2;
+    q.reason = 1;
+    q.delay = 40;
+    q.transition = 3;
+    q.tag = &tag;
     q.volume = 101;
     q.style = 3;
-    q.queue = 2;
+    q.loop = 2;
     for (kind = MM_MOVIE_EDIT_CAMERA; kind <= MM_MOVIE_EDIT_BACKGROUND_SOUND; ++kind)
         for (fail = 0; fail <= 1; ++fail)
         {
+            MMSceneTrackEvent event;
             init(&t);
+            CHECK(seed_scene(&t));
             if (fail)
-                t.fail = FAIL_APPLY;
+                t.fail = kind == MM_MOVIE_EDIT_CAMERA ? FAIL_CACHE :
+                         kind == MM_MOVIE_EDIT_BACKGROUND_SOUND ? FAIL_APPLY : FAIL_COMMIT;
             CHECK(mm_movie_edit_scene(kind, &q, &t.s) == !fail);
             CHECK(t.dirty == (!fail && kind != MM_MOVIE_EDIT_BACKGROUND_SOUND));
             CHECK(t.invalidates == (!fail && kind == MM_MOVIE_EDIT_CAMERA));
+            CHECK(t.undo.refs == !fail);
+            CHECK(track->rows.count == (MMU32)(!fail && kind != MM_MOVIE_EDIT_TRANSITION));
+            CHECK(t.scene_owner.runtime.next_event == (MMI32)track->rows.count);
+            if (kind == MM_MOVIE_EDIT_CAMERA)
+            {
+                CHECK(t.camera == (fail ? 0 : 2) && t.cameraCloses == 1);
+                CHECK(fail || (t.undo.background.camera == 0 && t.sceneDirty == 1 &&
+                               mm_scene_track_get(track, 0, &event) && event.kind == MM_SCENE_CHANGE_CAMERA));
+            }
+            if (kind == MM_MOVIE_EDIT_PAUSE)
+            {
+                CHECK(t.sceneDirty == 1 && t.undo.pause.reason == 0 && t.undo.pause.delay == 0);
+                if (!fail)
+                {
+                    MMI32 values[2];
+                    memcpy(values, mm_scene_track_payload(track, 0, NULL), sizeof(values));
+                    CHECK(mm_scene_track_get(track, 0, &event) && event.kind == MM_SCENE_PAUSE &&
+                          values[0] == q.reason && values[1] == q.delay);
+                }
+            }
+            if (kind == MM_MOVIE_EDIT_TRANSITION)
+                CHECK(t.scene_owner.data.transition == (fail ? 1 : 3) && t.undo.transition.transition == 1);
+            if (kind == MM_MOVIE_EDIT_BACKGROUND_SOUND)
+            {
+                CHECK(t.clears == fail && t.sceneSoundFrames == !fail);
+                if (!fail)
+                {
+                    packet = mm_scene_track_payload(track, 0, NULL);
+                    CHECK(mm_scene_track_get(track, 0, &event) && event.kind == MM_SCENE_PLAY_SOUND &&
+                          packet->fLoop == 1 && t.undo.sound.style == q.style);
+                    mm_scene_sound_get_tag(packet, 0, &record);
+                    CHECK(record.child == 29 && same_tag(&record.tag, &tag));
+                }
+            }
+            dispose_scene(&t);
         }
-    memset(&tag, 0, sizeof(tag));
-    tag.sid = 2;
-    q.tag = &tag;
+    q.loop = 0;
+    q.queue = 2;
     for (missing = 0; missing < 4; ++missing)
     {
         init(&t);
+        CHECK(seed_scene(&t));
         q.volume = (missing & 1) ? -1 : 101;
         q.style = (missing & 2) ? 0 : 3;
         CHECK(mm_movie_edit_scene(MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &t.s));
-        CHECK(t.request.volume == ((missing & 1) ? 83 : 101) && t.request.style == ((missing & 2) ? 4 : 3));
-        CHECK(t.volumeCalls == !!(missing & 1) && t.styleCalls == !!(missing & 2) && !t.soundRefs && !t.dirty &&
-              t.request.queue == 2);
+        packet = mm_scene_track_payload(track, 0, NULL);
+        CHECK(packet->vlm == ((missing & 1) ? 83 : 101) && packet->sty == ((missing & 2) ? 4 : 3));
+        CHECK(t.volumeCalls == !!(missing & 1) && t.styleCalls == !!(missing & 2) && !t.soundRefs && !t.dirty);
         CHECK(q.volume == ((missing & 1) ? -1 : 101) && q.style == ((missing & 2) ? 0 : 3));
         if (missing)
-            CHECK(t.events[t.eventCount - 2] == SOUND_RELEASE && t.events[t.eventCount - 1] == APPLY);
+        {
+            int release_index = 1 + !!(missing & 1) + !!(missing & 2);
+            CHECK(t.events[release_index] == SOUND_RELEASE && t.events[release_index + 1] == APPLY);
+        }
+        dispose_scene(&t);
     }
+    init(&t);
+    CHECK(seed_scene(&t));
+    tag.sid = 0;
+    q.volume = 101;
+    q.style = 3;
+    CHECK(mm_movie_edit_scene(MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &t.s));
+    CHECK(t.sceneInputNumber == 12 && tag.number == 5);
+    release_scene_edit_undo(&t, &t.undo);
+    tag.number = 6;
+    CHECK(mm_movie_edit_scene(MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &t.s));
+    packet = mm_scene_track_payload(track, 0, NULL);
+    CHECK(packet->ctagc == 2 && t.undo.sound.sound && t.undo.sound.sound->ctagc == 1);
+    CHECK(t.sceneInputNumber == 13 && tag.number == 6);
+    dispose_scene(&t);
     init(&t);
     t.fail = FAIL_SOUND;
     q.volume = -1;
-    CHECK(!mm_movie_edit_scene(MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &t.s) && !t.sceneCalls && !t.soundRefs &&
+    CHECK(!mm_movie_edit_scene(MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &t.s) && !t.sceneBindings && !t.soundRefs &&
           !t.dirty);
     return 0;
 }

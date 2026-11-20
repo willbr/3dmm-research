@@ -758,10 +758,6 @@ MMSceneSoundEditServices Scene::_SoundEditServices()
         return FAllocPv(&p, bytes, fmemClear, mprNormal) ? p : nullptr;
     };
     s.free_raw = [](void *, void *p) { FreePpv(&p); };
-    s.input_tag = [](void *, void *tags, MMI32 index, MMTag *out) {
-        auto p = &static_cast<PTAG>(tags)[index];
-        *out = {p->sid, p->pcrf, p->ctg, p->cno};
-    };
     s.child = [](void *p, MMU32 number, MMU32 *child) -> int {
         ChildChunkID value = *child;
         bool ok = static_cast<PScene>(p)->Pmvie()->FChidFromUserSndCno(number, &value);
@@ -773,11 +769,13 @@ MMSceneSoundEditServices Scene::_SoundEditServices()
         TrashVar(&value);
         return value;
     };
-    s.resolve_input = [](void *p, void *tags, MMI32 index, MMU32 child) -> int {
-        return static_cast<PScene>(p)->Pmvie()->FResolveSndTag(&static_cast<PTAG>(tags)[index], child);
+    s.resolve_input = [](void *p, MMTag *tag, MMU32 child) -> int {
+        return static_cast<PScene>(p)->Pmvie()->FResolveSndTag(*tag, child);
     };
-    s.fetch_input = [](void *, void *tags, MMI32 index) -> void * {
-        return vptagm->PbacoFetch(&static_cast<PTAG>(tags)[index], MovieSoundMSND::FReadMsnd);
+    s.fetch_input = [](void *, const MMTag *value) -> void * {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
     };
     s.create_tag_list = [](void *, MMI32 count) -> void * { return DynamicArray::PglNew(size(TAG), count); };
     s.resize_tag_list = [](void *, void *list, MMI32 count) -> int {
@@ -877,34 +875,6 @@ MMSceneSoundUndoServices SceneUndoSound::_Services()
 /****************************************************
  *
  * This routine adds a sound to the event list for this frame.
- *
- * Parameters:
- *  fLoop - should the sound loop?
- *  fQueue - queue after existing sounds, or replace them?
- *  vlm - volume to play this sound at
- *  sty - sound type (midi, speech, or SFX)
- *  ctag - number of sounds
- *  prgtag - array of MovieSoundMSND tags
- *
- *
- * Returns:
- *	fTrue, if successful, else fFalse.
- *
- ****************************************************/
-bool Scene::FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag, PTAG prgtag)
-{
-    AssertThis(0);
-    AssertPvCb(prgtag, LwMul(ctag, size(TAG)));
-    Assert(!fQueue || ctag == 1, "if queueing, add only one sound");
-    Assert(!fQueue || !fLoop, "can't both queue and loop");
-    AssertIn(sty, 0, styLim);
-    auto services = _SoundEditServices();
-    return mm_scene_sound_add(fLoop, fQueue, vlm, sty, ctag, prgtag, &services) != 0;
-}
-
-/****************************************************
- *
- * This routine adds a sound to the event list for this frame.
  * Note: The chid's in the tagc are current
  *
  * Parameters:
@@ -929,32 +899,6 @@ bool Scene::FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ct
     AssertIn(sty, 0, styLim);
     auto services = _SoundEditServices();
     return mm_scene_sound_restore(fLoop, fQueue, vlm, sty, ctagc, prgtagc, &services) != 0;
-}
-
-/****************************************************
- *
- * This routine adds a sound to the event list for this frame
- * and creates an undo object for the action.
- *
- * Parameters:
- *	ptag - pointer to the tag for the sound.
- *  fLoop - whether to loop the sound
- *  fQueue - queue after existing sounds, or replace them?
- *  vlm - volume to play this sound at
- *  sty - sound type (midi, speech, or SFX)
- *
- * Returns:
- *	fTrue, if successful, else fFalse.
- *
- ****************************************************/
-bool Scene::FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty)
-{
-    AssertThis(0);
-    AssertVarMem(ptag);
-    Assert(!fQueue || !fLoop, "can't both queue and loop");
-    AssertIn(sty, 0, styLim);
-    auto services = _SoundEditServices();
-    return mm_scene_sound_add_undo(fLoop, fQueue, vlm, sty, ptag, &services) != 0;
 }
 
 /****************************************************

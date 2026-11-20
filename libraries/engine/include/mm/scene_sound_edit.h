@@ -34,11 +34,10 @@ extern "C"
         MMSceneSoundValueServices values;
         void *(*allocate_records)(void *, MMI32 bytes);
         void (*free_raw)(void *, void *);
-        void (*input_tag)(void *, void *tags, MMI32 index, MMTag *);
         int (*child)(void *, MMU32 number, MMU32 *child);
         MMU32 (*unused_child)(void *);
-        int (*resolve_input)(void *, void *tags, MMI32 index, MMU32 child);
-        void *(*fetch_input)(void *, void *tags, MMI32 index);
+        int (*resolve_input)(void *, MMTag *, MMU32 child);
+        void *(*fetch_input)(void *, const MMTag *);
         void *(*create_tag_list)(void *, MMI32 count);
         int (*resize_tag_list)(void *, void *list, MMI32 count);
         void (*put_list_tag)(void *, void *list, MMI32 index, const MMTag *);
@@ -73,10 +72,11 @@ extern "C"
      * failures. get leaves the packet output untouched when absent; query leaves
      * volume/loop untouched when absent/failing and returns borrowed list tags.
      * A clear-undo callback may destroy the undo object: no state is accessed after it.
-     * Undo targets/common object lifetime remain supplied by the host services. */
+     * Undo targets/common object lifetime remain supplied by the host services.
+     * Sound add resolves document tags in the caller's mutable input array. */
     int mm_scene_edit_insert(MMI32 frame, int kind, MMI32 bytes, const void *,
                                    const MMSceneSoundEditServices *);
-    int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 count, void *tags,
+    int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 count, MMTag *tags,
                                  const MMSceneSoundEditServices *);
     int mm_scene_sound_restore(int loop, int queue, MMI32 volume, MMI32 style, MMI32 count,
                                 const MMSceneSoundTag *records, const MMSceneSoundEditServices *);
@@ -89,7 +89,7 @@ extern "C"
     void mm_scene_sound_update_indicator(const MMSceneSoundEditServices *);
     MMU32 mm_scene_sound_background_offset(MMI32 frame, MMI32 first, int *overflow);
     void mm_scene_sound_background_play(const MMSceneSoundEditServices *);
-    int mm_scene_sound_add_undo(int loop, int queue, MMI32 volume, MMI32 style, void *tag,
+    int mm_scene_sound_add_undo(int loop, int queue, MMI32 volume, MMI32 style, MMTag *tag,
                                       const MMSceneSoundEditServices *);
     int mm_scene_sound_remove_undo(MMI32 style, const MMSceneSoundEditServices *);
     void mm_scene_sound_undo_init(MMSceneSoundUndo *);

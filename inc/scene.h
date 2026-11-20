@@ -121,6 +121,7 @@ struct MMActorGroupTransformServices;
 #define kclsScene 'SCEN'
 class Scene : public Scene_PAR
 {
+    friend class Movie;
     friend class SceneActorUndo;
     friend class MovieView;
     friend class SceneUndoText;
@@ -337,10 +338,7 @@ class Scene : public Scene_PAR
     //
     // Sound functions
     //
-    bool FAddSndCore(bool fLoop, bool fQueue, long vlm, long sty, long ctag,
-                     PTAG prgtag); // Adds a sound to the current frame.
     bool FAddSndCoreTagc(bool fLoop, bool fQueue, long vlm, long sty, long ctagc, const MMSceneSoundTag *prgtagc);
-    bool FAddSnd(PTAG ptag, bool fLoop, bool fQueue, long vlm, long sty); // Adds a sound to the current frame, and undo
     void RemSndCore(long sty);                                            // Removes the sound from current frame.
     bool FRemSnd(long sty);                             // Removes the sound from current frame, and undo
     bool FGetSnd(long sty, bool *pfFound, PSceneSoundEvent *ppsse); // Allows for retrieval of sounds.

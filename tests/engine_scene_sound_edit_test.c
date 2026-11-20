@@ -125,12 +125,6 @@ static void free_raw(void *p, void *value)
 {
     raw_free(&((Editor *)p)->base, value);
 }
-static void input_tag(void *p, void *tags, MMI32 index, MMTag *out)
-{
-    (void)p;
-    CHECK(index >= 0 && index < 3);
-    *out = ((MMTag *)tags)[index];
-}
 static int child(void *p, MMU32 number, MMU32 *out)
 {
     Editor *e = (Editor *)p;
@@ -146,19 +140,20 @@ static MMU32 unused_child(void *p)
     (void)p;
     return 0xccccccccU;
 }
-static int resolve_input(void *p, void *tags, MMI32 index, MMU32 child)
+static int resolve_input(void *p, MMTag *tag, MMU32 child)
 {
     Editor *e = (Editor *)p;
-    MMTag *tag = (MMTag *)tags + index;
+    int index = (int)(tag - e->tags);
     CHECK(child > 0 && child <= 3);
     if (e->input_mutate && index == 0)
         tag->number = 3;
     return !(e->input_resolve_fail & (1 << index));
 }
-static void *fetch_input(void *p, void *tags, MMI32 index)
+static void *fetch_input(void *p, const MMTag *tag)
 {
     Editor *e = (Editor *)p;
-    return e->input_fetch_fail == index + 1 ? NULL : resource(e, ((MMTag *)tags)[index].number);
+    int index = (int)(tag - e->tags);
+    return e->input_fetch_fail == index + 1 ? NULL : resource(e, tag->number);
 }
 static void *new_list(void *p, MMI32 count)
 {
@@ -364,7 +359,6 @@ static void editor_init(Editor *e)
     s->values.release = release_packet;
     s->allocate_records = allocate_records;
     s->free_raw = free_raw;
-    s->input_tag = input_tag;
     s->child = child;
     s->unused_child = unused_child;
     s->resolve_input = resolve_input;

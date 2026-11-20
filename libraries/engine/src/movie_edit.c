@@ -302,29 +302,60 @@ void mm_movie_actor_drag_sample(MMMovieActorDrag *drag, const MMMovieActorDragIn
     s->adjust_cursor(s->view);
 }
 
-int mm_movie_edit_scene(int kind, const MMMovieEditRequest *input, const MMMovieEditServices *s)
+static int add_background_sound(const MMMovieEditRequest *input, const MMMovieEditServices *s)
 {
-    MMMovieEditRequest request = *input;
-    void *sound;
-    if (kind == MM_MOVIE_EDIT_BACKGROUND_SOUND && (request.volume == -1 || request.style == 0))
+    MMI32 volume = input->volume, style = input->style;
+    MMTag tag;
+    MMSceneEditServices edit;
+    if (volume == -1 || style == 0)
     {
-        sound = s->fetch_sound(s->context, request.tag);
+        void *sound = s->fetch_sound(s->context, input->tag);
         if (!sound)
             return 0;
-        if (request.volume == -1)
-            request.volume = s->sound_volume(sound);
-        if (request.style == 0)
-            request.style = s->sound_style(sound);
+        if (volume == -1)
+            volume = s->sound_volume(sound);
+        if (style == 0)
+            style = s->sound_style(sound);
         s->release_sound(sound);
     }
-    if (!s->apply_scene(s->scenes->open, kind, &request))
-        return 0;
-    if (kind != MM_MOVIE_EDIT_BACKGROUND_SOUND)
+    tag = *input->tag;
+    edit = s->scene_edit(s->scenes->open);
+    return mm_scene_sound_add_undo(input->loop != 0, input->queue != 0, volume, style, &tag, &edit.sound);
+}
+int mm_movie_edit_scene(int kind, const MMMovieEditRequest *input, const MMMovieEditServices *s)
+{
+    void *scene = s->scenes->open;
+    switch (kind)
     {
-        s->dirty(s->context);
-        if (kind == MM_MOVIE_EDIT_CAMERA)
-            s->invalidate(s->context, 0);
+    case MM_MOVIE_EDIT_BACKGROUND_SOUND:
+        return add_background_sound(input, s);
+    case MM_MOVIE_EDIT_TRANSITION:
+    {
+        const MMScenePropertyServices properties = s->scene_properties(scene);
+        if (!mm_scene_transition_edit(input->transition, &properties))
+            return 0;
+        break;
     }
+    case MM_MOVIE_EDIT_PAUSE:
+    {
+        const MMSceneEditServices edit = s->scene_edit(scene);
+        if (!mm_scene_pause_undo_edit(input->reason, input->delay, &edit))
+            return 0;
+        break;
+    }
+    case MM_MOVIE_EDIT_CAMERA:
+    {
+        const MMSceneEditServices edit = s->scene_edit(scene);
+        if (!mm_scene_camera_undo_edit(input->camera, &edit))
+            return 0;
+        break;
+    }
+    default:
+        return 0;
+    }
+    s->dirty(s->context);
+    if (kind == MM_MOVIE_EDIT_CAMERA)
+        s->invalidate(s->context, 0);
     return 1;
 }
 int mm_movie_paste_actor(void *actor, const MMMovieEditServices *s)

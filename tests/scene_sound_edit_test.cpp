@@ -77,10 +77,18 @@ struct MovieAccess : Movie
 };
 struct Access : Scene
 {
+    static bool Add(PScene scene, bool loop, bool queue, long volume, long style, PTAG tag, bool undo = false)
+    {
+        auto services = (scene->*&Access::_SoundEditServices)();
+        MMTag input = {tag->sid, tag->pcrf, tag->ctg, tag->cno};
+        const bool ok = undo ? mm_scene_sound_add_undo(loop, queue, volume, style, &input, &services)
+                             : mm_scene_sound_add(loop, queue, volume, style, 1, &input, &services);
+        TagFromCore(tag, input);
+        return ok;
+    }
 #ifdef MM_ENGINE_SCENE_SOUND_EDIT_H
     static void FailPut(PScene scene, PTAG tag)
     {
-        auto services = (scene->*&Access::_SoundEditServices)();
         auto track = (scene->*&Access::_FrameTrack)();
         auto &allocator = track->storage.allocator;
         auto resize = allocator.resize;
@@ -90,7 +98,7 @@ struct Access : Scene
             return nullptr;
         };
         put_called = false;
-        bool result = mm_scene_sound_add(0, 1, 29, stySfx, 1, tag, &services) != 0;
+        bool result = Add(scene, false, true, 29, stySfx, tag);
         allocator.resize = resize;
         CHECK(!result && put_called);
     }
@@ -243,16 +251,16 @@ int main()
     for (int style : {int(stySfx), int(stySpeech), int(styMidi)})
     {
         Query(scene, style);
-        Value(scene->FAddSndCore(false, false, 83, style, 1, &tag));
+        Value(Access::Add(scene, false, false, 83, style, &tag));
         Access::State(scene);
         vpers->Clear();
-        Value(scene->FAddSndCore(false, true, 29, style, 1, &tag));
+        Value(Access::Add(scene, false, true, 29, style, &tag));
         Access::State(scene);
         vpers->Clear();
         scene->SetSndVlmCore(style, 67);
         Access::State(scene);
         Query(scene, style);
-        Value(scene->FAddSnd(&tag, true, false, 56, style));
+        Value(Access::Add(scene, true, false, 56, style, &tag, true));
         Access::State(scene);
         vpers->Clear();
         scene->RemSndCore(style);
@@ -268,7 +276,7 @@ int main()
         vdmglob.dmaglPv.cactFail = failure ? 1 : 0;
         vmutxMem.Leave();
 #endif
-        bool ok = scene->FAddSndCore(false, false, 44, styMidi, 1, &tag);
+        bool ok = Access::Add(scene, false, false, 44, styMidi, &tag);
 #ifdef DEBUG
         vmutxMem.Enter();
         vdmglob.dmaglPv.cactDo = vdmglob.dmaglPv.cactFail = 0;
@@ -283,7 +291,7 @@ int main()
     movie->ClearUndo();
     for (int preset : {0, 1})
     {
-        CHECK(scene->FAddSndCore(false, false, 31, stySfx, 1, &tag));
+        CHECK(Access::Add(scene, false, false, 31, stySfx, &tag));
         vpers->Clear();
         auto undo = SceneUndoSound::PsunsNew();
         CHECK(undo);
@@ -297,7 +305,7 @@ int main()
             PSceneSoundEvent old = nullptr;
             CHECK(scene->FGetSnd(stySfx, &found, &old) && found && undo->FSetSnd(old));
             ReleasePpsse(&old);
-            CHECK(scene->FAddSndCore(false, false, 72, stySfx, 1, &tag));
+            CHECK(Access::Add(scene, false, false, 72, stySfx, &tag));
             vpers->Clear();
         }
         for (int repeat = 0; repeat < 4; ++repeat)
@@ -314,7 +322,7 @@ int main()
 #ifdef MM_ENGINE_SCENE_SOUND_EDIT_H
     // Corrected failure paths are outside the frozen native behavior trace.
     recording = false;
-    CHECK(scene->FAddSndCore(false, false, 31, stySfx, 1, &tag));
+    CHECK(Access::Add(scene, false, false, 31, stySfx, &tag));
     vpers->Clear();
     auto references = observed->CactRef();
     Access::FailPut(scene, &tag);
@@ -339,7 +347,7 @@ int main()
     vpers->Clear();
 #endif
     CHECK(scene->FGotoFrm(2));
-    CHECK(scene->FAddSndCore(false, false, 64, stySfx, 1, &tag));
+    CHECK(Access::Add(scene, false, false, 64, stySfx, &tag));
     vpers->Clear();
     CHECK(Access::Count(scene) == 2 && scene->FRemSnd(stySfx) && Access::Count(scene) == 1);
     movie->ClearUndo();

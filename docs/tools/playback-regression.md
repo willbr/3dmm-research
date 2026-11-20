@@ -16243,3 +16243,44 @@ matched all 60 retail frame identities in seek and playback, the retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests. Evidence is in
 `tmp/c89-movie-actor-edit-dispatch`.
+
+## C89 movie scene edit dispatch (20 November 2026)
+
+Movie commands call the C89 camera, pause, transition and background
+sound transactions directly. The scene sound editor uses typed tags
+throughout. The movie command resolves document sounds in a local copy
+of the input tag.
+
+The movie fixture checks authored camera and pause events, pause
+rollback, transition metadata, and sound insertion and queueing. It
+also checks undo cleanup, default volume and style lookup, and that
+document sound resolution leaves the command's input tag unchanged.
+
+All 192 standalone checks, 10 targeted checks per host build, 14 Marcus
+syntax and playback checks, and six AddressSanitizer checks passed.
+Native x64, x86 and SDL matched 12 actor traces, three scene traces
+and the saved movie per build. Ten Preview fingerprints and six
+Preview movies matched. Both VMM seek images in
+`20261120T165902Z-d96e6909` matched the archived captures.
+
+Studio placed a click pause and a speech cue on frame 3. Undo removed
+the cue and Redo restored it. The reopened Studio movie played all
+eight frames and observed the click pause. The previous and current
+SDL builds saved byte-identical movies. In `20261120T165944Z-bb274f7c`,
+retail and SDL matched all eight seek observations and image hashes.
+
+For continuous playback of the same speech cue with the pause cleared,
+all three hosts committed the same eight frames in
+`20261120T165944Z-9611eb00`. SDL matched the retail frame-3 sound request.
+After trimming leading and trailing silence, SDL and Marcus produced
+the same 14,367 PCM frames as the previous SDL build in
+`20261120T170150Z-03c8ec58`. Retail produced a different 15,341-frame
+segment. Exact retail PCM and frame timing comparisons reported
+differences. Marcus timing and sound request markers lack a comparable
+observer in this capture.
+
+In `actor-event-edit` suite `20261120T165902Z-8214b8ad`, both hosts
+matched retail's 60 frame identities in seek and playback, retail's
+camera indices on seek, and their earlier seek image hashes. SDL
+matched all 12 retail sound requests. Evidence is in
+`tmp/c89-movie-scene-edit-dispatch`.

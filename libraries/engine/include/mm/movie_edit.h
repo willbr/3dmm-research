@@ -8,6 +8,8 @@
 #include "movie_rollcall.h"
 #include "movie_scene.h"
 #include "movie_undo.h"
+#include "scene_control.h"
+#include "scene_edit.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -60,7 +62,8 @@ extern "C"
         MMActorSoundEditServices (*actor_sound)(void *actor);
         MMU32 sound_external_child; /* Unused child field for external sound sources. */
         int (*add_actor)(void *scene, void *actor), (*remove_actor)(void *scene, MMI32 id);
-        int (*apply_scene)(void *scene, int kind, const MMMovieEditRequest *);
+        MMSceneEditServices (*scene_edit)(void *scene);
+        MMScenePropertyServices (*scene_properties)(void *scene);
         MMI32 (*frame)(void *scene);
         struct MMActorUndoState *(*last_actor_undo)(void *);
         void (*place_actor)(void *view, int entire_scene), (*placement_undo)(void *view, void *owned_snapshot);
@@ -183,7 +186,7 @@ extern "C"
      * are required. Scene edits/selected edits require a current scene; selected
      * actor edits require a selected actor. Time edits return failure when
      * there is no open scene or primary actor. Getter/result tags are borrowed.
-     * Actor costume and sound requests require a tag.
+     * Costume and sound requests require a tag.
      * new_actor/new_scene_undo return one reference. Placement undo takes ownership
      * of the reset actor snapshot. Scene-add/paste/undo manage their own retains.
      * Callbacks for Scene/Actor operations may use the existing C controllers and
