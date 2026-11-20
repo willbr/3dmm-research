@@ -66,7 +66,6 @@ int mm_actor_record_begin(MMActorState *state,MMActorRecording *record,void *rou
     const MMActorEditServices *e=&r->edits;
     MMActorRoutePoint point;
     MMActorEvent event;
-    MMActorSubrouteFlags flags;
     MMI32 i,next,offset,frame,previous;
     int closest=1;
     m->route_point(route,state->location.irpt,&point);
@@ -98,8 +97,8 @@ int mm_actor_record_begin(MMActorState *state,MMActorRecording *record,void *rou
         mm_actor_route_edit_adjust_insert(route,events,state->location.irpt,0,m,r);
     }
     record->gap=0; publish(state,record,s);
-    s->subroute.get_flags(e->context,&flags);
-    if (flags.dirty && !mm_actor_subroute_lifetime(route,events,NULL,&s->subroute))
+    if (*s->subroute.lifetime.dirty &&
+        !mm_actor_refresh_lifetime(route,events,NULL,&s->subroute.lifetime,&s->subroute.timeline))
     { diagnostic(s,MM_RECORD_BAD_LIFETIME); return restore(state,record,undo,s); }
     for (i=state->nextEvent;i<m->event_count(events);++i)
     {
@@ -239,7 +238,7 @@ int mm_actor_record_end(MMActorState *state,MMActorRecording *record,MMActorSoun
     }
     if (!replace && !record->rejoining && (!freeze(state,sounds,events,actor,1,m,s) || !step(state,sounds,events,actor,0,m,s))) goto fail;
 finished:
-    s->subroute.set_dirty(e->context,1); record->rejoining=record->recording=0;
+    *s->subroute.lifetime.dirty=1; record->rejoining=record->recording=0;
     publish(state,record,s); e->dirty(e->context); e->invalidate_range(e->context); return 1;
 fail:
     restore(state,record,undo,s); record->rejoining=record->recording=0; publish(state,record,s); return 0;

@@ -1,6 +1,7 @@
 /* Actor seek control converted from engine actor_seek.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "mm/actor_timeline.h"
+#include "mm/actor_owner.h"
+#include "mm/actor_effect.h"
 enum
 {
     INITIALIZE,
@@ -183,6 +184,7 @@ int mm_actor_seek_run(MMActorState *state, void *route, void *events, MMI32 firs
 typedef struct ActorPlayback
 {
     void *route, *events;
+    MMActorOwner *owner;
     const MMActorTimelineServices *timeline;
     const MMActorPlaybackEffects *effects;
     MMI32 first, last;
@@ -191,7 +193,7 @@ typedef struct ActorPlayback
 
 static MMI32 playback_last(const ActorPlayback *p)
 {
-    return p->effects->last_frame ? p->effects->last_frame(p->effects->context) : p->last;
+    return p->owner ? p->owner->runtime.last : p->last;
 }
 
 static int playback_fault(void *context)
@@ -205,14 +207,16 @@ static int playback_event(void *context, const MMActorFrameCommand *command, MMA
     const ActorPlayback *p = (const ActorPlayback *)context;
     const MMActorPlaybackEffects *e = p->effects;
     MMActorEvent event;
-    int prepared;
     if (command->kind != MM_ACTOR_CHECK_ENTRANCE)
         return e->apply_event(e->context, command->eventIndex);
-    if (e->prepare_entrance)
+    if (p->owner)
     {
-        prepared = e->prepare_entrance(e->context, command->eventIndex);
-        if (prepared <= 0)
-            return prepared;
+        const MMActorLifetime life = mm_actor_owner_lifetime(p->owner);
+        if (*life.dirty && !mm_actor_refresh_lifetime(p->route, p->events, NULL, &life, p->timeline))
+            return 0;
+        if (p->timeline->diagnostic &&
+            p->timeline->motion.event_size(p->events, command->eventIndex) != (MMI32)sizeof(MMActorEntrance))
+            p->timeline->diagnostic(p->timeline->context, MM_ACTOR_CORRUPT_ENTRANCE);
     }
     p->timeline->motion.event(p->events, command->eventIndex, &event);
     return event.nfrm <= state->frame;
@@ -227,6 +231,12 @@ static int playback_frame(ActorPlayback *p, MMActorState *state, int display)
     int result;
     inputs.firstFrame = p->first;
     inputs.displayFrame = display;
+    if (p->owner)
+    {
+        inputs.firstFrame = p->owner->runtime.first;
+        inputs.recording = p->owner->runtime.recording.recording;
+        inputs.rejoining = p->owner->runtime.recording.rejoining;
+    }
     if (e->prepare)
         e->prepare(e->context, &inputs);
     if (e->suppress_sounds)
@@ -270,6 +280,8 @@ static int playback_seek_effect(void *context, const MMActorSeekCommand *command
         e->hide(e->context);
         return 1;
     case MM_ACTOR_SEEK_RESET_COSTUME:
+        if (p->owner)
+            p->owner->runtime.recording.recording = 0;
         return e->reset_costume(e->context);
     case MM_ACTOR_SEEK_QUICK_EFFECTS:
         return playback_quick(p, state);
@@ -280,14 +292,24 @@ static int playback_seek_effect(void *context, const MMActorSeekCommand *command
     }
 }
 
+static int run_playback(ActorPlayback *playback, MMActorState *state, MMI32 target)
+{
+    MMActorSeekEffects seek;
+    seek.context = playback;
+    seek.apply = playback_seek_effect;
+    seek.fault = playback_fault;
+    return mm_actor_seek_run(state, playback->route, playback->events, playback->first, playback->last,
+                             target, playback->timeline, &seek);
+}
+
 int mm_actor_playback_seek(MMActorState *state, void *route, void *events, MMI32 first, MMI32 last, MMI32 target,
                           int profile, int *sound, const MMActorTimelineServices *timeline,
                           const MMActorPlaybackEffects *effects)
 {
     ActorPlayback playback;
-    MMActorSeekEffects seek;
     playback.route = route;
     playback.events = events;
+    playback.owner = NULL;
     playback.timeline = timeline;
     playback.effects = effects;
     playback.first = first;
@@ -295,10 +317,24 @@ int mm_actor_playback_seek(MMActorState *state, void *route, void *events, MMI32
     playback.profile = profile;
     playback.dirty = profile == MM_ACTOR_FRAME_PREVIEW;
     playback.sound = sound;
-    seek.context = &playback;
-    seek.apply = playback_seek_effect;
-    seek.fault = playback_fault;
-    return mm_actor_seek_run(state, route, events, first, last, target, timeline, &seek);
+    return run_playback(&playback, state, target);
+}
+
+int mm_actor_owner_seek(MMActorOwner *owner, MMI32 target, int *sound, const MMActorTimelineServices *timeline,
+                        const MMActorPlaybackEffects *effects)
+{
+    ActorPlayback playback;
+    playback.route = owner->track.route;
+    playback.events = owner->track.events;
+    playback.owner = owner;
+    playback.timeline = timeline;
+    playback.effects = effects;
+    playback.first = owner->runtime.first;
+    playback.last = owner->runtime.last;
+    playback.profile = MM_ACTOR_FRAME_STUDIO;
+    playback.dirty = 0;
+    playback.sound = sound;
+    return run_playback(&playback, &owner->runtime.state, target);
 }
 
 int mm_actor_replay_frame_sounds(const MMActorState *state, void *events, int enabled,

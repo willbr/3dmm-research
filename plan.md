@@ -334,7 +334,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Actor step metadata policy, lifetime/cache calculation, stalling, backward steps,
   quick backup and outer seek command sequencing now use C89. Per-step rollback,
   partial progress, callback observations and the enabled retail fixes are retained.
-  Native metadata/table/state/diagnostic adapters remain temporary facades.
+  Studio seek reads its first and last frames, recording state and dirty lifetime
+  flag directly from the C89 actor owner. Studio and Marcus animation edits bind
+  their lifetime fields to the same C89 updater. Native template metadata,
+  diagnostics and body/audio effects remain.
 - Actor pose evaluation, weighted route orientation and fixed matrix/angle math
   now use C89. Native pose code supplies table views and copies matrices into
   BRender at the SDK boundary. The C implementation uses fixed-point arithmetic.

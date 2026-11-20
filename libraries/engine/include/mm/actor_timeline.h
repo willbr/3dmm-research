@@ -11,7 +11,8 @@ extern "C"
     {
         MM_ACTOR_UNKNOWN_EVENT,
         MM_ACTOR_CORRUPT_ROUTE,
-        MM_ACTOR_LIFETIME_LOGIC
+        MM_ACTOR_LIFETIME_LOGIC,
+        MM_ACTOR_CORRUPT_ENTRANCE
     };
     typedef struct MMActorTimelineServices
     {
@@ -26,6 +27,8 @@ extern "C"
         void (*publish)(void *, const MMActorState *);
         void (*publish_frame)(void *, MMI32 last_attempted_frame);
     } MMActorTimelineServices;
+    /* Default table services for C-owned PATH and GGAE handles. */
+    MMActorTimelineServices mm_actor_track_timeline_services(void);
     /* Resolver output starts at zero. Failure preserves any value written by the
      * resolver. Playback scaling is applied only after successful resolution.
      * Metadata callbacks cannot mutate authored tables or evaluated state. */
@@ -41,6 +44,19 @@ extern "C"
      * last-first, measured without 32-bit subtraction overflow. */
     int mm_actor_lifetime(void *route, void *events, MMI32 first, int rejoining, MMI32 *last,
                                 MMI32 max_frames, const MMActorTimelineServices *);
+    typedef struct MMActorLifetime
+    {
+        const MMI32 *first;
+        MMI32 *last;
+        int *dirty;
+        const int *recording, *rejoining;
+        int publish_attempts;
+    } MMActorLifetime;
+    /* Updates the bound last frame and dirty flag. Recording defers calculation.
+     * Failures retain partial event caches and leave the optional output alone.
+     * Studio also publishes each attempted frame before resolving its step. */
+    int mm_actor_refresh_lifetime(void *route, void *events, MMI32 *output,
+                                  const MMActorLifetime *, const MMActorTimelineServices *);
     int mm_actor_stalled(void *events, MMI32 first, const MMActorLocation *, MMI32 *last_event,
                                const MMActorTimelineServices *);
     /* Step failure restores cel/frame/location and leaves output unchanged. A
@@ -105,11 +121,7 @@ extern "C"
         int (*reset_costume)(void *);
         /* Optional frame settings and preparation before resolving the step. */
         void (*prepare)(void *, MMActorFrameInputs *);
-        /* Optional lifetime refresh before testing an entrance's cached frame. */
-        int (*prepare_entrance)(void *, MMI32 index);
         int (*apply_event)(void *, MMI32 index);
-        /* Optional current lifetime end, queried after applying a frame's events. */
-        MMI32 (*last_frame)(void *);
         int (*suppress_sounds)(void *);
         int (*motion_sounds)(void *);
         void (*position_body)(void *);

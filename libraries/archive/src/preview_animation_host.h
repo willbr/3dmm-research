@@ -6,7 +6,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
     AnimationHost(PreviewActor *actor, const SoundGraphResolver &resolve) : CostumeHost(actor), resolveSound(resolve) {}
     const SoundGraphResolver &resolveSound;
     MMActorRecording record{};
-    bool lifeDirty = false;
+    int lifeDirty = 0;
     MMSoundResource sound{};
     MMI32 silent = 0;
     unsigned char invalid = 0;
@@ -97,7 +97,6 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.route.edits = s.action.sounds.edits;
         s.timeline = Host::Services().timeline;
         mm_actor_route_edit_bind_tables(&s.route);
-        s.timeline.put_event = s.route.write_event;
         s.route.life_dirty = s.action.mark_life_dirty;
         s.route.recording = [](void *v, int enabled) { Get(v).record.recording = enabled; };
         s.route.hide_body = [](void *) {};
@@ -105,11 +104,8 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
             auto &h = Get(v);
             h.Guard([&] { return h.actor->Ptmpl()->FSetDefaultCost(h.actor->Pbody()); });
         };
-        s.get_flags = [](void *v, MMActorSubrouteFlags *flags) {
-            const auto &h = Get(v);
-            *flags = {h.lifeDirty, h.record.recording, h.record.rejoining};
-        };
-        s.set_dirty = [](void *v, int dirty) { Get(v).lifeDirty = dirty != 0; };
+        auto &header = actor->core.header;
+        s.lifetime = {&header.first_frame, &header.last_frame, &lifeDirty, &record.recording, &record.rejoining, 0};
         s.pose_inputs = [](void *v, MMActorPoseInputs *inputs) {
             auto tmpl = Get(v).actor->Ptmpl();
             tmpl->GetRestOrien(&inputs->restX, &inputs->restY, &inputs->restZ);

@@ -1,8 +1,20 @@
 /* Actor timeline evaluation converted from engine actor_timeline.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_timeline.h"
+#include "mm/actor_track.h"
 #include "mm/wide.h"
 #include <stddef.h>
+static void put_track_event(void *events, MMI32 index, const MMActorEvent *event)
+{
+    mm_actor_events_set_fixed((MMActorEventTable *)events, index, event);
+}
+MMActorTimelineServices mm_actor_track_timeline_services(void)
+{
+    MMActorTimelineServices s = {0};
+    s.motion = mm_actor_track_motion_services();
+    s.put_event = put_track_event;
+    return s;
+}
 static void publish(const MMActorState *state, const MMActorTimelineServices *s)
 {
     if (s->publish)
@@ -97,8 +109,8 @@ int mm_actor_stalled(void *events, MMI32 first, const MMActorLocation *p, MMI32 
     }
     return 0;
 }
-int mm_actor_lifetime(void *route, void *events, MMI32 first, int rejoining, MMI32 *last,
-                            MMI32 bound, const MMActorTimelineServices *s)
+static int evaluate_lifetime(void *route, void *events, MMI32 first, int rejoining, MMI32 *last,
+                             MMI32 bound, MMI32 *attempted, const MMActorTimelineServices *s)
 {
     const MMActorMotionServices *m = &s->motion;
     MMI32 i, final_add = -1, next = 0, action = 0, cel = 0, scale = 65536L, step = 0, distance;
@@ -122,6 +134,8 @@ int mm_actor_lifetime(void *route, void *events, MMI32 first, int rejoining, MMI
     }
     for (*last = first; p.irpt != m->route_count(route) || next != m->event_count(events); ++*last)
     {
+        if (attempted)
+            *attempted = *last;
         if (s->publish_frame)
             s->publish_frame(s->context, *last);
         elapsed = mm_wide_subtract(mm_wide_i32(*last), mm_wide_i32(first));
@@ -213,6 +227,31 @@ int mm_actor_lifetime(void *route, void *events, MMI32 first, int rejoining, MMI
     }
     diagnostic(MM_ACTOR_LIFETIME_LOGIC, s);
     return 0;
+}
+int mm_actor_lifetime(void *route, void *events, MMI32 first, int rejoining, MMI32 *last,
+                      MMI32 bound, const MMActorTimelineServices *s)
+{
+    return evaluate_lifetime(route, events, first, rejoining, last, bound, NULL, s);
+}
+int mm_actor_refresh_lifetime(void *route, void *events, MMI32 *output,
+                              const MMActorLifetime *life, const MMActorTimelineServices *s)
+{
+    MMI32 last = *life->last;
+    int ok;
+    if (*life->recording)
+    {
+        if (output)
+            *output = last;
+        *life->dirty = 1;
+        return 1;
+    }
+    ok = evaluate_lifetime(route, events, *life->first, *life->rejoining, &last, 2147483647L,
+                           life->publish_attempts ? life->last : NULL, s);
+    *life->last = last;
+    *life->dirty = !ok;
+    if (ok && output)
+        *output = last;
+    return ok;
 }
 int mm_actor_step_back(MMActorState *state, void *route, void *events, MMActorLocation *output,
                              int update, const MMActorTimelineServices *s)

@@ -51,6 +51,11 @@ typedef struct MMActorOwnerServices
  * update dirty/recording flags; seek can update the complete runtime. */
 void mm_actor_runtime_init(MMActorRuntime *);
 void mm_actor_owner_init(MMActorOwner *);
+MMActorLifetime mm_actor_owner_lifetime(MMActorOwner *);
+/* Seek the live Studio actor. Frame and entrance policy reads from the owner.
+ * The host provides template metadata, animation, sound and renderer effects. */
+int mm_actor_owner_seek(MMActorOwner *, MMI32 target, int *sound, const MMActorTimelineServices *,
+                        const MMActorPlaybackEffects *);
 int mm_actor_owner_duplicate(void *source,int reset,MMActorOwnerResult *,const MMActorOwnerServices *);
 void mm_actor_owner_rewind(void *actor,const MMActorOwnerServices *);
 void mm_actor_owner_reset(void *actor,const MMActorOwnerServices *);

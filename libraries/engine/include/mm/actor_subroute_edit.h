@@ -10,14 +10,12 @@
 extern "C" {
 #endif
 enum { MM_SUBROUTE_BAD_LIFETIME, MM_SUBROUTE_BAD_HOLD, MM_SUBROUTE_OFFSTAGE_EVENT };
-typedef struct MMActorSubrouteFlags { int dirty,recording,rejoining; } MMActorSubrouteFlags;
 typedef struct MMActorSubrouteEditServices
 {
     MMActorRouteEditServices route;
     MMActorActionEditServices action;
     MMActorTimelineServices timeline;
-    void (*get_flags)(void *,MMActorSubrouteFlags *);
-    void (*set_dirty)(void *,int);
+    MMActorLifetime lifetime;
     void (*pose_inputs)(void *,MMActorPoseInputs *);
     void (*locate_body)(void *,const MMActorBodyPose *);
     /* Temporary integration into the already C-owned seek policy. State is
@@ -36,10 +34,6 @@ void mm_actor_subroute_save_orientation(MMActorState *,void *route,void *events,
     const MMActorMotionServices *,const MMActorSubrouteEditServices *);
 void mm_actor_subroute_position_body(MMActorState *,void *route,void *events,const MMActorPoint *,
     const MMActorMotionServices *,const MMActorSubrouteEditServices *);
-/* Lifetime failures publish partial caches/last frame and dirty=true. Recording
- * returns the cached last frame and keeps dirty=true without running metadata.
- * Optional independent output is untouched on non-recording failure. */
-int mm_actor_subroute_lifetime(void *route,void *events,MMI32 *last,const MMActorSubrouteEditServices *);
 /* Retain BUG1870/BUG1866 ordering, including the second offset subtraction after
  * a matching held-frame location. Lifetime failure reports diagnostics but editing
  * continues. Optional alive is published before reset/lifetime/invalidation. */

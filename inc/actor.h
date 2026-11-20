@@ -134,7 +134,7 @@ class Actor : public Actor_PAR
 
     bool _FGetStatic(long anid, bool *pfStatic);
     bool _FIsDoneAevSub(long iaev, RouteLocation rtel);
-    ActorStepSource _StepSource() const;
+    MMActorTimelineServices _TimelineServices();
     bool _FGetDwrRecord(BRS *pdwr); // Step size if recording
     bool _FDoAevCur(void);
     bool _FDoAevCore(long iaev);

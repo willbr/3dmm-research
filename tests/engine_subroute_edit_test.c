@@ -17,11 +17,16 @@ static void lifetime_back_test(void)
 {
     SubFixture f; MMActorSubrouteEditServices s=sub_init(&f); MMI32 last=-99; int alive;
     f.base.recording=0; f.base.events=0; add(&f,0,1); append(&f.base,MM_ACTOR_STEP,0,0,1);
-    f.base.payload[1][0]=-ONE; add(&f,2,8); f.fail_resolve=1;
-    CHECK(!mm_actor_subroute_lifetime(&f,&f,&last,&s));
-    CHECK(last==-99 && f.base.range.last==2 && f.dirty_state && f.resolves==1);
+    f.base.payload[1][0]=-ONE; add(&f,2,8); f.fail_resolve=1; f.base.range.last=55;
+    CHECK(!mm_actor_refresh_lifetime(&f,&f,&last,&s.lifetime,&s.timeline));
+    CHECK(last==-99 && f.base.range.last==2 && f.last_at_resolve==2 && f.dirty_state && f.resolves==1);
     f.base.recording=1; f.base.range.last=55;
-    CHECK(mm_actor_subroute_lifetime(&f,&f,&last,&s) && last==55 && f.resolves==1 && f.dirty_state); done(&f);
+    CHECK(mm_actor_refresh_lifetime(&f,&f,&last,&s.lifetime,&s.timeline) &&
+          last==55 && f.resolves==1 && f.dirty_state);
+    f.base.recording=0; s.lifetime.publish_attempts=0;
+    CHECK(!mm_actor_refresh_lifetime(&f,&f,&last,&s.lifetime,&s.timeline));
+    CHECK(last==55 && f.base.range.last==2 && f.last_at_resolve==55 && f.dirty_state && f.resolves==2);
+    done(&f);
     s=sub_init(&f); f.base.event[2].rtel.irpt=0; f.base.event[2].rtel.dwrOffset=2*ONE; f.base.event[2].rtel.dnfrm=2;
     f.base.state.location.dnfrm=1;
     mm_actor_subroute_delete_back(&f.base.state,&f.base.sounds,&f,&f,7,&alive,&tables,&s);

@@ -83,7 +83,7 @@ int mm_actor_transform_normalize(MMActorState *state,MMActorSounds *sounds,void 
         if (!add(state,sounds,events,actor,MM_ACTOR_STRETCH,&state->transform.aevpull,12,m,s)) diagnostic(s,MM_TRANSFORM_ADD_FAILED);
         if (!add(state,sounds,events,actor,MM_ACTOR_SIZE,&state->transform.rScaleStep,4,m,s)) diagnostic(s,MM_TRANSFORM_ADD_FAILED);
         if (old>65536L && s->scene_present(s->subroute.route.edits.context) && state->location.irpt<m->route_count(route)-1)
-        { s->subroute.set_dirty(s->subroute.route.edits.context,1); s->subroute.route.edits.invalidate_range(s->subroute.route.edits.context); }
+        { *s->subroute.lifetime.dirty=1; s->subroute.route.edits.invalidate_range(s->subroute.route.edits.context); }
     }
     position(state,route,events,&state->position,m,s); return 1;
 }
@@ -99,7 +99,7 @@ int mm_actor_transform_scale(MMActorState *state,MMActorSounds *sounds,void *rou
     if (state->transform.rScaleStep!=value) mm_actor_route_position(route,&state->location,&state->position,m);
     position(state,route,events,&state->position,m,s);
     if (old!=state->transform.rScaleStep && s->scene_present(s->subroute.route.edits.context) && state->location.irpt<m->route_count(route)-1)
-    { s->subroute.set_dirty(s->subroute.route.edits.context,1); s->subroute.route.edits.invalidate_range(s->subroute.route.edits.context); }
+    { *s->subroute.lifetime.dirty=1; s->subroute.route.edits.invalidate_range(s->subroute.route.edits.context); }
     return 1;
 }
 int mm_actor_transform_pull(MMActorState *state,MMActorSounds *sounds,void *route,void *events,
@@ -193,11 +193,12 @@ int mm_actor_transform_time(MMActorState *state,void *route,void *events,MMI32 s
     const MMActorMotionServices *m,const MMActorTransformEditServices *s)
 {
     const MMActorEditServices *e=&s->subroute.route.edits;
-    MMActorSubrouteFlags flags; MMActorEvent event,previous; MMActorEditRange range;
+    MMActorEvent event,previous; MMActorEditRange range;
     MMI32 i,remaining,gap,saved=0,frame=0; int ok;
     if (!shift) return 1;
-    s->subroute.get_flags(e->context,&flags);
-    if (flags.dirty && !mm_actor_subroute_lifetime(route,events,NULL,&s->subroute)) diagnostic(s,MM_TRANSFORM_BAD_LIFETIME);
+    if (*s->subroute.lifetime.dirty &&
+        !mm_actor_refresh_lifetime(route,events,NULL,&s->subroute.lifetime,&s->subroute.timeline))
+        diagnostic(s,MM_TRANSFORM_BAD_LIFETIME);
     if (shift<0)
     {
         remaining=mm_fixed_sub(0,shift);

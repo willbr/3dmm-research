@@ -39,7 +39,7 @@ struct PreviewActor::Host
         s.tags = &EngineActorTagServices();
         s.track_allocator = &trackAllocator;
         s.trash_unused = DebugShip(1, 0);
-        s.timeline.motion = EngineActorMotion::Services();
+        s.timeline = mm_actor_track_timeline_services();
         s.timeline.context = this;
         s.timeline.resolve = [](void *v, MMI32 action, MMI32 cel, MMI32 *out) -> int {
             auto &h = *static_cast<Host *>(v);
@@ -49,9 +49,6 @@ struct PreviewActor::Host
                 *out = value;
                 return ok;
             }) > 0;
-        };
-        s.timeline.put_event = [](void *g, MMI32 i, const MMActorEvent *e) {
-            mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(g), i, e);
         };
         s.timeline.diagnostic = EngineActorTimeline::Diagnostic;
         s.fault = [](void *v) { return static_cast<Host *>(v)->failure; };

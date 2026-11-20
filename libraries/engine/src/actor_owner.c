@@ -20,6 +20,19 @@ void mm_actor_owner_init(MMActorOwner *actor)
     mm_actor_sounds_init(&actor->sounds, NULL);
 }
 
+MMActorLifetime mm_actor_owner_lifetime(MMActorOwner *actor)
+{
+    MMActorRuntime *r = &actor->runtime;
+    MMActorLifetime life;
+    life.first = &r->first;
+    life.last = &r->last;
+    life.dirty = &r->life_dirty;
+    life.recording = &r->recording.recording;
+    life.rejoining = &r->recording.rejoining;
+    life.publish_attempts = 1;
+    return life;
+}
+
 int mm_actor_replace_template(MMActorRuntime *r, MMActorEventTable *events, const MMTag *tag,
                               const MMActorTemplateServices *s, const MMActorEditServices *edits)
 {

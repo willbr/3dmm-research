@@ -7,15 +7,17 @@ typedef struct SubFixture
 {
     Fixture base;
     int dirty_state,rejoining,text,fail_resolve,resolves,fail_seek,seeks,seek_frames[2],locates,diagnostic_count,refs;
+    MMI32 last_at_resolve;
 } SubFixture;
-static void flags(void *p,MMActorSubrouteFlags *out)
-{ SubFixture *f=(SubFixture *)p; out->dirty=f->dirty_state; out->recording=f->base.recording; out->rejoining=f->rejoining; }
-static void set_dirty(void *p,int dirty) { ((SubFixture *)p)->dirty_state=dirty; }
 static void sub_life(void *p) { SubFixture *f=(SubFixture *)p; ++f->base.lives; f->dirty_state=1; }
 static int text(void *p) { return ((SubFixture *)p)->text; }
 static int resolve(void *p,MMI32 action,MMI32 cel,MMI32 *step)
-{ SubFixture *f=(SubFixture *)p; (void)action; (void)cel; ++f->resolves; *step=ONE; return !f->fail_resolve; }
-static void last_frame(void *p,MMI32 frame) { ((SubFixture *)p)->base.range.last=frame; }
+{
+    SubFixture *f=(SubFixture *)p;
+    (void)action; (void)cel;
+    ++f->resolves; f->last_at_resolve=f->base.range.last;
+    *step=ONE; return !f->fail_resolve;
+}
 static void inputs(void *p,MMActorPoseInputs *out) { (void)p; memset(out,0,sizeof(*out)); }
 static void locate(void *p,const MMActorBodyPose *pose)
 { SubFixture *f=(SubFixture *)p; (void)pose; ++f->locates; }
@@ -61,8 +63,10 @@ static MMActorSubrouteEditServices sub_init(SubFixture *f)
     s.action.action_flags=action_flags;
     s.action.text_template=text; s.action.mark_life_dirty=sub_life;
     s.timeline.motion=tables; s.timeline.context=f; s.timeline.resolve=resolve;
-    s.timeline.put_event=write_event; s.timeline.publish_frame=last_frame;
-    s.get_flags=flags; s.set_dirty=set_dirty; s.pose_inputs=inputs; s.locate_body=locate; s.seek=seek; s.diagnostic=sub_diagnostic;
+    s.timeline.put_event=write_event;
+    s.lifetime.first=&f->base.range.first; s.lifetime.last=&f->base.range.last; s.lifetime.dirty=&f->dirty_state;
+    s.lifetime.recording=&f->base.recording; s.lifetime.rejoining=&f->rejoining; s.lifetime.publish_attempts=1;
+    s.pose_inputs=inputs; s.locate_body=locate; s.seek=seek; s.diagnostic=sub_diagnostic;
     return s;
 }
 static void add(SubFixture *f,int node,int frame)

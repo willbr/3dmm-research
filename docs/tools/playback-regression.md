@@ -15802,3 +15802,28 @@ In `actor-event-edit` suite `20261120T135531Z-a9befe60`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## Actor seek and lifetime state in C89 (20 November 2026)
+
+Studio's seek evaluator reads frame bounds, recording flags, and the
+dirty lifetime flag directly from the C89 actor owner. C89 refreshes
+cached entrance frames before applying them and uses the current last
+frame for display effects. Studio edits and Marcus animation drafts use
+the same lifetime updater. Tests cover recording deferral, resolver
+failure, and each host's timing for publishing attempted frames.
+
+All 17 x64 integration checks, 22 standalone C89 checks, and 13 focused
+checks each in x86 Debug and SDL Release passed. Native actor frame,
+timeline, seek, owner, edit, recording, and stage traces matched their
+prior build byte-for-byte. Native and SDL Release save/reopen archives
+matched their prior builds. All ten Preview fingerprints and six fixture
+archives matched.
+
+Both VMM seek images in `20261120T140848Z-9fc4ca0a` matched the retained
+SDL and Marcus captures. Logs and fixtures are in
+`tmp/c89-actor-seek-owner`.
+
+In `actor-event-edit` suite `20261120T140847Z-90d5c3b1`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

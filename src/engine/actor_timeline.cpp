@@ -16,6 +16,9 @@ void EngineActorTimeline::Diagnostic(void *, int fault)
     case MM_ACTOR_LIFETIME_LOGIC:
         Assert(false, "Logic error");
         break;
+    case MM_ACTOR_CORRUPT_ENTRANCE:
+        Assert(false, "Corrupt event list");
+        break;
     }
 }
 bool ActorStepSource::FStep(LegacyLong action, LegacyLong cel, BRS *step) const

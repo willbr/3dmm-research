@@ -299,25 +299,9 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
     effects.hide = [](void *p) { static_cast<Actor *>(p)->_Hide(); };
     effects.reset_costume = [](void *p) -> int {
         auto actor = static_cast<Actor *>(p);
-        actor->_owner.runtime.recording.recording = false;
         return actor->_Template()->FSetDefaultCost(actor->_Body());
     };
-    effects.prepare = [](void *p, MMActorFrameInputs *inputs) {
-        auto actor = static_cast<Actor *>(p);
-        inputs->firstFrame = actor->_owner.runtime.first;
-        inputs->recording = actor->_owner.runtime.recording.recording;
-        inputs->rejoining = actor->_owner.runtime.recording.rejoining;
-    };
-    effects.prepare_entrance = [](void *p, MMI32 index) -> int {
-        auto actor = static_cast<Actor *>(p);
-        AssertIn(index, 0, mm_actor_events_count(actor->_owner.track.events));
-        if (actor->_owner.runtime.life_dirty && !actor->_FComputeLifetime())
-            return 0;
-        Assert(mm_actor_events_size(actor->_owner.track.events, index) == size(Add), "Corrupt event list");
-        return 1;
-    };
     effects.apply_event = [](void *p, MMI32 index) -> int { return static_cast<Actor *>(p)->_FDoAevCore(index); };
-    effects.last_frame = [](void *p) -> MMI32 { return static_cast<Actor *>(p)->_owner.runtime.last; };
     effects.suppress_sounds = [](void *p) -> int {
         return FPure(static_cast<Actor *>(p)->_Scene()->GrfScen() & fscenSounds);
     };
@@ -335,12 +319,9 @@ bool Actor::FGotoFrame(long nfrm, bool *pfSoundInFrame)
         BMAT34 matrix;
         actor->_MatrixRotUpdate(&actor->_owner.runtime.state.position, &matrix);
     };
-    const auto steps = _StepSource();
-    EngineActorTimeline::Host timelineHost = {&steps};
-    const auto timeline = EngineActorTimeline::Services(&timelineHost);
+    const auto timeline = _TimelineServices();
     int sound = 0;
-    const bool success = mm_actor_playback_seek(&_owner.runtime.state, _owner.track.route, _owner.track.events, _owner.runtime.first, _owner.runtime.last, nfrm,
-                                                MM_ACTOR_FRAME_STUDIO, &sound, &timeline, &effects) > 0;
+    const bool success = mm_actor_owner_seek(&_owner, nfrm, &sound, &timeline, &effects) > 0;
     if (pfSoundInFrame && sound)
         *pfSoundInFrame = true;
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
@@ -421,14 +402,18 @@ bool Actor::_FIsDoneAevSub(long iaev, RouteLocation rtel)
     Zero is a valid return value
 
 ***************************************************************************/
-ActorStepSource Actor::_StepSource() const
+MMActorTimelineServices Actor::_TimelineServices()
 {
-    ActorStepSource source;
-    source.context = _Template();
-    source.resolve = [](void *context, LegacyLong action, LegacyLong cel, BRS *step) {
-        return ((Template *)context)->FGetDwrActnCel(action, cel, step);
+    auto services = mm_actor_track_timeline_services();
+    services.context = this;
+    services.resolve = [](void *context, MMI32 action, MMI32 cel, MMI32 *out) -> int {
+        BRS step = *out;
+        const bool ok = static_cast<Actor *>(context)->_Template()->FGetDwrActnCel(action, cel, &step);
+        *out = step;
+        return ok;
     };
-    return source;
+    services.diagnostic = EngineActorTimeline::Diagnostic;
+    return services;
 }
 
 /***************************************************************************
@@ -640,17 +625,8 @@ MMActorActionEditServices Actor::_ActionEditServices()
 MMActorSubrouteEditServices Actor::_SubrouteEditServices()
 {
     MMActorSubrouteEditServices s={}; s.route=_RouteEditServices(); s.action=_ActionEditServices();
-    s.timeline.motion=EngineActorMotion::Services(); s.timeline.context=this;
-    s.timeline.resolve=[](void *p,MMI32 action,MMI32 cel,MMI32 *out) {
-        BRS value=*out; bool ok=static_cast<Actor *>(p)->_Template()->FGetDwrActnCel(action,cel,&value); *out=value; return int(ok);
-    };
-    s.timeline.put_event=s.route.write_event;
-    s.timeline.publish_frame=[](void *p,MMI32 frame) { static_cast<Actor *>(p)->_owner.runtime.last=frame; };
-    s.timeline.diagnostic=[](void *,int fault) { EngineActorTimeline::Diagnostic(nullptr,fault); };
-    s.get_flags=[](void *p,MMActorSubrouteFlags *flags) {
-        auto actor=static_cast<Actor *>(p); flags->dirty=actor->_owner.runtime.life_dirty; flags->recording=actor->_owner.runtime.recording.recording; flags->rejoining=actor->_owner.runtime.recording.rejoining;
-    };
-    s.set_dirty=[](void *p,int dirty) { static_cast<Actor *>(p)->_owner.runtime.life_dirty=dirty!=0; };
+    s.timeline = _TimelineServices();
+    s.lifetime = mm_actor_owner_lifetime(&_owner);
     s.pose_inputs=[](void *p,MMActorPoseInputs *inputs) {
         auto actor=static_cast<Actor *>(p); actor->_Template()->GetRestOrien(&inputs->restX,&inputs->restY,&inputs->restZ);
         inputs->fixedPathOrientation=actor->_Template()->FIsTdt();
@@ -1622,10 +1598,13 @@ bool Actor::FGetLifetime(long *pnfrmFirst, long *pnfrmLast)
 bool Actor::_FComputeLifetime(long *pnfrmLast)
 {
     AssertBaseThis(0); AssertNilOrVarMem(pnfrmLast);
-    const auto services=_SubrouteEditServices();
-    MMI32 last=0;
-    bool ok=mm_actor_subroute_lifetime(_owner.track.route,_owner.track.events,pnfrmLast?&last:nullptr,&services)!=0;
-    if (ok && pnfrmLast) *pnfrmLast=last;
+    const auto timeline = _TimelineServices();
+    const auto life = mm_actor_owner_lifetime(&_owner);
+    MMI32 last;
+    const bool ok = mm_actor_refresh_lifetime(_owner.track.route, _owner.track.events, pnfrmLast ? &last : nullptr,
+                                              &life, &timeline) != 0;
+    if (ok && pnfrmLast)
+        *pnfrmLast = last;
     return ok;
 }
 

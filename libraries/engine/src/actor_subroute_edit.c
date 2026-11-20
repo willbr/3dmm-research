@@ -56,29 +56,16 @@ void mm_actor_subroute_position_body(MMActorState *state,void *route,void *event
     mm_actor_pose_evaluate(state,route,events,&inputs,position,&pose,m);
     publish(state,s); s->locate_body(s->route.edits.context,&pose);
 }
-int mm_actor_subroute_lifetime(void *route,void *events,MMI32 *output,const MMActorSubrouteEditServices *s)
-{
-    MMActorSubrouteFlags flags; MMActorEditRange range; MMI32 last; int ok;
-    s->get_flags(s->route.edits.context,&flags); s->route.edits.get_range(s->route.edits.context,&range);
-    if (flags.recording)
-    { if (output) *output=range.last; s->set_dirty(s->route.edits.context,1); return 1; }
-    last=range.last;
-    ok=mm_actor_lifetime(route,events,range.first,flags.rejoining,&last,2147483647L,&s->timeline);
-    range.last=last; s->route.edits.publish_range(s->route.edits.context,&range);
-    s->set_dirty(s->route.edits.context,!ok);
-    if (ok && output) *output=last;
-    return ok;
-}
 void mm_actor_subroute_delete_back(MMActorState *state,MMActorSounds *list,void *route,void *events,
     MMI32 actor,int *alive,const MMActorMotionServices *m,const MMActorSubrouteEditServices *s)
 {
     const MMActorEditServices *e=&s->route.edits;
     MMActorEvent event; MMActorRoutePoint point; MMActorEditRange range;
-    MMActorSubrouteFlags flags; MMI32 i,merged,new_distance,removed,action[2];
+    MMI32 i,merged,new_distance,removed,action[2];
     e->get_range(e->context,&range);
     if (state->frame<=range.first) { if (alive) *alive=m->event_count(events)>0; return; }
-    s->get_flags(e->context,&flags);
-    if (flags.dirty && !mm_actor_subroute_lifetime(route,events,NULL,s)) diagnostic(s,MM_SUBROUTE_BAD_LIFETIME);
+    if (*s->lifetime.dirty && !mm_actor_refresh_lifetime(route,events,NULL,&s->lifetime,&s->timeline))
+        diagnostic(s,MM_SUBROUTE_BAD_LIFETIME);
     m->route_point(route,state->location.irpt,&point);
     new_distance=mm_fixed_sub(point.dwr,state->location.dwrOffset);
     mm_actor_subroute_save_orientation(state,route,events,m,s);
@@ -136,9 +123,10 @@ merge:
     else
     {
         m->event(events,0,&event); e->get_range(e->context,&range); range.first=event.nfrm; e->publish_range(e->context,&range);
-        s->set_dirty(e->context,1); state->firstEventInFrame=0; publish(state,s);
+        *s->lifetime.dirty=1; state->firstEventInFrame=0; publish(state,s);
     }
-    if (!mm_actor_subroute_lifetime(route,events,NULL,s)) diagnostic(s,MM_SUBROUTE_BAD_LIFETIME);
+    if (!mm_actor_refresh_lifetime(route,events,NULL,&s->lifetime,&s->timeline))
+        diagnostic(s,MM_SUBROUTE_BAD_LIFETIME);
     e->invalidate_range(e->context);
 }
 static int copy_apply(MMActorState *state,MMActorSounds *list,void *events,MMI32 actor,MMI32 source,
