@@ -2,6 +2,7 @@
 #ifndef KAUAI_VIDEO_SDL_H
 #define KAUAI_VIDEO_SDL_H
 #include "avi_movie.h"
+#include <memory>
 namespace KauaiVideo
 {
 struct SDLVideoStatistics

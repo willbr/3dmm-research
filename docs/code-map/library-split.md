@@ -7430,15 +7430,24 @@ the Windows runtime test uses a real AVI fixture to check nonzero frame offsets,
 timing, decoded pixels and cleanup. Native Studio retains these Windows hosts;
 SDL Studio selects `video_stream_sdl.cpp` for both representation modes.
 
-`avi_movie.h/.cpp` now supplies SDK-free AVI 1.0 demuxing, indexed Video 1
-decoding, palette changes, delta-frame seeking and original PCM audio bytes in
-`kauai-core`. It owns bounded input and one indexed reference image; it does not
-predecode entire movies or create media/window handles. This independent decoder
-uses the documented format, with Windows VfW as a compatibility oracle:
-`avi-corpus-win-test` checks all 24 original clips (4,458 frames), every decoded
-pixel, forward/backward seeks, fractional timeline conversion and exact PCM
-bytes. `avi-movie-test` covers synthetic palette changes, nested records,
-nonzero stream starts, malformed packets, truncation and size/time limits.
+`libraries/engine/src/avi_movie.c` supplies AVI 1.0 demuxing, indexed Video 1
+decoding, palette changes, delta-frame seeking and PCM assembly in C89. It
+owns bounded input, the validated packet index, per-frame palettes, PCM and
+one indexed reference image. It sizes the index and PCM from the validated
+lists, and validates each delta before modifying the reference image. The
+Kauai adapter borrows the PCM and supplies the destination BGRX buffer.
+`avi-corpus-win-test` uses Windows VfW as a compatibility oracle. All 24
+original clips (4,458 frames) match its decoded pixels, forward/backward seeks,
+fractional timeline conversion and exact PCM on x86 and x64. `avi-movie-test`
+also checks synthetic palette changes, nested records, nonzero stream starts,
+malformed packets, truncation and size/time limits. The C-only test exercises
+allocation failure at every ownership stage and verifies that a failed read
+preserves the current movie and its borrowed PCM.
+After the decoder conversion, Movie Techniques matched the earlier SDL build's
+130 decoded frames, 477,736 queued and consumed PCM bytes, and settled completion
+image. In movie capture suite `20261120T062346Z-97e3e9a7`, SDL and Marcus matched
+60 retail frame identities and their earlier seek images. SDL matched all 12
+retail sound requests.
 
 `video_playback.c` owns Studio's native and SDL stream scheduling. It handles
 start, stop, seek, command-filter registration order, redraw suppression and

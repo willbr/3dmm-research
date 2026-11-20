@@ -49,7 +49,9 @@ int main()
     CHECK(movie.FrameForTime(500) == -1 && movie.FrameForTime(501) == 0);
     CHECK(movie.FrameForTime(1000) == 2 && movie.FrameForTime(-1000) == -4);
     CHECK(movie.FrameForTime(INT32_MAX) == 3 && movie.FrameForTime(INT32_MIN) == -4);
-    CHECK(movie.Audio().pcm == Bytes({128, 129, 130, 131}) && movie.Audio().rate == 22050);
+    const auto audio = movie.Audio();
+    const Bytes pcm{128, 129, 130, 131};
+    CHECK(audio.rate == 22050 && audio.pcm_bytes == pcm.size() && !std::memcmp(audio.pcm, pcm.data(), pcm.size()));
     KauaiPixels::DibFrame frame;
     for (int index : {0, 1, 2, 0, 2, 1})
     {
@@ -107,7 +109,7 @@ int main()
             CHECK(!movie.Read(bad.data(), bad.size()) && movie.DecodeFrame(0, frame));
         }
     movie.Reset();
-    CHECK(movie.Info().frames == 0 && movie.Audio().pcm.empty() && !movie.DecodeFrame(0, frame));
+    CHECK(movie.Info().frames == 0 && movie.Audio().pcm_bytes == 0 && !movie.DecodeFrame(0, frame));
     std::puts("AVI: Video 1 colors/deltas, palette changes, PCM bytes, fractional/nonzero timeline, owned input, seeks "
               "and bounded failure passed.");
 }

@@ -837,6 +837,8 @@ services.
 C89 owns the frame scheduler for Studio's native and SDL video streams and
 the SDL device-clock policy for audio-backed AVI playback. Native adapters
 supply decoder positions, clocks, PCM device I/O and redraw requests.
+Studio's portable AVI reader and Video 1 decoder also run in C89. The backend
+owns the file bytes, frame and palette index, PCM and seekable reference frame.
 C89 also owns Kauai's scalable application time and the registered 60 Hz alarm
 clocks used by Studio movie and sound playback. It preserves tied alarm order,
 late delivery with optional clock slip, input resets and callback reentrancy.

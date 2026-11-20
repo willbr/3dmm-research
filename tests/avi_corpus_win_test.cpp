@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "avi_movie.h"
 #include <cstdio>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -81,7 +82,8 @@ int main(int argc, char **argv)
         CHECK(AVIStreamRead(stream, AVIStreamStart(stream), AVIStreamLength(stream), pcm.data(), count, &count,
                             &samples) == 0);
         pcm.resize(count);
-        CHECK(pcm == movie.Audio().pcm);
+        const auto audio = movie.Audio();
+        CHECK(pcm.size() == audio.pcm_bytes && (pcm.empty() || !std::memcmp(pcm.data(), audio.pcm, pcm.size())));
         AVIStreamRelease(stream);
         AVIFileRelease(file);
         ++files;

@@ -88,7 +88,7 @@ struct SDLPlayback::Impl
         const auto info = movie.Info();
         if (!mm_video_device_prepare(&clock, frame, info.frames, movie.TimeForFrame(frame), movie.TimeForFrame(info.frames)))
             return false;
-        const auto &source = movie.Audio();
+        const auto source = movie.Audio();
         if (audio && source.rate)
         {
             if (!initialized)
@@ -100,9 +100,9 @@ struct SDLPlayback::Impl
             MMVideoPcmWindow window;
             const MMU32 alignment = source.channels * (source.bits / 8);
             if (!mm_video_pcm_window(clock.first_time, clock.duration, source.rate, alignment, source.start,
-                                     static_cast<MMU32>(source.pcm.size()), &window))
+                                     static_cast<MMU32>(source.pcm_bytes), &window))
                 return false;
-            const SDL_AudioSpec spec{source.bits == 8 ? SDL_AUDIO_U8 : SDL_AUDIO_S16LE, source.channels,
+            const SDL_AudioSpec spec{source.bits == 8 ? SDL_AUDIO_U8 : SDL_AUDIO_S16LE, static_cast<int>(source.channels),
                                      static_cast<int>(source.rate)};
             stream = SDL_OpenAudioDeviceStream(SDL_AUDIO_DEVICE_DEFAULT_PLAYBACK, &spec, nullptr, nullptr);
             if (!stream)
@@ -111,7 +111,7 @@ struct SDLPlayback::Impl
             {
                 std::vector<std::uint8_t> pcm(window.bytes, source.bits == 8 ? 128 : 0);
                 if (window.copy_bytes)
-                    std::memcpy(pcm.data() + window.destination_offset, source.pcm.data() + window.source_offset,
+                    std::memcpy(pcm.data() + window.destination_offset, source.pcm + window.source_offset,
                                 window.copy_bytes);
                 if (!SDL_PutAudioStreamData(stream, pcm.data(), static_cast<int>(window.bytes)) ||
                     !SDL_FlushAudioStream(stream))
