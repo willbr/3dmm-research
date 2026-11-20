@@ -7,6 +7,7 @@
 #include "mm/scene_edit.h"
 #include "mm/text.h"
 #include "mm/text_store.h"
+#include "chunk_edit_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -44,6 +45,7 @@ typedef struct Group
 } Group;
 struct Host
 {
+    ChunkIndexFixture index;
     char log[128];
     int used, stage, active, have_old, old[2], created[2], linked[2], loner[2];
     int root_fail, root, read_fail, io_fail;
@@ -155,32 +157,11 @@ static MMU32 wire_size(void *g)
     (void)g;
     return 32;
 }
-static int event_entry(void *c, MMU32 row, MMChunkEntry *out)
-{
-    Host *h = (Host *)c;
-    CHECK(row == 0);
-    memset(out, 0, sizeof(*out));
-    out->type = MM_SCENE_CHUNK;
-    out->number = 7;
-    out->child_count = h->have_old ? 3 : 1;
-    return 1;
-}
-static int event_child(void *c, MMU32 row, MMU32 i, MMChunkChild *out)
-{
-    static const MMChunkChild links[] = {
-        {0x41435452UL, 30, 0}, {MM_SCENE_FRAME_GROUP, 10, 0}, {MM_SCENE_START_GROUP, 11, 1}
-    };
-    (void)c;
-    CHECK(row == 0 && i < 3);
-    *out = links[i];
-    return 1;
-}
 static MMChunkAccess event_chunks(void *c)
 {
-    MMChunkAccess chunks = {NULL, 1, event_entry, event_child};
-    chunks.context = c;
-    event((Host *)c, 'p');
-    return chunks;
+    Host *h = c;
+    event(h, 'p');
+    return fixture_chunk_access(&h->index);
 }
 static int write_event_bytes(void *c, MMU32 offset, const void *bytes, size_t count)
 {
@@ -208,6 +189,7 @@ static int add(void *c, MMU32 type, MMU32 bytes, MMU32 *out, MMStorageWriter *wr
         *out = 7;
         if (h->root_fail == 1)
             return 0;
+        fixture_chunk_add(&h->index, type, *out);
         h->root = 1;
         return 1;
     }
@@ -217,6 +199,7 @@ static int add(void *c, MMU32 type, MMU32 bytes, MMU32 *out, MMStorageWriter *wr
     h->active = start;
     if (h->stage == (start ? 3 : 1))
         return 0;
+    fixture_chunk_add(&h->index, type, *out);
     h->created[start] = 1;
     h->loner[start] = 1;
     writer->context = h;
@@ -230,12 +213,12 @@ static int write_group(void *g, int system, const MMStorageWriter *writer)
     CHECK(group->start == group->host->active && writer->context == group->host && system == MM_TEXT_WINDOWS);
     return writer->write_at(writer->context, 0, group->payload[0], writer->length);
 }
-static int adopt(void *c, MMU32 parent_type, MMU32 scene, MMU32 type, MMU32 n, MMU32 slot)
+static int insert_event(void *c, MMU32 scene, const MMChunkChild *child)
 {
     Host *h = (Host *)c;
-    int start = type == MM_SCENE_START_GROUP;
-    CHECK(parent_type == MM_SCENE_CHUNK && (start || type == MM_SCENE_FRAME_GROUP) && slot == (MMU32)start);
-    CHECK(scene == 7 && n == (MMU32)(20 + start) && h->created[start]);
+    int start = child->type == MM_SCENE_START_GROUP;
+    CHECK((start || child->type == MM_SCENE_FRAME_GROUP) && child->slot == (MMU32)start);
+    CHECK(scene == 7 && child->number == (MMU32)(20 + start) && h->created[start]);
     event(h, start ? 'B' : 'A');
     if (h->stage == (start ? 6 : 5))
         return 0;
@@ -259,24 +242,46 @@ static void remove_child(void *c, MMU32 scene, int start, MMU32 n, int linked)
     h->created[start] = h->linked[start] = 0;
     h->loner[start] = 0;
 }
-static void unlink_event(void *c, MMU32 parent_type, MMU32 scene, MMU32 type, MMU32 n, MMU32 slot)
+static void unlink_event(void *c, MMU32 scene, const MMChunkChild *child)
 {
-    int start = type == MM_SCENE_START_GROUP;
-    CHECK(parent_type == MM_SCENE_CHUNK && (start || type == MM_SCENE_FRAME_GROUP) && slot == (MMU32)start);
-    remove_child(c, scene, start, n, 1);
+    int start = child->type == MM_SCENE_START_GROUP;
+    CHECK((start || child->type == MM_SCENE_FRAME_GROUP) && child->slot == (MMU32)start);
+    remove_child(c, scene, start, child->number, 1);
 }
-static void discard(void *c, MMU32 type, MMU32 n)
+static void erase_event_chunk(void *c, const MMChunkEntry *entry)
 {
     Host *h = (Host *)c;
-    if (type == MM_SCENE_CHUNK)
+    int start = entry->type == MM_SCENE_START_GROUP;
+    if (entry->type == MM_SCENE_CHUNK)
     {
-        CHECK(n == 7 && *h->number == 7 && h->root && !h->created[0] && !h->created[1]);
+        CHECK(entry->number == 7 && *h->number == 7 && h->root && !h->created[0] && !h->created[1]);
         event(h, 'X');
         h->root = 0;
         return;
     }
-    CHECK(type == MM_SCENE_START_GROUP || type == MM_SCENE_FRAME_GROUP);
-    remove_child(c, 7, type == MM_SCENE_START_GROUP, n, 0);
+    CHECK(start || entry->type == MM_SCENE_FRAME_GROUP);
+    if (entry->number == (MMU32)(20 + start) && h->created[start])
+        remove_child(c, 7, start, entry->number, 0);
+}
+static void prepare_event_index(Host *h, int existing)
+{
+    static const MMChunkChild links[] = {{MM_ACTOR_CHUNK, 30, 0}, {MM_SCENE_FRAME_GROUP, 10, 0},
+                                        {MM_SCENE_START_GROUP, 11, 1}};
+    const MMChunkEdit edit = fixture_chunk_edit(&h->index);
+    unsigned i, count = h->have_old ? 3 : 1;
+    if (existing)
+    {
+        fixture_chunk_add(&h->index, MM_SCENE_CHUNK, 7);
+        for (i = 0; i < count; ++i)
+        {
+            fixture_chunk_add(&h->index, links[i].type, links[i].number);
+            CHECK(mm_chunk_adopt(&edit, MM_SCENE_CHUNK, 7, links + i, 1) == MM_CHUNK_OK);
+        }
+    }
+    h->index.observer = h;
+    h->index.before_insert = insert_event;
+    h->index.before_unlink = unlink_event;
+    h->index.before_delete = erase_event_chunk;
 }
 static MMMovieArchiveEditor event_editor(Host *h)
 {
@@ -288,9 +293,7 @@ static MMMovieArchiveEditor event_editor(Host *h)
     editor.big_endian = *(const unsigned char *)&one == 0;
     editor.chunks = event_chunks;
     editor.add = add;
-    editor.adopt = adopt;
-    editor.unlink = unlink_event;
-    editor.discard = discard;
+    editor.edit = fixture_chunk_edit(&h->index);
     return editor;
 }
 static void transactions(void)
@@ -302,6 +305,7 @@ static void transactions(void)
     int stage;
     const char *logs[] = {"pawbxABoO", "pa", "pawd", "pawbd", "pawbxde", "pawbxAde", "pawbxABDe"};
     reset(&h);
+    prepare_event_index(&h, 1);
     editor = event_editor(&h);
     groups.groups = group_services();
     groups.wire_size = wire_size;
@@ -314,12 +318,14 @@ static void transactions(void)
     {
         reset(&h);
         h.stage = stage;
+        prepare_event_index(&h, 1);
         CHECK(!mm_scene_archive_write_events(&editor, 7, &frames, &starts, &groups));
         CHECK(!strcmp(h.log, logs[stage]) && h.old[0] && h.old[1] && !h.created[0] && !h.created[1] && !h.linked[0] &&
               !h.linked[1] && !h.loner[0] && !h.loner[1]);
     }
     reset(&h);
     h.have_old = 0;
+    prepare_event_index(&h, 1);
     CHECK(mm_scene_archive_write_events(&editor, 7, &frames, &starts, &groups) && !strcmp(h.log, "pawbxAB"));
     reset(&h);
     frames.sizes[0] = 5;
@@ -475,6 +481,7 @@ static void creation(void)
     MMU32 number;
     int i;
     reset(&h);
+    prepare_event_index(&h, 0);
     editor = event_editor(&h);
     editor.put = editor_put;
     editor.set_title = editor_title;
@@ -488,6 +495,7 @@ static void creation(void)
     for (i = 1; i <= 3; ++i)
     {
         reset(&h);
+        prepare_event_index(&h, 0);
         h.number = &number;
         number = 99;
         h.root_fail = i;
@@ -497,6 +505,7 @@ static void creation(void)
     for (i = 1; i <= 6; ++i)
     {
         reset(&h);
+        prepare_event_index(&h, 0);
         h.number = &number;
         number = 99;
         h.stage = i;
@@ -834,7 +843,7 @@ static void edit_archived_frames(void)
 {
     ArchivedFrames archive;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
-                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL, NULL};
+                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL, NULL, {0}};
     MMSceneState scene;
     MMMemoryStream stream;
     unsigned char value[4];
@@ -904,7 +913,7 @@ static void edit_archived_sounds(void)
 {
     ArchivedFrames archive;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
-                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL, NULL};
+                                   add_frames, link_frames, unlink_archive, put_range, NULL, NULL, NULL, NULL, NULL, {0}};
     MMMovieSoundArchiveCue cue = {1, 4, 0, 2, -1, 3, 8, 0, 0};
     MMMovieSoundArchiveEdit edit = {NULL, NULL, 5, 12000, 1, 1, 0, 0};
     MMU32 offset, added = 9;
@@ -1088,7 +1097,7 @@ static void edit_archived_text(void)
 {
     ArchivedText f;
     MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, text_chunks, text_read,
-                                   text_add, text_adopt, text_unlink, NULL, NULL, NULL, NULL, NULL, NULL};
+                                   text_add, text_adopt, text_unlink, NULL, NULL, NULL, NULL, NULL, NULL, {0}};
     MMSceneArchiveTextEdit add = {5, -2, NULL, NULL, text_box};
     MMSceneArchiveTextEdit change = {5, 0, NULL, NULL, text_box};
     MMSceneArchiveTextEdit remove = {5, 0, NULL, NULL, NULL};

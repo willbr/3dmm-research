@@ -78,18 +78,6 @@ extern "C"
                                    const MMChunkChild *old_child, MMU32 new_slot);
     int mm_chunk_retarget(const MMChunkEdit *, MMU32 parent, MMU32 position,
                                 const MMChunkChild *replacement);
-    typedef struct MMChunkChildPayload
-    {
-        void *context;
-        int (*write)(void *, MMU32 type, const unsigned char *, MMU32 bytes, MMU32 *number);
-        int (*adopt)(void *, MMU32 parent_type, MMU32 parent_number, const MMChunkChild *);
-        void (*remove)(void *, MMU32 parent_type, MMU32 parent_number, const MMChunkChild *, int linked);
-    } MMChunkChildPayload;
-    /* Write and adopt the new child before unlinking the previous child. A
-     * failed write owns no chunk. A failed adopt discards the new loner. */
-    int mm_chunk_replace_child_bytes(MMU32 parent_type, MMU32 parent_number, const MMChunkChild *child,
-                                      int had_child, const unsigned char *, MMU32 bytes,
-                                      const MMChunkChildPayload *);
 #ifdef __cplusplus
 }
 #endif

@@ -197,7 +197,7 @@ static int add_chunk(void *p, MMU32 type, MMU32 size, MMU32 *number, MMStorageWr
         return 0;
     f->output->type = type;
     f->output->length = size;
-    if (type == MM_SCENE_CHUNK)
+    if (type == MM_SCENE_CHUNK || type == MM_SCENE_FRAME_GROUP || type == MM_SCENE_START_GROUP)
         fixture_chunk_add(&f->asset_index, type, *number);
     if (writer)
     {
@@ -266,15 +266,6 @@ static void discard_chunk(void *p, MMU32 type, MMU32 number)
     chunk->type = 0;
 }
 
-static void unlink_chunk(void *p, MMU32 parent_type, MMU32 scene, MMU32 type, MMU32 number, MMU32 slot)
-{
-    StoreFixture *f = p;
-    CHECK(parent_type == MM_SCENE_CHUNK && scene == SCENE_NUMBER && f->chunks[number].linked);
-    CHECK((type == MM_SCENE_FRAME_GROUP || type == MM_SCENE_START_GROUP) && slot == (MMU32)(type == MM_SCENE_START_GROUP));
-    f->chunks[number].linked = 0;
-    discard_chunk(p, type, number);
-}
-
 static int write_object(void *p, void *value, int kind, MMU32 number, MMU32 scene)
 {
     StoreFixture *f = p;
@@ -301,15 +292,17 @@ static MMChunkAccess asset_chunks(void *p)
     return fixture_chunk_access(&((StoreFixture *)p)->asset_index);
 }
 
-static int insert_background(void *p, MMU32 scene, const MMChunkChild *child)
+static int insert_asset(void *p, MMU32 scene, const MMChunkChild *child)
 {
     StoreFixture *f = p;
+    if (child->type != MM_BACKGROUND)
+        return adopt_chunk(p, MM_SCENE_CHUNK, scene, child->type, child->number, child->slot);
     CHECK(scene == SCENE_NUMBER && child->type == MM_BACKGROUND && child->number == 19 && child->slot == 0);
     f->background_adoption_failed = !step(f, 79);
     return !f->background_adoption_failed;
 }
 
-static void erase_background(void *p, const MMChunkEntry *entry)
+static void erase_asset(void *p, const MMChunkEntry *entry)
 {
     StoreFixture *f = p;
     if (entry->type == MM_BACKGROUND)
@@ -317,6 +310,11 @@ static void erase_background(void *p, const MMChunkEntry *entry)
         CHECK(entry->number == 19 && !entry->parent_count);
         if (f->background_adoption_failed)
             note(f, 78);
+    }
+    else if (entry->type == MM_SCENE_FRAME_GROUP || entry->type == MM_SCENE_START_GROUP)
+    {
+        f->chunks[entry->number].linked = 0;
+        discard_chunk(p, entry->type, entry->number);
     }
 }
 
@@ -424,8 +422,8 @@ static void init_store(StoreFixture *f)
     f->editor.chunks = store_chunks;
     f->editor.add = add_chunk;
     f->editor.adopt = adopt_chunk;
-    f->editor.unlink = unlink_chunk;
     f->editor.discard = discard_chunk;
+    f->editor.edit = fixture_chunk_edit(&f->asset_index);
     f->editor.put = put_scene;
     f->editor.set_title = set_title;
     CHECK(mm_scene_init(&f->owner.data, 1) && mm_movie_title_set(&f->owner.data.name, "Scene", 5));
@@ -447,8 +445,8 @@ static void init_store(StoreFixture *f)
     s->assets.copy_reference = copy_background;
     s->assets.edit = fixture_chunk_edit(&f->asset_index);
     f->asset_index.observer = f;
-    f->asset_index.before_insert = insert_background;
-    f->asset_index.before_delete = erase_background;
+    f->asset_index.before_insert = insert_asset;
+    f->asset_index.before_delete = erase_asset;
     s->update_thumbnail = update_thumbnail;
     s->thumbnail_size = thumbnail_size;
     s->write_thumbnail = write_thumbnail;
@@ -519,7 +517,7 @@ static void test_store(void)
     init_store(&f);
     CHECK(mm_scene_store(&number, &f.s) && number == SCENE_NUMBER && !f.deleted && f.titled);
     CHECK(f.objects == 4 && f.actor_id == 2 && f.text_id == 2 && f.adoptions == 1);
-    CHECK(f.asset_index.count == 2 && f.asset_index.rows[0].entry.type == MM_BACKGROUND &&
+    CHECK(f.asset_index.count == 4 && f.asset_index.rows[0].entry.type == MM_BACKGROUND &&
           f.asset_index.rows[0].entry.parent_count == 1 && !(f.asset_index.rows[0].entry.flags & MM_CHUNK_LONER));
     check_group(&f.chunks[FRAMES_NUMBER], frames, frame_sizes, 4);
     check_group(&f.chunks[STARTS_NUMBER], starts, start_sizes, 6);

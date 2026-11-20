@@ -7740,6 +7740,14 @@ title I/O. C encodes and decodes the existing counted strings and removes
 empty names. Kauai reads and writes the encoded bytes, invalidates the
 chunk's runtime ID after a name write, and supplies text conversion.
 
+The archive adapter supplies its live C89 chunk editor for movie-root links,
+appended scenes, empty roll calls, and storyboard metadata. The scene writer
+stages and adopts both replacement event groups before releasing either old
+link. If staging fails, it drops the new groups. Portable source tables and
+background start groups also adopt the new link before releasing the old link.
+Native source registration keeps its unlink-before-adopt order. Kauai still
+allocates chunks and supplies payload readers and writers.
+
 Studio writes an actor through `mm_actor_store` when saving a scene or taking
 a scene undo snapshot. The C89 writer stores the header, route, and events,
 links embedded templates and actor sounds, and attaches each embedded costume

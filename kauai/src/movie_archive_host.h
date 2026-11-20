@@ -70,7 +70,8 @@ struct MovieArchiveHost
             },
             [](void *value, MMU32 type, MMU32 number) {
                 static_cast<MovieArchiveHost *>(value)->file->Delete(type, number);
-            }
+            },
+            file->EditIndex()
         };
     }
 };

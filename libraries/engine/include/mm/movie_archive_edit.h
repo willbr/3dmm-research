@@ -34,6 +34,7 @@ typedef struct MMMovieArchiveEditor
     /* Update a byte range in an existing payload without changing its length. */
     int (*patch)(void *, MMU32 type, MMU32 number, MMU32 offset, const void *bytes, MMU32 size);
     void (*discard)(void *, MMU32 type, MMU32 number); /* Optional unlinked chunk cleanup. */
+    MMChunkEdit edit; /* Borrowed writable index for scene and portable archive transactions. */
 } MMMovieArchiveEditor;
 
 /* Borrow the destination index across copies. Each copy may insert rows.
@@ -67,8 +68,7 @@ typedef struct MMMovieArchiveRoot
 int mm_movie_archive_ensure_root(const MMMovieArchiveEditor *, MMMovieArchiveRoot *);
 
 /* Append a named one-frame cut scene with the requested background.
- * Preserve the native allocation order for the initial and final event groups.
- * Requires discard for cleanup when a scene or group write fails. */
+ * Preserve the native allocation order for the initial and final event groups. */
 int mm_movie_archive_append_scene(const MMMovieArchiveEditor *, MMU32 root, MMU32 scene,
                                   MMI32 source, MMU32 background);
 

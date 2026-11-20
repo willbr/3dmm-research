@@ -95,7 +95,9 @@ int mm_movie_archive_register_source(const MMMovieArchiveEditor *editor, const M
     MMReadStream stream;
     MMStorageWriter writer;
     MMRollCallTable table;
-    MMU32 old_number, number, size;
+    MMChunkChild previous = {SOURCE_TABLE_TYPE, 0, SOURCE_TABLE_SLOT};
+    MMChunkChild replacement = {SOURCE_TABLE_TYPE, 0, SOURCE_TABLE_SLOT};
+    MMU32 size;
     MMI32 id, largest;
     int present, result, input_big;
     char *key;
@@ -107,9 +109,9 @@ int mm_movie_archive_register_source(const MMMovieArchiveEditor *editor, const M
         return MM_MOVIE_SOURCE_EDIT_MEMORY;
     capacity += 32;
     chunks = editor->chunks(editor->context);
-    present = mm_chunk_link_number(&chunks, MOVIE_TYPE, movie, SOURCE_TABLE_SLOT, SOURCE_TABLE_TYPE,
-                                   &old_number) == MM_CHUNK_OK;
-    if (present && !editor->read(editor->context, SOURCE_TABLE_TYPE, old_number, &stream))
+    present = mm_chunk_link_number(&chunks, MOVIE_TYPE, movie, previous.slot, previous.type,
+                                   &previous.number) == MM_CHUNK_OK;
+    if (present && !editor->read(editor->context, previous.type, previous.number, &stream))
         return MM_MOVIE_SOURCE_EDIT_READ;
     key = (char *)malloc(capacity);
     if (!key)
@@ -151,13 +153,13 @@ int mm_movie_archive_register_source(const MMMovieArchiveEditor *editor, const M
     }
     result = MM_MOVIE_SOURCE_EDIT_WRITE;
     size = mm_rollcall_table_wire_size(&table);
-    if (!size || !editor->add(editor->context, SOURCE_TABLE_TYPE, size, &number, &writer) ||
+    if (!size || !editor->add(editor->context, replacement.type, size, &replacement.number, &writer) ||
         mm_rollcall_table_write(&table, &writer, editor->big_endian) != MM_STORAGE_OK)
         goto done;
     if (present)
-        editor->unlink(editor->context, MOVIE_TYPE, movie, SOURCE_TABLE_TYPE, old_number, SOURCE_TABLE_SLOT);
+        mm_chunk_unlink(&editor->edit, MOVIE_TYPE, movie, &previous);
     result = MM_MOVIE_SOURCE_EDIT_LINK;
-    if (!editor->adopt(editor->context, MOVIE_TYPE, movie, SOURCE_TABLE_TYPE, number, SOURCE_TABLE_SLOT))
+    if (mm_chunk_adopt(&editor->edit, MOVIE_TYPE, movie, &replacement, 1) != MM_CHUNK_OK)
         goto done;
     *source_id = id;
     result = MM_MOVIE_SOURCE_EDIT_OK;

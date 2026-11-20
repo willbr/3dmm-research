@@ -3,6 +3,7 @@
 #include "mm/movie_archive_edit.h"
 #include "mm/collections.h"
 #include "mm/scene_data.h"
+#include "chunk_edit_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -362,70 +363,15 @@ static void roots(void)
 
 typedef struct ArchiveHost
 {
+    ChunkIndexFixture index;
     unsigned char records[7][MM_SCENE_BACKGROUND_GROUP_BYTES];
     MMU32 lengths[7], adds, linked_scenes, linked_groups, old_groups;
     int fail_link, rekeyed, titled, rollcall;
 } ArchiveHost;
 
-static int archive_entry(void *context, MMU32 position, MMChunkEntry *entry)
-{
-    ArchiveHost *host = (ArchiveHost *)context;
-    memset(entry, 0, sizeof(*entry));
-    if (host->adds && position == 0)
-    {
-        entry->type = ARCHIVE_MOVIE;
-        entry->number = 5;
-        entry->child_count = host->linked_scenes + 1 + host->rollcall;
-    }
-    else
-    {
-        entry->type = ARCHIVE_SCENE;
-        if (host->adds)
-            --position;
-        if (host->adds >= 2 && position == (host->rekeyed ? 2U : 0U))
-        {
-            entry->number = host->rekeyed ? 80 : 0;
-            entry->child_count = host->linked_groups - host->old_groups;
-        }
-        else
-            entry->number = position == (host->adds >= 2 && !host->rekeyed ? 1U : 0U) ? 7 : 20;
-    }
-    return 1;
-}
-static int archive_child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
-{
-    ArchiveHost *host = (ArchiveHost *)context;
-    if (parent)
-    {
-        CHECK(parent == (host->rekeyed ? 3U : 1U) && host->adds >= 2);
-        out->slot = (i + host->old_groups) % 2;
-        out->type = out->slot ? ARCHIVE_STARTS : ARCHIVE_FRAMES;
-        out->number = 3 + i + host->old_groups;
-        return 1;
-    }
-    if (host->rollcall && i == 0)
-    {
-        out->type = ARCHIVE_ROLLCALL;
-        out->number = 9;
-        out->slot = 0;
-        return 1;
-    }
-    i -= host->rollcall;
-    CHECK(parent == 0 && i <= host->linked_scenes);
-    out->type = i < host->linked_scenes ? ARCHIVE_SCENE : ARCHIVE_ROLLCALL;
-    out->number = i == 0 ? 7 : 20;
-    out->slot = i < host->linked_scenes ? i : 23;
-    return 1;
-}
 static MMChunkAccess archive_chunks(void *context)
 {
-    MMChunkAccess access = {NULL, 2, archive_entry, archive_child};
-    access.context = context;
-    if (((ArchiveHost *)context)->adds)
-        ++access.count;
-    if (((ArchiveHost *)context)->adds >= 2)
-        ++access.count;
-    return access;
+    return fixture_chunk_access(&((ArchiveHost *)context)->index);
 }
 static int archive_write(void *context, MMU32 offset, const void *data, size_t length)
 {
@@ -445,6 +391,7 @@ static int archive_add(void *context, MMU32 type, MMU32 size, MMU32 *number, MMS
     CHECK((writer == NULL) == (type == ARCHIVE_SCENE));
     host->lengths[index] = size;
     *number = numbers[index];
+    fixture_chunk_add(&host->index, type, *number);
     if (writer)
     {
         writer->context = context;
@@ -468,45 +415,63 @@ static int archive_title(void *context, MMU32 type, MMU32 number, const MMMovieT
 }
 static int archive_rekey(void *context, MMU32 type, MMU32 old, MMU32 number)
 {
-    ArchiveHost *host = (ArchiveHost *)context;
+    ArchiveHost *host = context;
+    const MMChunkAccess index = archive_chunks(host);
+    FixtureChunkRow saved, *replacement;
+    MMU32 row;
     CHECK(type == ARCHIVE_SCENE && old == 0 && number == 80 && host->linked_groups == 2);
+    CHECK(mm_chunk_find(&index, type, old, &row) == MM_CHUNK_OK);
+    saved = host->index.rows[row];
+    fixture_chunk_erase(&host->index, row);
+    replacement = fixture_chunk_add(&host->index, type, number);
+    *replacement = saved;
+    replacement->entry.number = number;
     host->rekeyed = 1;
     return 1;
 }
-static int archive_adopt(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 number, MMU32 slot)
+static int archive_insert_link(void *context, MMU32 parent, const MMChunkChild *child)
 {
-    ArchiveHost *host = (ArchiveHost *)context;
-    if (child_type == ARCHIVE_ROLLCALL)
+    ArchiveHost *host = context;
+    if (child->type == ARCHIVE_ROLLCALL)
     {
-        CHECK(type == ARCHIVE_MOVIE && parent == 5 && number == 9 && slot == 0 && !host->rollcall);
+        CHECK(parent == 5 && child->number == 9 && child->slot == 0 && !host->rollcall);
         host->rollcall = 1;
-        return 1;
     }
-    if (type == ARCHIVE_MOVIE)
+    else if (child->type == ARCHIVE_SCENE)
     {
-        CHECK(parent == 5 && child_type == ARCHIVE_SCENE && slot == host->linked_scenes);
-        CHECK(number == (slot == 0 ? 7U : slot == 1 ? 20U : 80U));
-        if (slot == 2)
+        CHECK(parent == 5 && child->slot == host->linked_scenes);
+        CHECK(child->number == (child->slot == 0 ? 7U : child->slot == 1 ? 20U : 80U));
+        if (child->slot == 2)
             CHECK(host->old_groups == 2);
-        if (host->fail_link && slot == 1)
+        if (host->fail_link && child->slot == 1)
             return 0;
         ++host->linked_scenes;
     }
     else
     {
-        CHECK(type == ARCHIVE_SCENE && parent == (host->rekeyed ? 80U : 0U));
-        CHECK(slot == host->linked_groups % 2 && child_type == (slot ? ARCHIVE_STARTS : ARCHIVE_FRAMES));
-        CHECK(number == 3 + host->linked_groups);
+        CHECK(parent == (host->rekeyed ? 80U : 0U));
+        CHECK(child->slot == host->linked_groups % 2 &&
+              child->type == (child->slot ? ARCHIVE_STARTS : ARCHIVE_FRAMES));
+        CHECK(child->number == 3 + host->linked_groups);
         ++host->linked_groups;
     }
     return 1;
 }
-static void archive_unlink(void *context, MMU32 type, MMU32 parent, MMU32 child_type, MMU32 number, MMU32 slot)
+static void archive_erase_link(void *context, MMU32 parent, const MMChunkChild *child)
 {
-    ArchiveHost *host = (ArchiveHost *)context;
-    CHECK(type == ARCHIVE_SCENE && parent == 80 && host->linked_groups == 4 && slot == host->old_groups);
-    CHECK(number == 3 + slot && child_type == (slot ? ARCHIVE_STARTS : ARCHIVE_FRAMES));
+    ArchiveHost *host = context;
+    CHECK(parent == 80 && host->linked_groups == 4 && child->slot == host->old_groups);
+    CHECK(child->number == 3 + child->slot && child->type == (child->slot ? ARCHIVE_STARTS : ARCHIVE_FRAMES));
     ++host->old_groups;
+}
+static void archive_init(ArchiveHost *host)
+{
+    memset(host, 0, sizeof(*host));
+    fixture_chunk_add(&host->index, ARCHIVE_SCENE, 7);
+    fixture_chunk_add(&host->index, ARCHIVE_SCENE, 20);
+    host->index.observer = host;
+    host->index.before_insert = archive_insert_link;
+    host->index.before_unlink = archive_erase_link;
 }
 
 static void archived_scenes(void)
@@ -516,18 +481,19 @@ static void archived_scenes(void)
     };
     ArchiveHost host;
     MMMovieArchiveEditor editor = {NULL, 2, MM_TEXT_UTF16_LE, 1, NULL, archive_chunks, NULL, archive_add,
-                                   archive_adopt, archive_unlink, archive_put, archive_rekey, archive_title, NULL, NULL, NULL};
+                                   NULL, NULL, archive_put, archive_rekey, archive_title, NULL, NULL, NULL, {0}};
     MMMovieArchiveRoot root = {999, 0};
     MMMovieHeader header;
     MMCollectionHeader rollcall;
     MMSceneState scene;
     MMMemoryStream stream;
     editor.context = &host;
-    memset(&host, 0, sizeof(host));
+    editor.edit = fixture_chunk_edit(&host.index);
+    archive_init(&host);
     host.fail_link = 1;
     CHECK(mm_movie_archive_ensure_root(&editor, &root) == MM_MOVIE_SCENE_ARCHIVE_ROOT_LINK);
     CHECK(root.number == 999 && !root.created && host.linked_scenes == 1);
-    memset(&host, 0, sizeof(host));
+    archive_init(&host);
     CHECK(mm_movie_archive_ensure_root(&editor, &root) == MM_MOVIE_SCENE_ARCHIVE_OK);
     CHECK(root.number == 5 && root.created && host.linked_scenes == 2);
     CHECK(mm_memory_stream_init(&stream, host.records[0], host.lengths[0]));

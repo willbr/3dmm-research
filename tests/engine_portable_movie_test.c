@@ -1,5 +1,5 @@
 /* Licensed under the MIT License. */
-#include "mm/chunk_edit.h"
+#include "chunk_edit_fixture.h"
 #include "mm/collections.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_portable.h"
@@ -132,47 +132,86 @@ static void sources(int big, int system)
 
 typedef struct Links
 {
+    ChunkIndexFixture index;
     char calls[4];
     int count, fail;
 } Links;
-static int write_child(void *context, MMU32 type, const unsigned char *data, MMU32 size, MMU32 *number)
+static int write_child(void *context, MMU32 offset, const void *data, size_t size)
 {
     Links *links = (Links *)context;
-    assert(type == 1 && *data == 99 && size == 1);
+    assert(!offset && *(const unsigned char *)data == 99 && size == 1);
     links->calls[links->count++] = 'W';
-    *number = 12;
     return links->fail != 1;
 }
-static int adopt_child(void *context, MMU32 type, MMU32 number, const MMChunkChild *child)
+static int add_child(void *context, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
+{
+    Links *links = context;
+    assert(type == 1 && size == 1);
+    if (links->fail == 3)
+        return 0;
+    *number = 12;
+    fixture_chunk_add(&links->index, type, *number);
+    writer->context = links;
+    writer->length = size;
+    writer->write_at = write_child;
+    return 1;
+}
+static int adopt_child(void *context, MMU32 number, const MMChunkChild *child)
 {
     Links *links = (Links *)context;
-    assert(type == 2 && number == 3 && child->type == 1 && child->number == 12 && child->slot == 1);
+    assert(number == 3 && child->type == 1 && child->number == 12 && child->slot == 1);
     links->calls[links->count++] = 'A';
     return links->fail != 2;
 }
-static void remove_child(void *context, MMU32 type, MMU32 number, const MMChunkChild *child, int linked)
+static void remove_child(void *context, MMU32 number, const MMChunkChild *child)
 {
     Links *links = (Links *)context;
-    assert(type == 2 && number == 3 && child->type == 1 && child->slot == 1);
-    assert(child->number == (linked ? 11 : 12));
-    links->calls[links->count++] = linked ? 'L' : 'D';
+    assert(number == 3 && child->type == 1 && child->slot == 1 && child->number == 11);
+    links->calls[links->count++] = 'L';
+}
+static void drop_child(void *context, const MMChunkEntry *entry)
+{
+    Links *links = context;
+    assert(entry->type == 1 && entry->number == 12 && !entry->parent_count);
+    links->calls[links->count++] = 'D';
 }
 static void replacement(void)
 {
-    Links links = {{0}, 0, 0};
-    MMChunkChildPayload services = {NULL, write_child, adopt_child, remove_child};
-    MMChunkChild child = {1, 11, 1};
-    unsigned char data = 99;
-    services.context = &links;
-    assert(mm_chunk_replace_child_bytes(2, 3, &child, 1, &data, 1, &services) &&
-        links.count == 3 && !memcmp(links.calls, "WAL", 3));
-    links.count = 0;
-    links.fail = 1;
-    assert(!mm_chunk_replace_child_bytes(2, 3, &child, 1, &data, 1, &services) && links.count == 1);
-    links.count = 0;
-    links.fail = 2;
-    assert(!mm_chunk_replace_child_bytes(2, 3, &child, 1, &data, 1, &services) &&
-        links.count == 3 && !memcmp(links.calls, "WAD", 3));
+    static const char *orders[] = {"WAL", "WD", "WAD", ""};
+    const MMChunkChild child = {1, 11, 1};
+    const unsigned char data = 99;
+    MMMovieArchiveEditor editor = {0};
+    Links links;
+    MMChunkAccess index;
+    MMChunkEntry entry;
+    MMU32 row, number;
+    int fail;
+    editor.context = &links;
+    editor.add = add_child;
+    editor.edit = fixture_chunk_edit(&links.index);
+    for (fail = 0; fail < 4; ++fail)
+    {
+        memset(&links, 0, sizeof(links));
+        links.fail = fail;
+        fixture_chunk_add(&links.index, 1, 11);
+        fixture_chunk_add(&links.index, 2, 3);
+        fixture_chunk_add(&links.index, 2, 4);
+        assert(mm_chunk_adopt(&editor.edit, 2, 3, &child, 1) == MM_CHUNK_OK);
+        assert(mm_chunk_adopt(&editor.edit, 2, 4, &child, 1) == MM_CHUNK_OK);
+        links.index.observer = &links;
+        links.index.before_insert = adopt_child;
+        links.index.before_unlink = remove_child;
+        links.index.before_delete = drop_child;
+        assert(mm_movie_archive_replace_child(&editor, 2, 3, &child, 1, &data, 1) == !fail);
+        assert((size_t)links.count == strlen(orders[fail]) && !memcmp(links.calls, orders[fail], links.count));
+        index = fixture_chunk_access(&links.index);
+        assert(mm_chunk_link_number(&index, 2, 3, 1, 1, &number) == MM_CHUNK_OK &&
+               number == (fail ? 11 : 12));
+        assert(mm_chunk_link_number(&index, 2, 4, 1, 1, &number) == MM_CHUNK_OK && number == 11);
+        assert(mm_chunk_find(&index, 1, 11, &row) == MM_CHUNK_OK &&
+               mm_chunk_at(&index, row, &entry) == MM_CHUNK_OK && entry.parent_count == (fail ? 2U : 1U));
+        assert(index.count == (fail ? 3U : 4U));
+    }
 }
 
 #define MOVIE_TYPE 0x4d564945UL
@@ -181,37 +220,19 @@ typedef struct SourceEdit
 {
     MMMemoryStream input;
     Output output;
+    ChunkIndexFixture index;
     int has_table, fail_link, step, portable, fail_write, discards;
 } SourceEdit;
 
-static int source_root(void *context, MMU32 position, MMChunkEntry *entry)
-{
-    SourceEdit *edit = (SourceEdit *)context;
-    assert(position == 0);
-    memset(entry, 0, sizeof(*entry));
-    entry->type = MOVIE_TYPE;
-    entry->number = 2;
-    entry->child_count = edit->has_table;
-    return 1;
-}
-static int source_child(void *context, MMU32 parent, MMU32 position, MMChunkChild *child)
-{
-    assert(parent == 0 && position == 0 && ((SourceEdit *)context)->has_table);
-    child->type = SOURCE_TYPE;
-    child->number = 7;
-    child->slot = 1;
-    return 1;
-}
 static MMChunkAccess source_chunks(void *context)
 {
-    MMChunkAccess chunks = {NULL, 1, source_root, source_child};
-    chunks.context = context;
-    return chunks;
+    return fixture_chunk_access(&((SourceEdit *)context)->index);
 }
 static int source_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
     SourceEdit *edit = (SourceEdit *)context;
-    assert(type == SOURCE_TYPE && number == 7 && edit->has_table && edit->step == 0);
+    assert(type == SOURCE_TYPE && (number == 7 || (edit->portable && number == 8)) &&
+           edit->has_table && edit->step == 0);
     *stream = edit->input.stream;
     return 1;
 }
@@ -230,32 +251,70 @@ static int source_add(void *context, MMU32 type, MMU32 count, MMU32 *number, MMS
     edit->step = 1;
     edit->output.length = count;
     *number = 8;
+    fixture_chunk_add(&edit->index, type, *number);
     writer->context = edit;
     writer->length = count;
     writer->write_at = source_write;
     return 1;
 }
-static int source_adopt(void *context, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot)
+static int insert_source(void *context, MMU32 parent, const MMChunkChild *child)
 {
     SourceEdit *edit = (SourceEdit *)context;
-    assert(parent_type == MOVIE_TYPE && parent == 2 && type == SOURCE_TYPE && number == 8 && slot == 1);
+    assert(parent == 2 && child->type == SOURCE_TYPE && child->number == 8 && child->slot == 1);
     assert(edit->step == (edit->has_table && !edit->portable ? 2 : 1));
     edit->step = 3;
     return !edit->fail_link;
 }
-static void source_unlink(void *context, MMU32 parent_type, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot)
+static void unlink_source(void *context, MMU32 parent, const MMChunkChild *child)
 {
     SourceEdit *edit = (SourceEdit *)context;
-    assert(parent_type == MOVIE_TYPE && parent == 2 && type == SOURCE_TYPE && number == 7 && slot == 1);
+    assert(parent == 2 && child->type == SOURCE_TYPE && child->number == 7 && child->slot == 1);
     assert(edit->step == (edit->portable ? 3 : 1) && edit->has_table);
     edit->step = edit->portable ? 4 : 2;
 }
 
-static void source_discard(void *context, MMU32 type, MMU32 number)
+static void erase_source(void *context, const MMChunkEntry *entry)
 {
     SourceEdit *edit = (SourceEdit *)context;
-    assert(edit->portable && type == SOURCE_TYPE && number == 8);
-    ++edit->discards;
+    assert(entry->type == SOURCE_TYPE && !entry->parent_count);
+    if (entry->number == 8)
+    {
+        assert(edit->portable);
+        ++edit->discards;
+    }
+    else
+        assert(entry->number == 7 && edit->step == (edit->portable ? 4 : 2));
+}
+
+static void prepare_source(SourceEdit *source)
+{
+    const MMChunkChild previous = {SOURCE_TYPE, 7, 1};
+    const MMChunkEdit edit = fixture_chunk_edit(&source->index);
+    memset(&source->index, 0, sizeof(source->index));
+    fixture_chunk_add(&source->index, MOVIE_TYPE, 2);
+    if (source->has_table)
+    {
+        fixture_chunk_add(&source->index, previous.type, previous.number);
+        assert(mm_chunk_adopt(&edit, MOVIE_TYPE, 2, &previous, 1) == MM_CHUNK_OK);
+    }
+    source->index.observer = source;
+    source->index.before_insert = insert_source;
+    source->index.before_unlink = unlink_source;
+    source->index.before_delete = erase_source;
+    source->step = 0;
+}
+
+static MMMovieArchiveEditor source_editor(SourceEdit *source)
+{
+    MMMovieArchiveEditor editor = {0};
+    editor.context = source;
+    editor.text_unit = 1;
+    editor.system = MM_TEXT_WINDOWS;
+    editor.chunks = source_chunks;
+    editor.read = source_read;
+    editor.add = source_add;
+    editor.edit = fixture_chunk_edit(&source->index);
+    return editor;
 }
 
 static void source_row(const MMMovieSourceTable *table, MMU32 index, MMI32 id, const char *expected)
@@ -268,9 +327,8 @@ static void source_row(const MMMovieSourceTable *table, MMU32 index, MMI32 id, c
 
 static void register_source(void)
 {
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
-                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL, NULL, NULL};
     SourceEdit edit = {0};
+    const MMMovieArchiveEditor editor = source_editor(&edit);
     MMMemoryStream saved;
     MMMovieSourceTable table;
     MMCollectionHeader header = {0};
@@ -278,13 +336,13 @@ static void register_source(void)
     unsigned char input[20 + sizeof(names) - 1 + 24] = {0};
     unsigned char *rows;
     MMI32 id;
-    editor.context = &edit;
+    prepare_source(&edit);
     assert(mm_movie_archive_register_source(&editor, NULL, 2, 1, "3dmm", &id) == MM_MOVIE_SOURCE_EDIT_OK);
     assert(id == 1 && edit.step == 3 && mm_memory_stream_init(&saved, edit.output.data, edit.output.length));
     assert(mm_movie_source_table_open(&saved.stream, sizeof(edit.output.data), &table) == MM_MOVIE_OK);
     assert(table.count == 1);
     source_row(&table, 0, 1, "3D Movie Maker/3DMOVIE");
-    edit.step = 0;
+    prepare_source(&edit);
     assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, "Doraemon Character Kit", &id) ==
            MM_MOVIE_SOURCE_EDIT_OK);
     assert(id == 3 && mm_memory_stream_init(&saved, edit.output.data, edit.output.length));
@@ -310,7 +368,7 @@ static void register_source(void)
     word(rows + 20, 11, 1);
     assert(mm_memory_stream_init(&edit.input, input, sizeof(input)));
     edit.has_table = 1;
-    edit.step = 0;
+    prepare_source(&edit);
     assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, NULL, &id) == MM_MOVIE_SOURCE_EDIT_OK);
     assert(id == 11 && edit.step == 3 && mm_memory_stream_init(&saved, edit.output.data, edit.output.length));
     assert(mm_movie_source_table_open(&saved.stream, sizeof(edit.output.data), &table) == MM_MOVIE_OK);
@@ -318,15 +376,15 @@ static void register_source(void)
     source_row(&table, 0, 17, "3DMM");
     source_row(&table, 1, -4, "ignore");
     source_row(&table, 2, 11, "3DMOVIE");
-    edit.step = 0;
+    prepare_source(&edit);
     assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, "new", &id) == MM_MOVIE_SOURCE_EDIT_OK);
     assert(id == 18 && edit.step == 3);
-    edit.step = 0;
+    prepare_source(&edit);
     edit.fail_link = 1;
     id = 123;
     assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, "new", &id) == MM_MOVIE_SOURCE_EDIT_LINK);
     assert(id == 123 && edit.step == 3);
-    edit.step = 0;
+    prepare_source(&edit);
     word(rows + 4, 0x7fffffffUL, 1);
     assert(mm_movie_archive_register_source(&editor, NULL, 2, 2, "new", &id) == MM_MOVIE_SOURCE_EDIT_IDS);
     assert(id == 123 && edit.step == 0);
@@ -334,14 +392,13 @@ static void register_source(void)
 
 static void map_sources(void)
 {
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
-                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL, NULL, NULL, NULL};
     MMMovieArchiveSource sources[] = {{9, "3DMM", 0, 0}, {4, "Doraemon Character Kit", 0, 0},
                                      {9, "other", 0, 0}};
     MMMovieArchiveSourceMap map = {NULL, NULL, NULL, 3, 2, 1, 0};
     SourceEdit edit = {0};
+    const MMMovieArchiveEditor editor = source_editor(&edit);
     MMI32 id = 123;
-    editor.context = &edit;
+    prepare_source(&edit);
     map.destination = &editor;
     map.sources = sources;
     mm_movie_archive_prepare_source_map(&map);
@@ -350,11 +407,12 @@ static void map_sources(void)
     assert(mm_movie_archive_map_source(&map, 9, &id));
     assert(map.result == MM_MOVIE_SOURCE_EDIT_OK && id == 1 && edit.step == 3);
     assert(mm_movie_archive_map_source(&map, 9, &id) && id == 1 && edit.step == 3);
-    edit.step = 0;
+    prepare_source(&edit);
     edit.fail_link = 1;
     assert(!mm_movie_archive_map_source(&map, 4, &id));
     assert(map.result == MM_MOVIE_SOURCE_EDIT_LINK && id == 1 && edit.step == 3);
-    edit.step = edit.fail_link = 0;
+    edit.fail_link = 0;
+    prepare_source(&edit);
     assert(mm_movie_archive_map_source(&map, 4, &id) && id == 3 && edit.step == 3);
 }
 
@@ -364,16 +422,16 @@ static void publish_portable_source(void)
     Output old;
     MMMovieSourceTable table;
     MMMemoryStream output;
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_chunks,
-                                   source_read, source_add, source_adopt, source_unlink, NULL, NULL, NULL,
-                                   NULL, NULL, source_discard};
+    const MMMovieArchiveEditor editor = source_editor(&edit);
+    MMChunkAccess index;
+    MMU32 number;
     MMI32 id;
-    editor.context = &edit;
+    prepare_source(&edit);
     assert(mm_movie_archive_register_source(&editor, NULL, 2, 1, NULL, &id) == MM_MOVIE_SOURCE_EDIT_OK);
     old = edit.output;
     assert(mm_memory_stream_init(&edit.input, old.data, old.length));
     edit.has_table = edit.portable = 1;
-    edit.step = 0;
+    prepare_source(&edit);
     edit.fail_write = 1;
     assert(mm_movie_archive_require_portable_source(&editor) == MM_PORTABLE_SOURCE_WRITE_FAILED &&
            edit.step == 1 && edit.discards == 1);
@@ -381,9 +439,15 @@ static void publish_portable_source(void)
     edit.fail_link = 1;
     assert(mm_movie_archive_require_portable_source(&editor) == MM_PORTABLE_SOURCE_WRITE_FAILED &&
            edit.step == 3 && edit.discards == 2);
+    index = fixture_chunk_access(&edit.index);
+    assert(index.count == 2 && mm_chunk_link_number(&index, MOVIE_TYPE, 2, 1, SOURCE_TYPE, &number) == MM_CHUNK_OK &&
+           number == 7);
     edit.step = edit.fail_link = 0;
     assert(mm_movie_archive_require_portable_source(&editor) == MM_PORTABLE_SOURCE_OK &&
            edit.step == 4 && edit.discards == 2);
+    index = fixture_chunk_access(&edit.index);
+    assert(index.count == 2 && mm_chunk_link_number(&index, MOVIE_TYPE, 2, 1, SOURCE_TYPE, &number) == MM_CHUNK_OK &&
+           number == 8);
     assert(mm_memory_stream_init(&output, edit.output.data, edit.output.length));
     assert(mm_movie_source_table_open(&output.stream, output.stream.length, &table) == MM_MOVIE_OK && table.count == 2);
     source_row(&table, 0, 1, "3D Movie Maker/3DMOVIE");

@@ -1017,9 +1017,8 @@ void *mm_scene_read_event_group(int start, int native_big, int *order, const MMS
 }
 typedef struct SceneEventChild
 {
-    MMU32 type, slot, number;
     int created, linked, had_previous;
-    MMChunkChild previous;
+    MMChunkChild link, previous;
 } SceneEventChild;
 
 static int add_event_child(const MMMovieArchiveEditor *editor, SceneEventChild *child, void *group,
@@ -1027,7 +1026,7 @@ static int add_event_child(const MMMovieArchiveEditor *editor, SceneEventChild *
 {
     MMStorageWriter writer;
     MMU32 bytes = groups->wire_size(group);
-    if (!bytes || !editor->add(editor->context, child->type, bytes, &child->number, &writer))
+    if (!bytes || !editor->add(editor->context, child->link.type, bytes, &child->link.number, &writer))
         return 0;
     child->created = 1;
     return groups->write(group, editor->system, &writer);
@@ -1035,7 +1034,7 @@ static int add_event_child(const MMMovieArchiveEditor *editor, SceneEventChild *
 
 static int link_event_child(const MMMovieArchiveEditor *editor, MMU32 scene, SceneEventChild *child)
 {
-    child->linked = editor->adopt(editor->context, MM_SCENE_CHUNK, scene, child->type, child->number, child->slot);
+    child->linked = mm_chunk_adopt(&editor->edit, MM_SCENE_CHUNK, scene, &child->link, 1) == MM_CHUNK_OK;
     return child->linked;
 }
 
@@ -1046,13 +1045,13 @@ static int write_event_pair(const MMMovieArchiveEditor *editor, MMU32 scene, voi
     MMChunkAccess chunks;
     MMU32 row;
     int i, success;
-    children[0].type = MM_SCENE_FRAME_GROUP;
-    children[1].type = MM_SCENE_START_GROUP;
-    children[1].slot = 1;
+    children[0].link.type = MM_SCENE_FRAME_GROUP;
+    children[1].link.type = MM_SCENE_START_GROUP;
+    children[1].link.slot = 1;
     chunks = editor->chunks(editor->context);
     if (mm_chunk_find(&chunks, MM_SCENE_CHUNK, scene, &row) == MM_CHUNK_OK)
         for (i = 0; i < 2; ++i)
-            children[i].had_previous = mm_chunk_child_exact(&chunks, row, children[i].slot, children[i].type,
+            children[i].had_previous = mm_chunk_child_exact(&chunks, row, children[i].link.slot, children[i].link.type,
                                                              &children[i].previous) == MM_CHUNK_OK;
     success = add_event_child(editor, &children[0], frames, groups) &&
               add_event_child(editor, &children[1], starts, groups) &&
@@ -1061,11 +1060,11 @@ static int write_event_pair(const MMMovieArchiveEditor *editor, MMU32 scene, voi
     {
         const SceneEventChild *child = &children[i];
         if (success && child->had_previous)
-            editor->unlink(editor->context, MM_SCENE_CHUNK, scene, child->type, child->previous.number, child->slot);
+            mm_chunk_unlink(&editor->edit, MM_SCENE_CHUNK, scene, &child->previous);
         else if (!success && child->linked)
-            editor->unlink(editor->context, MM_SCENE_CHUNK, scene, child->type, child->number, child->slot);
+            mm_chunk_unlink(&editor->edit, MM_SCENE_CHUNK, scene, &child->link);
         else if (!success && child->created)
-            editor->discard(editor->context, child->type, child->number);
+            mm_chunk_delete(&editor->edit, child->link.type, child->link.number);
     }
     return success;
 }
@@ -1134,7 +1133,7 @@ int mm_scene_archive_create(const MMMovieArchiveEditor *editor, const MMSceneSta
     success = created && mm_scene_archive_write(editor, *number, state) &&
               write_event_pair(editor, *number, &events, &events, &encoded_groups);
     if (!success && created)
-        editor->discard(editor->context, MM_SCENE_CHUNK, *number);
+        mm_chunk_delete(&editor->edit, MM_SCENE_CHUNK, *number);
     if (!success)
         *number = 0xffffffffUL;
     return success;

@@ -6,23 +6,6 @@
 #define LONER ((MMU32)2)
 #define OK MM_CHUNK_OK
 #define BAD MM_CHUNK_BAD_FILE
-int mm_chunk_replace_child_bytes(MMU32 parent_type, MMU32 parent_number, const MMChunkChild *child,
-                                  int had_child, const unsigned char *data, MMU32 bytes,
-                                  const MMChunkChildPayload *services)
-{
-    MMChunkChild replacement = *child;
-    void *context = services->context;
-    if (!services->write(context, child->type, data, bytes, &replacement.number))
-        return 0;
-    if (!services->adopt(context, parent_type, parent_number, &replacement))
-    {
-        services->remove(context, parent_type, parent_number, &replacement, 0);
-        return 0;
-    }
-    if (had_child)
-        services->remove(context, parent_type, parent_number, child, 1);
-    return 1;
-}
 static int readable(const MMChunkEdit *edit)
 {
     return edit && edit->count && edit->entry;

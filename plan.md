@@ -1412,7 +1412,12 @@ content-source registration also uses C89 for VFS alias matching,
 fallback and new IDs, and the source table's native encoding and link.
 C89 also creates movie roots for scene-only archives, links the existing
 scenes in order, and writes the header and event groups for a new scene.
-The Studio and Marcus paths use the same root and scene-header encoders.
+The Studio and Marcus paths share the encoders and use the live C89 chunk
+editor to link movie roots, new scenes, roll calls and storyboard metadata.
+Scene saves stage both event groups before releasing either previous link.
+Portable source tables and background event groups publish a replacement
+before releasing the old link. Native source registration retains its
+existing unlink-before-adopt order.
 Actor-free Marcus movie materialization writes the empty roll call
 required by the retail and SDL Studio loaders.
 C89 now writes newly inserted actor, prop and 3D text instances,

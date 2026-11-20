@@ -22,40 +22,32 @@ static int add_record(const MMMovieArchiveEditor *editor, MMU32 type, const void
            writer.write_at(writer.context, 0, bytes, size);
 }
 
-static int write_child(void *context, MMU32 type, const unsigned char *data, MMU32 bytes, MMU32 *number)
+static int adopt_chunk(const MMMovieArchiveEditor *editor, MMU32 parent_type, MMU32 parent,
+                       MMU32 type, MMU32 number, MMU32 slot)
 {
-    const MMMovieArchiveEditor *editor = (const MMMovieArchiveEditor *)context;
-    MMStorageWriter writer;
-    if (!editor->add(editor->context, type, bytes, number, &writer))
-        return 0;
-    if (writer.write_at(writer.context, 0, data, bytes))
-        return 1;
-    if (editor->discard)
-        editor->discard(editor->context, type, *number);
-    return 0;
-}
-
-static int adopt_child(void *context, MMU32 parent_type, MMU32 parent, const MMChunkChild *child)
-{
-    const MMMovieArchiveEditor *editor = (const MMMovieArchiveEditor *)context;
-    return editor->adopt(editor->context, parent_type, parent, child->type, child->number, child->slot);
-}
-
-static void remove_child(void *context, MMU32 parent_type, MMU32 parent, const MMChunkChild *child, int linked)
-{
-    const MMMovieArchiveEditor *editor = (const MMMovieArchiveEditor *)context;
-    if (linked)
-        editor->unlink(editor->context, parent_type, parent, child->type, child->number, child->slot);
-    else if (editor->discard)
-        editor->discard(editor->context, child->type, child->number);
+    MMChunkChild child;
+    child.type = type;
+    child.number = number;
+    child.slot = slot;
+    return mm_chunk_adopt(&editor->edit, parent_type, parent, &child, 1) == MM_CHUNK_OK;
 }
 
 int mm_movie_archive_replace_child(const MMMovieArchiveEditor *editor, MMU32 parent_type, MMU32 parent,
                                    const MMChunkChild *child, int had_child, const unsigned char *data, MMU32 bytes)
 {
-    MMChunkChildPayload services = {NULL, write_child, adopt_child, remove_child};
-    services.context = (void *)editor;
-    return mm_chunk_replace_child_bytes(parent_type, parent, child, had_child, data, bytes, &services);
+    MMChunkChild replacement = *child;
+    MMStorageWriter writer;
+    if (!editor->add(editor->context, child->type, bytes, &replacement.number, &writer))
+        return 0;
+    if (!writer.write_at(writer.context, 0, data, bytes) ||
+        mm_chunk_adopt(&editor->edit, parent_type, parent, &replacement, 1) != MM_CHUNK_OK)
+    {
+        mm_chunk_delete(&editor->edit, replacement.type, replacement.number);
+        return 0;
+    }
+    if (had_child)
+        mm_chunk_unlink(&editor->edit, parent_type, parent, child);
+    return 1;
 }
 
 typedef struct BackgroundReplacement
@@ -135,10 +127,11 @@ int mm_movie_archive_rebind_backgrounds(const MMMovieArchiveEditor *editor, cons
 static void unlink_scene_child(const MMMovieArchiveEditor *editor, MMU32 scene, MMU32 type)
 {
     MMChunkAccess chunks;
-    MMU32 child;
+    MMChunkChild child = {0};
+    child.type = type;
     chunks = editor->chunks(editor->context);
-    if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, 0, type, &child) == MM_CHUNK_OK)
-        editor->unlink(editor->context, SCENE_TYPE, scene, type, child, 0);
+    if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, child.slot, child.type, &child.number) == MM_CHUNK_OK)
+        mm_chunk_unlink(&editor->edit, SCENE_TYPE, scene, &child);
 }
 
 int mm_movie_archive_embed_storyboard(const MMMovieArchiveEditor *editor, MMU32 scene, MMU32 background,
@@ -149,7 +142,7 @@ int mm_movie_archive_embed_storyboard(const MMMovieArchiveEditor *editor, MMU32 
     unlink_scene_child(editor, scene, MM_STORYBOARD_CHUNK);
     child.type = MM_STORYBOARD_CHUNK;
     if (!mm_movie_archive_replace_child(editor, SCENE_TYPE, scene, &child, 0, metadata, bytes) ||
-        !editor->adopt(editor->context, SCENE_TYPE, scene, BACKGROUND_TYPE, background, 0) ||
+        !adopt_chunk(editor, SCENE_TYPE, scene, BACKGROUND_TYPE, background, 0) ||
         !mm_movie_archive_retarget_background(editor, scene, 0, background))
         return 0;
     unlink_scene_child(editor, scene, THUMB_TYPE);
@@ -359,7 +352,7 @@ int mm_movie_archive_ensure_root(const MMMovieArchiveEditor *editor, MMMovieArch
             if (status == MM_CHUNK_NOT_FOUND)
                 break;
             if (status != MM_CHUNK_OK ||
-                !editor->adopt(editor->context, MOVIE_TYPE, root.number, SCENE_TYPE, entry.number, scene))
+                !adopt_chunk(editor, MOVIE_TYPE, root.number, SCENE_TYPE, entry.number, scene))
                 return MM_MOVIE_SCENE_ARCHIVE_ROOT_LINK;
         }
     }
@@ -406,7 +399,7 @@ int mm_movie_archive_append_scene(const MMMovieArchiveEditor *editor, MMU32 root
         return MM_MOVIE_SCENE_ARCHIVE_CREATE;
     if (!mm_scene_archive_opening_background(editor, scene, state.firstFrame, source, background))
         return MM_MOVIE_SCENE_ARCHIVE_LINK;
-    if (!editor->adopt(editor->context, MOVIE_TYPE, root, SCENE_TYPE, scene, slot))
+    if (!adopt_chunk(editor, MOVIE_TYPE, root, SCENE_TYPE, scene, slot))
         return MM_MOVIE_SCENE_ARCHIVE_LINK;
     return MM_MOVIE_SCENE_ARCHIVE_OK;
 }
@@ -436,5 +429,5 @@ int mm_movie_archive_ensure_empty_rollcall(const MMMovieArchiveEditor *editor)
     header.big_endian = editor->big_endian;
     return mm_collection_header_write(&header, bytes, sizeof(bytes)) == MM_STORAGE_OK &&
            add_record(editor, ROLLCALL_TYPE, bytes, sizeof(bytes), &number) &&
-           editor->adopt(editor->context, MOVIE_TYPE, root.number, ROLLCALL_TYPE, number, 0);
+           adopt_chunk(editor, MOVIE_TYPE, root.number, ROLLCALL_TYPE, number, 0);
 }

@@ -16592,3 +16592,43 @@ SDL matched all 12 retail sound requests.
 
 SDL and Marcus matched both original v3dmm 0.14 seek records and images
 in `20261120T185132Z-4c79cfa3`. Evidence is in `tmp/c89-embedded-asset-index`.
+
+## C89 publication of movie and scene archive links (20 November 2026)
+
+Movie roots, scene event groups, storyboard metadata, and source tables now
+use the live C89 chunk editor to publish their links. The fixtures exercise
+write and adoption failures, rollback of both scene event groups, and
+replacing a child shared by two parents.
+
+All 192 standalone checks and 11 AddressSanitizer checks passed. Eleven
+focused engine checks and the Archive API passed on SDL and native x64
+and x86. The 14 Marcus syntax, playback, and player checks passed. All 54
+baseline traces, three saved movie fixtures, ten Preview fingerprints, and
+six Preview movies matched.
+
+Marcus storyboard, insertion, and costume save and reopen checks passed.
+All 11 native movie outputs were byte-identical to the previous build.
+All five storyboard VMM outputs matched after normalizing the generated
+package names and background chunk numbers. Studio imported a standalone
+background, saved and reopened the combined movie, then edited and saved
+it again. Both decoded archives matched the previous build. SDL and Marcus
+matched all five seek records and canvas images from the edited movie in
+`20261120T191510Z-f3185c12`. The retail oracle timed out opening that file.
+Studio also saved and reopened a painted VMM storyboard after extending
+it to three frames.
+
+Retail, SDL, and Marcus matched all three seek frame and camera records and
+canvas images from the native Marcus storyboard control in
+`20261120T191728Z-0b2944bd`. SDL and Marcus matched both original v3dmm 0.14
+seek records and images from the newly published storyboard VMM in
+`20261120T191558Z-d0122276`. SDL and Marcus agreed on both records and images
+from the embedded storyboard control in `20261120T191840Z-6ecd1c5c`.
+That control was byte-identical to the previously tested file, and the retail
+oracle again timed out opening it.
+
+In `actor-event-edit` suite `20261120T191416Z-799551cb`, SDL and Marcus
+matched all 60 archived retail frame identities in seek and continuous
+playback and all retail seek camera indices. Both matched their prior seek
+image hashes. SDL matched all 12 retail sound requests.
+
+Evidence is in `tmp/c89-archive-publication`.
