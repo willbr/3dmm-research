@@ -187,6 +187,20 @@ static void test_mouse_projection(void)
     mm_actor_scale_drag_depth(&point, 0, 250 * 65536L);
     CHECK(point.dxr == 180222);
 }
+
+static void test_mouse_input(void)
+{
+    MMActorPoint point = mm_actor_mouse_delta(45, 24, 22, 32, -17);
+    CHECK(point.dxr == 23 * 65536L && point.dyr == 8 * 65536L && point.dzr == -17);
+    point = mm_actor_mouse_delta(-2147483647L - 1, 32768, 2147483647L, 0, 17);
+    CHECK(point.dxr == 65536L && point.dyr == -2147483647L - 1 && point.dzr == 17);
+    CHECK(mm_actor_mouse_key_depth(17, 1000, 1, 0) == 6553617L);
+    CHECK(mm_actor_mouse_key_depth(17, 10, 0, 1) == 17 - 65500L);
+    CHECK(mm_actor_mouse_key_depth(17, 0, 1, 0) == 6517L);
+    CHECK(mm_actor_mouse_key_depth(17, 0xffffffffU, 1, 0) == 6517L);
+    CHECK(mm_actor_mouse_key_depth(17, 1000, 1, 1) == 17);
+    CHECK(mm_actor_mouse_key_depth(17, 1000, 0, 0) == 17);
+}
 int main(void)
 {
     Fixture f;
@@ -245,6 +259,7 @@ int main(void)
     CHECK(point.dxr == -2145845249L);
     test_placement_ownership();
     test_mouse_projection();
+    test_mouse_input();
     puts("actor placement checks passed");
     return 0;
 }

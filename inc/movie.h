@@ -181,7 +181,7 @@ class MovieView : public MovieView_PAR
     long _cmidTool;     // Costume id associated with current tool.
     long _tool;         // Current tool loaded on cursor
 
-    MMActorDragUndo _actorDrag{};
+    MMMovieActorDrag _actorDrag{};
     MMActorPlacementState _placement{};
     MMActorRecordGesture _recordGesture{};
     ulong _tsLastSample; // Last time mouse/kbd sampled
@@ -203,7 +203,6 @@ class MovieView : public MovieView_PAR
     long _onn;        // Font for text
     long _dypFont;    // Font size for text
     ulong _grfont;    // Font style for text
-    long _lwLastTime; // State variable for the last time through.
 
     MovieView(PDocumentBase pdocb, PGraphicsObjectBlock pgcb) : DocumentDisplayGraphicsObject(pdocb, pgcb)
     {
@@ -216,12 +215,12 @@ class MovieView : public MovieView_PAR
     void _ClearSel(void);
     bool _FPaste(PClipboardObject pclip);
 
-    void _PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld);
+    void _PositionActr(const MMActorPoint &delta);
+    void _SampleActorDrag(const CMD_MOUSE &pointer, const MMActorPoint &mouse, const MMActorPoint &world);
     void _MouseDown(CMD_MOUSE *pcmd);
     void _MouseDrag(CMD_MOUSE *pcmd);
     void _MouseUp(CMD_MOUSE *pcmd);
 
-    void _CommitMoveUndo(bool singleOnly = false);
     void _DiscardMoveUndo();
     MMActorRecordGestureServices _RecordGestureServices();
     bool _FRecordTemplateMatches(PActor actor);
@@ -302,7 +301,7 @@ class MovieView : public MovieView_PAR
     void WarpCursToCenter(void);
     void WarpCursToActor(PActor pactr);
     void AdjustCursor(long xp, long yp);
-    void MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, BRS *pdyrWld, BRS *pdzrWld, bool fRecord);
+    void MouseToWorld(MMActorPoint &delta, bool recording);
     void SetAxis(BRS rgrAxis[3][3])
     {
         BltPb(rgrAxis, _mouseAxes.m, size(BRS) * 9);
@@ -556,6 +555,7 @@ typedef class Movie *PMovie;
 class Movie : public Movie_PAR
 {
     friend class MovieSaveProbe;
+    friend class MovieView;
     RTCLASS_DEC
     MARKMEM
     ASSERT

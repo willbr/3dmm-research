@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MOVIE_EDIT_H
 #define MM_ENGINE_MOVIE_EDIT_H
+#include "actor_group_undo.h"
 #include "movie_rollcall.h"
 #include "movie_scene.h"
 #include "movie_undo.h"
@@ -76,6 +77,45 @@ extern "C"
         void (*dirty)(void *), (*invalidate)(void *, int scrollbars), (*actor_nuked)(void *),
             (*diagnostic)(void *, int);
     } MMMovieEditServices;
+
+    enum
+    {
+        MM_MOVIE_DRAG_COMPOSE,
+        MM_MOVIE_DRAG_ROTATE_X,
+        MM_MOVIE_DRAG_ROTATE_Y,
+        MM_MOVIE_DRAG_ROTATE_Z,
+        MM_MOVIE_DRAG_RESIZE,
+        MM_MOVIE_DRAG_SQUASH
+    };
+    typedef struct MMMovieActorDrag
+    {
+        MMActorDragUndo undo;
+        int size_direction;
+    } MMMovieActorDrag;
+    typedef struct MMMovieActorDragInput
+    {
+        int tool, command, shift, ground;
+        MMActorPoint mouse, world;
+    } MMMovieActorDragInput;
+    struct MMActorGroupTransformServices;
+    typedef struct MMMovieActorDragServices
+    {
+        const struct MMSceneSelectionServices *selection;
+        const struct MMActorGroupTransformServices *actors;
+        const MMMovieEditServices *movie;
+        const MMActorDragUndoServices *undo;
+        void *view;
+        void (*adjust_cursor)(void *);
+        void (*size_sound)(void *, int alternate);
+        void (*world_dirty)(void *);
+        void (*mark_views)(void *);
+    } MMMovieActorDragServices;
+    /* Use the pending undo and pivot captured on pointer down. Start each
+     * resize or squash gesture with size_direction zero. View services run
+     * synchronously in the original cursor, sound and invalidation order. */
+    void mm_movie_actor_drag_sample(MMMovieActorDrag *, const MMMovieActorDragInput *,
+                                    const MMMovieActorDragServices *);
+
     /* Initialized, stable owners/handles and synchronous non-reentrant services
      * are required. Scene edits/selected edits require a current scene; selected
      * actor edits require a selected actor. Time edits return failure when

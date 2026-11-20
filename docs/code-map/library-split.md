@@ -4291,10 +4291,12 @@ and template-kind flag. Its camera callback remains lazy. Studio and Marcus
 link the same C implementation. Stage entrance/removal orchestration now uses
 the shared stage-edit module below.
 
-`actor_placement.c` also owns Studio's mouse projection and depth scaling.
-Studio supplies the active XY or XZ basis and the camera matrix. C uses the
-recording or editing scale, then applies the existing minimum depth multiplier
-and signed 16.16 rounding. Placement moves use the C actor owner with the
+`actor_placement.c` also owns Studio's pixel deltas, arrow-key depth,
+mouse projection and depth scaling. Studio supplies pointer coordinates, key
+states, clock samples, the active XY or XZ basis, and the camera matrix. C
+converts pixel motion to signed 16.16, adds or subtracts depth at 100 pixels per
+second, applies the recording or editing scale, and applies the existing
+minimum depth multiplier. Placement moves use the C actor owner with the
 appropriate scene or subroute flag, orientation and optional floor clipping.
 
 The placement record retains the active actor and owns any replacement snapshot.
@@ -4451,6 +4453,16 @@ substituting the previous scale. Rotation/revert retain diagnostic-and-continue
 ordering after a supposedly reserved event fails; scale/stretch/tweak return
 failure with preceding state/table mutations retained.
 
+Studio's drag controller in `movie_edit.c` builds move, tweak, axis rotation,
+resize and squash requests. It reads the modifier state captured at pointer down,
+uses the frozen pivot for group transforms and dispatches single-actor edits
+through the C movie editor. It preserves BRender's 0.001 multiplier and Y-axis
+sign, including wrap on conversion to a 16-bit angle. A resize or squash plays
+the corresponding UI sound on its first nonzero tick and when direction changes.
+The controller commits the pending undo at the original edit boundary and calls
+the view services in the original order. Studio supplies cursor, sound and
+redraw callbacks.
+
 Movement publishes the requested moved flag before reservation/clipping. Ground
 clipping can stop all physical movement while that flag remains true. Orienting
 movement removes prior path angles in Z/Y/X order, uses the shared C vector and
@@ -4482,6 +4494,13 @@ the existing external C dependency; those callbacks do not retain edit policy.
 Project-owned body/resource/scene implementations and native ownership adapters
 still need conversion.
 
+`engine-movie-edit-test` checks drag angle and scale calculations, sound direction
+changes, single-actor undo order, and the cursor/redraw effects after a failed
+edit. `engine-placement-test` checks pixel sign and wrap, keyboard elapsed-time
+handling, and opposing arrow keys. All 262,144 keyboard-depth samples matched
+native BRender arithmetic across the low 16-bit elapsed-time range and all four
+arrow-key combinations.
+
 `engine-transform-edit-test` covers exclusive bounds, the scale/tweak comparison,
 reservation/failure order, zero world rotation, revert, primitive normalization,
 moved publication, clipped movement, translation precedence, text/orient handling,
@@ -4494,6 +4513,19 @@ relative stepping at the signed-frame boundaries, and absent scene/selection.
 All 12 actor traces, the Scene-content trace and the 61,552-byte native Movie
 edit trace matched the previous build. All eight Studio group-transform
 workflows also matched after sharing the snapshot capture.
+
+Twenty-six routed Studio transform workflows matched the previous build. They
+covered single-actor and group movement, subroute movement, tweak, rotation on
+all three axes with and without Command, resize, squash and direction reversals.
+Undo, redo and reopen matched in every case. The 72 chunk entries, links and
+payloads matched in each saved movie. Raw file differences occurred only in
+unused index padding. Retail reopened all 26 movies with matching evaluated
+positions, action/cel values and fixed-point actor pose matrices at frame 7.
+
+Fresh SDL and Marcus runs (`20261120T031529Z-78f351e8`) matched all 60 scene
+and frame markers in each seek and playback mode against the retained retail
+`actor-event-edit` capture. Each port's seek images matched its previous build.
+Camera indices and all 12 SDL playback sound events matched retail.
 
 Four Studio Sooner/Later workflows matched the previous build. They exercised
 three earlier shifts, three later shifts, mixed directions and exiting without

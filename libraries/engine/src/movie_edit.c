@@ -2,7 +2,9 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_edit.h"
 #include "mm/actor_motion.h"
+#include "mm/actor_transform_edit.h"
 #include "mm/actor_undo.h"
+#include "mm/scene_selection.h"
 #include "mm/wide.h"
 static void changed(int bars, const MMMovieEditServices *s)
 {
@@ -169,6 +171,93 @@ int mm_movie_edit_actor(int kind, const MMMovieEditRequest *input, const MMMovie
         s->actor_nuked(s->context);
     return 1;
 }
+
+static void drag_compose(MMMovieActorDrag *drag, const MMMovieActorDragInput *input,
+                         const MMMovieActorDragServices *s)
+{
+    MMActorGroupTransform edit = {0};
+    int moved;
+    edit.kind = input->command ? MM_ACTOR_GROUP_TWEAK : MM_ACTOR_GROUP_MOVE;
+    edit.delta = input->world;
+    if (input->ground)
+        edit.move_flags |= MM_MOVE_GROUND;
+    if (!input->command && input->shift)
+        edit.move_flags |= MM_MOVE_SUBROUTE;
+    if (input->command)
+        s->adjust_cursor(s->view);
+    moved = mm_actor_group_transform(&edit, s->selection, s->actors);
+    if (moved)
+    {
+        mm_actor_drag_undo_commit(&drag->undo, 0, s->undo);
+        if (!input->command)
+        {
+            s->adjust_cursor(s->view);
+            s->world_dirty(s->view);
+        }
+    }
+    if (input->command || moved)
+        s->mark_views(s->view);
+}
+
+void mm_movie_actor_drag_sample(MMMovieActorDrag *drag, const MMMovieActorDragInput *input,
+                                const MMMovieActorDragServices *s)
+{
+    MMActorGroupTransform edit = {0};
+    MMMovieEditRequest request = {0};
+    MMI32 sum, angle;
+    int kind, axis, direction;
+    if (input->tool == MM_MOVIE_DRAG_COMPOSE)
+    {
+        drag_compose(drag, input, s);
+        return;
+    }
+    /* BRender's 0.001 multiplier is 65 in signed 16.16. The Y tool
+     * reverses the converted angle; squash reverses the scalar delta. */
+    sum = mm_fixed_add(input->mouse.dxr, input->mouse.dyr);
+    edit.pivot = drag->undo.pivot;
+    if (input->tool <= MM_MOVIE_DRAG_ROTATE_Z)
+    {
+        kind = MM_MOVIE_EDIT_ROTATE;
+        edit.kind = MM_ACTOR_GROUP_ROTATE;
+        axis = input->tool - MM_MOVIE_DRAG_ROTATE_X;
+        angle = mm_fixed_mul(sum, -65);
+        if (axis == 1)
+            angle = mm_fixed_sub(0, angle);
+        request.rotation[axis] = edit.angles[axis] = (unsigned short)angle;
+        request.forward = edit.forward = input->command;
+    }
+    else
+    {
+        int squash = input->tool == MM_MOVIE_DRAG_SQUASH;
+        kind = squash ? MM_MOVIE_EDIT_SQUASH : MM_MOVIE_EDIT_SCALE;
+        edit.kind = squash ? MM_ACTOR_GROUP_SQUASH : MM_ACTOR_GROUP_RESIZE;
+        if (squash)
+            sum = mm_fixed_sub(0, sum);
+        request.factor = edit.factor = mm_fixed_add(65536L, mm_fixed_mul(sum, 65));
+        direction = (sum > 0) - (sum < 0);
+        if (direction && direction != drag->size_direction)
+        {
+            drag->size_direction = direction;
+            s->size_sound(s->view, squash ? direction > 0 : direction < 0);
+        }
+    }
+
+    if (mm_scene_selection_count(s->selection) >= 2)
+    {
+        if (mm_actor_group_transform(&edit, s->selection, s->actors))
+        {
+            mm_actor_drag_undo_commit(&drag->undo, 0, s->undo);
+            changed(kind == MM_MOVIE_EDIT_SCALE, s->movie);
+        }
+    }
+    else if (mm_movie_edit_actor(kind, &request, s->movie))
+        mm_actor_drag_undo_commit(&drag->undo, 1, s->undo);
+
+    s->world_dirty(s->view);
+    s->mark_views(s->view);
+    s->adjust_cursor(s->view);
+}
+
 int mm_movie_edit_scene(int kind, const MMMovieEditRequest *input, const MMMovieEditServices *s)
 {
     MMMovieEditRequest request = *input;

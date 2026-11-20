@@ -1,6 +1,7 @@
 /* Movie edit sequencing, placement ownership and undo failure contracts. */
 #include "mm/movie_edit.h"
 #include "mm/actor_undo.h"
+#include "mm/scene_selection.h"
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x)                                                                                                       \
@@ -63,7 +64,12 @@ enum
     SOUND_VOLUME,
     SOUND_STYLE,
     SOUND_RELEASE,
-    ROLL_CHANGED
+    ROLL_CHANGED,
+    CURSOR,
+    SIZE_SOUND,
+    SIZE_SOUND_ALTERNATE,
+    WORLD_DIRTY,
+    MARK_VIEWS
 };
 typedef struct Test Test;
 typedef struct Actor
@@ -715,6 +721,99 @@ static int actor_edits(void)
     CHECK(mm_movie_onstage(5, &t.s) && t.dirty && t.invalidates && !t.bars && t.selectionCalls == 1);
     return 0;
 }
+static void cursor(void *p) { event(p, CURSOR); }
+static void size_sound(void *p, int alternate) { event(p, alternate ? SIZE_SOUND_ALTERNATE : SIZE_SOUND); }
+static void world_dirty(void *p) { event(p, WORLD_DIRTY); }
+static void mark_views(void *p) { event(p, MARK_VIEWS); }
+static void drag_release(void *p, void *handle) { (void)p; release_undo(handle); }
+
+static int actor_drag(void)
+{
+    static const int rotate_steps[] = {SELECT, APPLY, DIRTY, INVALIDATE, COMMIT, UNDO_RELEASE, WORLD_DIRTY, MARK_VIEWS, CURSOR};
+    static const int failure_steps[] = {SELECT, APPLY, WORLD_DIRTY, MARK_VIEWS, CURSOR};
+    Test t;
+    MMActorDragUndoServices undo = {0};
+    MMSceneSelection state = {0};
+    MMSceneSelectionServices selection = {0};
+    MMSceneOwner owner = {0};
+    MMMovieActorDrag drag;
+    MMMovieActorDragInput input = {0};
+    MMMovieActorDragServices services = {0};
+    int axis, kind, tick;
+    undo.context = &t;
+    undo.commit = commit;
+    undo.release = drag_release;
+    selection.state = &state;
+    selection.owner = &owner;
+    services.selection = &selection;
+    services.movie = &t.s;
+    services.undo = &undo;
+    services.view = &t;
+    services.adjust_cursor = cursor;
+    services.size_sound = size_sound;
+    services.world_dirty = world_dirty;
+    services.mark_views = mark_views;
+    state.actor = &t.actor;
+    for (axis = 0; axis < 3; ++axis)
+    {
+        init(&t);
+        memset(&drag, 0, sizeof(drag));
+        drag.undo.single = &t.undo;
+        t.undo.refs = 1;
+        drag.undo.group = &t.copy;
+        input.tool = MM_MOVIE_DRAG_ROTATE_X + axis;
+        input.command = axis != 2;
+        input.mouse.dxr = 3 * 65536L;
+        input.mouse.dyr = -65536L;
+        mm_movie_actor_drag_sample(&drag, &input, &services);
+        CHECK(t.kind == MM_MOVIE_EDIT_ROTATE && t.request.forward == input.command);
+        CHECK(t.request.rotation[0] == (axis == 0 ? 65406 : 0));
+        CHECK(t.request.rotation[1] == (axis == 1 ? 130 : 0));
+        CHECK(t.request.rotation[2] == (axis == 2 ? 65406 : 0));
+        CHECK(!drag.undo.single && drag.undo.group == &t.copy && t.undo.refs == 1);
+        CHECK(t.eventCount == 9 && !memcmp(t.events, rotate_steps, sizeof(rotate_steps)));
+    }
+
+    init(&t);
+    memset(&drag, 0, sizeof(drag));
+    drag.undo.single = &t.undo;
+    t.fail = FAIL_APPLY;
+    mm_movie_actor_drag_sample(&drag, &input, &services);
+    CHECK(drag.undo.single == &t.undo && t.eventCount == 5 && !memcmp(t.events, failure_steps, sizeof(failure_steps)));
+
+    for (kind = MM_MOVIE_DRAG_RESIZE; kind <= MM_MOVIE_DRAG_SQUASH; ++kind)
+    {
+        const int squash = kind == MM_MOVIE_DRAG_SQUASH;
+        init(&t);
+        memset(&drag, 0, sizeof(drag));
+        input.tool = kind;
+        input.mouse.dyr = 0;
+        for (tick = 0; tick < 5; ++tick)
+        {
+            int pixels = tick < 2 ? 1 : tick == 2 ? 0 : -1;
+            t.eventCount = 0;
+            input.mouse.dxr = pixels * 65536L;
+            mm_movie_actor_drag_sample(&drag, &input, &services);
+            CHECK(t.kind == (squash ? MM_MOVIE_EDIT_SQUASH : MM_MOVIE_EDIT_SCALE) && t.bars == !squash);
+            CHECK(t.request.factor == 65536L + (squash ? -65 : 65) * pixels);
+            CHECK(t.events[0] == (tick == 0 ? SIZE_SOUND : tick == 3 ? SIZE_SOUND_ALTERNATE : SELECT));
+            CHECK(t.events[t.eventCount - 1] == CURSOR);
+        }
+    }
+
+    init(&t);
+    memset(&drag, 0, sizeof(drag));
+    state.actor = NULL;
+    input.tool = MM_MOVIE_DRAG_COMPOSE;
+    input.command = 0;
+    mm_movie_actor_drag_sample(&drag, &input, &services);
+    CHECK(!t.eventCount);
+    input.command = 1;
+    mm_movie_actor_drag_sample(&drag, &input, &services);
+    CHECK(t.eventCount == 2 && t.events[0] == CURSOR && t.events[1] == MARK_VIEWS);
+    return 0;
+}
+
 static int scene_edits(void)
 {
     Test t;
@@ -862,7 +961,7 @@ static int backgrounds(void)
 }
 int main(void)
 {
-    if (registration() || choosing() || actor_edits() || scene_edits() || pasting() || insertion() || backgrounds())
+    if (registration() || choosing() || actor_edits() || actor_drag() || scene_edits() || pasting() || insertion() || backgrounds())
         return 1;
     puts("Movie actor/scene edits, placement, sound defaults and undo control passed");
     return 0;

@@ -5,6 +5,7 @@
 #include "mm/actor_owner.h"
 #include "mm/actor_transform_edit.h"
 #include "mm/scene_content.h"
+#include "mm/wide.h"
 
 void mm_actor_placement(MMActorPoint *point, int text,
                              const MMActorPlacementServices *services)
@@ -25,6 +26,28 @@ void mm_actor_placement(MMActorPoint *point, int text,
     }
     if (text)
         point->dyr = mm_fixed_add(point->dyr, 655360L);
+}
+
+MMActorPoint mm_actor_mouse_delta(MMI32 x, MMI32 y, MMI32 previous_x, MMI32 previous_y, MMI32 depth)
+{
+    MMActorPoint delta;
+    delta.dxr = mm_signed_word(((MMU32)x - (MMU32)previous_x) << 16);
+    delta.dyr = mm_signed_word(((MMU32)previous_y - (MMU32)y) << 16);
+    delta.dzr = depth;
+    return delta;
+}
+
+MMI32 mm_actor_mouse_key_depth(MMI32 depth, MMU32 elapsed_ms, int up, int down)
+{
+    MMI32 ticks, seconds, delta;
+    if (!!up == !!down)
+        return depth;
+    ticks = mm_signed_word(elapsed_ms);
+    if (ticks < 1)
+        ticks = 1;
+    seconds = mm_fixed_div(mm_signed_word((MMU32)ticks << 16), 65536000L);
+    delta = mm_fixed_mul(seconds, 6553600L);
+    return up ? mm_fixed_add(depth, delta) : mm_fixed_sub(depth, delta);
 }
 
 void mm_actor_mouse_to_world(MMActorPoint *delta, const MMActorMatrix *axes, const MMActorMatrix *camera,

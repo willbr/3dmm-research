@@ -38,9 +38,9 @@ Actors, Text boxes, etc.
 #include "mm/movie_sound_archive.h"
 ASSERTNAME
 
-#define kdwrMousePerSecond BR_SCALAR(100.0) // "mouse drag" speed for arrow keys
-
 static_assert(kdtsSecond / kfps == MM_RECORD_FRAME_TICKS && ivNil == -1, "Actor recording gesture ABI");
+static_assert(BASED_FIXED && BR_SCALAR(0.001) == 65 && kdtsSecond == 1000 && sizeof(BRA) == 2,
+              "Actor transform drag ABI");
 
 static unsigned RecordGestureModifiers(long modifiers)
 {
@@ -54,16 +54,6 @@ const ChildChunkID kchidGstSource = 1;
 // How many pixels from edge to warp cursor back to center
 //
 const long kdpInset = 50;
-
-//
-// Mouse scaling factor when rotating
-//
-const long krRotateScaleFactor = BR_SCALAR(0.001);
-
-//
-// Mouse scaling factor when sooner/latering.
-//
-const long krSoonerScaleFactor = BR_SCALAR(0.05);
 
 //
 //
@@ -4178,37 +4168,19 @@ void MovieView::AdjustCursor(long xp, long yp)
  *
  * Converts from mouse coordinates to world coordinates
  *
- * Parameters:
- *	dxrMouse - BRender scalar representation of mouse X coordinate
- *	dyrMouse - BRender scalar representation of mouse Y coordinate
- *	dzrMouse - BRender scalar representation of mouse Z coordinate
- *  pdxrWld  - Place to store world X coordinate.
- *  pdyrWld  - Place to store world Y coordinate.
- *  pdzrWld  - Place to store world Z coordinate.
- *  fRecord  - Is the conversion to be scaled according to the recording
- *				scaling factor, or the non-recording scaling factor.
- *
- * Returns:
- *  None.
+ * The delta uses signed 16.16 pixels on input and world units on return.
  *
  **************************************************************************/
-void MovieView::MouseToWorld(BRS dxrMouse, BRS dyrMouse, BRS dzrMouse, BRS *pdxrWld, BRS *pdyrWld, BRS *pdzrWld, bool fRecord)
+void MovieView::MouseToWorld(MMActorPoint &delta, bool recording)
 {
     AssertThis(0);
-    AssertVarMem(pdxrWld);
-    AssertVarMem(pdyrWld);
-    AssertVarMem(pdzrWld);
 
     BMAT34 native;
     MMActorMatrix camera;
-    MMActorPoint delta{dxrMouse, dyrMouse, dzrMouse};
     Pmvie()->Pscen()->Pbkgd()->GetMouseMatrix(&native);
     static_assert(sizeof(camera) == sizeof(native), "Mouse matrix ABI");
     std::memcpy(&camera, &native, sizeof(camera));
-    mm_actor_mouse_to_world(&delta, &_mouseAxes, &camera, fRecord);
-    *pdxrWld = delta.dxr;
-    *pdyrWld = delta.dyr;
-    *pdzrWld = delta.dzr;
+    mm_actor_mouse_to_world(&delta, &_mouseAxes, &camera, recording);
 }
 
 bool MovieView::_fKbdDelayed = fFalse;
@@ -4621,19 +4593,18 @@ bool MovieView::FCmdTrackMouse(PCMD_MOUSE pcmd)
  * Handle positioning an actor when the place tool is in effect.
  *
  * Parameters:
- *  dxrWld, dyrWld, dzrWld - the change in position in worldspace
+ *  delta - the change in position in worldspace
  *
  * Returns:
  *  None.
  *
  **************************************************************************/
-void MovieView::_PositionActr(BRS dxrWld, BRS dyrWld, BRS dzrWld)
+void MovieView::_PositionActr(const MMActorPoint &delta)
 {
     AssertThis(0);
     Assert(Tool() == toolPlace, "Wrong tool in effect");
 
     auto scene = Pmvie()->Pscen();
-    const MMActorPoint delta{dxrWld, dyrWld, dzrWld};
     if (scene->FMoveActorPlacement(_placement, delta, FRespectGround()))
     {
         Pmvie()->Pbwld()->MarkDirty();
@@ -4971,14 +4942,14 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         {
             vpappb->HideCurs();
 
-            Pmvie()->Pscen()->CaptureActorDragUndo(&_actorDrag, pactr, true, Tool() != toolCompose);
+            Pmvie()->Pscen()->CaptureActorDragUndo(&_actorDrag.undo, pactr, true, Tool() != toolCompose);
             if ((Tool() != toolResize) && (Tool() != toolSquashStretch))
             {
                 Pmvie()->Pmcc()->PlayUISound(Tool(), _grfcust);
             }
             else
             {
-                _lwLastTime = 0;
+                _actorDrag.size_direction = 0;
             }
         }
         break;
@@ -5072,23 +5043,51 @@ LEnd:
     Pmvie()->MarkViews();
 }
 
-/***************************************************************************
- *
- * Commits whichever pending move-undo we have (group or single) to the
- * movie's undo stack. Releases the field afterwards. Nil-safe.
- *
- **************************************************************************/
-void MovieView::_CommitMoveUndo(bool singleOnly)
-{
-    AssertThis(0);
-    const auto undo = ActorMoveGroupUndo::DragUndoServices(Pmvie());
-    mm_actor_drag_undo_commit(&_actorDrag, singleOnly, &undo);
-}
-
 void MovieView::_DiscardMoveUndo()
 {
     const auto undo = ActorMoveGroupUndo::DragUndoServices(nullptr);
-    mm_actor_drag_undo_discard(&_actorDrag, &undo);
+    mm_actor_drag_undo_discard(&_actorDrag.undo, &undo);
+}
+
+void MovieView::_SampleActorDrag(const CMD_MOUSE &pointer, const MMActorPoint &mouse, const MMActorPoint &world)
+{
+    int tool;
+    switch (Tool())
+    {
+    case toolRotateX: tool = MM_MOVIE_DRAG_ROTATE_X; break;
+    case toolRotateY: tool = MM_MOVIE_DRAG_ROTATE_Y; break;
+    case toolRotateZ: tool = MM_MOVIE_DRAG_ROTATE_Z; break;
+    case toolResize: tool = MM_MOVIE_DRAG_RESIZE; break;
+    case toolSquashStretch: tool = MM_MOVIE_DRAG_SQUASH; break;
+    default: tool = MM_MOVIE_DRAG_COMPOSE; break;
+    }
+    const MMMovieActorDragInput sample{tool, (_grfcust & fcustCmd) != 0, (_grfcust & fcustShift) != 0,
+                                      _fRespectGround, mouse, world};
+    auto movie = Pmvie();
+    const auto edit = movie->_EditServices();
+    const auto undo = ActorMoveGroupUndo::DragUndoServices(movie);
+    const auto selection = movie->Pscen()->_SelectionServices();
+    const auto actors = Scene::_GroupTransformServices();
+    struct DragFeedback
+    {
+        PMovieView view;
+        long x, y;
+    } feedback{this, pointer.xp, pointer.yp};
+    const MMMovieActorDragServices services{
+        &selection, &actors, &edit, &undo, &feedback,
+        [](void *p) {
+            const auto &feedback = *static_cast<DragFeedback *>(p);
+            feedback.view->AdjustCursor(feedback.x, feedback.y);
+        },
+        [](void *p, int alternate) {
+            auto view = static_cast<DragFeedback *>(p)->view;
+            auto client = view->Pmvie()->Pmcc();
+            client->StopUISound();
+            client->PlayUISound(view->Tool(), alternate ? fcustShift : 0);
+        },
+        [](void *p) { static_cast<DragFeedback *>(p)->view->Pmvie()->Pbwld()->MarkDirty(); },
+        [](void *p) { static_cast<DragFeedback *>(p)->view->Pmvie()->MarkViews(); }};
+    mm_movie_actor_drag_sample(&_actorDrag, &sample, &services);
 }
 
 MMActorRecordGestureServices MovieView::_RecordGestureServices()
@@ -5157,12 +5156,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     PMovie pmvie;
     PScene pscen;
     PActor pactr = pvNil;
-    BRS dxrMouse, dyrMouse, dzrMouse;
-    BRS dxrWld, dyrWld, dzrWld; // amount moved from previous point in world space
     BRS zrActr, zrCam;
-    bool fArrowKey = fFalse;
-    RC rc;
-    PT pt;
 
     if (Pmvie()->FPlaying() || Pmvie()->Pmcc()->FMinimized())
     {
@@ -5214,7 +5208,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             _DiscardMoveUndo();
             pscen->SelectActr(_pactrSelToggle);
             if (Tool() == toolCompose)
-                pscen->CaptureActorDragUndo(&_actorDrag, _pactrSelToggle, false, false);
+                pscen->CaptureActorDragUndo(&_actorDrag.undo, _pactrSelToggle, false, false);
         }
 
         _fSelToggleArmed = fFalse;
@@ -5230,53 +5224,30 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         return;
     }
 
-    dxrMouse = BrsSub(BrIntToScalar(pcmd->xp), BrIntToScalar(_xpPrev));
-    dyrMouse = BrsSub(BrIntToScalar(_ypPrev), BrIntToScalar(pcmd->yp));
-    dzrMouse = _dzrPrev;
+    auto mouse = mm_actor_mouse_delta(pcmd->xp, pcmd->yp, _xpPrev, _ypPrev, _dzrPrev);
 #ifdef WIN
-    //
-    // Get the "mouse Z" by sampling the arrow keys.  If an arrow key
-    // is down, the number of pixels moved is the number of seconds
-    // since the keyboard was last sampled times kdwrMousePerSecond.
-    //
-    ulong dts = LwMax(1, TsCurrent() - _tsLastSample);
-    BRS drSec = BrsDiv(BrIntToScalar(dts), BR_SCALAR(kdtsSecond));
-    if (GetKeyState(VK_UP) < 0)
-    {
-        fArrowKey = fTrue;
-        dzrMouse += BrsMul(drSec, kdwrMousePerSecond);
-    }
-    if (GetKeyState(VK_DOWN) < 0)
-    {
-        fArrowKey = fTrue;
-        dzrMouse -= BrsMul(drSec, kdwrMousePerSecond);
-    }
-    if (fArrowKey && Tool() == toolRecordSameAction)
-    {
-        MMActorPoint delta{dxrMouse, dyrMouse, dzrMouse};
-        mm_actor_record_gesture_filter_axes(&_recordGesture, pactr->FIsModeRecord(), &delta);
-        dxrMouse = delta.dxr;
-        dyrMouse = delta.dyr;
-    }
-    _dzrPrev = dzrMouse;
+    const auto elapsed = TsCurrent() - _tsLastSample;
+    const bool up = GetKeyState(VK_UP) < 0;
+    const bool down = GetKeyState(VK_DOWN) < 0;
+    mouse.dzr = mm_actor_mouse_key_depth(mouse.dzr, elapsed, up, down);
+    if ((up || down) && Tool() == toolRecordSameAction)
+        mm_actor_record_gesture_filter_axes(&_recordGesture, pactr->FIsModeRecord(), &mouse);
+    _dzrPrev = mouse.dzr;
     _tsLastSample = TsCurrent();
 #endif
 #ifdef MAC
     RawRtn();
 #endif
 
-    MouseToWorld(dxrMouse, dyrMouse, dzrMouse, &dxrWld, &dyrWld, &dzrWld, Tool() == toolRecordSameAction);
+    auto world = mouse;
+    MouseToWorld(world, Tool() == toolRecordSameAction);
 
     //
     // Scale movement based on selected actor
     //
     pactr->GetXyzWorld(pvNil, pvNil, &zrActr);
     pscen->Pbkgd()->GetCameraPos(pvNil, pvNil, &zrCam);
-    MMActorPoint world{dxrWld, dyrWld, dzrWld};
     mm_actor_scale_drag_depth(&world, zrActr, zrCam);
-    dxrWld = world.dxr;
-    dyrWld = world.dyr;
-    dzrWld = world.dzr;
 
     switch (Tool())
     {
@@ -5311,169 +5282,18 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         break;
 
     case toolPlace:
-        _PositionActr(dxrWld, dyrWld, dzrWld);
+        _PositionActr(world);
         AdjustCursor(pcmd->xp, pcmd->yp);
         break;
 
-    case toolCompose: {
-        const bool tweak = (_grfcust & fcustCmd) != 0;
-        MMActorGroupTransform edit{};
-        edit.kind = tweak ? MM_ACTOR_GROUP_TWEAK : MM_ACTOR_GROUP_MOVE;
-        edit.delta = {dxrWld, dyrWld, dzrWld};
-        if (_fRespectGround)
-            edit.move_flags |= MM_MOVE_GROUND;
-        if (!tweak && (_grfcust & fcustShift))
-            edit.move_flags |= MM_MOVE_SUBROUTE;
-
-        if (tweak)
-            AdjustCursor(pcmd->xp, pcmd->yp);
-        const bool moved = pscen->FTransformSelectedActors(edit);
-        if (moved)
-            _CommitMoveUndo();
-        if (!tweak && moved)
-        {
-            AdjustCursor(pcmd->xp, pcmd->yp);
-            Pmvie()->Pbwld()->MarkDirty();
-        }
-        if (tweak || moved)
-            Pmvie()->MarkViews();
-    }
-    break;
-
+    case toolCompose:
     case toolRotateX:
     case toolRotateY:
-    case toolRotateZ: {
-        BRS brs;
-        BRA xa, ya, za;
-
-        brs = BrsMul(dxrMouse + dyrMouse, -krRotateScaleFactor);
-
-        xa = aZero;
-        ya = aZero;
-        za = aZero;
-
-        switch (Tool())
-        {
-        case toolRotateX:
-            xa = BrScalarToAngle(brs);
-            break;
-        case toolRotateY:
-            ya = -BrScalarToAngle(brs);
-            break;
-        case toolRotateZ:
-            za = BrScalarToAngle(brs);
-            break;
-        }
-
-        if (pscen->CactrSelected() >= 2)
-        {
-            MMActorGroupTransform edit{};
-            edit.kind = MM_ACTOR_GROUP_ROTATE;
-            edit.pivot = _actorDrag.pivot;
-            edit.angles[0] = xa;
-            edit.angles[1] = ya;
-            edit.angles[2] = za;
-            edit.forward = (_grfcust & fcustCmd) != 0;
-            if (pscen->FTransformSelectedActors(edit))
-            {
-                _CommitMoveUndo();
-                Pmvie()->SetDirty();
-                Pmvie()->InvalViews();
-            }
-        }
-        else if (pmvie->FRotateActr(xa, ya, za, FPure(_grfcust & fcustCmd)))
-        {
-            _CommitMoveUndo(true);
-        }
-
-        Pmvie()->Pbwld()->MarkDirty();
-        Pmvie()->MarkViews();
-        AdjustCursor(pcmd->xp, pcmd->yp);
-    }
-    break;
-
-    case toolResize: {
-        BRS brs;
-        BRS brs2;
-
-        brs = BrsMul(dxrMouse + dyrMouse, krRotateScaleFactor);
-        brs2 = BrsAdd(brs, rOne);
-
-        //
-        // Play UI sound
-        //
-        if ((((dxrMouse + dyrMouse) < 0) && !(_lwLastTime < 0)) || (((dxrMouse + dyrMouse) > 0) && !(_lwLastTime > 0)))
-        {
-            _lwLastTime = dxrMouse + dyrMouse;
-            Pmvie()->Pmcc()->StopUISound();
-            Pmvie()->Pmcc()->PlayUISound(Tool(), (dxrMouse + dyrMouse > 0) ? 0 : fcustShift);
-        }
-
-        if (pscen->CactrSelected() >= 2)
-        {
-            MMActorGroupTransform edit{};
-            edit.kind = MM_ACTOR_GROUP_RESIZE;
-            edit.pivot = _actorDrag.pivot;
-            edit.factor = brs2;
-            if (pscen->FTransformSelectedActors(edit))
-            {
-                _CommitMoveUndo();
-                Pmvie()->SetDirty();
-                Pmvie()->InvalViewsAndScb();
-            }
-        }
-        else if (pmvie->FScaleActr(brs2))
-        {
-            _CommitMoveUndo(true);
-        }
-
-        Pmvie()->Pbwld()->MarkDirty();
-        Pmvie()->MarkViews();
-        AdjustCursor(pcmd->xp, pcmd->yp);
-    }
-    break;
-
-    case toolSquashStretch: {
-        BRS brs;
-        BRS brs2;
-
-        brs = BrsMul(-dxrMouse - dyrMouse, krRotateScaleFactor);
-        brs2 = BrsAdd(brs, rOne);
-
-        //
-        // Play UI sound
-        //
-        if ((((-dxrMouse - dyrMouse) < 0) && !(_lwLastTime < 0)) ||
-            (((-dxrMouse - dyrMouse) > 0) && !(_lwLastTime > 0)))
-        {
-            _lwLastTime = -dxrMouse - dyrMouse;
-            Pmvie()->Pmcc()->StopUISound();
-            Pmvie()->Pmcc()->PlayUISound(Tool(), (-dxrMouse - dyrMouse < 0) ? 0 : fcustShift);
-        }
-
-        if (pscen->CactrSelected() >= 2)
-        {
-            MMActorGroupTransform edit{};
-            edit.kind = MM_ACTOR_GROUP_SQUASH;
-            edit.pivot = _actorDrag.pivot;
-            edit.factor = brs2;
-            if (pscen->FTransformSelectedActors(edit))
-            {
-                _CommitMoveUndo();
-                Pmvie()->SetDirty();
-                Pmvie()->InvalViews();
-            }
-        }
-        else if (pmvie->FSquashStretchActr(brs2))
-        {
-            _CommitMoveUndo(true);
-        }
-
-        Pmvie()->Pbwld()->MarkDirty();
-        Pmvie()->MarkViews();
-        AdjustCursor(pcmd->xp, pcmd->yp);
-    }
-    break;
+    case toolRotateZ:
+    case toolResize:
+    case toolSquashStretch:
+        _SampleActorDrag(*pcmd, mouse, world);
+        break;
 
     case toolSoonerLater:
     case toolNormalizeRot:
@@ -6412,8 +6232,8 @@ void MovieView::MarkMem(void)
     AssertThis(0);
     MovieView_PAR::MarkMem();
     MarkMemObj(Pmvie());
-    MarkMemObj(static_cast<PUndoBase>(_actorDrag.single));
-    MarkMemObj(static_cast<PUndoBase>(_actorDrag.group));
+    MarkMemObj(static_cast<PUndoBase>(_actorDrag.undo.single));
+    MarkMemObj(static_cast<PUndoBase>(_actorDrag.undo.group));
     MarkMemObj(static_cast<PActor>(_placement.actor));
     MarkMemObj(static_cast<PActor>(_placement.snapshot));
     MarkMemObj(static_cast<PActor>(_recordGesture.restore));

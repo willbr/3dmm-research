@@ -17,6 +17,10 @@ typedef struct MMActorPlacementServices
  * units in either case. Scalars and matrix use BRender's signed 16.16 format. */
 void mm_actor_placement(MMActorPoint *, int text,
                              const MMActorPlacementServices *);
+/* Mouse deltas use screen X and inverted screen Y. Keyboard depth is signed
+ * 16.16 pixels at 100 pixels/second, with a minimum sample interval of 1 ms. */
+MMActorPoint mm_actor_mouse_delta(MMI32 x, MMI32 y, MMI32 previous_x, MMI32 previous_y, MMI32 depth);
+MMI32 mm_actor_mouse_key_depth(MMI32 depth, MMU32 elapsed_ms, int up, int down);
 /* Map mouse deltas through the three input axes, then rotate through the
  * camera's three axes. Translation is ignored. Both functions preserve the
  * original signed 16.16 rounding. */

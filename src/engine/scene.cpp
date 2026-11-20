@@ -1499,11 +1499,9 @@ void Scene::CaptureActorDragUndo(MMActorDragUndo *drag, PActor actor, bool useGr
     mm_actor_drag_undo_begin(drag, actor, freezePivot, useGroup ? &selection : nullptr, &actors, &undo);
 }
 
-bool Scene::FTransformSelectedActors(const MMActorGroupTransform &edit)
+MMActorGroupTransformServices Scene::_GroupTransformServices()
 {
-    AssertThis(0);
-    const auto selection = _SelectionServices();
-    const MMActorGroupTransformServices services = {
+    return {
         nullptr,
         [](void *, void *actor) { return &static_cast<PActor>(actor)->_owner; },
         [](void *, void *actor, MMActorTransformEditServices *effects) {
@@ -1514,6 +1512,13 @@ bool Scene::FTransformSelectedActors(const MMActorGroupTransform &edit)
             static_cast<PBody>(body)->GetPosition(&x, &y, &z);
             *point = {x, y, z};
         }};
+}
+
+bool Scene::FTransformSelectedActors(const MMActorGroupTransform &edit)
+{
+    AssertThis(0);
+    const auto selection = _SelectionServices();
+    const auto services = _GroupTransformServices();
     return mm_actor_group_transform(&edit, &selection, &services) != 0;
 }
 

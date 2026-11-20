@@ -105,6 +105,7 @@ typedef struct SceneSoundEvent *PSceneSoundEvent;
 typedef struct TagChildPair *PTagChildPair;
 
 typedef class Scene *PScene;
+struct MMActorGroupTransformServices;
 
 //
 // Notes:
@@ -122,6 +123,7 @@ typedef class Scene *PScene;
 class Scene : public Scene_PAR
 {
     friend class SceneActorUndo;
+    friend class MovieView;
     friend class SceneUndoText;
     friend class SceneUndoTitle;
     friend class SceneUndoTransition;
@@ -153,6 +155,7 @@ class Scene : public Scene_PAR
     MMSceneEditServices _EditServices();
     MMSceneContentServices _ContentServices();
     MMSceneSelectionServices _SelectionServices();
+    static MMActorGroupTransformServices _GroupTransformServices();
     MMActorPlacementEditServices _PlacementServices();
     MMSceneChopServices _ChopServices();
     MMScenePropertyServices _PropertyServices();
