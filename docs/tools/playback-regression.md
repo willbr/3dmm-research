@@ -16050,3 +16050,44 @@ Release finished the full movie test and produced the same saved
 archives. The x86 movie test advanced through template runtime and
 stopped at the physical WAVE import fixture in movie sound integration.
 Logs and traces are in `tmp/c89-typed-actor-transactions`.
+
+## C89 WAVE stream import (20 November 2026)
+
+Studio's classic and SDL WAVE importers now send the selected stream
+directly to the C89 sound writer. The classic importer streams the RIFF
+headers and codec data in their original order. It retains the legacy
+size comparison against the RIFF payload length. If AudioMan cannot
+open the path, C89 reads the existing file stream and lends its bytes
+to the decoder through cleanup.
+
+The x86 debugger traced the earlier WAVE failure to AudioMan returning
+`E_FAIL` during the pathname open. A separate probe reproduced the
+failure with an open write handle and accepted the same bytes after
+closing the writer or supplying those bytes from memory. The full x86
+movie test now passes, including valid WAVE and MIDI import, truncated
+input rejection and save/reopen. Native x64 still uses the AudioMan stub.
+
+The C fixture checks the classic RIFF bytes and size comparison,
+multi-read payload transfer, fallback input lifetime, and rollback after
+failed reads, allocation, decoding and chunk writes. All 13 targeted
+x64 checks, 12 SDL Release checks, 16 standalone C89 checks, 10 focused
+x86 checks and three AddressSanitizer checks passed. The x86 AudioMan
+check decoded all 39 normalized WAVE cases.
+
+The native x64 and SDL full movie tests passed. Their movie-sound traces
+matched the recorded baselines, and their saved movies matched the
+previous build. The x86 movie-sound trace matched SDL. Production SDL
+Studio saved and reopened two movies with byte-identical WAVE payloads
+before and after the change. The short PCM payload matched the source
+file, and the longer clip's encoded ADPCM payload matched the previous
+build. Retail made the same WAVE requests at frames 2 and 3 and
+produced the same frame-4 RGB capture from both movies.
+
+All ten Preview fingerprints, six fixture archives and both VMM seek
+images in `20261120T154527Z-a143e826` matched their baselines. Logs and
+fixtures are in `tmp/c89-native-wave-import`.
+
+In `actor-event-edit` suite `20261120T154527Z-ef9d557f`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

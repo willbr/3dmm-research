@@ -219,52 +219,33 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
     Assert(sty != styMidi, "Illegal sty argument");
     AssertNilOrPo(pstn, 0);
 
-#ifdef KAUAI_SDL3
-    struct Context
+    Filename filename;
+    pfilSrc->GetFni(&filename);
+    String leaf;
+    if (!pstn)
     {
-        std::vector<std::uint8_t> prepared;
-        String name;
-    } context;
+        filename.GetLeaf(&leaf);
+        pstn = &leaf;
+    }
+    EngineSoundWriter writer{pcflDest, {}};
+    const auto output = writer.Services();
+    const auto source = EngineReadStream::FromFile(*pfilSrc);
+#ifdef KAUAI_SDL3
+    std::vector<std::uint8_t> prepared;
     MMWaveFileServices s = {};
-    s.context = &context;
-    s.size = [](void *, void *source) -> MMI32 { return static_cast<PFileObject>(source)->FpMac(); };
-    s.read = [](void *, void *source, void *data, MMI32 bytes) -> int {
-        return static_cast<PFileObject>(source)->FReadRgb(data, bytes, 0);
-    };
-    s.prepare = [](void *p, const void *data, MMI32 bytes, const void **out, MMI32 *count) -> int {
-        auto &prepared = static_cast<Context *>(p)->prepared;
+    s.context = &prepared;
+    s.prepare = [](void *p, const void *data, MMU32 bytes, const void **out, MMU32 *count) -> int {
+        auto &prepared = *static_cast<std::vector<std::uint8_t> *>(p);
         if (!KauaiAudio::PrepareWaveImport(data, bytes, prepared))
             return 0;
         *out = prepared.data();
-        *count = static_cast<MMI32>((prepared.size)());
+        *count = static_cast<MMU32>((prepared.size)());
         return 1;
     };
-    s.name = [](void *p, void *source, const void *provided) -> const void * {
-        auto &name = static_cast<Context *>(p)->name;
-        if (provided)
-            name = *const_cast<String *>(static_cast<const String *>(provided));
-        else
-        {
-            Filename filename;
-            static_cast<PFileObject>(source)->GetFni(&filename);
-            filename.GetLeaf(&name);
-        }
-        return &name;
-    };
-    s.create_temp = [](void *) -> void * { return FileObject::PfilCreateTemp(); };
-    s.write_temp = [](void *, void *file, const void *data, MMI32 bytes) -> int {
-        return static_cast<PFileObject>(file)->FWriteRgb(const_cast<void *>(data), bytes, 0);
-    };
-    s.write_resource = [](void *, void *source, void *destination, MMI32 style, const void *name,
-                          void *number) -> int {
-        return FWriteWave(static_cast<PFileObject>(source), static_cast<PChunkyFile>(destination), style,
-                          const_cast<String *>(static_cast<const String *>(name)), static_cast<ChunkNumber *>(number));
-    };
-    s.release = [](void *, void *file) { static_cast<PFileObject>(file)->Release(); };
     s.bad_sound = [](void *) { PushErc(ercSocBadSoundFile); };
     try
     {
-        return mm_wave_file_import(pfilSrc, pcflDest, sty, pstn, pcno, &s) != 0;
+        return mm_wave_file_import(&source, sty, pstn, pcno, &s, &output) != 0;
     }
     catch (const std::bad_alloc &)
     {
@@ -273,57 +254,37 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
 #else
     struct Context
     {
-        Filename source, temporary;
-        String name, path;
+        String path;
         WAVEFORMATEX format = {};
         LPSOUND sound = nullptr;
-        PFileObject file = nullptr;
         WAVEFORMATEX *encodedFormat = nullptr;
         LPBYTE samples = nullptr, encoded = nullptr;
         HACMSTREAM stream = nullptr;
         ACMSTREAMHEADER header = {};
-        FilePosition position = 0;
-        void Finish()
+        int ReadFormat(HRESULT opened, MMNativeWaveFormat *out)
         {
-            FreePpv(reinterpret_cast<void **>(&encodedFormat));
-            FreePpv(reinterpret_cast<void **>(&samples));
-            FreePpv(reinterpret_cast<void **>(&encoded));
-            ReleasePpo(&file);
-            if (sound)
-                sound->SetMode(FALSE, TRUE);
-            ReleasePpo(&sound);
+            format = {};
+            if (FAILED(opened) || !sound || FAILED(sound->GetFormat(&format, sizeof(format))))
+            {
+                ReleasePpo(&sound);
+                return 0;
+            }
+            out->rate = format.nSamplesPerSec;
+            out->bits = format.wBitsPerSample;
+            out->channels = format.nChannels;
+            return 1;
         }
     } context;
+    filename.GetStnPath(&context.path);
     MMNativeWaveServices s = {};
     s.context = &context;
-    s.begin = [](void *p, void *source, const void *name) -> int {
+    s.open_file = [](void *p, MMNativeWaveFormat *format) -> int {
         auto &c = *static_cast<Context *>(p);
-        static_cast<PFileObject>(source)->GetFni(&c.source);
-        if (name)
-            c.name = *const_cast<String *>(static_cast<const String *>(name));
-        else
-            c.source.GetLeaf(&c.name);
-        c.source.GetStnPath(&c.path);
-        return c.temporary.FGetTemp();
+        return c.ReadFormat(AllocSoundFromFile(&c.sound, c.path.Psz(), 0, TRUE, nullptr), format);
     };
-    s.original_size = [](void *p, MMI32 *bytes) -> int {
+    s.open_memory = [](void *p, unsigned char *data, MMU32 bytes, MMNativeWaveFormat *format) -> int {
         auto &c = *static_cast<Context *>(p);
-        auto file = FileObject::PfilOpen(&c.source);
-        if (!file)
-            return 0;
-        *bytes = file->FpMac();
-        file->Release();
-        return 1;
-    };
-    s.open_sound = [](void *p, MMNativeWaveFormat *format) -> int {
-        auto &c = *static_cast<Context *>(p);
-        if (FAILED(AllocSoundFromFile(&c.sound, c.path.Psz(), 0, TRUE, nullptr)) ||
-            FAILED(c.sound->GetFormat(&c.format, sizeof(c.format))))
-            return 0;
-        format->rate = c.format.nSamplesPerSec;
-        format->bits = c.format.wBitsPerSample;
-        format->channels = c.format.nChannels;
-        return 1;
+        return c.ReadFormat(AllocSoundFromMemory(&c.sound, data, bytes), format);
     };
     s.convert = [](void *p) -> int {
         auto &c = *static_cast<Context *>(p);
@@ -379,8 +340,11 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
         h.cbSrcLength = bytes;
         h.pbDst = c.encoded;
         h.cbDstLength = bytes;
-        if (acmStreamPrepareHeader(c.stream, &h, 0) || acmStreamConvert(c.stream, &h, ACM_STREAMCONVERTF_END) ||
-            acmStreamUnprepareHeader(c.stream, &h, 0))
+        if (acmStreamPrepareHeader(c.stream, &h, 0))
+            return -1;
+        const auto converted = acmStreamConvert(c.stream, &h, ACM_STREAMCONVERTF_END);
+        const auto unprepared = acmStreamUnprepareHeader(c.stream, &h, 0);
+        if (converted || unprepared)
             return -1;
         acmStreamClose(c.stream, 0);
         c.stream = nullptr;
@@ -390,27 +354,6 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
         *dataBytes = h.cbDstLengthUsed;
         return 1;
     };
-    s.create_file = [](void *p) -> int {
-        auto &c = *static_cast<Context *>(p);
-        c.file = FileObject::PfilCreate(&c.temporary);
-        c.position = 0;
-        return c.file != nullptr;
-    };
-    s.write = [](void *p, const void *data, MMU32 bytes) -> int {
-        auto &c = *static_cast<Context *>(p);
-        return c.file->FWriteRgbSeq(const_cast<void *>(data), bytes, &c.position);
-    };
-    s.finish_conversion = [](void *p) { static_cast<Context *>(p)->Finish(); };
-    s.open_selected = [](void *p, int original) -> int {
-        auto &c = *static_cast<Context *>(p);
-        c.file = FileObject::PfilOpen(original ? &c.source : &c.temporary);
-        return c.file != nullptr;
-    };
-    s.write_resource = [](void *p, void *destination, MMI32 style, void *number) -> int {
-        auto &c = *static_cast<Context *>(p);
-        return FWriteWave(c.file, static_cast<PChunkyFile>(destination), style, &c.name,
-                          static_cast<ChunkNumber *>(number));
-    };
     s.bad_sound = [](void *) { PushErc(ercSocBadSoundFile); };
     s.cleanup = [](void *p) {
         auto &c = *static_cast<Context *>(p);
@@ -419,11 +362,14 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
             acmStreamClose(c.stream, 0);
             c.stream = nullptr;
         }
-        c.Finish();
-        if (c.temporary.TExists() == tYes)
-            c.temporary.FDelete();
+        if (c.sound)
+            c.sound->SetMode(FALSE, TRUE);
+        ReleasePpo(&c.sound);
+        FreePpv(reinterpret_cast<void **>(&c.encodedFormat));
+        FreePpv(reinterpret_cast<void **>(&c.samples));
+        FreePpv(reinterpret_cast<void **>(&c.encoded));
     };
-    return mm_wave_native_import(pfilSrc, pcflDest, sty, pstn, pcno, &s) != 0;
+    return mm_wave_native_import(&source, sty, pstn, pcno, &s, &output) != 0;
 #endif
 }
 

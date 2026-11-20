@@ -844,9 +844,12 @@ MovieSoundMSND metadata loading/factories, MIDI/WAVE envelope and child writing,
 MIDI import control, invalidation, tool priorities/classes and playback dispatch
 now use C89 and C-owned metadata/status slots as well. MIDI event parsing and
 SMF import/track merging, sampled/MIDI payload factory control, RIFF parsing,
-PCM/ADPCM encoding and physical WAVE import control now also use C89. SDL
-resampling, third-party GSM/MP3 decoding, classic AudioMan/ACM codec calls and
-physical file/device services remain host adapters. Sound-manager dispatch,
+PCM/ADPCM encoding and WAVE import control now also use C89. Both WAVE
+importers feed the prepared or original stream directly into the C89 sound
+writer. The classic importer can pass bytes from the open source stream to
+AudioMan when its pathname open fails. SDL resampling, third-party GSM/MP3
+decoding, classic AudioMan/ACM codec calls and physical file/device services
+remain host adapters. Sound-manager dispatch,
 queue selection and pause/stop/resume policy, sampled-audio mixing, streamed
 MIDI construction/seeking, priority arbitration and frame-clock scheduling now
 also use C89. Mutexes, device threads, synth/decoder calls and native object

@@ -2,35 +2,28 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_WAVE_IMPORT_H
 #define MM_ENGINE_WAVE_IMPORT_H
+#include "sound_resource.h"
 #include "wave.h"
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-    /* Physical files, text and external decoding are host services. Borrowed
-     * prepared data/name remain valid through write_resource. Temporary file
-     * ownership transfers to this controller and is released on every path. */
+    /* Decode and prepare the supplied bytes. Prepared output may alias them,
+     * and must remain valid until the sound writer returns. */
     typedef struct MMWaveFileServices
     {
         void *context;
         const MMStorageAllocator *allocator; /* Optional source-buffer allocator. */
-        MMI32 (*size)(void *, void *source);
-        int (*read)(void *, void *source, void *buffer, MMI32 bytes);
-        int (*prepare)(void *, const void *, MMI32, const void **, MMI32 *);
-        const void *(*name)(void *, void *source, const void *provided);
-        void *(*create_temp)(void *);
-        int (*write_temp)(void *, void *temp, const void *, MMI32);
-        int (*write_resource)(void *, void *temp, void *destination, MMI32 style, const void *name,
-                              void *number_out);
-        void (*release)(void *, void *temp);
+        int (*prepare)(void *, const void *, MMU32, const void **, MMU32 *);
         void (*bad_sound)(void *);
     } MMWaveFileServices;
-    int mm_wave_file_import(void *source, void *destination, MMI32 style, const void *name, void *number_out,
-                                  const MMWaveFileServices *);
+    int mm_wave_file_import(const MMReadStream *, MMI32 style, const void *name, MMU32 *number,
+                            const MMWaveFileServices *, const MMSoundWriteServices *);
     /* The classic native host keeps AudioMan/ACM as external codec services. C
-     * owns conversion decisions, sample bounds, RIFF writing, source selection,
+     * owns input fallback, conversion decisions, sample bounds, RIFF framing, source selection,
      * publication and cleanup. compress returns 1, 0 (memory), or -1 (bad sound).
-     * Native format bytes borrow codec storage until cleanup. */
+     * The decoder may borrow input bytes through cleanup. Native format and
+     * sample bytes borrow codec storage through the sound write. */
     typedef struct MMNativeWaveFormat
     {
         MMU32 rate;
@@ -39,9 +32,9 @@ extern "C"
     typedef struct MMNativeWaveServices
     {
         void *context;
-        int (*begin)(void *, void *source, const void *name);
-        int (*original_size)(void *, MMI32 *);
-        int (*open_sound)(void *, MMNativeWaveFormat *);
+        const MMStorageAllocator *allocator; /* Optional fallback input allocator. */
+        int (*open_file)(void *, MMNativeWaveFormat *);
+        int (*open_memory)(void *, unsigned char *, MMU32, MMNativeWaveFormat *);
         int (*convert)(void *);
         MMU32 (*samples)(void *);
         int (*activate)(void *);
@@ -49,16 +42,11 @@ extern "C"
         int (*read_samples)(void *, MMU32 *);
         int (*compress)(void *, MMU32, const void **format, MMU32 *format_bytes, const void **data,
                         MMU32 *data_bytes);
-        int (*create_file)(void *);
-        int (*write)(void *, const void *, MMU32);
-        void (*finish_conversion)(void *);
-        int (*open_selected)(void *, int original);
-        int (*write_resource)(void *, void *destination, MMI32 style, void *number_out);
         void (*bad_sound)(void *);
         void (*cleanup)(void *);
     } MMNativeWaveServices;
-    int mm_wave_native_import(void *source, void *destination, MMI32 style, const void *name,
-                                    void *number_out, const MMNativeWaveServices *);
+    int mm_wave_native_import(const MMReadStream *, MMI32 style, const void *name, MMU32 *number,
+                              const MMNativeWaveServices *, const MMSoundWriteServices *);
 #ifdef __cplusplus
 }
 #endif

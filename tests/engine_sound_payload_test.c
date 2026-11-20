@@ -343,216 +343,215 @@ static void factories(void)
             assert(!f.step);
         }
 }
-/* Every externally fallible native phase, including each RIFF write, is
- * faulted independently. Selection intentionally compares the payload length. */
-typedef struct Native
+typedef struct WaveFile
 {
-    int fail, step, bad, cleanup, finish, original;
-    unsigned char bytes[200];
-    unsigned size;
-} Native;
-static int native_step(Native *n)
+    int fail, step, bad, cleanup, deleted, opens_memory, force_memory;
+    MMI32 style;
+    MMU32 source_bytes, encoded_bytes, length, written;
+    unsigned char source[1300], encoded[1100], bytes[1300];
+    const unsigned char *borrowed;
+} WaveFile;
+static int file_step(WaveFile *f) { return ++f->step != f->fail; }
+static void file_init(WaveFile *f, MMI32 style, MMU32 length)
 {
-    return ++n->step != n->fail;
+    MMU32 i;
+    memset(f, 0, sizeof(*f));
+    f->style = style;
+    f->source_bytes = length;
+    f->encoded_bytes = 30;
+    for (i = 0; i < length; ++i) f->source[i] = (unsigned char)(i * 3 + 9);
+    for (i = 0; i < sizeof(f->encoded); ++i) f->encoded[i] = (unsigned char)(i * 5);
 }
-static int begin(void *p, void *source, const void *name)
+static int read_source(void *p, MMU32 offset, void *bytes, size_t count)
 {
-    (void)source;
-    (void)name;
-    return native_step((Native *)p);
+    WaveFile *f = (WaveFile *)p;
+    assert(offset <= f->source_bytes && count <= f->source_bytes - offset);
+    memcpy(bytes, f->source + offset, count);
+    return file_step(f);
 }
-static int original_size(void *p, MMI32 *bytes)
+static int add_parent(void *p, const unsigned char *header, MMU32 *number)
 {
-    *bytes = 85;
-    return native_step((Native *)p);
+    WaveFile *f = (WaveFile *)p;
+    assert(header[4] == f->style && !header[12]);
+    if (!file_step(f)) return 0;
+    *number = 123;
+    return 1;
 }
-static int open_sound(void *p, MMNativeWaveFormat *format)
+static int write_child(void *p, MMU32 offset, const void *bytes, size_t count)
+{
+    WaveFile *f = (WaveFile *)p;
+    assert(offset == f->written && count <= f->length - offset);
+    if (!file_step(f)) return 0;
+    memcpy(f->bytes + offset, bytes, count);
+    f->written += (MMU32)count;
+    return 1;
+}
+static int add_child(void *p, MMU32 number, MMU32 slot, MMU32 type, MMU32 bytes, MMStorageWriter *out)
+{
+    WaveFile *f = (WaveFile *)p;
+    assert(number == 123 && !slot && type == MM_SOUND_WAVE && bytes <= sizeof(f->bytes));
+    if (!file_step(f)) return 0;
+    f->length = bytes;
+    out->context = p;
+    out->length = bytes;
+    out->write_at = write_child;
+    return 1;
+}
+static int set_name(void *p, MMU32 number, const void *name)
+{
+    WaveFile *f = (WaveFile *)p;
+    assert(number == 123 && name == p && f->written == f->length);
+    return file_step(f);
+}
+static void delete_parent(void *p, MMU32 number)
+{
+    assert(number == 123);
+    ++((WaveFile *)p)->deleted;
+}
+static MMSoundWriteServices file_writer(WaveFile *f)
+{
+    MMSoundWriteServices writer = {NULL, 0, 0, NULL, add_parent, add_child, set_name, delete_parent};
+    writer.context = f;
+    return writer;
+}
+static void file_bad(void *p) { ++((WaveFile *)p)->bad; }
+static void native_format(MMNativeWaveFormat *format)
 {
     format->rate = 44100;
     format->bits = 16;
     format->channels = 2;
-    return native_step((Native *)p);
 }
-static int native_convert(void *p)
+static int open_sound(void *p, MMNativeWaveFormat *format)
 {
-    return native_step((Native *)p);
+    WaveFile *f = (WaveFile *)p;
+    native_format(format);
+    return file_step(f) && !f->force_memory;
 }
+static int open_memory(void *p, unsigned char *bytes, MMU32 count, MMNativeWaveFormat *format)
+{
+    WaveFile *f = (WaveFile *)p;
+    assert(count == f->source_bytes && !memcmp(f->source, bytes, count));
+    f->borrowed = bytes;
+    ++f->opens_memory;
+    native_format(format);
+    return file_step(f);
+}
+static int native_convert(void *p) { return file_step((WaveFile *)p); }
 static MMU32 sample_count(void *p)
 {
     (void)p;
-    return 100;
+    return 2000;
 }
-static int activate(void *p)
-{
-    return native_step((Native *)p);
-}
+static int activate(void *p) { return file_step((WaveFile *)p); }
 static int allocate_samples(void *p, MMU32 n)
 {
-    assert(n == 100);
-    return native_step((Native *)p);
+    assert(n == 2000);
+    return file_step((WaveFile *)p);
 }
 static int read_samples(void *p, MMU32 *n)
 {
-    assert(*n == 100);
-    return native_step((Native *)p);
+    assert(*n == 2000);
+    return file_step((WaveFile *)p);
 }
 static int compress(void *p, MMU32 n, const void **format, MMU32 *fs, const void **data, MMU32 *ds)
 {
-    static const unsigned char f[18] = {0}, d[30] = {0};
-    assert(n == 100);
+    static const unsigned char f[18] = {1, 2, 3, 4};
+    WaveFile *v = (WaveFile *)p;
+    assert(n == 2000);
     *format = f;
-    *fs = 18;
-    *data = d;
-    *ds = 30;
-    return native_step((Native *)p) ? 1 : -1;
-}
-static int create_file(void *p)
-{
-    return native_step((Native *)p);
-}
-static int write_file(void *p, const void *data, MMU32 n)
-{
-    Native *v = (Native *)p;
-    if (!native_step(v))
-        return 0;
-    assert(v->size + n <= sizeof(v->bytes));
-    memcpy(v->bytes + v->size, data, n);
-    v->size += n;
-    return 1;
-}
-static void finish(void *p)
-{
-    ++((Native *)p)->finish;
-}
-static int selected_file(void *p, int original)
-{
-    Native *n = (Native *)p;
-    n->original = original;
-    return native_step(n);
-}
-static int write_resource(void *p, void *dest, MMI32 style, void *number)
-{
-    (void)dest;
-    assert(style == 2);
-    *(MMU32 *)number = 123;
-    return native_step((Native *)p);
-}
-static void bad(void *p)
-{
-    ++((Native *)p)->bad;
+    *fs = sizeof(f);
+    *data = v->encoded;
+    *ds = v->encoded_bytes;
+    return file_step(v) ? 1 : -1;
 }
 static void cleanup(void *p)
 {
-    ++((Native *)p)->cleanup;
+    WaveFile *f = (WaveFile *)p;
+    if (f->borrowed)
+        assert(!memcmp(f->borrowed, f->source, f->source_bytes));
+    ++f->cleanup;
+}
+static int native_import(WaveFile *f, MMU32 *number, const MMNativeWaveServices *services,
+                         const MMSoundWriteServices *writer)
+{
+    MMReadStream source = {NULL, 0, read_source};
+    source.context = f;
+    source.length = f->source_bytes;
+    return mm_wave_native_import(&source, f->style, f, number, services, writer);
 }
 static void native(void)
 {
-    MMNativeWaveServices s;
-    Native n;
+    WaveFile f;
+    MMSoundWriteServices writer = file_writer(&f);
+    MMNativeWaveServices services = {NULL, NULL, open_sound, NULL, native_convert, sample_count, activate,
+                                     allocate_samples, read_samples, compress, file_bad, cleanup};
+    Fault allocation = {0};
+    MMStorageAllocator allocator = {NULL, resize, release};
     MMU32 number;
-    int fail, ok, total;
-    memset(&s, 0, sizeof(s));
-    s.context = &n;
-    s.begin = begin;
-    s.original_size = original_size;
-    s.open_sound = open_sound;
-    s.convert = native_convert;
-    s.samples = sample_count;
-    s.activate = activate;
-    s.allocate_samples = allocate_samples;
-    s.read_samples = read_samples;
-    s.compress = compress;
-    s.create_file = create_file;
-    s.write = write_file;
-    s.finish_conversion = finish;
-    s.open_selected = selected_file;
-    s.write_resource = write_resource;
-    s.bad_sound = bad;
-    s.cleanup = cleanup;
-    memset(&n, 0, sizeof(n));
+    int fail, total;
+    services.context = &f;
+    file_init(&f, 2, 85);
     number = 9;
-    assert(mm_wave_native_import(NULL, NULL, 2, NULL, &number, &s));
-    assert(number == 123 && n.size == 88 && n.bytes[4] == 80 && !n.original && n.finish == 1 && n.cleanup == 1);
-    assert(!memcmp(n.bytes, "RIFF", 4) && !memcmp(n.bytes + 12, "fmt ", 4) && !memcmp(n.bytes + 38, "fact", 4));
-    total = n.step;
+    assert(native_import(&f, &number, &services, &writer));
+    /* Preserve the classic comparison of the RIFF payload (80 bytes) with the
+     * original file (85 bytes), even though the whole encoded file is 88 bytes. */
+    assert(number == 123 && f.written == 88 && f.bytes[4] == 80 && f.cleanup == 1 && !f.deleted);
+    assert(!memcmp(f.bytes, "RIFF", 4) && !memcmp(f.bytes + 12, "fmt ", 4) &&
+           !memcmp(f.bytes + 38, "fact", 4) && !memcmp(f.bytes + 50, "data", 4));
+    assert(!memcmp(f.bytes + 58, f.encoded, f.encoded_bytes));
+    total = f.step;
     for (fail = 1; fail <= total; ++fail)
     {
-        memset(&n, 0, sizeof(n));
-        n.fail = fail;
+        file_init(&f, 2, 85);
+        f.fail = fail;
         number = 9;
-        ok = mm_wave_native_import(NULL, NULL, 2, NULL, &number, &s);
-        assert(!ok && n.cleanup == 1 && (number == 9 || (fail == total && number == 123)));
-        assert(n.bad == (fail == 2 || fail == 3 || fail == 4 || fail == 5 || fail == 7 || fail == 8));
+        assert(!native_import(&f, &number, &services, &writer) && f.cleanup == 1);
+        assert(number == (fail > 7 ? 123 : 9) && f.deleted == (fail > 7));
+        assert(f.bad == (fail == 1 || fail == 2 || fail == 3 || fail == 5 || fail == 6));
     }
-}
+    file_init(&f, 2, 70);
+    assert(native_import(&f, &number, &services, &writer));
+    assert(f.written == f.source_bytes && !memcmp(f.bytes, f.source, f.source_bytes));
 
-typedef struct Physical
-{
-    int fail, step, bad, live;
-    unsigned char input[12];
-} Physical;
-static int physical_step(Physical *p)
-{
-    return ++p->step != p->fail;
+    allocator.context = &allocation;
+    services.allocator = &allocator;
+    services.open_memory = open_memory;
+    for (fail = 0; fail <= 3; ++fail)
+    {
+        file_init(&f, 2, 85);
+        f.force_memory = 1;
+        f.fail = fail;
+        number = 9;
+        allocation.fail = fail == 1;
+        allocation.calls = 0;
+        assert(native_import(&f, &number, &services, &writer) == !fail);
+        assert(f.cleanup == 1 && !allocation.live && f.opens_memory == (fail == 0 || fail == 3));
+        assert(f.bad == (fail >= 2));
+    }
+
+    /* Force the writer's bounded transfer path to start a new read inside the
+     * encoded data after its first 1 KiB. */
+    file_init(&f, 2, sizeof(f.source));
+    f.encoded_bytes = sizeof(f.encoded);
+    allocation.calls = 0;
+    allocation.fail = 1;
+    writer.transfer_allocator = &allocator;
+    assert(native_import(&f, &number, &services, &writer));
+    assert(f.written == f.encoded_bytes + 58 && !memcmp(f.bytes + 58, f.encoded, f.encoded_bytes));
+    assert(allocation.calls == 1 && !allocation.live);
 }
-static MMI32 physical_size(void *p, void *source)
-{
-    (void)p;
-    (void)source;
-    return 12;
-}
-static int physical_read(void *p, void *source, void *data, MMI32 bytes)
-{
-    Physical *f = (Physical *)p;
-    (void)source;
-    assert(bytes == 12);
-    memcpy(data, f->input, 12);
-    return physical_step(f);
-}
-static int physical_prepare(void *p, const void *data, MMI32 bytes, const void **out, MMI32 *count)
+static int physical_prepare(void *p, const void *data, MMU32 bytes, const void **out, MMU32 *count)
 {
     *out = data;
     *count = bytes;
-    return physical_step((Physical *)p);
-}
-static const void *physical_name(void *p, void *source, const void *name)
-{
-    (void)source;
-    return name ? name : p;
-}
-static void *physical_create(void *p)
-{
-    Physical *f = (Physical *)p;
-    if (!physical_step(f))
-        return NULL;
-    ++f->live;
-    return p;
-}
-static int physical_write(void *p, void *temp, const void *data, MMI32 bytes)
-{
-    assert(temp == p && data && bytes == 12);
-    return physical_step((Physical *)p);
-}
-static int physical_resource(void *p, void *temp, void *dest, MMI32 style, const void *name, void *out)
-{
-    (void)dest;
-    assert(temp == p && style == 3 && name == p);
-    *(MMU32 *)out = 99;
-    return physical_step((Physical *)p);
-}
-static void physical_release(void *p, void *temp)
-{
-    assert(p == temp);
-    --((Physical *)p)->live;
-}
-static void physical_bad(void *p)
-{
-    ++((Physical *)p)->bad;
+    return file_step((WaveFile *)p);
 }
 static void physical(void)
 {
-    Physical f;
-    MMWaveFileServices s;
+    WaveFile f;
+    MMWaveFileServices s = {NULL, NULL, physical_prepare, file_bad};
+    MMSoundWriteServices writer = file_writer(&f);
+    MMReadStream source = {NULL, 12, read_source};
     MMStorageAllocator a;
     MMWaveBuffer b;
     MMWaveImportServices ws;
@@ -562,34 +561,26 @@ static void physical(void)
     Fault fault;
     Import input;
     int fail, ok;
-    memset(&s, 0, sizeof(s));
+    source.context = &f;
     s.context = &f;
-    s.size = physical_size;
-    s.read = physical_read;
-    s.prepare = physical_prepare;
-    s.name = physical_name;
-    s.create_temp = physical_create;
-    s.write_temp = physical_write;
-    s.write_resource = physical_resource;
-    s.release = physical_release;
-    s.bad_sound = physical_bad;
-    for (fail = 0; fail < 7; ++fail)
+    for (fail = 0; fail <= 6; ++fail)
     {
-        memset(&f, 0, sizeof(f));
+        file_init(&f, 3, 12);
         f.fail = fail;
         number = 7;
-        ok = mm_wave_file_import(NULL, NULL, 3, NULL, &number, &s);
-        assert(ok == (fail == 0 || fail == 6) && !f.live && f.bad == (fail == 1 || fail == 2));
-        assert(number == (fail == 0 || fail >= 5 ? 99 : 7));
+        ok = mm_wave_file_import(&source, 3, &f, &number, &s, &writer);
+        assert(ok == !fail && f.bad == (fail == 1 || fail == 2));
+        assert(number == (fail == 0 || fail >= 4 ? 123 : 7) && f.deleted == (fail >= 4));
+        if (ok) assert(!memcmp(f.bytes, f.source, source.length));
     }
     memset(&fault, 0, sizeof(fault));
     fault.fail = 1;
     a.context = &fault;
     a.resize = resize;
     a.release = release;
-    memset(&f, 0, sizeof(f));
+    file_init(&f, 3, 12);
     s.allocator = &a;
-    assert(!mm_wave_file_import(NULL, NULL, 3, NULL, &number, &s) && !fault.live && !f.step && !f.bad);
+    assert(!mm_wave_file_import(&source, 3, &f, &number, &s, &writer) && !fault.live && !f.step && !f.bad);
     /* C encoding failure releases converted host samples and preserves outputs. */
     memset(&input, 0, sizeof(input));
     memset(&fault, 0, sizeof(fault));
