@@ -2298,7 +2298,7 @@ done:
 class PlaybackProbe : public Movie
 {
   public:
-    static const MoviePlaybackState &State(const Movie &movie)
+    static const MMPlaybackState &State(const Movie &movie)
     {
         return movie.*(&PlaybackProbe::_playback);
     }

@@ -10,7 +10,7 @@ extern "C"
     typedef struct MMMovieRuntime
     {
         void *client, *world, *sounds, *thumbnail_palette;
-        int user_paused;
+        MMAlarmPlayback transport;
     } MMMovieRuntime;
     typedef struct MMMovieRuntimeServices
     {

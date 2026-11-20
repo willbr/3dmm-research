@@ -48,6 +48,14 @@ static unsigned RecordGestureModifiers(long modifiers)
            ((modifiers & fcustCmd) ? MM_RECORD_GESTURE_COMMAND : 0);
 }
 
+static_assert(kdtimSecond == MM_PLAYBACK_TICKS_PER_SECOND && kdtimSecond / kfps == MM_PLAYBACK_FRAME_TICKS &&
+                  kdtimSecond / 4 == MM_PLAYBACK_FADE_TICKS && kdtsSecond == 1000,
+              "Playback clock contract");
+static_assert(int(witNil) == MM_PLAYBACK_WAIT_NONE && int(witUntilClick) == MM_PLAYBACK_WAIT_CLICK &&
+                  int(witUntilSnd) == MM_PLAYBACK_WAIT_SOUND && int(witForTime) == MM_PLAYBACK_WAIT_TIME &&
+                  transNil == -1,
+              "Playback enum contract");
+
 const ChildChunkID kchidGstSource = 1;
 
 //
@@ -290,9 +298,8 @@ Movie::Movie(void) : _clok(khidMvieClock)
 {
     mm_movie_scenes_init(&_scenes);
     mm_movie_save_init(&_save);
-    _playback.wait = witNil;
-    _playback.transition = transNil;
-    _playback.fadeOriginalVolume = 0;
+    mm_playback_state_init(&_playback);
+    mm_alarm_playback_init(&_runtime.transport);
 
     SetCundbMax(1);
 }
@@ -314,6 +321,8 @@ struct Movie::RuntimeHost
 
 static void RetainRuntimeRef(void *p) { static_cast<BASE *>(p)->AddRef(); }
 static void ReleaseRuntimeRef(void *p) { static_cast<BASE *>(p)->Release(); }
+static int MovieFadesDisabled(void *) { return CurrentStudioPreferences().disableAudioFades; }
+static void SetMovieVolume(void *, MMI32 volume) { vpsndm->SetVlm(volume); }
 
 MMMovieRuntimeServices Movie::_RuntimeServices(RuntimeHost *host)
 {
@@ -359,8 +368,8 @@ MMMovieRuntimeServices Movie::_RuntimeServices(RuntimeHost *host)
         client->PlayStopped();
         vpsndm->StopAll();
     };
-    s.audio_fades_disabled = [](void *) -> int { return CurrentStudioPreferences().disableAudioFades; };
-    s.set_volume = [](void *, MMI32 volume) { vpsndm->SetVlm(volume); };
+    s.audio_fades_disabled = MovieFadesDisabled;
+    s.set_volume = SetMovieVolume;
     s.update_roll_call = [](void *p) { static_cast<PMovieClientCallbacks>(static_cast<BASE *>(p))->UpdateRollCall(); };
     return s;
 }
@@ -2006,6 +2015,90 @@ bool Movie::FAddScen(PTAG ptag)
     return mm_movie_add_background(&tag, &services, &scenes) != 0;
 }
 
+struct Movie::AlarmHost
+{
+    PMovie movie;
+    PMovieView view;
+};
+
+MMAlarmPlaybackServices Movie::_AlarmServices(AlarmHost *host)
+{
+    MMAlarmPlaybackServices s = {};
+    s.context = host;
+    s.wall_time = [](void *) -> MMPlaybackU32 { return TsCurrent(); };
+    s.clock_time = [](void *p) -> MMPlaybackU32 { return static_cast<AlarmHost *>(p)->movie->_clok.TimCur(); };
+    s.start_clock = [](void *p, MMPlaybackU32 time) { static_cast<AlarmHost *>(p)->movie->_clok.Start(time); };
+    s.stop_clock = [](void *p) { static_cast<AlarmHost *>(p)->movie->_clok.Stop(); };
+    s.set_alarm = [](void *p, MMPlaybackI32 delay, int adjust) -> int {
+        auto movie = static_cast<AlarmHost *>(p)->movie;
+        return movie->_clok.FSetAlarm(delay, movie, 0, adjust != 0);
+    };
+    s.tracking = [](void *) -> int { return vpcex->PgobTracking() != pvNil; };
+    s.pause_audio = [](void *, int paused) {
+        if (vpsndm)
+        {
+            if (paused)
+                vpsndm->PauseAll();
+            else
+                vpsndm->ResumeAll();
+        }
+    };
+    s.audio_fades_disabled = MovieFadesDisabled;
+    s.set_volume = SetMovieVolume;
+    s.effect = [](void *p, MMAlarmPlaybackEffect effect, int value) {
+        auto host = static_cast<AlarmHost *>(p);
+        auto movie = host->movie;
+        switch (effect)
+        {
+        case MM_ALARM_QUEUE_RENDER:
+        {
+            Command cmd = {};
+            cmd.pcmh = movie;
+            cmd.cid = cidRender;
+            vpcex->EnqueueCmd(&cmd);
+            break;
+        }
+        case MM_ALARM_INVALIDATE_VIEWS: movie->InvalViews(); break;
+        case MM_ALARM_ENABLE_ACCELERATORS: movie->Pmcc()->EnableAccel(); break;
+        case MM_ALARM_REMOVE: movie->_clok.RemoveCmh(movie); break;
+        case MM_ALARM_CLEAR_PLAYING:
+#ifdef DEBUG
+            movie->SetFWriteBmps(false);
+#endif
+            break;
+        case MM_ALARM_CLEAR_CLICK_PAUSE:
+        {
+            auto view = host->view ? host->view : static_cast<PMovieView>(movie->PddgGet(0));
+            view->PauseUntilClick(false);
+            break;
+        }
+        case MM_ALARM_RESET_SCENE:
+        {
+            auto scene = movie->Pscen();
+            if (scene || value)
+            {
+                AssertPo(scene, 0);
+                scene->Enable(fscenTboxes);
+                scene->Disable(fscenPauses);
+            }
+            else
+                Assert(movie->_scenes.index == ivNil, "Bogus scene state");
+            break;
+        }
+        case MM_ALARM_REFRESH_VIEWS: movie->InvalViewsAndScb(); break;
+        case MM_ALARM_STOP_SCENE:
+            if (movie->Pscen() || value)
+                movie->Pscen()->StopPlaying();
+            break;
+        case MM_ALARM_PLAYING_NOTICE: vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, value); break;
+        case MM_ALARM_SHORT_SOUNDS: movie->Pmsq()->SndOnShort(); break;
+        case MM_ALARM_NOTIFY_STOPPED: movie->Pmcc()->PlayStopped(); break;
+        case MM_ALARM_STOP_AUDIO: vpsndm->StopAll(); break;
+        }
+    };
+    return s;
+}
+
 /***************************************************************************
  *
  * Plays a movie.
@@ -2020,51 +2113,51 @@ bool Movie::FAddScen(PTAG ptag)
 void Movie::Play()
 {
     AssertThis(0);
-    if (_runtime.user_paused && FPlaying())
+    if (mm_alarm_playback_stop_frozen(&_runtime.transport, &_playback))
     {
-        _playback.stopRequested = true;
         FCmdRender(nullptr); // The frozen clock cannot deliver the ordinary stop alarm.
         return;
     }
-    MoviePlayEvaluator evaluator(_playback);
+    AlarmHost host{this, nullptr};
+    const auto alarm = _AlarmServices(&host);
+    MMPlayEvaluator evaluator;
+    mm_play_init(&evaluator, &_playback);
     for (;;)
     {
-        MoviePlayCommand command = evaluator.Next();
-        if (command.kind == MoviePlayCommandKind::Finished)
+        MMPlayCommand command{MM_PLAY_FINISHED, 0};
+        AssertDo(mm_play_next(&evaluator, &command), "Unacknowledged play command");
+        if (command.kind == MM_PLAY_FINISHED)
             return;
-        MoviePlaybackReply reply;
+        MMPlaybackReply reply;
+        mm_playback_reply_init(&reply);
         switch (command.kind)
         {
-        case MoviePlayCommandKind::RenderStop:
+        case MM_PLAY_RENDER_STOP:
             FCmdRender(pvNil);
             break;
-        case MoviePlayCommandKind::CheckScene:
+        case MM_PLAY_CHECK_SCENE:
             reply.value = Pscen() != pvNil;
             break;
-        case MoviePlayCommandKind::ResetSounds:
+        case MM_PLAY_RESET_SOUNDS:
             Pmsq()->StopAll();
             Pmsq()->FlushMsq();
             break;
-        case MoviePlayCommandKind::QueryEnd:
+        case MM_PLAY_QUERY_END:
             reply.value = Iscen() + 1 == Cscen() && Pscen()->Nfrm() == Pscen()->NfrmLast();
             break;
-        case MoviePlayCommandKind::Rewind:
+        case MM_PLAY_REWIND:
             reply.success = FSwitchScen(0);
             if (reply.success)
                 reply.success = Pscen()->FGotoFrm(Pscen()->NfrmFirst());
             break;
-        case MoviePlayCommandKind::ReadTime:
+        case MM_PLAY_READ_TIME:
             reply.timestamp = TsCurrent();
             break;
-        case MoviePlayCommandKind::StartClock:
-            _playback.framePacer.Reset(CurrentStudioPreferences().PlaybackFps());
-            if (!_playback.unpaced)
-                _clok.Start(0);
-            SetFPlaying(true);
-            vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, true);
-            reply.success = _playback.unpaced || _clok.FSetAlarm(0, this);
+        case MM_PLAY_START_CLOCK:
+            reply.success = mm_alarm_playback_start(&_runtime.transport, &_playback,
+                                                    CurrentStudioPreferences().PlaybackFps(), &alarm);
             break;
-        case MoviePlayCommandKind::PrepareScene:
+        case MM_PLAY_PREPARE_SCENE:
             Pmsq()->SndOnLong();
             Pscen()->Enable(fscenPauses);
             Pscen()->SelectActr(pvNil);
@@ -2072,10 +2165,10 @@ void Movie::Play()
             // Replay must precede prerendering: replayed camera changes invalidate it.
             reply.success = Pscen()->FReplayFrm(fscenPauses | fscenSounds | fscenActrs) && Pscen()->FStartPlaying();
             break;
-        case MoviePlayCommandKind::NotifyStopped:
+        case MM_PLAY_NOTIFY_STOPPED:
             Pmcc()->PlayStopped();
             break;
-        case MoviePlayCommandKind::StartupFailed:
+        case MM_PLAY_STARTUP_FAILED:
             Pmcc()->PlayStopped();
             if (command.flag)
                 SetFStopPlaying(true);
@@ -2084,30 +2177,30 @@ void Movie::Play()
             Pmsq()->PlayMsq();
             SetFSoundsEnabled(_playback.oldSoundsEnabled);
             break;
-        case MoviePlayCommandKind::DisableAccelerators:
+        case MM_PLAY_DISABLE_ACCELERATORS:
             Pmcc()->DisableAccel();
             break;
-        case MoviePlayCommandKind::QueryOpening:
+        case MM_PLAY_QUERY_OPENING:
             reply.value = Iscen() == 0 && Pscen()->Nfrm() == Pscen()->NfrmFirst();
             break;
-        case MoviePlayCommandKind::RefreshOpening:
+        case MM_PLAY_REFRESH_OPENING:
             Pmcc()->UpdateScrollbars();
             InvalViews();
             vpappb->UpdateMarked();
             break;
-        case MoviePlayCommandKind::BackgroundSound:
+        case MM_PLAY_BACKGROUND_SOUND:
             Pscen()->PlayBkgdSnd();
             break;
-        case MoviePlayCommandKind::DispatchSounds:
+        case MM_PLAY_DISPATCH_SOUNDS:
             if (command.flag)
                 Pmsq()->PlayMsq();
             else
                 Pmsq()->FlushMsq();
             break;
-        case MoviePlayCommandKind::Finished:
+        case MM_PLAY_FINISHED:
             break;
         }
-        evaluator.Complete(reply);
+        AssertDo(mm_play_complete(&evaluator, &reply), "No play command to complete");
     }
 }
 
@@ -2129,170 +2222,26 @@ void Movie::Play()
  ***************************************************************************/
 void Movie::SetUserPaused(bool paused)
 {
-    if (_runtime.user_paused == paused || (paused && !FPlaying()))
-        return;
-    _runtime.user_paused = paused;
-    if (paused)
-    {
-        _playback.framePacer.Pause(TsCurrent());
-        _timUserPause = _clok.TimCur();
-        _clok.Stop(); // Registered alarms keep their remaining movie-clock time.
-        if (vpsndm)
-            vpsndm->PauseAll();
-    }
-    else
-    {
-        _playback.framePacer.Resume(TsCurrent());
-        if (vpsndm)
-            vpsndm->ResumeAll();
-        if (FPlaying())
-        {
-            _clok.Start(_timUserPause);
-            // A render already queued before pausing may have consumed its alarm.
-            if (_fUserResumeRender && !_clok.FSetAlarm(0, this))
-                SetFStopPlaying(true);
-        }
-        _fUserResumeRender = false;
-    }
-    InvalViews();
+    AlarmHost host{this, nullptr};
+    const auto alarm = _AlarmServices(&host);
+    mm_alarm_playback_set_paused(&_runtime.transport, &_playback, paused, &alarm);
 }
-void Movie::SetFIdleSeen(bool fIdle)
+
+void Movie::SetFIdleSeen(bool idle)
 {
-    _playback.idleSeen = fIdle;
-    if (fIdle && FPlaying() && !_runtime.user_paused && _playback.framePacer.TakeDue(TsCurrent()))
-    {
-        Command alarm = {};
-        alarm.cid = cidAlarm;
-        FCmdAlarm(&alarm); // Queue through the same fair handoff as clock alarms.
-    }
+    AlarmHost host{this, nullptr};
+    const auto alarm = _AlarmServices(&host);
+    mm_alarm_playback_idle(&_runtime.transport, &_playback, idle, &alarm);
 }
 
 bool Movie::FCmdAlarm(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-
-    if (_runtime.user_paused && !_playback.stopRequested)
-    {
-        _fUserResumeRender = true;
-        return true;
-    }
-
-    Command cmd;
-
-    if (_playback.FShouldRender(FIdleSeen() ? false : vpcex->PgobTracking() != pvNil))
-    {
-
-        ClearPb(&cmd, size(Command));
-
-        cmd.pcmh = this;
-        cmd.cid = cidRender;
-        vpcex->EnqueueCmd(&cmd);
-    }
-    else
-    {
-
-        //
-        // Check again, asap.
-        //
-        if (!_clok.FSetAlarm(0, this))
-        {
-            PMovieView pmvu;
-
-            //
-            // Things are in a bad way.
-            //
-            Pmcc()->EnableAccel();
-            SetFPlaying(fFalse);
-            SetUserPaused(false);
-            SetFStopPlaying(fFalse);
-            SetFSoundsEnabled(_playback.oldSoundsEnabled);
-            _clok.RemoveCmh(this);
-            _playback.pausing = fFalse;
-            _playback.scrolling = fFalse;
-            _playback.wait = witNil;
-            pmvu = (PMovieView)PddgGet(0);
-            pmvu->PauseUntilClick(fFalse);
-            Pscen()->Enable(fscenTboxes);
-            Pscen()->Disable(fscenPauses);
-
-            //
-            // Update views and scroll bars
-            //
-            InvalViewsAndScb();
-
-            //
-            // Clean up anything else
-            //
-            Pscen()->StopPlaying();
-            vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, fFalse);
-
-            //
-            // Set sound queue state
-            //
-            Pmsq()->SndOnShort();
-
-            Pmcc()->PlayStopped();
-            vpsndm->StopAll();
-        }
-    }
-
-    return (fTrue);
-}
-
-// Runtime stop effects retain their original cleanup and restoration order.
-void Movie::_StopRenderPlayback(PMovieView view)
-{
-    AssertThis(0);
-    Pmcc()->EnableAccel();
-    _clok.Stop();
-    _clok.RemoveCmh(this);
-    _playback.framePacer.pending = false;
-    _playback.pausing = fFalse;
-    _playback.scrolling = fFalse;
-    _playback.wait = witNil;
-    SetFStopPlaying(fFalse);
-    SetFPlaying(fFalse);
-    SetUserPaused(false);
-    SetFSoundsEnabled(_playback.oldSoundsEnabled);
-    view->PauseUntilClick(fFalse);
-    if (Pscen() != pvNil)
-    {
-        Pscen()->Enable(fscenTboxes);
-        Pscen()->Disable(fscenPauses);
-    }
-    else
-        Assert(_scenes.index == ivNil, "Bogus scene state");
-
-    //
-    // Update views and scroll bars
-    //
-    InvalViewsAndScb();
-
-    //
-    // Clean up anything else
-    //
-    if (Pscen() != pvNil)
-        Pscen()->StopPlaying();
-    vpcex->EnqueueCid(cidMviePlaying, pvNil, pvNil, fFalse);
-
-    //
-    // Set sound queue state
-    //
-    Pmsq()->SndOnShort();
-
-    Pmcc()->PlayStopped();
-    vpsndm->StopAll();
-
-    // if we were fading, then restore sound volume
-    if (_playback.fadeOriginalVolume)
-    {
-        if (_playback.fadeChangedVolume || !CurrentStudioPreferences().disableAudioFades)
-            vpsndm->SetVlm(_playback.fadeOriginalVolume);
-        _playback.fadeOriginalVolume = 0;
-    }
-    _playback.fadeVolume = -1;
-    _playback.fadeChangedVolume = false;
+    AlarmHost host{this, nullptr};
+    const auto alarm = _AlarmServices(&host);
+    mm_alarm_playback_alarm(&_runtime.transport, &_playback, &alarm);
+    return true;
 }
 
 /***************************************************************************
@@ -2317,34 +2266,36 @@ bool Movie::FCmdRender(PCommand pcmd)
 {
     AssertThis(0);
     AssertNilOrVarMem(pcmd);
-    if (_runtime.user_paused && !_playback.stopRequested)
-    {
-        _fUserResumeRender = true;
+    if (mm_alarm_playback_defer_render(&_runtime.transport, &_playback))
         return true;
-    }
-    ulong started = TsCurrent();
+    const auto started = TsCurrent();
     PMovieView view = (PMovieView)PddgGet(0);
     AssertPo(view, 0);
-    _playback.suppressAudioFades = CurrentStudioPreferences().disableAudioFades;
-    MoviePlaybackEvaluator evaluator(_playback, started);
+    _playback.suppressAudioFades = MovieFadesDisabled(nullptr);
+    AlarmHost host{this, view};
+    const auto alarm = _AlarmServices(&host);
+    MMPlaybackEvaluator evaluator;
+    mm_playback_init(&evaluator, &_playback, started);
     for (;;)
     {
-        MoviePlaybackCommand command = evaluator.Next();
-        if (command.kind == MoviePlaybackCommandKind::Finished)
+        MMPlaybackCommand command{MM_PLAYBACK_FINISHED, 0, 0};
+        AssertDo(mm_playback_next(&evaluator, &command), "Unacknowledged playback command");
+        if (command.kind == MM_PLAYBACK_FINISHED)
             return true;
-        MoviePlaybackReply reply;
+        MMPlaybackReply reply;
+        mm_playback_reply_init(&reply);
         switch (command.kind)
         {
-        case MoviePlaybackCommandKind::Stop:
-            _StopRenderPlayback(view);
+        case MM_PLAYBACK_STOP:
+            mm_alarm_playback_stop(&_runtime.transport, &_playback, &alarm);
             break;
-        case MoviePlaybackCommandKind::ReadVolume:
+        case MM_PLAYBACK_READ_VOLUME:
             reply.number = vpsndm->VlmCur();
             break;
-        case MoviePlaybackCommandKind::SetVolume:
+        case MM_PLAYBACK_SET_VOLUME:
             vpsndm->SetVlm(command.value);
             break;
-        case MoviePlaybackCommandKind::ScrollText:
+        case MM_PLAYBACK_SCROLL_TEXT:
             for (long index = 0;; ++index)
             {
                 PTBOX caption = Pscen()->PtboxFromItbox(index);
@@ -2366,13 +2317,13 @@ bool Movie::FCmdRender(PCommand pcmd)
 #endif
             }
             break;
-        case MoviePlaybackCommandKind::PresentFrame:
+        case MM_PLAYBACK_PRESENT_FRAME:
             Pscen()->Enable(fscenTboxes);
             Pscen()->Disable(fscenActrs);
             reply.success = Pscen()->FGotoFrm(Pscen()->Nfrm());
             Pscen()->Enable(fscenActrs);
             break;
-        case MoviePlaybackCommandKind::DisplayFrame:
+        case MM_PLAYBACK_DISPLAY_FRAME:
             MarkViews();
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
             if (_playbackFrameObserver)
@@ -2389,7 +2340,7 @@ bool Movie::FCmdRender(PCommand pcmd)
                 _RecordPlaybackTestFrame();
 #endif
             break;
-        case MoviePlaybackCommandKind::QueryScrolling:
+        case MM_PLAYBACK_QUERY_SCROLLING:
             for (long index = 0;; ++index)
             {
                 PTBOX caption = Pscen()->PtboxFromItbox(index);
@@ -2403,33 +2354,31 @@ bool Movie::FCmdRender(PCommand pcmd)
                 }
             }
             break;
-        case MoviePlaybackCommandKind::SetClickPause:
+        case MM_PLAYBACK_SET_CLICK_PAUSE:
             view->PauseUntilClick(command.flag);
             break;
-        case MoviePlaybackCommandKind::QuerySound:
+        case MM_PLAYBACK_QUERY_SOUND:
             reply.value = Pmsq()->FPlaying(false);
             break;
-        case MoviePlaybackCommandKind::ReadTime:
+        case MM_PLAYBACK_READ_TIME:
             reply.timestamp = TsCurrent();
             break;
-        case MoviePlaybackCommandKind::SetAlarm:
-            if (!_playback.unpaced && command.flag && _playback.framePacer.fps >= 0)
-                _playback.framePacer.Schedule(started);
-            else
-                reply.success = _playback.unpaced || _clok.FSetAlarm(command.value, this, 0, command.flag);
+        case MM_PLAYBACK_SET_ALARM:
+            reply.success = mm_alarm_playback_schedule(&_runtime.transport, &_playback, started,
+                                                       command.value, command.flag, &alarm);
             break;
-        case MoviePlaybackCommandKind::ReadPosition:
+        case MM_PLAYBACK_READ_POSITION:
             Pscen()->Disable(fscenTboxes);
             reply.position = {static_cast<LegacyLong>(Iscen()), static_cast<LegacyLong>(Cscen()),
                               static_cast<LegacyLong>(Pscen()->Nfrm()), static_cast<LegacyLong>(Pscen()->NfrmLast()),
                               Pscen()->Trans()};
             break;
-        case MoviePlaybackCommandKind::SwitchScene:
+        case MM_PLAYBACK_SWITCH_SCENE:
             if (_playback.unpaced)
                 std::fprintf(stderr, "BATCH_SCENE_LOAD scene=%ld\n", static_cast<long>(command.value));
             reply.success = FSwitchScen(command.value);
             break;
-        case MoviePlaybackCommandKind::ReplayScene:
+        case MM_PLAYBACK_REPLAY_SCENE:
             AssertPo(Pscen(), 0);
             Pscen()->Disable(fscenTboxes);
             Pscen()->Enable(fscenPauses);
@@ -2437,15 +2386,15 @@ bool Movie::FCmdRender(PCommand pcmd)
             if (reply.success)
                 Pscen()->PlayBkgdSnd();
             break;
-        case MoviePlaybackCommandKind::AdvanceFrame:
+        case MM_PLAYBACK_ADVANCE_FRAME:
             if (_playback.unpaced)
                 std::fprintf(stderr, "BATCH_FRAME scene=%ld frame=%ld\n", Iscen(), static_cast<long>(command.value));
             reply.success = Pscen()->FGotoFrm(command.value);
             break;
-        case MoviePlaybackCommandKind::RenderWorld:
+        case MM_PLAYBACK_RENDER_WORLD:
             RenderWorld();
             break;
-        case MoviePlaybackCommandKind::Finished:
+        case MM_PLAYBACK_FINISHED:
             break;
         }
         if (_playback.unpaced && !reply.success)
@@ -2456,7 +2405,7 @@ bool Movie::FCmdRender(PCommand pcmd)
             _playbackTest.failureCommand = static_cast<LegacyLong>(command.kind);
 #endif
         }
-        evaluator.Complete(reply);
+        AssertDo(mm_playback_complete(&evaluator, &reply), "No playback command to complete");
     }
 }
 

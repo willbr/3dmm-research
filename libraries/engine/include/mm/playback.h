@@ -163,6 +163,58 @@ extern "C"
     int mm_play_next(MMPlayEvaluator *evaluator, MMPlayCommand *command);
     int mm_play_complete(MMPlayEvaluator *evaluator, const MMPlaybackReply *reply);
 
+    typedef struct MMAlarmPlayback
+    {
+        MMFramePacer pacer;
+        MMPlaybackU32 paused_clock;
+        int paused, resume_render;
+    } MMAlarmPlayback;
+    typedef enum MMAlarmPlaybackEffect
+    {
+        MM_ALARM_QUEUE_RENDER,
+        MM_ALARM_INVALIDATE_VIEWS,
+        MM_ALARM_ENABLE_ACCELERATORS,
+        MM_ALARM_REMOVE,
+        MM_ALARM_CLEAR_PLAYING,
+        MM_ALARM_CLEAR_CLICK_PAUSE,
+        MM_ALARM_RESET_SCENE,
+        MM_ALARM_REFRESH_VIEWS,
+        MM_ALARM_STOP_SCENE,
+        MM_ALARM_PLAYING_NOTICE,
+        MM_ALARM_SHORT_SOUNDS,
+        MM_ALARM_NOTIFY_STOPPED,
+        MM_ALARM_STOP_AUDIO
+    } MMAlarmPlaybackEffect;
+    typedef struct MMAlarmPlaybackServices
+    {
+        void *context;
+        MMPlaybackU32 (*wall_time)(void *), (*clock_time)(void *);
+        void (*start_clock)(void *, MMPlaybackU32), (*stop_clock)(void *);
+        int (*set_alarm)(void *, MMPlaybackI32 delay, int adjust);
+        int (*tracking)(void *);
+        void (*pause_audio)(void *, int paused);
+        int (*audio_fades_disabled)(void *);
+        void (*set_volume)(void *, MMPlaybackI32);
+        void (*effect)(void *, MMAlarmPlaybackEffect, int value);
+    } MMAlarmPlaybackServices;
+    /* The clock-driven host supplies synchronous device and window effects.
+     * Only PLAYING_NOTICE (0/1) and RESET_SCENE/STOP_SCENE (1 if an alarm
+     * rearm failed and a scene is required) use the effect value. A user pause
+     * freezes the ordinary clock and pacer independently of authored waits.
+     * Alarm retry failure keeps the legacy clock, pacer and fade cleanup order. */
+    void mm_alarm_playback_init(MMAlarmPlayback *);
+    int mm_alarm_playback_start(MMAlarmPlayback *, MMPlaybackState *, double fps, const MMAlarmPlaybackServices *);
+    int mm_alarm_playback_schedule(MMAlarmPlayback *, const MMPlaybackState *, MMPlaybackU32 frame_start,
+                                    MMPlaybackI32 delay, int adjust, const MMAlarmPlaybackServices *);
+    void mm_alarm_playback_set_paused(MMAlarmPlayback *, MMPlaybackState *, int paused, const MMAlarmPlaybackServices *);
+    int mm_alarm_playback_defer_render(MMAlarmPlayback *, const MMPlaybackState *);
+    int mm_alarm_playback_stop_frozen(const MMAlarmPlayback *, MMPlaybackState *);
+    void mm_alarm_playback_idle(MMAlarmPlayback *, MMPlaybackState *, int idle, const MMAlarmPlaybackServices *);
+    void mm_alarm_playback_alarm(MMAlarmPlayback *, MMPlaybackState *, const MMAlarmPlaybackServices *);
+    void mm_alarm_playback_stop(MMAlarmPlayback *, MMPlaybackState *, const MMAlarmPlaybackServices *);
+    void mm_playback_restore_volume(MMPlaybackState *, void *context, int (*fades_disabled)(void *),
+                                     void (*set_volume)(void *, MMPlaybackI32));
+
     typedef struct MMScrollPlayback
     {
         int started, holding;

@@ -4068,56 +4068,59 @@ static void TestSoundQueueOwnership()
 
 struct PlaybackTrace
 {
-    MoviePlaybackCommand commands[64];
+    MMPlaybackCommand commands[64];
     bool stopAtCommand[64] = {};
     bool scrollingAtCommand[64] = {};
     LegacyLong count = 0;
-    MoviePlaybackCommandKind fail = MoviePlaybackCommandKind::Finished;
+    MMPlaybackCommandKind fail = MM_PLAYBACK_FINISHED;
     bool stillScrolling = false;
     bool needsScroll = false;
     bool soundPlaying = false;
     WaitReason pauseOnPresent = witNil;
     LegacyLong volume = 100;
     LegacyUlong now = 1001;
-    MoviePlaybackPosition position = {0, 2, 1, 3, transDissolve};
+    MMPlaybackPosition position = {0, 2, 1, 3, transDissolve};
 };
 
-static void RunPlayback(MoviePlaybackState &state, PlaybackTrace &trace)
+static void RunPlayback(MMPlaybackState &state, PlaybackTrace &trace)
 {
-    MoviePlaybackEvaluator evaluator(state, 1000);
+    MMPlaybackEvaluator evaluator;
+    mm_playback_init(&evaluator, &state, 1000);
     for (;;)
     {
-        MoviePlaybackCommand command = evaluator.Next();
-        if (command.kind == MoviePlaybackCommandKind::Finished)
+        MMPlaybackCommand command;
+        Check(mm_playback_next(&evaluator, &command));
+        if (command.kind == MM_PLAYBACK_FINISHED)
             return;
         Check(trace.count < 64);
         trace.stopAtCommand[trace.count] = state.stopRequested;
         trace.scrollingAtCommand[trace.count] = state.scrolling;
         trace.commands[trace.count++] = command;
-        MoviePlaybackReply reply;
+        MMPlaybackReply reply;
+        mm_playback_reply_init(&reply);
         reply.success = command.kind != trace.fail;
         switch (command.kind)
         {
-        case MoviePlaybackCommandKind::PresentFrame:
+        case MM_PLAYBACK_PRESENT_FRAME:
             if (trace.pauseOnPresent != witNil)
                 state.wait = trace.pauseOnPresent;
             break;
-        case MoviePlaybackCommandKind::ScrollText:
+        case MM_PLAYBACK_SCROLL_TEXT:
             reply.value = trace.stillScrolling;
             break;
-        case MoviePlaybackCommandKind::QueryScrolling:
+        case MM_PLAYBACK_QUERY_SCROLLING:
             reply.value = trace.needsScroll;
             break;
-        case MoviePlaybackCommandKind::QuerySound:
+        case MM_PLAYBACK_QUERY_SOUND:
             reply.value = trace.soundPlaying;
             break;
-        case MoviePlaybackCommandKind::ReadVolume:
+        case MM_PLAYBACK_READ_VOLUME:
             reply.number = trace.volume;
             break;
-        case MoviePlaybackCommandKind::ReadTime:
+        case MM_PLAYBACK_READ_TIME:
             reply.timestamp = trace.now;
             break;
-        case MoviePlaybackCommandKind::ReadPosition:
+        case MM_PLAYBACK_READ_POSITION:
             reply.position = trace.position;
             break;
         default:
@@ -4125,7 +4128,7 @@ static void RunPlayback(MoviePlaybackState &state, PlaybackTrace &trace)
         }
         // Stop is only recorded here: these traces establish emission/order,
         // while runtime window/device cleanup remains a host responsibility.
-        evaluator.Complete(reply);
+        Check(mm_playback_complete(&evaluator, &reply));
     }
 }
 
@@ -4138,15 +4141,16 @@ static void TestMoviePlaybackControl()
         preferences.playbackRate = choice;
         const auto fps = preferences.PlaybackFps();
         Check(fps == (choice == 1 ? 6 : choice == 2 ? 12 : 24));
-        MovieFramePacer pacer;
-        pacer.Reset(fps);
+        MMFramePacer pacer;
+        mm_frame_pacer_init(&pacer);
+        mm_frame_pacer_reset(&pacer, fps);
         LegacyUlong now = 0;
         for (int frame = 0; frame < static_cast<int>(fps); ++frame)
         {
-            pacer.Schedule(now);
-            Check(!pacer.TakeDue(pacer.due - 1));
+            mm_frame_pacer_schedule(&pacer, now);
+            Check(!mm_frame_pacer_take_due(&pacer, pacer.due - 1));
             now = pacer.due;
-            Check(pacer.TakeDue(now) && !pacer.TakeDue(now));
+            Check(mm_frame_pacer_take_due(&pacer, now) && !mm_frame_pacer_take_due(&pacer, now));
         }
         Check(now >= 999 && now <= 1000); // Fractional milliseconds do not accumulate drift.
     }
@@ -4157,97 +4161,100 @@ static void TestMoviePlaybackControl()
     Check(preferences.PlaybackFps() > 11.02 && preferences.PlaybackFps() < 11.03);
     preferences.playbackRate = 4;
     Check(preferences.PlaybackFps() == 0);
-    MovieFramePacer pacer;
-    pacer.Reset(0);
-    pacer.Schedule(1234);
-    Check(pacer.TakeDue(1234));
-    pacer.Reset(24);
-    pacer.Schedule(0xfffffff0U);
-    Check(!pacer.TakeDue(0xfffffff1U) && pacer.TakeDue(25));
-    pacer.Schedule(1000);
-    pacer.Pause(1010);
-    pacer.Resume(2010);
-    Check(!pacer.TakeDue(2040) && pacer.TakeDue(2042));
-    pacer.Schedule(2100);
-    pacer.Reset(12);
-    Check(!pacer.TakeDue(10000));
+    MMFramePacer pacer;
+    mm_frame_pacer_init(&pacer);
+    mm_frame_pacer_reset(&pacer, 0);
+    mm_frame_pacer_schedule(&pacer, 1234);
+    Check(mm_frame_pacer_take_due(&pacer, 1234));
+    mm_frame_pacer_reset(&pacer, 24);
+    mm_frame_pacer_schedule(&pacer, 0xfffffff0U);
+    Check(!mm_frame_pacer_take_due(&pacer, 0xfffffff1U) && mm_frame_pacer_take_due(&pacer, 25));
+    mm_frame_pacer_schedule(&pacer, 1000);
+    mm_frame_pacer_pause(&pacer, 1010);
+    mm_frame_pacer_resume(&pacer, 2010);
+    Check(!mm_frame_pacer_take_due(&pacer, 2040) && mm_frame_pacer_take_due(&pacer, 2042));
+    mm_frame_pacer_schedule(&pacer, 2100);
+    mm_frame_pacer_reset(&pacer, 12);
+    Check(!mm_frame_pacer_take_due(&pacer, 10000));
     for (const auto reason : {witUntilClick, witForTime, witUntilSnd})
     {
-        MoviePlaybackState uncapped;
-        uncapped.framePacer.Reset(0);
+        MMPlaybackState uncapped;
+        mm_playback_state_init(&uncapped);
         PlaybackTrace paused;
         paused.pauseOnPresent = reason;
         paused.soundPlaying = true;
         RunPlayback(uncapped, paused);
         Check(uncapped.pausing && uncapped.renderedFrames == 0 && !uncapped.skippedClickPauses &&
               !uncapped.skippedTimedPauses && !uncapped.skippedSoundPauses);
-        MoviePlaybackState accelerated;
+        MMPlaybackState accelerated;
+        mm_playback_state_init(&accelerated);
         accelerated.unpaced = true;
         PlaybackTrace trace;
         trace.pauseOnPresent = reason;
         trace.soundPlaying = true;
         RunPlayback(accelerated, trace);
         Check(accelerated.renderedFrames == 1 && !accelerated.pausing && accelerated.wait == witNil);
-        Check(trace.count == 8 && trace.commands[4].kind == MoviePlaybackCommandKind::SetAlarm &&
+        Check(trace.count == 8 && trace.commands[4].kind == MM_PLAYBACK_SET_ALARM &&
               trace.commands[4].value == 0);
         Check(accelerated.skippedClickPauses == (reason == witUntilClick) &&
               accelerated.skippedTimedPauses == (reason == witForTime) &&
               accelerated.skippedSoundPauses == (reason == witUntilSnd));
     }
-    MoviePlaybackState state;
-    Check(!state.FShouldRender(false));
+    MMPlaybackState state;
+    mm_playback_state_init(&state);
+    Check(!mm_playback_should_render(&state, false));
     state.idleSeen = true;
-    Check(state.FShouldRender(false) && !state.idleSeen);
-    Check(state.FShouldRender(true) && !state.idleSeen);
-    Check(MoviePlaybackEvaluator::FrameDelay(1000, 1000) == kPlaybackFrameTicks);
-    Check(MoviePlaybackEvaluator::FrameDelay(1000, 1001) == kPlaybackFrameTicks - 1);
-    Check(MoviePlaybackEvaluator::FrameDelay(1000, 1017) == kPlaybackFrameTicks - 2);
-    Check(MoviePlaybackEvaluator::FrameDelay(1000, 1200) == 0);
-    Check(MoviePlaybackEvaluator::FrameDelay(0xfffffff0UL, 4) == kPlaybackFrameTicks - 2);
+    Check(mm_playback_should_render(&state, false) && !state.idleSeen);
+    Check(mm_playback_should_render(&state, true) && !state.idleSeen);
+    Check(mm_playback_frame_delay(1000, 1000) == MM_PLAYBACK_FRAME_TICKS);
+    Check(mm_playback_frame_delay(1000, 1001) == MM_PLAYBACK_FRAME_TICKS - 1);
+    Check(mm_playback_frame_delay(1000, 1017) == MM_PLAYBACK_FRAME_TICKS - 2);
+    Check(mm_playback_frame_delay(1000, 1200) == 0);
+    Check(mm_playback_frame_delay(0xfffffff0UL, 4) == MM_PLAYBACK_FRAME_TICKS - 2);
     PlaybackTrace normal;
     RunPlayback(state, normal);
-    MoviePlaybackCommandKind expected[] = {
-        MoviePlaybackCommandKind::PresentFrame,   MoviePlaybackCommandKind::DisplayFrame,
-        MoviePlaybackCommandKind::QueryScrolling, MoviePlaybackCommandKind::ReadTime,
-        MoviePlaybackCommandKind::SetAlarm,       MoviePlaybackCommandKind::ReadPosition,
-        MoviePlaybackCommandKind::AdvanceFrame,   MoviePlaybackCommandKind::RenderWorld};
+    MMPlaybackCommandKind expected[] = {
+        MM_PLAYBACK_PRESENT_FRAME,   MM_PLAYBACK_DISPLAY_FRAME,
+        MM_PLAYBACK_QUERY_SCROLLING, MM_PLAYBACK_READ_TIME,
+        MM_PLAYBACK_SET_ALARM,       MM_PLAYBACK_READ_POSITION,
+        MM_PLAYBACK_ADVANCE_FRAME,   MM_PLAYBACK_RENDER_WORLD};
     Check(normal.count == 8 && state.renderedFrames == 1);
     for (LegacyLong index = 0; index < 8; ++index)
         Check(normal.commands[index].kind == expected[index]);
-    Check(normal.commands[4].value == kPlaybackFrameTicks - 1 && normal.commands[4].flag &&
+    Check(normal.commands[4].value == MM_PLAYBACK_FRAME_TICKS - 1 && normal.commands[4].flag &&
           normal.commands[6].value == 2);
 
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlaybackTrace click;
     click.pauseOnPresent = witUntilClick;
     RunPlayback(state, click);
-    Check(click.count == 4 && click.commands[3].kind == MoviePlaybackCommandKind::SetClickPause &&
+    Check(click.count == 4 && click.commands[3].kind == MM_PLAYBACK_SET_CLICK_PAUSE &&
           click.commands[3].flag);
     Check(state.pausing && state.wait == witNil && state.renderedFrames == 0);
     PlaybackTrace resumeClick;
     RunPlayback(state, resumeClick);
-    Check(resumeClick.commands[0].kind == MoviePlaybackCommandKind::SetClickPause && !resumeClick.commands[0].flag);
+    Check(resumeClick.commands[0].kind == MM_PLAYBACK_SET_CLICK_PAUSE && !resumeClick.commands[0].flag);
     Check(!state.pausing && state.renderedFrames == 1);
 
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlaybackTrace scrollFirst;
     scrollFirst.pauseOnPresent = witUntilClick;
     scrollFirst.needsScroll = true;
     RunPlayback(state, scrollFirst);
-    Check(scrollFirst.count == 4 && scrollFirst.commands[3].value == kPlaybackScrollTicks && state.scrolling &&
+    Check(scrollFirst.count == 4 && scrollFirst.commands[3].value == MM_PLAYBACK_SCROLL_TICKS && state.scrolling &&
           !state.pausing);
     Check(!scrollFirst.scrollingAtCommand[3]); // Initial scrolling becomes active after alarm success.
     PlaybackTrace scrollAgain;
     scrollAgain.stillScrolling = true;
     RunPlayback(state, scrollAgain);
-    Check(scrollAgain.count == 2 && scrollAgain.commands[0].kind == MoviePlaybackCommandKind::ScrollText &&
-          scrollAgain.commands[1].value == kPlaybackScrollTicks && scrollAgain.scrollingAtCommand[1]);
+    Check(scrollAgain.count == 2 && scrollAgain.commands[0].kind == MM_PLAYBACK_SCROLL_TEXT &&
+          scrollAgain.commands[1].value == MM_PLAYBACK_SCROLL_TICKS && scrollAgain.scrollingAtCommand[1]);
     PlaybackTrace scrollDone;
     RunPlayback(state, scrollDone);
-    Check(scrollDone.count == 2 && scrollDone.commands[1].kind == MoviePlaybackCommandKind::SetClickPause &&
+    Check(scrollDone.count == 2 && scrollDone.commands[1].kind == MM_PLAYBACK_SET_CLICK_PAUSE &&
           scrollDone.commands[1].flag && state.pausing && !state.scrolling);
 
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlaybackTrace sound;
     sound.pauseOnPresent = witUntilSnd;
     sound.soundPlaying = true;
@@ -4256,121 +4263,121 @@ static void TestMoviePlaybackControl()
     PlaybackTrace soundAgain;
     soundAgain.soundPlaying = true;
     RunPlayback(state, soundAgain);
-    Check(soundAgain.count == 2 && soundAgain.commands[0].kind == MoviePlaybackCommandKind::QuerySound);
+    Check(soundAgain.count == 2 && soundAgain.commands[0].kind == MM_PLAYBACK_QUERY_SOUND);
     PlaybackTrace soundDone;
     RunPlayback(state, soundDone);
-    Check(soundDone.commands[0].kind == MoviePlaybackCommandKind::QuerySound && !state.pausing &&
+    Check(soundDone.commands[0].kind == MM_PLAYBACK_QUERY_SOUND && !state.pausing &&
           state.wait == witNil && state.renderedFrames == 1);
 
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     state.pauseTicks = 42;
     PlaybackTrace timed;
     timed.pauseOnPresent = witForTime;
-    timed.fail = MoviePlaybackCommandKind::SetAlarm;
+    timed.fail = MM_PLAYBACK_SET_ALARM;
     RunPlayback(state, timed);
     Check(timed.count == 4 && timed.commands[3].value == 42 && !timed.commands[3].flag);
     Check(state.pausing && state.wait == witNil && !state.stopRequested && state.renderedFrames == 0);
     PlaybackTrace timedResume;
     RunPlayback(state, timedResume);
-    Check(timedResume.commands[0].kind == MoviePlaybackCommandKind::SetClickPause && !state.pausing &&
+    Check(timedResume.commands[0].kind == MM_PLAYBACK_SET_CLICK_PAUSE && !state.pausing &&
           state.renderedFrames == 1);
 
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlaybackTrace presentationFailure;
-    presentationFailure.fail = MoviePlaybackCommandKind::PresentFrame;
+    presentationFailure.fail = MM_PLAYBACK_PRESENT_FRAME;
     RunPlayback(state, presentationFailure);
-    Check(presentationFailure.count == 2 && presentationFailure.commands[1].kind == MoviePlaybackCommandKind::Stop);
-    state = MoviePlaybackState();
+    Check(presentationFailure.count == 2 && presentationFailure.commands[1].kind == MM_PLAYBACK_STOP);
+    mm_playback_state_init(&state);
     PlaybackTrace frameAlarmFailure;
-    frameAlarmFailure.fail = MoviePlaybackCommandKind::SetAlarm;
+    frameAlarmFailure.fail = MM_PLAYBACK_SET_ALARM;
     RunPlayback(state, frameAlarmFailure);
-    Check(frameAlarmFailure.count == 6 && frameAlarmFailure.commands[5].kind == MoviePlaybackCommandKind::Stop);
-    state = MoviePlaybackState();
+    Check(frameAlarmFailure.count == 6 && frameAlarmFailure.commands[5].kind == MM_PLAYBACK_STOP);
+    mm_playback_state_init(&state);
     state.scrolling = true;
     PlaybackTrace scrollAlarmFailure;
     scrollAlarmFailure.stillScrolling = true;
-    scrollAlarmFailure.fail = MoviePlaybackCommandKind::SetAlarm;
+    scrollAlarmFailure.fail = MM_PLAYBACK_SET_ALARM;
     RunPlayback(state, scrollAlarmFailure);
-    Check(scrollAlarmFailure.count == 3 && scrollAlarmFailure.commands[2].kind == MoviePlaybackCommandKind::Stop &&
+    Check(scrollAlarmFailure.count == 3 && scrollAlarmFailure.commands[2].kind == MM_PLAYBACK_STOP &&
           !state.scrolling);
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlaybackTrace startScrollFailure;
     startScrollFailure.needsScroll = true;
-    startScrollFailure.fail = MoviePlaybackCommandKind::SetAlarm;
+    startScrollFailure.fail = MM_PLAYBACK_SET_ALARM;
     RunPlayback(state, startScrollFailure);
-    Check(startScrollFailure.count == 5 && startScrollFailure.commands[4].kind == MoviePlaybackCommandKind::Stop &&
+    Check(startScrollFailure.count == 5 && startScrollFailure.commands[4].kind == MM_PLAYBACK_STOP &&
           !state.scrolling);
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     state.pausing = true;
     state.wait = witUntilSnd;
     PlaybackTrace soundAlarmFailure;
     soundAlarmFailure.soundPlaying = true;
-    soundAlarmFailure.fail = MoviePlaybackCommandKind::SetAlarm;
+    soundAlarmFailure.fail = MM_PLAYBACK_SET_ALARM;
     RunPlayback(state, soundAlarmFailure);
-    Check(soundAlarmFailure.count == 3 && soundAlarmFailure.commands[2].kind == MoviePlaybackCommandKind::Stop);
+    Check(soundAlarmFailure.count == 3 && soundAlarmFailure.commands[2].kind == MM_PLAYBACK_STOP);
 
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlaybackTrace nextScene;
     nextScene.position.frame = 3;
     RunPlayback(state, nextScene);
-    Check(nextScene.count == 9 && nextScene.commands[6].kind == MoviePlaybackCommandKind::SwitchScene &&
-          nextScene.commands[6].value == 1 && nextScene.commands[7].kind == MoviePlaybackCommandKind::ReplayScene &&
-          nextScene.commands[8].kind == MoviePlaybackCommandKind::RenderWorld && state.transition == transDissolve);
-    MoviePlaybackCommandKind deferredFailures[] = {MoviePlaybackCommandKind::SwitchScene,
-                                                   MoviePlaybackCommandKind::ReplayScene,
-                                                   MoviePlaybackCommandKind::AdvanceFrame};
+    Check(nextScene.count == 9 && nextScene.commands[6].kind == MM_PLAYBACK_SWITCH_SCENE &&
+          nextScene.commands[6].value == 1 && nextScene.commands[7].kind == MM_PLAYBACK_REPLAY_SCENE &&
+          nextScene.commands[8].kind == MM_PLAYBACK_RENDER_WORLD && state.transition == transDissolve);
+    MMPlaybackCommandKind deferredFailures[] = {MM_PLAYBACK_SWITCH_SCENE,
+                                                   MM_PLAYBACK_REPLAY_SCENE,
+                                                   MM_PLAYBACK_ADVANCE_FRAME};
     for (auto failure : deferredFailures)
     {
-        state = MoviePlaybackState();
+        mm_playback_state_init(&state);
         PlaybackTrace failed;
-        failed.position.frame = failure == MoviePlaybackCommandKind::AdvanceFrame ? 1 : 3;
+        failed.position.frame = failure == MM_PLAYBACK_ADVANCE_FRAME ? 1 : 3;
         failed.fail = failure;
         RunPlayback(state, failed);
         Check(state.stopRequested && state.renderedFrames == 0 && failed.commands[failed.count - 1].kind == failure);
         PlaybackTrace stop;
         RunPlayback(state, stop);
-        Check(stop.count == 1 && stop.commands[0].kind == MoviePlaybackCommandKind::Stop);
+        Check(stop.count == 1 && stop.commands[0].kind == MM_PLAYBACK_STOP);
     }
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlaybackTrace lastScene;
     lastScene.position.scene = 1;
     lastScene.position.frame = 3;
     RunPlayback(state, lastScene);
     Check(lastScene.count == 6 && state.stopRequested && state.renderedFrames == 0);
 
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     state.fadeOriginalVolume = 120;
     PlaybackTrace fading;
     RunPlayback(state, fading);
-    Check(fading.count == 3 && fading.commands[0].kind == MoviePlaybackCommandKind::ReadVolume &&
-          fading.commands[1].kind == MoviePlaybackCommandKind::SetVolume && fading.commands[1].value == 90 &&
-          fading.commands[2].value == kPlaybackFadeTicks);
+    Check(fading.count == 3 && fading.commands[0].kind == MM_PLAYBACK_READ_VOLUME &&
+          fading.commands[1].kind == MM_PLAYBACK_SET_VOLUME && fading.commands[1].value == 90 &&
+          fading.commands[2].value == MM_PLAYBACK_FADE_TICKS);
     PlaybackTrace fadeDone;
     fadeDone.volume = 5;
     RunPlayback(state, fadeDone);
     Check(fadeDone.count == 3 && fadeDone.commands[1].value == 0 && fadeDone.stopAtCommand[1] &&
-          fadeDone.commands[2].kind == MoviePlaybackCommandKind::Stop);
-    state = MoviePlaybackState();
+          fadeDone.commands[2].kind == MM_PLAYBACK_STOP);
+    mm_playback_state_init(&state);
     state.fadeOriginalVolume = 120;
     PlaybackTrace fadeAlarmFailure;
-    fadeAlarmFailure.fail = MoviePlaybackCommandKind::SetAlarm;
+    fadeAlarmFailure.fail = MM_PLAYBACK_SET_ALARM;
     RunPlayback(state, fadeAlarmFailure);
-    Check(fadeAlarmFailure.count == 4 && fadeAlarmFailure.commands[3].kind == MoviePlaybackCommandKind::Stop);
+    Check(fadeAlarmFailure.count == 4 && fadeAlarmFailure.commands[3].kind == MM_PLAYBACK_STOP);
 
     // Suppressing device fades must retain the fade's stop timing even though
     // each host read continues to report the unchanged output volume.
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     state.fadeOriginalVolume = 120;
     state.suppressAudioFades = true;
-    for (LegacyLong tick = 0; tick < kPlaybackFadeSeconds * 4; ++tick)
+    for (LegacyLong tick = 0; tick < MM_PLAYBACK_FADE_SECONDS * 4; ++tick)
     {
         PlaybackTrace heldVolume;
         heldVolume.volume = 120;
         RunPlayback(state, heldVolume);
-        Check(heldVolume.count == 2 && heldVolume.commands[0].kind == MoviePlaybackCommandKind::ReadVolume);
-        Check(heldVolume.commands[1].kind == (tick == kPlaybackFadeSeconds * 4 - 1
-                                                  ? MoviePlaybackCommandKind::Stop
-                                                  : MoviePlaybackCommandKind::SetAlarm));
+        Check(heldVolume.count == 2 && heldVolume.commands[0].kind == MM_PLAYBACK_READ_VOLUME);
+        Check(heldVolume.commands[1].kind == (tick == MM_PLAYBACK_FADE_SECONDS * 4 - 1
+                                                  ? MM_PLAYBACK_STOP
+                                                  : MM_PLAYBACK_SET_ALARM));
         Check(state.fadeVolume == 120 - (tick + 1) * 10 && !state.fadeChangedVolume);
     }
     Check(state.stopRequested);
@@ -4378,11 +4385,11 @@ static void TestMoviePlaybackControl()
 
 struct PlayTrace
 {
-    MoviePlayCommand commands[32];
+    MMPlayCommand commands[32];
     bool soundAtCommand[32] = {};
     bool stopAtCommand[32] = {};
     LegacyLong count = 0;
-    MoviePlayCommandKind fail = MoviePlayCommandKind::Finished;
+    MMPlayCommandKind fail = MM_PLAY_FINISHED;
     bool scene = true;
     bool atEnd = false;
     bool opening = false;
@@ -4392,38 +4399,41 @@ struct PlayTrace
     LegacyLong stopped = 0;
 };
 
-static void RunPlay(MoviePlaybackState &state, PlayTrace &trace)
+static void RunPlay(MMPlaybackState &state, PlayTrace &trace)
 {
-    MoviePlayEvaluator evaluator(state);
+    MMPlayEvaluator evaluator;
+    mm_play_init(&evaluator, &state);
     for (;;)
     {
-        MoviePlayCommand command = evaluator.Next();
-        if (command.kind == MoviePlayCommandKind::Finished)
+        MMPlayCommand command;
+        Check(mm_play_next(&evaluator, &command));
+        if (command.kind == MM_PLAY_FINISHED)
             return;
         Check(trace.count < 32);
         trace.soundAtCommand[trace.count] = state.soundsEnabled;
         trace.stopAtCommand[trace.count] = state.stopRequested;
         trace.commands[trace.count++] = command;
-        MoviePlaybackReply reply;
+        MMPlaybackReply reply;
+        mm_playback_reply_init(&reply);
         reply.success = command.kind != trace.fail;
         switch (command.kind)
         {
-        case MoviePlayCommandKind::CheckScene:
+        case MM_PLAY_CHECK_SCENE:
             reply.value = trace.scene;
             break;
-        case MoviePlayCommandKind::QueryEnd:
+        case MM_PLAY_QUERY_END:
             reply.value = trace.atEnd;
             break;
-        case MoviePlayCommandKind::QueryOpening:
+        case MM_PLAY_QUERY_OPENING:
             reply.value = trace.opening;
             break;
-        case MoviePlayCommandKind::ReadTime:
+        case MM_PLAY_READ_TIME:
             reply.timestamp = 1234;
             break;
-        case MoviePlayCommandKind::StartClock:
+        case MM_PLAY_START_CLOCK:
             state.playing = true; // Native adapter publishes playing before its initial alarm.
             break;
-        case MoviePlayCommandKind::StartupFailed:
+        case MM_PLAY_STARTUP_FAILED:
             ++trace.stopped;
             if (command.flag)
                 state.stopRequested = true;
@@ -4432,19 +4442,19 @@ static void RunPlay(MoviePlaybackState &state, PlayTrace &trace)
             ++trace.played;
             state.soundsEnabled = state.oldSoundsEnabled;
             break;
-        case MoviePlayCommandKind::RenderStop:
+        case MM_PLAY_RENDER_STOP:
             // Model the host's state changes; this is not a window-cleanup test.
             state.playing = state.pausing = state.stopRequested = false;
             state.soundsEnabled = state.oldSoundsEnabled;
             break;
-        case MoviePlayCommandKind::NotifyStopped:
+        case MM_PLAY_NOTIFY_STOPPED:
             ++trace.stopped;
             break;
-        case MoviePlayCommandKind::BackgroundSound:
+        case MM_PLAY_BACKGROUND_SOUND:
             if (trace.muteBackground)
                 state.soundsEnabled = false;
             break;
-        case MoviePlayCommandKind::DispatchSounds:
+        case MM_PLAY_DISPATCH_SOUNDS:
             if (command.flag)
                 ++trace.played;
             else
@@ -4453,90 +4463,91 @@ static void RunPlay(MoviePlaybackState &state, PlayTrace &trace)
         default:
             break;
         }
-        evaluator.Complete(reply);
+        Check(mm_play_complete(&evaluator, &reply));
     }
 }
 
 static void TestMoviePlayStartup()
 {
-    MoviePlaybackState state;
+    MMPlaybackState state;
+    mm_playback_state_init(&state);
     state.renderedFrames = 9;
     state.stopRequested = true;
     PlayTrace normal;
     RunPlay(state, normal);
-    MoviePlayCommandKind expected[] = {MoviePlayCommandKind::CheckScene,
-                                       MoviePlayCommandKind::ResetSounds,
-                                       MoviePlayCommandKind::QueryEnd,
-                                       MoviePlayCommandKind::ReadTime,
-                                       MoviePlayCommandKind::StartClock,
-                                       MoviePlayCommandKind::PrepareScene,
-                                       MoviePlayCommandKind::DisableAccelerators,
-                                       MoviePlayCommandKind::QueryOpening,
-                                       MoviePlayCommandKind::BackgroundSound,
-                                       MoviePlayCommandKind::DispatchSounds};
+    MMPlayCommandKind expected[] = {MM_PLAY_CHECK_SCENE,
+                                       MM_PLAY_RESET_SOUNDS,
+                                       MM_PLAY_QUERY_END,
+                                       MM_PLAY_READ_TIME,
+                                       MM_PLAY_START_CLOCK,
+                                       MM_PLAY_PREPARE_SCENE,
+                                       MM_PLAY_DISABLE_ACCELERATORS,
+                                       MM_PLAY_QUERY_OPENING,
+                                       MM_PLAY_BACKGROUND_SOUND,
+                                       MM_PLAY_DISPATCH_SOUNDS};
     Check(normal.count == 10);
     for (LegacyLong index = 0; index < 10; ++index)
         Check(normal.commands[index].kind == expected[index]);
     Check(normal.soundAtCommand[3] && normal.stopAtCommand[3] && !normal.stopAtCommand[4]);
     Check(state.playing && !state.stopRequested && state.soundsEnabled && !state.oldSoundsEnabled &&
           state.renderedFrames == 0 && state.startTimestamp == 1234 && normal.played == 1);
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlayTrace rewind;
     rewind.atEnd = rewind.opening = true;
     RunPlay(state, rewind);
-    Check(rewind.count == 12 && rewind.commands[3].kind == MoviePlayCommandKind::Rewind &&
-          rewind.commands[9].kind == MoviePlayCommandKind::RefreshOpening &&
-          rewind.commands[10].kind == MoviePlayCommandKind::BackgroundSound && rewind.commands[11].flag);
-    state = MoviePlaybackState();
+    Check(rewind.count == 12 && rewind.commands[3].kind == MM_PLAY_REWIND &&
+          rewind.commands[9].kind == MM_PLAY_REFRESH_OPENING &&
+          rewind.commands[10].kind == MM_PLAY_BACKGROUND_SOUND && rewind.commands[11].flag);
+    mm_playback_state_init(&state);
     state.renderedFrames = 9;
     PlayTrace absent;
     absent.scene = false;
     RunPlay(state, absent);
-    Check(absent.count == 2 && absent.commands[1].kind == MoviePlayCommandKind::NotifyStopped && absent.stopped == 1);
+    Check(absent.count == 2 && absent.commands[1].kind == MM_PLAY_NOTIFY_STOPPED && absent.stopped == 1);
     Check(!state.playing && !state.soundsEnabled && state.renderedFrames == 9 && absent.played == 0);
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlayTrace rewindFailure;
     rewindFailure.atEnd = true;
-    rewindFailure.fail = MoviePlayCommandKind::Rewind;
+    rewindFailure.fail = MM_PLAY_REWIND;
     RunPlay(state, rewindFailure);
-    Check(rewindFailure.count == 5 && rewindFailure.commands[4].kind == MoviePlayCommandKind::NotifyStopped &&
+    Check(rewindFailure.count == 5 && rewindFailure.commands[4].kind == MM_PLAY_NOTIFY_STOPPED &&
           !state.playing);
 
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlayTrace clockFailure;
-    clockFailure.fail = MoviePlayCommandKind::StartClock;
+    clockFailure.fail = MM_PLAY_START_CLOCK;
     RunPlay(state, clockFailure);
-    Check(clockFailure.count == 6 && clockFailure.commands[5].kind == MoviePlayCommandKind::StartupFailed &&
+    Check(clockFailure.count == 6 && clockFailure.commands[5].kind == MM_PLAY_STARTUP_FAILED &&
           !clockFailure.commands[5].flag && clockFailure.stopped == 1 && clockFailure.played == 1);
     Check(!state.playing && !state.stopRequested && !state.soundsEnabled);
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     PlayTrace prepareFailure;
-    prepareFailure.fail = MoviePlayCommandKind::PrepareScene;
+    prepareFailure.fail = MM_PLAY_PREPARE_SCENE;
     RunPlay(state, prepareFailure);
-    Check(prepareFailure.count == 7 && prepareFailure.commands[6].kind == MoviePlayCommandKind::StartupFailed &&
+    Check(prepareFailure.count == 7 && prepareFailure.commands[6].kind == MM_PLAY_STARTUP_FAILED &&
           prepareFailure.commands[6].flag && prepareFailure.stopped == 1 && prepareFailure.played == 1);
     Check(state.playing && state.stopRequested && !state.soundsEnabled);
     PlayTrace alreadyStopping;
     RunPlay(state, alreadyStopping);
     Check(alreadyStopping.count == 0);
 
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     state.playing = true;
     state.pausing = true;
     state.soundsEnabled = true;
     state.oldSoundsEnabled = false;
     PlayTrace pausedToggle;
     RunPlay(state, pausedToggle);
-    Check(pausedToggle.count == 2 && pausedToggle.commands[0].kind == MoviePlayCommandKind::RenderStop &&
-          pausedToggle.commands[1].kind == MoviePlayCommandKind::DispatchSounds && !pausedToggle.commands[1].flag);
+    Check(pausedToggle.count == 2 && pausedToggle.commands[0].kind == MM_PLAY_RENDER_STOP &&
+          pausedToggle.commands[1].kind == MM_PLAY_DISPATCH_SOUNDS && !pausedToggle.commands[1].flag);
     Check(pausedToggle.flushed == 1 && !state.playing && !state.soundsEnabled);
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     state.playing = true;
     PlayTrace toggle;
     RunPlay(state, toggle);
-    Check(toggle.count == 1 && toggle.commands[0].kind == MoviePlayCommandKind::DispatchSounds && toggle.flushed == 1);
+    Check(toggle.count == 1 && toggle.commands[0].kind == MM_PLAY_DISPATCH_SOUNDS && toggle.flushed == 1);
     Check(state.playing && state.stopRequested);
-    state = MoviePlaybackState();
+    mm_playback_state_init(&state);
     state.soundsEnabled = true;
     PlayTrace changedByHost;
     changedByHost.muteBackground = true;

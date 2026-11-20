@@ -23,7 +23,7 @@
 
 #ifndef MOVIE_H
 #define MOVIE_H
-#include "movie_playback.h"
+#include <cstdint>
 #include "movie_container.h"
 #include "mm/movie_sound.h"
 #include "mm/movie_scene.h"
@@ -549,6 +549,18 @@ const long kccamMax = 9;
 
 typedef class Movie *PMovie;
 
+#if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
+struct MoviePlaybackTestProgress
+{
+    bool active = false, complete = false, failed = false;
+    const char *error = "";
+    std::uint64_t frames = 0, expectedFrames = 0, framesInScene = 0, steps = 0, scrollSteps = 0;
+    LegacyLong scenes = 0, scene = -1, frame = 0, first = 0, last = 0;
+    LegacyLong failureCommand = -1, originalVolume = 0;
+    LegacyUlong started = 0, elapsed = 0;
+};
+#endif
+
 #define Movie_PAR DocumentBase
 #define kclsMovie 'MVIE'
 class Movie : public Movie_PAR
@@ -563,9 +575,7 @@ class Movie : public Movie_PAR
     CMD_MAP_DEC(Movie)
 
   protected:
-    MoviePlaybackState _playback; // Playback values, independent of views and clocks.
-    bool _fUserResumeRender = false;
-    LegacyUlong _timUserPause = 0;
+    MMPlaybackState _playback; // Playback values, independent of views and clocks.
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     MoviePlaybackTestProgress _playbackTest;
     void (*_playbackFrameObserver)(Movie *) = nullptr;
@@ -592,7 +602,8 @@ class Movie : public Movie_PAR
 
   private:
     Movie(void);
-    void _StopRenderPlayback(PMovieView view);
+    struct AlarmHost;
+    static MMAlarmPlaybackServices _AlarmServices(AlarmHost *);
     bool _FCloseCurrentScene(void);               // Closes and releases current scene, if any
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
     bool _FUseTempFile(void);                     // Switches to using a temp file.
@@ -713,7 +724,7 @@ class Movie : public Movie_PAR
     void SetUserPaused(bool paused);  // Freeze the live clock/audio without restarting the scene.
     bool FUserPaused() const
     {
-        return _runtime.user_paused != 0;
+        return _runtime.transport.paused != 0;
     }
     bool FPause(WaitReason wit, long dts);   // Insert a pause here.
 

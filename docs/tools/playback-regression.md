@@ -16822,3 +16822,38 @@ matched all 60 archived retail frame identities in seek and continuous
 playback, and all retail seek camera indices. Both reproduced their 60
 previous seek canvas hashes. SDL matched all 12 archived retail sound
 requests. Evidence is in `tmp/c89-movie-runtime-owner`.
+
+## C89 playback alarm, user pause, and stop (20 November 2026)
+
+Studio now calls the C89 render and startup evaluators directly. C89 owns
+the movie-clock pause point, deferred render, frame pacer, alarm retry, and
+stop sequence. The standalone playback fixture checks clock and audio
+effect order, pacer deadlines over a pause, a failed resume alarm, and
+the cleanup after normal stop and alarm retry failure. Normal stop and
+movie destruction share the fade-volume restoration code.
+
+All 192 standalone checks passed after rebuilding their executables.
+Focused engine and core-link checks passed on SDL and native x64 and x86.
+Three focused AddressSanitizer checks and nine selected native x64 checks
+passed, including Marcus playback, player, and sound editing. All 54
+traces, three saved movie fixtures, ten Preview fingerprints, and six
+Preview movies matched the previous build.
+
+Studio's movie-only workflow passed Space pause and resume, frozen
+scrolling captions, natural completion, and Escape while paused. Its
+options workflow passed the 6, 12, and 24 fps presets, both timing
+modifiers, and uncapped playback. The 6 fps case checked that the frame
+stayed frozen while paused and advanced on resume. Studio's authoring
+workflow saved the same movie byte for byte and exercised click, timed,
+and sound pauses in batch playback.
+
+Retail, SDL, and Marcus matched all three retained-background frame
+identities, camera indices, and canvas hashes in `20261120T211730Z-c10f8715`.
+Both ports matched all three frames of the Studio-saved VMM against
+original v3dmm 0.14 in `20261120T211801Z-b3655492`.
+
+In `actor-event-edit` suite `20261120T211533Z-361b277d`, SDL and Marcus
+matched all 60 archived retail frame identities in seek and continuous
+playback and all retail seek camera indices. Both reproduced their 60
+previous seek canvas hashes. SDL matched all 12 archived retail sound
+requests. Evidence is in `tmp/c89-alarm-playback`.

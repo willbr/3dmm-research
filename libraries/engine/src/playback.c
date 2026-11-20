@@ -551,6 +551,161 @@ void mm_frame_pacer_resume(MMFramePacer *pacer, MMPlaybackU32 now)
         pacer->due += now - pacer->pausedAt;
 }
 
+void mm_alarm_playback_init(MMAlarmPlayback *clock)
+{
+    memset(clock, 0, sizeof(*clock));
+    mm_frame_pacer_init(&clock->pacer);
+}
+
+int mm_alarm_playback_start(MMAlarmPlayback *clock, MMPlaybackState *state, double fps,
+                             const MMAlarmPlaybackServices *s)
+{
+    mm_frame_pacer_reset(&clock->pacer, fps);
+    if (!state->unpaced)
+        s->start_clock(s->context, 0);
+    state->playing = 1;
+    s->effect(s->context, MM_ALARM_PLAYING_NOTICE, 1);
+    return state->unpaced || s->set_alarm(s->context, 0, 0);
+}
+
+int mm_alarm_playback_schedule(MMAlarmPlayback *clock, const MMPlaybackState *state, MMPlaybackU32 frame_start,
+                                MMPlaybackI32 delay, int adjust, const MMAlarmPlaybackServices *s)
+{
+    if (state->unpaced)
+        return 1;
+    if (adjust && clock->pacer.fps >= 0)
+    {
+        mm_frame_pacer_schedule(&clock->pacer, frame_start);
+        return 1;
+    }
+    return s->set_alarm(s->context, delay, adjust);
+}
+
+void mm_alarm_playback_set_paused(MMAlarmPlayback *clock, MMPlaybackState *state, int paused,
+                                  const MMAlarmPlaybackServices *s)
+{
+    if (clock->paused == paused || (paused && !state->playing))
+        return;
+    clock->paused = paused;
+    if (paused)
+    {
+        mm_frame_pacer_pause(&clock->pacer, s->wall_time(s->context));
+        clock->paused_clock = s->clock_time(s->context);
+        s->stop_clock(s->context);
+        s->pause_audio(s->context, 1);
+    }
+    else
+    {
+        mm_frame_pacer_resume(&clock->pacer, s->wall_time(s->context));
+        s->pause_audio(s->context, 0);
+        if (state->playing)
+        {
+            s->start_clock(s->context, clock->paused_clock);
+            /* A callback queued before pausing may have consumed its alarm. */
+            if (clock->resume_render && !s->set_alarm(s->context, 0, 0))
+                state->stopRequested = 1;
+        }
+        clock->resume_render = 0;
+    }
+    s->effect(s->context, MM_ALARM_INVALIDATE_VIEWS, 0);
+}
+
+int mm_alarm_playback_defer_render(MMAlarmPlayback *clock, const MMPlaybackState *state)
+{
+    if (!clock->paused || state->stopRequested)
+        return 0;
+    clock->resume_render = 1;
+    return 1;
+}
+
+int mm_alarm_playback_stop_frozen(const MMAlarmPlayback *clock, MMPlaybackState *state)
+{
+    if (!clock->paused || !state->playing)
+        return 0;
+    state->stopRequested = 1;
+    return 1;
+}
+
+void mm_playback_restore_volume(MMPlaybackState *state, void *p, int (*fades_disabled)(void *),
+                                 void (*set_volume)(void *, MMPlaybackI32))
+{
+    if (state->fadeOriginalVolume)
+    {
+        if (state->fadeChangedVolume || !fades_disabled(p))
+            set_volume(p, state->fadeOriginalVolume);
+        state->fadeOriginalVolume = 0;
+    }
+}
+
+static void clear_wait(MMPlaybackState *state)
+{
+    state->pausing = 0;
+    state->scrolling = 0;
+    state->wait = MM_PLAYBACK_WAIT_NONE;
+}
+
+static void stop_playback(MMAlarmPlayback *clock, MMPlaybackState *state, int alarm_failed,
+                          const MMAlarmPlaybackServices *s)
+{
+    void *p = s->context;
+    s->effect(p, MM_ALARM_ENABLE_ACCELERATORS, 0);
+    if (!alarm_failed)
+    {
+        s->stop_clock(p);
+        s->effect(p, MM_ALARM_REMOVE, 0);
+        clock->pacer.pending = 0;
+        clear_wait(state);
+        state->stopRequested = 0;
+    }
+    state->playing = 0;
+    s->effect(p, MM_ALARM_CLEAR_PLAYING, 0);
+    mm_alarm_playback_set_paused(clock, state, 0, s);
+    if (alarm_failed)
+        state->stopRequested = 0;
+    state->soundsEnabled = state->oldSoundsEnabled;
+    if (alarm_failed)
+    {
+        s->effect(p, MM_ALARM_REMOVE, 0);
+        clear_wait(state);
+    }
+    s->effect(p, MM_ALARM_CLEAR_CLICK_PAUSE, 0);
+    s->effect(p, MM_ALARM_RESET_SCENE, alarm_failed);
+    s->effect(p, MM_ALARM_REFRESH_VIEWS, 0);
+    s->effect(p, MM_ALARM_STOP_SCENE, alarm_failed);
+    s->effect(p, MM_ALARM_PLAYING_NOTICE, 0);
+    s->effect(p, MM_ALARM_SHORT_SOUNDS, 0);
+    s->effect(p, MM_ALARM_NOTIFY_STOPPED, 0);
+    s->effect(p, MM_ALARM_STOP_AUDIO, 0);
+    if (!alarm_failed)
+    {
+        mm_playback_restore_volume(state, p, s->audio_fades_disabled, s->set_volume);
+        state->fadeVolume = -1;
+        state->fadeChangedVolume = 0;
+    }
+}
+
+void mm_alarm_playback_stop(MMAlarmPlayback *clock, MMPlaybackState *state, const MMAlarmPlaybackServices *s)
+{
+    stop_playback(clock, state, 0, s);
+}
+
+void mm_alarm_playback_alarm(MMAlarmPlayback *clock, MMPlaybackState *state, const MMAlarmPlaybackServices *s)
+{
+    if (mm_alarm_playback_defer_render(clock, state))
+        return;
+    if (mm_playback_should_render(state, !state->idleSeen && s->tracking(s->context)))
+        s->effect(s->context, MM_ALARM_QUEUE_RENDER, 0);
+    else if (!s->set_alarm(s->context, 0, 0))
+        stop_playback(clock, state, 1, s);
+}
+
+void mm_alarm_playback_idle(MMAlarmPlayback *clock, MMPlaybackState *state, int idle, const MMAlarmPlaybackServices *s)
+{
+    state->idleSeen = idle;
+    if (idle && state->playing && !clock->paused && mm_frame_pacer_take_due(&clock->pacer, s->wall_time(s->context)))
+        mm_alarm_playback_alarm(clock, state, s);
+}
+
 void mm_polled_playback_set_rate(MMPolledPlayback *state, double fps)
 {
     state->frame_ms = state->pacing_ms = state->carry_ms = 0;

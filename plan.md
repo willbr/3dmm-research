@@ -66,9 +66,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   storyboard and transform controllers use C89. The
   [Marcus UI milestone](#marcus-ui-convert-the-entire-gui-to-imgui-through-cimgui)
   records the application boundary.
-- `engine-core` already groups stored data, actor evaluation and playback
-  policy. Its playback/startup command evaluators, frame pacer and scrolling
-  policy now delegate to `mm-engine-c89` in `libraries/engine/`.
+- `engine-core` already groups stored data and actor evaluation. Studio and
+  Marcus use the playback command, frame pacing and scrolling policies in
+  `mm-engine-c89` in `libraries/engine/`.
   The remaining core is C++ and links `kauai-core` and `brender-core`.
   The `engine` target still owns further editing and playback functionality.
 - `MM::Archive` and `MM::Preview` provide useful separation, but their
@@ -510,9 +510,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
    target, public C header and strict checks, with ownership and error contracts
    sufficient for the first migrated operation. Record remaining C++ backend
    dependencies explicitly; a bridge does not mark them converted.
-2. **Convert the first shared behavior slice.** Start with playback policy in
-   `src/engine/movie_playback.cpp` and `retail_scroll.cpp`, after checking their
-   dependencies and current callers. Move state and decisions into C89 and
+2. **Convert the first shared behavior slice.** Move startup, render, clock,
+   and caption scrolling state and decisions into C89 and
    route both Studio and Marcus through it. Keep presentation and device
    output in hosts. Retire the replaced C++ logic after regression validation.
 3. **Convert engine foundations and data access.** Move required memory,
@@ -1437,6 +1436,10 @@ saved file, and orders source merge, dependency caching, and title
 publication. An unsuccessful open destroys the partial document before
 ending the wait cursor. The native host supplies container paths, typed
 files and objects, and display and audio effects.
+Studio dispatches the C89 startup and render commands directly. C89 also
+owns its alarm scheduling, deferred render after a user pause, and stop
+cleanup, including the distinct behavior after an alarm retry fails. The
+frame pacer and scene advance policy are shared with Marcus's polling host.
 Portable source tables and background event groups publish a replacement
 before releasing the old link. Native source registration retains its
 existing unlink-before-adopt order.

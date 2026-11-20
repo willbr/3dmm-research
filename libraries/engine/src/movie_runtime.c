@@ -75,21 +75,16 @@ done:
 
 void mm_movie_runtime_dispose(MMMovieRuntime *runtime, MMPlaybackState *playback, const MMMovieRuntimeServices *s)
 {
-    if (runtime->user_paused)
+    if (runtime->transport.paused)
         s->resume_audio(s->context);
-    runtime->user_paused = 0;
+    runtime->transport.paused = 0;
 
     mm_movie_release_resources(s->save->data, s->owner);
     mm_movie_save_release(0, s->save);
     if (playback->playing)
     {
         s->stop_playback(runtime->client);
-        if (playback->fadeOriginalVolume)
-        {
-            if (playback->fadeChangedVolume || !s->audio_fades_disabled(s->context))
-                s->set_volume(s->context, playback->fadeOriginalVolume);
-            playback->fadeOriginalVolume = 0;
-        }
+        mm_playback_restore_volume(playback, s->context, s->audio_fades_disabled, s->set_volume);
     }
     if (runtime->client)
         s->update_roll_call(runtime->client);

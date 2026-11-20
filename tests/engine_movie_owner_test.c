@@ -673,13 +673,13 @@ static int cache_tags(void *context, MMTagList *tags)
 static void audio_resume(void *p)
 {
     RuntimeCase *t = p;
-    CHECK(t->runtime.user_paused && t->movie.resources && t->saved.file);
+    CHECK(t->runtime.transport.paused && t->movie.resources && t->saved.file);
     event(&t->archive, 'a');
 }
 static void playback_stopped(void *p)
 {
     RuntimeCase *t = ((RuntimeRef *)p)->test;
-    CHECK(!t->runtime.user_paused && !t->movie.resources && !t->movie.session && !t->saved.file);
+    CHECK(!t->runtime.transport.paused && !t->movie.resources && !t->movie.session && !t->saved.file);
     event(&t->archive, 'p');
 }
 static int fades_disabled(void *p) { return ((RuntimeCase *)p)->disable_fades; }
@@ -811,7 +811,7 @@ static void runtime_lifecycle(void)
         mm_movie_runtime_set_ref(&t.runtime.thumbnail_palette, &t.palette, retain_runtime, release_runtime);
         t.scenes.open = &t;
         t.scenes.index = 0;
-        t.runtime.user_paused = t.playback.playing = 1;
+        t.runtime.transport.paused = t.playback.playing = 1;
         t.playback.fadeOriginalVolume = 1000;
         t.disable_fades = i != 0;
         t.playback.fadeChangedVolume = i == 2;

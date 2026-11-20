@@ -15,7 +15,7 @@ document/view code live in `engine`. Core consumers include
 
 | File          | Header              | Purpose                                                        |
 |---------------|---------------------|----------------------------------------------------------------|
-| `movie_playback.cpp` | `inc/movie_playback.h` | Core playback state, startup/toggle and render/pause/clock decisions with ordered host commands. |
+| `libraries/engine/src/playback.c` | `libraries/engine/include/mm/playback.h` | Shared startup, pause, pacing, render and clock policy. Studio supplies alarm effects and Marcus polls its clock. |
 | `movie.cpp`   | `inc/movie.h`       | `Movie` — top-level movie document. Owns scenes, roll call, sounds. Entry points: `FLoadAutoSave`, `FAutoSave` (`movie.cpp:2480`). |
 | `scene.cpp`   | `inc/scene.h`       | `Scene` — single scene playback. Owns actors, sound events, background. `SceneSoundEvent` + `TagChildPair` for sound triggers. |
 | `tbox.cpp`    | `inc/tbox.h`        | `TextBox` — 3D text-box scene object. Embeds rich text + 3D rendering. |

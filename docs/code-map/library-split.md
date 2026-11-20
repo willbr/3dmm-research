@@ -288,15 +288,20 @@ owned by `MMWorldBuffers`.
 The scaled export path uses the frame's world and camera with separate
 export pixels.
 
-| Caller / dependency | Boundary after the first slice |
+| Caller / dependency | Playback boundary |
 | --- | --- |
-| Studio `Movie::Play`, `Movie::FCmdRender` | Apply commands through the `MoviePlayEvaluator` / `MoviePlaybackEvaluator` C++ facades; policy state is the shared C record. |
+| Studio `Movie::Play`, `Movie::FCmdRender` | Apply the C89 startup and render commands directly. C89 orders clock start, user pause and resume, alarm dispatch, and stop cleanup. |
 | Marcus `playback.cpp` and `player.cpp` | Poll the C89 controller for frame pacing, transitions, waits and scroll steps. Use the same frame and scene advance decision as Studio, with optional scene looping. |
-| `movie_playback.cpp`, `retail_scroll.cpp` | Translate calls/replies only; the replaced policy implementation lives in C. |
+| `retail_scroll.cpp` | Supplies the native scrolling binding. |
 | Host clocks, views, audio and scene effects | Execute commands and supply facts at the existing query points; retain device and resource ownership. |
 | `engine-core`, `engine`, Archive/Preview, Kauai/BRender wrappers | Still require C++ outside the converted slice; these remain migration work. |
 
 The C interface has caller-owned stack records and explicit initialization.
+Studio stores deferred rendering and the paused movie-clock time with the
+C89 pacer. A deferred alarm resumes with the saved clock time. A failed
+alarm retry preserves its pending pacer deadline, fade state, and cleanup
+order. Normal stop and document destruction share fade
+volume restoration.
 The Marcus polling controller advances at most one authored frame per poll.
 It excludes paused time and time spent in a transition, caption scroll or
 authored wait from ordinary frame pacing. Explicit rate settings use the shared

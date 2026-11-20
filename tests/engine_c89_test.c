@@ -670,6 +670,155 @@ static void check_sound_sheet_order(void)
     mm_movie_sound_schedule_destroy(schedule);
 }
 
+enum { ALARM_WALL = 64, ALARM_CLOCK, ALARM_START, ALARM_HALT, ALARM_SET,
+       ALARM_TRACKING, ALARM_PAUSE_AUDIO, ALARM_RESUME_AUDIO, ALARM_FADES, ALARM_VOLUME };
+typedef struct AlarmFixture
+{
+    MMPlaybackState state;
+    MMAlarmPlayback clock;
+    MMPlaybackU32 now, clock_start;
+    MMPlaybackI32 delay, volume;
+    int adjust, alarm_ok, tracking, fades_disabled, rearm_failed;
+    int effects[32];
+    size_t count;
+} AlarmFixture;
+static void alarm_record(AlarmFixture *f, int event)
+{
+    CHECK(f->count < sizeof(f->effects) / sizeof(f->effects[0]));
+    f->effects[f->count++] = event;
+}
+static MMPlaybackU32 alarm_wall(void *p)
+{
+    AlarmFixture *f = p;
+    alarm_record(f, ALARM_WALL);
+    return f->now;
+}
+static MMPlaybackU32 alarm_clock(void *p) { alarm_record(p, ALARM_CLOCK); return 17; }
+static void alarm_start(void *p, MMPlaybackU32 time)
+{
+    AlarmFixture *f = p;
+    alarm_record(f, ALARM_START);
+    f->clock_start = time;
+}
+static void alarm_halt(void *p) { alarm_record(p, ALARM_HALT); }
+static int alarm_set(void *p, MMPlaybackI32 delay, int adjust)
+{
+    AlarmFixture *f = p;
+    alarm_record(f, ALARM_SET);
+    f->delay = delay;
+    f->adjust = adjust;
+    return f->alarm_ok;
+}
+static int alarm_tracking(void *p)
+{
+    AlarmFixture *f = p;
+    alarm_record(f, ALARM_TRACKING);
+    return f->tracking;
+}
+static void alarm_pause_audio(void *p, int paused)
+{
+    AlarmFixture *f = p;
+    CHECK(f->clock.paused == paused);
+    alarm_record(f, paused ? ALARM_PAUSE_AUDIO : ALARM_RESUME_AUDIO);
+}
+static int alarm_fades(void *p)
+{
+    AlarmFixture *f = p;
+    alarm_record(f, ALARM_FADES);
+    return f->fades_disabled;
+}
+static void alarm_volume(void *p, MMPlaybackI32 volume)
+{
+    AlarmFixture *f = p;
+    alarm_record(f, ALARM_VOLUME);
+    f->volume = volume;
+}
+static void alarm_effect(void *p, MMAlarmPlaybackEffect effect, int value)
+{
+    AlarmFixture *f = p;
+    alarm_record(f, effect);
+    if (effect == MM_ALARM_PLAYING_NOTICE)
+        CHECK(f->state.playing == value);
+    if (effect == MM_ALARM_RESET_SCENE || effect == MM_ALARM_STOP_SCENE)
+        CHECK(value == f->rearm_failed && !f->state.playing && !f->state.stopRequested &&
+              !f->state.wait && !f->state.scrolling);
+}
+static void alarm_expect(AlarmFixture *f, const int *effects, size_t count)
+{
+    CHECK(f->count == count && !memcmp(f->effects, effects, count * sizeof(*effects)));
+    f->count = 0;
+}
+#define ALARM_EXPECT(f, sequence) alarm_expect((f), (sequence), sizeof(sequence) / sizeof((sequence)[0]))
+static void check_alarm_playback(void)
+{
+    const int start[] = {ALARM_START, MM_ALARM_PLAYING_NOTICE, ALARM_SET};
+    const int set[] = {ALARM_SET};
+    const int pause[] = {ALARM_WALL, ALARM_CLOCK, ALARM_HALT, ALARM_PAUSE_AUDIO, MM_ALARM_INVALIDATE_VIEWS};
+    const int resume[] = {ALARM_WALL, ALARM_RESUME_AUDIO, ALARM_START, ALARM_SET, MM_ALARM_INVALIDATE_VIEWS};
+    const int due[] = {ALARM_WALL, MM_ALARM_QUEUE_RENDER};
+    const int stop[] = {MM_ALARM_ENABLE_ACCELERATORS, ALARM_HALT, MM_ALARM_REMOVE, MM_ALARM_CLEAR_PLAYING,
+        ALARM_WALL, ALARM_RESUME_AUDIO, MM_ALARM_INVALIDATE_VIEWS, MM_ALARM_CLEAR_CLICK_PAUSE,
+        MM_ALARM_RESET_SCENE, MM_ALARM_REFRESH_VIEWS, MM_ALARM_STOP_SCENE, MM_ALARM_PLAYING_NOTICE,
+        MM_ALARM_SHORT_SOUNDS, MM_ALARM_NOTIFY_STOPPED, MM_ALARM_STOP_AUDIO, ALARM_VOLUME};
+    const int retry_failed[] = {ALARM_TRACKING, ALARM_SET, MM_ALARM_ENABLE_ACCELERATORS, MM_ALARM_CLEAR_PLAYING,
+        MM_ALARM_REMOVE, MM_ALARM_CLEAR_CLICK_PAUSE, MM_ALARM_RESET_SCENE, MM_ALARM_REFRESH_VIEWS,
+        MM_ALARM_STOP_SCENE, MM_ALARM_PLAYING_NOTICE, MM_ALARM_SHORT_SOUNDS, MM_ALARM_NOTIFY_STOPPED,
+        MM_ALARM_STOP_AUDIO};
+    AlarmFixture f = {0};
+    MMAlarmPlaybackServices s = {NULL, alarm_wall, alarm_clock, alarm_start, alarm_halt, alarm_set,
+        alarm_tracking, alarm_pause_audio, alarm_fades, alarm_volume, alarm_effect};
+    s.context = &f;
+    f.alarm_ok = 1;
+    mm_playback_state_init(&f.state);
+    mm_alarm_playback_init(&f.clock);
+    mm_alarm_playback_set_paused(&f.clock, &f.state, 1, &s);
+    CHECK(!f.clock.paused && !f.count && !mm_alarm_playback_stop_frozen(&f.clock, &f.state));
+    CHECK(mm_alarm_playback_start(&f.clock, &f.state, 12, &s) && f.state.playing && !f.clock_start);
+    ALARM_EXPECT(&f, start);
+    CHECK(mm_alarm_playback_schedule(&f.clock, &f.state, 1000, 10, 1, &s));
+    CHECK(!f.count && f.clock.pacer.pending && f.clock.pacer.due == 1083);
+    CHECK(mm_alarm_playback_schedule(&f.clock, &f.state, 1000, 15, 0, &s) && f.delay == 15 && !f.adjust);
+    ALARM_EXPECT(&f, set);
+    f.state.wait = MM_PLAYBACK_WAIT_SOUND;
+    f.now = 1020;
+    mm_alarm_playback_set_paused(&f.clock, &f.state, 1, &s);
+    mm_alarm_playback_set_paused(&f.clock, &f.state, 1, &s);
+    mm_alarm_playback_idle(&f.clock, &f.state, 1, &s);
+    mm_alarm_playback_alarm(&f.clock, &f.state, &s);
+    CHECK(f.clock.resume_render && f.clock.paused_clock == 17 && f.state.wait == MM_PLAYBACK_WAIT_SOUND);
+    ALARM_EXPECT(&f, pause);
+    f.now = 1520;
+    f.alarm_ok = 0;
+    mm_alarm_playback_set_paused(&f.clock, &f.state, 0, &s);
+    CHECK(f.clock_start == 17 && !f.clock.paused && !f.clock.resume_render && f.state.stopRequested &&
+          f.clock.pacer.due == 1583);
+    ALARM_EXPECT(&f, resume);
+    f.state.stopRequested = 0;
+    f.now = 1583;
+    mm_alarm_playback_idle(&f.clock, &f.state, 1, &s);
+    CHECK(!f.clock.pacer.pending && !f.state.idleSeen);
+    ALARM_EXPECT(&f, due);
+
+    f.state.fadeOriginalVolume = 900;
+    f.state.fadeChangedVolume = 1;
+    f.state.oldSoundsEnabled = 1;
+    f.clock.pacer.pending = 1;
+    mm_alarm_playback_set_paused(&f.clock, &f.state, 1, &s);
+    ALARM_EXPECT(&f, pause);
+    CHECK(mm_alarm_playback_stop_frozen(&f.clock, &f.state) && !mm_alarm_playback_defer_render(&f.clock, &f.state));
+    mm_alarm_playback_stop(&f.clock, &f.state, &s);
+    CHECK(!f.clock.pacer.pending && !f.state.fadeOriginalVolume && !f.state.fadeChangedVolume &&
+          f.state.fadeVolume == -1 && f.state.soundsEnabled && f.volume == 900);
+    ALARM_EXPECT(&f, stop);
+
+    f.rearm_failed = f.state.playing = f.state.scrolling = f.clock.pacer.pending = 1;
+    f.state.fadeOriginalVolume = 900;
+    f.state.fadeVolume = 50;
+    mm_alarm_playback_alarm(&f.clock, &f.state, &s);
+    CHECK(f.clock.pacer.pending && f.state.fadeOriginalVolume == 900 && f.state.fadeVolume == 50);
+    ALARM_EXPECT(&f, retry_failed);
+}
+
 /* This executable links with the C linker and only the C89 backend. Existing
  * engine-core-link and Marcus regressions cover the host adapters and policy
  * branches. These checks exercise the public C contract independently. */
@@ -752,6 +901,7 @@ int main(void)
     CHECK(mm_scroll_nominal_seconds(3) == 4.0 / 12);
     check_polled_playback();
     check_polled_movie();
+    check_alarm_playback();
     check_frame_sound();
     check_caption_render();
     check_timing_snapshot();

@@ -25,7 +25,7 @@
 #include "actor_timeline.h"
 #include "text_box_data.h"
 #include "sound_queue.h"
-#include "movie_playback.h"
+#include "mm/playback.h"
 
 #define kctgActn 'ACTN'
 #define kctgActr 'ACTR'
