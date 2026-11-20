@@ -116,6 +116,63 @@ extern "C"
     void mm_movie_actor_drag_sample(MMMovieActorDrag *, const MMMovieActorDragInput *,
                                     const MMMovieActorDragServices *);
 
+    enum
+    {
+        MM_MOVIE_CLIP_UNKNOWN,
+        MM_MOVIE_CLIP_CUT,
+        MM_MOVIE_CLIP_COPY,
+        MM_MOVIE_CLIP_PASTE,
+        MM_MOVIE_CLIP_ROUTE,
+        MM_MOVIE_CLIP_CUT_TOOL,
+        MM_MOVIE_CLIP_COPY_TOOL,
+        MM_MOVIE_CLIP_PASTE_TOOL,
+        MM_MOVIE_CLIP_SHIFT_CUT,
+        MM_MOVIE_CLIP_SHIFT_COPY
+    };
+    enum
+    {
+        MM_MOVIE_CLIP_ACTOR,
+        MM_MOVIE_CLIP_TEXT_BOX
+    };
+    enum
+    {
+        MM_MOVIE_CLIP_NO_ACTOR,
+        MM_MOVIE_CLIP_NO_SCENE,
+        MM_MOVIE_CLIP_UNSUPPORTED,
+        MM_MOVIE_CLIP_BAD_COMMAND
+    };
+    typedef struct MMMovieClipboardServices
+    {
+        void *context;
+        void *(*scene)(void *);
+        int (*text_mode)(void *), (*shift)(void *);
+        void (*set_shift)(void *, int);
+        void *(*selected_text)(void *scene), *(*selected_actor)(void *scene);
+        int (*text_visible)(void *text), (*text_selected)(void *text), (*actor_visible)(void *actor);
+        int (*empty)(void *), (*format)(void *, int kind, void **owned);
+        int (*route_only)(void *document);
+        void *(*copy_actor)(void *actor, int route_only, int through_scene_end);
+        void (*publish)(void *, void *document), (*release)(void *document);
+        int (*scene_sounds_enabled)(void *scene);
+        void (*scene_sounds)(void *scene, int enabled);
+        int (*delete_actor)(void *actor, int through_scene_end, int *alive);
+        void (*remove_actor)(void *scene, void *actor), (*offstage)(void *actor);
+        void (*dirty)(void *scene), (*invalidate)(void *);
+        void (*paste_actor)(void *, void *document);
+        int (*paste_text)(void *scene, void *document);
+        void (*enable_text)(void *);
+        void (*cue)(void *, int tool), (*set_tool)(void *, int tool);
+        void (*queue_text)(void *, void *text), (*queue_generic)(void *, int command);
+        void (*diagnostic)(void *, int);
+    } MMMovieClipboardServices;
+
+    /* The host translates command/tool IDs and forwards queued native commands.
+     * A successful format with an out pointer and each successful copy_actor
+     * return one owned document reference. Publish retains the document.
+     * Scene, selection and pointer hit are borrowed synchronous handles. */
+    void mm_movie_clipboard_command(int command, const MMMovieClipboardServices *);
+    void mm_movie_clipboard_click(int tool, int hit_actor, const MMMovieClipboardServices *);
+
     /* Initialized, stable owners/handles and synchronous non-reentrant services
      * are required. Scene edits/selected edits require a current scene; selected
      * actor edits require a selected actor. Time edits return failure when

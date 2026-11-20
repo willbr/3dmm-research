@@ -4904,6 +4904,16 @@ duplication, and uses the C counted-string operations to build the name.
 Studio supplies the clipboard document, localized labels and movie/view hooks.
 The movie roll call accepts the stored name's counted units directly.
 
+The movie-view clipboard controller in `movie_edit.c` routes Edit menu
+commands, toolbar tools and pointer clicks. It chooses inline text forwarding,
+immediate actor or text-box paste, or a tool that acts on the next click. It
+publishes the actor copy before a cut, temporarily disables scene sound
+during deletion, and clears modifiers after keyboard cut and copy. Studio
+maps native command IDs, queues native commands, and supplies the clipboard
+document and view callbacks. The controller releases every document reference
+it acquires, including actor clipboard probes on missed clicks and paste
+attempts without an active scene.
+
 The prefix comparison is raw and case-sensitive, scans to the prefix's first
 zero and does not require a following word boundary. Assignment and append
 retain counted embedded zeros. Failed append retains truncation. Creation
@@ -4924,6 +4934,12 @@ passed undo, redo and save/reopen. Retail reopened both saved movies with
 matching poses. The native paste fixture also exercises cross-resource template
 and sound transfers. A separate SDL cross-movie UI probe added zero actors on
 both the retained older build and the rebuilt Studio.
+
+Before and after the movie-view migration, Studio produced matching actor,
+route and text-box clipboard traces for keyboard commands, armed tools and
+pointer clicks. Retail reopened the movies saved after full-actor and route
+paste with matching poses. The C fixture covers inline-text routing,
+clipboard format priority, and reference release on rejected paste paths.
 
 All 12 native actor-edit traces matched after the migration. In the 60-frame
 `actor-event-edit` case, SDL Studio and Marcus matched the retained retail

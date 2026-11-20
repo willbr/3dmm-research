@@ -326,7 +326,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   C event table binding for row mutation and tag ownership.
 - The actor clipboard owns its counted name in C and calls the shared C actor
   copy and reset-duplication paths. Studio supplies the localized label and
-  movie/view hooks.
+  movie/view hooks. The movie edit controller also routes Studio's movie-view
+  clipboard commands and pointer clicks, including actor cuts, route-only
+  paste and text-box format priority.
 - Playback, movie-data, container-reading, string-storage and collection slices are implemented; whole-engine conversion
   remains incomplete. The new library builds independently with a C-only
   toolchain and has strict C89 and standalone C API checks. See the

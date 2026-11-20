@@ -322,6 +322,194 @@ int mm_movie_paste_route(void *source, const MMMovieEditServices *s)
     s->release_actor(snapshot);
     return 1;
 }
+
+static void clipboard_clear_selection(const MMMovieClipboardServices *s)
+{
+    void *scene = s->scene(s->context), *actor;
+    int sounds, alive, deleted;
+
+    if (!scene)
+        return;
+    actor = s->selected_actor(scene);
+    if (!actor)
+    {
+        s->diagnostic(s->context, MM_MOVIE_CLIP_NO_ACTOR);
+        return;
+    }
+    sounds = s->scene_sounds_enabled(scene);
+    s->scene_sounds(scene, 0);
+    deleted = s->delete_actor(actor, s->shift(s->context), &alive);
+    if (sounds)
+        s->scene_sounds(s->scene(s->context), 1);
+    if (!deleted)
+        return;
+    if (alive)
+        s->offstage(actor);
+    else
+        s->remove_actor(s->scene(s->context), actor);
+    s->dirty(s->scene(s->context));
+    s->invalidate(s->context);
+}
+
+static void clipboard_copy(int tool, const MMMovieClipboardServices *s)
+{
+    void *scene, *actor, *document;
+
+    if (s->text_mode(s->context) || !(scene = s->scene(s->context)))
+        return;
+    actor = s->selected_actor(scene);
+    if (!actor || !s->actor_visible(actor))
+    {
+        s->diagnostic(s->context, MM_MOVIE_CLIP_NO_ACTOR);
+        return;
+    }
+    document = s->copy_actor(actor, tool == MM_MOVIE_CLIP_ROUTE, s->shift(s->context));
+    if (!document)
+        return;
+    s->publish(s->context, document);
+    s->release(document);
+    if (tool == MM_MOVIE_CLIP_CUT)
+        clipboard_clear_selection(s);
+    s->cue(s->context, tool);
+}
+
+static void clipboard_paste(const MMMovieClipboardServices *s)
+{
+    void *document, *scene, *actor;
+    int pasted, route;
+
+    if (s->empty(s->context))
+        return;
+    if (s->format(s->context, MM_MOVIE_CLIP_TEXT_BOX, &document))
+    {
+        scene = s->scene(s->context);
+        pasted = scene && s->paste_text(scene, document);
+        s->release(document);
+        if (!scene)
+            return;
+        if (pasted)
+            s->enable_text(s->context);
+    }
+    else if (s->format(s->context, MM_MOVIE_CLIP_ACTOR, &document))
+    {
+        scene = s->scene(s->context);
+        if (!scene)
+            s->diagnostic(s->context, MM_MOVIE_CLIP_NO_SCENE);
+        else
+        {
+            route = s->route_only(document);
+            if (route && s->text_mode(s->context))
+                s->diagnostic(s->context, MM_MOVIE_CLIP_UNSUPPORTED);
+            else
+            {
+                actor = s->selected_actor(scene);
+                if (route && (!actor || !s->actor_visible(actor)))
+                    s->diagnostic(s->context, MM_MOVIE_CLIP_NO_ACTOR);
+                else
+                    s->paste_actor(s->context, document);
+            }
+        }
+        s->release(document);
+    }
+    else if (s->format(s->context, MM_MOVIE_CLIP_TEXT_BOX, &document))
+    {
+        /* A format request can import the document from the native clipboard. */
+        scene = s->scene(s->context);
+        if (scene)
+            s->paste_text(scene, document);
+        else
+            s->diagnostic(s->context, MM_MOVIE_CLIP_NO_SCENE);
+        s->release(document);
+    }
+    else
+        s->diagnostic(s->context, MM_MOVIE_CLIP_UNSUPPORTED);
+    s->cue(s->context, MM_MOVIE_CLIP_PASTE);
+}
+
+void mm_movie_clipboard_command(int command, const MMMovieClipboardServices *s)
+{
+    void *scene = s->scene(s->context), *text = 0, *document;
+    int immediate = 0, tool;
+
+    if (scene)
+    {
+        if (s->text_mode(s->context))
+        {
+            text = s->selected_text(scene);
+            if (text && !s->text_visible(text))
+                text = 0;
+        }
+        if (command == MM_MOVIE_CLIP_PASTE_TOOL && s->format(s->context, MM_MOVIE_CLIP_ACTOR, &document))
+        {
+            immediate = !s->route_only(document);
+            s->release(document);
+        }
+        else if ((text && s->text_selected(text)) ||
+                 (command == MM_MOVIE_CLIP_PASTE_TOOL && s->format(s->context, MM_MOVIE_CLIP_TEXT_BOX, 0)))
+        {
+            if (text)
+                s->queue_text(s->context, text);
+            immediate = 1;
+        }
+    }
+
+    switch (command)
+    {
+    case MM_MOVIE_CLIP_CUT_TOOL:
+    case MM_MOVIE_CLIP_COPY_TOOL:
+        tool = command == MM_MOVIE_CLIP_CUT_TOOL ? MM_MOVIE_CLIP_CUT : MM_MOVIE_CLIP_COPY;
+        if (immediate)
+            s->queue_generic(s->context, tool);
+        else
+            s->set_tool(s->context, tool);
+        break;
+    case MM_MOVIE_CLIP_PASTE_TOOL:
+        if (!immediate)
+            s->set_tool(s->context, MM_MOVIE_CLIP_PASTE);
+        else if (s->format(s->context, MM_MOVIE_CLIP_TEXT_BOX, 0) || s->format(s->context, MM_MOVIE_CLIP_ACTOR, 0))
+            clipboard_paste(s);
+        else
+            s->queue_generic(s->context, MM_MOVIE_CLIP_PASTE);
+        break;
+    case MM_MOVIE_CLIP_ROUTE:
+        s->set_tool(s->context, MM_MOVIE_CLIP_ROUTE);
+        break;
+    case MM_MOVIE_CLIP_PASTE:
+        clipboard_paste(s);
+        break;
+    case MM_MOVIE_CLIP_SHIFT_CUT:
+    case MM_MOVIE_CLIP_SHIFT_COPY:
+        s->set_shift(s->context, 1);
+        /* Fall through to the same Edit menu operation. */
+    case MM_MOVIE_CLIP_CUT:
+    case MM_MOVIE_CLIP_COPY:
+        tool = (command == MM_MOVIE_CLIP_CUT || command == MM_MOVIE_CLIP_SHIFT_CUT)
+                   ? MM_MOVIE_CLIP_CUT : MM_MOVIE_CLIP_COPY;
+        clipboard_copy(tool, s);
+        s->set_shift(s->context, 0);
+        break;
+    default:
+        s->diagnostic(s->context, MM_MOVIE_CLIP_BAD_COMMAND);
+        break;
+    }
+}
+
+void mm_movie_clipboard_click(int tool, int hit_actor, const MMMovieClipboardServices *s)
+{
+    void *document;
+
+    if (s->text_mode(s->context))
+        return;
+    if (tool != MM_MOVIE_CLIP_PASTE)
+        clipboard_copy(tool, s);
+    else if (s->format(s->context, MM_MOVIE_CLIP_ACTOR, &document))
+    {
+        if (s->route_only(document) && hit_actor)
+            clipboard_paste(s);
+        s->release(document);
+    }
+}
+
 int mm_movie_add_background(const MMTag *tag, const MMMovieEditServices *s)
 {
     MMI32 index;

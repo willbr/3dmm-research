@@ -892,6 +892,164 @@ static int pasting(void)
           !t.copy.refs && !t.dirty);
     return 0;
 }
+
+typedef struct ClipboardTest
+{
+    MMMovieClipboardServices services;
+    int has_scene, text_mode, route_only, formats, refs, paste_refs, text_success;
+    int pasted, enabled_text, tool, text_queued, generic, diagnosis, cues;
+} ClipboardTest;
+
+static void *clip_scene(void *p)
+{
+    return ((ClipboardTest *)p)->has_scene ? p : 0;
+}
+static int clip_text_mode(void *p)
+{
+    return ((ClipboardTest *)p)->text_mode;
+}
+static void *clip_selected(void *p)
+{
+    return p;
+}
+static int clip_yes(void *p)
+{
+    return p != 0;
+}
+static int clip_empty(void *p)
+{
+    return !((ClipboardTest *)p)->formats;
+}
+static int clip_format(void *p, int kind, void **document)
+{
+    ClipboardTest *t = p;
+    if (!(t->formats & (1 << kind)))
+        return 0;
+    if (document)
+    {
+        *document = p;
+        ++t->refs;
+    }
+    return 1;
+}
+static int clip_route(void *p)
+{
+    return ((ClipboardTest *)p)->route_only;
+}
+static void clip_release(void *p)
+{
+    --((ClipboardTest *)p)->refs;
+}
+static void clip_paste_actor(void *p, void *document)
+{
+    ClipboardTest *t = document;
+    t->paste_refs = t->refs;
+    ((ClipboardTest *)p)->pasted = 1 << MM_MOVIE_CLIP_ACTOR;
+}
+static int clip_paste_text(void *p, void *document)
+{
+    ClipboardTest *t = document;
+    t->paste_refs = t->refs;
+    ((ClipboardTest *)p)->pasted = 1 << MM_MOVIE_CLIP_TEXT_BOX;
+    return t->text_success;
+}
+static void clip_enable_text(void *p)
+{
+    ++((ClipboardTest *)p)->enabled_text;
+}
+static void clip_set_tool(void *p, int tool)
+{
+    ((ClipboardTest *)p)->tool = tool;
+}
+static void clip_cue(void *p, int tool)
+{
+    if (tool == MM_MOVIE_CLIP_PASTE)
+        ++((ClipboardTest *)p)->cues;
+}
+static void clip_queue_text(void *p, void *text)
+{
+    ((ClipboardTest *)p)->text_queued += (text == p);
+}
+static void clip_queue_generic(void *p, int command)
+{
+    ((ClipboardTest *)p)->generic = command;
+}
+static void clip_diagnose(void *p, int code)
+{
+    ((ClipboardTest *)p)->diagnosis = code;
+}
+static void clip_init(ClipboardTest *t)
+{
+    MMMovieClipboardServices *s = &t->services;
+    memset(t, 0, sizeof(*t));
+    t->has_scene = 1;
+    t->diagnosis = -1;
+    s->context = t;
+    s->scene = clip_scene;
+    s->text_mode = clip_text_mode;
+    s->selected_text = s->selected_actor = clip_selected;
+    s->text_visible = s->text_selected = s->actor_visible = clip_yes;
+    s->empty = clip_empty;
+    s->format = clip_format;
+    s->route_only = clip_route;
+    s->release = clip_release;
+    s->paste_actor = clip_paste_actor;
+    s->paste_text = clip_paste_text;
+    s->enable_text = clip_enable_text;
+    s->cue = clip_cue;
+    s->set_tool = clip_set_tool;
+    s->queue_text = clip_queue_text;
+    s->queue_generic = clip_queue_generic;
+    s->diagnostic = clip_diagnose;
+}
+static int clipboard(void)
+{
+    ClipboardTest t;
+    const int actor = 1 << MM_MOVIE_CLIP_ACTOR, text_box = 1 << MM_MOVIE_CLIP_TEXT_BOX;
+
+    clip_init(&t);
+    t.formats = actor;
+    mm_movie_clipboard_click(MM_MOVIE_CLIP_PASTE, 1, &t.services);
+    CHECK(!t.refs && !t.pasted && !t.cues);
+    t.route_only = 1;
+    mm_movie_clipboard_click(MM_MOVIE_CLIP_PASTE, 0, &t.services);
+    CHECK(!t.refs && !t.pasted && !t.cues);
+    mm_movie_clipboard_click(MM_MOVIE_CLIP_PASTE, 1, &t.services);
+    CHECK(!t.refs && t.pasted == actor && t.paste_refs == 2 && t.cues == 1);
+
+    clip_init(&t);
+    t.formats = actor;
+    t.has_scene = 0;
+    mm_movie_clipboard_command(MM_MOVIE_CLIP_PASTE, &t.services);
+    CHECK(!t.refs && !t.pasted && t.cues == 1 && t.diagnosis == MM_MOVIE_CLIP_NO_SCENE);
+    t.formats = text_box;
+    mm_movie_clipboard_command(MM_MOVIE_CLIP_PASTE, &t.services);
+    CHECK(!t.refs && !t.pasted && t.cues == 1);
+
+    clip_init(&t);
+    t.text_mode = 1;
+    mm_movie_clipboard_command(MM_MOVIE_CLIP_COPY_TOOL, &t.services);
+    CHECK(t.text_queued == 1 && t.generic == MM_MOVIE_CLIP_COPY && !t.tool);
+    mm_movie_clipboard_command(MM_MOVIE_CLIP_PASTE_TOOL, &t.services);
+    CHECK(t.text_queued == 2 && t.generic == MM_MOVIE_CLIP_PASTE && !t.tool);
+    t.formats = actor;
+    t.route_only = 1;
+    mm_movie_clipboard_command(MM_MOVIE_CLIP_PASTE_TOOL, &t.services);
+    CHECK(t.tool == MM_MOVIE_CLIP_PASTE && t.text_queued == 2 && !t.refs && !t.pasted);
+    mm_movie_clipboard_command(MM_MOVIE_CLIP_PASTE, &t.services);
+    CHECK(!t.refs && !t.pasted && t.diagnosis == MM_MOVIE_CLIP_UNSUPPORTED && t.text_queued == 3);
+    t.route_only = 0;
+    mm_movie_clipboard_command(MM_MOVIE_CLIP_PASTE_TOOL, &t.services);
+    CHECK(t.pasted == actor && t.text_queued == 3 && t.paste_refs == 1 && !t.refs);
+    t.formats = actor | text_box;
+    mm_movie_clipboard_command(MM_MOVIE_CLIP_PASTE_TOOL, &t.services);
+    CHECK(t.pasted == text_box && !t.enabled_text && t.cues == 3 && !t.refs);
+    t.text_success = 1;
+    mm_movie_clipboard_command(MM_MOVIE_CLIP_PASTE, &t.services);
+    CHECK(t.enabled_text == 1 && t.cues == 4 && !t.refs);
+    return 0;
+}
+
 static int insertion(void)
 {
     Test t;
@@ -961,8 +1119,9 @@ static int backgrounds(void)
 }
 int main(void)
 {
-    if (registration() || choosing() || actor_edits() || actor_drag() || scene_edits() || pasting() || insertion() || backgrounds())
+    if (registration() || choosing() || actor_edits() || actor_drag() || scene_edits() || pasting() || clipboard() ||
+        insertion() || backgrounds())
         return 1;
-    puts("Movie actor/scene edits, placement, sound defaults and undo control passed");
+    puts("Movie actor/scene edits, placement, sound defaults, clipboard and undo control passed");
     return 0;
 }

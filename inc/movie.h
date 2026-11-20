@@ -205,12 +205,13 @@ class MovieView : public MovieView_PAR
     {
     }
 
-    //
-    // Clipboard support
-    //
-    bool _FCopySel(PDocumentBase *ppdocb, bool fRteOnly);
-    void _ClearSel(void);
-    bool _FPaste(PClipboardObject pclip);
+    struct ClipboardHost
+    {
+        MovieView *view;
+        PCommand command;
+    };
+    static MMMovieClipboardServices _ClipboardServices(ClipboardHost *host);
+    void _ClipboardClick(int tool, bool hitActor);
 
     void _PositionActr(const MMActorPoint &delta);
     void _SampleActorDrag(const CMD_MOUSE &pointer, const MMActorPoint &mouse, const MMActorPoint &world);
@@ -253,7 +254,6 @@ class MovieView : public MovieView_PAR
     virtual bool FCmdUndo(PCommand pcmd);
     virtual bool FCloseDoc(bool fAssumeYes, bool fSaveDDG = fFalse);
     virtual bool FCmdSave(PCommand pcmd);
-    bool FDoClip(long tool);
     bool FCmdIdle(Command *pcmd); // Called whenever an idle loop is seen.
     bool FCmdRollOff(Command *pcmd);
 

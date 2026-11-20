@@ -4711,7 +4711,6 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
     PTBOX ptbox;
     PT pt;
     MMI32 ibset = 0;
-    PDocumentBase pdocb;
 
     SlowKeyboardRepeat();
     const auto actors = Actor::_OwnerServices();
@@ -4861,23 +4860,17 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         break;
 
     case toolCutObject:
+        _ClipboardClick(MM_MOVIE_CLIP_CUT, false);
+        break;
     case toolCopyObject:
+        _ClipboardClick(MM_MOVIE_CLIP_COPY, false);
+        break;
     case toolCopyRte:
-        if (!_fTextMode)
-        {
-            FDoClip(Tool());
-        }
+        _ClipboardClick(MM_MOVIE_CLIP_ROUTE, false);
         break;
 
     case toolPasteObject:
-        if (!_fTextMode)
-        {
-            if (vpclip->FGetFormat(kclsActorClipboard, &pdocb) && ((PActorClipboard)pdocb)->FRouteOnly() && (pactr != pvNil))
-            {
-                FDoClip(Tool());
-                ReleasePpo(&pdocb);
-            }
-        }
+        _ClipboardClick(MM_MOVIE_CLIP_PASTE, pactr != pvNil);
         break;
 
     case toolTboxStory:
@@ -5479,231 +5472,140 @@ LEndTracking:
     }
 }
 
-/***************************************************************************
- *
- * Handles the Cut, Copy, Paste and Clear commands, by setting the appropriate
- * tool.
- *
- * Parameters:
- *  pcmd - Pointer to the command to process.
- *
- * Returns:
- *  fTrue if it processed the command, else fFalse.
- *
- **************************************************************************/
+static long NativeClipboardTool(int tool)
+{
+    switch (tool)
+    {
+    case MM_MOVIE_CLIP_CUT: return toolCutObject;
+    case MM_MOVIE_CLIP_COPY: return toolCopyObject;
+    case MM_MOVIE_CLIP_PASTE: return toolPasteObject;
+    case MM_MOVIE_CLIP_ROUTE: return toolCopyRte;
+    default: Bug("Bad clipboard tool"); return toolDefault;
+    }
+}
+
+static int MovieClipboardCommand(long cid)
+{
+    switch (cid)
+    {
+    case cidCut: return MM_MOVIE_CLIP_CUT;
+    case cidCopy: return MM_MOVIE_CLIP_COPY;
+    case cidPaste: return MM_MOVIE_CLIP_PASTE;
+    case cidCopyRoute: return MM_MOVIE_CLIP_ROUTE;
+    case cidCutTool: return MM_MOVIE_CLIP_CUT_TOOL;
+    case cidCopyTool: return MM_MOVIE_CLIP_COPY_TOOL;
+    case cidPasteTool: return MM_MOVIE_CLIP_PASTE_TOOL;
+    case cidShiftCut: return MM_MOVIE_CLIP_SHIFT_CUT;
+    case cidShiftCopy: return MM_MOVIE_CLIP_SHIFT_COPY;
+    default: return MM_MOVIE_CLIP_UNKNOWN;
+    }
+}
+
+MMMovieClipboardServices MovieView::_ClipboardServices(ClipboardHost *host)
+{
+    MMMovieClipboardServices s = {};
+    s.context = host;
+    s.scene = [](void *p) -> void * { return static_cast<ClipboardHost *>(p)->view->Pmvie()->Pscen(); };
+    s.text_mode = [](void *p) -> int { return static_cast<ClipboardHost *>(p)->view->FTextMode(); };
+    s.shift = [](void *p) -> int { return (static_cast<ClipboardHost *>(p)->view->_grfcust & fcustShift) != 0; };
+    s.set_shift = [](void *p, int shift) { static_cast<ClipboardHost *>(p)->view->_grfcust = shift ? fcustShift : fcustNil; };
+    s.selected_text = [](void *scene) -> void * { return static_cast<PScene>(scene)->PtboxSelected(); };
+    s.selected_actor = [](void *scene) -> void * { return static_cast<PScene>(scene)->PactrSelected(); };
+    s.text_visible = [](void *text) -> int { return static_cast<PTBOX>(text)->FIsVisible(); };
+    s.text_selected = [](void *text) -> int { return static_cast<PTBOX>(text)->FTextSelected(); };
+    s.actor_visible = [](void *actor) -> int { return static_cast<PActor>(actor)->FIsInView(); };
+    s.empty = [](void *) -> int { return vpclip->FDocIsClip(pvNil); };
+    s.format = [](void *, int kind, void **owned) -> int {
+        long cls = kind == MM_MOVIE_CLIP_ACTOR ? kclsActorClipboard : kclsTextBoxClipboard;
+        PDocumentBase document;
+        if (!vpclip->FGetFormat(cls, owned ? &document : pvNil))
+            return 0;
+        if (owned)
+            *owned = document;
+        return 1;
+    };
+    s.route_only = [](void *document) -> int {
+        return static_cast<PActorClipboard>(static_cast<PDocumentBase>(document))->FRouteOnly();
+    };
+    s.copy_actor = [](void *actor, int route, int throughEnd) -> void * {
+        return static_cast<PDocumentBase>(ActorClipboard::PaclpNew(static_cast<PActor>(actor), route != 0, throughEnd != 0));
+    };
+    s.publish = [](void *, void *document) { vpclip->Set(static_cast<PDocumentBase>(document)); };
+    s.release = [](void *document) { static_cast<PDocumentBase>(document)->Release(); };
+    s.scene_sounds_enabled = [](void *scene) -> int { return !(static_cast<PScene>(scene)->GrfScen() & fscenSounds); };
+    s.scene_sounds = [](void *scene, int enabled) {
+        if (enabled)
+            static_cast<PScene>(scene)->Enable(fscenSounds);
+        else
+            static_cast<PScene>(scene)->Disable(fscenSounds);
+    };
+    s.delete_actor = [](void *actor, int throughEnd, int *alive) -> int {
+        bool stillOnScene;
+        if (!static_cast<PActor>(actor)->FDelete(&stillOnScene, throughEnd != 0))
+            return 0;
+        *alive = stillOnScene;
+        return 1;
+    };
+    s.remove_actor = [](void *scene, void *actor) { static_cast<PScene>(scene)->RemActrCore(static_cast<PActor>(actor)->Arid()); };
+    s.offstage = [](void *actor) { static_cast<PActor>(actor)->FRemFromStageCore(); };
+    s.dirty = [](void *scene) { static_cast<PScene>(scene)->MarkDirty(); };
+    s.invalidate = [](void *p) { static_cast<ClipboardHost *>(p)->view->Pmvie()->InvalViews(); };
+    s.paste_actor = [](void *p, void *document) {
+        auto actor = static_cast<PActorClipboard>(static_cast<PDocumentBase>(document));
+        actor->FPaste(static_cast<ClipboardHost *>(p)->view->Pmvie());
+    };
+    s.paste_text = [](void *scene, void *document) -> int {
+        auto text = static_cast<PTextBoxClipboard>(static_cast<PDocumentBase>(document));
+        return text->FPaste(static_cast<PScene>(scene));
+    };
+    s.enable_text = [](void *p) { static_cast<ClipboardHost *>(p)->view->Pmvie()->Pmcc()->EnableTboxTools(); };
+    s.cue = [](void *p, int tool) {
+        static_cast<ClipboardHost *>(p)->view->Pmvie()->Pmcc()->PlayUISound(NativeClipboardTool(tool));
+    };
+    s.set_tool = [](void *p, int tool) { static_cast<ClipboardHost *>(p)->view->SetTool(NativeClipboardTool(tool)); };
+    s.queue_text = [](void *p, void *text) {
+        Command cmd = *static_cast<ClipboardHost *>(p)->command;
+        cmd.pcmh = static_cast<PTBOX>(text)->PddgGet(0);
+        vpcex->EnqueueCmd(&cmd);
+    };
+    s.queue_generic = [](void *p, int cid) {
+        Command cmd = *static_cast<ClipboardHost *>(p)->command;
+        switch (cid)
+        {
+        case MM_MOVIE_CLIP_CUT: cmd.cid = cidCut; break;
+        case MM_MOVIE_CLIP_COPY: cmd.cid = cidCopy; break;
+        case MM_MOVIE_CLIP_PASTE: cmd.cid = cidPaste; break;
+        default: Bug("Bad generic clipboard command"); return;
+        }
+        vpcex->EnqueueCmd(&cmd);
+    };
+    s.diagnostic = [](void *, int code) {
+        switch (code)
+        {
+        case MM_MOVIE_CLIP_NO_ACTOR: PushErc(ercSocNoActrSelected); break;
+        case MM_MOVIE_CLIP_NO_SCENE: PushErc(ercSocNoScene); break;
+        case MM_MOVIE_CLIP_UNSUPPORTED: PushErc(ercSocCannotPasteThatHere); break;
+        default: Bug("Unknown command"); break;
+        }
+    };
+    return s;
+}
+
 bool MovieView::FCmdClip(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-
-    PTBOX ptbox;
-    PDocumentBase pdocb;
-    bool fOV = fFalse;
-    Command cmd;
-
-    //
-    // Check for O-V model for text in text box.
-    //
-    if (Pmvie()->Pscen() != pvNil)
-    {
-        AssertPo(Pmvie()->Pscen(), 0);
-
-        if (FTextMode())
-        {
-            ptbox = Pmvie()->Pscen()->PtboxSelected();
-
-            if ((ptbox != pvNil) && !ptbox->FIsVisible())
-            {
-                ptbox = pvNil;
-            }
-        }
-        else
-        {
-            ptbox = pvNil;
-        }
-
-        AssertNilOrPo(ptbox, 0);
-
-        if (pcmd->cid == cidPasteTool && vpclip->FGetFormat(kclsActorClipboard, &pdocb))
-        {
-            fOV = !((PActorClipboard)pdocb)->FRouteOnly();
-            ReleasePpo(&pdocb);
-        }
-        else if (((ptbox != pvNil) && ptbox->FTextSelected()) ||
-                 ((pcmd->cid == cidPasteTool) && vpclip->FGetFormat(kclsTextBoxClipboard)))
-        {
-            if (ptbox != pvNil)
-            {
-                Command cmd = *pcmd;
-
-                cmd.pcmh = ptbox->PddgGet(0);
-                vpcex->EnqueueCmd(&cmd);
-            }
-            fOV = fTrue;
-        }
-    }
-
-    cmd = *pcmd;
-
-    switch (pcmd->cid)
-    {
-    case cidCutTool:
-        if (fOV)
-        {
-            cmd.cid = cidCut;
-            vpcex->EnqueueCmd(&cmd);
-        }
-        else
-        {
-            SetTool(toolCutObject);
-        }
-        break;
-
-    case cidCopyTool:
-        if (fOV)
-        {
-            cmd.cid = cidCopy;
-            vpcex->EnqueueCmd(&cmd);
-        }
-        else
-        {
-            SetTool(toolCopyObject);
-        }
-
-        break;
-
-    case cidPasteTool:
-        if (fOV)
-        {
-
-            if (vpclip->FGetFormat(kclsTextBoxClipboard) || vpclip->FGetFormat(kclsActorClipboard))
-            {
-                FDoClip(toolPasteObject);
-            }
-            else
-            {
-                cmd.cid = cidPaste;
-                vpcex->EnqueueCmd(&cmd);
-            }
-        }
-        else
-        {
-            SetTool(toolPasteObject);
-        }
-
-        break;
-
-    case cidCopyRoute:
-        SetTool(toolCopyRte);
-        break;
-
-    case cidPaste:
-
-        FDoClip(toolPasteObject);
-        break;
-
-    case cidShiftCut:
-        _grfcust = fcustShift;
-    case cidCut:
-        FDoClip(toolCutObject);
-        _grfcust = fcustNil;
-        break;
-
-    case cidShiftCopy:
-        _grfcust = fcustShift;
-    case cidCopy:
-        FDoClip(toolCopyObject);
-        _grfcust = fcustNil;
-        break;
-
-    default:
-        Bug("Unknown command");
-    }
-    return (fTrue);
+    ClipboardHost host = {this, pcmd};
+    auto services = _ClipboardServices(&host);
+    mm_movie_clipboard_command(MovieClipboardCommand(pcmd->cid), &services);
+    return fTrue;
 }
 
-/***************************************************************************
- *
- * Handles the Cut, Copy, Paste and Clear commands.
- *
- * Parameters:
- *  tool - The tool to apply.
- *
- * Returns:
- *  fTrue if it processed the command, else fFalse.
- *
- **************************************************************************/
-bool MovieView::FDoClip(long tool)
+void MovieView::_ClipboardClick(int tool, bool hitActor)
 {
-    AssertThis(0);
-
-    PDocumentBase pdocb = pvNil;
-
-    switch (tool)
-    {
-    case toolCutObject:
-    case toolCopyObject:
-    case toolCopyRte:
-
-        //
-        // copy the selection
-        //
-        if (!_FCopySel(&pdocb, tool == toolCopyRte))
-        {
-            return fTrue;
-        }
-        vpclip->Set(pdocb);
-        ReleasePpo(&pdocb);
-
-        if (tool == toolCutObject)
-        {
-            _ClearSel();
-        }
-
-        Pmvie()->Pmcc()->PlayUISound(tool);
-
-        break;
-
-    case toolPasteObject:
-        if (!vpclip->FDocIsClip(pvNil))
-        {
-            PTextBoxClipboard ptclp;
-
-            if (vpclip->FGetFormat(kclsTextBoxClipboard, (PDocumentBase *)&ptclp))
-            {
-                AssertPo(ptclp, 0);
-
-                if (Pmvie()->Pscen() == pvNil)
-                {
-                    ReleasePpo(&ptclp);
-                    return (fFalse);
-                }
-
-                if (ptclp->FPaste(Pmvie()->Pscen()))
-                {
-                    ReleasePpo(&ptclp);
-                    Pmvie()->Pmcc()->EnableTboxTools();
-                    Pmvie()->Pmcc()->PlayUISound(tool);
-                    return (fTrue);
-                }
-
-                ReleasePpo(&ptclp);
-                Pmvie()->Pmcc()->PlayUISound(tool);
-                return (fFalse);
-            }
-            else
-            {
-                _FPaste(vpclip);
-                Pmvie()->Pmcc()->PlayUISound(tool);
-            }
-        }
-        break;
-
-    default:
-        Bug("Bad Tool");
-    }
-
-    return fTrue;
+    ClipboardHost host = {this, pvNil};
+    auto services = _ClipboardServices(&host);
+    mm_movie_clipboard_click(tool, hitActor, &services);
 }
 
 /***************************************************************************
@@ -5740,195 +5642,6 @@ bool MovieView::FCmdUndo(PCommand pcmd)
 
     Pmvie()->InvalViewsAndScb();
     return (fRet);
-}
-
-/***************************************************************************
- *
- * Handles the Copying whatever is currently selected.
- *
- * Don't worry about tboxes, because if a tbox is selected it will
- * get the cut/copy/paste command.
- *
- * Parameters:
- *  ppdocb - Pointer to a place to store a pointer to the resulting docb.
- *	fRteOnly - fTrue if to copy an actors route only, else fFalse.
- *
- * Returns:
- *  fTrue if it was successful, else fFalse.
- *
- **************************************************************************/
-bool MovieView::_FCopySel(PDocumentBase *ppdocb, bool fRteOnly)
-{
-    AssertThis(0);
-
-    PActor pactr;
-    PActorClipboard paclp;
-
-    if (FTextMode())
-    {
-        return (fFalse);
-    }
-
-    if (Pmvie()->Pscen() == pvNil)
-    {
-        return (fFalse);
-    }
-
-    pactr = Pmvie()->Pscen()->PactrSelected();
-    AssertNilOrPo(pactr, 0);
-
-    if ((pactr == pvNil) || !pactr->FIsInView())
-    {
-        PushErc(ercSocNoActrSelected);
-        return (fFalse);
-    }
-
-    paclp = ActorClipboard::PaclpNew(pactr, fRteOnly, FPure(_grfcust & fcustShift));
-    AssertNilOrPo(paclp, 0);
-
-    *ppdocb = (PDocumentBase)paclp;
-
-    return (paclp != pvNil);
-}
-
-/***************************************************************************
- *
- * Handles the deleting whatever is currently selected.
- *
- * Don't worry about tboxes, because if a tbox is selected it will
- * get the cut/copy/paste command.
- *
- * Parameters:
- *  None.
- *
- * Returns:
- *  None.
- *
- **************************************************************************/
-void MovieView::_ClearSel()
-{
-    AssertThis(0);
-
-    PActor pactr;
-    bool fAlive;
-    bool fEnableSounds;
-
-    if (Pmvie()->Pscen() == pvNil)
-    {
-        return;
-    }
-
-    pactr = Pmvie()->Pscen()->PactrSelected();
-
-    if (pactr == pvNil)
-    {
-        PushErc(ercSocNoActrSelected);
-        return;
-    }
-
-    AssertPo(pactr, 0);
-
-    fEnableSounds = !(FPure(Pmvie()->Pscen()->GrfScen() & fscenSounds));
-    Pmvie()->Pscen()->Disable(fscenSounds);
-    if (!pactr->FDelete(&fAlive, FPure(_grfcust & fcustShift)))
-    {
-        if (fEnableSounds)
-            Pmvie()->Pscen()->Enable(fscenSounds);
-        return;
-    }
-    if (fEnableSounds)
-        Pmvie()->Pscen()->Enable(fscenSounds);
-
-    if (!fAlive)
-    {
-        Pmvie()->Pscen()->RemActrCore(pactr->Arid());
-    }
-    else
-    {
-        //
-        // According to design, if this fails, it is
-        // ok to leave the actor on the stage.
-        //
-        pactr->FRemFromStageCore();
-    }
-
-    Pmvie()->Pscen()->MarkDirty();
-    Pmvie()->InvalViews();
-}
-
-/***************************************************************************
- *
- * Handles the Pasting whatever is currently in the clipboard.
- *
- * Don't worry about tboxes, because if a tbox is selected it will
- * get the cut/copy/paste command.
- *
- * Parameters:
- *  pdocb - The pointer to the resulting docb.
- *
- * Returns:
- *  fTrue if it was successful, else fFalse.
- *
- **************************************************************************/
-bool MovieView::_FPaste(PClipboardObject pclip)
-{
-    AssertThis(0);
-    AssertPo(pclip, 0);
-
-    PActorClipboard paclp;
-    PTextBoxClipboard ptclp;
-    PActor pactr;
-    bool fRet;
-
-    if (pclip->FGetFormat(kclsActorClipboard, (PDocumentBase *)&paclp))
-    {
-        AssertPo(paclp, 0);
-
-        if (Pmvie()->Pscen() == pvNil)
-        {
-            PushErc(ercSocNoScene);
-            return (fFalse);
-        }
-
-        if (paclp->FRouteOnly() && FTextMode())
-        {
-            PushErc(ercSocCannotPasteThatHere);
-            ReleasePpo(&paclp);
-            return (fTrue);
-        }
-
-        pactr = Pmvie()->Pscen()->PactrSelected();
-        AssertNilOrPo(pactr, 0);
-
-        if (paclp->FRouteOnly() && ((pactr == pvNil) || !pactr->FIsInView()))
-        {
-            PushErc(ercSocNoActrSelected);
-            ReleasePpo(&paclp);
-            return (fTrue);
-        }
-
-        fRet = paclp->FPaste(Pmvie());
-        ReleasePpo(&paclp);
-        return fRet;
-    }
-
-    if (pclip->FGetFormat(kclsTextBoxClipboard, (PDocumentBase *)&ptclp))
-    {
-        AssertPo(ptclp, 0);
-
-        if (Pmvie()->Pscen() == pvNil)
-        {
-            PushErc(ercSocNoScene);
-            return (fFalse);
-        }
-
-        fRet = ptclp->FPaste(Pmvie()->Pscen());
-        ReleasePpo(&ptclp);
-        return fRet;
-    }
-
-    PushErc(ercSocCannotPasteThatHere);
-    return (fFalse);
 }
 
 /***************************************************************************
