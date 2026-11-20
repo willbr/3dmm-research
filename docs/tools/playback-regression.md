@@ -16714,3 +16714,49 @@ matched all 60 archived retail frame identities in seek and playback and
 all retail seek camera indices. Both matched their earlier seek images.
 SDL matched all 12 retail sound requests. Evidence is in
 `tmp/c89-archive-graph`.
+
+## Shared read views for the live C89 archive index (20 November 2026)
+
+Movie and embedded-asset adapters now read through the index that handles
+their graph edits. The shared chunk reader also supplies key and child
+searches for live mutations. The fixtures check that an unreadable row or
+child reports an I/O failure before changing an existing entry or link.
+Scene removal, composition, and autosave take their asset-preservation read
+view from that same index.
+
+All 192 standalone checks and 13 AddressSanitizer checks passed. Thirteen
+focused engine checks and the Archive API passed on SDL and native x64 and
+x86. The other 15 selected checks on the Marcus build passed, including its
+sound edit, player, and playback checks. All 54 baseline traces, three saved
+movie fixtures, ten Preview fingerprints, and six Preview movies matched.
+Studio's native authoring output and all 11 native Marcus storyboard,
+insertion and costume outputs matched the previous build byte for byte.
+Studio also edited, saved, and reopened a storyboard VMM.
+
+Studio deleted the scene owning an embedded background and saved and reopened
+the surviving scene. The background became a loner and retained all eight
+descendants. Studio also deleted the owning scene in the legacy material
+fixture, undid and redid the deletion, then saved and reopened the survivor.
+Both materials still linked to their textures, and the sampled viewport and
+texture bindings matched before and after the edit. Both decoded archives
+matched their retained references. A separate standalone-material import
+retained all six sampled viewports and texture bindings after reopen,
+including the prop whose actor ID changed from 2 to 7.
+
+Retail, SDL, and Marcus matched all three seek records and canvas hashes from
+the retained-background movie in `20261120T203526Z-f32ecea5`. Both ports
+matched both seek records and canvas hashes from original v3dmm 0.14 on the
+new storyboard in `20261120T203526Z-13d4c4a5`. The five storyboard VMM outputs
+matched the previous build after normalizing generated package names and
+background chunk numbers.
+
+The retained-material movie matched all 30 frame and camera records across
+retail, SDL, and Marcus in `20261120T203712Z-5ff75704`. Each player reproduced
+its 30 archived canvas hashes. The two-pixel difference from retail at frame
+4 was present in the archived captures.
+
+In `actor-event-edit` suite `20261120T203416Z-bdc9f491`, SDL and Marcus
+matched all 60 archived retail frame identities in seek and playback and
+all retail seek camera indices. Both reproduced their earlier seek canvas
+hashes. SDL matched all 12 retail sound requests. Evidence is in
+`tmp/c89-archive-read-index`.

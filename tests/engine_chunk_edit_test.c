@@ -27,6 +27,7 @@ typedef struct Fixture
     MMChunkLocation output;
     MMChunkLocation freed[32];
     int frees, resets, clears, outputs, extra, fail;
+    int unreadable_entry, unreadable_child;
     int file, output_added, walk_allocations, live_walk_buffers, issues[5];
     char log[256];
     int logs;
@@ -42,17 +43,23 @@ static MMU32 count(void *ctx)
 {
     return ((Fixture *)ctx)->count;
 }
-static void entry(void *ctx, MMU32 i, MMChunkEntry *entry)
+static int entry(void *ctx, MMU32 i, MMChunkEntry *entry)
 {
     Fixture *f = (Fixture *)ctx;
     CHECK(i < f->count);
+    if (f->unreadable_entry)
+        return 0;
     *entry = f->nodes[i].entry;
+    return 1;
 }
-static void child(void *ctx, MMU32 p, MMU32 i, MMChunkChild *out)
+static int child(void *ctx, MMU32 p, MMU32 i, MMChunkChild *out)
 {
     Fixture *f = (Fixture *)ctx;
     CHECK(p < f->count && i < f->nodes[p].entry.child_count && i < 4);
+    if (f->unreadable_child)
+        return 0;
     *out = f->nodes[p].children[i];
+    return 1;
 }
 static int insert(void *ctx, MMU32 i)
 {
@@ -395,6 +402,8 @@ static void links(void)
 {
     Fixture f;
     MMChunkChild key;
+    MMChunkAccess access;
+    MMU32 number = 99;
     Node parent, target;
     init(&f);
     node(&f, 0, 0, 2, 0);
@@ -409,7 +418,17 @@ static void links(void)
     CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_OK && f.nodes[1].entry.flags == 22);
     parent = f.nodes[0];
     target = f.nodes[1];
+    f.unreadable_child = 1;
+    access = mm_chunk_edit_access(&f.edit);
+    CHECK(mm_chunk_link_number(&access, 10, 0, 9, 10, &number) == MM_CHUNK_IO && number == 99);
+    CHECK(mm_chunk_unlink(&f.edit, 10, 0, &key) == MM_CHUNK_IO);
     key.slot = 1;
+    CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_IO);
+    f.unreadable_child = 0;
+    f.unreadable_entry = 1;
+    CHECK(mm_chunk_put(&f.edit, 10, 1, 10) == MM_CHUNK_IO);
+    f.unreadable_entry = 0;
+    CHECK(!memcmp(&parent, f.nodes, sizeof(parent)) && !memcmp(&target, f.nodes + 1, sizeof(target)));
     f.edit.max_references = 1;
     CHECK(mm_chunk_adopt(&f.edit, 10, 0, &key, 1) == MM_CHUNK_BAD_FILE);
     CHECK(!memcmp(&parent, f.nodes, sizeof(parent)) && !memcmp(&target, f.nodes + 1, sizeof(target)));

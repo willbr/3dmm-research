@@ -783,10 +783,6 @@ static int caption_read_body(void *p, const MMTextChunk *body)
     CHECK(body->type == MM_TEXT_ROOT && body->number == 9);
     return caption_step(p, 'r');
 }
-static MMChunkAccess caption_graph(void *p)
-{
-    return fixture_chunk_access(&((CaptionFlow *)p)->graph);
-}
 static int caption_read_box(void *p, MMU32 type, MMU32 number, MMReadStream *out)
 {
     static const unsigned char wire[36] = {1, 0, 3, 3, 1, 0, 0, 0, 3, 0, 0, 0,
@@ -852,7 +848,6 @@ static void caption_archive_flow(void)
     MMU32 number = 99, body;
     editor.context = &h;
     editor.system = MM_TEXT_WINDOWS;
-    editor.chunks = caption_graph;
     editor.read = caption_read_box;
     editor.put = caption_write_box;
     editor.edit = fixture_chunk_edit(&h.graph);
@@ -864,13 +859,13 @@ static void caption_archive_flow(void)
     h.fail = 'a';
     CHECK(mm_caption_edit_archive_box(&editor, &original, &host, &number) == MM_CAPTION_EDIT_WRITE_BODY);
     CHECK(number == 99 && !strcmp(h.steps, "creba"));
-    graph = caption_graph(&h);
+    graph = fixture_chunk_access(&h.graph);
     CHECK(mm_chunk_link_number(&graph, MM_TEXT_BOX, 11, 3, MM_TEXT_ROOT, &body) == MM_CHUNK_OK && body == 9);
     init_caption_archive(&h);
     h.rewrite = 1;
     CHECK(mm_caption_edit_archive_box(&editor, &original, &host, &number) == MM_CAPTION_EDIT_OK);
     CHECK(number == 11 && !strcmp(h.steps, "crebauw"));
-    graph = caption_graph(&h);
+    graph = fixture_chunk_access(&h.graph);
     CHECK(mm_chunk_link_number(&graph, MM_TEXT_BOX, 11, 3, MM_TEXT_ROOT, &body) == MM_CHUNK_OK && body == 25);
     CHECK(mm_chunk_link_number(&graph, MM_TEXT_BOX, 5, 3, MM_TEXT_ROOT, &body) == MM_CHUNK_OK && body == 9);
     init_caption_archive(&h);

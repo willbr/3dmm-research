@@ -72,16 +72,6 @@ static MMU32 fixture_chunk_count(void *p)
 {
     return ((ChunkIndexFixture *)p)->count;
 }
-static void fixture_chunk_edit_entry(void *p, MMU32 position, MMChunkEntry *entry)
-{
-    if (!fixture_chunk_entry(p, position, entry))
-        abort();
-}
-static void fixture_chunk_edit_child(void *p, MMU32 parent, MMU32 position, MMChunkChild *child)
-{
-    if (!fixture_chunk_child(p, parent, position, child))
-        abort();
-}
 static void fixture_chunk_store(void *p, MMU32 position, const MMChunkEntry *entry, int initialize)
 {
     ChunkIndexFixture *f = p;
@@ -180,8 +170,8 @@ static MMChunkEdit fixture_chunk_edit(ChunkIndexFixture *f)
     edit.context = f;
     edit.max_references = 65535;
     edit.count = fixture_chunk_count;
-    edit.entry = fixture_chunk_edit_entry;
-    edit.child = fixture_chunk_edit_child;
+    edit.entry = fixture_chunk_entry;
+    edit.child = fixture_chunk_child;
     edit.store = fixture_chunk_store;
     edit.erase = fixture_chunk_erase;
     edit.free_space = fixture_chunk_free;

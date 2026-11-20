@@ -416,7 +416,7 @@ static int reframe_subroute(Track *track, MMU32 start, MMU32 *end_out)
 static MMActorPath *read_route(const MMMovieArchiveEditor *editor, MMU32 actor)
 {
     const MMActorPathFactory factory = {NULL, 0};
-    MMChunkAccess chunks = editor->chunks(editor->context);
+    MMChunkAccess chunks = mm_chunk_edit_access(&editor->edit);
     MMReadStream stream;
     MMU32 number;
     if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, ROUTE_TYPE, &number) != MM_CHUNK_OK ||
@@ -449,7 +449,7 @@ static int reframe_actor(const MMMovieArchiveEditor *editor, MMU32 scene, const 
     track.origin.dxr = mm_signed_word(header.translation[0]);
     track.origin.dyr = mm_signed_word(header.translation[1]);
     track.origin.dzr = mm_signed_word(header.translation[2]);
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     track.fixed_facing = header.source_id == 0 &&
         mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, TEMPLATE_TYPE, &model) == MM_CHUNK_OK &&
         mm_chunk_link_number(&chunks, TEMPLATE_TYPE, model, 0, TEXT_TYPE, &text) == MM_CHUNK_OK;
@@ -496,7 +496,7 @@ int mm_scene_archive_reframe(const MMMovieArchiveEditor *editor, MMU32 scene, MM
     result = lens_reframe(work, camera, &change);
     if (result != MM_SCENE_REFRAME_OK)
         return result;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_find(&chunks, SCENE_TYPE, scene, &position) != MM_CHUNK_OK ||
         mm_chunk_at(&chunks, position, &entry) != MM_CHUNK_OK || !entry.child_count)
         return MM_SCENE_REFRAME_EMPTY;
@@ -522,7 +522,7 @@ int mm_scene_archive_reframe(const MMMovieArchiveEditor *editor, MMU32 scene, MM
     free(actors);
     if (result == MM_SCENE_REFRAME_OK)
     {
-        chunks = editor->chunks(editor->context);
+        chunks = mm_chunk_edit_access(&editor->edit);
         if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, thumb.slot, thumb.type, &thumb.number) == MM_CHUNK_OK)
             mm_chunk_unlink(&editor->edit, SCENE_TYPE, scene, &thumb);
     }

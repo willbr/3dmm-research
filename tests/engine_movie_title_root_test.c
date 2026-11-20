@@ -369,10 +369,6 @@ typedef struct ArchiveHost
     int fail_link, titled, rollcall;
 } ArchiveHost;
 
-static MMChunkAccess archive_chunks(void *context)
-{
-    return fixture_chunk_access(&((ArchiveHost *)context)->index);
-}
 static int archive_write(void *context, MMU32 offset, const void *data, size_t length)
 {
     ArchiveHost *host = (ArchiveHost *)context;
@@ -464,7 +460,7 @@ static void archived_scenes(void)
         0,0,0,1, 0,0,0,4, 0,0,0,2, 0,0,0,0, 'B','K','G','D', 0,0,0,11, 0,0,0,0, 0,0,0,24
     };
     ArchiveHost host;
-    MMMovieArchiveEditor editor = {NULL, 2, MM_TEXT_UTF16_LE, 1, NULL, archive_chunks, NULL, archive_add,
+    MMMovieArchiveEditor editor = {NULL, 2, MM_TEXT_UTF16_LE, 1, NULL, NULL, archive_add,
                                    archive_put, archive_title, NULL, NULL, {0}};
     MMMovieArchiveRoot root = {999, 0};
     MMMovieHeader header;
@@ -490,7 +486,7 @@ static void archived_scenes(void)
     CHECK(host.adds == 1);
     CHECK(mm_movie_archive_append_scene(&editor, root.number, 80, 2, 11) == MM_MOVIE_SCENE_ARCHIVE_OK);
     CHECK(host.titled && host.linked_scenes == 3 && host.adds == 6);
-    chunks = archive_chunks(&host);
+    chunks = fixture_chunk_access(&host.index);
     CHECK(mm_chunk_find(&chunks, ARCHIVE_SCENE, 0, &position) == MM_CHUNK_NOT_FOUND);
     CHECK(mm_scene_init(&scene, 2) && mm_memory_stream_init(&stream, host.records[1], host.lengths[1]));
     CHECK(mm_scene_decode_header(&stream.stream, &scene));

@@ -401,7 +401,7 @@ static int open_frames(void *context)
     MMChunkAccess chunks;
     MMReadStream stream;
     edit->result = MM_SCENE_ARCHIVE_EDIT_READ_FRAMES;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, edit->number, 0, MM_SCENE_FRAME_GROUP, &edit->previous) != MM_CHUNK_OK ||
         !editor->read(editor->context, MM_SCENE_FRAME_GROUP, edit->previous, &stream))
         return 0;
@@ -509,7 +509,7 @@ static int drop_frame_thumbnail(void *context)
     const MMMovieArchiveEditor *editor = edit->editor;
     MMChunkAccess chunks;
     MMChunkChild thumb = {THUMB_TYPE, 0, 0};
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, edit->number, thumb.slot, thumb.type, &thumb.number) == MM_CHUNK_OK)
         mm_chunk_unlink(&editor->edit, MM_SCENE_CHUNK, edit->number, &thumb);
     return 1;
@@ -647,7 +647,7 @@ int mm_scene_archive_list_text(const MMMovieArchiveEditor *editor, MMU32 scene,
     MMGroup group = {0};
     MMU32 parent;
     int big, result;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_find(&chunks, MM_SCENE_CHUNK, scene, &parent) != MM_CHUNK_OK)
         return MM_SCENE_ARCHIVE_TEXT_READ_START;
     mm_storage_init(&storage, NULL);
@@ -749,7 +749,7 @@ int mm_scene_archive_edit_text(const MMMovieArchiveEditor *editor, const MMScene
     MMGroup group = {0};
     MMU32 parent;
     int big, result;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_find(&chunks, MM_SCENE_CHUNK, edit->scene, &parent) != MM_CHUNK_OK)
         return MM_SCENE_ARCHIVE_TEXT_READ_START;
     mm_storage_init(&storage, NULL);
@@ -1049,7 +1049,7 @@ static int write_event_pair(const MMMovieArchiveEditor *editor, MMU32 scene, voi
     children[0].link.type = MM_SCENE_FRAME_GROUP;
     children[1].link.type = MM_SCENE_START_GROUP;
     children[1].link.slot = 1;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_find(&chunks, MM_SCENE_CHUNK, scene, &row) == MM_CHUNK_OK)
         for (i = 0; i < 2; ++i)
             children[i].had_previous = mm_chunk_child_exact(&chunks, row, children[i].link.slot, children[i].link.type,

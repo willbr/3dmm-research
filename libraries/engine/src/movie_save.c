@@ -203,12 +203,8 @@ retry_save:
         discard_chunk(&edit, sources.type, sources.number, s);
         goto fail_actors;
     }
-    if (old_scene.number != NIL_NUMBER)
-    {
-        const MMChunkAccess chunks = s->chunks(file);
-        if (!mm_movie_archive_preserve_scene_assets(&chunks, &edit, old_scene.number))
-            goto fail_sources;
-    }
+    if (old_scene.number != NIL_NUMBER && !mm_movie_archive_preserve_scene_assets(&edit, old_scene.number))
+        goto fail_sources;
     if (!mm_chunk_title_write(&s->data->title, file, MM_MOVIE_CHUNK, s->data->movieNumber, &s->titles))
         goto fail_sources;
     if (old_scene.number != NIL_NUMBER)

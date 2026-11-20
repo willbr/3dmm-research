@@ -7760,6 +7760,11 @@ body children. It also wires the paint and depth chunks for Marcus
 storyboards. `MMMovieArchiveEditor` supplies payload services and the live
 index to these paths. Caption body replacement adopts the new body before
 releasing the previous link, including when another box shares that body.
+The movie and embedded-asset adapters build their read views from that same
+index. The view captures the current row count and borrows the row and child
+readers. Callers reacquire it after changes to row positions. C89 uses the
+same key and child searches for live reads and mutations, with unreadable
+records reported through the existing chunk status values.
 
 Studio writes an actor through `mm_actor_store` when saving a scene or taking
 a scene undo snapshot. The C89 writer stores the header, route, and events,

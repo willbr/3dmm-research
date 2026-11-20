@@ -70,7 +70,7 @@ int mm_movie_archive_retarget_background(const MMMovieArchiveEditor *editor, MMU
     MMChunkAccess chunks;
     MMReadStream stream;
     BackgroundReplacement replacement;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     replacement.editor = editor;
     replacement.scene = scene;
     replacement.previous.type = START_GROUP_TYPE;
@@ -111,7 +111,7 @@ int mm_movie_archive_rebind_backgrounds(const MMMovieArchiveEditor *editor, cons
     MMChunkAccess chunks;
     MMReadStream stream;
     int status;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     rebind.replacement.editor = editor;
     rebind.replacement.scene = scene;
     rebind.replacement.previous.type = START_GROUP_TYPE;
@@ -130,7 +130,7 @@ static void unlink_scene_child(const MMMovieArchiveEditor *editor, MMU32 scene, 
     MMChunkAccess chunks;
     MMChunkChild child = {0};
     child.type = type;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_link_number(&chunks, SCENE_TYPE, scene, child.slot, child.type, &child.number) == MM_CHUNK_OK)
         mm_chunk_unlink(&editor->edit, SCENE_TYPE, scene, &child);
 }
@@ -178,7 +178,7 @@ int mm_movie_archive_embed_tag(const MMMovieEmbeddedArchive *s, MMU32 parent_typ
     link.type = tag->type;
     if (!s->copy_reference(s->context, tag, &link.number, &created))
         return 0;
-    chunks = s->chunks(s->context);
+    chunks = mm_chunk_edit_access(&s->edit);
     if (mm_chunk_find(&chunks, parent_type, parent, &row) != MM_CHUNK_OK)
         goto fail;
     for (i = 0; mm_chunk_child_at(&chunks, row, i, &existing) == MM_CHUNK_OK; ++i)
@@ -232,9 +232,10 @@ static int scene_delete_child(void *p, MMU32 type, MMU32 number, MMU32 index, MM
     return 0;
 }
 
-int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *chunks, const MMChunkEdit *edit, MMU32 scene)
+int mm_movie_archive_preserve_scene_assets(const MMChunkEdit *edit, MMU32 scene)
 {
     static const MMU32 types[] = {BACKGROUND_TYPE, MM_MATERIAL_CHUNK};
+    const MMChunkAccess access = mm_chunk_edit_access(edit), *chunks = &access;
     SceneAssetGraph source = {NULL, 0};
     MMChunkGraph graph = {NULL, scene_delete_children, scene_delete_child};
     MMCollectionStorage scratch;
@@ -243,8 +244,7 @@ int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *chunks, const MM
     MMChunkChild node;
     MMU32 row, flags, bytes, first[2], count = 0, i, *removed;
     int status, skip = 0, ok = 0;
-    if (!chunks || !edit || !edit->count || !edit->entry || !edit->store ||
-        edit->count(edit->context) != chunks->count)
+    if (!chunks->entry || !chunks->child || !edit->store)
         return 0;
     source.chunks = chunks;
     graph.context = &source;
@@ -312,7 +312,8 @@ int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *chunks, const MM
     for (i = 0; i < count; ++i)
     {
         row = removed[i];
-        edit->entry(edit->context, row, &entry);
+        if (mm_chunk_at(chunks, row, &entry) != MM_CHUNK_OK)
+            goto done;
         entry.flags |= MM_CHUNK_LONER;
         edit->store(edit->context, row, &entry, 0);
     }
@@ -331,7 +332,7 @@ int mm_movie_archive_ensure_root(const MMMovieArchiveEditor *editor, MMMovieArch
     MMU32 position, scene;
     unsigned char header[MM_MOVIE_PREFIX_BYTES];
     int status;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     status = mm_chunk_type_at(&chunks, MOVIE_TYPE, 0, &entry, &position);
     if (status == MM_CHUNK_OK)
     {
@@ -346,7 +347,7 @@ int mm_movie_archive_ensure_root(const MMMovieArchiveEditor *editor, MMMovieArch
         if (!add_record(editor, MOVIE_TYPE, header, sizeof(header), &root.number))
             return MM_MOVIE_SCENE_ARCHIVE_ROOT_WRITE;
         root.created = 1;
-        chunks = editor->chunks(editor->context);
+        chunks = mm_chunk_edit_access(&editor->edit);
         for (scene = 0;; ++scene)
         {
             status = mm_chunk_type_at(&chunks, SCENE_TYPE, scene, &entry, &position);
@@ -383,7 +384,7 @@ int mm_movie_archive_append_scene(const MMMovieArchiveEditor *editor, MMU32 root
     MMSceneState state;
     MMU32 slot, number, position, first, end;
     int status;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (!mm_movie_archive_next_child(&chunks, MOVIE_TYPE, root, SCENE_TYPE, &slot))
         return MM_MOVIE_SCENE_ARCHIVE_SLOT;
     if (mm_chunk_find(&chunks, SCENE_TYPE, scene, &position) != MM_CHUNK_NOT_FOUND)
@@ -413,7 +414,7 @@ int mm_movie_archive_ensure_empty_rollcall(const MMMovieArchiveEditor *editor)
     MMU32 position, number;
     unsigned char bytes[20];
     int status;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     status = mm_chunk_type_at(&chunks, MOVIE_TYPE, 0, &root, &position);
     if (status != MM_CHUNK_OK)
         return status == MM_CHUNK_NOT_FOUND;

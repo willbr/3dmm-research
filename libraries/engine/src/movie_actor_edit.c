@@ -121,7 +121,7 @@ static int replace_child(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 
     MMChunkChild previous = {0}, replacement = {0};
     previous.type = replacement.type = type;
     replacement.number = number;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, type, &previous.number) == MM_CHUNK_OK)
         /* A copied asset is a loner until adoption, even if the copy reused this key. */
         mm_chunk_unlink(&editor->edit, ACTOR_TYPE, actor, &previous);

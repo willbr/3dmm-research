@@ -16,25 +16,12 @@ static int readable(const MMChunkEdit *edit)
 {
     return edit && edit->count && edit->entry;
 }
-static int access_entry(void *context, MMU32 position, MMChunkEntry *entry)
-{
-    const MMChunkEdit *edit = (const MMChunkEdit *)context;
-    edit->entry(edit->context, position, entry);
-    return 1;
-}
 static int lookup(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 *position,
                   MMChunkEntry *entry)
 {
-    MMChunkAccess access;
-    access.context = (void *)edit;
-    access.count = edit->count(edit->context);
-    access.entry = access_entry;
-    access.child = NULL;
-    if (mm_chunk_find(&access, type, number, position) != OK)
-        return 0;
-    if (entry)
-        edit->entry(edit->context, *position, entry);
-    return 1;
+    const MMChunkAccess access = mm_chunk_edit_access(edit);
+    return mm_chunk_find(&access, type, number, position) == OK &&
+           (!entry || mm_chunk_at(&access, *position, entry) == OK);
 }
 int mm_chunk_swap_data(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 other_type,
                              MMU32 other_number)
@@ -106,10 +93,12 @@ int mm_chunk_move(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 new_t
     remaining += extra;
     for (i = edit->count(edit->context); i-- > 0 && remaining;)
     {
-        edit->entry(edit->context, i, &parent);
+        if (!edit->entry(edit->context, i, &parent))
+            return MM_CHUNK_IO;
         for (k = 0; k < parent.child_count;)
         {
-            edit->child(edit->context, i, k, &child);
+            if (!edit->child(edit->context, i, k, &child))
+                return MM_CHUNK_IO;
             if (child.type != type || child.number != number)
             {
                 ++k;
@@ -129,13 +118,15 @@ int mm_chunk_move(const MMChunkEdit *edit, MMU32 type, MMU32 number, MMU32 new_t
 static int candidate(const MMChunkEndpoint *endpoint, MMU32 type, MMI32 runtime, MMU32 minimum,
                      MMU32 *number)
 {
-    MMU32 position, count = endpoint->edit.count(endpoint->edit.context);
+    const MMChunkAccess access = mm_chunk_edit_access(&endpoint->edit);
+    MMU32 position;
     MMChunkEntry entry;
-    lookup(&endpoint->edit, type, minimum, &position, NULL);
-    for (; position < count; ++position)
+    int status = mm_chunk_find(&access, type, minimum, &position);
+    if (status != OK && status != MM_CHUNK_NOT_FOUND)
+        return 0;
+    for (; position < access.count; ++position)
     {
-        endpoint->edit.entry(endpoint->edit.context, position, &entry);
-        if (entry.type != type)
+        if (mm_chunk_at(&access, position, &entry) != OK || entry.type != type)
             break;
         if (endpoint->edit.runtime(endpoint->edit.context, type, entry.number) == runtime)
         {

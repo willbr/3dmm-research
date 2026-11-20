@@ -141,7 +141,7 @@ static int add_child(const MMMovieArchiveEditor *editor, MMU32 parent_type, MMU3
 
 static int read_reference(const MMMovieArchiveEditor *retail, MMU32 type, MMReadStream *stream)
 {
-    MMChunkAccess chunks = retail->chunks(retail->context);
+    MMChunkAccess chunks = mm_chunk_edit_access(&retail->edit);
     MMU32 number;
     return mm_chunk_link_number(&chunks, MM_BACKGROUND, BLACK_BACKGROUND, 0, type, &number) == MM_CHUNK_OK &&
            retail->read(retail->context, type, number, stream);

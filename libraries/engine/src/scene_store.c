@@ -130,7 +130,7 @@ static int store_sound(MMSceneTrack *frames, MMI32 index, const MMSceneTrackEven
         if (tag.tag.sid != 0)
             continue;
         /* A previous adoption can shift rows or add this slot to the scene. */
-        chunks = editor->chunks(editor->context);
+        chunks = mm_chunk_edit_access(&editor->edit);
         if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, tag.child, MM_SOUND_CHUNK, &match) == MM_CHUNK_OK ||
             mm_chunk_find(&chunks, MM_SOUND_CHUNK, tag.tag.number, &match) != MM_CHUNK_OK)
             continue;

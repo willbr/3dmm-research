@@ -13,7 +13,7 @@ int mm_sound_archive_match(const MMMovieSoundArchiveCue *cue, const MMTag *tag, 
 
 static int adopt_sound(const MMMovieArchiveEditor *editor, MMU32 parent_type, MMU32 parent, MMU32 number, MMU32 *slot)
 {
-    const MMChunkAccess chunks = editor->chunks(editor->context);
+    const MMChunkAccess chunks = mm_chunk_edit_access(&editor->edit);
     MMChunkChild sound = {MM_SOUND_CHUNK, 0, 0};
     sound.number = number;
     if (mm_movie_sound_free_slot(&chunks, parent_type, parent, &sound.slot) != MM_CHUNK_OK ||
@@ -32,7 +32,7 @@ int mm_movie_archive_edit_sound(const MMMovieArchiveEditor *editor, MMU32 scene,
     child = 0;
     if (edit->added)
     {
-        chunks = editor->chunks(editor->context);
+        chunks = mm_chunk_edit_access(&editor->edit);
         if (mm_chunk_type_at(&chunks, MM_SOUND_MOVIE, 0, &root, &position) != MM_CHUNK_OK)
             return MM_SOUND_ARCHIVE_ROOT;
         if (!adopt_sound(editor, MM_SOUND_SCENE, scene, *edit->added, &child))

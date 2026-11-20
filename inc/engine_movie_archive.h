@@ -12,7 +12,6 @@ struct MovieEmbeddedArchive
     MMMovieEmbeddedArchive Services()
     {
         return {this,
-            [](void *value) { return static_cast<MovieEmbeddedArchive *>(value)->destination->ReadChunkAccess(); },
             [](void *value, const MMTag *tag, MMU32 *number, int *created) -> int {
                 auto &archive = *static_cast<MovieEmbeddedArchive *>(value);
                 auto file = archive.source;

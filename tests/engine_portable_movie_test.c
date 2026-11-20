@@ -224,10 +224,6 @@ typedef struct SourceEdit
     int has_table, fail_link, step, portable, fail_write, discards;
 } SourceEdit;
 
-static MMChunkAccess source_chunks(void *context)
-{
-    return fixture_chunk_access(&((SourceEdit *)context)->index);
-}
 static int source_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
     SourceEdit *edit = (SourceEdit *)context;
@@ -310,7 +306,6 @@ static MMMovieArchiveEditor source_editor(SourceEdit *source)
     editor.context = source;
     editor.text_unit = 1;
     editor.system = MM_TEXT_WINDOWS;
-    editor.chunks = source_chunks;
     editor.read = source_read;
     editor.add = source_add;
     editor.edit = fixture_chunk_edit(&source->index);

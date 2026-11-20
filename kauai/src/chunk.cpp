@@ -1528,12 +1528,10 @@ MMChunkEdit ChunkyFile::EditIndex()
     edit.walk_allocator = KauaiCopyAllocator();
     edit.count = [](void *c) -> MMU32 { return static_cast<PChunkyFile>(c)->_Index()->count; };
     edit.entry = [](void *c, MMU32 i, MMChunkEntry *entry) {
-        SaveEntry(static_cast<PChunkyFile>(c)->_Index(), i, entry);
+        return mm_chunk_table_entry(static_cast<PChunkyFile>(c)->_Index(), i, entry);
     };
     edit.child = [](void *c, MMU32 parent, MMU32 i, MMChunkChild *entry) {
-        ChildChunkIdentification child;
-        ChunkReadBytes(static_cast<PChunkyFile>(c)->_Index(), parent, i * sizeof(child), sizeof(child), &child);
-        *entry = {child.cki.ctg, child.cki.cno, child.chid};
+        return mm_chunk_table_child(static_cast<PChunkyFile>(c)->_Index(), parent, i, entry);
     };
     edit.insert = [](void *c, MMU32 i) -> int { return ChunkInsert(static_cast<PChunkyFile>(c)->_Index(), i, 0); };
     edit.store = [](void *c, MMU32 i, const MMChunkEntry *entry, int initialize) {

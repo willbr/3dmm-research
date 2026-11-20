@@ -108,7 +108,7 @@ int mm_movie_archive_register_source(const MMMovieArchiveEditor *editor, const M
     if (capacity > (size_t)-1 - 32)
         return MM_MOVIE_SOURCE_EDIT_MEMORY;
     capacity += 32;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     present = mm_chunk_link_number(&chunks, MOVIE_TYPE, movie, previous.slot, previous.type,
                                    &previous.number) == MM_CHUNK_OK;
     if (present && !editor->read(editor->context, previous.type, previous.number, &stream))

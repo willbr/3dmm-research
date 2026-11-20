@@ -1422,7 +1422,9 @@ runtime ID access for chunk moves and copies.
 Actor placement, animation, sound changes and reframing use the same index
 for graph edits. Caption edits, rich-text body saves and storyboard resource
 creation also use it directly. The movie archive host supplies payload I/O
-and a writable index.
+and one live index for lookups and mutations. C89 takes a fresh read view
+after edits that change row positions, including when preserving assets
+before dropping a scene.
 Portable source tables and background event groups publish a replacement
 before releasing the old link. Native source registration retains its
 existing unlink-before-adopt order.

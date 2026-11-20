@@ -725,16 +725,6 @@ static MMChunkAccess chunks(void *p)
     return access;
 }
 static MMU32 edit_count(void *p) { return chunks(p).count; }
-static void edit_entry(void *p, MMU32 row, MMChunkEntry *entry)
-{
-    if (!graph_entry(p, row, entry))
-        abort();
-}
-static void edit_child(void *p, MMU32 parent, MMU32 position, MMChunkChild *child)
-{
-    if (!graph_child(p, parent, position, child))
-        abort();
-}
 static void edit_store(void *p, MMU32 row, const MMChunkEntry *entry, int initialize)
 {
     Test *t = p;
@@ -757,7 +747,8 @@ static void edit_erase(void *p, MMU32 row)
 {
     Test *t = p;
     MMChunkEntry entry, *extra;
-    edit_entry(p, row, &entry);
+    if (!graph_entry(p, row, &entry))
+        abort();
     if (entry.type == MM_SOUND_CHUNK)
     {
         t->soundPresent[entry.number] = t->soundExists[entry.number] = 0;
@@ -790,8 +781,8 @@ static MMChunkEdit edit_index(void *p)
     edit.context = p;
     edit.max_references = 65535;
     edit.count = edit_count;
-    edit.entry = edit_entry;
-    edit.child = edit_child;
+    edit.entry = graph_entry;
+    edit.child = graph_child;
     edit.store = edit_store;
     edit.erase = edit_erase;
     edit.free_space = edit_free;

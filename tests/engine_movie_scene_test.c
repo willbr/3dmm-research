@@ -997,10 +997,6 @@ static MMU32 material_count(void *p)
     (void)p;
     return 12;
 }
-static void material_edit_entry(void *p, MMU32 row, MMChunkEntry *entry)
-{
-    material_entry(p, row, entry);
-}
 static void material_store(void *p, MMU32 row, const MMChunkEntry *entry, int initialize)
 {
     MaterialGraph *graph = p;
@@ -1035,34 +1031,33 @@ static void material_release(void *p, void *data, MMU32 bytes)
 static int remove_materials(void)
 {
     MaterialGraph graph;
-    MMChunkAccess chunks = {NULL, 12, material_entry, material_child};
     MMChunkEdit edit = {0};
     MMStorageAllocator allocator = {NULL, material_resize, material_release};
     int i;
-    chunks.context = &graph;
     allocator.context = &graph;
     edit.context = &graph;
     edit.walk_allocator = &allocator;
     edit.count = material_count;
-    edit.entry = material_edit_entry;
+    edit.entry = material_entry;
+    edit.child = material_child;
     edit.store = material_store;
     material_graph_init(&graph);
-    CHECK(mm_movie_archive_preserve_scene_assets(&chunks, &edit, 1));
+    CHECK(mm_movie_archive_preserve_scene_assets(&edit, 1));
     CHECK(graph.count == 3 && graph.kept[0].type == BKGD && graph.kept[0].number == 10 &&
           graph.kept[1].type == MTRL && graph.kept[1].number == 10 && graph.kept[2].number == 13 &&
           !graph.liveBlocks);
     CHECK(graph.rows[4].flags == MM_CHUNK_LONER && graph.rows[5].flags == MM_CHUNK_LONER &&
           graph.rows[8].flags == MM_CHUNK_LONER && !graph.rows[6].flags && !graph.rows[9].flags);
     material_graph_init(&graph);
-    CHECK(mm_movie_archive_preserve_scene_assets(&chunks, &edit, 2) && !graph.count && !graph.liveBlocks);
+    CHECK(mm_movie_archive_preserve_scene_assets(&edit, 2) && !graph.count && !graph.liveBlocks);
     material_graph_init(&graph);
     graph.unreadable = 1;
-    CHECK(!mm_movie_archive_preserve_scene_assets(&chunks, &edit, 1) && !graph.count && !graph.liveBlocks);
+    CHECK(!mm_movie_archive_preserve_scene_assets(&edit, 1) && !graph.count && !graph.liveBlocks);
     for (i = 1; i <= 2; ++i)
     {
         material_graph_init(&graph);
         graph.failAt = i;
-        CHECK(!mm_movie_archive_preserve_scene_assets(&chunks, &edit, 1) &&
+        CHECK(!mm_movie_archive_preserve_scene_assets(&edit, 1) &&
               graph.allocCalls >= i && !graph.count && !graph.liveBlocks);
     }
     return 0;

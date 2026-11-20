@@ -105,10 +105,6 @@ static void release_packet(void *p, MMSceneSound *sound)
     drop(&f->packets, sound);
 }
 
-static MMChunkAccess store_chunks(void *p)
-{
-    return fixture_chunk_access(&((StoreFixture *)p)->asset_index);
-}
 
 static int write_bytes(void *p, MMU32 offset, const void *data, size_t size)
 {
@@ -356,7 +352,6 @@ static void init_store(StoreFixture *f)
     f->editor.text_unit = 1;
     f->editor.system = 0x0303;
     f->editor.big_endian = !*(const unsigned char *)&one;
-    f->editor.chunks = store_chunks;
     f->editor.add = add_chunk;
     f->editor.edit = fixture_chunk_edit(&f->asset_index);
     f->editor.put = put_scene;
@@ -376,7 +371,6 @@ static void init_store(StoreFixture *f)
     s->free_sound_bytes = free_sound_bytes;
     s->write_object = write_object;
     s->assets.context = f;
-    s->assets.chunks = store_chunks;
     s->assets.copy_reference = copy_background;
     s->assets.edit = fixture_chunk_edit(&f->asset_index);
     fixture_chunk_add(&f->asset_index, MM_SCENE_ACTOR_CHUNK, 77);
@@ -458,7 +452,7 @@ static void test_store(void)
     init_store(&f);
     CHECK(mm_scene_store(&number, &f.s) && number == SCENE_NUMBER && !f.deleted && f.titled);
     CHECK(f.objects == 4 && f.actor_id == 2 && f.text_id == 2 && f.adoptions == 1);
-    chunks = store_chunks(&f);
+    chunks = fixture_chunk_access(&f.asset_index);
     CHECK(chunks.count == 12 && mm_chunk_find(&chunks, MM_BACKGROUND, 19, &row) == MM_CHUNK_OK &&
           mm_chunk_at(&chunks, row, &entry) == MM_CHUNK_OK && entry.parent_count == 1 && !(entry.flags & MM_CHUNK_LONER));
     check_group(&f.chunks[FRAMES_NUMBER], frames, frame_sizes, 4);
@@ -472,7 +466,7 @@ static void test_store(void)
         CHECK(!mm_scene_store(&number, &f.s) && f.asset_index.count == 3);
         CHECK(fail == 1 ? number == 0xffffffffUL && !f.deleted
                         : number == SCENE_NUMBER && f.deleted == 1 && f.log[f.used - 1] == 90);
-        chunks = store_chunks(&f);
+        chunks = fixture_chunk_access(&f.asset_index);
         CHECK(mm_chunk_find(&chunks, MM_SOUND_CHUNK, 1, &row) == MM_CHUNK_OK &&
               mm_chunk_at(&chunks, row, &entry) == MM_CHUNK_OK && entry.parent_count == 1);
         for (j = 0; j < (int)(sizeof(f.chunks) / sizeof(f.chunks[0])); ++j)

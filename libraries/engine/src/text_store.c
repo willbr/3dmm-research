@@ -78,7 +78,7 @@ int mm_text_box_read(MMTextBoxState *state, MMU32 number, MMTextChunk *child, co
         return 0;
     if (child)
     {
-        MMChunkAccess chunks = s->chunks(s->context);
+        MMChunkAccess chunks = mm_chunk_edit_access(&s->edit);
         found.type = MM_TEXT_ROOT;
         if (mm_chunk_link_number(&chunks, MM_TEXT_BOX, number, loaded.child, found.type, &found.number) != MM_CHUNK_OK)
             return 0;
@@ -466,7 +466,7 @@ static int archive_rich_read_font(void *p, MMMovieTitle *font)
 static int archive_rich_child(void *p, MMU32 type, MMU32 number, MMU32 kind, MMU32 *out)
 {
     const MMMovieArchiveEditor *editor = ((const MMRichTextArchiveReader *)p)->archive->editor;
-    const MMChunkAccess chunks = editor->chunks(editor->context);
+    const MMChunkAccess chunks = mm_chunk_edit_access(&editor->edit);
     return mm_chunk_link_number(&chunks, type, number, 0, kind, out) == MM_CHUNK_OK;
 }
 

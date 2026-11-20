@@ -580,11 +580,10 @@ static int box_child(void *v, MMU32 parent, MMU32 row, MMChunkChild *out)
     out->slot = 7;
     return r > 0;
 }
-static MMChunkAccess box_graph(void *v)
+static MMU32 box_count(void *v)
 {
-    MMChunkAccess access = {NULL, 1, box_entry, box_child};
-    access.context = v;
-    return access;
+    (void)v;
+    return 1;
 }
 static int box_put(void *v, MMU32 type, MMU32 number, const void *bytes, MMU32 count)
 {
@@ -605,7 +604,10 @@ static void codecs(void)
     memset(&h, 0, sizeof(h));
     h.services.context = &h;
     h.services.read = box_read;
-    h.services.chunks = box_graph;
+    h.services.edit.context = &h;
+    h.services.edit.count = box_count;
+    h.services.edit.entry = box_entry;
+    h.services.edit.child = box_child;
     h.services.put = box_put;
     h.services.system = 0x303;
     memset(&s, 0, sizeof(s));

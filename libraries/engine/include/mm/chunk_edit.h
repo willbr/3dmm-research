@@ -20,7 +20,8 @@ extern "C"
         MM_EDIT_MISSING_CHILD,
         MM_EDIT_CYCLE_RISK
     };
-    /* Trusted live-index primitives; reads/store/erase cannot fail or re-enter.
+    /* Live-index primitives; store and erase cannot fail or re-enter.
+     * Readers return zero for an invalid row or unreadable child.
      * Source records are copied values, never pointers into movable host storage.
      * insert creates a blank record; store initializes all native fixed bytes only
      * when initialize is true, otherwise it preserves native-only runtime fields.
@@ -31,8 +32,8 @@ extern "C"
         const MMStorageAllocator *walk_allocator; /* NULL selects the C heap. */
         MMU32 max_references; /* Limit imposed by the live index record format. */
         MMU32 (*count)(void *);
-        void (*entry)(void *, MMU32 position, MMChunkEntry *);
-        void (*child)(void *, MMU32 parent, MMU32 position, MMChunkChild *);
+        int (*entry)(void *, MMU32 position, MMChunkEntry *);
+        int (*child)(void *, MMU32 parent, MMU32 position, MMChunkChild *);
         int (*insert)(void *, MMU32 position);
         void (*store)(void *, MMU32 position, const MMChunkEntry *, int initialize);
         void (*erase)(void *, MMU32 position);
@@ -55,6 +56,9 @@ extern "C"
         int (*set_runtime)(void *, MMU32 type, MMU32 number, MMI32 runtime);
         int scan_all_references; /* Also validate the stored count when moving a key. */
     } MMChunkEdit;
+    /* Borrows the index with its current row count. Refresh after any edit
+     * that can add, remove, or reorder rows. */
+    MMChunkAccess mm_chunk_edit_access(const MMChunkEdit *);
     /* Borrows a live editor with count, entry and child readers. Each graph
      * callback resolves the current row by identity. */
     MMChunkGraph mm_chunk_edit_graph(const MMChunkEdit *);

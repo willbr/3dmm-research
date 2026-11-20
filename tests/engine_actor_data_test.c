@@ -601,10 +601,6 @@ typedef struct ActorStore
     int copies, linked, tracks, discarded, reject, reuse;
 } ActorStore;
 
-static MMChunkAccess store_chunks(void *p)
-{
-    return fixture_chunk_access(&((ActorStore *)p)->archive);
-}
 
 static int write_track_bytes(void *p, MMU32 offset, const void *data, size_t bytes)
 {
@@ -680,7 +676,6 @@ static void store_actor(ActorStore *store)
     s.header.put = put_header;
     s.system = 0;
     s.materials.context = store;
-    s.materials.chunks = store_chunks;
     s.add_track = store_track;
     s.materials.copy_reference = store_copy;
     mm_actor_owner_init(&owner);
@@ -716,7 +711,7 @@ static void store_actor(ActorStore *store)
         CHECK(mm_actor_store(7, 8, &owner, &s) == !reject);
         CHECK(store->header.writes == 1 && store->tracks == 2 - reject && store->copies == 2 - reject &&
               store->discarded == (reject && !reuse) && store->linked == !reject);
-        index = store_chunks(store);
+        index = fixture_chunk_access(&store->archive);
         CHECK(mm_chunk_find(&index, costume.tag.type, 99, &row) ==
               (reject && !reuse ? MM_CHUNK_NOT_FOUND : MM_CHUNK_OK));
         if (!reject || reuse)

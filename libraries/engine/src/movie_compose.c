@@ -362,8 +362,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         }
         else if (descriptor.deleted)
         {
-            const MMChunkAccess chunks = scenes->chunks(file);
-            if (!mm_movie_archive_preserve_scene_assets(&chunks, &edit, descriptor.number))
+            if (!mm_movie_archive_preserve_scene_assets(&edit, descriptor.number))
                 goto done;
             if (descriptor.child != (MMU32)old)
             {

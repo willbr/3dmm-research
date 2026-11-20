@@ -326,7 +326,6 @@ int mm_movie_scene_new(MMI32 index, const MMMovieSceneServices *s)
 int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
 {
     MMChunkEdit edit;
-    MMChunkAccess chunks;
     MMI32 old;
     MMChunkChild child;
     MMMovieState *movie = s->movie;
@@ -349,8 +348,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
         goto restore_scene;
     }
     edit = s->edit(file);
-    chunks = s->chunks(file);
-    if (!mm_movie_archive_preserve_scene_assets(&chunks, &edit, child.number))
+    if (!mm_movie_archive_preserve_scene_assets(&edit, child.number))
         goto restore_scene;
     s->retain(scene);
     mm_movie_scene_close_open(s);

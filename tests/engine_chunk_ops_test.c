@@ -47,17 +47,19 @@ static MMU32 count(void *c)
 {
     return ((Host *)c)->count;
 }
-static void entry(void *c, MMU32 i, MMChunkEntry *out)
+static int entry(void *c, MMU32 i, MMChunkEntry *out)
 {
     Host *h = (Host *)c;
     CHECK(i < h->count);
     *out = h->nodes[i].e;
+    return 1;
 }
-static void child(void *c, MMU32 p, MMU32 i, MMChunkChild *out)
+static int child(void *c, MMU32 p, MMU32 i, MMChunkChild *out)
 {
     Host *h = (Host *)c;
     CHECK(p < h->count && i < h->nodes[p].e.child_count);
     *out = h->nodes[p].kids[i];
+    return 1;
 }
 static void store(void *c, MMU32 i, const MMChunkEntry *e, int initialize)
 {

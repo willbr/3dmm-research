@@ -27,11 +27,6 @@
 #define TRANSFER_DATA_BYTES (6 * (MM_ACTOR_EVENT_BYTES + 44) + 2 * (MM_ACTOR_EVENT_BYTES + 28))
 #define TRANSFER_WIRE_BYTES (20 + TRANSFER_DATA_BYTES + TRANSFER_ROWS * 8)
 
-typedef struct Graph
-{
-    MMChunkEntry entries[3];
-    MMChunkChild children[3][4];
-} Graph;
 typedef union Payload
 {
     MMActorSound sound;
@@ -39,8 +34,7 @@ typedef union Payload
 } Payload;
 typedef struct Fixture
 {
-    Graph source;
-    ChunkIndexFixture destination, embedded;
+    ChunkIndexFixture source, destination, embedded;
     MMActorHeader input, written;
     MMActorEvent events[TRANSFER_ROWS];
     Payload payloads[TRANSFER_ROWS];
@@ -53,35 +47,6 @@ typedef struct Fixture
     int big_endian, fail_write, fail_link;
 } Fixture;
 
-static int entry(void *context, MMU32 i, MMChunkEntry *out)
-{
-    *out = ((Graph *)context)->entries[i];
-    return 1;
-}
-static int child(void *context, MMU32 parent, MMU32 i, MMChunkChild *out)
-{
-    *out = ((Graph *)context)->children[parent][i];
-    return 1;
-}
-static void append_child(Graph *graph, MMU32 parent, MMU32 type, MMU32 number, MMU32 slot)
-{
-    MMChunkChild *link;
-    CHECK(graph->entries[parent].child_count < 4);
-    link = &graph->children[parent][graph->entries[parent].child_count++];
-    link->type = type;
-    link->number = number;
-    link->slot = slot;
-}
-static MMChunkAccess source(void *context)
-{
-    MMChunkAccess chunks = {NULL, 2, entry, child};
-    chunks.context = &((Fixture *)context)->source;
-    return chunks;
-}
-static MMChunkAccess destination(void *context)
-{
-    return fixture_chunk_access(&((Fixture *)context)->destination);
-}
 static int clone_actor(void *context, MMU32 actor, MMU32 *copied)
 {
     CHECK(context && actor == 1);
@@ -260,13 +225,9 @@ static void init(Fixture *f, int big)
     MMU32 i;
     memset(f, 0, sizeof(*f));
     f->big_endian = big;
-    f->source.entries[0].type = ACTOR;
-    f->source.entries[0].number = 1;
-    append_child(&f->source, 0, EVENTS, 10, 0);
-    f->source.entries[1].type = MM_SOUND_SCENE;
-    f->source.entries[1].number = 1;
-    append_child(&f->source, 1, ACTOR, 1, 0);
-    append_child(&f->source, 1, MM_SOUND_CHUNK, 23, 2);
+    fixture_chunk_seed_link(&f->source, ACTOR, 1, EVENTS, 10, 0);
+    fixture_chunk_seed_link(&f->source, MM_SOUND_SCENE, 1, ACTOR, 1, 0);
+    fixture_chunk_seed_link(&f->source, MM_SOUND_SCENE, 1, MM_SOUND_CHUNK, 23, 2);
     fixture_chunk_seed_link(&f->destination, ACTOR, 2, EVENTS, 20, 0);
     fixture_chunk_seed_link(&f->destination, ACTOR, 2, MM_TMPL, 4, 0);
     fixture_chunk_seed_link(&f->destination, ACTOR, 2, MATERIAL, 7, 1);
@@ -323,10 +284,6 @@ typedef struct RollEdit
     int step;
 } RollEdit;
 
-static MMChunkAccess movie_chunks(void *context)
-{
-    return fixture_chunk_access(&((RollEdit *)context)->graph);
-}
 static int open_roll(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
     RollEdit *edit = (RollEdit *)context;
@@ -373,8 +330,8 @@ static void unlink_roll(void *context, MMU32 parent, const MMChunkChild *child)
 static void rename_rollcall(void)
 {
     RollEdit edit;
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, movie_chunks,
-                                   open_roll, add_roll, NULL, NULL, NULL, NULL, {0}};
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, open_roll,
+                                   add_roll, NULL, NULL, NULL, NULL, {0}};
     MMActorArchiveName name = {{4, 1, 0, 2, MM_TMPL, 19}, "edited", 6, 1};
     MMMovieActor original = {4, 3, 5, 0, MM_TMPL, 1}, other = {6, 2, 5, 1, MM_TMPL, 2}, actor;
     MMCollectionHeader header = {0};
@@ -433,10 +390,6 @@ typedef struct PlacementEdit
     int added, step, fail_appearance;
 } PlacementEdit;
 
-static MMChunkAccess placement_chunks(void *context)
-{
-    return fixture_chunk_access(&((PlacementEdit *)context)->graph);
-}
 static int placement_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
     PlacementEdit *edit = (PlacementEdit *)context;
@@ -494,7 +447,7 @@ static void placement_transaction(void)
     static const float scale[] = {1, 1, 1};
     float delta[] = {1.25f, 0, 0};
     PlacementEdit edit;
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, placement_chunks, placement_read,
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, placement_read,
                                    placement_add, placement_put, NULL, NULL, NULL, {0}};
     MMActorArchivePose pose = {20, 5, NULL, identity, scale, NULL, placement_appearance};
     MMChunkAccess chunks;
@@ -523,7 +476,7 @@ static void placement_transaction(void)
         edit.fail_appearance = fail;
         CHECK(mm_actor_archive_place(&editor, &pose) ==
               (fail ? MM_ACTOR_EDIT_ARCHIVE_APPEARANCE : MM_ACTOR_EDIT_ARCHIVE_OK));
-        chunks = placement_chunks(&edit);
+        chunks = fixture_chunk_access(&edit.graph);
         CHECK(edit.step == (fail ? 3 : 6) &&
               mm_chunk_link_number(&chunks, MM_SOUND_SCENE, 20, 4, ACTOR, &actor) == MM_CHUNK_OK &&
               actor == (fail ? 5U : 3U));
@@ -540,10 +493,6 @@ typedef struct ReframeEdit
     int copied, published, thumbnail_removed, invalid_cut;
 } ReframeEdit;
 
-static MMChunkAccess reframe_chunks(void *context)
-{
-    return fixture_chunk_access(&((ReframeEdit *)context)->graph);
-}
 static int reframe_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
     ReframeEdit *edit = (ReframeEdit *)context;
@@ -710,7 +659,7 @@ static void reframe_transaction(void)
     static const MMI32 kinds[] = {MM_ACTOR_ADD, MM_ACTOR_MOVE, MM_ACTOR_TWEAK,
                                   MM_ACTOR_ROTATE_HERE, MM_ACTOR_TWEAK};
     ReframeEdit edit;
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, reframe_chunks, reframe_read,
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, reframe_read,
                                    reframe_add, reframe_put, NULL, NULL, NULL, {0}};
     MMSceneReframeHost host = {NULL, reframe_pose, reframe_from_euler, reframe_to_euler};
     MMSceneReframeCamera work = {identity, 70.0f, 1.0f}, camera = {identity, 70.0f, 2.0f};
@@ -771,10 +720,6 @@ typedef struct AuthorEdit
     int tables, copied, linked, dropped;
 } AuthorEdit;
 
-static MMChunkAccess author_chunks(void *context)
-{
-    return fixture_chunk_access(&((AuthorEdit *)context)->graph);
-}
 static int author_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
     AuthorEdit *f = (AuthorEdit *)context;
@@ -890,7 +835,7 @@ static void insertion_transaction(void)
 {
     const float point[3] = {1.25f, -2.0f, 0.0f};
     AuthorEdit f = {0};
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, author_chunks, author_read,
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, author_read,
                                    author_add, author_put, NULL, NULL, author_patch, {0}};
     MMActorAuthorHost host = {NULL, NULL, NULL, NULL, author_copy};
     MMActorInsert insert = {AUTHOR_SCENE, AUTHOR_ACTOR, 7, 12, 3, 5, NULL, "Text", 4, 1};
@@ -954,10 +899,6 @@ static void insertion_transaction(void)
     CHECK(mm_rollcall_table_dispose(&listing) == MM_STORAGE_OK);
 }
 
-static MMChunkAccess sound_scene_graph(void *context)
-{
-    return fixture_chunk_access(&((Fixture *)context)->embedded);
-}
 static int add_sound_copy(void *context, MMU32 type, MMU32 size, MMU32 *number, MMStorageWriter *writer)
 {
     Fixture *f = (Fixture *)context;
@@ -1009,7 +950,7 @@ static void edit_actor_sound(void)
     Fixture f;
     const MMMovieSoundArchiveCue cue = {10, 0, 6, 2, 3, 2, 888, 0, 1};
     MMMovieSoundArchiveEdit edit = {NULL, NULL, 10, 22000, 2, 1, 1, 0};
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, sound_scene_graph, source_read,
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_read,
                                    add_sound_copy, put, NULL, NULL, NULL, {0}};
     MMChunkAccess chunks;
     MMU32 actor;
@@ -1035,7 +976,7 @@ static void edit_actor_sound(void)
     f.writes = f.fail_write = 0;
     CHECK(mm_movie_archive_edit_sound(&editor, 1, &edit) == MM_SOUND_ARCHIVE_OK);
     CHECK(f.sound_scene_links == 1 && f.written.actor_id == f.input.actor_id);
-    chunks = sound_scene_graph(&f);
+    chunks = fixture_chunk_access(&f.embedded);
     CHECK(mm_chunk_link_number(&chunks, MM_SOUND_SCENE, 1, 0, ACTOR, &actor) == MM_CHUNK_OK && actor == 2);
     CHECK(mm_chunk_link_number(&chunks, MM_SOUND_SCENE, 3, 0, ACTOR, &actor) == MM_CHUNK_OK && actor == 1);
     read_output_events(&f);
@@ -1069,10 +1010,6 @@ static int copy_cloned_material(void *context, const MMTag *tag, MMU32 *number, 
     return 1;
 }
 
-static MMChunkAccess embedded_index(void *context)
-{
-    return fixture_chunk_access(&((Fixture *)context)->embedded);
-}
 
 static int insert_cloned_child(void *context, MMU32 actor, const MMChunkChild *child)
 {
@@ -1127,18 +1064,16 @@ static void rebind_materials(void)
     MMU32 row, track;
     int i;
     editor.context = materials.context = &f;
-    materials.chunks = embedded_index;
     materials.copy_reference = copy_cloned_material;
     materials.edit = fixture_chunk_edit(&f.embedded);
     editor.system = MM_TEXT_WINDOWS;
-    editor.chunks = embedded_index;
     editor.read = read_cloned_events;
     editor.add = add_rebound_events;
     editor.edit = materials.edit;
     init_rebound_materials(&f, 1);
     CHECK(mm_actor_archive_rebind_materials(&editor, 2, &materials));
     CHECK(f.copies == 1 && f.writes == 1 && f.replacement_adopted == 1 && f.old_unlinked == 1);
-    index = embedded_index(&f);
+    index = fixture_chunk_access(&f.embedded);
     CHECK(mm_chunk_find(&index, MATERIAL, 108, &row) == MM_CHUNK_OK &&
           mm_chunk_at(&index, row, &asset) == MM_CHUNK_OK && asset.parent_count == 1 &&
           !(asset.flags & MM_CHUNK_LONER));
@@ -1154,7 +1089,7 @@ static void rebind_materials(void)
         f.fail_link = i;
         CHECK(!mm_actor_archive_rebind_materials(&editor, 2, &materials));
         CHECK(!f.old_unlinked && f.replacement_discarded == 1 && !f.replacement_adopted);
-        index = embedded_index(&f);
+        index = fixture_chunk_access(&f.embedded);
         CHECK(mm_chunk_link_number(&index, ACTOR, 2, 0, EVENTS, &track) == MM_CHUNK_OK && track == 20);
         CHECK(mm_chunk_find(&index, EVENTS, 21, &row) == MM_CHUNK_NOT_FOUND);
     }
@@ -1309,15 +1244,16 @@ int main(void)
     const MMActorArchiveRequest request = {1, 1, 3, 7, 12, 9};
     const MMActorArchiveRequest forward = {1, 1, 3, 7, 9, 12};
     MMActorArchiveHost host = {0};
-    MMMovieArchiveEditor source_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source, source_read,
+    MMMovieArchiveEditor source_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_read,
                                           NULL, NULL, NULL, NULL, NULL, {0}};
-    MMMovieArchiveEditor destination_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, destination, destination_read,
+    MMMovieArchiveEditor destination_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, destination_read,
                                                NULL, put, NULL, replace_events, NULL, {0}};
     MMU32 actor, i;
     MMActorHeader header;
     unsigned char descriptor[MM_ACTOR_ARCHIVE_TEXT_BYTES];
     int big;
     host.context = host.source_map = source_editor.context = destination_editor.context = &f;
+    source_editor.edit = fixture_chunk_edit(&f.source);
     destination_editor.edit = fixture_chunk_edit(&f.destination);
     host.source = &source_editor;
     host.destination = &destination_editor;

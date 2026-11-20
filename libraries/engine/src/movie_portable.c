@@ -33,7 +33,7 @@ MMPortableSourceResult mm_movie_archive_require_portable_source(const MMMovieArc
     MMReadStream stream;
     PortableSourceEdit edit = {0};
     MMU32 position;
-    chunks = editor->chunks(editor->context);
+    chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_type_at(&chunks, MOVIE_TYPE, 0, &root, &position) != MM_CHUNK_OK)
         return MM_PORTABLE_SOURCE_MISSING_ROOT;
     edit.editor = editor;

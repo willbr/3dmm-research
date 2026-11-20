@@ -465,7 +465,7 @@ void *mm_actor_write_events(void *runtime, const MMActorEventServices *s)
 static int store_template(MMU32 actor, const MMActorHeader *header, void *object, const MMActorStoreServices *s)
 {
     const MMMovieEmbeddedArchive *archive = &s->materials;
-    MMChunkAccess chunks = archive->chunks(archive->context);
+    MMChunkAccess chunks = mm_chunk_edit_access(&archive->edit);
     MMChunkChild link;
     MMU32 row, number;
     int created = 0;
@@ -503,7 +503,7 @@ static int store_sounds(MMU32 scene, MMActorEventTable *events, const MMMovieEmb
         mm_actor_events_get_payload(events, i, &sound);
         if (sound.tag.sid != 0)
             continue;
-        chunks = archive->chunks(archive->context);
+        chunks = mm_chunk_edit_access(&archive->edit);
         /* Undo scenes may refer to sounds that still live in the main movie. */
         if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, sound.child, MM_SOUND_CHUNK, &number) == MM_CHUNK_OK ||
             mm_chunk_find(&chunks, MM_SOUND_CHUNK, sound.tag.number, &number) != MM_CHUNK_OK)

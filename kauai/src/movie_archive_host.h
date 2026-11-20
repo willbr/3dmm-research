@@ -23,7 +23,6 @@ struct MovieArchiveHost
             [](void *, const void *bytes, size_t count, int encoding, void *text, size_t capacity) -> size_t {
                 return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(text), capacity);
             },
-            [](void *value) { return static_cast<MovieArchiveHost *>(value)->file->ReadChunkAccess(); },
             [](void *value, MMU32 type, MMU32 number, MMReadStream *stream) -> int {
                 auto &io = *static_cast<MovieArchiveHost *>(value);
                 if (!io.file->FFind(type, number, &io.input) || !io.input.FUnpackData()) return false;

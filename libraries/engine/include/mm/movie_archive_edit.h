@@ -21,7 +21,6 @@ typedef struct MMMovieArchiveEditor
     unsigned text_unit;
     int system, big_endian;
     MMStringConvert convert_text;
-    MMChunkAccess (*chunks)(void *);
     int (*read)(void *, MMU32 type, MMU32 number, MMReadStream *);
     int (*add)(void *, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *);
     int (*put)(void *, MMU32 type, MMU32 number, const void *bytes, MMU32 size);
@@ -38,7 +37,6 @@ typedef struct MMMovieArchiveEditor
 typedef struct MMMovieEmbeddedArchive
 {
     void *context;
-    MMChunkAccess (*chunks)(void *);
     int (*copy_reference)(void *, const MMTag *, MMU32 *number, int *created);
     MMChunkEdit edit;
 } MMMovieEmbeddedArchive;
@@ -137,7 +135,7 @@ int mm_movie_archive_embed_tag(const MMMovieEmbeddedArchive *, MMU32 parent_type
  * lose their last parent. Raw tags and undo can still refer to these by number.
  * Both views borrow the same live index. The editor publishes loner flags only
  * after the full preview succeeds and keeps all rows and links in place. */
-int mm_movie_archive_preserve_scene_assets(const MMChunkAccess *, const MMChunkEdit *, MMU32 scene);
+int mm_movie_archive_preserve_scene_assets(const MMChunkEdit *, MMU32 scene);
 
 /* Write and adopt the replacement before unlinking the old child. */
 int mm_movie_archive_replace_child(const MMMovieArchiveEditor *, MMU32 parent_type, MMU32 parent,

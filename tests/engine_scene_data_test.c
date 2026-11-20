@@ -157,12 +157,6 @@ static MMU32 wire_size(void *g)
     (void)g;
     return 32;
 }
-static MMChunkAccess event_chunks(void *c)
-{
-    Host *h = c;
-    event(h, 'p');
-    return fixture_chunk_access(&h->index);
-}
 static int write_event_bytes(void *c, MMU32 offset, const void *bytes, size_t count)
 {
     Host *h = (Host *)c;
@@ -291,7 +285,6 @@ static MMMovieArchiveEditor event_editor(Host *h)
     editor.text_unit = 1;
     editor.system = MM_TEXT_WINDOWS;
     editor.big_endian = *(const unsigned char *)&one == 0;
-    editor.chunks = event_chunks;
     editor.add = add;
     editor.edit = fixture_chunk_edit(&h->index);
     return editor;
@@ -303,7 +296,7 @@ static void transactions(void)
     MMMovieArchiveEditor editor;
     MMSceneEventGroups groups;
     int stage;
-    const char *logs[] = {"pawbxABoO", "pa", "pawd", "pawbd", "pawbxde", "pawbxAde", "pawbxABDe"};
+    const char *logs[] = {"awbxABoO", "a", "awd", "awbd", "awbxde", "awbxAde", "awbxABDe"};
     reset(&h);
     prepare_event_index(&h, 1);
     editor = event_editor(&h);
@@ -326,7 +319,7 @@ static void transactions(void)
     reset(&h);
     h.have_old = 0;
     prepare_event_index(&h, 1);
-    CHECK(mm_scene_archive_write_events(&editor, 7, &frames, &starts, &groups) && !strcmp(h.log, "pawbxAB"));
+    CHECK(mm_scene_archive_write_events(&editor, 7, &frames, &starts, &groups) && !strcmp(h.log, "awbxAB"));
     reset(&h);
     frames.sizes[0] = 5;
     CHECK(!mm_scene_archive_write_events(&editor, 7, &frames, &starts, &groups) && !h.used);
@@ -491,7 +484,7 @@ static void creation(void)
     number = 99;
     h.have_old = 0;
     CHECK(mm_scene_archive_create(&editor, &state, &number) && number == 7 && h.root &&
-          !strcmp(h.log, "chnpawbxAB"));
+          !strcmp(h.log, "chnawbxAB"));
     for (i = 1; i <= 3; ++i)
     {
         reset(&h);
@@ -663,10 +656,6 @@ typedef struct ArchivedFrames
     int include_movie, linked_scene_sound, linked_movie_sound;
 } ArchivedFrames;
 
-static MMChunkAccess scene_chunks(void *context)
-{
-    return fixture_chunk_access(&((ArchivedFrames *)context)->graph);
-}
 static int read_archive(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
     ArchivedFrames *archive = (ArchivedFrames *)context;
@@ -805,7 +794,7 @@ static MMU32 saved_frame_row(ArchivedFrames *archive, int big, MMU32 index, MMI3
 static void edit_archived_frames(void)
 {
     ArchivedFrames archive;
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, read_archive,
                                    add_frames, put_range, NULL, NULL, NULL, {0}};
     MMSceneState scene;
     MMMemoryStream stream;
@@ -876,7 +865,7 @@ static void init_archive_sound(ArchivedFrames *archive, int big)
 static void edit_archived_sounds(void)
 {
     ArchivedFrames archive;
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, scene_chunks, read_archive,
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, read_archive,
                                    add_frames, put_range, NULL, NULL, NULL, {0}};
     MMMovieSoundArchiveCue cue = {1, 4, 0, 2, -1, 3, 8, 0, 0};
     MMMovieSoundArchiveEdit edit = {NULL, NULL, 5, 12000, 1, 1, 0, 0};
@@ -937,10 +926,6 @@ typedef struct ArchivedText
     MMU32 size, adopted_slot, removed_slot;
 } ArchivedText;
 
-static MMChunkAccess text_chunks(void *context)
-{
-    return fixture_chunk_access(&((ArchivedText *)context)->graph);
-}
 
 static int text_read(void *context, MMU32 type, MMU32 number, MMReadStream *stream)
 {
@@ -1055,7 +1040,7 @@ static void init_text_archive(ArchivedText *f, int big)
 static void edit_archived_text(void)
 {
     ArchivedText f;
-    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, text_chunks, text_read,
+    MMMovieArchiveEditor editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, text_read,
                                    text_add, NULL, NULL, NULL, NULL, {0}};
     MMSceneArchiveTextEdit add = {5, -2, NULL, NULL, text_box};
     MMSceneArchiveTextEdit change = {5, 0, NULL, NULL, text_box};
