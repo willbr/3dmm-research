@@ -2,6 +2,9 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_transform_edit.h"
 #include "mm/actor_effect.h"
+#include "mm/actor_math.h"
+#include "mm/actor_owner.h"
+#include "mm/scene_selection.h"
 #define FLAG(kind) ((MMU32)1 << (kind))
 static void publish(MMActorState *state,const MMActorTransformEditServices *s)
 { if (s->subroute.route.edits.publish) s->subroute.route.edits.publish(s->subroute.route.edits.context,state); }
@@ -226,4 +229,157 @@ int mm_actor_transform_time(MMActorState *state,void *route,void *events,MMI32 s
     state->frame=mm_fixed_add(state->frame,shift); publish(state,s); e->invalidate_range(e->context);
     e->scene_frame(e->context,&frame); ok=s->seek_scene(e->context,state,mm_fixed_add(frame,shift));
     if (ok) s->scrollbars(e->context); return ok;
+}
+
+int mm_actor_owner_rotate(MMActorOwner *actor, const unsigned short angles[3], int forward, int world,
+                          const MMActorTransformEditServices *services)
+{
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorState state = actor->runtime.state;
+    int ok = mm_actor_transform_rotate(&state, &actor->sounds, actor->track.route, actor->track.events,
+                                      actor->runtime.actor, angles[0], angles[1], angles[2], forward,
+                                      world, &motion, services);
+    actor->runtime.state = state;
+    return ok;
+}
+
+int mm_actor_owner_scale(MMActorOwner *actor, MMI32 value, const MMActorTransformEditServices *services)
+{
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorState state = actor->runtime.state;
+    int ok = mm_actor_transform_scale(&state, &actor->sounds, actor->track.route, actor->track.events,
+                                     actor->runtime.actor, value, &motion, services);
+    actor->runtime.state = state;
+    return ok;
+}
+
+int mm_actor_owner_pull(MMActorOwner *actor, const MMActorStretch *stretch,
+                        const MMActorTransformEditServices *services)
+{
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorState state = actor->runtime.state;
+    int ok = mm_actor_transform_pull(&state, &actor->sounds, actor->track.route, actor->track.events,
+                                    actor->runtime.actor, stretch, &motion, services);
+    actor->runtime.state = state;
+    return ok;
+}
+
+int mm_actor_owner_tweak(MMActorOwner *actor, const MMActorPoint *delta, MMU32 flags,
+                         const MMActorTransformEditServices *services)
+{
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorState state = actor->runtime.state;
+    int ok = mm_actor_transform_tweak(&state, &actor->sounds, actor->track.route, actor->track.events,
+                                     actor->runtime.actor, delta, flags, &motion, services);
+    actor->runtime.state = state;
+    return ok;
+}
+
+int mm_actor_owner_move(MMActorOwner *actor, const MMActorPoint *delta, MMU32 flags, MMActorMoveResult *out,
+                        const MMActorTransformEditServices *services)
+{
+    const MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorState state = actor->runtime.state;
+    MMActorPoint origin = actor->runtime.origin;
+    int ok = mm_actor_transform_move(&state, &actor->sounds, actor->track.route, actor->track.events,
+                                    actor->runtime.actor, &origin, delta, flags, out, &motion, services);
+    actor->runtime.origin = origin;
+    actor->runtime.state = state;
+    return ok;
+}
+
+static MMActorPoint offset(const MMActorPoint *position, const MMActorPoint *pivot)
+{
+    MMActorPoint delta;
+    delta.dxr = mm_fixed_sub(position->dxr, pivot->dxr);
+    delta.dyr = mm_fixed_sub(position->dyr, pivot->dyr);
+    delta.dzr = mm_fixed_sub(position->dzr, pivot->dzr);
+    return delta;
+}
+
+static MMActorPoint orbit(const MMActorPoint *position, const MMActorMatrix *rotation)
+{
+    MMActorPoint out;
+    out.dxr = mm_fixed_mac3(position->dxr, rotation->m[0][0], position->dyr, rotation->m[1][0],
+                            position->dzr, rotation->m[2][0]);
+    out.dyr = mm_fixed_mac3(position->dxr, rotation->m[0][1], position->dyr, rotation->m[1][1],
+                            position->dzr, rotation->m[2][1]);
+    out.dzr = mm_fixed_mac3(position->dxr, rotation->m[0][2], position->dyr, rotation->m[1][2],
+                            position->dzr, rotation->m[2][2]);
+    return offset(&out, position);
+}
+
+static MMActorPoint resize_offset(const MMActorPoint *position, const MMActorStretch *stretch)
+{
+    MMActorPoint delta;
+    delta.dxr = mm_fixed_mul(position->dxr, mm_fixed_sub(stretch->rScaleX, 65536L));
+    delta.dyr = mm_fixed_mul(position->dyr, mm_fixed_sub(stretch->rScaleY, 65536L));
+    delta.dzr = mm_fixed_mul(position->dzr, mm_fixed_sub(stretch->rScaleZ, 65536L));
+    return delta;
+}
+
+static int transform_member(void *actor, const MMActorGroupTransform *edit,
+                            const MMActorMatrix *rotation, const MMActorStretch *stretch,
+                            const MMActorGroupTransformServices *services)
+{
+    MMActorOwner *owner = services->owner(services->context, actor);
+    MMActorTransformEditServices effects;
+    MMActorMoveResult moved = {0, 0, NULL, NULL};
+    MMActorPoint body, position, delta;
+    int move_ok;
+    if (edit->kind == MM_ACTOR_GROUP_MOVE || edit->kind == MM_ACTOR_GROUP_TWEAK)
+    {
+        services->effects(services->context, actor, &effects);
+        if (edit->kind == MM_ACTOR_GROUP_TWEAK)
+            return mm_actor_owner_tweak(owner, &edit->delta, edit->move_flags, &effects);
+        return mm_actor_owner_move(owner, &edit->delta, edit->move_flags, &moved, &effects) && moved.moved;
+    }
+    if (!owner->runtime.body)
+        return 0;
+    services->body_position(services->context, owner->runtime.body, &body);
+    position = offset(&body, &edit->pivot);
+    delta = edit->kind == MM_ACTOR_GROUP_ROTATE ? orbit(&position, rotation) : resize_offset(&position, stretch);
+    services->effects(services->context, actor, &effects);
+    move_ok = mm_actor_owner_move(owner, &delta, 0, NULL, &effects);
+    services->effects(services->context, actor, &effects);
+    if (edit->kind == MM_ACTOR_GROUP_ROTATE)
+        return mm_actor_owner_rotate(owner, edit->angles, edit->forward, 1, &effects) || move_ok;
+    if (edit->kind == MM_ACTOR_GROUP_RESIZE)
+        return mm_actor_owner_scale(owner, edit->factor, &effects);
+    return mm_actor_owner_pull(owner, stretch, &effects);
+}
+
+int mm_actor_group_transform(const MMActorGroupTransform *edit, const MMSceneSelectionServices *selection,
+                             const MMActorGroupTransformServices *services)
+{
+    static const int world_axes[] = {MM_MATRIX_Z, MM_MATRIX_Y, MM_MATRIX_X};
+    MMActorMatrix rotation;
+    MMActorStretch stretch;
+    MMI32 i, count = mm_scene_selection_count(selection);
+    int changed = 0;
+    void *actor;
+    if (edit->kind == MM_ACTOR_GROUP_ROTATE)
+    {
+        mm_matrix_identity(&rotation);
+        /* Tool X uses world Z, and tool Z uses world X. A zero tick uses
+         * the exact identity matrix, without trigonometric rounding. */
+        for (i = 0; i < 3; ++i)
+            if (edit->angles[i])
+            {
+                mm_matrix_rotate(&rotation, world_axes[i], edit->angles[i], 0);
+                break;
+            }
+    }
+    else if (edit->kind == MM_ACTOR_GROUP_RESIZE || edit->kind == MM_ACTOR_GROUP_SQUASH)
+    {
+        stretch.rScaleX = stretch.rScaleZ = edit->factor;
+        stretch.rScaleY = edit->kind == MM_ACTOR_GROUP_SQUASH ? mm_fixed_div(65536L, edit->factor) : edit->factor;
+    }
+    for (i = 0; i < count; ++i)
+    {
+        actor = mm_scene_selection_at(i, selection);
+        if (actor && transform_member(actor, edit, &rotation, &stretch, services))
+            changed = 1;
+    }
+    return changed;
 }

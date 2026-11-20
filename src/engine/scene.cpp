@@ -1499,6 +1499,24 @@ void Scene::CaptureActorDragUndo(MMActorDragUndo *drag, PActor actor, bool useGr
     mm_actor_drag_undo_begin(drag, actor, freezePivot, useGroup ? &selection : nullptr, &actors, &undo);
 }
 
+bool Scene::FTransformSelectedActors(const MMActorGroupTransform &edit)
+{
+    AssertThis(0);
+    const auto selection = _SelectionServices();
+    const MMActorGroupTransformServices services = {
+        nullptr,
+        [](void *, void *actor) { return &static_cast<PActor>(actor)->_owner; },
+        [](void *, void *actor, MMActorTransformEditServices *effects) {
+            *effects = static_cast<PActor>(actor)->_TransformEditServices();
+        },
+        [](void *, void *body, MMActorPoint *point) {
+            BRS x, y, z;
+            static_cast<PBody>(body)->GetPosition(&x, &y, &z);
+            *point = {x, y, z};
+        }};
+    return mm_actor_group_transform(&edit, &selection, &services) != 0;
+}
+
 /****************************************************
  *
  * Mean of currently-visible selected actors' world positions.

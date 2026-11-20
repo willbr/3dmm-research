@@ -1100,11 +1100,9 @@ MMActorTransformEditServices Actor::_TransformEditServices()
 bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=mm_actor_transform_rotate(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                             xa,ya,za,fFromHereFwd,0,&tables,&services)!=0;
-    _owner.runtime.state = state; return ok;
+    const unsigned short angles[] = {xa, ya, za};
+    const auto services = _TransformEditServices();
+    return mm_actor_owner_rotate(&_owner, angles, fFromHereFwd, 0, &services) != 0;
 }
 
 /***************************************************************************
@@ -1130,11 +1128,9 @@ bool Actor::FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 bool Actor::FRotateAroundWorld(BRA xa, BRA ya, BRA za, bool fFromHereFwd)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=mm_actor_transform_rotate(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                             xa,ya,za,fFromHereFwd,1,&tables,&services)!=0;
-    _owner.runtime.state = state; return ok;
+    const unsigned short angles[] = {xa, ya, za};
+    const auto services = _TransformEditServices();
+    return mm_actor_owner_rotate(&_owner, angles, fFromHereFwd, 1, &services) != 0;
 }
 
 /***************************************************************************
@@ -1167,11 +1163,8 @@ bool Actor::FNormalizeCore(ulong grfnorm)
 bool Actor::FScale(BRS rScale)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    bool ok=mm_actor_transform_scale(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                            rScale,&tables,&services)!=0;
-    _owner.runtime.state = state; return ok;
+    const auto services = _TransformEditServices();
+    return mm_actor_owner_scale(&_owner, rScale, &services) != 0;
 }
 
 /***************************************************************************
@@ -1200,12 +1193,9 @@ bool Actor::FSoonerLater(long dnfrm)
 bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    const MMActorStretch stretch{rScaleX,rScaleY,rScaleZ};
-    bool ok=mm_actor_transform_pull(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                           &stretch,&tables,&services)!=0;
-    _owner.runtime.state = state; return ok;
+    const auto services = _TransformEditServices();
+    const MMActorStretch stretch{rScaleX, rScaleY, rScaleZ};
+    return mm_actor_owner_pull(&_owner, &stretch, &services) != 0;
 }
 
 /***************************************************************************
@@ -1220,12 +1210,9 @@ bool Actor::FPull(BRS rScaleX, BRS rScaleY, BRS rScaleZ)
 bool Actor::FTweakRoute(BRS dxr, BRS dyr, BRS dzr, ulong grfmaf)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
-    const MMActorPoint delta{dxr,dyr,dzr};
-    bool ok=mm_actor_transform_tweak(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                            &delta,grfmaf,&tables,&services)!=0;
-    _owner.runtime.state = state; return ok;
+    const auto services = _TransformEditServices();
+    const MMActorPoint delta{dxr, dyr, dzr};
+    return mm_actor_owner_tweak(&_owner, &delta, grfmaf, &services) != 0;
 }
 
 /***************************************************************************
@@ -1260,17 +1247,13 @@ void Actor::_UpdateXyzRte(void)
 bool Actor::FMoveRoute(BRS dxr, BRS dyr, BRS dzr, bool *pfMoved, ulong grfmaf)
 {
     AssertThis(0);
-    auto state=_owner.runtime.state;
-    const auto tables=EngineActorMotion::Services(); const auto services=_TransformEditServices();
     AssertNilOrVarMem(pfMoved);
-    const MMActorPoint delta{dxr,dyr,dzr}; MMActorPoint origin;
-    std::memcpy(&origin,&_owner.runtime.origin,sizeof(origin));
-    MMActorMoveResult result{}; result.context=pfMoved;
-    result.publish=[](void *p,int moved) { if (p) *static_cast<bool *>(p)=moved!=0; };
-    bool ok=mm_actor_transform_move(&state,&_owner.sounds,_owner.track.route,_owner.track.events,_owner.runtime.actor,
-                                           &origin,&delta,grfmaf,&result,&tables,&services)!=0;
-    std::memcpy(&_owner.runtime.origin,&origin,sizeof(origin));
-    _owner.runtime.state = state; return ok;
+    const auto services = _TransformEditServices();
+    const MMActorPoint delta{dxr, dyr, dzr};
+    MMActorMoveResult result{};
+    result.context = pfMoved;
+    result.publish = [](void *p, int moved) { if (p) *static_cast<bool *>(p) = moved != 0; };
+    return mm_actor_owner_move(&_owner, &delta, grfmaf, &result, &services) != 0;
 }
 
 /***************************************************************************

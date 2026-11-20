@@ -53,6 +53,51 @@ int mm_actor_transform_move(MMActorState *,MMActorSounds *,void *route,void *eve
  * continues; failed seeking retains preceding edits and does not update bars. */
 int mm_actor_transform_time(MMActorState *,void *route,void *events,MMI32 shift,
     const MMActorMotionServices *,const MMActorTransformEditServices *);
+
+struct MMActorOwner;
+struct MMSceneSelectionServices;
+/* Edit a live owner through its track. Publish the resulting state even on
+ * failure, including the original partial-edit and move-output semantics. */
+int mm_actor_owner_rotate(struct MMActorOwner *, const unsigned short angles[3], int forward, int world,
+                          const MMActorTransformEditServices *);
+int mm_actor_owner_scale(struct MMActorOwner *, MMI32 factor, const MMActorTransformEditServices *);
+int mm_actor_owner_pull(struct MMActorOwner *, const MMActorStretch *, const MMActorTransformEditServices *);
+int mm_actor_owner_tweak(struct MMActorOwner *, const MMActorPoint *, MMU32 flags,
+                         const MMActorTransformEditServices *);
+int mm_actor_owner_move(struct MMActorOwner *, const MMActorPoint *, MMU32 flags, MMActorMoveResult *,
+                        const MMActorTransformEditServices *);
+
+enum
+{
+    MM_ACTOR_GROUP_MOVE,
+    MM_ACTOR_GROUP_TWEAK,
+    MM_ACTOR_GROUP_ROTATE,
+    MM_ACTOR_GROUP_RESIZE,
+    MM_ACTOR_GROUP_SQUASH
+};
+typedef struct MMActorGroupTransform
+{
+    int kind;
+    MMActorPoint delta, pivot;
+    MMU32 move_flags;
+    unsigned short angles[3];
+    MMI32 factor;
+    int forward;
+} MMActorGroupTransform;
+typedef struct MMActorGroupTransformServices
+{
+    void *context;
+    struct MMActorOwner *(*owner)(void *, void *actor);
+    void (*effects)(void *, void *actor, MMActorTransformEditServices *);
+    void (*body_position)(void *, void *body, MMActorPoint *);
+} MMActorGroupTransformServices;
+/* Visit the selection in order, continuing past failed edits. Rotation and
+ * size changes skip actors with no body and move their body positions around
+ * the supplied pivot before applying the per-actor transform. Return true
+ * when a move succeeds with a nonzero requested delta, a tweak succeeds,
+ * either part of rotation succeeds, or the size edit succeeds. */
+int mm_actor_group_transform(const MMActorGroupTransform *, const struct MMSceneSelectionServices *,
+                             const MMActorGroupTransformServices *);
 #ifdef __cplusplus
 }
 #endif

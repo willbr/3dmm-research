@@ -5353,77 +5353,27 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
         break;
 
     case toolCompose: {
-        ulong grfmaf = fmafNil;
-        bool fAnyMoved = fFalse;
-        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
-
+        const bool tweak = (_grfcust & fcustCmd) != 0;
+        MMActorGroupTransform edit{};
+        edit.kind = tweak ? MM_ACTOR_GROUP_TWEAK : MM_ACTOR_GROUP_MOVE;
+        edit.delta = {dxrWld, dyrWld, dzrWld};
         if (_fRespectGround)
-        {
-            grfmaf |= fmafGround;
-        }
+            edit.move_flags |= MM_MOVE_GROUND;
+        if (!tweak && (_grfcust & fcustShift))
+            edit.move_flags |= MM_MOVE_SUBROUTE;
 
-        if (_grfcust & fcustCmd)
+        if (tweak)
+            AdjustCursor(pcmd->xp, pcmd->yp);
+        const bool moved = pscen->FTransformSelectedActors(edit);
+        if (moved)
+            _CommitMoveUndo();
+        if (!tweak && moved)
         {
             AdjustCursor(pcmd->xp, pcmd->yp);
-
-            for (long iactr = 0; iactr < cactrSel; iactr++)
-            {
-                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
-                if (pa == pvNil)
-                {
-                    continue;
-                }
-                if (pa->FTweakRoute(dxrWld, dyrWld, dzrWld, grfmaf))
-                {
-                    fAnyMoved = fTrue;
-                }
-            }
-
-            // NOTE: Pre-Task-4 the Tweak (Cmd-drag) branch declared a local
-            // bool fMoved{} that was never assigned, so its `if (fMoved)`
-            // arm was dead code -- Tweak drags silently leaked their undo
-            // snapshot at mouseup. Driving the commit off FTweakRoute's
-            // return value here also makes single-actor Tweak drags
-            // undoable for the first time. This is intentional; the Task 4
-            // spec said "no single-select behavior change" but the prior
-            // behavior was a latent bug that nobody noticed.
-            if (fAnyMoved)
-            {
-                _CommitMoveUndo();
-            }
-
+            Pmvie()->Pbwld()->MarkDirty();
+        }
+        if (tweak || moved)
             Pmvie()->MarkViews();
-        }
-        else
-        {
-            if (_grfcust & fcustShift)
-            {
-                grfmaf |= fmafEntireSubrte;
-            }
-
-            for (long iactr = 0; iactr < cactrSel; iactr++)
-            {
-                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
-                if (pa == pvNil)
-                {
-                    continue;
-                }
-                bool fMovedThis = fFalse;
-                if (pa->FMoveRoute(dxrWld, dyrWld, dzrWld, &fMovedThis, grfmaf) && fMovedThis)
-                {
-                    fAnyMoved = fTrue;
-                }
-            }
-
-            if (fAnyMoved)
-            {
-                _CommitMoveUndo();
-
-                AdjustCursor(pcmd->xp, pcmd->yp);
-                Pmvie()->Pbwld()->MarkDirty();
-                Pmvie()->MarkViews();
-            }
-        }
     }
     break;
 
@@ -5452,59 +5402,16 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             break;
         }
 
-        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
-
-        if (cactrSel >= 2)
+        if (pscen->CactrSelected() >= 2)
         {
-            // Multi-actor rigid group rotation: each actor's world position
-            // orbits the frozen pivot AND each actor's body rotates around the
-            // SAME world axis (via FRotateAroundWorld, which conjugates through
-            // the actor's rest orientation -- otherwise actors facing different
-            // directions tilt around different world axes and the group looks
-            // chaotic). Only one of xa/ya/za is non-zero per tick.
-            // Orbit world-axis matches the body world-axis used in
-            // FRotateAroundWorld: tool X uses world Z, tool Z uses world X
-            // (so the canonical face-camera actor's right/forward axes line
-            // up with the user's tool labels).
-            BMAT34 bmat;
-            if (xa != aZero)
-                BrMatrix34RotateZ(&bmat, xa);
-            else if (ya != aZero)
-                BrMatrix34RotateY(&bmat, ya);
-            else if (za != aZero)
-                BrMatrix34RotateX(&bmat, za);
-            else
-                BrMatrix34Identity(&bmat);
-
-            bool fFwd = FPure(_grfcust & fcustCmd);
-            bool fAnyMoved = fFalse;
-            for (long iactr = 0; iactr < cactrSel; iactr++)
-            {
-                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
-                if (pa == pvNil || pa->Pbody() == pvNil)
-                {
-                    continue;
-                }
-                BRS xr, yr, zr;
-                pa->Pbody()->GetPosition(&xr, &yr, &zr);
-                br_vector3 vIn, vOut;
-                vIn.v[0] = BrsSub(xr, _actorDrag.pivot.dxr);
-                vIn.v[1] = BrsSub(yr, _actorDrag.pivot.dyr);
-                vIn.v[2] = BrsSub(zr, _actorDrag.pivot.dzr);
-                BrMatrix34ApplyV(&vOut, &vIn, &bmat);
-                BRS dxr = BrsSub(vOut.v[0], vIn.v[0]);
-                BRS dyr = BrsSub(vOut.v[1], vIn.v[1]);
-                BRS dzr = BrsSub(vOut.v[2], vIn.v[2]);
-                bool fMovedThis = fFalse;
-                bool fMovedRoute = pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
-                bool fRotated = pa->FRotateAroundWorld(xa, ya, za, fFwd);
-                if (fMovedRoute || fRotated)
-                {
-                    fAnyMoved = fTrue;
-                }
-            }
-
-            if (fAnyMoved)
+            MMActorGroupTransform edit{};
+            edit.kind = MM_ACTOR_GROUP_ROTATE;
+            edit.pivot = _actorDrag.pivot;
+            edit.angles[0] = xa;
+            edit.angles[1] = ya;
+            edit.angles[2] = za;
+            edit.forward = (_grfcust & fcustCmd) != 0;
+            if (pscen->FTransformSelectedActors(edit))
             {
                 _CommitMoveUndo();
                 Pmvie()->SetDirty();
@@ -5539,33 +5446,13 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             Pmvie()->Pmcc()->PlayUISound(Tool(), (dxrMouse + dyrMouse > 0) ? 0 : fcustShift);
         }
 
-        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
-
-        if (cactrSel >= 2)
+        if (pscen->CactrSelected() >= 2)
         {
-            BRS sm1 = BrsSub(brs2, rOne); // (s - 1)
-            bool fAnyMoved = fFalse;
-            for (long iactr = 0; iactr < cactrSel; iactr++)
-            {
-                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
-                if (pa == pvNil || pa->Pbody() == pvNil)
-                {
-                    continue;
-                }
-                BRS xr, yr, zr;
-                pa->Pbody()->GetPosition(&xr, &yr, &zr);
-                BRS dxr = BrsMul(sm1, BrsSub(xr, _actorDrag.pivot.dxr));
-                BRS dyr = BrsMul(sm1, BrsSub(yr, _actorDrag.pivot.dyr));
-                BRS dzr = BrsMul(sm1, BrsSub(zr, _actorDrag.pivot.dzr));
-                bool fMovedThis = fFalse;
-                pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
-                if (pa->FScale(brs2))
-                {
-                    fAnyMoved = fTrue;
-                }
-            }
-
-            if (fAnyMoved)
+            MMActorGroupTransform edit{};
+            edit.kind = MM_ACTOR_GROUP_RESIZE;
+            edit.pivot = _actorDrag.pivot;
+            edit.factor = brs2;
+            if (pscen->FTransformSelectedActors(edit))
             {
                 _CommitMoveUndo();
                 Pmvie()->SetDirty();
@@ -5601,40 +5488,13 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
             Pmvie()->Pmcc()->PlayUISound(Tool(), (-dxrMouse - dyrMouse < 0) ? 0 : fcustShift);
         }
 
-        long cactrSel = (Pmvie()->Pscen() != pvNil) ? Pmvie()->Pscen()->CactrSelected() : 0;
-
-        if (cactrSel >= 2)
+        if (pscen->CactrSelected() >= 2)
         {
-            // Mirror Movie::FSquashStretchActr's per-axis factors:
-            // sx = brs2, sy = 1/brs2, sz = brs2.
-            BRS sx = brs2;
-            BRS sy = BrsDiv(rOne, brs2);
-            BRS sz = brs2;
-            BRS sxm1 = BrsSub(sx, rOne);
-            BRS sym1 = BrsSub(sy, rOne);
-            BRS szm1 = BrsSub(sz, rOne);
-            bool fAnyMoved = fFalse;
-            for (long iactr = 0; iactr < cactrSel; iactr++)
-            {
-                PActor pa = Pmvie()->Pscen()->PactrSelectedAt(iactr);
-                if (pa == pvNil || pa->Pbody() == pvNil)
-                {
-                    continue;
-                }
-                BRS xr, yr, zr;
-                pa->Pbody()->GetPosition(&xr, &yr, &zr);
-                BRS dxr = BrsMul(sxm1, BrsSub(xr, _actorDrag.pivot.dxr));
-                BRS dyr = BrsMul(sym1, BrsSub(yr, _actorDrag.pivot.dyr));
-                BRS dzr = BrsMul(szm1, BrsSub(zr, _actorDrag.pivot.dzr));
-                bool fMovedThis = fFalse;
-                pa->FMoveRoute(dxr, dyr, dzr, &fMovedThis, fmafNil);
-                if (pa->FPull(sx, sy, sz))
-                {
-                    fAnyMoved = fTrue;
-                }
-            }
-
-            if (fAnyMoved)
+            MMActorGroupTransform edit{};
+            edit.kind = MM_ACTOR_GROUP_SQUASH;
+            edit.pivot = _actorDrag.pivot;
+            edit.factor = brs2;
+            if (pscen->FTransformSelectedActors(edit))
             {
                 _CommitMoveUndo();
                 Pmvie()->SetDirty();

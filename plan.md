@@ -935,6 +935,8 @@ populates that record directly in C89, and its controller captures and swaps
 counted roll-call names. Composite actor undo owns its child and counted-name
 tables in C89. Studio drag undo captures its snapshots through the shared
 selection and actor owner and keeps its pending handles and frozen pivot in C.
+Group translation, tweak, orbit rotation, resize and squash use the same C89
+actor-owner operations as the single-actor tools.
 Physical views and final integration remain work.
 Typed resource/track/archive/path providers, display formatting/output containers,
 native string/display/UI representations and

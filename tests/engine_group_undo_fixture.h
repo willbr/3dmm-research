@@ -73,9 +73,19 @@ static bool TestMoveGroupActors(PMovie movie, TrackTestActor *const actors[2])
     {
         ids[i] = actors[i]->Arid();
         initial[i] = actors[i]->EvaluatedFrameState().transform.rScaleStep;
-        ok = actors[i]->FScale(BR_SCALAR(1.5 + i));
+    }
+    if (ok)
+    {
+        MMActorGroupTransform edit{};
+        edit.kind = MM_ACTOR_GROUP_RESIZE;
+        edit.pivot = drag.pivot;
+        edit.factor = BR_SCALAR(1.5);
+        ok = scene->FTransformSelectedActors(edit);
+    }
+    for (int i = 0; ok && i < 2; ++i)
+    {
         edited[i] = actors[i]->EvaluatedFrameState().transform.rScaleStep;
-        ok = ok && edited[i] != initial[i];
+        ok = edited[i] == BrsMul(initial[i], BR_SCALAR(1.5));
     }
     if (ok)
     {

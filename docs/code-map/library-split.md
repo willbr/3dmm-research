@@ -4378,10 +4378,11 @@ body/resource implementations and final facade removal remain unfinished.
 ### Actor transform and time edits
 
 `actor_transform_edit.c` owns local/world rotation, normalization, uniform scale,
-stretch, route tweaks, composed movement and sooner/later shifting. Native actor
-methods now adapt state and host services. Matrix composition, path-orientation
-removal, transform fill, event sequencing, bounds, ground policy, lifetime/range
-decisions and partial failures execute in the C-only library.
+stretch, route tweaks, composed movement and sooner/later shifting. Rotate,
+scale, stretch, tweak and move publish the actor owner's state in C89.
+Matrix composition, path-orientation removal, transform fill, event sequencing,
+bounds, ground policy, lifetime/range decisions and partial failures execute in
+the C-only library.
 
 Local rotations retain pre-X/Y/Z order; world rotations retain swapped X/Z
 post-rotation and BRender low-precision normalization. Zero world rotation returns
@@ -4549,6 +4550,31 @@ both observed poses unchanged, and a drag moved both actors. A single undo
 and redo restored the corresponding poses. Production Studio reopened the
 result. Retail reported matching actor poses and animation at frames 7 and 14.
 Capture suite `20261120T015504Z-857097fe` matched 60 retail scene/frame markers
+in each port's seek and playback runs. Both ports' seek image hashes matched
+their previous builds, and SDL's 12 playback sound events matched retail.
+
+### Actor group transforms
+
+Studio's drag commands call `actor_transform_edit.c` to visit the selected actors
+and run the same C owner operations as single-actor edits. Translation uses
+the requested delta and route flags. Rotation applies the fixed-point orbit
+around the frozen pivot, with tool X mapped to world Z and tool Z mapped to
+world X. Resize and squash move body positions as well as changing each body.
+The Y factor for squash is the reciprocal of the X and Z factor. The loop
+retains each tool's success predicate and continues past failed individual
+edits. Studio supplies pointer deltas, cursor and sound effects, and redraws.
+
+Headless Studio runs routed the same pointer commands to both builds for move,
+subroute move, tweak, rotation on all three axes, resize and squash. Both drag
+directions matched through editing, undo, redo and production Studio reopen.
+For the eight saved movies in the primary run, all 72 chunk entries and their
+links and payloads matched per file. The raw differences were seven to twelve
+bytes of chunk-index alignment padding. Retail reopened each movie with
+matching pose matrices and animation for the two observed actors at frame 7.
+The native live-actor fixture also used the group resize before undoing and
+redoing it. All 12 native actor traces matched byte for byte.
+
+Capture suite `20261120T020904Z-3802926f` matched 60 retail scene/frame markers
 in each port's seek and playback runs. Both ports' seek image hashes matched
 their previous builds, and SDL's 12 playback sound events matched retail.
 
