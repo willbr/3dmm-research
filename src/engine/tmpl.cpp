@@ -67,6 +67,7 @@
 #include "engine_template_costumes.h"
 #include "engine_part_indices.h"
 #include "mm/movie_session.h"
+#include <typeinfo>
 #include "engine_read_stream.h"
 ASSERTNAME
 
@@ -455,25 +456,25 @@ MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *cont
 {
     MMTemplateRuntimeServices s = {}; s.storage = _CreateServices(context);
     static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
-    s.binding = [](void *, void *object, MMTemplateBinding *out) {
-        auto t = static_cast<PTemplate>(object); auto cache = t->Pcrf();
-        *out = {cache, t->Ctg(), t->Cno()};
-    };
-    s.fetch = [](void *, void *cache, MMU32 type, MMU32 number, int kind) -> void * {
-        auto reader = kind == MM_TEMPLATE_ACTION ? ActionDefinition::FReadActn :
-            kind == MM_TEMPLATE_MODEL ? Model::FReadModl : CustomMaterial_CMTL::FReadCmtl;
-        return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, reader);
-    };
+    s.resource = ResourceBinding();
+    s.action_reader = reinterpret_cast<MMResourceReader>(ActionDefinition::FReadActn);
+    s.model_reader = reinterpret_cast<MMResourceReader>(Model::FReadModl);
     s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
         return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, static_cast<PString>(out));
     };
-    s.action = [](void *, void *object, MMI32 id) -> void * { return static_cast<PTemplate>(object)->_PactnFetch(id); };
-    s.model = [](void *, void *object, MMU32 id, MMMovieAsset *asset) -> void * {
-        auto model = static_cast<PTemplate>(object)->_PmodlFetch(id);
-        if (model)
-            *asset = {0, MM_TEMPLATE_BMDL, model->Cno()};
-        return model;
-    };
+    // Derived templates can supply either provider, even when backed by an archive.
+    if (typeid(*this) != typeid(Template))
+    {
+        s.generated_action = [](void *, void *object, MMI32 id) -> void * {
+            return static_cast<PTemplate>(object)->_PactnFetch(id);
+        };
+        s.generated_model = [](void *, void *object, MMU32 id, MMMovieAsset *asset) -> void * {
+            auto model = static_cast<PTemplate>(object)->_PmodlFetch(id);
+            if (model)
+                *asset = {0, MM_TEMPLATE_BMDL, model->Cno()};
+            return model;
+        };
+    }
     s.allocate_cel = [](void *, size_t bytes, void **out) -> int {
         return FAllocPv(out, static_cast<LegacyLong>(bytes), fmemClear, mprNormal);
     };
@@ -516,7 +517,7 @@ bool Template::FGetActnName(LegacyLong anid, PString pstn)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertPo(pstn, 0);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return mm_template_action_name(this, anid, pstn, &s) != 0;
+    return mm_template_action_name(anid, pstn, &s) != 0;
 }
 
 /***************************************************************************
@@ -525,8 +526,9 @@ bool Template::FGetActnName(LegacyLong anid, PString pstn)
 PActionDefinition Template::_PactnFetch(LegacyLong anid)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return static_cast<PActionDefinition>(mm_template_fetch_child(this, anid, MM_TEMPLATE_ACTION, &s));
+    return static_cast<PActionDefinition>(mm_template_fetch_child(
+        ResourceBinding(), anid, MM_TEMPLATE_ACTION, reinterpret_cast<MMResourceReader>(ActionDefinition::FReadActn),
+        nullptr));
 }
 
 /***************************************************************************
@@ -535,16 +537,8 @@ PActionDefinition Template::_PactnFetch(LegacyLong anid)
 PModel Template::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
-    const auto cache = Pcrf();
-    if (!cache)
-        return nullptr;
-    const auto graph = cache->ReadChunkAccess();
-    MMU32 parent;
-    MMMovieAsset asset;
-    if (mm_chunk_find(&graph, Ctg(), Cno(), &parent) != MM_CHUNK_OK ||
-        mm_movie_cel_model(&graph, parent, chidModl, 0, &asset) != MM_MOVIE_OK)
-        return nullptr;
-    return static_cast<PModel>(cache->PbacoFetch(asset.type, asset.number, Model::FReadModl));
+    return static_cast<PModel>(mm_template_fetch_child(
+        ResourceBinding(), chidModl, MM_TEMPLATE_MODEL, reinterpret_cast<MMResourceReader>(Model::FReadModl), nullptr));
 }
 
 /***************************************************************************
@@ -678,7 +672,7 @@ bool Template::FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2)
 {
     AssertThis(0);
     TemplateCreateContext context; auto s = _RuntimeServices(&context);
-    return mm_template_same_accessory(this, cmid1, cmid2, &s) != 0;
+    return mm_template_same_accessory(cmid1, cmid2, &s) != 0;
 }
 
 /***************************************************************************
@@ -689,16 +683,11 @@ PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
     AssertThis(0);
     // A CMID is a child ID, not an ordinal. Imported templates may have gaps
     // (for example, children 0 and 2), so _template.custom_count is not an upper bound on IDs.
-    const auto cache = Pcrf();
-    if (cmid < 0 || !cache)
+    if (cmid < 0)
         return pvNil;
-    const auto graph = cache->ReadChunkAccess();
-    MMU32 parent;
-    MMChunkEntry costume;
-    if (mm_chunk_find(&graph, Ctg(), Cno(), &parent) != MM_CHUNK_OK ||
-        mm_movie_costume_link(&graph, parent, static_cast<MMU32>(cmid), &costume, nullptr) != MM_MOVIE_OK)
-        return pvNil;
-    return static_cast<PCustomMaterial_CMTL>(cache->PbacoFetch(costume.type, costume.number, CustomMaterial_CMTL::FReadCmtl));
+    return static_cast<PCustomMaterial_CMTL>(mm_template_fetch_child(
+        ResourceBinding(), static_cast<MMU32>(cmid), MM_TEMPLATE_CUSTOM,
+        reinterpret_cast<MMResourceReader>(CustomMaterial_CMTL::FReadCmtl), nullptr));
 }
 
 /***************************************************************************

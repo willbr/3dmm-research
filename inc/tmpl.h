@@ -167,7 +167,7 @@ class Template : public Template_PAR
         mm_template_state_init(&_template);
     } // can't instantiate directly; must use FReadTmpl
     static MMTemplateCreateServices _CreateServices(TemplateCreateContext *);
-    static MMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
+    MMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
     bool _FReadTmplf(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock);
     virtual bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock);
     virtual PActionDefinition _PactnFetch(LegacyLong anid);

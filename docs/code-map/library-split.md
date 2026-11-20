@@ -5984,13 +5984,13 @@ also passed the actor audio fixture. Captures and binary hashes are in
 
 `template_runtime.c` owns template child-resource routing, action names, cel
 wrapping/application, distance/count/flag/sound queries, costume indexing,
-accessory detection/parent-set search and model-child comparisons. Template and
-CustomMaterial facades call this shared C89 implementation in both hosts.
-Native services provide field/container access, resource factories, retained
-references, virtual action/model fetches and body setters. ThreeDText retains
-its virtual fetch dispatch. ActionDefinition state/loading and primitive getters
-now use the C action implementation described below. Resource object/container
-adapters and final native facade removal remain dependencies.
+accessory detection/parent-set search and model-child comparisons. Studio and
+Marcus pass the template's C resource binding and registered reader keys. The C
+evaluator resolves the authored child through the cache's graph and fetches
+directly through that cache. Generated ThreeDText supplies its own action and
+model providers. Native services still provide resource factories, action-name
+output, retained references and body setters. ActionDefinition state and
+loading use the C action implementation described below.
 
 Cel application fetches every model before publishing distance or changing the
 body. Nil model IDs preserve accessory models while their matrices still update.
@@ -6645,6 +6645,11 @@ provider supplies the physical extent and packed bit. The cache owns the
 estimate and final read use the same block, including mutations made during
 the estimate. Recursive reads open separate blocks. Cache hits and scope
 rejections skip block construction.
+
+The cache also exposes a borrowed C graph for a synchronous operation. It uses
+the retained index for an immutable archive and acquires a fresh graph from
+the live file for each request. Template lookup uses that graph to select child
+keys and feeds them directly into the same cache with the registered reader.
 
 Both tables use C-owned storage. Entries are copied before callbacks; readers
 may load other keys and detach/destruction callbacks may remove other entries.

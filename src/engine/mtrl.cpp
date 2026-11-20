@@ -257,30 +257,17 @@ void Material_MTRL::MarkShadeTable()
     MarkMemObj(static_cast<PTextureMap>(_shade.texture));
 }
 #endif
-static MMTemplateCreateServices MaterialGraphServices()
-{
-    MMTemplateCreateServices s = {};
-    s.child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type,
-                 MMTemplateChild *out) -> int {
-        ChildChunkIdentification child;
-        if (!static_cast<PChunkyFile>(file)->FGetKidChidCtg(type, number, id, child_type, &child))
-            return 0;
-        *out = {child.cki.ctg, child.cki.cno, child.chid};
-        return 1;
-    };
-    return s;
-}
 bool CustomMaterial_CMTL::FHasModels(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
     AssertPo(file, 0);
-    auto s = MaterialGraphServices();
-    return mm_template_has_models(file, type, number, &s) != 0;
+    const auto graph = file->ReadChunkAccess();
+    return mm_template_has_models(&graph, type, number) != 0;
 }
 bool CustomMaterial_CMTL::FEqualModels(PChunkyFile file, ChunkNumber a, ChunkNumber b)
 {
     AssertPo(file, 0);
-    auto s = MaterialGraphServices();
-    return mm_template_equal_models(file, a, b, &s) != 0;
+    const auto graph = file->ReadChunkAccess();
+    return mm_template_equal_models(&graph, a, b) != 0;
 }
 PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(LegacyLong set, LegacyLong count, PMaterial_MTRL *materials)
 {

@@ -16956,3 +16956,41 @@ identities in seek and continuous playback, plus all retail seek camera
 indices. Each port reproduced its 60 prior seek canvas hashes. SDL matched
 all 12 retail sound requests. The archived comparison and fixture evidence
 are in `tmp/c89-body-renderer`.
+
+## Template resource lookup through the C89 cache (20 November 2026)
+
+Studio and Marcus now resolve ordinary template actions, cel models and custom
+costumes through the template's C89 resource binding. The evaluator queries
+the cache's current chunk graph and fetches with the existing reader key.
+The cache borrows the latest graph for a mutable file and uses the retained
+index for an immutable archive. Derived templates keep their virtual resource
+providers, including generated ThreeDText and in-memory fixture templates.
+The C tests exercise reader-key cache hits, exact and sparse child IDs, the
+first of repeated links, and an immutable cache that outlives its input index
+reference.
+
+All 192 standalone checks passed, along with four focused AddressSanitizer
+checks, 12 selected native x64 checks and seven selected SDL checks. The six
+template construction and runtime traces matched the previous build byte for
+byte on SDL, native x64 and native x86. All 54 actor, scene and movie traces,
+three saved movies, ten Preview fingerprints and six Preview movies also
+matched. An independent C consumer evaluated the actor fixture's frame 12
+body and model bindings with retail content. Studio's transform and keyframe
+authoring workflow saved a byte-identical movie.
+
+The x86 native material fixture exits 1 because its enforced fingerprint is
+`113D98C1`. A clean rebuild of parent `d81f5241` and this change both produced
+`552F8BFD` and identical 102,316-byte traces. The x86 C material, template and
+cache checks and the native resource-cache check passed.
+
+Retail, SDL and Marcus matched all three retained-background frame identities,
+camera indices and canvas hashes in `20261120T221118Z-27dc1594`. Both ports
+matched original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261120T221151Z-e89414f4`.
+
+All four `actor-event-edit` captures completed in `20261120T221103Z-b1773ab8`.
+Compared with the archived retail runs, SDL and Marcus matched all 60 frame
+identities in seek and continuous playback, plus all retail seek camera
+indices. Each port reproduced its 60 prior seek canvas hashes. SDL matched
+all 12 retail sound requests. The archived comparison and fixture evidence
+are in `tmp/c89-template-provider`.

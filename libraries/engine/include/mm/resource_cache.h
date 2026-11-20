@@ -14,6 +14,7 @@ extern "C"
     /* Function-pointer keys are cast back by the host before comparison/calling.
      * No function/data pointer conversions or ordered function comparisons enter C. */
     typedef void (*MMResourceReader)(void);
+    enum { MM_RESOURCE_NORMAL_PRIORITY = 2 };
     typedef struct MMResourceCache MMResourceCache;
     typedef struct MMResourceObject
     {
@@ -64,6 +65,7 @@ extern "C"
         MMResourceObjectServices objects;
         int (*compare_reader)(MMResourceReader, MMResourceReader);
         int (*contains)(void *file, MMU32 type, MMU32 number);
+        MMChunkAccess (*live_chunks)(void *file);
         const MMHandleServices *handles;
         const MMBlockFileServices *block_files;
         /* Report an existing chunk's borrowed physical extent and packed bit.
@@ -112,6 +114,8 @@ extern "C"
     int mm_resource_cache_init(MMResourceCache *, void *owner, MMReference *references,
                                const MMResourceSource *, MMI32 budget, const MMResourceServices *,
                                const MMStorageAllocator *, int diagnostic_refs);
+    /* Borrow the current graph for synchronous lookup. Reacquire after edits. */
+    MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *);
     /* Fill an initialized block with the stored extent from this cache's
      * source. The caller owns the block, which is empty on a miss. */
     int mm_resource_cache_read_block(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);

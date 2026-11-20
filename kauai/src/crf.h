@@ -57,6 +57,7 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
   protected:
     BaseCacheableObject(void);
     ~BaseCacheableObject(void);
+    const MMResourceObject *ResourceBinding() const { return &_resource; }
 
   public:
     void Release(void) override;

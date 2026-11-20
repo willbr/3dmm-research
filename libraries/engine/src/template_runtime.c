@@ -2,24 +2,71 @@
 #include "mm/template_runtime.h"
 #include "mm/movie_session.h"
 #include <string.h>
-static MMU32 resource_type(int kind)
-{ return kind==MM_TEMPLATE_ACTION?MM_ACTN:kind==MM_TEMPLATE_MODEL?MM_TEMPLATE_BMDL:MM_CMTL; }
-static int child(void *object,MMU32 id,int kind,MMTemplateBinding *b,MMTemplateChild *c,const MMTemplateRuntimeServices *s)
+void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int kind, MMResourceReader reader,
+                             MMMovieAsset *asset)
 {
-    s->binding(s->storage.context,object,b);
-    return b->cache && s->storage.child(s->storage.context,b->cache,b->type,b->number,id,resource_type(kind),c);
+    MMChunkAccess graph;
+    MMChunkEntry entry;
+    MMResourceRequest request;
+    MMMovieAsset resolved;
+    MMU32 parent;
+    void *object;
+    if (!resource || !resource->cache || !reader || kind < 0 || kind >= MM_TEMPLATE_RESOURCE_COUNT)
+        return NULL;
+    graph = mm_resource_cache_chunks(resource->cache);
+    if (mm_chunk_find(&graph, resource->type, resource->number, &parent) != MM_CHUNK_OK)
+        return NULL;
+    if (kind == MM_TEMPLATE_MODEL)
+    {
+        if (mm_movie_cel_model(&graph, parent, id, 0, &resolved) != MM_MOVIE_OK)
+            return NULL;
+    }
+    else if (kind == MM_TEMPLATE_CUSTOM)
+    {
+        if (mm_movie_costume_link(&graph, parent, id, &entry, NULL) != MM_MOVIE_OK)
+            return NULL;
+        resolved.source = 0;
+        resolved.type = entry.type;
+        resolved.number = entry.number;
+    }
+    else
+    {
+        MMChunkChild child;
+        if (mm_chunk_child_exact(&graph, parent, id, MM_ACTN, &child) != MM_CHUNK_OK)
+            return NULL;
+        resolved.source = 0;
+        resolved.type = child.type;
+        resolved.number = child.number;
+    }
+    request.type = resolved.type;
+    request.number = resolved.number;
+    request.scope = 0;
+    request.reader = reader;
+    request.priority = MM_RESOURCE_NORMAL_PRIORITY;
+    object = mm_resource_cache_fetch(resource->cache, &request, NULL);
+    if (object && asset)
+        *asset = resolved;
+    return object;
 }
-void *mm_template_fetch_child(void *object,MMU32 id,int kind,const MMTemplateRuntimeServices *s)
+
+static void *fetch_action(void *object, MMI32 id, const MMTemplateRuntimeServices *s)
 {
-    MMTemplateBinding b; MMTemplateChild c;
-    if (!child(object,id,kind,&b,&c,s)) return NULL;
-    return s->fetch(s->storage.context,b.cache,c.type,c.number,kind);
+    if (s->generated_action)
+        return s->generated_action(s->storage.context, object, id);
+    return mm_template_fetch_child(s->resource, (MMU32)id, MM_TEMPLATE_ACTION, s->action_reader, NULL);
 }
-int mm_template_action_name(void *object,MMI32 id,void *out,const MMTemplateRuntimeServices *s)
+
+int mm_template_action_name(MMI32 id, void *out, const MMTemplateRuntimeServices *s)
 {
-    MMTemplateBinding b; MMTemplateChild c;
-    if (!child(object,(MMU32)id,MM_TEMPLATE_ACTION,&b,&c,s)) return 0;
-    return s->name(s->storage.context,b.cache,c.type,c.number,out);
+    const MMResourceObject *resource = s->resource;
+    MMChunkAccess graph;
+    MMU32 number;
+    if (!resource || !resource->cache)
+        return 0;
+    graph = mm_resource_cache_chunks(resource->cache);
+    if (mm_chunk_link_number(&graph, resource->type, resource->number, (MMU32)id, MM_ACTN, &number) != MM_CHUNK_OK)
+        return 0;
+    return s->name(s->storage.context, resource->cache->owner, MM_ACTN, number, out);
 }
 MMI32 mm_template_wrap_cel(MMI32 cel, MMI32 count)
 {
@@ -62,7 +109,10 @@ static int render_cel_model(void *context, MMU32 part, MMU32 slot, MMMovieAsset 
 {
     TemplateCel *cel = (TemplateCel *)context;
     const MMTemplateRuntimeServices *s = cel->services;
-    cel->parts[part].model = s->model(s->storage.context, cel->object, slot, asset);
+    if (s->generated_model)
+        cel->parts[part].model = s->generated_model(s->storage.context, cel->object, slot, asset);
+    else
+        cel->parts[part].model = mm_template_fetch_child(s->resource, slot, MM_TEMPLATE_MODEL, s->model_reader, asset);
     return cel->parts[part].model ? MM_MOVIE_OK : MM_MOVIE_ASSET_NOT_FOUND;
 }
 
@@ -85,7 +135,7 @@ int mm_template_set_cel(void *object, void *body, MMI32 id, MMI32 cel, void *dis
     int result = 0;
     state = *a->state(a->context, object);
     count = state.parents->view.count;
-    request.action = s->action(a->context, object, id);
+    request.action = fetch_action(object, id, s);
     if (!request.action)
         return 0;
     request.services = s;
@@ -131,7 +181,7 @@ done:
 }
 int mm_template_distance(void *object,MMI32 id,MMI32 cel,MMI32 *out,const MMTemplateRuntimeServices *s)
 {
-    void *a=s->action(s->storage.context,object,id); MMI32 index,d; int ok;
+    void *a=fetch_action(object,id,s); MMI32 index,d; int ok;
     if (!a) return 0;
     index=wrapped(a,cel,s);
     ok=index>=0 && s->distance(s->storage.context,a,index,&d);
@@ -141,18 +191,18 @@ int mm_template_distance(void *object,MMI32 id,MMI32 cel,MMI32 *out,const MMTemp
 }
 int mm_template_cel_count(void *object,MMI32 id,void *out,const MMTemplateRuntimeServices *s)
 {
-    void *a=s->action(s->storage.context,object,id); MMI32 count; if (!a) return 0;
+    void *a=fetch_action(object,id,s); MMI32 count; if (!a) return 0;
     count=s->cel_count(s->storage.context,a); memcpy(out,&count,sizeof(count)); s->storage.release(s->storage.context,a); return 1;
 }
 int mm_template_action_flags(void *object,MMI32 id,void *out,const MMTemplateRuntimeServices *s)
 {
-    void *a=s->action(s->storage.context,object,id); MMU32 flags; if (!a) return 0;
+    void *a=fetch_action(object,id,s); MMU32 flags; if (!a) return 0;
     flags=s->flags(s->storage.context,a); memcpy(out,&flags,sizeof(flags)); s->storage.release(s->storage.context,a); return 1;
 }
 int mm_template_sound(void *object,MMI32 id,MMI32 cel,void *exists,void *tag,const MMTemplateRuntimeServices *s)
 {
     MMI32 index;
-    void *a; s->sound_exists(s->storage.context,exists,0); a=s->action(s->storage.context,object,id); if (!a) return 0;
+    void *a; s->sound_exists(s->storage.context,exists,0); a=fetch_action(object,id,s); if (!a) return 0;
     index=wrapped(a,cel,s);
     if (index>=0 && s->sound(s->storage.context,a,index,tag)) s->sound_exists(s->storage.context,exists,1);
     s->storage.release(s->storage.context,a); return index>=0;
@@ -169,25 +219,35 @@ MMI32 mm_template_costume_id(void *object,MMI32 set,MMI32 index,const MMTemplate
     mm_template_costumes_id(state->costumes, set, index, &id);
     return id;
 }
-int mm_template_has_models(void *file,MMU32 type,MMU32 number,const MMTemplateCreateServices *s)
-{ MMTemplateChild c; return s->child(s->context,file,type,number,0,MM_TEMPLATE_BMDL,&c); }
-int mm_template_equal_models(void *file,MMU32 first,MMU32 second,const MMTemplateCreateServices *s)
+int mm_template_has_models(const MMChunkAccess *graph, MMU32 type, MMU32 number)
 {
-    MMU32 id=0; MMTemplateChild a,b;
-    while (s->child(s->context,file,MM_CMTL,first,id,MM_TEMPLATE_BMDL,&a))
+    MMU32 model;
+    return mm_chunk_link_number(graph, type, number, 0, MM_TEMPLATE_BMDL, &model) == MM_CHUNK_OK;
+}
+int mm_template_equal_models(const MMChunkAccess *graph, MMU32 first, MMU32 second)
+{
+    MMU32 id = 0, a, b;
+    while (mm_chunk_link_number(graph, MM_CMTL, first, id, MM_TEMPLATE_BMDL, &a) == MM_CHUNK_OK)
     {
-        if (!s->child(s->context,file,MM_CMTL,second,id,MM_TEMPLATE_BMDL,&b) || a.number!=b.number) return 0;
+        if (mm_chunk_link_number(graph, MM_CMTL, second, id, MM_TEMPLATE_BMDL, &b) != MM_CHUNK_OK || a != b)
+            return 0;
         ++id;
     }
-    return !s->child(s->context,file,MM_CMTL,second,id,MM_TEMPLATE_BMDL,&b);
+    return mm_chunk_link_number(graph, MM_CMTL, second, id, MM_TEMPLATE_BMDL, &b) != MM_CHUNK_OK;
 }
 int mm_template_is_accessory(void *object,MMI32 set,const MMTemplateRuntimeServices *s)
 {
-    MMTemplateBinding b; MMTemplateChild c; MMI32 id;
-    s->binding(s->storage.context,object,&b); if (!b.cache) return 0;
-    id=mm_template_costume_id(object,set,0,s);
-    if (!s->storage.child(s->storage.context,b.cache,b.type,b.number,(MMU32)id,MM_CMTL,&c)) return 0;
-    return mm_template_has_models(b.cache,c.type,c.number,&s->storage);
+    const MMResourceObject *resource = s->resource;
+    MMChunkAccess graph;
+    MMU32 costume;
+    MMI32 id;
+    if (!resource || !resource->cache)
+        return 0;
+    id = mm_template_costume_id(object, set, 0, s);
+    graph = mm_resource_cache_chunks(resource->cache);
+    if (mm_chunk_link_number(&graph, resource->type, resource->number, (MMU32)id, MM_CMTL, &costume) != MM_CHUNK_OK)
+        return 0;
+    return mm_template_has_models(&graph, MM_CMTL, costume);
 }
 int mm_template_accessory_set(void *object,MMI32 set,void *out,const MMTemplateRuntimeServices *s)
 {
@@ -202,10 +262,16 @@ int mm_template_accessory_set(void *object,MMI32 set,void *out,const MMTemplateR
             }
     return 0;
 }
-int mm_template_same_accessory(void *object,MMI32 first,MMI32 second,const MMTemplateRuntimeServices *s)
+int mm_template_same_accessory(MMI32 first,MMI32 second,const MMTemplateRuntimeServices *s)
 {
-    MMTemplateBinding b; MMTemplateChild a,c;
-    if (!child(object,(MMU32)first,MM_TEMPLATE_CUSTOM,&b,&a,s) ||
-        !child(object,(MMU32)second,MM_TEMPLATE_CUSTOM,&b,&c,s)) return 0;
-    return mm_template_equal_models(b.cache,a.number,c.number,&s->storage);
+    const MMResourceObject *resource = s->resource;
+    MMChunkAccess graph;
+    MMU32 a, b;
+    if (!resource || !resource->cache)
+        return 0;
+    graph = mm_resource_cache_chunks(resource->cache);
+    if (mm_chunk_link_number(&graph, resource->type, resource->number, (MMU32)first, MM_CMTL, &a) != MM_CHUNK_OK ||
+        mm_chunk_link_number(&graph, resource->type, resource->number, (MMU32)second, MM_CMTL, &b) != MM_CHUNK_OK)
+        return 0;
+    return mm_template_equal_models(&graph, a, b);
 }

@@ -848,7 +848,11 @@ model replacement. Typed resource providers and final Body facade removal
 remain work. Template resource factories,
 header I/O, normal initialization, body creation and default-costume prefetching,
 template action/model/custom resource routing, cel application/action queries
-and accessory graph operations also use C89. Template parent/set/costume ownership,
+and accessory graph operations also use C89. Both hosts resolve ordinary
+template actions, cel models and custom costumes directly from the template's
+C89 cache binding. The cache exposes its current graph for mutable files and
+its retained index for immutable archives. Generated ThreeDText continues to
+supply its own actions and font models. Template parent/set/costume ownership,
 rest orientation, flags and counts now live in persistent C state shared with
 ThreeDText generation; native read/write marshalling of those fields is removed.
 String and resource/container providers and final facade removal remain work.

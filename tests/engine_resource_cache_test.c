@@ -552,6 +552,8 @@ static void wire_index_lifetime(void)
     Host h, backing = {0};
     Object *object;
     MMOwnedBlock block;
+    MMChunkAccess graph;
+    MMU32 position;
     int error = 1;
     memcpy(archive, prefix, sizeof(prefix));
     archive[128] = 7;
@@ -564,6 +566,9 @@ static void wire_index_lifetime(void)
     init_source(&h, 100, &source);
     CHECK(!h.cache.file);
     mm_chunk_index_close(index);
+    graph = mm_resource_cache_chunks(&h.cache);
+    CHECK(graph.count == 2 && mm_chunk_find(&graph, 1, 7, &position) == MM_CHUNK_OK);
+    CHECK(mm_chunk_find(&graph, 1, 9, &position) == MM_CHUNK_NOT_FOUND);
     CHECK(backing.active_blocks == 1 && mm_resource_cache_contains(&h.cache, 1, 7, 0));
     CHECK(!mm_resource_cache_contains(&h.cache, 1, 7, 7));
     CHECK(!mm_resource_cache_contains(&h.cache, 1, 9, 0));

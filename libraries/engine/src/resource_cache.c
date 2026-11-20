@@ -404,6 +404,16 @@ static void bind(MMResourceCache *c, void *object, MMU32 type, MMU32 number, MMI
     retain_cache(c);
     s->attached = 0;
 }
+MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *c)
+{
+    MMChunkAccess empty = {0};
+    if (c && c->wire_index)
+        return mm_chunk_index_access(c->wire_index);
+    if (c && c->file && c->services.live_chunks)
+        return c->services.live_chunks(c->file);
+    return empty;
+}
+
 int mm_resource_cache_read_block(MMResourceCache *c, MMU32 type, MMU32 number, MMOwnedBlock *out)
 {
     MMBlockFile file;
@@ -533,7 +543,7 @@ static void *fetch_block(MMResourceCache *c, const MMResourceRequest *q, MMOwned
         *error = 1;
         return NULL;
     }
-    bind(c, e.object, type, number, 2);
+    bind(c, e.object, type, number, MM_RESOURCE_NORMAL_PRIORITY);
     e.reader = reader;
     if (find(c, type, number, reader, &i))
         issue(c, MM_RESOURCE_DUPLICATE, type, number);

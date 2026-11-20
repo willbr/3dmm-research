@@ -131,6 +131,7 @@ MMResourceServices ChunkyResourceFile::_Services()
     s.contains = [](void *file, MMU32 type, MMU32 number) -> int {
         return static_cast<PChunkyFile>(file)->FFind(type, number);
     };
+    s.live_chunks = [](void *file) { return static_cast<PChunkyFile>(file)->ReadChunkAccess(); };
     const auto blocks = KauaiChunkPayloadServices();
     s.handles = blocks->handles;
     s.block_files = blocks->files;
@@ -212,7 +213,8 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, 
 PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source, LegacyLong budget)
 {
     AssertIn(budget, 0, kcbMax);
-    static_assert(kctgRsc == 0x52534320 && tNo == 0 && tYes == 1 && tMaybe == 2, "resource C contract");
+    static_assert(kctgRsc == 0x52534320 && tNo == 0 && tYes == 1 && tMaybe == 2 &&
+                      int(crepNormal) == MM_RESOURCE_NORMAL_PRIORITY, "resource C contract");
     auto cache = NewObj ChunkyResourceFile;
     if (!cache)
         return nullptr;
@@ -286,7 +288,7 @@ PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTagOrType type, Chunk
 MMChunkAccess ChunkyResourceFile::ReadChunkAccess()
 {
     AssertThis(0);
-    return _cache.wire_index ? mm_chunk_index_access(_cache.wire_index) : Pcfl()->ReadChunkAccess();
+    return mm_resource_cache_chunks(&_cache);
 }
 bool ChunkyResourceFile::FReadBlock(ChunkTagOrType type, ChunkNumber number, DataBlock &block)
 {
