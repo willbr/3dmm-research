@@ -25,9 +25,10 @@ struct Host
 {
     Owner owners[8], *current;
     Source sources[16];
-    unsigned char bytes[1024];
-    int calls, fail_at, failure, input, taken, candidates, published, tables;
-    int missing_palette, malformed_palette, missing_shade, other_order, unhealthy;
+    unsigned char bytes[1024], palette_wire[1036];
+    MMMemoryStream palette_stream;
+    int calls, fail_at, failure, input, taken, candidates, published;
+    int missing_palette, malformed_palette, short_palette, missing_shade, other_order, unhealthy;
     int begins, depths, ends, depth_ends, source_count, releases, report, report_failure;
     int begin_calls, display_calls, root_queries, lookups, fail_alloc;
     char log[256];
@@ -118,53 +119,45 @@ static int budget(void *v, void *p, int resources)
     assert(resources == 0 || resources == 1);
     return step(host(v));
 }
-static int palette_find(void *v, void *p)
-{
-    (void)p;
-    return !host(v)->missing_palette;
-}
-static int palette_read(void *v, void *p, MMPreviewSessionPalette *out)
+static int resource(void *v, void *p, MMU32 type, MMU32 number, MMReadStream *out)
 {
     Host *h = host(v);
-    int r = step(h);
-    if (r > 0)
-    {
-        out->handle = p;
-        out->width = h->malformed_palette ? 8 : 4;
-        out->count = 256;
-        out->other_order = h->other_order;
-        ++h->tables;
-    }
-    return r;
-}
-static unsigned char *palette_bytes(void *v, void *p)
-{
+    const unsigned short order = 1;
+    MMCollectionHeader header = {0};
+    int r;
     (void)p;
-    return host(v)->bytes;
+    assert(number == 0);
+    if (type == 0x544d4150UL)
+    {
+        assert(!out);
+        return h->missing_shade ? MM_PREVIEW_RESOURCE_MISSING : 1;
+    }
+    assert(type == 0x474c4352UL && out);
+    if (h->missing_palette)
+        return MM_PREVIEW_RESOURCE_MISSING;
+    r = step(h);
+    if (r <= 0)
+        return r;
+    header.kind = MM_COLLECTION_ARRAY;
+    header.big_endian = (*(const unsigned char *)&order == 0) ^ h->other_order;
+    header.width = h->malformed_palette ? 8 : 4;
+    header.count = h->malformed_palette ? 128 : 256;
+    assert(mm_collection_header_write(&header, h->palette_wire, sizeof(h->palette_wire)) == MM_STORAGE_OK);
+    memcpy(h->palette_wire + 12, h->bytes, sizeof(h->bytes));
+    assert(mm_memory_stream_init(&h->palette_stream, h->palette_wire, sizeof(h->palette_wire) - h->short_palette));
+    *out = h->palette_stream.stream;
+    return 1;
 }
 static unsigned char *palette_output(void *v, void *p)
 {
     (void)v;
     return ((Owner *)p)->palette;
 }
-static void palette_release(void *v, MMPreviewSessionPalette *p)
-{
-    Host *h = host(v);
-    assert(h->tables == 1 && p->handle);
-    --h->tables;
-    p->handle = 0;
-    log_event(h, 'P');
-}
 static int display(void *v, void *p)
 {
     (void)p;
     ++host(v)->display_calls;
     return step(host(v));
-}
-static int shade_find(void *v, void *p)
-{
-    (void)p;
-    return !host(v)->missing_shade;
 }
 static int shade_load(void *v, void *p)
 {
@@ -334,13 +327,9 @@ static MMPreviewSessionServices services(Owner *o)
     s.open_resources = open_resource;
     s.has_assets = has_assets;
     s.budget = budget;
-    s.palette_find = palette_find;
-    s.palette_read = palette_read;
-    s.palette_bytes = palette_bytes;
+    s.resource = resource;
     s.palette_output = palette_output;
-    s.palette_release = palette_release;
     s.display_palette = display;
-    s.shade_find = shade_find;
     s.shade_load = shade_load;
     s.runtime_begin = runtime_begin;
     s.depth_begin = depth_begin;
@@ -383,7 +372,6 @@ static void dispose(Host *h)
 {
     unsigned i;
     candidate_release(h->current, h->current);
-    assert(!h->tables);
     for (i = 0; i < 8; ++i)
         assert(!h->owners[i].alive && !h->owners[i].cache.alive);
     for (i = 0; i < 16; ++i)
@@ -411,7 +399,7 @@ static void open_tests(void)
             h.fail_at = i;
             h.failure = f;
             r = open_session(&h, 1, 0);
-            assert(r != MM_PREVIEW_SESSION_OK && h.current == old && !h.tables && !h.published);
+            assert(r != MM_PREVIEW_SESSION_OK && h.current == old && !h.published);
             if (f < 0)
                 assert(r == (f == -1 ? MM_PREVIEW_SESSION_MEMORY : MM_PREVIEW_SESSION_EXCEPTION));
             dispose(&h);
@@ -428,8 +416,12 @@ static void open_tests(void)
     dispose(&h);
     setup(&h);
     h.malformed_palette = 1;
-    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_PALETTE && !h.tables && !h.display_calls);
-    assert(h.logged == 4 && !memcmp(h.log, "PEAL", 4));
+    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_PALETTE && !h.display_calls);
+    assert(h.logged == 3 && !memcmp(h.log, "EAL", 3));
+    dispose(&h);
+    setup(&h);
+    h.short_palette = 1;
+    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_PALETTE && !h.display_calls);
     dispose(&h);
     setup(&h);
     h.missing_shade = 1;

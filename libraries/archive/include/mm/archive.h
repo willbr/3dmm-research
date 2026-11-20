@@ -8,6 +8,7 @@
 #include <vector>
 
 struct MMMovieSession;
+struct MMArchiveReader;
 
 namespace MM
 {
@@ -148,6 +149,7 @@ class Archive
     friend class Preview;
     friend bool ReadSoundCatalogStyle(const Archive &, std::uint32_t, std::int32_t &);
     void *NativeFile() const; // Private bridge to the engine preview adapter.
+    MMArchiveReader *Reader() const;
     MMMovieSession *MovieSession() const;
     struct Impl;
     std::unique_ptr<Impl> _impl;

@@ -1,30 +1,46 @@
 #include "mm/preview_admission.h"
+#include "mm/archive_reader.h"
 #include "mm/scene_data.h"
 #include "mm/wide.h"
 #include <string.h>
-int mm_preview_budget(const MMPreviewBudgetServices *s, MMU32 *failed)
+int mm_preview_budget(const MMPreviewBudgetServices *s, MMChunkEntry *failed)
 {
     MMU32 i, total = 0, decoded;
-    MMPreviewChunk c;
+    MMChunkEntry c;
     unsigned char h[8];
-    for (i = 0; i < s->count; ++i)
+    for (i = 0; i < s->chunks.count; ++i)
     {
-        s->chunk(s->context, i, &c);
-        decoded = c.stored;
-        if (c.packed)
+        if (mm_chunk_at(&s->chunks, i, &c) != MM_CHUNK_OK)
+            return MM_PREVIEW_BUDGET_HEADER;
+        decoded = c.bytes;
+        if (c.flags & MM_CHUNK_PACKED)
         {
-            if (c.stored < 8 || !s->header(s->context, &c, h))
+            if (c.bytes < 8 || !s->header(s->context, &c, h))
                 return MM_PREVIEW_BUDGET_HEADER;
             decoded = ((MMU32)h[4] << 24) | ((MMU32)h[5] << 16) | ((MMU32)h[6] << 8) | h[7];
         }
-        if (c.stored > 64u * 1024 * 1024 || decoded > 64u * 1024 * 1024 || decoded > 512u * 1024 * 1024 - total)
+        if (c.bytes > 64u * 1024 * 1024 || decoded > 64u * 1024 * 1024 || decoded > 512u * 1024 * 1024 - total)
         {
-            *failed = i;
+            *failed = c;
             return MM_PREVIEW_BUDGET_LIMIT;
         }
         total += decoded;
     }
     return MM_PREVIEW_BUDGET_OK;
+}
+
+static int archive_packed_header(void *context, const MMChunkEntry *entry, unsigned char *bytes)
+{
+    return mm_archive_reader_read_stored((const MMArchiveReader *)context, entry, bytes, 8);
+}
+
+int mm_preview_archive_budget(const MMArchiveReader *reader, MMChunkEntry *failed)
+{
+    MMPreviewBudgetServices s;
+    s.context = (void *)reader;
+    s.chunks = mm_archive_reader_access(reader);
+    s.header = archive_packed_header;
+    return mm_preview_budget(&s, failed);
 }
 static void publish(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s)
 {

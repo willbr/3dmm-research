@@ -16,9 +16,8 @@ extern "C"
     typedef struct MMPreviewBudgetServices
     {
         void *context;
-        MMU32 count;
-        void (*chunk)(void *, MMU32, MMPreviewChunk *);
-        int (*header)(void *, const MMPreviewChunk *, unsigned char bytes[8]);
+        MMChunkAccess chunks;
+        int (*header)(void *, const MMChunkEntry *, unsigned char bytes[8]);
     } MMPreviewBudgetServices;
     enum
     {
@@ -26,10 +25,12 @@ extern "C"
         MM_PREVIEW_BUDGET_HEADER,
         MM_PREVIEW_BUDGET_LIMIT
     };
-    /* Reads packed headers before size checks. failed_index changes only for a
+    /* Reads packed headers before size checks. failed changes only for a
      * limit failure. Limits are inclusive: 64 MiB per stored/decoded chunk and
      * 512 MiB total decoded bytes. Getters borrow immutable native metadata. */
-    int mm_preview_budget(const MMPreviewBudgetServices *, MMU32 *failed_index);
+    int mm_preview_budget(const MMPreviewBudgetServices *, MMChunkEntry *failed);
+    struct MMArchiveReader;
+    int mm_preview_archive_budget(const struct MMArchiveReader *, MMChunkEntry *failed);
     enum
     {
         MM_PREVIEW_TEMPLATE,

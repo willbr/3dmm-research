@@ -99,6 +99,10 @@ void *Archive::NativeFile() const
 {
     return _impl->file;
 }
+MMArchiveReader *Archive::Reader() const
+{
+    return _impl->reader;
+}
 bool ReadSoundCatalogStyle(const Archive &archive, std::uint32_t number, std::int32_t &style)
 {
     if (!archive._impl->file)

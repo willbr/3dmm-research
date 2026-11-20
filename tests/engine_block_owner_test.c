@@ -496,7 +496,7 @@ static void payload_cache(void)
     MMChunkEntry entry;
     MMBlockIO io;
     MMReadStream stream;
-    unsigned char bytes[4];
+    unsigned char bytes[8];
     memset(&h, 0, sizeof(h));
     memset(&entry, 0, sizeof(entry));
     memset(&observer, 0, sizeof(observer));
@@ -530,6 +530,9 @@ static void payload_cache(void)
     CHECK(observer.invalidations == 1 && observer.acceptances == 1);
 
     archive.packed = 1;
+    CHECK(mm_chunk_read_stored(&input, &archive, 11, 1, bytes, sizeof(bytes)) &&
+          !memcmp(bytes, "KCDC\0\0\0\4", sizeof(bytes)) && !h.codes && archive.file->refs == 2);
+    CHECK(!mm_chunk_read_stored(&input, &archive, 11, 3, bytes, sizeof(bytes)) && archive.file->refs == 2);
     entry.flags = MM_CHUNK_PACKED;
     CHECK(mm_chunk_payload_cache_load(&cache, &archive, 1, &entry, 8, &callbacks) == MM_CHUNK_PAYLOAD_LIMIT);
     CHECK(observer.previous_refs == 2 && archive.file->refs == 1 && !h.codes);

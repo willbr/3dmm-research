@@ -47,6 +47,21 @@ int mm_chunk_read_payload(const MMChunkPayloadServices *s, void *archive, MMU32 
     return status;
 }
 
+int mm_chunk_read_stored(const MMChunkPayloadServices *s, void *archive, MMU32 type,
+                         MMU32 number, void *bytes, MMU32 count)
+{
+    MMOwnedBlock block;
+    MMBlockIO io;
+    int located, ok;
+    if (!s || !s->locate || !archive || mm_owned_block_init(&block, s->handles, s->files) != MM_DATA_OK)
+        return 0;
+    located = locate_payload(s, archive, type, number, &block);
+    ok = located == MM_CHUNK_PAYLOAD_OK && mm_owned_block_io(&block, &io) == MM_DATA_OK &&
+         mm_block_read(&io, 0, bytes, count, 1) == MM_DATA_OK;
+    mm_owned_block_clear(&block);
+    return ok;
+}
+
 int mm_chunk_payload_cache_init(MMChunkPayloadCache *cache, const MMChunkPayloadServices *s)
 {
     if (!cache || !s || !s->locate || !s->decode ||

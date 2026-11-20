@@ -505,15 +505,16 @@ static void admission_tests(void)
 }
 typedef struct Budget
 {
-    MMPreviewChunk chunks[10];
+    MMChunkEntry chunks[10];
     int headers, bad_header;
     MMU32 decoded;
 } Budget;
-static void budget_chunk(void *v, MMU32 i, MMPreviewChunk *out)
+static int budget_chunk(void *v, MMU32 i, MMChunkEntry *out)
 {
     *out = ((Budget *)v)->chunks[i];
+    return 1;
 }
-static int budget_header(void *v, const MMPreviewChunk *c, unsigned char *out)
+static int budget_header(void *v, const MMChunkEntry *c, unsigned char *out)
 {
     Budget *b = (Budget *)v;
     MMU32 n = b->decoded;
@@ -530,31 +531,38 @@ static void budget_tests(void)
 {
     Budget b;
     MMPreviewBudgetServices s;
-    MMU32 i, failed = 99;
+    MMChunkEntry failed = {0};
+    MMU32 i;
+    failed.number = 99;
     memset(&b, 0, sizeof(b));
     s.context = &b;
-    s.chunk = budget_chunk;
+    s.chunks.context = &b;
+    s.chunks.entry = budget_chunk;
+    s.chunks.child = NULL;
     s.header = budget_header;
-    s.count = 8;
+    s.chunks.count = 8;
     for (i = 0; i < 10; ++i)
-        b.chunks[i].stored = 64u * 1024 * 1024;
-    assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_OK && failed == 99);
-    s.count = 9;
-    assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_LIMIT && failed == 8);
-    s.count = 1;
-    ++b.chunks[0].stored;
-    assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_LIMIT && failed == 0);
-    b.chunks[0].packed = 1;
+    {
+        b.chunks[i].number = i;
+        b.chunks[i].bytes = 64u * 1024 * 1024;
+    }
+    assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_OK && failed.number == 99);
+    s.chunks.count = 9;
+    assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_LIMIT && failed.number == 8);
+    s.chunks.count = 1;
+    ++b.chunks[0].bytes;
+    assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_LIMIT && failed.number == 0);
+    b.chunks[0].flags = MM_CHUNK_PACKED;
     b.bad_header = 1;
-    failed = 99;
-    assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_HEADER && failed == 99 && b.headers == 1);
+    failed.number = 99;
+    assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_HEADER && failed.number == 99 && b.headers == 1);
     b.bad_header = 0;
-    b.chunks[0].stored = 8;
+    b.chunks[0].bytes = 8;
     b.decoded = 0xffffffffu;
     assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_LIMIT);
     b.decoded = 64u * 1024 * 1024;
     assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_OK);
-    b.chunks[0].stored = 7;
+    b.chunks[0].bytes = 7;
     b.headers = 0;
     assert(mm_preview_budget(&s, &failed) == MM_PREVIEW_BUDGET_HEADER && !b.headers);
 }

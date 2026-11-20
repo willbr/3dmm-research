@@ -70,6 +70,9 @@ extern "C"
      * Lookup and decoding failures return a chunk status without calling it. */
     int mm_chunk_read_payload(const MMChunkPayloadServices *, void *archive, MMU32 type,
                               MMU32 number, MMReadReceiver, void *context, int *result);
+    /* Read a prefix of the stored extent without invoking a decoder. */
+    int mm_chunk_read_stored(const MMChunkPayloadServices *, void *archive, MMU32 type,
+                             MMU32 number, void *bytes, MMU32 count);
 
     enum
     {

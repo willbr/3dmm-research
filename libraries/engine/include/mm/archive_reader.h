@@ -66,6 +66,8 @@ typedef struct MMArchiveRecord
 int mm_archive_reader_open(const MMChunkAccess *, void *archive, const MMChunkPayloadServices *,
                            const MMArchiveReaderOptions *, MMArchiveReader **);
 void mm_archive_reader_close(MMArchiveReader *);
+MMChunkAccess mm_archive_reader_access(const MMArchiveReader *);
+int mm_archive_reader_read_stored(const MMArchiveReader *, const MMChunkEntry *, void *bytes, MMU32 count);
 int mm_archive_reader_payload(MMArchiveReader *, MMU32 position, MMReadStream *);
 int mm_archive_reader_record(MMArchiveReader *, MMU32 position, MMArchiveRecord *);
 int mm_archive_reader_strings(MMArchiveReader *, MMU32 position, const MMMovieStringTable **);

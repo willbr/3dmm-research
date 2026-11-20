@@ -85,6 +85,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   movie session used by Marcus Preview. It validates authored scene and source
   links, applies the source-table budget and supplies the retail source for a
   movie without a source table. The adapter publishes the public directory.
+- Preview checks archive budgets against C89 index entries and stored packed
+  headers. Its common palette loads through the C89 archive reader and shares
+  colour-word conversion with Studio background loading.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

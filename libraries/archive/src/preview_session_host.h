@@ -71,6 +71,21 @@ struct Preview::Impl::SessionHost
             return 1;
         });
     }
+    static bool WithinBudget(const Archive &archive, Error &error)
+    {
+        MMChunkEntry failed;
+        const int result = mm_preview_archive_budget(archive.Reader(), &failed);
+        if (result == MM_PREVIEW_BUDGET_HEADER)
+            return Fail(error, ErrorCode::decode_failed, "Invalid compressed preview dependency.");
+        if (result == MM_PREVIEW_BUDGET_LIMIT)
+        {
+            error.hasChunk = true;
+            error.chunk = {failed.type, failed.number};
+            return Fail(error, ErrorCode::resource_limit,
+                        "Preview archives are limited to 64 MiB per chunk and 512 MiB of decoded dependencies.");
+        }
+        return true;
+    }
     MMPreviewSessionServices Services()
     {
         MMPreviewSessionServices s = {};
@@ -107,42 +122,17 @@ struct Preview::Impl::SessionHost
             return h.Guard([&] {
                 auto i = static_cast<Impl *>(p);
                 const auto &a = resource ? i->resources : i->assets;
-                return WithinBudget(a, static_cast<PChunkyFile>(a.NativeFile()), *h.error);
+                return WithinBudget(a, *h.error);
             });
         };
-        s.palette_find = [](void *, void *p) -> int {
-            DataBlock block;
-            return static_cast<PChunkyFile>(static_cast<Impl *>(p)->resources.NativeFile())
-                ->FFind(kctgColorTable, 0, &block);
-        };
-        s.palette_read = [](void *v, void *p, MMPreviewSessionPalette *out) -> int {
+        s.resource = [](void *v, void *p, MMU32 type, MMU32 number, MMReadStream *out) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
-                DataBlock block;
-                auto file = static_cast<PChunkyFile>(static_cast<Impl *>(p)->resources.NativeFile());
-                if (!file->FFind(kctgColorTable, 0, &block))
-                    return false;
-                short order;
-                auto table = DynamicArray::PglRead(&block, &order);
-                if (!table)
-                    return false;
-                out->handle = table;
-                out->width = table->CbEntry();
-                out->count = table->IvMac();
-                out->other_order = order == kboOther;
-                return true;
+                return mm_preview_archive_resource(static_cast<Impl *>(p)->resources.Reader(), type, number, out);
             });
-        };
-        s.palette_bytes = [](void *, void *p) {
-            return static_cast<unsigned char *>(static_cast<PDynamicArray>(p)->QvGet(0));
         };
         s.palette_output = [](void *, void *p) {
             return reinterpret_cast<unsigned char *>(static_cast<Impl *>(p)->palette);
-        };
-        s.palette_release = [](void *, MMPreviewSessionPalette *p) {
-            auto table = static_cast<PDynamicArray>(p->handle);
-            ReleasePpo(&table);
-            p->handle = nullptr;
         };
         s.display_palette = [](void *v, void *p) -> int {
             auto &h = *static_cast<SessionHost *>(v);
@@ -150,9 +140,6 @@ struct Preview::Impl::SessionHost
                 Internal::ResolveDisplayPalette(static_cast<Impl *>(p)->palette);
                 return 1;
             });
-        };
-        s.shade_find = [](void *, void *p) -> int {
-            return static_cast<PChunkyFile>(static_cast<Impl *>(p)->resources.NativeFile())->FFind(kctgTmap, 0);
         };
         s.runtime_begin = [](void *) {
             BrBegin();
@@ -205,7 +192,7 @@ struct Preview::Impl::SessionHost
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
                 auto &a = static_cast<Source *>(p)->archive;
-                return WithinBudget(a, static_cast<PChunkyFile>(a.NativeFile()), *h.error);
+                return WithinBudget(a, *h.error);
             });
         };
         s.source_cache_new = [](void *v, void *p) -> int {

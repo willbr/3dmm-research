@@ -1,6 +1,22 @@
 #include "mm/preview_session.h"
+#include "mm/archive_reader.h"
+#include "mm/indexed_display.h"
 #include "mm/resource_lookup.h"
 #include <string.h>
+#define PALETTE_TYPE 0x474c4352UL
+#define SHADE_TYPE 0x544d4150UL
+
+int mm_preview_archive_resource(MMArchiveReader *reader, MMU32 type, MMU32 number, MMReadStream *out)
+{
+    const MMChunkAccess access = mm_archive_reader_access(reader);
+    MMU32 position;
+    const int status = mm_chunk_find(&access, type, number, &position);
+    if (status == MM_CHUNK_NOT_FOUND)
+        return MM_PREVIEW_RESOURCE_MISSING;
+    return status == MM_CHUNK_OK &&
+           (!out || mm_archive_reader_payload(reader, position, out) == MM_ARCHIVE_READ_OK);
+}
+
 static int runtime_owned;
 static int failure(int r)
 {
@@ -44,42 +60,28 @@ void mm_preview_session_dispose(MMPreviewSession *p, const MMPreviewSessionServi
 }
 static int palette(void *candidate, const MMPreviewSessionServices *s)
 {
-    MMPreviewSessionPalette table;
-    unsigned char *bytes;
-    unsigned char swap;
-    MMU32 i;
-    int r, valid;
-    if (!s->palette_find(s->context, candidate))
+    const unsigned short native_order = 1;
+    MMReadStream stream;
+    MMCollectionHeader header;
+    unsigned char bytes[1024];
+    int r = s->resource(s->context, candidate, PALETTE_TYPE, 0, &stream);
+    if (r == MM_PREVIEW_RESOURCE_MISSING)
         return MM_PREVIEW_SESSION_PALETTE_MISSING;
-    memset(&table, 0, sizeof(table));
-    r = s->palette_read(s->context, candidate, &table);
-    valid = r > 0 && table.handle && table.width == 4 && table.count == 256;
-    if (valid)
-    {
-        bytes = s->palette_bytes(s->context, table.handle);
-        if (table.other_order)
-            for (i = 0; i < 1024; i += 4)
-            {
-                swap = bytes[i];
-                bytes[i] = bytes[i + 3];
-                bytes[i + 3] = swap;
-                swap = bytes[i + 1];
-                bytes[i + 1] = bytes[i + 2];
-                bytes[i + 2] = swap;
-            }
-        memcpy(s->palette_output(s->context, candidate), bytes, 1024);
-    }
-    if (table.handle)
-        s->palette_release(s->context, &table);
     if (r < 0)
         return failure(r);
-    if (valid)
-    {
-        r = s->display_palette(s->context, candidate);
-        if (r <= 0)
-            return failure(r);
-    }
-    return !valid || !s->shade_find(s->context, candidate) ? MM_PREVIEW_SESSION_PALETTE : MM_PREVIEW_SESSION_OK;
+    if (!r || mm_collection_header_read(&stream, MM_COLLECTION_ARRAY, 0, &header) != MM_STORAGE_OK ||
+        header.width != 4 || header.count != 256 || !mm_read_exact(&stream, header.header_bytes, bytes, sizeof(bytes)))
+        return MM_PREVIEW_SESSION_PALETTE;
+    if (header.big_endian != (*(const unsigned char *)&native_order == 0))
+        mm_palette_swap_word_order(bytes, header.count);
+    memcpy(s->palette_output(s->context, candidate), bytes, sizeof(bytes));
+    r = s->display_palette(s->context, candidate);
+    if (r <= 0)
+        return failure(r);
+    r = s->resource(s->context, candidate, SHADE_TYPE, 0, NULL);
+    if (r < 0)
+        return failure(r);
+    return r == 1 ? MM_PREVIEW_SESSION_OK : MM_PREVIEW_SESSION_PALETTE;
 }
 int mm_preview_session_open(MMPreviewSession *p, const void *path, int require_asset, int preserve,
                             const MMPreviewSessionServices *s)

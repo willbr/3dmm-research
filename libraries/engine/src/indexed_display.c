@@ -204,3 +204,18 @@ int mm_display_palette_overlay(unsigned char *base, size_t base_count, size_t fi
         memmove(base + 4 * first, colours, 4 * count);
     return 1;
 }
+
+void mm_palette_swap_word_order(unsigned char *colours, size_t count)
+{
+    unsigned char swap;
+    size_t i;
+    for (i = 0; i < count; ++i, colours += 4)
+    {
+        swap = colours[0];
+        colours[0] = colours[3];
+        colours[3] = swap;
+        swap = colours[1];
+        colours[1] = colours[2];
+        colours[2] = swap;
+    }
+}

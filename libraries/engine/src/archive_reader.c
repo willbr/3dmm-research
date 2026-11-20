@@ -72,6 +72,17 @@ void mm_archive_reader_close(MMArchiveReader *reader)
     }
 }
 
+MMChunkAccess mm_archive_reader_access(const MMArchiveReader *reader)
+{
+    return reader->chunks;
+}
+
+int mm_archive_reader_read_stored(const MMArchiveReader *reader, const MMChunkEntry *entry,
+                                  void *bytes, MMU32 count)
+{
+    return mm_chunk_read_stored(reader->payload.services, reader->archive, entry->type, entry->number, bytes, count);
+}
+
 static int read_payload(MMArchiveReader *reader, MMU32 position, const MMChunkEntry *entry, MMReadStream *out)
 {
     MMChunkPayloadCacheCallbacks callbacks;

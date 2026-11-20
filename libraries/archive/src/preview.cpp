@@ -44,34 +44,6 @@ bool Fail(Error &error, ErrorCode code, const char *message)
         error.message += std::string(" ") + Internal::DiagnosticMessage();
     return false;
 }
-bool WithinBudget(const Archive &archive, PChunkyFile file, Error &error)
-{
-    struct Host { const Archive *archive; PChunkyFile file; } host = {&archive, file};
-    MMPreviewBudgetServices services = {};
-    services.context = &host;
-    services.count = static_cast<MMU32>(archive.Chunks().size());
-    services.chunk = [](void *v, MMU32 i, MMPreviewChunk *out) {
-        const auto &c = static_cast<Host *>(v)->archive->Chunks()[i];
-        *out = {c.id.type, c.id.number, c.storedBytes, c.packed, !c.name.empty()};
-    };
-    services.header = [](void *v, const MMPreviewChunk *c, unsigned char *bytes) -> int {
-        DataBlock block;
-        return static_cast<Host *>(v)->file->FFind(c->type, c->number, &block) &&
-               block.FReadRgb(bytes, 8, 0, fTrue);
-    };
-    MMU32 failed = 0;
-    const int result = mm_preview_budget(&services, &failed);
-    if (result == MM_PREVIEW_BUDGET_HEADER)
-        return Fail(error, ErrorCode::decode_failed, "Invalid compressed preview dependency.");
-    if (result == MM_PREVIEW_BUDGET_LIMIT)
-    {
-        error.hasChunk = true;
-        error.chunk = archive.Chunks()[failed].id;
-        return Fail(error, ErrorCode::resource_limit,
-                    "Preview archives are limited to 64 MiB per chunk and 512 MiB of decoded dependencies.");
-    }
-    return true;
-}
 } // namespace
 struct Preview::Impl
 {

@@ -2568,14 +2568,19 @@ Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 `preview_session.c` owns the process-wide Preview runtime lease, each session's
 running state/root cache, orbit state and ordered opaque content-source handles.
-Native code supplies archive/path/palette representations, cache/SDK primitives,
-typed borrowed views and error text. The former native source vector, source IDs,
-runtime flag and replacement/registration/lookup loops are removed.
+Native code supplies file and path handling, display palette publication,
+cache and renderer services, and error text. The former native source vector,
+source IDs, runtime flag and replacement, registration and lookup loops are
+removed.
 
 Opening first validates transfer input, then prepares a candidate, consumes the
 input archive and checks resources/budgets before touching the active runtime.
-Palette admission retains 256 four-byte entries, foreign-order word swapping,
-display resolution and shade-table validation. Only a candidate for an idle owner
+Preview scans the shared chunk index and reads stored compressed headers
+through C89, applying the per-chunk and aggregate decoded budgets before any
+payload decoding. It reads the common `GLCR/0` palette from the archive cache
+as an exact array of 256 four-byte entries. Preview and Studio background
+loading share the colour-word byte-order conversion. Preview resolves display
+colours before checking the `TMAP/0` key. Only a candidate for an idle owner
 starts BRender/depth rendering; another owner's live lease rejects the attempt.
 Root cache/shade setup precedes lease transfer, optional orbit copying, owner
 publication and immediate disposal of the previous session. Failed candidates
@@ -2597,6 +2602,12 @@ replacement isolation, source duplicates/order, ownership handoff, empty session
 framing preservation, errors and rendered output against all three original hosts.
 C fault checks cover every fallible open/add stage, palette byte order/admission,
 lease transfer/rejection, release order, registry storage exhaustion and retry.
+Before-and-after Preview startup probes agreed on 10 resource sets, including
+the original `3DMOVIE.CHK`, both palette byte orders, missing or malformed
+resources, compressed-header failures and the per-chunk budget.
+Capture suite `20261120T071914Z-b613b82c` matched 60 retail frame identities
+in seek and playback on SDL and Marcus. SDL matched 12 retail sound requests,
+and each host matched the 60 seek images from its previous build.
 Native resource/track/archive/path representations, asset-cleanup primitives,
 live property/font/argument materialization, text editing/undo, display/output representations and
 final C-only host/facade removal remain dependencies. Metadata, media and stored

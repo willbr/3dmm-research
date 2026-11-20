@@ -45,6 +45,8 @@ int mm_display_palette_set(unsigned char current[1024], size_t *count, const uns
  * bytes. Invalid ranges leave the destination alone. */
 int mm_display_palette_overlay(unsigned char *base, size_t base_count, size_t first,
                                const unsigned char *colours, size_t count);
+/* Reverse the four bytes of each legacy colour word in place. */
+void mm_palette_swap_word_order(unsigned char *colours, size_t count);
 
 #ifdef __cplusplus
 }

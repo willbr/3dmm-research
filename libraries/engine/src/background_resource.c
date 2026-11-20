@@ -3,6 +3,7 @@
 #include "mm/background_resource.h"
 #include "mm/chunky_file.h"
 #include "mm/collections.h"
+#include "mm/indexed_display.h"
 #include "mm/wide.h"
 #include <string.h>
 #define MAXIMUM 2147483647
@@ -125,7 +126,7 @@ static int palette(MMBackgroundResource *b, MMU32 type, MMU32 number, unsigned b
                    const MMBackgroundServices *s)
 {
     BackgroundArray array;
-    unsigned char *bytes, t;
+    unsigned char *bytes;
     MMU32 child, i;
     int decoded, status;
     if (!s->child(s->context, type, number, 0, MM_BACKGROUND_COLORS, &child))
@@ -147,20 +148,11 @@ static int palette(MMBackgroundResource *b, MMU32 type, MMU32 number, unsigned b
         return 0;
     }
     bytes = b->palette.buffers[0].data;
-    for (i = 0; i < array.header.count; ++i, bytes += 4)
-    {
-        if (array.header.big_endian != s->host_big_endian)
-        {
-            t = bytes[0];
-            bytes[0] = bytes[3];
-            bytes[3] = t;
-            t = bytes[1];
-            bytes[1] = bytes[2];
-            bytes[2] = t;
-        }
-        if (profile == MM_BACKGROUND_PREVIEW)
+    if (array.header.big_endian != s->host_big_endian)
+        mm_palette_swap_word_order(bytes, array.header.count);
+    if (profile == MM_BACKGROUND_PREVIEW)
+        for (i = 0; i < array.header.count; ++i, bytes += 4)
             s->palette_color(s->context, (MMI32)(base + i), bytes);
-    }
     if (profile == MM_BACKGROUND_PREVIEW && !s->retain_palette)
         mm_storage_dispose(&b->palette);
     else

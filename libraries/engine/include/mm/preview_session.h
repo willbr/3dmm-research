@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_PREVIEW_SESSION_H
 #define MM_ENGINE_PREVIEW_SESSION_H
 #include "preview_camera.h"
+#include "read_stream.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -19,12 +20,9 @@ extern "C"
         int running;
         MMPreviewOrbit orbit;
     } MMPreviewSession;
-    typedef struct MMPreviewSessionPalette
-    {
-        void *handle;
-        MMU32 width, count;
-        int other_order;
-    } MMPreviewSessionPalette;
+    enum { MM_PREVIEW_RESOURCE_MISSING = 2 };
+    struct MMArchiveReader;
+    int mm_preview_archive_resource(struct MMArchiveReader *, MMU32 type, MMU32 number, MMReadStream *out);
     typedef struct MMPreviewSessionServices
     {
         void *context;
@@ -38,13 +36,13 @@ extern "C"
         int (*open_resources)(void *, void *candidate, const void *path);
         int (*has_assets)(void *, void *candidate);
         int (*budget)(void *, void *candidate, int resources);
-        int (*palette_find)(void *, void *candidate);
-        int (*palette_read)(void *, void *candidate, MMPreviewSessionPalette *);
-        unsigned char *(*palette_bytes)(void *, void *table);
+        /* Read a decoded resource, or check its key when out is NULL. Return
+         * MM_PREVIEW_RESOURCE_MISSING for an absent key, otherwise use the
+         * normal 1/0/negative result. The decoded stream is borrowed. */
+        int (*resource)(void *, void *candidate, MMU32 type, MMU32 number, MMReadStream *out);
         unsigned char *(*palette_output)(void *, void *candidate);
-        void (*palette_release)(void *, MMPreviewSessionPalette *);
         int (*display_palette)(void *, void *candidate);
-        int (*shade_find)(void *, void *candidate), (*shade_load)(void *, void *candidate);
+        int (*shade_load)(void *, void *candidate);
         int (*runtime_begin)(void *), (*depth_begin)(void *);
         int (*cache_new)(void *, void *candidate, void **cache);
         void (*publish)(void *, void **candidate);
@@ -75,12 +73,12 @@ extern "C"
         MM_PREVIEW_SESSION_CONTENT_ARGUMENT,
         MM_PREVIEW_SESSION_CONTENT_CACHE
     };
-    /* Unique owner of source handles and the root cache. Native files/paths/palette
-     * representations remain typed providers. All calls are synchronous, confined to
+    /* Unique owner of source handles and the root cache. Native files, paths and
+     * display palette publication remain with the host. All calls are synchronous, confined to
      * one thread and non-reentrant except candidate_release may dispose that distinct
      * session. Fallible services return 1/0, -1 allocation, -2 other exception.
      * report formats errors before candidate disposal; it does nothing for EXTERNAL.
-     * Acquired palettes and candidates are released on every failure. publish swaps
+     * Candidates are released on every failure. publish swaps
      * the candidate with the previous owner, then C releases that previous owner.
      * Runtime ownership transfers only after cache/shade setup. Failed replacements
      * preserve the old session, without rolling back completed global SDK effects.
