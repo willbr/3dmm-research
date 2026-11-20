@@ -2996,6 +2996,15 @@ replacement/render hooks and typed validation. The C property and formatting
 modules supply argument interning, reference control, masked range application
 and character batches. Native wrapper signatures and subclass dispatch remain.
 
+Line text, rich text and byte-stream views share the clipboard controller in
+`text_copy.c`. It orders reversed selections, owns acquired clipboard
+references, and excludes the terminal character for line and rich text.
+Rich paste tries the rich format first and uses the insertion style when
+pasting plain text. The controller separates undo, caret and redraw steps
+from the native view callbacks and preserves the successful prefix on errors.
+Studio's three view types produced matching cut, copy, clear and paste traces
+before and after the migration.
+
 Property copying clears the live destination map while advancing its index,
 retaining the legacy shift/skip behavior. Source ranges are clipped and their
 last value extends across a longer destination range; different default font
@@ -3164,6 +3173,12 @@ clipboard/file/untitled name selection. `MMDocumentViews` owns the C collection
 buffers and logical count/preparation state. Native view `DynamicArray` storage is
 removed. Untitled counters/cache now reside in C registry/node data; legacy topic
 naming uses the shared counter helper. Native string formatting remains a provider.
+
+The common document view also delegates command availability and clipboard
+sequencing to C89. Paste probes reject empty and self-owned clipboard content
+before calling the view's format handler. Cut publishes the clipboard copy and
+releases its local reference before clearing the selection. Studio translates
+command IDs and supplies the native clipboard and virtual document operations.
 
 Entries retain insertion order and duplicates without gaining/releasing references.
 An empty prepared list keeps its storage. Removal/promotion use the first match;

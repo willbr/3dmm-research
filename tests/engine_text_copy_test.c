@@ -677,6 +677,112 @@ static void objects(unsigned unit)
     CHECK(mm_text_object_insert("new", 4, 2, 0, 0, &p.object) == 1);
     CHECK(value(&p.target, 2, 2) > 0 && value(&p.target, 192, 2) == 1);
 }
+typedef struct ClipboardTest
+{
+    MMTextClipboardOperation operations[24];
+    int count, fail, refs, rich, acquisitions, formats[2], size;
+    MMI32 anchor, focus, first, inserted, deleted, caret;
+    void *published;
+} ClipboardTest;
+
+static int clipboard_call(void *context, MMTextClipboardOperation operation, MMTextClipboardRequest *q)
+{
+    ClipboardTest *t = context;
+    t->operations[t->count++] = operation;
+    if ((int)operation == t->fail)
+        return 0;
+    switch (operation)
+    {
+    case MM_TEXT_CLIPBOARD_SELECTION:
+        q->anchor = t->anchor;
+        q->focus = t->focus;
+        break;
+    case MM_TEXT_CLIPBOARD_ACQUIRE:
+        t->formats[t->acquisitions++] = q->format;
+        if (q->format == MM_TEXT_CLIPBOARD_RICH && !t->rich)
+            return 0;
+        /* Fall through to produce the owned handle. */
+    case MM_TEXT_CLIPBOARD_ALLOCATE:
+        q->document = t;
+        ++t->refs;
+        break;
+    case MM_TEXT_CLIPBOARD_RELEASE:
+        CHECK(q->document == t && t->refs == 1);
+        --t->refs;
+        break;
+    case MM_TEXT_CLIPBOARD_SIZE: q->inserted = t->size; break;
+    case MM_TEXT_CLIPBOARD_IS_RICH: return t->rich;
+    case MM_TEXT_CLIPBOARD_PUBLISH: t->published = q->document; break;
+    case MM_TEXT_CLIPBOARD_COPY:
+    case MM_TEXT_CLIPBOARD_PASTE_PLAIN:
+    case MM_TEXT_CLIPBOARD_PASTE_RICH:
+        t->first = q->first;
+        t->inserted = q->inserted;
+        t->deleted = q->deleted;
+        break;
+    case MM_TEXT_CLIPBOARD_CARET: t->caret = q->first; break;
+    default: break;
+    }
+    return 1;
+}
+
+static void clipboard_init(ClipboardTest *t)
+{
+    memset(t, 0, sizeof(*t));
+    t->fail = -1;
+    t->anchor = 9;
+    t->focus = 4;
+    t->size = 4;
+}
+
+static void clipboard(void)
+{
+    ClipboardTest t;
+    MMTextClipboardServices s;
+    s.context = &t;
+    s.call = clipboard_call;
+    s.kind = MM_TEXT_CLIPBOARD_RICH;
+    clipboard_init(&t);
+    CHECK(mm_text_clipboard_copy(0, &s) == 1 && t.count == 1 && !t.refs);
+    t.count = 0;
+    CHECK(mm_text_clipboard_copy(1, &s) == 1 && t.count == 7);
+    CHECK(t.first == 4 && t.inserted == 5 && t.published == &t && t.refs == 1);
+    CHECK(t.operations[2] == MM_TEXT_CLIPBOARD_SELECTION && t.operations[3] == MM_TEXT_CLIPBOARD_SUSPEND &&
+          t.operations[5] == MM_TEXT_CLIPBOARD_RESUME);
+    clipboard_init(&t);
+    t.fail = MM_TEXT_CLIPBOARD_COPY;
+    t.published = &t;
+    CHECK(!mm_text_clipboard_copy(1, &s) && !t.refs && !t.published);
+    CHECK(t.operations[t.count - 2] == MM_TEXT_CLIPBOARD_RELEASE);
+
+    clipboard_init(&t);
+    CHECK(!mm_text_clipboard_paste(0, 1, &s) && !t.count);
+    CHECK(mm_text_clipboard_paste(1, 0, &s) == 1 && t.count == 1 && !t.acquisitions);
+    t.count = 0;
+    CHECK(mm_text_clipboard_paste(1, 1, &s) == 1);
+    CHECK(t.acquisitions == 2 && t.formats[0] == MM_TEXT_CLIPBOARD_RICH && t.formats[1] == MM_TEXT_CLIPBOARD_PLAIN);
+    CHECK(t.first == 4 && t.deleted == 5 && t.inserted == 3 && t.caret == 7 && !t.refs);
+    CHECK(t.operations[7] == MM_TEXT_CLIPBOARD_IS_RICH && t.operations[8] == MM_TEXT_CLIPBOARD_PLAIN_STYLE &&
+          t.operations[9] == MM_TEXT_CLIPBOARD_PASTE_PLAIN && t.operations[11] == MM_TEXT_CLIPBOARD_BUMP_UNDO);
+
+    clipboard_init(&t);
+    t.rich = 1;
+    t.fail = MM_TEXT_CLIPBOARD_PASTE_RICH;
+    CHECK(!mm_text_clipboard_paste(1, 1, &s) && !t.refs && !t.caret);
+    CHECK(t.acquisitions == 1 && t.operations[t.count - 1] == MM_TEXT_CLIPBOARD_RELEASE);
+    clipboard_init(&t);
+    t.rich = t.size = 1;
+    CHECK(mm_text_clipboard_paste(1, 1, &s) == 1 && t.count == 4 && !t.refs && !t.caret);
+
+    clipboard_init(&t);
+    s.kind = MM_TEXT_CLIPBOARD_STREAM;
+    CHECK(mm_text_clipboard_paste(1, 1, &s) == 1);
+    CHECK(t.acquisitions == 1 && t.formats[0] == MM_TEXT_CLIPBOARD_STREAM && t.inserted == 4 && t.caret == 8 && !t.refs);
+    CHECK(t.operations[t.count - 3] == MM_TEXT_CLIPBOARD_INVALIDATE);
+    t.count = 0;
+    CHECK(mm_text_clipboard_clear(&s) == 1 && t.count == 2 && t.operations[1] == MM_TEXT_CLIPBOARD_CLEAR);
+}
+
 int main(void)
 {
     unsigned unit;
@@ -687,6 +793,7 @@ int main(void)
         queries(unit);
         objects(unit);
     }
-    puts("text copy tests passed");
+    clipboard();
+    puts("text copy and clipboard tests passed");
     return 0;
 }

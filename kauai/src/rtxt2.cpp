@@ -12,6 +12,8 @@
 ***************************************************************************/
 #include "rich_text_layout.h"
 #include "frame.h"
+#include "clipboard_view_host.h"
+#include "mm/text_copy.h"
 ASSERTNAME
 
 RTCLASS(TextRuler)
@@ -2129,91 +2131,111 @@ void LineTextGraphicsDocument::_FetchPap(long cp, PPAP ppap, long *pcpMin, long 
         *pcpLim = _ptxtb->CpMac();
 }
 
-/***************************************************************************
-    Copy the selection.
-***************************************************************************/
-bool LineTextGraphicsDocument::_FCopySel(PDocumentBase *ppdocb)
+struct TextDocumentGraphicsObject::ClipboardHost : ClipboardViewHost
+{
+    PTextDocumentGraphicsObject view;
+    PRichTextDocumentGraphicsObject rich;
+    PClipboardObject clipboard = nullptr;
+    PDocumentBase *output = nullptr;
+
+    explicit ClipboardHost(PTextDocumentGraphicsObject view)
+        : view(view), rich(view->FIs(kclsRichTextDocumentGraphicsObject)
+                               ? static_cast<PRichTextDocumentGraphicsObject>(view) : nullptr)
+    {
+    }
+
+    MMTextClipboardServices Services()
+    {
+        return {this, rich ? MM_TEXT_CLIPBOARD_RICH : MM_TEXT_CLIPBOARD_PLAIN, Call};
+    }
+
+    static int Call(void *context, MMTextClipboardOperation operation, MMTextClipboardRequest *q)
+    {
+        auto &host = *static_cast<ClipboardHost *>(context);
+        auto view = host.view;
+        auto document = static_cast<PDocumentBase>(q->document);
+        return host.Guard([&]() -> int {
+            switch (operation)
+            {
+            case MM_TEXT_CLIPBOARD_SELECTION:
+                q->anchor = view->_cpAnchor;
+                q->focus = view->_cpOther;
+                break;
+            case MM_TEXT_CLIPBOARD_ALLOCATE:
+                if (host.rich)
+                    q->document = static_cast<PDocumentBase>(RichTextDocument::PtxrdNew(pvNil));
+                else
+                    q->document = static_cast<PDocumentBase>(PlainTextDocument::PtxpdNew(pvNil));
+                return q->document != nullptr;
+            case MM_TEXT_CLIPBOARD_SUSPEND:
+                static_cast<PTextDocumentBase>(document)->SuspendUndo();
+                break;
+            case MM_TEXT_CLIPBOARD_RESUME:
+                static_cast<PTextDocumentBase>(document)->ResumeUndo();
+                break;
+            case MM_TEXT_CLIPBOARD_COPY:
+                if (host.rich)
+                    return static_cast<PRichTextDocument>(document)->FReplaceTxrd(
+                        static_cast<PRichTextDocument>(view->_ptxtb), q->first, q->inserted, 0, 0, fdocNil);
+                return static_cast<PPlainTextDocument>(document)->FReplaceBsf(
+                    view->_ptxtb->Pbsf(), q->first, q->inserted, 0, 0, fdocNil);
+            case MM_TEXT_CLIPBOARD_PUBLISH: *host.output = document; break;
+            case MM_TEXT_CLIPBOARD_RELEASE: document->Release(); break;
+            case MM_TEXT_CLIPBOARD_CLEAR: view->FReplace(pvNil, 0, q->anchor, q->focus); break;
+            case MM_TEXT_CLIPBOARD_HAS_FORMAT: return Format(host.clipboard, kclsTextDocumentBase, nullptr);
+            case MM_TEXT_CLIPBOARD_ACQUIRE:
+                return Format(host.clipboard, q->format == MM_TEXT_CLIPBOARD_RICH ? kclsRichTextDocument
+                                                                                 : kclsTextDocumentBase,
+                              &q->document);
+            case MM_TEXT_CLIPBOARD_SIZE: q->inserted = static_cast<PTextDocumentBase>(document)->CpMac(); break;
+            case MM_TEXT_CLIPBOARD_HIDE: view->HideSel(); break;
+            case MM_TEXT_CLIPBOARD_SHOW: view->ShowSel(); break;
+            case MM_TEXT_CLIPBOARD_BUMP_UNDO: view->_ptxtb->BumpCombineUndo(); break;
+            case MM_TEXT_CLIPBOARD_IS_RICH: return document->FIs(kclsRichTextDocument);
+            case MM_TEXT_CLIPBOARD_PLAIN_STYLE: host.rich->_EnsureChpIns(); break;
+            case MM_TEXT_CLIPBOARD_PASTE_PLAIN:
+                if (host.rich)
+                    return static_cast<PRichTextDocument>(view->_ptxtb)->FReplaceTxtb(
+                        static_cast<PTextDocumentBase>(document), 0, q->inserted, q->first, q->deleted, &host.rich->_chpIns);
+                return view->_ptxtb->FReplaceTxtb(static_cast<PTextDocumentBase>(document),
+                                                 0, q->inserted, q->first, q->deleted);
+            case MM_TEXT_CLIPBOARD_PASTE_RICH:
+                return static_cast<PRichTextDocument>(view->_ptxtb)->FReplaceTxrd(
+                    static_cast<PRichTextDocument>(document), 0, q->inserted, q->first, q->deleted);
+            case MM_TEXT_CLIPBOARD_CARET: view->SetSel(q->first, q->first); break;
+            default: Bug("Unknown text clipboard operation"); return 0;
+            }
+            return 1;
+        });
+    }
+};
+
+bool TextDocumentGraphicsObject::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertThis(0);
     AssertNilOrVarMem(ppdocb);
-    PPlainTextDocument ptxpd;
-
-    if (_cpAnchor == _cpOther)
-        return fFalse;
-
-    if (pvNil == ppdocb)
-        return fTrue;
-
-    if (pvNil != (ptxpd = PlainTextDocument::PtxpdNew(pvNil)))
-    {
-        long cpMin = LwMin(_cpAnchor, _cpOther);
-        long cpLim = LwMax(_cpAnchor, _cpOther);
-
-        ptxpd->SuspendUndo();
-        if (!ptxpd->FReplaceBsf(_ptxtb->Pbsf(), cpMin, cpLim - cpMin, 0, 0, fdocNil))
-        {
-            ReleasePpo(&ptxpd);
-        }
-        else
-            ptxpd->ResumeUndo();
-    }
-
-    *ppdocb = ptxpd;
-    return pvNil != *ppdocb;
+    ClipboardHost host(this);
+    host.output = ppdocb;
+    const auto services = host.Services();
+    return host.Check(mm_text_clipboard_copy(ppdocb != nullptr, &services)) > 0;
 }
 
-/***************************************************************************
-    Delete the selection.
-***************************************************************************/
-void LineTextGraphicsDocument::_ClearSel(void)
+void TextDocumentGraphicsObject::_ClearSel()
 {
     AssertThis(0);
-
-    FReplace(pvNil, 0, _cpAnchor, _cpOther);
-    ShowSel();
+    ClipboardHost host(this);
+    const auto services = host.Services();
+    host.Check(mm_text_clipboard_clear(&services));
 }
 
-/***************************************************************************
-    Paste the selection.
-***************************************************************************/
-bool LineTextGraphicsDocument::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
+bool TextDocumentGraphicsObject::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
-    long cp1, cp2;
-    long ccp;
-    PTextDocumentBase ptxtb;
-
-    if (cid != cidPaste || !pclip->FGetFormat(kclsTextDocumentBase))
-        return fFalse;
-
-    if (!fDoIt)
-        return fTrue;
-
-    if (!pclip->FGetFormat(kclsTextDocumentBase, (PDocumentBase *)&ptxtb))
-        return fFalse;
-
-    AssertPo(ptxtb, 0);
-    if ((ccp = ptxtb->CpMac() - 1) <= 0)
-    {
-        ReleasePpo(&ptxtb);
-        return fTrue;
-    }
-
-    HideSel();
-    cp1 = LwMin(_cpAnchor, _cpOther);
-    cp2 = LwMax(_cpAnchor, _cpOther);
-    if (!_ptxtb->FReplaceTxtb(ptxtb, 0, ccp, cp1, cp2 - cp1))
-    {
-        ReleasePpo(&ptxtb);
-        return fFalse;
-    }
-    ReleasePpo(&ptxtb);
-
-    cp1 += ccp;
-    SetSel(cp1, cp1);
-    ShowSel();
-    return fTrue;
+    ClipboardHost host(this);
+    host.clipboard = pclip;
+    const auto services = host.Services();
+    return host.Check(mm_text_clipboard_paste(cid == cidPaste, fDoIt, &services)) > 0;
 }
 
 /***************************************************************************
@@ -2402,102 +2424,6 @@ bool RichTextDocumentGraphicsObject::FReplace(achar *prgch, long cch, long cp1, 
     }
 
     return fTrue;
-}
-
-/***************************************************************************
-    Copy the selection.
-***************************************************************************/
-bool RichTextDocumentGraphicsObject::_FCopySel(PDocumentBase *ppdocb)
-{
-    AssertNilOrVarMem(ppdocb);
-    PRichTextDocument ptxrd;
-
-    if (_cpAnchor == _cpOther)
-        return fFalse;
-
-    if (pvNil == ppdocb)
-        return fTrue;
-
-    if (pvNil != (ptxrd = RichTextDocument::PtxrdNew(pvNil)))
-    {
-        long cpMin = LwMin(_cpAnchor, _cpOther);
-        long cpLim = LwMax(_cpAnchor, _cpOther);
-
-        ptxrd->SuspendUndo();
-        if (!ptxrd->FReplaceTxrd((PRichTextDocument)_ptxtb, cpMin, cpLim - cpMin, 0, 0, fdocNil))
-        {
-            ReleasePpo(&ptxrd);
-        }
-        else
-            ptxrd->ResumeUndo();
-    }
-
-    *ppdocb = ptxrd;
-    return pvNil != *ppdocb;
-}
-
-/***************************************************************************
-    Delete the selection.
-***************************************************************************/
-void RichTextDocumentGraphicsObject::_ClearSel(void)
-{
-    FReplace(pvNil, 0, _cpAnchor, _cpOther);
-    ShowSel();
-}
-
-/***************************************************************************
-    Paste the selection.
-***************************************************************************/
-bool RichTextDocumentGraphicsObject::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
-{
-    AssertThis(0);
-    long cp1, cp2;
-    long ccp;
-    PTextDocumentBase ptxtb;
-    bool fRet;
-
-    if (cid != cidPaste || !pclip->FGetFormat(kclsTextDocumentBase))
-        return fFalse;
-
-    if (!fDoIt)
-        return fTrue;
-
-    if (!pclip->FGetFormat(kclsRichTextDocument, (PDocumentBase *)&ptxtb) && !pclip->FGetFormat(kclsTextDocumentBase, (PDocumentBase *)&ptxtb))
-    {
-        return fFalse;
-    }
-
-    AssertPo(ptxtb, 0);
-    if ((ccp = ptxtb->CpMac() - 1) <= 0)
-    {
-        ReleasePpo(&ptxtb);
-        return fTrue;
-    }
-
-    HideSel();
-    cp1 = LwMin(_cpAnchor, _cpOther);
-    cp2 = LwMax(_cpAnchor, _cpOther);
-    _ptxtb->BumpCombineUndo();
-    if (ptxtb->FIs(kclsRichTextDocument))
-    {
-        fRet = ((PRichTextDocument)_ptxtb)->FReplaceTxrd((PRichTextDocument)ptxtb, 0, ccp, cp1, cp2 - cp1);
-    }
-    else
-    {
-        _EnsureChpIns();
-        fRet = ((PRichTextDocument)_ptxtb)->FReplaceTxtb(ptxtb, 0, ccp, cp1, cp2 - cp1, &_chpIns);
-    }
-    ReleasePpo(&ptxtb);
-
-    if (fRet)
-    {
-        _ptxtb->BumpCombineUndo();
-        cp1 += ccp;
-        SetSel(cp1, cp1);
-        ShowSel();
-    }
-
-    return fRet;
 }
 
 /***************************************************************************

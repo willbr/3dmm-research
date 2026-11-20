@@ -18,6 +18,7 @@ ASSERTNAME
 #include "document_undo_host.h"
 #include "document_views_host.h"
 #include "document_lifecycle_host.h"
+#include "clipboard_view_host.h"
 
 #define dsnoNil 0
 MMDocumentRegistry DocumentBase::_documents = {};
@@ -764,91 +765,106 @@ void DocumentDisplayGraphicsObject::_Activate(bool fActive)
         vpcex->FAddCmh(this, 0);
 }
 
-/***************************************************************************
-    Handles enabling/disabling of common Ddg commands.
-***************************************************************************/
+static int DocumentEditCommand(long command)
+{
+    switch (command)
+    {
+    case cidSave: return MM_DOC_COMMAND_SAVE;
+    case cidCut: return MM_DOC_COMMAND_CUT;
+    case cidCopy: return MM_DOC_COMMAND_COPY;
+    case cidClear: return MM_DOC_COMMAND_CLEAR;
+    case cidPaste: return MM_DOC_COMMAND_PASTE;
+    case cidPasteSpecial: return MM_DOC_COMMAND_PASTE_SPECIAL;
+    case cidUndo: return MM_DOC_COMMAND_UNDO;
+    case cidRedo: return MM_DOC_COMMAND_REDO;
+    default: return MM_DOC_COMMAND_UNKNOWN;
+    }
+}
+
+struct DocumentDisplayGraphicsObject::EditCommandHost : ClipboardViewHost
+{
+    PDocumentDisplayGraphicsObject view;
+    PCommand command;
+
+    EditCommandHost(PDocumentDisplayGraphicsObject view, PCommand command) : view(view), command(command) {}
+
+    static EditCommandHost &Get(void *context) { return *static_cast<EditCommandHost *>(context); }
+
+    MMDocumentEditServices Services()
+    {
+        MMDocumentEditServices s = {};
+        s.context = this;
+        s.dirty = [](void *p) {
+            auto &host = Get(p);
+            return host.Guard([&] { return host.view->_pdocb->FDirty(); });
+        };
+        s.has_history = [](void *p, int redo) {
+            auto &host = Get(p);
+            return host.Guard([&] {
+                auto document = host.view->_pdocb;
+                return (redo ? document->CundbRedo() : document->CundbUndo()) > 0;
+            });
+        };
+        s.copy = [](void *p, void **owned) {
+            auto &host = Get(p);
+            return host.Guard([&] {
+                PDocumentBase document = nullptr;
+                bool result = host.view->_FCopySel(owned ? &document : nullptr);
+                if (owned && result)
+                    *owned = document;
+                return result;
+            });
+        };
+        s.clipboard_empty = [](void *p) {
+            return Get(p).Guard([] { return vpclip->FDocIsClip(pvNil); });
+        };
+        s.clipboard_is_self = [](void *p) {
+            auto &host = Get(p);
+            return host.Guard([&] { return vpclip->FDocIsClip(host.view->_pdocb); });
+        };
+        s.publish = [](void *p, void *document) {
+            return Get(p).Guard([&] { vpclip->Set(static_cast<PDocumentBase>(document)); return 1; });
+        };
+        s.release = [](void *p, void *document) {
+            return Get(p).Guard([&] {
+                if (document)
+                    static_cast<PDocumentBase>(document)->Release();
+                return 1;
+            });
+        };
+        s.clear = [](void *p) {
+            auto &host = Get(p);
+            return host.Guard([&] { host.view->_ClearSel(); return 1; });
+        };
+        s.paste = [](void *p, int apply, int command) {
+            auto &host = Get(p);
+            return host.Guard([&] {
+                return host.view->_FPaste(vpclip, apply != 0,
+                                          command == MM_DOC_COMMAND_PASTE_SPECIAL ? cidPasteSpecial : cidPaste);
+            });
+        };
+        s.unknown = [](void *p) { BugVar("unhandled cid in FEnableDdgCmd", &Get(p).command->cid); };
+        return s;
+    }
+};
+
 bool DocumentDisplayGraphicsObject::FEnableDdgCmd(PCommand pcmd, ulong *pgrfeds)
 {
     AssertThis(0);
-
-    switch (pcmd->cid)
-    {
-    case cidSave:
-        if (!_pdocb->FDirty())
-            goto LDisable;
-        break;
-
-    case cidCut:
-    case cidCopy:
-    case cidClear:
-        if (!_FCopySel(pvNil))
-            goto LDisable;
-        break;
-
-    case cidPaste:
-    case cidPasteSpecial:
-        if (vpclip->FDocIsClip(pvNil) || vpclip->FDocIsClip(_pdocb) || !_FPaste(vpclip, fFalse, pcmd->cid))
-        {
-            goto LDisable;
-        }
-        break;
-
-    case cidUndo:
-        if (_pdocb->CundbUndo() <= 0)
-            goto LDisable;
-        break;
-    case cidRedo:
-        if (_pdocb->CundbRedo() <= 0)
-            goto LDisable;
-        break;
-
-    default:
-        BugVar("unhandled cid in FEnableDdgCmd", &pcmd->cid);
-    LDisable:
-        *pgrfeds = fedsDisable;
-        return fTrue;
-    }
-
-    *pgrfeds = fedsEnable;
+    EditCommandHost host(this, pcmd);
+    const auto services = host.Services();
+    const int enabled = host.Check(mm_document_edit_enabled(DocumentEditCommand(pcmd->cid), &services));
+    *pgrfeds = enabled ? fedsEnable : fedsDisable;
     return fTrue;
 }
 
-/***************************************************************************
-    Handles the Cut, Copy, Paste and Clear commands.
-***************************************************************************/
 bool DocumentDisplayGraphicsObject::FCmdClip(PCommand pcmd)
 {
     AssertThis(fobjAssertFull);
     AssertVarMem(pcmd);
-    PDocumentBase pdocb = pvNil;
-
-    switch (pcmd->cid)
-    {
-    case cidCut:
-    case cidCopy:
-        // copy the selection
-        if (!_FCopySel(&pdocb))
-            return fTrue;
-        vpclip->Set(pdocb);
-        ReleasePpo(&pdocb);
-
-        if (pcmd->cid == cidCopy)
-            break;
-        // fall thru
-
-    case cidClear:
-        // delete the selection
-        _ClearSel();
-        break;
-
-    case cidPaste:
-    case cidPasteSpecial:
-        if (!vpclip->FDocIsClip(pvNil) && !vpclip->FDocIsClip(_pdocb))
-            _FPaste(vpclip, fTrue, pcmd->cid);
-        break;
-    }
-
-    return fTrue;
+    EditCommandHost host(this, pcmd);
+    const auto services = host.Services();
+    return host.Check(mm_document_edit_clipboard(DocumentEditCommand(pcmd->cid), &services)) > 0;
 }
 
 /***************************************************************************

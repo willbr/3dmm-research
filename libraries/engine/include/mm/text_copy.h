@@ -69,6 +69,58 @@ extern "C"
     int mm_text_object_insert(const void *, MMI32 bytes, MMI32 cp, MMI32 deleted, MMU32 flags,
                               const MMTextObjectServices *);
     int mm_text_object_apply(const void *, MMI32 bytes, MMI32 cp, MMU32 flags, const MMTextObjectServices *);
+    enum
+    {
+        MM_TEXT_CLIPBOARD_PLAIN,
+        MM_TEXT_CLIPBOARD_RICH,
+        MM_TEXT_CLIPBOARD_STREAM
+    };
+    typedef enum MMTextClipboardOperation
+    {
+        MM_TEXT_CLIPBOARD_SELECTION,
+        MM_TEXT_CLIPBOARD_ALLOCATE,
+        MM_TEXT_CLIPBOARD_SUSPEND,
+        MM_TEXT_CLIPBOARD_RESUME,
+        MM_TEXT_CLIPBOARD_COPY,
+        MM_TEXT_CLIPBOARD_PUBLISH,
+        MM_TEXT_CLIPBOARD_RELEASE,
+        MM_TEXT_CLIPBOARD_CLEAR,
+        MM_TEXT_CLIPBOARD_HAS_FORMAT,
+        MM_TEXT_CLIPBOARD_ACQUIRE,
+        MM_TEXT_CLIPBOARD_SIZE,
+        MM_TEXT_CLIPBOARD_HIDE,
+        MM_TEXT_CLIPBOARD_SHOW,
+        MM_TEXT_CLIPBOARD_BUMP_UNDO,
+        MM_TEXT_CLIPBOARD_IS_RICH,
+        MM_TEXT_CLIPBOARD_PLAIN_STYLE,
+        MM_TEXT_CLIPBOARD_PASTE_PLAIN,
+        MM_TEXT_CLIPBOARD_PASTE_RICH,
+        MM_TEXT_CLIPBOARD_INVALIDATE,
+        MM_TEXT_CLIPBOARD_CARET
+    } MMTextClipboardOperation;
+    typedef struct MMTextClipboardRequest
+    {
+        void *document;
+        MMI32 anchor, focus, first, inserted, deleted;
+        int format;
+    } MMTextClipboardRequest;
+    typedef struct MMTextClipboardServices
+    {
+        void *context;
+        int kind;
+        int (*call)(void *, MMTextClipboardOperation, MMTextClipboardRequest *);
+    } MMTextClipboardServices;
+
+    /* ALLOCATE and ACQUIRE return one owned document on success. PUBLISH
+     * transfers the copy or writes null on ordinary creation failure.
+     * SELECTION fills anchor/focus. SIZE fills inserted with the entire
+     * source length, including the document's terminal character in text
+     * views. HAS_FORMAT and ACQUIRE receive format. Copy and paste use first
+     * and inserted/deleted counts; CLEAR uses anchor/focus and CARET uses
+     * first. Results are 1/0 or negative errors with native partial effects. */
+    int mm_text_clipboard_copy(int create, const MMTextClipboardServices *);
+    int mm_text_clipboard_clear(const MMTextClipboardServices *);
+    int mm_text_clipboard_paste(int standard, int apply, const MMTextClipboardServices *);
 #ifdef __cplusplus
 }
 #endif

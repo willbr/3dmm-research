@@ -435,6 +435,7 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
 
   protected:
     struct LayoutHost;
+    struct ClipboardHost;
     // line information
     struct LIN
     {
@@ -501,6 +502,10 @@ class TextDocumentGraphicsObject : public TextDocumentGraphicsObject_PAR
     virtual PTextRuler _PtrulNew(PGraphicsObjectBlock pgcb);
     virtual void _DrawLinExtra(PGraphicsEnvironment pgnv, RC *prcClip, LIN *plin, long dxp, long yp, ulong grftxtg);
 
+    bool _FCopySel(PDocumentBase *ppdocb = pvNil) override;
+    void _ClearSel() override;
+    bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid) override;
+
   public:
     virtual void DrawLines(PGraphicsEnvironment pgnv, RC *prcClip, long dxp, long dyp, long ilinMin, long ilinLim = klwMax,
                            ulong grftxtg = ftxtgNil);
@@ -551,11 +556,6 @@ class LineTextGraphicsDocument : public LineTextGraphicsDocument_PAR
     virtual void _FetchChp(long cp, PCHP pchp, long *pcpMin = pvNil, long *pcpLim = pvNil);
     virtual void _FetchPap(long cp, PPAP ppap, long *pcpMin = pvNil, long *pcpLim = pvNil);
 
-    // clipboard support
-    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
-    virtual void _ClearSel(void);
-    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
-
   public:
     static PLineTextGraphicsDocument PtxlgNew(PTextDocumentBase ptxtb, PGraphicsObjectBlock pgcb, long onn, ulong grfont, long dypFont, long cchTab);
 
@@ -576,6 +576,7 @@ class RichTextDocumentGraphicsObject : public RichTextDocumentGraphicsObject_PAR
     ASSERT
 
   protected:
+    friend struct TextDocumentGraphicsObject::ClipboardHost;
     RichTextDocumentGraphicsObject(PRichTextDocument ptxrd, PGraphicsObjectBlock pgcb);
 
     CHP _chpIns;
@@ -586,11 +587,6 @@ class RichTextDocumentGraphicsObject : public RichTextDocumentGraphicsObject_PAR
 
     virtual bool _FGetOtherSize(long *pdypFont);
     virtual bool _FGetOtherSubSuper(long *pdypOffset);
-
-    // clipboard support
-    virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
-    virtual void _ClearSel(void);
-    virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
 
     void _FetchChpSel(long cp1, long cp2, PCHP pchp);
     void _EnsureChpIns(void);

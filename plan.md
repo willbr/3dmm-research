@@ -903,6 +903,8 @@ plain/rich raw/file/stream replacement transactions now also use C89, including
 formatted replacement and translated-file ownership.
 Rich-document/property copying and embedded-object fetch, dispatch, insertion and
 property edits now also use C89, retaining native partial-failure behavior.
+Line text, rich text and byte-stream views share C89 clipboard selection,
+format choice, reference handling, and edit sequencing.
 Text undo counters, pending transactions and rich snapshot record construction,
 combination and undo/redo replay now also use C89 with plain C control/record data.
 Generic document undo admission, replay, redo clearing, limit trimming and release
@@ -913,6 +915,8 @@ plain C registry/node/iterator data.
 Borrowed document view lists, first-view selection/activation, title traversal and
 clipboard/file/untitled name selection now also use C89 and C-owned view storage;
 untitled counters now live in C registry/node data.
+The common document view uses C89 for Edit menu availability and clipboard
+command sequencing, including self-paste rejection and publish-before-cut order.
 Help topic metadata, wire codecs/read/save, string expansion, object/group argument
 normalization and picture/button/group edit transactions now also use C89 and
 plain C topic data. Help embedded-object bounds and drawing sequence now also use

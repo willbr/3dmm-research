@@ -169,3 +169,69 @@ int mm_document_name(MMDocumentRegistry *registry, MMDocumentNode *n, const MMDo
     return s->emit_name(s->context, r ? MM_DOC_NAME_FILE : MM_DOC_NAME_UNTITLED,
                         r ? 0 : mm_document_untitled(registry, n));
 }
+
+static int document_can_paste(const MMDocumentEditServices *s)
+{
+    int result = s->clipboard_empty(s->context);
+    if (result)
+        return result < 0 ? result : 0;
+    result = s->clipboard_is_self(s->context);
+    return result < 0 ? result : !result;
+}
+
+int mm_document_edit_enabled(int command, const MMDocumentEditServices *s)
+{
+    int result;
+    switch (command)
+    {
+    case MM_DOC_COMMAND_SAVE:
+        return s->dirty(s->context);
+    case MM_DOC_COMMAND_CUT:
+    case MM_DOC_COMMAND_COPY:
+    case MM_DOC_COMMAND_CLEAR:
+        return s->copy(s->context, 0);
+    case MM_DOC_COMMAND_PASTE:
+    case MM_DOC_COMMAND_PASTE_SPECIAL:
+        result = document_can_paste(s);
+        return result <= 0 ? result : s->paste(s->context, 0, command);
+    case MM_DOC_COMMAND_UNDO:
+    case MM_DOC_COMMAND_REDO:
+        return s->has_history(s->context, command == MM_DOC_COMMAND_REDO);
+    default:
+        s->unknown(s->context);
+        return 0;
+    }
+}
+
+int mm_document_edit_clipboard(int command, const MMDocumentEditServices *s)
+{
+    void *document = 0;
+    int result = 0;
+    switch (command)
+    {
+    case MM_DOC_COMMAND_CUT:
+    case MM_DOC_COMMAND_COPY:
+        result = s->copy(s->context, &document);
+        if (result <= 0)
+            return result < 0 ? result : 1;
+        result = s->publish(s->context, document);
+        if (result < 0)
+            return result;
+        result = s->release(s->context, document);
+        if (result < 0)
+            return result;
+        if (command == MM_DOC_COMMAND_COPY)
+            break;
+        /* Fall through after publishing a successful cut. */
+    case MM_DOC_COMMAND_CLEAR:
+        result = s->clear(s->context);
+        break;
+    case MM_DOC_COMMAND_PASTE:
+    case MM_DOC_COMMAND_PASTE_SPECIAL:
+        result = document_can_paste(s);
+        if (result > 0)
+            result = s->paste(s->context, 1, command);
+        break;
+    }
+    return result < 0 ? result : 1;
+}

@@ -434,12 +434,126 @@ static void model(void)
     }
     finish(&h);
 }
+typedef struct EditTest
+{
+    char calls[12];
+    int count, empty, self, selection, paste_result, paste_command, refs;
+} EditTest;
+
+static void edit_event(EditTest *t, char event)
+{
+    t->calls[t->count++] = event;
+    t->calls[t->count] = 0;
+}
+
+static int edit_copy(void *context, void **owned)
+{
+    EditTest *t = context;
+    edit_event(t, owned ? 'C' : '?');
+    if (owned && t->selection)
+    {
+        *owned = t;
+        ++t->refs;
+    }
+    return t->selection;
+}
+
+static int edit_empty(void *context)
+{
+    EditTest *t = context;
+    edit_event(t, 'E');
+    return t->empty;
+}
+
+static int edit_self(void *context)
+{
+    EditTest *t = context;
+    edit_event(t, 'S');
+    return t->self;
+}
+
+static int edit_publish(void *context, void *document)
+{
+    EditTest *t = context;
+    CHECK(document == t && t->refs == 1);
+    edit_event(t, 'P');
+    ++t->refs;
+    return 1;
+}
+
+static int edit_release(void *context, void *document)
+{
+    EditTest *t = context;
+    CHECK(document == t && t->refs == 2);
+    edit_event(t, 'R');
+    --t->refs;
+    return 1;
+}
+
+static int edit_clear(void *context)
+{
+    edit_event(context, 'X');
+    return 1;
+}
+
+static int edit_paste(void *context, int apply, int command)
+{
+    EditTest *t = context;
+    edit_event(t, apply ? 'A' : 'Q');
+    t->paste_command = command;
+    return t->paste_result;
+}
+
+static void edit_commands(void)
+{
+    EditTest t;
+    MMDocumentEditServices s = {0};
+    s.context = &t;
+    s.copy = edit_copy;
+    s.clipboard_empty = edit_empty;
+    s.clipboard_is_self = edit_self;
+    s.publish = edit_publish;
+    s.release = edit_release;
+    s.clear = edit_clear;
+    s.paste = edit_paste;
+
+    memset(&t, 0, sizeof(t));
+    CHECK(!mm_document_edit_enabled(MM_DOC_COMMAND_CUT, &s) && !strcmp(t.calls, "?"));
+    t.count = 0;
+    CHECK(mm_document_edit_clipboard(MM_DOC_COMMAND_CUT, &s) == 1 && !strcmp(t.calls, "C"));
+    t.selection = 1;
+    t.count = 0;
+    CHECK(mm_document_edit_clipboard(MM_DOC_COMMAND_CUT, &s) == 1 && !strcmp(t.calls, "CPRX") && t.refs == 1);
+    t.count = 0;
+    CHECK(mm_document_edit_clipboard(MM_DOC_COMMAND_CLEAR, &s) == 1 && !strcmp(t.calls, "X"));
+
+    t.empty = 1;
+    t.count = 0;
+    CHECK(!mm_document_edit_enabled(MM_DOC_COMMAND_PASTE, &s) && !strcmp(t.calls, "E"));
+    t.empty = 0;
+    t.self = 1;
+    t.count = 0;
+    CHECK(mm_document_edit_clipboard(MM_DOC_COMMAND_PASTE, &s) == 1 && !strcmp(t.calls, "ES"));
+    t.self = 0;
+    t.paste_result = 1;
+    t.count = 0;
+    CHECK(mm_document_edit_enabled(MM_DOC_COMMAND_PASTE_SPECIAL, &s) == 1 && !strcmp(t.calls, "ESQ"));
+    CHECK(t.paste_command == MM_DOC_COMMAND_PASTE_SPECIAL);
+    t.paste_result = 0;
+    t.count = 0;
+    CHECK(mm_document_edit_clipboard(MM_DOC_COMMAND_PASTE, &s) == 1 && !strcmp(t.calls, "ESA"));
+    t.paste_result = -1;
+    t.count = 0;
+    CHECK(mm_document_edit_clipboard(MM_DOC_COMMAND_PASTE, &s) == -1 && !strcmp(t.calls, "ESA"));
+}
+
 int main(void)
 {
     storage();
     presentation();
     names();
     model();
-    puts("document views tests passed");
+    edit_commands();
+    puts("document views and edit command tests passed");
     return 0;
 }

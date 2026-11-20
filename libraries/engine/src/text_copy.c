@@ -387,3 +387,129 @@ int mm_text_object_apply(const void *bytes, MMI32 length, MMI32 cp, MMU32 flags,
     s->target.edit.validate(s->target.edit.context);
     return s->target.notify(s->target.context, cp, 1, 1, flags);
 }
+
+#define CLIP(op) s->call(s->context, op, &q)
+#define CLIP_TRY(value) do { int status_ = (value); if (status_ < 0) return status_; } while (0)
+
+static void clipboard_range(MMTextClipboardRequest *q)
+{
+    MMI32 end;
+    if (q->anchor < q->focus)
+    {
+        q->first = q->anchor;
+        end = q->focus;
+    }
+    else
+    {
+        q->first = q->focus;
+        end = q->anchor;
+    }
+    q->deleted = mm_signed_word((MMU32)end - (MMU32)q->first);
+}
+
+int mm_text_clipboard_copy(int create, const MMTextClipboardServices *s)
+{
+    MMTextClipboardRequest q = {0};
+    int result;
+
+    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SELECTION));
+    if (q.anchor == q.focus)
+        return 0;
+    if (!create)
+        return 1;
+    result = CLIP(MM_TEXT_CLIPBOARD_ALLOCATE);
+    CLIP_TRY(result);
+    if (result)
+    {
+        if (s->kind != MM_TEXT_CLIPBOARD_STREAM)
+            CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SELECTION));
+        clipboard_range(&q);
+        q.inserted = q.deleted;
+        q.deleted = 0;
+        if (s->kind != MM_TEXT_CLIPBOARD_STREAM)
+            CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SUSPEND));
+        result = CLIP(MM_TEXT_CLIPBOARD_COPY);
+        CLIP_TRY(result);
+        if (!result)
+            CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_RELEASE));
+        else if (s->kind != MM_TEXT_CLIPBOARD_STREAM)
+            CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_RESUME));
+    }
+    if (!result)
+        q.document = 0;
+    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_PUBLISH));
+    return result;
+}
+
+int mm_text_clipboard_clear(const MMTextClipboardServices *s)
+{
+    MMTextClipboardRequest q = {0};
+
+    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SELECTION));
+    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_CLEAR));
+    if (s->kind != MM_TEXT_CLIPBOARD_STREAM)
+        return CLIP(MM_TEXT_CLIPBOARD_SHOW);
+    return 1;
+}
+
+int mm_text_clipboard_paste(int standard, int apply, const MMTextClipboardServices *s)
+{
+    MMTextClipboardRequest q = {0};
+    int result, rich = 0;
+
+    if (!standard)
+        return 0;
+    q.format = s->kind == MM_TEXT_CLIPBOARD_STREAM ? MM_TEXT_CLIPBOARD_STREAM : MM_TEXT_CLIPBOARD_PLAIN;
+    result = CLIP(MM_TEXT_CLIPBOARD_HAS_FORMAT);
+    if (result <= 0 || !apply)
+        return result;
+    if (s->kind == MM_TEXT_CLIPBOARD_RICH)
+    {
+        q.format = MM_TEXT_CLIPBOARD_RICH;
+        result = CLIP(MM_TEXT_CLIPBOARD_ACQUIRE);
+        CLIP_TRY(result);
+        if (!result)
+        {
+            q.format = MM_TEXT_CLIPBOARD_PLAIN;
+            result = CLIP(MM_TEXT_CLIPBOARD_ACQUIRE);
+        }
+    }
+    else
+        result = CLIP(MM_TEXT_CLIPBOARD_ACQUIRE);
+    if (result <= 0)
+        return result;
+
+    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SIZE));
+    if (s->kind != MM_TEXT_CLIPBOARD_STREAM && q.inserted > 0)
+        --q.inserted;
+    if (q.inserted <= 0)
+        return CLIP(MM_TEXT_CLIPBOARD_RELEASE);
+
+    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_HIDE));
+    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SELECTION));
+    clipboard_range(&q);
+    if (s->kind == MM_TEXT_CLIPBOARD_RICH)
+    {
+        CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_BUMP_UNDO));
+        rich = CLIP(MM_TEXT_CLIPBOARD_IS_RICH);
+        CLIP_TRY(rich);
+        if (!rich)
+            CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_PLAIN_STYLE));
+    }
+    result = rich ? CLIP(MM_TEXT_CLIPBOARD_PASTE_RICH) : CLIP(MM_TEXT_CLIPBOARD_PASTE_PLAIN);
+    CLIP_TRY(result);
+    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_RELEASE));
+    q.document = 0;
+    if (!result)
+        return 0;
+    if (s->kind == MM_TEXT_CLIPBOARD_RICH)
+        CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_BUMP_UNDO));
+    if (s->kind == MM_TEXT_CLIPBOARD_STREAM)
+        CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_INVALIDATE));
+    q.first = mm_signed_word((MMU32)q.first + (MMU32)q.inserted);
+    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_CARET));
+    return CLIP(MM_TEXT_CLIPBOARD_SHOW);
+}
+
+#undef CLIP_TRY
+#undef CLIP

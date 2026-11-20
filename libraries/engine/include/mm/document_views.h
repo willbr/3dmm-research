@@ -52,6 +52,34 @@ extern "C"
     int mm_document_titles(MMDocumentNode *, const MMDocumentViewServices *);
     MMI32 mm_document_untitled(MMDocumentRegistry *, MMDocumentNode *);
     int mm_document_name(MMDocumentRegistry *, MMDocumentNode *, const MMDocumentViewServices *);
+
+    enum
+    {
+        MM_DOC_COMMAND_UNKNOWN,
+        MM_DOC_COMMAND_SAVE,
+        MM_DOC_COMMAND_CUT,
+        MM_DOC_COMMAND_COPY,
+        MM_DOC_COMMAND_CLEAR,
+        MM_DOC_COMMAND_PASTE,
+        MM_DOC_COMMAND_PASTE_SPECIAL,
+        MM_DOC_COMMAND_UNDO,
+        MM_DOC_COMMAND_REDO
+    };
+    typedef struct MMDocumentEditServices
+    {
+        void *context;
+        int (*dirty)(void *), (*has_history)(void *, int redo);
+        int (*copy)(void *, void **owned);
+        int (*clipboard_empty)(void *), (*clipboard_is_self)(void *);
+        int (*publish)(void *, void *), (*release)(void *, void *);
+        int (*clear)(void *), (*paste)(void *, int apply, int command);
+        void (*unknown)(void *);
+    } MMDocumentEditServices;
+    /* Copy with no output probes the selection. Successful copy with an
+     * output transfers one reference; publish retains it. Callbacks return
+     * 1/0 or a negative error. Errors preserve the completed prefix. */
+    int mm_document_edit_enabled(int command, const MMDocumentEditServices *);
+    int mm_document_edit_clipboard(int command, const MMDocumentEditServices *);
 #ifdef __cplusplus
 }
 #endif

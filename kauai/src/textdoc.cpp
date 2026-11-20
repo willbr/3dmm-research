@@ -13,6 +13,8 @@
 
 ***************************************************************************/
 #include "frame.h"
+#include "clipboard_view_host.h"
+#include "mm/text_copy.h"
 ASSERTNAME
 
 RTCLASS(TextDocumentByteStream)
@@ -1708,87 +1710,82 @@ void TextDocumentByteStreamDisplay::_InvalIch(long ich, long cchIns, long cchDel
     _fXpValid = fFalse;
 }
 
-/***************************************************************************
-    If ppdocb != pvNil, copy the selection to a new document and return
-    true.  If ppdocb == pvNil just return whether the selection is
-    non-empty.
-***************************************************************************/
+struct TextDocumentByteStreamDisplay::ClipboardHost : ClipboardViewHost
+{
+    PTextDocumentByteStreamDisplay view;
+    PClipboardObject clipboard = nullptr;
+    PDocumentBase *output = nullptr;
+    PFileByteStream source = nullptr;
+
+    explicit ClipboardHost(PTextDocumentByteStreamDisplay view) : view(view) {}
+
+    MMTextClipboardServices Services() { return {this, MM_TEXT_CLIPBOARD_STREAM, Call}; }
+
+    static int Call(void *context, MMTextClipboardOperation operation, MMTextClipboardRequest *q)
+    {
+        auto &host = *static_cast<ClipboardHost *>(context);
+        auto view = host.view;
+        auto document = static_cast<PDocumentBase>(q->document);
+        return host.Guard([&]() -> int {
+            switch (operation)
+            {
+            case MM_TEXT_CLIPBOARD_SELECTION:
+                q->anchor = view->_ichAnchor;
+                q->focus = view->_ichOther;
+                break;
+            case MM_TEXT_CLIPBOARD_ALLOCATE:
+                q->document = static_cast<PDocumentBase>(TextDocumentByteStream::PtxdcNew());
+                return q->document != nullptr;
+            case MM_TEXT_CLIPBOARD_COPY:
+                return static_cast<PTextDocumentByteStream>(document)->Pbsf()->FReplaceBsf(
+                    view->_pbsf, q->first, q->inserted, 0, 0);
+            case MM_TEXT_CLIPBOARD_PUBLISH: *host.output = document; break;
+            case MM_TEXT_CLIPBOARD_RELEASE: document->Release(); break;
+            case MM_TEXT_CLIPBOARD_CLEAR: view->FReplace(pvNil, 0, q->anchor, q->focus, fTrue); break;
+            case MM_TEXT_CLIPBOARD_HAS_FORMAT: return Format(host.clipboard, kclsTextDocumentByteStream, nullptr);
+            case MM_TEXT_CLIPBOARD_ACQUIRE: return Format(host.clipboard, kclsTextDocumentByteStream, &q->document);
+            case MM_TEXT_CLIPBOARD_SIZE:
+                host.source = static_cast<PTextDocumentByteStream>(document)->Pbsf();
+                q->inserted = host.source ? host.source->IbMac() : 0;
+                break;
+            case MM_TEXT_CLIPBOARD_HIDE: view->_SwitchSel(fFalse, fTrue); break;
+            case MM_TEXT_CLIPBOARD_PASTE_PLAIN:
+                return view->_pbsf->FReplaceBsf(host.source, 0, q->inserted, q->first, q->deleted);
+            case MM_TEXT_CLIPBOARD_INVALIDATE: view->_InvalAllTxdd(q->first, q->inserted, q->deleted); break;
+            case MM_TEXT_CLIPBOARD_CARET: view->SetSel(q->first, q->first, fTrue); break;
+            case MM_TEXT_CLIPBOARD_SHOW: view->ShowSel(fTrue); break;
+            default: Bug("Unknown byte-stream clipboard operation"); return 0;
+            }
+            return 1;
+        });
+    }
+};
+
 bool TextDocumentByteStreamDisplay::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertThis(0);
-    PTextDocumentByteStream ptxdc;
-    long ich1, ich2;
-
-    if ((ich1 = _ichOther) == (ich2 = _ichAnchor))
-        return fFalse;
-
-    if (pvNil == ppdocb)
-        return fTrue;
-
-    SortLw(&ich1, &ich2);
-    if (pvNil != (ptxdc = TextDocumentByteStream::PtxdcNew()))
-    {
-        if (!ptxdc->Pbsf()->FReplaceBsf(_pbsf, ich1, ich2 - ich1, 0, 0))
-            ReleasePpo(&ptxdc);
-    }
-
-    *ppdocb = ptxdc;
-    return pvNil != *ppdocb;
+    ClipboardHost host(this);
+    host.output = ppdocb;
+    const auto services = host.Services();
+    return host.Check(mm_text_clipboard_copy(ppdocb != nullptr, &services)) > 0;
 }
 
-/***************************************************************************
-    Clear (delete) the current selection.
-***************************************************************************/
-void TextDocumentByteStreamDisplay::_ClearSel(void)
+void TextDocumentByteStreamDisplay::_ClearSel()
 {
     AssertThis(0);
-    FReplace(pvNil, 0, _ichAnchor, _ichOther, fTrue);
+    ClipboardHost host(this);
+    const auto services = host.Services();
+    host.Check(mm_text_clipboard_clear(&services));
 }
 
-/***************************************************************************
-    Paste the given doc into this one.
-***************************************************************************/
 bool TextDocumentByteStreamDisplay::_FPaste(PClipboardObject pclip, bool fDoIt, long cid)
 {
     AssertThis(0);
     AssertPo(pclip, 0);
-    long ich1, ich2, cch;
-    PTextDocumentByteStream ptxdc;
-    PFileByteStream pbsf;
-
-    if (cidPaste != cid || !pclip->FGetFormat(kclsTextDocumentByteStream))
-        return fFalse;
-
-    if (!fDoIt)
-        return fTrue;
-
-    if (!pclip->FGetFormat(kclsTextDocumentByteStream, (PDocumentBase *)&ptxdc))
-        return fFalse;
-
-    AssertPo(ptxdc, 0);
-    if (pvNil == (pbsf = ptxdc->Pbsf()) || 0 >= (cch = pbsf->IbMac()))
-    {
-        ReleasePpo(&ptxdc);
-        return fTrue;
-    }
-
-    _SwitchSel(fFalse, fTrue);
-    ich1 = _ichAnchor;
-    ich2 = _ichOther;
-    SortLw(&ich1, &ich2);
-
-    if (!_pbsf->FReplaceBsf(pbsf, 0, cch, ich1, ich2 - ich1))
-    {
-        ReleasePpo(&ptxdc);
-        return fFalse;
-    }
-    ReleasePpo(&ptxdc);
-
-    _InvalAllTxdd(ich1, cch, ich2 - ich1);
-    ich1 += cch;
-    SetSel(ich1, ich1, fTrue);
-    ShowSel(fTrue);
-    return fTrue;
+    ClipboardHost host(this);
+    host.clipboard = pclip;
+    const auto services = host.Services();
+    return host.Check(mm_text_clipboard_paste(cid == cidPaste, fDoIt, &services)) > 0;
 }
 
 #ifdef DEBUG

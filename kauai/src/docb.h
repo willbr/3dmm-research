@@ -237,6 +237,7 @@ class DocumentDisplayGraphicsObject : public DocumentDisplayGraphicsObject_PAR
     virtual void _ScrollDxpDyp(long dxp, long dyp);
 
     // clipboard support
+    struct EditCommandHost;
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);
