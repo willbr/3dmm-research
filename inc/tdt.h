@@ -77,7 +77,7 @@ class ThreeDText : public ThreeDText_PAR
     PThreeDFont _FetchFont(void);
 
   protected:
-    bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock) override;
+    bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *) override;
     static MMTextGenerationServices _GenerationServices();
     static MMTextResourceServices _ResourceServices(void *context);
     bool _FInitLists(void);

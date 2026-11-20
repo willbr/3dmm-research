@@ -5958,6 +5958,12 @@ set/costume/action counts. The native Template embeds that owner and initializes
 it explicitly; one borrowed state view replaces native-field read/write
 marshalling. Typed list/group accessors, getters and debug validation read the
 same C record. Local C snapshots retain the earlier publication points.
+The live factory estimates from the stored root length, then the C loader
+decodes the borrowed or cache-resolved root block. C resolves child links and
+reads GLPI, GLBS and GGCM from bounded streams over one reusable owned block.
+The same root reader handles ordinary templates and the base header for 3D
+text. Native callbacks supply the object factory, name conversion, allocations
+and legacy sibling-cache creation.
 Parents, sets and costume groups publish in native order. Direct initialization
 failure retains partial ownership, while the factory releases its failed object.
 The C parent and set decoder converts opposite-endian indices. The costume
@@ -5978,9 +5984,8 @@ The name write deliberately targets TMPL even when given another chunk type;
 failure deletes the newly added chunk while retaining its published number.
 The legacy GGCM builder's first 50 matches retain native behavior; the 51st
 now diagnoses/fails instead of overflowing its stack array. These defined
-normalizations are explicit; unsupported native overflow/padding is not claimed
-to match. Native block lifetimes remain scoped through temporary field/I/O
-adapters, while construction/byte-order/failure policy is C89.
+normalizations are explicit. The C cache and block owner control the lifetime
+of the native file extent or decoded memory across these reads.
 
 The normalized 306,048-byte before/after trace matches across 1,344 native cases,
 with 613 successful loads and 478 bodies. Only undefined header padding is masked;

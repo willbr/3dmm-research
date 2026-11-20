@@ -17153,3 +17153,33 @@ all 60 frame identities in seek and continuous playback and all retail seek
 camera indices. SDL matched all 12 retail sound requests, and each port
 reproduced its 60 previous seek canvas hashes. The archived comparison and
 fixture evidence are in `tmp/c89-text-block`.
+
+## Actor template reads through C89 blocks (20 November 2026)
+
+The live template factory estimates from the stored root length. C decodes the
+borrowed or cache-resolved header and resolves and reads the GLPI, GLBS and
+GGCM children through the same resource cache. The fixture exercises packed
+estimates, failed reads and retention of earlier tables. A missing costume link
+still starts the legacy scan. A linked table that fails to load fails the
+template read.
+
+All 192 standalone C checks, six focused AddressSanitizer checks, 16 selected
+x64 checks and 12 selected SDL checks passed. The six focused x86 C fixtures
+and core-link test passed.
+All nine construction, runtime and 3D text traces matched the corresponding
+pre-change builds byte for byte. The construction traces contained 306,048
+bytes on x64, 307,224 on x86 and 376,992 on SDL.
+
+All 54 movie and scene traces, three saved movie fixtures, ten Preview
+fingerprints and six Preview movies matched. The Studio authoring save matched
+byte for byte. Retail, SDL and Marcus matched all three retained-background
+frame identities, camera indices and canvas hashes in `20261120T232824Z-e0a10271`.
+Both ports matched original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261120T232857Z-6105c65b`.
+
+All four `actor-event-edit` captures completed in `20261120T232807Z-64cf8f53`.
+Against archived retail runs, both ports matched all 60 frame identities in
+seek and continuous playback and all retail seek camera indices. SDL matched
+all 12 retail sound requests. Each port reproduced all 60 seek canvas hashes
+from the previous build. The comparison and fixture evidence are in
+`tmp/c89-template-block`.

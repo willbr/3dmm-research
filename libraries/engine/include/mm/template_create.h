@@ -6,6 +6,7 @@
 #include "movie_data.h"
 #include "collection_storage.h"
 #include "part_indices.h"
+#include "resource_cache.h"
 #include <stddef.h>
 #if USHRT_MAX != 65535U
 #error Template rest angles require sixteen-bit unsigned shorts
@@ -120,24 +121,17 @@ typedef struct MMTemplateCreateServices
     MMU32 system;
     MMTemplateState *(*state)(void *,void *object);
     void (*release)(void *,void *);
-    int (*child)(void *,void *file,MMU32,MMU32,MMU32 id,MMU32 type,MMTemplateChild *);
-    int (*enumerate)(void *,void *file,MMU32,MMU32,MMI32,MMTemplateChild *);
-    void *(*find)(void *,void *file,MMU32,MMU32);
-    int (*unpack)(void *,void *block);
-    MMI32 (*block_size)(void *,void *block,int packed);
-    int (*block_read)(void *,void *block,void *,size_t);
-    int (*read_name)(void *,void *object,void *file,MMU32,MMU32);
+    MMBlockTransform decode;
+    int (*read_name)(void *,void *object,MMU32,MMU32);
     int (*add_chunk)(void *,void *file,MMU32,const void *,size_t,MMU32 *);
     int (*set_name)(void *,void *object,void *file,MMU32,MMU32);
     void (*delete_chunk)(void *,void *file,MMU32,MMU32);
     void *(*create)(void *,int text);
-    int (*initialize)(void *,void *object,void *source,MMU32,MMU32,void *block);
+    int (*initialize)(void *,void *object,MMU32,MMU32,MMOwnedBlock *);
     MMI32 (*object_size)(void *,int text);
     void (*invalidate)(void *,void *,size_t);
-    int (*header)(void *,void *object,void *source,MMU32,MMU32,void *block);
-    int (*read_part_indices)(void *,void *block,MMPartIndexList **out);
-    int (*read_costumes)(void *, void *block, MMI32 expected, MMTemplateCostumeTable **out);
-    void *(*create_cache)(void *,void *file);
+    MMPartIndexList *(*create_part_indices)(void *,int kind);
+    void *(*create_cache)(void *);
     MMTemplateCostumeTable *(*create_costumes)(void *);
     void *(*fetch_custom)(void *,void *cache,MMU32,MMU32);
     MMI32 (*custom_set)(void *,void *custom);
@@ -163,15 +157,16 @@ void mm_template_state_init(MMTemplateState *);
 /* The legacy GGCM builder had 50 stack slots per set. Counts through 50 retain
  * that behavior; a 51st match now diagnoses/fails instead of overflowing. */
 /* Read from a borrowed root block when supplied, or look it up on demand. */
-int mm_template_read_header(void *,void *source,MMU32,MMU32,void *block,const MMTemplateCreateServices *);
+int mm_template_read_header(void *,MMResourceCache *,MMU32,MMU32,MMOwnedBlock *,const MMTemplateCreateServices *);
 /* Header padding is defined as zero; the native writer left two stack bytes
  * undefined. Name assignment deliberately uses TMPL even for another supplied
  * chunk type; failure deletes the added chunk and retains its published number. */
 int mm_template_write_header(void *,void *file,MMU32,MMU32 *,const MMTemplateCreateServices *);
 void mm_template_encode_header(unsigned char bytes[MM_TEMPLATE_HEADER_BYTES], int big_endian, MMU32 system,
                                const MMTemplateState *);
-int mm_template_fetch(void *file,MMU32,MMU32,void *block,void **object,MMI32 *bytes,const MMTemplateCreateServices *);
-int mm_template_initialize(void *,void *source,MMU32,MMU32,void *block,const MMTemplateCreateServices *);
+int mm_template_fetch(MMResourceCache *,MMU32,MMU32,MMOwnedBlock *,void **object,MMI32 *bytes,
+                      const MMTemplateCreateServices *);
+int mm_template_initialize(void *,MMResourceCache *,MMU32,MMU32,MMOwnedBlock *,const MMTemplateCreateServices *);
 void mm_template_dispose(void *,const MMTemplateCreateServices *);
 void *mm_template_create_body(void *,const MMTemplateCreateServices *);
 /* Fetch every default custom material before applying any; failure releases

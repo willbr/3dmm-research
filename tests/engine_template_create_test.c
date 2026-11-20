@@ -1,15 +1,23 @@
 #include "mm/template_create.h"
+#include "engine_resource_block_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"template check %d: %s\n",__LINE__,#c); exit(1); } } while (0)
 typedef struct Ref { int refs,kind,set; } Ref;
 typedef struct List { MMPartIndexList list; int refs,count; unsigned char data[12]; } List;
-typedef struct Block { int kind,length; unsigned char data[16]; } Block;
+enum { TEMPLATE_HEADER, TEMPLATE_PARENTS, TEMPLATE_SETS, TEMPLATE_COSTUMES };
+enum { FILE_BASE = 8, FILE_STRIDE = 64 };
+typedef struct Block { MMU32 length; unsigned char data[60]; } Block;
 typedef struct Fixture
 {
     MMTemplateCreateServices s; MMTemplateState t; Ref object,cache,body,customs[60]; List parents,sets; MMTemplateCostumeTable group; int group_refs; Block blocks[4];
-    int file,fail,fallback,other,text,gap,custom_count,child_calls,created,initialized,header_calls;
+    MMResourceCache source;
+    ResourceTestBlock block;
+    MMChunkChild children[68];
+    MMU32 child_count;
+    int file,fail,fallback,other,text,gap,custom_count,child_calls,created,initialized;
+    int file_refs, packed, decodes, read_failure;
     int fetched,applied,freed,body_created,body_released,default_calls,deleted,diagnostics[5],invalidated;
     MMI32 applied_ids[2];
     unsigned char encoded[16]; MMU32 written_type,delete_type; int name_calls;
@@ -25,36 +33,104 @@ static void release(void *p,void *o)
     if (o==&f->object) { CHECK(!r->refs); mm_template_dispose(o,&f->s); }
     else if (o==&f->body) ++f->body_released;
 }
-static int child(void *p,void *file,MMU32 type,MMU32 number,MMU32 id,MMU32 wanted,MMTemplateChild *out)
+static int graph_entry(void *p, MMU32 position, MMChunkEntry *out)
 {
-    Fixture *f=p; int ok=0; CHECK(file==&f->file && type==MM_TMPL && number==1); ++f->child_calls;
-    if (wanted==MM_GLPI || wanted==MM_GLBS) ok=!id;
-    else if (wanted==MM_GGCM) ok=!id && !f->fallback;
-    else if (wanted==MM_CMTL) ok=id<(MMU32)f->custom_count && !(f->gap && id==2);
-    else if (wanted==MM_ACTN) ok=id==0 || id==2;
-    else if (wanted==MM_TDT) ok=f->text && !id;
-    if (ok) { out->type=wanted; out->number=10+id; out->id=id; } return ok;
+    Fixture *f = p;
+    CHECK(position == 0);
+    memset(out, 0, sizeof(*out));
+    out->type = MM_TMPL;
+    out->number = 1;
+    out->child_count = f->child_count;
+    return 1;
 }
-static int enumerate(void *p,void *file,MMU32 type,MMU32 number,MMI32 i,MMTemplateChild *out)
+static int graph_child(void *p, MMU32 parent, MMU32 position, MMChunkChild *out)
 {
-    Fixture *f=p; CHECK(file==&f->file && type==MM_TMPL && number==1);
-    if (!i) { out->type=MM_GLPI; out->number=10; out->id=0; return 1; }
-    if (i>f->custom_count) return 0;
-    out->type=MM_CMTL; out->number=10+i-1; out->id=(MMU32)i-1; return 1;
+    Fixture *f = p;
+    CHECK(parent == 0 && position < f->child_count);
+    ++f->child_calls;
+    *out = f->children[position];
+    return 1;
 }
-static void *find(void *p,void *file,MMU32 type,MMU32 number)
+static void add_link(Fixture *f, MMU32 slot, MMU32 type, MMU32 number)
 {
-    Fixture *f=p; (void)number; CHECK(file==&f->file);
-    if (type==MM_GLPI) return f->fail==1?NULL:&f->blocks[1];
-    if (type==MM_GLBS) return f->fail==3?NULL:&f->blocks[2];
-    if (type==MM_GGCM) return f->fail==5?NULL:&f->blocks[3];
-    CHECK(type==MM_TMPL); return &f->blocks[0];
+    MMChunkChild *link = &f->children[f->child_count++];
+    link->slot = slot;
+    link->type = type;
+    link->number = number;
 }
-static int unpack(void *p,void *b) { (void)b; return ((Fixture *)p)->fail!=17; }
-static MMI32 block_size(void *p,void *b,int packed) { (void)p; (void)packed; return ((Block *)b)->length; }
-static int block_read(void *p,void *b,void *out,size_t n) { Fixture *f=p; CHECK(n==16); if (f->fail==18) return 0; memcpy(out,((Block *)b)->data,n); return 1; }
-static int read_name(void *p,void *o,void *file,MMU32 type,MMU32 number)
-{ Fixture *f=p; CHECK(o==&f->object && file==&f->file && type==MM_TMPL && number==1); CHECK(f->t.x==0x1234 && f->t.flags==4); return f->fail!=16; }
+static MMChunkAccess live_chunks(void *file)
+{
+    Fixture *f = file;
+    MMChunkAccess chunks;
+    MMI32 i;
+    f->child_count = 0;
+    add_link(f, 0, MM_ACTN, 10);
+    add_link(f, 0, MM_CMTL, 10);
+    if (!f->fallback)
+        add_link(f, 0, MM_GGCM, 10);
+    add_link(f, 0, MM_GLBS, 10);
+    add_link(f, 0, MM_GLPI, 10);
+    if (f->text)
+        add_link(f, 0, MM_TDT, 10);
+    for (i = 1; i < f->custom_count; ++i)
+    {
+        if (i == 2)
+        {
+            add_link(f, 2, MM_ACTN, 12);
+            if (f->gap)
+                continue;
+        }
+        add_link(f, (MMU32)i, MM_CMTL, 10U + (MMU32)i);
+    }
+    if (f->gap)
+        add_link(f, (MMU32)f->custom_count, MM_CMTL, 12);
+    chunks.context = f;
+    chunks.count = 1;
+    chunks.entry = graph_entry;
+    chunks.child = graph_child;
+    return chunks;
+}
+static void retain_file(void *p, void *file)
+{
+    Fixture *f = p;
+    CHECK(file == p);
+    ++f->file_refs;
+}
+static void release_file(void *p, void *file)
+{
+    Fixture *f = p;
+    CHECK(file == p && f->file_refs > 0);
+    --f->file_refs;
+}
+static int block_read(void *p, void *file, MMU32 offset, void *out, size_t n)
+{
+    Fixture *f = p;
+    MMU32 kind = (offset - FILE_BASE) / FILE_STRIDE;
+    MMU32 start = (offset - FILE_BASE) % FILE_STRIDE;
+    CHECK(file == p && f->file_refs && offset >= FILE_BASE && kind < 4);
+    CHECK(start <= f->blocks[kind].length && n <= f->blocks[kind].length - start);
+    if ((int)kind == f->read_failure || (kind == TEMPLATE_HEADER && f->fail == 18))
+        return 0;
+    memcpy(out, f->blocks[kind].data + start, n);
+    return 1;
+}
+static int block_write(void *p, void *file, MMU32 offset, const void *bytes, size_t n)
+{
+    (void)p; (void)file; (void)offset; (void)bytes; (void)n;
+    return 0;
+}
+static int decode(void *p, void **handle)
+{
+    Fixture *f = p;
+    CHECK(resource_handle_size(NULL, *handle) == 12);
+    ++f->decodes;
+    if (f->fail == 17)
+        return 0;
+    resource_block_decode(handle, f->blocks[TEMPLATE_HEADER].data, MM_TEMPLATE_HEADER_BYTES);
+    return 1;
+}
+static int read_name(void *p,void *o,MMU32 type,MMU32 number)
+{ Fixture *f=p; CHECK(o==&f->object && type==MM_TMPL && number==1); CHECK(f->t.x==0x1234 && f->t.flags==4); return f->fail!=16; }
 static int add_chunk(void *p,void *file,MMU32 type,const void *data,size_t n,MMU32 *number)
 { Fixture *f=p; CHECK(file==&f->file && n==16); f->written_type=type; memcpy(f->encoded,data,16); if (f->fail==19) return 0; *number=123; return 1; }
 static int set_name(void *p,void *o,void *file,MMU32 type,MMU32 number)
@@ -62,76 +138,69 @@ static int set_name(void *p,void *o,void *file,MMU32 type,MMU32 number)
 static void delete_chunk(void *p,void *file,MMU32 type,MMU32 number)
 { Fixture *f=p; CHECK(file==&f->file && number==123); ++f->deleted; f->delete_type=type; }
 static void *create(void *p,int text) { Fixture *f=p; CHECK(text==f->text); ++f->created; if (f->fail==11) return NULL; f->object.refs=1; return &f->object; }
-static int initialize(void *p,void *o,void *file,MMU32 type,MMU32 number,void *block)
+static int initialize(void *p,void *o,MMU32 type,MMU32 number,MMOwnedBlock *block)
 {
     Fixture *f=p; ++f->initialized; if (f->fail==12) return 0;
     if (f->text) { f->t.flags=2; return 1; }
-    CHECK(block==&f->blocks[0]);
-    return mm_template_initialize(o,file,type,number,block,&f->s);
+    CHECK(block==&f->block.owner);
+    return mm_template_initialize(o,&f->source,type,number,block,&f->s);
 }
 static MMI32 object_size(void *p,int text) { (void)p; return text?200:100; }
 static void invalidate(void *p,void *out,size_t n) { Fixture *f=p; CHECK(!f->object.refs); memset(out,0xa5,n); ++f->invalidated; }
-static int header(void *p,void *o,void *file,MMU32 type,MMU32 number,void *block)
-{ Fixture *f=p; ++f->header_calls; return mm_template_read_header(o,file,type,number,block,&f->s); }
 static void release_parents(void *p)
 {
     Fixture *f=p;
-    CHECK(f->t.parents==&f->parents.list && f->parents.refs==1);
+    CHECK((f->t.parents==&f->parents.list || f->read_failure==TEMPLATE_PARENTS) && f->parents.refs==1);
     --f->parents.refs;
 }
 static void release_sets(void *p)
 {
     Fixture *f=p;
-    CHECK(!f->t.parents && f->t.sets==&f->sets.list && f->sets.refs==1);
+    CHECK(((!f->t.parents && f->t.sets==&f->sets.list) || f->read_failure==TEMPLATE_SETS) && f->sets.refs==1);
     --f->sets.refs;
 }
-static int read_part_indices(void *p,void *b,MMPartIndexList **out)
+static MMPartIndexList *create_part_indices(void *p, int kind)
 {
     Fixture *f=p;
-    int kind=((Block *)b)->kind, big=f->other!=f->s.host_big_endian;
-    List *source=kind==0?&f->parents:&f->sets;
-    unsigned char wire[24]={0};
-    MMMemoryStream stream;
-    CHECK(kind==0 || kind==1);
-    if (f->fail==2+kind*2)
-        return MM_MOVIE_MEMORY;
-    put(wire,2,1,big);
-    put(wire+4,4,2,big);
-    put(wire+8,4,(MMU32)source->count,big);
-    memcpy(wire+12,source->data,source->count*2);
-    CHECK(mm_memory_stream_init(&stream,wire,12+source->count*2));
-    mm_part_indices_init(&source->list,NULL,f,kind==0?release_parents:release_sets);
-    CHECK(mm_part_indices_read(&source->list,&stream.stream)==MM_MOVIE_OK);
-    ++source->refs;
-    *out=&source->list;
-    return MM_MOVIE_OK;
+    List *list = kind == MM_TEMPLATE_PARENTS ? &f->parents : &f->sets;
+    CHECK(kind == MM_TEMPLATE_PARENTS || kind == MM_TEMPLATE_SETS);
+    if (f->fail == 2 + kind * 2)
+        return NULL;
+    mm_part_indices_init(&list->list, NULL, f, kind == MM_TEMPLATE_PARENTS ? release_parents : release_sets);
+    ++list->refs;
+    return &list->list;
 }
-static void *create_cache(void *p,void *file) { Fixture *f=p; CHECK(file==&f->file); if (f->fail==7) return NULL; ++f->cache.refs; return &f->cache; }
+static void encode_part_indices(Block *block, const List *source, int big)
+{
+    block->length = 12 + (MMU32)source->count * 2;
+    memset(block->data, 0, block->length);
+    put(block->data, 2, 1, big);
+    put(block->data + 4, 4, 2, big);
+    put(block->data + 8, 4, (MMU32)source->count, big);
+    memcpy(block->data + 12, source->data, (size_t)source->count * 2);
+}
+static void *create_cache(void *p) { Fixture *f=p; if (f->fail==7) return NULL; ++f->cache.refs; return &f->cache; }
 static void release_costumes(void *p)
 {
     Fixture *f = (Fixture *)p;
-    CHECK(!f->t.parents && !f->t.sets && f->t.costumes == &f->group);
+    CHECK((!f->t.parents && !f->t.sets && f->t.costumes == &f->group) || f->read_failure == TEMPLATE_COSTUMES);
     --f->group_refs;
 }
 static MMTemplateCostumeTable *create_costumes(void *p)
 {
     Fixture *f = (Fixture *)p;
-    if (f->fail == 8)
+    if (f->fail == 6 || f->fail == 8)
         return NULL;
     mm_template_costumes_init(&f->group, NULL, f, release_costumes);
     ++f->group_refs;
     return &f->group;
 }
-static int read_costumes(void *p, void *block, MMI32 expected, MMTemplateCostumeTable **out)
+static void encode_costumes(Block *block, int big)
 {
-    Fixture *f = (Fixture *)p;
-    MMMemoryStream stream;
-    unsigned char wire[60];
-    int i, big = f->other != f->s.host_big_endian;
-    CHECK(block == &f->blocks[3] && expected == 2);
-    if (f->fail == 6)
-        return MM_MOVIE_MEMORY;
-    memset(wire, 0, sizeof(wire));
+    unsigned char *wire = block->data;
+    int i;
+    block->length = 60;
+    memset(wire, 0, block->length);
     put(wire, 2, 1, big);
     put(wire + 4, 4, 2, big);
     put(wire + 8, 4, 24, big);
@@ -145,10 +214,50 @@ static int read_costumes(void *p, void *block, MMI32 expected, MMTemplateCostume
         put(wire + 44 + i * 8, 4, (MMU32)i * 12, big);
         put(wire + 48 + i * 8, 4, 12, big);
     }
-    CHECK(mm_memory_stream_init(&stream, wire, sizeof(wire)));
-    *out = create_costumes(p);
-    CHECK(*out && mm_template_costumes_read(*out, &stream.stream, expected) == MM_MOVIE_OK);
-    return MM_MOVIE_OK;
+}
+static int locate(void *file, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
+{
+    Fixture *f = file;
+    int kind, big = f->other != f->s.host_big_endian;
+    if (type == MM_TMPL)
+    {
+        CHECK(number == 1);
+        kind = TEMPLATE_HEADER;
+    }
+    else
+    {
+        CHECK(number == 10);
+        if (type == MM_GLPI && f->fail != 1)
+        {
+            kind = TEMPLATE_PARENTS;
+            encode_part_indices(&f->blocks[kind], &f->parents, big);
+        }
+        else if (type == MM_GLBS && f->fail != 3)
+        {
+            kind = TEMPLATE_SETS;
+            encode_part_indices(&f->blocks[kind], &f->sets, big);
+        }
+        else if (type == MM_GGCM && f->fail != 5)
+        {
+            kind = TEMPLATE_COSTUMES;
+            encode_costumes(&f->blocks[kind], big);
+        }
+        else
+            return 0;
+    }
+    *packed = kind == TEMPLATE_HEADER && (f->packed || f->fail == 17);
+    out->file = f;
+    out->offset = FILE_BASE + (MMU32)kind * FILE_STRIDE;
+    out->length = *packed ? 12 : f->blocks[kind].length;
+    return 1;
+}
+static MMOwnedBlock *borrow_root(Fixture *f)
+{
+    MMBlockFile extent;
+    int packed;
+    CHECK(locate(f, MM_TMPL, 1, &extent, &packed));
+    CHECK(mm_owned_block_set_file(&f->block.owner, &extent, packed) == MM_DATA_OK);
+    return &f->block.owner;
 }
 static void *fetch_custom(void *p,void *cache,MMU32 type,MMU32 number)
 {
@@ -190,16 +299,23 @@ static void setup(Fixture *f,int other,int host_big)
     int i; memset(f,0,sizeof(*f)); f->other=other; f->s.host_big_endian=host_big; f->s.system=0x0303; f->custom_count=4;
     f->cache.kind=4; f->body.kind=5;
     f->parents.count=f->sets.count=6;
-    for (i=0;i<4;++i) { f->blocks[i].kind=i-1; f->blocks[i].length=16; }
+    f->blocks[TEMPLATE_HEADER].length = MM_TEMPLATE_HEADER_BYTES;
+    f->read_failure = -1;
+    resource_block_init(&f->block, f, block_read, block_write);
+    f->block.files.retain = retain_file;
+    f->block.files.release = release_file;
+    f->source.file = f;
+    f->source.services.handles = f->block.owner.handles;
+    f->source.services.block_files = &f->block.files;
+    f->source.services.locate = locate;
+    f->source.services.live_chunks = live_chunks;
     put(f->blocks[0].data,2,1,other); put(f->blocks[0].data+4,2,0x1234,other); put(f->blocks[0].data+6,2,0xabcd,other);
     put(f->blocks[0].data+8,2,0x8000,other); put(f->blocks[0].data+12,4,4,other);
     for (i=0;i<6;++i) { put(f->parents.data+i*2,2,i?(MMU32)(i-1):65535U,other!=host_big); put(f->sets.data+i*2,2,(MMU32)i%2,other!=host_big); }
     for (i=0;i<60;++i) { f->customs[i].kind=6; f->customs[i].set=i%2; }
-    f->s.context=f; f->s.state=template_state; f->s.release=release; f->s.child=child; f->s.enumerate=enumerate;
-    f->s.find=find; f->s.unpack=unpack; f->s.block_size=block_size; f->s.block_read=block_read; f->s.read_name=read_name;
+    f->s.context=f; f->s.state=template_state; f->s.release=release; f->s.decode=decode; f->s.read_name=read_name;
     f->s.add_chunk=add_chunk; f->s.set_name=set_name; f->s.delete_chunk=delete_chunk; f->s.create=create; f->s.initialize=initialize;
-    f->s.object_size=object_size; f->s.invalidate=invalidate; f->s.header=header;
-    f->s.read_part_indices=read_part_indices; f->s.read_costumes=read_costumes;
+    f->s.object_size=object_size; f->s.invalidate=invalidate; f->s.create_part_indices=create_part_indices;
     f->s.create_cache=create_cache; f->s.create_costumes=create_costumes; f->s.fetch_custom=fetch_custom; f->s.custom_set=custom_set;
     f->s.append_costumes=append; f->s.create_body=create_body; f->s.default_costume=default_costume; f->s.costume_id=costume_id;
     f->s.custom=custom; f->s.allocate_refs=allocate; f->s.apply_custom=apply; f->s.free_memory=free_memory; f->s.diagnostic=diagnose;
@@ -207,6 +323,7 @@ static void setup(Fixture *f,int other,int host_big)
 static void disposed(Fixture *f)
 {
     int i; mm_template_dispose(&f->object,&f->s);
+    CHECK(mm_owned_block_clear(&f->block.owner) == MM_DATA_OK && !f->file_refs);
     CHECK(!f->parents.refs && !f->sets.refs && !f->group_refs && !f->cache.refs);
     CHECK(!f->t.parents && !f->t.sets && !f->t.costumes);
     for (i=0;i<60;++i) CHECK(!f->customs[i].refs);
@@ -220,8 +337,10 @@ int main(void)
     CHECK(!f.t.x && !f.t.y && !f.t.z && !f.t.flags);
     for (other=0;other<2;++other) for (host=0;host<2;++host)
     {
-        setup(&f,other,host); CHECK(mm_template_fetch(&f.file,MM_TMPL,1,&f.blocks[0],NULL,&bytes,&f.s)); CHECK(bytes==16 && !f.created && !f.child_calls);
-        out=NULL; CHECK(mm_template_fetch(&f.file,MM_TMPL,1,&f.blocks[0],&out,&bytes,&f.s));
+        setup(&f,other,host);
+        CHECK(mm_template_fetch(&f.source,MM_TMPL,1,borrow_root(&f),NULL,&bytes,&f.s));
+        CHECK(bytes==16 && !f.created && !f.child_calls);
+        out=NULL; CHECK(mm_template_fetch(&f.source,MM_TMPL,1,&f.block.owner,&out,&bytes,&f.s));
         CHECK(out==&f.object && bytes==208 && f.t.custom_count==4 && f.t.action_count==1 && f.t.set_count==2);
         CHECK(mm_part_index_get(&f.t.parents->view,0)==-1 && mm_part_index_get(&f.t.parents->view,5)==4);
         CHECK(mm_part_index_get(&f.t.sets->view,5)==1);
@@ -236,7 +355,7 @@ int main(void)
     for (failure=1;failure<=10;++failure)
     {
         setup(&f,0,0); f.fail=failure; f.fallback=failure>=7;
-        CHECK(!mm_template_initialize(&f.object,&f.file,MM_TMPL,1,NULL,&f.s));
+        CHECK(!mm_template_initialize(&f.object,&f.source,MM_TMPL,1,NULL,&f.s));
         CHECK(f.t.parents==(failure<=2?NULL:&f.parents.list)); CHECK(f.t.sets==(failure<=4?NULL:&f.sets.list));
         if (failure>=9) CHECK(f.t.costumes==&f.group && f.group.rows==1);
         CHECK(!f.cache.refs); disposed(&f);
@@ -244,18 +363,20 @@ int main(void)
     for (failure=11;failure<=12;++failure)
     {
         unsigned char expected[sizeof(void *)]; setup(&f,0,0); f.fail=failure; out=&f.file; memset(expected,0xa5,sizeof(expected));
-        CHECK(!mm_template_fetch(&f.file,MM_TMPL,1,&f.blocks[0],&out,&bytes,&f.s));
+        CHECK(!mm_template_fetch(&f.source,MM_TMPL,1,borrow_root(&f),&out,&bytes,&f.s));
         CHECK(!memcmp(&out,expected,sizeof(out)) && f.invalidated==2 && !f.object.refs); disposed(&f);
     }
-    setup(&f,0,0); f.text=1; out=NULL; CHECK(mm_template_fetch(&f.file,MM_TMPL,1,&f.blocks[0],&out,&bytes,&f.s)); CHECK(bytes==200 && !f.header_calls); release(&f,out);
+    setup(&f,0,0); f.text=1; out=NULL;
+    CHECK(mm_template_fetch(&f.source,MM_TMPL,1,borrow_root(&f),&out,&bytes,&f.s));
+    CHECK(bytes==200 && !f.t.parents && !f.t.sets); release(&f,out); disposed(&f);
     for (failure=13;failure<=15;++failure)
     {
-        setup(&f,0,0); CHECK(mm_template_initialize(&f.object,&f.file,MM_TMPL,1,NULL,&f.s)); f.fail=failure;
+        setup(&f,0,0); CHECK(mm_template_initialize(&f.object,&f.source,MM_TMPL,1,NULL,&f.s)); f.fail=failure;
         CHECK(!mm_template_create_body(&f.object,&f.s) && !f.applied);
         CHECK(f.body_released==(failure!=15) && f.default_calls==(failure!=15)); disposed(&f);
     }
     for (failure=16;failure<=18;++failure)
-    { setup(&f,0,0); f.fail=failure; CHECK(!mm_template_read_header(&f.object,&f.file,MM_TMPL,1,NULL,&f.s)); CHECK(f.t.flags==(failure==16?4U:0U)); disposed(&f); }
+    { setup(&f,0,0); f.fail=failure; CHECK(!mm_template_read_header(&f.object,&f.source,MM_TMPL,1,NULL,&f.s)); CHECK(f.t.flags==(failure==16?4U:0U)); disposed(&f); }
     for (failure=19;failure<=20;++failure)
     {
         setup(&f,0,0); f.fail=failure; number=777;
@@ -263,7 +384,7 @@ int main(void)
         CHECK(number==(failure==19?777U:123U) && f.deleted==(failure==20)); if (f.deleted) CHECK(f.delete_type==0x44415441U);
     }
     setup(&f,0,0); f.fallback=1; f.gap=1;
-    CHECK(mm_template_initialize(&f.object,&f.file,MM_TMPL,1,NULL,&f.s)); CHECK(f.t.custom_count==2 && f.group.rows==2 && f.fetched==8);
+    CHECK(mm_template_initialize(&f.object,&f.source,MM_TMPL,1,NULL,&f.s)); CHECK(f.t.custom_count==2 && f.group.rows==2 && f.fetched==8);
     f.fetched=0;
     body=mm_template_create_body(&f.object,&f.s);
     CHECK(body==&f.body && f.applied==2 && f.applied_ids[0]==0 && f.applied_ids[1]==1);
@@ -272,8 +393,26 @@ int main(void)
     {
         setup(&f,0,0); f.fallback=1; f.custom_count=i; f.sets.count=f.parents.count=1; put(f.sets.data,2,0,0);
         for (failure=0;failure<i;++failure) f.customs[failure].set=0;
-        ok=mm_template_initialize(&f.object,&f.file,MM_TMPL,1,NULL,&f.s); CHECK(ok==(i==50));
+        ok=mm_template_initialize(&f.object,&f.source,MM_TMPL,1,NULL,&f.s); CHECK(ok==(i==50));
         CHECK(f.diagnostics[MM_TEMPLATE_COSTUME_LIMIT]==(i==51)); if (ok) CHECK(mm_template_costumes_count(&f.group,0)==50); disposed(&f);
+    }
+    setup(&f,0,0);
+    f.packed = 1;
+    CHECK(mm_template_fetch(&f.source, MM_TMPL, 1, borrow_root(&f), NULL, &bytes, &f.s));
+    CHECK(bytes == 12 && f.block.owner.view.packed && !f.decodes && !f.child_calls);
+    CHECK(mm_template_fetch(&f.source, MM_TMPL, 1, &f.block.owner, &out, &bytes, &f.s));
+    CHECK(bytes == 208 && f.decodes == 1 && f.block.owner.view.kind == MM_BLOCK_MEMORY && !f.file_refs);
+    release(&f, out);
+    disposed(&f);
+    for (i = TEMPLATE_PARENTS; i <= TEMPLATE_COSTUMES; ++i)
+    {
+        setup(&f,0,0);
+        f.read_failure = i;
+        CHECK(!mm_template_initialize(&f.object, &f.source, MM_TMPL, 1, NULL, &f.s));
+        CHECK((f.t.parents != NULL) == (i > TEMPLATE_PARENTS));
+        CHECK((f.t.sets != NULL) == (i > TEMPLATE_SETS));
+        CHECK(!f.t.costumes && !f.group_refs && !f.file_refs && !f.diagnostics[MM_TEMPLATE_BUILD_COSTUMES]);
+        disposed(&f);
     }
     puts("C89 template construction, header and default costume checks passed"); return 0;
 }

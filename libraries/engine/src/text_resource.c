@@ -125,7 +125,7 @@ static int descriptor(const MMTextResourceSource *source, MMU32 type, MMU32 numb
     mm_owned_block_clear(&block);
     return ok;
 }
-int mm_text_read(void *object, const MMTextResourceSource *source, MMU32 type, MMU32 number, void *block,
+int mm_text_read(void *object, const MMTextResourceSource *source, MMU32 type, MMU32 number, MMOwnedBlock *block,
                  const MMTextResourceServices *s)
 {
     MMTextDescriptor read,*d;

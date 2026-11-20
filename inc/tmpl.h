@@ -26,7 +26,6 @@
 #include "mm/template_runtime.h"
 #include "mm/action_definition.h"
 struct ActionDefinitionContext;
-struct TemplateCreateContext;
 
 using namespace BRender;
 
@@ -166,10 +165,10 @@ class Template : public Template_PAR
     {
         mm_template_state_init(&_template);
     } // can't instantiate directly; must use FReadTmpl
-    static MMTemplateCreateServices _CreateServices(TemplateCreateContext *);
-    MMTemplateRuntimeServices _RuntimeServices(TemplateCreateContext *);
-    bool _FReadTmplf(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock);
-    virtual bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock);
+    static MMTemplateCreateServices _CreateServices(PChunkyResourceFile cache = nullptr);
+    MMTemplateRuntimeServices _RuntimeServices();
+    bool _FReadTmplf(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
+    virtual bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
     virtual PActionDefinition _PactnFetch(LegacyLong anid);
     virtual PModel _PmodlFetch(ChildChunkID chidModl);
     bool _FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);

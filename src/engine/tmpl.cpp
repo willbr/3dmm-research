@@ -66,6 +66,7 @@
 #include "soc_core.h"
 #include "engine_template_costumes.h"
 #include "engine_part_indices.h"
+#include "handle_services.h"
 #include "mm/movie_session.h"
 #include <typeinfo>
 #include "engine_read_stream.h"
@@ -253,43 +254,17 @@ void ActionDefinition::MarkMem(void)
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read Template objects.
 ***************************************************************************/
-struct TemplateCreateContext { DataBlock block; };
-
-MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *context)
+MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
 {
-    MMTemplateCreateServices s = {}; s.context = context; s.system = koskCur;
+    MMTemplateCreateServices s = {}; s.context = cache; s.system = koskCur;
     const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
 #ifdef DEBUG
     s.debug_checks = 1;
 #endif
     s.state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PTemplate>(object)->_template; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.child = [](void *, void *cache, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMTemplateChild *out) -> int {
-        const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
-        MMU32 child;
-        if (mm_chunk_link_number(&chunks, type, number, id, childType, &child) != MM_CHUNK_OK)
-            return 0;
-        *out = {childType, child, id};
-        return 1;
-    };
-    s.enumerate = [](void *, void *cache, MMU32 type, MMU32 number, MMI32 index, MMTemplateChild *out) -> int {
-        const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
-        MMU32 parent;
-        MMChunkChild child;
-        if (mm_chunk_find(&chunks, type, number, &parent) != MM_CHUNK_OK ||
-            mm_chunk_child_at(&chunks, parent, index, &child) != MM_CHUNK_OK)
-            return 0;
-        *out = {child.type, child.number, child.slot};
-        return 1;
-    };
-    s.find = [](void *p, void *cache, MMU32 type, MMU32 number) -> void * {
-        auto ctx = static_cast<TemplateCreateContext *>(p);
-        return static_cast<PChunkyResourceFile>(cache)->FReadBlock(type, number, ctx->block) ? &ctx->block : nullptr;
-    };
-    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.block_size = [](void *, void *block, int packed) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(packed != 0); };
-    s.block_read = [](void *, void *block, void *bytes, size_t count) -> int { return static_cast<PDataBlock>(block)->FReadRgb(bytes, static_cast<LegacyLong>(count), 0); };
-    s.read_name = [](void *, void *object, void *cache, MMU32 type, MMU32 number) -> int {
+    s.decode = KauaiDecodeBlockHandle;
+    s.read_name = [](void *cache, void *object, MMU32 type, MMU32 number) -> int {
         return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, &static_cast<PTemplate>(object)->_stn);
     };
     s.add_chunk = [](void *, void *file, MMU32 type, const void *data, size_t count, MMU32 *out) -> int {
@@ -300,9 +275,8 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
     s.set_name = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PChunkyFile>(file)->FSetName(type, number, &static_cast<PTemplate>(object)->_stn); };
     s.delete_chunk = [](void *, void *file, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(file)->Delete(type, number); };
     s.create = [](void *, int text) -> void * { return text ? static_cast<PTemplate>(NewObj ThreeDText) : NewObj Template; };
-    s.initialize = [](void *, void *object, void *cache, MMU32 type, MMU32 number, void *block) -> int {
-        return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyResourceFile>(cache), type, number,
-                                                     static_cast<PDataBlock>(block));
+    s.initialize = [](void *cache, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
+        return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyResourceFile>(cache), type, number, block);
     };
     s.object_size = [](void *, int text) -> MMI32 { return static_cast<MMI32>(text ? sizeof(ThreeDText) : sizeof(Template)); };
     s.invalidate = [](void *, void *out, size_t count) {
@@ -312,45 +286,8 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
         (void)out; (void)count;
 #endif
     };
-    s.header = [](void *, void *object, void *cache, MMU32 type, MMU32 number, void *block) -> int {
-        return static_cast<PTemplate>(object)->_FReadTmplf(static_cast<PChunkyResourceFile>(cache), type, number,
-                                                          static_cast<PDataBlock>(block));
-    };
-    s.read_part_indices = [](void *, void *block, MMPartIndexList **out) -> int {
-        auto list = EnginePartIndices::Create();
-        if (!list)
-            return MM_MOVIE_MEMORY;
-        auto data = static_cast<PDataBlock>(block);
-        int status = MM_MOVIE_BAD_FILE;
-        if (data->FUnpackData())
-        {
-            const auto stream = EngineReadStream::FromBlock(*data);
-            status = mm_part_indices_read(list, &stream);
-        }
-        if (status == MM_MOVIE_OK)
-            *out = list;
-        else
-            mm_part_indices_dispose(list);
-        return status;
-    };
-    s.read_costumes = [](void *, void *block, MMI32 rows, MMTemplateCostumeTable **out) -> int {
-        auto table = EngineTemplateCostumes::Create();
-        if (!table)
-            return MM_MOVIE_MEMORY;
-        auto data = static_cast<PDataBlock>(block);
-        int status = MM_MOVIE_BAD_FILE;
-        if (data->FUnpackData())
-        {
-            const auto stream = EngineReadStream::FromBlock(*data);
-            status = mm_template_costumes_read(table, &stream, rows);
-        }
-        if (status == MM_MOVIE_OK)
-            *out = table;
-        else
-            mm_template_costumes_dispose(table);
-        return status;
-    };
-    s.create_cache = [](void *, void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->PcrfNewSibling(0); };
+    s.create_part_indices = [](void *, int) { return EnginePartIndices::Create(); };
+    s.create_cache = [](void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->PcrfNewSibling(0); };
     s.create_costumes = [](void *) { return EngineTemplateCostumes::Create(); };
     s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, CustomMaterial_CMTL::FReadCmtl); };
     s.custom_set = [](void *, void *custom) -> MMI32 { return static_cast<PCustomMaterial_CMTL>(custom)->Ibset(); };
@@ -381,10 +318,11 @@ MMTemplateCreateServices Template::_CreateServices(TemplateCreateContext *contex
 bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
 {
     AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
-    TemplateCreateContext context; auto s = _CreateServices(&context);
+    auto s = _CreateServices(pcrf);
     void *object; MMI32 bytes;
     if (ppbaco) CopyPb(ppbaco, &object, sizeof(object));
-    const bool ok = mm_template_fetch(pcrf, ctg, cno, pblck, ppbaco ? &object : nullptr, &bytes, &s) != 0;
+    const bool ok = mm_template_fetch(pcrf->CoreCache(), ctg, cno, pblck->CoreBlock(), ppbaco ? &object : nullptr,
+                                      &bytes, &s) != 0;
     if (ppbaco) CopyPb(&object, ppbaco, sizeof(object));
     CopyPb(&bytes, pcb, sizeof(bytes));
     return ok;
@@ -393,11 +331,11 @@ bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumb
 /***************************************************************************
     Read a Template from a chunk
 ***************************************************************************/
-bool Template::_FReadTmplf(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock block)
+bool Template::_FReadTmplf(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkNumber cno, MMOwnedBlock *block)
 {
     AssertBaseThis(0);
-    TemplateCreateContext context; auto s = _CreateServices(&context);
-    return mm_template_read_header(this, cache, ctg, cno, block, &s) != 0;
+    auto s = _CreateServices(cache);
+    return mm_template_read_header(this, cache->CoreCache(), ctg, cno, block, &s) != 0;
 }
 
 /***************************************************************************
@@ -409,7 +347,7 @@ bool Template::_FReadTmplf(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkN
 bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
-    TemplateCreateContext context; auto s = _CreateServices(&context); MMU32 number;
+    auto s = _CreateServices(); MMU32 number;
     CopyPb(pcno, &number, sizeof(number));
     const bool ok = mm_template_write_header(this, pcfl, ctg, &number, &s) != 0;
     CopyPb(&number, pcno, sizeof(number)); return ok;
@@ -418,11 +356,11 @@ bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *p
 /***************************************************************************
     Read a Template from a chunk
 ***************************************************************************/
-bool Template::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock block)
+bool Template::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkNumber cno, MMOwnedBlock *block)
 {
     AssertPo(cache, 0);
-    TemplateCreateContext context; auto s = _CreateServices(&context);
-    return mm_template_initialize(this, cache, ctg, cno, block, &s) != 0;
+    auto s = _CreateServices(cache);
+    return mm_template_initialize(this, cache->CoreCache(), ctg, cno, block, &s) != 0;
 }
 
 /***************************************************************************
@@ -431,7 +369,7 @@ bool Template::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkNumber
 Template::~Template(void)
 {
     AssertBaseThis(0);
-    TemplateCreateContext context; auto s = _CreateServices(&context);
+    auto s = _CreateServices();
     mm_template_dispose(this, &s);
 }
 
@@ -445,16 +383,16 @@ Template::~Template(void)
 PBody Template::PbodyCreate(void)
 {
     AssertThis(0);
-    TemplateCreateContext context; auto s = _CreateServices(&context);
+    auto s = _CreateServices();
     return static_cast<PBody>(mm_template_create_body(this, &s));
 }
 
 /***************************************************************************
     Fills in the name of the given action
 ***************************************************************************/
-MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *context)
+MMTemplateRuntimeServices Template::_RuntimeServices()
 {
-    MMTemplateRuntimeServices s = {}; s.storage = _CreateServices(context);
+    MMTemplateRuntimeServices s = {}; s.storage = _CreateServices();
     static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
     s.resource = ResourceBinding();
     s.action_reader = reinterpret_cast<MMResourceReader>(ActionDefinition::FReadActn);
@@ -516,7 +454,7 @@ MMTemplateRuntimeServices Template::_RuntimeServices(TemplateCreateContext *cont
 bool Template::FGetActnName(LegacyLong anid, PString pstn)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertPo(pstn, 0);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_action_name(anid, pstn, &s) != 0;
 }
 
@@ -549,7 +487,7 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
 bool Template::FSetActnCel(Body *pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
     AssertThis(0); AssertPo(pbody, 0); AssertIn(anid, 0, _template.action_count); AssertNilOrVarMem(pdwr);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_set_cel(this, pbody, anid, celn, pdwr, &s) != 0;
 }
 
@@ -559,7 +497,7 @@ bool Template::FSetActnCel(Body *pbody, LegacyLong anid, LegacyLong celn, BRS *p
 bool Template::FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pdwr);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     MMI32 distance;
     if (!mm_template_distance(this, anid, celn, &distance, &s)) return false;
     std::memcpy(pdwr, &distance, sizeof(distance)); return true;
@@ -571,7 +509,7 @@ bool Template::FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr)
 bool Template::FGetCcelActn(LegacyLong anid, LegacyLong *pccel)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pccel);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_cel_count(this, anid, pccel, &s) != 0;
 }
 
@@ -581,7 +519,7 @@ bool Template::FGetCcelActn(LegacyLong anid, LegacyLong *pccel)
 bool Template::FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExists, PTAG ptag)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pfSoundExists); AssertVarMem(ptag);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_sound(this, anid, celn, pfSoundExists, ptag, &s) != 0;
 }
 
@@ -591,7 +529,7 @@ bool Template::FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExi
 bool Template::FGetGrfactn(LegacyLong anid, LegacyUlong *pgrfactn)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pgrfactn);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_action_flags(this, anid, pgrfactn, &s) != 0;
 }
 
@@ -616,7 +554,7 @@ void Template::GetRestOrien(BRA *pxa, BRA *pya, BRA *pza)
 bool Template::FSetDefaultCost(Body *pbody)
 {
     AssertThis(0); AssertPo(pbody, 0);
-    TemplateCreateContext context; auto s = _CreateServices(&context);
+    auto s = _CreateServices();
     return mm_template_default_costume(this, pbody, &s) != 0;
 }
 
@@ -626,7 +564,7 @@ bool Template::FSetDefaultCost(Body *pbody)
 LegacyLong Template::CcmidOfBset(LegacyLong ibset)
 {
     AssertThis(0); AssertIn(ibset, 0, _template.set_count);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_costume_count(this, ibset, &s);
 }
 
@@ -636,7 +574,7 @@ LegacyLong Template::CcmidOfBset(LegacyLong ibset)
 LegacyLong Template::CmidOfBset(LegacyLong ibset, LegacyLong icmid)
 {
     AssertThis(0); AssertIn(ibset, 0, _template.set_count); AssertIn(icmid, 0, CcmidOfBset(ibset));
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_costume_id(this, ibset, icmid, &s);
 }
 
@@ -647,7 +585,7 @@ LegacyLong Template::CmidOfBset(LegacyLong ibset, LegacyLong icmid)
 bool Template::FBsetIsAccessory(LegacyLong ibset)
 {
     AssertThis(0); AssertIn(ibset, 0, _template.set_count);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_is_accessory(this, ibset, &s) != 0;
 }
 
@@ -660,7 +598,7 @@ bool Template::FBsetIsAccessory(LegacyLong ibset)
 bool Template::FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc)
 {
     AssertThis(0); AssertIn(ibset, 0, _template.set_count); AssertVarMem(pibsetAcc);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_accessory_set(this, ibset, pibsetAcc, &s) != 0;
 }
 
@@ -671,7 +609,7 @@ bool Template::FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc)
 bool Template::FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2)
 {
     AssertThis(0);
-    TemplateCreateContext context; auto s = _RuntimeServices(&context);
+    auto s = _RuntimeServices();
     return mm_template_same_accessory(cmid1, cmid2, &s) != 0;
 }
 

@@ -225,21 +225,43 @@ int mm_template_decode_header(const unsigned char *bytes, int host_big_endian, M
     return valid;
 }
 
-int mm_template_read_header(void *object,void *file,MMU32 type,MMU32 number,void *block,
+static int template_stream(MMOwnedBlock *block, MMBlockIO *io, MMReadStream *stream,
+                           const MMTemplateCreateServices *s)
+{
+    return mm_owned_block_code(block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
+           mm_owned_block_io(block, io) == MM_DATA_OK && mm_block_io_stream(io, stream) == MM_DATA_OK;
+}
+
+int mm_template_read_header(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                             const MMTemplateCreateServices *s)
 {
-    unsigned char bytes[MM_TEMPLATE_HEADER_BYTES]; MMTemplateState header, *state;
-    if (!block) block=s->find(s->context,file,type,number);
-    if (!block || !s->unpack(s->context,block) || s->block_size(s->context,block,0)<16 ||
-        !s->block_read(s->context,block,bytes,sizeof(bytes))) return 0;
-    if (!mm_template_decode_header(bytes, s->host_big_endian, &header))
-        diagnostic(s, MM_TEMPLATE_BAD_ORDER);
-    state = s->state(s->context, object);
-    state->x = header.x;
-    state->y = header.y;
-    state->z = header.z;
-    state->flags = header.flags;
-    return s->read_name(s->context,object,file,type,number);
+    MMOwnedBlock scratch;
+    MMBlockIO io;
+    MMReadStream stream;
+    unsigned char bytes[MM_TEMPLATE_HEADER_BYTES];
+    MMTemplateState header, *state;
+    int owned = block == NULL, ok = 0;
+    if (owned)
+    {
+        if (mm_owned_block_init(&scratch, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
+            return 0;
+        block = &scratch;
+    }
+    if ((!owned || mm_resource_cache_read_block(cache, type, number, block) == MM_CHUNK_OK) &&
+        template_stream(block, &io, &stream, s) && mm_read_exact(&stream, 0, bytes, sizeof(bytes)))
+    {
+        if (!mm_template_decode_header(bytes, s->host_big_endian, &header))
+            diagnostic(s, MM_TEMPLATE_BAD_ORDER);
+        state = s->state(s->context, object);
+        state->x = header.x;
+        state->y = header.y;
+        state->z = header.z;
+        state->flags = header.flags;
+        ok = s->read_name(s->context, object, type, number);
+    }
+    if (owned)
+        mm_owned_block_clear(&scratch);
+    return ok;
 }
 void mm_template_encode_header(unsigned char *bytes, int big, MMU32 system, const MMTemplateState *state)
 {
@@ -256,13 +278,21 @@ int mm_template_write_header(void *object,void *file,MMU32 type,MMU32 *number,co
     { s->delete_chunk(s->context,file,type,*number); return 0; }
     return 1;
 }
-int mm_template_fetch(void *file,MMU32 type,MMU32 number,void *block,void **out,MMI32 *bytes,const MMTemplateCreateServices *s)
+int mm_template_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out,
+                      MMI32 *bytes, const MMTemplateCreateServices *s)
 {
-    void *object; MMTemplateChild child; MMTemplateState t; int text;
-    *bytes=s->block_size(s->context,block,1); if (!out) return 1;
-    text=s->child(s->context,file,type,number,0,MM_TDT,&child);
+    void *object;
+    MMChunkAccess chunks;
+    MMU32 child;
+    MMTemplateState t;
+    int text;
+    *bytes = (MMI32)block->view.length;
+    if (!out)
+        return 1;
+    chunks = mm_resource_cache_chunks(cache);
+    text = mm_chunk_link_number(&chunks, type, number, 0, MM_TDT, &child) == MM_CHUNK_OK;
     object=s->create(s->context,text);
-    if (!object || !s->initialize(s->context,object,file,type,number,block))
+    if (!object || !s->initialize(s->context,object,type,number,block))
     {
         if (object) s->release(s->context,object);
         s->invalidate(s->context,out,sizeof(*out)); s->invalidate(s->context,bytes,sizeof(*bytes)); return 0;
@@ -276,16 +306,22 @@ int mm_template_fetch(void *file,MMU32 type,MMU32 number,void *block,void **out,
 typedef struct LegacyCostumeTable
 {
     const MMTemplateCreateServices *services;
-    void *file, *cache;
-    MMU32 type, number;
+    const MMChunkAccess *chunks;
+    void *cache;
+    MMU32 parent;
     MMI32 ids[50], count;
 } LegacyCostumeTable;
 
 static int table_child(void *context, MMU32 ordinal, MMTemplateChild *out)
 {
     LegacyCostumeTable *table = (LegacyCostumeTable *)context;
-    const MMTemplateCreateServices *s = table->services;
-    return s->enumerate(s->context, table->file, table->type, table->number, (MMI32)ordinal, out);
+    MMChunkChild child;
+    if (mm_chunk_child_at(table->chunks, table->parent, ordinal, &child) != MM_CHUNK_OK)
+        return 0;
+    out->type = child.type;
+    out->number = child.number;
+    out->id = child.slot;
+    return 1;
 }
 
 static int table_costume_set(void *context, const MMTemplateChild *child, MMI32 *set)
@@ -313,7 +349,7 @@ static int table_add_costume(void *context, const MMTemplateChild *child, MMI32 
     return 1;
 }
 
-static int build_costumes(void *object, void *file, MMU32 type, MMU32 number, MMTemplateState *state,
+static int build_costumes(void *object, const MMChunkAccess *chunks, MMU32 parent, MMTemplateState *state,
                           const MMTemplateCreateServices *s)
 {
     LegacyCostumeTable table;
@@ -321,7 +357,7 @@ static int build_costumes(void *object, void *file, MMU32 type, MMU32 number, MM
     MMI32 set;
     int ok = 0;
     diagnostic(s, MM_TEMPLATE_BUILD_COSTUMES);
-    table.cache = s->create_cache(s->context, file);
+    table.cache = s->create_cache(s->context);
     if (!table.cache)
         return 0;
     state->costumes = s->create_costumes(s->context);
@@ -329,9 +365,8 @@ static int build_costumes(void *object, void *file, MMU32 type, MMU32 number, MM
     if (!state->costumes)
         goto done;
     table.services = s;
-    table.file = file;
-    table.type = type;
-    table.number = number;
+    table.chunks = chunks;
+    table.parent = parent;
     scan.context = &table;
     scan.child = table_child;
     scan.costume_set = table_costume_set;
@@ -349,81 +384,115 @@ done:
     return ok;
 }
 
-typedef struct NativeTemplateRead
+typedef struct LiveTemplateRead
 {
     const MMTemplateCreateServices *services;
     MMTemplateState *state;
-    void *file;
-    MMU32 type, number;
-} NativeTemplateRead;
+    MMResourceCache *cache;
+    MMOwnedBlock block;
+    MMChunkAccess chunks;
+    MMU32 parent;
+} LiveTemplateRead;
 
-static int read_native_table(void *context, int kind, MMPartIndexList **out)
+static int read_live_table(void *context, int kind, MMPartIndexList **out)
 {
-    const NativeTemplateRead *read = (const NativeTemplateRead *)context;
+    LiveTemplateRead *read = (LiveTemplateRead *)context;
     const MMTemplateCreateServices *s = read->services;
-    MMTemplateChild child;
-    void *block;
-    if (!s->child(s->context, read->file, read->type, read->number, 0, mm_template_table_type(kind), &child))
+    MMChunkChild child;
+    MMPartIndexList *list;
+    MMBlockIO io;
+    MMReadStream stream;
+    int status = MM_MOVIE_BAD_FILE;
+    if (mm_chunk_child_exact(&read->chunks, read->parent, 0, mm_template_table_type(kind), &child) != MM_CHUNK_OK)
         return MM_MOVIE_ASSET_NOT_FOUND;
-    block = s->find(s->context, read->file, child.type, child.number);
-    return block ? s->read_part_indices(s->context, block, out) : MM_MOVIE_BAD_FILE;
+    if (mm_resource_cache_read_block(read->cache, child.type, child.number, &read->block) != MM_CHUNK_OK)
+        return MM_MOVIE_BAD_FILE;
+    list = s->create_part_indices(s->context, kind);
+    if (!list)
+        return MM_MOVIE_MEMORY;
+    if (template_stream(&read->block, &io, &stream, s))
+        status = mm_part_indices_read(list, &stream);
+    if (status == MM_MOVIE_OK)
+        *out = list;
+    else
+        mm_part_indices_dispose(list);
+    return status;
 }
 
-static int read_native_costumes(void *context, MMI32 expected, MMTemplateCostumeTable **out)
+static int read_live_costumes(void *context, MMI32 expected, MMTemplateCostumeTable **out)
 {
-    const NativeTemplateRead *read = (const NativeTemplateRead *)context;
+    LiveTemplateRead *read = (LiveTemplateRead *)context;
     const MMTemplateCreateServices *s = read->services;
-    MMTemplateChild child;
-    void *block;
-    if (!s->child(s->context, read->file, read->type, read->number, 0, MM_GGCM, &child))
+    MMChunkChild child;
+    MMTemplateCostumeTable *table;
+    MMBlockIO io;
+    MMReadStream stream;
+    int status = MM_MOVIE_BAD_FILE;
+    if (mm_chunk_child_exact(&read->chunks, read->parent, 0, MM_GGCM, &child) != MM_CHUNK_OK)
         return MM_TEMPLATE_COSTUMES_ABSENT;
-    block = s->find(s->context, read->file, child.type, child.number);
-    return block ? s->read_costumes(s->context, block, expected, out) : MM_MOVIE_BAD_FILE;
+    if (mm_resource_cache_read_block(read->cache, child.type, child.number, &read->block) != MM_CHUNK_OK)
+        return MM_MOVIE_BAD_FILE;
+    table = s->create_costumes(s->context);
+    if (!table)
+        return MM_MOVIE_MEMORY;
+    if (template_stream(&read->block, &io, &stream, s))
+        status = mm_template_costumes_read(table, &stream, expected);
+    if (status == MM_MOVIE_OK)
+        *out = table;
+    else
+        mm_template_costumes_dispose(table);
+    return status;
 }
 
-static int native_part_set(void *context, MMI32 index, MMI32 *set)
+static int live_part_set(void *context, MMI32 index, MMI32 *set)
 {
-    const NativeTemplateRead *read = (const NativeTemplateRead *)context;
+    const LiveTemplateRead *read = (const LiveTemplateRead *)context;
     *set = mm_part_index_get(&read->state->sets->view, index);
     return MM_MOVIE_OK;
 }
 
-int mm_template_initialize(void *object, void *file, MMU32 type, MMU32 number, void *block,
+int mm_template_initialize(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                            const MMTemplateCreateServices *s)
 {
-    NativeTemplateRead native;
-    MMTemplateRead reader = {NULL, read_native_table, read_native_costumes};
-    MMTemplateParts parts = {NULL, 0, native_part_set};
+    LiveTemplateRead live;
+    MMTemplateRead reader = {NULL, read_live_table, read_live_costumes};
+    MMTemplateParts parts = {NULL, 0, live_part_set};
     MMTemplateState *state;
-    MMTemplateChild child;
-    int status;
-    if (!s->header(s->context, object, file, type, number, block))
+    MMChunkChild child;
+    int status, ok = 0;
+    if (!mm_template_read_header(object, cache, type, number, block, s))
         return 0;
     state = s->state(s->context, object);
-    native.services = s;
-    native.state = state;
-    native.file = file;
-    native.type = type;
-    native.number = number;
-    reader.context = &native;
-    if (mm_template_read_shape(state, &reader) != MM_MOVIE_OK)
+    live.services = s;
+    live.state = state;
+    live.cache = cache;
+    live.chunks = mm_resource_cache_chunks(cache);
+    if (mm_chunk_find(&live.chunks, type, number, &live.parent) != MM_CHUNK_OK ||
+        mm_owned_block_init(&live.block, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
         return 0;
-    if (s->debug_checks && s->child(s->context, file, type, number, 0, MM_GLDC, &child))
+    reader.context = &live;
+    if (mm_template_read_shape(state, &reader) != MM_MOVIE_OK)
+        goto done;
+    if (s->debug_checks && mm_chunk_child_exact(&live.chunks, live.parent, 0, MM_GLDC, &child) == MM_CHUNK_OK)
         diagnostic(s, MM_TEMPLATE_OBSOLETE);
-    parts.context = &native;
+    parts.context = &live;
     parts.count = state->sets->view.count;
     if (mm_template_count_sets(state, &parts) != MM_MOVIE_OK)
-        return 0;
+        goto done;
     state->custom_count = 0;
-    while (s->child(s->context, file, type, number, (MMU32)state->custom_count, MM_CMTL, &child))
+    while (mm_chunk_child_exact(&live.chunks, live.parent, (MMU32)state->custom_count, MM_CMTL, &child) == MM_CHUNK_OK)
         ++state->custom_count;
     state->action_count = 0;
-    while (s->child(s->context, file, type, number, (MMU32)state->action_count, MM_ACTN, &child))
+    while (mm_chunk_child_exact(&live.chunks, live.parent, (MMU32)state->action_count, MM_ACTN, &child) == MM_CHUNK_OK)
         ++state->action_count;
     status = mm_template_read_costumes(state, &reader);
     if (status == MM_TEMPLATE_COSTUMES_ABSENT)
-        return build_costumes(object, file, type, number, state, s);
-    return status == MM_MOVIE_OK;
+        ok = build_costumes(object, &live.chunks, live.parent, state, s);
+    else
+        ok = status == MM_MOVIE_OK;
+done:
+    mm_owned_block_clear(&live.block);
+    return ok;
 }
 void mm_template_dispose(void *object,const MMTemplateCreateServices *s)
 {

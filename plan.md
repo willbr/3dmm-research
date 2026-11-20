@@ -728,7 +728,9 @@ Keep host presentation and device output outside the session.
    the matrix table on first body evaluation and cache it per action. Live
    actions also store decoded GLMS sound tags in the C collection. The same
    C89 template reader loads GLPI, GLBS and authored GGCM tables into C-owned
-   collections in both paths. The snapshot retains the template state, reuses
+   collections in both paths. Live templates resolve the root and child links
+   through the C89 cache and decode their payloads through C89 blocks. The
+   snapshot retains the template state, reuses
    its authored costume table across resets and computes the set count during
    hierarchy decoding. The live cache builds older templates' CMTL choices
    in child order. Generated 3D text uses the same part-index and costume

@@ -44,7 +44,7 @@ typedef struct MMTextResourceServices
     void *(*provider_font)(void *,void *object,const MMTag *);
     void *(*default_font)(void *,const MMTag *);
     void (*publish_tag)(void *,void *output,const MMTag *);
-    int (*read_template)(void *,void *object,MMU32 type,MMU32 number,void *block);
+    int (*read_template)(void *,void *object,MMU32 type,MMU32 number,MMOwnedBlock *);
     int (*write_template)(void *,void *object,void *file,MMU32 type,void *number_out);
     const MMChunkPayloadServices *payloads;
     int (*add)(void *,void *file,MMU32 type,MMU32 number,MMU32 *child_number,MMOwnedBlock *);
@@ -76,7 +76,7 @@ void *mm_text_font(void *object,const MMTextResourceServices *);
  * Write keeps the parent/output number on child failure, deletes only the child
  * on payload-write failure, and always writes a zero pointer pad. */
 /* Supply a live cache or a standalone archive and its chunk access. */
-int mm_text_read(void *object,const MMTextResourceSource *,MMU32 type,MMU32 number,void *block,
+int mm_text_read(void *object,const MMTextResourceSource *,MMU32 type,MMU32 number,MMOwnedBlock *,
                  const MMTextResourceServices *);
 int mm_text_write(void *object,void *file,MMU32 type,void *number_out,const MMTextResourceServices *);
 typedef struct MMTextDraftServices

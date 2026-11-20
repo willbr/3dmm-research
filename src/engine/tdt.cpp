@@ -85,9 +85,9 @@ MMTextResourceServices ThreeDText::_ResourceServices(void *context)
         TAG tag; TextTagFromCore(&tag, in); return vptagm == nullptr ? nullptr : vptagm->PbacoFetch(&tag, ThreeDFont::FReadTdf);
     };
     s.publish_tag = [](void *, void *out, const MMTag *in) { TextTagFromCore(static_cast<PTAG>(out), in); };
-    s.read_template = [](void *p, void *object, MMU32 type, MMU32 number, void *block) -> int {
+    s.read_template = [](void *p, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
         return static_cast<PThreeDText>(object)->_FReadTmplf(static_cast<TextResourceContext *>(p)->cache, type,
-                                                            number, static_cast<PDataBlock>(block));
+                                                            number, block);
     };
     s.write_template = [](void *, void *object, void *file, MMU32 type, void *number) -> int {
         return static_cast<PThreeDText>(object)->_FWriteTmplf(static_cast<PChunkyFile>(file), type, static_cast<ChunkNumber *>(number));
@@ -163,7 +163,7 @@ PThreeDText ThreeDText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf)
     Read the generic Template info and the ThreeDText-specific info (tdts and tagTdf),
     then call _FInitLists to build the rest of the ThreeDText.
 ***************************************************************************/
-bool ThreeDText::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl, PDataBlock block)
+bool ThreeDText::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl, MMOwnedBlock *block)
 {
     AssertBaseThis(0); AssertPo(cache, 0);
     TextResourceContext context;
