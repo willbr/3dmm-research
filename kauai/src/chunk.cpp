@@ -203,12 +203,6 @@ void *ChunkLockVariable(PChunkTable table, LegacyLong i)
 
 namespace
 {
-int ReadChunkFile(void *context, MMU32 offset, void *bytes, size_t count)
-{
-    if (offset > 0x7fffffffUL || count > 0x7fffffffUL)
-        return 0;
-    return static_cast<PFileObject>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count), static_cast<LegacyLong>(offset));
-}
 int ReadRuntimeChunk(void *context, MMU32 position, MMChunkEntry *entry)
 {
     return mm_chunk_table_entry(static_cast<PChunkTable>(context), position, entry);
@@ -303,6 +297,32 @@ PChunkyFile ChunkyFile::PcflOpen(Filename *pfni, LegacyUlong grfcfl)
     auto owner = static_cast<PChunkyFile>(mm_chunk_construct(&services, grfcfl, 0));
     return owner;
 }
+
+PChunkyFile ChunkyFile::PcflOpenIndex(PFileObject file, const MMChunkIndex *index)
+{
+    AssertPo(file, 0);
+    if (_PcflFromFile(file) || !index || file->GrffilCur() & ffilWriteEnable)
+        return pvNil;
+
+    struct Input
+    {
+        PFileObject file;
+        const MMChunkIndex *index;
+    } input = {file, index};
+    auto services = _ConstructionServices(nullptr);
+    services.context = &input;
+    services.find = [](void *) -> void * { return nullptr; };
+    services.file = [](void *context, int, MMU32) -> void * {
+        auto source = static_cast<Input *>(context)->file;
+        source->AddRef();
+        return source;
+    };
+    services.read_index = [](void *context, void *owner) -> int {
+        return static_cast<PChunkyFile>(owner)->_FMaterializeIndex(static_cast<Input *>(context)->index);
+    };
+    return static_cast<PChunkyFile>(mm_chunk_construct(&services, fcflNil, 0));
+}
+
 /***************************************************************************
     If the file is read-only, toss the index and extra file and re-read
     the index.
@@ -398,13 +418,18 @@ PChunkyFile ChunkyFile::PcflCreateTemp(Filename *pfni)
 PChunkyFile ChunkyFile::PcflFromFni(Filename *pfni)
 {
     AssertPo(pfni, ffniFile);
+    return _PcflFromFile(FileObject::PfilFromFni(pfni));
+}
+
+PChunkyFile ChunkyFile::_PcflFromFile(PFileObject file)
+{
     const MMChunkLookup services = {
         [](void *c) -> void * { return static_cast<PChunkyFile>(c)->PcflNext(); },
         [](void *c) -> void * { return static_cast<PChunkyFile>(c)->_MainFile(); },
         [](void *c) -> void * { return static_cast<PChunkyFile>(c)->_ExtraFile(); },
         [](void *c) -> int { return static_cast<PChunkyFile>(c)->_owner.files.invalid_main; },
         [](void *) { Bug("who is using this Filename?"); }};
-    return static_cast<PChunkyFile>(mm_chunk_find_container(PcflFirst(), FileObject::PfilFromFni(pfni), &services));
+    return static_cast<PChunkyFile>(mm_chunk_find_container(PcflFirst(), file, &services));
 }
 /***************************************************************************
     Embedded chunk descriptor on file. Chunks and their subtrees can
@@ -520,8 +545,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
                     return static_cast<ImportHost *>(c)->destination->FAdoptChild(parentType, parentNumber, type,
                                                                                   number, slot);
                 }};
-            const MMReadStream stream = {
-                source, static_cast<MMU32>(static_cast<PFileObject>(source)->FpMac()), ReadChunkFile};
+            const auto stream = static_cast<PFileObject>(source)->ReadStream();
             return mm_forest_read(&stream, offset, bytes, &services, KauaiCopyAllocator(), copy) ==
                    MM_CHUNK_OK;
         },
@@ -886,8 +910,8 @@ bool ChunkyFile::_FReadIndex(void)
     static_assert(kcvnCur == MM_CHUNK_CURRENT_VERSION && kcvnBack == MM_CHUNK_BACKWARD_VERSION &&
                   kcvnMin == 1 && sizeof(ChunkyFilePrefix) == MM_CHUNK_PREFIX_BYTES &&
                   sizeof(ChildChunkIdentification) == sizeof(MMChunkChild), "Chunk C89 wire contract");
-    const auto end = _MainFile()->FpMac();
-    if (end < size(ChunkyFilePrefix))
+    const auto stream = _MainFile()->ReadStream();
+    if (stream.length < size(ChunkyFilePrefix))
         return fFalse;
     const short nativeOrder = 1;
     MMChunkPolicy policy = {};
@@ -896,7 +920,6 @@ bool ChunkyFile::_FReadIndex(void)
 #endif
     policy.native_big_endian = reinterpret_cast<const byte *>(&nativeOrder)[0] == 0;
     policy.max_name_bytes = kcbMaxDataStn;
-    MMReadStream stream = {_MainFile(), static_cast<MMU32>(end), ReadChunkFile};
     MMChunkIndex *index = nullptr;
     if (mm_chunk_index_open(&stream, &policy, &index) != MM_CHUNK_OK)
         return fFalse;
@@ -905,6 +928,11 @@ bool ChunkyFile::_FReadIndex(void)
         MMChunkIndex *value;
         ~IndexOwner() { mm_chunk_index_close(value); }
     } owner = {index};
+    return _FMaterializeIndex(owner.value);
+}
+
+bool ChunkyFile::_FMaterializeIndex(const MMChunkIndex *index)
+{
     const auto header = *mm_chunk_index_header(index);
     auto access = mm_chunk_index_access(index);
     PChunkTable group = NewChunkTable(size(ChunkRepresentation), access.count);
@@ -944,7 +972,7 @@ void ChunkyFile::_ReadFreeMap(void)
     Assert(!_owner.files.invalid_main, 0);
 
     const bool existed = _owner.files.main_map != nullptr;
-    const MMReadStream stream = {_MainFile(), static_cast<MMU32>(_MainFile()->FpMac()), ReadChunkFile};
+    const auto stream = _MainFile()->ReadStream();
     mm_free_map_load(&_owner.files.main_map, &_owner.files.free_map_unread, &stream, _owner.map_offset, _owner.map_bytes, KauaiCopyAllocator());
     if (existed) Bug("free map already exists");
 }

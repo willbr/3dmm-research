@@ -2605,7 +2605,7 @@ extern "C"
             const auto document = content->movie.u8string();
             // Validate the graph and ordered scene list before replacing the live renderer.
             MM::Archive archive;
-            if (!archive.Open(document, error))
+            if (!archive.OpenForPreview(document, error))
                 return false;
             MM::MovieDirectory movie;
             if (!archive.ReadMovieDirectory(movie, error))

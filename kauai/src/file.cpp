@@ -155,6 +155,18 @@ PFileObject FileObject::PfilOpen(Filename *pfni, LegacyUlong grffil)
     return static_cast<PFileObject>(mm_file_ops_open(&host, pfni, grffil));
 }
 
+MMReadStream FileObject::ReadStream()
+{
+    const auto end = FpMac();
+    return {this, end > 0 ? static_cast<MMU32>(end) : 0,
+        [](void *context, MMU32 offset, void *bytes, size_t count) -> int {
+            if (offset > klwMax || count > klwMax)
+                return false;
+            return static_cast<PFileObject>(context)->FReadRgb(bytes, static_cast<LegacyLong>(count),
+                                                              static_cast<FilePosition>(offset));
+        }};
+}
+
 /***************************************************************************
     Create a new file.  Increments the open count.
 ***************************************************************************/

@@ -24,6 +24,7 @@ struct Archive::Impl
 {
     Options options;
     PChunkyFile file = pvNil;
+    PFileObject previewFile = pvNil;
     void *streamFile = nullptr;
     std::string path;
     std::vector<Chunk> chunks;
@@ -35,6 +36,7 @@ struct Archive::Impl
     {
         mm_archive_reader_close(reader);
         ReleasePpo(&file);
+        ReleasePpo(&previewFile);
         mm_native_file_close(streamFile);
     }
     bool Check(int status, std::size_t index, Error &error) const;
@@ -302,15 +304,34 @@ std::uint32_t Archive::NameCodeUnitBits() const
 }
 bool Archive::Open(const std::string &utf8Path, Error &error)
 {
-    return OpenCore(utf8Path, error, true);
+    return OpenCore(utf8Path, error, OpenMode::live);
 }
 
 bool Archive::OpenForInspection(const std::string &utf8Path, Error &error)
 {
-    return OpenCore(utf8Path, error, false);
+    return OpenCore(utf8Path, error, OpenMode::inspection);
 }
 
-bool Archive::OpenCore(const std::string &utf8Path, Error &error, bool nativeGraph)
+bool Archive::OpenForPreview(const std::string &utf8Path, Error &error)
+{
+    return OpenCore(utf8Path, error, OpenMode::preview);
+}
+
+bool Archive::PrepareNativeFile(Error &error)
+{
+    if (_impl->file || !_impl->previewFile)
+        return true;
+    Internal::ClearDiagnostic();
+    _impl->file = ChunkyFile::PcflOpenIndex(_impl->previewFile, mm_archive_reader_wire_index(_impl->reader));
+    if (!_impl->file || Internal::AssertionFailed())
+    {
+        ReleasePpo(&_impl->file);
+        return Fail(error, ErrorCode::open_failed, "Cannot prepare the archive for preview.");
+    }
+    return true;
+}
+
+bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
 {
     error = {};
     Internal::ClearDiagnostic();
@@ -346,6 +367,8 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, bool nativeGra
                 return true;
             },
         };
+        const bool nativeGraph =
+            mode == OpenMode::live || (mode == OpenMode::preview && FileObject::PfilFromFni(&filename));
         int status;
         if (nativeGraph)
         {
@@ -358,13 +381,24 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, bool nativeGra
         }
         else
         {
-            filename.GetStnPath(&path);
-            MMNativeOpenOptions options;
-            mm_native_open_options_init(&options);
-            opened->streamFile = mm_native_file_open(reinterpret_cast<const MMNativePathChar *>(path.Psz()), &options);
-            MMReadStream stream;
-            if (!opened->streamFile || !mm_native_file_read_stream(opened->streamFile, &stream))
-                return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
+            MMReadStream stream = {};
+            if (mode == OpenMode::preview)
+            {
+                opened->previewFile = FileObject::PfilOpen(&filename);
+                if (!opened->previewFile)
+                    return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
+                stream = opened->previewFile->ReadStream();
+            }
+            else
+            {
+                filename.GetStnPath(&path);
+                MMNativeOpenOptions options;
+                mm_native_open_options_init(&options);
+                opened->streamFile =
+                    mm_native_file_open(reinterpret_cast<const MMNativePathChar *>(path.Psz()), &options);
+                if (!opened->streamFile || !mm_native_file_read_stream(opened->streamFile, &stream))
+                    return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
+            }
             const unsigned short order = 1;
             MMChunkPolicy policy = {};
 #ifdef CHUNK_BIG_INDEX

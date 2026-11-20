@@ -111,6 +111,11 @@ int mm_archive_reader_open_stream(const MMReadStream *stream, const MMChunkPolic
     return MM_ARCHIVE_READ_OK;
 }
 
+const MMChunkIndex *mm_archive_reader_wire_index(const MMArchiveReader *reader)
+{
+    return reader->index;
+}
+
 void mm_archive_reader_close(MMArchiveReader *reader)
 {
     if (reader)

@@ -867,6 +867,8 @@ void Preview::ClearScene() { _impl->ClearAsset(); }
 bool Preview::OpenCore(Archive &&archive, const std::string &resourcesPath, Error &error, bool preserveFraming, bool requireAsset)
 try
 {
+    if (requireAsset && !archive.PrepareNativeFile(error))
+        return false;
     Impl::SessionHost host = {this, _impl.get(), &archive, &error};
     auto services = host.Services();
     return host.Result(mm_preview_session_open(&_impl->session, &resourcesPath, requireAsset, preserveFraming, &services));

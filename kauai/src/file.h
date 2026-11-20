@@ -140,6 +140,8 @@ class FileObject : public FileObject_PAR
 
     bool FSetFpMac(FilePosition fp);
     FilePosition FpMac(void);
+    // The stream borrows this file and uses its current length.
+    MMReadStream ReadStream();
     bool FReadRgb(void *pv, LegacyLong cb, FilePosition fp);
     bool FReadRgbSeq(void *pv, LegacyLong cb, FilePosition *pfp)
     {

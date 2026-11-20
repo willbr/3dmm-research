@@ -209,7 +209,7 @@ int mm_chunk_serialized_name(const MMChunkIndex *index, MMU32 position, MMChunkL
     return MM_CHUNK_OK;
 }
 
-int mm_chunk_materialize(MMChunkIndex *index, const MMChunkMaterializer *host,
+int mm_chunk_materialize(const MMChunkIndex *index, const MMChunkMaterializer *host,
                          const MMStorageAllocator *allocator)
 {
     MMCollectionStorage scratch;

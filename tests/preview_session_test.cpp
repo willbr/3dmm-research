@@ -42,10 +42,12 @@ int main(int argc, char **argv)
     if (!result(first.Open(argv[3], "missing-preview-resources.chk", error), false, first) || !render() ||
         image.rgba != before.rgba)
         return 1;
-    MM::Archive unopened;
+    MM::Archive unopened, wireMovie;
+    MM::MovieDirectory directory;
     if (!result(first.Open(std::move(unopened), argv[1], error), false, first) || !render() ||
         image.rgba != before.rgba || !result(second.OpenEmpty("missing-preview-resources.chk", error), false, second) ||
-        !result(first.Open(argv[2], argv[1], error), true, first) ||
+        !wireMovie.OpenForPreview(argv[2], error) || !wireMovie.ReadMovieDirectory(directory, error) ||
+        directory.hasRoot || !result(first.Open(std::move(wireMovie), argv[1], error), true, first) ||
         !result(first.Select({0x5343454e, 0}, error), false, first) ||
         !result(first.AddContent(2, argv[3], error), true, first) || !sources() ||
         !result(first.AddContent(1, argv[3], error), true, first) ||
@@ -53,7 +55,7 @@ int main(int argc, char **argv)
         !result(first.Select({0x5343454e, 0}, error), true, first) || !render())
         return 1;
     MM::Archive movie;
-    if (!movie.Open(argv[2], error) || !result(first.Open(std::move(movie), argv[1], error, true), true, first) ||
+    if (!movie.OpenForPreview(argv[2], error) || !result(first.Open(std::move(movie), argv[1], error, true), true, first) ||
         !result(first.Select({0x5343454e, 0}, error), false, first) || !sources() ||
         !result(first.Select({0x5343454e, 0}, error), true, first) || !render())
         return 1;

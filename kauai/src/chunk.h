@@ -116,10 +116,12 @@ class ChunkyFile : public ChunkyFile_PAR
     ~ChunkyFile(void);
 
     static MMChunkConstruction _ConstructionServices(Filename *);
+    static PChunkyFile _PcflFromFile(PFileObject);
 
     static MMChunkRegistry _RegistryServices();
     void _SetChunkFlag(ChunkTagOrType, ChunkNumber, MMU32, bool);
     bool _FReadIndex(void);
+    bool _FMaterializeIndex(const MMChunkIndex *);
     MMChunkAccess _ChunkAccess();
     MMChunkEdit _EditServices(void *context);
     MMChunkEndpoint _OpsServices(void *context);
@@ -162,6 +164,9 @@ class ChunkyFile : public ChunkyFile_PAR
         return static_cast<PChunkyFile>(mm_chunk_context_next(&_link));
     }
     static PChunkyFile PcflOpen(Filename *pfni, LegacyUlong grfcfl);
+    // Build a read-only graph from the same open file used to read the wire index.
+    // The caller retains the file and index through this call.
+    static PChunkyFile PcflOpenIndex(PFileObject, const MMChunkIndex *);
     static PChunkyFile PcflCreate(Filename *pfni, LegacyUlong grfcfl);
     static PChunkyFile PcflCreateTemp(Filename *pfni = pvNil);
     static PChunkyFile PcflFromFni(Filename *pfni);

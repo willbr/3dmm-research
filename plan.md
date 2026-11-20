@@ -91,7 +91,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - The archive reader opens immutable physical streams through the C89 chunk
   index, codec and payload cache. `3mm dump` and Marcus catalogue reads use this
   path. Marcus also uses it to read source names for an object being copied.
-  Preview's renderer obtains live resource objects through the native graph.
+  On movie open Marcus reads the movie directory and metadata through the same
+  C89 reader. Preview materializes its native resource graph from the
+  validated wire index over the same open file. Files already open in Kauai
+  use its live graph path.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The C-only engine tests exercise individual
   operations. The first shared movie path still needs an end-to-end C-only link

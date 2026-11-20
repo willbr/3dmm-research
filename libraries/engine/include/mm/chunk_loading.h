@@ -50,7 +50,7 @@ extern "C"
      * names retain encoded bytes. Pre-v3 names >=256 bytes are discarded. Failed
      * insertion may leave a partial destination for host disposal. Source is borrowed
      * and unchanged, scratch pointers expire after each synchronous callback. */
-    int mm_chunk_materialize(MMChunkIndex *, const MMChunkMaterializer *,
+    int mm_chunk_materialize(const MMChunkIndex *, const MMChunkMaterializer *,
                                    const MMStorageAllocator *);
 #ifdef __cplusplus
 }

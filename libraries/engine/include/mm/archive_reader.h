@@ -71,6 +71,8 @@ int mm_archive_reader_open(const MMChunkAccess *, void *archive, const MMChunkPa
  * caller keeps the stream context and file contents valid until close. */
 int mm_archive_reader_open_stream(const MMReadStream *, const MMChunkPolicy *,
                                   const MMArchiveReaderOptions *, MMArchiveReader **);
+/* Borrow the validated wire index until close. Live readers have no wire index. */
+const MMChunkIndex *mm_archive_reader_wire_index(const MMArchiveReader *);
 void mm_archive_reader_close(MMArchiveReader *);
 MMChunkAccess mm_archive_reader_access(const MMArchiveReader *);
 int mm_archive_reader_read_stored(const MMArchiveReader *, const MMChunkEntry *, void *bytes, MMU32 count);
