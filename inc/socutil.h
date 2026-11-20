@@ -165,13 +165,9 @@ class ActorMoveGroupUndo : public ActorMoveGroupUndo_PAR
     ASSERT
 
   protected:
-    MMActorGroupState _group; // Owns the child table and its references.
-    PDynamicArray _Entries() const { return static_cast<PDynamicArray>(_group.entries); }
-    static MMActorGroupServices _GroupServices(ActorMoveGroupUndo *);
-    ActorMoveGroupUndo(void)
-    {
-        mm_actor_group_init(&_group, &_undoContext);
-    }
+    MMActorMoveGroup _group;
+    static MMActorMoveGroupServices _GroupServices();
+    ActorMoveGroupUndo();
 
   public:
     static PActorMoveGroupUndo PamguNew(void);
@@ -203,16 +199,8 @@ class ActorRenameGroupUndo : public ActorRenameGroupUndo_PAR
     ASSERT
 
   protected:
-    // Each entry: GST string = "name to restore on the next FUndo/FDo",
-    //             extra      = long arid.
-    MMActorGroupState _group;
-    PVirtualStringTable _Names() const { return static_cast<PVirtualStringTable>(_group.entries); }
-    struct GroupContext;
-    static MMActorGroupServices _GroupServices(GroupContext *);
-    ActorRenameGroupUndo(void)
-    {
-        mm_actor_group_init(&_group, &_undoContext);
-    }
+    MMActorRenameGroup _group;
+    ActorRenameGroupUndo();
 
   public:
     static PActorRenameGroupUndo PargNew(void);

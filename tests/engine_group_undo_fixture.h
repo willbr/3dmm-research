@@ -20,9 +20,55 @@ class TestMoveGroupUndo : public ActorMoveGroupUndo
 {
   public:
     TestMoveGroupUndo() {}
-    bool Init() { _group.entries=DynamicArray::PglNew(sizeof(PActorUndo)); return _group.entries!=nullptr; }
-    bool AddNull() { PActorUndo child=nullptr; return _Entries()->FAdd(&child); }
+    bool AddNull()
+    {
+        const auto services = _GroupServices();
+        return mm_actor_move_group_add(&_group, nullptr, &services) != 0;
+    }
 };
+
+static bool TestMoveGroupActors(PMovie movie, TrackTestActor *const actors[2])
+{
+    auto group = ActorMoveGroupUndo::PamguNew();
+    PActor saved[2]{};
+    LegacyLong ids[2]{};
+    BRS initial[2]{}, edited[2]{};
+    bool ok = group != nullptr;
+    for (int i = 0; ok && i < 2; ++i)
+    {
+        ids[i] = actors[i]->Arid();
+        initial[i] = actors[i]->EvaluatedFrameState().transform.rScaleStep;
+        auto child = ActorUndo::PaundNew();
+        ok = child && actors[i]->FDup(&saved[i], fTrue);
+        if (ok)
+        {
+            child->SetPactr(saved[i]);
+            child->SetArid(ids[i]);
+            ok = group->FAddChild(child) && actors[i]->FScale(BR_SCALAR(1.5 + i));
+            edited[i] = actors[i]->EvaluatedFrameState().transform.rScaleStep;
+            ok = ok && edited[i] != initial[i];
+        }
+        ReleasePpo(&child);
+    }
+    ok = ok && movie->FAddUndo(group);
+    ReleasePpo(&group);
+    for (int phase = 0; ok && phase < 2; ++phase)
+    {
+        ok = phase ? movie->FRedo() : movie->FUndo();
+        for (int i = 0; ok && i < 2; ++i)
+        {
+            PActor live = movie->Pscen()->PactrFromArid(ids[i]);
+            PActor expected = phase ? actors[i] : saved[i];
+            ok = live == expected && live->EvaluatedFrameState().transform.rScaleStep ==
+                                     (phase ? edited[i] : initial[i]);
+        }
+    }
+    movie->ClearUndo();
+    for (auto &actor : saved)
+        ReleasePpo(&actor);
+    return ok;
+}
+
 static bool TestActorGroupUndo(PMovie parent)
 {
     FILE *snapshot=nullptr;
@@ -34,7 +80,7 @@ static bool TestActorGroupUndo(PMovie parent)
     {
         auto group=NewObj TestMoveGroupUndo(); GroupUndoChild *children[3]{}; GroupUndoProbe probe;
         probe.fail=(mode&2)?((mode&4)?2:1):0;
-        ok=group && group->Init();
+        ok=group!=nullptr;
         for (int i=0;ok && i<3;++i)
         {
             children[i]=NewObj GroupUndoChild(); ok=children[i]!=nullptr;
@@ -105,6 +151,8 @@ static bool TestActorGroupUndo(PMovie parent)
                     ok=record(&count,sizeof(count)) && record(name.Psz(),count*sizeof(achar)) && ok;
                 }
             }
+            if (ok && mode==0)
+                ok=TestMoveGroupActors(movie,actors);
         }
         ReleasePpo(&group); for (auto &actor:actors) { ReleasePpo(&actor); } ReleasePpo(&movie);
         if (resource->CactRef()!=refs) ok=false;

@@ -3454,10 +3454,9 @@ target index; registering the common context must not overwrite that index.
 Actor undo keeps its snapshot reference, ID, flags, last frame and counted name
 in `MMActorUndoState`. Names reuse `MMMovieTitle` storage for up to 255 native
 one/two-byte units, including embedded zeros. The actor undo controller works
-directly with that record and counted roll-call names. Move/rename groups store
-their owned table handle in
-`MMActorGroupState`. Typed table providers still supply child rows, references
-and rename data. Actor/move toggle snapshots the base context on entry, so child
+directly with that record and counted roll-call names. `MMActorMoveGroup` embeds
+its child storage and `MMActorRenameGroup` embeds its counted-name table.
+Actor/move toggle snapshots the base context on entry, so child
 callbacks cannot change the context used by later operations in that toggle.
 Sooner/later redo temporarily replaces the shared frame, dispatches virtual undo
 and restores the saved frame.
@@ -4473,31 +4472,39 @@ matched their previous builds, and SDL's 12 playback sound events matched retail
 
 ### Composite actor undo
 
-`actor_group_undo.c` owns move/rename composite creation, entry disposal, child
-references, traversal and name toggling. Move groups retain before append and
-release on failed append. Their toggle rereads the count each iteration, skips
-NULL rows, publishes movie/scene/frame onto each child immediately before virtual
-undo dispatch, and stops at the first failure without reading a group that the
-child may have destroyed. Destruction releases child references before entries.
+`actor_group_undo.c` owns composite storage and its lifetime. Both tables start
+empty and allocate their buffers on first append. Move groups use the shared
+dense array and retain before append, releasing the reference if growth fails.
+Their toggle rereads the count each iteration, skips NULL rows, publishes the
+entry movie/scene/frame context onto each child immediately before virtual undo,
+and returns when a child fails and may have destroyed the group. Destruction
+releases child references before their storage.
 
-Rename groups capture their count once, read a stored name and actor ID, skip
-actors absent from roll-call, stop on failed rename and swap in the captured
-current name. Failed storage of that current name is deliberately ignored, as
-in the native implementation; preceding name/table changes remain. Duplicate
-actor rows retain their original ordered behavior. Both redo adapters delegate
-to virtual undo, retaining the same toggling policy.
+Rename groups use the same dense counted-string storage as the movie roll call.
+Each row contains a counted name and a 32-bit actor ID. Replay captures the
+initial row count, skips missing actors, copies the outgoing name before the
+roll-call mutation and stops when a rename fails. A failed allocation to save
+the outgoing name preserves the already-applied rename and the original entry.
+Duplicate actor rows replay in insertion order. Both redo adapters delegate to
+virtual undo.
 
-Native callbacks marshal entry records and two String scratch values, and provide
-C-backed array/string storage and primitive movie/child calls. Owned table handles
-and shared context links persist in C state, as described above.
-The native objects are still temporary representations. The C test checks
-allocation/append failure, pointer/reference timing, NULL rows, child context,
-failure that destroys the group, missing actors, partial rename and storage
-failure, duplicate IDs and repeated toggles. A 2,100-byte native-before trace
-covers 16 child-dispatch scenarios, eight factory attempts and eight real-movie
-rename scenarios with three toggles each; it matches the port exactly. Actor
-transactions are described next. Copy/paste/clipboard, queue/runtime integration,
-scene/body/resource policy and final facade removal remain unfinished.
+Native callbacks supply child reference lifetime and virtual dispatch, roll-call
+lookup and rename, and Kauai buffer allocation. The C tests cover append failures,
+an undo that destroys its group, appended children during traversal, embedded
+zeros, two-byte names, duplicate IDs and partial rename or storage failure.
+Eleven of the twelve native actor traces matched byte for byte. The 2,100-byte
+composite trace changed in the two debug factory cases that targeted the removed
+table-object allocations. Its 16 child-dispatch scenarios and eight movie rename
+scenarios matched. SDL Studio tagged and untagged seven actors, undid and redid
+both operations, and reopened the saved movie with the same names. Retail opened
+the saved movie with matching actor IDs, actions, cels and positions at frame 7.
+The native movie fixture verified both actor identities and scales through a
+single two-actor undo and redo. The headless Studio drag probe produced zero
+actor moves on both builds.
+
+Capture suite `20261120T013059Z-f3e178a8` matched the retained retail capture's
+60 scene/frame markers in each port's seek and playback runs. Both ports' seek
+image hashes matched their previous builds. SDL's 12 sound events matched retail.
 
 ### Actor edit transactions
 
