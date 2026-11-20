@@ -452,12 +452,15 @@ priority over the older Project 0-4 ordering wherever they conflict.
   removal, later-subroute index shifts, floating and terminal steps, and body
   positioning. Studio route editing and Marcus preview animation drafts share
   the C bindings for path and event table mutation and reservation.
-  The movie controller captures and registers route paste snapshots through the
-  C89 actor owner and undo factory. Paste failure keeps the edit prefix. Undo
-  failure restores the snapshot onto the current selection. Movie 3D text edits
-  share snapshot capture and release, with Studio handling template rollback.
+  The movie controller calls the C89 route editor, actor owner and undo factory
+  directly. Paste failure keeps the edit prefix. Undo failure restores the
+  snapshot onto the current selection. Movie 3D text edits share snapshot
+  capture and release, with Studio handling template rollback.
 - Full actor paste uses the C89 owner and typed tables for retiming, sound
   adoption and row removal, with shared scene binding and tag ownership.
+  The scene controller calls the C89 paste operation before admitting the actor.
+  Scene actor undo and redo use the C89 actor owner to clone and reset the
+  snapshots for actor addition, deletion and replacement.
   Studio actor edits and Marcus preview costume and animation drafts share the
   C event table binding for row mutation and tag ownership.
 - The actor clipboard owns its counted name in C and calls the shared C actor

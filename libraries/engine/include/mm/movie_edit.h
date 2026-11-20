@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_MOVIE_EDIT_H
 #define MM_ENGINE_MOVIE_EDIT_H
 #include "actor_group_undo.h"
+#include "actor_route_paste.h"
 #include "actor_transaction.h"
 #include "movie_rollcall.h"
 #include "movie_scene.h"
@@ -60,7 +61,8 @@ extern "C"
         MMI32 (*frame)(void *scene);
         struct MMActorUndoState *(*last_actor_undo)(void *);
         void (*place_actor)(void *view, int entire_scene), (*placement_undo)(void *view, void *owned_snapshot);
-        int (*paste_actor)(void *scene, void *actor), (*paste_route)(void *actor, void *source);
+        int (*paste_actor)(void *scene, void *actor);
+        MMActorRoutePasteServices (*route_paste)(void *actor);
         void (*long_op)(void *, int begin);
         int (*cache_tag)(void *, const MMTag *, int background);
         void (*default_title)(void *);

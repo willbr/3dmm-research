@@ -193,7 +193,10 @@ int mm_scene_actor_remove_undo(MMI32 id, const MMSceneContentServices *s)
 }
 int mm_scene_actor_paste(void *actor, const MMSceneContentServices *s)
 {
-    if (!s->actor_paste(s->context, actor, s->events.owner->data.currentFrame) || !mm_scene_actor_add(actor, s))
+    MMActorOwner *owner = s->actors.owner(s->actors.context, actor);
+    MMActorPasteServices paste = s->actor_paste(actor);
+    if (!mm_actor_paste(owner, s->events.owner->data.currentFrame, s->context, &paste) ||
+        !mm_scene_actor_add(actor, s))
         return 0;
     s->invalidate(s->context);
     if (!s->events.seek(s->events.context, 0, actor, s->events.owner->data.currentFrame))
@@ -371,7 +374,8 @@ static int failed(const MMSceneContentUndoServices *s)
 int mm_scene_actor_undo(MMSceneActorUndo *p, int redo, const MMSceneContentUndoServices *u)
 {
     MMSceneContentServices s;
-    void *copy, *actor;
+    MMActorOwnerResult copy = {NULL, NULL, NULL};
+    void *actor;
     MMI32 id;
     if (!u->switch_scene(u->context) || !u->seek(u->context, u->frame))
         return failed(u);
@@ -381,17 +385,16 @@ int mm_scene_actor_undo(MMSceneActorUndo *p, int redo, const MMSceneContentUndoS
         mm_scene_actor_remove(id, &s);
     else if (p->operation == MM_SCENE_ACTOR_DELETE)
     {
-        copy = u->duplicate(u->context, p->actor);
-        if (!copy)
+        if (!mm_actor_owner_duplicate(p->actor, 1, &copy, &s.actors))
             return failed(u);
-        s.set_actor_id(s.context, copy, id);
-        if (!mm_scene_actor_add(copy, &s))
+        s.set_actor_id(s.context, copy.actor, id);
+        if (!mm_scene_actor_add(copy.actor, &s))
         {
-            release(copy, &s);
+            release(copy.actor, &s);
             return failed(u);
         }
-        mm_scene_select_actor(copy, &s.selection);
-        release(copy, &s);
+        mm_scene_select_actor(copy.actor, &s.selection);
+        release(copy.actor, &s);
     }
     else
     {
@@ -411,23 +414,22 @@ int mm_scene_actor_undo(MMSceneActorUndo *p, int redo, const MMSceneContentUndoS
                 return failed(u);
             }
         }
-        copy = u->duplicate(u->context, actor);
-        if (!copy)
+        if (!mm_actor_owner_duplicate(actor, 1, &copy, &s.actors))
             return failed(u);
         if (p->operation != MM_SCENE_ACTOR_ADD)
         {
             if (!mm_scene_actor_add(p->actor, &s))
             {
-                release(copy, &s);
+                release(copy.actor, &s);
                 return failed(u);
             }
             mm_scene_select_actor(p->actor, &s.selection);
         }
         if (p->operation == MM_SCENE_ACTOR_ADD)
             id = s.actor_id(s.context, p->actor);
-        s.set_actor_id(s.context, copy, id);
+        s.set_actor_id(s.context, copy.actor, id);
         mm_scene_actor_undo_dispose(p, &s);
-        p->actor = copy;
+        p->actor = copy.actor;
     }
     u->flush(u->context);
     u->update_roll(u->context);

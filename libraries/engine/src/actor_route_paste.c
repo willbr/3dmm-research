@@ -9,7 +9,7 @@ static void publish(const MMActorState *state, const MMActorEditServices *edits)
 }
 
 static int paste_route(MMActorOwner *actor, MMActorState *state, const MMActorPath *clipboard,
-                       int legacy_static, const MMActorRoutePasteServices *s)
+                       const MMActorRoutePasteServices *s)
 {
     const MMActorMotionServices motion = mm_actor_track_motion_services();
     const MMActorRouteEditServices *route_edits = &s->subroute.route;
@@ -88,14 +88,14 @@ static int paste_route(MMActorOwner *actor, MMActorState *state, const MMActorPa
     if (!current.dwr)
         current.dwr = 1;
     route_edits->write_point(route, state->location.irpt, &current);
-    if (legacy_static)
+    if (s->legacy_static_mode)
     {
         if (state->actionEvent < 0)
             s->diagnostic(edits->context, MM_ROUTE_PASTE_NO_ACTION);
         if (!s->subroute.action.action_flags(s->subroute.action.context, state->action, &flags))
             return 0;
     }
-    if ((!legacy_static || (flags & 8)) &&
+    if ((!s->legacy_static_mode || (flags & 8)) &&
         !mm_actor_edit_set_step(state, &actor->sounds, events, actor->runtime.actor, -65536L,
                                 &motion, &s->subroute.action.sounds.edits))
         return 0;
@@ -119,11 +119,10 @@ static int paste_route(MMActorOwner *actor, MMActorState *state, const MMActorPa
     return 1;
 }
 
-int mm_actor_route_paste(MMActorOwner *actor, const MMActorPath *clipboard,
-                        int legacy_static, const MMActorRoutePasteServices *s)
+int mm_actor_route_paste(MMActorOwner *actor, const MMActorPath *clipboard, const MMActorRoutePasteServices *s)
 {
     MMActorState state = actor->runtime.state;
-    int ok = paste_route(actor, &state, clipboard, legacy_static, s);
+    int ok = paste_route(actor, &state, clipboard, s);
     actor->runtime.state = state;
     return ok;
 }

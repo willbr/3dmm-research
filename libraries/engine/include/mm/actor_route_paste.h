@@ -10,6 +10,7 @@ enum { MM_ROUTE_PASTE_EMPTY,MM_ROUTE_PASTE_INSERT_FAILED,MM_ROUTE_PASTE_NO_ACTIO
 typedef struct MMActorRoutePasteServices
 {
     MMActorSubrouteEditServices subroute;
+    int legacy_static_mode;
     MMI32 (*distance)(void *,const MMActorPoint *);
     void (*diagnostic)(void *,int fault);
 } MMActorRoutePasteServices;
@@ -25,8 +26,7 @@ typedef struct MMActorRoutePasteServices
  * add floating step only for a static action; normal builds always add it.
  * Reserved point insertion failure diagnoses and continues as native AssertDo
  * did. Other insertion/step failures return immediately with preceding edits. */
-int mm_actor_route_paste(MMActorOwner *, const MMActorPath *clipboard_route,
-                        int legacy_static_mode, const MMActorRoutePasteServices *);
+int mm_actor_route_paste(MMActorOwner *, const MMActorPath *clipboard_route, const MMActorRoutePasteServices *);
 #ifdef __cplusplus
 }
 #endif

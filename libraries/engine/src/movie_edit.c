@@ -300,7 +300,9 @@ int mm_movie_paste_route(void *source, const MMMovieEditServices *s)
     void *actor = s->selected_actor(s->scenes->open);
     MMActorOwnerResult snapshot = {NULL, NULL, NULL};
     MMActorUndoCreateServices undo;
-    const MMActorOwner *owner;
+    MMActorRoutePasteServices paste;
+    MMActorOwner *owner;
+    const MMActorOwner *clipboard;
     if (!actor)
     {
         s->diagnostic(s->context, MM_MOVIE_EDIT_NO_ACTOR);
@@ -309,7 +311,10 @@ int mm_movie_paste_route(void *source, const MMMovieEditServices *s)
     if (!mm_actor_owner_duplicate(actor, 0, &snapshot, &s->actors))
         return 0;
     actor = s->selected_actor(s->scenes->open);
-    if (!s->paste_route(actor, source))
+    owner = s->actors.owner(s->actors.context, actor);
+    clipboard = s->actors.owner(s->actors.context, source);
+    paste = s->route_paste(actor);
+    if (!mm_actor_route_paste(owner, clipboard->track.route, &paste))
     {
         s->actors.release(s->actors.context, snapshot.actor);
         return 0;

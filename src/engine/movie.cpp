@@ -764,7 +764,7 @@ MMMovieEditServices Movie::_EditServices()
     s.place_actor = [](void *p, int entire) { static_cast<PMovieView>(p)->StartPlaceActor(entire != 0); };
     s.placement_undo = [](void *p, void *owned) { static_cast<PMovieView>(p)->SetActrUndo(static_cast<PActor>(owned)); };
     s.paste_actor = [](void *p, void *actor) -> int { return static_cast<PScene>(p)->FPasteActr(static_cast<PActor>(actor)); };
-    s.paste_route = [](void *p, void *source) -> int { return static_cast<PActor>(p)->FPasteRte(static_cast<PActor>(source)); };
+    s.route_paste = [](void *p) { return static_cast<PActor>(p)->_RoutePasteServices(); };
     s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
     s.cache_tag = [](void *, const MMTag *value, int background) -> int {
         TAG tag; TagFromCore(&tag, *value); return background ? Background::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);

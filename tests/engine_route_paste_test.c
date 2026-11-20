@@ -233,7 +233,8 @@ static void dispose(Fixture *f)
 
 static int paste(Fixture *f, int legacy)
 {
-    return mm_actor_route_paste(&f->actor, f->clipboard, legacy, &f->services);
+    f->services.legacy_static_mode = legacy;
+    return mm_actor_route_paste(&f->actor, f->clipboard, &f->services);
 }
 
 static MMActorRoutePoint point_at(const MMActorPath *path, MMI32 index)

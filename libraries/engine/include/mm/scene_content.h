@@ -4,6 +4,7 @@
 #define MM_ENGINE_SCENE_CONTENT_H
 #include "scene_runtime.h"
 #include "scene_selection.h"
+#include "actor_paste.h"
 #include "actor_stage_edit.h"
 #ifdef __cplusplus
 extern "C"
@@ -41,10 +42,12 @@ extern "C"
         void *context;
         MMSceneEventServices events;
         MMSceneSelectionServices selection;
+        MMActorOwnerServices actors;
         void (*retain)(void *, void *object);
         MMI32 (*actor_id)(void *, void *actor);
         void (*set_actor_id)(void *, void *actor, MMI32 id);
-        int (*actor_ready)(void *, void *actor), (*actor_paste)(void *, void *actor, MMI32 frame);
+        int (*actor_ready)(void *, void *actor);
+        MMActorPasteServices (*actor_paste)(void *actor);
         MMActorStageBind stage;
         void (*hide_actor)(void *, void *actor);
         void (*end_placement)(void *);
@@ -90,14 +93,14 @@ extern "C"
         int (*switch_scene)(void *), (*seek)(void *, MMI32 frame);
         MMI32 frame;
         MMSceneContentServices (*scene)(void *);
-        void *(*duplicate)(void *, void *actor);
         void (*flush)(void *), (*clear)(void *), (*update_roll)(void *);
     } MMSceneContentUndoServices;
     /* Undo records own actor/text references. set payload transfers ownership; dispose
      * releases before publishing NULL. Captions rebind identity by saved list index
      * after scene changes. Redo-add failure seeks back; undo-delete-add failure does not.
      * A failed final seek after a caption add remains nonfatal and keeps the old index.
-     * Actor replacement releases a duplicate on failed installation. Failure flushes
+     * Actor snapshots are copied and reset by the actor owner. Replacement releases
+     * its temporary copy on failed installation. Failure flushes
      * before clear, which may destroy the record; no state is accessed afterward. */
     void mm_scene_actor_undo_dispose(MMSceneActorUndo *, const MMSceneContentServices *);
     void mm_scene_text_undo_dispose(MMSceneTextUndo *, const MMSceneContentServices *);

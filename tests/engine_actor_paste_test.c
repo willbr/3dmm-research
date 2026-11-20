@@ -277,7 +277,8 @@ static void add_sound(Fixture *f, MMU32 number, MMI32 sid)
 
 static int paste(Fixture *f, MMI32 frame, int migrate)
 {
-    return mm_actor_paste(&f->actor, frame, &f->scene, migrate, &f->services);
+    f->services.migrate_text = migrate;
+    return mm_actor_paste(&f->actor, frame, &f->scene, &f->services);
 }
 
 static MMActorEvent event_at(Fixture *f, MMU32 index)

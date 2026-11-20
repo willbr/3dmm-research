@@ -16158,3 +16158,52 @@ matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their previous seek image hashes. SDL
 matched all 12 retail sound requests. Logs and fixtures are in
 `tmp/c89-movie-actor-snapshots`.
+
+## C89 actor clipboard paste and scene undo (20 November 2026)
+
+The movie controller calls the C89 route editor directly. The scene
+controller calls the C89 whole-actor paste operation before admission,
+and scene actor undo and redo clone and reset snapshots through the
+C89 actor owner. Studio binds the renderer, template and sound services.
+
+The movie fixture splices a real route and exercises partial mutation,
+undo allocation and registration failure, and a changed selection.
+The scene fixture checks frame retiming, the failure prefix for an
+empty actor, and snapshot ownership through addition and deletion.
+The native scene trace also covers replacement undo and redo.
+
+All 192 standalone checks, 10 targeted checks per x64, x86 and SDL
+build, 14 Marcus syntax and playback checks, and six AddressSanitizer
+checks passed. The three movie save and reload runs matched all 12
+actor traces per build, including whole-actor and route paste, and
+produced the same saved movies. All three scene-content traces matched
+fingerprint `5E56C170`. Ten Preview fingerprints and six Preview movies
+matched. Both VMM seek images in `20261120T162352Z-fdb7b35f` matched
+the archived SDL and Marcus captures.
+
+Production SDL Studio copied and pasted a route, then restored and
+reapplied the edit with Undo and Redo. It also copied a whole actor and
+retimed its entrance from frame 1 to frame 4. The previous and current
+builds produced the same actor observations and decoded chunk graphs
+for both edits. Raw differences were confined to six route-paste bytes
+and seven whole-actor-paste bytes of chunk-index alignment padding.
+Retail reopened the whole-actor paste and staged the new actor at frame 4.
+Its template, animation and event cursor matched Studio over eight sampled
+frames, along with the body matrices on the frames where it was on stage.
+Retail also reopened the route paste in `20261120T162805Z-4739ac64`.
+All 231 frame and camera observations matched, along with the edited
+actor's stage state, event cursor and on-stage pose across 201 frames.
+SDL differed from retail on 202 viewport images. All 231 SDL image
+hashes matched the previous build in `20261120T163218Z-6c15ff41`.
+
+The separate Studio authoring movie matched the previous build
+byte-for-byte. Retail reopened it in `20261120T162425Z-6a932143` and
+matched the 11 seek frames and camera indices and 16 actor records.
+Three viewport images differed from retail. All 11 SDL hashes matched
+the previous SDL build.
+
+In the `actor-event-edit` suite `20261120T162352Z-66f304a7`, SDL and
+Marcus matched all 60 retail frame identities in seek and playback,
+retail camera indices on seek, and their previous seek image hashes.
+SDL also matched all 12 retail sound requests. Logs, fixtures and
+comparison scripts are in `tmp/c89-actor-clipboard-dispatch`.

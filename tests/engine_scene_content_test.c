@@ -13,8 +13,10 @@
             exit(1);                                                                                                   \
         }                                                                                                              \
     } while (0)
+typedef struct Test Test;
 typedef struct Obj
 {
+    Test *test;
     int refs, id, text, ready, bound, roll, hidden, selected, first, last, life;
     StageOwnerFixture stage;
 } Obj;
@@ -24,7 +26,7 @@ typedef struct Undo
     MMSceneTextUndo text;
     int refs, istext;
 } Undo;
-typedef struct Test
+struct Test
 {
     MMSceneContentServices s;
     MMSceneContentUndoServices us;
@@ -34,13 +36,13 @@ typedef struct Test
     Undo *active;
     int live, undo_live, next_id, dirty, invalid, indicator, updated, placement, bind_fail, seek_actor_fail,
         seek_text_fail, insert_fail, roll_fail, roll_calls;
-    int paste_fail, new_fail, commit_fail, clears, not_undoable, dup_fail, dups, switched, switch_fail,
+    int paste_diagnostics, new_fail, commit_fail, clears, not_undoable, dup_fail, dups, switched, switch_fail,
         seek_calls, seek_fail, flushes, hide_text, issues[7];
     int log[512], used;
     MMSceneActorUndo cleared_actor;
     MMSceneTextUndo cleared_text;
     void **release_observer;
-} Test;
+};
 static void note(Test *t, int n)
 {
     CHECK(t->used < 512);
@@ -50,6 +52,8 @@ static Obj *new_obj(Test *t, int text)
 {
     Obj *o = (Obj *)calloc(1, sizeof(*o));
     CHECK(o);
+    o->test = t;
+    mm_actor_owner_init(&o->stage.owner);
     o->refs = 1;
     o->id = -1;
     o->text = text;
@@ -83,6 +87,28 @@ static void release(void *p, void *object)
         free(o);
     }
 }
+static MMActorOwner *actor_owner(void *p, void *object)
+{
+    (void)p;
+    return &((Obj *)object)->stage.owner;
+}
+static void retain_actor_resource(void *p, void *resource)
+{
+    Test *t = p;
+    CHECK(!resource || resource == &t->owner);
+}
+static void release_actor_resource(void *p, void *object)
+{
+    Test *t = p;
+    if (object != &t->owner)
+        release(p, object);
+}
+static void bind_actor_route(void *p, void *object, MMActorRouteEditServices *route)
+{
+    Obj *o = object;
+    (void)p;
+    *route = stage_fixture_services(&o->stage).subroute.route;
+}
 static void *resize_starts(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Test *t = (Test *)p;
@@ -102,6 +128,8 @@ static void bind(void *p, void *object)
     Obj *o = (Obj *)object;
     o->bound = 1;
     o->ready = !t->bind_fail;
+    o->stage.owner.runtime.scene = t;
+    o->stage.owner.runtime.body = o->ready ? &t->owner : NULL;
     note(t, 6);
 }
 static void bind_text(void *p, void *o)
@@ -186,16 +214,57 @@ static MMActorStageEditServices stage(void *o)
     actor->stage.owner.runtime.actor = actor->id;
     return stage_fixture_services(&actor->stage);
 }
-static int paste(void *p, void *o, MMI32 frame)
+static int paste_is_text(void *p, void *object)
 {
-    (void)o;
-    CHECK(frame == 1);
-    return !((Test *)p)->paste_fail;
+    (void)p;
+    (void)object;
+    return 0;
+}
+static void *paste_create_body(void *p, void *object)
+{
+    Test *t = p;
+    (void)object;
+    return &t->owner;
+}
+static void paste_bind_body(void *p, void *body, void *scene)
+{
+    Test *t = p;
+    CHECK(scene == p && body == &t->owner);
+}
+static void paste_placement(void *p, MMActorPoint *point)
+{
+    (void)p;
+    memset(point, 0, sizeof(*point));
+}
+static void paste_diagnostic(void *p, int fault)
+{
+    Test *t = p;
+    CHECK(fault == MM_PASTE_EMPTY);
+    ++t->paste_diagnostics;
 }
 static void dirty(void *p)
 {
     ++((Test *)p)->dirty;
     note((Test *)p, 15);
+}
+static void paste_dirty(void *p, void *scene)
+{
+    CHECK(p == scene);
+    dirty(scene);
+}
+static MMActorPasteServices bind_paste(void *p)
+{
+    Obj *actor = p;
+    MMActorPasteServices s = {0};
+    s.context = actor->test;
+    s.create.owner = actor->test->s.actors;
+    s.create.create_body = paste_create_body;
+    s.create.bind_body = paste_bind_body;
+    s.is_text = paste_is_text;
+    s.placement = paste_placement;
+    s.dirty = paste_dirty;
+    s.diagnostic = paste_diagnostic;
+    return s;
 }
 static void invalidate(void *p)
 {
@@ -321,19 +390,12 @@ static MMSceneContentServices scene(void *p)
 {
     return ((Test *)p)->s;
 }
-static void *duplicate(void *p, void *object)
+static void *new_actor_snapshot(void *p)
 {
     Test *t = (Test *)p;
-    Obj *o = (Obj *)object, *copy;
     if (++t->dups == t->dup_fail)
         return NULL;
-    copy = new_obj(t, 0);
-    *copy = *o;
-    copy->refs = 1;
-    copy->roll = 0;
-    copy->bound = 0;
-    copy->ready = 0;
-    return copy;
+    return new_obj(t, 0);
 }
 static void flush(void *p)
 {
@@ -358,6 +420,12 @@ static void init(Test *t)
 
     s = &t->s;
     s->context = t;
+    s->actors.context = t;
+    s->actors.owner = actor_owner;
+    s->actors.create = new_actor_snapshot;
+    s->actors.retain = retain_actor_resource;
+    s->actors.release = release_actor_resource;
+    s->actors.route_services = bind_actor_route;
     v = &s->events;
     v->context = t;
     v->owner = &t->owner;
@@ -371,7 +439,7 @@ static void init(Test *t)
     s->set_actor_id = set_id;
     s->actor_ready = ready;
     s->stage = stage;
-    s->actor_paste = paste;
+    s->actor_paste = bind_paste;
     s->hide_actor = hide_actor;
     s->selection.context = t;
     s->selection.owner = &t->owner;
@@ -403,7 +471,6 @@ static void init(Test *t)
     t->us.seek = seek;
     t->us.frame = 1;
     t->us.scene = scene;
-    t->us.duplicate = duplicate;
     t->us.flush = flush;
     t->us.clear = clear;
     t->us.update_roll = update;
@@ -420,6 +487,18 @@ static void clean(Test *t)
     }
     mm_scene_track_dispose(t->starts);
     CHECK(!t->live && !t->undo_live);
+}
+static void seed_actor_track(Obj *actor, int entrance)
+{
+    MMActorRoutePoint point = {{65536L, 0, 0}, 0};
+    MMActorEvent event = {0};
+    MMActorEntrance add = {0};
+    CHECK(stage_fixture_init(&actor->stage, 4));
+    CHECK(mm_actor_path_insert(actor->stage.owner.track.route, 0, &point));
+    event.nfrm = 4;
+    event.aet = MM_ACTOR_ADD;
+    if (entrance)
+        CHECK(mm_actor_events_insert(actor->stage.owner.track.events, 0, sizeof(add), &add, &event));
 }
 static void test_actor(void)
 {
@@ -490,11 +569,25 @@ static void test_actor(void)
         release(&t, a);
         clean(&t);
     }
-    init(&t);
-    a = new_obj(&t, 0);
-    CHECK(mm_scene_actor_paste(a, &t.s) && t.updated == 1 && t.invalid == 2 && t.indicator == 2);
-    release(&t, a);
-    clean(&t);
+    for (failure = 0; failure < 2; ++failure)
+    {
+        MMActorEvent event;
+        init(&t);
+        a = new_obj(&t, 0);
+        seed_actor_track(a, !failure);
+        CHECK(mm_scene_actor_paste(a, &t.s) == !failure);
+        CHECK(a->stage.owner.runtime.scene == &t && a->stage.owner.runtime.body == &t.owner &&
+              a->stage.owner.runtime.state.frame == 0);
+        if (failure)
+            CHECK(t.paste_diagnostics == 1 && !t.dirty && !t.starts->rows.count);
+        else
+        {
+            CHECK(t.updated == 1 && t.invalid == 2 && t.indicator == 2 && t.dirty == 3);
+            CHECK(mm_actor_events_get_fixed(a->stage.owner.track.events, 0, &event) && event.nfrm == 1);
+        }
+        release(&t, a);
+        clean(&t);
+    }
 }
 static void test_text(void)
 {
@@ -597,12 +690,18 @@ static void test_actor_undo(void)
     int fail;
     init(&t);
     a = new_obj(&t, 0);
+    seed_actor_track(a, 1);
     u = (Undo *)new_undo(&t, 0);
     u->actor.actor = a;
     u->actor.operation = MM_SCENE_ACTOR_ADD;
     t.active = u;
     CHECK(mm_scene_actor_undo(&u->actor, 1, &t.us) && ((Obj *)u->actor.actor)->id == 100 &&
           ((Obj *)mm_scene_member_at(&t.owner, MM_SCENE_ACTORS, 0))->id == 100);
+    saved = u->actor.actor;
+    CHECK(saved != a && !saved->stage.owner.runtime.scene && !saved->stage.owner.runtime.body &&
+          saved->stage.owner.runtime.state.frame == 2147483647L &&
+          mm_actor_path_count(saved->stage.owner.track.route) == 1 &&
+          mm_actor_events_count(saved->stage.owner.track.events) == 1);
     CHECK(mm_scene_actor_undo(&u->actor, 0, &t.us) && !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) &&
           t.flushes == 2 && t.updated == 2);
     clean(&t);
@@ -637,6 +736,7 @@ static void test_actor_undo(void)
     clean(&t);
     init(&t);
     a = new_obj(&t, 0);
+    seed_actor_track(a, 1);
     a->id = 7;
     u = (Undo *)new_undo(&t, 0);
     u->actor.actor = a;
@@ -644,6 +744,12 @@ static void test_actor_undo(void)
     t.active = u;
     CHECK(mm_scene_actor_undo(&u->actor, 0, &t.us) && mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) == 1 &&
           u->actor.actor == a);
+    saved = mm_scene_member_at(&t.owner, MM_SCENE_ACTORS, 0);
+    CHECK(saved != a && saved->id == 7 && saved->stage.owner.runtime.scene == &t &&
+          mm_actor_path_count(saved->stage.owner.track.route) == 1 &&
+          mm_actor_events_count(saved->stage.owner.track.events) == 1);
+    CHECK(mm_scene_actor_undo(&u->actor, 1, &t.us) && !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) &&
+          u->actor.actor == a && t.live == 1);
     clean(&t);
 }
 static void test_text_undo(void)

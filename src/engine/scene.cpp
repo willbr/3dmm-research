@@ -1490,14 +1490,13 @@ MMSceneContentServices Scene::_ContentServices()
     s.context = this;
     s.events = _EventServices();
     s.selection = _SelectionServices();
+    s.actors = Actor::_OwnerServices();
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
     s.actor_id = [](void *, void *p) -> MMI32 { return static_cast<PActor>(p)->Arid(); };
     s.set_actor_id = [](void *, void *p, MMI32 id) { static_cast<PActor>(p)->SetArid(id); };
     s.actor_ready = [](void *, void *p) -> int { return static_cast<PActor>(p)->Pbody() != nullptr; };
     s.stage = Actor::_BindStageEdit;
-    s.actor_paste = [](void *p, void *a, MMI32 frame) -> int {
-        return static_cast<PActor>(a)->FPaste(frame, static_cast<PScene>(p));
-    };
+    s.actor_paste = [](void *p) { return static_cast<PActor>(p)->_PasteServices(); };
     s.hide_actor = [](void *, void *p) {
         auto actor = static_cast<PActor>(p);
         if (actor->Pbody())
@@ -3011,10 +3010,6 @@ static MMSceneContentUndoServices SceneContentUndoServices(SceneContentUndoHost 
     };
     s.seek = [](void *p, MMI32 frame) -> int {
         return static_cast<SceneContentUndoHost *>(p)->movie->Pscen()->FGotoFrm(frame);
-    };
-    s.duplicate = [](void *, void *p) -> void * {
-        PActor copy = nullptr;
-        return static_cast<PActor>(p)->FDup(&copy, true) ? copy : nullptr;
     };
     s.flush = [](void *p) { static_cast<SceneContentUndoHost *>(p)->movie->Pmsq()->FlushMsq(); };
     s.clear = [](void *p) { static_cast<SceneContentUndoHost *>(p)->movie->ClearUndo(); };

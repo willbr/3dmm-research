@@ -35,8 +35,7 @@ static int transfer_template(MMActorRuntime *r, void *scene, const MMActorPasteS
     return 1;
 }
 
-int mm_actor_paste(MMActorOwner *actor, MMI32 frame, void *scene, int migrate_text,
-                   const MMActorPasteServices *s)
+int mm_actor_paste(MMActorOwner *actor, MMI32 frame, void *scene, const MMActorPasteServices *s)
 {
     MMActorRuntime *r = &actor->runtime;
     MMActorEventTable *events = actor->track.events;
@@ -50,7 +49,7 @@ int mm_actor_paste(MMActorOwner *actor, MMI32 frame, void *scene, int migrate_te
     MMI32 delta, i;
     void *bound_scene;
 
-    if (migrate_text && s->is_text(s->context, r->template_object) && !transfer_template(r, scene, s))
+    if (s->migrate_text && s->is_text(s->context, r->template_object) && !transfer_template(r, scene, s))
         return 0;
 
     r->first = frame;

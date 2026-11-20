@@ -17,7 +17,6 @@
 
 #include "soc.h"
 #include "mm/actor_effect.h"
-#include "mm/actor_paste.h"
 
 ASSERTNAME
 
@@ -122,17 +121,11 @@ bool Actor::FCopyRte(PActor *ppactr, bool fEntireScene)
 
 /***************************************************************************
 
-    Paste the rte from the clipboard pactr to the current actor's current
-    frame onward.
-    On failure, unwinding is expected to be via the dup'd actor from undo.
-    This overwrites the end of the current subroute.
-    NOTE:  To be meaningful, the pasted route section is translated to
-    extend from the current point.
+    Bind the actor's route tables and native effects for C89 route paste.
 
 ***************************************************************************/
-bool Actor::FPasteRte(PActor pactr)
+MMActorRoutePasteServices Actor::_RoutePasteServices()
 {
-    AssertThis(0); AssertVarMem(pactr);
     static_assert(kdwrNil==-65536 && factnStatic==8 && kcbVarStep==4 && kcbVarFreeze==4,"Route paste ABI");
     MMActorRoutePasteServices s{}; s.subroute=_SubrouteEditServices();
     s.distance=[](void *,const MMActorPoint *p)->MMI32 { return BR_LENGTH3(p->dxr,p->dyr,p->dzr); };
@@ -144,21 +137,18 @@ bool Actor::FPasteRte(PActor pactr)
         }
     };
 #ifdef STATIC
-    const int static_mode=1;
-#else
-    const int static_mode=0;
+    s.legacy_static_mode = 1;
 #endif
-    return mm_actor_route_paste(&_owner,pactr->_owner.track.route,static_mode,&s)!=0;
+    return s;
 }
 
 /***************************************************************************
 
-    Put an already existing actor in this scene.
+    Bind the native resource and placement effects for C89 actor paste.
 
 ***************************************************************************/
-bool Actor::FPaste(long nfrm, Scene *pscen)
+MMActorPasteServices Actor::_PasteServices()
 {
-    AssertThis(0);
     static_assert(sizeof(Add)==sizeof(MMActorEntrance),"Paste payload ABI");
     static_assert(ksidUseCrf==0,"Paste document tag ABI");
     MMActorPasteServices s{};
@@ -201,11 +191,9 @@ bool Actor::FPaste(long nfrm, Scene *pscen)
         }
     };
 #ifdef BUG1888
-    const int migrate_text=1;
-#else
-    const int migrate_text=0;
+    s.migrate_text = 1;
 #endif
-    return mm_actor_paste(&_owner,nfrm,pscen,migrate_text,&s)!=0;
+    return s;
 }
 
 /***************************************************************************

@@ -230,19 +230,36 @@ static int paste_actor(void *p, void *a)
     (void)a;
     return t->fail != FAIL_PASTE;
 }
-static int paste_route(void *p, void *source)
+static MMI32 route_paste_distance(void *p, const MMActorPoint *delta)
+{
+    (void)p;
+    return delta->dxr;
+}
+static void route_paste_diagnostic(void *p, int fault)
+{
+    (void)p;
+    (void)fault;
+}
+static int route_paste_flags(void *p, MMI32 action, MMU32 *flags)
 {
     Actor *a = p;
-    MMActorEvent edit;
-    (void)source;
-    memset(&edit, 0, sizeof(edit));
-    edit.aet = MM_ACTOR_REMOVE;
-    if (!mm_actor_events_insert(a->stage.owner.track.events, 0, 0, NULL, &edit))
-        return 0;
-    a->stage.owner.runtime.state.cel = 777;
+    (void)action;
+    *flags = 8;
     if (a->test->switchSelection)
         a->test->selected = &a->test->fresh;
     return a->test->fail != FAIL_PASTE;
+}
+static MMActorRoutePasteServices bind_route_paste(void *p)
+{
+    Actor *a = p;
+    MMActorRoutePasteServices s = {0};
+    s.subroute = stage_fixture_services(&a->stage).subroute;
+    s.legacy_static_mode = 1;
+    s.subroute.action.context = a;
+    s.subroute.action.action_flags = route_paste_flags;
+    s.distance = route_paste_distance;
+    s.diagnostic = route_paste_diagnostic;
+    return s;
 }
 static void long_op(void *p, int begin)
 {
@@ -601,7 +618,7 @@ static void init(Test *t)
     s->place_actor = place;
     s->placement_undo = placement;
     s->paste_actor = paste_actor;
-    s->paste_route = paste_route;
+    s->route_paste = bind_route_paste;
     s->long_op = long_op;
     s->cache_tag = cache;
     s->default_title = title;
@@ -933,6 +950,31 @@ static int scene_edits(void)
           !t.dirty);
     return 0;
 }
+static int seed_route(Actor *actor, MMI32 frame, int clipboard)
+{
+    MMActorRoutePoint point = {{0, 0, 0}, 0};
+    MMActorEvent event = {0};
+    const MMI32 action[] = {0, 0};
+    MMActorOwner *owner = &actor->stage.owner;
+    if (!stage_fixture_init(&actor->stage, frame))
+        return 0;
+    if (clipboard)
+        point.dwr = 65536L;
+    if (!mm_actor_path_insert(owner->track.route, 0, &point))
+        return 0;
+    if (clipboard)
+    {
+        point.xyz.dxr = 65536L;
+        point.dwr = 0;
+        return mm_actor_path_insert(owner->track.route, 1, &point);
+    }
+    owner->runtime.actor = actor->id;
+    owner->runtime.state.actionEvent = 0;
+    owner->runtime.state.nextEvent = 1;
+    event.aet = MM_ACTOR_ACTION;
+    event.nfrm = frame;
+    return mm_actor_events_insert(owner->track.events, 0, sizeof(action), action, &event);
+}
 static int pasting(void)
 {
     Test t;
@@ -942,25 +984,28 @@ static int pasting(void)
     {
         int edited = !fault || failures[fault] == FAIL_PASTE;
         init(&t);
-        CHECK(stage_fixture_init(&t.actor.stage, t.frame));
-        t.actor.stage.owner.runtime.actor = t.actor.id;
+        CHECK(seed_route(&t.actor, t.frame, 0) && seed_route(&t.fresh, t.frame, 1));
         t.fail = failures[fault];
         CHECK(mm_movie_paste_route(&t.fresh, &t.s) == !fault);
         CHECK(t.copy.refs == !fault && t.undo.refs == !fault && t.dirty == !fault && t.invalidates == !fault);
-        CHECK(t.actor.stage.owner.runtime.state.cel == (edited ? 777 : 0) &&
-              mm_actor_events_count(t.actor.stage.owner.track.events) == edited);
+        CHECK(mm_actor_path_count(t.actor.stage.owner.track.route) == 1 + edited);
+        CHECK(mm_actor_events_count(t.actor.stage.owner.track.events) == (fault ? 1 : 4));
+        CHECK(mm_actor_path_count(t.fresh.stage.owner.track.route) == 2 &&
+              !mm_actor_events_count(t.fresh.stage.owner.track.events));
         CHECK(t.restore == (fault >= 3) && t.clears == (t.fail == FAIL_COMMIT));
         if (fault >= 3)
             CHECK(t.events[t.eventCount - 2] == RESTORE && t.events[t.eventCount - 1] == RELEASE);
         if (!fault)
         {
             CHECK(t.undo.actor_state.actor == &t.copy && t.undo.actor_state.actor_id == t.actor.id);
-            CHECK(!mm_actor_events_count(t.copy.stage.owner.track.events) &&
+            CHECK(mm_actor_path_count(t.copy.stage.owner.track.route) == 1 &&
+                  mm_actor_events_count(t.copy.stage.owner.track.events) == 1 &&
                   t.copy.stage.owner.runtime.state.frame == 2147483647L);
             CHECK(t.events[t.eventCount - 2] == INVALIDATE && t.events[t.eventCount - 1] == RELEASE);
             release_actor_undo(&t, &t.undo);
         }
         CHECK(!t.copy.refs && !t.undo.refs);
+        stage_fixture_dispose(&t.fresh.stage);
         stage_fixture_dispose(&t.actor.stage);
     }
     init(&t);
@@ -978,14 +1023,15 @@ static int pasting(void)
     init(&t);
     t.switchSelection = 1;
     t.fail = FAIL_COMMIT;
-    CHECK(stage_fixture_init(&t.actor.stage, t.frame) && stage_fixture_init(&t.fresh.stage, t.frame));
+    CHECK(seed_route(&t.actor, t.frame, 0) && seed_route(&t.fresh, t.frame, 1));
     t.fresh.stage.owner.runtime.actor = 6;
     t.fresh.stage.owner.runtime.state.cel = 123;
     CHECK(!mm_movie_paste_route(&t.fresh, &t.s) && t.undoOnFresh && t.undo.actor_state.actor_id == 6 &&
           t.selectedCalls == 4 && !t.copy.refs && !t.dirty);
-    CHECK(t.actor.stage.owner.runtime.state.cel == 777 && t.fresh.stage.owner.runtime.state.cel == 0 &&
-          mm_actor_events_count(t.actor.stage.owner.track.events) == 1 &&
-          !mm_actor_events_count(t.fresh.stage.owner.track.events));
+    CHECK(mm_actor_path_count(t.actor.stage.owner.track.route) == 2 &&
+          mm_actor_events_count(t.actor.stage.owner.track.events) == 4);
+    CHECK(t.fresh.stage.owner.runtime.state.cel == 0 && mm_actor_path_count(t.fresh.stage.owner.track.route) == 1 &&
+          mm_actor_events_count(t.fresh.stage.owner.track.events) == 1);
     stage_fixture_dispose(&t.fresh.stage);
     stage_fixture_dispose(&t.actor.stage);
     return 0;

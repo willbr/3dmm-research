@@ -40,6 +40,7 @@ using namespace BRender;
 #include "mm/actor_owner.h"
 #include "mm/actor_transaction.h"
 #include "mm/actor_copy.h"
+#include "mm/actor_paste.h"
 #include "mm/actor_route_paste.h"
 #include "mm/actor_clipboard.h"
 #include "mm/actor_create.h"
@@ -160,6 +161,8 @@ class Actor : public Actor_PAR
     MMActorTransactionServices _TransactionServices();
     MMActorDeleteServices _DeleteServices();
     MMActorCopyServices _CopyServices();
+    MMActorPasteServices _PasteServices();
+    MMActorRoutePasteServices _RoutePasteServices();
     MMActorSoundEditServices _SoundEditServices();
     bool _FEnqueueSnd(long iaev);
     bool _FEnqueueSmmInMsq(void);
@@ -386,9 +389,7 @@ class Actor : public Actor_PAR
     bool FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCustom);
     bool FCopy(PActor *ppactr, bool fEntireScene = fFalse);    // Duplicate actor from this frame on
     bool FCopyRte(PActor *ppactr, bool fEntireScene = fFalse); // Duplicate path from this frame on
-    bool FPasteRte(PActor pactr);                              // Paste from clipboard from this frame on
     bool FNormalize(ulong grfnorm);
-    bool FPaste(long nfrm, Scene *pscen);
     bool FDelete(bool *pfAlive, bool fDeleteAll);
 
     // ActrSnd Routines

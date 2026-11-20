@@ -405,7 +405,8 @@ class TrackTestActor : public Actor
         _owner.runtime.origin={BR_SCALAR(30),BR_SCALAR(31),BR_SCALAR(32)}; _owner.runtime.first=1; _owner.runtime.last=20; _owner.runtime.life_dirty=(mode&4)!=0;
         if (!scene->TrackActor(this,3)) return false;
         const long frame=(mode%3)==0?1:(mode%3)==1?10:-3;
-        bool pasted=FPaste(frame,scene); vpers->Clear();
+        const auto services = _PasteServices();
+        bool pasted=mm_actor_paste(&_owner,frame,scene,&services)!=0; vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,pasted,_owner.runtime.first,_owner.runtime.last,_owner.runtime.life_dirty,_owner.runtime.state.frame,_owner.runtime.state.nextEvent,
             _owner.runtime.state.firstEventInFrame,_owner.runtime.state.actionEvent,_owner.runtime.state.addEvent,mm_actor_events_count(_owner.track.events),
@@ -471,7 +472,8 @@ class TrackTestActor : public Actor
         _owner.runtime.state.location={current,(current<2 && (mode&1))?BR_SCALAR(2):rZero,(mode&2)?2:0};
         _GetXyzFromRtel(&_owner.runtime.state.location,&_owner.runtime.state.position); _owner.runtime.first=1; _owner.runtime.last=10; _owner.runtime.life_dirty=(mode&128)!=0;
         if (!scene->TrackActor(this,3)) return false;
-        bool changed=FPasteRte(clipboard); vpers->Clear();
+        const auto services = _RoutePasteServices();
+        bool changed=mm_actor_route_paste(&_owner,clipboard->_owner.track.route,&services)!=0; vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,changed,_owner.runtime.state.frame,_owner.runtime.state.nextEvent,_owner.runtime.state.firstEventInFrame,_owner.runtime.state.addEvent,_owner.runtime.state.actionEvent,
             _owner.runtime.state.location.irpt,_owner.runtime.state.location.dwrOffset,_owner.runtime.state.location.dnfrm,_owner.runtime.state.step,_owner.runtime.state.frozen,

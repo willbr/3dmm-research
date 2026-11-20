@@ -18,6 +18,7 @@ typedef struct MMActorPasteServices
     void *context;
     MMActorCreateServices create;
     MMActorEditServices edits;
+    int migrate_text;
     int (*is_text)(void *,void *template_object);
     int (*ensure_autosave)(void *,void *scene,void **cache);
     int (*save_template)(void *,MMTag *,void *cache);
@@ -48,8 +49,7 @@ typedef struct MMActorPasteServices
  * or perform additional cleanup, matching the native operation. dirty and final
  * route-translation publication happen only on success.
  */
-int mm_actor_paste(MMActorOwner *, MMI32 frame, void *scene, int migrate_text,
-                   const MMActorPasteServices *);
+int mm_actor_paste(MMActorOwner *, MMI32 frame, void *scene, const MMActorPasteServices *);
 #ifdef __cplusplus
 }
 #endif
