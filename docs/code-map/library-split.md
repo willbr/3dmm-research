@@ -6102,11 +6102,15 @@ Build identities, traces and captures are in `tmp/c89-action-tables`.
 
 `font_resource.c` owns `MMFontResource` count/maximum/metric storage,
 resource estimates, loading, authoring, disposal, metric queries and glyph lookup.
-ThreeDFont is now a temporary facade around that C state. Native services provide
-primitive allocation, blocks, child lists/graph operations, retained model fetches,
-model bounds and diagnostics. ThreeDText generation now uses the C implementation
-described below, along with C-owned string/tag orchestration and localized
-action-name policy in `text_resource.c`.
+ThreeDFont is a facade around that C state. Live font loads decode a borrowed
+C block and call the same bounded metric reader as the standalone movie session.
+C resolves glyph child slots from the font's cache binding and fetches models
+with the existing reader key. Font authoring uses that cache for its input
+models and writes metrics through an owned C block. Native services supply
+allocation, the codec, the authoring child list and graph edits, model bounds
+and diagnostics. ThreeDText generation uses the C implementation described
+below, along with C-owned string/tag orchestration and localized action-name
+policy in `text_resource.c`.
 
 Loading publishes character count before exact-length validation, maximum height
 after validation, then each buffer before its read. Direct failure retains

@@ -14,7 +14,6 @@
 #ifndef ThreeDFont_H
 #define ThreeDFont_H
 #include "mm/font_resource.h"
-struct FontResourceContext;
 
 using namespace BRender;
 
@@ -37,7 +36,7 @@ class ThreeDFont : public ThreeDFont_PAR
     ThreeDFont(void)
     {
     }
-    static MMFontResourceServices _Services(FontResourceContext *);
+    static MMFontResourceServices _Services();
     bool _FInit(PDataBlock pblck);
 
   public:

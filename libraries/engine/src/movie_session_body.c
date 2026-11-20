@@ -216,24 +216,13 @@ static int text_name(const MMMovieBodyInput *in, TextBody *text)
     return status;
 }
 
-static int font_unpacked(void *p, void *block) { (void)p; (void)block; return 1; }
-static MMI32 font_size(void *p, void *block) { (void)p; return (MMI32)((const MMReadStream *)block)->length; }
-static int font_read(void *p, void *block, void *out, MMI32 count, MMI32 offset)
-{
-    int ok = mm_read_exact((const MMReadStream *)block, (MMU32)offset, out, (size_t)count);
-    if (!ok)
-        ((TextBody *)p)->status = MM_MOVIE_IO;
-    return ok;
-}
 static int font_allocate(void *p, MMI32 bytes, int clear, void **out)
 {
+    (void)p;
     (void)clear;
     *out = bytes ? malloc((size_t)bytes) : NULL;
-    if (bytes && !*out)
-        ((TextBody *)p)->status = MM_MOVIE_MEMORY;
     return !bytes || *out != NULL;
 }
-static void font_free(void *p, void **data) { (void)p; free(*data); *data = NULL; }
 static void font_invalid(void *p) { ((TextBody *)p)->status = MM_MOVIE_BAD_FILE; }
 
 static MMI32 text_count(void *p, void *object) { (void)p; return ((TextBody *)object)->string[0]; }
@@ -306,20 +295,15 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     memset(&font_services, 0, sizeof(font_services));
     font_services.context = &text;
     font_services.host_big_endian = *(const unsigned char *)&one == 0;
-    font_services.unpack = font_unpacked;
-    font_services.block_size = font_size;
-    font_services.read = font_read;
     font_services.allocate = font_allocate;
-    font_services.free_memory = font_free;
     font_services.bad_font = font_invalid;
     font_services.bad_order = font_invalid;
-    status = mm_font_initialize(&text.metrics, (void *)payload.stream, &font_services);
+    status = mm_font_read_stream(&text.metrics, payload.stream, &font_services);
     free(payload.decoded);
-    if (!status || text.status != MM_MOVIE_OK)
-    {
-        status = text.status != MM_MOVIE_OK ? text.status : MM_MOVIE_BAD_FILE;
+    if (status == MM_MOVIE_OK)
+        status = text.status;
+    if (status != MM_MOVIE_OK)
         goto done;
-    }
     status = reserve_parts(body, text.string[0]);
     if (status != MM_MOVIE_OK)
         goto done;

@@ -28,6 +28,7 @@
 
 ***************************************************************************/
 #include "soc_core.h"
+#include "handle_services.h"
 ASSERTNAME
 
 RTCLASS(ThreeDFont)
@@ -35,23 +36,17 @@ RTCLASS(ThreeDFont)
 /***************************************************************************
     A PFNRPO to read a ThreeDFont from a file.
 ***************************************************************************/
-struct FontResourceContext { DataBlock block; };
-MMFontResourceServices ThreeDFont::_Services(FontResourceContext *context)
+MMFontResourceServices ThreeDFont::_Services()
 {
-    MMFontResourceServices s = {}; s.context = context; s.system = koskCur;
+    MMFontResourceServices s = {}; s.system = koskCur;
     const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
     s.spacing = BR_SCALAR(0.0); s.leading = BR_SCALAR(0.5);
+    s.object_bytes = sizeof(ThreeDFont);
     static_assert(sizeof(BRS) == 4 && sizeof(ChunkIdentification) == 8, "font ABI");
     s.state = [](void *, void *object) { return &static_cast<PThreeDFont>(object)->_font; };
     s.create = [](void *) -> void * { return NewObj ThreeDFont; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.initialize = [](void *, void *object, void *block) -> int { return static_cast<PThreeDFont>(object)->_FInit(static_cast<PDataBlock>(block)); };
-    s.object_size = [](void *) -> MMI32 { return sizeof(ThreeDFont); };
-    s.packed = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FPacked(); };
-    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.block_size = [](void *, void *block) -> MMI32 { return static_cast<PDataBlock>(block)->Cb(); };
-    s.read = [](void *, void *block, void *out, MMI32 bytes, MMI32 offset) -> int { return static_cast<PDataBlock>(block)->FReadRgb(out, bytes, offset); };
-    s.write = [](void *, void *block, const void *data, MMI32 bytes, MMI32 offset) -> int { return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), bytes, offset); };
+    s.decode = KauaiDecodeBlockHandle;
     s.allocate = [](void *, MMI32 bytes, int clear, void **out) -> int { return FAllocPv(out, bytes, clear ? fmemClear : fmemNil, mprNormal); };
     s.free_memory = [](void *, void **out) { FreePpv(out); };
     s.invalidate = [](void *, void *out, size_t bytes) {
@@ -67,30 +62,19 @@ MMFontResourceServices ThreeDFont::_Services(FontResourceContext *context)
     s.child_at = [](void *, void *children, MMI32 i, MMFontChild *out) {
         ChildChunkIdentification child; static_cast<PDynamicArray>(children)->Get(i, &child); *out = {child.cki.ctg, child.cki.cno, child.chid};
     };
-    s.file = [](void *, void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->Pcfl(); };
-    s.add = [](void *p, void *file, MMI32 bytes, MMU32 type, MMU32 *out) -> void * {
-        ChunkNumber number = *out; auto block = &static_cast<FontResourceContext *>(p)->block;
-        const bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &number, block); *out = number; return ok ? block : nullptr;
+    s.add = [](void *, void *file, MMI32 bytes, MMU32 type, MMU32 *out, MMOwnedBlock *block) -> int {
+        DataBlock view(*block);
+        ChunkNumber number = *out;
+        const bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &number, &view);
+        *out = number;
+        return ok;
     };
-    s.fetch_model = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, Model::FReadModl); };
+    s.model_reader = reinterpret_cast<MMResourceReader>(Model::FReadModl);
     s.adopt = [](void *, void *file, MMU32 type, MMU32 number, const MMFontChild *child) -> int {
         return static_cast<PChunkyFile>(file)->FAdoptChild(type, number, child->type, child->number, child->id);
     };
     s.model_width = [](void *, void *model) -> MMI32 { return static_cast<PModel>(model)->Dxr(); };
     s.model_height = [](void *, void *model) -> MMI32 { return static_cast<PModel>(model)->Dyr(); };
-    s.binding = [](void *, void *object, void **cache, MMFontChunk *chunk) {
-        auto font = static_cast<PThreeDFont>(object); *cache = font->Pcrf(); *chunk = {font->Ctg(), font->Cno()};
-    };
-    s.child_id = [](void *, void *cache, MMU32 type, MMU32 number, MMU32 id, MMFontChild *out) -> int {
-        const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
-        MMU32 parent;
-        MMChunkChild child;
-        if (mm_chunk_find(&chunks, type, number, &parent) != MM_CHUNK_OK ||
-            mm_chunk_child_type(&chunks, parent, id, 0, &child) != MM_CHUNK_OK)
-            return false;
-        *out = {child.type, child.number, child.slot};
-        return true;
-    };
     s.missing_model = [](void *, MMU32 id) {
         String message; message.FFormatSz(PszLit("Couldn't find BMDL for 3-D Font with chid %d."), id); Warn(message.Psz()); PushErc(ercSocNoModlForChar);
     };
@@ -101,8 +85,8 @@ bool ThreeDFont::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNum
 {
     AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
     (void)ctg; (void)cno;
-    FontResourceContext context; auto s = _Services(&context);
-    return mm_font_fetch(pblck, ppbaco, pcb, &s) != 0;
+    const auto s = _Services();
+    return mm_font_fetch(pblck->CoreBlock(), ppbaco, pcb, &s) != 0;
 }
 
 /***************************************************************************
@@ -112,8 +96,8 @@ bool ThreeDFont::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNum
 bool ThreeDFont::_FInit(PDataBlock pblck)
 {
     AssertBaseThis(0); AssertPo(pblck, 0);
-    FontResourceContext context; auto s = _Services(&context);
-    return mm_font_initialize(&_font, pblck, &s) != 0;
+    const auto s = _Services();
+    return mm_font_initialize(&_font, pblck->CoreBlock(), &s) != 0;
 }
 
 /***************************************************************************
@@ -122,7 +106,7 @@ bool ThreeDFont::_FInit(PDataBlock pblck)
 ThreeDFont::~ThreeDFont(void)
 {
     AssertBaseThis(0);
-    FontResourceContext context; auto s = _Services(&context);
+    const auto s = _Services();
     mm_font_dispose(&_font, &s);
 }
 
@@ -135,8 +119,8 @@ ThreeDFont::~ThreeDFont(void)
 bool ThreeDFont::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, ChunkIdentification *pckiTdf)
 {
     AssertPo(pcrf, 0); AssertPo(pglkid, 0); AssertPo(pstn, 0); AssertNilOrVarMem(pckiTdf);
-    FontResourceContext context; auto s = _Services(&context);
-    return mm_font_author(pcrf, pglkid, pckiTdf, &s) != 0;
+    const auto s = _Services();
+    return mm_font_author(pcrf->CoreCache(), pglkid, pckiTdf, &s) != 0;
 }
 
 /***************************************************************************
@@ -146,8 +130,8 @@ bool ThreeDFont::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String 
 PModel ThreeDFont::PmodlFetch(ChildChunkID chid)
 {
     AssertThis(0);
-    FontResourceContext context; auto s = _Services(&context);
-    return static_cast<PModel>(mm_font_model(this, chid, &s));
+    const auto s = _Services();
+    return static_cast<PModel>(mm_font_model(ResourceBinding(), chid, &s));
 }
 
 /***************************************************************************

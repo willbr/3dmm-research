@@ -17213,3 +17213,37 @@ seek and continuous playback for both ports and all retail seek camera
 indices. SDL matched all 12 retail sound requests. Each port reproduced all
 60 seek canvas hashes from the previous build. The comparison and fixture
 evidence are in `tmp/c89-action-block`.
+
+## 3D font metrics and glyphs through C89 blocks (20 November 2026)
+
+Live font reads and the standalone movie session share the bounded font
+metrics decoder. The live font resolves glyph children and fetches their
+models through the C89 cache. Font authoring uses that cache and writes its
+header and metric arrays through an owned C block. The focused fixture covers
+packed estimates, decode failure, the first-child lookup rule, partial writes
+and release of cached model references.
+
+All 192 standalone C checks, six focused AddressSanitizer checks, 16 selected
+x64 checks and 12 selected SDL checks passed. The six focused x86 C fixtures
+and core-link test passed.
+All 15 font, action, template and 3D text traces matched their pre-change
+builds byte for byte. The 1,248-case font traces contained 210,880 bytes on
+each native build and 229,824 bytes on SDL.
+
+The standalone `--mesh` output matched the previous executable across both
+scenes and all 60 frames of the actor-event fixture. The comparison covered
+120 font mesh records and 962,172 bytes of output.
+
+All 54 movie and scene traces, three saved movie fixtures, ten Preview
+fingerprints and six Preview movies matched. The Studio authoring save matched
+byte for byte. Retail, SDL and Marcus matched all three retained-background
+frame identities, camera indices and canvas hashes in `20261120T235153Z-7d415adb`.
+Both ports matched original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261120T235228Z-12737321`.
+
+All four `actor-event-edit` captures completed in `20261120T235137Z-e94bf2b5`.
+Against archived retail runs, both ports matched all 60 frame identities in
+seek and continuous playback and all retail seek camera indices. SDL also
+matched all 12 retail sound requests. Each port reproduced all 60 seek canvas
+hashes from the previous build. The comparison and fixture evidence are in
+`tmp/c89-font-block`.
