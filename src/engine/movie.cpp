@@ -722,7 +722,8 @@ MMMovieEditServices Movie::_EditServices()
     s.first_view = [](void *p) -> void * { return static_cast<PMovieView>(static_cast<PMovie>(p)->PddgGet(0)); };
     s.new_actor = [](void *, const MMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return Actor::PactrNew(&tag); };
     s.actor_visible = [](void *p) -> int { return static_cast<PActor>(p)->FIsInView(); };
-    s.core_onstage = [](void *p) -> int { return static_cast<PActor>(p)->FAddOnStageCore(); };
+    s.stage = Actor::_BindStageEdit;
+    s.actor_transaction = [](void *p) { return static_cast<PActor>(p)->_TransactionServices(); };
     s.duplicate_actor = [](void *p, int reset) -> void * {
         PActor copy = nullptr; if (!static_cast<PActor>(p)->FDup(&copy, reset != 0)) return nullptr; return copy;
     };
@@ -741,7 +742,6 @@ MMMovieEditServices Movie::_EditServices()
         case MM_MOVIE_EDIT_SCALE: return actor->FScale(q->factor);
         case MM_MOVIE_EDIT_COSTUME: return actor->FSetCostume(q->part, q->tag ? &tag : nullptr, q->costume, tribool(q->custom));
         case MM_MOVIE_EDIT_ACTOR_SOUND: return actor->FSetSnd(q->tag ? &tag : nullptr, tribool(q->loop), tribool(q->queue), tribool(q->cel), q->volume, q->style);
-        case MM_MOVIE_EDIT_ONSTAGE: return actor->FAddOnStage();
         default: Bug("Invalid Movie actor primitive"); return 0;
         }
     };
@@ -5529,7 +5529,7 @@ MMMovieClipboardServices MovieView::_ClipboardServices(ClipboardHost *host)
         return 1;
     };
     s.remove_actor = [](void *scene, void *actor) { static_cast<PScene>(scene)->RemActrCore(static_cast<PActor>(actor)->Arid()); };
-    s.offstage = [](void *actor) { static_cast<PActor>(actor)->FRemFromStageCore(); };
+    s.stage = Actor::_BindStageEdit;
     s.dirty = [](void *scene) { static_cast<PScene>(scene)->MarkDirty(); };
     s.invalidate = [](void *p) { static_cast<ClipboardHost *>(p)->view->Pmvie()->InvalViews(); };
     s.paste_actor = [](void *p, void *document) {

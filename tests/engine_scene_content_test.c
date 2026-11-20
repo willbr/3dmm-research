@@ -1,4 +1,5 @@
 #include "mm/scene_content.h"
+#include "actor_stage_owner_fixture.h"
 #include "scene_member_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +16,7 @@
 typedef struct Obj
 {
     int refs, id, text, ready, bound, roll, hidden, selected, first, last, life;
+    StageOwnerFixture stage;
 } Obj;
 typedef struct Undo
 {
@@ -32,7 +34,7 @@ typedef struct Test
     Undo *active;
     int live, undo_live, next_id, dirty, invalid, indicator, updated, placement, bind_fail, seek_actor_fail,
         seek_text_fail, insert_fail, roll_fail, roll_calls;
-    int onstage_fail, paste_fail, new_fail, commit_fail, clears, not_undoable, dup_fail, dups, switched, switch_fail,
+    int paste_fail, new_fail, commit_fail, clears, not_undoable, dup_fail, dups, switched, switch_fail,
         seek_calls, seek_fail, flushes, hide_text, issues[7];
     int log[512], used;
     MMSceneActorUndo cleared_actor;
@@ -75,6 +77,8 @@ static void release(void *p, void *object)
     note(t, 1);
     if (!--o->refs)
     {
+        if (o->stage.owner.track.events)
+            stage_fixture_dispose(&o->stage);
         --t->live;
         free(o);
     }
@@ -175,10 +179,12 @@ static void hide_actor(void *p, void *o)
     ((Obj *)o)->hidden = 1;
     note((Test *)p, 14);
 }
-static int onstage(void *p, void *o)
+static MMActorStageEditServices stage(void *o)
 {
-    (void)o;
-    return !((Test *)p)->onstage_fail;
+    Obj *actor = o;
+    CHECK(actor->bound && actor->roll == 1 && actor->id != -1);
+    actor->stage.owner.runtime.actor = actor->id;
+    return stage_fixture_services(&actor->stage);
 }
 static int paste(void *p, void *o, MMI32 frame)
 {
@@ -364,7 +370,7 @@ static void init(Test *t)
     s->actor_id = actor_id;
     s->set_actor_id = set_id;
     s->actor_ready = ready;
-    s->actor_onstage = onstage;
+    s->stage = stage;
     s->actor_paste = paste;
     s->hide_actor = hide_actor;
     s->selection.context = t;
@@ -470,12 +476,20 @@ static void test_actor(void)
     release(&t, b);
     release(&t, a);
     clean(&t);
-    init(&t);
-    a = new_obj(&t, 0);
-    t.onstage_fail = 1;
-    CHECK(!mm_scene_actor_add_onstage(a, &t.s) && a->refs == 1 && !mm_scene_member_count(&t.owner, MM_SCENE_ACTORS));
-    release(&t, a);
-    clean(&t);
+    for (failure = 0; failure < 2; ++failure)
+    {
+        init(&t);
+        a = new_obj(&t, 0);
+        CHECK(stage_fixture_init(&a->stage, t.owner.data.currentFrame));
+        a->stage.fail_entrance = failure;
+        CHECK(mm_scene_actor_add_onstage(a, &t.s) == !failure && a->stage.entrances == 1);
+        CHECK(a->refs == (failure ? 1 : 2) && a->hidden == failure);
+        CHECK(mm_scene_member_count(&t.owner, MM_SCENE_ACTORS) == !failure);
+        CHECK(t.owner.selected_actor == (failure ? NULL : a));
+        CHECK(mm_actor_events_count(a->stage.owner.track.events) == (failure ? 1 : 4));
+        release(&t, a);
+        clean(&t);
+    }
     init(&t);
     a = new_obj(&t, 0);
     CHECK(mm_scene_actor_paste(a, &t.s) && t.updated == 1 && t.invalid == 2 && t.indicator == 2);

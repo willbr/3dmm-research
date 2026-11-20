@@ -606,9 +606,15 @@ class TrackTestActor : public Actor
         {
         case 0: changed=FSetAction(0,(mode&1)?2:0,(mode&2)!=0,(mode&1)?&output:nullptr); break;
         case 1: changed=FNormalize(mode&3); break;
-        case 2: changed=FRemFromStage(); break;
+        case 2:
+        case 4:
+        {
+            const auto transaction = _TransactionServices();
+            const auto edit = _StageEditServices();
+            changed = mm_actor_transaction_stage(this, operation == 4, &edit, &transaction) != 0;
+            break;
+        }
         case 3: changed=FDelete((mode&4)?nullptr:&alive,(mode&1)!=0); break;
-        case 4: changed=FAddOnStage(); break;
         }
 #ifdef DEBUG
         vmutxMem.Enter(); vdmglob.dmaglBase.cactFail=0; vmutxMem.Leave();
@@ -865,7 +871,8 @@ class TrackTestActor : public Actor
         _owner.runtime.first=(mode&2)?4:1; _owner.runtime.last=(mode&2)?5:20;
         _owner.runtime.life_dirty=false; _owner.runtime.recording.recording=(mode&4)!=0; _owner.runtime.recording.rejoining=false;
         tmpl->FailAfter((mode&8)?((mode&16)?3:1):0);
-        bool ok=kind<4?FAddOnStageCore():FRemFromStageCore();
+        const auto services = _StageEditServices();
+        bool ok=mm_actor_owner_stage_edit(&_owner,kind<4,&services)!=0;
         tmpl->FailAfter(0); tmpl->SetTestText(false); vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,ok,_owner.runtime.state.nextEvent,_owner.runtime.state.firstEventInFrame,_owner.runtime.state.actionEvent,_owner.runtime.state.addEvent,

@@ -31,7 +31,7 @@ typedef struct MMActorDeleteServices
 /* Each edit clones the actor first. Failed edits or undo registration restore
  * the actor and release the local snapshot. Sound requests playback on undo.
  * Callbacks cannot reenter. Edit services must be bound to the supplied actor. */
-int mm_actor_transaction_stage(void *actor,int entrance,MMU32 external_child,
+int mm_actor_transaction_stage(void *actor,int entrance,
     const MMActorStageEditServices *,const MMActorTransactionServices *);
 int mm_actor_transaction_normalize(void *actor,MMU32 flags,
     const MMActorTransformEditServices *,const MMActorTransactionServices *);

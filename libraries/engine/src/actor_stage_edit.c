@@ -5,20 +5,24 @@
 #include "mm/actor_owner.h"
 #include <string.h>
 #define FLAG(kind) ((MMU32)1 << (kind))
-int mm_actor_owner_stage_edit(MMActorOwner *owner, int entrance, MMU32 external_child,
-    const MMActorStageEditServices *s)
+int mm_actor_owner_stage_edit(MMActorOwner *owner, int entrance, const MMActorStageEditServices *s)
 {
     const MMActorMotionServices motion = mm_actor_track_motion_services();
     MMActorState state = owner->runtime.state;
     int ok;
     if (entrance)
         ok = mm_actor_stage_add(&state, &owner->sounds, owner->track.route, owner->track.events,
-                                owner->runtime.actor, external_child, &motion, s);
+                                owner->runtime.actor, s->external_child, &motion, s);
     else
         ok = mm_actor_stage_remove(&state, &owner->sounds, owner->track.route, owner->track.events,
                                    owner->runtime.actor, &motion, s);
     owner->runtime.state = state;
     return ok;
+}
+int mm_actor_stage_apply(void *actor, int entrance, MMActorStageBind bind)
+{
+    const MMActorStageEditServices services = bind(actor);
+    return mm_actor_owner_stage_edit(services.subroute.live, entrance, &services);
 }
 static void publish(const MMActorState *state, const MMActorEditServices *e)
 { if (e->publish) e->publish(e->context, state); }

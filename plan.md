@@ -392,6 +392,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   including reservation order, early cache extension, neighboring-event
   inheritance, position/step/freeze sequencing, hide/default/rewind and seek.
   Removing an entrance can reveal an earlier subroute that then receives Remove.
+  Scene admission, roll-call placement, explicit stage entry with undo and
+  the cut command's surviving-actor path call these C89 stage operations.
+  Studio binds the live actor and its scene, template and renderer effects.
 - Recording validity, record-step sizing, begin/move/end sequencing, mouse
   smoothing, route sampling, ground clipping and rejoining now execute in C89.
   Timestamp differences wrap at 32 bits; displaced event/tag handling, end-of-

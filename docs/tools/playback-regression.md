@@ -16091,3 +16091,33 @@ In `actor-event-edit` suite `20261120T154527Z-ef9d557f`, SDL and Marcus
 matched all 60 retail frame identities in seek and playback, retail
 camera indices on seek, and their prior seek image hashes. SDL matched
 all 12 retail sound requests.
+
+## C89 stage edits from scene and movie controllers (20 November 2026)
+
+Scene admission, roll-call placement, explicit stage entry with undo
+and the cut command's surviving-actor path all call C89 stage edits.
+Studio supplies the live actor and native effects. Scene admission
+binds them after installing the actor in the scene.
+
+The scene and movie fixtures use real C actor tracks to check entrance,
+exit, partial failure and undo rollback. They verify that failed scene
+admission removes the actor, failed roll-call entry keeps its completed
+edit prefix, and failed undo registration restores the live track.
+All 192 standalone engine checks passed, including strict C89 syntax.
+The 12 targeted x64 checks, nine checks each in x86 Debug and SDL
+Release, and four AddressSanitizer checks also passed.
+
+The full movie tests passed on native x64, x86 Debug and SDL Release.
+Ten actor traces per build and the three saved movies matched their
+baselines. The native x64 and SDL scene-content traces both retained
+fingerprint `5E56C170`. Production SDL Studio authored, reopened
+and played a byte-identical movie before and after the change.
+
+All ten Preview fingerprints, six fixture archives, and both VMM seek
+images in `20261120T155738Z-09bca05d` matched their baselines. Logs
+and fixtures are in `tmp/c89-stage-controller-binding`.
+
+In `actor-event-edit` suite `20261120T155738Z-335c7633`, SDL and Marcus
+matched all 60 retail frame identities in seek and playback, retail
+camera indices on seek, and their prior seek image hashes. SDL matched
+all 12 retail sound requests.

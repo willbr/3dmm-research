@@ -1494,7 +1494,7 @@ MMSceneContentServices Scene::_ContentServices()
     s.actor_id = [](void *, void *p) -> MMI32 { return static_cast<PActor>(p)->Arid(); };
     s.set_actor_id = [](void *, void *p, MMI32 id) { static_cast<PActor>(p)->SetArid(id); };
     s.actor_ready = [](void *, void *p) -> int { return static_cast<PActor>(p)->Pbody() != nullptr; };
-    s.actor_onstage = [](void *, void *p) -> int { return static_cast<PActor>(p)->FAddOnStageCore(); };
+    s.stage = Actor::_BindStageEdit;
     s.actor_paste = [](void *p, void *a, MMI32 frame) -> int {
         return static_cast<PActor>(a)->FPaste(frame, static_cast<PScene>(p));
     };

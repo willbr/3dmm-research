@@ -115,7 +115,7 @@ int mm_scene_actor_add_onstage(void *actor, const MMSceneContentServices *s)
 {
     if (!mm_scene_actor_add(actor, s))
         return 0;
-    if (!s->actor_onstage(s->context, actor))
+    if (!mm_actor_stage_apply(actor, 1, s->stage))
     {
         mm_scene_actor_remove(s->actor_id(s->context, actor), s);
         return 0;

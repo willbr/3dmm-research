@@ -386,21 +386,6 @@ bool Actor::FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup)
 
 /***************************************************************************
 
-    Add the event to the event list: Add actor on the stage, and create undo
-    object.
-
-***************************************************************************/
-bool Actor::FAddOnStage(void)
-{
-    AssertThis(0);
-    const auto transaction = _TransactionServices();
-    const auto edit = _StageEditServices();
-    ChildChunkID external=0; TrashVar(&external);
-    return mm_actor_transaction_stage(this,1,external,&edit,&transaction)!=0;
-}
-
-/***************************************************************************
-
     Normalize an actor.
 
 ***************************************************************************/
@@ -430,7 +415,7 @@ bool Actor::FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCmtl)
 /***************************************************************************
 
     Delete the path and events from this frame and beyond
-    **NOTE:  This does not send the actor offstage.	See FRemFromStageCore.
+    **NOTE:  This does not send the actor offstage. See mm_actor_owner_stage_edit.
 
     On Input: fDeleteAll specifies full route vs subroute deletion
     Returns *pfAlive = false if all events and route for this actor
@@ -447,19 +432,6 @@ bool Actor::FDelete(bool *pfAlive, bool fDeleteAll)
     MMActorDeleteResult out{}; out.context=pfAlive;
     out.publish=[](void *p,int alive,int trashed) { if (trashed) { TrashVar(static_cast<bool *>(p)); } else *static_cast<bool *>(p)=alive!=0; };
     return mm_actor_transaction_delete(this,fDeleteAll,pfAlive?&out:nullptr,&s,&d)!=0;
-}
-
-/***************************************************************************
-
-    Add the event to the event list: Remove actor from the stage, and an Undo.
-    NOTE: This should be called <before> the call to place the actor offstage
-***************************************************************************/
-bool Actor::FRemFromStage(void)
-{
-    AssertThis(0);
-    const auto transaction = _TransactionServices();
-    const auto edit = _StageEditServices();
-    return mm_actor_transaction_stage(this,0,0,&edit,&transaction)!=0;
 }
 
 /****************************************************

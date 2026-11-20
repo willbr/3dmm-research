@@ -33,7 +33,7 @@ int mm_movie_choose_actor(MMI32 id, const MMMovieEditServices *s)
             snapshot = s->duplicate_actor(actor, 1);
             if (!snapshot)
                 return 0;
-            if (!s->core_onstage(actor))
+            if (!mm_actor_stage_apply(actor, 1, s->stage))
             {
                 s->release_actor(snapshot);
                 return 0;
@@ -92,7 +92,8 @@ int mm_movie_insert_actor(const MMTag *tag, const MMMovieEditServices *s)
 int mm_movie_onstage(MMI32 id, const MMMovieEditServices *s)
 {
     void *actor;
-    MMMovieEditRequest request = {0};
+    MMActorStageEditServices stage;
+    MMActorTransactionServices transaction;
     if (id == -1)
         actor = s->selected_actor(s->scenes->open);
     else
@@ -105,9 +106,9 @@ int mm_movie_onstage(MMI32 id, const MMMovieEditServices *s)
         s->diagnostic(s->context, MM_MOVIE_EDIT_NO_ACTOR);
         return 0;
     }
-    /* This operation consumes no request fields. */
-    request.tag = 0;
-    if (!s->apply_actor(actor, MM_MOVIE_EDIT_ONSTAGE, &request))
+    stage = s->stage(actor);
+    transaction = s->actor_transaction(actor);
+    if (!mm_actor_transaction_stage(actor, 1, &stage, &transaction))
         return 0;
     changed(0, s);
     return 1;
@@ -344,7 +345,7 @@ static void clipboard_clear_selection(const MMMovieClipboardServices *s)
     if (!deleted)
         return;
     if (alive)
-        s->offstage(actor);
+        mm_actor_stage_apply(actor, 0, s->stage);
     else
         s->remove_actor(s->scene(s->context), actor);
     s->dirty(s->scene(s->context));

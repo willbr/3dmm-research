@@ -109,6 +109,7 @@ typedef class Actor *PActor;
 class Actor : public Actor_PAR
 {
     friend class ActorClipboard;
+    friend class Movie;
     friend class Scene;
     friend class MovieView;
 
@@ -149,6 +150,7 @@ class Actor : public Actor_PAR
     MMActorActionEditServices _ActionEditServices();
     MMActorSubrouteEditServices _SubrouteEditServices();
     MMActorStageEditServices _StageEditServices();
+    static MMActorStageEditServices _BindStageEdit(void *);
     MMActorRecordServices _RecordServices(const MMActorOwnerServices *owners);
     MMActorTransformEditServices _TransformEditServices();
     static MMActorOwnerServices _OwnerServices();
@@ -357,8 +359,6 @@ class Actor : public Actor_PAR
     bool FReplayFrame(long grfscen);                          // Replay a frame.
 
     // Event Editing
-    bool FAddOnStageCore(void);
-    bool FRemFromStageCore(void);
     bool FSetCostumeCore(long ibsetClicked, TAG *ptag, long cmid, tribool fCustom);
     bool FSetStep(BRS dwrStep);
     bool FRotate(BRA xa, BRA ya, BRA za, bool fFromHereFwd);
@@ -382,10 +382,8 @@ class Actor : public Actor_PAR
 
     bool FCreateUndo(PActor pactr, bool fSndUndo = fFalse, PString pstn = pvNil); // Create undo object
     void Reset(void);
-    bool FAddOnStage(void); // add actor to the stage, w/Undo
     bool FSetAction(long anid, long celn, bool fFreeze, PActor *ppactrDup = pvNil);
     bool FSetCostume(long ibset, TAG *ptag, long cmid, tribool fCustom);
-    bool FRemFromStage(void);                                 // add event: rem actor from stage, w/Undo
     bool FCopy(PActor *ppactr, bool fEntireScene = fFalse);    // Duplicate actor from this frame on
     bool FCopyRte(PActor *ppactr, bool fEntireScene = fFalse); // Duplicate path from this frame on
     bool FPasteRte(PActor pactr);                              // Paste from clipboard from this frame on

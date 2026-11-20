@@ -25,7 +25,7 @@ static int finish_edit(void *actor,void *snapshot,int applied,int sound,void **o
     else s->actors.release(s->actors.context,snapshot);
     return 1;
 }
-int mm_actor_transaction_stage(void *actor,int entrance,MMU32 external_child,
+int mm_actor_transaction_stage(void *actor,int entrance,
     const MMActorStageEditServices *edit,const MMActorTransactionServices *s)
 {
     void *copy=capture(actor,s);
@@ -33,7 +33,7 @@ int mm_actor_transaction_stage(void *actor,int entrance,MMU32 external_child,
     int applied;
     if (!copy) return 0;
     owner=s->actors.owner(s->actors.context,actor);
-    applied=mm_actor_owner_stage_edit(owner,entrance,external_child,edit);
+    applied=mm_actor_owner_stage_edit(owner,entrance,edit);
     return finish_edit(actor,copy,applied,0,NULL,s);
 }
 int mm_actor_transaction_normalize(void *actor,MMU32 flags,

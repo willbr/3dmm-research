@@ -4,6 +4,7 @@
 #define MM_ENGINE_SCENE_CONTENT_H
 #include "scene_runtime.h"
 #include "scene_selection.h"
+#include "actor_stage_edit.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -43,8 +44,8 @@ extern "C"
         void (*retain)(void *, void *object);
         MMI32 (*actor_id)(void *, void *actor);
         void (*set_actor_id)(void *, void *actor, MMI32 id);
-        int (*actor_ready)(void *, void *actor), (*actor_onstage)(void *, void *actor),
-            (*actor_paste)(void *, void *actor, MMI32 frame);
+        int (*actor_ready)(void *, void *actor), (*actor_paste)(void *, void *actor, MMI32 frame);
+        MMActorStageBind stage;
         void (*hide_actor)(void *, void *actor);
         void (*end_placement)(void *);
         int (*add_roll)(void *, void *actor, int template_name);

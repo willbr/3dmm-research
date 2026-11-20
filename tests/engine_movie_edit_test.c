@@ -2,6 +2,7 @@
 #include "mm/movie_edit.h"
 #include "mm/actor_undo.h"
 #include "mm/scene_selection.h"
+#include "actor_stage_owner_fixture.h"
 #include <stdio.h>
 #include <string.h>
 #define CHECK(x)                                                                                                       \
@@ -77,6 +78,7 @@ typedef struct Actor
     Test *test;
     int id, refs, visible, value;
     MMTag tag;
+    StageOwnerFixture stage;
 } Actor;
 typedef struct Undo
 {
@@ -145,11 +147,12 @@ static int visible(void *p)
 {
     return ((Actor *)p)->visible;
 }
-static int onstage(void *p)
+static MMActorStageEditServices bind_stage(void *p)
 {
     Actor *a = p;
-    a->value = 444;
-    return a->test->fail != FAIL_STAGE;
+    a->stage.fail_entrance = a->test->fail == FAIL_STAGE;
+    a->stage.owner.runtime.actor = a->id;
+    return stage_fixture_services(&a->stage);
 }
 static void *duplicate(void *p, int reset)
 {
@@ -452,6 +455,72 @@ static void notify(void *p, int value)
     t->notify = value;
     event(t, NOTIFY);
 }
+static MMActorOwner *stage_owner(void *p, void *object)
+{
+    (void)p;
+    return &((Actor *)object)->stage.owner;
+}
+static void *new_stage_snapshot(void *p)
+{
+    Test *t = p;
+    mm_actor_owner_init(&t->copy.stage.owner);
+    t->copy.refs = 1;
+    return &t->copy;
+}
+static void retain_stage_snapshot(void *p, void *object)
+{
+    (void)p;
+    if (object)
+        ++((Actor *)object)->refs;
+}
+static void release_stage_snapshot(void *p, void *object)
+{
+    Actor *a = object;
+    (void)p;
+    if (!--a->refs)
+        stage_fixture_dispose(&a->stage);
+}
+static void stage_route(void *p, void *object, MMActorRouteEditServices *out)
+{
+    Actor *actor = object;
+    const MMActorStageEditServices stage = stage_fixture_services(&actor->stage);
+    (void)p;
+    *out = stage.subroute.route;
+}
+static void stage_restore_views(void *p, void *scene) { (void)p; (void)scene; }
+static MMActorUndoState *new_stage_undo(void *p, void **handle)
+{
+    Test *t = p;
+    t->undo.refs = 1;
+    *handle = &t->undo;
+    return mm_actor_undo_init(&t->undo.actor_state, &t->undo.base, 1) ? &t->undo.actor_state : NULL;
+}
+static void clear_stage_undo(void *p) { ++((Test *)p)->clears; }
+static void release_stage_undo(void *p, void *object)
+{
+    Undo *u = object;
+    if (!--u->refs)
+        release_stage_snapshot(p, u->actor_state.actor);
+}
+static MMActorTransactionServices bind_stage_transaction(void *p)
+{
+    Test *t = ((Actor *)p)->test;
+    MMActorTransactionServices services;
+    memset(&services, 0, sizeof(services));
+    services.actors.context = t;
+    services.actors.owner = stage_owner;
+    services.actors.create = new_stage_snapshot;
+    services.actors.retain = retain_stage_snapshot;
+    services.actors.release = release_stage_snapshot;
+    services.actors.route_services = stage_route;
+    services.actors.invalidate_views = stage_restore_views;
+    services.undo.context = t;
+    services.undo.create = new_stage_undo;
+    services.undo.add = commit;
+    services.undo.clear = clear_stage_undo;
+    services.undo.release = release_stage_undo;
+    return services;
+}
 static int seed_rollcall(Test *t)
 {
     MMRollCallActor row;
@@ -531,7 +600,8 @@ static void init(Test *t)
     s->first_view = view;
     s->new_actor = new_actor;
     s->actor_visible = visible;
-    s->core_onstage = onstage;
+    s->stage = bind_stage;
+    s->actor_transaction = bind_stage_transaction;
     s->duplicate_actor = duplicate;
     s->release_actor = release;
     s->restore_actor = restore;
@@ -615,6 +685,7 @@ static int choosing(void)
     {
         init(&t);
         CHECK(seed_rollcall(&t));
+        CHECK(stage_fixture_init(&t.actor.stage, t.frame));
         t.fail = fault == 1 ? FAIL_DUP : fault == 2 ? FAIL_STAGE : 0;
         CHECK(mm_movie_choose_actor(5, &t.s) == !fault);
         CHECK(t.resets == 1 && !t.dirty);
@@ -630,7 +701,10 @@ static int choosing(void)
             CHECK(!t.copy.refs);
         }
         if (fault == 2)
-            CHECK(t.actor.value == 444); /* Core failure keeps its completed prefix. */
+            CHECK(t.actor.stage.entrances == 1 && mm_actor_events_count(t.actor.stage.owner.track.events) == 1);
+        if (!fault)
+            CHECK(t.actor.stage.owner.runtime.state.onStage && mm_actor_events_count(t.actor.stage.owner.track.events) == 4);
+        stage_fixture_dispose(&t.actor.stage);
         CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     }
     for (fault = 0; fault <= 2; ++fault)
@@ -717,8 +791,24 @@ static int actor_edits(void)
     init(&t);
     CHECK(!mm_movie_onstage(99, &t.s) && !t.selected && t.selectionCalls == 1 &&
           t.error == MM_MOVIE_EDIT_NO_ACTOR);
-    init(&t);
-    CHECK(mm_movie_onstage(5, &t.s) && t.dirty && t.invalidates && !t.bars && t.selectionCalls == 1);
+    for (type = 0; type < 3; ++type)
+    {
+        init(&t);
+        CHECK(stage_fixture_init(&t.actor.stage, t.frame));
+        t.fail = type == 1 ? FAIL_STAGE : type == 2 ? FAIL_COMMIT : 0;
+        CHECK(mm_movie_onstage(5, &t.s) == !type && t.selectionCalls == 1 && t.actor.stage.entrances == 1);
+        CHECK(t.dirty == !type && t.invalidates == !type && !t.bars && t.commits == (type != 1));
+        CHECK(t.actor.stage.owner.runtime.state.onStage == !type);
+        CHECK(mm_actor_events_count(t.actor.stage.owner.track.events) == (type ? 0 : 4));
+        if (!type)
+        {
+            CHECK(t.undo.refs == 1 && t.copy.refs == 1 && t.undo.actor_state.actor == &t.copy);
+            CHECK(t.copy.stage.owner.runtime.state.frame == 2147483647L && t.undo.actor_state.actor_id == 5);
+            release_stage_undo(&t, &t.undo);
+        }
+        CHECK(t.clears == (type == 2) && !t.copy.refs && !t.undo.refs);
+        stage_fixture_dispose(&t.actor.stage);
+    }
     return 0;
 }
 static void cursor(void *p) { event(p, CURSOR); }
@@ -894,8 +984,10 @@ static int pasting(void)
 typedef struct ClipboardTest
 {
     MMMovieClipboardServices services;
+    StageOwnerFixture stage;
     int has_scene, text_mode, route_only, formats, refs, paste_refs, text_success;
     int pasted, enabled_text, tool, text_queued, generic, diagnosis, cues;
+    int sounds, dirty, invalidated;
 } ClipboardTest;
 
 static void *clip_scene(void *p)
@@ -976,6 +1068,36 @@ static void clip_diagnose(void *p, int code)
 {
     ((ClipboardTest *)p)->diagnosis = code;
 }
+static int clip_no_shift(void *p) { (void)p; return 0; }
+static void *clip_copy(void *p, int route, int through_end)
+{
+    ClipboardTest *t = p;
+    if (route || through_end)
+        return NULL;
+    ++t->refs;
+    return p;
+}
+static void clip_publish(void *p, void *document)
+{
+    ClipboardTest *t = document;
+    (void)p;
+    ++t->refs;
+}
+static int clip_sounds_enabled(void *p) { return ((ClipboardTest *)p)->sounds; }
+static void clip_sounds(void *p, int value) { ((ClipboardTest *)p)->sounds = value; }
+static int clip_delete_survivor(void *p, int through_end, int *alive)
+{
+    ClipboardTest *t = p;
+    *alive = 1;
+    return !t->sounds && !through_end;
+}
+static MMActorStageEditServices clip_stage(void *p)
+{
+    ClipboardTest *t = p;
+    return stage_fixture_services(&t->stage);
+}
+static void clip_dirty(void *p) { ++((ClipboardTest *)p)->dirty; }
+static void clip_invalidate(void *p) { ++((ClipboardTest *)p)->invalidated; }
 static void clip_init(ClipboardTest *t)
 {
     MMMovieClipboardServices *s = &t->services;
@@ -991,6 +1113,15 @@ static void clip_init(ClipboardTest *t)
     s->format = clip_format;
     s->route_only = clip_route;
     s->release = clip_release;
+    s->shift = clip_no_shift;
+    s->copy_actor = clip_copy;
+    s->publish = clip_publish;
+    s->scene_sounds_enabled = clip_sounds_enabled;
+    s->scene_sounds = clip_sounds;
+    s->delete_actor = clip_delete_survivor;
+    s->stage = clip_stage;
+    s->dirty = clip_dirty;
+    s->invalidate = clip_invalidate;
     s->paste_actor = clip_paste_actor;
     s->paste_text = clip_paste_text;
     s->enable_text = clip_enable_text;
@@ -1045,6 +1176,17 @@ static int clipboard(void)
     t.text_success = 1;
     mm_movie_clipboard_command(MM_MOVIE_CLIP_PASTE, &t.services);
     CHECK(t.enabled_text == 1 && t.cues == 4 && !t.refs);
+
+    clip_init(&t);
+    CHECK(stage_fixture_init(&t.stage, 1));
+    CHECK(mm_actor_stage_apply(&t, 1, t.services.stage));
+    t.stage.owner.runtime.state.frame = 2;
+    t.sounds = 1;
+    mm_movie_clipboard_click(MM_MOVIE_CLIP_CUT, 1, &t.services);
+    CHECK(t.sounds && t.stage.exits == 1 && !t.stage.owner.runtime.state.onStage);
+    CHECK(t.dirty == 1 && t.invalidated == 1 && t.refs == 1);
+    clip_release(&t);
+    stage_fixture_dispose(&t.stage);
     return 0;
 }
 

@@ -782,6 +782,7 @@ MMActorStageEditServices Actor::_StageEditServices()
                   kcbVarFreeze==4 && kcbVarStep==4 && kcbVarRot==48 && kcbVarSize==4 && kcbVarPull==12,
                   "Stage edit ABI");
     MMActorStageEditServices s{}; s.subroute=_SubrouteEditServices();
+    TrashVar(&s.external_child);
     s.placement=[](void *p,MMActorPoint *point,MMActorPoint *origin,unsigned short *yaw) {
         auto actor=static_cast<Actor *>(p); BRS x,y,z;
         actor->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
@@ -791,12 +792,9 @@ MMActorStageEditServices Actor::_StageEditServices()
     s.diagnostic=[](void *,int fault) { Assert(fault==MM_STAGE_INSERT_FAILED,"Unknown stage edit fault"); Bug("Logic error"); };
     return s;
 }
-bool Actor::FAddOnStageCore(void)
+MMActorStageEditServices Actor::_BindStageEdit(void *actor)
 {
-    AssertThis(0);
-    const auto services=_StageEditServices();
-    ChildChunkID external=0; TrashVar(&external);
-    return mm_actor_owner_stage_edit(&_owner,1,external,&services)!=0;
+    return static_cast<PActor>(actor)->_StageEditServices();
 }
 
 /***************************************************************************
@@ -893,13 +891,6 @@ void Actor::_FindAevLastSub(long iaevAdd, long iaevLim, long *piaevLast)
     Add the event to the event list
 
 ***************************************************************************/
-bool Actor::FRemFromStageCore(void)
-{
-    AssertThis(0);
-    const auto services=_StageEditServices();
-    return mm_actor_owner_stage_edit(&_owner,0,0,&services)!=0;
-}
-
 /***************************************************************************
 
     Delete the events and point corresponding to a single point subroute
@@ -1642,7 +1633,7 @@ void Actor::DeleteFwdCore(bool fDeleteAll, bool *pfAlive, long iaevCur)
 /***************************************************************************
 
     Delete the path and events beyond this frame
-    **NOTE:  This does not send the actor offstage.	See FRemFromStageCore.
+    **NOTE:  This does not send the actor offstage. See mm_actor_owner_stage_edit.
     NOTE: While _owner.runtime.life_dirty flags needed lifetime recomputation, scene's
     InvalFrmRange() is _not_ called due to the special artifact of the
     frame slider being spec'd to show extensions but not reductions.

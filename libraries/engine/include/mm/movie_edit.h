@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_MOVIE_EDIT_H
 #define MM_ENGINE_MOVIE_EDIT_H
 #include "actor_group_undo.h"
+#include "actor_transaction.h"
 #include "movie_rollcall.h"
 #include "movie_scene.h"
 #include "movie_undo.h"
@@ -20,7 +21,6 @@ extern "C"
         MM_MOVIE_EDIT_COSTUME,
         MM_MOVIE_EDIT_ACTOR_SOUND,
         MM_MOVIE_EDIT_REMOVE,
-        MM_MOVIE_EDIT_ONSTAGE,
         MM_MOVIE_EDIT_CAMERA,
         MM_MOVIE_EDIT_PAUSE,
         MM_MOVIE_EDIT_TRANSITION,
@@ -50,7 +50,9 @@ extern "C"
         void *(*selected_actor)(void *scene), *(*actor_from_id)(void *scene, MMI32);
         void (*select_actor)(void *scene, void *actor);
         void *(*first_view)(void *), *(*new_actor)(void *, const MMTag *);
-        int (*actor_visible)(void *actor), (*core_onstage)(void *actor);
+        int (*actor_visible)(void *actor);
+        MMActorStageBind stage;
+        MMActorTransactionServices (*actor_transaction)(void *actor);
         void *(*duplicate_actor)(void *actor, int reset);
         void (*release_actor)(void *actor), (*restore_actor)(void *actor, void *snapshot);
         int (*add_actor)(void *scene, void *actor), (*remove_actor)(void *scene, MMI32 id);
@@ -156,7 +158,8 @@ extern "C"
         int (*scene_sounds_enabled)(void *scene);
         void (*scene_sounds)(void *scene, int enabled);
         int (*delete_actor)(void *actor, int through_scene_end, int *alive);
-        void (*remove_actor)(void *scene, void *actor), (*offstage)(void *actor);
+        void (*remove_actor)(void *scene, void *actor);
+        MMActorStageBind stage;
         void (*dirty)(void *scene), (*invalidate)(void *);
         void (*paste_actor)(void *, void *document);
         int (*paste_text)(void *scene, void *document);
