@@ -840,7 +840,9 @@ late delivery with optional clock slip, input resets and callback reentrancy.
 Native code supplies timestamps, allocation and command delivery.
 C89 also owns Kauai's pending command queue, ordered filters and filter cursor.
 The dispatcher routes commands and enable queries while native callbacks supply
-the active command, modal checks, mouse tracking and macro I/O.
+the active command, modal checks and mouse tracking. C89 owns Kauai's command
+macro rows, repeat and replay state, GLCM serialization, and archive transaction
+order. Native callbacks supply chunky blocks, GG objects and handler lookup.
 SDL Studio submits intermediate dissolve snapshots through its window
 presenter. Marcus uses the shared C89 dissolve permutation and phase lengths
 to compose RGBA movie-camera frames. Both use the C89 RGB555 bin-centre mapping

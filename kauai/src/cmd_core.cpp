@@ -31,6 +31,7 @@
 #include "clok.h"
 #include "cmd_hooks.h"
 #include "document_storage_host.h"
+#include "mm/wide.h"
 ASSERTNAME
 
 // command map shared by every command handler
@@ -106,6 +107,177 @@ struct CommandExecutionManager::DispatchHost : DocumentStorageHost
                                                            host.command, &nativeFlags);
             *flags = nativeFlags;
             return handled;
+        });
+    }
+};
+
+static const MMCommandMacroRules kMacroRules = {
+    cidCexStopRec, cidCexStopPlay, cidMinNoRecord, cidLimNoRecord, cidMinNoRepeat, cidLimNoRepeat
+};
+
+struct CommandExecutionManager::MacroHost : DocumentStorageHost
+{
+    PCommandExecutionManager manager;
+
+    explicit MacroHost(PCommandExecutionManager owner) : DocumentStorageHost(&owner->_macro.storage), manager(owner) {}
+
+    MMCommandMacroServices Services()
+    {
+        return {this, FileRef, Create, ReadRows, WriteRows, Erase, Commit, StoreGroup, EraseGroup,
+                ReadGroup, Lookup, Done};
+    }
+
+    struct BlockIo
+    {
+        MacroHost &host;
+        DataBlock &block;
+
+        static int Read(void *context, MMU32 offset, void *bytes, size_t count)
+        {
+            auto &io = *static_cast<BlockIo *>(context);
+            return io.host.Guard([&] { return io.block.FReadRgb(bytes, static_cast<LegacyLong>(count), offset); }) > 0;
+        }
+
+        static int Write(void *context, MMU32 offset, const void *bytes, size_t count)
+        {
+            auto &io = *static_cast<BlockIo *>(context);
+            return io.host.Guard([&] {
+                return io.block.FWriteRgb(const_cast<void *>(bytes), static_cast<LegacyLong>(count), offset);
+            }) > 0;
+        }
+    };
+
+    static int FileRef(void *context, void *file, int acquire)
+    {
+        return static_cast<MacroHost *>(context)->Guard([&] {
+            auto archive = static_cast<PChunkyFile>(file);
+            if (acquire)
+                archive->AddRef();
+            else
+                archive->Release();
+            return MM_MACRO_OK;
+        });
+    }
+
+    static int Create(void *context, void *file, MMU32 *number)
+    {
+        return static_cast<MacroHost *>(context)->Guard([&] {
+            ChunkNumber created;
+            if (!static_cast<PChunkyFile>(file)->FAdd(0, kctgMacro, &created))
+                return MM_MACRO_FILE_ERROR;
+            *number = created;
+            return MM_MACRO_OK;
+        });
+    }
+
+    static int ReadRows(void *context, void *file, MMU32 number, MMCommandMacro *macro)
+    {
+        auto &host = *static_cast<MacroHost *>(context);
+        return host.Guard([&]() -> int {
+            DataBlock block;
+            if (!static_cast<PChunkyFile>(file)->FFind(kctgMacro, number, &block) || !block.FUnpackData())
+                return MM_MACRO_FILE_ERROR;
+            BlockIo io = {host, block};
+            const MMReadStream reader = {&io, static_cast<MMU32>(block.Cb()), BlockIo::Read};
+            const int result = mm_command_macro_read(macro, &reader, koskCur);
+            return host.status < 0 ? host.status : result;
+        });
+    }
+
+    static int WriteRows(void *context, void *file, MMU32 number, MMCommandMacro *macro)
+    {
+        auto &host = *static_cast<MacroHost *>(context);
+        return host.Guard([&]() -> int {
+            DataBlock block;
+            const MMU32 length = mm_command_macro_wire_size(macro);
+            if (!static_cast<PChunkyFile>(file)->FPut(length, kctgMacro, number, &block))
+                return MM_MACRO_FILE_ERROR;
+            BlockIo io = {host, block};
+            const MMStorageWriter writer = {&io, length, BlockIo::Write};
+            const int result = mm_command_macro_write(macro, &writer, koskCur);
+            return host.status < 0 ? host.status : result;
+        });
+    }
+
+    static int Erase(void *context, void *file, MMU32 number)
+    {
+        return static_cast<MacroHost *>(context)->Guard([&] {
+            static_cast<PChunkyFile>(file)->Delete(kctgMacro, number);
+            return MM_MACRO_OK;
+        });
+    }
+
+    static int Commit(void *context, void *file)
+    {
+        return static_cast<MacroHost *>(context)->Guard([&] {
+            auto archive = static_cast<PChunkyFile>(file);
+            if (!archive->FSave(kctgFramework))
+                return MM_MACRO_FILE_ERROR;
+            archive->SetTemp(fFalse);
+            return MM_MACRO_OK;
+        });
+    }
+
+    static int StoreGroup(void *context, void *file, MMU32 number, MMU32 slot, void *value, MMU32 *child)
+    {
+        return static_cast<MacroHost *>(context)->Guard([&] {
+            auto group = static_cast<PGeneralGroup>(value);
+            DataBlock block;
+            ChunkNumber created;
+            if (!static_cast<PChunkyFile>(file)->FAddChild(kctgMacro, number, slot, group->CbOnFile(),
+                                                          kctgGg, &created, &block))
+                return MM_MACRO_FILE_ERROR;
+            *child = created;
+            return group->FWrite(&block) ? MM_MACRO_OK : MM_MACRO_FILE_ERROR;
+        });
+    }
+
+    static int EraseGroup(void *context, void *file, MMU32 number, MMU32 slot, MMU32 child)
+    {
+        return static_cast<MacroHost *>(context)->Guard([&] {
+            static_cast<PChunkyFile>(file)->DeleteChild(kctgMacro, number, kctgGg, child, slot);
+            return MM_MACRO_OK;
+        });
+    }
+
+    static int ReadGroup(void *context, void *file, MMU32 number, MMU32 slot, void **value)
+    {
+        return static_cast<MacroHost *>(context)->Guard([&] {
+            auto archive = static_cast<PChunkyFile>(file);
+            ChildChunkIdentification child;
+            DataBlock block;
+            short order, system;
+            if (!archive->FGetKidChidCtg(kctgMacro, number, slot, kctgGg, &child) ||
+                !archive->FFind(child.cki.ctg, child.cki.cno, &block))
+                return MM_MACRO_FILE_ERROR;
+            auto group = GeneralGroup::PggRead(&block, &order, &system);
+            if (!group)
+                return MM_MACRO_FILE_ERROR;
+            if (order != kboCur || system != koskCur)
+            {
+                group->Release();
+                return MM_MACRO_WRONG_PLATFORM;
+            }
+            *value = group;
+            return MM_MACRO_OK;
+        });
+    }
+
+    static int Lookup(void *context, MMI32 id, void **target)
+    {
+        return static_cast<MacroHost *>(context)->Guard([&] {
+            *target = PcmhFromHid_Hook(id);
+            return MM_MACRO_OK;
+        });
+    }
+
+    static int Done(void *context, int mode, int error, MMU32 number)
+    {
+        auto &host = *static_cast<MacroHost *>(context);
+        return host.Guard([&] {
+            const LegacyLong cid = mode == MM_MACRO_RECORDING ? cidCexRecordDone : cidCexPlayDone;
+            host.manager->PushCid(cid, pvNil, pvNil, error, mm_signed_word(number));
+            return MM_MACRO_OK;
         });
     }
 };
@@ -331,6 +503,7 @@ CommandExecutionManager::CommandExecutionManager(void)
 #endif
     const auto allocator = Group::CollectionAllocator();
     AssertDo(mm_commands_init(&_dispatch, &allocator, trash), "invalid command allocator");
+    AssertDo(mm_command_macro_init(&_macro, &allocator, trash), "invalid macro allocator");
 }
 
 /***************************************************************************
@@ -347,8 +520,10 @@ CommandExecutionManager::~CommandExecutionManager(void)
         queue.Rethrow();
         filters.Rethrow();
     }
-    ReleasePpo(&_pcfl);
-    ReleasePpo(&_pglcmdf);
+    MacroHost macro(this);
+    const auto services = macro.Services();
+    mm_command_macro_dispose(&_macro, &services);
+    macro.Rethrow();
     ReleasePpo(&_cmdCur.pgg);
 }
 
@@ -394,30 +569,12 @@ void CommandExecutionManager::Record(PChunkyFile pcfl)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
-
-    if (_rs != rsNormal)
-    {
+    MacroHost host(this);
+    const auto services = host.Services();
+    const int opened = mm_command_macro_begin_record(&_macro, &services, pcfl);
+    host.Rethrow();
+    if (!opened)
         Bug("already recording or playing");
-        return;
-    }
-
-    _rs = rsRecording;
-    _rec = recNil;
-    _pcfl = pcfl;
-    _pcfl->AddRef();
-    _cno = cnoNil;
-    _icmdf = 0;
-    _chidLast = 0;
-    _cact = 0;
-    Assert(_pglcmdf == pvNil, "why isn't _pglcmdf nil?");
-
-    if ((_pglcmdf = DynamicArray::PglNew(size(CommandFile), 100)) == pvNil)
-        _rec = recMemError;
-    else if (!_pcfl->FAdd(0, kctgMacro, &_cno))
-    {
-        _rec = recFileError;
-        _cno = cnoNil;
-    }
 }
 
 /***************************************************************************
@@ -431,52 +588,10 @@ void CommandExecutionManager::Record(PChunkyFile pcfl)
 void CommandExecutionManager::StopRecording(void)
 {
     AssertThis(0);
-    DataBlock blck;
-
-    if (_rs != rsRecording)
-        return;
-
-    if (_rec == recNil)
-    {
-        LegacyLong cb;
-
-        if (_cact > 1)
-        {
-            // rewrite the last one's _cact
-            CommandFile cmdf;
-
-            _pglcmdf->Get(_icmdf, &cmdf);
-            cmdf.cact = _cact;
-            _pglcmdf->Put(_icmdf, &cmdf);
-        }
-        cb = _pglcmdf->CbOnFile();
-        if (!_pcfl->FPut(cb, kctgMacro, _cno, &blck) || !_pglcmdf->FWrite(&blck))
-        {
-            _rec = recFileError;
-        }
-    }
-
-    if (_rec != recNil && _cno != cnoNil)
-    {
-        _pcfl->Delete(kctgMacro, _cno);
-        _cno = cnoNil;
-    }
-
-    if (_cno != cnoNil)
-    {
-        if (_pcfl->FSave(kctgFramework))
-            _pcfl->SetTemp(fFalse);
-        else
-        {
-            _rec = recFileError;
-            _cno = cnoNil;
-        }
-    }
-    _rs = rsNormal;
-    ReleasePpo(&_pglcmdf);
-    ReleasePpo(&_pcfl);
-
-    PushCid(cidCexRecordDone, pvNil, pvNil, _rec, _cno);
+    MacroHost host(this);
+    const auto services = host.Services();
+    mm_command_macro_stop_record(&_macro, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -486,73 +601,13 @@ void CommandExecutionManager::RecordCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertPo(pcmd, 0);
-    Assert(_rs == rsRecording, "not recording");
-    CommandFile cmdf;
-
-    if (_rec != recNil)
-        return;
-
-    if (_cact > 0)
-    {
-        if (_cmd.pgg == pvNil && FEqualRgb(pcmd, &_cmd, size(_cmd)))
-        {
-            // commands are the same, just increment the _cact
-            if (pcmd->cid < cidMinNoRepeat || pcmd->cid >= cidLimNoRepeat)
-                _cact++;
-            return;
-        }
-
-        // new command is not the same as the previous one
-        if (_cact > 1)
-        {
-            // rewrite the previous one's _cact
-            _pglcmdf->Get(_icmdf, &cmdf);
-            cmdf.cact = _cact;
-            _pglcmdf->Put(_icmdf, &cmdf);
-        }
-
-        // increment _icmdf
-        _icmdf++;
-        _cact = 0;
-    }
-
-    // fill in the cmdf and save it in the list
-    cmdf.cid = pcmd->cid;
-    cmdf.hid = pcmd->pcmh == pvNil ? hidNil : pcmd->pcmh->Hid();
-    cmdf.cact = 1;
-    cmdf.chidGg = pcmd->pgg != pvNil ? ++_chidLast : 0;
-    CopyPb(pcmd->rglw, cmdf.rglw, kclwCmd * size(LegacyLong));
-
-    if (!_pglcmdf->FInsert(_icmdf, &cmdf))
-    {
-        // out of memory
-        _rec = recMemError;
-        return;
-    }
-
-    // write the group and make it a child of the macro
-    if (pvNil != pcmd->pgg)
-    {
-        DataBlock blck;
-        LegacyLong cb;
-        ChunkNumber cno;
-
-        cb = pcmd->pgg->CbOnFile();
-        if (!_pcfl->FAddChild(kctgMacro, _cno, cmdf.chidGg, cb, kctgGg, &cno, &blck))
-        {
-            goto LFileError;
-        }
-        if (!pcmd->pgg->FWrite(&blck))
-        {
-            _pcfl->DeleteChild(kctgMacro, _cno, kctgGg, cno, cmdf.chidGg);
-        LFileError:
-            _pglcmdf->Delete(_icmdf);
-            _rec = recFileError;
-            return;
-        }
-    }
-    _cact = 1;
-    _cmd = *pcmd;
+    Assert(FRecording(), "not recording");
+    MacroHost host(this);
+    const auto services = host.Services();
+    const auto command = QueueRecord(*pcmd);
+    const auto id = pcmd->pcmh ? pcmd->pcmh->Hid() : hidNil;
+    mm_command_macro_record(&_macro, &services, &kMacroRules, &command, id);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -563,34 +618,12 @@ void CommandExecutionManager::Play(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
-    DataBlock blck;
-    short bo, osk;
-
-    if (_rs != rsNormal)
-    {
+    MacroHost host(this);
+    const auto services = host.Services();
+    const int opened = mm_command_macro_begin_play(&_macro, &services, pcfl, cno);
+    host.Rethrow();
+    if (!opened)
         Bug("already recording or playing");
-        return;
-    }
-
-    _rs = rsPlaying;
-    _rec = recNil;
-    _pcfl = pcfl;
-    _pcfl->AddRef();
-    _cno = cno;
-    _icmdf = 0;
-    _cact = 0;
-    Assert(_pglcmdf == pvNil, "why isn't _pglcmdf nil?");
-
-    if (!_pcfl->FFind(kctgMacro, _cno, &blck) || (_pglcmdf = DynamicArray::PglRead(&blck, &bo, &osk)) == pvNil)
-    {
-        _rec = recFileError;
-        StopPlaying();
-    }
-    else if (bo != kboCur || osk != koskCur)
-    {
-        _rec = recWrongPlatform;
-        StopPlaying();
-    }
 }
 
 /***************************************************************************
@@ -601,18 +634,10 @@ void CommandExecutionManager::Play(PChunkyFile pcfl, ChunkNumber cno)
 void CommandExecutionManager::StopPlaying(void)
 {
     AssertThis(0);
-
-    if (_rs != rsPlaying)
-        return;
-
-    if (_rec == recNil && (_cact > 0 || _icmdf < _pglcmdf->IvMac()))
-        _rec = recAbort;
-
-    PushCid(cidCexPlayDone, pvNil, pvNil, _rec, _cno);
-
-    _rs = rsNormal;
-    ReleasePpo(&_pcfl);
-    ReleasePpo(&_pglcmdf);
+    MacroHost host(this);
+    const auto services = host.Services();
+    mm_command_macro_stop_play(&_macro, &services);
+    host.Rethrow();
 }
 
 /***************************************************************************
@@ -622,62 +647,14 @@ bool CommandExecutionManager::_FReadCmd(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    Assert(_rs == rsPlaying, "not playing a command stream");
-    AssertPo(_pglcmdf, 0);
-    CommandFile cmdf;
-
-    if (_cact > 0)
-    {
-        // this command is being repeated
-        *pcmd = _cmd;
-        _cact--;
-        return fTrue;
-    }
-    if (_icmdf >= _pglcmdf->IvMac())
-        goto LStop;
-
-    _pglcmdf->Get(_icmdf, &cmdf);
-
-    ClearPb(pcmd, size(*pcmd));
-    pcmd->cid = cmdf.cid;
-    pcmd->pcmh = PcmhFromHid_Hook(cmdf.hid);
-    pcmd->pgg = pvNil;
-    CopyPb(cmdf.rglw, pcmd->rglw, kclwCmd * size(LegacyLong));
-
-    if (cmdf.chidGg != 0)
-    {
-        DataBlock blck;
-        ChildChunkIdentification kid;
-        short bo, osk;
-
-        Assert(cmdf.cact <= 1, 0);
-
-        // read the gg
-        if (!_pcfl->FGetKidChidCtg(kctgMacro, _cno, cmdf.chidGg, kctgGg, &kid) ||
-            !_pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pcmd->pgg = GeneralGroup::PggRead(&blck, &bo, &osk)))
-        {
-            _rec = recFileError;
-            goto LStop;
-        }
-        if (bo != kboCur || osk != koskCur)
-        {
-            // don't know how to change byte order or translate strings
-            ReleasePpo(&pcmd->pgg);
-            _rec = recWrongPlatform;
-            goto LStop;
-        }
-    }
-    AssertPo(pcmd, 0);
-
-    _icmdf++;
-    if ((_cact = cmdf.cact - 1) > 0)
-        _cmd = *pcmd;
-    return fTrue;
-
-    // error handling
-LStop:
-    StopPlaying();
-    return fFalse;
+    Assert(FPlaying(), "not playing a command stream");
+    MacroHost host(this);
+    const auto services = host.Services();
+    auto command = QueueRecord(*pcmd);
+    const int taken = mm_command_macro_next(&_macro, &services, &command);
+    *pcmd = NativeCommand(command);
+    host.Rethrow();
+    return taken > 0;
 }
 
 /***************************************************************************
@@ -781,11 +758,7 @@ void CommandExecutionManager::BuryCmh(PCommandHandler pcmh)
     Assert(pcmh != pvNil, 0);
     if (_cmdCur.pcmh == pcmh)
         _cmdCur.pcmh = pvNil;
-    if (_cmd.pcmh == pcmh)
-    {
-        _cmd.pcmh = pvNil;
-        _cact = 0;
-    }
+    mm_command_macro_bury(&_macro, pcmh);
     DispatchHost host(this);
     mm_commands_bury(&_dispatch, pcmh, &host, DispatchHost::ReleaseGroup);
     host.Rethrow();
@@ -921,7 +894,7 @@ tribool CommandExecutionManager::_TGetNextCmd(void)
     AssertPo(&_cmdCur, 0);
 
     // handle playing and recording
-    if (rsPlaying == _rs)
+    if (FPlaying())
     {
         // We're playing back. Throw away the incoming command and play
         // one from the stream.
@@ -929,7 +902,7 @@ tribool CommandExecutionManager::_TGetNextCmd(void)
 
         // let a cidCexStopPlay go through and handle it at the end.
         // this is so a cmh can intercept it.
-        if (_cmdCur.cid != cidCexStopPlay && !_FReadCmd(&_cmdCur))
+        if (mm_command_macro_replaces(&_macro, &kMacroRules, _cmdCur.cid) && !_FReadCmd(&_cmdCur))
             return tMaybe;
     }
 
@@ -967,21 +940,18 @@ void CommandExecutionManager::_CleanUpCmd(void)
     // to nil.
     AssertNilOrPo(_cmdCur.pcmh, 0);
 
-    // record the command after dispatching, in case arguments got added
-    // or the cid was set to nil.
-    if (rsRecording == _rs && !FIn(_cmdCur.cid, cidMinNoRecord, cidLimNoRecord) && cidNil != _cmdCur.cid &&
-        cidCexStopRec != _cmdCur.cid)
+    // Dispatch can change the arguments or CID before the macro sees them.
+    switch (mm_command_macro_after(&_macro, &kMacroRules, _cmdCur.cid))
     {
+    case MM_MACRO_CAPTURE:
         RecordCmd(&_cmdCur);
-    }
-
-    // check for a stop record or stop play command
-    if (rsNormal != _rs)
-    {
-        if (cidCexStopPlay == _cmdCur.cid && rsPlaying == _rs)
-            StopPlaying();
-        else if (cidCexStopRec == _cmdCur.cid && rsRecording == _rs)
-            StopRecording();
+        break;
+    case MM_MACRO_FINISH_PLAY:
+        StopPlaying();
+        break;
+    case MM_MACRO_FINISH_RECORD:
+        StopRecording();
+        break;
     }
 
     ReleasePpo(&_cmdCur.pgg);
@@ -1045,8 +1015,8 @@ LegacyUlong CommandExecutionManager::GrfedsForCmd(PCommand pcmd)
     host.Rethrow();
     if (handled > 0)
         return flags;
-    if ((pcmd->cid == cidCexStopRec && _rs == rsRecording) ||
-        (pcmd->cid == cidCexStopPlay && _rs == rsPlaying))
+    if ((pcmd->cid == cidCexStopRec && FRecording()) ||
+        (pcmd->cid == cidCexStopPlay && FPlaying()))
         return fedsEnable;
     return fedsDisable;
 }
@@ -1081,7 +1051,7 @@ bool CommandExecutionManager::FGetNextKey(PCommand pcmd)
 {
     AssertThis(0);
     AssertVarMem(pcmd);
-    if (_rs == rsNormal)
+    if (_macro.mode == MM_MACRO_IDLE)
     {
         MMQueuedCommand key;
         const int status = mm_commands_take_key(&_dispatch, cidKey, &key);
@@ -1135,8 +1105,8 @@ void CommandExecutionManager::AssertValid(LegacyUlong grf)
     CommandExecutionManager_PAR::AssertValid(fobjAllocated);
     Assert(_dispatch.queue.storage == &_dispatch.queue_storage, "invalid command queue");
     Assert(_dispatch.filters.storage == &_dispatch.filter_storage, "invalid command filters");
-    AssertNilOrPo(_pglcmdf, 0);
-    AssertNilOrPo(_pcfl, 0);
+    Assert(_macro.rows.storage == &_macro.storage, "invalid macro rows");
+    AssertNilOrPo(static_cast<PChunkyFile>(_macro.file), 0);
     AssertNilOrPo(_cmdCur.pgg, 0);
 }
 
@@ -1149,7 +1119,8 @@ void CommandExecutionManager::MarkMem(void)
     CommandExecutionManager_PAR::MarkMem();
     MarkPv(_dispatch.queue_storage.buffers[0].data);
     MarkPv(_dispatch.filter_storage.buffers[0].data);
-    MarkMemObj(_pglcmdf);
+    MarkPv(_macro.storage.buffers[0].data);
+    MarkMemObj(static_cast<PChunkyFile>(_macro.file));
     MarkMemObj(_cmdCur.pgg);
 
     MMQueuedCommand command;

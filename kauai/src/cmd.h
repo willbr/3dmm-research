@@ -17,6 +17,7 @@
 #ifndef CMD_H
 #define CMD_H
 #include "mm/command_dispatch.h"
+#include "mm/command_macro.h"
 
 /***************************************************************************
     Command id, options and command struct
@@ -56,16 +57,6 @@ struct Command
     LegacyLong rglw[kclwCmd]; // standard parameters
 };
 typedef Command *PCommand;
-
-// command on file - for saving recorded macros
-struct CommandFile
-{
-    LegacyLong cid;
-    LegacyLong hid;
-    LegacyLong cact;
-    ChildChunkID chidGg; // child id of the pgg, 0 if none
-    LegacyLong rglw[kclwCmd];
-};
 
 /***************************************************************************
     Custom command types
@@ -202,11 +193,11 @@ class CommandHandler : public CommandHandler_PAR
 // command stream recording error codes.
 enum
 {
-    recNil,
-    recFileError,
-    recMemError,
-    recWrongPlatform,
-    recAbort,
+    recNil = MM_MACRO_OK,
+    recFileError = MM_MACRO_FILE_ERROR,
+    recMemError = MM_MACRO_MEMORY_ERROR,
+    recWrongPlatform = MM_MACRO_WRONG_PLATFORM,
+    recAbort = MM_MACRO_ABORTED,
     recLim
 };
 
@@ -222,26 +213,8 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
 
   protected:
     struct DispatchHost;
-
-    // command recording/playback state
-    enum
-    {
-        rsNormal,
-        rsRecording,
-        rsPlaying,
-        rsLim
-    };
-
-    // recording and playback
-    LegacyLong _rs;       // recording/playback state
-    LegacyLong _rec;      // recording/playback errors
-    PChunkyFile _pcfl;     // the file we are recording to or playing from
-    PDynamicArray _pglcmdf;   // the command stream
-    ChunkNumber _cno;       // which macro is being played
-    LegacyLong _icmdf;    // current command for recording or playback
-    ChildChunkID _chidLast; // last chid used for recording
-    LegacyLong _cact;     // number of times on this command
-    Command _cmd;       // previous command recorded or played
+    struct MacroHost;
+    MMCommandMacro _macro;
 
     // dispatching
     Command _cmdCur;     // native command being dispatched
@@ -297,11 +270,11 @@ class CommandExecutionManager : public CommandExecutionManager_PAR
     // recording and play back
     bool FRecording(void)
     {
-        return _rs == rsRecording;
+        return _macro.mode == MM_MACRO_RECORDING;
     }
     bool FPlaying(void)
     {
-        return _rs == rsPlaying;
+        return _macro.mode == MM_MACRO_PLAYING;
     }
     void Record(PChunkyFile pcfl);
     void Play(PChunkyFile pcfl, ChunkNumber cno);

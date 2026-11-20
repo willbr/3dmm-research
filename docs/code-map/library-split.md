@@ -6288,7 +6288,7 @@ removes filters and rereads the active target after callbacks. Enable queries
 retain their separate rule of visiting filters without applying the routing
 mask. Burial clears pending commands for a destroyed handler and releases their
 groups. Native code supplies the typed active command, modal and tracking
-services, macro recording and replay, and member-function calls.
+services, and member-function calls.
 
 `engine-command-dispatch-test` covers C-only routing, ownership, failed growth,
 recursive dispatch and recovery from a host error. The native core regression
@@ -6300,6 +6300,24 @@ In capture suite `20261120T051214Z-92bf58a2`, SDL and Marcus matched the 60
 retail frame identities for `actor-event-edit` in seek and normal playback,
 both from a fresh process and after replay. Each port matched its previous 60
 seek images. SDL matched the 12 retail sound requests in both playback runs.
+
+`command_macro.c` owns the recording and replay state, the retained archive
+reference, and the GLCM command rows. It groups consecutive matching commands
+by their fields and handler identity. Commands carrying groups retain separate
+GG children. C89 handles the repeat cursor, target burial, command admission,
+archive cleanup and completion notification order. The GL header and 32-byte
+rows retain their native byte order and platform tag. The reader checks the row
+width and rejects grouped commands with a repeat count greater than one.
+Kauai supplies chunk I/O, GG serialization and HID lookup.
+
+`engine-command-macro-test` covers recording, replay, target burial, aborts,
+invalid platform, width and repeat fields, and rollback after write failure.
+The Kauai core regression reopens the saved archive and replays five commands
+through the native dispatcher. Its 204-byte GLCM and GG snapshot matches the
+pre-conversion snapshot on x86 and x64. In capture suite
+`20261120T053329Z-aae75c30`, normal movie playback matched the 60 retail frame
+identities on both ports and all 12 retail sound requests on SDL. The 60 seek
+images for each port matched its pre-conversion capture.
 
 ### Studio application time and alarm clocks
 

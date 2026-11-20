@@ -62,12 +62,26 @@ class ReplayTarget : public CommandHandler
   public:
     LegacyLong calls = 0;
     LegacyLong sum = 0;
+    LegacyLong groups = 0;
     ReplayTarget() : CommandHandler(4242)
     {
     }
     bool FDoCmd(PCommand command) override
     {
-        Check(command->cid == 0x10001 && command->pcmh == this);
+        Check(command->pcmh == this);
+        if (command->cid == 0x10002)
+        {
+            byte data[3];
+            Check(command->pgg && command->pgg->IvMac() == 1 && command->pgg->Cb(0) == sizeof(data));
+            command->pgg->Get(0, data);
+            Check(data[0] == 19 && data[1] == 42 && data[2] == 87);
+            ++groups;
+        }
+        else
+        {
+            Check(command->cid == 0x10001 || command->cid == cidMinNoRepeat);
+            Check(command->pgg == pvNil);
+        }
         ++calls;
         sum += command->rglw[0];
         return true;
@@ -736,14 +750,60 @@ static void TestCommandReplay()
     command.rglw[0] = 37;
     vpcex->RecordCmd(&command);
     vpcex->RecordCmd(&command); // Exercise the repeated-command record path too.
-    vpcex->StopRecording();
+    command.cid = cidMinNoRepeat;
+    command.rglw[0] = -11;
+    vpcex->RecordCmd(&command);
+    vpcex->RecordCmd(&command); // Duplicate commands in this range occur only once.
+    auto group = GeneralGroup::PggNew(0);
+    byte bytes[] = {19, 42, 87};
+    Check(group && group->FAdd(sizeof(bytes), pvNil, bytes));
+    command.cid = 0x10002;
+    command.rglw[0] = 107;
+    command.pgg = group;
+    vpcex->RecordCmd(&command);
+    vpcex->RecordCmd(&command); // Groups receive independent GG children.
+    ReleasePpo(&group);
+    vpcex->EnqueueCid(cidMinNoRecord);
+    vpcex->EnqueueCid(cidCexStopRec);
+    Check(vpcex->FDispatchNextCmd() && vpcex->FRecording());
+    Check(vpcex->FDispatchNextCmd());
     Check(!vpcex->FRecording() && s_replayTarget->calls == 0);
     vpcex->FlushCid(cidCexRecordDone);
+    Filename saved;
+    Check(!file->FTemp());
+    file->GetFni(&saved);
+    ReleasePpo(&file);
+    file = ChunkyFile::PcflOpen(&saved, fcflNil);
+    Check(file != pvNil);
     ChunkIdentification recorded;
     Check(file->FGetCkiCtg(kctgMacro, 0, &recorded));
+    if (const char *name = std::getenv("MM_COMMAND_MACRO_SNAPSHOT"))
+    {
+        auto snapshot = std::fopen(name, "wb");
+        Check(snapshot != nullptr);
+        auto capture = [&](ChunkIdentification key) {
+            DataBlock block;
+            byte raw[256];
+            Check(file->FFind(key.ctg, key.cno, &block) && block.Cb() <= sizeof(raw) && block.FRead(raw));
+            Check(std::fwrite(raw, 1, block.Cb(), snapshot) == static_cast<size_t>(block.Cb()));
+        };
+        capture(recorded);
+        for (ChildChunkID slot = 1; slot <= 2; ++slot)
+        {
+            ChildChunkIdentification child;
+            Check(file->FGetKidChidCtg(recorded.ctg, recorded.cno, slot, kctgGg, &child));
+            capture(child.cki);
+        }
+        Check(std::fclose(snapshot) == 0);
+    }
     ReleasePpo(&s_replayTarget);
     s_replayTarget = NewObj ReplayTarget(); // Reconstruct destination from HID, not the recorded object pointer.
     Check(s_replayTarget != pvNil);
+    vpcex->Play(file, recorded.cno);
+    Check(vpcex->FPlaying());
+    vpcex->PushCid(cidCexStopPlay);
+    Check(vpcex->FDispatchNextCmd() && !vpcex->FPlaying() && s_replayTarget->calls == 0);
+    vpcex->FlushCid(cidCexPlayDone);
     vpcex->Play(file, recorded.cno);
     Check(vpcex->FPlaying());
     for (LegacyLong attempt = 0; attempt < 8 && vpcex->FPlaying(); ++attempt)
@@ -751,7 +811,8 @@ static void TestCommandReplay()
         vpcex->EnqueueCid(cidIdle);
         vpcex->FDispatchNextCmd();
     }
-    Check(!vpcex->FPlaying() && s_replayTarget->calls == 2 && s_replayTarget->sum == 74);
+    Check(!vpcex->FPlaying() && s_replayTarget->calls == 5 && s_replayTarget->sum == 277 &&
+          s_replayTarget->groups == 2);
     vpcex->FlushCid(cidIdle);
     vpcex->FlushCid(cidCexPlayDone);
     SetCmdHooks(pvNil, pvNil);
