@@ -139,19 +139,19 @@ static int adopt_child(const MMChunkEdit *edit, const MMChunkChild *child, const
 {
     const int result = mm_chunk_adopt(edit, MM_MOVIE_CHUNK, s->data->movieNumber, child, 1);
     if (result == MM_CHUNK_NOT_FOUND && s->archive_issue)
-        s->archive_issue(s->context, MM_SAVE_EDIT_MISSING_CHILD);
+        s->archive_issue(s->context, MM_MOVIE_ARCHIVE_MISSING_CHILD);
     return result == MM_CHUNK_OK;
 }
 static void unlink_child(const MMChunkEdit *edit, MMU32 movie, const MMChunkChild *child,
                          const MMMovieSaveServices *s)
 {
     if (mm_chunk_unlink(edit, MM_MOVIE_CHUNK, movie, child) != MM_CHUNK_OK && s->archive_issue)
-        s->archive_issue(s->context, MM_SAVE_EDIT_UNLINK);
+        s->archive_issue(s->context, MM_MOVIE_ARCHIVE_UNLINK_FAILED);
 }
 static void discard_chunk(const MMChunkEdit *edit, MMU32 type, MMU32 number, const MMMovieSaveServices *s)
 {
     if (mm_chunk_delete(edit, type, number) != MM_CHUNK_OK && s->archive_issue)
-        s->archive_issue(s->context, MM_SAVE_EDIT_DELETE);
+        s->archive_issue(s->context, MM_MOVIE_ARCHIVE_DELETE_FAILED);
 }
 int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices *s)
 {

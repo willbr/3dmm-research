@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MOVIE_SCENE_H
 #define MM_ENGINE_MOVIE_SCENE_H
+#include "chunk_edit.h"
 #include "movie_owner.h"
 #include "playback.h"
 #include "scene_edit.h"
@@ -15,6 +16,13 @@ extern "C"
     {
         MM_MOVIE_INSERT_SCENE,
         MM_MOVIE_REMOVE_SCENE
+    };
+    enum
+    {
+        MM_MOVIE_ARCHIVE_MISSING_CHILD,
+        MM_MOVIE_ARCHIVE_UNLINK_FAILED,
+        MM_MOVIE_ARCHIVE_DELETE_FAILED,
+        MM_MOVIE_ARCHIVE_MOVE_FAILED
     };
     typedef struct MMMovieScenes
     {
@@ -37,12 +45,11 @@ extern "C"
         void (*scene_change)(void *), (*invalidate)(void *);
         void *(*file)(void *resources);
         MMChunkAccess (*chunks)(void *file);
+        MMChunkEdit (*edit)(void *file);
         int (*write)(void *, void *scene, MMU32 *number);
-        void (*move_child)(void *file, MMU32 type, MMU32 parent, const MMChunkChild *, MMU32 slot);
-        int (*adopt)(void *file, MMU32 type, MMU32 parent, const MMChunkChild *);
         int (*preserve_scene_assets)(void *file, MMU32 scene);
-        void (*delete_child)(void *file, MMU32 type, MMU32 parent, const MMChunkChild *);
-        void (*delete_chunk)(void *file, MMU32 type, MMU32 number), (*save)(void *file);
+        void (*save)(void *file);
+        void (*archive_issue)(void *, int issue);
         void (*missing_link)(void *);
         void (*remove_actors)(void *scene), (*add_actors)(void *scene);
         void (*dirty)(void *), (*rollcall_changed)(void *), (*switch_error)(void *);
@@ -63,7 +70,7 @@ extern "C"
      * The host list releases committed records; C orders commit/release/clear.
      * Reads receive a resolved scene number. The live session is borrowed for
      * scene switching and NULL for direct reads during composition.
-     * Link callbacks receive exact chunk identities. File handles remain borrowed
+     * The C89 editor works on exact chunk identities. File handles remain borrowed
      * throughout a transaction. start can fail
      * after changing the world. Scene publication precedes notification and index
      * publication follows it, including retry of the old scene after failure.

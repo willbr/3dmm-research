@@ -51,7 +51,6 @@ extern "C"
         void *(*read_thumbnail)(void *file, MMU32 number), *(*thumbnail)(void *scene);
         int (*clone_movie)(void *source, MMU32 number, void *destination, MMU32 *number_out);
         int (*link_imported_sounds)(void *file, MMU32 movie);
-        void (*delete_movie)(void *file, MMU32 number);
         int (*adopt_sounds)(void *, void *file, MMU32 scene);
         int (*start_scene)(void *scene), (*add_actors)(void *scene);
         void (*remove_actors)(void *scene), (*actor_tools)(void *), (*text_tools)(void *);

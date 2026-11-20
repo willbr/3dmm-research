@@ -282,19 +282,26 @@ int mm_movie_compose_merge(MMU32 movie, MMI32 offset, const MMMovieComposeServic
 {
     return merge(movie, offset, NULL, s);
 }
+static void delete_root(const MMChunkEdit *edit, MMU32 number, const MMMovieSceneServices *scenes)
+{
+    if (mm_chunk_delete(edit, MM_MOVIE_CHUNK, number) != MM_CHUNK_OK && scenes->archive_issue)
+        scenes->archive_issue(scenes->context, MM_MOVIE_ARCHIVE_DELETE_FAILED);
+}
 int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeServices *s)
 {
     const MMMovieSceneServices *scenes = &s->scene_control;
+    MMChunkEdit edit;
     MMCollectionStorage cloned;
     MMI32 old = s->scenes->index, offset = 0;
     MMU32 i, copied = 0, slot = 0, number, current_slot, *roots = NULL;
     void *resources = s->data->resources, *file, *scene;
     MMComposeMovie movie;
     MMComposeScene descriptor;
-    int ok = 0;
+    int status, ok = 0;
     if (!state->movie_count || mm_storage_init(&cloned, compose_allocator(s)) != MM_STORAGE_OK)
         return 0;
     file = scenes->file(resources);
+    edit = scenes->edit(file);
     if (mm_storage_ensure(&cloned, (state->movie_count - 1) * sizeof(*roots), 0, 0) != MM_STORAGE_OK)
         goto done;
     roots = (MMU32 *)cloned.buffers[0].data;
@@ -309,7 +316,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
             if ((s->link_imported_sounds && !s->link_imported_sounds(file, movie.number)) ||
                 !merge(movie.number, offset, s->rebind_actor_materials || s->rebind_scene_backgrounds ? source : NULL, s))
             {
-                s->delete_movie(file, movie.number);
+                delete_root(&edit, movie.number, scenes);
                 goto done;
             }
             s->retain(resources);
@@ -334,8 +341,13 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
             {
                 link.number = number;
                 link.slot = slot++;
-                if (!scenes->adopt(file, MM_MOVIE_CHUNK, s->data->movieNumber, &link))
+                status = mm_chunk_adopt(&edit, MM_MOVIE_CHUNK, s->data->movieNumber, &link, 1);
+                if (status != MM_CHUNK_OK)
+                {
+                    if (status == MM_CHUNK_NOT_FOUND && scenes->archive_issue)
+                        scenes->archive_issue(scenes->context, MM_MOVIE_ARCHIVE_MISSING_CHILD);
                     goto done;
+                }
                 if (!s->adopt_sounds(s->context, file, number))
                     goto done;
                 scene = scenes->read(scenes->context, resources, number, NULL);
@@ -369,14 +381,18 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
             }
             link.number = descriptor.number;
             link.slot = descriptor.child;
-            scenes->delete_child(file, MM_MOVIE_CHUNK, s->data->movieNumber, &link);
+            if (mm_chunk_unlink(&edit, MM_MOVIE_CHUNK, s->data->movieNumber, &link) != MM_CHUNK_OK &&
+                scenes->archive_issue)
+                scenes->archive_issue(scenes->context, MM_MOVIE_ARCHIVE_UNLINK_FAILED);
         }
         else
         {
             number = descriptor.number;
             link.number = number;
             link.slot = descriptor.child;
-            scenes->move_child(file, MM_MOVIE_CHUNK, s->data->movieNumber, &link, slot++);
+            if (mm_chunk_change_slot(&edit, MM_MOVIE_CHUNK, s->data->movieNumber, &link, slot++) != MM_CHUNK_OK &&
+                scenes->archive_issue)
+                scenes->archive_issue(scenes->context, MM_MOVIE_ARCHIVE_MOVE_FAILED);
         }
         if (descriptor.child != (MMU32)old || descriptor.movie != 0)
         {
@@ -404,7 +420,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
 done:
     while (copied)
     {
-        s->delete_movie(file, roots[--copied]);
+        delete_root(&edit, roots[--copied], scenes);
         s->release(resources);
     }
     mm_storage_dispose(&cloned);

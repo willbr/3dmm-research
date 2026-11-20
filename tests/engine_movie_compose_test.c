@@ -2,6 +2,7 @@
 #include "mm/movie_compose.h"
 #include "mm/movie_rollcall.h"
 #include "mm/scene_data.h"
+#include "movie_scene_archive_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -35,7 +36,6 @@ enum
     ACTOR_TOOLS,
     TEXT_TOOLS,
     DELETE_CHILD,
-    CHANGE_CHILD,
     WRITE_TRANS,
     SET_TRANS,
     DIRTY,
@@ -59,6 +59,7 @@ struct Test
     MMMovieState data;
     MMMovieScenes scenes;
     MMCompositeMovie composite;
+    MovieSceneArchiveFixture archives[2];
     Object resources[3], thumbs[3], open, read, tags[3];
     int fail, failAt, calls[40], events[256], n, badRef;
     int withActors, actorIds[2], adjusted[8], adjustCount;
@@ -109,32 +110,24 @@ static void *file(void *p)
 {
     return p;
 }
-static int chunk_entry(void *p, MMU32 position, MMChunkEntry *entry)
+static MovieSceneArchiveFixture *archive(void *p)
 {
-    static const MMU32 roots[] = {10, 20, 120};
-    (void)p;
-    memset(entry, 0, sizeof(*entry));
-    entry->type = MM_MOVIE_CHUNK;
-    entry->number = roots[position];
-    entry->child_count = 3;
-    return 1;
-}
-static int chunk_child(void *p, MMU32 parent, MMU32 slot, MMChunkChild *out)
-{
-    (void)p;
-    out->type = MM_SCENE_CHUNK;
-    out->number = (parent == 0 ? 100 : 200) + slot;
-    out->slot = slot;
-    return 1;
+    Object *o = p;
+    if (o->id != 1 && o->id != 2)
+        abort();
+    return &o->test->archives[o->id - 1];
 }
 static MMChunkAccess chunks(void *p)
 {
     Object *o = p;
-    MMChunkAccess access = {NULL, 3, chunk_entry, chunk_child};
-    access.context = p;
+    MMChunkAccess access = fixture_scene_chunks(archive(p));
     if (fails(o->test, CHILD))
         access.count = 0;
     return access;
+}
+static MMChunkEdit edit_archive(void *p)
+{
+    return fixture_scene_edit(archive(p));
 }
 static int read_transition(void *p, MMU32 number, MMI32 *out)
 {
@@ -166,10 +159,16 @@ static void *thumbnail(void *p)
 static int clone(void *p, MMU32 number, void *destination, MMU32 *out)
 {
     Object *o = p;
-    (void)destination;
+    const MMChunkAccess source = fixture_scene_chunks(archive(p));
+    MMChunkEntry entry;
+    MMU32 position;
     if (fails(o->test, CLONE))
         return 0;
+    if (mm_chunk_find(&source, MM_MOVIE_CHUNK, number, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(&source, position, &entry) != MM_CHUNK_OK)
+        abort();
     *out = number + 100;
+    fixture_scene_seed_movie(archive(destination), *out, *out * 10, entry.child_count);
     return 1;
 }
 static int link_sounds(void *file, MMU32 number)
@@ -178,11 +177,14 @@ static int link_sounds(void *file, MMU32 number)
     CHECK(number == 120);
     return !fails(o->test, LINK_SOUNDS);
 }
-static void delete_root(void *p, MMU32 number)
+static void erase_entry(void *p, const MMChunkEntry *entry)
 {
-    Object *o = p;
-    note(o->test, DELETE_ROOT);
-    o->test->deleted[o->test->deletedCount++] = (int)number;
+    Test *t = p;
+    if (entry->type == MM_MOVIE_CHUNK)
+    {
+        note(t, DELETE_ROOT);
+        t->deleted[t->deletedCount++] = (int)entry->number;
+    }
 }
 static int read_table(void *p, MMU32 number, MMRollCallTable *table)
 {
@@ -282,13 +284,14 @@ static int rebind_materials(void *source, void *destination, MMU32 actor)
     Test *t = ((Object *)destination)->test;
     return source == &t->resources[1] && (actor == 100 || actor == 101) && !fails(t, REBIND_MATERIALS);
 }
-static int adopt(void *p, MMU32 type, MMU32 root, const MMChunkChild *child)
+static int insert_link(void *p, MMU32 root, const MMChunkChild *child)
 {
-    Object *o = p;
-    CHECK(type == MM_MOVIE_CHUNK && root == 10 && child->type == MM_SCENE_CHUNK);
-    if (fails(o->test, ADOPT))
+    Test *t = p;
+    if (root != 10 || child->type != MM_SCENE_CHUNK)
+        abort();
+    if (fails(t, ADOPT))
         return 0;
-    ++o->test->adopted;
+    ++t->adopted;
     return 1;
 }
 static int sounds(void *p, void *f, MMU32 number)
@@ -329,20 +332,17 @@ static void text_tools(void *p)
 {
     fails(p, TEXT_TOOLS);
 }
-static void delete_child(void *p, MMU32 type, MMU32 root, const MMChunkChild *child)
+static void erase_link(void *p, MMU32 root, const MMChunkChild *child)
 {
-    Object *o = p;
-    if (type != MM_MOVIE_CHUNK || root != 10 || child->type != MM_SCENE_CHUNK)
+    if (root != 10 || child->type != MM_SCENE_CHUNK)
         abort();
-    fails(o->test, DELETE_CHILD);
+    fails(p, DELETE_CHILD);
 }
-static void change_child(void *p, MMU32 type, MMU32 root, const MMChunkChild *child, MMU32 after)
+static void bad_archive_edit(void *p, int issue)
 {
-    Object *o = p;
-    (void)after;
-    if (type != MM_MOVIE_CHUNK || root != 10 || child->type != MM_SCENE_CHUNK)
-        abort();
-    fails(o->test, CHANGE_CHILD);
+    (void)p;
+    fprintf(stderr, "unexpected archive issue %d\n", issue);
+    abort();
 }
 static int write_transition(void *p, MMU32 number, MMI32 value)
 {
@@ -439,6 +439,13 @@ static void init(Test *t)
     t->data.movieNumber = 10;
     t->data.actorIdLimit = 10;
     t->data.sceneCount = 2;
+    fixture_scene_seed_movie(&t->archives[0], 10, 100, 2);
+    fixture_scene_seed_movie(&t->archives[1], 20, 200, 1);
+    fixture_scene_seed_movie(&t->archives[1], 30, 300, 0);
+    t->archives[0].observer = t;
+    t->archives[0].before_insert = insert_link;
+    t->archives[0].before_unlink = erase_link;
+    t->archives[0].before_delete = erase_entry;
     t->scenes.index = 1;
     t->scenes.open = &t->open;
     t->openTransition = 4;
@@ -455,7 +462,6 @@ static void init(Test *t)
     s->read_thumbnail = read_thumbnail;
     s->thumbnail = thumbnail;
     s->clone_movie = clone;
-    s->delete_movie = delete_root;
     s->read_rollcall = read_table;
     s->close_tag = close_tag;
     s->adjust_actor = adjust;
@@ -480,10 +486,9 @@ static void init(Test *t)
     s->scene_control.close = close_scene;
     s->scene_control.file = file;
     s->scene_control.chunks = chunks;
+    s->scene_control.edit = edit_archive;
     s->scene_control.read = read_scene;
-    s->scene_control.adopt = adopt;
-    s->scene_control.delete_child = delete_child;
-    s->scene_control.move_child = change_child;
+    s->scene_control.archive_issue = bad_archive_edit;
     s->allocator.context = t;
     s->allocator.resize = resize;
     s->allocator.release = free_buffer;
@@ -675,6 +680,7 @@ static int applying(void)
         CHECK(mm_movie_compose_apply(&t.composite, &t.s) == !i);
         CHECK(t.resources[0].refs == 2 && t.resources[1].refs == 2 && !t.read.refs && t.blocks == 2 && !t.badRef);
         CHECK(t.deletedCount == (i == 1 ? 0 : 1));
+        CHECK(t.archives[0].count == 3U + t.adopted);
         if (t.deletedCount)
             CHECK(t.deleted[0] == 120);
         if (!i)
@@ -751,6 +757,8 @@ static int applying(void)
     CHECK(mm_movie_compose_apply(&t.composite, &t.s) && t.scenes.index == 0 && t.data.sceneCount == 2 &&
           t.removedActors == 1);
     CHECK(t.calls[DELETE_CHILD] == 1 && t.open.refs == 1);
+    CHECK(t.archives[0].count == 3 && fixture_scene_slot(&t.archives[0], 101) == 0 &&
+          fixture_scene_slot(&t.archives[0], 1200) == 1 && fixture_scene_slot(&t.archives[0], 100) == -1);
     mm_composite_empty(&t.composite, release);
     init(&t);
     CHECK(apply_setup(&t, 0, 10));

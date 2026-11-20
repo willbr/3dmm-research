@@ -1177,7 +1177,10 @@ selection, chop/snapshot-undo, property/playback-lifecycle and thumbnail/dirty
 slices and Scene query/group-loading policy are complete. Movie scene switching,
 close/new/insert/remove transactions, undoable removal and scene undo/redo dispatch
 now also use C89, including current-scene reference/index control and failure
-retry/rollback order. Movie autosave/save transactions, temporary-resource setup,
+retry/rollback order. Scene insertion, removal, and composition use the C89
+editor to move, adopt, and unlink live scene links. Composition also uses it
+to release temporary imported roots while keeping the scenes linked to the
+destination movie. Movie autosave/save transactions, temporary-resource setup,
 saved-file ownership/flags, VMM save-format/publication policy, scene-tag collection
 and asset/sound garbage-collection control now also use C89. Autosave publishes
 and rolls back links through the C89 editor on the live index. Garbage collection

@@ -16473,3 +16473,42 @@ matched all 60 retail frame identities in seek and continuous playback and all
 retail seek camera indices. Both matched their prior seek image hashes, and
 SDL matched all 12 retail sound requests. Evidence is in
 `tmp/c89-movie-save-index`.
+
+## C89 scene edits on the live chunk index (20 November 2026)
+
+Studio scene insertion, removal, and composition now mutate scene links
+through the C89 editor. The fixtures check that failed insertion restores
+the original links and frees the staged chunk, and that deleting a temporary
+import root preserves scenes already adopted by the destination movie.
+
+All 192 standalone checks and eight AddressSanitizer checks passed. Eight
+focused engine checks and the Archive API passed on SDL and native x64 and
+x86. The 14 Marcus syntax, playback, and player checks passed.
+
+The three builds matched 54 baseline traces spanning actor edits, scene edits
+and undo/redo, composition, and saves. Three saved movie fixtures, ten Preview
+fingerprints, and six Preview movies also matched.
+
+Studio imported two scenes, moved one ahead of the original scene, then
+deleted the original in the Scene Sorter. The saved `.3mm` matched the
+previous build byte for byte. The reopened scenes had four and three frames,
+with one actor each. In `20261120T182344Z-cd0bef06`, retail, SDL, and Marcus
+agreed on all seven seek frame and camera records. SDL and Marcus matched
+all seven canvas hashes. Four immediate retail screenshots matched after the
+canvas settled.
+
+In continuous playback of the same movie, all three players presented the
+seven authored frames in order. SDL differed from retail by up to 102 ms
+in `20261120T182534Z-19b2b290`. The prior SDL build also differed from retail
+on the identical file, by up to 86 ms in `20261120T182850Z-16dd762d`. The
+Marcus timing markers and the continuous images remain inconclusive.
+
+In `actor-event-edit` suite `20261120T182225Z-ec810734`, SDL and Marcus
+matched all 60 retail frame identities in seek and continuous playback and all
+retail seek camera indices. Both matched their prior seek image hashes, and
+SDL matched all 12 retail sound requests.
+
+Both VMM seek images in `20261120T182225Z-aecd3760` matched the archived SDL
+and Marcus captures. Fresh SDL and Marcus captures also matched the two seek
+frames and canvas images from original v3dmm 0.14 in `20261120T182917Z-c48e4c97`.
+Evidence is in `tmp/c89-movie-scene-index`.

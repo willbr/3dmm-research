@@ -149,6 +149,22 @@ static int PreserveSceneAssets(void *context, MMU32 scene)
         [](void *p, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(p)->SetLoner(type, number, true); });
 }
 
+static MMChunkEdit EditMovieArchive(void *file)
+{
+    return static_cast<PChunkyFile>(file)->EditIndex();
+}
+
+static void MovieArchiveIssue(void *, int issue)
+{
+    switch (issue)
+    {
+    case MM_MOVIE_ARCHIVE_MISSING_CHILD: Bug("parent or child not there"); break;
+    case MM_MOVIE_ARCHIVE_UNLINK_FAILED: Bug("chunk or child link missing"); break;
+    case MM_MOVIE_ARCHIVE_DELETE_FAILED: Bug("chunk not deletable or missing"); break;
+    case MM_MOVIE_ARCHIVE_MOVE_FAILED: Bug("src not a child or dest already a child"); break;
+    }
+}
+
 MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
 {
     static_assert(kctgScen == MM_SAVE_SCENE && kctgGst == MM_SAVE_TABLE &&
@@ -192,7 +208,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
     };
     s.chunks = [](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
-    s.edit = [](void *p) { return static_cast<PChunkyFile>(p)->EditIndex(); };
+    s.edit = EditMovieArchive;
     s.create_root = [](void *, void *p, MMU32 *number) -> int { return MovieData::FCreateRoot(static_cast<PChunkyFile>(p), number); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
     s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
@@ -218,14 +234,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         return static_cast<PScene>(scene)->FWrite(static_cast<SaveHost *>(p)->movie->_data.Resources(), number);
     };
     s.preserve_scene_assets = PreserveSceneAssets;
-    s.archive_issue = [](void *, int issue) {
-        switch (issue)
-        {
-        case MM_SAVE_EDIT_MISSING_CHILD: Bug("parent or child not there"); break;
-        case MM_SAVE_EDIT_UNLINK: Bug("chunk or child link missing"); break;
-        case MM_SAVE_EDIT_DELETE: Bug("chunk not deletable or missing"); break;
-        }
-    };
+    s.archive_issue = MovieArchiveIssue;
     s.close_tag = [](void *, MMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->_pmcc->UpdateRollCall(); };
     s.write_rollcall = [](void *, void *p, MMU32 root, MMRollCallTable *table, MMU32 *number) -> int {
@@ -1043,20 +1052,12 @@ MMMovieSceneServices Movie::_SceneServices()
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
     s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
     s.chunks = [](void *p) { return static_cast<PChunkyFile>(p)->ReadChunkAccess(); };
+    s.edit = EditMovieArchive;
     s.write = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
     };
-    s.move_child = [](void *file, MMU32 type, MMU32 parent, const MMChunkChild *child, MMU32 to) {
-        static_cast<PChunkyFile>(file)->ChangeChid(type, parent, child->type, child->number, child->slot, to);
-    };
-    s.adopt = [](void *file, MMU32 type, MMU32 parent, const MMChunkChild *child) -> int {
-        return static_cast<PChunkyFile>(file)->FAdoptChild(type, parent, child->type, child->number, child->slot);
-    };
     s.preserve_scene_assets = PreserveSceneAssets;
-    s.delete_child = [](void *file, MMU32 type, MMU32 parent, const MMChunkChild *child) {
-        static_cast<PChunkyFile>(file)->DeleteChild(type, parent, child->type, child->number, child->slot);
-    };
-    s.delete_chunk = [](void *file, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(file)->Delete(type, number); };
+    s.archive_issue = MovieArchiveIssue;
     s.save = [](void *file) { static_cast<PChunkyFile>(file)->FSave(kctgSoc); };
     s.missing_link = [](void *) { Bug("Missing movie scene link"); };
     s.remove_actors = [](void *scene) { static_cast<PScene>(scene)->RemActrsFromRollCall(); };
@@ -2826,7 +2827,6 @@ MMMovieComposeServices Movie::_ComposeServices()
         const auto archive = assets.Services();
         return mm_movie_archive_link_imported_sounds(&graph, movie, &archive);
     };
-    s.delete_movie=[](void *p,MMU32 number) { static_cast<PChunkyFile>(p)->Delete(kctgMvie,number); };
     s.adopt_sounds=[](void *p,void *file,MMU32 scene)->int { return static_cast<PMovie>(p)->_FAdoptMsndInMvie(static_cast<PChunkyFile>(file),scene); };
     s.start_scene=[](void *p)->int { return static_cast<PScene>(p)->FPlayStartEvents(true); };
     s.add_actors=[](void *p)->int { return static_cast<PScene>(p)->FAddActrsToRollCall(); };

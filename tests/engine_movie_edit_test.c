@@ -4,7 +4,7 @@
 #include "mm/actor_undo.h"
 #include "mm/scene_selection.h"
 #include "actor_stage_owner_fixture.h"
-#include "movie_scene_archive_fixture.h"
+#include "movie_scene_session_fixture.h"
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -422,13 +422,11 @@ static void *read_background_scene(void *p, void *resources, MMU32 number, const
     t->scene_owner.data.transition = 1;
     return t;
 }
-static void delete_background_scene(void *p, MMU32 type, MMU32 movie, const MMChunkChild *child)
+static void delete_background_scene(void *p, MMU32 movie, const MMChunkChild *child)
 {
     Test *t = p;
-    if (type != MM_MOVIE_CHUNK || movie != FIXTURE_MOVIE_ROOT || child->type != MM_SCENE_CHUNK ||
-        t->archive.slots[child->slot] != child->number)
-        exit(1);
-    t->archive.slots[child->slot] = 0;
+    if (movie != FIXTURE_MOVIE_ROOT || child->type != MM_SCENE_CHUNK)
+        abort();
     ++t->removeScene;
     t->removedIndex = child->slot;
     event(t, REMOVE_SCENE);
@@ -1711,19 +1709,24 @@ static void *background_file(void *p) { return p; }
 static MMChunkAccess background_chunks(void *p) { return fixture_scene_chunks(&((Test *)p)->archive); }
 static int write_background_scene(void *p, void *scene, MMU32 *number)
 {
-    (void)p;
+    Test *t = p;
     (void)scene;
     *number = 123;
+    fixture_scene_add(&t->archive, MM_SCENE_CHUNK, *number);
     return 1;
 }
-static int adopt_background_scene(void *p, MMU32 type, MMU32 movie, const MMChunkChild *child)
+static int adopt_background_scene(void *p, MMU32 movie, const MMChunkChild *child)
 {
     Test *t = p;
-    if (type != MM_MOVIE_CHUNK || movie != FIXTURE_MOVIE_ROOT || child->type != MM_SCENE_CHUNK ||
-        child->number != 123 || child->slot != (MMU32)t->data.sceneCount - 1 || t->archive.slots[child->slot])
-        return 0;
-    t->archive.slots[child->slot] = child->number;
+    if (movie != FIXTURE_MOVIE_ROOT || child->type != MM_SCENE_CHUNK ||
+        child->number != 123 || child->slot != (MMU32)t->data.sceneCount - 1)
+        abort();
     return 1;
+}
+static MMChunkEdit edit_background_movie(void *p)
+{
+    Test *t = p;
+    return fixture_scene_edit(&t->archive);
 }
 static MMMovieSceneServices background_scenes(Test *t)
 {
@@ -1741,9 +1744,8 @@ static MMMovieSceneServices background_scenes(Test *t)
     s.sound_frame = s.scene_change = s.invalidate = ignore_change;
     s.file = background_file;
     s.chunks = background_chunks;
+    s.edit = edit_background_movie;
     s.write = write_background_scene;
-    s.adopt = adopt_background_scene;
-    s.delete_child = delete_background_scene;
     s.save = s.remove_actors = s.add_actors = ignore_change;
     s.dirty = s.rollcall_changed = s.flush_sound = ignore_change;
     s.sounds_enabled = cannot_notify;
@@ -1758,6 +1760,9 @@ static int seed_background(Test *t)
     t->data.resources = t;
     t->data.movieNumber = FIXTURE_MOVIE_ROOT;
     fixture_scene_archive_init(&t->archive, t->data.sceneCount);
+    t->archive.observer = t;
+    t->archive.before_insert = adopt_background_scene;
+    t->archive.before_unlink = delete_background_scene;
     if (!seed_scene(t))
         return 0;
     t->scene_owner.background_tag = tag;

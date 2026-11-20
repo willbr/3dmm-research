@@ -1,7 +1,7 @@
 #include "mm/scene_chop.h"
 #include "mm/scene_sound.h"
 #include "scene_member_fixture.h"
-#include "movie_scene_archive_fixture.h"
+#include "movie_scene_session_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -483,34 +483,26 @@ static int write_movie_scene(void *p, void *scene, MMU32 *number)
     Host *h = (Host *)p;
     CHECK(scene == &h->loaded);
     *number = 124;
+    fixture_scene_add(&h->archive, MM_SCENE_CHUNK, *number);
     return 1;
 }
 static void *archive(void *p) { return p; }
 static MMChunkAccess chunks(void *p) { return fixture_scene_chunks(&((Host *)p)->archive); }
+static MMChunkEdit edit_archive(void *p) { return fixture_scene_edit(&((Host *)p)->archive); }
 static int succeed(void *p) { (void)p; return 1; }
 static void ignore(void *p) { (void)p; }
-static void move_child(void *p, MMU32 type, MMU32 parent, const MMChunkChild *child, MMU32 to)
+static int insert_scene_link(void *p, MMU32 parent, const MMChunkChild *child)
 {
-    Host *h = p;
-    CHECK(type == MM_MOVIE_CHUNK && parent == FIXTURE_MOVIE_ROOT && child->type == MM_SCENE_CHUNK);
-    CHECK(h->archive.slots[child->slot] == child->number && !h->archive.slots[to]);
-    h->archive.slots[child->slot] = 0;
-    h->archive.slots[to] = child->number;
-}
-static int adopt(void *p, MMU32 type, MMU32 parent, const MMChunkChild *child)
-{
-    Host *h = p;
-    CHECK(type == MM_MOVIE_CHUNK && parent == FIXTURE_MOVIE_ROOT && child->type == MM_SCENE_CHUNK &&
-          child->number == 124 && child->slot == 2 && !h->archive.slots[2]);
-    h->archive.slots[2] = child->number;
+    (void)p;
+    CHECK(parent == FIXTURE_MOVIE_ROOT && child->type == MM_SCENE_CHUNK &&
+          child->number == 124 && child->slot == 2);
     return 1;
 }
-static void unlink_scene(void *p, MMU32 type, MMU32 parent, const MMChunkChild *child)
+static void erase_scene_link(void *p, MMU32 parent, const MMChunkChild *child)
 {
-    Host *h = p;
-    CHECK(type == MM_MOVIE_CHUNK && parent == FIXTURE_MOVIE_ROOT && child->type == MM_SCENE_CHUNK &&
-          child->number == 102 && child->slot == 3 && h->archive.slots[3] == child->number);
-    h->archive.slots[3] = 0;
+    (void)p;
+    CHECK(parent == FIXTURE_MOVIE_ROOT && child->type == MM_SCENE_CHUNK &&
+          child->number == 102 && child->slot == 3);
 }
 static MMMovieSceneServices scene_services(Host *h)
 {
@@ -523,6 +515,8 @@ static MMMovieSceneServices scene_services(Host *h)
     h->data.movieNumber = FIXTURE_MOVIE_ROOT;
     h->data.resources = h;
     fixture_scene_archive_init(&h->archive, h->data.sceneCount);
+    h->archive.before_insert = insert_scene_link;
+    h->archive.before_unlink = erase_scene_link;
     s.context = h;
     s.state = &h->movie;
     s.movie = &h->data;
@@ -540,10 +534,8 @@ static MMMovieSceneServices scene_services(Host *h)
     s.sound_frame = s.scene_change = ignore;
     s.file = archive;
     s.chunks = chunks;
+    s.edit = edit_archive;
     s.write = write_movie_scene;
-    s.move_child = move_child;
-    s.adopt = adopt;
-    s.delete_child = unlink_scene;
     s.save = s.dirty = s.rollcall_changed = ignore;
     s.remove_actors = s.add_actors = ignore;
     s.sounds_enabled = succeed;

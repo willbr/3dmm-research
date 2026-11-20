@@ -6,7 +6,6 @@
 #include "movie_scene.h"
 #include "collections.h"
 #include "chunky_file.h"
-#include "chunk_edit.h"
 #include "movie_session.h"
 #ifdef __cplusplus
 extern "C"
@@ -18,12 +17,6 @@ extern "C"
         MM_SAVE_TABLE = 0x47535420,
         MM_SAVE_MATERIAL = 0x4d54524c,
         MM_SAVE_TEMPLATE = 0x544d504c
-    };
-    enum
-    {
-        MM_SAVE_EDIT_MISSING_CHILD,
-        MM_SAVE_EDIT_UNLINK,
-        MM_SAVE_EDIT_DELETE
     };
     typedef struct MMMovieSaveState
     {
