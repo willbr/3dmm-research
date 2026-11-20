@@ -22,8 +22,9 @@ typedef struct MMBodyRuntimeServices
 {
     MMBodyCreateServices shape;
     void (*retain)(void *,void *);
-    void (*assign_model)(void *,void *body,MMI32 part,void *model);
-    void (*assign_material)(void *,void *body,MMI32 part,void *raw_material);
+    void *(*model_handle)(void *,void *model);
+    void (*assign_model)(void *,void *actors,MMI32 index,void *raw_model);
+    void (*assign_material)(void *,void *actors,MMI32 index,void *raw_material);
     void *(*material_object)(void *,void *raw_material);
     void *(*material_handle)(void *,void *material_object);
     void *(*custom)(void *,void *body,MMI32 set);
@@ -42,9 +43,10 @@ typedef struct MMBodyRuntimeServices
     int (*is_generic)(void *,void *material);
     void (*diagnostic)(void *,int);
 } MMBodyRuntimeServices;
-/* Services expose raw renderer material handles separately from owned material
- * objects. Removing a custom costume releases its owner BEFORE clearing raw
- * part handles, which must not dereference those now potentially stale handles.
+/* Services expose raw renderer model and material handles separately from
+ * their owned resources. A model handle stays valid while the resource is
+ * retained. Removing a custom costume releases its owner before clearing raw
+ * part handles, so clearing must not dereference those handles.
  * Generic assignment requires the caller to keep its material alive through
  * old-material removal. Custom assignment retains first, supporting self-use.
  * Same-model assignment returns without references or notification. Other

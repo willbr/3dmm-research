@@ -153,7 +153,7 @@ static void *attach_body_part(void *v, void *parent, MMI32 index, const MMBodyPa
     if (h->fail == F_COPY)
         return NULL;
     out = node(h, (Node *)parent);
-    out->model = binding->model != NULL;
+    out->model = binding->model_handle != NULL;
     out->id = binding->matrix.m[3][0];
     ++h->copies;
     return out;
@@ -585,10 +585,10 @@ static void init(Host *h, MMPreviewView *v, MMPreviewOrbit *o)
     h->material.map = h;
     for (i = 1; i < 4; ++i)
     {
-        h->bindings[0][i+1].model = h;
+        h->bindings[0][i+1].model_handle = h;
         h->bindings[0][i+1].parent = -1;
         h->bindings[0][i+1].matrix.m[3][0] = 4-i;
-        h->bindings[i][0].model = h;
+        h->bindings[i][0].model_handle = h;
         h->bindings[i][0].matrix.m[3][0] = i;
     }
     memset(h->background_colours, 23, sizeof(h->background_colours));

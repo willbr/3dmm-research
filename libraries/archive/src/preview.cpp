@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/preview.h"
 #include "mm/preview_rasterizer.h"
+#include "body_renderer.h"
 #include "zb_capture.h"
 #include "preview_background_mesh.h"
 #include "preview_depth_range.h"

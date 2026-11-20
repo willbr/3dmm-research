@@ -280,7 +280,7 @@ static int attach_part(void *context, MMI32 index, MMI32 parent, const MMBodyPar
     if (!node)
         return 0;
     draw->nodes[index] = node;
-    return !binding->model || !s->tree.owner || s->tree.owner(s->tree.context, node, draw->owner);
+    return !binding->model_handle || !s->tree.owner || s->tree.owner(s->tree.context, node, draw->owner);
 }
 
 int mm_preview_pose_submit(MMPreviewPose *pose, void *world, MMCollectionStorage *scratch,

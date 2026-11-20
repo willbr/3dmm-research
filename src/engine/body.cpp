@@ -112,6 +112,7 @@
 
 ***************************************************************************/
 #include "soc_core.h"
+#include "body_renderer.h"
 #include "engine_part_indices.h"
 #include <cstring>
 ASSERTNAME
@@ -231,11 +232,7 @@ MMBodyCreateServices Body::_CreateServices(void)
             actor->material = _pbmtlHilite; actor->render_style = BR_RSTYLE_BOUNDING_EDGES;
         } else if (role == MM_BODY_PART) actor->render_style = BR_RSTYLE_FACES;
     };
-    s.assign_matrix = [](void *, void *actors, MMI32 index, const MMActorMatrix *matrix) {
-        auto &native = static_cast<PBACT>(actors)[index].t.t.mat;
-        static_assert(sizeof(native) == sizeof(*matrix), "body matrix ABI");
-        std::memcpy(&native, matrix, sizeof(native));
-    };
+    s.assign_matrix = mm_brender_body_matrix;
     s.link = [](void *, void *actors, MMI32 parent, MMI32 child) {
         AssertIn(parent, 0, child);
         Assert(parent != 1, "body part parent cannot be highlight actor");
@@ -428,11 +425,14 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
     MMBodyRuntimeServices s = {};
     s.shape = _CreateServices();
     s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
-    s.assign_model = [](void *, void *body, MMI32 part, void *object) {
-        auto model = static_cast<PModel>(object); auto actor = static_cast<PBody>(body)->_PbactPart(part);
-        actor->model = model->Pbmdl(); Assert(Model::PmodlFromBmdl(actor->model) == model, "Model problem");
+    s.model_handle = [](void *, void *object) -> void * {
+        auto model = static_cast<PModel>(object);
+        auto handle = model->Pbmdl();
+        Assert(Model::PmodlFromBmdl(handle) == model, "Model problem");
+        return handle;
     };
-    s.assign_material = [](void *, void *body, MMI32 part, void *raw) { static_cast<PBody>(body)->_PbactPart(part)->material = static_cast<PBMTL>(raw); };
+    s.assign_model = mm_brender_body_model;
+    s.assign_material = mm_brender_body_material;
     s.material_object = [](void *, void *raw) -> void * { return Material_MTRL::PmtrlFromBmtl(static_cast<PBMTL>(raw)); };
     s.material_handle = [](void *, void *object) -> void * { return static_cast<PMaterial_MTRL>(object)->Pbmtl(); };
     s.custom = [](void *, void *body, MMI32 set) -> void * { return static_cast<PBody>(body)->_Materials()[set]; };
@@ -529,16 +529,6 @@ void Body::PartWorldMatrix(LegacyLong part, MMActorMatrix &out) const
 {
     AssertIn(part, 0, _shape.part_count);
     mm_body_shape_part_world(&_shape, part, &out);
-}
-
-void Body::ApplyDrawBinding(BACT &actor, const MMBodyPartBinding &binding)
-{
-    auto model = static_cast<PModel>(binding.model);
-    actor.model = model ? model->Pbmdl() : nullptr;
-    actor.material = static_cast<PBMTL>(binding.material);
-    actor.t.type = BR_TRANSFORM_MATRIX34;
-    static_assert(sizeof(actor.t.t.mat) == sizeof(binding.matrix), "body matrix ABI");
-    std::memcpy(&actor.t.t.mat, &binding.matrix, sizeof(binding.matrix));
 }
 
 /***************************************************************************
@@ -681,10 +671,7 @@ int Body::_ReadRenderBody(PBACT root, MMRenderBody *entry)
 
 void Body::_PrepareRenderBody(const MMRenderBody *entry)
 {
-    mm_body_draw(&entry->draw, entry->target, [](void *actors, MMI32 index, MMI32, const MMBodyPartBinding *part) {
-        ApplyDrawBinding(static_cast<PBACT>(actors)[index], *part);
-        return 1;
-    });
+    mm_brender_body_submit(&entry->draw, entry->target);
     const auto services = _GeometryServices();
     mm_body_prepare_render(entry->target, &services);
 }
@@ -853,7 +840,7 @@ void Body::MarkMem(void)
 
     for (ibact = 0; ibact < _shape.part_count; ibact++)
     {
-        pmodl = static_cast<PModel>(_shape.bindings[ibact+2].model);
+        pmodl = static_cast<PModel>(_shape.bindings[ibact+2].model_owner);
         if (pmodl)
         {
             AssertPo(pmodl, 0);

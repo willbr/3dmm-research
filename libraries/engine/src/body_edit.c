@@ -23,8 +23,8 @@ void *mm_body_duplicate(void *body,const MMBodyEditServices *s)
     memcpy(d.bindings,b.bindings,(size_t)(b.part_count+2)*sizeof(*d.bindings));
     for (i=0;i<b.part_count+2;++i) s->rebase_actor(c->context,copy,d.actors,b.actors,i,i==0);
     for (i=0;i<d.part_count;++i)
-        if (d.bindings[i+2].model)
-            s->retain(c->context,d.bindings[i+2].model);
+        if (d.bindings[i+2].model_owner)
+            s->retain(c->context,d.bindings[i+2].model_owner);
     d.sets=c->duplicate_sets(c->context,b.sets); *c->state(c->context,copy)=d;
     if (!d.sets) goto fail;
     if (!c->allocate_materials(c->context,b.set_count,&d.materials))
@@ -89,7 +89,7 @@ int mm_body_change_shape(void *body,void *parents,void *sets,const MMBodyEditSer
     n=b.part_count<d.part_count?b.part_count:d.part_count;
     for (i=0;i<n;++i)
     {
-        model=d.bindings[i+2].model;
+        model=d.bindings[i+2].model_owner;
         if (model) s->set_model(c->context,body,i,model);
         mm_body_shape_matrix(&b,i+2,&d.bindings[i+2].matrix,c);
     }

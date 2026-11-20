@@ -60,7 +60,7 @@ static void initialize(void *p,void *body,void *actors,MMI32 i,int role)
 {
     Fixture *f=p; Part *parts=actors; CHECK(body==&f->body && f->body.actors==actors);
     CHECK(i==f->initialized++ && role==(i<2?i:MM_BODY_PART)); parts[i].role=role; parts[i].parent=-1;
-    if (i>=2) { parts[i].model=1; f->body.bindings[i].model=&parts[i]; }
+    if (i>=2) { parts[i].model=1; f->body.bindings[i].model_owner=&parts[i]; }
     event(f,7);
 }
 static void assign_matrix(void *p,void *actors,MMI32 i,const MMActorMatrix *matrix)

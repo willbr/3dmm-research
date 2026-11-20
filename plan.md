@@ -841,9 +841,11 @@ sound integration control and body construction/shape disposal, duplication,
 restoration, reshaping, body material/visibility updates, costume ownership,
 bounds/render preparation and hit-selection policy have also moved into C89.
 Body actor/material storage, duplicated set-list ownership, part/set counts and
-hidden count now live directly in persistent C shape state; native adapters no
-longer marshal those owning fields through read/write callbacks. Typed renderer
-bindings and final Body facade removal remain work. Template resource factories,
+hidden count now live directly in persistent C shape state. Studio and Marcus
+Preview use one C89 BRender adapter to submit body matrices and draw handles.
+C89 stores the borrowed model handle with its retained resource as part of
+model replacement. Typed resource providers and final Body facade removal
+remain work. Template resource factories,
 header I/O, normal initialization, body creation and default-costume prefetching,
 template action/model/custom resource routing, cel application/action queries
 and accessory graph operations also use C89. Template parent/set/costume ownership,

@@ -5194,9 +5194,11 @@ removal remain unfinished.
 
 `body_runtime.c` owns visibility counts and notification decisions, highlight
 updates, model replacement, matrix/translation sequencing, generic/custom
-material replacement and material queries. Reassigning the same model returns
-without reference or notification changes. Generic materials retain per part;
-custom materials retain before removing the old costume, supporting self-use.
+material replacement and material queries. Model replacement records the draw
+handle alongside its retained resource in the C part binding. Reassigning the
+same model skips handle lookup, reference changes and notification. Generic
+materials retain per part. Custom materials retain before removing the old
+costume, supporting self-use.
 Accessory models update before their part material; absent accessory models
 leave the existing part model intact. Unused trailing custom entries remain
 allowed. Custom removal releases the owner before clearing raw part handles,
@@ -5206,8 +5208,8 @@ Showing publishes the decremented hidden count before attaching/notifying.
 Hiding publishes its increment before clearing bounds, detaching and notifying.
 Nested hidden counts and repeated highlight/material notifications retain native
 behavior. Body geometry/render policy is now C as described below. Renderer
-field adapters, external BRender primitives, resource object internals and the
-native representation remain dependencies.
+resource providers, external BRender primitives and the native resource
+representations remain dependencies.
 
 `MMBodyCostume` now owns snapshot entries and references in C. Capture drops
 the previous snapshot before allocation; failed replacement leaves it empty.
@@ -5232,8 +5234,11 @@ dereference of raw handles after their final custom owner is released.
 state, render-bound accumulation, prepare callbacks, visible-rectangle/center/
 position queries, highlight exclusion/restoration, world bounds and hit-selection
 policy. Body construction initializes this plain C state; duplication and restore
-retain the earlier C controllers' copy/swap sequencing. Native rectangle/matrix/
-actor bridges expose values and field access, not another geometry evaluator.
+retain the earlier C controllers' copy/swap sequencing. `bren/body_renderer.c`
+applies part matrices, models and materials from the C bindings. Studio submits
+the root and parts to its existing actor array. Marcus Preview attaches them to
+its temporary scene tree, using the same binding code. Native adapters still
+supply body references and SDK geometry services.
 `BrActorToBounds` traversal and `BrBoundsToMatrix34` remain external BRender
 primitive services. Native object/actor-tree and model/material representations
 remain temporary dependencies of the unfinished C-only backend.

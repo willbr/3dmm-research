@@ -6,12 +6,12 @@
 typedef struct Ref Ref;
 typedef struct Handle { Ref *owner; int live; } Handle;
 struct Ref { int refs,kind,set,count; Handle raw,parts[4]; Ref *models[4]; };
-typedef struct Part { Ref *model; Handle *material; MMActorMatrix matrix; } Part;
+typedef struct Part { Handle *model, *material; MMActorMatrix matrix; } Part;
 typedef struct Fixture
 {
     MMBodyRuntimeServices s; MMBodyShape b; short sets[6]; Part parts[8]; MMBodyPartBinding bindings[8]; Ref *customs[3];
     Ref a,bmodel,ma,mb,custom,poison; int events[256],event_count;
-    int parent,attached,detached,changed,bounds,highlight,fail,freed,diagnostics[4];
+    int parent,attached,detached,changed,bounds,highlight,fail,freed,model_lookups,diagnostics[4];
 } Fixture;
 static void event(Fixture *f,int n) { CHECK(f->event_count<256); f->events[f->event_count++]=n; }
 static MMBodyShape *body_state(void *p,void *body) { Fixture *f=p; CHECK(body==f); return &f->b; }
@@ -22,10 +22,16 @@ static void release(void *p,void *object)
     Fixture *f=p; Ref *r=object; int i; CHECK(r && r->refs>0); --r->refs; event(f,5);
     if (r->kind==2 && !r->refs) for (i=0;i<4;++i) r->parts[i].live=0;
 }
-static void assign_model(void *p,void *b,MMI32 i,void *r)
-{ Fixture *f=p; CHECK(b==f && f->bindings[i+2].model==r); f->parts[i+2].model=r; event(f,6); }
-static void assign_material(void *p,void *b,MMI32 i,void *r)
-{ Fixture *f=p; CHECK(b==f && f->bindings[i+2].material==r); f->parts[i+2].material=r; }
+static void *model_handle(void *p,void *object)
+{ Fixture *f=p; Ref *r=object; CHECK(r->raw.owner==r && r->raw.live); ++f->model_lookups; return &r->raw; }
+static void assign_model(void *p,void *actors,MMI32 i,void *raw)
+{
+    Fixture *f=p; Handle *handle=raw;
+    CHECK(actors==f->parts && handle && f->bindings[i].model_owner==handle->owner && f->bindings[i].model_handle==handle);
+    f->parts[i].model=handle; event(f,6);
+}
+static void assign_material(void *p,void *actors,MMI32 i,void *r)
+{ Fixture *f=p; CHECK(actors==f->parts && f->bindings[i].material==r); f->parts[i].material=r; }
 static void *material_object(void *p,void *raw) { Handle *h=raw; (void)p; CHECK(h && h->live && h->owner->kind==1); return h->owner; }
 static void *material_handle(void *p,void *r) { (void)p; CHECK(((Ref *)r)->kind==1); return &((Ref *)r)->raw; }
 static void *custom(void *p,void *b,MMI32 i) { Fixture *f=p; CHECK(b==f); return f->customs[i]; }
@@ -53,6 +59,7 @@ static void setup(Fixture *f,int hidden)
     int i; memset(f,0,sizeof(*f));
     f->a.refs=f->bmodel.refs=f->ma.refs=f->mb.refs=f->custom.refs=1;
     f->ma.kind=f->mb.kind=1; f->custom.kind=2; f->custom.set=1; f->custom.count=4;
+    f->a.raw.owner=&f->a; f->bmodel.raw.owner=&f->bmodel; f->a.raw.live=f->bmodel.raw.live=1;
     f->ma.raw.owner=&f->ma; f->mb.raw.owner=&f->mb; f->ma.raw.live=f->mb.raw.live=1;
     for (i=0;i<4;++i) { f->custom.parts[i].owner=&f->ma; f->custom.parts[i].live=1; }
     f->custom.models[0]=&f->bmodel; f->custom.models[2]=&f->a;
@@ -61,7 +68,7 @@ static void setup(Fixture *f,int hidden)
     f->b.actors=f->parts; f->b.bindings=f->bindings;
     f->s.shape.context=f; f->s.shape.state=body_state; f->s.shape.item=item;
     f->s.shape.release=release; f->s.shape.allocate_materials=allocate; f->s.shape.free_memory=free_memory;
-    f->s.retain=retain; f->s.assign_model=assign_model;
+    f->s.retain=retain; f->s.model_handle=model_handle; f->s.assign_model=assign_model;
     f->s.assign_material=assign_material; f->s.material_object=material_object; f->s.material_handle=material_handle;
     f->s.custom=custom; f->s.assign_custom=assign_custom; f->s.custom_set=custom_set; f->s.custom_count=custom_count;
     f->s.custom_model=custom_model; f->s.custom_material=custom_material; f->s.invalidate_output=invalidate;
@@ -73,7 +80,7 @@ static void setup(Fixture *f,int hidden)
 static void cleanup(Fixture *f)
 {
     int i; mm_body_remove_material(f,0,&f->s); mm_body_remove_material(f,1,&f->s);
-    for (i=0;i<6;++i) if (f->parts[i+2].model) { release(f,f->parts[i+2].model); f->parts[i+2].model=NULL; }
+    for (i=0;i<6;++i) if (f->parts[i+2].model) { release(f,f->parts[i+2].model->owner); f->parts[i+2].model=NULL; }
     CHECK(f->a.refs==1 && f->bmodel.refs==1 && f->ma.refs==1 && f->mb.refs==1);
 }
 int main(void)
@@ -89,10 +96,10 @@ int main(void)
     pose.translation.dzr=1;
     for (h=0;h<4;h+=h?2:1)
     {
-        setup(&f,h); mm_body_set_model(&f,0,&f.a,&f.s); CHECK(!f.event_count);
+        setup(&f,h); mm_body_set_model(&f,0,&f.a,&f.s); CHECK(!f.event_count && f.model_lookups==1);
         mm_body_set_model(&f,0,&f.bmodel,&f.s);
         CHECK(f.events[0]==5 && f.events[1]==6 && f.events[2]==7 && f.event_count==(h?3:4));
-        initial=f.changed; mm_body_set_model(&f,0,&f.bmodel,&f.s); CHECK(f.changed==initial);
+        initial=f.changed; mm_body_set_model(&f,0,&f.bmodel,&f.s); CHECK(f.changed==initial && f.model_lookups==2);
         mm_body_set_matrix(&f,0,&pose.orientation,&f.s);
         CHECK(memcmp(&f.parts[2].matrix,&pose.orientation,sizeof(pose.orientation))==0);
         mm_body_locate(&f,&pose,&f.s);

@@ -150,16 +150,7 @@ struct Preview::Impl::RenderHost
             out->high[2] = BrScalarToFloat(b.zrMax);
             return 1;
         };
-        s.attach_body_part = [](void *, void *parent, MMI32 index, const MMBodyPartBinding *binding) -> void * {
-            auto actor = BrActorAllocate(index ? BR_ACTOR_MODEL : BR_ACTOR_NONE, nullptr);
-            if (!actor)
-                return nullptr;
-            BrActorAdd(static_cast<br_actor *>(parent), actor);
-            if (index)
-                actor->render_style = BR_RSTYLE_FACES;
-            Body::ApplyDrawBinding(*actor, *binding);
-            return actor;
-        };
+        s.attach_body_part = mm_brender_body_attach;
         s.retain_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
         s.release_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
         s.object_bounds = [](void *v, MMI32 object, float corners[24], int *valid) -> int {

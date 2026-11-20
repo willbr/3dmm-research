@@ -33,18 +33,28 @@ void mm_body_set_matrix(void *body,MMI32 part,const MMActorMatrix *matrix,const 
 }
 void mm_body_set_model(void *body,MMI32 part,void *model,const MMBodyRuntimeServices *s)
 {
-    void *p=s->shape.context;
-    MMBodyPartBinding *binding=&s->shape.state(p,body)->bindings[part+2];
-    void *old=binding->model;
-    if (old) { if (old==model) return; s->shape.release(p,old); }
-    binding->model=model;
-    s->assign_model(p,body,part,model); s->retain(p,model); changed(body,s);
+    void *p = s->shape.context;
+    MMBodyShape *shape = s->shape.state(p,body);
+    MMI32 index = part + 2;
+    MMBodyPartBinding *binding = &shape->bindings[index];
+    void *old = binding->model_owner;
+    if (old == model)
+        return;
+    if (old)
+        s->shape.release(p,old);
+    binding->model_owner = model;
+    binding->model_handle = s->model_handle(p,model);
+    s->assign_model(p,shape->actors,index,binding->model_handle);
+    s->retain(p,model);
+    changed(body,s);
 }
 static void assign_material(void *body,MMI32 part,void *material,const MMBodyRuntimeServices *s)
 {
-    void *p=s->shape.context;
-    s->shape.state(p,body)->bindings[part+2].material=material;
-    s->assign_material(p,body,part,material);
+    void *p = s->shape.context;
+    MMBodyShape *shape = s->shape.state(p,body);
+    MMI32 index = part + 2;
+    shape->bindings[index].material = material;
+    s->assign_material(p,shape->actors,index,material);
 }
 void mm_body_remove_material(void *body,MMI32 set,const MMBodyRuntimeServices *s)
 {

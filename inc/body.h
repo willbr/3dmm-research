@@ -129,7 +129,6 @@ class Body : public Body_PAR
     void ApplyPose(const MMActorBodyPose &);
     const MMActorMatrix &RootMatrix() const { return _shape.bindings[0].matrix; }
     MMBodyDrawView DrawView() const { return {_shape.bindings, _shape.part_count}; }
-    static void ApplyDrawBinding(BACT &, const MMBodyPartBinding &);
     void PartWorldMatrix(LegacyLong part, MMActorMatrix &) const;
     void SetPartModel(LegacyLong ibact, Model *pmodl);
     void SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34);

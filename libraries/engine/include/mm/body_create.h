@@ -10,7 +10,8 @@ extern "C" {
 typedef struct MMBodyPartBinding
 {
     MMActorMatrix matrix;
-    void *model; /* Retained resource object. */
+    void *model_owner; /* Retained resource object. */
+    void *model_handle; /* Draw handle borrowed from the model resource. */
     void *material; /* Draw handle held through a generic material or per-set costume. */
     MMI32 parent;
 } MMBodyPartBinding;

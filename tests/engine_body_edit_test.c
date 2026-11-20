@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <string.h>
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"body edit check %d: %s\n",__LINE__,#c); exit(1); } } while (0)
-typedef struct Ref { int count; } Ref;
+typedef struct Ref { int count, handle; } Ref;
 typedef struct List { int kind,count; short values[8]; } List;
-typedef struct Part { void *owner; Ref *model,*material; int role,parent,matrix; } Part;
+typedef struct Part { void *owner,*model; Ref *material; int role,parent,matrix; } Part;
 typedef struct ActorStorage { Part actors[10]; MMBodyPartBinding bindings[10]; } ActorStorage;
 typedef struct Body { int kind,binding,bounds[2]; MMBodyShape shape; } Body;
 typedef struct Fixture
@@ -115,8 +115,9 @@ static void set_model(void *p,void *object,MMI32 i,void *m)
 {
     MMBodyShape *shape=&((Body *)object)->shape;
     MMBodyPartBinding *binding=&shape->bindings[i+2];
-    if (binding->model) drop(binding->model);
-    binding->model=m; ((Part *)shape->actors)[i+2].model=m; retain(p,m);
+    if (binding->model_owner) drop(binding->model_owner);
+    binding->model_owner=m; binding->model_handle=&((Ref *)m)->handle;
+    ((Part *)shape->actors)[i+2].model=binding->model_handle; retain(p,m);
 }
 static int highlighted(void *p,void *actors) { (void)p; return ((Part *)actors)[1].role==MM_BODY_PART; }
 static void highlight(void *p,void *object) { (void)p; ((Part *)((Body *)object)->shape.actors)[1].role=MM_BODY_PART; }
@@ -164,8 +165,13 @@ static void refs(Fixture *f,Body *a,Body *b)
         for (j=0;j<body->shape.part_count;++j)
         {
             const MMBodyPartBinding *binding=&body->shape.bindings[j+2];
-            CHECK(binding->model==parts[j+2].model && binding->material==parts[j+2].material);
-            if (binding->model) ++models;
+            CHECK(binding->model_handle==parts[j+2].model && binding->material==parts[j+2].material);
+            if (binding->model_owner)
+            {
+                CHECK(binding->model_owner==&f->model && binding->model_handle==&f->model.handle);
+                ++models;
+            }
+            else CHECK(!binding->model_handle);
             if (binding->material==&f->generic) ++generic;
         }
     }

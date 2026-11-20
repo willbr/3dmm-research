@@ -18,10 +18,12 @@ class BodyEditFixtureAccess : public Body
         if (!b) return true;
         if (!record(&(b->*member).bounds,sizeof(RC)) || !record(&(b->*member).last_visible,sizeof(RC))) return false;
         auto root=b->PbactRoot();
+        const auto draw=b->DrawView();
         auto index=[&](PBACT p)->LegacyLong { if (!p) return -1; for (int i=0;i<b->Cbact();++i) if (p==root+i) return i; return -2; };
         for (int i=0;i<b->Cbact();++i)
         {
             auto a=root+i; LegacyLong prev=-1;
+            if (i!=1 && (draw.bindings[i].model_handle!=a->model || draw.bindings[i].material!=a->material)) return false;
             if (a->prev) { prev=-2; for (int j=0;j<b->Cbact();++j) {
                 if (a->prev==&(root+j)->children) prev=j*2;
                 if (a->prev==&(root+j)->next) prev=j*2+1;

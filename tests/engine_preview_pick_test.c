@@ -79,7 +79,7 @@ static void *attach_body_part(void *v, void *parent, MMI32 index, const MMBodyPa
     MMI32 id = binding->matrix.m[3][0];
     if (h->failure == 4)
         return 0;
-    assert(index == 0 && parent && binding->model && h->copies < 3);
+    assert(index == 0 && parent && binding->model_handle && h->copies < 3);
     h->copied[h->copies++] = id;
     return node(h, (Node *)parent, id);
 }
@@ -262,7 +262,7 @@ static void init(Host *h, MMPreviewRenderServices *r, MMPreviewPickServices *s, 
     }
     for (i = 0; i < 3; ++i)
     {
-        h->bindings[i][0].model = h;
+        h->bindings[i][0].model_handle = h;
         h->bindings[i][0].matrix.m[3][0] = i;
     }
     r->context = h;

@@ -1136,8 +1136,9 @@ if(NOT STUDIO_SDL3)
   target_link_libraries(kauai PUBLIC 3DMMForever::AudioMan $<$<BOOL:${STUDIO_NATIVE_WINDOWS}>:Msacm32>)
 endif()
 
-# C89 renderer operations for live model, material and texture resources.
+# C89 renderer operations for live bodies, models, materials and textures.
 add_library(mm-brender-resources STATIC
+  "${PROJECT_SOURCE_DIR}/bren/body_renderer.c"
   "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
   "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"
   "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c")
@@ -1148,7 +1149,8 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
   add_test(NAME brender-resources-c89-syntax
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/bren/inc"
-      -fsyntax-only "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
+      -fsyntax-only "${PROJECT_SOURCE_DIR}/bren/body_renderer.c"
+        "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c")
 endif()
@@ -1266,7 +1268,7 @@ add_library(mm-preview STATIC EXCLUDE_FROM_ALL
   libraries/archive/src/preview_presentation.cpp)
 add_library(MM::Preview ALIAS mm-preview)
 target_include_directories(mm-preview PRIVATE "${PROJECT_SOURCE_DIR}/src/engine")
-target_link_libraries(mm-preview PUBLIC MM::Archive PRIVATE engine-core)
+target_link_libraries(mm-preview PUBLIC MM::Archive PRIVATE engine-core mm-brender-resources)
 add_executable(preview-api-test EXCLUDE_FROM_ALL tests/preview_api_test.cpp tests/preview_api_include_order.cpp)
 target_link_libraries(preview-api-test PRIVATE MM::Preview)
 add_executable(preview-scene-fixture EXCLUDE_FROM_ALL tests/preview_scene_fixture.cpp)

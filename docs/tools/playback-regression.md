@@ -16923,3 +16923,36 @@ camera indices, and all 12 SDL sound requests. Each port reproduced its 60
 prior seek canvas hashes. The capture suite's automated comparison needs a
 retail run in the same suite. The archived comparison and trace evidence are
 in `tmp/c89-world-state`.
+
+## C89 body submission to BRender (20 November 2026)
+
+Studio and Marcus Preview submit evaluated body bindings through
+`bren/body_renderer.c`. Studio writes into the live actor array. Preview uses
+the same binding code as it attaches actors to its temporary scene tree.
+Model replacement records a borrowed renderer handle alongside the retained
+model resource. Drawing and picking use that handle directly. The focused
+fixtures check same-model replacement, model and material assignment, handle
+lifetime through shape copies and restores, and preview owner mapping.
+
+All 192 standalone checks passed, together with seven focused C engine
+AddressSanitizer checks and strict C89 syntax for the BRender adapter. Fifteen
+selected native x64 checks passed, including Marcus costume editing,
+playback, player and raster parity. The four body construction, editing,
+runtime and geometry traces matched the previous build byte for byte on
+native x64, native x86 and SDL. The two real-content actor render fixtures
+produced identical output across the three builds. All 54 movie and scene
+traces, three saved movie fixtures, ten Preview fingerprints and six Preview
+movies also matched the previous build. Studio's transform and keyframe
+authoring workflow passed and saved a byte-identical movie.
+
+Retail, SDL and Marcus matched all three retained-background frame identities,
+camera indices and canvas hashes in `20261120T215532Z-3a1dbc91`. Both ports
+matched original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261120T215606Z-0790a685`.
+
+All four `actor-event-edit` captures completed in `20261120T215513Z-40f40362`.
+Against the archived retail runs, SDL and Marcus matched all 60 frame
+identities in seek and continuous playback, plus all retail seek camera
+indices. Each port reproduced its 60 prior seek canvas hashes. SDL matched
+all 12 retail sound requests. The archived comparison and fixture evidence
+are in `tmp/c89-body-renderer`.
