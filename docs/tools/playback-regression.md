@@ -18105,3 +18105,30 @@ continuous playback, the 11 retail seek camera indices, and their respective
 frames retain the existing retail rendering differences. Current suite
 `20261121T054627Z-825c7d56` was compared with retail and v3dmm data from
 `20261121T053116Z-dc0bdb99`. Logs are in `tmp/c89-argument-storage`.
+
+## Studio live argument interning and references (21 November 2026)
+
+Studio edits native-order argument words and payload rows through the C89
+allocated group. The document publishes the group owner when created and the
+new group shape after an insertion or deletion. Lookup keeps the highest
+matching live row, and allocation reuses the first free slot.
+
+The C property test uses actual allocated group storage to check a partial
+allocation failure and retry, reference counts, deletion, hole reuse, and
+reads of an unpadded last payload. All 192 standalone C checks, six focused
+AddressSanitizer checks, and 16 native C89 and Marcus checks passed. Native x64,
+native x86, and SDL reproduced 21 binary traces for properties, formatting,
+copying, undo, materialization, live text, and help text.
+
+Both Studio builds created, edited, saved, and reopened a Times New Roman caption
+visible only on frames 4 through 6. The saves had matching decoded archives and
+font argument data. Their single differing raw byte was in the AGPA record's
+alignment padding.
+
+Retail, v3dmm, SDL, and Marcus loaded the new save in
+`20261121T055731Z-1cbfb13e`. All four matched the 11 authored frame identities
+in seek and continuous playback and the 11 retail seek camera indices. V3dmm
+matched all retail seek canvases. SDL and Marcus matched the eight frames
+without visible captions and differed on frames 4 through 6. SDL reproduced
+the edited text, Times New Roman font, alignment, and visibility. Logs are in
+`tmp/c89-live-argument-group`.

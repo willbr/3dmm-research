@@ -378,6 +378,7 @@ class AllocatedGroup : public AllocatedGroup_PAR
     // duplication
     PAllocatedGroup PagDup(void);
     MMGroup CoreRows() { return _GroupView(); }
+    void PublishCoreRows(const MMGroup &rows) { _ApplyGroup(rows); }
 
     // methods required by parent class
     virtual bool FAdd(LegacyLong cb, LegacyLong *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);

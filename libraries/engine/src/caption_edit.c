@@ -401,11 +401,12 @@ void mm_caption_edit_property_services(MMCaptionPropertyMap *map, MMTextProperty
     s->arguments.context = map;
     s->arguments.objects.context = map;
     s->arguments.objects.get = caption_argument_owner;
-    s->arguments.count = caption_argument_count;
-    s->arguments.free_slot = caption_argument_free;
-    s->arguments.fixed = caption_argument_ref;
-    s->arguments.put_fixed = caption_argument_put;
-    s->arguments.remove = caption_argument_remove;
+    s->arguments.rows.context = map;
+    s->arguments.rows.count = caption_argument_count;
+    s->arguments.rows.free_slot = caption_argument_free;
+    s->arguments.rows.fixed = caption_argument_ref;
+    s->arguments.rows.put_fixed = caption_argument_put;
+    s->arguments.rows.remove = caption_argument_remove;
     s->arguments.diagnostic = caption_property_diagnostic;
 }
 

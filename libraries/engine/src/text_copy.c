@@ -262,7 +262,7 @@ int mm_text_object_fetch(MMI32 cp, MMI32 *at, void **owned, MMI32 *bytes, const 
         if (r)
         {
             group = p->arguments.objects.get(p->arguments.objects.context, MM_TEXT_OWNER_ARGUMENTS);
-            data = p->arguments.data(p->arguments.context, group, entry.value - 1, &ignored);
+            data = p->arguments.rows.data(p->arguments.rows.context, group, entry.value - 1, &ignored);
             memcpy(*owned, data, (size_t)n);
         }
     }

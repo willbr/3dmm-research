@@ -13,6 +13,81 @@ static MMU32 key_at(unsigned type, MMI32 cp)
 {
     return ((MMU32)type << 24) | ((MMU32)cp & 0xffffffUL);
 }
+static MMI32 live_count(void *context, void *owner)
+{
+    const MMTextLiveArgumentGroup *binding = context;
+    return (MMI32)binding->view(owner).count;
+}
+static unsigned char *live_row(void *context, void *owner, MMI32 index, MMI32 *bytes)
+{
+    const MMTextLiveArgumentGroup *binding = context;
+    MMGroup rows = binding->view(owner);
+    MMGroupLocation row;
+    if (rows.fixed_bytes != sizeof(MMU32) || mm_group_read_slot(&rows, (MMU32)index, &row) != MM_GROUP_SLOT_PRESENT)
+        return NULL;
+    if (bytes)
+        *bytes = row.bytes - (MMI32)rows.fixed_bytes;
+    return rows.storage->buffers[0].data + row.offset;
+}
+static int live_free(void *context, void *owner, MMI32 index)
+{
+    return live_row(context, owner, index, NULL) == NULL;
+}
+static const void *live_data(void *context, void *owner, MMI32 index, MMI32 *bytes)
+{
+    const unsigned char *row = live_row(context, owner, index, bytes);
+    if (!row && bytes)
+        *bytes = 0;
+    return row ? row + sizeof(MMU32) : NULL;
+}
+static MMU32 live_fixed(void *context, void *owner, MMI32 index)
+{
+    const unsigned char *row = live_row(context, owner, index, NULL);
+    MMU32 value = 0;
+    if (row)
+        memcpy(&value, row, sizeof(value));
+    return value;
+}
+static void live_put_fixed(void *context, void *owner, MMI32 index, MMU32 value)
+{
+    unsigned char *row = live_row(context, owner, index, NULL);
+    if (row)
+        memcpy(row, &value, sizeof(value));
+}
+static int live_add(void *context, void *owner, const void *bytes, MMI32 count, MMU32 fixed, MMI32 *out)
+{
+    const MMTextLiveArgumentGroup *binding = context;
+    MMGroup rows = binding->view(owner);
+    MMU32 index;
+    int result;
+    if (rows.fixed_bytes != sizeof(fixed))
+        return 0;
+    result = mm_group_add(&rows, (MMU32)count, bytes, &fixed, &index);
+    binding->publish(owner, &rows);
+    if (result != MM_STORAGE_OK)
+        return 0;
+    *out = (MMI32)index;
+    return 1;
+}
+static void live_remove(void *context, void *owner, MMI32 index)
+{
+    const MMTextLiveArgumentGroup *binding = context;
+    MMGroup rows = binding->view(owner);
+    if (mm_group_delete(&rows, (MMU32)index) != MM_STORAGE_OK && binding->bad_delete)
+        binding->bad_delete(owner);
+    binding->publish(owner, &rows);
+}
+void mm_text_live_argument_rows(MMTextArgumentRows *s, const MMTextLiveArgumentGroup *group)
+{
+    s->context = (void *)group;
+    s->count = live_count;
+    s->free_slot = live_free;
+    s->data = live_data;
+    s->fixed = live_fixed;
+    s->put_fixed = live_put_fixed;
+    s->add = live_add;
+    s->remove = live_remove;
+}
 int mm_text_property_find(MMU32 key, MMI32 characters, MMTextPropertyEntry *out, MMI32 *end, MMI32 *index,
                           const MMTextPropertyServices *s)
 {
@@ -85,6 +160,7 @@ int mm_text_property_has_argument(unsigned type)
 }
 int mm_text_argument_ensure(unsigned type, const void *bytes, MMI32 n, MMI32 *out, const MMTextArgumentServices *s)
 {
+    const MMTextArgumentRows *rows = &s->rows;
     void *group = s->objects.get(s->objects.context, MM_TEXT_OWNER_ARGUMENTS);
     const void *data;
     MMI32 i, length;
@@ -100,14 +176,14 @@ int mm_text_argument_ensure(unsigned type, const void *bytes, MMI32 n, MMI32 *ou
         if (result <= 0)
             return result;
     }
-    for (i = s->count(s->context, group); i-- > 0;)
+    for (i = rows->count(rows->context, group); i-- > 0;)
     {
-        if (s->free_slot(s->context, group, i))
+        if (rows->free_slot(rows->context, group, i))
             continue;
-        data = s->data(s->context, group, i, &length);
+        data = rows->data(rows->context, group, i, &length);
         if (length != n || memcmp(data, bytes, (size_t)n))
             continue;
-        fixed = s->fixed(s->context, group, i);
+        fixed = rows->fixed(rows->context, group, i);
         if (kind(fixed) != type)
             continue;
         *out = i + 1;
@@ -116,35 +192,36 @@ int mm_text_argument_ensure(unsigned type, const void *bytes, MMI32 n, MMI32 *ou
         ++fixed;
         if (kind(fixed) != type)
             s->diagnostic(s->context, MM_TEXT_ARG_OVERFLOW);
-        s->put_fixed(s->context, group, i, fixed);
+        rows->put_fixed(rows->context, group, i, fixed);
         return 1;
     }
-    result = s->add(s->context, group, bytes, n, ((MMU32)type << 24) | 1, &i);
+    result = rows->add(rows->context, group, bytes, n, ((MMU32)type << 24) | 1, &i);
     if (result > 0)
         *out = i + 1;
     return result;
 }
 void mm_text_argument_ref(MMI32 ref, int add, const MMTextArgumentServices *s)
 {
+    const MMTextArgumentRows *rows = &s->rows;
     void *group = s->objects.get(s->objects.context, MM_TEXT_OWNER_ARGUMENTS);
     MMU32 fixed, refs;
-    if (!group || ref < 1 || ref > s->count(s->context, group) || s->free_slot(s->context, group, ref - 1))
+    if (!group || ref < 1 || ref > rows->count(rows->context, group) || rows->free_slot(rows->context, group, ref - 1))
     {
         s->diagnostic(s->context, MM_TEXT_ARG_INDEX);
         return;
     }
-    fixed = s->fixed(s->context, group, ref - 1);
+    fixed = rows->fixed(rows->context, group, ref - 1);
     refs = fixed & 0xffffffUL;
     if (add)
     {
         if (!refs || refs >= 0xffffffUL)
             s->diagnostic(s->context, MM_TEXT_ARG_REFS);
-        s->put_fixed(s->context, group, ref - 1, fixed + 1);
+        rows->put_fixed(rows->context, group, ref - 1, fixed + 1);
     }
     else if (refs <= 1)
-        s->remove(s->context, group, ref - 1);
+        rows->remove(rows->context, group, ref - 1);
     else
-        s->put_fixed(s->context, group, ref - 1, fixed - 1);
+        rows->put_fixed(rows->context, group, ref - 1, fixed - 1);
 }
 void mm_text_property_ref(unsigned type, MMI32 value, int add, const MMTextArgumentServices *s)
 {

@@ -236,10 +236,10 @@ int mm_text_fetch_character(const MMTextFormatConfig *c, MMTextCharacterCache *c
         case 2:
             if (entry.value > 0)
             {
+                const MMTextArgumentRows *rows = &s->properties.arguments.rows;
                 group = s->properties.arguments.objects.get(s->properties.arguments.objects.context,
                                                             MM_TEXT_OWNER_ARGUMENTS);
-                data = (const unsigned char *)s->properties.arguments.data(s->properties.arguments.context, group,
-                                                                           entry.value - 1, &bytes);
+                data = (const unsigned char *)rows->data(rows->context, group, entry.value - 1, &bytes);
                 if (bytes < 6 || bytes > MM_TEXT_FONT_RECORD)
                 {
                     s->bad_font_record(s->context);

@@ -1140,7 +1140,9 @@ property and argument rows through C collection views. Font argument opening
 locks and decodes the stored name in C89 and updates the resolved font ID in
 the collection. The platform still supplies font lookup and code-page conversion.
 Rich-text property lookup, masked range application, edit-boundary adjustment,
-argument interning and reference-count control now also use C89.
+argument interning and reference-count control now also use C89. Studio's live
+argument row lookup, reference writes, slot allocation and deletion run through
+the C allocated group. The native document still owns and publishes the group.
 Character/paragraph delta packing, font descriptor creation, cached formatting
 fetches, paragraph-bound selection and formatting-application transactions now
 also use C89, preserving virtual undo/effect hooks.

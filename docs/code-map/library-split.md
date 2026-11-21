@@ -2885,9 +2885,12 @@ removal remain work. Evidence and platform limits are in
 
 `text_properties.c` controls sorted property lookup/range fetching, masked range
 application, boundary adjustment after text edits, argument interning and reference
-counts. Native hosts supply typed collection primitives, cache slots, borrowed
-change records and paragraph-end queries over the already edited stream. Change
-records are converted one at a time without adding an allocation to native edits.
+counts. Studio's live argument binding uses the C allocated group for row lookup,
+reference-word updates, insertion, and deletion. The native owner supplies the
+view and receives the count, payload span, and free-slot count after mutations.
+The property map still uses native row adapters. Hosts also supply cache slots,
+borrowed change records and paragraph-end queries over the edited stream. The
+change records are converted one at a time without allocating another array.
 
 Lookup preserves predecessor/insertion-index and next-boundary behavior; missing
 fetches leave outputs untouched. The native wrapper retains debug poisoning for a

@@ -418,13 +418,14 @@ static void init_doc(Doc *d, Trace *trace, unsigned unit)
     a->objects.get = owner;
     a->objects.set = publish;
     a->create = create;
-    a->count = argument_count;
-    a->free_slot = free_slot;
-    a->data = data;
-    a->fixed = fixed;
-    a->put_fixed = put_fixed;
-    a->add = add;
-    a->remove = remove_argument;
+    a->rows.context = d;
+    a->rows.count = argument_count;
+    a->rows.free_slot = free_slot;
+    a->rows.data = data;
+    a->rows.fixed = fixed;
+    a->rows.put_fixed = put_fixed;
+    a->rows.add = add;
+    a->rows.remove = remove_argument;
     a->diagnostic = diagnostic;
     a->validate_input = validate_input;
 }

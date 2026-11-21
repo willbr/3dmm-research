@@ -1,6 +1,7 @@
 /* Rich-text property maps, edit boundaries and shared argument references. */
 #ifndef MM_ENGINE_TEXT_PROPERTIES_H
 #define MM_ENGINE_TEXT_PROPERTIES_H
+#include "collections.h"
 #include "text_document.h"
 #ifdef __cplusplus
 extern "C"
@@ -23,11 +24,9 @@ extern "C"
         unsigned kind;
         MMU32 value, mask;
     } MMTextPropertyChange;
-    typedef struct MMTextArgumentServices
+    typedef struct MMTextArgumentRows
     {
         void *context;
-        MMTextDocumentObjects objects;
-        int (*create)(void *, MMI32 bytes, void **owned);
         MMI32 (*count)(void *, void *);
         int (*free_slot)(void *, void *, MMI32);
         const void *(*data)(void *, void *, MMI32, MMI32 *bytes);
@@ -35,6 +34,22 @@ extern "C"
         void (*put_fixed)(void *, void *, MMI32, MMU32);
         int (*add)(void *, void *, const void *, MMI32 bytes, MMU32 fixed, MMI32 *index);
         void (*remove)(void *, void *, MMI32);
+    } MMTextArgumentRows;
+    typedef struct MMTextLiveArgumentGroup
+    {
+        MMGroup (*view)(void *owner);
+        void (*publish)(void *owner, const MMGroup *);
+        void (*bad_delete)(void *owner);
+    } MMTextLiveArgumentGroup;
+    /* Live argument records use a native 32-bit fixed word. The group owner
+     * publishes shape after edits. The binding must outlive the row services. */
+    void mm_text_live_argument_rows(MMTextArgumentRows *, const MMTextLiveArgumentGroup *);
+    typedef struct MMTextArgumentServices
+    {
+        void *context;
+        MMTextDocumentObjects objects;
+        int (*create)(void *, MMI32 bytes, void **owned);
+        MMTextArgumentRows rows;
         void (*diagnostic)(void *, int);
         void (*validate_input)(void *, unsigned kind, const void *, MMI32 bytes);
     } MMTextArgumentServices;

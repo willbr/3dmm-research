@@ -213,13 +213,14 @@ static void init(Host *h)
     a->objects.get = get_owner;
     a->objects.set = set_owner;
     a->create = create;
-    a->count = arg_count;
-    a->free_slot = free_slot;
-    a->data = data;
-    a->fixed = fixed;
-    a->put_fixed = put_fixed;
-    a->add = add;
-    a->remove = remove_arg;
+    a->rows.context = h;
+    a->rows.count = arg_count;
+    a->rows.free_slot = free_slot;
+    a->rows.data = data;
+    a->rows.fixed = fixed;
+    a->rows.put_fixed = put_fixed;
+    a->rows.add = add;
+    a->rows.remove = remove_arg;
     a->diagnostic = diagnostic;
 }
 static MMU32 key(unsigned kind, MMI32 cp)
@@ -309,6 +310,113 @@ static void arguments(void)
     h.slots[a - 1].fixed = 0x40000000UL;
     mm_text_argument_ref(a, 1, &h.s.arguments);
     CHECK(h.slots[a - 1].fixed == 0x40000001UL && h.diagnostics[MM_TEXT_ARG_REFS] == 2);
+}
+typedef struct LiveArguments
+{
+    MMCollectionStorage storage;
+    MMGroup group;
+    void *owned;
+    int allocations, fail_at, publications;
+} LiveArguments;
+static void *live_resize(void *v, void *data, MMU32 old_size, MMU32 bytes, int priority)
+{
+    LiveArguments *h = v;
+    (void)old_size;
+    (void)priority;
+    return ++h->allocations == h->fail_at ? NULL : realloc(data, bytes);
+}
+static void live_release(void *v, void *data, MMU32 bytes)
+{
+    (void)v;
+    (void)bytes;
+    free(data);
+}
+static void *live_owner(void *v, int slot)
+{
+    CHECK(slot == MM_TEXT_OWNER_ARGUMENTS);
+    return ((LiveArguments *)v)->owned;
+}
+static void live_set(void *v, int slot, void *p)
+{
+    LiveArguments *h = v;
+    CHECK(slot == MM_TEXT_OWNER_ARGUMENTS && p == h && !h->owned);
+    h->owned = p;
+}
+static int live_create(void *v, MMI32 bytes, void **out)
+{
+    CHECK(bytes > 0);
+    *out = v;
+    return 1;
+}
+static MMGroup live_view(void *v)
+{
+    return ((LiveArguments *)v)->group;
+}
+static void live_publish(void *v, const MMGroup *group)
+{
+    LiveArguments *h = v;
+    CHECK(group->storage == &h->storage);
+    h->group = *group;
+    ++h->publications;
+}
+static void unexpected_delete(void *v)
+{
+    (void)v;
+    CHECK(0);
+}
+static void unexpected_argument(void *v, int kind)
+{
+    (void)v;
+    (void)kind;
+    CHECK(0);
+}
+static void live_arguments(void)
+{
+    static const MMTextLiveArgumentGroup binding = {live_view, live_publish, unexpected_delete};
+    LiveArguments h;
+    MMTextArgumentServices services;
+    MMStorageAllocator allocator;
+    const MMTextArgumentRows *rows = &services.rows;
+    const void *data;
+    MMI32 ref = 91, bytes;
+    memset(&h, 0, sizeof(h));
+    memset(&services, 0, sizeof(services));
+    allocator.context = &h;
+    allocator.resize = live_resize;
+    allocator.release = live_release;
+    CHECK(mm_storage_init(&h.storage, &allocator) == MM_STORAGE_OK);
+    h.group.storage = &h.storage;
+    h.group.fixed_bytes = 4;
+    services.context = services.objects.context = &h;
+    services.objects.get = live_owner;
+    services.objects.set = live_set;
+    services.create = live_create;
+    services.diagnostic = unexpected_argument;
+    mm_text_live_argument_rows(&services.rows, &binding);
+
+    /* A failed location allocation preserves the new owner and leaves the
+     * grown payload capacity usable by the retry. */
+    h.fail_at = 2;
+    CHECK(!mm_text_argument_ensure(2, "name", 4, &ref, &services));
+    CHECK(ref == 91 && h.owned == &h && h.publications == 1);
+    CHECK(!h.group.count && !h.group.bytes && h.storage.buffers[0].capacity >= 8);
+    CHECK(mm_text_argument_ensure(2, "name", 4, &ref, &services) == 1 && ref == 1);
+    CHECK(mm_text_argument_ensure(2, "name", 4, &ref, &services) == 1 && ref == 1);
+    CHECK(rows->fixed(rows->context, &h, 0) == 0x02000002UL && h.publications == 2);
+    CHECK(mm_text_argument_ensure(192, "obj", 3, &ref, &services) == 1 && ref == 2);
+    mm_text_argument_ref(1, 0, &services);
+    mm_text_argument_ref(1, 0, &services);
+    CHECK(h.group.count == 2 && h.group.free_count == 1 && rows->free_slot(rows->context, &h, 0));
+    CHECK(mm_text_argument_ensure(64, "group", 5, &ref, &services) == 1 && ref == 1);
+    CHECK(h.group.count == 2 && !h.group.free_count && h.publications == 5);
+    data = rows->data(rows->context, &h, 1, &bytes);
+    CHECK(data && bytes == 3 && !memcmp(data, "obj", 3));
+    CHECK(rows->fixed(rows->context, &h, 0) == 0x40000001UL);
+    /* The last payload can be read without its trailing alignment padding. */
+    h.group.bytes -= 3;
+    data = rows->data(rows->context, &h, 0, &bytes);
+    CHECK(data && bytes == 5 && !memcmp(data, "group", 5));
+    CHECK(mm_storage_dispose(&h.storage) == MM_STORAGE_OK);
 }
 static void lookup(void)
 {
@@ -876,6 +984,7 @@ static void caption_archive_flow(void)
 int main(void)
 {
     arguments();
+    live_arguments();
     lookup();
     apply();
     adjust();

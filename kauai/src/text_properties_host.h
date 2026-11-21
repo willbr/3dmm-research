@@ -29,6 +29,10 @@ struct RichTextDocument::PropertyHost : DocumentHost
     }
     MMTextArgumentServices Arguments()
     {
+        static const MMTextLiveArgumentGroup group = {
+            [](void *p) { return static_cast<PAllocatedGroup>(p)->CoreRows(); },
+            [](void *p, const MMGroup *rows) { static_cast<PAllocatedGroup>(p)->PublishCoreRows(*rows); },
+            [](void *) { Assert(false, "invalid group mutation"); }};
         MMTextArgumentServices s = {};
         s.context = this;
         s.objects = Objects();
@@ -44,34 +48,7 @@ struct RichTextDocument::PropertyHost : DocumentHost
                 return *out != nullptr;
             });
         };
-        s.count = [](void *, void *p) -> MMI32 { return static_cast<PAllocatedGroup>(p)->IvMac(); };
-        s.free_slot = [](void *, void *p, MMI32 i) -> int { return static_cast<PAllocatedGroup>(p)->FFree(i); };
-        s.data = [](void *, void *p, MMI32 i, MMI32 *bytes) -> const void * {
-            LegacyLong count;
-            auto data = static_cast<PAllocatedGroup>(p)->QvGet(i, &count);
-            *bytes = count;
-            return data;
-        };
-        s.fixed = [](void *, void *p, MMI32 i) -> MMU32 {
-            LegacyLong fixed;
-            static_cast<PAllocatedGroup>(p)->GetFixed(i, &fixed);
-            return static_cast<MMU32>(fixed);
-        };
-        s.put_fixed = [](void *, void *p, MMI32 i, MMU32 value) {
-            LegacyLong fixed = static_cast<LegacyLong>(value);
-            static_cast<PAllocatedGroup>(p)->PutFixed(i, &fixed);
-        };
-        s.add = [](void *v, void *p, const void *bytes, MMI32 count, MMU32 value, MMI32 *out) -> int {
-            auto &h = *static_cast<PropertyHost *>(v);
-            return h.Guard([&] {
-                LegacyLong index, fixed = static_cast<LegacyLong>(value);
-                if (!static_cast<PAllocatedGroup>(p)->FAdd(count, &index, const_cast<void *>(bytes), &fixed))
-                    return false;
-                *out = index;
-                return true;
-            });
-        };
-        s.remove = [](void *, void *p, MMI32 i) { static_cast<PAllocatedGroup>(p)->Delete(i); };
+        mm_text_live_argument_rows(&s.rows, &group);
         return s;
     }
     MMTextPropertyServices Properties()
