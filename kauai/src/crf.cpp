@@ -315,20 +315,21 @@ bool ChunkyResourceFile::FCopyChunk(ChunkTagOrType type, ChunkNumber number, PCh
         return false;
     struct Source
     {
-        ChunkyResourceFile &cache;
+        MMResourceCache *cache;
         const MMChunkIndex *index;
-        DataBlock block;
         String name;
-    } context{*this, _cache.wire_index, {}, {}};
+    } context{&_cache, _cache.wire_index, {}};
     const auto chunks = ReadChunkAccess();
     MMChunkEndpoint source = {};
     source.identity = this;
     source.context = &context;
     source.stored = &chunks;
     source.allocator = KauaiCopyAllocator();
-    source.read_payload = [](void *p, MMU32, const MMChunkEntry *entry) -> void * {
+    source.handles = _cache.services.handles;
+    source.files = _cache.services.block_files;
+    source.bind_payload = [](void *p, MMU32, const MMChunkEntry *entry, MMOwnedBlock *block) -> int {
         auto &s = *static_cast<Source *>(p);
-        return s.cache.FReadBlock(entry->type, entry->number, s.block) ? &s.block : nullptr;
+        return mm_resource_cache_read_block(s.cache, entry->type, entry->number, block) == MM_CHUNK_OK;
     };
     source.read_name = [](void *p, MMU32 position) -> const void * {
         auto &s = *static_cast<Source *>(p);

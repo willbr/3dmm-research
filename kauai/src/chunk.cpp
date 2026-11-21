@@ -1514,7 +1514,6 @@ struct ChunkPayloadHost
 struct ChunkOpsHost
 {
     ChunkyFile *owner;
-    DataBlock payload;
     String name;
     explicit ChunkOpsHost(ChunkyFile *file) : owner(file) {}
 };
@@ -1696,21 +1695,13 @@ bool ChunkyFile::FAddBlck(PDataBlock pblckSrc, ChunkTagOrType ctg, ChunkNumber *
     AssertPo(pblckSrc, 0);
     AssertVarMem(pcno);
 
-    DataBlock blck;
-    LegacyLong cb = pblckSrc->Cb(fTrue);
-
-    if (!FAdd(cb, ctg, pcno, &blck))
-        return fFalse;
-    if (!pblckSrc->FWriteToBlck(&blck, fTrue))
-    {
-        Delete(ctg, *pcno);
+    const auto edit = EditIndex();
+    const bool ok = mm_chunk_add_block_copy(&edit, KauaiBlockFileServices(), KauaiCopyAllocator(), ctg,
+                                            pblckSrc->CoreBlock(), pcno) == MM_CHUNK_OK;
+    if (!ok)
         TrashVar(pcno);
-        return fFalse;
-    }
-    if (pblckSrc->FPacked())
-        SetPacked(ctg, *pcno, fTrue);
-
-    return fTrue;
+    AssertThis(0);
+    return ok;
 }
 
 /***************************************************************************
@@ -1836,10 +1827,11 @@ bool ChunkyFile::FPutBlck(PDataBlock pblckSrc, ChunkTagOrType ctg, ChunkNumber c
     AssertThis(0);
     AssertPo(pblckSrc, 0);
 
-    if (!_FPut(pblckSrc->Cb(fTrue), ctg, cno, pvNil, pblckSrc))
-        return pvNil;
-    SetPacked(ctg, cno, pblckSrc->FPacked());
-    return fTrue;
+    const auto edit = EditIndex();
+    const bool ok = mm_chunk_put_block(&edit, KauaiBlockFileServices(), KauaiCopyAllocator(), ctg, cno,
+                                       pblckSrc->CoreBlock()) == MM_CHUNK_OK;
+    AssertThis(0);
+    return ok;
 }
 
 /***************************************************************************
@@ -2472,20 +2464,17 @@ MMChunkEndpoint ChunkyFile::_OpsServices(void *context)
 {
     MMChunkEndpoint endpoint = {};
     endpoint.edit = EditIndex();
-    endpoint.allocator = KauaiCopyAllocator(); endpoint.identity = this; endpoint.context = context;
-    endpoint.read_payload = [](void *c, MMU32 position, const MMChunkEntry *) -> void * {
-        auto h = static_cast<ChunkOpsHost *>(c);
-        h->owner->_GetBlck(position, &h->payload);
-        return &h->payload;
-    };
-    endpoint.put_payload = [](void *c, MMU32 type, MMU32 number, void *payload) -> int {
-        return static_cast<ChunkOpsHost *>(c)->owner->FPutBlck(static_cast<PDataBlock>(payload), type, number);
-    };
-    endpoint.add_payload = [](void *c, MMU32 type, void *payload, MMU32 *number) -> int {
-        ChunkNumber result;
-        const bool ok = static_cast<ChunkOpsHost *>(c)->owner->FAddBlck(static_cast<PDataBlock>(payload), type, &result);
-        if (ok) *number = result;
-        return ok;
+    endpoint.allocator = KauaiCopyAllocator();
+    endpoint.handles = KauaiHandleServices();
+    endpoint.files = KauaiBlockFileServices();
+    endpoint.identity = this;
+    endpoint.context = context;
+    endpoint.bind_payload = [](void *c, MMU32 position, const MMChunkEntry *, MMOwnedBlock *block) -> int {
+        auto host = static_cast<ChunkOpsHost *>(c);
+        FileLocation location;
+        const bool packed = host->owner->_GetBlockLocation(position, &location);
+        const MMBlockFile file = {location.pfil, static_cast<MMU32>(location.fp), static_cast<MMU32>(location.cb)};
+        return mm_owned_block_set_file(block, &file, packed) == MM_DATA_OK;
     };
     endpoint.read_name = [](void *c, MMU32 position) -> const void * {
         auto h = static_cast<ChunkOpsHost *>(c);

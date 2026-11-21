@@ -78,6 +78,80 @@ int mm_chunk_add_bytes(const MMChunkEdit *edit, const MMBlockFileServices *files
     return MM_CHUNK_OK;
 }
 
+typedef struct ChunkBlockWrite
+{
+    MMOwnedBlock *source;
+    const MMBlockFileServices *files;
+    const MMStorageAllocator *allocator;
+} ChunkBlockWrite;
+
+static int write_chunk_block(void *p, const MMChunkLocation *location, int added)
+{
+    const ChunkBlockWrite *write = p;
+    MMBlockFile file;
+    MMOwnedBlock block;
+    MMBlockIO input, output;
+    int ok;
+    (void)added;
+    if (location->bytes != write->source->view.length ||
+        mm_owned_block_init(&block, write->source->handles, write->files) != MM_DATA_OK)
+        return 0;
+    file.file = location->file;
+    file.offset = location->offset;
+    file.length = location->bytes;
+    ok = mm_owned_block_set_file(&block, &file, 0) == MM_DATA_OK &&
+         mm_owned_block_io(write->source, &input) == MM_DATA_OK &&
+         mm_owned_block_io(&block, &output) == MM_DATA_OK &&
+         mm_block_copy(&input, &output, 1, write->allocator) == MM_DATA_OK;
+    mm_owned_block_clear(&block);
+    return ok;
+}
+
+int mm_chunk_put_block(const MMChunkEdit *index, const MMBlockFileServices *files,
+                       const MMStorageAllocator *allocator, MMU32 type, MMU32 number, MMOwnedBlock *source)
+{
+    MMChunkEdit edit;
+    ChunkBlockWrite write;
+    int status;
+    if (!index || mm_owned_block_check(source) != MM_DATA_OK)
+        return MM_CHUNK_BAD_FILE;
+    edit = *index;
+    write.source = source;
+    write.files = files;
+    write.allocator = allocator;
+    edit.payload_context = &write;
+    edit.output = NULL;
+    edit.write = write_chunk_block;
+    status = mm_chunk_put(&edit, type, number, source->view.length);
+    return status == MM_CHUNK_OK ? mm_chunk_set_flag(index, type, number, MM_CHUNK_PACKED, source->view.packed) : status;
+}
+
+int mm_chunk_add_block_copy(const MMChunkEdit *edit, const MMBlockFileServices *files,
+                            const MMStorageAllocator *allocator, MMU32 type, MMOwnedBlock *source, MMU32 *number)
+{
+    MMChunkLocation location;
+    ChunkBlockWrite write;
+    MMU32 added;
+    int status;
+    if (!number || mm_owned_block_check(source) != MM_DATA_OK)
+        return MM_CHUNK_BAD_FILE;
+    status = add_chunk_extent(edit, type, source->view.length, &added, &location);
+    if (status != MM_CHUNK_OK)
+        return status;
+    write.source = source;
+    write.files = files;
+    write.allocator = allocator;
+    if (!write_chunk_block(&write, &location, 1))
+    {
+        mm_chunk_delete(edit, type, added);
+        return MM_CHUNK_IO;
+    }
+    status = mm_chunk_set_flag(edit, type, added, MM_CHUNK_PACKED, source->view.packed);
+    if (status == MM_CHUNK_OK)
+        *number = added;
+    return status;
+}
+
 int mm_chunk_add_block(const MMChunkEdit *edit, MMU32 type, MMU32 bytes, MMU32 *number, MMOwnedBlock *block)
 {
     MMChunkLocation location;

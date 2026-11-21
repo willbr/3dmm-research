@@ -18459,3 +18459,29 @@ In sampled-audio suite `20261121T083422Z-ee77ba46`, both ports matched all
 requests. Both ports reproduced the prior PCM16 peak of 2,176. The archived
 retail peak is 2,380. The capture contains 519,840 SDL and 513,600 Marcus PCM
 frames. Logs and the comparison script are in `tmp/c89-audioman-device`.
+
+## Stored block transfer for chunk copying (21 November 2026)
+
+The C89 graph copier now owns the source block through the write into the
+destination extent. Live archives and immutable resource caches bind the
+original file bytes. Chunk addition and replacement also use the shared
+writer for file and memory blocks, preserving stored bytes and the packed
+flag. Failed replacement writes preserve the previous payload.
+
+All 193 standalone C checks, five focused AddressSanitizer checks, four
+native C89 and Marcus checks, and the SDL chomp pipeline passed. The chunk
+fixture covers live and stored graphs, same-file clones, memory and empty
+blocks, failed binds, reads and writes, and file-reference cleanup. The native
+572,367-byte chunk snapshot and all three 1,624-byte resource-cache snapshots
+matched their baselines. The native x64, x86 and SDL save/reopen fixtures
+matched all 27 traces and the sound-resource snapshots. SDL also reproduced
+the saved authoring fixture byte for byte.
+
+Both ports matched all three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T084540Z-33d6107f`.
+
+In sampled-audio suite `20261121T084540Z-6822f4b3`, both ports matched all 60
+archived retail frame identities, and SDL matched all four retail sound
+requests. PCM16 peaks matched the preceding builds at 2,176. The archived
+retail peak is 2,380. The capture contains 520,800 SDL and 511,680 Marcus PCM
+frames. Logs and the comparison script are in `tmp/c89-chunk-block-copy`.

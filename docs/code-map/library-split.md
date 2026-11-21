@@ -7128,11 +7128,15 @@ failures. Forced failure in the real native file/index services is not covered.
 prefix swaps, identity moves with sorted parent-link repair, graph copy/clone,
 runtime-based matching and a process-global runtime-ID counter. Moves retain a
 runtime ID only within the same type; data swaps invalidate both IDs, while
-child swaps preserve the legacy cache behavior. Native callbacks provide aligned
-group-byte/record movement and payload transfer. Runtime-table/name policy now
-uses the C modules above; those record moves already use C89 group algorithms.
+child swaps preserve the legacy cache behavior. Native callbacks bind the
+source extent and supply file and index operations. Runtime-table and name
+policy use the C modules above.
 
 Copy owns a sorted C source-to-destination number map and uses the C graph walker.
+For each new node, it binds a C-owned block to the live or stored archive,
+copies the stored bytes into the destination extent, and releases both blocks.
+The same C writer adds or replaces chunks from file-backed or memory-backed
+blocks. Failed writes preserve existing payloads and remove failed additions.
 It preserves source numbers when available, copies packed payloads and forest
 flags, converts names through existing host text services, retains sharing within
 the copied subgraph and suppresses pre-existing reuse for clones. Matching scans

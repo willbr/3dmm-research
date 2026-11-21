@@ -1,6 +1,7 @@
 /* Chunk graph operations converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_ops.h"
+#include "mm/chunk_storage.h"
 #include <string.h>
 #define OK MM_CHUNK_OK
 #define BAD MM_CHUNK_BAD_FILE
@@ -265,6 +266,30 @@ static int stored_child(void *context, MMU32 type, MMU32 number, MMU32 ordinal, 
     return mm_chunk_find(chunks, type, number, &position) == OK &&
            mm_chunk_child_at(chunks, position, ordinal, child) == OK;
 }
+
+static int copy_payload(const MMChunkEndpoint *src, const MMChunkEndpoint *dst,
+                        MMU32 position, const MMChunkEntry *entry, MMU32 *number)
+{
+    MMOwnedBlock block;
+    MMU32 target;
+    int result = MM_CHUNK_IO;
+    if (mm_owned_block_init(&block, src->handles, src->files) != MM_DATA_OK)
+        return result;
+    if (src->bind_payload(src->context, position, entry, &block))
+    {
+        if (src->identity != dst->identity && !lookup(&dst->edit, entry->type, entry->number, &target, NULL))
+        {
+            result = mm_chunk_put_block(&dst->edit, dst->files, dst->allocator, entry->type, entry->number, &block);
+            if (result == OK)
+                *number = entry->number;
+        }
+        else
+            result = mm_chunk_add_block_copy(&dst->edit, dst->files, dst->allocator, entry->type, &block, number);
+    }
+    mm_owned_block_clear(&block);
+    return result == OK ? OK : MM_CHUNK_IO;
+}
+
 static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
                       MMU32 number, int clone, MMU32 *copied, int *created)
 {
@@ -275,14 +300,13 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
     MMChunkChild node, parent, link;
     MMChunkEntry entry, target_entry;
     NumberMap item, parent_item;
-    void *payload;
     const void *name;
     MMU32 position, target_position, map_position, flags, root = 0;
     MMI32 runtime;
     int skip = 0, free_root = 0, new_root = 0, result = OK;
     if (!src || !dst || !copied || !src->identity || !dst->identity || !readable(&dst->edit) ||
-        !dst->edit.set_runtime || !dst->edit.store || !src->read_payload ||
-        !dst->put_payload || !dst->add_payload || !src->read_name || !dst->write_name)
+        !dst->edit.set_runtime || !dst->edit.store || !src->bind_payload ||
+        !src->read_name || !dst->write_name)
         return BAD;
     if (src->stored)
     {
@@ -355,27 +379,9 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
                     result = BAD;
                     goto done;
                 }
-                payload = src->read_payload(src->context, position, &entry);
-                if (!payload)
-                {
-                    result = MM_CHUNK_IO;
+                result = copy_payload(src, dst, position, &entry, &item.destination);
+                if (result != OK)
                     goto done;
-                }
-                if (src->identity != dst->identity &&
-                    !lookup(&dst->edit, node.type, node.number, &target_position, NULL))
-                {
-                    item.destination = node.number;
-                    if (!dst->put_payload(dst->context, node.type, item.destination, payload))
-                    {
-                        result = MM_CHUNK_IO;
-                        goto done;
-                    }
-                }
-                else if (!dst->add_payload(dst->context, node.type, payload, &item.destination))
-                {
-                    result = MM_CHUNK_IO;
-                    goto done;
-                }
                 /* Cloning into the source can move a live directory row. */
                 if (!src->stored)
                     copy_lookup(src, node.type, node.number, &position, &entry);

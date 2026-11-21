@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_CHUNK_OPS_H
 #define MM_ENGINE_CHUNK_OPS_H
+#include "block_owner.h"
 #include "chunk_edit.h"
 #include "chunk_graph.h"
 #ifdef __cplusplus
@@ -15,12 +16,13 @@ extern "C"
          * and runtime callbacks. Borrow it through the copy call. */
         const MMChunkAccess *stored;
         const MMStorageAllocator *allocator;
+        const MMHandleServices *handles;
+        const MMBlockFileServices *files;
         void *identity, *context;
-        /* Values returned by the readers are borrowed through the matching write.
-         * A missing payload fails the copy. A missing name leaves the chunk unnamed. */
-        void *(*read_payload)(void *, MMU32 position, const MMChunkEntry *);
-        int (*put_payload)(void *, MMU32 type, MMU32 number, void *payload);
-        int (*add_payload)(void *, MMU32 type, void *payload, MMU32 *number);
+        /* Bind stored bytes to an empty block owned by the copier. The block
+         * remains valid even if writing moves the live source's index rows. */
+        int (*bind_payload)(void *, MMU32 position, const MMChunkEntry *, MMOwnedBlock *);
+        /* The name is borrowed through its matching write. */
         const void *(*read_name)(void *, MMU32 position);
         int (*write_name)(void *, MMU32 position, const void *name);
     } MMChunkEndpoint;

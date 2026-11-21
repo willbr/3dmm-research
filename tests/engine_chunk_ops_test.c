@@ -1,4 +1,6 @@
 #include "mm/chunk_ops.h"
+#include "mm/chunk_storage.h"
+#include "engine_resource_block_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -22,14 +24,13 @@ typedef struct Node
 typedef struct Host
 {
     Node nodes[64];
-    MMChunkEntry payload_entry;
     MMU32 count, end;
-    unsigned char physical[8192], payload[64];
-    const unsigned char *write_data;
+    unsigned char physical[8192];
+    ResourceTestBlock block;
     MMChunkEndpoint ops;
     MMStorageAllocator memory;
     int live, calls, fail_map, fail_growth, fail_walk, fail_payload, fail_name, fail_link, fail_runtime;
-    int payloads, names, links, resets, reads, fail_read;
+    int payloads, names, links, resets, reads, fail_read, binds, fail_bind, file_refs;
 } Host;
 static MMU32 find(Host *h, MMU32 type, MMU32 number)
 {
@@ -104,14 +105,36 @@ static void free_space(void *c, int extra, MMU32 offset, MMU32 bytes)
     (void)c;
     CHECK(!extra && offset + bytes <= 8192);
 }
-static int write(void *c, const MMChunkLocation *location, int added)
+static void retain_file(void *context, void *file)
 {
-    Host *h = (Host *)c;
-    (void)added;
+    Host *h = context;
+    CHECK(h == file);
+    ++h->file_refs;
+}
+static void release_file(void *context, void *file)
+{
+    Host *h = context;
+    CHECK(h == file && h->file_refs > 0);
+    --h->file_refs;
+}
+static int read_file(void *context, void *file, MMU32 offset, void *out, size_t bytes)
+{
+    Host *h = context;
+    CHECK(h == file && h->file_refs > 0 && offset <= h->end && bytes <= h->end - offset);
+    ++h->reads;
+    if (h->fail_read == h->reads)
+        return 0;
+    memcpy(out, h->physical + offset, bytes);
+    return 1;
+}
+static int write_file(void *context, void *file, MMU32 offset, const void *data, size_t bytes)
+{
+    Host *h = context;
+    CHECK(h == file && h->file_refs > 0 && offset <= h->end && bytes <= h->end - offset);
     ++h->payloads;
     if (h->fail_payload == h->payloads)
         return 0;
-    memcpy(h->physical + location->offset, h->write_data, location->bytes);
+    memcpy(h->physical + offset, data, bytes);
     return 1;
 }
 static MMI32 runtime(void *c, MMU32 type, MMU32 number)
@@ -197,38 +220,17 @@ static int move_bytes(void *c, MMU32 from, MMU32 offset, MMU32 to, MMU32 target,
     size(b);
     return 1;
 }
-static void *read_payload(void *c, MMU32 i, const MMChunkEntry *e)
+static int bind_payload(void *c, MMU32 i, const MMChunkEntry *e, MMOwnedBlock *block)
 {
     Host *h = (Host *)c;
-    CHECK(i < h->count && e->number == h->nodes[i].e.number && e->bytes <= sizeof(h->payload));
-    if (++h->reads == h->fail_read)
-        return NULL;
-    h->payload_entry = *e;
-    memcpy(h->payload, h->physical + e->offset, e->bytes);
-    return h;
-}
-static int put_payload(void *c, MMU32 type, MMU32 number, void *source)
-{
-    Host *h = (Host *)c, *src = (Host *)source;
-    MMU32 i;
-    int result;
-    h->write_data = src->payload;
-    result = mm_chunk_put(&h->ops.edit, type, number, src->payload_entry.bytes);
-    if (result != MM_CHUNK_OK)
+    MMBlockFile file;
+    CHECK(i < h->count && e->number == h->nodes[i].e.number);
+    if (++h->binds == h->fail_bind)
         return 0;
-    i = find(h, type, number);
-    h->nodes[i].e.flags = (h->nodes[i].e.flags & ~4U) | (src->payload_entry.flags & 4U);
-    return 1;
-}
-static int add_payload(void *c, MMU32 type, void *source, MMU32 *number)
-{
-    Host *h = (Host *)c;
-    MMU32 position, n;
-    CHECK(mm_chunk_unique(&h->ops.edit, type, &position, &n) == MM_CHUNK_OK);
-    if (!put_payload(c, type, n, source))
-        return 0;
-    *number = n;
-    return 1;
+    file.file = h;
+    file.offset = e->offset;
+    file.length = e->bytes;
+    return mm_owned_block_set_file(block, &file, e->flags & MM_CHUNK_PACKED) == MM_DATA_OK;
 }
 static const void *read_name(void *c, MMU32 i)
 {
@@ -286,6 +288,11 @@ static void init(Host *h)
     h->ops.context = h;
     h->ops.identity = h;
     h->ops.allocator = &h->memory;
+    resource_block_init(&h->block, h, read_file, write_file);
+    h->block.files.retain = retain_file;
+    h->block.files.release = release_file;
+    h->ops.handles = h->block.owner.handles;
+    h->ops.files = &h->block.files;
     e = &h->ops.edit;
     e->context = h;
     e->payload_context = h;
@@ -298,7 +305,6 @@ static void init(Host *h)
     e->erase = erase;
     e->allocate = allocate;
     e->free_space = free_space;
-    e->write = write;
     e->reset_runtime = reset;
     e->insert_child = insert_child;
     e->erase_child = erase_child;
@@ -307,15 +313,13 @@ static void init(Host *h)
     e->move_bytes = move_bytes;
     e->runtime = runtime;
     e->set_runtime = set_runtime;
-    h->ops.read_payload = read_payload;
-    h->ops.put_payload = put_payload;
-    h->ops.add_payload = add_payload;
+    h->ops.bind_payload = bind_payload;
     h->ops.read_name = read_name;
     h->ops.write_name = write_name;
 }
 static void dispose(Host *h)
 {
-    CHECK(!h->live);
+    CHECK(!h->live && !h->file_refs);
 }
 static void add(Host *h, MMU32 number)
 {
@@ -495,12 +499,17 @@ static void stored_copies(void)
     source.identity = source.context = &src;
     source.allocator = &src.memory;
     source.stored = &index;
-    source.read_payload = read_payload;
+    source.handles = src.ops.handles;
+    source.files = src.ops.files;
+    source.bind_payload = bind_payload;
     source.read_name = read_name;
 
-    src.fail_read = 2;
+    src.fail_bind = 2;
     CHECK(mm_chunk_copy(&source, &dst.ops, 10, 0, 0, &copied) == MM_CHUNK_IO);
-    CHECK(copied == 99 && dst.count == 1 && dst.nodes[0].e.number == 0);
+    CHECK(copied == 99 && dst.count == 1 && dst.nodes[0].e.number == 0 && !src.file_refs && !dst.file_refs);
+    src.fail_read = src.reads + 2;
+    CHECK(mm_chunk_copy(&source, &dst.ops, 10, 0, 0, &copied) == MM_CHUNK_IO);
+    CHECK(copied == 99 && dst.count == 1 && dst.nodes[0].e.number == 0 && !src.file_refs && !dst.file_refs);
     CHECK(mm_chunk_copy(&source, &dst.ops, 10, 0, 0, &copied) == MM_CHUNK_OK);
     CHECK(dst.count == 4 && copied != 0 && mm_chunk_runtime_highest() == highest);
     root = find(&dst, 10, copied);
@@ -530,6 +539,40 @@ static void live_clone_moves_rows(void)
     CHECK(!strcmp(h.nodes[0].name, "named") && h.nodes[0].e.child_count == 1);
     child_position = find(&h, 10, h.nodes[0].kids[0].number);
     CHECK(child_position < h.count && !strcmp(h.nodes[child_position].name, "glyph"));
+    dispose(&h);
+}
+static void block_writes(void)
+{
+    Host h;
+    MMOwnedBlock *source;
+    MMU32 number, offset;
+    void *handle;
+    init(&h);
+    source = &h.block.owner;
+    add(&h, 0);
+    offset = h.nodes[0].e.offset;
+    CHECK(resource_handle_allocate(NULL, 4, &handle));
+    memcpy(resource_handle_lock(NULL, handle), "ABCD", 4);
+    CHECK(mm_owned_block_set_handle(source, &handle, 1) == MM_DATA_OK && !handle);
+
+    h.fail_payload = h.payloads + 1;
+    CHECK(mm_chunk_put_block(&h.ops.edit, h.ops.files, h.ops.allocator, 10, 0, source) == MM_CHUNK_IO);
+    CHECK(h.count == 1 && h.nodes[0].e.offset == offset && h.nodes[0].e.bytes == 3 &&
+          h.nodes[0].e.flags == MM_CHUNK_LONER && !h.file_refs && h.physical[offset] == 1);
+    CHECK(mm_chunk_put_block(&h.ops.edit, h.ops.files, h.ops.allocator, 10, 0, source) == MM_CHUNK_OK);
+    offset = h.nodes[0].e.offset;
+    CHECK(h.nodes[0].e.bytes == 4 && (h.nodes[0].e.flags & MM_CHUNK_PACKED) &&
+          !memcmp(h.physical + offset, "ABCD", 4) && !strcmp(h.nodes[0].name, "named"));
+
+    number = 99;
+    h.fail_payload = h.payloads + 1;
+    CHECK(mm_chunk_add_block_copy(&h.ops.edit, h.ops.files, h.ops.allocator, 10, source, &number) == MM_CHUNK_IO);
+    CHECK(h.count == 1 && number == 99 && !h.file_refs && source->view.packed);
+    CHECK(mm_owned_block_clear(source) == MM_DATA_OK);
+    CHECK(mm_chunk_put_block(&h.ops.edit, h.ops.files, h.ops.allocator, 10, 0, source) == MM_CHUNK_OK);
+    CHECK(!h.nodes[0].e.bytes && h.nodes[0].e.flags == MM_CHUNK_LONER);
+    CHECK(mm_chunk_add_block_copy(&h.ops.edit, h.ops.files, h.ops.allocator, 10, source, &number) == MM_CHUNK_OK);
+    CHECK(number == 1 && h.count == 2 && !h.nodes[1].e.bytes);
     dispose(&h);
 }
 static void swaps_moves(void)
@@ -576,6 +619,7 @@ int main(void)
     copy_references();
     stored_copies();
     live_clone_moves_rows();
+    block_writes();
     swaps_moves();
     return 0;
 }

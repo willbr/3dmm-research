@@ -65,6 +65,12 @@ extern "C"
     /* Create at the first unused number. A failed write removes the new chunk. */
     int mm_chunk_add_bytes(const MMChunkEdit *, const MMBlockFileServices *, MMU32 type,
                            const void *data, MMU32 bytes, MMU32 *number);
+    /* Copy stored bytes and their packed flag. The block remains owned by the
+     * caller. Replace only after writing succeeds, and remove failed additions. */
+    int mm_chunk_put_block(const MMChunkEdit *, const MMBlockFileServices *, const MMStorageAllocator *,
+                           MMU32 type, MMU32 number, MMOwnedBlock *);
+    int mm_chunk_add_block_copy(const MMChunkEdit *, const MMBlockFileServices *, const MMStorageAllocator *,
+                                MMU32 type, MMOwnedBlock *, MMU32 *number);
     /* Create at the first unused number. An optional initialized, empty block
      * receives the owned extent for writing. Success publishes the number,
      * and the caller controls cleanup after later writes. */

@@ -116,7 +116,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   budget and inherits that source. Stored names, font glyphs, sound metadata,
   and event-track replacements also read from that source. Font copies
   traverse the stored index with the shared C89 chunk copier and write the
-  selected subgraph to the editable preview file.
+  selected subgraph to the editable preview file. The copier and the native
+  block add and replace entry points use the same C payload transfer, including
+  for packed chunks and copies within one editable archive.
 - Marcus creates text drafts directly from the shared TMPL and TDT codecs.
   C89 binds copied fonts to local preview tags in the descriptor's byte order
   and writes authored lighting, textures and placement through the shared
