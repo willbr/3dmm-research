@@ -18433,3 +18433,29 @@ archived retail frame identities, and SDL matched all four retail sound
 requests. Both ports reproduced the prior PCM16 peak of 2,176. The archived
 retail peak is 2,380. The capture contains 518,400 SDL and 511,680 Marcus PCM
 frames. Logs and the comparison script are in `tmp/c89-audioman-runtime`.
+
+## Classic AudioMan mixer lifecycle and volume (21 November 2026)
+
+C89 now owns shared mixer attachment and release, the default format and
+8-bit fallback, stream cache timing, and system volume handling across
+suspend and resume. The Windows adapter probes WinMM, calls the original
+COM interfaces and publishes the captured system volume for MIDI.
+
+All 193 standalone C checks, five focused AddressSanitizer checks and 16
+native C89 and Marcus checks passed.
+The mixer fixture supplies simulated WinMM and COM results. It covers all 12
+formats, fallback with no advertised device, startup failures, reference
+reuse, suspend and resume order, and mixer-volume read failure. Separate x86
+compatibility checks used the original AudioMan library for 39 wave imports
+and 50 recording-filter comparisons.
+
+Native x64, native x86, and SDL reproduced the sound-resource snapshots and
+27 save and reopen traces. SDL reproduced the saved authoring fixture byte
+for byte. Both ports matched all three archived V3dmm storyboard seek frames,
+cameras and canvas hashes in suite `20261121T083422Z-27bc84b7`.
+
+In sampled-audio suite `20261121T083422Z-ee77ba46`, both ports matched all
+60 archived retail frame identities, and SDL matched all four retail sound
+requests. Both ports reproduced the prior PCM16 peak of 2,176. The archived
+retail peak is 2,380. The capture contains 519,840 SDL and 513,600 Marcus PCM
+frames. Logs and the comparison script are in `tmp/c89-audioman-device`.

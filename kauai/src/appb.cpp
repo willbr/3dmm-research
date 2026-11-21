@@ -20,7 +20,7 @@
 #include "frame.h"
 #include "clipboard_view_host.h"
 #include "cmd_hooks.h"
-#include "legacy_wave_formats.h"
+#include "mm/audioman.h"
 #ifdef KAUAI_SDL3
 #include "sdl_studio.h"
 #endif
@@ -689,7 +689,7 @@ bool ApplicationBase::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         return fFalse;
 
     // initialize sound functionality
-    if (!_FInitSound(kwav22M16))
+    if (!_FInitSound(MM_AUDIOMAN_22M16))
         return fFalse;
 
     // import any external clipboard

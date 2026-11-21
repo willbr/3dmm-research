@@ -3,7 +3,7 @@
 #ifndef MM_ENGINE_AUDIOMAN_H
 #define MM_ENGINE_AUDIOMAN_H
 #include "block_owner.h"
-#include "sound_queue.h"
+#include "sound_manager.h"
 #include "wide.h"
 #ifdef __cplusplus
 extern "C"
@@ -23,6 +23,61 @@ extern "C"
     int mm_audioman_stream_read(MMAudioManStream *, void *out, MMU32 requested, MMU32 *read);
     int mm_audioman_stream_seek(MMAudioManStream *, MMWide offset, MMU32 origin, MMU32 *position);
     MMU32 mm_audioman_stream_resident(const MMAudioManStream *);
+
+    enum MMAudioManFormat
+    {
+        MM_AUDIOMAN_11M8,
+        MM_AUDIOMAN_22M8,
+        MM_AUDIOMAN_44M8,
+        MM_AUDIOMAN_11S8,
+        MM_AUDIOMAN_22S8,
+        MM_AUDIOMAN_44S8,
+        MM_AUDIOMAN_11M16,
+        MM_AUDIOMAN_22M16,
+        MM_AUDIOMAN_44M16,
+        MM_AUDIOMAN_11S16,
+        MM_AUDIOMAN_22S16,
+        MM_AUDIOMAN_44S16,
+        MM_AUDIOMAN_FORMAT_COUNT
+    };
+    typedef struct MMAudioManMixer
+    {
+        void *object;
+        MMI32 format;
+        MMU32 cache_ms;
+    } MMAudioManMixer;
+    typedef struct MMAudioManDevice
+    {
+        MMU32 system_volume;
+        MMI32 volume;
+        int attached;
+    } MMAudioManDevice;
+    typedef struct MMAudioManDeviceServices
+    {
+        void *context;
+        void *(*create)(void *);
+        void (*retain)(void *, void *mixer);
+        MMU32 (*release)(void *, void *mixer);
+        int (*supports_format)(void *, MMI32 format);
+        int (*initialize)(void *, void *mixer, MMI32 format, MMU32 voices, int remix, MMU32 buffer_ms);
+        int (*activate)(void *, void *mixer);
+        int (*suspend)(void *, void *mixer, int suspended);
+        void (*get_volume)(void *, void *mixer, MMU32 *volume);
+        void (*set_volume)(void *, void *mixer, MMU32 volume);
+        void (*publish_volume)(void *, MMU32 system_volume);
+        void (*device_busy)(void *);
+    } MMAudioManDeviceServices;
+    void mm_audioman_device_init(MMAudioManDevice *);
+    /* Always close after opening, including when a newly attached mixer's
+     * configuration fails. The mixer starts zero-initialized and is shared
+     * by devices that use the same host mixer. */
+    int mm_audioman_device_open(MMAudioManDevice *, MMAudioManMixer *, MMI32 format,
+                                const MMAudioManDeviceServices *);
+    void mm_audioman_device_close(MMAudioManDevice *, MMAudioManMixer *, const MMAudioManDeviceServices *);
+    void mm_audioman_device_suspend(MMAudioManDevice *, const MMAudioManMixer *, int suspended,
+                                    const MMAudioManDeviceServices *);
+    void mm_audioman_device_set_volume(MMAudioManDevice *, const MMAudioManMixer *, MMI32 volume,
+                                       const MMSoundControl *, const MMAudioManDeviceServices *);
 
     typedef struct MMAudioManGroup
     {

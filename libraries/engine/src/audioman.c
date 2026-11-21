@@ -65,6 +65,86 @@ MMU32 mm_audioman_stream_resident(const MMAudioManStream *stream)
     return stream->block.view.kind == MM_BLOCK_MEMORY ? stream->block.view.capacity : 0;
 }
 
+void mm_audioman_device_init(MMAudioManDevice *device)
+{
+    device->system_volume = 0xffffffffUL;
+    device->volume = 0x10000L;
+    device->attached = 0;
+}
+
+int mm_audioman_device_open(MMAudioManDevice *device, MMAudioManMixer *mixer, MMI32 format,
+                            const MMAudioManDeviceServices *s)
+{
+    const MMU32 buffer_ms = 600;
+    void *p = s->context;
+    if (mixer->object)
+    {
+        s->retain(p, mixer->object);
+        device->attached = 1;
+        return 1;
+    }
+
+    mixer->object = s->create(p);
+    if (!mixer->object)
+        return 0;
+    device->attached = 1;
+    if (format < 0 || format >= MM_AUDIOMAN_FORMAT_COUNT)
+        format = MM_AUDIOMAN_22M16;
+    if (!s->supports_format(p, format))
+    {
+        if (format < MM_AUDIOMAN_11M16)
+            return 0;
+        /* Match the 8-bit rate and channel count. Let the wave mapper
+         * convert the fallback even if no device advertises it. */
+        format -= MM_AUDIOMAN_11M16 - MM_AUDIOMAN_11M8;
+    }
+
+    mixer->format = format;
+    mixer->cache_ms = 2 * buffer_ms;
+    return s->initialize(p, mixer->object, format, 12, 1, buffer_ms) && s->activate(p, mixer->object);
+}
+
+void mm_audioman_device_close(MMAudioManDevice *device, MMAudioManMixer *mixer,
+                              const MMAudioManDeviceServices *s)
+{
+    if (device->attached)
+    {
+        if (!s->release(s->context, mixer->object))
+            mixer->object = 0;
+        device->attached = 0;
+    }
+}
+
+void mm_audioman_device_suspend(MMAudioManDevice *device, const MMAudioManMixer *mixer, int suspended,
+                                const MMAudioManDeviceServices *s)
+{
+    void *p = s->context;
+    if (suspended)
+    {
+        s->set_volume(p, mixer->object, device->system_volume);
+        s->suspend(p, mixer->object, 1);
+    }
+    else if (s->suspend(p, mixer->object, 0))
+    {
+        s->get_volume(p, mixer->object, &device->system_volume);
+        s->publish_volume(p, device->system_volume);
+        s->set_volume(p, mixer->object, mm_sound_volume_scale(device->system_volume, device->volume));
+    }
+    else
+        s->device_busy(p);
+}
+
+void mm_audioman_device_set_volume(MMAudioManDevice *device, const MMAudioManMixer *mixer, MMI32 volume,
+                                   const MMSoundControl *control, const MMAudioManDeviceServices *s)
+{
+    if (device->volume != volume)
+    {
+        device->volume = volume;
+        if (control->suspended <= 0 && control->active)
+            s->set_volume(s->context, mixer->object, mm_sound_volume_scale(device->system_volume, volume));
+    }
+}
+
 void mm_audioman_group_begin(MMAudioManGroup *group, const MMAudioManGroupServices *s)
 {
     MMI32 old = group->depth;

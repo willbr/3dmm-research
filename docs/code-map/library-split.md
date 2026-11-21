@@ -6555,8 +6555,12 @@ part of the final host-integration work.
 
 `audioman.c` also owns classic AudioMan loop wrapping, queue progression,
 pause offsets, completion matching, and nested synchronization groups. It
-uses the shared queue entries, object release and lock callbacks. The native
-adapter supplies the COM channel, stream identity, cache format and clock.
+uses the shared queue entries, object release and lock callbacks. It retains
+the shared mixer, chooses the startup format and 8-bit fallback, and sets
+the stream cache duration. When suspending, it restores the system volume
+before calling the mixer. On successful resume it captures the system volume
+and applies the device level. The native adapter supplies COM operations,
+WinMM format support, the system volume handoff to MIDI, and the clock.
 
 `audio_mixer.c` owns persistent sampled-audio queues, playback positions, loop
 counts, grouping, transactional synchronization, mixing, clipping and statistics.

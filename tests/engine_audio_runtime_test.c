@@ -595,6 +595,211 @@ static void audioman_queue(void)
     mm_audioman_group_end(&group, &grouping);
     audio_expect(&f, "A");
 }
+typedef struct AudioManDeviceFixture
+{
+    char trace[96];
+    size_t length;
+    MMU32 refs, supported, system, volume, published;
+    MMI32 probed, selected;
+    int fail_create, fail_init, fail_activate, fail_suspend, fail_get;
+} AudioManDeviceFixture;
+
+static void device_record(AudioManDeviceFixture *f, char event)
+{
+    assert(f->length + 1 < sizeof(f->trace));
+    f->trace[f->length++] = event;
+    f->trace[f->length] = '\0';
+}
+
+static void device_expect(AudioManDeviceFixture *f, const char *trace)
+{
+    assert(strcmp(f->trace, trace) == 0);
+    f->length = 0;
+    f->trace[0] = '\0';
+}
+
+static void *device_create(void *p)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    assert(!f->refs);
+    device_record(f, 'C');
+    if (f->fail_create)
+        return NULL;
+    f->refs = 1;
+    return f;
+}
+
+static void device_retain(void *p, void *mixer)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    assert(mixer == f && f->refs);
+    device_record(f, '+');
+    ++f->refs;
+}
+
+static MMU32 device_release(void *p, void *mixer)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    assert(mixer == f && f->refs);
+    device_record(f, '-');
+    return --f->refs;
+}
+
+static int device_supports(void *p, MMI32 format)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    assert(format >= 0 && format < MM_AUDIOMAN_FORMAT_COUNT);
+    device_record(f, '?');
+    f->probed = format;
+    return (f->supported & (1UL << format)) != 0;
+}
+
+static int device_initialize(void *p, void *mixer, MMI32 format, MMU32 voices, int remix, MMU32 ms)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    assert(mixer == f && f->refs && voices == 12 && remix && ms == 600);
+    device_record(f, 'I');
+    f->selected = format;
+    return !f->fail_init;
+}
+
+static int device_activate(void *p, void *mixer)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    assert(mixer == f && f->refs);
+    device_record(f, 'A');
+    return !f->fail_activate;
+}
+
+static int device_suspend(void *p, void *mixer, int suspend)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    assert(mixer == f && f->refs);
+    device_record(f, suspend ? 'S' : 'R');
+    return !f->fail_suspend;
+}
+
+static void device_get_volume(void *p, void *mixer, MMU32 *volume)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    assert(mixer == f && f->refs);
+    device_record(f, 'G');
+    if (!f->fail_get)
+        *volume = f->system;
+}
+
+static void device_set_volume(void *p, void *mixer, MMU32 volume)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    assert(mixer == f && f->refs);
+    device_record(f, 'V');
+    f->volume = volume;
+}
+
+static void device_publish_volume(void *p, MMU32 volume)
+{
+    AudioManDeviceFixture *f = (AudioManDeviceFixture *)p;
+    device_record(f, 'P');
+    f->published = volume;
+}
+
+static void device_busy(void *p)
+{
+    device_record((AudioManDeviceFixture *)p, 'B');
+}
+
+static void audioman_device(void)
+{
+    AudioManDeviceFixture f;
+    MMAudioManDeviceServices s = {NULL, device_create, device_retain, device_release, device_supports,
+                                  device_initialize, device_activate, device_suspend, device_get_volume,
+                                  device_set_volume, device_publish_volume, device_busy};
+    MMAudioManMixer mixer = {0, 0, 0};
+    MMAudioManDevice first, second;
+    MMSoundControl control = {0, 1};
+    MMI32 format;
+    memset(&f, 0, sizeof(f));
+    s.context = &f;
+    mm_audioman_device_init(&first);
+    mm_audioman_device_init(&second);
+    assert(!first.attached && first.volume == 65536 && first.system_volume == 0xffffffffUL);
+    for (format = 0; format < MM_AUDIOMAN_FORMAT_COUNT; ++format)
+    {
+        f.supported = 1UL << format;
+        assert(mm_audioman_device_open(&first, &mixer, format, &s));
+        assert(f.probed == format && f.selected == format && mixer.format == format && mixer.cache_ms == 1200);
+        mm_audioman_device_close(&first, &mixer, &s);
+        assert(!first.attached && !mixer.object && !f.refs);
+        device_expect(&f, "C?IA-");
+    }
+    for (format = MM_AUDIOMAN_11M16; format < MM_AUDIOMAN_FORMAT_COUNT; ++format)
+    {
+        f.supported = 0;
+        assert(mm_audioman_device_open(&first, &mixer, format, &s));
+        assert(f.probed == format && f.selected == format - 6 && mixer.format == f.selected);
+        mm_audioman_device_close(&first, &mixer, &s);
+        device_expect(&f, "C?IA-");
+    }
+    assert(!mm_audioman_device_open(&first, &mixer, MM_AUDIOMAN_44S8, &s));
+    assert(first.attached);
+    mm_audioman_device_close(&first, &mixer, &s);
+    device_expect(&f, "C?-");
+    f.fail_create = 1;
+    assert(!mm_audioman_device_open(&first, &mixer, -1, &s));
+    mm_audioman_device_close(&first, &mixer, &s);
+    device_expect(&f, "C");
+    f.fail_create = 0;
+    f.supported = 1UL << MM_AUDIOMAN_22M16;
+    f.fail_init = 1;
+    assert(!mm_audioman_device_open(&first, &mixer, -1, &s));
+    assert(f.probed == MM_AUDIOMAN_22M16 && f.selected == f.probed);
+    mm_audioman_device_close(&first, &mixer, &s);
+    device_expect(&f, "C?I-");
+    f.fail_init = 0;
+    f.fail_activate = 1;
+    assert(!mm_audioman_device_open(&first, &mixer, MM_AUDIOMAN_FORMAT_COUNT, &s));
+    assert(f.probed == MM_AUDIOMAN_22M16 && f.selected == f.probed);
+    mm_audioman_device_close(&first, &mixer, &s);
+    device_expect(&f, "C?IA-");
+    f.fail_activate = 0;
+    assert(mm_audioman_device_open(&first, &mixer, MM_AUDIOMAN_22M16, &s));
+    assert(mm_audioman_device_open(&second, &mixer, MM_AUDIOMAN_11S8, &s));
+    assert(f.refs == 2 && mixer.format == MM_AUDIOMAN_22M16);
+    mm_audioman_device_close(&second, &mixer, &s);
+    mm_audioman_device_close(&second, &mixer, &s);
+    assert(mixer.object == &f && f.refs == 1);
+    device_expect(&f, "C?IA+-");
+
+    f.system = 0x80004000UL;
+    mm_audioman_device_suspend(&first, &mixer, 0, &s);
+    assert(first.system_volume == f.system && f.published == f.system && f.volume == f.system);
+    mm_audioman_device_set_volume(&first, &mixer, 32768, &control, &s);
+    mm_audioman_device_set_volume(&first, &mixer, 32768, &control, &s);
+    assert(f.volume == 0x40002000UL);
+    device_expect(&f, "RGPVV");
+
+    control.suspended = 1;
+    f.fail_suspend = 1;
+    mm_audioman_device_suspend(&first, &mixer, 1, &s);
+    assert(f.volume == f.system);
+    mm_audioman_device_set_volume(&first, &mixer, 16384, &control, &s);
+    assert(first.volume == 16384 && f.volume == f.system);
+    mm_audioman_device_suspend(&first, &mixer, 0, &s);
+    device_expect(&f, "VSRB");
+
+    control.suspended = 0;
+    control.active = 0;
+    mm_audioman_device_set_volume(&first, &mixer, 32768, &control, &s);
+    f.fail_suspend = 0;
+    f.fail_get = 1;
+    f.system = 0;
+    mm_audioman_device_suspend(&first, &mixer, 0, &s);
+    assert(f.published == 0x80004000UL && f.volume == 0x40002000UL);
+    mm_audioman_device_close(&first, &mixer, &s);
+    assert(!mixer.object && !f.refs);
+    device_expect(&f, "RGPV-");
+}
+
 typedef struct Dispatch
 {
     MMSoundEndpoint entries[8];
@@ -806,6 +1011,7 @@ int main(void)
     midi();
     queue();
     audioman_queue();
+    audioman_device();
     dispatch();
     stream();
     puts("C89 audio runtime: clocks, PCM mixing, MIDI scheduling, queue policy and fault cleanup passed.");

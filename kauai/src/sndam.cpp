@@ -16,22 +16,64 @@
 #include "handle_services.h"
 ASSERTNAME
 
-// CHECK_AUDIO_DEVCAPS turns on using waveOutGetDevCaps to check for
-// audio device characteristics, to workaround AudioMan 1.0 always returning
-// whatever device was asked for, regardless if device actually supports format.
-// In case of asking for a 16 bit device, and there is only an 8 bit device, the
-// open will succeed, causing sub-optimal audioman performance on an 8 bit card.
-// With AudioMan 1.5, this should go away.
-#define CHECK_AUDIO_DEVCAPS
-
 // Initialize the maximum mem footprint of wave sounds.
 long AudioManSoundDevice::vcbMaxMemWave = 40 * 1024;
 
-static IAMMixer *_pamix; // the audioman mixer
+static MMAudioManMixer _mixer;
 static MMAudioManGroup _group;
 
-static ulong _luFormat;    // format mixer is in
-static ulong _luCacheTime; // buffer size for mixer
+static IAMMixer *Mixer()
+{
+    return static_cast<IAMMixer *>(_mixer.object);
+}
+
+static const DWORD _waveFormats[] = {
+    WAVE_FORMAT_1M08, WAVE_FORMAT_2M08, WAVE_FORMAT_4M08, WAVE_FORMAT_1S08, WAVE_FORMAT_2S08, WAVE_FORMAT_4S08,
+    WAVE_FORMAT_1M16, WAVE_FORMAT_2M16, WAVE_FORMAT_4M16, WAVE_FORMAT_1S16, WAVE_FORMAT_2S16, WAVE_FORMAT_4S16,
+};
+static_assert(sizeof(_waveFormats) / sizeof(_waveFormats[0]) == MM_AUDIOMAN_FORMAT_COUNT);
+
+static const MMAudioManDeviceServices _deviceServices = {
+    nullptr,
+    [](void *) -> void * { return GetAudioManMixer(); },
+    [](void *, void *p) { static_cast<IAMMixer *>(p)->AddRef(); },
+    [](void *, void *p) -> MMU32 { return static_cast<IAMMixer *>(p)->Release(); },
+    [](void *, MMI32 format) -> int {
+        // AudioMan 1.0 can open a 16-bit format even on 8-bit hardware.
+        // Probe WinMM to decide when the mixer should use a cheaper format.
+        const DWORD flags = _waveFormats[format];
+        const WORD devices = static_cast<WORD>(waveOutGetNumDevs());
+        for (WORD id = 0; id < devices; ++id)
+        {
+            WAVEOUTCAPS caps;
+            if (waveOutGetDevCaps(id, &caps, sizeof(caps)) == MMSYSERR_NOERROR && (caps.dwFormats & flags) == flags)
+                return true;
+        }
+        return false;
+    },
+    [](void *, void *p, MMI32 format, MMU32 voices, int remix, MMU32 bufferMs) -> int {
+        MIXERCONFIG mix;
+        ADVMIXCONFIG advanced;
+        mix.dwSize = sizeof(mix);
+        mix.lpFormat = nullptr;
+        mix.dwFormat = _waveFormats[format];
+        advanced.dwSize = sizeof(advanced);
+        advanced.uVoices = voices;
+        advanced.fRemixEnabled = remix;
+        advanced.uBufferTime = bufferMs;
+        return SUCCEEDED(static_cast<IAMMixer *>(p)->Init(vwig.hinst, nullptr, &mix, &advanced));
+    },
+    [](void *, void *p) -> int { return SUCCEEDED(static_cast<IAMMixer *>(p)->Activate(fTrue)); },
+    [](void *, void *p, int suspended) -> int { return SUCCEEDED(static_cast<IAMMixer *>(p)->Suspend(suspended)); },
+    [](void *, void *p, MMU32 *volume) {
+        DWORD value = *volume;
+        static_cast<IAMMixer *>(p)->GetMixerVolume(&value);
+        *volume = value;
+    },
+    [](void *, void *p, MMU32 volume) { static_cast<IAMMixer *>(p)->SetMixerVolume(volume); },
+    [](void *, MMU32 volume) { vluSysVolFake = volume; },
+    [](void *) { PushErc(ercSndamWaveDeviceBusy); },
+};
 
 RTCLASS(AudioManSoundDevice)
 RTCLASS(CachedAudioManSound)
@@ -411,7 +453,7 @@ bool AudioManQueue::_FInit(void)
     if (!AudioManQueue_PAR::_FInit())
         return fFalse;
 
-    if (FAILED(_pamix->AllocChannel(&_pchan)))
+    if (FAILED(Mixer()->AllocChannel(&_pchan)))
     {
         _pchan = pvNil;
         return fFalse;
@@ -525,12 +567,12 @@ MMAudioManQueueServices AudioManQueue::_QueueServices()
         cc.dwSize = size(cc);
         cc.fSrcFormat = fTrue;
         cc.lpFormat = pvNil;
-        cc.dwFormat = _luFormat;
-        cc.dwCacheTime = 2 * _luCacheTime;
+        cc.dwFormat = _waveFormats[_mixer.format];
+        cc.dwCacheTime = _mixer.cache_ms;
         static_cast<AudioManQueue *>(p)->_pchan->SetCachedSrc(static_cast<PCachedAudioManSound>(object)->psnd, &cc);
     };
     s.enlist = [](void *p, MMU32 group) -> int {
-        return SUCCEEDED(_pamix->EnlistGroup(static_cast<AudioManQueue *>(p)->_pchan, group));
+        return SUCCEEDED(Mixer()->EnlistGroup(static_cast<AudioManQueue *>(p)->_pchan, group));
     };
     s.clock = [](void *) -> MMU32 { return TsCurrentSystem(); };
     return s;
@@ -541,8 +583,7 @@ MMAudioManQueueServices AudioManQueue::_QueueServices()
 ***************************************************************************/
 AudioManSoundDevice::AudioManSoundDevice(void)
 {
-    _vlm = kvlmFull;
-    _luVolSys = (ulong)(-1);
+    mm_audioman_device_init(&_device);
 }
 
 /***************************************************************************
@@ -551,9 +592,7 @@ AudioManSoundDevice::AudioManSoundDevice(void)
 AudioManSoundDevice::~AudioManSoundDevice(void)
 {
     AssertBaseThis(0);
-
-    if (_fAudioManInited && 0 == _pamix->Release())
-        _pamix = pvNil;
+    mm_audioman_device_close(&_device, &_mixer, &_deviceServices);
 }
 
 #ifdef DEBUG
@@ -563,7 +602,7 @@ AudioManSoundDevice::~AudioManSoundDevice(void)
 void AudioManSoundDevice::AssertValid(ulong grf)
 {
     AudioManSoundDevice_PAR::AssertValid(0);
-    Assert(_pamix != pvNil, 0);
+    Assert(!_device.attached || Mixer() != pvNil, 0);
 }
 #endif // DEBUG
 
@@ -578,64 +617,14 @@ PAudioManSoundDevice AudioManSoundDevice::PsdamNew(long wav)
         return pvNil;
 
     if (!psdam->_FInit(wav))
-        ReleasePpo(&psdam);
+    {
+        delete psdam;
+        return pvNil;
+    }
 
     AssertNilOrPo(psdam, 0);
     return psdam;
 }
-
-static long _mpwavfmt[] = {
-    WAVE_FORMAT_1M08, WAVE_FORMAT_2M08, WAVE_FORMAT_4M08, WAVE_FORMAT_1S08, WAVE_FORMAT_2S08, WAVE_FORMAT_4S08,
-    WAVE_FORMAT_1M16, WAVE_FORMAT_2M16, WAVE_FORMAT_4M16, WAVE_FORMAT_1S16, WAVE_FORMAT_2S16, WAVE_FORMAT_4S16,
-};
-
-#ifdef CHECK_AUDIO_DEVCAPS
-/******************************************************************************
-
-@func   WORD | wHaveWaveDevice |
-
-        Do we have a wave device capable of playing the passed PCM format(s).
-
-@parm  DWORD | dwFormats | WAVE formats needed to be supported.  These can be
-                            a bitwise combination of WAVE_FORMAT_???? flags
-                            which are defined in mmsystem.h.  If you don't
-                            care what formats are supported you can pass zero.
-
-******************************************************************************/
-
-bool FHaveWaveDevice(DWORD dwReqFormats)
-{
-    WORD wNumWavDev;
-    WAVEOUTCAPS WOC;
-    WORD wDevID;
-    WORD wErr;
-
-    // Determine how many WAVE devices are in the user's system
-    wNumWavDev = waveOutGetNumDevs();
-
-    // If there are none, return indicating that
-    if (0 == wNumWavDev)
-        return (fFalse);
-
-    // Cycle through the WAVE devices to determine if any support
-    // the desired format.
-    for (wDevID = 0; wDevID < wNumWavDev; wDevID++)
-    {
-        wErr = waveOutGetDevCaps(wDevID, &WOC, sizeof(WAVEOUTCAPS));
-
-        // If we obtain a WAVE device's capabilities OK
-        // and it supports the desired format
-        if ((0 == wErr) && ((WOC.dwFormats & dwReqFormats) == dwReqFormats))
-        {
-            // then return success - we have a device that supports what we want
-            return fTrue;
-        }
-    }
-
-    // it doesn't support this device
-    return fFalse;
-}
-#endif
 
 /***************************************************************************
     Initialize the audioman device.
@@ -643,76 +632,11 @@ bool FHaveWaveDevice(DWORD dwReqFormats)
 bool AudioManSoundDevice::_FInit(long wav)
 {
     AssertBaseThis(0);
-    MIXERCONFIG mixc;
-    ADVMIXCONFIG amxc;
 
-    if (!AudioManSoundDevice_PAR::_FInit())
+    if (!AudioManSoundDevice_PAR::_FInit() || !mm_audioman_device_open(&_device, &_mixer, wav, &_deviceServices))
         return fFalse;
 
-    // get IAMMixer interface
-    if (pvNil != _pamix)
-    {
-        _pamix->AddRef();
-        _fAudioManInited = fTrue;
-    }
-    else
-    {
-        if (pvNil == (_pamix = GetAudioManMixer()))
-            return fFalse;
-        _fAudioManInited = fTrue;
-
-        // REVIEW shonk: what values should we use?
-        mixc.dwSize = size(mixc);
-        mixc.lpFormat = pvNil;
-        if (!FIn(wav, 0, kwavLim))
-            wav = kwav22M16;
-        mixc.dwFormat = _mpwavfmt[wav];
-        amxc.dwSize = size(amxc);
-        amxc.uVoices = 12;
-        amxc.fRemixEnabled = fTrue;
-        amxc.uBufferTime = 600;
-
-#ifdef CHECK_AUDIO_DEVCAPS
-        // if we don't have a device of this format...
-        if (!FHaveWaveDevice(mixc.dwFormat))
-        {
-            // failed, so try dropping to 8 bit
-            wav += kwav22M8 - kwav22M16;
-            if (!FIn(wav, 0, kwavLim))
-                return fFalse;
-            mixc.dwFormat = _mpwavfmt[wav];
-            // we'll try to open at 8, cause if the card doesn't
-            // support it, then WAVE_MAPPER will actually convert
-            // to the 8 bit format.
-        }
-
-        _luFormat = mixc.dwFormat;
-        _luCacheTime = amxc.uBufferTime;
-
-        // initialize it (done only once...)
-        if (FAILED(_pamix->Init(vwig.hinst, pvNil, &mixc, &amxc)))
-            return fFalse;
-#else
-        _luFormat = mixc.dwFormat;
-        _luCacheTime = amxc.uBufferTime;
-
-        // initialize it (done only once...)
-        if (FAILED(_pamix->Init(vwig.hinst, pvNil, &mixc, &amxc)))
-        {
-            // failed, so try at 8 bit
-            wav += kwav22M8 - kwav22M16;
-            if (!FIn(wav, 0, kwavLim))
-                return fFalse;
-            if (FAILED(_pamix->Init(vwig.hinst, pvNil, &mixc, &amxc)))
-                return fFalse;
-        }
-#endif
-        if (FAILED(_pamix->Activate(fTrue)))
-            return fFalse;
-    }
-
     _Suspend(_control.suspended > 0 || !_control.active);
-
     AssertThis(0);
     return fTrue;
 }
@@ -733,19 +657,7 @@ PSoundQueue AudioManSoundDevice::_PsnqueNew(void)
 void AudioManSoundDevice::_Suspend(bool fSuspend)
 {
     AssertThis(0);
-
-    if (fSuspend)
-        _pamix->SetMixerVolume(_luVolSys);
-
-    if (FAILED(_pamix->Suspend(fSuspend)) && !fSuspend)
-        PushErc(ercSndamWaveDeviceBusy);
-    else if (!fSuspend)
-    {
-        // becoming active
-        _pamix->GetMixerVolume(&_luVolSys);
-        vluSysVolFake = _luVolSys;
-        _pamix->SetMixerVolume(LuVolScale(_luVolSys, _vlm));
-    }
+    mm_audioman_device_suspend(&_device, &_mixer, fSuspend, &_deviceServices);
 }
 
 /***************************************************************************
@@ -754,13 +666,7 @@ void AudioManSoundDevice::_Suspend(bool fSuspend)
 void AudioManSoundDevice::SetVlm(long vlm)
 {
     AssertThis(0);
-
-    if (_vlm != vlm)
-    {
-        _vlm = vlm;
-        if (_control.suspended <= 0 && _control.active)
-            _pamix->SetMixerVolume(LuVolScale(_luVolSys, vlm));
-    }
+    mm_audioman_device_set_volume(&_device, &_mixer, vlm, &_control, &_deviceServices);
 }
 
 /***************************************************************************
@@ -770,7 +676,7 @@ long AudioManSoundDevice::VlmCur(void)
 {
     AssertThis(0);
 
-    return _vlm;
+    return _device.volume;
 }
 
 /***************************************************************************
@@ -782,7 +688,7 @@ void AudioManSoundDevice::BeginSynch(void)
     MMAudioManGroupServices s = {};
     s.allocate = [](void *, MMU32 *id) -> int {
         DWORD group = *id;
-        const auto result = _pamix->AllocGroup(&group);
+        const auto result = Mixer()->AllocGroup(&group);
         *id = group;
         return SUCCEEDED(result);
     };
@@ -796,7 +702,7 @@ void AudioManSoundDevice::EndSynch(void)
 {
     AssertThis(0);
     MMAudioManGroupServices s = {};
-    s.start = [](void *, MMU32 group) { _pamix->StartGroup(group, fTrue); };
-    s.release = [](void *, MMU32 group) { _pamix->FreeGroup(group); };
+    s.start = [](void *, MMU32 group) { Mixer()->StartGroup(group, fTrue); };
+    s.release = [](void *, MMU32 group) { Mixer()->FreeGroup(group); };
     mm_audioman_group_end(&_group, &s);
 }

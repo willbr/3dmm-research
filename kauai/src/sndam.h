@@ -16,7 +16,7 @@
 #ifndef SNDAM_H
 #define SNDAM_H
 
-#include "legacy_wave_formats.h"
+#include "mm/audioman.h"
 
 /***************************************************************************
     Audioman sound device class.
@@ -30,9 +30,7 @@ class AudioManSoundDevice : public AudioManSoundDevice_PAR
     ASSERT
 
   protected:
-    ulong _luVolSys;
-    long _vlm;
-    bool _fAudioManInited : 1;
+    MMAudioManDevice _device;
 
     AudioManSoundDevice(void);
     virtual bool _FInit(long wav);
