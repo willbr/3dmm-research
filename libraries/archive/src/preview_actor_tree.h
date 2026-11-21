@@ -1,36 +1,12 @@
 #ifndef MM_PREVIEW_ACTOR_TREE_H
 #define MM_PREVIEW_ACTOR_TREE_H
-#include "mm/preview_render.h"
+#include "scene_renderer.h"
 #include <exception>
 #include <map>
 namespace MM
 {
 namespace Internal
 {
-inline MMPreviewTreeServices PreviewTreeServices()
-{
-    MMPreviewTreeServices s = {};
-    s.first = [](void *, const void *v) -> void * { return static_cast<const br_actor *>(v)->children; };
-    s.next = [](void *, const void *v) -> void * { return static_cast<const br_actor *>(v)->next; };
-    s.model = [](void *, const void *v) -> void * {
-        auto a = static_cast<const br_actor *>(v);
-        return a->type == BR_ACTOR_MODEL ? a->model : nullptr;
-    };
-    s.clone_attach = [](void *, void *parent, const void *source) -> void * {
-        auto v = static_cast<const br_actor *>(source);
-        auto copy = BrActorAllocate(v->type, nullptr);
-        if (copy)
-        {
-            BrActorAdd(static_cast<br_actor *>(parent), copy);
-            copy->model = v->model;
-            copy->material = v->material;
-            copy->render_style = v->render_style;
-            copy->t = v->t;
-        }
-        return copy;
-    };
-    return s;
-}
 inline bool CopyBodyActorTree(br_actor *parent, const br_actor *source, std::map<br_actor *, int> *owners, int owner)
 {
     struct Host
@@ -38,7 +14,8 @@ inline bool CopyBodyActorTree(br_actor *parent, const br_actor *source, std::map
         std::map<br_actor *, int> *owners;
         std::exception_ptr exception;
     } host = {owners, {}};
-    auto s = PreviewTreeServices();
+    MMPreviewTreeServices s = {};
+    mm_brender_preview_tree(&s);
     s.context = &host;
     s.owner = [](void *context, void *copy, MMI32 owner) -> int {
         auto &h = *static_cast<Host *>(context);

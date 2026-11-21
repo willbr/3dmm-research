@@ -17430,3 +17430,35 @@ retail frame identities in each port's seek and continuous playback runs and
 all retail seek camera indices. SDL matched all 12 recorded retail sound
 requests. Each port also reproduced all 60 seek canvas hashes from the prior
 build. The comparison and fixture evidence are in `tmp/c89-tag-cache`.
+
+## Shared C89 BRender scene binding (21 November 2026)
+
+Studio and Marcus Preview submit the published camera and colour and depth
+targets through the same C89 BRender code. The binding also initializes
+authored stage lights, exposes actor and material data to the render loops,
+and creates the alternate pixelmap views for the Studio debug exporter.
+Studio keeps its embedded world and stable graphics-port views. Marcus
+Preview keeps per-frame actor trees and pixelmaps.
+
+All 192 standalone C checks and the strict BRender C89 syntax check passed.
+The 14 world buffer, camera, rendering, export and background mesh traces
+matched the previous reference bytes across native x64, native x86 and SDL.
+SDL Release skips the debug-only export fixture. Preview actor-tree and
+engine link tests passed on all three builds, and the SDL runtime compile
+checks passed. Marcus player, playback, sound editing and raster parity
+checks passed.
+
+The 54 movie and scene traces, nine sound and actor traces, three saved movie
+fixtures, ten Preview fingerprints, six Preview movies and the SDL authoring
+save all matched the previous bytes.
+
+Retail, SDL and Marcus matched three retained-background frame identities,
+camera indices and canvas hashes in `20261121T011612Z-47e41d8e`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T011649Z-fb75b69d`.
+
+The actor-event suite `20261121T011554Z-ecf8ba0d` matched all 60 archived
+retail frame identities in both ports' seek and continuous playback runs,
+including all retail seek camera indices and SDL's 12 retail sound requests.
+Each port also reproduced all 60 seek canvas hashes from the prior build.
+The comparison and fixture evidence are in `tmp/c89-scene-renderer`.

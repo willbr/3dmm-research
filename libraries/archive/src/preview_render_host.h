@@ -1,6 +1,6 @@
 #ifndef MM_PREVIEW_RENDER_HOST_H
 #define MM_PREVIEW_RENDER_HOST_H
-// Typed BRender primitives for the C89 Preview frame owner. Included in MM.
+// Preview freezes host data for the C89 frame owner. Included in MM.
 struct Preview::Impl::RenderHost
 {
     Preview *preview;
@@ -26,22 +26,10 @@ struct Preview::Impl::RenderHost
         out.orthoHeight = p.ortho_height;
         return out;
     }
-    void Camera(br_actor *actor, const MMPreviewCamera &c)
-    {
-        camera.type = c.parallel ? BR_CAMERA_PARALLEL : BR_CAMERA_PERSPECTIVE_FOV;
-        camera.field_of_view = c.fov;
-        camera.hither_z = c.near_z;
-        camera.yon_z = c.far_z;
-        camera.aspect = c.aspect;
-        camera.width = c.width;
-        camera.height = c.height;
-        actor->t.type = BR_TRANSFORM_MATRIX34;
-        static_assert(sizeof(actor->t.t.mat) == sizeof(c.matrix), "Camera matrix layout");
-        std::memcpy(&actor->t.t.mat, c.matrix, sizeof(c.matrix));
-    }
     MMPreviewRenderServices Services()
     {
         MMPreviewRenderServices s = {};
+        mm_brender_preview_services(&s);
         s.context = this;
         s.movie = impl->assets.MovieSession();
         if (impl->live.publication.phase && impl->live.publication.frame == impl->live.status.frame)
@@ -57,7 +45,6 @@ struct Preview::Impl::RenderHost
         s.math.scalar = [](float x) -> MMI32 { return BrFloatToScalar(x); };
         s.math.scalar_double = [](double x) -> MMI32 { return BrFloatToScalar(x); };
         s.math.angle = [](float x) -> unsigned short { return BR_ANGLE_DEG(x); };
-        s.tree = Internal::PreviewTreeServices();
         s.ready = [](void *v) -> int { return static_cast<RenderHost *>(v)->impl->live.status.ready; };
         s.describe = [](void *v, MMPreviewData *d) {
             auto &h = *static_cast<RenderHost *>(v);
@@ -150,7 +137,6 @@ struct Preview::Impl::RenderHost
             out->high[2] = BrScalarToFloat(b.zrMax);
             return 1;
         };
-        s.attach_body_part = mm_brender_body_attach;
         s.retain_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
         s.release_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
         s.object_bounds = [](void *v, MMI32 object, float corners[24], int *valid) -> int {
@@ -171,106 +157,11 @@ struct Preview::Impl::RenderHost
                 return 0;
             }
         };
-        s.frame_factory.colour = [](void *, MMU32 w, MMU32 h) -> void * {
-            return BrPixelmapAllocate(BR_PMT_INDEX_8, w, h, nullptr, BR_PMAF_NORMAL);
-        };
-        s.frame_factory.depth = [](void *, void *c) -> void * {
-            return BrPixelmapMatch(static_cast<br_pixelmap *>(c), BR_PMMATCH_DEPTH_16);
-        };
-        s.frame_factory.world = [](void *) -> void * { return BrActorAllocate(BR_ACTOR_NONE, nullptr); };
-        s.frame_factory.free_pixel = [](void *, void *p) { BrPixelmapFree(static_cast<br_pixelmap *>(p)); };
-        s.frame_factory.free_world = [](void *, void *p) { BrActorFree(static_cast<br_actor *>(p)); };
-        s.fill = [](void *, void *p, MMU32 value) { BrPixelmapFill(static_cast<br_pixelmap *>(p), value); };
-        s.buffers = [](void *, void *c, void *d, MMPreviewBuffer *out) {
-            auto colour = static_cast<br_pixelmap *>(c), depth = static_cast<br_pixelmap *>(d);
-            out->colour = static_cast<unsigned char *>(colour->pixels);
-            out->depth = static_cast<unsigned char *>(depth->pixels);
-            out->colour_stride = colour->row_bytes;
-            out->depth_stride = depth->row_bytes;
-        };
         s.camera = [](void *v, void *world, const MMPreviewCamera *c) -> void * {
-            auto &h = *static_cast<RenderHost *>(v);
-            auto actor = BrActorAllocate(BR_ACTOR_CAMERA, &h.camera);
-            if (actor)
-            {
-                BrActorAdd(static_cast<br_actor *>(world), actor);
-                h.Camera(actor, *c);
-            }
-            return actor;
-        };
-        s.update_camera = [](void *v, void *actor, const MMPreviewCamera *c) {
-            static_cast<RenderHost *>(v)->Camera(static_cast<br_actor *>(actor), *c);
-        };
-        s.light_bytes = sizeof(br_light);
-        s.direct_light_type = BR_LIGHT_DIRECT;
-        s.light = [](void *, void *world, void *data, const MMBackgroundLight *source) -> void * {
-            auto light = static_cast<br_light *>(data);
-            *light = {};
-            light->type = static_cast<br_uint_8>(source->type);
-            light->colour = BR_COLOUR_RGB(255, 255, 255);
-            light->attenuation_c = source->intensity;
-            auto actor = BrActorAllocate(BR_ACTOR_LIGHT, light);
-            if (actor)
-            {
-                BrActorAdd(static_cast<br_actor *>(world), actor);
-                actor->t.type = BR_TRANSFORM_MATRIX34;
-                std::memcpy(&actor->t.t.mat, &source->matrix, sizeof(actor->t.t.mat));
-            }
-            return actor;
-        };
-        s.enable_light = [](void *, void *a) { BrLightEnable(static_cast<br_actor *>(a)); };
-        s.disable_light = [](void *, void *a) { BrLightDisable(static_cast<br_actor *>(a)); };
-        s.add_model = [](void *, void *world, void *model) -> int {
-            auto actor = BrActorAllocate(BR_ACTOR_MODEL, nullptr);
-            if (!actor)
-                return 0;
-            BrActorAdd(static_cast<br_actor *>(world), actor);
-            actor->model = static_cast<br_model *>(model);
-            return 1;
+            return mm_brender_preview_camera(world, &static_cast<RenderHost *>(v)->camera, c);
         };
         s.add_mesh = [](void *v, void *world) -> int {
             return static_cast<RenderHost *>(v)->mesh->AddToScene(static_cast<br_actor *>(world));
-        };
-        s.material = [](void *, void *a) -> void * { return static_cast<br_actor *>(a)->material; };
-        s.face_material = [](void *, void *m, MMU32 i) -> void * {
-            return static_cast<br_model *>(m)->face_groups[i].material;
-        };
-        s.material_count = [](void *, void *m) -> MMU32 { return static_cast<br_model *>(m)->nface_groups; };
-        s.read_material = [](void *, void *v, MMPreviewMaterial *out) {
-            auto m = static_cast<br_material *>(v);
-            out->material = m;
-            out->flags = m->flags;
-            out->map = m->colour_map;
-            out->base = m->index_base;
-            out->range = m->index_range;
-        };
-        s.write_material = [](void *, const MMPreviewMaterial *m) {
-            auto out = static_cast<br_material *>(m->material);
-            out->flags = m->flags;
-            out->colour_map = static_cast<br_pixelmap *>(m->map);
-            out->index_base = m->base;
-            out->index_range = m->range;
-            BrMaterialUpdate(out, BR_MATU_ALL);
-        };
-        s.light_flag = BR_MATF_LIGHT;
-        s.prelit_flag = BR_MATF_PRELIT;
-        s.smooth_flag = BR_MATF_SMOOTH;
-        s.edges = [](void *, void *a) { static_cast<br_actor *>(a)->render_style = BR_RSTYLE_EDGES; };
-        s.vertices = [](void *, void *m) -> MMU32 { return static_cast<br_model *>(m)->nprepared_vertices; };
-        s.faces = [](void *, void *m) -> MMU32 { return static_cast<br_model *>(m)->nprepared_faces; };
-        s.vertex = [](void *, void *m, MMU32 i, MMI32 out[3]) {
-            auto v = &static_cast<br_model *>(m)->prepared_vertices[i];
-            for (unsigned a = 0; a < 3; ++a)
-                out[a] = v->p.v[a];
-        };
-        s.face = [](void *, void *m, MMU32 i, unsigned short out[3]) {
-            auto f = &static_cast<br_model *>(m)->prepared_faces[i];
-            std::copy(f->vertices, f->vertices + 3, out);
-        };
-        s.relative = [](void *, void *a, void *c, MMI32 out[12]) {
-            br_matrix34 m;
-            BrActorToActorMatrix34(&m, static_cast<br_actor *>(a), static_cast<br_actor *>(c));
-            std::memcpy(out, &m, sizeof(m));
         };
         s.raster_begin = [](void *v, const MMPreviewProjection *p, const unsigned char *palette, int opaque,
                             MMU32 w, MMU32 height) -> int {
@@ -304,12 +195,6 @@ struct Preview::Impl::RenderHost
             }
         };
         s.sink_off = [](void *) { BrZbSetTriangleSink(nullptr, nullptr); };
-        s.render = [](void *v, const MMRenderFrame *frame) {
-            auto &h = *static_cast<RenderHost *>(v);
-            h.Camera(static_cast<br_actor *>(frame->camera), frame->scene->camera);
-            BrZbSceneRender(static_cast<br_actor *>(frame->world), static_cast<br_actor *>(frame->camera),
-                            static_cast<br_pixelmap *>(frame->colour), static_cast<br_pixelmap *>(frame->depth));
-        };
         s.renderer_ok = [](void *v) -> int {
             return !Internal::AssertionFailed() && !static_cast<RenderHost *>(v)->exception;
         };
@@ -336,11 +221,6 @@ struct Preview::Impl::RenderHost
                 h.exception = std::current_exception();
                 return nullptr;
             }
-        };
-        s.depth_projection = [](void *, void *c, MMI32 out[16]) {
-            br_matrix4 m;
-            BrActorToScreenMatrix4(&m, static_cast<br_actor *>(c), static_cast<br_actor *>(c));
-            std::memcpy(out, &m, sizeof(m));
         };
         s.output = [](void *v, MMU32 w, MMU32 height, int depth, unsigned char **rgba,
                       float **distances) -> int {

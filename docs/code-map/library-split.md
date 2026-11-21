@@ -5808,11 +5808,10 @@ and import/source ownership. Full gates are in `docs/tools/playback-regression.m
 `world_buffers.c` owns World colour/depth/stretch buffers, dirty regions and the
 retained background cache, mode dimensions, renderer-view descriptions,
 construction/disposal ordering, mode rollback and background loading/control.
-Native World adapters borrow typed resources directly from the C owners and
-populate stable BRender pixelmaps from the live C descriptions before render and
-pick. BRender retains the output pixelmap address across render calls. Typed host
-services provide allocation, locks, region creation, SDK scene setup and
-graphics blits.
+The C89 BRender binding populates stable pixelmaps from the live descriptions
+before render and pick. BRender retains the output pixelmap address across
+render calls. Native World callbacks provide allocation, locks, region creation
+and graphics blits.
 
 Scale values stay 1/2/4, with a 4,096-pixel limit per rendered axis. Half flags
 reduce dimensions only at scale 1; the extra stretch port remains exclusive to
@@ -5845,9 +5844,9 @@ capture limits are in `docs/tools/playback-regression.md`.
 state, camera publication/working-region dirty ordering, pick reset/dispatch,
 coordinate conversion, actor-root owner traversal and rendered-bound conversion.
 Both pick entry points read the viewport origin from the C RGB buffer
-description. The native camera is an SDK mirror. Typed adapters retain SDK field
-access, the SDK intersection query, region mutation and client callback dispatch.
-The World returns the nearest actor directly from the C pick state.
+description. The C89 BRender binding publishes the SDK camera fields. The World
+adapter invokes the intersection query and dispatches its client callbacks. It
+returns the nearest actor directly from the C pick state.
 
 Camera changes dirty the working region without setting the changed latch,
 matching the original behavior. Half-resolution picking truncates negative
@@ -5873,8 +5872,9 @@ traversal, temporary material snapshots and restoration, clipped dirty RGB and
 depth copies, prerender snapshots and screen damage transforms. The prerender
 evaluator routes the live RGB and depth owners and the rendered rectangle to
 the graphics services. Native World adapters read the changed latch directly
-from the C record. Typed services supply actor fields, SDK rasterization,
-material-registry access, graphics-port locks and blits, and application marking.
+from the C record. The C89 BRender binding supplies actor fields, rasterization
+and material-registry access. Host services supply graphics-port locks and blits
+and application marking.
 
 Immediate NONE roots receive begin callbacks before cleaning. Working dirt is
 unioned into screen dirt before clearing; after render and material restoration,
@@ -5950,6 +5950,22 @@ current-buffer palette leak fix. C-only checks cover all scale factors,
 transaction failure phases, prefix bounds, ownership, locks and callback/material
 restoration. Full validation and coverage limits are in
 `docs/tools/playback-regression.md`.
+
+### Shared BRender scene binding
+
+`bren/scene_renderer.c` binds the shared frame's camera and submits its world,
+indexed colour buffer and 16-bit depth buffer to BRender for both Studio and
+Marcus Preview. Studio embeds the scene actors and keeps stable pixelmap views
+over its graphics ports. Preview uses a temporary BRender tree and allocates its
+render targets through the same C binding. The temporary tree releases before
+the separately owned camera and light data.
+
+Both paths initialize authored stage lights in C. The same binding supplies
+Studio's actor traversal and registry access and Preview's tree, material and
+prepared geometry access. The supersampled debug export builds alternate views
+over its locked targets and renders with the live camera. Native adapters
+connect graphics ports, Preview's image output and optional GPU hooks, and
+application callbacks.
 
 ### Template construction, headers and default costumes
 

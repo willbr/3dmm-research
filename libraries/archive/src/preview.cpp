@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/preview.h"
 #include "mm/preview_rasterizer.h"
-#include "body_renderer.h"
+#include "scene_renderer.h"
 #include "zb_capture.h"
 #include "preview_background_mesh.h"
 #include "preview_depth_range.h"
@@ -27,7 +27,6 @@
 #include "mm/scene_thumbnail.h"
 #include "mm/text_resource.h"
 #include "preview_actor.h"
-#include "preview_actor_tree.h"
 #include "preview_background.h"
 #include "preview_presentation.h"
 #include "preview_audio_output.h"

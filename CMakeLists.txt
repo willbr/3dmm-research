@@ -1136,9 +1136,10 @@ if(NOT STUDIO_SDL3)
   target_link_libraries(kauai PUBLIC 3DMMForever::AudioMan $<$<BOOL:${STUDIO_NATIVE_WINDOWS}>:Msacm32>)
 endif()
 
-# C89 renderer operations for live bodies, models, materials and textures.
+# C89 renderer operations for scenes, live bodies, models, materials and textures.
 add_library(mm-brender-resources STATIC
   "${PROJECT_SOURCE_DIR}/bren/body_renderer.c"
+  "${PROJECT_SOURCE_DIR}/bren/scene_renderer.c"
   "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
   "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"
   "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c")
@@ -1150,6 +1151,7 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/bren/inc"
       -fsyntax-only "${PROJECT_SOURCE_DIR}/bren/body_renderer.c"
+        "${PROJECT_SOURCE_DIR}/bren/scene_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c")

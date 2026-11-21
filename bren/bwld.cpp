@@ -14,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include "bren.h"
+#include "scene_renderer.h"
 
 ASSERTNAME
 
@@ -52,46 +53,6 @@ bool World::_fFlatShading = fFalse;
 bool World::_fNoTexture = fFalse;
 long World::_defaultRenderScale = 1;
 
-// Only SDK field access and registry enumeration live in this adapter.
-struct WorldMaterialEnumeration
-{
-    int (*visit)(void *, void *);
-    void *argument;
-};
-static br_uint_32 BR_CALLBACK WorldMaterialVisit(br_material *material, void *context)
-{
-    auto e = static_cast<WorldMaterialEnumeration *>(context);
-    return e->visit(e->argument, material);
-}
-static MMWorldMaterialServices WorldMaterialServices()
-{
-    MMWorldMaterialServices s = {};
-    s.gouraud = BR_MATF_GOURAUD;
-    s.count = [](void *) -> size_t { return BrMaterialCount(nullptr); };
-    s.enumerate = [](void *, int (*visit)(void *, void *), void *argument) {
-        WorldMaterialEnumeration e = {visit, argument};
-        BrMaterialEnum(nullptr, WorldMaterialVisit, &e);
-    };
-    s.read = [](void *, void *p, MMWorldMaterial *out) {
-        auto m = static_cast<br_material *>(p);
-        out->object = m;
-        out->flags = m->flags;
-        out->texture = m->colour_map;
-        out->base = m->index_base;
-        out->range = m->index_range;
-    };
-    s.write = [](void *, const MMWorldMaterial *in) {
-        auto m = static_cast<br_material *>(in->object);
-        m->flags = in->flags;
-        m->colour_map = static_cast<br_pixelmap *>(in->texture);
-        m->index_base = in->base;
-        m->index_range = in->range;
-        BrMaterialUpdate(m, BR_MATU_ALL);
-    };
-    s.allocate = [](void *, size_t bytes) -> void * { return std::malloc(bytes); };
-    s.free = [](void *, void *p) { std::free(p); };
-    return s;
-}
 struct WorldRenderContext
 {
     PWorld world;
@@ -115,37 +76,22 @@ static void RenderRectOut(const RC &r, MMI32 out[4])
     out[2] = r.xpRight;
     out[3] = r.ypBottom;
 }
-static void BindPixelmap(BPMP &p, const MMWorldPixelView &view)
-{
-    p.type = static_cast<br_uint_8>(view.type);
-    p.row_bytes = static_cast<short>(view.row);
-    p.width = static_cast<ushort>(view.width);
-    p.height = static_cast<ushort>(view.height);
-    p.origin_x = static_cast<short>(view.x);
-    p.origin_y = static_cast<short>(view.y);
-    p.pixels = view.pixels;
-}
-
 void World::_SyncPixelmaps()
 {
-    BindPixelmap(_bpmpRGB, _buffers.rgb);
-    BindPixelmap(_bpmpZ, _buffers.z);
+    mm_brender_pixelmap_bind(&_bpmpRGB, &_buffers.rgb);
+    mm_brender_pixelmap_bind(&_bpmpZ, &_buffers.z);
 }
 
 MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movie, const MMMovieLiveFrame *position)
 {
     MMWorldRenderServices s = {};
+    mm_brender_world_services(&s);
     s.context = context;
     s.movie = movie;
     s.position = position;
     _SyncPixelmaps();
     mm_render_frame_borrow(&s.frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
-    static_assert(sizeof(s.camera.matrix) == sizeof(_camera.matrix), "camera matrix layout");
-    std::memcpy(s.camera.matrix, &_camera.matrix, sizeof(s.camera.matrix));
-    s.camera.near_z = _camera.near_z;
-    s.camera.far_z = _camera.far_z;
-    s.camera.fov = _camera.fov;
-    s.camera.aspect = _bcam.aspect;
+    mm_brender_world_camera_view(&_bactCamera, &_camera, &s.camera);
     if (_pfnreadbody && _pfnpreparebody)
     {
         s.body = [](void *p, void *actor, MMRenderBody *out) -> int {
@@ -155,18 +101,6 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         s.retain_body = [](void *, void *body) { static_cast<BASE *>(body)->AddRef(); };
         s.release_body = [](void *, void *body) { static_cast<BASE *>(body)->Release(); };
     }
-    s.actor_none = BR_ACTOR_NONE;
-    s.actor_model = BR_ACTOR_MODEL;
-    s.bounding_points = BR_RSTYLE_BOUNDING_POINTS;
-    s.bounding_edges = BR_RSTYLE_BOUNDING_EDGES;
-    s.bounding_faces = BR_RSTYLE_BOUNDING_FACES;
-    s.faces = BR_RSTYLE_FACES;
-    s.edges = BR_RSTYLE_EDGES;
-    s.child = [](void *, void *p) -> void * { return static_cast<PBACT>(p)->children; };
-    s.next = [](void *, void *p) -> void * { return static_cast<PBACT>(p)->next; };
-    s.type = [](void *, void *p) -> int { return static_cast<PBACT>(p)->type; };
-    s.style = [](void *, void *p) -> int { return static_cast<PBACT>(p)->render_style; };
-    s.set_style = [](void *, void *p, int style) { static_cast<PBACT>(p)->render_style = style; };
     s.has = [](void *p, int kind) -> int {
         auto w = RenderWorld(p);
         return kind == MM_WORLD_BEGIN ? w->_pfnbeginrend != nullptr : w->_pfngetrect != nullptr;
@@ -193,17 +127,6 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         return out->pixels != nullptr;
     };
     s.unlock = [](void *p, int kind) { static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind])->Unlock(); };
-    s.render = [](void *p, const MMRenderFrame *frame) {
-        auto world = RenderWorld(p);
-        const auto &camera = frame->scene->camera;
-        std::memcpy(&world->_bactCamera.t.t.mat, camera.matrix, sizeof(camera.matrix));
-        world->_bcam.field_of_view = camera.fov;
-        world->_bcam.hither_z = camera.near_z;
-        world->_bcam.yon_z = camera.far_z;
-        world->_bcam.aspect = camera.aspect;
-        BrZbSceneRender(static_cast<PBACT>(frame->world), static_cast<PBACT>(frame->camera),
-                        static_cast<PBPMP>(frame->colour), static_cast<PBPMP>(frame->depth));
-    };
     s.detach_depth = [](void *, void *depth) { static_cast<PZBMP>(depth)->Detach(); };
     s.flush = [](void *) { GraphicsPort::Flush(); };
     s.screen_mark = [](void *p, const MMRegion *region) {
@@ -216,7 +139,6 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         GraphicsEnvironment temp(static_cast<PGraphicsPort>(c->world->_buffers.owners[MM_WORLD_RGB_WORKING]));
         c->destination->CopyPixels(&temp, &src, &dst);
     };
-    s.materials = WorldMaterialServices();
     return s;
 }
 
@@ -247,16 +169,7 @@ MMWorldBufferServices World::_BufferServices()
     };
     s.setup_scene = [](void *p) {
         auto w = static_cast<PWorld>(p);
-        w->_bactWorld.type = BR_ACTOR_NONE;
-        w->_bactWorld.t.type = BR_TRANSFORM_MATRIX34;
-        BrMatrix34Identity(&w->_bactWorld.t.t.mat);
-        w->_bactWorld.identifier = reinterpret_cast<char *>(w);
-        w->_bactCamera.type = BR_ACTOR_CAMERA;
-        w->_bactCamera.t.type = BR_TRANSFORM_MATRIX34;
-        w->_bactCamera.type_data = &w->_bcam;
-        w->_bcam.type = BR_CAMERA_PERSPECTIVE;
-        w->_bcam.aspect = BR_SCALAR(double(w->_buffers.width) / double(w->_buffers.height));
-        BrActorAdd(&w->_bactWorld, &w->_bactCamera);
+        mm_brender_world_init(&w->_bactWorld, &w->_bactCamera, &w->_bcam, w, w->_buffers.width, w->_buffers.height);
     };
     s.changed = [](void *p) { static_cast<PWorld>(p)->MarkDirty(); };
     s.fetch = [](void *, void *p, int kind, MMU32 type, MMU32 number) -> void * {
@@ -409,13 +322,7 @@ MMWorldCameraServices World::_CameraServices()
     MMWorldCameraServices s = {};
     s.context = this;
     s.publish = [](void *p, const MMWorldCamera *camera) {
-        auto w = static_cast<PWorld>(p);
-        static_assert(sizeof(BMAT34) == sizeof(camera->matrix), "camera matrix layout");
-        static_assert(sizeof(BRS) == sizeof(MMI32), "fixed scalar width");
-        std::memcpy(&w->_bactCamera.t.t.mat, &camera->matrix, sizeof(camera->matrix));
-        w->_bcam.hither_z = camera->near_z;
-        w->_bcam.yon_z = camera->far_z;
-        w->_bcam.field_of_view = camera->fov;
+        mm_brender_world_camera_pose(&static_cast<PWorld>(p)->_bactCamera, camera);
     };
     s.dirty = [](void *p) {
         auto w = static_cast<PWorld>(p);
@@ -512,9 +419,7 @@ void World::_ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bSty
 {
     AssertVarMem(pbact);
 
-    auto pbwld = static_cast<PWorld>(mm_world_actor_owner(
-        pbact, [](void *p) -> void * { return static_cast<PBACT>(p)->parent; },
-        [](void *p) -> void * { return static_cast<PBACT>(p)->identifier; }));
+    auto pbwld = static_cast<PWorld>(mm_brender_world_owner(pbact));
     AssertPo(pbwld, 0);
     MMI32 input[4] = {bounds[0], bounds[1], bounds[2], bounds[3]}, output[4];
     if (!mm_world_rendered_bounds(pbwld->_buffers.scale, input, output))
@@ -662,14 +567,6 @@ void World::MarkMem(void)
     }
 }
 
-// SDK descriptor construction is a typed primitive; export sequencing and
-// resource/lock/palette ownership live in the C controller.
-static BPMP ExportPixelmap(const MMWorldPixelView &view)
-{
-    BPMP p = {};
-    BindPixelmap(p, view);
-    return p;
-}
 MMWorldExportServices World::_ExportServices(void *context)
 {
     MMWorldExportServices s = {};
@@ -688,10 +585,7 @@ MMWorldExportServices World::_ExportServices(void *context)
     s.bounds_callback = [](void *, int enabled) {
         BrZbSetRenderBoundsCallback(enabled ? World::_ActorRendered : nullptr);
     };
-    s.raster = [](void *, const MMRenderFrame *frame, const MMWorldPixelView *rgb, const MMWorldPixelView *depth) {
-        auto colour = ExportPixelmap(*rgb), z = ExportPixelmap(*depth);
-        BrZbSceneRender(static_cast<PBACT>(frame->world), static_cast<PBACT>(frame->camera), &colour, &z);
-    };
+    s.raster = mm_brender_world_raster;
     s.write = [](void *p, const MMWorldPixels *pixels, void *palette, MMI32 width, MMI32 height) -> int {
         // The shared BMP writer consumes four-byte-aligned indexed rows.
         if (pixels->row != ((width + 3) & ~3))

@@ -40,6 +40,7 @@
 ***************************************************************************/
 #include "soc.h"
 #include "handle_services.h"
+#include "scene_renderer.h"
 #include <cstring>
 ASSERTNAME
 
@@ -48,7 +49,6 @@ RTCLASS(Background)
 const ChildChunkID kchidBds = 0;  // Background default sound
 const ChildChunkID kchidGllt = 0; // DynamicArray of LITEs
 const ChildChunkID kchidGlcr = 0; // Palette
-const br_colour kbrcLight = BR_COLOUR_RGB(0xff, 0xff, 0xff);
 
 namespace
 {
@@ -76,32 +76,13 @@ MMBackgroundServices Background::_ResourceServices(void *host)
     };
     s.allocate = [](void *, MMI32 bytes, void **out) { return int(FAllocPv(out, bytes, fmemClear, mprNormal)); };
     s.free_memory = [](void *, void **out) { FreePpv(out); };
-    s.configure_light = [](void *, MMBackgroundResource *state, MMI32 index,
-                           const MMBackgroundLight *light) {
-        auto actor = &static_cast<BACT *>(state->actors)[index];
-        auto data = &static_cast<BLIT *>(state->lights)[index];
-        data->type = static_cast<byte>(light->type);
-        data->colour = kbrcLight;
-        data->attenuation_c = light->intensity;
-        actor->type = BR_ACTOR_LIGHT;
-        actor->type_data = data;
-        actor->t.type = BR_TRANSFORM_MATRIX34;
-        static_assert(sizeof(actor->t.t.mat) == sizeof(light->matrix), "Light matrix layout");
-        std::memcpy(&actor->t.t.mat, &light->matrix, sizeof(light->matrix));
-        return 1;
-    };
+    s.configure_light = mm_brender_background_light;
     s.add_light = [](void *p, MMBackgroundResource *b, MMI32 i) {
         static_cast<BackgroundResourceHost *>(p)->world->AddActor(&static_cast<BACT *>(b->actors)[i]);
     };
-    s.enable_light = [](void *, MMBackgroundResource *b, MMI32 i) {
-        BrLightEnable(&static_cast<BACT *>(b->actors)[i]);
-    };
-    s.disable_light = [](void *, MMBackgroundResource *b, MMI32 i) {
-        BrLightDisable(&static_cast<BACT *>(b->actors)[i]);
-    };
-    s.remove_light = [](void *, MMBackgroundResource *b, MMI32 i) {
-        BrActorRemove(&static_cast<BACT *>(b->actors)[i]);
-    };
+    s.enable_light = mm_brender_background_light_enable;
+    s.disable_light = mm_brender_background_light_disable;
+    s.remove_light = mm_brender_background_light_remove;
     s.diagnostic = [](void *, int issue) {
         if (issue == MM_BACKGROUND_CAMERA_GAPS)
             Bug("cam chids are not consecutive!");
