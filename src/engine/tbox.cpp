@@ -1786,9 +1786,14 @@ void TextBox::SetDirty(bool fDirty)
 PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen)
 {
     AssertPo(pcrf, 0); AssertNilOrPo(pscen, 0);
+    const auto reader = pcrf->ReadOwner();
+    if (!reader)
+        return nullptr;
+    MovieArchiveHost archive{reader, pcrf->ArchiveWriter()};
+    const auto editor = archive.Editor();
     PTBOX result = nullptr;
     TextBoxEditHost host;
-    host.file = pcrf->Pcfl(); host.boxOutput = &result;
+    host.editor = &editor; host.reader = reader; host.boxOutput = &result;
     auto services = host.Services();
     host.Check(mm_text_box_read_document(pscen, cno, &services));
     return result;

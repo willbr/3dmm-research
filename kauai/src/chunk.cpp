@@ -79,6 +79,7 @@
 #include "mm/chunk_edit.h"
 #include "mm/chunk_ops.h"
 #include "mm/chunk_copy.h"
+#include "mm/private_archive.h"
 #include "mm/chunk_forest.h"
 #include "mm/movie_title.h"
 #include "handle_services.h"
@@ -243,15 +244,12 @@ RTCLASS(ChunkGraphEnumerator)
 /***************************************************************************
     Constructor for ChunkyFile - private.
 ***************************************************************************/
-ChunkyFile::ChunkyFile(void)
+namespace
 {
-    int expanded = 0;
-#ifdef CHUNK_BIG_INDEX
-    expanded = 1;
-#endif
-    AssertDo(mm_chunk_owner_init(&_owner, KauaiCopyAllocator(), expanded) == MM_CHUNK_OK, "invalid container owner");
-    MMChunkOwnerFileIO io = {
-        this,
+MMChunkOwnerFileIO ChunkOwnerFileIO()
+{
+    return {
+        nullptr,
         [](void *) -> void * { return FileObject::PfilCreateTemp(); },
         [](void *file) { return static_cast<PFileObject>(file)->ReadStream(); },
         [](void *file) -> MMU32 { return static_cast<PFileObject>(file)->FpMac(); },
@@ -282,7 +280,30 @@ ChunkyFile::ChunkyFile(void)
             else
                 Bug("invalid chunk deletion reference");
         }};
+}
+}
+
+MMPrivateArchive *KauaiPrivateArchive(PFileObject file)
+{
+    AssertPo(file, 0);
+    const MMPrivateArchiveProfile profile = {
+        sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), expandedRecords, DebugShip(1, 0),
+        KauaiEncodeLegacyChunkName,
+        [](void *, const void *bytes, size_t count, int encoding, void *text, size_t capacity) -> size_t {
+            return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(text), capacity);
+        }};
+    const auto io = ChunkOwnerFileIO();
+    file->AddRef();
+    return mm_private_archive_open(file, MM_PRIVATE_ARCHIVE_CREATE, &io, KauaiBlockFileServices(), &profile);
+}
+
+ChunkyFile::ChunkyFile(void)
+{
+    AssertDo(mm_chunk_owner_init(&_owner, KauaiCopyAllocator(), expandedRecords) == MM_CHUNK_OK,
+             "invalid container owner");
+    auto io = ChunkOwnerFileIO();
 #ifdef CHUNK_STATS
+    io.context = this;
     io.trace = [](void *context, int kind, const MMChunkEntry *entry) {
         if (!vfDumpChunkRequests)
             return;

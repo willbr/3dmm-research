@@ -18,6 +18,7 @@ extern "C"
         void *source_file;
         void *resources;
         const MMTagServices *tags;
+        void *title_file;
         MMChunkTitleIO titles;
         void *(*thumbnail)(void *, MMU32 number);
         void *(*object)(void *, MMU32 number, int kind, void *scene);

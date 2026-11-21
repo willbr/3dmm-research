@@ -6,7 +6,8 @@ struct TextBoxEditHost
 {
     PTBOX box = nullptr;
     PScene scene = nullptr;
-    PChunkyFile file = nullptr;
+    const MMMovieArchiveEditor *editor = nullptr;
+    MMChunkOwnerRead *reader = nullptr;
     const RC *bounds = nullptr;
     PTBOX *boxOutput = nullptr;
     PTextBoxUndoEdit *undoOutput = nullptr;
@@ -89,12 +90,11 @@ struct TextBoxEditHost
                 break;
             case MM_BOX_READ_METADATA:
             {
-                TextBoxData data; ChunkIdentification chunk;
-                if (!data.FRead(h.file, q->word, &chunk)) return 0;
-                q->metadata = data.state; q->chunk = {chunk.ctg, chunk.cno}; break;
+                return mm_text_box_read(&q->metadata, q->word, &q->chunk, h.editor);
             }
             case MM_BOX_READ_TEXT:
-                return static_cast<PTBOX>(q->object)->_FReadChunk(h.file, q->chunk.type, q->chunk.number, true);
+                return static_cast<PTBOX>(q->object)->_FReadArchive(*h.editor, h.reader, q->chunk.type,
+                                                                 q->chunk.number, true);
             case MM_BOX_DIAGNOSTIC:
                 switch (q->value)
                 {

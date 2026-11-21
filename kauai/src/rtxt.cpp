@@ -869,7 +869,14 @@ PRichTextDocument RichTextDocument::PtxrdReadChunk(PChunkyFile pcfl, ChunkTagOrT
 bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText)
 {
     AssertPo(pcfl, 0);
-    MaterializeHost host(this, pcfl);
+    MovieArchiveHost movie{pcfl};
+    return _FReadArchive(movie.Editor(), pcfl->ReadOwner(), ctg, cno, fCopyText);
+}
+
+bool RichTextDocument::_FReadArchive(const MMMovieArchiveEditor &editor, MMChunkOwnerRead *reader,
+                                     ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText)
+{
+    MaterializeHost host(this, editor, reader);
     auto config = host.Config();
     auto services = host.Read();
     int result = mm_text_materialize(&config, ctg, cno, fCopyText, &services);

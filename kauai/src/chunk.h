@@ -33,6 +33,7 @@ struct MMChunkEdit;
 struct MMChunkEndpoint;
 struct MMChunkFileCopy;
 struct MMChunkTitleIO;
+struct MMPrivateArchive;
 
 namespace Chunky {
 
@@ -53,6 +54,7 @@ const MMChunkPayloadServices *KauaiChunkPayloadServices();
 int KauaiEncodeLegacyChunkName(void *, const char *, void *, MMU32 capacity, MMU32 *written);
 MMChunkTitleIO KauaiChunkTitleIO();
 MMChunkTitleIO KauaiChunkOwnerTitleIO();
+MMPrivateArchive *KauaiPrivateArchive(PFileObject);
 
 enum
 {

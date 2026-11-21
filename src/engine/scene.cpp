@@ -56,6 +56,7 @@
 #include "scene_chop_undo.h"
 #include "scene_control_undo.h"
 #include "mm/chunk_copy.h"
+#include "mm/private_archive.h"
 #include <new>
 #include <cstring>
 
@@ -1927,23 +1928,35 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
 {
     AssertPo(pmvie, 0);
     AssertPo(pcrf, 0);
+    const auto reader = pcrf->ReadOwner();
+    if (!reader)
+        return nullptr;
     struct Host
     {
         PChunkyResourceFile resources;
-        PChunkyFile file;
-    } host = {pcrf, pcrf->Pcfl()};
-    MMMovieSceneSource source = {movie, EngineMovieGraph::FromFile(host.file)};
+        MMMovieSceneSource source;
+    } host = {pcrf, {movie, mm_movie_owner_graph(reader)}};
     MMSceneLoadServices s = {};
     s.context = &host;
     s.owners = _OwnerServices();
     s.packets = ScenePacketServices(pmvie);
-    s.read = mm_movie_scene_reader(&source);
-    s.source_file = host.file;
+    s.read = mm_movie_scene_reader(&host.source);
+    s.source_file = pcrf->Pcfl();
     s.resources = pcrf;
     s.tags = &TagManager::CoreServices();
-    s.titles = KauaiChunkTitleIO();
+    s.title_file = reader;
+    s.titles = KauaiChunkOwnerTitleIO();
     s.thumbnail = [](void *p, MMU32 number) -> void * {
-        return MaskedBitmapMBMP::PmbmpReadChunk(static_cast<Host *>(p)->file, kctgThumbMbmp, number);
+        const auto &graph = static_cast<Host *>(p)->source.graph;
+        MMChunkEntry entry = {};
+        PMaskedBitmapMBMP bitmap = nullptr;
+        entry.type = kctgThumbMbmp;
+        entry.number = number;
+        graph.payload(graph.context, &entry, [](void *out, const MMReadStream *stream) -> int {
+            *static_cast<PMaskedBitmapMBMP *>(out) = MaskedBitmapMBMP::PmbmpReadStream(stream);
+            return MM_MOVIE_OK;
+        }, &bitmap);
+        return bitmap;
     };
     s.object = [](void *p, MMU32 number, int kind, void *scene) -> void * {
         auto resources = static_cast<Host *>(p)->resources;
@@ -2005,10 +2018,12 @@ bool Scene::FGetTagBkgd(PTAG ptag)
 bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
 {
     AssertPo(pcrf, 0);
-    const auto file = pcrf->Pcfl();
-    MovieArchiveHost archive{file};
-    MMChunkFileCopy binding;
-    const auto destination = file->CopyEndpoint(binding);
+    const auto reader = pcrf->ReadOwner();
+    if (!reader)
+        return false;
+    MovieArchiveHost archive{reader, pcrf->ArchiveWriter()};
+    MMResourceChunkCopy binding;
+    const auto destination = pcrf->CopySource(binding);
     MMMovieArchiveAssets assets{&destination, &TagManager::CoreServices()};
     return FWrite(archive.Editor(), archive.Writer(), mm_movie_archive_assets(&assets), pcno);
 }
@@ -3421,9 +3436,12 @@ MMSceneSnapshotServices SceneSnapshotServices(PMovie movie)
 {
     MMSceneSnapshotServices s = {};
     s.context = movie;
-    s.new_file = [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); };
+    s.new_file = [](void *) -> void * { return FileObject::PfilCreateTemp(); };
     s.new_resource = [](void *, void *file) -> void * {
-        return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0);
+        auto archive = KauaiPrivateArchive(static_cast<PFileObject>(file));
+        auto cache = ChunkyResourceFile::PcrfNewPrivate(archive, 0);
+        mm_private_archive_close(archive);
+        return cache;
     };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.begin = [](void *) { vpappb->BeginLongOp(); };
@@ -3436,7 +3454,9 @@ MMSceneSnapshotServices SceneSnapshotServices(PMovie movie)
                                 number);
     };
     s.delete_chunk = [](void *, void *resource, MMU32 number) {
-        static_cast<PChunkyResourceFile>(resource)->Pcfl()->Delete(kctgScen, number);
+        const auto writer = static_cast<PChunkyResourceFile>(resource)->ArchiveWriter();
+        if (mm_chunk_delete(&writer.edit, kctgScen, number) != MM_CHUNK_OK)
+            Bug("chunk not deletable or missing");
     };
     s.rewind = [](void *, void *scene) {
         auto value = static_cast<PScene>(scene);

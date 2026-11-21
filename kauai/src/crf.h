@@ -23,6 +23,8 @@
 
 struct MMChunkEndpoint;
 struct MMResourceChunkCopy;
+struct MMChunkOwnerRead;
+struct MMPrivateArchive;
 
 namespace Chunky
 {
@@ -132,16 +134,19 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
   protected:
     friend class ChunkyResourceManager;
     MMResourceCache _cache = {};
+    MMPrivateArchive *_privateArchive = nullptr; // The live cache owns this reference.
     PFileObject _legacyWireFile = nullptr; // Borrowed from _cache when using Kauai file services.
     String _wirePath;
     MMResourceServices _Services();
     ChunkyResourceFile() = default;
     static PChunkyResourceFile _PcrfNew(const MMResourceSource &, LegacyLong budget,
-                                       const MMBlockFileServices *files = nullptr, String *path = nullptr);
+                                       const MMBlockFileServices *files = nullptr, String *path = nullptr,
+                                       MMPrivateArchive *archive = nullptr);
 
   public:
     ~ChunkyResourceFile(void);
     static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax);
+    static PChunkyResourceFile PcrfNewPrivate(MMPrivateArchive *, LegacyLong cbMax);
     static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, PFileObject, LegacyLong cbMax);
     static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, void *backing, const MMBlockFileServices &,
                                            String &path, LegacyLong cbMax);
@@ -156,6 +161,8 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
     MMResourceCache *CoreCache() { return &_cache; }
     MMChunkAccess ReadChunkAccess();
+    MMChunkOwnerRead *ReadOwner();
+    MMArchiveWriter ArchiveWriter();
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);
     MMChunkEndpoint CopySource(MMResourceChunkCopy &binding);
     PChunkyResourceFile PcrfNewSibling(LegacyLong budget);
@@ -169,7 +176,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     // The mutable file backing a live cache.
     PChunkyFile Pcfl(void)
     {
-        return static_cast<PChunkyFile>(_cache.file);
+        return _privateArchive ? nullptr : static_cast<PChunkyFile>(_cache.file);
     }
 };
 

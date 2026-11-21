@@ -337,6 +337,7 @@ static void init_loader(Loader *f, int swap)
     f->load_tags.missing_chunk = missing_chunk;
     f->load_tags.publish = publish_tag;
     s->source_file = &f->source;
+    s->title_file = &f->source;
     s->resources = f;
     s->tags = &f->load_tags;
     s->titles.context = f;

@@ -73,7 +73,10 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
 {
     AssertPo(pcrf, 0);
 
-    const auto graph = EngineMovieGraph::FromFile(pcrf->Pcfl());
+    const auto reader = pcrf->ReadOwner();
+    if (!reader)
+        return nullptr;
+    const auto graph = mm_movie_owner_graph(reader);
     const auto allocator = CollectionAllocator();
     MMActorLoadServices services = {};
     services.tags = &EngineActorTagServices();

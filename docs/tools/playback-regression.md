@@ -19351,3 +19351,32 @@ and camera indices. Three canvases differed from retail on each port,
 with 33 differing pixels in total on SDL and 7,875 on Marcus. The authored
 file matched the retained control byte for byte. The files and comparison
 scripts are in `tmp/c89-scene-archive-write/evidence`.
+
+## Studio scene chop snapshots in C89 private archives (21 November 2026)
+
+Studio scene chop now creates a C89 private archive over a temporary file.
+The resource cache retains the archive through scene, actor and caption
+reads and exposes the same graph, name and copy operations as a live movie.
+The existing undo sequence swaps the restored scene into the movie, then
+reuses the temporary archive for the next snapshot. The native file adapter
+keeps caption extents available to the live text document until it copies
+them into its piece table.
+
+All 193 standalone C checks and six focused AddressSanitizer checks passed.
+The C owner fixture verifies archive reads after the creator releases its
+reference and checks that the final release closes the backing file.
+Studio scene chop undo and redo passed on native x64, native x86 and SDL
+with the embedded background, scene title and caption fixture. All three
+save/load fixtures and the SDL authoring workflow reproduced their previous
+movie files byte for byte. The SDL archive and scene fixtures also passed
+in a serial run with an isolated temporary directory. The rebuilt Marcus
+player checks passed.
+
+Both ports matched the 60 archived retail seek frames and camera indices
+in actor-event suite `20261121T154842Z-c0f96138`, with unchanged seek canvas
+hashes against their previous captures. Both matched the three archived
+V3dmm storyboard frames, cameras and canvases in suite
+`20261121T154835Z-ee304e45`. The authored-movie suite
+`20261121T155041Z-7691ec7c` reproduced each player's previous 11 canvases,
+including the three known differences from retail on both ports. Evidence
+is in `tmp/c89-scene-private-undo/evidence`.

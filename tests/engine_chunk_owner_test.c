@@ -1,5 +1,6 @@
 #include "mm/chunk_owner.h"
 #include "mm/movie_session.h"
+#include "mm/private_archive.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -327,7 +328,7 @@ typedef struct TestFile
     unsigned char bytes[512];
     const MMChunkTable *source;
     MMU32 length;
-    int resize_fails, stream_calls, resize_calls, releases;
+    int resize_fails, stream_calls, resize_calls, retains, releases;
     int prefix_fails, temporary;
 } TestFile;
 
@@ -768,6 +769,65 @@ static void reader_cases(void)
     CHECK(mm_chunk_owner_dispose(&owner, &storage_disposal) == MM_CHUNK_OK);
 }
 
+static void retain_block(void *context, void *file)
+{
+    (void)context;
+    ++((TestFile *)file)->retains;
+}
+static void release_block(void *context, void *file)
+{
+    (void)context;
+    release_storage_file(file);
+}
+static int read_block(void *context, void *file, MMU32 offset, void *out, size_t count)
+{
+    (void)context;
+    return read_file(file, offset, out, count);
+}
+static int write_block(void *context, void *file, MMU32 offset, const void *bytes, size_t count)
+{
+    (void)context;
+    return write_file(file, offset, bytes, count);
+}
+static size_t convert_text(void *context, const void *bytes, size_t count, int encoding, void *out, size_t capacity)
+{
+    (void)context;
+    if (encoding != MM_TEXT_WINDOWS || count > capacity)
+        return 0;
+    memcpy(out, bytes, count);
+    return count;
+}
+static void private_archive_cases(void)
+{
+    const MMPrivateArchiveProfile profile = {1, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, 0, 1, NULL, convert_text};
+    StorageHost host = {0};
+    MMBlockFileServices blocks = {NULL, retain_block, release_block, create_extra, read_block, write_block};
+    const MMChunkOwnerFileIO io = storage_io(&host);
+    MMPrivateArchive *archive;
+    MMMovieArchiveEditor editor;
+    MMMovieSessionGraph graph;
+    MMChunkAccess access;
+    MMChunkEntry entry;
+    MMU32 number;
+    char value[4];
+
+    blocks.context = &host;
+    archive = mm_private_archive_open(&host.main, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks, &profile);
+    CHECK(archive != NULL);
+    editor = mm_private_archive_editor(archive);
+    graph = mm_movie_owner_graph(mm_private_archive_reader(archive));
+    mm_private_archive_retain(archive);
+    mm_private_archive_close(archive);
+    CHECK(editor.add(editor.context, 1, 0, &number, NULL) && number == 0);
+    CHECK(editor.put(editor.context, 1, number, "test", sizeof(value)));
+    graph.access(graph.context, &access);
+    CHECK(access.count == 1 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK);
+    CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
+    CHECK(!memcmp(value, "test", sizeof(value)) && host.main.releases == host.main.retains);
+    mm_private_archive_close(archive);
+    CHECK(host.main.releases == host.main.retains + 1);
+}
+
 int main(void)
 {
     reopen_cases();
@@ -778,6 +838,7 @@ int main(void)
     persistence_cases(0);
     persistence_cases(1);
     reader_cases();
+    private_archive_cases();
     puts("chunk owner C89 checks passed");
     return 0;
 }

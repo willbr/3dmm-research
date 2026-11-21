@@ -26,7 +26,10 @@ enum { MM_PRIVATE_ARCHIVE_READ, MM_PRIVATE_ARCHIVE_EDIT, MM_PRIVATE_ARCHIVE_CREA
  * Edits save in place on private files, which callers discard after failure. */
 MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwnerFileIO *,
                                          const MMBlockFileServices *, const MMPrivateArchiveProfile *);
+/* Archive references and borrowed views are confined to the owning thread. */
+void mm_private_archive_retain(MMPrivateArchive *);
 void mm_private_archive_close(MMPrivateArchive *);
+MMChunkOwnerRead *mm_private_archive_reader(MMPrivateArchive *);
 MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *);
 MMMovieArchiveEditor mm_private_archive_editor(MMPrivateArchive *);
 /* Borrow the archive and editor. Stored TEXT uses a retained file extent
@@ -36,6 +39,8 @@ MMRichTextArchive mm_private_archive_rich_text(MMPrivateArchive *, const MMMovie
 int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destination, MMU32 type,
                             MMU32 number, int clone, MMU32 *copy);
 struct MMChunkEndpoint;
+struct MMChunkFileCopy;
+struct MMChunkEndpoint mm_private_archive_copy_endpoint(MMPrivateArchive *, struct MMChunkFileCopy *);
 int mm_private_archive_bind_font(MMPrivateArchive *, const struct MMChunkEndpoint *source,
                                 MMU32 template_number, MMU32 font_number);
 int mm_private_archive_save(MMPrivateArchive *, MMU32 creator);

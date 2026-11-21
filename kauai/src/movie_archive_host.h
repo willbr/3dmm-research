@@ -5,11 +5,12 @@
 
 struct MovieArchiveHost
 {
-    explicit MovieArchiveHost(PChunkyFile file) : _binding{}
+    explicit MovieArchiveHost(PChunkyFile file) : MovieArchiveHost(file->ReadOwner(), file->WriteOwnerIndex()) {}
+
+    MovieArchiveHost(MMChunkOwnerRead *reader, const MMArchiveWriter &archive) : _binding{}
     {
-        const auto archive = file->WriteOwnerIndex();
         const auto titles = KauaiChunkOwnerTitleIO();
-        mm_movie_archive_file_init(&_binding, file->ReadOwner(), &archive, &titles);
+        mm_movie_archive_file_init(&_binding, reader, &archive, &titles);
     }
     ~MovieArchiveHost() { mm_movie_archive_file_clear(&_binding); }
     MovieArchiveHost(const MovieArchiveHost &) = delete;

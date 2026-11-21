@@ -20,6 +20,7 @@
 #include <cstring>
 #include "handle_services.h"
 #include "mm/chunk_copy.h"
+#include "mm/private_archive.h"
 #include "util.h"
 ASSERTNAME
 
@@ -137,6 +138,24 @@ MMResourceServices ChunkyResourceFile::_Services()
     s.locate = blocks->locate;
     s.retain_file = [](void *file) { static_cast<PChunkyFile>(file)->AddRef(); };
     s.release_file = [](void *file) { static_cast<PChunkyFile>(file)->Release(); };
+    if (_privateArchive)
+    {
+        s.live_chunks = [](void *archive) {
+            return mm_chunk_owner_access(mm_private_archive_reader(static_cast<MMPrivateArchive *>(archive))->storage);
+        };
+        s.contains = [](void *archive, MMU32 type, MMU32 number) -> int {
+            const auto graph = mm_chunk_owner_access(
+                mm_private_archive_reader(static_cast<MMPrivateArchive *>(archive))->storage);
+            MMU32 position;
+            return mm_chunk_find(&graph, type, number, &position) == MM_CHUNK_OK;
+        };
+        s.locate = [](void *archive, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed) {
+            return mm_chunk_owner_locate(mm_private_archive_reader(static_cast<MMPrivateArchive *>(archive))->storage,
+                                         type, number, extent, packed);
+        };
+        s.retain_file = [](void *archive) { mm_private_archive_retain(static_cast<MMPrivateArchive *>(archive)); };
+        s.release_file = [](void *archive) { mm_private_archive_close(static_cast<MMPrivateArchive *>(archive)); };
+    }
     s.destroy_owner = [](void *c) {
         auto cache = static_cast<PChunkyResourceFile>(c);
         AssertPo(cache, fobjAllocated);
@@ -157,6 +176,8 @@ MMResourceServices ChunkyResourceFile::_Services()
                     cache->_legacyWireFile->GetStnPath(&path);
                 else if (cache->_cache.wire_index)
                     path = cache->_wirePath;
+                else if (cache->_privateArchive)
+                    static_cast<PFileObject>(cache->ReadOwner()->storage->owner->files.main_file)->GetStnPath(&path);
                 else
                 {
                     cache->Pcfl()->GetFni(&file);
@@ -195,6 +216,12 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNew(PChunkyFile file, LegacyLong bud
     AssertPo(file, 0);
     return _PcrfNew({file, nullptr, nullptr}, budget);
 }
+PChunkyResourceFile ChunkyResourceFile::PcrfNewPrivate(MMPrivateArchive *archive, LegacyLong budget)
+{
+    if (!archive || mm_private_archive_reader(archive)->payloads.files != KauaiBlockFileServices())
+        return nullptr;
+    return _PcrfNew({archive, nullptr, nullptr}, budget, nullptr, nullptr, archive);
+}
 PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, PFileObject backing, LegacyLong budget)
 {
     AssertPo(backing, 0);
@@ -207,7 +234,8 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, 
 }
 
 PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source, LegacyLong budget,
-                                                const MMBlockFileServices *files, String *path)
+                                                const MMBlockFileServices *files, String *path,
+                                                MMPrivateArchive *archive)
 {
     AssertIn(budget, 0, kcbMax);
     static_assert(kctgRsc == 0x52534320 && tNo == 0 && tYes == 1 && tMaybe == 2 &&
@@ -215,6 +243,7 @@ PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source,
     auto cache = NewObj ChunkyResourceFile;
     if (!cache)
         return nullptr;
+    cache->_privateArchive = archive;
     auto services = cache->_Services();
     if (files)
     {
@@ -294,6 +323,21 @@ MMChunkAccess ChunkyResourceFile::ReadChunkAccess()
     AssertThis(0);
     return mm_resource_cache_chunks(&_cache);
 }
+MMChunkOwnerRead *ChunkyResourceFile::ReadOwner()
+{
+    if (_privateArchive)
+        return mm_private_archive_reader(_privateArchive);
+    const auto file = Pcfl();
+    return file ? file->ReadOwner() : nullptr;
+}
+MMArchiveWriter ChunkyResourceFile::ArchiveWriter()
+{
+    if (_privateArchive)
+        return mm_private_archive_writer(_privateArchive);
+    if (const auto file = Pcfl())
+        return file->WriteOwnerIndex();
+    return {};
+}
 static bool ReadStoredName(const MMChunkIndex *index, MMU32 position, String &name)
 {
     unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES];
@@ -311,6 +355,16 @@ bool ChunkyResourceFile::FGetName(ChunkTagOrType type, ChunkNumber number, PStri
     AssertPo(name, 0);
     if (Pcfl())
         return Pcfl()->FGetName(type, number, name);
+    if (_privateArchive)
+    {
+        const auto reader = ReadOwner();
+        byte wire[kcbMaxDataStn];
+        MMU32 count;
+        if (!mm_chunk_owner_read_name(reader->storage, type, number, reader->max_name_bytes, wire, sizeof(wire),
+                                      &count) || !name->FSetData(wire, count))
+            name->SetNil();
+        return name->Cch() > 0;
+    }
     const auto graph = ReadChunkAccess();
     MMU32 position;
     if (mm_chunk_find(&graph, type, number, &position) == MM_CHUNK_OK)
@@ -323,6 +377,8 @@ MMChunkEndpoint ChunkyResourceFile::CopySource(MMResourceChunkCopy &binding)
     AssertThis(0);
     if (Pcfl())
         return Pcfl()->CopyEndpoint(binding.live);
+    if (_privateArchive)
+        return mm_private_archive_copy_endpoint(_privateArchive, &binding.live);
     if (_legacyWireFile && (_legacyWireFile->GrffilCur() & ffilWriteEnable))
         return {};
     const auto titles = KauaiChunkTitleIO();
@@ -333,6 +389,8 @@ MMChunkEndpoint ChunkyResourceFile::CopySource(MMResourceChunkCopy &binding)
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
 {
     AssertThis(0);
+    if (_privateArchive)
+        return PcrfNewPrivate(_privateArchive, budget);
     if (_cache.wire_index && !_legacyWireFile)
         return PcrfNewIndex(_cache.wire_index, _cache.wire_file, *_cache.services.block_files, _wirePath, budget);
     return _PcrfNew({Pcfl(), _cache.wire_index, _cache.wire_file}, budget);
@@ -347,6 +405,8 @@ void ChunkyResourceFile::AssertValid(LegacyUlong flags)
         Assert(_cache.wire_file, "missing wire cache backing");
         AssertNilOrPo(_legacyWireFile, 0);
     }
+    else if (_privateArchive)
+        Assert(_cache.file == _privateArchive, "private cache backing differs");
     else
         AssertPo(Pcfl(), 0);
     AssertIn(_cache.budget, 0, kcbMax);
@@ -360,6 +420,12 @@ void ChunkyResourceFile::MarkMem(void)
     ChunkyResourceFile_PAR::MarkMem();
     MarkPv(_cache.storage.buffers[0].data);
     MarkMemObj(Pcfl());
+    if (_privateArchive)
+    {
+        const auto &files = ReadOwner()->storage->owner->files;
+        MarkMemObj(static_cast<PFileObject>(files.main_file));
+        MarkMemObj(static_cast<PFileObject>(files.extra_file));
+    }
     if (_legacyWireFile)
         MarkMemObj(_legacyWireFile);
     MMResourceEntry row;

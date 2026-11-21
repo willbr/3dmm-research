@@ -299,6 +299,9 @@ class RichTextDocument : public RichTextDocument_PAR
     ~RichTextDocument(void);
     bool _FInit(PFilename pfni = pvNil, ChunkTagOrType ctg = kctgRichText);
     virtual bool _FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool fCopyText);
+    // TEXT extents must use the document's native file provider.
+    bool _FReadArchive(const struct MMMovieArchiveEditor &, MMChunkOwnerRead *,
+                       ChunkTagOrType, ChunkNumber, bool copyText);
     virtual bool _FOpenArg(long icact, byte sprm, short bo, short osk);
 
     ulong _SpcpFromSprmCp(byte sprm, long cp)

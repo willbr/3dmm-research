@@ -122,7 +122,7 @@ void *mm_scene_load(void *movie, MMU32 number, const MMSceneLoadServices *s)
         owner->owned[MM_SCENE_THUMBNAIL] = s->thumbnail(s->context, child);
     if (!load_group(scene, owner, number, 0, s) || !load_group(scene, owner, number, 1, s))
         goto unwind;
-    mm_chunk_title_read(&owner->data.name, s->source_file, MM_SCENE_CHUNK, number, &s->titles);
+    mm_chunk_title_read(&owner->data.name, s->title_file, MM_SCENE_CHUNK, number, &s->titles);
     return scene;
 unwind:
     mm_scene_owner_unwind(owner, o);
