@@ -172,7 +172,7 @@ MMActionTable *mm_text_build_matrices(void *object, MMI32 action, const MMTextGe
     }
     if (table)
         write_matrices(object, font, action, n, 0, cels, store_matrix, table, s);
-    s->release(s->context, font);
+    s->release_font(s->context, font);
     return table;
 }
 
@@ -187,7 +187,7 @@ int mm_text_evaluate_cel(void *object, MMI32 action, MMI32 cel, MMTextMatrixWrit
     if (!font)
         return 0;
     write_matrices(object, font, action, n, cel, cel + 1, write, target, s);
-    s->release(s->context, font);
+    s->release_font(s->context, font);
     return 1;
 }
 
@@ -222,7 +222,7 @@ void *mm_text_fetch_model(void *object,MMI32 index,const MMTextGenerationService
 {
     void *font=s->font(s->context,object),*model;
     if (!font) return NULL;
-    model=s->glyph(s->context,font,s->character(s->context,object,index)); s->release(s->context,font); return model;
+    model=s->glyph(s->context,font,s->character(s->context,object,index)); s->release_font(s->context,font); return model;
 }
 int mm_text_adjust_body(void *object,void *body,const MMTextGenerationServices *s)
 { MMTemplateState t; t=*s->template_state(s->context,object); return s->body_shape(s->context,body,&t.parents->view,&t.sets->view); }

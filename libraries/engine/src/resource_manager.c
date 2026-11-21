@@ -97,6 +97,7 @@ typedef struct ManagerLookup
 {
     MMResourceManager *manager;
     const MMResourceRequest *request;
+    const MMResourceObjectServices *objects;
     MMU32 count;
     int failed;
 } ManagerLookup;
@@ -114,7 +115,8 @@ static int next_cache(void *context, size_t *cursor, void **out)
 static int fetch_cached(void *context, void *cache, void **out)
 {
     ManagerLookup *search = (ManagerLookup *)context;
-    void *object = mm_resource_cache_fetch((MMResourceCache *)cache, search->request, &search->failed);
+    void *object = mm_resource_cache_fetch_owned((MMResourceCache *)cache, search->request, search->objects,
+                                                 &search->failed);
     if (!object)
         return search->failed ? MM_STORAGE_IO : MM_RESOURCE_LOOKUP_MISSING;
     *out = object;
@@ -131,13 +133,15 @@ static int contains_chunk(void *context, void *cache, void **out)
     return MM_RESOURCE_LOOKUP_OK;
 }
 
-void *mm_resource_manager_fetch(MMResourceManager *m, const MMResourceRequest *q, int *error)
+void *mm_resource_manager_fetch_owned(MMResourceManager *m, const MMResourceRequest *q,
+                                      const MMResourceObjectServices *objects, int *error)
 {
     ManagerLookup search;
     MMResourceLookup lookup;
     void *p = NULL;
     search.manager = m;
     search.request = q;
+    search.objects = objects;
     search.count = m->count;
     search.failed = 0;
     lookup.context = &search;
@@ -147,6 +151,10 @@ void *mm_resource_manager_fetch(MMResourceManager *m, const MMResourceRequest *q
     if (error)
         *error = search.failed;
     return p;
+}
+void *mm_resource_manager_fetch(MMResourceManager *m, const MMResourceRequest *q, int *error)
+{
+    return mm_resource_manager_fetch_owned(m, q, NULL, error);
 }
 MMResourceCache *mm_resource_manager_find_file(MMResourceManager *m, MMU32 type, MMU32 number,
                                                MMU32 scope)

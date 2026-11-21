@@ -152,8 +152,8 @@ int mm_tag_child(const MMTag *parent, MMU32 slot, MMU32 type, MMTag *out,
         s->retain(out->cache);
     return 1;
 }
-void *mm_tag_fetch(const MMTag *tag, MMResourceBlockReader reader, int use_media,
-                         const MMTagServices *s)
+void *mm_tag_fetch_owned(const MMTag *tag, MMResourceBlockReader reader, const MMResourceObjectServices *objects,
+                         int use_media, const MMTagServices *s)
 {
     MMResourceCache *cache;
     MMResourceManager *manager;
@@ -163,7 +163,7 @@ void *mm_tag_fetch(const MMTag *tag, MMResourceBlockReader reader, int use_media
     {
         cache = s->cache(tag->cache);
         if (cache)
-            object = mm_resource_cache_fetch_chunk(cache, tag->type, tag->number, reader);
+            object = mm_resource_cache_fetch_owned_chunk(cache, tag->type, tag->number, reader, objects);
     }
     else
     {
@@ -175,12 +175,16 @@ void *mm_tag_fetch(const MMTag *tag, MMResourceBlockReader reader, int use_media
             request.scope = 0;
             request.reader = reader;
             request.priority = MM_RESOURCE_NORMAL_PRIORITY;
-            object = mm_resource_manager_fetch(manager, &request, NULL);
+            object = mm_resource_manager_fetch_owned(manager, &request, objects, NULL);
         }
     }
     if (!object && s->missing)
         s->missing(s->context, tag);
     return object;
+}
+void *mm_tag_fetch(const MMTag *tag, MMResourceBlockReader reader, int use_media, const MMTagServices *s)
+{
+    return mm_tag_fetch_owned(tag, reader, NULL, use_media, s);
 }
 int mm_tag_cache_file(const MMTag *tag, int children)
 {

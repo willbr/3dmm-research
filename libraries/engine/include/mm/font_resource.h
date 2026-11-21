@@ -49,6 +49,22 @@ int mm_font_read_stream(MMFontResource *,const MMReadStream *,const MMFontResour
 void mm_font_dispose(MMFontResource *,const MMFontResourceServices *);
 MMI32 mm_font_width(const MMFontResource *,MMI32 index);
 MMI32 mm_font_height(const MMFontResource *,MMI32 index);
+typedef struct MMFontOwner MMFontOwner;
+typedef struct MMFontOwnerHost
+{
+    const MMStorageAllocator *objects, *metrics;
+    MMBlockTransform decode;
+    void (*mark_memory)(void *);
+    void (*bad_font)(void *), (*bad_order)(void *);
+    void (*invalidate)(void *, void *out, size_t bytes);
+} MMFontOwnerHost;
+/* Cached fonts borrow the allocators for their lifetime. NULL allocators use
+ * the C heap. The font metrics remain valid while the owner is retained. */
+int mm_font_owner_read(MMOwnedBlock *, void **object, MMI32 *bytes, const MMFontOwnerHost *);
+const MMResourceObjectServices *mm_font_owner_services(void);
+const MMFontResource *mm_font_owner_metrics(const MMFontOwner *);
+void mm_font_owner_release(MMFontOwner *);
+void *mm_font_owner_model(const MMFontOwner *, MMU32 id, const MMFontResourceServices *);
 /* The editor borrows the cache's live archive. Authoring leaves partially
  * created chunks/adoptions on failure, as native.
  * Name input was ignored by native; this API has no name parameter. Empty input

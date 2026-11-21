@@ -3,57 +3,21 @@
 
 /***************************************************************************
 
-    tdf.h: Three-D Font class
+    tdf.h: Studio bindings for Three-D Font resources
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> ThreeDFont  (Three-D Font)
-
 ***************************************************************************/
-#ifndef ThreeDFont_H
-#define ThreeDFont_H
+#ifndef ENGINE_TDF_H
+#define ENGINE_TDF_H
 #include "mm/font_resource.h"
 
-using namespace BRender;
-
-/****************************************
-    3-D Font class
-****************************************/
-typedef class ThreeDFont *PThreeDFont;
-#define ThreeDFont_PAR BaseCacheableObject
-#define kclsThreeDFont 'TDF'
-class ThreeDFont : public ThreeDFont_PAR
+namespace EngineFont
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  protected:
-    MMFontResource _font = {};
-
-  protected:
-    ThreeDFont(void)
-    {
-    }
-    static MMFontResourceServices _Services();
-    bool _FInit(PDataBlock pblck);
-
-  public:
-    static int FReadTdf(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                           void **object, MMI32 *bytes);
-    ~ThreeDFont(void);
-
-    // This authoring-only API creates a new ThreeDFont based on a set of models
-    static bool FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String *pstn, ChunkIdentification *pckiTdf = pvNil);
-
-    PModel PmodlFetch(ChildChunkID chid);
-    BRS DxrChar(LegacyLong ich);
-    BRS DyrChar(LegacyLong ich);
-    BRS DyrMax(void)
-    {
-        return _font.maximum_height;
-    }
-};
-
-#endif // ThreeDFont_H
+int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **object, MMI32 *bytes);
+const MMFontOwnerHost &ReadHost();
+bool Author(PChunkyResourceFile, PDynamicArray glyphs, ChunkIdentification * = nullptr);
+PModel Glyph(const MMFontOwner *, ChildChunkID);
+}
+#endif

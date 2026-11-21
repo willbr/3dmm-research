@@ -135,6 +135,8 @@ extern "C"
     int mm_resource_cache_purge(MMResourceCache *, MMWide bytes, MMI32 last_priority);
     int mm_resource_cache_load(MMResourceCache *, const MMResourceRequest *);
     void *mm_resource_cache_fetch(MMResourceCache *, const MMResourceRequest *, int *error);
+    void *mm_resource_cache_fetch_owned(MMResourceCache *, const MMResourceRequest *,
+                                        const MMResourceObjectServices *, int *error);
     /* Fetch an unscoped chunk with normal priority and return its owned reference. */
     void *mm_resource_cache_fetch_chunk(MMResourceCache *, MMU32 type, MMU32 number, MMResourceBlockReader);
     /* Fetch a chunk whose reader supplies a different object representation.
@@ -176,6 +178,8 @@ extern "C"
     int mm_resource_manager_add_cache(MMResourceManager *, MMResourceCache *, MMU32 *position);
     int mm_resource_manager_load(MMResourceManager *, const MMResourceRequest *);
     void *mm_resource_manager_fetch(MMResourceManager *, const MMResourceRequest *, int *error);
+    void *mm_resource_manager_fetch_owned(MMResourceManager *, const MMResourceRequest *,
+                                          const MMResourceObjectServices *, int *error);
     MMResourceCache *mm_resource_manager_find_file(MMResourceManager *, MMU32 type,
                                                     MMU32 number, MMU32 scope);
     void *mm_resource_manager_find(MMResourceManager *, const MMResourceRequest *);

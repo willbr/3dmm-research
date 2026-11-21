@@ -38,6 +38,7 @@ typedef struct MMTextGenerationServices
     void (*retain)(void *,void *);
     void (*release)(void *,void *);
     void *(*font)(void *,void *object);
+    void (*release_font)(void *,void *font);
     MMI32 (*font_width)(void *,void *font,MMI32 character);
     MMI32 (*font_height)(void *,void *font,MMI32 character);
     MMI32 (*font_maximum)(void *,void *font);

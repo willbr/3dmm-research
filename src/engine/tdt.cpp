@@ -79,7 +79,9 @@ MMTextResourceServices ThreeDText::_ResourceServices(void *context)
         TAG tag; TextTagFromCore(&tag, in); auto t = static_cast<PThreeDText>(object); return t->_fontResolver(t->_fontContext, tag);
     };
     s.default_font = [](void *, const MMTag *in) -> void * {
-        TAG tag; TextTagFromCore(&tag, in); return vptagm == nullptr ? nullptr : vptagm->PbacoFetch(&tag, ThreeDFont::FReadTdf);
+        TAG tag;
+        TextTagFromCore(&tag, in);
+        return vptagm ? vptagm->FetchResource(&tag, EngineFont::Read, mm_font_owner_services()) : nullptr;
     };
     s.publish_tag = [](void *, void *out, const MMTag *in) { TextTagFromCore(static_cast<PTAG>(out), in); };
     s.read_template = [](void *p, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
@@ -99,10 +101,10 @@ MMTextResourceServices ThreeDText::_ResourceServices(void *context)
 
 MMTextNames ThreeDText::_actionNames = {};
 
-PThreeDFont ThreeDText::_FetchFont(void)
+MMFontOwner *ThreeDText::_FetchFont(void)
 {
     TextResourceContext context; auto services = _ResourceServices(&context);
-    return static_cast<PThreeDFont>(mm_text_font(this, &services));
+    return static_cast<MMFontOwner *>(mm_text_font(this, &services));
 }
 
 /***************************************************************************
@@ -178,10 +180,23 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.font = [](void *, void *object) -> void * { return static_cast<PThreeDText>(object)->_FetchFont(); };
-    s.font_width = [](void *, void *font, MMI32 ch) -> MMI32 { return static_cast<PThreeDFont>(font)->DxrChar(ch); };
-    s.font_height = [](void *, void *font, MMI32 ch) -> MMI32 { return static_cast<PThreeDFont>(font)->DyrChar(ch); };
-    s.font_maximum = [](void *, void *font) -> MMI32 { return static_cast<PThreeDFont>(font)->DyrMax(); };
-    s.glyph = [](void *, void *font, MMI32 ch) -> void * { return static_cast<PThreeDFont>(font)->PmodlFetch(ch); };
+    s.release_font = [](void *, void *font) { mm_font_owner_release(static_cast<MMFontOwner *>(font)); };
+    s.font_width = [](void *, void *font, MMI32 ch) -> MMI32 {
+        const auto metrics = mm_font_owner_metrics(static_cast<const MMFontOwner *>(font));
+        AssertIn(ch, 0, metrics->count);
+        return mm_font_width(metrics, ch);
+    };
+    s.font_height = [](void *, void *font, MMI32 ch) -> MMI32 {
+        const auto metrics = mm_font_owner_metrics(static_cast<const MMFontOwner *>(font));
+        AssertIn(ch, 0, metrics->count);
+        return mm_font_height(metrics, ch);
+    };
+    s.font_maximum = [](void *, void *font) -> MMI32 {
+        return mm_font_owner_metrics(static_cast<const MMFontOwner *>(font))->maximum_height;
+    };
+    s.glyph = [](void *, void *font, MMI32 ch) -> void * {
+        return EngineFont::Glyph(static_cast<const MMFontOwner *>(font), ch);
+    };
     s.action_host = &ActionResourceHost();
     s.body_shape = [](void *, void *body, const MMPartIndexView *parents, const MMPartIndexView *sets) -> int {
         return static_cast<PBody>(body)->FChangeShape(*parents, *sets);

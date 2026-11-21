@@ -73,8 +73,8 @@ class ThreeDText : public ThreeDText_PAR
     MMTextDescriptor _descriptor = {};
     MMTextGenerated _generated = {};
     void *_fontContext = pvNil;
-    PThreeDFont (*_fontResolver)(void *, const TAG &) = pvNil;
-    PThreeDFont _FetchFont(void);
+    MMFontOwner *(*_fontResolver)(void *, const TAG &) = pvNil;
+    MMFontOwner *_FetchFont(void);
 
   protected:
     bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *) override;
@@ -91,7 +91,7 @@ class ThreeDText : public ThreeDText_PAR
   public:
     // Optional content service for headless hosts. Returns an owned reference;
     // the callback context must outlive this template and its cached actions.
-    void SetFontResolver(void *context, PThreeDFont (*resolver)(void *, const TAG &))
+    void SetFontResolver(void *context, MMFontOwner *(*resolver)(void *, const TAG &))
     {
         _fontContext = context;
         _fontResolver = resolver;

@@ -597,8 +597,8 @@ static void *fetch_block(MMResourceCache *c, const MMResourceRequest *q, MMOwned
     return e.object;
 }
 
-static void *cache_fetch(MMResourceCache *c, const MMResourceRequest *q, const MMResourceObjectServices *objects,
-                         int *error)
+void *mm_resource_cache_fetch_owned(MMResourceCache *c, const MMResourceRequest *q,
+                                    const MMResourceObjectServices *objects, int *error)
 {
     MMOwnedBlock block;
     MMResourceEntry e;
@@ -625,7 +625,7 @@ static void *cache_fetch(MMResourceCache *c, const MMResourceRequest *q, const M
 }
 void *mm_resource_cache_fetch(MMResourceCache *c, const MMResourceRequest *q, int *error)
 {
-    return cache_fetch(c, q, NULL, error);
+    return mm_resource_cache_fetch_owned(c, q, NULL, error);
 }
 void *mm_resource_cache_fetch_chunk(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceBlockReader reader)
 {
@@ -641,7 +641,7 @@ void *mm_resource_cache_fetch_owned_chunk(MMResourceCache *c, MMU32 type, MMU32 
     request.scope = 0;
     request.reader = reader;
     request.priority = MM_RESOURCE_NORMAL_PRIORITY;
-    return cache_fetch(c, &request, objects, NULL);
+    return mm_resource_cache_fetch_owned(c, &request, objects, NULL);
 }
 
 void *mm_resource_cache_find(MMResourceCache *c, MMU32 type, MMU32 number,

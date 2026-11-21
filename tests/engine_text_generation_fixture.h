@@ -1,8 +1,13 @@
 #ifndef ENGINE_TEXT_GENERATION_FIXTURE_H
 #define ENGINE_TEXT_GENERATION_FIXTURE_H
 struct TextGenerationFontContext { PChunkyResourceFile cache; bool fail; int fetches; };
-static PThreeDFont TextGenerationFont(void *p,const TAG &)
-{ auto c=static_cast<TextGenerationFontContext *>(p); ++c->fetches; return c->fail?nullptr:static_cast<PThreeDFont>(c->cache->PbacoFetch(kctgTdf,0,ThreeDFont::FReadTdf)); }
+static MMFontOwner *TextGenerationFont(void *p,const TAG &)
+{
+    auto c=static_cast<TextGenerationFontContext *>(p);
+    ++c->fetches;
+    return c->fail?nullptr:static_cast<MMFontOwner *>(mm_resource_cache_fetch_owned_chunk(
+        c->cache->CoreCache(),kctgTdf,0,EngineFont::Read,mm_font_owner_services()));
+}
 class TextGenerationFixtureAccess : public ThreeDText
 {
   public:

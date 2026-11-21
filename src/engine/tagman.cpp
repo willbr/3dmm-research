@@ -757,6 +757,10 @@ bool TagManager::FCacheTagList(MMTagList *list)
 }
 PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, ResourceReader reader, bool useMedia)
 {
+    return static_cast<PBaseCacheableObject>(FetchResource(tag, reader, nullptr, useMedia));
+}
+void *TagManager::FetchResource(PTAG tag, ResourceReader reader, const MMResourceObjectServices *objects, bool useMedia)
+{
     AssertThis(0);
     AssertVarMem(tag);
     Assert(tag->sid >= 0, "Invalid sid");
@@ -764,8 +768,7 @@ PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, ResourceReader reader, boo
     NativeTagHost host = {this, nullptr, tag};
     const auto services = _Services(&host);
     auto value = TagToCore(*tag);
-    return static_cast<PBaseCacheableObject>(
-        mm_tag_fetch(&value, reader, useMedia, &services));
+    return mm_tag_fetch_owned(&value, reader, objects, useMedia, &services);
 }
 void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
 {

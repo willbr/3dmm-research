@@ -42,6 +42,15 @@ void *AllocateCopyBuffer(void *, void *old, MMU32 oldBytes, MMU32 bytes, int pri
 }
 void ReleaseCopyBuffer(void *, void *buffer, MMU32) { FreePpv(&buffer); }
 const MMStorageAllocator copyAllocator = {nullptr, AllocateCopyBuffer, ReleaseCopyBuffer};
+void *AllocateResourceObject(void *, void *, MMU32, MMU32 bytes, int)
+{
+    void *memory = nullptr;
+    if (!FAllocPvDebug(&memory, bytes, fmemNil, mprNormal, __szsFile, __LINE__, &vdmglob.dmaglBase))
+        PushErc(ercOomNew);
+    return memory;
+}
+void ReleaseResourceObject(void *, void *memory, MMU32) { FreePpvDebug(&memory, &vdmglob.dmaglBase); }
+const MMStorageAllocator resourceObjects = {nullptr, AllocateResourceObject, ReleaseResourceObject};
 void RetainBlockFile(void *, void *file) { static_cast<PFileObject>(file)->AddRef(); }
 void ReleaseBlockFile(void *, void *file) { static_cast<PFileObject>(file)->Release(); }
 void *CreateBlockTemp(void *) { return FileObject::PfilCreateTemp(); }
@@ -55,6 +64,7 @@ MMI32 ConvertFileText(void *, const void *input, MMU32 bytes, int source, void *
 }
 }
 const MMStorageAllocator *KauaiCopyAllocator() { return &copyAllocator; }
+const MMStorageAllocator *KauaiResourceObjectAllocator() { return &resourceObjects; }
 const MMBlockFileServices *KauaiBlockFileServices() { return &blockFiles; }
 int KauaiDecodeBlockHandle(void *, void **handle) { return vpcodmUtil->FDecompressPhq(handle); }
 

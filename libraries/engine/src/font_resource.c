@@ -54,7 +54,8 @@ int mm_font_fetch(MMOwnedBlock *block, void *out, void *size, const MMFontResour
         goto fail;
     if (base < 0 || font->count > (0x7fffffffL - base) / 8)
     {
-        s->bad_font(s->context);
+        if (s->bad_font)
+            s->bad_font(s->context);
         goto fail;
     }
     bytes = base + font->count * 8;
@@ -62,8 +63,11 @@ int mm_font_fetch(MMOwnedBlock *block, void *out, void *size, const MMFontResour
     memcpy(out, &object, sizeof(object));
     return 1;
 fail:
-    s->invalidate(s->context, out, sizeof(object));
-    s->invalidate(s->context, size, sizeof(bytes));
+    if (s->invalidate)
+    {
+        s->invalidate(s->context, out, sizeof(object));
+        s->invalidate(s->context, size, sizeof(bytes));
+    }
     if (object)
         s->release(s->context, object);
     return 0;
@@ -106,19 +110,131 @@ int mm_font_read_stream(MMFontResource *font, const MMReadStream *stream, const 
         return MM_MOVIE_MEMORY;
     return mm_read_exact(stream, sizeof(header) + (MMU32)bytes, font->heights, (size_t)bytes) ? MM_MOVIE_OK : MM_MOVIE_IO;
 bad_font:
-    s->bad_font(s->context);
+    if (s->bad_font)
+        s->bad_font(s->context);
     return MM_MOVIE_BAD_FILE;
+}
+static void dispose_font(MMFontResource *font, const MMStorageAllocator *allocator)
+{
+    MMU32 bytes = (MMU32)font->count * 4;
+    release_metrics(allocator, &font->widths, bytes);
+    release_metrics(allocator, &font->heights, bytes);
 }
 void mm_font_dispose(MMFontResource *font,const MMFontResourceServices *s)
 {
-    MMU32 bytes = (MMU32)font->count * 4;
-    release_metrics(s->allocator, &font->widths, bytes);
-    release_metrics(s->allocator, &font->heights, bytes);
+    dispose_font(font, s->allocator);
 }
 MMI32 mm_font_width(const MMFontResource *font,MMI32 i)
 { MMI32 value; memcpy(&value,(const unsigned char *)font->widths+i*4,4); return value; }
 MMI32 mm_font_height(const MMFontResource *font,MMI32 i)
 { MMI32 value; memcpy(&value,(const unsigned char *)font->heights+i*4,4); return value; }
+
+struct MMFontOwner
+{
+    MMResourceObject binding;
+    MMReference references;
+    MMFontResource metrics;
+    const MMStorageAllocator *objects, *metric_allocator;
+    void (*mark_memory)(void *);
+};
+
+static MMResourceObject *font_binding(void *object) { return &((MMFontOwner *)object)->binding; }
+static MMReference *font_references(void *object) { return &((MMFontOwner *)object)->references; }
+
+static void *create_font(void *context)
+{
+    const MMFontOwnerHost *host = context;
+    const MMStorageAllocator *objects = host->objects;
+    MMFontOwner *font = objects ? objects->resize(objects->context, NULL, 0, sizeof(*font), MM_STORAGE_NORMAL) :
+        malloc(sizeof(*font));
+    if (font)
+    {
+        memset(font, 0, sizeof(*font));
+        mm_reference_init(&font->references);
+        font->objects = objects;
+        font->metric_allocator = host->metrics;
+        font->mark_memory = host->mark_memory;
+    }
+    return font;
+}
+
+static void destroy_font(void *object)
+{
+    MMFontOwner *font = object;
+    const MMStorageAllocator *objects = font->objects;
+    dispose_font(&font->metrics, font->metric_allocator);
+    mm_resource_object_dispose(font, mm_font_owner_services());
+    if (objects)
+        objects->release(objects->context, font, sizeof(*font));
+    else
+        free(font);
+}
+
+static void mark_font(void *object)
+{
+    const MMFontOwner *font = object;
+    if (font->mark_memory)
+    {
+        font->mark_memory(object);
+        if (font->metrics.widths)
+            font->mark_memory(font->metrics.widths);
+        if (font->metrics.heights)
+            font->mark_memory(font->metrics.heights);
+    }
+}
+
+const MMResourceObjectServices *mm_font_owner_services(void)
+{
+    static const MMResourceObjectServices services = {font_binding, font_references, destroy_font, NULL, mark_font};
+    return &services;
+}
+
+const MMFontResource *mm_font_owner_metrics(const MMFontOwner *owner)
+{
+    return &owner->metrics;
+}
+
+void mm_font_owner_release(MMFontOwner *owner)
+{
+    if (owner)
+        mm_resource_object_release(owner, mm_font_owner_services());
+}
+
+static MMFontResource *font_state(void *context, void *object)
+{
+    (void)context;
+    return &((MMFontOwner *)object)->metrics;
+}
+
+static void release_font(void *context, void *object)
+{
+    (void)context;
+    mm_font_owner_release(object);
+}
+
+int mm_font_owner_read(MMOwnedBlock *block, void **object, MMI32 *bytes, const MMFontOwnerHost *host)
+{
+    const unsigned short one = 1;
+    MMFontResourceServices services = {0};
+    services.context = (void *)host;
+    services.host_big_endian = *(const unsigned char *)&one == 0;
+    services.object_bytes = sizeof(MMFontOwner);
+    services.state = font_state;
+    services.create = create_font;
+    services.release = release_font;
+    services.decode = host->decode;
+    services.allocator = host->metrics;
+    services.invalidate = host->invalidate;
+    services.bad_font = host->bad_font;
+    services.bad_order = host->bad_order;
+    return mm_font_fetch(block, object, bytes, &services);
+}
+
+void *mm_font_owner_model(const MMFontOwner *owner, MMU32 id, const MMFontResourceServices *services)
+{
+    return mm_font_model(&owner->binding, id, services);
+}
+
 int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, void *children, void *out,
                    const MMFontResourceServices *s)
 {

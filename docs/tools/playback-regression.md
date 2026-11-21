@@ -20025,3 +20025,34 @@ audio check passed in both ports. SDL presentation timing differed and
 continuous pixel parity was inconclusive. Evidence is in
 `tmp/c89-generated-action` and
 `D:/3DMMForever-generated-cache/c89-generated-action/capture`.
+
+## C89 ownership for cached 3D fonts (21 November 2026)
+
+Studio and Preview use C89-owned `TDF` resources for glyph metrics and model
+lookup. The resource cache tracks the C owner, its metric buffers and its
+archive binding. The tag and source manager carry the same lifetime operations
+through document-local and content-pack lookups. The C++ `ThreeDFont` class
+was removed. The font authoring tool uses the C89 `TDF` writer.
+
+The C cache fixture fetched the same resource by a source tag and a local tag,
+then verified eviction through its C owner. The font check covered failures at
+each allocation and byte read. All 193 standalone C89 checks passed. Native and
+SDL movie save/load checks passed. Their font fixture records matched the
+previous builds for all read results, metrics, failures and authored bytes.
+The cache estimates increased by 16 bytes per x64 font owner. The two builds'
+800-action 3D text generation traces each matched their own before snapshot
+byte for byte. The font authoring tool passed a syntax check.
+
+Resource cache, font resource, text generation and text resource checks passed
+under AddressSanitizer. The native cache and actor tree checks passed, as did
+the Marcus syntax, player and headless insertion checks. The insertion check
+exercises font resolution during isolated and persistent text previews.
+
+Studio reopened the Wave animation, reproduced its poses across repeated seeks
+and saved and reopened it again. All eight seek and continuous frame identities
+agreed with retail in `20261121T204014Z-ce61a5f1`. The SDL and Marcus seek images
+matched their own pre-change captures byte for byte. Each matched seven retail
+seek images exactly and differed by one pixel on the first. Both ports matched
+retail silence. SDL continuous presentation timing differed and continuous
+pixel parity was inconclusive. Evidence is in `tmp/c89-cached-font` and
+`D:/3DMMForever-generated-cache/c89-cached-font`.

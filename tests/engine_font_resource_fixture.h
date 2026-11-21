@@ -1,21 +1,31 @@
 #ifndef ENGINE_FONT_RESOURCE_FIXTURE_H
 #define ENGINE_FONT_RESOURCE_FIXTURE_H
-class FontResourceFixtureAccess : public ThreeDFont
+class FontResourceFixtureAccess
 {
   public:
-    static FontResourceFixtureAccess *Create() { return NewObj FontResourceFixtureAccess; }
-    bool Initialize(PDataBlock block) { return _FInit(block); }
-    static bool Record(PThreeDFont font,bool valid,FILE *out)
+    static bool Initialize(MMFontResource &font, PDataBlock block)
+    {
+        const auto &host=EngineFont::ReadHost();
+        const unsigned short one=1;
+        MMFontResourceServices services={};
+        services.host_big_endian=*reinterpret_cast<const unsigned char *>(&one)==0;
+        services.allocator=host.metrics;
+        services.decode=host.decode;
+        services.bad_font=host.bad_font;
+        services.bad_order=host.bad_order;
+        return mm_font_initialize(&font,block->CoreBlock(),&services)!=0;
+    }
+    static bool Record(const MMFontResource *font,FILE *out)
     {
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
         if (!font) return true;
-        auto field=&FontResourceFixtureAccess::_font; auto &state=font->*field;
+        const auto &state=*font;
         LegacyLong values[]={state.count,state.maximum_height,state.widths!=nullptr,state.heights!=nullptr};
         if (!record(values,sizeof(values))) return false;
         for (int i=0;i<state.count;++i)
         {
-            if (state.widths) { BRS v; if (valid) v=font->DxrChar(i); else std::memcpy(&v,static_cast<byte *>(state.widths)+i*4,4); if (!record(&v,sizeof(v))) return false; }
-            if (state.heights) { BRS v; if (valid) v=font->DyrChar(i); else std::memcpy(&v,static_cast<byte *>(state.heights)+i*4,4); if (!record(&v,sizeof(v))) return false; }
+            if (state.widths) { const auto v=mm_font_width(font,i); if (!record(&v,sizeof(v))) return false; }
+            if (state.heights) { const auto v=mm_font_height(font,i); if (!record(&v,sizeof(v))) return false; }
         }
         return true;
     }
@@ -50,15 +60,21 @@ static bool TestFontResources()
         const LegacyLong size=variant==3?11:static_cast<LegacyLong>((bytes.size)());
         ok=cache && block.FSetTemp(size) && block.FWriteRgb(bytes.data(),size,0);
         if (variant==5) ok=block.FPackData() && ok;
-        MMI32 estimate=-77; ok=ok && ThreeDFont::FReadTdf(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),nullptr,&estimate);
-        PThreeDFont font=stage?nullptr:FontResourceFixtureAccess::Create(); bool initialized=false;
+        MMI32 estimate=-77; ok=ok && EngineFont::Read(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),nullptr,&estimate);
+        MMFontResource direct={};
+        MMFontOwner *font=nullptr;
+        bool initialized=false;
         inject(kind,failure,true);
-        if (!stage) initialized=static_cast<FontResourceFixtureAccess *>(font)->Initialize(&block);
-        else { void *out=nullptr; initialized=ThreeDFont::FReadTdf(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),&out,&estimate); if (initialized) font=static_cast<PThreeDFont>(out); }
+        if (!stage) initialized=FontResourceFixtureAccess::Initialize(direct,&block);
+        else { void *out=nullptr; initialized=EngineFont::Read(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),&out,&estimate); if (initialized) font=static_cast<MMFontOwner *>(out); }
         inject(kind,failure,false); ++attempts; if (initialized) ++loaded;
-        LegacyLong values[]={shape,variant,stage,kind,failure,estimate,initialized,font!=nullptr};
-        ok=record(values,sizeof(values)) && FontResourceFixtureAccess::Record(font,initialized,snapshot) && ok;
-        ReleasePpo(&font); block.Free(); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
+        const auto metrics=stage?font?mm_font_owner_metrics(font):nullptr:&direct;
+        LegacyLong values[]={shape,variant,stage,kind,failure,estimate,initialized,metrics!=nullptr};
+        ok=record(values,sizeof(values)) && FontResourceFixtureAccess::Record(metrics,snapshot) && ok;
+        MMFontResourceServices directServices={};
+        directServices.allocator=EngineFont::ReadHost().metrics;
+        mm_font_dispose(&direct,&directServices);
+        mm_font_owner_release(font); block.Free(); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv;
 #endif
@@ -80,8 +96,8 @@ static bool TestFontResources()
         if (shape) { ChildChunkIdentification child={{kctgBmdl,models[0]},32}; ok=kids->FAdd(&child) && ok;
             if (shape==1) { child={{kctgBmdl,models[1]},105}; ok=kids->FAdd(&child) && ok; }
             child={{kctgBmdl,variant?models[1]+1000:models[1]},65}; ok=kids->FAdd(&child) && ok; }
-        String name; name.SetSzs(PszLit("Ignored font name")); ChunkIdentification created={};
-        inject(kind,failure,true); bool written=ThreeDFont::FCreate(cache,kids,&name,&created); inject(kind,failure,false); ++attempts; if (written) ++authored;
+        ChunkIdentification created={};
+        inject(kind,failure,true); bool written=EngineFont::Author(cache,kids,&created); inject(kind,failure,false); ++attempts; if (written) ++authored;
         LegacyLong values[]={shape,variant,kind,failure,written,static_cast<LegacyLong>(created.ctg),static_cast<LegacyLong>(created.cno),file->CckiCtg(kctgTdf),file->CckiRef(kctgBmdl,models[0]),file->CckiRef(kctgBmdl,models[1])};
         ok=record(values,sizeof(values)) && ok;
         for (int i=0;ok && i<file->CckiCtg(kctgTdf);++i)
@@ -93,12 +109,18 @@ static bool TestFontResources()
                 String ignored; LegacyLong named=file->FGetName(chunk.ctg,chunk.cno,&ignored); ok=!named && record(&named,sizeof(named)) && ok;
                 // Additional converted-path checks, outside the frozen trace:
                 // consume the authored font and resolve its actual glyph child.
-                auto font=static_cast<PThreeDFont>(cache->PbacoFetch(chunk.ctg,chunk.cno,ThreeDFont::FReadTdf)); ok=font && ok;
-                if (font && shape) { ok=font->DxrChar(65)==letter->Dxr() && font->DyrChar(65)==letter->Dyr()+BR_SCALAR(0.5) &&
-                        font->DxrChar(32)==(shape==1?letter->Dxr():0) && font->DyrMax()==letter->Dyr()+BR_SCALAR(0.5) && ok;
-                    auto glyph=font->PmodlFetch(65); ok=glyph && ok; ReleasePpo(&glyph); }
-                if (font && !shape) ok=font->DxrChar(0)==0 && font->DyrChar(0)==0 && font->DyrMax()==0 && ok;
-                ReleasePpo(&font); }
+                auto font=static_cast<MMFontOwner *>(mm_resource_cache_fetch_owned_chunk(
+                    cache->CoreCache(),chunk.ctg,chunk.cno,EngineFont::Read,mm_font_owner_services()));
+                ok=font && ok;
+                if (font)
+                {
+                    const auto metrics=mm_font_owner_metrics(font);
+                    if (shape) { ok=mm_font_width(metrics,65)==letter->Dxr() && mm_font_height(metrics,65)==letter->Dyr()+BR_SCALAR(0.5) &&
+                            mm_font_width(metrics,32)==(shape==1?letter->Dxr():0) && metrics->maximum_height==letter->Dyr()+BR_SCALAR(0.5) && ok;
+                        auto glyph=EngineFont::Glyph(font,65); ok=glyph && ok; ReleasePpo(&glyph); }
+                    else ok=mm_font_width(metrics,0)==0 && mm_font_height(metrics,0)==0 && metrics->maximum_height==0 && ok;
+                }
+                mm_font_owner_release(font); }
         }
         // The C author releases its fetched model even if adoption fails.
         for (auto number:models) { auto model=static_cast<PModel>(cache->PbacoFetch(kctgBmdl,number,Model::FReadModl)); ok=model && model->CactRef()==1 && ok; ReleasePpo(&model); }

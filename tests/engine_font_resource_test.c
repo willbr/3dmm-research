@@ -55,6 +55,13 @@ static int decode(void *p, void **handle)
     resource_block_decode(handle, x->input, (MMU32)x->input_size);
     return 1;
 }
+static int unexpected_decode(void *p, void **handle)
+{
+    (void)p;
+    (void)handle;
+    assert(0);
+    return 0;
+}
 static int read_block(void *p, void *file, MMU32 offset, void *out, size_t bytes)
 {
     Test *x = t(p);
@@ -327,6 +334,26 @@ int main(void)
         ok=mm_font_fetch(borrow_font(&x),&x.output,&x.size,&s); assert(ok==!fail);
         if (ok) { assert(x.output==&x && x.size==96); release(&x,&x); }
         else assert(x.invalidations==2 && x.size==(MMI32)-1414812757);
+        empty(&x);
+    }
+    for (fail=0;fail<=6;++fail)
+    {
+        const unsigned short one = 1;
+        MMFontOwnerHost storage = {0};
+        const MMFontResource *metrics;
+        void *owner = NULL;
+        s=setup(&x,*(const unsigned char *)&one==0,0); x.fail=fail;
+        storage.objects=storage.metrics=&x.allocator;
+        storage.decode=unexpected_decode;
+        assert(mm_font_owner_read(borrow_font(&x),&owner,&x.size,&storage)==!fail);
+        if (owner)
+        {
+            metrics=mm_font_owner_metrics(owner);
+            assert(!fail && x.live==3 && metrics->count==2 && metrics->maximum_height==655360);
+            assert(mm_font_width(metrics,0)==65536 && mm_font_height(metrics,1)==262144);
+            assert(mm_font_owner_services()->references(owner)->count==1);
+            mm_font_owner_release(owner);
+        }
         empty(&x);
     }
     for (i=0;i<2;++i)

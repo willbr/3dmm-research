@@ -1,4 +1,5 @@
 #include "mm/resource_cache.h"
+#include "mm/tag.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -701,6 +702,13 @@ static MMResourceCache *create_cache(void *p, void *file, MMI32 budget)
     owner->close_count = &h->closes;
     return &owner->cache;
 }
+static MMResourceCache *tag_cache(void *owner) { return &((Host *)owner)->cache; }
+static MMResourceManager *tag_source(void *context, MMI32 sid, int local_only, const MMTag *tag)
+{
+    ManagerHost *h = context;
+    CHECK(sid == 12 && local_only && tag->type == 1 && tag->number == 2);
+    return &h->manager;
+}
 static void manager_cases(void)
 {
     ManagerHost h;
@@ -755,6 +763,26 @@ static void manager_cases(void)
           second->scope_calls == scopes + 1);
     release(object);
     mm_resource_cache_budget(&second->cache, 0);
+    {
+        MMTagServices tags = {0};
+        MMTag tag = {12, NULL, 1, 2};
+        OwnedObject *owned;
+        int reads = second->reads;
+        tags.context = &h;
+        tags.source = tag_source;
+        tags.cache = tag_cache;
+        mm_resource_cache_budget(&second->cache, 100);
+        owned = mm_tag_fetch_owned(&tag, reader_owned, &owned_objects, 0, &tags);
+        CHECK(owned && owned->host == second && owned->state.attached && second->reads == reads + 1);
+        tag.sid = 0;
+        tag.cache = second;
+        CHECK(mm_tag_fetch_owned(&tag, reader_owned, &owned_objects, 0, &tags) == owned);
+        CHECK(owned->refs.count == 2 && second->reads == reads + 1);
+        mm_resource_object_release(owned, &owned_objects);
+        mm_resource_object_release(owned, &owned_objects);
+        mm_resource_cache_budget(&second->cache, 0);
+        CHECK(!second->objects && !second->cache.count);
+    }
     second->missing = 1;
     first->append_file = third;
     CHECK(!mm_resource_manager_load(&h.manager, &q) && h.manager.count == 3 && !third->scope_calls);

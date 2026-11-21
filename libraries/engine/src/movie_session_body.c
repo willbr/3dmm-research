@@ -324,7 +324,7 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     generation.font_width = text_width;
     generation.font_height = text_height;
     generation.font_maximum = text_maximum;
-    generation.release = text_release;
+    generation.release_font = text_release;
     status = mm_text_evaluate_cel(&text, body->actor.state.action, in->cel, text_write_matrix, body, &generation)
              ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
 done:

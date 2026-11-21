@@ -216,7 +216,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
             goto LFail;
         fprintf(stderr, "Added a nonbreaking space character\n");
     }
-    if (!ThreeDFont::FCreate(pcrf, pglkid, &stn2))
+    if (!EngineFont::Author(pcrf, pglkid))
         goto LFail;
 
     ReleasePpo(&pcrf);

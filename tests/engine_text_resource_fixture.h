@@ -1,7 +1,7 @@
 #ifndef ENGINE_TEXT_RESOURCE_FIXTURE_H
 #define ENGINE_TEXT_RESOURCE_FIXTURE_H
 #include "engine_action_tables_fixture.h"
-static PThreeDFont TextResourceNoFont(void *context,const TAG &)
+static MMFontOwner *TextResourceNoFont(void *context,const TAG &)
 { ++*static_cast<int *>(context); return nullptr; }
 class TextResourceFixtureAccess : public ThreeDText
 {

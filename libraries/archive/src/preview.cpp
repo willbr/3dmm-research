@@ -131,13 +131,13 @@ struct Preview::Impl
     {
         if (!value->FIsTdt())
             return;
-        static_cast<PThreeDText>(value)->SetFontResolver(this, [](void *context, const TAG &tag) -> PThreeDFont {
+        static_cast<PThreeDText>(value)->SetFontResolver(this, [](void *context, const TAG &tag) -> MMFontOwner * {
             auto self = static_cast<Impl *>(context);
             TAGOnFile wire;
             wire.From(tag);
             auto source = self->Resolve(wire);
-            return source ? static_cast<PThreeDFont>(source->PbacoFetch(tag.ctg, tag.cno, ThreeDFont::FReadTdf))
-                          : nullptr;
+            return source ? static_cast<MMFontOwner *>(mm_resource_cache_fetch_owned_chunk(
+                       source->CoreCache(), tag.ctg, tag.cno, EngineFont::Read, mm_font_owner_services())) : nullptr;
         });
     }
     std::unique_ptr<Internal::PreviewBackground> background;

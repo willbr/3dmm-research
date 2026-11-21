@@ -73,19 +73,9 @@ RTCLASS(Template)
 
 const MMActionResourceHost &Template::ActionResourceHost()
 {
-    static const MMStorageAllocator objects = {
-        nullptr,
-        [](void *, void *, MMU32, MMU32 size, int) -> void * {
-            void *memory = nullptr;
-            if (!FAllocPvDebug(&memory, size, fmemNil, mprNormal, __szsFile, __LINE__, &vdmglob.dmaglBase))
-                PushErc(ercOomNew);
-            return memory;
-        },
-        [](void *, void *memory, MMU32) { FreePpvDebug(&memory, &vdmglob.dmaglBase); }
-    };
     static const auto tables = CollectionAllocator();
     static const MMActionResourceHost host = {
-        &objects, &tables, KauaiDecodeBlockHandle,
+        KauaiResourceObjectAllocator(), &tables, KauaiDecodeBlockHandle,
 #ifdef DEBUG
         [](void *memory) { if (memory) MarkPv(memory); },
         [](void *) { Assert(false, "bad ActionChunkOnFile"); },

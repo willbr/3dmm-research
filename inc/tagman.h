@@ -233,6 +233,7 @@ class TagManager : public TagManager_PAR
     bool FCacheTagToHD(PTAG ptag, bool fCacheChildChunks = fTrue);
     bool FCacheTagList(MMTagList *);
     PBaseCacheableObject PbacoFetch(PTAG ptag, ResourceReader reader, bool fUseCD = fFalse);
+    void *FetchResource(PTAG tag, ResourceReader reader, const MMResourceObjectServices *, bool useMedia = false);
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
     void SetMissingTagTestCallback(void (*callback)(PTAG)) { _missingTagTest = callback; }
 #endif

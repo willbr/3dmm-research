@@ -1736,11 +1736,13 @@ shared mixer lifecycle, format fallback and system volume handling. Windows
 supplies COM and wave-device services.
 The typed callback is the cache key throughout preload, lookup, tag resolution,
 manager dispatch and nested fetches. Individual cache entries can carry C89
-object ownership services alongside native entries. Studio's archive-backed
-actions and generated 3D text actions use the same C89 owner and playback
-readers for cels, matrices, distance, flags and motion sound tags. The C89
-text generator also owns the cached action reference and replaces it after
-text edits. Native template subclasses, resource, object, HQ and Body facades
+object ownership services alongside native entries. The tag and source manager
+preserve those services through archive-local and content-pack lookups. Studio
+and Preview use C89-owned 3D fonts for metrics and glyph resolution. Studio's
+archive-backed actions and generated 3D text actions use the same C89 owner
+and playback readers for cels, matrices, distance, flags and motion sound
+tags. The C89 text generator owns the cached action reference and replaces
+it after text edits. Native template subclasses, resource, object, HQ and Body facades
 remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

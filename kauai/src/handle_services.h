@@ -6,4 +6,5 @@ const MMHandleServices *KauaiHandleServices();
 const MMBlockFileServices *KauaiBlockFileServices();
 int KauaiDecodeBlockHandle(void *, void **handle);
 const MMStorageAllocator *KauaiCopyAllocator();
+const MMStorageAllocator *KauaiResourceObjectAllocator();
 #endif
