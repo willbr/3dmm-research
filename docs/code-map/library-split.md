@@ -5370,16 +5370,19 @@ Both readers now use the cache's C chunk graph, block owner and resource fetch
 API. They unpack a caller's borrowed block in place, or obtain and release a
 temporary block from the cache. The same cache resolves and loads linked
 textures, materials and models. `mtrl.cpp` supplies registered reader keys,
-the codec binding, object services and native writing and import primitives.
+the codec binding, object services, the typed texture writer and import primitives.
+The C material writer creates the MTRL and transform chunks, adopts both child
+types through the shared editor, and deletes incomplete material graphs there.
 The custom-material graph comparisons use the shared template controller.
 
 Material headers remain 20 bytes, custom headers 8 and texture transforms 28.
 Both host orders and the narrow zero-order Windows material-header exception
 retain their native policy. A non-native texture-transform marker always causes
-swapping before its debug diagnostic. Transform children are considered only
-when a texture child exists. Writing preserves native child creation/adoption
-cleanup, including retained partial texture chunks after a texture writer fails;
-it does not add serialization of texture transforms. Material factories
+swapping before its debug diagnostic. Reads consider transform children when
+a texture child exists. The appearance writer serializes a transform when its
+caller provides a mapping. Material cleanup deletes incomplete roots and
+adopted children. A texture writer that fails after creation leaves its
+unlinked texture chunk available to the caller. Material factories
 invalidate outputs before releasing failed owners; custom factories release
 first. Direct loading retains partial ownership except transform failures,
 which release the texture and renderer material locally.
@@ -5436,11 +5439,12 @@ queries and disposal preserves changes through the exposed renderer view.
 The standalone engine policies build without BRender or C++.
 
 The texture loader decodes borrowed cache blocks in place and uses the C
-chunk payload provider to open direct reads. The writer uses C block I/O for
-chunk payloads and standalone files. C owns packing scratch storage, falls
+chunk payload provider to open direct reads. The writer creates archive chunks
+through the shared editor and uses C block I/O for chunk payloads and standalone
+files. C owns packing scratch storage, falls
 back to a temporary file when needed, and preserves the raw file signature
 when the encoder declines compression. Native code binds the default codec
-and supplies archive allocation and physical file operations.
+and supplies the live chunk index and physical file operations.
 
 Loading preserves the legacy swap-on-any-non-native-marker policy and opaque
 pixel payloads. Truncated reads and negative/unrepresentable layouts fail before
@@ -7108,8 +7112,10 @@ deletion visitor's skip/descent/removal decisions. It preserves names, children,
 parent counts, loner/packed/forest flags and native-only runtime fields during
 replacement; new fixed records are zero-initialized. Primitive services transfer
 decoded values rather than retaining pointers into movable index storage.
-`chunk_storage.c` binds raw payload writes to the editor's allocated file extent.
-Models and the native `FPutPv` facade share this path.
+`chunk_storage.c` binds raw adds and replacements to the editor's allocated file
+extent. Models, materials and the native raw-byte facades use this path.
+Texture and font writers acquire an owned file block through the same editor
+for staged writes.
 
 An existing allocation failure leaves the caller's output block intact. Failed
 writes free the newly reserved storage and clear the output; failed new writes

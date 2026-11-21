@@ -1,4 +1,5 @@
 #include "mm/texture_resource.h"
+#include "chunk_edit_fixture.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -35,6 +36,7 @@ typedef struct Test
     MMChunkPayloadServices payloads;
     MMHandleServices handles;
     MMBlockFileServices io;
+    ChunkIndexFixture index;
     File source_file, chunk_file, standalone_file, temp_file;
     int phase, fail, objects, memory, imports, files, handles_live, published, invalidated, diagnostic, temporary,
         reported, pack_ok, creates_temp;
@@ -207,19 +209,16 @@ static int write_io(void *p, void *file, MMU32 at, const void *data, size_t n)
         *f->length = (MMI32)(at + n);
     return 1;
 }
-static int add(void *p, void *f, MMU32 type, MMI32 n, MMU32 *number, MMOwnedBlock *block)
+static int allocate_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
-    Test *t = test(p);
-    MMBlockFile extent;
-    (void)f;
-    (void)type;
+    Test *t = ((ChunkIndexFixture *)p)->observer;
     if (fail(t))
         return 0;
-    extent.file = &t->chunk_file;
-    extent.offset = 0;
-    extent.length = (MMU32)n;
-    *number = 7;
-    return mm_owned_block_set_file(block, &extent, 0) == MM_DATA_OK;
+    extent->file = &t->chunk_file;
+    extent->offset = 0;
+    extent->bytes = bytes;
+    extent->flags = 0;
+    return 1;
 }
 static int read_bitmap(void *p, void *filename, MMTextureBitmap *out)
 {
@@ -319,7 +318,6 @@ static void setup(Test *t)
     t->io.create_temp = create_temp;
     t->io.read = read_io;
     t->io.write = write_io;
-    t->s.add = add;
     t->s.read_bitmap = read_bitmap;
     t->s.palette_count = palette_count;
     t->s.palette_colour = palette_colour;
@@ -503,6 +501,7 @@ static void constructors_and_import(void)
 static void writes(void)
 {
     Test t;
+    MMChunkEdit edit;
     MMTextureResource m;
     MMOwnedBlock block;
     MMBlockFile extent;
@@ -516,13 +515,19 @@ static void writes(void)
     for (n = 0; n < 4; ++n)
     {
         setup(&t);
+        fixture_chunk_add(&t.index, 1, 0);
+        t.index.observer = &t;
+        edit = fixture_chunk_edit(&t.index);
+        edit.allocate = allocate_extent;
         t.fail = n;
         number = 99;
-        ok = mm_texture_write_chunk(&m, &t, 1, &number, &t.s);
-        if (ok)
-            assert(number == 7 && t.output_size == 28);
-        else if (n > 1)
-            assert(number == 7);
+        ok = mm_texture_write_chunk(&m, &edit, 1, &number, &t.s);
+        assert(ok == !n);
+        if (n == 1)
+            assert(t.invalidated == 1 && t.index.count == 1);
+        else
+            assert(number == 1 && t.index.count == 2 && t.index.rows[1].entry.bytes == 28);
+        assert(t.output_size == (!n ? 28 : n == 3 ? 20 : 0));
         balanced(&t);
     }
     setup(&t);

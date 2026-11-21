@@ -75,6 +75,7 @@ class TextureMap : public TextureMap_PAR
     static PTextureMap PtmapRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     static PTextureMap PtmapRead(const MMReadStream &stream);
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
+    bool FWrite(const MMChunkEdit &, ChunkTagOrType ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TextureMap
     static int FReadTmap(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,

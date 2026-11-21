@@ -923,12 +923,15 @@ Material/custom-material construction, factories, wire I/O, shade-table
 replacement, texture/model reference ownership and PIX/BMP import orchestration
 now also use C89. The C readers load material, transform and costume payloads
 through the shared cache and fetch linked textures, materials and models with
-their existing reader keys. Native adapters supply the codec binding, object
-factories and BRender and file primitives.
+their existing reader keys. The C author writes material and transform chunks
+and links material textures and transforms through the shared chunk editor.
+Native adapters supply the codec binding, object factories and BRender and
+file primitives.
 TextureMap now uses C89 persistent pixel/descriptor/import-owner state, header
 I/O, cache factories, bitmap palette matching and standalone-file control.
 Cached and direct texture reads, chunk writes, and standalone packing use the
-C89 block owner and physical file services. Cache estimates use stored lengths.
+C89 block owner and physical file services. Texture and font writers acquire
+their writable blocks directly from the shared editor. Cache estimates use stored lengths.
 The native pixelmap is a renderer view. Imported PIX resources are released
 through their original BRender owner; bitmap import failures release decoded
 pixels. Shared indexed-BMP header validation, padded pixel I/O, RLE8 decoding,

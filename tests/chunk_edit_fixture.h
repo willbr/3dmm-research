@@ -72,11 +72,23 @@ static MMU32 fixture_chunk_count(void *p)
 {
     return ((ChunkIndexFixture *)p)->count;
 }
+static int fixture_chunk_insert(void *p, MMU32 position)
+{
+    ChunkIndexFixture *f = p;
+    if (position > f->count || f->count == sizeof(f->rows) / sizeof(f->rows[0]))
+        return 0;
+    memmove(f->rows + position + 1, f->rows + position, (f->count - position) * sizeof(*f->rows));
+    memset(f->rows + position, 0, sizeof(*f->rows));
+    ++f->count;
+    return 1;
+}
 static void fixture_chunk_store(void *p, MMU32 position, const MMChunkEntry *entry, int initialize)
 {
     ChunkIndexFixture *f = p;
-    if (initialize || position >= f->count)
+    if (position >= f->count)
         abort();
+    if (initialize)
+        memset(f->rows + position, 0, sizeof(*f->rows));
     f->rows[position].entry = *entry;
 }
 static void fixture_chunk_erase(void *p, MMU32 position)
@@ -172,6 +184,7 @@ static MMChunkEdit fixture_chunk_edit(ChunkIndexFixture *f)
     edit.count = fixture_chunk_count;
     edit.entry = fixture_chunk_entry;
     edit.child = fixture_chunk_child;
+    edit.insert = fixture_chunk_insert;
     edit.store = fixture_chunk_store;
     edit.erase = fixture_chunk_erase;
     edit.free_space = fixture_chunk_free;

@@ -203,16 +203,18 @@ int mm_texture_write(const MMTextureResource *m, MMOwnedBlock *block, const MMTe
         return 0;
     return mm_block_write(&io, sizeof(b), m->pixels, (MMU32)n, 0) == MM_DATA_OK;
 }
-int mm_texture_write_chunk(const MMTextureResource *m, void *file, MMU32 type, MMU32 *number,
-                                 const MMTextureServices *s)
+int mm_texture_write_chunk(const MMTextureResource *m, const MMChunkEdit *edit, MMU32 type, MMU32 *number,
+                           const MMTextureServices *s)
 {
     MMOwnedBlock block;
     MMI32 bytes = mm_texture_size(m);
     int ok = 0;
     if (bytes < 0 || mm_owned_block_init(&block, s->payloads->handles, s->payloads->files) != MM_DATA_OK)
         return 0;
-    if (s->add(s->context, file, type, bytes, number, &block))
+    if (mm_chunk_add_block(edit, type, (MMU32)bytes, number, &block) == MM_CHUNK_OK)
         ok = mm_texture_write(m, &block, s);
+    else
+        s->invalidate(s->context, number, sizeof(*number));
     mm_owned_block_clear(&block);
     return ok;
 }

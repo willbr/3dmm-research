@@ -61,6 +61,13 @@ extern "C"
      * write discards the new extent and preserves an existing chunk. */
     int mm_chunk_put_bytes(const MMChunkEdit *, const MMBlockFileServices *, MMU32 type,
                            MMU32 number, const void *data, MMU32 bytes);
+    /* Create at the first unused number. A failed write removes the new chunk. */
+    int mm_chunk_add_bytes(const MMChunkEdit *, const MMBlockFileServices *, MMU32 type,
+                           const void *data, MMU32 bytes, MMU32 *number);
+    /* Create at the first unused number and give the caller an owned file block
+     * for writing. The initialized block must be empty. Success publishes the
+     * number and block, and the caller controls cleanup after later writes. */
+    int mm_chunk_add_block(const MMChunkEdit *, MMU32 type, MMU32 bytes, MMU32 *number, MMOwnedBlock *);
 
     typedef struct MMChunkPayloadServices
     {

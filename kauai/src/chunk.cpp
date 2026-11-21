@@ -1656,17 +1656,12 @@ bool ChunkyFile::FAddPv(void *pv, LegacyLong cb, ChunkTagOrType ctg, ChunkNumber
     AssertVarMem(pcno);
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv, cb);
-    DataBlock blck;
-
-    if (!FAdd(cb, ctg, pcno, &blck))
-        return fFalse;
-    if (!blck.FWrite(pv))
-    {
-        Delete(ctg, *pcno);
+    const auto edit = EditIndex();
+    const bool ok = mm_chunk_add_bytes(&edit, KauaiBlockFileServices(), ctg, pv, cb, pcno) == MM_CHUNK_OK;
+    if (!ok)
         TrashVar(pcno);
-        return fFalse;
-    }
-    return fTrue;
+    AssertThis(0);
+    return ok;
 }
 
 /***************************************************************************

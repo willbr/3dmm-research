@@ -22,7 +22,7 @@ struct Test
     unsigned char input[40],written[1000]; MMI32 input_size,written_size;
     int phase,fail,live,frees,object_live,invalidations,bad,order_bad,packed,author;
     Model models[3];
-    int file_refs,decodes,children,adoptions,added,missing;
+    int file_refs,decodes,children,adoptions,added,missing,extent_unavailable;
     MMChunkChild kids[4], links[4]; MMFontChunk chunk;
     MMChunkEntry rows[4];
     MMChunkEdit edit;
@@ -140,11 +140,21 @@ static int allocate_extent(void *p,MMU32 bytes,MMChunkLocation *location)
     assert(x->added && bytes <= sizeof(x->written));
     if (checkpoint(x)) return 0;
     x->written_size=(MMI32)bytes;
-    location->file=p;
+    location->file=x->extent_unavailable?NULL:p;
     location->offset=OUTPUT_OFFSET;
     location->bytes=bytes;
     location->flags=0;
     return 1;
+}
+static void release_extent(void *p,int extra,MMU32 offset,MMU32 bytes)
+{
+    Test *x=t(p);
+    assert(!extra && offset==OUTPUT_OFFSET && bytes==(MMU32)x->written_size);
+    x->written_size=0;
+}
+static void reset_runtime(void *p,MMU32 type,MMU32 number)
+{
+    assert(t(p)->added && type==MM_FONT_TYPE && number==0);
 }
 static int insert_link(void *p,MMU32 parent,MMU32 i,const MMChunkChild *child)
 {
@@ -254,6 +264,7 @@ static MMFontResourceServices setup(Test *x,int host,int other)
     x->edit.count=index_count; x->edit.entry=index_entry; x->edit.child=index_child;
     x->edit.insert=insert_entry; x->edit.store=store_entry; x->edit.erase=erase_entry;
     x->edit.allocate=allocate_extent; x->edit.insert_child=insert_link; x->edit.erase_child=erase_link;
+    x->edit.free_space=release_extent; x->edit.reset_runtime=reset_runtime;
     x->allocator.context=x; x->allocator.resize=allocate; x->allocator.release=free_memory;
     resource_block_init(&x->block, x, read_block, write_block);
     x->block.files.retain = retain_block;
@@ -373,6 +384,9 @@ int main(void)
     assert(mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && get(x.written+12+32*4,0)==196608 && get(x.written+8,0)==294912); empty(&x);
     s=setup(&x,0,0); x.author=1; x.kids[0].slot=0xffffffffUL;
     assert(!mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && !x.phase && !x.live && !x.added); empty(&x);
+    s=setup(&x,0,0); x.author=1; x.extent_unavailable=1;
+    assert(!mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s));
+    assert(!x.added && !x.written_size && x.frees==2 && x.invalidations==1); empty(&x);
     s=setup(&x,1,0); x.author=1; x.children=0;
     assert(mm_font_author(&x.cache,&x.edit,&x,NULL,&s) && x.written[0]==0 && x.written[1]==1 && get(x.written+4,1)==1 && !x.invalidations); empty(&x);
     s=setup(&x,0,0); x.author=1; x.fail=5;

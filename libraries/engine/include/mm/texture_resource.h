@@ -58,7 +58,6 @@ extern "C"
         const MMChunkPayloadServices *payloads;
         const MMStorageAllocator *copy_allocator;
         MMBlockTransform encode;
-        int (*add)(void *, void *file, MMU32 type, MMI32 bytes, MMU32 *number, MMOwnedBlock *);
         int (*read_bitmap)(void *, void *filename, MMTextureBitmap *);
         MMI32 (*palette_count)(void *, void *palette);
         void (*palette_colour)(void *, void *palette, MMI32 index, MMTextureColour *);
@@ -87,8 +86,9 @@ extern "C"
      * Estimates report the stored length without decoding. */
     int mm_texture_fetch(MMOwnedBlock *, void *object_out, void *size_out, const MMTextureServices *);
     int mm_texture_write(const MMTextureResource *, MMOwnedBlock *, const MMTextureServices *);
-    int mm_texture_write_chunk(const MMTextureResource *, void *file, MMU32 type, MMU32 *number,
-                                     const MMTextureServices *);
+    /* A write failure after creation leaves the published chunk for the caller. */
+    int mm_texture_write_chunk(const MMTextureResource *, const MMChunkEdit *, MMU32 type, MMU32 *number,
+                               const MMTextureServices *);
     /* Palette matching keeps the last equal-distance candidate. Cache allocation is
      * optional. Import preserves the legacy contiguous width*height processing of
      * the bitmap reader's padded buffer; it does not repack rows or flip them. */

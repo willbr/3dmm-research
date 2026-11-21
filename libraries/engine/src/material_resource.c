@@ -1,6 +1,7 @@
 /* Material resources converted from engine mtrl.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/material_resource.h"
+#include "mm/chunk_storage.h"
 #include "mm/wide.h"
 #include <string.h>
 static MMU32 word(const unsigned char *p, unsigned n, int big)
@@ -214,12 +215,12 @@ int mm_material_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedB
     memcpy(out, &object, sizeof(object));
     return 1;
 }
-int mm_material_write_appearance(const MMMaterialResource *m, void *file, MMU32 type, MMU32 *number,
-                                 const MMMaterialDescription *appearance, const MMI32 mapping[6],
+int mm_material_write_appearance(const MMMaterialResource *m, const MMChunkEdit *edit, const MMBlockFileServices *files,
+                                 MMU32 type, MMU32 *number, const MMMaterialDescription *appearance, const MMI32 mapping[6],
                                  const MMMaterialServices *s)
 {
     MMMaterialDescription d;
-    MMMaterialChild child;
+    MMChunkChild child;
     unsigned char b[28];
     unsigned i;
     void *texture;
@@ -229,23 +230,26 @@ int mm_material_write_appearance(const MMMaterialResource *m, void *file, MMU32 
         appearance = &d;
     }
     mm_material_header_write(b, s->host_big_endian, s->system, appearance);
-    if (!s->add_chunk(s->context, file, type, b, 20, number))
+    if (mm_chunk_add_bytes(edit, files, type, b, 20, number) != MM_CHUNK_OK)
+    {
+        s->invalidate(s->context, number, sizeof(*number));
         return 0;
+    }
     texture = mm_material_texture(m, s);
-    child.id = 0;
+    child.slot = 0;
     if (texture)
     {
         child.type = s->texture_type;
         child.number = 0;
-        if (!s->write_texture(s->context, texture, file, child.type, &child.number))
+        if (!s->write_texture(s->context, texture, edit, child.type, &child.number))
         {
-            s->delete_chunk(s->context, file, type, *number);
+            mm_chunk_delete(edit, type, *number);
             return 0;
         }
-        if (!s->adopt(s->context, file, type, *number, &child))
+        if (mm_chunk_adopt(edit, type, *number, &child, 1) != MM_CHUNK_OK)
         {
-            s->delete_chunk(s->context, file, child.type, child.number);
-            s->delete_chunk(s->context, file, type, *number);
+            mm_chunk_delete(edit, child.type, child.number);
+            mm_chunk_delete(edit, type, *number);
             return 0;
         }
     }
@@ -257,24 +261,24 @@ int mm_material_write_appearance(const MMMaterialResource *m, void *file, MMU32 
         put(b + 2, 2, s->system, s->host_big_endian);
         for (i = 0; i < 6; ++i)
             put(b + 4 + i * 4, 4, (MMU32)mapping[i], s->host_big_endian);
-        if (!s->add_chunk(s->context, file, child.type, b, 28, &child.number))
+        if (mm_chunk_add_bytes(edit, files, child.type, b, 28, &child.number) != MM_CHUNK_OK)
         {
-            s->delete_chunk(s->context, file, type, *number);
+            mm_chunk_delete(edit, type, *number);
             return 0;
         }
-        if (!s->adopt(s->context, file, type, *number, &child))
+        if (mm_chunk_adopt(edit, type, *number, &child, 1) != MM_CHUNK_OK)
         {
-            s->delete_chunk(s->context, file, child.type, child.number);
-            s->delete_chunk(s->context, file, type, *number);
+            mm_chunk_delete(edit, child.type, child.number);
+            mm_chunk_delete(edit, type, *number);
             return 0;
         }
     }
     return 1;
 }
-int mm_material_write(const MMMaterialResource *m, void *file, MMU32 type, MMU32 *number,
-                      const MMMaterialServices *s)
+int mm_material_write(const MMMaterialResource *m, const MMChunkEdit *edit, const MMBlockFileServices *files,
+                      MMU32 type, MMU32 *number, const MMMaterialServices *s)
 {
-    return mm_material_write_appearance(m, file, type, number, NULL, NULL, s);
+    return mm_material_write_appearance(m, edit, files, type, number, NULL, NULL, s);
 }
 int mm_material_shade_set(MMMaterialShade *m, void *replacement, const MMMaterialServices *s)
 {

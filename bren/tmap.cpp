@@ -46,14 +46,6 @@ MMTextureServices TextureMap::_Services()
     s.payloads = KauaiChunkPayloadServices();
     s.copy_allocator = KauaiCopyAllocator();
     s.encode = [](void *, void **handle) -> int { return vpcodmUtil->FCompressPhq(handle, cfmtNil); };
-    s.add = [](void *, void *file, MMU32 type, MMI32 bytes, MMU32 *number, MMOwnedBlock *block) -> int {
-        DataBlock view(*block);
-        ChunkNumber n;
-        std::memcpy(&n, number, sizeof(n));
-        bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &n, &view);
-        std::memcpy(number, &n, sizeof(n));
-        return ok;
-    };
 #ifndef MAC
     s.read_bitmap = [](void *, void *filename, MMTextureBitmap *out) -> int {
         byte *pixels = nullptr;
@@ -121,12 +113,17 @@ TextureMap::~TextureMap()
 }
 bool TextureMap::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
 {
+    AssertPo(file, 0);
+    return FWrite(file->EditIndex(), type, number);
+}
+bool TextureMap::FWrite(const MMChunkEdit &edit, ChunkTagOrType type, ChunkNumber *number)
+{
     AssertThis(0);
     auto s = _Services();
     _Sync();
     MMU32 n;
     std::memcpy(&n, number, sizeof(n));
-    bool ok = mm_texture_write_chunk(&_texture, file, type, &n, &s) != 0;
+    const bool ok = mm_texture_write_chunk(&_texture, &edit, type, &n, &s) != 0;
     std::memcpy(number, &n, sizeof(n));
     return ok;
 }

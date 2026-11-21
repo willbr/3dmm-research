@@ -1,5 +1,6 @@
 #include "mm/material_resource.h"
 #include "mm/template_runtime.h"
+#include "chunk_edit_fixture.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -31,6 +32,7 @@ typedef struct Test
     MMReference cache_refs;
     MMHandleServices storage;
     MMOwnedBlock input;
+    ChunkIndexFixture index;
     int step, fail, objects, handles, arrays, raw, file_refs, payload_handles, diagnostic, order[128], ordered;
     int texture_child, transform_child, custom, bad_model_target, adds, deletes[4], deleted;
     unsigned char header[20], transform_header[28], custom_header[9], written[20], written_transform[28];
@@ -363,47 +365,59 @@ static void transform(void *p, void *h, const MMI32 m[6])
     (void)p;
     memcpy(((Handle *)h)->matrix, m, 6 * sizeof(*m));
 }
-static int add_chunk(void *p, void *f, MMU32 type, const void *data, MMI32 bytes, MMU32 *number)
+static int allocate_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
-    Test *t = test(p);
-    (void)f;
-    assert(bytes == (type == t->s.transform_type ? 28 : 20));
-    if (fail(t))
-        return 0;
-    if (type == t->s.transform_type)
-    {
-        memcpy(t->written_transform, data, 28);
-        *number = 12;
-    }
-    else
-    {
-        memcpy(t->written, data, 20);
-        *number = 10;
-    }
+    ChunkIndexFixture *index = p;
+    assert(bytes == 20 || bytes == 28);
+    extent->file = index->observer;
+    extent->offset = bytes == 20 ? 128 : 148;
+    extent->bytes = bytes;
+    extent->flags = 0;
     return 1;
 }
-static int write_texture(void *p, void *o, void *f, MMU32 type, MMU32 *number)
+static int write_chunk(void *p, void *file, MMU32 offset, const void *data, size_t bytes)
 {
-    (void)o;
-    (void)f;
-    (void)type;
-    *number = 11;
-    return !fail(test(p));
+    Test *t = test(file);
+    (void)p;
+    assert((offset == 128 && bytes == 20) || (offset == 148 && bytes == 28));
+    if (fail(t))
+        return 0;
+    if (bytes == 28)
+        memcpy(t->written_transform, data, 28);
+    else
+        memcpy(t->written, data, 20);
+    return 1;
 }
-static int adopt(void *p, void *f, MMU32 type, MMU32 n, const MMMaterialChild *c)
-{
-    (void)f;
-    (void)type;
-    assert(n == 10 && c->id == 0 && c->number == (c->type == test(p)->s.transform_type ? 12U : 11U));
-    return !fail(test(p));
-}
-static void delete_chunk(void *p, void *f, MMU32 type, MMU32 n)
+static const MMBlockFileServices author_files = {NULL, NULL, NULL, NULL, NULL, write_chunk};
+static int write_texture(void *p, void *o, const MMChunkEdit *edit, MMU32 type, MMU32 *number)
 {
     Test *t = test(p);
-    (void)f;
-    (void)type;
+    assert(o == &t->texture && edit->context == &t->index && type == t->s.texture_type);
+    if (fail(t))
+        return 0;
+    fixture_chunk_add(&t->index, type, 0);
+    *number = 0;
+    return 1;
+}
+static int adopt(void *p, MMU32 parent, const MMChunkChild *child)
+{
+    assert(parent == 0 && child->slot == 0 && child->number == 0);
+    return !fail(test(p));
+}
+static void delete_chunk(void *p, const MMChunkEntry *entry)
+{
+    Test *t = test(p);
     assert(t->deleted < 4);
-    t->deletes[t->deleted++] = (int)n;
+    t->deletes[t->deleted++] = (int)entry->type;
+}
+static MMChunkEdit author_editor(Test *t)
+{
+    MMChunkEdit edit = fixture_chunk_edit(&t->index);
+    t->index.observer = t;
+    t->index.before_insert = adopt;
+    t->index.before_delete = delete_chunk;
+    edit.allocate = allocate_extent;
+    return edit;
 }
 static void *read_bitmap(void *p, void *filename, void *palette)
 {
@@ -495,10 +509,7 @@ static void setup(Test *t)
     t->s.map = map;
     t->s.height = height;
     t->s.transform = transform;
-    t->s.add_chunk = add_chunk;
     t->s.write_texture = write_texture;
-    t->s.adopt = adopt;
-    t->s.delete_chunk = delete_chunk;
     t->s.read_bitmap = read_bitmap;
     t->s.pixelmap_path = pixelmap_path;
     t->s.read_pixelmap = read_pixelmap;
@@ -684,6 +695,7 @@ static void loads(void)
 static void construction_and_writes(void)
 {
     Test t;
+    MMChunkEdit edit;
     Object *o;
     void *input[2];
     int n;
@@ -715,12 +727,17 @@ static void construction_and_writes(void)
         t.step = 0;
         t.fail = n;
         number = 99;
-        if (mm_material_write(&o->material, &t, 3, &number, &t.s))
-            assert(number == 10 && t.deleted == 0);
-        else if (n == 2)
-            assert(t.deleted == 1 && t.deletes[0] == 10);
-        else if (n == 3)
-            assert(t.deleted == 2 && t.deletes[0] == 11 && t.deletes[1] == 10);
+        edit = author_editor(&t);
+        assert(mm_material_write(&o->material, &edit, &author_files, 3, &number, &t.s) == !n);
+        if (!n)
+            assert(number == 0 && t.deleted == 0 && t.index.count == 2 && t.index.rows[0].entry.parent_count == 1);
+        else
+        {
+            assert(!t.index.count && number == (n == 1 ? 0xa3a3a3a3UL : 0));
+            assert(t.deleted == (n == 3 ? 2 : 1) && t.deletes[t.deleted - 1] == 3);
+            if (n == 3)
+                assert(t.deletes[0] == 1);
+        }
         release(&t, o);
         balanced(&t);
     }
@@ -728,8 +745,9 @@ static void construction_and_writes(void)
 static void appearance_writes(void)
 {
     static const MMI32 mapping[6] = {-65536, 65536, 0, 257, -12, 393216};
-    static const int deletions[] = {0, 0, 1, 2, 1, 2};
+    static const int deletions[] = {0, 1, 1, 2, 3, 3};
     Test t;
+    MMChunkEdit edit;
     Object *o;
     MMMaterialDescription appearance = {0}, decoded;
     MMU32 number;
@@ -753,16 +771,22 @@ static void appearance_writes(void)
             t.step = 0;
             t.fail = n;
             number = 99;
-            assert(mm_material_write_appearance(&o->material, &t, 3, &number, &appearance, mapping, &t.s) == !n);
+            edit = author_editor(&t);
+            assert(mm_material_write_appearance(&o->material, &edit, &author_files, 3, &number,
+                                                &appearance, mapping, &t.s) == !n);
             assert(t.deleted == deletions[n]);
-            if (n <= 1)
-                assert(number == (n ? 99U : 10U));
-            if (n > 1)
-                assert(t.deletes[t.deleted - 1] == 10);
-            if (n == 3 || n == 5)
-                assert(t.deletes[0] == (n == 3 ? 11 : 12));
+            assert(number == (n == 1 ? 0xa3a3a3a3UL : 0));
+            if (n)
+                assert(!t.index.count && t.deletes[t.deleted - 1] == 3);
+            if (n == 3)
+                assert(t.deletes[0] == 1);
+            if (n >= 4)
+                assert(t.deletes[0] == 2 && t.deletes[1] == 1);
             if (!n)
             {
+                assert(t.index.count == 3 && t.index.rows[2].entry.child_count == 2);
+                assert(t.index.rows[0].entry.parent_count == 1 && !(t.index.rows[0].entry.flags & MM_CHUNK_LONER));
+                assert(t.index.rows[1].entry.parent_count == 1 && !(t.index.rows[1].entry.flags & MM_CHUNK_LONER));
                 assert(mm_material_header_read(t.written, big, 0x0303, &decoded));
                 assert(decoded.colour == appearance.colour && decoded.power == appearance.power &&
                        decoded.ambient == appearance.ambient && decoded.diffuse == appearance.diffuse &&

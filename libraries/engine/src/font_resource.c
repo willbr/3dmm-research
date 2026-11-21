@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/font_resource.h"
+#include "mm/chunk_storage.h"
 #include "mm/movie_data.h"
 #include <stdlib.h>
 #include <string.h>
@@ -122,11 +123,9 @@ int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, void *childr
                    const MMFontResourceServices *s)
 {
     MMI32 count,i,letter=-1,n,width,height,maximum=0;
-    MMU32 largest=0,position,number=0,bytes=0;
+    MMU32 largest=0,number=0,bytes=0;
     void *widths=NULL,*heights=NULL,*model=NULL;
     MMChunkChild child,replacement;
-    MMChunkLocation location;
-    MMBlockFile extent;
     MMFontChunk chunk;
     MMOwnedBlock block;
     MMBlockIO io;
@@ -144,13 +143,7 @@ int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, void *childr
     n=(MMI32)largest+1; bytes=n*4;
     if (!allocate_metrics(s->allocator,bytes,1,&widths) || !allocate_metrics(s->allocator,bytes,1,&heights))
         goto done;
-    if (mm_chunk_unique(edit, MM_FONT_TYPE, &position, &number) != MM_CHUNK_OK ||
-        mm_chunk_add(edit, MM_FONT_TYPE, number, position, 12 + bytes + bytes, &location) != MM_CHUNK_OK)
-        goto done;
-    extent.file = location.file;
-    extent.offset = location.offset;
-    extent.length = location.bytes;
-    if (mm_owned_block_set_file(&block, &extent, 0) != MM_DATA_OK)
+    if (mm_chunk_add_block(edit, MM_FONT_TYPE, 12 + bytes + bytes, &number, &block) != MM_CHUNK_OK)
         goto done;
     for (i=0;i<count;++i)
     {

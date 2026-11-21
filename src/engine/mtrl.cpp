@@ -81,25 +81,12 @@ MMMaterialServices Material_MTRL::_Services(void *context)
         auto texture = static_cast<PTextureMap>(object);
         return texture ? texture->Pbpmp() : nullptr;
     };
-    s.add_chunk = [](void *, void *f, MMU32 type, const void *data, MMI32 bytes, MMU32 *number) -> int {
+    s.write_texture = [](void *, void *p, const MMChunkEdit *edit, MMU32 type, MMU32 *number) -> int {
         ChunkNumber n;
         std::memcpy(&n, number, sizeof(n));
-        const auto ok = static_cast<PChunkyFile>(f)->FAddPv(const_cast<void *>(data), bytes, type, &n);
+        const auto ok = static_cast<PTextureMap>(p)->FWrite(*edit, type, &n);
         std::memcpy(number, &n, sizeof(n));
         return ok;
-    };
-    s.write_texture = [](void *, void *p, void *f, MMU32 type, MMU32 *number) -> int {
-        ChunkNumber n;
-        std::memcpy(&n, number, sizeof(n));
-        const auto ok = static_cast<PTextureMap>(p)->FWrite(static_cast<PChunkyFile>(f), type, &n);
-        std::memcpy(number, &n, sizeof(n));
-        return ok;
-    };
-    s.adopt = [](void *, void *f, MMU32 type, MMU32 number, const MMMaterialChild *c) -> int {
-        return static_cast<PChunkyFile>(f)->FAdoptChild(type, number, c->type, c->number, c->id);
-    };
-    s.delete_chunk = [](void *, void *f, MMU32 type, MMU32 number) {
-        static_cast<PChunkyFile>(f)->Delete(type, number);
     };
     s.read_bitmap = [](void *, void *f, void *palette) -> void * {
         return TextureMap::PtmapReadNative(static_cast<PFilename>(f), static_cast<PDynamicArray>(palette));
@@ -197,7 +184,9 @@ bool Material_MTRL::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *n
     auto s = _Services();
     MMU32 n;
     std::memcpy(&n, number, sizeof(n));
-    bool ok = mm_material_write_appearance(&_material, file, type, &n, appearance, mapping, &s) != 0;
+    const auto edit = file->EditIndex();
+    const bool ok = mm_material_write_appearance(&_material, &edit, KauaiBlockFileServices(), type, &n,
+                                                 appearance, mapping, &s) != 0;
     std::memcpy(number, &n, sizeof(n));
     return ok;
 }

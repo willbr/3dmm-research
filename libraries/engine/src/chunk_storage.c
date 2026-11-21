@@ -38,6 +38,69 @@ int mm_chunk_put_bytes(const MMChunkEdit *index, const MMBlockFileServices *file
     return mm_chunk_put(&edit, type, number, bytes);
 }
 
+static int add_chunk_extent(const MMChunkEdit *edit, MMU32 type, MMU32 bytes, MMU32 *number,
+                            MMChunkLocation *location)
+{
+    MMChunkEdit index;
+    MMU32 position;
+    int status;
+    if (!edit || !edit->child || !edit->free_space || !edit->reset_runtime)
+        return MM_CHUNK_BAD_FILE;
+    status = mm_chunk_unique(edit, type, &position, number);
+    if (status != MM_CHUNK_OK)
+        return status;
+    index = *edit;
+    index.output = NULL;
+    return mm_chunk_add(&index, type, *number, position, bytes, location);
+}
+
+int mm_chunk_add_bytes(const MMChunkEdit *edit, const MMBlockFileServices *files, MMU32 type,
+                       const void *data, MMU32 bytes, MMU32 *number)
+{
+    ChunkBytes payload;
+    MMChunkLocation location;
+    MMU32 added;
+    int status;
+    if (!number || (bytes && (!data || !files || !files->write)))
+        return MM_CHUNK_BAD_FILE;
+    status = add_chunk_extent(edit, type, bytes, &added, &location);
+    if (status != MM_CHUNK_OK)
+        return status;
+    payload.files = files;
+    payload.data = data;
+    payload.bytes = bytes;
+    if (!write_chunk_bytes(&payload, &location, 1))
+    {
+        mm_chunk_delete(edit, type, added);
+        return MM_CHUNK_IO;
+    }
+    *number = added;
+    return MM_CHUNK_OK;
+}
+
+int mm_chunk_add_block(const MMChunkEdit *edit, MMU32 type, MMU32 bytes, MMU32 *number, MMOwnedBlock *block)
+{
+    MMChunkLocation location;
+    MMBlockFile extent;
+    MMU32 added;
+    int status;
+    if (!number || mm_owned_block_check(block) != MM_DATA_OK || block->view.kind != MM_BLOCK_EMPTY)
+        return MM_CHUNK_BAD_FILE;
+    status = add_chunk_extent(edit, type, bytes, &added, &location);
+    if (status != MM_CHUNK_OK)
+        return status;
+    extent.file = location.file;
+    extent.offset = location.offset;
+    extent.length = location.bytes;
+    if (extent.length != bytes || mm_owned_block_set_file(block, &extent, 0) != MM_DATA_OK)
+    {
+        mm_chunk_delete(edit, type, added);
+        return MM_CHUNK_IO;
+    }
+    *number = added;
+    return MM_CHUNK_OK;
+}
+
 int mm_chunk_payload_bind_block(const MMChunkPayloadServices *s, void *archive, MMU32 type,
                                 MMU32 number, MMOwnedBlock *block)
 {

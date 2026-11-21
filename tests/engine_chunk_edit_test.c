@@ -254,6 +254,7 @@ static void put_cases(void)
 {
     Fixture f;
     Node old;
+    MMU32 position;
     int existing, extra, zero, fail, result, fails;
     for (existing = 0; existing < 2; ++existing)
         for (extra = 0; extra < 2; ++extra)
@@ -322,6 +323,8 @@ static void put_cases(void)
     CHECK(mm_chunk_put_bytes(&f.edit, NULL, 10, 5, NULL, 0) == MM_CHUNK_OK);
     CHECK(f.count == 1 && f.nodes[0].entry.bytes == 0 && f.nodes[0].entry.flags == MM_CHUNK_LONER &&
           !f.outputs && !f.frees && !f.resets);
+    CHECK(mm_chunk_add_bytes(&f.edit, NULL, 10, NULL, 0, &position) == MM_CHUNK_OK && position == 0);
+    CHECK(f.count == 2 && f.nodes[0].entry.number == 0 && f.nodes[1].entry.number == 5 && !f.outputs);
 }
 static void simple(void)
 {

@@ -479,6 +479,10 @@ int main()
 #ifdef DEBUG
     unsigned short one = 1;
     if (*reinterpret_cast<const byte *>(&one))
-        CHECK(bytesRecorded == 102316 && hash == 0x113D98C1U);
+    {
+        // The trace includes native object sizes in resource cache estimates.
+        const auto expected = sizeof(void *) == 4 ? 0x552F8BFDU : 0x113D98C1U;
+        CHECK(bytesRecorded == 102316 && hash == expected);
+    }
 #endif
 }

@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MATERIAL_RESOURCE_H
 #define MM_ENGINE_MATERIAL_RESOURCE_H
+#include "chunk_edit.h"
 #include "resource_cache.h"
 #include <stddef.h>
 #ifdef __cplusplus
@@ -75,10 +76,7 @@ extern "C"
         void (*map)(void *, void *handle, void *colour_map, void *shade_map);
         MMI32 (*height)(void *, void *pixelmap);
         void (*transform)(void *, void *handle, const MMI32 matrix[6]);
-        int (*add_chunk)(void *, void *file, MMU32 type, const void *, MMI32 bytes, MMU32 *number);
-        int (*write_texture)(void *, void *texture, void *file, MMU32 type, MMU32 *number);
-        int (*adopt)(void *, void *file, MMU32 type, MMU32 number, const MMMaterialChild *);
-        void (*delete_chunk)(void *, void *file, MMU32 type, MMU32 number);
+        int (*write_texture)(void *, void *texture, const MMChunkEdit *, MMU32 type, MMU32 *number);
         void *(*read_bitmap)(void *, void *filename, void *palette);
         const void *(*pixelmap_path)(void *, void *filename);
         void *(*read_pixelmap)(void *, const void *path);
@@ -101,11 +99,11 @@ extern "C"
                                const MMMaterialShade *, const MMMaterialServices *);
     void mm_material_dispose(MMMaterialResource *, const MMMaterialServices *);
     void *mm_material_texture(const MMMaterialResource *, const MMMaterialServices *);
-    int mm_material_write(const MMMaterialResource *, void *file, MMU32 type, MMU32 *number,
-                                const MMMaterialServices *);
+    int mm_material_write(const MMMaterialResource *, const MMChunkEdit *, const MMBlockFileServices *,
+                           MMU32 type, MMU32 *number, const MMMaterialServices *);
     /* Write a supplied appearance and optional slot-zero transform. */
-    int mm_material_write_appearance(const MMMaterialResource *, void *file, MMU32 type, MMU32 *number,
-                                     const MMMaterialDescription *, const MMI32 mapping[6],
+    int mm_material_write_appearance(const MMMaterialResource *, const MMChunkEdit *, const MMBlockFileServices *,
+                                     MMU32 type, MMU32 *number, const MMMaterialDescription *, const MMI32 mapping[6],
                                      const MMMaterialServices *);
     /* Take an owned texture reference. A null replacement leaves the table installed. */
     int mm_material_shade_set(MMMaterialShade *, void *texture, const MMMaterialServices *);
