@@ -90,7 +90,7 @@ static void initialize_actor(void *context, void *body, void *actors, MMI32 inde
         actor->render_style = BR_RSTYLE_FACES;
 }
 
-void mm_brender_body_link(void *context, void *actors, MMI32 parent, MMI32 child)
+static void link_actor(void *context, void *actors, MMI32 parent, MMI32 child)
 {
     br_actor *body = (br_actor *)actors;
     (void)context;
@@ -132,7 +132,7 @@ void mm_brender_body_create_services(MMBodyCreateServices *s)
     s->initialize_actor = initialize_actor;
     s->assign_matrix = set_matrix;
     s->assign_material = set_material;
-    s->link = mm_brender_body_link;
+    s->link = link_actor;
 }
 
 static void copy_actors(void *context, void *body, void *destination, const void *source, MMI32 count)

@@ -14,7 +14,6 @@ extern "C" {
 /* Layout of the live actor array and its adjacent portable draw bindings. */
 int mm_brender_body_layout(MMI32 count, size_t limit, size_t *bytes, size_t *bindings_offset);
 void mm_brender_body_create_services(MMBodyCreateServices *);
-void mm_brender_body_link(void *, void *actors, MMI32 parent, MMI32 child);
 void mm_brender_body_edit_services(MMBodyEditServices *);
 void mm_brender_body_runtime_services(MMBodyRuntimeServices *);
 

@@ -125,7 +125,7 @@ static bool TestTemplateConstruction()
     std::fprintf(stderr,"[template construction] loaded=%d bodies=%d\n",loaded,bodies);
 #ifdef DEBUG
     const int recovered = cache_retries ? 2 : 0;
-    ok=ok && loaded==613+recovered && bodies==478+recovered;
+    ok=ok && loaded==613+recovered && bodies==485+recovered;
 #else
     ok=ok && loaded==672 && bodies==588;
 #endif

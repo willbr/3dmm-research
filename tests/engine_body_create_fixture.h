@@ -51,6 +51,8 @@ static bool TestBodyCreation()
                         actor->material!=nullptr,actor->model!=nullptr};
                     ok=record(fields,sizeof(fields)) && record(&actor->t.t.mat,sizeof(actor->t.t.mat)) && ok;
                     if (i>=2) ok=ok && actor->parent==root+(parents[shape][i-2]<0?0:parents[shape][i-2]+2);
+                    LegacyLong partSet=-2;
+                    ok=ok && Body::PbodyFromBact(actor,&partSet)==body && partSet==(i<2?-1:sets[shape][i-2]);
                 }
                 if ((kind+failure)%2) body->Show(); // disposal must hide a visible body first
             }

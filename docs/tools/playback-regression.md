@@ -17643,3 +17643,42 @@ per port in seek and continuous playback, both ports' seek camera indices,
 and SDL's 12 sound requests. Both ports kept all 60 seek canvas hashes from
 the preceding build. Exact canvas matches with retail stayed at 29 for SDL
 and 45 for Marcus. Evidence is in `tmp/c89-body-materials`.
+
+## Live body parent and set indices in C89 (21 November 2026)
+
+The live body validates borrowed parent and set views before allocating its
+actors or materials. Each part binding stores both indices. Body copies carry
+the indices with the actor bindings, and costume and picking queries read the
+stored set. The C fixture covers malformed indices, sparse sets, and mutation
+of the input buffer after construction.
+
+The separate live set-list allocation was removed. On native x64 and x86,
+the body fixtures now record 156 successful constructions and six injected
+failures, and 1,332 successful edits and 72 injected failures. Each build
+completes six more construction and 54 more edit cases under injection.
+The successful body records and remaining rollback records match equivalent
+cases in the prior traces. Seven additional template-body constructions per
+native build now complete at the former list-allocation fault. Template load
+results, metadata, and resulting body records match equivalent prior cases.
+The actor-creation fixture now injects failure at the draw-actor allocation and
+still verifies nine incomplete body bindings per native build.
+
+All 192 standalone C tests, four focused AddressSanitizer checks, 12 C89
+gates, and four Marcus application checks passed. Eight body traces, three
+template runtime traces, three Preview picking traces, 14 world and mesh traces,
+nine sound and actor traces, 54 movie and scene traces, three saved movies, and
+15 Studio pointer traces matched byte for byte. Ten Preview fingerprints
+matched on each build.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T023621Z-54879d00`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T023657Z-7a3cbcd0`.
+
+All four actor-event runs completed in `20261121T023604Z-b7394db8`. Both
+ports matched all 60 archived retail frame identities in seek and continuous
+playback, including the retail seek camera indices. SDL matched all 12 retail
+sound requests. Both ports reproduced their 60 seek canvas hashes from the
+preceding build. Studio's live costume workflow reproduced all 13 sampled
+actor states, 12 rendered images, and its round-trip saved movie. Evidence is
+in `tmp/c89-live-body-indices`.

@@ -144,28 +144,6 @@ MMBodyCreateServices Body::_CreateServices(void)
     s.state = [](void *, void *object) -> MMBodyState * { return &static_cast<PBody>(object)->_body; };
     s.create = [](void *) -> void * { return NewObj Body; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.validate_lists = [](void *, void *parents, void *sets) {
-        const auto par = static_cast<const MMPartIndexView *>(parents);
-        const auto list = static_cast<const MMPartIndexView *>(sets);
-        Assert(par->count == 0 || ivNil == mm_part_index_get(par, 0), "bad first parent index");
-        Assert(par->count == list->count, "body parent and set lists must have the same size");
-        (void)par; (void)list;
-    };
-    s.duplicate_sets = [](void *, void *sets) -> void * {
-        auto list = EnginePartIndices::Create();
-        if (list && !mm_part_indices_copy(list, static_cast<const MMPartIndexView *>(sets)))
-        {
-            mm_part_indices_dispose(list);
-            return nullptr;
-        }
-        return list;
-    };
-    s.release_sets = [](void *, void *sets) { mm_part_indices_dispose(static_cast<MMPartIndexList *>(sets)); };
-    // An owned list begins with the same view passed by borrowed callers.
-    s.count = [](void *, void *list) -> MMI32 { return static_cast<const MMPartIndexView *>(list)->count; };
-    s.item = [](void *, void *list, MMI32 i) -> MMI32 {
-        return mm_part_index_get(static_cast<const MMPartIndexView *>(list), i);
-    };
     s.allocate_materials = [](void *, MMI32 count, void ***out) -> int {
         void *storage = nullptr;
         const bool ok = FAllocPv(&storage, LwMul(count, size(void *)), fmemClear, mprNormal);
@@ -180,13 +158,6 @@ MMBodyCreateServices Body::_CreateServices(void)
         *bindings = reinterpret_cast<MMBodyPartBinding *>(static_cast<unsigned char *>(*actors) + offset);
         return 1;
     };
-#ifdef DEBUG
-    s.link = [](void *context, void *actors, MMI32 parent, MMI32 child) {
-        AssertIn(parent, 0, child);
-        Assert(parent != 1, "body part parent cannot be highlight actor");
-        mm_brender_body_link(context, actors, parent, child);
-    };
-#endif
     s.hide = [](void *, void *body) { static_cast<PBody>(body)->Hide(); };
     s.free_memory = [](void *, void **memory) { FreePpv(memory); };
     return s;
@@ -200,8 +171,7 @@ Body *Body::PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset)
 Body *Body::PbodyNew(const MMPartIndexView &parents, const MMPartIndexView &sets)
 {
     auto services = _CreateServices();
-    auto body = static_cast<PBody>(mm_body_create(const_cast<MMPartIndexView *>(&parents),
-                                                 const_cast<MMPartIndexView *>(&sets), &services));
+    auto body = static_cast<PBody>(mm_body_create(&parents, &sets, &services));
     AssertNilOrPo(body, fobjAssertFull);
     return body;
 }
@@ -220,8 +190,7 @@ bool Body::FChangeShape(const MMPartIndexView &parents, const MMPartIndexView &s
 {
     AssertThis(fobjAssertFull);
     auto services = _EditServices();
-    const bool ok = mm_body_change_shape(this, const_cast<MMPartIndexView *>(&parents),
-                                         const_cast<MMPartIndexView *>(&sets), &services) != 0;
+    const bool ok = mm_body_change_shape(this, &parents, &sets, &services) != 0;
     AssertThis(fobjAssertFull);
     return ok;
 }
@@ -632,7 +601,6 @@ void Body::AssertValid(LegacyUlong grf)
     AssertPvCb(_body.shape.custom_materials, LwMul(_body.shape.set_count, size(void *)));
     Assert(pvNil == _PbactRoot()->model, "Body root shouldn't have a model!!");
     Assert(pvNil == _PbactRoot()->material, "Body root shouldn't have a material!!");
-    Assert(_Sets() && _Sets()->view.count == _body.shape.part_count, "bad body part set list");
 
     if (grf & fobjAssertFull)
     {
@@ -640,6 +608,7 @@ void Body::AssertValid(LegacyUlong grf)
         {
             pbact = _PbactPart(ibact);
             const auto &binding = _body.shape.bindings[ibact+2];
+            AssertIn(binding.set, 0, _body.shape.set_count);
             if (pvNil != pbact->model)
                 AssertPo(Model::PmodlFromBmdl(pbact->model), 0);
             Assert(binding.material == pbact->material, "body part material binding mismatch");
@@ -667,9 +636,6 @@ void Body::MarkMem(void)
     Body_PAR::MarkMem();
     MarkPv(_Actors());
     MarkPv(_body.shape.custom_materials);
-    if (_Sets())
-        MarkMemObj(static_cast<BASE *>(_Sets()->owner));
-
     for (LegacyLong part = 0; part < _body.shape.part_count; ++part)
     {
         const auto &binding = _body.shape.bindings[part+2];

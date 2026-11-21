@@ -106,7 +106,8 @@ static bool TestBodyEditing()
     }
     std::fprintf(stderr,"[body editing] successes=%d failures=%d\n",successes,failures);
 #ifdef DEBUG
-    ok=ok && successes==1278 && failures==126;
+    // Only actor and material allocations remain after the Body object is allocated.
+    ok=ok && successes==1332 && failures==72;
 #else
     ok=ok && successes==1404 && failures==0;
 #endif

@@ -9,13 +9,12 @@ struct Ref { int refs,kind,set,count; Handle raw,parts[4]; Ref *models[4]; };
 typedef struct Part { Handle *model, *material; MMActorMatrix matrix; } Part;
 typedef struct Fixture
 {
-    MMBodyRuntimeServices s; MMBodyState b; short sets[6]; Part parts[8]; MMBodyPartBinding bindings[8]; void *customs[3];
+    MMBodyRuntimeServices s; MMBodyState b; Part parts[8]; MMBodyPartBinding bindings[8]; void *customs[3];
     Ref a,bmodel,ma,mb,custom,poison; int events[256],event_count;
     int parent,attached,detached,changed,highlight,fail,freed,model_lookups,diagnostics[4];
 } Fixture;
 static void event(Fixture *f,int n) { CHECK(f->event_count<256); f->events[f->event_count++]=n; }
 static MMBodyState *body_state(void *p,void *body) { Fixture *f=p; CHECK(body==f); return &f->b; }
-static MMI32 item(void *p,void *list,MMI32 i) { Fixture *f=p; CHECK(list==f->sets && i>=0 && i<6); return f->sets[i]; }
 static void retain(void *p,void *object) { Fixture *f=p; Ref *r=object; CHECK(r && r->refs>0); ++r->refs; event(f,7); }
 static void release(void *p,void *object)
 {
@@ -64,12 +63,12 @@ static void setup(Fixture *f,int hidden)
     f->ma.raw.owner=&f->ma; f->mb.raw.owner=&f->mb; f->ma.raw.live=f->mb.raw.live=1;
     for (i=0;i<4;++i) { f->custom.parts[i].owner=&f->ma; f->custom.parts[i].live=1; }
     f->custom.models[0]=&f->bmodel; f->custom.models[2]=&f->a;
-    for (i=0;i<6;++i) f->sets[i]=(short)(i%2);
-    f->b.shape.sets=f->sets; f->b.shape.part_count=6; f->b.shape.set_count=2; f->b.shape.hidden=hidden; f->parent=!hidden;
+    for (i=0;i<6;++i) f->bindings[i+2].set=i%2;
+    f->b.shape.part_count=6; f->b.shape.set_count=2; f->b.shape.hidden=hidden; f->parent=!hidden;
     f->b.shape.actors=f->parts; f->b.shape.bindings=f->bindings; f->b.shape.custom_materials=f->customs;
     f->b.geometry.bounds.right=99; f->b.geometry.last_visible.right=42;
     f->b.render.context=f; f->b.render.attach=attach; f->b.render.changed=changed;
-    f->s.shape.context=f; f->s.shape.state=body_state; f->s.shape.item=item;
+    f->s.shape.context=f; f->s.shape.state=body_state;
     f->s.shape.release=release; f->s.shape.allocate_materials=allocate; f->s.shape.free_memory=free_memory;
     f->s.retain=retain; f->s.model_handle=model_handle; f->s.assign_model=assign_model;
     f->s.shape.assign_material=assign_material; f->s.material_handle=material_handle;

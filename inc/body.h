@@ -50,7 +50,6 @@ class Body : public Body_PAR
     static MMBodyGeometryServices _GeometryServices(void);
     void _DestroyShape(void);
     PBACT _Actors(void) const { return static_cast<PBACT>(_body.shape.actors); }
-    const MMPartIndexList *_Sets(void) const { return static_cast<const MMPartIndexList *>(_body.shape.sets); }
     PBACT _PbactRoot(void) // ptr to root BACT
     {
         return _Actors();
@@ -69,7 +68,9 @@ class Body : public Body_PAR
     }                       // root, hilite, and body part BACTs
     LegacyLong _Ibset(LegacyLong ipart) // body part set that this part belongs to
     {
-        return mm_part_index_get(&_Sets()->view, ipart);
+        if (ipart < 0 || ipart >= _body.shape.part_count)
+            return ivNil;
+        return _body.shape.bindings[ipart+2].set;
     }
 
     // Callbacks from BRender:

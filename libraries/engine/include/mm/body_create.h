@@ -5,6 +5,7 @@
 #include "movie_data.h"
 #include "actor_math.h"
 #include "body_geometry.h"
+#include "part_indices.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -15,11 +16,11 @@ typedef struct MMBodyPartBinding
     void *model_handle; /* Draw handle borrowed from the model resource. */
     void *material_owner; /* Retained generic material, NULL for costume parts. */
     void *material; /* Draw handle held through a generic material or per-set costume. */
-    MMI32 parent;
+    MMI32 parent, set; /* The root and highlight have no material set. */
 } MMBodyPartBinding;
 typedef struct MMBodyShape
 {
-    void *sets, *actors;
+    void *actors;
     void **custom_materials; /* One retained costume per populated set. */
     MMBodyPartBinding *bindings; /* Root at 0, reserved highlight at 1, then parts. */
     MMI32 set_count, part_count, hidden;
@@ -52,11 +53,6 @@ typedef struct MMBodyCreateServices
     void (*install_highlight)(void *,void *);
     void *(*create)(void *);
     void (*release)(void *,void *);
-    void (*validate_lists)(void *,void *parents,void *sets);
-    void *(*duplicate_sets)(void *,void *);
-    void (*release_sets)(void *,void *);
-    MMI32 (*count)(void *,void *);
-    MMI32 (*item)(void *,void *,MMI32);
     int (*allocate_materials)(void *,MMI32,void ***);
     int (*allocate_actors)(void *,MMI32,void **,MMBodyPartBinding **);
     void (*initialize_actor)(void *,void *body,void *actors,MMI32 index,int role);
@@ -66,14 +62,14 @@ typedef struct MMBodyCreateServices
     void (*hide)(void *,void *body);
     void (*free_memory)(void *,void **);
 } MMBodyCreateServices;
-/* Lists have equal lengths, signed 16-bit entries, and parent indices -1 or
- * less than the child index. Set count does not exceed part count. Counts fit
- * native signed-short iteration and
- * allocation products fit the host allocator. Both allocation callbacks clear
+/* The borrowed views have equal lengths and signed 16-bit entries. A parent
+ * is -1 or an earlier part, and a set is in [0, part_count). Empty views are
+ * valid. Parent and set indices live in the draw bindings after initialization.
+ * Allocation products fit the host allocator. Both allocation callbacks clear
  * their storage, return NULL storage on failure and retain native zero-size
  * allocation behavior. The material storage is an array of void pointers. The actor
  * allocation returns the draw actors and their C bindings in one owner freed
- * through the actor pointer. duplicate_sets returns an owned list reference.
+ * through the actor pointer.
  * free_memory accepts NULL slots and clears released slots.
  * Bodies start with zeroed ownership. state returns a stable borrowed C owner;
  * access cannot fail, reenter or mutate it. Local value snapshots preserve
@@ -95,11 +91,11 @@ void mm_body_shape_part_world(const MMBodyShape *,MMI32 part,MMActorMatrix *);
  * the draw array. Parent -1 means the root attaches to the caller's world.
  * The selection highlight is separate. Stop when the consumer returns zero. */
 int mm_body_draw(const MMBodyDrawView *, void *context, MMBodyDrawPart);
-int mm_body_shape_initialize(void *,void *parents,void *sets,const MMBodyCreateServices *);
-int mm_body_initialize(void *,void *parents,void *sets,const MMBodyCreateServices *);
-void *mm_body_create(void *parents,void *sets,const MMBodyCreateServices *);
+int mm_body_shape_initialize(void *,const MMPartIndexView *parents,const MMPartIndexView *sets,const MMBodyCreateServices *);
+int mm_body_initialize(void *,const MMPartIndexView *parents,const MMPartIndexView *sets,const MMBodyCreateServices *);
+void *mm_body_create(const MMPartIndexView *parents,const MMPartIndexView *sets,const MMBodyCreateServices *);
 /* Visible bodies hide before releasing models, then materials, actor storage,
- * material storage and the duplicated set list, in that order. Material
+ * and material storage in that order. Material
  * removal is conditional on actor storage, including partial failures. Counts
  * are retained; released ownership pointers are published as NULL. */
 void mm_body_shape_dispose(void *,const MMBodyCreateServices *);

@@ -4,14 +4,15 @@
 #include <string.h>
 #define CHECK(c) do { if (!(c)) { fprintf(stderr,"body edit check %d: %s\n",__LINE__,#c); exit(1); } } while (0)
 typedef struct Ref { int count, handle; } Ref;
-typedef struct List { int kind,count; short values[8]; } List;
 typedef struct Part { void *owner,*model,*material; int role,parent,matrix; } Part;
 typedef struct ActorStorage { Part actors[10]; MMBodyPartBinding bindings[10]; } ActorStorage;
 typedef struct Body { int kind; MMBodyState state; } Body;
 typedef struct Fixture
 {
     MMBodyEditServices s; Ref model,generic,custom;
-    List parents,sets,new_parents,new_sets; Body *original;
+    MMPartIndexView parents,sets,new_parents,new_sets;
+    short parent_values[8],set_values[8],new_parent_values[8],new_set_values[8];
+    Body *original;
     int allocation,fail,created,released,hide,show,rebased,identified;
     int events[256],event_count;
 } Fixture;
@@ -29,17 +30,12 @@ static void release(void *p,void *object)
 {
     Fixture *f=p; CHECK(object);
     if (object==&f->model || object==&f->generic || object==&f->custom) { drop(object); return; }
-    if (*(int *)object==1) { event(f,object==f->original?90:80); mm_body_shape_dispose(object,&f->s.runtime.shape); ++f->released; }
-    else CHECK(*(int *)object==2);
+    CHECK(((Body *)object)->kind==1);
+    event(f,object==f->original?90:80);
+    mm_body_shape_dispose(object,&f->s.runtime.shape);
+    ++f->released;
     free(object);
 }
-static void *duplicate_sets(void *p,void *list)
-{
-    Fixture *f=p; List *copy; if (fail(f)) return NULL;
-    copy=malloc(sizeof(*copy)); CHECK(copy); *copy=*(List *)list; return copy;
-}
-static MMI32 count(void *p,void *list) { (void)p; return ((List *)list)->count; }
-static MMI32 item(void *p,void *list,MMI32 i) { (void)p; CHECK(i>=0 && i<((List *)list)->count); return ((List *)list)->values[i]; }
 static int allocate_materials(void *p,MMI32 n,void ***out)
 { Fixture *f=p; *out=NULL; if (fail(f)) return 0; *out=calloc((size_t)n+1,sizeof(**out)); CHECK(*out); return 1; }
 static int allocate_actors(void *p,MMI32 n,void **out,MMBodyPartBinding **bindings)
@@ -92,17 +88,17 @@ static void *custom_model(void *p,void *material,MMI32 slot) { (void)p; (void)ma
 static void *custom_material(void *p,void *material,MMI32 slot) { CHECK(slot<4); return resource_handle(p,material); }
 static int highlighted(void *p,void *actors) { (void)p; return ((Part *)actors)[1].role==MM_BODY_PART; }
 static void highlight(void *p,void *actors,int enabled) { (void)p; ((Part *)actors)[1].role=enabled?MM_BODY_PART:MM_BODY_HIGHLIGHT; }
-static void list(List *l,int n) { int i; l->kind=2; l->count=n; for (i=0;i<n;++i) l->values[i]=(short)(i%2); }
+static void list(MMPartIndexView *view,const short *values,int n) { view->bytes=(const unsigned char *)values; view->count=n; }
 static void setup(Fixture *f,int visible,int n,int hilite)
 {
     int i; MMBodyRuntimeServices *runtime=&f->s.runtime; MMBodyCreateServices *c=&runtime->shape; MMActorMatrix matrix;
     memset(f,0,sizeof(*f)); f->model.count=f->generic.count=f->custom.count=1;
-    list(&f->sets,6); list(&f->parents,6); list(&f->new_sets,n); list(&f->new_parents,n);
-    for (i=0;i<6;++i) f->parents.values[i]=(short)(i?((i-1)/2):-1);
-    for (i=0;i<n;++i) f->new_parents.values[i]=(short)(i?i-1:-1);
+    list(&f->sets,f->set_values,6); list(&f->parents,f->parent_values,6);
+    list(&f->new_sets,f->new_set_values,n); list(&f->new_parents,f->new_parent_values,n);
+    for (i=0;i<6;++i) { f->parent_values[i]=(short)(i?((i-1)/2):-1); f->set_values[i]=(short)(i%2); }
+    for (i=0;i<n;++i) { f->new_parent_values[i]=(short)(i?i-1:-1); f->new_set_values[i]=(short)(i%2); }
     c->context=f; c->state=body_state; c->highlight=highlight_material;
-    c->create=create; c->release=release; c->duplicate_sets=duplicate_sets; c->release_sets=release;
-    c->count=count; c->item=item;
+    c->create=create; c->release=release;
     c->allocate_materials=allocate_materials; c->allocate_actors=allocate_actors; c->initialize_actor=initialize;
     c->assign_matrix=assign_matrix; c->assign_material=assign_material;
     c->link=link_actor; c->hide=hide; c->free_memory=free_memory;
@@ -165,7 +161,7 @@ int main(void)
         setup(&f,visible,n,hilite); f.fail=failure;
         if (operation) ok=mm_body_change_shape(f.original,&f.new_parents,&f.new_sets,&f.s);
         else { copy=mm_body_duplicate(f.original,&f.s); ok=copy!=NULL; }
-        CHECK(ok==(!failure || failure>(operation?7:4)));
+        CHECK(ok==(!failure || failure>(operation?5:3)));
         CHECK(f.original->state.shape.hidden==visible && f.original->state.render.context==&f);
         CHECK(f.original->state.geometry.last_visible.left==7 && f.original->state.geometry.bounds.left==(visible?2:0));
         refs(&f,f.original,copy);
@@ -188,7 +184,8 @@ int main(void)
             Part *a=(Part *)f.original->state.shape.actors+i+2;
             CHECK(a->owner==f.original && a->matrix==(i<6?100+i:0));
             CHECK((a->model!=NULL)==(i<6 && !(i%2)));
-            CHECK(f.original->state.shape.bindings[i+2].parent==(operation && ok?f.new_parents.values[i]:f.parents.values[i]));
+            CHECK(f.original->state.shape.bindings[i+2].parent==(operation && ok?f.new_parent_values[i]:f.parent_values[i]));
+            CHECK(f.original->state.shape.bindings[i+2].set==i%2);
         }
         if (!operation && !ok && failure>1 && !visible)
         {

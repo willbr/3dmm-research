@@ -92,9 +92,8 @@ typedef struct BodySetBinding
 static MMI32 render_part_set(void *context, void *body, MMI32 part)
 {
     const BodySetBinding *binding = (const BodySetBinding *)context;
-    const MMBodyCreateServices *s = &binding->services->shape;
     (void)body;
-    return s->item(s->context, binding->shape->sets, part);
+    return binding->shape->bindings[part+2].set;
 }
 
 static int render_generic(void *context, void *body, MMI32 part, MMI32 slot)
@@ -166,7 +165,7 @@ void mm_body_get_material(void *body,MMI32 set,int *generic,void **material,void
     *custom=shape->custom_materials[set];
     if (*custom) { *generic=0; if (s->invalidate_output) s->invalidate_output(p,material); return; }
     *generic=1; if (s->invalidate_output) s->invalidate_output(p,custom);
-    for (i=0;i<shape->part_count;++i) if (set==s->shape.item(p,shape->sets,i))
+    for (i=0;i<shape->part_count;++i) if (set==shape->bindings[i+2].set)
     {
         *material=shape->bindings[i+2].material_owner;
         if (!*material) diagnose(s,MM_BODY_MISSING_MATERIAL);

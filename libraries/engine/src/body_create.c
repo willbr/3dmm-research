@@ -29,7 +29,7 @@ void mm_body_shape_remove_material(MMBodyShape *shape,MMI32 set,const MMBodyCrea
     for (part=0;part<shape->part_count;++part)
     {
         MMBodyPartBinding *binding=&shape->bindings[part+2];
-        if (s->item(s->context,shape->sets,part)!=set)
+        if (binding->set!=set)
             continue;
         if (binding->material_owner)
             s->release(s->context,binding->material_owner);
@@ -67,55 +67,59 @@ int mm_body_draw(const MMBodyDrawView *view,void *context,MMBodyDrawPart submit)
     }
     return 1;
 }
-int mm_body_shape_initialize(void *body,void *parents,void *sets,const MMBodyCreateServices *s)
+int mm_body_shape_initialize(void *body,const MMPartIndexView *parents,const MMPartIndexView *sets,const MMBodyCreateServices *s)
 {
     MMBodyShape *shape = &s->state(s->context,body)->shape;
-    MMBodyShape b;
+    MMBodyShape b=*shape;
     MMActorMatrix identity;
-    MMI32 i,n,set,parent;
-    if (s->validate_lists) s->validate_lists(s->context,parents,sets);
-    b=*shape;
-    b.sets=s->duplicate_sets(s->context,sets);
-    *shape=b;
-    if (!b.sets) return 0;
-    b.set_count=-1;
-    n=s->count(s->context,b.sets);
+    MMI32 i,n,set,parent,set_count=0;
+    if (!parents || !sets || parents->count!=sets->count ||
+        (MMU32)parents->count>=MM_STORAGE_LIMIT/MM_PART_INDEX_BYTES)
+        return 0;
+    n=parents->count;
+    if (n && (!parents->bytes || !sets->bytes))
+        return 0;
     for (i=0;i<n;++i)
     {
-        set=s->item(s->context,b.sets,i);
-        if (set>b.set_count) b.set_count=set;
+        parent=mm_part_index_get(parents,i);
+        set=mm_part_index_get(sets,i);
+        if (parent < -1 || parent>=i || set<0 || set>=n)
+            return 0;
+        if (set>=set_count) set_count=set+1;
     }
-    ++b.set_count;
+    b.set_count=set_count;
     *shape=b;
     if (!s->allocate_materials(s->context,b.set_count,&b.custom_materials))
     { *shape=b; return 0; }
-    b.part_count=s->count(s->context,parents);
+    b.part_count=n;
     *shape=b;
     if (!s->allocate_actors(s->context,b.part_count+2,&b.actors,&b.bindings))
     { *shape=b; return 0; }
     *shape=b;
     mm_matrix_identity(&identity);
     b.bindings[0].parent=-1;
+    b.bindings[0].set=b.bindings[1].set=-1;
     s->initialize_actor(s->context,body,b.actors,0,MM_BODY_ROOT);
     mm_body_shape_matrix(&b,0,&identity,s);
     s->initialize_actor(s->context,body,b.actors,1,MM_BODY_HIGHLIGHT);
     s->link(s->context,b.actors,0,1);
     for (i=0;i<b.part_count;++i)
     {
-        parent=s->item(s->context,parents,i);
+        parent=mm_part_index_get(parents,i);
         b.bindings[i+2].parent=parent;
+        b.bindings[i+2].set=mm_part_index_get(sets,i);
         s->initialize_actor(s->context,body,b.actors,i+2,MM_BODY_PART);
         mm_body_shape_matrix(&b,i+2,&identity,s);
         s->link(s->context,b.actors,parent==-1?0:parent+2,i+2);
     }
     return 1;
 }
-int mm_body_initialize(void *body,void *parents,void *sets,const MMBodyCreateServices *s)
+int mm_body_initialize(void *body,const MMPartIndexView *parents,const MMPartIndexView *sets,const MMBodyCreateServices *s)
 {
     s->state(s->context,body)->shape.hidden=1;
     return mm_body_shape_initialize(body,parents,sets,s);
 }
-void *mm_body_create(void *parents,void *sets,const MMBodyCreateServices *s)
+void *mm_body_create(const MMPartIndexView *parents,const MMPartIndexView *sets,const MMBodyCreateServices *s)
 {
     void *highlight,*body;
     if (!s->highlight(s->context))
@@ -156,6 +160,4 @@ void mm_body_shape_dispose(void *body,const MMBodyCreateServices *s)
     }
     materials=b.custom_materials;
     s->free_memory(s->context,&materials); b.custom_materials=materials; *shape=b;
-    if (b.sets) s->release_sets(s->context,b.sets);
-    b.sets=NULL; *shape=b;
 }

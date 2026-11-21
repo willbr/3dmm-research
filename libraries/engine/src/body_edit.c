@@ -32,8 +32,6 @@ void *mm_body_duplicate(void *body,const MMBodyEditServices *s)
     for (i=0;i<d.part_count;++i)
         if (d.bindings[i+2].model_owner)
             runtime->retain(c->context,d.bindings[i+2].model_owner);
-    d.sets=c->duplicate_sets(c->context,b.sets); target->shape=d;
-    if (!d.sets) goto fail;
     if (!c->allocate_materials(c->context,b.set_count,&d.custom_materials))
     { target->shape=d; goto fail; }
     target->shape=d;
@@ -48,7 +46,7 @@ void *mm_body_duplicate(void *body,const MMBodyEditServices *s)
         else
         {
             for (j=0;j<d.part_count;++j)
-                if (d.bindings[j+2].material_owner && i==c->item(c->context,d.sets,j))
+                if (d.bindings[j+2].material_owner && i==d.bindings[j+2].set)
                     runtime->retain(c->context,d.bindings[j+2].material_owner);
         }
     }
@@ -75,7 +73,7 @@ void mm_body_restore(void *body,void *replacement,const MMBodyEditServices *s)
     if (!displaced.shape.hidden) mm_body_show(body,&s->runtime);
     receiver->shape.hidden=displaced.shape.hidden;
 }
-int mm_body_change_shape(void *body,void *parents,void *sets,const MMBodyEditServices *s)
+int mm_body_change_shape(void *body,const MMPartIndexView *parents,const MMPartIndexView *sets,const MMBodyEditServices *s)
 {
     const MMBodyRuntimeServices *runtime=&s->runtime;
     const MMBodyCreateServices *c=&runtime->shape;

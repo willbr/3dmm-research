@@ -5126,11 +5126,11 @@ resource/runtime policy and final facade removal remain unfinished.
 ### Body construction and shape ownership
 
 `body_create.c` owns the shared highlight initialization decision, body factory,
-hidden-state initialization, duplicated set ownership, highest-set-plus-one
-counting, allocation order and root/highlight/part hierarchy construction. C
-also owns shape disposal: hide first when visible, release models in part order,
-remove materials in set order only when actor storage exists, free actor and
-material storage, then release the duplicated set list. Partial initialization
+hidden-state initialization, parent and set validation, set counting, allocation
+order, and root/highlight/part hierarchy construction. C also owns shape
+disposal. It hides visible bodies, releases models in part order, removes
+materials in set order when actor storage exists, and frees actor and material
+storage. Partial initialization
 remains published without rollback; the factory releases its failed body while
 direct initialization callers retain cleanup responsibility. Disposal clears
 ownership pointers while retaining counts, matching native behavior.
@@ -5138,44 +5138,35 @@ ownership pointers while retaining counts, matching native behavior.
 The C89 BRender binding lays out the live actor array and its adjacent draw
 bindings, initializes and links the actors, and owns the shared highlight
 material. Native services supply allocation, reference release and renderer
-notifications. Body creation and reshaping read borrowed parent and set views.
-Each body owns a C89 copy of its part
-sets. The native Body embeds `MMBodyShape` with actor and material allocation
-handles, the set-list reference, part and set counts, and the hidden count.
-One borrowed state accessor exposes this record to the C code. C value snapshots
-retain the previous publication points around allocation, visibility and cleanup;
-initialization explicitly clears a fresh owner, not a live one. Typed actor,
-set-list and custom-material views read that same C owner. Model/material
-resource implementations, ThreeDText construction, representation adapters
-and the remaining native Body facade remain C++ dependencies. Both hosts use the
-converted construction/disposal through their engine-core Body facade; this is
-not yet the final C-only backend boundary.
+notifications. Body creation and reshaping read borrowed parent and set views,
+reject invalid indices before allocating actors or materials, and store each
+part's indices together in its draw binding. Picking and materials read that
+stored set index. The native Body embeds `MMBodyShape` with actor and material
+allocation handles, part and set counts, and the hidden count. One borrowed
+state accessor exposes this record to the C code. C value snapshots preserve
+the publication points around allocation, visibility and cleanup. Both hosts
+use the C construction and disposal through their engine-core Body facade.
+Typed resource operations and the native facade remain C++ dependencies.
 
-The 88,136-byte native trace covers 162 factory cases across empty, single-part,
-chain, branch, disconnected and sparse-set hierarchies. It includes 150 successes
-and 12 allocator-injected failures, canonical actor links/fields/matrices,
-visible-body disposal and restored allocation counts. C output matches exactly.
-The release SDL round-trip additionally passes all 162 body cases without debug
-allocator injection. C tests cover cold/warm shared material, highlight/factory/
-list/material/actor allocation failures, partial state publication, direct versus
-factory cleanup and model/material/storage release order. AddressSanitizer,
-strict C89 syntax, 63 standalone checks, 77 focused native checks, 49 snapshots,
-51 CLI baselines and headless scene playback pass. The persistent-storage follow-up
-retains separate original Debug/Release traces and repeats the body integration
-and playback checks; evidence is in `docs/tools/playback-regression.md`.
-No Marcus UI tests were added.
+The native trace covers 162 factory cases across empty, single-part, chain,
+branch, disconnected and sparse-set hierarchies. It checks canonical actor
+links, fields and matrices, visible-body disposal, and restored allocation
+counts. The SDL release fixture covers the same cases. C tests cover malformed
+indices, independence from the borrowed input, allocation failures, partial
+state publication, direct versus factory cleanup, and model/material/storage
+release order. See `docs/tools/playback-regression.md` for the capture results.
 
 ### Body duplication, restoration and reshaping
 
 `body_edit.c` owns duplicate allocation/reference sequencing, original visibility
 restoration, actor identifier repair, preserved hidden counts, reshape rollback
 and the order in which materials/models/matrices/highlighting are restored.
-Duplication hides a visible original, copies bindings, allocates/rebases actors,
-retains models, duplicates the set list, allocates/copies costume storage and
-copies bounds. The C controller retains each generic part owner and each custom
-set owner from the copied state. It re-shows the original after either outcome
-and before disposing of a failed copy. A copy starts hidden once regardless of
-its source's hidden count.
+Duplication hides a visible original, allocates and rebases the actors, copies
+the bindings with their part indices, retains models, allocates and copies
+costume storage, and copies bounds. The C controller retains each generic
+part owner and each custom set owner from the copied state. It re-shows the
+original after either outcome and before disposing of a failed copy. A copy
+starts hidden once regardless of its source's hidden count.
 
 Restoration exchanges the C-owned shape, bounds, hit state, and borrowed renderer
 binding. Each facade keeps its identity and reference count, and both actor trees
@@ -5194,8 +5185,8 @@ operations. The facade provides typed resource operations. The C visibility
 controller clears bounds and dispatches optional notifications through the
 stored host binding.
 
-The 1,880,872-byte native trace matches C exactly across 1,404 cases: 1,278
-successes and 126 allocation-injected failures. Cases include empty/one/six-part
+The native trace covers 1,404 cases with allocation failure injection. Cases
+include empty, single-part, and six-part
 sources, growing/shrinking targets, generic/custom materials, shared and missing
 models, canonical hierarchy links (including previous-link slots), part/root
 matrices, bounds/hit state, renderer attachment, nested hiding and highlighting.

@@ -50,11 +50,12 @@ static bool TestActorCreation(PMovie movie)
         {
             ++successes;
 #ifdef DEBUG
-            if (bodyFail) { vmutxMem.Enter(); vdmglob.dmaglBase.cactDo=1; vdmglob.dmaglBase.cactFail=1; vmutxMem.Leave(); }
+            // The actor array follows the material array in pointer allocation order.
+            if (bodyFail) { vmutxMem.Enter(); vdmglob.dmaglPv.cactDo=1; vdmglob.dmaglPv.cactFail=1; vmutxMem.Leave(); }
 #endif
             actor->SetPscen(movie->Pscen());
 #ifdef DEBUG
-            vmutxMem.Enter(); vdmglob.dmaglBase.cactFail=0; vmutxMem.Leave();
+            vmutxMem.Enter(); vdmglob.dmaglPv.cactFail=0; vmutxMem.Leave();
             if (bodyFail) { ++bodyFailures; ok=ok && !actor->Pbody(); }
             else
 #endif

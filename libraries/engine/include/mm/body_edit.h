@@ -13,8 +13,8 @@ typedef struct MMBodyEditServices
     void (*identify)(void *,void *body,void *actors,MMI32 count);
     int (*highlighted)(void *,void *actors);
 } MMBodyEditServices;
-/* Duplication requires a complete shape. Actors
- * and model references precede set-list duplication and material storage.
+/* Duplication requires a complete shape. Actors and model references precede
+ * allocation of material storage. The copied bindings carry the part sets.
  * Generic materials retain one reference per matching part; custom materials
  * retain one per set. The original is re-shown BEFORE failed-copy disposal.
  * The copy is hidden once and keeps native bindings/hit metadata/bounds.
@@ -32,7 +32,7 @@ void mm_body_restore(void *,void *replacement,const MMBodyEditServices *);
  * restores visibility before materials, then shared-part models/matrices, root
  * matrix and highlight. Failure restores the duplicate and original visibility;
  * the displaced partial shape is released through the normal body destructor. */
-int mm_body_change_shape(void *,void *parents,void *sets,const MMBodyEditServices *);
+int mm_body_change_shape(void *,const MMPartIndexView *parents,const MMPartIndexView *sets,const MMBodyEditServices *);
 #ifdef __cplusplus
 }
 #endif
