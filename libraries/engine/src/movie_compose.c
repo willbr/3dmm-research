@@ -4,9 +4,11 @@
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_session.h"
 #include "mm/movie_sound_archive.h"
+#include "mm/movie_sound.h"
 #include "mm/actor_archive.h"
 #include "mm/actor_data.h"
 #include "mm/scene_data.h"
+#include "mm/scene_thumbnail.h"
 #include "mm/wide.h"
 #include <string.h>
 int mm_composite_scene(const MMCompositeMovie *state, MMU32 index, MMComposeScene *out)
@@ -96,6 +98,38 @@ static int scene_link(const MMChunkEdit *edit, MMU32 movie, MMU32 slot, MMU32 *n
     return mm_chunk_link_number(&chunks, MM_MOVIE_CHUNK, movie, slot, MM_SCENE_CHUNK, number) == MM_CHUNK_OK;
 }
 
+typedef struct ComposeThumbnail
+{
+    const MMMovieComposeServices *services;
+    void *bitmap;
+} ComposeThumbnail;
+
+static int receive_thumbnail(void *context, const MMReadStream *stream)
+{
+    ComposeThumbnail *thumbnail = context;
+    const MMMovieComposeServices *s = thumbnail->services;
+    thumbnail->bitmap = s->decode_thumbnail(s->context, stream);
+    return thumbnail->bitmap != NULL;
+}
+
+static void *read_thumbnail(void *file, MMU32 scene, const MMArchiveWriter *archive, const MMMovieComposeServices *s)
+{
+    const MMChunkAccess chunks = mm_chunk_edit_access(&archive->edit);
+    ComposeThumbnail thumbnail;
+    MMU32 number;
+    int decoded;
+    if (mm_scene_thumbnail_link(&chunks, scene, &number) != MM_CHUNK_OK)
+    {
+        s->diagnostic(s->context, MM_COMPOSE_MISSING_THUMBNAIL);
+        return NULL;
+    }
+    thumbnail.services = s;
+    thumbnail.bitmap = NULL;
+    mm_chunk_read_payload(archive->payloads, file, MM_SCENE_THUMBNAIL_TYPE, number,
+                          receive_thumbnail, &thumbnail, &decoded);
+    return thumbnail.bitmap;
+}
+
 int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
                          const MMMovieComposeServices *s)
 {
@@ -143,7 +177,7 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
         {
             if (!mm_scene_transition_read(scene.number, s->data->title.unit, &scene.transition, &io))
                 goto fail;
-            scene.thumbnail = s->read_thumbnail(file, scene.number);
+            scene.thumbnail = read_thumbnail(file, scene.number, &archive, s);
             if (!scene.thumbnail)
                 goto fail;
         }
@@ -335,6 +369,31 @@ static void delete_root(const MMChunkEdit *edit, MMU32 number, const MMMovieScen
     if (mm_chunk_delete(edit, MM_MOVIE_CHUNK, number) != MM_CHUNK_OK && scenes->archive_issue)
         scenes->archive_issue(scenes->context, MM_MOVIE_ARCHIVE_DELETE_FAILED);
 }
+static void validate_scenes(const MMChunkEdit *edit, const MMMovieComposeServices *s)
+{
+    const MMChunkAccess chunks = mm_chunk_edit_access(edit);
+    MMChunkEntry root;
+    MMChunkChild child;
+    MMU32 row, i, previous = 0xffffffffUL;
+    if (mm_chunk_find(&chunks, MM_MOVIE_CHUNK, s->data->movieNumber, &row) != MM_CHUNK_OK ||
+        mm_chunk_at(&chunks, row, &root) != MM_CHUNK_OK)
+        return;
+    for (i = 0; i < root.child_count; ++i)
+    {
+        if (mm_chunk_child_at(&chunks, row, i, &child) != MM_CHUNK_OK)
+        {
+            s->diagnostic(s->context, MM_COMPOSE_SCENE_ENUM);
+            break;
+        }
+        if (child.type == MM_SCENE_CHUNK)
+        {
+            if (previous != 0xffffffffUL && child.slot <= previous)
+                s->diagnostic(s->context, MM_COMPOSE_SCENE_ORDER);
+            previous = child.slot;
+        }
+    }
+}
+
 int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeServices *s)
 {
     const MMMovieSceneServices *scenes = &s->scene_control;
@@ -402,7 +461,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
                         scenes->archive_issue(scenes->context, MM_MOVIE_ARCHIVE_MISSING_CHILD);
                     goto done;
                 }
-                if (!s->adopt_sounds(s->context, file, number))
+                if (!mm_movie_sound_adopt_scene(&edit, s->data->movieNumber, number, s->context, s->sound_issue))
                     goto done;
                 scene = scenes->read(scenes->context, resources, number, NULL);
                 if (!scene || !s->start_scene(scene) || !s->add_actors(scene))
@@ -469,7 +528,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
     s->invalidate(s->context);
     s->rollcall_changed(s->context);
     if (s->validate_children)
-        s->validate_children(s->context);
+        validate_scenes(&edit, s);
     ok = 1;
 done:
     while (copied)

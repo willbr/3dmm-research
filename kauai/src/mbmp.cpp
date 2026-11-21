@@ -124,21 +124,26 @@ PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadChunk(PChunkyFile file, ChunkTagOrT
     PMaskedBitmapMBMP object = nullptr;
     int result;
     const auto read = [](void *out, const MMReadStream *stream) -> int {
-        MMMaskedBitmap bitmap = {};
-        const auto services = _Services();
-        if (!mm_masked_read_stream(stream, &bitmap, &services))
-            return 0;
-        auto object = NewObj MaskedBitmapMBMP;
-        if (!object)
-        {
-            mm_masked_dispose(&bitmap, &services);
-            return 0;
-        }
-        object->_bitmap = bitmap;
+        auto object = PmbmpReadStream(stream);
         *static_cast<PMaskedBitmapMBMP *>(out) = object;
-        return 1;
+        return object != nullptr;
     };
     mm_chunk_read_payload(KauaiChunkPayloadServices(), file, type, number, read, &object, &result);
+    return object;
+}
+PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadStream(const MMReadStream *stream)
+{
+    MMMaskedBitmap bitmap = {};
+    const auto services = _Services();
+    if (!mm_masked_read_stream(stream, &bitmap, &services))
+        return nullptr;
+    auto object = NewObj MaskedBitmapMBMP;
+    if (!object)
+    {
+        mm_masked_dispose(&bitmap, &services);
+        return nullptr;
+    }
+    object->_bitmap = bitmap;
     return object;
 }
 LegacyLong MaskedBitmapMBMP::CbOnFile()

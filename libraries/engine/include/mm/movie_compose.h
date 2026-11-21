@@ -32,7 +32,10 @@ extern "C"
         MM_COMPOSE_MISSING_SCENE,
         MM_COMPOSE_BAD_BASE,
         MM_COMPOSE_IMPORT_ACTORS,
-        MM_COMPOSE_REMOVE_ACTORS
+        MM_COMPOSE_REMOVE_ACTORS,
+        MM_COMPOSE_MISSING_THUMBNAIL,
+        MM_COMPOSE_SCENE_ENUM,
+        MM_COMPOSE_SCENE_ORDER
     };
     typedef struct MMMovieComposeServices
     {
@@ -44,18 +47,19 @@ extern "C"
         MMArchiveWriter (*archive)(void *file);
         MMChunkTitleIO titles;
         MMRollCallBinding rollcall;
-        int temporary_before_save;
+        int temporary_before_save, validate_children;
         int (*use_temporary)(void *), (*autosave)(void *);
         void (*retain)(void *), (*release)(void *);
         MMI32 (*transition)(void *scene);
-        void *(*read_thumbnail)(void *file, MMU32 number), *(*thumbnail)(void *scene);
+        void *(*decode_thumbnail)(void *, const MMReadStream *);
+        void *(*thumbnail)(void *scene);
         int (*clone_movie)(void *source, MMU32 number, void *destination, MMU32 *number_out);
-        int (*adopt_sounds)(void *, void *file, MMU32 scene);
+        void (*sound_issue)(void *, int);
         int (*start_scene)(void *scene), (*add_actors)(void *scene);
         void (*remove_actors)(void *scene), (*actor_tools)(void *), (*text_tools)(void *);
         void (*set_transition)(void *scene, MMI32);
         void (*dirty)(void *), (*scene_nuked)(void *), (*invalidate)(void *), (*rollcall_changed)(void *),
-            (*diagnostic)(void *, int), (*validate_children)(void *);
+            (*diagnostic)(void *, int);
         int (*copy_reference)(void *source, void *destination, MMU32 type, MMU32 number,
                               MMU32 *copied, int *created);
     } MMMovieComposeServices;
@@ -71,7 +75,7 @@ extern "C"
     int mm_composite_set_transition(MMCompositeMovie *, MMU32 index, MMI32 transition);
     void mm_composite_empty(MMCompositeMovie *, void (*release)(void *));
     /* Initialized synchronous services and stable owners are required. Callbacks
-     * cannot re-enter editing. Read_thumbnail/read_scene return one reference,
+     * cannot re-enter editing. Decode_thumbnail/read return one reference,
      * thumbnail is borrowed.
      * The roll-call binding reads the cloned root from the working cache.
      * Failure leaves it empty. Table disposal releases storage only.

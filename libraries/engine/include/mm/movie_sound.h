@@ -53,6 +53,9 @@ MMU32 mm_movie_sound_next_scene(const MMMovieSoundServices *);
 MMU32 mm_movie_sound_next_movie(const MMMovieSoundServices *);
 int mm_movie_sound_is_child(void *file,MMU32 type,MMU32 number,const MMMovieSoundServices *);
 int mm_movie_sound_adopt(void *file,MMU32 scene,const MMMovieSoundServices *);
+/* Adopt the scene's sounds into the movie in the same writable index. */
+int mm_movie_sound_adopt_scene(const MMChunkEdit *, MMU32 movie, MMU32 scene,
+                               void *context, void (*diagnostic)(void *, int));
 /* A non-document SID still obtains the selected file before returning unchanged.
  * Equal chunk numbers never reopen/rebind the tag, even with another cache.
  * Changed numbers open a local tag before closing/replacing the original; failed

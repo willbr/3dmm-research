@@ -18679,3 +18679,26 @@ archived retail frame identities. SDL matched all four retail sound requests.
 The ports matched their previous PCM16 peak of 2,176. The archived retail
 peak is 2,380. The captures contain 519,840 SDL and 511,680 Marcus PCM frames.
 Logs and the comparison script are in `tmp/c89-compose-embedded`.
+
+## Composition thumbnails, sound adoption and scene order (21 November 2026)
+
+Studio composition resolves the thumbnail link at slot zero and passes its
+decoded stream to the bitmap host. C89 adopts imported user sounds into the
+movie at its free sound slots and skips repeated references to the same sound.
+It also checks scene-slot ordering in debug builds. The composition fixture
+covers a thumbnail in the wrong slot, duplicate scene slots, a rejected sound
+link after the imported scene is linked, and repeated references to one sound.
+
+All 193 standalone C checks and four focused AddressSanitizer checks passed.
+The three Marcus checks and the native Preview session, core-link and masked
+bitmap checks passed. Native x64, x86 and SDL matched their 19,044-byte
+composition snapshots, all 27 save/reopen traces, sound-resource snapshots
+and the complete authoring save. Both ports matched the three archived
+V3dmm storyboard frames, cameras and canvas hashes in suite
+`20261121T103317Z-d506dfee`.
+
+In sampled-audio suite `20261121T103324Z-3c638a90`, both ports matched all 60
+archived retail frame identities. SDL matched all four retail sound requests.
+The ports matched their previous PCM16 peak of 2,176. The archived retail
+peak is 2,380. The captures contain 510,240 SDL and 511,680 Marcus PCM frames.
+Logs and the comparison script are in `tmp/c89-compose-thumbnail-sound`.

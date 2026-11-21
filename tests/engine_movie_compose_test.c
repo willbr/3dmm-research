@@ -8,6 +8,7 @@
 #include "mm/movie_session.h"
 #include "mm/movie_sound.h"
 #include "mm/scene_data.h"
+#include "mm/scene_thumbnail.h"
 #include "engine_resource_block_fixture.h"
 #include "movie_scene_archive_fixture.h"
 #include <stdio.h>
@@ -80,7 +81,8 @@ struct Test
     Object resources[3], thumbs[3], open, read, tags[3];
     int fail, failAt, calls[40], events[256], n, badRef;
     int withActors, actorIds[2], adjusted[8], adjustCount;
-    int deleted[8], deletedCount, adopted, removedActors, closed, diagnostic[4];
+    int deleted[8], deletedCount, adopted, removedActors, closed;
+    int diagnostic[MM_COMPOSE_SCENE_ORDER + 1], withSounds;
     int memoryCalls, allocFailAt, blocks, openTransition;
     int readingSource, actorBlocks, closedTags[2], tagCloses;
     ResourceTestBlock block;
@@ -358,11 +360,26 @@ static MMI32 transition(void *p)
 {
     return ((Object *)p)->test->openTransition;
 }
-static void *read_thumbnail(void *p, MMU32 number)
+static const unsigned char thumbnail_bytes[] = {1, 3, 7};
+static void seed_thumbnail(void *file, MMU32 first, MMU32 count)
 {
-    Object *o = p;
-    Test *t = o->test;
-    (void)number;
+    const MMArchiveWriter archive = compose_archive(file);
+    MMChunkChild thumbnail = {MM_SCENE_THUMBNAIL_TYPE, 0, 0};
+    MMU32 i;
+    if (mm_chunk_add_bytes(&archive.edit, archive.payloads->files, thumbnail.type,
+                           thumbnail_bytes, sizeof(thumbnail_bytes), &thumbnail.number) != MM_CHUNK_OK)
+        fixture_failure(__LINE__);
+    for (i = 0; i < count; ++i)
+        if (mm_chunk_adopt(&archive.edit, MM_SCENE_CHUNK, first + i, &thumbnail, 1) != MM_CHUNK_OK)
+            fixture_failure(__LINE__);
+}
+static void *decode_thumbnail(void *p, const MMReadStream *stream)
+{
+    Test *t = p;
+    unsigned char bytes[sizeof(thumbnail_bytes)];
+    if (stream->length != sizeof(bytes) || !mm_read_exact(stream, 0, bytes, sizeof(bytes)) ||
+        memcmp(bytes, thumbnail_bytes, sizeof(bytes)))
+        fixture_failure(__LINE__);
     if (fails(t, READ_THUMB))
         return 0;
     ++t->thumbs[0].refs;
@@ -434,6 +451,17 @@ static int clone(void *p, MMU32 number, void *destination, MMU32 *out)
         const MMChunkChild sound = {MM_SOUND_CHUNK, 0, 0};
         fixture_chunk_add(archive(destination), sound.type, sound.number);
         if (mm_chunk_adopt(&edit, MM_MOVIE_CHUNK, *out, &sound, 1) != MM_CHUNK_OK)
+            fixture_failure(__LINE__);
+    }
+    if (o->test->withSounds || o->test->fail == SOUNDS)
+    {
+        const MMChunkEdit edit = fixture_chunk_edit(archive(destination));
+        MMChunkChild sound = {MM_SOUND_CHUNK, 27, 5};
+        fixture_chunk_add(archive(destination), sound.type, sound.number);
+        if (mm_chunk_adopt(&edit, MM_SCENE_CHUNK, *out * 10, &sound, 1) != MM_CHUNK_OK)
+            fixture_failure(__LINE__);
+        sound.slot = 7;
+        if (mm_chunk_adopt(&edit, MM_SCENE_CHUNK, *out * 10, &sound, 1) != MM_CHUNK_OK)
             fixture_failure(__LINE__);
     }
     return 1;
@@ -523,6 +551,8 @@ static int copy_reference(void *source, void *destination, MMU32 type, MMU32 num
 static int insert_link(void *p, MMU32 root, const MMChunkChild *child)
 {
     Test *t = p;
+    if (root == 10 && child->type == MM_SOUND_CHUNK)
+        return !fails(t, SOUNDS);
     if (root != 10 || child->type != MM_SCENE_CHUNK)
         return 1;
     if (fails(t, ADOPT))
@@ -530,11 +560,11 @@ static int insert_link(void *p, MMU32 root, const MMChunkChild *child)
     ++t->adopted;
     return 1;
 }
-static int sounds(void *p, void *f, MMU32 number)
+static void unexpected_sound_issue(void *p, int issue)
 {
-    (void)f;
-    (void)number;
-    return !fails(p, SOUNDS);
+    (void)p;
+    fprintf(stderr, "unexpected movie sound issue %d\n", issue);
+    fixture_failure(__LINE__);
 }
 static void *read_scene(void *p, void *resources, MMU32 number, const struct MMMovieSession *session)
 {
@@ -688,6 +718,8 @@ static void init(Test *t)
     t->cache.services.locate = locate_payload;
     t->cache.services.handles = t->payloads.handles;
     t->cache.services.block_files = t->payloads.files;
+    seed_thumbnail(&t->resources[0], 100, 2);
+    seed_thumbnail(&t->resources[1], 200, 1);
     t->scenes.index = 1;
     t->scenes.open = &t->open;
     t->openTransition = 4;
@@ -695,12 +727,13 @@ static void init(Test *t)
     s->data = &t->data;
     s->scenes = &t->scenes;
     s->temporary_before_save = 1;
+    s->validate_children = 1;
     s->use_temporary = temporary;
     s->autosave = save;
     s->retain = retain;
     s->release = release;
     s->transition = transition;
-    s->read_thumbnail = read_thumbnail;
+    s->decode_thumbnail = decode_thumbnail;
     s->thumbnail = thumbnail;
     s->clone_movie = clone;
     s->copy_reference = copy_reference;
@@ -713,7 +746,7 @@ static void init(Test *t)
     s->rollcall.reader.context = t;
     s->rollcall.reader.open_actor = open_actor;
     s->rollcall.reader.close_actor = close_actor;
-    s->adopt_sounds = sounds;
+    s->sound_issue = unexpected_sound_issue;
     s->start_scene = start;
     s->add_actors = add_actors;
     s->remove_actors = remove_actors;
@@ -798,6 +831,9 @@ static int adding(void)
 {
     Test t;
     MMComposeScene scene;
+    MMChunkEdit edit;
+    MMChunkAccess chunks;
+    MMChunkChild thumbnail = {MM_SCENE_THUMBNAIL_TYPE, 0, 0};
     MMI32 index;
     int i;
     const int faults[] = {0, TEMP, SAVE, CHILD, READ_TRANS, READ_THUMB, THUMB};
@@ -830,6 +866,14 @@ static int adding(void)
         CHECK(!mm_movie_compose_add(&t.composite, &index, &t.s) && !index && !t.blocks);
         CHECK(!t.composite.scene_count && !t.composite.movie_count && !t.calls[CHILD] && t.resources[0].refs == 1);
     }
+    init(&t);
+    edit = edit_archive(&t.resources[0]);
+    chunks = mm_chunk_edit_access(&edit);
+    CHECK(mm_scene_thumbnail_link(&chunks, 100, &thumbnail.number) == MM_CHUNK_OK &&
+          mm_chunk_change_slot(&edit, MM_SCENE_CHUNK, 100, &thumbnail, 1) == MM_CHUNK_OK);
+    index = 0;
+    CHECK(!mm_movie_compose_add(&t.composite, &index, &t.s) && !index && !t.calls[READ_THUMB] &&
+          t.diagnostic[MM_COMPOSE_MISSING_THUMBNAIL] == 1 && !t.blocks);
     init(&t);
     CHECK(apply_setup(&t, 0, 10));
     t.fail = THUMB;
@@ -956,6 +1000,7 @@ static int applying(void)
 {
     Test t;
     const MMChunkChild background = {0x424b4744UL, 2, 0};
+    const MMChunkChild extra_scene = {MM_SCENE_CHUNK, 999, 1};
     MMChunkEdit edit;
     MMChunkEntry asset;
     MMChunkAccess index;
@@ -970,7 +1015,7 @@ static int applying(void)
         CHECK(mm_movie_compose_apply(&t.composite, &t.s) == !i);
         CHECK(t.resources[0].refs == 2 && t.resources[1].refs == 2 && !t.read.refs && t.blocks == 2 && !t.badRef);
         CHECK(t.deletedCount == (i == 1 ? 0 : 1));
-        CHECK(t.archives[0].count == 3U + t.adopted);
+        CHECK(t.archives[0].count == 4U + t.adopted + (t.fail == SOUNDS));
         if (t.deletedCount)
             CHECK(t.deleted[0] == 120);
         if (!i)
@@ -987,7 +1032,7 @@ static int applying(void)
         if (i >= 3 && i <= 5)
             CHECK(t.openTransition == 2);
         if (i == 5)
-            CHECK(t.adopted == 1 && !t.calls[READ_SCENE]);
+            CHECK(t.adopted == 1 && t.calls[SOUNDS] == 1 && !t.calls[READ_SCENE]);
         if (t.fail == WRITE_TRANS)
             CHECK(stored_transition(&t.resources[0], 100) == 3 && !t.calls[WRITE_TITLE]);
         if (t.fail == WRITE_TITLE)
@@ -996,6 +1041,14 @@ static int applying(void)
         mm_composite_empty(&t.composite, release);
         CHECK(!t.blocks && t.resources[0].refs == 1 && t.resources[1].refs == 1);
     }
+    init(&t);
+    CHECK(apply_setup(&t, 1, 10));
+    t.withSounds = 1;
+    CHECK(mm_movie_compose_apply(&t.composite, &t.s) && t.calls[SOUNDS] == 1);
+    index = live_chunks(&t.resources[0]);
+    CHECK(mm_chunk_link_number(&index, MM_MOVIE_CHUNK, 10, 0, MM_SOUND_CHUNK, &row) == MM_CHUNK_OK && row == 27);
+    CHECK(mm_chunk_link_number(&index, MM_MOVIE_CHUNK, 10, 1, MM_SOUND_CHUNK, &row) == MM_CHUNK_NOT_FOUND);
+    mm_composite_empty(&t.composite, release);
     init(&t);
     CHECK(apply_setup(&t, 1, 10));
     t.allocFailAt = t.memoryCalls + 1;
@@ -1064,7 +1117,7 @@ static int applying(void)
     CHECK(mm_movie_compose_apply(&t.composite, &t.s) && t.scenes.index == 0 && t.data.sceneCount == 2 &&
           t.removedActors == 1);
     CHECK(t.calls[DELETE_CHILD] == 1 && t.open.refs == 1);
-    CHECK(t.archives[0].count == 4 && fixture_scene_slot(&t.archives[0], 101) == 0 &&
+    CHECK(t.archives[0].count == 5 && fixture_scene_slot(&t.archives[0], 101) == 0 &&
           fixture_scene_slot(&t.archives[0], 1200) == 1 && fixture_scene_slot(&t.archives[0], 100) == -1);
     index = mm_chunk_edit_access(&edit);
     CHECK(mm_chunk_find(&index, background.type, background.number, &row) == MM_CHUNK_OK &&
@@ -1082,6 +1135,13 @@ static int applying(void)
     CHECK(!t.open.refs && !t.read.refs && !t.badRef);
     mm_composite_empty(&t.composite, release);
     CHECK(!t.blocks);
+    init(&t);
+    CHECK(apply_setup(&t, 0, 10));
+    fixture_chunk_add(&t.archives[0], extra_scene.type, extra_scene.number);
+    edit = edit_archive(&t.resources[0]);
+    CHECK(mm_chunk_adopt(&edit, MM_MOVIE_CHUNK, 10, &extra_scene, 1) == MM_CHUNK_OK);
+    CHECK(mm_movie_compose_apply(&t.composite, &t.s) && t.diagnostic[MM_COMPOSE_SCENE_ORDER] == 1);
+    mm_composite_empty(&t.composite, release);
     return 0;
 }
 static int emptying(void)

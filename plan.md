@@ -1600,8 +1600,9 @@ sorter accesses the same rows that composition reads. C89 links imported scene
 sounds, loads and transfers roll-call rows through the working cache, and
 traverses the live archive to rewrite shared and nested actor IDs. It also
 reads and writes stored scene transitions and rebinds embedded backgrounds
-and materials through the C archive editor. Final native resource and object
-integration remains.
+and materials through the C archive editor. It resolves thumbnail payloads,
+adopts imported scene sounds and checks final scene-child order in C89.
+Native bitmap allocation and final resource and object integration remain.
 Background resource loading, exact child lookup, cache and light policy use
 C89. Studio selects cameras through the same cache and reads colour and depth
 through typed block readers. Preview background image, mesh and frame rendering

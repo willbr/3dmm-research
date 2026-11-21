@@ -970,6 +970,20 @@ bool Movie::FNewScenInsCore(long iscen)
     Native resource primitives for the shared C movie sound controller.
 
 ************************************************************ PETED ***********/
+static void MovieSoundIssue(void *, int fault)
+{
+    switch (fault)
+    {
+    case MM_SOUND_BAD_CHILD_ENUM: Bug("ChunkyFile returned bogus ckid"); break;
+    case MM_SOUND_NO_CURRENT_SCENE: Bug("Scene chunk doesn't exist!"); break;
+    case MM_SOUND_CANNOT_COPY: PushErc(ercSocCantCopyMsnd); break;
+    case MM_SOUND_BAD_CHUNK_ENUM: Bug("Should never fail"); break;
+    case MM_SOUND_MISSING_CHUNK: Bug("parent or child not there"); break;
+    case MM_SOUND_DELETE_FAILED: Bug("chunk not deletable or missing"); break;
+    default: Bug("Unknown movie sound diagnostic"); break;
+    }
+}
+
 MMMovieSoundServices Movie::_SoundServices()
 {
     static_assert(kctgMvie==MM_SOUND_MOVIE && kctgScen==MM_SOUND_SCENE &&
@@ -1011,17 +1025,7 @@ MMMovieSoundServices Movie::_SoundServices()
     };
     s.has_bad_sound_error=[](void *) { return int(vpers->FIn(ercSocBadSoundFile)); };
     s.mark_gc=[](void *p) { static_cast<PMovie>(p)->_fGCSndsOnClose=true; };
-    s.diagnostic=[](void *,int fault) {
-        switch (fault) {
-        case MM_SOUND_BAD_CHILD_ENUM: Bug("ChunkyFile returned bogus ckid"); break;
-        case MM_SOUND_NO_CURRENT_SCENE: Bug("Scene chunk doesn't exist!"); break;
-        case MM_SOUND_CANNOT_COPY: PushErc(ercSocCantCopyMsnd); break;
-        case MM_SOUND_BAD_CHUNK_ENUM: Bug("Should never fail"); break;
-        case MM_SOUND_MISSING_CHUNK: Bug("parent or child not there"); break;
-        case MM_SOUND_DELETE_FAILED: Bug("chunk not deletable or missing"); break;
-        default: Bug("Unknown movie sound diagnostic"); break;
-        }
-    };
+    s.diagnostic = MovieSoundIssue;
     return s;
 }
 
@@ -2590,16 +2594,8 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.use_temporary=[](void *p)->int { return static_cast<PMovie>(p)->_FUseTempFile(); };
     s.autosave=[](void *p)->int { return static_cast<PMovie>(p)->FAutoSave(nullptr,false); };
     s.transition=[](void *p)->MMI32 { return static_cast<PScene>(p)->Trans(); };
-    s.read_thumbnail=[](void *p,MMU32 number)->void* {
-        auto file = static_cast<PChunkyFile>(p);
-        const auto chunks = file->ReadChunkAccess();
-        MMU32 thumbnail;
-        if (mm_scene_thumbnail_link(&chunks, number, &thumbnail) != MM_CHUNK_OK)
-        {
-            Bug("Scene doesn't have a thumbnail");
-            return nullptr;
-        }
-        return MaskedBitmapMBMP::PmbmpReadChunk(file, kctgThumbMbmp, thumbnail);
+    s.decode_thumbnail = [](void *, const MMReadStream *stream) -> void * {
+        return MaskedBitmapMBMP::PmbmpReadStream(stream);
     };
     s.thumbnail=[](void *p)->void* { return static_cast<PScene>(p)->PmbmpThumbnail(); };
     s.clone_movie=[](void *p,MMU32 number,void *out,MMU32 *copied)->int {
@@ -2612,7 +2608,7 @@ MMMovieComposeServices Movie::_ComposeServices()
         return file->FFind(type, number) &&
                file->FCopyReference(type, number, static_cast<PChunkyFile>(destination), copied, created);
     };
-    s.adopt_sounds=[](void *p,void *file,MMU32 scene)->int { return static_cast<PMovie>(p)->_FAdoptMsndInMvie(static_cast<PChunkyFile>(file),scene); };
+    s.sound_issue = MovieSoundIssue;
     s.start_scene=[](void *p)->int { return static_cast<PScene>(p)->FPlayStartEvents(true); };
     s.add_actors=[](void *p)->int { return static_cast<PScene>(p)->FAddActrsToRollCall(); };
     s.remove_actors=[](void *p) { static_cast<PScene>(p)->RemActrsFromRollCall(true); };
@@ -2629,17 +2625,13 @@ MMMovieComposeServices Movie::_ComposeServices()
         case MM_COMPOSE_BAD_BASE: Assert(false,"Invalid base movie descriptor"); break;
         case MM_COMPOSE_IMPORT_ACTORS: PushErc(ercSocNoImportRollCall); break;
         case MM_COMPOSE_REMOVE_ACTORS: PushErc(ercSocNoNukeRollCall); break;
+        case MM_COMPOSE_MISSING_THUMBNAIL: Bug("Scene doesn't have a thumbnail"); break;
+        case MM_COMPOSE_SCENE_ENUM: Bug("Can't guarantee validity of Movie's Scene children"); break;
+        case MM_COMPOSE_SCENE_ORDER: Assert(false, "Found duplicate ChildChunkID in scene children"); break;
         }
     };
 #ifdef DEBUG
-    s.validate_children=[](void *p) {
-        auto movie=static_cast<PMovie>(p); auto file=movie->_data.Resources()->Pcfl(); ChildChunkID last=chidNil;
-        for(long i=0;i<file->Ckid(kctgMvie,movie->_data.movieNumber);++i) {
-            ChildChunkIdentification child;
-            if(!file->FGetKid(kctgMvie,movie->_data.movieNumber,i,&child)) { Bug("Can't guarantee validity of Movie's Scene children"); break; }
-            if(child.cki.ctg==kctgScen) { Assert(last==chidNil || child.chid>last,"Found duplicate ChildChunkID in scene children"); last=child.chid; }
-        }
-    };
+    s.validate_children = 1;
 #endif
     return s;
 }

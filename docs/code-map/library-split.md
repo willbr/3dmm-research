@@ -3857,9 +3857,10 @@ primitives.
 
 Descriptor collection retains the BUG1929 temporary-file-before-autosave order
 when enabled. Working resources are a precondition for that legacy branch.
-Collection captures the original scene count, reads unopened transitions
-through the C89 scene file binding, requests thumbnails from the host,
-borrows/retains the current thumbnail, and transfers one
+Collection captures the original scene count and reads unopened transitions
+through the C89 scene file binding. It resolves the stored thumbnail's slot
+and reads the decoded payload before handing the stream to the bitmap host.
+It borrows and retains the current thumbnail and transfers one
 reference into each inserted descriptor. Storage is reserved before descriptor
 collection. A failed add releases the thumbnails it acquired, removes its scene
 prefix, and preserves the prior descriptors and insertion position. Autosave's
@@ -3871,12 +3872,15 @@ Movie graphs. C links root-level imported sounds to their scenes and reads
 each cloned roll call from the working resource cache before adopting,
 renumbering or deleting scenes and writing transitions. C reads and writes
 the stored transition and scene name through the same file binding. Imported
-actor-start and registration errors remain diagnostic and non-fatal. Tool notifications
-and scene release still occur.
+actor-start and registration errors remain diagnostic and non-fatal. Tool
+notifications and scene release still occur. C adopts each imported scene's
+user sounds into the movie at the first free sound slots and skips sounds
+already linked to the movie.
 Current-scene removal uses the C Movie scene-owner helper. Final count/ID-limit,
 dirty, SceneNuked, view and roll-call publication retain their original order.
 Completed scene/file/actor prefixes are not implicitly rolled back on failure.
-Copied Movie roots and their retained caches release in reverse order.
+Copied Movie roots and their retained caches release in reverse order. The
+debug scene-order check runs over the same live index after publication.
 
 Failed roll-call merge now deletes its uncommitted cloned Movie root, fixing the
 original path's omission from its cleanup prefix. Kept current scenes now follow
