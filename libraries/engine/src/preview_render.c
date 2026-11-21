@@ -1,5 +1,6 @@
 /* Preview frame control converted from archive/preview.cpp. */
 #include "preview_pose.h"
+#include "mm/preview_camera.h"
 #include <float.h>
 #include <math.h>
 #include <string.h>
@@ -802,5 +803,32 @@ int mm_preview_render(const MMPreviewView *v, MMPreviewOrbit *orbit, MMPreviewIm
     frame_dispose(&frame);
     if (result == MM_PREVIEW_OK)
         *output = image;
+    return result;
+}
+
+int mm_preview_render_isolated(const MMPreviewView *view, const MMPreviewOrbit *orbit, MMI32 object,
+                               const float bounds[24], int crop, int rect[4], MMPreviewImage *out,
+                               const MMPreviewRenderServices *s)
+{
+    MMPreviewView isolated = *view;
+    MMPreviewOrbit framing = *orbit;
+    float fit;
+    int result;
+    if (view->width < 64 || view->height < 64 || !finitef(view->zoom) || view->zoom < .1f || view->zoom > 10)
+        return MM_PREVIEW_ISOLATED_INVALID;
+    if (!mm_preview_camera_fit_object(bounds, view->yaw, view->pitch, (float)view->width / view->height,
+                                     view->vertical_fov, .04f, &fit, &s->math))
+        return MM_PREVIEW_ISOLATED_FIT;
+    isolated.authored = isolated.stable_orbit = isolated.free_camera = isolated.orthographic = isolated.axis = 0;
+    isolated.object = object;
+    isolated.roll = 0;
+    isolated.near_clip = .01f;
+    isolated.fit_depth = 1;
+    isolated.zoom = fit * minf(1.f, view->zoom);
+    mm_preview_orbit_reset(&framing);
+    result = mm_preview_render(&isolated, &framing, out, s);
+    if (result == MM_PREVIEW_OK && crop)
+        mm_preview_camera_crop(bounds, out->projection.transform, out->projection.vertical_fov,
+                               out->projection.aspect, out->width, out->height, rect, &s->math);
     return result;
 }

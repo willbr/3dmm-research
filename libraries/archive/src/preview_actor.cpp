@@ -129,18 +129,6 @@ bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number, st
     return host.Result(mm_preview_actor_replace_template(&core, source, number, &services));
 }
 
-PreviewActor::BodyOverride::BodyOverride(PreviewActor &actor, PBody draft)
-    : actor(actor), original(actor.core.body)
-{
-    actor.core.body = draft;
-}
-
-PreviewActor::BodyOverride::~BodyOverride()
-{
-    actor.Pbody()->Release();
-    actor.core.body = original;
-}
-
 bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 {
     out.clear();
@@ -190,17 +178,22 @@ LegacyLong PreviewActor::ActionCelCount(LegacyLong action) const
         return std::max<LegacyLong>(0, count);
     return 0;
 }
-bool PreviewActor::TryActionCel(LegacyLong action, LegacyLong cel)
+int PreviewActor::RenderAction(LegacyLong action, LegacyLong cel, float *clip, int *clipValid,
+                               const MMPreviewActionView &view)
 {
-    return Ptmpl()->FSetActnCel(Pbody(), action, cel);
+    Host host = {this};
+    const auto services = host.Services();
+    const int result = mm_preview_actor_action_render(&core, action, cel, ActionCelCount(action), clip, clipValid,
+                                                      &services, &view);
+    if (host.exception)
+        std::rethrow_exception(host.exception);
+    return result;
 }
-void PreviewActor::RestOrientation(BMAT34 &matrix) const
+bool PreviewActor::RestPose()
 {
-    BRA x, y, z;
-    Ptmpl()->GetRestOrien(&x, &y, &z);
-    BrMatrix34RotateX(&matrix, x);
-    BrMatrix34PostRotateY(&matrix, y);
-    BrMatrix34PostRotateZ(&matrix, z);
+    Host host = {this};
+    const auto services = host.Services();
+    return host.Result(mm_preview_actor_rest_pose(&core, &services));
 }
 bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
 {

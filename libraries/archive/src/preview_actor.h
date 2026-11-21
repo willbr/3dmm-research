@@ -40,17 +40,6 @@ class PreviewActor
     }
     ChunkNumber number = 0;
     PBody Pbody() const { return static_cast<PBody>(core.body); }
-    class BodyOverride
-    {
-        PreviewActor &actor;
-        void *original;
-
-      public:
-        BodyOverride(PreviewActor &, PBody draft);
-        ~BodyOverride();
-        BodyOverride(const BodyOverride &) = delete;
-        BodyOverride &operator=(const BodyOverride &) = delete;
-    };
     std::vector<PreviewSoundCue> sounds;
     ~PreviewActor();
     bool Load(const MMMovieSessionGraph &, ChunkNumber number,
@@ -69,12 +58,12 @@ class PreviewActor
     bool Costumes(std::vector<PreviewCostume> &) const;
     bool Actions(std::vector<PreviewAction> &) const;
     LegacyLong ActionCelCount(LegacyLong action) const;
-    bool TryActionCel(LegacyLong action, LegacyLong cel);
+    int RenderAction(LegacyLong action, LegacyLong cel, float *clip, int *clipValid, const MMPreviewActionView &);
     using SoundGraphResolver = std::function<bool(const TAGOnFile &, MMMovieSessionGraph &)>;
     bool WriteAnimation(const PreviewAnimationEdit &, const std::string &path, int &lastActorFrame,
                         int &lastEditedFrame, const SoundGraphResolver &);
     bool TryCostumes(const std::vector<PreviewCostume> &);
-    void RestOrientation(BMAT34 &) const;
+    bool RestPose();
     bool WriteCostumes(const std::vector<PreviewCostume> &, const std::string &path);
     bool SetEventTrack(std::int32_t source);
     PMaterial_MTRL TextMaterial() const;

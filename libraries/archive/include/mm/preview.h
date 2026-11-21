@@ -251,7 +251,7 @@ struct PreviewAudio
 class Preview
 {
     bool OpenCore(Archive &&, const std::string &, Error &, bool, bool);
-    bool RenderIsolatedObject(int object, const PreviewView &, const PreviewBounds &, PreviewImage &, Error &, bool crop);
+    bool RenderView(const PreviewView &, PreviewImage &, Error &, int object, const PreviewBounds *, bool crop);
     struct Impl;
     std::unique_ptr<Impl> _impl;
 

@@ -19740,3 +19740,31 @@ both continuous pixel comparisons as inconclusive because the markers or
 samples need alignment. The capture and logs are in `tmp/c89-costume-framing`.
 The exact preview traces are under `c89-costume-framing/traces` in the
 generated cache on `D:`.
+
+## Action previews and the isolated camera (21 November 2026)
+
+C89 owns the duplicate body for action previews, applies the template's rest
+orientation, and restores the live body when framing or rendering exits.
+It uses the requested pose and up to 24 evenly spaced cels to compute a
+reusable clip. Action and costume previews now use one C89 camera fit and
+crop routine with a private copy of the live orbit. The C++ host binds
+the selected body's renderer objects and publishes the image.
+
+The action fixture reproduced the pixels and projection transforms of all 36
+sampled previews with per-cel and shared framing. The saved animation and
+insertion `.3mm` files were byte-identical. The 51 costume previews and their
+saved movie also reproduced the previous bytes through the same camera path.
+The C89 actor fixture covers a long clip, reuse without resampling, and
+restoring the live body after a failed sample or render.
+
+All 193 standalone C89 checks passed, including strict syntax. AddressSanitizer
+passed the Preview actor and renderer checks. Native Preview, SDL scene
+Preview, and the Marcus player suite passed.
+
+Retail, SDL, and Marcus agreed on all 162 seek frames and cameras in
+`20261121T184142Z-73a688cc`. The ports produced identical canvases. Both
+matched 143 retail canvases exactly and differed in 41 pixels total across
+the other 19. The disk-space guard interrupted the continuous run after the
+retail capture. Logs and the seek comparison are in `tmp/c89-action-preview`.
+Exact action preview traces are under `c89-action-preview/traces` in the
+generated cache on `D:`.

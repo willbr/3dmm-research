@@ -933,6 +933,72 @@ static void replace_owned_track(void)
     }
 }
 
+static void locate_action_preview(void *p, void *body, const MMActorBodyPose *pose)
+{
+    Host *h = (Host *)p;
+    assert(body == h->token + 3 && h->actor.body == body);
+    assert(!pose->translation.dxr && !pose->translation.dyr && !pose->translation.dzr);
+}
+
+static int pose_action_preview(void *p, void *tmpl, void *body, MMI32 action, MMI32 cel)
+{
+    Host *h = (Host *)p;
+    assert(tmpl == h->token && body == h->token + 3 && action == 0 && cel >= 0);
+    h->token[3] = cel;
+    return step(h);
+}
+
+static int action_preview_bounds(void *p, float corners[24])
+{
+    Host *h = (Host *)p;
+    int i;
+    for (i = 0; i < 24; ++i)
+        corners[i] = (float)h->token[3];
+    return 1;
+}
+
+static int action_preview_render(void *p, const float corners[24])
+{
+    Host *h = (Host *)p;
+    assert(h->actor.body == h->token + 3 && h->token[3] == 7);
+    assert(corners[0] == 0 && corners[21] == (float)2147483646L);
+    return !h->token[2];
+}
+
+static void action_preview(void)
+{
+    Host h;
+    MMPreviewActionView view = {NULL, action_preview_bounds, action_preview_render};
+    MMPreviewActor before;
+    float clip[24];
+    int mode, valid, calls;
+    view.context = &h;
+    for (mode = 0; mode < 3; ++mode)
+    {
+        setup(&h);
+        assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
+        h.services.duplicate_body = draft_body;
+        h.services.release_body = release_draft_body;
+        h.services.locate = locate_action_preview;
+        h.services.pose = pose_action_preview;
+        h.fail_at = mode == 1 ? h.calls + 3 : 0;
+        h.token[2] = mode == 2;
+        before = h.actor;
+        valid = 0;
+        assert(mm_preview_actor_action_render(&h.actor, 0, 7, 2147483647L, clip, &valid, &h.services, &view) ==
+               (mode == 0 ? MM_PREVIEW_ACTION_OK : mode == 1 ? MM_PREVIEW_ACTION_FRAME : MM_PREVIEW_ACTION_FAILED));
+        assert(!memcmp(&h.actor, &before, sizeof(before)) && !h.draft_bodies && valid == (mode != 1));
+        if (mode == 0)
+        {
+            calls = h.calls;
+            assert(mm_preview_actor_action_render(&h.actor, 0, 7, 2147483647L, clip, &valid, &h.services, &view) ==
+                   MM_PREVIEW_ACTION_OK);
+            assert(h.calls == calls + 2 && !h.draft_bodies);
+        }
+        mm_preview_actor_dispose(&h.actor, &h.services);
+    }
+}
+
 int main(void)
 {
     loading();
@@ -941,6 +1007,7 @@ int main(void)
     replace_template();
     track_draft();
     replace_owned_track();
+    action_preview();
     puts("Preview actor: load/create prefixes, lifetime, resource ownership, replay, exceptions, pose and placement "
          "passed.");
     return 0;

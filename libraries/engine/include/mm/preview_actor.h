@@ -116,6 +116,25 @@ extern "C"
     int mm_preview_actor_set_shape(MMPreviewActor *, const MMPreviewActorShape *, const MMPreviewActorServices *);
     void mm_preview_actor_shape(const MMPreviewActor *, MMPreviewActorShape *, float left[9], float right[9],
                                 const MMPreviewActorServices *);
+    int mm_preview_actor_rest_pose(const MMPreviewActor *, const MMPreviewActorServices *);
+
+    enum MMPreviewActionResult
+    {
+        MM_PREVIEW_ACTION_FAILED, MM_PREVIEW_ACTION_OK, MM_PREVIEW_ACTION_RANGE,
+        MM_PREVIEW_ACTION_MEMORY, MM_PREVIEW_ACTION_POSE, MM_PREVIEW_ACTION_FRAME
+    };
+    typedef struct MMPreviewActionView
+    {
+        void *context;
+        int (*bounds)(void *, float corners[24]);
+        int (*render)(void *, const float corners[24]);
+    } MMPreviewActionView;
+    /* Render with a duplicate body. Restore the live body before releasing the
+     * duplicate. An empty optional clip is filled from up to 24 evenly spaced
+     * cels and the requested pose, and remains reusable after a render failure. */
+    int mm_preview_actor_action_render(MMPreviewActor *, MMI32 action, MMI32 cel, MMI32 count,
+                                       float clip[24], int *clip_valid, const MMPreviewActorServices *,
+                                       const MMPreviewActionView *);
 
     enum MMPreviewCostumeResult
     {
@@ -127,7 +146,7 @@ extern "C"
         void *context;
         int (*save)(void *, int selected);
         void (*restore)(void *, int selected);
-        void (*rest_pose)(void *);
+        int (*rest_pose)(void *);
         int (*apply)(void *);
         int (*object_bounds)(void *, float corners[24]);
         int (*variants)(void *, size_t *count);

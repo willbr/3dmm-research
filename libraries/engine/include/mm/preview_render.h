@@ -101,7 +101,9 @@ extern "C"
         MM_PREVIEW_MODELS,
         MM_PREVIEW_MESH,
         MM_PREVIEW_RENDERER,
-        MM_PREVIEW_HOST
+        MM_PREVIEW_HOST,
+        MM_PREVIEW_ISOLATED_INVALID,
+        MM_PREVIEW_ISOLATED_FIT
     };
     typedef struct MMPreviewRenderServices
     {
@@ -174,6 +176,11 @@ extern "C"
     void mm_preview_depth_fit(const MMPreviewDepthRange *, double *near_clip, double *far_clip);
     int mm_preview_render(const MMPreviewView *, MMPreviewOrbit *, MMPreviewImage *,
                                 const MMPreviewRenderServices *);
+    /* Fit and render a view through services already bound to the one object
+     * and its bounds. Use a private orbit so the live camera keeps its framing. */
+    int mm_preview_render_isolated(const MMPreviewView *, const MMPreviewOrbit *, MMI32 object,
+                                    const float bounds[24], int crop, int rect[4], MMPreviewImage *,
+                                    const MMPreviewRenderServices *);
     /* Submit described bodies in render order. The caller owns the attached trees
      * and keeps their source models and materials alive while using them. */
     int mm_preview_copy_bodies(void *world, const MMPreviewRenderServices *);

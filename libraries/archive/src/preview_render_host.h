@@ -12,6 +12,8 @@ struct Preview::Impl::RenderHost
     Internal::PreviewBackgroundMesh *mesh = nullptr;
     std::exception_ptr exception;
     bool readBodyBounds = true;
+    int onlyObject = view ? view->onlyObject : -1;
+    const PreviewBounds *orbitBounds = view ? view->orbitBounds : nullptr;
     static PreviewProjection Projection(const MMPreviewProjection &p)
     {
         PreviewProjection out;
@@ -50,7 +52,7 @@ struct Preview::Impl::RenderHost
             auto &h = *static_cast<RenderHost *>(v);
             auto &i = *h.impl;
             d->scene = i.live.status.scene;
-            d->background = bool(i.background) && (!h.view || h.view->onlyObject < 0);
+            d->background = bool(i.background) && h.onlyObject < 0;
             d->model = i.model ? i.model->Pbmdl() : nullptr;
             d->model_resource = static_cast<BASE *>(i.model);
             if (i.model)
@@ -109,7 +111,7 @@ struct Preview::Impl::RenderHost
             auto &h = *static_cast<RenderHost *>(v);
             auto &i = *h.impl;
             PBody body = nullptr;
-            if (h.view && h.view->onlyObject >= 0 && index != MMU32(h.view->onlyObject + 1)) return 0;
+            if (h.onlyObject >= 0 && index != MMU32(h.onlyObject + 1)) return 0;
             std::uint64_t order = 0;
             if (!index)
                 body = i.body;
@@ -144,7 +146,7 @@ struct Preview::Impl::RenderHost
             try
             {
                 PreviewBounds b;
-                if (h.view && h.view->orbitBounds && h.view->onlyObject == object) b = *h.view->orbitBounds;
+                if (h.orbitBounds && h.onlyObject == object) b = *h.orbitBounds;
                 else if (!h.preview->ObjectBounds(object, b, *h.error))
                     return 0;
                 *valid = b.valid;
