@@ -104,6 +104,7 @@ class ChunkyFile : public ChunkyFile_PAR
 
   private:
     MMChunkOwner _owner;
+    MMChunkTableEditBinding _tableEdit;
     PFileObject _MainFile() { return static_cast<PFileObject>(_owner.files.main_file); }
     PFileObject _ExtraFile() { return static_cast<PFileObject>(_owner.files.extra_file); }
     MMChunkTable *_Index() { return static_cast<MMChunkTable *>(_owner.files.index); }

@@ -18993,3 +18993,37 @@ and canvas hashes in suite `20261121T124216Z-832f56e2`. In actor-event suite
 seek and continuous playback. Their 60 seek camera indices matched retail and
 their seek canvas hashes matched prior captures. SDL matched all 12 retail
 sound requests. Evidence is in `tmp/c89-marcus-browser-poster`.
+
+## Shared writable chunk index in C89 (21 November 2026)
+
+Studio and Marcus now share the C89 code that materializes and edits the live
+chunk index, manages stored names and writes the archive directory. The
+directory writer uses positional I/O and writes the CHN2 prefix after the GG
+index and optional free map. The native host still owns the file handles and
+allocates payload extents.
+
+All 193 standalone C checks, seven focused AddressSanitizer checks, eight
+Marcus and native checks, two x86 archive checks and three SDL checks passed.
+The compact and expanded index fixtures cover each directory write failure,
+index replacement while an editor is bound, and allocation failure during
+materialization. All 17 authoring artifacts matched their pre-change bytes on
+each of x64, x86 and SDL.
+
+The five native persistence snapshots matched byte for byte on x64 and x86.
+Four SDL snapshots matched byte for byte. In the 572,367-byte SDL archive
+snapshot, one run differed from the baseline in 12 bytes and a repeat differed
+in six. Every difference fell in the four-byte alignment padding after named
+GG rows. The row contents and all other bytes matched.
+
+Both hosts matched all three archived V3dmm storyboard frames, camera indices
+and canvas hashes in suite `20261121T130335Z-692581e6`. In actor-event suite
+`20261121T130340Z-4ad226c8`, both matched all 60 retail frame identities in
+seek and continuous playback. Seek camera indices matched retail and seek
+canvas hashes matched the previous host captures. SDL matched all 12 retail
+sound requests.
+
+In sampled-audio suite `20261121T130449Z-b903c5f1`, both hosts matched all
+60 retail frame identities and SDL matched all four retail sound requests.
+The PCM16 peak matched the previous host captures at 2,176. The archived
+retail peak is 2,380. SDL captured 522,720 PCM frames and Marcus captured
+512,640. Evidence is in `tmp/c89-live-index-binding`.

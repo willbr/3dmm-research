@@ -1,6 +1,7 @@
 /* Chunk loading converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_loading.h"
+#include "mm/chunk_table.h"
 #include <string.h>
 typedef char RangeMustBeEightBytes[sizeof(MMChunkFreeRange) == 8 ? 1 : -1];
 typedef char ChildMustBeTwelveBytes[sizeof(MMChunkChild) == 12 ? 1 : -1];
@@ -259,4 +260,132 @@ int mm_chunk_materialize(const MMChunkIndex *index, const MMChunkMaterializer *h
 done:
     mm_storage_dispose(&scratch);
     return result;
+}
+
+typedef struct TableMaterializer
+{
+    MMChunkTable *table;
+    MMChunkLegacyName legacy_name;
+    void *name_context;
+} TableMaterializer;
+
+static int table_legacy_name(void *p, const char *text, void *wire, MMU32 capacity, MMU32 *bytes)
+{
+    const TableMaterializer *materializer = p;
+    return materializer->legacy_name(materializer->name_context, text, wire, capacity, bytes);
+}
+
+static int table_insert(void *p, MMU32 position, const MMChunkEntry *entry, const void *variable, MMU32 bytes)
+{
+    TableMaterializer *materializer = p;
+    const int expanded = materializer->table->fixed_bytes == sizeof(MMChunkRecordBig);
+    union { MMChunkRecordSmall compact; MMChunkRecordBig expanded; } row;
+    memset(&row, 0, sizeof(row));
+    mm_chunk_record_set(&row, expanded, entry);
+    return mm_chunk_table_insert(materializer->table, position, bytes, variable, &row) == MM_STORAGE_OK;
+}
+
+int mm_chunk_table_load(const MMChunkIndex *index, MMU32 width, int trash_unused,
+                        const MMStorageAllocator *table_allocator, const MMStorageAllocator *scratch_allocator,
+                        MMChunkLegacyName legacy_name, void *name_context, MMChunkTable **out)
+{
+    TableMaterializer materializer;
+    MMChunkMaterializer host;
+    int status;
+    if (!index || !out)
+        return MM_CHUNK_BAD_FILE;
+    status = mm_chunk_table_create(table_allocator, width, mm_chunk_index_access(index).count,
+                                   trash_unused, &materializer.table);
+    if (status != MM_STORAGE_OK)
+        return status == MM_STORAGE_MEMORY ? MM_CHUNK_MEMORY : MM_CHUNK_BAD_FILE;
+    materializer.legacy_name = legacy_name;
+    materializer.name_context = name_context;
+    host.context = &materializer;
+    host.legacy_name = legacy_name ? table_legacy_name : NULL;
+    host.insert = table_insert;
+    status = mm_chunk_materialize(index, &host, scratch_allocator);
+    if (status != MM_CHUNK_OK)
+    {
+        mm_chunk_table_close(materializer.table);
+        return status;
+    }
+    *out = materializer.table;
+    return MM_CHUNK_OK;
+}
+
+typedef struct ChunkDirectory
+{
+    MMChunkTable *table;
+    MMChunkFreeMap *map;
+    const MMStorageWriter *file;
+    int big, system;
+} ChunkDirectory;
+
+typedef struct DirectoryExtent
+{
+    const MMStorageWriter *file;
+    MMU32 offset;
+} DirectoryExtent;
+
+static int directory_write_at(void *p, MMU32 offset, const void *data, size_t bytes)
+{
+    const DirectoryExtent *extent = p;
+    return extent->file->write_at(extent->file->context, extent->offset + offset, data, bytes);
+}
+
+static int directory_index(void *p, MMU32 offset, MMU32 bytes)
+{
+    const ChunkDirectory *directory = p;
+    DirectoryExtent extent;
+    MMStorageWriter writer = {NULL, 0, directory_write_at};
+    extent.file = directory->file;
+    extent.offset = offset;
+    writer.context = &extent;
+    writer.length = bytes;
+    return mm_chunk_table_write(directory->table, &writer, directory->big, directory->system) == MM_STORAGE_OK;
+}
+
+static int directory_map(void *p, MMU32 offset, MMU32 bytes)
+{
+    const ChunkDirectory *directory = p;
+    DirectoryExtent extent;
+    MMStorageWriter writer = {NULL, 0, directory_write_at};
+    extent.file = directory->file;
+    extent.offset = offset;
+    writer.context = &extent;
+    writer.length = bytes;
+    return mm_free_map_write(directory->map, &writer, directory->big, directory->system) == MM_STORAGE_OK;
+}
+
+static int directory_prefix(void *p, const void *bytes, size_t count)
+{
+    const ChunkDirectory *directory = p;
+    return directory->file->write_at(directory->file->context, 0, bytes, count);
+}
+
+int mm_chunk_directory_write(MMChunkTable *table, MMChunkFreeMap *map, MMU32 payload_end,
+                             MMU32 creator, int system, const MMStorageWriter *file, MMChunkHeader *out)
+{
+    const unsigned short order = 1;
+    const int big = *(const unsigned char *)&order == 0;
+    ChunkDirectory directory;
+    MMChunkWriter writer = {NULL, directory_index, directory_map, directory_prefix};
+    MMChunkSave save;
+    if (!table || !file || !file->write_at || payload_end > file->length)
+        return MM_CHUNK_BAD_FILE;
+    save.creator = creator;
+    save.index_offset = payload_end;
+    save.index_bytes = mm_chunk_table_wire_size(table);
+    save.map_bytes = mm_free_map_wire_size(map);
+    save.big_endian = big;
+    save.system = system;
+    if (save.index_bytes > file->length - payload_end || save.map_bytes > file->length - payload_end - save.index_bytes)
+        return MM_CHUNK_BAD_FILE;
+    directory.table = table;
+    directory.map = map;
+    directory.file = file;
+    directory.big = big;
+    directory.system = system;
+    writer.context = &directory;
+    return mm_chunk_write_index(&save, &writer, out);
 }

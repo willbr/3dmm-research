@@ -18,7 +18,8 @@ extern "C"
         MM_EDIT_BAD_REFERENCE,
         MM_EDIT_LOW_MEMORY,
         MM_EDIT_MISSING_CHILD,
-        MM_EDIT_CYCLE_RISK
+        MM_EDIT_CYCLE_RISK,
+        MM_EDIT_INDEX_OPERATION
     };
     /* Live-index primitives; store and erase cannot fail or re-enter.
      * Readers return zero for an invalid row or unreadable child.

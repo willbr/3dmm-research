@@ -261,6 +261,170 @@ MMChunkAccess mm_chunk_table_access(MMChunkTable *t)
     access.child = access_child;
     return access;
 }
+static MMChunkTable *edit_table(void *p)
+{
+    const MMChunkTableEditBinding *binding = p;
+    return binding->table(binding->context);
+}
+static MMU32 edit_count(void *p)
+{
+    return edit_table(p)->count;
+}
+static int edit_entry(void *p, MMU32 position, MMChunkEntry *entry)
+{
+    return mm_chunk_table_entry(edit_table(p), position, entry);
+}
+static int edit_child(void *p, MMU32 parent, MMU32 position, MMChunkChild *child)
+{
+    return mm_chunk_table_child(edit_table(p), parent, position, child);
+}
+static int edit_insert(void *p, MMU32 position)
+{
+    return mm_chunk_table_insert(edit_table(p), position, 0, NULL, NULL) == MM_STORAGE_OK;
+}
+static void edit_issue(void *p, int kind)
+{
+    const MMChunkTableEditBinding *binding = p;
+    if (binding->issue)
+        binding->issue(binding->context, kind);
+}
+static void edit_check(void *p, int status)
+{
+    if (status != MM_STORAGE_OK)
+        edit_issue(p, MM_EDIT_INDEX_OPERATION);
+}
+static void edit_store(void *p, MMU32 position, const MMChunkEntry *entry, int initialize)
+{
+    MMChunkTable *table = edit_table(p);
+    void *row = mm_chunk_table_fixed(table, position, NULL);
+    if (!row)
+    {
+        edit_issue(p, MM_EDIT_INDEX_OPERATION);
+        return;
+    }
+    if (initialize)
+        memset(row, 0, table->fixed_bytes);
+    mm_chunk_record_set(row, table->fixed_bytes == sizeof(MMChunkRecordBig), entry);
+}
+static void edit_erase(void *p, MMU32 position)
+{
+    edit_check(p, mm_chunk_table_delete(edit_table(p), position));
+}
+static int edit_allocate(void *p, MMU32 bytes, MMChunkLocation *location)
+{
+    const MMChunkTableEditBinding *binding = p;
+    return binding->allocate(binding->context, bytes, location);
+}
+static void edit_free(void *p, int extra, MMU32 offset, MMU32 bytes)
+{
+    const MMChunkTableEditBinding *binding = p;
+    binding->free_space(binding->context, extra, offset, bytes);
+}
+static MMI32 edit_runtime(void *p, MMU32 type, MMU32 number)
+{
+    const MMChunkTableEditBinding *binding = p;
+    return binding->runtime ? binding->runtime(binding->context, type, number) : 0;
+}
+static int edit_set_runtime(void *p, MMU32 type, MMU32 number, MMI32 runtime)
+{
+    const MMChunkTableEditBinding *binding = p;
+    return binding->set_runtime ? binding->set_runtime(binding->context, type, number, runtime) : runtime == 0;
+}
+static void edit_reset_runtime(void *p, MMU32 type, MMU32 number)
+{
+    edit_set_runtime(p, type, number, 0);
+}
+static int edit_insert_child(void *p, MMU32 parent, MMU32 position, const MMChunkChild *child)
+{
+    const MMU32 bytes = sizeof(*child);
+    return mm_chunk_table_insert_bytes(edit_table(p), parent, position * bytes, bytes, child) == MM_STORAGE_OK;
+}
+static void edit_erase_child(void *p, MMU32 parent, MMU32 position)
+{
+    const MMU32 bytes = sizeof(MMChunkChild);
+    edit_check(p, mm_chunk_table_delete_bytes(edit_table(p), parent, position * bytes, bytes));
+}
+static void edit_put_child(void *p, MMU32 parent, MMU32 position, const MMChunkChild *child)
+{
+    const MMU32 bytes = sizeof(*child);
+    edit_check(p, mm_chunk_table_put(edit_table(p), parent, position * bytes, bytes, child));
+}
+static void edit_move(void *p, MMU32 source, MMU32 destination)
+{
+    edit_check(p, mm_chunk_table_move(edit_table(p), source, destination));
+}
+static int edit_move_bytes(void *p, MMU32 source, MMU32 offset, MMU32 destination,
+                           MMU32 destination_offset, MMU32 bytes)
+{
+    return mm_chunk_table_move_bytes(edit_table(p), source, offset, destination, destination_offset, bytes) ==
+           MM_STORAGE_OK;
+}
+MMChunkEdit mm_chunk_table_editor(MMChunkTableEditBinding *binding, const MMStorageAllocator *allocator,
+                                  MMU32 max_references, int scan_all_references)
+{
+    MMChunkEdit edit = {0};
+    edit.context = binding;
+    edit.walk_allocator = allocator;
+    edit.max_references = max_references;
+    edit.count = edit_count;
+    edit.entry = edit_entry;
+    edit.child = edit_child;
+    edit.insert = edit_insert;
+    edit.store = edit_store;
+    edit.erase = edit_erase;
+    edit.allocate = edit_allocate;
+    edit.free_space = edit_free;
+    edit.reset_runtime = edit_reset_runtime;
+    edit.issue = edit_issue;
+    edit.insert_child = edit_insert_child;
+    edit.erase_child = edit_erase_child;
+    edit.put_child = edit_put_child;
+    edit.move_entry = edit_move;
+    edit.move_bytes = edit_move_bytes;
+    edit.runtime = edit_runtime;
+    edit.set_runtime = edit_set_runtime;
+    edit.scan_all_references = scan_all_references;
+    return edit;
+}
+static MMU32 names_count(void *p)
+{
+    return ((MMChunkTable *)p)->count;
+}
+static int names_insert(void *p, MMU32 position, MMU32 offset, MMU32 bytes)
+{
+    return mm_chunk_table_insert_bytes(p, position, offset, bytes, NULL) == MM_STORAGE_OK;
+}
+static void names_erase(void *p, MMU32 position, MMU32 offset, MMU32 bytes)
+{
+    mm_chunk_table_delete_bytes(p, position, offset, bytes);
+}
+static void *names_pin(void *p, MMU32 position)
+{
+    void *bytes;
+    if (mm_chunk_table_lock(p) != MM_STORAGE_OK)
+        return NULL;
+    bytes = mm_chunk_table_variable(p, position, NULL);
+    if (!bytes)
+        mm_chunk_table_unlock(p);
+    return bytes;
+}
+static void names_unpin(void *p)
+{
+    mm_chunk_table_unlock(p);
+}
+MMChunkNames mm_chunk_table_names(MMChunkTable *table, MMU32 max_name_bytes)
+{
+    MMChunkNames names;
+    names.context = table;
+    names.count = names_count;
+    names.entry = access_entry;
+    names.insert = names_insert;
+    names.erase = names_erase;
+    names.pin = names_pin;
+    names.unpin = names_unpin;
+    names.max_bytes = max_name_bytes;
+    return names;
+}
 int mm_chunk_table_clear_flags(MMChunkTable *t, MMU32 mask)
 {
     MMU32 i;

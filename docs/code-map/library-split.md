@@ -6742,6 +6742,12 @@ preservation, canonical entry/child access and transient-flag clearing. Borrowed
 C access views supply the existing search/graph/save/edit policies. Record fields
 and child/name bytes retain native order after materialization.
 
+Studio and Marcus both use the C writable-index binding for row, child and name
+edits. It follows the owner's live table after a reopen. C materializes validated
+wire rows into that table and writes the GG index, optional free map and CHN2
+prefix through one positional writer. The prefix writes last. The native owner
+supplies file I/O, extent allocation, runtime IDs and historical name conversion.
+
 C writes the exact GG header, payload and locations. As with native GG, alternate
 byte order converts only the header/location words; fixed/variable payload order
 is supplied by the caller. Location words are restored after every write failure,

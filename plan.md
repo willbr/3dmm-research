@@ -201,6 +201,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   content archives.
   The subsequent slices below migrate writable groups, free maps, writes,
   embedded-forest decoding and stored-name policy.
+  Studio and Marcus use the same C binding for writable row, child and name
+  edits, table loading and CHN2 directory writes. The native owner supplies
+  file I/O, heap access and runtime IDs.
 - Dense/allocated string-table mutation, searches, packed-string reconstruction,
   legacy byte maps and portable encoding conversion now use C89. Kauai supplies
   object/header adapters; Windows supplies native code-page and locale services.

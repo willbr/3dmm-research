@@ -1,4 +1,6 @@
 #include "mm/chunk_table.h"
+#include "mm/chunk_loading.h"
+#include "mm/chunk_ops.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -275,12 +277,139 @@ static void record_cases(void)
     CHECK(!mm_chunk_table_child(t, 0, 1, &value));
     CHECK(mm_chunk_table_close(t) == MM_STORAGE_OK);
 }
+typedef struct IndexHost
+{
+    MMChunkTable *table;
+    MMU32 end;
+    int frees, fail;
+} IndexHost;
+static MMChunkTable *live_table(void *p)
+{
+    return ((IndexHost *)p)->table;
+}
+static int allocate_extent(void *p, MMU32 bytes, MMChunkLocation *location)
+{
+    IndexHost *host = p;
+    if (host->fail)
+        return 0;
+    location->file = p;
+    location->offset = bytes ? host->end : 0;
+    location->bytes = bytes;
+    location->flags = 0;
+    host->end += bytes;
+    return 1;
+}
+static void free_extent(void *p, int extra, MMU32 offset, MMU32 bytes)
+{
+    IndexHost *host = p;
+    CHECK(!extra && offset >= MM_CHUNK_PREFIX_BYTES && (bytes == 3 || bytes == 4));
+    ++host->frees;
+}
+static void edit_issue(void *p, int kind)
+{
+    (void)p;
+    (void)kind;
+    CHECK(0);
+}
+static void edit_and_write(void)
+{
+    static const unsigned char wire_name[] = {3, 3, 1, 'R', 0};
+    const MMChunkNameValue root_name = {wire_name, sizeof(wire_name), 1};
+    const MMChunkFreeRange gap = {MM_CHUNK_PREFIX_BYTES + 3, 5};
+    const MMChunkChild child = {20, 0, 4};
+    IndexHost host;
+    MMChunkTableEditBinding binding = {NULL, live_table, allocate_extent, free_extent, NULL, NULL, edit_issue};
+    MMChunkEdit edit;
+    MMChunkNames names;
+    MMChunkTable *loaded;
+    MMChunkIndex *index;
+    MMChunkAccess access;
+    MMChunkEntry root;
+    MMChunkFreeMap *map;
+    MMChunkHeader header;
+    MMChunkPolicy policy;
+    MMMemoryStream stream;
+    Output output;
+    MMStorageWriter writer = {NULL, sizeof(output.bytes), write_at};
+    Heap heap;
+    MMStorageAllocator faulty = {NULL, resize, release};
+    unsigned char name[sizeof(wire_name)];
+    MMU32 width, number, hash;
+    int fail;
+    binding.context = &host;
+    edit = mm_chunk_table_editor(&binding, NULL, 65535, 1);
+    writer.context = &output;
+    faulty.context = &heap;
+    for (width = 20; width <= 32; width += 12)
+    {
+        memset(&host, 0, sizeof(host));
+        host.end = MM_CHUNK_PREFIX_BYTES;
+        CHECK(mm_chunk_table_create(NULL, width, 0, 1, &host.table) == MM_STORAGE_OK);
+        CHECK(mm_chunk_add(&edit, 10, 0, 0, 3, NULL) == MM_CHUNK_OK);
+        host.end += gap.bytes;
+        host.fail = 1;
+        CHECK(mm_chunk_add(&edit, 20, 0, 1, 4, NULL) == MM_CHUNK_IO && host.table->count == 1);
+        host.fail = 0;
+        CHECK(mm_chunk_add(&edit, 20, 0, 1, 4, NULL) == MM_CHUNK_OK);
+        CHECK(mm_chunk_adopt(&edit, 10, 0, &child, 1) == MM_CHUNK_OK);
+        names = mm_chunk_table_names(host.table, MM_CHUNK_NAME_WIRE_BYTES);
+        CHECK(mm_chunk_name_set_key(&edit, &names, 10, 0, &root_name) == MM_CHUNK_OK);
+        CHECK(mm_chunk_move(&edit, 20, 0, 20, 7) == MM_CHUNK_OK);
+        CHECK(mm_free_map_create(NULL, 1, &map) == MM_CHUNK_OK &&
+              mm_free_map_insert(map, 0, &gap) == MM_CHUNK_OK);
+        hash = observe(host.table, 2166136261UL);
+        for (fail = 1; fail <= 6; ++fail)
+        {
+            memset(&output, 0, sizeof(output));
+            output.fail = fail;
+            header.logical_end = 17;
+            CHECK(mm_chunk_directory_write(host.table, map, host.end, 42, 0x0303, &writer, &header) == MM_CHUNK_IO);
+            CHECK(header.logical_end == 17 && !output.bytes[0] && output.calls == fail);
+            CHECK(!host.table->storage.buffers[0].locks && !host.table->storage.buffers[1].locks);
+            CHECK(observe(host.table, 2166136261UL) == hash);
+        }
+        memset(&output, 0, sizeof(output));
+        writer.length = host.end;
+        CHECK(mm_chunk_directory_write(host.table, map, host.end, 42, 0x0303, &writer, &header) == MM_CHUNK_BAD_FILE &&
+              !output.calls);
+        writer.length = sizeof(output.bytes);
+        CHECK(mm_chunk_directory_write(host.table, map, host.end, 42, 0x0303, &writer, &header) == MM_CHUNK_OK);
+        CHECK(header.creator == 42 && header.map_bytes == 20 && header.index_offset == host.end && output.calls == 6);
+        CHECK(mm_memory_stream_init(&stream, output.bytes, header.logical_end));
+        memset(&policy, 0, sizeof(policy));
+        policy.expanded_runtime = width == 32;
+        policy.native_big_endian = header.big_endian;
+        policy.max_name_bytes = MM_CHUNK_NAME_WIRE_BYTES;
+        CHECK(mm_chunk_index_open(&stream.stream, &policy, &index) == MM_CHUNK_OK);
+        memset(&heap, 0, sizeof(heap));
+        heap.fail_after = 1;
+        loaded = host.table;
+        CHECK(mm_chunk_table_load(index, width, 1, &faulty, NULL, NULL, NULL, &loaded) == MM_CHUNK_MEMORY &&
+              !heap.live && loaded == host.table);
+        CHECK(mm_chunk_table_load(index, width, 1, NULL, &faulty, NULL, NULL, &loaded) == MM_CHUNK_MEMORY &&
+              !heap.live && loaded == host.table);
+        CHECK(mm_chunk_table_load(index, width, 1, NULL, NULL, NULL, NULL, &loaded) == MM_CHUNK_OK);
+        CHECK(loaded->count == 2 && mm_chunk_table_entry(loaded, 0, &root) &&
+              root.type == 10 && root.bytes == 3 && root.child_count == 1);
+        CHECK(mm_chunk_table_read(loaded, 0, sizeof(MMChunkChild), sizeof(name), name) == MM_STORAGE_OK &&
+              !memcmp(name, wire_name, sizeof(name)));
+        mm_chunk_index_close(index);
+        mm_free_map_close(map);
+        CHECK(mm_chunk_table_close(host.table) == MM_STORAGE_OK);
+        host.table = loaded;
+        access = mm_chunk_edit_access(&edit);
+        CHECK(mm_chunk_link_number(&access, 10, 0, 4, 20, &number) == MM_CHUNK_OK && number == 7);
+        CHECK(mm_chunk_delete(&edit, 10, 0) == MM_CHUNK_OK && !loaded->count && host.frees == 2);
+        CHECK(mm_chunk_table_close(loaded) == MM_STORAGE_OK);
+    }
+}
 int main(void)
 {
     frozen_wire();
     allocation_cases();
     write_failures();
     record_cases();
+    edit_and_write();
     puts("chunk table C89 checks passed");
     return 0;
 }

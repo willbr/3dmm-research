@@ -52,6 +52,17 @@ extern "C"
      * and unchanged, scratch pointers expire after each synchronous callback. */
     int mm_chunk_materialize(const MMChunkIndex *, const MMChunkMaterializer *,
                                    const MMStorageAllocator *);
+    struct MMChunkTable;
+    /* Materialize the native-order live table. Failure disposes partial rows
+     * and leaves the caller's output unchanged. */
+    int mm_chunk_table_load(const MMChunkIndex *, MMU32 width, int trash_unused,
+                            const MMStorageAllocator *table_allocator, const MMStorageAllocator *scratch_allocator,
+                            MMChunkLegacyName, void *name_context, struct MMChunkTable **);
+    /* Write a native-order table, optional free map and CHN2 prefix with one
+     * positional writer. The writer length is the maximum allowed extent.
+     * Header publication follows successful index, map and prefix writes. */
+    int mm_chunk_directory_write(struct MMChunkTable *, MMChunkFreeMap *, MMU32 payload_end,
+                                 MMU32 creator, int system, const MMStorageWriter *, MMChunkHeader *);
 #ifdef __cplusplus
 }
 #endif

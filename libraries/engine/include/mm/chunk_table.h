@@ -4,6 +4,7 @@
 #define MM_ENGINE_CHUNK_TABLE_H
 #include "collections.h"
 #include "chunky_file.h"
+#include "chunk_metadata.h"
 #if USHRT_MAX != 0xffffU
 #error Compact chunk records require sixteen-bit unsigned short
 #endif
@@ -74,6 +75,22 @@ extern "C"
     int mm_chunk_table_entry(MMChunkTable *, MMU32, MMChunkEntry *);
     int mm_chunk_table_child(MMChunkTable *, MMU32 parent, MMU32 position, MMChunkChild *);
     MMChunkAccess mm_chunk_table_access(MMChunkTable *);
+    typedef struct MMChunkTableEditBinding
+    {
+        void *context;
+        MMChunkTable *(*table)(void *); /* Live table may be replaced between transactions. */
+        int (*allocate)(void *, MMU32 bytes, MMChunkLocation *);
+        void (*free_space)(void *, int extra, MMU32 offset, MMU32 bytes);
+        MMI32 (*runtime)(void *, MMU32 type, MMU32 number);
+        int (*set_runtime)(void *, MMU32 type, MMU32 number, MMI32 runtime);
+        void (*issue)(void *, int kind);
+    } MMChunkTableEditBinding;
+    /* Borrows a stable binding. table, allocate and free_space are required
+     * and the table must stay live through a transaction. Storage changes use
+     * the live table. The owner supplies extent allocation and optional runtime IDs. */
+    MMChunkEdit mm_chunk_table_editor(MMChunkTableEditBinding *, const MMStorageAllocator *,
+                                      MMU32 max_references, int scan_all_references);
+    MMChunkNames mm_chunk_table_names(MMChunkTable *, MMU32 max_name_bytes);
     int mm_chunk_table_clear_flags(MMChunkTable *, MMU32 mask);
     MMU32 mm_chunk_table_wire_size(const MMChunkTable *);
     /* Fixed/variable payloads are emitted as supplied; only header/location byte

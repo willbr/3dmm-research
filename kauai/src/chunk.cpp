@@ -178,28 +178,14 @@ void *ChunkVariable(PChunkTable table, LegacyLong i)
 { return mm_chunk_table_variable(table, i, nullptr); }
 bool ChunkInsert(PChunkTable table, LegacyLong i, LegacyLong bytes, const void *data = nullptr, const void *fixed = nullptr)
 { return mm_chunk_table_insert(table, i, bytes, data, fixed) == MM_STORAGE_OK; }
-bool ChunkInsertBytes(PChunkTable table, LegacyLong i, LegacyLong offset, LegacyLong bytes, const void *data)
-{ return mm_chunk_table_insert_bytes(table, i, offset, bytes, data) == MM_STORAGE_OK; }
-void ChunkDelete(PChunkTable table, LegacyLong i)
-{ AssertDo(mm_chunk_table_delete(table, i) == MM_STORAGE_OK, "invalid chunk table deletion"); }
-void ChunkDeleteBytes(PChunkTable table, LegacyLong i, LegacyLong offset, LegacyLong bytes)
-{ AssertDo(mm_chunk_table_delete_bytes(table, i, offset, bytes) == MM_STORAGE_OK, "invalid chunk table byte deletion"); }
 void ChunkReadBytes(PChunkTable table, LegacyLong i, LegacyLong offset, LegacyLong bytes, void *out)
 { AssertDo(mm_chunk_table_read(table, i, offset, bytes, out) == MM_STORAGE_OK, "invalid chunk table read"); }
-void ChunkPutBytes(PChunkTable table, LegacyLong i, LegacyLong offset, LegacyLong bytes, const void *data)
-{ AssertDo(mm_chunk_table_put(table, i, offset, bytes, data) == MM_STORAGE_OK, "invalid chunk table write"); }
 void ChunkReadFixed(PChunkTable table, LegacyLong i, void *out)
 { std::memcpy(out, ChunkFixed(table, i), table->fixed_bytes); }
-void ChunkMove(PChunkTable table, LegacyLong from, LegacyLong to)
-{ AssertDo(mm_chunk_table_move(table, from, to) == MM_STORAGE_OK, "invalid chunk table move"); }
-bool ChunkMoveBytes(PChunkTable table, LegacyLong from, LegacyLong offset, LegacyLong to, LegacyLong targetOffset, LegacyLong bytes)
-{ return mm_chunk_table_move_bytes(table, from, offset, to, targetOffset, bytes) == MM_STORAGE_OK; }
 void ChunkLock(PChunkTable table)
 { AssertDo(mm_chunk_table_lock(table) == MM_STORAGE_OK, "invalid chunk table lock"); }
 void ChunkUnlock(PChunkTable table)
 { AssertDo(mm_chunk_table_unlock(table) == MM_STORAGE_OK, "invalid chunk table unlock"); }
-void *ChunkLockVariable(PChunkTable table, LegacyLong i)
-{ ChunkLock(table); return ChunkVariable(table, i); }
 }
 
 namespace
@@ -267,6 +253,35 @@ ChunkyFile::ChunkyFile(void)
     expanded = 1;
 #endif
     AssertDo(mm_chunk_owner_init(&_owner, KauaiCopyAllocator(), expanded) == MM_CHUNK_OK, "invalid container owner");
+    _tableEdit = {
+        this,
+        [](void *p) { return static_cast<PChunkyFile>(p)->_Index(); },
+        [](void *p, MMU32 bytes, MMChunkLocation *out) -> int {
+            auto file = static_cast<PChunkyFile>(p);
+            FileLocation location;
+            if (!file->_FAllocFlo(bytes, &location))
+                return 0;
+            *out = {location.pfil, static_cast<MMU32>(location.fp), static_cast<MMU32>(location.cb),
+                    location.pfil == file->_ExtraFile() ? 1U : 0U};
+            return 1;
+        },
+        [](void *p, int extra, MMU32 offset, MMU32 bytes) {
+            static_cast<PChunkyFile>(p)->_FreeFpCb(extra != 0, offset, bytes);
+        },
+        [](void *p, MMU32 type, MMU32 number) -> MMI32 { return static_cast<PChunkyFile>(p)->_Rti(type, number); },
+        [](void *p, MMU32 type, MMU32 number, MMI32 runtime) -> int {
+            return static_cast<PChunkyFile>(p)->_FSetRti(type, number, runtime);
+        },
+        [](void *, int kind) {
+            if (kind == MM_EDIT_LOW_MEMORY)
+                Warn("memory failure in ChunkyFile::Delete - adjusting ref counts");
+            else if (kind == MM_EDIT_CYCLE_RISK)
+                Warn("Performing this adoption may cause a cycle");
+            else if (kind == MM_EDIT_INDEX_OPERATION)
+                Bug("invalid chunk table mutation");
+            else
+                Bug("invalid chunk deletion reference");
+        }};
     // add it to the linked list
     mm_chunk_link_init(&_link, this);
     AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
@@ -922,19 +937,13 @@ int KauaiEncodeLegacyChunkName(void *, const char *text, void *wire, MMU32 capac
 bool ChunkyFile::_FMaterializeIndex(const MMChunkIndex *index)
 {
     const auto header = *mm_chunk_index_header(index);
-    auto access = mm_chunk_index_access(index);
-    PChunkTable group = NewChunkTable(size(ChunkRepresentation), access.count);
-    if (!group)
+    const auto allocator = CollectionAllocator();
+    PChunkTable group = nullptr;
+    int trash = 0;
+    Debug(trash = 1;)
+    if (mm_chunk_table_load(index, size(ChunkRepresentation), trash, &allocator, KauaiCopyAllocator(),
+                            KauaiEncodeLegacyChunkName, nullptr, &group) != MM_CHUNK_OK)
         return fFalse;
-    const MMChunkMaterializer materializer = {group,
-        KauaiEncodeLegacyChunkName,
-        [](void *context, MMU32 position, const MMChunkEntry *entry, const void *variable, MMU32 bytes) -> int {
-            ChunkRepresentation row = {};
-            mm_chunk_record_set(&row, expandedRecords, entry);
-            return ChunkInsert(static_cast<PChunkTable>(context), position, bytes, const_cast<void *>(variable), &row);
-        }};
-    if (mm_chunk_materialize(index, &materializer, KauaiCopyAllocator()) != MM_CHUNK_OK)
-    { CloseChunkTable(group); return false; }
     _owner.files.index = group;
     _owner.map_bytes = header.map_bytes;
     _owner.map_offset = header.map_offset;
@@ -1048,49 +1057,13 @@ bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
     Write the chunky index and free map to the end of the file.
 ***************************************************************************/
 namespace {
-struct ChunkIndexOutput
-{
-    PFileObject file;
-    PChunkTable index;
-    MMChunkFreeMap * map;
-};
-int WriteChunkIndex(void *context, MMU32 offset, MMU32 bytes)
-{
-    auto output = static_cast<ChunkIndexOutput *>(context);
-    DataBlock block(output->file, offset, bytes);
-    const short one = 1;
-    const MMStorageWriter writer = {&block, bytes,
-        [](void *c, MMU32 offset, const void *data, size_t count) -> int {
-            return static_cast<PDataBlock>(c)->FWriteRgb(const_cast<void *>(data), count, offset);
-        }};
-    return mm_chunk_table_write(output->index, &writer, reinterpret_cast<const byte *>(&one)[0] == 0, koskCur) == MM_STORAGE_OK;
-}
-int WriteChunkMap(void *context, MMU32 offset, MMU32 bytes)
-{
-    auto output = static_cast<ChunkIndexOutput *>(context);
-    DataBlock block(output->file, offset, bytes);
-    const short one = 1;
-    const MMStorageWriter writer = {&block, bytes,
-        [](void *c, MMU32 offset, const void *data, size_t count) -> int {
-            return static_cast<PDataBlock>(c)->FWriteRgb(const_cast<void *>(data), count, offset);
-        }};
-    return mm_free_map_write(output->map, &writer, reinterpret_cast<const byte *>(&one)[0] == 0, koskCur) == MM_STORAGE_OK;
-}
-int WriteChunkPrefix(void *context, const void *bytes, size_t count)
-{
-    return static_cast<ChunkIndexOutput *>(context)->file->FWriteRgb(const_cast<void *>(bytes), count, 0);
-}
-}
-namespace {
 bool WriteChunkDirectory(PFileObject file, PChunkTable index, MMChunkFreeMap * map, FilePosition end, ChunkTagOrType creator)
 {
-    const short one = 1;
-    ChunkIndexOutput output = {file, index, map};
-    const MMChunkSave save = {creator, static_cast<MMU32>(end),
-        static_cast<MMU32>(mm_chunk_table_wire_size(index)), mm_free_map_wire_size(map),
-        reinterpret_cast<const byte *>(&one)[0] == 0, koskCur};
-    const MMChunkWriter writer = {&output, WriteChunkIndex, WriteChunkMap, WriteChunkPrefix};
-    return mm_chunk_write_index(&save, &writer, nullptr) == MM_CHUNK_OK;
+    const MMStorageWriter writer = {file, 0x7fffffffUL,
+        [](void *p, MMU32 offset, const void *bytes, size_t count) -> int {
+            return static_cast<PFileObject>(p)->FWriteRgb(const_cast<void *>(bytes), count, offset);
+        }};
+    return mm_chunk_directory_write(index, map, end, creator, koskCur, &writer, nullptr) == MM_CHUNK_OK;
 }
 }
 bool ChunkyFile::_FWriteIndex(ChunkTagOrType ctgCreator)
@@ -1515,71 +1488,9 @@ struct ChunkPayloadHost
 }
 MMChunkEdit ChunkyFile::EditIndex()
 {
-    MMChunkEdit edit = {};
-    edit.context = this;
-    edit.max_references = kckidMax;
-    edit.walk_allocator = KauaiCopyAllocator();
-    edit.count = [](void *c) -> MMU32 { return static_cast<PChunkyFile>(c)->_Index()->count; };
-    edit.entry = [](void *c, MMU32 i, MMChunkEntry *entry) {
-        return mm_chunk_table_entry(static_cast<PChunkyFile>(c)->_Index(), i, entry);
-    };
-    edit.child = [](void *c, MMU32 parent, MMU32 i, MMChunkChild *entry) {
-        return mm_chunk_table_child(static_cast<PChunkyFile>(c)->_Index(), parent, i, entry);
-    };
-    edit.insert = [](void *c, MMU32 i) -> int { return ChunkInsert(static_cast<PChunkyFile>(c)->_Index(), i, 0); };
-    edit.store = [](void *c, MMU32 i, const MMChunkEntry *entry, int initialize) {
-        auto row = static_cast<ChunkRepresentation *>(ChunkFixed(static_cast<PChunkyFile>(c)->_Index(), i));
-        if (initialize) ClearPb(row, sizeof(*row));
-        mm_chunk_record_set(row, expandedRecords, entry);
-    };
-    edit.erase = [](void *c, MMU32 i) { ChunkDelete(static_cast<PChunkyFile>(c)->_Index(), i); };
-    edit.allocate = [](void *c, MMU32 bytes, MMChunkLocation *location) -> int {
-        auto self = static_cast<PChunkyFile>(c);
-        FileLocation native;
-        if (!self->_FAllocFlo(bytes, &native)) return 0;
-        *location = {native.pfil, static_cast<MMU32>(native.fp), static_cast<MMU32>(native.cb),
-            native.pfil == self->_ExtraFile() ? 1U : 0U};
-        return 1;
-    };
-    edit.free_space = [](void *c, int extra, MMU32 offset, MMU32 bytes) {
-        static_cast<PChunkyFile>(c)->_FreeFpCb(extra != 0, offset, bytes);
-    };
-    edit.reset_runtime = [](void *c, MMU32 type, MMU32 number) {
-        static_cast<PChunkyFile>(c)->_FSetRti(type, number, rtiNil);
-    };
-    edit.runtime = [](void *c, MMU32 type, MMU32 number) -> MMI32 {
-        return static_cast<PChunkyFile>(c)->_Rti(type, number);
-    };
-    edit.set_runtime = [](void *c, MMU32 type, MMU32 number, MMI32 runtime) -> int {
-        return static_cast<PChunkyFile>(c)->_FSetRti(type, number, runtime);
-    };
-#ifdef DEBUG
-    edit.scan_all_references = 1;
-#endif
-    edit.issue = [](void *, int kind) {
-        if (kind == MM_EDIT_LOW_MEMORY) Warn("memory failure in ChunkyFile::Delete - adjusting ref counts");
-        else if (kind == MM_EDIT_CYCLE_RISK) Warn("Performing this adoption may cause a cycle");
-        else Bug("invalid chunk deletion reference");
-    };
-    edit.insert_child = [](void *c, MMU32 parent, MMU32 position, const MMChunkChild *child) -> int {
-        ChildChunkIdentification native = {{child->type, child->number}, child->slot};
-        return ChunkInsertBytes(static_cast<PChunkyFile>(c)->_Index(), parent, position * sizeof(native), sizeof(native), &native);
-    };
-    edit.erase_child = [](void *c, MMU32 parent, MMU32 position) {
-        ChunkDeleteBytes(static_cast<PChunkyFile>(c)->_Index(), parent, position * sizeof(ChildChunkIdentification), sizeof(ChildChunkIdentification));
-    };
-    edit.put_child = [](void *c, MMU32 parent, MMU32 position, const MMChunkChild *child) {
-        ChildChunkIdentification native = {{child->type, child->number}, child->slot};
-        ChunkPutBytes(static_cast<PChunkyFile>(c)->_Index(), parent, position * sizeof(native), sizeof(native), &native);
-    };
-    edit.move_entry = [](void *c, MMU32 source, MMU32 destination) {
-        ChunkMove(static_cast<PChunkyFile>(c)->_Index(), source, destination);
-    };
-    edit.move_bytes = [](void *c, MMU32 source, MMU32 offset, MMU32 destination,
-                         MMU32 destinationOffset, MMU32 bytes) -> int {
-        return ChunkMoveBytes(static_cast<PChunkyFile>(c)->_Index(), source, offset, destination, destinationOffset, bytes);
-    };
-    return edit;
+    int scan = 0;
+    Debug(scan = 1;)
+    return mm_chunk_table_editor(&_tableEdit, KauaiCopyAllocator(), kckidMax, scan);
 }
 MMChunkEdit ChunkyFile::_PayloadEdit(void *context)
 {
@@ -2076,14 +1987,7 @@ bool ChunkyFile::FWriteNameBytes(ChunkTagOrType ctg, ChunkNumber cno, const void
 ***************************************************************************/
 MMChunkNames ChunkyFile::NameIndex()
 {
-    return {_Index(),
-        [](void *c) -> MMU32 { return static_cast<PChunkTable>(c)->count; }, ReadRuntimeChunk,
-        [](void *c, MMU32 i, MMU32 offset, MMU32 bytes) -> int {
-            return ChunkInsertBytes(static_cast<PChunkTable>(c), i, offset, bytes, nullptr);
-        },
-        [](void *c, MMU32 i, MMU32 offset, MMU32 bytes) { ChunkDeleteBytes(static_cast<PChunkTable>(c), i, offset, bytes); },
-        [](void *c, MMU32 i) -> void * { return ChunkLockVariable(static_cast<PChunkTable>(c), i); },
-        [](void *c) { ChunkUnlock(static_cast<PChunkTable>(c)); }, kcbMaxDataStn};
+    return mm_chunk_table_names(_Index(), kcbMaxDataStn);
 }
 MMArchiveWriter ChunkyFile::WriteIndex()
 {
