@@ -5292,8 +5292,11 @@ glyph adjustment. The C89 `mm-brender-resources` library binds BRender allocatio
 geometry, DAT import and prelighting for both hosts. The live reader borrows
 the caller's C block, estimates from the stored extent and decodes in place
 before creating a cached model. Prepared and unprepared reads use the same
-bounded block I/O. `modl.cpp` supplies the object factory, the codec binding,
-chunk publication for saves and diagnostics. Header and face codecs read
+bounded block I/O. C uses the supplied general-purpose allocator for face
+decoding and serialization buffers. The writer sends the finished BMDL bytes
+through the shared chunk editor for creation or replacement. `modl.cpp` supplies
+the object factory, codec, live index and file bindings, and diagnostics.
+Header and face codecs read
 48-byte headers and 32-byte faces. The 32-byte vertex records keep their native
 opaque representation. Runtime faces may be larger because their material
 field is a pointer. Serialized material slots and implicit face padding are
@@ -7105,6 +7108,8 @@ deletion visitor's skip/descent/removal decisions. It preserves names, children,
 parent counts, loner/packed/forest flags and native-only runtime fields during
 replacement; new fixed records are zero-initialized. Primitive services transfer
 decoded values rather than retaining pointers into movable index storage.
+`chunk_storage.c` binds raw payload writes to the editor's allocated file extent.
+Models and the native `FPutPv` facade share this path.
 
 An existing allocation failure leaves the caller's output block intact. Failed
 writes free the newly reserved storage and clear the output; failed new writes

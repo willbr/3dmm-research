@@ -14,6 +14,9 @@ typedef struct Fixture
     int size, fail, step, objects, models, memory, adds, removes, invalid, warnings, bad;
     int components, published, bound, reads, prepared, flags, identified, geometry;
     int file_refs, decodes;
+    MMChunkEntry chunk;
+    MMU32 chunks, freed;
+    int resets;
 } Fixture;
 typedef struct TestHandle
 {
@@ -161,26 +164,25 @@ static void model_block(MMOwnedBlock *block, Fixture *f, int packed)
     assert(mm_owned_block_init(block, &handles, &files) == MM_DATA_OK);
     assert(mm_owned_block_set_file(block, &file, packed) == MM_DATA_OK);
 }
-static int allocate(void *p, MMI32 bytes, int clear, void **out)
+static void *allocate(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Fixture *f = (Fixture *)p;
-    *out = NULL;
+    void *out;
+    assert(!old && !old_bytes && bytes && priority == MM_STORAGE_NORMAL);
     if (!next(f))
-        return 0;
-    *out = clear ? calloc(1, (size_t)bytes) : malloc((size_t)bytes);
-    assert(*out);
+        return NULL;
+    out = malloc(bytes);
+    assert(out);
+    memset(out, 0xcc, bytes);
     ++f->memory;
-    return 1;
+    return out;
 }
-static void free_memory(void *p, void **out)
+static void free_memory(void *p, void *bytes, MMU32 size)
 {
     Fixture *f = (Fixture *)p;
-    if (*out)
-    {
-        free(*out);
-        *out = NULL;
-        --f->memory;
-    }
+    assert(bytes && size && f->memory > 0);
+    free(bytes);
+    --f->memory;
 }
 static void invalidate(void *p, void *out, size_t bytes)
 {
@@ -279,10 +281,62 @@ static void geometry(void *p, void *h, const MMModelDescription *d)
     f->description = *d;
     ++f->geometry;
 }
-static int put(void *p, void *file, MMU32 type, MMU32 number, const void *data, MMI32 bytes)
+static MMU32 chunk_count(void *p) { return ((Fixture *)p)->chunks; }
+static int chunk_entry(void *p, MMU32 i, MMChunkEntry *out)
 {
     Fixture *f = (Fixture *)p;
-    assert(file == f && type == 3 && number == 7 && bytes == 144);
+    assert(i == 0 && f->chunks == 1);
+    *out = f->chunk;
+    return 1;
+}
+static int insert_chunk(void *p, MMU32 i)
+{
+    Fixture *f = (Fixture *)p;
+    assert(i == 0 && !f->chunks);
+    f->chunks = 1;
+    return 1;
+}
+static void store_chunk(void *p, MMU32 i, const MMChunkEntry *entry, int initialize)
+{
+    Fixture *f = (Fixture *)p;
+    assert(i == 0 && f->chunks == 1 && (!initialize || !f->chunk.bytes));
+    f->chunk = *entry;
+}
+static void erase_chunk(void *p, MMU32 i)
+{
+    Fixture *f = (Fixture *)p;
+    assert(i == 0 && f->chunks == 1);
+    f->chunks = 0;
+    memset(&f->chunk, 0, sizeof(f->chunk));
+}
+static int allocate_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
+{
+    Fixture *f = (Fixture *)p;
+    assert(f->chunks == 1 && bytes == sizeof(f->written));
+    if (!next(f))
+        return 0;
+    extent->file = p;
+    extent->offset = f->chunk.offset == 200 ? 400 : 200;
+    extent->bytes = bytes;
+    extent->flags = 0;
+    return 1;
+}
+static void free_extent(void *p, int extra, MMU32 offset, MMU32 bytes)
+{
+    Fixture *f = (Fixture *)p;
+    assert(!extra && (offset == 200 || offset == 400) && bytes == sizeof(f->written));
+    f->freed = offset;
+}
+static void reset_chunk(void *p, MMU32 type, MMU32 number)
+{
+    Fixture *f = (Fixture *)p;
+    assert(type == 3 && number == 7);
+    ++f->resets;
+}
+static int write_model_bytes(void *p, void *file, MMU32 offset, const void *data, size_t bytes)
+{
+    Fixture *f = (Fixture *)p;
+    assert(file == f && (offset == 200 || offset == 400) && bytes == sizeof(f->written));
     if (!next(f))
         return 0;
     memcpy(f->written, data, (size_t)bytes);
@@ -495,10 +549,23 @@ static void mesh_tests(void)
 static void author_tests(MMModelServices *s)
 {
     Fixture *f = (Fixture *)s->context;
+    MMChunkEdit edit = {0};
+    MMBlockFileServices files = {0};
     MMModelFace face;
     MMModelDescription d;
-    int big, bad, fail;
+    int big, bad, fail, existing;
     void *object;
+    edit.context = f;
+    edit.count = chunk_count;
+    edit.entry = chunk_entry;
+    edit.insert = insert_chunk;
+    edit.store = store_chunk;
+    edit.erase = erase_chunk;
+    edit.allocate = allocate_extent;
+    edit.free_space = free_extent;
+    edit.reset_runtime = reset_chunk;
+    files.context = f;
+    files.write = write_model_bytes;
     for (big = 0; big < 2; ++big)
     {
         s->host_big_endian = big;
@@ -511,7 +578,8 @@ static void author_tests(MMModelServices *s)
         f->description.bounds.max[0] = 11;
         mm_model_face_read(f->block + 112, big, &f->face);
         memcpy(f->vertices, f->block + 48, 64);
-        assert(mm_model_write(&f->owner, f, 3, 7, s) && !f->memory);
+        assert(mm_model_write(&f->owner, &edit, &files, 3, 7, s) && !f->memory);
+        assert(f->chunks == 1 && f->chunk.offset == 200 && f->chunk.bytes == sizeof(f->written));
         assert(mm_model_header(f->written, big, &d, &bad) && !bad && d.vertices == 2 && d.faces == 1 &&
                d.radius == 7 && d.bounds.min[0] == -3);
         assert(!memcmp(f->written + 48, f->vertices, 64));
@@ -519,12 +587,27 @@ static void author_tests(MMModelServices *s)
         assert(!memcmp(&face, &f->face, sizeof(face)));
         assert(!f->written[124] && !f->written[125] && !f->written[126] && !f->written[127] && !f->written[138] &&
                !f->written[139]);
-        for (fail = 1; fail <= 2; ++fail)
+        f->chunk.flags |= MM_CHUNK_PACKED;
+        f->chunk.parent_count = 2;
+        f->description.radius = 9;
+        assert(mm_model_write(&f->owner, &edit, &files, 3, 7, s) && f->freed == 200 && f->resets == 1);
+        assert(f->chunk.offset == 400 && f->chunk.flags == (MM_CHUNK_LONER | MM_CHUNK_PACKED) && f->chunk.parent_count == 2);
+        assert(mm_model_header(f->written, big, &d, &bad) && d.radius == 9);
+        for (existing = 1; existing >= 0; --existing)
         {
-            f->step = 0;
-            f->fail = fail;
-            f->warnings = 0;
-            assert(!mm_model_write(&f->owner, f, 3, 7, s) && f->warnings == 1 && !f->memory);
+            for (fail = 1; fail <= 3; ++fail)
+            {
+                f->step = f->warnings = f->resets = 0;
+                f->freed = 0;
+                f->fail = fail;
+                assert(!mm_model_write(&f->owner, &edit, &files, 3, 7, s) && f->warnings == 1 && !f->memory);
+                assert(f->chunks == (MMU32)existing && f->freed == (fail == 3 ? 200U : 0U));
+                assert(f->resets == (!existing && fail == 3));
+                if (existing)
+                    assert(f->chunk.offset == 400 && f->chunk.parent_count == 2);
+            }
+            if (existing)
+                erase_chunk(f, 0);
         }
     }
     s->host_big_endian = 0;
@@ -702,6 +785,8 @@ int main(void)
 {
     Fixture f;
     MMModelServices s;
+    MMStorageAllocator allocator = {NULL, allocate, free_memory};
+    allocator.context = &f;
     memset(&s, 0, sizeof(s));
     s.context = &f;
     s.face_bytes = 36;
@@ -714,8 +799,7 @@ int main(void)
     s.create = create;
     s.release = object_release;
     s.decode = decode;
-    s.allocate = allocate;
-    s.free_memory = free_memory;
+    s.allocator = &allocator;
     s.invalidate = invalidate;
     s.diagnostic = diagnostic;
     s.save_failed = warning;
@@ -733,7 +817,6 @@ int main(void)
     s.bind_group = bind;
     s.describe = describe;
     s.geometry = geometry;
-    s.put = put;
     s.position = position;
     s.set_position = set_position;
     s.path = path;

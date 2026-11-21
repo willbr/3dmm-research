@@ -1,6 +1,7 @@
 /* Model resource policy converted from engine modl.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/model_resource.h"
+#include "mm/chunk_storage.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -239,15 +240,18 @@ void *mm_model_new(MMI32 vertices, const void *v, MMI32 faces, const void *f,
 static int faces(const MMBlockIO *io, void *handle, int prepared, MMI32 count, MMI32 offset,
                  const MMModelServices *s)
 {
-    void *memory = NULL;
+    const MMStorageAllocator *allocator = s->allocator;
+    MMU32 bytes = (MMU32)count * MM_MODEL_FACE_BYTES;
+    void *memory;
     MMModelFace face;
     MMI32 i;
     int ok = 0;
     if (!count)
         return 1;
-    if (!s->allocate(s->context, count * MM_MODEL_FACE_BYTES, 0, &memory))
-        goto done;
-    if (mm_block_read(io, offset, memory, count * MM_MODEL_FACE_BYTES, 0) != MM_DATA_OK)
+    memory = allocator->resize(allocator->context, NULL, 0, bytes, MM_STORAGE_NORMAL);
+    if (!memory)
+        return 0;
+    if (mm_block_read(io, offset, memory, bytes, 0) != MM_DATA_OK)
         goto done;
     for (i = 0; i < count; ++i)
     {
@@ -256,7 +260,7 @@ static int faces(const MMBlockIO *io, void *handle, int prepared, MMI32 count, M
     }
     ok = 1;
 done:
-    s->free_memory(s->context, &memory);
+    allocator->release(allocator->context, memory, bytes);
     return ok;
 }
 static int read_model(void *object, const MMBlockIO *io, const MMModelServices *s)
@@ -340,13 +344,13 @@ fail:
     s->invalidate(s->context, size, sizeof(bytes));
     return 0;
 }
-int mm_model_write(const MMModelResource *m, void *file, MMU32 type, MMU32 number,
-                         const MMModelServices *s)
+int mm_model_write(const MMModelResource *m, const MMChunkEdit *edit, const MMBlockFileServices *files,
+                   MMU32 type, MMU32 number, const MMModelServices *s)
 {
+    const MMStorageAllocator *allocator = s->allocator;
     MMModelDescription d;
     MMModelFace face;
-    void *memory = NULL;
-    unsigned char *b;
+    unsigned char *b = NULL;
     MMI32 i;
     ModelWireLayout layout;
     int ok = 0;
@@ -354,9 +358,9 @@ int mm_model_write(const MMModelResource *m, void *file, MMU32 type, MMU32 numbe
     if (d.vertices < 0 || d.vertices > 65535L || d.faces < 0 || d.faces > 65535L)
         goto done;
     layout = model_layout(&d);
-    if (!s->allocate(s->context, layout.end, 1, &memory))
+    b = (unsigned char *)allocator->resize(allocator->context, NULL, 0, (MMU32)layout.end, MM_STORAGE_NORMAL);
+    if (!b)
         goto done;
-    b = (unsigned char *)memory;
     put(b, 2, 1, s->host_big_endian);
     put(b + 2, 2, s->system, s->host_big_endian);
     put(b + 4, 2, (MMU32)d.vertices, s->host_big_endian);
@@ -375,11 +379,12 @@ int mm_model_write(const MMModelResource *m, void *file, MMU32 type, MMU32 numbe
         s->get_face(s->context, m->handle, i, &face);
         mm_model_face_write(b + layout.face_offset + i * MM_MODEL_FACE_BYTES, s->host_big_endian, &face);
     }
-    ok = s->put(s->context, file, type, number, b, layout.end);
+    ok = mm_chunk_put_bytes(edit, files, type, number, b, (MMU32)layout.end) == MM_CHUNK_OK;
 done:
     if (!ok && s->save_failed)
         s->save_failed(s->context);
-    s->free_memory(s->context, &memory);
+    if (b)
+        allocator->release(allocator->context, b, (MMU32)layout.end);
     return ok;
 }
 void *mm_model_dat(void *filename, const MMModelServices *s)

@@ -56,6 +56,12 @@ extern "C"
     int mm_chunk_storage_fetch(const MMChunkStoragePolicy *, const MMChunkStorageServices *,
                                      MMU32 position, MMChunkLocation *);
 
+    /* Create or replace the stored bytes using the live index and returned file
+     * extent. The write completes before the replacement takes effect. A failed
+     * write discards the new extent and preserves an existing chunk. */
+    int mm_chunk_put_bytes(const MMChunkEdit *, const MMBlockFileServices *, MMU32 type,
+                           MMU32 number, const void *data, MMU32 bytes);
+
     typedef struct MMChunkPayloadServices
     {
         const MMHandleServices *handles;

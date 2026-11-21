@@ -4,6 +4,7 @@
 #define MM_ENGINE_MODEL_RESOURCE_H
 #include "block_owner.h"
 #include "body_geometry.h"
+#include "chunk_edit.h"
 #include "read_stream.h"
 #include <stddef.h>
 #ifdef __cplusplus
@@ -50,8 +51,7 @@ extern "C"
         void *(*create)(void *);
         void (*release)(void *, void *object);
         MMBlockTransform decode;
-        int (*allocate)(void *, MMI32 bytes, int clear, void **out);
-        void (*free_memory)(void *, void **);
+        const MMStorageAllocator *allocator;
         void (*invalidate)(void *, void *, size_t);
         void (*diagnostic)(void *, int);
         void (*save_failed)(void *);
@@ -70,7 +70,6 @@ extern "C"
         void (*bind_group)(void *, void *handle, int face_group);
         void (*describe)(void *, void *handle, MMModelDescription *);
         void (*geometry)(void *, void *handle, const MMModelDescription *);
-        int (*put)(void *, void *file, MMU32 type, MMU32 number, const void *, MMI32);
         void (*position)(void *, void *handle, MMI32, MMI32 out[3]);
         void (*set_position)(void *, void *handle, MMI32, const MMI32 in[3]);
         const void *(*path)(void *, void *filename);
@@ -92,8 +91,8 @@ extern "C"
      * without decoding. Actual reads decode the block in place. */
     int mm_model_fetch(MMOwnedBlock *, void *object_out, void *size_out, const MMModelServices *);
     int mm_model_read(void *object, MMOwnedBlock *, const MMModelServices *);
-    int mm_model_write(const MMModelResource *, void *file, MMU32 type, MMU32 number,
-                             const MMModelServices *);
+    int mm_model_write(const MMModelResource *, const MMChunkEdit *, const MMBlockFileServices *,
+                       MMU32 type, MMU32 number, const MMModelServices *);
     void *mm_model_dat(void *filename, const MMModelServices *);
     MMI32 mm_model_extent(const MMModelResource *, unsigned axis, const MMModelServices *);
     void mm_model_adjust_glyph(const MMModelResource *, const MMModelServices *);

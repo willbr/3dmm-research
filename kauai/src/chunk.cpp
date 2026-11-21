@@ -1510,7 +1510,6 @@ namespace {
 struct ChunkPayloadHost
 {
     PDataBlock output, source, temporary;
-    void *bytes;
 };
 struct ChunkOpsHost
 {
@@ -1606,7 +1605,6 @@ MMChunkEdit ChunkyFile::_PayloadEdit(void *context)
         auto block = host->output ? host->output : host->temporary;
         FileLocation native = {static_cast<PFileObject>(location->file), static_cast<FilePosition>(location->offset),
             static_cast<LegacyLong>(location->bytes)};
-        if (host->bytes) return added ? block->FWrite(host->bytes) : native.FWrite(host->bytes);
         if (host->source) return added ? host->source->FWriteToBlck(block, fTrue) : host->source->FWriteToFlo(&native, fTrue);
         return 1;
     };
@@ -1783,7 +1781,7 @@ bool ChunkyFile::FAddChildHq(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChu
 bool ChunkyFile::_FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong icrp, PDataBlock pblck)
 {
     AssertBaseThis(0); AssertIn(cb, 0, kcbMax); AssertNilOrPo(pblck, 0);
-    ChunkPayloadHost host = {pblck, nullptr, nullptr, nullptr};
+    ChunkPayloadHost host = {pblck, nullptr, nullptr};
     const auto edit = _PayloadEdit(&host);
     const bool ok = mm_chunk_add(&edit, ctg, cno, icrp, cb, nullptr) == MM_CHUNK_OK;
     AssertThis(0);
@@ -1798,7 +1796,7 @@ bool ChunkyFile::FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataB
     AssertThis(0);
     AssertNilOrPo(pblck, 0);
 
-    return _FPut(cb, ctg, cno, pblck, pvNil, pvNil);
+    return _FPut(cb, ctg, cno, pblck, pvNil);
 }
 
 /***************************************************************************
@@ -1810,7 +1808,10 @@ bool ChunkyFile::FPutPv(void *pv, LegacyLong cb, ChunkTagOrType ctg, ChunkNumber
     AssertIn(cb, 0, kcbMax);
     AssertPvCb(pv, cb);
 
-    return _FPut(cb, ctg, cno, pvNil, pvNil, pv);
+    const auto edit = EditIndex();
+    const bool ok = mm_chunk_put_bytes(&edit, KauaiBlockFileServices(), ctg, cno, pv, cb) == MM_CHUNK_OK;
+    AssertThis(0);
+    return ok;
 }
 
 /***************************************************************************
@@ -1825,7 +1826,7 @@ bool ChunkyFile::FPutHq(HQ hq, ChunkTagOrType ctg, ChunkNumber cno)
     HQ hqT = hq;
     DataBlock blckSrc(&hq);
 
-    fRet = _FPut(blckSrc.Cb(), ctg, cno, pvNil, &blckSrc, pvNil);
+    fRet = _FPut(blckSrc.Cb(), ctg, cno, pvNil, &blckSrc);
     AssertDo(hqT == blckSrc.HqFree(), "blckSrc.HqFree() returned a differnt hq!");
 
     return fRet;
@@ -1840,25 +1841,24 @@ bool ChunkyFile::FPutBlck(PDataBlock pblckSrc, ChunkTagOrType ctg, ChunkNumber c
     AssertThis(0);
     AssertPo(pblckSrc, 0);
 
-    if (!_FPut(pblckSrc->Cb(fTrue), ctg, cno, pvNil, pblckSrc, pvNil))
+    if (!_FPut(pblckSrc->Cb(fTrue), ctg, cno, pvNil, pblckSrc))
         return pvNil;
     SetPacked(ctg, cno, pblckSrc->FPacked());
     return fTrue;
 }
 
 /***************************************************************************
-    Low level put.  Writes data from pblckSrc or pv (or neither).  If the
+    Low level put.  Writes data from an optional source block.  If the
     chunk doesn't already exist, this has the same affect as doing an add.
     If it does exist, this doesn't change the fcrpLoner flag or anything
     else except the data.  If pblck isn't nil, this sets it to the location
     of the new data.  Doesn't change the packed flag.
 ***************************************************************************/
-bool ChunkyFile::_FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv)
+bool ChunkyFile::_FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc)
 {
     AssertBaseThis(0); AssertIn(cb, 0, kcbMax); AssertNilOrPo(pblck, 0); AssertNilOrPo(pblckSrc, 0);
-    Assert(!pv || !pblckSrc, 0);
     DataBlock temporary;
-    ChunkPayloadHost host = {pblck, pblckSrc, &temporary, pv};
+    ChunkPayloadHost host = {pblck, pblckSrc, &temporary};
     const auto edit = _PayloadEdit(&host);
     const bool ok = mm_chunk_put(&edit, ctg, cno, cb) == MM_CHUNK_OK;
     AssertThis(0);

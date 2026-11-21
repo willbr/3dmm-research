@@ -30,19 +30,13 @@ MMModelServices Model::_Services(void *context)
     s.create = [](void *) -> void * { return NewObj Model; };
     s.release = [](void *, void *object) { static_cast<PModel>(object)->Release(); };
     s.decode = KauaiDecodeBlockHandle;
-    s.allocate = [](void *, MMI32 bytes, int clear, void **out) -> int {
-        return FAllocPv(out, bytes, clear ? fmemClear : fmemNil, mprNormal);
-    };
-    s.free_memory = [](void *, void **out) { FreePpv(out); };
+    s.allocator = KauaiCopyAllocator();
     s.invalidate = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
     s.diagnostic = [](void *, int code) {
         if (code == MM_MODEL_BAD_ORDER)
             Assert(false, "bad Model!");
     };
     s.save_failed = [](void *) { Warn("model save failed."); };
-    s.put = [](void *, void *file, MMU32 type, MMU32 number, const void *data, MMI32 bytes) -> int {
-        return static_cast<PChunkyFile>(file)->FPutPv(const_cast<void *>(data), bytes, type, number);
-    };
     s.path = [](void *context, void *filename) -> const void * {
         auto path = static_cast<PString>(context);
         static_cast<PFilename>(filename)->GetStnPath(path);
@@ -98,7 +92,8 @@ bool Model::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
     AssertThis(0);
     AssertPo(file, 0);
     auto s = _Services();
-    return mm_model_write(&_model, file, type, number, &s) != 0;
+    const auto edit = file->EditIndex();
+    return mm_model_write(&_model, &edit, KauaiBlockFileServices(), type, number, &s) != 0;
 }
 void Model::AdjustTdfCharacter(void)
 {

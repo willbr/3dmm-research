@@ -4,6 +4,40 @@
 #include "mm/codec.h"
 #include <stdlib.h>
 
+typedef struct ChunkBytes
+{
+    const MMBlockFileServices *files;
+    const void *data;
+    MMU32 bytes;
+} ChunkBytes;
+
+static int write_chunk_bytes(void *p, const MMChunkLocation *location, int added)
+{
+    const ChunkBytes *payload = (const ChunkBytes *)p;
+    const MMBlockFileServices *files = payload->files;
+    (void)added;
+    return location->bytes == payload->bytes &&
+           (!payload->bytes || (location->file && files->write(files->context, location->file,
+                                                             location->offset, payload->data, payload->bytes)));
+}
+
+int mm_chunk_put_bytes(const MMChunkEdit *index, const MMBlockFileServices *files, MMU32 type,
+                       MMU32 number, const void *data, MMU32 bytes)
+{
+    MMChunkEdit edit;
+    ChunkBytes payload;
+    if (!index || (bytes && (!data || !files || !files->write)))
+        return MM_CHUNK_BAD_FILE;
+    edit = *index;
+    payload.files = files;
+    payload.data = data;
+    payload.bytes = bytes;
+    edit.payload_context = &payload;
+    edit.output = NULL;
+    edit.write = write_chunk_bytes;
+    return mm_chunk_put(&edit, type, number, bytes);
+}
+
 int mm_chunk_payload_bind_block(const MMChunkPayloadServices *s, void *archive, MMU32 type,
                                 MMU32 number, MMOwnedBlock *block)
 {

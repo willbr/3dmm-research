@@ -1,4 +1,4 @@
-#include "mm/chunk_edit.h"
+#include "mm/chunk_storage.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -318,6 +318,10 @@ static void put_cases(void)
     init(&f);
     f.edit.output = NULL;
     CHECK(mm_chunk_add(&f.edit, 10, 0, 0, 0, NULL) == MM_CHUNK_OK && !f.outputs);
+    init(&f);
+    CHECK(mm_chunk_put_bytes(&f.edit, NULL, 10, 5, NULL, 0) == MM_CHUNK_OK);
+    CHECK(f.count == 1 && f.nodes[0].entry.bytes == 0 && f.nodes[0].entry.flags == MM_CHUNK_LONER &&
+          !f.outputs && !f.frees && !f.resets);
 }
 static void simple(void)
 {

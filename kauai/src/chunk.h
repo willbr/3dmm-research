@@ -138,7 +138,7 @@ class ChunkyFile : public ChunkyFile_PAR
     void _GetUniqueCno(ChunkTagOrType ctg, LegacyLong *picrp, ChunkNumber *pcno);
     void _FreeFpCb(bool fOnExtra, FilePosition fp, LegacyLong cb);
     bool _FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong icrp, PDataBlock pblck);
-    bool _FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc, void *pv);
+    bool _FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc);
     bool _FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone,
                 int *created = nullptr);
     bool _FDecRefCount(LegacyLong icrp);

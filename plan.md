@@ -916,8 +916,9 @@ Model construction/loading, prepared/unprepared wire I/O, DAT import control,
 glyph geometry adjustments and prelighting lifetime/control now also use C89.
 Live model loading uses C89 block decoding and bounded reads. Cache estimates
 use stored lengths and update after decoding. The C89 BRender binding supplies
-renderer operations. The native Model facade supplies factory and codec
-bindings and publishes serialized bytes to the chunk graph.
+renderer operations. The native Model facade supplies the factory, codec and
+archive bindings. C89 writes serialized model bytes through the shared chunk
+editor, which also handles raw payload replacement for native callers.
 Material/custom-material construction, factories, wire I/O, shade-table
 replacement, texture/model reference ownership and PIX/BMP import orchestration
 now also use C89. The C readers load material, transform and costume payloads
