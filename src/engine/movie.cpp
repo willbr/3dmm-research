@@ -166,6 +166,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
 {
     static_assert(kctgScen == MM_SAVE_SCENE && kctgGst == MM_SAVE_TABLE &&
         kctgMtrl == MM_SAVE_MATERIAL && kctgTmpl == MM_SAVE_TEMPLATE &&
+        int(crepToss) == MM_RESOURCE_TOSS_PRIORITY &&
         ksidUseCrf == 0 && kchidGstSource == 1 && cnoNil == 0xffffffffU,
         "Movie save ABI");
     MMMovieSaveServices s = {};
@@ -187,7 +188,6 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         h->unique = *destination;
         return h->unique.FGetUnique(destination->Ftg()) ? &h->unique : nullptr;
     };
-    s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
     s.create_file = [](void *, void *path) -> void * {
         auto file = ChunkyFile::PcflCreate(static_cast<PFilename>(path), fcflTemp);
         Assert(!file || file->FTemp(), "Bad ChunkyFile");
@@ -229,7 +229,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         return static_cast<PScene>(scene)->FWrite(static_cast<SaveHost *>(p)->movie->_data.Resources(), number);
     };
     s.archive_issue = MovieArchiveIssue;
-    s.close_tag = [](void *, MMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
+    s.tags = &TagManager::CoreServices();
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->Pmcc()->UpdateRollCall(); };
     s.source_names = vptagm ? vptagm->CoreSourceNames() : nullptr;
     s.titles = KauaiChunkTitleIO();
@@ -265,10 +265,8 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         else
             Bug("Bad event in frame event list");
     };
-    s.toss_cache = [](void *p, MMU32 type, MMU32 number) {
-        auto reader = type == kctgMtrl ? Material_MTRL::FReadMtrl : Template::FReadTmpl;
-        static_cast<SaveHost *>(p)->movie->_data.Resources()->FSetCrep(crepToss, type, number, reader);
-    };
+    s.material_reader = Material_MTRL::FReadMtrl;
+    s.template_reader = Template::FReadTmpl;
     s.purge_sounds = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->Pmcc()->FQueryPurgeSounds(); };
     s.bad_child = [](void *) { Bug("ChunkyFile returned bogus Ckid()"); };
     s.bad_sound_index = [](void *) { Bug("Should never fail"); };

@@ -18937,3 +18937,32 @@ retail frame identities and SDL matched all four retail sound requests.
 The PCM16 peak remains 2,176 on both ports and 2,380 in the archived retail
 capture. SDL captured 511,200 PCM frames and Marcus captured 511,680.
 Evidence is in `tmp/c89-rollcall-tag-policy`.
+
+## Autosave tag and cache cleanup in C89 (21 November 2026)
+
+Autosave uses the shared tag binding to locate the working archive and close
+tags after pruning unused roll-call rows. Asset cleanup sets toss priority
+through the typed material and template readers in the working cache. The C
+fixtures cover pruning before a failed save, two readers for the same chunk,
+eviction after the final reference to a template is released, and deletion
+from a foreign archive while the working cache still owns the matching asset.
+
+All 193 standalone C checks, six AddressSanitizer checks, three x86 C fixtures,
+nine native checks and both targeted SDL checks passed. The 29,440-byte native
+autosave trace matched the corresponding baseline on x64, x86 and SDL.
+All 17 authoring artifacts per build, including the complete save, matched
+byte for byte.
+
+SDL and Marcus matched the three archived V3dmm storyboard frames, cameras
+and canvas hashes in suite `20261121T123104Z-50e49e9b`.
+
+In `actor-event-edit` suite `20261121T123108Z-62aa34b1`, both ports matched
+all 60 retail frame identities in seek and continuous playback. Seek camera
+indices matched retail and all 60 seek canvas hashes matched their prior
+captures. SDL matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T123217Z-5238eea1`, both ports matched all 60
+retail frame identities and SDL matched all four retail sound requests.
+The PCM16 peak remains 2,176 on both ports and 2,380 in the archived retail
+capture. SDL captured 521,280 PCM frames and Marcus captured 512,160.
+Evidence is in `tmp/c89-movie-save-tags`.

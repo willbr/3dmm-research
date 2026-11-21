@@ -305,6 +305,8 @@ static MMMovieOwnerServices owners(Host *h)
         save, persist};
     s.context = s.actor_allocator.context = s.rollcall.reader.context = h;
     init_tags(h);
+    h->tags.file = file;
+    h->tags.cache = owner_cache;
     s.rollcall.reader.tags = &h->tags;
     h->owner_writer = chunk_writer_fixture(&h->archive, h, owner_extent, owner_write);
     h->owner_writer.system = MM_TEXT_WINDOWS;
@@ -941,7 +943,7 @@ static void runtime_init(RuntimeCase *t)
     t->saves.context = t;
     t->saves.state = &t->saved;
     t->saves.data = &t->movie;
-    t->saves.file = file;
+    t->saves.tags = &t->archive.tags;
     t->saves.find_file = find_saved;
     t->saves.retain_saved = retain_saved;
     t->saves.release_saved = release_saved;

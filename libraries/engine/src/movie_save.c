@@ -66,7 +66,7 @@ static int refresh_root(void *file, const MMMovieSaveServices *s)
 }
 int mm_movie_save_temporary(const MMMovieSaveServices *s)
 {
-    void *path, *file = s->file(s->data->resources);
+    void *path, *file = s->tags->file(s->data->resources);
     if (!s->is_temp(file))
     {
         path = s->temporary_path(s->context);
@@ -122,7 +122,7 @@ static int clean_actors(const MMMovieSaveServices *s)
             tag = mm_movie_rollcall_tag(&row);
             if (!mm_rollcall_table_delete(actors, i))
                 return 0;
-            s->close_tag(s->context, &tag);
+            mm_tag_close(&tag, s->tags);
         }
         else
             ++i;
@@ -192,7 +192,7 @@ int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices 
         return mm_movie_save_to(path, 0, s);
     if (!s->data->resources)
         return 0;
-    file = s->file(s->data->resources);
+    file = s->tags->file(s->data->resources);
     if (!s->state->autosaveDirty && !path && !s->state->closing)
         return 1;
     s->long_op(s->context, 1);
@@ -295,7 +295,7 @@ int mm_movie_save_to(void *path, int remember, const MMMovieSaveServices *s)
     void *file, *working;
     if (!s->data->resources)
         return 0;
-    file = s->file(s->data->resources);
+    file = s->tags->file(s->data->resources);
     if (s->is_vmm(path) && !s->has_container(s->context))
     {
         s->bad_file(s->context);
@@ -373,7 +373,7 @@ int mm_movie_save_tags(MMTagList *tags, const MMMovieSaveServices *s)
     if (mm_tag_list_init(tags, s->allocator.resize || s->allocator.release ? &s->allocator : 0) != MM_STORAGE_OK)
         return 0;
     source.movie = NULL;
-    source.graph = s->tag_graph(s->file(s->data->resources));
+    source.graph = s->tag_graph(s->tags->file(s->data->resources));
     source.graph.access(source.graph.context, &chunks);
     if (mm_chunk_find(&chunks, MM_SOUND_MOVIE, s->data->movieNumber, &root) != MM_CHUNK_OK)
         return 1;
@@ -449,8 +449,13 @@ int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
     {
         memcpy(chunk, storage.buffers[0].data + i * sizeof(chunk), sizeof(chunk));
         discard_chunk(&edit, chunk[0], chunk[1], s);
-        if (file == s->file(s->data->resources))
-            s->toss_cache(s->context, chunk[0], chunk[1]);
+        if (file == s->tags->file(s->data->resources))
+        {
+            MMResourceCache *cache = s->tags->cache(s->data->resources);
+            MMResourceBlockReader reader = chunk[0] == MM_SAVE_MATERIAL ? s->material_reader : s->template_reader;
+            if (cache)
+                mm_resource_cache_priority(cache, MM_RESOURCE_TOSS_PRIORITY, chunk[0], chunk[1], reader, 0);
+        }
     }
 done:
     mm_tag_list_dispose(&tags);
@@ -465,7 +470,7 @@ void mm_movie_save_sounds(int purge_all, const MMMovieSaveServices *s)
     MMChunkChild child, payload;
     MMU32 root_row, sound_row, i, movie = s->data->movieNumber;
     void *file;
-    if (!s->data->resources || !(file = s->file(s->data->resources)))
+    if (!s->data->resources || !(file = s->tags->file(s->data->resources)))
         return;
     edit = s->archive(file).edit;
     chunks = mm_chunk_edit_access(&edit);
@@ -510,7 +515,7 @@ int mm_movie_save_gc(void *file, const MMMovieSaveServices *s)
 {
     void *working;
     int unused, valid, result = mm_movie_save_assets(file, s);
-    if (s->state->closing && s->data->resources && (working = s->file(s->data->resources)))
+    if (s->state->closing && s->data->resources && (working = s->tags->file(s->data->resources)))
     {
         const MMChunkEdit edit = s->archive(working).edit;
         const MMChunkAccess chunks = mm_chunk_edit_access(&edit);

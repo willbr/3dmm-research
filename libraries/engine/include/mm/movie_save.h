@@ -33,7 +33,7 @@ extern "C"
         MMStorageAllocator allocator;
         int retry_enabled;
         void *(*temporary_path)(void *), *(*unique_path)(void *, void *destination);
-        void *(*file)(void *resources), *(*create_file)(void *, void *path);
+        void *(*create_file)(void *, void *path);
         void (*release_archive)(void *file);
         void *(*new_resources)(void *, void *file, MMU32 cache_bytes);
         int (*is_temp)(void *file), (*save)(void *file, void *path);
@@ -48,7 +48,7 @@ extern "C"
         void (*long_op)(void *, int begin), (*document_dirty)(void *, int);
         int (*write_scene)(void *, void *scene, MMU32 *);
         void (*archive_issue)(void *, int issue);
-        void (*close_tag)(void *, MMTag *);
+        const MMTagServices *tags;
         void (*rollcall_changed)(void *);
         MMSourceNames *source_names;
         MMChunkTitleIO titles;
@@ -59,7 +59,7 @@ extern "C"
         int (*package)(void *, void *working, void *destination), (*source_archive)(void *, MMI32 source);
         MMMovieSessionGraph (*tag_graph)(void *file);
         void (*actor_tag_issue)(void *, int issue), (*scene_tag_issue)(void *, int start, int missing_background);
-        void (*toss_cache)(void *, MMU32 type, MMU32 number);
+        MMResourceBlockReader material_reader, template_reader;
         int (*purge_sounds)(void *);
         void (*bad_child)(void *), (*bad_sound_index)(void *), (*missing_scene)(void *), (*missing_root)(void *);
     } MMMovieSaveServices;
@@ -77,6 +77,8 @@ extern "C"
      * Source names are borrowed throughout autosave. Each write owns the
      * destination block until its payload has been serialized.
      * Cleanup preserves completed destructive prefixes, including actor pruning.
+     * Pruned rows release their tags after removal. Asset cleanup uses the readers
+     * that identify cached resources in the active document.
      * After old children are removed, physical save failure keeps the new graph.
      * Native debug/physical I/O diagnostics remain host operations. */
     void mm_movie_save_init(MMMovieSaveState *);

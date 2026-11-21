@@ -1414,9 +1414,11 @@ Studio's roll-call lookup, rename, add, remove, and tag refresh use the C89
 table directly. The same code handles roll-call changes during actor placement
 and 3D text replacement. Newly authored material and 3D text template tags
 retain the active document cache through the same C89 service.
-Studio autosave prunes the C89 table directly. Scene import reads source rows
-into a temporary C table, appends counted names and adjusted IDs, and closes
-the imported tags if the merge fails.
+Studio autosave prunes the C89 table and releases the removed rows' tags through
+the common service. It marks cached materials and templates for eviction using
+their typed readers when deleting from the working archive. Scene import reads
+source rows into a temporary C table, appends counted names and adjusted IDs,
+and closes the imported tags if the merge fails.
 The movie state initializes and owns the live C89 table. Studio, headless
 load and save, and the shared transactions use that same embedded table.
 Movie and scene titles use the C89 string codec for chunk names. The native

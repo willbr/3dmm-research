@@ -3703,9 +3703,10 @@ limits are recorded in `docs/tools/playback-regression.md`.
 
 `movie_save.c` owns save flags and the saved-file reference, temporary-file and
 zero-cache working-resource setup, scene/roll-call/source replacement, rollback,
-roll-call pruning, save-as selection and named/VMM save publication. Native Movie
-methods provide typed file/path, Scene, registry, client, tag and packaging
-services. Public save state and reference decisions use C; physical files and
+roll-call pruning, save-as selection and named/VMM save publication. It uses
+the common C89 tag binding to find the working archive and close tags from
+pruned rows. Native Movie methods provide file and path operations, scene
+writing, registry access, client notifications and packaging. Physical files and
 container sessions retain their host representations. Native construction still
 publishes loaded name/read-only metadata into the C state. DocumentBase's common
 dirty flag remains a host field written by the C controller.
@@ -3734,7 +3735,9 @@ implementations are unchanged.
 
 C also collects tags across contiguous stored scene child IDs, gathers unused
 materials/templates before deleting any, and owns the deletion-list storage.
-Only deletions from the current archive toss its resource cache. Empty-tag
+For deletions in the working archive, C sets the matching material or template
+cache entry's priority to toss using its typed reader. An in-use object
+leaves the cache when its final reference is released. Empty-tag
 scanning now uses an explicit match flag, removing an uninitialized temporary
 read while preserving the intended deletion set. Closing-time sound collection
 runs even after asset collection failure. Sound children are traversed backward;
@@ -8000,7 +8003,8 @@ Studio's roll-call queries and edits also use the typed C89 table and the same
 tag service. The host supplies character conversion, actor access and
 notifications. Authored material and 3D text template tags use the same
 service to retain the active document cache.
-Autosave prunes unused actor rows from the typed table. Scene composition
+Autosave prunes unused actor rows from the typed table and releases their
+tags through the same C89 service. Scene composition
 loads imported rows into a temporary C89 table and transfers their tag
 references to the destination when the merge succeeds.
 The C movie state embeds the live roll-call table. The movie owner initializes

@@ -3,6 +3,7 @@
 #include "mm/movie_root.h"
 #include "mm/movie_sound.h"
 #include "mm/movie_publish.h"
+#include "mm/movie_rollcall.h"
 #include "mm/scene_data.h"
 #include "engine_resource_block_fixture.h"
 #include <stdio.h>
@@ -54,6 +55,12 @@ enum
     DELETE_CHUNK
 };
 typedef struct Test Test;
+typedef struct CachedAsset
+{
+    MMResourceObject state;
+    MMReference refs;
+    Test *test;
+} CachedAsset;
 typedef struct Saved
 {
     Test *test;
@@ -67,6 +74,7 @@ typedef struct Path
 struct Test
 {
     MMMovieSaveServices s;
+    MMTagServices tag_services;
     MMMovieState data;
     MMMovieScenes scenes;
     MMMovieSaveState state;
@@ -84,12 +92,15 @@ struct Test
     MMU32 lastSceneTagged;
     MMTag tags[12];
     MMU32 closedTags[8], remainingActors[8];
-    int tagsClosed, rollcalls;
+    int tagsClosed, tagRefs, rollcalls;
     int purgeAnswer, queries, badChildren, badSoundIndex, badIndex;
     int refs[8], soundExists[8], soundPresent[8];
     MMU32 soundSlots[8];
     MMU32 materials[16], templates[16], materialChild, materialParent, materialFlags, materialReferences;
     int materialCount, templateCount, tossed, deletedChunks, allocations, failAlloc, liveAlloc;
+    MMResourceCache assetCache;
+    MMReference assetCacheRefs;
+    int assetFileRefs;
     MMSourceNames sourceNames;
     ResourceTestBlock payloadBlock;
     MMChunkPayloadServices payloads;
@@ -380,18 +391,38 @@ static void delete_chunk(void *p, MMU32 type, MMU32 n)
             break;
         }
 }
-static int seed_actor(Test *t, MMU32 id, MMI32 refs)
+static int seed_actor(Test *t, MMU32 id, MMI32 refs, MMI32 sid)
 {
     MMRollCallActor actor;
+    MMTag tag;
     memset(&actor, 0, sizeof(actor));
     actor.data.actor_id = (MMI32)id;
     actor.data.template_number = id;
     actor.data.reference_count = refs;
-    return mm_rollcall_table_add(&t->data.actors, "Actor", 5, &actor);
+    actor.data.source_id = sid;
+    tag = mm_movie_rollcall_tag(&actor);
+    if (!mm_tag_open(&tag, t->data.resources, NULL, &t->tag_services))
+        return 0;
+    actor.cache = tag.cache;
+    if (mm_rollcall_table_add(&t->data.actors, "Actor", 5, &actor))
+        return 1;
+    mm_tag_close(&tag, &t->tag_services);
+    return 0;
 }
-static void close_tag(void *p, MMTag *tag)
+static void retain_tag(void *p)
+{
+    ++((Test *)p)->tagRefs;
+}
+static void release_tag(void *p)
+{
+    if (--((Test *)p)->tagRefs < 0)
+        abort();
+}
+static void publish_tag(void *p, const MMTag *tag)
 {
     Test *t = p;
+    if (tag->cache)
+        return;
     t->closedTags[t->tagsClosed] = tag->number;
     t->remainingActors[t->tagsClosed] = t->data.actors.count;
     ++t->tagsClosed;
@@ -647,13 +678,119 @@ static MMMovieSessionGraph tag_graph(void *p)
     graph.context = p;
     return graph;
 }
-static void toss(void *p, MMU32 type, MMU32 n)
+static MMResourceCache *asset_cache(void *p)
 {
     Test *t = p;
+    return t->assetFileRefs ? &t->assetCache : NULL;
+}
+static MMResourceObject *asset_state(void *p)
+{
+    return &((CachedAsset *)p)->state;
+}
+static MMReference *asset_refs(void *p)
+{
+    return &((CachedAsset *)p)->refs;
+}
+static void destroy_asset(void *p)
+{
+    CachedAsset *asset = p;
+    if (asset->state.priority == MM_RESOURCE_TOSS_PRIORITY)
+    {
+        ++asset->test->tossed;
+        event(asset->test, CACHE_TOSS);
+    }
+    mm_resource_object_dispose(asset, &asset->test->assetCache.services.objects);
+    free(asset);
+}
+static int read_asset(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
+{
+    CachedAsset *asset;
     (void)type;
-    (void)n;
-    ++t->tossed;
-    event(t, CACHE_TOSS);
+    (void)number;
+    (void)block;
+    *bytes = 1;
+    if (out)
+    {
+        asset = malloc(sizeof(*asset));
+        if (!asset)
+            return 0;
+        mm_resource_object_init(&asset->state);
+        asset->refs.count = 1;
+        asset->test = cache->owner;
+        *out = asset;
+    }
+    return 1;
+}
+static int read_template(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
+{
+    if (!read_asset(cache, type, number, block, out, bytes))
+        return 0;
+    /* Keep the reader distinct when the linker folds identical functions. */
+    *bytes = 2;
+    return 1;
+}
+static int compare_asset_reader(MMResourceBlockReader a, MMResourceBlockReader b)
+{
+    return a == b ? 0 : a == read_asset ? -1 : 1;
+}
+static int asset_contains(void *p, MMU32 type, MMU32 number)
+{
+    const Test *t = p;
+    const MMU32 *values = type == MM_SAVE_MATERIAL ? t->materials : t->templates;
+    int i, count = type == MM_SAVE_MATERIAL ? t->materialCount : t->templateCount;
+    for (i = 0; i < count; ++i)
+        if (values[i] == number)
+            return 1;
+    return 0;
+}
+static int locate_asset(void *p, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
+{
+    extent->file = p;
+    extent->offset = extent->length = 0;
+    *packed = 0;
+    return asset_contains(p, type, number);
+}
+static void retain_asset_file(void *p)
+{
+    ++((Test *)p)->assetFileRefs;
+}
+static void release_asset_file(void *p)
+{
+    --((Test *)p)->assetFileRefs;
+}
+static void destroy_asset_cache(void *p)
+{
+    Test *t = p;
+    if (t->assetCacheRefs.count || mm_resource_cache_dispose(&t->assetCache) != MM_STORAGE_OK || t->assetFileRefs)
+        abort();
+}
+static int init_asset_cache(Test *t)
+{
+    MMResourceSource source = {NULL, NULL, NULL};
+    MMResourceServices services = {0};
+    source.live = t;
+    services.objects.state = asset_state;
+    services.objects.references = asset_refs;
+    services.objects.destroy = destroy_asset;
+    services.compare_reader = compare_asset_reader;
+    services.contains = asset_contains;
+    services.handles = t->payloads.handles;
+    services.block_files = t->payloads.files;
+    services.locate = locate_asset;
+    services.retain_file = retain_asset_file;
+    services.release_file = release_asset_file;
+    services.destroy_owner = destroy_asset_cache;
+    t->assetCacheRefs.count = 1;
+    return mm_resource_cache_init(&t->assetCache, t, &t->assetCacheRefs, &source, 16, &services, NULL, 1) ==
+           MM_STORAGE_OK;
+}
+static int cache_asset(Test *t, MMU32 type, MMU32 number, MMResourceBlockReader reader)
+{
+    void *asset = mm_resource_cache_fetch_chunk(&t->assetCache, type, number, reader);
+    if (!asset)
+        return 0;
+    mm_resource_object_release(asset, &t->assetCache.services.objects);
+    return 1;
 }
 /* Sound rows precede the movie row, which shifts whenever a sound is dropped. */
 static int graph_entry(void *p, MMU32 row, MMChunkEntry *entry)
@@ -926,7 +1063,13 @@ static void init(Test *t)
     s->scenes = &t->scenes;
     s->temporary_path = temporary;
     s->unique_path = unique;
-    s->file = file;
+    t->tag_services.context = t;
+    t->tag_services.file = file;
+    t->tag_services.cache = asset_cache;
+    t->tag_services.retain = retain_tag;
+    t->tag_services.release = release_tag;
+    t->tag_services.publish = publish_tag;
+    s->tags = &t->tag_services;
     s->create_file = create;
     s->release_archive = release_archive;
     s->new_resources = resources;
@@ -948,7 +1091,6 @@ static void init(Test *t)
     s->document_dirty = dirty;
     s->write_scene = scene;
     s->archive = save_archive;
-    s->close_tag = close_tag;
     s->rollcall_changed = rollcall;
     s->source_names = &t->sourceNames;
     s->titles.encoding = MM_TEXT_WINDOWS;
@@ -966,7 +1108,8 @@ static void init(Test *t)
     s->package = package;
     s->source_archive = source_archive;
     s->tag_graph = tag_graph;
-    s->toss_cache = toss;
+    s->material_reader = read_asset;
+    s->template_reader = read_template;
     s->purge_sounds = purge;
     s->bad_child = bad_child;
     s->bad_sound_index = bad_sound_index;
@@ -984,6 +1127,7 @@ static int autosaving(void)
     MMMovieStringTable *actors;
     MMMovieStringRow actorRow;
     MMMovieActor storedActor;
+    MMTag tag;
     MMMovieSourceTable sourceTable;
     MMMovieSourceName sourceName;
     int fault, with_scene, physical_error;
@@ -1042,7 +1186,8 @@ static int autosaving(void)
               t.materialFlags == (fault ? 0 : MM_CHUNK_LONER));
     }
     init(&t);
-    CHECK(seed_actor(&t, 1, 0) && seed_actor(&t, 2, 1) && seed_actor(&t, 3, 0));
+    CHECK(seed_actor(&t, 1, 0, 0) && seed_actor(&t, 2, 1, 0) &&
+          seed_actor(&t, 3, 0, 0) && seed_actor(&t, 4, 0, 3) && t.tagRefs == 3);
     CHECK(mm_source_names_add(&t.sourceNames, 42, "Custom/CUST", 11));
     CHECK(mm_movie_autosave(0, 1, &t.s));
     CHECK(mm_memory_stream_init(&wire, t.sourceBytes, t.sourceLength));
@@ -1059,14 +1204,17 @@ static int autosaving(void)
     CHECK(!mm_movie_string_table_row(actors, 1, &actorRow));
     mm_movie_string_table_close(actors);
     CHECK(mm_rollcall_table_extra(&t.data.actors, 0, &actor) && actor.data.actor_id == 2);
-    CHECK(!t.state.autosaveDirty && t.dirty == 1 && t.data.actors.count == 1);
+    CHECK(!t.state.autosaveDirty && t.dirty == 1 && t.data.actors.count == 1 && t.tagRefs == 1);
     CHECK(t.tagsClosed == 2 && t.rollcalls == 1 && t.childCount == 3 && t.savedCalls == 1);
     CHECK(t.extraCount == 3 && !extra_chunk(&t, MM_SAVE_SCENE, 10, 0) &&
           !extra_chunk(&t, MM_SAVE_TABLE, 20, 0) && !extra_chunk(&t, MM_SAVE_TABLE, 30, 0));
     CHECK(t.events[1] == CLOSE_TAG && t.events[2] == CLOSE_TAG && t.closedTags[0] == 1 &&
-          t.closedTags[1] == 3 && t.remainingActors[0] == 2 && t.remainingActors[1] == 1);
+          t.closedTags[1] == 3 && t.remainingActors[0] == 3 && t.remainingActors[1] == 2);
     CHECK(t.updates == 1 && t.lastTitle == 0 && t.begins == t.ends && t.errors == 0);
     CHECK(mm_movie_autosave(0, 1, &t.s) && t.savedCalls == 1 && t.rollcalls == 1);
+    tag = mm_movie_rollcall_tag(&actor);
+    mm_tag_close(&tag, &t.tag_services);
+    CHECK(!t.tagRefs);
     CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     CHECK(mm_source_names_dispose(&t.sourceNames) == MM_STORAGE_OK);
     init(&t);
@@ -1087,10 +1235,11 @@ static int autosaving(void)
     t.markError = 1;
     CHECK(!mm_movie_autosave(0, 0, &t.s) && t.ends == 1 && t.error && !t.resets && !t.titleCalls);
     init(&t);
-    CHECK(seed_actor(&t, 1, 0) && seed_actor(&t, 2, 1));
+    CHECK(seed_actor(&t, 1, 0, 0) && seed_actor(&t, 2, 1, 3));
     t.fail = TITLE;
     t.left = 1;
-    CHECK(!mm_movie_autosave(0, 1, &t.s) && t.data.actors.count == 1 && t.tagsClosed == 1 && t.childCount == 3);
+    CHECK(!mm_movie_autosave(0, 1, &t.s) && t.data.actors.count == 1 && t.tagsClosed == 1 && t.childCount == 3 &&
+          !t.tagRefs);
     CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     init(&t);
     t.data.resources = 0;
@@ -1317,6 +1466,7 @@ static void add_sound(Test *t, MMU32 number, MMU32 slot, int references, int has
 static int collecting(void)
 {
     Test t, foreign;
+    CachedAsset *held;
     int purge_all;
     init(&t);
     t.materials[0] = 1;
@@ -1331,11 +1481,20 @@ static int collecting(void)
     t.tags[1].type = MM_SAVE_TEMPLATE;
     t.tags[1].number = 3;
     t.tags[2].sid = 1;
+    CHECK(init_asset_cache(&t));
+    CHECK(cache_asset(&t, MM_SAVE_MATERIAL, 1, read_asset) && cache_asset(&t, MM_SAVE_MATERIAL, 2, read_asset) &&
+          cache_asset(&t, MM_SAVE_MATERIAL, 2, read_template));
+    held = mm_resource_cache_fetch_chunk(&t.assetCache, MM_SAVE_TEMPLATE, 4, read_template);
+    CHECK(held && t.assetCache.count == 4);
     CHECK(mm_movie_save_assets(&t, &t.s) && t.materialCount == 1 && t.templateCount == 1 && t.materials[0] == 1 &&
           t.templates[0] == 3);
-    CHECK(t.tossed == 2 && t.deletedChunks == 2 && !t.liveAlloc);
-    CHECK(t.events[0] == DELETE_CHUNK && t.events[1] == CACHE_TOSS && t.events[2] == DELETE_CHUNK &&
-          t.events[3] == CACHE_TOSS);
+    CHECK(t.tossed == 1 && t.deletedChunks == 2 && !t.liveAlloc && t.assetCache.count == 3);
+    CHECK(t.events[0] == DELETE_CHUNK && t.events[1] == CACHE_TOSS && t.events[2] == DELETE_CHUNK);
+    CHECK(held->state.priority == MM_RESOURCE_TOSS_PRIORITY);
+    mm_resource_object_release(held, &t.assetCache.services.objects);
+    CHECK(t.tossed == 2 && t.events[3] == CACHE_TOSS && t.assetCache.count == 2);
+    mm_resource_cache_release(&t.assetCache);
+    CHECK(!t.assetFileRefs);
     init(&t);
     t.materials[0] = 1;
     t.materials[1] = 2;
@@ -1359,9 +1518,15 @@ static int collecting(void)
           !t.liveAlloc);
     init(&t);
     init(&foreign);
+    t.materials[0] = 1;
+    t.materialCount = 1;
+    CHECK(init_asset_cache(&t) && cache_asset(&t, MM_SAVE_MATERIAL, 1, read_asset));
     foreign.materials[0] = 1;
     foreign.materialCount = 1;
-    CHECK(mm_movie_save_assets(&foreign, &t.s) && !foreign.materialCount && !t.tossed);
+    CHECK(mm_movie_save_assets(&foreign, &t.s) && !foreign.materialCount && !t.tossed &&
+          t.assetCache.count == 1 && t.materialCount == 1);
+    mm_resource_cache_release(&t.assetCache);
+    CHECK(!t.assetFileRefs);
     for (purge_all = 0; purge_all <= 1; ++purge_all)
     {
         init(&t);

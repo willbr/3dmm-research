@@ -275,7 +275,7 @@ static void cache_released(MMResourceCache *c, void *object, const MMResourceObj
     mm_resource_cache_at(c, i, &e);
     e.released = tick(c);
     put(c, i, &e);
-    if (state->priority <= 0 || mm_wide_compare(c->resident, mm_wide_i32(c->budget)) > 0)
+    if (state->priority <= MM_RESOURCE_TOSS_PRIORITY || mm_wide_compare(c->resident, mm_wide_i32(c->budget)) > 0)
         mm_resource_object_detach(object, &c->services.objects);
 }
 int mm_resource_cache_purge(MMResourceCache *c, MMWide need, MMI32 last)

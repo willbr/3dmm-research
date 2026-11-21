@@ -11,7 +11,7 @@
 extern "C"
 {
 #endif
-    enum { MM_RESOURCE_NORMAL_PRIORITY = 2 };
+    enum { MM_RESOURCE_TOSS_PRIORITY = 0, MM_RESOURCE_NORMAL_PRIORITY = 2 };
     typedef struct MMResourceCache MMResourceCache;
     /* The typed callback also identifies the cache entry. */
     typedef int (*MMResourceBlockReader)(MMResourceCache *, MMU32 type, MMU32 number,
