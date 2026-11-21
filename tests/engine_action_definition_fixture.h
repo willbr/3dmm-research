@@ -1,15 +1,29 @@
 #ifndef ENGINE_ACTION_DEFINITION_FIXTURE_H
 #define ENGINE_ACTION_DEFINITION_FIXTURE_H
 #include "engine_action_tables_fixture.h"
-class ActionDefinitionFixtureAccess : public ActionDefinition
+class ActionDefinitionFixtureAccess
 {
   public:
-    static ActionDefinitionFixtureAccess *Create() { return NewObj ActionDefinitionFixtureAccess; }
-    bool Initialize(PChunkyResourceFile cache,ChunkNumber number) { return _FInit(cache,kctgActn,number); }
-    static bool CheckNoSoundMarkers(PActionDefinition a)
+    static bool Initialize(MMActionDefinition &definition, PChunkyResourceFile cache, ChunkNumber number)
     {
-        auto field=&ActionDefinitionFixtureAccess::_action;
-        auto table=(a->*field).cels;
+        const auto &host=Template::ActionResourceHost();
+        const unsigned short one=1;
+        MMActionDefinitionServices s={};
+        s.host_big_endian=*reinterpret_cast<const unsigned char *>(&one)==0;
+        s.table_allocator=*host.tables;
+        s.decode=host.decode;
+        s.bad_order=host.bad_order;
+        return mm_action_initialize(&definition,cache->CoreCache(),kctgActn,number,nullptr,&s);
+    }
+    static void GetSound(const MMActionDefinition *action, int cel, TAG *out)
+    {
+        MMTag tag;
+        out->ctg=ctgNil;
+        if (mm_action_cel_sound(action,cel,&tag)) TagFromCore(out,tag);
+    }
+    static bool CheckNoSoundMarkers(const MMActionDefinition *action)
+    {
+        auto table=action->cels;
         MMGroup group={&table->storage,MM_ACTION_CEL_BYTES,table->header.count,table->header.first_bytes,-1,0};
         MMGroupLocation location;
         if (mm_group_location(&group,0,&location)!=MM_STORAGE_OK) return false;
@@ -17,34 +31,34 @@ class ActionDefinitionFixtureAccess : public ActionDefinition
         const unsigned short one=1;
         const bool other=table->header.big_endian!=(*reinterpret_cast<const unsigned char *>(&one)==0);
         AnimationCel cel;
-        if (!a->FGetCel(0,&cel)) return false;
+        if (!mm_action_get_cel(action,0,&cel)) return false;
         const auto original=cel.chidSnd;
         bool ok=true;
         const ChildChunkID markers[]={0xffffffff,0x80000000};
-        for (auto marker:markers) { cel.chidSnd=marker; mm_action_decode_cel(&cel,other,row); TAG tag={123,reinterpret_cast<PChunkyResourceFile>(0x1357),kctgMsnd,456}; a->GetSnd(0,&tag);
+        for (auto marker:markers) { cel.chidSnd=marker; mm_action_decode_cel(&cel,other,row); TAG tag={123,reinterpret_cast<PChunkyResourceFile>(0x1357),kctgMsnd,456}; GetSound(action,0,&tag);
             ok=ok && tag.sid==123 && tag.pcrf==reinterpret_cast<PChunkyResourceFile>(0x1357) && tag.ctg==ctgNil && tag.cno==456; }
         cel.chidSnd=original; mm_action_decode_cel(&cel,other,row); return ok;
     }
-    static bool Record(PActionDefinition a,bool valid,FILE *out)
+    static bool Record(const MMActionDefinition *action,bool valid,FILE *out)
     {
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
-        if (!a) return true;
-        auto field=&ActionDefinitionFixtureAccess::_action; auto &state=a->*field;
+        if (!action) return true;
+        const auto &state=*action;
         const auto matrices=state.matrices,sounds=state.sounds;
         const auto celCount=mm_action_cel_count(&state);
         const auto matrixCount=matrices?static_cast<LegacyLong>(matrices->header.count):0;
         const auto soundCount=sounds?static_cast<LegacyLong>(sounds->header.count):0;
-        LegacyLong fields[]={static_cast<LegacyLong>(a->Grfactn()),state.cels!=nullptr,celCount,matrices!=nullptr,matrixCount,sounds!=nullptr,soundCount};
+        LegacyLong fields[]={static_cast<LegacyLong>(state.flags),state.cels!=nullptr,celCount,matrices!=nullptr,matrixCount,sounds!=nullptr,soundCount};
         if (!record(fields,sizeof(fields))) return false;
         for (int i=0;i<celCount;++i)
         {
-            AnimationCel cel; if (!(valid?a->FGetCel(i,&cel):mm_action_get_cel(&state,i,&cel))) return false;
+            AnimationCel cel; if (!mm_action_get_cel(action,i,&cel)) return false;
             LegacyLong n=mm_action_part_count(&state,i);
             if (!record(&cel,sizeof(cel)) || !record(&n,sizeof(n))) return false;
-            for (int j=0;j<n;++j) { CelPartSpec part; if (!(valid?a->FGetCps(i,j,&part):mm_action_get_part(&state,i,j,&part)) || !record(&part,sizeof(part))) return false; }
-            if (valid) { TAG tag={123,nullptr,0x12345678,456}; a->GetSnd(i,&tag); LegacyLong values[]={tag.sid,tag.pcrf!=nullptr,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)}; if (!record(values,sizeof(values))) return false; }
+            for (int j=0;j<n;++j) { CelPartSpec part; if (!mm_action_get_part(action,i,j,&part) || !record(&part,sizeof(part))) return false; }
+            if (valid) { TAG tag={123,nullptr,0x12345678,456}; GetSound(action,i,&tag); LegacyLong values[]={tag.sid,tag.pcrf!=nullptr,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)}; if (!record(values,sizeof(values))) return false; }
         }
-        for (int i=0;i<matrixCount;++i) { BMAT34 m; if (!(valid?a->FGetMatrix(i,&m):mm_action_get_matrix(&state,i,&m)) || !record(&m,sizeof(m))) return false; }
+        for (int i=0;i<matrixCount;++i) { BMAT34 m; if (!mm_action_get_matrix(action,i,&m) || !record(&m,sizeof(m))) return false; }
         for (int i=0;i<soundCount;++i) { MMTag tag; if (!mm_action_sound_tag(sounds,i,&tag)) return false; LegacyLong values[]={tag.sid,tag.cache!=nullptr,static_cast<LegacyLong>(tag.type),static_cast<LegacyLong>(tag.number)}; if (!record(values,sizeof(values))) return false; }
         return true;
     }
@@ -84,29 +98,32 @@ static bool TestActionDefinition()
         if (ok && (variant==1 || variant==2)) ok=table(kctgGlms,sounds);
         if (ok && variant==6) { byte invalid=0; ChunkNumber child; ok=file->FAddChildPv(kctgActn,number,0,&invalid,1,kctgGlms,&child); }
         if (other) { for (int i=0;i<n;++i) { SwapBytesRglw(cels->QvFixedGet(i),2); SwapBytesRgsw(cels->QvGet(i),parts*2); } SwapBytesRglw(matrices->QvGet(0),n*12); SwapBytesRglw(sounds->QvGet(0),8); }
-        DataBlock block; MMI32 estimate=-77; ok=ok && file->FFind(kctgActn,number,&block) && ActionDefinition::FReadActn(cache->CoreCache(),kctgActn,number,block.CoreBlock(),nullptr,&estimate);
+        DataBlock block; MMI32 estimate=-77; ok=ok && file->FFind(kctgActn,number,&block) && Template::ReadActionResource(cache->CoreCache(),kctgActn,number,block.CoreBlock(),nullptr,&estimate);
         if (variant==7) { file->Delete(kctgActn,number); }
-        PActionDefinition action=stage==1?ActionDefinitionFixtureAccess::Create():nullptr; bool initialized=false;
+        MMActionDefinition direct={};
+        MMActionResource *action=nullptr;
+        bool initialized=false;
         FixtureActionTables tables;
         if (stage==2) ok=ok && tables.Copy(cels,matrices);
 #ifdef DEBUG
         vmutxMem.Enter(); auto allocator=kind==0?&vdmglob.dmaglBase:kind==1?&vdmglob.dmaglHq:&vdmglob.dmaglPv;
         allocator->cactDo=failure-1; allocator->cactFail=failure?1:0; vmutxMem.Leave();
 #endif
-        if (stage==0) { void *out=nullptr; initialized=ActionDefinition::FReadActn(cache->CoreCache(),kctgActn,number,block.CoreBlock(),&out,&estimate); if (initialized) action=static_cast<PActionDefinition>(out); }
-        else if (stage==1) initialized=static_cast<ActionDefinitionFixtureAccess *>(action)->Initialize(cache,number);
+        if (stage==0) { void *out=nullptr; initialized=Template::ReadActionResource(cache->CoreCache(),kctgActn,number,block.CoreBlock(),&out,&estimate); if (initialized) action=static_cast<MMActionResource *>(out); }
+        else if (stage==1) initialized=ActionDefinitionFixtureAccess::Initialize(direct,cache,number);
         else if (ok) { action=tables.Create(0x8000000d); initialized=action!=nullptr; }
 #ifdef DEBUG
         vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
         ++attempts; if (initialized) { if (stage==2) ++adopted; else ++loaded; }
-        LegacyLong values[]={shape,variant,stage,kind,failure,initialized,action!=nullptr,estimate,cels->CactRef(),matrices->CactRef()};
-        ok=record(values,sizeof(values)) && ActionDefinitionFixtureAccess::Record(action,initialized,snapshot) && ok;
+        const auto definition=stage==1?&direct:action?mm_action_resource_definition(action):nullptr;
+        LegacyLong values[]={shape,variant,stage,kind,failure,initialized,definition!=nullptr,estimate,cels->CactRef(),matrices->CactRef()};
+        ok=record(values,sizeof(values)) && ActionDefinitionFixtureAccess::Record(definition,initialized,snapshot) && ok;
         // The new C owner releases optional and partially filled sound lists.
         // Cleanup is outside the state trace; allocation balance verifies it.
         if (initialized && stage==1 && n && (variant==1 || variant==2))
-            ok=ActionDefinitionFixtureAccess::CheckNoSoundMarkers(action) && ok;
-        block.Free(); ReleasePpo(&action); tables.Reset(); ReleasePpo(&cels); ReleasePpo(&matrices); ReleasePpo(&sounds); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
+            ok=ActionDefinitionFixtureAccess::CheckNoSoundMarkers(definition) && ok;
+        block.Free(); mm_action_resource_release(action); mm_action_dispose(&direct); tables.Reset(); ReleasePpo(&cels); ReleasePpo(&matrices); ReleasePpo(&sounds); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==beforeBase && vdmglob.dmaglHq.cv==beforeHq && vdmglob.dmaglPv.cv==beforePv;
 #endif

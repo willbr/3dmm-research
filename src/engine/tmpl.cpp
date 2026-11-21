@@ -26,7 +26,7 @@
      |
      +--Model* - models used in this template
      |
-     +--ActionDefinition* (chid <anid>) - action for this template
+     +--ACTN (chid <anid>) - action for this template
          |
          +--GGCL (chid 0) - GeneralGroup of cels for this action
          |
@@ -69,11 +69,9 @@
 #include <typeinfo>
 ASSERTNAME
 
-RTCLASS(ActionDefinition)
 RTCLASS(Template)
 
-static int ReadActionResource(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
-                              void **out, MMI32 *bytes)
+const MMActionResourceHost &Template::ActionResourceHost()
 {
     static const MMStorageAllocator objects = {
         nullptr,
@@ -85,150 +83,25 @@ static int ReadActionResource(MMResourceCache *cache, MMU32 type, MMU32 number, 
         },
         [](void *, void *memory, MMU32) { FreePpvDebug(&memory, &vdmglob.dmaglBase); }
     };
-    const auto tables = CollectionAllocator();
-    MMActionResourceHost host = {};
-    host.objects = &objects;
-    host.tables = &tables;
-    host.decode = KauaiDecodeBlockHandle;
+    static const auto tables = CollectionAllocator();
+    static const MMActionResourceHost host = {
+        &objects, &tables, KauaiDecodeBlockHandle,
 #ifdef DEBUG
-    host.mark_memory = [](void *memory) { if (memory) MarkPv(memory); };
-    host.bad_order = [](void *) { Assert(false, "bad ActionChunkOnFile"); };
-#endif
-    return mm_action_resource_read(cache, type, number, block, out, bytes, &host);
-}
-
-/***************************************************************************
-    Create a new action
-***************************************************************************/
-MMActionDefinitionServices ActionDefinition::_Services()
-{
-    MMActionDefinitionServices s = {};
-    const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
-    static_assert(sizeof(AnimationCel) == 8 && sizeof(CelPartSpec) == 4 && sizeof(BMAT34) == 48, "action ABI");
-    s.state = [](void *, void *object) { return &static_cast<PActionDefinition>(object)->_action; };
-    s.create = [](void *) -> void * { return NewObj ActionDefinition; };
-    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.table_allocator = CollectionAllocator();
-    s.decode = KauaiDecodeBlockHandle;
-    s.clear_sound_type = [](void *, void *out) { static_cast<PTAG>(out)->ctg = ctgNil; };
-    s.publish_sound = [](void *, void *out, const MMTag *tag) { TagFromCore(static_cast<PTAG>(out), *tag); };
-    s.object_size = [](void *) -> MMI32 { return sizeof(ActionDefinition); };
-    s.invalidate = [](void *, void *out, size_t count) {
-#ifdef DEBUG
-        FillPb(out, static_cast<LegacyLong>(count), kbGarbage);
+        [](void *memory) { if (memory) MarkPv(memory); },
+        [](void *) { Assert(false, "bad ActionChunkOnFile"); },
+        [](void *, void *out, size_t bytes) { FillPb(out, static_cast<LegacyLong>(bytes), kbGarbage); }
 #else
-        (void)out; (void)count;
+        nullptr, nullptr, nullptr
 #endif
     };
-    s.bad_order = [](void *) { Assert(false, "bad ActionChunkOnFile"); };
-    return s;
+    return host;
 }
 
-PActionDefinition ActionDefinition::PactnNew(MMActionTable *cels, MMActionTable *matrices, LegacyUlong grfactn)
+int Template::ReadActionResource(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                                 void **out, MMI32 *bytes)
 {
-    Assert(cels && cels->header.kind == MM_COLLECTION_GROUP && cels->header.width == MM_ACTION_CEL_BYTES,
-           "bad animation cel table");
-    Assert(matrices && matrices->header.kind == MM_COLLECTION_ARRAY && matrices->header.width == MM_ACTION_MATRIX_BYTES,
-           "bad action matrix table");
-    const auto s = _Services();
-    return static_cast<PActionDefinition>(mm_action_create(cels, matrices, grfactn, &s));
+    return mm_action_resource_read(cache, type, number, block, out, bytes, &ActionResourceHost());
 }
-
-/***************************************************************************
-    A PFNRPO (chunky resource reader function) to read an ActionDefinition from a file
-***************************************************************************/
-int ActionDefinition::FReadActn(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
-    void **out, MMI32 *bytes)
-{
-    const auto s = _Services();
-    return mm_action_fetch(cache, type, number, block, out, bytes, &s);
-}
-
-bool ActionDefinition::_FInit(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
-{
-    AssertPo(cache, 0);
-    const auto services = _Services();
-    return mm_action_initialize(&_action, cache->CoreCache(), type, number, nullptr, &services) != 0;
-}
-
-/***************************************************************************
-    Destructor
-***************************************************************************/
-ActionDefinition::~ActionDefinition(void)
-{
-    AssertBaseThis(0);
-    mm_action_dispose(&_action);
-}
-
-/***************************************************************************
-    Get an AnimationCel
-***************************************************************************/
-LegacyLong ActionDefinition::Ccel(void)
-{
-    return mm_action_cel_count(&_action);
-}
-
-bool ActionDefinition::FGetCel(LegacyLong icel, AnimationCel *pcel)
-{
-    AssertThis(0); AssertVarMem(pcel);
-    return mm_action_get_cel(&_action, icel, pcel) != 0;
-}
-
-/***************************************************************************
-    Get a CelPartSpec
-***************************************************************************/
-bool ActionDefinition::FGetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps)
-{
-    AssertThis(0); AssertVarMem(pcps);
-    return mm_action_get_part(&_action, icel, icps, pcps) != 0;
-}
-
-/***************************************************************************
-    Get a sound for icel.  If there is no sound, ptag's ChunkTagOrType is set to
-    ctgNil.
-***************************************************************************/
-void ActionDefinition::GetSnd(LegacyLong icel, PTAG ptag)
-{
-    AssertThis(0); AssertIn(icel, 0, Ccel()); AssertVarMem(ptag);
-    const auto s = _Services();
-    mm_action_get_sound(&_action, icel, ptag, &s);
-}
-
-/***************************************************************************
-    Get a transformation matrix
-***************************************************************************/
-bool ActionDefinition::FGetMatrix(LegacyLong imat34, BMAT34 *pbmat34)
-{
-    AssertThis(0); AssertVarMem(pbmat34);
-    return mm_action_get_matrix(&_action, imat34, pbmat34) != 0;
-}
-
-#ifdef DEBUG
-/***************************************************************************
-    Assert the validity of the ActionDefinition.
-***************************************************************************/
-void ActionDefinition::AssertValid(LegacyUlong grf)
-{
-    ActionDefinition_PAR::AssertValid(fobjAllocated);
-    Assert(_action.cels && _action.matrices, "missing action tables");
-}
-
-/***************************************************************************
-    Mark memory used by the ActionDefinition
-***************************************************************************/
-void ActionDefinition::MarkMem(void)
-{
-    AssertThis(0);
-    ActionDefinition_PAR::MarkMem();
-    for (auto table : {_action.cels, _action.matrices, _action.sounds})
-        if (table && table->allocated)
-        {
-            MarkPv(table);
-            MarkPv(table->storage.buffers[0].data);
-            MarkPv(table->storage.buffers[1].data);
-        }
-}
-#endif // DEBUG
 
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read Template objects.
@@ -364,11 +237,12 @@ MMTemplateRuntimeServices Template::_RuntimeServices()
     s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
         return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, static_cast<PString>(out));
     };
+    mm_template_use_action_resource(&s, ReadActionResource);
     // Derived templates can supply either provider, even when backed by an archive.
     if (typeid(*this) != typeid(Template))
     {
         s.generated_action = [](void *, void *object, MMI32 id) -> void * {
-            return static_cast<PTemplate>(object)->_PactnFetch(id);
+            return static_cast<PTemplate>(object)->_FetchAction(id);
         };
         s.generated_model = [](void *, void *object, MMU32 id, MMMovieAsset *asset) -> void * {
             auto model = static_cast<PTemplate>(object)->_PmodlFetch(id);
@@ -376,49 +250,16 @@ MMTemplateRuntimeServices Template::_RuntimeServices()
                 *asset = {0, MM_TEMPLATE_BMDL, model->Cno()};
             return model;
         };
-        s.cel_count = [](void *, void *action) -> MMI32 { return static_cast<PActionDefinition>(action)->Ccel(); };
-        s.distance = [](void *, void *action, MMI32 index, MMI32 *out) -> int {
-            AnimationCel cel;
-            if (!static_cast<PActionDefinition>(action)->FGetCel(index, &cel))
-                return 0;
-            *out = cel.dwr;
-            return 1;
-        };
-        s.flags = [](void *, void *action) -> MMU32 { return static_cast<PActionDefinition>(action)->Grfactn(); };
-        s.part = [](void *, void *action, MMI32 cel, MMI32 part, MMI32 *model, MMI32 *matrix) -> int {
-            CelPartSpec cps;
-            if (!static_cast<PActionDefinition>(action)->FGetCps(cel, part, &cps))
-                return 0;
-            *model = cps.chidModl;
-            *matrix = cps.imat34;
-            return 1;
-        };
-        s.matrix = [](void *, void *action, MMI32 index, MMActorMatrix *out) -> int {
-            BMAT34 matrix;
-            if (!static_cast<PActionDefinition>(action)->FGetMatrix(index, &matrix))
-                return 0;
-            std::memcpy(out, &matrix, sizeof(matrix));
-            return 1;
-        };
-        s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
-            auto tag = static_cast<PTAG>(out);
-            static_cast<PActionDefinition>(action)->GetSnd(index, tag);
-            return tag->ctg != ctgNil;
-        };
     }
-    else
-    {
-        mm_template_use_action_resource(&s, ReadActionResource);
-        s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
-            auto tag = static_cast<PTAG>(out);
-            MMTag value;
-            const auto definition = mm_action_resource_definition(static_cast<MMActionResource *>(action));
-            tag->ctg = ctgNil;
-            if (mm_action_cel_sound(definition, index, &value))
-                TagFromCore(tag, value);
-            return tag->ctg != ctgNil;
-        };
-    }
+    s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
+        auto tag = static_cast<PTAG>(out);
+        MMTag value;
+        const auto definition = mm_action_resource_definition(static_cast<MMActionResource *>(action));
+        tag->ctg = ctgNil;
+        if (mm_action_cel_sound(definition, index, &value))
+            TagFromCore(tag, value);
+        return tag->ctg != ctgNil;
+    };
     s.allocate_cel = [](void *, size_t bytes, void **out) -> int {
         return FAllocPv(out, static_cast<LegacyLong>(bytes), fmemClear, mprNormal);
     };
@@ -438,14 +279,12 @@ bool Template::FGetActnName(LegacyLong anid, PString pstn)
 }
 
 /***************************************************************************
-    Reads an ActionDefinition chunk from disk
+    Resolve an archive-backed action in the template's cache.
 ***************************************************************************/
-PActionDefinition Template::_PactnFetch(LegacyLong anid)
+MMActionResource *Template::_FetchAction(LegacyLong anid)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count);
-    return static_cast<PActionDefinition>(mm_template_fetch_child(
-        ResourceBinding(), anid, MM_TEMPLATE_ACTION, ActionDefinition::FReadActn,
-        nullptr));
+    return mm_template_fetch_action(ResourceBinding(), anid, ReadActionResource);
 }
 
 /***************************************************************************

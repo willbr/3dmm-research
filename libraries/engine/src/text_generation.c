@@ -53,7 +53,8 @@ int mm_text_initialize_lists(void *object,const MMTextGenerationServices *s)
     t.costumes=costumes; *s->template_state(s->context,object)=t;
     if (a->material) { s->release(s->context,a->material); a->material=NULL; }
     a->material=material;
-    if (a->action) { s->release(s->context,a->action); a->action=NULL; }
+    mm_action_resource_release(a->action);
+    a->action=NULL;
     a->action_id=-1; t.action_count=MM_TEXT_ACTION_COUNT; t.custom_count=t.set_count=1; t.flags|=2U;
     *s->template_state(s->context,object)=t; return 1;
 fail:
@@ -190,31 +191,31 @@ int mm_text_evaluate_cel(void *object, MMI32 action, MMI32 cel, MMTextMatrixWrit
     return 1;
 }
 
-static void *build_action(void *object, MMI32 action, const MMTextGenerationServices *s)
+static MMActionResource *build_action(void *object, MMI32 action, const MMTextGenerationServices *s)
 {
-    MMActionTable *cels = mm_text_build_cels(object, action, s), *matrices;
-    void *result = NULL;
-    if (!cels)
+    MMActionDefinition definition = {0};
+    MMActionResource *result = NULL;
+    definition.cels = mm_text_build_cels(object, action, s);
+    if (!definition.cels)
         return NULL;
-    matrices = mm_text_build_matrices(object, action, s);
-    if (matrices)
-        result = s->action_new(s->context, cels, matrices, mm_text_action_flags());
+    definition.matrices = mm_text_build_matrices(object, action, s);
+    definition.flags = mm_text_action_flags();
+    if (definition.matrices)
+        result = mm_action_resource_create(&definition, s->action_host);
     if (!result)
-    {
-        mm_action_table_dispose(cels);
-        mm_action_table_dispose(matrices);
-    }
+        mm_action_dispose(&definition);
     return result;
 }
-void *mm_text_fetch_action(void *object,MMI32 action,const MMTextGenerationServices *s)
+MMActionResource *mm_text_fetch_action(void *object,MMI32 action,const MMTextGenerationServices *s)
 {
     MMTextGenerated *a=s->state(s->context,object);
     if (action!=a->action_id)
     {
-        if (a->action) { s->release(s->context,a->action); a->action=NULL; }
+        mm_action_resource_release(a->action);
+        a->action=NULL;
         a->action_id=-1; a->action=build_action(object,action,s);
     }
-    if (a->action) { s->retain(s->context,a->action); a->action_id=action; }
+    if (a->action) { mm_action_resource_retain(a->action); a->action_id=action; }
     return a->action;
 }
 void *mm_text_fetch_model(void *object,MMI32 index,const MMTextGenerationServices *s)
@@ -230,5 +231,6 @@ int mm_text_default_costume(void *object,void *body,const MMTextGenerationServic
 void mm_text_dispose(MMTextGenerated *a,const MMTextGenerationServices *s)
 {
     if (a->material) { s->release(s->context,a->material); a->material=NULL; }
-    if (a->action) { s->release(s->context,a->action); a->action=NULL; }
+    mm_action_resource_release(a->action);
+    a->action=NULL;
 }

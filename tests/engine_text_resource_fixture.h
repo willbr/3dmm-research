@@ -11,14 +11,14 @@ class TextResourceFixtureAccess : public ThreeDText
     static bool Provider(PThreeDText t,void *context)
     { auto c=&TextResourceFixtureAccess::_fontContext; auto f=&TextResourceFixtureAccess::_fontResolver; return t->*c==context && t->*f==TextResourceNoFont; }
     static PStringTable_GST DetachNames() { auto t=static_cast<PStringTable_GST>(_actionNames.table); _actionNames.table=nullptr; return t; }
-    static PActionDefinition Seed(PThreeDText t)
+    static MMActionResource *Seed(PThreeDText t)
     {
         auto cels=GeneralGroup::PggNew(sizeof(AnimationCel)); auto matrices=DynamicArray::PglNew(sizeof(BMAT34));
         AnimationCel cel={}; BMAT34 matrix; BrMatrix34Identity(&matrix);
         bool ok=cels && matrices && cels->FAdd(0,nullptr,nullptr,&cel) && matrices->FAdd(&matrix);
         auto action=ok?MakeFixtureAction(cels,matrices,0):nullptr;
         ReleasePpo(&cels); ReleasePpo(&matrices);
-        if (action) { auto field=&TextResourceFixtureAccess::_generated; auto &state=t->*field; state.action=action; state.action_id=tdaRest; action->AddRef(); }
+        if (action) { auto field=&TextResourceFixtureAccess::_generated; auto &state=t->*field; state.action=action; state.action_id=tdaRest; mm_action_resource_retain(action); }
         return action;
     }
     static bool Record(PThreeDText t,FILE *out,PChunkyResourceFile cache)
@@ -31,7 +31,7 @@ class TextResourceFixtureAccess : public ThreeDText
         auto parents=base.parents,sets=base.sets;
         LegacyLong fields[]={d.shape,(t->*text).Cch(),font.sid,static_cast<LegacyLong>(font.type),static_cast<LegacyLong>(font.number),font.cache?(font.cache==cache?1:2):0,
             base.set_count,base.custom_count,base.action_count,static_cast<LegacyLong>(base.flags),parents!=nullptr,sets!=nullptr,base.costumes!=nullptr,
-            g.material!=nullptr,g.action!=nullptr,g.action_id,g.action?static_cast<BASE *>(g.action)->CactRef():0};
+            g.material!=nullptr,g.action!=nullptr,g.action_id,mm_action_resource_references(g.action)};
         if (!record(fields,sizeof(fields)) || !record((t->*text).Psz(),(t->*text).Cch())) return false;
         if (parents) for (int i=0;i<parents->view.count;++i) { const auto v=static_cast<short>(mm_part_index_get(&parents->view,i)); if (!record(&v,sizeof(v))) return false; }
         if (sets) for (int i=0;i<sets->view.count;++i) { const auto v=static_cast<short>(mm_part_index_get(&sets->view,i)); if (!record(&v,sizeof(v))) return false; }
@@ -96,7 +96,7 @@ static bool TestTextResources()
         const LegacyLong base=vdmglob.dmaglBase.cv,hq=vdmglob.dmaglHq.cv,pv=vdmglob.dmaglPv.cv;
 #endif
         String source,changed; source.SetSzs(text?"Old\xe9":""); changed.SetSzs(text?"":"New"); int calls=0;
-        auto t=operation?ThreeDText::PtdtNew(&source,shape?9:0,&oldTag):nullptr; PThreeDText copy=nullptr; PActionDefinition held=nullptr;
+        auto t=operation?ThreeDText::PtdtNew(&source,shape?9:0,&oldTag):nullptr; PThreeDText copy=nullptr; MMActionResource *held=nullptr;
         if (t) { t->SetFontResolver(&calls,TextResourceNoFont); held=TextResourceFixtureAccess::Seed(t); ok=held!=nullptr; }
         inject(kind,failure,true); bool success=false;
         if (!operation) { t=ThreeDText::PtdtNew(&source,shape?9:0,&newTag); success=t!=nullptr; }
@@ -105,9 +105,9 @@ static bool TestTextResources()
         inject(kind,failure,false); ++attempts; successful+=success;
         bool provider=copy && TextResourceFixtureAccess::Provider(copy,&calls);
         if (provider) { LegacyLong cels; ok=!copy->FGetCcelActn(tdaRest,&cels) && calls==1 && ok; }
-        LegacyLong fields[]={text,shape,operation,mask,kind,failure,success,t!=nullptr,copy!=nullptr,held?held->CactRef():0,provider,calls,cache->CactRef()};
+        LegacyLong fields[]={text,shape,operation,mask,kind,failure,success,t!=nullptr,copy!=nullptr,mm_action_resource_references(held),provider,calls,cache->CactRef()};
         ok=record(fields,sizeof(fields)) && TextResourceFixtureAccess::Record(t,snapshot,cache) && TextResourceFixtureAccess::Record(copy,snapshot,cache) && ok;
-        ReleasePpo(&copy); ReleasePpo(&t); ReleasePpo(&held); vpers->Clear();
+        ReleasePpo(&copy); ReleasePpo(&t); mm_action_resource_release(held); vpers->Clear();
 #ifdef DEBUG
         ok=vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv && ok;
 #endif

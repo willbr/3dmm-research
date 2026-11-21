@@ -19990,3 +19990,38 @@ one pixel per frame. Every difference occurred at a previously differing pixel
 in the corresponding frames of the retained actor-event capture. Mixed PCM
 still differed, and continuous pixel parity was inconclusive. Evidence is in
 `tmp/c89-cached-action`.
+
+## Shared C89 ownership for generated 3D text actions (21 November 2026)
+
+The C89 text generator creates and retains the action resource directly. It
+reuses the last requested action and releases its reference when an edit
+replaces the text lists. A caller can retain the previous action across that
+replacement. Studio uses the same action owner and playback readers for
+generated and archive-backed actions. The C++ `ActionDefinition` class was
+removed.
+
+All 193 standalone C89 checks passed. Action definition, template runtime,
+text generation and text resource checks passed under AddressSanitizer. Native
+and SDL movie save/load and scene content checks passed, as did Marcus syntax
+and player checks. The native render of the shipped Alexander rest pose was
+byte-identical to its pre-change image.
+
+Before and after snapshots matched byte for byte within each build for all
+800 generated text actions, the text edit and resource checks, and template
+runtime behavior. Archive action records matched in results, tables and
+allocation failures. Successful loads reported 24 additional bytes per owner
+for the C89 cache allocation on x64.
+
+Studio saved and reopened an eight-frame 3D text Wave action, preserving its
+cel sequence and poses. A jump directly from frame six to frame two retained
+the frame-six pose in both Studio and retail. Rewinding to the first frame
+and advancing to frame two restored the same pose as the original forward
+seek in both applications.
+
+Retail, SDL and Marcus agreed on all eight seek frames, cameras and continuous
+frame numbers in `20261121T202743Z-9c07e2ee`. Both ports matched seven retail
+seek canvases exactly and differed by one pixel on the first. The silent
+audio check passed in both ports. SDL presentation timing differed and
+continuous pixel parity was inconclusive. Evidence is in
+`tmp/c89-generated-action` and
+`D:/3DMMForever-generated-cache/c89-generated-action/capture`.

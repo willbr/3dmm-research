@@ -14,6 +14,7 @@ enum { MM_TEMPLATE_KEEP_MODEL = -1 };
 MMI32 mm_template_wrap_cel(MMI32 cel, MMI32 count);
 struct MMMovieAsset;
 struct MMActorMatrix;
+struct MMActionResource;
 typedef struct MMTemplateRuntimeServices
 {
     MMTemplateCreateServices storage;
@@ -37,6 +38,7 @@ typedef struct MMTemplateRuntimeServices
 /* Use a cache-owned C action for archive lookups. The host supplies the block
  * decoder and publishes any sound tag into its output representation. */
 void mm_template_use_action_resource(MMTemplateRuntimeServices *, MMResourceBlockReader);
+struct MMActionResource *mm_template_fetch_action(const MMResourceObject *, MMU32 id, MMResourceBlockReader);
 /* Part counts fit the native signed-short loop range. Parent, set and costume
  * indices are valid. The action readers return one when they publish a value. Scalar
  * and matrix elements are signed 32-bit fixed-point representations. Callbacks

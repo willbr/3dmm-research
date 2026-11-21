@@ -8,7 +8,6 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> ActionDefinition
     BASE ---> BaseCacheableObject ---> Template
 
     A Template encapsulates all the data that distinguishes one actor
@@ -36,7 +35,7 @@ using namespace BRender;
 struct CelPartSpec
 {
     int16_t chidModl; // ChildChunkID (under Template chunk) of model for this body part
-    int16_t imat34;   // index into ActionDefinition's DynamicArray of transforms
+    int16_t imat34;   // index in the action's matrix table
 };
 static_assert(sizeof(CelPartSpec) == 4, "CelPartSpec on-disk layout drift");
 const ByteOrderMask kbomCps = 0x50000000;
@@ -50,7 +49,7 @@ const ByteOrderMask kbomCps = 0x50000000;
 ****************************************/
 struct AnimationCel
 {
-    ChildChunkID chidSnd; // sound to play at this cel (ChildChunkID under ActionDefinition chunk)
+    ChildChunkID chidSnd; // sound to play at this cel (ChildChunkID under ACTN)
     BRS dwr;      // distance from previous cel
                   //	CelPartSpec rgcps[];	// list of cel part specs (variable part of pggcel)
 };
@@ -90,48 +89,6 @@ enum
     factnStatic = 8, // Tells whether this is a stationary action
 };
 
-/****************************************
-    ActionDefinition (action): all the information
-    for an action like 'rest' or 'walk'.
-****************************************/
-typedef class ActionDefinition *PActionDefinition;
-#define ActionDefinition_PAR BaseCacheableObject
-#define kclsActionDefinition 'ACTN'
-class ActionDefinition : public ActionDefinition_PAR
-{
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  protected:
-    MMActionDefinition _action = {};
-
-  protected:
-    ActionDefinition(void)
-    {
-    } // can't instantiate directly; must use FReadActn
-    static MMActionDefinitionServices _Services();
-    bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
-
-  public:
-    // Transfers both tables on success.
-    static PActionDefinition PactnNew(MMActionTable *cels, MMActionTable *matrices, LegacyUlong grfactn);
-    static int FReadActn(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                           void **object, MMI32 *bytes);
-    ~ActionDefinition(void);
-
-    LegacyUlong Grfactn(void)
-    {
-        return _action.flags;
-    }
-
-    LegacyLong Ccel(void);
-    bool FGetCel(LegacyLong icel, AnimationCel *pcel);
-    bool FGetCps(LegacyLong icel, LegacyLong icps, CelPartSpec *pcps);
-    bool FGetMatrix(LegacyLong imat34, BMAT34 *pbmat34);
-    void GetSnd(LegacyLong icel, PTAG ptagSnd);
-};
-
 // grftmpl flags
 enum
 {
@@ -168,11 +125,14 @@ class Template : public Template_PAR
     MMTemplateRuntimeServices _RuntimeServices();
     bool _FReadTmplf(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
     virtual bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
-    virtual PActionDefinition _PactnFetch(LegacyLong anid);
+    virtual MMActionResource *_FetchAction(LegacyLong anid);
     virtual PModel _PmodlFetch(ChildChunkID chidModl);
     bool _FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
   public:
+    static const MMActionResourceHost &ActionResourceHost();
+    static int ReadActionResource(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                                  void **object, MMI32 *bytes);
     static int FReadTmpl(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
                            void **object, MMI32 *bytes);
     ~Template(void);

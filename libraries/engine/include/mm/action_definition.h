@@ -105,9 +105,15 @@ typedef struct MMActionResourceHost
     MMBlockTransform decode;
     void (*mark_memory)(void *);
     void (*bad_order)(void *);
+    void (*invalidate)(void *, void *out, size_t bytes);
 } MMActionResourceHost;
 int mm_action_resource_read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **object, MMI32 *bytes,
                             const MMActionResourceHost *);
+/* Transfer the definition's tables on success. A NULL host uses the C heap. */
+MMActionResource *mm_action_resource_create(const MMActionDefinition *, const MMActionResourceHost *);
+void mm_action_resource_retain(MMActionResource *);
+void mm_action_resource_release(MMActionResource *);
+MMI32 mm_action_resource_references(const MMActionResource *);
 const MMResourceObjectServices *mm_action_resource_services(void);
 const MMActionDefinition *mm_action_resource_definition(const MMActionResource *);
 

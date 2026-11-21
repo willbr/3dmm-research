@@ -472,7 +472,7 @@ const MMActionDefinition *mm_action_resource_definition(const MMActionResource *
 static void *action_allocate(void *context)
 {
     const MMActionResourceHost *host = context;
-    const MMStorageAllocator *allocator = host->objects;
+    const MMStorageAllocator *allocator = host ? host->objects : NULL;
     MMActionResource *resource = allocator ?
         allocator->resize(allocator->context, NULL, 0, sizeof(*resource), MM_STORAGE_NORMAL) :
         malloc(sizeof(*resource));
@@ -481,16 +481,41 @@ static void *action_allocate(void *context)
         memset(resource, 0, sizeof(*resource));
         if (allocator)
             resource->allocator = *allocator;
-        resource->mark_memory = host->mark_memory;
+        if (host)
+            resource->mark_memory = host->mark_memory;
         mm_reference_init(&resource->references);
     }
     return resource;
 }
 
+MMActionResource *mm_action_resource_create(const MMActionDefinition *definition, const MMActionResourceHost *host)
+{
+    MMActionResource *resource = action_allocate((void *)host);
+    if (resource)
+        resource->action = *definition;
+    return resource;
+}
+
+void mm_action_resource_retain(MMActionResource *resource)
+{
+    mm_reference_add(&resource->references);
+}
+
+void mm_action_resource_release(MMActionResource *resource)
+{
+    if (resource)
+        mm_resource_object_release(resource, mm_action_resource_services());
+}
+
+MMI32 mm_action_resource_references(const MMActionResource *resource)
+{
+    return resource ? resource->references.count : 0;
+}
+
 static void action_release(void *context, void *object)
 {
     (void)context;
-    mm_resource_object_release(object, mm_action_resource_services());
+    mm_action_resource_release(object);
 }
 
 static MMI32 action_size(void *context)
@@ -513,6 +538,7 @@ int mm_action_resource_read(MMResourceCache *cache, MMU32 type, MMU32 number, MM
     services.decode = host->decode;
     services.object_size = action_size;
     services.bad_order = host->bad_order;
+    services.invalidate = host->invalidate;
     return mm_action_fetch(cache, type, number, block, object, bytes, &services);
 }
 

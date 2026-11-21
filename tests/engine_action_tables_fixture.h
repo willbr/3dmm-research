@@ -37,9 +37,10 @@ class FixtureActionTables
         return true;
     }
 
-    PActionDefinition Create(LegacyUlong flags)
+    MMActionResource *Create(LegacyUlong flags, MMActionTable *sounds = nullptr)
     {
-        auto action = ActionDefinition::PactnNew(_cels, _matrices, flags);
+        const MMActionDefinition definition{_cels, _matrices, sounds, flags};
+        auto action = mm_action_resource_create(&definition, &Template::ActionResourceHost());
         if (action)
             _cels = _matrices = nullptr;
         return action;
@@ -57,10 +58,11 @@ class FixtureActionTables
     MMActionTable *_matrices = nullptr;
 };
 
-inline PActionDefinition MakeFixtureAction(PGeneralGroup cels, PDynamicArray matrices, LegacyUlong flags)
+inline MMActionResource *MakeFixtureAction(PGeneralGroup cels, PDynamicArray matrices, LegacyUlong flags,
+                                           MMActionTable *sounds = nullptr)
 {
     FixtureActionTables tables;
-    return tables.Copy(cels, matrices) ? tables.Create(flags) : nullptr;
+    return tables.Copy(cels, matrices) ? tables.Create(flags, sounds) : nullptr;
 }
 
 #endif

@@ -133,12 +133,12 @@ class TestApp : public ApplicationBase
 // Minimal valid in-memory template: duplication uses its ownership, not assets.
 class TrackTestTemplate : public Template
 {
-    PActionDefinition _testAction = pvNil;
+    MMActionResource *_testAction = pvNil;
     bool _failNextFetch = false;
     int _failAfterFetch = 0;
 
   protected:
-    PActionDefinition _PactnFetch(long anid) override
+    MMActionResource *_FetchAction(long anid) override
     {
         if (_failAfterFetch > 0 && --_failAfterFetch == 0)
             return pvNil;
@@ -149,7 +149,7 @@ class TrackTestTemplate : public Template
         }
         if (anid != 0 || _testAction == pvNil)
             return pvNil;
-        _testAction->AddRef();
+        mm_action_resource_retain(_testAction);
         return _testAction;
     }
 
@@ -208,7 +208,7 @@ class TrackTestTemplate : public Template
     }
     ~TrackTestTemplate()
     {
-        ReleasePpo(&_testAction);
+        mm_action_resource_release(_testAction);
     }
     bool FInit()
     {

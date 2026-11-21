@@ -24,7 +24,7 @@ enum MMTextAction
     MM_TEXT_REVEAL, MM_TEXT_WALK, MM_TEXT_HOP,
     MM_TEXT_STRETCH, MM_TEXT_ACTION_COUNT
 };
-typedef struct MMTextGenerated { void *material,*action; MMI32 action_id; } MMTextGenerated;
+typedef struct MMTextGenerated { void *material; MMActionResource *action; MMI32 action_id; } MMTextGenerated;
 typedef struct MMTextGenerationServices
 {
     void *context;
@@ -42,9 +42,7 @@ typedef struct MMTextGenerationServices
     MMI32 (*font_height)(void *,void *font,MMI32 character);
     MMI32 (*font_maximum)(void *,void *font);
     void *(*glyph)(void *,void *font,MMI32 character);
-    /* Successful creation consumes both tables. Failure leaves them owned
-     * by the caller. */
-    void *(*action_new)(void *,MMActionTable *cels,MMActionTable *matrices,MMU32 flags);
+    const MMActionResourceHost *action_host;
     int (*body_shape)(void *,void *body,const MMPartIndexView *parents,const MMPartIndexView *sets);
     void (*body_material)(void *,void *body,MMI32 set,void *material);
 } MMTextGenerationServices;
@@ -68,7 +66,7 @@ int mm_text_evaluate_cel(void *,MMI32 action,MMI32 cel,MMTextMatrixWrite,void *t
                          const MMTextGenerationServices *);
 /* Cache misses release the old action BEFORE building; failure leaves a NULL
  * cache/id -1. Hits retain without rebuilding. ID publishes after retain. */
-void *mm_text_fetch_action(void *,MMI32 action,const MMTextGenerationServices *);
+MMActionResource *mm_text_fetch_action(void *,MMI32 action,const MMTextGenerationServices *);
 void *mm_text_fetch_model(void *,MMI32 index,const MMTextGenerationServices *);
 int mm_text_adjust_body(void *,void *body,const MMTextGenerationServices *);
 int mm_text_default_costume(void *,void *body,const MMTextGenerationServices *);

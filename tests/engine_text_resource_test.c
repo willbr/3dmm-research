@@ -186,6 +186,7 @@ static void init(Context *c)
 static void lifecycle(void)
 {
     Context c; Object *o,*copy; MMTag font={123,NULL,0x54444620U,29},out; MMI32 shape; char value[256]; int failure,create_steps=0,replace_steps;
+    const MMActionDefinition empty={0};
     font.cache=&font;
     for (failure=0;failure<=create_steps;++failure)
     {
@@ -205,7 +206,7 @@ static void lifecycle(void)
         assert(!strcmp(o->text,"old") && o->descriptor.shape==9 && o->descriptor.font.cache==font.cache && o->template_state.parents==parents);
     }
     c.fail=0; assert(mm_text_change(o,"",0,NULL,&c.services) && !strcmp(o->text," "));
-    o->generated.action=list_new(&c,0,0); o->generated.action_id=7;
+    o->generated.action=mm_action_resource_create(&empty,NULL); assert(o->generated.action); o->generated.action_id=7;
     assert(mm_text_change(o,NULL,-1,NULL,&c.services) && !o->generated.action && o->generated.action_id==-1);
     copy=(Object *)mm_text_duplicate(o,&c.services); assert(copy && copy->provider && copy->generated.material!=o->generated.material);
     mm_text_info(copy,value,&shape,&out,&c.services); assert(!strcmp(value," ") && !shape && out.cache==font.cache && out.sid==123);

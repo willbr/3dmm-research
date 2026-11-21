@@ -182,9 +182,7 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.font_height = [](void *, void *font, MMI32 ch) -> MMI32 { return static_cast<PThreeDFont>(font)->DyrChar(ch); };
     s.font_maximum = [](void *, void *font) -> MMI32 { return static_cast<PThreeDFont>(font)->DyrMax(); };
     s.glyph = [](void *, void *font, MMI32 ch) -> void * { return static_cast<PThreeDFont>(font)->PmodlFetch(ch); };
-    s.action_new = [](void *, MMActionTable *cels, MMActionTable *matrices, MMU32 flags) -> void * {
-        return ActionDefinition::PactnNew(cels, matrices, flags);
-    };
+    s.action_host = &ActionResourceHost();
     s.body_shape = [](void *, void *body, const MMPartIndexView *parents, const MMPartIndexView *sets) -> int {
         return static_cast<PBody>(body)->FChangeShape(*parents, *sets);
     };
@@ -203,11 +201,11 @@ bool ThreeDText::_FInitLists(void)
     Get the given action.  If we've built it before, use the cached copy.
     Else build the action, cache it, and return it.
 ***************************************************************************/
-PActionDefinition ThreeDText::_PactnFetch(LegacyLong tda)
+MMActionResource *ThreeDText::_FetchAction(LegacyLong tda)
 {
     AssertThis(0); AssertIn(tda, 0, tdaLim);
     auto services = _GenerationServices();
-    return static_cast<PActionDefinition>(mm_text_fetch_action(this, tda, &services));
+    return mm_text_fetch_action(this, tda, &services);
 }
 
 /***************************************************************************
@@ -388,7 +386,7 @@ void ThreeDText::AssertValid(LegacyUlong grf)
     if (tdaNil != _generated.action_id)
     {
         AssertIn(_generated.action_id, 0, tdaLim);
-        AssertPo(static_cast<PActionDefinition>(_generated.action), 0);
+        Assert(mm_action_resource_references(_generated.action) > 0, "missing generated action");
     }
     else
     {
@@ -408,7 +406,7 @@ void ThreeDText::MarkMem(void)
 
     MarkMemObj(static_cast<PMaterial_MTRL>(_generated.material));
     if (tdaNil != _generated.action_id)
-        MarkMemObj(static_cast<PActionDefinition>(_generated.action));
+        mm_action_resource_services()->mark_memory(_generated.action);
 }
 
 /***************************************************************************

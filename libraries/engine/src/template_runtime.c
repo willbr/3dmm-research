@@ -49,6 +49,11 @@ void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int ki
     return fetch_child(resource, id, kind, reader, NULL, asset);
 }
 
+MMActionResource *mm_template_fetch_action(const MMResourceObject *resource, MMU32 id, MMResourceBlockReader reader)
+{
+    return fetch_child(resource, id, MM_TEMPLATE_ACTION, reader, mm_action_resource_services(), NULL);
+}
+
 static MMI32 resource_cel_count(void *context, void *action)
 {
     (void)context;
