@@ -389,15 +389,28 @@ bool ChunkyResourceFile::FGetName(ChunkTagOrType type, ChunkNumber number, PStri
 MMChunkEndpoint ChunkyResourceFile::CopySource(MMResourceChunkCopy &binding)
 {
     AssertThis(0);
-    if (Pcfl())
-        return Pcfl()->CopyEndpoint(binding.live);
     if (_privateArchive)
         return mm_private_archive_copy_endpoint(_privateArchive, &binding.live);
+    if (Pcfl())
+        return CopyTarget(binding.live);
     if (_legacyWireFile && (_legacyWireFile->GrffilCur() & ffilWriteEnable))
         return {};
     const auto titles = KauaiChunkTitleIO();
     return mm_stored_chunk_copy_endpoint(&binding.stored, &_cache, this, KauaiCopyAllocator(),
                                           &titles, KauaiEncodeLegacyChunkName, sizeof(achar));
+}
+
+MMChunkEndpoint ChunkyResourceFile::CopyTarget(MMChunkFileCopy &binding)
+{
+    AssertThis(0);
+    if (_privateArchive)
+        return mm_private_archive_copy_target(_privateArchive, &binding);
+    const auto reader = ReadOwner();
+    if (!reader)
+        return {};
+    const auto writer = ArchiveWriter();
+    const auto titles = KauaiChunkOwnerTitleIO();
+    return mm_chunk_file_copy_endpoint(&binding, reader, &writer, &titles, sizeof(achar), false);
 }
 
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)

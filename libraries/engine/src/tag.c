@@ -7,16 +7,13 @@ static void publish(const MMTagServices *s, const MMTag *tag)
     if (s->publish)
         s->publish(s->context, tag);
 }
-static int copy_local_tag(const MMTag *tag, const MMChunkEndpoint *source, void *file,
+static int copy_local_tag(const MMTag *tag, const MMChunkEndpoint *source, const MMChunkEndpoint *target,
                           MMU32 *number, const MMTagServices *s)
 {
-    MMChunkFileCopy binding;
-    MMChunkEndpoint target;
     int status;
-    if (!source->identity)
+    if (!source->identity || !target->identity)
         return 0;
-    target = s->bind_file(file, &binding);
-    status = mm_chunk_copy(source, &target, tag->type, tag->number, 0, number);
+    status = mm_chunk_copy(source, target, tag->type, tag->number, 0, number);
     if (status == MM_CHUNK_NOT_FOUND && s->missing_chunk)
         s->missing_chunk(s->context);
     return status == MM_CHUNK_OK;
@@ -31,11 +28,19 @@ int mm_tag_open(MMTag *tag, void *destination, void *source, const MMTagServices
     file = source ? s->file(destination) : NULL;
     if (source && source != file)
     {
-        MMChunkFileCopy binding;
-        MMChunkEndpoint endpoint;
+        MMChunkFileCopy source_binding, target_binding;
+        MMChunkEndpoint from, to;
+        int copied = 0;
         if (file)
-            endpoint = s->bind_file(source, &binding);
-        if (!file || !copy_local_tag(tag, &endpoint, file, &number, s))
+        {
+            from = s->bind_file(source, &source_binding);
+            if (from.identity)
+            {
+                to = s->bind_file(file, &target_binding);
+                copied = copy_local_tag(tag, &from, &to, &number, s);
+            }
+        }
+        if (!copied)
         {
             tag->cache = NULL;
             publish(s, tag);
@@ -50,17 +55,19 @@ int mm_tag_open(MMTag *tag, void *destination, void *source, const MMTagServices
 }
 int mm_tag_save(MMTag *tag, void *destination, int redirect, const MMTagServices *s)
 {
-    MMResourceChunkCopy binding;
-    MMChunkEndpoint source;
-    void *file;
+    MMResourceChunkCopy source_binding;
+    MMChunkFileCopy target_binding;
+    MMChunkEndpoint source, target;
     MMU32 number;
     if (tag->sid)
         return 1;
-    file = s->file(destination);
-    if (!file || !tag->cache)
+    if (!destination || !tag->cache)
         return 0;
-    source = s->bind_cache(tag->cache, &binding);
-    if (!copy_local_tag(tag, &source, file, &number, s))
+    target = s->bind_target(destination, &target_binding);
+    if (!target.identity)
+        return 0;
+    source = s->bind_cache(tag->cache, &source_binding);
+    if (!copy_local_tag(tag, &source, &target, &number, s))
         return 0;
     if (redirect)
     {

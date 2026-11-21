@@ -154,7 +154,7 @@ static void *archive_file(void *p)
 }
 static MMChunkEdit edit_archive(void *p)
 {
-    return fixture_chunk_edit(p);
+    return fixture_chunk_edit(&((Editor *)p)->archive);
 }
 static void retain_input(void *p) { ++((Editor *)p)->input_refs; }
 static void release_input(void *p) { CHECK(--((Editor *)p)->input_refs >= 0); }

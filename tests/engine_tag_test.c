@@ -82,6 +82,13 @@ static MMChunkEndpoint bind_cache(void *p, MMResourceChunkCopy *binding)
     event(c->host, 'C');
     return c->host->fail ? unavailable : tag_copy_file_endpoint(&c->archive, &binding->live);
 }
+static MMChunkEndpoint bind_target(void *p, MMChunkFileCopy *binding)
+{
+    const MMChunkEndpoint denied = {0};
+    Cache *c = p;
+    event(c->host, 'T');
+    return c->core.file ? tag_copy_file_endpoint(&c->archive, binding) : denied;
+}
 static void missing_chunk(void *p)
 {
     event(p, '!');
@@ -214,6 +221,7 @@ static MMTagServices init(Host *h)
     s.compare_cache = compare;
     s.bind_file = bind_file;
     s.bind_cache = bind_cache;
+    s.bind_target = bind_target;
     s.publish = publish;
     s.cache = cache;
     s.source = source;
@@ -233,20 +241,20 @@ static void lifecycle(void)
     CHECK(mm_tag_open(&tag, a, NULL, &s) && tag.cache == a && a->refs == 2 && !strcmp(h.log, "PA"));
     CHECK(h.visible.cache == a);
     reset(&h);
-    CHECK(mm_tag_save(&tag, b, 0, &s) && tag.cache == a && tag.number == 1 && !strcmp(h.log, "2CF") &&
+    CHECK(mm_tag_save(&tag, b, 0, &s) && tag.cache == a && tag.number == 1 && !strcmp(h.log, "TC") &&
           b->archive.index.count == 3);
     reset(&h);
     CHECK(mm_tag_save(&tag, b, 1, &s) && tag.cache == b && tag.number == 2 && a->refs == 1 && b->refs == 2 &&
-          !strcmp(h.log, "2CFBaP") && b->archive.index.count == 3);
+          !strcmp(h.log, "TCBaP") && b->archive.index.count == 3);
     reset(&h);
     old = tag;
     h.fail = 1;
     CHECK(!mm_tag_save(&tag, a, 1, &s) && tag.cache == old.cache && tag.number == old.number &&
-          !strcmp(h.log, "1C"));
+          !strcmp(h.log, "TC"));
     h.fail = 0;
     reset(&h);
     CHECK(!mm_tag_save(&tag, h.caches + 2, 1, &s) && tag.cache == b && tag.number == 2 &&
-          !strcmp(h.log, "3"));
+          !strcmp(h.log, "T"));
     reset(&h);
     mm_tag_dup(&tag, &s);
     CHECK(b->refs == 3 && !strcmp(h.log, "B"));

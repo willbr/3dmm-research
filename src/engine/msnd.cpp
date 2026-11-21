@@ -171,6 +171,11 @@ bool MovieSoundMSND::FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long 
 ***************************************************************************/
 bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn)
 {
+    return FCopyMidi(pfilSrc, pcflDest->WriteIndex(), pcno, pstn);
+}
+
+bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, const MMArchiveWriter &archive, ChunkNumber *pcno, PString pstn)
+{
     AssertPo(pfilSrc, 0);
     AssertNilOrPo(pstn, 0);
     String leaf;
@@ -181,7 +186,7 @@ bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkN
         filename.GetLeaf(&leaf);
         pstn = &leaf;
     }
-    const EngineSoundWriter writer(pcflDest, pstn);
+    const EngineSoundWriter writer(archive, pstn);
     const auto source = EngineReadStream::FromFile(*pfilSrc);
     const int result = mm_sound_import_midi(&source, &writer.name, pcno, &writer.archive);
     if (result == MM_SOUND_BAD_MIDI)
@@ -196,8 +201,13 @@ bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkN
 ***************************************************************************/
 bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn)
 {
-    AssertPo(pfilSrc, 0);
     AssertPo(pcflDest, 0);
+    return FCopyWave(pfilSrc, pcflDest->WriteIndex(), sty, pcno, pstn);
+}
+
+bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, long sty, ChunkNumber *pcno, PString pstn)
+{
+    AssertPo(pfilSrc, 0);
     AssertIn(sty, 0, styLim);
     AssertVarMem(pcno);
     Assert(sty != styMidi, "Illegal sty argument");
@@ -211,7 +221,7 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
         filename.GetLeaf(&leaf);
         pstn = &leaf;
     }
-    const EngineSoundWriter writer(pcflDest, pstn);
+    const EngineSoundWriter writer(archive, pstn);
     const auto source = EngineReadStream::FromFile(*pfilSrc);
 #ifdef KAUAI_SDL3
     std::vector<std::uint8_t> prepared;
@@ -365,9 +375,10 @@ bool MovieSoundMSND::FInvalidate(void)
 {
     AssertThis(0);
     const auto binding = ResourceBinding();
-    if (!binding->cache || !binding->cache->file)
+    if (!binding->cache)
         return false;
-    const auto edit = static_cast<PChunkyFile>(binding->cache->file)->EditIndex();
+    const auto cache = static_cast<PChunkyResourceFile>(binding->cache->owner);
+    const auto edit = cache->ArchiveWriter().edit;
     const auto services = _ResourceServices();
     return mm_sound_invalidate(this, binding, &edit, &services) != 0;
 }

@@ -104,7 +104,7 @@ static void publish(void *context, const MMTag *tag)
 
 static const MMStorageAllocator allocator = {&h, resize, free_bytes};
 static const MMTagServices tags = {
-    NULL, NULL, retain, release, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, retain, release, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 static void row(MMActorEventTable *events, MMI32 type, MMI32 custom, MMI32 sid, void *cache, MMU32 number)

@@ -35,6 +35,8 @@ extern "C"
         void (*missing_chunk)(void *);
         void (*missing)(void *, const MMTag *);
         void (*publish)(void *, const MMTag *);
+        /* An empty endpoint denies writes to the destination cache. */
+        struct MMChunkEndpoint (*bind_target)(void *cache, struct MMChunkFileCopy *);
     } MMTagServices;
     /* sid 0 owns a cache reference after open/child construction. Positive sids
      * resolve through the source provider and ignore cache identity. Open-copy failure

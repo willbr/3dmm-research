@@ -11,7 +11,10 @@ struct EngineSoundWriter
     byte wire[kcbMaxDataStn];
     MMChunkNameValue name;
 
-    EngineSoundWriter(PChunkyFile file, PString text) : archive(file->WriteIndex()), name(ChunkyFile::EncodeName(text, wire))
+    EngineSoundWriter(PChunkyFile file, PString text) : EngineSoundWriter(file->WriteIndex(), text) {}
+
+    EngineSoundWriter(const MMArchiveWriter &writer, PString text)
+        : archive(writer), name(ChunkyFile::EncodeName(text, wire))
     {
         // The original sound importer writes little-endian envelopes.
         archive.big_endian = 0;

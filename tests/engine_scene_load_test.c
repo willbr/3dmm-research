@@ -489,7 +489,7 @@ static void *resolve_file(void *p)
 }
 static MMChunkEdit resolve_edit(void *p)
 {
-    return fixture_chunk_edit(p);
+    return fixture_chunk_edit(&((Loader *)p)->archive);
 }
 static void retain_resolve_cache(void *p)
 {

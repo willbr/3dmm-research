@@ -33,6 +33,71 @@ class MovieSoundFixtureAccess : public Movie
   public:
     static MovieData *Data(PMovie movie) { auto member=&MovieSoundFixtureAccess::_data; return &(movie->*member); }
 };
+static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long style, PString name)
+{
+    auto source = Movie::PmvieNew(false, parent->Pmcc());
+    auto movie = Movie::PmvieNew(false, parent->Pmcc());
+    bool ok = source && movie;
+    for (auto document : {source, movie})
+    {
+        if (!ok)
+            break;
+        auto resources = NewPrivateMovieResources();
+        MovieSoundFixtureAccess::Data(document)->resources = resources;
+        document->SetDirty();
+        ok = resources && !resources->Pcfl() && document->FAutoSave() && document->FNewScenInsCore(0);
+    }
+    Filename path;
+    const bool havePath = path.FGetTemp() && path.FChangeFtg(kftg3mm);
+    ChunkNumber imported = 0, copied = 0;
+    ChildChunkID child = 0;
+    if (ok && havePath)
+    {
+        auto resources = MovieSoundFixtureAccess::Data(source)->Resources();
+        ok = source->FCopySndFileToMvie(input, style, &imported, name) &&
+             movie->FCopyMsndFromCrf(resources, imported, &copied);
+        if (ok)
+        {
+            TAG tag{ksidUseCrf, resources, kctgMsnd, imported};
+            TagManager::DupTag(&tag);
+            ok = movie->FSaveTagSnd(&tag) && tag.cno == copied && movie->FChidFromUserSndCno(copied, &child);
+            if (ok)
+            {
+                const MMSceneSoundTag cue{child, {tag.sid, tag.pcrf, tag.ctg, tag.cno}};
+                ok = movie->Pscen()->FAddSndCoreTagc(false, false, kvlmFull, style, 1, &cue) &&
+                     movie->FSaveToFni(&path, true);
+            }
+            TagManager::CloseTag(&tag);
+        }
+    }
+    ReleasePpo(&movie);
+    ReleasePpo(&source);
+    if (ok && havePath)
+    {
+        MovieData loaded;
+        ok = loaded.FLoad(&path) && loaded.sceneCount == 1;
+        if (ok)
+        {
+            auto resources = loaded.Resources();
+            const auto chunks = resources->ReadChunkAccess();
+            MMU32 scene, number;
+            ok = mm_chunk_link_number(&chunks, kctgMvie, loaded.movieNumber, 0, kctgScen, &scene) == MM_CHUNK_OK &&
+                 mm_chunk_link_number(&chunks, kctgScen, scene, child, kctgMsnd, &number) == MM_CHUNK_OK;
+            if (ok)
+            {
+                auto sound = static_cast<PMovieSoundMSND>(resources->PbacoFetch(kctgMsnd, number, MovieSoundMSND::FReadMsnd));
+                String title;
+                ok = sound && sound->FValid() && sound->Sty() == style &&
+                     resources->FGetName(kctgMsnd, number, &title) && title.FEqual(name);
+                ReleasePpo(&sound);
+            }
+        }
+    }
+    if (havePath && path.TExists() != tNo)
+        path.FDelete();
+    return ok && havePath;
+}
+
 static bool TestMovieSoundIntegration(PMovie parent)
 {
     FILE *snapshot=nullptr;
@@ -80,7 +145,7 @@ static bool TestMovieSoundIntegration(PMovie parent)
             adopted=movie->_FAdoptMsndInMvie(file,scene.cki.cno); ok=ok && adopted;
             TAG transfer={ksidUseCrf,external,kctgMsnd,foreign[0]}; TagManager::DupTag(&transfer);
             saved=movie->FSaveTagSnd(&transfer); ok=ok && saved;
-            copied=movie->FCopyMsndFromPcfl(source,foreign[1],&copyNumber); ok=ok && copied;
+            copied=movie->FCopyMsndFromCrf(external,foreign[1],&copyNumber); ok=ok && copied;
             LegacyLong row[]={mode,unused,haveValid,unusedFast,static_cast<LegacyLong>(child),static_cast<LegacyLong>(repeat),resolved,missing,adopted,saved,copied,
                 static_cast<LegacyLong>(copyNumber),tag.sid,static_cast<LegacyLong>(tag.cno),tag.pcrf==resource,tag.pcrf==external,
                 static_cast<LegacyLong>(transfer.cno),transfer.pcrf==resource,resource->CactRef(),external->CactRef(),movie->FQueryGCSndsOnClose()};
@@ -129,6 +194,8 @@ static bool TestMovieSoundIntegration(PMovie parent)
             expected=mode==1; /* The fallback AudioMan implementation is an E_NOTIMPL stub. */
 #endif
             ok=imported==expected && record(row,sizeof(row)) && graph(resource->Pcfl(),kctgMvie,MovieSoundFixtureAccess::Data(movie)->movieNumber);
+            if (ok && expected)
+                ok = TestPrivateSoundRoundTrip(parent, input, (mode & 1) ? styMidi : stySfx, &name);
         }
         ReleasePpo(&input); ReleasePpo(&movie); vpers->Clear();
         if (!ok) std::fprintf(stderr,"Physical sound import fixture failed at mode %d\n",mode);

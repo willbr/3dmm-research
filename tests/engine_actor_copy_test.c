@@ -70,7 +70,7 @@ static void retain_cache(void *cache) { ++((Fixture *)cache)->tag_refs; }
 static void release_cache(void *cache) { CHECK(--((Fixture *)cache)->tag_refs >= 0); }
 
 static const MMTagServices tags = {
-    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 static void set_recording(void *context, int enabled)

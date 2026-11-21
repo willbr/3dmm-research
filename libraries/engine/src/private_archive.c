@@ -279,6 +279,12 @@ MMChunkEndpoint mm_private_archive_copy_endpoint(MMPrivateArchive *archive, MMCh
                                        archive->profile.unit, 0);
 }
 
+MMChunkEndpoint mm_private_archive_copy_target(MMPrivateArchive *archive, MMChunkFileCopy *binding)
+{
+    const MMChunkEndpoint denied = {0};
+    return archive->writable ? mm_private_archive_copy_endpoint(archive, binding) : denied;
+}
+
 int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destination, MMU32 type,
                             MMU32 number, int clone, MMU32 *copy)
 {

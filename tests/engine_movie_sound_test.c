@@ -14,7 +14,7 @@ typedef struct File { TagCopyFile archive; Fixture *f; int refs,midi; } File;
 struct Fixture
 {
     File a,b,source,*current,*last_destination; MMMovieSoundServices s; MMTagServices tags; MMTag *original;
-    int reads,files,views,enums,scene_rows,adopts,opens,closes,saves,ensures,temps,inspects,copies,waves,midis,deleted,flushed,gc,kinds;
+    int reads,views,enums,scene_rows,adopts,opens,closes,source_bindings,ensures,temps,copies,waves,midis,deleted,flushed,gc,kinds;
     int fail_entry,fail_enum,fail_scene,fail_adopt,fail_tag,fail_ensure,fail_copy,fail_temp,fail_save,bad_sound,move_cache;
     int missing_copy;
     MMU32 fault_parent;
@@ -26,7 +26,6 @@ static void edge(File *file, MMU32 type, MMU32 number, MMU32 child_type, MMU32 c
 }
 static void read_state(void *p,MMMovieSoundState *state)
 { Fixture *f=(Fixture *)p; ++f->reads; state->cache=f->current; state->movie=10; state->scene=0; }
-static void *file(void *p) { File *v=(File *)p; CHECK(v); ++v->f->files; return p; }
 static int graph_entry(void *p, MMU32 position, MMChunkEntry *entry)
 {
     const ChunkIndexFixture *index = p;
@@ -91,27 +90,18 @@ static void release_cache(void *p)
     ++f->closes;
     --cache->refs;
 }
-static MMChunkEndpoint bind_file(void *p, MMChunkFileCopy *binding)
+static MMChunkEndpoint bind_target(void *p, MMChunkFileCopy *binding)
 {
-    const MMChunkEndpoint denied = {0};
     File *file = p;
-    Fixture *f = file->f;
-    if (file == &f->source)
-    {
-        ++f->copies;
-        if (f->fail_copy)
-            return denied;
-    }
-    else
-        f->last_destination = file;
+    file->f->last_destination = file;
     return tag_copy_file_endpoint(&file->archive, binding);
 }
 static MMChunkEndpoint bind_cache(void *p, MMResourceChunkCopy *binding)
 {
     const MMChunkEndpoint denied = {0};
     File *file = p;
-    ++file->f->saves;
-    return file->f->fail_tag ? denied : tag_copy_file_endpoint(&file->archive, &binding->live);
+    ++file->f->source_bindings;
+    return file->f->fail_tag || file->f->fail_copy ? denied : tag_copy_file_endpoint(&file->archive, &binding->live);
 }
 static void missing_copy(void *p) { ++((Fixture *)p)->missing_copy; }
 static void invalidate_number(MMU32 *out) { *out = 400; }
@@ -119,7 +109,6 @@ static int ensure(void *p)
 { Fixture *f=(Fixture *)p; ++f->ensures; if (f->fail_ensure) return 0; if (f->move_cache) f->current=&f->b; return 1; }
 static int temp(void *p)
 { Fixture *f=(Fixture *)p; ++f->temps; if (f->fail_temp) return 0; if (f->move_cache) f->current=&f->b; return 1; }
-static void inspect(void *p) { ++((File *)p)->f->inspects; }
 static int import_sound(void *source, void *destination, MMU32 *out)
 {
     Fixture *f = ((File *)source)->f;
@@ -165,11 +154,11 @@ static void init(Fixture *f)
     f->a.archive.index.observer = &f->a;
     f->b.archive.index.observer = &f->b;
     f->a.archive.index.before_delete = f->b.archive.index.before_delete = erase_chunk;
-    f->tags.context=f; f->tags.file=file; f->tags.retain=retain_cache; f->tags.release=release_cache;
-    f->tags.bind_file=bind_file; f->tags.bind_cache=bind_cache; f->tags.missing_chunk=missing_copy;
+    f->tags.context=f; f->tags.retain=retain_cache; f->tags.release=release_cache;
+    f->tags.bind_target=bind_target; f->tags.bind_cache=bind_cache; f->tags.missing_chunk=missing_copy;
     s=&f->s; s->context=f; s->read=read_state; s->tags=&f->tags; s->edit=edit_index;
     s->ensure_autosave=ensure; s->use_temp=temp;
-    s->inspect_source=inspect; s->invalidate_number=invalidate_number; s->save_file=save_file;
+    s->invalidate_number=invalidate_number; s->save_cache=save_file;
     s->is_midi=is_midi; s->copy_midi=copy_midi; s->copy_wave=copy_wave; s->has_bad_sound_error=has_bad; s->mark_gc=mark_gc;
     s->diagnostic=diagnostic;
 }
@@ -187,13 +176,13 @@ int main(void)
     CHECK(mm_movie_sound_free_slot(&graph, S, 999, &out) == MM_CHUNK_NOT_FOUND && out == 1);
     f.fail_enum = f.enums + 1;
     CHECK(mm_movie_sound_free_slot(&graph, S, 20, &out) == MM_CHUNK_IO && out == 1);
-    init(&f); CHECK(mm_movie_sound_is_child(&f.a,A,100,&f.s)); CHECK(!mm_movie_sound_is_child(&f.a,A,102,&f.s));
-    init(&f); f.fail_enum=1; CHECK(!mm_movie_sound_is_child(&f.a,A,100,&f.s) && f.diagnostic[0]==1);
-    init(&f); f.fail_enum=1; CHECK(mm_movie_sound_adopt(&f.a,20,&f.s) && !f.adopts && f.diagnostic[0]==1);
-    init(&f); edge(&f.a,S,20,A,102,4); CHECK(mm_movie_sound_adopt(&f.a,20,&f.s)); CHECK(f.adopts==2 && f.last_slot==2);
-    init(&f); f.fail_adopt=1; CHECK(!mm_movie_sound_adopt(&f.a,20,&f.s) && f.adopts==1);
+    init(&f); edit=edit_index(&f.a); CHECK(mm_movie_sound_is_child(&edit,A,100,&f.s)); CHECK(!mm_movie_sound_is_child(&edit,A,102,&f.s));
+    init(&f); edit=edit_index(&f.a); f.fail_enum=1; CHECK(!mm_movie_sound_is_child(&edit,A,100,&f.s) && f.diagnostic[0]==1);
+    init(&f); edit=edit_index(&f.a); f.fail_enum=1; CHECK(mm_movie_sound_adopt(&edit,20,&f.s) && !f.adopts && f.diagnostic[0]==1);
+    init(&f); edit=edit_index(&f.a); edge(&f.a,S,20,A,102,4); CHECK(mm_movie_sound_adopt(&edit,20,&f.s)); CHECK(f.adopts==2 && f.last_slot==2);
+    init(&f); edit=edit_index(&f.a); f.fail_adopt=1; CHECK(!mm_movie_sound_adopt(&edit,20,&f.s) && f.adopts==1);
     /* An external graph still takes its candidate ID from the working file. */
-    init(&f); edge(&f.b,S,20,A,103,5); CHECK(mm_movie_sound_adopt(&f.b,20,&f.s)); CHECK(f.last_slot==1 && f.last_destination==&f.b);
+    init(&f); edit=edit_index(&f.b); edge(&f.b,S,20,A,103,5); CHECK(mm_movie_sound_adopt(&edit,20,&f.s)); CHECK(f.last_slot==1 && f.last_destination==&f.b);
     graph = fixture_chunk_access(&f.b.archive.index);
     CHECK(mm_chunk_find(&graph, M, 10, &parent) == MM_CHUNK_OK);
     CHECK(mm_chunk_find_child(&graph, parent, 1, A, 102, &out) == MM_CHUNK_OK);
@@ -205,14 +194,14 @@ int main(void)
         if (mode==0) CHECK(tag.number==102 && tag.cache==&f.b && f.opens==1 && f.closes==1 && f.a.refs==1 && f.b.refs==2);
         else CHECK(tag.cache==&f.a && f.a.refs==2 && f.b.refs==1 && !f.opens && !f.closes);
     }
-    init(&f); tag.sid=-1; tag.cache=&f.a; tag.number=999; CHECK(mm_movie_sound_resolve(&tag,999,MM_SOUND_NO_SCENE,&f.b,&f.s)); CHECK(f.files==1 && !f.views);
+    init(&f); tag.sid=-1; tag.cache=&f.a; tag.number=999; CHECK(mm_movie_sound_resolve(&tag,999,MM_SOUND_NO_SCENE,&f.b,&f.s)); CHECK(!f.views);
     init(&f); tag.sid=0; f.fail_scene=1; CHECK(!mm_movie_sound_resolve(&tag,3,MM_SOUND_NO_SCENE,NULL,&f.s) && !f.opens);
     init(&f); tag.sid=0; tag.cache=&f.a; tag.type=A; tag.number=999; f.fail_scene=1;
     CHECK(!mm_movie_sound_resolve(&tag,999,20,NULL,&f.s) && !f.scene_rows && !f.opens);
     init(&f); tag.cache=&f.source; tag.number=123; f.source.refs=2; f.fail_tag=1;
     CHECK(!mm_movie_sound_save(&tag,&f.s) && tag.cache==&f.source && f.source.refs==2 && f.a.refs==1);
     f.fail_tag=0;
-    CHECK(mm_movie_sound_save(&tag,&f.s) && f.saves==2 && tag.cache==&f.a && tag.number==123 &&
+    CHECK(mm_movie_sound_save(&tag,&f.s) && f.source_bindings==2 && tag.cache==&f.a && tag.number==123 &&
           f.source.refs==1 && f.a.refs==2);
     init(&f); out=777; CHECK(mm_movie_sound_child(100,&out,&f.s) && out==0 && !f.adopts);
     init(&f); out=777; CHECK(mm_movie_sound_child(102,&out,&f.s) && out==1 && f.views==2 && f.adopts==1);
@@ -221,20 +210,20 @@ int main(void)
     CHECK(!mm_movie_sound_child(999,&out,&f.s) && out==1 && !f.adopts && f.diagnostic[MM_SOUND_MISSING_CHUNK]==1);
     init(&f); out=777; f.fail_enum=1; f.fault_parent=S; CHECK(!mm_movie_sound_child(102,&out,&f.s) && out==777 && !f.adopts);
     init(&f); out=777; f.fail_scene=2; CHECK(mm_movie_sound_child(102,&out,&f.s) && out==0 && f.adopts==1 && f.last_slot==0);
-    init(&f); out=777; f.fail_ensure=1; CHECK(!mm_movie_sound_copy(&f.source,123,&out,&f.s) && out==777 && !f.reads && !f.copies);
+    init(&f); out=777; f.fail_ensure=1; CHECK(!mm_movie_sound_copy(&f.source,123,&out,&f.s) && out==777 && !f.reads && !f.source_bindings);
     init(&f); out=777; f.fail_copy=1; CHECK(!mm_movie_sound_copy(&f.source,123,&out,&f.s) && out==400 && !f.adopts && !f.deleted);
     init(&f); out=777; CHECK(!mm_movie_sound_copy(&f.source,124,&out,&f.s) && out==400 && f.missing_copy==1 && !f.adopts);
     init(&f); out=777; f.fail_adopt=1; CHECK(!mm_movie_sound_copy(&f.source,123,&out,&f.s) && out==123 && f.deleted==1 && f.deleted_number==123 && !f.flushed);
     init(&f); out=777; f.fail_save=1; CHECK(!mm_movie_sound_copy(&f.source,123,&out,&f.s) && out==123 && f.adopts==1 && !f.deleted && !f.gc);
     init(&f); out=777; f.move_cache=1; fixture_chunk_add(&f.b.archive.index,A,123);
-    CHECK(mm_movie_sound_copy(&f.source,123,&out,&f.s) && out==0 && f.last_destination==&f.b && f.last_slot==2 && !f.gc && f.inspects==1);
+    CHECK(mm_movie_sound_copy(&f.source,123,&out,&f.s) && out==0 && f.last_destination==&f.b && f.last_slot==2 && !f.gc && f.source_bindings==1);
     init(&f); out=777; f.fail_scene=2; CHECK(mm_movie_sound_copy(&f.source,123,&out,&f.s) && f.diagnostic[MM_SOUND_NO_CURRENT_SCENE]==1);
     for (mode=0;mode<2;++mode)
     {
         init(&f); f.source.midi=mode; out=777;
         CHECK(mm_movie_sound_import(&f.source,34,&out,&f,&f.s));
         CHECK(out==400 && f.gc==1 && f.midis==mode && f.waves==!mode && (mode || f.style==34));
-        CHECK(!f.ensures && f.temps==1 && f.kinds==1 && !f.inspects);
+        CHECK(!f.ensures && f.temps==1 && f.kinds==1 && !f.source_bindings);
     }
     init(&f); f.fail_temp=1; out=777; CHECK(!mm_movie_sound_import(&f.source,34,&out,&f,&f.s) && out==777 && !f.copies && !f.kinds);
     for (mode=0;mode<2;++mode)
@@ -251,6 +240,6 @@ int main(void)
     edge(&f.a,A,102,99,500,0); CHECK(mm_movie_sound_unused(&valid,&f.s) && valid);
     init(&f); f.fail_entry=1; valid=1;
     CHECK(!mm_movie_sound_unused(&valid,&f.s) && !valid && f.diagnostic[MM_SOUND_BAD_CHUNK_ENUM]==1);
-    init(&f); f.current=NULL; valid=1; CHECK(!mm_movie_sound_unused(&valid,&f.s) && !valid && !f.files);
+    init(&f); f.current=NULL; valid=1; CHECK(!mm_movie_sound_unused(&valid,&f.s) && !valid && !f.views);
     puts("C89 movie sound integration checks passed"); return 0;
 }

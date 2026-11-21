@@ -979,7 +979,7 @@ static int load_payload(void *p, const MMChunkEntry *entry, MMMovieReceiveBytes 
 static void retain_cache(void *p) { ++((ActorLoad *)p)->refs; }
 static void release_cache(void *p) { CHECK(--((ActorLoad *)p)->refs >= 0); }
 static const MMTagServices load_tags = {
-    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 static void *load_sound_storage(void *p, void *data, MMU32 previous, MMU32 bytes, int priority)

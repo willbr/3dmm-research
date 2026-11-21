@@ -41,6 +41,7 @@ int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destinat
 struct MMChunkEndpoint;
 struct MMChunkFileCopy;
 struct MMChunkEndpoint mm_private_archive_copy_endpoint(MMPrivateArchive *, struct MMChunkFileCopy *);
+struct MMChunkEndpoint mm_private_archive_copy_target(MMPrivateArchive *, struct MMChunkFileCopy *);
 int mm_private_archive_bind_font(MMPrivateArchive *, const struct MMChunkEndpoint *source,
                                 MMU32 template_number, MMU32 font_number);
 int mm_private_archive_save(MMPrivateArchive *, MMU32 creator);

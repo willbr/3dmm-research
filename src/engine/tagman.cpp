@@ -679,6 +679,9 @@ const MMTagServices &TagManager::CoreServices()
         s.bind_cache = [](void *cache, MMResourceChunkCopy *binding) {
             return static_cast<PChunkyResourceFile>(cache)->CopySource(*binding);
         };
+        s.bind_target = [](void *cache, MMChunkFileCopy *binding) {
+            return static_cast<PChunkyResourceFile>(cache)->CopyTarget(*binding);
+        };
         s.cache = [](void *c) -> MMResourceCache * {
             return c ? static_cast<PChunkyResourceFile>(c)->CoreCache() : nullptr;
         };

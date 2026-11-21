@@ -78,7 +78,7 @@ static void retain_tag(void *cache) { ++((Fixture *)cache)->tag_refs; }
 static void close_tag(void *cache) { CHECK(--((Fixture *)cache)->tag_refs >= 0); }
 
 static const MMTagServices tags = {
-    NULL, NULL, retain_tag, close_tag, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, NULL, retain_tag, close_tag, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 static void publish(void *context, const MMActorState *state) { ((Fixture *)context)->actor.runtime.state = *state; }

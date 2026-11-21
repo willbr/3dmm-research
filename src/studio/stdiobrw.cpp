@@ -624,12 +624,12 @@ void BrowserImportSound::_ApplySelection(long thumSelect, long sid)
         break;
     }
 
-    if (pvNil == _pcrf || pvNil == _pcrf->Pcfl())
+    if (pvNil == _pcrf)
         return;
 
-    // Copy	sound from _pcrf->Pcfl() to current movie
+    // Copy sound from the source cache to the current movie.
     vpappb->BeginLongOp();
-    if (!_pstdio->Pmvie()->FCopyMsndFromPcfl(_pcrf->Pcfl(), (ChunkNumber)thumSelect, &cnoDest))
+    if (!_pstdio->Pmvie()->FCopyMsndFromCrf(_pcrf, (ChunkNumber)thumSelect, &cnoDest))
     {
         vpappb->EndLongOp();
         return;

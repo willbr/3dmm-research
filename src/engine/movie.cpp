@@ -146,11 +146,6 @@ struct Movie::SaveHost
     explicit SaveHost(PMovie value) : movie(value) {}
 };
 
-static MMChunkEdit EditMovieArchive(void *file)
-{
-    return static_cast<PChunkyFile>(file)->EditIndex();
-}
-
 static MMChunkOwnerRead *MovieArchiveReader(void *resources)
 {
     return static_cast<PChunkyResourceFile>(resources)->ReadOwner();
@@ -1000,20 +995,29 @@ MMMovieSoundServices Movie::SoundServices()
         auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_scenes.index;
     };
     s.tags = &TagManager::CoreServices();
-    s.edit = EditMovieArchive;
+    s.edit = [](void *p) { return static_cast<PChunkyResourceFile>(p)->ArchiveWriter().edit; };
     s.ensure_autosave=[](void *p) { return int(static_cast<PMovie>(p)->FEnsureAutosave()); };
     s.use_temp=[](void *p) { return int(static_cast<PMovie>(p)->_FUseTempFile()); };
-    s.inspect_source=[](void *p) { Filename filename; static_cast<PChunkyFile>(p)->GetFni(&filename); };
     s.invalidate_number = [](MMU32 *number) { (void)number; TrashVar(number); };
-    s.save_file=[](void *p,MMU32 creator) { return int(static_cast<PChunkyFile>(p)->FSave(creator)); };
-    s.is_midi=[](void *p) { Filename filename; static_cast<PFileObject>(p)->GetFni(&filename); return int(filename.Ftg()==kftgMidi); };
-    s.copy_midi=[](void *p,void *destination,MMU32 *out,void *name) {
-        ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=MovieSoundMSND::FCopyMidi(static_cast<PFileObject>(p),static_cast<PChunkyFile>(destination),&value,static_cast<PString>(name));
-        std::memcpy(out,&value,sizeof(value)); return int(ok);
+    s.save_cache = [](void *p, MMU32 creator) -> int {
+        return KauaiSaveChunkOwner(MovieArchiveReader(p)->storage, creator, nullptr);
     };
-    s.copy_wave=[](void *p,void *destination,MMI32 style,MMU32 *out,void *name) {
-        ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=MovieSoundMSND::FCopyWave(static_cast<PFileObject>(p),static_cast<PChunkyFile>(destination),style,&value,static_cast<PString>(name));
-        std::memcpy(out,&value,sizeof(value)); return int(ok);
+    s.is_midi=[](void *p) { Filename filename; static_cast<PFileObject>(p)->GetFni(&filename); return int(filename.Ftg()==kftgMidi); };
+    s.copy_midi = [](void *p, void *destination, MMU32 *out, void *name) -> int {
+        const auto writer = static_cast<PChunkyResourceFile>(destination)->ArchiveWriter();
+        ChunkNumber value;
+        std::memcpy(&value, out, sizeof(value));
+        bool ok = MovieSoundMSND::FCopyMidi(static_cast<PFileObject>(p), writer, &value, static_cast<PString>(name));
+        std::memcpy(out, &value, sizeof(value));
+        return ok;
+    };
+    s.copy_wave = [](void *p, void *destination, MMI32 style, MMU32 *out, void *name) -> int {
+        const auto writer = static_cast<PChunkyResourceFile>(destination)->ArchiveWriter();
+        ChunkNumber value;
+        std::memcpy(&value, out, sizeof(value));
+        bool ok = MovieSoundMSND::FCopyWave(static_cast<PFileObject>(p), writer, style, &value, static_cast<PString>(name));
+        std::memcpy(out, &value, sizeof(value));
+        return ok;
     };
     s.has_bad_sound_error=[](void *) { return int(vpers->FIn(ercSocBadSoundFile)); };
     s.mark_gc=[](void *p) { static_cast<PMovie>(p)->_fGCSndsOnClose=true; };
@@ -1038,7 +1042,8 @@ MMMovieSoundServices Movie::SoundServices()
 bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
 {
     AssertThis(0); AssertPo(pcfl,0); const auto services=SoundServices();
-    return mm_movie_sound_adopt(pcfl,cnoScen,&services)!=0;
+    const auto edit = pcfl->EditIndex();
+    return mm_movie_sound_adopt(&edit, cnoScen, &services) != 0;
 }
 
 /****************************************************
@@ -1126,21 +1131,27 @@ bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno,
 
 /****************************************************
  *
- * Copy Msnd chunk from specified movie *pcfl to
+ * Copy Msnd chunk from the source movie cache to
  * current movie
  * Parameters:
- *	pcfl : Source file
+ *	source : Source cache
  *
  * Returns:
  *  fFalse if there was a failure, else fTrue.
  *	*pcnoDest
  *
  ****************************************************/
-bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
+bool Movie::FCopyMsndFromCrf(PChunkyResourceFile source, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
 {
-    AssertBaseThis(0); AssertPo(pcflSrc,0); AssertVarMem(pcnoDest); const auto services=SoundServices();
-    MMU32 number; std::memcpy(&number,pcnoDest,sizeof(number)); bool ok=mm_movie_sound_copy(pcflSrc,cnoSrc,&number,&services)!=0;
-    std::memcpy(pcnoDest,&number,sizeof(number)); return ok;
+    AssertBaseThis(0);
+    AssertPo(source, 0);
+    AssertVarMem(pcnoDest);
+    const auto services = SoundServices();
+    MMU32 number;
+    std::memcpy(&number, pcnoDest, sizeof(number));
+    bool ok = mm_movie_sound_copy(source, cnoSrc, &number, &services) != 0;
+    std::memcpy(pcnoDest, &number, sizeof(number));
+    return ok;
 }
 
 /****************************************************

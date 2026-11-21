@@ -22,12 +22,11 @@ typedef struct MMMovieSoundServices
     void *context;
     void (*read)(void *,MMMovieSoundState *);
     const MMTagServices *tags;
-    MMChunkEdit (*edit)(void *file);
+    MMChunkEdit (*edit)(void *cache);
     int (*ensure_autosave)(void *);
     int (*use_temp)(void *);
-    void (*inspect_source)(void *file); /* Optional legacy unused filename query. */
     void (*invalidate_number)(MMU32 *); /* Optional native failed-copy output poisoning. */
-    int (*save_file)(void *file,MMU32 creator);
+    int (*save_cache)(void *cache,MMU32 creator);
     int (*is_midi)(void *source_file);
     int (*copy_midi)(void *source_file,void *destination,MMU32 *,void *name);
     int (*copy_wave)(void *source_file,void *destination,MMI32 style,MMU32 *,void *name);
@@ -48,13 +47,13 @@ int mm_movie_sound_free_slot(const MMChunkAccess *, MMU32 parent_type, MMU32 par
  */
 MMU32 mm_movie_sound_next_scene(const MMMovieSoundServices *);
 MMU32 mm_movie_sound_next_movie(const MMMovieSoundServices *);
-int mm_movie_sound_is_child(void *file,MMU32 type,MMU32 number,const MMMovieSoundServices *);
-int mm_movie_sound_adopt(void *file,MMU32 scene,const MMMovieSoundServices *);
+int mm_movie_sound_is_child(const MMChunkEdit *,MMU32 type,MMU32 number,const MMMovieSoundServices *);
+int mm_movie_sound_adopt(const MMChunkEdit *,MMU32 scene,const MMMovieSoundServices *);
 /* Adopt the scene's sounds into the movie in the same writable index. */
 int mm_movie_sound_adopt_scene(const MMChunkEdit *, MMU32 movie, MMU32 scene,
                                void *context, void (*diagnostic)(void *, int));
-/* A non-document SID still obtains the selected file before returning unchanged.
- * Equal chunk numbers never reopen/rebind the tag, even with another cache.
+/* A non-document SID returns unchanged. Equal chunk numbers never
+ * reopen/rebind the tag, even with another cache.
  * Changed numbers open a local tag before closing/replacing the original; failed
  * open leaves the original unchanged. Scene/cache overrides preserve native use.
  */
@@ -67,7 +66,7 @@ int mm_movie_sound_child(MMU32 number,MMU32 *child,const MMMovieSoundServices *)
  * deletes the copied root but leaves the output number; failed save retains the
  * adoption. Missing scene diagnoses and continues (its result was unused).
  * Only successful physical-file import marks close-time sound GC. */
-int mm_movie_sound_copy(void *source,MMU32 number,MMU32 *output,const MMMovieSoundServices *);
+int mm_movie_sound_copy(void *source_cache,MMU32 number,MMU32 *output,const MMMovieSoundServices *);
 int mm_movie_sound_import(void *source,MMI32 style,MMU32 *output,void *name,const MMMovieSoundServices *);
 /* Scan every sound, including roots not linked to the movie. Fewer than two
  * parent links means unused; with valid output requested, continue until an

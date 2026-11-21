@@ -612,7 +612,7 @@ static void *scene_sound_file(void *p)
 }
 static MMChunkEdit scene_sound_archive(void *p)
 {
-    return fixture_chunk_edit(p);
+    return fixture_chunk_edit(&((Test *)p)->archive);
 }
 static void read_scene_sound_movie(void *p, MMMovieSoundState *state)
 {
@@ -623,7 +623,7 @@ static void read_scene_sound_movie(void *p, MMMovieSoundState *state)
 static MMMovieSoundServices scene_sound_movie(void *p)
 {
     static const MMTagServices tags = {
-        NULL, scene_sound_file, ignore_change, ignore_change, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+        NULL, scene_sound_file, ignore_change, ignore_change, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
     };
     Test *t = p;
     MMMovieSoundServices s = {0};

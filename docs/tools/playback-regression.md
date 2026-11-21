@@ -19468,3 +19468,34 @@ Both ports also matched the three recorded V3dmm frames, cameras and
 canvases after Studio edited and saved the portable storyboard in
 `20261121T163041Z-537d80f8`. Evidence is in
 `tmp/c89-scene-resource-edit/evidence`.
+
+## Studio sound import and copying through the C89 archive (21 November 2026)
+
+Studio sound lookup, import, copying, and saving use the movie resource
+cache. Local tag copies bind the destination cache directly. The sound
+browser enumerates and reads names through the same cache, and deletion
+uses its archive writer. The private archive fixture imports a sound,
+copies it to a second private archive, adds its scene link, saves the
+movie, and reads the named sound back after reopening.
+
+All 193 standalone C checks and six focused AddressSanitizer checks
+passed. Native x64 passed six integration checks including the Marcus
+player. SDL passed five checks including physical sound import and
+recording. Native x86 passed the movie save/load fixture. Each
+configuration reproduced its previous sound-controller trace,
+sound-resource trace, and saved movie bytes.
+
+Studio's sound browser imported a MIDI and a WAV, then saved and reopened
+the movie. Studio copied the two sound-bank entries from that movie into a
+second movie, saved it, and reopened it. Each destination payload matched
+the stored source payload byte for byte. Separate scene-sorter tests
+verified that imported actor and frame cues kept their source WAV
+payloads in the correct scene slots.
+
+On the actor-sound composition, SDL and Marcus matched all 90 retail
+seek frames and camera indices. Each player reproduced its previous
+canvas hashes, including the two known port differences from retail.
+The retail and SDL capture is `20261121T164507Z-8fdcf71b`. The Marcus
+capture is `20261121T164716Z-d43068e2`. Evidence is in
+`tmp/c89-sound-resource-io/evidence` and
+`tmp/c89-sound-resource-io/marcus-capture`.

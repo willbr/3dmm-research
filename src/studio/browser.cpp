@@ -2083,21 +2083,26 @@ bool BrowserMusic::_FUpdateLists(void)
     ThumbnailDescriptor thd{};
     long ithd;
     long ithdOld;
-    long ccki;
-    long icki;
     ChunkIdentification cki;
     TAG tag;
     PMovieSoundMSND pmsnd = pvNil;
-    PChunkyFile pcfl = _pcrf->Pcfl();
+    const auto chunks = _pcrf->ReadChunkAccess();
+    MMU32 first;
+    const int status = mm_chunk_find(&chunks, kctgMsnd, 0, &first);
+    if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
+        return fFalse;
 
     // Enum through current movie for user sounds
     // For each	one, extend the lists to include the new sound
 
-    ccki = pcfl->CckiCtg(kctgMsnd);
-    for (icki = 0; icki < ccki; icki++)
+    for (MMU32 row = first; row < chunks.count; ++row)
     {
-        if (!pcfl->FGetCkiCtg(kctgMsnd, icki, &cki))
-            goto LNext;
+        MMChunkEntry entry;
+        if (mm_chunk_at(&chunks, row, &entry) != MM_CHUNK_OK)
+            return fFalse;
+        if (entry.type != kctgMsnd)
+            break;
+        cki = {kctgMsnd, entry.number};
         tag.sid = ksidUseCrf; // Non-CD-loaded content
         tag.pcrf = _pcrf;
         tag.ctg = kctgMsnd;
@@ -2131,7 +2136,7 @@ bool BrowserMusic::_FUpdateLists(void)
         if (!pmsnd->FValid())
             goto LNext;
 
-        if (!pcfl->FGetName(kctgMsnd, cki.cno, &stn))
+        if (!_pcrf->FGetName(kctgMsnd, cki.cno, &stn))
             goto LNext;
 
         if (!_FAddThd(&stn, &cki))

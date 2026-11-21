@@ -90,6 +90,10 @@ static MMChunkEndpoint bind_cache(void *cache, MMResourceChunkCopy *binding)
     ++f->saved;
     return f->fail == 2 ? endpoint : bind_file(&source->file, &binding->live);
 }
+static MMChunkEndpoint bind_target(void *cache, MMChunkFileCopy *binding)
+{
+    return bind_file(file(cache), binding);
+}
 static MMResourceCache *resource_cache(void *p)
 {
     return &((PasteCache *)p)->cache;
@@ -177,7 +181,7 @@ static void read_movie(void *context, MMMovieSoundState *state)
 }
 static MMChunkEdit edit_movie(void *p)
 {
-    return fixture_chunk_edit(&((TagCopyFile *)p)->index);
+    return fixture_chunk_edit(&((PasteCache *)p)->file.index);
 }
 static int adopt_sound(void *p, MMU32 parent, const MMChunkChild *child)
 {
@@ -259,6 +263,7 @@ static void init(Fixture *f)
     f->tags.release = release_cache;
     f->tags.bind_file = bind_file;
     f->tags.bind_cache = bind_cache;
+    f->tags.bind_target = bind_target;
     f->tags.cache = resource_cache;
     s->create.owner.tags = &f->tags;
     f->source.owner = f->target.owner = f;
