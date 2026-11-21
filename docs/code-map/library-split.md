@@ -6516,12 +6516,15 @@ old cache. Optional publication mirrors native tag fields at callback points;
 close clears after release. Nonembedded tags ignore cache pointers. Native open
 and disabled file-cache adapters avoid reading unopened cache fields.
 
-C dispatches child lookup and resource fetch through embedded caches or source
-managers, including local-only versus media-enabled requests and missing-tag
-callbacks. Source catalogue, names, lookup, retry and directory-search policy now
-use C above; physical directory/drive adapters remain native. C owns cache clearing: resolve
-media before file reopen, ignore reopen failure, and zero/restore memory budgets.
-File caching remains disabled, matching the previously unconditional return.
+`tag.c` uses the shared cache and manager directly for embedded and external
+tags. Child lookup selects the first source file containing the parent and
+looks up the exact child slot and type in its live or stored graph. Fetches
+preserve the local-only or media-enabled request and missing-tag callback.
+Saving a local tag copies its chunk graph from a live or stored cache into a
+writable archive. C also traverses resolved source managers for cache clearing,
+resolves media before reopening live files, and clears memory before restoring
+the previous budget. Native adapters project cache and manager handles, reopen
+files, and copy editable chunks. File caching remains a successful no-op.
 
 `tag_list.c` owns the dependency list's payload and location buffers.
 Studio builds the list in C89 during movie open, save-format selection, and
@@ -6534,13 +6537,14 @@ without an implicit close, matching the existing native reference behavior.
 Callbacks cannot mutate/re-enter the list. Runtime TAG and its 16-byte wire form
 remain distinct native adapters; the new C tag value carries no C++ types.
 
-`engine-tag-test` checks copy failures, ownership/publication order, redirect,
-source/media dispatch, missing hooks, comparison, clear-cache order, allocation
-failures, list ordering, duplicates and cache-pass stops. MSVC AddressSanitizer
-passes. All 336 frozen native tag-baseline bytes match; previous snapshots and
-51 CLI baselines remain exact. Twenty-eight standalone and forty-one focused
-native checks pass. Source-name/discovery adapters and engine-object integration
-remain the next work; full backend conversion is incomplete.
+`engine-tag-test` checks copy failures, ownership and publication order,
+redirects, source priority, child lookup, fetch references, missing hooks,
+comparison, cache clearing, allocation failures, and dependency-list behavior.
+`scene-edit-test` opens a background tag from a read-only archive, resolves and
+fetches it through TagManager, and saves its graph with the packed camera intact.
+The initial tag migration matched all 336 frozen native tag-baseline bytes and
+51 CLI baselines. Twenty-eight standalone and forty-one focused native checks
+passed, along with MSVC AddressSanitizer.
 
 ### Owning chunk tables and compact/expanded records
 

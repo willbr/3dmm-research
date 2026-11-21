@@ -17396,3 +17396,37 @@ In actor-event suite `20261121T004952Z-033e4f64`, both ports matched all
 all retail seek camera indices. SDL matched all 12 retail sound requests.
 Each port reproduced its 60 seek canvas hashes from the previous build.
 The comparison and fixture evidence are in `tmp/c89-background-cache`.
+
+## Tag lookup through the C89 cache (21 November 2026)
+
+Tag child lookup and resource fetch use the C89 resource cache directly. An
+external child lookup selects the first archive containing the parent and
+requires an exact child slot and type. Cache clearing traverses the same
+resource managers. A local tag now saves its chunk graph from an indexed
+read-only archive through the same copier used by the editable archive.
+
+The scene-edit fixture opens a read-only background tag, rejects a child of
+the wrong type, resolves a packed camera, and fetches and displays its images.
+It checks that an attempted redirect to the read-only archive leaves the tag
+intact, then copies the background into an editable archive and verifies that
+the camera remains packed. This passed on native x64, native x86 and SDL.
+All 192 standalone C checks and six focused AddressSanitizer checks passed.
+Nine focused native x64 and six focused SDL checks passed, including the
+resource cache, engine link and scene fixtures. The resource cache and engine
+link fixtures also passed on native x86. All three builds emitted the same
+336-byte tag trace and matched their previous resource-cache traces.
+
+All 54 movie and scene traces, nine sound and actor traces, three saved movie
+fixtures, ten Preview fingerprints and six Preview movies matched their prior
+outputs. The SDL authoring save matched the previous bytes.
+
+Retail, SDL and Marcus matched three retained-background frame identities,
+camera indices and canvas hashes in `20261121T010331Z-18c0eb0f`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T010406Z-8b5eed3b`.
+
+The actor-event captures in `20261121T010315Z-ba89db3e` matched all 60 archived
+retail frame identities in each port's seek and continuous playback runs and
+all retail seek camera indices. SDL matched all 12 recorded retail sound
+requests. Each port also reproduced all 60 seek canvas hashes from the prior
+build. The comparison and fixture evidence are in `tmp/c89-tag-cache`.

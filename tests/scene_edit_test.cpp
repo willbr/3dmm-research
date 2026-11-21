@@ -203,16 +203,20 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
         CHECK(file->FAdoptChild(kctgCam, child, kctgMbmp, rgb, 0) && file->FAdoptChild(kctgCam, child, kctgZbmp, z, 0));
     }
 }
-static void CheckIndexedBackground(PChunkyFile file, ChunkNumber number)
+static void CheckIndexedBackground(PChunkyFile source, ChunkNumber sourceNumber)
 {
+    Filename path;
+    CHECK(path.FGetTemp());
+    auto file = ChunkyFile::PcflCreate(&path, fcflWriteEnable);
+    ChunkNumber number;
+    CHECK(file && source->FCopy(kctgBkgd, sourceNumber, file, &number));
     ChildChunkIdentification camera;
     CHECK(file->FGetKidChidCtg(kctgBkgd, number, 3, kctgCam, &camera));
     CHECK(file->FPackData(kctgCam, camera.cki.cno) && file->FPacked(kctgCam, camera.cki.cno));
     CHECK(file->FSave(kctgSoc));
-    Filename path;
-    file->GetFni(&path);
+    ReleasePpo(&file);
     auto backing = FileObject::PfilOpen(&path);
-    CHECK(backing);
+    CHECK(backing && !(backing->GrffilCur() & ffilWriteEnable));
     const unsigned short order = 1;
     MMChunkPolicy policy = {};
 #ifdef CHUNK_BIG_INDEX
@@ -228,7 +232,16 @@ static void CheckIndexedBackground(PChunkyFile file, ChunkNumber number)
     ReleasePpo(&backing);
     CHECK(cache && !cache->Pcfl());
 
-    auto background = static_cast<PBackground>(cache->PbacoFetch(kctgBkgd, number, Background::FReadBkgd));
+    TAG parent = {ksidUseCrf, nullptr, kctgBkgd, number};
+    TAG child;
+    CHECK(!TagManager::FOpenTag(&parent, cache, source) && !parent.pcrf && parent.cno == number);
+    CHECK(TagManager::FOpenTag(&parent, cache));
+    CHECK(!vptagm->FBuildChildTag(&parent, 3, kctgActn, &child));
+    CHECK(vptagm->FBuildChildTag(&parent, 3, kctgCam, &child));
+    CHECK(child.pcrf == cache && child.ctg == kctgCam && child.cno == camera.cki.cno);
+    TagManager::CloseTag(&child);
+
+    auto background = static_cast<PBackground>(vptagm->PbacoFetch(&parent, Background::FReadBkgd));
     CHECK(background && background->Ccam() == 4 && background->Icam() == ivNil);
     String name;
     background->GetName(&name);
@@ -241,7 +254,19 @@ static void CheckIndexedBackground(PChunkyFile file, ChunkNumber number)
     background->TurnOffLights();
     ReleasePpo(&background);
     ReleasePpo(&world);
+
+    CHECK(!TagManager::FSaveTag(&parent, cache, true) && parent.pcrf == cache && parent.cno == number);
+    auto writable = ChunkyFile::PcflCreateTemp();
+    CHECK(writable);
+    auto destination = ChunkyResourceFile::PcrfNew(writable, 0);
+    CHECK(destination && TagManager::FSaveTag(&parent, destination, true) && parent.pcrf == destination);
+    CHECK(writable->FGetKidChidCtg(kctgBkgd, parent.cno, 3, kctgCam, &camera));
+    CHECK(writable->FPacked(kctgCam, camera.cki.cno));
+    TagManager::CloseTag(&parent);
+    ReleasePpo(&destination);
+    ReleasePpo(&writable);
     ReleasePpo(&cache);
+    CHECK(path.FDelete());
 }
 static bool Missing(const MissingSourceRequest &)
 {

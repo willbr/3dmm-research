@@ -25,10 +25,10 @@ extern "C"
         void (*release)(void *cache);
         int (*compare_cache)(void *, void *);
         int (*copy)(void *source, MMU32 type, MMU32 number, void *destination, MMU32 *new_number);
-        void *(*source)(void *, MMI32 sid, int local_only, const MMTag *asset);
-        void *(*find_cache)(void *manager, MMU32 type, MMU32 number);
-        int (*child)(void *cache, const MMTag *, MMU32 slot, MMU32 type, MMU32 *number);
-        void *(*fetch)(void *cache_or_manager, int manager, const MMTag *, MMResourceLoader);
+        int (*copy_cached)(void *source, MMU32 type, MMU32 number, void *destination, MMU32 *new_number);
+        MMResourceCache *(*cache)(void *owner);
+        MMResourceManager *(*source)(void *, MMI32 sid, int local_only, const MMTag *asset);
+        void (*missing_parent)(void *);
         void (*missing)(void *, const MMTag *);
         void (*publish)(void *, const MMTag *);
     } MMTagServices;
@@ -52,18 +52,13 @@ extern "C"
     {
         void *context;
         MMU32 (*sources)(void *);
-        void (*source_at)(void *, MMU32, MMI32 *, void **manager);
-        void *(*resolve)(void *, MMI32);
-        MMU32 (*caches)(void *manager);
-        void *(*cache_at)(void *manager, MMU32);
-        void *(*file)(void *cache);
+        void (*source_at)(void *, MMU32, MMI32 *, MMResourceManager **);
+        MMResourceManager *(*resolve)(void *, MMI32);
         void (*reopen)(void *file);
-        MMI32 (*budget)(void *cache);
-        void (*set_budget)(void *cache, MMI32);
     } MMTagCacheServices;
     /* flags 1=file, 2=memory. File clearing resolves media first, then ignores
      * reopen failure; memory clearing sets zero budget then restores the old value.
-     * Captures initial source/cache counts and skips unresolved sources. */
+     * Captures initial source/cache counts and visits live files of resolved sources. */
     void mm_tag_clear_cache(MMI32 sid, MMU32 flags, const MMTagCacheServices *);
     typedef struct MMTagCached
     {

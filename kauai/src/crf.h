@@ -215,6 +215,7 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
         return _manager.count;
     }
     PChunkyResourceFile PcrfGet(LegacyLong icrf);
+    MMResourceManager *CoreManager() { return &_manager; }
 };
 
 /***************************************************************************

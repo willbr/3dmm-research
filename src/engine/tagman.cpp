@@ -667,27 +667,21 @@ MMTagServices TagManager::_Services(void *context)
         return x == y ? 0 : x < y ? -1 : 1;
     };
     s.copy = [](void *a, MMU32 type, MMU32 number, void *b, MMU32 *out) -> int {
-        return static_cast<PChunkyFile>(a)->FCopy(type, number, static_cast<PChunkyFile>(b), out);
+        return b && static_cast<PChunkyFile>(a)->FCopy(type, number, static_cast<PChunkyFile>(b), out);
     };
-    s.source = [](void *c, MMI32 sid, int local, const MMTag *) -> void * {
+    s.copy_cached = [](void *a, MMU32 type, MMU32 number, void *b, MMU32 *out) -> int {
+        auto destination = static_cast<PChunkyResourceFile>(b)->Pcfl();
+        return a && destination && static_cast<PChunkyResourceFile>(a)->FCopyChunk(type, number, destination, out);
+    };
+    s.cache = [](void *c) -> MMResourceCache * {
+        return c ? static_cast<PChunkyResourceFile>(c)->CoreCache() : nullptr;
+    };
+    s.source = [](void *c, MMI32 sid, int local, const MMTag *) -> MMResourceManager * {
         auto h = static_cast<NativeTagHost *>(c);
-        return h->manager->_PcrmSourceGet(sid, local != 0, h->asset);
+        auto manager = h->manager->_PcrmSourceGet(sid, local != 0, h->asset);
+        return manager ? manager->CoreManager() : nullptr;
     };
-    s.find_cache = [](void *m, MMU32 type, MMU32 number) -> void * {
-        return static_cast<PChunkyResourceManager>(m)->PcrfFindChunk(type, number);
-    };
-    s.child = [](void *c, const MMTag *parent, MMU32 slot, MMU32 type, MMU32 *number) -> int {
-        ChildChunkIdentification kid;
-        if (!static_cast<PChunkyResourceFile>(c)->Pcfl()->FGetKidChidCtg(parent->type, parent->number, slot, type,
-                                                                         &kid))
-            return 0;
-        *number = kid.cki.cno;
-        return 1;
-    };
-    s.fetch = [](void *c, int manager, const MMTag *tag, MMResourceLoader reader) -> void * {
-        return manager ? static_cast<PChunkyResourceManager>(c)->PbacoFetch(tag->type, tag->number, reader)
-                       : static_cast<PChunkyResourceFile>(c)->PbacoFetch(tag->type, tag->number, reader);
-    };
+    s.missing_parent = [](void *) { Bug("chunk not found"); };
     s.missing = [](void *c, const MMTag *) {
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
         auto h = static_cast<NativeTagHost *>(c);
@@ -767,20 +761,19 @@ void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
     const MMTagCacheServices services = {
         this,
         [](void *c) -> MMU32 { return static_cast<PTagManager>(c)->_sources.count; },
-        [](void *c, MMU32 i, MMI32 *sid, void **manager) {
+        [](void *c, MMU32 i, MMI32 *sid, MMResourceManager **manager) {
             MMSourceRecord source;
             AssertDo(mm_source_at(&static_cast<PTagManager>(c)->_sources, i, &source) == MM_STORAGE_OK,
                      "invalid source index");
             *sid = source.sid;
-            *manager = source.manager;
+            auto native = static_cast<PChunkyResourceManager>(source.manager);
+            *manager = native ? native->CoreManager() : nullptr;
         },
-        [](void *c, MMI32 sid) -> void * { return static_cast<PTagManager>(c)->_PcrmSourceGet(sid); },
-        [](void *m) -> MMU32 { return static_cast<PChunkyResourceManager>(m)->Ccrf(); },
-        [](void *m, MMU32 i) -> void * { return static_cast<PChunkyResourceManager>(m)->PcrfGet(i); },
-        [](void *c) -> void * { return static_cast<PChunkyResourceFile>(c)->Pcfl(); },
-        [](void *f) { static_cast<PChunkyFile>(f)->FReopen(); },
-        [](void *c) -> MMI32 { return static_cast<PChunkyResourceFile>(c)->CbMax(); },
-        [](void *c, MMI32 budget) { static_cast<PChunkyResourceFile>(c)->SetCbMax(budget); }};
+        [](void *c, MMI32 sid) -> MMResourceManager * {
+            auto manager = static_cast<PTagManager>(c)->_PcrmSourceGet(sid);
+            return manager ? manager->CoreManager() : nullptr;
+        },
+        [](void *f) { static_cast<PChunkyFile>(f)->FReopen(); }};
     mm_tag_clear_cache(sid, flags, &services);
 }
 bool TagManager::FOpenTag(PTAG tag, PChunkyResourceFile destination, PChunkyFile source)

@@ -29,12 +29,9 @@ int mm_tag_open(MMTag *tag, void *destination, void *source, const MMTagServices
 int mm_tag_save(MMTag *tag, void *destination, int redirect, const MMTagServices *s)
 {
     MMU32 number;
-    void *source_file, *destination_file;
     if (tag->sid)
         return 1;
-    source_file = s->file(tag->cache);
-    destination_file = s->file(destination);
-    if (!s->copy(source_file, tag->type, tag->number, destination_file, &number))
+    if (!s->copy_cached(tag->cache, tag->type, tag->number, destination, &number))
         return 0;
     if (redirect)
     {
@@ -74,40 +71,66 @@ int mm_tag_compare(const MMTag *a, const MMTag *b, const MMTagServices *s)
 int mm_tag_child(const MMTag *parent, MMU32 slot, MMU32 type, MMTag *out,
                        const MMTagServices *s)
 {
-    MMTag child = *out;
-    void *cache = parent->cache, *manager;
+    MMResourceCache *cache;
+    MMResourceManager *manager;
+    MMChunkAccess chunks;
+    MMChunkChild child;
+    MMU32 position;
     if (parent->sid)
     {
         manager = s->source(s->context, parent->sid, 0, parent);
         if (!manager)
             return 0;
-        cache = s->find_cache(manager, parent->type, parent->number);
-        if (!cache)
-            return 0;
+        cache = mm_resource_manager_find_file(manager, parent->type, parent->number, 0);
     }
-    if (!s->child(cache, parent, slot, type, &child.number))
+    else
+        cache = s->cache(parent->cache);
+    if (!cache)
         return 0;
-    child.sid = parent->sid;
-    child.type = type;
-    if (!child.sid)
-        child.cache = parent->cache;
-    *out = child;
+    chunks = mm_resource_cache_chunks(cache);
+    if (mm_chunk_find(&chunks, parent->type, parent->number, &position) != MM_CHUNK_OK)
+    {
+        if (cache->file && s->missing_parent)
+            s->missing_parent(s->context);
+        return 0;
+    }
+    if (mm_chunk_child_exact(&chunks, position, slot, type, &child) != MM_CHUNK_OK)
+        return 0;
+    out->sid = parent->sid;
+    out->type = type;
+    out->number = child.number;
+    if (!out->sid)
+        out->cache = parent->cache;
     publish(s, out);
-    if (!child.sid)
-        s->retain(child.cache);
+    if (!out->sid)
+        s->retain(out->cache);
     return 1;
 }
 void *mm_tag_fetch(const MMTag *tag, MMResourceLoader reader, int use_media,
                          const MMTagServices *s)
 {
-    void *cache, *object = NULL;
+    MMResourceCache *cache;
+    MMResourceManager *manager;
+    MMResourceRequest request;
+    void *object = NULL;
     if (!tag->sid)
-        object = s->fetch(tag->cache, 0, tag, reader);
+    {
+        cache = s->cache(tag->cache);
+        if (cache)
+            object = mm_resource_cache_fetch_chunk(cache, tag->type, tag->number, reader);
+    }
     else
     {
-        cache = s->source(s->context, tag->sid, !use_media, tag);
-        if (cache)
-            object = s->fetch(cache, 1, tag, reader);
+        manager = s->source(s->context, tag->sid, !use_media, tag);
+        if (manager)
+        {
+            request.type = tag->type;
+            request.number = tag->number;
+            request.scope = 0;
+            request.loader = reader;
+            request.priority = MM_RESOURCE_NORMAL_PRIORITY;
+            object = mm_resource_manager_fetch(manager, &request, NULL);
+        }
     }
     if (!object && s->missing)
         s->missing(s->context, tag);
@@ -123,7 +146,8 @@ void mm_tag_clear_cache(MMI32 sid, MMU32 flags, const MMTagCacheServices *s)
 {
     MMU32 i, j, count = s->sources(s->context), caches;
     MMI32 source, budget;
-    void *manager, *cache, *file;
+    MMResourceManager *manager;
+    MMResourceCache *cache;
     for (i = 0; i < count; ++i)
     {
         s->source_at(s->context, i, &source, &manager);
@@ -135,20 +159,19 @@ void mm_tag_clear_cache(MMI32 sid, MMU32 flags, const MMTagCacheServices *s)
             if (!manager)
                 continue;
         }
-        caches = s->caches(manager);
+        caches = manager->count;
         for (j = 0; j < caches; ++j)
         {
-            cache = s->cache_at(manager, j);
-            file = s->file(cache);
-            if (!file)
+            cache = mm_resource_manager_at(manager, j);
+            if (!cache->file)
                 continue;
             if (flags & 1)
-                s->reopen(file);
+                s->reopen(cache->file);
             if (flags & 2)
             {
-                budget = s->budget(cache);
-                s->set_budget(cache, 0);
-                s->set_budget(cache, budget);
+                budget = cache->budget;
+                mm_resource_cache_budget(cache, 0);
+                mm_resource_cache_budget(cache, budget);
             }
         }
     }

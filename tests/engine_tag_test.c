@@ -15,14 +15,20 @@ typedef struct Host Host;
 typedef struct Cache
 {
     Host *host;
-    int id, refs, file, budget;
+    int id, refs;
+    MMResourceCache core;
+    MMResourceEntry entry;
+    MMResourceObject object;
+    MMReference object_refs;
 } Cache;
 struct Host
 {
     Cache caches[3];
+    MMResourceCache *files[3];
+    MMResourceManager manager;
     MMTag visible;
     char log[256];
-    int used, fail, found, local, missing, calls, stop, allocations, alloc_fail;
+    int used, fail, found, no_first_child, local, missing, calls, stop, allocations, alloc_fail;
     MMU32 child_types[8], child_slots[8];
     int children;
 };
@@ -41,7 +47,7 @@ static void *file(void *p)
 {
     Cache *c = (Cache *)p;
     event(c->host, (char)('1' + c->id));
-    return c->file ? c : NULL;
+    return c->core.file;
 }
 static void retain(void *p)
 {
@@ -72,44 +78,73 @@ static int copy(void *a, MMU32 type, MMU32 number, void *b, MMU32 *out)
     *out = number + 1;
     return 1;
 }
+static int copy_cached(void *a, MMU32 type, MMU32 number, void *b, MMU32 *out)
+{
+    return ((Cache *)b)->core.file && copy(a, type, number, b, out);
+}
 static void publish(void *p, const MMTag *tag)
 {
     Host *h = (Host *)p;
     h->visible = *tag;
     event(h, 'P');
 }
-static void *source(void *p, MMI32 sid, int local, const MMTag *tag)
+static MMResourceCache *cache(void *p)
+{
+    return p ? &((Cache *)p)->core : NULL;
+}
+static MMResourceManager *source(void *p, MMI32 sid, int local, const MMTag *tag)
 {
     Host *h = (Host *)p;
     CHECK(sid == 42 && tag->sid == 42);
     h->local = local;
     event(h, 'S');
-    return h->fail ? NULL : h->caches;
+    return h->fail ? NULL : &h->manager;
 }
-static void *find_cache(void *p, MMU32 type, MMU32 number)
+static int contains(void *p, MMU32 type, MMU32 number)
 {
-    Host *h = ((Cache *)p)->host;
+    Cache *c = (Cache *)p;
     CHECK(type == 7 && number == 1);
-    event(h, 'K');
-    return h->found ? h->caches : NULL;
+    event(c->host, 'K');
+    return c->host->found & (1 << c->id);
 }
-static int child(void *p, const MMTag *tag, MMU32 slot, MMU32 type, MMU32 *number)
+static int entry_at(void *p, MMU32 i, MMChunkEntry *entry)
 {
-    Host *h = ((Cache *)p)->host;
-    CHECK(tag->type == 7 && slot == 9 && type == 8);
-    event(h, 'H');
-    if (h->fail)
-        return 0;
-    *number = 10;
+    Cache *c = (Cache *)p;
+    CHECK(i == 0);
+    memset(entry, 0, sizeof(*entry));
+    entry->type = 7;
+    entry->number = 1;
+    entry->child_count = c->id || !c->host->no_first_child ? 1 : 0;
     return 1;
 }
-static void *fetch(void *p, int manager, const MMTag *tag, MMResourceLoader reader)
+static int child_at(void *p, MMU32 parent, MMU32 i, MMChunkChild *child)
 {
-    Host *h = ((Cache *)p)->host;
-    CHECK(reader.key && !reader.read);
-    CHECK(manager == (tag->sid != 0));
-    event(h, 'T');
-    return h->found ? h : NULL;
+    CHECK(parent == 0 && i == 0);
+    child->slot = 9;
+    child->type = 8;
+    child->number = 10 + (MMU32)((Cache *)p)->id;
+    return 1;
+}
+static MMChunkAccess chunks(void *p)
+{
+    Cache *c = (Cache *)p;
+    MMChunkAccess access;
+    access.context = p;
+    access.count = 1;
+    access.entry = entry_at;
+    access.child = child_at;
+    event(c->host, 'H');
+    return access;
+}
+static MMResourceObject *object_state(void *p)
+{
+    return &((Cache *)p)->object;
+}
+static MMReference *object_refs(void *p)
+{
+    Cache *c = (Cache *)p;
+    event(c->host, 'T');
+    return &c->object_refs;
 }
 static void missing(void *p, const MMTag *tag)
 {
@@ -121,32 +156,56 @@ static void missing(void *p, const MMTag *tag)
 static void reader(void)
 {
 }
+static int compare_reader(MMResourceReader a, MMResourceReader b)
+{
+    CHECK(a == reader && b == reader);
+    return 0;
+}
 static MMTagServices init(Host *h)
 {
     MMTagServices s;
+    Cache *c;
     int i;
     memset(h, 0, sizeof(*h));
     memset(&s, 0, sizeof(s));
     for (i = 0; i < 3; ++i)
     {
-        h->caches[i].host = h;
-        h->caches[i].id = i;
-        h->caches[i].refs = 1;
-        h->caches[i].file = i < 2;
-        h->caches[i].budget = 128;
+        c = h->caches + i;
+        c->host = h;
+        c->id = i;
+        c->refs = 1;
+        c->core.file = i < 2 ? c : NULL;
+        c->core.budget = 128;
+        c->core.services.contains = contains;
+        c->core.services.live_chunks = chunks;
+        h->files[i] = &c->core;
     }
-    h->found = 1;
+    c = h->caches;
+    c->core.services.compare_reader = compare_reader;
+    c->core.services.objects.state = object_state;
+    c->core.services.objects.references = object_refs;
+    c->object.type = 7;
+    c->object.number = 1;
+    c->object_refs.count = 1;
+    c->entry.reader = reader;
+    c->entry.object = c;
+    c->core.storage.buffers[0].data = (unsigned char *)&c->entry;
+    c->core.storage.buffers[0].capacity = sizeof(c->entry);
+    c->core.count = 1;
+    h->manager.storage.buffers[0].data = (unsigned char *)h->files;
+    h->manager.storage.buffers[0].capacity = sizeof(h->files);
+    h->manager.count = 2;
+    h->found = 3;
     s.context = h;
     s.file = file;
     s.retain = retain;
     s.release = release;
     s.compare_cache = compare;
     s.copy = copy;
+    s.copy_cached = copy_cached;
     s.publish = publish;
+    s.cache = cache;
     s.source = source;
-    s.find_cache = find_cache;
-    s.child = child;
-    s.fetch = fetch;
     s.missing = missing;
     return s;
 }
@@ -163,15 +222,15 @@ static void lifecycle(void)
     CHECK(mm_tag_open(&tag, a, NULL, &s) && tag.cache == a && a->refs == 2 && !strcmp(h.log, "PA"));
     CHECK(h.visible.cache == a);
     reset(&h);
-    CHECK(mm_tag_save(&tag, b, 0, &s) && tag.cache == a && tag.number == 1 && !strcmp(h.log, "12C"));
+    CHECK(mm_tag_save(&tag, b, 0, &s) && tag.cache == a && tag.number == 1 && !strcmp(h.log, "C"));
     reset(&h);
     CHECK(mm_tag_save(&tag, b, 1, &s) && tag.cache == b && tag.number == 2 && a->refs == 1 && b->refs == 2 &&
-          !strcmp(h.log, "12CBaP"));
+          !strcmp(h.log, "CBaP"));
     reset(&h);
     old = tag;
     h.fail = 1;
     CHECK(!mm_tag_save(&tag, a, 1, &s) && tag.cache == old.cache && tag.number == old.number &&
-          !strcmp(h.log, "21C"));
+          !strcmp(h.log, "C"));
     h.fail = 0;
     reset(&h);
     mm_tag_dup(&tag, &s);
@@ -215,19 +274,25 @@ static void lifecycle(void)
     CHECK(mm_tag_child(&tag, 9, 8, &out, &s) && out.sid == 42 && out.cache == b && !h.local &&
           !strcmp(h.log, "SKHP"));
     reset(&h);
-    h.found = 0;
     old = out;
-    CHECK(!mm_tag_child(&tag, 9, 8, &out, &s) && out.number == old.number && !strcmp(h.log, "SK"));
+    h.no_first_child = 1;
+    CHECK(!mm_tag_child(&tag, 9, 8, &out, &s) && out.number == old.number && !strcmp(h.log, "SKH"));
     reset(&h);
-    CHECK(!mm_tag_fetch(&tag, loader, 0, &s) && h.local && h.missing == 1 && !strcmp(h.log, "STM"));
+    h.found = 2;
+    CHECK(mm_tag_child(&tag, 9, 8, &out, &s) && out.number == 11 && !strcmp(h.log, "SKKHP"));
+    reset(&h);
+    h.found = 0;
+    CHECK(!mm_tag_child(&tag, 9, 8, &out, &s) && out.number == 11 && !strcmp(h.log, "SKK"));
+    reset(&h);
+    CHECK(mm_tag_fetch(&tag, loader, 0, &s) == a && h.local && !strcmp(h.log, "ST"));
+    CHECK(a->object_refs.count == 2);
     reset(&h);
     h.fail = 1;
-    CHECK(!mm_tag_fetch(&tag, loader, 1, &s) && !h.local && !strcmp(h.log, "SM"));
+    CHECK(!mm_tag_fetch(&tag, loader, 1, &s) && !h.local && h.missing == 1 && !strcmp(h.log, "SM"));
     reset(&h);
     h.fail = 0;
-    h.found = 1;
     tag.sid = 0;
-    CHECK(mm_tag_fetch(&tag, loader, 0, &s) == &h && !strcmp(h.log, "T"));
+    CHECK(mm_tag_fetch(&tag, loader, 0, &s) == a && a->object_refs.count == 3 && !strcmp(h.log, "T"));
     out = tag;
     out.cache = b;
     CHECK(mm_tag_compare(&tag, &out, &s) < 0);
@@ -353,43 +418,23 @@ static MMU32 sources(void *p)
     (void)p;
     return 3;
 }
-static void source_at(void *p, MMU32 i, MMI32 *sid, void **manager)
+static void source_at(void *p, MMU32 i, MMI32 *sid, MMResourceManager **manager)
 {
     Host *h = (Host *)p;
     *sid = (MMI32)i + 1;
-    *manager = i == 1 ? h->caches : NULL;
+    *manager = i == 1 ? &h->manager : NULL;
 }
-static void *resolve(void *p, MMI32 sid)
+static MMResourceManager *resolve(void *p, MMI32 sid)
 {
     Host *h = (Host *)p;
     CHECK(sid == 2);
     event(h, 'S');
-    return h->fail ? NULL : h->caches;
-}
-static MMU32 caches(void *p)
-{
-    (void)p;
-    return 3;
-}
-static void *cache_at(void *p, MMU32 i)
-{
-    return (Cache *)p + i;
+    return h->fail ? NULL : &h->manager;
 }
 static void reopen(void *p)
 {
-    event(((Cache *)p)->host, 'O');
-}
-static MMI32 budget(void *p)
-{
     Cache *c = (Cache *)p;
-    event(c->host, 'G');
-    return c->budget;
-}
-static void set_budget(void *p, MMI32 n)
-{
-    Cache *c = (Cache *)p;
-    event(c->host, n ? 'R' : 'Z');
-    c->budget = n;
+    event(c->host, (char)('0' + c->id));
 }
 static void clear_cases(void)
 {
@@ -397,21 +442,17 @@ static void clear_cases(void)
     MMTagServices unused = init(&h);
     MMTagCacheServices s;
     (void)unused;
+    h.manager.count = 3;
     s.context = &h;
     s.sources = sources;
     s.source_at = source_at;
     s.resolve = resolve;
-    s.caches = caches;
-    s.cache_at = cache_at;
-    s.file = file;
     s.reopen = reopen;
-    s.budget = budget;
-    s.set_budget = set_budget;
     mm_tag_clear_cache(2, 3, &s);
-    CHECK(!strcmp(h.log, "S1OGZR2OGZR3") && h.caches[0].budget == 128);
+    CHECK(!strcmp(h.log, "S0T1") && h.caches[0].core.budget == 128);
     reset(&h);
     mm_tag_clear_cache(0, 2, &s);
-    CHECK(!strcmp(h.log, "1GZR2GZR3"));
+    CHECK(!strcmp(h.log, "T") && h.caches[0].core.budget == 128);
     reset(&h);
     h.fail = 1;
     mm_tag_clear_cache(2, 1, &s);
