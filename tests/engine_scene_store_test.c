@@ -46,6 +46,7 @@ typedef struct StoreFixture
     int diagnostics, missing_background, empty_events, actor_error;
     int missing_actor, missing_frames, list_failure, background_adoption_failed;
     int log[512], used, adoptions, objects, swap;
+    int copy_local_sound, fail_sound_copy;
     MMU32 actor_id, text_id;
     MMTagList tags;
 } StoreFixture;
@@ -188,7 +189,7 @@ static int insert_asset(void *p, MMU32 scene, const MMChunkChild *child)
     }
     if (child->type == MM_SOUND_CHUNK)
     {
-        CHECK(child->number == 1 && child->slot == 1 && !f->adoptions);
+        CHECK(child->number == (f->copy_local_sound ? 47U : 1U) && child->slot == 1 && !f->adoptions);
         if (!step(f, 70))
             return 0;
         ++f->adoptions;
@@ -224,6 +225,21 @@ static int copy_background(void *p, const MMTag *tag, MMU32 *number, int *create
         return 0;
     fixture_chunk_add(&f->asset_index, tag->type, *number);
     return 1;
+}
+
+static int copy_sound(void *p, const MMTag *tag, MMU32 *number, int *created)
+{
+    StoreFixture *f = p;
+    CHECK(tag->sid == 0 && tag->type == MM_SOUND_CHUNK && tag->cache == &f->packets);
+    if (tag->number == 4)
+        return MM_CHUNK_NOT_FOUND;
+    CHECK(tag->number == 1);
+    if (f->fail_sound_copy)
+        return MM_CHUNK_IO;
+    *number = 47;
+    *created = 1;
+    fixture_chunk_add(&f->asset_index, tag->type, *number);
+    return MM_CHUNK_OK;
 }
 
 static void erase_asset(void *p, const MMChunkEntry *entry)
@@ -405,7 +421,7 @@ static void clean_store(StoreFixture *f)
     clean(&f->packets);
 }
 
-static void check_group(const StoredChunk *chunk, const MMI32 *kinds, const MMI32 *sizes, int count)
+static void check_group(const StoredChunk *chunk, const MMI32 *kinds, const MMI32 *sizes, int count, MMU32 sound)
 {
     MMMemoryStream stream;
     MMCollectionHeader header;
@@ -435,6 +451,19 @@ static void check_group(const StoredChunk *chunk, const MMI32 *kinds, const MMI3
             memcpy(&value, data + 12, 4);
             CHECK(value == 19);
         }
+        if (kind == MM_SCENE_PLAY_SOUND)
+        {
+            MMSceneSoundWire wire;
+            MMTag tag;
+            MMU32 slot;
+            CHECK(mm_scene_sound_wire(data, bytes, header.big_endian, &wire));
+            mm_scene_sound_wire_tag(&wire, 0, &slot, &tag);
+            CHECK(slot == 1 && tag.number == sound && !tag.cache);
+            mm_scene_sound_wire_tag(&wire, 2, &slot, &tag);
+            CHECK(slot == 3 && tag.number == 1 && !tag.cache);
+            mm_scene_sound_wire_tag(&wire, 3, &slot, &tag);
+            CHECK(slot == 4 && tag.number == 4 && !tag.cache);
+        }
     }
 }
 
@@ -455,8 +484,8 @@ static void test_store(void)
     chunks = fixture_chunk_access(&f.asset_index);
     CHECK(chunks.count == 12 && mm_chunk_find(&chunks, MM_BACKGROUND, 19, &row) == MM_CHUNK_OK &&
           mm_chunk_at(&chunks, row, &entry) == MM_CHUNK_OK && entry.parent_count == 1 && !(entry.flags & MM_CHUNK_LONER));
-    check_group(&f.chunks[FRAMES_NUMBER], frames, frame_sizes, 4);
-    check_group(&f.chunks[STARTS_NUMBER], starts, start_sizes, 6);
+    check_group(&f.chunks[FRAMES_NUMBER], frames, frame_sizes, 4, 1);
+    check_group(&f.chunks[STARTS_NUMBER], starts, start_sizes, 6, 0);
     attempts = f.attempts;
     clean_store(&f);
     for (fail = 1; fail <= attempts; ++fail)
@@ -485,6 +514,25 @@ static void test_store(void)
     f.unassigned_scene = 1;
     CHECK(!mm_scene_store(&number, &f.s) && number == 0xffffffffUL && !f.deleted);
     clean_store(&f);
+    for (fail = 0; fail < 2; ++fail)
+    {
+        MMSceneSoundTag live;
+        init_store(&f);
+        f.copy_local_sound = 1;
+        f.fail_sound_copy = fail;
+        f.s.assets.copy_sound = copy_sound;
+        CHECK(mm_scene_store(&number, &f.s) == !fail);
+        chunks = fixture_chunk_access(&f.asset_index);
+        CHECK(mm_chunk_find(&chunks, MM_SOUND_CHUNK, 47, &row) == (fail ? MM_CHUNK_NOT_FOUND : MM_CHUNK_OK));
+        if (!fail)
+        {
+            CHECK(mm_chunk_at(&chunks, row, &entry) == MM_CHUNK_OK && entry.parent_count == 1);
+            check_group(&f.chunks[FRAMES_NUMBER], frames, frame_sizes, 4, 47);
+        }
+        mm_scene_sound_get_tag(f.sounds[0], 0, &live);
+        CHECK(live.tag.number == 1 && live.tag.cache == &f.packets);
+        clean_store(&f);
+    }
 }
 
 static void wire_word(void *p, MMU32 value, int swap)

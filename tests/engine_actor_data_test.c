@@ -3,6 +3,8 @@
 #include "mm/actor_persistence.h"
 #include "mm/collections.h"
 #include "mm/movie_data.h"
+#include "mm/movie_sound.h"
+#include "mm/scene_data.h"
 #include "mm/template_create.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -624,7 +626,7 @@ typedef struct ActorStore
 {
     HeaderIO header;
     ChunkWriterFixture archive;
-    unsigned char path[28], events[132];
+    unsigned char path[28], events[208];
     MMU32 event_bytes;
     int copies, linked, tracks, discarded, reject, reuse, reject_track, fail_track_write;
 } ActorStore;
@@ -688,9 +690,24 @@ static int store_copy(void *p, const MMTag *tag, MMU32 *number, int *created)
     return 1;
 }
 
+static int store_copy_sound(void *p, const MMTag *tag, MMU32 *number, int *created)
+{
+    ActorStore *store = p;
+    CHECK(tag->sid == 0 && tag->cache == p && tag->type == MM_SOUND_CHUNK && tag->number == 11);
+    *number = 88;
+    *created = 1;
+    fixture_chunk_add(&store->archive.index, tag->type, *number);
+    return MM_CHUNK_OK;
+}
+
 static int store_insert(void *p, MMU32 parent, const MMChunkChild *child)
 {
     ActorStore *store = (ActorStore *)p;
+    if (child->type == MM_SOUND_CHUNK)
+    {
+        CHECK(parent == 8 && child->slot == 3 && child->number == 88);
+        return 1;
+    }
     CHECK(parent == 7 && child->slot == 0);
     if (child->type == MM_ACTOR_ROUTE_CHUNK || child->type == MM_ACTOR_EVENTS_CHUNK)
     {
@@ -724,6 +741,7 @@ static void store_actor(ActorStore *store)
     MMActorEventServices services = mm_actor_events_services(&factory);
     MMActorCostume costume = {0};
     MMActorCostume decoded;
+    MMActorSound sound = {0}, decoded_sound;
     MMActorEvent event = {0};
     MMActorRoutePoint point = {0};
     const MMU32 failed_track_children[] = {0, 2, 1, 3};
@@ -731,8 +749,9 @@ static void store_actor(ActorStore *store)
     int mode, reject, reuse;
     s.context = store;
     s.archive = &archive;
-    s.materials.context = store;
-    s.materials.copy_reference = store_copy;
+    s.assets.context = store;
+    s.assets.copy_reference = store_copy;
+    s.assets.copy_sound = store_copy_sound;
     mm_actor_owner_init(&owner);
     owner.runtime.template_tag.sid = 2;
     owner.runtime.origin.dxr = -65537;
@@ -747,6 +766,12 @@ static void store_actor(ActorStore *store)
     event.aet = MM_ACTOR_COSTUME;
     CHECK(mm_actor_events_insert(owner.track.events, 0, sizeof(costume), &costume, &event));
     CHECK(mm_actor_events_insert(owner.track.events, 1, sizeof(costume), &costume, &event));
+    event.aet = MM_ACTOR_SOUND;
+    sound.child = 3;
+    sound.tag.cache = store;
+    sound.tag.type = MM_SOUND_CHUNK;
+    sound.tag.number = 11;
+    CHECK(mm_actor_events_insert(owner.track.events, 2, sizeof(sound), &sound, &event));
     for (mode = 7; mode >= 0; --mode)
     {
         MMChunkAccess index;
@@ -762,15 +787,17 @@ static void store_actor(ActorStore *store)
             store->reject_track = mode - 3;
         archive = chunk_writer_fixture(&store->archive, store, store_extent, store_write);
         fixture_chunk_add(&store->archive.index, MM_ACTOR_CHUNK, 7);
+        fixture_chunk_add(&store->archive.index, MM_SCENE_CHUNK, 8);
         if (reuse)
             fixture_chunk_add(&store->archive.index, costume.tag.type, 99);
         store->archive.index.before_insert = store_insert;
         store->archive.index.before_delete = store_erase;
-        s.materials.edit = archive.edit;
+        s.assets.edit = archive.edit;
         CHECK(mm_actor_store(7, 8, &owner, &s) == (mode < 4 && !reject));
         CHECK(!store->archive.file_refs);
         CHECK(!memcmp(mm_actor_events_payload(owner.track.events, 0, NULL), &costume, sizeof(costume)) &&
               !memcmp(mm_actor_events_payload(owner.track.events, 1, NULL), &costume, sizeof(costume)));
+        CHECK(!memcmp(mm_actor_events_payload(owner.track.events, 2, NULL), &sound, sizeof(sound)));
         index = fixture_chunk_access(&store->archive.index);
         CHECK(mm_chunk_find(&index, MM_ACTOR_CHUNK, 7, &row) == MM_CHUNK_OK);
         CHECK(mm_chunk_at(&index, row, &entry) == MM_CHUNK_OK);
@@ -793,9 +820,11 @@ static void store_actor(ActorStore *store)
     }
     CHECK(mm_memory_stream_init(&saved, store->events, store->event_bytes));
     CHECK(mm_actor_read_events_stream(&saved.stream, &services, &out) == MM_MOVIE_OK);
-    CHECK(mm_actor_events_count((MMActorEventTable *)out) == 2);
+    CHECK(mm_actor_events_count((MMActorEventTable *)out) == 3);
     CHECK(mm_actor_events_get_payload((MMActorEventTable *)out, 0, &decoded));
     CHECK(decoded.tag.number == 99 && !decoded.tag.cache);
+    CHECK(mm_actor_events_get_payload((MMActorEventTable *)out, 2, &decoded_sound));
+    CHECK(decoded_sound.child == 3 && decoded_sound.tag.number == 88 && !decoded_sound.tag.cache);
     CHECK(!memcmp(mm_actor_events_payload((MMActorEventTable *)out, 0, NULL),
                   mm_actor_events_payload((MMActorEventTable *)out, 1, NULL), sizeof(decoded)));
     mm_actor_events_release((MMActorEventTable *)out);
@@ -988,8 +1017,9 @@ static void *load_sound_storage(void *p, void *data, MMU32 previous, MMU32 bytes
     MMTag tag;
     (void)previous;
     (void)priority;
-    CHECK(load->stage <= 1 && load->refs == 3);
+    CHECK(load->stage <= 1 && load->refs == 4);
     CHECK(mm_actor_track_get_tag(load->owner.track.events, 0, &tag) && tag.cache == p && tag.number == 99);
+    CHECK(mm_actor_track_get_tag(load->owner.track.events, 2, &tag) && tag.cache == p && tag.number == 88);
     load->stage = 1;
     if (load->fail == 2)
         return NULL;
@@ -1071,7 +1101,7 @@ static void load_actor(ActorStore *saved)
             CHECK(load.released && load.stage == load.fail - 1 && load.diagnostics == (1 << MM_ACTOR_LOAD_FAILED));
         else
         {
-            CHECK(load.refs == 3 && mm_actor_path_count(load.owner.track.route) == 1);
+            CHECK(load.refs == 4 && mm_actor_path_count(load.owner.track.route) == 1);
             CHECK(load.stage == 2 + load.legacy && load.owner.runtime.last == (load.legacy ? 20 : 13));
             CHECK(load.diagnostics == (load.missing_link << MM_ACTOR_LOAD_TEMPLATE_LINK));
             release_loaded_actor(&load, &load);

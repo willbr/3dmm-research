@@ -56,6 +56,8 @@ typedef struct MMMovieEmbeddedArchive
     void *context;
     int (*copy_reference)(void *, const MMTag *, MMU32 *number, int *created);
     MMChunkEdit edit;
+    /* Returns a chunk status. An absent source may use the destination bank. */
+    int (*copy_sound)(void *, const MMTag *, MMU32 *number, int *created);
 } MMMovieEmbeddedArchive;
 
 typedef struct MMMovieArchiveAssets
@@ -156,6 +158,10 @@ int mm_movie_archive_next_child(const MMChunkAccess *, MMU32 parent_type, MMU32 
                                  MMU32 type, MMU32 *slot);
 /* Copy or reuse the source subtree, adopt it once and publish the new number. */
 int mm_movie_archive_embed_tag(const MMMovieEmbeddedArchive *, MMU32 parent_type, MMU32 parent, MMTag *);
+/* Bind an embedded sound at its authored scene slot and publish the actual
+ * destination number. External sound tags and unresolved legacy cues are
+ * carried through unchanged. Only the caller's temporary tag is updated. */
+int mm_movie_archive_embed_sound(const MMMovieEmbeddedArchive *, MMU32 scene, MMU32 slot, MMTag *);
 
 /* Before detaching a scene, keep background and material subtrees that would
  * lose their last parent. Raw tags and undo can still refer to these by number.

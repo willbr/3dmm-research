@@ -19872,3 +19872,32 @@ ports matched all four insertion canvases. Marcus matched all eight restored
 scene canvases. SDL matched four exactly and differed by 48 pixels on each of
 the other four. Both ports reproduced every canvas from their own pre-removal
 control in `20261121T192343Z-a00308d5`. Evidence is in `tmp/c89-scene-undo-record`.
+
+## Embedded sound copies in C89 scene snapshots (21 November 2026)
+
+Scene and actor sound writers share one C89 path for copying embedded `MSND`
+subtrees across archives. It retains the authored scene child slot and writes
+the actual destination chunk number to the event. The source tags keep their
+original cache and number. External cues and legacy cues with a missing local
+payload retain their existing behavior. The standalone fixtures verify number
+remapping, an existing slot, and a failed sound copy.
+
+All 193 standalone C89 checks passed. The scene store, actor data, scene chop,
+and chunk operation checks passed under AddressSanitizer. Native and SDL scene
+store, scene edit, and save/load passed, as did the Marcus syntax and player
+checks.
+
+Studio chopped the middle scene of a three-scene movie backward, moving its
+first frame from one to three. Undo restored the frame-two speech cue. Redo
+chopped the scene again, and a second undo restored it before save and reopen.
+The reopened scene retained its actor and caption. Its sound tag and child
+slot resolved to a valid `MSND` chunk with the same sound header and WAVE
+payload as before the chop.
+
+Retail, SDL, and Marcus agreed on all eight seek frames and cameras and on
+the continuous frame sequence in `20261121T193356Z-917e9971`. Each reproduced
+all eight of its previous seek canvases from the restored-scene control.
+SDL matched retail's single sound request. Both ports produced audible PCM
+with 4,802 audible samples versus retail's 4,889 at 48 kHz. The harness
+reported differing PCM, inconclusive continuous pixels, and inconclusive
+Marcus timing and sound requests. Evidence is in `tmp/c89-undo-sound-assets`.

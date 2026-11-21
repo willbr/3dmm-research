@@ -263,7 +263,7 @@ static int remap(MMU32 movie, MMI32 offset, ComposeAssets *imports, const MMMovi
     void *destination = s->archive_context(resources);
     const MMArchiveWriter archive = s->archive(resources);
     const MMChunkGraph graph = mm_chunk_edit_graph(&archive.edit);
-    MMMovieEmbeddedArchive assets;
+    MMMovieEmbeddedArchive assets = {0};
     MMMovieSessionGraph reader;
     int ok = 0;
     assets.context = imports;

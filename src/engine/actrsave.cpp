@@ -49,7 +49,7 @@ bool Actor::FWrite(const MMArchiveWriter &archive, const MMMovieEmbeddedArchive 
     MMActorStoreServices services = {};
     services.context = &host;
     services.archive = &archive;
-    services.materials = assets;
+    services.assets = assets;
     services.refresh_lifetime = [](void *p) -> int {
         long first, last;
         return static_cast<Host *>(p)->actor->FGetLifetime(&first, &last);

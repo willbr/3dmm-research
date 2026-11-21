@@ -1459,6 +1459,10 @@ and tracks and attach their embedded templates, costume materials, and scene
 sounds. C89 owns the PATH and GGAE output blocks and renumbers embedded
 templates before linking them. Costume events store the destination material
 number and retain the material subtree before the old actor is removed.
+Scene and actor cues share a C89 writer for embedded sounds. It copies the
+payload to the destination archive and writes the mapped chunk number at the
+authored scene sound slot. The private undo archive can carry the same cue
+data as the live working archive.
 The scene chop undo record owns its private C89 archive directly. C89 replaces
 the saved scene chunk and releases the archive. Studio binds a resource cache
 when restoring the live scene objects.

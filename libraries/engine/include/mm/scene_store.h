@@ -42,8 +42,9 @@ extern "C"
     /* Borrows the owner's native-endian event tracks and scene metadata. Callbacks
      * cannot reenter, resize or modify the live tracks. The editor must support discard.
      * Publishes nil before adding a scene and retains the assigned number on failure. Sounds
-     * are independently duplicated/retained, adopted only if absent by child and
-     * present by number, encoded, inserted, then released. Actor/text child counters
+     * are independently duplicated/retained and encoded with the destination sound
+     * number for each scene slot. The original packet tags retain their identities
+     * until released. Actor/text child counters
      * are independent. Document backgrounds are adopted by the new scene. Only
      * the wire tag uses the copied number. Events precede thumbnail update/write,
      * then header/name publication.

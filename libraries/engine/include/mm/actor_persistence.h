@@ -45,7 +45,7 @@ typedef struct MMActorStoreServices
 {
     void *context;
     const MMArchiveWriter *archive;
-    MMMovieEmbeddedArchive materials;
+    MMMovieEmbeddedArchive assets;
     int (*refresh_lifetime)(void *);
     void (*missing_first_frame)(void *);
     /* Write the native template object and return its allocated chunk number. */

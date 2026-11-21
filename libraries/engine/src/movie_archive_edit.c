@@ -5,6 +5,7 @@
 #include "mm/collections.h"
 #include "mm/material_resource.h"
 #include "mm/movie_root.h"
+#include "mm/movie_sound.h"
 #include "mm/scene_data.h"
 #include <stdio.h>
 #include <string.h>
@@ -267,16 +268,21 @@ int mm_movie_archive_next_child(const MMChunkAccess *chunks, MMU32 parent_type, 
     return 1;
 }
 
-static int copy_asset(void *context, const MMTag *tag, MMU32 *number, int *created)
+static int copy_asset_status(void *context, const MMTag *tag, MMU32 *number, int *created)
 {
     const MMMovieArchiveAssets *assets = context;
     MMResourceChunkCopy binding;
     MMChunkEndpoint source;
     if (!tag->cache)
-        return 0;
+        return MM_CHUNK_NOT_FOUND;
     source = assets->tags->bind_cache(tag->cache, &binding);
     return mm_chunk_copy_reference(&source, assets->destination, tag->type, tag->number,
-                                   number, created) == MM_CHUNK_OK;
+                                   number, created);
+}
+
+static int copy_asset(void *context, const MMTag *tag, MMU32 *number, int *created)
+{
+    return copy_asset_status(context, tag, number, created) == MM_CHUNK_OK;
 }
 
 MMMovieEmbeddedArchive mm_movie_archive_assets(MMMovieArchiveAssets *assets)
@@ -285,6 +291,7 @@ MMMovieEmbeddedArchive mm_movie_archive_assets(MMMovieArchiveAssets *assets)
     archive.context = assets;
     archive.copy_reference = copy_asset;
     archive.edit = assets->destination->edit;
+    archive.copy_sound = copy_asset_status;
     return archive;
 }
 
@@ -315,6 +322,46 @@ fail:
     if (created)
         mm_chunk_delete(&s->edit, link.type, link.number);
     return 0;
+}
+
+int mm_movie_archive_embed_sound(const MMMovieEmbeddedArchive *s, MMU32 scene, MMU32 slot, MMTag *tag)
+{
+    MMChunkAccess chunks;
+    MMChunkChild link = {MM_SOUND_CHUNK, 0, 0};
+    MMTag source;
+    MMU32 row;
+    int status, created = 0;
+    if (tag->sid)
+        return 1;
+    chunks = mm_chunk_edit_access(&s->edit);
+    status = mm_chunk_link_number(&chunks, SCENE_TYPE, scene, slot, MM_SOUND_CHUNK, &link.number);
+    if (status == MM_CHUNK_NOT_FOUND)
+    {
+        source = *tag;
+        source.type = MM_SOUND_CHUNK;
+        if (s->copy_sound)
+            status = s->copy_sound(s->context, &source, &link.number, &created);
+        if (status == MM_CHUNK_NOT_FOUND)
+        {
+            link.number = tag->number;
+            status = mm_chunk_find(&chunks, MM_SOUND_CHUNK, link.number, &row);
+            if (status == MM_CHUNK_NOT_FOUND)
+                return 1;
+        }
+        if (status != MM_CHUNK_OK)
+            return 0;
+        link.slot = slot;
+        if (mm_chunk_adopt(&s->edit, SCENE_TYPE, scene, &link, 1) != MM_CHUNK_OK)
+        {
+            if (created)
+                mm_chunk_delete(&s->edit, link.type, link.number);
+            return 0;
+        }
+    }
+    else if (status != MM_CHUNK_OK)
+        return 0;
+    tag->number = link.number;
+    return 1;
 }
 
 typedef struct SceneAssetGraph

@@ -113,39 +113,28 @@ static int store_sound(MMSceneTrack *frames, MMI32 index, const MMSceneTrackEven
                        MMU32 scene, const MMSceneStoreServices *s)
 {
     const MMSceneSoundPacketServices *v = &s->values.packets;
-    const MMMovieArchiveEditor *editor = s->editor;
     MMSceneSound *sound = mm_scene_sound_track(&s->owner->tracks[MM_SCENE_FRAMES], index, v);
-    MMChunkAccess chunks;
-    MMChunkChild child = {MM_SOUND_CHUNK, 0, 0};
     MMSceneSoundTag tag;
-    MMU32 match;
     MMI32 i, bytes;
-    void *wire;
+    unsigned char *wire;
     int ok = 0;
     if (!sound)
         return 0;
+    wire = mm_scene_sound_encode(sound, &bytes, v);
+    if (!wire)
+        goto done;
     for (i = 0; i < sound->ctagc; ++i)
     {
+        const size_t end = MM_SCENE_SOUND_HEADER_BYTES + ((size_t)i + 1) * MM_SCENE_SOUND_WIRE_TAG_BYTES;
         mm_scene_sound_get_tag(sound, i, &tag);
-        if (tag.tag.sid != 0)
-            continue;
-        /* A previous adoption can shift rows or add this slot to the scene. */
-        chunks = mm_chunk_edit_access(&editor->edit);
-        if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, tag.child, MM_SOUND_CHUNK, &match) == MM_CHUNK_OK ||
-            mm_chunk_find(&chunks, MM_SOUND_CHUNK, tag.tag.number, &match) != MM_CHUNK_OK)
-            continue;
-        child.number = tag.tag.number;
-        child.slot = tag.child;
-        if (mm_chunk_adopt(&editor->edit, MM_SCENE_CHUNK, scene, &child, 1) != MM_CHUNK_OK)
+        if (!mm_movie_archive_embed_sound(&s->assets, scene, tag.child, &tag.tag))
             goto done;
+        memcpy(wire + end - sizeof(tag.tag.number), &tag.tag.number, sizeof(tag.tag.number));
     }
-    wire = mm_scene_sound_encode(sound, &bytes, v);
-    if (wire)
-    {
-        ok = mm_scene_track_insert(frames, index, bytes, wire, event);
-        s->free_sound_bytes(s->context, wire);
-    }
+    ok = mm_scene_track_insert(frames, index, bytes, wire, event);
 done:
+    if (wire)
+        s->free_sound_bytes(s->context, wire);
     s->values.release(s->values.context, sound);
     return ok;
 }

@@ -414,7 +414,7 @@ int mm_actor_block_events(MMOwnedBlock *block, void *decode_context, MMBlockTran
     return status;
 }
 
-static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 actor,
+static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 actor, MMU32 scene,
                           const MMActorStoreServices *store)
 {
     void *out, *fixed;
@@ -439,7 +439,7 @@ static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 ac
         {
             memcpy(&costume, data, sizeof(costume));
             if (store && !costume.custom && costume.tag.sid == 0 &&
-                !mm_movie_archive_embed_tag(&store->materials, MM_ACTOR_CHUNK, actor, &costume.tag))
+                !mm_movie_archive_embed_tag(&store->assets, MM_ACTOR_CHUNK, actor, &costume.tag))
                 goto fail;
             memcpy(bytes, &costume.body_set, 4);
             memcpy(bytes + 4, &costume.costume, 4);
@@ -451,6 +451,8 @@ static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 ac
         else if (type == MM_ACTOR_SOUND)
         {
             memcpy(&sound, data, sizeof(sound));
+            if (store && !mm_movie_archive_embed_sound(&store->assets, scene, sound.child, &sound.tag))
+                goto fail;
             memcpy(bytes, &sound.loop, 4);
             memcpy(bytes + 4, &sound.queue, 4);
             memcpy(bytes + 8, &sound.volume, 4);
@@ -473,7 +475,7 @@ fail:
 
 void *mm_actor_write_events(void *runtime, const MMActorEventServices *s)
 {
-    return write_events(runtime, s, 0, NULL);
+    return write_events(runtime, s, 0, 0, NULL);
 }
 
 static int store_template(MMU32 actor, const MMActorHeader *header, void *object, const MMActorStoreServices *s)
@@ -507,35 +509,6 @@ static int store_template(MMU32 actor, const MMActorHeader *header, void *object
     return 0;
 }
 
-static int store_sounds(MMU32 scene, MMActorEventTable *events, const MMChunkEdit *edit)
-{
-    MMActorEvent event;
-    MMActorSound sound;
-    MMChunkAccess chunks;
-    MMChunkChild link;
-    MMU32 i, count = events->rows.count, number;
-    for (i = 0; i < count; ++i)
-    {
-        mm_actor_events_get_fixed(events, i, &event);
-        if (event.aet != MM_ACTOR_SOUND)
-            continue;
-        mm_actor_events_get_payload(events, i, &sound);
-        if (sound.tag.sid != 0)
-            continue;
-        chunks = mm_chunk_edit_access(edit);
-        /* Undo scenes may refer to sounds that still live in the main movie. */
-        if (mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, sound.child, MM_SOUND_CHUNK, &number) == MM_CHUNK_OK ||
-            mm_chunk_find(&chunks, MM_SOUND_CHUNK, sound.tag.number, &number) != MM_CHUNK_OK)
-            continue;
-        link.type = MM_SOUND_CHUNK;
-        link.number = sound.tag.number;
-        link.slot = sound.child;
-        if (mm_chunk_adopt(edit, MM_SCENE_CHUNK, scene, &link, 1) != MM_CHUNK_OK)
-            return 0;
-    }
-    return 1;
-}
-
 static int add_track(const MMChunkEdit *edit, const MMU32 *actor, MMU32 type, MMU32 bytes, MMOwnedBlock *block)
 {
     MMChunkChild child = {0};
@@ -563,23 +536,24 @@ static int store_track(const MMArchiveWriter *archive, const MMU32 *actor, MMU32
     return ok;
 }
 
-static MMActorEventTable *encode_track(MMActorEventTable *events, MMU32 actor, const MMActorStoreServices *s)
+static MMActorEventTable *encode_track(MMActorEventTable *events, MMU32 actor, MMU32 scene,
+                                       const MMActorStoreServices *s)
 {
     MMActorEventFactory factory;
     MMActorEventServices services;
     factory.allocator = &events->storage.allocator;
     factory.trash_unused = events->rows.trash_unused;
     services = mm_actor_events_services(&factory);
-    return (MMActorEventTable *)write_events(events, &services, actor, s);
+    return (MMActorEventTable *)write_events(events, &services, actor, scene, s);
 }
 
-static int store_tracks(MMU32 actor, const MMActorTrack *track, const MMActorStoreServices *s)
+static int store_tracks(MMU32 actor, MMU32 scene, const MMActorTrack *track, const MMActorStoreServices *s)
 {
     MMActorEventTable *wire;
     int ok;
     if (!store_track(s->archive, &actor, MM_ACTOR_ROUTE_CHUNK, track->route))
         return 0;
-    wire = encode_track(track->events, actor, s);
+    wire = encode_track(track->events, actor, scene, s);
     if (!wire)
         return 0;
     ok = store_track(s->archive, &actor, MM_ACTOR_EVENTS_CHUNK, wire);
@@ -594,7 +568,7 @@ int mm_actor_store_edit_tracks(const MMActorTrack *track, int with_route, const 
     int ok;
     if (!track || !track->events || (with_route && !track->route) || !s || !s->create || !s->save)
         return 0;
-    wire = encode_track(track->events, 0, NULL);
+    wire = encode_track(track->events, 0, 0, NULL);
     if (!wire)
         return 0;
     ok = s->create(s->context, &archive) && store_track(&archive, NULL, MM_ACTOR_EVENTS_CHUNK, wire);
@@ -628,6 +602,5 @@ int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorOwner *owner, const MM
     header.template_number = runtime->template_tag.number;
     if (!header.source_id && !store_template(actor, &header, runtime->template_object, s))
         return 0;
-    return mm_actor_write_header(actor, &header, s->archive) && store_tracks(actor, &owner->track, s) &&
-           store_sounds(scene, owner->track.events, &s->archive->edit);
+    return mm_actor_write_header(actor, &header, s->archive) && store_tracks(actor, scene, &owner->track, s);
 }
