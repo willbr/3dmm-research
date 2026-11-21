@@ -398,9 +398,9 @@ static void test_playback(void)
         expect(&h, e, 1);
     }
 }
-static int read(void *p, MMU32 number, MMReadReceiver receive, void *out)
+static int read(const MMSceneIO *io, MMU32 number, MMReadReceiver receive, void *out)
 {
-    Host *h = (Host *)p;
+    Host *h = io->context;
     CHECK(number == 7);
     event(h, 110);
     if (h->fail == 1)

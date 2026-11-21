@@ -2,7 +2,6 @@
    Licensed under the MIT License. */
 #include "soc_core.h"
 #include "engine_movie_archive.h"
-#include "engine_movie_graph.h"
 ASSERTNAME
 
 SceneEvent ReadSceneTrackEvent(const MMSceneTrack *track, MMI32 index)
@@ -41,14 +40,6 @@ bool NativeBig()
     const unsigned short one = 1;
     return *reinterpret_cast<const byte *>(&one) == 0;
 }
-MMSceneIO SceneIO(PChunkyFile file, const MMArchiveWriter *archive = nullptr)
-{
-    return {file,
-            [](void *c, MMU32 number, MMReadReceiver receive, void *out) -> int {
-                return EngineMovieGraph::ReceivePayload(static_cast<PChunkyFile>(c), kctgScen, number, receive, out);
-            },
-            archive, KauaiChunkTitleIO()};
-}
 MMSceneGroupServices Groups()
 {
     return {[](void *g) -> MMU32 { return static_cast<PGeneralGroup>(g)->CbFixed(); },
@@ -68,24 +59,30 @@ void SetSceneName(MMMovieTitle &name, PString value)
 }
 bool SceneData::FRead(PChunkyFile file, ChunkNumber number)
 {
-    const auto io = SceneIO(file);
+    const auto archive = file->WriteIndex();
+    const auto titles = KauaiChunkTitleIO();
+    const auto io = mm_scene_file_io(file, &archive, &titles);
     return mm_scene_read(this, number, &io) != 0;
 }
 bool SceneData::FWrite(PChunkyFile file, ChunkNumber number)
 {
     const auto archive = file->WriteIndex();
-    const auto io = SceneIO(file, &archive);
+    const auto titles = KauaiChunkTitleIO();
+    const auto io = mm_scene_file_io(file, &archive, &titles);
     return mm_scene_write(this, number, &io) != 0;
 }
 bool SceneData::FReadTransition(PChunkyFile file, ChunkNumber number, MMI32 *out)
 {
-    const auto io = SceneIO(file);
+    const auto archive = file->WriteIndex();
+    const auto titles = KauaiChunkTitleIO();
+    const auto io = mm_scene_file_io(file, &archive, &titles);
     return mm_scene_transition_read(number, sizeof(achar), out, &io) != 0;
 }
 bool SceneData::FWriteTransition(PChunkyFile file, ChunkNumber number, MMI32 transition)
 {
     const auto archive = file->WriteIndex();
-    const auto io = SceneIO(file, &archive);
+    const auto titles = KauaiChunkTitleIO();
+    const auto io = mm_scene_file_io(file, &archive, &titles);
     return mm_scene_transition_write(number, sizeof(achar), transition, &io) != 0;
 }
 PGeneralGroup SceneData::PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents)

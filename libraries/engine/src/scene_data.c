@@ -75,11 +75,26 @@ static int read_header(void *out, const MMReadStream *stream)
 {
     return mm_scene_decode_header(stream, (MMSceneState *)out);
 }
+static int read_scene_file(const MMSceneIO *io, MMU32 number, MMReadReceiver receive, void *out)
+{
+    int result;
+    return mm_chunk_read_payload(io->archive->payloads, io->context, MM_SCENE_CHUNK, number,
+                                 receive, out, &result) == MM_CHUNK_OK && result;
+}
+MMSceneIO mm_scene_file_io(void *file, const MMArchiveWriter *archive, const MMChunkTitleIO *titles)
+{
+    MMSceneIO io;
+    io.context = file;
+    io.read = read_scene_file;
+    io.archive = archive;
+    io.titles = *titles;
+    return io;
+}
 int mm_scene_read(MMSceneState *s, MMU32 number, const MMSceneIO *io)
 {
     MMSceneState loaded;
     mm_scene_init(&loaded, s->name.unit);
-    if (!io->read(io->context, number, read_header, &loaded))
+    if (!io->read(io, number, read_header, &loaded))
         return 0;
     mm_chunk_title_read(&loaded.name, io->context, MM_SCENE_CHUNK, number, &io->titles);
     *s = loaded;

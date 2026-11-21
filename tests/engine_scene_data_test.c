@@ -334,9 +334,9 @@ static int read_at(void *c, MMU32 offset, void *out, size_t bytes)
     memcpy(out, h->header + offset, bytes);
     return 1;
 }
-static int read_scene(void *c, MMU32 n, MMReadReceiver receive, void *out)
+static int read_scene(const MMSceneIO *io, MMU32 n, MMReadReceiver receive, void *out)
 {
-    Host *h = (Host *)c;
+    Host *h = io->context;
     MMReadStream stream;
     CHECK(n == 7);
     event(h, 'R');

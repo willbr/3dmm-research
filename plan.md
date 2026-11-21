@@ -321,7 +321,7 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Runtime and wire roll-call names/extras, editing buffers, GST
   loading/translation and serialization use owning C storage. The runtime
   actor table lives directly in the C movie state.
-- Scene metadata and counted names now live in C state. Header read/write,
+- Scene metadata and counted names now live in C state. Archive-backed header read/write,
   event-layout validation, frame/start child replacement, create sequencing and
   failure cleanup use C89. Native file/group adapters and runtime scene-object,
   playback and editing ownership still remain.
@@ -1598,8 +1598,10 @@ visible-index selection transactions now also use C89. Movie composition,
 descriptor storage, reorder, removal, and rollback now also use C89. The
 sorter accesses the same rows that composition reads. C89 links imported scene
 sounds, loads and transfers roll-call rows through the working cache, and
-traverses the live archive to rewrite shared and nested actor IDs. Final
-native resource and object integration remains.
+traverses the live archive to rewrite shared and nested actor IDs. It also
+reads and writes stored scene transitions and rebinds embedded backgrounds
+and materials through the C archive editor. Final native resource and object
+integration remains.
 Background resource loading, exact child lookup, cache and light policy use
 C89. Studio selects cameras through the same cache and reads colour and depth
 through typed block readers. Preview background image, mesh and frame rendering

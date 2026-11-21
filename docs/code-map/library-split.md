@@ -1595,7 +1595,9 @@ and all 51 CLI baselines pass. No Marcus UI tests were added.
 
 `scene_data.c` owns SceneData's frame cursor/range, transition and counted name.
 The native SceneData adapter inherits this C record without duplicate fields.
-Header decoding/writing and scene read/write/create policy use C. A failed read
+Header decoding/writing and scene read/write/create policy use C. The scene
+file binding reads decoded SCEN blocks through the shared archive services and
+provides the same writer and title I/O for transitions. A failed read
 preserves all old state; a successful read sets the cursor to firstFrame minus one.
 Frame/transition acceptance and the 16-byte header remain unchanged. Header writes
 precede names and are not rolled back on name failure. Direct scene writes
@@ -3855,8 +3857,9 @@ primitives.
 
 Descriptor collection retains the BUG1929 temporary-file-before-autosave order
 when enabled. Working resources are a precondition for that legacy branch.
-Collection captures the original scene count, reads unopened transitions and
-thumbnails from file, borrows/retains the current thumbnail, and transfers one
+Collection captures the original scene count, reads unopened transitions
+through the C89 scene file binding, requests thumbnails from the host,
+borrows/retains the current thumbnail, and transfers one
 reference into each inserted descriptor. Storage is reserved before descriptor
 collection. A failed add releases the thumbnails it acquired, removes its scene
 prefix, and preserves the prior descriptors and insertion position. Autosave's
@@ -3866,8 +3869,9 @@ Application keeps just the cloned root numbers in temporary C storage. A
 composition of local scenes needs no clone table. The engine clones the external
 Movie graphs. C links root-level imported sounds to their scenes and reads
 each cloned roll call from the working resource cache before adopting,
-renumbering or deleting scenes and writing transitions. Imported actor-start
-and registration errors remain diagnostic and non-fatal. Tool notifications
+renumbering or deleting scenes and writing transitions. C reads and writes
+the stored transition and scene name through the same file binding. Imported
+actor-start and registration errors remain diagnostic and non-fatal. Tool notifications
 and scene release still occur.
 Current-scene removal uses the C Movie scene-owner helper. Final count/ID-limit,
 dirty, SceneNuked, view and roll-call publication retain their original order.
@@ -3888,7 +3892,10 @@ closes all loaded owners exactly once and removes its appended rows; actor-file
 edits already completed are retained for the caller to discard with the clone.
 The C chunk walker reads the working archive's live index and uses C-owned
 visited-ID storage. It rewrites ACTR headers through the archive writer.
-Shared and nested actors are each adjusted once.
+Shared and nested actors are each adjusted once. For imported scenes and
+actors, C binds the destination archive editor, rewrites document background
+and material tags, and updates their child links. The host supplies a generic
+chunk-reference copy between the source and destination files.
 Traversal error flags remain non-fatal as before; visited-set or actor-write
 failure aborts. Removing a C++ temporary allocation changes allocator-attempt
 ordinals, not the successful traversal contract.

@@ -4,6 +4,7 @@
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_session.h"
 #include "mm/movie_sound_archive.h"
+#include "mm/actor_archive.h"
 #include "mm/actor_data.h"
 #include "mm/scene_data.h"
 #include "mm/wide.h"
@@ -104,6 +105,8 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
     MMComposeScene scene = {0};
     MMComposeMovie movie;
     MMChunkEdit edit;
+    MMArchiveWriter archive;
+    MMSceneIO io;
     void *file;
     if (count < 0 || *insertion < 0 || (MMU32)*insertion > state->scene_count ||
         (MMU32)count > (MM_STORAGE_LIMIT - 1) / sizeof(scene) - state->scene_count ||
@@ -121,7 +124,11 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
     movie.actor_limit = s->data->actorIdLimit;
     file = s->scene_control.file(movie.resources);
     if (count)
+    {
         edit = s->scene_control.edit(file);
+        archive = s->archive(file);
+        io = mm_scene_file_io(file, &archive, &s->titles);
+    }
     position = (MMU32)*insertion;
     scene.movie = (MMI32)state->movie_count;
     while (inserted < count)
@@ -134,7 +141,7 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
         scene.child = (MMU32)inserted;
         if (inserted != s->scenes->index)
         {
-            if (!s->read_transition(movie.resources, scene.number, &scene.transition))
+            if (!mm_scene_transition_read(scene.number, s->data->title.unit, &scene.transition, &io))
                 goto fail;
             scene.thumbnail = s->read_thumbnail(file, scene.number);
             if (!scene.thumbnail)
@@ -180,6 +187,35 @@ typedef struct ComposeReference
     MMU32 type, number;
 } ComposeReference;
 
+typedef struct ComposeAssets
+{
+    void *source, *destination;
+    const MMMovieComposeServices *services;
+} ComposeAssets;
+
+static int copy_reference(void *context, const MMTag *tag, MMU32 *copied, int *created)
+{
+    const ComposeAssets *assets = context;
+    return assets->services->copy_reference(assets->source, assets->destination, tag->type, tag->number,
+                                           copied, created);
+}
+
+static int rebind(const MMChunkChild *node, const MMArchiveWriter *archive,
+                   const MMMovieEmbeddedArchive *assets, const ComposeAssets *files)
+{
+    const MMMovieComposeServices *s = files->services;
+    MMMovieArchiveFile file;
+    MMMovieArchiveEditor editor;
+    int ok;
+    if (!mm_movie_archive_file_init(&file, files->destination, archive, &s->titles))
+        return 0;
+    editor = mm_movie_archive_file_editor(&file, s->data->title.unit, s->rollcall.reader.convert);
+    ok = node->type == MM_SCENE_CHUNK ? mm_movie_archive_rebind_backgrounds(&editor, assets, node->number)
+                                     : mm_actor_archive_rebind_materials(&editor, node->number, assets);
+    mm_movie_archive_file_clear(&file);
+    return ok;
+}
+
 static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeServices *s)
 {
     MMChunkWalk walk;
@@ -192,8 +228,16 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
     void *destination = s->scene_control.file(s->data->resources);
     const MMArchiveWriter archive = s->archive(destination);
     const MMChunkGraph graph = mm_chunk_edit_graph(&archive.edit);
+    ComposeAssets files;
+    MMMovieEmbeddedArchive assets;
     MMMovieSessionGraph reader;
     int ok = 0;
+    files.source = source;
+    files.destination = destination;
+    files.services = s;
+    assets.context = &files;
+    assets.copy_reference = copy_reference;
+    assets.edit = archive.edit;
     if (offset > 0)
         s->scene_control.session.graph(destination, &reader);
     if (mm_storage_init(&visited, compose_allocator(s)) != MM_STORAGE_OK)
@@ -211,7 +255,7 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
         if (source && (flags & MM_WALK_ERROR))
             goto done;
         actor = node.type == MM_ACTOR_CHUNK;
-        background = node.type == MM_SCENE_CHUNK && source && s->rebind_scene_backgrounds;
+        background = node.type == MM_SCENE_CHUNK && source;
         if (!(flags & MM_WALK_PRE) || (!actor && !background))
             continue;
         for (i = 0; i < ids.count; ++i)
@@ -225,10 +269,8 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
         reference.type = node.type;
         reference.number = node.number;
         if (mm_array_add(&ids, &reference, 0) != MM_STORAGE_OK ||
-            (background && !s->rebind_scene_backgrounds(source, destination, node.number)) ||
             (actor && offset > 0 && !mm_actor_adjust_id(node.number, offset, &reader, &archive)) ||
-            (actor && source && s->rebind_actor_materials &&
-             !s->rebind_actor_materials(source, destination, node.number)))
+            (source && !rebind(&node, &archive, &assets, &files)))
             goto done;
     }
     ok = 1;
@@ -297,6 +339,8 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
 {
     const MMMovieSceneServices *scenes = &s->scene_control;
     MMChunkEdit edit;
+    MMArchiveWriter archive;
+    MMSceneIO io;
     MMCollectionStorage cloned;
     MMI32 old = s->scenes->index, offset = 0;
     MMU32 i, copied = 0, slot = 0, number, current_slot, *roots = NULL;
@@ -308,6 +352,8 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         return 0;
     file = scenes->file(resources);
     edit = scenes->edit(file);
+    archive = s->archive(file);
+    io = mm_scene_file_io(file, &archive, &s->titles);
     if (mm_storage_ensure(&cloned, (state->movie_count - 1) * sizeof(*roots), 0, 0) != MM_STORAGE_OK)
         goto done;
     roots = (MMU32 *)cloned.buffers[0].data;
@@ -322,7 +368,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
                 goto done;
             scenes->session.graph(file, &graph);
             if (!mm_movie_archive_link_imported_sounds(&graph, movie.number, &edit) ||
-                !merge(movie.number, offset, s->rebind_actor_materials || s->rebind_scene_backgrounds ? source : NULL, s))
+                !merge(movie.number, offset, source, s))
             {
                 delete_root(&edit, movie.number, scenes);
                 goto done;
@@ -404,7 +450,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         }
         if (descriptor.child != (MMU32)old || descriptor.movie != 0)
         {
-            if (!descriptor.deleted && !s->write_transition(resources, number, descriptor.transition))
+            if (!descriptor.deleted && !mm_scene_transition_write(number, s->data->title.unit, descriptor.transition, &io))
                 goto done;
         }
         else if (descriptor.deleted)

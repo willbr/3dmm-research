@@ -51,10 +51,12 @@ extern "C"
     {
         void *context;
         /* Calls the receiver with the decoded SCEN and returns its success. */
-        int (*read)(void *, MMU32 number, MMReadReceiver, void *out);
+        int (*read)(const struct MMSceneIO *, MMU32 number, MMReadReceiver, void *out);
         const struct MMArchiveWriter *archive;
         MMChunkTitleIO titles;
     } MMSceneIO;
+    /* Borrows the file and archive for synchronous scene I/O. */
+    MMSceneIO mm_scene_file_io(void *file, const struct MMArchiveWriter *, const MMChunkTitleIO *);
     /* Read commits name and metadata together; failure preserves the old state.
      * Header validation retains legacy frame/transition rules. Writing publishes
      * header before name and does not roll it back if setting the name fails. */

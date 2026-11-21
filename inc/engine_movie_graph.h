@@ -6,13 +6,6 @@
 
 namespace EngineMovieGraph
 {
-inline bool ReceivePayload(PChunkyFile file, MMU32 type, MMU32 number, MMReadReceiver receive, void *out)
-{
-    int result;
-    return mm_chunk_read_payload(KauaiChunkPayloadServices(), file, type, number,
-                                 receive, out, &result) == MM_CHUNK_OK && result;
-}
-
 inline int Payload(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
 {
     return mm_movie_block_payload(KauaiChunkPayloadServices(), context, entry, receive, out);

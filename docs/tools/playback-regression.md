@@ -18655,3 +18655,27 @@ archived retail frame identities. SDL matched all four retail sound requests.
 The ports matched their previous PCM16 peak of 2,176. The archived retail
 peak is 2,380. The captures contain 519,360 SDL and 511,680 Marcus PCM frames.
 Logs and the comparison script are in `tmp/c89-compose-archive`.
+
+## Composition transitions and embedded references (21 November 2026)
+
+Studio composition reads and writes stored transitions through the C89 scene
+file binding. The write preserves header-before-name order. A rejected name
+write leaves the transition header published. The C composition traversal
+also rebinds embedded scene backgrounds and actor materials. The fixture
+checks the rewritten start and costume events, shared material links, and
+clone cleanup when copying either asset fails.
+
+All 193 standalone C checks, six focused AddressSanitizer checks, three
+Marcus checks, and the native Preview session, scene-content and core-link
+checks passed.
+The native scene-content snapshot matched all 31,048 baseline bytes. Native
+x64, x86 and SDL matched their 19,044-byte composition snapshots, all 27
+save/reopen traces, sound-resource snapshots and the complete authoring save.
+Both ports matched the three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T102043Z-ec92f91d`.
+
+In sampled-audio suite `20261121T102051Z-4bbcde4d`, both ports matched all 60
+archived retail frame identities. SDL matched all four retail sound requests.
+The ports matched their previous PCM16 peak of 2,176. The archived retail
+peak is 2,380. The captures contain 519,840 SDL and 511,680 Marcus PCM frames.
+Logs and the comparison script are in `tmp/c89-compose-embedded`.

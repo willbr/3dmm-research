@@ -29,7 +29,6 @@ Actors, Text boxes, etc.
 #include <cstdio>
 #include <exception>
 #include "soc.h"
-#include "engine_movie_archive.h"
 #include "engine_movie_graph.h"
 #include "studio_preferences.h"
 #include "mm/indexed_display.h"
@@ -2581,6 +2580,7 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.scene_control = _SceneServices();
     s.allocator = CollectionAllocator();
     s.archive = [](void *file) { return static_cast<PChunkyFile>(file)->WriteIndex(); };
+    s.titles = KauaiChunkTitleIO();
     s.rollcall = MovieData::_RollCallBinding();
     s.retain = [](void *object) { static_cast<BASE *>(object)->AddRef(); };
     s.release = ReleaseComposeObject;
@@ -2589,10 +2589,6 @@ MMMovieComposeServices Movie::_ComposeServices()
 #endif
     s.use_temporary=[](void *p)->int { return static_cast<PMovie>(p)->_FUseTempFile(); };
     s.autosave=[](void *p)->int { return static_cast<PMovie>(p)->FAutoSave(nullptr,false); };
-    s.read_transition=[](void *p,MMU32 number,MMI32 *out)->int {
-        TRANS value; bool ok=Scene::FTransOnFile(static_cast<PChunkyResourceFile>(p),number,&value);
-        if(ok) *out=value; return ok;
-    };
     s.transition=[](void *p)->MMI32 { return static_cast<PScene>(p)->Trans(); };
     s.read_thumbnail=[](void *p,MMU32 number)->void* {
         auto file = static_cast<PChunkyFile>(p);
@@ -2610,13 +2606,11 @@ MMMovieComposeServices Movie::_ComposeServices()
         ChunkNumber value; bool ok=static_cast<PChunkyFile>(p)->FClone(kctgMvie,number,static_cast<PChunkyFile>(out),&value);
         if(ok) *copied=value; return ok;
     };
-    s.rebind_scene_backgrounds = [](void *source, void *destination, MMU32 scene) {
-        auto file = static_cast<PChunkyFile>(destination);
-        MovieArchiveHost host{file};
-        MovieEmbeddedArchive assets{file, static_cast<PChunkyFile>(source)};
-        const auto editor = host.Editor();
-        const auto archive = assets.Services();
-        return mm_movie_archive_rebind_backgrounds(&editor, &archive, scene);
+    s.copy_reference = [](void *source, void *destination, MMU32 type, MMU32 number,
+                          MMU32 *copied, int *created) -> int {
+        auto file = static_cast<PChunkyFile>(source);
+        return file->FFind(type, number) &&
+               file->FCopyReference(type, number, static_cast<PChunkyFile>(destination), copied, created);
     };
     s.adopt_sounds=[](void *p,void *file,MMU32 scene)->int { return static_cast<PMovie>(p)->_FAdoptMsndInMvie(static_cast<PChunkyFile>(file),scene); };
     s.start_scene=[](void *p)->int { return static_cast<PScene>(p)->FPlayStartEvents(true); };
@@ -2624,7 +2618,6 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.remove_actors=[](void *p) { static_cast<PScene>(p)->RemActrsFromRollCall(true); };
     s.actor_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableActorTools(); };
     s.text_tools=[](void *p) { static_cast<PMovie>(p)->Pmcc()->EnableTboxTools(); };
-    s.write_transition=[](void *p,MMU32 number,MMI32 transition)->int { return Scene::FSetTransOnFile(static_cast<PChunkyResourceFile>(p),number,TRANS(transition)); };
     s.set_transition=[](void *p,MMI32 transition) { static_cast<PScene>(p)->SetTransitionCore(TRANS(transition)); };
     s.dirty=[](void *p) { static_cast<PMovie>(p)->SetDirty(); };
     s.scene_nuked=[](void *p) { static_cast<PMovie>(p)->Pmcc()->SceneNuked(); };
@@ -2648,14 +2641,6 @@ MMMovieComposeServices Movie::_ComposeServices()
         }
     };
 #endif
-    s.rebind_actor_materials = [](void *source, void *destination, MMU32 actor) {
-        auto file = static_cast<PChunkyFile>(destination);
-        MovieArchiveHost host{file};
-        MovieEmbeddedArchive materials{file, static_cast<PChunkyFile>(source)};
-        const auto editor = host.Editor();
-        const auto services = materials.Services();
-        return mm_actor_archive_rebind_materials(&editor, actor, &services);
-    };
     return s;
 }
 
