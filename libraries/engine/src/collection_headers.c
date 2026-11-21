@@ -117,14 +117,9 @@ int mm_collection_header_read(const MMReadStream *stream, int kind, int allocate
     *out = h;
     return MM_STORAGE_OK;
 }
-int mm_collection_group_row(const MMCollectionHeader *header, const unsigned char *records, MMU32 row,
-                            MMU32 *offset, MMI32 *bytes)
+static int group_row(const MMCollectionHeader *header, const unsigned char *location, MMU32 *offset, MMI32 *bytes)
 {
-    const unsigned char *location;
     MMU32 start, size;
-    if (row >= header->count)
-        return 0;
-    location = records + header->first_bytes + row * 8;
     start = u32(location, header->big_endian);
     size = u32(location + 4, header->big_endian);
     if (start > header->first_bytes || size < header->width || size > header->first_bytes - start)
@@ -132,6 +127,23 @@ int mm_collection_group_row(const MMCollectionHeader *header, const unsigned cha
     *offset = start;
     *bytes = (MMI32)(size - header->width);
     return 1;
+}
+
+int mm_collection_group_row(const MMCollectionHeader *header, const unsigned char *records, MMU32 row,
+                            MMU32 *offset, MMI32 *bytes)
+{
+    return row < header->count && group_row(header, records + header->first_bytes + row * 8, offset, bytes);
+}
+
+int mm_collection_group_read_row(const MMReadStream *stream, const MMCollectionHeader *header, MMU32 row,
+                                MMU32 *offset, MMI32 *bytes)
+{
+    unsigned char location[8];
+    if (row >= header->count)
+        return MM_STORAGE_ARGUMENT;
+    if (!mm_read_exact(stream, header->header_bytes + header->first_bytes + row * 8, location, sizeof(location)))
+        return MM_STORAGE_IO;
+    return group_row(header, location, offset, bytes) ? MM_STORAGE_OK : MM_STORAGE_ARGUMENT;
 }
 
 int mm_collection_header_write(const MMCollectionHeader *header, unsigned char *output, size_t capacity)

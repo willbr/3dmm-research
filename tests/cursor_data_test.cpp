@@ -1,10 +1,13 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "cursor_data.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <vector>
 #include "kauai_core.h"
 #include "groups.h"
+#include "cursor_format.h"
+#include "handle_services.h"
+#include "mm/studio_resource.h"
 #undef size
 ASSERTNAME
 void WarnProc(schar *, LegacyLong, schar *)
@@ -23,6 +26,15 @@ bool FAssertProc(schar *, LegacyLong, schar *, void *, LegacyLong)
             return 1;                                                                                                  \
         }                                                                                                              \
     } while (0)
+
+static bool Read(DataBlock &block, int width, int height, MMStudioCursor &image)
+{
+    MMBlockIO io;
+    MMReadStream stream;
+    return block.FUnpackData() && mm_owned_block_io(block.CoreBlock(), &io) == MM_DATA_OK &&
+           mm_block_io_stream(&io, &stream) == MM_DATA_OK && mm_studio_cursor_read(&stream, width, height, &image);
+}
+
 int main()
 {
     auto file = ChunkyFile::PcflCreateTemp();
@@ -62,19 +74,21 @@ int main()
             ChunkNumber number;
             CHECK(file->FAdd(group->CbOnFile(), 'GGCR', &number, &block) && group->FWrite(&block, order));
             ReleasePpo(&group);
-            KauaiCursors::Monochrome image;
-            CHECK(KauaiCursors::Read(block, 32, 32, image));
+            MMStudioCursor image;
+            CHECK(Read(block, 32, 32, image));
             const int expected = invalid ? 16 : 32;
             CHECK(image.width == expected && image.height == expected && image.pitch == expected / 8 &&
-                  image.hotX == 3 && image.hotY == 4 && image.andBits.size() == std::size_t(expected * expected / 8));
-            for (std::size_t i = 0; i < image.andBits.size(); ++i)
-                CHECK(image.andBits[i] == static_cast<byte>(i * 37 + expected) &&
-                      image.xorBits[i] == static_cast<byte>((i + image.andBits.size()) * 37 + expected));
-            CHECK(KauaiCursors::Read(block, 24, 24, image) && image.width == 16);
-            auto previous = image.andBits;
-            CHECK(!KauaiCursors::Read(block, 8, 8, image) && image.width == 16 && image.andBits == previous);
-            CHECK(!KauaiCursors::Read(block, 0, 32, image) && image.andBits == previous);
-            CHECK(KauaiCursors::Read(block, INT32_MAX, INT32_MAX, image) && image.width == expected);
+                  image.hot_x == 3 && image.hot_y == 4);
+            const int planeBytes = expected * expected / 8;
+            for (int i = 0; i < planeBytes; ++i)
+                CHECK(image.and_bits[i] == static_cast<byte>(i * 37 + expected) &&
+                      image.xor_bits[i] == static_cast<byte>((i + planeBytes) * 37 + expected));
+            CHECK(Read(block, 24, 24, image) && image.width == 16);
+            const MMStudioCursor previous = image;
+            CHECK(!Read(block, 8, 8, image) && image.width == 16 &&
+                  !memcmp(image.and_bits, previous.and_bits, sizeof(image.and_bits)));
+            CHECK(!Read(block, 0, 32, image) && !memcmp(image.and_bits, previous.and_bits, sizeof(image.and_bits)));
+            CHECK(Read(block, INT32_MAX, INT32_MAX, image) && image.width == expected);
         }
     // Reject an incompatible GG fixed-record size and an empty cursor list.
     for (int fixed : {4, 8})
@@ -89,10 +103,17 @@ int main()
         DataBlock block;
         ChunkNumber number;
         CHECK(file->FAdd(group->CbOnFile(), 'GGCR', &number, &block) && group->FWrite(&block));
-        KauaiCursors::Monochrome image;
-        CHECK(!KauaiCursors::Read(block, 32, 32, image));
+        MMStudioCursor image;
+        CHECK(!Read(block, 32, 32, image));
         ReleasePpo(&group);
     }
+    // A location may not point into the location table, even if its total byte count looks valid.
+    byte invalid[] = {1, 0, 3, 3, 1, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 8, 0, 0, 0,
+                      0, 0, 0, 0, 8, 0, 0, 0};
+    MMMemoryStream memory;
+    MMStudioCursor image;
+    CHECK(mm_memory_stream_init(&memory, invalid, sizeof(invalid)) &&
+          !mm_studio_cursor_read(&memory.stream, 32, 32, &image));
     ReleasePpo(&file);
     std::puts("Cursor data: endian records, size selection, original planes/hotspots and malformed candidates passed.");
     return 0;

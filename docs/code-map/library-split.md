@@ -6805,6 +6805,16 @@ root bytes, while real registry and colour reads charge decoded bytes. C89
 swaps foreign bytecode words and registry IDs. Colour rows and script literal
 payloads retain their own existing byte order and string conversion rules.
 
+The Kidspace descriptor and cursor readers also use the cache-owned block.
+`studio_resource.c` keeps descriptor records in an immutable C buffer and
+resolves parent locations, the zero-parent default and masked cursor state.
+SDL selects the largest fitting monochrome cursor directly from the GGCR
+stream. The C collection reader validates the location span before reading the
+fixed record and the C cursor reader copies only the selected AND and XOR
+planes. SDL creates and owns the platform cursor. The original native cursor
+backend reads its collection from the same block stream and retains its own
+platform selection policy.
+
 The cache also exposes a borrowed C graph for a synchronous operation. It uses
 the retained index for an immutable archive and acquires a fresh graph from
 the live file for each request. Template lookup uses that graph to select child
@@ -7612,9 +7622,9 @@ depends on completing the shared GUI link. See the
 
 The shared UI compilation gate also covers graphics scripts, Kidspace/help,
 rich text, documents and controls on Linux/macOS. Stored UI records retain
-their original 32-bit layout. Kidspace descriptor parsing now lives in
-`kauai-core` (`kidspace_descriptor.h/.cpp`) and is tested with original-layout
-bytes in both byte orders on Windows and headless Linux. Full POSIX application
+their original 32-bit layout. Kidspace descriptors now use the shared C89
+reader from the SDK-free `kauai-core` adapter. The fixture uses original-layout
+bytes in both byte orders. Full POSIX application
 link/startup remains outstanding; see the
 [shared UI checkpoint](../tools/studio-sdl.md#shared-ui-runtime-compilation-update-for-3-november-2026).
 

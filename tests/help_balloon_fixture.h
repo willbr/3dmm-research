@@ -6,7 +6,11 @@ static bool HelpBalloonDescriptor(PChunkyFile file, ChunkNumber number, ChunkNum
 {
     struct
     {
-        GOKDF header;
+        struct
+        {
+            short order, system;
+            LegacyLong kind;
+        } header;
         LOP location;
     } bytes = {{kboCur, koskCur, gokkRectangle}, {0, 0, 0, 0}};
     if (!file->FPutPv(&bytes, sizeof(bytes), kctgGokd, number))

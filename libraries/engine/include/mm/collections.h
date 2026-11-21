@@ -91,6 +91,10 @@ extern "C"
      * the offset of a dense row and its variable byte count. */
     int mm_collection_group_row(const MMCollectionHeader *, const unsigned char *records, MMU32 row,
                                 MMU32 *offset, MMI32 *bytes);
+    /* Dense row lookup on the original stream. Offset is relative to the
+     * start of its record section, as for mm_collection_group_row. */
+    int mm_collection_group_read_row(const MMReadStream *, const MMCollectionHeader *, MMU32 row,
+                                    MMU32 *offset, MMI32 *bytes);
 #ifdef __cplusplus
 }
 #endif

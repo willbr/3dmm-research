@@ -1320,6 +1320,22 @@ PGeneralGroup GeneralGroup::PggRead(PFileObject pfil, FilePosition fp, LegacyLon
     return PggRead(&blck, pbo, posk);
 }
 
+PGeneralGroup GeneralGroup::PggReadStream(const MMReadStream &stream, short *order, short *system)
+{
+    auto group = NewObj GeneralGroup(0);
+    MMCollectionHeader header;
+    if (!group || !group->_ReadCollection(stream, MM_COLLECTION_GROUP, false, &header, order, system))
+    {
+        ReleasePpo(&group);
+        TrashVar(order);
+        TrashVar(system);
+        return nullptr;
+    }
+    group->_ApplyStoredGroup(header);
+    AssertPo(group, fobjAssertFull);
+    return group;
+}
+
 /***************************************************************************
     Duplicate this GeneralGroup.
 ***************************************************************************/

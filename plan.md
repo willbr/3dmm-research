@@ -1648,9 +1648,11 @@ The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;
 the renderer is unchanged. Evidence is in `docs/tools/playback-regression.md`.
 Model, texture, material, custom material, template, action, font and sound
-readers now take the cache-owned C block directly. Scripts, string registries
-and colour tables also use typed C block readers. Script literals resolve in
-the same C archive graph as the root. Tag resolution, manager
+readers now take the cache-owned C block directly. Scripts, string registries,
+colour tables, Kidspace descriptors and cursors also use typed C block
+readers. C89 owns the descriptor records and performs the SDL cursor image
+selection. Script literals resolve in the same C archive graph as the root.
+Tag resolution, manager
 lookup and nested resource fetches carry the same typed callback and reader
 key. Legacy readers still use the native block adapter. Temporary native
 resource/object/HQ and Body facades remain part of final host integration.

@@ -109,7 +109,7 @@ if(STUDIO_SDL3 OR BUILD_SDL_HOST)
   include(SDL3Dependency)
   add_library(kauai-sdl-host STATIC kauai/src/sdl_host.cpp kauai/src/sdl_surface.cpp)
   target_include_directories(kauai-sdl-host PUBLIC "${PROJECT_SOURCE_DIR}/kauai/src")
-  target_link_libraries(kauai-sdl-host PRIVATE SDL3::SDL3-static kauai-damage)
+  target_link_libraries(kauai-sdl-host PUBLIC kauai-damage PRIVATE SDL3::SDL3-static)
   add_executable(sdl-host-test EXCLUDE_FROM_ALL tests/sdl_host_test.cpp)
   target_link_libraries(sdl-host-test PRIVATE kauai-sdl-host SDL3::SDL3-static)
   add_executable(sdl-surface-test EXCLUDE_FROM_ALL tests/sdl_surface_test.cpp)
@@ -922,7 +922,6 @@ target_sources(kauai-core
     "${PROJECT_SOURCE_DIR}/kauai/src/platform_users_bridge.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/platform_text.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/text_utf8.cpp"
-    "${PROJECT_SOURCE_DIR}/kauai/src/cursor_data.cpp"
     "${PROJECT_SOURCE_DIR}/kauai/src/pixel_buffer.cpp"
     # cmd_core: CommandHandler + bare CommandExecutionManager. The
     # gui-coupled bits (mouse tracking, modal-gob walk, OS key pump,

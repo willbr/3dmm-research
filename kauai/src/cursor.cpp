@@ -12,9 +12,10 @@
 ***************************************************************************/
 #ifdef KAUAI_SDL3
 #include "sdl_host.h"
-#include "cursor_data.h"
+#include "mm/studio_resource.h"
 #endif
 #include "frame.h"
+#include "handle_services.h"
 ASSERTNAME
 
 RTCLASS(Cursor)
@@ -35,15 +36,22 @@ Cursor::~Cursor(void)
 /***************************************************************************
     Read a cursor out of a ChunkyResourceFile.
 ***************************************************************************/
-bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int Cursor::FReadCurs(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-#ifdef KAUAI_SDL3
-    *pcb = size(Cursor);
-    if (!ppbaco)
+    *bytes = size(Cursor);
+    if (!out)
         return fTrue;
-    *ppbaco = pvNil;
-    KauaiCursors::Monochrome image;
-    if (!KauaiCursors::Read(*pblck, 32, 32, image))
+#ifdef KAUAI_SDL3
+    *out = pvNil;
+#endif
+    MMBlockIO io;
+    MMReadStream stream;
+    if (mm_owned_block_code(block, 0, nullptr, KauaiDecodeBlockHandle, nullptr) != MM_DATA_OK ||
+        mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK)
+        return fFalse;
+#ifdef KAUAI_SDL3
+    MMStudioCursor image;
+    if (!mm_studio_cursor_read(&stream, 32, 32, &image))
         return fFalse;
     // Match the original 32-pixel cursor canvas even for a 16-pixel image.
     byte andBits[128], xorBits[128];
@@ -51,10 +59,10 @@ bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber
     ClearPb(xorBits, size(xorBits));
     for (int y = 0; y < image.height; ++y)
     {
-        CopyPb(image.andBits.data() + y * image.pitch, andBits + y * 4, image.pitch);
-        CopyPb(image.xorBits.data() + y * image.pitch, xorBits + y * 4, image.pitch);
+        CopyPb(image.and_bits + y * image.pitch, andBits + y * 4, image.pitch);
+        CopyPb(image.xor_bits + y * image.pitch, xorBits + y * 4, image.pitch);
     }
-    const auto id = KauaiSDL::Main().CreateCursor(andBits, xorBits, 32, 32, 4, image.hotX, image.hotY);
+    const auto id = KauaiSDL::Main().CreateCursor(andBits, xorBits, 32, 32, 4, image.hot_x, image.hot_y);
     if (!id)
         return fFalse;
     auto cursor = NewObj Cursor;
@@ -64,7 +72,7 @@ bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber
         return fFalse;
     }
     cursor->_sdlCursor = id;
-    *ppbaco = cursor;
+    *out = cursor;
     return fTrue;
 #else
     PGeneralGroup pggcurf;
@@ -77,11 +85,7 @@ bool Cursor::FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber
     byte *prgb, *qrgb;
     PCursor pcurs = pvNil;
 
-    *pcb = size(Cursor);
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    if (pvNil == (pggcurf = GeneralGroup::PggRead(pblck, &bo)) || pggcurf->IvMac() == 0)
+    if (pvNil == (pggcurf = GeneralGroup::PggReadStream(stream, &bo)) || pggcurf->IvMac() == 0)
     {
         ReleasePpo(&pggcurf);
         return fFalse;
@@ -164,7 +168,7 @@ LFail:
     FreePpv((void **)&prgb);
     ReleasePpo(&pggcurf);
 
-    *ppbaco = pcurs;
+    *out = pcurs;
     return pvNil != pcurs;
 #endif
 }

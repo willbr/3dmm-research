@@ -338,6 +338,7 @@ class GeneralGroup : public GeneralGroup_PAR
     // static methods
     static PGeneralGroup PggNew(LegacyLong cbFixed = 0, LegacyLong cvInit = 0, LegacyLong cbInit = 0);
     static PGeneralGroup PggRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
+    static PGeneralGroup PggReadStream(const MMReadStream &, short *order = pvNil, short *system = pvNil);
     static PGeneralGroup PggRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
 
     // duplication

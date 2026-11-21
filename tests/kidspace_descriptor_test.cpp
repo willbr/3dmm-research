@@ -60,6 +60,8 @@ int main()
         CHECK(file);
         ChunkNumber number;
         CHECK(file->FAddPv(bytes.data(), static_cast<LegacyLong>((bytes.size)()), 'GOKD', &number));
+        ChunkNumber malformed;
+        CHECK(file->FAddPv(bytes.data(), static_cast<LegacyLong>((bytes.size)() - 4), 'GOKD', &malformed));
         auto resources = ChunkyResourceFile::PcrfNew(file, 4096);
         CHECK(resources);
         auto descriptor = static_cast<PKidspaceGraphicObjectDescriptorLocation>(
@@ -76,6 +78,8 @@ int main()
               cursor.cnoCurs == 0x11223344 && cursor.chidScript == 0x55667788 && cursor.cidDefault == 0x1234567 &&
               cursor.cnoTopic == 0x98765432);
         CHECK(!descriptor->FGetCume(0x40, 31, &cursor) && !descriptor->FGetCume(0x80, 30, &cursor));
+        CHECK(descriptor->FGetCume(0x80, -1, &cursor));
+        CHECK(!resources->PbacoFetch('GOKD', malformed, KidspaceGraphicObjectDescriptorLocation::FReadGkds));
         ReleasePpo(&descriptor);
         ReleasePpo(&resources);
         ReleasePpo(&file);

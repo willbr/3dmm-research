@@ -18326,3 +18326,28 @@ continuous playback and all retail seek cameras. The three frames with a
 visible caption still differ from retail. SDL retained the caption text,
 alignment, font and visibility window. The archived V3dmm seek canvases match
 retail. Logs are in `tmp/c89-script-cache-blocks`.
+
+## C89 Kidspace and cursor resources (21 November 2026)
+
+Kidspace descriptors and cursors now read the cache-owned block directly.
+C89 decodes Kidspace locations, defaults and cursor-state matches from retained
+wire bytes. SDL's C89 cursor reader validates the GGCR location spans and
+selects and reads the best fitting monochrome image before SDL creates the
+cursor. The Windows cursor backend keeps its native selection policy and reads
+the decoded stream directly.
+
+All 193 standalone C checks passed. Native x64 and x86 resource fixtures checked
+both byte orders, cursor masks and hotspots, parent fallbacks, and rejection
+of malformed record spans. All 16 native C89 and Marcus checks and all four SDL
+resource checks passed. The SDL cursor test matched Windows GDI for 16- and
+32-pixel rasters and hotspots.
+
+Native x64, native x86 and SDL reproduced 27 prior binary traces and all Help
+display, interaction, balloon and topic fingerprints. Studio saved the
+authored movie byte for byte.
+
+In `20261121T073824Z-aa9319bd`, SDL and Marcus reproduced all 11 previous seek
+canvases. Both matched the archived retail frame identities in seek and
+continuous playback and all retail seek cameras. The three visible-caption
+frames still differ from retail. The archived V3dmm seek canvases match
+retail. Logs are in `tmp/c89-studio-ui-resources`.

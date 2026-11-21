@@ -42,7 +42,7 @@ class Cursor : public Cursor_PAR
     ~Cursor(void);
 
   public:
-    static bool FReadCurs(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadCurs(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
 
     void Set(void);
 };

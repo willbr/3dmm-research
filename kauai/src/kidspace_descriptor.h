@@ -3,27 +3,10 @@
 #define KAUAI_KIDSPACE_DESCRIPTOR_H
 #include "kauai_core.h"
 #include "framedef.h"
+#include "mm/studio_resource.h"
 using namespace Chunky;
-// location from parent map structure
-struct LOP
-{
-    LegacyLong hidPar;
-    LegacyLong xp;
-    LegacyLong yp;
-    LegacyLong zp; // the z-plane number used for placing the KidspaceGraphicObject in the GraphicsObject tree
-};
-
-// cursor map entry
-struct CursorMapEntry
-{
-    LegacyUlong grfcustMask; // what cursor states this CursorMapEntry is good for
-    LegacyUlong grfcust;
-    LegacyUlong grfbitSno;   // what button states this CursorMapEntry is good for
-    ChunkNumber cnoCurs;     // the cursor to use
-    ChildChunkID chidScript; // execution script (absolute)
-    LegacyLong cidDefault;   // default command
-    ChunkNumber cnoTopic;    // tool tip topic
-};
+using LOP = MMKidspaceLocation;
+using CursorMapEntry = MMKidspaceCursor;
 
 typedef class KidspaceGraphicObjectDescriptor *PKidspaceGraphicObjectDescriptor;
 #define KidspaceGraphicObjectDescriptor_PAR BaseCacheableObject
@@ -47,20 +30,6 @@ class KidspaceGraphicObjectDescriptor : public KidspaceGraphicObjectDescriptor_P
     Standard KidspaceGraphicObject descriptor. Contains location information and cursor
     map stuff.
 ***************************************************************************/
-// KidspaceGraphicObject construction descriptor on file - these are stored in chunky resource files
-struct GOKDF
-{
-    short bo;
-    short osk;
-    LegacyLong gokk;
-    // LOP rglop[];		ends with a default entry (hidPar == hidNil)
-    // CursorMapEntry rgcume[];	the cursor map
-};
-const ByteOrderMask kbomGokdf = 0x0C000000;
-static_assert(sizeof(GOKDF) == 8, "GOK descriptor header must retain its stored size");
-static_assert(sizeof(LOP) == 16, "GOK location entries must retain their stored size");
-static_assert(sizeof(CursorMapEntry) == 28, "GOK cursor entries must retain their stored size");
-
 typedef class KidspaceGraphicObjectDescriptorLocation *PKidspaceGraphicObjectDescriptorLocation;
 #define KidspaceGraphicObjectDescriptorLocation_PAR KidspaceGraphicObjectDescriptor
 #define kclsKidspaceGraphicObjectDescriptorLocation 'GKDS'
@@ -71,19 +40,12 @@ class KidspaceGraphicObjectDescriptorLocation : public KidspaceGraphicObjectDesc
     MARKMEM
 
   protected:
-    HQ _hqData;
-    long _gokk;
-    long _clop;
-    long _ccume;
-
-    KidspaceGraphicObjectDescriptorLocation(void)
-    {
-    }
+    MMKidspaceDescriptor _descriptor = {};
+    KidspaceGraphicObjectDescriptorLocation() = default;
 
   public:
     // An object reader for a KidspaceGraphicObjectDescriptor.
-    static bool FReadGkds(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, DataBlock *pblck,
-                          PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadGkds(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
     ~KidspaceGraphicObjectDescriptorLocation(void);
 
     virtual long Gokk(void);
