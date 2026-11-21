@@ -158,15 +158,15 @@ int mm_movie_scene_close(const MMMovieSceneServices *s)
     }
     return 1;
 }
-static int scene_number(MMI32 index, void *file, MMU32 *number, const MMMovieSceneServices *s)
+static int scene_number(MMI32 index, MMU32 *number, const MMMovieSceneServices *s)
 {
-    return mm_movie_state_scene_number(s->movie, (MMU32)index, number, file, &s->session);
+    return mm_movie_state_scene_number(s->movie, (MMU32)index, number, &s->session);
 }
 static void *read_scene(MMI32 index, const MMMovieSceneServices *s)
 {
     void *resources = s->movie->resources;
     MMU32 number;
-    if (!resources || !scene_number(index, s->file(resources), &number, s))
+    if (!scene_number(index, &number, s))
         return NULL;
     return s->read(s->context, resources, number, s->movie->session);
 }
@@ -341,7 +341,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     scene = s->state->open;
     child.type = MM_SCENE_CHUNK;
     child.slot = (MMU32)index;
-    if (!scene_number(index, file, &child.number, s))
+    if (!scene_number(index, &child.number, s))
     {
         if (s->missing_link)
             s->missing_link(s->context);

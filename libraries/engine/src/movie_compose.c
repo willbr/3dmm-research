@@ -269,7 +269,7 @@ static int remap(MMU32 movie, MMI32 offset, ComposeAssets *imports, const MMMovi
     assets.copy_reference = copy_reference;
     assets.edit = archive.edit;
     if (offset > 0)
-        s->scene_control.session.graph(destination, &reader);
+        s->scene_control.session.graph(s->data->resources, &reader);
     if (mm_storage_init(&visited, compose_allocator(s)) != MM_STORAGE_OK)
         return 0;
     memset(&ids, 0, sizeof(ids));
@@ -436,7 +436,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
                     s->diagnostic(s->context, MM_COMPOSE_MISSING_COPY_ROOT);
                 goto done;
             }
-            scenes->session.graph(file, &graph);
+            scenes->session.graph(resources, &graph);
             if (!mm_movie_archive_link_imported_sounds(&graph, movie.number, &edit) ||
                 !merge(movie.number, offset, &imports, s))
             {

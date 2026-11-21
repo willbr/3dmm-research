@@ -18,7 +18,7 @@ int mm_movie_runtime_open(MMMovieRuntime *runtime, void *client, void *path, MMU
 {
     const MMMovieSaveServices *save = s->save;
     MMMovieState *movie = save->data;
-    void *working = path, *file = NULL, *title_path;
+    void *working = path, *title_path;
     MMTagList tags;
     int busy = 0, ok = 0;
     if (!s->prepare(s->context, path, &working))
@@ -44,14 +44,12 @@ int mm_movie_runtime_open(MMMovieRuntime *runtime, void *client, void *path, MMU
     busy = 1;
     if (!mm_movie_load(movie, working, root, s->owner))
         goto done;
-    file = s->owner->file(movie->resources);
-    s->retain_archive(file);
     if (!mm_movie_save_bind(working, save))
     {
         s->missing_saved_file(s->context);
         goto done;
     }
-    s->merge_sources(file, movie->movieNumber);
+    s->merge_sources(movie->resources, movie->movieNumber);
     if (!mm_movie_save_tags(&tags, save))
         goto done;
     ok = s->cache_tags(s->context, &tags);
@@ -64,8 +62,6 @@ int mm_movie_runtime_open(MMMovieRuntime *runtime, void *client, void *path, MMU
             save->state->readOnly = save->read_only(save->context, title_path);
     }
 done:
-    if (file)
-        s->owner->release_file(file);
     if (!ok)
         s->discard_document(s->context);
     if (busy)

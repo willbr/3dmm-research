@@ -39,7 +39,7 @@
 ***************************************************************************/
 #include "soc_core.h"
 #include "engine_movie_source.h"
-#include "engine_movie_graph.h"
+#include "mm/movie_session.h"
 #include "mm/archive_reader.h"
 #include "mm/chunk_copy.h"
 #include "mm/native_archive_file.h"
@@ -347,9 +347,9 @@ bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
     return mm_source_names_merge(&_names, &input, bo == kboOther) != 0;
 }
 
-bool TagManager::FMergeMovieSources(PChunkyFile file, ChunkNumber movie)
+bool TagManager::FMergeMovieSources(PChunkyResourceFile resources, ChunkNumber movie)
 {
-    const auto graph = EngineMovieGraph::FromFile(file);
+    const auto graph = mm_movie_owner_graph(resources->ReadOwner());
     return mm_source_names_merge_movie(&_names, &graph, movie, EngineMovieSource::ConvertWidth, nullptr,
                                        [](void *, MMI32) { Bug("Invalid sid"); }) != 0;
 }

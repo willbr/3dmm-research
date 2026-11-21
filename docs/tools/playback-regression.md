@@ -19408,3 +19408,32 @@ Retail and both ports reproduced all 11 previous canvases of the new
 Studio-authored movie in `20261121T160635Z-d77e8a8e`, including the three
 known differences from retail. Evidence is in
 `tmp/c89-movie-archive-owner/evidence`.
+
+## Studio movie open through the shared C89 cache (21 November 2026)
+
+The C89 movie lifecycle acquires a single working resource reference for an
+existing movie or a blank movie's first autosave. Version checks, titles,
+roll call, scene lookup, source-name merging and imported-scene graph
+reads use that cache. Opening an already-loaded path reuses its archive
+owner. A failed MovieData reload keeps the active state and cache.
+
+All 193 standalone C checks and six focused AddressSanitizer checks passed.
+Native x64 passed seven archive, scene, movie and Marcus player checks.
+SDL passed all five archive, scene and movie checks. Native x86 passed
+the core link and movie save/load fixtures. The three save/load fixtures
+reproduced the prior movie bytes and save-control trace. In SDL Studio,
+Save opened the Save As portfolio for a read-only two-scene movie. The
+original retained its hash and read-only attribute, and the edited copy
+reopened with the first scene extended to frame 10. The two-scene Studio
+authoring workflow also reproduced its prior movie byte for byte.
+
+Studio edited, saved and reopened the portable storyboard as VMM. Its
+two byte differences from the prior VMM were unused alignment bytes
+in the BKGD:0 index row. SDL and Marcus matched all three recorded V3dmm
+frames, cameras and canvases in `20261121T162120Z-cbd3d06a`. Both matched
+the 60 retail actor-event seek frames and cameras and reproduced their
+prior canvas hashes in `20261121T162127Z-45113efd`. Retail and both ports
+reproduced their 11 previous canvases of the Studio-authored movie,
+including the three known differences from retail, in
+`20261121T162207Z-c9f6d610`. Evidence is in
+`tmp/c89-movie-resource-open/evidence`.

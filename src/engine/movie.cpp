@@ -198,14 +198,14 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         h->unique = *destination;
         return h->unique.FGetUnique(destination->Ftg()) ? &h->unique : nullptr;
     };
-    s.create_file = [](void *, void *path) -> void * {
+    s.create_resources = [](void *, void *path) -> void * {
         auto file = ChunkyFile::PcflCreate(static_cast<PFilename>(path), fcflTemp);
-        Assert(!file || file->FTemp(), "Bad ChunkyFile");
-        return file;
-    };
-    s.release_archive = [](void *p) { auto file = static_cast<PChunkyFile>(p); ReleasePpo(&file); };
-    s.new_resources = [](void *, void *p, MMU32 cache) -> void * {
-        return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(p), cache);
+        if (!file)
+            return nullptr;
+        Assert(file->FTemp(), "Bad ChunkyFile");
+        const auto resources = ChunkyResourceFile::PcrfNew(file, 0);
+        file->Release();
+        return resources;
     };
     s.is_temp = [](void *p) -> int { return MovieArchiveFile(p)->FTemp(); };
     s.save = [](void *p, void *path) -> int {
@@ -246,13 +246,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.tags = &TagManager::CoreServices();
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->Pmcc()->UpdateRollCall(); };
     s.source_names = vptagm ? vptagm->CoreSourceNames() : nullptr;
-    s.titles = KauaiChunkOwnerTitleIO();
-    s.titles.read = nullptr;
-    s.titles.write = [](void *p, MMU32 type, MMU32 number, const void *wire, MMU32 bytes) -> int {
-        auto reader = MovieArchiveReader(p);
-        return mm_chunk_owner_write_name(reader->storage, type, number, reader->max_name_bytes,
-                                         wire, bytes) == MM_CHUNK_OK;
-    };
+    s.titles = ChunkyResourceFile::ResourceTitleIO();
     s.has_error = [](void *p) -> int { return KauaiChunkOwnerError(MovieArchiveReader(p)->storage->owner) != elNil; };
     s.reset_error = [](void *p) { KauaiResetChunkOwnerError(MovieArchiveReader(p)->storage->owner, elNil); };
     s.clear_errors = [](void *) { vpers->Clear(); };
@@ -363,9 +357,8 @@ MMMovieRuntimeServices Movie::_RuntimeServices(RuntimeHost *host)
     s.retain = RetainRuntimeRef;
     s.release = ReleaseRuntimeRef;
     s.discard_document = [](void *p) { static_cast<RuntimeHost *>(p)->saveHost.movie->Release(); };
-    s.retain_archive = [](void *p) { static_cast<PChunkyFile>(p)->AddRef(); };
     s.missing_saved_file = [](void *) { Bug("Hey, we just opened this file!"); };
-    s.merge_sources = [](void *file, MMU32 root) { vptagm->FMergeMovieSources(static_cast<PChunkyFile>(file), root); };
+    s.merge_sources = [](void *p, MMU32 root) { vptagm->FMergeMovieSources(static_cast<PChunkyResourceFile>(p), root); };
     s.cache_tags = [](void *, MMTagList *tags) -> int { return vptagm->FCacheTagList(tags); };
     s.resume_audio = [](void *) { if (vpsndm) vpsndm->ResumeAll(); };
     s.stop_playback = [](void *p) {

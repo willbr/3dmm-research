@@ -34,8 +34,8 @@ extern "C"
     struct MMMovieSessionGraph;
     typedef struct MMMovieSessionBinding
     {
-        void (*graph)(void *file, struct MMMovieSessionGraph *);
-        void (*open_failed)(void *file, int status);
+        void (*graph)(void *resources, struct MMMovieSessionGraph *);
+        void (*open_failed)(void *resources, int status);
     } MMMovieSessionBinding;
     typedef struct MMMovieState
     {
@@ -51,24 +51,22 @@ extern "C"
         void *context;
         MMStorageAllocator actor_allocator;
         int actor_encoding, actor_trash;
-        void *(*create_file)(void *);
-        void *(*open_file)(void *, void *path);
+        void *(*create_resources)(void *);
+        void *(*open_resources)(void *, void *path);
         MMMovieSessionBinding session;
-        void *(*new_resources)(void *, void *file);
-        void (*release_file)(void *);
         void (*release_resources)(void *);
-        void *(*file)(void *resources);
-        MMArchiveWriter (*archive)(void *file);
+        MMArchiveWriter (*archive)(void *resources);
         MMRollCallBinding rollcall;
         void (*unlink_failed)(void *);
         MMChunkTitleIO titles;
-        int (*save)(void *, void *file);
-        void (*make_persistent)(void *file);
+        int (*save)(void *, void *resources);
+        void (*make_persistent)(void *resources);
     } MMMovieOwnerServices;
     /* Unique owning state. The session borrows its graph through the resource
      * reference and is closed before it. The actor table lives in the state and
      * owns its opened tags. Title and actor names use the same native unit width.
-     * The graph, archive and cache bindings borrow the active file and resources.
+     * The factories transfer one resource reference. The graph, archive and
+     * cache bindings borrow that reference.
      * The session failure diagnostic is optional. A zero
      * actor allocator uses the C heap. Replacement publishes the scratch state
      * on success and disposes the prior table and resources in order.
@@ -84,8 +82,7 @@ extern "C"
     int mm_movie_load(MMMovieState *, void *path, MMU32 number, const MMMovieOwnerServices *);
     /* Resolve a scene from the live graph. A new or changed root is attached
      * only after validation. Failed lookups preserve the caller's number. */
-    int mm_movie_state_scene_number(MMMovieState *, MMU32 slot, MMU32 *number, void *file,
-                                     const MMMovieSessionBinding *);
+    int mm_movie_state_scene_number(MMMovieState *, MMU32 slot, MMU32 *number, const MMMovieSessionBinding *);
     int mm_movie_save(MMMovieState *, const MMMovieOwnerServices *);
 
     /* Borrows a decoded GST stream and fills an initialized, empty actor table.

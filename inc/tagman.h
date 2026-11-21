@@ -222,7 +222,7 @@ class TagManager : public TagManager_PAR
     bool FGetSourceSid(LegacyLong index, LegacyLong *sid);
     MMSourceNames *CoreSourceNames() { return &_names; }
     bool FMergeGstSource(PStringTable_GST pgst, short bo, short osk);
-    bool FMergeMovieSources(PChunkyFile file, ChunkNumber movie);
+    bool FMergeMovieSources(PChunkyResourceFile resources, ChunkNumber movie);
     bool FAddStnSource(PString pstnMerged, LegacyLong sid);
     bool FGetSid(PString pstn, LegacyLong *psid); // pstn can be short or long
 

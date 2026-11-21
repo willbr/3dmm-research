@@ -1878,6 +1878,7 @@ static void TestMoviePersistence()
         record(loaded);
         Check(loaded.sceneCount == 1 && loaded.actorIdLimit == 43 && loaded.actors.count == 1);
         ChunkNumber explicitRoot = loaded.movieNumber;
+        const auto reader = loaded.Resources()->ReadOwner();
         Check(MovieData::FVerifyVersion(loaded.Resources()->Pcfl(), &explicitRoot));
         MMRollCallActor actor;
         Check(mm_rollcall_table_extra(&loaded.actors, 0, &actor));
@@ -1892,9 +1893,12 @@ static void TestMoviePersistence()
         Check(loaded.FSave(&destination)); // Save back to the currently open file.
         record(loaded);
         Check(loaded.FLoad(&destination, explicitRoot));
+        Check(loaded.Resources()->ReadOwner() == reader);
         record(loaded);
         // A failed load leaves already-open state intact.
+        const auto resources = loaded.Resources();
         Check(!loaded.FLoad(&destination, explicitRoot + 10000));
+        Check(loaded.Resources() == resources);
         record(loaded);
         Check(loaded.actors.count == 1 && loaded.actorIdLimit == 43);
     }

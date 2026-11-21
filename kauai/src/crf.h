@@ -163,6 +163,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MMChunkAccess ReadChunkAccess();
     MMChunkOwnerRead *ReadOwner();
     MMArchiveWriter ArchiveWriter();
+    static MMChunkTitleIO ResourceTitleIO();
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);
     MMChunkEndpoint CopySource(MMResourceChunkCopy &binding);
     PChunkyResourceFile PcrfNewSibling(LegacyLong budget);

@@ -338,6 +338,20 @@ MMArchiveWriter ChunkyResourceFile::ArchiveWriter()
         return file->WriteOwnerIndex();
     return {};
 }
+MMChunkTitleIO ChunkyResourceFile::ResourceTitleIO()
+{
+    auto titles = KauaiChunkOwnerTitleIO();
+    titles.read = [](void *resources, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written) {
+        auto reader = static_cast<PChunkyResourceFile>(resources)->ReadOwner();
+        return mm_chunk_owner_read_name(reader->storage, type, number, reader->max_name_bytes, wire, capacity, written);
+    };
+    titles.write = [](void *resources, MMU32 type, MMU32 number, const void *wire, MMU32 bytes) -> int {
+        auto reader = static_cast<PChunkyResourceFile>(resources)->ReadOwner();
+        return mm_chunk_owner_write_name(reader->storage, type, number, reader->max_name_bytes,
+                                         wire, bytes) == MM_CHUNK_OK;
+    };
+    return titles;
+}
 static bool ReadStoredName(const MMChunkIndex *index, MMU32 position, String &name)
 {
     unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES];

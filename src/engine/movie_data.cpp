@@ -13,6 +13,15 @@ struct NativeMovieHost
 {
     PFilename filename;
 };
+PChunkyResourceFile MovieResources(PChunkyFile file)
+{
+    if (!file)
+        return nullptr;
+    const auto resources = ChunkyResourceFile::PcrfNew(file, 0);
+    file->Release();
+    return resources;
+}
+
 void MovieOpenError(void *, int status)
 {
     PushErc(status == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
@@ -22,7 +31,9 @@ void MovieOpenError(void *, int status)
 MMMovieSessionBinding MovieData::_SessionBinding()
 {
     return {
-        [](void *file, MMMovieSessionGraph *graph) { *graph = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file)); },
+        [](void *p, MMMovieSessionGraph *graph) {
+            *graph = mm_movie_owner_graph(static_cast<PChunkyResourceFile>(p)->ReadOwner());
+        },
         MovieOpenError};
 }
 
@@ -50,21 +61,24 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
 #else
         0,
 #endif
-        [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); },
-        [](void *, void *path) -> void * { return ChunkyFile::PcflOpen(static_cast<PFilename>(path), fcflNil); },
+        [](void *) -> void * { return MovieResources(ChunkyFile::PcflCreateTemp()); },
+        [](void *, void *path) -> void * {
+            return MovieResources(ChunkyFile::PcflOpen(static_cast<PFilename>(path), fcflNil));
+        },
         _SessionBinding(),
-        [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
-        [](void *p) { static_cast<PChunkyFile>(p)->Release(); },
         [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },
-        [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); },
-        [](void *file) { return static_cast<PChunkyFile>(file)->WriteIndex(); },
+        [](void *p) { return static_cast<PChunkyResourceFile>(p)->ArchiveWriter(); },
         _RollCallBinding(),
         [](void *) { Bug("chunk or child link missing"); },
-        KauaiChunkTitleIO(),
-        [](void *c, void *file) -> int {
-            return static_cast<PChunkyFile>(file)->FSave(kctgSoc, static_cast<NativeMovieHost *>(c)->filename);
+        ChunkyResourceFile::ResourceTitleIO(),
+        [](void *c, void *p) -> int {
+            auto reader = static_cast<PChunkyResourceFile>(p)->ReadOwner();
+            return KauaiSaveChunkOwner(reader->storage, kctgSoc, static_cast<NativeMovieHost *>(c)->filename);
         },
-        [](void *file) { static_cast<PChunkyFile>(file)->SetTemp(fFalse); }};
+        [](void *p) {
+            auto reader = static_cast<PChunkyResourceFile>(p)->ReadOwner();
+            static_cast<PFileObject>(reader->storage->owner->files.main_file)->SetTemp(fFalse);
+        }};
 }
 MovieData::~MovieData()
 {

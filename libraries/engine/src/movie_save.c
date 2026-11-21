@@ -50,9 +50,9 @@ MMI32 mm_movie_save_command(MMI32 command, MMI32 save, MMI32 save_as,
 {
     return command == save && state->readOnly ? save_as : command;
 }
-static int refresh_root(void *file, const MMMovieSaveServices *s)
+static int refresh_root(void *resources, const MMMovieSaveServices *s)
 {
-    const MMChunkEdit edit = s->archive(file).edit;
+    const MMChunkEdit edit = s->archive(resources).edit;
     const MMChunkAccess chunks = mm_chunk_edit_access(&edit);
     MMChunkEntry root;
     MMU32 row;
@@ -79,26 +79,17 @@ int mm_movie_save_temporary(const MMMovieSaveServices *s)
 }
 int mm_movie_save_resources(const MMMovieSaveServices *s)
 {
-    void *path, *file;
-    int result;
+    void *path;
     if (s->data->resources)
         return 1;
     path = s->temporary_path(s->context);
     if (!path)
         return 0;
-    file = s->create_file(s->context, path);
-    if (!file)
-        return 0;
-    s->data->resources = s->new_resources(s->context, file, 0);
+    s->data->resources = s->create_resources(s->context, path);
     if (!s->data->resources)
-    {
-        s->release_archive(file);
         return 0;
-    }
     s->state->autosaveDirty = 1;
-    result = mm_movie_autosave(0, 0, s);
-    s->release_archive(file);
-    return result;
+    return mm_movie_autosave(0, 0, s);
 }
 int mm_movie_save_ensure(void *output, void (*publish)(void *, void *resources),
                                const MMMovieSaveServices *s)

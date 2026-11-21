@@ -33,9 +33,7 @@ extern "C"
         MMStorageAllocator allocator;
         int retry_enabled;
         void *(*temporary_path)(void *), *(*unique_path)(void *, void *destination);
-        void *(*create_file)(void *, void *path);
-        void (*release_archive)(void *file);
-        void *(*new_resources)(void *, void *file, MMU32 cache_bytes);
+        void *(*create_resources)(void *, void *path);
         int (*is_temp)(void *resources), (*save)(void *resources, void *path);
         void (*set_temp)(void *resources, int), (*mark_temporary)(void *resources), (*persistent)(void *resources);
         MMArchiveWriter (*archive)(void *resources);
@@ -70,7 +68,7 @@ extern "C"
      * Service storage and borrowed paths/files survive each synchronous transaction.
      * Callbacks cannot re-enter editing. Separate temporary/unique path scratch is
      * required: a named VMM save autosaves into its temporary path and may retry.
-     * File creation returns one reference, new_resources retains it (zero cache).
+     * The resource factory transfers one working-cache reference.
      * New resources remain published if their initial autosave fails.
      * Registry lookup returns borrowed values. Named saving releases/reacquires a matching saved file even on
      * save failure; unsuccessful bind retains the old nameValid/readOnly flags.

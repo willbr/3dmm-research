@@ -23,9 +23,8 @@ extern "C"
         void *(*create_world)(void *, void *client, int half), *(*create_sounds)(void *);
         void (*retain)(void *), (*release)(void *);
         void (*discard_document)(void *);
-        void (*retain_archive)(void *file);
         void (*missing_saved_file)(void *);
-        void (*merge_sources)(void *file, MMU32 root);
+        void (*merge_sources)(void *resources, MMU32 root);
         int (*cache_tags)(void *, MMTagList *);
         void (*resume_audio)(void *), (*stop_playback)(void *client);
         int (*audio_fades_disabled)(void *);
@@ -34,9 +33,9 @@ extern "C"
     } MMMovieRuntimeServices;
     /* Runtime starts zeroed. Factories transfer a single reference and prepare
      * returns a borrowed working path (NULL for a blank document). Open retains
-     * the client. On failure it releases the temporary archive reference and
-     * discards the partial document before ending the long operation. Service
-     * storage and the long-op provider must survive document destruction. */
+     * the client. On failure it discards the partial document before ending
+     * the long operation. Service storage and the long-op provider must
+     * survive document destruction. */
     int mm_movie_runtime_open(MMMovieRuntime *, void *client, void *path, MMU32 root, int half,
                               const MMMovieRuntimeServices *);
     /* Drop the archive/cache and save reference before stopping playback.

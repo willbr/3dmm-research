@@ -70,19 +70,6 @@ static void reset(Host *h)
     h->open_calls = 0;
     h->open_error = MM_MOVIE_OK;
 }
-static void *create(void *c)
-{
-    Host *h = (Host *)c;
-    event(h, 'c');
-    return h->fail == FAIL_CREATE ? NULL : h;
-}
-static void *open_file(void *c, void *path)
-{
-    Host *h = (Host *)c;
-    CHECK(path && (!h->open_path || path == h->open_path));
-    event(h, 'o');
-    return h->fail == FAIL_OPEN ? NULL : h;
-}
 static int graph_entry(void *context, MMU32 position, MMChunkEntry *entry)
 {
     Host *h = (Host *)context;
@@ -126,21 +113,19 @@ static int graph_read(void *context, void *request, MMU32 position, const MMChun
     memcpy(bytes, header, size);
     return MM_MOVIE_OK;
 }
-static void session_graph(void *file, MMMovieSessionGraph *out)
+static void session_graph(void *resources, MMMovieSessionGraph *out)
 {
     MMMovieSessionGraph graph = {NULL, graph_access, graph_read, NULL, NULL};
-    graph.context = file;
+    graph.context = ((Resource *)resources)->host;
     *out = graph;
 }
-static void session_failed(void *file, int status)
+static void session_failed(void *resources, int status)
 {
-    ((Host *)file)->open_error = status;
+    ((Resource *)resources)->host->open_error = status;
 }
-static void *new_resource(void *c, void *f)
+static void *new_resource(Host *h)
 {
-    Host *h = (Host *)c;
     Resource *r;
-    CHECK(f == h);
     event(h, 'r');
     if (h->fail == FAIL_RESOURCE)
         return NULL;
@@ -151,9 +136,18 @@ static void *new_resource(void *c, void *f)
     ++h->resources;
     return r;
 }
-static void release_file(void *f)
+static void *create_resources(void *c)
 {
-    event((Host *)f, 'f');
+    Host *h = c;
+    event(h, 'c');
+    return h->fail == FAIL_CREATE ? NULL : new_resource(h);
+}
+static void *open_resources(void *c, void *path)
+{
+    Host *h = c;
+    CHECK(path && (!h->open_path || path == h->open_path));
+    event(h, 'o');
+    return h->fail == FAIL_OPEN ? NULL : new_resource(h);
 }
 static void release_resource(void *p)
 {
@@ -244,7 +238,7 @@ static int owner_locate(void *p, MMU32 type, MMU32 number, MMBlockFile *extent, 
 }
 static MMArchiveWriter owner_archive(void *p)
 {
-    return ((Host *)p)->owner_writer;
+    return ((Resource *)p)->host->owner_writer;
 }
 static MMResourceCache *owner_cache(void *r)
 {
@@ -261,33 +255,33 @@ static void unlinked_rollcall(void *c, MMU32 parent, const MMChunkChild *child)
     event(h, 'd');
 }
 static const unsigned char stored_name[] = {3, 3, 6, 'L', 'o', 'a', 'd', 'e', 'd', 0};
-static int load_name(void *f, MMU32 type, MMU32 n, void *wire, MMU32 capacity, MMU32 *written)
+static int load_name(void *p, MMU32 type, MMU32 n, void *wire, MMU32 capacity, MMU32 *written)
 {
-    Host *h = (Host *)f;
+    Host *h = ((Resource *)p)->host;
     CHECK(type == MM_MOVIE_CHUNK && n == 7 && capacity >= sizeof(stored_name));
     event(h, 'n');
     memcpy(wire, stored_name, sizeof(stored_name));
     *written = sizeof(stored_name);
     return 1;
 }
-static int set_name(void *f, MMU32 type, MMU32 n, const void *wire, MMU32 bytes)
+static int set_name(void *p, MMU32 type, MMU32 n, const void *wire, MMU32 bytes)
 {
-    Host *h = (Host *)f;
+    Host *h = ((Resource *)p)->host;
     CHECK(type == MM_MOVIE_CHUNK && n == 7 && bytes == sizeof(stored_name));
     CHECK(!memcmp(wire, stored_name, bytes));
     event(h, 'N');
     return h->fail != FAIL_NAME;
 }
-static int save(void *c, void *f)
+static int save(void *c, void *p)
 {
-    Host *h = (Host *)c;
-    CHECK(f == h);
+    Host *h = c;
+    CHECK(((Resource *)p)->host == h);
     event(h, 'S');
     return h->fail != FAIL_SAVE;
 }
-static void persist(void *f)
+static void persist(void *p)
 {
-    Host *h = (Host *)f;
+    Host *h = ((Resource *)p)->host;
     event(h, 'P');
     ++h->persistent;
 }
@@ -298,8 +292,8 @@ static MMMovieOwnerServices owners(Host *h)
 {
     MMMovieOwnerServices s = {
         NULL, {NULL, resize_rollcall, free_rollcall}, 0x0303, 0,
-        create, open_file, {session_graph, session_failed}, new_resource, release_file, release_resource,
-        file, owner_archive, {owner_cache, decode_rollcall, {NULL, NULL, NULL}, missing_rollcall},
+        create_resources, open_resources, {session_graph, session_failed}, release_resource,
+        owner_archive, {owner_cache, decode_rollcall, {NULL, NULL, NULL}, missing_rollcall},
         NULL,
         {NULL, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, NULL, load_name, set_name, NULL},
         save, persist};
@@ -373,7 +367,7 @@ static void ownership(void)
     mm_movie_state_init(&m);
     CHECK(m.movieNumber == 0xffffffffUL && !m.resources && !m.actors.stride);
     CHECK(!mm_movie_save(&m, &s) && !h.used);
-    CHECK(mm_movie_init_empty(&m, &s) && !strcmp(h.log, "crfb") && m.actors.stride && !h.buffers);
+    CHECK(mm_movie_init_empty(&m, &s) && !strcmp(h.log, "crb") && m.actors.stride && !h.buffers);
     CHECK(m.movieNumber == 0 && h.archive.index.count == 1 && !h.archive.file_refs &&
           h.owner_size == MM_MOVIE_PREFIX_BYTES && mm_memory_stream_init(&root, h.owner_bytes, h.owner_size));
     CHECK(mm_movie_read_header(&root.stream, &header) == MM_MOVIE_OK &&
@@ -400,14 +394,14 @@ static void ownership(void)
               m.sceneCount == 5 && m.actorIdLimit == 42 && h.buffers == 2 && h.resources == 1);
         CHECK(m.title.count == 3 && !memcmp(mm_movie_title_text(&m.title), "Old", 3));
         if (i == FAIL_RESOURCE)
-            CHECK(!strcmp(h.log, "crf"));
+            CHECK(!strcmp(h.log, "cr"));
         if (i == FAIL_ROOT)
-            CHECK(!strcmp(h.log, "crfbR") && m.movieNumber == 0 && h.archive.index.count == 1 &&
+            CHECK(!strcmp(h.log, "crbR") && m.movieNumber == 0 && h.archive.index.count == 1 &&
                   !h.archive.file_refs);
     }
     h.fail = 0;
     seed_owner_movie(&h);
-    CHECK(!mm_movie_load(&m, &h, 99, &s) && !strcmp(h.log, "osf") &&
+    CHECK(!mm_movie_load(&m, &h, 99, &s) && !strcmp(h.log, "orsR") &&
           h.open_error == MM_MOVIE_ROOT_NOT_FOUND && m.resources == old_r && m.movieNumber == 0);
     for (i = 0; i < (int)(sizeof(load_failures) / sizeof(*load_failures)); ++i)
     {
@@ -418,18 +412,18 @@ static void ownership(void)
               h.resources == 1 && h.buffers == 2 && ((Resource *)old_r)->refs == 2);
         CHECK(m.title.count == 3 && !memcmp(mm_movie_title_text(&m.title), "Old", 3));
         if (h.fail == FAIL_VERIFY)
-            CHECK(!strcmp(h.log, "osvf") && h.open_error == MM_MOVIE_BAD_VERSION);
+            CHECK(!strcmp(h.log, "orsvR") && h.open_error == MM_MOVIE_BAD_VERSION);
         if (h.fail == FAIL_MISSING)
-            CHECK(!strcmp(h.log, "osvrfi?R"));
+            CHECK(!strcmp(h.log, "orsvi?R"));
         if (h.fail == FAIL_READ)
-            CHECK(!strcmp(h.log, "osvrfiR"));
+            CHECK(!strcmp(h.log, "orsviR"));
         CHECK(!h.archive.file_refs);
     }
     reset(&h);
     h.fail = 0;
     h.scenes = 2;
     CHECK(mm_movie_load(&m, &h, 0xffffffffUL, &s) && m.movieNumber == 7 && m.actorIdLimit == 1 && m.sceneCount == 2);
-    CHECK(!strcmp(h.log, "osvrfihnsssRCR") && h.resources == 1 && h.buffers == 2);
+    CHECK(!strcmp(h.log, "orsvihnsssRCR") && h.resources == 1 && h.buffers == 2);
     saved = owner_rollcall(&h);
     reset(&h);
     CHECK(mm_movie_save(&m, &s) && !strcmp(h.log, "jdNSP") && h.persistent == 1);
@@ -449,17 +443,17 @@ static void ownership(void)
     h.fail = 0;
     original = m.session;
     h.scenes = 3;
-    CHECK(mm_movie_state_scene_number(&m, 2, &number, &h, &s.session) &&
+    CHECK(mm_movie_state_scene_number(&m, 2, &number, &s.session) &&
           number == 3 && m.session == original);
     m.movieNumber = 12;
-    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &h, &s.session) && h.open_error == MM_MOVIE_ROOT_NOT_FOUND &&
+    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &s.session) && h.open_error == MM_MOVIE_ROOT_NOT_FOUND &&
           number == 3 && m.movieNumber == 12 && m.session == original);
     h.root_number = m.movieNumber = 11;
     h.fail = FAIL_VERIFY;
-    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &h, &s.session) && h.open_error == MM_MOVIE_BAD_VERSION &&
+    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &s.session) && h.open_error == MM_MOVIE_BAD_VERSION &&
           number == 3 && m.movieNumber == 11 && m.session == original);
     h.fail = 0;
-    CHECK(mm_movie_state_scene_number(&m, 0, &number, &h, &s.session) && number == 1 && m.session &&
+    CHECK(mm_movie_state_scene_number(&m, 0, &number, &s.session) && number == 1 && m.session &&
           mm_movie_session_root(m.session)->number == 11);
     reset(&h);
     mm_movie_state_dispose(&m, &s);
@@ -712,7 +706,7 @@ static void rollcalls(void)
     reader.context = allocator.context = &h;
     init_tags(&h);
     reader.tags = &h.tags;
-    r = (Resource *)new_resource(&h, &h);
+    r = (Resource *)new_resource(&h);
     CHECK(mm_rollcall_table_init(&actors, sizeof(MMRollCallActor), 1, 0x0303, 0, &allocator) == MM_STORAGE_OK);
     for (big = 0; big < 2; ++big)
     {
@@ -842,12 +836,11 @@ static void discard_document(void *context)
     event(&t->archive, 'D');
     mm_movie_runtime_dispose(&t->runtime, &t->playback, &t->services);
 }
-static void hold_archive(void *p) { event(p, 'h'); }
 static void missing_saved(void *p) { event(&((RuntimeCase *)p)->archive, '!'); }
 static void merge_sources(void *p, MMU32 root)
 {
     CHECK(root == 7);
-    event(p, 'm');
+    event(((Resource *)p)->host, 'm');
 }
 static MMMovieSessionGraph runtime_graph(void *p)
 {
@@ -922,7 +915,7 @@ static void runtime_init(RuntimeCase *t)
 {
     const MMMovieRuntimeServices runtime = {
         NULL, NULL, NULL, NULL, prepare_runtime, init_undo, create_world, create_sounds,
-        retain_runtime, release_runtime, discard_document, hold_archive, missing_saved, merge_sources,
+        retain_runtime, release_runtime, discard_document, missing_saved, merge_sources,
         cache_tags, audio_resume, playback_stopped, fades_disabled, restore_volume, roll_call_changed};
     memset(t, 0, sizeof(*t));
     t->bundle = 1;
@@ -967,7 +960,7 @@ static void runtime_lifecycle(void)
     RuntimeCase t;
     unsigned i;
     const char *failure_order[] = {
-        "kD", "kuD", "kuwD", "kuwqDW", "kuwq+[osvrfihnshg!fDRjRA-WQ]", "kuwq+[osvrfihnshgGymsKfDRFjRA-WQ]"};
+        "kD", "kuD", "kuwD", "kuwqDW", "kuwq+[orsvihnsg!DRjRA-WQ]", "kuwq+[orsvihnsgGymsKDRFjRA-WQ]"};
     for (i = PREPARE_FAILED; i <= CACHE_FAILED; ++i)
     {
         runtime_init(&t);
@@ -998,7 +991,7 @@ static void runtime_lifecycle(void)
         CHECK(mm_movie_runtime_open(&t.runtime, &t.client, &t.bundle, 7, 1, &t.services));
         CHECK(t.movie.movieNumber == 7 && t.saved.containerNamed && t.saved.nameValid && !t.saved.readOnly &&
               t.container_name == &t.bundle && t.title_path == &t.bundle && !t.busy && !t.discarded);
-        CHECK(!strcmp(t.archive.log, "kuwq+[osvrfihnshgGymsKTyf]"));
+        CHECK(!strcmp(t.archive.log, "kuwq+[orsvihnsgGymsKTy]"));
         reset(&t.archive);
         mm_movie_runtime_set_ref(&t.runtime.thumbnail_palette, &t.palette, retain_runtime, release_runtime);
         mm_movie_runtime_set_ref(&t.runtime.thumbnail_palette, &t.palette, retain_runtime, release_runtime);

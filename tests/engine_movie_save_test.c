@@ -6,6 +6,7 @@
 #include "mm/movie_rollcall.h"
 #include "mm/scene_data.h"
 #include "engine_resource_block_fixture.h"
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -84,7 +85,7 @@ struct Test
     MMChunkEntry extraChunks[64];
     MMU32 extraCount, indexChildCount;
     int childCount, fail, left, skip, markError, error, resets, errors, clears, missing;
-    int temp, marks, tempSets, persistent, missingRoot, archiveRefs, cacheBytes, savedCalls, tempCalls;
+    int temp, marks, tempSets, persistent, missingRoot, archiveRefs, savedCalls, tempCalls;
     MMU32 rootNumber, savedRootNumber;
     int changeSavedRoot;
     int begins, ends, dirty, updates, titleCalls, undos, packages, packageNull, container, bundled;
@@ -198,25 +199,11 @@ static void *unique(void *p, void *path)
     (void)path;
     return succeeds(t, UNIQUE) ? &t->unique : 0;
 }
-static void *create(void *p, void *path)
+static void *create_resources(void *p, void *path)
 {
     Test *t = p;
-    (void)path;
-    if (!succeeds(t, CREATE))
-        return 0;
-    ++t->archiveRefs;
-    return t;
-}
-static void release_archive(void *p)
-{
-    --((Test *)p)->archiveRefs;
-}
-static void *resources(void *p, void *f, MMU32 cache)
-{
-    Test *t = p;
-    (void)f;
-    t->cacheBytes = (int)cache;
-    if (!succeeds(t, RESOURCE))
+    assert(path == &t->temporary);
+    if (!succeeds(t, CREATE) || !succeeds(t, RESOURCE))
         return 0;
     ++t->archiveRefs;
     return t;
@@ -1065,9 +1052,7 @@ static void init(Test *t)
     t->tag_services.release = release_tag;
     t->tag_services.publish = publish_tag;
     s->tags = &t->tag_services;
-    s->create_file = create;
-    s->release_archive = release_archive;
-    s->new_resources = resources;
+    s->create_resources = create_resources;
     s->is_temp = is_temp;
     s->save = save;
     s->set_temp = set_temp;
@@ -1266,7 +1251,7 @@ static int ownership(void)
     t.scenes.open = 0;
     t.childCount = t.indexChildCount = t.extraCount = 0;
     t.data.movieNumber = t.rootNumber = NIL;
-    CHECK(mm_movie_save_resources(&t.s) && t.data.resources == &t && t.archiveRefs == 1 && t.cacheBytes == 0);
+    CHECK(mm_movie_save_resources(&t.s) && t.data.resources == &t && t.archiveRefs == 1);
     CHECK(t.rootNumber == 0 && t.data.movieNumber == t.rootNumber && t.childCount == 2);
     CHECK(mm_memory_stream_init(&rootStream, t.rootBytes, sizeof(t.rootBytes)) &&
           mm_movie_read_header(&rootStream.stream, &header) == MM_MOVIE_OK);
