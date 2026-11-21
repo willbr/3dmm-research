@@ -216,13 +216,6 @@ static int text_name(const MMMovieBodyInput *in, TextBody *text)
     return status;
 }
 
-static int font_allocate(void *p, MMI32 bytes, int clear, void **out)
-{
-    (void)p;
-    (void)clear;
-    *out = bytes ? malloc((size_t)bytes) : NULL;
-    return !bytes || *out != NULL;
-}
 static void font_invalid(void *p) { ((TextBody *)p)->status = MM_MOVIE_BAD_FILE; }
 
 static MMI32 text_count(void *p, void *object) { (void)p; return ((TextBody *)object)->string[0]; }
@@ -248,7 +241,7 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     MMMoviePayload payload;
     MMChunkEntry entry;
     MMMovieAsset font;
-    MMFontResourceServices font_services;
+    MMFontResourceServices font_services = {0};
     MMTextGenerationServices generation;
     TextBody text;
     unsigned char bytes[24];
@@ -292,10 +285,8 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     status = mm_session_payload(&font_archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         goto done;
-    memset(&font_services, 0, sizeof(font_services));
     font_services.context = &text;
     font_services.host_big_endian = *(const unsigned char *)&one == 0;
-    font_services.allocate = font_allocate;
     font_services.bad_font = font_invalid;
     font_services.bad_order = font_invalid;
     status = mm_font_read_stream(&text.metrics, payload.stream, &font_services);
@@ -337,8 +328,7 @@ static int text_parts(const MMMovieBodyInput *in, MMMovieEvaluatedBody *body)
     status = mm_text_evaluate_cel(&text, body->actor.state.action, in->cel, text_write_matrix, body, &generation)
              ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
 done:
-    free(text.metrics.widths);
-    free(text.metrics.heights);
+    mm_font_dispose(&text.metrics, &font_services);
     mm_session_archive_close(&font_archive);
     return status;
 }

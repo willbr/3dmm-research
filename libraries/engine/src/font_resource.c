@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/font_resource.h"
 #include "mm/movie_data.h"
+#include <stdlib.h>
 #include <string.h>
 static MMU32 word(const unsigned char *p,int big)
 { MMU32 value=0; int i; for (i=0;i<4;++i) value=(value<<8)|p[big?i:3-i]; return value; }
@@ -8,6 +9,33 @@ static MMI32 signed_word(const unsigned char *p,int big)
 { MMU32 bits=word(p,big); MMI32 value; memcpy(&value,&bits,4); return value; }
 static void put(unsigned char *p,int bytes,MMU32 value,int big)
 { int i; for (i=0;i<bytes;++i) { p[big?bytes-1-i:i]=(unsigned char)value; value>>=8; } }
+
+static int allocate_metrics(const MMStorageAllocator *allocator, MMU32 bytes, int clear, void **out)
+{
+    void *metrics = NULL;
+    if (allocator)
+        metrics = allocator->resize(allocator->context, NULL, 0, bytes, MM_STORAGE_NORMAL);
+    else if (bytes)
+        metrics = malloc(bytes);
+    if (!metrics && (allocator || bytes))
+        return 0;
+    if (clear && bytes)
+        memset(metrics, 0, bytes);
+    *out = metrics;
+    return 1;
+}
+
+static void release_metrics(const MMStorageAllocator *allocator, void **metrics, MMU32 bytes)
+{
+    if (!*metrics)
+        return;
+    if (allocator)
+        allocator->release(allocator->context, *metrics, bytes);
+    else
+        free(*metrics);
+    *metrics = NULL;
+}
+
 int mm_font_fetch(MMOwnedBlock *block, void *out, void *size, const MMFontResourceServices *s)
 {
     MMI32 base = s->object_bytes;
@@ -67,13 +95,13 @@ int mm_font_read_stream(MMFontResource *font, const MMReadStream *stream, const 
     if (stream->length != sizeof(header) + (MMU32)bytes * 2)
         goto bad_font;
     font->maximum_height=signed_word(header+8,big);
-    if (!s->allocate(s->context, bytes, 0, &font->widths))
+    if (!allocate_metrics(s->allocator, bytes, 0, &font->widths))
         return MM_MOVIE_MEMORY;
     if (!mm_read_exact(stream, sizeof(header), font->widths, (size_t)bytes))
         return MM_MOVIE_IO;
     /* The old code tested the already normalized bo here, so foreign arrays
      * were NOT swapped. Preserve that defined legacy result explicitly. */
-    if (!s->allocate(s->context, bytes, 0, &font->heights))
+    if (!allocate_metrics(s->allocator, bytes, 0, &font->heights))
         return MM_MOVIE_MEMORY;
     return mm_read_exact(stream, sizeof(header) + (MMU32)bytes, font->heights, (size_t)bytes) ? MM_MOVIE_OK : MM_MOVIE_IO;
 bad_font:
@@ -81,41 +109,56 @@ bad_font:
     return MM_MOVIE_BAD_FILE;
 }
 void mm_font_dispose(MMFontResource *font,const MMFontResourceServices *s)
-{ s->free_memory(s->context,&font->widths); s->free_memory(s->context,&font->heights); }
+{
+    MMU32 bytes = (MMU32)font->count * 4;
+    release_metrics(s->allocator, &font->widths, bytes);
+    release_metrics(s->allocator, &font->heights, bytes);
+}
 MMI32 mm_font_width(const MMFontResource *font,MMI32 i)
 { MMI32 value; memcpy(&value,(const unsigned char *)font->widths+i*4,4); return value; }
 MMI32 mm_font_height(const MMFontResource *font,MMI32 i)
 { MMI32 value; memcpy(&value,(const unsigned char *)font->heights+i*4,4); return value; }
-int mm_font_author(MMResourceCache *cache, void *children, void *out, const MMFontResourceServices *s)
+int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, void *children, void *out,
+                   const MMFontResourceServices *s)
 {
-    MMI32 count,i,letter=-1,bytes,n,width,height,maximum=0; MMU32 largest=0,number=0;
+    MMI32 count,i,letter=-1,n,width,height,maximum=0;
+    MMU32 largest=0,position,number=0,bytes=0;
     void *widths=NULL,*heights=NULL,*model=NULL;
-    void *file = cache->file;
-    MMFontChild child,replacement; MMFontChunk chunk;
+    MMChunkChild child,replacement;
+    MMChunkLocation location;
+    MMBlockFile extent;
+    MMFontChunk chunk;
     MMOwnedBlock block;
     MMBlockIO io;
     unsigned char header[12]; int big=s->host_big_endian;
     int ok = 0, initialized = mm_owned_block_init(&block, cache->services.handles, cache->services.block_files) == MM_DATA_OK;
-    if (!file || !initialized)
+    if (!cache->file || !initialized)
         goto done;
     count=s->child_count(s->context,children);
     for (i=0;i<count;++i)
     {
-        s->child_at(s->context,children,i,&child); if (child.id>largest) largest=child.id;
-        if (child.id==105) letter=i;
+        s->child_at(s->context,children,i,&child); if (child.slot>largest) largest=child.slot;
+        if (child.slot==105) letter=i;
     }
     if (largest>=0x0ffffffeUL) goto done;
     n=(MMI32)largest+1; bytes=n*4;
-    if (!s->allocate(s->context,bytes,1,&widths) || !s->allocate(s->context,bytes,1,&heights)) goto done;
-    if (!s->add(s->context, file, 12 + bytes + bytes, MM_FONT_TYPE, &number, &block))
+    if (!allocate_metrics(s->allocator,bytes,1,&widths) || !allocate_metrics(s->allocator,bytes,1,&heights))
+        goto done;
+    if (mm_chunk_unique(edit, MM_FONT_TYPE, &position, &number) != MM_CHUNK_OK ||
+        mm_chunk_add(edit, MM_FONT_TYPE, number, position, 12 + bytes + bytes, &location) != MM_CHUNK_OK)
+        goto done;
+    extent.file = location.file;
+    extent.offset = location.offset;
+    extent.length = location.bytes;
+    if (mm_owned_block_set_file(&block, &extent, 0) != MM_DATA_OK)
         goto done;
     for (i=0;i<count;++i)
     {
         s->child_at(s->context,children,i,&child);
         model = mm_resource_cache_fetch_chunk(cache, child.type, child.number, s->model_reader);
         if (!model) goto done;
-        if (!s->adopt(s->context,file,MM_FONT_TYPE,number,&child)) goto done;
-        if (!s->model_width(s->context,model) && child.id==32 && letter!=-1)
+        if (mm_chunk_adopt(edit, MM_FONT_TYPE, number, &child, 1) != MM_CHUNK_OK) goto done;
+        if (!s->model_width(s->context,model) && child.slot==32 && letter!=-1)
         {
             s->release(s->context,model); model=NULL;
             s->child_at(s->context,children,letter,&replacement);
@@ -123,7 +166,7 @@ int mm_font_author(MMResourceCache *cache, void *children, void *out, const MMFo
             if (!model) goto done;
         }
         width=s->model_width(s->context,model)+s->spacing; height=s->model_height(s->context,model)+s->leading;
-        memcpy((unsigned char *)widths+child.id*4,&width,4); memcpy((unsigned char *)heights+child.id*4,&height,4);
+        memcpy((unsigned char *)widths+child.slot*4,&width,4); memcpy((unsigned char *)heights+child.slot*4,&height,4);
         if (height>maximum) maximum=height;
         s->release(s->context,model); model=NULL;
     }
@@ -134,7 +177,8 @@ int mm_font_author(MMResourceCache *cache, void *children, void *out, const MMFo
          mm_block_write(&io, sizeof(header) + (MMU32)bytes, heights, (MMU32)bytes, 0) == MM_DATA_OK;
 done:
     if (model) s->release(s->context,model);
-    s->free_memory(s->context,&widths); s->free_memory(s->context,&heights);
+    release_metrics(s->allocator, &widths, bytes);
+    release_metrics(s->allocator, &heights, bytes);
     if (out)
     {
         if (ok)

@@ -6138,9 +6138,11 @@ ThreeDFont is a facade around that C state. Live font loads decode a borrowed
 C block and call the same bounded metric reader as the standalone movie session.
 C resolves glyph child slots from the font's cache binding and fetches models
 with the existing reader key. Font authoring uses that cache for its input
-models and writes metrics through an owned C block. Native services supply
-allocation, the codec, the authoring child list and graph edits, model bounds
-and diagnostics. ThreeDText generation uses the C implementation described
+models, creates the TDF chunk and adopts glyph links through the shared chunk
+editor, and writes to the allocated extent through an owned C block. Both
+load paths use the same metric allocation and disposal code. Native services
+supply the general-purpose allocator, codec, child list, model bounds and
+diagnostics. ThreeDText generation uses the C implementation described
 below, along with C-owned string/tag orchestration and localized action-name
 policy in `text_resource.c`.
 

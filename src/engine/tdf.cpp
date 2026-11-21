@@ -47,8 +47,7 @@ MMFontResourceServices ThreeDFont::_Services()
     s.create = [](void *) -> void * { return NewObj ThreeDFont; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.decode = KauaiDecodeBlockHandle;
-    s.allocate = [](void *, MMI32 bytes, int clear, void **out) -> int { return FAllocPv(out, bytes, clear ? fmemClear : fmemNil, mprNormal); };
-    s.free_memory = [](void *, void **out) { FreePpv(out); };
+    s.allocator = KauaiCopyAllocator();
     s.invalidate = [](void *, void *out, size_t bytes) {
 #ifdef DEBUG
         if (out) FillPb(out, static_cast<LegacyLong>(bytes), kbGarbage);
@@ -59,20 +58,10 @@ MMFontResourceServices ThreeDFont::_Services()
     s.bad_font = [](void *) { PushErc(ercSocBadTdf); };
     s.bad_order = [](void *) { Assert(false, "bad ThreeDFontF"); };
     s.child_count = [](void *, void *children) -> MMI32 { return static_cast<PDynamicArray>(children)->IvMac(); };
-    s.child_at = [](void *, void *children, MMI32 i, MMFontChild *out) {
+    s.child_at = [](void *, void *children, MMI32 i, MMChunkChild *out) {
         ChildChunkIdentification child; static_cast<PDynamicArray>(children)->Get(i, &child); *out = {child.cki.ctg, child.cki.cno, child.chid};
     };
-    s.add = [](void *, void *file, MMI32 bytes, MMU32 type, MMU32 *out, MMOwnedBlock *block) -> int {
-        DataBlock view(*block);
-        ChunkNumber number = *out;
-        const bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &number, &view);
-        *out = number;
-        return ok;
-    };
     s.model_reader = ResourceReader(Model::FReadModl).Core();
-    s.adopt = [](void *, void *file, MMU32 type, MMU32 number, const MMFontChild *child) -> int {
-        return static_cast<PChunkyFile>(file)->FAdoptChild(type, number, child->type, child->number, child->id);
-    };
     s.model_width = [](void *, void *model) -> MMI32 { return static_cast<PModel>(model)->Dxr(); };
     s.model_height = [](void *, void *model) -> MMI32 { return static_cast<PModel>(model)->Dyr(); };
     s.missing_model = [](void *, MMU32 id) {
@@ -119,7 +108,9 @@ bool ThreeDFont::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String 
 {
     AssertPo(pcrf, 0); AssertPo(pglkid, 0); AssertPo(pstn, 0); AssertNilOrVarMem(pckiTdf);
     const auto s = _Services();
-    return mm_font_author(pcrf->CoreCache(), pglkid, pckiTdf, &s) != 0;
+    const auto file = pcrf->Pcfl();
+    const auto edit = file ? file->EditIndex() : MMChunkEdit{};
+    return mm_font_author(pcrf->CoreCache(), &edit, pglkid, pckiTdf, &s) != 0;
 }
 
 /***************************************************************************

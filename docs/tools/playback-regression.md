@@ -17781,3 +17781,30 @@ matched all 60 archived retail frame identities in seek and continuous
 playback, including the retail seek camera indices. SDL matched all 12 retail
 sound requests. Both ports reproduced their 60 seek canvas hashes from the
 preceding build. Evidence is in `tmp/c89-action-tables`.
+
+## 3D font authoring through the C89 chunk editor (21 November 2026)
+
+The C author creates the TDF chunk, adopts glyph children, and writes to the
+allocated file extent through an owned block. Live font reads and the standalone
+movie session share metric allocation and disposal. Native font buffers use
+Kauai's general-purpose allocator.
+
+All 1,248 font load and author cases matched their pre-change traces byte for
+byte on x64, x86, and SDL. Cases include partially written fonts and glyph link
+failures. All 192 standalone C tests, four focused AddressSanitizer checks, 12
+native C89 gates, and four Marcus application checks passed. All 54 movie and
+scene traces, three fixture saves, ten Preview fingerprints, and six Preview
+movies matched. The live Studio workflow matched 13 sampled actor states, 12
+rendered images, and the reopened movie structure. The previous build also
+varied at the two differing raw save bytes when rerun.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T032637Z-fb41caaa`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T032714Z-dcabacc5`.
+
+In `20261121T032617Z-137bb2cd`, the actor-event movie with 3D text matched all
+60 archived retail frame identities in seek and continuous playback on both
+ports. Retail seek camera indices and SDL's 12 sound requests matched. Each
+port reproduced its 60 prior seek canvas hashes. Evidence is in
+`tmp/c89-font-editor`.

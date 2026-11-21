@@ -23,7 +23,10 @@ struct Test
     int phase,fail,live,frees,object_live,invalidations,bad,order_bad,packed,author;
     Model models[3];
     int file_refs,decodes,children,adoptions,added,missing;
-    MMFontChild kids[4]; MMFontChunk chunk;
+    MMChunkChild kids[4], links[4]; MMFontChunk chunk;
+    MMChunkEntry rows[4];
+    MMChunkEdit edit;
+    MMStorageAllocator allocator;
     void *output; MMI32 size;
 };
 static Test *t(void *p) { return (Test *)p; }
@@ -79,36 +82,87 @@ static MMOwnedBlock *borrow_font(Test *x)
     assert(mm_owned_block_set_file(&x->block.owner, &extent, x->packed) == MM_DATA_OK);
     return &x->block.owner;
 }
-static int allocate(void *p,MMI32 bytes,int clear,void **out)
-{ assert(bytes>=0); if (checkpoint(t(p))) return 0; *out=malloc(bytes?bytes:1); assert(*out); memset(*out,clear?0:0xcc,bytes?bytes:1); ++t(p)->live; return 1; }
-static void free_memory(void *p,void **out)
+static void *allocate(void *p,void *old,MMU32 old_bytes,MMU32 bytes,int priority)
+{
+    void *out;
+    assert(!old && !old_bytes && priority==MM_STORAGE_NORMAL);
+    if (checkpoint(t(p))) return NULL;
+    out=malloc(bytes?bytes:1); assert(out);
+    memset(out,0xcc,bytes?bytes:1); ++t(p)->live;
+    return out;
+}
+static void free_memory(void *p,void *bytes,MMU32 size)
 {
     Test *x=t(p); int i; ++x->frees;
+    (void)size;
     if (x->author) { assert(!x->invalidations && x->chunk.type==999 && x->chunk.number==888); for (i=0;i<3;++i) assert(!x->models[i].refs.count); }
-    if (*out) { assert(x->live>0); --x->live; free(*out); *out=NULL; }
+    assert(bytes && x->live>0);
+    --x->live;
+    free(bytes);
 }
 static void invalidate(void *p,void *out,size_t n) { ++t(p)->invalidations; memset(out,0xab,n); }
 static void bad_font(void *p) { ++t(p)->bad; }
 static void bad_order(void *p) { ++t(p)->order_bad; }
 static MMI32 child_count(void *p,void *children) { assert(p==children); return t(p)->children; }
-static void child_at(void *p,void *children,MMI32 i,MMFontChild *out) { assert(p==children && i>=0 && i<t(p)->children); *out=t(p)->kids[i]; }
-static int add(void *p, void *file, MMI32 bytes, MMU32 type, MMU32 *number, MMOwnedBlock *block)
+static void child_at(void *p,void *children,MMI32 i,MMChunkChild *out) { assert(p==children && i>=0 && i<t(p)->children); *out=t(p)->kids[i]; }
+static MMU32 index_count(void *p) { return 3 + (MMU32)t(p)->added; }
+static int index_entry(void *p,MMU32 i,MMChunkEntry *out)
 {
-    Test *x = t(p);
-    MMBlockFile extent;
-    assert(p == file && type == MM_FONT_TYPE && bytes <= 1000);
-    if (checkpoint(x))
-        return 0;
-    ++x->added;
-    *number = 7;
-    x->written_size = bytes;
-    extent.file = file;
-    extent.offset = OUTPUT_OFFSET;
-    extent.length = (MMU32)bytes;
-    return mm_owned_block_set_file(block, &extent, 0) == MM_DATA_OK;
+    assert(i<index_count(p));
+    *out=t(p)->rows[i];
+    return 1;
 }
-static int adopt(void *p,void *f,MMU32 type,MMU32 number,const MMFontChild *child)
-{ assert(p==f && type==MM_FONT_TYPE && number==7 && child->id<=105); if (checkpoint(t(p))) return 0; ++t(p)->adoptions; return 1; }
+static int index_child(void *p,MMU32 parent,MMU32 i,MMChunkChild *out)
+{
+    assert(parent==3 && i<t(p)->rows[parent].child_count);
+    *out=t(p)->links[i];
+    return 1;
+}
+static int insert_entry(void *p,MMU32 i)
+{
+    assert(i==3 && !t(p)->added);
+    t(p)->added=1;
+    return 1;
+}
+static void store_entry(void *p,MMU32 i,const MMChunkEntry *entry,int initialize)
+{
+    assert(i<index_count(p) && (!initialize || i==3));
+    t(p)->rows[i]=*entry;
+}
+static void erase_entry(void *p,MMU32 i)
+{
+    assert(i==3 && t(p)->added);
+    t(p)->added=0;
+}
+static int allocate_extent(void *p,MMU32 bytes,MMChunkLocation *location)
+{
+    Test *x=t(p);
+    assert(x->added && bytes <= sizeof(x->written));
+    if (checkpoint(x)) return 0;
+    x->written_size=(MMI32)bytes;
+    location->file=p;
+    location->offset=OUTPUT_OFFSET;
+    location->bytes=bytes;
+    location->flags=0;
+    return 1;
+}
+static int insert_link(void *p,MMU32 parent,MMU32 i,const MMChunkChild *child)
+{
+    Test *x=t(p);
+    assert(parent==3 && x->adoptions<4 && i<=(MMU32)x->adoptions && child->slot<=105);
+    if (checkpoint(x)) return 0;
+    memmove(x->links+i+1,x->links+i,(x->adoptions-i)*sizeof(*child));
+    x->links[i]=*child;
+    ++x->adoptions;
+    return 1;
+}
+static void erase_link(void *p,MMU32 parent,MMU32 i)
+{
+    Test *x=t(p);
+    assert(parent==3 && i<(MMU32)x->adoptions);
+    --x->adoptions;
+    memmove(x->links+i,x->links+i+1,(x->adoptions-i)*sizeof(*x->links));
+}
 static MMI32 model_width(void *p,void *model) { return model==&t(p)->models[0]?0:model==&t(p)->models[1]?65536:196608; }
 static MMI32 model_height(void *p,void *model) { return model==&t(p)->models[0]?0:model==&t(p)->models[1]?131072:262144; }
 static int graph_entry(void *p, MMU32 position, MMChunkEntry *out)
@@ -194,7 +248,13 @@ static MMFontResourceServices setup(Test *x,int host,int other)
     for (i=0;i<4;++i) put(x->input+12+i*4,65536+(MMU32)i*65536,4,big);
     x->input_size=28; x->children=3; x->chunk.type=999; x->chunk.number=888;
     x->kids[0].type=x->kids[1].type=x->kids[2].type=x->kids[3].type=MODEL_TYPE;
-    x->kids[0].number=10; x->kids[0].id=32; x->kids[1].number=11; x->kids[1].id=105; x->kids[2].number=11; x->kids[2].id=65; x->kids[3].number=12; x->kids[3].id=105;
+    x->kids[0].number=10; x->kids[0].slot=32; x->kids[1].number=11; x->kids[1].slot=105; x->kids[2].number=11; x->kids[2].slot=65; x->kids[3].number=12; x->kids[3].slot=105;
+    for (i=0;i<3;++i) { x->rows[i].type=MODEL_TYPE; x->rows[i].number=10+i; x->rows[i].flags=MM_CHUNK_LONER; }
+    x->edit.context=x; x->edit.max_references=0x7fff;
+    x->edit.count=index_count; x->edit.entry=index_entry; x->edit.child=index_child;
+    x->edit.insert=insert_entry; x->edit.store=store_entry; x->edit.erase=erase_entry;
+    x->edit.allocate=allocate_extent; x->edit.insert_child=insert_link; x->edit.erase_child=erase_link;
+    x->allocator.context=x; x->allocator.resize=allocate; x->allocator.release=free_memory;
     resource_block_init(&x->block, x, read_block, write_block);
     x->block.files.retain = retain_block;
     x->block.files.release = release_block;
@@ -220,8 +280,8 @@ static MMFontResourceServices setup(Test *x,int host,int other)
     x->font_binding.number = 7;
     s.context=x; s.host_big_endian=host; s.system=17; s.leading=32768; s.object_bytes=80;
     s.state=state; s.create=create; s.release=release; s.decode=decode;
-    s.allocate=allocate; s.free_memory=free_memory; s.invalidate=invalidate; s.bad_font=bad_font; s.bad_order=bad_order;
-    s.child_count=child_count; s.child_at=child_at; s.add=add; s.model_reader.key=model_reader; s.adopt=adopt;
+    s.allocator=&x->allocator; s.invalidate=invalidate; s.bad_font=bad_font; s.bad_order=bad_order;
+    s.child_count=child_count; s.child_at=child_at; s.model_reader.key=model_reader;
     s.model_width=model_width; s.model_height=model_height; s.missing_model=missing_model;
     x->services=s; return s;
 }
@@ -242,7 +302,7 @@ int main(void)
         assert(!memcmp(x.font.widths,x.input+12,8) && !memcmp(x.font.heights,x.input+20,8));
         memcpy(&value,x.input+16,4); assert(mm_font_width(&x.font,1)==value);
         memcpy(&value,x.input+24,4); assert(mm_font_height(&x.font,1)==value);
-        mm_font_dispose(&x.font,&s); empty(&x); mm_font_dispose(&x.font,&s); assert(x.frees==4 && x.font.count==2);
+        mm_font_dispose(&x.font,&s); empty(&x); mm_font_dispose(&x.font,&s); assert(x.frees==2 && x.font.count==2);
     }
     for (fail=0;fail<=5;++fail)
     {
@@ -289,30 +349,34 @@ int main(void)
     assert(mm_font_initialize(&x.font,borrow_font(&x),&s) && x.live==2); mm_font_dispose(&x.font,&s); empty(&x);
     for (fail=0;fail<=13;++fail)
     {
-        s=setup(&x,0,0); x.author=1; x.fail=fail; ok=mm_font_author(&x.cache,&x,&x.chunk,&s); assert(ok==!fail);
-        assert(!x.live && x.frees==2 && !x.models[0].refs.count && !x.models[1].refs.count);
-        if (ok) { assert(x.chunk.type==MM_FONT_TYPE && x.chunk.number==7 && x.adoptions==3 && x.written_size==860);
+        s=setup(&x,0,0); x.author=1; x.fail=fail; ok=mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s); assert(ok==!fail);
+        assert(!x.live && x.frees==(fail==1?0:fail==2?1:2) && !x.models[0].refs.count && !x.models[1].refs.count);
+        if (ok) { assert(x.chunk.type==MM_FONT_TYPE && x.chunk.number==0 && x.adoptions==3 && x.written_size==860);
+            assert(x.rows[3].child_count==3 && x.rows[0].parent_count==1 && x.rows[1].parent_count==2);
+            assert(!(x.rows[0].flags&MM_CHUNK_LONER) && !(x.rows[1].flags&MM_CHUNK_LONER));
             assert(get(x.written+4,0)==106 && get(x.written+8,0)==163840);
             assert(get(x.written+12+32*4,0)==65536 && get(x.written+12+424+32*4,0)==163840); }
-        else { assert(x.invalidations==1); if (fail>=4) assert(x.added==1);
+        else { assert(x.invalidations==1 && x.added==(fail>=4));
             assert(x.adoptions==(fail<=5?0:fail<=8?1:fail<=10?2:3)); }
+        assert(x.rows[3].child_count==(MMU32)x.adoptions);
+        assert(x.rows[0].parent_count+x.rows[1].parent_count==(MMU32)x.adoptions);
         if (fail>=11) assert(get(x.written+4,0)==(fail==11?0U:106U));
         if (fail>=12) assert(get(x.written+12+32*4,0)==(fail==12?0U:65536U) && !get(x.written+12+424+32*4,0));
         empty(&x);
     }
     s=setup(&x,0,0); x.author=1; x.children=0;
-    assert(mm_font_author(&x.cache,&x,&x.chunk,&s) && x.written_size==20 && get(x.written+4,0)==1 &&
+    assert(mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && x.written_size==20 && get(x.written+4,0)==1 &&
            !get(x.written+8,0) && !get(x.written+12,0) && !get(x.written+16,0)); empty(&x);
     s=setup(&x,0,0); x.author=1; x.children=2; x.kids[1]=x.kids[2];
-    assert(mm_font_author(&x.cache,&x,&x.chunk,&s) && !get(x.written+12+32*4,0)); empty(&x);
+    assert(mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && !get(x.written+12+32*4,0)); empty(&x);
     s=setup(&x,0,0); x.author=1; x.children=4;
-    assert(mm_font_author(&x.cache,&x,&x.chunk,&s) && get(x.written+12+32*4,0)==196608 && get(x.written+8,0)==294912); empty(&x);
-    s=setup(&x,0,0); x.author=1; x.kids[0].id=0xffffffffUL;
-    assert(!mm_font_author(&x.cache,&x,&x.chunk,&s) && !x.phase && !x.live && !x.added); empty(&x);
+    assert(mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && get(x.written+12+32*4,0)==196608 && get(x.written+8,0)==294912); empty(&x);
+    s=setup(&x,0,0); x.author=1; x.kids[0].slot=0xffffffffUL;
+    assert(!mm_font_author(&x.cache,&x.edit,&x,&x.chunk,&s) && !x.phase && !x.live && !x.added); empty(&x);
     s=setup(&x,1,0); x.author=1; x.children=0;
-    assert(mm_font_author(&x.cache,&x,NULL,&s) && x.written[0]==0 && x.written[1]==1 && get(x.written+4,1)==1 && !x.invalidations); empty(&x);
+    assert(mm_font_author(&x.cache,&x.edit,&x,NULL,&s) && x.written[0]==0 && x.written[1]==1 && get(x.written+4,1)==1 && !x.invalidations); empty(&x);
     s=setup(&x,0,0); x.author=1; x.fail=5;
-    assert(!mm_font_author(&x.cache,&x,NULL,&s) && !x.live && !x.models[0].refs.count && !x.invalidations); empty(&x);
+    assert(!mm_font_author(&x.cache,&x.edit,&x,NULL,&s) && !x.live && !x.models[0].refs.count && !x.invalidations); empty(&x);
     s=setup(&x,0,0); x.fail=1;
     assert(!mm_font_model(&x.font_binding,65,&s) && !x.missing);
     model=mm_font_model(&x.font_binding,65,&s);
