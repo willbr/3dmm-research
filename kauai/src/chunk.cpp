@@ -194,6 +194,12 @@ int ReadRuntimeChunk(void *context, MMU32 position, MMChunkEntry *entry)
 {
     return mm_chunk_table_entry(static_cast<PChunkTable>(context), position, entry);
 }
+int CopyFileExtent(void *source, MMU32 sourceOffset, void *destination, MMU32 offset, MMU32 bytes)
+{
+    FileLocation from = {static_cast<PFileObject>(source), static_cast<FilePosition>(sourceOffset), static_cast<LegacyLong>(bytes)};
+    FileLocation to = {static_cast<PFileObject>(destination), static_cast<FilePosition>(offset), static_cast<LegacyLong>(bytes)};
+    return from.FCopy(&to);
+}
 }
 MMChunkAccess ChunkyFile::_ChunkAccess()
 {
@@ -202,7 +208,6 @@ MMChunkAccess ChunkyFile::_ChunkAccess()
 
 #define _BvKid(ikid) LwMul(ikid, size(ChildChunkIdentification))
 
-const LegacyLong rtiNil = 0; // no rti assigned
 MMChunkContext ChunkyFile::_context;
 
 #ifdef CHUNK_STATS
@@ -253,25 +258,16 @@ ChunkyFile::ChunkyFile(void)
     expanded = 1;
 #endif
     AssertDo(mm_chunk_owner_init(&_owner, KauaiCopyAllocator(), expanded) == MM_CHUNK_OK, "invalid container owner");
-    _tableEdit = {
+    MMChunkOwnerFileIO io = {
         this,
-        [](void *p) { return static_cast<PChunkyFile>(p)->_Index(); },
-        [](void *p, MMU32 bytes, MMChunkLocation *out) -> int {
-            auto file = static_cast<PChunkyFile>(p);
-            FileLocation location;
-            if (!file->_FAllocFlo(bytes, &location))
-                return 0;
-            *out = {location.pfil, static_cast<MMU32>(location.fp), static_cast<MMU32>(location.cb),
-                    location.pfil == file->_ExtraFile() ? 1U : 0U};
-            return 1;
+        [](void *) -> void * { return FileObject::PfilCreateTemp(); },
+        [](void *file) { return static_cast<PFileObject>(file)->ReadStream(); },
+        [](void *file) -> MMU32 { return static_cast<PFileObject>(file)->FpMac(); },
+        [](void *file, MMU32 bytes) -> int { return static_cast<PFileObject>(file)->FSetFpMac(bytes); },
+        [](void *, const MMChunkLocation *from, const MMChunkLocation *to) {
+            return CopyFileExtent(from->file, from->offset, to->file, to->offset, from->bytes);
         },
-        [](void *p, int extra, MMU32 offset, MMU32 bytes) {
-            static_cast<PChunkyFile>(p)->_FreeFpCb(extra != 0, offset, bytes);
-        },
-        [](void *p, MMU32 type, MMU32 number) -> MMI32 { return static_cast<PChunkyFile>(p)->_Rti(type, number); },
-        [](void *p, MMU32 type, MMU32 number, MMI32 runtime) -> int {
-            return static_cast<PChunkyFile>(p)->_FSetRti(type, number, runtime);
-        },
+        nullptr,
         [](void *, int kind) {
             if (kind == MM_EDIT_LOW_MEMORY)
                 Warn("memory failure in ChunkyFile::Delete - adjusting ref counts");
@@ -279,9 +275,34 @@ ChunkyFile::ChunkyFile(void)
                 Warn("Performing this adoption may cause a cycle");
             else if (kind == MM_EDIT_INDEX_OPERATION)
                 Bug("invalid chunk table mutation");
+            else if (kind == MM_CHUNK_OWNER_FREE_RANGE)
+                Bug("bad free range");
+            else if (kind == MM_CHUNK_OWNER_MAP_PRESENT)
+                Bug("free map already exists");
+            else if (kind == MM_CHUNK_OWNER_EXTENT_LIMIT)
+                Bug("Requested FileLocation too big");
+            else if (kind == MM_CHUNK_OWNER_MAP_UNREAD)
+                Assert(false, "free map not read yet");
             else
                 Bug("invalid chunk deletion reference");
         }};
+#ifdef CHUNK_STATS
+    io.trace = [](void *context, int kind, const MMChunkEntry *entry) {
+        if (!vfDumpChunkRequests)
+            return;
+        auto self = static_cast<PChunkyFile>(context);
+        String text;
+        if (kind == MM_STORAGE_CACHE)
+            text.FFormatSz(PszLit("Cache: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), entry->type, entry->number, entry->offset, entry->bytes);
+        else if (kind == MM_STORAGE_FETCH_EXTRA)
+            text.FFormatSz(PszLit("Fetch from extra: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), entry->type, entry->number, entry->offset, entry->bytes);
+        else
+            text.FFormatSz(PszLit("Fetch from %z: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"),
+                entry->flags & fcrpOnExtra ? PszLit("extra") : PszLit("main"), entry->type, entry->number, entry->offset, entry->bytes);
+        DumpStn(&text, self->_MainFile());
+    };
+#endif
+    mm_chunk_owner_bind_storage(&_storage, &_owner, KauaiCopyAllocator(), kcbMaxCrp, &io);
     // add it to the linked list
     mm_chunk_link_init(&_link, this);
     AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
@@ -964,10 +985,7 @@ void ChunkyFile::_ReadFreeMap(void)
     Assert(_owner.files.free_map_unread, "free map already read");
     Assert(!_owner.files.invalid_main, 0);
 
-    const bool existed = _owner.files.main_map != nullptr;
-    const auto stream = _MainFile()->ReadStream();
-    mm_free_map_load(&_owner.files.main_map, &_owner.files.free_map_unread, &stream, _owner.map_offset, _owner.map_bytes, KauaiCopyAllocator());
-    if (existed) Bug("free map already exists");
+    mm_chunk_owner_read_free_map(&_storage);
 }
 
 /***************************************************************************
@@ -997,9 +1015,7 @@ void *SaveCreateTemp(void *context) { return FileObject::PfilCreateTemp(static_c
 int SaveResize(void *, void *file, MMU32 bytes) { return static_cast<PFileObject>(file)->FSetFpMac(bytes); }
 int SaveCopy(void *, void *source, MMU32 sourceOffset, void *destination, MMU32 offset, MMU32 bytes)
 {
-    FileLocation from = {static_cast<PFileObject>(source), static_cast<FilePosition>(sourceOffset), static_cast<LegacyLong>(bytes)};
-    FileLocation to = {static_cast<PFileObject>(destination), static_cast<FilePosition>(offset), static_cast<LegacyLong>(bytes)};
-    return from.FCopy(&to);
+    return CopyFileExtent(source, sourceOffset, destination, offset, bytes);
 }
 void SaveReleaseFile(void *, void *file) { auto native = static_cast<PFileObject>(file); ReleasePpo(&native); }
 void SaveReleaseMap(void *, void *map) { mm_free_map_close(static_cast<MMChunkFreeMap *>(map)); }
@@ -1141,23 +1157,7 @@ bool ChunkyFile::FEnsureOnExtra(ChunkTagOrType ctg, ChunkNumber cno)
     if (!_FFindCtgCno(ctg, cno, &icrp))
         return fFalse;
 
-    return _FEnsureOnExtra(icrp);
-}
-
-/***************************************************************************
-    Make sure the given chunk's data is on the extra file. Optionally get
-    the flo for the data.
-***************************************************************************/
-bool ChunkyFile::_FEnsureOnExtra(LegacyLong icrp, FileLocation *pflo)
-{
-    AssertThis(0);
-    AssertNilOrVarMem(pflo);
-
-    const auto policy = _StoragePolicy(); const auto services = _StorageServices();
-    MMChunkLocation location;
-    if (mm_chunk_storage_cache(&policy, &services, icrp, pflo ? &location : nullptr) != MM_CHUNK_OK) return false;
-    if (pflo) *pflo = {static_cast<PFileObject>(location.file), static_cast<FilePosition>(location.offset), static_cast<LegacyLong>(location.bytes)};
-    return true;
+    return mm_chunk_owner_cache(&_storage, icrp, nullptr) == MM_CHUNK_OK;
 }
 /***************************************************************************
     Get the FileLocation from the chunk.
@@ -1167,9 +1167,8 @@ void ChunkyFile::_GetFlo(LegacyLong icrp, PFileLocation pflo)
     AssertThis(0);
     AssertVarMem(pflo);
 
-    const auto policy = _StoragePolicy(); const auto services = _StorageServices();
     MMChunkLocation location;
-    AssertDo(mm_chunk_storage_fetch(&policy, &services, icrp, &location) == MM_CHUNK_OK, "invalid chunk fetch");
+    AssertDo(mm_chunk_owner_fetch(&_storage, icrp, &location) == MM_CHUNK_OK, "invalid chunk fetch");
     *pflo = {static_cast<PFileObject>(location.file), static_cast<FilePosition>(location.offset), static_cast<LegacyLong>(location.bytes)};
     AssertPo(pflo->pfil, 0);
 }
@@ -1343,124 +1342,6 @@ bool ChunkyFile::FPackData(ChunkTagOrType ctg, ChunkNumber cno)
 }
 
 /***************************************************************************
-    Create the extra file.  Note: the extra file doesn't have a ChunkyFilePrefix -
-    just raw data.
-***************************************************************************/
-bool ChunkyFile::_FCreateExtra(void)
-{
-    AssertBaseThis(0);
-    Assert(_ExtraFile() == pvNil, 0);
-    Assert(_owner.files.extra_map == pvNil, 0);
-
-    if (pvNil == (_owner.files.extra_file = FileObject::PfilCreateTemp()))
-        return fFalse;
-
-    _owner.files.extra_end = 0;
-    return fTrue;
-}
-
-/***************************************************************************
-    Find a place to put a block the given size.
-***************************************************************************/
-namespace {
-struct ChunkHeapHost { PFileObject file; MMChunkFreeMap **map; };
-MMU32 HeapCount(void *context)
-{
-    auto map = *static_cast<ChunkHeapHost *>(context)->map; return map ? map->count : 0;
-}
-void HeapGet(void *context, MMU32 position, MMChunkFreeRange *range)
-{
-    AssertDo(mm_free_map_get(*static_cast<ChunkHeapHost *>(context)->map, position, range) == MM_CHUNK_OK, "bad free range");
-}
-void HeapPut(void *context, MMU32 position, const MMChunkFreeRange *range)
-{
-    AssertDo(mm_free_map_put(*static_cast<ChunkHeapHost *>(context)->map, position, range) == MM_CHUNK_OK, "bad free range update");
-}
-void HeapErase(void *context, MMU32 position)
-{
-    AssertDo(mm_free_map_erase(*static_cast<ChunkHeapHost *>(context)->map, position) == MM_CHUNK_OK, "bad free range removal");
-}
-int HeapInsert(void *context, MMU32 position, const MMChunkFreeRange *range)
-{
-    return mm_free_map_insert(*static_cast<ChunkHeapHost *>(context)->map, position, range) == MM_CHUNK_OK;
-}
-int HeapEnsure(void *context)
-{
-    auto map = static_cast<ChunkHeapHost *>(context)->map;
-    return *map || mm_free_map_create(KauaiCopyAllocator(), 1, map) == MM_CHUNK_OK;
-}
-MMU32 HeapPhysicalEnd(void *context) { return static_cast<ChunkHeapHost *>(context)->file->FpMac(); }
-int HeapResize(void *context, MMU32 bytes) { return static_cast<ChunkHeapHost *>(context)->file->FSetFpMac(bytes); }
-MMChunkHeap ChunkHeapServices(ChunkHeapHost *host)
-{
-    return {host, HeapCount, HeapGet, HeapPut, HeapErase, HeapInsert, HeapEnsure, HeapPhysicalEnd, HeapResize};
-}
-}
-MMChunkStoragePolicy ChunkyFile::_StoragePolicy()
-{
-    return mm_chunk_owner_storage_policy(&_owner, kcbMaxCrp);
-}
-MMChunkStorageServices ChunkyFile::_StorageServices()
-{
-    MMChunkStorageServices services = {};
-    services.context = this;
-    services.file = [](void *c, int extra) -> void * {
-        auto self = static_cast<PChunkyFile>(c); return extra ? self->_ExtraFile() : self->_MainFile();
-    };
-    services.create_extra = [](void *c) -> int { return static_cast<PChunkyFile>(c)->_FCreateExtra(); };
-    services.reserve = [](void *c, int extra, MMU32 bytes, MMU32 *offset) -> int {
-        auto self = static_cast<PChunkyFile>(c);
-        auto endField = extra ? &self->_owner.files.extra_end : &self->_owner.files.main_end;
-        auto map = extra ? &self->_owner.files.extra_map : &self->_owner.files.main_map;
-        ChunkHeapHost host = {extra ? self->_ExtraFile() : self->_MainFile(), map};
-        const auto heap = ChunkHeapServices(&host);
-        MMU32 end = *endField;
-        if (mm_chunk_heap_allocate(&heap, &end, bytes, offset) != MM_CHUNK_OK) return 0;
-        *endField = end; return 1;
-    };
-    services.release_space = [](void *c, int extra, MMU32 offset, MMU32 bytes) {
-        static_cast<PChunkyFile>(c)->_FreeFpCb(extra != 0, offset, bytes);
-    };
-    services.entry = [](void *c, MMU32 position, MMChunkEntry *entry) {
-        AssertDo(ReadRuntimeChunk(static_cast<PChunkyFile>(c)->_Index(), position, entry), "invalid storage entry");
-    };
-    services.cache_place = [](void *c, MMU32 position, MMU32 offset) {
-        auto row = static_cast<ChunkRepresentation *>(ChunkFixed(static_cast<PChunkyFile>(c)->_Index(), position));
-        mm_chunk_record_set_flags(row, expandedRecords, fcrpOnExtra, fcrpOnExtra); row->fp = offset;
-    };
-    services.copy = [](void *, const MMChunkLocation *source, const MMChunkLocation *destination) -> int {
-        FileLocation from = {static_cast<PFileObject>(source->file), static_cast<FilePosition>(source->offset), static_cast<LegacyLong>(source->bytes)};
-        FileLocation to = {static_cast<PFileObject>(destination->file), static_cast<FilePosition>(destination->offset), static_cast<LegacyLong>(destination->bytes)};
-        return from.FCopy(&to);
-    };
-#ifdef CHUNK_STATS
-    if (vfDumpChunkRequests) services.trace = [](void *c, int kind, const MMChunkEntry *entry) {
-        auto self = static_cast<PChunkyFile>(c); String text;
-        if (kind == MM_STORAGE_CACHE)
-            text.FFormatSz(PszLit("Cache: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), entry->type, entry->number, entry->offset, entry->bytes);
-        else if (kind == MM_STORAGE_FETCH_EXTRA)
-            text.FFormatSz(PszLit("Fetch from extra: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"), entry->type, entry->number, entry->offset, entry->bytes);
-        else
-            text.FFormatSz(PszLit("Fetch from %z: '%f', 0x%08x, fp = 0x%08x, cb = 0x%08x"),
-                entry->flags & fcrpOnExtra ? PszLit("extra") : PszLit("main"), entry->type, entry->number, entry->offset, entry->bytes);
-        DumpStn(&text, self->_MainFile());
-    };
-#endif
-    return services;
-}
-bool ChunkyFile::_FAllocFlo(LegacyLong cb, PFileLocation pflo, bool fForceOnExtra)
-{
-    AssertBaseThis(0); AssertIn(cb, 0, kcbMax); AssertVarMem(pflo);
-    if (cb > kcbMaxCrp) { Bug("Requested FileLocation too big"); return false; }
-    Assert(cb == 0 || fForceOnExtra || _owner.add_to_extra || !_owner.files.free_map_unread, "free map not read yet");
-    const auto policy = _StoragePolicy(); const auto services = _StorageServices();
-    MMChunkLocation location;
-    if (mm_chunk_storage_allocate(&policy, &services, cb, fForceOnExtra, &location) != MM_CHUNK_OK)
-    { TrashVar(pflo); return false; }
-    *pflo = {static_cast<PFileObject>(location.file), static_cast<FilePosition>(location.offset), static_cast<LegacyLong>(location.bytes)};
-    return true;
-}
-/***************************************************************************
     Look for the (ctg, cno) pair.  Fills *picrp with where it should be.
     Returns whether or not it was found.  Assumes the _Index() is sorted
     by (ctg, cno).  Does a binary search.
@@ -1490,7 +1371,7 @@ MMChunkEdit ChunkyFile::EditIndex()
 {
     int scan = 0;
     Debug(scan = 1;)
-    return mm_chunk_table_editor(&_tableEdit, KauaiCopyAllocator(), kckidMax, scan);
+    return mm_chunk_owner_editor(&_storage, kckidMax, scan);
 }
 MMChunkEdit ChunkyFile::_PayloadEdit(void *context)
 {
@@ -1922,29 +1803,6 @@ void ChunkyFile::_DeleteCore(LegacyLong icrp)
     AssertBaseThis(0);
     const auto edit = EditIndex();
     AssertDo(mm_chunk_remove(&edit, icrp) == MM_CHUNK_OK, "invalid chunk removal");
-}
-
-/***************************************************************************
-    Add the (fp, cb) to the free map.
-***************************************************************************/
-void ChunkyFile::_FreeFpCb(bool fOnExtra, FilePosition fp, LegacyLong cb)
-{
-    AssertBaseThis(0);
-    Assert(cb > 0 || cb == 0 && fp == 0, "bad cb");
-    Assert(fp >= 0 && (fOnExtra || fp >= size(ChunkyFilePrefix) || cb == 0 || _owner.files.invalid_main), "bad fp");
-
-    if (!cb) return;
-    if (!fOnExtra && _owner.files.free_map_unread) _ReadFreeMap();
-    auto file = fOnExtra ? _ExtraFile() : _MainFile();
-    auto map = fOnExtra ? &_owner.files.extra_map : &_owner.files.main_map;
-    auto endField = fOnExtra ? &_owner.files.extra_end : &_owner.files.main_end;
-    AssertPo(file, 0);
-    ChunkHeapHost host = {file, map};
-    const auto heap = ChunkHeapServices(&host);
-    MMU32 end = *endField;
-    const int result = mm_chunk_heap_free(&heap, &end, fp, cb);
-    *endField = end;
-    if (result != MM_CHUNK_OK && result != MM_CHUNK_MEMORY) Bug("bad free range");
 }
 
 /***************************************************************************
@@ -2406,33 +2264,6 @@ bool ChunkyFile::FCopyReference(ChunkTagOrType type, ChunkNumber number, PChunky
 bool ChunkyFile::FClone(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst)
 {
     return _FCopy(ctgSrc, cnoSrc, pcflDst, pcnoDst, fTrue);
-}
-
-/***************************************************************************
-    Return the run time id of the given chunk.
-***************************************************************************/
-LegacyLong ChunkyFile::_Rti(ChunkTagOrType ctg, ChunkNumber cno)
-{
-    AssertBaseThis(0);
-#ifdef CHUNK_BIG_INDEX
-    LegacyLong position;
-    if (!_FFindCtgCno(ctg, cno, &position)) return rtiNil;
-    return static_cast<ChunkRepresentation *>(ChunkFixed(_Index(), position))->rti;
-#else
-    return mm_chunk_runtime_get(&_owner.runtime, ctg, cno);
-#endif
-}
-bool ChunkyFile::_FSetRti(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong rti)
-{
-    AssertBaseThis(0);
-#ifdef CHUNK_BIG_INDEX
-    LegacyLong position;
-    if (!_FFindCtgCno(ctg, cno, &position)) return fFalse;
-    static_cast<ChunkRepresentation *>(ChunkFixed(_Index(), position))->rti = rti;
-    return fTrue;
-#else
-    return mm_chunk_runtime_set(&_owner.runtime, ctg, cno, rti) == MM_CHUNK_OK;
-#endif
 }
 
 /***************************************************************************

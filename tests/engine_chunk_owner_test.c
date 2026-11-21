@@ -320,11 +320,205 @@ static void error_cases(void)
     CHECK(h.main.error == 3 && !strcmp(log_buffer, "Mm"));
     dispose(&h);
 }
+
+typedef struct TestFile
+{
+    unsigned char bytes[256];
+    MMU32 length;
+    int resize_fails, stream_calls, resize_calls, releases;
+} TestFile;
+
+typedef struct StorageHost
+{
+    TestFile main, extra;
+    int create_fails, copy_fails, last_issue, creates, copies;
+    int trace[3];
+} StorageHost;
+
+static int read_file(void *p, MMU32 offset, void *buffer, size_t count)
+{
+    TestFile *file = p;
+    CHECK(offset <= file->length && count <= file->length - offset);
+    memcpy(buffer, file->bytes + offset, count);
+    return 1;
+}
+
+static MMReadStream file_stream(void *p)
+{
+    TestFile *file = p;
+    MMReadStream stream = {NULL, 0, read_file};
+    stream.context = file;
+    stream.length = file->length;
+    ++file->stream_calls;
+    return stream;
+}
+
+static MMU32 file_size(void *p)
+{
+    return ((TestFile *)p)->length;
+}
+
+static int resize_file(void *p, MMU32 bytes)
+{
+    TestFile *file = p;
+    ++file->resize_calls;
+    CHECK(bytes <= sizeof(file->bytes));
+    if (file->resize_fails)
+        return 0;
+    file->length = bytes;
+    return 1;
+}
+
+static void *create_extra(void *p)
+{
+    StorageHost *host = p;
+    ++host->creates;
+    return host->create_fails ? NULL : &host->extra;
+}
+
+static int copy_extent(void *p, const MMChunkLocation *from, const MMChunkLocation *to)
+{
+    StorageHost *host = p;
+    CHECK(from->file == &host->main && to->file == &host->extra && from->bytes == to->bytes);
+    CHECK(to->offset + to->bytes <= host->extra.length);
+    ++host->copies;
+    return !host->copy_fails && read_file(from->file, from->offset, host->extra.bytes + to->offset, from->bytes);
+}
+
+static void storage_trace(void *p, int kind, const MMChunkEntry *entry)
+{
+    StorageHost *host = p;
+    CHECK(kind >= MM_STORAGE_CACHE && kind <= MM_STORAGE_FETCH_DIRECT && entry->type == 1);
+    ++host->trace[kind];
+}
+
+static void storage_issue(void *p, int kind)
+{
+    ((StorageHost *)p)->last_issue = kind;
+}
+
+static void close_file(void *p, void *file)
+{
+    (void)p;
+    ++((TestFile *)file)->releases;
+}
+
+static void close_table(void *p, void *table)
+{
+    (void)p;
+    CHECK(mm_chunk_table_close(table) == MM_STORAGE_OK);
+}
+
+static void publish_storage_disposal(void *p, const MMChunkReopenState *state)
+{
+    const StorageHost *host = p;
+    CHECK(!state->index && !state->main_file && !state->extra_file && !state->main_map && !state->extra_map);
+    CHECK(!host->main.releases && !host->extra.releases);
+}
+
+static void storage_cases(int expanded)
+{
+    static const unsigned char wire_map[] = {1, 0, 3, 3, 8, 0, 0, 0, 1, 0, 0, 0, 140, 0, 0, 0, 8, 0, 0, 0};
+    MMChunkOwnerFileIO io = {NULL, create_extra, file_stream, file_size, resize_file, copy_extent,
+                             storage_trace, storage_issue};
+    MMChunkDisposal disposal = {NULL, close_file, close_table, publish_storage_disposal};
+    StorageHost host;
+    MMChunkOwner owner;
+    MMChunkOwnerStorage storage;
+    MMChunkTable *table;
+    MMChunkEdit edit;
+    MMChunkEntry entry;
+    MMChunkLocation location;
+    MMChunkFreeRange range;
+
+    memset(&host, 0, sizeof(host));
+    host.main.length = 220;
+    memcpy(host.main.bytes + 200, wire_map, sizeof(wire_map));
+    CHECK(mm_chunk_owner_init(&owner, NULL, expanded) == MM_CHUNK_OK);
+    CHECK(mm_chunk_table_create(NULL, expanded ? sizeof(MMChunkRecordBig) : sizeof(MMChunkRecordSmall),
+                                0, 0, &table) == MM_STORAGE_OK);
+    owner.files.index = table;
+    owner.files.main_file = &host.main;
+    owner.files.main_end = 200;
+    owner.files.free_map_unread = 1;
+    owner.map_offset = 200;
+    owner.map_bytes = sizeof(wire_map);
+    io.context = &host;
+    mm_chunk_owner_bind_storage(&storage, &owner, NULL, 16, &io);
+    edit = mm_chunk_owner_editor(&storage, 65535, 1);
+
+    CHECK(mm_chunk_add(&edit, 1, 0, 0, 0, &location) == MM_CHUNK_OK);
+    CHECK(location.file == &host.main && !location.bytes && !location.flags && !location.offset);
+    CHECK(mm_chunk_owner_cache(&storage, 0, &location) == MM_CHUNK_OK);
+    CHECK(!location.file && !location.bytes && location.flags == 1 && !host.creates);
+    CHECK(mm_chunk_add(&edit, 1, 1, 1, 4, NULL) == MM_CHUNK_IO && table->count == 1);
+    CHECK(host.last_issue == MM_CHUNK_OWNER_MAP_UNREAD && !host.main.stream_calls);
+    CHECK(mm_chunk_owner_read_free_map(&storage) == MM_CHUNK_OK);
+    CHECK(mm_chunk_owner_read_free_map(&storage) == MM_CHUNK_OK && host.main.stream_calls == 1);
+    CHECK(mm_chunk_add(&edit, 1, 1, 1, 17, NULL) == MM_CHUNK_IO && table->count == 1);
+    CHECK(host.last_issue == MM_CHUNK_OWNER_EXTENT_LIMIT);
+
+    CHECK(mm_chunk_add(&edit, 1, 1, 1, 4, &location) == MM_CHUNK_OK);
+    CHECK(location.file == &host.main && location.offset == 140 && location.bytes == 4 && !location.flags);
+    CHECK(mm_free_map_get(owner.files.main_map, 0, &range) == MM_CHUNK_OK && range.offset == 144 && range.bytes == 4);
+    CHECK(owner.files.main_end == 200 && !host.main.resize_calls);
+    memcpy(host.main.bytes + location.offset, "data", location.bytes);
+    CHECK(edit.set_runtime(edit.context, 1, 1, 7));
+    CHECK(mm_chunk_set_flag(&edit, 1, 1, MM_CHUNK_PACKED, 1) == MM_CHUNK_OK);
+    CHECK(!edit.runtime(edit.context, 1, 1));
+    CHECK(edit.set_runtime(edit.context, 1, 1, 19));
+
+    owner.read_from_extra = 1;
+    host.create_fails = 1;
+    CHECK(mm_chunk_owner_fetch(&storage, 1, &location) == MM_CHUNK_OK && location.file == &host.main);
+    CHECK(host.creates == 1 && !owner.files.extra_file && !host.copies);
+    host.create_fails = 0;
+    host.extra.resize_fails = 1;
+    CHECK(mm_chunk_owner_cache(&storage, 1, &location) == MM_CHUNK_IO && location.file == &host.main);
+    CHECK(host.creates == 2 && owner.files.extra_file == &host.extra && !owner.files.extra_end);
+    host.extra.resize_fails = 0;
+    host.copy_fails = 1;
+    CHECK(mm_chunk_owner_cache(&storage, 1, &location) == MM_CHUNK_IO && location.file == &host.main);
+    CHECK(!owner.files.extra_end && host.extra.length == 4 && host.extra.resize_calls == 2);
+    CHECK(edit.entry(edit.context, 1, &entry) && entry.offset == 140 && entry.flags == (MM_CHUNK_LONER | MM_CHUNK_PACKED));
+    host.copy_fails = 0;
+    CHECK(mm_chunk_owner_fetch(&storage, 1, &location) == MM_CHUNK_OK);
+    CHECK(location.file == &host.extra && !location.offset && location.flags == 1 && owner.files.extra_end == 4);
+    CHECK(host.copies == 2 && host.extra.resize_calls == 2 && !memcmp(host.extra.bytes, "data", 4));
+    CHECK(edit.entry(edit.context, 1, &entry) && !entry.offset && entry.flags == (1 | MM_CHUNK_LONER | MM_CHUNK_PACKED));
+    CHECK(edit.runtime(edit.context, 1, 1) == 19);
+    CHECK(host.trace[MM_STORAGE_CACHE] == 4 && host.trace[MM_STORAGE_FETCH_EXTRA] == 2 &&
+          host.trace[MM_STORAGE_FETCH_DIRECT] == 1);
+
+    CHECK(mm_chunk_remove(&edit, 1) == MM_CHUNK_OK && !owner.files.extra_end && table->count == 1);
+    CHECK(!edit.runtime(edit.context, 1, 1));
+    CHECK(mm_chunk_owner_fetch(&storage, 1, &location) == MM_CHUNK_NOT_FOUND && location.file == &host.extra);
+
+    CHECK(mm_chunk_add(&edit, 1, 1, 1, 12, &location) == MM_CHUNK_OK);
+    CHECK(location.file == &host.main && location.offset == 200 && owner.files.main_end == 212);
+    mm_free_map_close(owner.files.main_map);
+    owner.files.main_map = NULL;
+    owner.files.free_map_unread = 1;
+    CHECK(mm_chunk_remove(&edit, 1) == MM_CHUNK_OK && owner.files.main_end == 200);
+    CHECK(!owner.files.free_map_unread && host.main.stream_calls == 2 && owner.files.main_map);
+    mm_free_map_close(owner.files.main_map);
+    owner.files.main_map = NULL;
+    owner.files.free_map_unread = 1;
+    owner.map_offset = host.main.length;
+    CHECK(mm_chunk_owner_read_free_map(&storage) == MM_CHUNK_BAD_FILE && !owner.files.free_map_unread);
+    CHECK(mm_chunk_owner_read_free_map(&storage) == MM_CHUNK_OK && host.main.stream_calls == 3);
+    disposal.context = &host;
+    CHECK(mm_chunk_owner_dispose(&owner, &disposal) == MM_CHUNK_OK);
+    CHECK(host.main.releases == 1 && host.extra.releases == 1);
+}
+
 int main(void)
 {
     reopen_cases();
     policy_cases();
     error_cases();
+    storage_cases(0);
+    storage_cases(1);
     puts("chunk owner C89 checks passed");
     return 0;
 }

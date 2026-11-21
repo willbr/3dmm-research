@@ -19027,3 +19027,35 @@ In sampled-audio suite `20261121T130449Z-b903c5f1`, both hosts matched all
 The PCM16 peak matched the previous host captures at 2,176. The archived
 retail peak is 2,380. SDL captured 522,720 PCM frames and Marcus captured
 512,640. Evidence is in `tmp/c89-live-index-binding`.
+
+## Shared archive extent ownership in C89 (21 November 2026)
+
+Studio and Marcus use the C owner for primary and extra file extents. It loads
+deferred free maps, manages logical file ends, caches payloads and resolves
+runtime IDs in both index formats. The native host provides physical file
+operations and diagnostics.
+
+All 193 standalone C checks, seven focused AddressSanitizer checks, eight
+Marcus and native checks and three SDL checks passed.
+The compact and expanded owner fixtures cover deferred free-map reads,
+first-fit reuse, cache failures during file creation, resize and copy, and
+runtime-ID preservation across a successful cache copy. The combined
+expanded-index and chunk-statistics native configuration passed a syntax check.
+
+Each of the x64, x86 and SDL builds reproduced all 17 authoring artifacts
+byte for byte. All five core persistence snapshots matched on x64 and x86.
+Four matched exactly on SDL. Its 572,367-byte archive snapshot varied by two
+bytes of GG row alignment padding.
+
+Both hosts matched all three archived V3dmm storyboard frames, camera indices
+and canvas hashes in suite `20261121T131832Z-ac3268b6`. In actor-event suite
+`20261121T131836Z-720d1a0d`, both matched all 60 retail frame identities in
+seek and continuous playback. Seek camera indices matched retail and seek
+canvas hashes matched the previous host captures. SDL matched all 12 retail
+sound requests.
+
+In sampled-audio suite `20261121T131948Z-d056d075`, both hosts matched all
+60 retail frame identities and SDL matched all four retail sound requests.
+The PCM16 peak matched the previous host captures at 2,176. The archived
+retail peak is 2,380. SDL captured 522,240 PCM frames and Marcus captured
+511,680. Evidence is in `tmp/c89-chunk-owner-storage`.

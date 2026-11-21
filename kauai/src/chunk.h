@@ -104,7 +104,7 @@ class ChunkyFile : public ChunkyFile_PAR
 
   private:
     MMChunkOwner _owner;
-    MMChunkTableEditBinding _tableEdit;
+    MMChunkOwnerStorage _storage;
     PFileObject _MainFile() { return static_cast<PFileObject>(_owner.files.main_file); }
     PFileObject _ExtraFile() { return static_cast<PFileObject>(_owner.files.extra_file); }
     MMChunkTable *_Index() { return static_cast<MMChunkTable *>(_owner.files.index); }
@@ -129,13 +129,8 @@ class ChunkyFile : public ChunkyFile_PAR
     MMChunkEdit _PayloadEdit(void *context);
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTagOrType ctgCreator);
-    MMChunkStoragePolicy _StoragePolicy();
-    MMChunkStorageServices _StorageServices();
-    bool _FCreateExtra(void);
-    bool _FAllocFlo(LegacyLong cb, PFileLocation pflo, bool fForceOnExtra = fFalse);
     bool _FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *picrp);
     void _GetUniqueCno(ChunkTagOrType ctg, LegacyLong *picrp, ChunkNumber *pcno);
-    void _FreeFpCb(bool fOnExtra, FilePosition fp, LegacyLong cb);
     bool _FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong icrp, PDataBlock pblck);
     bool _FPut(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PDataBlock pblckSrc);
     bool _FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone,
@@ -149,10 +144,6 @@ class ChunkyFile : public ChunkyFile_PAR
     void _GetFlo(LegacyLong icrp, PFileLocation pflo);
     bool _GetBlockLocation(LegacyLong icrp, PFileLocation pflo);
     void _GetBlck(LegacyLong icrp, PDataBlock pblck);
-    bool _FEnsureOnExtra(LegacyLong icrp, FileLocation *pflo = pvNil);
-
-    LegacyLong _Rti(ChunkTagOrType ctg, ChunkNumber cno);
-    bool _FSetRti(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong rti);
 
   public:
     // static methods

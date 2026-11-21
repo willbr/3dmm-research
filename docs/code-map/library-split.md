@@ -6745,8 +6745,8 @@ and child/name bytes retain native order after materialization.
 Studio and Marcus both use the C writable-index binding for row, child and name
 edits. It follows the owner's live table after a reopen. C materializes validated
 wire rows into that table and writes the GG index, optional free map and CHN2
-prefix through one positional writer. The prefix writes last. The native owner
-supplies file I/O, extent allocation, runtime IDs and historical name conversion.
+prefix through one positional writer. The prefix writes last. The native host
+supplies physical file operations, diagnostics and historical name conversion.
 
 C writes the exact GG header, payload and locations. As with native GG, alternate
 byte order converts only the header/location words; fixed/variable payload order
@@ -7108,14 +7108,16 @@ Serialization writes the 12-byte array header followed by the complete body,
 omitting an empty body. Native-order output uses the C storage directly;
 opposite-order output uses C scratch storage. Failed writes retain partial output
 and ownership. The heap's first-fit/coalescing algorithms now operate on these
-C map primitives. Native services retain physical I/O and allocation diagnostics.
+C map primitives. The C owner binds both heaps to the live index. It handles
+deferred reads, extra-file attachment, logical ends, cache copy rollback and
+publication of the new location. Native services resize and copy physical file
+extents and create temporary files.
 
 Index materialization reuses an owning C scratch buffer for native child records
 and encoded names. Modern names retain their bytes. Pre-v3 names receive a bounded
-terminator and native SZS conversion; names of 256 bytes or more are discarded,
-as before. Native callbacks convert text and insert a fixed record plus variable
-bytes into the writable C chunk table. No C++ vector or exception path is needed
-for row assembly. A failed import leaves partial destination cleanup to its host.
+terminator and native SZS conversion. Names of 256 bytes or more are discarded.
+C inserts each fixed record and its variable bytes into the writable chunk
+table. Failed materialization releases the partial table.
 
 `engine-loading-test` checks both map byte orders, independent exact wire bytes,
 empty/null maps, lazy state publication before reads, malformed headers/widths/
@@ -7163,7 +7165,7 @@ forests. Existing chunk and serialized-string snapshots remain exact too.
 resize/copy/decode policy. Zero runtime IDs remove entries without allocating;
 failed insertions preserve logical entries, and empty allocated capacity is
 retained. `FReopen` uses an explicit owning-cache swap to preserve rollback
-ownership. Expanded-index runtime IDs remain fixed-record host primitives.
+ownership. The C owner also resolves runtime IDs stored in expanded rows.
 Names follow the 12-byte child records; shrinking precedes overwrite, failed
 growth preserves the old name and decode holds a balanced pin. Native group
 primitives already use the shared C collection algorithms.

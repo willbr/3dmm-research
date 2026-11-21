@@ -5,6 +5,7 @@
 #include "chunk_container.h"
 #include "chunk_save.h"
 #include "chunk_storage.h"
+#include "chunk_table.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -35,6 +36,47 @@ extern "C"
      * mark/read flags, deferred offsets and runtime caches remain unchanged. */
     void mm_chunk_owner_publish_save(MMChunkOwner *, const MMChunkSaveState *);
     MMChunkStoragePolicy mm_chunk_owner_storage_policy(const MMChunkOwner *, MMU32 max_bytes);
+
+    enum
+    {
+        MM_CHUNK_OWNER_MAP_PRESENT = MM_EDIT_INDEX_OPERATION + 1,
+        MM_CHUNK_OWNER_FREE_RANGE,
+        MM_CHUNK_OWNER_EXTENT_LIMIT,
+        MM_CHUNK_OWNER_MAP_UNREAD
+    };
+    typedef struct MMChunkOwnerFileIO
+    {
+        void *context;
+        void *(*create_extra)(void *); /* Transfers a reference to a new empty file. */
+        MMReadStream (*read_stream)(void *file);
+        MMU32 (*size)(void *file);
+        int (*resize)(void *file, MMU32 bytes);
+        int (*copy)(void *, const MMChunkLocation *source, const MMChunkLocation *destination);
+        void (*trace)(void *, int kind, const MMChunkEntry *); /* Optional. */
+        void (*issue)(void *, int kind); /* Optional storage or edit diagnostic. */
+    } MMChunkOwnerFileIO;
+    typedef struct MMChunkOwnerStorage
+    {
+        MMChunkOwner *owner;
+        const MMStorageAllocator *allocator;
+        MMChunkOwnerFileIO io;
+        MMChunkTableEditBinding edit;
+        MMU32 max_bytes;
+    } MMChunkOwnerStorage;
+    /* Bind once at a stable address to an initialized owner. Editing and
+     * payload lookup require a live table.
+     * All file services except trace/issue are required. Their file arguments
+     * borrow the owner's current handles. No callback may re-enter or modify
+     * the owner. The binding follows file and table replacements on all calls. */
+    void mm_chunk_owner_bind_storage(MMChunkOwnerStorage *, MMChunkOwner *,
+                                    const MMStorageAllocator *, MMU32 max_bytes, const MMChunkOwnerFileIO *);
+    /* Attempt a pending free-map load once. Its status is advisory and the
+     * unread bit clears even if the map cannot be read. */
+    int mm_chunk_owner_read_free_map(MMChunkOwnerStorage *);
+    int mm_chunk_owner_cache(MMChunkOwnerStorage *, MMU32 position, MMChunkLocation *);
+    int mm_chunk_owner_fetch(MMChunkOwnerStorage *, MMU32 position, MMChunkLocation *);
+    MMChunkEdit mm_chunk_owner_editor(MMChunkOwnerStorage *, MMU32 max_references, int scan_all_references);
+
     typedef struct MMChunkErrorServices
     {
         MMI32 (*get)(void *file);
