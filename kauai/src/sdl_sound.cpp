@@ -5,6 +5,7 @@
 #include <algorithm>
 #include <new>
 #include "kauai_core.h"
+#include "handle_services.h"
 #include "sndm.h"
 #undef size
 #ifdef _WINDOWS_
@@ -26,27 +27,20 @@ class SDLWave : public SDLWave_PAR
     static bool Read(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock block, PBaseCacheableObject *result,
                      LegacyLong *bytes)
     {
-        struct Context
-        {
-            std::vector<byte> encoded;
-        } context;
         MMSoundPayloadServices s = {};
-        s.context = &context;
         s.object_bytes = sizeof(SDLWave);
-        s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-        s.block_size = [](void *, void *block, int packed) -> MMI32 {
-            return static_cast<PDataBlock>(block)->Cb(packed != 0);
-        };
-        s.read_encoded = [](void *p, void *block, MMI32 bytes) -> int {
-            auto &encoded = static_cast<Context *>(p)->encoded;
-            encoded.resize(bytes);
-            return static_cast<PDataBlock>(block)->FReadRgb(encoded.data(), bytes, 0);
-        };
+        s.decode_block = KauaiDecodeBlockHandle;
         s.create = [](void *) -> void * { return NewObj SDLWave; };
         s.release = [](void *, void *object) { static_cast<SDLWave *>(object)->Release(); };
-        s.decode = [](void *p, void *object) -> int {
-            auto &encoded = static_cast<Context *>(p)->encoded;
-            return KauaiAudio::DecodeWave(encoded.data(), encoded.size(), static_cast<SDLWave *>(object)->sample);
+        s.decode = [](void *, void *object, const void *encoded, MMU32 bytes) -> int {
+            try
+            {
+                return KauaiAudio::DecodeWave(encoded, bytes, static_cast<SDLWave *>(object)->sample);
+            }
+            catch (const std::bad_alloc &)
+            {
+                return false;
+            }
         };
         s.allocation_size = [](void *, void *object, MMI32 *bytes) -> int {
             const auto count = static_cast<SDLWave *>(object)->sample->stereo.size();
@@ -56,14 +50,7 @@ class SDLWave : public SDLWave_PAR
             return 1;
         };
         s.decoded = [](void *) { ++decodedSounds; };
-        try
-        {
-            return mm_wave_payload_fetch(block, result, bytes, &s) != 0;
-        }
-        catch (const std::bad_alloc &)
-        {
-            return false;
-        }
+        return mm_wave_payload_fetch(block->CoreBlock(), result, bytes, &s) != 0;
     }
 };
 #define SDLWaveQueue_PAR SoundQueue

@@ -6301,11 +6301,14 @@ tracks. These are temporary facade/allocator adapters, not a finished C-only
 host integration.
 
 `sound_payload.c` owns MIDI, SDL sampled-audio and classic AudioMan resource
-factory sequencing, estimates, output publication and failure cleanup. Opaque
-object/block/stream callbacks retain native cache/device types outside C.
-The AudioMan path transfers its stream to a successful object and releases it
-on failure. The SDL path reads encoded bytes before object allocation and
-releases partial objects after decoder/allocation-size failures.
+factory sequencing, estimates, output publication and failure cleanup. MIDI
+and SDL WAVE decode the supplied C block in place. MIDI copies the decoded
+bytes into an owned handle for the native stream. SDL reads the encoded
+WAVE into C-owned scratch before allocating the decoded sample object and
+releases both resources on failure. The classic AudioMan path reopens the
+current key through the C89 cache and hands the located extent to the native
+COM stream adapter. C transfers the stream to the cached object on success
+and calls the COM release adapter on failure.
 
 `wave.c` owns RIFF views, compressed-format selection/validation, legacy-format
 recognition, fact trimming, PCM headers and complete MS ADPCM encoding. Predictor

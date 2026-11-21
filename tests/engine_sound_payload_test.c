@@ -2,6 +2,7 @@
 #include "mm/wave.h"
 #include "mm/wave_import.h"
 #include "mm/sound_payload.h"
+#include "engine_resource_block_fixture.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -192,25 +193,53 @@ static void wave(void)
     }
     mm_wave_buffer_dispose(&scratch);
 }
+#define FACTORY_PAYLOAD_BYTES 88
 typedef struct Factory
 {
-    int fail, step, live, invalid, decoded;
+    int fail, step, live, invalid, decoded, packed;
     int object, stream;
+    void *midi;
+    ResourceTestBlock block;
 } Factory;
 static int step(Factory *f)
 {
     return ++f->step != f->fail;
 }
-static int unpack(void *p, void *block)
+static int unpack(void *p, void **handle)
 {
-    (void)block;
-    return step((Factory *)p);
+    unsigned char expanded[FACTORY_PAYLOAD_BYTES];
+    assert(resource_handle_size(NULL, *handle) == 77);
+    if (!step((Factory *)p))
+        return 0;
+    memset(expanded, 0x61, sizeof(expanded));
+    resource_block_decode(handle, expanded, sizeof(expanded));
+    return 1;
 }
-static MMI32 block_size(void *p, void *b, int packed)
+static int factory_read(void *p, void *file, MMU32 offset, void *out, size_t bytes)
 {
-    (void)p;
-    (void)b;
-    return packed ? 77 : 88;
+    assert(p == file && offset == 47 && (bytes == 77 || bytes == FACTORY_PAYLOAD_BYTES));
+    if (!step((Factory *)p))
+        return 0;
+    memset(out, 0x61, bytes);
+    return 1;
+}
+static int factory_write(void *p, void *file, MMU32 offset, const void *data, size_t bytes)
+{
+    (void)p; (void)file; (void)offset; (void)data; (void)bytes;
+    assert(0);
+    return 0;
+}
+static int locate(void *p, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
+{
+    Factory *f = p;
+    assert(type == 1 && number == 2);
+    if (!step(f))
+        return 0;
+    out->file = p;
+    out->offset = 47;
+    out->length = f->packed ? 77 : FACTORY_PAYLOAD_BYTES;
+    *packed = f->packed;
+    return 1;
 }
 static void *create(void *p)
 {
@@ -223,29 +252,28 @@ static void *create(void *p)
 static void object_release(void *p, void *o)
 {
     Factory *f = (Factory *)p;
-    assert(o == &f->object || o == &f->stream);
+    assert(o == &f->object);
+    resource_handle_release(NULL, f->midi);
+    f->midi = NULL;
     --f->live;
 }
-static int read_midi(void *p, void *o, void *b)
+static void adopt_midi(void *p, void *o, void *handle)
 {
-    (void)o;
-    (void)b;
-    return step((Factory *)p);
+    Factory *f = (Factory *)p;
+    assert(o == &f->object && !f->midi && handle && resource_handle_size(NULL, handle) == FACTORY_PAYLOAD_BYTES);
+    assert(*(unsigned char *)resource_handle_lock(NULL, handle) == 0x61);
+    f->midi = handle;
 }
 static void invalidate(void *p, void *out, size_t bytes)
 {
     ++((Factory *)p)->invalid;
     memset(out, 0x55, bytes);
 }
-static int read_encoded(void *p, void *b, MMI32 bytes)
+static int decode(void *p, void *o, const void *encoded, MMU32 bytes)
 {
-    (void)b;
-    assert(bytes == 88);
-    return step((Factory *)p);
-}
-static int decode(void *p, void *o)
-{
-    (void)o;
+    const unsigned char *data = (const unsigned char *)encoded;
+    assert(o == &((Factory *)p)->object && bytes == FACTORY_PAYLOAD_BYTES);
+    assert(data[0] == 0x61 && data[bytes - 1] == 0x61);
     return step((Factory *)p);
 }
 static int allocation_size(void *p, void *o, MMI32 *bytes)
@@ -258,16 +286,21 @@ static void decoded(void *p)
 {
     ++((Factory *)p)->decoded;
 }
-static void *open_stream(void *p, void *cache, MMU32 type, MMU32 number)
+static void *open_stream(void *p, const MMOwnedBlock *block)
 {
     Factory *f = (Factory *)p;
-    (void)cache;
-    (void)type;
-    (void)number;
+    assert(block->file == p && block->view.start == 47 && block->view.packed == f->packed);
+    assert(block->view.length == (f->packed ? 77 : FACTORY_PAYLOAD_BYTES));
     if (!step(f))
         return NULL;
     ++f->live;
     return &f->stream;
+}
+static void release_stream(void *p, void *stream)
+{
+    Factory *f = (Factory *)p;
+    assert(stream == &f->stream);
+    --f->live;
 }
 static MMI32 stream_size(void *p, void *stream)
 {
@@ -283,65 +316,90 @@ static int decode_stream(void *p, void *o, void *stream)
 }
 static void adopt(void *p, void *o, void *stream)
 {
-    (void)o;
-    object_release(p, stream);
+    assert(o == &((Factory *)p)->object);
+    release_stream(p, stream);
 }
 static void factories(void)
 {
     MMSoundPayloadServices s;
     Factory f;
+    MMResourceCache cache;
+    MMBlockFile source;
     void *object;
     MMI32 bytes;
-    int kind, fail, ok;
+    int kind, fail, ok, test, packed, steps;
     memset(&s, 0, sizeof(s));
     s.context = &f;
     s.object_bytes = 42;
-    s.unpack = unpack;
-    s.block_size = block_size;
+    s.decode_block = unpack;
     s.create = create;
     s.release = object_release;
-    s.read_midi = read_midi;
+    s.adopt_midi = adopt_midi;
     s.invalidate = invalidate;
-    s.read_encoded = read_encoded;
     s.decode = decode;
     s.allocation_size = allocation_size;
     s.decoded = decoded;
     s.open_stream = open_stream;
+    s.release_stream = release_stream;
     s.stream_size = stream_size;
     s.decode_stream = decode_stream;
     s.adopt_stream = adopt;
-    for (kind = 0; kind < 3; ++kind)
-        for (fail = 0; fail < 8; ++fail)
+    memset(&cache, 0, sizeof(cache));
+    cache.file = &f;
+    cache.services.locate = locate;
+    source.file = &f;
+    source.offset = 47;
+    for (test = 0; test < 6; ++test)
+    {
+        kind = test / 2;
+        packed = test % 2;
+        steps = kind == 0 ? 2 + packed : kind == 1 ? 4 + packed : 4;
+        for (fail = 0; fail <= steps; ++fail)
         {
             memset(&f, 0, sizeof(f));
+            f.packed = packed;
+            source.length = packed ? 77 : FACTORY_PAYLOAD_BYTES;
+            resource_block_init(&f.block, &f, factory_read, factory_write);
+            assert(mm_owned_block_set_file(&f.block.owner, &source, packed) == MM_DATA_OK);
+            cache.services.handles = f.block.owner.handles;
+            cache.services.block_files = f.block.owner.files;
             f.fail = fail;
             bytes = 0;
             object = NULL;
             if (!kind)
-                ok = mm_midi_payload_fetch(NULL, &object, &bytes, &s);
+                assert(mm_midi_payload_fetch(&f.block.owner, NULL, &bytes, &s) && bytes == (MMI32)source.length);
             else if (kind == 1)
-                ok = mm_wave_payload_fetch(NULL, &object, &bytes, &s);
+                assert(mm_wave_payload_fetch(&f.block.owner, NULL, &bytes, &s) && bytes == 42);
             else
-                ok = mm_wave_stream_fetch(NULL, 1, 2, &object, &bytes, &s);
+                assert(mm_wave_stream_fetch(&cache, 1, 2, NULL, &bytes, &s) && bytes == 42);
+            assert(!f.step);
+            if (!kind)
+                ok = mm_midi_payload_fetch(&f.block.owner, &object, &bytes, &s);
+            else if (kind == 1)
+                ok = mm_wave_payload_fetch(&f.block.owner, &object, &bytes, &s);
+            else
+                ok = mm_wave_stream_fetch(&cache, 1, 2, &object, &bytes, &s);
+            assert(ok == (fail == 0) && f.step == (fail ? fail : steps));
+            assert(f.decoded == (kind == 1 && ok));
             if (ok)
             {
-                assert(object == &f.object && bytes == (kind == 0 ? 88 : kind == 1 ? 1000 : 101));
+                assert(object == &f.object && bytes == (kind == 0 ? FACTORY_PAYLOAD_BYTES : kind == 1 ? 1000 : 101));
                 object_release(&f, object);
             }
             else if (!kind)
                 assert(f.invalid == 2);
             else
-                assert(!object);
+                assert(!object && bytes == (kind == 2 && fail > 2 ? 101 : 42));
             assert(!f.live);
-            memset(&f, 0, sizeof(f));
-            if (!kind)
-                assert(mm_midi_payload_fetch(NULL, NULL, &bytes, &s) && bytes == 77);
-            else if (kind == 1)
-                assert(mm_wave_payload_fetch(NULL, NULL, &bytes, &s) && bytes == 42);
-            else
-                assert(mm_wave_stream_fetch(NULL, 1, 2, NULL, &bytes, &s) && bytes == 42);
-            assert(!f.step);
+            assert(mm_owned_block_clear(&f.block.owner) == MM_DATA_OK);
         }
+    }
+    memset(&f, 0, sizeof(f));
+    source.length = 11;
+    resource_block_init(&f.block, &f, factory_read, factory_write);
+    assert(mm_owned_block_set_file(&f.block.owner, &source, 0) == MM_DATA_OK);
+    assert(!mm_wave_payload_fetch(&f.block.owner, &object, &bytes, &s) && !object && bytes == 42 && !f.step);
+    assert(mm_owned_block_clear(&f.block.owner) == MM_DATA_OK);
 }
 typedef struct WaveFile
 {

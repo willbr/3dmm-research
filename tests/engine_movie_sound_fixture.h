@@ -1,5 +1,33 @@
 #ifndef ENGINE_MOVIE_SOUND_FIXTURE_H
 #define ENGINE_MOVIE_SOUND_FIXTURE_H
+#ifdef MM_TEST_NATIVE_AUDIOMAN
+#include "audioman.h"
+#include "sndampri.h"
+
+static bool TestClassicWaveCache(std::vector<byte> &wave)
+{
+    auto file = ChunkyFile::PcflCreateTemp();
+    auto cache = file ? ChunkyResourceFile::PcrfNew(file, 1024 * 1024) : nullptr;
+    byte invalid[32] = {};
+    ChunkNumber packed, broken;
+    bool ok = cache && file->FAddPv(wave.data(), static_cast<LegacyLong>((wave.size)()), kctgWave, &packed) &&
+              file->FPackData(kctgWave, packed) && file->FPacked(kctgWave, packed) &&
+              file->FAddPv(invalid, sizeof(invalid), kctgWave, &broken);
+    if (ok)
+    {
+        auto sound = static_cast<PCachedAudioManSound>(cache->PbacoFetch(kctgWave, packed, CachedAudioManSound::FReadCams));
+        auto bad = cache->PbacoFetch(kctgWave, broken, CachedAudioManSound::FReadCams);
+        ok = sound && sound->psnd && sound->psnd->GetSamples() == 4096 && !bad;
+        ReleasePpo(&bad);
+        ReleasePpo(&sound);
+    }
+    ReleasePpo(&cache);
+    ReleasePpo(&file);
+    if (!ok)
+        std::fputs("Classic AudioMan cache fixture failed.\n", stderr);
+    return ok;
+}
+#endif
 class MovieSoundFixtureAccess : public Movie
 {
   public:
@@ -84,6 +112,10 @@ static bool TestMovieSoundIntegration(PMovie parent)
             std::memcpy(bytes.data()+36,"data",4); word(40,8192,4);
             for (int i=0;i<4096;++i) word(44+i*2,unsigned((i%32)*128),2);
         }
+#ifdef MM_TEST_NATIVE_AUDIOMAN
+        if (mode == 0)
+            ok = ok && TestClassicWaveCache(bytes);
+#endif
         if (mode>=2) bytes.resize(3);
         ok=ok && input && input->FWriteRgb(bytes.data(),static_cast<long>((bytes.size)()),0);
         ChunkNumber output=0x12341234; String name; name.SetSzs(PszLit("Imported fixture"));

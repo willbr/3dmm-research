@@ -10,6 +10,7 @@
 
 ***************************************************************************/
 #include "kauai_core.h"
+#include "handle_services.h"
 #include "mm/midi.h"
 ASSERTNAME
 
@@ -169,20 +170,17 @@ bool MidiStream::FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNu
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
     const auto services = _PayloadServices();
-    return mm_midi_payload_fetch(pblck, ppbaco, pcb, &services) != 0;
+    return mm_midi_payload_fetch(pblck->CoreBlock(), ppbaco, pcb, &services) != 0;
 }
 
 MMSoundPayloadServices MidiStream::_PayloadServices()
 {
     MMSoundPayloadServices s = {};
-    s.unpack = [](void *, void *block) -> int { return static_cast<PDataBlock>(block)->FUnpackData(); };
-    s.block_size = [](void *, void *block, int packed) -> MMI32 {
-        return static_cast<PDataBlock>(block)->Cb(packed != 0);
-    };
+    s.decode_block = KauaiDecodeBlockHandle;
     s.create = [](void *) -> void * { return NewObj MidiStream; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.read_midi = [](void *, void *object, void *block) -> int {
-        return static_cast<PDataBlock>(block)->FReadHq(&static_cast<PMidiStream>(object)->_hqrgb);
+    s.adopt_midi = [](void *, void *object, void *handle) {
+        static_cast<PMidiStream>(object)->_hqrgb = handle;
     };
     s.invalidate = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
     return s;
@@ -196,7 +194,7 @@ PMidiStream MidiStream::PmidsRead(PDataBlock pblck)
     AssertPo(pblck, 0);
 
     const auto services = _PayloadServices();
-    return static_cast<PMidiStream>(mm_midi_payload_read(pblck, &services));
+    return static_cast<PMidiStream>(mm_midi_payload_read(pblck->CoreBlock(), &services));
 }
 
 /***************************************************************************
@@ -247,7 +245,9 @@ bool MidiStream::FWrite(PDataBlock pblck)
     AssertThis(0);
     AssertPo(pblck, 0);
 
-    return pblck->FWriteHq(_hqrgb, 0);
+    MMBlockIO io;
+    return mm_owned_block_io(pblck->CoreBlock(), &io) == MM_DATA_OK &&
+           mm_block_write_handle(&io, 0, _hqrgb, false) == MM_DATA_OK;
 }
 
 /***************************************************************************

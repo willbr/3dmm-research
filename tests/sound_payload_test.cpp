@@ -131,6 +131,32 @@ static void Wave()
                 Record(result.data(), result.size());
             }
 }
+static void CachedMidi()
+{
+    std::vector<byte> expected;
+    for (int i = 0; i < 128; ++i)
+        expected.insert(expected.end(), {0, 0x90, 60, 64});
+    const auto count = static_cast<LegacyLong>(expected.size());
+    auto file = ChunkyFile::PcflCreateTemp();
+    ChunkNumber number;
+    CHECK(file && file->FAddPv(expected.data(), count, 'MIDS', &number) && file->FPackData('MIDS', number));
+    auto cache = ChunkyResourceFile::PcrfNew(file, 1024);
+    DataBlock packed;
+    CHECK(cache && file->FFind('MIDS', number, &packed) && packed.FPacked());
+    LegacyLong estimate = -1;
+    CHECK(MidiStream::FReadMids(cache, 'MIDS', number, &packed, nullptr, &estimate) &&
+          packed.FPacked() && estimate == packed.Cb(true) && estimate < count);
+
+    auto midi = static_cast<PMidiStream>(cache->PbacoFetch('MIDS', number, MidiStream::FReadMids));
+    CHECK(midi && midi->CbOnFile() == count);
+    DataBlock roundTrip;
+    std::vector<byte> actual(count);
+    CHECK(roundTrip.FSetTemp(count) && midi->FWrite(&roundTrip) && roundTrip.FReadRgb(actual.data(), count, 0));
+    CHECK(actual == expected && packed.FPacked());
+    ReleasePpo(&midi);
+    ReleasePpo(&cache);
+    ReleasePpo(&file);
+}
 int main()
 {
     if (const auto path = std::getenv("MM_SOUND_PAYLOAD_SNAPSHOT"))
@@ -140,6 +166,7 @@ int main()
     }
     Midi();
     Wave();
+    CachedMidi();
     // Frozen from the native parser/importer/encoder before their conversion.
     // Event metadata in this trace uses native byte order; wire bytes do not.
     const unsigned endian = 1;

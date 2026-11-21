@@ -273,13 +273,12 @@ bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg
     AssertVarMem(pcb);
     MMSoundPayloadServices s = {};
     s.object_bytes = size(CachedAudioManSound) + size(DataBlockStream);
-    s.open_stream = [](void *, void *cache, MMU32 type, MMU32 number) -> void * {
-        auto file = static_cast<PChunkyResourceFile>(cache)->Pcfl();
-        FileLocation location;
-        if (!file->FFindFlo(type, number, &location))
-            return nullptr;
-        return DataBlockStream::PstblNew(&location, file->FPacked(type, number));
+    s.open_stream = [](void *, const MMOwnedBlock *block) -> void * {
+        FileLocation location = {static_cast<PFileObject>(block->file), static_cast<FilePosition>(block->view.start),
+                                 static_cast<LegacyLong>(block->view.length)};
+        return DataBlockStream::PstblNew(&location, block->view.packed != 0);
     };
+    s.release_stream = [](void *, void *stream) { static_cast<PDataBlockStream>(stream)->Release(); };
     s.stream_size = [](void *, void *stream) -> MMI32 {
         return size(CachedAudioManSound) + static_cast<PDataBlockStream>(stream)->CbMem();
     };
@@ -293,7 +292,7 @@ bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg
         static_cast<PCachedAudioManSound>(object)->_pstbl = static_cast<PDataBlockStream>(stream);
     };
     MMI32 bytes;
-    const bool ok = mm_wave_stream_fetch(pcrf, ctg, cno, ppbaco, &bytes, &s) != 0;
+    const bool ok = mm_wave_stream_fetch(pcrf->CoreCache(), ctg, cno, ppbaco, &bytes, &s) != 0;
     *pcb = bytes;
     return ok;
 }

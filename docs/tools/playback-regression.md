@@ -17281,3 +17281,43 @@ continuous playback, and on all retail seek camera indices. SDL matched all
 12 retail sound requests. Each port reproduced all 60 seek canvas hashes from
 the previous build. The comparison and fixture evidence are in
 `tmp/c89-sound-cache`.
+
+## Cached MIDI and WAVE payloads through C89 blocks (21 November 2026)
+
+MIDI and SDL WAVE readers now decode and read the supplied C89 block. MIDI
+retains its stored-size estimate and reports the decoded length after unpacking.
+SDL retains its object-size estimate and reads the encoded payload into C-owned
+scratch before handing it to the audio decoder. Classic AudioMan reopens the
+current cache key in C89 and receives the located file extent. The COM stream
+is released through its own interface if object creation or decoding fails.
+
+All 192 standalone C checks, seven focused AddressSanitizer checks, 21
+selected native x64 checks and 23 selected SDL checks passed. On native x86,
+seven focused C checks, the resource-cache and core-link fixtures, and the
+movie save/reopen fixture passed. Real packed MIDI round-tripped on all three
+builds. The SDL device test played a packed WAVE, and the original x86 AudioMan
+fixture loaded a packed WAVE and rejected a malformed payload through the
+actual resource cache.
+
+The three 314,180-byte MIDI and PCM/ADPCM traces match their pre-change
+executables. The nine sound and actor snapshots, 54 other movie and scene
+traces, three saved movie fixtures, ten Preview fingerprints and six Preview
+movies also matched. The SDL authoring save matched the previous output.
+
+Retail, SDL and Marcus matched all three retained-background frame
+identities, camera indices and canvas hashes in `20261121T001917Z-ca1700f4`.
+Both ports matched original v3dmm 0.14 on all three Studio-saved VMM frames
+in `20261121T001958Z-702bf53b`.
+
+In sampled-audio playback suite `20261121T001853Z-13b9fd28`, retail, SDL and
+Marcus matched all 60 authored frame identities. SDL matched all four retail
+sound requests. PCM16 peaks held at 2,380 for retail and 2,176 for each port,
+matching the prior recordings. The comparison returned the same verdict on
+every component as archived suite `20261119T014854Z-542b8be6`, including
+the existing cross-player mixed PCM differences.
+
+In actor-event suite `20261121T001853Z-7fd93dc5`, both ports matched all
+60 archived retail frame identities in seek and continuous playback and
+all retail seek camera indices. SDL matched all 12 retail sound requests.
+Each port reproduced its 60 seek canvas hashes from the previous build.
+The comparison and fixture evidence are in `tmp/c89-sound-payload-block`.

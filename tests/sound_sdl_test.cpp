@@ -52,6 +52,7 @@ int main()
     DataBlock block;
     CHECK(file->FAdd(static_cast<long>(bytes.size()), kctgWave, &number, &block) &&
           block.FWriteRgb(bytes.data(), static_cast<long>(bytes.size()), 0));
+    CHECK(file->FPackData(kctgWave, number) && file->FPacked(kctgWave, number));
     auto resources = ChunkyResourceFile::PcrfNew(file, 1024 * 1024);
     CHECK(resources);
     auto device = KauaiAudio::NewWaveDevice();
@@ -116,6 +117,6 @@ int main()
     ReleasePpo(&resources);
     ReleasePpo(&file);
     ReleasePpo(&app);
-    std::puts("Kauai SDL sound: real chunky WAVE cache, queue chaining, grouped starts, nested pause, activation, "
+    std::puts("Kauai SDL sound: packed chunky WAVE cache, queue chaining, grouped starts, nested pause, activation, "
               "class stop and teardown passed.");
 }
