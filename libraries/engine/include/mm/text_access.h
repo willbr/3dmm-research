@@ -1,7 +1,7 @@
 /* Text stream caching, navigation and counted search. */
 #ifndef MM_ENGINE_TEXT_ACCESS_H
 #define MM_ENGINE_TEXT_ACCESS_H
-#include "types.h"
+#include "piece_table.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -35,8 +35,7 @@ extern "C"
     typedef struct MMTextAccessServices
     {
         void *context;
-        void (*view)(void *, MMTextCache *);
-        int (*fetch)(void *, MMI32 offset, MMI32 bytes, void *);
+        const MMTextCache *state;
         int (*cache)(void *, MMI32 first, MMI32 end);
         int (*character)(void *, MMI32 cp, MMU32 *);
         unsigned (*classify)(void *, MMU32);
@@ -45,13 +44,13 @@ extern "C"
         void (*diagnostic)(void *, int);
     } MMTextAccessServices;
     /* Borrowed native one/two-byte units, with storage for 512 characters. Ranges
-     * and character counts are valid native document values. Fill retains overlap
-     * and native publication order even when fetch returns failure/exception.
+     * are valid native document values. Fill returns MM_DATA_* and publishes the
+     * new range on file I/O failure, retaining bytes and poison from the piece reader.
      * Invalidation keeps the longer surviving end; ties retain the front.
      * Synchronous fallible services return 1/0 or -1/-2 and never throw across C.
-     * View/classification/diagnostics never throw. Virtual cache/character services
-     * may change the published cache; get/fetch re-read its view after dispatch. */
-    int mm_text_cache_fill(MMTextCache *, MMI32 first, MMI32 end, MMI32 characters, const MMTextAccessServices *);
+     * Classification/diagnostics never throw. Get/fetch read the current cache
+     * buffer and range after calling the virtual cache service. */
+    int mm_text_cache_fill(MMTextCache *, MMI32 first, MMI32 end, MMPieceTable *);
     void mm_text_cache_invalidate(MMTextCache *, MMI32 cp, MMI32 inserted, MMI32 deleted);
     int mm_text_access_character(MMI32 cp, MMU32 *, const MMTextAccessServices *);
     int mm_text_access_fetch(MMI32 cp, MMI32 count, void *output, const MMTextAccessServices *);

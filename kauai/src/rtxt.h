@@ -16,6 +16,7 @@
 #ifndef RTXT_H
 #define RTXT_H
 #include "rich_text_data.h"
+#include "mm/text_access.h"
 #include "mm/text_undo.h"
 
 using namespace Chunky;
@@ -89,7 +90,6 @@ const achar kchObject = 1;
 /***************************************************************************
     Generic text document base class
 ***************************************************************************/
-const long kcchMaxTxtbCache = 512;
 typedef class TextDocumentBase *PTextDocumentBase;
 #define TextDocumentBase_PAR DocumentBase
 #define kclsTextDocumentBase 'TXTB'
@@ -107,9 +107,8 @@ class TextDocumentBase : public TextDocumentBase_PAR
     PFileByteStream _pbsf;
     AbstractColor _acrBack;
     long _dxpDef; // default width of the document
-    long _cpMinCache;
-    long _cpLimCache;
-    achar _rgchCache[kcchMaxTxtbCache];
+    achar _rgchCache[MM_TEXT_CACHE_UNITS];
+    MMTextCache _textCache;
 
     MMTextUndoControl _textUndo;
 

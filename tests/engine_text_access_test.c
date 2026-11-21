@@ -11,14 +11,16 @@ static void check(int ok, int line)
     }
 }
 #define CHECK(x) check(!!(x), __LINE__)
+enum { TEST_CHARACTERS = 2400 };
 typedef struct Host
 {
     MMTextAccessServices s;
     MMTextCache cache;
+    MMPieceTable pieces;
     unsigned short storage[512], alternate[512], text[4096];
     MMI32 characters, fetch_at, fetch_bytes;
     int fetches, caches, reads, lowers, patterns, diagnostics[2], fail_fetch, fail_cache, fail_read, fail_lower,
-        fail_pattern, result, alternate_cache;
+        fail_pattern, result, alternate_cache, file_refs;
 } Host;
 static MMU32 at(const void *p, MMI32 i, unsigned unit)
 {
@@ -48,29 +50,64 @@ static MMU32 lower_value(MMU32 ch)
 {
     return ch >= 'A' && ch <= 'Z' ? ch + 32 : ch == 0x141 ? 0x161 : ch;
 }
-static void view(void *v, MMTextCache *out)
-{
-    *out = ((Host *)v)->cache;
-}
-static int fetch(void *v, MMI32 offset, MMI32 bytes, void *out)
+static void retain(void *v, void *file)
 {
     Host *h = (Host *)v;
-    CHECK(offset >= 0 && bytes >= 0 && offset + bytes <= h->characters * (MMI32)h->cache.unit);
-    h->fetch_at = offset;
-    h->fetch_bytes = bytes;
+    CHECK(file == h);
+    ++h->file_refs;
+}
+static void release(void *v, void *file)
+{
+    Host *h = (Host *)v;
+    CHECK(file == h && h->file_refs > 0);
+    --h->file_refs;
+}
+static int read_file(void *v, const MMFilePiece *p, void *out)
+{
+    Host *h = (Host *)v;
+    CHECK(p->file == h && p->offset + p->length <= h->characters * h->cache.unit);
+    h->fetch_at = p->offset;
+    h->fetch_bytes = p->length;
     if (++h->fetches == h->fail_fetch)
-    {
-        if (bytes)
-            memcpy(out, (const unsigned char *)h->text + offset, h->cache.unit);
-        return h->result;
-    }
-    memcpy(out, (const unsigned char *)h->text + offset, (size_t)bytes);
+        return 0;
+    memcpy(out, (const unsigned char *)h->text + p->offset, p->length);
     return 1;
+}
+static void open_pieces(Host *h)
+{
+    MMPieceFiles files;
+    MMFilePiece piece;
+    if (h->pieces.group.storage)
+        return;
+    memset(&files, 0, sizeof(files));
+    files.context = h;
+    files.retain = retain;
+    files.release = release;
+    files.read = read_file;
+    CHECK(mm_piece_table_init(&h->pieces, NULL, &files, 0) == MM_DATA_OK);
+    piece.file = h;
+    piece.offset = 0;
+    piece.length = h->characters * h->cache.unit;
+    CHECK(mm_piece_table_replace_file(&h->pieces, 0, 0, &piece, 0) == MM_DATA_OK);
+}
+static void dispose(Host *h)
+{
+    if (h->pieces.group.storage)
+    {
+        CHECK(mm_piece_table_dispose(&h->pieces) == MM_DATA_OK);
+        CHECK(!h->file_refs);
+    }
+}
+static int fill(Host *h, MMI32 first, MMI32 end)
+{
+    open_pieces(h);
+    return mm_text_cache_fill(&h->cache, first, end, &h->pieces);
 }
 static int cache(void *v, MMI32 first, MMI32 end)
 {
     Host *h = (Host *)v;
     MMI32 i;
+    int r;
     if (++h->caches == h->fail_cache)
         return h->result;
     if (h->alternate_cache)
@@ -82,7 +119,9 @@ static int cache(void *v, MMI32 first, MMI32 end)
             store(h->cache.data, i - h->cache.first, h->cache.unit, at(h->text, i, h->cache.unit));
         return 1;
     }
-    return mm_text_cache_fill(&h->cache, first, end, h->characters, &h->s);
+    r = fill(h, first, end);
+    CHECK(r == MM_DATA_OK || r == MM_DATA_IO);
+    return 1;
 }
 static int character(void *v, MMI32 cp, MMU32 *out)
 {
@@ -120,17 +159,17 @@ static void init(Host *h, unsigned unit)
 {
     MMI32 i;
     const unsigned char pattern[] = {'A', 'b', ' ', '\r', '\n', '\n', 'X', '\t', 0, 'q'};
+    dispose(h);
     memset(h, 0, sizeof(*h));
     h->cache.data = h->storage;
     h->cache.unit = unit;
-    h->characters = 1800;
+    h->characters = TEST_CHARACTERS;
     h->result = -1;
     for (i = 0; i < h->characters; ++i)
         store(h->text, i, unit, pattern[i % 10]);
     store(h->text, h->characters - 1, unit, '\r');
     h->s.context = h;
-    h->s.view = view;
-    h->s.fetch = fetch;
+    h->s.state = &h->cache;
     h->s.cache = cache;
     h->s.character = character;
     h->s.classify = classify;
@@ -153,11 +192,10 @@ static MMU32 random_word(MMU32 *state)
 }
 static void fills(void)
 {
-    Host h;
+    Host h = {0};
     unsigned unit;
     MMI32 a, b, i;
     MMU32 state = 2026, ch;
-    int failure;
     for (unit = 1; unit <= 2; ++unit)
     {
         init(&h, unit);
@@ -173,29 +211,12 @@ static void fills(void)
         contents(&h);
         for (i = 0; i < 1000; ++i)
         {
-            a = (MMI32)(random_word(&state) % 1800);
+            a = (MMI32)(random_word(&state) % TEST_CHARACTERS);
             b = a + 1 + (MMI32)(random_word(&state) % (MMU32)(h.characters - a));
             if (b - a > 512)
                 b = a + 512;
             CHECK(cache(&h, a, b) == 1 && h.cache.first <= a && h.cache.end >= b);
             contents(&h);
-        }
-        for (failure = 0; failure >= -2; --failure)
-        {
-            init(&h, unit);
-            h.fail_fetch = 1;
-            h.result = failure;
-            CHECK(cache(&h, 1000, 1001) == failure && h.cache.first == 744 && h.cache.end == 1256);
-            init(&h, unit);
-            CHECK(cache(&h, 1000, 1001) == 1);
-            h.fail_fetch = 2;
-            h.result = failure;
-            CHECK(cache(&h, 500, 501) == failure && h.cache.first == 744 && h.cache.end == 1012);
-            init(&h, unit);
-            CHECK(cache(&h, 0, 1) == 1);
-            h.fail_fetch = 2;
-            h.result = failure;
-            CHECK(cache(&h, 600, 601) == failure && h.cache.first == 0 && h.cache.end == 512);
         }
         init(&h, unit);
         h.alternate_cache = 1;
@@ -216,10 +237,57 @@ static void fills(void)
             CHECK(mm_text_access_character(17, &ch, &h.s) == -1 && ch == 123);
         }
     }
+    dispose(&h);
+}
+static void poisoned(Host *h, MMI32 first, MMI32 end)
+{
+    MMI32 i;
+    unsigned char *bytes = (unsigned char *)h->cache.data;
+    CHECK(first >= h->cache.first && end <= h->cache.end);
+    for (i = (first - h->cache.first) * h->cache.unit; i < (end - h->cache.first) * (MMI32)h->cache.unit; ++i)
+        CHECK(bytes[i] == 0xa3);
+}
+static void failed_reads(void)
+{
+    Host h = {0};
+    unsigned unit;
+    MMU32 ch;
+    for (unit = 1; unit <= 2; ++unit)
+    {
+        init(&h, unit);
+        h.fail_fetch = 1;
+        CHECK(fill(&h, 1000, 1001) == MM_DATA_IO && h.cache.first == 744 && h.cache.end == 1256);
+        poisoned(&h, 744, 1256);
+        CHECK(mm_text_access_character(1000, &ch, &h.s) == 1 && ch == (unit == 1 ? 0xa3 : 0xa3a3) && h.fetches == 1);
+
+        init(&h, unit);
+        CHECK(fill(&h, 1000, 1001) == MM_DATA_OK);
+        h.fail_fetch = 2;
+        CHECK(fill(&h, 500, 501) == MM_DATA_IO && h.cache.first == 500 && h.cache.end == 1012);
+        poisoned(&h, 500, 744);
+        CHECK(!memcmp((unsigned char *)h.cache.data + 244 * unit, (unsigned char *)h.text + 744 * unit, 268 * unit));
+
+        init(&h, unit);
+        CHECK(fill(&h, 0, 1) == MM_DATA_OK);
+        h.fail_fetch = 2;
+        CHECK(fill(&h, 600, 601) == MM_DATA_IO && h.cache.first == 89 && h.cache.end == 601);
+        poisoned(&h, 512, 601);
+        CHECK(!memcmp(h.cache.data, (unsigned char *)h.text + 89 * unit, 423 * unit));
+
+        init(&h, unit);
+        open_pieces(&h);
+        CHECK(mm_piece_table_replace(&h.pieces, 800 * unit, unit, (unsigned char *)h.text + 800 * unit, unit) ==
+              MM_DATA_OK);
+        h.fail_fetch = 1;
+        CHECK(fill(&h, 1000, 1001) == MM_DATA_IO && h.cache.first == 744 && h.cache.end == 1256 && h.fetches == 2);
+        poisoned(&h, 744, 800);
+        CHECK(!memcmp((unsigned char *)h.cache.data + 56 * unit, (unsigned char *)h.text + 800 * unit, 456 * unit));
+    }
+    dispose(&h);
 }
 static void invalidations(void)
 {
-    Host h;
+    Host h = {0};
     unsigned unit;
     MMI32 cp, ins, del, old_first, old_end, front, back, expected_first, expected_end, i;
     MMU32 state = 17;
@@ -227,14 +295,14 @@ static void invalidations(void)
         for (i = 0; i < 800; ++i)
         {
             init(&h, unit);
-            cp = (MMI32)(random_word(&state) % 1800);
+            cp = (MMI32)(random_word(&state) % TEST_CHARACTERS);
             CHECK(cache(&h, cp, cp + 1) == 1);
             old_first = h.cache.first;
             old_end = h.cache.end;
-            cp = (MMI32)(random_word(&state) % 1800);
+            cp = (MMI32)(random_word(&state) % TEST_CHARACTERS);
             del = (MMI32)(random_word(&state) % 60);
-            if (del >= 1800 - cp)
-                del = 1799 - cp;
+            if (del >= TEST_CHARACTERS - cp)
+                del = TEST_CHARACTERS - 1 - cp;
             ins = (MMI32)(random_word(&state) % 32);
             expected_first = old_first;
             expected_end = old_end;
@@ -261,17 +329,18 @@ static void invalidations(void)
                 }
             }
             memmove((unsigned char *)h.text + (cp + ins) * unit, (unsigned char *)h.text + (cp + del) * unit,
-                    (size_t)(1800 - cp - del) * unit);
+                    (size_t)(TEST_CHARACTERS - cp - del) * unit);
             memset((unsigned char *)h.text + cp * unit, 0, (size_t)ins * unit);
             h.characters += ins - del;
             mm_text_cache_invalidate(&h.cache, cp, ins, del);
             CHECK(h.cache.first == expected_first && h.cache.end == expected_end);
             contents(&h);
         }
+    dispose(&h);
 }
 static void navigation(void)
 {
-    Host h;
+    Host h = {0};
     unsigned unit;
     MMI32 starts[64], words[64], paragraphs = 0, word_count = 0, cp, i, first, end, previous, next, pword, nword, value;
     int j, failure, r;
@@ -361,8 +430,10 @@ static void navigation(void)
         CHECK(mm_text_navigate(MM_TEXT_NAV_IS_START, 2, 0, 4, &value, &h.s) == 1 && !value && h.diagnostics[0] == 1);
         h.cache.first = h.cache.end = 0;
         store(h.text, 3, unit, 'B');
+        CHECK(mm_piece_table_replace(&h.pieces, 3 * unit, unit, (unsigned char *)h.text + 3 * unit, unit) == MM_DATA_OK);
         CHECK(mm_text_navigate(MM_TEXT_NAV_END, 2, 0, 4, &value, &h.s) == 1 && value == 4 && h.diagnostics[1] == 1);
     }
+    dispose(&h);
 }
 static int naive(Host *h, const void *pattern, MMI32 length, MMI32 first, int sensitive, MMI32 *found)
 {
@@ -392,7 +463,7 @@ static int naive(Host *h, const void *pattern, MMI32 length, MMI32 first, int se
 }
 static void searches(void)
 {
-    Host h;
+    Host h = {0};
     unsigned unit;
     unsigned short pattern[12], original[12];
     MMU32 state = 91;
@@ -451,10 +522,12 @@ static void searches(void)
                 CHECK(mm_text_find(pattern, 2, unit, 0, h.characters, 0, &a, &b, &h.s) == failure && a == 123 &&
                       b == 123);
             }
+    dispose(&h);
 }
 int main(void)
 {
     fills();
+    failed_reads();
     invalidations();
     navigation();
     searches();

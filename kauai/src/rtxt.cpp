@@ -67,9 +67,9 @@ void TextDocumentBase::AssertValid(LegacyUlong grfobj)
     cpMac = ibMac / size(achar);
     Assert(ibMac % size(achar) == 0, "ibMac not divisible by size(achar)");
     AssertIn(ibMac, size(achar), kcbMax);
-    AssertIn(_cpMinCache, 0, cpMac + 1);
-    AssertIn(_cpLimCache, 0, cpMac + 1);
-    AssertIn(_cpLimCache, _cpMinCache, _cpMinCache + size(_rgchCache) + 1);
+    AssertIn(_textCache.first, 0, cpMac + 1);
+    AssertIn(_textCache.end, 0, cpMac + 1);
+    AssertIn(_textCache.end, _textCache.first, _textCache.first + MM_TEXT_CACHE_UNITS + 1);
     AssertNilOrPo(_pfil, 0);
     if (grfobj & fobjAssertFull)
     {
@@ -92,7 +92,8 @@ void TextDocumentBase::MarkMem(void)
 /***************************************************************************
     Constructor for the base text document class
 ***************************************************************************/
-TextDocumentBase::TextDocumentBase(PDocumentBase pdocb, ulong grfdoc) : TextDocumentBase_PAR(pdocb, grfdoc)
+TextDocumentBase::TextDocumentBase(PDocumentBase pdocb, ulong grfdoc)
+    : TextDocumentBase_PAR(pdocb, grfdoc), _textCache{_rgchCache, 0, 0, sizeof(achar)}
 {
     _acrBack = kacrWhite;
     _dxpDef = kdxpDocDef;
@@ -145,9 +146,10 @@ long TextDocumentBase::CpMac(void)
     // Note: we don't do an AssertThis(0) here for debug performance
     AssertThisMem();
     AssertVarMem(_pbsf);
-    Assert(_pbsf->IbMac() % size(achar) == 0, "IbMac() not divisible by size(achar)");
+    const MMU32 bytes = _pbsf->CorePieces()->length;
+    Assert(bytes % size(achar) == 0, "IbMac() not divisible by size(achar)");
 
-    return _pbsf->IbMac() / size(achar);
+    return bytes / size(achar);
 }
 
 /***************************************************************************
@@ -287,13 +289,9 @@ void TextDocumentBase::_CacheRange(long cpMin, long cpLim)
     AssertThis(0);
     AssertIn(cpMin, 0, CpMac() + 1);
     AssertIn(cpLim, cpMin, CpMac() + 1);
-    AssertIn(cpLim - cpMin, 0, kcchMaxTxtbCache + 1);
-    AccessHost host(this);
-    auto services = host.Services();
-    auto cache = host.View();
-    mm_text_cache_fill(&cache, cpMin, cpLim, CpMac(), &services);
-    host.Publish(cache);
-    host.Rethrow();
+    AssertIn(cpLim - cpMin, 0, MM_TEXT_CACHE_UNITS + 1);
+    const int result = mm_text_cache_fill(&_textCache, cpMin, cpLim, _pbsf->CorePieces());
+    Assert(result == MM_DATA_OK || result == MM_DATA_IO, "invalid stream fetch");
 }
 
 /***************************************************************************
@@ -301,10 +299,7 @@ void TextDocumentBase::_CacheRange(long cpMin, long cpLim)
 ***************************************************************************/
 void TextDocumentBase::_InvalCache(long cp, long ccpIns, long ccpDel)
 {
-    AccessHost host(this);
-    auto cache = host.View();
-    mm_text_cache_invalidate(&cache, cp, ccpIns, ccpDel);
-    host.Publish(cache);
+    mm_text_cache_invalidate(&_textCache, cp, ccpIns, ccpDel);
 }
 
 /***************************************************************************

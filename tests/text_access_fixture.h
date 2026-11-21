@@ -36,8 +36,8 @@ struct AccessProbe : PropertyProbe
     }
     bool Snapshot(LiveTextTrace &t)
     {
-        return t.Word(_cpMinCache) && t.Word(_cpLimCache) &&
-               t.Raw(_rgchCache, (_cpLimCache - _cpMinCache) * sizeof(achar)) && t.Word(cacheCalls) &&
+        return t.Word(_textCache.first) && t.Word(_textCache.end) &&
+               t.Raw(_textCache.data, (_textCache.end - _textCache.first) * sizeof(achar)) && t.Word(cacheCalls) &&
                t.Word(characterCalls) && t.Word(invalidations) && t.Word(notifications) && t.Word(FDirty()) && State(t);
     }
     bool CacheTests(LiveTextTrace &t)

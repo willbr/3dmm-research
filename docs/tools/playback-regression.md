@@ -18225,3 +18225,22 @@ and the retail seek cameras. SDL kept the saved caption, right alignment, Times
 New Roman font and visibility window. Both ports still differ from retail where
 the caption is visible on frames 4 through 6. Logs are in
 `tmp/c89-text-document-pieces`.
+
+## C89 text cache state and reads (21 November 2026)
+
+Text documents keep their live cache range and character width in a C record.
+Cache fills read the piece table directly. The engine fixture checks both
+character widths, overlap reuse, virtual cache buffer changes, and I/O failures
+that poison only the unreadable part of a fill while publishing its range.
+
+All 192 standalone C checks, seven focused AddressSanitizer checks and 16 native
+C89 and Marcus checks passed. Native x64, native x86 and SDL reproduced 24 binary
+traces including cache contents, virtual hook calls and navigation results.
+Help display fingerprints matched, and Studio reproduced its authored movie
+byte for byte.
+
+In `20261121T064400Z-bd7f8c23`, SDL and Marcus reproduced all 11 preceding seek
+canvases and matched the archived retail frame identities in seek and continuous
+playback. All retail seek cameras matched. The three visible-caption frames
+still differ from retail. SDL retained the caption text, right alignment,
+Times New Roman font and visibility window. Logs are in `tmp/c89-text-cache-storage`.

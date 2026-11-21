@@ -2986,13 +2986,15 @@ remain work. Evidence and platform limits are in
 
 `text_access.c` controls the 512-character stream cache, edit invalidation,
 character/block reads, paragraph/word navigation and counted literal search.
-Native host adapters supply borrowed cache storage, primitive stream reads,
-classification/case mapping and virtual character/cache dispatch. Reads re-fetch
-the current view after virtual cache hooks, retaining subclass behavior.
+The document holds the cache range and unit in a persistent C record. The C
+cache reads the piece table directly. Native host adapters provide character
+classification, case mapping and virtual character/cache dispatch. Character
+and block reads use the current buffer and range after virtual cache hooks.
 
-Cache filling keeps overlapping front/back data and preserves the original range
-publication order around reads. Invalidation keeps the longer surviving end,
-choosing the front on a tie. Failed reads retain partial cache/data effects.
+Cache filling keeps overlapping front/back data and publishes the same ranges
+as the native stream path. Invalidation keeps the longer surviving end,
+choosing the front on a tie. If file I/O fails, the cache publishes the filled
+range with successful bytes and the piece reader's poison for unreadable bytes.
 Navigation preserves CR/LF handling, ignored line feeds, paragraph boundary rules,
 word-delimiter behavior and diagnostics for isolated line feeds/missing final CR.
 Case-insensitive search lowercases the caller's pattern even on miss and retains

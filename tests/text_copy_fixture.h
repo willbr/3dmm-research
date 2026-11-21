@@ -40,7 +40,7 @@ struct CopyProbe : FormatProbe
         achar marker = kchObject;
         if (!_pbsf->FReplace(&marker, sizeof(marker), cp * sizeof(achar), sizeof(achar)) || !_pglmpe->FInsert(i, &p))
             return false;
-        _cpMinCache = _cpLimCache = 0;
+        _textCache.first = _textCache.end = 0;
         return true;
     }
     bool ObjectQueries(LiveTextTrace &t)

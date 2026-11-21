@@ -6,16 +6,6 @@ struct TextDocumentBase::AccessHost : DocumentHost
     explicit AccessHost(TextDocumentBase *p) : DocumentHost(p)
     {
     }
-    MMTextCache View()
-    {
-        return {doc->_rgchCache, static_cast<MMI32>(doc->_cpMinCache), static_cast<MMI32>(doc->_cpLimCache),
-                sizeof(achar)};
-    }
-    void Publish(const MMTextCache &c)
-    {
-        doc->_cpMinCache = c.first;
-        doc->_cpLimCache = c.end;
-    }
     MMTextAccessServices Services()
     {
         static_assert(fchBreak == MM_TEXT_CHAR_BREAK && fchMayBreak == MM_TEXT_CHAR_MAY_BREAK &&
@@ -23,14 +13,7 @@ struct TextDocumentBase::AccessHost : DocumentHost
                       "text character flags");
         MMTextAccessServices s = {};
         s.context = this;
-        s.view = [](void *v, MMTextCache *out) { *out = static_cast<AccessHost *>(v)->View(); };
-        s.fetch = [](void *v, MMI32 at, MMI32 count, void *bytes) -> int {
-            auto &h = *static_cast<AccessHost *>(v);
-            return h.Guard([&] {
-                h.doc->_pbsf->FetchRgb(at, count, bytes);
-                return 1;
-            });
-        };
+        s.state = &doc->_textCache;
         s.cache = [](void *v, MMI32 first, MMI32 end) -> int {
             auto &h = *static_cast<AccessHost *>(v);
             return h.Guard([&] {

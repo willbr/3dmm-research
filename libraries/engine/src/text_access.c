@@ -17,13 +17,14 @@ static MMU32 unit_at(const void *data, MMI32 i, unsigned unit)
     memcpy(&value, p, 2);
     return value;
 }
-int mm_text_cache_fill(MMTextCache *c, MMI32 first, MMI32 end, MMI32 characters, const MMTextAccessServices *s)
+int mm_text_cache_fill(MMTextCache *c, MMI32 first, MMI32 end, MMPieceTable *pieces)
 {
     MMI32 at, new_first, new_end;
+    MMI32 characters = pieces->length / c->unit;
     int r;
     unsigned char *bytes = (unsigned char *)c->data;
     if (first >= c->first && end <= c->end)
-        return 1;
+        return MM_DATA_OK;
     if (c->end <= c->first)
         goto fresh;
     if (first < c->first)
@@ -33,9 +34,7 @@ int mm_text_cache_fill(MMTextCache *c, MMI32 first, MMI32 end, MMI32 characters,
         at = max(0, min(first, c->end - MM_TEXT_CACHE_UNITS));
         c->end = min(at + MM_TEXT_CACHE_UNITS, c->end);
         memmove(bytes + (c->first - at) * c->unit, bytes, (size_t)(c->end - c->first) * c->unit);
-        r = s->fetch(s->context, at * c->unit, (c->first - at) * c->unit, bytes);
-        if (r <= 0)
-            return r;
+        r = mm_piece_table_read(pieces, at * c->unit, bytes, (c->first - at) * c->unit);
         c->first = at;
     }
     else
@@ -45,20 +44,18 @@ int mm_text_cache_fill(MMTextCache *c, MMI32 first, MMI32 end, MMI32 characters,
         fresh:
             c->first = max(0, min((first + end - MM_TEXT_CACHE_UNITS) / 2, characters - MM_TEXT_CACHE_UNITS));
             c->end = min(c->first + MM_TEXT_CACHE_UNITS, characters);
-            return s->fetch(s->context, c->first * c->unit, (c->end - c->first) * c->unit, bytes);
+            return mm_piece_table_read(pieces, c->first * c->unit, bytes, (c->end - c->first) * c->unit);
         }
         new_end = min(characters, max(end, c->first + MM_TEXT_CACHE_UNITS));
         new_first = max(new_end - MM_TEXT_CACHE_UNITS, c->first);
         if (new_first != c->first)
             memmove(bytes, bytes + (new_first - c->first) * c->unit, (size_t)(c->end - new_first) * c->unit);
-        r = s->fetch(s->context, c->end * c->unit, (new_end - c->end) * c->unit,
-                     bytes + (c->end - new_first) * c->unit);
-        if (r <= 0)
-            return r;
+        r = mm_piece_table_read(pieces, c->end * c->unit, bytes + (c->end - new_first) * c->unit,
+                                (new_end - c->end) * c->unit);
         c->first = new_first;
         c->end = new_end;
     }
-    return 1;
+    return r;
 }
 void mm_text_cache_invalidate(MMTextCache *c, MMI32 cp, MMI32 ins, MMI32 del)
 {
@@ -86,22 +83,20 @@ void mm_text_cache_invalidate(MMTextCache *c, MMI32 cp, MMI32 ins, MMI32 del)
 }
 int mm_text_access_character(MMI32 cp, MMU32 *out, const MMTextAccessServices *s)
 {
-    MMTextCache c;
+    const MMTextCache *c = s->state;
     int r;
-    s->view(s->context, &c);
-    if (cp < c.first || cp >= c.end)
+    if (cp < c->first || cp >= c->end)
     {
         r = s->cache(s->context, cp, cp + 1);
         if (r <= 0)
             return r;
-        s->view(s->context, &c);
     }
-    *out = unit_at(c.data, cp - c.first, c.unit);
+    *out = unit_at(c->data, cp - c->first, c->unit);
     return 1;
 }
 int mm_text_access_fetch(MMI32 cp, MMI32 count, void *output, const MMTextAccessServices *s)
 {
-    MMTextCache c;
+    const MMTextCache *c = s->state;
     MMI32 n;
     int r;
     unsigned char *p = (unsigned char *)output;
@@ -111,9 +106,8 @@ int mm_text_access_fetch(MMI32 cp, MMI32 count, void *output, const MMTextAccess
         r = s->cache(s->context, cp, cp + n);
         if (r <= 0)
             return r;
-        s->view(s->context, &c);
-        memcpy(p, (unsigned char *)c.data + (cp - c.first) * c.unit, (size_t)n * c.unit);
-        p += n * c.unit;
+        memcpy(p, (const unsigned char *)c->data + (cp - c->first) * c->unit, (size_t)n * c->unit);
+        p += n * c->unit;
         cp += n;
         count -= n;
     }
