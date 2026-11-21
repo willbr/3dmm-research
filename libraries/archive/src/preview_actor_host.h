@@ -45,7 +45,7 @@ struct PreviewActor::Host
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
                 BRS value = *out;
-                bool ok = h.actor->Ptmpl()->FGetDwrActnCel(action, cel, &value);
+                bool ok = EngineTemplate::FGetDwrActnCel(h.actor->Ptmpl(), action, cel, &value);
                 *out = value;
                 return ok;
             }) > 0;
@@ -84,7 +84,7 @@ struct PreviewActor::Host
                 auto source = h.actor->resolve(tag);
                 if (!source)
                     return false;
-                *out = static_cast<PTemplate>(source->PbacoFetch(tag.ctg, tag.cno, Template::FReadTmpl));
+                *out = EngineTemplate::Fetch(source, tag.ctg, tag.cno);
                 return *out != nullptr;
             });
         };
@@ -98,7 +98,7 @@ struct PreviewActor::Host
         s.body_create = [](void *v, void *t, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = static_cast<PTemplate>(t)->PbodyCreate();
+                *out = EngineTemplate::PbodyCreate(static_cast<PTemplate>(t));
                 return *out != nullptr;
             });
         };
@@ -111,20 +111,19 @@ struct PreviewActor::Host
         };
         s.adjust_text_body = [](void *v, void *t, void *b) -> int {
             auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] { return static_cast<PThreeDText>(t)->FAdjustBody(static_cast<PBody>(b)); });
+            return h.Guard([&] { return EngineText::FAdjustBody(static_cast<PThreeDText>(t), static_cast<PBody>(b)); });
         };
-        s.prop = [](void *, void *t) -> int { return static_cast<PTemplate>(t)->FIsProp(); };
-        s.text = [](void *, void *t) -> int { return static_cast<PTemplate>(t)->FIsTdt(); };
+        s.prop = [](void *, void *t) -> int { return EngineTemplate::FIsProp(static_cast<PTemplate>(t)); };
+        s.text = [](void *, void *t) -> int { return EngineTemplate::FIsTdt(static_cast<PTemplate>(t)); };
         s.release_body = [](void *, void *b) {
             mm_body_owner_release(static_cast<PBody>(b));
         };
         s.release_template = [](void *, void *t) {
-            auto value = static_cast<PTemplate>(t);
-            ReleasePpo(&value);
+            mm_template_owner_release(static_cast<PTemplate>(t));
         };
         s.rest = [](void *v, void *t, unsigned short *a) {
             static_cast<Host *>(v)->Guard([&] {
-                static_cast<PTemplate>(t)->GetRestOrien(a, a + 1, a + 2);
+                EngineTemplate::GetRestOrien(static_cast<PTemplate>(t), a, a + 1, a + 2);
                 return 1;
             });
         };
@@ -138,7 +137,7 @@ struct PreviewActor::Host
         };
         s.pose = [](void *v, void *t, void *b, MMI32 action, MMI32 cel) -> int {
             auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] { return static_cast<PTemplate>(t)->FSetActnCel(static_cast<PBody>(b), action, cel); });
+            return h.Guard([&] { return EngineTemplate::FSetActnCel(static_cast<PTemplate>(t), static_cast<PBody>(b), action, cel); });
         };
         s.apply = [](void *v, MMI32 index) -> int {
             auto &h = *static_cast<Host *>(v);
@@ -168,7 +167,7 @@ struct PreviewActor::Host
         s.clear_motion = [](void *v) { mm_actor_sounds_clear(&static_cast<Host *>(v)->actor->motionSounds); };
         s.default_costume = [](void *v, void *t, void *b) -> int {
             auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] { return static_cast<PTemplate>(t)->FSetDefaultCost(static_cast<PBody>(b)); });
+            return h.Guard([&] { return EngineTemplate::FSetDefaultCost(static_cast<PTemplate>(t), static_cast<PBody>(b)); });
         };
         s.motion_cues = [](void *v) -> int {
             auto &h = *static_cast<Host *>(v);

@@ -1,29 +1,28 @@
 #ifndef ENGINE_TEXT_GENERATION_FIXTURE_H
 #define ENGINE_TEXT_GENERATION_FIXTURE_H
 struct TextGenerationFontContext { PChunkyResourceFile cache; bool fail; int fetches; };
-static MMFontOwner *TextGenerationFont(void *p,const TAG &)
+static MMFontOwner *TextGenerationFont(void *p,const MMTag *)
 {
     auto c=static_cast<TextGenerationFontContext *>(p);
     ++c->fetches;
     return c->fail?nullptr:static_cast<MMFontOwner *>(mm_resource_cache_fetch_owned_chunk(
         c->cache->CoreCache(),kctgTdf,0,EngineFont::Read,mm_font_owner_services()));
 }
-class TextGenerationFixtureAccess : public ThreeDText
+struct TextGenerationFixtureAccess
 {
-  public:
     static void *Build(PThreeDText t,int kind,int action)
     {
-        if (kind==2) { auto member=&TextGenerationFixtureAccess::_FetchAction; return (t->*member)(action); }
-        auto services=_GenerationServices();
+        if (kind==2) return EngineText::FetchAction(t, action);
+        auto services=EngineText::GenerationServices();
         return kind==3 ? mm_text_build_matrices(t,action,&services) : mm_text_build_cels(t,action,&services);
     }
     static bool Record(PThreeDText t,FILE *out)
     {
         if (!t) return true;
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
-        auto field=&TextGenerationFixtureAccess::_generated; auto &state=t->*field;
+        const auto &state = *mm_template_owner_generated(t);
         auto material=static_cast<PMaterial_MTRL>(state.material); auto action=state.action;
-        String text; LegacyLong shape; TAG font; t->GetInfo(&text,&shape,&font);
+        String text; LegacyLong shape; TAG font; EngineText::GetInfo(t, &text,&shape,&font);
         LegacyLong fields[]={shape,text.Cch(),font.sid,static_cast<LegacyLong>(font.ctg),static_cast<LegacyLong>(font.cno),font.pcrf!=nullptr,state.action_id,action!=nullptr,mm_action_resource_references(action),mm_material_owner_references(material)};
         return record(fields,sizeof(fields)) && record(text.Psz(),text.Cch()) && TemplateCreateFixtureAccess::Record(t,out);
     }
@@ -69,9 +68,9 @@ static bool TestTextGeneration()
     const char *strings[]={"","A","AiB","\xe9 A","ABBAi"}; int generated=0,attempts=0,successful=0;
     for (int text=0;ok && text<5;++text) for (int shape=0;ok && shape<tdtsLim;++shape)
     {
-        String string; string.SetSzs(const_cast<char *>(strings[text])); auto t=ThreeDText::PtdtNew(&string,shape,&font); auto body=t?t->PbodyCreate():nullptr; ok=t && body;
-        if (t) t->SetFontResolver(&context,TextGenerationFont);
-        String normalized; if (t) t->GetInfo(&normalized,nullptr,nullptr);
+        String string; string.SetSzs(const_cast<char *>(strings[text])); auto t=EngineText::PtdtNew(&string,shape,&font); auto body=t?EngineTemplate::PbodyCreate(t):nullptr; ok=t && body;
+        if (t) EngineText::SetFontResolver(t, &context,TextGenerationFont);
+        String normalized; if (t) EngineText::GetInfo(t, &normalized,nullptr,nullptr);
         for (int action=0;ok && action<tdaLim;++action)
         {
             auto a=static_cast<MMActionResource *>(TextGenerationFixtureAccess::Build(t,2,action)); auto again=static_cast<MMActionResource *>(TextGenerationFixtureAccess::Build(t,2,action));
@@ -81,10 +80,10 @@ static bool TestTextGeneration()
             LegacyLong fields[]={text,shape,action,normalized.Cch(),count,static_cast<LegacyLong>(definition->flags)};
             ok=record(fields,sizeof(fields)) && TextGenerationFixtureAccess::Resource(a,2,normalized.Cch(),snapshot) && TextGenerationFixtureAccess::Record(t,snapshot) && ok;
             const int positions[]={0,count/2,count-1,-1};
-            for (auto cel:positions) { BRS distance=-77; ok=t->FSetActnCel(body,action,cel,&distance) && ok; LegacyLong values[]={cel,distance}; ok=record(values,sizeof(values)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok; }
+            for (auto cel:positions) { BRS distance=-77; ok=EngineTemplate::FSetActnCel(t, body,action,cel,&distance) && ok; LegacyLong values[]={cel,distance}; ok=record(values,sizeof(values)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok; }
             mm_action_resource_release(a);
         }
-        mm_body_owner_release(body); ReleasePpo(&t); vpers->Clear();
+        mm_body_owner_release(body); mm_template_owner_release(t); vpers->Clear();
     }
     for (int text=0;ok && text<2;++text) for (int operation=0;ok && operation<5;++operation)
     for (int missing=0;ok && missing<2;++missing) for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<24;++failure)
@@ -94,28 +93,28 @@ static bool TestTextGeneration()
         const LegacyLong base=vdmglob.dmaglBase.cv,hq=vdmglob.dmaglHq.cv,pv=vdmglob.dmaglPv.cv;
 #endif
         String string,changed; string.SetSzs(text?"i A":""); changed.SetSzs(text?"":"Bie "); context.fail=false; context.fetches=0;
-        auto t=operation?ThreeDText::PtdtNew(&string,tdtsNormal,&font):nullptr; PBody body=nullptr; MMActionResource *held=nullptr;
-        if (t) { t->SetFontResolver(&context,TextGenerationFont); body=t->PbodyCreate(); held=static_cast<MMActionResource *>(TextGenerationFixtureAccess::Build(t,2,tdaPulse)); ok=body && held && ok; }
+        auto t=operation?EngineText::PtdtNew(&string,tdtsNormal,&font):nullptr; PBody body=nullptr; MMActionResource *held=nullptr;
+        if (t) { EngineText::SetFontResolver(t, &context,TextGenerationFont); body=EngineTemplate::PbodyCreate(t); held=static_cast<MMActionResource *>(TextGenerationFixtureAccess::Build(t,2,tdaPulse)); ok=body && held && ok; }
         context.fail=missing!=0; context.fetches=0; void *result=nullptr; bool success=false;
 #ifdef DEBUG
         vmutxMem.Enter(); auto allocator=kind==0?&vdmglob.dmaglBase:kind==1?&vdmglob.dmaglHq:&vdmglob.dmaglPv;
         allocator->cactDo=failure-1; allocator->cactFail=failure?1:0; vmutxMem.Leave();
 #endif
-        if (!operation) { t=ThreeDText::PtdtNew(&string,tdtsCircleZ,&font); success=t!=nullptr; }
-        else if (operation==1) success=t->FChange(&changed,tdtsCircleZ,&font);
+        if (!operation) { t=EngineText::PtdtNew(&string,tdtsCircleZ,&font); success=t!=nullptr; }
+        else if (operation==1) success=EngineText::FChange(t, &changed,tdtsCircleZ,&font);
         else { result=TextGenerationFixtureAccess::Build(t,operation,tdaStretch); success=result!=nullptr; }
 #ifdef DEBUG
         vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
         ++attempts; if (success) ++successful;
-        if (!operation && t) { t->SetFontResolver(&context,TextGenerationFont); body=t->PbodyCreate(); ok=body && ok; }
-        if (operation==1 && success) { ok=t->FAdjustBody(body) && t->FSetDefaultCost(body) && t->FSetActnCel(body,tdaWave,0) && ok; }
-        String normalized; if (t) t->GetInfo(&normalized,nullptr,nullptr);
+        if (!operation && t) { EngineText::SetFontResolver(t, &context,TextGenerationFont); body=EngineTemplate::PbodyCreate(t); ok=body && ok; }
+        if (operation==1 && success) { ok=EngineText::FAdjustBody(t, body) && EngineTemplate::FSetDefaultCost(t, body) && EngineTemplate::FSetActnCel(t, body,tdaWave,0) && ok; }
+        String normalized; if (t) EngineText::GetInfo(t, &normalized,nullptr,nullptr);
         LegacyLong values[]={text,operation,missing,kind,failure,success,context.fetches,mm_action_resource_references(held)};
         ok=record(values,sizeof(values)) && TextGenerationFixtureAccess::Record(t,snapshot) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
         if (result) ok=TextGenerationFixtureAccess::Resource(result,operation,normalized.Cch(),snapshot) && ok;
         if (result) { if (operation==2) mm_action_resource_release(static_cast<MMActionResource *>(result)); else mm_action_table_dispose(static_cast<MMActionTable *>(result)); }
-        mm_action_resource_release(held); mm_body_owner_release(body); ReleasePpo(&t); vpers->Clear();
+        mm_action_resource_release(held); mm_body_owner_release(body); mm_template_owner_release(t); vpers->Clear();
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv;
 #endif

@@ -1,28 +1,30 @@
 #ifndef ENGINE_TEMPLATE_CREATE_FIXTURE_H
 #define ENGINE_TEMPLATE_CREATE_FIXTURE_H
 #include "mm/resource_cache.h"
-class TemplateCreateFixtureAccess : public Template
+struct TemplateCreateFixtureAccess
 {
-  public:
     static bool Author(PChunkyFile file,ChunkNumber *number,int parts,int variant)
     {
-        auto t=NewObj TemplateCreateFixtureAccess;
+        auto t = mm_template_owner_create(&EngineTemplate::Host(), 0);
         if (!t) return false;
-        t->_template.x=0x1234; t->_template.y=0xabcd; t->_template.z=0x8000; t->_template.flags=ftmplProp;
-        t->_stn.SetSzs(PszLit("Template construction fixture")); t->_template.set_count=parts?2:0; t->_template.custom_count=parts?4:0; t->_template.action_count=1;
+        EngineTemplate::State(t).x=0x1234; EngineTemplate::State(t).y=0xabcd; EngineTemplate::State(t).z=0x8000; EngineTemplate::State(t).flags=ftmplProp;
+        String name;
+        name.SetSzs(PszLit("Template construction fixture"));
+        const auto storage = mm_template_owner_name(t);
+        mm_string_value_copy(&storage, name.Pst()); EngineTemplate::State(t).set_count=parts?2:0; EngineTemplate::State(t).custom_count=parts?4:0; EngineTemplate::State(t).action_count=1;
         const auto allocator = CollectionAllocator();
-        t->_template.parents = mm_part_indices_new(&allocator); t->_template.sets=mm_part_indices_new(&allocator);
-        t->_template.costumes=mm_template_costumes_new(&allocator);
+        EngineTemplate::State(t).parents = mm_part_indices_new(&allocator); EngineTemplate::State(t).sets=mm_part_indices_new(&allocator);
+        EngineTemplate::State(t).costumes=mm_template_costumes_new(&allocator);
         auto wireParents=DynamicArray::PglNew(sizeof(short)),wireSets=DynamicArray::PglNew(sizeof(short));
         auto wireCosts=GeneralGroup::PggNew(sizeof(int32_t));
-        bool ok=t->_template.parents && t->_template.sets && t->_template.costumes && wireParents && wireSets && wireCosts;
+        bool ok=EngineTemplate::State(t).parents && EngineTemplate::State(t).sets && EngineTemplate::State(t).costumes && wireParents && wireSets && wireCosts;
         for (int i=0;ok && i<parts;++i) {
             short parent=i?static_cast<short>((i-1)/2):-1,set=static_cast<short>(i%2);
-            ok=mm_part_indices_append(t->_template.parents,parent) && mm_part_indices_append(t->_template.sets,set) &&
+            ok=mm_part_indices_append(EngineTemplate::State(t).parents,parent) && mm_part_indices_append(EngineTemplate::State(t).sets,set) &&
                 wireParents->FAdd(&parent) && wireSets->FAdd(&set);
         }
-        for (int i=0;ok && i<t->_template.set_count;++i) { int32_t ids[]={i,i+2},count=2; ok=mm_template_costumes_append(t->_template.costumes,ids,count) && wireCosts->FAdd(sizeof(ids),nullptr,ids,&count); }
-        ok=ok && t->_FWriteTmplf(file,kctgTmpl,number);
+        for (int i=0;ok && i<EngineTemplate::State(t).set_count;++i) { int32_t ids[]={i,i+2},count=2; ok=mm_template_costumes_append(EngineTemplate::State(t).costumes,ids,count) && wireCosts->FAdd(sizeof(ids),nullptr,ids,&count); }
+        ok=ok && EngineTemplate::WriteHeader(t, file, kctgTmpl, number);
         TemplateOnFile header={}; DataBlock block;
         ok=ok && file->FFind(kctgTmpl,*number,&block) && block.FReadRgb(&header,sizeof(header),0);
         header.swPad=0; if (variant==1) SwapBytesBom(&header,kbomTmplf);
@@ -32,7 +34,7 @@ class TemplateCreateFixtureAccess : public Template
         if (other)
         {
             SwapBytesRgsw(wireParents->QvGet(0),parts); SwapBytesRgsw(wireSets->QvGet(0),parts);
-            for (int i=0;i<t->_template.set_count;++i) { SwapBytesRglw(wireCosts->QvGet(i),2); SwapBytesRglw(wireCosts->QvFixedGet(i),1); }
+            for (int i=0;i<EngineTemplate::State(t).set_count;++i) { SwapBytesRglw(wireCosts->QvGet(i),2); SwapBytesRglw(wireCosts->QvFixedGet(i),1); }
         }
         auto table=[&](ChunkTagOrType type,auto *data) { ChunkNumber child; DataBlock b;
             return file->FAddChild(kctgTmpl,*number,0,data->CbOnFile(),type,&child,&b) && data->FWrite(&b,other?kboOther:kboCur); };
@@ -50,24 +52,24 @@ class TemplateCreateFixtureAccess : public Template
             for (int j=0;ok && j<3;++j) ok=file->FAdoptChild(kctgCmtl,child,kctgMtrl,materialNumber,j);
         }
         ReleasePpo(&wireParents); ReleasePpo(&wireSets);
-        ReleasePpo(&wireCosts); ReleasePpo(&t); return ok;
+        ReleasePpo(&wireCosts); mm_template_owner_release(t); return ok;
     }
     static bool Write(PTemplate t,PChunkyFile file,ChunkNumber *number)
-    { auto member=&TemplateCreateFixtureAccess::_FWriteTmplf; return (t->*member)(file,kctgTmpl,number); }
+    { return EngineTemplate::WriteHeader(t, file, kctgTmpl, number); }
     static bool Record(PTemplate t,FILE *out)
     {
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
         if (!t) return true;
-        auto field=&TemplateCreateFixtureAccess::_template; const auto &state=t->*field;
-        BRA x,y,z; t->GetRestOrien(&x,&y,&z); String name; t->GetName(&name);
-        LegacyLong values[]={state.set_count,state.custom_count,t->Cactn(),x,y,z,t->FIsProp(),name.FEqualSz(PszLit("Template construction fixture"))};
+        const auto &state = EngineTemplate::State(t);
+        BRA x,y,z; EngineTemplate::GetRestOrien(t, &x,&y,&z); String name; EngineTemplate::GetName(t, &name);
+        LegacyLong values[]={state.set_count,state.custom_count,EngineTemplate::Cactn(t),x,y,z,EngineTemplate::FIsProp(t),name.FEqualSz(PszLit("Template construction fixture"))};
         if (!record(values,sizeof(values))) return false;
         for (int i=0;i<state.parents->view.count;++i) {
             const auto p=static_cast<short>(mm_part_index_get(&state.parents->view,i));
             const auto s=static_cast<short>(mm_part_index_get(&state.sets->view,i));
             if (!record(&p,sizeof(p)) || !record(&s,sizeof(s))) return false;
         }
-        for (int i=0;i<state.set_count;++i) { LegacyLong n=t->CcmidOfBset(i); if (!record(&n,sizeof(n))) return false; for (int j=0;j<n;++j) { LegacyLong id=t->CmidOfBset(i,j); if (!record(&id,sizeof(id))) return false; } }
+        for (int i=0;i<state.set_count;++i) { LegacyLong n=EngineTemplate::CcmidOfBset(t, i); if (!record(&n,sizeof(n))) return false; for (int j=0;j<n;++j) { LegacyLong id=EngineTemplate::CmidOfBset(t, i,j); if (!record(&id,sizeof(id))) return false; } }
         return true;
     }
 };
@@ -88,7 +90,7 @@ static bool TestTemplateConstruction()
         auto file=ChunkyFile::PcflCreateTemp(); auto cache=file?ChunkyResourceFile::PcrfNew(file,4*1024*1024):nullptr; ChunkNumber number=0;
         ok=cache && TemplateCreateFixtureAccess::Author(file,&number,shape?6:0,variant);
         DataBlock block; MMI32 estimate=-1;
-        ok=ok && file->FFind(kctgTmpl,number,&block) && Template::FReadTmpl(cache->CoreCache(),kctgTmpl,number,block.CoreBlock(),nullptr,&estimate);
+        ok=ok && file->FFind(kctgTmpl,number,&block) && EngineTemplate::Read(cache->CoreCache(),kctgTmpl,number,block.CoreBlock(),nullptr,&estimate);
         auto inject=[&](bool enabled) {
 #ifdef DEBUG
             vmutxMem.Enter(); auto allocator=kind==0?&vdmglob.dmaglBase:kind==1?&vdmglob.dmaglHq:&vdmglob.dmaglPv;
@@ -96,7 +98,7 @@ static bool TestTemplateConstruction()
 #endif
         };
         if (!stage) inject(true);
-        auto t=ok?static_cast<PTemplate>(cache->PbacoFetch(kctgTmpl,number,Template::FReadTmpl)):nullptr;
+        auto t=ok?EngineTemplate::Fetch(cache, kctgTmpl,number):nullptr;
         inject(false);
         PBody body=nullptr; bool written=false; TemplateOnFile wire={};
         if (t)
@@ -107,7 +109,7 @@ static bool TestTemplateConstruction()
             ReleasePpo(&copy); ok=ok && written;
             if (variant==7 && shape) { ChildChunkIdentification child; ok=file->FGetKidChidCtg(kctgTmpl,number,0,kctgCmtl,&child) && ok; file->DeleteChild(kctgTmpl,number,kctgCmtl,child.cki.cno,0); }
             if (stage) inject(true);
-            body=t->PbodyCreate(); inject(false); if (body) ++bodies;
+            body=EngineTemplate::PbodyCreate(t); inject(false); if (body) ++bodies;
         }
 #ifdef DEBUG
         if (variant==2 && !stage && kind==2 && failure==1)
@@ -118,7 +120,7 @@ static bool TestTemplateConstruction()
         if (body) { ok=ok && EngineBody::ActorCount(body)==(shape?8:2) && EngineBody::SetCount(body)==(shape?2:0);
             for (int i=0;i<(shape?6:0);++i) ok=ok && EngineBody::Part(body, i)->material!=nullptr;
             ok=BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok; }
-        mm_body_owner_release(body); ReleasePpo(&t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
+        mm_body_owner_release(body); mm_template_owner_release(t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
         if (!ok) std::fprintf(stderr,"Template construction failed: %d %d %d %d %d\n",shape,variant,stage,kind,failure);
     }
     std::fprintf(stderr,"[template construction] loaded=%d bodies=%d\n",loaded,bodies);

@@ -311,26 +311,26 @@ int main(int argc, char **argv)
     {
         ok = ok && templateResources && document;
         if (ok)
-            animated = (PTemplate)templateResources->PbacoFetch(kctgTmpl, 0x2010, Template::FReadTmpl);
+            animated = EngineTemplate::Fetch(templateResources, kctgTmpl, 0x2010);
         ok = ok && animated;
         bool found = false;
-        for (LegacyLong action = 0; ok && action < animated->Cactn(); ++action)
+        for (LegacyLong action = 0; ok && action < EngineTemplate::Cactn(animated); ++action)
         {
             LegacyLong cells = 0;
-            if (animated->FGetCcelActn(action, &cells) && cells >= 6)
+            if (EngineTemplate::FGetCcelActn(animated, action, &cells) && cells >= 6)
             {
                 animation = action;
                 found = true;
                 break;
             }
         }
-        auto body = animated ? animated->PbodyCreate() : pvNil;
+        auto body = animated ? EngineTemplate::PbodyCreate(animated) : pvNil;
         for (LegacyLong set = 0; body && set < EngineBody::SetCount(body); ++set)
-            if (!animated->FBsetIsAccessory(set) && animated->CcmidOfBset(set) > 1)
+            if (!EngineTemplate::FBsetIsAccessory(animated, set) && EngineTemplate::CcmidOfBset(animated, set) > 1)
             {
                 costumeSet = set;
-                originalCostume = animated->CmidOfBset(set, 0);
-                alternateCostume = animated->CmidOfBset(set, 1);
+                originalCostume = EngineTemplate::CmidOfBset(animated, set, 0);
+                alternateCostume = EngineTemplate::CmidOfBset(animated, set, 1);
                 break;
             }
         mm_body_owner_release(body);
@@ -366,10 +366,10 @@ int main(int argc, char **argv)
             String text;
             text.SetSzs(PszLit("3D"));
             TAG font = {source, pvNil, kctgTdf, 0};
-            auto templateText = ThreeDText::PtdtNew(&text, tdtsNormal, &font);
+            auto templateText = EngineText::PtdtNew(&text, tdtsNormal, &font);
             ChunkNumber templateNumber;
-            const bool written = templateText && templateText->FWrite(file, kctgTmpl, &templateNumber);
-            ReleasePpo(&templateText);
+            const bool written = templateText && EngineText::FWrite(templateText, file, kctgTmpl, &templateNumber);
+            mm_template_owner_release(templateText);
             if (!written)
             {
                 ok = false;
@@ -538,7 +538,7 @@ int main(int argc, char **argv)
     ReleasePpo(&file);
     ReleasePpo(&roll);
     ReleasePpo(&document);
-    ReleasePpo(&animated);
+    mm_template_owner_release(animated);
     ReleasePpo(&templateResources);
     ReleasePpo(&templateFile);
     ReleasePpo(&shadeFile);

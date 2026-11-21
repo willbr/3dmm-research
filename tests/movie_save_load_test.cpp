@@ -131,14 +131,17 @@ class TestApp : public ApplicationBase
 #define BAIL(msg) do { fprintf(stderr, "[FAIL] %s\n", msg); fflush(stderr); rc = 1; goto LDone; } while (0)
 
 // Minimal valid in-memory template: duplication uses its ownership, not assets.
-class TrackTestTemplate : public Template
+class TrackTestTemplate
 {
+    MMTemplateState &_template;
+    explicit TrackTestTemplate(PTemplate owner) : _template(EngineTemplate::State(owner)) {}
+
     MMActionResource *_testAction = pvNil;
     bool _failNextFetch = false;
     int _failAfterFetch = 0;
 
   protected:
-    MMActionResource *_FetchAction(long anid) override
+    MMActionResource *FetchAction(MMI32 anid)
     {
         if (_failAfterFetch > 0 && --_failAfterFetch == 0)
             return pvNil;
@@ -154,18 +157,41 @@ class TrackTestTemplate : public Template
     }
 
   public:
+    static TrackTestTemplate *From(PTemplate owner)
+    {
+        return static_cast<TrackTestTemplate *>(mm_template_owner_provider(owner)->context);
+    }
+    static PTemplate Create()
+    {
+        auto owner = mm_template_owner_create(&EngineTemplate::Host(), 0);
+        if (!owner)
+            return nullptr;
+        auto fixture = new (std::nothrow) TrackTestTemplate(owner);
+        if (!fixture)
+        {
+            mm_template_owner_release(owner);
+            return nullptr;
+        }
+        *mm_template_owner_provider(owner) = {
+            fixture, [](void *p, MMI32 id) { return static_cast<TrackTestTemplate *>(p)->FetchAction(id); },
+            nullptr, [](void *p) { delete static_cast<TrackTestTemplate *>(p); }
+        };
+        return owner;
+    }
     static bool FWriteFixture(const MovieArchiveFixture &archive,ChunkNumber *number)
     {
-        auto tmpl=NewObj TrackTestTemplate();
+        auto owner = Create();
+        auto tmpl = owner ? From(owner) : nullptr;
         auto cels=GeneralGroup::PggNew(sizeof(AnimationCel)); auto matrices=DynamicArray::PglNew(sizeof(BMAT34));
         auto costumeWire = GeneralGroup::PggNew(sizeof(int32_t));
         auto indexWire = DynamicArray::PglNew(sizeof(short));
         bool ok=tmpl && tmpl->FInit() && cels && matrices && costumeWire && indexWire;
         if (ok)
         {
-            tmpl->_stn.SetSzs(PszLit("Fixture template"));
+            String title;
+            title.SetSzs(PszLit("Fixture template"));
             byte wire[kcbMaxDataStn];
-            const auto name = ChunkyFile::EncodeName(&tmpl->_stn, wire);
+            const auto name = ChunkyFile::EncodeName(&title, wire);
             ok = mm_template_write_header(&tmpl->_template, &name, kctgTmpl, number, &archive.writer) != 0;
         }
         AnimationCel cel={chidNil,rOne}; BMAT34 matrix; BrMatrix34Identity(&matrix);
@@ -180,15 +206,16 @@ class TrackTestTemplate : public Template
             table(kctgTmpl,*number,kctgGgcm,costumeWire) &&
             archive.AddChildBytes(kctgTmpl,*number,0,&header,sizeof(header),kctgActn,&action) &&
             table(kctgActn,action,kctgGgcl,cels) && table(kctgActn,action,kctgGlxf,matrices);
-        ReleasePpo(&indexWire); ReleasePpo(&costumeWire); ReleasePpo(&tmpl); ReleasePpo(&cels); ReleasePpo(&matrices); return ok;
+        ReleasePpo(&indexWire); ReleasePpo(&costumeWire); mm_template_owner_release(owner); ReleasePpo(&cels); ReleasePpo(&matrices); return ok;
     }
     static int FReadCostumeFixture(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **out, MMI32 *bytes)
     {
         *bytes=sizeof(TrackTestTemplate);
         if (!out) return true;
-        auto tmpl=NewObj TrackTestTemplate();
-        *out=tmpl;
-        if (!tmpl || !tmpl->FInit()) { ReleasePpo(&tmpl); *out = nullptr; return false; }
+        auto owner = Create();
+        auto tmpl = owner ? From(owner) : nullptr;
+        *out=owner;
+        if (!tmpl || !tmpl->FInit()) { mm_template_owner_release(owner); *out = nullptr; return false; }
         tmpl->_template.custom_count=3;
         return true;
     }
@@ -196,8 +223,9 @@ class TrackTestTemplate : public Template
                                     void **out, MMI32 *bytes)
     {
         if (!FReadCostumeFixture(cache, type, number, block, out, bytes)) return false;
-        auto tmpl = out ? static_cast<TrackTestTemplate *>(*out) : nullptr;
-        if (tmpl && !tmpl->FInitAction()) { ReleasePpo(&tmpl); *out = nullptr; return false; }
+        auto owner = out ? static_cast<PTemplate>(*out) : nullptr;
+        auto tmpl = owner ? From(owner) : nullptr;
+        if (tmpl && !tmpl->FInitAction()) { mm_template_owner_release(owner); *out = nullptr; return false; }
         return true;
     }
     void SetTestText(bool text) { _template.flags=text ? ftmplTdt : 0; }
@@ -280,9 +308,9 @@ class TrackTestActor : public Actor
     bool FInitClipboard(PChunkyResourceFile resource,ChunkNumber number)
     {
         using namespace ActorEvent;
-        auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,number,TrackTestTemplate::FReadSubrouteFixture));
+        auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl,number, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
         if (!tmpl) return false;
-        if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
+        if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
         _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,number}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint first={{rZero,rZero,rZero},BR_SCALAR(10)},last={{BR_SCALAR(10),rZero,rZero},rZero};
@@ -304,7 +332,7 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={actor->Arid(),runtime.first,runtime.last,state.frame,state.nextEvent,state.firstEventInFrame,
             state.actionEvent,state.addEvent,state.location.irpt,state.location.dwrOffset,state.location.dnfrm,state.step,state.frozen,
-            mm_actor_path_count(track.route),mm_actor_events_count(track.events),static_cast<PTemplate>(runtime.template_object)->CactRef(),static_cast<PChunkyResourceFile>(tag.cache)->CactRef()};
+            mm_actor_path_count(track.route),mm_actor_events_count(track.events),mm_template_owner_references(static_cast<PTemplate>(runtime.template_object)),static_cast<PChunkyResourceFile>(tag.cache)->CactRef()};
         bool ok=record(values,sizeof(values)) && record(&state.position,sizeof(state.position)) && record(&state.transform,sizeof(state.transform));
         for (long i=0;ok && i<mm_actor_path_count(track.route);++i) { RouteDistancePoint point; mm_actor_path_get(track.route, i,&point); ok=record(&point,sizeof(point)); }
         for (long i=0;ok && i<mm_actor_events_count(track.events);++i)
@@ -319,7 +347,7 @@ class TrackTestActor : public Actor
     bool FTestOwner(int mode,FILE *snapshot)
     {
         using namespace ActorEvent;
-        auto tmpl=static_cast<TrackTestTemplate *>(_Template());
+        auto tmpl=TrackTestTemplate::From(_Template());
         tmpl->FailAfter(0);
         if (!FGotoFrame(2)) return false;
         if (mode&2) { _Hide(); if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } }
@@ -345,7 +373,7 @@ class TrackTestActor : public Actor
         vmutxMem.Enter(); vdmglob.dmaglBase.cactFail=0; vmutxMem.Leave();
 #endif
         bool independent=copy && copy->Pbody()==(reset?nullptr:_Body()) && copy->Pscen()==(reset?nullptr:_Scene());
-        long templateRefs=_Template()->CactRef(),bodyRefs=_Body()?mm_body_owner_references(_Body()):0,cacheRefs=static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache)->CactRef();
+        long templateRefs=mm_template_owner_references(_Template()),bodyRefs=_Body()?mm_body_owner_references(_Body()):0,cacheRefs=static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache)->CactRef();
         if (copy)
         {
             if (reset)
@@ -361,7 +389,7 @@ class TrackTestActor : public Actor
         }
         tmpl->FailAfter(0); vpers->Clear(); ReleasePpo(&copy);
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,ok,independent,templateRefs,bodyRefs,cacheRefs,_Template()->CactRef(),_Body()?mm_body_owner_references(_Body()):0,
+        LegacyLong values[]={mode,ok,independent,templateRefs,bodyRefs,cacheRefs,mm_template_owner_references(_Template()),_Body()?mm_body_owner_references(_Body()):0,
             static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache)->CactRef(),_owner.runtime.state.frame,_owner.runtime.state.nextEvent,_owner.runtime.state.firstEventInFrame,_owner.runtime.state.actionEvent,_owner.runtime.state.addEvent,
             _owner.runtime.state.location.irpt,_owner.runtime.state.location.dwrOffset,_owner.runtime.state.location.dnfrm,_owner.runtime.state.onStage,_owner.runtime.state.frozen,_owner.runtime.state.action,_owner.runtime.state.cel,
             _owner.runtime.first,_owner.runtime.last,_owner.runtime.actor,_owner.runtime.life_dirty,_owner.runtime.prerendered,_owner.runtime.time_frozen,_owner.runtime.recording.recording,_owner.runtime.recording.rejoining,_owner.runtime.recording.inserted,
@@ -388,7 +416,7 @@ class TrackTestActor : public Actor
         using namespace ActorEvent;
         if (textTemplate)
         {
-            textTemplate->AddRef(); if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = textTemplate;
+            mm_template_owner_retain(textTemplate); if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = textTemplate;
             mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices()); _owner.runtime.template_tag={ksidUseCrf,source,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
         }
         ActorTrack track; if (!track.FCreate()) return false;
@@ -416,7 +444,7 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,pasted,_owner.runtime.first,_owner.runtime.last,_owner.runtime.life_dirty,_owner.runtime.state.frame,_owner.runtime.state.nextEvent,
             _owner.runtime.state.firstEventInFrame,_owner.runtime.state.actionEvent,_owner.runtime.state.addEvent,mm_actor_events_count(_owner.track.events),
-            _owner.runtime.template_tag.sid,static_cast<LegacyLong>(_owner.runtime.template_tag.number),_owner.runtime.template_tag.cache==target,_Template()->FIsTdt(),source->CactRef(),target->CactRef()};
+            _owner.runtime.template_tag.sid,static_cast<LegacyLong>(_owner.runtime.template_tag.number),_owner.runtime.template_tag.cache==target,EngineTemplate::FIsTdt(_Template()),source->CactRef(),target->CactRef()};
         bool ok=record(values,sizeof(values)) && record(&_owner.runtime.origin,sizeof(_owner.runtime.origin)) &&
             record(&_owner.runtime.state.routeTranslation,sizeof(_owner.runtime.state.routeTranslation)) && record(&_owner.runtime.state.subrouteTranslation,sizeof(_owner.runtime.state.subrouteTranslation));
         for (long i=0;ok && i<mm_actor_events_count(_owner.track.events);++i)
@@ -506,9 +534,9 @@ class TrackTestActor : public Actor
                    ChunkNumber materialNumber,ChunkNumber soundNumber,ChildChunkID child)
     {
         using namespace ActorEvent;
-        auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadSubrouteFixture));
+        auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl,templateNumber, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
         if (!tmpl) return false;
-        if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
+        if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
         _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<5;++i)
@@ -575,7 +603,7 @@ class TrackTestActor : public Actor
         { std::fprintf(stderr,"Copy fixture outcome mismatch mode %d: %d expected %d\n",mode,changed,expected); ReleasePpo(&copy); return false; }
         vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,changed,copy!=nullptr,_Template()->CactRef(),resource->CactRef(),_owner.runtime.state.frame,_owner.runtime.state.cel};
+        LegacyLong values[]={mode,changed,copy!=nullptr,mm_template_owner_references(_Template()),resource->CactRef(),_owner.runtime.state.frame,_owner.runtime.state.cel};
         bool saved=record(values,sizeof(values));
         auto ownerMember = &TrackTestActor::_owner;
         auto dump=[&](PActor actor) {
@@ -606,7 +634,7 @@ class TrackTestActor : public Actor
     {
         using namespace ActorEvent;
         const int operation=mode/16;
-        auto tmpl=static_cast<TrackTestTemplate *>(_Template()); tmpl->FailAfter(0);
+        auto tmpl=TrackTestTemplate::From(_Template()); tmpl->FailAfter(0);
         long frame=(mode&2)?2:1;
         if (!scene->TrackActor(this,frame) || !FGotoFrame(frame)) return false;
         if (operation==1 && !FScale(BR_SCALAR(1.5))) return false;
@@ -637,7 +665,7 @@ class TrackTestActor : public Actor
         unsigned char aliveByte=0; std::memcpy(&aliveByte,&alive,sizeof(aliveByte));
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,changed,aliveByte,output!=nullptr,output && output->Pbody(),output && output->Pscen(),
-            output?output->CactRef():0,_Template()->CactRef(),_Body()?mm_body_owner_references(_Body()):0,static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache)->CactRef(),
+            output?output->CactRef():0,mm_template_owner_references(_Template()),_Body()?mm_body_owner_references(_Body()):0,static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache)->CactRef(),
             _owner.runtime.state.frame,_owner.runtime.state.onStage,_owner.runtime.state.action,_owner.runtime.state.cel,_owner.runtime.state.nextEvent,_owner.runtime.state.addEvent,_owner.runtime.state.actionEvent,_owner.runtime.state.firstEventInFrame,
             _owner.runtime.state.location.irpt,_owner.runtime.state.location.dwrOffset,_owner.runtime.state.location.dnfrm,_owner.runtime.first,_owner.runtime.last,_owner.runtime.life_dirty,
             mm_actor_path_count(_owner.track.route),mm_actor_events_count(_owner.track.events)};
@@ -658,8 +686,8 @@ class TrackTestActor : public Actor
     {
         using namespace ActorEvent;
         const int group=mode/128;
-        auto tmpl=static_cast<TrackTestTemplate *>(_Template()); tmpl->FailAfter(0); tmpl->SetTestText((mode&4)!=0);
-        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = _Template()->PbodyCreate(); if (!_Body()) return false;
+        auto tmpl=TrackTestTemplate::From(_Template()); tmpl->FailAfter(0); tmpl->SetTestText((mode&4)!=0);
+        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = EngineTemplate::PbodyCreate(_Template()); if (!_Body()) return false;
         ActorTrack track; if (!track.FCreate()) return false;
         const int coordinates[]={0,4,10,14,30};
         for (int i=0;i<5;++i)
@@ -743,9 +771,9 @@ class TrackTestActor : public Actor
     {
         using namespace ActorEvent;
         const int group=mode/128;
-        auto tmpl=static_cast<TrackTestTemplate *>(_Template());
+        auto tmpl=TrackTestTemplate::From(_Template());
         tmpl->FailAfter(0); tmpl->SetTestText(false);
-        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = _Template()->PbodyCreate(); if (!_Body()) return false;
+        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = EngineTemplate::PbodyCreate(_Template()); if (!_Body()) return false;
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<5;++i)
         {
@@ -845,9 +873,9 @@ class TrackTestActor : public Actor
     {
         using namespace ActorEvent;
         const int kind=mode/32;
-        auto tmpl=static_cast<TrackTestTemplate *>(_Template());
+        auto tmpl=TrackTestTemplate::From(_Template());
         tmpl->FailAfter(0); tmpl->SetTestText((mode&1)!=0);
-        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = _Template()->PbodyCreate();
+        if (_Body()) { mm_body_owner_release(_Body()); _owner.runtime.body = nullptr; } _owner.runtime.body = EngineTemplate::PbodyCreate(_Template());
         if (!_Body()) return false;
         ActorTrack track; if (!track.FCreate()) return false;
         auto append=[&](long type,long frame,int node,const void *payload,long bytes) {
@@ -912,9 +940,10 @@ class TrackTestActor : public Actor
     bool FTestSubrouteEdit(int mode,FILE *snapshot,PChunkyResourceFile resource,ChunkNumber templateNumber,ChunkNumber materialNumber,bool owningCopy=false)
     {
         using namespace ActorEvent;
-        auto tmpl=static_cast<TrackTestTemplate *>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadSubrouteFixture));
+        auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl,templateNumber, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
         if (!tmpl) return false;
-        if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl;
+        auto fixture = TrackTestTemplate::From(tmpl);
+        if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl;
         auto material=EngineMaterial::Fetch(resource, kctgMtrl, materialNumber);
         PDynamicArray parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         short parent=-1,set=0;
@@ -977,7 +1006,7 @@ class TrackTestActor : public Actor
         if (previous) _owner.runtime.state.location.irpt=1;
         _owner.runtime.state.transform.xaPath=0x1234; _owner.runtime.state.transform.yaPath=0x5678; _owner.runtime.state.transform.zaPath=0x9ABC;
         _owner.runtime.first=1; _owner.runtime.last=20; _owner.runtime.life_dirty=false; _owner.runtime.recording.recording=false; _owner.runtime.recording.rejoining=false;
-        tmpl->SetTestText(backward && (mode&128));
+        fixture->SetTestText(backward && (mode&128));
         bool alive=true; LegacyLong averaged=-1;
         if (backward)
         {
@@ -987,17 +1016,17 @@ class TrackTestActor : public Actor
             if (mode&8) _owner.runtime.recording.recording=true;
             if (mode&16) _owner.runtime.life_dirty=true;
             if (mode&32) _owner.runtime.state.frame=1;
-            tmpl->FailAfter((mode&64)?1:0);
+            fixture->FailAfter((mode&64)?1:0);
             DeleteBackCore(&alive);
         }
         else if (later)
         {
-            tmpl->FailAfter((mode&4)?1:0);
+            fixture->FailAfter((mode&4)?1:0);
             ok=_FAddAevFromLater();
         }
         else if (previous)
         {
-            tmpl->FailAfter((mode&8)?1:0);
+            fixture->FailAfter((mode&8)?1:0);
             ulong mask=((mode&1)?faetActn:0)|((mode&2)?faetCost:0)|((mode&4)?faetPull|faetSize|faetRotF:0);
             ok=_FAddAevFromPrev(7,mask);
         }
@@ -1008,7 +1037,7 @@ class TrackTestActor : public Actor
             const BRS weights[]={rZero,rEps,rOneHalf,rOne-rEps,rOne};
             averaged=_BraAvgAngle(0xFFF0,0x0010,weights[mode%5]);
         }
-        tmpl->FailAfter(0); tmpl->SetTestText(false); vpers->Clear();
+        fixture->FailAfter(0); fixture->SetTestText(false); vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,ok,alive,averaged,_owner.runtime.state.nextEvent,_owner.runtime.state.firstEventInFrame,_owner.runtime.state.actionEvent,_owner.runtime.state.addEvent,
             _owner.runtime.state.location.irpt,_owner.runtime.state.location.dwrOffset,_owner.runtime.state.location.dnfrm,_owner.runtime.state.frame,_owner.runtime.state.onStage,_owner.runtime.state.frozen,
@@ -1135,9 +1164,9 @@ class TrackTestActor : public Actor
                           const ChunkNumber *materials,const ChunkNumber *customs,bool transaction=false)
     {
         using namespace ActorEvent;
-        auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadCostumeFixture));
+        auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl,templateNumber, TrackTestTemplate::FReadCostumeFixture, mm_template_owner_services()));
         if (!tmpl) return false;
-        if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl;
+        if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl;
         auto a=EngineMaterial::Fetch(resource, kctgMtrl, materials[0]);
         auto b=EngineMaterial::Fetch(resource, kctgMtrl, materials[1]);
         auto ca=EngineCostume::Fetch(resource, kctgCmtl, customs[0]);
@@ -1267,7 +1296,7 @@ class TrackTestActor : public Actor
         _owner.runtime.state.actionEvent=1; _owner.runtime.state.addEvent=0; _owner.runtime.state.firstEventInFrame=2; _owner.runtime.state.nextEvent=2;
         _owner.runtime.first=1; _owner.runtime.last=20; _owner.runtime.life_dirty=false;
         bool ok=true;
-        auto tmpl=static_cast<TrackTestTemplate *>(_Template());
+        auto tmpl=TrackTestTemplate::From(_Template());
         if (actionSet)
         {
             int variant=mode-512;
@@ -1498,8 +1527,8 @@ class TrackTestActor : public Actor
         PDynamicArray tags = pvNil;
         LegacyLong volume=12345;
         bool loop=false, ok=false;
-        if (mode == 9) ((TrackTestTemplate *)_Template())->FailAfter(2);
-        if (mode == 10 || mode == 11 || mode == 12) ((TrackTestTemplate *)_Template())->FailNextFetch();
+        if (mode == 9) (TrackTestTemplate::From(_Template()))->FailAfter(2);
+        if (mode == 10 || mode == 11 || mode == 12) (TrackTestTemplate::From(_Template()))->FailNextFetch();
         switch (mode)
         {
         case 0: ok=FQuerySnd(2,false,&tags,&volume,&loop); break;
@@ -1549,10 +1578,10 @@ class TrackTestActor : public Actor
     }
     bool FInitPlayback(PScene scene, PChunkyResourceFile resource)
     {
-        if (!FInit(scene, resource) || !((TrackTestTemplate *)_Template())->FInitAction() ||
+        if (!FInit(scene, resource) || !(TrackTestTemplate::From(_Template()))->FInitAction() ||
             !ActorFrameTest::FCreateTrack(_owner.track, false))
             return false;
-        _owner.runtime.body =  _Template()->PbodyCreate();
+        _owner.runtime.body =  EngineTemplate::PbodyCreate(_Template());
         if (_Body() == pvNil)
             return false;
         mm_actor_sounds_clear(&_owner.sounds);
@@ -1580,7 +1609,7 @@ class TrackTestActor : public Actor
         MMActorState before = _owner.runtime.state;
         _owner.runtime.first = -2;
         _owner.runtime.life_dirty = true;
-        auto tmpl = (TrackTestTemplate *)_Template();
+        auto tmpl = TrackTestTemplate::From(_Template());
         tmpl->FailNextFetch();
         long reported = 88;
         if (_FComputeLifetime(&reported) || reported != 88 || _owner.runtime.last != -1 || !_owner.runtime.life_dirty ||
@@ -1604,9 +1633,9 @@ class TrackTestActor : public Actor
     }
     bool FInit(PScene scene, PChunkyResourceFile resource)
     {
-        auto tmpl = NewObj TrackTestTemplate();
-        _owner.runtime.template_object =  tmpl;
-        if (tmpl == pvNil || !tmpl->FInit() || !_FCreateGroups())
+        auto tmpl = TrackTestTemplate::Create();
+        _owner.runtime.template_object = tmpl;
+        if (tmpl == pvNil || !TrackTestTemplate::From(tmpl)->FInit() || !_FCreateGroups())
             return false;
         _owner.runtime.template_tag.sid = ksidUseCrf;
         _owner.runtime.template_tag.type = kctgTmpl;

@@ -40,7 +40,7 @@ class FixtureActionTables
     MMActionResource *Create(LegacyUlong flags, MMActionTable *sounds = nullptr)
     {
         const MMActionDefinition definition{_cels, _matrices, sounds, flags};
-        auto action = mm_action_resource_create(&definition, &Template::ActionResourceHost());
+        auto action = mm_action_resource_create(&definition, &EngineTemplate::ActionResourceHost());
         if (action)
             _cels = _matrices = nullptr;
         return action;

@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> Template
+    The engine uses a C89 template owner and native archive services.
 
     A Template encapsulates all the data that distinguishes one actor
     "species" from another, including the species' models, actions,
@@ -23,6 +23,7 @@
 #include <cstdint>
 #include "mm/template_create.h"
 #include "mm/template_runtime.h"
+#include "mm/text_resource.h"
 #include "mm/action_definition.h"
 
 using namespace BRender;
@@ -97,79 +98,46 @@ enum
     ftmplProp = 4,               // fTrue means this is a "prop" actor
 };
 
-/****************************************
-    Template: The template class.
-    anid is an action ID.
-    cmid is a costume ID.
-    celn is a cel number.
-****************************************/
-typedef class Template *PTemplate;
-#define Template_PAR BaseCacheableObject
-#define kclsTemplate 'TMPL'
-class Template : public Template_PAR
+using PTemplate = MMTemplateOwner *;
+
+namespace EngineTemplate
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
+const MMTemplateOwnerHost &Host();
+const MMActionResourceHost &ActionResourceHost();
+MMTemplateCreateServices CreateServices(PChunkyResourceFile cache = nullptr);
+int ReadActionResource(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
+int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
+PTemplate Fetch(PTAG);
+PTemplate Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, bool *error = nullptr);
+bool ReadHeader(PTemplate, PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
+bool WriteHeader(PTemplate, PChunkyFile, ChunkTagOrType, ChunkNumber *);
+void GetName(PTemplate, PString);
+PBody PbodyCreate(PTemplate);
+void GetRestOrien(PTemplate, BRA *, BRA *, BRA *);
 
-  protected:
-    MMTemplateState _template; // Owns parent/set/costume tables and metadata.
-    String _stn;         // Template name
+inline MMTemplateState &State(PTemplate owner) { return *mm_template_owner_state(owner); }
+inline bool FIsTdt(PTemplate owner) { return FPure(State(owner).flags & ftmplTdt); }
+inline bool FIsProp(PTemplate owner) { return FPure(State(owner).flags & ftmplProp); }
+inline LegacyLong Cactn(PTemplate owner) { return State(owner).action_count; }
 
-  protected:
-    Template(void)
-    {
-        mm_template_state_init(&_template);
-    } // can't instantiate directly; must use FReadTmpl
-    static MMTemplateCreateServices _CreateServices(PChunkyResourceFile cache = nullptr);
-    MMTemplateRuntimeServices _RuntimeServices();
-    bool _FReadTmplf(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
-    virtual bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
-    virtual MMActionResource *_FetchAction(LegacyLong anid);
-    virtual PModel _PmodlFetch(ChildChunkID chidModl);
-    bool _FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
+bool FGetActnName(PTemplate, LegacyLong, PString);
+bool FSetActnCel(PTemplate, PBody, LegacyLong action, LegacyLong cel, BRS *distance = pvNil);
+bool FGetGrfactn(PTemplate, LegacyLong action, LegacyUlong *flags);
+bool FGetDwrActnCel(PTemplate, LegacyLong action, LegacyLong cel, BRS *distance);
+bool FGetCcelActn(PTemplate, LegacyLong action, LegacyLong *count);
+bool FGetSndActnCel(PTemplate, LegacyLong action, LegacyLong cel, bool *exists, PTAG);
+bool FSetDefaultCost(PTemplate, PBody);
+PCustomMaterial_CMTL PcmtlFetch(PTemplate, LegacyLong id);
+LegacyLong CcmidOfBset(PTemplate, LegacyLong set);
+LegacyLong CmidOfBset(PTemplate, LegacyLong set, LegacyLong index);
+bool FBsetIsAccessory(PTemplate, LegacyLong set);
+bool FIbsetAccOfIbset(PTemplate, LegacyLong set, LegacyLong *accessory);
+bool FSameAccCmids(PTemplate, LegacyLong first, LegacyLong second);
 
-  public:
-    static const MMActionResourceHost &ActionResourceHost();
-    static int ReadActionResource(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                                  void **object, MMI32 *bytes);
-    static int FReadTmpl(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                           void **object, MMI32 *bytes);
-    ~Template(void);
+#ifdef DEBUG
+void Validate(PTemplate);
+void Mark(PTemplate);
+#endif
+}
 
-    // Template / Body stuff
-    void GetName(PString pstn); // default name of actor or text of the ThreeDText
-    PBody PbodyCreate(void); // Creates a body based on this Template
-    void GetRestOrien(BRA *pxa, BRA *pya, BRA *pza);
-    bool FIsTdt(void)
-    {
-        return FPure(_template.flags & ftmplTdt);
-    }
-    bool FIsProp(void)
-    {
-        return FPure(_template.flags & ftmplProp);
-    }
-
-    // Action stuff
-    LegacyLong Cactn(void)
-    {
-        return _template.action_count;
-    } // count of actions
-    virtual bool FGetActnName(LegacyLong anid, PString pstn);
-    bool FSetActnCel(PBody pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr = pvNil);
-    bool FGetGrfactn(LegacyLong anid, LegacyUlong *pgrfactn);
-    bool FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr);
-    bool FGetCcelActn(LegacyLong anid, LegacyLong *pccel);
-    bool FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExists, PTAG ptag);
-
-    // Costume stuff
-    virtual bool FSetDefaultCost(PBody pbody); // applies default costume
-    virtual PCustomMaterial_CMTL PcmtlFetch(LegacyLong cmid);
-    LegacyLong CcmidOfBset(LegacyLong ibset);
-    LegacyLong CmidOfBset(LegacyLong ibset, LegacyLong icmid);
-    bool FBsetIsAccessory(LegacyLong ibset); // whether ibset holds accessories
-    bool FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc);
-    bool FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2);
-};
-
-#endif Template_H
+#endif

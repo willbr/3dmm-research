@@ -1982,7 +1982,7 @@ bool Application::_FInitTdt(void)
     if (pvNil == pgst)
         return fFalse;
     Assert(pgst->CbExtra() == size(LegacyLong), "bad Action string table");
-    if (!ThreeDText::FSetActionNames(pgst))
+    if (!EngineText::FSetActionNames(pgst))
     {
         ReleasePpo(&pgst);
         return fFalse;
@@ -5842,7 +5842,7 @@ void Application::MarkMem(void)
 #endif
     MarkMemObj(vptagm);
     EngineMaterial::MarkShadeTable();
-    ThreeDText::MarkActionNames();
+    EngineText::MarkActionNames();
     MarkMemObj(_pstdio);
     MarkMemObj(_ptatr);
     MarkMemObj(_pmvieHandoff);

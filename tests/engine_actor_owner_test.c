@@ -150,6 +150,7 @@ static void init(Fixture *f)
     memset(f,0,sizeof(*f)); s=&f->services; s->context=f;
     s->owner=owner; s->create=create_actor; s->retain=retain; s->release=release;
     s->retain_body=retain; s->release_body=release;
+    s->retain_template=retain; s->release_template=release;
     s->tags=&owner_tags; s->route_services=route_services; s->invalidate_views=views;
     f->result.context=f; f->result.publish=publish_result;
     init_owner(&f->live, f);

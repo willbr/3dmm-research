@@ -81,6 +81,8 @@ MMActorOwnerServices Actor::_OwnerServices()
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.retain_body = [](void *, void *p) { mm_body_owner_retain(static_cast<PBody>(p)); };
     s.release_body = [](void *, void *p) { mm_body_owner_release(static_cast<PBody>(p)); };
+    s.retain_template = [](void *, void *p) { mm_template_owner_retain(static_cast<PTemplate>(p)); };
+    s.release_template = [](void *, void *p) { mm_template_owner_release(static_cast<PTemplate>(p)); };
     s.route_services=[](void *,void *p,MMActorRouteEditServices *r) { *r=static_cast<Actor *>(p)->_RouteEditServices(); };
     s.invalidate_views=[](void *,void *scene) { static_cast<PScene>(scene)->Pmvie()->InvalViews(); };
     return s;
@@ -157,7 +159,7 @@ MMActorPasteServices Actor::_PasteServices()
     s.context = this;
     s.create = _CreateServices();
     s.edits = _EventEditServices();
-    s.is_text=[](void *,void *p) { return int(static_cast<PTemplate>(p)->FIsTdt()); };
+    s.is_text=[](void *,void *p) { return int(EngineTemplate::FIsTdt(static_cast<PTemplate>(p))); };
     s.ensure_autosave=[](void *,void *p,void **cache) {
         PChunkyResourceFile resource=nullptr; bool ok=static_cast<PScene>(p)->Pmvie()->FEnsureAutosave(&resource);
         *cache=resource; return int(ok);

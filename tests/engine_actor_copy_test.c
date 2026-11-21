@@ -222,6 +222,7 @@ static void init(Fixture *f)
     s->create.owner.owner = owner;
     s->create.owner.create = create;
     s->create.owner.release = release;
+    s->create.owner.release_template = release;
     s->create.owner.route_services = route_services;
     s->create.fetch_template = fetch_template;
     s->create.action_flags = action_flags;

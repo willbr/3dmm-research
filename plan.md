@@ -920,14 +920,14 @@ template action/model/custom resource routing, cel application/action queries
 and accessory graph operations also use C89. Both hosts resolve ordinary
 template actions, cel models and custom costumes directly from the template's
 C89 cache binding. The cache exposes its current graph for mutable files and
-its retained index for immutable archives. Generated ThreeDText continues to
-supply its own actions and font models. Template parent/set/costume ownership,
-rest orientation, flags and counts live in persistent C state shared with
-ThreeDText generation. C89 allocates table records and their backing storage
-through the supplied collection allocator.
+its retained index for immutable archives. A single C89 template owner holds
+the archive binding, counted name, parent, set and costume tables, rest angles
+and counts. The 3D text form also holds its descriptor, font resolver and
+generated material and action. C89 allocates the table records and their
+backing storage through the supplied collection allocator.
 The shared chunk editor writes template headers and names. Regular and draft
 3D text saves use it to create and link the descriptor and handle rollback.
-String and resource/container providers and final facade removal remain work.
+Native string and archive providers remain part of host integration.
 ActionDefinition construction, header/list loading, byte-order conversion and
 primitive queries use a persistent C-owned action state. C89 allocates cel,
 matrix and sound table records and buffers through the collection allocator.
@@ -1754,9 +1754,9 @@ text generator owns the cached action reference and replaces it after text
 edits. The C89 MSND owner holds the counted sound name, payload metadata and
 cache binding. Studio's sound browser, listener and frame sound queue use the
 C89 references. Preview reads the same sound state from its archive graph.
-The native sound manager and clock provide host services. Native template
-subclasses and the resource, object and HQ facades remain part of final
-host integration.
+The native sound manager and clock provide host services. Actor template
+and 3D text objects use the same C89 owner in Studio and Preview. The
+resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining

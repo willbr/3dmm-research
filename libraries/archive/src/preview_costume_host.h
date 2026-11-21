@@ -40,7 +40,7 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         };
         s.fetch_custom = [](void *v, MMI32 id) -> void * {
             auto &h = *static_cast<CostumeHost *>(v); void *out = nullptr;
-            h.Guard([&] { out = h.actor->Ptmpl()->PcmtlFetch(id); return 1; }); return out;
+            h.Guard([&] { out = EngineTemplate::PcmtlFetch(h.actor->Ptmpl(), id); return 1; }); return out;
         };
         s.fetch_material = [](void *v, const MMTag *value) -> void * {
             auto &h = *static_cast<CostumeHost *>(v); void *out = nullptr;

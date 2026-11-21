@@ -8,39 +8,19 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    ThreeDText, the 3-D Text class, is a derived class of Template.  Most clients
-    (Actor, Movie, etc) can treat ThreeDTexts like regular Templates.  But they have
-    some extra functionality and work internally very differently from
-    Templates.  Chunkwise, all the information for a ThreeDText is in the Template
-    chunk or the single ThreeDText child chunk:
-
-    Template // template info
-     |
-     |
-     +---ThreeDText  (chid 0) // ThreeDText-specific info (shape and tag to ThreeDFont)
-
-    In addition to the usual Template fields, ThreeDTexts have a _tagTdf and a _tdts.
-    _tagTdf tells what font to use for the ThreeDText, and _tdts tells what shape
-    to draw the ThreeDText in.  ThreeDTexts on file are very small, so it is practical to
-    store them in the user's document.
-
-    Rather than fetching ActionDefinitions and the default costume from child chunks
-    of the Template, ThreeDTexts generate them in memory and store them in _generated.action
-    and _generated.material.  _generated.action keeps a copy of the last requested
-    action so that it doesn't have to be continuously recomputed.
-
-    The user can change a ThreeDText's text, shape, and/or font with FChange().
-    When this happens, all the internal lists affecting the ThreeDText's shape,
-    costume, etc., are changed via _FInitLists().  After changing a ThreeDText,
-    you should call FAdjustBody on any Bodys based on that ThreeDText.  In
-    Socrates, there should only be one Body per ThreeDText, so this shouldn't be
-    a problem.
+    A 3D text template stores its descriptor in a TDT child of TMPL.
+    C89 owns the descriptor, text, generated default material and last action.
+    The native adapter supplies fonts, rendering and archive access.
 
 ***************************************************************************/
 #include "soc_core.h"
 ASSERTNAME
 
-RTCLASS(ThreeDText)
+#ifdef DEBUG
+#define TEXT_VALIDATE(owner) EngineTemplate::Validate(owner)
+#else
+#define TEXT_VALIDATE(owner) ((void)0)
+#endif
 
 
 
@@ -57,28 +37,40 @@ static void TextTagFromCore(TAG *tag, const MMTag *in)
 {
     tag->sid = in->sid; std::memcpy(&tag->pcrf, &in->cache, sizeof(tag->pcrf)); tag->ctg = in->type; tag->cno = in->number;
 }
-MMTextResourceServices ThreeDText::_ResourceServices(void *context)
+static MMTextResourceServices ResourceServices(void *context)
 {
-    MMTextResourceServices s = {}; s.context = context; s.generation = _GenerationServices();
+    MMTextResourceServices s = {}; s.context = context; s.generation = EngineText::GenerationServices();
     const unsigned short order = 1;
     s.host_big_endian = *reinterpret_cast<const unsigned char *>(&order) == 0;
     s.payloads = KauaiChunkPayloadServices();
     static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 && sizeof(TAG) == sizeof(MMTag), "text resource ABI");
-    s.state = [](void *, void *object) { return &static_cast<PThreeDText>(object)->_descriptor; };
-    s.create = [](void *) -> void * { return NewObj ThreeDText; };
+    s.state = [](void *, void *object) { return mm_template_owner_descriptor(static_cast<PThreeDText>(object)); };
+    s.create = [](void *) -> void * { return mm_template_owner_create(&EngineTemplate::Host(), 1); };
     s.retain_object = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
-    s.release_object = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.text = [](void *, void *object) -> void * { return &static_cast<PThreeDText>(object)->_stn; };
-    s.assign = [](void *, void *to, const void *from) { *static_cast<PString>(to) = *const_cast<PString>(static_cast<const String *>(from)); };
-    s.space = [](void *, void *text) { achar ch = ChLit(' '); static_cast<PString>(text)->SetRgch(&ch, 1); };
-    s.clear = [](void *, void *text) { static_cast<PString>(text)->SetNil(); };
-    s.saved_text = [](void *p) -> void * { return &static_cast<TextResourceContext *>(p)->saved; };
-    s.provider_copy = [](void *, void *to, void *from) {
-        auto source = static_cast<PThreeDText>(from); static_cast<PThreeDText>(to)->SetFontResolver(source->_fontContext, source->_fontResolver);
+    s.release_object = [](void *, void *object) { mm_template_owner_release(static_cast<PThreeDText>(object)); };
+    s.text = [](void *, void *object) -> void * {
+        return mm_template_owner_name(static_cast<PThreeDText>(object)).buffer;
     };
-    s.has_provider = [](void *, void *object) -> int { return static_cast<PThreeDText>(object)->_fontResolver != nullptr; };
-    s.provider_font = [](void *, void *object, const MMTag *in) -> void * {
-        TAG tag; TextTagFromCore(&tag, in); auto t = static_cast<PThreeDText>(object); return t->_fontResolver(t->_fontContext, tag);
+    s.assign = [](void *, void *destination, const void *source) {
+        const MMStringValue name = {destination, sizeof(achar)};
+        mm_string_value_copy(&name, source);
+    };
+    s.space = [](void *, void *text) {
+        const MMStringValue name = {text, sizeof(achar)};
+        const achar ch = ChLit(' ');
+        mm_string_value_set(&name, &ch, 1);
+    };
+    s.clear = [](void *, void *text) { static_cast<PString>(text)->SetNil(); };
+    s.saved_text = [](void *p) -> void * { return static_cast<TextResourceContext *>(p)->saved.Pst(); };
+    s.provider_copy = [](void *, void *to, void *from) {
+        *mm_template_owner_font(static_cast<PThreeDText>(to)) = *mm_template_owner_font(static_cast<PThreeDText>(from));
+    };
+    s.has_provider = [](void *, void *object) -> int {
+        return mm_template_owner_font(static_cast<PThreeDText>(object))->fetch != nullptr;
+    };
+    s.provider_font = [](void *, void *object, const MMTag *font) -> void * {
+        const auto provider = mm_template_owner_font(static_cast<PThreeDText>(object));
+        return provider->fetch(provider->context, font);
     };
     s.default_font = [](void *, const MMTag *in) -> void * {
         TAG tag;
@@ -87,10 +79,11 @@ MMTextResourceServices ThreeDText::_ResourceServices(void *context)
     };
     s.publish_tag = [](void *, void *out, const MMTag *in) { TextTagFromCore(static_cast<PTAG>(out), in); };
     s.read_template = [](void *p, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
-        return static_cast<PThreeDText>(object)->_FReadTmplf(static_cast<TextResourceContext *>(p)->cache, type,
-                                                            number, block);
+        return EngineTemplate::ReadHeader(static_cast<PThreeDText>(object),
+                                          static_cast<TextResourceContext *>(p)->cache, type, number, block);
     };
     s.publish_error = [](void *, void *out, int error) { *static_cast<bool *>(out) = error != 0; };
+    s.release_tag_list = [](void *, void *list) { static_cast<PDynamicArray>(list)->Release(); };
     s.tag_list = [](void *) -> void * { return DynamicArray::PglNew(sizeof(TAG)); };
     s.append_tag = [](void *, void *list, const MMTag *in) -> int { TAG tag; TextTagFromCore(&tag, in); return static_cast<PDynamicArray>(list)->FAdd(&tag); };
     s.name_count = [](void *, void *table) -> MMI32 { return static_cast<PStringTable_GST>(table)->IvMac(); };
@@ -101,22 +94,32 @@ MMTextResourceServices ThreeDText::_ResourceServices(void *context)
     return s;
 }
 
-MMTextNames ThreeDText::_actionNames = {};
-
-MMFontOwner *ThreeDText::_FetchFont(void)
+MMTextNames &EngineText::ActionNames()
 {
-    TextResourceContext context; auto services = _ResourceServices(&context);
-    return static_cast<MMFontOwner *>(mm_text_font(this, &services));
+    static MMTextNames names = {};
+    return names;
+}
+
+void EngineText::SetFontResolver(PThreeDText owner, void *context, MMFontOwner *(*fetch)(void *, const MMTag *))
+{
+    *mm_template_owner_font(owner) = {context, fetch};
+}
+
+static MMFontOwner *FetchFont(PThreeDText owner)
+{
+    TextResourceContext context;
+    const auto services = ResourceServices(&context);
+    return static_cast<MMFontOwner *>(mm_text_font(owner, &services));
 }
 
 /***************************************************************************
     Set the StringTable_GST of action names for ThreeDTexts
 ***************************************************************************/
-bool ThreeDText::FSetActionNames(PStringTable_GST pgstAction)
+bool EngineText::FSetActionNames(PStringTable_GST pgstAction)
 {
-    AssertPo(pgstAction, 0); Assert(_actionNames.table == pvNil, "you already set the action names");
-    TextResourceContext context; auto services = _ResourceServices(&context);
-    return mm_text_set_names(&_actionNames, pgstAction, &services) != 0;
+    AssertPo(pgstAction, 0); Assert(ActionNames().table == pvNil, "you already set the action names");
+    TextResourceContext context; auto services = ResourceServices(&context);
+    return mm_text_set_names(&ActionNames(), pgstAction, &services) != 0;
 }
 
 /***************************************************************************
@@ -128,10 +131,10 @@ bool ThreeDText::FSetActionNames(PStringTable_GST pgstAction)
     if an error occurs.  The point is, look at *pfError, not the return
     value.
 ***************************************************************************/
-PDynamicArray ThreeDText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
+PDynamicArray EngineText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError)
 {
     AssertPo(pcfl, 0); AssertVarMem(pfError);
-    TextResourceContext context; auto services = _ResourceServices(&context);
+    TextResourceContext context; auto services = ResourceServices(&context);
     const MMTextResourceSource source = {nullptr, pcfl, pcfl->ReadChunkAccess()};
     return static_cast<PDynamicArray>(mm_text_tags(&source, ctg, cno, pfError, &services));
 }
@@ -139,26 +142,26 @@ PDynamicArray ThreeDText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, Chun
 /***************************************************************************
     Create a new ThreeDText
 ***************************************************************************/
-PThreeDText ThreeDText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf)
+PThreeDText EngineText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf)
 {
     AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
-    TextResourceContext context; auto services = _ResourceServices(&context); MMTag font;
+    TextResourceContext context; auto services = ResourceServices(&context); MMTag font;
     TextTagToCore(ptagTdf, &font);
-    return static_cast<PThreeDText>(mm_text_create(pstn, tdts, &font, &services));
+    return static_cast<PThreeDText>(mm_text_create(pstn->Pst(), tdts, &font, &services));
 }
 
 /***************************************************************************
     Read the generic Template info and the ThreeDText-specific info (tdts and tagTdf),
     then call _FInitLists to build the rest of the ThreeDText.
 ***************************************************************************/
-bool ThreeDText::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl, MMOwnedBlock *block)
+bool EngineText::Initialize(PThreeDText owner, PChunkyResourceFile cache, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl, MMOwnedBlock *block)
 {
-    AssertBaseThis(0); AssertPo(cache, 0);
+    AssertPo(cache, 0);
     TextResourceContext context;
     context.cache = cache;
-    auto services = _ResourceServices(&context);
+    auto services = ResourceServices(&context);
     const MMTextResourceSource source = {cache->CoreCache(), nullptr, {}};
-    return mm_text_read(this, &source, ctgTmpl, cnoTmpl, block, &services) != 0;
+    return mm_text_read(owner, &source, ctgTmpl, cnoTmpl, block, &services) != 0;
 }
 
 /***************************************************************************
@@ -166,22 +169,29 @@ bool ThreeDText::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctgTmpl, Chunk
     _stn and _tdts.  This function unwinds completely on failure (the
     ThreeDText's members are untouched).
 ***************************************************************************/
-MMTextGenerationServices ThreeDText::_GenerationServices()
+MMTextGenerationServices EngineText::GenerationServices()
 {
     MMTextGenerationServices s = {};
     static_assert(sizeof(BMAT34) == sizeof(MMActorMatrix) && sizeof(short) == 2, "text generation ABI");
     static_assert(krPi == 205887 && krTwoPi == 411774 && krThreePi == 617662 && krHalfPi == 102943 && BR_SCALAR(0.5 / PI) == 10430, "text constants");
     static_assert(tdtsLim == MM_TEXT_SHAPE_COUNT && tdaLim == MM_TEXT_ACTION_COUNT && tdtsCircleZ == 6 && tdaWalk == 13 && tdaStretch == 15, "text enums");
-    s.state = [](void *, void *object) { return &static_cast<PThreeDText>(object)->_generated; };
-    s.length = [](void *, void *object) -> MMI32 { return static_cast<PThreeDText>(object)->_stn.Cch(); };
-    s.character = [](void *, void *object, MMI32 i) -> MMI32 { return static_cast<uchar>(static_cast<PThreeDText>(object)->_stn.Psz()[i]); };
-    s.shape = [](void *, void *object) -> MMI32 { return static_cast<PThreeDText>(object)->_descriptor.shape; };
-    s.template_state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PThreeDText>(object)->_template; };
+    s.state = [](void *, void *object) { return mm_template_owner_generated(static_cast<PThreeDText>(object)); };
+    s.length = [](void *, void *object) -> MMI32 {
+        return static_cast<uchar>(*static_cast<PPascalString>(mm_template_owner_name(static_cast<PThreeDText>(object)).buffer));
+    };
+    s.character = [](void *, void *object, MMI32 index) -> MMI32 {
+        const auto text = static_cast<PPascalString>(mm_template_owner_name(static_cast<PThreeDText>(object)).buffer);
+        return static_cast<uchar>(text[index + 1]);
+    };
+    s.shape = [](void *, void *object) -> MMI32 {
+        return mm_template_owner_descriptor(static_cast<PThreeDText>(object))->shape;
+    };
+    s.template_state = [](void *, void *object) { return mm_template_owner_state(static_cast<PThreeDText>(object)); };
     s.table_allocator = CollectionAllocator();
     s.material_new = [](void *) -> void * { return EngineMaterial::New(); };
     s.retain_material = [](void *, void *material) { mm_material_owner_retain(static_cast<PMaterial_MTRL>(material)); };
     s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<PMaterial_MTRL>(material)); };
-    s.font = [](void *, void *object) -> void * { return static_cast<PThreeDText>(object)->_FetchFont(); };
+    s.font = [](void *, void *object) -> void * { return FetchFont(static_cast<PThreeDText>(object)); };
     s.release_font = [](void *, void *font) { mm_font_owner_release(static_cast<MMFontOwner *>(font)); };
     s.font_width = [](void *, void *font, MMI32 ch) -> MMI32 {
         const auto metrics = mm_font_owner_metrics(static_cast<const MMFontOwner *>(font));
@@ -199,7 +209,7 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.glyph = [](void *, void *font, MMI32 ch) -> void * {
         return EngineFont::Glyph(static_cast<const MMFontOwner *>(font), ch);
     };
-    s.action_host = &ActionResourceHost();
+    s.action_host = &EngineTemplate::ActionResourceHost();
     s.body_shape = [](void *, void *body, const MMPartIndexView *parents, const MMPartIndexView *sets) -> int {
         return EngineBody::ChangeShape(static_cast<PBody>(body), *parents, *sets);
     };
@@ -207,137 +217,110 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     return s;
 }
 
-bool ThreeDText::_FInitLists(void)
-{
-    AssertBaseThis(0); AssertPo(&_stn, 0); AssertIn(_descriptor.shape, 0, tdtsLim);
-    auto services = _GenerationServices();
-    return mm_text_initialize_lists(this, &services) != 0;
-}
-
 /***************************************************************************
     Get the given action.  If we've built it before, use the cached copy.
     Else build the action, cache it, and return it.
 ***************************************************************************/
-MMActionResource *ThreeDText::_FetchAction(LegacyLong tda)
+MMActionResource *EngineText::FetchAction(PThreeDText owner, LegacyLong tda)
 {
-    AssertThis(0); AssertIn(tda, 0, tdaLim);
-    auto services = _GenerationServices();
-    return mm_text_fetch_action(this, tda, &services);
+    TEXT_VALIDATE(owner); AssertIn(tda, 0, tdaLim);
+    auto services = GenerationServices();
+    return mm_text_fetch_action(owner, tda, &services);
 }
 
 /***************************************************************************
     Get the name of the given action
 ***************************************************************************/
-bool ThreeDText::FGetActnName(LegacyLong anid, PString pstn)
+bool EngineText::ActionName(PThreeDText owner, LegacyLong anid, PString pstn)
 {
-    AssertThis(0); AssertIn(anid, 0, tdaLim); AssertPo(pstn, 0);
-    TextResourceContext context; auto services = _ResourceServices(&context);
-    return mm_text_action_name(&_actionNames, anid, pstn, &services) != 0;
+    TEXT_VALIDATE(owner); AssertIn(anid, 0, tdaLim); AssertPo(pstn, 0);
+    TextResourceContext context; auto services = ResourceServices(&context);
+    return mm_text_action_name(&ActionNames(), anid, pstn, &services) != 0;
 }
 
 /***************************************************************************
     Fetch the given model for this ThreeDText (use the ThreeDText's current font)
 ***************************************************************************/
-PModel ThreeDText::_PmodlFetch(ChildChunkID chidModl)
+PModel EngineText::FetchModel(PThreeDText owner, ChildChunkID chidModl)
 {
-    AssertThis(0); AssertIn(chidModl, 0, _stn.Cch());
-    auto services = _GenerationServices();
-    return static_cast<PModel>(mm_text_fetch_model(this, chidModl, &services));
-}
-
-/***************************************************************************
-    Destruct the ThreeDText
-***************************************************************************/
-ThreeDText::~ThreeDText(void)
-{
-    AssertBaseThis(0);
-    auto services = _GenerationServices();
-    mm_text_dispose(&_generated, &services);
+    TEXT_VALIDATE(owner); AssertIn(chidModl, 0, GenerationServices().length(nullptr, owner));
+    auto services = GenerationServices();
+    return static_cast<PModel>(mm_text_fetch_model(owner, chidModl, &services));
 }
 
 /***************************************************************************
     Return a duplicate of this ThreeDText
 ***************************************************************************/
-PThreeDText ThreeDText::PtdtDup(void)
+PThreeDText EngineText::PtdtDup(PThreeDText owner)
 {
-    AssertThis(0);
-    TextResourceContext context; auto services = _ResourceServices(&context);
-    return static_cast<PThreeDText>(mm_text_duplicate(this, &services));
+    TEXT_VALIDATE(owner);
+    TextResourceContext context; auto services = ResourceServices(&context);
+    return static_cast<PThreeDText>(mm_text_duplicate(owner, &services));
 }
 
 /***************************************************************************
     Change the text, shape, and/or font of the ThreeDText
 ***************************************************************************/
-bool ThreeDText::FChange(PString pstn, LegacyLong tdts, PTAG ptagTdf)
+bool EngineText::FChange(PThreeDText owner, PString pstn, LegacyLong tdts, PTAG ptagTdf)
 {
-    AssertThis(0); AssertNilOrPo(pstn, 0); AssertNilOrVarMem(ptagTdf);
+    TEXT_VALIDATE(owner); AssertNilOrPo(pstn, 0); AssertNilOrVarMem(ptagTdf);
     if (tdts != tdtsNil) AssertIn(tdts, 0, tdtsLim);
-    TextResourceContext context; auto services = _ResourceServices(&context); MMTag font;
+    TextResourceContext context; auto services = ResourceServices(&context); MMTag font;
     if (ptagTdf) TextTagToCore(ptagTdf, &font);
-    return mm_text_change(this, pstn, tdts, ptagTdf ? &font : nullptr, &services) != 0;
+    return mm_text_change(owner, pstn ? pstn->Pst() : nullptr, tdts, ptagTdf ? &font : nullptr, &services) != 0;
 }
 
 /***************************************************************************
     Get stats of this ThreeDText
 ***************************************************************************/
-void ThreeDText::GetInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf)
+void EngineText::GetInfo(PThreeDText owner, PString pstn, LegacyLong *ptdts, PTAG ptagTdf)
 {
-    AssertThis(0); AssertNilOrPo(pstn, 0); AssertNilOrVarMem(ptdts); AssertNilOrVarMem(ptagTdf);
-    TextResourceContext context; auto services = _ResourceServices(&context);
-    mm_text_info(this, pstn, ptdts, ptagTdf, &services);
+    TEXT_VALIDATE(owner); AssertNilOrPo(pstn, 0); AssertNilOrVarMem(ptdts); AssertNilOrVarMem(ptagTdf);
+    TextResourceContext context; auto services = ResourceServices(&context);
+    mm_text_info(owner, pstn ? pstn->Pst() : nullptr, ptdts, ptagTdf, &services);
 }
 
 /***************************************************************************
     Adjust the given body's shape, since its owning ThreeDText has changed
 ***************************************************************************/
-bool ThreeDText::FAdjustBody(PBody pbody)
+bool EngineText::FAdjustBody(PThreeDText owner, PBody pbody)
 {
-    AssertThis(0); Assert(pbody, "missing body");
-    auto services = _GenerationServices();
-    return mm_text_adjust_body(this, pbody, &services) != 0;
+    TEXT_VALIDATE(owner); Assert(pbody, "missing body");
+    auto services = GenerationServices();
+    return mm_text_adjust_body(owner, pbody, &services) != 0;
 }
 
 /***************************************************************************
     Set the default costume.  This always succeeds for ThreeDTexts because they
     keep the PMaterial_MTRL in memory.
 ***************************************************************************/
-bool ThreeDText::FSetDefaultCost(PBody pbody)
+bool EngineText::FSetDefaultCost(PThreeDText owner, PBody pbody)
 {
-    AssertThis(0); Assert(pbody, "missing body");
-    auto services = _GenerationServices();
-    return mm_text_default_costume(this, pbody, &services) != 0;
-}
-
-/***************************************************************************
-    Get a custom material
-***************************************************************************/
-PCustomMaterial_CMTL ThreeDText::PcmtlFetch(LegacyLong cmid)
-{
-    AssertThis(0);
-    AssertIn(cmid, 0, _template.custom_count);
-
-    Bug("Shouldn't fetch CMTLs from a ThreeDText");
-    return pvNil;
+    TEXT_VALIDATE(owner); Assert(pbody, "missing body");
+    auto services = GenerationServices();
+    return mm_text_default_costume(owner, pbody, &services) != 0;
 }
 
 /***************************************************************************
     Write the ThreeDText out as a Template hierarchy.
 ***************************************************************************/
-bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
+bool EngineText::FWrite(PThreeDText owner, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertPo(pcfl, 0);
-    return FWrite(pcfl->WriteOwnerIndex(), ctg, pcno);
+    return FWrite(owner, pcfl->WriteOwnerIndex(), ctg, pcno);
 }
 
-bool ThreeDText::FWrite(const MMArchiveWriter &writer, ChunkTagOrType ctg, ChunkNumber *pcno)
+bool EngineText::FWrite(PThreeDText owner, const MMArchiveWriter &writer, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
-    AssertThis(0); AssertVarMem(pcno);
+    TEXT_VALIDATE(owner); AssertVarMem(pcno);
     byte wire[kcbMaxDataStn];
-    const auto name = ChunkyFile::EncodeName(&_stn, wire);
-    return mm_text_write(&_template, &_descriptor, &name, ctg, pcno, &writer) != 0;
+    String name;
+    EngineTemplate::GetName(owner, &name);
+    const auto encoded = ChunkyFile::EncodeName(&name, wire);
+    return mm_text_write(mm_template_owner_state(owner), mm_template_owner_descriptor(owner), &encoded, ctg, pcno, &writer) != 0;
 }
 
-bool ThreeDText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, const TAG &font, ChunkNumber *number)
+bool EngineText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, const TAG &font, ChunkNumber *number)
 {
     AssertPo(file, 0);
     AssertPo(name, 0);
@@ -351,87 +334,46 @@ bool ThreeDText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, c
     return mm_text_write_draft(&encoded, &draft, number, &writer) != 0;
 }
 
-/***************************************************************************
-    Return the number of cels in the given action
-***************************************************************************/
-LegacyLong ThreeDText::_CcelOfTda(LegacyLong tda)
-{
-    AssertThis(0); AssertIn(tda, 0, tdaLim);
-    return mm_text_cel_count(tda);
-}
-
-/***************************************************************************
-    Apply some transformations to each character based on tda.	The
-    transformation matrix is returned in pbmat34.  Some transformations are
-    pre-applied and some are post-applied, depending on the desired effect.
-***************************************************************************/
-void ThreeDText::_ApplyAction(BMAT34 *pbmat34, LegacyLong tda, LegacyLong ich, LegacyLong ccel, LegacyLong icel, BRS xrChar, BRS dxrText)
-{
-    AssertThis(0); AssertVarMem(pbmat34); AssertIn(tda, 0, tdaLim); AssertIn(icel, 0, ccel);
-    MMActorMatrix matrix; std::memcpy(&matrix, pbmat34, sizeof(matrix));
-    mm_text_apply_action(&matrix, tda, ich, ccel, icel, xrChar, dxrText);
-    std::memcpy(pbmat34, &matrix, sizeof(matrix));
-}
-
-/***************************************************************************
-    Shape the text based on the given tdts. This function is called once
-    per character in the ThreeDText.  pbmat34 receives the transformation matrix
-    for the character.  xrChar is the position of the current character
-    (you could also think of this as the distance of the center of this
-    character from the origin of the ThreeDText).	dxrText is the width of the
-    entire string.  dyr is the height of the font.
-***************************************************************************/
-void ThreeDText::_ApplyShape(BMAT34 *pbmat34, LegacyLong tdts, LegacyLong cch, LegacyLong ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
-                      BRS dyrTotal)
-{
-    AssertThis(0); AssertVarMem(pbmat34); AssertIn(tdts, 0, tdtsLim); AssertIn(cch, 0, kcchMaxStn); AssertIn(ich, 0, cch);
-    MMActorMatrix matrix; std::memcpy(&matrix, pbmat34, sizeof(matrix));
-    mm_text_apply_shape(&matrix, tdts, cch, ich, xrChar, dxrText, yrChar, dyrMax, dyrTotal);
-    std::memcpy(pbmat34, &matrix, sizeof(matrix));
-}
-
 #ifdef DEBUG
 /***************************************************************************
     Assert the validity of the ThreeDText.
 ***************************************************************************/
-void ThreeDText::AssertValid(LegacyUlong grf)
+void EngineText::Validate(PThreeDText owner)
 {
-    ThreeDText_PAR::AssertValid(fobjAllocated);
-    AssertNilOrPo(static_cast<PStringTable_GST>(_actionNames.table), 0); // Localized action names are optional in headless hosts.
-    Assert(_descriptor.font.type != ctgNil, "ThreeDText has bad _tagTdf");
-    EngineMaterial::Validate(static_cast<PMaterial_MTRL>(_generated.material));
-    if (tdaNil != _generated.action_id)
+    const auto &descriptor = *mm_template_owner_descriptor(owner);
+    const auto &generated = *mm_template_owner_generated(owner);
+    AssertNilOrPo(static_cast<PStringTable_GST>(ActionNames().table), 0); // Localized action names are optional in headless hosts.
+    Assert(descriptor.font.type != ctgNil, "ThreeDText has bad _tagTdf");
+    EngineMaterial::Validate(static_cast<PMaterial_MTRL>(generated.material));
+    if (tdaNil != generated.action_id)
     {
-        AssertIn(_generated.action_id, 0, tdaLim);
-        Assert(mm_action_resource_references(_generated.action) > 0, "missing generated action");
+        AssertIn(generated.action_id, 0, tdaLim);
+        Assert(mm_action_resource_references(generated.action) > 0, "missing generated action");
     }
     else
     {
-        Assert(pvNil == _generated.action, "_generated.action_id is wrong");
+        Assert(pvNil == generated.action, "generated.action_id is wrong");
     }
-    AssertIn(_descriptor.shape, 0, tdtsLim);
+    AssertIn(descriptor.shape, 0, tdtsLim);
 }
 
 /***************************************************************************
     Mark memory used by the ThreeDText
 ***************************************************************************/
-void ThreeDText::MarkMem(void)
+void EngineText::Mark(PThreeDText owner)
 {
-    AssertThis(0);
-
-    ThreeDText_PAR::MarkMem();
-
-    EngineMaterial::Mark(static_cast<PMaterial_MTRL>(_generated.material));
-    if (tdaNil != _generated.action_id)
-        mm_action_resource_services()->mark_memory(_generated.action);
+    const auto &generated = *mm_template_owner_generated(owner);
+    EngineMaterial::Mark(static_cast<PMaterial_MTRL>(generated.material));
+    if (tdaNil != generated.action_id)
+        mm_action_resource_services()->mark_memory(generated.action);
 }
 
 /***************************************************************************
     Mark memory used by the ThreeDText action StringTable_GST
 ***************************************************************************/
-void ThreeDText::MarkActionNames(void)
+void EngineText::MarkActionNames(void)
 {
-    MarkMemObj(static_cast<PStringTable_GST>(_actionNames.table));
+    MarkMemObj(static_cast<PStringTable_GST>(ActionNames().table));
 }
 
 #endif // DEBUG

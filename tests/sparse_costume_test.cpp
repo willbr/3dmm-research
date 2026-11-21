@@ -42,16 +42,16 @@ int main()
          file->FAdoptChild(kctgCmtl, customNumber, kctgMtrl, materialNumber, 0) &&
          file->FAdoptChild(kctgTmpl, number, kctgCmtl, customNumber, 2);
     auto cache = ok ? ChunkyResourceFile::PcrfNew(file, 0) : nullptr;
-    auto tmpl = cache ? static_cast<PTemplate>(cache->PbacoFetch(kctgTmpl, number, Template::FReadTmpl)) : nullptr;
+    auto tmpl = cache ? EngineTemplate::Fetch(cache, kctgTmpl, number) : nullptr;
     if (!ok || !tmpl) std::fputs("Cannot construct the sparse template fixture.\n", stderr);
-    ok = ok && tmpl && tmpl->CcmidOfBset(0) == 2 && tmpl->CmidOfBset(0, 1) == 2;
-    auto body = tmpl ? tmpl->PbodyCreate() : nullptr;
-    auto sparse = tmpl ? tmpl->PcmtlFetch(2) : nullptr;
-    auto missing = tmpl ? tmpl->PcmtlFetch(1) : nullptr;
+    ok = ok && tmpl && EngineTemplate::CcmidOfBset(tmpl, 0) == 2 && EngineTemplate::CmidOfBset(tmpl, 0, 1) == 2;
+    auto body = tmpl ? EngineTemplate::PbodyCreate(tmpl) : nullptr;
+    auto sparse = tmpl ? EngineTemplate::PcmtlFetch(tmpl, 2) : nullptr;
+    auto missing = tmpl ? EngineTemplate::PcmtlFetch(tmpl, 1) : nullptr;
     if (!body || !sparse || missing) std::fputs("Sparse costume lookup/application failed.\n", stderr);
     ok = ok && body && sparse && !missing && EngineCostume::Set(sparse) == 0;
     if (body && sparse) EngineBody::SetPartSetCmtl(body, sparse);
-    mm_material_owner_release(missing); mm_material_owner_release(sparse); mm_body_owner_release(body); ReleasePpo(&tmpl);
+    mm_material_owner_release(missing); mm_material_owner_release(sparse); mm_body_owner_release(body); mm_template_owner_release(tmpl);
     ReleasePpo(&cache); mm_material_owner_release(material); ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&costumes);
     ReleasePpo(&file);
     BrEnd();

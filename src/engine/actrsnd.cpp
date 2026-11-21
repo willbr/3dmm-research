@@ -55,7 +55,7 @@ MMActorSoundEditServices Actor::_SoundEditServices()
     s.midi_error = [](void *) { PushErc(ercSocNoActrMidi); };
     s.default_sound = [](void *p, MMI32 action, MMI32 cel, int *exists, MMTag *value) {
         TAG tag; bool found = false;
-        bool ok = static_cast<Actor *>(p)->_Template()->FGetSndActnCel(action, cel, &found, &tag);
+        bool ok = EngineTemplate::FGetSndActnCel(static_cast<Actor *>(p)->_Template(), action, cel, &found, &tag);
         *exists = found;
         if (ok && found) *value = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
         return int(ok);
@@ -90,7 +90,7 @@ MMActorSoundServices Actor::_SoundServices()
     services.context = this;
     services.cel_count = [](void *context, MMI32 action, MMI32 *out) {
         LegacyLong count = *out;
-        bool ok = static_cast<Actor *>(context)->_Template()->FGetCcelActn(action, &count);
+        bool ok = EngineTemplate::FGetCcelActn(static_cast<Actor *>(context)->_Template(), action, &count);
         *out = count;
         return int(ok);
     };

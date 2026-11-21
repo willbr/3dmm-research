@@ -3,7 +3,126 @@
 #include "mm/chunk_ops.h"
 #include "mm/font_resource.h"
 #include "mm/text.h"
+#include "mm/material_resource.h"
+#include "mm/string_wire.h"
+#include <stdlib.h>
 #include <string.h>
+
+struct MMTemplateOwner
+{
+    MMResourceObject binding;
+    MMReference references;
+    const MMTemplateOwnerHost *host;
+    MMTemplateState state;
+    MMTemplateProvider provider;
+    int text;
+};
+
+typedef struct MMTemplateText
+{
+    MMTextDescriptor descriptor;
+    MMTextGenerated generated;
+    MMTemplateFontProvider font;
+} MMTemplateText;
+
+static MMU32 owner_bytes(const MMTemplateOwnerHost *host, int text)
+{
+    return sizeof(MMTemplateOwner) + (text ? sizeof(MMTemplateText) : 0) +
+           (MM_STRING_MAX + 2) * host->name_unit;
+}
+
+MMTemplateOwner *mm_template_owner_create(const MMTemplateOwnerHost *host, int text)
+{
+    const MMStorageAllocator *allocator = host->allocator;
+    MMTemplateOwner *owner;
+    MMU32 bytes;
+    if (host->name_unit != 1 && host->name_unit != 2)
+        return NULL;
+    bytes = owner_bytes(host, text);
+    owner = allocator ? allocator->resize(allocator->context, NULL, 0, bytes, MM_STORAGE_NORMAL) : malloc(bytes);
+    if (owner)
+    {
+        memset(owner, 0, bytes);
+        mm_reference_init(&owner->references);
+        owner->host = host;
+        owner->text = text != 0;
+    }
+    return owner;
+}
+
+MMTemplateState *mm_template_owner_state(MMTemplateOwner *owner) { return &owner->state; }
+const MMResourceObject *mm_template_owner_binding(const MMTemplateOwner *owner) { return &owner->binding; }
+MMI32 mm_template_owner_references(const MMTemplateOwner *owner) { return owner->references.count; }
+int mm_template_owner_is_text(const MMTemplateOwner *owner) { return owner->text; }
+MMTemplateProvider *mm_template_owner_provider(MMTemplateOwner *owner) { return &owner->provider; }
+
+static MMTemplateText *text_data(MMTemplateOwner *owner)
+{
+    return (MMTemplateText *)(owner + 1);
+}
+
+MMTextDescriptor *mm_template_owner_descriptor(MMTemplateOwner *owner) { return &text_data(owner)->descriptor; }
+MMTextGenerated *mm_template_owner_generated(MMTemplateOwner *owner) { return &text_data(owner)->generated; }
+MMTemplateFontProvider *mm_template_owner_font(MMTemplateOwner *owner) { return &text_data(owner)->font; }
+
+MMStringValue mm_template_owner_name(MMTemplateOwner *owner)
+{
+    MMStringValue name = {0};
+    name.buffer = (unsigned char *)(owner + 1) + (owner->text ? sizeof(MMTemplateText) : 0);
+    name.unit = owner->host->name_unit;
+    return name;
+}
+
+static MMResourceObject *template_binding(void *object) { return &((MMTemplateOwner *)object)->binding; }
+static MMReference *template_references(void *object) { return &((MMTemplateOwner *)object)->references; }
+
+static void destroy_template(void *object)
+{
+    MMTemplateOwner *owner = object;
+    const MMTemplateOwnerHost *host = owner->host;
+    const MMStorageAllocator *allocator = host->allocator;
+    if (owner->text)
+    {
+        MMTextGenerated *generated = mm_template_owner_generated(owner);
+        mm_material_owner_release(generated->material);
+        mm_action_resource_release(generated->action);
+    }
+    if (owner->provider.release)
+        owner->provider.release(owner->provider.context);
+    mm_template_state_dispose(&owner->state);
+    mm_resource_object_dispose(owner, mm_template_owner_services());
+    if (allocator)
+        allocator->release(allocator->context, owner, owner_bytes(host, owner->text));
+    else
+        free(owner);
+}
+
+static void mark_template(void *object)
+{
+    MMTemplateOwner *owner = object;
+    if (owner->host->mark)
+        owner->host->mark(owner);
+}
+
+const MMResourceObjectServices *mm_template_owner_services(void)
+{
+    static const MMResourceObjectServices services = {
+        template_binding, template_references, destroy_template, NULL, mark_template
+    };
+    return &services;
+}
+
+void mm_template_owner_retain(MMTemplateOwner *owner)
+{
+    mm_reference_add(&owner->references);
+}
+
+void mm_template_owner_release(MMTemplateOwner *owner)
+{
+    if (owner)
+        mm_resource_object_release(owner, mm_template_owner_services());
+}
+
 
 int mm_text_author_name(const char *utf8, char name[MM_TEXT_NAME_BYTES])
 {
@@ -231,7 +350,7 @@ void *mm_text_tags(const MMTextResourceSource *source, MMU32 type, MMU32 number,
     void *list; MMTextDescriptor d;
     s->publish_error(s->context,error_out,0); list=s->tag_list(s->context);
     if (list && descriptor(source,type,number,&d,s) && s->append_tag(s->context,list,&d.font)) return list;
-    s->publish_error(s->context,error_out,1); if (list) s->release_object(s->context,list); return NULL;
+    s->publish_error(s->context,error_out,1); if (list) s->release_tag_list(s->context,list); return NULL;
 }
 int mm_text_set_names(MMTextNames *names,void *table,const MMTextResourceServices *s)
 {

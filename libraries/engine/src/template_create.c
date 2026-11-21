@@ -403,7 +403,7 @@ static int build_costumes(void *object, const MMChunkAccess *chunks, MMU32 paren
     }
     ok = 1;
 done:
-    s->release(s->context, table.cache);
+    s->release_cache(s->context, table.cache);
     return ok;
 }
 
@@ -517,12 +517,18 @@ done:
     mm_owned_block_clear(&live.block);
     return ok;
 }
+void mm_template_state_dispose(MMTemplateState *state)
+{
+    mm_part_indices_dispose(state->parents);
+    state->parents = NULL;
+    mm_part_indices_dispose(state->sets);
+    state->sets = NULL;
+    mm_template_costumes_dispose(state->costumes);
+    state->costumes = NULL;
+}
 void mm_template_dispose(void *object,const MMTemplateCreateServices *s)
 {
-    MMTemplateState t; t=*s->state(s->context,object);
-    mm_part_indices_dispose(t.parents); t.parents=NULL; *s->state(s->context,object)=t;
-    mm_part_indices_dispose(t.sets); t.sets=NULL; *s->state(s->context,object)=t;
-    mm_template_costumes_dispose(t.costumes); t.costumes=NULL; *s->state(s->context,object)=t;
+    mm_template_state_dispose(s->state(s->context, object));
 }
 void *mm_template_create_body(void *object,const MMTemplateCreateServices *s)
 {

@@ -20,14 +20,14 @@ static bool TestActorPaste(PMovie parent)
         if (ok && (mode&16))
         {
             String text; text.SetSzs(PszLit("Paste")); TAG font={1,nullptr,kctgTdf,0};
-            auto tdt=ThreeDText::PtdtNew(&text,tdtsNormal,&font);
-            ok=tdt && tdt->FWrite(source->ArchiveWriter(),kctgTmpl,&templateNumber); ReleasePpo(&tdt);
-            if (ok) { textTemplate=static_cast<PTemplate>(source->PbacoFetch(kctgTmpl,templateNumber,Template::FReadTmpl)); ok=textTemplate!=nullptr; }
+            auto tdt=EngineText::PtdtNew(&text,tdtsNormal,&font);
+            ok=tdt && EngineText::FWrite(tdt, source->ArchiveWriter(), kctgTmpl, &templateNumber); mm_template_owner_release(tdt);
+            if (ok) { textTemplate=EngineTemplate::Fetch(source, kctgTmpl,templateNumber); ok=textTemplate!=nullptr; }
         }
         if (ok) { scene=NewObj StageTestScene(movie); ok=scene && scene->Init() && actor->FInitPlayback(scene,source); }
         if (ok)
         { std::fprintf(stderr,"[actor paste fixture] mode=%d\n",mode); ok=actor->FTestPaste(mode,snapshot,scene,source,target,soundNumber,textTemplate,templateNumber); }
-        ReleasePpo(&actor); ReleasePpo(&scene); ReleasePpo(&textTemplate);
+        ReleasePpo(&actor); ReleasePpo(&scene); mm_template_owner_release(textTemplate);
         ReleasePpo(&source); ReleasePpo(&file); ReleasePpo(&movie);
     }
     vpers->Clear(); if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok;

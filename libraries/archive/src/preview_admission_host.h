@@ -116,7 +116,7 @@ struct Preview::Impl::AdmissionHost
         s.template_fetch = [](void *v, MMU32 type, MMU32 number, void **out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                h.impl->tmpl = static_cast<PTemplate>(h.impl->cache->PbacoFetch(type, number, Template::FReadTmpl));
+                h.impl->tmpl = EngineTemplate::Fetch(h.impl->cache, type, number);
                 *out = h.impl->tmpl;
                 return *out != nullptr;
             });
@@ -131,18 +131,18 @@ struct Preview::Impl::AdmissionHost
         s.body_create = [](void *v, void *t, void **out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                h.impl->body = static_cast<PTemplate>(t)->PbodyCreate();
+                h.impl->body = EngineTemplate::PbodyCreate(static_cast<PTemplate>(t));
                 *out = h.impl->body;
                 return *out != nullptr;
             });
         };
-        s.prop = [](void *, void *t) -> int { return static_cast<PTemplate>(t)->FIsProp(); };
-        s.actions = [](void *, void *t) -> MMI32 { return static_cast<PTemplate>(t)->Cactn(); };
+        s.prop = [](void *, void *t) -> int { return EngineTemplate::FIsProp(static_cast<PTemplate>(t)); };
+        s.actions = [](void *, void *t) -> MMI32 { return EngineTemplate::Cactn(static_cast<PTemplate>(t)); };
         s.cels = [](void *v, void *t, MMU32 action, MMI32 *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
                 LegacyLong n = 0;
-                bool ok = static_cast<PTemplate>(t)->FGetCcelActn(action, &n);
+                bool ok = EngineTemplate::FGetCcelActn(static_cast<PTemplate>(t), action, &n);
                 *out = n;
                 return ok;
             });
@@ -183,10 +183,10 @@ struct Preview::Impl::AdmissionHost
         };
         s.pose = [](void *v, void *t, void *b, MMU32 action, MMU32 cel) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
-            return h.Guard([&] { return static_cast<PTemplate>(t)->FSetActnCel(static_cast<PBody>(b), action, cel); });
+            return h.Guard([&] { return EngineTemplate::FSetActnCel(static_cast<PTemplate>(t), static_cast<PBody>(b), action, cel); });
         };
         s.rest = [](void *, void *t, unsigned short *angles) {
-            static_cast<PTemplate>(t)->GetRestOrien(angles, angles + 1, angles + 2);
+            EngineTemplate::GetRestOrien(static_cast<PTemplate>(t), angles, angles + 1, angles + 2);
         };
         s.rotate = [](void *, MMActorMatrix *m, int axis, unsigned short angle, int post) {
             BMAT34 native;

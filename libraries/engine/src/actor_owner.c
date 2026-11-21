@@ -123,7 +123,7 @@ int mm_actor_owner_duplicate(void *source, int reset, MMActorOwnerResult *out, c
     *runtime = original->runtime;
     if (runtime->body)
         s->retain_body(s->context, runtime->body);
-    s->retain(s->context, runtime->template_object);
+    s->retain_template(s->context, runtime->template_object);
     mm_tag_dup(&runtime->template_tag, s->tags);
     runtime->time_frozen = 0;
     if (reset)
@@ -203,7 +203,7 @@ void mm_actor_owner_dispose(void *actor, const MMActorOwnerServices *s)
     runtime->body = NULL;
     mm_actor_track_dispose(&owner->track, s->tags);
     if (runtime->template_object)
-        s->release(s->context, runtime->template_object);
+        s->release_template(s->context, runtime->template_object);
     runtime->template_object = NULL;
     mm_actor_sounds_dispose(&owner->sounds);
 }

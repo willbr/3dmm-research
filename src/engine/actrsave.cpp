@@ -59,8 +59,8 @@ bool Actor::FWrite(const MMArchiveWriter &archive, const MMMovieEmbeddedArchive 
 #endif
     services.write_template = [](void *p, void *object, MMU32 type, MMU32 *number) -> int {
         auto tmpl = static_cast<PTemplate>(object);
-        Assert(tmpl->FIsTdt(), "Expected an embedded ThreeDText template");
-        return static_cast<PThreeDText>(tmpl)->FWrite(static_cast<Host *>(p)->archive, type, number);
+        Assert(EngineTemplate::FIsTdt(tmpl), "Expected an embedded ThreeDText template");
+        return EngineText::FWrite(static_cast<PThreeDText>(tmpl), static_cast<Host *>(p)->archive, type, number);
     };
     return mm_actor_store(cnoActr, cnoScene, &_owner, &services) != 0;
 }

@@ -447,6 +447,8 @@ static void init(Test *t)
     e->actors.create = new_snapshot;
     e->actors.retain = retain_actor_resource;
     e->actors.release = release_actor;
+    e->actors.release_template = release_actor;
+    e->actors.retain_template = retain_actor_resource;
     e->actors.invalidate_views = restored_actor_views;
     e->dirty = dirty;
     e->invalidate = invalidate;

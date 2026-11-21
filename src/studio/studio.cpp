@@ -1895,7 +1895,7 @@ bool Studio::FCmdActorEaselOpen(PCommand pcmd)
     // Start the easel.
     // Note: easels are self-managing, so we don't need to keep the PEasel
     //
-    if (pactr->Ptmpl()->FIsTdt())
+    if (EngineTemplate::FIsTdt(pactr->Ptmpl()))
     {
         EaselText::PesltNew(_pcrm, _pmvie, pactr);
     }
@@ -2797,7 +2797,7 @@ void Studio::MarkMem(void)
     MarkMemObj(_pglcmg);
     MarkMemObj(_pglclr);
     MarkMemObj(_ptgobTitle);
-    ThreeDText::MarkActionNames();
+    EngineText::MarkActionNames();
 
     //
     // Mark browser objects

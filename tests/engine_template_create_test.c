@@ -322,7 +322,7 @@ static void setup(Fixture *f,int other,int host_big)
     f->s.create=create; f->s.initialize=initialize;
     f->s.object_size=object_size; f->s.invalidate=invalidate;
     f->s.table_allocator.context=f; f->s.table_allocator.resize=resize_table; f->s.table_allocator.release=free_table;
-    f->s.create_cache=create_cache; f->s.fetch_custom=fetch_custom; f->s.custom_set=custom_set;
+    f->s.create_cache=create_cache; f->s.release_cache=release; f->s.fetch_custom=fetch_custom; f->s.custom_set=custom_set;
     f->s.append_costumes=append; f->s.create_body=create_body; f->s.release_body=release; f->s.default_costume=default_costume; f->s.costume_id=costume_id;
     f->s.custom=custom; f->s.allocate_refs=allocate; f->s.apply_custom=apply; f->s.free_memory=free_memory; f->s.diagnostic=diagnose;
 }

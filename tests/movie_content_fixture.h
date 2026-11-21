@@ -112,7 +112,7 @@ static bool TestMovieContentCore()
                 String text;
                 LegacyLong shape;
                 TAG font;
-                static_cast<PThreeDText>(actor->Ptmpl())->GetInfo(&text, &shape, &font);
+                EngineText::GetInfo(static_cast<PThreeDText>(actor->Ptmpl()), &text, &shape, &font);
                 LegacyLong row[] = {shape,
                                     font.sid,
                                     LegacyLong(font.ctg),

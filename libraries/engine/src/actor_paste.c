@@ -30,7 +30,7 @@ static int transfer_template(MMActorRuntime *r, void *scene, const MMActorPasteS
     }
     mm_tag_close(&r->template_tag, owner->tags);
     r->template_tag = tag;
-    owner->release(owner->context, r->template_object);
+    owner->release_template(owner->context, r->template_object);
     r->template_object = object;
     return 1;
 }

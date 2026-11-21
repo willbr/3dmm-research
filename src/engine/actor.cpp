@@ -157,7 +157,7 @@ void *Actor::_FetchTemplate(void *, const MMTag *value)
 {
     TAG tag;
     TagFromCore(&tag, *value);
-    return vptagm->PbacoFetch(&tag, Template::FReadTmpl);
+    return EngineTemplate::Fetch(&tag);
 }
 
 MMActorCreateServices Actor::_CreateServices()
@@ -167,10 +167,10 @@ MMActorCreateServices Actor::_CreateServices()
     s.track_allocator = CollectionAllocator();
     s.trash_unused = DebugShip(1, 0);
     s.action_flags=[](void *,void *p,MMI32 action,MMU32 *flags) {
-        LegacyUlong value=*flags; bool ok=static_cast<PTemplate>(p)->FGetGrfactn(action,&value);
+        LegacyUlong value=*flags; bool ok=EngineTemplate::FGetGrfactn(static_cast<PTemplate>(p), action,&value);
         *flags=value; return int(ok);
     };
-    s.create_body=[](void *,void *p)->void * { return static_cast<PTemplate>(p)->PbodyCreate(); };
+    s.create_body=[](void *,void *p)->void * { return EngineTemplate::PbodyCreate(static_cast<PTemplate>(p)); };
     s.bind_body=[](void *,void *body,void *scene) { BodyWorld::Bind(static_cast<PBody>(body),static_cast<PScene>(scene)->Pmvie()->Pbwld()); };
     s.diagnostic=[](void *,int fault) {
         if (fault==MM_CREATE_WRONG_SCENE) { Bug("SetPscen logic error"); }
@@ -313,7 +313,7 @@ MMActorPlaybackEffects Actor::_PlaybackEffects()
     };
     effects.reset_costume = [](void *p) -> int {
         auto actor = static_cast<Actor *>(p);
-        return actor->_Template()->FSetDefaultCost(actor->_Body());
+        return EngineTemplate::FSetDefaultCost(actor->_Template(), actor->_Body());
     };
     effects.apply_event = [](void *p, MMI32 index) -> int { return static_cast<Actor *>(p)->_FDoAevCore(index); };
     effects.suppress_sounds = [](void *p) -> int {
@@ -326,7 +326,7 @@ MMActorPlaybackEffects Actor::_PlaybackEffects()
     };
     effects.select_cel = [](void *p) -> int {
         auto actor = static_cast<Actor *>(p);
-        return actor->_Template()->FSetActnCel(actor->_Body(), actor->_owner.runtime.state.action, actor->_owner.runtime.state.cel, pvNil);
+        return EngineTemplate::FSetActnCel(actor->_Template(), actor->_Body(), actor->_owner.runtime.state.action, actor->_owner.runtime.state.cel, pvNil);
     };
     effects.update_pose = [](void *p) {
         auto actor = static_cast<Actor *>(p);
@@ -380,7 +380,7 @@ bool Actor::_FGetStatic(long anid, bool *pfStatic)
 
     LegacyUlong grfactn;
 
-    if (!_Template()->FGetGrfactn(anid, &grfactn))
+    if (!EngineTemplate::FGetGrfactn(_Template(), anid, &grfactn))
         return fFalse;
 
     if (ivNil == _owner.runtime.state.actionEvent)
@@ -419,7 +419,7 @@ MMActorTimelineServices Actor::_TimelineServices()
     services.context = this;
     services.resolve = [](void *context, MMI32 action, MMI32 cel, MMI32 *out) -> int {
         BRS step = *out;
-        const bool ok = static_cast<Actor *>(context)->_Template()->FGetDwrActnCel(action, cel, &step);
+        const bool ok = EngineTemplate::FGetDwrActnCel(static_cast<Actor *>(context)->_Template(), action, cel, &step);
         *out = step;
         return ok;
     };
@@ -558,9 +558,9 @@ MMActorActionEditServices Actor::_ActionEditServices()
     static_assert(factnStatic==8 && kdwrNil==-65536,"actor action policy ABI");
     MMActorActionEditServices s={}; s.context=this; s.sounds=_SoundEditServices();
     s.action_flags=[](void *p,MMI32 action,MMU32 *flags) {
-        LegacyUlong value=0; bool ok=static_cast<Actor *>(p)->_Template()->FGetGrfactn(action,&value); *flags=value; return int(ok);
+        LegacyUlong value=0; bool ok=EngineTemplate::FGetGrfactn(static_cast<Actor *>(p)->_Template(), action,&value); *flags=value; return int(ok);
     };
-    s.text_template=[](void *p) { return int(static_cast<Actor *>(p)->_Template()->FIsTdt()); };
+    s.text_template=[](void *p) { return int(EngineTemplate::FIsTdt(static_cast<Actor *>(p)->_Template())); };
     s.mark_life_dirty=[](void *p) { static_cast<Actor *>(p)->_owner.runtime.life_dirty=true; };
     return s;
 }
@@ -570,8 +570,8 @@ MMActorSubrouteEditServices Actor::_SubrouteEditServices()
     s.timeline = _TimelineServices();
     s.lifetime = mm_actor_owner_lifetime(&_owner);
     s.pose_inputs=[](void *p,MMActorPoseInputs *inputs) {
-        auto actor=static_cast<Actor *>(p); actor->_Template()->GetRestOrien(&inputs->restX,&inputs->restY,&inputs->restZ);
-        inputs->fixedPathOrientation=actor->_Template()->FIsTdt();
+        auto actor=static_cast<Actor *>(p); EngineTemplate::GetRestOrien(actor->_Template(), &inputs->restX,&inputs->restY,&inputs->restZ);
+        inputs->fixedPathOrientation=EngineTemplate::FIsTdt(actor->_Template());
     };
     s.locate_body=[](void *p,const MMActorBodyPose *pose) {
         EngineBody::ApplyPose(static_cast<Actor *>(p)->_Body(), *pose);
@@ -619,7 +619,7 @@ MMActorRouteEditServices Actor::_RouteEditServices()
     s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_owner.runtime.life_dirty=true; };
     s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_owner.runtime.recording.recording=enabled!=0; };
     s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Body()) EngineBody::Hide(actor->_Body()); };
-    s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Template() && actor->_Body()) actor->_Template()->FSetDefaultCost(actor->_Body()); };
+    s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Template() && actor->_Body()) EngineTemplate::FSetDefaultCost(actor->_Template(), actor->_Body()); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
         case MM_ROUTE_BAD_ALIVE: Bug("Invalid fAlive value"); break;
@@ -692,7 +692,7 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
         *yon = farClip;
         std::memcpy(matrix, &camera, sizeof(camera));
     };
-    mm_actor_placement(&point, _Template()->FIsTdt(), &services);
+    mm_actor_placement(&point, EngineTemplate::FIsTdt(_Template()), &services);
     *pxr = point.dxr;
     *pyr = point.dyr;
     *pzr = point.dzr;
@@ -1283,7 +1283,7 @@ MMActorCostumeEditServices Actor::_CostumeEditServices()
         TAG tag; std::memcpy(&tag,value,sizeof(tag));
         return vptagm->FetchResource(&tag, EngineMaterial::Read, mm_material_owner_services());
     };
-    services.fetch_custom=[](void *p,MMI32 costume)->void * { return static_cast<Actor *>(p)->_Template()->PcmtlFetch(costume); };
+    services.fetch_custom=[](void *p,MMI32 costume)->void * { return EngineTemplate::PcmtlFetch(static_cast<Actor *>(p)->_Template(), costume); };
     services.body_set=[](void *,void *resource)->MMI32 { return EngineCostume::Set(static_cast<PCustomMaterial_CMTL>(resource)); };
     services.release=[](void *,void *resource) { mm_material_owner_release(static_cast<MMMaterialOwner *>(resource)); };
     return services;
@@ -1394,8 +1394,8 @@ void Actor::_MatrixRotUpdate(RoutePoint *pxyz, BMAT34 *pbmat34)
 {
     AssertBaseThis(0);
     ActorPoseInputs inputs;
-    _Template()->GetRestOrien(&inputs.restX, &inputs.restY, &inputs.restZ);
-    inputs.fixedPathOrientation = _Template()->FIsTdt();
+    EngineTemplate::GetRestOrien(_Template(), &inputs.restX, &inputs.restY, &inputs.restZ);
+    inputs.fixedPathOrientation = EngineTemplate::FIsTdt(_Template());
     ActorPoseEvaluator::Update(_owner.runtime.state, _owner.track, inputs, pxyz, pbmat34);
 }
 
@@ -1692,7 +1692,7 @@ void Actor::GetName(PString pstn)
 
     if (!_Scene()->Pmvie()->FGetName(_owner.runtime.actor, pstn))
     {
-        Ptmpl()->GetName(pstn);
+        EngineTemplate::GetName(Ptmpl(), pstn);
     }
 }
 
@@ -1751,13 +1751,13 @@ bool Actor::FChangeTagTmpl(const MMTag &tag)
     services.context = this;
     services.tags = &EngineActorTagServices();
     services.fetch = _FetchTemplate;
-    services.release = [](void *, void *object) { static_cast<PTemplate>(object)->Release(); };
-    services.text = [](void *, void *object) -> int { return static_cast<PTemplate>(object)->FIsTdt(); };
+    services.release = [](void *, void *object) { mm_template_owner_release(static_cast<PTemplate>(object)); };
+    services.text = [](void *, void *object) -> int { return EngineTemplate::FIsTdt(static_cast<PTemplate>(object)); };
     services.adjust_body = [](void *, void *object, void *body) -> int {
-        return static_cast<PThreeDText>(object)->FAdjustBody(static_cast<PBody>(body));
+        return EngineText::FAdjustBody(static_cast<PThreeDText>(object), static_cast<PBody>(body));
     };
     services.select_cel = [](void *, void *object, void *body, MMI32 action, MMI32 cel) -> int {
-        return static_cast<PTemplate>(object)->FSetActnCel(static_cast<PBody>(body), action, cel);
+        return EngineTemplate::FSetActnCel(static_cast<PTemplate>(object), static_cast<PBody>(body), action, cel);
     };
     services.position = [](void *p) {
         auto actor = static_cast<PActor>(p);
@@ -1779,7 +1779,7 @@ void Actor::AssertValid(LegacyUlong grfobj)
 
     Actor_PAR::AssertValid(fobjAllocated);
     EngineBody::Validate(_Body());
-    AssertNilOrPo(_Template(), 0);
+    EngineTemplate::Validate(_Template());
     Assert(_owner.track.events, "missing actor events");
     Assert(_owner.track.route, "missing actor path");
     Assert(_owner.sounds.count <= _owner.sounds.storage.buffers[0].capacity / sizeof(MMActorMotionSound),
@@ -1936,7 +1936,7 @@ void Actor::MarkMem(void)
         MarkPv(_owner.track.route->storage.buffers[0].data);
     }
     EngineBody::Mark(_Body());
-    MarkMemObj(_Template());
+    EngineTemplate::Mark(_Template());
     if (_owner.runtime.template_tag.sid == ksidUseCrf && _owner.runtime.template_tag.cache)
         MarkMemObj(static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache));
 }

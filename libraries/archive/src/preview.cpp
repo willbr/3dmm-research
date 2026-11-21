@@ -129,9 +129,11 @@ struct Preview::Impl
     std::string resolveError;
     void BindTemplate(PTemplate value)
     {
-        if (!value->FIsTdt())
+        if (!mm_template_owner_is_text(value))
             return;
-        static_cast<PThreeDText>(value)->SetFontResolver(this, [](void *context, const TAG &tag) -> MMFontOwner * {
+        EngineText::SetFontResolver(value, this, [](void *context, const MMTag *font) -> MMFontOwner * {
+            TAG tag;
+            TagFromCore(&tag, *font);
             auto self = static_cast<Impl *>(context);
             TAGOnFile wire;
             wire.From(tag);
@@ -193,7 +195,8 @@ struct Preview::Impl
         resolveError.clear();
         mm_body_owner_release(body);
         body = nullptr;
-        ReleasePpo(&tmpl);
+        mm_template_owner_release(tmpl);
+        tmpl = nullptr;
         mm_model_owner_release(model);
         model = nullptr;
         info = {};
@@ -555,7 +558,7 @@ bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSourc
 }
 bool Preview::UseTextPreviewMaterial(Error &error)
 {
-    if (!_impl->body || !_impl->tmpl || !_impl->tmpl->FIsTdt()) return false;
+    if (!_impl->body || !_impl->tmpl || !EngineTemplate::FIsTdt(_impl->tmpl)) return false;
     auto material = EngineMaterial::Fetch(_impl->cache, kctgMtrl, 0);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot load the preview material.");
     EngineBody::SetPartSetMtrl(_impl->body, 0, material); mm_material_owner_release(material); return true;

@@ -2506,10 +2506,10 @@ bool BrowserAction::FBuildGst(PScene pscen)
     if (pvNil == (pgst = StringTable_GST::PgstNew(0)))
         return fFalse;
 
-    cactn = ptmpl->Cactn();
+    cactn = EngineTemplate::Cactn(ptmpl);
     for (iactn = 0; iactn < cactn; iactn++)
     {
-        if (!ptmpl->FGetActnName(iactn, &stn))
+        if (!EngineTemplate::FGetActnName(ptmpl, iactn, &stn))
             goto LFail;
         if (!pgst->FAddStn(&stn))
             goto LFail;
@@ -2521,7 +2521,7 @@ bool BrowserAction::FBuildGst(PScene pscen)
     if (!FBuildApe(pscen->PactrSelected()))
         goto LFail;
 
-    if (!ptmpl->FIsTdt())
+    if (!EngineTemplate::FIsTdt(ptmpl))
         _pape->SetCustomView(BR_ANGLE_DEG(0.0), BR_ANGLE_DEG(-30.0), BR_ANGLE_DEG(0.0));
 
     return fTrue;
@@ -2563,7 +2563,7 @@ bool BrowserAction::FCmdChangeCel(PCommand pcmd)
     LegacyLong ccel;
     PActor pactr = _pstdio->Pmvie()->Pscen()->PactrSelected();
 
-    if (!pactr->Ptmpl()->FGetCcelActn(_pape->Anid(), &ccel))
+    if (!EngineTemplate::FGetCcelActn(pactr->Ptmpl(), _pape->Anid(), &ccel))
         return fTrue;
 
     if (1 == ccel)

@@ -246,7 +246,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
             Bug("Bad event in frame event list");
     };
     s.material_reader = EngineMaterial::Read;
-    s.template_reader = Template::FReadTmpl;
+    s.template_reader = EngineTemplate::Read;
     s.purge_sounds = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->Pmcc()->FQueryPurgeSounds(); };
     s.bad_child = [](void *) { Bug("ChunkyFile returned bogus Ckid()"); };
     s.bad_sound_index = [](void *) { Bug("Should never fail"); };
@@ -1201,16 +1201,16 @@ MMMovieContentServices Movie::_ContentServices()
         return ok;
     };
     s.new_text = [](const void *name, MMI32 shape, const void *font) -> void * {
-        return ThreeDText::PtdtNew(const_cast<PString>(static_cast<const String *>(name)), shape,
+        return EngineText::PtdtNew(const_cast<PString>(static_cast<const String *>(name)), shape,
                                   const_cast<PTAG>(static_cast<const TAG *>(font)));
     };
     s.write_text = [](void *p, void *resources, MMU32 *out) -> int {
         const auto writer = static_cast<PChunkyResourceFile>(resources)->ArchiveWriter();
-        ChunkNumber number; bool ok = static_cast<PThreeDText>(p)->FWrite(writer, kctgTmpl, &number);
+        ChunkNumber number; bool ok = EngineText::FWrite(static_cast<PThreeDText>(p), writer, kctgTmpl, &number);
         if (ok) *out = number;
         return ok;
     };
-    s.release_text = [](void *p) { auto text = static_cast<PThreeDText>(p); ReleasePpo(&text); };
+    s.release_text = [](void *p) { mm_template_owner_release(static_cast<PThreeDText>(p)); };
     s.tags = &TagManager::CoreServices();
     s.name_units = [](const void *p, MMU32 *count) -> const void * {
         auto name = const_cast<PString>(static_cast<const String *>(p));
@@ -1312,7 +1312,7 @@ bool Movie::FInsTdt(PString pstn, long tdts, PTAG ptagTdf)
  ****************************************************/
 bool Movie::FChangeActrTdt(PActor pactr, PString pstn, long tdts, PTAG ptagTdf)
 {
-    AssertThis(0); AssertPo(pactr, 0); Assert(pactr->Ptmpl()->FIsTdt(), "actor must be a ThreeDText");
+    AssertThis(0); AssertPo(pactr, 0); Assert(EngineTemplate::FIsTdt(pactr->Ptmpl()), "actor must be a ThreeDText");
     AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
     Assert(pactr == Pscen()->PactrSelected(), 0);
     const auto services = _ContentServices();
@@ -3313,7 +3313,7 @@ void MovieView::SetTool(long tool)
         if (pactr != pvNil)
         {
             _ptmplTool = pactr->Ptmpl();
-            AssertPo(_ptmplTool, 0);
+            Assert(_ptmplTool, "missing tool template");
         }
     }
     else
@@ -4270,23 +4270,23 @@ void MovieView::_ActorClicked(PActor pactr, bool fDown)
 
     ulong grftmpl = 0;
 
-    if (pactr->Ptmpl()->FIsTdt())
+    if (EngineTemplate::FIsTdt(pactr->Ptmpl()))
     {
         grftmpl |= ftmplTdt;
     }
 
-    if (pactr->Ptmpl()->FIsProp())
+    if (EngineTemplate::FIsProp(pactr->Ptmpl()))
     {
         grftmpl |= ftmplProp;
     }
 
     if (fDown)
     {
-        vpcex->EnqueueCid(cidActorClickedDown, pvNil, pvNil, pactr->Arid(), pactr->Ptmpl()->Cno(), grftmpl);
+        vpcex->EnqueueCid(cidActorClickedDown, pvNil, pvNil, pactr->Arid(), mm_template_owner_binding(pactr->Ptmpl())->number, grftmpl);
     }
     else
     {
-        vpcex->EnqueueCid(cidActorClicked, pvNil, pvNil, pactr->Arid(), pactr->Ptmpl()->Cno(), grftmpl);
+        vpcex->EnqueueCid(cidActorClicked, pvNil, pvNil, pactr->Arid(), mm_template_owner_binding(pactr->Ptmpl())->number, grftmpl);
     }
 }
 
@@ -4713,7 +4713,7 @@ MMActorRecordGestureServices MovieView::_RecordGestureServices()
 bool MovieView::_FRecordTemplateMatches(PActor actor)
 {
     auto tmpl = actor->Ptmpl();
-    return tmpl == _ptmplTool || (_ptmplTool && _ptmplTool->FIsTdt() && tmpl->FIsTdt());
+    return tmpl == _ptmplTool || (_ptmplTool && EngineTemplate::FIsTdt(_ptmplTool) && EngineTemplate::FIsTdt(tmpl));
 }
 
 /***************************************************************************

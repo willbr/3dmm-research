@@ -130,6 +130,7 @@ typedef struct MMTemplateCreateServices
     void (*invalidate)(void *,void *,size_t);
     MMStorageAllocator table_allocator;
     void *(*create_cache)(void *);
+    void (*release_cache)(void *,void *);
     void *(*fetch_custom)(void *,void *cache,MMU32,MMU32);
     MMI32 (*custom_set)(void *,void *custom);
     int (*append_costumes)(void *,MMTemplateCostumeTable *,const MMI32 *,MMI32 count);
@@ -166,6 +167,7 @@ void mm_template_encode_header(unsigned char bytes[MM_TEMPLATE_HEADER_BYTES], in
 int mm_template_fetch(MMResourceCache *,MMU32,MMU32,MMOwnedBlock *,void **object,MMI32 *bytes,
                       const MMTemplateCreateServices *);
 int mm_template_initialize(void *,MMResourceCache *,MMU32,MMU32,MMOwnedBlock *,const MMTemplateCreateServices *);
+void mm_template_state_dispose(MMTemplateState *);
 void mm_template_dispose(void *,const MMTemplateCreateServices *);
 void *mm_template_create_body(void *,const MMTemplateCreateServices *);
 /* Fetch every default custom material before applying any; failure releases

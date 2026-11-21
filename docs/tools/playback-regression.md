@@ -20210,3 +20210,35 @@ matched the prior port output byte for byte. The archive action retained an
 against retail. Both ports retained a one-pixel difference per textured
 3D text frame. Continuous playback verification covered frame sequences.
 Evidence is under tmp/c89-body-owner.
+
+## C89 ownership for actor templates and 3D text (21 November 2026)
+
+Studio and Preview use one reference-counted template owner for archive
+actors, props and generated 3D text. It holds the counted name, cache binding,
+rest angles and part and costume tables. The 3D text extension owns the
+descriptor, font resolver, default material and current generated action.
+The archive cache and actor snapshots retain the C89 owner directly.
+Native adapters provide localized action names, fonts and renderer services.
+Legacy template cache charges were retained.
+
+All twelve native x64 and SDL traces for template construction and playback,
+3D text resource I/O and generation, actor ownership and costume editing
+matched their respective baselines byte for byte. Native and SDL movie
+save/load, scene content and sparse-costume tests passed. All 193 standalone
+C89 checks and six targeted AddressSanitizer checks passed. Marcus player,
+playback and C89 checks passed. Native and SDL stock actor and spare-costume
+images matched their previous builds. The local native links omitted debug
+symbols to fit the available disk space.
+
+In suite 20261121T221837Z-c8a2c2d8, both ports matched the retained retail
+seek and continuous frame sequences on the 12-frame archive action and
+two-frame textured 3D text movies. All 28 seek canvases matched prior port
+images byte for byte. The prior retail pixel differences repeated.
+Continuous playback verification covered frame identities.
+
+Studio saved and reopened the textured movie and reproduced both actor
+states and texture hashes. The saved archive had the same size as the
+previous Studio save and differed in three bytes after two names in the
+chunk index. Retail reopened the new save in 20261121T221935Z-c976c1a3 and
+reproduced both original poses and seek canvases. Evidence is under
+tmp/c89-template-owner.

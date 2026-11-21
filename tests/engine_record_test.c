@@ -376,6 +376,8 @@ static MMActorRecordGestureServices gesture_init(GestureFixture *f)
     f->transaction.actors.create = gesture_copy;
     f->transaction.actors.retain = gesture_retain;
     f->transaction.actors.release = gesture_release;
+    f->transaction.actors.release_template = gesture_release;
+    f->transaction.actors.retain_template = gesture_retain;
     f->transaction.actors.route_services = gesture_routes;
     f->transaction.actors.invalidate_views = gesture_invalidate;
     f->transaction.undo.context = f;

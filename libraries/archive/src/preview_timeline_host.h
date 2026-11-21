@@ -111,7 +111,7 @@ struct PreviewActor::TimelineHost
             auto &h = *static_cast<TimelineHost *>(v);
             return h.Guard([&] {
                 BRS value = *out;
-                bool ok = h.actor->Ptmpl()->FGetDwrActnCel(action, cel, &value);
+                bool ok = EngineTemplate::FGetDwrActnCel(h.actor->Ptmpl(), action, cel, &value);
                 *out = value;
                 return ok;
             }) > 0;

@@ -294,7 +294,7 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         return pbody == _Body();
     }
-    bool FIsMyTmpl(Template *ptmpl)
+    bool FIsMyTmpl(PTemplate ptmpl)
     {
         AssertBaseThis(0);
         return _Template() == ptmpl;
@@ -346,12 +346,12 @@ class Actor : public Actor_PAR
     bool FIsPropBrws(void)
     {
         AssertThis(0);
-        return FPure(_Template()->FIsProp() || _Template()->FIsTdt());
+        return FPure(EngineTemplate::FIsProp(_Template()) || EngineTemplate::FIsTdt(_Template()));
     }
     bool FIsTdt(void)
     {
         AssertThis(0);
-        return FPure(_Template()->FIsTdt());
+        return FPure(EngineTemplate::FIsTdt(_Template()));
     }
     bool FMustRender(long nfrmRenderLast);
     void GetXyzWorld(BRS *pxr, BRS *pyr, BRS *pzr);

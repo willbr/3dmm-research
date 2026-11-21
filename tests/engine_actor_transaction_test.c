@@ -320,6 +320,8 @@ static void init(Fixture *f)
     actors->release=release;
     actors->retain_body=retain;
     actors->release_body=release;
+    actors->retain_template=retain;
+    actors->release_template=release;
     actors->route_services=route_services;
     actors->invalidate_views=restored;
     undo=&f->transaction.undo;

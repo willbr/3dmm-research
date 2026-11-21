@@ -904,6 +904,8 @@ static void init(Test *t)
     s->actors.create = new_actor_snapshot;
     s->actors.retain = retain_actor_snapshot;
     s->actors.release = release_actor_ref;
+    s->actors.release_template = release_actor_ref;
+    s->actors.retain_template = retain_actor_snapshot;
     s->actors.route_services = stage_route;
     s->actors.invalidate_views = restored_actor_views;
     s->actor_undo = bind_actor_undo;

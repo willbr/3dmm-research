@@ -8,10 +8,48 @@
 #include "text_generation.h"
 #include "template_create.h"
 #include "tag.h"
+#include "string_value.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 typedef struct MMTextDescriptor { MMI32 shape; MMTag font; } MMTextDescriptor;
+
+typedef struct MMTemplateOwner MMTemplateOwner;
+struct MMFontOwner;
+typedef struct MMTemplateFontProvider
+{
+    void *context;
+    struct MMFontOwner *(*fetch)(void *, const MMTag *);
+} MMTemplateFontProvider;
+/* In-memory templates may supply owned actions or models without archive links. */
+typedef struct MMTemplateProvider
+{
+    void *context;
+    MMActionResource *(*action)(void *, MMI32);
+    void *(*model)(void *, MMU32);
+    void (*release)(void *);
+} MMTemplateProvider;
+typedef struct MMTemplateOwnerHost
+{
+    const MMStorageAllocator *allocator;
+    unsigned name_unit;
+    void (*mark)(MMTemplateOwner *);
+} MMTemplateOwnerHost;
+/* The host outlives the owner. The name view borrows its counted storage.
+ * Only owners created with a text extension expose descriptor/font state. */
+MMTemplateOwner *mm_template_owner_create(const MMTemplateOwnerHost *, int text);
+MMTemplateState *mm_template_owner_state(MMTemplateOwner *);
+MMStringValue mm_template_owner_name(MMTemplateOwner *);
+const MMResourceObject *mm_template_owner_binding(const MMTemplateOwner *);
+const MMResourceObjectServices *mm_template_owner_services(void);
+MMI32 mm_template_owner_references(const MMTemplateOwner *);
+void mm_template_owner_retain(MMTemplateOwner *);
+void mm_template_owner_release(MMTemplateOwner *);
+int mm_template_owner_is_text(const MMTemplateOwner *);
+MMTextDescriptor *mm_template_owner_descriptor(MMTemplateOwner *);
+MMTextGenerated *mm_template_owner_generated(MMTemplateOwner *);
+MMTemplateFontProvider *mm_template_owner_font(MMTemplateOwner *);
+MMTemplateProvider *mm_template_owner_provider(MMTemplateOwner *);
 enum { MM_TEXT_DESCRIPTOR_BYTES = 24 };
 enum { MM_TEXT_NAME_BYTES = 51 };
 enum { MM_TEXT_NAME_OK, MM_TEXT_NAME_EMPTY, MM_TEXT_NAME_LENGTH, MM_TEXT_NAME_UTF8, MM_TEXT_NAME_CHARACTERS };
@@ -51,6 +89,7 @@ typedef struct MMTextResourceServices
     const MMChunkPayloadServices *payloads;
     void (*publish_error)(void *,void *output,int value);
     void *(*tag_list)(void *);
+    void (*release_tag_list)(void *,void *);
     int (*append_tag)(void *,void *list,const MMTag *);
     MMI32 (*name_count)(void *,void *table);
     MMI32 (*name_id)(void *,void *table,MMI32 index);

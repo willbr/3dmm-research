@@ -99,14 +99,17 @@ void Client::PauseType(WaitReason w)
     Value(w);
 }
 
-class TrackTestTemplate : public Template
+class TrackTestTemplate
 {
+    MMTemplateState &_template;
+    explicit TrackTestTemplate(PTemplate owner) : _template(EngineTemplate::State(owner)) {}
+
     MMActionResource *_testAction = pvNil;
     bool _failNextFetch = false;
     int _failAfterFetch = 0;
 
   protected:
-    MMActionResource *_FetchAction(long anid) override
+    MMActionResource *FetchAction(MMI32 anid)
     {
         if (_failAfterFetch > 0 && --_failAfterFetch == 0)
             return pvNil;
@@ -122,9 +125,31 @@ class TrackTestTemplate : public Template
     }
 
   public:
+    static TrackTestTemplate *From(PTemplate owner)
+    {
+        return static_cast<TrackTestTemplate *>(mm_template_owner_provider(owner)->context);
+    }
+    static PTemplate Create()
+    {
+        auto owner = mm_template_owner_create(&EngineTemplate::Host(), 0);
+        if (!owner)
+            return nullptr;
+        auto fixture = new (std::nothrow) TrackTestTemplate(owner);
+        if (!fixture)
+        {
+            mm_template_owner_release(owner);
+            return nullptr;
+        }
+        *mm_template_owner_provider(owner) = {
+            fixture, [](void *p, MMI32 id) { return static_cast<TrackTestTemplate *>(p)->FetchAction(id); },
+            nullptr, [](void *p) { delete static_cast<TrackTestTemplate *>(p); }
+        };
+        return owner;
+    }
     static bool FWriteFixture(PChunkyFile file, ChunkNumber *number)
     {
-        auto tmpl = NewObj TrackTestTemplate();
+        auto owner = Create();
+        auto tmpl = owner ? From(owner) : nullptr;
         auto cels = GeneralGroup::PggNew(sizeof(AnimationCel));
         auto matrices = DynamicArray::PglNew(sizeof(BMAT34));
         auto costumeWire = GeneralGroup::PggNew(sizeof(int32_t));
@@ -132,8 +157,11 @@ class TrackTestTemplate : public Template
         bool ok = tmpl && tmpl->FInit() && cels && matrices && costumeWire && indexWire;
         if (ok)
         {
-            tmpl->_stn.SetSzs(PszLit("Fixture template"));
-            ok = tmpl->_FWriteTmplf(file, kctgTmpl, number);
+            String title;
+            title.SetSzs(PszLit("Fixture template"));
+            const auto name = mm_template_owner_name(owner);
+            mm_string_value_copy(&name, title.Pst());
+            ok = EngineTemplate::WriteHeader(owner, file, kctgTmpl, number);
         }
         AnimationCel cel = {chidNil, rOne};
         BMAT34 matrix;
@@ -157,7 +185,7 @@ class TrackTestTemplate : public Template
              file->FAddChild(kctgTmpl, *number, 0, sizeof(header), kctgActn, &action) &&
              file->FPutPv(&header, sizeof(header), kctgActn, action) && table(kctgActn, action, kctgGgcl, cels) &&
              table(kctgActn, action, kctgGlxf, matrices);
-        ReleasePpo(&indexWire); ReleasePpo(&costumeWire); ReleasePpo(&tmpl);
+        ReleasePpo(&indexWire); ReleasePpo(&costumeWire); mm_template_owner_release(owner);
         ReleasePpo(&cels);
         ReleasePpo(&matrices);
         return ok;
@@ -167,11 +195,12 @@ class TrackTestTemplate : public Template
         *bytes = sizeof(TrackTestTemplate);
         if (!out)
             return true;
-        auto tmpl = NewObj TrackTestTemplate();
-        *out = tmpl;
+        auto owner = Create();
+        auto tmpl = owner ? From(owner) : nullptr;
+        *out = owner;
         if (!tmpl || !tmpl->FInit())
         {
-            ReleasePpo(&tmpl);
+            mm_template_owner_release(owner);
             *out = nullptr;
             return false;
         }
@@ -183,10 +212,11 @@ class TrackTestTemplate : public Template
     {
         if (!FReadCostumeFixture(cache, type, number, block, out, bytes))
             return false;
-        auto tmpl = out ? static_cast<TrackTestTemplate *>(*out) : nullptr;
+        auto owner = out ? static_cast<PTemplate>(*out) : nullptr;
+        auto tmpl = owner ? From(owner) : nullptr;
         if (tmpl && !tmpl->FInitAction())
         {
-            ReleasePpo(&tmpl);
+            mm_template_owner_release(owner);
             *out = nullptr;
             return false;
         }
@@ -253,11 +283,11 @@ class ContentActor : public Actor
     {
         using namespace ActorEvent;
         auto tmpl =
-            static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl, number, TrackTestTemplate::FReadSubrouteFixture));
+            static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl, number, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
         if (!tmpl)
             return false;
         if (_Template())
-            _Template()->Release();
+            mm_template_owner_release(_Template());
         _owner.runtime.template_object = tmpl;
         mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
         _owner.runtime.template_tag = {ksidUseCrf, resource, kctgTmpl, number};

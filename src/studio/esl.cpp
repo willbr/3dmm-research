@@ -244,7 +244,7 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
     AssertPo(prca, 0);
     AssertPo(pmvie, 0);
     AssertNilOrPo(pactr, 0);
-    Assert(pvNil == pactr || pactr->Ptmpl()->FIsTdt(), "only use EaselText for ThreeDTexts");
+    Assert(pvNil == pactr || EngineTemplate::FIsTdt(pactr->Ptmpl()), "only use EaselText for ThreeDTexts");
     AssertNilOrPo(pstnNew, 0);
     if (tdtsNew != tdtsNil)
         AssertIn(tdtsNew, 0, tdtsLim);
@@ -283,11 +283,11 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
         AssertIn(tdtsNew, 0, tdtsLim);
         AssertVarMem(ptagTdfNew);
 
-        ptdt = ThreeDText::PtdtNew(pstnNew, tdtsNew, ptagTdfNew);
+        ptdt = EngineText::PtdtNew(pstnNew, tdtsNew, ptagTdfNew);
         if (pvNil == ptdt)
             return fFalse;
         _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, pvNil, 0, fFalse, _prca);
-        ReleasePpo(&ptdt);
+        mm_template_owner_release(ptdt);
         if (pvNil == _pape)
             return fFalse;
         stn = *pstnNew;
@@ -298,14 +298,14 @@ bool EaselText::_FInit(PResourceCache prca, long kidEasel, PMovie pmvie, PActor 
         // because the user may experimentally change the ThreeDText, then hit Cancel.
         if (!cost.FGet(pactr->Pbody()))
             return fFalse;
-        ptdt = ((PThreeDText)pactr->Ptmpl())->PtdtDup();
+        ptdt = EngineText::PtdtDup(((PThreeDText)pactr->Ptmpl()));
         if (pvNil == ptdt)
             return fFalse;
         _pape = ActorPreviewEntity::PapeNew(&gcb, ptdt, &cost, 0, fFalse, _prca);
-        ReleasePpo(&ptdt);
+        mm_template_owner_release(ptdt);
         if (pvNil == _pape)
             return fFalse;
-        pactr->Ptmpl()->GetName(&stn);
+        EngineTemplate::GetName(pactr->Ptmpl(), &stn);
     }
 
     // Set up the edit box
@@ -619,7 +619,7 @@ bool EaselText::_FAcceptChanges(bool *pfDismissEasel)
             goto LFail;
 
         // first apply ThreeDText changes
-        ptdtOld->GetInfo(&stnOld, &tdtsOld, &tagTdfOld);
+        EngineText::GetInfo(ptdtOld, &stnOld, &tdtsOld, &tagTdfOld);
         _pape->GetTdtInfo(&stnNew, &tdtsNew, &tagTdfNew);
         if (!stnOld.FEqual(&stnNew) || tdtsOld != tdtsNew || fcmpEq != TagManager::FcmpCompareTags(&tagTdfOld, &tagTdfNew))
         {

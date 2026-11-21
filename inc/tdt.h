@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> Template ---> ThreeDText  (Three-D Text)
+    Native font and archive services for generated C89 templates.
 
 ***************************************************************************/
 #ifndef ThreeDText_H
@@ -55,66 +55,34 @@ enum
     tdaLim
 };
 
-/****************************************
-    3-D Text class
-****************************************/
-typedef class ThreeDText *PThreeDText;
-#define ThreeDText_PAR Template
-#define kclsThreeDText 'TDT'
-class ThreeDText : public ThreeDText_PAR
+using PThreeDText = MMTemplateOwner *;
+
+namespace EngineText
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  protected:
-    static MMTextNames _actionNames; // Action names
-
-    MMTextDescriptor _descriptor = {};
-    MMTextGenerated _generated = {};
-    void *_fontContext = pvNil;
-    MMFontOwner *(*_fontResolver)(void *, const TAG &) = pvNil;
-    MMFontOwner *_FetchFont(void);
-
-  protected:
-    bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *) override;
-    static MMTextGenerationServices _GenerationServices();
-    static MMTextResourceServices _ResourceServices(void *context);
-    bool _FInitLists(void);
-    MMActionResource *_FetchAction(LegacyLong tda) override;
-    virtual PModel _PmodlFetch(ChildChunkID chidModl);
-    LegacyLong _CcelOfTda(LegacyLong tda);
-    void _ApplyAction(BMAT34 *pbmat34, LegacyLong tda, LegacyLong ich, LegacyLong ccel, LegacyLong icel, BRS xrChar, BRS pdxrText);
-    void _ApplyShape(BMAT34 *pbmat34, LegacyLong tdts, LegacyLong cch, LegacyLong ich, BRS xrChar, BRS dxrText, BRS yrChar, BRS dyrMax,
-                     BRS dyrTotal);
-
-  public:
-    // Optional content service for headless hosts. Returns an owned reference;
-    // the callback context must outlive this template and its cached actions.
-    void SetFontResolver(void *context, MMFontOwner *(*resolver)(void *, const TAG &))
-    {
-        _fontContext = context;
-        _fontResolver = resolver;
-    }
-    static bool FSetActionNames(PStringTable_GST pgstAction);
+MMTextGenerationServices GenerationServices();
+MMTextNames &ActionNames();
+bool Initialize(PThreeDText, PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
+void SetFontResolver(PThreeDText, void *context, MMFontOwner *(*)(void *, const MMTag *));
+MMActionResource *FetchAction(PThreeDText, LegacyLong);
+PModel FetchModel(PThreeDText, ChildChunkID);
+bool ActionName(PThreeDText, LegacyLong, PString);
+bool FSetActionNames(PStringTable_GST);
 #ifdef DEBUG
-    static void MarkActionNames(void);
+void Validate(PThreeDText);
+void Mark(PThreeDText);
+void MarkActionNames();
 #endif
 
-    static PThreeDText PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf);
-    ~ThreeDText(void);
-    static PDynamicArray PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfError);
-    PThreeDText PtdtDup(void);
+PThreeDText PtdtNew(PString, LegacyLong shape, PTAG font);
+PDynamicArray PgltagFetch(PChunkyFile, ChunkTagOrType, ChunkNumber, bool *error);
+PThreeDText PtdtDup(PThreeDText);
+void GetInfo(PThreeDText, PString, LegacyLong *shape, PTAG font);
+bool FChange(PThreeDText, PString, LegacyLong shape = tdtsNil, PTAG font = pvNil);
+bool FWrite(PThreeDText, PChunkyFile, ChunkTagOrType, ChunkNumber *);
+bool FWrite(PThreeDText, const MMArchiveWriter &, ChunkTagOrType, ChunkNumber *);
+bool FWriteDraft(PChunkyFile, PString, LegacyLong shape, const TAG &font, ChunkNumber *);
+bool FAdjustBody(PThreeDText, PBody);
+bool FSetDefaultCost(PThreeDText, PBody);
+}
 
-    void GetInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf);
-    bool FChange(PString pstn, LegacyLong tdts = tdtsNil, PTAG ptagTdf = pvNil);
-    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
-    bool FWrite(const MMArchiveWriter &, ChunkTagOrType ctg, ChunkNumber *pcno);
-    static bool FWriteDraft(PChunkyFile, PString name, LegacyLong shape, const TAG &font, ChunkNumber *);
-    bool FAdjustBody(PBody pbody);
-    virtual bool FSetDefaultCost(PBody pbody);
-    virtual PCustomMaterial_CMTL PcmtlFetch(LegacyLong cmid);
-    virtual bool FGetActnName(LegacyLong anid, PString pstn);
-};
-
-#endif // ThreeDText_H
+#endif

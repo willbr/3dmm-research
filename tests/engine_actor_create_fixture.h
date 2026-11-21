@@ -24,9 +24,9 @@ static bool TestActorCreation(PMovie movie)
         TAG tag={ksidUseCrf,resource,kctgTmpl,asset==1?bad:number};
         if (ok && warm)
         {
-            auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(tag.ctg,tag.cno,Template::FReadTmpl));
-            if (tmpl && asset==0) { LegacyUlong flags=0; ok=tmpl->FGetGrfactn(0,&flags); }
-            ReleasePpo(&tmpl);
+            auto tmpl=EngineTemplate::Fetch(resource, tag.ctg,tag.cno);
+            if (tmpl && asset==0) { LegacyUlong flags=0; ok=EngineTemplate::FGetGrfactn(tmpl, 0,&flags); }
+            mm_template_owner_release(tmpl);
         }
         const long refs=resource?resource->CactRef():0;
         PActor actor=nullptr;

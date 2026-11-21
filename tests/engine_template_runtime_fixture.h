@@ -1,27 +1,33 @@
 #ifndef ENGINE_TEMPLATE_RUNTIME_FIXTURE_H
 #define ENGINE_TEMPLATE_RUNTIME_FIXTURE_H
 #include "engine_action_tables_fixture.h"
-class TemplateRuntimeFixture : public Template
+struct TemplateRuntimeFixture
 {
-  public:
     MMActionResource *action=nullptr;
     PModel models[2]={};
     int mode=0,trace[64]={},used=0;
-    static TemplateRuntimeFixture *Create(int parts)
+    PTemplate Create(int parts)
     {
-        auto t=NewObj TemplateRuntimeFixture; if (!t) return nullptr;
-        t->_template.action_count=1; t->_template.set_count=parts?2:0;
+        auto t = mm_template_owner_create(&EngineTemplate::Host(), 0);
+        if (!t) return nullptr;
+        *mm_template_owner_provider(t) = {
+            this,
+            [](void *p, MMI32 id) { return static_cast<TemplateRuntimeFixture *>(p)->FetchAction(id); },
+            [](void *p, MMU32 id) -> void * { return static_cast<TemplateRuntimeFixture *>(p)->FetchModel(id); },
+            nullptr
+        };
+        EngineTemplate::State(t).action_count=1; EngineTemplate::State(t).set_count=parts?2:0;
         const auto allocator = CollectionAllocator();
-        t->_template.parents = mm_part_indices_new(&allocator); t->_template.sets=mm_part_indices_new(&allocator);
-        t->_template.costumes=mm_template_costumes_new(&allocator);
-        bool ok=t->_template.parents && t->_template.sets && t->_template.costumes;
-        for (int i=0;ok && i<parts;++i) { short p=i?static_cast<short>((i-1)/2):-1,s=static_cast<short>(i%2); ok=mm_part_indices_append(t->_template.parents,p) && mm_part_indices_append(t->_template.sets,s); }
-        for (int i=0;ok && i<t->_template.set_count;++i) { int32_t id=i,count=1; ok=mm_template_costumes_append(t->_template.costumes,&id,count); }
-        if (!ok) { ReleasePpo(&t); return nullptr; } return t;
+        EngineTemplate::State(t).parents = mm_part_indices_new(&allocator); EngineTemplate::State(t).sets=mm_part_indices_new(&allocator);
+        EngineTemplate::State(t).costumes=mm_template_costumes_new(&allocator);
+        bool ok=EngineTemplate::State(t).parents && EngineTemplate::State(t).sets && EngineTemplate::State(t).costumes;
+        for (int i=0;ok && i<parts;++i) { short p=i?static_cast<short>((i-1)/2):-1,s=static_cast<short>(i%2); ok=mm_part_indices_append(EngineTemplate::State(t).parents,p) && mm_part_indices_append(EngineTemplate::State(t).sets,s); }
+        for (int i=0;ok && i<EngineTemplate::State(t).set_count;++i) { int32_t id=i,count=1; ok=mm_template_costumes_append(EngineTemplate::State(t).costumes,&id,count); }
+        if (!ok) { mm_template_owner_release(t); return nullptr; } return t;
     }
-    MMActionResource *_FetchAction(LegacyLong id) override
+    MMActionResource *FetchAction(MMI32 id)
     { trace[used++]=100+id; if (mode==1) return nullptr; mm_action_resource_retain(action); return action; }
-    PModel _PmodlFetch(ChildChunkID id) override
+    PModel FetchModel(MMU32 id)
     { trace[used++]=200+id; if (mode==2 && id==1) return nullptr; mm_model_owner_retain(models[id]); return models[id]; }
 };
 static bool TestTemplateRuntime()
@@ -35,7 +41,7 @@ static bool TestTemplateRuntime()
     for (int shape=0;ok && shape<3;++shape) for (int mode=0;ok && mode<3;++mode) for (int cn=0;ok && cn<5;++cn)
     for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<3;++failure)
     {
-        int n=counts[shape]; auto t=TemplateRuntimeFixture::Create(n); auto group=GeneralGroup::PggNew(sizeof(AnimationCel));
+        int n=counts[shape]; TemplateRuntimeFixture fixture; auto t=fixture.Create(n); auto group=GeneralGroup::PggNew(sizeof(AnimationCel));
         auto matrices=DynamicArray::PglNew(sizeof(BMAT34)); ok=t && group && matrices;
         for (int i=0;ok && i<3;++i)
         {
@@ -53,7 +59,7 @@ static bool TestTemplateRuntime()
         auto action=ok?MakeFixtureAction(group,matrices,13,sounds):nullptr;
         if (!action) mm_action_table_dispose(sounds);
         PBody body=nullptr;
-        if (t) { t->action=action; t->models[0]=a; t->models[1]=b; t->mode=mode; }
+        if (t) { fixture.action=action; fixture.models[0]=a; fixture.models[1]=b; fixture.mode=mode; }
         auto parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         for (int i=0;ok && i<n;++i) { short p=i?static_cast<short>((i-1)/2):-1,s=static_cast<short>(i%2); ok=parents->FAdd(&p) && sets->FAdd(&s); }
         body=ok?EngineBody::Create(parents,sets):nullptr; ok=ok && action && body;
@@ -65,20 +71,20 @@ static bool TestTemplateRuntime()
             vmutxMem.Enter(); auto allocator=kind==0?&vdmglob.dmaglBase:kind==1?&vdmglob.dmaglHq:&vdmglob.dmaglPv;
             allocator->cactDo=failure-1; allocator->cactFail=failure?1:0; vmutxMem.Leave();
 #endif
-            applied=t->FSetActnCel(body,0,cels[cn],cn%2?nullptr:&distance);
+            applied=EngineTemplate::FSetActnCel(t, body,0,cels[cn],cn%2?nullptr:&distance);
 #ifdef DEBUG
             vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
             if (applied) ++successes; else ++failures;
-            LegacyLong values[]={shape,mode,cn,kind,failure,applied,distance,mm_model_owner_references(a),mm_model_owner_references(b),mm_action_resource_references(action),t->used};
-            ok=record(values,sizeof(values)) && record(t->trace,t->used*sizeof(int)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
+            LegacyLong values[]={shape,mode,cn,kind,failure,applied,distance,mm_model_owner_references(a),mm_model_owner_references(b),mm_action_resource_references(action),fixture.used};
+            ok=record(values,sizeof(values)) && record(fixture.trace,fixture.used*sizeof(int)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
             for (int i=0;i<n;++i) { LegacyLong identity=EngineBody::Part(body, i)->model==EngineModel::Handle(a)?1:EngineBody::Part(body, i)->model==EngineModel::Handle(b)?2:0; ok=record(&identity,sizeof(identity)) && ok; }
             LegacyLong count=-77; LegacyUlong flags=0x1357; bool exists=true; TAG tag={123,nullptr,0x12345678,456};
-            BRS d=BR_SCALAR(-99); bool dOk=t->FGetDwrActnCel(0,cels[cn],&d),countOk=t->FGetCcelActn(0,&count),flagsOk=t->FGetGrfactn(0,&flags),soundOk=t->FGetSndActnCel(0,cels[cn],&exists,&tag);
+            BRS d=BR_SCALAR(-99); bool dOk=EngineTemplate::FGetDwrActnCel(t, 0,cels[cn],&d),countOk=EngineTemplate::FGetCcelActn(t, 0,&count),flagsOk=EngineTemplate::FGetGrfactn(t, 0,&flags),soundOk=EngineTemplate::FGetSndActnCel(t, 0,cels[cn],&exists,&tag);
             LegacyLong queries[]={dOk,d,countOk,count,flagsOk,static_cast<LegacyLong>(flags),soundOk,exists,tag.sid,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)};
             ok=record(queries,sizeof(queries)) && mm_action_resource_references(action)==1 && ok;
         }
-        mm_body_owner_release(body); ReleasePpo(&t); mm_action_resource_release(action); ReleasePpo(&group); ReleasePpo(&matrices); ReleasePpo(&parents); ReleasePpo(&sets); vpers->Clear();
+        mm_body_owner_release(body); mm_template_owner_release(t); mm_action_resource_release(action); ReleasePpo(&group); ReleasePpo(&matrices); ReleasePpo(&parents); ReleasePpo(&sets); vpers->Clear();
         ok=ok && mm_model_owner_references(a)==1 && mm_model_owner_references(b)==1 && mm_material_owner_references(material)==1;
         if (!ok) std::fprintf(stderr,"Template runtime failed: %d %d %d %d %d\n",shape,mode,cn,kind,failure);
     }
@@ -86,7 +92,7 @@ static bool TestTemplateRuntime()
     {
         auto file=ChunkyFile::PcflCreateTemp(); auto cache=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr; ChunkNumber number=0;
         ok=cache && TemplateCreateFixtureAccess::Author(file,&number,6,0);
-        auto t=ok?static_cast<PTemplate>(cache->PbacoFetch(kctgTmpl,number,Template::FReadTmpl)):nullptr;
+        auto t=ok?EngineTemplate::Fetch(cache, kctgTmpl,number):nullptr;
         ChildChunkIdentification costumes[4]={}; ChunkNumber modelA=0,modelB=0; byte dummy=0;
         ok=ok && t && file->FAddPv(&dummy,1,kctgBmdl,&modelA) && file->FAddPv(&dummy,1,kctgBmdl,&modelB);
         for (int i=0;ok && i<4;++i) ok=file->FGetKidChidCtg(kctgTmpl,number,i,kctgCmtl,&costumes[i]);
@@ -99,19 +105,19 @@ static bool TestTemplateRuntime()
         }
         for (int set=0;ok && set<2;++set)
         {
-            LegacyLong accessory=-77; bool has=t->FBsetIsAccessory(set),found=t->FIbsetAccOfIbset(set,&accessory);
-            LegacyLong values[]={variant,set,has,found,accessory,t->CcmidOfBset(set),t->CmidOfBset(set,0),t->CmidOfBset(set,1)};
+            LegacyLong accessory=-77; bool has=EngineTemplate::FBsetIsAccessory(t, set),found=EngineTemplate::FIbsetAccOfIbset(t, set,&accessory);
+            LegacyLong values[]={variant,set,has,found,accessory,EngineTemplate::CcmidOfBset(t, set),EngineTemplate::CmidOfBset(t, set,0),EngineTemplate::CmidOfBset(t, set,1)};
             ok=record(values,sizeof(values));
         }
         for (int i=0;ok && i<4;++i) for (int j=0;ok && j<4;++j)
         {
-            LegacyLong values[]={variant,i,j,t->FSameAccCmids(i,j),EngineCostume::HasModels(file,kctgCmtl,costumes[i].cki.cno),EngineCostume::EqualModels(file,costumes[i].cki.cno,costumes[j].cki.cno)};
+            LegacyLong values[]={variant,i,j,EngineTemplate::FSameAccCmids(t, i,j),EngineCostume::HasModels(file,kctgCmtl,costumes[i].cki.cno),EngineCostume::EqualModels(file,costumes[i].cki.cno,costumes[j].cki.cno)};
             ok=record(values,sizeof(values));
         }
         String name,expectedName; expectedName.SetSzs(PszLit("Runtime action")); ChildChunkIdentification actionChild;
         ok=file->FGetKidChidCtg(kctgTmpl,number,0,kctgActn,&actionChild) && file->FSetName(kctgActn,actionChild.cki.cno,&expectedName) && ok;
-        LegacyLong named=t && t->FGetActnName(0,&name) && name.FEqualSz(PszLit("Runtime action")); ok=named && record(&named,sizeof(named)) && ok;
-        ReleasePpo(&t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
+        LegacyLong named=t && EngineTemplate::FGetActnName(t, 0,&name) && name.FEqualSz(PszLit("Runtime action")); ok=named && record(&named,sizeof(named)) && ok;
+        mm_template_owner_release(t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
     }
     std::fprintf(stderr,"[template runtime] successes=%d failures=%d\n",successes,failures);
 #ifdef DEBUG

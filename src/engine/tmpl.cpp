@@ -66,12 +66,43 @@
 #include "soc_core.h"
 #include "handle_services.h"
 #include "mm/movie_session.h"
-#include <typeinfo>
+#include "mm/string_value.h"
 ASSERTNAME
 
-RTCLASS(Template)
+#ifdef DEBUG
+#define TEMPLATE_VALIDATE(owner) EngineTemplate::Validate(owner)
+#else
+#define TEMPLATE_VALIDATE(owner) ((void)0)
+#endif
 
-const MMActionResourceHost &Template::ActionResourceHost()
+const MMTemplateOwnerHost &EngineTemplate::Host()
+{
+    static const MMTemplateOwnerHost host = {
+        KauaiResourceObjectAllocator(), sizeof(achar),
+#ifdef DEBUG
+        EngineTemplate::Mark
+#else
+        nullptr
+#endif
+    };
+    return host;
+}
+
+static MMI32 LegacyTemplateSize(bool text)
+{
+    // Preserve cache charges for the former native object layouts.
+    size_t prefix = sizeof(void *) == 8 ? 40 : 28;
+#ifdef DEBUG
+    if (sizeof(void *) == 4)
+        prefix += 4;
+#endif
+    const size_t bytes = prefix + sizeof(MMTemplateState) + sizeof(String);
+    const size_t alignment = sizeof(void *);
+    const size_t base = (bytes + alignment - 1) & ~(alignment - 1);
+    return static_cast<MMI32>(base + (text ? sizeof(MMTextDescriptor) + sizeof(MMTextGenerated) + 2 * sizeof(void *) : 0));
+}
+
+const MMActionResourceHost &EngineTemplate::ActionResourceHost()
 {
     static const auto tables = CollectionAllocator();
     static const MMActionResourceHost host = {
@@ -87,7 +118,7 @@ const MMActionResourceHost &Template::ActionResourceHost()
     return host;
 }
 
-int Template::ReadActionResource(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+int EngineTemplate::ReadActionResource(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                                  void **out, MMI32 *bytes)
 {
     return mm_action_resource_read(cache, type, number, block, out, bytes, &ActionResourceHost());
@@ -96,25 +127,34 @@ int Template::ReadActionResource(MMResourceCache *cache, MMU32 type, MMU32 numbe
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read Template objects.
 ***************************************************************************/
-MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
+MMTemplateCreateServices EngineTemplate::CreateServices(PChunkyResourceFile cache)
 {
     MMTemplateCreateServices s = {}; s.context = cache;
     const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
 #ifdef DEBUG
     s.debug_checks = 1;
 #endif
-    s.state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PTemplate>(object)->_template; };
-    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.state = [](void *, void *object) -> MMTemplateState * { return mm_template_owner_state(static_cast<PTemplate>(object)); };
+    s.release = [](void *, void *object) { mm_template_owner_release(static_cast<PTemplate>(object)); };
     s.release_custom = [](void *, void *custom) { mm_material_owner_release(static_cast<PCustomMaterial_CMTL>(custom)); };
     s.decode = KauaiDecodeBlockHandle;
     s.read_name = [](void *cache, void *object, MMU32 type, MMU32 number) -> int {
-        return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, &static_cast<PTemplate>(object)->_stn);
+        String name;
+        const auto found = static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, &name);
+        const auto storage = mm_template_owner_name(static_cast<PTemplate>(object));
+        mm_string_value_copy(&storage, name.Pst());
+        return found;
     };
-    s.create = [](void *, int text) -> void * { return text ? static_cast<PTemplate>(NewObj ThreeDText) : NewObj Template; };
-    s.initialize = [](void *cache, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
-        return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyResourceFile>(cache), type, number, block);
+    s.create = [](void *, int text) -> void * { return mm_template_owner_create(&Host(), text); };
+    s.initialize = [](void *context, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
+        auto owner = static_cast<PTemplate>(object);
+        auto cache = static_cast<PChunkyResourceFile>(context);
+        if (mm_template_owner_is_text(owner))
+            return EngineText::Initialize(owner, cache, type, number, block);
+        const auto services = CreateServices(cache);
+        return mm_template_initialize(owner, cache->CoreCache(), type, number, block, &services);
     };
-    s.object_size = [](void *, int text) -> MMI32 { return static_cast<MMI32>(text ? sizeof(ThreeDText) : sizeof(Template)); };
+    s.object_size = [](void *, int text) -> MMI32 { return LegacyTemplateSize(text != 0); };
     s.invalidate = [](void *, void *out, size_t count) {
 #ifdef DEBUG
         FillPb(out, static_cast<LegacyLong>(count), kbGarbage);
@@ -124,6 +164,7 @@ MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
     };
     s.table_allocator = CollectionAllocator();
     s.create_cache = [](void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->PcrfNewSibling(0); };
+    s.release_cache = [](void *, void *cache) { static_cast<PChunkyResourceFile>(cache)->Release(); };
     s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return EngineCostume::Fetch(static_cast<PChunkyResourceFile>(cache), type, number); };
     s.custom_set = [](void *, void *custom) -> MMI32 { return EngineCostume::Set(static_cast<PCustomMaterial_CMTL>(custom)); };
     s.append_costumes = [](void *, MMTemplateCostumeTable *table, const MMI32 *ids, MMI32 count) -> int {
@@ -133,9 +174,9 @@ MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
         return EngineBody::Create(*parents, *sets);
     };
     s.release_body = [](void *, void *body) { mm_body_owner_release(static_cast<PBody>(body)); };
-    s.default_costume = [](void *, void *object, void *body) -> int { return static_cast<PTemplate>(object)->FSetDefaultCost(static_cast<PBody>(body)); };
-    s.costume_id = [](void *, void *object, MMI32 set, MMI32 index) -> MMI32 { return static_cast<PTemplate>(object)->CmidOfBset(set, index); };
-    s.custom = [](void *, void *object, MMI32 id) -> void * { return static_cast<PTemplate>(object)->PcmtlFetch(id); };
+    s.default_costume = [](void *, void *object, void *body) -> int { return FSetDefaultCost(static_cast<PTemplate>(object), static_cast<PBody>(body)); };
+    s.costume_id = [](void *, void *object, MMI32 set, MMI32 index) -> MMI32 { return CmidOfBset(static_cast<PTemplate>(object), set, index); };
+    s.custom = [](void *, void *object, MMI32 id) -> void * { return PcmtlFetch(static_cast<PTemplate>(object), id); };
     s.allocate_refs = [](void *, MMI32 count, void **out) -> int { return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal); };
     s.apply_custom = [](void *, void *body, void *custom) { EngineBody::SetPartSetCmtl(static_cast<PBody>(body), static_cast<PCustomMaterial_CMTL>(custom)); };
     s.free_memory = [](void *, void **data) { FreePpv(data); };
@@ -151,56 +192,45 @@ MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
     return s;
 }
 
-int Template::FReadTmpl(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+int EngineTemplate::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
     void **out, MMI32 *bytes)
 {
-    const auto s = _CreateServices(static_cast<PChunkyResourceFile>(cache->owner));
+    const auto s = CreateServices(static_cast<PChunkyResourceFile>(cache->owner));
     return mm_template_fetch(cache, type, number, block, out, bytes, &s);
 }
 
-/***************************************************************************
-    Read a Template from a chunk
-***************************************************************************/
-bool Template::_FReadTmplf(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkNumber cno, MMOwnedBlock *block)
+PTemplate EngineTemplate::Fetch(PTAG tag)
 {
-    AssertBaseThis(0);
-    auto s = _CreateServices(cache);
-    return mm_template_read_header(this, cache->CoreCache(), ctg, cno, block, &s) != 0;
+    return static_cast<PTemplate>(vptagm->FetchResource(tag, Read, mm_template_owner_services()));
 }
 
-/***************************************************************************
-    Write the TemplateOnFile chunk.  Creates a new chunk and returns the ChunkNumber in pcno.
-
-    Note: In Socrates, normal actor templates are read-only, but this
-    function will get called for ThreeDTexts.
-***************************************************************************/
-bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
+PTemplate EngineTemplate::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number, bool *error)
 {
-    AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
-    const auto writer = pcfl->WriteIndex();
+    const MMResourceRequest request = {type, number, 0, Read, MM_RESOURCE_NORMAL_PRIORITY};
+    int failed = 0;
+    auto owner = static_cast<PTemplate>(mm_resource_cache_fetch_owned(file->CoreCache(), &request,
+                                                                    mm_template_owner_services(), &failed));
+    if (error)
+        *error = failed != 0;
+    return owner;
+}
+
+bool EngineTemplate::ReadHeader(PTemplate owner, PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number,
+                                MMOwnedBlock *block)
+{
+    const auto services = CreateServices(cache);
+    return mm_template_read_header(owner, cache->CoreCache(), type, number, block, &services) != 0;
+}
+
+bool EngineTemplate::WriteHeader(PTemplate owner, PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
+{
+    TEMPLATE_VALIDATE(owner); AssertPo(file, 0); AssertVarMem(number);
+    const auto writer = file->WriteIndex();
     byte wire[kcbMaxDataStn];
-    const auto name = ChunkyFile::EncodeName(&_stn, wire);
-    return mm_template_write_header(&_template, &name, ctg, pcno, &writer) != 0;
-}
-
-/***************************************************************************
-    Read a Template from a chunk
-***************************************************************************/
-bool Template::_FInit(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkNumber cno, MMOwnedBlock *block)
-{
-    AssertPo(cache, 0);
-    auto s = _CreateServices(cache);
-    return mm_template_initialize(this, cache->CoreCache(), ctg, cno, block, &s) != 0;
-}
-
-/***************************************************************************
-    Clean up and delete template
-***************************************************************************/
-Template::~Template(void)
-{
-    AssertBaseThis(0);
-    auto s = _CreateServices();
-    mm_template_dispose(this, &s);
+    String name;
+    GetName(owner, &name);
+    const auto encoded = ChunkyFile::EncodeName(&name, wire);
+    return mm_template_write_header(&State(owner), &encoded, type, number, &writer) != 0;
 }
 
 /***************************************************************************
@@ -210,35 +240,45 @@ Template::~Template(void)
     on each body part (no null pointers for bact->material).  So the user
     will never see a body part that isn't texture mapped.
 ***************************************************************************/
-PBody Template::PbodyCreate(void)
+PBody EngineTemplate::PbodyCreate(PTemplate owner)
 {
-    AssertThis(0);
-    auto s = _CreateServices();
-    return static_cast<PBody>(mm_template_create_body(this, &s));
+    TEMPLATE_VALIDATE(owner);
+    auto s = CreateServices();
+    return static_cast<PBody>(mm_template_create_body(owner, &s));
 }
 
 /***************************************************************************
     Fills in the name of the given action
 ***************************************************************************/
-MMTemplateRuntimeServices Template::_RuntimeServices()
+static MMTemplateRuntimeServices RuntimeServices(PTemplate owner)
 {
-    MMTemplateRuntimeServices s = {}; s.storage = _CreateServices();
+    MMTemplateRuntimeServices s = {}; s.storage = EngineTemplate::CreateServices();
     static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
-    s.resource = ResourceBinding();
+    s.resource = mm_template_owner_binding(owner);
     s.model_reader = EngineModel::Read;
     s.model_objects = mm_model_owner_services();
     s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
         return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, static_cast<PString>(out));
     };
-    mm_template_use_action_resource(&s, ReadActionResource);
-    // Derived templates can supply either provider, even when backed by an archive.
-    if (typeid(*this) != typeid(Template))
+    mm_template_use_action_resource(&s, EngineTemplate::ReadActionResource);
+    const auto provider = mm_template_owner_provider(owner);
+    if (mm_template_owner_is_text(owner) || provider->action)
     {
         s.generated_action = [](void *, void *object, MMI32 id) -> void * {
-            return static_cast<PTemplate>(object)->_FetchAction(id);
+            auto owner = static_cast<PTemplate>(object);
+            if (mm_template_owner_is_text(owner))
+                return EngineText::FetchAction(owner, id);
+            const auto provider = mm_template_owner_provider(owner);
+            return provider->action(provider->context, id);
         };
+    }
+    if (mm_template_owner_is_text(owner) || provider->model)
+    {
         s.generated_model = [](void *, void *object, MMU32 id, MMMovieAsset *asset) -> void * {
-            auto model = static_cast<PTemplate>(object)->_PmodlFetch(id);
+            auto owner = static_cast<PTemplate>(object);
+            const auto provider = mm_template_owner_provider(owner);
+            auto model = mm_template_owner_is_text(owner) ? EngineText::FetchModel(owner, id) :
+                         static_cast<PModel>(provider->model(provider->context, id));
             if (model)
                 *asset = {0, MM_TEMPLATE_BMDL, mm_model_owner_binding(model)->number};
             return model;
@@ -264,30 +304,13 @@ MMTemplateRuntimeServices Template::_RuntimeServices()
     return s;
 }
 
-bool Template::FGetActnName(LegacyLong anid, PString pstn)
+bool EngineTemplate::FGetActnName(PTemplate owner, LegacyLong anid, PString pstn)
 {
-    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertPo(pstn, 0);
-    auto s = _RuntimeServices();
+    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertPo(pstn, 0);
+    auto s = RuntimeServices(owner);
+    if (mm_template_owner_is_text(owner))
+        return EngineText::ActionName(owner, anid, pstn);
     return mm_template_action_name(anid, pstn, &s) != 0;
-}
-
-/***************************************************************************
-    Resolve an archive-backed action in the template's cache.
-***************************************************************************/
-MMActionResource *Template::_FetchAction(LegacyLong anid)
-{
-    AssertThis(0); AssertIn(anid, 0, _template.action_count);
-    return mm_template_fetch_action(ResourceBinding(), anid, ReadActionResource);
-}
-
-/***************************************************************************
-    Reads a Model chunk from disk
-***************************************************************************/
-PModel Template::_PmodlFetch(ChildChunkID chidModl)
-{
-    AssertThis(0);
-    return static_cast<PModel>(mm_template_fetch_child(
-        ResourceBinding(), chidModl, MM_TEMPLATE_MODEL, EngineModel::Read, mm_model_owner_services(), nullptr));
 }
 
 /***************************************************************************
@@ -295,109 +318,111 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
     matrices for the given cel of the given action.  Also returns the
     distance to the next cel in *pdwr.
 ***************************************************************************/
-bool Template::FSetActnCel(PBody pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr)
+bool EngineTemplate::FSetActnCel(PTemplate owner, PBody pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
-    AssertThis(0); Assert(pbody, "missing body"); AssertIn(anid, 0, _template.action_count); AssertNilOrVarMem(pdwr);
-    auto s = _RuntimeServices();
-    return mm_template_set_cel(this, pbody, anid, celn, pdwr, &s) != 0;
+    TEMPLATE_VALIDATE(owner); Assert(pbody, "missing body"); AssertIn(anid, 0, State(owner).action_count); AssertNilOrVarMem(pdwr);
+    auto s = RuntimeServices(owner);
+    return mm_template_set_cel(owner, pbody, anid, celn, pdwr, &s) != 0;
 }
 
 /***************************************************************************
     Retrieves the distance travelled by cel celn of action anid.
 ***************************************************************************/
-bool Template::FGetDwrActnCel(LegacyLong anid, LegacyLong celn, BRS *pdwr)
+bool EngineTemplate::FGetDwrActnCel(PTemplate owner, LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
-    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pdwr);
-    auto s = _RuntimeServices();
+    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pdwr);
+    auto s = RuntimeServices(owner);
     MMI32 distance;
-    if (!mm_template_distance(this, anid, celn, &distance, &s)) return false;
+    if (!mm_template_distance(owner, anid, celn, &distance, &s)) return false;
     std::memcpy(pdwr, &distance, sizeof(distance)); return true;
 }
 
 /***************************************************************************
     Retrieves the number of cels in this action
 ***************************************************************************/
-bool Template::FGetCcelActn(LegacyLong anid, LegacyLong *pccel)
+bool EngineTemplate::FGetCcelActn(PTemplate owner, LegacyLong anid, LegacyLong *pccel)
 {
-    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pccel);
-    auto s = _RuntimeServices();
-    return mm_template_cel_count(this, anid, pccel, &s) != 0;
+    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pccel);
+    auto s = RuntimeServices(owner);
+    return mm_template_cel_count(owner, anid, pccel, &s) != 0;
 }
 
 /***************************************************************************
     Retrieves the number of cels in this action
 ***************************************************************************/
-bool Template::FGetSndActnCel(LegacyLong anid, LegacyLong celn, bool *pfSoundExists, PTAG ptag)
+bool EngineTemplate::FGetSndActnCel(PTemplate owner, LegacyLong anid, LegacyLong celn, bool *pfSoundExists, PTAG ptag)
 {
-    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pfSoundExists); AssertVarMem(ptag);
-    auto s = _RuntimeServices();
-    return mm_template_sound(this, anid, celn, pfSoundExists, ptag, &s) != 0;
+    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pfSoundExists); AssertVarMem(ptag);
+    auto s = RuntimeServices(owner);
+    return mm_template_sound(owner, anid, celn, pfSoundExists, ptag, &s) != 0;
 }
 
 /***************************************************************************
     Retrieves the distance travelled by cel celn of action anid.
 ***************************************************************************/
-bool Template::FGetGrfactn(LegacyLong anid, LegacyUlong *pgrfactn)
+bool EngineTemplate::FGetGrfactn(PTemplate owner, LegacyLong anid, LegacyUlong *pgrfactn)
 {
-    AssertThis(0); AssertIn(anid, 0, _template.action_count); AssertVarMem(pgrfactn);
-    auto s = _RuntimeServices();
-    return mm_template_action_flags(this, anid, pgrfactn, &s) != 0;
+    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pgrfactn);
+    auto s = RuntimeServices(owner);
+    return mm_template_action_flags(owner, anid, pgrfactn, &s) != 0;
 }
 
 /***************************************************************************
     Get orientation for template when actor has no path
 ***************************************************************************/
-void Template::GetRestOrien(BRA *pxa, BRA *pya, BRA *pza)
+void EngineTemplate::GetRestOrien(PTemplate owner, BRA *pxa, BRA *pya, BRA *pza)
 {
-    AssertThis(0);
+    TEMPLATE_VALIDATE(owner);
     AssertVarMem(pxa);
     AssertVarMem(pya);
     AssertVarMem(pza);
 
-    *pxa = static_cast<BRA>(_template.x);
-    *pya = static_cast<BRA>(_template.y);
-    *pza = static_cast<BRA>(_template.z);
+    *pxa = static_cast<BRA>(State(owner).x);
+    *pya = static_cast<BRA>(State(owner).y);
+    *pza = static_cast<BRA>(State(owner).z);
 }
 
 /***************************************************************************
     Puts default costume on pbody
 ***************************************************************************/
-bool Template::FSetDefaultCost(PBody pbody)
+bool EngineTemplate::FSetDefaultCost(PTemplate owner, PBody pbody)
 {
-    AssertThis(0); Assert(pbody, "missing body");
-    auto s = _CreateServices();
-    return mm_template_default_costume(this, pbody, &s) != 0;
+    TEMPLATE_VALIDATE(owner); Assert(pbody, "missing body");
+    if (mm_template_owner_is_text(owner))
+        return EngineText::FSetDefaultCost(owner, pbody);
+    auto s = CreateServices();
+    return mm_template_default_costume(owner, pbody, &s) != 0;
 }
 
 /***************************************************************************
     Returns the number of custom materials available for ibset
 ***************************************************************************/
-LegacyLong Template::CcmidOfBset(LegacyLong ibset)
+LegacyLong EngineTemplate::CcmidOfBset(PTemplate owner, LegacyLong ibset)
 {
-    AssertThis(0); AssertIn(ibset, 0, _template.set_count);
-    auto s = _RuntimeServices();
-    return mm_template_costume_count(this, ibset, &s);
+    TEMPLATE_VALIDATE(owner); AssertIn(ibset, 0, State(owner).set_count);
+    auto s = RuntimeServices(owner);
+    return mm_template_costume_count(owner, ibset, &s);
 }
 
 /***************************************************************************
     Returns the icmid'th CMID available for ibset
 ***************************************************************************/
-LegacyLong Template::CmidOfBset(LegacyLong ibset, LegacyLong icmid)
+LegacyLong EngineTemplate::CmidOfBset(PTemplate owner, LegacyLong ibset, LegacyLong icmid)
 {
-    AssertThis(0); AssertIn(ibset, 0, _template.set_count); AssertIn(icmid, 0, CcmidOfBset(ibset));
-    auto s = _RuntimeServices();
-    return mm_template_costume_id(this, ibset, icmid, &s);
+    TEMPLATE_VALIDATE(owner); AssertIn(ibset, 0, State(owner).set_count); AssertIn(icmid, 0, CcmidOfBset(owner, ibset));
+    auto s = RuntimeServices(owner);
+    return mm_template_costume_id(owner, ibset, icmid, &s);
 }
 
 /***************************************************************************
     Tells whether ibset holds accessories by checking to see if one of
     its costumes has model children.
 ***************************************************************************/
-bool Template::FBsetIsAccessory(LegacyLong ibset)
+bool EngineTemplate::FBsetIsAccessory(PTemplate owner, LegacyLong ibset)
 {
-    AssertThis(0); AssertIn(ibset, 0, _template.set_count);
-    auto s = _RuntimeServices();
-    return mm_template_is_accessory(this, ibset, &s) != 0;
+    TEMPLATE_VALIDATE(owner); AssertIn(ibset, 0, State(owner).set_count);
+    auto s = RuntimeServices(owner);
+    return mm_template_is_accessory(owner, ibset, &s) != 0;
 }
 
 /***************************************************************************
@@ -406,82 +431,97 @@ bool Template::FBsetIsAccessory(LegacyLong ibset)
     if ibset is the parent of an accessory, that accessory is returned in
     *pibsetAcc.
 ***************************************************************************/
-bool Template::FIbsetAccOfIbset(LegacyLong ibset, LegacyLong *pibsetAcc)
+bool EngineTemplate::FIbsetAccOfIbset(PTemplate owner, LegacyLong ibset, LegacyLong *pibsetAcc)
 {
-    AssertThis(0); AssertIn(ibset, 0, _template.set_count); AssertVarMem(pibsetAcc);
-    auto s = _RuntimeServices();
-    return mm_template_accessory_set(this, ibset, pibsetAcc, &s) != 0;
+    TEMPLATE_VALIDATE(owner); AssertIn(ibset, 0, State(owner).set_count); AssertVarMem(pibsetAcc);
+    auto s = RuntimeServices(owner);
+    return mm_template_accessory_set(owner, ibset, pibsetAcc, &s) != 0;
 }
 
 /***************************************************************************
     See if cmid1 and cmid2 are for the same accessory by comparing child
     model chunks
 ***************************************************************************/
-bool Template::FSameAccCmids(LegacyLong cmid1, LegacyLong cmid2)
+bool EngineTemplate::FSameAccCmids(PTemplate owner, LegacyLong cmid1, LegacyLong cmid2)
 {
-    AssertThis(0);
-    auto s = _RuntimeServices();
+    TEMPLATE_VALIDATE(owner);
+    auto s = RuntimeServices(owner);
     return mm_template_same_accessory(cmid1, cmid2, &s) != 0;
 }
 
 /***************************************************************************
     Get a custom material.  The cmid is really the chid under the Template.
 ***************************************************************************/
-PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
+PCustomMaterial_CMTL EngineTemplate::PcmtlFetch(PTemplate owner, LegacyLong cmid)
 {
-    AssertThis(0);
+    TEMPLATE_VALIDATE(owner);
+    if (mm_template_owner_is_text(owner))
+    {
+        AssertIn(cmid, 0, State(owner).custom_count);
+        Bug("Shouldn't fetch CMTLs from a ThreeDText");
+        return pvNil;
+    }
     // A CMID is a child ID, not an ordinal. Imported templates may have gaps
-    // (for example, children 0 and 2), so _template.custom_count is not an upper bound on IDs.
+    // (for example, children 0 and 2), so State(owner).custom_count is not an upper bound on IDs.
     if (cmid < 0)
         return pvNil;
     return static_cast<PCustomMaterial_CMTL>(mm_template_fetch_child(
-        ResourceBinding(), static_cast<MMU32>(cmid), MM_TEMPLATE_CUSTOM,
+        mm_template_owner_binding(owner), static_cast<MMU32>(cmid), MM_TEMPLATE_CUSTOM,
         EngineCostume::Read, mm_material_owner_services(), nullptr));
 }
 
 /***************************************************************************
     Puts the template's name into pstn
 ***************************************************************************/
-void Template::GetName(PString pstn)
+void EngineTemplate::GetName(PTemplate owner, PString pstn)
 {
-    AssertThis(0);
+    TEMPLATE_VALIDATE(owner);
     AssertPo(pstn, 0);
 
-    *pstn = _stn;
+    pstn->SetSt(static_cast<PPascalString>(mm_template_owner_name(owner).buffer));
 }
 
 #ifdef DEBUG
 /***************************************************************************
     Assert the validity of the Template.
 ***************************************************************************/
-void Template::AssertValid(LegacyUlong grftmpl)
+void EngineTemplate::Validate(PTemplate owner)
 {
-    Template_PAR::AssertValid(fobjAllocated);
-    Assert(_template.parents && _template.sets, "missing Template part lists");
-    AssertPo(&_stn, 0);
-    Assert(_template.costumes && _template.costumes->rows == static_cast<MMU32>(_template.set_count),
+    if (!owner)
+        return;
+    Assert(State(owner).parents && State(owner).sets, "missing Template part lists");
+    Assert(State(owner).costumes && State(owner).costumes->rows == static_cast<MMU32>(State(owner).set_count),
            "Bad template costume table");
+    if (mm_template_owner_is_text(owner))
+        EngineText::Validate(owner);
 }
 
 /***************************************************************************
     Mark memory used by the Template
 ***************************************************************************/
-void Template::MarkMem(void)
+void EngineTemplate::Mark(PTemplate owner)
 {
-    AssertThis(0);
-    Template_PAR::MarkMem();
-    MMPartIndexList *indices[] = {_template.parents, _template.sets};
+    if (!owner)
+        return;
+    TEMPLATE_VALIDATE(owner);
+    MarkPv(owner);
+    const auto binding = mm_template_owner_binding(owner);
+    if (binding->cache && !binding->attached)
+        MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
+    MMPartIndexList *indices[] = {State(owner).parents, State(owner).sets};
     for (auto list : indices)
         if (list)
         {
             MarkPv(list);
             MarkPv(list->storage.buffers[0].data);
         }
-    if (_template.costumes)
+    if (State(owner).costumes)
     {
-        MarkPv(_template.costumes);
-        MarkPv(_template.costumes->storage.buffers[0].data);
-        MarkPv(_template.costumes->storage.buffers[1].data);
+        MarkPv(State(owner).costumes);
+        MarkPv(State(owner).costumes->storage.buffers[0].data);
+        MarkPv(State(owner).costumes->storage.buffers[1].data);
     }
+    if (mm_template_owner_is_text(owner))
+        EngineText::Mark(owner);
 }
 #endif // DEBUG

@@ -427,6 +427,8 @@ static void init(Test *t)
     s->actors.release = release_actor_resource;
     s->actors.retain_body = retain_actor_resource;
     s->actors.release_body = release_actor_resource;
+    s->actors.retain_template = retain_actor_resource;
+    s->actors.release_template = release_actor_resource;
     s->actors.route_services = bind_actor_route;
     v = &s->events;
     v->context = t;

@@ -37,8 +37,8 @@ static bool TestMoveGroupActors(PMovie movie, TrackTestActor *const actors[2])
     scene->SelectActr(actors[0]);
     bool ok = scene->FToggleActrSelected(actors[1]);
 #ifdef DEBUG
-    const auto firstRefs = actors[0]->Ptmpl()->CactRef();
-    const auto secondRefs = actors[1]->Ptmpl()->CactRef();
+    const auto firstRefs = mm_template_owner_references(actors[0]->Ptmpl());
+    const auto secondRefs = mm_template_owner_references(actors[1]->Ptmpl());
     for (int allocation = 0; ok && allocation < 5; ++allocation)
     {
         vmutxMem.Enter();
@@ -49,8 +49,8 @@ static bool TestMoveGroupActors(PMovie movie, TrackTestActor *const actors[2])
         vmutxMem.Enter();
         vdmglob.dmaglBase.cactFail = 0;
         vmutxMem.Leave();
-        ok = !drag.single && !drag.group && actors[0]->Ptmpl()->CactRef() == firstRefs &&
-             actors[1]->Ptmpl()->CactRef() == secondRefs;
+        ok = !drag.single && !drag.group && mm_template_owner_references(actors[0]->Ptmpl()) == firstRefs &&
+             mm_template_owner_references(actors[1]->Ptmpl()) == secondRefs;
         mm_actor_drag_undo_discard(&drag, &undo);
         vpers->Clear();
     }

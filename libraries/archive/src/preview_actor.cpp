@@ -80,8 +80,8 @@ PreviewObject PreviewActor::Snapshot() const
     object.hasLifetime = !core.inactive;
     object.firstFrame = core.inactive ? 0 : core.header.first_frame;
     object.lastFrame = core.inactive ? 0 : core.header.last_frame;
-    object.prop = Ptmpl() && Ptmpl()->FIsProp();
-    object.text = Ptmpl() && Ptmpl()->FIsTdt();
+    object.prop = Ptmpl() && EngineTemplate::FIsProp(Ptmpl());
+    object.text = Ptmpl() && EngineTemplate::FIsTdt(Ptmpl());
     object.visible = !core.inactive && core.state.onStage;
     object.action = core.state.action;
     object.cel = core.state.cel;
@@ -92,9 +92,9 @@ PreviewObject PreviewActor::Snapshot() const
 }
 bool PreviewActor::Text(PreviewObjectText &out) const
 {
-    if (!Ptmpl() || !Ptmpl()->FIsTdt()) return false;
+    if (!Ptmpl() || !EngineTemplate::FIsTdt(Ptmpl())) return false;
     String text; LegacyLong shape; TAG font;
-    static_cast<PThreeDText>(Ptmpl())->GetInfo(&text, &shape, &font);
+    EngineText::GetInfo(static_cast<PThreeDText>(Ptmpl()), &text, &shape, &font);
     const auto count = KauaiText::ToUtf16(text.Psz(), text.Cch(), KauaiText::Encoding::WindowsAnsi, nullptr, 0);
     if (text.Cch() && !count) return false;
     std::vector<std::uint16_t> units(count);
@@ -106,7 +106,7 @@ bool PreviewActor::Text(PreviewObjectText &out) const
 }
 PMaterial_MTRL PreviewActor::TextMaterial() const
 {
-    if (!Ptmpl() || !Ptmpl()->FIsTdt() || !Pbody()) return nullptr;
+    if (!Ptmpl() || !EngineTemplate::FIsTdt(Ptmpl()) || !Pbody()) return nullptr;
     bool plain; PMaterial_MTRL material = nullptr; PCustomMaterial_CMTL custom = nullptr;
     EngineBody::GetPartSetMaterial(Pbody(), 0, &plain, &material, &custom);
     return plain ? material : nullptr;
@@ -127,19 +127,19 @@ bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number, st
 bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 {
     out.clear();
-    if (!Ptmpl() || !Pbody() || Ptmpl()->FIsTdt()) return false;
+    if (!Ptmpl() || !Pbody() || EngineTemplate::FIsTdt(Ptmpl())) return false;
     for (int set = 0; set < EngineBody::SetCount(Pbody()); ++set)
     {
         bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL current;
         EngineBody::GetPartSetMaterial(Pbody(), set, &plain, &material, &current);
-        for (int i = 0; i < Ptmpl()->CcmidOfBset(set); ++i)
+        for (int i = 0; i < EngineTemplate::CcmidOfBset(Ptmpl(), set); ++i)
         {
-            const auto id = Ptmpl()->CmidOfBset(set, i);
-            auto costume = Ptmpl()->PcmtlFetch(id);
+            const auto id = EngineTemplate::CmidOfBset(Ptmpl(), set, i);
+            auto costume = EngineTemplate::PcmtlFetch(Ptmpl(), id);
             if (!costume) return false;
             const bool selected = !plain && current == costume;
             mm_material_owner_release(costume);
-            out.push_back({set, int(id), selected, Ptmpl()->FBsetIsAccessory(set)});
+            out.push_back({set, int(id), selected, EngineTemplate::FBsetIsAccessory(Ptmpl(), set)});
         }
     }
     return true;
@@ -147,7 +147,7 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 std::string PreviewActor::ActionName(LegacyLong action) const
 {
     String name;
-    if (action >= 0 && action < Ptmpl()->Cactn() && Ptmpl()->FGetActnName(action, &name) && name.Cch())
+    if (action >= 0 && action < EngineTemplate::Cactn(Ptmpl()) && EngineTemplate::FGetActnName(Ptmpl(), action, &name) && name.Cch())
     {
         const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
         const auto count = KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding, nullptr, 0);
@@ -162,14 +162,14 @@ bool PreviewActor::Actions(std::vector<PreviewAction> &out) const
 {
     out.clear();
     if (!Ptmpl()) return false;
-    for (LegacyLong i = 0; i < Ptmpl()->Cactn(); ++i)
+    for (LegacyLong i = 0; i < EngineTemplate::Cactn(Ptmpl()); ++i)
         out.push_back({ActionName(i), static_cast<std::uint32_t>(ActionCelCount(i))});
     return true;
 }
 LegacyLong PreviewActor::ActionCelCount(LegacyLong action) const
 {
     LegacyLong count = 0;
-    if (Ptmpl() && action >= 0 && action < Ptmpl()->Cactn() && Ptmpl()->FGetCcelActn(action, &count))
+    if (Ptmpl() && action >= 0 && action < EngineTemplate::Cactn(Ptmpl()) && EngineTemplate::FGetCcelActn(Ptmpl(), action, &count))
         return std::max<LegacyLong>(0, count);
     return 0;
 }
@@ -198,7 +198,7 @@ bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
     {
         if (std::none_of(available.begin(), available.end(), [&](const PreviewCostume &c) {
             return c.bodySet == value.bodySet && c.costume == value.costume; })) return false;
-        auto costume = Ptmpl()->PcmtlFetch(value.costume);
+        auto costume = EngineTemplate::PcmtlFetch(Ptmpl(), value.costume);
         if (!costume) return false;
         EngineBody::SetPartSetCmtl(Pbody(), costume); mm_material_owner_release(costume);
     }
@@ -247,7 +247,7 @@ struct PreviewActor::TrackDraft
 };
 bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, const std::string &path)
 {
-    if (!Visible() || !Ptmpl() || Ptmpl()->FIsTdt()) return false;
+    if (!Visible() || !Ptmpl() || EngineTemplate::FIsTdt(Ptmpl())) return false;
     TrackDraft draft(*this);
     if (!draft.Begin()) return false;
     std::vector<PreviewCostume> available;
@@ -282,7 +282,7 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
     AnimationHost host(this, resolveSound);
     const auto playback = host.Host::Services();
     const auto services = host.Record(playback);
-    const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? Ptmpl()->Cactn() : 0;
+    const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? EngineTemplate::Cactn(Ptmpl()) : 0;
     MMActorAnimationRange range;
     if (!host.Result(mm_actor_animation_edit(&core, &motionSounds, &host.record, &request, actionCount,
                                              &services, &range)) || !draft.Write(path, true))
@@ -349,7 +349,7 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
     } host = {this, events.events, motion, cues};
     EngineActorEffectHost body = {Ptmpl(), Pbody(), motion, &host};
     auto effects = body.Services();
-    effects.action_count = [](void *p) -> MMI32 { return EngineActorEffectHost::From(p).tmpl->Cactn(); };
+    effects.action_count = [](void *p) -> MMI32 { return EngineTemplate::Cactn(EngineActorEffectHost::From(p).tmpl); };
     effects.visibility = [](void *p, int shown) {
         const auto actor = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->actor;
         // Retain attachment order, as in the Studio world.
@@ -438,7 +438,7 @@ bool PreviewActor::TrackPose(PreviewTrackPose &pose) const
     pose.position[0] = position.dxr; pose.position[1] = position.dyr; pose.position[2] = position.dzr;
     pose.translation[0] = translation.dxr; pose.translation[1] = translation.dyr; pose.translation[2] = translation.dzr;
     BRA angles[3];
-    Ptmpl()->GetRestOrien(angles, angles + 1, angles + 2);
+    EngineTemplate::GetRestOrien(Ptmpl(), angles, angles + 1, angles + 2);
     MMActorMatrix rest;
     mm_matrix_identity(&rest);
     for (int axis = 0; axis < 3; ++axis) mm_matrix_rotate(&rest, axis, angles[axis], 0);
