@@ -51,28 +51,35 @@ int mm_resource_manager_dispose(MMResourceManager *m)
     }
     return mm_storage_dispose(&m->storage);
 }
-int mm_resource_manager_add(MMResourceManager *m, void *file, MMI32 budget, MMU32 *position)
+int mm_resource_manager_add_cache(MMResourceManager *m, MMResourceCache *p, MMU32 *position)
 {
-    MMResourceCache *p;
     MMArray a;
     MMU32 i;
     int r;
+    if (!m || !p || !p->owner)
+        return MM_STORAGE_ARGUMENT;
+    a = view(m);
+    r = mm_array_add(&a, &p, &i);
+    m->count = a.count;
+    if (r != MM_STORAGE_OK)
+        return r;
+    mm_resource_cache_retain(p);
+    if (position)
+        *position = i;
+    return MM_STORAGE_OK;
+}
+int mm_resource_manager_add(MMResourceManager *m, void *file, MMI32 budget, MMU32 *position)
+{
+    MMResourceCache *p;
+    int result;
     if (!m || !file || budget < 0)
         return MM_STORAGE_ARGUMENT;
     p = m->services.create(m->services.context, file, budget);
     if (!p)
         return MM_STORAGE_IO;
-    a = view(m);
-    r = mm_array_add(&a, &p, &i);
-    m->count = a.count;
-    if (r != MM_STORAGE_OK)
-    {
-        mm_resource_cache_release(p);
-        return r;
-    }
-    if (position)
-        *position = i;
-    return MM_STORAGE_OK;
+    result = mm_resource_manager_add_cache(m, p, position);
+    mm_resource_cache_release(p);
+    return result;
 }
 int mm_resource_manager_load(MMResourceManager *m, const MMResourceRequest *q)
 {

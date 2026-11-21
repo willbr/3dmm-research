@@ -419,6 +419,12 @@ static void *backing_temp(void *p)
     return b->temp;
 }
 
+static void *no_backing_temp(void *p)
+{
+    (void)p;
+    return NULL;
+}
+
 static int backing_read(void *p, void *file, MMU32 offset, void *out, size_t bytes)
 {
     StreamBacking *b = p;
@@ -470,6 +476,7 @@ static void stream_backing(void)
     StreamBacking b;
     ResourceTestBlock root;
     MMAudioManStream stream;
+    MMBlockFileServices temporary;
     MMOwnedBlock *dest = &stream.block;
     MMBlockFile extent;
     static const MMWide positive_limit = {0xffffffffUL, 2147483647};
@@ -490,7 +497,9 @@ static void stream_backing(void)
         root.files.retain = backing_retain;
         root.files.release = backing_release;
         root.files.create_temp = backing_temp;
-        assert(mm_audioman_stream_init(&stream, root.owner.handles, root.owner.files) == MM_DATA_OK);
+        temporary = root.files;
+        root.files.create_temp = no_backing_temp;
+        assert(mm_audioman_stream_init(&stream, root.owner.handles, &temporary) == MM_DATA_OK);
         extent.file = b.source;
         extent.offset = 3;
         extent.length = cases[i].packed ? 9 : 4;
@@ -500,6 +509,7 @@ static void stream_backing(void)
         assert(root.owner.file == b.source && root.owner.view.packed == cases[i].packed && root.owner.view.start == 3);
         assert(mm_owned_block_clear(&root.owner) == MM_DATA_OK);
         assert(dest->view.kind == cases[i].expected && !dest->view.packed);
+        assert(dest->files == (!cases[i].packed && !cases[i].removable ? &root.files : &temporary));
         assert(mm_audioman_stream_resident(&stream) == (cases[i].expected == MM_BLOCK_MEMORY ? 4U : 0U));
         if (dest->view.kind != MM_BLOCK_EMPTY)
         {

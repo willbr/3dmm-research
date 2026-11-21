@@ -18,7 +18,7 @@ static void retain_object(void *object, const MMResourceObjectServices *s)
     if (mm_reference_add(s->references(object)) <= 0 && s->issue)
         s->issue(object, MM_RESOURCE_BAD_RETAIN);
 }
-static void retain_cache(MMResourceCache *c)
+void mm_resource_cache_retain(MMResourceCache *c)
 {
     if (mm_reference_add(c->references) <= 0 && c->services.issue)
         c->services.issue(c->services.context, MM_RESOURCE_BAD_RETAIN, 0, 0);
@@ -71,7 +71,7 @@ void mm_resource_object_detach(void *object, const MMResourceObjectServices *s)
     MMResourceObject *state = s->state(object);
     if (state->attached)
     {
-        retain_cache(state->cache);
+        mm_resource_cache_retain(state->cache);
         state->attached = 0;
         cache_detached(state->cache, object, state);
     }
@@ -402,7 +402,7 @@ static void bind(MMResourceCache *c, void *object, MMU32 type, MMU32 number, MMI
     s->type = type;
     s->number = number;
     s->priority = priority16(priority);
-    retain_cache(c);
+    mm_resource_cache_retain(c);
     s->attached = 0;
 }
 MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *c)

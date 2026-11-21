@@ -81,8 +81,8 @@ extern "C"
         int (*archive_source)(void *, MMI32 sid);
         int (*begin)(void *);
         int (*next)(void *, MMI32 sid, MMU32 index, int archive);
-        void *(*open)(void *);
-        int (*add)(void *manager, void *file, MMI32 budget);
+        void *(*open)(void *, MMI32 budget);
+        int (*add)(void *manager, void *file);
         void (*release_file)(void *);
         void (*release_manager)(void *);
     } MMSourceBuildServices;

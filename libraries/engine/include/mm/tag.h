@@ -64,7 +64,8 @@ extern "C"
     } MMTagCacheServices;
     /* flags 1=file, 2=memory. File clearing resolves media first, then ignores
      * reopen failure; memory clearing sets zero budget then restores the old value.
-     * Captures initial source/cache counts and visits live files of resolved sources. */
+     * Captures initial source/cache counts. File clearing visits live archives;
+     * memory clearing applies to both live and stored archives. */
     void mm_tag_clear_cache(MMI32 sid, MMU32 flags, const MMTagCacheServices *);
     typedef struct MMTagCached
     {

@@ -1803,7 +1803,10 @@ static bool MissingSource(const MissingSourceRequest &request)
         retrySourceDirectory->GetStnPath(&path);
         Check(path.FAppendSz(PszLit("retry.3cn")) && retrySourceFile->FBuildFromPath(&path));
         auto file = ChunkyFile::PcflCreate(retrySourceFile, fcflWriteEnable);
-        Check(file && file->FSave(kctgMvie));
+        byte stored[512];
+        memset(stored, 42, sizeof(stored));
+        Check(file && file->FPutPv(stored, sizeof(stored), 'TEST', 7) && file->FPackData('TEST', 7) &&
+              file->FSave(kctgMvie));
         ReleasePpo(&file);
         return true;
     }
@@ -4778,7 +4781,7 @@ static void TestEngineServices()
     String path;
     path.SetSzs(PszLit("."));
     Check(root.FBuildFromPath(&path));
-    PTagManager manager = TagManager::PtagmNew(&root, MissingSource, 0);
+    PTagManager manager = TagManager::PtagmNew(&root, MissingSource, 2048);
     Check(manager != pvNil);
     String missingName;
     missingName.SetSzs(PszLit("3dmm-test-missing-source-5316"));
@@ -4800,10 +4803,25 @@ static void TestEngineServices()
     retrySourceFile = &retryFile;
     missingSourcePrompts = 0;
     // Installing a local source while the prompt is open must invalidate the
-    // cached HD miss. The empty pack has no template, so fetch still misses;
+    // cached HD miss. The pack has no template, so fetch still misses;
     // a second CD prompt would mean Retry never discovered the new folder.
     Check(manager->PbacoFetch(&missingTag, Template::FReadTmpl, fTrue) == pvNil);
     Check(missingSourcePrompts == 1);
+    TAG stored = {42, nullptr, 'TEST', 7};
+    auto storedResource = static_cast<PGenericHQ>(manager->PbacoFetch(&stored, GenericHQ::FReadGhq));
+    Check(storedResource && !storedResource->Pcrf()->Pcfl() && CbOfHq(storedResource->hq) == 512);
+    const auto bytes = static_cast<const byte *>(PvLockHq(storedResource->hq));
+    for (int i = 0; i < 512; ++i)
+        Check(bytes[i] == 42);
+    UnlockHq(storedResource->hq);
+    auto storedCache = storedResource->Pcrf()->CoreCache();
+    ReleasePpo(&storedResource);
+    Check(storedCache->count == 1);
+    manager->ClearCache(42, ftagmMemory);
+    Check(storedCache->count == 0 && storedCache->budget == 2048);
+    auto reloadedResource = manager->PbacoFetch(&stored, GenericHQ::FReadGhq);
+    Check(reloadedResource && reloadedResource->Pcrf()->CoreCache() == storedCache && missingSourcePrompts == 1);
+    ReleasePpo(&reloadedResource);
     manager->ClearCache();
     // Host policy is checked before cached resource managers and path/CD
     // lookup. Movie source-table merges cannot bypass this resolver.

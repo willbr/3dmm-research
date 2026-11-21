@@ -19265,3 +19265,36 @@ In sampled-audio suite `20261121T143724Z-5e8ae920`, both hosts matched all
 The PCM16 peak matched prior host captures at 2,176. The archived retail
 peak is 2,380. SDL captured 521,760 PCM frames and Marcus captured
 513,120. Evidence is in `tmp/c89-native-preview-stream`.
+
+## Native C file backing for Studio content sources (21 November 2026)
+
+Studio's tag manager opens local read-only content through the same native
+C file provider and validated index as Preview. The source manager keeps
+archive order and clears memory for both stored and live caches. Removable
+media and open live archives retain the existing reopen path.
+
+AudioMan's uncompressed streams retain the source file and its callbacks.
+Packed streams decode through the source's callbacks, then use the stream's
+temporary-file provider if the decoded payload spills to disk. The backing
+test covers both providers, memory and file output, and failure cleanup.
+
+All 193 standalone C checks and four focused AddressSanitizer checks
+passed. Four native Marcus and resource-cache checks also passed.
+The Studio core fixture opened a packed local asset without a live
+`ChunkyFile`, verified its decoded bytes, evicted the idle resource, and
+fetched it again without prompting for media. The 60-byte source lookup
+trace matched across native x64, SDL x64 and x86.
+The saved movie from each Studio save/load fixture matched its previous
+output byte for byte.
+Both playback hosts matched all three archived V3dmm storyboard frames,
+camera indices and canvas hashes in suite `20261121T144724Z-b2871087`.
+In actor-event suite `20261121T144741Z-35aa90d6`, both matched all 60 retail
+frame identities in seek and continuous playback. Seek camera indices
+matched retail, seek canvas hashes matched prior host captures, and SDL
+matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T145920Z-869eebf4`, both matched all 60
+retail frame identities and SDL matched all four retail sound requests.
+Their PCM16 peak matched prior host captures at 2,176. The archived retail
+peak is 2,380. SDL captured 513,120 PCM frames and Marcus captured 510,720.
+Evidence is in `tmp/c89-studio-native-sources`.

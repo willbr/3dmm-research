@@ -6736,6 +6736,15 @@ resolves media before reopening live files, and clears memory before restoring
 the previous budget. Native adapters bind the open archives, project cache and
 manager handles, and reopen files. File caching remains a successful no-op.
 
+Studio opens local read-only content archives through the native C file
+provider and validates their stored index through the same C reader as
+Preview. The source builder registers the resulting caches in enumeration
+order. Memory clearing visits both stored and live caches, and file clearing
+reopens live archives. Removable media and already-open live graphs use
+the live archive path. AudioMan retains the stored file services for an
+unpacked stream and uses its temporary-file services when spilling decoded
+audio to disk.
+
 `tag_list.c` owns the dependency list's payload and location buffers.
 Studio builds the list in C89 during movie open, save-format selection, and
 asset cleanup. The native tag manager supplies cache I/O.

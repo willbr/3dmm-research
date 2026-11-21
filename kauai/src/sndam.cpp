@@ -186,7 +186,7 @@ PDataBlockStream DataBlockStream::PstblNew(MMOwnedBlock *source)
         return pvNil;
 
     bool removable = false;
-    if (!source->view.packed)
+    if (!source->view.packed && source->files == KauaiBlockFileServices())
     {
         Filename filename;
         static_cast<PFileObject>(source->file)->GetFni(&filename);
@@ -212,7 +212,10 @@ void DataBlockStream::AssertValid(ulong grf)
     Assert(mm_owned_block_check(&_stream.block) == MM_DATA_OK, "invalid AudioMan stream block");
     Assert(_stream.position <= _stream.block.view.length, "AudioMan stream position past EOF");
     if (_stream.block.view.kind == MM_BLOCK_FILE)
-        AssertPo(static_cast<PFileObject>(_stream.block.file), 0);
+    {
+        if (_stream.block.files == KauaiBlockFileServices())
+            AssertPo(static_cast<PFileObject>(_stream.block.file), 0);
+    }
     else if (_stream.block.view.kind == MM_BLOCK_MEMORY)
         AssertHq(_stream.block.view.memory);
 }

@@ -190,7 +190,7 @@ class TagManager : public TagManager_PAR
     bool _FGetFniCD(LegacyLong sid, PFilename pfniHD, bool fAskForCD);
 
     bool _FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists);
-    PChunkyResourceManager _PcrmSourceNew(LegacyLong sid, PFilename pfniInfo);
+    PChunkyResourceManager _PcrmSourceNew(LegacyLong sid, PFilename pfniInfo, bool media);
     PChunkyResourceManager _PcrmSourceGet(LegacyLong sid, bool fDontHitCD = fFalse, const TAG *asset = nullptr);
     PChunkyFile _PcflFindTag(PTAG ptag);
 

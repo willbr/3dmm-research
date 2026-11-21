@@ -40,7 +40,9 @@
 #include "soc_core.h"
 #include "engine_movie_source.h"
 #include "engine_movie_graph.h"
+#include "mm/archive_reader.h"
 #include "mm/chunk_copy.h"
+#include "mm/native_archive_file.h"
 PTagManager vptagm;
 
 ASSERTNAME
@@ -72,6 +74,44 @@ struct NativeDiscoveryHost
     Filename candidate, drive;
     FileNameEnumerator drives;
 };
+
+PChunkyResourceFile OpenSourceArchive(Filename &filename, LegacyLong budget, bool media)
+{
+    const auto existing = ChunkyFile::PcflFromFni(&filename);
+    const auto existingFile = FileObject::PfilFromFni(&filename);
+    if (media || existing || (existingFile && (existingFile->GrffilCur() & (ffilWriteEnable | ffilDenyRead))) ||
+        (filename.Grfvk() & (fvkCD | fvkFloppy | fvkRemovable)))
+    {
+        auto file = ChunkyFile::PcflOpen(&filename, fcflNil);
+        auto cache = file ? ChunkyResourceFile::PcrfNew(file, budget) : nullptr;
+        ReleasePpo(&file);
+        return cache;
+    }
+
+    String path;
+    filename.GetStnPath(&path);
+    auto file = mm_native_archive_file_open(reinterpret_cast<const MMNativePathChar *>(path.Psz()));
+    MMReadStream stream;
+    PChunkyResourceFile cache = nullptr;
+    if (mm_native_archive_file_stream(file, &stream))
+    {
+        const unsigned short order = 1;
+        MMChunkPolicy policy = {};
+#ifdef CHUNK_BIG_INDEX
+        policy.expanded_runtime = 1;
+#endif
+        policy.native_big_endian = *reinterpret_cast<const byte *>(&order) == 0;
+        policy.max_name_bytes = kcbMaxDataStn;
+        MMChunkIndex *index;
+        if (mm_archive_read_index(&stream, &policy, &index) == MM_ARCHIVE_READ_OK)
+        {
+            cache = ChunkyResourceFile::PcrfNewIndex(index, file, *mm_native_archive_file_blocks(), path, budget);
+            mm_chunk_index_close(index);
+        }
+    }
+    mm_native_archive_file_release(file);
+    return cache;
+}
 } // namespace
 MMSourceOwners TagManager::_SourceOwners()
 {
@@ -133,7 +173,8 @@ MMSourceServices TagManager::_SourceServices(void *context)
     };
     s.new_manager = [](void *c, MMI32 sid, void *p, int media) -> void * {
         auto paths = static_cast<NativeSourcePaths *>(p);
-        return static_cast<NativeSourceHost *>(c)->manager->_PcrmSourceNew(sid, media ? &paths->media : &paths->local);
+        return static_cast<NativeSourceHost *>(c)->manager->_PcrmSourceNew(sid, media ? &paths->media : &paths->local,
+                                                                         media != 0);
     };
     s.output = [](void *c, void *p, int media) {
         auto paths = static_cast<NativeSourcePaths *>(p);
@@ -500,7 +541,7 @@ bool TagManager::_FRetry(LegacyLong sid, const TAG *asset)
     Builds the ChunkyResourceManager for the given sid's source.  pfniDir tells where the
     content files are.
 ***************************************************************************/
-PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename directory)
+PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename directory, bool media)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -509,10 +550,11 @@ PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename dire
     {
         PTagManager manager;
         PFilename directory;
+        bool media;
         Filename current;
         FileNameEnumerator files;
         FileType type = kftgContent;
-    } host = {this, directory};
+    } host = {this, directory, media};
     const MMSourceBuildServices services = {
         &host,
         [](void *) -> void * { return ChunkyResourceManager::PcrmNew(0); },
@@ -525,11 +567,16 @@ PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename dire
             auto h = static_cast<Host *>(c);
             return archive ? h->manager->SourceArchive(sid, h->type, i, &h->current) : h->files.FNextFni(&h->current);
         },
-        [](void *c) -> void * { return ChunkyFile::PcflOpen(&static_cast<Host *>(c)->current, fcflNil); },
-        [](void *m, void *f, MMI32 budget) -> int {
-            return static_cast<PChunkyResourceManager>(m)->FAddCfl(static_cast<PChunkyFile>(f), budget);
+        [](void *c, MMI32 budget) -> void * {
+            const auto h = static_cast<Host *>(c);
+            return OpenSourceArchive(h->current, budget, h->media);
         },
-        [](void *f) { static_cast<PChunkyFile>(f)->Release(); },
+        [](void *m, void *f) -> int {
+            auto manager = static_cast<PChunkyResourceManager>(m)->CoreManager();
+            auto cache = static_cast<PChunkyResourceFile>(f)->CoreCache();
+            return mm_resource_manager_add_cache(manager, cache, nullptr) == MM_STORAGE_OK;
+        },
+        [](void *f) { static_cast<PChunkyResourceFile>(f)->Release(); },
         [](void *m) { static_cast<PChunkyResourceManager>(m)->Release(); }};
     return static_cast<PChunkyResourceManager>(mm_source_build(sid, _cbCache, &services));
 }

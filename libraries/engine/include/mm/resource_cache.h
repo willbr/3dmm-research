@@ -124,6 +124,7 @@ extern "C"
                                         MMBlockTransform decode, void *decode_context,
                                         MMReadReceiver, void *context, int *result);
     int mm_resource_cache_reserve(MMResourceCache *, MMU32 additional);
+    void mm_resource_cache_retain(MMResourceCache *);
     /* A final release may destroy the owner and cache before returning. */
     void mm_resource_cache_release(MMResourceCache *);
     int mm_resource_cache_dispose(MMResourceCache *);
@@ -164,6 +165,8 @@ extern "C"
     /* IO denotes failed cache creation; MEMORY denotes failed append. Output is
      * unchanged on either failure. Append failure releases the new cache. */
     int mm_resource_manager_add(MMResourceManager *, void *file, MMI32 budget, MMU32 *position);
+    /* Register an initialized cache, retaining one reference on success. */
+    int mm_resource_manager_add_cache(MMResourceManager *, MMResourceCache *, MMU32 *position);
     int mm_resource_manager_load(MMResourceManager *, const MMResourceRequest *);
     void *mm_resource_manager_fetch(MMResourceManager *, const MMResourceRequest *, int *error);
     MMResourceCache *mm_resource_manager_find_file(MMResourceManager *, MMU32 type,

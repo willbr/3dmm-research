@@ -390,19 +390,20 @@ static int next(void *p, MMI32 sid, MMU32 index, int archive)
     event(h, 'Q');
     return index < 2;
 }
-static void *open_file(void *p)
+static void *open_file(void *p, MMI32 budget)
 {
     Host *h = (Host *)p;
+    CHECK(budget == 128);
     event(h, 'O');
     if (h->open_fail)
         return NULL;
     ++h->files;
     return h;
 }
-static int add(void *p, void *file, MMI32 budget)
+static int add(void *p, void *file)
 {
     Host *h = (Host *)p;
-    CHECK(file == h && budget == 128);
+    CHECK(file == h);
     event(h, 'A');
     if (h->add_fail)
         return 0;

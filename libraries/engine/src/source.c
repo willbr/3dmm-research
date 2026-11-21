@@ -281,8 +281,8 @@ void *mm_source_build(MMI32 sid, MMI32 budget, const MMSourceBuildServices *s)
         goto fail;
     for (index = 0; s->next(s->context, sid, index, archive); ++index)
     {
-        file = s->open(s->context);
-        if (!file || !s->add(manager, file, budget))
+        file = s->open(s->context, budget);
+        if (!file || !s->add(manager, file))
             goto fail;
         s->release_file(file);
         file = NULL;

@@ -93,12 +93,14 @@ int mm_wave_stream_prepare(MMOwnedBlock *source, MMOwnedBlock *dest, int removab
 {
     MMBlockFile file;
     MMBlockIO from, to;
+    const MMBlockFileServices *temporary;
     if (source == dest || mm_owned_block_check(dest) != MM_DATA_OK || dest->view.kind != MM_BLOCK_EMPTY ||
         mm_owned_block_io(source, &from) != MM_DATA_OK || from.view.kind != MM_BLOCK_FILE)
         return 0;
     file.file = source->file;
     file.offset = from.view.start;
     file.length = from.view.length;
+    temporary = dest->files;
     if (!from.view.packed && removable)
     {
         if (mm_owned_block_set_temp(dest, file.length, over_memory_limit(file.length, stream_bytes, memory_limit)) ==
@@ -107,12 +109,14 @@ int mm_wave_stream_prepare(MMOwnedBlock *source, MMOwnedBlock *dest, int removab
             return 1;
         goto fail;
     }
+    dest->files = source->files;
     if (mm_owned_block_set_file(dest, &file, from.view.packed) != MM_DATA_OK)
-        return 0;
+        goto fail;
     if (!from.view.packed)
         return 1;
     if (mm_owned_block_code(dest, 0, NULL, decode, NULL) != MM_DATA_OK)
         goto fail;
+    dest->files = temporary;
     if (over_memory_limit(dest->view.capacity, stream_bytes, memory_limit) &&
         mm_owned_block_materialize(dest, 0, &file) == MM_DATA_OK && file.file)
     {
@@ -122,6 +126,7 @@ int mm_wave_stream_prepare(MMOwnedBlock *source, MMOwnedBlock *dest, int removab
     return 1;
 fail:
     mm_owned_block_clear(dest);
+    dest->files = temporary;
     return 0;
 }
 

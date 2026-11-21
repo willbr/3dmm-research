@@ -77,14 +77,12 @@ int mm_archive_reader_open(const MMChunkAccess *chunks, void *archive, const MMC
     return MM_ARCHIVE_READ_OK;
 }
 
-int mm_archive_reader_open_stream(const MMReadStream *stream, const MMChunkPolicy *policy,
-                                  const MMArchiveReaderOptions *options, MMArchiveReader **out)
+int mm_archive_read_index(const MMReadStream *stream, const MMChunkPolicy *policy, MMChunkIndex **out)
 {
-    MMArchiveReader *reader;
     MMChunkIndex *index;
     MMChunkAccess chunks;
     int status;
-    if (!options || !out)
+    if (!out)
         return MM_ARCHIVE_INVALID_PAYLOAD;
     status = mm_chunk_index_open(stream, policy, &index);
     if (status != MM_CHUNK_OK)
@@ -98,6 +96,21 @@ int mm_archive_reader_open_stream(const MMReadStream *stream, const MMChunkPolic
         mm_chunk_index_close(index);
         return status == MM_CHUNK_MEMORY ? MM_ARCHIVE_MEMORY : MM_ARCHIVE_INVALID_PAYLOAD;
     }
+    *out = index;
+    return MM_ARCHIVE_READ_OK;
+}
+
+int mm_archive_reader_open_stream(const MMReadStream *stream, const MMChunkPolicy *policy,
+                                  const MMArchiveReaderOptions *options, MMArchiveReader **out)
+{
+    MMArchiveReader *reader;
+    MMChunkIndex *index;
+    int status;
+    if (!options || !out)
+        return MM_ARCHIVE_INVALID_PAYLOAD;
+    status = mm_archive_read_index(stream, policy, &index);
+    if (status != MM_ARCHIVE_READ_OK)
+        return status;
     reader = allocate_reader(options);
     if (!reader)
     {
@@ -106,7 +119,7 @@ int mm_archive_reader_open_stream(const MMReadStream *stream, const MMChunkPolic
     }
     reader->wire = *stream;
     reader->index = index;
-    reader->chunks = chunks;
+    reader->chunks = mm_chunk_index_access(index);
     *out = reader;
     return MM_ARCHIVE_READ_OK;
 }

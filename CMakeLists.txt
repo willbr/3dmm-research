@@ -1222,7 +1222,7 @@ target_include_directories(engine-core PUBLIC
   # brender wrapper headers (BMAT34 alias, etc); the gui-side bwld.cpp
   # is NOT linked from engine-core, so we just need the include path.
   $<BUILD_INTERFACE:${PROJECT_SOURCE_DIR}/bren/inc>)
-target_link_libraries(engine-core PUBLIC kauai-core brender-core mm-engine-c89 PRIVATE mm-brender-resources)
+target_link_libraries(engine-core PUBLIC kauai-core brender-core mm-engine-c89 PRIVATE mm-brender-resources mm-native-archive-file)
 add_executable(script-name-test EXCLUDE_FROM_ALL tests/script_name_test.cpp)
 target_link_libraries(script-name-test PRIVATE kauai-core)
 add_executable(brender-list-test EXCLUDE_FROM_ALL tests/brender_list_test.c)

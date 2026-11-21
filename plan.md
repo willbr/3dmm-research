@@ -327,6 +327,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Local/media decisions, cached misses, retry/install sequencing, ordered manager
   construction and file routing use C89. Source names now use owning C storage,
   including SID/name lookup, merging, splitting, provider dispatch and GST writes.
+  Studio's local read-only content tags use the validated C index and native C
+  file provider shared with Preview. The C resource manager registers those
+  caches in source order. Media sources and open live archives use the live path.
   Studio loads movie source names through the shared archive reader and autosave
   owns the source GST block through serialization and child adoption in C89.
   Local/media directory search order also uses C89. Physical filename/drive calls,

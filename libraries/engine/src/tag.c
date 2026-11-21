@@ -202,9 +202,7 @@ void mm_tag_clear_cache(MMI32 sid, MMU32 flags, const MMTagCacheServices *s)
         for (j = 0; j < caches; ++j)
         {
             cache = mm_resource_manager_at(manager, j);
-            if (!cache->file)
-                continue;
-            if (flags & 1)
+            if ((flags & 1) && cache->file)
                 s->reopen(cache->file);
             if (flags & 2)
             {
