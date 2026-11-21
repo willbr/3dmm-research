@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_ACTOR_PASTE_H
 #define MM_ENGINE_ACTOR_PASTE_H
 #include "actor_create.h"
+#include "movie_sound.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -22,9 +23,7 @@ typedef struct MMActorPasteServices
     int (*is_text)(void *,void *template_object);
     int (*ensure_autosave)(void *,void *scene,void **cache);
     void (*placement)(void *,MMActorPoint *);
-    int (*sound_exists)(void *,const MMTag *);
-    int (*save_sound)(void *,void *scene,MMTag *);
-    int (*sound_child)(void *,void *scene,MMU32 number,MMU32 *child);
+    MMMovieSoundServices (*movie_sound)(void *scene);
     unsigned short (*camera_yaw)(void *,void *scene);
     void (*dirty)(void *,void *scene);
     void (*diagnostic)(void *,int);

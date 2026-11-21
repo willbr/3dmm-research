@@ -72,6 +72,16 @@ int mm_tag_save(MMTag *tag, void *destination, int redirect, const MMTagServices
     }
     return 1;
 }
+int mm_tag_local_exists(const MMTag *tag, const MMTagServices *s)
+{
+    MMChunkAccess chunks;
+    MMU32 position;
+    if (tag->sid || !tag->cache)
+        return 0;
+    chunks = mm_resource_cache_chunks(s->cache(tag->cache));
+    return mm_chunk_find(&chunks, tag->type, tag->number, &position) == MM_CHUNK_OK;
+}
+
 void mm_tag_dup(const MMTag *tag, const MMTagServices *s)
 {
     if (!tag->sid)

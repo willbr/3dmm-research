@@ -4256,6 +4256,11 @@ lookup, action/frame stopping rules and the second metadata query after deleting
 motion events. Failure at that second query retains prior event deletions and
 leaves the motion list and dirty notification untouched.
 
+Actor sound insertion and bulk resolution call the C89 movie sound controller
+to adopt local sound links and resolve their scene slots. Studio supplies the
+actor's movie binding. Actor-specific playback and preview providers still
+supply resource fetch and queue effects.
+
 `actor_edit.c` owns general event deletion order: close tags, delete the table row,
 adjust only cursors strictly after it, publish state, then update the scene sound
 indicator when the removed sound belongs to its current frame. Native callbacks
@@ -5027,6 +5032,10 @@ diagnose and remove their rows while revisiting the shifted row. Failed child
 adoption returns immediately without publishing the locally rewritten sound
 tag. Earlier frame writes, resource transfers and deletions remain. Final
 route translation and dirty notification occur only on success.
+
+The paste controller checks the source tag's archive graph, saves the sound
+through the shared tag copier, and adopts the resulting number in the bound
+movie through the C89 sound controller. The host supplies the movie binding.
 
 Paste updates the live runtime record so body creation and cursor changes
 from event removal are visible immediately. Text transfer duplicates the tag

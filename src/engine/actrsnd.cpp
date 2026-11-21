@@ -43,17 +43,12 @@ MMActorSoundEditServices Actor::_SoundEditServices()
         return int(static_cast<PDynamicArray>(query)->FAdd(&tag));
     };
     s.query_release = [](void *, void *query) { auto tags = static_cast<PDynamicArray>(query); ReleasePpo(&tags); };
-    s.resolve_scene = [](void *p, MMTag *value, MMU32 child, MMU32 scene) {
-        return int(static_cast<Actor *>(p)->_Scene()->Pmvie()->FResolveSndTag(*value, child, scene));
+    s.movie_sound = [](void *p) {
+        return static_cast<Actor *>(p)->_Scene()->Pmvie()->SoundServices();
     };
     s.sound_info = [](void *, void *resource, MMActorSoundInfo *info) {
         auto sound = static_cast<PMovieSoundMSND>(resource);
         info->style = sound->Sty(); info->volume = sound->Vlm(); info->no_sound = sound->FNoSound();
-    };
-    s.sound_child = [](void *p, MMU32 number, MMU32 *child) {
-        ChildChunkID value = *child;
-        bool ok = static_cast<Actor *>(p)->_Scene()->Pmvie()->FChidFromUserSndCno(number, &value);
-        *child = value; return int(ok);
     };
     s.sounds_suppressed = [](void *p) { return int((static_cast<Actor *>(p)->_Scene()->GrfScen() & fscenSounds) != 0); };
     s.set_sound_frame = [](void *p) { static_cast<Actor *>(p)->Pscen()->Pmvie()->Pmcc()->SetSndFrame(fTrue); };

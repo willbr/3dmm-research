@@ -484,6 +484,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Text template transfer uses the shared C89 tag saver. Movie sound
   resolution and saving use the same tag services, and cross-file sound
   copies use the shared chunk copier before movie adoption.
+  Actor paste checks, saves and adopts its sounds through those C89 services.
+  Actor sound editing uses the same movie binding for local sound adoption
+  and bulk scene-tag resolution.
   The scene controller calls the C89 paste operation before admitting the actor.
   Scene actor undo and redo use the C89 actor owner to clone and reset the
   snapshots for actor addition, deletion and replacement.

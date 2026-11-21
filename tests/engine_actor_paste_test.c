@@ -1,5 +1,6 @@
 #include "mm/actor_effect.h"
 #include "mm/actor_paste.h"
+#include "chunk_seed_fixture.h"
 #include "tag_copy_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -10,16 +11,19 @@
 typedef struct Fixture Fixture;
 typedef struct PasteCache
 {
-    Fixture *owner;
     TagCopyFile file;
+    Fixture *owner;
+    MMResourceCache cache;
     int refs;
 } PasteCache;
+typedef struct PasteScene { Fixture *owner; } PasteScene;
 
 struct Fixture
 {
     MMActorOwner actor;
     MMActorPasteServices services;
-    int old_template, new_template, body, scene;
+    int old_template, new_template, body;
+    PasteScene scene;
     PasteCache source, target;
     MMTagServices tags;
     int fail, same_cache, text, new_text, old_refs, new_refs, released;
@@ -52,14 +56,6 @@ static MMActorOwner *owner(void *context, void *actor)
     return (MMActorOwner *)actor;
 }
 
-static void redirect_tag(MMTag *tag, void *cache, MMU32 number)
-{
-    retain_cache(cache);
-    release_cache(tag->cache);
-    tag->cache = cache;
-    tag->number = number;
-}
-
 static void *file(void *cache)
 {
     return &((PasteCache *)cache)->file;
@@ -68,14 +64,42 @@ static MMChunkEndpoint bind_file(void *file, MMChunkFileCopy *binding)
 {
     return tag_copy_file_endpoint(file, binding);
 }
+static int bind_sound(void *p, MMU32 position, const MMChunkEntry *entry, MMOwnedBlock *out)
+{
+    const MMChunkFileCopy *binding = p;
+    (void)position;
+    CHECK(entry->type == MM_SOUND_CHUNK);
+    return entry->number != 3 &&
+           mm_chunk_payload_bind_block(binding->payloads, binding->file, entry->type, entry->number, out) ==
+               MM_CHUNK_PAYLOAD_OK;
+}
 static MMChunkEndpoint bind_cache(void *cache, MMResourceChunkCopy *binding)
 {
-    const MMChunkEndpoint unavailable = {0};
+    MMChunkEndpoint endpoint = {0};
     PasteCache *source = cache;
     Fixture *f = source->owner;
-    CHECK(f->source.refs == 2 && !f->target.refs && source == &f->source);
+    CHECK(source == &f->source);
+    if (f->bound)
+    {
+        ++f->sounds;
+        endpoint = bind_file(&source->file, &binding->live);
+        endpoint.bind_payload = bind_sound;
+        return endpoint;
+    }
+    CHECK(f->source.refs == 2 && !f->target.refs);
     ++f->saved;
-    return f->fail == 2 ? unavailable : bind_file(&source->file, &binding->live);
+    return f->fail == 2 ? endpoint : bind_file(&source->file, &binding->live);
+}
+static MMResourceCache *resource_cache(void *p)
+{
+    return &((PasteCache *)p)->cache;
+}
+static MMChunkAccess sound_chunks(void *p)
+{
+    PasteCache *cache = p;
+    CHECK(cache == &cache->owner->source);
+    ++cache->owner->exists;
+    return fixture_chunk_access(&cache->file.index);
 }
 
 static void *fetch_template(void *context, const MMTag *tag)
@@ -143,32 +167,34 @@ static void placement(void *context, MMActorPoint *point)
     point->dzr = -300;
 }
 
-static int sound_exists(void *context, const MMTag *tag)
+static void read_movie(void *context, MMMovieSoundState *state)
 {
     Fixture *f = (Fixture *)context;
-    CHECK(tag->cache == &f->source);
-    ++f->exists;
-    return tag->number != 2;
+    CHECK(f->actor.runtime.scene == &f->scene && f->placed);
+    state->cache = &f->target;
+    state->movie = 10;
+    state->scene = 0;
 }
-
-static int save_sound(void *context, void *scene, MMTag *tag)
+static MMChunkEdit edit_movie(void *p)
 {
-    Fixture *f = (Fixture *)context;
-    CHECK(scene == &f->scene);
-    ++f->sounds;
-    if (tag->number == 3)
-        return 0;
-    redirect_tag(tag, &f->target, tag->number + 100);
-    return 1;
+    return fixture_chunk_edit(&((TagCopyFile *)p)->index);
 }
-
-static int sound_child(void *context, void *scene, MMU32 number, MMU32 *child)
+static int adopt_sound(void *p, MMU32 parent, const MMChunkChild *child)
 {
-    Fixture *f = (Fixture *)context;
-    CHECK(scene == &f->scene && number >= 100);
-    ++f->children;
-    *child = number + 1000;
-    return number != 104;
+    PasteCache *cache = p;
+    CHECK(cache == &cache->owner->target && parent == 20 && child->type == MM_SOUND_CHUNK);
+    ++cache->owner->children;
+    return child->number != 4;
+}
+static MMMovieSoundServices movie_sound(void *p)
+{
+    PasteScene *scene = p;
+    MMMovieSoundServices s = {0};
+    s.context = scene->owner;
+    s.tags = &scene->owner->tags;
+    s.read = read_movie;
+    s.edit = edit_movie;
+    return s;
 }
 
 static int scene_frame(void *context, MMI32 *frame)
@@ -233,12 +259,22 @@ static void init(Fixture *f)
     f->tags.release = release_cache;
     f->tags.bind_file = bind_file;
     f->tags.bind_cache = bind_cache;
+    f->tags.cache = resource_cache;
     s->create.owner.tags = &f->tags;
     f->source.owner = f->target.owner = f;
+    f->scene.owner = f;
     tag_copy_file_init(&f->source.file);
     tag_copy_file_init(&f->target.file);
     fixture_chunk_add(&f->source.file.index, 0x544d504cUL, 77);
     fixture_chunk_add(&f->target.file.index, 0x544d504cUL, 77);
+    f->source.cache.file = &f->source.file;
+    f->source.cache.services.live_chunks = sound_chunks;
+    fixture_chunk_add(&f->source.file.index, MM_SOUND_CHUNK, 1);
+    fixture_chunk_add(&f->source.file.index, MM_SOUND_CHUNK, 3);
+    fixture_chunk_add(&f->source.file.index, MM_SOUND_CHUNK, 4);
+    fixture_chunk_add(&f->target.file.index, MM_SOUND_CHUNK, 1);
+    fixture_chunk_seed_link(&f->target.file.index, MM_SOUND_MOVIE, 10, MM_SOUND_SCENE, 20, 0);
+    f->target.file.index.before_insert = adopt_sound;
     s->create.owner.owner = owner;
     s->create.owner.release = release;
     s->create.fetch_template = fetch_template;
@@ -249,9 +285,7 @@ static void init(Fixture *f)
     s->is_text = is_text;
     s->ensure_autosave = ensure;
     s->placement = placement;
-    s->sound_exists = sound_exists;
-    s->save_sound = save_sound;
-    s->sound_child = sound_child;
+    s->movie_sound = movie_sound;
     s->camera_yaw = camera_yaw;
     s->dirty = dirty;
     s->diagnostic = diagnostic;
@@ -290,6 +324,7 @@ static void add_sound(Fixture *f, MMU32 number, MMI32 sid)
 {
     MMActorSound sound = {0};
     sound.tag.sid = sid;
+    sound.tag.type = MM_SOUND_CHUNK;
     sound.tag.number = number;
     sound.child = 55;
     if (!sid)
@@ -431,7 +466,7 @@ static void test_sounds(void)
     CHECK(state->nextEvent == 3 && state->firstEventInFrame == 1 && state->routeTranslation.dxr == 95);
     CHECK(event_at(&f, 1).nfrm == 23 && event_at(&f, 2).nfrm == 24);
     sound = sound_at(&f, 1);
-    CHECK(sound.tag.number == 101 && sound.tag.cache == &f.target && sound.child == 1101);
+    CHECK(sound.tag.number == 0 && sound.tag.cache == &f.target && sound.child == 0);
     CHECK(sound_at(&f, 2).tag.number == 8 && f.source.refs == 1 && f.target.refs == 1);
     dispose(&f);
 
@@ -444,7 +479,7 @@ static void test_sounds(void)
     CHECK(!paste(&f, 20, 1) && !f.dirty && !f.yaw && !f.sound_updates);
     positioned(&f.actor.runtime);
     CHECK(event_at(&f, 1).nfrm == 21 && event_at(&f, 2).nfrm == 22 && event_at(&f, 3).nfrm == 13);
-    CHECK(sound_at(&f, 1).tag.number == 101 && sound_at(&f, 2).tag.number == 4);
+    CHECK(sound_at(&f, 1).tag.number == 0 && sound_at(&f, 2).tag.number == 4);
     sound = sound_at(&f, 2);
     CHECK(sound.tag.cache == &f.source && sound.child == 55);
     CHECK(f.actor.runtime.state.routeTranslation.dxr == 999 && entrance_at(&f).y == 321);

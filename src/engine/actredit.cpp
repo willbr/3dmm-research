@@ -163,15 +163,8 @@ MMActorPasteServices Actor::_PasteServices()
     s.placement=[](void *p,MMActorPoint *point) {
         BRS x,y,z; static_cast<Actor *>(p)->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
     };
-    s.sound_exists=[](void *,const MMTag *tag) {
-        return int(static_cast<PChunkyResourceFile>(tag->cache)->Pcfl()->FFind(tag->type,tag->number));
-    };
-    s.save_sound=[](void *,void *scene,MMTag *v) {
-        return int(static_cast<PScene>(scene)->Pmvie()->FSaveTagSnd(*v));
-    };
-    s.sound_child=[](void *,void *scene,MMU32 number,MMU32 *child) {
-        ChildChunkID value=*child; bool ok=static_cast<PScene>(scene)->Pmvie()->FChidFromUserSndCno(number,&value);
-        *child=value; return int(ok);
+    s.movie_sound=[](void *scene) {
+        return static_cast<PScene>(scene)->Pmvie()->SoundServices();
     };
     s.camera_yaw=[](void *,void *p) { return static_cast<PScene>(p)->Pbkgd()->BraRotYCamera(); };
     s.dirty=[](void *,void *p) { static_cast<PScene>(p)->MarkDirty(); };

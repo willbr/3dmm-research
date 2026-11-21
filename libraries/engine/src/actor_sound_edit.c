@@ -187,6 +187,7 @@ int mm_actor_sound_resolve_all(void *events, MMU32 scene, const MMActorMotionSer
     MMI32 i;
     MMActorEvent event;
     MMActorSound sound;
+    MMMovieSoundServices movie;
     const MMActorEditTables *tables = &s->edits.tables;
     int success = 1;
     for (i = 0; i < m->event_count(events); ++i)
@@ -195,7 +196,8 @@ int mm_actor_sound_resolve_all(void *events, MMU32 scene, const MMActorMotionSer
         if (event.aet != MM_ACTOR_SOUND) continue;
         m->payload(events, i, &sound);
         if (sound.tag.sid) continue;
-        if (!s->resolve_scene(s->context, &sound.tag, sound.child, scene)) { success = 0; continue; }
+        movie = s->movie_sound(s->context);
+        if (!mm_movie_sound_resolve(&sound.tag, sound.child, scene, NULL, &movie)) { success = 0; continue; }
         tables->write_payload(tables->context, i, &sound);
     }
     return success;
@@ -221,7 +223,12 @@ int mm_actor_sound_set(MMActorState *state, MMActorSounds *list, void *events, M
     sound.no_sound = info.no_sound;
     sound.tag = *tag;
     sound.child = external_child;
-    if (!tag->sid && !s->sound_child(s->context, tag->number, &sound.child)) goto fail;
+    if (!tag->sid)
+    {
+        const MMMovieSoundServices movie = s->movie_sound(s->context);
+        if (!mm_movie_sound_child(tag->number, &sound.child, &movie))
+            goto fail;
+    }
     sound.cel = -1;
     if (motion && !cel(state, &sound.cel, s)) goto fail;
     if (!mm_actor_edit_add_apply(state,list,events,actor,MM_ACTOR_SOUND,sizeof(sound),&sound,m,&s->edits)) goto fail;

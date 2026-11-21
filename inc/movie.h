@@ -608,7 +608,6 @@ class Movie : public Movie_PAR
     bool _FMakeCrfValid(void);                    // Makes sure there is a file to work with.
     bool _FUseTempFile(void);                     // Switches to using a temp file.
     void _DoSndGarbageCollection(bool fPurgeAll); // Remove unused user sounds from movie
-    MMMovieSoundServices _SoundServices();
     MMMovieSceneServices _SceneServices();
     MMMovieRollCallServices _RollCallServices();
     MMMovieUndoServices _UndoServices();
@@ -743,8 +742,8 @@ class Movie : public Movie_PAR
     // Auto save stuff
     //
     bool FAutoSave(PFilename pfni = pvNil, bool fCleanRollCall = fFalse); // Save movie in temp file
+    MMMovieSoundServices SoundServices();
     bool FSaveTagSnd(TAG *ptag);
-    bool FSaveTagSnd(MMTag &tag);
     bool FCopySndFileToMvie(PFileObject pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
     bool FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno = pvNil);
     bool FEnsureAutosave(PChunkyResourceFile *pcrf = pvNil);

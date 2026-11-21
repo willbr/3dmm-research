@@ -984,7 +984,7 @@ static void MovieSoundIssue(void *, int fault)
     }
 }
 
-MMMovieSoundServices Movie::_SoundServices()
+MMMovieSoundServices Movie::SoundServices()
 {
     static_assert(kctgMvie==MM_SOUND_MOVIE && kctgScen==MM_SOUND_SCENE &&
         kctgMsnd==MM_SOUND_CHUNK && kctgSoc==MM_SOUND_CREATOR && kchidSnd==MM_SOUND_PAYLOAD_SLOT && ksidUseCrf==0,
@@ -1033,7 +1033,7 @@ MMMovieSoundServices Movie::_SoundServices()
  ****************************************************/
 bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
 {
-    AssertThis(0); AssertPo(pcfl,0); const auto services=_SoundServices();
+    AssertThis(0); AssertPo(pcfl,0); const auto services=SoundServices();
     return mm_movie_sound_adopt(pcfl,cnoScen,&services)!=0;
 }
 
@@ -1065,7 +1065,7 @@ bool Movie::FResolveSndTag(MMTag &tag, ChildChunkID chid, ChunkNumber cnoScen, P
 {
     AssertThis(0);
     AssertNilOrVarMem(pcrf);
-    const auto services = _SoundServices();
+    const auto services = SoundServices();
     return mm_movie_sound_resolve(&tag, chid, cnoScen, pcrf, &services) != 0;
 }
 bool Movie::FSaveTagSnd(TAG *ptag)
@@ -1073,14 +1073,10 @@ bool Movie::FSaveTagSnd(TAG *ptag)
     AssertVarMem(ptag);
     MMTag tag;
     std::memcpy(&tag, ptag, sizeof(tag));
-    const bool ok = FSaveTagSnd(tag);
+    const auto services = SoundServices();
+    const bool ok = mm_movie_sound_save(&tag, &services) != 0;
     std::memcpy(ptag, &tag, sizeof(tag));
     return ok;
-}
-bool Movie::FSaveTagSnd(MMTag &tag)
-{
-    const auto services = _SoundServices();
-    return mm_movie_sound_save(&tag, &services) != 0;
 }
 
 /****************************************************
@@ -1098,7 +1094,7 @@ bool Movie::FSaveTagSnd(MMTag &tag)
  ****************************************************/
 bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 {
-    AssertThis(0); AssertVarMem(pchid); const auto services=_SoundServices();
+    AssertThis(0); AssertVarMem(pchid); const auto services=SoundServices();
     MMU32 child; std::memcpy(&child,pchid,sizeof(child)); bool ok=mm_movie_sound_child(cno,&child,&services)!=0;
     std::memcpy(pchid,&child,sizeof(child)); return ok;
 }
@@ -1120,7 +1116,7 @@ bool Movie::FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid)
 bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertThis(0); AssertVarMem(pfilSrc); AssertVarMem(pcno); AssertNilOrPo(pstn,0); Assert(_data.Resources()!=nullptr,"Bad working file.");
-    const auto services=_SoundServices(); MMU32 number; std::memcpy(&number,pcno,sizeof(number));
+    const auto services=SoundServices(); MMU32 number; std::memcpy(&number,pcno,sizeof(number));
     bool ok=mm_movie_sound_import(pfilSrc,sty,&number,pstn,&services)!=0; std::memcpy(pcno,&number,sizeof(number)); return ok;
 }
 
@@ -1138,7 +1134,7 @@ bool Movie::FCopySndFileToMvie(PFileObject pfilSrc, long sty, ChunkNumber *pcno,
  ****************************************************/
 bool Movie::FCopyMsndFromPcfl(PChunkyFile pcflSrc, ChunkNumber cnoSrc, ChunkNumber *pcnoDest)
 {
-    AssertBaseThis(0); AssertPo(pcflSrc,0); AssertVarMem(pcnoDest); const auto services=_SoundServices();
+    AssertBaseThis(0); AssertPo(pcflSrc,0); AssertVarMem(pcnoDest); const auto services=SoundServices();
     MMU32 number; std::memcpy(&number,pcnoDest,sizeof(number)); bool ok=mm_movie_sound_copy(pcflSrc,cnoSrc,&number,&services)!=0;
     std::memcpy(pcnoDest,&number,sizeof(number)); return ok;
 }
@@ -3184,7 +3180,7 @@ long Movie::LwSetMoviePos(long lwScene, long lwFrame)
 
 bool Movie::FUnusedSndsUser(bool *pfHaveValid)
 {
-    AssertThis(0); AssertNilOrVarMem(pfHaveValid); const auto services=_SoundServices(); int valid=0;
+    AssertThis(0); AssertNilOrVarMem(pfHaveValid); const auto services=SoundServices(); int valid=0;
     bool unused=mm_movie_sound_unused(pfHaveValid?&valid:nullptr,&services)!=0;
     if (pfHaveValid) *pfHaveValid=valid!=0; return unused;
 }

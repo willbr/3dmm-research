@@ -4,6 +4,7 @@
 #define MM_ENGINE_ACTOR_SOUND_EDIT_H
 #include "actor_edit.h"
 #include "actor_sound.h"
+#include "movie_sound.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -17,9 +18,8 @@ typedef struct MMActorSoundEditServices
     void *(*query_new)(void *);
     int (*query_add)(void *, void *query, const MMTag *);
     void (*query_release)(void *, void *query);
-    int (*resolve_scene)(void *, MMTag *, MMU32 child, MMU32 scene);
+    MMMovieSoundServices (*movie_sound)(void *);
     void (*sound_info)(void *, void *resource, MMActorSoundInfo *);
-    int (*sound_child)(void *, MMU32 number, MMU32 *child);
     int (*sounds_suppressed)(void *);
     void (*set_sound_frame)(void *);
     void (*midi_error)(void *);

@@ -18819,3 +18819,28 @@ suite `20261121T113831Z-c374baee`, both ports matched all 60 archived retail
 frame identities in seek and continuous playback, and all 60 retail seek
 camera indices. Each port reproduced its prior seek canvas hashes. SDL
 matched all 12 retail sound requests. Evidence is in `tmp/c89-movie-sound-tags`.
+
+## Actor sound editing and paste through C89 archives (21 November 2026)
+
+The actor paste controller looks up local sounds in the source archive, saves
+them through the shared tag copier, and adopts their copied numbers in the
+bound movie. Actor sound editing uses the same movie sound controller to
+allocate scene links and resolve stored actor tags. C fixtures cover a
+chunk-number collision, missing input, copy failure, failed scene adoption
+after a successful copy, and bulk resolution that continues past a missing
+link while retaining the later successful result.
+
+All 193 standalone C checks, five focused AddressSanitizer checks, two x86
+C fixtures, ten native checks and the SDL movie-sound import check passed. Actor-paste,
+actor-sound-edit and movie-sound traces matched their respective pre-change
+builds byte for byte on x64, x86 and SDL. The actor-sound-edit traces each
+contained 7,456 bytes. All 27 save/reopen traces, composition and sound-resource
+snapshots, and the complete authoring save also matched on each build.
+Both ports matched the three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T114839Z-88e078eb`.
+
+In `actor-event-edit` suite `20261121T114845Z-0c784611`, both ports matched
+all 60 archived retail frame identities in seek and continuous playback.
+Their seek camera indices matched retail and their 60 seek canvas hashes
+matched their prior captures. SDL matched all 12 retail sound requests.
+Evidence is in `tmp/c89-sound-edit-bindings`.

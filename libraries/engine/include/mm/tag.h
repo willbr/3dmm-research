@@ -44,6 +44,8 @@ extern "C"
      * Close accepts sid -1. Other operations require initialized nonnegative tags. */
     int mm_tag_open(MMTag *, void *destination, void *source_file, const MMTagServices *);
     int mm_tag_save(MMTag *, void *destination, int redirect, const MMTagServices *);
+    /* Look up a local tag in its live or immutable archive without loading it. */
+    int mm_tag_local_exists(const MMTag *, const MMTagServices *);
     void mm_tag_dup(const MMTag *, const MMTagServices *);
     void mm_tag_close(MMTag *, const MMTagServices *);
     int mm_tag_compare(const MMTag *, const MMTag *, const MMTagServices *);

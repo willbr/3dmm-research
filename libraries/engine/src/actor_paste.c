@@ -45,6 +45,7 @@ int mm_actor_paste(MMActorOwner *actor, MMI32 frame, void *scene, const MMActorP
     MMActorRoutePoint point;
     MMActorEntrance entrance;
     MMActorSound sound;
+    MMMovieSoundServices sounds;
     MMActorPoint placement;
     MMI32 delta, i;
     void *bound_scene;
@@ -87,21 +88,22 @@ int mm_actor_paste(MMActorOwner *actor, MMI32 frame, void *scene, const MMActorP
         mm_actor_events_get_payload(events, i, &sound);
         if (sound.tag.sid != 0)
             continue;
-        if (!s->sound_exists(s->context, &sound.tag))
+        if (!mm_tag_local_exists(&sound.tag, s->create.owner.tags))
         {
             s->diagnostic(s->context, MM_PASTE_MISSING_SOUND);
             mm_actor_edit_remove(&r->state, events, i, 1, &motion, &edits);
             --i;
             continue;
         }
-        if (!s->save_sound(s->context, bound_scene, &sound.tag))
+        sounds = s->movie_sound(bound_scene);
+        if (!mm_movie_sound_save(&sound.tag, &sounds))
         {
             s->diagnostic(s->context, MM_PASTE_SAVE_SOUND_FAILED);
             mm_actor_edit_remove(&r->state, events, i, 1, &motion, &edits);
             --i;
             continue;
         }
-        if (!s->sound_child(s->context, bound_scene, sound.tag.number, &sound.child))
+        if (!mm_movie_sound_child(sound.tag.number, &sound.child, &sounds))
             return 0;
         mm_actor_events_set_payload(events, i, &sound);
     }
