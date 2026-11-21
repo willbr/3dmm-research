@@ -18379,3 +18379,32 @@ archived retail frame identities and seek cameras and reproduced all 11
 seek hashes from the previous build. Three visible-caption frames differ
 from retail. The archived V3dmm seek hashes match retail. Logs are in
 `tmp/c89-typed-resource-readers`.
+
+## Bound background and sound blocks (21 November 2026)
+
+Studio reads background and movie-sound headers from the root block already
+bound by the cache. The archive index supplies names and child links. Classic
+AudioMan prepares independently owned stream backing from the cache block.
+C89 retains fixed-file extents, copies removable media and keeps decoded
+packed data in memory if spilling it to disk fails.
+
+All 193 standalone C checks, seven focused AddressSanitizer checks, and 16
+native C89 and Marcus checks passed.
+The fixtures cover packed and unpacked roots, no second root lookup, the
+memory limit boundary, readable stream backing after the source closes, and
+read, decode and spill failures. Native x64, native x86 and SDL matched the
+archived sound resource snapshots byte for byte, with 99,001 bytes each on
+native and 99,336 bytes on SDL. The three builds reproduced all 27 save and
+reopen traces and the Help display, interaction, balloon and topic
+fingerprints. Studio saved the authoring fixture byte for byte.
+
+Both ports matched all three retained-background frame identities, seek
+cameras and canvas hashes from archived retail in `20261121T080830Z-60f0089f`.
+They also matched all three archived V3dmm storyboard frames, cameras and
+canvas hashes in `20261121T080859Z-439e41d5`.
+
+In sampled-audio suite `20261121T080831Z-78af1479`, both ports matched all
+60 archived retail frame identities, and SDL matched all four retail sound
+requests. The PCM16 peak matched the preceding builds at 2,176 for both
+ports. The archived retail peak was 2,380. Logs and the comparison script
+are in `tmp/c89-bound-background-sound`.

@@ -26,7 +26,7 @@ extern "C"
         int (*allocation_size)(void *, void *object, MMI32 *);
         void (*decoded)(void *);
         /* AudioMan prepares its stream from a borrowed file-backed block. */
-        void *(*open_stream)(void *, const MMOwnedBlock *);
+        void *(*open_stream)(void *, MMOwnedBlock *);
         void (*release_stream)(void *, void *stream);
         MMI32 (*stream_size)(void *, void *stream);
         int (*decode_stream)(void *, void *object, void *stream);
@@ -35,8 +35,13 @@ extern "C"
     void *mm_midi_payload_read(MMOwnedBlock *, const MMSoundPayloadServices *);
     int mm_midi_payload_fetch(MMOwnedBlock *, void *object_out, void *size_out, const MMSoundPayloadServices *);
     int mm_wave_payload_fetch(MMOwnedBlock *, void *object_out, void *size_out, const MMSoundPayloadServices *);
-    int mm_wave_stream_fetch(MMResourceCache *, MMU32 type, MMU32 number, void *object_out, void *size_out,
-                                   const MMSoundPayloadServices *);
+    int mm_wave_stream_fetch(MMOwnedBlock *, void *object_out, void *size_out, const MMSoundPayloadServices *);
+    /* Prepare a stream with its own backing, without modifying the source.
+     * Destination must be empty. A failed packed spill keeps the decoded
+     * memory. A failed copy from removable media leaves the destination empty. */
+    int mm_wave_stream_prepare(MMOwnedBlock *source, MMOwnedBlock *destination, int removable,
+                                MMU32 stream_bytes, MMI32 memory_limit, MMBlockTransform decode,
+                                const MMStorageAllocator *);
 #ifdef __cplusplus
 }
 #endif

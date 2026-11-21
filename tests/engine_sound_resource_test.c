@@ -17,7 +17,7 @@ typedef struct Context
     ResourceTestBlock block;
     unsigned char bytes[16], output[32];
     MMI32 length;
-    int fail,events[32],count,created,released,invalidations,deleted,deleted_child,order,packed,file_refs,editing;
+    int fail,events[32],count,created,released,invalidations,deleted,deleted_child,order,packed,file_refs,editing,locates;
     MMU32 child_type, payload_bytes;
     MMMemoryStream source;
     int playing,stopped,plays,queries,children; MMI32 queue,volume,repeat,priority,sound_class; MMU32 start,lookup_type;
@@ -92,7 +92,7 @@ static int read_name(void *p,void *f,MMResourceCache *cache,MMU32 type,MMU32 n,v
 {
     Context *c = p;
     (void)type;
-    assert(n == 37 && (cache ? cache == &c->cache && !f && !c->file_refs : p == f));
+    assert(n == 37 && (cache ? cache == &c->cache && !f : p == f));
     ((Object *)o)->named=1;
     return event(c,NAME);
 }
@@ -100,6 +100,7 @@ static int locate(void *p, MMU32 type, MMU32 number, MMBlockFile *out, int *pack
 {
     Context *c = p;
     assert((type == 1 || type == MM_SOUND_TYPE) && number == 37);
+    ++c->locates;
     out->file = p;
     out->offset = 29;
     out->length = c->packed ? 12 : (MMU32)c->length;
@@ -239,16 +240,16 @@ static void loads(void)
         c.packed=failure==UNPACK;
         if (failure==8) { c.bytes[0]^=1; c.bytes[1]^=1; } /* Foreign markers, native scalars. */
         if (failure==9) c.bytes[12]=1;
-        size=-1; assert(mm_sound_fetch(&c.cache,1,37,NULL,&size,&c.services) && size==333 && !c.count);
+        size=-1; assert(mm_sound_fetch(&c.cache,1,37,NULL,NULL,&size,&c.services) && size==333 && !c.count);
         out=NULL; c.object_slot=&out; c.size_slot=&size;
-        i=mm_sound_fetch(&c.cache,1,37,&out,&size,&c.services);
+        i=mm_sound_fetch(&c.cache,1,37,NULL,&out,&size,&c.services);
         assert(i==(failure==0 || failure>=8) && !c.file_refs);
         if (i) { assert(out==&c.object && size==333 && c.object.resource.cache==&c.cache && c.object.resource.style==2 && c.object.resource.volume==65536L);
             assert(c.object.invalid==(failure==9)); if (failure==9) assert(c.object.silent==2 && c.object.resource.number==18); else assert(!c.object.silent && c.object.resource.number==19); }
         else { assert(c.invalidations==2 && (failure==CREATE || c.release_after_invalidation)); for (i=0;i<4;++i) assert(((unsigned char *)&size)[i]==0xcd); }
     }
     initialize(&c); c.packed=1;
-    assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, &out, &size, &c.services) && !c.file_refs);
+    assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, NULL, &out, &size, &c.services) && !c.file_refs);
     assert(c.object.resource.cache==&c.cache && c.object.resource.number==19 && c.events[1]==UNPACK);
     initialize(&c); c.bytes[0]=0; c.bytes[1]=1; c.bytes[4]=0; c.bytes[7]=2; c.bytes[8]=0x12; c.bytes[9]=0x34; c.bytes[10]=0x56; c.bytes[11]=0x78;
     assert(mm_sound_read(&c.object,&c,1,37,&c.services)); assert(c.object.resource.style==33554432L && c.object.resource.volume==2018915346L);
@@ -260,6 +261,28 @@ static void loads(void)
         assert(invalid==(!failure && (i&1)?0:17) && style==(!failure && (i&2)?2:18) && volume==(!failure && (i&4)?65536L:19));
     }
     initialize(&c); c.bytes[0]=c.bytes[1]=0x7f; assert(mm_sound_read(&c.object,&c,1,37,&c.services) && c.order==1);
+}
+
+static void supplied_block(void)
+{
+    Context c;
+    void *out;
+    MMI32 size;
+    int packed;
+    for (packed = 0; packed <= 1; ++packed)
+    {
+        initialize(&c);
+        c.packed = packed;
+        assert(mm_resource_cache_read_block(&c.cache, MM_SOUND_TYPE, 37, &c.block.owner) == MM_CHUNK_OK);
+        assert(c.locates == 1 && c.file_refs == 1);
+        assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, &c.block.owner, NULL, &size, &c.services));
+        assert(size == 333 && !c.count && c.block.owner.view.packed == packed);
+        assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, &c.block.owner, &out, &size, &c.services));
+        assert(out == &c.object && size == 333 && c.locates == 1 && c.object.resource.number == 19);
+        assert(c.block.owner.view.kind == (packed ? MM_BLOCK_MEMORY : MM_BLOCK_FILE));
+        assert(c.file_refs == !packed);
+        assert(mm_owned_block_clear(&c.block.owner) == MM_DATA_OK && !c.file_refs);
+    }
 }
 static void catalog(void)
 {
@@ -391,4 +414,4 @@ static void playback(void)
     assert(mm_sound_priority(2,0)==2 && mm_sound_priority(2,1)==4 && mm_sound_priority(2,2)==6);
     assert(mm_sound_priority(3,0)==1 && mm_sound_priority(3,1)==3 && mm_sound_priority(3,2)==5 && mm_sound_priority(4,0)==1 && !mm_sound_priority(0,0));
 }
-int main(void) { loads(); catalog(); writes(); playback(); return 0; }
+int main(void) { loads(); supplied_block(); catalog(); writes(); playback(); return 0; }

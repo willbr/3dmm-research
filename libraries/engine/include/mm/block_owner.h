@@ -55,6 +55,10 @@ extern "C"
      * Transform success consumes/replaces its handle; failure preserves it. */
     int mm_owned_block_code(MMOwnedBlock *, int pack, void *context, MMBlockTransform,
                                   int *shrink_failed);
+    /* Decode in place, then borrow the owner and I/O descriptor for exact reads.
+     * Keep both live and unchanged for the life of the stream. */
+    int mm_owned_block_decoded_stream(MMOwnedBlock *, void *context, MMBlockTransform,
+                                      MMBlockIO *, MMReadStream *);
 #ifdef __cplusplus
 }
 #endif

@@ -87,29 +87,38 @@ static void encode_header(unsigned char b[MM_SOUND_HEADER_BYTES], MMI32 style, M
     put(b + 8, 4, (MMU32)volume, host_big_endian);
     b[12] = (unsigned char)(invalid != 0);
 }
-static int read_cached_header(MMResourceCache *cache, MMU32 type, MMU32 number, MMSoundHeader *out,
-                              const MMSoundResourceServices *s)
+static int read_block_header(MMOwnedBlock *block, MMSoundHeader *out, const MMSoundResourceServices *s)
 {
     SoundHeaderRead read = {0};
-    MMOwnedBlock block;
     MMBlockIO io;
     MMReadStream stream;
-    int status = MM_MOVIE_BAD_FILE;
-    if (mm_owned_block_init(&block, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
-        return status;
+    int status;
     read.host_big_endian = s->host_big_endian;
-    if (mm_resource_cache_read_block(cache, type, number, &block) == MM_CHUNK_OK &&
-        mm_owned_block_code(&block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
-        mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_io_stream(&io, &stream) == MM_DATA_OK)
-        status = read_header(&read, &stream);
-    mm_owned_block_clear(&block);
+    if (mm_owned_block_decoded_stream(block, s->context, s->decode, &io, &stream) != MM_DATA_OK)
+        return MM_MOVIE_BAD_FILE;
+    status = read_header(&read, &stream);
     if (status == MM_MOVIE_OK)
         *out = read.header;
     return status;
 }
 
+static int read_cached_header(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *root,
+                              MMSoundHeader *out, const MMSoundResourceServices *s)
+{
+    MMOwnedBlock block;
+    int status = MM_MOVIE_BAD_FILE;
+    if (root)
+        return read_block_header(root, out, s);
+    if (mm_owned_block_init(&block, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
+        return status;
+    if (mm_resource_cache_read_block(cache, type, number, &block) == MM_CHUNK_OK)
+        status = read_block_header(&block, out, s);
+    mm_owned_block_clear(&block);
+    return status;
+}
+
 static int read_sound(void *object, void *file, MMResourceCache *cache, MMU32 type, MMU32 number,
-                      const MMSoundResourceServices *s)
+                      MMOwnedBlock *root, const MMSoundResourceServices *s)
 {
     MMMovieSessionGraph graph;
     MMChunkAccess chunks;
@@ -129,7 +138,7 @@ static int read_sound(void *object, void *file, MMResourceCache *cache, MMU32 ty
     if (mm_chunk_find(&chunks, type, number, &position) != MM_CHUNK_OK)
         return 0;
     if (cache)
-        status = read_cached_header(cache, type, number, &decoded, s);
+        status = read_cached_header(cache, type, number, root, &decoded, s);
     else
     {
         if (mm_chunk_at(&chunks, position, &entry) != MM_CHUNK_OK)
@@ -160,15 +169,16 @@ static int read_sound(void *object, void *file, MMResourceCache *cache, MMU32 ty
 }
 int mm_sound_read(void *object, void *file, MMU32 type, MMU32 number, const MMSoundResourceServices *s)
 {
-    return read_sound(object, file, NULL, type, number, s);
+    return read_sound(object, file, NULL, type, number, NULL, s);
 }
-int mm_sound_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, void *object_out, void *size_out,
+int mm_sound_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *root,
+                   void *object_out, void *size_out,
                    const MMSoundResourceServices *s)
 {
     void *object; MMI32 bytes; MMSoundOwner o;
     bytes=s->object_size(s->context); memcpy(size_out,&bytes,4); if (!object_out) return 1;
     object=s->create(s->context);
-    if (!object || !read_sound(object, NULL, cache, type, number, s))
+    if (!object || !read_sound(object, NULL, cache, type, number, root, s))
     {
         s->invalidate_output(s->context,object_out,sizeof(object)); s->invalidate_output(s->context,size_out,4);
         if (object) s->release(s->context,object); return 0;

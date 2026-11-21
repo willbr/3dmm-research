@@ -92,14 +92,14 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices()
 
 /***************************************************************************
 
-    A PFNRPO to read a MovieSoundMSND from a file
+    Read a movie sound from the cache's bound block.
 
 ***************************************************************************/
-int MovieSoundMSND::FReadMsnd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *,
+int MovieSoundMSND::FReadMsnd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
     void **out, MMI32 *bytes)
 {
     const auto services = _ResourceServices();
-    return mm_sound_fetch(cache, type, number, out, bytes, &services);
+    return mm_sound_fetch(cache, type, number, block, out, bytes, &services);
 }
 
 /***************************************************************************

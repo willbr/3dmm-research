@@ -2305,8 +2305,10 @@ Studio Background embeds the C owner for SDK actor/light allocations, palette,
 default-sound metadata and light flags. Its String is a temporary native view of
 the existing C-backed string storage. C89 resolves the exact child links for
 both hosts and reads the records and arrays through bounded streams. Studio
-uses the resource cache to visit background metadata and to select and apply
-the camera. The world fetches colour and depth through typed block readers.
+reads the background header from the cache's bound root. The archive index
+supplies its name and child links, and the cache opens the child payloads and
+selects and applies the camera. The world fetches colour and depth through
+typed block readers.
 The same path works with a mutable archive or a read-only wire index. Preview
 supplies its decoded graph. C89 retains Studio's native-order colours and owns
 the temporary light rows. Studio's `FGetPalette` materializes an independent
@@ -6344,9 +6346,10 @@ tool priorities/classes and playback dispatch. `MMSoundResource` holds the
 weak source cache, child identity, style and volume. Separate C silent/invalid
 slots preserve the native String placement and 328-byte x64 cache estimate
 without packing pointers. The cached loader resolves the current MSND key and
-its slot-zero child through the C89 resource cache. It reads and decodes the
-header through an owned C block, so both mutable archives and read-only wire
-indices can supply cached sounds. Direct loads and catalog queries share that
+its slot-zero child through the C89 resource cache. It decodes the cache's
+bound root in place for both mutable archives and read-only wire indices.
+A caller without a bound block can ask the cache to open the current key.
+Direct archive loads and catalog queries share that
 header decoder through the movie graph. Invalidation requires a mutable cache
 binding. The shared C chunk editor writes the MSND parent, creates and links
 the slot-zero MIDI or WAVE child, and assigns the encoded name. C owns the
@@ -6402,10 +6405,12 @@ factory sequencing, estimates, output publication and failure cleanup. MIDI
 and SDL WAVE decode the supplied C block in place. MIDI copies the decoded
 bytes into an owned handle for the native stream. SDL reads the encoded
 WAVE into C-owned scratch before allocating the decoded sample object and
-releases both resources on failure. The classic AudioMan path reopens the
-current key through the C89 cache and hands the located extent to the native
-COM stream adapter. C transfers the stream to the cached object on success
-and calls the COM release adapter on failure.
+releases both resources on failure. The classic AudioMan reader prepares its
+COM stream from the cache's bound extent. C89 retains fixed-file backing,
+copies removable-media data, and decodes packed data into an independently
+owned block. Packed sounds above the memory limit spill to a temporary file
+when possible and keep their decoded memory if that write fails. C transfers
+the stream to the cached object on success and releases it on failure.
 
 `wave.c` owns RIFF views, compressed-format selection/validation, legacy-format
 recognition, fact trimming, PCM headers and complete MS ADPCM encoding. Predictor

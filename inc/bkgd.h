@@ -61,7 +61,7 @@ class Background : public Background_PAR
     }
     MMBackgroundCameraServices _CameraServices(void *host);
     MMBackgroundServices _ResourceServices(void *host);
-    bool _FInit(MMResourceCache *, MMU32 type, MMU32 number);
+    bool _FInit(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);
 
   public:
     static bool FCacheToHD(PTAG ptagBkgd);

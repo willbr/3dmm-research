@@ -68,8 +68,9 @@ typedef struct MMSoundResourceServices
  * publish before allocation, failure invalidates outputs before release.
  * Callbacks must not reenter/mutate owners. */
 int mm_sound_read(void *object,void *file,MMU32 type,MMU32 number,const MMSoundResourceServices *);
-/* Resolve the current cache entry by key, including for a stale caller block. */
-int mm_sound_fetch(MMResourceCache *,MMU32 type,MMU32 number,void *object_out,void *size_out,
+/* Borrow the root bound by the cache. A null root requests a lookup by key.
+ * The graph still supplies the current root's existence, name and children. */
+int mm_sound_fetch(MMResourceCache *,MMU32 type,MMU32 number,MMOwnedBlock *root,void *object_out,void *size_out,
                    const MMSoundResourceServices *);
 int mm_sound_info(void *file,MMU32 type,MMU32 number,void *invalid_out,void *style_out,void *volume_out,const MMSoundResourceServices *);
 enum { MM_SOUND_BAD_MIDI = -1 };

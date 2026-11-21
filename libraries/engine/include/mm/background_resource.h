@@ -98,8 +98,9 @@ extern "C"
     struct MMMovieSessionGraph;
     int mm_background_read_graph(MMBackgroundResource *, MMBackgroundCameraState *, MMU32 type, MMU32 number,
                                  const struct MMMovieSessionGraph *, const MMBackgroundServices *);
+    /* Borrow the bound root. Child payloads and names use the cache archive. */
     int mm_background_read_cached(MMBackgroundResource *, MMBackgroundCameraState *, MMU32 type, MMU32 number,
-                                  MMResourceCache *, MMBlockTransform, const MMBackgroundServices *);
+                                  MMResourceCache *, MMOwnedBlock *root, MMBlockTransform, const MMBackgroundServices *);
     int mm_background_graph_payload(const struct MMMovieSessionGraph *, MMU32 type, MMU32 number,
                                     MMReadReceiver, void *, int *result);
     /* Apply a camera and its exact image links through the same cache. */

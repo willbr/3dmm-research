@@ -87,7 +87,7 @@ class DataBlockStream : public DataBlockStream_PAR
         return E_NOTIMPL;
     }
 
-    static PDataBlockStream PstblNew(FileLocation *pflo, bool fPacked);
+    static PDataBlockStream PstblNew(MMOwnedBlock *);
     long CbMem(void)
     {
         return size(DataBlockStream) + _blck.CbMem();

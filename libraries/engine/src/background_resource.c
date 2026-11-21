@@ -309,21 +309,36 @@ typedef struct CachedBackground
 {
     MMResourceCache *cache;
     MMBlockTransform decode;
+    MMOwnedBlock *root;
+    MMU32 type, number;
 } CachedBackground;
 
 static int cache_payload(void *context, MMU32 type, MMU32 number, MMReadReceiver receive, void *out, int *result)
 {
     CachedBackground *source = (CachedBackground *)context;
+    MMBlockIO io;
+    MMReadStream stream;
+    if (source->root && type == source->type && number == source->number)
+    {
+        if (mm_owned_block_decoded_stream(source->root, NULL, source->decode, &io, &stream) != MM_DATA_OK)
+            return MM_CHUNK_BAD_FILE;
+        *result = receive(out, &stream);
+        return MM_CHUNK_OK;
+    }
     return mm_resource_cache_visit_payload(source->cache, type, number, source->decode, NULL, receive, out, result);
 }
 
 int mm_background_read_cached(MMBackgroundResource *b, MMBackgroundCameraState *camera, MMU32 type, MMU32 number,
-                              MMResourceCache *cache, MMBlockTransform decode, const MMBackgroundServices *s)
+                              MMResourceCache *cache, MMOwnedBlock *root, MMBlockTransform decode,
+                              const MMBackgroundServices *s)
 {
     CachedBackground context;
     MMBackgroundSource source;
     context.cache = cache;
     context.decode = decode;
+    context.root = root;
+    context.type = type;
+    context.number = number;
     source.chunks = mm_resource_cache_chunks(cache);
     source.context = &context;
     source.payload = cache_payload;
@@ -371,6 +386,7 @@ int mm_background_select_cached(MMBackgroundCameraState *camera, MMResourceCache
     MMMovieSessionGraph graph = {0};
     source.cache = cache;
     source.decode = decode;
+    source.root = NULL;
     graph.context = &source;
     graph.access = cache_access;
     graph.payload = camera_payload;

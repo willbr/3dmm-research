@@ -230,3 +230,14 @@ int mm_owned_block_code(MMOwnedBlock *b, int pack, void *context, MMBlockTransfo
     }
     return result;
 }
+
+int mm_owned_block_decoded_stream(MMOwnedBlock *b, void *context, MMBlockTransform decode,
+                                  MMBlockIO *io, MMReadStream *stream)
+{
+    int result = mm_owned_block_code(b, 0, context, decode, NULL);
+    if (result == OK)
+        result = mm_owned_block_io(b, io);
+    if (result == OK)
+        result = mm_block_io_stream(io, stream);
+    return result;
+}

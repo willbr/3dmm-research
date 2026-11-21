@@ -1,5 +1,6 @@
 #include "mm/background_resource.h"
 #include "mm/chunky_file.h"
+#include "engine_resource_block_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -378,6 +379,88 @@ static void dispose(Host *h)
     CHECK(!h->actor_live && !h->light_live && !h->resource.actors && !h->resource.lights);
     CHECK(!h->resource.palette.buffers[0].data && !h->resource.palette_count);
 }
+
+static MMChunkAccess cached_chunks(void *p)
+{
+    MMChunkAccess chunks = {NULL, 1, entry, child_at};
+    chunks.context = p;
+    return chunks;
+}
+
+static int locate_light(void *p, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)
+{
+    Host *h = (Host *)p;
+    CHECK(type == MM_BACKGROUND_LIGHTS && number == MM_BACKGROUND_LIGHTS);
+    file->file = h;
+    file->offset = 128;
+    file->length = 12 + sizeof(h->light_list.bytes);
+    *packed = 0;
+    return effect(h, FL);
+}
+
+static int cache_read(void *p, void *file, MMU32 offset, void *out, size_t bytes)
+{
+    Host *h = (Host *)p;
+    CHECK(file == h);
+    if (offset == 32)
+    {
+        h->block = FH;
+        CHECK(bytes == 8 || bytes == 9);
+        if (bytes == 9)
+            ((unsigned char *)out)[8] = 0;
+        return read_at(h, 0, out, 8);
+    }
+    CHECK(offset >= 128);
+    h->block = FL;
+    return read_array(h, offset - 128, out, bytes);
+}
+
+static int no_write(void *p, void *file, MMU32 offset, const void *bytes, size_t n)
+{
+    (void)p; (void)file; (void)offset; (void)bytes; (void)n;
+    return 0;
+}
+
+static int decode_test_header(void *p, void **handle)
+{
+    (void)p;
+    CHECK(resource_handle_size(NULL, *handle) == 9);
+    return resource_handle_resize(NULL, handle, 8);
+}
+
+static void bound_root(void)
+{
+    Host h;
+    ResourceTestBlock root;
+    MMResourceCache cache = {0};
+    MMBlockFile extent;
+    int packed;
+    static const int trace[] = {RH, NAME, FL, LL, GL, AA, AL, CONFIG0, CONFIG1};
+    for (packed = 0; packed <= 1; ++packed)
+    {
+        init(&h, packed, MM_BACKGROUND_STUDIO, 0);
+        add_child(&h, 0, MM_BACKGROUND_CAMERA, 80);
+        add_child(&h, 0, MM_BACKGROUND_LIGHTS, MM_BACKGROUND_LIGHTS);
+        resource_block_init(&root, &h, cache_read, no_write);
+        extent.file = &h;
+        extent.offset = 32;
+        extent.length = packed ? 9 : 8;
+        CHECK(mm_owned_block_set_file(&root.owner, &extent, packed) == MM_DATA_OK);
+        cache.file = &h;
+        cache.services.handles = root.owner.handles;
+        cache.services.block_files = &root.files;
+        cache.services.live_chunks = cached_chunks;
+        cache.services.locate = locate_light;
+        CHECK(mm_background_read_cached(&h.resource, &h.camera, MM_BACKGROUND, 42, &cache, &root.owner,
+                                         decode_test_header, &h.services));
+        expect(&h, trace, sizeof(trace) / sizeof(trace[0]));
+        CHECK(h.camera.count == 1 && h.configured == 2);
+        CHECK(root.owner.view.kind == (packed ? MM_BLOCK_MEMORY : MM_BLOCK_FILE));
+        CHECK(mm_owned_block_clear(&root.owner) == MM_DATA_OK);
+        dispose(&h);
+        mm_background_camera_dispose(&h.camera);
+    }
+}
 static void decoder_tests(int big)
 {
     Host h;
@@ -726,6 +809,7 @@ int main(void)
             read_tests(big, host);
     }
     factory_tests();
+    bound_root();
     tag_tests();
     puts("Background resource passed");
     return 0;

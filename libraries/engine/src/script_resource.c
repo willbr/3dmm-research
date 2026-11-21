@@ -34,13 +34,6 @@ static void swap_words(unsigned char *data, MMU32 count, MMU32 stride)
     }
 }
 
-static int open_stream(MMOwnedBlock *block, MMBlockTransform decode, void *context, MMBlockIO *io,
-                       MMReadStream *stream)
-{
-    return mm_owned_block_code(block, 0, context, decode, NULL) == MM_DATA_OK &&
-           mm_owned_block_io(block, io) == MM_DATA_OK && mm_block_io_stream(io, stream) == MM_DATA_OK;
-}
-
 static int read_literals(void *context, const MMReadStream *stream)
 {
     LiteralRead *read = (LiteralRead *)context;
@@ -60,7 +53,7 @@ static void *read_script(const ScriptSource *source, MMU32 type, MMU32 number, M
     void *rows, *object;
     MMU32 child;
     int other, status, read = 0;
-    if (!open_stream(block, decode, decode_context, &io, &stream))
+    if (mm_owned_block_decoded_stream(block, decode_context, decode, &io, &stream) != MM_DATA_OK)
         return NULL;
     rows = s->read_rows(s->context, &stream, &words, &other);
     if (!rows)

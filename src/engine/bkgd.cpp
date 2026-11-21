@@ -119,15 +119,16 @@ bool Background::FCacheToHD(PTAG ptagBkgd)
 /***************************************************************************
     Read a Background through its resource cache.
 ***************************************************************************/
-int Background::FReadBkgd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *,
+int Background::FReadBkgd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                          void **object, MMI32 *bytes)
 {
     struct Host
     {
         MMResourceCache *cache;
+        MMOwnedBlock *block;
         void **object;
         MMI32 *bytes;
-    } host = {cache, object, bytes};
+    } host = {cache, block, object, bytes};
     MMBackgroundFactoryServices s = {};
     s.context = &host;
     s.object_bytes = sizeof(Background);
@@ -135,7 +136,8 @@ int Background::FReadBkgd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOw
     s.light_bytes = sizeof(BLIT);
     s.create = [](void *) -> void * { return NewObj Background; };
     s.initialize = [](void *p, void *object, MMU32 type, MMU32 number) {
-        return int(static_cast<Background *>(object)->_FInit(static_cast<Host *>(p)->cache, type, number));
+        auto host = static_cast<Host *>(p);
+        return int(static_cast<Background *>(object)->_FInit(host->cache, type, number, host->block));
     };
     s.lights = [](void *, void *object) -> MMI32 {
         return static_cast<Background *>(object)->_resource.light_count;
@@ -161,12 +163,13 @@ int Background::FReadBkgd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOw
     them on yet because we don't have a World to add them to.  The lights
     are	turned on with the first FSetCamera() call.
 ***************************************************************************/
-bool Background::_FInit(MMResourceCache *cache, MMU32 type, MMU32 number)
+bool Background::_FInit(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block)
 {
     AssertBaseThis(0);
     BackgroundResourceHost host = {this, static_cast<PChunkyResourceFile>(cache->owner), nullptr};
     const auto services = _ResourceServices(&host);
-    return mm_background_read_cached(&_resource, &_camera, type, number, cache, KauaiDecodeBlockHandle, &services) != 0;
+    return mm_background_read_cached(&_resource, &_camera, type, number, cache, block, KauaiDecodeBlockHandle,
+                                     &services) != 0;
 }
 
 /***************************************************************************

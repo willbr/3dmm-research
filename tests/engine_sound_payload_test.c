@@ -230,18 +230,6 @@ static int factory_write(void *p, void *file, MMU32 offset, const void *data, si
     assert(0);
     return 0;
 }
-static int locate(void *p, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
-{
-    Factory *f = p;
-    assert(type == 1 && number == 2);
-    if (!step(f))
-        return 0;
-    out->file = p;
-    out->offset = 47;
-    out->length = f->packed ? 77 : FACTORY_PAYLOAD_BYTES;
-    *packed = f->packed;
-    return 1;
-}
 static void *create(void *p)
 {
     Factory *f = (Factory *)p;
@@ -287,7 +275,7 @@ static void decoded(void *p)
 {
     ++((Factory *)p)->decoded;
 }
-static void *open_stream(void *p, const MMOwnedBlock *block)
+static void *open_stream(void *p, MMOwnedBlock *block)
 {
     Factory *f = (Factory *)p;
     assert(block->file == p && block->view.start == 47 && block->view.packed == f->packed);
@@ -324,7 +312,6 @@ static void factories(void)
 {
     MMSoundPayloadServices s;
     Factory f;
-    MMResourceCache cache;
     MMBlockFile source;
     void *object;
     MMI32 bytes;
@@ -345,16 +332,13 @@ static void factories(void)
     s.stream_size = stream_size;
     s.decode_stream = decode_stream;
     s.adopt_stream = adopt;
-    memset(&cache, 0, sizeof(cache));
-    cache.file = &f;
-    cache.services.locate = locate;
     source.file = &f;
     source.offset = 47;
     for (test = 0; test < 6; ++test)
     {
         kind = test / 2;
         packed = test % 2;
-        steps = kind == 0 ? 2 + packed : kind == 1 ? 4 + packed : 4;
+        steps = kind == 0 ? 2 + packed : kind == 1 ? 4 + packed : 3;
         for (fail = 0; fail <= steps; ++fail)
         {
             memset(&f, 0, sizeof(f));
@@ -362,8 +346,6 @@ static void factories(void)
             source.length = packed ? 77 : FACTORY_PAYLOAD_BYTES;
             resource_block_init(&f.block, &f, factory_read, factory_write);
             assert(mm_owned_block_set_file(&f.block.owner, &source, packed) == MM_DATA_OK);
-            cache.services.handles = f.block.owner.handles;
-            cache.services.block_files = f.block.owner.files;
             f.fail = fail;
             bytes = 0;
             object = NULL;
@@ -372,14 +354,14 @@ static void factories(void)
             else if (kind == 1)
                 assert(mm_wave_payload_fetch(&f.block.owner, NULL, &bytes, &s) && bytes == 42);
             else
-                assert(mm_wave_stream_fetch(&cache, 1, 2, NULL, &bytes, &s) && bytes == 42);
+                assert(mm_wave_stream_fetch(&f.block.owner, NULL, &bytes, &s) && bytes == 42);
             assert(!f.step);
             if (!kind)
                 ok = mm_midi_payload_fetch(&f.block.owner, &object, &bytes, &s);
             else if (kind == 1)
                 ok = mm_wave_payload_fetch(&f.block.owner, &object, &bytes, &s);
             else
-                ok = mm_wave_stream_fetch(&cache, 1, 2, &object, &bytes, &s);
+                ok = mm_wave_stream_fetch(&f.block.owner, &object, &bytes, &s);
             assert(ok == (fail == 0) && f.step == (fail ? fail : steps));
             assert(f.decoded == (kind == 1 && ok));
             if (ok)
@@ -390,7 +372,7 @@ static void factories(void)
             else if (!kind)
                 assert(f.invalid == 2);
             else
-                assert(!object && bytes == (kind == 2 && fail > 2 ? 101 : 42));
+                assert(!object && bytes == (kind == 2 && fail > 1 ? 101 : 42));
             assert(!f.live);
             assert(mm_owned_block_clear(&f.block.owner) == MM_DATA_OK);
         }
@@ -398,10 +380,132 @@ static void factories(void)
     memset(&f, 0, sizeof(f));
     source.length = 11;
     resource_block_init(&f.block, &f, factory_read, factory_write);
+    assert(!mm_wave_stream_fetch(&f.block.owner, &object, &bytes, &s) && !object && bytes == 42 && !f.step);
     assert(mm_owned_block_set_file(&f.block.owner, &source, 0) == MM_DATA_OK);
     assert(!mm_wave_payload_fetch(&f.block.owner, &object, &bytes, &s) && !object && bytes == 42 && !f.step);
     assert(mm_owned_block_clear(&f.block.owner) == MM_DATA_OK);
 }
+
+typedef struct StreamBacking
+{
+    unsigned char source[16], temp[16];
+    int source_refs, temp_refs, fail_read, fail_write, fail_temp;
+} StreamBacking;
+static const unsigned char backing_payload[4] = {'W', 'A', 'V', 'E'};
+
+static void backing_retain(void *p, void *file)
+{
+    StreamBacking *b = p;
+    assert(file == b->source || file == b->temp);
+    ++*(file == b->source ? &b->source_refs : &b->temp_refs);
+}
+
+static void backing_release(void *p, void *file)
+{
+    StreamBacking *b = p;
+    int *refs = file == b->source ? &b->source_refs : &b->temp_refs;
+    assert((file == b->source || file == b->temp) && *refs > 0);
+    --*refs;
+}
+
+static void *backing_temp(void *p)
+{
+    StreamBacking *b = p;
+    assert(!b->temp_refs);
+    if (b->fail_temp)
+        return NULL;
+    b->temp_refs = 1;
+    return b->temp;
+}
+
+static int backing_read(void *p, void *file, MMU32 offset, void *out, size_t bytes)
+{
+    StreamBacking *b = p;
+    assert((file == b->source && b->source_refs) || (file == b->temp && b->temp_refs));
+    assert(offset <= sizeof(b->source) && bytes <= sizeof(b->source) - offset);
+    if (b->fail_read)
+        return 0;
+    memcpy(out, (unsigned char *)file + offset, bytes);
+    return 1;
+}
+
+static int backing_write(void *p, void *file, MMU32 offset, const void *in, size_t bytes)
+{
+    StreamBacking *b = p;
+    assert(file == b->temp && b->temp_refs && !offset && bytes <= sizeof(b->temp));
+    if (b->fail_write)
+        return 0;
+    memcpy(b->temp, in, bytes);
+    return 1;
+}
+
+static int backing_decode(void *p, void **handle)
+{
+    const unsigned char *source = resource_handle_lock(NULL, *handle);
+    (void)p;
+    assert(resource_handle_size(NULL, *handle) == 9);
+    if (!source[0])
+        return 0;
+    resource_block_decode(handle, backing_payload, sizeof(backing_payload));
+    return 1;
+}
+
+static void stream_backing(void)
+{
+    static const struct {
+        int packed, removable, limit, fail_read, fail_write, fail_temp, fail_decode, expected;
+    } cases[] = {
+        {0, 0, 1, 0, 0, 0, 0, MM_BLOCK_FILE},   /* Fixed disk remains file-backed. */
+        {0, 1, 8, 0, 0, 0, 0, MM_BLOCK_MEMORY}, /* Exactly at the limit. */
+        {0, 1, 7, 0, 0, 0, 0, MM_BLOCK_FILE},
+        {0, 1, 7, 0, 1, 0, 0, MM_BLOCK_EMPTY},
+        {0, 1, 8, 1, 0, 0, 0, MM_BLOCK_EMPTY},
+        {1, 0, 8, 0, 0, 0, 0, MM_BLOCK_MEMORY},
+        {1, 0, 7, 0, 0, 0, 0, MM_BLOCK_FILE},
+        {1, 0, 7, 0, 1, 0, 0, MM_BLOCK_MEMORY},
+        {1, 0, 7, 0, 0, 1, 0, MM_BLOCK_MEMORY},
+        {1, 0, 8, 0, 0, 0, 1, MM_BLOCK_EMPTY}
+    };
+    StreamBacking b;
+    ResourceTestBlock root;
+    MMOwnedBlock dest;
+    MMBlockFile extent;
+    MMBlockIO io;
+    unsigned i;
+    unsigned char payload[4];
+    for (i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        memset(&b, 0, sizeof(b));
+        memcpy(b.source + 3, backing_payload, sizeof(backing_payload));
+        b.fail_read = cases[i].fail_read;
+        b.fail_write = cases[i].fail_write;
+        b.fail_temp = cases[i].fail_temp;
+        if (cases[i].fail_decode)
+            b.source[3] = 0;
+        resource_block_init(&root, &b, backing_read, backing_write);
+        root.files.retain = backing_retain;
+        root.files.release = backing_release;
+        root.files.create_temp = backing_temp;
+        assert(mm_owned_block_init(&dest, root.owner.handles, root.owner.files) == MM_DATA_OK);
+        extent.file = b.source;
+        extent.offset = 3;
+        extent.length = cases[i].packed ? 9 : 4;
+        assert(mm_owned_block_set_file(&root.owner, &extent, cases[i].packed) == MM_DATA_OK);
+        assert(mm_wave_stream_prepare(&root.owner, &dest, cases[i].removable, 4, cases[i].limit, backing_decode,
+                                       NULL) == (cases[i].expected != MM_BLOCK_EMPTY));
+        assert(root.owner.file == b.source && root.owner.view.packed == cases[i].packed && root.owner.view.start == 3);
+        assert(mm_owned_block_clear(&root.owner) == MM_DATA_OK);
+        assert(dest.view.kind == cases[i].expected && !dest.view.packed);
+        if (dest.view.kind != MM_BLOCK_EMPTY)
+        {
+            assert(mm_owned_block_io(&dest, &io) == MM_DATA_OK && dest.view.length == sizeof(payload));
+            assert(mm_block_read(&io, 0, payload, sizeof(payload), 0) == MM_DATA_OK);
+            assert(!memcmp(payload, backing_payload, sizeof(payload)));
+        }
+        assert(mm_owned_block_clear(&dest) == MM_DATA_OK && !b.source_refs && !b.temp_refs);
+    }
+}
+
 typedef struct WaveFile
 {
     ChunkWriterFixture archive;
@@ -672,6 +776,7 @@ int main(void)
     midi();
     wave();
     factories();
+    stream_backing();
     native();
     physical();
     puts("C89 sound payloads: parser/import, RIFF/ADPCM, factories and import failure cleanup passed.");

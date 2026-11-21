@@ -13,6 +13,7 @@
 #include "mm/sound_payload.h"
 #include "audioman.h"
 #include "sndampri.h"
+#include "handle_services.h"
 ASSERTNAME
 
 // CHECK_AUDIO_DEVCAPS turns on using waveOutGetDevCaps to check for
@@ -158,68 +159,29 @@ STDMETHODIMP DataBlockStream::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARG
 }
 
 /***************************************************************************
-    Static method to create a new stream wrapper around a flo.
+    Create a stream with backing that outlives the cache callback.
 ***************************************************************************/
-PDataBlockStream DataBlockStream::PstblNew(FileLocation *pflo, bool fPacked)
+PDataBlockStream DataBlockStream::PstblNew(MMOwnedBlock *source)
 {
-    AssertPo(pflo, ffloReadable);
-    PDataBlockStream pstbl;
-    DataBlock blck;
-    PDataBlock pblck;
-
-    if (pvNil == (pstbl = new DataBlockStream))
+    auto stream = new DataBlockStream;
+    if (!stream)
         return pvNil;
 
-    pblck = &pstbl->_blck;
-    if (fPacked)
+    bool removable = false;
+    if (!source->view.packed)
     {
-        // unpack the block
-        pblck->Set(pflo, fPacked);
-        if (!pblck->FUnpackData())
-        {
-            delete pstbl;
-            return pvNil;
-        }
-
-        // see if it's too big to keep in memory
-        if (pstbl->CbMem() > AudioManSoundDevice::vcbMaxMemWave)
-        {
-            // try to put the sound on disk
-            HQ hq = pblck->HqFree();
-
-            AssertHq(hq);
-            if (pblck->FSetTemp(CbOfHq(hq), fTrue) && pblck->FWriteHq(hq, 0))
-            {
-                FreePhq(&hq);
-            }
-            else
-                pblck->SetHq(&hq);
-        }
+        Filename filename;
+        static_cast<PFileObject>(source->file)->GetFni(&filename);
+        removable = (filename.Grfvk() & (fvkFloppy | fvkCD | fvkRemovable)) != 0;
     }
-    else
+    if (!mm_wave_stream_prepare(source, stream->_blck.CoreBlock(), removable, size(DataBlockStream),
+                                AudioManSoundDevice::vcbMaxMemWave, KauaiDecodeBlockHandle, KauaiCopyAllocator()))
     {
-        // see if it's on a removeable disk
-        Filename fni;
-
-        pflo->pfil->GetFni(&fni);
-        if (fni.Grfvk() & (fvkFloppy | fvkCD | fvkRemovable))
-        {
-            // cache to the hard drive or memory, depending on the size
-            DataBlock blck(pflo);
-
-            if (!pblck->FSetTemp(pflo->cb, blck.Cb() + size(DataBlockStream) > AudioManSoundDevice::vcbMaxMemWave) ||
-                !blck.FWriteToBlck(pblck))
-            {
-                delete pstbl;
-                return pvNil;
-            }
-        }
-        else
-            pblck->Set(pflo);
+        delete stream;
+        return pvNil;
     }
-
-    AssertPo(pstbl, 0);
-    return pstbl;
+    AssertPo(stream, 0);
+    return stream;
 }
 
 #ifdef DEBUG
@@ -264,16 +226,12 @@ CachedAudioManSound::~CachedAudioManSound(void)
 /***************************************************************************
     Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-int CachedAudioManSound::FReadCams(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *,
+int CachedAudioManSound::FReadCams(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
                                   void **out, MMI32 *bytes)
 {
     MMSoundPayloadServices s = {};
     s.object_bytes = size(CachedAudioManSound) + size(DataBlockStream);
-    s.open_stream = [](void *, const MMOwnedBlock *block) -> void * {
-        FileLocation location = {static_cast<PFileObject>(block->file), static_cast<FilePosition>(block->view.start),
-                                 static_cast<LegacyLong>(block->view.length)};
-        return DataBlockStream::PstblNew(&location, block->view.packed != 0);
-    };
+    s.open_stream = [](void *, MMOwnedBlock *root) -> void * { return DataBlockStream::PstblNew(root); };
     s.release_stream = [](void *, void *stream) { static_cast<PDataBlockStream>(stream)->Release(); };
     s.stream_size = [](void *, void *stream) -> MMI32 {
         return size(CachedAudioManSound) + static_cast<PDataBlockStream>(stream)->CbMem();
@@ -287,7 +245,7 @@ int CachedAudioManSound::FReadCams(MMResourceCache *cache, MMU32 type, MMU32 num
     s.adopt_stream = [](void *, void *object, void *stream) {
         static_cast<PCachedAudioManSound>(object)->_pstbl = static_cast<PDataBlockStream>(stream);
     };
-    return mm_wave_stream_fetch(cache, type, number, out, bytes, &s);
+    return mm_wave_stream_fetch(block, out, bytes, &s);
 }
 
 /***************************************************************************

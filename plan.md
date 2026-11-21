@@ -1653,6 +1653,8 @@ colour tables, Kidspace descriptors and cursors also use typed C block
 readers. C89 owns the descriptor records and performs the SDL cursor image
 selection. Script literals resolve in the same C archive graph as the root.
 Streamed MIDI builds device events directly from the cached track in C89.
+Background and MSND headers use the already-bound cache block. C89 prepares
+the retained file, memory or temporary-file backing for classic AudioMan.
 The typed callback is the cache key throughout preload, lookup, tag resolution,
 manager dispatch and nested fetches. Native resource, object, HQ and Body
 facades remain part of final host integration.

@@ -82,21 +82,60 @@ int mm_wave_payload_fetch(MMOwnedBlock *block, void *object_out, void *size_out,
     return 1;
 }
 
-int mm_wave_stream_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, void *object_out, void *size_out,
-                         const MMSoundPayloadServices *s)
+static int over_memory_limit(MMU32 bytes, MMU32 overhead, MMI32 limit)
+{
+    return limit < 0 || overhead > (MMU32)limit || bytes > (MMU32)limit - overhead;
+}
+
+int mm_wave_stream_prepare(MMOwnedBlock *source, MMOwnedBlock *dest, int removable,
+                            MMU32 stream_bytes, MMI32 memory_limit, MMBlockTransform decode,
+                            const MMStorageAllocator *allocator)
+{
+    MMBlockFile file;
+    MMBlockIO from, to;
+    if (source == dest || mm_owned_block_check(dest) != MM_DATA_OK || dest->view.kind != MM_BLOCK_EMPTY ||
+        mm_owned_block_io(source, &from) != MM_DATA_OK || from.view.kind != MM_BLOCK_FILE)
+        return 0;
+    file.file = source->file;
+    file.offset = from.view.start;
+    file.length = from.view.length;
+    if (!from.view.packed && removable)
+    {
+        if (mm_owned_block_set_temp(dest, file.length, over_memory_limit(file.length, stream_bytes, memory_limit)) ==
+                MM_DATA_OK &&
+            mm_owned_block_io(dest, &to) == MM_DATA_OK && mm_block_copy(&from, &to, 0, allocator) == MM_DATA_OK)
+            return 1;
+        goto fail;
+    }
+    if (mm_owned_block_set_file(dest, &file, from.view.packed) != MM_DATA_OK)
+        return 0;
+    if (!from.view.packed)
+        return 1;
+    if (mm_owned_block_code(dest, 0, NULL, decode, NULL) != MM_DATA_OK)
+        goto fail;
+    if (over_memory_limit(dest->view.capacity, stream_bytes, memory_limit) &&
+        mm_owned_block_materialize(dest, 0, &file) == MM_DATA_OK && file.file)
+    {
+        mm_owned_block_set_file(dest, &file, 0);
+        dest->files->release(dest->files->context, file.file);
+    }
+    return 1;
+fail:
+    mm_owned_block_clear(dest);
+    return 0;
+}
+
+int mm_wave_stream_fetch(MMOwnedBlock *block, void *object_out, void *size_out, const MMSoundPayloadServices *s)
 {
     void *object = NULL, *stream = NULL;
     MMI32 bytes = s->object_bytes;
-    MMOwnedBlock block;
     memcpy(size_out, &bytes, 4);
     if (!object_out)
         return 1;
     memcpy(object_out, &object, sizeof(object));
-    if (mm_owned_block_init(&block, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
+    if (mm_owned_block_check(block) != MM_DATA_OK || block->view.kind != MM_BLOCK_FILE)
         return 0;
-    if (mm_resource_cache_read_block(cache, type, number, &block) == MM_CHUNK_OK)
-        stream = s->open_stream(s->context, &block);
-    mm_owned_block_clear(&block);
+    stream = s->open_stream(s->context, block);
     if (!stream)
         return 0;
     bytes = s->stream_size(s->context, stream);
