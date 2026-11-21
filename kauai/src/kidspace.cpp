@@ -11,6 +11,7 @@
 
 ***************************************************************************/
 #include "kidframe.h"
+#include "handle_services.h"
 ASSERTNAME
 
 namespace GraphicalObjectRepresentation {
@@ -31,6 +32,27 @@ ON_CID_ALL(cidSelIdle, &KidspaceGraphicObject::FCmdAll, pvNil)
 END_CMD_MAP(&KidspaceGraphicObject::FCmdAll, pvNil, kgrfcmmAll)
 
 const long kcmhlGok = -10000;
+
+static bool FindKidspaceChild(PChunkyResourceFile cache, ChunkTagOrType parentType, ChunkNumber parentNumber,
+                              ChildChunkID slot, ChunkTagOrType type, ChildChunkIdentification *out)
+{
+    const auto chunks = cache->ReadChunkAccess();
+    MMU32 number;
+    if (mm_chunk_link_number(&chunks, parentType, parentNumber, slot, type, &number) != MM_CHUNK_OK)
+        return false;
+    *out = {{type, number}, slot};
+    return true;
+}
+
+template <class Record>
+static bool ReadKidspaceRecord(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, Record &record)
+{
+    int read;
+    return mm_resource_cache_visit_payload(cache->CoreCache(), type, number, KauaiDecodeBlockHandle, nullptr,
+        [](void *out, const MMReadStream *stream) -> int {
+            return stream->length == sizeof(Record) && mm_read_exact(stream, 0, out, sizeof(Record));
+        }, &record, &read) == MM_CHUNK_OK && read;
+}
 
 /***************************************************************************
     Create a new kidspace gob as described in the KidspaceGraphicObjectDescriptor with given cno
@@ -612,12 +634,10 @@ bool KidspaceGraphicObject::_FSetGmsCore(long gms, ulong grfact, bool *pfStable)
 bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOrType ctg, long dxp, long dyp, bool *pfSet)
 {
     AssertThis(0);
-    LegacyLong ikid;
     ChildChunkIdentification kid;
     PGraphicalObjectRepresentation pgorp;
     bool fSet = fFalse;
     bool fKillAnim = FPure(grfgok & fgokKillAnim);
-    PChunkyFile pcfl = _pcrf->Pcfl();
 
     if (chidNil == chid)
         goto LAdjust;
@@ -632,7 +652,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOr
             goto LAdjust;
         }
 
-        if (pcfl->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chid, kctgAnimation, &kid))
+        if (FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgAnimation, &kid))
         {
             PScript pscpt;
             PGraphicsObjectInterpreter psceg = pvNil;
@@ -665,28 +685,37 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOr
     if (kctgAnimation == ctg)
         goto LAdjust;
 
-    for (pcfl->FGetIkid(_pgokd->Ctg(), _pgokd->Cno(), 0, 0, chid, &ikid);
-         pcfl->FGetKid(_pgokd->Ctg(), _pgokd->Cno(), ikid, &kid) && kid.chid == chid; ikid++)
     {
-        if (ctgNil != ctg && ctg != kid.cki.ctg || kctgAnimation == kid.cki.ctg)
-        {
-            continue;
-        }
+        const auto chunks = _pcrf->ReadChunkAccess();
+        MMU32 parent, first;
+        if (mm_chunk_find(&chunks, _pgokd->Ctg(), _pgokd->Cno(), &parent) != MM_CHUNK_OK)
+            goto LAdjust;
+        const int status = mm_chunk_find_child(&chunks, parent, chid, 0, 0, &first);
+        if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
+            goto LAdjust;
 
-        if (!(grfgok & fgokReset) && pvNil != _pgorp && FEqualRgb(&kid.cki, &_ckiGorp, size(ChunkIdentification)))
+        MMChunkChild child;
+        for (MMU32 row = first; mm_chunk_child_at(&chunks, parent, row, &child) == MM_CHUNK_OK && child.slot == chid;
+             ++row)
         {
-            fSet = fTrue;
-            break;
-        }
+            if ((ctgNil != ctg && ctg != child.type) || kctgAnimation == child.type)
+                continue;
 
-        if (pvNil != (pgorp = _PgorpNew(_pcrf, kid.cki.ctg, kid.cki.cno)))
-        {
-            _SetGorp(pgorp, dxp, dyp);
-            ReleasePpo(&pgorp);
-            _ckiGorp = kid.cki;
-            dxp = dyp = 0;
-            fSet = fTrue;
-            break;
+            if (!(grfgok & fgokReset) && _pgorp && child.type == _ckiGorp.ctg && child.number == _ckiGorp.cno)
+            {
+                fSet = fTrue;
+                break;
+            }
+
+            if (pvNil != (pgorp = _PgorpNew(_pcrf, child.type, child.number)))
+            {
+                _SetGorp(pgorp, dxp, dyp);
+                ReleasePpo(&pgorp);
+                _ckiGorp = {child.type, child.number};
+                dxp = dyp = 0;
+                fSet = fTrue;
+                break;
+            }
         }
     }
 
@@ -1050,7 +1079,7 @@ bool KidspaceGraphicObject::FFilterCidHid(long cid, long hid, ChildChunkID chidS
     ChildChunkIdentification kid;
 
     if (chidNil == chidScript ||
-        !_pcrf->Pcfl()->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chidScript, kctgScript, &kid))
+        !FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chidScript, kctgScript, &kid))
     {
         // turn off filtering
         if (chidNil != chidScript)
@@ -1408,7 +1437,7 @@ bool KidspaceGraphicObject::FRunScript(ChildChunkID chid, LegacyLong *prglw, lon
     AssertNilOrVarMem(plwReturn);
     ChildChunkIdentification kid;
 
-    if (!_pcrf->Pcfl()->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chid, kctgScript, &kid))
+    if (!FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgScript, &kid))
     {
         if (pvNil != ptSuccess)
             *ptSuccess = tNo;
@@ -1814,8 +1843,8 @@ void KidspaceGraphicObject::_PlayMouseSound(ChildChunkID chid)
     if (pvNil == vpsndm)
         return;
 
-    if (!_pcrf->Pcfl()->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chid, kctgWave, &kid) &&
-        !_pcrf->Pcfl()->FGetKidChidCtg(_pgokd->Ctg(), _pgokd->Cno(), chid, kctgMidi, &kid))
+    if (!FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgWave, &kid) &&
+        !FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgMidi, &kid))
     {
         return;
     }
@@ -2003,12 +2032,9 @@ PGraphicalObjectRepresentationFill GraphicalObjectRepresentationFill::PgorfNew(P
     AssertPo(pcrf, 0);
 
     GOKFL gokfl;
-    PChunkyFile pcfl;
-    DataBlock blck;
     PGraphicalObjectRepresentationFill pgorf;
 
-    pcfl = pcrf->Pcfl();
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() || blck.Cb() != size(GOKFL) || !blck.FRead(&gokfl))
+    if (!ReadKidspaceRecord(pcrf, ctg, cno, gokfl))
     {
         Warn("couldn't load indicated fill");
         return pvNil;
@@ -2245,13 +2271,10 @@ PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew
     AssertPo(pcrf, 0);
 
     GOTIL gotil;
-    PChunkyFile pcfl;
-    DataBlock blck;
     PGraphicalObjectRepresentationTiled pgort;
     ChildChunkIdentification kid;
 
-    pcfl = pcrf->Pcfl();
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() || blck.Cb() != size(GOTIL) || !blck.FRead(&gotil))
+    if (!ReadKidspaceRecord(pcrf, ctg, cno, gotil))
     {
         Warn("couldn't load indicated tile chunk");
         return pvNil;
@@ -2285,7 +2308,7 @@ PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew
         return pvNil;
     }
 #pragma warning(pop)
-    if (!pcfl->FGetKidChidCtg(ctg, cno, 0, kctgMbmp, &kid))
+    if (!FindKidspaceChild(pcrf, ctg, cno, 0, kctgMbmp, &kid))
     {
         Warn("no child MaskedBitmapMBMP of TILE chunk");
         return pvNil;
@@ -2666,21 +2689,29 @@ bool GraphicalObjectRepresentationVideo::_FInit(PKidspaceGraphicObject pgok, PCh
     AssertPo(pgok, 0);
     AssertBaseThis(0);
 
-    PChunkyFile pcfl;
-    DataBlock blck;
     String stn;
     Filename fni;
     RC rc;
-    byte bT;
-
-    pcfl = pcrf->Pcfl();
-    if (!pcfl->FFind(ctg, cno, &blck) || !blck.FUnpackData() || blck.Cb() < 2 || !blck.FReadRgb(&bT, 1, 0) ||
-        !stn.FRead(&blck, 1))
+    struct VideoRecord
+    {
+        String *name;
+        byte window;
+    } video = {&stn, 0};
+    int read;
+    if (mm_resource_cache_visit_payload(pcrf->CoreCache(), ctg, cno, KauaiDecodeBlockHandle, nullptr,
+        [](void *out, const MMReadStream *stream) -> int {
+            auto video = static_cast<VideoRecord *>(out);
+            byte wire[kcbMaxDataStn + 1];
+            if (stream->length < 2 || stream->length > sizeof(wire) || !mm_read_exact(stream, 0, wire, stream->length))
+                return 0;
+            video->window = wire[0];
+            return video->name->FSetData(wire + 1, stream->length - 1);
+        }, &video, &read) != MM_CHUNK_OK || !read)
     {
         goto LFail;
     }
 
-    if (!pgok->Pwoks()->FFindFile(&stn, &fni) || pvNil == (_pgvid = Video::PgvidNew(&fni, pgok, bT)))
+    if (!pgok->Pwoks()->FFindFile(&stn, &fni) || pvNil == (_pgvid = Video::PgvidNew(&fni, pgok, video.window)))
     {
     LFail:
         Warn("couldn't load indicated video");
@@ -2690,7 +2721,7 @@ bool GraphicalObjectRepresentationVideo::_FInit(PKidspaceGraphicObject pgok, PCh
     _pgvid->GetRc(&rc);
     _dxp = rc.Dxp();
     _dyp = rc.Dyp();
-    _fHwndBased = FPure(bT);
+    _fHwndBased = FPure(video.window);
     return fTrue;
 }
 

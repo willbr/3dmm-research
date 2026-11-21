@@ -308,7 +308,7 @@ target_sources(mm-engine-c89 PRIVATE src/scene_content.c)
 target_sources(mm-engine-c89 PRIVATE src/scene_selection.c)
 target_sources(mm-engine-c89 PRIVATE src/scene_chop.c)
 target_sources(mm-engine-c89 PRIVATE src/scene_control.c)
-target_sources(mm-engine-c89 PRIVATE src/scene_thumbnail.c)
+target_sources(mm-engine-c89 PRIVATE src/scene_thumbnail.c src/browser_thumbnail.c)
 target_sources(mm-engine-c89 PRIVATE src/background_camera.c)
 target_sources(mm-engine-c89 PRIVATE src/background_resource.c)
 target_sources(mm-engine-c89 PRIVATE src/background_mesh.c)
@@ -1326,6 +1326,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_chop.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_control.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/scene_thumbnail.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/browser_thumbnail.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/background_camera.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/background_resource.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/background_mesh.c"

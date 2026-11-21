@@ -72,6 +72,8 @@
 
 #include "soc.h"
 #include "studio.h"
+#include "handle_services.h"
+#include "mm/browser_thumbnail.h"
 
 ASSERTNAME
 
@@ -1505,236 +1507,81 @@ bool BrowserContentList::_FBuildThd(PChunkyResourceManager pcrm)
     AssertThis(0);
     AssertNilOrPo(pcrm, 0);
 
-    bool fRet = fTrue;
-    PChunkyFile pcfl;
     long sid;
     ThumbnailFileEnumerator fnet;
     Filename fniThd;
-
     if (!fnet.FInit())
         return fFalse;
-    while (fnet.FNext(&fniThd, &sid) && fRet)
+
+    while (fnet.FNext(&fniThd, &sid))
     {
         if (fniThd.Ftg() != kftgThumbDesc)
             continue;
-        pcfl = ChunkyFile::PcflOpen(&fniThd, fcflNil);
-        if (pvNil == pcfl)
-        {
-            // Error reported elsewhere
-            continue;
-        }
-
-        /* Don't use this file if it doesn't have what we're looking for */
-        if (_fDescend ? !pcfl->FFind(_ctgRoot, _cnoRoot) : pcfl->CckiCtg(_ctgRoot) == 0)
-        {
-            goto LContinue;
-        }
-
-        // Add the file to the crm
-        if (pcrm != pvNil && !pcrm->FAddCfl(pcfl, kcbMaxCrm))
-        {
-            // fatal error
-            fRet = fFalse;
-            goto LContinue;
-        }
-
-        if (!_FAddFileToThd(pcfl, sid))
-        {
-            // Error issued elsewhere
-            fRet = fFalse;
-            goto LContinue;
-        }
-
-    LContinue:
-        ReleasePpo(&pcfl);
-    }
-
-    return fRet;
-}
-
-/****************************************************
- *
- *  Add the chunks of file pcfl to the ThumbnailDescriptor
- *
- *	Requires pre-definition of _ckiRoot, _ctgContent
- *
- *	Filtering is based on ctg, cno, but not chid
- *	A value of cnoNil => wild card search
- *
- ****************************************************/
-bool BrowserContentList::_FAddFileToThd(PChunkyFile pcfl, long sid)
-{
-    AssertThis(0);
-    AssertPo(pcfl, 0);
-
-    long ickiRoot;
-    long cckiRoot;
-    ChunkIdentification ckiRoot;
-    ChildChunkIdentification kidPar;
-    long ikidPar;
-    long ckidPar;
-
-    Assert(ctgNil != _ctgRoot, "Illegal call");
-
-    if (!_fDescend)
-        cckiRoot = pcfl->CckiCtg(_ctgRoot);
-    else
-    {
-        ckiRoot.ctg = _ctgRoot;
-        ckiRoot.cno = _cnoRoot;
-        cckiRoot = 1;
-    }
-
-    // For each grandparent, define ckiRoot
-    for (ickiRoot = 0; ickiRoot < cckiRoot; ickiRoot++)
-    {
-        if (!_fDescend)
-        {
-            // Get the cki of the grandparent
-            if (!pcfl->FGetCkiCtg(_ctgRoot, ickiRoot, &ckiRoot))
-                return fFalse;
-
-            //
-            // If only one level of parent specified in the search
-            // then add the gokd from this parent and continue
-            //
-            if (!_FAddGokdToThd(pcfl, sid, &ckiRoot))
-                return fFalse;
-            continue;
-        }
-
-        //
-        // Drop down one more level
-        //
-        if (!pcfl->FFind(ckiRoot.ctg, ckiRoot.cno))
+        auto cache = ChunkyResourceFile::PcrfOpenWorking(&fniThd, false, pcrm ? kcbMaxCrm : 0);
+        if (!cache)
             continue;
 
-        ckidPar = pcfl->Ckid(ckiRoot.ctg, ckiRoot.cno);
-
-        for (ikidPar = 0; ikidPar < ckidPar; ikidPar++)
+        const auto chunks = cache->ReadChunkAccess();
+        MMU32 first;
+        const int status = mm_browser_thumbnail_first(&chunks, _ctgRoot, _cnoRoot, &first);
+        bool ok = status == MM_CHUNK_NOT_FOUND;
+        if (status == MM_CHUNK_OK &&
+            (!pcrm || mm_resource_manager_add_cache(pcrm->CoreManager(), cache->CoreCache(), nullptr) == MM_STORAGE_OK))
         {
-            if (!pcfl->FGetKid(ckiRoot.ctg, ckiRoot.cno, ikidPar, &kidPar))
-                return fFalse;
-
-            if (kidPar.cki.ctg != _ctgContent)
-                continue;
-
-            // On failure, continue to add other files
-            // Error reported elsewhere
-            _FAddGokdToThd(pcfl, sid, &kidPar);
+            struct Source
+            {
+                BrowserContentList *list;
+                PChunkyResourceFile cache;
+                long sid;
+            } source = {this, cache, sid};
+            ok = mm_browser_thumbnail_visit(&chunks, first, _fDescend ? _ctgContent : 0,
+                [](void *context, MMU32 type, MMU32 number, MMU32 slot) -> int {
+                    const auto source = static_cast<Source *>(context);
+                    const ChildChunkIdentification child = {{type, number}, slot};
+                    return source->list->_FAddGokdToThd(source->cache, source->sid, child);
+                }, &source) != 0;
         }
+        ReleasePpo(&cache);
+        if (!ok)
+            return fFalse;
     }
-
     return fTrue;
 }
 
-bool BrowserContentList::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki)
-{
-    ChildChunkIdentification kid;
-
-    kid.cki = *pcki;
-    kid.chid = chidNil;
-    return _FAddGokdToThd(pcfl, sid, &kid);
-}
-
-/****************************************************
- *
- *  Add a single KidspaceGraphicObjectDescriptor to the ThumbnailDescriptor
- *	The KidspaceGraphicObjectDescriptor is a child of ckiPar.
- *  cnoPar is read from the ckiPar chunk
- *
- ****************************************************/
-bool BrowserContentList::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
+bool BrowserContentList::_FAddGokdToThd(PChunkyResourceFile cache, long sid, const ChildChunkIdentification &child)
 {
     AssertThis(0);
-    AssertPo(pcfl, 0);
-    AssertVarMem(pkid);
+    AssertPo(cache, 0);
+    MMBrowserThumbnail entry;
+    if (!mm_browser_thumbnail_read(cache->CoreCache(), child.cki.ctg, child.cki.cno, KauaiDecodeBlockHandle, &entry))
+        return fFalse;
 
-    ChunkIdentification cki = pkid->cki;
-    ChildChunkIdentification kid;
     ThumbnailDescriptor thd{};
-    DataBlock blck;
-    BrowserThumbEntry tfc;
-
-    // Read the Par chunk to find the cno of the CD content
-    if (!pcfl->FFind(cki.ctg, cki.cno, &blck) || !blck.FUnpackData())
-    {
-        goto LFail;
-    }
-    if (blck.Cb() != size(BrowserThumbEntry))
-        goto LFail;
-    if (!blck.FReadRgb(&tfc, size(BrowserThumbEntry), 0))
-        goto LFail;
-    if (kboCur != tfc.bo)
-        SwapBytesBom(&tfc, kbomTfc);
-    Assert(kboCur == tfc.bo, "bad BrowserThumbEntry");
-    if (!_fDescend)
-    {
-        thd.tag.cno = tfc.cno;
-        thd.tag.ctg = tfc.ctg;
-    }
+    thd.tag.ctg = entry.type;
+    if (_fDescend)
+        thd.chid = entry.value;
     else
-    {
-        thd.tag.ctg = tfc.ctg;
-        thd.chid = tfc.chid;
-    }
+        thd.tag.cno = entry.value;
 
-    Assert(thd.grfontMask == tfc.grfontMask, "Font style browser broken");
-    Assert(thd.grfont == tfc.grfont, "Font style browser broken");
+    Assert(thd.grfontMask == entry.type, "Font style browser broken");
+    Assert(thd.grfont == entry.value, "Font style browser broken");
 
     thd.tag.sid = sid;
-    thd.chidThum = pkid->chid;
-    if (pcfl->FGetKidChidCtg(cki.ctg, cki.cno, 0, kctgGokd, &kid))
-        thd.cno = kid.cki.cno;
-    else
-    {
-        // If there are no KidspaceGraphicObjectDescriptor children, enter the reference to the named
-        // parent chunk
-        thd.cno = tfc.cno;
-    }
-
+    thd.chidThum = child.chid;
+    thd.cno = entry.graphic;
     thd.ithd = _pglthd->IvMac();
-    if (!_pglthd->FInsert(thd.ithd, &thd))
-        goto LFail;
-
-    return fTrue;
-LFail:
-    return fFalse;
+    return _pglthd->FInsert(thd.ithd, &thd);
 }
 
-bool BrowserContentListWithStrings::_FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid)
+bool BrowserContentListWithStrings::_FAddGokdToThd(PChunkyResourceFile cache, long sid,
+                                                  const ChildChunkIdentification &child)
 {
     AssertThis(0);
-    AssertPo(pcfl, 0);
-    AssertVarMem(pkid);
-
-    if (!_FSetNameGst(pcfl, pkid->cki.ctg, pkid->cki.cno))
-        goto LFail;
-
-    if (!BrowserContentListWithStrings_PAR::_FAddGokdToThd(pcfl, sid, pkid))
-        goto LFail;
-
-    return fTrue;
-LFail:
-    return fFalse;
-}
-
-/****************************************************
- *
- * Save the name of the Par chunk in the Gst
- *
- ****************************************************/
-bool BrowserContentListWithStrings::_FSetNameGst(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
-{
-    AssertThis(0);
-    AssertPo(pcfl, 0);
+    AssertPo(cache, 0);
     String stn;
-
-    if (!pcfl->FGetName(ctg, cno, &stn))
+    if (!cache->FGetName(child.cki.ctg, child.cki.cno, &stn) || !_pgst->FAddStn(&stn))
         return fFalse;
-    if (!_pgst->FAddStn(&stn))
-        return fFalse;
-    return fTrue;
+    return BrowserContentListWithStrings_PAR::_FAddGokdToThd(cache, sid, child);
 }
 
 /****************************************************
@@ -3036,73 +2883,59 @@ bool BrowserRollCall::FInit(PCommand pcmd, ChunkTagOrType ctgTmplThum, long ithu
 {
     AssertThis(0);
 
-    long ccrf = 1;
-    PChunkyFile pcfl;
-    DataBlock blck;
-    long ccki;
-    long icki;
-    ChunkIdentification cki;
-    BrowserThumbEntry tfc;
-    ChildChunkIdentification kid;
     ThumbnailFileEnumerator fnet;
     Filename fniThd;
-
     if (!fnet.FInit())
         return fFalse;
 
     _ctg = ctgTmplThum;
     BrowserDisplay::Init(pcmd, ivNil, ithumDisplay, pstdio, fFalse, 1);
 
-    _pcrm = ChunkyResourceManager::PcrmNew(ccrf);
-    if (pvNil == _pcrm)
-        goto LFail; // Error already reported
+    _pcrm = ChunkyResourceManager::PcrmNew(1);
+    if (!_pcrm)
+        goto LFail;
 
     while (fnet.FNext(&fniThd))
     {
         if (fniThd.Ftg() != kftgThumbDesc)
             continue;
-        pcfl = ChunkyFile::PcflOpen(&fniThd, fcflNil);
-        if (pvNil == pcfl)
+        auto cache = ChunkyResourceFile::PcrfOpenWorking(&fniThd, false, kcbMaxCrm);
+        if (!cache)
+            goto LFail;
+        if (mm_resource_manager_add_cache(_pcrm->CoreManager(), cache->CoreCache(), nullptr) != MM_STORAGE_OK)
         {
-            goto LFail; // Error already reported
+            ReleasePpo(&cache);
+            goto LFail;
         }
 
-        // Add the file to the crm
-        if (!_pcrm->FAddCfl(pcfl, kcbMaxCrm))
-            goto LFail; // Error already reported
-
-        // Create the cno map from tmpl->gokd
-        if (ctgTmplThum == kctgTmth)
-            ccki = pcfl->CckiCtg(kctgTmth);
-        else
-            ccki = pcfl->CckiCtg(kctgPrth);
-        for (icki = 0; icki < ccki; icki++)
+        const auto chunks = cache->ReadChunkAccess();
+        MMU32 first;
+        const int status = mm_browser_thumbnail_first(&chunks, ctgTmplThum, cnoNil, &first);
+        bool ok = status == MM_CHUNK_NOT_FOUND;
+        if (status == MM_CHUNK_OK)
         {
-            if (!pcfl->FGetCkiCtg(ctgTmplThum, icki, &cki))
-                continue;
-
-            // Read the chunk to map the cno of the CD content
-            if (!pcfl->FFind(cki.ctg, cki.cno, &blck) || !blck.FUnpackData())
+            struct Source
             {
-                goto LFail;
-            }
-            if (blck.Cb() != size(BrowserThumbEntry))
-                goto LFail;
-            if (!blck.FReadRgb(&tfc, size(BrowserThumbEntry), 0))
-                goto LFail;
-            if (kboCur != tfc.bo)
-                SwapBytesBom(&tfc, kbomTfc);
-            Assert(kboCur == tfc.bo, "bad BrowserThumbEntry");
-
-            if (!pcfl->FGetKidChidCtg(ctgTmplThum, cki.cno, 0, kctgGokd, &kid))
-            {
-                Warn("Actor content missing gokd");
-                continue;
-            }
-
-            if (!_pstdio->FAddCmg(tfc.cno, kid.cki.cno))
-                goto LFail;
+                PStudio studio;
+                MMResourceCache *cache;
+            } source = {pstdio, cache->CoreCache()};
+            ok = mm_browser_thumbnail_visit(&chunks, first, 0,
+                [](void *context, MMU32 type, MMU32 number, MMU32) -> int {
+                    const auto source = static_cast<Source *>(context);
+                    MMBrowserThumbnail entry;
+                    if (!mm_browser_thumbnail_read(source->cache, type, number, KauaiDecodeBlockHandle, &entry))
+                        return fFalse;
+                    if (!entry.has_graphic)
+                    {
+                        Warn("Actor content missing gokd");
+                        return fTrue;
+                    }
+                    return source->studio->FAddCmg(entry.value, entry.graphic);
+                }, &source) != 0;
         }
+        ReleasePpo(&cache);
+        if (!ok)
+            goto LFail;
     }
 
     _fNoRepositionSel = fTrue;

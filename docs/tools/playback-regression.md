@@ -19582,3 +19582,30 @@ Retail, SDL, and Marcus agreed on all 22 seek frames and cameras of the
 composed movie in `20261121T171605Z-fecb8231`. Each player's canvases
 matched its prior results, including the six known port differences from
 retail. Evidence is in `tmp/c89-studio-archive-picker/evidence`.
+
+## Studio asset thumbnail archives and Kidspace resource reads (21 November 2026)
+
+Studio's content browsers and actor and prop roll calls open `.3th`
+files through the C89 archive. C89 finds the matching records, decodes both
+byte orders, follows slot-zero graphic links, and preserves the fallback to
+the record's content number. Kidspace reads representation children, scripts,
+fill, tile, and video payloads through the same resource cache.
+
+All 193 standalone C checks passed. The Studio layout fixture passed on native
+x64, native x86, and SDL. It checks both byte orders, malformed records, and the
+failure handling for flat and child lists. The Kidspace descriptor fixtures
+passed on native x64 and SDL. SDL Studio content, native core-link, and the
+Marcus player checks also passed.
+
+Once the animated selection highlight was cleared, SDL Studio reproduced the
+previous background, camera, actor, prop, and roll-call screens pixel for pixel.
+The authored movie reproduced the previous file byte for byte. A portable
+fixture with a unique source-6 prop confirmed selection through the prop
+browser, placement, and persistence after saving and reopening the VMM. The
+read-only movie sound import workflow still copied both payloads byte for byte.
+
+Retail, SDL, and Marcus agreed on the saved movie's scene, frame, and camera
+in `20261121T173333Z-cb2e1a43`. Both port canvases differed from retail at that
+frame. SDL and Marcus matched all three archived V3dmm frames, cameras, and
+canvas hashes in `20261121T173227Z-562bbb4d`. Evidence is in
+`tmp/c89-studio-thd/evidence`.

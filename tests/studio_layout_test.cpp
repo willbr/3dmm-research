@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "studio.h"
+#include "mm/browser_thumbnail.h"
 #undef size
 ASSERTNAME
 void WarnProc(schar *, LegacyLong, schar *)
@@ -24,22 +25,51 @@ bool FAssertProc(schar *file, LegacyLong line, schar *message, void *, LegacyLon
     } while (false)
 int main()
 {
-    // Original 12-byte thumbnail envelope, with two 16-bit words followed by
-    // two 32-bit words. This is a byte fixture, not a new serialized format.
-    const byte little[] = {2, 1, 4, 3, 0x44, 0x33, 0x22, 0x11, 0x88, 0x77, 0x66, 0x55};
-    const byte big[] = {1, 2, 3, 4, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
-    const byte *fixture = BigLittle(big, little);
-    BrowserThumbEntry record = {};
-    CHECK(sizeof(record) == sizeof(little));
-    std::memcpy(&record, fixture, sizeof(record));
-    CHECK(record.bo == 0x0102 && record.osk == 0x0304 && record.ctg == 0x11223344 && record.cno == 0x55667788);
-    CHECK(record.chid == 0x55667788 && record.grfontMask == 0x11223344 && record.grfont == 0x55667788);
-    BrowserThumbEntry written = {};
-    written.bo = 0x0102;
-    written.osk = 0x0304;
-    written.grfontMask = 0x11223344;
-    written.grfont = 0x55667788;
-    CHECK(!std::memcmp(&written, fixture, sizeof(written)));
+    const byte little[] = {1, 0, 4, 3, 0x44, 0x33, 0x22, 0x11, 0x88, 0x77, 0x66, 0x55};
+    const byte big[] = {0, 1, 3, 4, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88};
+    const byte *fixtures[] = {little, big};
+    MMMemoryStream stream;
+    MMBrowserThumbnail record;
+    for (const auto fixture : fixtures)
+    {
+        CHECK(mm_memory_stream_init(&stream, fixture, sizeof(little)));
+        CHECK(mm_browser_thumbnail_decode(&stream.stream, &record));
+        CHECK(record.type == 0x11223344 && record.value == 0x55667788);
+        CHECK(record.graphic == record.value && !record.has_graphic);
+    }
+    CHECK(mm_memory_stream_init(&stream, little, sizeof(little) - 1));
+    CHECK(!mm_browser_thumbnail_decode(&stream.stream, &record) && record.value == 0x55667788);
+    byte invalid[sizeof(little)];
+    std::memcpy(invalid, little, sizeof(invalid));
+    invalid[1] = 2;
+    CHECK(mm_memory_stream_init(&stream, invalid, sizeof(invalid)));
+    CHECK(!mm_browser_thumbnail_decode(&stream.stream, &record) && record.value == 0x55667788);
+
+    const MMChunkEntry rows[] = {{'ROOT', 1, 0, 0, 0, 3}, {'ROOT', 5}, {'ZZZZ', 0}};
+    const MMChunkAccess archive = {
+        const_cast<MMChunkEntry *>(rows), 3,
+        [](void *data, MMU32 position, MMChunkEntry *out) -> int {
+            *out = static_cast<const MMChunkEntry *>(data)[position];
+            return 1;
+        },
+        [](void *, MMU32, MMU32 position, MMChunkChild *out) -> int {
+            const MMChunkChild children[] = {{'THUM', 3, 0}, {'GOKD', 1, 1}, {'THUM', 6, 1}};
+            *out = children[position];
+            return 1;
+        }};
+    MMU32 first;
+    CHECK(mm_browser_thumbnail_first(&archive, 'ROOT', MM_BROWSER_THUMBNAIL_ANY, &first) == MM_CHUNK_OK && first == 0);
+    CHECK(mm_browser_thumbnail_first(&archive, 'ROOT', 5, &first) == MM_CHUNK_OK && first == 1);
+    CHECK(mm_browser_thumbnail_first(&archive, 'ROOT', 1, &first) == MM_CHUNK_OK && first == 0);
+    MMU32 visited = 0;
+    auto reject = [](void *data, MMU32, MMU32 number, MMU32) -> int {
+        auto &visited = *static_cast<MMU32 *>(data);
+        visited = visited * 10 + number;
+        return 0;
+    };
+    CHECK(!mm_browser_thumbnail_visit(&archive, first, 0, reject, &visited) && visited == 1);
+    visited = 0;
+    CHECK(mm_browser_thumbnail_visit(&archive, first, 'THUM', reject, &visited) && visited == 36);
 
     ThumbnailDescriptor descriptor = {};
     descriptor.tag.sid = -33;
@@ -55,6 +85,6 @@ int main()
     descriptor.chid = 0x12345678;
     CHECK(descriptor.tag.cno == 0x12345678 && !std::memcmp(prefix, &descriptor, sizeof(prefix)));
     CHECK(descriptor.tag.sid == -33 && descriptor.tag.pcrf == reinterpret_cast<PChunkyResourceFile>(&descriptor));
-    std::puts("Studio thumbnail layouts: original record bytes and TAG aliases preserved.");
+    std::puts("Studio thumbnails: both byte orders, malformed records, archive traversal, and TAG aliases passed.");
     return 0;
 }

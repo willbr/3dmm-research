@@ -222,10 +222,10 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNewPrivate(MMPrivateArchive *archive
         return nullptr;
     return _PcrfNew({archive, nullptr, nullptr}, budget, nullptr, nullptr, archive);
 }
-PChunkyResourceFile ChunkyResourceFile::PcrfOpenWorking(PFilename name, bool create)
+PChunkyResourceFile ChunkyResourceFile::PcrfOpenWorking(PFilename name, bool create, LegacyLong budget)
 {
     const auto archive = KauaiWorkingArchive(name, create);
-    const auto resources = PcrfNewPrivate(archive, 0);
+    const auto resources = PcrfNewPrivate(archive, budget);
     mm_private_archive_close(archive);
     return resources;
 }

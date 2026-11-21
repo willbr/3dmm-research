@@ -67,29 +67,6 @@ class BrowserContext : public BrowserContext_PAR
 
 /************************************
 
-   Browser ThumbFile Cki Struct
-
-*************************************/
-struct BrowserThumbEntry
-{
-    short bo;
-    short osk;
-    union {
-        struct {
-            ChunkTagOrType ctg;
-            union { ChunkNumber cno; ChildChunkID chid; };
-        };
-        struct {
-            LegacyUlong grfontMask;
-            LegacyUlong grfont;
-        };
-    };
-};
-static_assert(sizeof(BrowserThumbEntry) == 12, "browser thumbnail records remain twelve bytes");
-const ByteOrderMask kbomTfc = 0x5f000000;
-
-/************************************
-
    Browser Display Class
 
 *************************************/
@@ -329,11 +306,9 @@ class BrowserContentList : public BrowserContentList_PAR
     }
 
     bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd);
-    bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChunkIdentification *pcki);
-    bool _FAddFileToThd(PChunkyFile pcfl, long sid);
     bool _FBuildThd(PChunkyResourceManager pcrm);
 
-    virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
+    virtual bool _FAddGokdToThd(PChunkyResourceFile, long sid, const ChildChunkIdentification &);
 
   public:
     static PBrowserContentList PbclNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, bool fOnlineOnly = fFalse);
@@ -377,9 +352,7 @@ class BrowserContentListWithStrings : public BrowserContentListWithStrings_PAR
     }
 
     bool _FInit(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PStringTable_GST pgst, PDynamicArray pglthd);
-    bool _FSetNameGst(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-
-    virtual bool _FAddGokdToThd(PChunkyFile pcfl, long sid, ChildChunkIdentification *pkid);
+    bool _FAddGokdToThd(PChunkyResourceFile, long sid, const ChildChunkIdentification &) override;
 
   public:
     static PBrowserContentListWithStrings PbclsNew(PChunkyResourceManager pcrm, ChunkIdentification *pckiRoot, ChunkTagOrType ctgContent, PDynamicArray pglthd = pvNil, PStringTable_GST pgst = pvNil,
