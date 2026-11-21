@@ -1,6 +1,7 @@
 #ifndef MM_ENGINE_PRIVATE_ARCHIVE_H
 #define MM_ENGINE_PRIVATE_ARCHIVE_H
 #include "chunk_owner.h"
+#include "chunk_context.h"
 #include "movie_archive_edit.h"
 #include "text_store.h"
 
@@ -17,15 +18,24 @@ typedef struct MMPrivateArchiveProfile
     MMStringConvert convert;
 } MMPrivateArchiveProfile;
 
-enum { MM_PRIVATE_ARCHIVE_READ, MM_PRIVATE_ARCHIVE_EDIT, MM_PRIVATE_ARCHIVE_CREATE };
+enum { MM_PRIVATE_ARCHIVE_READ, MM_PRIVATE_ARCHIVE_EDIT, MM_PRIVATE_ARCHIVE_CREATE, MM_PRIVATE_ARCHIVE_WORKING };
 
 /* Own the supplied file reference on every path. The file is already open
  * in the corresponding mode. CREATE expects an empty private output.
  * File providers must share tokens and retain/release semantics between
  * archives used in the same copy. Writer/editor views borrow this archive.
- * Edits save in place on private files, which callers discard after failure. */
+ * WORKING opens an existing file with staged writes and defers its free map.
+ * Publishing its edits requires a save target capable of replacing the file. */
 MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwnerFileIO *,
                                          const MMBlockFileServices *, const MMPrivateArchiveProfile *);
+/* Borrow the owner whose live main file matches this token. The registry
+ * follows save publication and automatically removes closed archives. */
+MMPrivateArchive *mm_private_archive_find(const MMChunkContext *, void *file);
+/* Consume the supplied file reference. Reuse its registered owner for a
+ * WORKING open, or register a newly opened owner. */
+MMPrivateArchive *mm_private_archive_open_registered(MMChunkContext *, void *file, int mode,
+                                                    const MMChunkOwnerFileIO *, const MMBlockFileServices *,
+                                                    const MMPrivateArchiveProfile *);
 /* Archive references and borrowed views are confined to the owning thread. */
 void mm_private_archive_retain(MMPrivateArchive *);
 void mm_private_archive_close(MMPrivateArchive *);

@@ -13,6 +13,7 @@ struct MMPrivateArchive
     MMChunkTitleIO titles;
     MMMovieArchiveFile editor;
     int writable, editor_ready;
+    MMChunkLink link;
 };
 
 typedef union HandlePrefix
@@ -128,6 +129,7 @@ static void destroy_archive(void *context)
     MMPrivateArchive *archive = context;
     if (archive->editor_ready)
         mm_movie_archive_file_clear(&archive->editor);
+    mm_chunk_context_detach(&archive->link);
     mm_chunk_archive_close(archive->backing);
     free(archive);
 }
@@ -155,7 +157,7 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
         return NULL;
     if (!profile || (profile->unit != 1 && profile->unit != 2) || !profile->convert ||
         !io->read_stream || !blocks ||
-        (mode != MM_PRIVATE_ARCHIVE_READ && mode != MM_PRIVATE_ARCHIVE_EDIT && mode != MM_PRIVATE_ARCHIVE_CREATE) ||
+        (mode < MM_PRIVATE_ARCHIVE_READ || mode > MM_PRIVATE_ARCHIVE_WORKING) ||
         (mode != MM_PRIVATE_ARCHIVE_READ && (!io->resize || !io->write_at || !io->size || !io->create_extra)))
     {
         io->release(file);
@@ -177,6 +179,7 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
         return NULL;
     }
     mm_reference_init(&archive->references);
+    mm_chunk_link_init(&archive->link, archive);
     reader = mm_private_archive_reader(archive);
     files = &reader->storage->owner->files;
     files->main_file = file;
@@ -198,8 +201,10 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
                                       profile->legacy_name, NULL) != MM_CHUNK_OK ||
             mm_chunk_owner_validate_index(reader->storage, max_references(archive)) != MM_CHUNK_OK)
             goto fail;
-        if (archive->writable)
+        if (mode == MM_PRIVATE_ARCHIVE_EDIT)
             mm_chunk_owner_read_free_map(reader->storage);
+        else if (mode == MM_PRIVATE_ARCHIVE_WORKING)
+            reader->storage->owner->add_to_extra = 1;
     }
     archive->titles.context = archive;
     archive->titles.encoding = profile->encoding;
@@ -214,6 +219,44 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
 fail:
     mm_private_archive_close(archive);
     return NULL;
+}
+
+MMPrivateArchive *mm_private_archive_find(const MMChunkContext *registry, void *file)
+{
+    MMPrivateArchive *archive;
+    if (!file)
+        return NULL;
+    for (archive = mm_chunk_context_first(registry); archive; archive = mm_chunk_context_next(&archive->link))
+    {
+        const MMChunkReopenState *files = &mm_private_archive_reader(archive)->storage->owner->files;
+        if (!files->invalid_main && files->main_file == file)
+            return archive;
+    }
+    return NULL;
+}
+
+MMPrivateArchive *mm_private_archive_open_registered(MMChunkContext *registry, void *file, int mode,
+                                                    const MMChunkOwnerFileIO *io, const MMBlockFileServices *blocks,
+                                                    const MMPrivateArchiveProfile *profile)
+{
+    MMPrivateArchive *archive;
+    if (!file || !io || !io->release)
+        return NULL;
+    archive = mm_private_archive_find(registry, file);
+    if (archive)
+    {
+        if (mode == MM_PRIVATE_ARCHIVE_WORKING)
+            mm_private_archive_retain(archive);
+        io->release(file);
+        return mode == MM_PRIVATE_ARCHIVE_WORKING ? archive : NULL;
+    }
+    archive = mm_private_archive_open(file, mode, io, blocks, profile);
+    if (archive && mm_chunk_context_attach(registry, &archive->link) != MM_CHUNK_OK)
+    {
+        mm_private_archive_close(archive);
+        return NULL;
+    }
+    return archive;
 }
 
 MMMovieArchiveEditor mm_private_archive_editor(MMPrivateArchive *archive)

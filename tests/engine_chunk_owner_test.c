@@ -802,8 +802,9 @@ static void private_archive_cases(void)
     const MMPrivateArchiveProfile profile = {1, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, 0, 1, NULL, convert_text};
     StorageHost host = {0};
     MMBlockFileServices blocks = {NULL, retain_block, release_block, create_extra, read_block, write_block};
+    MMChunkContext registry = {0};
     const MMChunkOwnerFileIO io = storage_io(&host);
-    MMPrivateArchive *archive;
+    MMPrivateArchive *archive, *alias;
     MMMovieArchiveEditor editor;
     MMMovieSessionGraph graph;
     MMChunkAccess access;
@@ -812,8 +813,9 @@ static void private_archive_cases(void)
     char value[4];
 
     blocks.context = &host;
-    archive = mm_private_archive_open(&host.main, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks, &profile);
-    CHECK(archive != NULL);
+    archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks,
+                                                  &profile);
+    CHECK(archive != NULL && mm_private_archive_find(&registry, &host.main) == archive);
     editor = mm_private_archive_editor(archive);
     graph = mm_movie_owner_graph(mm_private_archive_reader(archive));
     mm_private_archive_retain(archive);
@@ -824,8 +826,26 @@ static void private_archive_cases(void)
     CHECK(access.count == 1 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK);
     CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
     CHECK(!memcmp(value, "test", sizeof(value)) && host.main.releases == host.main.retains);
+    retain_block(NULL, &host.main);
+    alias = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_WORKING, &io, &blocks,
+                                                &profile);
+    CHECK(alias == archive && !mm_private_archive_reader(alias)->storage->owner->add_to_extra);
+    mm_private_archive_close(alias);
+    CHECK(mm_private_archive_save(archive, 0));
     mm_private_archive_close(archive);
-    CHECK(host.main.releases == host.main.retains + 1);
+    CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
+
+    retain_block(NULL, &host.main);
+    archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_WORKING, &io, &blocks,
+                                                  &profile);
+    CHECK(archive && mm_private_archive_reader(archive)->storage->owner->add_to_extra);
+    editor = mm_private_archive_editor(archive);
+    CHECK(editor.put(editor.context, 1, number, "edit", sizeof(value)));
+    CHECK(mm_private_archive_reader(archive)->storage->owner->files.extra_file == &host.extra);
+    memcpy(value, host.main.bytes + MM_CHUNK_PREFIX_BYTES, sizeof(value));
+    CHECK(!memcmp(value, "test", sizeof(value)));
+    mm_private_archive_close(archive);
+    CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
 }
 
 int main(void)

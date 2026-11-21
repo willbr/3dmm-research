@@ -148,6 +148,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     ~ChunkyResourceFile(void);
     static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax);
     static PChunkyResourceFile PcrfNewPrivate(MMPrivateArchive *, LegacyLong cbMax);
+    static PChunkyResourceFile PcrfOpenWorking(PFilename, bool create);
     static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, PFileObject, LegacyLong cbMax);
     static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, void *backing, const MMBlockFileServices &,
                                            String &path, LegacyLong cbMax);

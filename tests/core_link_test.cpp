@@ -5,6 +5,9 @@
 #include "soc_core.h"
 #include "handle_services.h"
 #include "actor_track_fixture.h"
+#include "movie_archive_fixture.h"
+#include "movie_archive_host.h"
+#include "mm/movie_session.h"
 #elif defined(TEST_BRENDER_CORE)
 #include "bren_core.h"
 #else
@@ -1828,12 +1831,12 @@ static void TestMoviePersistence()
                           static_cast<uint32_t>(movie.Resources()->CactRef()), static_cast<uint32_t>(movie.title.count)};
         Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
         Check(std::fwrite(mm_movie_title_text(&movie.title), sizeof(achar), movie.title.count, snapshot) == static_cast<size_t>(movie.title.count));
-        ChildChunkIdentification child;
+        ChunkNumber child;
         DataBlock block;
-        auto file = movie.Resources()->Pcfl();
-        if (file->FGetKidChidCtg(kctgMvie, movie.movieNumber, 0, kctgGst, &child))
+        const MovieArchiveFixture archive(movie.Resources());
+        if (archive.Link(kctgMvie, movie.movieNumber, 0, kctgGst, &child))
         {
-            Check(file->FFind(kctgGst, child.cki.cno, &block));
+            Check(archive.Find(kctgGst, child, &block));
             byte bytes[2048]; uint32_t size = block.Cb();
             Check(size <= sizeof(bytes) && block.FReadRgb(bytes, size, 0));
             Check(std::fwrite(&size, sizeof(size), 1, snapshot) == 1 && std::fwrite(bytes, 1, size, snapshot) == size);
@@ -1846,21 +1849,22 @@ static void TestMoviePersistence()
         MovieData movie;
         Check(movie.FInitEmpty());
         record(movie);
-        PChunkyFile file = movie.Resources()->Pcfl();
+        const MovieArchiveFixture archive(movie.Resources());
+        Check(!movie.Resources()->Pcfl());
         String movieTitle(PszLit("Headless movie")); movie.SetTitle(&movieTitle);
         // Preserve an actual graph: a scene references an embedded actor
         // template; persistence treats their payloads as opaque, never UI.
         byte payload[] = {1, 3, 5, 7, 9};
         ChunkNumber scene, actorTemplate;
-        DataBlock block;
         SceneData sceneState;
         sceneState.lastFrame = 12;
         String sceneName(PszLit("Headless scene")); sceneState.SetName(&sceneName);
-        Check(sceneState.FCreate(file, &scene));
-        Check(file->FAdd(sizeof(payload), kctgTmpl, &actorTemplate, &block));
-        Check(block.FWriteRgb(payload, sizeof(payload), 0));
-        Check(file->FAdoptChild(kctgScen, scene, kctgTmpl, actorTemplate, 0));
-        Check(file->FAdoptChild(kctgMvie, movie.movieNumber, kctgScen, scene, 0));
+        MovieArchiveHost host{archive.reader, archive.writer};
+        const auto editor = host.Editor();
+        Check(mm_scene_archive_create(&editor, &sceneState, &scene));
+        Check(archive.AddBytes(payload, sizeof(payload), kctgTmpl, &actorTemplate));
+        Check(archive.Adopt(kctgScen, scene, kctgTmpl, actorTemplate, 0));
+        Check(archive.Adopt(kctgMvie, movie.movieNumber, kctgScen, scene, 0));
         TAG tag = {ksidUseCrf, nullptr, kctgTmpl, actorTemplate};
         Check(TagManager::FOpenTag(&tag, movie.Resources()));
         MMRollCallActor actor = {{42, 1, ksidUseCrf, 5, tag.ctg, tag.cno}, tag.pcrf};
@@ -1871,6 +1875,8 @@ static void TestMoviePersistence()
         record(movie);
         Check(movie.FSave(&destination)); // Replacing the roll call retains graph children.
         record(movie);
+        MovieData alias;
+        Check(alias.FLoad(&destination) && alias.Resources()->ReadOwner() == archive.reader);
     }
     {
         MovieData loaded;
@@ -1878,14 +1884,16 @@ static void TestMoviePersistence()
         record(loaded);
         Check(loaded.sceneCount == 1 && loaded.actorIdLimit == 43 && loaded.actors.count == 1);
         ChunkNumber explicitRoot = loaded.movieNumber;
-        const auto reader = loaded.Resources()->ReadOwner();
-        Check(MovieData::FVerifyVersion(loaded.Resources()->Pcfl(), &explicitRoot));
+        Check(!loaded.Resources()->Pcfl());
+        const MovieArchiveFixture archive(loaded.Resources());
+        const auto graph = mm_movie_owner_graph(archive.reader);
+        Check(mm_movie_graph_root(&graph, nullptr, &explicitRoot, nullptr) == MM_MOVIE_OK);
         MMRollCallActor actor;
         Check(mm_rollcall_table_extra(&loaded.actors, 0, &actor));
         Check(actor.data.actor_id == 42 && actor.data.reference_count == 1 && actor.data.browser_flags == 5);
         Check(actor.cache == loaded.Resources());
         DataBlock block;
-        Check(loaded.Resources()->Pcfl()->FFind(kctgTmpl, actor.data.template_number, &block));
+        Check(archive.Find(kctgTmpl, actor.data.template_number, &block));
         byte bytes[5];
         Check(block.FReadRgb(bytes, sizeof(bytes), 0));
         Check(bytes[0] == 1 && bytes[4] == 9);
@@ -1893,7 +1901,7 @@ static void TestMoviePersistence()
         Check(loaded.FSave(&destination)); // Save back to the currently open file.
         record(loaded);
         Check(loaded.FLoad(&destination, explicitRoot));
-        Check(loaded.Resources()->ReadOwner() == reader);
+        Check(loaded.Resources()->ReadOwner() == archive.reader);
         record(loaded);
         // A failed load leaves already-open state intact.
         const auto resources = loaded.Resources();
@@ -1908,6 +1916,23 @@ static void TestMoviePersistence()
         record(reopened);
         String movieTitle; reopened.GetTitle(&movieTitle); Check(movieTitle.FEqualSz(PszLit("Saved after load")));
         Check(reopened.sceneCount == 1 && reopened.actors.count == 1);
+    }
+    {
+        Filename copy;
+        Check(copy.FGetTemp());
+        {
+            MovieData movie, original, saved;
+            Check(movie.FLoad(&destination));
+            const auto owner = movie.Resources()->ReadOwner();
+            String title(PszLit("Saved to a new path"));
+            movie.SetTitle(&title);
+            Check(movie.FSave(&copy));
+            Check(saved.FLoad(&copy) && saved.Resources()->ReadOwner() == owner);
+            Check(original.FLoad(&destination) && original.Resources()->ReadOwner() != owner);
+            original.GetTitle(&title);
+            Check(title.FEqualSz(PszLit("Saved after load")));
+        }
+        Check(copy.FDelete());
     }
     // Reject mismatched wire layouts before GetExtra can overrun a row.
     {

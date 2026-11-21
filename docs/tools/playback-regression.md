@@ -19526,3 +19526,32 @@ canvas differences from retail. Both ports matched the three archived
 V3dmm frames, cameras, and canvases of the saved portable storyboard in
 `20261121T165955Z-2c534064`. Evidence is in
 `tmp/c89-private-working/evidence`.
+
+## Existing Studio movies use the C89 working archive (21 November 2026)
+
+Studio opens existing movies directly into the C89 archive owner. It
+loads the index for reading and stages edited payloads in an extra file
+until save. Repeated opens of the same live file share an archive owner.
+Save As moves that owner to the new filename. Reopening the old name then
+loads the original separately. The headless movie fixtures exercise both
+paths without constructing a native `ChunkyFile` wrapper.
+
+All 193 standalone C checks, five focused AddressSanitizer checks, seven
+native x64 checks including the Marcus player, and five SDL checks
+passed. Native x86 passed the core-link and movie save/load fixtures. The
+saved movie and save trace matched the prior bytes on native x64, native
+x86, and SDL.
+
+SDL Studio saved and reopened a newly authored movie byte for byte
+against the prior authoring run. Editing a read-only source through the
+normal Save command opened Save As. The saved copy reopened at the
+edited frame range and the original retained its bytes and read-only
+attribute. Studio also edited, saved, and reopened the portable VMM.
+
+Retail, SDL, and Marcus agreed on the frame and camera indices for all
+11 authored-movie seeks and each reproduced its prior canvas hashes in
+`20261121T170932Z-a2091472`. The known differences between the ports and
+retail are present in that capture. SDL and Marcus matched the three
+archived V3dmm frames, cameras, and canvas hashes for the edited portable
+movie in `20261121T170928Z-6f0f464e`. Evidence is in
+`tmp/c89-existing-working/evidence`.

@@ -13,15 +13,6 @@ struct NativeMovieHost
 {
     PFilename filename;
 };
-PChunkyResourceFile MovieResources(PChunkyFile file)
-{
-    if (!file)
-        return nullptr;
-    const auto resources = ChunkyResourceFile::PcrfNew(file, 0);
-    file->Release();
-    return resources;
-}
-
 void MovieOpenError(void *, int status)
 {
     PushErc(status == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
@@ -61,9 +52,15 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
 #else
         0,
 #endif
-        [](void *) -> void * { return MovieResources(ChunkyFile::PcflCreateTemp()); },
+        [](void *) -> void * {
+            Filename name;
+            if (name.FGetTemp())
+                return ChunkyResourceFile::PcrfOpenWorking(&name, true);
+            PushErc(ercCflCreate);
+            return nullptr;
+        },
         [](void *, void *path) -> void * {
-            return MovieResources(ChunkyFile::PcflOpen(static_cast<PFilename>(path), fcflNil));
+            return ChunkyResourceFile::PcrfOpenWorking(static_cast<PFilename>(path), false);
         },
         _SessionBinding(),
         [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },

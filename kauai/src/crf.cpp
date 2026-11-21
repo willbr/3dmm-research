@@ -222,6 +222,13 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNewPrivate(MMPrivateArchive *archive
         return nullptr;
     return _PcrfNew({archive, nullptr, nullptr}, budget, nullptr, nullptr, archive);
 }
+PChunkyResourceFile ChunkyResourceFile::PcrfOpenWorking(PFilename name, bool create)
+{
+    const auto archive = KauaiWorkingArchive(name, create);
+    const auto resources = PcrfNewPrivate(archive, 0);
+    mm_private_archive_close(archive);
+    return resources;
+}
 PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, PFileObject backing, LegacyLong budget)
 {
     AssertPo(backing, 0);

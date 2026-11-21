@@ -2633,14 +2633,19 @@ int __cdecl main(int argc, char **argv)
         MovieData stored;
         if (!stored.FLoad(&fniMovie))
             BAIL("core movie load failed");
-        ChildChunkIdentification scene;
-        if (!stored.Resources()->Pcfl()->FGetKidChidCtg(kctgMvie, stored.movieNumber, 0, kctgScen, &scene))
+        const MovieArchiveFixture archive(stored.Resources());
+        if (stored.Resources()->Pcfl())
+            BAIL("core movie opened through the native archive wrapper");
+        ChunkNumber scene;
+        if (!archive.Link(kctgMvie, stored.movieNumber, 0, kctgScen, &scene))
             BAIL("saved movie has no scene");
+        const auto titles = KauaiChunkOwnerTitleIO();
+        const auto io = mm_scene_file_io(archive.reader, &archive.writer, &titles);
         SceneData metadata;
-        if (!metadata.FRead(stored.Resources()->Pcfl(), scene.cki.cno))
+        if (!mm_scene_read(&metadata, scene, &io))
             BAIL("core scene read failed");
         metadata.transition = transFadeToBlack;
-        if (!metadata.FWrite(stored.Resources()->Pcfl(), scene.cki.cno) || !stored.FSave(&fniMovie))
+        if (!mm_scene_write(&metadata, scene, &io) || !stored.FSave(&fniMovie))
             BAIL("core scene edit/save failed");
     }
 

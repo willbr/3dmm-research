@@ -79,7 +79,7 @@
 #include "mm/chunk_edit.h"
 #include "mm/chunk_ops.h"
 #include "mm/chunk_copy.h"
-#include "mm/private_archive.h"
+#include "private_archive_host.h"
 #include "mm/chunk_forest.h"
 #include "mm/movie_title.h"
 #include "handle_services.h"
@@ -243,6 +243,8 @@ RTCLASS(ChunkGraphEnumerator)
 
 namespace
 {
+MMChunkContext workingArchives;
+
 MMChunkOwnerFileIO ChunkOwnerFileIO()
 {
     return {
@@ -283,15 +285,35 @@ MMChunkOwnerFileIO ChunkOwnerFileIO()
 MMPrivateArchive *KauaiPrivateArchive(PFileObject file)
 {
     AssertPo(file, 0);
-    const MMPrivateArchiveProfile profile = {
-        sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), expandedRecords, DebugShip(1, 0),
-        KauaiEncodeLegacyChunkName,
-        [](void *, const void *bytes, size_t count, int encoding, void *text, size_t capacity) -> size_t {
-            return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(text), capacity);
-        }};
+    const auto profile = KauaiPrivateArchiveProfile();
     const auto io = ChunkOwnerFileIO();
     file->AddRef();
     return mm_private_archive_open(file, MM_PRIVATE_ARCHIVE_CREATE, &io, KauaiBlockFileServices(), &profile);
+}
+
+MMPrivateArchive *KauaiWorkingArchive(Filename *name, bool create)
+{
+    AssertPo(name, ffniFile);
+    const auto flags = mm_chunk_file_flags(create ? MM_CHUNK_WRITE | MM_CHUNK_TEMP : 0);
+    PFileObject file;
+    if (create)
+        file = FileObject::PfilCreate(name, flags);
+    else
+    {
+        file = FileObject::PfilFromFni(name);
+        if (mm_private_archive_find(&workingArchives, file))
+            file->AddRef();
+        else
+            file = FileObject::PfilOpen(name, flags);
+    }
+    const auto profile = KauaiPrivateArchiveProfile();
+    const auto io = ChunkOwnerFileIO();
+    const int mode = create ? MM_PRIVATE_ARCHIVE_CREATE : MM_PRIVATE_ARCHIVE_WORKING;
+    const auto archive =
+        mm_private_archive_open_registered(&workingArchives, file, mode, &io, KauaiBlockFileServices(), &profile);
+    if (!archive)
+        PushErc(create ? ercCflCreate : ercCflOpen);
+    return archive;
 }
 
 PChunkyFile ChunkyFile::_PcflNew()
