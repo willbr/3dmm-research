@@ -1,6 +1,7 @@
 /* Scene loading and sound resolution converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_load.h"
+#include "mm/movie_sound.h"
 #include "mm/text_store.h"
 
 static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start, const MMSceneLoadServices *s)
@@ -153,7 +154,8 @@ int mm_scene_resolve_sounds(MMU32 scene, const MMSceneResolveServices *s)
                 mm_scene_sound_get_tag(sound, j, &tag);
                 if (!tag.tag.sid)
                 {
-                    int resolved = s->resolve(s->context, &tag, scene);
+                    const MMMovieSoundServices movie = s->movie_sound(s->context);
+                    const int resolved = mm_movie_sound_resolve(&tag.tag, tag.child, scene, NULL, &movie);
                     mm_scene_sound_put_tag(sound, j, &tag);
                     if (!resolved)
                         goto done;

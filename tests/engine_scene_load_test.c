@@ -1,8 +1,10 @@
 #include "mm/scene_load.h"
+#include "mm/movie_sound.h"
 #include "mm/text.h"
 #include "mm/text_store.h"
 #define SCENE_SOUND_FIXTURE_NO_PACKET_HELPERS
 #include "scene_sound_fixture.h"
+#include "chunk_seed_fixture.h"
 typedef union Payload {
     void *align;
     unsigned char bytes[160];
@@ -26,7 +28,9 @@ typedef struct Loader
     LoadObject wire[2], background_cache, *scene;
     unsigned title_unit;
     int attempt, fail, live, swap, names, title_mode, bad_titles, log[512], used;
-    int actor_calls, resolve_calls, actor_fail, resolve_fail, no_thumbnail, bad_kind;
+    int actor_calls, resolve_calls, actor_fail, resolve_refs, no_thumbnail, bad_kind;
+    ChunkIndexFixture archive;
+    MMTagServices movie_tags;
     int track_allocations, fail_open, fail_track;
 } Loader;
 static void note(Loader *f, int value)
@@ -418,15 +422,44 @@ static int resolve_actor(void *p, void *actor, MMU32 scene)
     ++f->actor_calls;
     return f->actor_calls != f->actor_fail;
 }
-static int resolve_record(void *p, MMSceneSoundTag *r, MMU32 scene)
+static void read_resolve_movie(void *p, MMMovieSoundState *state)
 {
-    Loader *f = (Loader *)p;
-    CHECK(scene == 42 && f->owner.tracks[MM_SCENE_FRAMES].storage.buffers[0].locks == 1 && !r->tag.sid);
+    Loader *f = p;
+    CHECK(f->owner.tracks[MM_SCENE_FRAMES].storage.buffers[0].locks == 1 && f->actor_calls == 2);
     ++f->resolve_calls;
-    if (f->resolve_calls == f->resolve_fail)
-        return 0;
-    r->tag.number += 4;
-    return 1;
+    state->cache = &f->packets;
+    state->movie = 0;
+    state->scene = 0;
+}
+static void *resolve_file(void *p)
+{
+    return &((Loader *)p)->archive;
+}
+static MMChunkEdit resolve_edit(void *p)
+{
+    return fixture_chunk_edit(p);
+}
+static void retain_resolve_cache(void *p)
+{
+    Loader *f = p;
+    CHECK(f->resolve_refs == 2);
+    ++f->resolve_refs;
+}
+static void release_resolve_cache(void *p)
+{
+    Loader *f = p;
+    CHECK(f->resolve_refs == 3);
+    --f->resolve_refs;
+}
+static MMMovieSoundServices movie_sound(void *p)
+{
+    Loader *f = p;
+    MMMovieSoundServices s = {0};
+    s.context = f;
+    s.read = read_resolve_movie;
+    s.tags = &f->movie_tags;
+    s.edit = resolve_edit;
+    return s;
 }
 static void test_resolve(void)
 {
@@ -448,15 +481,22 @@ static void test_resolve(void)
         s.context = &f;
         s.owner = &f.owner;
         s.actor = resolve_actor;
-        s.resolve = resolve_record;
+        s.movie_sound = movie_sound;
         f.actor_fail = fail <= 2 ? fail : 0;
-        f.resolve_fail = fail == 3 || fail == 4 ? fail - 2 : 0;
+        f.resolve_refs = 2;
+        f.movie_tags.file = resolve_file;
+        f.movie_tags.retain = retain_resolve_cache;
+        f.movie_tags.release = release_resolve_cache;
+        if (fail != 3)
+            fixture_chunk_seed_link(&f.archive, MM_SOUND_SCENE, 42, MM_SOUND_CHUNK, 5, 1);
+        if (fail != 4)
+            fixture_chunk_seed_link(&f.archive, MM_SOUND_SCENE, 42, MM_SOUND_CHUNK, 7, 3);
         sound = (MMSceneSound *)mm_scene_track_payload(frames, 0, NULL);
         CHECK(sound && sound->ctagc == 3);
         if (fail == 5)
             sound->ctagc = 1000;
         CHECK(mm_scene_resolve_sounds(42, &s) == (fail == 0));
-        CHECK(!frames->storage.buffers[0].locks);
+        CHECK(!frames->storage.buffers[0].locks && f.resolve_refs == 2);
         if (fail == 1 || fail == 2 || fail == 5)
             CHECK(!f.resolve_calls);
         else

@@ -98,8 +98,9 @@ int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 cou
             const MMTag tag = tags[i];
             if (!tag.sid)
             {
+                const MMMovieSoundServices movie = s->movie_sound(c);
                 child = 0;
-                if (!s->child(c, tag.number, &child))
+                if (!mm_movie_sound_child(tag.number, &child, &movie))
                 {
                     s->free_raw(c, records);
                     return 0;
@@ -124,8 +125,9 @@ int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 cou
         entry.tag = tags[0];
         if (!entry.tag.sid)
         {
+            const MMMovieSoundServices movie = s->movie_sound(c);
             child = 0;
-            if (!s->child(c, entry.tag.number, &child))
+            if (!mm_movie_sound_child(entry.tag.number, &child, &movie))
             {
                 s->values.release(s->values.context, previous);
                 return 0;
@@ -154,8 +156,9 @@ int mm_scene_sound_add(int loop, int queue, MMI32 volume, MMI32 style, MMI32 cou
     {
         if (!tags[i].sid)
         {
+            const MMMovieSoundServices movie = s->movie_sound(c);
             mm_scene_sound_get_tag(p, i + base, &entry);
-            if (!s->resolve_input(c, &tags[i], entry.child))
+            if (!mm_movie_sound_resolve(&tags[i], entry.child, MM_SOUND_NO_SCENE, NULL, &movie))
                 continue;
         }
         sound = s->fetch_input(c, &tags[i]);

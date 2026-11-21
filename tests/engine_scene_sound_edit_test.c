@@ -1,5 +1,6 @@
 #include "scene_sound_fixture.h"
 #include "mm/scene_sound_edit.h"
+#include "chunk_seed_fixture.h"
 typedef struct Undo
 {
     MMSceneSoundUndo state;
@@ -17,6 +18,8 @@ typedef struct Editor
     MMSceneSoundEditServices s;
     MMSceneSoundUndoServices us;
     MMSceneTrack *frames;
+    ChunkIndexFixture archive;
+    MMTagServices movie_tags;
     int dirty, indicator, indicators, actor_count, actor_calls, actor_values[3];
     MMTag tags[3];
     Undo *active;
@@ -25,6 +28,7 @@ typedef struct Editor
     int list_live, undo_live, commits, clears, issues[5], event_plays, publications, published_metadata,
         child_changes_frame;
     int input_resolve_fail, input_fetch_fail, input_mutate, packet_fetch_fail, closes, releases;
+    int input_graph_changed, input_refs;
     int check_query_release, released_query_checked;
     int fail_switch, fail_seek, fail_get, fail_restore, flushes, queue_plays, switched, seeks;
     MMI32 published_volume;
@@ -125,29 +129,49 @@ static void free_raw(void *p, void *value)
 {
     raw_free(&((Editor *)p)->base, value);
 }
-static int child(void *p, MMU32 number, MMU32 *out)
+static void read_movie(void *p, MMMovieSoundState *state)
 {
-    Editor *e = (Editor *)p;
+    Editor *e = p;
     if (e->child_changes_frame)
         e->owner.data.currentFrame = 7;
-    if (e->fail_child)
-        return 0;
-    *out = number;
-    return 1;
+    /* Exercise a changed or removed link after packet installation. */
+    if (e->dirty && !e->input_graph_changed && (e->input_resolve_fail || e->input_mutate))
+    {
+        const MMChunkEdit edit = fixture_chunk_edit(&e->archive);
+        const MMChunkChild link = {MM_SOUND_CHUNK, 1, 1};
+        CHECK(mm_chunk_unlink(&edit, MM_SOUND_SCENE, 20, &link) == MM_CHUNK_OK);
+        if (e->input_mutate)
+            fixture_chunk_seed_link(&e->archive, MM_SOUND_SCENE, 20, MM_SOUND_CHUNK, 3, 1);
+        e->input_graph_changed = 1;
+    }
+    state->cache = &e->base;
+    state->movie = 10;
+    state->scene = e->fail_child ? 99 : 0;
+}
+static void *archive_file(void *p)
+{
+    return &((Editor *)p)->archive;
+}
+static MMChunkEdit edit_archive(void *p)
+{
+    return fixture_chunk_edit(p);
+}
+static void retain_input(void *p) { ++((Editor *)p)->input_refs; }
+static void release_input(void *p) { CHECK(--((Editor *)p)->input_refs >= 0); }
+static MMMovieSoundServices movie_sound(void *p)
+{
+    Editor *e = p;
+    MMMovieSoundServices s = {0};
+    s.context = e;
+    s.read = read_movie;
+    s.tags = &e->movie_tags;
+    s.edit = edit_archive;
+    return s;
 }
 static MMU32 unused_child(void *p)
 {
     (void)p;
     return 0xccccccccU;
-}
-static int resolve_input(void *p, MMTag *tag, MMU32 child)
-{
-    Editor *e = (Editor *)p;
-    int index = (int)(tag - e->tags);
-    CHECK(child > 0 && child <= 3);
-    if (e->input_mutate && index == 0)
-        tag->number = 3;
-    return !(e->input_resolve_fail & (1 << index));
 }
 static void *fetch_input(void *p, const MMTag *tag)
 {
@@ -352,6 +376,15 @@ static void editor_init(Editor *e)
     e->owner.data.lastFrame = 10;
     for (i = 0; i < 3; ++i)
         e->tags[i] = e->base.input[i].tag;
+    e->input_refs = 2;
+    e->movie_tags.file = archive_file;
+    e->movie_tags.retain = retain_input;
+    e->movie_tags.release = release_input;
+    fixture_chunk_seed_link(&e->archive, MM_SOUND_MOVIE, 10, MM_SOUND_SCENE, 20, 0);
+    fixture_chunk_seed_link(&e->archive, MM_SOUND_SCENE, 20, MM_SOUND_CHUNK, 7, 0);
+    fixture_chunk_seed_link(&e->archive, MM_SOUND_SCENE, 20, MM_SOUND_CHUNK, 8, 2);
+    fixture_chunk_add(&e->archive, MM_SOUND_CHUNK, 1);
+    fixture_chunk_add(&e->archive, MM_SOUND_CHUNK, 3);
     s = &e->s;
     s->context = e;
     s->values.context = e;
@@ -359,9 +392,8 @@ static void editor_init(Editor *e)
     s->values.release = release_packet;
     s->allocate_records = allocate_records;
     s->free_raw = free_raw;
-    s->child = child;
+    s->movie_sound = movie_sound;
     s->unused_child = unused_child;
-    s->resolve_input = resolve_input;
     s->fetch_input = fetch_input;
     s->create_tag_list = new_list;
     s->resize_tag_list = resize_list;
@@ -504,7 +536,8 @@ static void additions(void)
     e.input_mutate = 1;
     CHECK(mm_scene_sound_add(0, 0, 30, 2, 1, e.tags, &e.s));
     mm_scene_sound_get_tag(frame_packet(&e, 0), 0, &tag);
-    CHECK(e.tags[0].number == 3 && tag.tag.number == 1 && e.base.volumes[3] == 30);
+    CHECK(e.tags[0].number == 3 && tag.tag.number == 1 && tag.child == 1 && e.base.volumes[3] == 30 &&
+          e.input_refs == 2);
     editor_clean(&e);
     editor_init(&e);
     e.child_changes_frame = 1;

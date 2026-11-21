@@ -18844,3 +18844,33 @@ all 60 archived retail frame identities in seek and continuous playback.
 Their seek camera indices matched retail and their 60 seek canvas hashes
 matched their prior captures. SDL matched all 12 retail sound requests.
 Evidence is in `tmp/c89-sound-edit-bindings`.
+
+## Scene sound editing and relinking through C89 archives (21 November 2026)
+
+Studio uses the C89 movie sound controller for local link allocation during
+scene sound insertion and queue append, and for resolving preview input and
+stored scene tags. The C fixtures exercise a link changing after a packet is
+installed, a missing link during preview, the caller's unchanged input tag,
+and bulk resolution that retains its completed prefix and releases the frame
+lock on failure.
+
+All 193 standalone C checks, six focused AddressSanitizer checks, two x86 C
+fixtures, 13 native checks and the SDL movie-sound import check passed. The native scene-sound
+edit traces matched their pre-change captures on x64, x86 and SDL, at 3,796,
+3,796 and 3,812 bytes respectively. The scene-load traces also matched, at
+62,784 bytes on x64 and x86 and 66,240 on SDL. Actor-paste, actor-sound-edit and
+movie-sound traces, all 27 save/reopen traces, composition and sound-resource
+snapshots, and the complete authoring saves matched their prior builds.
+Both ports matched the three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T115853Z-58858651`.
+
+In `actor-event-edit` suite `20261121T115858Z-14b7e324`, both ports matched
+all 60 archived retail frame identities in seek and continuous playback.
+Their seek camera indices matched retail and their 60 seek canvas hashes
+matched their prior captures. SDL matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T120029Z-f19a5497`, both ports matched all 60
+retail frame identities and SDL matched all four retail sound requests.
+Both ports reproduced their previous PCM16 peak of 2,176. The archived
+retail peak is 2,380. The captures contain 522,240 SDL and 512,640 Marcus PCM
+frames. Evidence is in `tmp/c89-scene-sound-controller`.

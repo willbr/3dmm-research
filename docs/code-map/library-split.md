@@ -1811,6 +1811,8 @@ behavior and resource cleanup. Full gates and retail comparison limits are in
 
 `scene_sound_edit.c` owns current-frame sound search, insert/replace/queue/remove,
 query, volume, preview, background offsets/playback and sound-frame indicators.
+It uses the C89 movie sound controller to allocate local child slots and resolve
+the input tags for preview playback. Studio supplies the bound movie.
 It also owns sound-undo packet/style state and swap control. The native
 `SceneUndoSound` facade is declared in `inc/scene_sound_undo.h`; common MovieUndo
 targets/navigation, undo-list/object lifetime, typed groups and resource/queue
@@ -1869,7 +1871,8 @@ internal service contract.
 
 `mm_scene_resolve_sounds` captures the actor count, resolves actors first,
 then locks frame storage, captures its event count and resolves sid-zero sound
-tags in order. Failure retains previously resolved tags. The former native
+tags in order through the shared C89 movie sound controller. Failure retains
+previously resolved tags. The former native
 frame-resolution failure left its group locked; every acquired lock now releases
 on success or failure. Native supplemental checks and C callback tests cover
 that correction separately from the frozen load trace.

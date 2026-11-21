@@ -4,6 +4,7 @@
 #define MM_ENGINE_SCENE_SOUND_EDIT_H
 #include "scene_runtime.h"
 #include "scene_sound.h"
+#include "movie_sound.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -34,9 +35,8 @@ extern "C"
         MMSceneSoundValueServices values;
         void *(*allocate_records)(void *, MMI32 bytes);
         void (*free_raw)(void *, void *);
-        int (*child)(void *, MMU32 number, MMU32 *child);
+        MMMovieSoundServices (*movie_sound)(void *);
         MMU32 (*unused_child)(void *);
-        int (*resolve_input)(void *, MMTag *, MMU32 child);
         void *(*fetch_input)(void *, const MMTag *);
         void *(*create_tag_list)(void *, MMI32 count);
         int (*resize_tag_list)(void *, void *list, MMI32 count);

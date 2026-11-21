@@ -4,6 +4,7 @@
 #include "mm/actor_undo.h"
 #include "mm/scene_selection.h"
 #include "actor_stage_owner_fixture.h"
+#include "chunk_seed_fixture.h"
 #include "movie_scene_session_fixture.h"
 #include <stddef.h>
 #include <stdio.h>
@@ -108,7 +109,7 @@ struct Test
     int view, inScene, fail, selectedCalls, selectionCalls, frame, actorBindings, sceneBindings;
     int actorSeeks, actorSoundFrames;
     MMI32 actorSeekFrame;
-    int sceneDirty, sceneSoundFrames, camera, cameraCloses;
+    int sceneDirty, sceneSoundFrames, movieSoundBindings, camera, cameraCloses;
     MMU32 sceneInputNumber;
     int dirty, invalidates, bars, nuked, error, diagnostics, entire, restore, placeCalls, undoCount;
     int lastUndoCalls, notify, commits, clears, rowChanges;
@@ -605,19 +606,46 @@ static MMI32 current_camera(void *p) { return ((Test *)p)->camera; }
 static int scene_transition(void *p) { return ((Test *)p)->scene_owner.data.transition; }
 static int cannot_notify(void *p) { (void)p; return 0; }
 static void ignore_change(void *p) { (void)p; }
-static int scene_sound_child(void *p, MMU32 number, MMU32 *child)
+static void *scene_sound_file(void *p)
 {
-    (void)p;
-    *child = number + 7;
-    return 1;
+    return &((Test *)p)->archive;
+}
+static MMChunkEdit scene_sound_archive(void *p)
+{
+    return fixture_chunk_edit(p);
+}
+static void read_scene_sound_movie(void *p, MMMovieSoundState *state)
+{
+    state->cache = p;
+    state->movie = 10;
+    state->scene = 0;
+}
+static MMMovieSoundServices scene_sound_movie(void *p)
+{
+    static const MMTagServices tags = {
+        NULL, scene_sound_file, ignore_change, ignore_change, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    };
+    Test *t = p;
+    MMMovieSoundServices s = {0};
+    /* Change the link after storing the packet and before previewing its input. */
+    if (++t->movieSoundBindings % 2 == 0)
+    {
+        const MMChunkEdit edit = fixture_chunk_edit(&t->archive);
+        MMChunkChild old;
+        old.type = MM_SOUND_CHUNK;
+        old.number = 4 + (MMU32)t->movieSoundBindings / 2;
+        old.slot = old.number + 7;
+        if (mm_chunk_unlink(&edit, MM_SOUND_SCENE, 20, &old) != MM_CHUNK_OK)
+            abort();
+        fixture_chunk_seed_link(&t->archive, MM_SOUND_SCENE, 20, old.type, old.slot, old.slot);
+    }
+    s.context = t;
+    s.tags = &tags;
+    s.read = read_scene_sound_movie;
+    s.edit = scene_sound_archive;
+    return s;
 }
 static MMU32 scene_sound_unused(void *p) { (void)p; return 29; }
-static int scene_sound_resolve(void *p, MMTag *tag, MMU32 child)
-{
-    (void)p;
-    tag->number = child;
-    return 1;
-}
 static void *scene_sound_fetch(void *p, const MMTag *tag)
 {
     ((Test *)p)->sceneInputNumber = tag->number;
@@ -675,9 +703,8 @@ static MMSceneEditServices bind_scene_edit(void *p)
     s.sound.values = scene_sound_values(t);
     s.sound.allocate_records = scene_sound_allocate;
     s.sound.free_raw = scene_sound_free;
-    s.sound.child = scene_sound_child;
+    s.sound.movie_sound = scene_sound_movie;
     s.sound.unused_child = scene_sound_unused;
-    s.sound.resolve_input = scene_sound_resolve;
     s.sound.fetch_input = scene_sound_fetch;
     s.sound.dirty = scene_edit_dirty;
     s.sound.sound_frame = scene_sound_frame;
@@ -1371,6 +1398,10 @@ static int scene_edits(void)
     init(&t);
     CHECK(seed_scene(&t));
     tag.sid = 0;
+    tag.type = MM_SOUND_CHUNK;
+    fixture_chunk_seed_link(&t.archive, MM_SOUND_MOVIE, 10, MM_SOUND_SCENE, 20, 0);
+    fixture_chunk_seed_link(&t.archive, MM_SOUND_SCENE, 20, MM_SOUND_CHUNK, 5, 12);
+    fixture_chunk_seed_link(&t.archive, MM_SOUND_SCENE, 20, MM_SOUND_CHUNK, 6, 13);
     q.volume = 101;
     q.style = 3;
     CHECK(mm_movie_edit_scene(MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &t.s));
@@ -1380,7 +1411,7 @@ static int scene_edits(void)
     CHECK(mm_movie_edit_scene(MM_MOVIE_EDIT_BACKGROUND_SOUND, &q, &t.s));
     packet = mm_scene_track_payload(track, 0, NULL);
     CHECK(packet->ctagc == 2 && t.undo.sound.sound && t.undo.sound.sound->ctagc == 1);
-    CHECK(t.sceneInputNumber == 13 && tag.number == 6);
+    CHECK(t.sceneInputNumber == 13 && tag.number == 6 && !tag.cache && t.movieSoundBindings == 4);
     dispose_scene(&t);
     init(&t);
     t.fail = FAIL_SOUND;

@@ -747,6 +747,11 @@ void Scene::_MoveBackFirstFrame(long nfrm)
     mm_scene_move_first(&_owner, nfrm);
 }
 
+static MMMovieSoundServices BindSceneMovieSound(void *p)
+{
+    return static_cast<PScene>(p)->Pmvie()->SoundServices();
+}
+
 MMSceneSoundEditServices Scene::_SoundEditServices()
 {
     MMSceneSoundEditServices s = {};
@@ -758,19 +763,11 @@ MMSceneSoundEditServices Scene::_SoundEditServices()
         return FAllocPv(&p, bytes, fmemClear, mprNormal) ? p : nullptr;
     };
     s.free_raw = [](void *, void *p) { FreePpv(&p); };
-    s.child = [](void *p, MMU32 number, MMU32 *child) -> int {
-        ChildChunkID value = *child;
-        bool ok = static_cast<PScene>(p)->Pmvie()->FChidFromUserSndCno(number, &value);
-        *child = value;
-        return ok;
-    };
+    s.movie_sound = BindSceneMovieSound;
     s.unused_child = [](void *) -> MMU32 {
         ChildChunkID value = 0;
         TrashVar(&value);
         return value;
-    };
-    s.resolve_input = [](void *p, MMTag *tag, MMU32 child) -> int {
-        return static_cast<PScene>(p)->Pmvie()->FResolveSndTag(*tag, child);
     };
     s.fetch_input = [](void *, const MMTag *value) -> void * {
         TAG tag;
@@ -2070,9 +2067,7 @@ bool Scene::FResolveAllSndTags(ChunkNumber cnoScen)
     s.actor = [](void *, void *actor, MMU32 scene) -> int {
         return static_cast<PActor>(actor)->FResolveAllSndTags(scene);
     };
-    s.resolve = [](void *p, MMSceneSoundTag *record, MMU32 scene) -> int {
-        return static_cast<PScene>(p)->Pmvie()->FResolveSndTag(record->tag, record->child, scene);
-    };
+    s.movie_sound = BindSceneMovieSound;
     return mm_scene_resolve_sounds(cnoScen, &s) != 0;
 }
 

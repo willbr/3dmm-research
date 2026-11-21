@@ -38,12 +38,13 @@ extern "C"
      * The scene owns both C tracks. Native object factories and cache services
      * are supplied by the host. */
     void *mm_scene_load(void *movie, MMU32 number, const MMSceneLoadServices *);
+    struct MMMovieSoundServices;
     typedef struct MMSceneResolveServices
     {
         void *context;
         MMSceneOwner *owner;
         int (*actor)(void *, void *actor, MMU32 scene);
-        int (*resolve)(void *, MMSceneSoundTag *, MMU32 scene);
+        struct MMMovieSoundServices (*movie_sound)(void *);
     } MMSceneResolveServices;
     /* Captures actor/event counts once, visits actors before locking frame storage,
      * resolves sid-zero tags in place and preserves the completed prefix on failure.
