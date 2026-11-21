@@ -5,6 +5,7 @@
 #include <cstring>
 #include "kauai_core.h"
 #include "handle_services.h"
+#include "resource_archive_host.h"
 #include "mm/chunk_copy.h"
 #include "mm/native_archive_file.h"
 #undef size
@@ -356,6 +357,54 @@ static int WireSourceCase(bool native)
     return 0;
 }
 
+static int SharedArchiveSourceCase()
+{
+    Filename path;
+    CHECK(path.FGetTemp());
+    const ChunkTagOrType type = 'TEST';
+    const ChunkNumber number = 3;
+    String saved, pending, name;
+    saved.SetSzs(PszLit("Saved name"));
+    pending.SetSzs(PszLit("Pending name"));
+
+    auto legacy = ChunkyFile::PcflCreate(&path, fcflWriteEnable);
+    CHECK(legacy && legacy->FPutPv(nullptr, 0, type, number));
+    CHECK(legacy->FSetName(type, number, &saved) && legacy->FSave(type));
+
+    bool selected = false;
+    MMChunkOwnerRead *reader = nullptr;
+    auto cache = OpenSharedTypedCache(&path, false, selected, &reader);
+    CHECK(selected && cache && reader == legacy->ReadOwner());
+    CHECK(legacy->FSetName(type, number, &pending));
+    ReleasePpo(&legacy);
+    CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&pending));
+    mm_resource_cache_release(cache);
+
+    reader = nullptr;
+    CHECK(!OpenSharedTypedCache(&path, false, selected, &reader) && !selected && !reader);
+
+    auto working = KauaiWorkingArchive(&path, false);
+    CHECK(working);
+    cache = OpenSharedTypedCache(&path, false, selected, &reader);
+    CHECK(selected && cache && reader == mm_private_archive_reader(working));
+    CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&saved));
+    byte wire[kcbMaxDataStn];
+    const auto encoded = ChunkyFile::EncodeName(&pending, wire);
+    CHECK(mm_chunk_owner_write_name(reader->storage, type, number, reader->max_name_bytes,
+                                   encoded.wire, encoded.bytes) == MM_CHUNK_OK);
+    mm_private_archive_close(working);
+    CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&pending));
+    mm_resource_cache_release(cache);
+
+    reader = nullptr;
+    cache = OpenSharedTypedCache(&path, true, selected, &reader);
+    CHECK(selected && cache && reader);
+    CHECK(ReadResourceName(cache, type, number, &name) && name.FEqual(&saved));
+    mm_resource_cache_release(cache);
+    CHECK(path.FDelete());
+    return 0;
+}
+
 int main()
 {
     if (const char *path = std::getenv("MM_RESOURCE_CACHE_SNAPSHOT"))
@@ -364,7 +413,7 @@ int main()
         CHECK(resourceSnapshot);
     }
     CHECK(CacheCases() == 0 && ManagerCases() == 0 && LargeResidentCase() == 0 &&
-          WireSourceCase(false) == 0 && WireSourceCase(true) == 0);
+          WireSourceCase(false) == 0 && WireSourceCase(true) == 0 && SharedArchiveSourceCase() == 0);
     if (resourceSnapshot)
         CHECK(std::fclose(resourceSnapshot) == 0);
     return 0;

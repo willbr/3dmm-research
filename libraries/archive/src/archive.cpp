@@ -8,12 +8,16 @@
 #include <exception>
 #include <locale>
 #include <stdexcept>
-#include "soc_core.h"
+#include "kauai_core.h"
+#include "mm/actor_data.h"
+#include "mm/movie_data.h"
+#include "mm/scene_data.h"
 #include "engine_movie_source.h"
 #include "mm/archive_reader.h"
 #include "mm/native_archive_file.h"
 #include "mm/sound_resource.h"
 #include "platform_text.h"
+#include "resource_archive_host.h"
 #undef size
 ASSERTNAME
 
@@ -22,9 +26,9 @@ namespace MM
 struct Archive::Impl
 {
     Options options;
-    PChunkyResourceFile live = pvNil;
+    MMResourceCache *live = nullptr;
+    MMChunkOwnerRead *liveReader = nullptr;
     MMNativeArchiveFile *streamFile = nullptr;
-    String nativePath;
     bool canPreview = false;
     std::string path;
     std::vector<Chunk> chunks;
@@ -35,7 +39,8 @@ struct Archive::Impl
     ~Impl()
     {
         mm_archive_reader_close(reader);
-        ReleasePpo(&live);
+        if (live)
+            mm_resource_cache_release(live);
         mm_native_archive_file_release(streamFile);
     }
     bool Check(int status, std::size_t index, Error &error) const;
@@ -43,6 +48,14 @@ struct Archive::Impl
 };
 namespace
 {
+constexpr std::uint32_t FourCC(const char (&code)[5])
+{
+    return (std::uint32_t(static_cast<unsigned char>(code[0])) << 24) |
+           (std::uint32_t(static_cast<unsigned char>(code[1])) << 16) |
+           (std::uint32_t(static_cast<unsigned char>(code[2])) << 8) |
+            std::uint32_t(static_cast<unsigned char>(code[3]));
+}
+
 std::string Utf8(const void *value, std::size_t unitsCount)
 {
     const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
@@ -106,7 +119,7 @@ bool Archive::CanPreview() const
 MMResourceCache *Archive::NewResourceCache(std::int32_t budget) const
 {
     if (_impl->live)
-        return NewTypedSiblingCache(_impl->live->CoreCache(), budget);
+        return NewTypedSiblingCache(_impl->live, budget);
     if (!_impl->canPreview)
         return nullptr;
     return NewTypedWireCache(mm_archive_reader_wire_index(_impl->reader), _impl->streamFile,
@@ -119,7 +132,7 @@ MMArchiveReader *Archive::Reader() const
 MMMovieSessionGraph Archive::PlaybackGraph() const
 {
     if (_impl->live)
-        return mm_movie_owner_graph(_impl->live->ReadOwner());
+        return mm_movie_owner_graph(_impl->liveReader);
     return mm_archive_reader_graph(_impl->reader);
 }
 bool ReadSoundCatalogStyle(const Archive &archive, std::uint32_t number, std::int32_t &style)
@@ -185,19 +198,19 @@ std::string TypeDisplayName(std::uint32_t type)
     case kctgAg:
         description = "Allocated Group";
         break;
-    case kctgMvie:
+    case MM_MOVIE_CHUNK:
         description = "Movie";
         break;
-    case kctgScen:
+    case MM_SCENE_CHUNK:
         description = "Scene";
         break;
-    case kctgActr:
+    case MM_ACTOR_CHUNK:
         description = "Actor";
         break;
-    case kctgActn:
+    case FourCC("ACTN"):
         description = "Action";
         break;
-    case kctgTbox:
+    case FourCC("TBOX"):
         description = "Text Box";
         break;
     case kctgRichText:
@@ -206,28 +219,28 @@ std::string TypeDisplayName(std::uint32_t type)
     case kctgText:
         description = "Text";
         break;
-    case kctgBkgd:
+    case FourCC("BKGD"):
         description = "Background";
         break;
-    case kctgCam:
+    case FourCC("CAM "):
         description = "Camera";
         break;
-    case kctgTmpl:
+    case FourCC("TMPL"):
         description = "Actor Template";
         break;
-    case kctgBmdl:
+    case FourCC("BMDL"):
         description = "3D Model";
         break;
-    case kctgMtrl:
+    case FourCC("MTRL"):
         description = "Material";
         break;
-    case kctgCmtl:
+    case FourCC("CMTL"):
         description = "Custom Material";
         break;
     case kctgMbmp:
         description = "Masked Bitmap";
         break;
-    case kctgBpmp:
+    case FourCC("BPMP"):
         description = "BRender Pixel Map";
         break;
     case kctgMeta:
@@ -236,7 +249,7 @@ std::string TypeDisplayName(std::uint32_t type)
     case kctgMacPict:
         description = "Macintosh Picture";
         break;
-    case kctgPict:
+    case FourCC("PICT"):
         description = "Picture";
         break;
     case kctgMidi:
@@ -245,10 +258,10 @@ std::string TypeDisplayName(std::uint32_t type)
     case kctgWave:
         description = "Wave Audio";
         break;
-    case kctgSnd:
+    case FourCC("SND "):
         description = "Sound";
         break;
-    case kctgMsnd:
+    case MM_SOUND_TYPE:
         description = "Movie Sound";
         break;
     case kctgScript:
@@ -260,28 +273,28 @@ std::string TypeDisplayName(std::uint32_t type)
     case kctgColorTable:
         description = "Color Table";
         break;
-    case kctgGgae:
+    case FourCC("GGAE"):
         description = "Actor Events";
         break;
-    case kctgGgcl:
+    case FourCC("GGCL"):
         description = "Animation Cels";
         break;
-    case kctgGlxf:
+    case FourCC("GLXF"):
         description = "Transforms";
         break;
-    case kctgGllt:
+    case FourCC("GLLT"):
         description = "Lights";
         break;
-    case kctgGlms:
+    case FourCC("GLMS"):
         description = "Motion-Match Sounds";
         break;
-    case kctgFrmGg:
+    case FourCC("GGFR"):
         description = "Scene Frame Events";
         break;
-    case kctgStartGg:
+    case FourCC("GGST"):
         description = "Scene Start Events";
         break;
-    case kctgThumbMbmp:
+    case FourCC("THUM"):
         description = "Thumbnail";
         break;
     default:
@@ -365,20 +378,21 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
         };
         bool useLive = false;
         if (mode != OpenMode::inspection)
-            opened->live = ChunkyResourceFile::PcrfOpenShared(&filename, 0, mode == OpenMode::live, useLive);
+            opened->live = OpenSharedTypedCache(&filename, mode == OpenMode::live, useLive, &opened->liveReader);
         int status;
         if (useLive)
         {
             if (!opened->live)
                 return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-            status = mm_archive_reader_open_owner(opened->live->ReadOwner(), &readerOptions, &opened->reader);
+            status = mm_archive_reader_open_owner(opened->liveReader, &readerOptions, &opened->reader);
         }
         else
         {
             MMReadStream stream = {};
-            filename.GetStnPath(&opened->nativePath);
+            String nativePath;
+            filename.GetStnPath(&nativePath);
             opened->streamFile = mm_native_archive_file_open(
-                reinterpret_cast<const MMNativePathChar *>(opened->nativePath.Psz()));
+                reinterpret_cast<const MMNativePathChar *>(nativePath.Psz()));
             if (!mm_native_archive_file_stream(opened->streamFile, &stream))
                 return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
             const unsigned short order = 1;
@@ -594,13 +608,13 @@ struct DirectoryHost
             [](void *context, MMU32 number) -> int {
                 auto &out = static_cast<DirectoryHost *>(context)->directory;
                 out.hasRoot = true;
-                out.root = {kctgMvie, number};
+                out.root = {MM_MOVIE_CHUNK, number};
                 return 1;
             },
             [](void *context, MMU32 slot, const MMMovieSessionScene *scene) -> int {
                 auto &host = *static_cast<DirectoryHost *>(context);
                 return host.Append([&] {
-                    host.directory.scenes.push_back({{kctgScen, scene->number}, slot,
+                    host.directory.scenes.push_back({{MM_SCENE_CHUNK, scene->number}, slot,
                                                      {scene->first_frame, scene->last_frame, scene->transition}});
                 });
             },
@@ -631,7 +645,7 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
         const int status = mm_archive_reader_directory(_impl->reader, &sink, &detail);
         if (host.exception)
             std::rethrow_exception(host.exception);
-        const Id root = {kctgMvie, detail.root};
+        const Id root = {MM_MOVIE_CHUNK, detail.root};
         switch (status)
         {
         case MM_ARCHIVE_DIRECTORY_OK:

@@ -20376,3 +20376,36 @@ recorded frame and sound observations without presentation images. Marcus
 seek and playback completed in 20261121T232153Z-ff348744.
 
 Evidence is under tmp/c89-cache-owner.
+
+## C89 live archive bindings (21 November 2026)
+
+The archive API opens a live source through a typed C89 cache and borrows
+the current chunk graph from that retained source. Studio and the archive
+API share the same selection of registered working archives, open legacy
+files and immutable fallback. The C private archive supplies resource
+lookup, name, reference and copy operations for its graph. The public
+archive target now links the C89 engine through Kauai's file and text
+services. Its archive API test links independently of engine-core and
+BRender.
+
+Native cache tests confirmed that edits to both live source types remain
+visible after the original caller releases its reference, while reopening
+the underlying saved file restores the saved name. The native cache and
+C89 cache tests passed on x86. All 193 standalone C89 checks and five
+targeted AddressSanitizer checks passed. Native x64 archive and Preview API,
+Marcus player and playback, and native and SDL movie save/load checks passed.
+The native movie composition trace matched its previous bytes.
+
+Fresh suite 20261121T233105Z-c985b3a6 completed all 14 capture runs.
+SDL Studio and Marcus each matched all 90 prior seek canvases and 88 of 90
+retail seek canvases. Both matched all 90 retail camera indices and
+continuous frame identities. V3DMM matched all 30 retail seek canvases
+in the actor-audio case. SDL and V3DMM matched all six retail sound
+requests. Mixed PCM differed on the audible case, and the continuous
+image comparisons were inconclusive.
+
+SDL Studio saved and reopened the two-scene movie and checked both camera
+indices in each scene. Retail reopened that save in 20261121T233343Z-076beab4
+and reproduced all 60 reference camera indices and seek canvases.
+
+Evidence is under tmp/c89-live-archive.

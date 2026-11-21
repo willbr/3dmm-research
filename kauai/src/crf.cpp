@@ -20,7 +20,8 @@
 #include <cstring>
 #include "handle_services.h"
 #include "mm/chunk_copy.h"
-#include "mm/private_archive.h"
+#include "mm/private_archive_cache.h"
+#include "resource_archive_host.h"
 #include "util.h"
 ASSERTNAME
 
@@ -198,14 +199,11 @@ MMChunkEndpoint ResourceCopySource(MMResourceCache *cache, MMResourceChunkCopy &
                                           &titles, KauaiEncodeLegacyChunkName, sizeof(achar));
 }
 
-MMResourceServices ChunkyResourceFile::_Services()
+namespace
+{
+MMResourceServices LegacyCacheServices()
 {
     MMResourceServices s = {};
-    s.context = this;
-    s.objects = *BaseCacheableObject::_ObjectServices();
-    s.compare_reader = [](MMResourceBlockReader a, MMResourceBlockReader b) -> int {
-        return a == b ? 0 : a < b ? -1 : 1;
-    };
     s.contains = [](void *file, MMU32 type, MMU32 number) -> int {
         return static_cast<PChunkyFile>(file)->FFind(type, number);
     };
@@ -227,43 +225,78 @@ MMResourceServices ChunkyResourceFile::_Services()
         *out = mm_chunk_file_copy_endpoint(binding, owner->ReadOwner(), &writer, &titles, sizeof(achar), false);
     };
 #ifdef DEBUG
-    s.mark_owner = [](MMResourceCache *cache) { MarkMemObj(static_cast<PChunkyResourceFile>(cache->owner)); };
     s.mark_source = [](MMResourceCache *cache) { MarkMemObj(static_cast<PChunkyFile>(cache->file)); };
 #endif
-    if (_privateArchive)
-    {
-        s.live_chunks = [](void *archive) {
-            return mm_chunk_owner_access(mm_private_archive_reader(static_cast<MMPrivateArchive *>(archive))->storage);
-        };
-        s.contains = [](void *archive, MMU32 type, MMU32 number) -> int {
-            const auto graph = mm_chunk_owner_access(
-                mm_private_archive_reader(static_cast<MMPrivateArchive *>(archive))->storage);
-            MMU32 position;
-            return mm_chunk_find(&graph, type, number, &position) == MM_CHUNK_OK;
-        };
-        s.locate = [](void *archive, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed) {
-            return mm_chunk_owner_locate(mm_private_archive_reader(static_cast<MMPrivateArchive *>(archive))->storage,
-                                         type, number, extent, packed);
-        };
-        s.retain_file = [](void *archive) { mm_private_archive_retain(static_cast<MMPrivateArchive *>(archive)); };
-        s.release_file = [](void *archive) { mm_private_archive_close(static_cast<MMPrivateArchive *>(archive)); };
-        s.live_name = [](void *archive, MMU32 type, MMU32 number, void *out, MMU32 capacity, MMU32 *bytes) {
-            const auto reader = mm_private_archive_reader(static_cast<MMPrivateArchive *>(archive));
-            return mm_chunk_owner_read_name(reader->storage, type, number, reader->max_name_bytes, out, capacity,
-                                             bytes);
-        };
-        s.live_copy_source = [](void *archive, MMChunkFileCopy *binding, MMChunkEndpoint *out) {
-            *out = mm_private_archive_copy_endpoint(static_cast<MMPrivateArchive *>(archive), binding);
-        };
+    return s;
+}
+
+MMResourceServices PrivateCacheServices(MMPrivateArchive *archive)
+{
+    MMResourceServices s = {};
+    mm_private_archive_cache_services(archive, KauaiHandleServices(), &s);
 #ifdef DEBUG
-        s.mark_source = [](MMResourceCache *cache) {
-            const auto &files = mm_private_archive_reader(static_cast<MMPrivateArchive *>(cache->file))->
-                                storage->owner->files;
-            MarkMemObj(static_cast<PFileObject>(files.main_file));
-            MarkMemObj(static_cast<PFileObject>(files.extra_file));
-        };
+    s.mark_source = [](MMResourceCache *cache) {
+        const auto reader = mm_private_archive_reader(static_cast<MMPrivateArchive *>(cache->file));
+        const auto &files = reader->storage->owner->files;
+        MarkMemObj(static_cast<PFileObject>(files.main_file));
+        MarkMemObj(static_cast<PFileObject>(files.extra_file));
+    };
 #endif
+    return s;
+}
+
+struct SharedArchive
+{
+    MMPrivateArchive *working; // Owned.
+    PChunkyFile legacy;        // Borrowed until attached to a cache.
+};
+
+SharedArchive SelectSharedArchive(PFilename name, bool preferWorking, bool &selected)
+{
+    selected = true;
+    const auto file = FileObject::PfilFromFni(name);
+    if (const auto owner = KauaiFindWorkingArchive(file))
+    {
+        mm_private_archive_retain(owner);
+        return {owner, nullptr};
     }
+    if (const auto legacy = ChunkyFile::PcflFromFni(name))
+        return {nullptr, legacy->FSetGrfcfl(fcflNil) ? legacy : nullptr};
+    selected = preferWorking || (file && (file->GrffilCur() & (ffilWriteEnable | ffilDenyRead)));
+    return {selected ? KauaiWorkingArchive(name, false) : nullptr, nullptr};
+}
+}
+
+MMResourceCache *OpenSharedTypedCache(Filename *name, bool preferWorking, bool &selected, MMChunkOwnerRead **reader)
+{
+    const auto source = SelectSharedArchive(name, preferWorking, selected);
+    if (source.legacy)
+    {
+        const auto cache = NewTypedCache({source.legacy, nullptr, nullptr}, LegacyCacheServices(), 0);
+        if (cache)
+            *reader = source.legacy->ReadOwner();
+        return cache;
+    }
+    if (!source.working)
+        return nullptr;
+    const auto cache = NewTypedCache({source.working, nullptr, nullptr}, PrivateCacheServices(source.working), 0);
+    if (cache)
+        *reader = mm_private_archive_reader(source.working);
+    mm_private_archive_close(source.working);
+    return cache;
+}
+
+MMResourceServices ChunkyResourceFile::_Services()
+{
+    auto s = _privateArchive ? PrivateCacheServices(_privateArchive) : LegacyCacheServices();
+    s.context = this;
+    s.objects = *BaseCacheableObject::_ObjectServices();
+    s.compare_reader = [](MMResourceBlockReader a, MMResourceBlockReader b) -> int {
+        return a == b ? 0 : a < b ? -1 : 1;
+    };
+#ifdef DEBUG
+    s.mark_owner = [](MMResourceCache *cache) { MarkMemObj(static_cast<PChunkyResourceFile>(cache->owner)); };
+#endif
     s.destroy_owner = [](void *c) {
         auto cache = static_cast<PChunkyResourceFile>(c);
         AssertPo(cache, fobjAllocated);
@@ -340,14 +373,12 @@ PChunkyResourceFile ChunkyResourceFile::PcrfOpenWorking(PFilename name, bool cre
 PChunkyResourceFile ChunkyResourceFile::PcrfOpenShared(PFilename name, LegacyLong budget, bool preferWorking,
                                                      bool &selected)
 {
-    selected = true;
-    const auto file = FileObject::PfilFromFni(name);
-    if (const auto owner = KauaiFindWorkingArchive(file))
-        return PcrfNewPrivate(owner, budget);
-    if (const auto legacy = ChunkyFile::PcflFromFni(name))
-        return legacy->FSetGrfcfl(fcflNil) ? PcrfNew(legacy, budget) : nullptr;
-    selected = preferWorking || (file && (file->GrffilCur() & (ffilWriteEnable | ffilDenyRead)));
-    return selected ? PcrfOpenWorking(name, false, budget) : nullptr;
+    const auto source = SelectSharedArchive(name, preferWorking, selected);
+    if (source.legacy)
+        return PcrfNew(source.legacy, budget);
+    const auto resources = PcrfNewPrivate(source.working, budget);
+    mm_private_archive_close(source.working);
+    return resources;
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, PFileObject backing, LegacyLong budget)
 {

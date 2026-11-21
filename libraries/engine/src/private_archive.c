@@ -1,4 +1,4 @@
-#include "mm/private_archive.h"
+#include "mm/private_archive_cache.h"
 #include "mm/chunk_table.h"
 #include "mm/chunk_copy.h"
 #include "mm/chunk_forest.h"
@@ -118,6 +118,51 @@ static int read_title(void *context, MMU32 type, MMU32 number, void *wire, MMU32
 {
     const MMChunkOwnerRead *reader = context;
     return mm_chunk_owner_read_name(reader->storage, type, number, reader->max_name_bytes, wire, capacity, written);
+}
+
+static MMChunkAccess cache_chunks(void *context)
+{
+    return mm_chunk_owner_access(mm_private_archive_reader(context)->storage);
+}
+
+static int cache_contains(void *context, MMU32 type, MMU32 number)
+{
+    const MMChunkAccess chunks = cache_chunks(context);
+    MMU32 position;
+    return mm_chunk_find(&chunks, type, number, &position) == MM_CHUNK_OK;
+}
+
+static int cache_locate(void *context, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)
+{
+    return mm_chunk_owner_locate(mm_private_archive_reader(context)->storage, type, number, file, packed);
+}
+
+static int cache_name(void *context, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
+{
+    return read_title(mm_private_archive_reader(context), type, number, wire, capacity, written);
+}
+
+static void cache_copy_source(void *context, MMChunkFileCopy *binding, MMChunkEndpoint *out)
+{
+    *out = mm_private_archive_copy_endpoint(context, binding);
+}
+
+static void cache_retain(void *context) { mm_private_archive_retain(context); }
+static void cache_release(void *context) { mm_private_archive_close(context); }
+
+void mm_private_archive_cache_services(MMPrivateArchive *archive, const MMHandleServices *handles,
+                                       MMResourceServices *services)
+{
+    const MMChunkPayloadServices *payloads = &mm_private_archive_reader(archive)->payloads;
+    services->handles = handles ? handles : payloads->handles;
+    services->block_files = payloads->files;
+    services->live_chunks = cache_chunks;
+    services->contains = cache_contains;
+    services->locate = cache_locate;
+    services->retain_file = cache_retain;
+    services->release_file = cache_release;
+    services->live_name = cache_name;
+    services->live_copy_source = cache_copy_source;
 }
 
 static int write_title(void *context, MMU32 type, MMU32 number, const void *wire, MMU32 bytes)

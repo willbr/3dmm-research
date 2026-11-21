@@ -106,7 +106,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   On movie open Marcus reads the movie directory and metadata through the same
   C89 reader. Read-only Preview caches retain the validated wire index and the
   same native C file used to parse it. Preview opens by path also use that
-  reader. Files with a live Kauai graph use that graph.
+  reader. Live opens retain the registered working archive or the existing
+  legacy file through a typed C89 cache and read the current chunk graph.
+  The archive API links the Kauai file and text adapters and the C89 engine
+  directly.
 - Preview's renderer caches now have C89 owners for both immutable indexes
   and live archive graphs. C retains their source until the last dependent
   object is released. Typed model, texture, template and material readers

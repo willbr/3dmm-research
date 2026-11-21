@@ -1265,7 +1265,8 @@ add_library(mm-archive STATIC EXCLUDE_FROM_ALL
 add_library(MM::Archive ALIAS mm-archive)
 target_include_directories(mm-archive PUBLIC "${PROJECT_SOURCE_DIR}/libraries/archive/include")
 target_compile_features(mm-archive PUBLIC cxx_std_14)
-target_link_libraries(mm-archive PRIVATE engine-core mm-native-archive-file)
+target_include_directories(mm-archive PRIVATE "${PROJECT_SOURCE_DIR}/inc")
+target_link_libraries(mm-archive PRIVATE kauai-core mm-native-archive-file)
 add_library(mm-preview STATIC EXCLUDE_FROM_ALL
   libraries/archive/src/preview.cpp libraries/archive/src/preview_actor.cpp
   libraries/archive/src/preview_background.cpp libraries/archive/src/preview_background_mesh.cpp
