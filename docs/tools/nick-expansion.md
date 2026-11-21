@@ -1,7 +1,8 @@
 # Reconstructing the Nickelodeon expansion
 
-The importer uses Kauai/engine chunk libraries to recreate the community
-Nickelodeon expansion from the Nickelodeon retail ISO and the base 3DMM ISO.
+The importer uses the shared C89 archive reader and writer to recreate the
+community Nickelodeon expansion from the Nickelodeon retail ISO and the base
+3DMM ISO.
 Reproducible changes are implemented as chunk transformations. A local fixup
 package supplies only the remaining differences in decoded image chunks.
 
@@ -23,10 +24,9 @@ Python 3.9+ with its standard library and the C++ `nick-expansion` tool are used
 cmake --build build/studio-portable-x64 --target nick-expansion
 ```
 
-The tool links `mm-expansion` and the existing `engine-core` / `kauai-core`
-libraries. It has no Studio window or device dependency. Windows builds need
-the usual MSVC developer environment. The core retains its native narrow path
-repertoire and 255-byte path limit.
+The tool links `mm-expansion`, the native C89 archive provider, and the Kauai
+legacy text adapter. Windows builds need the usual MSVC developer environment.
+The tool accepts native narrow paths up to 255 bytes.
 
 ## Generate the local image fixups once
 

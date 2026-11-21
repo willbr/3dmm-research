@@ -185,7 +185,7 @@ MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *path, i
     static const MMChunkOwnerFileIO owner = {NULL, create_extra, read_stream, size, resize, NULL,
                                              write_at, release, NULL, NULL, NULL, NULL};
     MMNativeArchiveFile *file;
-    if (mode != MM_PRIVATE_ARCHIVE_CREATE && mode != MM_PRIVATE_ARCHIVE_EDIT)
+    if (mode != MM_PRIVATE_ARCHIVE_CREATE && mode != MM_PRIVATE_ARCHIVE_EDIT && mode != MM_PRIVATE_ARCHIVE_READ)
         return NULL;
     file = open_file(path, mode);
     return mm_private_archive_open(file, mode, &owner, mm_native_archive_file_blocks(), profile);

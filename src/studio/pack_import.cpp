@@ -121,7 +121,9 @@ std::string State(const fs::path &source, const fs::path &destination)
 {
     std::string error;
     Require(MM::WriteNickNonImageState(source.string(), destination.string(), error), error);
-    return HashFile(destination);
+    auto hash = HashFile(destination);
+    fs::remove(destination);
+    return hash;
 }
 bool Digest(const Json &value)
 {
@@ -239,6 +241,6 @@ void ImportISO(Id id, const fs::path &iso, const fs::path &baseISO, const fs::pa
         if (HashFile(root / "saved" / row.at("name").get<std::string>()) != row.at("sha256"))
             throw std::runtime_error("Saved image verification failed");
     for (const auto &name : Definitions()[0].files)
-        fs::copy_file(root / "final" / name, output / name);
+        fs::rename(root / "final" / name, output / name);
 }
 } // namespace StudioPacks

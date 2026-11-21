@@ -466,7 +466,7 @@ target_link_libraries(inspect-chunks PRIVATE kauai-core)
 
 add_library(mm-expansion STATIC EXCLUDE_FROM_ALL libraries/expansion/src/nick_expansion.cpp)
 target_include_directories(mm-expansion PUBLIC "${PROJECT_SOURCE_DIR}/libraries/expansion/include")
-target_link_libraries(mm-expansion PRIVATE engine-core)
+target_link_libraries(mm-expansion PRIVATE kauai-core mm-native-archive-file)
 target_compile_features(mm-expansion PUBLIC cxx_std_17)
 add_executable(nick-expansion EXCLUDE_FROM_ALL src/tools/nick_expansion.cpp)
 target_link_libraries(nick-expansion PRIVATE mm-expansion kauai-core)

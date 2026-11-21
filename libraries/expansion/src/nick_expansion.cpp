@@ -13,7 +13,11 @@
 #include <sstream>
 #include <stdexcept>
 #include <vector>
-#include "soc_core.h"
+#include "private_archive_host.h"
+#include "mm/archive_reader.h"
+#include "mm/material_resource.h"
+#include "mm/native_archive_file.h"
+#include "mm/string_wire.h"
 #undef size
 
 namespace MM
@@ -22,23 +26,22 @@ namespace
 {
 namespace fs = std::filesystem;
 using Bytes = std::vector<byte>;
-using Key = std::pair<ChunkTagOrType, ChunkNumber>;
+using Key = std::pair<MMU32, MMU32>;
+constexpr MMU32 colorTable = 'GLCR', materialThumbnail = 'MTTH', propThumbnail = 'PRTH';
+constexpr MMU32 customMaterial = 'CMTL', studioCreator = 'SOC ';
+bool ImageType(MMU32 type)
+{
+    return type == 'TMAP' || type == 'MBMP' || type == colorTable;
+}
 struct Chunk
 {
     Bytes data;
     std::string name;
     bool loner = false, forest = false;
-    std::vector<ChildChunkIdentification> children;
+    std::vector<MMChunkChild> children;
 };
 using Chunks = std::map<Key, Chunk>;
-struct ReleaseFile
-{
-    void operator()(PChunkyFile file) const
-    {
-        ReleasePpo(&file);
-    }
-};
-using File = std::unique_ptr<ChunkyFile, ReleaseFile>;
+using File = std::unique_ptr<MMPrivateArchive, decltype(&mm_private_archive_close)>;
 struct Names
 {
     const char *disc, *expansion;
@@ -52,48 +55,57 @@ constexpr Names files[] = {{"ACTOR.NTH", "NICKACTOR.3TH"}, {"BKGDS.3CN", "NICKBK
 {
     throw std::runtime_error(message);
 }
-Filename FilenameFor(const fs::path &path)
+File OpenArchive(const fs::path &path, int mode)
 {
     const auto value = fs::absolute(path).string();
-    if (value.size() > 255)
+    if (value.size() > MM_STRING_MAX)
         Fail("Archive path exceeds the core's 255-byte limit");
-    String text;
-    text.SetSzs(const_cast<char *>(value.c_str()));
-    Filename name;
-    if (!name.FBuildFromPath(&text))
-        Fail("Invalid archive path: " + value);
-    return name;
+    const auto profile = KauaiPrivateArchiveProfile();
+    return File(mm_native_private_archive_open(value.c_str(), mode, &profile), mm_private_archive_close);
 }
 Chunks Read(const fs::path &path)
 {
-    auto name = FilenameFor(path);
-    File file(ChunkyFile::PcflOpen(&name, fcflNil));
+    const auto file = OpenArchive(path, MM_PRIVATE_ARCHIVE_READ);
     if (!file)
         Fail("Cannot read chunky archive: " + path.string());
+    const auto owner = mm_private_archive_reader(file.get());
+    MMArchiveReaderOptions options = {};
+    options.max_packed_bytes = 128U * 1024 * 1024;
+    MMArchiveReader *opened;
+    if (mm_archive_reader_open_owner(owner, &options, &opened) != MM_ARCHIVE_READ_OK)
+        Fail("Cannot read chunky archive index: " + path.string());
+    const std::unique_ptr<MMArchiveReader, decltype(&mm_archive_reader_close)> reader(opened, mm_archive_reader_close);
+    const auto access = mm_archive_reader_access(reader.get());
     Chunks chunks;
-    for (LegacyLong i = 0; i < file->Ccki(); ++i)
+    for (MMU32 i = 0; i < access.count; ++i)
     {
-        ChunkIdentification id;
-        DataBlock block;
-        if (!file->FGetCki(i, &id, nullptr, &block) || !block.FUnpackData() || block.Cb() > 128 * 1024 * 1024)
+        MMChunkEntry entry;
+        MMReadStream payload;
+        if (mm_chunk_at(&access, i, &entry) != MM_CHUNK_OK ||
+            mm_archive_reader_payload(reader.get(), i, &payload) != MM_ARCHIVE_READ_OK ||
+            payload.length > options.max_packed_bytes)
             Fail("Cannot decode chunk: " + path.string());
         Chunk chunk;
-        chunk.data.resize(block.Cb());
-        if (block.Cb() && !block.FReadRgb(chunk.data.data(), block.Cb(), 0))
+        chunk.data.resize(payload.length);
+        if (payload.length && !mm_read_exact(&payload, 0, chunk.data.data(), payload.length))
             Fail("Cannot read chunk payload: " + path.string());
         String label;
-        file->FGetName(id.ctg, id.cno, &label); // False means an unnamed chunk.
+        mm_archive_reader_name(reader.get(), i, [](void *out, const MMReadStream *name) -> int {
+            unsigned char wire[kcbMaxDataStn];
+            return name->length <= sizeof(wire) && mm_read_exact(name, 0, wire, name->length) &&
+                   static_cast<PString>(out)->FSetData(wire, name->length);
+        }, &label);
         chunk.name.assign(label.Psz(), label.Cch());
-        chunk.loner = file->FLoner(id.ctg, id.cno);
-        chunk.forest = file->FForest(id.ctg, id.cno);
-        for (LegacyLong childIndex = 0; childIndex < file->Ckid(id.ctg, id.cno); ++childIndex)
+        chunk.loner = (entry.flags & MM_CHUNK_LONER) != 0;
+        chunk.forest = (entry.flags & MM_CHUNK_FOREST) != 0;
+        for (MMU32 childIndex = 0; childIndex < entry.child_count; ++childIndex)
         {
-            ChildChunkIdentification child;
-            if (!file->FGetKid(id.ctg, id.cno, childIndex, &child))
+            MMChunkChild child;
+            if (mm_chunk_child_at(&access, i, childIndex, &child) != MM_CHUNK_OK)
                 Fail("Cannot read chunk child");
             chunk.children.push_back(child);
         }
-        chunks.emplace(Key{id.ctg, id.cno}, std::move(chunk));
+        chunks.emplace(Key{entry.type, entry.number}, std::move(chunk));
     }
     return chunks;
 }
@@ -101,19 +113,27 @@ void Write(const fs::path &path, const Chunks &chunks)
 {
     if (fs::exists(path))
         Fail("Output already exists: " + path.string());
-    auto filename = FilenameFor(path);
-    File file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable));
+    const auto file = OpenArchive(path, MM_PRIVATE_ARCHIVE_CREATE);
     if (!file)
         Fail("Cannot create output archive: " + path.string());
+    const auto writer = mm_private_archive_writer(file.get());
+    const auto write = [](void *context, const MMStorageWriter *out) -> int {
+        const auto bytes = static_cast<const Bytes *>(context);
+        return !out->length || out->write_at(out->context, 0, bytes->data(), bytes->size());
+    };
     for (const auto &entry : chunks)
     {
         auto key = entry.first;
         const auto &chunk = entry.second;
-        if (!file->FPutPv(const_cast<byte *>(chunk.data.data()), LegacyLong(chunk.data.size()), key.first, key.second))
+        if (mm_chunk_put_payload(&writer, key.first, key.second, chunk.data.size(), write,
+                                 const_cast<Bytes *>(&chunk.data)) != MM_CHUNK_OK)
             Fail("Cannot write output chunk");
-        String name;
-        name.SetSzs(const_cast<char *>(chunk.name.c_str()));
-        if (!file->FSetName(key.first, key.second, &name))
+        unsigned char wire[kcbMaxDataStn];
+        MMU32 count = 0;
+        if (!chunk.name.empty() && !KauaiEncodeLegacyChunkName(nullptr, chunk.name.c_str(), wire, sizeof(wire), &count))
+            Fail("Cannot encode output chunk name");
+        const MMChunkNameValue name = {wire, count, static_cast<MMU32>(chunk.name.size())};
+        if (mm_chunk_name_set_key(&writer.edit, &writer.names, key.first, key.second, &name) != MM_CHUNK_OK)
             Fail("Cannot write output chunk name");
     }
     for (const auto &entry : chunks)
@@ -121,8 +141,7 @@ void Write(const fs::path &path, const Chunks &chunks)
         auto key = entry.first;
         for (const auto &child : entry.second.children)
         {
-            if (!chunks.count({child.cki.ctg, child.cki.cno}) ||
-                !file->FAdoptChild(key.first, key.second, child.cki.ctg, child.cki.cno, child.chid, false))
+            if (mm_chunk_adopt(&writer.edit, key.first, key.second, &child, 0) != MM_CHUNK_OK)
                 Fail("Invalid output chunk link");
         }
     }
@@ -130,10 +149,12 @@ void Write(const fs::path &path, const Chunks &chunks)
     // after the complete graph has been adopted, including later-sorted parents.
     for (const auto &entry : chunks)
     {
-        file->SetForest(entry.first.first, entry.first.second, entry.second.forest);
-        file->SetLoner(entry.first.first, entry.first.second, entry.second.loner);
+        const auto [type, number] = entry.first;
+        if (mm_chunk_set_flag(&writer.edit, type, number, MM_CHUNK_FOREST, entry.second.forest) != MM_CHUNK_OK ||
+            mm_chunk_set_flag(&writer.edit, type, number, MM_CHUNK_LONER, entry.second.loner) != MM_CHUNK_OK)
+            Fail("Cannot write output chunk flags");
     }
-    if (!file->FSave(kctgSoc))
+    if (!mm_private_archive_save(file.get(), studioCreator))
         Fail("Cannot save output archive");
 }
 std::uint16_t U16(const Bytes &bytes, std::size_t offset)
@@ -156,7 +177,7 @@ using Mapping = std::array<byte, 256>;
 Palette BasePalette(const fs::path &path)
 {
     auto resources = Read(path);
-    auto found = resources.find({kctgColorTable, 0});
+    auto found = resources.find({colorTable, 0});
     if (found == resources.end())
         Fail("Missing base palette");
     const auto &bytes = found->second.data;
@@ -252,11 +273,11 @@ void RemoveTree(Chunks &chunks, Key key)
     chunks.erase(found);
     for (const auto &child : children)
     {
-        Key target{child.cki.ctg, child.cki.cno};
+        Key target{child.type, child.number};
         bool shared = false;
         for (const auto &entry : chunks)
             for (const auto &link : entry.second.children)
-                shared |= Key{link.cki.ctg, link.cki.cno} == target;
+                shared |= Key{link.type, link.number} == target;
         if (!shared)
             RemoveTree(chunks, target);
     }
@@ -272,11 +293,11 @@ void Renumber(Chunks &chunks, const std::map<Key, Key> &mapping)
             key = found->second;
         for (auto &child : entry.second.children)
         {
-            found = mapping.find({child.cki.ctg, child.cki.cno});
+            found = mapping.find({child.type, child.number});
             if (found != mapping.end())
             {
-                child.cki.ctg = found->second.first;
-                child.cki.cno = found->second.second;
+                child.type = found->second.first;
+                child.number = found->second.second;
             }
         }
         if (!output.emplace(key, std::move(entry.second)).second)
@@ -288,21 +309,21 @@ void Metadata(Chunks &chunks, const std::string &role)
 {
     if (role == "MTRL.NTH")
     {
-        for (ChunkNumber i = 0x1e99c; i <= 0x1e9a8; ++i)
-            RemoveTree(chunks, {kctgMtth, i});
-        for (ChunkNumber i : {0x1eba0u, 0x1eba3u, 0x1eba4u, 0x1eba8u, 0x1ebacu, 0x1ebb0u, 0x1ebb1u, 0x1ebbcu, 0x1ebbeu,
+        for (MMU32 i = 0x1e99c; i <= 0x1e9a8; ++i)
+            RemoveTree(chunks, {materialThumbnail, i});
+        for (MMU32 i : {0x1eba0u, 0x1eba3u, 0x1eba4u, 0x1eba8u, 0x1ebacu, 0x1ebb0u, 0x1ebb1u, 0x1ebbcu, 0x1ebbeu,
                               0x1ebc1u, 0x1ebc8u, 0x1ebc9u, 0x1ebcfu})
-            RemoveTree(chunks, {kctgMtth, i});
+            RemoveTree(chunks, {materialThumbnail, i});
         std::map<Key, Key> moves;
         for (const auto &entry : chunks)
-            if (entry.first.first == kctgMtth)
+            if (entry.first.first == materialThumbnail)
                 for (const auto &child : entry.second.children)
-                    if (child.cki.ctg == 'GOKD')
-                        moves[{child.cki.ctg, child.cki.cno}] = {'GOKD', entry.first.second};
+                    if (child.type == 'GOKD')
+                        moves[{child.type, child.number}] = {'GOKD', entry.first.second};
         Renumber(chunks, moves);
     }
     if (role == "PROP.NTH")
-        RemoveTree(chunks, {kctgPrth, 0x11010});
+        RemoveTree(chunks, {propThumbnail, 0x11010});
     if (role == "BKGDS.NTH")
     {
         std::map<Key, Key> moves;
@@ -324,11 +345,11 @@ void Metadata(Chunks &chunks, const std::string &role)
         auto &chunk = entry.second;
         if (role == "SOUND.NTH")
             std::replace(chunk.name.begin(), chunk.name.end(), char(0x92), '\'');
-        if ((role == "MTRLS.3CN" || role == "TMPLS.3CN") && key.first == kctgMtrl && key.second >= 0x1e99c &&
+        if ((role == "MTRLS.3CN" || role == "TMPLS.3CN") && key.first == MM_MATERIAL_CHUNK && key.second >= 0x1e99c &&
             key.second <= 0x1e9a8)
         {
             WindowsHeader(chunk.data);
-            if (chunk.data.size() != sizeof(MaterialOnFile))
+            if (chunk.data.size() != 20)
                 Fail("Invalid solid material header");
             const auto i = key.second - 0x1e99c;
             chunk.data[14] = role == "MTRLS.3CN" ? materialBases[i] : costumeBases[i];
@@ -336,17 +357,17 @@ void Metadata(Chunks &chunks, const std::string &role)
             if (role == "MTRLS.3CN")
                 chunk.name = materialNames[i];
         }
-        if (role == "TMPLS.3CN" && key.first == kctgCmtl)
+        if (role == "TMPLS.3CN" && key.first == customMaterial)
         {
             if (key.second == 0x11024)
                 chunk.name = "Yellow";
             else if (key.second >= 0x421b2 && key.second <= 0x421c8 && !(key.second % 2))
                 chunk.name = costumeNames[(key.second - 0x421b2) / 2];
         }
-        if (role == "TMPLS.3CN" && key == Key{kctgMtrl, 0x22221})
+        if (role == "TMPLS.3CN" && key == Key{MM_MATERIAL_CHUNK, 0x22221})
             for (auto &child : chunk.children)
-                if (child.cki.ctg == 'TMAP' && child.cki.cno == 0x222e3)
-                    child.cki.cno = 0x222d2;
+                if (child.type == 'TMAP' && child.number == 0x222e3)
+                    child.number = 0x222d2;
         if (role == "TMPLS.3CN" && key.first == 'TMAP' && chunk.name.empty())
             for (const auto &labels : Internal::nickTextureLabels)
                 if (key.second >= labels.first && key.second <= labels.last)
@@ -402,7 +423,7 @@ bool ConvertNickExpansion(const std::string &source, const std::string &baseReso
                     Bitmap(entry.second.data, imageMapping);
                     ++stats.images;
                 }
-                else if (type == kctgColorTable)
+                else if (type == colorTable)
                 {
                     auto &bytes = entry.second.data;
                     WindowsHeader(bytes);
@@ -455,11 +476,11 @@ bool CompareNickExpansion(const std::string &actual, const std::string &referenc
                         for (std::size_t i = 0; i < x.children.size(); ++i)
                         {
                             const auto &u = x.children[i], &v = y.children[i];
-                            other |= u.chid != v.chid || u.cki.ctg != v.cki.ctg || u.cki.cno != v.cki.cno;
+                            other |= u.slot != v.slot || u.type != v.type || u.number != v.number;
                         }
                     if (x.data != y.data)
                     {
-                        image = key.first == 'TMAP' || key.first == 'MBMP' || key.first == kctgColorTable;
+                        image = ImageType(key.first);
                         other |= !image;
                     }
                 }
@@ -483,10 +504,6 @@ bool CompareNickExpansion(const std::string &actual, const std::string &referenc
 
 namespace
 {
-bool ImageType(ChunkTagOrType type)
-{
-    return type == 'TMAP' || type == 'MBMP' || type == kctgColorTable;
-}
 std::string ImageName(unsigned archive, Key key)
 {
     std::ostringstream name;
@@ -602,9 +619,9 @@ bool WriteNickNonImageState(const std::string &source, const std::string &output
                 word(std::uint32_t(chunk.children.size()));
                 for (const auto &child : chunk.children)
                 {
-                    word(child.chid);
-                    word(child.cki.ctg);
-                    word(child.cki.cno);
+                    word(child.slot);
+                    word(child.type);
+                    word(child.number);
                 }
                 if (ImageType(entry.first.first))
                     word(0);

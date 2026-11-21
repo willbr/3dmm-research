@@ -16,7 +16,7 @@ void mm_native_archive_file_release(MMNativeArchiveFile *);
 int mm_native_archive_file_stream(MMNativeArchiveFile *, MMReadStream *);
 const MMBlockFileServices *mm_native_archive_file_blocks(void);
 
-/* Open an editable or fresh private archive using the same file provider. */
+/* Open a read-only, editable or fresh private archive using the same file provider. */
 MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *, int mode,
                                                  const MMPrivateArchiveProfile *);
 

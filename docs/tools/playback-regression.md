@@ -19694,3 +19694,24 @@ frames and cameras. Each reproduced its prior canvas hashes, with three
 known canvas differences from retail per port. In
 `20261121T181109Z-0e901767`, SDL and Marcus matched all three archived V3dmm
 frames, cameras, and hashes. Evidence is in `tmp/c89-shared-preview-owner`.
+
+## Nickelodeon pack import through the C89 archive (21 November 2026)
+
+The Nickelodeon converter now reads, decodes, builds, and saves chunk graphs
+through the shared C89 archive and native file provider. The importer hashes
+the temporary canonical state before discarding it and moves the verified
+archives into the private staging directory on the same volume.
+
+All 193 standalone C89 checks passed. Native and SDL converters passed the
+14 synthetic reconstruction checks. The full disc-and-fixup import matched
+all 11,082 chunks in the installed reference, including decoded pixels,
+names, child links, flags, and non-image payloads. SDL Studio installed the
+pack from ISO, found 13 Nickelodeon backgrounds after restart, and rendered
+Kitchen Background.
+
+SDL Studio's authored `.3mm` matched the prior bytes. In
+`20261121T182034Z-7fed3ba4`, retail, SDL, and Marcus agreed on all 11 sampled
+frames and cameras. Each reproduced its prior canvas hashes, with three
+known differences from retail per port. In `20261121T182050Z-05b6750b`, SDL
+and Marcus matched all three archived V3dmm frames, cameras, and hashes.
+Evidence is in `tmp/c89-nick-pack-archives`.
