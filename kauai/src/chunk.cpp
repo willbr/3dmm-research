@@ -78,6 +78,7 @@
 #include "mm/chunk_heap.h"
 #include "mm/chunk_edit.h"
 #include "mm/chunk_ops.h"
+#include "mm/chunk_copy.h"
 #include "mm/chunk_forest.h"
 #include "mm/movie_title.h"
 #include "handle_services.h"
@@ -1511,12 +1512,6 @@ struct ChunkPayloadHost
 {
     PDataBlock output, source, temporary;
 };
-struct ChunkOpsHost
-{
-    ChunkyFile *owner;
-    String name;
-    explicit ChunkOpsHost(ChunkyFile *file) : owner(file) {}
-};
 }
 MMChunkEdit ChunkyFile::EditIndex()
 {
@@ -2097,15 +2092,6 @@ MMArchiveWriter ChunkyFile::WriteIndex()
         *reinterpret_cast<const unsigned char *>(&order) == 0, koskCur,
         [](MMU32 *number) { (void)number; TrashVar(number); }, KauaiCopyAllocator()};
 }
-bool ChunkyFile::_FSetName(LegacyLong icrp, PString pstn)
-{
-    AssertBaseThis(0); AssertIn(icrp, 0, _Index()->count); AssertNilOrPo(pstn, 0);
-    byte wire[kcbMaxDataStn];
-    const auto value = EncodeName(pstn, wire);
-    const auto names = NameIndex();
-    return mm_chunk_name_set(&names, icrp, &value) == MM_CHUNK_OK;
-}
-
 /***************************************************************************
     Retrieve the name of the chunk.  Returns whether the string is
     non-empty.
@@ -2460,39 +2446,15 @@ bool ChunkyFile::_FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkN
     return result == MM_CHUNK_OK;
 }
 
-MMChunkEndpoint ChunkyFile::_OpsServices(void *context)
-{
-    MMChunkEndpoint endpoint = {};
-    endpoint.edit = EditIndex();
-    endpoint.allocator = KauaiCopyAllocator();
-    endpoint.handles = KauaiHandleServices();
-    endpoint.files = KauaiBlockFileServices();
-    endpoint.identity = this;
-    endpoint.context = context;
-    endpoint.bind_payload = [](void *c, MMU32 position, const MMChunkEntry *, MMOwnedBlock *block) -> int {
-        auto host = static_cast<ChunkOpsHost *>(c);
-        FileLocation location;
-        const bool packed = host->owner->_GetBlockLocation(position, &location);
-        const MMBlockFile file = {location.pfil, static_cast<MMU32>(location.fp), static_cast<MMU32>(location.cb)};
-        return mm_owned_block_set_file(block, &file, packed) == MM_DATA_OK;
-    };
-    endpoint.read_name = [](void *c, MMU32 position) -> const void * {
-        auto h = static_cast<ChunkOpsHost *>(c);
-        return h->owner->_FGetName(position, &h->name) ? &h->name : nullptr;
-    };
-    endpoint.write_name = [](void *c, MMU32 position, const void *name) -> int {
-        return static_cast<ChunkOpsHost *>(c)->owner->_FSetName(position,
-            const_cast<PString>(static_cast<const String *>(name)));
-    };
-    return endpoint;
-}
 bool ChunkyFile::_FCopyFrom(const MMChunkEndpoint &source, ChunkTagOrType type, ChunkNumber number,
                           ChunkNumber *out, bool clone, int *created)
 {
     AssertThis(fcflFull);
     AssertVarMem(out);
-    ChunkOpsHost destination(this);
-    const auto dst = _OpsServices(&destination);
+    MMChunkFileCopy destination;
+    const auto archive = WriteIndex();
+    const auto titles = KauaiChunkTitleIO();
+    const auto dst = mm_chunk_file_copy_endpoint(&destination, this, &archive, &titles, sizeof(achar), false);
     MMU32 copied;
     const int result = created ? mm_chunk_copy_reference(&source, &dst, type, number, &copied, created)
                                : mm_chunk_copy(&source, &dst, type, number, clone, &copied);
@@ -2506,8 +2468,10 @@ bool ChunkyFile::_FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile p
 {
     AssertThis(fcflFull);
     AssertPo(pcflDst, fcflFull);
-    ChunkOpsHost source(this);
-    const auto services = _OpsServices(&source);
+    MMChunkFileCopy source;
+    const auto archive = WriteIndex();
+    const auto titles = KauaiChunkTitleIO();
+    const auto services = mm_chunk_file_copy_endpoint(&source, this, &archive, &titles, sizeof(achar), false);
     const bool result = pcflDst->_FCopyFrom(services, ctgSrc, cnoSrc, pcnoDst, fClone, created);
     AssertThis(fcflFull);
     return result;

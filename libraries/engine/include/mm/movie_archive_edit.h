@@ -49,20 +49,6 @@ int mm_movie_archive_file_init(MMMovieArchiveFile *, void *file, const MMArchive
 void mm_movie_archive_file_clear(MMMovieArchiveFile *);
 MMMovieArchiveEditor mm_movie_archive_file_editor(MMMovieArchiveFile *, unsigned text_unit, MMStringConvert);
 
-typedef struct MMMovieArchiveCopy
-{
-    void *file;
-    const MMArchiveWriter *archive;
-    const MMChunkTitleIO *titles;
-    MMMovieTitle name;
-} MMMovieArchiveCopy;
-
-/* Bind both live endpoints of an archive copy. The file, services and name
- * scratch stay at stable addresses through the copy. Payloads are
- * copied in stored form and names are translated to the host text encoding. */
-MMChunkEndpoint mm_movie_archive_copy_endpoint(MMMovieArchiveCopy *, void *file, const MMArchiveWriter *,
-                                               const MMChunkTitleIO *, unsigned text_unit);
-
 /* Borrow the destination index across copies. Each copy may insert rows.
  * copy_reference reports whether the destination subtree was newly created. */
 typedef struct MMMovieEmbeddedArchive

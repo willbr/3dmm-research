@@ -126,7 +126,6 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FMaterializeIndex(const MMChunkIndex *);
     MMChunkAccess _ChunkAccess();
     MMChunkEdit _PayloadEdit(void *context);
-    MMChunkEndpoint _OpsServices(void *context);
     bool _FCopyFrom(const MMChunkEndpoint &, ChunkTagOrType, ChunkNumber, ChunkNumber *, bool clone, int *created);
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTagOrType ctgCreator);
@@ -146,7 +145,6 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, LegacyLong *pikid);
     void _ReadFreeMap(void);
     bool _FFindChidCtg(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTagOrType ctg, ChildChunkIdentification *pkid);
-    bool _FSetName(LegacyLong icrp, PString pstn);
     bool _FGetName(LegacyLong icrp, PString pstn);
     void _GetFlo(LegacyLong icrp, PFileLocation pflo);
     bool _GetBlockLocation(LegacyLong icrp, PFileLocation pflo);

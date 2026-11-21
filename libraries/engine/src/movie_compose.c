@@ -1,6 +1,7 @@
 /* Movie composition converted from engine/movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_compose.h"
+#include "mm/chunk_copy.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_session.h"
 #include "mm/movie_sound_archive.h"
@@ -417,13 +418,13 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         {
             void *source = scenes->file(movie.resources);
             const MMArchiveWriter source_archive = s->archive(source);
-            MMMovieArchiveCopy source_binding, destination_binding;
+            MMChunkFileCopy source_binding, destination_binding;
             ComposeAssets imports;
             MMMovieSessionGraph graph;
-            imports.source = mm_movie_archive_copy_endpoint(&source_binding, source, &source_archive,
-                                                            &s->titles, s->data->title.unit);
-            imports.destination = mm_movie_archive_copy_endpoint(&destination_binding, file, &archive,
-                                                                 &s->titles, s->data->title.unit);
+            imports.source = mm_chunk_file_copy_endpoint(&source_binding, source, &source_archive,
+                                                         &s->titles, s->data->title.unit, 1);
+            imports.destination = mm_chunk_file_copy_endpoint(&destination_binding, file, &archive,
+                                                              &s->titles, s->data->title.unit, 1);
             status = mm_chunk_copy(&imports.source, &imports.destination, MM_MOVIE_CHUNK, movie.number, 1, &movie.number);
             if (status != MM_CHUNK_OK)
             {

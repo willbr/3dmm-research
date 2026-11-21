@@ -7159,9 +7159,11 @@ failures. Forced failure in the real native file/index services is not covered.
 prefix swaps, identity moves with sorted parent-link repair, graph copy/clone,
 runtime-based matching and a process-global runtime-ID counter. Moves retain a
 runtime ID only within the same type; data swaps invalidate both IDs, while
-child swaps preserve the legacy cache behavior. Native callbacks bind the
-source extent and supply file and index operations. Runtime-table and name
-policy use the C modules above.
+child swaps preserve the legacy cache behavior. `chunk_copy.c` binds live
+archives for Kauai and Studio composition and immutable resource archives for
+Archive and Marcus. C binds stored extents and decodes names into counted text
+for the copy. The host supplies file and index primitives, legacy text
+conversion and diagnostics.
 
 Copy owns a sorted C source-to-destination number map and uses the C graph walker.
 For each new node, it binds a C-owned block to the live or stored archive,

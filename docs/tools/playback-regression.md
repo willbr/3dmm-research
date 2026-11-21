@@ -18723,3 +18723,26 @@ archived retail frame identities. SDL matched all four retail sound requests.
 The ports matched their previous PCM16 peak of 2,176. The archived retail
 peak is 2,380. The captures contain 521,760 SDL and 511,200 Marcus PCM frames.
 Logs and the comparison script are in `tmp/c89-compose-copy`.
+
+## Live and stored chunk copy bindings (21 November 2026)
+
+Studio composition, Kauai live files and Archive's immutable resource cache
+now bind payloads and normalize names in the C89 chunk copier. The native
+resource-cache check copies a named zero-byte root and its packed child from the
+immutable archive while an open live index points to an edited child. It checks
+the copied name, stored compressed bytes and decoded payload.
+
+All 193 standalone C checks and five focused AddressSanitizer checks passed.
+The three Marcus checks and the native resource-cache, Archive API, Preview
+session and core-link checks passed. The 1,740-byte native storage-routing
+snapshot matched across five file modes, including the repeated-copy results.
+Native x64, x86 and SDL matched their 19,044-byte composition snapshots, all 27
+save/reopen traces, sound-resource snapshots and the complete authoring save.
+Both ports matched the three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T105955Z-b6579532`.
+
+In sampled-audio suite `20261121T110002Z-b1683659`, both ports matched all 60
+archived retail frame identities. SDL matched all four retail sound requests.
+The ports matched their previous PCM16 peak of 2,176. The archived retail
+peak is 2,380. The captures contain 517,920 SDL and 514,080 Marcus PCM frames.
+Logs and the comparison script are in `tmp/c89-common-chunk-copy`.

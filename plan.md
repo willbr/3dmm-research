@@ -1604,6 +1604,9 @@ and materials through the C archive editor. It resolves thumbnail payloads,
 adopts imported scene sounds and checks final scene-child order in C89.
 Composition binds both archives to the C chunk copier for movie clones and
 embedded references, including stored payloads and translated names.
+Kauai live-file copies and Archive copies from immutable resource indexes
+now also bind their payloads and names in C89. The copy facade supplies the
+physical file, text conversion and native failure reporting.
 Native bitmap allocation and final resource and object integration remain.
 Background resource loading, exact child lookup, cache and light policy use
 C89. Studio selects cameras through the same cache and reads colour and depth

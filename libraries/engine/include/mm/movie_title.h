@@ -29,6 +29,7 @@ extern "C"
     } MMChunkTitleIO;
     /* A missing stored name clears the title. Malformed bytes also clear it
      * and report the legacy string diagnostic. Empty titles remove the name. */
+    void mm_movie_title_read_wire(MMMovieTitle *, const void *bytes, MMU32 size, const MMChunkTitleIO *);
     void mm_chunk_title_read(MMMovieTitle *, void *file, MMU32 type, MMU32 number, const MMChunkTitleIO *);
     int mm_chunk_title_write(const MMMovieTitle *, void *file, MMU32 type, MMU32 number, const MMChunkTitleIO *);
     void mm_movie_title_strip_extension(MMMovieTitle *);

@@ -37,26 +37,31 @@ static MMStringWire title_wire(const MMMovieTitle *t, const MMChunkTitleIO *io, 
     wire.convert = io->convert;
     return wire;
 }
-void mm_chunk_title_read(MMMovieTitle *t, void *file, MMU32 type, MMU32 number, const MMChunkTitleIO *io)
+void mm_movie_title_read_wire(MMMovieTitle *t, const void *bytes, MMU32 size, const MMChunkTitleIO *io)
 {
     unsigned short counted[MM_STRING_MAX + 2];
-    unsigned char bytes[2 + sizeof(counted)];
     MMStringWire wire = title_wire(t, io, counted);
     MMMemoryStream stream;
-    MMU32 size, count;
-    if (io->read(file, type, number, bytes, sizeof(bytes), &size))
+    MMU32 count;
+    if (size <= 2 + sizeof(counted) && mm_memory_stream_init(&stream, bytes, size) &&
+        mm_string_wire_read(&wire, &stream.stream, 0, NULL))
     {
-        if (size <= sizeof(bytes) && mm_memory_stream_init(&stream, bytes, size) &&
-            mm_string_wire_read(&wire, &stream.stream, 0, NULL))
-        {
-            count = t->unit == 1 ? *(const unsigned char *)counted : counted[0];
-            mm_movie_title_set(t, (const unsigned char *)counted + t->unit, count);
-            return;
-        }
-        if (io->bad_string)
-            io->bad_string(io->context);
+        count = t->unit == 1 ? *(const unsigned char *)counted : counted[0];
+        mm_movie_title_set(t, (const unsigned char *)counted + t->unit, count);
+        return;
     }
+    if (io->bad_string)
+        io->bad_string(io->context);
     mm_movie_title_set(t, NULL, 0);
+}
+void mm_chunk_title_read(MMMovieTitle *t, void *file, MMU32 type, MMU32 number, const MMChunkTitleIO *io)
+{
+    unsigned char bytes[2 + (MM_STRING_MAX + 2) * sizeof(unsigned short)];
+    MMU32 size;
+    if (io->read(file, type, number, bytes, sizeof(bytes), &size))
+        mm_movie_title_read_wire(t, bytes, size, io);
+    else
+        mm_movie_title_set(t, NULL, 0);
 }
 int mm_chunk_title_write(const MMMovieTitle *t, void *file, MMU32 type, MMU32 number, const MMChunkTitleIO *io)
 {

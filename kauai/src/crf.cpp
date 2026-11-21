@@ -19,7 +19,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "handle_services.h"
-#include "mm/chunk_ops.h"
+#include "mm/chunk_copy.h"
 #include "util.h"
 ASSERTNAME
 
@@ -308,28 +308,10 @@ bool ChunkyResourceFile::FCopyChunk(ChunkTagOrType type, ChunkNumber number, PCh
         return Pcfl()->FCopy(type, number, destination, copied);
     if (static_cast<PFileObject>(_cache.wire_file)->GrffilCur() & ffilWriteEnable)
         return false;
-    struct Source
-    {
-        MMResourceCache *cache;
-        const MMChunkIndex *index;
-        String name;
-    } context{&_cache, _cache.wire_index, {}};
-    const auto chunks = ReadChunkAccess();
-    MMChunkEndpoint source = {};
-    source.identity = this;
-    source.context = &context;
-    source.stored = &chunks;
-    source.allocator = KauaiCopyAllocator();
-    source.handles = _cache.services.handles;
-    source.files = _cache.services.block_files;
-    source.bind_payload = [](void *p, MMU32, const MMChunkEntry *entry, MMOwnedBlock *block) -> int {
-        auto &s = *static_cast<Source *>(p);
-        return mm_resource_cache_read_block(s.cache, entry->type, entry->number, block) == MM_CHUNK_OK;
-    };
-    source.read_name = [](void *p, MMU32 position) -> const void * {
-        auto &s = *static_cast<Source *>(p);
-        return ReadStoredName(s.index, position, s.name) ? &s.name : nullptr;
-    };
+    MMStoredChunkCopy binding;
+    const auto titles = KauaiChunkTitleIO();
+    const auto source = mm_stored_chunk_copy_endpoint(&binding, &_cache, this, KauaiCopyAllocator(),
+                                                       &titles, KauaiEncodeLegacyChunkName, sizeof(achar));
     return destination->_FCopyFrom(source, type, number, copied, false, nullptr);
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
