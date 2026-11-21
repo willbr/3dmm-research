@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/action_definition.h"
 #include "mm/movie_session.h"
+#include <stdlib.h>
 #include <string.h>
 enum { MM_ACTION_WIRE_TAG_BYTES = 16 };
 static MMU32 word(const unsigned char *p,int big)
@@ -266,8 +267,11 @@ int mm_action_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlo
 fail:
     if (object)
         s->release(s->context, object);
-    s->invalidate(s->context, out, sizeof(object));
-    s->invalidate(s->context, size, sizeof(bytes));
+    if (s->invalidate)
+    {
+        s->invalidate(s->context, out, sizeof(object));
+        s->invalidate(s->context, size, sizeof(bytes));
+    }
     return 0;
 }
 typedef struct LiveActionRead
@@ -311,7 +315,7 @@ static int live_table(void *context, int kind, MMActionTable **out)
         return MM_MOVIE_ASSET_NOT_FOUND;
     if (mm_resource_cache_read_block(read->cache, type, child, &read->block) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
-    table = mm_action_table_new(&s->table_allocator);
+    table = mm_action_table_new(s->table_allocator.resize ? &s->table_allocator : NULL);
     if (!table)
         return MM_MOVIE_MEMORY;
     if (mm_owned_block_code(&read->block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
@@ -362,7 +366,7 @@ int mm_action_initialize(MMActionDefinition *a, MMResourceCache *cache, MMU32 ty
     }
     count = wire->header.count;
     big = wire->header.big_endian;
-    sounds = mm_action_table_new(&s->table_allocator);
+    sounds = mm_action_table_new(s->table_allocator.resize ? &s->table_allocator : NULL);
     if (!sounds)
         goto done;
     if (!mm_action_sounds_reserve(sounds, count))
@@ -390,6 +394,126 @@ void mm_action_dispose(MMActionDefinition *a)
     mm_action_table_dispose(a->cels); a->cels=NULL;
     mm_action_table_dispose(a->matrices); a->matrices=NULL;
     mm_action_table_dispose(a->sounds); a->sounds=NULL;
+}
+
+struct MMActionResource
+{
+    MMResourceObject binding;
+    MMReference references;
+    MMActionDefinition action;
+    MMStorageAllocator allocator;
+    void (*mark_memory)(void *);
+};
+
+static MMResourceObject *action_binding(void *object)
+{
+    return &((MMActionResource *)object)->binding;
+}
+
+static MMReference *action_references(void *object)
+{
+    return &((MMActionResource *)object)->references;
+}
+
+static MMActionDefinition *action_definition(void *context, void *object)
+{
+    (void)context;
+    return &((MMActionResource *)object)->action;
+}
+
+static void action_destroy(void *object)
+{
+    MMActionResource *resource = object;
+    const MMStorageAllocator allocator = resource->allocator;
+    mm_action_dispose(&resource->action);
+    mm_resource_object_dispose(object, mm_action_resource_services());
+    if (allocator.release)
+        allocator.release(allocator.context, resource, sizeof(*resource));
+    else
+        free(resource);
+}
+
+static void mark_action_table(const MMActionTable *table, void (*mark)(void *))
+{
+    if (table)
+    {
+        mark((void *)table);
+        mark(table->storage.buffers[0].data);
+        mark(table->storage.buffers[1].data);
+    }
+}
+
+static void action_mark_memory(void *object)
+{
+    const MMActionResource *resource = object;
+    void (*mark)(void *) = resource->mark_memory;
+    if (mark)
+    {
+        mark(object);
+        mark_action_table(resource->action.cels, mark);
+        mark_action_table(resource->action.matrices, mark);
+        mark_action_table(resource->action.sounds, mark);
+    }
+}
+
+const MMResourceObjectServices *mm_action_resource_services(void)
+{
+    static const MMResourceObjectServices services = {
+        action_binding, action_references, action_destroy, NULL, action_mark_memory
+    };
+    return &services;
+}
+
+const MMActionDefinition *mm_action_resource_definition(const MMActionResource *resource)
+{
+    return &resource->action;
+}
+
+static void *action_allocate(void *context)
+{
+    const MMActionResourceHost *host = context;
+    const MMStorageAllocator *allocator = host->objects;
+    MMActionResource *resource = allocator ?
+        allocator->resize(allocator->context, NULL, 0, sizeof(*resource), MM_STORAGE_NORMAL) :
+        malloc(sizeof(*resource));
+    if (resource)
+    {
+        memset(resource, 0, sizeof(*resource));
+        if (allocator)
+            resource->allocator = *allocator;
+        resource->mark_memory = host->mark_memory;
+        mm_reference_init(&resource->references);
+    }
+    return resource;
+}
+
+static void action_release(void *context, void *object)
+{
+    (void)context;
+    mm_resource_object_release(object, mm_action_resource_services());
+}
+
+static MMI32 action_size(void *context)
+{
+    (void)context;
+    return sizeof(MMActionResource);
+}
+
+int mm_action_resource_read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                            void **object, MMI32 *bytes, const MMActionResourceHost *host)
+{
+    MMActionDefinitionServices services = {0};
+    services.context = (void *)host;
+    services.host_big_endian = native_big_endian();
+    services.state = action_definition;
+    services.create = action_allocate;
+    services.release = action_release;
+    if (host->tables)
+        services.table_allocator = *host->tables;
+    services.decode = host->decode;
+    services.object_size = action_size;
+    services.bad_order = host->bad_order;
+    return mm_action_fetch(cache, type, number, block, object, bytes, &services);
 }
 
 MMI32 mm_action_cel_count(const MMActionDefinition *a)
@@ -445,12 +569,17 @@ int mm_action_get_matrix(const MMActionDefinition *a, MMI32 i, void *out)
     return 1;
 }
 
-void mm_action_get_sound(const MMActionDefinition *a,MMI32 cel,void *out,const MMActionDefinitionServices *s)
+int mm_action_cel_sound(const MMActionDefinition *a, MMI32 cel, MMTag *tag)
 {
     MMU32 fields[2];
+    return a->sounds && mm_action_get_cel(a, cel, fields) && fields[0] < 0x80000000UL &&
+        mm_action_sound_tag(a->sounds, fields[0], tag);
+}
+
+void mm_action_get_sound(const MMActionDefinition *a,MMI32 cel,void *out,const MMActionDefinitionServices *s)
+{
     MMTag tag;
     s->clear_sound_type(s->context,out);
-    if (a->sounds && mm_action_get_cel(a, cel, fields) && fields[0] < 0x80000000UL &&
-        mm_action_sound_tag(a->sounds, fields[0], &tag))
+    if (mm_action_cel_sound(a, cel, &tag))
         s->publish_sound(s->context,out,&tag);
 }

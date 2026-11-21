@@ -153,6 +153,29 @@ int __cdecl main(int argc, char **argv)
         goto LDone;
     }
     fprintf(stderr, "Rest pose set.\n");
+    {
+        const auto cache = pcrf->CoreCache();
+        const auto owner = mm_action_resource_services();
+        const MMActionDefinition *definition = nullptr;
+        for (MMU32 i = 0; i < cache->count; ++i)
+        {
+            MMResourceEntry row;
+            if (mm_resource_cache_at(cache, i, &row) == MM_STORAGE_OK && row.objects == owner &&
+                owner->state(row.object)->type == kctgActn)
+            {
+                definition = mm_action_resource_definition(static_cast<const MMActionResource *>(row.object));
+                break;
+            }
+        }
+        AnimationCel rest;
+        LegacyLong count;
+        if (!definition || !mm_action_get_cel(definition, 0, &rest) || rest.dwr != dwr ||
+            !ptmpl->FGetCcelActn(0, &count) || count != mm_action_cel_count(definition))
+        {
+            fprintf(stderr, "actor-render-test: rest pose did not use the C action resource\n");
+            goto LDone;
+        }
+    }
 
     if (argc == 6)
     {

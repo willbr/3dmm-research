@@ -19,6 +19,7 @@ typedef struct MMTemplateRuntimeServices
     MMTemplateCreateServices storage;
     const MMResourceObject *resource;
     MMResourceBlockReader action_reader, model_reader;
+    const MMResourceObjectServices *action_objects;
     int (*name)(void *,void *file,MMU32,MMU32,void *out);
     void *(*generated_action)(void *,void *object,MMI32 id);
     void *(*generated_model)(void *,void *object,MMU32 id,struct MMMovieAsset *);
@@ -33,6 +34,9 @@ typedef struct MMTemplateRuntimeServices
     int (*sound)(void *,void *action,MMI32 cel,void *tag);
     void (*sound_exists)(void *,void *out,int exists);
 } MMTemplateRuntimeServices;
+/* Use a cache-owned C action for archive lookups. The host supplies the block
+ * decoder and publishes any sound tag into its output representation. */
+void mm_template_use_action_resource(MMTemplateRuntimeServices *, MMResourceBlockReader);
 /* Part counts fit the native signed-short loop range. Parent, set and costume
  * indices are valid. The action readers return one when they publish a value. Scalar
  * and matrix elements are signed 32-bit fixed-point representations. Callbacks

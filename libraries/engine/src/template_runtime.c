@@ -1,9 +1,10 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/template_runtime.h"
+#include "mm/action_definition.h"
 #include "mm/movie_session.h"
 #include <string.h>
-void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int kind, MMResourceBlockReader reader,
-                             MMMovieAsset *asset)
+static void *fetch_child(const MMResourceObject *resource, MMU32 id, int kind, MMResourceBlockReader reader,
+                         const MMResourceObjectServices *objects, MMMovieAsset *asset)
 {
     MMChunkAccess graph;
     MMChunkEntry entry;
@@ -37,17 +38,80 @@ void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int ki
         resolved.type = child.type;
         resolved.number = child.number;
     }
-    object = mm_resource_cache_fetch_chunk(resource->cache, resolved.type, resolved.number, reader);
+    object = mm_resource_cache_fetch_owned_chunk(resource->cache, resolved.type, resolved.number, reader, objects);
     if (object && asset)
         *asset = resolved;
     return object;
+}
+void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int kind, MMResourceBlockReader reader,
+                             MMMovieAsset *asset)
+{
+    return fetch_child(resource, id, kind, reader, NULL, asset);
+}
+
+static MMI32 resource_cel_count(void *context, void *action)
+{
+    (void)context;
+    return mm_action_cel_count(mm_action_resource_definition(action));
+}
+
+static int resource_distance(void *context, void *action, MMI32 index, MMI32 *out)
+{
+    MMU32 cel[2];
+    (void)context;
+    if (!mm_action_get_cel(mm_action_resource_definition(action), index, cel))
+        return 0;
+    *out = mm_signed_word(cel[1]);
+    return 1;
+}
+
+static MMU32 resource_flags(void *context, void *action)
+{
+    (void)context;
+    return mm_action_resource_definition(action)->flags;
+}
+
+static int resource_part(void *context, void *action, MMI32 cel, MMI32 part, MMI32 *model, MMI32 *matrix)
+{
+    short indices[2];
+    (void)context;
+    if (!mm_action_get_part(mm_action_resource_definition(action), cel, part, indices))
+        return 0;
+    *model = indices[0];
+    *matrix = indices[1];
+    return 1;
+}
+
+static int resource_matrix(void *context, void *action, MMI32 index, MMActorMatrix *out)
+{
+    (void)context;
+    return mm_action_get_matrix(mm_action_resource_definition(action), index, out);
+}
+
+void mm_template_use_action_resource(MMTemplateRuntimeServices *s, MMResourceBlockReader reader)
+{
+    s->action_reader = reader;
+    s->action_objects = mm_action_resource_services();
+    s->cel_count = resource_cel_count;
+    s->distance = resource_distance;
+    s->flags = resource_flags;
+    s->part = resource_part;
+    s->matrix = resource_matrix;
 }
 
 static void *fetch_action(void *object, MMI32 id, const MMTemplateRuntimeServices *s)
 {
     if (s->generated_action)
         return s->generated_action(s->storage.context, object, id);
-    return mm_template_fetch_child(s->resource, (MMU32)id, MM_TEMPLATE_ACTION, s->action_reader, NULL);
+    return fetch_child(s->resource, (MMU32)id, MM_TEMPLATE_ACTION, s->action_reader, s->action_objects, NULL);
+}
+
+static void release_action(void *action, const MMTemplateRuntimeServices *s)
+{
+    if (s->action_objects)
+        mm_resource_object_release(action, s->action_objects);
+    else
+        s->storage.release(s->storage.context, action);
 }
 
 int mm_template_action_name(MMI32 id, void *out, const MMTemplateRuntimeServices *s)
@@ -170,7 +234,7 @@ done:
             }
         a->free_memory(a->context, &storage);
     }
-    a->release(a->context, request.action);
+    release_action(request.action, s);
     return result;
 }
 int mm_template_distance(void *object,MMI32 id,MMI32 cel,MMI32 *out,const MMTemplateRuntimeServices *s)
@@ -179,19 +243,19 @@ int mm_template_distance(void *object,MMI32 id,MMI32 cel,MMI32 *out,const MMTemp
     if (!a) return 0;
     index=wrapped(a,cel,s);
     ok=index>=0 && s->distance(s->storage.context,a,index,&d);
-    s->storage.release(s->storage.context,a);
+    release_action(a,s);
     if (ok) *out=d;
     return ok;
 }
 int mm_template_cel_count(void *object,MMI32 id,void *out,const MMTemplateRuntimeServices *s)
 {
     void *a=fetch_action(object,id,s); MMI32 count; if (!a) return 0;
-    count=s->cel_count(s->storage.context,a); memcpy(out,&count,sizeof(count)); s->storage.release(s->storage.context,a); return 1;
+    count=s->cel_count(s->storage.context,a); memcpy(out,&count,sizeof(count)); release_action(a,s); return 1;
 }
 int mm_template_action_flags(void *object,MMI32 id,void *out,const MMTemplateRuntimeServices *s)
 {
     void *a=fetch_action(object,id,s); MMU32 flags; if (!a) return 0;
-    flags=s->flags(s->storage.context,a); memcpy(out,&flags,sizeof(flags)); s->storage.release(s->storage.context,a); return 1;
+    flags=s->flags(s->storage.context,a); memcpy(out,&flags,sizeof(flags)); release_action(a,s); return 1;
 }
 int mm_template_sound(void *object,MMI32 id,MMI32 cel,void *exists,void *tag,const MMTemplateRuntimeServices *s)
 {
@@ -199,7 +263,7 @@ int mm_template_sound(void *object,MMI32 id,MMI32 cel,void *exists,void *tag,con
     void *a; s->sound_exists(s->storage.context,exists,0); a=fetch_action(object,id,s); if (!a) return 0;
     index=wrapped(a,cel,s);
     if (index>=0 && s->sound(s->storage.context,a,index,tag)) s->sound_exists(s->storage.context,exists,1);
-    s->storage.release(s->storage.context,a); return index>=0;
+    release_action(a,s); return index>=0;
 }
 MMI32 mm_template_costume_count(void *object,MMI32 set,const MMTemplateRuntimeServices *s)
 {

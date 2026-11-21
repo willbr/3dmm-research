@@ -110,9 +110,11 @@ static void object_issue(void *p, int kind)
 }
 static int reader_a(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 static int reader_b(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+static int reader_owned(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 static int compare_reader(MMResourceBlockReader a, MMResourceBlockReader b)
 {
-    int x = a == reader_a ? 0 : 1, y = b == reader_a ? 0 : 1;
+    int x = a == reader_a ? 0 : a == reader_b ? 1 : 2;
+    int y = b == reader_a ? 0 : b == reader_b ? 1 : 2;
     return (x > y) - (x < y);
 }
 static int contains(void *p, MMU32 type, MMU32 number)
@@ -288,6 +290,44 @@ static int reader_b(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlo
     (void)type;
     return read_object(cache, number, block, out, bytes, 1);
 }
+typedef struct OwnedObject
+{
+    Host *host;
+    MMReference refs;
+    MMResourceObject state;
+} OwnedObject;
+static MMResourceObject *owned_state(void *p) { return &((OwnedObject *)p)->state; }
+static MMReference *owned_references(void *p) { return &((OwnedObject *)p)->refs; }
+static void destroy_owned(void *p);
+static const MMResourceObjectServices owned_objects = {owned_state, owned_references, destroy_owned, NULL, NULL};
+static void destroy_owned(void *p)
+{
+    OwnedObject *object = p;
+    CHECK(!object->state.attached);
+    --object->host->objects;
+    ++object->host->deaths;
+    mm_resource_object_dispose(object, &owned_objects);
+    free(object);
+}
+static int reader_owned(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out,
+                        MMI32 *bytes)
+{
+    Host *h = cache->owner;
+    OwnedObject *object;
+    (void)type;
+    (void)number;
+    (void)block;
+    CHECK(out != NULL);
+    object = calloc(1, sizeof(*object));
+    CHECK(object != NULL);
+    object->host = h;
+    mm_reference_init(&object->refs);
+    ++h->objects;
+    ++h->reads;
+    *out = object;
+    *bytes = h->bytes;
+    return 1;
+}
 static void retain_file(void *p)
 {
     ++((Host *)p)->file_refs;
@@ -357,6 +397,39 @@ static void finish(Host *h)
     mm_resource_cache_release(&h->cache);
     CHECK(!h->objects && !h->allocations && h->file_refs == 1 && !h->issues &&
           !h->active_blocks && !h->active_handles);
+}
+static void mixed_objects(void)
+{
+    Host h;
+    Object *legacy;
+    OwnedObject *owned;
+    init(&h, 1000);
+    legacy = fetch(&h, 2, reader_a, NULL);
+    owned = mm_resource_cache_fetch_owned_chunk(&h.cache, 1, 2, reader_owned, &owned_objects);
+    CHECK(legacy && owned && owned->state.attached && h.cache.count == 2 && h.reads == 2);
+    CHECK(mm_resource_cache_fetch_owned_chunk(&h.cache, 1, 2, reader_owned, &owned_objects) == owned);
+    CHECK(owned->refs.count == 2 && h.reads == 2);
+    mm_resource_object_release(owned, &owned_objects);
+    release(legacy);
+    CHECK(mm_resource_cache_priority(&h.cache, 3, 1, 2, reader_owned, 0) && owned->state.priority == 3);
+    mm_resource_object_release(owned, &owned_objects);
+    CHECK(!owned->refs.count && h.cache.count == 2);
+    CHECK(mm_resource_cache_purge(&h.cache, mm_wide_i32(100), 2));
+    CHECK(h.deaths == 1 && h.cache.count == 1);
+    owned = mm_resource_cache_find(&h.cache, 1, 2, reader_owned, 0);
+    CHECK(owned && owned->refs.count == 1);
+    mm_resource_cache_release(&h.cache);
+    CHECK(!owned->state.cache && !owned->state.attached && h.file_refs == 1);
+    mm_resource_object_release(owned, &owned_objects);
+    CHECK(!h.objects && h.deaths == 2 && !h.allocations && !h.issues);
+
+    init(&h, 1000);
+    h.fail = 1;
+    owned = mm_resource_cache_fetch_owned_chunk(&h.cache, 1, 2, reader_owned, &owned_objects);
+    CHECK(owned && !owned->state.attached && h.refs.count == 2 && !h.cache.count);
+    mm_resource_object_release(owned, &owned_objects);
+    CHECK(h.refs.count == 1 && !h.objects);
+    finish(&h);
 }
 static int load(Host *h, MMU32 number, MMI32 p)
 {
@@ -746,6 +819,7 @@ int main(void)
     wide_cases();
     block_reader_cases();
     cache_cases();
+    mixed_objects();
     last_detached_reference();
     wire_index_lifetime();
     manager_cases();

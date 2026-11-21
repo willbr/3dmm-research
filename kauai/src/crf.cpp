@@ -56,7 +56,7 @@ const MMResourceObjectServices *BaseCacheableObject::_ObjectServices()
                 Bug("reference count not positive");
             else
                 Bug("invalid cacheable object ownership");
-        }};
+        }, nullptr};
     return &services;
 }
 BaseCacheableObject::BaseCacheableObject(void)
@@ -507,6 +507,14 @@ void ChunkyResourceFile::MarkMem(void)
     for (MMU32 i = _cache.count; i-- > 0;)
     {
         AssertDo(mm_resource_cache_at(&_cache, i, &row) == MM_STORAGE_OK, "bad cache row");
+        if (row.objects)
+        {
+            const auto binding = row.objects->state(row.object);
+            Assert(binding->cache == &_cache && binding->attached, "resource not attached to this cache");
+            if (row.objects->mark_memory)
+                row.objects->mark_memory(row.object);
+            continue;
+        }
         auto object = static_cast<PBaseCacheableObject>(row.object);
         AssertPo(object, 0);
         Assert(object->_resource.cache == &_cache && object->_resource.attached, "baco not attached to this cache");

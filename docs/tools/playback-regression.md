@@ -19959,3 +19959,34 @@ Retail, SDL and Marcus agreed on all eight seek frames and cameras in
 matched five canvases immediately and three after a 550 ms settling interval.
 This capture covered seek only. Evidence is in
 `tmp/c89-scene-snapshot-transfer`.
+
+## C89 cache ownership for Studio action resources (21 November 2026)
+
+Studio's archive-backed actor templates now read `ACTN` and its cel, matrix
+and sound tables into a C89 cache object. Template playback uses the shared
+action readers for those tables, including distance, action flags, and motion
+sound tags. The resource cache dispatches lifecycle operations through each
+entry's owner services. Studio supplies the existing block codec, allocation
+and diagnostic hooks. Generated text actions still use the native template
+subclass provider.
+
+The mixed cache fixture verifies two reader keys for the same chunk, reuse,
+eviction, cleanup after a failed insertion, and releasing a C object that
+outlives the cache. Targeted resource cache, action definition and template
+runtime checks passed under AddressSanitizer. The native render checks used a
+C89 cached action to render Alexander and Explosio from shipped assets.
+Both rendered images matched byte for byte between native and SDL builds.
+All 193 standalone C89 checks passed. The native and SDL resource cache and
+movie save/load checks passed, including the actor creation and copy allocation
+failure fixtures. Marcus syntax and player checks passed.
+
+Studio trimmed, saved and reopened the existing animated actor fixture. Five
+out-of-order seek frames exercised distinct actor poses, and a repeated seek
+reproduced its recorded state. Retail, SDL and Marcus agreed on all twelve seek
+frames and cameras and all twelve continuously played frame numbers in
+`20261121T201337Z-d8e00c9b`. SDL reproduced the four retail sound requests.
+The SDL seek canvas differed from retail by 89 pixels per frame and Marcus by
+one pixel per frame. Every difference occurred at a previously differing pixel
+in the corresponding frames of the retained actor-event capture. Mixed PCM
+still differed, and continuous pixel parity was inconclusive. Evidence is in
+`tmp/c89-cached-action`.

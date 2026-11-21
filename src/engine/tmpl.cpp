@@ -72,6 +72,31 @@ ASSERTNAME
 RTCLASS(ActionDefinition)
 RTCLASS(Template)
 
+static int ReadActionResource(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                              void **out, MMI32 *bytes)
+{
+    static const MMStorageAllocator objects = {
+        nullptr,
+        [](void *, void *, MMU32, MMU32 size, int) -> void * {
+            void *memory = nullptr;
+            if (!FAllocPvDebug(&memory, size, fmemNil, mprNormal, __szsFile, __LINE__, &vdmglob.dmaglBase))
+                PushErc(ercOomNew);
+            return memory;
+        },
+        [](void *, void *memory, MMU32) { FreePpvDebug(&memory, &vdmglob.dmaglBase); }
+    };
+    const auto tables = CollectionAllocator();
+    MMActionResourceHost host = {};
+    host.objects = &objects;
+    host.tables = &tables;
+    host.decode = KauaiDecodeBlockHandle;
+#ifdef DEBUG
+    host.mark_memory = [](void *memory) { if (memory) MarkPv(memory); };
+    host.bad_order = [](void *) { Assert(false, "bad ActionChunkOnFile"); };
+#endif
+    return mm_action_resource_read(cache, type, number, block, out, bytes, &host);
+}
+
 /***************************************************************************
     Create a new action
 ***************************************************************************/
@@ -335,7 +360,6 @@ MMTemplateRuntimeServices Template::_RuntimeServices()
     MMTemplateRuntimeServices s = {}; s.storage = _CreateServices();
     static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
     s.resource = ResourceBinding();
-    s.action_reader = ActionDefinition::FReadActn;
     s.model_reader = Model::FReadModl;
     s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
         return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, static_cast<PString>(out));
@@ -352,40 +376,55 @@ MMTemplateRuntimeServices Template::_RuntimeServices()
                 *asset = {0, MM_TEMPLATE_BMDL, model->Cno()};
             return model;
         };
+        s.cel_count = [](void *, void *action) -> MMI32 { return static_cast<PActionDefinition>(action)->Ccel(); };
+        s.distance = [](void *, void *action, MMI32 index, MMI32 *out) -> int {
+            AnimationCel cel;
+            if (!static_cast<PActionDefinition>(action)->FGetCel(index, &cel))
+                return 0;
+            *out = cel.dwr;
+            return 1;
+        };
+        s.flags = [](void *, void *action) -> MMU32 { return static_cast<PActionDefinition>(action)->Grfactn(); };
+        s.part = [](void *, void *action, MMI32 cel, MMI32 part, MMI32 *model, MMI32 *matrix) -> int {
+            CelPartSpec cps;
+            if (!static_cast<PActionDefinition>(action)->FGetCps(cel, part, &cps))
+                return 0;
+            *model = cps.chidModl;
+            *matrix = cps.imat34;
+            return 1;
+        };
+        s.matrix = [](void *, void *action, MMI32 index, MMActorMatrix *out) -> int {
+            BMAT34 matrix;
+            if (!static_cast<PActionDefinition>(action)->FGetMatrix(index, &matrix))
+                return 0;
+            std::memcpy(out, &matrix, sizeof(matrix));
+            return 1;
+        };
+        s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
+            auto tag = static_cast<PTAG>(out);
+            static_cast<PActionDefinition>(action)->GetSnd(index, tag);
+            return tag->ctg != ctgNil;
+        };
+    }
+    else
+    {
+        mm_template_use_action_resource(&s, ReadActionResource);
+        s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
+            auto tag = static_cast<PTAG>(out);
+            MMTag value;
+            const auto definition = mm_action_resource_definition(static_cast<MMActionResource *>(action));
+            tag->ctg = ctgNil;
+            if (mm_action_cel_sound(definition, index, &value))
+                TagFromCore(tag, value);
+            return tag->ctg != ctgNil;
+        };
     }
     s.allocate_cel = [](void *, size_t bytes, void **out) -> int {
         return FAllocPv(out, static_cast<LegacyLong>(bytes), fmemClear, mprNormal);
     };
-    s.cel_count = [](void *, void *action) -> MMI32 { return static_cast<PActionDefinition>(action)->Ccel(); };
-    s.distance = [](void *, void *action, MMI32 index, MMI32 *out) -> int {
-        AnimationCel cel;
-        if (!static_cast<PActionDefinition>(action)->FGetCel(index, &cel))
-            return 0;
-        *out = cel.dwr;
-        return 1;
-    };
-    s.flags = [](void *, void *action) -> MMU32 { return static_cast<PActionDefinition>(action)->Grfactn(); };
-    s.part = [](void *, void *action, MMI32 cel, MMI32 part, MMI32 *model, MMI32 *matrix) -> int {
-        CelPartSpec cps;
-        if (!static_cast<PActionDefinition>(action)->FGetCps(cel, part, &cps))
-            return 0;
-        *model = cps.chidModl;
-        *matrix = cps.imat34;
-        return 1;
-    };
-    s.matrix = [](void *, void *action, MMI32 index, MMActorMatrix *out) -> int {
-        BMAT34 matrix;
-        if (!static_cast<PActionDefinition>(action)->FGetMatrix(index, &matrix))
-            return 0;
-        std::memcpy(out, &matrix, sizeof(matrix));
-        return 1;
-    };
     s.set_model = [](void *, void *body, MMI32 part, void *model) { static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model)); };
     s.set_matrix = [](void *, void *body, MMI32 part, const MMActorMatrix *data) {
         static_cast<PBody>(body)->SetPartMatrix(part, *data);
-    };
-    s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
-        auto tag = static_cast<PTAG>(out); static_cast<PActionDefinition>(action)->GetSnd(index, tag); return tag->ctg != ctgNil;
     };
     s.sound_exists = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
     return s;

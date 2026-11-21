@@ -40,6 +40,7 @@ extern "C"
         MMReference *(*references)(void *object);
         void (*destroy)(void *object);
         void (*issue)(void *object, int kind);
+        void (*mark_memory)(void *object); /* Optional host heap diagnostics. */
     } MMResourceObjectServices;
     void mm_resource_object_init(MMResourceObject *);
     void mm_resource_object_dispose(void *, const MMResourceObjectServices *);
@@ -52,6 +53,7 @@ extern "C"
         MMI32 released;
         void *object;
         MMI32 bytes;
+        const MMResourceObjectServices *objects; /* NULL uses the cache's default operations. */
     } MMResourceEntry;
     typedef struct MMResourceRequest
     {
@@ -135,6 +137,11 @@ extern "C"
     void *mm_resource_cache_fetch(MMResourceCache *, const MMResourceRequest *, int *error);
     /* Fetch an unscoped chunk with normal priority and return its owned reference. */
     void *mm_resource_cache_fetch_chunk(MMResourceCache *, MMU32 type, MMU32 number, MMResourceBlockReader);
+    /* Fetch a chunk whose reader supplies a different object representation.
+     * Its reader key always uses these same lifetime operations, which must
+     * outlive all cached entries. Use this entry point to load that reader. */
+    void *mm_resource_cache_fetch_owned_chunk(MMResourceCache *, MMU32 type, MMU32 number, MMResourceBlockReader,
+                                             const MMResourceObjectServices *);
     int mm_resource_cache_contains(MMResourceCache *, MMU32 type, MMU32 number, MMU32 scope);
     void *mm_resource_cache_find(MMResourceCache *, MMU32 type, MMU32 number,
                                        MMResourceBlockReader, MMU32 scope);

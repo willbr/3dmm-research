@@ -1735,7 +1735,10 @@ C89 also owns its stream cursor, queue scheduling, synchronization groups,
 shared mixer lifecycle, format fallback and system volume handling. Windows
 supplies COM and wave-device services.
 The typed callback is the cache key throughout preload, lookup, tag resolution,
-manager dispatch and nested fetches. Native resource, object, HQ and Body
+manager dispatch and nested fetches. Individual cache entries can carry C89
+object ownership services alongside native entries. Studio's archive-backed
+template actions now use this path for cel data, matrices, distance, flags and
+motion sound tags. Native template subclasses, resource, object, HQ and Body
 facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

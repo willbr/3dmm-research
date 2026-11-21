@@ -95,6 +95,22 @@ int mm_action_initialize(MMActionDefinition *,MMResourceCache *,MMU32,MMU32,MMOw
  * This includes the optional list omitted by the previous native destructor.
  * Sound tags loaded from wire borrow a NULL cache, never owning references. */
 void mm_action_dispose(MMActionDefinition *);
+
+/* Plain C action objects use the same cache entries and table decoder as the
+ * native reader. Their resource services manage the detached and cached owner. */
+typedef struct MMActionResource MMActionResource;
+typedef struct MMActionResourceHost
+{
+    const MMStorageAllocator *objects, *tables; /* NULL uses the C heap. */
+    MMBlockTransform decode;
+    void (*mark_memory)(void *);
+    void (*bad_order)(void *);
+} MMActionResourceHost;
+int mm_action_resource_read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **object, MMI32 *bytes,
+                            const MMActionResourceHost *);
+const MMResourceObjectServices *mm_action_resource_services(void);
+const MMActionDefinition *mm_action_resource_definition(const MMActionResource *);
+
 MMI32 mm_action_cel_count(const MMActionDefinition *);
 /* Returns -1 for an unavailable row. Getters return zero and leave the
  * output untouched when the record is unavailable. */
@@ -102,6 +118,8 @@ MMI32 mm_action_part_count(const MMActionDefinition *,MMI32 cel);
 int mm_action_get_cel(const MMActionDefinition *,MMI32,void *out);
 int mm_action_get_part(const MMActionDefinition *,MMI32 cel,MMI32 part,void *out);
 int mm_action_get_matrix(const MMActionDefinition *,MMI32,void *out);
+/* Leave the output untouched when the cel contains no sound reference. */
+int mm_action_cel_sound(const MMActionDefinition *, MMI32 cel, MMTag *);
 /* Clears only type when no sound. High-bit IDs are negative markers under the
  * documented native signed-sound convention, rather than table indices. */
 void mm_action_get_sound(const MMActionDefinition *,MMI32,void *out,const MMActionDefinitionServices *);
