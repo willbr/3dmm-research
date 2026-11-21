@@ -29,7 +29,7 @@ void mm_private_archive_close(MMPrivateArchive *);
 MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *);
 MMMovieArchiveEditor mm_private_archive_editor(MMPrivateArchive *);
 int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destination, MMU32 type,
-                            MMU32 number, MMU32 *copy);
+                            MMU32 number, int clone, MMU32 *copy);
 int mm_private_archive_save(MMPrivateArchive *, MMU32 creator);
 
 #ifdef __cplusplus

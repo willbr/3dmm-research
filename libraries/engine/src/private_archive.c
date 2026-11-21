@@ -270,7 +270,7 @@ MMMovieArchiveEditor mm_private_archive_editor(MMPrivateArchive *archive)
 }
 
 int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destination, MMU32 type,
-                            MMU32 number, MMU32 *copy)
+                            MMU32 number, int clone, MMU32 *copy)
 {
     const MMArchiveWriter from = mm_private_archive_writer(source), to = mm_private_archive_writer(destination);
     MMChunkFileCopy source_binding, destination_binding;
@@ -279,7 +279,7 @@ int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destinat
     const MMChunkEndpoint destination_end = mm_chunk_file_copy_endpoint(&destination_binding, destination, &to,
                                               &destination->titles, destination->profile.unit, 0);
     return destination->writable &&
-           mm_chunk_copy(&source_end, &destination_end, type, number, 0, copy) == MM_CHUNK_OK;
+           mm_chunk_copy(&source_end, &destination_end, type, number, clone, copy) == MM_CHUNK_OK;
 }
 
 int mm_private_archive_save(MMPrivateArchive *archive, MMU32 creator)

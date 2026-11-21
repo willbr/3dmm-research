@@ -7372,6 +7372,12 @@ transfer, preserves raw child/name bytes and expanded runtime IDs, and
 unpins before writing the destination directory. The native facade resolves
 target names and supplies physical file operations.
 
+Marcus binds the C archive directly to SDL streams for scene and actor
+working copies, 3D text drafts, object clipboard transfers and storyboard
+packages. The C graph copier handles both ordinary copies and actor clones
+across those archives. The caller still supplies native text conversion
+and BRender transforms where the authoring algorithms require them.
+
 Thirty native saved-file outputs match all 13,190 pre-conversion bytes, including
 interior free maps, shortened indexes, save-a-copy, read-only save-as, modified
 extra data and explicit-current-name saves. Standalone C checks inject temporary

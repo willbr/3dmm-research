@@ -19131,3 +19131,37 @@ In sampled-audio suite `20261121T134346Z-02c5b665`, both hosts matched all
 The PCM16 peak matched the previous host captures at 2,176. The archived
 retail peak is 2,380. SDL captured 522,720 PCM frames and Marcus captured
 512,640. Evidence is in `tmp/c89-private-sound-archive`.
+
+## Marcus scene and storyboard archives in C89 (21 November 2026)
+
+Marcus uses the private C89 archive for scene materialization, object
+clipboard transfers, camera transforms, animation and costume edits,
+3D text drafts, and storyboard generation, embedding and export. The
+same C graph copier handles ordinary resource copies and actor clones.
+
+The rebuilt insertion, costume, storyboard and sound-edit checks passed.
+The insertion, costume and storyboard baselines also passed. All eleven
+saved `.3mm` fixtures and both ordinary `.vmm` fixtures matched byte for
+byte. The storyboard test reopened generated bundles and checked the
+background and edited scene. A standalone C probe cloned and reopened
+packed KCDC and KCD2 chunks in the same private archive.
+
+All four saved sound-edit movies also matched their preceding baselines
+byte for byte.
+
+All 193 standalone C checks, three focused AddressSanitizer checks and
+the x64 Marcus player, playback and C89 syntax checks passed. The x86
+Marcus player library also built.
+
+Both hosts matched all three archived V3dmm storyboard frames, camera
+indices and canvas hashes in suite `20261121T135717Z-0f917066`. In
+actor-event suite `20261121T135723Z-f86c6f61`, both matched all 60 retail
+frame identities in seek and continuous playback. Seek camera indices
+matched retail and seek canvas hashes matched the previous host captures.
+SDL matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T135916Z-1730d0d7`, both hosts matched all
+60 retail frame identities and SDL matched all four retail sound requests.
+The PCM16 peak matched the previous host captures at 2,176. The archived
+retail peak is 2,380. SDL captured 521,280 PCM frames and Marcus captured
+512,160. Evidence is in `tmp/c89-private-scene-archive`.

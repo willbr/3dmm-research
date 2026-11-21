@@ -17,20 +17,6 @@ ASSERTNAME
 namespace
 {
 void Require(bool value, const char *message) { if (!value) throw std::runtime_error(message); }
-using Archive = std::unique_ptr<MMPrivateArchive, decltype(&mm_private_archive_close)>;
-Archive OpenArchive(const std::filesystem::path &path, int mode)
-{
-    MMPrivateArchiveProfile profile = {sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), 0, 0,
-        KauaiEncodeLegacyChunkName,
-        [](void *, const void *bytes, size_t count, int encoding, void *out, size_t capacity) -> size_t {
-            return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(out), capacity);
-        }};
-#ifdef CHUNK_BIG_INDEX
-    profile.expanded = 1;
-#endif
-    Debug(profile.trash_unused = 1;)
-    return Archive(marcus_archive_open(path.u8string().c_str(), mode, &profile), mm_private_archive_close);
-}
 Filename Path(const std::filesystem::path &path)
 {
     String text; Filename result; text.SetSzs(const_cast<char *>(path.u8string().c_str()));
@@ -55,10 +41,7 @@ ChunkNumber Import(MMPrivateArchive *file, const char *path, int style)
     String name;
     filename.GetLeaf(&name);
     byte wire[kcbMaxDataStn];
-    if (name.Cch())
-        name.GetData(wire);
-    const MMChunkNameValue title = {wire, name.Cch() ? static_cast<MMU32>(name.CbData()) : 0U,
-                                    static_cast<MMU32>(name.Cch())};
+    const auto title = MarcusArchiveName(name, wire);
     auto writer = mm_private_archive_writer(file);
     writer.big_endian = 0;
     ChunkNumber sound;
@@ -133,7 +116,7 @@ std::vector<MarcusSoundAsset> MarcusReadSoundAssets(const std::filesystem::path 
 std::shared_ptr<MarcusMovieFile> MarcusPrepareSound(const char *path, int style)
 {
     auto result = MarcusCreateEventFile();
-    auto file = OpenArchive(result->path, MM_PRIVATE_ARCHIVE_CREATE);
+    auto file = MarcusOpenArchive(result->path, MM_PRIVATE_ARCHIVE_CREATE);
     Require(file && Import(file.get(), path, style) == 0 && mm_private_archive_save(file.get(), kctgSoc),
             "Cannot prepare this audio file.");
     return result;
@@ -143,13 +126,13 @@ std::shared_ptr<MarcusMovieFile> MarcusEditSound(const std::shared_ptr<MarcusMov
     const char *libraryPath, unsigned long libraryChunk)
 {
     auto result = MarcusCopyMovie(movie);
-    auto file = OpenArchive(result->path, MM_PRIVATE_ARCHIVE_EDIT);
+    auto file = MarcusOpenArchive(result->path, MM_PRIVATE_ARCHIVE_EDIT);
     Require(bool(file), "Cannot open the sound working copy.");
     ChunkNumber added = 0;
     if (libraryPath)
     {
-        auto library = OpenArchive(std::filesystem::u8path(libraryPath), MM_PRIVATE_ARCHIVE_READ);
-        Require(library && mm_private_archive_copy(library.get(), file.get(), kctgMsnd, libraryChunk, &added),
+        auto library = MarcusOpenArchive(std::filesystem::u8path(libraryPath), MM_PRIVATE_ARCHIVE_READ);
+        Require(library && mm_private_archive_copy(library.get(), file.get(), kctgMsnd, libraryChunk, 0, &added),
                 "Cannot copy the selected built-in sound.");
     }
     else if (importPath)

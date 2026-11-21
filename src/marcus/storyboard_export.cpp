@@ -1,7 +1,6 @@
 #include "storyboard_native.h"
 #undef size
 #include "engine_archive_stream.h"
-#include "engine_movie_archive.h"
 #include "mm/movie_portable.h"
 #include "mm/vxp_zip.h"
 #include <fstream>
@@ -13,15 +12,10 @@ namespace
 {
 namespace fs = std::filesystem;
 namespace V = MM::V3dmm;
-struct Release { template<class T> void operator()(T *p) const { if (p) p->Release(); } };
-using File = std::unique_ptr<ChunkyFile, Release>;
 void Require(bool ok, const char *message) { if (!ok) throw std::runtime_error(message); }
-File Open(const fs::path &path, bool create)
+MarcusArchive Open(const fs::path &path, int mode)
 {
-    String text; Filename filename;
-    text.SetSzs(const_cast<char *>(path.u8string().c_str()));
-    Require(filename.FBuildFromPath(&text), "Invalid storyboard export path.");
-    File file(create ? ChunkyFile::PcflCreate(&filename, fcflWriteEnable) : ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    auto file = MarcusOpenArchive(path, mode);
     Require(bool(file), "Cannot open storyboard export staging file.");
     return file;
 }
@@ -46,10 +40,8 @@ struct Staging
         fs::remove(directory, ignored);
     }
 };
-void PortableSource(PChunkyFile file)
+void PortableSource(const MMMovieArchiveEditor &editor)
 {
-    MovieArchiveHost host{file};
-    const auto editor = host.Editor();
     const auto result = mm_movie_archive_require_portable_source(&editor);
     Require(result != MM_PORTABLE_SOURCE_MISSING_ROOT, "Missing movie root.");
     Require(result != MM_PORTABLE_SOURCE_READ_FAILED, "Cannot read movie sources.");
@@ -115,33 +107,31 @@ void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStory
     const auto innerPath = work.Path("movie.3mm"), contentPath = work.Path("backgrounds.3cn"), thumbnailsPath = work.Path("backgrounds.3th");
     fs::copy_file(movie.path, innerPath);
     fs::permissions(innerPath, fs::perms::owner_write, fs::perm_options::add);
-    auto inner = Open(innerPath, false), contents = Open(contentPath, true);
+    auto inner = Open(innerPath, MM_PRIVATE_ARCHIVE_EDIT), contents = Open(contentPath, MM_PRIVATE_ARCHIVE_CREATE);
     SceneBackgrounds backgrounds;
     for (const auto &entry : boards)
     {
         // Regenerate from editor data, repairing older storyboard palettes too.
         const auto resource = MarcusBoardContent(*entry.second.board, MM_PORTABLE_SOURCE_ID, resources, content);
-        auto source = Open(resource.file->path, false);
+        auto source = Open(resource.file->path, MM_PRIVATE_ARCHIVE_READ);
         ChunkNumber background;
-        Require(source->FCopy(kctgBkgd, resource.background, contents.get(), &background), "Cannot package storyboard background.");
+        Require(mm_private_archive_copy(source.get(), contents.get(), kctgBkgd, resource.background, 0, &background),
+                "Cannot package storyboard background.");
         backgrounds.emplace_back(entry.first, background);
     }
-    Require(contents->FSave(kctgSoc), "Cannot finish portable storyboard content.");
+    Require(mm_private_archive_save(contents.get(), kctgSoc), "Cannot finish portable storyboard content.");
     contents.reset();
     std::random_device random;
     RekeyBackgrounds(contentPath, portableContent, random, backgrounds);
-    {
-        MovieArchiveHost innerArchive{inner.get()};
-        const auto editor = innerArchive.Editor();
-        for (const auto &entry : backgrounds)
-            Require(mm_movie_archive_retarget_background(&editor, entry.first, MM_PORTABLE_SOURCE_ID, entry.second),
-                    "Cannot write storyboard background references.");
-    }
-    PortableSource(inner.get());
-    Require(inner->FSave(kctgSoc), "Cannot finish portable storyboard movie.");
+    const auto editor = mm_private_archive_editor(inner.get());
+    for (const auto &entry : backgrounds)
+        Require(mm_movie_archive_retarget_background(&editor, entry.first, MM_PORTABLE_SOURCE_ID, entry.second),
+                "Cannot write storyboard background references.");
+    PortableSource(editor);
+    Require(mm_private_archive_save(inner.get(), kctgSoc), "Cannot finish portable storyboard movie.");
     inner.reset();
-    auto thumbnails = Open(thumbnailsPath, true);
-    Require(thumbnails->FSave(kctgSoc), "Cannot write storyboard thumbnail archive."); thumbnails.reset();
+    auto thumbnails = Open(thumbnailsPath, MM_PRIVATE_ARCHIVE_CREATE);
+    Require(mm_private_archive_save(thumbnails.get(), kctgSoc), "Cannot write storyboard thumbnail archive."); thumbnails.reset();
     // New names avoid the original manager reusing a stale, installed package.
     const auto archivePath = work.Path("backgrounds.vxp");
     const MMU32 nonce = random(), sequence = random();

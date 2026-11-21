@@ -9,5 +9,11 @@ MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivat
 
 #ifdef __cplusplus
 }
+#include <filesystem>
+#include <memory>
+using MarcusArchive = std::unique_ptr<MMPrivateArchive, decltype(&mm_private_archive_close)>;
+MarcusArchive MarcusOpenArchive(const std::filesystem::path &, int mode);
+class String;
+MMChunkNameValue MarcusArchiveName(String &, void *wire);
 #endif
 #endif

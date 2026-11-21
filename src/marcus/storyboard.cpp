@@ -6,14 +6,12 @@
 #include <cstring>
 #include <stdexcept>
 #include "storyboard_native.h"
-#include "engine_movie_archive.h"
 #include "storyboard_resource.h"
 #undef size
 ASSERTNAME
 
 namespace
 {
-struct Release { template<class T> void operator()(T *p) const { if (p) p->Release(); } };
 void Require(bool ok, const char *message) { if (!ok) throw std::runtime_error(message); }
 bool Range(float v, float a, float b) { return std::isfinite(v) && v >= a && v <= b; }
 const MarcusBoardTransforms BoardTransforms = {
@@ -256,47 +254,32 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
     }
     Require(!file->directory.empty(), "Cannot create storyboard working directory.");
     file->path = file->directory / "background.3cn";
-    String path; Filename filename;
-    path.SetSzs(const_cast<char *>(file->path.u8string().c_str()));
-    Require(filename.FBuildFromPath(&path), "Invalid storyboard working path.");
-    std::unique_ptr<ChunkyFile, Release> chunks(ChunkyFile::PcflCreate(&filename, fcflWriteEnable));
+    auto chunks = MarcusOpenArchive(file->path, MM_PRIVATE_ARCHIVE_CREATE);
     Require(bool(chunks), "Cannot create storyboard working file.");
-    String resourcePath; Filename resourceFilename;
-    resourcePath.SetSzs(const_cast<char *>(resources.c_str()));
-    Require(resourceFilename.FBuildFromPath(&resourcePath), "Invalid storyboard resource path.");
-    std::unique_ptr<ChunkyFile, Release> resourceFile(ChunkyFile::PcflOpen(&resourceFilename, fcflNil));
+    auto resourceFile = MarcusOpenArchive(std::filesystem::u8path(resources), MM_PRIVATE_ARCHIVE_READ);
     Require(bool(resourceFile), "Cannot read the movie palette.");
-    String contentPath; Filename contentFilename;
-    contentPath.SetSzs(const_cast<char *>((std::filesystem::u8path(content) / "bkgds.3cn").u8string().c_str()));
-    Require(contentFilename.FBuildFromPath(&contentPath), "Invalid retail background path.");
-    std::unique_ptr<ChunkyFile, Release> backgrounds(ChunkyFile::PcflOpen(&contentFilename, fcflNil));
+    auto backgrounds = MarcusOpenArchive(std::filesystem::u8path(content) / "bkgds.3cn", MM_PRIVATE_ARCHIVE_READ);
     Require(bool(backgrounds), "Cannot read the retail black scene.");
-    MovieArchiveHost resourceHost{resourceFile.get()};
-    MovieArchiveHost retailHost{backgrounds.get()};
-    MovieArchiveHost outputHost{chunks.get()};
-    const auto resourceEditor = resourceHost.Editor();
-    const auto retailEditor = retailHost.Editor();
-    const auto outputEditor = outputHost.Editor();
+    const auto resourceEditor = mm_private_archive_editor(resourceFile.get());
+    const auto retailEditor = mm_private_archive_editor(backgrounds.get());
+    const auto outputEditor = mm_private_archive_editor(chunks.get());
     MarcusBoardWire view{};
     Require(MarcusBoardView(board, view), "Invalid storyboard.");
     ChunkNumber background;
     const auto error = marcus_board_write_resources(&view, &resourceEditor, &retailEditor, &outputEditor,
                                                     &BoardTransforms, &background);
     Require(!error, error);
-    Require(chunks->FSave(kctgSoc), "Cannot save storyboard working file.");
+    Require(mm_private_archive_save(chunks.get(), kctgSoc), "Cannot save storyboard working file.");
     return {std::make_shared<MarcusStoryboard>(board), file, background, source};
 }
-void MarcusEmbedBoard(PChunkyFile file, ChunkNumber scene, const MarcusBoardResource &resource)
+void MarcusEmbedBoard(MMPrivateArchive *file, ChunkNumber scene, const MarcusBoardResource &resource)
 {
-    String path; Filename filename;
-    path.SetSzs(const_cast<char *>(resource.file->path.u8string().c_str()));
-    Require(filename.FBuildFromPath(&path), "Invalid storyboard source path.");
-    std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&filename, fcflNil));
+    auto source = MarcusOpenArchive(resource.file->path, MM_PRIVATE_ARCHIVE_READ);
     ChunkNumber background;
-    Require(source && source->FCopy(kctgBkgd, resource.background, file, &background), "Cannot embed storyboard resources.");
+    Require(source && mm_private_archive_copy(source.get(), file, kctgBkgd, resource.background, 0, &background),
+            "Cannot embed storyboard resources.");
     const auto bytes = MarcusEncodeBoard(*resource.board);
-    MovieArchiveHost host{file};
-    const auto editor = host.Editor();
+    const auto editor = mm_private_archive_editor(file);
     Require(mm_movie_archive_embed_storyboard(&editor, scene, background, bytes.data(), static_cast<MMU32>(bytes.size())),
             "Cannot embed storyboard data.");
 }

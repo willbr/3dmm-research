@@ -195,6 +195,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   archives over SDL streams. The C archive owns the live index, payload
   blocks, packed decoding and save. The host supplies historical text
   conversion and audio normalization.
+- Marcus materializes scene, camera, actor, animation and costume edits
+  through the same private archive. Object clipboard transfers and
+  storyboard resource generation, embedding and export also use it.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs
