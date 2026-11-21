@@ -19298,3 +19298,28 @@ retail frame identities and SDL matched all four retail sound requests.
 Their PCM16 peak matched prior host captures at 2,176. The archived retail
 peak is 2,380. SDL captured 513,120 PCM frames and Marcus captured 510,720.
 Evidence is in `tmp/c89-studio-native-sources`.
+
+## Live movie graph reads through the C89 archive owner (21 November 2026)
+
+Studio movie, scene and actor readers and the live Preview graph resolve
+chunk keys, encoded names and stored or decoded payloads through the C89
+archive owner. The graph borrows the owner for its lifetime and gets the
+current index or extent on each operation. C private archives use the same
+name and extent lookup. The native block and codec adapters supply file and
+handle operations for live Studio archives.
+
+All 193 standalone C checks and four focused AddressSanitizer checks passed.
+The owner fixture holds an open graph through an edit and table replacement
+and checks that it sees the new index, name and extent. Native x64, native
+x86 and SDL Studio scene edit, archive and save/load checks passed. All
+three saved movies matched the previous output byte for byte. Native
+Preview session and metadata checks passed with unchanged fixture files,
+and the Marcus player checks passed.
+
+Both playback hosts matched all three archived V3dmm storyboard frames,
+camera indices and canvas hashes in suite `20261121T151913Z-883bbe22`.
+In actor-event suite `20261121T151925Z-b49a83fd`, both hosts matched all 60
+retail frame identities in seek and continuous playback. Seek camera
+indices matched retail, seek canvas hashes matched the previous captures,
+and SDL matched all 12 retail sound requests. The capture database and
+comparison scripts are in `tmp/c89-live-archive-graph/evidence`.

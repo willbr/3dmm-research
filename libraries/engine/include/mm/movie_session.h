@@ -67,6 +67,12 @@ typedef struct MMMovieSessionGraph
     MMMovieGraphBytes payload, name;
 } MMMovieSessionGraph;
 
+struct MMChunkOwnerRead;
+/* Borrow the owner reader for the graph's lifetime. Each operation resolves
+ * the current table or extent through the storage binding. */
+MMMovieSessionGraph mm_movie_owner_graph(struct MMChunkOwnerRead *);
+int mm_movie_owner_stored(void *, const MMChunkEntry *, MMMovieReceiveBytes, void *out);
+
 /* Read an ACTR and the PATH/GGAE children at slot zero from their owning
  * graph. Header storage follows mm_actor_read_header. Track outputs transfer
  * ownership only on success. */

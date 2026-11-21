@@ -1,5 +1,6 @@
 #include "movie_session_internal.h"
 #include "mm/background_resource.h"
+#include "mm/chunk_owner.h"
 #include "mm/scene_data.h"
 #include "mm/text_resource.h"
 #include "mm/wide.h"
@@ -49,6 +50,52 @@ int mm_movie_block_read(const MMChunkPayloadServices *services, void *archive,
     read.bytes = bytes;
     read.size = size;
     return mm_movie_block_payload(services, archive, entry, read_exact_payload, &read);
+}
+
+static void owner_access(void *context, MMChunkAccess *out)
+{
+    *out = mm_chunk_owner_access(((MMChunkOwnerRead *)context)->storage);
+}
+
+static int owner_read(void *context, void *request, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size)
+{
+    const MMChunkOwnerRead *reader = context;
+    (void)request;
+    (void)position;
+    return mm_movie_block_read(&reader->payloads, context, entry, bytes, size);
+}
+
+static int owner_payload(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    const MMChunkOwnerRead *reader = context;
+    return mm_movie_block_payload(&reader->payloads, context, entry, receive, out);
+}
+
+static int owner_name(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    const MMChunkOwnerRead *reader = context;
+    unsigned char bytes[MM_CHUNK_NAME_WIRE_BYTES];
+    MMU32 written;
+    MMMemoryStream stream;
+    if (!mm_chunk_owner_read_name(reader->storage, entry->type, entry->number, reader->max_name_bytes,
+                                  bytes, sizeof(bytes), &written) || !mm_memory_stream_init(&stream, bytes, written))
+        return MM_MOVIE_BAD_FILE;
+    return receive(out, &stream.stream);
+}
+
+MMMovieSessionGraph mm_movie_owner_graph(MMChunkOwnerRead *reader)
+{
+    MMMovieSessionGraph graph = {NULL, owner_access, owner_read, owner_payload, owner_name};
+    graph.context = reader;
+    return graph;
+}
+
+int mm_movie_owner_stored(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    const MMChunkOwnerRead *reader = context;
+    int result;
+    return mm_chunk_visit_stored(&reader->payloads, context, entry->type, entry->number,
+                                  receive, out, &result) == MM_CHUNK_OK ? result : MM_MOVIE_BAD_FILE;
 }
 
 static int movie_chunk_status(int status)

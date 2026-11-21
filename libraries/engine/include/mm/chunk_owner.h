@@ -87,6 +87,19 @@ extern "C"
     int mm_chunk_owner_cache(MMChunkOwnerStorage *, MMU32 position, MMChunkLocation *);
     int mm_chunk_owner_fetch(MMChunkOwnerStorage *, MMU32 position, MMChunkLocation *);
     MMChunkEdit mm_chunk_owner_editor(MMChunkOwnerStorage *, MMU32 max_references, int scan_all_references);
+    MMChunkAccess mm_chunk_owner_access(MMChunkOwnerStorage *);
+    int mm_chunk_owner_locate(MMChunkOwnerStorage *, MMU32 type, MMU32 number, MMBlockFile *, int *packed);
+    int mm_chunk_owner_read_name(MMChunkOwnerStorage *, MMU32 type, MMU32 number, MMU32 max_name_bytes,
+                                 void *wire, MMU32 capacity, MMU32 *written);
+
+    /* Borrow a stable storage binding and platform block services. */
+    typedef struct MMChunkOwnerRead
+    {
+        MMChunkOwnerStorage *storage;
+        MMChunkPayloadServices payloads;
+        MMU32 max_name_bytes;
+    } MMChunkOwnerRead;
+    MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *, const MMChunkPayloadServices *, MMU32 max_name_bytes);
 
     typedef struct MMChunkOwnerSaveTarget
     {

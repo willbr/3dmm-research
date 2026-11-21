@@ -351,7 +351,7 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
             return Fail(error, ErrorCode::invalid_path, message.c_str());
         if (!filename.FBuildFromPath(&path))
             return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-        const MMArchiveReaderOptions readerOptions = {
+        MMArchiveReaderOptions readerOptions = {
             opened->options.maxDecodedBytes,
             opened->options.maxStringTableBytes,
             koskCur,
@@ -361,7 +361,7 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
             },
             nullptr,
             [](void *) -> int { return !Internal::AssertionFailed(); },
-            EngineMovieGraph::Name,
+            nullptr,
             KauaiEncodeLegacyChunkName,
         };
         const bool preferLive = mode == OpenMode::preview || mode == OpenMode::resources;
@@ -374,9 +374,12 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
             opened->file = ChunkyFile::PcflOpen(&filename, fcflNil);
             if (!opened->file)
                 return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-            const auto access = opened->file->ReadChunkAccess();
-            status = mm_archive_reader_open(&access, opened->file, KauaiChunkPayloadServices(), &readerOptions,
-                                            &opened->reader);
+            const auto graph = EngineMovieGraph::FromFile(opened->file);
+            const auto owner = opened->file->ReadOwner();
+            MMChunkAccess access;
+            graph.access(graph.context, &access);
+            readerOptions.name = graph.name;
+            status = mm_archive_reader_open(&access, owner, &owner->payloads, &readerOptions, &opened->reader);
         }
         else
         {

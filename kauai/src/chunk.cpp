@@ -299,6 +299,7 @@ ChunkyFile::ChunkyFile(void)
     };
 #endif
     mm_chunk_owner_bind_storage(&_storage, &_owner, KauaiCopyAllocator(), kcbMaxCrp, &io);
+    _reader = mm_chunk_owner_reader(&_storage, KauaiChunkPayloadServices(), kcbMaxDataStn);
     // add it to the linked list
     mm_chunk_link_init(&_link, this);
     AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
@@ -1110,14 +1111,7 @@ bool ChunkyFile::FFindBlockFile(ChunkTagOrType type, ChunkNumber number, MMBlock
     AssertThis(0);
     AssertVarMem(file);
     AssertVarMem(packed);
-    LegacyLong position;
-    if (!_FFindCtgCno(type, number, &position))
-        return false;
-
-    FileLocation location;
-    *packed = _GetBlockLocation(position, &location);
-    *file = {location.pfil, static_cast<MMU32>(location.fp), static_cast<MMU32>(location.cb)};
-    return true;
+    return mm_chunk_owner_locate(&_storage, type, number, file, packed) != 0;
 }
 
 const MMChunkPayloadServices *KauaiChunkPayloadServices()
@@ -1783,26 +1777,7 @@ bool ChunkyFile::_FGetName(LegacyLong icrp, PString pstn)
 
 bool ChunkyFile::FReadNameBytes(ChunkTagOrType type, ChunkNumber number, void *wire, MMU32 capacity, MMU32 *written)
 {
-    LegacyLong position;
-    if (!wire || !written || !_FFindCtgCno(type, number, &position))
-        return false;
-    struct Output { void *wire; MMU32 capacity, written; } output = {wire, capacity, 0};
-    const MMChunkNameDecoder decoder = {&output,
-        [](void *p, const void *data, MMU32 bytes) -> int {
-            auto &o = *static_cast<Output *>(p);
-            if (bytes > o.capacity)
-                return 0;
-            std::memcpy(o.wire, data, bytes);
-            o.written = bytes;
-            return 1;
-        },
-        [](void *p) { static_cast<Output *>(p)->written = 0; },
-        [](void *p) -> MMU32 { return static_cast<Output *>(p)->written; }};
-    const auto names = NameIndex();
-    if (!mm_chunk_name_get(&names, position, &decoder))
-        return false;
-    *written = output.written;
-    return true;
+    return mm_chunk_owner_read_name(&_storage, type, number, kcbMaxDataStn, wire, capacity, written) != 0;
 }
 
 MMChunkTitleIO KauaiChunkTitleIO()

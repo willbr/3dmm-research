@@ -94,7 +94,7 @@ bool ReadPresentation(const MMMovieSessionGraph &graph, MMMovieGraphBytes stored
 }
 bool ReadPresentation(PChunkyFile file, ChunkNumber scene, PreviewPresentation &out, bool soundSheet, bool includeCaptions)
 {
-    return ReadPresentation(EngineMovieGraph::FromFile(file), EngineMovieGraph::Stored, scene, out, soundSheet,
+    return ReadPresentation(EngineMovieGraph::FromFile(file), mm_movie_owner_stored, scene, out, soundSheet,
                             includeCaptions);
 }
 bool ReadAudio(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, PreviewAudio &out)

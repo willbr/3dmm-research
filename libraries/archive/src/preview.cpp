@@ -731,7 +731,7 @@ bool Preview::Impl::StoredPresentation(ChunkNumber scene, PreviewPresentation &o
         return false;
     Internal::ClearDiagnostic();
     const auto graph = assets.PlaybackGraph();
-    const auto stored = mm_archive_reader_wire_index(reader) ? mm_archive_reader_stored_payload : EngineMovieGraph::Stored;
+    const auto stored = mm_archive_reader_wire_index(reader) ? mm_archive_reader_stored_payload : mm_movie_owner_stored;
     return Internal::ReadPresentation(graph, stored, scene, out, soundSheet, includeCaptions);
 }
 bool Preview::ReadPresentation(PreviewPresentation &presentation, Error &error)

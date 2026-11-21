@@ -1,4 +1,5 @@
 #include "mm/chunk_owner.h"
+#include "mm/movie_session.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -713,6 +714,60 @@ static void persistence_cases(int expanded)
     CHECK(mm_chunk_owner_dispose(&owner, &storage_disposal) == MM_CHUNK_OK && host.main.releases == 1);
 }
 
+static int receive_name(void *out, const MMReadStream *stream)
+{
+    return mm_movie_read_fixed(stream, out, 5);
+}
+
+static void reader_cases(void)
+{
+    static const MMChunkPayloadServices payloads = {0};
+    static const unsigned char wire[] = {3, 3, 1, 'A', 0};
+    const MMChunkNameValue name = {wire, sizeof(wire), 1};
+    const MMChunkChild child = {1, 1, 0};
+    StorageHost host = {0};
+    MMChunkOwnerFileIO io = storage_io(&host);
+    MMChunkOwner owner;
+    MMChunkOwnerStorage storage;
+    MMChunkOwnerRead reader;
+    MMMovieSessionGraph graph;
+    MMChunkTable *old_table, *table;
+    MMChunkAccess access;
+    MMChunkEdit edit;
+    MMChunkNames names;
+    MMChunkEntry entry;
+    MMBlockFile extent;
+    int packed;
+    unsigned char title[sizeof(wire)];
+
+    bind_archive(&storage, &owner, &io, &host.main, 0, 1);
+    reader = mm_chunk_owner_reader(&storage, &payloads, sizeof(wire));
+    graph = mm_movie_owner_graph(&reader);
+    edit = mm_chunk_owner_editor(&storage, 65535, 1);
+    old_table = owner.files.index;
+    graph.access(graph.context, &access);
+    CHECK(!access.count);
+    CHECK(mm_chunk_add(&edit, 1, 0, 0, 0, NULL) == MM_CHUNK_OK);
+    graph.access(graph.context, &access);
+    CHECK(access.count == 1 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK);
+    CHECK(graph.name(graph.context, &entry, receive_name, title) == MM_MOVIE_BAD_FILE);
+
+    CHECK(mm_chunk_table_create(NULL, sizeof(MMChunkRecordSmall), 0, 0, &table) == MM_STORAGE_OK);
+    owner.files.index = table;
+    close_table(NULL, old_table);
+    CHECK(mm_chunk_add(&edit, 1, 0, 0, 4, NULL) == MM_CHUNK_OK);
+    CHECK(mm_chunk_add(&edit, 1, 1, 1, 0, NULL) == MM_CHUNK_OK);
+    CHECK(mm_chunk_adopt(&edit, 1, 0, &child, 1) == MM_CHUNK_OK);
+    names = mm_chunk_table_names(table, sizeof(wire));
+    CHECK(mm_chunk_name_set(&names, 0, &name) == MM_CHUNK_OK);
+    graph.access(graph.context, &access);
+    CHECK(access.context == table && access.count == 2);
+    CHECK(graph.name(graph.context, &entry, receive_name, title) == MM_MOVIE_OK && !memcmp(wire, title, sizeof(wire)));
+    CHECK(reader.payloads.locate(graph.context, entry.type, entry.number, &extent, &packed));
+    CHECK(extent.file == &host.main && extent.length == 4 && !packed);
+    CHECK(mm_chunk_owner_dispose(&owner, &storage_disposal) == MM_CHUNK_OK);
+}
+
 int main(void)
 {
     reopen_cases();
@@ -722,6 +777,7 @@ int main(void)
     storage_cases(1);
     persistence_cases(0);
     persistence_cases(1);
+    reader_cases();
     puts("chunk owner C89 checks passed");
     return 0;
 }

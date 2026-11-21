@@ -81,20 +81,7 @@ static int decode_handle(void *context, void **handle)
 static int locate(void *context, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
 {
     MMPrivateArchive *archive = context;
-    MMChunkTable *table = archive->owner.files.index;
-    const MMChunkAccess access = mm_chunk_table_access(table);
-    MMU32 position;
-    MMChunkEntry entry;
-    MMChunkLocation location;
-    if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK ||
-        !mm_chunk_table_entry(table, position, &entry) ||
-        mm_chunk_owner_fetch(&archive->storage, position, &location) != MM_CHUNK_OK)
-        return 0;
-    extent->file = location.file;
-    extent->offset = location.offset;
-    extent->length = location.bytes;
-    *packed = (entry.flags & MM_CHUNK_PACKED) != 0;
-    return 1;
+    return mm_chunk_owner_locate(&archive->storage, type, number, extent, packed);
 }
 
 static MMU32 max_title_bytes(const MMPrivateArchive *archive)
@@ -122,20 +109,7 @@ MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *archive)
 static int read_title(void *context, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
 {
     MMPrivateArchive *archive = context;
-    MMChunkTable *table = archive->owner.files.index;
-    const MMChunkAccess access = mm_chunk_table_access(table);
-    MMChunkEntry entry;
-    MMU32 position, skip, bytes;
-    if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK ||
-        !mm_chunk_table_entry(table, position, &entry) || entry.child_count > entry.variable_bytes / sizeof(MMChunkChild))
-        return 0;
-    skip = entry.child_count * sizeof(MMChunkChild);
-    bytes = entry.variable_bytes - skip;
-    if (!bytes || bytes > capacity || bytes > max_title_bytes(archive) ||
-        mm_chunk_table_read(table, position, skip, bytes, wire) != MM_STORAGE_OK)
-        return 0;
-    *written = bytes;
-    return 1;
+    return mm_chunk_owner_read_name(&archive->storage, type, number, max_title_bytes(archive), wire, capacity, written);
 }
 
 static int write_title(void *context, MMU32 type, MMU32 number, const void *wire, MMU32 bytes)

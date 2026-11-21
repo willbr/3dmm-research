@@ -384,6 +384,63 @@ MMChunkEdit mm_chunk_owner_editor(MMChunkOwnerStorage *storage, MMU32 max_refere
     return mm_chunk_table_editor(&storage->edit, storage->allocator, max_references, scan_all_references);
 }
 
+MMChunkAccess mm_chunk_owner_access(MMChunkOwnerStorage *storage)
+{
+    return mm_chunk_table_access(owner_table(storage));
+}
+
+int mm_chunk_owner_locate(MMChunkOwnerStorage *storage, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
+{
+    const MMChunkAccess access = mm_chunk_owner_access(storage);
+    MMU32 position;
+    MMChunkEntry entry;
+    MMChunkLocation location;
+    if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK ||
+        mm_chunk_owner_fetch(storage, position, &location) != MM_CHUNK_OK)
+        return 0;
+    extent->file = location.file;
+    extent->offset = location.offset;
+    extent->length = location.bytes;
+    *packed = (entry.flags & MM_CHUNK_PACKED) != 0;
+    return 1;
+}
+
+int mm_chunk_owner_read_name(MMChunkOwnerStorage *storage, MMU32 type, MMU32 number, MMU32 max_name_bytes,
+                             void *wire, MMU32 capacity, MMU32 *written)
+{
+    const MMChunkAccess access = mm_chunk_owner_access(storage);
+    MMU32 position, skip, bytes;
+    MMChunkEntry entry;
+    if (!wire || !written || mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(&access, position, &entry) != MM_CHUNK_OK ||
+        entry.child_count > entry.variable_bytes / sizeof(MMChunkChild))
+        return 0;
+    skip = entry.child_count * sizeof(MMChunkChild);
+    bytes = entry.variable_bytes - skip;
+    if (!bytes || bytes > capacity || bytes > max_name_bytes ||
+        mm_chunk_table_read(owner_table(storage), position, skip, bytes, wire) != MM_STORAGE_OK)
+        return 0;
+    *written = bytes;
+    return 1;
+}
+
+static int reader_locate(void *context, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
+{
+    return mm_chunk_owner_locate(((MMChunkOwnerRead *)context)->storage, type, number, extent, packed);
+}
+
+MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *storage, const MMChunkPayloadServices *payloads,
+                                       MMU32 max_name_bytes)
+{
+    MMChunkOwnerRead reader;
+    reader.storage = storage;
+    reader.payloads = *payloads;
+    reader.payloads.locate = reader_locate;
+    reader.max_name_bytes = max_name_bytes;
+    return reader;
+}
+
 typedef struct OwnerSave
 {
     MMChunkOwnerStorage *storage;

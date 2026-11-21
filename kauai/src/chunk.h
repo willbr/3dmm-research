@@ -105,6 +105,7 @@ class ChunkyFile : public ChunkyFile_PAR
   private:
     MMChunkOwner _owner;
     MMChunkOwnerStorage _storage;
+    MMChunkOwnerRead _reader;
     PFileObject _MainFile() { return static_cast<PFileObject>(_owner.files.main_file); }
     PFileObject _ExtraFile() { return static_cast<PFileObject>(_owner.files.extra_file); }
     MMChunkTable *_Index() { return static_cast<MMChunkTable *>(_owner.files.index); }
@@ -246,6 +247,7 @@ class ChunkyFile : public ChunkyFile_PAR
     LegacyLong Ccki(void);
     // Borrow the current index for synchronous reads. Reacquire after edits.
     MMChunkAccess ReadChunkAccess() { return _ChunkAccess(); }
+    MMChunkOwnerRead *ReadOwner() { return &_reader; }
     // Borrow writable index primitives for a synchronous operation on this archive.
     MMChunkEdit EditIndex();
     MMChunkNames NameIndex();
