@@ -177,7 +177,7 @@ static void perspective(void *v, const MMPreviewCamera *c, MMI32 out[16])
     out[10] = scalar(1);
     out[14] = scalar(2);
 }
-static int scene_pick(void *v, void *w, void *c, MMU32 width, MMU32 height, MMI32 x, MMI32 y, MMPreviewPickState *state)
+static void scene_pick(void *v, void *w, void *c, MMU32 width, MMU32 height, MMI32 x, MMI32 y, MMPreviewPickState *state)
 {
     Host *h = (Host *)v;
     Node *n = ((Node *)w)->first;
@@ -191,6 +191,11 @@ static int scene_pick(void *v, void *w, void *c, MMU32 width, MMU32 height, MMI3
     for (; n; n = n->next)
         if (n->id >= 0)
             mm_preview_pick_model(state, n, n, 0, 0, 0, 0, 65536);
+}
+static int renderer_ok(void *v)
+{
+    Host *h = (Host *)v;
+    assert(h->scene_calls && h->world_live);
     return h->failure != 7;
 }
 static MMU32 face_count(void *v, void *m)
@@ -284,6 +289,7 @@ static void init(Host *h, MMPreviewRenderServices *r, MMPreviewPickServices *s, 
     r->camera = camera;
     r->mesh = mesh;
     r->add_mesh = add_mesh;
+    r->renderer_ok = renderer_ok;
     s->context = h;
     s->render = r;
     s->invertible = invertible;

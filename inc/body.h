@@ -87,8 +87,6 @@ class Body : public Body_PAR
     void _RemoveMaterial(LegacyLong ibset);
 
     // Callbacks from BRender:
-    static int BR_CALLBACK _FFilterSearch(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos,
-                                          BVEC3 *pbvec3RayDir, BRS dzpNear, BRS dzpFar, void *pvArg);
     static void _BactRendered(PBACT pbact, RC *prc);
     static int _ReadRenderBody(PBACT, MMRenderBody *);
     static void _PrepareRenderBody(const MMRenderBody *);
@@ -107,8 +105,6 @@ class Body : public Body_PAR
     ~Body(void);
     PBody PbodyDup(void);
     void Restore(PBody pbodyDup);
-    static int BR_CALLBACK _FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir,
-                                    BRS dzpNear, BRS dzpFar, void *pv);
 
     bool FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
     bool FChangeShape(const MMPartIndexView &parents, const MMPartIndexView &sets);

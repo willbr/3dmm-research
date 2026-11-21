@@ -32,8 +32,8 @@ class BodyGeometryFixtureAccess : public Body
     }
     static int Search(PBody target, PBACT actor)
     {
-        BVEC3 v = {};
-        return _FFilterSearch(actor, nullptr, nullptr, &v, &v, 0, 0, target);
+        auto services = _GeometryServices();
+        return mm_body_search_visit(target, actor, &services);
     }
     static void ResetSearch(PBody target)
     {
@@ -44,11 +44,11 @@ class BodyGeometryFixtureAccess : public Body
     {
         MMBodyPick pick;
         mm_body_pick_begin(&pick);
-        BVEC3 v = {};
-        _FFilter(a->PbactRoot() + 1, nullptr, nullptr, &v, &v, BR_SCALAR(3), 0, &pick);
-        _FFilter(b->PbactRoot() + 2, nullptr, nullptr, &v, &v, BR_SCALAR(3), 0, &pick);
-        _FFilter(b->PbactRoot(), nullptr, nullptr, &v, &v, BR_SCALAR(2), 0, &pick);
-        _FFilter(a->PbactRoot() + 2, nullptr, nullptr, &v, &v, BR_SCALAR(-1), 0, &pick);
+        auto services = _GeometryServices();
+        mm_body_pick_visit(&pick, a->PbactRoot() + 1, BR_SCALAR(3), &services);
+        mm_body_pick_visit(&pick, b->PbactRoot() + 2, BR_SCALAR(3), &services);
+        mm_body_pick_visit(&pick, b->PbactRoot(), BR_SCALAR(2), &services);
+        mm_body_pick_visit(&pick, a->PbactRoot() + 2, BR_SCALAR(-1), &services);
         out[0] = pick.body == a ? 1 : pick.body == b ? 2 : 0;
         out[1] = pick.body ? pick.depth : 0;
         out[2] = -1;

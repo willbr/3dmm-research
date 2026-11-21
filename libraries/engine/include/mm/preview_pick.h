@@ -19,8 +19,8 @@ extern "C"
         const MMPreviewRenderServices *render;
         int (*invertible)(void *, void *camera);
         void (*perspective)(void *, const MMPreviewCamera *, MMI32 matrix[16]);
-        int (*scene_pick)(void *, void *world, void *camera, MMU32 width, MMU32 height, MMI32 x, MMI32 y,
-                          MMPreviewPickState *);
+        void (*scene_pick)(void *, void *world, void *camera, MMU32 width, MMU32 height, MMI32 x, MMI32 y,
+                           MMPreviewPickState *);
         MMU32 face_bytes;
         MMU32 (*face_count)(void *, void *model);
         void (*prepare_face)(void *, void *model, MMU32 index, void *face);
@@ -42,7 +42,8 @@ extern "C"
         MM_PREVIEW_PICK_MEMORY
     };
     /* Synchronous services never throw. render supplies scene/body descriptors,
-     * camera/world primitives, tree copying, mesh services, math and allocator.
+     * camera/world primitives, tree copying, mesh services, math, allocator and
+     * renderer_ok, which checks diagnostics after the scene scan.
      * The C owner releases the world before its scratch buffers on every exit.
      * SDK camera data must remain alive through world disposal. Prepared face copies
      * are private; prepare_face copies one SDK face and rebuilds its pivot-adjusted

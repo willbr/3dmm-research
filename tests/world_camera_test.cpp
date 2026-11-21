@@ -76,8 +76,7 @@ struct Access : World
     }
     static void Filter(PWorld w, PBACT a, BRS depth)
     {
-        BVEC3 zero = {};
-        Value(_FFilter(a, nullptr, nullptr, &zero, &zero, depth, depth, w));
+        Value(mm_world_pick_visit(&(w->*&Access::_camera), a, depth));
         const auto &camera = w->*&Access::_camera;
         auto picked = static_cast<PBACT>(camera.picked);
         Value(picked ? picked->identifier[0] : 0);

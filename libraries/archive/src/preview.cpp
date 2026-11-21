@@ -2,6 +2,7 @@
 #include "mm/preview.h"
 #include "mm/preview_rasterizer.h"
 #include "scene_renderer.h"
+#include "scene_pick.h"
 #include "zb_capture.h"
 #include "preview_background_mesh.h"
 #include "preview_depth_range.h"
@@ -50,7 +51,6 @@ bool Fail(Error &error, ErrorCode code, const char *message)
 struct Preview::Impl
 {
     struct RenderHost;
-    struct PickHost;
     struct LiveHost;
     struct AdmissionHost;
     struct SessionHost;
@@ -198,7 +198,6 @@ struct Preview::Impl
     ~Impl();
 };
 #include "preview_render_host.h"
-#include "preview_pick_host.h"
 #include "preview_live_host.h"
 #include "preview_admission_host.h"
 #include "preview_session_host.h"
@@ -697,7 +696,9 @@ try
     Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
     host.readBodyBounds = false;
     auto render = host.Services();
-    auto services = Impl::PickHost::Services(render);
+    MMPreviewPickServices services = {};
+    services.render = &render;
+    mm_brender_preview_pick_services(&services);
     MMPreviewProjection p = {};
     p.valid = projection.valid;
     p.orthographic = projection.orthographic;

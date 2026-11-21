@@ -31,12 +31,18 @@ Body *BodyWorld::PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset)
     AssertNilOrVarMem(pibset);
     AssertPo(pbwld, 0);
 
-    MMBodyPick pick;
-    mm_body_pick_begin(&pick);
-    pbwld->IterateActorsInPt(Body::_FFilter, &pick, xp, yp);
-    auto services = Body::_GeometryServices();
+    struct Pick
+    {
+        MMBodyPick state;
+        MMBodyGeometryServices services;
+    } pick = {{}, Body::_GeometryServices()};
+    mm_body_pick_begin(&pick.state);
+    pbwld->IterateActorsInPt([](void *context, void *actor, MMI32 depth) {
+        auto &pick = *static_cast<Pick *>(context);
+        return mm_body_pick_visit(&pick.state, actor, depth, &pick.services);
+    }, &pick, xp, yp);
     MMI32 set;
-    auto body = static_cast<PBody>(mm_body_pick_result(&pick, pibset ? &set : nullptr, &services));
+    auto body = static_cast<PBody>(mm_body_pick_result(&pick.state, pibset ? &set : nullptr, &pick.services));
     if (body && pibset)
         *pibset = set;
     return body;
@@ -48,7 +54,15 @@ bool BodyWorld::FPtInBody(Body *body, PWorld world, long xp, long yp, long *pibs
     AssertPo(world, 0);
     AssertVarMem(pibset);
     mm_body_search_begin(&body->_geometry);
-    world->IterateActorsInPt(&Body::_FFilterSearch, body, xp, yp);
+    struct Search
+    {
+        Body *body;
+        MMBodyGeometryServices services;
+    } search = {body, Body::_GeometryServices()};
+    world->IterateActorsInPt([](void *context, void *actor, MMI32) {
+        auto &search = *static_cast<Search *>(context);
+        return mm_body_search_visit(search.body, actor, &search.services);
+    }, &search, xp, yp);
     *pibset = body->_geometry.set;
     return body->_geometry.found != 0;
 }

@@ -296,21 +296,6 @@ Body *Body::PbodyFromBact(BACT *pbact, LegacyLong *pibset)
 }
 
 /***************************************************************************
-    Filter callback proc for PbodyClicked().  Saves pbody if it's the
-    closest one hit so far and visible
-***************************************************************************/
-int Body::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir, BRS dzpNear,
-                   BRS dzpFar, void *pv)
-{
-    AssertVarMem(pbact);
-    AssertVarMem(pbvec3RayPos);
-    AssertVarMem(pbvec3RayDir);
-
-    auto services = _GeometryServices();
-    return mm_body_pick_visit(static_cast<MMBodyPick *>(pv), pbact, dzpNear, &services);
-}
-
-/***************************************************************************
     Destroy the Body's body parts, including their attached materials and
     models.
 ***************************************************************************/
@@ -636,20 +621,6 @@ MMBodyGeometryServices Body::_GeometryServices(void)
     s.missing_owner = [](void *) { Bug("What actor is this?  It has no Body"); };
     s.none_type = BR_ACTOR_NONE; s.model_type = BR_ACTOR_MODEL;
     return s;
-}
-
-/***************************************************************************
-    Filter callback proc for FPtInActor(). Stops when the Body is hit.
-***************************************************************************/
-int Body::_FFilterSearch(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *ray_pos, BVEC3 *ray_dir, BRS dzpNear, BRS dzpFar,
-                         void *pvArg)
-{
-    AssertVarMem(pbact);
-    AssertVarMem(ray_pos);
-    AssertVarMem(ray_dir);
-
-    auto services = _GeometryServices();
-    return mm_body_search_visit(pvArg, pbact, &services);
 }
 
 /***************************************************************************

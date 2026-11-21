@@ -708,6 +708,9 @@ Keep host presentation and device output outside the session.
    retained movie sessions. Each draw holds its own camera and body references.
    Both hosts now use the C89 BRender binding to submit the published camera,
    stage lighting, actor tree and colour and depth targets to the renderer.
+   The binding also performs both hosts' BRender pick queries. Studio consumes
+   actor and depth hits, and Marcus Preview refines hits against prepared faces,
+   transformed textures and the authored background depth.
    Both live scene loaders now read the SCEN header and its validated start
    and frame event rows through the retained session. The same C reader also
    supports individual scene chunks and Studio undo snapshots. Live timelines

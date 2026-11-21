@@ -14,6 +14,7 @@
 #include "mm/world_camera.h"
 #include "mm/world_render.h"
 #include "mm/world_export.h"
+#include "scene_pick.h"
 
 namespace BRender {
 
@@ -71,8 +72,6 @@ class World : public World_PAR
 #ifdef DEBUG
     MMWorldExportServices _ExportServices(void *context);
 #endif // DEBUG
-    static int BR_CALLBACK _FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir,
-                                    BRS dzpNear, BRS dzpFar, void *pbwld);
     static void BR_CALLBACK _ActorRendered(PBACT pbact, PBMDL pbmdl, PBMTL pbmtl, br_uint_8 bStyle,
                                            br_matrix4 *pbmat4ModelToScreen, br_int_32 bounds[4]);
 
@@ -97,7 +96,7 @@ class World : public World_PAR
     // Actor stuff
     void AddActor(BACT *pbact);
     bool FClickedActor(long xp, long yp, BACT **ppbact);
-    void IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp, long yp);
+    void IterateActorsInPt(MMBRenderActorHit *visit, void *context, long xp, long yp);
     void SetBeginRenderCallback(PFNBEGINREND pfnbeginrend)
     {
         _pfnbeginrend = pfnbeginrend;

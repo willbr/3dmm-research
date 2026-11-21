@@ -2400,12 +2400,12 @@ Rendering and picking share the same stable body-order/tree-copy implementation.
 The C owner releases the temporary world before its owner/face buffers on every
 exit and publishes no hit after an allocation or SDK failure.
 
-Native adapters supply typed BRender camera/inverse/projection and pick calls,
-face copying and pivot-plane repair using SDK fixed arithmetic, material/texture
-field views and the SDK UV transform. Source geometry and textures stay borrowed.
-No native picking evaluator or picking owner map remains. Camera interaction is
-covered below, together with asset/scene admission and source/session setup.
-Presentation and final facade integration remain work.
+`bren/scene_pick.c` supplies camera inversion, projection, BRender scene and
+face scans, pivot-plane repair, and texture views and UV transforms. Source
+geometry and textures stay borrowed. The C controller checks the host's
+renderer diagnostics after the scene scan, before publishing the result.
+The C++ Preview entry point translates projection values and errors for the
+public API.
 
 The headless Scene Preview fixture records per-build original/converted hit,
 distance and error traces across authored/output, orbit, free, axis and
@@ -5257,9 +5257,9 @@ translation, matching native `BR_MAC4`. Rectangle centers preserve wrapped
 32-bit sums followed by truncation toward zero, using unsigned magnitudes
 rather than relying on C89's implementation-defined negative division.
 
-`BodyWorld` supplies synchronous renderer traversal. Closest-hit state is now a
-caller-owned `MMBodyPick`, replacing the three process-wide Body picking
-fields. A strictly closer visible hit wins, so the first equal-depth hit remains.
+`BodyWorld` receives actor handles and near depths from the C89 BRender scan.
+Closest-hit state is a caller-owned `MMBodyPick`. A strictly closer visible hit
+wins, so the first equal-depth hit remains.
 Root/highlight hits may select a body with set -1. Point-in-body search marks
 found for a highlight hit but continues looking for a real part. An unsuccessful
 closest-body query leaves the optional caller set output unchanged. C tests
@@ -5844,9 +5844,10 @@ capture limits are in `docs/tools/playback-regression.md`.
 state, camera publication/working-region dirty ordering, pick reset/dispatch,
 coordinate conversion, actor-root owner traversal and rendered-bound conversion.
 Both pick entry points read the viewport origin from the C RGB buffer
-description. The C89 BRender binding publishes the SDK camera fields. The World
-adapter invokes the intersection query and dispatches its client callbacks. It
-returns the nearest actor directly from the C pick state.
+description. The C89 BRender binding publishes the SDK camera fields and runs
+the intersection query for closest-actor and body searches. Closest-actor
+results come directly from the C pick state. Body searches receive an actor
+handle and near depth per intersection and can end the scan early.
 
 Camera changes dirty the working region without setting the changed latch,
 matching the original behavior. Half-resolution picking truncates negative

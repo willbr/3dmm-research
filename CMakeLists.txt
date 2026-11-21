@@ -1139,6 +1139,7 @@ endif()
 # C89 renderer operations for scenes, live bodies, models, materials and textures.
 add_library(mm-brender-resources STATIC
   "${PROJECT_SOURCE_DIR}/bren/body_renderer.c"
+  "${PROJECT_SOURCE_DIR}/bren/scene_pick.c"
   "${PROJECT_SOURCE_DIR}/bren/scene_renderer.c"
   "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
   "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"
@@ -1151,6 +1152,7 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
     COMMAND "${ENGINE_C89_COMPILER}" -std=c89 -pedantic-errors -Werror=declaration-after-statement -Wall -Wextra -Werror
       -I "${PROJECT_SOURCE_DIR}/libraries/engine/include" -isystem "${PROJECT_SOURCE_DIR}/bren/inc"
       -fsyntax-only "${PROJECT_SOURCE_DIR}/bren/body_renderer.c"
+        "${PROJECT_SOURCE_DIR}/bren/scene_pick.c"
         "${PROJECT_SOURCE_DIR}/bren/scene_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"

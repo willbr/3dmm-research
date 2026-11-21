@@ -17462,3 +17462,41 @@ retail frame identities in both ports' seek and continuous playback runs,
 including all retail seek camera indices and SDL's 12 retail sound requests.
 Each port also reproduced all 60 seek canvas hashes from the prior build.
 The comparison and fixture evidence are in `tmp/c89-scene-renderer`.
+
+## Shared C89 BRender picking binding (21 November 2026)
+
+Studio and Marcus Preview now run BRender picking from `bren/scene_pick.c`.
+Studio's body and closest-actor queries receive the same ordered actor and
+near-depth hits. Preview's binding scans prepared faces, rebuilds their
+pivot-adjusted planes, and supplies transformed texture coordinates to the
+C89 picking controller. The controller checks the host's renderer diagnostic
+after the scan and preserves its scratch and result ownership.
+
+All 192 standalone C checks, three focused AddressSanitizer checks, the
+strict BRender C89 syntax check and the SDL runtime compile checks passed.
+Marcus player, playback, sound editing and raster parity checks passed.
+World camera and body geometry traces matched byte for byte on native x64,
+native x86 and SDL. The Preview actor-tree fixture passed on all three builds.
+Native x64 and SDL matched all 74,816 Preview pick trace bytes, including six
+hits. The previous and current native x86 Preview binaries both exit with
+integer overflow after producing the same 20,480-byte trace prefix. Both stop
+at the same `BrFixedDiv` instruction during the SDK's `BrModelPick2D`
+ray-plane intersection.
+
+All 15 Studio pointer-selection traces matched the prior click, drag, undo
+and redo results. The six drag saves matched in all chunk records and payloads.
+Each save differed in 7 to 12 bytes of unused chunk-index row padding. The 54
+movie and scene traces, nine sound and actor traces, three saved movie
+fixtures, ten Preview fingerprints, six Preview movies and the SDL authoring
+save all matched byte for byte.
+
+Retail, SDL and Marcus matched three retained-background frame identities,
+camera indices and canvas hashes in `20261121T012858Z-fd0f366b`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T012934Z-26d6394f`.
+
+The actor-event suite `20261121T012840Z-987f6e5e` matched all 60 archived
+retail frame identities in both ports' seek and continuous playback runs,
+including all retail seek camera indices and SDL's 12 retail sound requests.
+Each port also reproduced all 60 seek canvas hashes from the prior build.
+The comparison and fixture evidence are in `tmp/c89-scene-pick`.

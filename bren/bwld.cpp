@@ -328,11 +328,6 @@ MMWorldCameraServices World::_CameraServices()
         auto w = static_cast<PWorld>(p);
         mm_world_buffers_dirty(&w->_buffers, 0);
     };
-    s.pick = [](void *p, MMI32 x, MMI32 y) {
-        auto w = static_cast<PWorld>(p);
-        w->_SyncPixelmaps();
-        BrScenePick2D(&w->_bactWorld, &w->_bactCamera, &w->_bpmpRGB, x, y, World::_FFilter, w);
-    };
     return s;
 }
 void World::SetCamera(BMAT34 *pbmat34, BRS zrHither, BRS zrYon, BRA aFov)
@@ -475,37 +470,17 @@ void World::AddActor(BACT *pbact)
 }
 
 /***************************************************************************
-    Filter callback proc for FClickedActor().  Saves pbact if it's the
-    closest one hit so far.
+    Visit the actors under the point (xp, yp).
 ***************************************************************************/
-int World::_FFilter(BACT *pbact, PBMDL pbmdl, PBMTL pbmtl, BVEC3 *pbvec3RayPos, BVEC3 *pbvec3RayDir, BRS dzpNear,
-                   BRS dzpFar, void *pvData)
-{
-    AssertVarMem(pbact);
-    AssertVarMem(pbvec3RayPos);
-    AssertVarMem(pbvec3RayDir);
-
-    PWorld pbwld = (PWorld)pvData;
-    AssertPo(pbwld, 0);
-
-    return mm_world_pick_visit(&pbwld->_camera, pbact, dzpNear);
-}
-
-/***************************************************************************
-    Call pfnCallback for each actor under the point (xp, yp)
-***************************************************************************/
-void World::IterateActorsInPt(br_pick2d_cbfn *pfnCallback, void *pvArg, long xp, long yp)
+void World::IterateActorsInPt(MMBRenderActorHit *visit, void *context, long xp, long yp)
 {
     AssertThis(0);
 
     if (xp < INT32_MIN || xp > INT32_MAX || yp < INT32_MIN || yp > INT32_MAX)
         return;
-    MMI32 x, y;
-    if (mm_world_pick_point(&_buffers, xp, yp, &x, &y))
-    {
-        _SyncPixelmaps();
-        BrScenePick2D(&_bactWorld, &_bactCamera, &_bpmpRGB, x, y, pfnCallback, pvArg);
-    }
+    MMRenderFrame frame;
+    mm_render_frame_borrow(&frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
+    mm_brender_world_visit(&_buffers, &frame, xp, yp, visit, context);
 }
 
 /***************************************************************************
@@ -517,11 +492,14 @@ bool World::FClickedActor(long xp, long yp, BACT **ppbact)
     AssertThis(0);
     AssertVarMem(ppbact);
 
-    auto s = _CameraServices();
     if (xp < INT32_MIN || xp > INT32_MAX || yp < INT32_MIN || yp > INT32_MAX)
         mm_world_pick_begin(&_camera);
     else
-        mm_world_pick(&_camera, &_buffers, xp, yp, &s);
+    {
+        MMRenderFrame frame;
+        mm_render_frame_borrow(&frame, &_bactWorld, &_bactCamera, &_bpmpRGB, &_bpmpZ);
+        mm_brender_world_pick(&_camera, &_buffers, &frame, xp, yp);
+    }
     if (_camera.picked)
     {
         *ppbact = static_cast<PBACT>(_camera.picked);

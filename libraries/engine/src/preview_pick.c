@@ -201,8 +201,9 @@ static int pick(const MMPreviewProjection *p, int authored, int output_resolutio
                 state->closest = (float)distance;
         }
     }
-    result = s->scene_pick(s->context, frame->world, frame->camera, rw, rh,
-                          x - (MMI32)rw / 2, y - (MMI32)rh / 2, state);
+    s->scene_pick(s->context, frame->world, frame->camera, rw, rh,
+                  x - (MMI32)rw / 2, y - (MMI32)rh / 2, state);
+    result = r.renderer_ok(r.context);
     if (state->failed)
         return MM_PREVIEW_PICK_MEMORY;
     return result ? MM_PREVIEW_PICK_OK : MM_PREVIEW_PICK_RENDERER;
