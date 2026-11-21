@@ -154,11 +154,11 @@ enum
 #ifdef CHUNK_BIG_INDEX
 using ChunkRepresentation = MMChunkRecordBig;
 constexpr int expandedRecords = 1;
-constexpr LegacyLong kcbMaxCrp = klwMax, kckidMax = kcbMax;
+constexpr LegacyLong kckidMax = kcbMax;
 #else
 using ChunkRepresentation = MMChunkRecordSmall;
 constexpr int expandedRecords = 0;
-constexpr LegacyLong kcbMaxCrp = 0x00ffffff, kckidMax = ksuMax;
+constexpr LegacyLong kckidMax = ksuMax;
 #endif
 using PChunkTable = MMChunkTable *;
 namespace {
@@ -241,9 +241,6 @@ void ChunkyFile::DumpStn(PString pstn, PFileObject pfil)
 RTCLASS(ChunkyFile)
 RTCLASS(ChunkGraphEnumerator)
 
-/***************************************************************************
-    Constructor for ChunkyFile - private.
-***************************************************************************/
 namespace
 {
 MMChunkOwnerFileIO ChunkOwnerFileIO()
@@ -297,14 +294,25 @@ MMPrivateArchive *KauaiPrivateArchive(PFileObject file)
     return mm_private_archive_open(file, MM_PRIVATE_ARCHIVE_CREATE, &io, KauaiBlockFileServices(), &profile);
 }
 
-ChunkyFile::ChunkyFile(void)
+PChunkyFile ChunkyFile::_PcflNew()
 {
-    AssertDo(mm_chunk_owner_init(&_owner, KauaiCopyAllocator(), expandedRecords) == MM_CHUNK_OK,
-             "invalid container owner");
-    auto io = ChunkOwnerFileIO();
+    const auto io = ChunkOwnerFileIO();
+    auto archive = mm_chunk_archive_new(expandedRecords, KauaiCopyAllocator(), &io, KauaiChunkPayloadServices(),
+                                        kcbMaxDataStn);
+    if (!archive)
+        return nullptr;
+    auto file = NewObj ChunkyFile(archive);
+    if (!file)
+        mm_chunk_archive_close(archive);
+    return file;
+}
+
+ChunkyFile::ChunkyFile(MMChunkArchive *archive)
+    : _archive(archive), _reader(*mm_chunk_archive_reader(archive)), _storage(*_reader.storage), _owner(*_storage.owner)
+{
 #ifdef CHUNK_STATS
-    io.context = this;
-    io.trace = [](void *context, int kind, const MMChunkEntry *entry) {
+    _storage.io.context = this;
+    _storage.io.trace = [](void *context, int kind, const MMChunkEntry *entry) {
         if (!vfDumpChunkRequests)
             return;
         auto self = static_cast<PChunkyFile>(context);
@@ -319,8 +327,6 @@ ChunkyFile::ChunkyFile(void)
         DumpStn(&text, self->_MainFile());
     };
 #endif
-    mm_chunk_owner_bind_storage(&_storage, &_owner, KauaiCopyAllocator(), kcbMaxCrp, &io);
-    _reader = mm_chunk_owner_reader(&_storage, KauaiChunkPayloadServices(), kcbMaxDataStn);
     // add it to the linked list
     mm_chunk_link_init(&_link, this);
     AssertDo(mm_chunk_context_attach(&_context, &_link) == MM_CHUNK_OK, "invalid container registry attachment");
@@ -333,11 +339,7 @@ ChunkyFile::ChunkyFile(void)
 ChunkyFile::~ChunkyFile(void)
 {
     AssertBaseThis(0);
-    const MMChunkDisposal services = {this,
-        [](void *, void *file) { static_cast<PFileObject>(file)->Release(); },
-        [](void *, void *index) { CloseChunkTable(static_cast<PChunkTable>(index)); },
-        [](void *c, const MMChunkReopenState *state) { static_cast<PChunkyFile>(c)->_owner.files = *state; }};
-    AssertDo(mm_chunk_owner_dispose(&_owner, &services) == MM_CHUNK_OK, "invalid container disposal");
+    AssertDo(mm_chunk_archive_close(_archive) == MM_CHUNK_OK, "invalid container disposal");
     AssertDo(mm_chunk_context_detach(&_link) == MM_CHUNK_OK, "invalid container registry detachment");
 }
 /***************************************************************************
@@ -382,7 +384,7 @@ MMChunkConstruction ChunkyFile::_ConstructionServices(Filename *name)
     static_assert(ffilWriteEnable == 1 && ffilDenyWrite == 2 && ffilDenyRead == 4 && ffilTemp == 16, "file flag encoding");
     return {name,
         [](void *c) -> void * { return PcflFromFni(static_cast<Filename *>(c)); },
-        [](void *) -> void * { return NewObj ChunkyFile(); },
+        [](void *) -> void * { return _PcflNew(); },
         [](void *, void *owner) { static_cast<PChunkyFile>(owner)->AddRef(); },
         [](void *, void *owner) { static_cast<PChunkyFile>(owner)->Release(); },
         [](void *c, int create, MMU32 flags) -> void * {
@@ -520,7 +522,7 @@ PChunkyFile ChunkyFile::PcflReadForestFromFlo(PFileLocation pflo, bool fCopyData
     AssertPo(pflo->pfil, 0);
     const MMForestConstruction construction = {
         nullptr,
-        [](void *) -> void * { return NewObj ChunkyFile(); },
+        [](void *) -> void * { return _PcflNew(); },
         [](void *, void *owner) { static_cast<PChunkyFile>(owner)->Release(); },
         [](void *) -> void * { return NewChunkTable(sizeof(ChunkRepresentation)); },
         [](void *, void *owner, void *index) {
@@ -671,14 +673,25 @@ void ChunkyFile::CloseUnmarked(void)
 bool ChunkyFile::FSetGrfcfl(LegacyUlong grfcfl, LegacyUlong grfcflMask)
 {
     AssertThis(0);
+    return KauaiSetChunkOwnerOptions(&_storage, grfcfl, grfcflMask);
+}
+
+bool KauaiSetChunkOwnerOptions(MMChunkOwnerStorage *storage, LegacyUlong flags, LegacyUlong mask)
+{
     static_assert(fcflWriteEnable == MM_CHUNK_WRITE && fcflTemp == MM_CHUNK_TEMP &&
         fcflMark == MM_CHUNK_MARK && fcflAddToExtra == MM_CHUNK_ADD_EXTRA &&
         fcflReadFromExtra == MM_CHUNK_READ_EXTRA, "container flag encoding");
-    const MMChunkOptionServices services = {this,
-        [](void *c) -> MMU32 { return static_cast<PChunkyFile>(c)->_MainFile()->GrffilCur(); },
-        [](void *c, MMU32 flags, MMU32 mask) -> int { return static_cast<PChunkyFile>(c)->_MainFile()->FSetGrffil(flags, mask); },
-        [](void *c) { static_cast<PChunkyFile>(c)->_ReadFreeMap(); }};
-    return mm_chunk_owner_options(&_owner, &services, grfcfl, grfcflMask) == MM_CHUNK_OK;
+    const MMChunkOptionServices services = {storage,
+        [](void *c) -> MMU32 {
+            auto file = static_cast<PFileObject>(static_cast<MMChunkOwnerStorage *>(c)->owner->files.main_file);
+            return file->GrffilCur();
+        },
+        [](void *c, MMU32 flags, MMU32 mask) -> int {
+            auto file = static_cast<PFileObject>(static_cast<MMChunkOwnerStorage *>(c)->owner->files.main_file);
+            return file->FSetGrffil(flags, mask);
+        },
+        [](void *c) { mm_chunk_owner_read_free_map(static_cast<MMChunkOwnerStorage *>(c)); }};
+    return mm_chunk_owner_options(storage->owner, &services, flags, mask) == MM_CHUNK_OK;
 }
 /***************************************************************************
     Return the level of error that we've encountered for this chunky file.
@@ -688,10 +701,20 @@ const MMChunkErrorServices ChunkErrors = {
     [](void *file) -> MMI32 { return static_cast<PFileObject>(file)->ElError(); },
     [](void *file, MMI32 level) { static_cast<PFileObject>(file)->SetEl(level); }};
 }
+LegacyLong KauaiChunkOwnerError(const MMChunkOwner *owner)
+{
+    return mm_chunk_owner_error(owner, &ChunkErrors);
+}
+
+void KauaiResetChunkOwnerError(MMChunkOwner *owner, LegacyLong level)
+{
+    mm_chunk_owner_reset_error(owner, &ChunkErrors, level);
+}
+
 LegacyLong ChunkyFile::ElError(void)
 {
     AssertThis(0);
-    return mm_chunk_owner_error(&_owner, &ChunkErrors);
+    return KauaiChunkOwnerError(&_owner);
 }
 
 /***************************************************************************
@@ -702,7 +725,7 @@ void ChunkyFile::ResetEl(LegacyLong el)
     AssertThis(0);
     AssertIn(el, elNil, kcbMax);
 
-    mm_chunk_owner_reset_error(&_owner, &ChunkErrors, el);
+    KauaiResetChunkOwnerError(&_owner, el);
 }
 
 /***************************************************************************
@@ -913,12 +936,9 @@ void ChunkyFile::MarkMem(void)
 ***************************************************************************/
 tribool ChunkyFile::_TValidIndex(void)
 {
-    // The C validator owns traversal state; only legacy scratch marks need clearing.
-    AssertDo(mm_chunk_table_clear_flags(_Index(), fcrpMarkT) == MM_STORAGE_OK, "invalid chunk flag clear");
-    auto access = _ChunkAccess();
     SuspendAssertValid();
     SuspendCheckPointers();
-    const int result = mm_chunk_validate_graph(&access, kckidMax);
+    const int result = mm_chunk_owner_validate_index(&_storage, kckidMax);
     ResumeAssertValid();
     ResumeCheckPointers();
     return result == MM_CHUNK_OK ? tYes : result == MM_CHUNK_MEMORY ? tMaybe : tNo;
@@ -960,24 +980,7 @@ int KauaiEncodeLegacyChunkName(void *, const char *text, void *wire, MMU32 capac
 }
 
 /***************************************************************************
-    Assert that the free map hasn't been read (and doesn't exist).  Read
-    the free map from the file.  This _cannot_ be called after chunk
-    data has been added to the main file (as opposed to the extra file).
-    This _cannot_ be called before _FReadIndex has been called.
-***************************************************************************/
-void ChunkyFile::_ReadFreeMap(void)
-{
-    AssertBaseThis(0);
-    Assert(_owner.files.free_map_unread, "free map already read");
-    Assert(!_owner.files.invalid_main, 0);
-
-    mm_chunk_owner_read_free_map(&_storage);
-}
-
-/***************************************************************************
-    If we have don't have write permission or there's an extra file,
-    write out a new file and do the rename stuff.  If not, just write
-    the index and free map.
+    Bind the native path operations for publishing an archive save.
 ***************************************************************************/
 namespace {
 struct ChunkSavePath
@@ -989,15 +992,23 @@ bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
 {
     AssertThis(fcflFull | fcflGraph);
     AssertNilOrPo(pfni, ffniFile);
+    const bool ok = KauaiSaveChunkOwner(&_storage, ctgCreator, pfni);
+    AssertThis(fcflFull | fcflGraph);
+    return ok;
+}
+
+bool KauaiSaveChunkOwner(MMChunkOwnerStorage *storage, ChunkTagOrType creator, Filename *pfni)
+{
+    const auto &files = storage->owner->files;
     Filename fni;
-    if (_owner.files.invalid_main)
+    if (files.invalid_main)
     {
         if (!pfni) { Bug("can't save a ChunkyFile that has no file attached!"); return fFalse; }
         fni = *pfni;
     }
     else
     {
-        GetFni(&fni);
+        static_cast<PFileObject>(files.main_file)->GetFni(&fni);
         if (pfni)
         {
             if (pfni->FEqual(&fni)) pfni = nullptr;
@@ -1015,9 +1026,8 @@ bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
         [](void *, void *file, void *old) -> int {
             return static_cast<PFileObject>(file)->FSwapNames(static_cast<PFileObject>(old));
         }};
-    const bool ok = mm_chunk_owner_save(&_storage, &target, pfni != nullptr, ctgCreator, koskCur) == MM_CHUNK_OK;
+    const bool ok = mm_chunk_owner_save(storage, &target, pfni != nullptr, creator, koskCur) == MM_CHUNK_OK;
     if (!ok) PushErc(ercCflSave);
-    AssertThis(fcflFull | fcflGraph);
     return ok;
 }
 
@@ -1752,17 +1762,15 @@ MMChunkNames ChunkyFile::NameIndex()
 }
 MMArchiveWriter ChunkyFile::WriteIndex()
 {
-    const unsigned short order = 1;
-    return {EditIndex(), NameIndex(), KauaiChunkPayloadServices(),
-        *reinterpret_cast<const unsigned char *>(&order) == 0, koskCur,
-        [](MMU32 *number) { (void)number; TrashVar(number); }, KauaiCopyAllocator()};
+    auto writer = WriteOwnerIndex();
+    writer.payloads = KauaiChunkPayloadServices();
+    return writer;
 }
 
 MMArchiveWriter ChunkyFile::WriteOwnerIndex()
 {
-    auto writer = WriteIndex();
-    writer.payloads = &_reader.payloads;
-    return writer;
+    return mm_chunk_owner_writer(&_reader, kckidMax, DebugShip(1, 0), koskCur,
+        [](MMU32 *number) { (void)number; TrashVar(number); });
 }
 /***************************************************************************
     Retrieve the name of the chunk.  Returns whether the string is

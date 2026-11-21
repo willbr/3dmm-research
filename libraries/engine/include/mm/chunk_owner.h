@@ -81,6 +81,8 @@ extern "C"
      * The table and scratch allocators may differ. */
     int mm_chunk_owner_read_index(MMChunkOwnerStorage *, const MMStorageAllocator *table_allocator,
                                  int trash_unused, MMU32 max_name_bytes, MMChunkLegacyName, void *name_context);
+    /* Clear the legacy validation mark before checking the live graph. */
+    int mm_chunk_owner_validate_index(MMChunkOwnerStorage *, MMU32 max_references);
     /* Attempt a pending free-map load once. Its status is advisory and the
      * unread bit clears even if the map cannot be read. */
     int mm_chunk_owner_read_free_map(MMChunkOwnerStorage *);
@@ -102,6 +104,16 @@ extern "C"
         MMU32 max_name_bytes;
     } MMChunkOwnerRead;
     MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *, const MMChunkPayloadServices *, MMU32 max_name_bytes);
+    MMArchiveWriter mm_chunk_owner_writer(const MMChunkOwnerRead *, MMU32 max_references, int scan_all_references,
+                                          MMU32 system, void (*invalidate_number)(MMU32 *));
+
+    typedef struct MMChunkArchive MMChunkArchive;
+    /* Allocate an empty owner and stable views. The caller attaches its file
+     * and table using the owner services. The archive releases both on close. */
+    MMChunkArchive *mm_chunk_archive_new(int expanded, const MMStorageAllocator *, const MMChunkOwnerFileIO *,
+                                         const MMChunkPayloadServices *, MMU32 max_name_bytes);
+    MMChunkOwnerRead *mm_chunk_archive_reader(MMChunkArchive *);
+    int mm_chunk_archive_close(MMChunkArchive *);
 
     typedef struct MMChunkOwnerSaveTarget
     {

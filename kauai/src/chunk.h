@@ -55,6 +55,10 @@ int KauaiEncodeLegacyChunkName(void *, const char *, void *, MMU32 capacity, MMU
 MMChunkTitleIO KauaiChunkTitleIO();
 MMChunkTitleIO KauaiChunkOwnerTitleIO();
 MMPrivateArchive *KauaiPrivateArchive(PFileObject);
+bool KauaiSaveChunkOwner(MMChunkOwnerStorage *, ChunkTagOrType creator, Filename *);
+bool KauaiSetChunkOwnerOptions(MMChunkOwnerStorage *, LegacyUlong flags, LegacyUlong mask);
+LegacyLong KauaiChunkOwnerError(const MMChunkOwner *);
+void KauaiResetChunkOwnerError(MMChunkOwner *, LegacyLong level);
 
 enum
 {
@@ -106,9 +110,10 @@ class ChunkyFile : public ChunkyFile_PAR
     MARKMEM
 
   private:
-    MMChunkOwner _owner;
-    MMChunkOwnerStorage _storage;
-    MMChunkOwnerRead _reader;
+    MMChunkArchive *_archive;
+    MMChunkOwnerRead &_reader;
+    MMChunkOwnerStorage &_storage;
+    MMChunkOwner &_owner;
     PFileObject _MainFile() { return static_cast<PFileObject>(_owner.files.main_file); }
     PFileObject _ExtraFile() { return static_cast<PFileObject>(_owner.files.extra_file); }
     MMChunkTable *_Index() { return static_cast<MMChunkTable *>(_owner.files.index); }
@@ -119,10 +124,11 @@ class ChunkyFile : public ChunkyFile_PAR
 
   private:
     // private methods
-    ChunkyFile(void);
+    explicit ChunkyFile(MMChunkArchive *);
     ~ChunkyFile(void);
 
     static MMChunkConstruction _ConstructionServices(Filename *);
+    static PChunkyFile _PcflNew();
     static PChunkyFile _PcflFromFile(PFileObject);
 
     static MMChunkRegistry _RegistryServices();
@@ -140,7 +146,6 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FDecRefCount(LegacyLong icrp);
     void _DeleteCore(LegacyLong icrp);
     bool _FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkNumber cnoChild, ChildChunkID chid, LegacyLong *pikid);
-    void _ReadFreeMap(void);
     bool _FFindChidCtg(ChunkTagOrType ctgPar, ChunkNumber cnoPar, ChildChunkID chid, ChunkTagOrType ctg, ChildChunkIdentification *pkid);
     bool _FGetName(LegacyLong icrp, PString pstn);
     void _GetFlo(LegacyLong icrp, PFileLocation pflo);

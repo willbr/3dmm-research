@@ -198,10 +198,6 @@ static void *unique(void *p, void *path)
     (void)path;
     return succeeds(t, UNIQUE) ? &t->unique : 0;
 }
-static void *file(void *p)
-{
-    return p;
-}
 static void *create(void *p, void *path)
 {
     Test *t = p;
@@ -1064,7 +1060,6 @@ static void init(Test *t)
     s->temporary_path = temporary;
     s->unique_path = unique;
     t->tag_services.context = t;
-    t->tag_services.file = file;
     t->tag_services.cache = asset_cache;
     t->tag_services.retain = retain_tag;
     t->tag_services.release = release_tag;

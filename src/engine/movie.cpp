@@ -151,6 +151,16 @@ static MMChunkEdit EditMovieArchive(void *file)
     return static_cast<PChunkyFile>(file)->EditIndex();
 }
 
+static MMChunkOwnerRead *MovieArchiveReader(void *resources)
+{
+    return static_cast<PChunkyResourceFile>(resources)->ReadOwner();
+}
+
+static PFileObject MovieArchiveFile(void *resources)
+{
+    return static_cast<PFileObject>(MovieArchiveReader(resources)->storage->owner->files.main_file);
+}
+
 static void MovieArchiveIssue(void *, int issue)
 {
     switch (issue)
@@ -197,14 +207,18 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.new_resources = [](void *, void *p, MMU32 cache) -> void * {
         return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(p), cache);
     };
-    s.is_temp = [](void *p) -> int { return static_cast<PChunkyFile>(p)->FTemp(); };
-    s.save = [](void *p, void *path) -> int { return static_cast<PChunkyFile>(p)->FSave(kctgSoc, static_cast<PFilename>(path)); };
-    s.set_temp = [](void *p, int value) { static_cast<PChunkyFile>(p)->SetTemp(value != 0); };
-    s.mark_temporary = [](void *p) { AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflTemp, fcflTemp), 0); };
-    s.persistent = [](void *p) {
-        AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
+    s.is_temp = [](void *p) -> int { return MovieArchiveFile(p)->FTemp(); };
+    s.save = [](void *p, void *path) -> int {
+        return KauaiSaveChunkOwner(MovieArchiveReader(p)->storage, kctgSoc, static_cast<PFilename>(path));
     };
-    s.archive = [](void *file) { return static_cast<PChunkyFile>(file)->WriteIndex(); };
+    s.set_temp = [](void *p, int value) { MovieArchiveFile(p)->SetTemp(value != 0); };
+    s.mark_temporary = [](void *p) {
+        AssertDo(KauaiSetChunkOwnerOptions(MovieArchiveReader(p)->storage, fcflTemp, fcflTemp), 0);
+    };
+    s.persistent = [](void *p) {
+        AssertDo(KauaiSetChunkOwnerOptions(MovieArchiveReader(p)->storage, fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
+    };
+    s.archive = [](void *p) { return static_cast<PChunkyResourceFile>(p)->ArchiveWriter(); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
     s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
     s.release_saved = [](void *p) { auto file = static_cast<PFileObject>(p); ReleasePpo(&file); };
@@ -232,9 +246,15 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.tags = &TagManager::CoreServices();
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->Pmcc()->UpdateRollCall(); };
     s.source_names = vptagm ? vptagm->CoreSourceNames() : nullptr;
-    s.titles = KauaiChunkTitleIO();
-    s.has_error = [](void *p) -> int { return static_cast<PChunkyFile>(p)->ElError() != elNil; };
-    s.reset_error = [](void *p) { static_cast<PChunkyFile>(p)->ResetEl(); };
+    s.titles = KauaiChunkOwnerTitleIO();
+    s.titles.read = nullptr;
+    s.titles.write = [](void *p, MMU32 type, MMU32 number, const void *wire, MMU32 bytes) -> int {
+        auto reader = MovieArchiveReader(p);
+        return mm_chunk_owner_write_name(reader->storage, type, number, reader->max_name_bytes,
+                                         wire, bytes) == MM_CHUNK_OK;
+    };
+    s.has_error = [](void *p) -> int { return KauaiChunkOwnerError(MovieArchiveReader(p)->storage->owner) != elNil; };
+    s.reset_error = [](void *p) { KauaiResetChunkOwnerError(MovieArchiveReader(p)->storage->owner, elNil); };
     s.clear_errors = [](void *) { vpers->Clear(); };
     s.save_error = [](void *) { PushErc(ercSocSaveFailure); };
     s.bad_file = [](void *) { PushErc(ercSocBadFile); };
@@ -250,7 +270,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         Filename path;
         return vptagm && vptagm->SourceArchive(source, kftgContent, 0, &path);
     };
-    s.tag_graph = [](void *p) { return EngineMovieGraph::FromFile(static_cast<PChunkyFile>(p)); };
+    s.tag_graph = [](void *p) { return mm_movie_owner_graph(MovieArchiveReader(p)); };
     s.actor_tag_issue = [](void *, int issue) {
         if (issue == MM_ACTOR_TAG_TEMPLATE_LINK)
             Bug("where's the child Template?");

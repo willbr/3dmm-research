@@ -852,7 +852,7 @@ static void merge_sources(void *p, MMU32 root)
 static MMMovieSessionGraph runtime_graph(void *p)
 {
     MMMovieSessionGraph graph = {NULL, graph_access, graph_read, NULL, NULL};
-    graph.context = p;
+    graph.context = ((Resource *)p)->host;
     return graph;
 }
 static int cache_tags(void *context, MMTagList *tags)

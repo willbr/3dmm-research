@@ -36,9 +36,9 @@ extern "C"
         void *(*create_file)(void *, void *path);
         void (*release_archive)(void *file);
         void *(*new_resources)(void *, void *file, MMU32 cache_bytes);
-        int (*is_temp)(void *file), (*save)(void *file, void *path);
-        void (*set_temp)(void *file, int), (*mark_temporary)(void *file), (*persistent)(void *file);
-        MMArchiveWriter (*archive)(void *file);
+        int (*is_temp)(void *resources), (*save)(void *resources, void *path);
+        void (*set_temp)(void *resources, int), (*mark_temporary)(void *resources), (*persistent)(void *resources);
+        MMArchiveWriter (*archive)(void *resources);
         void *(*find_file)(void *, void *path);
         void (*retain_saved)(void *file), (*release_saved)(void *file), (*flush_saved)(void *file);
         int (*read_only)(void *, void *path);
@@ -52,12 +52,12 @@ extern "C"
         void (*rollcall_changed)(void *);
         MMSourceNames *source_names;
         MMChunkTitleIO titles;
-        int (*has_error)(void *file);
-        void (*reset_error)(void *file), (*clear_errors)(void *), (*save_error)(void *), (*bad_file)(void *);
+        int (*has_error)(void *resources);
+        void (*reset_error)(void *resources), (*clear_errors)(void *), (*save_error)(void *), (*bad_file)(void *);
         void (*update_title)(void *, void *path), (*clear_undo)(void *);
         int (*has_container)(void *), (*bundled)(void *), (*is_vmm)(void *path);
         int (*package)(void *, void *working, void *destination), (*source_archive)(void *, MMI32 source);
-        MMMovieSessionGraph (*tag_graph)(void *file);
+        MMMovieSessionGraph (*tag_graph)(void *resources);
         void (*actor_tag_issue)(void *, int issue), (*scene_tag_issue)(void *, int start, int missing_background);
         MMResourceBlockReader material_reader, template_reader;
         int (*purge_sounds)(void *);
@@ -98,9 +98,9 @@ extern "C"
     /* Collect into an uninitialized list. Success transfers the list to the
      * caller. Failure disposes partial tags. Cache pointers remain borrowed. */
     int mm_movie_save_tags(MMTagList *, const MMMovieSaveServices *);
-    int mm_movie_save_assets(void *file, const MMMovieSaveServices *);
+    int mm_movie_save_assets(void *resources, const MMMovieSaveServices *);
     void mm_movie_save_sounds(int purge_all, const MMMovieSaveServices *);
-    int mm_movie_save_gc(void *file, const MMMovieSaveServices *);
+    int mm_movie_save_gc(void *resources, const MMMovieSaveServices *);
 #ifdef __cplusplus
 }
 #endif

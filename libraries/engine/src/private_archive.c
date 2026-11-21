@@ -7,17 +7,13 @@
 
 struct MMPrivateArchive
 {
-    MMChunkOwner owner;
-    MMChunkOwnerStorage storage;
-    MMChunkOwnerRead reader;
+    MMChunkArchive *backing;
     MMReference references;
     MMPrivateArchiveProfile profile;
     MMChunkTitleIO titles;
     MMMovieArchiveFile editor;
     int writable, editor_ready;
 };
-
-enum { VALIDATION_MARK = 8 };
 
 typedef union HandlePrefix
 {
@@ -82,7 +78,7 @@ static int decode_handle(void *context, void **handle)
 
 MMChunkOwnerRead *mm_private_archive_reader(MMPrivateArchive *archive)
 {
-    return &archive->reader;
+    return mm_chunk_archive_reader(archive->backing);
 }
 
 static MMU32 max_title_bytes(const MMPrivateArchive *archive)
@@ -97,14 +93,8 @@ static MMU32 max_references(const MMPrivateArchive *archive)
 
 MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *archive)
 {
-    const unsigned short order = 1;
-    MMArchiveWriter writer = {0};
-    writer.edit = mm_chunk_owner_editor(&archive->storage, max_references(archive), archive->profile.trash_unused);
-    writer.names = mm_chunk_table_names(archive->owner.files.index, max_title_bytes(archive));
-    writer.payloads = &archive->reader.payloads;
-    writer.big_endian = *(const unsigned char *)&order == 0;
-    writer.system = archive->profile.encoding;
-    return writer;
+    return mm_chunk_owner_writer(mm_private_archive_reader(archive), max_references(archive),
+                                 archive->profile.trash_unused, archive->profile.encoding, NULL);
 }
 
 static int read_title(void *context, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
@@ -133,33 +123,12 @@ static size_t convert_editor_text(void *context, const void *bytes, size_t count
     return archive->profile.convert(NULL, bytes, count, encoding, out, capacity);
 }
 
-static void release_file(void *context, void *file)
-{
-    MMPrivateArchive *archive = context;
-    archive->storage.io.release(file);
-}
-
-static void close_table(void *context, void *table)
-{
-    (void)context;
-    mm_chunk_table_close(table);
-}
-
-static void publish_disposed(void *context, const MMChunkReopenState *files)
-{
-    /* Disposal already cleared the sole live state. */
-    (void)context;
-    (void)files;
-}
-
 static void destroy_archive(void *context)
 {
     MMPrivateArchive *archive = context;
-    MMChunkDisposal disposal = {NULL, release_file, close_table, publish_disposed};
     if (archive->editor_ready)
         mm_movie_archive_file_clear(&archive->editor);
-    disposal.context = archive;
-    mm_chunk_owner_dispose(&archive->owner, &disposal);
+    mm_chunk_archive_close(archive->backing);
     free(archive);
 }
 
@@ -178,8 +147,8 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
                                          const MMBlockFileServices *blocks, const MMPrivateArchiveProfile *profile)
 {
     MMPrivateArchive *archive;
-    MMChunkTable *table;
-    MMChunkAccess access;
+    MMChunkOwnerRead *reader;
+    MMChunkReopenState *files;
     MMArchiveWriter writer;
     MMChunkPayloadServices payloads = {&handles, NULL, NULL, NULL, decode_handle};
     if (!file || !io || !io->release)
@@ -198,39 +167,40 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
         io->release(file);
         return NULL;
     }
-    mm_reference_init(&archive->references);
-    mm_chunk_owner_init(&archive->owner, NULL, profile->expanded);
-    archive->owner.files.main_file = file;
-    mm_chunk_owner_bind_storage(&archive->storage, &archive->owner, NULL,
-                                profile->expanded ? 0x7fffffffUL : 0x00ffffffUL, io);
     archive->profile = *profile;
+    payloads.files = blocks;
+    archive->backing = mm_chunk_archive_new(profile->expanded, NULL, io, &payloads, max_title_bytes(archive));
+    if (!archive->backing)
+    {
+        free(archive);
+        io->release(file);
+        return NULL;
+    }
+    mm_reference_init(&archive->references);
+    reader = mm_private_archive_reader(archive);
+    files = &reader->storage->owner->files;
+    files->main_file = file;
     archive->writable = mode != MM_PRIVATE_ARCHIVE_READ;
     if (mode == MM_PRIVATE_ARCHIVE_CREATE)
     {
+        MMChunkTable *table;
         const MMU32 width = profile->expanded ? sizeof(MMChunkRecordBig) : sizeof(MMChunkRecordSmall);
         if (mm_chunk_table_create(NULL, width, 0, profile->trash_unused, &table) != MM_STORAGE_OK)
             goto fail;
-        archive->owner.files.index = table;
+        files->index = table;
         if (!io->resize(file, MM_CHUNK_PREFIX_BYTES))
             goto fail;
-        archive->owner.files.main_end = MM_CHUNK_PREFIX_BYTES;
+        files->main_end = MM_CHUNK_PREFIX_BYTES;
     }
     else
     {
-        if (mm_chunk_owner_read_index(&archive->storage, NULL, profile->trash_unused, max_title_bytes(archive),
-                                      profile->legacy_name, NULL) != MM_CHUNK_OK)
-            goto fail;
-        table = archive->owner.files.index;
-        if (mm_chunk_table_clear_flags(table, VALIDATION_MARK) != MM_STORAGE_OK)
-            goto fail;
-        access = mm_chunk_table_access(table);
-        if (mm_chunk_validate_graph(&access, max_references(archive)) != MM_CHUNK_OK)
+        if (mm_chunk_owner_read_index(reader->storage, NULL, profile->trash_unused, reader->max_name_bytes,
+                                      profile->legacy_name, NULL) != MM_CHUNK_OK ||
+            mm_chunk_owner_validate_index(reader->storage, max_references(archive)) != MM_CHUNK_OK)
             goto fail;
         if (archive->writable)
-            mm_chunk_owner_read_free_map(&archive->storage);
+            mm_chunk_owner_read_free_map(reader->storage);
     }
-    payloads.files = blocks;
-    archive->reader = mm_chunk_owner_reader(&archive->storage, &payloads, max_title_bytes(archive));
     archive->titles.context = archive;
     archive->titles.encoding = profile->encoding;
     archive->titles.swapped_unicode_encoding = profile->swapped_unicode_encoding;
@@ -238,7 +208,7 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
     archive->titles.read = read_title;
     archive->titles.write = write_title;
     writer = mm_private_archive_writer(archive);
-    archive->editor_ready = mm_movie_archive_file_init(&archive->editor, &archive->reader, &writer, &archive->titles);
+    archive->editor_ready = mm_movie_archive_file_init(&archive->editor, reader, &writer, &archive->titles);
     if (archive->editor_ready)
         return archive;
 fail:
@@ -256,7 +226,8 @@ static int locate_text(void *context, MMU32 number, MMTextLocation *text)
     MMPrivateArchive *archive = context;
     MMBlockFile extent;
     int packed;
-    if (!archive || !mm_chunk_owner_locate(&archive->storage, MM_TEXT_BYTES, number, &extent, &packed) ||
+    if (!archive || !mm_chunk_owner_locate(mm_private_archive_reader(archive)->storage, MM_TEXT_BYTES,
+                                          number, &extent, &packed) ||
         extent.length > 0x7fffffffUL || extent.offset > 0x7fffffffUL - extent.length)
         return 0;
     text->file = extent.file;
@@ -267,7 +238,7 @@ static int locate_text(void *context, MMU32 number, MMTextLocation *text)
 
 static int read_text(void *context, const MMTextLocation *text, MMU32 offset, void *out, size_t bytes)
 {
-    const MMPrivateArchive *archive = context;
+    MMPrivateArchive *archive = context;
     const MMBlockFileServices *files;
     if (text->bytes < 0 || offset > (MMU32)text->bytes || bytes > (MMU32)text->bytes - offset)
         return 0;
@@ -275,19 +246,19 @@ static int read_text(void *context, const MMTextLocation *text, MMU32 offset, vo
         return 1;
     if (!archive || !text->file || text->offset > 0x7fffffffUL - (MMU32)text->bytes)
         return 0;
-    files = archive->reader.payloads.files;
+    files = mm_private_archive_reader(archive)->payloads.files;
     return files->read(files->context, text->file, text->offset + offset, out, bytes);
 }
 
 static void retain_text_file(void *context, void *file)
 {
-    const MMBlockFileServices *files = ((const MMPrivateArchive *)context)->reader.payloads.files;
+    const MMBlockFileServices *files = mm_private_archive_reader(context)->payloads.files;
     files->retain(files->context, file);
 }
 
 static void release_text_file(void *context, void *file)
 {
-    const MMBlockFileServices *files = ((const MMPrivateArchive *)context)->reader.payloads.files;
+    const MMBlockFileServices *files = mm_private_archive_reader(context)->payloads.files;
     files->release(files->context, file);
 }
 
@@ -304,7 +275,8 @@ MMRichTextArchive mm_private_archive_rich_text(MMPrivateArchive *archive, const 
 MMChunkEndpoint mm_private_archive_copy_endpoint(MMPrivateArchive *archive, MMChunkFileCopy *binding)
 {
     const MMArchiveWriter writer = mm_private_archive_writer(archive);
-    return mm_chunk_file_copy_endpoint(binding, &archive->reader, &writer, &archive->titles, archive->profile.unit, 0);
+    return mm_chunk_file_copy_endpoint(binding, mm_private_archive_reader(archive), &writer, &archive->titles,
+                                       archive->profile.unit, 0);
 }
 
 int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destination, MMU32 type,
@@ -327,5 +299,6 @@ int mm_private_archive_bind_font(MMPrivateArchive *archive, const MMChunkEndpoin
 int mm_private_archive_save(MMPrivateArchive *archive, MMU32 creator)
 {
     return archive->writable &&
-           mm_chunk_owner_save(&archive->storage, NULL, 0, creator, archive->profile.encoding) == MM_CHUNK_OK;
+           mm_chunk_owner_save(mm_private_archive_reader(archive)->storage, NULL, 0, creator,
+                               archive->profile.encoding) == MM_CHUNK_OK;
 }

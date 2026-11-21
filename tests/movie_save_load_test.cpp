@@ -2586,6 +2586,8 @@ int __cdecl main(int argc, char **argv)
         BAIL("movie composition control failed");
     if (!TestMovieSave(pmvie))
         BAIL("movie save control failed");
+    if (!TestPrivateMovieSave(pmvie))
+        BAIL("private archive movie save failed");
     if (!TestMovieScenes())
         BAIL("movie scene container control failed");
     if (!pmvie->FNewScenInsCore(0))

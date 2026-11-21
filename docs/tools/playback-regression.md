@@ -19380,3 +19380,31 @@ V3dmm storyboard frames, cameras and canvases in suite
 `20261121T155041Z-7691ec7c` reproduced each player's previous 11 canvases,
 including the three known differences from retail on both ports. Evidence
 is in `tmp/c89-scene-private-undo/evidence`.
+
+## Shared C89 backing for Studio movie archives (21 November 2026)
+
+Studio's chunky-file wrapper and private archives now allocate and dispose
+the same C archive owner. They share writer binding and index validation.
+Studio autosave and save-as resolve the working resource cache directly,
+then use the C owner for chunk updates, relocation, file flags and error
+state. The named-file reference used by Studio's Save and Flush commands
+continues to follow the native file registry.
+
+All 193 standalone C checks and six focused AddressSanitizer checks passed.
+The native x64, native x86 and SDL save fixtures exercised a blank movie
+with a private archive, including autosave, named save, temporary
+relocation and reopen. The three regular save/load fixtures and the
+two-scene SDL authoring workflow reproduced their previous movie files byte
+for byte. SDL and native x86 reproduced the recorded save-control trace.
+The rebuilt Marcus player checks passed.
+
+Studio also edited, saved and reopened the portable storyboard as VMM.
+Its only byte difference from the retained VMM was one unused alignment
+byte after the BKGD:0 index row. Both ports matched all three archived
+V3dmm frame identities, cameras and canvases in `20261121T160548Z-861bb45c`.
+In actor-event suite `20261121T160555Z-6171d3f2`, both matched 60 retail seek
+frames and camera indices and reproduced their previous canvas hashes.
+Retail and both ports reproduced all 11 previous canvases of the new
+Studio-authored movie in `20261121T160635Z-d77e8a8e`, including the three
+known differences from retail. Evidence is in
+`tmp/c89-movie-archive-owner/evidence`.

@@ -1,6 +1,7 @@
 /* Headless Movie save publication and working-file compatibility probe. */
 #ifndef MOVIE_SAVE_FIXTURE_H
 #define MOVIE_SAVE_FIXTURE_H
+#include "mm/private_archive.h"
 class MovieSaveProbe
 {
   public:
@@ -153,6 +154,45 @@ static bool TestMovieSave(PMovie parent)
             ok = std::fclose(file) == 0 && ok;
         }
     }
+    return ok;
+}
+
+static bool TestPrivateMovieSave(PMovie parent)
+{
+    auto movie = Movie::PmvieNew(false, parent->Pmcc());
+    if (!movie)
+        return false;
+    auto file = FileObject::PfilCreateTemp();
+    auto archive = file ? KauaiPrivateArchive(file) : nullptr;
+    auto resources = ChunkyResourceFile::PcrfNewPrivate(archive, 0);
+    mm_private_archive_close(archive);
+    ReleasePpo(&file);
+    MovieSaveProbe::Data(movie)->resources = resources;
+
+    Filename path, remembered;
+    const bool havePath = path.FGetTemp() && path.FChangeFtg(kftg3mm);
+    bool ok = resources && !resources->Pcfl() && havePath;
+    if (ok)
+    {
+        movie->SetDirty();
+        ok = movie->FAutoSave() && movie->FSaveToFni(&path, true) &&
+             movie->FGetFni(&remembered) && remembered.FEqual(&path);
+    }
+    if (ok)
+    {
+        PChunkyResourceFile working = nullptr;
+        ok = movie->FEnsureAutosave(&working) && working == resources;
+        movie->SetDirty();
+        ok = ok && movie->FAutoSave();
+    }
+    ReleasePpo(&movie);
+    if (ok)
+    {
+        MovieData loaded;
+        ok = loaded.FLoad(&path) && loaded.sceneCount == 0;
+    }
+    if (havePath && path.TExists() != tNo)
+        path.FDelete();
     return ok;
 }
 #endif

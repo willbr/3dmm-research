@@ -1,6 +1,7 @@
 /* Container ownership converted from Kauai chunk.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/chunk_owner.h"
+#include <stdlib.h>
 #include <string.h>
 int mm_chunk_owner_init(MMChunkOwner *o, const MMStorageAllocator *allocator, int expanded)
 {
@@ -389,6 +390,15 @@ MMChunkAccess mm_chunk_owner_access(MMChunkOwnerStorage *storage)
     return mm_chunk_table_access(owner_table(storage));
 }
 
+int mm_chunk_owner_validate_index(MMChunkOwnerStorage *storage, MMU32 max_references)
+{
+    enum { VALIDATION_MARK = 8 };
+    const MMChunkAccess access = mm_chunk_owner_access(storage);
+    if (mm_chunk_table_clear_flags(owner_table(storage), VALIDATION_MARK) != MM_STORAGE_OK)
+        return MM_CHUNK_BAD_FILE;
+    return mm_chunk_validate_graph(&access, max_references);
+}
+
 int mm_chunk_owner_locate(MMChunkOwnerStorage *storage, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
 {
     const MMChunkAccess access = mm_chunk_owner_access(storage);
@@ -451,6 +461,84 @@ MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *storage, const MMChu
     reader.payloads.locate = reader_locate;
     reader.max_name_bytes = max_name_bytes;
     return reader;
+}
+
+MMArchiveWriter mm_chunk_owner_writer(const MMChunkOwnerRead *reader, MMU32 max_references, int scan_all_references,
+                                      MMU32 system, void (*invalidate_number)(MMU32 *))
+{
+    const unsigned short order = 1;
+    MMArchiveWriter writer;
+    writer.edit = mm_chunk_owner_editor(reader->storage, max_references, scan_all_references);
+    writer.names = mm_chunk_table_names(owner_table(reader->storage), reader->max_name_bytes);
+    writer.payloads = &reader->payloads;
+    writer.big_endian = *(const unsigned char *)&order == 0;
+    writer.system = system;
+    writer.invalidate_number = invalidate_number;
+    writer.transfer_allocator = reader->storage->allocator;
+    return writer;
+}
+
+struct MMChunkArchive
+{
+    MMChunkOwner owner;
+    MMChunkOwnerStorage storage;
+    MMChunkOwnerRead reader;
+};
+
+MMChunkArchive *mm_chunk_archive_new(int expanded, const MMStorageAllocator *allocator, const MMChunkOwnerFileIO *io,
+                                     const MMChunkPayloadServices *payloads, MMU32 max_name_bytes)
+{
+    MMChunkArchive *archive;
+    if (!io || !io->release || !payloads)
+        return NULL;
+    archive = malloc(sizeof(*archive));
+    if (!archive)
+        return NULL;
+    if (mm_chunk_owner_init(&archive->owner, allocator, expanded) != MM_CHUNK_OK)
+    {
+        free(archive);
+        return NULL;
+    }
+    mm_chunk_owner_bind_storage(&archive->storage, &archive->owner, allocator,
+                                expanded ? 0x7fffffffUL : 0x00ffffffUL, io);
+    archive->reader = mm_chunk_owner_reader(&archive->storage, payloads, max_name_bytes);
+    return archive;
+}
+
+MMChunkOwnerRead *mm_chunk_archive_reader(MMChunkArchive *archive)
+{
+    return &archive->reader;
+}
+
+static void release_archive_file(void *context, void *file)
+{
+    ((MMChunkArchive *)context)->storage.io.release(file);
+}
+
+static void release_archive_table(void *context, void *table)
+{
+    (void)context;
+    mm_chunk_table_close(table);
+}
+
+static void archive_disposed(void *context, const MMChunkReopenState *files)
+{
+    /* The owner itself already published the empty file state. */
+    (void)context;
+    (void)files;
+}
+
+int mm_chunk_archive_close(MMChunkArchive *archive)
+{
+    MMChunkDisposal services = {NULL, release_archive_file, release_archive_table, archive_disposed};
+    int status;
+    if (!archive)
+        return MM_CHUNK_OK;
+    services.context = archive;
+    status = mm_chunk_owner_dispose(&archive->owner, &services);
+    if (status == MM_CHUNK_OK)
+        free(archive);
+    return status;
 }
 
 typedef struct OwnerSave
