@@ -103,14 +103,14 @@ bool Archive::CanPreview() const
 {
     return _impl->canPreview;
 }
-Chunky::ChunkyResourceFile *Archive::NewResourceCache(std::int32_t budget) const
+MMResourceCache *Archive::NewResourceCache(std::int32_t budget) const
 {
     if (_impl->live)
-        return _impl->live->PcrfNewSibling(budget);
+        return NewTypedSiblingCache(_impl->live->CoreCache(), budget);
     if (!_impl->canPreview)
         return nullptr;
-    return ChunkyResourceFile::PcrfNewIndex(mm_archive_reader_wire_index(_impl->reader), _impl->streamFile,
-                                          *mm_native_archive_file_blocks(), _impl->nativePath, budget);
+    return NewTypedWireCache(mm_archive_reader_wire_index(_impl->reader), _impl->streamFile,
+                             mm_native_archive_file_blocks(), budget);
 }
 MMArchiveReader *Archive::Reader() const
 {

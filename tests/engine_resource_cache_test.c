@@ -239,12 +239,11 @@ static Object *fetch(Host *h, MMU32 number, MMResourceBlockReader reader, int *e
 static int read_object(MMResourceCache *cache, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes,
                        int alternate)
 {
-    Host *h = (Host *)cache->owner;
+    Host *h = (Host *)cache->services.context;
     Object *o, *child = NULL;
     MMBlockIO io;
     unsigned char key;
     int error;
-    CHECK(cache == &h->cache);
     CHECK(mm_owned_block_io(block, &io) == MM_DATA_OK);
     if (block->file && block->file != h)
         CHECK(io.view.packed && io.view.start == 128 && io.view.length == 1);
@@ -313,7 +312,7 @@ static void destroy_owned(void *p)
 static int reader_owned(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out,
                         MMI32 *bytes)
 {
-    Host *h = cache->owner;
+    Host *h = cache->services.context;
     OwnedObject *object;
     (void)type;
     (void)number;
@@ -611,6 +610,57 @@ static void cache_cases(void)
     finish(&h);
 }
 
+static void typed_cache_owner(void)
+{
+    Host h;
+    MMResourceServices services;
+    MMResourceSource source;
+    MMStorageAllocator storage;
+    MMResourceCache *first, *second;
+    Object *a, *b;
+    OwnedObject *c;
+    int allocations;
+    init(&h, 1000);
+    services = h.cache.services;
+    memset(&services.objects, 0, sizeof(services.objects));
+    services.compare_reader = NULL;
+    source = mm_resource_cache_source(&h.cache);
+    storage = allocator(&h);
+    allocations = h.allocations;
+    h.fail = 1;
+    CHECK(!mm_resource_cache_create(&source, 1000, &services, &storage, &storage));
+    CHECK(!mm_resource_cache_create(&source, 1000, &services, NULL, &storage));
+    CHECK(h.file_refs == 2 && h.allocations == allocations);
+    h.fail = 0;
+    first = mm_resource_cache_create(&source, 1000, &services, &storage, &storage);
+    CHECK(first && h.file_refs == 3);
+    source = mm_resource_cache_source(first);
+    second = mm_resource_cache_create(&source, 1000, &services, &storage, &storage);
+    CHECK(second && h.file_refs == 4 && second->count == 0);
+
+    a = mm_resource_cache_fetch_owned_chunk(first, 1, 2, reader_b, &objects);
+    b = mm_resource_cache_fetch_owned_chunk(first, 1, 2, reader_a, &objects);
+    CHECK(a && b && a != b && first->count == 2 && h.reads == 2);
+    CHECK(mm_resource_cache_fetch_owned_chunk(first, 1, 2, reader_b, &objects) == a);
+    CHECK(mm_resource_cache_find(first, 1, 2, reader_a, 0) == b);
+    CHECK(a->refs.count == 2 && b->refs.count == 2 && h.reads == 2);
+    c = mm_resource_cache_fetch_owned_chunk(second, 1, 2, reader_owned, &owned_objects);
+    CHECK(c && second->count == 1 && h.reads == 3);
+
+    detach(a);
+    release(a);
+    release(b);
+    release(b);
+    mm_resource_cache_release(first);
+    CHECK(h.file_refs == 4 && first->references->count == 1);
+    release(a);
+    CHECK(h.file_refs == 3);
+    mm_resource_cache_release(second);
+    CHECK(h.file_refs == 2 && !c->state.attached && !c->state.cache);
+    mm_resource_object_release(c, &owned_objects);
+    finish(&h);
+}
+
 static void last_detached_reference(void)
 {
     Host *h = (Host *)malloc(sizeof(*h));
@@ -848,6 +898,7 @@ int main(void)
     block_reader_cases();
     cache_cases();
     mixed_objects();
+    typed_cache_owner();
     last_detached_reference();
     wire_index_lifetime();
     manager_cases();

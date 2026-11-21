@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/resource_cache.h"
 #include "mm/chunk_storage.h"
+#include <stdlib.h>
 #include <string.h>
 #define SCOPE_TYPE 0x52534320UL
 
@@ -132,8 +133,8 @@ int mm_resource_cache_init(MMResourceCache *c, void *owner, MMReference *referen
                            const MMStorageAllocator *allocator, int diagnostic_refs)
 {
     MMOwnedBlock block;
-    if (!c || !owner || !references || !source || !s || budget < 0 || !s->compare_reader ||
-        !s->destroy_owner || !s->objects.state || !s->objects.references || !s->objects.destroy ||
+    if (!c || !owner || !references || !source || !s || budget < 0 || !s->destroy_owner ||
+        (s->objects.state && (!s->objects.references || !s->objects.destroy)) ||
         mm_owned_block_init(&block, s->handles, s->block_files) != MM_DATA_OK)
         return MM_STORAGE_ARGUMENT;
     if (source->live ?
@@ -165,11 +166,112 @@ int mm_resource_cache_init(MMResourceCache *c, void *owner, MMReference *referen
     c->storage.min_grow[0] = 128;
     return MM_STORAGE_OK;
 }
+typedef struct MMOwnedResourceCache
+{
+    MMResourceCache cache;
+    MMReference references;
+    const MMStorageAllocator *allocator;
+} MMOwnedResourceCache;
+
+static void free_owned_cache(MMOwnedResourceCache *owner)
+{
+    const MMStorageAllocator *allocator = owner->allocator;
+    if (allocator)
+        allocator->release(allocator->context, owner, sizeof(*owner));
+    else
+        free(owner);
+}
+
+static void destroy_owned_cache(void *object)
+{
+    MMOwnedResourceCache *owner = object;
+    mm_resource_cache_dispose(&owner->cache);
+    free_owned_cache(owner);
+}
+
+MMResourceCache *mm_resource_cache_create(const MMResourceSource *source, MMI32 budget, const MMResourceServices *s,
+                                          const MMStorageAllocator *allocator, const MMStorageAllocator *storage)
+{
+    MMResourceServices services;
+    MMOwnedResourceCache *owner;
+    if (!s || (allocator && (!allocator->resize || !allocator->release)))
+        return NULL;
+    services = *s;
+    owner = allocator ? allocator->resize(allocator->context, NULL, 0, sizeof(*owner), MM_STORAGE_NORMAL)
+                      : malloc(sizeof(*owner));
+    if (!owner)
+        return NULL;
+    mm_reference_init(&owner->references);
+    owner->allocator = allocator;
+    services.destroy_owner = destroy_owned_cache;
+    if (mm_resource_cache_init(&owner->cache, owner, &owner->references, source, budget, &services, storage, 1) !=
+        MM_STORAGE_OK)
+    {
+        free_owned_cache(owner);
+        return NULL;
+    }
+    if (mm_resource_cache_reserve(&owner->cache, 5) != MM_STORAGE_OK)
+    {
+        mm_resource_cache_release(&owner->cache);
+        return NULL;
+    }
+    return &owner->cache;
+}
+
+MMResourceSource mm_resource_cache_source(const MMResourceCache *c)
+{
+    MMResourceSource source;
+    source.live = c->file;
+    source.index = c->wire_index;
+    source.backing = c->wire_file;
+    return source;
+}
+
+void mm_resource_cache_mark(MMResourceCache *c)
+{
+    if (c && c->services.mark_owner && !c->marking)
+    {
+        c->marking = 1;
+        c->services.mark_owner(c);
+        c->marking = 0;
+    }
+}
+
+int mm_resource_cache_read_name(const MMResourceCache *c, MMU32 type, MMU32 number, MMChunkLegacyName legacy,
+                                void *context, void *wire, MMU32 capacity, MMU32 *bytes)
+{
+    unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES];
+    const unsigned char *name;
+    MMU32 position, length;
+    MMChunkAccess access;
+    if (!c || !wire || !bytes)
+        return 0;
+    if (!c->wire_index)
+        return c->services.live_name && c->services.live_name(c->file, type, number, wire, capacity, bytes);
+    access = mm_chunk_index_access(c->wire_index);
+    if (mm_chunk_find(&access, type, number, &position) != MM_CHUNK_OK ||
+        mm_chunk_serialized_name(c->wire_index, position, legacy, context, scratch, &name, &length) != MM_CHUNK_OK ||
+        !length || length > capacity)
+        return 0;
+    memcpy(wire, name, length);
+    *bytes = length;
+    return 1;
+}
+
 int mm_resource_cache_reserve(MMResourceCache *c, MMU32 additional)
 {
     MMArray a = view(c);
     return mm_array_reserve(&a, additional, 0);
 }
+static int compare_chunk(MMU32 type, MMU32 number, const MMResourceObject *state)
+{
+    if (type != state->type)
+        return type < state->type ? -1 : 1;
+    if (number != state->number)
+        return number < state->number ? -1 : 1;
+    return 0;
+}
+
 static int find(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceBlockReader reader,
                 MMU32 *position)
 {
@@ -182,11 +284,9 @@ static int find(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceBlockRea
         middle = low + (high - low) / 2;
         mm_resource_cache_at(c, middle, &e);
         state = object_services(c, &e)->state(e.object);
-        order = type == state->type  ? (number == state->number  ? c->services.compare_reader(reader, e.reader)
-                                        : number < state->number ? -1
-                                                                 : 1)
-                : type < state->type ? -1
-                                     : 1;
+        order = compare_chunk(type, number, state);
+        if (!order)
+            order = c->services.compare_reader ? c->services.compare_reader(reader, e.reader) : -1;
         if (order < 0)
             high = middle;
         else if (order > 0)
@@ -195,6 +295,23 @@ static int find(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceBlockRea
         {
             *position = middle;
             return 1;
+        }
+    }
+    if (!c->services.compare_reader)
+    {
+        /* C89 only defines equality for function pointers. Search the small
+         * run of readers sharing this chunk key after the lower-bound lookup. */
+        while (low < c->count)
+        {
+            mm_resource_cache_at(c, low, &e);
+            if (compare_chunk(type, number, object_services(c, &e)->state(e.object)))
+                break;
+            if (reader == e.reader)
+            {
+                *position = low;
+                return 1;
+            }
+            ++low;
         }
     }
     *position = low;
@@ -533,7 +650,7 @@ int mm_resource_cache_load(MMResourceCache *c, const MMResourceRequest *q)
     MMU32 i;
     MMI32 current_priority;
     int result;
-    if (!q->reader || q->priority <= 0)
+    if (!q->reader || q->priority <= 0 || !c->services.objects.state)
         return 2;
     if (!scope(c, q->scope))
         return 0;
@@ -615,7 +732,7 @@ void *mm_resource_cache_fetch_owned(MMResourceCache *c, const MMResourceRequest 
         retain_object(e.object, object_services(c, &e));
         return e.object;
     }
-    if (!open_block(c, q, &block))
+    if ((!objects && !c->services.objects.state) || !open_block(c, q, &block))
         return NULL;
     object = fetch_block(c, q, &block, objects, &failed);
     clear_block(c, q, &block);

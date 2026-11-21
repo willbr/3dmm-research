@@ -187,7 +187,7 @@ void EngineTexture::Mark(PTextureMap texture)
         mm_texture_owner_services()->mark_memory(texture);
         const auto &binding = texture->binding;
         if (binding.cache && !binding.attached)
-            MarkMemObj(static_cast<PChunkyResourceFile>(binding.cache->owner));
+            mm_resource_cache_mark(binding.cache);
     }
 }
 #endif

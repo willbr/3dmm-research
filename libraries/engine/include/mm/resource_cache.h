@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_RESOURCE_CACHE_H
 #define MM_ENGINE_RESOURCE_CACHE_H
-#include "chunky_file.h"
+#include "chunk_loading.h"
 #include "block_owner.h"
 #include "collections.h"
 #include "wide.h"
@@ -13,6 +13,8 @@ extern "C"
 #endif
     enum { MM_RESOURCE_TOSS_PRIORITY = 0, MM_RESOURCE_NORMAL_PRIORITY = 2 };
     typedef struct MMResourceCache MMResourceCache;
+    struct MMChunkEndpoint;
+    struct MMChunkFileCopy;
     /* The typed callback also identifies the cache entry. */
     typedef int (*MMResourceBlockReader)(MMResourceCache *, MMU32 type, MMU32 number,
                                          MMOwnedBlock *, void **object, MMI32 *bytes);
@@ -75,6 +77,10 @@ extern "C"
         int (*locate)(void *file, MMU32 type, MMU32 number, MMBlockFile *, int *packed);
         void (*retain_file)(void *file);
         void (*release_file)(void *file);
+        int (*live_name)(void *file, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *bytes);
+        void (*live_copy_source)(void *file, struct MMChunkFileCopy *, struct MMChunkEndpoint *);
+        void (*mark_source)(MMResourceCache *);
+        void (*mark_owner)(MMResourceCache *);
         void (*destroy_owner)(void *owner);
         void (*issue)(void *, int kind, MMU32 type, MMU32 number);
     } MMResourceServices;
@@ -97,7 +103,7 @@ extern "C"
         MMU32 count;
         MMI32 budget, releases;
         MMWide resident;
-        int diagnostic_refs;
+        int diagnostic_refs, marking;
     };
     /* Cache and object lifetimes cover their borrowed C counters. State and
      * reference accessors are side-effect free. The cache owns its file reference
@@ -114,6 +120,17 @@ extern "C"
     int mm_resource_cache_init(MMResourceCache *, void *owner, MMReference *references,
                                const MMResourceSource *, MMI32 budget, const MMResourceServices *,
                                const MMStorageAllocator *, int diagnostic_refs);
+    /* Allocate a C owner around either source. NULL object services require
+     * typed fetches. The allocator and service contexts are borrowed for the
+     * cache lifetime. The source accessor borrows the retained source. */
+    MMResourceCache *mm_resource_cache_create(const MMResourceSource *, MMI32 budget, const MMResourceServices *,
+                                               const MMStorageAllocator *owner, const MMStorageAllocator *storage);
+    MMResourceSource mm_resource_cache_source(const MMResourceCache *);
+    void mm_resource_cache_mark(MMResourceCache *);
+    /* Copy a serialized name. A live source supplies its current name; wire
+     * sources can convert legacy names through the caller's codec. */
+    int mm_resource_cache_read_name(const MMResourceCache *, MMU32 type, MMU32 number, MMChunkLegacyName, void *,
+                                     void *wire, MMU32 capacity, MMU32 *bytes);
     /* Borrow the current graph for synchronous lookup. Reacquire after edits. */
     MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *);
     /* Fill an initialized block with the stored extent and its backing file

@@ -134,7 +134,7 @@ static int compare_reader(MMResourceBlockReader a, MMResourceBlockReader b) { as
 static MMResourceObject *cached_state(void *object) { return &((CachedResource *)object)->state; }
 static MMReference *cached_references(void *object) { return &((CachedResource *)object)->references; }
 static int name(void *p,void *file,MMU32 type,MMU32 number,void *out)
-{ assert(file==p && type==MM_ACTN && number==10); if (t(p)->name_fail) return 0; *(int *)out=42; return 1; }
+{ assert(file==&t(p)->cache && type==MM_ACTN && number==10); if (t(p)->name_fail) return 0; *(int *)out=42; return 1; }
 static MMTemplateRuntimeServices init(Test *x,int parts)
 {
     MMTemplateRuntimeServices s; int i; memset(x,0,sizeof(*x)); memset(&s,0,sizeof(s));

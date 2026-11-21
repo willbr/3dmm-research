@@ -32,7 +32,7 @@ const MMDepthOwnerHost &DepthHost()
             MarkPv(mm_depth_owner_bitmap(owner)->pixels);
             const auto binding = mm_depth_owner_binding(owner);
             if (binding->cache && !binding->attached)
-                MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
+                mm_resource_cache_mark(binding->cache);
         },
         [](MMDepthOwner *, int) { Assert(false, "invalid ZBMP cache ownership"); }
 #else

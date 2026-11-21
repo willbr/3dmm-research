@@ -287,6 +287,11 @@ class GenericCacheableObject : public GenericCacheableObject_PAR
     }
 };
 
+MMResourceCache *NewTypedWireCache(const MMChunkIndex *, void *file, const MMBlockFileServices *, MMI32 budget);
+MMResourceCache *NewTypedSiblingCache(const MMResourceCache *, MMI32 budget);
+bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, PString);
+MMChunkEndpoint ResourceCopySource(MMResourceCache *, MMResourceChunkCopy &);
+
 } // end of namespace Chunky
 
 #endif //! CHRES_H

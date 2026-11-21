@@ -98,7 +98,7 @@ const MMMaterialOwnerHost &EngineMaterial::Host()
         &services, &shade, KauaiResourceObjectAllocator(),
 #ifdef DEBUG
         [](void *p) { MarkPv(p); },
-        [](MMResourceCache *cache) { MarkMemObj(static_cast<PChunkyResourceFile>(cache->owner)); },
+        [](MMResourceCache *cache) { mm_resource_cache_mark(cache); },
         [](void *p) { EngineTexture::Mark(static_cast<PTextureMap>(p)); },
         [](void *p) { EngineModel::Mark(static_cast<PModel>(p)); }
 #else
@@ -147,7 +147,12 @@ int EngineMaterial::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwn
 
 PMaterial_MTRL EngineMaterial::Fetch(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PMaterial_MTRL>(mm_resource_cache_fetch_owned_chunk(cache->CoreCache(), type, number, Read,
+    return Fetch(cache->CoreCache(), type, number);
+}
+
+PMaterial_MTRL EngineMaterial::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
+{
+    return static_cast<PMaterial_MTRL>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
                                                                           mm_material_owner_services()));
 }
 
@@ -251,7 +256,12 @@ int EngineCostume::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwne
 
 PCustomMaterial_CMTL EngineCostume::Fetch(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PCustomMaterial_CMTL>(mm_resource_cache_fetch_owned_chunk(cache->CoreCache(), type, number, Read,
+    return Fetch(cache->CoreCache(), type, number);
+}
+
+PCustomMaterial_CMTL EngineCostume::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
+{
+    return static_cast<PCustomMaterial_CMTL>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
                                                                                mm_material_owner_services()));
 }
 

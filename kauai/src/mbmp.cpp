@@ -160,7 +160,7 @@ void MarkMaskedBitmap(PMaskedBitmapMBMP owner)
     MarkPv(mm_masked_owner_bitmap(owner)->data);
     const auto binding = mm_masked_owner_binding(owner);
     if (binding->cache && !binding->attached)
-        MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
+        mm_resource_cache_mark(binding->cache);
 }
 #endif
 

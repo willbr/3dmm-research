@@ -102,7 +102,7 @@ const MMSoundResourceHost &EngineSound::Host()
         static_cast<MMI32>((bytes + sizeof(void *) - 1) & ~(sizeof(void *) - 1)), sizeof(achar),
 #ifdef DEBUG
         [](void *p) { MarkPv(p); },
-        [](MMResourceCache *cache) { MarkMemObj(static_cast<PChunkyResourceFile>(cache->owner)); }
+        [](MMResourceCache *cache) { mm_resource_cache_mark(cache); }
 #else
         nullptr, nullptr
 #endif

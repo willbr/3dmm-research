@@ -22,7 +22,7 @@ class PreviewActor
     MMPreviewActor core;
     MMActorTrack Track() const { return mm_preview_actor_track(&core); }
     PTemplate Ptmpl() const { return static_cast<PTemplate>(core.tmpl); }
-    std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
+    std::function<MMResourceCache *(const TAGOnFile &)> resolve;
     bool ApplyEvent(MMActorState &value, const MMActorTrack &events, LegacyLong index, bool metadataOnly,
                     MMActorSounds *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;
     std::string ActionName(LegacyLong action) const;
@@ -42,9 +42,9 @@ class PreviewActor
     std::vector<PreviewSoundCue> sounds;
     ~PreviewActor();
     bool Load(const MMMovieSessionGraph &, ChunkNumber number,
-              std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
+              std::function<MMResourceCache *(const TAGOnFile &)> resolver,
               std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
-    bool Create(const PreviewPropDefinition &, std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
+    bool Create(const PreviewPropDefinition &, std::function<MMResourceCache *(const TAGOnFile &)> resolver,
                 std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock);
     bool Seek(LegacyLong frame);
     bool Translate(const float delta[3]);

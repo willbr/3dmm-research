@@ -11,10 +11,7 @@ struct MMMovieSession;
 struct MMMovieSessionGraph;
 struct MMArchiveReader;
 
-namespace Chunky
-{
-class ChunkyResourceFile;
-}
+struct MMResourceCache;
 
 namespace MM
 {
@@ -155,7 +152,7 @@ class Archive
     friend class Preview;
     friend bool ReadSoundCatalogStyle(const Archive &, std::uint32_t, std::int32_t &);
     bool CanPreview() const;
-    Chunky::ChunkyResourceFile *NewResourceCache(std::int32_t budget) const;
+    MMResourceCache *NewResourceCache(std::int32_t budget) const;
     bool OpenResources(const std::string &utf8Path, Error &);
     MMArchiveReader *Reader() const;
     MMMovieSessionGraph PlaybackGraph() const;

@@ -127,7 +127,7 @@ int EngineTemplate::ReadActionResource(MMResourceCache *cache, MMU32 type, MMU32
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read Template objects.
 ***************************************************************************/
-MMTemplateCreateServices EngineTemplate::CreateServices(PChunkyResourceFile cache)
+MMTemplateCreateServices EngineTemplate::CreateServices(MMResourceCache *cache)
 {
     MMTemplateCreateServices s = {}; s.context = cache;
     const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
@@ -140,7 +140,7 @@ MMTemplateCreateServices EngineTemplate::CreateServices(PChunkyResourceFile cach
     s.decode = KauaiDecodeBlockHandle;
     s.read_name = [](void *cache, void *object, MMU32 type, MMU32 number) -> int {
         String name;
-        const auto found = static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, &name);
+        const auto found = ReadResourceName(static_cast<MMResourceCache *>(cache), type, number, &name);
         const auto storage = mm_template_owner_name(static_cast<PTemplate>(object));
         mm_string_value_copy(&storage, name.Pst());
         return found;
@@ -148,11 +148,11 @@ MMTemplateCreateServices EngineTemplate::CreateServices(PChunkyResourceFile cach
     s.create = [](void *, int text) -> void * { return mm_template_owner_create(&Host(), text); };
     s.initialize = [](void *context, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
         auto owner = static_cast<PTemplate>(object);
-        auto cache = static_cast<PChunkyResourceFile>(context);
+        auto cache = static_cast<MMResourceCache *>(context);
         if (mm_template_owner_is_text(owner))
             return EngineText::Initialize(owner, cache, type, number, block);
         const auto services = CreateServices(cache);
-        return mm_template_initialize(owner, cache->CoreCache(), type, number, block, &services);
+        return mm_template_initialize(owner, cache, type, number, block, &services);
     };
     s.object_size = [](void *, int text) -> MMI32 { return LegacyTemplateSize(text != 0); };
     s.invalidate = [](void *, void *out, size_t count) {
@@ -163,9 +163,9 @@ MMTemplateCreateServices EngineTemplate::CreateServices(PChunkyResourceFile cach
 #endif
     };
     s.table_allocator = CollectionAllocator();
-    s.create_cache = [](void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->PcrfNewSibling(0); };
-    s.release_cache = [](void *, void *cache) { static_cast<PChunkyResourceFile>(cache)->Release(); };
-    s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return EngineCostume::Fetch(static_cast<PChunkyResourceFile>(cache), type, number); };
+    s.create_cache = [](void *cache) -> void * { return NewTypedSiblingCache(static_cast<MMResourceCache *>(cache), 0); };
+    s.release_cache = [](void *, void *cache) { mm_resource_cache_release(static_cast<MMResourceCache *>(cache)); };
+    s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return EngineCostume::Fetch(static_cast<MMResourceCache *>(cache), type, number); };
     s.custom_set = [](void *, void *custom) -> MMI32 { return EngineCostume::Set(static_cast<PCustomMaterial_CMTL>(custom)); };
     s.append_costumes = [](void *, MMTemplateCostumeTable *table, const MMI32 *ids, MMI32 count) -> int {
         return mm_template_costumes_append(table, ids, count);
@@ -195,7 +195,7 @@ MMTemplateCreateServices EngineTemplate::CreateServices(PChunkyResourceFile cach
 int EngineTemplate::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
     void **out, MMI32 *bytes)
 {
-    const auto s = CreateServices(static_cast<PChunkyResourceFile>(cache->owner));
+    const auto s = CreateServices(cache);
     return mm_template_fetch(cache, type, number, block, out, bytes, &s);
 }
 
@@ -206,20 +206,25 @@ PTemplate EngineTemplate::Fetch(PTAG tag)
 
 PTemplate EngineTemplate::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number, bool *error)
 {
+    return Fetch(file->CoreCache(), type, number, error);
+}
+
+PTemplate EngineTemplate::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number, bool *error)
+{
     const MMResourceRequest request = {type, number, 0, Read, MM_RESOURCE_NORMAL_PRIORITY};
     int failed = 0;
-    auto owner = static_cast<PTemplate>(mm_resource_cache_fetch_owned(file->CoreCache(), &request,
+    auto owner = static_cast<PTemplate>(mm_resource_cache_fetch_owned(cache, &request,
                                                                     mm_template_owner_services(), &failed));
     if (error)
         *error = failed != 0;
     return owner;
 }
 
-bool EngineTemplate::ReadHeader(PTemplate owner, PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number,
+bool EngineTemplate::ReadHeader(PTemplate owner, MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number,
                                 MMOwnedBlock *block)
 {
     const auto services = CreateServices(cache);
-    return mm_template_read_header(owner, cache->CoreCache(), type, number, block, &services) != 0;
+    return mm_template_read_header(owner, cache, type, number, block, &services) != 0;
 }
 
 bool EngineTemplate::WriteHeader(PTemplate owner, PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
@@ -258,7 +263,7 @@ static MMTemplateRuntimeServices RuntimeServices(PTemplate owner)
     s.model_reader = EngineModel::Read;
     s.model_objects = mm_model_owner_services();
     s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
-        return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, static_cast<PString>(out));
+        return ReadResourceName(static_cast<MMResourceCache *>(cache), type, number, static_cast<PString>(out));
     };
     mm_template_use_action_resource(&s, EngineTemplate::ReadActionResource);
     const auto provider = mm_template_owner_provider(owner);
@@ -507,7 +512,7 @@ void EngineTemplate::Mark(PTemplate owner)
     MarkPv(owner);
     const auto binding = mm_template_owner_binding(owner);
     if (binding->cache && !binding->attached)
-        MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
+        mm_resource_cache_mark(binding->cache);
     MMPartIndexList *indices[] = {State(owner).parents, State(owner).sets};
     for (auto list : indices)
         if (list)

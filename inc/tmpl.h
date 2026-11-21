@@ -104,12 +104,13 @@ namespace EngineTemplate
 {
 const MMTemplateOwnerHost &Host();
 const MMActionResourceHost &ActionResourceHost();
-MMTemplateCreateServices CreateServices(PChunkyResourceFile cache = nullptr);
+MMTemplateCreateServices CreateServices(MMResourceCache *cache = nullptr);
 int ReadActionResource(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
 int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
 PTemplate Fetch(PTAG);
+PTemplate Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber, bool *error = nullptr);
 PTemplate Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, bool *error = nullptr);
-bool ReadHeader(PTemplate, PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
+bool ReadHeader(PTemplate, MMResourceCache *, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
 bool WriteHeader(PTemplate, PChunkyFile, ChunkTagOrType, ChunkNumber *);
 void GetName(PTemplate, PString);
 PBody PbodyCreate(PTemplate);

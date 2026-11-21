@@ -59,14 +59,15 @@ struct Preview::Impl
     struct Source
     {
         Archive archive;
-        PChunkyResourceFile cache = nullptr;
+        MMResourceCache *cache = nullptr;
         ~Source()
         {
-            ReleasePpo(&cache);
+            if (cache)
+                mm_resource_cache_release(cache);
         }
     };
     Archive assets, resources;
-    PChunkyResourceFile cache = nullptr;
+    MMResourceCache *cache = nullptr;
     PTemplate tmpl = nullptr;
     PBody body = nullptr;
     PModel model = nullptr;
@@ -139,7 +140,7 @@ struct Preview::Impl
             wire.From(tag);
             auto source = self->Resolve(wire);
             return source ? static_cast<MMFontOwner *>(mm_resource_cache_fetch_owned_chunk(
-                       source->CoreCache(), tag.ctg, tag.cno, EngineFont::Read, mm_font_owner_services())) : nullptr;
+                       source, tag.ctg, tag.cno, EngineFont::Read, mm_font_owner_services())) : nullptr;
         });
     }
     std::unique_ptr<Internal::PreviewBackground> background;
@@ -154,7 +155,7 @@ struct Preview::Impl
         PublishInfo();
         return true;
     }
-    PChunkyResourceFile Resolve(const TAGOnFile &tag);
+    MMResourceCache *Resolve(const TAGOnFile &tag);
     PMaterial_MTRL FetchTextMaterial(int object, bool preset, MMI32 source, MMU32 number)
     {
         if (preset)
@@ -278,12 +279,12 @@ bool Preview::SoundName(const PreviewSoundCue &cue, std::string &out) const
     MMU32 number = cue.sound.number;
     if (!cue.source)
     {
-        const auto graph = cache->ReadChunkAccess();
+        const auto graph = mm_resource_cache_chunks(cache);
         const auto scene = cue.scene.type ? cue.scene.number : _impl->live.status.asset_number;
         mm_chunk_link_number(&graph, kctgScen, scene, cue.child, kctgMsnd, &number);
     }
     String name;
-    if (!cache->FGetName(kctgMsnd, number, &name)) return false;
+    if (!ReadResourceName(cache, kctgMsnd, number, &name)) return false;
     out.assign(name.Psz(), name.Cch()); return true;
 }
 bool Preview::ObjectCostumes(int object, std::vector<PreviewCostume> &out, Error &error) const
@@ -547,7 +548,7 @@ bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSourc
     if (!file)
         return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
     MMResourceChunkCopy sourceBinding;
-    const auto sourceChunks = source->CopySource(sourceBinding);
+    const auto sourceChunks = ResourceCopySource(source, sourceBinding);
     const int status = mm_private_archive_bind_font(file.get(), &sourceChunks, 0, font);
     if (status == MM_CHUNK_NOT_FOUND)
         Bug("chunk not found");

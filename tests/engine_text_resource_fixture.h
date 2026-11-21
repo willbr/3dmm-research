@@ -6,7 +6,7 @@ static MMFontOwner *TextResourceNoFont(void *context,const MMTag *)
 struct TextResourceFixtureAccess
 {
     static PThreeDText Create() { return mm_template_owner_create(&EngineTemplate::Host(), 1); }
-    static bool Initialize(PThreeDText t, PChunkyResourceFile cache,ChunkNumber n) { return EngineText::Initialize(t, cache, kctgTmpl, n, nullptr); }
+    static bool Initialize(PThreeDText t, PChunkyResourceFile cache,ChunkNumber n) { return EngineText::Initialize(t, cache->CoreCache(), kctgTmpl, n, nullptr); }
     static bool Provider(PThreeDText t,void *context)
     { const auto provider = mm_template_owner_font(t); return provider->context == context && provider->fetch == TextResourceNoFont; }
     static PStringTable_GST DetachNames() { auto t=static_cast<PStringTable_GST>(EngineText::ActionNames().table); EngineText::ActionNames().table=nullptr; return t; }

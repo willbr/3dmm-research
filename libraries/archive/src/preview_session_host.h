@@ -212,8 +212,7 @@ struct Preview::Impl::SessionHost
         };
         s.cache_release = [](void *v, void *p) {
             auto &h = *static_cast<SessionHost *>(v);
-            auto value = static_cast<PChunkyResourceFile>(p);
-            ReleasePpo(&value);
+            mm_resource_cache_release(static_cast<MMResourceCache *>(p));
             h.impl->cache = nullptr;
         };
         s.shared_material_release = [](void *) { EngineBody::ReleaseSharedMaterial(); };
@@ -223,11 +222,11 @@ struct Preview::Impl::SessionHost
         return s;
     }
 };
-PChunkyResourceFile Preview::Impl::Resolve(const TAGOnFile &tag)
+MMResourceCache *Preview::Impl::Resolve(const TAGOnFile &tag)
 {
     const auto contains = [](void *context, void *source, MMU32 type, MMU32 number) -> int {
         auto file = source ? static_cast<Source *>(source)->cache : static_cast<Impl *>(context)->cache;
-        return file->PcrfFindChunk(type, number) != nullptr;
+        return file && mm_resource_cache_contains(file, type, number, 0);
     };
     void *source;
     if (mm_preview_session_resolve(&session, tag.sid, tag.ctg, tag.cno, contains, this, &source))

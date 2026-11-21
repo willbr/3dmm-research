@@ -61,7 +61,7 @@ namespace EngineText
 {
 MMTextGenerationServices GenerationServices();
 MMTextNames &ActionNames();
-bool Initialize(PThreeDText, PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
+bool Initialize(PThreeDText, MMResourceCache *, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
 void SetFontResolver(PThreeDText, void *context, MMFontOwner *(*)(void *, const MMTag *));
 MMActionResource *FetchAction(PThreeDText, LegacyLong);
 PModel FetchModel(PThreeDText, ChildChunkID);

@@ -36,7 +36,7 @@ PreviewActor::~PreviewActor()
     mm_actor_sounds_dispose(&motionSounds);
 }
 bool PreviewActor::Load(const MMMovieSessionGraph &graph, ChunkNumber number,
-                        std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
+                        std::function<MMResourceCache *(const TAGOnFile &)> resolver,
                         std::function<void(PTemplate)> bindTemplate, std::uint64_t &visibilityClock)
 {
     this->visibilityClock = &visibilityClock;
@@ -49,7 +49,7 @@ bool PreviewActor::Load(const MMMovieSessionGraph &graph, ChunkNumber number,
     return host.Result(mm_preview_actor_load(&core, number, &chunks, 0, &services));
 }
 bool PreviewActor::Create(const PreviewPropDefinition &definition,
-                          std::function<PChunkyResourceFile(const TAGOnFile &)> resolver,
+                          std::function<MMResourceCache *(const TAGOnFile &)> resolver,
                           std::function<void(PTemplate)> bindTemplate, std::uint64_t &clock)
 {
     resolve = std::move(resolver);
@@ -308,7 +308,7 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
                 auto cache = input.host.actor->resolve(tag);
                 if (!cache)
                     return false;
-                *out = cache->CoreCache();
+                *out = cache;
                 return true;
             });
         },

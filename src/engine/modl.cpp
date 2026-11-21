@@ -139,7 +139,7 @@ void EngineModel::Mark(PModel owner)
         mm_model_owner_services()->mark_memory(owner);
         const auto binding = mm_model_owner_binding(owner);
         if (binding->cache && !binding->attached)
-            MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
+            mm_resource_cache_mark(binding->cache);
     }
 }
 #endif

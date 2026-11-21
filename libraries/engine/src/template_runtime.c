@@ -123,7 +123,7 @@ int mm_template_action_name(MMI32 id, void *out, const MMTemplateRuntimeServices
     graph = mm_resource_cache_chunks(resource->cache);
     if (mm_chunk_link_number(&graph, resource->type, resource->number, (MMU32)id, MM_ACTN, &number) != MM_CHUNK_OK)
         return 0;
-    return s->name(s->storage.context, resource->cache->owner, MM_ACTN, number, out);
+    return s->name(s->storage.context, resource->cache, MM_ACTN, number, out);
 }
 MMI32 mm_template_wrap_cel(MMI32 cel, MMI32 count)
 {

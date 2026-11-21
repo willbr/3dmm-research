@@ -209,7 +209,7 @@ struct Preview::Impl::AdmissionHost
         s.model_fetch = [](void *v, MMU32 type, MMU32 number, void **out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                h.impl->model = EngineModel::Fetch(h.impl->cache->CoreCache(), type, number);
+                h.impl->model = EngineModel::Fetch(h.impl->cache, type, number);
                 *out = h.impl->model;
                 return *out != nullptr;
             });

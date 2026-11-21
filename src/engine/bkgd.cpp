@@ -471,7 +471,7 @@ void EngineBackground::Mark(PBackground background)
     MarkPv(background);
     const auto binding = mm_background_owner_binding(background);
     if (binding->cache && !binding->attached)
-        MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
+        mm_resource_cache_mark(binding->cache);
     MarkPv(Resource(background).actors);
     MarkPv(Resource(background).lights);
 }

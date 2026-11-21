@@ -27,7 +27,7 @@ ASSERTNAME
 struct TextResourceContext
 {
     String saved;
-    PChunkyResourceFile cache = nullptr;
+    MMResourceCache *cache = nullptr;
 };
 static void TextTagToCore(const TAG *tag, MMTag *out)
 {
@@ -154,13 +154,13 @@ PThreeDText EngineText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf)
     Read the generic Template info and the ThreeDText-specific info (tdts and tagTdf),
     then call _FInitLists to build the rest of the ThreeDText.
 ***************************************************************************/
-bool EngineText::Initialize(PThreeDText owner, PChunkyResourceFile cache, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl, MMOwnedBlock *block)
+bool EngineText::Initialize(PThreeDText owner, MMResourceCache *cache, ChunkTagOrType ctgTmpl, ChunkNumber cnoTmpl, MMOwnedBlock *block)
 {
-    AssertPo(cache, 0);
+    Assert(cache, "missing template resource cache");
     TextResourceContext context;
     context.cache = cache;
     auto services = ResourceServices(&context);
-    const MMTextResourceSource source = {cache->CoreCache(), nullptr, {}};
+    const MMTextResourceSource source = {cache, nullptr, {}};
     return mm_text_read(owner, &source, ctgTmpl, cnoTmpl, block, &services) != 0;
 }
 

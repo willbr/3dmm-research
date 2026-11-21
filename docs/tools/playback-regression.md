@@ -20341,3 +20341,38 @@ in suite 20261121T230354Z-1b4253c0 and matched all 60 original seek camera
 indices and canvases.
 
 Evidence is under tmp/c89-masked-owner.
+
+## C89 Preview resource cache ownership (21 November 2026)
+
+Marcus Preview now owns its renderer caches through the C89 resource cache
+factory. A cache retains the validated index and physical file for an
+immutable archive or retains the live archive graph for an editable source.
+Template names, action names and font copies use the same cache source as
+payload lookup. Studio's template costume-table loads use the same C owner
+for their temporary caches. Legacy host objects can mark a cache through its
+diagnostic callback.
+
+The resource cache fixture covers distinct readers sharing one chunk key,
+independent sibling caches, and a detached resource retaining its backing
+until its final release. All 193 standalone C89 checks and seven targeted
+AddressSanitizer checks passed. Native archive, resource cache, template,
+scene editing, movie save/load, Preview and Marcus playback checks passed.
+The Preview fixture exercised external source resolution, replacement,
+renderer restart, live archives, 3D text and font copying without modifying
+its input archives.
+
+Native x64 and SDL both passed cache, sparse costume, scene editing
+and movie save/load checks. In the 30-frame actor-audio case, SDL Studio
+and Marcus matched every prior seek canvas, every retail seek camera
+index and every retail playback frame identity. Each matched 29 of 30
+retail seek canvases. V3DMM matched all 30 retail seek canvases, and both
+V3DMM and SDL matched the six retail sound requests. Mixed PCM differed
+from retail on the audible fixture.
+
+Retail, V3DMM and SDL seek observations are in capture
+20261121T231821Z-83626100. The space limit interrupted the combined run
+before SDL recorded continuous playback. The separate fresh SDL run
+recorded frame and sound observations without presentation images. Marcus
+seek and playback completed in 20261121T232153Z-ff348744.
+
+Evidence is under tmp/c89-cache-owner.

@@ -107,10 +107,12 @@ priority over the older Project 0-4 ordering wherever they conflict.
   C89 reader. Read-only Preview caches retain the validated wire index and the
   same native C file used to parse it. Preview opens by path also use that
   reader. Files with a live Kauai graph use that graph.
-- The C89 resource cache reads model and texture payloads from that index for
-  read-only Preview archives. It retains the index and backing file while
-  detached renderer objects still depend on the cache. Texture loaders use
-  the block selected by the cache. Editable archives use live chunk lookup.
+- Preview's renderer caches now have C89 owners for both immutable indexes
+  and live archive graphs. C retains their source until the last dependent
+  object is released. Typed model, texture, template and material readers
+  use that cache directly. Studio also uses the C89 owner for template
+  costume-table caches. Name lookup and font copies read from the same source
+  as the resource payload.
 - Material, costume, action, template and 3D-text readers also consume the
   cache's root block. Graph links and child payloads use the same archive source
   as the root. The legacy template costume-table builder keeps its own cache
