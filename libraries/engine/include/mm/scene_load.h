@@ -15,12 +15,12 @@ extern "C"
         MMSceneOwnerServices owners;
         MMSceneSoundPacketServices packets;
         MMMovieSceneReader read;
-        void *title_file;
+        void *source_file;
+        void *resources;
+        const MMTagServices *tags;
         MMChunkTitleIO titles;
         void *(*thumbnail)(void *, MMU32 number);
         void *(*object)(void *, MMU32 number, int kind, void *scene);
-        void *(*retain_background_cache)(void *); /* Returns one reference to the document's live cache. */
-        int (*open_tag)(void *, MMSceneSoundTag *);
     } MMSceneLoadServices;
     /* The reader supplies validated scene events.
      * Reads the header before creating the scene and fills the initialized owner
@@ -29,14 +29,15 @@ extern "C"
      * The read group owns its wire bytes. Fixed headers and child/
      * background words are decoded into local values; pause/camera bytes pass through
      * unchanged, including opposite-order payloads. Document-owned background
-     * MMTag payloads borrow a cache retained by the scene. Sound decoding normalizes its
-     * private wire payload before allocation, as in the packet codec. Track insertion copies
-     * payload bytes and transfers embedded references only on success. Callbacks must
-     * not reenter loading, mutate input groups or resize live temporary packets.
+     * MMTag payloads borrow one resource-cache reference retained by the scene.
+     * Sound decoding normalizes its private wire payload before allocation and opens tags
+     * against the same cache, copying embedded chunks if the borrowed source file differs.
+     * Track insertion copies payload bytes and transfers embedded references only on success.
+     * Callbacks must not reenter loading, mutate input groups or resize live temporary packets.
      * Failure closes the current sound's opened prefix in reverse order, releases
      * the wire group, then unwinds completed start/frame prefixes before destruction.
-     * The scene owns both C tracks. Native object factories and cache services
-     * are supplied by the host. */
+     * The scene owns both C tracks. The owner services must release the cache references
+     * transferred to the scene through the tag services. */
     void *mm_scene_load(void *movie, MMU32 number, const MMSceneLoadServices *);
     struct MMMovieSoundServices;
     typedef struct MMSceneResolveServices

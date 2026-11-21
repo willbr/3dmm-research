@@ -84,9 +84,8 @@ MMSceneSoundPacketServices ScenePacketServices(PMovie movie)
         return FAllocPv(&p, bytes, fmemNil, mprNormal) ? p : nullptr;
     };
     s.retain = [](void *, const MMSceneSoundTag *record) {
-        TAG tag;
-        TagFromCore(&tag, record->tag);
-        TagManager::DupTag(&tag);
+        Assert(record->tag.sid >= 0, "Invalid sid");
+        mm_tag_dup(&record->tag, &TagManager::CoreServices());
     };
     s.resolve = [](void *p, MMSceneSoundTag *record) -> int {
         return static_cast<PMovie>(p)->FResolveSndTag(record->tag, record->child);
@@ -185,10 +184,8 @@ static MMSceneSoundServices SceneSoundServices()
     static_assert(int(styNil) == 0 && int(styLim) == 5, "Scene sound style bounds");
     MMSceneSoundServices s = {};
     s.close = [](void *, MMSceneSoundTag *record) {
-        TAG tag;
-        TagFromCore(&tag, record->tag);
-        TagManager::CloseTag(&tag);
-        record->tag.cache = tag.pcrf;
+        Assert(record->tag.sid == ksidInvalid || record->tag.sid >= 0, "Invalid sid");
+        mm_tag_close(&record->tag, &TagManager::CoreServices());
     };
     s.free = [](void *, void *p) { FreePpv(&p); };
     s.diagnostic = SceneOwnerDiagnostic;
@@ -1940,7 +1937,9 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
     s.owners = _OwnerServices();
     s.packets = ScenePacketServices(pmvie);
     s.read = mm_movie_scene_reader(&source);
-    s.title_file = host.file;
+    s.source_file = host.file;
+    s.resources = pcrf;
+    s.tags = &TagManager::CoreServices();
     s.titles = KauaiChunkTitleIO();
     s.thumbnail = [](void *p, MMU32 number) -> void * {
         return MaskedBitmapMBMP::PmbmpReadChunk(static_cast<Host *>(p)->file, kctgThumbMbmp, number);
@@ -1950,19 +1949,6 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
         return kind == MM_SCENE_ADD_ACTOR
                    ? static_cast<void *>(Actor::PactrRead(resources, number))
                    : static_cast<void *>(TextBox::PtboxRead(resources, number, static_cast<PScene>(scene)));
-    };
-    s.retain_background_cache = [](void *p) -> void * {
-        auto cache = static_cast<Host *>(p)->resources;
-        cache->AddRef();
-        return cache;
-    };
-    s.open_tag = [](void *p, MMSceneSoundTag *record) -> int {
-        auto h = static_cast<Host *>(p);
-        TAG tag;
-        TagFromCore(&tag, record->tag);
-        const bool ok = TagManager::FOpenTag(&tag, h->resources, h->file);
-        record->tag = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
-        return ok;
     };
     return static_cast<PScene>(mm_scene_load(pmvie, cno, &s));
 }

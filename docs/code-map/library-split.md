@@ -1853,15 +1853,17 @@ Strict C89, sanitizer, host and retail capture evidence is recorded in
 `scene_load.c` owns the load transaction formerly in `Scene::PscenRead`: metadata
 read before construction, actor/text list allocation, metadata publication,
 optional thumbnail loading, frame/start group construction and the final name
-reload. It uses the C scene owner and sound packet policies. Typed file lookup,
-validated group reads, actor/caption decoding, tag opens and representation
-conversion remain synchronous host primitives.
+reload. It uses the C scene owner, sound packet and tag policies. The host
+supplies typed file access, validated group reads, actor/caption decoding and
+cache reference primitives.
 
 Fixed headers, actor/caption child IDs and background tags decode into local
-values. Background tags start with a NULL cache. Camera and pause variable bytes
-pass through unchanged even in opposite-order groups, matching the native loader.
-Sound wire decoding normalizes its private payload before allocation. Each tag
-opens before insertion transfers the packet's references into the runtime group.
+values. Document background tags borrow a single cache reference held by the
+scene. Camera and pause variable bytes pass through unchanged even in
+opposite-order groups, matching the native loader.
+Sound wire decoding normalizes its private payload before allocation. The shared
+C89 tag service opens each sound tag against the document cache. Insertion
+transfers the packet's references into the runtime group.
 Failed opening/insertion closes the newly opened prefix in reverse order and
 frees the packet before releasing the wire group. Failure then unwinds completed
 start/frame prefixes using the existing C owner cleanup and destroys the scene.

@@ -37,7 +37,7 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
             for (j = 0; j < sound->ctagc; ++j)
             {
                 mm_scene_sound_get_tag(sound, j, &sound_tag);
-                ok = s->open_tag(s->context, &sound_tag);
+                ok = mm_tag_open(&sound_tag.tag, s->resources, s->source_file, s->tags);
                 mm_scene_sound_put_tag(sound, j, &sound_tag);
                 if (!ok)
                     break;
@@ -48,7 +48,7 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
                 while (j > 0)
                 {
                     mm_scene_sound_get_tag(sound, --j, &sound_tag);
-                    o->sound.close(o->sound.context, &sound_tag);
+                    mm_tag_close(&sound_tag.tag, s->tags);
                     mm_scene_sound_put_tag(sound, j, &sound_tag);
                 }
             o->sound.free(o->sound.context, sound);
@@ -75,7 +75,10 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
             if (!tag.sid)
             {
                 if (!owner->owned[MM_SCENE_BACKGROUND_CACHE])
-                    owner->owned[MM_SCENE_BACKGROUND_CACHE] = s->retain_background_cache(s->context);
+                {
+                    s->tags->retain(s->resources);
+                    owner->owned[MM_SCENE_BACKGROUND_CACHE] = s->resources;
+                }
                 tag.cache = owner->owned[MM_SCENE_BACKGROUND_CACHE];
             }
             if (!mm_scene_track_insert(group, i, sizeof(tag), &tag, &record))
@@ -119,7 +122,7 @@ void *mm_scene_load(void *movie, MMU32 number, const MMSceneLoadServices *s)
         owner->owned[MM_SCENE_THUMBNAIL] = s->thumbnail(s->context, child);
     if (!load_group(scene, owner, number, 0, s) || !load_group(scene, owner, number, 1, s))
         goto unwind;
-    mm_chunk_title_read(&owner->data.name, s->title_file, MM_SCENE_CHUNK, number, &s->titles);
+    mm_chunk_title_read(&owner->data.name, s->source_file, MM_SCENE_CHUNK, number, &s->titles);
     return scene;
 unwind:
     mm_scene_owner_unwind(owner, o);

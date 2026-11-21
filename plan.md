@@ -1002,9 +1002,11 @@ append ownership, wire conversion and per-tag playback now use C89 too. Native
 tag representations and resource/queue primitives remain adapters. Scene sound
 editing/query, preview/background playback, indicators and sound-undo payload
 state/swap control now also use C89. Scene load orchestration, wire/runtime event
-construction, tag-open ownership transfer and actor/frame sound-resolution
-traversal now also use C89. Scene sound insertion, preview input and bulk
-scene relinking use the shared C89 movie sound binding for local tags.
+construction and actor/frame sound-resolution traversal now also use C89. The
+scene loader uses the common tag service to open and unwind embedded sound tags,
+and retains the document cache for background tags. Scene sound insertion,
+preview input and bulk scene relinking use the shared C89 movie sound binding
+for local tags.
 Scene tag-collection traversal and save transactions
 now also use C89, including sound adoption, wire-group construction and ordered
 thumbnail/metadata publication. Pause/camera/background editing, their public undo

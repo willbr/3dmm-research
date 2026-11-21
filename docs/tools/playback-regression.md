@@ -18874,3 +18874,34 @@ retail frame identities and SDL matched all four retail sound requests.
 Both ports reproduced their previous PCM16 peak of 2,176. The archived
 retail peak is 2,380. The captures contain 522,240 SDL and 512,640 Marcus PCM
 frames. Evidence is in `tmp/c89-scene-sound-controller`.
+
+## Scene-load tag ownership in C89 (21 November 2026)
+
+The C89 scene loader opens embedded sound tags through the shared tag service
+and retains one document-cache reference for background tags. A failed insert
+closes the sound packet's opened tags in reverse order. The C fixture also
+exercises both wire byte orders and a missing sound chunk after a successful
+cross-file copy. That failure releases the opened tag before releasing the
+packet and wire group. Scene sound packet duplication and teardown use the
+same tag service.
+
+All 193 standalone C checks, six AddressSanitizer checks, two x86 C fixtures,
+14 native checks and the SDL movie-sound import check passed. Each pre-change
+scene-load, scene-owner and scene-sound trace matched byte for byte on x64, x86
+and SDL. All 27 save/reopen traces, the actor-paste, actor-sound-edit and
+movie-sound traces, composition and sound-resource snapshots, and the
+complete authoring save matched their prior builds.
+
+SDL and Marcus matched the three archived V3dmm storyboard frames, cameras
+and canvas hashes in suite `20261121T121053Z-d6f03b91`.
+
+In `actor-event-edit` suite `20261121T121058Z-3251be77`, both ports matched
+all 60 retail frame identities in seek and continuous playback. Their seek
+camera indices matched retail and all 60 seek canvas hashes matched their
+prior captures. SDL matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T121213Z-bb07b1f5`, both ports matched all 60
+retail frame identities and SDL matched all four retail sound requests.
+Both ports reproduced their earlier PCM16 peak of 2,176. The archived retail
+peak is 2,380. The captures contain 513,120 SDL and 512,160 Marcus PCM frames.
+Evidence is in `tmp/c89-scene-load-ownership`.
