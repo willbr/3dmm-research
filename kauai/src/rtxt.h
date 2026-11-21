@@ -378,6 +378,9 @@ class RichTextDocument : public RichTextDocument_PAR
     virtual bool FGetFniSave(Filename *pfni);
     virtual bool FSaveToFni(Filename *pfni, bool fSetFni);
     virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
+    // Redirected text pieces must use the document's file provider.
+    bool FSaveToArchive(const struct MMMovieArchiveEditor &, const MMArchiveWriter &, ChunkIdentification *,
+                        bool redirectText = false);
 
     virtual bool FSetUndo(long cp1, long cp2, long ccpIns);
     virtual void CancelUndo(void);

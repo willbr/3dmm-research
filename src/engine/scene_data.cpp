@@ -1,7 +1,7 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 #include "soc_core.h"
-#include "engine_movie_archive.h"
+#include "movie_archive_host.h"
 ASSERTNAME
 
 SceneEvent ReadSceneTrackEvent(const MMSceneTrack *track, MMI32 index)

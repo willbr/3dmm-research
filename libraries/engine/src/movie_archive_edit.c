@@ -1,4 +1,5 @@
 #include "mm/movie_archive_edit.h"
+#include "mm/chunk_copy.h"
 #include "mm/chunk_graph.h"
 #include "mm/chunk_ops.h"
 #include "mm/collections.h"
@@ -264,6 +265,27 @@ int mm_movie_archive_next_child(const MMChunkAccess *chunks, MMU32 parent_type, 
             }
     *slot = next;
     return 1;
+}
+
+static int copy_asset(void *context, const MMTag *tag, MMU32 *number, int *created)
+{
+    const MMMovieArchiveAssets *assets = context;
+    MMResourceChunkCopy binding;
+    MMChunkEndpoint source;
+    if (!tag->cache)
+        return 0;
+    source = assets->tags->bind_cache(tag->cache, &binding);
+    return mm_chunk_copy_reference(&source, assets->destination, tag->type, tag->number,
+                                   number, created) == MM_CHUNK_OK;
+}
+
+MMMovieEmbeddedArchive mm_movie_archive_assets(MMMovieArchiveAssets *assets)
+{
+    MMMovieEmbeddedArchive archive;
+    archive.context = assets;
+    archive.copy_reference = copy_asset;
+    archive.edit = assets->destination->edit;
+    return archive;
 }
 
 int mm_movie_archive_embed_tag(const MMMovieEmbeddedArchive *s, MMU32 parent_type, MMU32 parent, MMTag *tag)

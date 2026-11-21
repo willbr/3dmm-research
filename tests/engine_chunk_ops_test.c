@@ -1,5 +1,6 @@
 #include "mm/chunk_ops.h"
 #include "mm/chunk_storage.h"
+#include "mm/movie_archive_edit.h"
 #include "engine_resource_block_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -481,11 +482,20 @@ static int stored_link(void *c, MMU32 parent, MMU32 i, MMChunkChild *out)
     child(c, parent, i, out);
     return 1;
 }
+static MMChunkEndpoint bind_asset_cache(void *cache, struct MMResourceChunkCopy *binding)
+{
+    (void)binding;
+    return *(const MMChunkEndpoint *)cache;
+}
 static void stored_copies(void)
 {
     Host src, dst;
     MMChunkAccess index;
     MMChunkEndpoint source = {0};
+    MMTagServices tags = {0};
+    MMMovieArchiveAssets assets;
+    MMMovieEmbeddedArchive archive;
+    MMTag asset = {0, NULL, 10, 0};
     MMU32 copied = 99, root, branch, shared;
     MMI32 highest = mm_chunk_runtime_highest();
     init(&src);
@@ -510,9 +520,18 @@ static void stored_copies(void)
     src.fail_read = src.reads + 2;
     CHECK(mm_chunk_copy(&source, &dst.ops, 10, 0, 0, &copied) == MM_CHUNK_IO);
     CHECK(copied == 99 && dst.count == 1 && dst.nodes[0].e.number == 0 && !src.file_refs && !dst.file_refs);
-    CHECK(mm_chunk_copy(&source, &dst.ops, 10, 0, 0, &copied) == MM_CHUNK_OK);
+    tags.bind_cache = bind_asset_cache;
+    assets.destination = &dst.ops;
+    assets.tags = &tags;
+    archive = mm_movie_archive_assets(&assets);
+    CHECK(!mm_movie_archive_embed_tag(&archive, 10, 0, &asset) && dst.count == 1);
+    asset.cache = &source;
+    CHECK(mm_movie_archive_embed_tag(&archive, 10, 0, &asset));
+    copied = asset.number;
     CHECK(dst.count == 4 && copied != 0 && mm_chunk_runtime_highest() == highest);
     root = find(&dst, 10, copied);
+    CHECK(dst.nodes[0].e.child_count == 1 && dst.nodes[0].kids[0].number == copied);
+    CHECK(dst.nodes[root].e.parent_count == 1 && !(dst.nodes[root].e.flags & MM_CHUNK_LONER));
     branch = find(&dst, 10, dst.nodes[root].kids[0].number);
     shared = find(&dst, 10, dst.nodes[root].kids[1].number);
     CHECK(root < dst.count && branch < dst.count && shared < dst.count);

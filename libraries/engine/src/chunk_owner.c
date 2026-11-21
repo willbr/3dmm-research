@@ -425,6 +425,18 @@ int mm_chunk_owner_read_name(MMChunkOwnerStorage *storage, MMU32 type, MMU32 num
     return 1;
 }
 
+int mm_chunk_owner_write_name(MMChunkOwnerStorage *storage, MMU32 type, MMU32 number, MMU32 max_name_bytes,
+                              const void *wire, MMU32 bytes)
+{
+    const MMChunkEdit edit = mm_chunk_owner_editor(storage, 0, 0);
+    const MMChunkNames names = mm_chunk_table_names(owner_table(storage), max_name_bytes);
+    MMChunkNameValue value;
+    value.wire = wire;
+    value.bytes = bytes;
+    value.characters = bytes != 0;
+    return mm_chunk_name_set_key(&edit, &names, type, number, &value);
+}
+
 static int reader_locate(void *context, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
 {
     return mm_chunk_owner_locate(((MMChunkOwnerRead *)context)->storage, type, number, extent, packed);

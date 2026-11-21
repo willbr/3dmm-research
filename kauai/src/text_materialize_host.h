@@ -4,8 +4,11 @@
 // Native representations and virtual extension hooks for C materialization.
 struct RichTextDocument::MaterializeHost : DocumentHost
 {
+    MovieArchiveHost movie;
+    MMMovieArchiveEditor editor;
     RichTextStoreHost::Host stored;
-    explicit MaterializeHost(RichTextDocument *p, PChunkyFile file) : DocumentHost(p), stored{file}
+    explicit MaterializeHost(RichTextDocument *p, PChunkyFile file)
+        : DocumentHost(p), movie{file}, editor(movie.Editor()), stored{editor, file->ReadOwner()}
     {
     }
     void Rethrow()

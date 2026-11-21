@@ -1808,12 +1808,16 @@ PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen
  ****************************************************/
 bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
 {
-    AssertThis(0);
     AssertPo(pcfl, 0);
     MovieArchiveHost archive{pcfl};
-    const auto editor = archive.Editor();
-    TextBoxStoreHost host = {this, pcfl};
-    const auto services = host.Services(&_data.state, &editor);
+    return FWrite(archive.Editor(), archive.Writer(), cno);
+}
+
+bool TextBox::FWrite(const MMMovieArchiveEditor &editor, const MMArchiveWriter &writer, ChunkNumber cno)
+{
+    AssertThis(0);
+    TextBoxStoreHost host = {this, writer, editor};
+    const auto services = host.Services(&_data.state);
     const int result = mm_text_box_store(cno, &services);
     if (host.exception)
         std::rethrow_exception(host.exception);

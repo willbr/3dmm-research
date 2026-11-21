@@ -5,7 +5,8 @@
 struct TextBoxStoreHost
 {
     TextBox *box;
-    PChunkyFile file;
+    const MMArchiveWriter &writer;
+    const MMMovieArchiveEditor &editor;
     std::exception_ptr exception;
     template <class F> int Guard(F f)
     {
@@ -24,17 +25,17 @@ struct TextBoxStoreHost
             return -2;
         }
     }
-    MMTextBoxStoreServices Services(MMTextBoxState *state, const MMMovieArchiveEditor *archive)
+    MMTextBoxStoreServices Services(MMTextBoxState *state)
     {
         MMTextBoxStoreServices s = {};
         s.context = this;
         s.state = state;
-        s.archive = archive;
+        s.archive = &editor;
         s.save = [](void *v, MMTextChunk *out) -> int {
             auto &h = *static_cast<TextBoxStoreHost *>(v);
             return h.Guard([&] {
                 ChunkIdentification child;
-                if (!h.box->FSaveToChunk(h.file, &child))
+                if (!h.box->FSaveToArchive(h.editor, h.writer, &child))
                     return false;
                 *out = {child.ctg, child.cno};
                 return true;

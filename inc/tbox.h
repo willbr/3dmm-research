@@ -231,6 +231,7 @@ class TextBox : public TextBox_PAR
     }
     static PTBOX PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen);
     bool FWrite(PChunkyFile pcfl, ChunkNumber cno);
+    bool FWrite(const struct MMMovieArchiveEditor &, const MMArchiveWriter &, ChunkNumber cno);
     bool FDup(PTBOX *pptbox);
 
     //

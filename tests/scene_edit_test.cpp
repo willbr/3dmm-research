@@ -5,6 +5,7 @@
 #include "soc.h"
 #include "scene_sound.h"
 #include "scene_edit_undo.h"
+#include "scene_chop_undo.h"
 #undef size
 ASSERTNAME
 void FrameMain(void)
@@ -276,6 +277,52 @@ static bool Missing(const MissingSourceRequest &)
 {
     return false;
 }
+
+static void CheckChopSnapshot(PMovie movie, TAG background)
+{
+    auto scene = movie->Pscen();
+    TAG oldBackground;
+    CHECK(scene->FSetBkgdCore(&background, &oldBackground));
+    CHECK(scene->FGotoFrm(scene->NfrmFirst()));
+
+    RC bounds(12, 24, 132, 66);
+    auto caption = TextBox::PtboxNew(scene, &bounds);
+    CHECK(caption);
+    String text;
+    text.SetSzs(PszLit("Scene caption"));
+    caption->SuspendUndo();
+    CHECK(caption->FReplaceRgch(text.Prgch(), text.Cch(), 0, 0, static_cast<ulong>(0)));
+    caption->ResumeUndo();
+    CHECK(scene->FAddTboxCore(caption));
+    ReleasePpo(&caption);
+
+    auto undo = SceneUndoChop::PsuncNew();
+    CHECK(undo);
+    undo->SetPmvie(movie);
+    undo->SetIscen(0);
+    undo->SetNfrm(scene->NfrmFirst());
+    String before, after, name;
+    before.SetSzs(PszLit("Before chop"));
+    after.SetSzs(PszLit("After chop"));
+    scene->SetNameCore(&before);
+    CHECK(undo->FSave(scene));
+    scene->SetNameCore(&after);
+    for (int i = 0; i < 2; ++i)
+    {
+        CHECK(i ? undo->FUndo(movie) : undo->FDo(movie));
+        scene = movie->Pscen();
+        scene->GetName(&name);
+        CHECK(name.FEqualSz(i ? PszLit("After chop") : PszLit("Before chop")));
+        CHECK(scene->Ctbox() == 1);
+        auto restored = scene->PtboxFromItbox(0);
+        CHECK(restored && restored->CpMac() == text.Cch() + 1);
+        achar stored[kcchMaxStz];
+        restored->FetchRgch(0, text.Cch(), stored);
+        CHECK(!std::memcmp(text.Prgch(), stored, text.Cch() * sizeof(achar)));
+    }
+    ReleasePpo(&undo);
+}
+
 int main()
 {
     auto app = NewObj TestApp;
@@ -450,6 +497,10 @@ int main()
     recording = true;
 #endif
     movie->ClearUndo();
+    recording = false;
+    CheckChopSnapshot(movie, tags[0]);
+    vpcex->FlushCid(cidSceneLoaded);
+    recording = true;
     ReleasePpo(&movie);
     ReleasePpo(&observed);
     CheckIndexedBackground(file, a);

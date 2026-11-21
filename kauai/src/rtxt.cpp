@@ -947,11 +947,17 @@ bool RichTextDocument::FSaveToFni(Filename *pfni, bool fSetFni)
 ***************************************************************************/
 bool RichTextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
-    AssertThis(fobjAssertFull);
     AssertPo(pcfl, 0);
+    MovieArchiveHost archive{pcfl};
+    return FSaveToArchive(archive.Editor(), archive.Writer(), pcki, fRedirectText);
+}
+
+bool RichTextDocument::FSaveToArchive(const MMMovieArchiveEditor &editor, const MMArchiveWriter &archive,
+                                     ChunkIdentification *pcki, bool fRedirectText)
+{
+    AssertThis(fobjAssertFull);
     AssertVarMem(pcki);
-    RichTextStoreHost::Host host(pcfl);
-    const auto archive = pcfl->WriteIndex();
+    RichTextStoreHost::Host host{editor};
     MMRichTextLiveServices services{};
     services.write = host.Write();
     services.text = _pbsf->CorePieces();

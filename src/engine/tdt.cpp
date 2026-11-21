@@ -310,8 +310,13 @@ PCustomMaterial_CMTL ThreeDText::PcmtlFetch(LegacyLong cmid)
 ***************************************************************************/
 bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
-    AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
-    const auto writer = pcfl->WriteIndex();
+    AssertPo(pcfl, 0);
+    return FWrite(pcfl->WriteOwnerIndex(), ctg, pcno);
+}
+
+bool ThreeDText::FWrite(const MMArchiveWriter &writer, ChunkTagOrType ctg, ChunkNumber *pcno)
+{
+    AssertThis(0); AssertVarMem(pcno);
     byte wire[kcbMaxDataStn];
     const auto name = ChunkyFile::EncodeName(&_stn, wire);
     return mm_text_write(&_template, &_descriptor, &name, ctg, pcno, &writer) != 0;

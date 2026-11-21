@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
-#include "engine_movie_archive.h"
+#include "soc_core.h"
+#include "movie_archive_host.h"
 #include "mm/text_store.h"
 ASSERTNAME
 

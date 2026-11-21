@@ -52,6 +52,7 @@ typedef uint32_t ChildChunkID;   // child chunk id
 const MMChunkPayloadServices *KauaiChunkPayloadServices();
 int KauaiEncodeLegacyChunkName(void *, const char *, void *, MMU32 capacity, MMU32 *written);
 MMChunkTitleIO KauaiChunkTitleIO();
+MMChunkTitleIO KauaiChunkOwnerTitleIO();
 
 enum
 {
@@ -252,6 +253,7 @@ class ChunkyFile : public ChunkyFile_PAR
     MMChunkEdit EditIndex();
     MMChunkNames NameIndex();
     MMArchiveWriter WriteIndex();
+    MMArchiveWriter WriteOwnerIndex();
     MMChunkEndpoint CopyEndpoint(MMChunkFileCopy &binding);
     // The caller supplies kcbMaxDataStn writable bytes for the encoded name.
     static MMChunkNameValue EncodeName(PString, void *wire);

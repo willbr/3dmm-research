@@ -115,12 +115,8 @@ static int read_title(void *context, MMU32 type, MMU32 number, void *wire, MMU32
 static int write_title(void *context, MMU32 type, MMU32 number, const void *wire, MMU32 bytes)
 {
     MMPrivateArchive *archive = context;
-    const MMArchiveWriter writer = mm_private_archive_writer(archive);
-    MMChunkNameValue value = {NULL, 0, 0};
-    value.wire = wire;
-    value.bytes = bytes;
-    value.characters = bytes != 0;
-    return mm_chunk_name_set_key(&writer.edit, &writer.names, type, number, &value) == MM_CHUNK_OK;
+    return mm_chunk_owner_write_name(&archive->storage, type, number, max_title_bytes(archive),
+                                     wire, bytes) == MM_CHUNK_OK;
 }
 
 static MMI32 convert_title(void *context, const void *bytes, MMU32 count, int encoding, void *out, MMU32 capacity)

@@ -91,6 +91,8 @@ extern "C"
     int mm_chunk_owner_locate(MMChunkOwnerStorage *, MMU32 type, MMU32 number, MMBlockFile *, int *packed);
     int mm_chunk_owner_read_name(MMChunkOwnerStorage *, MMU32 type, MMU32 number, MMU32 max_name_bytes,
                                  void *wire, MMU32 capacity, MMU32 *written);
+    int mm_chunk_owner_write_name(MMChunkOwnerStorage *, MMU32 type, MMU32 number, MMU32 max_name_bytes,
+                                  const void *wire, MMU32 bytes);
 
     /* Borrow a stable storage binding and platform block services. */
     typedef struct MMChunkOwnerRead

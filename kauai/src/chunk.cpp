@@ -1712,10 +1712,7 @@ bool ChunkyFile::FWriteNameBytes(ChunkTagOrType ctg, ChunkNumber cno, const void
 {
     AssertThis(0);
     AssertNilOrPvCb(const_cast<void *>(wire), bytes);
-    const auto edit = EditIndex();
-    const auto names = NameIndex();
-    const MMChunkNameValue value = {wire, bytes, bytes != 0};
-    const int status = mm_chunk_name_set_key(&edit, &names, ctg, cno, &value);
+    const int status = mm_chunk_owner_write_name(&_storage, ctg, cno, kcbMaxDataStn, wire, bytes);
     if (status == MM_CHUNK_NOT_FOUND)
         Bug("chunk not there");
     if (status != MM_CHUNK_OK)
@@ -1738,6 +1735,13 @@ MMArchiveWriter ChunkyFile::WriteIndex()
     return {EditIndex(), NameIndex(), KauaiChunkPayloadServices(),
         *reinterpret_cast<const unsigned char *>(&order) == 0, koskCur,
         [](MMU32 *number) { (void)number; TrashVar(number); }, KauaiCopyAllocator()};
+}
+
+MMArchiveWriter ChunkyFile::WriteOwnerIndex()
+{
+    auto writer = WriteIndex();
+    writer.payloads = &_reader.payloads;
+    return writer;
 }
 /***************************************************************************
     Retrieve the name of the chunk.  Returns whether the string is
@@ -1794,6 +1798,21 @@ MMChunkTitleIO KauaiChunkTitleIO()
             return static_cast<PChunkyFile>(file)->FWriteNameBytes(type, number, wire, bytes);
         },
         [](void *) { PushErc(ercStnRead); Warn("bad String data"); }};
+}
+
+MMChunkTitleIO KauaiChunkOwnerTitleIO()
+{
+    auto titles = KauaiChunkTitleIO();
+    titles.read = [](void *context, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written) {
+        auto reader = static_cast<MMChunkOwnerRead *>(context);
+        return mm_chunk_owner_read_name(reader->storage, type, number, reader->max_name_bytes, wire, capacity, written);
+    };
+    titles.write = [](void *context, MMU32 type, MMU32 number, const void *wire, MMU32 bytes) -> int {
+        auto reader = static_cast<MMChunkOwnerRead *>(context);
+        return mm_chunk_owner_write_name(reader->storage, type, number, reader->max_name_bytes,
+                                         wire, bytes) == MM_CHUNK_OK;
+    };
+    return titles;
 }
 
 /***************************************************************************
@@ -2077,9 +2096,9 @@ bool ChunkyFile::_FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkN
 MMChunkEndpoint ChunkyFile::CopyEndpoint(MMChunkFileCopy &binding)
 {
     AssertThis(fcflFull);
-    const auto archive = WriteIndex();
-    const auto titles = KauaiChunkTitleIO();
-    return mm_chunk_file_copy_endpoint(&binding, this, &archive, &titles, sizeof(achar), false);
+    const auto archive = WriteOwnerIndex();
+    const auto titles = KauaiChunkOwnerTitleIO();
+    return mm_chunk_file_copy_endpoint(&binding, &_reader, &archive, &titles, sizeof(achar), false);
 }
 
 bool ChunkyFile::_FCopy(ChunkTagOrType type, ChunkNumber number, PChunkyFile destination, ChunkNumber *out,

@@ -47,7 +47,7 @@
 
 #include "soc.h"
 #include "body_world.h"
-#include "engine_movie_archive.h"
+#include "movie_archive_host.h"
 #include "engine_movie_graph.h"
 #include "scene_sound.h"
 #include "scene_sound_undo.h"
@@ -55,6 +55,7 @@
 #include "scene_content_undo.h"
 #include "scene_chop_undo.h"
 #include "scene_control_undo.h"
+#include "mm/chunk_copy.h"
 #include <new>
 #include <cstring>
 
@@ -2003,27 +2004,37 @@ bool Scene::FGetTagBkgd(PTAG ptag)
  ****************************************************/
 bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
 {
-    AssertThis(0);
     AssertPo(pcrf, 0);
+    const auto file = pcrf->Pcfl();
+    MovieArchiveHost archive{file};
+    MMChunkFileCopy binding;
+    const auto destination = file->CopyEndpoint(binding);
+    MMMovieArchiveAssets assets{&destination, &TagManager::CoreServices()};
+    return FWrite(archive.Editor(), archive.Writer(), mm_movie_archive_assets(&assets), pcno);
+}
+
+bool Scene::FWrite(const MMMovieArchiveEditor &editor, const MMArchiveWriter &writer,
+                   const MMMovieEmbeddedArchive &assets, ChunkNumber *pcno)
+{
+    AssertThis(0);
     struct Host
     {
         PScene scene;
-        PChunkyFile file;
-    } host = {this, pcrf->Pcfl()};
-    MovieArchiveHost archive{host.file};
-    const auto editor = archive.Editor();
-    MovieEmbeddedArchive assets{host.file, nullptr};
+        const MMMovieArchiveEditor &editor;
+        const MMArchiveWriter &writer;
+        const MMMovieEmbeddedArchive &assets;
+    } host = {this, editor, writer, assets};
     MMSceneStoreServices s = {};
     s.context = &host;
     s.owner = &_owner;
     s.editor = &editor;
     s.values = SceneSoundValues();
-    s.assets = assets.Services();
+    s.assets = assets;
     s.free_sound_bytes = [](void *, void *p) { FreePpv(&p); };
     s.write_object = [](void *p, void *object, int kind, MMU32 n, MMU32 scene) -> int {
-        auto file = static_cast<Host *>(p)->file;
-        return kind == MM_SCENE_ADD_ACTOR ? static_cast<PActor>(object)->FWrite(file, n, scene)
-                                        : static_cast<PTBOX>(object)->FWrite(file, n);
+        const auto &host = *static_cast<Host *>(p);
+        return kind == MM_SCENE_ADD_ACTOR ? static_cast<PActor>(object)->FWrite(host.writer, host.assets, n, scene)
+                                        : static_cast<PTBOX>(object)->FWrite(host.editor, host.writer, n);
     };
     s.update_thumbnail = [](void *p) { static_cast<Host *>(p)->scene->_UpdateThumbnail(); };
     s.thumbnail_size = [](void *, void *p) -> MMI32 { return static_cast<PMaskedBitmapMBMP>(p)->CbOnFile(); };

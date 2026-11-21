@@ -58,6 +58,15 @@ typedef struct MMMovieEmbeddedArchive
     MMChunkEdit edit;
 } MMMovieEmbeddedArchive;
 
+typedef struct MMMovieArchiveAssets
+{
+    const MMChunkEndpoint *destination;
+    const MMTagServices *tags;
+} MMMovieArchiveAssets;
+
+/* Borrow the destination endpoint and tag cache binder through scene and actor writes. */
+MMMovieEmbeddedArchive mm_movie_archive_assets(MMMovieArchiveAssets *);
+
 enum MMMovieSceneArchiveResult
 {
     MM_MOVIE_SCENE_ARCHIVE_OK,

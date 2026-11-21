@@ -21,7 +21,6 @@
 
 ***************************************************************************/
 #include "soc.h"
-#include "engine_movie_archive.h"
 #include "engine_movie_graph.h"
 #include "mm/actor_persistence.h"
 #include "mm/movie_sound.h"
@@ -33,10 +32,10 @@ ASSERTNAME
     If this function returns false, it is the client's responsibility to
     delete the actor chunks.
 ***************************************************************************/
-bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
+bool Actor::FWrite(const MMArchiveWriter &archive, const MMMovieEmbeddedArchive &assets,
+                   ChunkNumber cnoActr, ChunkNumber cnoScene)
 {
     AssertThis(0);
-    AssertPo(pcfl, 0);
 
     static_assert(ksidUseCrf == 0 && kctgActr == MM_ACTOR_CHUNK && kctgScen == MM_SCENE_CHUNK &&
                   kctgPath == MM_ACTOR_ROUTE_CHUNK && kctgGgae == MM_ACTOR_EVENTS_CHUNK &&
@@ -45,14 +44,12 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     struct Host
     {
         PActor actor;
-        PChunkyFile file;
-    } host = {this, pcfl};
-    const auto archive = pcfl->WriteIndex();
-    MovieEmbeddedArchive materials = {pcfl, nullptr};
+        const MMArchiveWriter &archive;
+    } host = {this, archive};
     MMActorStoreServices services = {};
     services.context = &host;
     services.archive = &archive;
-    services.materials = materials.Services();
+    services.materials = assets;
     services.refresh_lifetime = [](void *p) -> int {
         long first, last;
         return static_cast<Host *>(p)->actor->FGetLifetime(&first, &last);
@@ -61,10 +58,9 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     services.missing_first_frame = [](void *) { Warn("Saving an actor who has no first frame number"); };
 #endif
     services.write_template = [](void *p, void *object, MMU32 type, MMU32 *number) -> int {
-        auto file = static_cast<Host *>(p)->file;
         auto tmpl = static_cast<PTemplate>(object);
         Assert(tmpl->FIsTdt(), "Expected an embedded ThreeDText template");
-        return static_cast<PThreeDText>(tmpl)->FWrite(file, type, number);
+        return static_cast<PThreeDText>(tmpl)->FWrite(static_cast<Host *>(p)->archive, type, number);
     };
     return mm_actor_store(cnoActr, cnoScene, &_owner, &services) != 0;
 }

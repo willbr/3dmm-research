@@ -19323,3 +19323,31 @@ retail frame identities in seek and continuous playback. Seek camera
 indices matched retail, seek canvas hashes matched the previous captures,
 and SDL matched all 12 retail sound requests. The capture database and
 comparison scripts are in `tmp/c89-live-archive-graph/evidence`.
+
+## Studio scene writes through the C89 archive owner (21 November 2026)
+
+Studio passes one C archive editor and writer through scene, actor and
+caption serialization. Embedded 3D text uses that writer, and the C tag
+copy path accepts both live and stored resource caches. Live and private
+archives share encoded name writes. Scene chop undo uses the same writer
+and still opens its temporary archive through the native resource facade.
+
+All 193 standalone C checks and five focused AddressSanitizer checks
+passed. Native x64, native x86 and SDL scene edit checks swapped a real
+scene chop snapshot in both directions and verified its title and caption
+text. The three save/load fixtures and the two-scene SDL authoring workflow
+matched their previous outputs byte for byte. The rebuilt Marcus player
+checks passed.
+
+In seek suite `20261121T153422Z-353dbff1`, both ports matched all 60 archived
+retail actor frames and camera indices, with unchanged canvas hashes
+against their previous captures. Both also matched all three archived
+V3dmm storyboard frames, camera indices and canvas hashes in suite
+`20261121T153415Z-d679de81`.
+
+Retail opened the freshly authored Studio movie in suite
+`20261121T153547Z-3e2330fb`. Both ports matched the full 11-frame sequence
+and camera indices. Three canvases differed from retail on each port,
+with 33 differing pixels in total on SDL and 7,875 on Marcus. The authored
+file matched the retained control byte for byte. The files and comparison
+scripts are in `tmp/c89-scene-archive-write/evidence`.

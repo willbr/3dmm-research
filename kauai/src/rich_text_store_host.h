@@ -76,23 +76,23 @@ inline MMRichTextObjects Objects()
 }
 struct Host
 {
-    MovieArchiveHost movie;
-    MMMovieArchiveEditor editor;
+    MMChunkOwnerRead *owner;
     MMRichTextArchive archive;
     MMRichTextArchiveReader reader;
     MMRichTextArchiveWriter writer;
     std::exception_ptr exception;
 
-    explicit Host(PChunkyFile chunky)
-        : movie{chunky}, editor(movie.Editor()), archive{
+    explicit Host(const MMMovieArchiveEditor &editor, MMChunkOwnerRead *owner = nullptr)
+        : owner(owner), archive{
             &editor, this, MacWin(koskUniWin, koskUniMac),
             [](void *v, MMU32 number, MMTextLocation *out) -> int {
                 auto &h = *static_cast<Host *>(v);
                 return h.Guard([&] {
-                    FileLocation location;
-                    if (!h.movie.file->FFindFlo(kctgText, number, &location))
+                    MMBlockFile extent;
+                    int packed;
+                    if (!h.owner || !h.owner->payloads.locate(h.owner, MM_TEXT_BYTES, number, &extent, &packed))
                         return false;
-                    *out = Location(location);
+                    *out = {extent.file, extent.offset, static_cast<MMI32>(extent.length)};
                     return true;
                 });
             },
