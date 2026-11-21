@@ -99,7 +99,7 @@ class FileByteStream : public FileByteStream_PAR
     bool FReplaceBsf(PFileByteStream pbsfSrc, LegacyLong ibSrc, LegacyLong cbSrc, LegacyLong ibDst, LegacyLong cbDel);
     bool FWriteRgb(PFileLocation pflo, LegacyLong ib = 0);
     bool FWriteRgb(PDataBlock pblck, LegacyLong ib = 0);
-    bool FWriteRgb(MMOwnedBlock &block, LegacyLong ib = 0);
+    MMPieceTable *CorePieces() { return &_pieces; }
     bool FCompact(void);
 };
 

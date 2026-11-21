@@ -25,8 +25,6 @@ struct MovieArchiveHost
             });
     }
 
-    MMOwnedBlock &OutputBlock() { return _binding.output; }
-
   private:
     MMMovieArchiveFile _binding;
 };

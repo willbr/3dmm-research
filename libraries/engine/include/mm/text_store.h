@@ -152,14 +152,11 @@ extern "C"
     typedef struct MMRichTextArchiveWriter
     {
         const MMRichTextArchive *archive;
-        const struct MMMovieArchiveEditor *text_editor;
         MMStorageWriter writer;
     } MMRichTextArchiveWriter;
-    /* The supplied state must outlive the services. A separate editor for the
-     * same archive retains the live TEXT extent across later group writes. */
+    /* The supplied state must outlive the services. */
     void mm_rich_text_archive_reader(MMRichTextArchiveReader *, const MMRichTextArchive *, MMRichTextReadServices *);
-    void mm_rich_text_archive_writer(MMRichTextArchiveWriter *, const MMRichTextArchive *,
-                                     const struct MMMovieArchiveEditor *text_editor, MMRichTextWriteServices *);
+    void mm_rich_text_archive_writer(MMRichTextArchiveWriter *, const MMRichTextArchive *, MMRichTextWriteServices *);
     typedef struct MMRichTextStream
     {
         MMReadStream stream;

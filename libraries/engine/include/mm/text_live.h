@@ -2,6 +2,7 @@
 #ifndef MM_ENGINE_TEXT_LIVE_H
 #define MM_ENGINE_TEXT_LIVE_H
 #include "text_store.h"
+#include "piece_table.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -11,44 +12,34 @@ extern "C"
         MMTextChunk chunk;
         int number_changed;
     } MMTextLiveOutput;
-    enum
-    {
-        MM_TEXT_ASSERT_MOVE,
-        MM_TEXT_ASSERT_LOCATION
-    };
+    struct MMArchiveWriter;
     typedef struct MMRichTextLiveServices
     {
         MMRichTextWriteServices write;
+        MMPieceTable *text;
+        const struct MMArchiveWriter *archive;
         void *context;
-        int (*move_text)(void *, MMU32 bytes);
-        int (*text)(void *);
-        int (*destination)(void *, MMTextLocation *owned);
-        int (*redirect)(void *, const MMTextLocation *, MMI32 bytes);
-        void (*assertion)(void *, int stage);
         void (*error)(void *);
     } MMRichTextLiveServices;
     /* Borrowed valid live descriptor/stream/groups. Unlike a stored write, a live
      * save publishes RTXT before header validation and retains the created number
      * after child rollback. number_changed lets native callers preserve an untouched,
      * possibly uninitialized number on early failure. TEXT is always written, even
-     * empty; the stream's sentinel is excluded by text.bytes. Collection output is
-     * native order/system. Failed move diagnoses but continues like AssertDo.
-     * Redirect is post-commit: ordinary replace failure is ignored, owned locations
-     * always release, and exceptions retain the saved tree. A failed location lookup
-     * diagnoses and returns failure without dereferencing a trashed native location.
-     * Other write failures remove the partial tree, then report ordinary save errors;
+     * empty; one native text unit is excluded for the live stream's sentinel.
+     * Collection output is native order/system. The archive matches the write
+     * services' destination. Redirection borrows the owned TEXT file block after
+     * the complete tree is written. A failed redirect leaves the save successful.
+     * Write failures discard the partial tree and report ordinary save errors;
      * negative exception results clean up before the native facade rethrows. */
     int mm_rich_text_save(const MMRichTextState *, MMTextLiveOutput *, int big, int redirect,
                           const MMRichTextLiveServices *);
     typedef struct MMTextBoxStoreServices
     {
         void *context;
-        void (*reset_child)(void *);
+        MMTextBoxState *state;
+        const struct MMMovieArchiveEditor *archive;
         int (*save)(void *, MMTextChunk *);
         void (*assert_type)(void *);
-        int (*adopt)(void *, MMU32 box, const MMTextChunk *);
-        int (*metadata)(void *, MMU32 box);
-        void (*remove)(void *, MMU32 box, const MMTextChunk *, int linked);
     } MMTextBoxStoreServices;
     /* Reset the live child ID before saving. Failed save keeps its own partial
      * effects. Adopt failure deletes the unlinked rich-text root; metadata failure

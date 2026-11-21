@@ -15,6 +15,7 @@
 #include <exception>
 #include <new>
 #include "soc.h"
+#include "movie_archive_host.h"
 ASSERTNAME
 #include "text_box_store_host.h"
 #include "text_box_runtime_host.h"
@@ -1809,8 +1810,10 @@ bool TextBox::FWrite(PChunkyFile pcfl, ChunkNumber cno)
 {
     AssertThis(0);
     AssertPo(pcfl, 0);
-    TextBoxStoreHost host = {this, &_data, pcfl};
-    auto services = host.Services();
+    MovieArchiveHost archive{pcfl};
+    const auto editor = archive.Editor();
+    TextBoxStoreHost host = {this, pcfl};
+    const auto services = host.Services(&_data.state, &editor);
     const int result = mm_text_box_store(cno, &services);
     if (host.exception)
         std::rethrow_exception(host.exception);

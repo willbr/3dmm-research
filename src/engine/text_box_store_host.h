@@ -5,7 +5,6 @@
 struct TextBoxStoreHost
 {
     TextBox *box;
-    TextBoxData *data;
     PChunkyFile file;
     std::exception_ptr exception;
     template <class F> int Guard(F f)
@@ -25,11 +24,12 @@ struct TextBoxStoreHost
             return -2;
         }
     }
-    MMTextBoxStoreServices Services()
+    MMTextBoxStoreServices Services(MMTextBoxState *state, const MMMovieArchiveEditor *archive)
     {
         MMTextBoxStoreServices s = {};
         s.context = this;
-        s.reset_child = [](void *v) { static_cast<TextBoxStoreHost *>(v)->data->state.child = 0; };
+        s.state = state;
+        s.archive = archive;
         s.save = [](void *v, MMTextChunk *out) -> int {
             auto &h = *static_cast<TextBoxStoreHost *>(v);
             return h.Guard([&] {
@@ -41,21 +41,6 @@ struct TextBoxStoreHost
             });
         };
         s.assert_type = [](void *) { Assert(false, "bad rich-text type"); };
-        s.adopt = [](void *v, MMU32 number, const MMTextChunk *p) -> int {
-            auto &h = *static_cast<TextBoxStoreHost *>(v);
-            return h.Guard([&] { return h.file->FAdoptChild(kctgTbox, number, p->type, p->number, 0); });
-        };
-        s.metadata = [](void *v, MMU32 number) -> int {
-            auto &h = *static_cast<TextBoxStoreHost *>(v);
-            return h.Guard([&] { return h.data->FWrite(h.file, number); });
-        };
-        s.remove = [](void *v, MMU32 number, const MMTextChunk *p, int linked) {
-            auto file = static_cast<TextBoxStoreHost *>(v)->file;
-            if (linked)
-                file->DeleteChild(kctgTbox, number, p->type, p->number, 0);
-            else
-                file->Delete(p->type, p->number);
-        };
         return s;
     }
 };

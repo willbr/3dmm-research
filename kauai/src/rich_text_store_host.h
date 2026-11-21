@@ -129,10 +129,10 @@ struct Host
         return services;
     }
 
-    MMRichTextWriteServices Write(const MMMovieArchiveEditor *text = nullptr)
+    MMRichTextWriteServices Write()
     {
         MMRichTextWriteServices services;
-        mm_rich_text_archive_writer(&writer, &archive, text, &services);
+        mm_rich_text_archive_writer(&writer, &archive, &services);
         return services;
     }
 

@@ -138,8 +138,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - The shared archive editor reads and writes native caption box headers and
   resolves their rich-text links. Marcus and Studio read and write rich-text
   bodies through the same C89 archive operations. Studio supplies its live
-  property and argument objects through the shared collection streams and
-  retains the destination TEXT extent for post-save redirection.
+  property and argument objects through the shared collection streams. C89
+  writes the live piece table into an owned TEXT block and retains that extent
+  for post-save redirection. It also adopts the body into TBOX and unwinds the
+  link if metadata publication fails.
 - Studio scene saves and Marcus scene creation use the shared C89 archive
   editor for SCEN headers, names and event-group links. Both new groups
   are linked before either previous group is removed. Studio's event

@@ -14,7 +14,7 @@
 #include <new>
 #include "kidframe.h"
 ASSERTNAME
-#include "rich_text_live_store_host.h"
+#include "rich_text_store_host.h"
 #include "text_document_host.h"
 #include "text_properties_host.h"
 

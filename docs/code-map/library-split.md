@@ -2751,24 +2751,27 @@ Evidence and platform limits are in
 
 `text_live.c` controls live rich-text root/TEXT/GLMP/AGPA creation, stream-window
 sequencing, save-error publication, optional text redirection and text-box adoption/
-metadata rollback. Native facades supply borrowed live groups/streams, file/block
-primitives and diagnostics. Root wire encoding/creation uses `text_store.c`.
+metadata rollback. The writer borrows the live C piece table, creates the TEXT
+child through the shared chunk editor, and writes to a C-owned file block.
+Native facades supply the archive bindings, live groups, and diagnostics.
+Root wire encoding/creation uses `text_store.c`.
 
-Live saves publish RTXT before validating the header. The output record tracks
-whether the number changed so native callers can preserve an untouched, potentially
-uninitialized number after early validation failure. Root creation failures retain
+Live saves publish the output type RTXT before validating the header. The output
+record tracks whether the number changed so native callers can preserve an untouched,
+potentially uninitialized number after early validation failure. Root creation failures retain
 the shared nil-number behavior. Later child rollback retains the created number,
 unlike stored-data writes. TEXT always writes its native system marker and moves
 past it before copying, including empty text; the stream sentinel is excluded.
-GLMP and nonempty AGPA output use native order/system. A failed move diagnoses and
-continues like the original `AssertDo`; ordinary save errors publish after rollback.
-Negative exception results clean up before native rethrow without ordinary errors.
+GLMP and nonempty AGPA output use native order/system. Ordinary TEXT write
+failures release the owned block and discard the incomplete tree before reporting
+the error. Exceptions from native group adapters follow the same cleanup before
+rethrowing.
 
-Redirection runs after the tree has committed. Ordinary replacement failure
-remains best effort, and an exception retains the saved tree. Acquired locations
-release on every exit. Failed location lookup diagnoses and returns failure without
-using a trashed native view. The native primitive still supplies its materialized
-text view; it need not alias a later writable chunk view.
+After committing the tree, redirection replaces the live text range through the
+C piece table. The TEXT block remains owned through that operation so the
+destination survives writes to GLMP and AGPA. A successful file-backed redirect
+lets the table retain the file before the block is released. A failed redirect
+preserves the saved tree and the original live text.
 
 Text-box saves reset the child ID to zero before saving. Failed save retains the
 save primitive's own effects. Adoption failure deletes the unlinked rich-text root;
@@ -2781,10 +2784,11 @@ arguments, empty/single/embedded-null/CRLF/ANSI text, both redirect modes, strea
 bytes after materialized-view writes and subsequent text-box saves. Allocated-group
 payloads are recorded logically to exclude uninitialized alignment padding. Native
 and SDL font-table ordinals differ, so each host is compared with its own original
-trace. C-only tests cover ordinary/allocation/foreign failures at every effect,
-number/error publication, post-commit redirection, partially returned locations,
-empty content/arguments, both byte orders/native text-unit sizes and adoption/
-metadata cleanup order. Document transactions and materialization are covered below.
+trace. C-only tests cover archive allocation, adoption and physical writes, native
+group and header failures, number/error publication, and post-commit redirection.
+They check empty and file-backed text, sentinel exclusion, both byte orders and
+native text-unit sizes, and text-box metadata cleanup. Document transactions and
+materialization are covered below.
 Text editing and help-document argument extensions, native descriptor/output
 representations, physical providers and
 final C-only host/facade removal remain work. Evidence and platform limits are in

@@ -15,7 +15,8 @@
 #include "frame.h"
 #include "clipboard_view_host.h"
 ASSERTNAME
-#include "rich_text_live_store_host.h"
+#include "rich_text_store_host.h"
+#include "mm/text_live.h"
 #include "text_document_host.h"
 #include "text_materialize_host.h"
 #include "text_properties_host.h"
@@ -957,14 +958,18 @@ bool RichTextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki,
     AssertThis(fobjAssertFull);
     AssertPo(pcfl, 0);
     AssertVarMem(pcki);
-    RichTextStoreHost::LiveHost host(pcfl, _pbsf);
-    auto services = host.Services();
+    RichTextStoreHost::Host host(pcfl);
+    const auto archive = pcfl->WriteIndex();
+    MMRichTextLiveServices services{};
+    services.write = host.Write();
+    services.text = _pbsf->CorePieces();
+    services.archive = &archive;
+    services.error = [](void *) { PushErc(ercRtxdSaveFailed); };
     MMRichTextState state;
     mm_rich_text_init(&state, sizeof(achar), koskCur);
     state.defaults = {kboCur, _oskFont, static_cast<MMI32>(_dxpDef), static_cast<MMI32>(_dypFontDef),
                       static_cast<MMU32>(_acrBack.LwGet())};
     state.font = RichTextStoreHost::Font(_stnFontDef);
-    state.text.bytes = _pbsf->IbMac() - static_cast<LegacyLong>(sizeof(achar));
     state.properties = _pglmpe;
     state.arguments = _pagcact;
     MMTextLiveOutput output = {};

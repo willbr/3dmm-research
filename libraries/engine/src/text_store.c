@@ -569,8 +569,7 @@ static void archive_rich_remove(void *p, MMU32 number)
 static int archive_rich_add_child(void *p, MMU32 root, MMU32 kind, MMU32 bytes)
 {
     MMRichTextArchiveWriter *write = p;
-    const MMMovieArchiveEditor *editor = kind == MM_TEXT_BYTES && write->text_editor ?
-                                        write->text_editor : write->archive->editor;
+    const MMMovieArchiveEditor *editor = write->archive->editor;
     MMChunkChild child = {0};
     int result = editor->add(editor->context, kind, bytes, &child.number, &write->writer);
     if (result <= 0)
@@ -607,10 +606,9 @@ static int archive_rich_write_group(void *p, MMU32 kind, void *collection, int o
 }
 
 void mm_rich_text_archive_writer(MMRichTextArchiveWriter *write, const MMRichTextArchive *archive,
-                                 const MMMovieArchiveEditor *text_editor, MMRichTextWriteServices *services)
+                                 MMRichTextWriteServices *services)
 {
     write->archive = archive;
-    write->text_editor = text_editor;
     memset(services, 0, sizeof(*services));
     services->context = write;
     services->objects = archive_objects(archive);
@@ -632,7 +630,7 @@ int mm_rich_text_archive_write(const MMRichTextState *state, const MMTextEncoded
     MMRichTextWriteServices services;
     MMRichTextStream source;
     MMTextEncoded stored = {0};
-    mm_rich_text_archive_writer(&write, archive, NULL, &services);
+    mm_rich_text_archive_writer(&write, archive, &services);
     if (!replacement)
     {
         mm_rich_text_archive_stream(&source, archive, &state->text);

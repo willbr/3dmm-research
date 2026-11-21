@@ -18023,3 +18023,37 @@ port reproduced its 60 seek canvas hashes from the preceding build. After
 the Marcus caption draft adapter changed, its build reproduced the actor-event
 and authored movie evidence in `20261121T050437Z-84f97734` and
 `20261121T050440Z-00bd1d09`. Logs are in `tmp/c89-editable-archive-payloads`.
+
+## Live caption payloads through the C89 chunk editor (21 November 2026)
+
+Studio now saves its live C piece table directly into an owned TEXT block,
+excluding the trailing text unit reserved for the editor. The block stays
+owned through the property and argument writes. Redirection runs through
+the piece table after a successful save. The text-box save also uses the
+shared editor to adopt the rich-text body and remove the new link if its
+metadata write fails.
+
+The C test exercises failed allocation, adoption, marker and text writes,
+ordinary redirect failure, and the retained file reference after a large
+text redirect. All 192 standalone C tests, eight focused AddressSanitizer
+checks, 12 native C89 gates and four Marcus checks passed. Live-text traces
+matched the preceding build on x64, x86, and SDL. Nine actor, scene and
+scene-store snapshots, 54 movie and scene traces, three fixture saves,
+ten Preview fingerprints, and six Preview movies matched.
+
+Studio created, edited, saved, and reopened a centered caption with a
+three-frame lifetime. The authoring workflow's movie matched the preceding
+build byte for byte. A second save removed click, time, and sound pauses
+for continuous playback. The two builds differed by one SCEN index padding
+byte on that save. The decoded archives and caption states matched.
+
+Retail, original v3dmm 0.14, SDL and Marcus loaded the caption save and
+matched all 11 authored frame identities in seek and playback in
+`20261121T051735Z-c88e053f`. Seek camera indices also matched. V3dmm matched
+all 11 retail seek canvases. Both ports matched the eight frames without a
+visible caption. On frames 4 through 6, SDL differed from retail by 11
+pixels per frame and Marcus by 2,625, all inside the caption rectangle.
+SDL reproduced all 11 seek canvases and the caption text, alignment, font
+size and visibility from control `20261121T051735Z-84b17719`.
+All 11 Marcus seek canvases and cameras reproduced the archived build in
+`20261121T052103Z-9feebb78`. Logs are in `tmp/c89-live-caption-payloads`.
