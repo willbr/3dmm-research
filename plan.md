@@ -329,8 +329,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Actor track state, table/tag ownership, transactional creation/cloning, tag lookup
   and ordered cleanup now use C89. Studio and preview borrow typed views of the
   tables they own in C. Preview also uses C for draft cloning and event-track
-  replacement and rollback. Native services supply decoded block input, tag
-  references and body/costume operations.
+  replacement and rollback. C89 binds the selected cache's event chunk and
+  decodes it directly. Costume and animation drafts reuse Studio's C actor
+  track writer. Native services supply cache resolution, scratch-file creation
+  and saving, tag references and body/costume operations.
 - The portable movie session loads and owns the same typed PATH and GGAE tables
   used by Studio and preview. Its route view checks node reads during evaluation,
   and malformed tracks preserve caller outputs and report bad-file errors.

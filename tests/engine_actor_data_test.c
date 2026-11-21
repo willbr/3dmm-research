@@ -803,6 +803,109 @@ static void store_actor(ActorStore *store)
     mm_actor_path_release(owner.track.route);
 }
 
+typedef struct TrackArchive
+{
+    ChunkWriterFixture archive;
+    unsigned char bytes[512];
+    MMU32 lengths[2];
+    int creates, tracks, saves, fail_create, fail_track, fail_save;
+} TrackArchive;
+
+static int track_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
+{
+    TrackArchive *draft = ((ChunkIndexFixture *)p)->observer;
+    CHECK(draft->tracks < 2 && bytes <= 256);
+    extent->file = &draft->archive;
+    extent->offset = (MMU32)draft->tracks * 256;
+    extent->bytes = bytes;
+    extent->flags = 0;
+    draft->lengths[draft->tracks++] = bytes;
+    return 1;
+}
+
+static int track_write(void *p, void *file, MMU32 offset, const void *data, size_t bytes)
+{
+    ChunkWriterFixture *fixture = p;
+    TrackArchive *draft = fixture->context;
+    int track = offset / 256;
+    CHECK(file == p && fixture->file_refs == 1 && track < draft->tracks &&
+          offset % 256 + bytes <= draft->lengths[track]);
+    if (draft->fail_track == track + 1)
+        return 0;
+    memcpy(draft->bytes + offset, data, bytes);
+    return 1;
+}
+
+static int create_track_archive(void *p, MMArchiveWriter *out)
+{
+    TrackArchive *draft = p;
+    ++draft->creates;
+    if (draft->fail_create)
+        return 0;
+    *out = chunk_writer_fixture(&draft->archive, draft, track_extent, track_write);
+    return 1;
+}
+
+static int save_track_archive(void *p)
+{
+    TrackArchive *draft = p;
+    CHECK(!draft->archive.file_refs);
+    ++draft->saves;
+    return !draft->fail_save;
+}
+
+static void store_edit_tracks(void)
+{
+    TrackArchive draft;
+    MMActorTrackArchive archive = {NULL, create_track_archive, save_track_archive};
+    MMActorTrack track;
+    MMActorEventFactory factory = {NULL, 0};
+    MMActorEventServices events = mm_actor_events_services(&factory);
+    MMActorEvent event = {0};
+    MMActorCostume costume = {0}, decoded;
+    MMActorRoutePoint point = {0};
+    MMMemoryStream stream;
+    MMChunkAccess chunks;
+    MMU32 number;
+    void *out;
+    int mode;
+    archive.context = &draft;
+    track.events = mm_actor_events_create(&factory, 0, 0);
+    track.route = mm_actor_path_create(NULL, 0, 0);
+    CHECK(track.events && track.route && mm_actor_path_insert(track.route, 0, &point));
+    event.aet = MM_ACTOR_COSTUME;
+    costume.tag.number = 77;
+    costume.tag.cache = &draft;
+    CHECK(mm_actor_events_insert(track.events, 0, sizeof(costume), &costume, &event));
+    for (mode = 0; mode <= 6; ++mode)
+    {
+        memset(&draft, 0, sizeof(draft));
+        draft.fail_create = mode == 2;
+        draft.fail_track = mode == 3 ? 1 : mode == 4 ? 2 : 0;
+        draft.fail_save = mode == 5;
+        if (mode == 6)
+        {
+            event.aet = -1;
+            CHECK(mm_actor_events_set_fixed(track.events, 0, &event));
+        }
+        CHECK(mm_actor_store_edit_tracks(&track, mode != 1, &archive) == (mode < 2));
+        CHECK(draft.creates == (mode != 6) && draft.saves == (mode < 2 || mode == 5) && !draft.archive.file_refs);
+        if (mode >= 2)
+            continue;
+        chunks = fixture_chunk_access(&draft.archive.index);
+        CHECK(chunks.count == (mode ? 1U : 2U) && mm_chunk_find(&chunks, MM_ACTOR_EVENTS_CHUNK, 0, &number) == MM_CHUNK_OK);
+        CHECK(mm_memory_stream_init(&stream, draft.bytes, draft.lengths[0]));
+        CHECK(mm_actor_read_events_stream(&stream.stream, &events, &out) == MM_MOVIE_OK);
+        CHECK(mm_actor_events_get_payload(out, 0, &decoded) && decoded.tag.number == 77 && !decoded.tag.cache);
+        mm_actor_events_release(out);
+        if (mode == 0)
+            CHECK(draft.lengths[1] == mm_actor_path_wire_size(track.route) &&
+                  mm_chunk_find(&chunks, MM_ACTOR_ROUTE_CHUNK, 0, &number) == MM_CHUNK_OK);
+    }
+    mm_actor_events_release(track.events);
+    mm_actor_path_release(track.route);
+}
+
 typedef struct ActorLoad
 {
     ActorStore *saved;
@@ -986,6 +1089,7 @@ int main(void)
     event_streams();
     store_actor(&store);
     load_actor(&store);
+    store_edit_tracks();
     puts("actor data passed");
     return 0;
 }

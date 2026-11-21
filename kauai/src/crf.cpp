@@ -276,11 +276,6 @@ MMChunkAccess ChunkyResourceFile::ReadChunkAccess()
     AssertThis(0);
     return mm_resource_cache_chunks(&_cache);
 }
-bool ChunkyResourceFile::FReadBlock(ChunkTagOrType type, ChunkNumber number, DataBlock &block)
-{
-    AssertThis(0);
-    return mm_resource_cache_read_block(&_cache, type, number, &block._state) == MM_CHUNK_OK;
-}
 static bool ReadStoredName(const MMChunkIndex *index, MMU32 position, String &name)
 {
     unsigned char scratch[MM_CHUNK_NAME_WIRE_BYTES];

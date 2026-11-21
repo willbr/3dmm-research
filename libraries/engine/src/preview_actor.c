@@ -1,4 +1,5 @@
 #include "mm/preview_actor.h"
+#include "mm/actor_persistence.h"
 #include "mm/template_create.h"
 #include "mm/wide.h"
 #include <string.h>
@@ -215,19 +216,27 @@ int mm_preview_actor_replace_track(MMPreviewActor *p, MMI32 source, const MMPrev
     MMPreviewActor original;
     MMActorTrack candidate = {0}, live;
     MMActorEventTable *events = NULL;
+    MMActorEventFactory factory;
+    MMResourceCache *cache = NULL;
+    MMOwnedBlock block;
     int result;
     if (source == p->event_source)
         return 1;
     if (!p->body || !p->tmpl || s->text(s->context, p->tmpl))
         return 0;
-    result = edit->open(edit->context, source);
+    result = edit->resolve(edit->context, source, MM_ACTOR_EVENTS_CHUNK, 0, &cache);
     if (result <= 0)
         return result;
-    live = mm_preview_actor_track(p);
-    if (!mm_actor_track_clone(&candidate, &live, s->tags))
+    if (!cache || mm_owned_block_init(&block, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
         return 0;
-    result = edit->read(edit->context, &events);
-    if (result <= 0)
+    live = mm_preview_actor_track(p);
+    factory.allocator = s->track_allocator;
+    factory.trash_unused = s->trash_unused;
+    result = mm_resource_cache_read_block(cache, MM_ACTOR_EVENTS_CHUNK, 0, &block) == MM_CHUNK_OK &&
+             mm_actor_track_clone(&candidate, &live, s->tags) &&
+             mm_actor_block_events(&block, edit->decode_context, edit->decode, &factory, &events) == MM_MOVIE_OK;
+    mm_owned_block_clear(&block);
+    if (!result)
         goto fail;
     mm_actor_track_adopt_events(&candidate, events, s->tags);
     result = edit->save_costume(edit->context);

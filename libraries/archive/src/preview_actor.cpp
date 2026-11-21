@@ -6,10 +6,10 @@
 #include <locale>
 #include <map>
 #include <sstream>
-#include <memory>
 #include "preview_actor.h"
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
+#include "handle_services.h"
 #include "mm/actor_effect.h"
 #include "mm/actor_costume_edit.h"
 #include "mm/actor_animation.h"
@@ -280,19 +280,27 @@ struct PreviewActor::TrackDraft
     }
     bool Write(const std::string &path, bool withRoute) const
     {
-        auto release = [](auto *p) { if (p) p->Release(); };
-        std::unique_ptr<MMActorEventTable, decltype(&mm_actor_events_release)> wire(
-            ActorData::PeventsEncode(actor.Track().events), mm_actor_events_release);
-        String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
-        if (!wire || !filename.FBuildFromPath(&text)) return false;
-        std::unique_ptr<ChunkyFile, decltype(release)> file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable), release);
-        ChunkNumber number; DataBlock block;
-        if (!file || !file->FAdd(mm_actor_events_wire_size(wire.get()), kctgGgae, &number, &block) || number != 0 || !ActorData::FWriteEvents(wire.get(), &block))
-            return false;
-        auto route = actor.Track().route;
-        if (withRoute && (!file->FAdd(mm_actor_path_wire_size(route), kctgPath, &number, &block) || number != 0 || !ActorData::FWritePath(route, &block)))
-            return false;
-        return file->FSave(kctgSoc);
+        struct Output
+        {
+            const std::string &path;
+            PChunkyFile file = nullptr;
+            ~Output() { ReleasePpo(&file); }
+        } output = {path};
+        const MMActorTrackArchive archive = {
+            &output,
+            [](void *p, MMArchiveWriter *writer) -> int {
+                auto &out = *static_cast<Output *>(p);
+                String text;
+                Filename filename;
+                text.SetSzs(const_cast<char *>(out.path.c_str()));
+                if (!filename.FBuildFromPath(&text) || !(out.file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable)))
+                    return false;
+                *writer = out.file->WriteIndex();
+                return true;
+            },
+            [](void *p) -> int { return static_cast<Output *>(p)->file->FSave(kctgSoc); }};
+        const auto track = actor.Track();
+        return mm_actor_store_edit_tracks(&track, withRoute, &archive) != 0;
     }
 };
 bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, const std::string &path)
@@ -346,27 +354,24 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
     struct EventSource
     {
         Host host;
-        DataBlock block;
         BodyCostume costume;
     } sourceTrack = {{this}};
     const auto services = sourceTrack.host.Services();
     const MMPreviewEventReplacement edit = {
         &sourceTrack,
-        [](void *p, MMI32 source) -> int {
+        [](void *p, MMI32 source, MMU32 type, MMU32 number, MMResourceCache **out) -> int {
             auto &input = *static_cast<EventSource *>(p);
             return input.host.Guard([&] {
-                const TAGOnFile tag = {source, 0, kctgGgae, 0};
+                const TAGOnFile tag = {source, 0, type, number};
                 auto cache = input.host.actor->resolve(tag);
-                return cache && cache->FReadBlock(kctgGgae, 0, input.block);
+                if (!cache)
+                    return false;
+                *out = cache->CoreCache();
+                return true;
             });
         },
-        [](void *p, MMActorEventTable **out) -> int {
-            auto &input = *static_cast<EventSource *>(p);
-            return input.host.Guard([&] {
-                *out = ActorData::PeventsRead(&input.block);
-                return *out != nullptr;
-            });
-        },
+        nullptr,
+        KauaiDecodeBlockHandle,
         [](void *p) -> int {
             auto &input = *static_cast<EventSource *>(p);
             return input.host.Guard([&] { return input.costume.FGet(input.host.actor->Pbody()); });

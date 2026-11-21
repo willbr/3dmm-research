@@ -6,6 +6,7 @@
 #include "actor_effect.h"
 #include "actor_track.h"
 #include "actor_sound.h"
+#include "resource_cache.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -91,9 +92,10 @@ extern "C"
     typedef struct MMPreviewEventReplacement
     {
         void *context;
-        int (*open)(void *, MMI32 source);
-        /* Transfer a newly decoded event table on success. */
-        int (*read)(void *, MMActorEventTable **);
+        /* Borrow the cache owning the requested root track for this call. */
+        int (*resolve)(void *, MMI32 source, MMU32 type, MMU32 number, MMResourceCache **);
+        void *decode_context;
+        MMBlockTransform decode;
         int (*save_costume)(void *);
         void (*restore_costume)(void *);
     } MMPreviewEventReplacement;

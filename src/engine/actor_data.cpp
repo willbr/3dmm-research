@@ -3,6 +3,7 @@
 #include "soc_core.h"
 #include "engine_movie_graph.h"
 #include "engine_read_stream.h"
+#include "handle_services.h"
 #include "mm/actor_persistence.h"
 #include <cstddef>
 ASSERTNAME
@@ -90,16 +91,11 @@ bool ActorData::FWritePath(MMActorPath *path, PDataBlock block)
 }
 MMActorEventTable *ActorData::PeventsRead(PDataBlock block)
 {
-    if (!block->FUnpackData())
-        return nullptr;
-    const auto stream = EngineReadStream::FromBlock(*block);
     const auto allocator = CollectionAllocator();
     MMActorEventFactory factory = {&allocator, DebugShip(1, 0)};
-    const auto services = mm_actor_events_services(&factory);
-    void *events;
-    if (mm_actor_read_events_stream(&stream, &services, &events) != MM_MOVIE_OK)
-        return nullptr;
-    return static_cast<MMActorEventTable *>(events);
+    MMActorEventTable *events;
+    return mm_actor_block_events(block->CoreBlock(), nullptr, KauaiDecodeBlockHandle, &factory, &events) == MM_MOVIE_OK
+               ? events : nullptr;
 }
 MMActorEventTable *ActorData::PeventsRead(PChunkyFile file, ChunkNumber actor)
 {

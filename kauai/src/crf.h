@@ -148,7 +148,6 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
     MMResourceCache *CoreCache() { return &_cache; }
     MMChunkAccess ReadChunkAccess();
-    bool FReadBlock(ChunkTagOrType, ChunkNumber, DataBlock &);
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);
     bool FCopyChunk(ChunkTagOrType, ChunkNumber, PChunkyFile destination, ChunkNumber *copied);
     PChunkyResourceFile PcrfNewSibling(LegacyLong budget);

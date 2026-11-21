@@ -18485,3 +18485,29 @@ archived retail frame identities, and SDL matched all four retail sound
 requests. PCM16 peaks matched the preceding builds at 2,176. The archived
 retail peak is 2,380. The capture contains 520,800 SDL and 511,680 Marcus PCM
 frames. Logs and the comparison script are in `tmp/c89-chunk-block-copy`.
+
+## Actor-track draft serialization and reload (21 November 2026)
+
+Marcus costume and animation drafts now use the same C89 track block writer
+as Studio actor saves. C89 encodes the events before opening a scratch archive,
+writes GGAE:0 and the optional PATH:0, and saves after the requested writes
+succeed. Reload binds GGAE:0 through the resolved resource cache and decodes the
+block directly. Failed reloads leave the original track and costume intact.
+
+All 193 standalone C checks and five focused AddressSanitizer checks passed.
+The draft fixtures cover costume-only and animation layouts, failed file
+creation, writes and save, malformed events, a simulated packed decoder,
+missing and unreadable event chunks, and replay rollback. The seven selected
+native checks passed, including Marcus costume and recorded-path authoring.
+The 2,896-byte native actor data snapshot, three resource-cache snapshots,
+27 save/reopen traces and sound snapshots matched. SDL reproduced the saved
+authoring fixture byte for byte.
+
+Both ports matched all three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T085708Z-3da869ef`.
+
+In sampled-audio suite `20261121T085716Z-434c5f42`, both ports matched all 60
+archived retail frame identities, and SDL matched all four retail sound
+requests. PCM16 peaks matched the preceding builds at 2,176. The archived
+retail peak is 2,380. The capture contains 523,680 SDL and 511,680 Marcus PCM
+frames. Logs and the comparison script are in `tmp/c89-actor-track-archive`.

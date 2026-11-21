@@ -33,6 +33,9 @@ typedef struct MMActorLoadServices
 /* Return a movie status and transfer an owned table on success only. */
 int mm_actor_movie_path(const MMMovieSessionGraph *, MMU32 number, const MMActorPathFactory *, MMActorPath **);
 int mm_actor_movie_events(const MMMovieSessionGraph *, MMU32 number, MMActorEventFactory *, MMActorEventTable **);
+/* Decode the owned block in place and transfer a validated runtime table. */
+int mm_actor_block_events(MMOwnedBlock *, void *decode_context, MMBlockTransform,
+                          MMActorEventFactory *, MMActorEventTable **);
 
 /* On failure report the diagnostic before disposing any partially loaded actor.
  * The actor's owner releases tracks, opened tags and fetched template references. */
@@ -52,6 +55,17 @@ typedef struct MMActorStoreServices
 /* Write into the new ACTR under a candidate scene. On failure the caller
  * drops the candidate scene and its children. Live track data is borrowed. */
 int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorOwner *, const MMActorStoreServices *);
+
+typedef struct MMActorTrackArchive
+{
+    void *context;
+    int (*create)(void *, MMArchiveWriter *);
+    int (*save)(void *);
+} MMActorTrackArchive;
+
+/* Encode before creating the scratch archive. Write GGAE:0, then PATH:0
+ * if requested. The caller owns the file and can discard it after failure. */
+int mm_actor_store_edit_tracks(const MMActorTrack *, int with_route, const MMActorTrackArchive *);
 
 #ifdef __cplusplus
 }

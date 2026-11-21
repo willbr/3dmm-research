@@ -1,5 +1,7 @@
 #include "mm/preview_actor.h"
+#include "mm/actor_persistence.h"
 #include "mm/template_create.h"
+#include "engine_resource_block_fixture.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -772,56 +774,154 @@ static void track_draft(void)
     dispose(&h);
 }
 
-static int open_track_source(void *p, MMI32 source)
+typedef struct TrackSource
 {
-    assert(source == 9);
-    return step((Host *)p);
+    Host *host;
+    MMResourceCache cache;
+    ResourceTestBlock block;
+    unsigned char bytes[512];
+    MMU32 length;
+    int missing, fail_read, packed, fail_decode, refs, decodes;
+} TrackSource;
+
+static int resolve_track_source(void *p, MMI32 source, MMU32 type, MMU32 number, MMResourceCache **out)
+{
+    TrackSource *track = p;
+    int result = step(track->host);
+    assert(source == 9 && type == MM_ACTOR_EVENTS_CHUNK && number == 0);
+    if (result > 0)
+        *out = &track->cache;
+    return result;
 }
 
-static int read_track_source(void *p, MMActorEventTable **out)
+static int locate_track_source(void *p, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)
 {
-    Host *h = (Host *)p;
-    int result = step(h);
-    if (result <= 0)
-        return result;
-    *out = mm_actor_events_clone(mm_preview_actor_track(&h->actor).events);
-    return *out != NULL;
+    TrackSource *track = p;
+    assert(type == MM_ACTOR_EVENTS_CHUNK && number == 0);
+    if (track->missing)
+        return 0;
+    file->file = track;
+    file->offset = 0;
+    file->length = track->length;
+    *packed = track->packed;
+    return 1;
+}
+
+static void retain_track_file(void *p, void *file)
+{
+    TrackSource *track = p;
+    assert(track == file && !track->refs);
+    ++track->refs;
+}
+
+static void release_track_file(void *p, void *file)
+{
+    TrackSource *track = p;
+    assert(track == file && track->refs == 1);
+    --track->refs;
+}
+
+static int read_track_source(void *p, void *file, MMU32 offset, void *out, size_t bytes)
+{
+    TrackSource *track = p;
+    assert(track == file && track->refs == 1 && offset <= track->length && bytes <= track->length - offset);
+    if (track->fail_read)
+        return 0;
+    memcpy(out, track->bytes + offset, bytes);
+    return 1;
+}
+
+static int write_track_fixture(void *p, MMU32 offset, const void *data, size_t bytes)
+{
+    TrackSource *track = p;
+    assert(offset <= track->length && bytes <= track->length - offset);
+    memcpy(track->bytes + offset, data, bytes);
+    return 1;
+}
+
+static int reject_track_write(void *p, void *file, MMU32 offset, const void *data, size_t bytes)
+{
+    (void)p; (void)file; (void)offset; (void)data; (void)bytes;
+    return 0;
+}
+
+static int decode_track_source(void *p, void **handle)
+{
+    TrackSource *track = p;
+    assert(track->packed && *handle);
+    ++track->decodes;
+    return !track->fail_decode;
+}
+
+static void setup_track_source(TrackSource *source, Host *h)
+{
+    MMActorEventFactory factory = {NULL, 0};
+    MMActorEventServices events = mm_actor_events_services(&factory);
+    MMActorEventTable *wire = mm_actor_write_events(mm_preview_actor_track(&h->actor).events, &events);
+    MMStorageWriter writer;
+    assert(wire);
+    memset(source, 0, sizeof(*source));
+    source->host = h;
+    source->length = mm_actor_events_wire_size(wire);
+    assert(source->length <= sizeof(source->bytes));
+    writer.context = source;
+    writer.length = source->length;
+    writer.write_at = write_track_fixture;
+    assert(mm_actor_events_write(wire, 0, 0, &writer));
+    mm_actor_events_release(wire);
+    resource_block_init(&source->block, source, read_track_source, reject_track_write);
+    source->block.files.retain = retain_track_file;
+    source->block.files.release = release_track_file;
+    source->cache.file = source;
+    source->cache.services.handles = source->block.owner.handles;
+    source->cache.services.block_files = &source->block.files;
+    source->cache.services.locate = locate_track_source;
 }
 
 static int save_track_costume(void *p)
 {
-    Host *h = (Host *)p;
+    Host *h = ((TrackSource *)p)->host;
     ++h->costume_saved;
     return step(h);
 }
 
-static void restore_track_costume(void *p) { ++((Host *)p)->costume_restored; }
+static void restore_track_costume(void *p) { ++((TrackSource *)p)->host->costume_restored; }
 
 static void replace_owned_track(void)
 {
     Host h;
+    TrackSource source;
     MMPreviewActorDefinition d = definition();
     MMPreviewActor original;
     MMPreviewEventReplacement edit = {
-        NULL, open_track_source, read_track_source, save_track_costume, restore_track_costume
+        NULL, resolve_track_source, NULL, decode_track_source, save_track_costume, restore_track_costume
     };
-    int fail_at, blocks;
-    edit.context = &h;
-    for (fail_at = 0; fail_at <= 4; ++fail_at)
+    int mode, blocks, expected;
+    edit.context = edit.decode_context = &source;
+    for (mode = 0; mode <= 8; ++mode)
     {
         setup_owned(&h);
         assert(mm_preview_actor_create(&h.actor, &d, &h.services));
         assert(mm_preview_actor_seek(&h.actor, 1, &h.services));
+        setup_track_source(&source, &h);
         original = h.actor;
         blocks = h.alloc_live;
-        h.fail_at = fail_at ? h.calls + fail_at : 0;
+        h.fail_at = mode >= 1 && mode <= 3 ? h.calls + mode : 0;
         h.failure = -2;
+        source.missing = mode == 4;
+        source.fail_read = mode == 5;
+        if (mode == 6)
+            memset(source.bytes, 0, source.length);
+        source.packed = mode == 7 || mode == 8;
+        source.fail_decode = mode == 8;
+        expected = mode == 0 || mode == 7 ? 1 : h.fail_at ? -2 : 0;
         assert(mm_preview_actor_replace_track(&h.actor, 0, &edit, &h.services));
-        assert(mm_preview_actor_replace_track(&h.actor, 9, &edit, &h.services) == (fail_at ? -2 : 1));
-        if (fail_at)
+        assert(mm_preview_actor_replace_track(&h.actor, 9, &edit, &h.services) == expected);
+        assert(!source.refs && source.decodes == source.packed);
+        if (expected <= 0)
         {
             assert(!memcmp(&h.actor, &original, sizeof(original)) && h.alloc_live == blocks);
-            assert(h.costume_saved == (fail_at >= 3) && h.costume_restored == (fail_at == 4));
+            assert(h.costume_saved == (mode == 2 || mode == 3) && h.costume_restored == (mode == 3));
         }
         else
         {

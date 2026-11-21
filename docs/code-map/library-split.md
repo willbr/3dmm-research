@@ -3932,6 +3932,11 @@ owns each output block through serialization and renumbers newly written
 embedded templates before adoption. Native services supply resource lookups,
 physical file bindings and diagnostics.
 
+Marcus draft archives use the same C block writer as Studio actor saves. C
+validates and encodes the event table before file creation. It writes GGAE:0,
+then PATH:0 for animation drafts, and saves only after both writes succeed.
+Costume drafts contain GGAE:0. Native services create and save the scratch file.
+
 `engine-actor-data-test` covers old/current headers, partial failed reads, invalid
 byte-order outputs, ID overflow, empty/foreign routes, all event layouts, Add padding,
 tag fields, allocation/insertion failures at every row, and partial live load
@@ -3991,8 +3996,9 @@ one synchronous metadata replay. C releases the clone on success, allocation
 failure or a failed presentation callback. Source events and live pose stay
 intact. For authoring drafts, C installs cloned route, event and motion-sound
 tables and a duplicate body. Closing a draft restores the original handles
-and evaluated state. Live event-track replacement clones the route, decodes
-the new event table and replays the frame. Failure restores the original
+and evaluated state. Live event-track replacement borrows the resolved cache,
+binds its slot-zero event chunk, clones the track, decodes the new event table
+with the shared reader and replays the frame. Failure restores the original
 track, actor state and costume. The portable C session owns the same
 typed route and event tables and uses a checked route view during playback.
 An out-of-range node read sets the bad-file error and returns a zero point

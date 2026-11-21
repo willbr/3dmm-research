@@ -219,16 +219,11 @@ enum
 };
 
 typedef class DataBlock *PDataBlock;
-namespace Chunky
-{
-class ChunkyResourceFile;
-}
 #define DataBlock_PAR BASE
 #define kclsDataBlock 'BLCK'
 class DataBlock : public DataBlock_PAR
 {
     friend class FileByteStream;
-    friend class Chunky::ChunkyResourceFile;
     RTCLASS_DEC
     NOCOPY(DataBlock)
     ASSERT

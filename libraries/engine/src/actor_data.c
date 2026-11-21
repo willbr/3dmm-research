@@ -397,6 +397,23 @@ done:
     return status;
 }
 
+int mm_actor_block_events(MMOwnedBlock *block, void *decode_context, MMBlockTransform decode,
+                          MMActorEventFactory *factory, MMActorEventTable **out)
+{
+    MMBlockIO io;
+    MMReadStream stream;
+    MMActorEventServices services;
+    void *events;
+    int status;
+    if (mm_owned_block_decoded_stream(block, decode_context, decode, &io, &stream) != MM_DATA_OK)
+        return MM_MOVIE_IO;
+    services = mm_actor_events_services(factory);
+    status = mm_actor_read_events_stream(&stream, &services, &events);
+    if (status == MM_MOVIE_OK)
+        *out = (MMActorEventTable *)events;
+    return status;
+}
+
 static void *write_events(void *runtime, const MMActorEventServices *s, MMU32 actor,
                           const MMActorStoreServices *store)
 {
@@ -519,43 +536,71 @@ static int store_sounds(MMU32 scene, MMActorEventTable *events, const MMChunkEdi
     return 1;
 }
 
-static int add_track(const MMChunkEdit *edit, MMU32 actor, MMU32 type, MMU32 bytes,
-                     MMOwnedBlock *block, MMBlockIO *io, MMStorageWriter *writer)
+static int add_track(const MMChunkEdit *edit, const MMU32 *actor, MMU32 type, MMU32 bytes, MMOwnedBlock *block)
 {
     MMChunkChild child = {0};
     child.type = type;
-    return mm_chunk_add_child_block(edit, MM_ACTOR_CHUNK, actor, &child, bytes, block) == MM_CHUNK_OK &&
-           mm_owned_block_io(block, io) == MM_DATA_OK && mm_block_io_writer(io, writer) == MM_DATA_OK;
+    if (actor)
+        return mm_chunk_add_child_block(edit, MM_ACTOR_CHUNK, *actor, &child, bytes, block) == MM_CHUNK_OK;
+    return mm_chunk_add_block(edit, type, bytes, &child.number, block) == MM_CHUNK_OK && child.number == 0;
+}
+
+static int store_track(const MMArchiveWriter *archive, const MMU32 *actor, MMU32 type, void *table)
+{
+    MMOwnedBlock block;
+    MMBlockIO io;
+    MMStorageWriter writer;
+    const MMU32 bytes = type == MM_ACTOR_ROUTE_CHUNK ? mm_actor_path_wire_size((MMActorPath *)table) :
+                                                     mm_actor_events_wire_size((MMActorEventTable *)table);
+    int ok;
+    if (mm_owned_block_init(&block, archive->payloads->handles, archive->payloads->files) != MM_DATA_OK)
+        return 0;
+    ok = add_track(&archive->edit, actor, type, bytes, &block) && mm_owned_block_io(&block, &io) == MM_DATA_OK &&
+         mm_block_io_writer(&io, &writer) == MM_DATA_OK &&
+         (type == MM_ACTOR_ROUTE_CHUNK ? mm_actor_path_write((MMActorPath *)table, archive->system, &writer) :
+                                        mm_actor_events_write((MMActorEventTable *)table, archive->system, 0, &writer));
+    mm_owned_block_clear(&block);
+    return ok;
+}
+
+static MMActorEventTable *encode_track(MMActorEventTable *events, MMU32 actor, const MMActorStoreServices *s)
+{
+    MMActorEventFactory factory;
+    MMActorEventServices services;
+    factory.allocator = &events->storage.allocator;
+    factory.trash_unused = events->rows.trash_unused;
+    services = mm_actor_events_services(&factory);
+    return (MMActorEventTable *)write_events(events, &services, actor, s);
 }
 
 static int store_tracks(MMU32 actor, const MMActorTrack *track, const MMActorStoreServices *s)
 {
-    const MMArchiveWriter *archive = s->archive;
-    MMActorEventFactory factory;
-    MMActorEventServices events;
     MMActorEventTable *wire;
-    MMOwnedBlock block;
-    MMBlockIO io;
-    MMStorageWriter writer;
     int ok;
-    if (mm_owned_block_init(&block, archive->payloads->handles, archive->payloads->files) != MM_DATA_OK)
+    if (!store_track(s->archive, &actor, MM_ACTOR_ROUTE_CHUNK, track->route))
         return 0;
-    ok = add_track(&archive->edit, actor, MM_ACTOR_ROUTE_CHUNK, mm_actor_path_wire_size(track->route),
-                   &block, &io, &writer) && mm_actor_path_write(track->route, archive->system, &writer);
-    mm_owned_block_clear(&block);
-    if (!ok)
-        return 0;
-    factory.allocator = &track->events->storage.allocator;
-    factory.trash_unused = track->events->rows.trash_unused;
-    events = mm_actor_events_services(&factory);
-    wire = (MMActorEventTable *)write_events(track->events, &events, actor, s);
+    wire = encode_track(track->events, actor, s);
     if (!wire)
         return 0;
-    ok = add_track(&archive->edit, actor, MM_ACTOR_EVENTS_CHUNK, mm_actor_events_wire_size(wire),
-                   &block, &io, &writer) && mm_actor_events_write(wire, archive->system, 0, &writer);
-    mm_owned_block_clear(&block);
+    ok = store_track(s->archive, &actor, MM_ACTOR_EVENTS_CHUNK, wire);
     mm_actor_events_release(wire);
     return ok;
+}
+
+int mm_actor_store_edit_tracks(const MMActorTrack *track, int with_route, const MMActorTrackArchive *s)
+{
+    MMActorEventTable *wire;
+    MMArchiveWriter archive;
+    int ok;
+    if (!track || !track->events || (with_route && !track->route) || !s || !s->create || !s->save)
+        return 0;
+    wire = encode_track(track->events, 0, NULL);
+    if (!wire)
+        return 0;
+    ok = s->create(s->context, &archive) && store_track(&archive, NULL, MM_ACTOR_EVENTS_CHUNK, wire);
+    mm_actor_events_release(wire);
+    return ok && (!with_route || store_track(&archive, NULL, MM_ACTOR_ROUTE_CHUNK, track->route)) &&
+           s->save(s->context);
 }
 
 int mm_actor_store(MMU32 actor, MMU32 scene, const MMActorOwner *owner, const MMActorStoreServices *s)
