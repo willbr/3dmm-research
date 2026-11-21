@@ -19165,3 +19165,36 @@ In sampled-audio suite `20261121T135916Z-1730d0d7`, both hosts matched all
 The PCM16 peak matched the previous host captures at 2,176. The archived
 retail peak is 2,380. SDL captured 521,280 PCM frames and Marcus captured
 512,160. Evidence is in `tmp/c89-private-scene-archive`.
+
+## Marcus caption archives in C89 (21 November 2026)
+
+Caption listing, drafts and saves use the private C archive. The caption
+edit transaction owns the replacement box and body through the scene link
+update. A retained file extent supplies the original stored TEXT when
+moving or reformatting a box.
+
+The headless caption probe passed against both builds. It covered a new
+Unicode caption, a geometry edit, a formatting edit, replacement text,
+rendering, deletion, undo and reopen. All five saved `.3mm` files and the
+320 by 180 RGBA frame matched byte for byte. The create, move and formatting
+outputs contained identical stored TEXT bytes. A separate C probe read
+raw packed TEXT across decoded KCDC and KCD2 reads and clones, rejected
+out-of-range reads, and released all file references on close.
+
+All 193 standalone C checks, five focused AddressSanitizer checks and
+six x64 Marcus checks passed. The x86 Marcus player library built. All
+17 movie save/load fixtures matched byte for byte on both the native
+and SDL builds.
+
+Both hosts matched all three archived V3dmm storyboard frames, camera
+indices and canvas hashes in suite `20261121T140843Z-fd5bc8b9`. In
+actor-event suite `20261121T140847Z-e683b756`, both matched all 60 retail
+frame identities in seek and continuous playback. Seek camera indices
+matched retail, seek canvas hashes matched prior host captures, and
+SDL matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T141040Z-032776b0`, both hosts matched all
+60 retail frame identities and SDL matched all four retail sound requests.
+The PCM16 peak matched prior host captures at 2,176. The archived retail
+peak is 2,380. SDL captured 511,680 PCM frames and Marcus captured
+512,640. Evidence is in `tmp/c89-private-caption-archive`.

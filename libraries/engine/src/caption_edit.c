@@ -1,4 +1,5 @@
 #include "mm/caption_edit.h"
+#include "mm/private_archive.h"
 #include "mm/wide.h"
 #include <stdlib.h>
 #include <string.h>
@@ -604,4 +605,85 @@ int mm_caption_edit_archive_box(const MMMovieArchiveEditor *editor, const MMScen
         return MM_CAPTION_EDIT_WRITE_BOX;
     *out = number;
     return MM_CAPTION_EDIT_OK;
+}
+
+typedef struct PrivateCaptionEdit
+{
+    MMPrivateArchive *file;
+    const MMCaptionArchiveChange *change;
+    MMMovieArchiveEditor editor;
+    MMRichTextArchive archive;
+    MMTextBoxState box;
+    MMRichTextState body;
+    MMCaptionText words;
+    int status;
+} PrivateCaptionEdit;
+
+static int private_clone_box(void *context, MMU32 original, MMU32 *number)
+{
+    MMPrivateArchive *file = ((PrivateCaptionEdit *)context)->file;
+    return mm_private_archive_copy(file, file, MM_TEXT_BOX, original, 1, number);
+}
+
+static int private_read_body(void *context, const MMTextChunk *body)
+{
+    PrivateCaptionEdit *edit = context;
+    return mm_rich_text_archive_read(&edit->body, body, &edit->archive) > 0;
+}
+
+static int private_apply(void *context, int *changed)
+{
+    PrivateCaptionEdit *edit = context;
+    const MMCaptionArchiveChange *change = edit->change;
+    MMRichTextStream stored;
+    MMCaptionEditSource source;
+    mm_rich_text_archive_stream(&stored, &edit->archive, &edit->body.text);
+    source.encoding = change->encoding;
+    source.stored_text = &stored.stream;
+    source.native_system = edit->editor.system;
+    return mm_caption_edit_apply(change->plan, change->first, change->last, &edit->box, &edit->body,
+                                 &source, &edit->words, changed);
+}
+
+static int private_write_body(void *context, MMTextChunk *body)
+{
+    PrivateCaptionEdit *edit = context;
+    const MMCaptionArchiveChange *change = edit->change;
+    const MMCaptionText *words = change->plan->text_changed ? &edit->words : NULL;
+    return mm_caption_edit_write_body(&edit->body, words, change->encoding, body, &edit->archive) > 0;
+}
+
+static int private_write_box(void *context, const MMSceneArchiveText *original, MMU32 *number)
+{
+    PrivateCaptionEdit *edit = context;
+    MMCaptionArchiveBox box = {NULL, NULL, private_clone_box, private_read_body, private_apply, private_write_body};
+    box.context = edit;
+    box.box = &edit->box;
+    edit->status = mm_caption_edit_archive_box(&edit->editor, original, &box, number);
+    return edit->status == MM_CAPTION_EDIT_OK;
+}
+
+int mm_caption_edit_private_archive(MMPrivateArchive *file, const MMCaptionArchiveChange *change,
+                                    int *caption_status)
+{
+    PrivateCaptionEdit edit = {0};
+    MMSceneArchiveTextEdit scene = {0};
+    int status;
+    edit.file = file;
+    edit.change = change;
+    edit.editor = mm_private_archive_editor(file);
+    edit.archive = mm_private_archive_rich_text(file, &edit.editor);
+    mm_rich_text_init(&edit.body, edit.editor.text_unit, edit.editor.system);
+    scene.scene = change->scene;
+    scene.opening_frame = change->first;
+    scene.context = &edit;
+    scene.original = change->original;
+    if (change->plan)
+        scene.write_box = private_write_box;
+    status = mm_scene_archive_edit_text(&edit.editor, &scene);
+    mm_rich_text_archive_dispose(&edit.body, &edit.archive);
+    mm_caption_edit_dispose_text(&edit.words);
+    if (caption_status)
+        *caption_status = edit.status;
+    return status;
 }

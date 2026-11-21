@@ -198,6 +198,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Marcus materializes scene, camera, actor, animation and costume edits
   through the same private archive. Object clipboard transfers and
   storyboard resource generation, embedding and export also use it.
+- Marcus reads and saves 2-D captions through the private archive. C owns
+  the caption edit transaction and retains the stored TEXT extent through
+  geometry and formatting edits.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

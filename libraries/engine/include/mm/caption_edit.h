@@ -139,6 +139,20 @@ typedef struct MMCaptionArchiveBox
 int mm_caption_edit_archive_box(const MMMovieArchiveEditor *, const MMSceneArchiveText *original,
                                 const MMCaptionArchiveBox *, MMU32 *number);
 
+typedef struct MMCaptionArchiveChange
+{
+    MMU32 scene;
+    MMI32 first, last;
+    const MMSceneArchiveText *original;
+    const MMCaptionEditPlan *plan; /* NULL deletes the original box. */
+    const MMTextHost *encoding;
+} MMCaptionArchiveChange;
+
+/* Apply to a private working copy. Return the scene edit status and publish
+ * the caption diagnostic separately when building the replacement failed. */
+struct MMPrivateArchive;
+int mm_caption_edit_private_archive(struct MMPrivateArchive *, const MMCaptionArchiveChange *, int *caption_status);
+
 #ifdef __cplusplus
 }
 #endif

@@ -2,6 +2,7 @@
 #define MM_ENGINE_PRIVATE_ARCHIVE_H
 #include "chunk_owner.h"
 #include "movie_archive_edit.h"
+#include "text_store.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -28,6 +29,10 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
 void mm_private_archive_close(MMPrivateArchive *);
 MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *);
 MMMovieArchiveEditor mm_private_archive_editor(MMPrivateArchive *);
+/* Borrow the archive and editor. Stored TEXT uses a retained file extent
+ * independent of the editor's transient decoded block. A NULL archive
+ * supplies the format for an empty draft. */
+MMRichTextArchive mm_private_archive_rich_text(MMPrivateArchive *, const MMMovieArchiveEditor *);
 int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destination, MMU32 type,
                             MMU32 number, int clone, MMU32 *copy);
 int mm_private_archive_save(MMPrivateArchive *, MMU32 creator);

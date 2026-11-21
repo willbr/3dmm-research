@@ -3820,6 +3820,13 @@ are recorded in
 
 ### Movie material, 3-D text and caption transactions
 
+Marcus caption listing, drafts and saves use the same private C archive as
+scene authoring. The rich-text adapter retains the stored TEXT extent
+independently of temporary decoded chunk reads. The C caption transaction
+clones the selected box, applies the edit, updates the scene links and
+releases the text file and formatting collections. Geometry and formatting
+edits preserve the authored TEXT bytes and encoding.
+
 `movie_content.c` owns material insertion, 3-D text authoring/insertion and selected
 actor template replacement, caption insertion/removal/hiding and indexed caption
 selection. It reuses `movie_edit.c` for actor insertion/removal and snapshot

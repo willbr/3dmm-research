@@ -1,6 +1,6 @@
 #include "caption_edit.h"
 #include "scene_edit.h"
-#include "engine_movie_archive.h"
+#include "archive_file.h"
 #include "mm/native_caption.h"
 #include "mm/preview.h"
 #include "mm/caption_edit.h"
@@ -9,8 +9,6 @@
 #include "font_host.h"
 #include <cstring>
 #include <map>
-#include <optional>
-#include <exception>
 #include <stdexcept>
 #include <utility>
 #include "soc_core.h"
@@ -21,26 +19,13 @@ namespace
 {
 constexpr MMU32 Rgb = 0x01000000, Clear = 0xffffffffU;
 
-struct Release { template<class T> void operator()(T *p) const { if (p) p->Release(); } };
-template<class T> using Owned = std::unique_ptr<T, Release>;
-
 void Require(bool ok, const char *message)
 {
     if (!ok) throw std::runtime_error(message);
 }
-template<class F> int CaptionCall(std::exception_ptr &failure, F function, int failed = 0)
+MarcusArchive Open(const std::filesystem::path &path, int mode)
 {
-    try { return function(); }
-    catch (...) { failure = std::current_exception(); return failed; }
-}
-Owned<ChunkyFile> Open(const std::filesystem::path &path, bool write)
-{
-    String name;
-    Filename filename;
-    auto utf8 = path.u8string();
-    name.SetSzs(utf8.data());
-    Require(filename.FBuildFromPath(&name), "Invalid 2D text movie path.");
-    Owned<ChunkyFile> file(ChunkyFile::PcflOpen(&filename, write ? fcflWriteEnable : fcflNil));
+    auto file = MarcusOpenArchive(path, mode);
     Require(bool(file), "Cannot open the movie's 2D text.");
     return file;
 }
@@ -51,22 +36,8 @@ struct CaptionBody
     MMCaptionText words{};
     MMRichTextArchive archive;
 
-    CaptionBody(PChunkyFile file, const MMMovieArchiveEditor &editor) : archive{
-        &editor, file, MacWin(koskUniWin, koskUniMac),
-        [](void *p, MMU32 number, MMTextLocation *out) -> int {
-            FileLocation location;
-            if (!static_cast<PChunkyFile>(p)->FFindFlo(MM_TEXT_BYTES, number, &location))
-                return 0;
-            *out = {location.pfil, static_cast<MMU32>(location.fp), location.cb};
-            return 1;
-        },
-        [](void *, const MMTextLocation *text, MMU32 offset, void *out, size_t bytes) -> int {
-            FileLocation location{static_cast<PFileObject>(text->file), static_cast<FilePosition>(text->offset),
-                                  text->bytes};
-            return location.FReadRgb(out, static_cast<LegacyLong>(bytes), offset);
-        },
-        [](void *, void *file) { static_cast<PFileObject>(file)->AddRef(); },
-        [](void *, void *file) { static_cast<PFileObject>(file)->Release(); }, nullptr}
+    CaptionBody(MMPrivateArchive *file, const MMMovieArchiveEditor &editor)
+        : archive(mm_private_archive_rich_text(file, &editor))
     {
         mm_rich_text_init(&state, editor.text_unit, editor.system);
     }
@@ -84,10 +55,6 @@ struct CaptionBody
         return mm_rich_text_archive_read(&state, &chunk, &archive) > 0;
     }
 
-    bool Write(bool replaced, MMTextChunk *out)
-    {
-        return mm_caption_edit_write_body(&state, replaced ? &words : nullptr, KauaiText::Services(), out, &archive) > 0;
-    }
 };
 std::string ToUtf8(const unsigned short *words, size_t count)
 {
@@ -206,9 +173,8 @@ std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *b
 
 void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &preview, MarcusCaptionList &list)
 {
-    auto file = Open(path, false);
-    MovieArchiveHost host{file.get()};
-    const auto editor = host.Editor();
+    auto file = Open(path, MM_PRIVATE_ARCHIVE_READ);
+    const auto editor = mm_private_archive_editor(file.get());
     MMSceneArchiveText *links;
     MMU32 count;
     CheckTextArchive(mm_scene_archive_list_text(&editor, list.scene, &links, &count));
@@ -270,11 +236,10 @@ MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const M
     MMCaptionEditPlan plan;
     CheckCaptionEdit(mm_caption_edit_plan(&value, entry ? &before : nullptr, 0, &plan));
     MMTextBoxState box{};
-    auto file = entry ? Open(path, false) : Owned<ChunkyFile>{};
-    std::optional<MovieArchiveHost> host;
+    auto file = entry ? Open(path, MM_PRIVATE_ARCHIVE_READ) : MarcusArchive(nullptr, mm_private_archive_close);
     const auto editor = [&] {
         if (file)
-            return host.emplace(file.get()).Editor();
+            return mm_private_archive_editor(file.get());
         MMMovieArchiveEditor format{};
         const unsigned short order = 1;
         format.text_unit = sizeof(achar);
@@ -323,56 +288,14 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
         CheckCaptionEdit(status);
     }
     auto copy = MarcusCopyMovie(path, origin);
-    auto file = Open(copy->path, true);
-    MovieArchiveHost host{file.get()};
-    const auto editor = host.Editor();
+    auto file = Open(copy->path, MM_PRIVATE_ARCHIVE_EDIT);
     const MMSceneArchiveText original{entry ? entry->slot : 0, entry ? entry->chunk : 0};
-    struct Write
-    {
-        PChunkyFile file;
-        const MMMovieArchiveEditor &editor;
-        const MarcusCaptionList &list;
-        const MMCaptionEditPlan &plan;
-        MMTextBoxState box;
-        CaptionBody rich;
-        std::exception_ptr failure;
-    } write{file.get(), editor, list, plan, {}, CaptionBody(file.get(), editor), {}};
-    MMSceneArchiveTextEdit edit{list.scene, list.firstFrame, entry ? &original : nullptr, &write, nullptr};
-    if (text)
-        edit.write_box = [](void *context, const MMSceneArchiveText *original, MMU32 *number) -> int {
-            auto &write = *static_cast<Write *>(context);
-            const MMCaptionArchiveBox io = {
-                &write, &write.box,
-                [](void *p, MMU32 original, MMU32 *number) {
-                    auto &w = *static_cast<Write *>(p);
-                    return CaptionCall(w.failure, [&] { return w.file->FClone(kctgTbox, original, w.file, number); });
-                },
-                [](void *p, const MMTextChunk *body) {
-                    auto &w = *static_cast<Write *>(p);
-                    return CaptionCall(w.failure, [&] { return w.rich.Read(*body); });
-                },
-                [](void *p, int *bodyChanged) {
-                    auto &w = *static_cast<Write *>(p);
-                    return CaptionCall(w.failure, [&] {
-                        return ApplyCaption(w.plan, w.list, w.box, w.rich, bodyChanged);
-                    }, MM_CAPTION_EDIT_WRITE_BOX);
-                },
-                [](void *p, MMTextChunk *body) {
-                    auto &w = *static_cast<Write *>(p);
-                    return CaptionCall(w.failure, [&] { return w.rich.Write(w.plan.text_changed != 0, body); });
-                }
-            };
-            return CaptionCall(write.failure, [&] {
-                const int status = mm_caption_edit_archive_box(&write.editor, original, &io, number);
-                if (write.failure)
-                    return 0;
-                CheckCaptionEdit(status);
-                return 1;
-            });
-        };
-    const int result = mm_scene_archive_edit_text(&editor, &edit);
-    if (write.failure) std::rethrow_exception(write.failure);
+    const MMCaptionArchiveChange edit{list.scene, list.firstFrame, list.lastFrame, entry ? &original : nullptr,
+                                      text ? &plan : nullptr, KauaiText::Services()};
+    int captionStatus;
+    const int result = mm_caption_edit_private_archive(file.get(), &edit, &captionStatus);
+    CheckCaptionEdit(captionStatus);
     CheckTextArchive(result);
-    Require(file->FSave(kctgSoc), "Cannot save the 2D text working copy.");
+    Require(mm_private_archive_save(file.get(), kctgSoc), "Cannot save the 2D text working copy.");
     return copy;
 }
