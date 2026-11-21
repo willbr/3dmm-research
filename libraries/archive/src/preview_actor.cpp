@@ -33,7 +33,6 @@ PreviewActor::~PreviewActor()
     Host host = {this};
     auto services = host.Services();
     mm_preview_actor_dispose(&core, &services);
-    ReleasePpo(&textMaterial);
     mm_actor_sounds_dispose(&motionSounds);
 }
 bool PreviewActor::Load(const MMMovieSessionGraph &graph, ChunkNumber number,
@@ -114,13 +113,9 @@ PMaterial_MTRL PreviewActor::TextMaterial() const
 }
 bool PreviewActor::SetTextMaterial(std::int32_t source, std::uint32_t number)
 {
-    if (!Ptmpl() || !Ptmpl()->FIsTdt() || !Pbody()) return false;
-    const TAGOnFile tag = {source, 0, kctgMtrl, number};
-    auto file = resolve(tag);
-    auto material = file ? static_cast<PMaterial_MTRL>(file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl)) : nullptr;
-    if (!material) return false;
-    ReleasePpo(&textMaterial); textMaterial = material;
-    Pbody()->SetPartSetMtrl(0, material); return true;
+    Host host = {this};
+    const auto services = host.Services();
+    return host.Result(mm_preview_actor_set_material(&core, source, number, &services));
 }
 bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number, std::function<void(PTemplate)> bindTemplate)
 {

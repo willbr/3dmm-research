@@ -20,6 +20,7 @@ typedef struct Host
     int calls, fail_at, failure, fault, releases[4], released, templates, bodies;
     int prop, text, child_calls, fetches, poses, locations, clears, motions, resets, applies;
     int fail_alloc, alloc_live, draft_bodies, costume_saved, costume_restored, material_overrides;
+    int material_refs, material_failure;
     MMStorageAllocator allocator;
     int token[4];
     MMActorPoint point;
@@ -552,10 +553,29 @@ static void playback(void)
     assert(mm_preview_actor_position(&h.actor, 1, &h.services) == -1 && h.actor.state.onStage == before.onStage);
     dispose(&h);
 }
-static int material_override(void *context)
+static int fetch_material(void *context, MMI32 source, MMU32 number, void **out)
 {
     Host *h = (Host *)context;
-    assert(h->actor.state.frame == 2 && h->actor.state.onStage);
+    if (source != 4 || number > 1)
+        return 0;
+    *out = h->token + 2 + number;
+    ++h->material_refs;
+    return 1;
+}
+
+static void release_material(void *context, void *material)
+{
+    Host *h = (Host *)context;
+    assert(h->material_refs > 0 && (material == h->token + 2 || material == h->token + 3));
+    --h->material_refs;
+}
+
+static int material_override(void *context, void *body, void *material)
+{
+    Host *h = (Host *)context;
+    assert(body == h->actor.body && (material == h->token + 2 || material == h->token + 3));
+    if (h->material_failure)
+        return -2;
     ++h->material_overrides;
     return 1;
 }
@@ -567,19 +587,33 @@ static void replace_events(void)
     int failure;
     setup(&h);
     assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
-    h.services.apply_material_override = material_override;
-    assert(!mm_preview_actor_seek(&h.actor, 100002, &h.services) && !h.material_overrides);
+    h.services.fetch_material = fetch_material;
+    h.services.release_material = release_material;
+    h.services.apply_material = material_override;
+    assert(!mm_preview_actor_set_material(&h.actor, 4, 0, &h.services));
+    h.text = 1;
+    assert(mm_preview_actor_set_material(&h.actor, 4, 0, &h.services));
+    assert(h.actor.material_override == h.token + 2 && h.material_refs == 1);
+    assert(!mm_preview_actor_set_material(&h.actor, 5, 1, &h.services));
+    h.material_failure = 1;
+    assert(mm_preview_actor_set_material(&h.actor, 4, 1, &h.services) == -2);
+    assert(h.actor.material_override == h.token + 2 && h.material_refs == 1);
+    h.material_failure = 0;
+    assert(mm_preview_actor_set_material(&h.actor, 4, 1, &h.services));
+    assert(h.actor.material_override == h.token + 3 && h.material_refs == 1);
+    assert(!mm_preview_actor_seek(&h.actor, 100002, &h.services) && h.material_overrides == 2);
     assert(mm_preview_actor_seek(&h.actor, 2, &h.services));
-    assert(h.material_overrides == 1);
+    assert(h.material_overrides == 3);
     expected = h.actor.state;
     h.actor.state.action = 99;
     h.actor.state.nextEvent = h.count;
     assert(mm_preview_actor_replay_track(&h.actor, 2, &h.services));
-    assert(h.material_overrides == 1);
+    assert(h.material_overrides == 3);
     assert(h.actor.state.frame == expected.frame && h.actor.state.action == expected.action);
     assert(h.actor.state.nextEvent == expected.nextEvent && h.actor.state.onStage == expected.onStage);
     assert(h.resets && h.clears && h.motions && h.actor.events == &h);
     dispose(&h);
+    assert(!h.material_refs);
     for (failure = -2; failure <= 0; ++failure)
     {
         setup(&h);

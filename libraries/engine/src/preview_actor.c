@@ -50,6 +50,11 @@ void mm_preview_actor_dispose(MMPreviewActor *p, const MMPreviewActorServices *s
     p->tmpl = 0;
     if (s->tags)
         release_track(p, s->tags);
+    if (p->material_override)
+    {
+        s->release_material(s->context, p->material_override);
+        p->material_override = NULL;
+    }
 }
 int mm_preview_actor_replay_track(MMPreviewActor *p, MMI32 frame, const MMPreviewActorServices *s)
 {
@@ -574,9 +579,33 @@ static int seek_actor(MMPreviewActor *p, MMI32 target, const MMPreviewActorServi
 int mm_preview_actor_seek(MMPreviewActor *p, MMI32 target, const MMPreviewActorServices *s)
 {
     int result = seek_actor(p, target, s);
-    if (result > 0 && s->apply_material_override)
-        return s->apply_material_override(s->context);
+    if (result > 0 && p->material_override && p->body)
+        return s->apply_material(s->context, p->body, p->material_override);
     return result;
+}
+
+int mm_preview_actor_set_material(MMPreviewActor *p, MMI32 source, MMU32 number, const MMPreviewActorServices *s)
+{
+    void *next = NULL, *previous;
+    int result;
+    if (!p->body || !p->tmpl || !s->text(s->context, p->tmpl))
+        return 0;
+    result = s->fetch_material(s->context, source, number, &next);
+    if (result > 0 && next)
+    {
+        result = s->apply_material(s->context, p->body, next);
+        if (result > 0)
+        {
+            previous = p->material_override;
+            p->material_override = next;
+            if (previous)
+                s->release_material(s->context, previous);
+            return result;
+        }
+    }
+    if (next)
+        s->release_material(s->context, next);
+    return result <= 0 ? result : 0;
 }
 
 static float lower(float a, float b) { return b < a ? b : a; }

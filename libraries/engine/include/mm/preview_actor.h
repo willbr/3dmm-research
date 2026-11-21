@@ -21,7 +21,7 @@ extern "C"
         MMActorState state, orientation;
         MMPreviewActorShape shape;
         MMI32 original[3];
-        void *tmpl, *body, *route, *events;
+        void *tmpl, *body, *route, *events, *material_override;
         int inactive, orientation_reset, sound_display;
         MMI32 event_source;
     } MMPreviewActor;
@@ -57,7 +57,9 @@ extern "C"
         int (*default_costume)(void *, void *, void *), (*motion_cues)(void *);
         int (*duplicate_body)(void *, void *original, void **draft);
         int (*adjust_text_body)(void *, void *text, void *body);
-        int (*apply_material_override)(void *);
+        int (*fetch_material)(void *, MMI32 source, MMU32 number, void **);
+        void (*release_material)(void *, void *);
+        int (*apply_material)(void *, void *body, void *material);
     } MMPreviewActorServices;
     /* Unique owning template/body handles. The track handles can also own
      * their tables when the services supply tags. Effects are synchronous
@@ -108,6 +110,10 @@ extern "C"
      * the entire actor and release the draft on failure, including pose errors. */
     int mm_preview_actor_replace_template(MMPreviewActor *, MMI32 source, MMU32 number,
                                           const MMPreviewActorServices *);
+    /* Hold an owned text material independently of the body, for reapplication
+     * after seeks. A failed fetch or apply retains the previous override. */
+    int mm_preview_actor_set_material(MMPreviewActor *, MMI32 source, MMU32 number,
+                                     const MMPreviewActorServices *);
     int mm_preview_actor_seek(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_replay_track(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_position(MMPreviewActor *, int select_cel, const MMPreviewActorServices *);

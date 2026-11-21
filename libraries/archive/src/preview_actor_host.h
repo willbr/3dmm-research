@@ -149,12 +149,20 @@ struct PreviewActor::Host
             });
         };
         s.clear_cues = [](void *v) { static_cast<Host *>(v)->actor->sounds.clear(); };
-        s.apply_material_override = [](void *v) {
+        s.fetch_material = [](void *v, MMI32 source, MMU32 number, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                auto actor = h.actor;
-                if (actor->textMaterial && actor->Pbody())
-                    actor->Pbody()->SetPartSetMtrl(0, actor->textMaterial);
+                const auto file = h.actor->resolve({source, 0, kctgMtrl, number});
+                if (!file)
+                    return false;
+                *out = file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl);
+                return *out != nullptr;
+            });
+        };
+        s.release_material = [](void *, void *material) { static_cast<PMaterial_MTRL>(material)->Release(); };
+        s.apply_material = [](void *v, void *body, void *material) -> int {
+            return static_cast<Host *>(v)->Guard([&] {
+                static_cast<PBody>(body)->SetPartSetMtrl(0, static_cast<PMaterial_MTRL>(material));
                 return 1;
             });
         };

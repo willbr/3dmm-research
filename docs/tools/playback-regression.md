@@ -19768,3 +19768,28 @@ the other 19. The disk-space guard interrupted the continuous run after the
 retail capture. Logs and the seek comparison are in `tmp/c89-action-preview`.
 Exact action preview traces are under `c89-action-preview/traces` in the
 generated cache on `D:`.
+
+## 3D text material edits through the shared C89 material code (21 November 2026)
+
+C89 validates and compares editable appearance values, reads the renderer
+material, and encodes lighting fractions and the fixed-point texture mapping
+for the archive. The source material supplies the texture and determines
+whether the mapping is written. The Preview actor retains its override in C89,
+reapplies it after seeking, and releases it on disposal. A failed lookup or
+application preserves the previous override.
+
+The headless Marcus fixture preserved native precision, an unchanged edit's
+document revision, undo, and exact pixels after reopening a textured text
+movie. All seven saved `.3mm` fixtures matched the previous bytes. The
+standalone material fixture covers solid and textured archive output, and
+the actor fixture covers both successful and failed override replacement.
+All 193 standalone C89 checks passed, including strict syntax. The material
+and Preview actor checks passed under AddressSanitizer. Native Preview,
+SDL scene Preview, and the Marcus player suite passed.
+
+In `20261121T185143Z-dacaaabd`, retail, SDL, and Marcus agreed on both seek
+frames and cameras and visited the same two frames in continuous playback.
+SDL and Marcus produced identical seek canvases, each differing from retail
+at one pixel per frame. SDL's presentation interval was within 0.7 ms of
+retail's. The harness reported Marcus timing and both continuous pixel
+comparisons as inconclusive. Evidence is in `tmp/c89-text-materials`.

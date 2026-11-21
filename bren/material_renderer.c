@@ -91,6 +91,14 @@ static void transform(void *context, void *handle, const MMI32 matrix[6])
     memcpy(&material->map_transform, matrix, sizeof(material->map_transform));
 }
 
+static int read_mapping(void *context, void *handle, MMI32 matrix[6])
+{
+    const br_material *material = (const br_material *)handle;
+    (void)context;
+    memcpy(matrix, &material->map_transform, sizeof(material->map_transform));
+    return material->colour_map != NULL;
+}
+
 static void *read_pixelmap(void *context, const void *path)
 {
     (void)context;
@@ -120,6 +128,7 @@ void mm_brender_material_services(MMMaterialServices *s)
     s->map = map;
     s->height = height;
     s->transform = transform;
+    s->read_mapping = read_mapping;
     s->read_pixelmap = read_pixelmap;
     s->free_pixelmap = free_pixelmap;
 }

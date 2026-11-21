@@ -362,6 +362,13 @@ static void transform(void *p, void *h, const MMI32 m[6])
     (void)p;
     memcpy(((Handle *)h)->matrix, m, 6 * sizeof(*m));
 }
+static int read_mapping(void *p, void *h, MMI32 out[6])
+{
+    const Handle *handle = (const Handle *)h;
+    (void)p;
+    memcpy(out, handle->matrix, sizeof(handle->matrix));
+    return handle->texture != NULL;
+}
 static int allocate_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
     ChunkIndexFixture *index = p;
@@ -508,6 +515,7 @@ static void setup(Test *t)
     t->s.map = map;
     t->s.height = height;
     t->s.transform = transform;
+    t->s.read_mapping = read_mapping;
     t->s.write_texture = write_texture;
     t->s.read_bitmap = read_bitmap;
     t->s.pixelmap_path = pixelmap_path;
@@ -798,6 +806,64 @@ static void appearance_writes(void)
             balanced(&t);
         }
 }
+static void editable_view(void)
+{
+    Test t;
+    Object *o;
+    MMArchiveWriter writer = {0};
+    MMChunkPayloadServices payload = {0};
+    MMMaterialAppearance requested = {0}, read, close;
+    MMMaterialDescription decoded;
+    MMU32 number;
+    int textured;
+    requested.colour = 0x123456;
+    requested.index_base = 15;
+    requested.index_range = 8;
+    requested.ambient = .5f;
+    requested.diffuse = .25f;
+    requested.specular = 1;
+    requested.shininess = 10.25f;
+    requested.mapping[0] = 1;
+    requested.mapping[3] = 1;
+    requested.mapping[4] = -.5f;
+    assert(mm_material_appearance_valid(&requested));
+    close = requested;
+    close.ambient += .00001f;
+    assert(mm_material_appearance_equal(&close, &requested));
+    close.mapping[4] += .001f;
+    assert(!mm_material_appearance_equal(&close, &requested));
+    close.index_base = 250;
+    assert(!mm_material_appearance_valid(&close));
+    payload.files = &author_files;
+    writer.payloads = &payload;
+    for (textured = 0; textured < 2; ++textured)
+    {
+        setup(&t);
+        o = (Object *)mm_material_new(-1, -1, &t.s);
+        assert(o);
+        if (textured)
+        {
+            mm_reference_add(&t.texture.refs);
+            map(&t, o->material.handle, &t.texture_view, NULL);
+        }
+        mm_material_read_view(&o->material, &read, &t.s);
+        assert(read.textured == textured && read.index_base == 15 && read.ambient == 6553 / 65535.f);
+        requested.textured = !textured;
+        writer.edit = author_editor(&t);
+        number = 99;
+        assert(mm_material_write_view(&o->material, &writer, 3, &number, &requested, &t.s) && number == 0);
+        assert(t.index.count == (textured ? 3U : 1U));
+        assert(mm_material_header_read(t.written, 0, 0x0303, &decoded));
+        assert(decoded.ambient == 32768 && decoded.diffuse == 16384 && decoded.specular == 65535);
+        assert(decoded.power == 671744 && decoded.colour == requested.colour);
+        if (textured)
+            assert(t.written_transform[20] == 0 && t.written_transform[21] == 128 &&
+                   t.written_transform[22] == 255 && t.written_transform[23] == 255);
+        release(&t, o);
+        balanced(&t);
+    }
+}
+
 static void imports(void)
 {
     Test t;
@@ -834,6 +900,7 @@ int main(void)
     costume_slots();
     construction_and_writes();
     appearance_writes();
+    editable_view();
     imports();
     puts("C89 material resources: wire codecs, partial owners, factories, imports, writes and failure cleanup passed.");
     return 0;

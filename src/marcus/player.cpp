@@ -1,4 +1,5 @@
 #include "player.h"
+#include "mm/material_resource.h"
 #include "mm/movie_data.h"
 #include "mm/movie_publish.h"
 #include "mm/movie_scene.h"
@@ -1404,23 +1405,27 @@ static MarcusTextMaterial PublicMaterial(const MM::PreviewTextMaterial &m)
     out.ambient = m.ambient; out.diffuse = m.diffuse; out.specular = m.specular; out.shininess = m.shininess;
     std::copy(m.mapping, m.mapping + 6, out.mapping); return out;
 }
+static MMMaterialAppearance CoreMaterial(const MM::PreviewTextMaterial &m)
+{
+    MMMaterialAppearance out = {m.colour, m.indexBase, m.indexRange, m.ambient, m.diffuse, m.specular, m.shininess,
+                                {}, m.textured};
+    std::copy_n(m.mapping, 6, out.mapping);
+    return out;
+}
 static bool ValidMaterial(const MarcusTextMaterial &m, MM::Error &error)
 {
     if (!m.enabled) return true;
-    auto range = [](float n, float low, float high) { return std::isfinite(n) && n >= low && n <= high; };
-    if (!range(m.ambient, 0, 1) || !range(m.diffuse, 0, 1) || !range(m.specular, 0, 1) || !range(m.shininess, 0, 32700) ||
-        m.colour > 0xffffff || m.index_base > 255 || m.index_range > 255 || m.index_base + m.index_range > 255 ||
-        std::any_of(m.mapping, m.mapping + 6, [&](float n) { return !range(n, -32700, 32700); }))
+    const auto value = CoreMaterial(NativeMaterial(m));
+    if (!mm_material_appearance_valid(&value))
     { error.message = "Material lighting or texture placement is out of range."; return false; }
     return true;
 }
 static bool SameMaterial(const MarcusTextMaterial &a, const MM::PreviewTextMaterial &b)
 {
     if (!a.enabled) return true;
-    const auto close = [](float x, float y) { return std::abs(x - y) < .00002f; };
-    return !a.preset && a.colour == b.colour && a.index_base == b.indexBase && a.index_range == b.indexRange &&
-        close(a.ambient, b.ambient) && close(a.diffuse, b.diffuse) && close(a.specular, b.specular) && close(a.shininess, b.shininess) &&
-        std::equal(a.mapping, a.mapping + 6, b.mapping, close);
+    const auto requested = CoreMaterial(NativeMaterial(a));
+    const auto current = CoreMaterial(b);
+    return !a.preset && mm_material_appearance_equal(&requested, &current);
 }
 static bool WriteMaterial(MarcusPlayer *p, int object, const MarcusTextMaterial &m, const MarcusMovieFile &file, MM::Error &error)
 {

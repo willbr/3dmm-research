@@ -22,7 +22,6 @@ class PreviewActor
     MMPreviewActor core;
     MMActorTrack Track() const { return mm_preview_actor_track(&core); }
     PTemplate Ptmpl() const { return static_cast<PTemplate>(core.tmpl); }
-    PMaterial_MTRL textMaterial = nullptr;
     std::function<PChunkyResourceFile(const TAGOnFile &)> resolve;
     bool ApplyEvent(MMActorState &value, const MMActorTrack &events, LegacyLong index, bool metadataOnly,
                     MMActorSounds *motion = nullptr, std::vector<PreviewSoundCue> *cues = nullptr) const;

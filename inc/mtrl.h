@@ -97,6 +97,8 @@ class Material_MTRL : public Material_MTRL_PAR
                 const MMMaterialDescription *appearance = nullptr, const MMI32 mapping[6] = nullptr);
     bool FWrite(const MMArchiveWriter &, ChunkTagOrType ctg, ChunkNumber *pcno,
                 const MMMaterialDescription *appearance, const MMI32 mapping[6]);
+    void GetAppearance(MMMaterialAppearance &) const;
+    bool FWriteView(const MMArchiveWriter &, ChunkTagOrType, ChunkNumber *, const MMMaterialAppearance &);
 #ifdef DEBUG
     static void MarkShadeTable(void);
 #endif // DEBUG

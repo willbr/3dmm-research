@@ -215,6 +215,95 @@ int mm_material_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedB
     memcpy(out, &object, sizeof(object));
     return 1;
 }
+static int within(float value, float low, float high)
+{
+    return value >= low && value <= high;
+}
+
+static int valid_components(const MMMaterialAppearance *v)
+{
+    unsigned i;
+    if (!within(v->ambient, 0, 1) || !within(v->diffuse, 0, 1) || !within(v->specular, 0, 1) ||
+        !within(v->shininess, 0, 32700) || v->index_base > 255 || v->index_range > 255)
+        return 0;
+    for (i = 0; i < 6; ++i)
+        if (!within(v->mapping[i], -32700, 32700))
+            return 0;
+    return 1;
+}
+
+int mm_material_appearance_valid(const MMMaterialAppearance *v)
+{
+    return valid_components(v) && v->colour <= 0xffffffUL && v->index_base + v->index_range <= 255;
+}
+
+static int close_component(float a, float b)
+{
+    const float delta = a - b;
+    return delta > -.00002f && delta < .00002f;
+}
+
+int mm_material_appearance_equal(const MMMaterialAppearance *a, const MMMaterialAppearance *b)
+{
+    unsigned i;
+    if (a->colour != b->colour || a->index_base != b->index_base || a->index_range != b->index_range ||
+        !close_component(a->ambient, b->ambient) || !close_component(a->diffuse, b->diffuse) ||
+        !close_component(a->specular, b->specular) || !close_component(a->shininess, b->shininess))
+        return 0;
+    for (i = 0; i < 6; ++i)
+        if (!close_component(a->mapping[i], b->mapping[i]))
+            return 0;
+    return 1;
+}
+
+void mm_material_read_view(const MMMaterialResource *source, MMMaterialAppearance *out, const MMMaterialServices *s)
+{
+    MMMaterialDescription material;
+    MMI32 mapping[6];
+    unsigned i;
+    s->describe(s->context, source->handle, &material);
+    out->textured = s->read_mapping(s->context, source->handle, mapping);
+    out->colour = material.colour;
+    out->index_base = material.index_base;
+    out->index_range = material.index_range;
+    out->ambient = material.ambient / 65535.f;
+    out->diffuse = material.diffuse / 65535.f;
+    out->specular = material.specular / 65535.f;
+    out->shininess = material.power / 65536.f;
+    for (i = 0; i < 6; ++i)
+        out->mapping[i] = mapping[i] / 65536.f;
+}
+
+static MMU32 fraction(float gain)
+{
+    const float scaled = gain * 65535.f;
+    return (MMU32)((double)scaled + .5);
+}
+
+int mm_material_write_view(const MMMaterialResource *source, const MMArchiveWriter *writer,
+                           MMU32 type, MMU32 *number, const MMMaterialAppearance *v, const MMMaterialServices *s)
+{
+    MMMaterialDescription material = {0};
+    MMI32 mapping[6];
+    unsigned i;
+    int textured;
+    if (!valid_components(v))
+        return 0;
+    material.colour = v->colour;
+    material.index_base = v->index_base;
+    material.index_range = v->index_range;
+    material.ambient = fraction(v->ambient);
+    material.diffuse = fraction(v->diffuse);
+    material.specular = fraction(v->specular);
+    material.power = (MMI32)(v->shininess * 65536.f);
+    textured = s->read_mapping(s->context, source->handle, mapping);
+    if (textured)
+        for (i = 0; i < 6; ++i)
+            mapping[i] = (MMI32)(v->mapping[i] * 65536.f);
+    return mm_material_write_appearance(source, &writer->edit, writer->payloads->files, type, number, &material,
+                                        textured ? mapping : NULL, s);
+}
+
 int mm_material_write_appearance(const MMMaterialResource *m, const MMChunkEdit *edit, const MMBlockFileServices *files,
                                  MMU32 type, MMU32 *number, const MMMaterialDescription *appearance, const MMI32 mapping[6],
                                  const MMMaterialServices *s)

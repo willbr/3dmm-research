@@ -201,6 +201,21 @@ bool Material_MTRL::FWrite(const MMArchiveWriter &writer, ChunkTagOrType type, C
     std::memcpy(number, &n, sizeof(n));
     return ok;
 }
+void Material_MTRL::GetAppearance(MMMaterialAppearance &out) const
+{
+    const auto services = _Services();
+    mm_material_read_view(&_material, &out, &services);
+}
+
+bool Material_MTRL::FWriteView(const MMArchiveWriter &writer, ChunkTagOrType type, ChunkNumber *number,
+                              const MMMaterialAppearance &view)
+{
+    const auto services = _Services();
+    MMU32 result = *number;
+    const auto ok = mm_material_write_view(&_material, &writer, type, &result, &view, &services);
+    *number = result;
+    return ok != 0;
+}
 Material_MTRL::~Material_MTRL()
 {
     AssertBaseThis(0);

@@ -493,12 +493,17 @@ bool Preview::TextMaterial(int object, bool preset, std::int32_t source, std::ui
     error = {};
     auto material = _impl->FetchTextMaterial(object, preset, source, number);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot read the text material.");
-    const auto b = material->Pbmtl();
-    out.textured = b->colour_map != nullptr; out.colour = b->colour;
-    out.indexBase = b->index_base; out.indexRange = b->index_range;
-    out.ambient = b->ka / 65535.f; out.diffuse = b->kd / 65535.f; out.specular = b->ks / 65535.f;
-    out.shininess = BrScalarToFloat(b->power);
-    for (int i = 0; i < 6; ++i) out.mapping[i] = BrScalarToFloat(b->map_transform.m[i / 2][i % 2]);
+    MMMaterialAppearance appearance;
+    material->GetAppearance(appearance);
+    out.textured = appearance.textured != 0;
+    out.colour = appearance.colour;
+    out.indexBase = appearance.index_base;
+    out.indexRange = appearance.index_range;
+    out.ambient = appearance.ambient;
+    out.diffuse = appearance.diffuse;
+    out.specular = appearance.specular;
+    out.shininess = appearance.shininess;
+    std::copy_n(appearance.mapping, 6, out.mapping);
     material->Release(); return true;
 }
 bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number,
@@ -516,21 +521,11 @@ bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, st
     if (!file)
         return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
     const auto writer = mm_private_archive_writer(file.get());
-    MMMaterialDescription appearance = {};
-    appearance.colour = value.colour;
-    appearance.ambient = static_cast<br_ufraction>(std::lround(value.ambient * 65535));
-    appearance.diffuse = static_cast<br_ufraction>(std::lround(value.diffuse * 65535));
-    appearance.specular = static_cast<br_ufraction>(std::lround(value.specular * 65535));
-    appearance.power = BrFloatToScalar(value.shininess);
-    appearance.index_base = value.indexBase;
-    appearance.index_range = value.indexRange;
-    const bool textured = material->Pbmtl()->colour_map != nullptr;
-    MMI32 mapping[6];
-    if (textured)
-        for (int i = 0; i < 6; ++i)
-            mapping[i] = BrFloatToScalar(value.mapping[i]);
+    MMMaterialAppearance appearance = {value.colour, value.indexBase, value.indexRange, value.ambient, value.diffuse,
+                                      value.specular, value.shininess, {}, value.textured};
+    std::copy_n(value.mapping, 6, appearance.mapping);
     ChunkNumber chunk = 0;
-    if (!material->FWrite(writer, kctgMtrl, &chunk, &appearance, textured ? mapping : nullptr) || chunk != 0)
+    if (!material->FWriteView(writer, kctgMtrl, &chunk, appearance) || chunk != 0)
         return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
     return mm_private_archive_save(file.get(), kctgSoc) || Fail(error, ErrorCode::decode_failed, "Cannot save the text material.");
 }
