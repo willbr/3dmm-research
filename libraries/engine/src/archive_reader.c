@@ -2,6 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/archive_reader.h"
 #include "mm/actor_data.h"
+#include "mm/chunk_owner.h"
 #include "mm/scene_data.h"
 #include "mm/string_ops.h"
 #include "mm/string_wire.h"
@@ -75,6 +76,18 @@ int mm_archive_reader_open(const MMChunkAccess *chunks, void *archive, const MMC
     reader->chunks = *chunks;
     *out = reader;
     return MM_ARCHIVE_READ_OK;
+}
+
+int mm_archive_reader_open_owner(MMChunkOwnerRead *owner, const MMArchiveReaderOptions *options, MMArchiveReader **out)
+{
+    MMArchiveReaderOptions bound;
+    MMChunkAccess access;
+    if (!owner || !owner->storage || !options)
+        return MM_ARCHIVE_INVALID_PAYLOAD;
+    access = mm_chunk_owner_access(owner->storage);
+    bound = *options;
+    bound.name = mm_movie_owner_graph(owner).name;
+    return mm_archive_reader_open(&access, owner, &owner->payloads, &bound, out);
 }
 
 int mm_archive_read_index(const MMReadStream *stream, const MMChunkPolicy *policy, MMChunkIndex **out)

@@ -9,7 +9,6 @@
 #include <locale>
 #include <stdexcept>
 #include "soc_core.h"
-#include "engine_movie_graph.h"
 #include "engine_movie_source.h"
 #include "mm/archive_reader.h"
 #include "mm/native_archive_file.h"
@@ -23,7 +22,7 @@ namespace MM
 struct Archive::Impl
 {
     Options options;
-    PChunkyFile file = pvNil;
+    PChunkyResourceFile live = pvNil;
     MMNativeArchiveFile *streamFile = nullptr;
     String nativePath;
     bool canPreview = false;
@@ -36,7 +35,7 @@ struct Archive::Impl
     ~Impl()
     {
         mm_archive_reader_close(reader);
-        ReleasePpo(&file);
+        ReleasePpo(&live);
         mm_native_archive_file_release(streamFile);
     }
     bool Check(int status, std::size_t index, Error &error) const;
@@ -106,8 +105,8 @@ bool Archive::CanPreview() const
 }
 Chunky::ChunkyResourceFile *Archive::NewResourceCache(std::int32_t budget) const
 {
-    if (_impl->file)
-        return ChunkyResourceFile::PcrfNew(_impl->file, budget);
+    if (_impl->live)
+        return _impl->live->PcrfNewSibling(budget);
     if (!_impl->canPreview)
         return nullptr;
     return ChunkyResourceFile::PcrfNewIndex(mm_archive_reader_wire_index(_impl->reader), _impl->streamFile,
@@ -119,9 +118,9 @@ MMArchiveReader *Archive::Reader() const
 }
 MMMovieSessionGraph Archive::PlaybackGraph() const
 {
-    if (mm_archive_reader_wire_index(_impl->reader))
-        return mm_archive_reader_graph(_impl->reader);
-    return EngineMovieGraph::FromFile(_impl->file);
+    if (_impl->live)
+        return mm_movie_owner_graph(_impl->live->ReadOwner());
+    return mm_archive_reader_graph(_impl->reader);
 }
 bool ReadSoundCatalogStyle(const Archive &archive, std::uint32_t number, std::int32_t &style)
 {
@@ -364,22 +363,15 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
             nullptr,
             KauaiEncodeLegacyChunkName,
         };
-        const bool preferLive = mode == OpenMode::preview || mode == OpenMode::resources;
-        const auto existingFile = preferLive ? FileObject::PfilFromFni(&filename) : nullptr;
-        const bool nativeGraph = mode == OpenMode::live ||
-            (existingFile && ((existingFile->GrffilCur() & ffilWriteEnable) || ChunkyFile::PcflFromFni(&filename)));
+        bool useLive = false;
+        if (mode != OpenMode::inspection)
+            opened->live = ChunkyResourceFile::PcrfOpenShared(&filename, 0, mode == OpenMode::live, useLive);
         int status;
-        if (nativeGraph)
+        if (useLive)
         {
-            opened->file = ChunkyFile::PcflOpen(&filename, fcflNil);
-            if (!opened->file)
+            if (!opened->live)
                 return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-            const auto graph = EngineMovieGraph::FromFile(opened->file);
-            const auto owner = opened->file->ReadOwner();
-            MMChunkAccess access;
-            graph.access(graph.context, &access);
-            readerOptions.name = graph.name;
-            status = mm_archive_reader_open(&access, owner, &owner->payloads, &readerOptions, &opened->reader);
+            status = mm_archive_reader_open_owner(opened->live->ReadOwner(), &readerOptions, &opened->reader);
         }
         else
         {
@@ -401,8 +393,8 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
         if (status == MM_ARCHIVE_MEMORY)
             throw std::bad_alloc();
         if (status != MM_ARCHIVE_READ_OK)
-            return nativeGraph ? Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.") :
-                                 Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
+            return useLive ? Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.") :
+                             Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
         opened->canPreview = mode != OpenMode::inspection;
         opened->path = utf8Path;
         const auto access = mm_archive_reader_access(opened->reader);

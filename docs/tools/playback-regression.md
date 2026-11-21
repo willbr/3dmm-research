@@ -19667,3 +19667,30 @@ three known canvas differences from retail per port. SDL and Marcus matched
 all three archived V3dmm frames, cameras, and canvas hashes in
 `20261121T180000Z-e63ccfcd`. Evidence is in
 `tmp/c89-studio-startup-cache/evidence`.
+
+## Shared working archives in Preview and Studio (21 November 2026)
+
+Archive opens that need a working handle now use the C89 archive owner.
+Preview and Studio source lookup check the same registry and retain the
+existing working archive when present. The C89 archive reader binds the
+owner's index, names, and payload services. Preview creates a sibling
+resource cache over that owner. Ordinary file inspection still reads the
+saved index and bytes directly.
+
+The media fixture stages a replacement wave payload in a C89 working
+archive. Preview and live Archive opens see the replacement after the
+original cache is released. File inspection sees the original payload.
+The fixture, Archive API checks, and Studio source integration passed in
+native x64 and SDL. Both source traces matched the previous trace exactly.
+All 193 standalone C89 checks passed. The block and chunk owner checks passed
+under AddressSanitizer. Native Preview reproduced its media, admission,
+session, scene, metadata, and background traces. The Marcus player
+integration suite passed.
+
+SDL Studio saved and reopened an authored `.3mm` and an edited portable
+storyboard. The authored `.3mm` matched the prior bytes. In
+`20261121T181055Z-a6f65c9f`, retail, SDL, and Marcus agreed on all 11 sampled
+frames and cameras. Each reproduced its prior canvas hashes, with three
+known canvas differences from retail per port. In
+`20261121T181109Z-0e901767`, SDL and Marcus matched all three archived V3dmm
+frames, cameras, and hashes. Evidence is in `tmp/c89-shared-preview-owner`.

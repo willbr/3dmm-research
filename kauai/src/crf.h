@@ -149,6 +149,9 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax);
     static PChunkyResourceFile PcrfNewPrivate(MMPrivateArchive *, LegacyLong cbMax);
     static PChunkyResourceFile PcrfOpenWorking(PFilename, bool create, LegacyLong budget = 0);
+    // Use a live owner when one exists or when the file needs a shared handle.
+    // A selected live path can still fail to open its resource cache.
+    static PChunkyResourceFile PcrfOpenShared(PFilename, LegacyLong budget, bool preferWorking, bool &selected);
     static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, PFileObject, LegacyLong cbMax);
     static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, void *backing, const MMBlockFileServices &,
                                            String &path, LegacyLong cbMax);

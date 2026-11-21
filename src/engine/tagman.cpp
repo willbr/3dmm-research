@@ -77,15 +77,11 @@ struct NativeDiscoveryHost
 
 PChunkyResourceFile OpenSourceArchive(Filename &filename, LegacyLong budget, bool media)
 {
-    const auto existing = ChunkyFile::PcflFromFni(&filename);
-    if (existing)
-        return existing->FSetGrfcfl(fcflNil) ? ChunkyResourceFile::PcrfNew(existing, budget) : nullptr;
-    const auto existingFile = FileObject::PfilFromFni(&filename);
-    if (const auto owner = KauaiFindWorkingArchive(existingFile))
-        return ChunkyResourceFile::PcrfNewPrivate(owner, budget);
-    if (media || (existingFile && (existingFile->GrffilCur() & (ffilWriteEnable | ffilDenyRead))) ||
-        (filename.Grfvk() & (fvkCD | fvkFloppy | fvkRemovable)))
-        return ChunkyResourceFile::PcrfOpenWorking(&filename, false, budget);
+    bool selected;
+    const auto shared = ChunkyResourceFile::PcrfOpenShared(
+        &filename, budget, media || (filename.Grfvk() & (fvkCD | fvkFloppy | fvkRemovable)), selected);
+    if (selected)
+        return shared;
 
     String path;
     filename.GetStnPath(&path);

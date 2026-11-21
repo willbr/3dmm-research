@@ -67,6 +67,8 @@ typedef struct MMArchiveRecord
  * of another chunk or close. Outputs are published only on success. */
 int mm_archive_reader_open(const MMChunkAccess *, void *archive, const MMChunkPayloadServices *,
                            const MMArchiveReaderOptions *, MMArchiveReader **);
+/* Bind the index, payload services and names of a borrowed live owner. */
+int mm_archive_reader_open_owner(struct MMChunkOwnerRead *, const MMArchiveReaderOptions *, MMArchiveReader **);
 /* Open an owned, sorted index with retail graph validation. */
 int mm_archive_read_index(const MMReadStream *, const MMChunkPolicy *, MMChunkIndex **);
 /* Own an immutable index and decoded cache over borrowed physical bytes. The

@@ -175,7 +175,7 @@ class Archive
     bool Open(const std::string &utf8Path, Error &error);
     // Index the file's stored bytes for read-only archive inspection.
     bool OpenForInspection(const std::string &utf8Path, Error &error);
-    // Open an archive for Preview. Reuse a live Kauai graph when present.
+    // Open an archive for Preview. Reuse a live archive owner when present.
     // Otherwise serve Preview directly from the validated read-only index.
     bool OpenForPreview(const std::string &utf8Path, Error &error);
     void Close();

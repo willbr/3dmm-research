@@ -229,6 +229,18 @@ PChunkyResourceFile ChunkyResourceFile::PcrfOpenWorking(PFilename name, bool cre
     mm_private_archive_close(archive);
     return resources;
 }
+PChunkyResourceFile ChunkyResourceFile::PcrfOpenShared(PFilename name, LegacyLong budget, bool preferWorking,
+                                                     bool &selected)
+{
+    selected = true;
+    const auto file = FileObject::PfilFromFni(name);
+    if (const auto owner = KauaiFindWorkingArchive(file))
+        return PcrfNewPrivate(owner, budget);
+    if (const auto legacy = ChunkyFile::PcflFromFni(name))
+        return legacy->FSetGrfcfl(fcflNil) ? PcrfNew(legacy, budget) : nullptr;
+    selected = preferWorking || (file && (file->GrffilCur() & (ffilWriteEnable | ffilDenyRead)));
+    return selected ? PcrfOpenWorking(name, false, budget) : nullptr;
+}
 PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, PFileObject backing, LegacyLong budget)
 {
     AssertPo(backing, 0);

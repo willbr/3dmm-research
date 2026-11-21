@@ -66,6 +66,35 @@ static bool Add(PChunkyFile file, ChunkTagOrType type, const std::vector<byte> &
 {
     return file->FAddPv(const_cast<byte *>(bytes.data()), LegacyLong(bytes.size()), type, number);
 }
+static bool CheckSharedArchive(Filename &filename, const std::string &path, ChunkNumber number,
+                               const std::vector<byte> &stored)
+{
+    auto working = ChunkyResourceFile::PcrfOpenWorking(&filename, false);
+    if (!working)
+        return false;
+    auto writer = working->ArchiveWriter();
+    std::vector<byte> staged = {4, 9, 16};
+    const auto write = [](void *context, const MMStorageWriter *output) -> int {
+        const auto bytes = static_cast<const std::vector<byte> *>(context);
+        return output->write_at(output->context, 0, bytes->data(), bytes->size());
+    };
+    MM::Archive preview, inspector, live;
+    MM::Error error;
+    bool ok = mm_chunk_put_payload(&writer, kctgWave, number, staged.size(), write, &staged) == MM_CHUNK_OK &&
+              preview.OpenForPreview(path, error) && live.Open(path, error) && inspector.OpenForInspection(path, error);
+    ReleasePpo(&working);
+    const auto read = [&](MM::Archive &archive, const std::vector<byte> &expected) {
+        const auto &chunks = archive.Chunks();
+        for (std::size_t index = 0; index < chunks.size(); ++index)
+            if (chunks[index].id == MM::Id{kctgWave, number})
+            {
+                MM::PayloadPage page;
+                return archive.ReadPayload(index, 0, 64, page, error) && page.bytes == expected;
+            }
+        return false;
+    };
+    return ok && read(preview, staged) && read(live, staged) && read(inspector, stored);
+}
 static bool Caption(PChunkyFile file, int kind, ChunkNumber *scene)
 {
     RichTextData text;
@@ -292,7 +321,7 @@ int main(int argc, char **argv)
         ok = false;
     mm_archive_reader_close(reader);
     ReleasePpo(&source);
-    if (!ok)
+    if (!ok || !CheckSharedArchive(filename, argv[1], wave, raw))
         return 1;
     std::puts("Preview media: envelope/MIDI boundaries, malformed tails, caption text/properties and failure prefixes "
               "passed.");
