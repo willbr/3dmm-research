@@ -191,6 +191,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   C89 child and tag records. Packet copies, undo, playback, and cleanup use
   those records directly. The native host supplies resource operations and
   the C89 codec writes the legacy 20-byte tag records.
+- Marcus sound imports, built-in sound copies and cue edits use private C89
+  archives over SDL streams. The C archive owns the live index, payload
+  blocks, packed decoding and save. The host supplies historical text
+  conversion and audio normalization.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

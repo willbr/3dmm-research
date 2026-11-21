@@ -16,6 +16,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/animation_dialog.c"
   "${SOURCE}/src/marcus/costume_dialog.c"
   "${SOURCE}/src/marcus/sound_dialog.c"
+  "${SOURCE}/src/marcus/archive_file.c"
   "${SOURCE}/src/marcus/waveform_core.c"
   "${SOURCE}/tests/marcus_waveform_test.c"
   "${SOURCE}/src/marcus/dialog_views.c"

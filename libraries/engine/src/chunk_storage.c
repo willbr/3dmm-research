@@ -481,6 +481,13 @@ static int decode(void *codec, MMI32 format, const void *input, MMU32 bytes, voi
     return mm_codec_decode(format, input, bytes, output, capacity, written) == MM_DATA_OK;
 }
 
+int mm_chunk_packed_decode(const void *input, MMU32 bytes, void *output, MMU32 capacity, MMI32 *written)
+{
+    MMPackedDecoder decoder = {NULL, find_codec, decode};
+    decoder.context = &decoder;
+    return mm_packed_decode(&decoder, input, bytes, output, capacity, written);
+}
+
 int mm_chunk_stored_slice(const MMReadStream *stream, const MMChunkHeader *header, const MMChunkEntry *entry,
                           MMReadSlice *slice)
 {
@@ -493,7 +500,6 @@ int mm_chunk_payload_open(const MMReadStream *stream, const MMChunkHeader *heade
     MMU32 bytes = entry->bytes;
     unsigned char *packed;
     MMI32 expected, written;
-    MMPackedDecoder decoder;
     int status;
     payload->decoded = NULL;
     if (!mm_chunk_stored_slice(stream, header, entry, &payload->slice))
@@ -506,18 +512,15 @@ int mm_chunk_payload_open(const MMReadStream *stream, const MMChunkHeader *heade
     packed = (unsigned char *)malloc((size_t)bytes);
     if (!packed)
         return MM_CHUNK_MEMORY;
-    decoder.context = packed;
-    decoder.find = find_codec;
-    decoder.convert = decode;
     if (!mm_read_exact(payload->stream, 0, packed, (size_t)bytes))
         status = MM_CHUNK_IO;
-    else if (mm_packed_decode(&decoder, packed, bytes, NULL, 0, &expected) != MM_DATA_OK ||
+    else if (mm_chunk_packed_decode(packed, bytes, NULL, 0, &expected) != MM_DATA_OK ||
              (MMU32)(size_t)expected != (MMU32)expected || (MMU32)expected > max_packed_bytes ||
              (exact_size && (MMU32)expected != exact_size))
         status = MM_CHUNK_BAD_FILE;
     else if (!(payload->decoded = (unsigned char *)malloc((size_t)expected)))
         status = MM_CHUNK_MEMORY;
-    else if (mm_packed_decode(&decoder, packed, bytes, payload->decoded, (MMU32)expected, &written) != MM_DATA_OK)
+    else if (mm_chunk_packed_decode(packed, bytes, payload->decoded, (MMU32)expected, &written) != MM_DATA_OK)
     {
         free(payload->decoded);
         payload->decoded = NULL;

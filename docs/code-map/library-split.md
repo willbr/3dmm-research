@@ -5189,6 +5189,14 @@ runtime implementations and final facade removal remain unfinished.
 
 ### Movie sound integration
 
+Marcus opens its sound working copies and the built-in sound library through
+`MMPrivateArchive`. The C owner provides the writer, editor and graph-copy
+bindings, with reference-counted SDL streams for file blocks and C heap
+handles for decoded data. The code reuses the KCDC/KCD2 decoder, counted
+chunk-title format, chunk copier and CHN2 directory writer. Sound preparation,
+library import and cue edits save the working archive directly. The host
+supplies historical title conversion and prepares WAV/MP3 data for import.
+
 `movie_sound.c` owns sound tag resolution/saving, scene/movie child lookup and
 adoption, first-free IDs, cross-movie graph copying, physical MIDI/WAV import
 dispatch, failure cleanup, close-time GC marking and unused-sound discovery.

@@ -19097,3 +19097,37 @@ In sampled-audio suite `20261121T133008Z-74497bb7`, both hosts matched all
 The PCM16 peak matched the previous host captures at 2,176. The archived
 retail peak is 2,380. SDL captured 520,320 PCM frames and Marcus captured
 512,640. Evidence is in `tmp/c89-owner-persistence`.
+
+## Marcus private sound archives in C89 (21 November 2026)
+
+Sound preparation, built-in library import and cue edits now open and save
+their archives through C89 and SDL file streams. Marcus still uses the
+existing name conversion and audio normalization services.
+
+The x64 Marcus sound-edit fixture passed before and after the cutover.
+It exercises WAV and MIDI import, recorded speech, built-in sounds, cue
+edits and undo, actor and motion sounds, and saving and reopening a
+storyboard bundle. The recorded, actor and imported-sound `.3mm` outputs
+matched byte for byte. The built-in sound output differed by two GG row
+alignment bytes and preserved all 12 logical rows and payloads.
+
+All 193 standalone C checks, five focused AddressSanitizer checks, four
+other Marcus checks and two SDL checks passed. The x86 Marcus player
+library also built.
+
+A standalone C probe reopened private archives with KCDC and KCD2
+payloads, rejected a malformed packed header, and recovered on the next
+read. All file references were released on close.
+
+Both hosts matched all three archived V3dmm storyboard frames, camera
+indices and canvas hashes in suite `20261121T134231Z-76297a70`. In
+actor-event suite `20261121T134235Z-64f724b4`, both matched all 60 retail
+frame identities in seek and continuous playback. Seek camera indices
+matched retail and seek canvas hashes matched the previous host captures.
+SDL matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T134346Z-02c5b665`, both hosts matched all
+60 retail frame identities and SDL matched all four retail sound requests.
+The PCM16 peak matched the previous host captures at 2,176. The archived
+retail peak is 2,380. SDL captured 522,720 PCM frames and Marcus captured
+512,640. Evidence is in `tmp/c89-private-sound-archive`.

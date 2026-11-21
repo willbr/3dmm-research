@@ -1,10 +1,8 @@
 #include "sound_edit.h"
 #include "scene_edit.h"
-#include "engine_movie_archive.h"
+#include "archive_file.h"
 #include <SDL3/SDL.h>
 #include "soc_core.h"
-#include "engine_read_stream.h"
-#include "engine_sound_writer.h"
 #include "sdl_audio.h"
 #include "mm/sound_resource.h"
 #include "mm/native_sound.h"
@@ -18,32 +16,56 @@
 ASSERTNAME
 namespace
 {
-struct Release { template<class T> void operator()(T *p) const { if (p) p->Release(); } };
 void Require(bool value, const char *message) { if (!value) throw std::runtime_error(message); }
+using Archive = std::unique_ptr<MMPrivateArchive, decltype(&mm_private_archive_close)>;
+Archive OpenArchive(const std::filesystem::path &path, int mode)
+{
+    MMPrivateArchiveProfile profile = {sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), 0, 0,
+        KauaiEncodeLegacyChunkName,
+        [](void *, const void *bytes, size_t count, int encoding, void *out, size_t capacity) -> size_t {
+            return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(out), capacity);
+        }};
+#ifdef CHUNK_BIG_INDEX
+    profile.expanded = 1;
+#endif
+    Debug(profile.trash_unused = 1;)
+    return Archive(marcus_archive_open(path.u8string().c_str(), mode, &profile), mm_private_archive_close);
+}
 Filename Path(const std::filesystem::path &path)
 {
     String text; Filename result; text.SetSzs(const_cast<char *>(path.u8string().c_str()));
     Require(result.FBuildFromPath(&text), "Invalid sound file path."); return result;
 }
-ChunkNumber Import(PChunkyFile file, const char *path, int style)
+ChunkNumber Import(MMPrivateArchive *file, const char *path, int style)
 {
     auto filename = Path(std::filesystem::u8path(path));
-    std::unique_ptr<FileObject, Release> input(FileObject::PfilOpen(&filename));
+    std::unique_ptr<SDL_IOStream, decltype(&SDL_CloseIO)> input(SDL_IOFromFile(path, "rb"), SDL_CloseIO);
     Require(bool(input), "Cannot open the audio file.");
-    const auto source = EngineReadStream::FromFile(*input);
-    Require(source.length > 0 && source.length <= 64 * 1024 * 1024, "Audio files must be between 1 byte and 64 MiB.");
+    const auto length = SDL_GetIOSize(input.get());
+    Require(length > 0 && length <= 64 * 1024 * 1024, "Audio files must be between 1 byte and 64 MiB.");
+    const MMReadStream source = {input.get(), static_cast<MMU32>(length),
+        [](void *file, MMU32 offset, void *bytes, size_t count) -> int {
+            auto stream = static_cast<SDL_IOStream *>(file);
+            return SDL_SeekIO(stream, offset, SDL_IO_SEEK_SET) == offset && SDL_ReadIO(stream, bytes, count) == count;
+        }};
     auto extension = std::filesystem::u8path(path).extension().u8string();
     std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return char(std::tolower(c)); });
     const bool midi = extension == ".mid" || extension == ".midi";
     Require(midi == (style == MARCUS_SOUND_MUSIC), "Music cues use MIDI files; WAV/MP3 audio uses Effects or Speech.");
     String name;
     filename.GetLeaf(&name);
-    const EngineSoundWriter writer(file, &name);
+    byte wire[kcbMaxDataStn];
+    if (name.Cch())
+        name.GetData(wire);
+    const MMChunkNameValue title = {wire, name.Cch() ? static_cast<MMU32>(name.CbData()) : 0U,
+                                    static_cast<MMU32>(name.Cch())};
+    auto writer = mm_private_archive_writer(file);
+    writer.big_endian = 0;
     ChunkNumber sound;
     int written;
     if (midi)
     {
-        written = mm_sound_import_midi(&source, &writer.name, &sound, &writer.archive);
+        written = mm_sound_import_midi(&source, &title, &sound, &writer);
         Require(written != MM_SOUND_BAD_MIDI, "Cannot import this MIDI file.");
     }
     else
@@ -57,7 +79,7 @@ ChunkNumber Import(PChunkyFile file, const char *path, int style)
         }
         MMMemoryStream payload;
         Require(mm_memory_stream_init(&payload, wave.data(), wave.size()), "Cannot encode this sound in the native movie format.");
-        written = mm_sound_write(&payload.stream, 1, style, &writer.name, &sound, &writer.archive);
+        written = mm_sound_write(&payload.stream, 1, style, &title, &sound, &writer);
     }
     Require(written > 0, "Cannot encode this sound in the native movie format.");
     return sound;
@@ -110,24 +132,25 @@ std::vector<MarcusSoundAsset> MarcusReadSoundAssets(const std::filesystem::path 
 }
 std::shared_ptr<MarcusMovieFile> MarcusPrepareSound(const char *path, int style)
 {
-    auto result = MarcusCreateEventFile(); auto filename = Path(result->path);
-    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflCreate(&filename, fcflWriteEnable));
-    Require(file && Import(file.get(), path, style) == 0 && file->FSave(kctgSoc), "Cannot prepare this audio file.");
+    auto result = MarcusCreateEventFile();
+    auto file = OpenArchive(result->path, MM_PRIVATE_ARCHIVE_CREATE);
+    Require(file && Import(file.get(), path, style) == 0 && mm_private_archive_save(file.get(), kctgSoc),
+            "Cannot prepare this audio file.");
     return result;
 }
 std::shared_ptr<MarcusMovieFile> MarcusEditSound(const std::shared_ptr<MarcusMovieFile> &movie,
     unsigned long scene, const MM::PreviewSoundCue *cue, const MarcusSoundOptions &options, const char *importPath, bool remove,
     const char *libraryPath, unsigned long libraryChunk)
 {
-    auto result = MarcusCopyMovie(movie); auto filename = Path(result->path);
-    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    auto result = MarcusCopyMovie(movie);
+    auto file = OpenArchive(result->path, MM_PRIVATE_ARCHIVE_EDIT);
     Require(bool(file), "Cannot open the sound working copy.");
     ChunkNumber added = 0;
     if (libraryPath)
     {
-        auto name = Path(std::filesystem::u8path(libraryPath));
-        std::unique_ptr<ChunkyFile, Release> library(ChunkyFile::PcflOpen(&name, fcflNil));
-        Require(library && library->FCopy(kctgMsnd, libraryChunk, file.get(), &added), "Cannot copy the selected built-in sound.");
+        auto library = OpenArchive(std::filesystem::u8path(libraryPath), MM_PRIVATE_ARCHIVE_READ);
+        Require(library && mm_private_archive_copy(library.get(), file.get(), kctgMsnd, libraryChunk, &added),
+                "Cannot copy the selected built-in sound.");
     }
     else if (importPath)
         added = Import(file.get(), importPath, options.style);
@@ -137,9 +160,8 @@ std::shared_ptr<MarcusMovieFile> MarcusEditSound(const std::shared_ptr<MarcusMov
                     cue->child, cue->sound.number, cue->queue, cue->actorSound};
     const MMMovieSoundArchiveEdit edit{cue ? &selected : nullptr, (importPath || libraryPath) ? &added : nullptr,
         static_cast<MMI32>(options.frame), static_cast<MMI32>(options.volume), options.style, options.loop, options.queue, remove};
-    MovieArchiveHost host{file.get()};
-    const auto editor = host.Editor();
+    const auto editor = mm_private_archive_editor(file.get());
     CheckSoundArchive(mm_movie_archive_edit_sound(&editor, static_cast<MMU32>(scene), &edit));
-    Require(file->FSave(kctgSoc), "Cannot save sound edits.");
+    Require(mm_private_archive_save(file.get(), kctgSoc), "Cannot save sound edits.");
     return result;
 }
