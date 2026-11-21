@@ -168,17 +168,17 @@ static bool TestMovieContentCore()
         vertices[2].p.v[1] = BR_SCALAR(2);
         face.vertices[1] = 1;
         face.vertices[2] = 2;
-        auto model = Model::PmodlNew(3, vertices, 1, &face);
+        auto model = EngineModel::New(3, vertices, 1, &face);
         ChunkNumber fontNumber = 0, modelNumber = 0;
         if (ok)
         {
             const MovieArchiveFixture archive(resource);
             ok = model && archive.AddBytes(wire.data(), (wire.size)(), kctgTdf, &fontNumber) &&
-                 archive.Add(0, kctgBmdl, &modelNumber) && model->FWrite(archive.writer, kctgBmdl, modelNumber);
+                 archive.Add(0, kctgBmdl, &modelNumber) && EngineModel::Write(model, archive.writer, kctgBmdl, modelNumber);
             for (int i = 0; ok && i < 256; ++i)
                 ok = archive.Adopt(kctgTdf, fontNumber, kctgBmdl, modelNumber, i);
         }
-        ReleasePpo(&model);
+        mm_model_owner_release(model);
         if (ok)
             ok = MovieContentTagAccess::FontSource(resource) &&
                  MovieContentSceneAccess::PlacePoints(movie->Pscen());

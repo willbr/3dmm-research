@@ -103,7 +103,7 @@ class Body : public Body_PAR
     const MMActorMatrix &RootMatrix() const { return _body.shape.bindings[0].matrix; }
     MMBodyDrawView DrawView() const { return {_body.shape.bindings, _body.shape.part_count}; }
     bool FPartSetBounds(LegacyLong set, MMBodyBounds &) const;
-    void SetPartModel(LegacyLong ibact, Model *pmodl);
+    void SetPartModel(LegacyLong ibact, PModel pmodl);
     void SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34);
     void SetPartMatrix(LegacyLong ibact, const MMActorMatrix &);
     void SetPartSetMtrl(LegacyLong ibset, Material_MTRL *pmtrl);

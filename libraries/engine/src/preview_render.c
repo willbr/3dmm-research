@@ -320,8 +320,8 @@ void mm_preview_pose_init(MMPreviewPose *pose, const MMPreviewRenderServices *s)
 void mm_preview_pose_describe(MMPreviewPose *pose, const MMPreviewRenderServices *s)
 {
     s->describe(s->context, &pose->scene);
-    if (pose->scene.model_resource && s->retain_pose_resource && s->release_pose_resource)
-        s->retain_pose_resource(s->context, pose->scene.model_resource);
+    if (pose->scene.model_resource && s->retain_model && s->release_model)
+        s->retain_model(s->context, pose->scene.model_resource);
 }
 
 int mm_preview_pose_bodies(MMPreviewPose *pose, const MMPreviewRenderServices *s)
@@ -340,8 +340,8 @@ int mm_preview_pose_bodies(MMPreviewPose *pose, const MMPreviewRenderServices *s
 void mm_preview_pose_dispose(MMPreviewPose *pose, const MMPreviewRenderServices *s)
 {
     mm_movie_render_scene_dispose(&pose->render);
-    if (pose->scene.model_resource && s->retain_pose_resource && s->release_pose_resource)
-        s->release_pose_resource(s->context, pose->scene.model_resource);
+    if (pose->scene.model_resource && s->retain_model && s->release_model)
+        s->release_model(s->context, pose->scene.model_resource);
     pose->scene.model_resource = NULL;
 }
 

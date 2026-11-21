@@ -148,7 +148,7 @@ void mm_body_shape_dispose(void *body,const MMBodyCreateServices *s)
         for (i=0;i<b.part_count;++i)
             if (b.bindings[i+2].model_owner)
             {
-                s->release(s->context,b.bindings[i+2].model_owner);
+                s->release_model(s->context,b.bindings[i+2].model_owner);
                 b.bindings[i+2].model_owner = NULL;
                 b.bindings[i+2].model_handle = NULL;
             }

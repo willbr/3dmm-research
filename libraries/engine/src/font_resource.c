@@ -264,14 +264,16 @@ int mm_font_author(MMResourceCache *cache, const MMChunkEdit *edit, void *childr
     for (i=0;i<count;++i)
     {
         s->child_at(s->context,children,i,&child);
-        model = mm_resource_cache_fetch_chunk(cache, child.type, child.number, s->model_reader);
+        model = mm_resource_cache_fetch_owned_chunk(cache, child.type, child.number, s->model_reader,
+                                                     s->model_objects);
         if (!model) goto done;
         if (mm_chunk_adopt(edit, MM_FONT_TYPE, number, &child, 1) != MM_CHUNK_OK) goto done;
         if (!s->model_width(s->context,model) && child.slot==32 && letter!=-1)
         {
             s->release(s->context,model); model=NULL;
             s->child_at(s->context,children,letter,&replacement);
-            model = mm_resource_cache_fetch_chunk(cache, replacement.type, replacement.number, s->model_reader);
+            model = mm_resource_cache_fetch_owned_chunk(cache, replacement.type, replacement.number, s->model_reader,
+                                                         s->model_objects);
             if (!model) goto done;
         }
         width=s->model_width(s->context,model)+s->spacing; height=s->model_height(s->context,model)+s->leading;
@@ -315,5 +317,6 @@ void *mm_font_model(const MMResourceObject *font, MMU32 id, const MMFontResource
         s->missing_model(s->context,id);
         return NULL;
     }
-    return mm_resource_cache_fetch_chunk(cache, child.type, child.number, s->model_reader);
+    return mm_resource_cache_fetch_owned_chunk(cache, child.type, child.number, s->model_reader,
+                                                     s->model_objects);
 }

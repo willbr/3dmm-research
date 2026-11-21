@@ -20056,3 +20056,39 @@ seek images exactly and differed by one pixel on the first. Both ports matched
 retail silence. SDL continuous presentation timing differed and continuous
 pixel parity was inconclusive. Evidence is in `tmp/c89-cached-font` and
 `D:/3DMMForever-generated-cache/c89-cached-font`.
+
+## C89 ownership for BMDL models (21 November 2026)
+
+C89 owns archive-backed BMDL models, models built from vertex and face arrays,
+and models imported from DAT. Studio and Preview share each cached owner
+through actor templates, costume overrides and font glyph lookup. Body
+replacement and duplication retain the model owner, and Preview retains it
+while a pose uses its renderer handle. BRender still supplies geometry and
+rendering. The C++ Model class was removed, and the font authoring tool
+releases each model after writing it.
+
+All 193 standalone C89 checks passed. Nine checks passed under
+AddressSanitizer, covering models, materials, body creation, body runtime,
+body editing, template evaluation, font resources, Preview rendering and the
+resource cache. Native and SDL model and material snapshots matched their own
+before traces byte for byte, including forced allocation failures and
+partial reads. Native and SDL stock Alexander and Explosio costume renders
+also matched the previous images. Preview retained its admission fingerprint
+`D363793C` in both builds across 45 actors, 21 props, direct BMDL rendering,
+pose changes, repeated rendering and runtime restart. The font fixture
+verified that glyph lookup and direct BMDL lookup return the same live cache
+owner. The native and SDL movie save/load tests passed, and the font authoring
+tool passed a syntax check.
+
+Studio saved and reopened the Wave animation and reproduced the same cels,
+pose hashes and appearance hashes on repeat seeks. The two port builds each
+matched their previous seek canvases byte for byte across 12 frames of the
+archive action fixture and eight frames of Wave. Each port reproduced both
+retail frame sequences in seek and continuous playback. The archive action
+canvases retained their earlier 89-pixel SDL and one-pixel Marcus differences
+per frame against retail. Both ports matched seven Wave canvases and differed
+by one pixel on the first. The continuous comparison covered frame identities.
+The port runs are in `20261121T205719Z-935a6028` and
+`20261121T205813Z-94b9101a`, with the latter completing the Marcus Wave runs
+on the other volume. Evidence is under `tmp/c89-cached-model` and
+`D:/3DMMForever-generated-cache/c89-cached-model`.

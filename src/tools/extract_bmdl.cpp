@@ -4,7 +4,7 @@
  * Pulls the Nth 'BMDL' chunk out of a 3DMM chunky file (.chk / .3MM /
  * .3CN / .3TH / etc.), unpacks it via DataBlock::FUnpackData, and writes
  * the raw bytes to out-file. The dumped bytes match exactly what
- * Model::_FInit reads from the DataBlock at runtime: a ModelOnFile
+ * The engine reads from the DataBlock at runtime: a ModelOnFile
  * header, an array of br_vertex (32 bytes each, layout identical x86 and
  * x64), then an array of BrFaceOnFile (36 bytes each, wire format).
  *

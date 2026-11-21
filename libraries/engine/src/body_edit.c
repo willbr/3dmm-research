@@ -31,7 +31,7 @@ void *mm_body_duplicate(void *body,const MMBodyEditServices *s)
     s->copy_actors(c->context,copy,d.actors,b.actors,b.part_count+2);
     for (i=0;i<d.part_count;++i)
         if (d.bindings[i+2].model_owner)
-            runtime->retain(c->context,d.bindings[i+2].model_owner);
+            runtime->retain_model(c->context,d.bindings[i+2].model_owner);
     if (!c->allocate_materials(c->context,b.set_count,&d.custom_materials))
     { target->shape=d; goto fail; }
     target->shape=d;

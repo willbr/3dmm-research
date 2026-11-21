@@ -7,6 +7,7 @@
 typedef struct Fixture
 {
     MMModelResource owner;
+    MMModelOwner *identified_owner;
     MMModelDescription description;
     unsigned char block[144], vertices[64], written[144];
     MMModelFace face;
@@ -27,20 +28,24 @@ static int next(Fixture *f)
 {
     return ++f->step != f->fail;
 }
-static MMModelResource *state(void *p, void *object)
+static void *allocate_owner(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
-    Fixture *f = (Fixture *)p;
-    assert(object == f);
-    return &f->owner;
-}
-static void *create(void *p)
-{
-    Fixture *f = (Fixture *)p;
+    Fixture *f = p;
+    void *owner;
+    assert(!old && !old_bytes && bytes && priority == MM_STORAGE_NORMAL);
     if (!next(f))
         return NULL;
+    owner = malloc(bytes);
+    assert(owner);
     ++f->objects;
-    mm_model_init(&f->owner);
-    return f;
+    return owner;
+}
+static void free_owner(void *p, void *owner, MMU32 bytes)
+{
+    Fixture *f = p;
+    assert(owner && bytes && f->objects > 0);
+    --f->objects;
+    free(owner);
 }
 static void remove_model(void *p, void *h)
 {
@@ -53,18 +58,6 @@ static void free_model(void *p, void *h)
     Fixture *f = (Fixture *)p;
     assert(h == &f->description);
     --f->models;
-}
-static void object_release(void *p, void *object)
-{
-    Fixture *f = (Fixture *)p;
-    assert(object == f);
-    if (f->owner.handle)
-    {
-        remove_model(p, f->owner.handle);
-        free_model(p, f->owner.handle);
-        f->owner.handle = NULL;
-    }
-    --f->objects;
 }
 static int handle_allocate(void *p, MMU32 bytes, void **out)
 {
@@ -213,7 +206,8 @@ static void *allocate_model(void *p, MMI32 vertices, MMI32 faces)
 static void identify(void *p, void *h, void *object)
 {
     Fixture *f = (Fixture *)p;
-    assert(h == &f->description && p == object);
+    assert(h == &f->description && object && mm_model_owner_resource(object)->handle == h);
+    f->identified_owner = object;
     ++f->identified;
 }
 static void copy_input(void *p, void *h, const void *v, const void *faces, MMI32 nv, MMI32 nf)
@@ -354,11 +348,6 @@ static void set_position(void *p, void *h, MMI32 i, const MMI32 in[3])
     assert(h == &f->description && i < 2);
     memcpy(f->points[i], in, sizeof(f->points[i]));
 }
-static const void *path(void *p, void *filename)
-{
-    assert(p == filename);
-    return p;
-}
 static void *load_dat(void *p, const void *path_value)
 {
     assert(p == path_value);
@@ -407,13 +396,14 @@ static void init(Fixture *f, int big, int prepared)
     for (i = 0; i < 64; ++i)
         f->block[48 + i] = (unsigned char)(i * 3 + 1);
 }
-static void load_tests(MMModelServices *s)
+static void load_tests(MMModelServices *s, const MMModelOwnerHost *host)
 {
     Fixture *f = (Fixture *)s->context;
     MMOwnedBlock block;
     int big, prepared, fail, ok, steps;
     MMI32 bytes;
     void *out;
+    MMModelOwner *owner;
     MMModelDescription d;
     int bad;
     for (big = 0; big < 2; ++big)
@@ -422,16 +412,16 @@ static void load_tests(MMModelServices *s)
             s->host_big_endian = big;
             init(f, big, prepared);
             model_block(&block, f, 0);
-            assert(mm_model_fetch(&block, &out, &bytes, s));
+            assert(mm_model_fetch(&block, &out, &bytes, host));
             assert(block.view.kind == MM_BLOCK_FILE && f->file_refs == 1 && !f->decodes);
             assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
             steps = f->step;
-            assert(out == f && bytes == 144 && f->adds == 1 && f->identified == 1 &&
+            assert(out == f->identified_owner && bytes == 144 && f->adds == 1 && f->identified == 1 &&
                    !memcmp(f->vertices, f->block + 48, 64));
             assert(f->published == prepared && f->bound == prepared * 2 && f->components == prepared * 4);
             assert(f->face.normal[0] == -32768 && f->face.normal[1] == -3 && f->face.normal[2] == 32767 &&
                    f->face.pad == 0x38 && f->face.edges[0] == 65535);
-            object_release(f, f);
+            mm_model_owner_release(out);
             assert(!f->models && !f->objects && !f->memory);
             for (fail = 1; fail <= steps; ++fail)
             {
@@ -440,17 +430,17 @@ static void load_tests(MMModelServices *s)
                 bytes = 9;
                 out = NULL;
                 model_block(&block, f, 0);
-                ok = mm_model_fetch(&block, &out, &bytes, s);
+                ok = mm_model_fetch(&block, &out, &bytes, host);
                 assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
                 assert(!ok && f->invalid == 2 && !f->objects && !f->models && !f->memory);
             }
             init(f, big, prepared);
             model_block(&block, f, 1);
-            assert(mm_model_fetch(&block, NULL, &bytes, s) && bytes == 12 && !f->step && block.view.packed);
-            assert(mm_model_fetch(&block, &out, &bytes, s) && bytes == 144 && out == f && f->decodes == 1);
+            assert(mm_model_fetch(&block, NULL, &bytes, host) && bytes == 12 && !f->step && block.view.packed);
+            assert(mm_model_fetch(&block, &out, &bytes, host) && bytes == 144 && out == f->identified_owner && f->decodes == 1);
             assert(block.view.kind == MM_BLOCK_MEMORY && !block.view.packed && !f->file_refs);
             assert(mm_owned_block_clear(&block) == MM_DATA_OK);
-            object_release(f, f);
+            mm_model_owner_release(out);
             assert(!f->models && !f->objects && !f->memory);
             /* Foreign header uses host-native payload unchanged, as legacy did. */
             init(f, big, prepared);
@@ -472,46 +462,48 @@ static void load_tests(MMModelServices *s)
                 }
             }
             model_block(&block, f, 0);
-            assert(mm_model_fetch(&block, &out, &bytes, s) && f->face.normal[0] == -32768 &&
+            assert(mm_model_fetch(&block, &out, &bytes, host) && f->face.normal[0] == -32768 &&
                    !memcmp(f->vertices, f->block + 48, 64));
             assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
-            object_release(f, f);
+            mm_model_owner_release(out);
         }
     s->host_big_endian = 0;
     init(f, 0, 1);
     model_block(&block, f, 1);
     f->fail = 2;
-    assert(!mm_model_fetch(&block, &out, &bytes, s) && f->decodes == 1 && f->invalid == 2);
+    assert(!mm_model_fetch(&block, &out, &bytes, host) && f->decodes == 1 && f->invalid == 2);
     assert(block.view.kind == MM_BLOCK_FILE && block.view.packed && f->file_refs == 1);
     assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
     init(f, 0, 1);
     for (fail = 0; fail < 144; ++fail)
     {
         f->size = fail;
-        mm_model_init(&f->owner);
-        f->objects = 1;
+        owner = mm_model_owner_create(host);
+        assert(owner);
         model_block(&block, f, 0);
-        assert(!mm_model_read(f, &block, s));
+        assert(!mm_model_read(owner, &block));
         assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
-        object_release(f, f);
-        assert(!f->models && !f->memory);
+        mm_model_owner_release(owner);
+        assert(!f->models && !f->memory && !f->objects);
     }
     init(f, 0, 1);
     f->block[4] = 0xff;
     f->block[5] = 0xff;
     assert(!mm_model_header(f->block, 0, &d, &bad) && !bad && d.vertices == -1);
-    f->objects = 1;
+    owner = mm_model_owner_create(host);
+    assert(owner);
     model_block(&block, f, 0);
-    assert(!mm_model_read(f, &block, s) && !f->owner.handle && f->bad == 1);
+    assert(!mm_model_read(owner, &block) && !mm_model_owner_resource(owner)->handle && f->bad == 1);
     assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
-    object_release(f, f);
+    mm_model_owner_release(owner);
     init(f, 0, 1);
     f->block[0] = 2;
-    f->objects = 1;
+    owner = mm_model_owner_create(host);
+    assert(owner);
     model_block(&block, f, 1);
-    assert(mm_model_read(f, &block, s) && f->bad == 1 && f->decodes == 1);
+    assert(mm_model_read(owner, &block) && f->bad == 1 && f->decodes == 1);
     assert(mm_owned_block_clear(&block) == MM_DATA_OK && !f->file_refs);
-    object_release(f, f);
+    mm_model_owner_release(owner);
 }
 static void mesh_tests(void)
 {
@@ -546,7 +538,7 @@ static void mesh_tests(void)
     }
 }
 
-static void author_tests(MMModelServices *s)
+static void author_tests(MMModelServices *s, const MMModelOwnerHost *host)
 {
     Fixture *f = (Fixture *)s->context;
     MMChunkEdit edit = {0};
@@ -554,7 +546,7 @@ static void author_tests(MMModelServices *s)
     MMModelFace face;
     MMModelDescription d;
     int big, bad, fail, existing;
-    void *object;
+    MMModelOwner *object;
     edit.context = f;
     edit.count = chunk_count;
     edit.entry = chunk_entry;
@@ -615,29 +607,31 @@ static void author_tests(MMModelServices *s)
     {
         init(f, 0, 0);
         f->fail = fail;
-        object = mm_model_new(2, f->vertices, 1, &f->face, s);
+        object = mm_model_new(2, f->vertices, 1, &f->face, host);
         if (object)
         {
             assert(f->adds == 1 && f->identified == 1);
-            object_release(f, f);
+            mm_model_owner_release(object);
         }
         assert(!f->objects && !f->models);
         init(f, 0, 0);
         f->fail = fail;
-        object = mm_model_dat(f, s);
+        object = mm_model_dat(f, host);
         if (object)
         {
             assert(f->prepared == 1 && f->flags == 1 && f->identified == 1 && !f->adds);
-            object_release(f, f);
+            mm_model_owner_release(object);
         }
         assert(!f->objects && !f->models);
     }
     init(f, 0, 0);
-    f->owner.handle = &f->description;
-    f->models = 1;
-    mm_model_dispose(&f->owner, s);
-    mm_model_dispose(&f->owner, s);
-    assert(!f->models && f->removes == 1);
+    object = mm_model_new(2, f->vertices, 1, &f->face, host);
+    assert(object && mm_model_owner_references(object) == 1);
+    mm_model_owner_retain(object);
+    mm_model_owner_release(object);
+    assert(f->models == 1 && mm_model_owner_references(object) == 1 && !f->removes);
+    mm_model_owner_release(object);
+    assert(!f->models && !f->objects && f->removes == 1);
     /* Odd negative widths use arithmetic-half floor, not truncation to zero. */
     init(f, 0, 0);
     f->owner.handle = &f->description;
@@ -654,8 +648,8 @@ static void author_tests(MMModelServices *s)
     assert(f->description.bounds.min[0] == 1 && f->description.bounds.max[0] == 0 && f->description.pivot[2] == 2);
     assert(mm_model_extent(&f->owner, 0, s) == -1);
     init(f, 0, 0);
-    assert(!mm_model_new(-1, f->vertices, 1, &f->face, s) && !f->step);
-    assert(!mm_model_new(65535L, f->vertices, 1, &f->face, s) && !f->step);
+    assert(!mm_model_new(-1, f->vertices, 1, &f->face, host) && !f->step);
+    assert(!mm_model_new(65535L, f->vertices, 1, &f->face, host) && !f->step);
     f->owner.handle = &f->description;
     f->description.bounds.min[0] = -655;
     f->description.bounds.max[0] = 655;
@@ -786,7 +780,13 @@ int main(void)
     Fixture f;
     MMModelServices s;
     MMStorageAllocator allocator = {NULL, allocate, free_memory};
+    MMStorageAllocator objects = {NULL, allocate_owner, free_owner};
+    MMModelOwnerHost host;
     allocator.context = &f;
+    objects.context = &f;
+    host.renderer = &s;
+    host.objects = &objects;
+    host.mark_memory = NULL;
     memset(&s, 0, sizeof(s));
     s.context = &f;
     s.face_bytes = 36;
@@ -795,9 +795,6 @@ int main(void)
     s.prepared_flag = 64;
     s.keep_original_flag = 2;
     s.prepare_all = 31;
-    s.state = state;
-    s.create = create;
-    s.release = object_release;
     s.decode = decode;
     s.allocator = &allocator;
     s.invalidate = invalidate;
@@ -819,13 +816,12 @@ int main(void)
     s.geometry = geometry;
     s.position = position;
     s.set_position = set_position;
-    s.path = path;
     s.load_dat = load_dat;
     s.or_flags = flags;
     s.prepare = prepare;
-    load_tests(&s);
+    load_tests(&s, &host);
     mesh_tests();
-    author_tests(&s);
+    author_tests(&s, &host);
     lighting();
     puts("C89 model resources: wire codecs, factories, partial ownership, glyphs, saves and prelight cleanup passed.");
     return 0;

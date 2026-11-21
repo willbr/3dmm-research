@@ -57,11 +57,11 @@ void mm_body_set_model(void *body,MMI32 part,void *model,const MMBodyRuntimeServ
     if (old == model)
         return;
     if (old)
-        s->shape.release(p,old);
+        s->shape.release_model(p,old);
     binding->model_owner = model;
     binding->model_handle = s->model_handle(p,model);
     s->assign_model(p,shape->actors,index,binding->model_handle);
-    s->retain(p,model);
+    s->retain_model(p,model);
     changed(body,s);
 }
 void mm_body_remove_material(void *body,MMI32 set,const MMBodyRuntimeServices *s)

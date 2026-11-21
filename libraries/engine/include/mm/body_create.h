@@ -53,6 +53,7 @@ typedef struct MMBodyCreateServices
     void (*install_highlight)(void *,void *);
     void *(*create)(void *);
     void (*release)(void *,void *);
+    void (*release_model)(void *,void *);
     int (*allocate_materials)(void *,MMI32,void ***);
     int (*allocate_actors)(void *,MMI32,void **,MMBodyPartBinding **);
     void (*initialize_actor)(void *,void *body,void *actors,MMI32 index,int role);

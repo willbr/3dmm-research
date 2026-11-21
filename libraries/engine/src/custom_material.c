@@ -49,7 +49,10 @@ void mm_custom_material_dispose(MMCustomMaterial *m, const MMMaterialServices *s
         for (i = 0; i < m->count; ++i)
             if (m->models[i])
             {
-                s->release(s->context, m->models[i]);
+                if (s->model_objects)
+                    mm_resource_object_release(m->models[i], s->model_objects);
+                else
+                    s->release(s->context, m->models[i]);
                 m->models[i] = NULL;
             }
         p = m->models;
@@ -183,7 +186,8 @@ static int read_custom(void *object, MMResourceCache *cache, MMU32 type, MMU32 n
         }
         if (part.model.type)
         {
-            m->models[i] = mm_resource_cache_fetch_chunk(cache, part.model.type, part.model.number, s->model_reader);
+            m->models[i] = mm_resource_cache_fetch_owned_chunk(cache, part.model.type, part.model.number,
+                                                               s->model_reader, s->model_objects);
             if (!m->models[i])
                 return 0;
         }

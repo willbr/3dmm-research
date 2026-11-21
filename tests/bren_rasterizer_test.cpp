@@ -757,7 +757,7 @@ struct BrFaceOnFile_Wire
 };
 
 /* Load a real BMDL chunk dumped via the extract-bmdl tool, parse the
- * ModelOnFile + br_vertex[] + BrFaceOnFile[] bytes (as Model::_FInit
+ * ModelOnFile + br_vertex[] + BrFaceOnFile[] bytes (as the engine model reader
  * does in src/engine/modl.cpp), build a br_model, and render it from
  * N camera angles. This is the user-requested "real prop from 3DMM"
  * test -- exercises the same vertex / face data the studio renders. */

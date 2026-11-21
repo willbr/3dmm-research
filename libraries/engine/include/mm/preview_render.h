@@ -120,6 +120,7 @@ extern "C"
         int (*body)(void *, MMU32, MMPreviewBody *);
         void *(*attach_body_part)(void *, void *parent, MMI32 index, const MMBodyPartBinding *);
         void (*retain_pose_resource)(void *, void *), (*release_pose_resource)(void *, void *);
+        void (*retain_model)(void *, void *), (*release_model)(void *, void *);
         int (*object_bounds)(void *, MMI32, float corners[24], int *valid);
         MMRenderFrameFactory frame_factory;
         void (*fill)(void *, void *pixelmap, MMU32);

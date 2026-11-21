@@ -173,7 +173,7 @@ struct Preview::Impl
     void RefreshStats()
     {
         MMPreviewStatsServices s = {};
-        s.context = this; s.body = body; s.model = model ? model->Pbmdl() : nullptr;
+        s.context = this; s.body = body; s.model = model ? EngineModel::Handle(model) : nullptr;
         s.actors = static_cast<MMU32>(actors.size());
         s.visible = [](void *v, MMU32 i) -> int { return static_cast<Impl *>(v)->actors[i]->Visible(); };
         s.actor_body = [](void *v, MMU32 i) -> void * { return static_cast<Impl *>(v)->actors[i]->Pbody(); };
@@ -194,7 +194,8 @@ struct Preview::Impl
         resolveError.clear();
         ReleasePpo(&body);
         ReleasePpo(&tmpl);
-        ReleasePpo(&model);
+        mm_model_owner_release(model);
+        model = nullptr;
         info = {};
     }
     ~Impl();

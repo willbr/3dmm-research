@@ -107,7 +107,7 @@ int __cdecl main(int argc, char **argv)
 
     /* Wrap in CRF with a generous cache (8 MB). The CRF resolves
      * BaseCacheableObject fetches via PFNRPO callbacks (Template::FReadTmpl
-     * here; Model::FReadModel + Material::FRead also fire transitively
+     * here; EngineModel::Read and Material_MTRL::FReadMtrl also fire transitively
      * through Template::_FInit when costume materials are loaded). */
     pcrf = ChunkyResourceFile::PcrfNew(pcfl, 8L << 20);
     if (pvNil == pcrf)

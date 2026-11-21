@@ -4,7 +4,7 @@ class BodyRuntimeCustomAccess : public CustomMaterial_CMTL
 {
   public:
     static void SetModel(PCustomMaterial_CMTL c,int i,PModel model)
-    { auto member=&BodyRuntimeCustomAccess::_custom; (c->*member).models[i]=model; model->AddRef(); }
+    { auto member=&BodyRuntimeCustomAccess::_custom; (c->*member).models[i]=model; mm_model_owner_retain(model); }
 };
 static bool TestBodyRuntime()
 {
@@ -12,7 +12,7 @@ static bool TestBodyRuntime()
     if (const char *path=std::getenv("MM_BODY_RUNTIME_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1); face.vertices[1]=1; face.vertices[2]=2;
-    auto a=Model::PmodlNew(3,vertices,1,&face),b=Model::PmodlNew(3,vertices,1,&face);
+    auto a=EngineModel::New(3,vertices,1,&face),b=EngineModel::New(3,vertices,1,&face);
     auto ma=Material_MTRL::PmtrlNew(),mb=Material_MTRL::PmtrlNew();
     PMaterial_MTRL parts[]={ma,mb,ma,mb,ma,mb};
     auto ca=ma && mb?CustomMaterial_CMTL::PcmtlNew(0,6,parts):nullptr;
@@ -37,7 +37,7 @@ static bool TestBodyRuntime()
         auto body=ok?Body::PbodyNew(parents,sets):nullptr; auto costume=NewObj BodyCostume;
         ok=ok && body && costume;
         auto state=[&](int stage) {
-            LegacyLong values[]={shape,visibility,accessory,failure,stage,a->CactRef(),b->CactRef(),ma->CactRef(),mb->CactRef(),ca->CactRef(),cb->CactRef(),host.attached,host.changed};
+            LegacyLong values[]={shape,visibility,accessory,failure,stage,mm_model_owner_references(a),mm_model_owner_references(b),ma->CactRef(),mb->CactRef(),ca->CactRef(),cb->CactRef(),host.attached,host.changed};
             return record(values,sizeof(values)) && BodyEditFixtureAccess::Record(body,snapshot,host.root);
         };
         if (ok)
@@ -79,7 +79,7 @@ static bool TestBodyRuntime()
             body->Hide(); body->Hide(); body->Show(); body->Show(); ok=state(8) && ok;
         }
         ReleasePpo(&costume); ReleasePpo(&body);
-        ok=ok && host.root->children==nullptr && a->CactRef()==3 && b->CactRef()==3 && ma->CactRef()==7 && mb->CactRef()==7 && ca->CactRef()==1 && cb->CactRef()==1;
+        ok=ok && host.root->children==nullptr && mm_model_owner_references(a)==3 && mm_model_owner_references(b)==3 && ma->CactRef()==7 && mb->CactRef()==7 && ca->CactRef()==1 && cb->CactRef()==1;
         ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&newParents); ReleasePpo(&newSets); BrActorFree(host.root);
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv;
@@ -93,7 +93,7 @@ static bool TestBodyRuntime()
 #else
     ok=ok && captures==90 && failed==0;
 #endif
-    ReleasePpo(&ca); ReleasePpo(&cb); ReleasePpo(&a); ReleasePpo(&b); ReleasePpo(&ma); ReleasePpo(&mb);
+    ReleasePpo(&ca); ReleasePpo(&cb); mm_model_owner_release(a); mm_model_owner_release(b); ReleasePpo(&ma); ReleasePpo(&mb);
     if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok && captures>0;
 }
 #endif

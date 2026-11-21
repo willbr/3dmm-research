@@ -30,6 +30,7 @@ typedef struct MMFontResourceServices
     MMI32 (*child_count)(void *,void *children);
     void (*child_at)(void *,void *children,MMI32,MMChunkChild *);
     MMResourceBlockReader model_reader;
+    const MMResourceObjectServices *model_objects;
     MMI32 (*model_width)(void *,void *model);
     MMI32 (*model_height)(void *,void *model);
     void (*missing_model)(void *,MMU32 id);

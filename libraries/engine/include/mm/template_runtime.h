@@ -20,7 +20,7 @@ typedef struct MMTemplateRuntimeServices
     MMTemplateCreateServices storage;
     const MMResourceObject *resource;
     MMResourceBlockReader action_reader, model_reader;
-    const MMResourceObjectServices *action_objects;
+    const MMResourceObjectServices *action_objects, *model_objects;
     int (*name)(void *,void *file,MMU32,MMU32,void *out);
     void *(*generated_action)(void *,void *object,MMI32 id);
     void *(*generated_model)(void *,void *object,MMU32 id,struct MMMovieAsset *);
@@ -53,7 +53,7 @@ struct MMActionResource *mm_template_fetch_action(const MMResourceObject *, MMU3
 /* Resolve a child in the template's own archive and fetch it under the same
  * reader key used by the cache. A successful fetch may publish the asset key. */
 void *mm_template_fetch_child(const MMResourceObject *, MMU32 id, int kind, MMResourceBlockReader,
-                             struct MMMovieAsset *asset);
+                             const MMResourceObjectServices *, struct MMMovieAsset *asset);
 int mm_template_action_name(MMI32 id,void *out,const MMTemplateRuntimeServices *);
 /* Evaluate the cel and fetch every model before publishing distance or modifying the body. A nil
  * model ID preserves the accessory model but still applies its cel matrix.

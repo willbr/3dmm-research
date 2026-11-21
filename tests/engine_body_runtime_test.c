@@ -69,8 +69,8 @@ static void setup(Fixture *f,int hidden)
     f->b.geometry.bounds.right=99; f->b.geometry.last_visible.right=42;
     f->b.render.context=f; f->b.render.attach=attach; f->b.render.changed=changed;
     f->s.shape.context=f; f->s.shape.state=body_state;
-    f->s.shape.release=release; f->s.shape.allocate_materials=allocate; f->s.shape.free_memory=free_memory;
-    f->s.retain=retain; f->s.model_handle=model_handle; f->s.assign_model=assign_model;
+    f->s.shape.release=release; f->s.shape.release_model=release; f->s.shape.allocate_materials=allocate; f->s.shape.free_memory=free_memory;
+    f->s.retain=retain; f->s.retain_model=retain; f->s.model_handle=model_handle; f->s.assign_model=assign_model;
     f->s.shape.assign_material=assign_material; f->s.material_handle=material_handle;
     f->s.custom_set=custom_set; f->s.custom_count=custom_count;
     f->s.custom_model=custom_model; f->s.custom_material=custom_material; f->s.invalidate_output=invalidate;

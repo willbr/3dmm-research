@@ -54,16 +54,17 @@ const MMFontResourceServices &GlyphServices()
         s.leading = BR_SCALAR(0.5);
         s.allocator = KauaiCopyAllocator();
         s.invalidate = Invalidate;
-        s.release = [](void *, void *object) { static_cast<PModel>(object)->Release(); };
+        s.release = [](void *, void *object) { mm_model_owner_release(static_cast<PModel>(object)); };
         s.child_count = [](void *, void *children) -> MMI32 { return static_cast<PDynamicArray>(children)->IvMac(); };
         s.child_at = [](void *, void *children, MMI32 i, MMChunkChild *out) {
             ChildChunkIdentification child;
             static_cast<PDynamicArray>(children)->Get(i, &child);
             *out = {child.cki.ctg, child.cki.cno, child.chid};
         };
-        s.model_reader = Model::FReadModl;
-        s.model_width = [](void *, void *model) -> MMI32 { return static_cast<PModel>(model)->Dxr(); };
-        s.model_height = [](void *, void *model) -> MMI32 { return static_cast<PModel>(model)->Dyr(); };
+        s.model_reader = EngineModel::Read;
+        s.model_objects = mm_model_owner_services();
+        s.model_width = [](void *, void *model) -> MMI32 { return EngineModel::Extent(static_cast<PModel>(model), 0); };
+        s.model_height = [](void *, void *model) -> MMI32 { return EngineModel::Extent(static_cast<PModel>(model), 1); };
         s.missing_model = [](void *, MMU32 id) {
             String message;
             message.FFormatSz(PszLit("Couldn't find BMDL for 3-D Font with chid %d."), id);

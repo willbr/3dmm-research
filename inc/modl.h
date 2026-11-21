@@ -3,12 +3,10 @@
 
 /*************************************************************************
 
-    modl.h: Model class
+    modl.h: BRender model resource bindings
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
-
-    BASE ---> BaseCacheableObject ---> Model
 
 *************************************************************************/
 #ifndef MODL_H
@@ -39,7 +37,7 @@ const ByteOrderMask kbomModlf = 0x55fffff0;
 // difference: the runtime br_face has a br_material* slot which is 4 bytes
 // on x86 but 8 bytes on x64. The 1995 .CHK chunks store the material slot
 // as a 4-byte placeholder (loaded as nil at runtime), so the on-disk size
-// is fixed at 32 bytes regardless of architecture. Model::_FInit reads
+// is fixed at 32 bytes regardless of architecture. The model reader reads
 // this struct from the chunk and expands each entry into a runtime br_face
 // (32 bytes on x86, 36 bytes on x64). Note: br_fraction in the BASED_FIXED
 // build is `short` (2 bytes), not int32 -- so n[3] is 6 bytes, not 12.
@@ -59,59 +57,25 @@ struct BrFaceOnFile
 #pragma pack(pop)
 static_assert(sizeof(BrFaceOnFile) == 32, "BrFaceOnFile on-disk layout drift");
 
-/****************************************
-    Model: a wrapper for BRender models
-****************************************/
-typedef class Model *PModel;
-#define Model_PAR BaseCacheableObject
-#define kclsModel 'MODL'
-class Model : public Model_PAR
+using PModel = MMModelOwner *;
+namespace EngineModel
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
+const MMModelOwnerHost &Host();
+int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+PModel Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
+PModel New(LegacyLong, BRV *, LegacyLong, BRF *);
+PModel FromDat(Filename *);
+PBMDL Handle(PModel);
+PModel FromHandle(PBMDL);
+bool Write(PModel, PChunkyFile, ChunkTagOrType, ChunkNumber);
+bool Write(PModel, const MMArchiveWriter &, ChunkTagOrType, ChunkNumber);
+void AdjustGlyph(PModel);
+BRS Extent(PModel, unsigned axis);
+bool Prelight(PModel, LegacyLong count, BVEC3 *directions);
+#ifdef DEBUG
+void Validate(PModel);
+void Mark(PModel);
+#endif
+}
 
-  protected:
-    MMModelResource _model; // C-owned renderer handle
-  protected:
-    Model(void)
-    {
-        mm_model_init(&_model);
-    }
-    static MMModelServices _Services(void *context = nullptr);
-    bool _FInit(PDataBlock pblck);
-    bool _FPrelight(LegacyLong cblit, BVEC3 *prgbvec3Light);
-
-  public:
-    static PModel PmodlNew(LegacyLong cbrv, BRV *prgbrv, LegacyLong cbrf, BRF *prgbrf);
-    static int FReadModl(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                           void **object, MMI32 *bytes);
-    static PModel PmodlReadFromDat(Filename *pfni);
-    static PModel PmodlFromBmdl(PBMDL pbmdl);
-    ~Model(void);
-    PBMDL Pbmdl(void)
-    {
-        return static_cast<PBMDL>(_model.handle);
-    }
-    void AdjustTdfCharacter(void);
-    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    bool FWrite(const MMArchiveWriter &, ChunkTagOrType, ChunkNumber);
-
-    BRS Dxr(void)
-    {
-        auto services = _Services();
-        return mm_model_extent(&_model, 0, &services);
-    }
-    BRS Dyr(void)
-    {
-        auto services = _Services();
-        return mm_model_extent(&_model, 1, &services);
-    }
-    BRS Dzr(void)
-    {
-        auto services = _Services();
-        return mm_model_extent(&_model, 2, &services);
-    }
-};
-
-#endif TMPL_H
+#endif

@@ -22,6 +22,7 @@ typedef struct MMBodyRuntimeServices
 {
     MMBodyCreateServices shape;
     void (*retain)(void *,void *);
+    void (*retain_model)(void *,void *);
     void *(*model_handle)(void *,void *model);
     void (*assign_model)(void *,void *actors,MMI32 index,void *raw_model);
     void *(*material_handle)(void *,void *material_object);

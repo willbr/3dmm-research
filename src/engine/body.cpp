@@ -144,6 +144,7 @@ MMBodyCreateServices Body::_CreateServices(void)
     s.state = _State;
     s.create = [](void *) -> void * { return NewObj Body; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.release_model = [](void *, void *model) { mm_model_owner_release(static_cast<PModel>(model)); };
     s.allocate_materials = [](void *, MMI32 count, void ***out) -> int {
         void *storage = nullptr;
         const bool ok = FAllocPv(&storage, LwMul(count, size(void *)), fmemClear, mprNormal);
@@ -275,10 +276,11 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
     s.shape = _CreateServices();
     mm_brender_body_runtime_services(&s);
     s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
+    s.retain_model = [](void *, void *model) { mm_model_owner_retain(static_cast<PModel>(model)); };
     s.model_handle = [](void *, void *object) -> void * {
         auto model = static_cast<PModel>(object);
-        auto handle = model->Pbmdl();
-        Assert(Model::PmodlFromBmdl(handle) == model, "Model problem");
+        auto handle = EngineModel::Handle(model);
+        Assert(EngineModel::FromHandle(handle) == model, "Model problem");
         return handle;
     };
     s.material_handle = [](void *, void *object) -> void * { return static_cast<PMaterial_MTRL>(object)->Pbmtl(); };
@@ -369,9 +371,12 @@ bool Body::FPartSetBounds(LegacyLong set, MMBodyBounds &out) const
 /***************************************************************************
     Set the ibact'th body part to use model pmodl
 ***************************************************************************/
-void Body::SetPartModel(LegacyLong ibact, Model *pmodl)
+void Body::SetPartModel(LegacyLong ibact, PModel pmodl)
 {
-    AssertThis(0); AssertIn(ibact, 0, _body.shape.part_count); AssertPo(pmodl, 0);
+    AssertThis(0); AssertIn(ibact, 0, _body.shape.part_count);
+#ifdef DEBUG
+    EngineModel::Validate(pmodl);
+#endif
     auto s = _RuntimeServices(); mm_body_set_model(this, ibact, pmodl, &s);
 }
 
@@ -602,7 +607,7 @@ void Body::AssertValid(LegacyUlong grf)
             const auto &binding = _body.shape.bindings[ibact+2];
             AssertIn(binding.set, 0, _body.shape.set_count);
             if (pvNil != pbact->model)
-                AssertPo(Model::PmodlFromBmdl(pbact->model), 0);
+                EngineModel::Validate(EngineModel::FromHandle(pbact->model));
             Assert(binding.material == pbact->material, "body part material binding mismatch");
             if (pvNil != pbact->material)
             {
@@ -632,7 +637,7 @@ void Body::MarkMem(void)
     {
         const auto &binding = _body.shape.bindings[part+2];
         if (binding.model_owner)
-            MarkMemObj(static_cast<PModel>(binding.model_owner));
+            EngineModel::Mark(static_cast<PModel>(binding.model_owner));
         if (binding.material_owner)
             MarkMemObj(static_cast<PMaterial_MTRL>(binding.material_owner));
     }

@@ -3,7 +3,7 @@
 
 /***************************************************************************
 
-    modl.cpp: Model class
+    modl.cpp: BRender model resource bindings
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
@@ -14,117 +14,132 @@
 #include "model_renderer.h"
 ASSERTNAME
 
-RTCLASS(Model)
-
 static_assert(sizeof(BrFaceOnFile) == MM_MODEL_FACE_BYTES, "model face wire layout");
 
-MMModelServices Model::_Services(void *context)
+const MMModelOwnerHost &EngineModel::Host()
 {
-    MMModelServices s = {};
-    s.context = context;
-    const unsigned short one = 1;
-    s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
-    s.system = koskCur;
-    mm_brender_model_services(&s);
-    s.state = [](void *, void *object) -> MMModelResource * { return &static_cast<PModel>(object)->_model; };
-    s.create = [](void *) -> void * { return NewObj Model; };
-    s.release = [](void *, void *object) { static_cast<PModel>(object)->Release(); };
-    s.decode = KauaiDecodeBlockHandle;
-    s.allocator = KauaiCopyAllocator();
-    s.invalidate = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
-    s.diagnostic = [](void *, int code) {
-        if (code == MM_MODEL_BAD_ORDER)
-            Assert(false, "bad Model!");
+    static const auto renderer = [] {
+        MMModelServices s = {};
+        const unsigned short one = 1;
+        s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
+        s.system = koskCur;
+        mm_brender_model_services(&s);
+        s.decode = KauaiDecodeBlockHandle;
+        s.allocator = KauaiCopyAllocator();
+        s.invalidate = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
+        s.diagnostic = [](void *, int code) {
+            if (code == MM_MODEL_BAD_ORDER)
+                Assert(false, "bad Model!");
+        };
+        s.save_failed = [](void *) { Warn("model save failed."); };
+        return s;
+    }();
+    static const MMModelOwnerHost host = {
+        &renderer, KauaiResourceObjectAllocator(),
+#ifdef DEBUG
+        [](void *memory) { MarkPv(memory); }
+#else
+        nullptr
+#endif
     };
-    s.save_failed = [](void *) { Warn("model save failed."); };
-    s.path = [](void *context, void *filename) -> const void * {
-        auto path = static_cast<PString>(context);
-        static_cast<PFilename>(filename)->GetStnPath(path);
-        return path->Psz();
-    };
-    return s;
+    return host;
 }
 
-PModel Model::PmodlNew(LegacyLong nv, BRV *vertices, LegacyLong nf, BRF *faces)
+PModel EngineModel::New(LegacyLong nv, BRV *vertices, LegacyLong nf, BRF *faces)
 {
     AssertIn(nv, 0, ksuMax);
     AssertIn(nf, 0, ksuMax);
     AssertPvCb(vertices, LwMul(nv, size(BRV)));
     AssertPvCb(faces, LwMul(nf, size(BRF)));
-    auto s = _Services();
-    return static_cast<PModel>(mm_model_new(nv, vertices, nf, faces, &s));
+    return mm_model_new(nv, vertices, nf, faces, &Host());
 }
-int Model::FReadModl(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
-    void **out, MMI32 *bytes)
+
+int EngineModel::Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-    const auto s = _Services();
-    return mm_model_fetch(block, out, bytes, &s);
+    return mm_model_fetch(block, out, bytes, &Host());
 }
-bool Model::_FInit(PDataBlock block)
+
+PModel EngineModel::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    AssertBaseThis(0);
-    AssertPo(block, 0);
-    auto s = _Services();
-    return mm_model_read(this, block->CoreBlock(), &s) != 0;
+    return static_cast<PModel>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
+                                                                  mm_model_owner_services()));
 }
-PModel Model::PmodlReadFromDat(Filename *filename)
+
+PModel EngineModel::FromDat(Filename *filename)
 {
     AssertPo(filename, ffniFile);
     String path;
-    auto s = _Services(&path);
-    return static_cast<PModel>(mm_model_dat(filename, &s));
+    filename->GetStnPath(&path);
+    return mm_model_dat(path.Psz(), &Host());
 }
-PModel Model::PmodlFromBmdl(PBMDL handle)
+
+PBMDL EngineModel::Handle(PModel owner)
+{
+    return static_cast<PBMDL>(mm_model_owner_resource(owner)->handle);
+}
+
+PModel EngineModel::FromHandle(PBMDL handle)
 {
     AssertVarMem(handle);
     auto owner = static_cast<PModel>(mm_brender_model_owner(handle));
-    AssertPo(owner, 0);
+    Assert(owner && Handle(owner) == handle, "Bad Model identifier");
     return owner;
 }
-Model::~Model(void)
-{
-    AssertBaseThis(0);
-    auto s = _Services();
-    mm_model_dispose(&_model, &s);
-}
-bool Model::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
+
+bool EngineModel::Write(PModel owner, PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
     AssertPo(file, 0);
-    return FWrite(file->WriteOwnerIndex(), type, number);
-}
-bool Model::FWrite(const MMArchiveWriter &archive, ChunkTagOrType type, ChunkNumber number)
-{
-    AssertThis(0);
-    auto s = _Services();
-    return mm_model_write(&_model, &archive.edit, archive.payloads->files, type, number, &s) != 0;
-}
-void Model::AdjustTdfCharacter(void)
-{
-    AssertThis(0);
-    auto s = _Services();
-    mm_model_adjust_glyph(&_model, &s);
+    return Write(owner, file->WriteOwnerIndex(), type, number);
 }
 
-bool Model::_FPrelight(LegacyLong count, BVEC3 *directions)
+bool EngineModel::Write(PModel owner, const MMArchiveWriter &archive, ChunkTagOrType type, ChunkNumber number)
+{
+#ifdef DEBUG
+    Validate(owner);
+#endif
+    return mm_model_write(mm_model_owner_resource(owner), &archive.edit, archive.payloads->files,
+                          type, number, Host().renderer) != 0;
+}
+
+void EngineModel::AdjustGlyph(PModel owner)
+{
+#ifdef DEBUG
+    Validate(owner);
+#endif
+    mm_model_adjust_glyph(mm_model_owner_resource(owner), Host().renderer);
+}
+
+BRS EngineModel::Extent(PModel owner, unsigned axis)
+{
+    return mm_model_extent(mm_model_owner_resource(owner), axis, Host().renderer);
+}
+
+bool EngineModel::Prelight(PModel owner, LegacyLong count, BVEC3 *directions)
 {
     AssertIn(count, 1, 10);
     AssertPvCb(directions, LwMul(count, size(BVEC3)));
-    AssertBaseThis(0);
-    return mm_brender_model_prelight(&_model, count, [](void *) {
+    return mm_brender_model_prelight(mm_model_owner_resource(owner), count, [](void *) {
         Assert(false, "code needs to get smarter...");
     }) != 0;
 }
+
 #ifdef DEBUG
-void Model::AssertValid(LegacyUlong grf)
+void EngineModel::Validate(PModel owner)
 {
-    Model_PAR::AssertValid(fobjAllocated);
-    AssertVarMem(static_cast<PBMDL>(_model.handle));
-    auto owner = static_cast<PModel>(mm_brender_model_owner(_model.handle));
-    Assert(owner == this, "Bad Model identifier");
+    Assert(owner, "Bad Model owner");
+    AssertVarMem(Handle(owner));
+    Assert(mm_brender_model_owner(Handle(owner)) == owner, "Bad Model identifier");
 }
-void Model::MarkMem(void)
+
+void EngineModel::Mark(PModel owner)
 {
-    AssertThis(0);
-    Model_PAR::MarkMem();
+    if (owner)
+    {
+        Validate(owner);
+        mm_model_owner_services()->mark_memory(owner);
+        const auto binding = mm_model_owner_binding(owner);
+        if (binding->cache && !binding->attached)
+            MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
+    }
 }
 #endif

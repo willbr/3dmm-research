@@ -53,13 +53,14 @@ struct Preview::Impl::RenderHost
             auto &i = *h.impl;
             d->scene = i.live.status.scene;
             d->background = bool(i.background) && h.onlyObject < 0;
-            d->model = i.model ? i.model->Pbmdl() : nullptr;
-            d->model_resource = static_cast<BASE *>(i.model);
+            const auto model = i.model ? EngineModel::Handle(i.model) : nullptr;
+            d->model = model;
+            d->model_resource = i.model;
             if (i.model)
                 for (unsigned a = 0; a < 3; ++a)
                 {
-                    d->model_low[a] = BrScalarToFloat(i.model->Pbmdl()->bounds.min.v[a]);
-                    d->model_high[a] = BrScalarToFloat(i.model->Pbmdl()->bounds.max.v[a]);
+                    d->model_low[a] = BrScalarToFloat(model->bounds.min.v[a]);
+                    d->model_high[a] = BrScalarToFloat(model->bounds.max.v[a]);
                 }
             auto palette = i.background ? i.background->palette : i.palette;
             for (unsigned n = 0; n < 256; ++n)
@@ -141,6 +142,8 @@ struct Preview::Impl::RenderHost
         };
         s.retain_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
         s.release_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+        s.retain_model = [](void *, void *model) { mm_model_owner_retain(static_cast<PModel>(model)); };
+        s.release_model = [](void *, void *model) { mm_model_owner_release(static_cast<PModel>(model)); };
         s.object_bounds = [](void *v, MMI32 object, float corners[24], int *valid) -> int {
             auto &h = *static_cast<RenderHost *>(v);
             try

@@ -84,7 +84,7 @@ static bool TestBodyGeometry()
     faces[1].vertices[0] = 1;
     faces[1].vertices[1] = 2;
     faces[1].vertices[2] = 3;
-    auto model = Model::PmodlNew(4, vertices, 2, faces);
+    auto model = EngineModel::New(4, vertices, 2, faces);
     auto material = Material_MTRL::PmtrlNew();
     ok = model && material;
     for (int shape = 0; ok && shape < 3; ++shape)
@@ -231,7 +231,7 @@ static bool TestBodyGeometry()
                     ok = vdmglob.dmaglBase.cv == base && vdmglob.dmaglHq.cv == hq && vdmglob.dmaglPv.cv == pv && ok;
 #endif
                 }
-    ReleasePpo(&model);
+    mm_model_owner_release(model);
     ReleasePpo(&material);
     if (snapshot)
         ok = std::fclose(snapshot) == 0 && ok;

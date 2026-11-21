@@ -45,7 +45,7 @@ static bool TestBodyEditing()
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1);
     face.vertices[1]=1; face.vertices[2]=2;
-    auto model=Model::PmodlNew(3,vertices,1,&face);
+    auto model=EngineModel::New(3,vertices,1,&face);
     auto generic=Material_MTRL::PmtrlNew(),material=Material_MTRL::PmtrlNew();
     PMaterial_MTRL customParts[6]={material,material,material,material,material,material};
     auto custom=material?CustomMaterial_CMTL::PcmtlNew(1,6,customParts):nullptr;
@@ -76,7 +76,7 @@ static bool TestBodyEditing()
             if (!visibility) body->Show(); else if (visibility==2) { body->Hide(); body->Hide(); }
             BodyEditFixtureAccess::Seed(body);
         }
-        auto refs=[&]() { LegacyLong r[]={model->CactRef(),generic->CactRef(),material->CactRef(),custom->CactRef(),host.attached,host.changed}; return record(r,sizeof(r)); };
+        auto refs=[&]() { LegacyLong r[]={mm_model_owner_references(model),generic->CactRef(),material->CactRef(),custom->CactRef(),host.attached,host.changed}; return record(r,sizeof(r)); };
         LegacyLong mode[]={shape,visibility,highlight,operation,kind,failure,next}; ok=record(mode,sizeof(mode)) && refs() && ok;
         PBody copy=nullptr; bool result=false;
         if (ok)
@@ -96,7 +96,7 @@ static bool TestBodyEditing()
             ok=refs() && BodyEditFixtureAccess::Record(body,snapshot,host.root) && ok;
         }
         ReleasePpo(&copy); ReleasePpo(&body);
-        ok=ok && host.root->children==nullptr && model->CactRef()==1 && generic->CactRef()==1 && material->CactRef()==7 && custom->CactRef()==1;
+        ok=ok && host.root->children==nullptr && mm_model_owner_references(model)==1 && generic->CactRef()==1 && material->CactRef()==7 && custom->CactRef()==1;
         ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&newParents); ReleasePpo(&newSets); BrActorFree(host.root);
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==beforeBase && vdmglob.dmaglHq.cv==beforeHq && vdmglob.dmaglPv.cv==beforePv;
@@ -111,7 +111,7 @@ static bool TestBodyEditing()
 #else
     ok=ok && successes==1404 && failures==0;
 #endif
-    ReleasePpo(&custom); ReleasePpo(&model); ReleasePpo(&generic); ReleasePpo(&material);
+    ReleasePpo(&custom); mm_model_owner_release(model); ReleasePpo(&generic); ReleasePpo(&material);
     if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok && successes>0;
 }
 #endif

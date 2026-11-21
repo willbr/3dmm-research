@@ -1738,12 +1738,15 @@ The typed callback is the cache key throughout preload, lookup, tag resolution,
 manager dispatch and nested fetches. Individual cache entries can carry C89
 object ownership services alongside native entries. The tag and source manager
 preserve those services through archive-local and content-pack lookups. Studio
-and Preview use C89-owned 3D fonts for metrics and glyph resolution. Studio's
-archive-backed actions and generated 3D text actions use the same C89 owner
-and playback readers for cels, matrices, distance, flags and motion sound
-tags. The C89 text generator owns the cached action reference and replaces
-it after text edits. Native template subclasses, resource, object, HQ and Body facades
-remain part of final host integration.
+and Preview use C89-owned 3D fonts for metrics and glyph resolution. C89
+also owns models from BMDL chunks, authored geometry and DAT imports. Actor
+bodies, costume overrides, font glyphs and Preview poses retain those model
+owners directly. Studio's archive-backed actions and generated 3D text actions
+use the same C89 owner and playback readers for cels, matrices, distance,
+flags and motion sound tags. The C89 text generator owns the cached action
+reference and replaces it after text edits. Material and texture owners,
+native template subclasses, resource, object, HQ and Body facades remain
+part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining
@@ -2211,7 +2214,7 @@ The "wait for UI-6" path is probably the cleanest, which also implies waiting fo
 
 A "prop" in 3DMM terminology is just a `TMPL` chunk with one flag bit set: `ftmplProp` (`inc/tmpl.h:134`). Props use the same data structures as character actors — same body hierarchy, same action system, same path system. The bit only controls which browser the prop appears in (props vs. actors). A static prop is a *very* simple TMPL: one body part, one ACTN ("rest"), one CEL pointing at a single MODL chunk. Nothing exotic.
 
-`Model::PmodlNew(cbrv, prgbrv, cbrf, prgbrf)` (`inc/modl.h:57`) is public API — takes raw vertex/face arrays and builds a Model. The 3D Words easel already uses this pattern to generate 3D text geometry on-the-fly. Same pattern applies for prop geometry.
+`EngineModel::New(cbrv, prgbrv, cbrf, prgbrf)` in `inc/modl.h` is the native authoring binding — takes raw vertex/face arrays and builds a Model. The 3D Words easel already uses this pattern to generate 3D text geometry on-the-fly. Same pattern applies for prop geometry.
 
 The studio already embeds custom TMPL chunks in movies via `ksidUseCrf` tags (the mechanism behind custom-character costumes). `_FDoMtrlTmplGC` (`src/engine/movie.cpp:2774`) garbage-collects unreferenced embedded TMPLs at save time — works for custom props with no changes since the GC doesn't distinguish prop from character TMPLs.
 
@@ -2222,7 +2225,7 @@ The studio already embeds custom TMPL chunks in movies via `ksidUseCrf` tags (th
 - **Phase 1 — Primitive composer (5-7 weeks).**
   - Pure-C++ primitive geometry generator: cube, cylinder, sphere, cone, plane. Returns `(BRV*, count, BRF*, count)` arrays. ~1 week.
   - New easel — kidspace `.cht` + new gob. Shape similar to the 3D Words easel: small preview viewport, primitive picker, per-primitive transform widgets (position X/Y/Z, rotation X/Y/Z, scale), part list, name field, "save as prop" button. ~3 weeks.
-  - MODL generator: takes the user's primitive composition, applies transforms, optionally welds duplicate vertices, emits a single MODL chunk via `Model::PmodlNew` then writes via `Model::FWrite`. ~1 week.
+  - MODL generator: takes the user's primitive composition, applies transforms, optionally welds duplicate vertices, emits a single MODL chunk via `EngineModel::New` then writes via `EngineModel::Write`. ~1 week.
   - TMPL writer: wraps the MODL in a TMPL chunk with `ftmplProp` set, single body part, single "rest" ACTN with one CEL referencing the MODL by chid. ~1 week.
   - Embed + roll-call wiring: add the new TMPL to the movie via `ksidUseCrf`, register in the props browser (the browser already filters roll-call by `ftmplProp`, no browser changes needed). ~1 week.
 - **Phase 2 — Materials + color (2-3 weeks).** Assign existing MTRLs (or solid colors via a CMTL) to faces. Per-primitive material picker. UV generation: simple planar/box projection per primitive type.

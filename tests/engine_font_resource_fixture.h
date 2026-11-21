@@ -81,8 +81,8 @@ static bool TestFontResources()
         if (!ok) std::fprintf(stderr,"Font load failed: %d %d %d %d %d\n",shape,variant,stage,kind,failure);
     }
     BRV vertices[3]={}; BRF face={}; face.vertices[1]=1; face.vertices[2]=2;
-    auto space=Model::PmodlNew(3,vertices,1,&face); vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(2);
-    auto letter=Model::PmodlNew(3,vertices,1,&face); ok=ok && space && letter;
+    auto space=EngineModel::New(3,vertices,1,&face); vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(2);
+    auto letter=EngineModel::New(3,vertices,1,&face); ok=ok && space && letter;
     for (int shape=0;ok && shape<3;++shape) for (int variant=0;ok && variant<2;++variant)
     for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<16;++failure)
     {
@@ -92,7 +92,7 @@ static bool TestFontResources()
 #endif
         auto file=ChunkyFile::PcflCreateTemp(); auto cache=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr;
         auto kids=DynamicArray::PglNew(sizeof(ChildChunkIdentification)); ChunkNumber models[2]={};
-        ok=cache && kids && file->FAdd(0,kctgBmdl,&models[0]) && space->FWrite(file,kctgBmdl,models[0]) && file->FAdd(0,kctgBmdl,&models[1]) && letter->FWrite(file,kctgBmdl,models[1]);
+        ok=cache && kids && file->FAdd(0,kctgBmdl,&models[0]) && EngineModel::Write(space, file,kctgBmdl,models[0]) && file->FAdd(0,kctgBmdl,&models[1]) && EngineModel::Write(letter, file,kctgBmdl,models[1]);
         if (shape) { ChildChunkIdentification child={{kctgBmdl,models[0]},32}; ok=kids->FAdd(&child) && ok;
             if (shape==1) { child={{kctgBmdl,models[1]},105}; ok=kids->FAdd(&child) && ok; }
             child={{kctgBmdl,variant?models[1]+1000:models[1]},65}; ok=kids->FAdd(&child) && ok; }
@@ -115,22 +115,25 @@ static bool TestFontResources()
                 if (font)
                 {
                     const auto metrics=mm_font_owner_metrics(font);
-                    if (shape) { ok=mm_font_width(metrics,65)==letter->Dxr() && mm_font_height(metrics,65)==letter->Dyr()+BR_SCALAR(0.5) &&
-                            mm_font_width(metrics,32)==(shape==1?letter->Dxr():0) && metrics->maximum_height==letter->Dyr()+BR_SCALAR(0.5) && ok;
-                        auto glyph=EngineFont::Glyph(font,65); ok=glyph && ok; ReleasePpo(&glyph); }
+                    if (shape) { ok=mm_font_width(metrics,65)==EngineModel::Extent(letter, 0) && mm_font_height(metrics,65)==EngineModel::Extent(letter, 1)+BR_SCALAR(0.5) &&
+                            mm_font_width(metrics,32)==(shape==1?EngineModel::Extent(letter, 0):0) && metrics->maximum_height==EngineModel::Extent(letter, 1)+BR_SCALAR(0.5) && ok;
+                        auto glyph=EngineFont::Glyph(font,65);
+                        auto cached=EngineModel::Fetch(cache->CoreCache(),kctgBmdl,models[1]);
+                        ok=glyph && glyph==cached && mm_model_owner_references(cached)==2 && ok;
+                        mm_model_owner_release(cached); mm_model_owner_release(glyph); }
                     else ok=mm_font_width(metrics,0)==0 && mm_font_height(metrics,0)==0 && metrics->maximum_height==0 && ok;
                 }
                 mm_font_owner_release(font); }
         }
         // The C author releases its fetched model even if adoption fails.
-        for (auto number:models) { auto model=static_cast<PModel>(cache->PbacoFetch(kctgBmdl,number,Model::FReadModl)); ok=model && model->CactRef()==1 && ok; ReleasePpo(&model); }
+        for (auto number:models) { auto model=EngineModel::Fetch(cache->CoreCache(), kctgBmdl, number); ok=model && mm_model_owner_references(model)==1 && ok; mm_model_owner_release(model); }
         ReleasePpo(&kids); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv;
 #endif
         if (!ok) std::fprintf(stderr,"Font authoring failed: %d %d %d %d\n",shape,variant,kind,failure);
     }
-    ReleasePpo(&space); ReleasePpo(&letter);
+    mm_model_owner_release(space); mm_model_owner_release(letter);
     std::fprintf(stderr,"[font resources] attempts=%d loaded=%d authored=%d\n",attempts,loaded,authored);
 #ifdef DEBUG
     ok=ok && loaded==385 && authored==130;

@@ -1313,7 +1313,7 @@ static JVal MovieDetails(PScene scene)
             pose = HashMovieBytes(pose, &bact->t.t.mat, sizeof(bact->t.t.mat));
             if (bact->model)
             {
-                auto number = Model::PmodlFromBmdl(bact->model)->Cno();
+                auto number = mm_model_owner_binding(EngineModel::FromHandle(bact->model))->number;
                 appearance = HashMovieBytes(appearance, &number, sizeof(number));
             }
             if (bact->material)

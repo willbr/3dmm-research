@@ -202,40 +202,99 @@ int mm_model_mesh_read(const MMReadStream *stream, MMModelMesh *out)
         mm_model_mesh_dispose(&mesh);
     return status;
 }
-void mm_model_init(MMModelResource *m)
+struct MMModelOwner
 {
-    m->handle = NULL;
-}
-void mm_model_dispose(MMModelResource *m, const MMModelServices *s)
+    MMResourceObject binding;
+    MMReference references;
+    MMModelResource model;
+    const MMModelOwnerHost *host;
+};
+
+static MMResourceObject *model_binding(void *object) { return &((MMModelOwner *)object)->binding; }
+static MMReference *model_references(void *object) { return &((MMModelOwner *)object)->references; }
+
+const MMResourceObject *mm_model_owner_binding(const MMModelOwner *owner) { return &owner->binding; }
+const MMModelResource *mm_model_owner_resource(const MMModelOwner *owner) { return &owner->model; }
+MMI32 mm_model_owner_references(const MMModelOwner *owner) { return owner->references.count; }
+
+static void destroy_model(void *object)
 {
-    if (m->handle)
+    MMModelOwner *owner = object;
+    const MMModelServices *s = owner->host->renderer;
+    const MMStorageAllocator *allocator = owner->host->objects;
+    if (owner->model.handle)
     {
-        s->remove(s->context, m->handle);
-        s->free_model(s->context, m->handle);
-        m->handle = NULL;
+        s->remove(s->context, owner->model.handle);
+        s->free_model(s->context, owner->model.handle);
     }
+    mm_resource_object_dispose(owner, mm_model_owner_services());
+    if (allocator)
+        allocator->release(allocator->context, owner, sizeof(*owner));
+    else
+        free(owner);
 }
-void *mm_model_new(MMI32 vertices, const void *v, MMI32 faces, const void *f,
-                         const MMModelServices *s)
+
+static void mark_model(void *object)
 {
-    void *object;
-    MMModelResource *m;
+    MMModelOwner *owner = object;
+    if (owner->host->mark_memory)
+        owner->host->mark_memory(owner);
+}
+
+const MMResourceObjectServices *mm_model_owner_services(void)
+{
+    static const MMResourceObjectServices services = {model_binding, model_references, destroy_model, NULL, mark_model};
+    return &services;
+}
+
+MMModelOwner *mm_model_owner_create(const MMModelOwnerHost *host)
+{
+    const MMStorageAllocator *allocator = host->objects;
+    MMModelOwner *owner = allocator ? allocator->resize(allocator->context, NULL, 0, sizeof(*owner), MM_STORAGE_NORMAL) :
+        malloc(sizeof(*owner));
+    if (owner)
+    {
+        mm_resource_object_init(&owner->binding);
+        mm_reference_init(&owner->references);
+        owner->model.handle = NULL;
+        owner->host = host;
+    }
+    return owner;
+}
+
+void mm_model_owner_retain(MMModelOwner *owner)
+{
+    mm_reference_add(&owner->references);
+}
+
+void mm_model_owner_release(MMModelOwner *owner)
+{
+    if (owner)
+        mm_resource_object_release(owner, mm_model_owner_services());
+}
+
+MMModelOwner *mm_model_new(MMI32 vertices, const void *v, MMI32 faces, const void *f,
+                           const MMModelOwnerHost *host)
+{
+    const MMModelServices *s = host->renderer;
+    MMModelOwner *owner;
+    void *handle;
     if (vertices < 0 || vertices >= 65535L || faces < 0 || faces >= 65535L)
         return NULL;
-    object = s->create(s->context);
-    if (!object)
+    owner = mm_model_owner_create(host);
+    if (!owner)
         return NULL;
-    m = s->state(s->context, object);
-    m->handle = s->allocate_model(s->context, vertices, faces);
-    if (!m->handle)
+    handle = s->allocate_model(s->context, vertices, faces);
+    owner->model.handle = handle;
+    if (!handle)
     {
-        s->release(s->context, object);
+        mm_model_owner_release(owner);
         return NULL;
     }
-    s->identify(s->context, m->handle, object);
-    s->copy_input(s->context, m->handle, v, f, vertices, faces);
-    s->add(s->context, m->handle);
-    return object;
+    s->identify(s->context, handle, owner);
+    s->copy_input(s->context, handle, v, f, vertices, faces);
+    s->add(s->context, handle);
+    return owner;
 }
 static int faces(const MMBlockIO *io, void *handle, int prepared, MMI32 count, MMI32 offset,
                  const MMModelServices *s)
@@ -263,9 +322,10 @@ done:
     allocator->release(allocator->context, memory, bytes);
     return ok;
 }
-static int read_model(void *object, const MMBlockIO *io, const MMModelServices *s)
+static int read_model(MMModelOwner *owner, const MMBlockIO *io)
 {
-    MMModelResource *m = s->state(s->context, object);
+    const MMModelServices *s = owner->host->renderer;
+    MMModelResource *m = &owner->model;
     MMModelDescription d;
     unsigned char header[MM_MODEL_HEADER_BYTES];
     ModelWireLayout layout;
@@ -286,7 +346,7 @@ static int read_model(void *object, const MMBlockIO *io, const MMModelServices *
     m->handle = s->allocate_model(s->context, prepared ? 0 : d.vertices, prepared ? 0 : d.faces);
     if (!m->handle)
         return 0;
-    s->identify(s->context, m->handle, object);
+    s->identify(s->context, m->handle, owner);
     if (prepared)
     {
         if (!s->component(s->context, m->handle, MM_MODEL_VERTICES, layout.vertex_bytes) ||
@@ -313,35 +373,35 @@ static int read_model(void *object, const MMBlockIO *io, const MMModelServices *
     s->add(s->context, m->handle);
     return 1;
 }
-int mm_model_read(void *object, MMOwnedBlock *block, const MMModelServices *s)
+int mm_model_read(MMModelOwner *owner, MMOwnedBlock *block)
 {
+    const MMModelServices *s = owner->host->renderer;
     MMBlockIO io;
-    return mm_owned_block_code(block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
-           mm_owned_block_io(block, &io) == MM_DATA_OK && read_model(object, &io, s);
+    return !owner->model.handle && mm_owned_block_code(block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
+           mm_owned_block_io(block, &io) == MM_DATA_OK && read_model(owner, &io);
 }
-int mm_model_fetch(MMOwnedBlock *block, void *out, void *size, const MMModelServices *s)
+
+int mm_model_fetch(MMOwnedBlock *block, void **out, MMI32 *bytes, const MMModelOwnerHost *host)
 {
-    void *object = NULL;
-    MMI32 bytes = (MMI32)block->view.length;
+    const MMModelServices *s = host->renderer;
+    MMModelOwner *owner = NULL;
     MMBlockIO io;
-    memcpy(size, &bytes, sizeof(bytes));
+    *bytes = (MMI32)block->view.length;
     if (!out)
         return 1;
     if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK ||
         mm_owned_block_io(block, &io) != MM_DATA_OK)
         goto fail;
-    bytes = (MMI32)io.view.length;
-    memcpy(size, &bytes, sizeof(bytes));
-    object = s->create(s->context);
-    if (!object || !read_model(object, &io, s))
+    *bytes = (MMI32)io.view.length;
+    owner = mm_model_owner_create(host);
+    if (!owner || !read_model(owner, &io))
         goto fail;
-    memcpy(out, &object, sizeof(object));
+    *out = owner;
     return 1;
 fail:
-    if (object)
-        s->release(s->context, object);
-    s->invalidate(s->context, out, sizeof(object));
-    s->invalidate(s->context, size, sizeof(bytes));
+    mm_model_owner_release(owner);
+    s->invalidate(s->context, out, sizeof(*out));
+    s->invalidate(s->context, bytes, sizeof(*bytes));
     return 0;
 }
 int mm_model_write(const MMModelResource *m, const MMChunkEdit *edit, const MMBlockFileServices *files,
@@ -387,25 +447,24 @@ done:
         allocator->release(allocator->context, b, (MMU32)layout.end);
     return ok;
 }
-void *mm_model_dat(void *filename, const MMModelServices *s)
+MMModelOwner *mm_model_dat(const void *path, const MMModelOwnerHost *host)
 {
-    void *object = s->create(s->context);
-    const void *path;
-    MMModelResource *m;
-    if (!object)
+    const MMModelServices *s = host->renderer;
+    MMModelOwner *owner = mm_model_owner_create(host);
+    void *handle;
+    if (!owner)
         return NULL;
-    path = s->path(s->context, filename);
-    m = s->state(s->context, object);
-    m->handle = s->load_dat(s->context, path);
-    if (!m->handle)
+    handle = s->load_dat(s->context, path);
+    owner->model.handle = handle;
+    if (!handle)
     {
-        s->release(s->context, object);
+        mm_model_owner_release(owner);
         return NULL;
     }
-    s->or_flags(s->context, m->handle, s->keep_original_flag);
-    s->prepare(s->context, m->handle, s->prepare_all);
-    s->identify(s->context, m->handle, object);
-    return object;
+    s->or_flags(s->context, handle, s->keep_original_flag);
+    s->prepare(s->context, handle, s->prepare_all);
+    s->identify(s->context, handle, owner);
+    return owner;
 }
 MMI32 mm_model_extent(const MMModelResource *m, unsigned axis, const MMModelServices *s)
 {

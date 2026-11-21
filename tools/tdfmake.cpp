@@ -113,7 +113,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     String stn2;
     ChildChunkID chid;
     ChildChunkID chidMax = 0;
-    PModel pmodl;
+    PModel pmodl = nullptr;
     ChunkNumber cnoModl;
     PChunkyResourceFile pcrf;
     PZString psz;
@@ -163,14 +163,16 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
             fFoundSpace = fTrue;
         if (chid == 0xa0) // nonbreaking space
             fFoundSpace2 = fTrue;
-        pmodl = Model::PmodlReadFromDat(&fni);
+        pmodl = EngineModel::FromDat(&fni);
         if (pvNil == pmodl)
             return fFalse;
-        pmodl->AdjustTdfCharacter();
+        EngineModel::AdjustGlyph(pmodl);
         if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))
             goto LFail;
-        if (!pmodl->FWrite(pcflDst, kctgBmdl, cnoModl))
+        if (!EngineModel::Write(pmodl, pcflDst, kctgBmdl, cnoModl))
             goto LFail;
+        mm_model_owner_release(pmodl);
+        pmodl = nullptr;
         if (!pcflDst->FPackData(kctgBmdl, cnoModl))
             goto LFail;
         kid.chid = chid;
@@ -185,13 +187,15 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     // Hack to insert a space character if none specified
     if (!fFoundSpace)
     {
-        pmodl = Model::PmodlNew(0, pvNil, 0, pvNil);
+        pmodl = EngineModel::New(0, pvNil, 0, pvNil);
         if (pvNil == pmodl)
             return fFalse;
         if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))
             goto LFail;
-        if (!pmodl->FWrite(pcflDst, kctgBmdl, cnoModl))
+        if (!EngineModel::Write(pmodl, pcflDst, kctgBmdl, cnoModl))
             goto LFail;
+        mm_model_owner_release(pmodl);
+        pmodl = nullptr;
         kid.chid = (ChildChunkID)ChLit(' ');
         kid.cki.ctg = kctgBmdl;
         kid.cki.cno = cnoModl;
@@ -202,13 +206,15 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     // Hack to insert a nonbreaking space character if none specified
     if (!fFoundSpace2)
     {
-        pmodl = Model::PmodlNew(0, pvNil, 0, pvNil);
+        pmodl = EngineModel::New(0, pvNil, 0, pvNil);
         if (pvNil == pmodl)
             return fFalse;
         if (!pcflDst->FAdd(0, kctgBmdl, &cnoModl))
             goto LFail;
-        if (!pmodl->FWrite(pcflDst, kctgBmdl, cnoModl))
+        if (!EngineModel::Write(pmodl, pcflDst, kctgBmdl, cnoModl))
             goto LFail;
+        mm_model_owner_release(pmodl);
+        pmodl = nullptr;
         kid.chid = 0xa0;
         kid.cki.ctg = kctgBmdl;
         kid.cki.cno = cnoModl;
@@ -223,6 +229,7 @@ bool FMakeTdf(PFilename pfniSrcDir, PChunkyFile pcflDst)
     ReleasePpo(&pglkid);
     return fTrue;
 LFail:
+    mm_model_owner_release(pmodl);
     ReleasePpo(&pcrf);
     ReleasePpo(&pglkid);
     return fFalse;

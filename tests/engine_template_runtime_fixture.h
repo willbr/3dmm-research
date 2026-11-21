@@ -22,14 +22,14 @@ class TemplateRuntimeFixture : public Template
     MMActionResource *_FetchAction(LegacyLong id) override
     { trace[used++]=100+id; if (mode==1) return nullptr; mm_action_resource_retain(action); return action; }
     PModel _PmodlFetch(ChildChunkID id) override
-    { trace[used++]=200+id; if (mode==2 && id==1) return nullptr; models[id]->AddRef(); return models[id]; }
+    { trace[used++]=200+id; if (mode==2 && id==1) return nullptr; mm_model_owner_retain(models[id]); return models[id]; }
 };
 static bool TestTemplateRuntime()
 {
     FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_TEMPLATE_RUNTIME_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1); face.vertices[1]=1; face.vertices[2]=2;
-    auto a=Model::PmodlNew(3,vertices,1,&face),b=Model::PmodlNew(3,vertices,1,&face); auto material=Material_MTRL::PmtrlNew();
+    auto a=EngineModel::New(3,vertices,1,&face),b=EngineModel::New(3,vertices,1,&face); auto material=Material_MTRL::PmtrlNew();
     bool ok=a && b && material; int successes=0,failures=0;
     const int counts[]={0,2,6},cels[]={-7,-1,0,2,7};
     for (int shape=0;ok && shape<3;++shape) for (int mode=0;ok && mode<3;++mode) for (int cn=0;ok && cn<5;++cn)
@@ -70,16 +70,16 @@ static bool TestTemplateRuntime()
             vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
             if (applied) ++successes; else ++failures;
-            LegacyLong values[]={shape,mode,cn,kind,failure,applied,distance,a->CactRef(),b->CactRef(),mm_action_resource_references(action),t->used};
+            LegacyLong values[]={shape,mode,cn,kind,failure,applied,distance,mm_model_owner_references(a),mm_model_owner_references(b),mm_action_resource_references(action),t->used};
             ok=record(values,sizeof(values)) && record(t->trace,t->used*sizeof(int)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
-            for (int i=0;i<n;++i) { LegacyLong identity=body->PbactPart(i)->model==a->Pbmdl()?1:body->PbactPart(i)->model==b->Pbmdl()?2:0; ok=record(&identity,sizeof(identity)) && ok; }
+            for (int i=0;i<n;++i) { LegacyLong identity=body->PbactPart(i)->model==EngineModel::Handle(a)?1:body->PbactPart(i)->model==EngineModel::Handle(b)?2:0; ok=record(&identity,sizeof(identity)) && ok; }
             LegacyLong count=-77; LegacyUlong flags=0x1357; bool exists=true; TAG tag={123,nullptr,0x12345678,456};
             BRS d=BR_SCALAR(-99); bool dOk=t->FGetDwrActnCel(0,cels[cn],&d),countOk=t->FGetCcelActn(0,&count),flagsOk=t->FGetGrfactn(0,&flags),soundOk=t->FGetSndActnCel(0,cels[cn],&exists,&tag);
             LegacyLong queries[]={dOk,d,countOk,count,flagsOk,static_cast<LegacyLong>(flags),soundOk,exists,tag.sid,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)};
             ok=record(queries,sizeof(queries)) && mm_action_resource_references(action)==1 && ok;
         }
         ReleasePpo(&body); ReleasePpo(&t); mm_action_resource_release(action); ReleasePpo(&group); ReleasePpo(&matrices); ReleasePpo(&parents); ReleasePpo(&sets); vpers->Clear();
-        ok=ok && a->CactRef()==1 && b->CactRef()==1 && material->CactRef()==1;
+        ok=ok && mm_model_owner_references(a)==1 && mm_model_owner_references(b)==1 && material->CactRef()==1;
         if (!ok) std::fprintf(stderr,"Template runtime failed: %d %d %d %d %d\n",shape,mode,cn,kind,failure);
     }
     for (int variant=0;ok && variant<5;++variant)
@@ -119,7 +119,7 @@ static bool TestTemplateRuntime()
 #else
     ok=ok && successes==189 && failures==216;
 #endif
-    ReleasePpo(&a); ReleasePpo(&b); ReleasePpo(&material);
+    mm_model_owner_release(a); mm_model_owner_release(b); ReleasePpo(&material);
     if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok && successes && failures;
 }
 #endif

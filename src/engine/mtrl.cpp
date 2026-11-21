@@ -74,7 +74,8 @@ MMMaterialServices Material_MTRL::_Services(void *context)
     s.decode = KauaiDecodeBlockHandle;
     s.texture_reader = TextureMap::FReadTmap;
     s.material_reader = Material_MTRL::FReadMtrl;
-    s.model_reader = Model::FReadModl;
+    s.model_reader = EngineModel::Read;
+    s.model_objects = mm_model_owner_services();
     s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemClear, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
     s.texture_pixelmap = [](void *, void *object) -> void * {
@@ -311,7 +312,8 @@ void CustomMaterial_CMTL::AssertValid(LegacyUlong)
     for (MMI32 i = 0; i < _custom.count; ++i)
     {
         AssertPo(static_cast<PMaterial_MTRL>(_custom.materials[i]), 0);
-        AssertNilOrPo(static_cast<PModel>(_custom.models[i]), 0);
+        if (_custom.models[i])
+            EngineModel::Validate(static_cast<PModel>(_custom.models[i]));
     }
 }
 void CustomMaterial_CMTL::MarkMem()
@@ -323,7 +325,7 @@ void CustomMaterial_CMTL::MarkMem()
     for (MMI32 i = 0; i < _custom.count; ++i)
     {
         MarkMemObj(static_cast<PMaterial_MTRL>(_custom.materials[i]));
-        MarkMemObj(static_cast<PModel>(_custom.models[i]));
+        EngineModel::Mark(static_cast<PModel>(_custom.models[i]));
     }
 }
 #endif

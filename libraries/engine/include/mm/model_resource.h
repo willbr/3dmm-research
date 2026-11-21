@@ -6,6 +6,7 @@
 #include "body_geometry.h"
 #include "chunk_edit.h"
 #include "read_stream.h"
+#include "resource_cache.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C"
@@ -47,9 +48,6 @@ extern "C"
         MMU32 system;
         MMI32 face_bytes, vertex_group_bytes, face_group_bytes;
         unsigned prepared_flag, keep_original_flag, prepare_all;
-        MMModelResource *(*state)(void *, void *object);
-        void *(*create)(void *);
-        void (*release)(void *, void *object);
         MMBlockTransform decode;
         const MMStorageAllocator *allocator;
         void (*invalidate)(void *, void *, size_t);
@@ -72,28 +70,34 @@ extern "C"
         void (*geometry)(void *, void *handle, const MMModelDescription *);
         void (*position)(void *, void *handle, MMI32, MMI32 out[3]);
         void (*set_position)(void *, void *handle, MMI32, const MMI32 in[3]);
-        const void *(*path)(void *, void *filename);
         void *(*load_dat)(void *, const void *path);
         void (*or_flags)(void *, void *handle, unsigned flags);
         void (*prepare)(void *, void *handle, unsigned flags);
     } MMModelServices;
-    /* Handles are renderer-owned allocations with lifetime controlled here. State
-     * starts empty; do not reinitialize a nonempty owner. Direct read failure keeps
-     * partial ownership; dispose releases it. Factory failure releases before
-     * invalidating outputs, retaining native ordering and 32-bit cache estimates.
-     * Read bounds are checked before native I/O. Negative signed wire counts fail
-     * cleanly instead of invoking the original allocator/read assertions.
-     * Callbacks are synchronous and must not reenter/mutate unrelated state. */
-    void mm_model_init(MMModelResource *);
-    void mm_model_dispose(MMModelResource *, const MMModelServices *);
-    void *mm_model_new(MMI32, const void *, MMI32, const void *, const MMModelServices *);
-    /* Borrow the block for the call. Factory estimates use the stored extent
-     * without decoding. Actual reads decode the block in place. */
-    int mm_model_fetch(MMOwnedBlock *, void *object_out, void *size_out, const MMModelServices *);
-    int mm_model_read(void *object, MMOwnedBlock *, const MMModelServices *);
+    typedef struct MMModelOwner MMModelOwner;
+    typedef struct MMModelOwnerHost
+    {
+        const MMModelServices *renderer;
+        const MMStorageAllocator *objects; /* NULL selects the C heap. */
+        void (*mark_memory)(void *);
+    } MMModelOwnerHost;
+    /* The host and its providers outlive their models. An empty owner can load
+     * one block. Direct read failure keeps partial renderer storage until release.
+     * Cache reads release partial owners before invalidating outputs. Estimates
+     * use the stored extent without decoding; actual reads decode in place. */
+    MMModelOwner *mm_model_owner_create(const MMModelOwnerHost *);
+    MMModelOwner *mm_model_new(MMI32, const void *, MMI32, const void *, const MMModelOwnerHost *);
+    MMModelOwner *mm_model_dat(const void *path, const MMModelOwnerHost *);
+    int mm_model_fetch(MMOwnedBlock *, void **object, MMI32 *bytes, const MMModelOwnerHost *);
+    int mm_model_read(MMModelOwner *, MMOwnedBlock *);
+    const MMResourceObjectServices *mm_model_owner_services(void);
+    const MMResourceObject *mm_model_owner_binding(const MMModelOwner *);
+    const MMModelResource *mm_model_owner_resource(const MMModelOwner *);
+    MMI32 mm_model_owner_references(const MMModelOwner *);
+    void mm_model_owner_retain(MMModelOwner *);
+    void mm_model_owner_release(MMModelOwner *);
     int mm_model_write(const MMModelResource *, const MMChunkEdit *, const MMBlockFileServices *,
                        MMU32 type, MMU32 number, const MMModelServices *);
-    void *mm_model_dat(void *filename, const MMModelServices *);
     MMI32 mm_model_extent(const MMModelResource *, unsigned axis, const MMModelServices *);
     void mm_model_adjust_glyph(const MMModelResource *, const MMModelServices *);
     /* Wire faces are 32 bytes, with a discarded 32-bit material slot and zeroed

@@ -3,8 +3,8 @@
 #include "mm/action_definition.h"
 #include "mm/movie_session.h"
 #include <string.h>
-static void *fetch_child(const MMResourceObject *resource, MMU32 id, int kind, MMResourceBlockReader reader,
-                         const MMResourceObjectServices *objects, MMMovieAsset *asset)
+void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int kind, MMResourceBlockReader reader,
+                             const MMResourceObjectServices *objects, MMMovieAsset *asset)
 {
     MMChunkAccess graph;
     MMChunkEntry entry;
@@ -43,15 +43,9 @@ static void *fetch_child(const MMResourceObject *resource, MMU32 id, int kind, M
         *asset = resolved;
     return object;
 }
-void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int kind, MMResourceBlockReader reader,
-                             MMMovieAsset *asset)
-{
-    return fetch_child(resource, id, kind, reader, NULL, asset);
-}
-
 MMActionResource *mm_template_fetch_action(const MMResourceObject *resource, MMU32 id, MMResourceBlockReader reader)
 {
-    return fetch_child(resource, id, MM_TEMPLATE_ACTION, reader, mm_action_resource_services(), NULL);
+    return mm_template_fetch_child(resource, id, MM_TEMPLATE_ACTION, reader, mm_action_resource_services(), NULL);
 }
 
 static MMI32 resource_cel_count(void *context, void *action)
@@ -108,7 +102,7 @@ static void *fetch_action(void *object, MMI32 id, const MMTemplateRuntimeService
 {
     if (s->generated_action)
         return s->generated_action(s->storage.context, object, id);
-    return fetch_child(s->resource, (MMU32)id, MM_TEMPLATE_ACTION, s->action_reader, s->action_objects, NULL);
+    return mm_template_fetch_child(s->resource, (MMU32)id, MM_TEMPLATE_ACTION, s->action_reader, s->action_objects, NULL);
 }
 
 static void release_action(void *action, const MMTemplateRuntimeServices *s)
@@ -175,7 +169,8 @@ static int render_cel_model(void *context, MMU32 part, MMU32 slot, MMMovieAsset 
     if (s->generated_model)
         cel->parts[part].model = s->generated_model(s->storage.context, cel->object, slot, asset);
     else
-        cel->parts[part].model = mm_template_fetch_child(s->resource, slot, MM_TEMPLATE_MODEL, s->model_reader, asset);
+        cel->parts[part].model = mm_template_fetch_child(s->resource, slot, MM_TEMPLATE_MODEL, s->model_reader,
+                                                    s->model_objects, asset);
     return cel->parts[part].model ? MM_MOVIE_OK : MM_MOVIE_ASSET_NOT_FOUND;
 }
 
@@ -234,7 +229,10 @@ done:
         for (i = 0; i < count; ++i)
             if (parts[i].model)
             {
-                a->release(a->context, parts[i].model);
+                if (s->model_objects)
+                    mm_resource_object_release(parts[i].model, s->model_objects);
+                else
+                    a->release(a->context, parts[i].model);
                 parts[i].model = NULL;
             }
         a->free_memory(a->context, &storage);

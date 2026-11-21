@@ -106,7 +106,7 @@ static void setup(Fixture *f,int n,int fail)
     for (i=0;i<n;++i) { f->set_values[i]=(short)(i%3*2); f->parent_values[i]=(short)(i?((i-1)/2):-1); }
     f->s.context=f; f->s.state=body_state; f->s.highlight=highlight;
     f->s.allocate_highlight=allocate_highlight; f->s.install_highlight=install_highlight;
-    f->s.create=create; f->s.release=release;
+    f->s.create=create; f->s.release=release; f->s.release_model=release;
     f->s.allocate_materials=allocate_materials; f->s.allocate_actors=allocate_actors; f->s.initialize_actor=initialize;
     f->s.assign_matrix=assign_matrix; f->s.assign_material=clear_material; f->s.link=link_actor; f->s.hide=hide_body;
     f->s.free_memory=free_memory;

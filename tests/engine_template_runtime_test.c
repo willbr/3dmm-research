@@ -251,15 +251,15 @@ int main(void)
     for (i=0;i<3;++i)
     {
         MMMovieAsset asset = {0};
-        assert(mm_template_fetch_child(&x.resource,0,i,reader,&asset)==&x.resources[i]);
+        assert(mm_template_fetch_child(&x.resource,0,i,reader,NULL,&asset)==&x.resources[i]);
         assert(asset.type==x.resources[i].state.type && asset.number==10+(MMU32)i);
         assert(x.resources[i].references.count==2);
         mm_reference_drop(&x.resources[i].references);
-        assert(!mm_template_fetch_child(&x.resource,1,i,reader,&asset) && asset.number==10+(MMU32)i);
+        assert(!mm_template_fetch_child(&x.resource,1,i,reader,NULL,&asset) && asset.number==10+(MMU32)i);
     }
-    assert(mm_template_fetch_child(&x.resource,7,MM_TEMPLATE_CUSTOM,reader,NULL)==&x.resources[2]);
+    assert(mm_template_fetch_child(&x.resource,7,MM_TEMPLATE_CUSTOM,reader,NULL,NULL)==&x.resources[2]);
     mm_reference_drop(&x.resources[2].references);
-    assert(!mm_template_fetch_child(&x.resource,0,MM_TEMPLATE_RESOURCE_COUNT,reader,NULL));
+    assert(!mm_template_fetch_child(&x.resource,0,MM_TEMPLATE_RESOURCE_COUNT,reader,NULL,NULL));
     s.generated_action=NULL; value=-77;
     assert(mm_template_cel_count(&x,0,&value,&s) && value==3 && x.resources[0].references.count==1);
     out=-77; assert(mm_template_action_name(0,&out,&s) && out==42);

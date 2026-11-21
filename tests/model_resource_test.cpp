@@ -26,24 +26,11 @@ bool FAssertProc(schar *file, LegacyLong line, schar *message, void *, LegacyLon
             std::exit(1);                                                                                              \
         }                                                                                                              \
     } while (0)
-class ModelResourceAccess : public Model
+static bool Prelight(PModel model)
 {
-  public:
-    static ModelResourceAccess *Create()
-    {
-        return NewObj ModelResourceAccess;
-    }
-    bool Initialize(PDataBlock b)
-    {
-        return _FInit(b);
-    }
-    static bool Prelight(PModel model)
-    {
-        BVEC3 light = {};
-        auto method = &ModelResourceAccess::_FPrelight;
-        return (model->*method)(1, &light);
-    }
-};
+    BVEC3 light = {};
+    return EngineModel::Prelight(model, 1, &light);
+}
 static FILE *snapshot;
 static std::uint32_t fingerprint = 2166136261u, traceBytes = 0;
 static void Record(const void *p, std::size_t count)
@@ -63,7 +50,7 @@ static std::vector<byte> Wire(PModel model)
 {
     auto file = ChunkyFile::PcflCreateTemp();
     CHECK(file);
-    CHECK(model->FWrite(file, 'MODL', 7));
+    CHECK(EngineModel::Write(model, file, 'MODL', 7));
     DataBlock block;
     CHECK(file->FFind('MODL', 7, &block));
     std::vector<byte> bytes(block.Cb());
@@ -77,7 +64,7 @@ static void State(PModel model, bool complete)
     Value(model != nullptr);
     if (!model)
         return;
-    auto m = model->Pbmdl();
+    auto m = EngineModel::Handle(model);
     Value(m != nullptr);
     if (!m)
         return;
@@ -92,13 +79,13 @@ static void State(PModel model, bool complete)
                            m->prepared_faces != nullptr,
                            m->vertex_groups != nullptr,
                            m->face_groups != nullptr,
-                           Model::PmodlFromBmdl(m) == model};
+                           EngineModel::FromHandle(m) == model};
     Record(fields, sizeof(fields));
     if (complete)
     {
-        Value(model->Dxr());
-        Value(model->Dyr());
-        Value(model->Dzr());
+        Value(EngineModel::Extent(model, 0));
+        Value(EngineModel::Extent(model, 1));
+        Value(EngineModel::Extent(model, 2));
         auto wire = Wire(model);
         Value(static_cast<LegacyLong>(wire.size()));
         Record(wire.data(), wire.size());
@@ -128,7 +115,7 @@ static PModel Source(int pattern)
     faces[1].vertices[1] = 2;
     faces[1].vertices[2] = 3;
     faces[1].smoothing = 2;
-    return Model::PmodlNew(4, vertices, 2, faces);
+    return EngineModel::New(4, vertices, 2, faces);
 }
 static void Inject(int kind, int n)
 {
@@ -176,7 +163,7 @@ static void CheckPrelightLifetime(PModel model)
     // SDK allocation in a second call and require all of them to be freed.
     br_allocator tracker = {"Model lifetime fixture", TrackAllocate, TrackFree, TrackInquire};
     underlyingAllocator = BrAllocatorSet(&tracker);
-    CHECK(ModelResourceAccess::Prelight(model));
+    CHECK(Prelight(model));
     BrAllocatorSet(underlyingAllocator);
     CHECK(!trackedCount);
 }
@@ -184,7 +171,7 @@ static void Dat(const char *identifier)
 {
     auto source = Source(0);
     CHECK(source);
-    auto prepared = source->Pbmdl();
+    auto prepared = EngineModel::Handle(source);
     auto raw = BrModelAllocate(const_cast<char *>(identifier), prepared->nprepared_vertices, prepared->nprepared_faces);
     CHECK(raw);
     std::memcpy(raw->vertices, prepared->prepared_vertices, prepared->nprepared_vertices * sizeof(BRV));
@@ -195,13 +182,13 @@ static void Dat(const char *identifier)
     filename.GetStnPath(&path);
     CHECK(BrModelSave(path.Psz(), raw));
     BrModelFree(raw);
-    auto loaded = Model::PmodlReadFromDat(&filename);
-    CHECK(loaded && Model::PmodlFromBmdl(loaded->Pbmdl()) == loaded &&
-          (loaded->Pbmdl()->flags & BR_MODF_KEEP_ORIGINAL) &&
-          loaded->Pbmdl()->nprepared_faces == prepared->nprepared_faces);
-    ReleasePpo(&loaded);
+    auto loaded = EngineModel::FromDat(&filename);
+    CHECK(loaded && EngineModel::FromHandle(EngineModel::Handle(loaded)) == loaded &&
+          (EngineModel::Handle(loaded)->flags & BR_MODF_KEEP_ORIGINAL) &&
+          EngineModel::Handle(loaded)->nprepared_faces == prepared->nprepared_faces);
+    mm_model_owner_release(loaded);
     CHECK(filename.FDelete());
-    ReleasePpo(&source);
+    mm_model_owner_release(source);
 }
 #if defined(_MSC_VER) && defined(DEBUG)
 static int RuntimeReport(int type, char *message, int *)
@@ -238,11 +225,11 @@ int main()
         CHECK(source);
         auto original = Wire(source);
         State(source, true);
-        source->AdjustTdfCharacter();
+        EngineModel::AdjustGlyph(source);
         State(source, true);
-        source->AdjustTdfCharacter();
+        EngineModel::AdjustGlyph(source);
         State(source, true);
-        ReleasePpo(&source);
+        mm_model_owner_release(source);
         for (int variant = 0; variant < 9; ++variant)
             for (int factory = 0; factory < 2; ++factory)
                 for (int kind = 0; kind < 2; ++kind)
@@ -285,20 +272,20 @@ int main()
                         DataBlock block;
                         CHECK(file->FFind('MODL', number, &block));
                         MMI32 estimate = -1;
-                        CHECK(Model::FReadModl(cache->CoreCache(), 'MODL', number, block.CoreBlock(), nullptr, &estimate));
+                        CHECK(EngineModel::Read(cache->CoreCache(), 'MODL', number, block.CoreBlock(), nullptr, &estimate));
                         Value(estimate);
-                        PModel model = factory ? nullptr : ModelResourceAccess::Create();
+                        PModel model = factory ? nullptr : mm_model_owner_create(&EngineModel::Host());
                         CHECK(factory || model);
                         bool ok;
                         Inject(kind, failure);
                         if (factory)
                         {
                             void *output = nullptr;
-                            ok = Model::FReadModl(cache->CoreCache(), 'MODL', number, block.CoreBlock(), &output, &estimate);
+                            ok = EngineModel::Read(cache->CoreCache(), 'MODL', number, block.CoreBlock(), &output, &estimate);
                             model = ok ? static_cast<PModel>(output) : nullptr;
                         }
                         else
-                            ok = static_cast<ModelResourceAccess *>(model)->Initialize(&block);
+                            ok = mm_model_read(model, block.CoreBlock());
                         Inject(kind, 0);
                         ++attempts;
                         loaded += ok;
@@ -307,10 +294,10 @@ int main()
                         State(model, ok);
                         if (ok && variant != 4)
                         {
-                            model->AdjustTdfCharacter();
+                            EngineModel::AdjustGlyph(model);
                             State(model, true);
                         }
-                        ReleasePpo(&model);
+                        mm_model_owner_release(model);
                         block.Free();
                         ReleasePpo(&cache);
                         ReleasePpo(&file);
@@ -324,10 +311,10 @@ int main()
     // lighting result. The original leaked its temporary material/pixelmaps.
     auto lit = Source(0);
     CHECK(lit);
-    CHECK(ModelResourceAccess::Prelight(lit));
+    CHECK(Prelight(lit));
     State(lit, true);
     CheckPrelightLifetime(lit);
-    ReleasePpo(&lit);
+    mm_model_owner_release(lit);
     // This checksum excludes DAT's external file representation.
     const unsigned endian = 1;
     if (*reinterpret_cast<const byte *>(&endian))

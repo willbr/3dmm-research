@@ -532,6 +532,8 @@ static MMPreviewRenderServices services(Host *h)
     s.attach_body_part = attach_body_part;
     s.retain_pose_resource = retain_pose_resource;
     s.release_pose_resource = release_pose_resource;
+    s.retain_model = retain_pose_resource;
+    s.release_model = release_pose_resource;
     s.object_bounds = bounds;
     s.frame_factory.colour = colour;
     s.frame_factory.depth = depth;
