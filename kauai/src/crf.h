@@ -153,7 +153,6 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MMChunkAccess ReadChunkAccess();
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);
     MMChunkEndpoint CopySource(MMResourceChunkCopy &binding);
-    bool FCopyChunk(ChunkTagOrType, ChunkNumber, PChunkyFile destination, ChunkNumber *copied);
     PChunkyResourceFile PcrfNewSibling(LegacyLong budget);
 
     LegacyLong CbMax(void)

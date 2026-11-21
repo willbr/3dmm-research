@@ -299,10 +299,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   payloads attaches transfer buffers for the duration of each operation.
 - Tag open/save/duplicate/close, child construction, fetch dispatch and cache
   clearing now use C89. Tag lookup uses the shared cache and resource manager
-  for both editable and read-only archives. Stored local tags can be copied
-  into editable archives through the shared graph copier. The C tag list owns
-  group storage and preserves legacy sort, duplicate and borrowed-reference
-  behavior.
+  for both editable and read-only archives. Local tag open and save call the
+  shared C89 graph copier directly with borrowed file or cache bindings. The
+  C tag list owns group storage and preserves legacy sort, duplicate and
+  borrowed-reference behavior.
 - The source catalogue now owns C records, path handles and manager references.
   Local/media decisions, cached misses, retry/install sequencing, ordered manager
   construction and file routing use C89. Source names now use owning C storage,

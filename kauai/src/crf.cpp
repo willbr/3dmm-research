@@ -312,16 +312,6 @@ MMChunkEndpoint ChunkyResourceFile::CopySource(MMResourceChunkCopy &binding)
                                           &titles, KauaiEncodeLegacyChunkName, sizeof(achar));
 }
 
-bool ChunkyResourceFile::FCopyChunk(ChunkTagOrType type, ChunkNumber number, PChunkyFile destination, ChunkNumber *copied)
-{
-    AssertThis(0);
-    AssertPo(destination, fcflFull);
-    if (Pcfl())
-        return Pcfl()->FCopy(type, number, destination, copied);
-    MMResourceChunkCopy binding;
-    const auto source = CopySource(binding);
-    return source.identity && destination->_FCopyFrom(source, type, number, copied, false, nullptr);
-}
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
 {
     AssertThis(0);

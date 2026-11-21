@@ -17,6 +17,9 @@ extern "C"
         void *cache;
         MMU32 type, number;
     } MMTag;
+    struct MMChunkEndpoint;
+    struct MMChunkFileCopy;
+    struct MMResourceChunkCopy;
     typedef struct MMTagServices
     {
         void *context;
@@ -24,11 +27,12 @@ extern "C"
         void (*retain)(void *cache);
         void (*release)(void *cache);
         int (*compare_cache)(void *, void *);
-        int (*copy)(void *source, MMU32 type, MMU32 number, void *destination, MMU32 *new_number);
-        int (*copy_cached)(void *source, MMU32 type, MMU32 number, void *destination, MMU32 *new_number);
+        /* Borrow the archive through the copy. An empty endpoint denies access. */
+        struct MMChunkEndpoint (*bind_file)(void *file, struct MMChunkFileCopy *);
+        struct MMChunkEndpoint (*bind_cache)(void *cache, struct MMResourceChunkCopy *);
         MMResourceCache *(*cache)(void *owner);
         MMResourceManager *(*source)(void *, MMI32 sid, int local_only, const MMTag *asset);
-        void (*missing_parent)(void *);
+        void (*missing_chunk)(void *);
         void (*missing)(void *, const MMTag *);
         void (*publish)(void *, const MMTag *);
     } MMTagServices;

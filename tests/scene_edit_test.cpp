@@ -257,12 +257,16 @@ static void CheckIndexedBackground(PChunkyFile source, ChunkNumber sourceNumber)
 
     CHECK(!TagManager::FSaveTag(&parent, cache, true) && parent.pcrf == cache && parent.cno == number);
     auto writable = ChunkyFile::PcflCreateTemp();
-    CHECK(writable);
+    CHECK(writable && writable->FPutPv(nullptr, 0, kctgBkgd, number));
     auto destination = ChunkyResourceFile::PcrfNew(writable, 0);
-    CHECK(destination && TagManager::FSaveTag(&parent, destination, true) && parent.pcrf == destination);
+    const auto refs = cache->CactRef();
+    CHECK(destination && TagManager::FSaveTag(&parent, destination, true) && parent.pcrf == destination &&
+          parent.cno != number && cache->CactRef() == refs - 1 && destination->CactRef() == 2);
+    CHECK(writable->FGetName(kctgBkgd, parent.cno, &name) && name.FEqualSz(PszLit("Background A")));
     CHECK(writable->FGetKidChidCtg(kctgBkgd, parent.cno, 3, kctgCam, &camera));
     CHECK(writable->FPacked(kctgCam, camera.cki.cno));
     TagManager::CloseTag(&parent);
+    CHECK(destination->CactRef() == 1);
     ReleasePpo(&destination);
     ReleasePpo(&writable);
     ReleasePpo(&cache);

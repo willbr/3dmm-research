@@ -114,7 +114,6 @@ class ChunkyFile : public ChunkyFile_PAR
 
   private:
     // private methods
-    friend class ChunkyResourceFile;
     ChunkyFile(void);
     ~ChunkyFile(void);
 
@@ -127,7 +126,6 @@ class ChunkyFile : public ChunkyFile_PAR
     bool _FMaterializeIndex(const MMChunkIndex *);
     MMChunkAccess _ChunkAccess();
     MMChunkEdit _PayloadEdit(void *context);
-    bool _FCopyFrom(const MMChunkEndpoint &, ChunkTagOrType, ChunkNumber, ChunkNumber *, bool clone, int *created);
     tribool _TValidIndex(void);
     bool _FWriteIndex(ChunkTagOrType ctgCreator);
     MMChunkStoragePolicy _StoragePolicy();

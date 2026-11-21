@@ -6671,11 +6671,13 @@ and disabled file-cache adapters avoid reading unopened cache fields.
 tags. Child lookup selects the first source file containing the parent and
 looks up the exact child slot and type in its live or stored graph. Fetches
 preserve the local-only or media-enabled request and missing-tag callback.
-Saving a local tag copies its chunk graph from a live or stored cache into a
-writable archive. C also traverses resolved source managers for cache clearing,
+Opening a local tag across files and saving a local tag call the shared C89
+chunk copier directly. Save accepts a live or immutable source cache and
+requires a live destination. C reports a missing copy root through the native
+diagnostic. C also traverses resolved source managers for cache clearing,
 resolves media before reopening live files, and clears memory before restoring
-the previous budget. Native adapters project cache and manager handles, reopen
-files, and copy editable chunks. File caching remains a successful no-op.
+the previous budget. Native adapters bind the open archives, project cache and
+manager handles, and reopen files. File caching remains a successful no-op.
 
 `tag_list.c` owns the dependency list's payload and location buffers.
 Studio builds the list in C89 during movie open, save-format selection, and
@@ -6692,7 +6694,8 @@ remain distinct native adapters; the new C tag value carries no C++ types.
 redirects, source priority, child lookup, fetch references, missing hooks,
 comparison, cache clearing, allocation failures, and dependency-list behavior.
 `scene-edit-test` opens a background tag from a read-only archive, resolves and
-fetches it through TagManager, and saves its graph with the packed camera intact.
+fetches it through TagManager, and redirects the tag after a chunk-number
+collision. The copy preserves the background name and packed camera link.
 The initial tag migration matched all 336 frozen native tag-baseline bytes and
 51 CLI baselines. Twenty-eight standalone and forty-one focused native checks
 passed, along with MSVC AddressSanitizer.

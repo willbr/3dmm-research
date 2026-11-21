@@ -1,19 +1,41 @@
 /* Tag policy converted from engine tagman.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/tag.h"
+#include "mm/chunk_copy.h"
 static void publish(const MMTagServices *s, const MMTag *tag)
 {
     if (s->publish)
         s->publish(s->context, tag);
 }
+static int copy_local_tag(const MMTag *tag, const MMChunkEndpoint *source, void *file,
+                          MMU32 *number, const MMTagServices *s)
+{
+    MMChunkFileCopy binding;
+    MMChunkEndpoint target;
+    int status;
+    if (!source->identity)
+        return 0;
+    target = s->bind_file(file, &binding);
+    status = mm_chunk_copy(source, &target, tag->type, tag->number, 0, number);
+    if (status == MM_CHUNK_NOT_FOUND && s->missing_chunk)
+        s->missing_chunk(s->context);
+    return status == MM_CHUNK_OK;
+}
+
 int mm_tag_open(MMTag *tag, void *destination, void *source, const MMTagServices *s)
 {
+    void *file;
     MMU32 number;
     if (tag->sid)
         return 1;
-    if (source && source != s->file(destination))
+    file = source ? s->file(destination) : NULL;
+    if (source && source != file)
     {
-        if (!s->copy(source, tag->type, tag->number, s->file(destination), &number))
+        MMChunkFileCopy binding;
+        MMChunkEndpoint endpoint;
+        if (file)
+            endpoint = s->bind_file(source, &binding);
+        if (!file || !copy_local_tag(tag, &endpoint, file, &number, s))
         {
             tag->cache = NULL;
             publish(s, tag);
@@ -28,10 +50,17 @@ int mm_tag_open(MMTag *tag, void *destination, void *source, const MMTagServices
 }
 int mm_tag_save(MMTag *tag, void *destination, int redirect, const MMTagServices *s)
 {
+    MMResourceChunkCopy binding;
+    MMChunkEndpoint source;
+    void *file;
     MMU32 number;
     if (tag->sid)
         return 1;
-    if (!s->copy_cached(tag->cache, tag->type, tag->number, destination, &number))
+    file = s->file(destination);
+    if (!file || !tag->cache)
+        return 0;
+    source = s->bind_cache(tag->cache, &binding);
+    if (!copy_local_tag(tag, &source, file, &number, s))
         return 0;
     if (redirect)
     {
@@ -90,8 +119,8 @@ int mm_tag_child(const MMTag *parent, MMU32 slot, MMU32 type, MMTag *out,
     chunks = mm_resource_cache_chunks(cache);
     if (mm_chunk_find(&chunks, parent->type, parent->number, &position) != MM_CHUNK_OK)
     {
-        if (cache->file && s->missing_parent)
-            s->missing_parent(s->context);
+        if (cache->file && s->missing_chunk)
+            s->missing_chunk(s->context);
         return 0;
     }
     if (mm_chunk_child_exact(&chunks, position, slot, type, &child) != MM_CHUNK_OK)

@@ -2454,31 +2454,23 @@ MMChunkEndpoint ChunkyFile::CopyEndpoint(MMChunkFileCopy &binding)
     return mm_chunk_file_copy_endpoint(&binding, this, &archive, &titles, sizeof(achar), false);
 }
 
-bool ChunkyFile::_FCopyFrom(const MMChunkEndpoint &source, ChunkTagOrType type, ChunkNumber number,
-                          ChunkNumber *out, bool clone, int *created)
+bool ChunkyFile::_FCopy(ChunkTagOrType type, ChunkNumber number, PChunkyFile destination, ChunkNumber *out,
+                       bool clone, int *created)
 {
     AssertThis(fcflFull);
+    AssertPo(destination, fcflFull);
     AssertVarMem(out);
-    MMChunkFileCopy destination;
-    const auto dst = CopyEndpoint(destination);
+    MMChunkFileCopy sourceBinding, destinationBinding;
+    const auto source = CopyEndpoint(sourceBinding);
+    const auto dst = destination->CopyEndpoint(destinationBinding);
     MMU32 copied;
     const int result = created ? mm_chunk_copy_reference(&source, &dst, type, number, &copied, created)
                                : mm_chunk_copy(&source, &dst, type, number, clone, &copied);
     if (result == MM_CHUNK_OK) *out = copied;
     else { TrashVar(out); if (result == MM_CHUNK_NOT_FOUND) Bug("chunk not found"); }
+    AssertPo(destination, fcflFull);
     AssertThis(fcflFull);
     return result == MM_CHUNK_OK;
-}
-bool ChunkyFile::_FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile pcflDst, ChunkNumber *pcnoDst, bool fClone,
-                       int *created)
-{
-    AssertThis(fcflFull);
-    AssertPo(pcflDst, fcflFull);
-    MMChunkFileCopy source;
-    const auto services = CopyEndpoint(source);
-    const bool result = pcflDst->_FCopyFrom(services, ctgSrc, cnoSrc, pcnoDst, fClone, created);
-    AssertThis(fcflFull);
-    return result;
 }
 
 /***************************************************************************

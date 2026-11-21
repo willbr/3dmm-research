@@ -1,5 +1,6 @@
 #include "mm/actor_track.h"
 #include "mm/actor_animation.h"
+#include "tag_copy_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -23,7 +24,7 @@ typedef struct Host
     int publish_count;
 } Host;
 static Host h;
-static int source_file, destination_file;
+static TagCopyFile source_file, destination_file;
 
 static void log_call(char c)
 {
@@ -82,15 +83,17 @@ static void *file(void *cache)
     return &destination_file;
 }
 
-static int copy(void *source, MMU32 type, MMU32 number, void *destination, MMU32 *out)
+static MMChunkEndpoint bind_file(void *file, MMChunkFileCopy *binding)
 {
-    CHECK(source == &source_file && destination == &destination_file && type == 123);
-    ++h.copies;
-    log_call('c');
-    if (h.copies == h.fail_copy)
-        return 0;
-    *out = number + 100;
-    return 1;
+    const MMChunkEndpoint unavailable = {0};
+    CHECK(file == &source_file || file == &destination_file);
+    if (file == &source_file)
+    {
+        log_call('c');
+        if (++h.copies == h.fail_copy)
+            return unavailable;
+    }
+    return tag_copy_file_endpoint(file, binding);
 }
 
 static void publish(void *context, const MMTag *tag)
@@ -254,11 +257,18 @@ static void open_rows(void)
     MMActorTrack t;
     MMTag tag;
     MMTagServices services = tags;
-    const MMU32 order[] = {110, 120, 30, 120, 110};
+    const MMU32 order[] = {0, 1, 30, 1, 0};
     services.context = &h;
     services.file = file;
-    services.copy = copy;
+    services.bind_file = bind_file;
     services.publish = publish;
+    tag_copy_file_init(&source_file);
+    tag_copy_file_init(&destination_file);
+    fixture_chunk_add(&source_file.index, 123, 10);
+    fixture_chunk_add(&source_file.index, 123, 20);
+    fixture_chunk_add(&source_file.index, 123, 30);
+    fixture_chunk_add(&destination_file.index, 123, 10);
+    fixture_chunk_add(&destination_file.index, 123, 20);
     reset_log();
     mm_actor_track_init(&t);
     CHECK(mm_actor_track_create(&t, &allocator, 1, &tags));
@@ -272,7 +282,7 @@ static void open_rows(void)
     CHECK(strcmp(h.log, "c+c+c--") == 0 && !h.refs);
     CHECK(h.publish_count == 5 && !memcmp(h.published, order, sizeof(order)));
     CHECK(!t.events->storage.buffers[0].locks);
-    CHECK(mm_actor_track_get_tag(t.events, 2, &tag) && !tag.cache && tag.number == 120);
+    CHECK(mm_actor_track_get_tag(t.events, 2, &tag) && !tag.cache && tag.number == 1);
     reset_log();
     CHECK(mm_actor_track_open_tags(&t, &h, NULL, &tags));
     CHECK(strcmp(h.log, "+++") == 0 && h.refs == 3);

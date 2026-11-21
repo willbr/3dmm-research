@@ -1,4 +1,5 @@
 #include "mm/tag.h"
+#include "tag_copy_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -20,6 +21,7 @@ typedef struct Cache
     MMResourceEntry entry;
     MMResourceObject object;
     MMReference object_refs;
+    TagCopyFile archive;
 } Cache;
 struct Host
 {
@@ -67,20 +69,22 @@ static int compare(void *a, void *b)
     int x = ((Cache *)a)->id, y = ((Cache *)b)->id;
     return (x > y) - (x < y);
 }
-static int copy(void *a, MMU32 type, MMU32 number, void *b, MMU32 *out)
+static MMChunkEndpoint bind_file(void *p, MMChunkFileCopy *binding)
 {
-    Host *h = ((Cache *)a)->host;
-    (void)b;
-    CHECK(type == 7);
-    event(h, 'C');
-    if (h->fail)
-        return 0;
-    *out = number + 1;
-    return 1;
+    Cache *c = p;
+    event(c->host, 'F');
+    return tag_copy_file_endpoint(&c->archive, binding);
 }
-static int copy_cached(void *a, MMU32 type, MMU32 number, void *b, MMU32 *out)
+static MMChunkEndpoint bind_cache(void *p, MMResourceChunkCopy *binding)
 {
-    return ((Cache *)b)->core.file && copy(a, type, number, b, out);
+    const MMChunkEndpoint unavailable = {0};
+    Cache *c = p;
+    event(c->host, 'C');
+    return c->host->fail ? unavailable : tag_copy_file_endpoint(&c->archive, &binding->live);
+}
+static void missing_chunk(void *p)
+{
+    event(p, '!');
 }
 static void publish(void *p, const MMTag *tag)
 {
@@ -177,6 +181,7 @@ static MMTagServices init(Host *h)
         c->host = h;
         c->id = i;
         c->refs = 1;
+        tag_copy_file_init(&c->archive);
         c->core.file = i < 2 ? c : NULL;
         c->core.budget = 128;
         c->core.services.contains = contains;
@@ -199,16 +204,20 @@ static MMTagServices init(Host *h)
     h->manager.storage.buffers[0].capacity = sizeof(h->files);
     h->manager.count = 2;
     h->found = 3;
+    fixture_chunk_add(&h->caches[0].archive.index, 7, 1);
+    fixture_chunk_add(&h->caches[1].archive.index, 7, 0);
+    fixture_chunk_add(&h->caches[1].archive.index, 7, 1);
     s.context = h;
     s.file = file;
     s.retain = retain;
     s.release = release;
     s.compare_cache = compare;
-    s.copy = copy;
-    s.copy_cached = copy_cached;
+    s.bind_file = bind_file;
+    s.bind_cache = bind_cache;
     s.publish = publish;
     s.cache = cache;
     s.source = source;
+    s.missing_chunk = missing_chunk;
     s.missing = missing;
     return s;
 }
@@ -224,16 +233,20 @@ static void lifecycle(void)
     CHECK(mm_tag_open(&tag, a, NULL, &s) && tag.cache == a && a->refs == 2 && !strcmp(h.log, "PA"));
     CHECK(h.visible.cache == a);
     reset(&h);
-    CHECK(mm_tag_save(&tag, b, 0, &s) && tag.cache == a && tag.number == 1 && !strcmp(h.log, "C"));
+    CHECK(mm_tag_save(&tag, b, 0, &s) && tag.cache == a && tag.number == 1 && !strcmp(h.log, "2CF") &&
+          b->archive.index.count == 3);
     reset(&h);
     CHECK(mm_tag_save(&tag, b, 1, &s) && tag.cache == b && tag.number == 2 && a->refs == 1 && b->refs == 2 &&
-          !strcmp(h.log, "CBaP"));
+          !strcmp(h.log, "2CFBaP") && b->archive.index.count == 3);
     reset(&h);
     old = tag;
     h.fail = 1;
     CHECK(!mm_tag_save(&tag, a, 1, &s) && tag.cache == old.cache && tag.number == old.number &&
-          !strcmp(h.log, "C"));
+          !strcmp(h.log, "1C"));
     h.fail = 0;
+    reset(&h);
+    CHECK(!mm_tag_save(&tag, h.caches + 2, 1, &s) && tag.cache == b && tag.number == 2 &&
+          !strcmp(h.log, "3"));
     reset(&h);
     mm_tag_dup(&tag, &s);
     CHECK(b->refs == 3 && !strcmp(h.log, "B"));
@@ -242,14 +255,16 @@ static void lifecycle(void)
     release(b);
     CHECK(b->refs == 1);
     tag.cache = a;
+    tag.number = 99;
+    reset(&h);
+    CHECK(!mm_tag_open(&tag, b, a, &s) && !tag.cache && tag.number == 99 && a->refs == 1 && b->refs == 1 &&
+          !strcmp(h.log, "2FF!P"));
     tag.number = 1;
-    h.fail = 1;
     reset(&h);
-    CHECK(!mm_tag_open(&tag, b, a, &s) && !tag.cache && tag.number == 1 && a->refs == 1 && b->refs == 1 &&
-          !strcmp(h.log, "22CP"));
-    h.fail = 0;
+    CHECK(mm_tag_open(&tag, b, a, &s) && tag.cache == b && tag.number == 2 && !strcmp(h.log, "2FFPB"));
+    mm_tag_close(&tag, &s);
     reset(&h);
-    CHECK(mm_tag_open(&tag, b, a, &s) && tag.cache == b && tag.number == 2 && !strcmp(h.log, "22CPB"));
+    CHECK(mm_tag_open(&tag, b, b, &s) && tag.cache == b && tag.number == 2 && !strcmp(h.log, "2PB"));
     mm_tag_close(&tag, &s);
     tag.sid = 42;
     tag.cache = a;

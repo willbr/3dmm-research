@@ -40,6 +40,7 @@
 #include "soc_core.h"
 #include "engine_movie_source.h"
 #include "engine_movie_graph.h"
+#include "mm/chunk_copy.h"
 PTagManager vptagm;
 
 ASSERTNAME
@@ -625,12 +626,11 @@ MMTagServices TagManager::_Services(void *context)
         auto x = static_cast<PChunkyResourceFile>(a), y = static_cast<PChunkyResourceFile>(b);
         return x == y ? 0 : x < y ? -1 : 1;
     };
-    s.copy = [](void *a, MMU32 type, MMU32 number, void *b, MMU32 *out) -> int {
-        return b && static_cast<PChunkyFile>(a)->FCopy(type, number, static_cast<PChunkyFile>(b), out);
+    s.bind_file = [](void *file, MMChunkFileCopy *binding) {
+        return static_cast<PChunkyFile>(file)->CopyEndpoint(*binding);
     };
-    s.copy_cached = [](void *a, MMU32 type, MMU32 number, void *b, MMU32 *out) -> int {
-        auto destination = static_cast<PChunkyResourceFile>(b)->Pcfl();
-        return a && destination && static_cast<PChunkyResourceFile>(a)->FCopyChunk(type, number, destination, out);
+    s.bind_cache = [](void *cache, MMResourceChunkCopy *binding) {
+        return static_cast<PChunkyResourceFile>(cache)->CopySource(*binding);
     };
     s.cache = [](void *c) -> MMResourceCache * {
         return c ? static_cast<PChunkyResourceFile>(c)->CoreCache() : nullptr;
@@ -640,7 +640,7 @@ MMTagServices TagManager::_Services(void *context)
         auto manager = h->manager->_PcrmSourceGet(sid, local != 0, h->asset);
         return manager ? manager->CoreManager() : nullptr;
     };
-    s.missing_parent = [](void *) { Bug("chunk not found"); };
+    s.missing_chunk = [](void *) { Bug("chunk not found"); };
     s.missing = [](void *c, const MMTag *) {
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
         auto h = static_cast<NativeTagHost *>(c);

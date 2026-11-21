@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include "kauai_core.h"
+#include "mm/chunk_copy.h"
 #undef size
 ASSERTNAME
 
@@ -287,7 +288,12 @@ static int WireSourceCase()
     live->SetPacked(type, glyph, false);
     auto writable = ChunkyFile::PcflCreateTemp();
     ChunkNumber copied;
-    CHECK(writable && cache->FCopyChunk(type, root, writable, &copied));
+    CHECK(writable);
+    MMResourceChunkCopy sourceBinding;
+    MMChunkFileCopy targetBinding;
+    const auto source = cache->CopySource(sourceBinding);
+    const auto target = writable->CopyEndpoint(targetBinding);
+    CHECK(mm_chunk_copy(&source, &target, type, root, 0, &copied) == MM_CHUNK_OK);
     CHECK(ChunkyFile::PcflFromFni(&path) == live);
     ChildChunkIdentification child;
     DataBlock block;

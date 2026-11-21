@@ -18771,3 +18771,26 @@ identities in seeks and continuous playback. Their 60 seek camera indices
 matched retail and their 60 seek canvas hashes matched their earlier port
 captures. SDL matched all 12 archived retail sound requests. The logs and
 comparison scripts are in `tmp/c89-preview-font-archive`.
+
+## Embedded tag copies through the shared C89 archive copier (21 November 2026)
+
+The tag controller now invokes the C89 chunk copier for cross-file open and
+for save from a live or immutable cache. The host supplies borrowed archive
+bindings and the missing-chunk diagnostic. The C fixtures check collision
+remapping, live graph reuse, failure publication, and reverse cleanup after a
+partial actor-track open. The native scene fixture redirects an immutable
+background tag after a collision and checks the reference counts, copied name
+and packed camera link.
+
+All 193 standalone C checks, five focused AddressSanitizer checks, two x86 C
+checks and nine native checks passed. The 336-byte native tag ownership trace
+matched byte for byte. Native x64, x86 and SDL matched all 27 save/reopen
+traces, composition and sound-resource snapshots, and the full movie save.
+Both ports matched all three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T112749Z-e907f427`.
+
+In `actor-event-edit` suite `20261121T112753Z-e532840e`, both ports matched
+all 60 archived retail frame identities in seek and continuous playback.
+Their seek camera indices agreed with retail and both reproduced their 60
+previous seek canvas hashes. SDL matched all 12 retail sound requests. Logs
+and comparison scripts are in `tmp/c89-tag-archive-copy`.
