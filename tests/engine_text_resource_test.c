@@ -171,6 +171,8 @@ static void init(Context *c)
     c->source.chunks.entry = graph_entry;
     c->source.chunks.child = graph_child;
     c->cache.file = c;
+    c->cache.services.block_files = c->payloads.files;
+    c->cache.services.handles = c->payloads.handles;
     c->cache.services.live_chunks = live_chunks;
     c->cache.services.locate = locate;
     s->context=c; g->context=c; g->state=generated; g->length=length; g->template_state=template_state;

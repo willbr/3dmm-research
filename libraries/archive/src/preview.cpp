@@ -871,7 +871,7 @@ catch (const std::bad_alloc &)
 bool Preview::Open(const std::string &archivePath, const std::string &resourcesPath, Error &error)
 {
     Archive archive;
-    if (!archive.Open(archivePath, error))
+    if (!archive.OpenForPreview(archivePath, error))
         return false;
     return Open(std::move(archive), resourcesPath, error);
 }

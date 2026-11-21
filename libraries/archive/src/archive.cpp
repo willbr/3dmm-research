@@ -12,7 +12,7 @@
 #include "engine_movie_graph.h"
 #include "engine_movie_source.h"
 #include "mm/archive_reader.h"
-#include "mm/native_files.h"
+#include "mm/native_archive_file.h"
 #include "mm/sound_resource.h"
 #include "platform_text.h"
 #undef size
@@ -24,8 +24,9 @@ struct Archive::Impl
 {
     Options options;
     PChunkyFile file = pvNil;
-    PFileObject previewFile = pvNil;
-    void *streamFile = nullptr;
+    MMNativeArchiveFile *streamFile = nullptr;
+    String nativePath;
+    bool canPreview = false;
     std::string path;
     std::vector<Chunk> chunks;
     MMArchiveReader *reader = nullptr;
@@ -36,8 +37,7 @@ struct Archive::Impl
     {
         mm_archive_reader_close(reader);
         ReleasePpo(&file);
-        ReleasePpo(&previewFile);
-        mm_native_file_close(streamFile);
+        mm_native_archive_file_release(streamFile);
     }
     bool Check(int status, std::size_t index, Error &error) const;
     bool Load(std::size_t index, MMReadStream &stream, Error &error);
@@ -102,13 +102,16 @@ Archive::Archive(Options options) : _impl(new Impl(options))
 Archive::~Archive() = default;
 bool Archive::CanPreview() const
 {
-    return _impl->file || _impl->previewFile;
+    return _impl->canPreview;
 }
 Chunky::ChunkyResourceFile *Archive::NewResourceCache(std::int32_t budget) const
 {
     if (_impl->file)
         return ChunkyResourceFile::PcrfNew(_impl->file, budget);
-    return ChunkyResourceFile::PcrfNewIndex(mm_archive_reader_wire_index(_impl->reader), _impl->previewFile, budget);
+    if (!_impl->canPreview)
+        return nullptr;
+    return ChunkyResourceFile::PcrfNewIndex(mm_archive_reader_wire_index(_impl->reader), _impl->streamFile,
+                                          *mm_native_archive_file_blocks(), _impl->nativePath, budget);
 }
 MMArchiveReader *Archive::Reader() const
 {
@@ -361,8 +364,8 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
             EngineMovieGraph::Name,
             KauaiEncodeLegacyChunkName,
         };
-        const bool useKauaiFile = mode == OpenMode::preview || mode == OpenMode::resources;
-        const auto existingFile = useKauaiFile ? FileObject::PfilFromFni(&filename) : nullptr;
+        const bool preferLive = mode == OpenMode::preview || mode == OpenMode::resources;
+        const auto existingFile = preferLive ? FileObject::PfilFromFni(&filename) : nullptr;
         const bool nativeGraph = mode == OpenMode::live ||
             (existingFile && ((existingFile->GrffilCur() & ffilWriteEnable) || ChunkyFile::PcflFromFni(&filename)));
         int status;
@@ -378,23 +381,11 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
         else
         {
             MMReadStream stream = {};
-            if (useKauaiFile)
-            {
-                opened->previewFile = FileObject::PfilOpen(&filename);
-                if (!opened->previewFile)
-                    return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-                stream = opened->previewFile->ReadStream();
-            }
-            else
-            {
-                filename.GetStnPath(&path);
-                MMNativeOpenOptions options;
-                mm_native_open_options_init(&options);
-                opened->streamFile =
-                    mm_native_file_open(reinterpret_cast<const MMNativePathChar *>(path.Psz()), &options);
-                if (!opened->streamFile || !mm_native_file_read_stream(opened->streamFile, &stream))
-                    return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-            }
+            filename.GetStnPath(&opened->nativePath);
+            opened->streamFile = mm_native_archive_file_open(
+                reinterpret_cast<const MMNativePathChar *>(opened->nativePath.Psz()));
+            if (!mm_native_archive_file_stream(opened->streamFile, &stream))
+                return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
             const unsigned short order = 1;
             MMChunkPolicy policy = {};
 #ifdef CHUNK_BIG_INDEX
@@ -409,6 +400,7 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
         if (status != MM_ARCHIVE_READ_OK)
             return nativeGraph ? Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.") :
                                  Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
+        opened->canPreview = mode != OpenMode::inspection;
         opened->path = utf8Path;
         const auto access = mm_archive_reader_access(opened->reader);
         for (MMU32 i = 0; i < access.count; ++i)

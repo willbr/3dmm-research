@@ -4,7 +4,9 @@
 #include <cstdlib>
 #include <cstring>
 #include "kauai_core.h"
+#include "handle_services.h"
 #include "mm/chunk_copy.h"
+#include "mm/native_archive_file.h"
 #undef size
 ASSERTNAME
 
@@ -248,7 +250,7 @@ static int LargeResidentCase()
     return 0;
 }
 
-static int WireSourceCase()
+static int WireSourceCase(bool native)
 {
     Filename path;
     CHECK(path.FGetTemp());
@@ -265,9 +267,22 @@ static int WireSourceCase()
     CHECK(live->FSetName(type, root, &authored) && live->FAdoptChild(type, root, type, glyph, 0) && live->FSave(type));
     ReleasePpo(&live);
 
-    auto backing = FileObject::PfilOpen(&path);
-    CHECK(backing);
-    const auto stream = backing->ReadStream();
+    String nativePath;
+    path.GetStnPath(&nativePath);
+    PFileObject backing = nullptr;
+    MMNativeArchiveFile *nativeBacking = nullptr;
+    MMReadStream stream = {};
+    if (native)
+    {
+        nativeBacking = mm_native_archive_file_open(reinterpret_cast<const MMNativePathChar *>(nativePath.Psz()));
+        CHECK(mm_native_archive_file_stream(nativeBacking, &stream));
+    }
+    else
+    {
+        backing = FileObject::PfilOpen(&path);
+        CHECK(backing);
+        stream = backing->ReadStream();
+    }
     const unsigned short order = 1;
     MMChunkPolicy policy = {};
 #ifdef CHUNK_BIG_INDEX
@@ -277,10 +292,17 @@ static int WireSourceCase()
     policy.max_name_bytes = kcbMaxDataStn;
     MMChunkIndex *index;
     CHECK(mm_chunk_index_open(&stream, &policy, &index) == MM_CHUNK_OK);
-    auto cache = ChunkyResourceFile::PcrfNewIndex(index, backing, 1024);
+    auto cache = native ? ChunkyResourceFile::PcrfNewIndex(index, nativeBacking, *mm_native_archive_file_blocks(),
+                                                          nativePath, 1024) :
+                          ChunkyResourceFile::PcrfNewIndex(index, backing, 1024);
     mm_chunk_index_close(index);
     ReleasePpo(&backing);
+    mm_native_archive_file_release(nativeBacking);
     CHECK(cache && !cache->Pcfl() && !ChunkyFile::PcflFromFni(&path));
+    auto sibling = cache->PcrfNewSibling(1024);
+    CHECK(sibling && !sibling->Pcfl());
+    ReleasePpo(&cache);
+    cache = sibling;
     CHECK(cache->FGetName(type, root, &name) && name.FEqual(&authored));
 
     live = ChunkyFile::PcflOpen(&path, fcflAddToExtra);
@@ -304,8 +326,9 @@ static int WireSourceCase()
     CHECK(copied == root && writable->FGetKidChid(type, copied, 0, &child) && child.cki.ctg == type);
     CHECK(writable->FFind(type, child.cki.cno, &block) && block.FPacked());
     const auto core = cache->CoreCache();
-    CHECK(mm_owned_block_init(&original, core->services.handles, core->services.block_files) == MM_DATA_OK);
+    CHECK(mm_owned_block_init(&original, core->services.handles, KauaiBlockFileServices()) == MM_DATA_OK);
     CHECK(mm_resource_cache_read_block(core, type, glyph, &original) == MM_CHUNK_OK && original.view.packed);
+    CHECK(original.files == core->services.block_files);
     CHECK(mm_owned_block_io(&original, &originalIO) == MM_DATA_OK);
     const auto packedBytes = original.view.length;
     CHECK(packedBytes > 0 && packedBytes <= packed.size() && block.Cb(true) == packedBytes);
@@ -323,10 +346,12 @@ static int WireSourceCase()
     CHECK(live->FFind(type, glyph, &block) && block.FReadRgb(&value, 1, 0) && value == changed);
     CHECK(writable->FGetName(type, copied, &name) && name.FEqual(&authored));
     block.Free();
-    CHECK(mm_owned_block_clear(&original) == MM_DATA_OK);
     ReleasePpo(&writable);
     ReleasePpo(&live);
     ReleasePpo(&cache);
+    CHECK(mm_block_read(&originalIO, 0, decoded.data(), packedBytes, 1) == MM_DATA_OK &&
+          !std::memcmp(packed.data(), decoded.data(), packedBytes));
+    CHECK(mm_owned_block_clear(&original) == MM_DATA_OK);
     CHECK(path.FDelete());
     return 0;
 }
@@ -338,7 +363,8 @@ int main()
         resourceSnapshot = std::fopen(path, "wb");
         CHECK(resourceSnapshot);
     }
-    CHECK(CacheCases() == 0 && ManagerCases() == 0 && LargeResidentCase() == 0 && WireSourceCase() == 0);
+    CHECK(CacheCases() == 0 && ManagerCases() == 0 && LargeResidentCase() == 0 &&
+          WireSourceCase(false) == 0 && WireSourceCase(true) == 0);
     if (resourceSnapshot)
         CHECK(std::fclose(resourceSnapshot) == 0);
     return 0;

@@ -431,7 +431,9 @@ int mm_resource_cache_read_block(MMResourceCache *c, MMU32 type, MMU32 number, M
         mm_owned_block_clear(out);
         return MM_CHUNK_NOT_FOUND;
     }
-    if (mm_owned_block_set_file(out, &file, packed) == MM_DATA_OK)
+    if (out && out->files != c->services.block_files && mm_owned_block_clear(out) == MM_DATA_OK)
+        out->files = c->services.block_files;
+    if (out && out->files == c->services.block_files && mm_owned_block_set_file(out, &file, packed) == MM_DATA_OK)
         return MM_CHUNK_OK;
     mm_owned_block_clear(out);
     issue(c, MM_RESOURCE_BAD_BLOCK, type, number);

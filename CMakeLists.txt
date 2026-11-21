@@ -592,6 +592,7 @@ add_executable(pixel-canvas-test EXCLUDE_FROM_ALL tests/pixel_canvas_test.cpp)
 target_link_libraries(pixel-canvas-test PRIVATE kauai-core)
 add_executable(resource-cache-test EXCLUDE_FROM_ALL tests/resource_cache_test.cpp)
 target_link_libraries(resource-cache-test PRIVATE kauai-core)
+target_link_libraries(resource-cache-test PRIVATE mm-native-archive-file)
 add_executable(font-services-test EXCLUDE_FROM_ALL tests/font_services_test.cpp)
 target_link_libraries(font-services-test PRIVATE kauai-core)
 add_executable(rich-text-layout-test EXCLUDE_FROM_ALL tests/rich_text_layout_test.cpp)
@@ -1264,7 +1265,7 @@ add_library(mm-archive STATIC EXCLUDE_FROM_ALL
 add_library(MM::Archive ALIAS mm-archive)
 target_include_directories(mm-archive PUBLIC "${PROJECT_SOURCE_DIR}/libraries/archive/include")
 target_compile_features(mm-archive PUBLIC cxx_std_14)
-target_link_libraries(mm-archive PRIVATE engine-core mm-native-files)
+target_link_libraries(mm-archive PRIVATE engine-core mm-native-archive-file)
 add_library(mm-preview STATIC EXCLUDE_FROM_ALL
   libraries/archive/src/preview.cpp libraries/archive/src/preview_actor.cpp
   libraries/archive/src/preview_background.cpp libraries/archive/src/preview_background_mesh.cpp
@@ -1272,7 +1273,7 @@ add_library(mm-preview STATIC EXCLUDE_FROM_ALL
 add_library(MM::Preview ALIAS mm-preview)
 set_target_properties(mm-preview PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(mm-preview PRIVATE "${PROJECT_SOURCE_DIR}/src/engine")
-target_link_libraries(mm-preview PUBLIC MM::Archive PRIVATE engine-core mm-brender-resources mm-native-files)
+target_link_libraries(mm-preview PUBLIC MM::Archive PRIVATE engine-core mm-brender-resources mm-native-archive-file)
 add_executable(preview-api-test EXCLUDE_FROM_ALL tests/preview_api_test.cpp tests/preview_api_include_order.cpp)
 target_link_libraries(preview-api-test PRIVATE MM::Preview)
 add_executable(preview-scene-fixture EXCLUDE_FROM_ALL tests/preview_scene_fixture.cpp)

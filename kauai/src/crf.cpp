@@ -153,11 +153,15 @@ MMResourceServices ChunkyResourceFile::_Services()
                 String path;
                 char name[kcchMaxStz];
                 auto cache = static_cast<PChunkyResourceFile>(c);
-                if (cache->_cache.wire_file)
-                    static_cast<PFileObject>(cache->_cache.wire_file)->GetFni(&file);
+                if (cache->_legacyWireFile)
+                    cache->_legacyWireFile->GetStnPath(&path);
+                else if (cache->_cache.wire_index)
+                    path = cache->_wirePath;
                 else
+                {
                     cache->Pcfl()->GetFni(&file);
-                file.GetStnPath(&path);
+                    file.GetStnPath(&path);
+                }
                 path.GetSzs(name);
                 std::fprintf(stderr, "BATCH_RESOURCE_LOAD_FAILED ctg=%08lx cno=%08lx file=%s\n",
                              static_cast<unsigned long>(type), static_cast<unsigned long>(number), name);
@@ -196,7 +200,14 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, 
     AssertPo(backing, 0);
     return _PcrfNew({nullptr, index, backing}, budget);
 }
-PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source, LegacyLong budget)
+PChunkyResourceFile ChunkyResourceFile::PcrfNewIndex(const MMChunkIndex *index, void *backing,
+                                                    const MMBlockFileServices &files, String &path, LegacyLong budget)
+{
+    return _PcrfNew({nullptr, index, backing}, budget, &files, &path);
+}
+
+PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source, LegacyLong budget,
+                                                const MMBlockFileServices *files, String *path)
 {
     AssertIn(budget, 0, kcbMax);
     static_assert(kctgRsc == 0x52534320 && tNo == 0 && tYes == 1 && tMaybe == 2 &&
@@ -204,7 +215,14 @@ PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source,
     auto cache = NewObj ChunkyResourceFile;
     if (!cache)
         return nullptr;
-    const auto services = cache->_Services();
+    auto services = cache->_Services();
+    if (files)
+    {
+        services.block_files = files;
+        cache->_wirePath = *path;
+    }
+    else if (source.index)
+        cache->_legacyWireFile = static_cast<PFileObject>(source.backing);
     int diagnostic = 0;
     Debug(diagnostic = 1;)
     if (mm_resource_cache_init(&cache->_cache, cache, &cache->_references, &source, budget, &services,
@@ -305,7 +323,7 @@ MMChunkEndpoint ChunkyResourceFile::CopySource(MMResourceChunkCopy &binding)
     AssertThis(0);
     if (Pcfl())
         return Pcfl()->CopyEndpoint(binding.live);
-    if (static_cast<PFileObject>(_cache.wire_file)->GrffilCur() & ffilWriteEnable)
+    if (_legacyWireFile && (_legacyWireFile->GrffilCur() & ffilWriteEnable))
         return {};
     const auto titles = KauaiChunkTitleIO();
     return mm_stored_chunk_copy_endpoint(&binding.stored, &_cache, this, KauaiCopyAllocator(),
@@ -315,6 +333,8 @@ MMChunkEndpoint ChunkyResourceFile::CopySource(MMResourceChunkCopy &binding)
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
 {
     AssertThis(0);
+    if (_cache.wire_index && !_legacyWireFile)
+        return PcrfNewIndex(_cache.wire_index, _cache.wire_file, *_cache.services.block_files, _wirePath, budget);
     return _PcrfNew({Pcfl(), _cache.wire_index, _cache.wire_file}, budget);
 }
 #ifdef DEBUG
@@ -324,7 +344,8 @@ void ChunkyResourceFile::AssertValid(LegacyUlong flags)
     if (_cache.wire_index)
     {
         Assert(!Pcfl(), "wire cache with a live graph");
-        AssertPo(static_cast<PFileObject>(_cache.wire_file), 0);
+        Assert(_cache.wire_file, "missing wire cache backing");
+        AssertNilOrPo(_legacyWireFile, 0);
     }
     else
         AssertPo(Pcfl(), 0);
@@ -339,8 +360,8 @@ void ChunkyResourceFile::MarkMem(void)
     ChunkyResourceFile_PAR::MarkMem();
     MarkPv(_cache.storage.buffers[0].data);
     MarkMemObj(Pcfl());
-    if (_cache.wire_file)
-        MarkMemObj(static_cast<PFileObject>(_cache.wire_file));
+    if (_legacyWireFile)
+        MarkMemObj(_legacyWireFile);
     MMResourceEntry row;
     for (MMU32 i = _cache.count; i-- > 0;)
     {

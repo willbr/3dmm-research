@@ -104,8 +104,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   index, codec and payload cache. `3mm dump` and Marcus catalogue reads use this
   path. Marcus also uses it to read source names for an object being copied.
   On movie open Marcus reads the movie directory and metadata through the same
-  C89 reader. Read-only Preview caches retain the validated wire index and its
-  open file directly. Files with a live Kauai graph use that graph.
+  C89 reader. Read-only Preview caches retain the validated wire index and the
+  same native C file used to parse it. Preview opens by path also use that
+  reader. Files with a live Kauai graph use that graph.
 - The C89 resource cache reads model and texture payloads from that index for
   read-only Preview archives. It retains the index and backing file while
   detached renderer objects still depend on the cache. Texture loaders use

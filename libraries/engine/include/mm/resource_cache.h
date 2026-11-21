@@ -114,8 +114,9 @@ extern "C"
                                const MMStorageAllocator *, int diagnostic_refs);
     /* Borrow the current graph for synchronous lookup. Reacquire after edits. */
     MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *);
-    /* Fill an initialized block with the stored extent from this cache's
-     * source. The caller owns the block, which is empty on a miss. */
+    /* Fill an initialized block with the stored extent and its backing file
+     * services. Keep the caller's handle services. The caller owns the block,
+     * which is empty on a miss. */
     int mm_resource_cache_read_block(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);
     /* Visit a decoded extent while the cache holds its file or memory block.
      * Lookup and decode failures leave the receiver's result unchanged. */

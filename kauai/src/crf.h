@@ -132,14 +132,19 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
   protected:
     friend class ChunkyResourceManager;
     MMResourceCache _cache = {};
+    PFileObject _legacyWireFile = nullptr; // Borrowed from _cache when using Kauai file services.
+    String _wirePath;
     MMResourceServices _Services();
     ChunkyResourceFile() = default;
-    static PChunkyResourceFile _PcrfNew(const MMResourceSource &, LegacyLong budget);
+    static PChunkyResourceFile _PcrfNew(const MMResourceSource &, LegacyLong budget,
+                                       const MMBlockFileServices *files = nullptr, String *path = nullptr);
 
   public:
     ~ChunkyResourceFile(void);
     static PChunkyResourceFile PcrfNew(PChunkyFile pcfl, LegacyLong cbMax);
     static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, PFileObject, LegacyLong cbMax);
+    static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, void *backing, const MMBlockFileServices &,
+                                           String &path, LegacyLong cbMax);
     void Release(void) override;
 
     virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil,

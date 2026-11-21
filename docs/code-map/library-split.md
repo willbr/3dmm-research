@@ -3835,6 +3835,13 @@ patching its descriptor. Material serialization passes the destination block
 services through to texture writes, so MTRL, TMAP and TXXF use the same file
 owner. Native adapters supply resolved resources and BRender material data.
 
+Preview reads immutable movie and content archives through the same native C
+file provider that serves private drafts. Archive holds the reader's file
+reference, and sibling caches and payload blocks retain their own references.
+The file provider serializes positional operations. Cache reads attach the
+backing file's services to the block while keeping the caller's handle allocator.
+Preview still reuses an existing live Kauai graph for in-process edits.
+
 `movie_content.c` owns material insertion, 3-D text authoring/insertion and selected
 actor template replacement, caption insertion/removal/hiding and indexed caption
 selection. It reuses `movie_edit.c` for actor insertion/removal and snapshot
