@@ -124,9 +124,13 @@ static MMChunkAccess graph(void *p)
     a.context=p; a.count=t(p)->entry_count; a.entry=graph_entry; a.child=graph_child;
     return a;
 }
-static void reader(void) {}
-static const MMResourceLoader loader = {reader, NULL};
-static int compare_reader(MMResourceReader a, MMResourceReader b) { assert(a == reader && b == reader); return 0; }
+static int reader(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
+{
+    (void)cache; (void)type; (void)number; (void)block; (void)out; (void)bytes;
+    assert(0);
+    return 0;
+}
+static int compare_reader(MMResourceBlockReader a, MMResourceBlockReader b) { assert(a == reader && b == reader); return 0; }
 static MMResourceObject *cached_state(void *object) { return &((CachedResource *)object)->state; }
 static MMReference *cached_references(void *object) { return &((CachedResource *)object)->references; }
 static int name(void *p,void *file,MMU32 type,MMU32 number,void *out)
@@ -150,7 +154,7 @@ static MMTemplateRuntimeServices init(Test *x,int parts)
     x->cache.services.objects.state=cached_state; x->cache.services.objects.references=cached_references;
     x->cache.storage.buffers[0].data=(unsigned char *)x->resident;
     x->cache.storage.buffers[0].capacity=sizeof(x->resident);
-    s.resource=&x->resource; s.action_reader.key=reader; s.model_reader.key=reader; s.name=name;
+    s.resource=&x->resource; s.action_reader=reader; s.model_reader=reader; s.name=name;
     return s;
 }
 static MMChunkEntry *add_entry(Test *x, MMU32 type, MMU32 number)
@@ -247,15 +251,15 @@ int main(void)
     for (i=0;i<3;++i)
     {
         MMMovieAsset asset = {0};
-        assert(mm_template_fetch_child(&x.resource,0,i,loader,&asset)==&x.resources[i]);
+        assert(mm_template_fetch_child(&x.resource,0,i,reader,&asset)==&x.resources[i]);
         assert(asset.type==x.resources[i].state.type && asset.number==10+(MMU32)i);
         assert(x.resources[i].references.count==2);
         mm_reference_drop(&x.resources[i].references);
-        assert(!mm_template_fetch_child(&x.resource,1,i,loader,&asset) && asset.number==10+(MMU32)i);
+        assert(!mm_template_fetch_child(&x.resource,1,i,reader,&asset) && asset.number==10+(MMU32)i);
     }
-    assert(mm_template_fetch_child(&x.resource,7,MM_TEMPLATE_CUSTOM,loader,NULL)==&x.resources[2]);
+    assert(mm_template_fetch_child(&x.resource,7,MM_TEMPLATE_CUSTOM,reader,NULL)==&x.resources[2]);
     mm_reference_drop(&x.resources[2].references);
-    assert(!mm_template_fetch_child(&x.resource,0,MM_TEMPLATE_RESOURCE_COUNT,loader,NULL));
+    assert(!mm_template_fetch_child(&x.resource,0,MM_TEMPLATE_RESOURCE_COUNT,reader,NULL));
     s.generated_action=NULL; value=-77;
     assert(mm_template_cel_count(&x,0,&value,&s) && value==3 && x.resources[0].references.count==1);
     out=-77; assert(mm_template_action_name(0,&out,&s) && out==42);

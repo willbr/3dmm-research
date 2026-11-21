@@ -236,41 +236,38 @@ static MMChunkAccess chunks(void *p)
     out.child = test(p)->custom ? costume_child : material_child;
     return out;
 }
-static void texture_reader(void) {}
-static void material_reader(void) {}
-static void model_reader(void) {}
-static int compare_reader(MMResourceReader a, MMResourceReader b) { assert(a == b); return 0; }
+static int compare_reader(MMResourceBlockReader a, MMResourceBlockReader b) { assert(a == b); return 0; }
 static MMResourceObject *resource_state(void *o) { return &((Ref *)o)->binding; }
 static MMReference *resource_refs(void *o) { return &((Ref *)o)->refs; }
 static void destroy_resource(void *o) { assert(!((Ref *)o)->binding.cache); }
 static void destroy_cache(void *p) { assert(mm_resource_cache_dispose(&test(p)->cache) == MM_STORAGE_OK); }
-static int read_resource(void *p, MMResourceReader reader, MMU32 type, MMU32 number, MMOwnedBlock *block,
-                         void **object, MMI32 *bytes)
+static int read_resource(Test *t, Ref *r, MMU32 number, MMOwnedBlock *block, void **object, MMI32 *bytes)
 {
-    Test *t = test(p);
-    Ref *r;
-    assert(number == 7 && block->file == t);
-    if (reader == texture_reader)
-    {
-        assert(!t->custom && type == 1);
-        r = &t->texture;
-    }
-    else if (reader == material_reader)
-    {
-        assert(t->custom && type == MM_MATERIAL_CHUNK);
-        r = &t->material;
-    }
-    else
-    {
-        assert(reader == model_reader && t->custom && type == MM_TEMPLATE_BMDL);
-        r = &t->model;
-    }
+    assert(number == 7 && block->file == t && object);
     if (fail(t))
         return 0;
     mm_reference_init(&r->refs);
     *object = r;
     *bytes = 1;
     return 1;
+}
+static int texture_reader(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
+{
+    Test *t = test(cache->owner);
+    assert(!t->custom && type == 1);
+    return read_resource(t, &t->texture, number, block, out, bytes);
+}
+static int material_reader(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
+{
+    Test *t = test(cache->owner);
+    assert(t->custom && type == MM_MATERIAL_CHUNK);
+    return read_resource(t, &t->material, number, block, out, bytes);
+}
+static int model_reader(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
+{
+    Test *t = test(cache->owner);
+    assert(t->custom && type == MM_TEMPLATE_BMDL);
+    return read_resource(t, &t->model, number, block, out, bytes);
 }
 static int allocate(void *p, MMI32 n, void **out)
 {
@@ -492,9 +489,9 @@ static void setup(Test *t)
     t->s.invalidate = invalidate;
     t->s.diagnostic = diagnostic;
     t->s.decode = decode;
-    t->s.texture_reader.key = texture_reader;
-    t->s.material_reader.key = material_reader;
-    t->s.model_reader.key = model_reader;
+    t->s.texture_reader = texture_reader;
+    t->s.material_reader = material_reader;
+    t->s.model_reader = model_reader;
     t->s.allocate = allocate;
     t->s.free_memory = free_memory;
     t->s.allocate_material = allocate_material;
@@ -551,7 +548,6 @@ static void setup(Test *t)
     resources.handles = &t->storage;
     resources.block_files = &files;
     resources.locate = locate;
-    resources.read_legacy = read_resource;
     resources.retain_file = retain_file;
     resources.release_file = release_file;
     resources.destroy_owner = destroy_cache;

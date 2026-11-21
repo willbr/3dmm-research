@@ -39,12 +39,10 @@ class MidiStreamCached : public MidiStreamCached_PAR
     LegacyUlong _dts;
 
     MidiStreamCached(void);
-    bool _FInit(PMidiStream pmids);
+    bool _FInit(MMOwnedBlock *);
 
   public:
-    static bool FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                          PBaseCacheableObject *ppbaco, LegacyLong *pcb);
-    static PMidiStreamCached PmdwsRead(PDataBlock pblck);
+    static int FReadMdws(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 
     ~MidiStreamCached(void);
 

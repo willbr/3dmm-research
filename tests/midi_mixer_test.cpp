@@ -175,11 +175,11 @@ static PMidiStreamCached Fixture(byte program, LegacyLong duration)
     raw.push_back(static_cast<byte>(duration & 0x7F));
     raw.insert(raw.end(), {0x80, 60, 0, 0, 0xFF, 0x2F, 0});
     auto file = ChunkyFile::PcflCreateTemp();
-    DataBlock block;
     ChunkNumber number;
-    CHECK(file && file->FAdd(static_cast<LegacyLong>(raw.size()), 'MIDS', &number, &block));
-    CHECK(block.FWriteRgb(raw.data(), static_cast<LegacyLong>(raw.size()), 0));
-    auto stream = MidiStreamCached::PmdwsRead(&block);
+    CHECK(file && file->FAddPv(raw.data(), static_cast<LegacyLong>(raw.size()), 'MIDS', &number));
+    auto cache = ChunkyResourceFile::PcrfNew(file, 0);
+    CHECK(cache);
+    auto stream = static_cast<PMidiStreamCached>(cache->PbacoFetch('MIDS', number, MidiStreamCached::FReadMdws));
     CHECK(stream && stream->Dts() == static_cast<LegacyUlong>(duration));
     LegacyLong bytes;
     auto events = static_cast<KauaiMidi::StreamEvent *>(stream->PvLockData(&bytes));
@@ -187,7 +187,7 @@ static PMidiStreamCached Fixture(byte program, LegacyLong duration)
           events[1].eventWord == (0xC0u | (std::uint32_t(program) << 8)) &&
           events[3].deltaTicks == std::uint32_t(duration));
     stream->UnlockData();
-    block.Free();
+    ReleasePpo(&cache);
     ReleasePpo(&file);
     return stream;
 }
@@ -208,16 +208,20 @@ static void StreamTrace()
     }
     raw.insert(raw.end(), {0, 0xff, 0x2f, 0});
     auto file = ChunkyFile::PcflCreateTemp();
-    DataBlock block;
     ChunkNumber number;
-    CHECK(file && file->FAdd(raw.size(), 'MIDS', &number, &block));
-    CHECK(block.FWriteRgb(raw.data(), raw.size(), 0));
-    auto sound = MidiStreamCached::PmdwsRead(&block);
+    CHECK(file && file->FAddPv(raw.data(), raw.size(), 'MIDS', &number));
+    CHECK(file->FPackData('MIDS', number) && file->FPacked('MIDS', number));
+    auto cache = ChunkyResourceFile::PcrfNew(file, 1024 * 1024);
+    CHECK(cache && cache->TLoad('MIDS', number, MidiStreamCached::FReadMdws) == tYes);
+    auto sound = static_cast<PMidiStreamCached>(cache->PbacoFind('MIDS', number, MidiStreamCached::FReadMdws));
     CHECK(sound);
     auto duration = sound->Dts();
     mixer->Record(&duration, sizeof(duration));
     LegacyLong bytes;
     auto data = sound->PvLockData(&bytes);
+    MMResourceEntry entry;
+    CHECK(mm_resource_cache_at(cache->CoreCache(), 0, &entry) == MM_STORAGE_OK &&
+          entry.bytes == bytes + sizeof(MidiStreamCached));
     mixer->Record(data, bytes);
     sound->UnlockData();
     for (LegacyUlong time = 0; time <= duration + 3; ++time)
@@ -227,7 +231,7 @@ static void StreamTrace()
     if (*reinterpret_cast<unsigned char *>(&one) && sizeof(bool) == 1)
         CHECK(mixer->trace == 0x6B4B5C94U);
     sound->Release();
-    block.Free();
+    cache->Release();
     file->Release();
     mixer->Release();
 }

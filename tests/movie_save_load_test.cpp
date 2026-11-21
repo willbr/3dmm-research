@@ -176,22 +176,22 @@ class TrackTestTemplate : public Template
             table(kctgActn,action,kctgGgcl,cels) && table(kctgActn,action,kctgGlxf,matrices);
         ReleasePpo(&indexWire); ReleasePpo(&costumeWire); ReleasePpo(&tmpl); ReleasePpo(&cels); ReleasePpo(&matrices); return ok;
     }
-    static bool FReadCostumeFixture(PChunkyResourceFile,ChunkTagOrType,ChunkNumber,PDataBlock,
-                                    PBaseCacheableObject *out,LegacyLong *bytes)
+    static int FReadCostumeFixture(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **out, MMI32 *bytes)
     {
         *bytes=sizeof(TrackTestTemplate);
         if (!out) return true;
         auto tmpl=NewObj TrackTestTemplate();
         *out=tmpl;
-        if (!tmpl || !tmpl->FInit()) { ReleasePpo(out); return false; }
+        if (!tmpl || !tmpl->FInit()) { ReleasePpo(&tmpl); *out = nullptr; return false; }
         tmpl->_template.custom_count=3;
         return true;
     }
-    static bool FReadSubrouteFixture(PChunkyResourceFile file,ChunkTagOrType type,ChunkNumber number,PDataBlock block,
-                                     PBaseCacheableObject *out,LegacyLong *bytes)
+    static int FReadSubrouteFixture(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                                    void **out, MMI32 *bytes)
     {
-        if (!FReadCostumeFixture(file,type,number,block,out,bytes)) return false;
-        if (out && !static_cast<TrackTestTemplate *>(*out)->FInitAction()) { ReleasePpo(out); return false; }
+        if (!FReadCostumeFixture(cache, type, number, block, out, bytes)) return false;
+        auto tmpl = out ? static_cast<TrackTestTemplate *>(*out) : nullptr;
+        if (tmpl && !tmpl->FInitAction()) { ReleasePpo(&tmpl); *out = nullptr; return false; }
         return true;
     }
     void SetTestText(bool text) { _template.flags=text ? ftmplTdt : 0; }

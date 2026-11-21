@@ -14,6 +14,7 @@
 #include "midi.h"
 #include "mididev2.h"
 #include "mdev2pri.h"
+#include "handle_services.h"
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error The MIDI mixer must not import the Windows SDK
 #endif
@@ -179,89 +180,34 @@ void MidiStreamCached::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MidiStreamCached::FReadMdws(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                                 PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int MidiStreamCached::FReadMdws(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, fblckReadable);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
-    PMidiStreamCached pmdws;
-
-    *pcb = pblck->Cb(fTrue);
-    if (pvNil == ppbaco)
+    *bytes = static_cast<MMI32>(block->view.length);
+    if (!out)
         return fTrue;
 
-    if (!pblck->FUnpackData())
-        goto LFail;
-
-    if (pvNil == (pmdws = PmdwsRead(pblck)))
+    auto stream = NewObj MidiStreamCached;
+    if (!stream || !stream->_FInit(block))
     {
-    LFail:
-        TrashVar(ppbaco);
-        TrashVar(pcb);
+        delete stream;
+        TrashVar(out);
+        TrashVar(bytes);
         return fFalse;
     }
-    *pcb = pmdws->_pglmev->IvMac() * size(MEV) + size(MidiStreamCached);
-
-    *ppbaco = pmdws;
+    *bytes = stream->_pglmev->IvMac() * size(MEV) + size(MidiStreamCached);
+    *out = stream;
     return fTrue;
 }
 
 /***************************************************************************
-    Read a midi stream from the given block.
+    Initialize the cached stream with a packed or unpacked MIDI track.
 ***************************************************************************/
-PMidiStreamCached MidiStreamCached::PmdwsRead(PDataBlock pblck)
+bool MidiStreamCached::_FInit(MMOwnedBlock *block)
 {
-    AssertPo(pblck, 0);
-
-    PMidiStream pmids;
-    PMidiStreamCached pmdws;
-
-    if (pvNil == (pmids = MidiStream::PmidsRead(pblck)))
-        return pvNil;
-
-    if (pvNil != (pmdws = NewObj MidiStreamCached) && !pmdws->_FInit(pmids))
-        ReleasePpo(&pmdws);
-
-    ReleasePpo(&pmids);
-    AssertNilOrPo(pmdws, 0);
-
-    return pmdws;
-}
-
-/***************************************************************************
-    Initialize the MidiStreamCached with the midi data in *pmids.
-***************************************************************************/
-bool MidiStreamCached::_FInit(PMidiStream pmids)
-{
-    AssertPo(pmids, 0);
     if (!(_pglmev = DynamicArray::PglNew(size(MEV))))
         return false;
-    struct Context
-    {
-        MidiStreamParser parser;
-        PDynamicArray output;
-    } context;
-    context.parser.Init(pmids, 0);
-    context.output = _pglmev;
-    MMMidiStreamBuildServices s = {};
-    s.context = &context;
-    s.next = [](void *p, MMMidiEvent *out) -> int {
-        MIDEV e;
-        auto c = static_cast<Context *>(p);
-        if (!c->parser.FGetEvent(&e))
-            return 0;
-        ClearPb(out, sizeof(*out));
-        out->timestamp = e.ts;
-        out->count = e.cb;
-        out->send[0] = (byte)e.lwSend;
-        out->send[1] = (byte)(e.lwSend >> 8);
-        out->send[2] = (byte)(e.lwSend >> 16);
-        return 1;
-    };
-    s.append = [](void *p, const MEV *events, MMI32 count) -> int {
-        auto output = static_cast<Context *>(p)->output;
+    const auto append = [](void *p, const MEV *events, MMI32 count) -> int {
+        auto output = static_cast<PDynamicArray>(p);
         auto index = output->IvMac();
         if (count > klwMax / (LegacyLong)sizeof(MEV) - index || !output->FSetIvMac(index + count))
             return 0;
@@ -270,7 +216,7 @@ bool MidiStreamCached::_FInit(PMidiStream pmids)
         return 1;
     };
     MMU32 duration;
-    if (!mm_midi_stream_build(&s, &duration))
+    if (!mm_midi_stream_build_block(block, KauaiDecodeBlockHandle, nullptr, _pglmev, append, &duration))
         return false;
     _pglmev->FEnsureSpace(0, fgrpShrink);
     _dts = duration;

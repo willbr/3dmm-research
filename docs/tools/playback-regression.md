@@ -18351,3 +18351,31 @@ canvases. Both matched the archived retail frame identities in seek and
 continuous playback and all retail seek cameras. The three visible-caption
 frames still differ from retail. The archived V3dmm seek canvases match
 retail. Logs are in `tmp/c89-studio-ui-resources`.
+
+## Typed C89 resource cache callbacks (21 November 2026)
+
+The typed block callback now identifies each cache entry and serves preload,
+fetch, tag lookup and nested resource reads. The generic handle reader adopts
+the decoded handle through C block operations. The streamed MIDI reader
+parses the cache block in C and publishes the constructed device events. It
+estimates stored bytes and charges the event rows plus the cache object.
+
+All 193 standalone C checks, seven focused AddressSanitizer checks and 16
+native C89 and Marcus checks passed. Native x64, native x86 and SDL reproduced
+the 1,624-byte cache snapshot and the packed MIDI construction and seek
+fingerprint `6B4B5C94`. The fixtures also check decoded handle and MIDI cache
+charges. All three builds reproduced 27 prior save and reopen traces and
+the Help display, interaction, balloon and topic fingerprints. Studio saved
+the authoring fixture byte for byte.
+
+In actor-event suite `20261121T074952Z-7de60540`, SDL and Marcus matched all
+60 archived retail frame identities in seek and playback and all 60 retail
+seek camera indices. SDL matched the 12 retail sound requests. Both ports
+reproduced their 60 previous seek hashes. Of those, 29 SDL hashes and 45
+Marcus hashes also match the archived retail canvases.
+
+In caption suite `20261121T075557Z-b2280bb8`, both ports matched the 11
+archived retail frame identities and seek cameras and reproduced all 11
+seek hashes from the previous build. Three visible-caption frames differ
+from retail. The archived V3dmm seek hashes match retail. Logs are in
+`tmp/c89-typed-resource-readers`.

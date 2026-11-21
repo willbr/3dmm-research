@@ -5,6 +5,7 @@
 #include "midi_render.h"
 #include "sound_queue.h"
 #include "midi.h"
+#include "block_owner.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -74,6 +75,11 @@ extern "C"
         int (*append)(void *, const MMMidiStreamEvent *, MMI32 count);
     } MMMidiStreamBuildServices;
     int mm_midi_stream_build(const MMMidiStreamBuildServices *, MMU32 *duration);
+    /* Decode the block in place and append WinMM events from its track data.
+     * The track handle stays private and is released even if append fails. */
+    int mm_midi_stream_build_block(MMOwnedBlock *, MMBlockTransform, void *decode_context,
+                                   void *append_context, int (*append)(void *, const MMMidiStreamEvent *, MMI32),
+                                   MMU32 *duration);
     int mm_midi_stream_seek(const MMMidiStreamEvent *, MMI32 count, MMU32 time, void *context,
                                   int (*prepend)(void *, const MMMidiStreamEvent *, MMI32),
                                   MMI32 *skip_bytes);

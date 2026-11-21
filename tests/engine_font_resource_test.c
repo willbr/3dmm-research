@@ -200,8 +200,7 @@ static MMChunkAccess chunks(void *file)
     access.context = file;
     return access;
 }
-static void model_reader(void) {}
-static int compare_reader(MMResourceReader a, MMResourceReader b) { assert(a == b); return 0; }
+static int compare_reader(MMResourceBlockReader a, MMResourceBlockReader b) { assert(a == b); return 0; }
 static MMResourceObject *resource_state(void *p) { return &((Model *)p)->binding; }
 static MMReference *resource_refs(void *p) { return &((Model *)p)->refs; }
 static void destroy_model(void *p)
@@ -230,12 +229,12 @@ static int locate(void *p, MMU32 type, MMU32 number, MMBlockFile *out, int *pack
     *packed = 0;
     return 1;
 }
-static int read_model(void *p, MMResourceReader reader, MMU32 type, MMU32 number, MMOwnedBlock *block,
+static int read_model(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                       void **out, MMI32 *bytes)
 {
-    Test *x = t(p);
+    Test *x = t(cache->owner);
     Model *m;
-    assert(reader == model_reader && contains(p, type, number) && block->file == p && out);
+    assert(contains(x, type, number) && block->file == x && out);
     if (checkpoint(x))
         return 0;
     m = &x->models[number - 10];
@@ -279,7 +278,6 @@ static MMFontResourceServices setup(Test *x,int host,int other)
     resources.handles = x->block.owner.handles;
     resources.block_files = &x->block.files;
     resources.locate = locate;
-    resources.read_legacy = read_model;
     resources.retain_file = retain_file;
     resources.release_file = release_file;
     resources.destroy_owner = destroy_cache;
@@ -292,7 +290,7 @@ static MMFontResourceServices setup(Test *x,int host,int other)
     s.context=x; s.host_big_endian=host; s.system=17; s.leading=32768; s.object_bytes=80;
     s.state=state; s.create=create; s.release=release; s.decode=decode;
     s.allocator=&x->allocator; s.invalidate=invalidate; s.bad_font=bad_font; s.bad_order=bad_order;
-    s.child_count=child_count; s.child_at=child_at; s.model_reader.key=model_reader;
+    s.child_count=child_count; s.child_at=child_at; s.model_reader=read_model;
     s.model_width=model_width; s.model_height=model_height; s.missing_model=missing_model;
     x->services=s; return s;
 }

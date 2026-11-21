@@ -72,9 +72,9 @@ MMMaterialServices Material_MTRL::_Services(void *context)
         }
     };
     s.decode = KauaiDecodeBlockHandle;
-    s.texture_reader = ResourceReader(TextureMap::FReadTmap).Core();
-    s.material_reader = ResourceReader(Material_MTRL::FReadMtrl).Core();
-    s.model_reader = ResourceReader(Model::FReadModl).Core();
+    s.texture_reader = TextureMap::FReadTmap;
+    s.material_reader = Material_MTRL::FReadMtrl;
+    s.model_reader = Model::FReadModl;
     s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemClear, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
     s.texture_pixelmap = [](void *, void *object) -> void * {

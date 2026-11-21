@@ -6554,7 +6554,10 @@ MIDI delays retain 64-bit range without C99 integer types.
 
 `midi_mix.c` owns cached stream construction, state-event reconstruction when
 seeking, queue progression, priority/tie arbitration, preemption, loop skips,
-background expiry and completion/restart control. The persistent C mixer state
+background expiry and completion/restart control. Its cached-stream reader
+decodes the owning block and parses its track in C without creating a separate
+native MIDI stream. Preload estimates use stored bytes and completed reads
+charge event rows and the cache object. The persistent C mixer state
 tracks outstanding buffers and stop/wait phases. Host callbacks perform mutex
 release/wait/reacquire and device buffer transfers; notifications retain their
 original lock boundaries. `midi_render.c` owns persistent frame-clock sequencing,
@@ -6789,13 +6792,11 @@ estimate and final read use the same block, including mutations made during
 the estimate. Recursive reads open separate blocks. Cache hits and scope
 rejections skip block construction.
 
-Model, texture, material, custom material, template, action, font and
-sound factories accept that C block directly. The cache uses one reader key
-for preload, fetch, find and priority changes. A loader carries the typed
-callback alongside the key through the tag resolver, resource manager and
-child lookups. Readers with the legacy callback signature construct a
-native `DataBlock` view. The typed reader can reuse the exposed cache for
-child lookup and can mutate its borrowed block during the call.
+Every cache factory accepts that C block directly. The typed callback itself
+identifies entries for preload, fetch, find and priority changes. The tag
+resolver, resource manager and child lookups pass the same callback. A reader
+can reuse the exposed cache for child lookup and mutate its borrowed block
+during the call.
 
 Script, string registry and colour table readers also consume C blocks directly.
 `script_resource.c` reads the root script from the cache's open block and resolves
@@ -6835,11 +6836,11 @@ boundaries in the C test. Native and standalone checks hold 24 resources charged
 at 192 MiB each without allocating those payloads.
 
 `crf.cpp` supplies native class allocation, destructors, state accessors,
-diagnostics and reader key ordering. It forwards public cache operations to C,
-including release through the BASE interface. The legacy reader adapter uses
-a borrowed `DataBlock` view that updates the C owner in place. The chunk
-provider uses the same extent and packed-bit lookup as the native `FFind`
-path. GenericHQ and generic-object wrappers remain native adapters.
+diagnostics and reader ordering. It forwards public cache operations to C,
+including release through the BASE interface. The chunk provider uses the
+same extent and packed-bit lookup as the native `FFind` path. GenericHQ uses
+C block operations to unpack and adopt its handle. GenericHQ and generic-object
+wrappers still supply native object ownership.
 Container adapters, source discovery and engine objects remain migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,

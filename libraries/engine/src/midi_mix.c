@@ -312,6 +312,51 @@ int mm_midi_stream_build(const MMMidiStreamBuildServices *s, MMU32 *duration)
     *duration = now;
     return 1;
 }
+
+typedef struct MidiBlockBuild
+{
+    MMMidiParser parser;
+    void *context;
+    int (*append)(void *, const MMMidiStreamEvent *, MMI32);
+} MidiBlockBuild;
+
+static int next_block_event(void *p, MMMidiEvent *event)
+{
+    return mm_midi_next(&((MidiBlockBuild *)p)->parser, event, 1);
+}
+
+static int append_block_events(void *p, const MMMidiStreamEvent *events, MMI32 count)
+{
+    MidiBlockBuild *build = (MidiBlockBuild *)p;
+    return build->append(build->context, events, count);
+}
+
+int mm_midi_stream_build_block(MMOwnedBlock *block, MMBlockTransform decode, void *decode_context,
+                               void *append_context, int (*append)(void *, const MMMidiStreamEvent *, MMI32),
+                               MMU32 *duration)
+{
+    MMBlockIO io;
+    void *handle;
+    MidiBlockBuild build;
+    MMMidiStreamBuildServices services;
+    const MMHandleServices *handles = block->handles;
+    int result;
+    if (mm_owned_block_code(block, 0, decode_context, decode, NULL) != MM_DATA_OK ||
+        mm_owned_block_io(block, &io) != MM_DATA_OK ||
+        mm_block_read_handle(&io, 0, io.view.length, 0, &handle) != MM_DATA_OK || !handle)
+        return 0;
+    build.context = append_context;
+    build.append = append;
+    services.context = &build;
+    services.next = next_block_event;
+    services.append = append_block_events;
+    mm_midi_parser_init(&build.parser, handles->lock(handles->context, handle), io.view.length, 0, 500000);
+    result = mm_midi_stream_build(&services, duration);
+    handles->unlock(handles->context, handle);
+    handles->release(handles->context, handle);
+    return result;
+}
+
 int mm_midi_stream_seek(const MMMidiStreamEvent *events, MMI32 count, MMU32 time, void *context,
                               int (*prepend)(void *, const MMMidiStreamEvent *, MMI32), MMI32 *skip)
 {

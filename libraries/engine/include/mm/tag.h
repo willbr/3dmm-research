@@ -45,7 +45,7 @@ extern "C"
     int mm_tag_compare(const MMTag *, const MMTag *, const MMTagServices *);
     int mm_tag_child(const MMTag *, MMU32 slot, MMU32 type, MMTag *out,
                            const MMTagServices *);
-    void *mm_tag_fetch(const MMTag *, MMResourceLoader, int use_media, const MMTagServices *);
+    void *mm_tag_fetch(const MMTag *, MMResourceBlockReader, int use_media, const MMTagServices *);
     /* File caching is currently disabled in the legacy engine. This does no I/O. */
     int mm_tag_cache_file(const MMTag *, int children);
     typedef struct MMTagCacheServices

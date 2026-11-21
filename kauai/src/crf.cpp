@@ -38,7 +38,7 @@ namespace
 MMResourceRequest ResourceRequest(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, RSC scope,
                                   LegacyLong priority = crepNormal)
 {
-    return {type, number, scope, reader.Core(), priority};
+    return {type, number, scope, reader, priority};
 }
 } // namespace
 
@@ -124,7 +124,7 @@ MMResourceServices ChunkyResourceFile::_Services()
     MMResourceServices s = {};
     s.context = this;
     s.objects = *BaseCacheableObject::_ObjectServices();
-    s.compare_reader = [](MMResourceReader a, MMResourceReader b) -> int {
+    s.compare_reader = [](MMResourceBlockReader a, MMResourceBlockReader b) -> int {
         return a == b ? 0 : a < b ? -1 : 1;
     };
     s.contains = [](void *file, MMU32 type, MMU32 number) -> int {
@@ -135,19 +135,6 @@ MMResourceServices ChunkyResourceFile::_Services()
     s.handles = blocks->handles;
     s.block_files = blocks->files;
     s.locate = blocks->locate;
-    s.read_legacy = [](void *c, MMResourceReader reader, MMU32 type, MMU32 number, MMOwnedBlock *block, void **object,
-                MMI32 *bytes) -> int {
-        DataBlock view(*block);
-        PBaseCacheableObject value = nullptr;
-        LegacyLong count = *bytes;
-        const bool ok =
-            reinterpret_cast<PFNRPO>(reader)(static_cast<PChunkyResourceFile>(c), type, number,
-                                             &view, object ? &value : nullptr, &count);
-        if (object)
-            *object = value;
-        *bytes = count;
-        return ok;
-    };
     s.retain_file = [](void *file) { static_cast<PChunkyFile>(file)->AddRef(); };
     s.release_file = [](void *file) { static_cast<PChunkyFile>(file)->Release(); };
     s.destroy_owner = [](void *c) {
@@ -246,7 +233,7 @@ tribool ChunkyResourceFile::TLoad(ChunkTagOrType type, ChunkNumber number, Resou
                                   LegacyLong priority)
 {
     AssertThis(0);
-    Assert(reader.Core().key != nullptr, "bad object reader");
+    Assert(reader != nullptr, "bad object reader");
     Assert(priority > crepToss, "crep too small");
     const auto q = ResourceRequest(type, number, reader, scope, priority);
     return static_cast<tribool>(mm_resource_cache_load(&_cache, &q));
@@ -255,7 +242,7 @@ PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType type, ChunkNu
                                                     RSC scope)
 {
     AssertThis(0);
-    Assert(reader.Core().key != nullptr, "bad object reader");
+    Assert(reader != nullptr, "bad object reader");
     AssertNilOrVarMem(error);
     const auto q = ResourceRequest(type, number, reader, scope);
     int failed = 0;
@@ -267,17 +254,17 @@ PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType type, ChunkNu
 PBaseCacheableObject ChunkyResourceFile::PbacoFind(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, RSC scope)
 {
     AssertThis(0);
-    Assert(reader.Core().key != nullptr, "bad object reader");
+    Assert(reader != nullptr, "bad object reader");
     return static_cast<PBaseCacheableObject>(
-        mm_resource_cache_find(&_cache, type, number, reader.Core().key, scope));
+        mm_resource_cache_find(&_cache, type, number, reader, scope));
 }
 bool ChunkyResourceFile::FSetCrep(LegacyLong priority, ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
                                   RSC scope)
 {
     AssertThis(0);
-    Assert(reader.Core().key != nullptr, "bad object reader");
+    Assert(reader != nullptr, "bad object reader");
     return mm_resource_cache_priority(&_cache, priority, type, number,
-                                            reader.Core().key, scope) != 0;
+                                            reader, scope) != 0;
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfFindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
 {
@@ -421,7 +408,7 @@ tribool ChunkyResourceManager::TLoad(ChunkTagOrType type, ChunkNumber number, Re
                                      LegacyLong priority)
 {
     AssertThis(0);
-    Assert(reader.Core().key != nullptr, "nil object reader");
+    Assert(reader != nullptr, "nil object reader");
     Assert(_manager.count == 0 || priority > crepToss, "crep too small");
     const auto q = ResourceRequest(type, number, reader, scope, priority);
     return static_cast<tribool>(mm_resource_manager_load(&_manager, &q));
@@ -430,7 +417,7 @@ PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType type, Chun
                                                        bool *error, RSC scope)
 {
     AssertThis(0);
-    Assert(reader.Core().key != nullptr, "nil object reader");
+    Assert(reader != nullptr, "nil object reader");
     AssertNilOrVarMem(error);
     const auto q = ResourceRequest(type, number, reader, scope);
     int failed = 0;
@@ -442,7 +429,7 @@ PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType type, Chun
 PBaseCacheableObject ChunkyResourceManager::PbacoFind(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, RSC scope)
 {
     AssertThis(0);
-    Assert(reader.Core().key != nullptr, "nil object reader");
+    Assert(reader != nullptr, "nil object reader");
     const auto q = ResourceRequest(type, number, reader, scope);
     return static_cast<PBaseCacheableObject>(mm_resource_manager_find(&_manager, &q));
 }
@@ -450,7 +437,7 @@ bool ChunkyResourceManager::FSetCrep(LegacyLong priority, ChunkTagOrType type, C
                                      RSC scope)
 {
     AssertThis(0);
-    Assert(reader.Core().key != nullptr, "nil object reader");
+    Assert(reader != nullptr, "nil object reader");
     const auto q = ResourceRequest(type, number, reader, scope, priority);
     return mm_resource_manager_priority(&_manager, &q) != 0;
 }
@@ -501,38 +488,35 @@ void ChunkyResourceManager::MarkMem(void)
 }
 #endif
 /***************************************************************************
-    A PFNRPO to read GenericHQ objects.
+    A cache reader for opaque handles.
 ***************************************************************************/
-bool GenericHQ::FReadGhq(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                         PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int GenericHQ::FReadGhq(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
-    GenericHQ *pghq;
-    HQ hq;
-
-    *pcb = pblck->Cb(fTrue);
-    if (pvNil == ppbaco)
+    *bytes = static_cast<MMI32>(block->view.length);
+    if (!out)
         return fTrue;
 
-    if (!pblck->FUnpackData() || hqNil == (hq = pblck->HqFree()))
+    HQ handle = nullptr;
+    int shrinkFailed = 0;
+    if (mm_owned_block_code(block, 0, nullptr, KauaiDecodeBlockHandle, nullptr) != MM_DATA_OK ||
+        mm_owned_block_take_handle(block, 0, &handle, &shrinkFailed) != MM_DATA_OK || !handle)
     {
-        TrashVar(pcb);
-        TrashVar(ppbaco);
+        TrashVar(bytes);
+        TrashVar(out);
         return fFalse;
     }
-    *pcb = CbOfHq(hq);
+    Assert(!shrinkFailed, "HQ shrink failed");
+    *bytes = CbOfHq(handle);
 
-    if (pvNil == (pghq = NewObj GenericHQ(hq)))
+    auto object = NewObj GenericHQ(handle);
+    if (!object)
     {
-        FreePhq(&hq);
-        TrashVar(pcb);
-        TrashVar(ppbaco);
+        FreePhq(&handle);
+        TrashVar(bytes);
+        TrashVar(out);
         return fFalse;
     }
-    *ppbaco = pghq;
+    *out = object;
     return fTrue;
 }
 

@@ -166,7 +166,7 @@ int mm_resource_cache_reserve(MMResourceCache *c, MMU32 additional)
     MMArray a = view(c);
     return mm_array_reserve(&a, additional, 0);
 }
-static int find(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceReader reader,
+static int find(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceBlockReader reader,
                 MMU32 *position)
 {
     MMU32 low = 0, high = c->count, middle;
@@ -470,25 +470,16 @@ static void clear_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedB
         issue(c, MM_RESOURCE_BAD_BLOCK, q->type, q->number);
 }
 
-static int read_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedBlock *block,
-                      void **object, MMI32 *bytes)
-{
-    if (q->loader.read)
-        return q->loader.read(c, q->type, q->number, block, object, bytes);
-    return c->services.read_legacy &&
-           c->services.read_legacy(c->services.context, q->loader.key, q->type, q->number, block, object, bytes);
-}
-
 static int load_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedBlock *block)
 {
     MMU32 type = q->type, number = q->number;
-    MMResourceReader reader = q->loader.key;
+    MMResourceBlockReader reader = q->reader;
     MMI32 priority = q->priority;
     MMResourceEntry e;
     MMU32 i;
     MMWide excess;
     memset(&e, 0, sizeof(e));
-    if (!read_block(c, q, block, NULL, &e.bytes) ||
+    if (!reader(c, type, number, block, NULL, &e.bytes) ||
         !charge(c, e.bytes, NULL, type, number))
         return 2;
     excess = mm_wide_subtract(mm_wide_add(c->resident, mm_wide_i32(e.bytes)),
@@ -496,7 +487,7 @@ static int load_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedBlo
     if (mm_wide_compare(excess, mm_wide_i32(0)) > 0 &&
         !mm_resource_cache_purge(c, excess, priority - 1))
         return 2;
-    if (!read_block(c, q, block, &e.object, &e.bytes))
+    if (!reader(c, type, number, block, &e.object, &e.bytes))
         return 2;
     if (!charge(c, e.bytes, e.object, type, number))
         return 2;
@@ -531,17 +522,17 @@ int mm_resource_cache_load(MMResourceCache *c, const MMResourceRequest *q)
     MMU32 i;
     MMI32 current_priority;
     int result;
-    if (!q->loader.key || q->priority <= 0)
+    if (!q->reader || q->priority <= 0)
         return 2;
     if (!scope(c, q->scope))
         return 0;
-    if (find(c, q->type, q->number, q->loader.key, &i))
+    if (find(c, q->type, q->number, q->reader, &i))
     {
         mm_resource_cache_at(c, i, &e);
         current_priority = c->services.objects.state(e.object)->priority;
         mm_resource_object_priority(e.object, current_priority > q->priority ? current_priority : q->priority,
                                     &c->services.objects);
-        if (find(c, q->type, q->number, q->loader.key, &i))
+        if (find(c, q->type, q->number, q->reader, &i))
         {
             mm_resource_cache_at(c, i, &e);
             e.released = tick(c);
@@ -559,11 +550,11 @@ int mm_resource_cache_load(MMResourceCache *c, const MMResourceRequest *q)
 static void *fetch_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedBlock *block, int *error)
 {
     MMU32 type = q->type, number = q->number;
-    MMResourceReader reader = q->loader.key;
+    MMResourceBlockReader reader = q->reader;
     MMResourceEntry e;
     MMU32 i;
     memset(&e, 0, sizeof(e));
-    if (!read_block(c, q, block, &e.object, &e.bytes))
+    if (!reader(c, type, number, block, &e.object, &e.bytes))
     {
         *error = 1;
         issue(c, MM_RESOURCE_LOAD_FAILED, type, number);
@@ -601,9 +592,9 @@ void *mm_resource_cache_fetch(MMResourceCache *c, const MMResourceRequest *q, in
     int failed = 0;
     if (error)
         *error = 0;
-    if (!q->loader.key || !scope(c, q->scope))
+    if (!q->reader || !scope(c, q->scope))
         return NULL;
-    if (find(c, q->type, q->number, q->loader.key, &i))
+    if (find(c, q->type, q->number, q->reader, &i))
     {
         mm_resource_cache_at(c, i, &e);
         retain_object(e.object, &c->services.objects);
@@ -617,19 +608,19 @@ void *mm_resource_cache_fetch(MMResourceCache *c, const MMResourceRequest *q, in
         *error = failed;
     return object;
 }
-void *mm_resource_cache_fetch_chunk(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceLoader loader)
+void *mm_resource_cache_fetch_chunk(MMResourceCache *c, MMU32 type, MMU32 number, MMResourceBlockReader reader)
 {
     MMResourceRequest request;
     request.type = type;
     request.number = number;
     request.scope = 0;
-    request.loader = loader;
+    request.reader = reader;
     request.priority = MM_RESOURCE_NORMAL_PRIORITY;
     return mm_resource_cache_fetch(c, &request, NULL);
 }
 
 void *mm_resource_cache_find(MMResourceCache *c, MMU32 type, MMU32 number,
-                                   MMResourceReader reader, MMU32 rsc)
+                                   MMResourceBlockReader reader, MMU32 rsc)
 {
     MMResourceEntry e;
     MMU32 i;
@@ -640,7 +631,7 @@ void *mm_resource_cache_find(MMResourceCache *c, MMU32 type, MMU32 number,
     return e.object;
 }
 int mm_resource_cache_priority(MMResourceCache *c, MMI32 priority, MMU32 type, MMU32 number,
-                                     MMResourceReader reader, MMU32 rsc)
+                                     MMResourceBlockReader reader, MMU32 rsc)
 {
     MMResourceEntry e;
     MMU32 i;

@@ -106,7 +106,7 @@ int mm_tag_child(const MMTag *parent, MMU32 slot, MMU32 type, MMTag *out,
         s->retain(out->cache);
     return 1;
 }
-void *mm_tag_fetch(const MMTag *tag, MMResourceLoader reader, int use_media,
+void *mm_tag_fetch(const MMTag *tag, MMResourceBlockReader reader, int use_media,
                          const MMTagServices *s)
 {
     MMResourceCache *cache;
@@ -127,7 +127,7 @@ void *mm_tag_fetch(const MMTag *tag, MMResourceLoader reader, int use_media,
             request.type = tag->type;
             request.number = tag->number;
             request.scope = 0;
-            request.loader = reader;
+            request.reader = reader;
             request.priority = MM_RESOURCE_NORMAL_PRIORITY;
             object = mm_resource_manager_fetch(manager, &request, NULL);
         }

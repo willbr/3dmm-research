@@ -160,8 +160,7 @@ class TrackTestTemplate : public Template
         ReleasePpo(&matrices);
         return ok;
     }
-    static bool FReadCostumeFixture(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock,
-                                    PBaseCacheableObject *out, LegacyLong *bytes)
+    static int FReadCostumeFixture(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **out, MMI32 *bytes)
     {
         *bytes = sizeof(TrackTestTemplate);
         if (!out)
@@ -170,20 +169,23 @@ class TrackTestTemplate : public Template
         *out = tmpl;
         if (!tmpl || !tmpl->FInit())
         {
-            ReleasePpo(out);
+            ReleasePpo(&tmpl);
+            *out = nullptr;
             return false;
         }
         tmpl->_template.custom_count = 3;
         return true;
     }
-    static bool FReadSubrouteFixture(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number,
-                                     PDataBlock block, PBaseCacheableObject *out, LegacyLong *bytes)
+    static int FReadSubrouteFixture(MMResourceCache *cache, MMU32 type, MMU32 number,
+                                    MMOwnedBlock *block, void **out, MMI32 *bytes)
     {
-        if (!FReadCostumeFixture(file, type, number, block, out, bytes))
+        if (!FReadCostumeFixture(cache, type, number, block, out, bytes))
             return false;
-        if (out && !static_cast<TrackTestTemplate *>(*out)->FInitAction())
+        auto tmpl = out ? static_cast<TrackTestTemplate *>(*out) : nullptr;
+        if (tmpl && !tmpl->FInitAction())
         {
-            ReleasePpo(out);
+            ReleasePpo(&tmpl);
+            *out = nullptr;
             return false;
         }
         return true;

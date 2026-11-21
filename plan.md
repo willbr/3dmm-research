@@ -763,12 +763,12 @@ Keep host presentation and device output outside the session.
    materials, colour and shade maps, and texture views. The C89 resource
    manager now dispatches directly to each C89 cache. A cache hit skips block
    construction. On a miss, the cache owns a C file or memory block through
-   the full load or fetch. The legacy readers borrow that block during
+   the full load or fetch. The typed readers borrow that block during
    preload's size estimate and final read. Cacheable
    objects now link to the C cache directly. C handles object and cache
    references, detach, eviction and priority changes through that link.
-   Native object construction, final destructors, physical file adapters and
-   typed readers remain integration work.
+   Native object construction, final destructors and physical file adapters
+   remain integration work.
    The standalone `engine-native-chunky-test`
    already links through the C toolchain with `mm-native-files`,
    `mm-movie-content`, `mm-engine-c89` and `mm-vfs`. It runs the real-file
@@ -1652,10 +1652,10 @@ readers now take the cache-owned C block directly. Scripts, string registries,
 colour tables, Kidspace descriptors and cursors also use typed C block
 readers. C89 owns the descriptor records and performs the SDL cursor image
 selection. Script literals resolve in the same C archive graph as the root.
-Tag resolution, manager
-lookup and nested resource fetches carry the same typed callback and reader
-key. Legacy readers still use the native block adapter. Temporary native
-resource/object/HQ and Body facades remain part of final host integration.
+Streamed MIDI builds device events directly from the cached track in C89.
+The typed callback is the cache key throughout preload, lookup, tag resolution,
+manager dispatch and nested fetches. Native resource, object, HQ and Body
+facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining

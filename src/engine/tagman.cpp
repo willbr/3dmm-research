@@ -747,12 +747,12 @@ PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, ResourceReader reader, boo
     AssertThis(0);
     AssertVarMem(tag);
     Assert(tag->sid >= 0, "Invalid sid");
-    Assert(reader.Core().key != nullptr, "bad rpo");
+    Assert(reader != nullptr, "bad rpo");
     NativeTagHost host = {this, nullptr, tag};
     const auto services = _Services(&host);
     auto value = TagToCore(*tag);
     return static_cast<PBaseCacheableObject>(
-        mm_tag_fetch(&value, reader.Core(), useMedia, &services));
+        mm_tag_fetch(&value, reader, useMedia, &services));
 }
 void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
 {

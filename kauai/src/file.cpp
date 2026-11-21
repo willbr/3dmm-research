@@ -427,7 +427,7 @@ MMBlockIO DataBlock::_IOView()
     AssertDo(mm_owned_block_io(&_state, &io) == MM_DATA_OK, "invalid block state");
     return io;
 }
-DataBlock::DataBlock(PFileLocation pflo, bool fPacked) : _state(_owned)
+DataBlock::DataBlock(PFileLocation pflo, bool fPacked)
 {
     AssertBaseThis(0);
     AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
@@ -437,7 +437,7 @@ DataBlock::DataBlock(PFileLocation pflo, bool fPacked) : _state(_owned)
 /***************************************************************************
     Constructor for a data block.
 ***************************************************************************/
-DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked) : _state(_owned)
+DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPacked)
 {
     AssertBaseThis(0);
     AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
@@ -448,7 +448,7 @@ DataBlock::DataBlock(PFileObject pfil, FilePosition fp, LegacyLong cb, bool fPac
     Another constructor for a data block.  Assumes ownership of the hq
     (and sets *phq to hqNil).
 ***************************************************************************/
-DataBlock::DataBlock(HQ *phq, bool fPacked) : _state(_owned)
+DataBlock::DataBlock(HQ *phq, bool fPacked)
 {
     AssertBaseThis(0);
     AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
@@ -458,16 +458,10 @@ DataBlock::DataBlock(HQ *phq, bool fPacked) : _state(_owned)
 /***************************************************************************
     Another constructor for a data block.
 ***************************************************************************/
-DataBlock::DataBlock(void) : _state(_owned)
+DataBlock::DataBlock(void)
 {
     AssertBaseThis(0);
     AssertDo(mm_owned_block_init(&_state, KauaiHandleServices(), &blockFiles) == MM_DATA_OK, "invalid block services");
-    AssertThis(0);
-}
-
-DataBlock::DataBlock(MMOwnedBlock &state) : _state(state)
-{
-    AssertBaseThis(0);
     AssertThis(0);
 }
 
@@ -477,8 +471,7 @@ DataBlock::DataBlock(MMOwnedBlock &state) : _state(state)
 DataBlock::~DataBlock(void)
 {
     AssertThis(0);
-    if (&_state == &_owned)
-        Free();
+    Free();
 }
 
 /***************************************************************************

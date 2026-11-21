@@ -42,8 +42,7 @@ class SizedResource : public BaseCacheableObject
     {
         --resident;
     }
-    static bool Read(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock, PBaseCacheableObject *result,
-                     LegacyLong *bytes)
+    static int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **result, MMI32 *bytes)
     {
         *bytes = 192 * 1024 * 1024;
         if (result)
@@ -85,11 +84,12 @@ class ProbeResource : public BaseCacheableObject
             ReleasePpo(&other);
         }
     }
-    static bool Read(PChunkyResourceFile, ChunkTagOrType type, ChunkNumber number, PDataBlock block,
-                     PBaseCacheableObject *result, LegacyLong *bytes, int reader)
+    static int Read(MMU32 type, MMU32 number, MMOwnedBlock *block, void **result, MMI32 *bytes, int reader)
     {
+        MMBlockIO io;
         int32_t record[5];
-        if (!block->FReadRgb(record, sizeof(record), 0))
+        if (mm_owned_block_io(block, &io) != MM_DATA_OK ||
+            mm_block_read(&io, 0, record, sizeof(record), 0) != MM_DATA_OK)
             return false;
         *bytes = record[result ? 2 : 1];
         Observe(result ? 1 : 0, record[0] * 10 + reader, type, number, *bytes, 0, 0);
@@ -99,15 +99,13 @@ class ProbeResource : public BaseCacheableObject
             *result = NewObj ProbeResource(record[0] * 10 + reader);
         return !result || *result != nullptr;
     }
-    static bool A(PChunkyResourceFile c, ChunkTagOrType t, ChunkNumber n, PDataBlock b, PBaseCacheableObject *o,
-                  LegacyLong *s)
+    static int A(MMResourceCache *, MMU32 t, MMU32 n, MMOwnedBlock *b, void **o, MMI32 *s)
     {
-        return Read(c, t, n, b, o, s, 1);
+        return Read(t, n, b, o, s, 1);
     }
-    static bool B(PChunkyResourceFile c, ChunkTagOrType t, ChunkNumber n, PDataBlock b, PBaseCacheableObject *o,
-                  LegacyLong *s)
+    static int B(MMResourceCache *, MMU32 t, MMU32 n, MMOwnedBlock *b, void **o, MMI32 *s)
     {
-        return Read(c, t, n, b, o, s, 2);
+        return Read(t, n, b, o, s, 2);
     }
 };
 bool Put(PChunkyFile file, ChunkNumber number, int id, int estimate, int actual, int failEstimate = 0, int failRead = 0)
@@ -303,6 +301,14 @@ static int WireSourceCase()
     CHECK(original.FRead(packed.data(), true) && block.FRead(decoded.data(), true));
     CHECK(!std::memcmp(packed.data(), decoded.data(), packedBytes) && block.FUnpackData());
     CHECK(block.Cb() == decoded.size() && block.FRead(decoded.data()) && decoded == stored);
+    auto generic = static_cast<PGenericHQ>(cache->PbacoFetch(type, glyph, GenericHQ::FReadGhq));
+    CHECK(generic && CbOfHq(generic->hq) == stored.size());
+    const auto payload = PvLockHq(generic->hq);
+    CHECK(!std::memcmp(payload, stored.data(), stored.size()));
+    UnlockHq(generic->hq);
+    MMResourceEntry entry;
+    CHECK(mm_resource_cache_at(cache->CoreCache(), 0, &entry) == MM_STORAGE_OK && entry.bytes == stored.size());
+    ReleasePpo(&generic);
     CHECK(live->FFind(type, glyph, &block) && block.FReadRgb(&value, 1, 0) && value == changed);
     CHECK(writable->FGetName(type, copied, &name) && name.FEqual(&authored));
     block.Free();

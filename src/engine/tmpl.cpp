@@ -335,8 +335,8 @@ MMTemplateRuntimeServices Template::_RuntimeServices()
     MMTemplateRuntimeServices s = {}; s.storage = _CreateServices();
     static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
     s.resource = ResourceBinding();
-    s.action_reader = ResourceReader(ActionDefinition::FReadActn).Core();
-    s.model_reader = ResourceReader(Model::FReadModl).Core();
+    s.action_reader = ActionDefinition::FReadActn;
+    s.model_reader = Model::FReadModl;
     s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
         return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, static_cast<PString>(out));
     };
@@ -405,7 +405,7 @@ PActionDefinition Template::_PactnFetch(LegacyLong anid)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count);
     return static_cast<PActionDefinition>(mm_template_fetch_child(
-        ResourceBinding(), anid, MM_TEMPLATE_ACTION, ResourceReader(ActionDefinition::FReadActn).Core(),
+        ResourceBinding(), anid, MM_TEMPLATE_ACTION, ActionDefinition::FReadActn,
         nullptr));
 }
 
@@ -416,7 +416,7 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
     return static_cast<PModel>(mm_template_fetch_child(
-        ResourceBinding(), chidModl, MM_TEMPLATE_MODEL, ResourceReader(Model::FReadModl).Core(), nullptr));
+        ResourceBinding(), chidModl, MM_TEMPLATE_MODEL, Model::FReadModl, nullptr));
 }
 
 /***************************************************************************
@@ -565,7 +565,7 @@ PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
         return pvNil;
     return static_cast<PCustomMaterial_CMTL>(mm_template_fetch_child(
         ResourceBinding(), static_cast<MMU32>(cmid), MM_TEMPLATE_CUSTOM,
-        ResourceReader(CustomMaterial_CMTL::FReadCmtl).Core(), nullptr));
+        CustomMaterial_CMTL::FReadCmtl, nullptr));
 }
 
 /***************************************************************************

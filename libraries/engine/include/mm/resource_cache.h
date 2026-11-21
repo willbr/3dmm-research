@@ -11,18 +11,11 @@
 extern "C"
 {
 #endif
-    /* Reader keys identify entries. The host supplies key ordering and can
-     * dispatch legacy keys. Block readers use their typed entry point. */
-    typedef void (*MMResourceReader)(void);
     enum { MM_RESOURCE_NORMAL_PRIORITY = 2 };
     typedef struct MMResourceCache MMResourceCache;
+    /* The typed callback also identifies the cache entry. */
     typedef int (*MMResourceBlockReader)(MMResourceCache *, MMU32 type, MMU32 number,
                                          MMOwnedBlock *, void **object, MMI32 *bytes);
-    typedef struct MMResourceLoader
-    {
-        MMResourceReader key;
-        MMResourceBlockReader read;
-    } MMResourceLoader;
     typedef struct MMResourceObject
     {
         MMResourceCache *cache;
@@ -55,7 +48,7 @@ extern "C"
     void mm_resource_object_priority(void *, MMI32, const MMResourceObjectServices *);
     typedef struct MMResourceEntry
     {
-        MMResourceReader reader;
+        MMResourceBlockReader reader;
         MMI32 released;
         void *object;
         MMI32 bytes;
@@ -63,14 +56,14 @@ extern "C"
     typedef struct MMResourceRequest
     {
         MMU32 type, number, scope;
-        MMResourceLoader loader;
+        MMResourceBlockReader reader;
         MMI32 priority;
     } MMResourceRequest;
     typedef struct MMResourceServices
     {
         void *context;
         MMResourceObjectServices objects;
-        int (*compare_reader)(MMResourceReader, MMResourceReader);
+        int (*compare_reader)(MMResourceBlockReader, MMResourceBlockReader);
         int (*contains)(void *file, MMU32 type, MMU32 number);
         MMChunkAccess (*live_chunks)(void *file);
         const MMHandleServices *handles;
@@ -78,8 +71,6 @@ extern "C"
         /* Report an existing chunk's borrowed physical extent and packed bit.
          * The cache owns the temporary block from lookup through publication. */
         int (*locate)(void *file, MMU32 type, MMU32 number, MMBlockFile *, int *packed);
-        int (*read_legacy)(void *, MMResourceReader, MMU32 type, MMU32 number, MMOwnedBlock *,
-                    void **object, MMI32 *bytes);
         void (*retain_file)(void *file);
         void (*release_file)(void *file);
         void (*destroy_owner)(void *owner);
@@ -141,12 +132,12 @@ extern "C"
     int mm_resource_cache_load(MMResourceCache *, const MMResourceRequest *);
     void *mm_resource_cache_fetch(MMResourceCache *, const MMResourceRequest *, int *error);
     /* Fetch an unscoped chunk with normal priority and return its owned reference. */
-    void *mm_resource_cache_fetch_chunk(MMResourceCache *, MMU32 type, MMU32 number, MMResourceLoader);
+    void *mm_resource_cache_fetch_chunk(MMResourceCache *, MMU32 type, MMU32 number, MMResourceBlockReader);
     int mm_resource_cache_contains(MMResourceCache *, MMU32 type, MMU32 number, MMU32 scope);
     void *mm_resource_cache_find(MMResourceCache *, MMU32 type, MMU32 number,
-                                       MMResourceReader, MMU32 scope);
+                                       MMResourceBlockReader, MMU32 scope);
     int mm_resource_cache_priority(MMResourceCache *, MMI32, MMU32 type, MMU32 number,
-                                         MMResourceReader, MMU32 scope);
+                                         MMResourceBlockReader, MMU32 scope);
     typedef struct MMResourceManagerServices
     {
         void *context;

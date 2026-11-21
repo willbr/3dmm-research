@@ -96,20 +96,7 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
 ***************************************************************************/
 // Object reader function - must handle ppo == pvNil, in which case, the
 // *pcb should be set to an estimate of the size when read.
-typedef bool FNRPO(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                   PBaseCacheableObject *ppbaco, LegacyLong *pcb);
-typedef FNRPO *PFNRPO;
-
-class ResourceReader
-{
-    MMResourceLoader _loader;
-
-  public:
-    ResourceReader(PFNRPO read) : _loader{reinterpret_cast<MMResourceReader>(read), nullptr} {}
-    ResourceReader(MMResourceBlockReader read) : _loader{reinterpret_cast<MMResourceReader>(read), read} {}
-    ResourceReader(MMResourceLoader loader) : _loader(loader) {}
-    MMResourceLoader Core() const { return _loader; }
-};
+using ResourceReader = MMResourceBlockReader;
 
 typedef class ResourceCache *PResourceCache;
 #define ResourceCache_PAR BASE
@@ -243,8 +230,7 @@ class GenericHQ : public GenericHQ_PAR
     }
 
     // An object reader for a GenericHQ.
-    static bool FReadGhq(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                         PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadGhq(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 };
 
 /***************************************************************************

@@ -11,7 +11,7 @@ static_assert(std::is_same<decltype(&FReadMainPic), PictureReader>::value,
               "picture resource readers must use core-sized output words");
 static_assert(sizeof(SystemPoint) == 8 && sizeof(SystemRectangle) == 16,
               "GUI geometry must retain 32-bit coordinates");
-static_assert(std::is_same<decltype(&Cursor::FReadCurs), PFNRPO>::value,
+static_assert(std::is_same<decltype(&Cursor::FReadCurs), MMResourceBlockReader>::value,
               "cursor readers must match the portable resource cache callback");
 #ifdef KAUAI_SDL3
 static_assert(std::is_same<EVT, KauaiInput::Event>::value, "SDL events must not require native messages");

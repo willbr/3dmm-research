@@ -29,7 +29,7 @@ typedef struct MMFontResourceServices
     void (*bad_order)(void *);
     MMI32 (*child_count)(void *,void *children);
     void (*child_at)(void *,void *children,MMI32,MMChunkChild *);
-    MMResourceLoader model_reader;
+    MMResourceBlockReader model_reader;
     MMI32 (*model_width)(void *,void *model);
     MMI32 (*model_height)(void *,void *model);
     void (*missing_model)(void *,MMU32 id);

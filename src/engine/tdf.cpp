@@ -61,7 +61,7 @@ MMFontResourceServices ThreeDFont::_Services()
     s.child_at = [](void *, void *children, MMI32 i, MMChunkChild *out) {
         ChildChunkIdentification child; static_cast<PDynamicArray>(children)->Get(i, &child); *out = {child.cki.ctg, child.cki.cno, child.chid};
     };
-    s.model_reader = ResourceReader(Model::FReadModl).Core();
+    s.model_reader = Model::FReadModl;
     s.model_width = [](void *, void *model) -> MMI32 { return static_cast<PModel>(model)->Dxr(); };
     s.model_height = [](void *, void *model) -> MMI32 { return static_cast<PModel>(model)->Dyr(); };
     s.missing_model = [](void *, MMU32 id) {
