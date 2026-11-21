@@ -893,8 +893,8 @@ bool RichTextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNu
 bool RichTextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 {
     AssertBaseThis(0);
-    MaterializeHost host(this);
-    auto services = host.Argument();
+    DocumentHost host(this);
+    auto services = host.FontArgument();
     int result = mm_text_open_font_argument(sizeof(achar), icact, sprm, &services);
     host.Rethrow();
     return result > 0;

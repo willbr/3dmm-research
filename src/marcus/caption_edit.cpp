@@ -9,6 +9,7 @@
 #include "font_host.h"
 #include <cstring>
 #include <map>
+#include <optional>
 #include <exception>
 #include <stdexcept>
 #include <utility>
@@ -206,7 +207,7 @@ std::vector<std::string> MarcusCaptionFontNames(const KauaiFonts::FontCatalog *b
 void MarcusReadCaptions(const std::filesystem::path &path, const MM::Preview &preview, MarcusCaptionList &list)
 {
     auto file = Open(path, false);
-    MovieArchiveHost host{file.get(), {}, {}};
+    MovieArchiveHost host{file.get()};
     const auto editor = host.Editor();
     MMSceneArchiveText *links;
     MMU32 count;
@@ -270,8 +271,17 @@ MM::PreviewCaption MarcusDraftCaption(const std::filesystem::path &path, const M
     CheckCaptionEdit(mm_caption_edit_plan(&value, entry ? &before : nullptr, 0, &plan));
     MMTextBoxState box{};
     auto file = entry ? Open(path, false) : Owned<ChunkyFile>{};
-    MovieArchiveHost host{file.get(), {}, {}};
-    const auto editor = host.Editor();
+    std::optional<MovieArchiveHost> host;
+    const auto editor = [&] {
+        if (file)
+            return host.emplace(file.get()).Editor();
+        MMMovieArchiveEditor format{};
+        const unsigned short order = 1;
+        format.text_unit = sizeof(achar);
+        format.system = koskCur;
+        format.big_endian = *reinterpret_cast<const unsigned char *>(&order) == 0;
+        return format;
+    }();
     CaptionBody rich(file.get(), editor);
     if (entry)
     {
@@ -314,7 +324,7 @@ std::shared_ptr<MarcusMovieFile> MarcusWriteCaption(const std::filesystem::path 
     }
     auto copy = MarcusCopyMovie(path, origin);
     auto file = Open(copy->path, true);
-    MovieArchiveHost host{file.get(), {}, {}};
+    MovieArchiveHost host{file.get()};
     const auto editor = host.Editor();
     const MMSceneArchiveText original{entry ? entry->slot : 0, entry ? entry->chunk : 0};
     struct Write

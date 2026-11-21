@@ -2027,7 +2027,7 @@ bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
         PScene scene;
         PChunkyFile file;
     } host = {this, pcrf->Pcfl()};
-    MovieArchiveHost archive{host.file, {}, {}};
+    MovieArchiveHost archive{host.file};
     const auto editor = archive.Editor();
     MovieEmbeddedArchive assets{host.file, nullptr};
     MMSceneStoreServices s = {};

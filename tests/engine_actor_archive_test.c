@@ -186,6 +186,12 @@ static int replace_events(void *context, MMU32 type, MMU32 number, MMU32 size, M
     writer->write_at = write_event_bytes;
     return 1;
 }
+static int replace_event_payload(void *context, MMU32 type, MMU32 number, MMU32 size,
+                                  MMChunkWritePayload write, void *source)
+{
+    MMStorageWriter writer;
+    return replace_events(context, type, number, size, &writer) && write(source, &writer);
+}
 static void read_output_events(Fixture *f)
 {
     MMMemoryStream output;
@@ -1247,7 +1253,7 @@ int main(void)
     MMMovieArchiveEditor source_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, source_read,
                                           NULL, NULL, NULL, NULL, NULL, {0}};
     MMMovieArchiveEditor destination_editor = {NULL, 1, MM_TEXT_WINDOWS, 0, NULL, destination_read,
-                                               NULL, put, NULL, replace_events, NULL, {0}};
+                                               NULL, put, NULL, replace_event_payload, NULL, {0}};
     MMU32 actor, i;
     MMActorHeader header;
     unsigned char descriptor[MM_ACTOR_ARCHIVE_TEXT_BYTES];

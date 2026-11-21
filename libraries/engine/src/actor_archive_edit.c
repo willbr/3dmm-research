@@ -33,20 +33,36 @@ MMActorEventTable *mm_actor_archive_read_event_group(const MMMovieArchiveEditor 
     return (MMActorEventTable *)group;
 }
 
+typedef struct TrackWrite
+{
+    MMActorEventTable *group;
+    int system;
+} TrackWrite;
+
+static int write_track_payload(void *p, const MMStorageWriter *writer)
+{
+    const TrackWrite *track = p;
+    return mm_actor_events_write(track->group, track->system, 0, writer);
+}
+
 static int write_track(const MMMovieArchiveEditor *editor, MMActorEventTable *group, MMU32 *number,
                        const MMU32 *attach, int replace)
 {
     MMStorageWriter writer;
     MMChunkChild link = {EVENTS_TYPE, 0, 0};
+    TrackWrite track;
     MMU32 size = mm_actor_events_wire_size(group);
     if (!size)
         return 0;
-    if (replace ? !editor->replace(editor->context, EVENTS_TYPE, *number, size, &writer)
-                : !editor->add(editor->context, EVENTS_TYPE, size, number, &writer))
+    track.group = group;
+    track.system = editor->system;
+    if (replace)
+        return editor->replace(editor->context, EVENTS_TYPE, *number, size, write_track_payload, &track);
+    if (!editor->add(editor->context, EVENTS_TYPE, size, number, &writer))
         return 0;
     link.number = *number;
     return (!attach || mm_chunk_adopt(&editor->edit, ACTOR_TYPE, *attach, &link, 1) == MM_CHUNK_OK) &&
-        mm_actor_events_write(group, editor->system, 0, &writer);
+        write_track_payload(&track, &writer);
 }
 
 static int encode_track(const MMMovieArchiveEditor *editor, MMActorEventTable *group, MMU32 *number,

@@ -126,6 +126,57 @@ int mm_chunk_add_child_block(const MMChunkEdit *edit, MMU32 parent_type, MMU32 p
     return MM_CHUNK_OK;
 }
 
+typedef struct ChunkPayloadWrite
+{
+    const MMChunkPayloadServices *services;
+    MMChunkWritePayload write;
+    void *context;
+    MMU32 bytes;
+} ChunkPayloadWrite;
+
+static int write_chunk_payload(void *p, const MMChunkLocation *location, int added)
+{
+    const ChunkPayloadWrite *payload = p;
+    MMOwnedBlock block;
+    MMBlockFile file;
+    MMBlockIO io;
+    MMStorageWriter writer;
+    int ok;
+    (void)added;
+    if (location->bytes != payload->bytes ||
+        mm_owned_block_init(&block, payload->services->handles, payload->services->files) != MM_DATA_OK)
+        return 0;
+    file.file = location->file;
+    file.offset = location->offset;
+    file.length = location->bytes;
+    ok = ((!file.file && !file.offset && !file.length) ||
+          mm_owned_block_set_file(&block, &file, 0) == MM_DATA_OK) &&
+         mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_io_writer(&io, &writer) == MM_DATA_OK &&
+         payload->write(payload->context, &writer);
+    mm_owned_block_clear(&block);
+    return ok;
+}
+
+int mm_chunk_put_payload(const MMArchiveWriter *archive, MMU32 type, MMU32 number, MMU32 bytes,
+                         MMChunkWritePayload write, void *context)
+{
+    MMChunkEdit edit;
+    ChunkPayloadWrite payload;
+    int status;
+    if (!archive || !archive->payloads || !write)
+        return MM_CHUNK_BAD_FILE;
+    edit = archive->edit;
+    payload.services = archive->payloads;
+    payload.write = write;
+    payload.context = context;
+    payload.bytes = bytes;
+    edit.payload_context = &payload;
+    edit.output = NULL;
+    edit.write = write_chunk_payload;
+    status = mm_chunk_put(&edit, type, number, bytes);
+    return status == MM_CHUNK_OK ? mm_chunk_set_flag(&edit, type, number, MM_CHUNK_PACKED, 0) : status;
+}
+
 int mm_chunk_payload_bind_block(const MMChunkPayloadServices *s, void *archive, MMU32 type,
                                 MMU32 number, MMOwnedBlock *block)
 {
@@ -145,6 +196,53 @@ static int payload_stream(MMOwnedBlock *block, MMBlockIO *io, MMReadStream *stre
 {
     return mm_owned_block_io(block, io) == MM_DATA_OK &&
            mm_block_io_stream(io, stream) == MM_DATA_OK;
+}
+
+typedef struct PatchedPayload
+{
+    MMReadStream stream;
+    const MMStorageAllocator *allocator;
+} PatchedPayload;
+
+static int copy_patched_payload(void *p, const MMStorageWriter *writer)
+{
+    PatchedPayload *payload = p;
+    return mm_stream_copy(&payload->stream, writer, payload->allocator) == MM_DATA_OK;
+}
+
+int mm_chunk_patch_payload(const MMArchiveWriter *writer, void *archive, MMU32 type, MMU32 number,
+                           MMU32 offset, const void *data, MMU32 bytes)
+{
+    const MMChunkPayloadServices *services;
+    MMOwnedBlock block;
+    MMBlockIO io;
+    PatchedPayload payload;
+    int status, packed;
+    if (!writer || !writer->payloads || (bytes && !data))
+        return MM_CHUNK_BAD_FILE;
+    services = writer->payloads;
+    if (mm_owned_block_init(&block, services->handles, services->files) != MM_DATA_OK)
+        return MM_CHUNK_BAD_FILE;
+    status = mm_chunk_payload_bind_block(services, archive, type, number, &block);
+    if (status != MM_CHUNK_PAYLOAD_OK)
+        return status == MM_CHUNK_PAYLOAD_MISSING ? MM_CHUNK_NOT_FOUND : MM_CHUNK_BAD_FILE;
+    packed = block.view.packed;
+    status = MM_CHUNK_IO;
+    if ((!packed || mm_owned_block_code(&block, 0, services->decode_context, services->decode, NULL) == MM_DATA_OK) &&
+        mm_owned_block_io(&block, &io) == MM_DATA_OK &&
+        mm_block_write(&io, offset, data, bytes, 0) == MM_DATA_OK)
+    {
+        status = MM_CHUNK_OK;
+        if (packed)
+        {
+            payload.allocator = writer->transfer_allocator;
+            status = payload_stream(&block, &io, &payload.stream) ?
+                     mm_chunk_put_payload(writer, type, number, payload.stream.length, copy_patched_payload, &payload) :
+                     MM_CHUNK_IO;
+        }
+    }
+    mm_owned_block_clear(&block);
+    return status;
 }
 
 static int visit_payload(const MMChunkPayloadServices *s, void *archive, MMU32 type, MMU32 number,

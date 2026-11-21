@@ -17988,3 +17988,38 @@ archived retail frame identities in seek and continuous playback, and all
 retail seek camera indices. SDL matched all 12 retail sound requests. Each
 port reproduced its preceding 60 seek canvas hashes. Evidence is in
 `tmp/c89-actor-scene-authoring`.
+
+## Editable archive payloads through C89 (21 November 2026)
+
+Studio and Marcus use C-owned blocks for editable archive reads and writes.
+Actor event replacement commits only after the serializer succeeds, preserving
+the old extent and its links on failure. A packed replacement publishes the
+new unpacked extent and clears the packed flag. Raw byte-range patches use
+the existing extent. Packed patches decode, apply the range, and stage the
+result before publication. The C storage test covers decode, allocation and
+write failures, including a serializer that fails after its first write.
+
+All 192 standalone C tests, eight focused AddressSanitizer checks, 12 native
+C89 gates and four Marcus checks passed. The rebuilt Marcus caption checks
+cover draft creation, editing, undo, save
+and reopen. All nine actor, scene and scene-store snapshots, 54 movie and
+scene traces, three fixture saves, ten Preview fingerprints and six Preview
+movies matched the preceding build. Studio reproduced 13 actor samples,
+12 rendered images and the reopened movie structure. Both the preceding
+build's rerun and the converted build varied only at the same two TMPL
+index padding bytes.
+
+Retail reopened the Studio-saved actor movie in `20261121T050127Z-da11364e`.
+Both ports matched all 60 frame identities and camera indices and 59 canvas
+hashes. Scene 0, frame 4 reproduced the existing difference from retail.
+Retail, SDL and Marcus matched the three retained-background frames, cameras
+and canvases in `20261121T050136Z-c6e67a16`. Both ports matched original v3dmm
+0.14 on three Studio-saved VMM frames in `20261121T050209Z-f2a141ff`.
+
+In actor-event suite `20261121T050123Z-0711f3e7`, both ports matched all 60
+archived retail frame identities in seek and continuous playback and all 60
+retail seek camera indices. SDL matched all 12 retail sound requests. Each
+port reproduced its 60 seek canvas hashes from the preceding build. After
+the Marcus caption draft adapter changed, its build reproduced the actor-event
+and authored movie evidence in `20261121T050437Z-84f97734` and
+`20261121T050440Z-00bd1d09`. Logs are in `tmp/c89-editable-archive-payloads`.

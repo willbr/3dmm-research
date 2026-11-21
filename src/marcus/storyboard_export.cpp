@@ -48,7 +48,7 @@ struct Staging
 };
 void PortableSource(PChunkyFile file)
 {
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     const auto result = mm_movie_archive_require_portable_source(&editor);
     Require(result != MM_PORTABLE_SOURCE_MISSING_ROOT, "Missing movie root.");
@@ -131,7 +131,7 @@ void MarcusWriteStoryboardBundle(const MarcusMovieFile &movie, const MarcusStory
     std::random_device random;
     RekeyBackgrounds(contentPath, portableContent, random, backgrounds);
     {
-        MovieArchiveHost innerArchive{inner.get(), {}, {}};
+        MovieArchiveHost innerArchive{inner.get()};
         const auto editor = innerArchive.Editor();
         for (const auto &entry : backgrounds)
             Require(mm_movie_archive_retarget_background(&editor, entry.first, MM_PORTABLE_SOURCE_ID, entry.second),

@@ -271,9 +271,9 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
     Require(contentFilename.FBuildFromPath(&contentPath), "Invalid retail background path.");
     std::unique_ptr<ChunkyFile, Release> backgrounds(ChunkyFile::PcflOpen(&contentFilename, fcflNil));
     Require(bool(backgrounds), "Cannot read the retail black scene.");
-    MovieArchiveHost resourceHost{resourceFile.get(), {}, {}};
-    MovieArchiveHost retailHost{backgrounds.get(), {}, {}};
-    MovieArchiveHost outputHost{chunks.get(), {}, {}};
+    MovieArchiveHost resourceHost{resourceFile.get()};
+    MovieArchiveHost retailHost{backgrounds.get()};
+    MovieArchiveHost outputHost{chunks.get()};
     const auto resourceEditor = resourceHost.Editor();
     const auto retailEditor = retailHost.Editor();
     const auto outputEditor = outputHost.Editor();
@@ -295,7 +295,7 @@ void MarcusEmbedBoard(PChunkyFile file, ChunkNumber scene, const MarcusBoardReso
     ChunkNumber background;
     Require(source && source->FCopy(kctgBkgd, resource.background, file, &background), "Cannot embed storyboard resources.");
     const auto bytes = MarcusEncodeBoard(*resource.board);
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     Require(mm_movie_archive_embed_storyboard(&editor, scene, background, bytes.data(), static_cast<MMU32>(bytes.size())),
             "Cannot embed storyboard data.");

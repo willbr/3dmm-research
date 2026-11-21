@@ -5,7 +5,7 @@
 struct RichTextDocument::MaterializeHost : DocumentHost
 {
     RichTextStoreHost::Host stored;
-    explicit MaterializeHost(RichTextDocument *p, PChunkyFile file = nullptr) : DocumentHost(p), stored{file}
+    explicit MaterializeHost(RichTextDocument *p, PChunkyFile file) : DocumentHost(p), stored{file}
     {
     }
     void Rethrow()
@@ -64,46 +64,6 @@ struct RichTextDocument::MaterializeHost : DocumentHost
                                          static_cast<short>(system));
             });
         };
-        return s;
-    }
-    MMTextFontArgumentServices Argument()
-    {
-        MMTextFontArgumentServices s = {};
-        s.context = this;
-        s.bytes = [](void *v, MMI32 i) -> MMI32 { return static_cast<MaterializeHost *>(v)->rich->_pagcact->Cb(i); };
-        s.system = [](void *v, MMI32 i) -> int {
-            short system;
-            static_cast<MaterializeHost *>(v)->rich->_pagcact->GetRgb(i, 4, 2, &system);
-            return system;
-        };
-        s.lock = [](void *v, MMI32 i) -> const void * {
-            return static_cast<MaterializeHost *>(v)->rich->_pagcact->PvLock(i);
-        };
-        s.unlock = [](void *v) { static_cast<MaterializeHost *>(v)->rich->_pagcact->Unlock(); };
-        s.decode = [](void *v, const void *p, MMI32 bytes, MMMovieTitle *out) -> int {
-            auto &h = *static_cast<MaterializeHost *>(v);
-            return h.Guard([&] {
-                String name;
-                if (!name.FSetData(const_cast<void *>(p), bytes))
-                    return false;
-                *out = RichTextStoreHost::Font(name);
-                return true;
-            });
-        };
-        s.map = [](void *v, const MMMovieTitle *p, int system, MMI32 *out) -> int {
-            auto &h = *static_cast<MaterializeHost *>(v);
-            return h.Guard([&] {
-                String name;
-                RichTextStoreHost::Font(*p, &name);
-                *out = vntl.OnnMapStn(&name, static_cast<short>(system));
-                return 1;
-            });
-        };
-        s.put = [](void *v, MMI32 i, MMI32 value) {
-            LegacyLong font = value;
-            static_cast<MaterializeHost *>(v)->rich->_pagcact->PutRgb(i, 0, 4, &font);
-        };
-        s.diagnostic = [](void *) { Bug("bad font entry"); };
         return s;
     }
 };

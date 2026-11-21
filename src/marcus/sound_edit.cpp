@@ -137,7 +137,7 @@ std::shared_ptr<MarcusMovieFile> MarcusEditSound(const std::shared_ptr<MarcusMov
                     cue->child, cue->sound.number, cue->queue, cue->actorSound};
     const MMMovieSoundArchiveEdit edit{cue ? &selected : nullptr, (importPath || libraryPath) ? &added : nullptr,
         static_cast<MMI32>(options.frame), static_cast<MMI32>(options.volume), options.style, options.loop, options.queue, remove};
-    MovieArchiveHost host{file.get(), {}, {}};
+    MovieArchiveHost host{file.get()};
     const auto editor = host.Editor();
     CheckSoundArchive(mm_movie_archive_edit_sound(&editor, static_cast<MMU32>(scene), &edit));
     Require(file->FSave(kctgSoc), "Cannot save sound edits.");

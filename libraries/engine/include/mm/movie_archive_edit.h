@@ -2,6 +2,7 @@
 #define MM_ENGINE_MOVIE_ARCHIVE_EDIT_H
 #include "chunky_file.h"
 #include "chunk_edit.h"
+#include "chunk_storage.h"
 #include "collection_storage.h"
 #include "movie_title.h"
 #include "string_table.h"
@@ -25,12 +26,27 @@ typedef struct MMMovieArchiveEditor
     int (*add)(void *, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *);
     int (*put)(void *, MMU32 type, MMU32 number, const void *bytes, MMU32 size);
     int (*set_title)(void *, MMU32 type, MMU32 number, const MMMovieTitle *);
-    /* Replace a chunk's payload through a writer while keeping its key and links. */
-    int (*replace)(void *, MMU32 type, MMU32 number, MMU32 bytes, MMStorageWriter *);
+    /* Stage an unpacked replacement at the same key and commit after the writer succeeds. */
+    int (*replace)(void *, MMU32 type, MMU32 number, MMU32 bytes, MMChunkWritePayload, void *context);
     /* Update a byte range in an existing payload without changing its length. */
     int (*patch)(void *, MMU32 type, MMU32 number, MMU32 offset, const void *bytes, MMU32 size);
     MMChunkEdit edit; /* Borrowed writable index for archive transactions. */
 } MMMovieArchiveEditor;
+
+/* Owns the current input and any streamed new chunk's output. Keep this binding
+ * at a stable address and clear it before releasing the borrowed archive. */
+typedef struct MMMovieArchiveFile
+{
+    void *file;
+    MMArchiveWriter archive;
+    MMChunkTitleIO titles;
+    MMOwnedBlock input, output;
+    MMBlockIO input_io, output_io;
+} MMMovieArchiveFile;
+
+int mm_movie_archive_file_init(MMMovieArchiveFile *, void *file, const MMArchiveWriter *, const MMChunkTitleIO *);
+void mm_movie_archive_file_clear(MMMovieArchiveFile *);
+MMMovieArchiveEditor mm_movie_archive_file_editor(MMMovieArchiveFile *, unsigned text_unit, MMStringConvert);
 
 /* Borrow the destination index across copies. Each copy may insert rows.
  * copy_reference reports whether the destination subtree was newly created. */

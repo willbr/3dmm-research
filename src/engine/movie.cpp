@@ -2620,7 +2620,7 @@ MMMovieComposeServices Movie::_ComposeServices()
     };
     s.rebind_scene_backgrounds = [](void *source, void *destination, MMU32 scene) {
         auto file = static_cast<PChunkyFile>(destination);
-        MovieArchiveHost host{file, {}, {}};
+        MovieArchiveHost host{file};
         MovieEmbeddedArchive assets{file, static_cast<PChunkyFile>(source)};
         const auto editor = host.Editor();
         const auto archive = assets.Services();
@@ -2669,7 +2669,7 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.adjust_actor=[](void *p,MMU32 number,MMI32 offset)->int { return Actor::FAdjustAridOnFile(static_cast<PChunkyFile>(p),number,offset); };
     s.rebind_actor_materials = [](void *source, void *destination, MMU32 actor) {
         auto file = static_cast<PChunkyFile>(destination);
-        MovieArchiveHost host{file, {}, {}};
+        MovieArchiveHost host{file};
         MovieEmbeddedArchive materials{file, static_cast<PChunkyFile>(source)};
         const auto editor = host.Editor();
         const auto services = materials.Services();

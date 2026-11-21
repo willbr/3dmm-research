@@ -1,6 +1,7 @@
 #ifndef TEXT_DOCUMENT_HOST_H
 #define TEXT_DOCUMENT_HOST_H
 #include "mm/text_document.h"
+#include "mm/text_materialize.h"
 // Typed owner slots and primitive I/O. C owns sequencing and reference transfers.
 struct TextDocumentFactoryHost
 {
@@ -223,6 +224,46 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
             rich->_pagcact = static_cast<PAllocatedGroup>(p);
         else
             TextDocumentBase::DocumentHost::Set(slot, p);
+    }
+    MMTextFontArgumentServices FontArgument()
+    {
+        MMTextFontArgumentServices s = {};
+        s.context = this;
+        s.bytes = [](void *v, MMI32 i) -> MMI32 { return static_cast<DocumentHost *>(v)->rich->_pagcact->Cb(i); };
+        s.system = [](void *v, MMI32 i) -> int {
+            short system;
+            static_cast<DocumentHost *>(v)->rich->_pagcact->GetRgb(i, 4, 2, &system);
+            return system;
+        };
+        s.lock = [](void *v, MMI32 i) -> const void * {
+            return static_cast<DocumentHost *>(v)->rich->_pagcact->PvLock(i);
+        };
+        s.unlock = [](void *v) { static_cast<DocumentHost *>(v)->rich->_pagcact->Unlock(); };
+        s.decode = [](void *v, const void *p, MMI32 bytes, MMMovieTitle *out) -> int {
+            auto &h = *static_cast<DocumentHost *>(v);
+            return h.Guard([&] {
+                String name;
+                if (!name.FSetData(const_cast<void *>(p), bytes))
+                    return false;
+                *out = RichTextStoreHost::Font(name);
+                return true;
+            });
+        };
+        s.map = [](void *v, const MMMovieTitle *p, int system, MMI32 *out) -> int {
+            auto &h = *static_cast<DocumentHost *>(v);
+            return h.Guard([&] {
+                String name;
+                RichTextStoreHost::Font(*p, &name);
+                *out = vntl.OnnMapStn(&name, static_cast<short>(system));
+                return 1;
+            });
+        };
+        s.put = [](void *v, MMI32 i, MMI32 value) {
+            LegacyLong font = value;
+            static_cast<DocumentHost *>(v)->rich->_pagcact->PutRgb(i, 0, 4, &font);
+        };
+        s.diagnostic = [](void *) { Bug("bad font entry"); };
+        return s;
     }
     MMTextRichInitServices Init()
     {

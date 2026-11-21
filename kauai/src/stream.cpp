@@ -250,9 +250,13 @@ bool FileByteStream::FWriteRgb(PFileLocation location, LegacyLong offset)
 }
 bool FileByteStream::FWriteRgb(PDataBlock block, LegacyLong offset)
 {
-    AssertThis(fobjAssertFull);
     AssertPo(block, 0);
-    const int result = mm_piece_table_write(&_pieces, offset, &block->_state, KauaiCopyAllocator());
+    return FWriteRgb(*block->CoreBlock(), offset);
+}
+bool FileByteStream::FWriteRgb(MMOwnedBlock &block, LegacyLong offset)
+{
+    AssertThis(fobjAssertFull);
+    const int result = mm_piece_table_write(&_pieces, offset, &block, KauaiCopyAllocator());
     if (result == MM_DATA_ARGUMENT || result == MM_DATA_PACKED) Bug("invalid stream write window");
     return result == MM_DATA_OK;
 }

@@ -10,7 +10,7 @@ struct LiveHost : Host
     MMMovieArchiveEditor textEditor;
     PFileByteStream stream;
     LiveHost(PChunkyFile file, PFileByteStream stream)
-        : Host(file), textArchive{file, {}, {}}, textEditor(textArchive.Editor()), stream(stream)
+        : Host(file), textArchive{file}, textEditor(textArchive.Editor()), stream(stream)
     {
     }
     MMRichTextLiveServices Services()
@@ -20,19 +20,19 @@ struct LiveHost : Host
         s.context = this;
         s.move_text = [](void *v, MMU32 n) -> int {
             auto &h = *static_cast<LiveHost *>(v);
-            return h.Guard([&] { return h.textArchive.output.FMoveMin(n); });
+            return h.Guard([&] { return mm_block_move_min(&h.textArchive.OutputBlock().view, n) == MM_DATA_OK; });
         };
         s.text = [](void *v) -> int {
             auto &h = *static_cast<LiveHost *>(v);
-            return h.Guard([&] { return h.stream->FWriteRgb(&h.textArchive.output); });
+            return h.Guard([&] { return h.stream->FWriteRgb(h.textArchive.OutputBlock()); });
         };
         s.destination = [](void *v, MMTextLocation *out) -> int {
             auto &h = *static_cast<LiveHost *>(v);
             return h.Guard([&] {
-                FileLocation location;
-                if (!h.textArchive.output.FGetFlo(&location))
+                MMBlockFile location;
+                if (mm_owned_block_materialize(&h.textArchive.OutputBlock(), 0, &location) != MM_DATA_OK)
                     return false;
-                *out = Location(location);
+                *out = {location.file, location.offset, static_cast<MMI32>(location.length)};
                 return true;
             });
         };

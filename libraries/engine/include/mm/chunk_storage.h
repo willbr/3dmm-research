@@ -93,6 +93,16 @@ extern "C"
         void (*invalidate_number)(MMU32 *);
         const MMStorageAllocator *transfer_allocator;
     } MMArchiveWriter;
+    typedef int (*MMChunkWritePayload)(void *, const MMStorageWriter *);
+    /* Write unpacked bytes to a staged extent. Publish it at the given key on
+     * success and clear the packed flag. The synchronous callback borrows the
+     * writer and cannot edit the index. Existing links are preserved. */
+    int mm_chunk_put_payload(const MMArchiveWriter *, MMU32 type, MMU32 number, MMU32 bytes,
+                             MMChunkWritePayload, void *context);
+    /* Patch uncompressed data in place. For packed data, decode and patch an
+     * owned block, publish the decoded replacement, then clear the packed flag. */
+    int mm_chunk_patch_payload(const MMArchiveWriter *, void *archive, MMU32 type, MMU32 number,
+                               MMU32 offset, const void *data, MMU32 bytes);
     /* Locate a borrowed extent by key, own the block through the receiver call,
      * and release it afterward. A NULL, zero-length extent is the legacy empty
      * extra-cache result. The receiver's result is published only on delivery.

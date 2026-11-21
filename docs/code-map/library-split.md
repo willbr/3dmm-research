@@ -7876,7 +7876,11 @@ background start groups also adopt the new link before releasing the old link.
 Native source registration keeps its unlink-before-adopt order. The native
 archive adapter uses the C chunk editor to allocate new chunks and replace
 raw payloads. Positional writes use the C block interface on the allocated
-extent. Kauai supplies physical file services and decoded readers.
+extent. The C archive binding owns borrowed read streams and streamed output
+blocks. It stages actor event replacements before publishing them at the
+same key. Byte-range patches on raw chunks write in place. Packed patches
+decode, edit, and publish an unpacked replacement only after the write
+succeeds. Kauai supplies physical file, codec, and text translation services.
 
 New scenes and actors move from their allocated numbers to their requested
 numbers through `mm_chunk_move`. The writable index supplies runtime ID

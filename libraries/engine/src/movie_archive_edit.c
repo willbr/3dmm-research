@@ -16,6 +16,103 @@
 #define BACKGROUND_TYPE 0x424b4744UL
 #define THUMB_TYPE 0x5448554dUL
 
+int mm_movie_archive_file_init(MMMovieArchiveFile *binding, void *file, const MMArchiveWriter *archive,
+                                const MMChunkTitleIO *titles)
+{
+    const MMChunkPayloadServices *payloads;
+    if (!binding || !file || !archive || !archive->payloads || !titles)
+        return 0;
+    payloads = archive->payloads;
+    if (mm_owned_block_init(&binding->input, payloads->handles, payloads->files) != MM_DATA_OK ||
+        mm_owned_block_init(&binding->output, payloads->handles, payloads->files) != MM_DATA_OK)
+        return 0;
+    binding->file = file;
+    binding->archive = *archive;
+    binding->titles = *titles;
+    return 1;
+}
+
+void mm_movie_archive_file_clear(MMMovieArchiveFile *binding)
+{
+    mm_owned_block_clear(&binding->input);
+    mm_owned_block_clear(&binding->output);
+}
+
+static int read_payload(void *p, MMU32 type, MMU32 number, MMReadStream *stream)
+{
+    MMMovieArchiveFile *binding = p;
+    const MMChunkPayloadServices *services = binding->archive.payloads;
+    MMOwnedBlock *block = &binding->input;
+    mm_owned_block_clear(block);
+    return mm_chunk_payload_bind_block(services, binding->file, type, number, block) == MM_CHUNK_PAYLOAD_OK &&
+           mm_owned_block_code(block, 0, services->decode_context, services->decode, NULL) == MM_DATA_OK &&
+           mm_owned_block_io(block, &binding->input_io) == MM_DATA_OK &&
+           mm_block_io_stream(&binding->input_io, stream) == MM_DATA_OK;
+}
+
+static int add_payload(void *p, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer)
+{
+    MMMovieArchiveFile *binding = p;
+    const MMArchiveWriter *archive = &binding->archive;
+    MMOwnedBlock *block = writer ? &binding->output : NULL;
+    if (block)
+        mm_owned_block_clear(block);
+    if (mm_chunk_add_block(&archive->edit, type, bytes, number, block) == MM_CHUNK_OK)
+    {
+        if (!writer || (mm_owned_block_io(block, &binding->output_io) == MM_DATA_OK &&
+                        mm_block_io_writer(&binding->output_io, writer) == MM_DATA_OK))
+            return 1;
+        mm_chunk_delete(&archive->edit, type, *number);
+        mm_owned_block_clear(block);
+    }
+    if (archive->invalidate_number)
+        archive->invalidate_number(number);
+    return 0;
+}
+
+static int put_payload(void *p, MMU32 type, MMU32 number, const void *bytes, MMU32 size)
+{
+    const MMArchiveWriter *archive = &((MMMovieArchiveFile *)p)->archive;
+    return mm_chunk_put_bytes(&archive->edit, archive->payloads->files, type, number, bytes, size) == MM_CHUNK_OK;
+}
+
+static int set_title(void *p, MMU32 type, MMU32 number, const MMMovieTitle *title)
+{
+    const MMMovieArchiveFile *binding = p;
+    return mm_chunk_title_write(title, binding->file, type, number, &binding->titles);
+}
+
+static int replace_payload(void *p, MMU32 type, MMU32 number, MMU32 bytes, MMChunkWritePayload write, void *context)
+{
+    const MMArchiveWriter *archive = &((const MMMovieArchiveFile *)p)->archive;
+    return mm_chunk_put_payload(archive, type, number, bytes, write, context) == MM_CHUNK_OK;
+}
+
+static int patch_payload(void *p, MMU32 type, MMU32 number, MMU32 offset, const void *bytes, MMU32 size)
+{
+    const MMMovieArchiveFile *binding = p;
+    return mm_chunk_patch_payload(&binding->archive, binding->file, type, number, offset, bytes, size) == MM_CHUNK_OK;
+}
+
+MMMovieArchiveEditor mm_movie_archive_file_editor(MMMovieArchiveFile *binding, unsigned text_unit,
+                                                   MMStringConvert convert)
+{
+    MMMovieArchiveEditor editor = {0};
+    editor.context = binding;
+    editor.text_unit = text_unit;
+    editor.system = (int)binding->archive.system;
+    editor.big_endian = binding->archive.big_endian;
+    editor.convert_text = convert;
+    editor.read = read_payload;
+    editor.add = add_payload;
+    editor.put = put_payload;
+    editor.set_title = set_title;
+    editor.replace = replace_payload;
+    editor.patch = patch_payload;
+    editor.edit = binding->archive.edit;
+    return editor;
+}
+
 static int add_record(const MMMovieArchiveEditor *editor, MMU32 type, const void *bytes, MMU32 size, MMU32 *number)
 {
     MMStorageWriter writer;

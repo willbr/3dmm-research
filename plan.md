@@ -1378,7 +1378,9 @@ templates before linking them. Costume events store the destination material
 number and retain the material subtree before the old actor is removed.
 The live archive adapter allocates scene payloads and publishes raw header
 replacements through the shared chunk editor. Direct transition edits use
-the same SCEN write path.
+the same SCEN write path. The shared editable archive binding owns its input
+and output blocks in C89. It also stages actor event replacements and
+handles raw and packed payload patches for the hosts.
 C89 also preserves background and material subtrees that would lose their
 final parent when Studio removes, replaces, or rearranges scenes. Older
 background and costume tags can then resolve the same chunk numbers through

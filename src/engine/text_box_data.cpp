@@ -6,7 +6,7 @@ ASSERTNAME
 
 bool TextBoxData::FRead(PChunkyFile file, ChunkNumber number, ChunkIdentification *richText)
 {
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     MMTextChunk child;
     if (mm_text_box_read(&state, number, richText ? &child : nullptr, &editor) <= 0)
@@ -18,7 +18,7 @@ bool TextBoxData::FRead(PChunkyFile file, ChunkNumber number, ChunkIdentificatio
 
 bool TextBoxData::FWrite(PChunkyFile file, ChunkNumber number)
 {
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     return mm_text_box_write(&state, number, &editor) > 0;
 }

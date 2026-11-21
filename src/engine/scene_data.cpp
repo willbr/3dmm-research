@@ -109,7 +109,7 @@ PGeneralGroup SceneData::PggReadEvents(PDataBlock block, short *byteOrder, bool 
 }
 bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup frames, PGeneralGroup starts)
 {
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     const MMSceneEventGroups groups{
         Groups(),
@@ -121,7 +121,7 @@ bool SceneData::FWriteEvents(PChunkyFile file, ChunkNumber number, PGeneralGroup
 }
 bool SceneData::FCreate(PChunkyFile file, ChunkNumber *number)
 {
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     return mm_scene_archive_create(&editor, this, number) != 0;
 }

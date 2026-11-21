@@ -84,7 +84,7 @@ struct Host
     std::exception_ptr exception;
 
     explicit Host(PChunkyFile chunky)
-        : movie{chunky, {}, {}}, editor(movie.Editor()), archive{
+        : movie{chunky}, editor(movie.Editor()), archive{
             &editor, this, MacWin(koskUniWin, koskUniMac),
             [](void *v, MMU32 number, MMTextLocation *out) -> int {
                 auto &h = *static_cast<Host *>(v);

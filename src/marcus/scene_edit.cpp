@@ -73,7 +73,7 @@ static void CheckMovieSource(int status)
 
 static LegacyLong RetailSource(PChunkyFile file, ChunkNumber movie, LegacyLong fallbackSource)
 {
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     MMI32 id;
     CheckMovieSource(mm_movie_archive_register_source(&editor, KauaiText::Services(), movie, fallbackSource, nullptr, &id));
@@ -103,7 +103,7 @@ static MMMovieArchiveRoot EnsureMovieRoot(const MMMovieArchiveEditor &editor)
 
 static void ApplyNewScene(PChunkyFile file, const MMPreviewLiveScene &definition, bool emptyMovie)
 {
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     const auto root = EnsureMovieRoot(editor);
     const auto source = RetailSource(file, root.number, root.created && !emptyMovie ? 1 : 2);
@@ -130,7 +130,7 @@ static void CheckSceneFrameEdit(int status)
 
 static void ApplyCamera(PChunkyFile file, unsigned long number, long key, unsigned long camera)
 {
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     CheckSceneFrameEdit(mm_scene_archive_set_camera(&editor, static_cast<MMU32>(number),
                                                   static_cast<MMI32>(key), static_cast<MMU32>(camera)));
@@ -138,7 +138,7 @@ static void ApplyCamera(PChunkyFile file, unsigned long number, long key, unsign
 
 static void ApplySceneRange(PChunkyFile file, const MarcusSceneRange &range)
 {
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     CheckSceneFrameEdit(mm_scene_archive_set_range(&editor, static_cast<MMU32>(range.scene), range.first, range.last));
 }
@@ -236,7 +236,7 @@ struct ActorArchiveFiles
 
 static void ApplyNewProp(PChunkyFile file, PChunkyFile library, const MarcusNamedProp &prop)
 {
-    MovieArchiveHost sourceArchive{library, {}, {}}, destinationArchive{file, {}, {}};
+    MovieArchiveHost sourceArchive{library}, destinationArchive{file};
     const auto source = sourceArchive.Editor();
     const auto destination = destinationArchive.Editor();
     ActorArchiveFiles files{library, file};
@@ -302,13 +302,11 @@ Filename ObjectFile(const std::filesystem::path &path)
     return name;
 }
 
-ChunkNumber TransferObject(const MMMovieArchiveEditor &source, const MMMovieArchiveEditor &destination,
+ChunkNumber TransferObject(ActorArchiveFiles files, const MMMovieArchiveEditor &source, const MMMovieArchiveEditor &destination,
                            const MMActorArchiveRequest &request, MMMovieArchiveSourceMap *sources,
                            MMActorHeader *header)
 {
     static_assert(knfrmInvalid == 2147483647, "actor invalid frame");
-    ActorArchiveFiles files{static_cast<MovieArchiveHost *>(source.context)->file,
-                           static_cast<MovieArchiveHost *>(destination.context)->file};
     const MMActorArchiveHost host{&files, &source, &destination, ActorArchiveFiles::Clone, ActorArchiveFiles::Copy,
                                   sources, sources ? mm_movie_archive_map_source : nullptr};
 
@@ -365,7 +363,7 @@ std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::p
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&original, fcflNil));
     std::unique_ptr<ChunkyFile, Release> destination(ChunkyFile::PcflCreate(&clipboard, fcflWriteEnable));
     Require(source && destination && destination->FAdd(0, kctgScen, &result->sounds), "Cannot create the object clipboard.");
-    MovieArchiveHost sourceArchive{source.get(), {}, {}}, destinationArchive{destination.get(), {}, {}};
+    MovieArchiveHost sourceArchive{source.get()}, destinationArchive{destination.get()};
     const auto sourceEditor = sourceArchive.Editor();
     const auto destinationEditor = destinationArchive.Editor();
     const auto sceneNumber = static_cast<MMU32>(scene);
@@ -373,7 +371,7 @@ std::unique_ptr<MarcusObjectClipboard> MarcusCopyObject(const std::filesystem::p
     Require(mm_actor_archive_find(&sourceEditor, sceneNumber, object.actor_id, &actor),
             "Cannot find the selected object in the movie.");
     const MMActorArchiveRequest request{actor, sceneNumber, result->sounds, object.actor_id, 0, 0};
-    result->actor = TransferObject(sourceEditor, destinationEditor, request, nullptr, nullptr);
+    result->actor = TransferObject({source.get(), destination.get()}, sourceEditor, destinationEditor, request, nullptr, nullptr);
     Require(destination->FSave(kctgSoc), "Cannot save the object clipboard.");
     return result;
 }
@@ -387,7 +385,7 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&sourceName, fcflNil));
     std::unique_ptr<ChunkyFile, Release> destination(ChunkyFile::PcflOpen(&destinationName, fcflWriteEnable));
     Require(source && destination, "Cannot open the movie or object working copy.");
-    MovieArchiveHost sourceArchive{source.get(), {}, {}}, destinationArchive{destination.get(), {}, {}};
+    MovieArchiveHost sourceArchive{source.get()}, destinationArchive{destination.get()};
     const auto sourceEditor = sourceArchive.Editor();
     const auto destinationEditor = destinationArchive.Editor();
     const auto targetScene = static_cast<MMU32>(sceneNumber);
@@ -409,7 +407,7 @@ std::shared_ptr<MarcusMovieFile> MarcusPasteObject(const std::filesystem::path &
     const MMActorArchiveRequest request{clipboard.actor, clipboard.sounds, targetScene, actorId,
                                         static_cast<MMI32>(clipboard.frame), static_cast<MMI32>(frame)};
     MMActorHeader header;
-    const auto actor = TransferObject(sourceEditor, destinationEditor, request, &sourceMap, &header);
+    const auto actor = TransferObject({source.get(), destination.get()}, sourceEditor, destinationEditor, request, &sourceMap, &header);
     const MMActorArchivePlacement placement{targetScene, actor, scene.firstFrame, true};
     String caption;
     caption.SetSzs(const_cast<char *>(clipboard.name.c_str()));
@@ -432,7 +430,7 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&path, fcflWriteEnable));
     Require(bool(file), "Cannot open the camera transform working copy.");
 
-    MovieArchiveHost archive{file.get(), {}, {}};
+    MovieArchiveHost archive{file.get()};
     const auto editor = archive.Editor();
     const MMSceneReframeCamera workCamera{work.transform, work.vertical_fov, work.aspect};
     const MMSceneReframeCamera fixedCamera{camera.transform, camera.vertical_fov, camera.aspect};
@@ -499,7 +497,7 @@ static void ApplyCostumes(PChunkyFile file, ChunkNumber actor, const MarcusLiveE
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&filename, fcflNil));
     ChunkNumber number;
     Require(source && source->FCopy(kctgGgae, 0, file, &number), "Cannot copy costume events.");
-    MovieArchiveHost host{file, {}, {}};
+    MovieArchiveHost host{file};
     const auto editor = host.Editor();
     CheckActorArchiveEdit(mm_actor_archive_link_events(&editor, actor, number));
 }
@@ -513,7 +511,7 @@ std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::pat
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&targetName, fcflWriteEnable));
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&sourceName, fcflNil));
     Require(file && source, "Cannot open the movie or the new animation track.");
-    MovieArchiveHost host{file.get(), {}, {}};
+    MovieArchiveHost host{file.get()};
     const auto editor = host.Editor();
     struct Track
     {
@@ -554,7 +552,7 @@ static void ApplyText(PChunkyFile file, ChunkNumber actorNumber, const MarcusTex
     Require(filename.FBuildFromPath(&path), "Invalid edited text template path.");
     std::unique_ptr<ChunkyFile, Release> source(ChunkyFile::PcflOpen(&filename, fcflNil));
     Require(bool(source), "Cannot open the edited text template.");
-    MovieArchiveHost destinationArchive{file, {}, {}};
+    MovieArchiveHost destinationArchive{file};
     const auto destinationEditor = destinationArchive.Editor();
     ActorArchiveFiles files{source.get(), file};
     const MMActorAuthorHost host{nullptr, &destinationEditor, KauaiText::Services(), &files, ActorArchiveFiles::Copy};
@@ -600,7 +598,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
             ApplyNewProp(file.get(), textFile.get(), prop);
         }
     }
-    MovieArchiveHost host{file.get(), {}, {}};
+    MovieArchiveHost host{file.get()};
     const auto editor = host.Editor();
     for (const auto &placement : placements)
     {
