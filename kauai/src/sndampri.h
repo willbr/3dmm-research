@@ -15,9 +15,11 @@
 ***************************************************************************/
 #ifndef SNDAMPRI_H
 #define SNDAMPRI_H
+#include "mm/audioman.h"
+#include "mm/reference.h"
 
 /***************************************************************************
-    IStream interface for a DataBlock.
+    IStream interface for a C-owned sound block.
 ***************************************************************************/
 typedef class DataBlockStream *PDataBlockStream;
 #define DataBlockStream_PAR IStream
@@ -27,9 +29,8 @@ class DataBlockStream : public DataBlockStream_PAR
     MARKMEM
 
   protected:
-    long _cactRef;
-    long _ib;
-    DataBlock _blck;
+    MMReference _references;
+    MMAudioManStream _stream;
 
     DataBlockStream(void);
     ~DataBlockStream(void);
@@ -88,13 +89,19 @@ class DataBlockStream : public DataBlockStream_PAR
     }
 
     static PDataBlockStream PstblNew(MMOwnedBlock *);
+    // Retain the previous DataBlock-based charge in the cache and spill threshold.
+#ifdef DEBUG
+    static constexpr MMI32 kcbCacheCharge = sizeof(void *) == 8 ? 88 : 60;
+#else
+    static constexpr MMI32 kcbCacheCharge = sizeof(void *) == 8 ? 88 : 56;
+#endif
     long CbMem(void)
     {
-        return size(DataBlockStream) + _blck.CbMem();
+        return kcbCacheCharge + mm_audioman_stream_resident(&_stream);
     }
     bool FInMemory(void)
     {
-        return _blck.CbMem() > 0;
+        return mm_audioman_stream_resident(&_stream) > 0;
     }
 };
 
@@ -142,7 +149,7 @@ class AudioManNotifySink : public AudioManNotifySink_PAR
     ASSERT
 
   protected:
-    long _cactRef;
+    MMReference _references;
     PAudioManQueue _pamque; // the amque to notify
 
   public:
@@ -180,10 +187,11 @@ class AudioManQueue : public AudioManQueue_PAR
   protected:
     Mutex _mutx;         // restricts access to member variables
     IAMChannel *_pchan; // the audioman channel
-    ulong _tsStart;     // when we started the current sound
+    MMU32 _tsStart;     // when we started the current sound
     AudioManNotifySink _amnot;       // notify sink
 
     AudioManQueue(void);
+    MMAudioManQueueServices _QueueServices();
 
     virtual void _Enter(void);
     virtual void _Leave(void);

@@ -28,9 +28,7 @@ ASSERTNAME
 long AudioManSoundDevice::vcbMaxMemWave = 40 * 1024;
 
 static IAMMixer *_pamix; // the audioman mixer
-static ulong _luGroup;   // the group number
-static bool _fGrouped;   // whether new sounds are grouped
-static long _cactGroup;  // group nesting count
+static MMAudioManGroup _group;
 
 static ulong _luFormat;    // format mixer is in
 static ulong _luCacheTime; // buffer size for mixer
@@ -48,8 +46,9 @@ DataBlockStream::DataBlockStream(void)
 
     // WARNING: this is not allocated using our NewObj because DataBlockStream is not
     // based on BASE. So fields are not automatically initialized to 0.
-    _cactRef = 1;
-    _ib = 0;
+    mm_reference_init(&_references);
+    AssertDo(mm_audioman_stream_init(&_stream, KauaiHandleServices(), KauaiBlockFileServices()) == MM_DATA_OK,
+             "invalid AudioMan stream services");
 }
 
 /***************************************************************************
@@ -58,6 +57,7 @@ DataBlockStream::DataBlockStream(void)
 DataBlockStream::~DataBlockStream(void)
 {
     AssertThisMem();
+    mm_audioman_stream_dispose(&_stream);
 }
 
 /***************************************************************************
@@ -84,7 +84,7 @@ STDMETHODIMP DataBlockStream::QueryInterface(REFIID riid, void **ppv)
 STDMETHODIMP_(ULONG) DataBlockStream::AddRef(void)
 {
     AssertThis(0);
-    return ++_cactRef;
+    return mm_reference_add(&_references);
 }
 
 /***************************************************************************
@@ -93,9 +93,8 @@ STDMETHODIMP_(ULONG) DataBlockStream::AddRef(void)
 STDMETHODIMP_(ULONG) DataBlockStream::Release(void)
 {
     AssertThis(0);
-    long cactRef;
-
-    if ((cactRef = --_cactRef) == 0)
+    const auto cactRef = mm_reference_drop(&_references);
+    if (!cactRef)
         delete this;
     return cactRef;
 }
@@ -109,18 +108,11 @@ STDMETHODIMP DataBlockStream::Read(void *pv, ULONG cb, ULONG *pcb)
     AssertPvCb(pv, cb);
     AssertNilOrVarMem(pcb);
 
-    cb = LwMin(_blck.Cb() - _ib, cb);
-    if (_blck.FReadRgb(pv, cb, _ib))
-    {
-        _ib += cb;
-        if (pvNil != pcb)
-            *pcb = cb;
-        return NOERROR;
-    }
-
-    if (pvNil != pcb)
-        *pcb = 0;
-    return ResultFromScode(STG_E_READFAULT);
+    MMU32 read;
+    const int status = mm_audioman_stream_read(&_stream, pv, cb, &read);
+    if (pcb)
+        *pcb = read;
+    return status == MM_DATA_OK ? NOERROR : ResultFromScode(STG_E_READFAULT);
 }
 
 /***************************************************************************
@@ -131,31 +123,15 @@ STDMETHODIMP DataBlockStream::Seek(LARGE_INTEGER dlibMove, DWORD dwOrigin, ULARG
     AssertThis(0);
     AssertNilOrVarMem(plibNewPosition);
 
-    switch (dwOrigin)
-    {
-    case STREAM_SEEK_SET:
-        break;
-
-    case STREAM_SEEK_CUR:
-        dlibMove.QuadPart += _ib;
-        break;
-
-    case STREAM_SEEK_END:
-        dlibMove.QuadPart += _blck.Cb();
-        break;
-    }
-
-    if (dlibMove.QuadPart < 0 || dlibMove.QuadPart > _blck.Cb())
-    {
-        if (pvNil != plibNewPosition)
-            plibNewPosition->QuadPart = _ib;
-        return E_INVALIDARG;
-    }
-
-    _ib = (long)dlibMove.QuadPart;
-    if (pvNil != plibNewPosition)
-        plibNewPosition->QuadPart = _ib;
-    return S_OK;
+    static_assert(STREAM_SEEK_SET == MM_AUDIOMAN_SEEK_SET && STREAM_SEEK_CUR == MM_AUDIOMAN_SEEK_CUR &&
+                      STREAM_SEEK_END == MM_AUDIOMAN_SEEK_END,
+                  "AudioMan seek origins must match IStream");
+    const MMWide offset = {static_cast<MMU32>(dlibMove.LowPart), static_cast<MMI32>(dlibMove.HighPart)};
+    MMU32 position;
+    const int status = mm_audioman_stream_seek(&_stream, offset, dwOrigin, &position);
+    if (plibNewPosition)
+        plibNewPosition->QuadPart = position;
+    return status == MM_DATA_OK ? S_OK : E_INVALIDARG;
 }
 
 /***************************************************************************
@@ -174,7 +150,7 @@ PDataBlockStream DataBlockStream::PstblNew(MMOwnedBlock *source)
         static_cast<PFileObject>(source->file)->GetFni(&filename);
         removable = (filename.Grfvk() & (fvkFloppy | fvkCD | fvkRemovable)) != 0;
     }
-    if (!mm_wave_stream_prepare(source, stream->_blck.CoreBlock(), removable, size(DataBlockStream),
+    if (!mm_wave_stream_prepare(source, &stream->_stream.block, removable, kcbCacheCharge,
                                 AudioManSoundDevice::vcbMaxMemWave, KauaiDecodeBlockHandle, KauaiCopyAllocator()))
     {
         delete stream;
@@ -191,8 +167,12 @@ PDataBlockStream DataBlockStream::PstblNew(MMOwnedBlock *source)
 void DataBlockStream::AssertValid(ulong grf)
 {
     AssertThisMem();
-    AssertPo(&_blck, 0);
-    AssertIn(_ib, 0, _blck.Cb() + 1);
+    Assert(mm_owned_block_check(&_stream.block) == MM_DATA_OK, "invalid AudioMan stream block");
+    Assert(_stream.position <= _stream.block.view.length, "AudioMan stream position past EOF");
+    if (_stream.block.view.kind == MM_BLOCK_FILE)
+        AssertPo(static_cast<PFileObject>(_stream.block.file), 0);
+    else if (_stream.block.view.kind == MM_BLOCK_MEMORY)
+        AssertHq(_stream.block.view.memory);
 }
 
 /***************************************************************************
@@ -201,7 +181,7 @@ void DataBlockStream::AssertValid(ulong grf)
 void DataBlockStream::MarkMem(void)
 {
     AssertValid(0);
-    MarkMemObj(&_blck);
+    MarkHq(_stream.block.view.memory);
 }
 #endif // DEBUG
 
@@ -230,7 +210,7 @@ int CachedAudioManSound::FReadCams(MMResourceCache *, MMU32, MMU32, MMOwnedBlock
                                   void **out, MMI32 *bytes)
 {
     MMSoundPayloadServices s = {};
-    s.object_bytes = size(CachedAudioManSound) + size(DataBlockStream);
+    s.object_bytes = size(CachedAudioManSound) + DataBlockStream::kcbCacheCharge;
     s.open_stream = [](void *, MMOwnedBlock *root) -> void * { return DataBlockStream::PstblNew(root); };
     s.release_stream = [](void *, void *stream) { static_cast<PDataBlockStream>(stream)->Release(); };
     s.stream_size = [](void *, void *stream) -> MMI32 {
@@ -301,7 +281,7 @@ void CachedAudioManSound::MarkMem(void)
 ***************************************************************************/
 AudioManNotifySink::AudioManNotifySink(void)
 {
-    _cactRef = 1;
+    mm_reference_init(&_references);
     _pamque = pvNil;
 }
 
@@ -349,7 +329,7 @@ STDMETHODIMP AudioManNotifySink::QueryInterface(REFIID riid, void **ppv)
 STDMETHODIMP_(ULONG) AudioManNotifySink::AddRef(void)
 {
     AssertThis(0);
-    return ++_cactRef;
+    return mm_reference_add(&_references);
 }
 
 /***************************************************************************
@@ -358,9 +338,8 @@ STDMETHODIMP_(ULONG) AudioManNotifySink::AddRef(void)
 STDMETHODIMP_(ULONG) AudioManNotifySink::Release(void)
 {
     AssertThis(0);
-    long cactRef;
-
-    if ((cactRef = --_cactRef) == 0)
+    const auto cactRef = mm_reference_drop(&_references);
+    if (!cactRef)
         delete this;
     return cactRef;
 }
@@ -484,89 +463,8 @@ PBaseCacheableObject AudioManQueue::_PbacoFetch(PResourceCache prca, ChunkTagOrT
 void AudioManQueue::_Queue(long isndinMin)
 {
     AssertThis(0);
-    SNDIN sndin;
-    long isndin;
-
-    _Enter();
-
-    if (pvNil != _pglsndin)
-    {
-        PCachedAudioManSound pcams;
-
-        for (isndin = isndinMin; isndin < _pglsndin->IvMac(); isndin++)
-        {
-            _pglsndin->Get(isndin, &sndin);
-
-            if (1 == sndin.cactPlay)
-                continue;
-
-            // put a loop filter around it to get seamless sample based looping
-            if (pvNil != (pcams = CachedAudioManSound::PcamsNewLoop((PCachedAudioManSound)sndin.pbaco, sndin.cactPlay)))
-            {
-                sndin.cactPlay = 1; // now it's just one sound
-                ReleasePpo(&sndin.pbaco);
-                sndin.pbaco = pcams;
-                _pglsndin->Put(isndin, &sndin);
-            }
-        }
-    }
-
-    if (_isndinCur == isndinMin && pvNil != _pglsndin)
-    {
-        for (; _isndinCur < _pglsndin->IvMac(); _isndinCur++)
-        {
-            _pglsndin->Get(_isndinCur, &sndin);
-            if (0 <= sndin.cactPause)
-                break;
-        }
-
-        if (_isndinCur < _pglsndin->IvMac() && 0 == sndin.cactPause)
-        {
-            // stop the channel
-            _pchan->Stop();
-
-            // set the volume
-            _pchan->SetVolume(LuVolScale((ulong)(-1), sndin.vlm));
-
-            // if the sound is in memory
-            if (((PCachedAudioManSound)sndin.pbaco)->FInMemory())
-            {
-                // set the sound source, with no cache (Since it's in memory)
-                _pchan->SetSoundSrc(((PCachedAudioManSound)sndin.pbaco)->psnd);
-            }
-            else
-            {
-                CacheConfig cc;
-                cc.dwSize = size(cc);
-                cc.fSrcFormat = fTrue;
-                cc.lpFormat = pvNil;
-                cc.dwFormat = _luFormat;
-                cc.dwCacheTime = 2 * _luCacheTime;
-
-                // set the sound src, using cache cause it's not in memory
-                _pchan->SetCachedSrc(((PCachedAudioManSound)sndin.pbaco)->psnd, &cc);
-            }
-
-            // if there is a starting offset, apply it
-            if (sndin.dtsStart != 0)
-                _pchan->SetTimePos(sndin.dtsStart);
-
-            if (!_fGrouped || FAILED(_pamix->EnlistGroup(_pchan, _luGroup)))
-            {
-                // start the channel
-                _pchan->Play();
-            }
-
-            _tsStart = TsCurrentSystem() - sndin.dtsStart;
-        }
-        else
-        {
-            _pchan->Stop();
-            _pchan->SetSoundSrc(pvNil);
-        }
-    }
-
-    _Leave();
+    const auto s = _QueueServices();
+    mm_audioman_queue_run(&_tsStart, isndinMin, &_group, &s);
 }
 
 /***************************************************************************
@@ -575,20 +473,8 @@ void AudioManQueue::_Queue(long isndinMin)
 void AudioManQueue::_PauseQueue(long isndinMin)
 {
     AssertThis(0);
-    SNDIN sndin;
-
-    _mutx.Enter();
-
-    if (_isndinCur == isndinMin && _pglsndin->IvMac() > _isndinCur)
-    {
-        _pglsndin->Get(_isndinCur, &sndin);
-        sndin.dtsStart = TsCurrentSystem() - _tsStart;
-        _pglsndin->Put(_isndinCur, &sndin);
-
-        _Queue(isndinMin);
-    }
-
-    _mutx.Leave();
+    const auto s = _QueueServices();
+    mm_audioman_queue_pause(&_tsStart, isndinMin, &_group, &s);
 }
 
 /***************************************************************************
@@ -608,31 +494,46 @@ void AudioManQueue::_ResumeQueue(long isndinMin)
 void AudioManQueue::Notify(LPSOUND psnd)
 {
     AssertThis(0);
-    SNDIN sndin;
+    const auto s = _QueueServices();
+    mm_audioman_queue_notify(&_tsStart, psnd, &_group, &s);
+}
 
-    _Enter();
-
-    if (pvNil != _pglsndin && _pglsndin->IvMac() > _isndinCur)
-    {
-        _pglsndin->Get(_isndinCur, &sndin);
-        if (psnd == ((PCachedAudioManSound)sndin.pbaco)->psnd)
-        {
-            if (--sndin.cactPlay == 0)
-            {
-                _isndinCur++;
-                _Queue(_isndinCur);
-            }
-            else
-            {
-                // play the sound again
-                _pglsndin->Put(_isndinCur, &sndin);
-                _pchan->SetSoundSrc(((PCachedAudioManSound)sndin.pbaco)->psnd);
-                _tsStart = TsCurrentSystem();
-            }
-        }
-    }
-
-    _Leave();
+MMAudioManQueueServices AudioManQueue::_QueueServices()
+{
+    MMAudioManQueueServices s = {};
+    s.entries = _Services();
+    s.entries.count = [](void *p) -> MMI32 {
+        auto queue = static_cast<AudioManQueue *>(static_cast<SoundQueue *>(p));
+        return queue->_pglsndin ? queue->_pglsndin->IvMac() : -1;
+    };
+    s.context = this;
+    s.loop = [](void *, void *object, MMI32 plays) -> void * {
+        return CachedAudioManSound::PcamsNewLoop(static_cast<PCachedAudioManSound>(object), plays);
+    };
+    s.identity = [](void *, void *object) -> void * { return static_cast<PCachedAudioManSound>(object)->psnd; };
+    s.in_memory = [](void *, void *object) -> int { return static_cast<PCachedAudioManSound>(object)->FInMemory(); };
+    s.stop = [](void *p) { static_cast<AudioManQueue *>(p)->_pchan->Stop(); };
+    s.play = [](void *p) { static_cast<AudioManQueue *>(p)->_pchan->Play(); };
+    s.volume = [](void *p, MMU32 volume) { static_cast<AudioManQueue *>(p)->_pchan->SetVolume(volume); };
+    s.seek = [](void *p, MMU32 offset) { static_cast<AudioManQueue *>(p)->_pchan->SetTimePos(offset); };
+    s.source = [](void *p, void *object) {
+        auto sound = static_cast<PCachedAudioManSound>(object);
+        static_cast<AudioManQueue *>(p)->_pchan->SetSoundSrc(sound ? sound->psnd : nullptr);
+    };
+    s.cached_source = [](void *p, void *object) {
+        CacheConfig cc;
+        cc.dwSize = size(cc);
+        cc.fSrcFormat = fTrue;
+        cc.lpFormat = pvNil;
+        cc.dwFormat = _luFormat;
+        cc.dwCacheTime = 2 * _luCacheTime;
+        static_cast<AudioManQueue *>(p)->_pchan->SetCachedSrc(static_cast<PCachedAudioManSound>(object)->psnd, &cc);
+    };
+    s.enlist = [](void *p, MMU32 group) -> int {
+        return SUCCEEDED(_pamix->EnlistGroup(static_cast<AudioManQueue *>(p)->_pchan, group));
+    };
+    s.clock = [](void *) -> MMU32 { return TsCurrentSystem(); };
+    return s;
 }
 
 /***************************************************************************
@@ -878,9 +779,14 @@ long AudioManSoundDevice::VlmCur(void)
 void AudioManSoundDevice::BeginSynch(void)
 {
     AssertThis(0);
-
-    if (0 == _cactGroup++)
-        _fGrouped = SUCCEEDED(_pamix->AllocGroup(&_luGroup));
+    MMAudioManGroupServices s = {};
+    s.allocate = [](void *, MMU32 *id) -> int {
+        DWORD group = *id;
+        const auto result = _pamix->AllocGroup(&group);
+        *id = group;
+        return SUCCEEDED(result);
+    };
+    mm_audioman_group_begin(&_group, &s);
 }
 
 /***************************************************************************
@@ -889,11 +795,8 @@ void AudioManSoundDevice::BeginSynch(void)
 void AudioManSoundDevice::EndSynch(void)
 {
     AssertThis(0);
-
-    if ((0 == --_cactGroup) && _fGrouped)
-    {
-        _pamix->StartGroup(_luGroup, fTrue);
-        _pamix->FreeGroup(_luGroup);
-        _fGrouped = fFalse;
-    }
+    MMAudioManGroupServices s = {};
+    s.start = [](void *, MMU32 group) { _pamix->StartGroup(group, fTrue); };
+    s.release = [](void *, MMU32 group) { _pamix->FreeGroup(group); };
+    mm_audioman_group_end(&_group, &s);
 }

@@ -2711,6 +2711,10 @@ int __cdecl main(int argc, char **argv)
         BAIL("sound resources failed");
     if (!TestSoundResourceDispatch())
         BAIL("sound resource dispatch failed");
+#if defined(WIN) && !defined(KAUAI_SDL3)
+    if (!TestAudioManStream())
+        BAIL("AudioMan stream boundary failed");
+#endif
     if (!TestTextResources())
         BAIL("text resources failed");
     if (!TestTextGeneration())

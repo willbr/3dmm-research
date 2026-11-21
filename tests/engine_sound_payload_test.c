@@ -1,4 +1,5 @@
 #include "mm/midi.h"
+#include "mm/audioman.h"
 #include "mm/wave.h"
 #include "mm/wave_import.h"
 #include "mm/sound_payload.h"
@@ -468,11 +469,14 @@ static void stream_backing(void)
     };
     StreamBacking b;
     ResourceTestBlock root;
-    MMOwnedBlock dest;
+    MMAudioManStream stream;
+    MMOwnedBlock *dest = &stream.block;
     MMBlockFile extent;
-    MMBlockIO io;
+    static const MMWide positive_limit = {0xffffffffUL, 2147483647};
+    static const MMWide negative_limit = {0, -2147483647 - 1};
     unsigned i;
     unsigned char payload[4];
+    MMU32 count, position;
     for (i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
     {
         memset(&b, 0, sizeof(b));
@@ -486,23 +490,43 @@ static void stream_backing(void)
         root.files.retain = backing_retain;
         root.files.release = backing_release;
         root.files.create_temp = backing_temp;
-        assert(mm_owned_block_init(&dest, root.owner.handles, root.owner.files) == MM_DATA_OK);
+        assert(mm_audioman_stream_init(&stream, root.owner.handles, root.owner.files) == MM_DATA_OK);
         extent.file = b.source;
         extent.offset = 3;
         extent.length = cases[i].packed ? 9 : 4;
         assert(mm_owned_block_set_file(&root.owner, &extent, cases[i].packed) == MM_DATA_OK);
-        assert(mm_wave_stream_prepare(&root.owner, &dest, cases[i].removable, 4, cases[i].limit, backing_decode,
+        assert(mm_wave_stream_prepare(&root.owner, dest, cases[i].removable, 4, cases[i].limit, backing_decode,
                                        NULL) == (cases[i].expected != MM_BLOCK_EMPTY));
         assert(root.owner.file == b.source && root.owner.view.packed == cases[i].packed && root.owner.view.start == 3);
         assert(mm_owned_block_clear(&root.owner) == MM_DATA_OK);
-        assert(dest.view.kind == cases[i].expected && !dest.view.packed);
-        if (dest.view.kind != MM_BLOCK_EMPTY)
+        assert(dest->view.kind == cases[i].expected && !dest->view.packed);
+        assert(mm_audioman_stream_resident(&stream) == (cases[i].expected == MM_BLOCK_MEMORY ? 4U : 0U));
+        if (dest->view.kind != MM_BLOCK_EMPTY)
         {
-            assert(mm_owned_block_io(&dest, &io) == MM_DATA_OK && dest.view.length == sizeof(payload));
-            assert(mm_block_read(&io, 0, payload, sizeof(payload), 0) == MM_DATA_OK);
-            assert(!memcmp(payload, backing_payload, sizeof(payload)));
+            assert(mm_audioman_stream_seek(&stream, mm_wide_i32(-1), MM_AUDIOMAN_SEEK_END, &position) == MM_DATA_OK &&
+                   position == 3);
+            assert(mm_audioman_stream_read(&stream, payload, 0xffffffffUL, &count) == MM_DATA_OK &&
+                   count == 1 && payload[0] == backing_payload[3]);
+            assert(mm_audioman_stream_read(&stream, NULL, 4, &count) == MM_DATA_OK && !count);
+            assert(mm_audioman_stream_seek(&stream, positive_limit, MM_AUDIOMAN_SEEK_CUR, &position) ==
+                       MM_DATA_ARGUMENT && position == 4);
+            assert(mm_audioman_stream_seek(&stream, negative_limit, MM_AUDIOMAN_SEEK_END, &position) ==
+                       MM_DATA_ARGUMENT && position == 4);
+            assert(mm_audioman_stream_seek(&stream, mm_wide_i32(-5), MM_AUDIOMAN_SEEK_CUR, NULL) == MM_DATA_ARGUMENT);
+            assert(mm_audioman_stream_seek(&stream, mm_wide_i32(-4), MM_AUDIOMAN_SEEK_CUR, &position) == MM_DATA_OK &&
+                   !position);
+            if (dest->view.kind == MM_BLOCK_FILE)
+            {
+                b.fail_read = 1;
+                assert(mm_audioman_stream_read(&stream, payload, 4, &count) == MM_DATA_IO && !count && !stream.position);
+                b.fail_read = 0;
+            }
+            assert(mm_audioman_stream_read(&stream, payload, 4, &count) == MM_DATA_OK && count == sizeof(payload) &&
+                   !memcmp(payload, backing_payload, sizeof(payload)));
+            assert(mm_audioman_stream_seek(&stream, mm_wide_i32(1), 99, &position) == MM_DATA_OK && position == 1);
         }
-        assert(mm_owned_block_clear(&dest) == MM_DATA_OK && !b.source_refs && !b.temp_refs);
+        mm_audioman_stream_dispose(&stream);
+        assert(!stream.position && !b.source_refs && !b.temp_refs);
     }
 }
 

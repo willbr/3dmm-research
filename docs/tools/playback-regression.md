@@ -18408,3 +18408,28 @@ In sampled-audio suite `20261121T080831Z-78af1479`, both ports matched all
 requests. The PCM16 peak matched the preceding builds at 2,176 for both
 ports. The archived retail peak was 2,380. Logs and the comparison script
 are in `tmp/c89-bound-background-sound`.
+
+## Classic AudioMan stream and queue runtime (21 November 2026)
+
+C89 owns the AudioMan stream's block, cursor, bounded reads and signed
+64-bit seek checks. The classic queue uses shared sound entries for loop
+filter replacement, play and pause offsets, completion handling and nested
+synchronization groups. Windows supplies the COM calls, clock and lock.
+
+All 193 standalone C checks, five focused AddressSanitizer checks and 16
+native C89 and Marcus checks passed. The fixtures exercise successful short
+reads and EOF, rejected seeks, file read failure, nested groups, failed loop
+filters and group enlistment, and completion for a different sound. Native
+x64 and x86 exercised the COM stream after releasing its source block and
+checked the legacy cache charge. Native x64, x86 and SDL reproduced the
+sound resource snapshots and 27 save and reopen traces. Studio saved the
+authoring fixture byte for byte.
+
+Both ports matched the three archived V3dmm storyboard frame identities,
+seek cameras and canvas hashes in `20261121T082355Z-599e51f5`.
+
+In sampled-audio suite `20261121T082355Z-2362ab18`, both ports matched all 60
+archived retail frame identities, and SDL matched all four retail sound
+requests. Both ports reproduced the prior PCM16 peak of 2,176. The archived
+retail peak is 2,380. The capture contains 518,400 SDL and 511,680 Marcus PCM
+frames. Logs and the comparison script are in `tmp/c89-audioman-runtime`.

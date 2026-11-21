@@ -6411,6 +6411,10 @@ copies removable-media data, and decodes packed data into an independently
 owned block. Packed sounds above the memory limit spill to a temporary file
 when possible and keep their decoded memory if that write fails. C transfers
 the stream to the cached object on success and releases it on failure.
+The stream's block owner and position live in C89. `audioman.c` clamps reads
+at EOF and validates 64-bit seek offsets before moving the cursor. The COM
+adapter translates status and ABI values and preserves the prior cache charge
+and memory spill threshold on each Windows build.
 
 `wave.c` owns RIFF views, compressed-format selection/validation, legacy-format
 recognition, fact trimming, PCM headers and complete MS ADPCM encoding. Predictor
@@ -6548,6 +6552,11 @@ the original inverted front-priority test rather than changing queue behavior.
 The native `sndm.cpp` classes supply typed object/reference, C-backed collection
 and virtual device/locking callbacks. Their temporary collection facades remain
 part of the final host-integration work.
+
+`audioman.c` also owns classic AudioMan loop wrapping, queue progression,
+pause offsets, completion matching, and nested synchronization groups. It
+uses the shared queue entries, object release and lock callbacks. The native
+adapter supplies the COM channel, stream identity, cache format and clock.
 
 `audio_mixer.c` owns persistent sampled-audio queues, playback positions, loop
 counts, grouping, transactional synchronization, mixing, clipping and statistics.

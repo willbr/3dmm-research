@@ -622,6 +622,7 @@ target_sources(mm-engine-c89 PRIVATE src/action_definition.c)
 target_sources(mm-engine-c89 PRIVATE src/font_resource.c)
 target_sources(mm-engine-c89 PRIVATE src/script_resource.c)
 target_sources(mm-engine-c89 PRIVATE src/studio_resource.c)
+target_sources(mm-engine-c89 PRIVATE src/audioman.c)
 target_sources(mm-engine-c89 PRIVATE src/text_generation.c src/text_generation_math.c src/text_resource.c src/sound_resource.c src/wave.c src/midi.c src/sound_payload.c src/wave_import.c)
 set_target_properties(mm-engine-c89 PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
@@ -1514,6 +1515,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/wave.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/midi.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/sound_payload.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/audioman.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/wave_import.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/rollcall_storage.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/chunky_file.c"

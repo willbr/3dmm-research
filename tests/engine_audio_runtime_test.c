@@ -1,4 +1,5 @@
 #include "mm/audio_mixer.h"
+#include "mm/audioman.h"
 #include "mm/midi_render.h"
 #include "mm/sound_queue.h"
 #include "mm/sound_manager.h"
@@ -432,6 +433,168 @@ static void queue(void)
     mm_sound_queue_release(&s);
     assert(f.releases == 3 && !f.lock);
 }
+
+typedef struct AudioManFixture
+{
+    Fixture queue;
+    char trace[16];
+    size_t steps;
+    int looping, original, filtered, streamed, filter_id, stream_id;
+    int fail_group, fail_enlist, fail_loop;
+    MMU32 now, start, volume, offset;
+} AudioManFixture;
+
+static void audio_trace(AudioManFixture *f, char code)
+{
+    assert(f->steps < sizeof(f->trace));
+    f->trace[f->steps++] = code;
+}
+
+static void audio_expect(AudioManFixture *f, const char *expected)
+{
+    assert(f->steps == strlen(expected) && !memcmp(f->trace, expected, f->steps) && !f->queue.lock);
+    f->steps = 0;
+}
+
+static int group_allocate(void *p, MMU32 *id)
+{
+    AudioManFixture *f = p;
+    audio_trace(f, 'A');
+    *id = 42;
+    return !f->fail_group;
+}
+static void group_start(void *p, MMU32 id) { assert(id == 42); audio_trace(p, 'B'); }
+static void group_release(void *p, MMU32 id) { assert(id == 42); audio_trace(p, 'F'); }
+
+static void *audio_loop(void *p, void *object, MMI32 plays)
+{
+    AudioManFixture *f = p;
+    assert(f->queue.lock && (object == &f->original || object == &f->streamed));
+    f->looping = plays;
+    audio_trace(f, 'W');
+    return f->fail_loop ? NULL : &f->filtered;
+}
+static void *audio_identity(void *p, void *object)
+{
+    AudioManFixture *f = p;
+    assert(f->queue.lock && (object == &f->filtered || object == &f->streamed));
+    return object == &f->filtered ? &f->filter_id : &f->stream_id;
+}
+static int audio_in_memory(void *p, void *object) { return object == &((AudioManFixture *)p)->filtered; }
+static void audio_stop(void *p) { assert(((AudioManFixture *)p)->queue.lock); audio_trace(p, 'X'); }
+static void audio_play(void *p) { assert(((AudioManFixture *)p)->queue.lock); audio_trace(p, 'P'); }
+static void audio_volume(void *p, MMU32 volume)
+{
+    AudioManFixture *f = p;
+    f->volume = volume;
+    audio_trace(f, 'V');
+}
+static void audio_seek(void *p, MMU32 offset)
+{
+    AudioManFixture *f = p;
+    f->offset = offset;
+    audio_trace(f, 'K');
+}
+static void audio_source(void *p, void *object)
+{
+    AudioManFixture *f = p;
+    assert(!object || object == &f->filtered || object == &f->streamed);
+    audio_trace(f, object ? 'S' : 'D');
+}
+static void audio_cached_source(void *p, void *object)
+{
+    AudioManFixture *f = p;
+    assert(object == &f->streamed);
+    audio_trace(f, 'C');
+}
+static int audio_enlist(void *p, MMU32 id)
+{
+    AudioManFixture *f = p;
+    assert(id == 42);
+    audio_trace(f, 'G');
+    return !f->fail_enlist;
+}
+static MMU32 audio_time(void *p)
+{
+    audio_trace(p, 'T');
+    return ((AudioManFixture *)p)->now;
+}
+
+static void audioman_queue(void)
+{
+    AudioManFixture f;
+    MMAudioManGroup group = {0, 0, 0};
+    MMAudioManGroupServices grouping;
+    MMAudioManQueueServices s;
+    memset(&f, 0, sizeof(f));
+    memset(&s, 0, sizeof(s));
+    grouping.context = &f;
+    grouping.allocate = group_allocate;
+    grouping.start = group_start;
+    grouping.release = group_release;
+    s.entries = queue_services(&f.queue);
+    s.context = &f;
+    s.loop = audio_loop; s.identity = audio_identity; s.in_memory = audio_in_memory;
+    s.stop = audio_stop; s.play = audio_play; s.volume = audio_volume; s.seek = audio_seek;
+    s.source = audio_source; s.cached_source = audio_cached_source; s.enlist = audio_enlist; s.clock = audio_time;
+
+    f.queue.count = -1;
+    mm_audioman_queue_run(&f.start, 0, &group, &s);
+    audio_expect(&f, "");
+    mm_audioman_group_begin(&group, &grouping);
+    mm_audioman_group_begin(&group, &grouping);
+    assert(group.active && group.depth == 2);
+    mm_audioman_group_end(&group, &grouping);
+    audio_expect(&f, "A");
+
+    f.queue.count = 3;
+    f.queue.entries[0].plays = 1;
+    f.queue.entries[0].pause = -1;
+    f.queue.entries[1].object = &f.original;
+    f.queue.entries[1].plays = 3;
+    f.queue.entries[1].volume = 32768;
+    f.queue.entries[1].offset = 11;
+    f.queue.entries[2].object = &f.streamed;
+    f.queue.entries[2].plays = 1;
+    f.now = 5;
+    mm_audioman_queue_run(&f.start, 0, &group, &s);
+    assert(f.queue.current == 1 && f.queue.releases == 1 && f.looping == 3 &&
+           f.queue.entries[1].plays == 1 && f.queue.entries[1].object == &f.filtered &&
+           f.offset == 11 && f.volume == 0x7fff7fffUL && f.start == 0xfffffffaUL);
+    audio_expect(&f, "WXVSKGT");
+
+    mm_audioman_queue_notify(&f.start, &f.stream_id, &group, &s);
+    audio_expect(&f, "");
+    f.queue.entries[1].pause = 1;
+    f.now = 8;
+    mm_audioman_queue_pause(&f.start, 1, &group, &s);
+    assert(f.queue.entries[1].offset == 14 && f.queue.current == 1);
+    audio_expect(&f, "TXD");
+    f.queue.entries[1].pause = 0;
+    f.fail_enlist = 1;
+    mm_audioman_queue_run(&f.start, 1, &group, &s);
+    audio_expect(&f, "XVSKGPT");
+    mm_audioman_group_end(&group, &grouping);
+    audio_expect(&f, "BF");
+
+    f.fail_loop = 1;
+    f.queue.entries[2].plays = 2;
+    mm_audioman_queue_notify(&f.start, &f.filter_id, &group, &s);
+    assert(f.queue.current == 2 && f.queue.entries[2].plays == 2 && f.looping == 2);
+    audio_expect(&f, "WXVCPT");
+    ++f.now;
+    mm_audioman_queue_notify(&f.start, &f.stream_id, &group, &s);
+    assert(f.queue.entries[2].plays == 1 && f.start == f.now);
+    audio_expect(&f, "ST");
+    mm_audioman_queue_notify(&f.start, &f.stream_id, &group, &s);
+    assert(f.queue.current == 3);
+    audio_expect(&f, "XD");
+    f.fail_group = 1;
+    mm_audioman_group_begin(&group, &grouping);
+    assert(!group.active);
+    mm_audioman_group_end(&group, &grouping);
+    audio_expect(&f, "A");
+}
 typedef struct Dispatch
 {
     MMSoundEndpoint entries[8];
@@ -642,6 +805,7 @@ int main(void)
     movie_mixer();
     midi();
     queue();
+    audioman_queue();
     dispatch();
     stream();
     puts("C89 audio runtime: clocks, PCM mixing, MIDI scheduling, queue policy and fault cleanup passed.");

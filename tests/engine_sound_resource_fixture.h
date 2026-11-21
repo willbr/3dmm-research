@@ -2,6 +2,56 @@
 #define ENGINE_SOUND_RESOURCE_FIXTURE_H
 #include "mm/codec.h"
 #include "mm/actor_sound.h"
+#if defined(WIN) && !defined(KAUAI_SDL3)
+#include "audioman.h"
+#include "sndampri.h"
+
+static bool TestAudioManStream()
+{
+#ifdef DEBUG
+    const MMI32 legacyCharge = sizeof(void *) == 8 ? 88 : 60;
+#else
+    const MMI32 legacyCharge = sizeof(void *) == 8 ? 88 : 56;
+#endif
+    byte payload[] = {'x', 'W', 'A', 'V', 'E'};
+    auto file = FileObject::PfilCreateTemp();
+    DataBlock block;
+    PDataBlockStream stream = nullptr;
+    if (file && file->FWriteRgb(payload, sizeof(payload), 0))
+    {
+        block.Set(file, 1, sizeof(payload) - 1);
+        stream = DataBlockStream::PstblNew(block.CoreBlock());
+    }
+    block.Free();
+    ReleasePpo(&file);
+    if (!stream)
+        return false;
+
+    void *queriedStream = nullptr;
+    const auto queried = stream->QueryInterface(IID_IStream, &queriedStream);
+    bool ok = queried == S_OK && queriedStream == stream &&
+              stream->CbMem() == legacyCharge + (stream->FInMemory() ? 4 : 0);
+    if (queriedStream)
+        ok = static_cast<IStream *>(queriedStream)->Release() == 1 && ok;
+
+    LARGE_INTEGER offset;
+    ULARGE_INTEGER position;
+    ULONG count = 0;
+    byte output[4] = {};
+    offset.QuadPart = -1;
+    ok = stream->Seek(offset, STREAM_SEEK_END, &position) == S_OK && position.QuadPart == 3 && ok;
+    ok = stream->Read(output, sizeof(output), &count) == S_OK && count == 1 && output[0] == 'E' && ok;
+    ok = stream->Read(output, sizeof(output), &count) == S_OK && count == 0 && ok;
+    offset.LowPart = 0xffffffffUL;
+    offset.HighPart = 0x7fffffffL;
+    ok = stream->Seek(offset, STREAM_SEEK_CUR, &position) == E_INVALIDARG && position.QuadPart == 4 && ok;
+    offset.QuadPart = 0;
+    ok = stream->Seek(offset, STREAM_SEEK_SET, nullptr) == S_OK && ok;
+    ok = stream->Read(output, sizeof(output), nullptr) == S_OK && !std::memcmp(output, payload + 1, 4) && ok;
+    return stream->Release() == 0 && ok;
+}
+#endif
+
 class SoundResourceFixtureAccess : public MovieSoundMSND
 {
   public:
