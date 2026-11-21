@@ -1,4 +1,5 @@
 #include "mm/text_copy.h"
+#include "mm/byte_text.h"
 #include "mm/wide.h"
 #include <string.h>
 static MMU32 key(unsigned kind, MMI32 cp)
@@ -418,6 +419,8 @@ static void clipboard_range(MMTextClipboardRequest *q)
 int mm_text_clipboard_copy(int create, const MMTextClipboardServices *s)
 {
     MMTextClipboardRequest q = {0};
+    const MMByteTextEditServices *byte = s->byte_edit;
+    MMPieceTable *target, *source;
     int result;
 
     CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SELECTION));
@@ -436,7 +439,14 @@ int mm_text_clipboard_copy(int create, const MMTextClipboardServices *s)
         q.deleted = 0;
         if (s->kind != MM_TEXT_CLIPBOARD_STREAM)
             CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SUSPEND));
-        result = CLIP(MM_TEXT_CLIPBOARD_COPY);
+        if (s->kind == MM_TEXT_CLIPBOARD_STREAM)
+        {
+            target = byte->pieces(byte->context, q.document);
+            source = byte->pieces(byte->context, NULL);
+            result = mm_piece_table_replace_table(target, 0, 0, source, q.first, q.inserted) == MM_DATA_OK;
+        }
+        else
+            result = CLIP(MM_TEXT_CLIPBOARD_COPY);
         CLIP_TRY(result);
         if (!result)
             CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_RELEASE));
@@ -454,15 +464,20 @@ int mm_text_clipboard_clear(const MMTextClipboardServices *s)
     MMTextClipboardRequest q = {0};
 
     CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SELECTION));
+    if (s->kind == MM_TEXT_CLIPBOARD_STREAM)
+    {
+        CLIP_TRY(mm_byte_text_edit(NULL, 0, q.anchor, q.focus, s->byte_edit));
+        return 1;
+    }
     CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_CLEAR));
-    if (s->kind != MM_TEXT_CLIPBOARD_STREAM)
-        return CLIP(MM_TEXT_CLIPBOARD_SHOW);
-    return 1;
+    return CLIP(MM_TEXT_CLIPBOARD_SHOW);
 }
 
 int mm_text_clipboard_paste(int standard, int apply, const MMTextClipboardServices *s)
 {
     MMTextClipboardRequest q = {0};
+    const MMByteTextEditServices *byte = s->byte_edit;
+    MMPieceTable *source = NULL;
     int result, rich = 0;
 
     if (!standard)
@@ -487,13 +502,24 @@ int mm_text_clipboard_paste(int standard, int apply, const MMTextClipboardServic
     if (result <= 0)
         return result;
 
-    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SIZE));
-    if (s->kind != MM_TEXT_CLIPBOARD_STREAM && q.inserted > 0)
-        --q.inserted;
+    if (s->kind == MM_TEXT_CLIPBOARD_STREAM)
+    {
+        source = byte->pieces(byte->context, q.document);
+        q.inserted = source ? (MMI32)source->length : 0;
+    }
+    else
+    {
+        CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SIZE));
+        if (q.inserted > 0)
+            --q.inserted;
+    }
     if (q.inserted <= 0)
         return CLIP(MM_TEXT_CLIPBOARD_RELEASE);
 
-    CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_HIDE));
+    if (source)
+        CLIP_TRY(byte->hide(byte->context));
+    else
+        CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_HIDE));
     CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_SELECTION));
     clipboard_range(&q);
     if (s->kind == MM_TEXT_CLIPBOARD_RICH)
@@ -504,7 +530,11 @@ int mm_text_clipboard_paste(int standard, int apply, const MMTextClipboardServic
         if (!rich)
             CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_PLAIN_STYLE));
     }
-    result = rich ? CLIP(MM_TEXT_CLIPBOARD_PASTE_RICH) : CLIP(MM_TEXT_CLIPBOARD_PASTE_PLAIN);
+    if (source)
+        result = mm_piece_table_replace_table(byte->pieces(byte->context, NULL), q.first, q.deleted, source, 0,
+                                              q.inserted) == MM_DATA_OK;
+    else
+        result = rich ? CLIP(MM_TEXT_CLIPBOARD_PASTE_RICH) : CLIP(MM_TEXT_CLIPBOARD_PASTE_PLAIN);
     CLIP_TRY(result);
     CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_RELEASE));
     q.document = 0;
@@ -513,7 +543,7 @@ int mm_text_clipboard_paste(int standard, int apply, const MMTextClipboardServic
     if (s->kind == MM_TEXT_CLIPBOARD_RICH)
         CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_BUMP_UNDO));
     if (s->kind == MM_TEXT_CLIPBOARD_STREAM)
-        CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_INVALIDATE));
+        return mm_byte_text_finish_edit(q.first, q.inserted, q.deleted, byte);
     q.first = mm_signed_word((MMU32)q.first + (MMU32)q.inserted);
     CLIP_TRY(CLIP(MM_TEXT_CLIPBOARD_CARET));
     return CLIP(MM_TEXT_CLIPBOARD_SHOW);

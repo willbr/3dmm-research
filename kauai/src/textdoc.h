@@ -123,7 +123,7 @@ class TextDocumentByteStreamDisplay : public TextDocumentByteStreamDisplay_PAR
     virtual void _Scroll(long scaHorz, long scaVert, long scvHorz = 0, long scvVert = 0);
 
     // clipboard support
-    struct ClipboardHost;
+    struct EditHost;
     virtual bool _FCopySel(PDocumentBase *ppdocb = pvNil);
     virtual void _ClearSel(void);
     virtual bool _FPaste(PClipboardObject pclip, bool fDoIt, long cid);

@@ -96,7 +96,6 @@ extern "C"
         MM_TEXT_CLIPBOARD_PLAIN_STYLE,
         MM_TEXT_CLIPBOARD_PASTE_PLAIN,
         MM_TEXT_CLIPBOARD_PASTE_RICH,
-        MM_TEXT_CLIPBOARD_INVALIDATE,
         MM_TEXT_CLIPBOARD_CARET
     } MMTextClipboardOperation;
     typedef struct MMTextClipboardRequest
@@ -105,11 +104,13 @@ extern "C"
         MMI32 anchor, focus, first, inserted, deleted;
         int format;
     } MMTextClipboardRequest;
+    struct MMByteTextEditServices;
     typedef struct MMTextClipboardServices
     {
         void *context;
         int kind;
         int (*call)(void *, MMTextClipboardOperation, MMTextClipboardRequest *);
+        const struct MMByteTextEditServices *byte_edit;
     } MMTextClipboardServices;
 
     /* ALLOCATE and ACQUIRE return one owned document on success. PUBLISH
@@ -118,7 +119,8 @@ extern "C"
      * source length, including the document's terminal character in text
      * views. HAS_FORMAT and ACQUIRE receive format. Copy and paste use first
      * and inserted/deleted counts; CLEAR uses anchor/focus and CARET uses
-     * first. Results are 1/0 or negative errors with native partial effects. */
+     * first. Byte-stream views use the typed edit services for sizing, splicing
+     * and edit effects. Results are 1/0 or negative errors with native partial effects. */
     int mm_text_clipboard_copy(int create, const MMTextClipboardServices *);
     int mm_text_clipboard_clear(const MMTextClipboardServices *);
     int mm_text_clipboard_paste(int standard, int apply, const MMTextClipboardServices *);

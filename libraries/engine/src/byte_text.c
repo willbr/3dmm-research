@@ -259,3 +259,32 @@ int mm_byte_text_reformat_edit(MMByteTextView *v, MMPieceTable *pieces, MMI32 vi
     *changed_line = line;
     return reformat(v, pieces, visible, visible, NULL) && ok;
 }
+int mm_byte_text_finish_edit(MMI32 at, MMI32 inserted, MMI32 deleted, const MMByteTextEditServices *s)
+{
+    int r = s->invalidate(s->context, at, inserted, deleted);
+    if (r < 0)
+        return r;
+    r = s->caret(s->context, at + inserted);
+    return r < 0 ? r : s->show(s->context);
+}
+int mm_byte_text_edit(const void *data, MMI32 bytes, MMI32 anchor, MMI32 focus, const MMByteTextEditServices *s)
+{
+    MMI32 first, end;
+    int r = s->hide(s->context);
+    if (r < 0)
+        return r;
+    first = minimum(anchor, focus);
+    end = maximum(anchor, focus);
+    if (first < 0 || bytes < 0 ||
+        mm_piece_table_replace(s->pieces(s->context, NULL), first, end - first, data, bytes) != MM_DATA_OK)
+        return 0;
+    return mm_byte_text_finish_edit(first, bytes, end - first, s);
+}
+MMI32 mm_byte_text_rebase(MMI32 position, MMI32 at, MMI32 inserted, MMI32 deleted)
+{
+    if (position <= at)
+        return position;
+    if (position < at + deleted)
+        return minimum(position, at + inserted);
+    return position + inserted - deleted;
+}

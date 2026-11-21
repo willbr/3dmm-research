@@ -2992,8 +2992,9 @@ scanning, direct line reads and visible line starts. A C array owns the 32-bit
 byte offsets. Viewport changes and edits rebuild that index through C89. The
 cache keeps the original overlap and invalidation rules, and line reads can
 widen raw bytes for the native renderer. Allocation failure leaves the valid
-prefix of the line index available for a later retry. Native code still owns
-selection, graphics and view notifications.
+prefix of the line index available for a later retry. C89 also rebases the
+selection and sequences byte replacements. The view provides drawing and
+notification callbacks.
 
 `text_access.c` controls the 512-character stream cache, edit invalidation,
 character/block reads, paragraph/word navigation and counted literal search.
@@ -3061,6 +3062,8 @@ and character batches. Native wrapper signatures and subclass dispatch remain.
 Line text, rich text and byte-stream views share the clipboard controller in
 `text_copy.c`. It orders reversed selections, owns acquired clipboard
 references, and excludes the terminal character for line and rich text.
+Byte-stream copy and paste splice the piece tables directly. Paste releases
+the clipboard document before invalidating the views and moving the caret.
 Rich paste tries the rich format first and uses the insertion style when
 pasting plain text. The controller separates undo, caret and redraw steps
 from the native view callbacks and preserves the successful prefix on errors.

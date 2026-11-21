@@ -18282,3 +18282,22 @@ In `20261121T070515Z-e8b9cb0c`, SDL and Marcus reproduced all 11 previous seek
 canvases. Both matched the archived retail frame identities in seek and continuous
 playback and the retail seek cameras. The three frames with a visible caption
 still differ from retail. Logs are in `tmp/c89-byte-line-index`.
+
+## C89 byte-stream edits and clipboard splices (21 November 2026)
+
+Byte-stream typing and clear operations edit the C89 piece table. Copy and
+paste splice the view and clipboard piece tables directly. C89 rebases the
+selection and orders invalidation, caret and redraw callbacks. Tests cover
+reversed selections, embedded zero bytes, release before invalidation, empty
+paste and a source that shrinks before the splice. They also check that a
+failure after a successful splice keeps the written bytes.
+
+All 192 standalone C checks, eight focused AddressSanitizer checks, 16 native
+C89 and Marcus checks, and the SDL clipboard test passed. Native x64, native x86
+and SDL reproduced 27 previous binary traces and the Help display fingerprints.
+Studio reproduced its authored movie byte for byte.
+
+In `20261121T071330Z-b9342ba2`, SDL and Marcus reproduced all 11 previous seek
+canvases and matched archived retail frame identities in seek and continuous
+playback and all retail seek cameras. The three frames with a visible caption
+still differ from retail. Logs are in `tmp/c89-byte-clipboard-edits`.

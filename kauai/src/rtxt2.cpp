@@ -2146,7 +2146,7 @@ struct TextDocumentGraphicsObject::ClipboardHost : ClipboardViewHost
 
     MMTextClipboardServices Services()
     {
-        return {this, rich ? MM_TEXT_CLIPBOARD_RICH : MM_TEXT_CLIPBOARD_PLAIN, Call};
+        return {this, rich ? MM_TEXT_CLIPBOARD_RICH : MM_TEXT_CLIPBOARD_PLAIN, Call, nullptr};
     }
 
     static int Call(void *context, MMTextClipboardOperation operation, MMTextClipboardRequest *q)

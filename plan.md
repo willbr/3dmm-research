@@ -1161,6 +1161,8 @@ The live text cache keeps its range and character width in C state and fills
 directly from the piece table. Virtual cache and character hooks still dispatch.
 The byte-stream editor also reads from the C piece table and owns its byte
 cache, CR/LF scanning and visible line index in C89.
+Byte-stream typing, clear, copy and paste splice the C piece tables directly.
+C89 also adjusts the selection and orders caret and redraw effects.
 Rich-document/property copying and embedded-object fetch, dispatch, insertion and
 property edits now also use C89, retaining native partial-failure behavior.
 C89 reads and locks live argument payloads during copy, object fetch, help group

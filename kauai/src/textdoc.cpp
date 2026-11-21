@@ -1327,24 +1327,6 @@ LInsert:
 }
 
 /***************************************************************************
-    Replaces the characters between ich1 and ich2 with the given ones.
-***************************************************************************/
-bool TextDocumentByteStreamDisplay::FReplace(achar *prgch, long cch, long ich1, long ich2, bool fDraw)
-{
-    AssertThis(0);
-    _SwitchSel(fFalse, fTrue);
-    SortLw(&ich1, &ich2);
-    if (!_pbsf->FReplace(prgch, cch, ich1, ich2 - ich1))
-        return fFalse;
-
-    _InvalAllTxdd(ich1, cch, ich2 - ich1);
-    ich1 += cch;
-    SetSel(ich1, ich1, fTrue);
-    ShowSel(fTrue);
-    return fTrue;
-}
-
-/***************************************************************************
     Invalidate all TextDocumentByteStreamDisplays on this text doc.  Also dirties the document.
     Should be called by any code that edits the document.
 ***************************************************************************/
@@ -1378,10 +1360,8 @@ void TextDocumentByteStreamDisplay::_InvalIch(long ich, long cchIns, long cchDel
     long yp, dypIns, dypDel;
 
     // adjust the sel
-    ichAnchor = _ichAnchor;
-    ichOther = _ichOther;
-    FAdjustIv(&ichAnchor, ich, cchIns, cchDel);
-    FAdjustIv(&ichOther, ich, cchIns, cchDel);
+    ichAnchor = mm_byte_text_rebase(_ichAnchor, ich, cchIns, cchDel);
+    ichOther = mm_byte_text_rebase(_ichOther, ich, cchIns, cchDel);
     if (ichAnchor != _ichAnchor || ichOther != _ichOther)
         SetSel(ichAnchor, ichOther, fFalse);
 
@@ -1429,20 +1409,51 @@ void TextDocumentByteStreamDisplay::_InvalIch(long ich, long cchIns, long cchDel
     _fXpValid = fFalse;
 }
 
-struct TextDocumentByteStreamDisplay::ClipboardHost : ClipboardViewHost
+struct TextDocumentByteStreamDisplay::EditHost : ClipboardViewHost
 {
     PTextDocumentByteStreamDisplay view;
     PClipboardObject clipboard = nullptr;
     PDocumentBase *output = nullptr;
-    PFileByteStream source = nullptr;
+    const MMByteTextEditServices edit;
 
-    explicit ClipboardHost(PTextDocumentByteStreamDisplay view) : view(view) {}
+    explicit EditHost(PTextDocumentByteStreamDisplay p)
+        : view(p), edit{this, Pieces, Hide, Invalidate, Caret, Show}
+    {
+    }
 
-    MMTextClipboardServices Services() { return {this, MM_TEXT_CLIPBOARD_STREAM, Call}; }
+    MMTextClipboardServices Services() { return {this, MM_TEXT_CLIPBOARD_STREAM, Call, &edit}; }
+
+    static MMPieceTable *Pieces(void *context, void *document)
+    {
+        auto &host = *static_cast<EditHost *>(context);
+        auto stream = document ? static_cast<PTextDocumentByteStream>(static_cast<PDocumentBase>(document))->Pbsf()
+                               : host.view->_pbsf;
+        return stream ? stream->CorePieces() : nullptr;
+    }
+    static int Hide(void *context)
+    {
+        auto &host = *static_cast<EditHost *>(context);
+        return host.Guard([&] { host.view->_SwitchSel(fFalse, fTrue); return 1; });
+    }
+    static int Invalidate(void *context, MMI32 at, MMI32 inserted, MMI32 deleted)
+    {
+        auto &host = *static_cast<EditHost *>(context);
+        return host.Guard([&] { host.view->_InvalAllTxdd(at, inserted, deleted); return 1; });
+    }
+    static int Caret(void *context, MMI32 at)
+    {
+        auto &host = *static_cast<EditHost *>(context);
+        return host.Guard([&] { host.view->SetSel(at, at, fTrue); return 1; });
+    }
+    static int Show(void *context)
+    {
+        auto &host = *static_cast<EditHost *>(context);
+        return host.Guard([&] { host.view->ShowSel(fTrue); return 1; });
+    }
 
     static int Call(void *context, MMTextClipboardOperation operation, MMTextClipboardRequest *q)
     {
-        auto &host = *static_cast<ClipboardHost *>(context);
+        auto &host = *static_cast<EditHost *>(context);
         auto view = host.view;
         auto document = static_cast<PDocumentBase>(q->document);
         return host.Guard([&]() -> int {
@@ -1455,24 +1466,10 @@ struct TextDocumentByteStreamDisplay::ClipboardHost : ClipboardViewHost
             case MM_TEXT_CLIPBOARD_ALLOCATE:
                 q->document = static_cast<PDocumentBase>(TextDocumentByteStream::PtxdcNew());
                 return q->document != nullptr;
-            case MM_TEXT_CLIPBOARD_COPY:
-                return static_cast<PTextDocumentByteStream>(document)->Pbsf()->FReplaceBsf(
-                    view->_pbsf, q->first, q->inserted, 0, 0);
             case MM_TEXT_CLIPBOARD_PUBLISH: *host.output = document; break;
             case MM_TEXT_CLIPBOARD_RELEASE: document->Release(); break;
-            case MM_TEXT_CLIPBOARD_CLEAR: view->FReplace(pvNil, 0, q->anchor, q->focus, fTrue); break;
             case MM_TEXT_CLIPBOARD_HAS_FORMAT: return Format(host.clipboard, kclsTextDocumentByteStream, nullptr);
             case MM_TEXT_CLIPBOARD_ACQUIRE: return Format(host.clipboard, kclsTextDocumentByteStream, &q->document);
-            case MM_TEXT_CLIPBOARD_SIZE:
-                host.source = static_cast<PTextDocumentByteStream>(document)->Pbsf();
-                q->inserted = host.source ? host.source->IbMac() : 0;
-                break;
-            case MM_TEXT_CLIPBOARD_HIDE: view->_SwitchSel(fFalse, fTrue); break;
-            case MM_TEXT_CLIPBOARD_PASTE_PLAIN:
-                return view->_pbsf->FReplaceBsf(host.source, 0, q->inserted, q->first, q->deleted);
-            case MM_TEXT_CLIPBOARD_INVALIDATE: view->_InvalAllTxdd(q->first, q->inserted, q->deleted); break;
-            case MM_TEXT_CLIPBOARD_CARET: view->SetSel(q->first, q->first, fTrue); break;
-            case MM_TEXT_CLIPBOARD_SHOW: view->ShowSel(fTrue); break;
             default: Bug("Unknown byte-stream clipboard operation"); return 0;
             }
             return 1;
@@ -1480,10 +1477,20 @@ struct TextDocumentByteStreamDisplay::ClipboardHost : ClipboardViewHost
     }
 };
 
+/***************************************************************************
+    Replaces the characters between ich1 and ich2 with the given ones.
+***************************************************************************/
+bool TextDocumentByteStreamDisplay::FReplace(achar *prgch, long cch, long ich1, long ich2, bool fDraw)
+{
+    AssertThis(0);
+    EditHost host(this);
+    return host.Check(mm_byte_text_edit(prgch, cch, ich1, ich2, &host.edit)) > 0;
+}
+
 bool TextDocumentByteStreamDisplay::_FCopySel(PDocumentBase *ppdocb)
 {
     AssertThis(0);
-    ClipboardHost host(this);
+    EditHost host(this);
     host.output = ppdocb;
     const auto services = host.Services();
     return host.Check(mm_text_clipboard_copy(ppdocb != nullptr, &services)) > 0;
@@ -1492,7 +1499,7 @@ bool TextDocumentByteStreamDisplay::_FCopySel(PDocumentBase *ppdocb)
 void TextDocumentByteStreamDisplay::_ClearSel()
 {
     AssertThis(0);
-    ClipboardHost host(this);
+    EditHost host(this);
     const auto services = host.Services();
     host.Check(mm_text_clipboard_clear(&services));
 }
@@ -1501,7 +1508,7 @@ bool TextDocumentByteStreamDisplay::_FPaste(PClipboardObject pclip, bool fDoIt, 
 {
     AssertThis(0);
     AssertPo(pclip, 0);
-    ClipboardHost host(this);
+    EditHost host(this);
     host.clipboard = pclip;
     const auto services = host.Services();
     return host.Check(mm_text_clipboard_paste(cid == cidPaste, fDoIt, &services)) > 0;

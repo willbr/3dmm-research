@@ -1,4 +1,5 @@
 #include "mm/text_copy.h"
+#include "mm/byte_text.h"
 #include "mm/text.h"
 #include "text_argument_view_fixture.h"
 #include <stdio.h>
@@ -756,7 +757,7 @@ static void clipboard_init(ClipboardTest *t)
 static void clipboard(void)
 {
     ClipboardTest t;
-    MMTextClipboardServices s;
+    MMTextClipboardServices s = {0};
     s.context = &t;
     s.call = clipboard_call;
     s.kind = MM_TEXT_CLIPBOARD_RICH;
@@ -792,13 +793,205 @@ static void clipboard(void)
     t.rich = t.size = 1;
     CHECK(mm_text_clipboard_paste(1, 1, &s) == 1 && t.count == 4 && !t.refs && !t.caret);
 
-    clipboard_init(&t);
-    s.kind = MM_TEXT_CLIPBOARD_STREAM;
-    CHECK(mm_text_clipboard_paste(1, 1, &s) == 1);
-    CHECK(t.acquisitions == 1 && t.formats[0] == MM_TEXT_CLIPBOARD_STREAM && t.inserted == 4 && t.caret == 8 && !t.refs);
-    CHECK(t.operations[t.count - 3] == MM_TEXT_CLIPBOARD_INVALIDATE);
+}
+
+typedef struct ByteClipboard
+{
+    MMTextClipboardServices clipboard;
+    MMByteTextEditServices edit;
+    MMPieceTable view, document;
+    void *published;
+    int refs, shrink;
+    char log[24], fail;
+    unsigned count;
+    MMI32 anchor, focus, at, inserted, deleted, caret;
+} ByteClipboard;
+
+static int byte_event(ByteClipboard *t, char c)
+{
+    CHECK(t->count + 1 < sizeof(t->log));
+    t->log[t->count++] = c;
+    t->log[t->count] = 0;
+    return c == t->fail ? -2 : 1;
+}
+
+static int byte_call(void *context, MMTextClipboardOperation op, MMTextClipboardRequest *q)
+{
+    ByteClipboard *t = context;
+    switch (op)
+    {
+    case MM_TEXT_CLIPBOARD_SELECTION:
+        q->anchor = t->anchor;
+        q->focus = t->focus;
+        return byte_event(t, 's');
+    case MM_TEXT_CLIPBOARD_HAS_FORMAT:
+        CHECK(q->format == MM_TEXT_CLIPBOARD_STREAM);
+        return byte_event(t, 'f');
+    case MM_TEXT_CLIPBOARD_ACQUIRE:
+        CHECK(q->format == MM_TEXT_CLIPBOARD_STREAM);
+        q->document = &t->document;
+        ++t->refs;
+        return byte_event(t, 'g');
+    case MM_TEXT_CLIPBOARD_ALLOCATE:
+        CHECK(!t->document.length);
+        q->document = &t->document;
+        ++t->refs;
+        return byte_event(t, 'a');
+    case MM_TEXT_CLIPBOARD_RELEASE:
+        CHECK(q->document == &t->document && t->refs == 1);
+        --t->refs;
+        return byte_event(t, 'r');
+    case MM_TEXT_CLIPBOARD_PUBLISH:
+        t->published = q->document;
+        return byte_event(t, 'p');
+    default:
+        CHECK(0);
+        return 0;
+    }
+}
+
+static MMPieceTable *byte_pieces(void *v, void *p)
+{
+    ByteClipboard *t = v;
+    CHECK(!p || (p == &t->document && t->refs == 1));
+    byte_event(t, p ? 'd' : 'v');
+    return p ? &t->document : &t->view;
+}
+
+static int byte_hide(void *v)
+{
+    ByteClipboard *t = v;
+    if (t->shrink)
+        CHECK(mm_piece_table_replace(&t->document, 0, 2, NULL, 0) == MM_DATA_OK);
+    return byte_event(t, 'h');
+}
+
+static int byte_invalidate(void *v, MMI32 at, MMI32 inserted, MMI32 deleted)
+{
+    ByteClipboard *t = v;
+    CHECK(!t->refs);
+    t->at = at;
+    t->inserted = inserted;
+    t->deleted = deleted;
+    return byte_event(t, 'i');
+}
+
+static int byte_caret(void *v, MMI32 at)
+{
+    ByteClipboard *t = v;
+    t->caret = at;
+    return byte_event(t, 'c');
+}
+
+static int byte_show(void *v)
+{
+    return byte_event(v, 'w');
+}
+
+static void byte_file_ref(void *v, void *p)
+{
+    (void)v;
+    (void)p;
+    CHECK(0);
+}
+
+static void byte_clipboard_init(ByteClipboard *t, const void *data, MMU32 length)
+{
+    MMPieceFiles files = {0};
+    memset(t, 0, sizeof(*t));
+    files.retain = byte_file_ref;
+    files.release = byte_file_ref;
+    CHECK(mm_piece_table_init(&t->view, NULL, &files, 0) == MM_DATA_OK);
+    CHECK(mm_piece_table_init(&t->document, NULL, &files, 0) == MM_DATA_OK);
+    CHECK(mm_piece_table_replace(&t->view, 0, 0, "0123456789", 10) == MM_DATA_OK);
+    CHECK(mm_piece_table_replace(&t->document, 0, 0, data, length) == MM_DATA_OK);
+    t->anchor = 9;
+    t->focus = 4;
+    t->edit.context = t;
+    t->edit.pieces = byte_pieces;
+    t->edit.hide = byte_hide;
+    t->edit.invalidate = byte_invalidate;
+    t->edit.caret = byte_caret;
+    t->edit.show = byte_show;
+    t->clipboard.context = t;
+    t->clipboard.kind = MM_TEXT_CLIPBOARD_STREAM;
+    t->clipboard.call = byte_call;
+    t->clipboard.byte_edit = &t->edit;
+}
+
+static void byte_clipboard_dispose(ByteClipboard *t)
+{
+    CHECK(!t->refs);
+    CHECK(mm_piece_table_dispose(&t->view) == MM_DATA_OK);
+    CHECK(mm_piece_table_dispose(&t->document) == MM_DATA_OK);
+}
+
+static void check_bytes(MMPieceTable *pieces, const void *expected, MMU32 n)
+{
+    unsigned char bytes[16];
+    CHECK(n <= sizeof(bytes) && pieces->length == n);
+    CHECK(mm_piece_table_read(pieces, 0, bytes, n) == MM_DATA_OK && !memcmp(expected, bytes, n));
+}
+
+static void byte_clipboard(void)
+{
+    ByteClipboard t;
+    int bad;
+    for (bad = 0; bad <= 1; ++bad)
+    {
+        byte_clipboard_init(&t, NULL, 0);
+        if (bad)
+            t.anchor = 11;
+        CHECK(mm_text_clipboard_copy(1, &t.clipboard) == !bad);
+        CHECK(!strcmp(t.log, bad ? "sadvrp" : "sadvp"));
+        if (!bad)
+        {
+            CHECK(t.published == &t.document && t.refs == 1);
+            check_bytes(&t.document, "45678", 5);
+            --t.refs;
+        }
+        else
+            CHECK(!t.published && !t.document.length);
+        check_bytes(&t.view, "0123456789", 10);
+        byte_clipboard_dispose(&t);
+    }
+
+    byte_clipboard_init(&t, "A\0\rZ", 4);
+    CHECK(mm_text_clipboard_paste(1, 0, &t.clipboard) == 1 && !strcmp(t.log, "f") && !t.refs);
     t.count = 0;
-    CHECK(mm_text_clipboard_clear(&s) == 1 && t.count == 2 && t.operations[1] == MM_TEXT_CLIPBOARD_CLEAR);
+    CHECK(mm_text_clipboard_paste(1, 1, &t.clipboard) == 1 && !strcmp(t.log, "fgdhsvricw"));
+    CHECK(t.at == 4 && t.inserted == 4 && t.deleted == 5 && t.caret == 8);
+    check_bytes(&t.view, "0123A\0\rZ9", 9);
+    byte_clipboard_dispose(&t);
+    byte_clipboard_init(&t, "A\0\rZ", 4);
+    t.shrink = 1;
+    CHECK(!mm_text_clipboard_paste(1, 1, &t.clipboard) && !strcmp(t.log, "fgdhsvr") && !t.caret);
+    check_bytes(&t.view, "0123456789", 10);
+    byte_clipboard_dispose(&t);
+    byte_clipboard_init(&t, NULL, 0);
+    CHECK(mm_text_clipboard_paste(1, 1, &t.clipboard) == 1 && !strcmp(t.log, "fgdr"));
+    t.count = 0;
+    CHECK(mm_text_clipboard_clear(&t.clipboard) == 1 && !strcmp(t.log, "shvicw"));
+    CHECK(t.at == 4 && !t.inserted && t.deleted == 5 && t.caret == 4);
+    check_bytes(&t.view, "01239", 5);
+    byte_clipboard_dispose(&t);
+
+    byte_clipboard_init(&t, NULL, 0);
+    CHECK(mm_byte_text_edit("\0N", 2, 9, 4, &t.edit) == 1 && !strcmp(t.log, "hvicw"));
+    CHECK(t.at == 4 && t.inserted == 2 && t.deleted == 5 && t.caret == 6);
+    check_bytes(&t.view, "0123\0N9", 7);
+    t.count = 0;
+    CHECK(!mm_byte_text_edit(NULL, 0, 5, 9, &t.edit) && !strcmp(t.log, "hv"));
+    check_bytes(&t.view, "0123\0N9", 7);
+    t.count = 0;
+    t.fail = 'i';
+    CHECK(mm_byte_text_edit("Q", 1, 5, 6, &t.edit) == -2 && !strcmp(t.log, "hvi"));
+    check_bytes(&t.view, "0123\0Q9", 7);
+    byte_clipboard_dispose(&t);
+
+    CHECK(mm_byte_text_rebase(4, 4, 2, 5) == 4 && mm_byte_text_rebase(5, 4, 2, 5) == 5);
+    CHECK(mm_byte_text_rebase(8, 4, 2, 5) == 6 && mm_byte_text_rebase(9, 4, 2, 5) == 6);
+    CHECK(mm_byte_text_rebase(10, 4, 2, 5) == 7 && mm_byte_text_rebase(5, 4, 2, 0) == 7);
 }
 
 int main(void)
@@ -812,6 +1005,7 @@ int main(void)
         objects(unit);
     }
     clipboard();
+    byte_clipboard();
     puts("text copy and clipboard tests passed");
     return 0;
 }

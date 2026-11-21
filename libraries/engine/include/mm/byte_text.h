@@ -35,6 +35,21 @@ extern "C"
     int mm_byte_text_reformat(MMByteTextView *, MMPieceTable *, MMI32 first_line, MMI32 visible);
     int mm_byte_text_reformat_edit(MMByteTextView *, MMPieceTable *, MMI32 visible, MMI32 first, MMI32 inserted,
                                   MMI32 deleted, MMI32 *changed_line, MMI32 *added, MMI32 *removed);
+    typedef struct MMByteTextEditServices
+    {
+        void *context;
+        MMPieceTable *(*pieces)(void *, void *document);
+        int (*hide)(void *);
+        int (*invalidate)(void *, MMI32 at, MMI32 inserted, MMI32 deleted);
+        int (*caret)(void *, MMI32 at);
+        int (*show)(void *);
+    } MMByteTextEditServices;
+    /* The view supplies its current piece table for a null document. Effects
+     * may return negative errors, without throwing across C. A failed splice
+     * leaves the selection hidden and skips invalidation and caret movement. */
+    int mm_byte_text_edit(const void *, MMI32 bytes, MMI32 anchor, MMI32 focus, const MMByteTextEditServices *);
+    int mm_byte_text_finish_edit(MMI32 at, MMI32 inserted, MMI32 deleted, const MMByteTextEditServices *);
+    MMI32 mm_byte_text_rebase(MMI32 position, MMI32 at, MMI32 inserted, MMI32 deleted);
 #ifdef __cplusplus
 }
 #endif
