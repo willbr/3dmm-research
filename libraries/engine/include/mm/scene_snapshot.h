@@ -7,6 +7,8 @@ extern "C" {
 #endif
 
 struct MMPrivateArchive;
+struct MMChunkEndpoint;
+struct MMMovieArchiveEditor;
 
 typedef struct MMSceneSnapshot
 {
@@ -20,14 +22,16 @@ typedef struct MMSceneSnapshotServices
     struct MMPrivateArchive *(*open)(void *); /* Transfers an empty writable archive. */
     void (*begin)(void *), (*end)(void *);
     int (*write)(void *, void *scene, struct MMPrivateArchive *, MMU32 *number);
-    void *(*read)(void *, struct MMPrivateArchive *, MMU32 number); /* Returns a detached scene reference. */
 } MMSceneSnapshotServices;
 
 /* Save into a zero-initialized record. Dispose the record even after a failed
  * write. The scene and service context are borrowed only during the call. */
 int mm_scene_snapshot_save(MMSceneSnapshot *, void *scene, const MMSceneSnapshotServices *);
-void *mm_scene_snapshot_read(const MMSceneSnapshot *, const MMSceneSnapshotServices *);
 void mm_scene_snapshot_dispose(MMSceneSnapshot *);
+/* Transfer a private scene as an unlinked root. Rebind local asset references
+ * before publishing its number. The destination editor and endpoint share an index. */
+int mm_scene_snapshot_copy(const MMSceneSnapshot *, const struct MMChunkEndpoint *,
+                           const struct MMMovieArchiveEditor *, MMU32 *number);
 
 #ifdef __cplusplus
 }

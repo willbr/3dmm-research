@@ -19930,3 +19930,32 @@ Both ports produced the same audible sample-frame count as the previous
 snapshot test, 4,802 versus retail's 4,889 at 48 kHz. Mixed PCM still differed, and
 continuous pixel parity was inconclusive. Evidence is in
 `tmp/c89-scene-removal-snapshot`.
+
+## Direct C89 archive transfer for scene undo (21 November 2026)
+
+Scene removal and chop undo copy the saved `SCEN` graph from the private C89
+archive into the working movie before installing its scene link. Studio opens
+the installed scene for playback. The C89 copy rewrites embedded background,
+template, material and sound references when the destination assigns new chunk
+numbers. Editable scene and actor chunks are copied independently.
+
+The C89 collision test preserved the background, template, material and both
+sound references at their original child slots. It also verified that an
+unresolvable background discards the staged scene. Movie Scene covers failure
+to autosave the current scene after the copy. All 193 standalone checks passed.
+Movie Scene, Scene Chop, Actor Archive, and Chunk Ops passed under
+AddressSanitizer. Native and SDL scene edit, scene store, and movie save/load
+checks passed, as did Marcus C89 syntax and player checks.
+
+Studio reopened the expected frame ranges after forward and backward chop
+and scene removal undo and redo. All four saved movies had the same decoded
+chunk payloads, names and rooted links as the previous implementation, with
+different whole-file hashes. In separate removal and backward chop workflows,
+undo, redo and a second undo preserved the actor, caption and embedded audio
+payload after save and reopen. The removal preserved the unsaved caption edit.
+
+Retail, SDL and Marcus agreed on all eight seek frames and cameras in
+`20261121T195554Z-9f5b6abd`. The ports produced identical seek canvases. Retail
+matched five canvases immediately and three after a 550 ms settling interval.
+This capture covered seek only. Evidence is in
+`tmp/c89-scene-snapshot-transfer`.

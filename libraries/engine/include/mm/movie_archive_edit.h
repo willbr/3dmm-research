@@ -174,6 +174,9 @@ int mm_movie_archive_replace_child(const MMMovieArchiveEditor *, MMU32 parent_ty
                                    const MMChunkChild *, int had_child, const unsigned char *, MMU32 bytes);
 int mm_movie_archive_retarget_background(const MMMovieArchiveEditor *, MMU32 scene, MMI32 source, MMU32 background);
 int mm_movie_archive_rebind_backgrounds(const MMMovieArchiveEditor *, const MMMovieEmbeddedArchive *, MMU32 scene);
+/* A missing sound slot leaves a legacy unresolved cue unchanged. */
+int mm_movie_archive_sound_number(const MMChunkEdit *, MMU32 scene, MMU32 slot, MMU32 *number);
+int mm_movie_archive_rebind_scene_sounds(const MMMovieArchiveEditor *, MMU32 scene);
 enum { MM_STORYBOARD_CHUNK = 0x53544244UL };
 /* The background graph has already been copied into this private archive. */
 int mm_movie_archive_embed_storyboard(const MMMovieArchiveEditor *, MMU32 scene, MMU32 background,

@@ -1,11 +1,15 @@
 /* Scene tag collection and saving converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_store.h"
+#include "mm/actor_archive.h"
 #include "mm/background_resource.h"
+#include "mm/chunk_copy.h"
+#include "mm/material_resource.h"
 #include "mm/scene_data.h"
 #include "mm/movie_sound.h"
 #include "mm/private_archive.h"
 #include "mm/scene_snapshot.h"
+#include "mm/template_create.h"
 #include "mm/text_store.h"
 #include <string.h>
 
@@ -21,15 +25,100 @@ int mm_scene_snapshot_save(MMSceneSnapshot *p, void *scene, const MMSceneSnapsho
     return ok;
 }
 
-void *mm_scene_snapshot_read(const MMSceneSnapshot *p, const MMSceneSnapshotServices *s)
-{
-    return p->archive ? s->read(s->context, p->archive, p->number) : NULL;
-}
-
 void mm_scene_snapshot_dispose(MMSceneSnapshot *p)
 {
     mm_private_archive_close(p->archive);
     p->archive = NULL;
+}
+
+typedef struct SnapshotLinks
+{
+    const MMChunkAccess *source;
+    const MMMovieArchiveEditor *editor;
+    MMU32 owner_type, original, copied;
+} SnapshotLinks;
+
+static int map_snapshot_tag(void *p, const MMTag *tag, MMU32 *number, int *created)
+{
+    const SnapshotLinks *links = p;
+    const MMChunkAccess destination = mm_chunk_edit_access(&links->editor->edit);
+    MMU32 row, i;
+    MMChunkChild child;
+    if (mm_chunk_find(links->source, links->owner_type, links->original, &row) != MM_CHUNK_OK)
+        return 0;
+    for (i = 0; mm_chunk_child_at(links->source, row, i, &child) == MM_CHUNK_OK; ++i)
+        if (child.type == tag->type && child.number == tag->number)
+        {
+            *created = 0;
+            return mm_chunk_link_number(&destination, links->owner_type, links->copied, child.slot, child.type,
+                                        number) == MM_CHUNK_OK;
+        }
+    return 0;
+}
+
+static int reuse_snapshot_asset(MMU32 type)
+{
+    return type == MM_BACKGROUND || type == MM_MATERIAL_CHUNK || type == MM_SOUND_CHUNK || type == MM_TMPL;
+}
+
+static int rebind_snapshot(const MMChunkAccess *source, MMU32 original, MMU32 scene,
+                           const MMMovieArchiveEditor *editor)
+{
+    SnapshotLinks links;
+    MMMovieEmbeddedArchive assets = {0};
+    MMChunkChild child;
+    MMChunkEntry entry;
+    MMU32 row, i;
+    links.source = source;
+    links.editor = editor;
+    links.owner_type = MM_SCENE_CHUNK;
+    links.original = original;
+    links.copied = scene;
+    assets.context = &links;
+    assets.copy_reference = map_snapshot_tag;
+    assets.edit = editor->edit;
+    if (!mm_movie_archive_rebind_backgrounds(editor, &assets, scene) ||
+        !mm_movie_archive_rebind_scene_sounds(editor, scene) ||
+        mm_chunk_find(source, MM_SCENE_CHUNK, original, &row) != MM_CHUNK_OK ||
+        mm_chunk_at(source, row, &entry) != MM_CHUNK_OK)
+        return 0;
+    links.owner_type = MM_ACTOR_CHUNK;
+    for (i = 0; i < entry.child_count; ++i)
+    {
+        MMChunkAccess current;
+        if (mm_chunk_child_at(source, row, i, &child) != MM_CHUNK_OK)
+            return 0;
+        if (child.type != MM_ACTOR_CHUNK)
+            continue;
+        current = mm_chunk_edit_access(&editor->edit);
+        links.original = child.number;
+        if (mm_chunk_link_number(&current, MM_SCENE_CHUNK, scene, child.slot, child.type, &links.copied) != MM_CHUNK_OK ||
+            !mm_actor_archive_rebind_snapshot(editor, scene, links.copied, &assets))
+            return 0;
+    }
+    return 1;
+}
+
+int mm_scene_snapshot_copy(const MMSceneSnapshot *p, const MMChunkEndpoint *destination,
+                           const MMMovieArchiveEditor *editor, MMU32 *number)
+{
+    MMChunkFileCopy binding;
+    MMChunkEndpoint source;
+    MMChunkAccess chunks;
+    MMU32 copied;
+    if (!p->archive)
+        return 0;
+    source = mm_private_archive_copy_endpoint(p->archive, &binding);
+    if (mm_chunk_copy_filtered(&source, destination, MM_SCENE_CHUNK, p->number, reuse_snapshot_asset, &copied) != MM_CHUNK_OK)
+        return 0;
+    chunks = mm_chunk_edit_access(&source.edit);
+    if (!rebind_snapshot(&chunks, p->number, copied, editor))
+    {
+        mm_chunk_delete(&editor->edit, MM_SCENE_CHUNK, copied);
+        return 0;
+    }
+    *number = copied;
+    return 1;
 }
 typedef struct CollectActorTags
 {

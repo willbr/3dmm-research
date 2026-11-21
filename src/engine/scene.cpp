@@ -3429,10 +3429,9 @@ void SceneUndoBackground::AssertValid(LegacyUlong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-MMSceneSnapshotServices Scene::SnapshotServices(PMovie movie)
+MMSceneSnapshotServices Scene::SnapshotServices()
 {
     MMSceneSnapshotServices s = {};
-    s.context = movie;
     s.open = [](void *) { return KauaiTemporaryArchive(); };
     s.begin = [](void *) { vpappb->BeginLongOp(); };
     s.end = [](void *) { vpappb->EndLongOp(); };
@@ -3443,14 +3442,6 @@ MMSceneSnapshotServices Scene::SnapshotServices(PMovie movie)
         return static_cast<PScene>(scene)->FWrite(mm_private_archive_editor(archive),
                                                 mm_private_archive_writer(archive),
                                                 mm_movie_archive_assets(&assets), number);
-    };
-    s.read = [](void *p, MMPrivateArchive *archive, MMU32 number) -> void * {
-        auto cache = ChunkyResourceFile::PcrfNewPrivate(archive, 0);
-        if (!cache)
-            return nullptr;
-        const auto scene = Scene::PscenRead(static_cast<PMovie>(p), cache, number);
-        cache->Release();
-        return scene;
     };
     return s;
 }
@@ -3485,7 +3476,7 @@ SceneUndoChop::~SceneUndoChop(void)
  ****************************************************/
 bool SceneUndoChop::FSave(PScene pscen)
 {
-    const auto s = Scene::SnapshotServices(nullptr);
+    const auto s = Scene::SnapshotServices();
     return mm_scene_snapshot_save(&_snapshot, pscen, &s) != 0;
 }
 
@@ -3505,7 +3496,7 @@ bool SceneUndoChop::FDo(PDocumentBase pdocb)
     AssertThis(0);
     const auto scenes = Pmvie()->_SceneServices();
     MMSceneChopSwapServices s = {};
-    s.snapshot = Scene::SnapshotServices(Pmvie());
+    s.snapshot = Scene::SnapshotServices();
     s.delete_failed = [](void *) { Bug("chunk not deletable or missing"); };
     s.rewind = [](void *, void *scene) {
         auto value = static_cast<PScene>(scene);

@@ -129,25 +129,17 @@ int mm_scene_chop_swap(MMSceneSnapshot *p, MMI32 index, MMI32 frame,
     const MMSceneSnapshotServices *snapshot = &s->snapshot;
     void *context = snapshot->context;
     MMArchiveWriter writer;
-    void *loaded, *old;
+    void *old;
     snapshot->begin(context);
-    loaded = mm_scene_snapshot_read(p, snapshot);
-    if (!loaded)
+    if (!mm_movie_scene_switch(index, scenes))
         goto fail;
-    if (!scenes->start(loaded) || !mm_movie_scene_switch(index, scenes))
-    {
-        scenes->close(loaded);
-        goto fail;
-    }
     old = scenes->state->open;
     scenes->retain(old);
-    if (!mm_movie_scene_insert(index, loaded, scenes))
+    if (!mm_movie_scene_insert_snapshot(index, p, scenes))
     {
         scenes->release(old);
-        scenes->close(loaded);
         goto fail;
     }
-    scenes->close(loaded);
     writer = mm_private_archive_writer(p->archive);
     if (mm_chunk_delete(&writer.edit, MM_SCENE_CHUNK, p->number) != MM_CHUNK_OK && s->delete_failed)
         s->delete_failed(context);

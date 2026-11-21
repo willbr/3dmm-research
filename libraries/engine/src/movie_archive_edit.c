@@ -224,6 +224,35 @@ int mm_movie_archive_rebind_backgrounds(const MMMovieArchiveEditor *editor, cons
         mm_scene_rebind_start_backgrounds(&stream, copy_background, receive_rebound_backgrounds, &rebind);
 }
 
+int mm_movie_archive_sound_number(const MMChunkEdit *edit, MMU32 scene, MMU32 slot, MMU32 *number)
+{
+    const MMChunkAccess chunks = mm_chunk_edit_access(edit);
+    const int status = mm_chunk_link_number(&chunks, SCENE_TYPE, scene, slot, MM_SOUND_CHUNK, number);
+    return status == MM_CHUNK_OK || status == MM_CHUNK_NOT_FOUND;
+}
+
+static int map_frame_sound(void *p, MMU32 slot, MMU32 *number)
+{
+    const BackgroundReplacement *replacement = p;
+    return mm_movie_archive_sound_number(&replacement->editor->edit, replacement->scene, slot, number);
+}
+
+int mm_movie_archive_rebind_scene_sounds(const MMMovieArchiveEditor *editor, MMU32 scene)
+{
+    const MMChunkAccess chunks = mm_chunk_edit_access(&editor->edit);
+    BackgroundReplacement replacement;
+    MMReadStream stream;
+    int status;
+    replacement.editor = editor;
+    replacement.scene = scene;
+    replacement.previous.type = MM_SCENE_FRAME_GROUP;
+    replacement.previous.slot = 0;
+    status = mm_chunk_link_number(&chunks, SCENE_TYPE, scene, 0, MM_SCENE_FRAME_GROUP, &replacement.previous.number);
+    return status == MM_CHUNK_NOT_FOUND || (status == MM_CHUNK_OK &&
+        editor->read(editor->context, MM_SCENE_FRAME_GROUP, replacement.previous.number, &stream) &&
+        mm_scene_rebind_frame_sounds(&stream, map_frame_sound, receive_background, &replacement));
+}
+
 static void unlink_scene_child(const MMMovieArchiveEditor *editor, MMU32 scene, MMU32 type)
 {
     MMChunkAccess chunks;

@@ -90,6 +90,8 @@ extern "C"
      * a number changes. All other bytes stay in their original wire order. */
     int mm_scene_rebind_start_backgrounds(const MMReadStream *, int (*map)(void *, MMU32, MMU32 *),
                                           MMByteReceiver, void *context);
+    int mm_scene_rebind_frame_sounds(const MMReadStream *, int (*map)(void *, MMU32 slot, MMU32 *number),
+                                     MMByteReceiver, void *context);
     /* Append an Add Actor row to a validated start group. Keep its byte order
      * and existing records/locations. Write the supplied output system marker.
      * Returns a movie read result and propagates a rejected write as IO. */

@@ -30,6 +30,8 @@ Actors, Text boxes, etc.
 #include <exception>
 #include "soc.h"
 #include "engine_movie_graph.h"
+#include "movie_archive_host.h"
+#include "mm/chunk_copy.h"
 #include "studio_preferences.h"
 #include "mm/indexed_display.h"
 #include "mm/actor_archive.h"
@@ -888,7 +890,18 @@ MMMovieSceneServices Movie::_SceneServices()
         return undo;
     };
     s.undo_tags = &TagManager::CoreServices();
-    s.snapshot = Scene::SnapshotServices(this);
+    s.snapshot = Scene::SnapshotServices();
+    s.copy_snapshot = [](void *p, const MMSceneSnapshot *snapshot, MMU32 *number) -> int {
+        auto cache = static_cast<PChunkyResourceFile>(p);
+        auto reader = cache->ReadOwner();
+        if (!reader)
+            return false;
+        MovieArchiveHost archive{reader, cache->ArchiveWriter()};
+        MMChunkFileCopy binding;
+        const auto destination = cache->CopyTarget(binding);
+        const auto editor = archive.Editor();
+        return mm_scene_snapshot_copy(snapshot, &destination, &editor, number);
+    };
     s.add_undo = [](void *p, void *undo) -> int { return static_cast<PMovie>(p)->FAddUndo(static_cast<PMovieSceneUndo>(undo)); };
     s.release_undo = [](void *p) { auto undo = static_cast<PMovieSceneUndo>(p); ReleasePpo(&undo); };
     s.clear_undo = [](void *p) { static_cast<PMovie>(p)->ClearUndo(); };

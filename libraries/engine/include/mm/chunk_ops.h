@@ -55,6 +55,10 @@ extern "C"
      * The two outputs are published together on success. */
     int mm_chunk_copy_reference(const MMChunkEndpoint *source, const MMChunkEndpoint *destination,
                                 MMU32 type, MMU32 number, MMU32 *copied_number, int *created);
+    /* Copy a fresh root and defer reuse of its descendants to the type filter.
+     * The filter is called only for descendants and does not mutate either graph. */
+    int mm_chunk_copy_filtered(const MMChunkEndpoint *source, const MMChunkEndpoint *destination,
+                               MMU32 type, MMU32 number, int (*reuse)(MMU32 type), MMU32 *copied_number);
 #ifdef __cplusplus
 }
 #endif

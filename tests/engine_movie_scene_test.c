@@ -34,7 +34,7 @@ enum
     PRESERVE_MATERIALS,
     SNAPSHOT_OPEN,
     SNAPSHOT_WRITE,
-    SNAPSHOT_READ
+    SNAPSHOT_COPY
 };
 typedef struct Test Test;
 typedef struct Scene
@@ -55,7 +55,7 @@ struct Test
     int change_index[8], change_open[8];
     int moves, from[8], to[8], saves, deletes, adds, removes;
     int dirty, rollcall, errors, enabled, played, flushed, cleared, missing;
-    int undo_refs, tag_refs, snapshot_reads, snapshot_writes;
+    int undo_refs, tag_refs, snapshot_copies, snapshot_writes;
     MMMovieSceneUndoRecord undo;
     SnapshotFile snapshot_file;
 };
@@ -311,11 +311,12 @@ static int write_snapshot(void *p, void *scene, MMPrivateArchive *archive, MMU32
     put_snapshot(archive, *number);
     return 1;
 }
-static void *read_snapshot(void *p, MMPrivateArchive *archive, MMU32 number)
+static int copy_snapshot(void *p, const MMSceneSnapshot *snapshot, MMU32 *number)
 {
     Test *t = p;
-    ++t->snapshot_reads;
-    return succeeds(t, SNAPSHOT_READ) && has_snapshot(archive, number) ? new_scene(t, (int)number - 40) : NULL;
+    ++t->snapshot_copies;
+    return succeeds(t, SNAPSHOT_COPY) && has_snapshot(snapshot->archive, snapshot->number) &&
+        write_scene(p, NULL, number);
 }
 static void retain_tag(void *p) { ++((Test *)p)->tag_refs; }
 static void release_tag(void *p) { --((Test *)p)->tag_refs; }
@@ -386,7 +387,7 @@ static void init(Test *t, int count, int current)
     s->snapshot.open = open_snapshot;
     s->snapshot.begin = s->snapshot.end = snapshot_long_op;
     s->snapshot.write = write_snapshot;
-    s->snapshot.read = read_snapshot;
+    s->copy_snapshot = copy_snapshot;
     s->add_undo = add_undo;
     s->release_undo = release_undo;
     s->clear_undo = clear;
@@ -664,7 +665,7 @@ static int undoing(void)
     s.unknown = unknown;
     for (k = 0; k < 3; ++k)
         for (redo = 0; redo <= 1; ++redo)
-            for (fault = 0; fault <= SNAPSHOT_READ; ++fault)
+            for (fault = 0; fault <= SNAPSHOT_COPY; ++fault)
             {
                 Scene *snapshot;
                 MMSceneOwnerServices owners;
@@ -676,7 +677,7 @@ static int undoing(void)
                 CHECK(mm_scene_owner_init(&u.owner, NULL, 1, NULL));
                 u.movie.s.clear_undo = uclear;
                 u.movie.fail = (removed && fault == TEMP) ||
-                                   (!removed && !redo && (fault == WRITE || fault == SNAPSHOT_READ)) ||
+                                   (!removed && !redo && (fault == AUTO || fault == WRITE || fault == SNAPSHOT_COPY)) ||
                                    (!removed && redo && fault == CREATE)
                                ? fault : 0;
                 u.movie.failures = 1;
@@ -696,8 +697,16 @@ static int undoing(void)
                     CHECK(result == (fault != TEMP) && u.movie.deletes == result &&
                           u.movie.data.sceneCount == 3 - result);
                 else if (!redo)
-                    CHECK(result == (fault != WRITE && fault != SNAPSHOT_READ) && u.movie.adds == result &&
-                          u.movie.data.sceneCount == 3 + result && u.movie.snapshot_reads == 1);
+                {
+                    const MMChunkAccess archive = chunks(&u.movie);
+                    MMU32 position;
+                    CHECK(result == (fault != AUTO && fault != WRITE && fault != SNAPSHOT_COPY) &&
+                          u.movie.adds == result && u.movie.data.sceneCount == 3 + result && u.movie.snapshot_copies == 1);
+                    CHECK(mm_chunk_find(&archive, MM_SCENE_CHUNK, 123, &position) ==
+                          (result ? MM_CHUNK_OK : MM_CHUNK_NOT_FOUND));
+                    if (fault == AUTO)
+                        CHECK(u.movie.state.open && u.movie.state.index == 2);
+                }
                 else
                 {
                     CHECK(result == (fault != CREATE && fault != START));

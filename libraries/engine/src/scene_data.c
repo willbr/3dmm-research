@@ -266,6 +266,56 @@ int mm_scene_rebind_start_backgrounds(const MMReadStream *stream, int (*map)(voi
 {
     return edit_start_backgrounds(stream, 0, 0, map, receive, context);
 }
+int mm_scene_rebind_frame_sounds(const MMReadStream *stream, int (*map)(void *, MMU32, MMU32 *),
+                                 MMByteReceiver receive, void *context)
+{
+    MMCollectionHeader header;
+    unsigned char *copy, *records, *data;
+    MMSceneSoundWire sound;
+    MMTag tag;
+    MMU32 index, offset, slot, number;
+    MMI32 bytes, type, i;
+    int changed = 0, result = 0;
+    if (mm_collection_header_read(stream, MM_COLLECTION_GROUP, 0, &header) != MM_STORAGE_OK ||
+        header.width != MM_SCENE_EVENT_BYTES || (size_t)stream->length != stream->length)
+        return 0;
+    copy = malloc((size_t)stream->length);
+    if (!copy)
+        return 0;
+    if (!mm_read_exact(stream, 0, copy, stream->length))
+        goto done;
+    records = copy + header.header_bytes;
+    for (index = 0; index < header.count; ++index)
+    {
+        if (!mm_collection_group_row(&header, records, index, &offset, &bytes))
+            goto done;
+        type = mm_signed_word(word(records + offset + 4, header.big_endian));
+        data = records + offset + MM_SCENE_EVENT_BYTES;
+        if (type != MM_SCENE_PLAY_SOUND)
+            continue;
+        if (!mm_scene_sound_wire(data, bytes, header.big_endian, &sound))
+            goto done;
+        for (i = 0; i < sound.header.ctagc; ++i)
+        {
+            mm_scene_sound_wire_tag(&sound, i, &slot, &tag);
+            if (tag.sid)
+                continue;
+            number = tag.number;
+            if (!map(context, slot, &number))
+                goto done;
+            if (number != tag.number)
+            {
+                put(data + MM_SCENE_SOUND_HEADER_BYTES + ((size_t)i + 1) * MM_SCENE_SOUND_WIRE_TAG_BYTES - 4,
+                    number, 4, header.big_endian);
+                changed = 1;
+            }
+        }
+    }
+    result = !changed || receive(context, copy, stream->length);
+done:
+    free(copy);
+    return result;
+}
 int mm_scene_append_start_actor(const MMReadStream *stream, int system, MMI32 frame, MMU32 slot,
                                 MMByteReceiver receive, void *context)
 {

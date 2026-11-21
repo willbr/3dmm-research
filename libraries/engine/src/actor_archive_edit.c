@@ -129,12 +129,13 @@ int mm_actor_archive_replace_event_group(const MMMovieArchiveEditor *editor, MMU
         encode_track(editor, group, &existing, NULL, 1);
 }
 
-int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 actor,
-                                     const MMMovieEmbeddedArchive *materials)
+static int rebind_events(const MMMovieArchiveEditor *editor, MMU32 actor,
+                         const MMMovieEmbeddedArchive *materials, const MMU32 *scene)
 {
     MMActorEventTable *events;
     MMActorEvent event;
     MMActorCostume costume;
+    MMActorSound sound;
     MMChunkChild previous = {EVENTS_TYPE, 0, 0}, replacement = {EVENTS_TYPE, 0xffffffffUL, 0};
     MMU32 i, number;
     void *payload;
@@ -145,19 +146,35 @@ int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 
     for (i = 0; i < events->rows.count; ++i)
     {
         memcpy(&event, mm_actor_events_fixed(events, i), sizeof(event));
-        if (event.aet != MM_ACTOR_COSTUME)
-            continue;
         payload = mm_actor_events_payload(events, i, NULL);
-        memcpy(&costume, payload, sizeof(costume));
-        if (costume.custom || costume.tag.sid != 0 || costume.tag.type != MATERIAL_TYPE)
-            continue;
-        number = costume.tag.number;
-        if (!mm_movie_archive_embed_tag(materials, MM_ACTOR_CHUNK, actor, &costume.tag))
-            goto done;
-        if (costume.tag.number != number)
+        if (event.aet == MM_ACTOR_COSTUME)
         {
-            memcpy(payload, &costume, sizeof(costume));
-            changed = 1;
+            memcpy(&costume, payload, sizeof(costume));
+            if (costume.custom || costume.tag.sid != 0 || costume.tag.type != MATERIAL_TYPE)
+                continue;
+            number = costume.tag.number;
+            if (!mm_movie_archive_embed_tag(materials, MM_ACTOR_CHUNK, actor, &costume.tag))
+                goto done;
+            if (costume.tag.number != number)
+            {
+                memcpy(payload, &costume, sizeof(costume));
+                changed = 1;
+            }
+        }
+        else if (scene && event.aet == MM_ACTOR_SOUND)
+        {
+            memcpy(&sound, payload, sizeof(sound));
+            if (sound.tag.sid != 0)
+                continue;
+            number = sound.tag.number;
+            if (!mm_movie_archive_sound_number(&editor->edit, *scene, sound.child, &number))
+                goto done;
+            if (sound.tag.number != number)
+            {
+                sound.tag.number = number;
+                memcpy(payload, &sound, sizeof(sound));
+                changed = 1;
+            }
         }
     }
     if (changed)
@@ -175,6 +192,33 @@ int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 
 done:
     mm_actor_events_release(events);
     return ok;
+}
+
+int mm_actor_archive_rebind_materials(const MMMovieArchiveEditor *editor, MMU32 actor,
+                                     const MMMovieEmbeddedArchive *materials)
+{
+    return rebind_events(editor, actor, materials, NULL);
+}
+
+int mm_actor_archive_rebind_snapshot(const MMMovieArchiveEditor *editor, MMU32 scene, MMU32 actor,
+                                     const MMMovieEmbeddedArchive *materials)
+{
+    MMActorHeader header;
+    MMReadStream stream;
+    const MMChunkAccess chunks = mm_chunk_edit_access(&editor->edit);
+    MMU32 number;
+    if (!editor->read(editor->context, MM_ACTOR_CHUNK, actor, &stream) || !mm_actor_read_header(&stream, &header))
+        return 0;
+    if (header.source_id == 0)
+    {
+        number = header.template_number;
+        if (mm_actor_template_link(&chunks, actor, 0, 1, &header.template_number) != MM_CHUNK_OK)
+            return 0;
+        if (number != header.template_number &&
+            !editor->put(editor->context, MM_ACTOR_CHUNK, actor, &header, sizeof(header)))
+            return 0;
+    }
+    return rebind_events(editor, actor, materials, &scene);
 }
 
 static int replace_track(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 old, MMU32 events)

@@ -1,5 +1,11 @@
 #include "mm/scene_chop.h"
 #include "mm/scene_sound.h"
+#include "mm/background_resource.h"
+#include "mm/chunk_copy.h"
+#include "mm/material_resource.h"
+#include "mm/movie_sound.h"
+#include "mm/template_create.h"
+#include "../libraries/engine/src/actor_archive_internal.h"
 #include "scene_member_fixture.h"
 #include "scene_snapshot_fixture.h"
 #include "movie_scene_session_fixture.h"
@@ -38,7 +44,7 @@ typedef struct Host
     MMMovieScenes movie;
     MMMovieState data;
     ChunkIndexFixture archive;
-    SnapshotScene loaded, old, initial, restored, neighbor;
+    SnapshotScene old, initial, restored, neighbor;
     MMSceneSnapshot *record;
 } Host;
 static void event(Host *h, int value)
@@ -395,21 +401,6 @@ static int write(void *p, void *scene, MMPrivateArchive *archive, MMU32 *number)
     put_snapshot(archive, *number);
     return 1;
 }
-static void *read_snapshot(void *p, MMPrivateArchive *archive, MMU32 number)
-{
-    Host *h = (Host *)p;
-    CHECK(archive == h->record->archive && number == 17 && has_snapshot(archive, number));
-    if (!step(h, 6))
-        return NULL;
-    h->loaded.refs = 1;
-    return &h->loaded;
-}
-static int play(void *p)
-{
-    SnapshotScene *scene = p;
-    Host *h = scene->host;
-    return scene != &h->loaded || step(h, 7);
-}
 static void movie_graph(void *file, MMMovieSessionGraph *out)
 {
     *out = fixture_scene_graph(&((Host *)file)->archive);
@@ -456,8 +447,8 @@ static void close_scene(void *p)
     SnapshotScene *scene = p;
     Host *h = scene->host;
     CHECK(scene->refs > 0);
-    if (!--scene->refs && (scene == &h->loaded || scene == &h->old))
-        event(h, scene == &h->loaded ? 25 : 26);
+    if (!--scene->refs && scene == &h->old)
+        event(h, 26);
 }
 static void release_movie_scene(void *p)
 {
@@ -477,10 +468,12 @@ static int temporary(void *p)
     Host *h = (Host *)p;
     return h->data.sceneCount == 4 || step(h, 15);
 }
-static int write_movie_scene(void *p, void *scene, MMU32 *number)
+static int copy_snapshot(void *p, const MMSceneSnapshot *snapshot, MMU32 *number)
 {
     Host *h = (Host *)p;
-    CHECK(scene == &h->loaded);
+    CHECK(snapshot == h->record && snapshot->number == 17 && has_snapshot(snapshot->archive, snapshot->number));
+    if (!step(h, 6))
+        return 0;
     *number = 124;
     fixture_chunk_add(&h->archive, MM_SCENE_CHUNK, *number);
     return 1;
@@ -504,7 +497,7 @@ static void erase_scene_link(void *p, MMU32 parent, const MMChunkChild *child)
 static MMMovieSceneServices scene_services(Host *h)
 {
     MMMovieSceneServices s = {0};
-    h->initial.host = h->loaded.host = h->old.host = h->restored.host = h->neighbor.host = h;
+    h->initial.host = h->old.host = h->restored.host = h->neighbor.host = h;
     h->initial.refs = 1;
     h->movie.open = &h->initial;
     h->movie.index = 1;
@@ -523,14 +516,14 @@ static MMMovieSceneServices scene_services(Host *h)
     s.stop_loops = s.memory_cleanup = ignore;
     s.session.graph = movie_graph;
     s.read = read_movie_scene;
-    s.start = play;
+    s.start = succeed;
     s.seek_first = succeed;
     s.retain = retain;
     s.release = release_movie_scene;
     s.close = close_scene;
     s.sound_frame = s.scene_change = ignore;
     s.edit = edit_archive;
-    s.write = write_movie_scene;
+    s.copy_snapshot = copy_snapshot;
     s.save = s.dirty = s.rollcall_changed = ignore;
     s.remove_actors = s.add_actors = ignore;
     s.sounds_enabled = succeed;
@@ -580,7 +573,6 @@ static MMSceneChopSwapServices snapshots(Host *h)
     s.snapshot.begin = begin;
     s.snapshot.end = end;
     s.snapshot.write = write;
-    s.snapshot.read = read_snapshot;
     s.rewind = rewind_scene;
     s.seek = seek_scene;
     return s;
@@ -591,7 +583,7 @@ static void test_snapshot(void)
     MMSceneChopSwapServices s;
     MMSceneSnapshot record;
     int i;
-    const int failures[] = {0, 6, 7, 8, 11, 5, 15, 16};
+    const int failures[] = {0, 6, 8, 11, 5, 15, 16};
     for (i = 0; i < 4; ++i)
     {
         memset(&h, 0, sizeof(h));
@@ -621,7 +613,7 @@ static void test_snapshot(void)
         mm_scene_snapshot_dispose(&record);
         CHECK(!record.archive && !h.file.refs);
     }
-    for (i = 0; i < 8; ++i)
+    for (i = 0; i < 7; ++i)
     {
         MMMovieSceneServices scenes;
         int ok;
@@ -640,30 +632,30 @@ static void test_snapshot(void)
         put_snapshot(h.record->archive, h.record->number);
         h.traces = 0;
         ok = mm_scene_chop_swap(h.record, 2, 9, &s, &scenes);
-        CHECK(ok == (i == 0 || i == 7));
+        CHECK(ok == (h.fail == 0 || h.fail == 16));
         if (!ok)
         {
             CHECK(!h.record && h.dead);
             CHECK(h.traces >= 3 && h.trace[h.traces - 3] == 19 && h.trace[h.traces - 2] == 20 &&
                   h.trace[h.traces - 1] == 4);
         }
-        if (i == 0)
+        if (h.fail == 0)
         {
-            const int e[] = {3, 6, 7, 8, 9, 10, 11, 25, 13, 5, 26, 15, 16, 17, 18, 4};
-            expect(&h, e, 16);
+            const int e[] = {3, 8, 9, 10, 11, 6, 13, 5, 26, 15, 16, 17, 18, 4};
+            expect(&h, e, 14);
             CHECK(h.record->number == 42 && has_snapshot(h.record->archive, h.record->number));
         }
-        if (i == 4)
+        if (h.fail == 11)
         {
-            const int e[] = {3, 6, 7, 8, 9, 10, 11, 22, 25, 19, 20, 4};
-            expect(&h, e, 12);
+            const int e[] = {3, 8, 9, 10, 11, 22, 19, 20, 4};
+            expect(&h, e, 9);
         }
-        if (i == 5)
+        if (h.fail == 5)
         {
-            const int e[] = {3, 6, 7, 8, 9, 10, 11, 25, 13, 5, 15, 26, 19, 20, 4};
-            expect(&h, e, 15);
+            const int e[] = {3, 8, 9, 10, 11, 6, 13, 5, 15, 26, 19, 20, 4};
+            expect(&h, e, 13);
         }
-        if (i == 7)
+        if (h.fail == 16)
         {
             CHECK(h.record && h.trace[h.traces - 2] == 16 && h.trace[h.traces - 1] == 4);
         }
@@ -674,15 +666,136 @@ static void test_snapshot(void)
         }
         mm_movie_scene_close_open(&scenes);
         mm_movie_session_close(h.data.session);
-        CHECK(!h.loaded.refs && !h.old.refs && !h.initial.refs && !h.restored.refs && !h.neighbor.refs);
+        CHECK(!h.old.refs && !h.initial.refs && !h.restored.refs && !h.neighbor.refs);
         CHECK(!h.file.refs);
     }
+}
+static void test_snapshot_copy(void)
+{
+    static const MMChunkChild links[] = {
+        {MM_ACTOR_CHUNK, 23, 0}, {MM_BACKGROUND, 35, 7}, {MM_SOUND_CHUNK, 37, 4},
+        {MM_TMPL, 31, 0}, {MM_MATERIAL_CHUNK, 33, 5}
+    };
+    SnapshotFile source = {0}, destination = {0};
+    MMSceneSnapshot snapshot;
+    MMPrivateArchive *target = snapshot_file_open(&destination);
+    MMChunkFileCopy binding;
+    MMChunkEndpoint endpoint;
+    MMMovieArchiveEditor before, after;
+    MMChunkAccess chunks;
+    MMChunkEntry entry;
+    MMActorHeader header = {0};
+    MMActorEventTable *events;
+    MMActorEvent event = {0};
+    MMActorCostume costume = {0};
+    MMActorSound sound = {0};
+    MMSceneTrack frames, starts;
+    MMSceneTrackEvent start = {1, MM_SCENE_SET_BACKGROUND}, frame = {2, MM_SCENE_PLAY_SOUND};
+    const MMU32 background[] = {0, 0, MM_BACKGROUND, 35};
+    const MMU32 cue[] = {80, 1, 0, 1, 4, 0, 0, MM_SOUND_CHUNK, 37};
+    MMMovieSceneSource reader_source = {0};
+    MMMovieSceneReader reader;
+    MMMovieSceneGroup group;
+    MMMovieSceneEvent row;
+    MMSceneSoundWire wire;
+    MMTag tag;
+    MMU32 i, scene, actor, bg, msnd, tmpl, mtrl, number, slot, count;
+
+    snapshot.archive = snapshot_file_open(&source);
+    snapshot.number = 17;
+    CHECK(snapshot.archive && target);
+    before = mm_private_archive_editor(snapshot.archive);
+    after = mm_private_archive_editor(target);
+    put_snapshot(snapshot.archive, snapshot.number);
+    put_snapshot(target, snapshot.number);
+    for (i = 0; i < sizeof(links) / sizeof(*links); ++i)
+    {
+        const MMChunkChild *link = &links[i];
+        if (i != 0)
+            CHECK(before.put(before.context, link->type, link->number, "a", 1));
+        CHECK(after.put(after.context, link->type, link->number, "b", 1));
+    }
+    header.order = 1;
+    header.template_type = MM_TMPL;
+    header.template_number = links[3].number;
+    actor = links[0].number;
+    CHECK(before.put(before.context, MM_ACTOR_CHUNK, actor, &header, sizeof(header)));
+    for (i = 0; i < sizeof(links) / sizeof(*links); ++i)
+        CHECK(mm_chunk_adopt(&before.edit, i < 3 ? MM_SCENE_CHUNK : MM_ACTOR_CHUNK,
+                             i < 3 ? snapshot.number : actor, &links[i], 1) == MM_CHUNK_OK);
+    events = mm_actor_events_create(NULL, 0, 0);
+    CHECK(events);
+    event.aet = MM_ACTOR_COSTUME;
+    costume.tag.type = MM_MATERIAL_CHUNK;
+    costume.tag.number = links[4].number;
+    CHECK(mm_actor_events_insert(events, 0, sizeof(costume), &costume, &event));
+    event.aet = MM_ACTOR_SOUND;
+    sound.child = links[2].slot;
+    sound.tag.type = MM_SOUND_CHUNK;
+    sound.tag.number = links[2].number;
+    CHECK(mm_actor_events_insert(events, 1, sizeof(sound), &sound, &event));
+    CHECK(mm_actor_archive_write_event_group(&before, events, &number, &actor));
+    mm_actor_events_release(events);
+    CHECK(mm_scene_track_init(&frames, NULL, 0) && mm_scene_track_init(&starts, NULL, 0));
+    CHECK(mm_scene_track_insert(&frames, 0, sizeof(cue), cue, &frame));
+    CHECK(mm_scene_track_insert(&starts, 0, sizeof(background), background, &start));
+    CHECK(mm_scene_archive_write_tracks(&before, snapshot.number, &frames, &starts));
+    mm_scene_track_dispose(&frames);
+    mm_scene_track_dispose(&starts);
+
+    endpoint = mm_private_archive_copy_target(target, &binding);
+    CHECK(mm_scene_snapshot_copy(&snapshot, &endpoint, &after, &scene) && scene != snapshot.number);
+    chunks = mm_chunk_edit_access(&after.edit);
+    CHECK(mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, links[0].slot, MM_ACTOR_CHUNK, &actor) == MM_CHUNK_OK &&
+          actor != links[0].number);
+    CHECK(mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, links[1].slot, MM_BACKGROUND, &bg) == MM_CHUNK_OK &&
+          bg != links[1].number);
+    CHECK(mm_chunk_link_number(&chunks, MM_SCENE_CHUNK, scene, links[2].slot, MM_SOUND_CHUNK, &msnd) == MM_CHUNK_OK &&
+          msnd != links[2].number);
+    CHECK(mm_chunk_link_number(&chunks, MM_ACTOR_CHUNK, actor, links[3].slot, MM_TMPL, &tmpl) == MM_CHUNK_OK &&
+          tmpl != links[3].number);
+    CHECK(mm_chunk_link_number(&chunks, MM_ACTOR_CHUNK, actor, links[4].slot, MM_MATERIAL_CHUNK, &mtrl) == MM_CHUNK_OK &&
+          mtrl != links[4].number);
+    CHECK(mm_actor_archive_read_actor(&after, actor, &header) && header.template_number == tmpl);
+    events = mm_actor_archive_read_event_group(&after, actor, NULL);
+    CHECK(events && mm_actor_events_count(events) == 2);
+    CHECK(mm_actor_events_get_payload(events, 0, &costume) && costume.tag.number == mtrl);
+    CHECK(mm_actor_events_get_payload(events, 1, &sound) && sound.tag.number == msnd && sound.child == links[2].slot);
+    mm_actor_events_release(events);
+
+    reader_source.graph = mm_movie_owner_graph(mm_private_archive_reader(target));
+    reader = mm_movie_scene_reader(&reader_source);
+    CHECK(reader.group(reader.context, scene, 1, &group) == MM_MOVIE_OK && group.count == 1);
+    reader.event(reader.context, &group, 0, &row);
+    mm_movie_scene_event_tag(&row, &tag);
+    CHECK(row.kind == MM_SCENE_SET_BACKGROUND && tag.number == bg);
+    reader.close(reader.context, &group);
+    CHECK(reader.group(reader.context, scene, 0, &group) == MM_MOVIE_OK && group.count == 1);
+    reader.event(reader.context, &group, 0, &row);
+    CHECK(row.kind == MM_SCENE_PLAY_SOUND && mm_scene_sound_wire(row.data, row.bytes, row.big_endian, &wire));
+    mm_scene_sound_wire_tag(&wire, 0, &slot, &tag);
+    CHECK(slot == links[2].slot && tag.number == msnd);
+    reader.close(reader.context, &group);
+
+    for (count = 0; mm_chunk_at(&chunks, count, &entry) == MM_CHUNK_OK; ++count)
+        ;
+    CHECK(mm_chunk_unlink(&before.edit, MM_SCENE_CHUNK, snapshot.number, &links[1]) == MM_CHUNK_OK);
+    number = scene;
+    CHECK(!mm_scene_snapshot_copy(&snapshot, &endpoint, &after, &number) && number == scene);
+    chunks = mm_chunk_edit_access(&after.edit);
+    for (i = 0; mm_chunk_at(&chunks, i, &entry) == MM_CHUNK_OK; ++i)
+        ;
+    CHECK(i == count && has_snapshot(target, scene) && has_snapshot(snapshot.archive, snapshot.number));
+    mm_scene_snapshot_dispose(&snapshot);
+    mm_private_archive_close(target);
+    CHECK(!source.refs && !destination.refs);
 }
 int main(void)
 {
     test_core();
     test_transaction();
     test_snapshot();
+    test_snapshot_copy();
     puts("Scene chop policy passed");
     return 0;
 }

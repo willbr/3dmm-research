@@ -57,6 +57,7 @@ extern "C"
         void (*scene_change)(void *), (*invalidate)(void *);
         MMChunkEdit (*edit)(void *resources);
         int (*write)(void *, void *scene, MMU32 *number);
+        int (*copy_snapshot)(void *resources, const MMSceneSnapshot *, MMU32 *number);
         void (*save)(void *resources);
         void (*archive_issue)(void *, int issue);
         void (*missing_link)(void *);
@@ -95,6 +96,7 @@ extern "C"
     int mm_movie_scene_close(const MMMovieSceneServices *);
     int mm_movie_scene_switch(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *);
+    int mm_movie_scene_insert_snapshot(MMI32 index, const MMSceneSnapshot *, const MMMovieSceneServices *);
     int mm_movie_scene_new(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *);
@@ -187,7 +189,7 @@ extern "C"
     /* Clear may destroy the undo object and its record, so neither is accessed
      * after that callback.
      * Successful redo of insertion creates a fresh scene, then sets its background;
-     * undo of removal reads and inserts the archived scene. Flush precedes clear on failure. */
+     * undo of removal copies and inserts the archived scene. Flush precedes clear on failure. */
     int mm_movie_scene_undo(const MMMovieSceneUndoRecord *, int redo, const MMMovieSceneUndoServices *);
 #ifdef __cplusplus
 }

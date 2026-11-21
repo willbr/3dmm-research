@@ -262,23 +262,16 @@ static void unlink_scene(const MMChunkEdit *edit, const MMChunkChild *child, con
     if (mm_chunk_unlink(edit, MM_MOVIE_CHUNK, s->movie->movieNumber, child) != MM_CHUNK_OK && s->archive_issue)
         s->archive_issue(s->context, MM_MOVIE_ARCHIVE_UNLINK_FAILED);
 }
-int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *s)
+static int publish_scene(MMI32 index, MMU32 number, const MMMovieSceneServices *s)
 {
-    MMChunkEdit edit;
-    MMChunkChild child;
     MMMovieState *movie = s->movie;
-    MMI32 previous_count;
+    const MMChunkEdit edit = s->edit(movie->resources);
+    const MMI32 previous_count = movie->sceneCount;
+    MMChunkChild child;
     int status;
-    if (!s->make_resources(s->context))
-        return 0;
     child.type = MM_SCENE_CHUNK;
+    child.number = number;
     child.slot = (MMU32)index;
-    if (!s->use_temporary(s->context) || !mm_movie_scene_close(s) || !s->write(s->context, scene, &child.number))
-        return 0;
-    s->retain(scene);
-    s->close(scene);
-    edit = s->edit(movie->resources);
-    previous_count = movie->sceneCount;
     shift_scenes(index, previous_count, 1, &edit, s);
     ++movie->sceneCount;
     status = mm_chunk_adopt(&edit, MM_MOVIE_CHUNK, movie->movieNumber, &child, 1);
@@ -310,6 +303,30 @@ int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *
     else
         s->flush_sound(s->context);
     return 1;
+}
+int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *s)
+{
+    MMU32 number;
+    if (!s->make_resources(s->context) || !s->use_temporary(s->context) || !mm_movie_scene_close(s) ||
+        !s->write(s->context, scene, &number))
+        return 0;
+    s->retain(scene);
+    s->close(scene);
+    return publish_scene(index, number, s);
+}
+int mm_movie_scene_insert_snapshot(MMI32 index, const MMSceneSnapshot *snapshot, const MMMovieSceneServices *s)
+{
+    MMChunkEdit edit;
+    MMU32 number;
+    if (!snapshot->archive || !s->make_resources(s->context) || !s->use_temporary(s->context) ||
+        !s->copy_snapshot(s->movie->resources, snapshot, &number))
+        return 0;
+    if (mm_movie_scene_close(s))
+        return publish_scene(index, number, s);
+    edit = s->edit(s->movie->resources);
+    if (mm_chunk_delete(&edit, MM_SCENE_CHUNK, number) != MM_CHUNK_OK && s->archive_issue)
+        s->archive_issue(s->context, MM_MOVIE_ARCHIVE_DELETE_FAILED);
+    return 0;
 }
 int mm_movie_scene_new(MMI32 index, const MMMovieSceneServices *s)
 {
@@ -471,17 +488,8 @@ int mm_movie_scene_undo(const MMMovieSceneUndoRecord *record, int redo, const MM
             goto fail;
         }
     }
-    else
-    {
-        int inserted;
-        void *scene = mm_scene_snapshot_read(&record->saved.snapshot, &scenes->snapshot);
-        if (!scene)
-            goto fail;
-        inserted = mm_movie_scene_insert(index, scene, scenes);
-        scenes->release(scene);
-        if (!inserted)
-            goto fail;
-    }
+    else if (!mm_movie_scene_insert_snapshot(index, &record->saved.snapshot, scenes))
+        goto fail;
     s->notify(context, removed);
     scenes->flush_sound(context);
     return 1;

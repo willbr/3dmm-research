@@ -1311,8 +1311,9 @@ close/new/insert/remove transactions, undoable removal and scene undo/redo dispa
 now also use C89, including current-scene reference/index control and failure
 retry/rollback order. Scene insertion and removal share a C89 undo record.
 An insertion retains its background cache and a removal owns a private scene
-archive. Removal and chop share the C89 snapshot writer, reader, and release
-path. Studio loads a temporary scene from the archive for reinsertion.
+archive. Removal and chop share the C89 snapshot writer, copy, and release
+path. C89 copies the saved scene graph and rebinds its embedded references
+before either undo installs it. Studio loads the installed scene for playback.
 Scene insertion, removal, and composition use the C89 editor to move, adopt,
 and unlink live scene links.
 Composition also uses it to release temporary imported roots while keeping

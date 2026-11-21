@@ -9,7 +9,7 @@ typedef struct SnapshotFile
 {
     int refs, fail_resize;
     MMU32 size;
-    unsigned char bytes[256];
+    unsigned char bytes[4096];
 } SnapshotFile;
 
 static void snapshot_file_release(void *p)

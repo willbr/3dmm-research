@@ -291,7 +291,7 @@ static int copy_payload(const MMChunkEndpoint *src, const MMChunkEndpoint *dst,
 }
 
 static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
-                      MMU32 number, int clone, MMU32 *copied, int *created)
+                      MMU32 number, int clone, int (*reuse)(MMU32), MMU32 *copied, int *created)
 {
     MMCollectionStorage storage;
     MMArray map;
@@ -324,7 +324,7 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
     }
     if (!copy_lookup(src, type, number, &position, NULL))
         return MM_CHUNK_NOT_FOUND;
-    if (!clone && src->identity == dst->identity)
+    if (!clone && !reuse && src->identity == dst->identity)
     {
         if (created)
             *created = 0;
@@ -367,7 +367,8 @@ static int copy_chunk(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MM
             runtime = src->stored ? 0 : src->edit.runtime(src->edit.context, node.type, node.number);
             item.type = node.type;
             item.source = node.number;
-            if (runtime && !clone && mm_chunk_match(src, dst, node.type, node.number, &item.destination))
+            if (runtime && !clone && (!reuse || (!(flags & MM_WALK_ROOT) && reuse(node.type))) &&
+                mm_chunk_match(src, dst, node.type, node.number, &item.destination))
                 skip = 1;
             else
             {
@@ -449,7 +450,7 @@ done:
 int mm_chunk_copy(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
                   MMU32 number, int clone, MMU32 *copied)
 {
-    return copy_chunk(src, dst, type, number, clone, copied, NULL);
+    return copy_chunk(src, dst, type, number, clone, NULL, copied, NULL);
 }
 
 int mm_chunk_copy_reference(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
@@ -457,5 +458,12 @@ int mm_chunk_copy_reference(const MMChunkEndpoint *src, const MMChunkEndpoint *d
 {
     if (!created)
         return BAD;
-    return copy_chunk(src, dst, type, number, 0, copied, created);
+    return copy_chunk(src, dst, type, number, 0, NULL, copied, created);
+}
+
+int mm_chunk_copy_filtered(const MMChunkEndpoint *src, const MMChunkEndpoint *dst, MMU32 type,
+                           MMU32 number, int (*reuse)(MMU32), MMU32 *copied)
+{
+    int created;
+    return copy_chunk(src, dst, type, number, reuse == NULL, reuse, copied, &created);
 }
