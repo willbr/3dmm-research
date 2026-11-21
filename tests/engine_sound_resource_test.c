@@ -5,12 +5,16 @@
 #include "engine_resource_block_fixture.h"
 #include "chunk_writer_fixture.h"
 #include <assert.h>
+#include <stdlib.h>
 #include <string.h>
 enum { CREATE = 1, FIND, UNPACK, READ, NAME, CHILD, ADD, ADD_CHILD, LINK_CHILD, READ_SOURCE, WRITE_CHILD, SET_NAME, PUT };
-typedef struct Object { MMSoundResource resource; MMI32 silent; unsigned char invalid; int named; } Object;
 typedef struct Context
 {
-    MMSoundResourceServices services; MMArchiveWriter writer; Object object;
+    MMSoundResourceServices services;
+    MMSoundResourceHost host;
+    MMStorageAllocator objects;
+    MMArchiveWriter writer;
+    MMSoundState object;
     ChunkWriterFixture archive;
     MMResourceCache cache;
     MMResourceObject binding;
@@ -24,12 +28,30 @@ typedef struct Context
     void *object_slot,*size_slot; int release_after_invalidation;
 } Context;
 static int event(Context *c,int n) { assert(c->count<32); c->events[c->count++]=n; return c->fail!=n; }
-static void owner(void *p,void *object,MMSoundOwner *out)
-{ Object *o=(Object *)object; (void)p; out->resource=&o->resource; out->silent=&o->silent; out->invalid=&o->invalid; }
-static void *create(void *p) { Context *c=(Context *)p; if (!event(c,CREATE)) return NULL; ++c->created; return &c->object; }
-static void release(void *p,void *object)
-{ Context *c=(Context *)p; assert(object==&c->object); ++c->released; if (c->object_slot) { assert(c->invalidations==2); c->release_after_invalidation=1; } }
-static MMI32 object_size(void *p) { (void)p; return 333; }
+static void *allocate_owner(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
+{
+    Context *c = p;
+    void *object;
+    assert(!old && !old_bytes && bytes && priority == MM_STORAGE_NORMAL);
+    if (!event(c, CREATE))
+        return NULL;
+    object = malloc(bytes);
+    assert(object);
+    ++c->created;
+    return object;
+}
+static void free_owner(void *p, void *object, MMU32 bytes)
+{
+    Context *c = p;
+    assert(object && bytes && c->created > c->released);
+    if (c->object_slot)
+    {
+        assert(c->invalidations == 2);
+        c->release_after_invalidation = 1;
+    }
+    ++c->released;
+    free(object);
+}
 static void invalidate_output(void *p,void *out,size_t bytes)
 { Context *c=(Context *)p; assert(out==c->object_slot || out==c->size_slot); memset(out,0xcd,bytes); ++c->invalidations; }
 static int read_block(void *p, MMU32 offset, void *out, size_t bytes)
@@ -88,12 +110,13 @@ static void graph(void *p, void *file, MMMovieSessionGraph *out)
     source.context = p;
     *out = source;
 }
-static int read_name(void *p,void *f,MMResourceCache *cache,MMU32 type,MMU32 n,void *o)
+static int read_name(void *p,void *f,MMResourceCache *cache,MMU32 type,MMU32 n,MMSoundOwner *o)
 {
     Context *c = p;
+    MMStringValue name = mm_sound_owner_name(o);
     (void)type;
     assert(n == 37 && (cache ? cache == &c->cache && !f : p == f));
-    ((Object *)o)->named=1;
+    mm_string_value_set(&name, "test", 4);
     return event(c,NAME);
 }
 static int locate(void *p, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
@@ -222,7 +245,14 @@ static void initialize(Context *c)
     c->binding.type = 0x1234;
     c->binding.number = 37;
     c->object.resource.type=17; c->object.resource.number=18; c->object.resource.style=1; c->object.resource.volume=123; c->object.silent=2;
-    s=&c->services; s->context=c; s->owner=owner; s->create=create; s->release=release; s->object_size=object_size; s->invalidate_output=invalidate_output;
+    c->objects.context = c;
+    c->objects.resize = allocate_owner;
+    c->objects.release = free_owner;
+    c->host.services = &c->services;
+    c->host.objects = &c->objects;
+    c->host.cache_bytes = 333;
+    c->host.name_unit = 1;
+    s=&c->services; s->context=c; s->invalidate_output=invalidate_output;
     s->decode=decode; s->graph=graph; s->read_name=read_name; s->publish_invalid=publish_invalid;
     c->writer = chunk_writer_fixture(&c->archive, c, sound_extent, write_sound);
     c->archive.grow_name = set_name;
@@ -230,9 +260,18 @@ static void initialize(Context *c)
     c->archive.index.before_delete = deleted_sound;
     s->bad_order=bad_order; s->playing=playing; s->stop=stop; s->play=play;
 }
+static MMSoundOwner *direct_owner(Context *c)
+{
+    MMSoundOwner *owner = mm_sound_owner_create(&c->host);
+    assert(owner);
+    *mm_sound_owner_state(owner) = c->object;
+    return owner;
+}
+
 static void loads(void)
 {
     Context c; int failure,big,i,invalid; MMI32 size,style,volume; void *out;
+    MMSoundOwner *owner;
     for (big=0;big<2;++big) for (failure=0;failure<10;++failure)
     {
         initialize(&c); c.services.host_big_endian=big; if (big) { c.bytes[0]=0; c.bytes[1]=1; c.bytes[4]=0; c.bytes[7]=2; c.bytes[10]=0; c.bytes[9]=1; }
@@ -240,27 +279,53 @@ static void loads(void)
         c.packed=failure==UNPACK;
         if (failure==8) { c.bytes[0]^=1; c.bytes[1]^=1; } /* Foreign markers, native scalars. */
         if (failure==9) c.bytes[12]=1;
-        size=-1; assert(mm_sound_fetch(&c.cache,1,37,NULL,NULL,&size,&c.services) && size==333 && !c.count);
+        size=-1; assert(mm_sound_fetch(&c.cache,1,37,NULL,NULL,&size,&c.host) && size==333 && !c.count);
         out=NULL; c.object_slot=&out; c.size_slot=&size;
-        i=mm_sound_fetch(&c.cache,1,37,NULL,&out,&size,&c.services);
+        i=mm_sound_fetch(&c.cache,1,37,NULL,&out,&size,&c.host);
         assert(i==(failure==0 || failure>=8) && !c.file_refs);
-        if (i) { assert(out==&c.object && size==333 && c.object.resource.cache==&c.cache && c.object.resource.style==2 && c.object.resource.volume==65536L);
-            assert(c.object.invalid==(failure==9)); if (failure==9) assert(c.object.silent==2 && c.object.resource.number==18); else assert(!c.object.silent && c.object.resource.number==19); }
+        if (i)
+        {
+            const MMSoundState *state = mm_sound_owner_state(out);
+            MMStringValue name = mm_sound_owner_name(out);
+            assert(size == 333 && state->resource.cache == &c.cache && state->resource.style == 2 &&
+                   state->resource.volume == 65536L && mm_string_value_equal(&name, "test", 4));
+            assert(state->invalid == (failure == 9) && !state->silent);
+            assert(state->resource.number == (failure == 9 ? 0U : 19U));
+            c.object_slot = NULL;
+            mm_sound_owner_release(out);
+        }
         else { assert(c.invalidations==2 && (failure==CREATE || c.release_after_invalidation)); for (i=0;i<4;++i) assert(((unsigned char *)&size)[i]==0xcd); }
+        assert(c.created == c.released);
     }
     initialize(&c); c.packed=1;
-    assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, NULL, &out, &size, &c.services) && !c.file_refs);
-    assert(c.object.resource.cache==&c.cache && c.object.resource.number==19 && c.events[1]==UNPACK);
+    assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, NULL, &out, &size, &c.host) && !c.file_refs);
+    assert(mm_sound_owner_state(out)->resource.cache == &c.cache &&
+           mm_sound_owner_state(out)->resource.number == 19 && c.events[1] == UNPACK);
+    mm_sound_owner_release(out);
     initialize(&c); c.bytes[0]=0; c.bytes[1]=1; c.bytes[4]=0; c.bytes[7]=2; c.bytes[8]=0x12; c.bytes[9]=0x34; c.bytes[10]=0x56; c.bytes[11]=0x78;
-    assert(mm_sound_read(&c.object,&c,1,37,&c.services)); assert(c.object.resource.style==33554432L && c.object.resource.volume==2018915346L);
-    initialize(&c); c.fail=CHILD; assert(mm_sound_read(&c.object,&c,1,37,&c.services) && c.object.silent==1 && c.object.resource.number==18);
+    owner = direct_owner(&c);
+    assert(mm_sound_read(owner,&c,1,37));
+    assert(mm_sound_owner_state(owner)->resource.style == 33554432L &&
+           mm_sound_owner_state(owner)->resource.volume == 2018915346L);
+    mm_sound_owner_release(owner);
+    initialize(&c); c.fail=CHILD;
+    owner = direct_owner(&c);
+    assert(mm_sound_read(owner,&c,1,37) && mm_sound_owner_state(owner)->silent == 1 &&
+           mm_sound_owner_state(owner)->resource.number == 18);
+    c.bytes[12] = 1;
+    assert(mm_sound_read(owner,&c,1,37) && mm_sound_owner_state(owner)->invalid &&
+           mm_sound_owner_state(owner)->silent == 1 && mm_sound_owner_state(owner)->resource.number == 18);
+    mm_sound_owner_release(owner);
     for (failure=0;failure<=NAME;++failure) for (i=0;i<8;++i)
     {
         initialize(&c); c.fail=failure; invalid=17; style=18; volume=19;
-        assert(mm_sound_info(&c,1,37,i&1?&invalid:NULL,i&2?&style:NULL,i&4?&volume:NULL,&c.services)==!failure);
+        assert(mm_sound_info(&c,1,37,i&1?&invalid:NULL,i&2?&style:NULL,i&4?&volume:NULL,&c.host)==!failure);
         assert(invalid==(!failure && (i&1)?0:17) && style==(!failure && (i&2)?2:18) && volume==(!failure && (i&4)?65536L:19));
     }
-    initialize(&c); c.bytes[0]=c.bytes[1]=0x7f; assert(mm_sound_read(&c.object,&c,1,37,&c.services) && c.order==1);
+    initialize(&c); c.bytes[0]=c.bytes[1]=0x7f;
+    owner = direct_owner(&c);
+    assert(mm_sound_read(owner,&c,1,37) && c.order == 1);
+    mm_sound_owner_release(owner);
 }
 
 static void supplied_block(void)
@@ -275,10 +340,11 @@ static void supplied_block(void)
         c.packed = packed;
         assert(mm_resource_cache_read_block(&c.cache, MM_SOUND_TYPE, 37, &c.block.owner) == MM_CHUNK_OK);
         assert(c.locates == 1 && c.file_refs == 1);
-        assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, &c.block.owner, NULL, &size, &c.services));
+        assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, &c.block.owner, NULL, &size, &c.host));
         assert(size == 333 && !c.count && c.block.owner.view.packed == packed);
-        assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, &c.block.owner, &out, &size, &c.services));
-        assert(out == &c.object && size == 333 && c.locates == 1 && c.object.resource.number == 19);
+        assert(mm_sound_fetch(&c.cache, MM_SOUND_TYPE, 37, &c.block.owner, &out, &size, &c.host));
+        assert(size == 333 && c.locates == 1 && mm_sound_owner_state(out)->resource.number == 19);
+        mm_sound_owner_release(out);
         assert(c.block.owner.view.kind == (packed ? MM_BLOCK_MEMORY : MM_BLOCK_FILE));
         assert(c.file_refs == !packed);
         assert(mm_owned_block_clear(&c.block.owner) == MM_DATA_OK && !c.file_refs);
@@ -296,8 +362,8 @@ static void catalog(void)
     c.bytes[13] = 1;
     assert(mm_sound_catalog_style(&source, 37, 0, &style) && style == 2);
     c.count = 0;
-    assert(mm_sound_read(&c.object, &c, MM_SOUND_TYPE, 37, &c.services) && !c.object.silent &&
-           c.object.resource.type == MM_TEXT_ROOT && c.object.resource.number == 19 && c.order == 1);
+    assert(mm_sound_read_graph(&c.object, &source, MM_SOUND_TYPE, 37, 0) && !c.object.silent &&
+           c.object.resource.type == MM_TEXT_ROOT && c.object.resource.number == 19 && !c.order);
     c.count = 0;
     c.children = 0;
     style = -1;

@@ -26,6 +26,7 @@
 #include "sdl_audio.h"
 #endif
 #include "soc.h"
+#include "mm/string_wire.h"
 #include "handle_services.h"
 #include "mm/actor_sound.h"
 #include "engine_movie_graph.h"
@@ -38,14 +39,13 @@
 
 ASSERTNAME
 
-RTCLASS(MovieSoundMSND)
 RTCLASS(MovieSoundQueue)
 
 BEGIN_CMD_MAP(MovieSoundQueue, CommandHandler)
 ON_CID_ME(cidAlarm, &MovieSoundQueue::FCmdAlarm, pvNil)
 END_CMD_MAP_NIL()
 
-MMSoundResourceServices MovieSoundMSND::_ResourceServices()
+static MMSoundResourceServices SoundServices()
 {
     MMSoundResourceServices s = {};
     s.system = koskCur;
@@ -59,23 +59,20 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices()
     static_assert(kctgMsnd == MM_SOUND_TYPE && kctgMidi == MM_SOUND_MIDI &&
                       kctgWave == MM_SOUND_WAVE && kchidSnd == 0 && tNo == 0 && tYes == 1,
                   "sound wire enums");
-    s.owner = [](void *, void *object, MMSoundOwner *out) {
-        auto sound = static_cast<PMovieSoundMSND>(object);
-        *out = {&sound->_resource, &sound->_silent, &sound->_invalid};
-    };
-    s.create = [](void *) -> void * { return NewObj MovieSoundMSND(); };
-    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.object_size = [](void *) -> MMI32 { return sizeof(MovieSoundMSND); };
+    const unsigned short one = 1;
+    s.host_big_endian = *reinterpret_cast<const unsigned char *>(&one) == 0;
     s.invalidate_output = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
     s.decode = KauaiDecodeBlockHandle;
     s.graph = [](void *, void *file, MMMovieSessionGraph *out) {
         *out = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file));
     };
-    s.read_name = [](void *, void *file, MMResourceCache *cache, MMU32 type, MMU32 number, void *object) -> int {
-        auto name = &static_cast<PMovieSoundMSND>(object)->_stn;
-        if (cache)
-            return static_cast<PChunkyResourceFile>(cache->owner)->FGetName(type, number, name);
-        return static_cast<PChunkyFile>(file)->FGetName(type, number, name);
+    s.read_name = [](void *, void *file, MMResourceCache *cache, MMU32 type, MMU32 number, MMSoundOwner *sound) -> int {
+        String name;
+        const bool found = cache ? static_cast<PChunkyResourceFile>(cache->owner)->FGetName(type, number, &name) :
+                                  static_cast<PChunkyFile>(file)->FGetName(type, number, &name);
+        const auto storage = mm_sound_owner_name(sound);
+        mm_string_value_copy(&storage, name.Pst());
+        return found;
     };
     s.publish_invalid = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
     s.bad_order = [](void *) { Assert(false, "bad MovieSoundFile"); };
@@ -90,42 +87,55 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices()
     return s;
 }
 
-/***************************************************************************
-
-    Read a movie sound from the cache's bound block.
-
-***************************************************************************/
-int MovieSoundMSND::FReadMsnd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
-    void **out, MMI32 *bytes)
+const MMSoundResourceHost &EngineSound::Host()
 {
-    const auto services = _ResourceServices();
-    return mm_sound_fetch(cache, type, number, block, out, bytes, &services);
+    static const auto services = SoundServices();
+    // Preserve the historical cache charge, including the native title width.
+    size_t prefix = sizeof(void *) == 8 ? 40 : 28;
+#ifdef DEBUG
+    if (sizeof(void *) == 4)
+        prefix += 4;
+#endif
+    const size_t bytes = prefix + sizeof(MMSoundResource) + sizeof(MMI32) + (MM_STRING_MAX + 2) * sizeof(achar) + 1;
+    static const MMSoundResourceHost host = {
+        &services, KauaiResourceObjectAllocator(),
+        static_cast<MMI32>((bytes + sizeof(void *) - 1) & ~(sizeof(void *) - 1)), sizeof(achar),
+#ifdef DEBUG
+        [](void *p) { MarkPv(p); },
+        [](MMResourceCache *cache) { MarkMemObj(static_cast<PChunkyResourceFile>(cache->owner)); }
+#else
+        nullptr, nullptr
+#endif
+    };
+    return host;
 }
 
-/***************************************************************************
-
-    Retrieve information contained in the msnd chunk
-
-***************************************************************************/
-bool MovieSoundMSND::FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfInvalid, long *psty,
-                                  long *pvlm)
+int EngineSound::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-    AssertPo(pcfl, 0);
-    const auto services = _ResourceServices();
-    return mm_sound_info(pcfl, ctg, cno, pfInvalid, psty, pvlm, &services) != 0;
+    return mm_sound_fetch(cache, type, number, block, out, bytes, &Host());
 }
 
-/***************************************************************************
-
-    Init a MovieSoundMSND from the given chunk of the given ChunkyFile
-
-***************************************************************************/
-bool MovieSoundMSND::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+PMovieSoundMSND EngineSound::Fetch(PTAG tag)
 {
-    AssertBaseThis(0);
-    AssertPo(pcfl, 0);
-    const auto services = _ResourceServices();
-    return mm_sound_read(this, pcfl, ctg, cno, &services) != 0;
+    return static_cast<PMovieSoundMSND>(vptagm->FetchResource(tag, Read, mm_sound_owner_services()));
+}
+
+PMovieSoundMSND EngineSound::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number)
+{
+    return static_cast<PMovieSoundMSND>(mm_resource_cache_fetch_owned_chunk(file->CoreCache(), type, number, Read,
+                                                                          mm_sound_owner_services()));
+}
+
+bool EngineSound::Info(PChunkyFile file, ChunkTagOrType type, ChunkNumber number, bool *invalid, long *style, long *volume)
+{
+    AssertPo(file, 0);
+    return mm_sound_info(file, type, number, invalid, style, volume, &Host()) != 0;
+}
+
+void EngineSound::GetName(PMovieSoundMSND sound, PString name)
+{
+    const auto value = mm_sound_owner_name(sound);
+    name->SetSt(static_cast<achar *>(value.buffer));
 }
 
 /***************************************************************************
@@ -134,7 +144,7 @@ bool MovieSoundMSND::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cn
     ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String *pstnName, ChunkNumber *pcno)
+bool EngineSound::WriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String *pstnName, ChunkNumber *pcno)
 {
     AssertPo(pcflDest, 0);
     AssertPo(pmids, 0);
@@ -151,7 +161,7 @@ bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String 
     ie, write the MovieSoundMSND chunk, its name, and the midi child
 
 ***************************************************************************/
-bool MovieSoundMSND::FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName,
+bool EngineSound::WriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName,
                                 ChunkNumber *pcno)
 {
     AssertPo(pfilSrc, 0);
@@ -169,12 +179,12 @@ bool MovieSoundMSND::FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long 
     The *pcno is returned
 
 ***************************************************************************/
-bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn)
+bool EngineSound::CopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn)
 {
-    return FCopyMidi(pfilSrc, pcflDest->WriteIndex(), pcno, pstn);
+    return CopyMidi(pfilSrc, pcflDest->WriteIndex(), pcno, pstn);
 }
 
-bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, const MMArchiveWriter &archive, ChunkNumber *pcno, PString pstn)
+bool EngineSound::CopyMidi(PFileObject pfilSrc, const MMArchiveWriter &archive, ChunkNumber *pcno, PString pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertNilOrPo(pstn, 0);
@@ -199,13 +209,13 @@ bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, const MMArchiveWriter &archi
     Copy the wave file to a chunk in the current movie
 
 ***************************************************************************/
-bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn)
+bool EngineSound::CopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertPo(pcflDest, 0);
-    return FCopyWave(pfilSrc, pcflDest->WriteIndex(), sty, pcno, pstn);
+    return CopyWave(pfilSrc, pcflDest->WriteIndex(), sty, pcno, pstn);
 }
 
-bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, long sty, ChunkNumber *pcno, PString pstn)
+bool EngineSound::CopyWave(PFileObject pfilSrc, const MMArchiveWriter &archive, long sty, ChunkNumber *pcno, PString pstn)
 {
     AssertPo(pfilSrc, 0);
     AssertIn(sty, 0, styLim);
@@ -371,79 +381,31 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, const MMArchiveWriter &archi
     Invalidate a sound
 
 ***************************************************************************/
-bool MovieSoundMSND::FInvalidate(void)
+bool EngineSound::Invalidate(PMovieSoundMSND sound)
 {
-    AssertThis(0);
-    const auto binding = ResourceBinding();
+    const auto binding = mm_sound_owner_binding(sound);
     if (!binding->cache)
         return false;
     const auto cache = static_cast<PChunkyResourceFile>(binding->cache->owner);
     const auto edit = cache->ArchiveWriter().edit;
-    const auto services = _ResourceServices();
-    return mm_sound_invalidate(this, binding, &edit, &services) != 0;
+    return mm_sound_invalidate(mm_sound_owner_state(sound), binding, &edit, Host().services) != 0;
 }
 
-/***************************************************************************
-
-    Clean up and delete this movie sound
-
-***************************************************************************/
-MovieSoundMSND::~MovieSoundMSND(void)
+long EngineSound::Priority(PMovieSoundMSND sound, long tool)
 {
-    AssertBaseThis(0);
-}
-
-/***************************************************************************
-
-    Return the sqn for an msnd attached to an actor object of
-    id == objid
-    Static function
-
-***************************************************************************/
-long MovieSoundMSND::SqnActr(long sty, long objid)
-{
-    AssertIn(sty, 0, styLim);
-    return mm_sound_queue_number(static_cast<MMI32>(sty), static_cast<MMI32>(objid), 1);
-}
-
-/***************************************************************************
-
-    Return the sqn for an msnd attached to an actor object of
-    id == objid
-    Static function
-
-***************************************************************************/
-long MovieSoundMSND::SqnBkgd(long sty, long objid)
-{
-    AssertIn(sty, 0, styLim);
-    return mm_sound_queue_number(static_cast<MMI32>(sty), static_cast<MMI32>(objid), 0);
-}
-
-/***************************************************************************
-
-    Return the priority for a tool,sty combination
-
-***************************************************************************/
-long MovieSoundMSND::Spr(long tool)
-{
-    AssertThis(0);
+    const auto style = Style(sound);
     Assert(tool == toolMatcher || tool == toolSounder || tool == toolLooper, "Invalid tool");
-    Assert(_resource.style != styMidi || tool != toolMatcher, "No midi motion matching");
-    AssertIn(_resource.style, stySfx, styLim);
-    return mm_sound_priority(_resource.style, static_cast<int>(tool - toolSounder));
+    Assert(style != styMidi || tool != toolMatcher, "No midi motion matching");
+    AssertIn(style, stySfx, styLim);
+    return mm_sound_priority(style, static_cast<int>(tool - toolSounder));
 }
 
-/***************************************************************************
-
-    Play this sound
-
-***************************************************************************/
-void MovieSoundMSND::Play(long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr, ulong dtsStart)
+void EngineSound::Play(PMovieSoundMSND sound, long object, bool loop, bool queue, long volume, long priority,
+                       bool actor, ulong start)
 {
-    AssertThis(0);
     static MMSoundLastMidi last = {};
-    const auto services = _ResourceServices();
-    mm_sound_play(this, &last, objID, fLoop, fQueue, vlm, spr, fActr, dtsStart, &services);
+    mm_sound_play(mm_sound_owner_state(sound), &last, object, loop, queue, volume, priority, actor, start,
+                  Host().services);
 }
 
 static void StopMovieSoundClass(void *, MMI32 soundClass)
@@ -470,9 +432,9 @@ MMFrameSoundOutput MovieSoundQueue::_Output()
     output.begin = [](void *) { vpsndm->BeginSynch(); };
     output.end = [](void *) { vpsndm->EndSynch(); };
     output.play = [](void *, const MMFrameSoundRequest *request) {
-        auto sound = static_cast<PMovieSoundMSND>(static_cast<BASE *>(request->sound));
-        sound->Play(request->object, request->loop != 0, request->queued != 0, request->volume, request->priority,
-                    request->actor != 0, request->offset);
+        auto sound = static_cast<PMovieSoundMSND>(request->sound);
+        EngineSound::Play(sound, request->object, request->loop != 0, request->queued != 0, request->volume,
+                          request->priority, request->actor != 0, request->offset);
     };
     output.stop_class = StopMovieSoundClass;
     output.playing_class = [](void *, MMI32 soundClass) -> int { return vpsndm->FPlayingAll(sqnNil, soundClass); };
@@ -491,8 +453,9 @@ PMovieSoundQueue MovieSoundQueue::PmsqNew(void)
     constexpr int trashUnused = 0;
 #endif
     if (!mm_frame_sound_queue_open(&queue->_queue, KauaiCopyAllocator(),
-                                   [](void *p) { static_cast<BASE *>(p)->AddRef(); },
-                                   [](void *p) { static_cast<BASE *>(p)->Release(); }, trashUnused, &output))
+                                   [](void *p) { mm_sound_owner_retain(static_cast<MMSoundOwner *>(p)); },
+                                   [](void *p) { mm_sound_owner_release(static_cast<MMSoundOwner *>(p)); },
+                                   trashUnused, &output))
         ReleasePpo(&queue);
     return queue;
 }
@@ -501,8 +464,8 @@ bool MovieSoundQueue::FEnqueue(PMovieSoundMSND sound, long object, bool loop, bo
                                bool actor, ulong offset, bool lowPriority)
 {
     AssertThis(0);
-    AssertPo(sound, 0);
-    const MMFrameSoundRequest request = {static_cast<BASE *>(sound), static_cast<MMI32>(sound->Sty()),
+    Assert(sound, "Missing sound owner");
+    const MMFrameSoundRequest request = {sound, static_cast<MMI32>(EngineSound::Style(sound)),
         static_cast<MMI32>(object), static_cast<MMI32>(volume), static_cast<MMI32>(priority),
         static_cast<MMU32>(offset), loop, queued, actor};
     return mm_frame_sound_queue_enqueue(&_queue, &request, lowPriority) != 0;
@@ -552,28 +515,6 @@ MovieSoundQueue::~MovieSoundQueue(void)
 
 #ifdef DEBUG
 /***************************************************************************
-    Assert the validity of the MovieSoundMSND.
-***************************************************************************/
-void MovieSoundMSND::AssertValid(LegacyUlong grf)
-{
-    MovieSoundMSND_PAR::AssertValid(fobjAllocated);
-    auto cache = _resource.cache ? static_cast<PChunkyResourceFile>(_resource.cache->owner) : nullptr;
-    AssertNilOrPo(cache, 0);
-    AssertIn(_resource.style, 0, styLim);
-}
-
-/***************************************************************************
-    Mark memory used by the MovieSoundMSND
-***************************************************************************/
-void MovieSoundMSND::MarkMem(void)
-{
-    AssertThis(0);
-    MovieSoundMSND_PAR::MarkMem();
-    // The weak _resource.cache marks us; marking it here would cause
-    // an infinite recursive loop.
-}
-
-/***************************************************************************
     Assert the validity of the MovieSoundQueue.
 ***************************************************************************/
 void MovieSoundQueue::AssertValid(LegacyUlong grf)
@@ -586,7 +527,7 @@ void MovieSoundQueue::AssertValid(LegacyUlong grf)
 }
 
 /***************************************************************************
-    Mark memory used by the MovieSoundMSND
+    Mark memory used by the MovieSoundQueue
 ***************************************************************************/
 void MovieSoundQueue::MarkMem(void)
 {
@@ -594,7 +535,7 @@ void MovieSoundQueue::MarkMem(void)
     MovieSoundQueue_PAR::MarkMem();
     MarkPv(_queue.storage.buffers[0].data);
     for (MMU32 index = 0; index < _queue.count; ++index)
-        MarkMemObj(static_cast<BASE *>(mm_frame_sound_queue_at(&_queue, index)->sound));
+        mm_sound_owner_services()->mark_memory(mm_frame_sound_queue_at(&_queue, index)->sound);
     MarkMemObj(static_cast<PClock>(_queue.clock));
 }
 

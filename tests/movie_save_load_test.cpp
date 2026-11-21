@@ -2161,18 +2161,6 @@ static bool TestActorPlacement()
     return true;
 }
 
-class QueueTestSound : public MovieSoundMSND
-{
-  public:
-    QueueTestSound(long style)
-    {
-        _resource.style = style;
-        _resource.volume = 123;
-        _silent = tYes; // Exercise dispatch without an audio file/device.
-        _invalid = false;
-    }
-};
-
 class QueueTestClock : public Clock
 {
   public:
@@ -2202,8 +2190,8 @@ class QueueTestAdapter : public MovieSoundQueue
         auto output = _Output();
         output.create_clock = [](void *) -> void * { return static_cast<PClock>(NewObj QueueTestClock()); };
         return mm_frame_sound_queue_open(&_queue, KauaiCopyAllocator(),
-            [](void *p) { static_cast<BASE *>(p)->AddRef(); },
-            [](void *p) { static_cast<BASE *>(p)->Release(); }, 0, &output) != 0;
+            [](void *p) { mm_sound_owner_retain(static_cast<PMovieSoundMSND>(p)); },
+            [](void *p) { mm_sound_owner_release(static_cast<PMovieSoundMSND>(p)); }, 0, &output) != 0;
     }
     long Pending() const
     {
@@ -2226,39 +2214,46 @@ class QueueTestAdapter : public MovieSoundQueue
 static bool TestSoundQueueRuntime()
 {
     QueueTestAdapter *queue = NewObj QueueTestAdapter();
-    QueueTestSound *sound = NewObj QueueTestSound(stySfx);
+    auto sound = mm_sound_owner_create(&EngineSound::Host());
+    if (sound)
+    {
+        auto state = mm_sound_owner_state(sound);
+        state->resource.style = stySfx;
+        state->resource.volume = 123;
+        state->silent = tYes; // Exercise dispatch without an audio file/device.
+    }
     QueueTestAdapter *failedAlarm = pvNil;
     MMFrameSoundRequest request = {};
     ulong firstAlarm = 0;
     bool ok = false;
     if (queue == pvNil || sound == pvNil || !queue->FInit() || queue->DtimSnd() != kdtim2Msq)
         goto done;
-    if (!queue->FEnqueue(sound, 37, true, false, 123, 5, true, 456) || sound->CactRef() != 2 || !queue->Take(&request))
+    if (!queue->FEnqueue(sound, 37, true, false, 123, 5, true, 456) || mm_sound_owner_references(sound) != 2 || !queue->Take(&request))
         goto done;
-    if (request.sound != static_cast<BASE *>(sound) || request.style != stySfx || request.object != 37 || !request.actor ||
+    if (request.sound != sound || request.style != stySfx || request.object != 37 || !request.actor ||
         !request.loop || request.queued || request.volume != 123 || request.priority != 5 || request.offset != 456)
         goto done;
-    static_cast<BASE *>(request.sound)->Release();
+    mm_sound_owner_release(static_cast<PMovieSoundMSND>(request.sound));
     request.sound = nullptr;
-    if (sound->CactRef() != 1 || MovieSoundMSND::SqnActr(stySfx, 37) != 0x10020025)
+    if (mm_sound_owner_references(sound) != 1 || mm_sound_queue_number(stySfx, 37, 1) != 0x10020025)
         goto done;
     if (!queue->FEnqueue(sound, 37, false, false, 123, 5))
         goto done;
     queue->PlayMsq();
-    if (queue->Pending() != 0 || sound->CactRef() != 1 || queue->Alarms() != 1)
+    if (queue->Pending() != 0 || mm_sound_owner_references(sound) != 1 || queue->Alarms() != 1)
         goto done;
     firstAlarm = queue->FirstAlarm();
     queue->SndOnLong();
     if (!queue->FEnqueue(sound, 37, false, false, 123, 5))
         goto done;
     queue->PlayMsq();
-    if (queue->Pending() != 0 || sound->CactRef() != 1 || queue->Alarms() != 1 || queue->FirstAlarm() != firstAlarm)
+    if (queue->Pending() != 0 || mm_sound_owner_references(sound) != 1 || queue->Alarms() != 1 || queue->FirstAlarm() != firstAlarm)
         goto done; // Long mode adds no alarm and does not cancel the existing preview alarm.
     if (!queue->FEnqueue(sound, 37, false, false, 123, 5))
         goto done;
     queue->SndOff();
     queue->PlayMsq();
-    if (queue->Pending() != 0 || sound->CactRef() != 1 || queue->Alarms() != 1)
+    if (queue->Pending() != 0 || mm_sound_owner_references(sound) != 1 || queue->Alarms() != 1)
         goto done;
 #ifdef DEBUG
     failedAlarm = NewObj QueueTestAdapter();
@@ -2275,17 +2270,17 @@ static bool TestSoundQueueRuntime()
         vdmglob.dmaglHq.cactFail = 0;
         vmutxMem.Leave();
         vpers->Clear();
-        if (!consumed || failedAlarm->Alarms() != 0 || failedAlarm->Pending() != 0 || sound->CactRef() != 1)
+        if (!consumed || failedAlarm->Alarms() != 0 || failedAlarm->Pending() != 0 || mm_sound_owner_references(sound) != 1)
             goto done;
     }
 #endif
     ok = true;
 done:
     if (request.sound)
-        static_cast<BASE *>(request.sound)->Release();
+        mm_sound_owner_release(static_cast<PMovieSoundMSND>(request.sound));
     ReleasePpo(&failedAlarm);
     ReleasePpo(&queue);
-    ReleasePpo(&sound);
+    mm_sound_owner_release(sound);
     return ok;
 }
 

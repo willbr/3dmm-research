@@ -7,9 +7,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
     const SoundGraphResolver &resolveSound;
     MMActorRecording record{};
     int lifeDirty = 0;
-    MMSoundResource sound{};
-    MMI32 silent = 0;
-    unsigned char invalid = 0;
+    MMSoundState sound{};
 
     static AnimationHost &Get(void *value)
     {
@@ -20,20 +18,10 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         MMMovieSessionGraph graph;
         if (!resolveSound({tag.sid, 0, tag.type, tag.number}, graph))
             return false;
-        MMSoundResourceServices s{};
         const unsigned short one = 1;
-        sound = {}; silent = 0; invalid = 0;
-        s.context = this;
-        s.host_big_endian = *reinterpret_cast<const unsigned char *>(&one) == 0;
-        s.graph = [](void *, void *f, MMMovieSessionGraph *out) {
-            *out = *static_cast<const MMMovieSessionGraph *>(f);
-        };
-        s.read_name = [](void *, void *, MMResourceCache *, MMU32, MMU32, void *) { return 1; };
-        s.owner = [](void *v, void *, MMSoundOwner *out) {
-            auto &h = *static_cast<AnimationHost *>(v);
-            *out = {&h.sound, &h.silent, &h.invalid};
-        };
-        return mm_sound_read(this, &graph, tag.type, tag.number, &s) && !invalid;
+        sound = {};
+        const bool big = *reinterpret_cast<const unsigned char *>(&one) == 0;
+        return mm_sound_read_graph(&sound, &graph, tag.type, tag.number, big) && !sound.invalid;
     }
     MMActorActionEditServices Action()
     {
@@ -72,7 +60,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.sounds.runtime.release = [](void *, void *) {};
         s.sounds.sound_info = [](void *, void *resource, MMActorSoundInfo *info) {
             const auto &h = *static_cast<AnimationHost *>(resource);
-            *info = {h.sound.style, h.sound.volume, h.silent};
+            *info = {h.sound.resource.style, h.sound.resource.volume, h.sound.silent};
         };
         s.sounds.sounds_suppressed = [](void *) { return 1; };
         s.sounds.set_sound_frame = [](void *) {};

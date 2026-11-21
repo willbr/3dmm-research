@@ -48,7 +48,7 @@ MMActorSoundEditServices Actor::_SoundEditServices()
     };
     s.sound_info = [](void *, void *resource, MMActorSoundInfo *info) {
         auto sound = static_cast<PMovieSoundMSND>(resource);
-        info->style = sound->Sty(); info->volume = sound->Vlm(); info->no_sound = sound->FNoSound();
+        info->style = EngineSound::Style(sound); info->volume = EngineSound::Volume(sound); info->no_sound = EngineSound::NoSound(sound);
     };
     s.sounds_suppressed = [](void *p) { return int((static_cast<Actor *>(p)->_Scene()->GrfScen() & fscenSounds) != 0); };
     s.set_sound_frame = [](void *p) { static_cast<Actor *>(p)->Pscen()->Pmvie()->Pmcc()->SetSndFrame(fTrue); };
@@ -101,11 +101,11 @@ MMActorSoundServices Actor::_SoundServices()
     services.fetch = [](void *, const MMTag *value) -> void * {
         TAG tag;
         TagFromCore(&tag, *value);
-        return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+        return EngineSound::Fetch(&tag);
     };
     services.priority = [](void *, void *resource, int kind) -> MMI32 {
         const long tools[] = {toolSounder, toolLooper, toolMatcher};
-        return static_cast<PMovieSoundMSND>(resource)->Spr(tools[kind]);
+        return EngineSound::Priority(static_cast<PMovieSoundMSND>(resource), tools[kind]);
     };
     services.enqueue = [](void *context, void *resource, const MMActorSound *sound, MMI32 priority, int low) {
         auto actor = static_cast<Actor *>(context);
@@ -113,8 +113,7 @@ MMActorSoundServices Actor::_SoundServices()
                    sound->loop, sound->queue, sound->volume, priority, fTrue, 0, low != 0));
     };
     services.release = [](void *, void *resource) {
-        auto sound = static_cast<PMovieSoundMSND>(resource);
-        ReleasePpo(&sound);
+        mm_sound_owner_release(static_cast<PMovieSoundMSND>(resource));
     };
     return services;
 }

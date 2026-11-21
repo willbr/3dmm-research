@@ -1216,15 +1216,15 @@ bool ListenerSound::FValidSnd(void)
     for (itag = 0; itag < _pgltag->IvMac(); itag++)
     {
         _pgltag->Get(itag, &tag);
-        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+        pmsnd = EngineSound::Fetch(&tag);
         if (pvNil == pmsnd)
             continue;
-        if (!pmsnd->FValid())
+        if (!EngineSound::Valid(pmsnd))
         {
-            ReleasePpo(&pmsnd);
+            mm_sound_owner_release(pmsnd);
             continue;
         }
-        ReleasePpo(&pmsnd);
+        mm_sound_owner_release(pmsnd);
         return fTrue;
     }
     return fFalse;
@@ -1500,23 +1500,25 @@ bool ListenerSound::FInit(long sty, long kidVol, long kidIcon, long kidEditBox, 
     for (itag = 0; itag < _pgltag->IvMac(); itag++)
     {
         _pgltag->Get(itag, &tag);
-        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+        pmsnd = EngineSound::Fetch(&tag);
         if (pvNil == pmsnd)
             return fFalse;
-        if (!pmsnd->FValid())
+        if (!EngineSound::Valid(pmsnd))
         {
-            ReleasePpo(&pmsnd);
+            mm_sound_owner_release(pmsnd);
             continue;
         }
         ptgob = TextGraphicsObject::PtgobCreate(kidEditBox, idsListenFont, tavCenter);
         if (pvNil == ptgob)
         {
             Warn("missing edit box");
-            ReleasePpo(&pmsnd);
+            mm_sound_owner_release(pmsnd);
             return fFalse;
         }
-        ptgob->SetText(pmsnd->Pstn());
-        ReleasePpo(&pmsnd);
+        String name;
+        EngineSound::GetName(pmsnd, &name);
+        ptgob->SetText(&name);
+        mm_sound_owner_release(pmsnd);
         goto LFound;
     }
     // No valid msnd -> no UI change required
@@ -1560,12 +1562,12 @@ void ListenerSound::Play(void)
     {
         _pgltag->Get(itag, &tag);
         // Verify sound before including in the event list
-        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+        pmsnd = EngineSound::Fetch(&tag);
         if (pvNil == pmsnd)
             continue; // ignore failure
-        Assert(pmsnd->Sty() == _sty, 0);
-        pmsnd->Play(_objID, _fLoop, (itag > 0), _vlmNew, 1, fTrue);
-        ReleasePpo(&pmsnd);
+        Assert(EngineSound::Style(pmsnd) == _sty, 0);
+        EngineSound::Play(pmsnd, _objID, _fLoop, (itag > 0), _vlmNew, 1, fTrue);
+        mm_sound_owner_release(pmsnd);
     }
 }
 

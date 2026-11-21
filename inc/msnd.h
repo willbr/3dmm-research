@@ -8,7 +8,6 @@
     Primary Authors: *****, *****
     Status:  Reviewed
 
-    BASE ---> BaseCacheableObject ---> MovieSoundMSND
     BASE ---> CommandHandler  ---> MovieSoundQueue
 
     NOTE: when the MovieSoundQueue stops sounds, it does it based on sound class (scl)
@@ -65,88 +64,37 @@ void StopAllMovieSounds(void);
     The Movie Sound class
 
 ****************************************/
-typedef class MovieSoundMSND *PMovieSoundMSND;
-#define MovieSoundMSND_PAR BaseCacheableObject
-#define kclsMovieSoundMSND 'MSND'
-class MovieSoundMSND : public MovieSoundMSND_PAR
+using PMovieSoundMSND = MMSoundOwner *;
+
+namespace EngineSound
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
+const MMSoundResourceHost &Host();
+int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
+PMovieSoundMSND Fetch(PTAG);
+PMovieSoundMSND Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
+bool Info(PChunkyFile, ChunkTagOrType, ChunkNumber, bool *invalid = nullptr, long *style = nullptr,
+          long *volume = nullptr);
+bool CopyMidi(PFileObject, PChunkyFile, ChunkNumber *, PString name = nullptr);
+bool CopyMidi(PFileObject, const MMArchiveWriter &, ChunkNumber *, PString);
+bool WriteMidi(PChunkyFile, PMidiStream, PString, ChunkNumber *);
+bool CopyWave(PFileObject, PChunkyFile, long style, ChunkNumber *, PString name = nullptr);
+bool CopyWave(PFileObject, const MMArchiveWriter &, long style, ChunkNumber *, PString);
+bool WriteWave(PFileObject, PChunkyFile, long style, PString, ChunkNumber *);
 
-  protected:
-    MMSoundResource _resource = {};
-    MMI32 _silent = 0;
-    String _stn; // Native String service; separate slots preserve the cache estimate.
-    unsigned char _invalid = 0;
+inline const MMSoundState &State(PMovieSoundMSND sound) { return *mm_sound_owner_state(sound); }
+inline bool Valid(PMovieSoundMSND sound) { return !State(sound).invalid; }
+inline tribool NoSound(PMovieSoundMSND sound) { return static_cast<tribool>(State(sound).silent); }
+inline long Style(PMovieSoundMSND sound) { return State(sound).resource.style; }
+inline long Volume(PMovieSoundMSND sound) { return State(sound).resource.volume; }
 
-  protected:
-    bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    static MMSoundResourceServices _ResourceServices();
-
-  public:
-    static int FReadMsnd(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                           void **object, MMI32 *bytes);
-    static bool FGetMsndInfo(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bool *pfInvalid = pvNil, long *psty = pvNil,
-                             long *pvlm = pvNil);
-    static bool FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkNumber *pcno, PString pstn = pvNil);
-    static bool FCopyMidi(PFileObject, const MMArchiveWriter &, ChunkNumber *, PString);
-    static bool FWriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String *pstnName, ChunkNumber *pcno);
-    static bool FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, ChunkNumber *pcno, PString pstn = pvNil);
-    static bool FCopyWave(PFileObject, const MMArchiveWriter &, long sty, ChunkNumber *, PString);
-    static bool FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long sty, String *pstnName, ChunkNumber *pcno);
-    ~MovieSoundMSND(void);
-
-    static long SqnActr(long sty, long objID);
-    static long SqnBkgd(long sty, long objID);
-    long Scl(bool fLoop)
-    {
-        return mm_sound_class(_resource.style, fLoop);
-    }
-    long SqnActr(long objID)
-    {
-        AssertThis(0);
-        return SqnActr(_resource.style, objID);
-    }
-    long SqnBkgd(long objID)
-    {
-        AssertThis(0);
-        return SqnBkgd(_resource.style, objID);
-    }
-
-    bool FInvalidate(void);
-    bool FValid(void)
-    {
-        AssertBaseThis(0);
-        return FPure(!_invalid);
-    }
-    PString Pstn(void)
-    {
-        AssertThis(0);
-        return &_stn;
-    }
-    long Sty(void)
-    {
-        AssertThis(0);
-        return _resource.style;
-    }
-    long Vlm(void)
-    {
-        AssertThis(0);
-        return _resource.volume;
-    }
-    long Spr(long tool); // Return Priority
-    tribool FNoSound(void)
-    {
-        AssertThis(0);
-        return static_cast<tribool>(_silent);
-    }
-
-    void Play(long objID, bool fLoop, bool fQueue, long vlm, long spr, bool fActr = fFalse, ulong dtsStart = 0);
-};
+void GetName(PMovieSoundMSND, PString);
+bool Invalidate(PMovieSoundMSND);
+long Priority(PMovieSoundMSND, long tool);
+void Play(PMovieSoundMSND, long object, bool loop, bool queue, long volume, long priority,
+          bool actor = false, ulong start = 0);
+}
 
 /****************************************
-
     Movie Sound Queue  (MovieSoundQueue)
     Sounds to be played at one time.
     These are of all types, queues &

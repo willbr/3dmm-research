@@ -63,7 +63,7 @@ int main()
     recorded->SetTemp();
     ChunkNumber number;
     String name(PszLit("Recorded SDL regression sound"));
-    CHECK(MovieSoundMSND::FCopyWave(recorded, destination, stySpeech, &number, &name));
+    CHECK(EngineSound::CopyWave(recorded, destination, stySpeech, &number, &name));
     ChildChunkIdentification child;
     DataBlock block;
     CHECK(destination->FGetKidChidCtg(kctgMsnd, number, kchidSnd, kctgWave, &child) &&

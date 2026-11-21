@@ -1750,8 +1750,12 @@ actor effects, 3D text material edits and archive writes. Studio's archive-backe
 actions and generated 3D text actions use the same C89 owner and playback
 readers for cels, matrices, distance, flags and motion sound tags. The C89
 text generator owns the cached action reference and replaces it after text
-edits. Native template subclasses, resource, object, HQ and Body facades
-remain part of final host integration.
+edits. The C89 MSND owner holds the counted sound name, payload metadata and
+cache binding. Studio's sound browser, listener and frame sound queue use the
+C89 references. Preview reads the same sound state from its archive graph.
+The native sound manager and clock provide host services. Native template
+subclasses, resource, object, HQ and Body facades remain part of final host
+integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining

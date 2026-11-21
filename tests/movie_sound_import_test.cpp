@@ -43,10 +43,10 @@ int main()
     CHECK(input->FWriteRgb(const_cast<std::uint8_t *>(original.data()), static_cast<long>(original.size()), 0));
     String name(PszLit("Imported regression sound"));
     ChunkNumber number;
-    CHECK(MovieSoundMSND::FCopyWave(input, destination, stySpeech, &number, &name));
+    CHECK(EngineSound::CopyWave(input, destination, stySpeech, &number, &name));
     bool invalid = true;
     long type = -1, volume = -1;
-    CHECK(MovieSoundMSND::FGetMsndInfo(destination, kctgMsnd, number, &invalid, &type, &volume));
+    CHECK(EngineSound::Info(destination, kctgMsnd, number, &invalid, &type, &volume));
     CHECK(!invalid && type == stySpeech && volume == kvlmFull);
     String storedName;
     CHECK(destination->FGetName(kctgMsnd, number, &storedName) && storedName.FEqual(&name));
@@ -66,7 +66,7 @@ int main()
     std::uint8_t junk[44] = {};
     CHECK(bad->FWriteRgb(junk, sizeof(junk), 0));
     ChunkNumber rejected = 123456;
-    CHECK(!MovieSoundMSND::FCopyWave(bad, destination, stySfx, &rejected, &name));
+    CHECK(!EngineSound::CopyWave(bad, destination, stySfx, &rejected, &name));
     CHECK(destination->Ccki() == chunkCount && rejected == 123456);
     vpers->Clear();
     ReleasePpo(&bad);
@@ -85,17 +85,17 @@ int main()
     CHECK(block.FReadRgb(reopened.data(), static_cast<long>(reopened.size()), 0) && reopened == imported);
     auto resources = ChunkyResourceFile::PcrfNew(destination, 1024 * 1024);
     CHECK(resources);
-    auto sound = static_cast<PMovieSoundMSND>(resources->PbacoFetch(kctgMsnd, number, MovieSoundMSND::FReadMsnd));
+    auto sound = EngineSound::Fetch(resources, kctgMsnd, number);
     vpsndm = SoundManager::PsndmNew();
     auto device = KauaiAudio::NewWaveDevice();
     CHECK(sound && vpsndm && device && vpsndm->FAddDevice(kctgWave, device));
     ReleasePpo(&device);
-    sound->Play(0, false, false, kvlmFull, 0, false, 900);
+    EngineSound::Play(sound, 0, false, false, kvlmFull, 0, false, 900);
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(3);
     while (vpsndm->FPlayingAll() && std::chrono::steady_clock::now() < deadline)
         std::this_thread::sleep_for(std::chrono::milliseconds(1));
     CHECK(!vpsndm->FPlayingAll() && KauaiAudio::StudioStats().started == 1 && KauaiAudio::StudioStats().completed == 1);
-    ReleasePpo(&sound);
+    mm_sound_owner_release(sound);
     ReleasePpo(&vpsndm);
     ReleasePpo(&resources);
     ReleasePpo(&input);

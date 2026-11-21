@@ -85,11 +85,11 @@ static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long sty
                  mm_chunk_link_number(&chunks, kctgScen, scene, child, kctgMsnd, &number) == MM_CHUNK_OK;
             if (ok)
             {
-                auto sound = static_cast<PMovieSoundMSND>(resources->PbacoFetch(kctgMsnd, number, MovieSoundMSND::FReadMsnd));
+                auto sound = EngineSound::Fetch(resources, kctgMsnd, number);
                 String title;
-                ok = sound && sound->FValid() && sound->Sty() == style &&
+                ok = sound && EngineSound::Valid(sound) && EngineSound::Style(sound) == style &&
                      resources->FGetName(kctgMsnd, number, &title) && title.FEqual(name);
-                ReleasePpo(&sound);
+                mm_sound_owner_release(sound);
             }
         }
     }

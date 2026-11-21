@@ -20160,3 +20160,25 @@ that Studio save and reproduced both original retail poses and seek canvases.
 Marcus player, headless insertion and costume tests passed after the rebuild.
 Evidence is under `tmp/c89-cached-material` and
 `D:/3DMMForever-generated-cache/c89-cached-material`.
+
+## C89 ownership for MSND movie sounds (21 November 2026)
+
+The C89 sound owner holds the counted name, payload metadata, cache binding
+and reference count. The Studio browser, listener, sound editor and frame
+queue use that owner. Preview reads the same payload metadata and silence
+state from its archive graph. The native sound manager and clock provide
+device output and alarm services.
+
+The native x64 and SDL resource, movie sound and actor sound edit traces
+matched their respective baselines byte for byte. The standalone suite
+passed all 193 checks. Four targeted AddressSanitizer checks covered sound
+resources, actor sounds, scene sound edits and cache lifetime. Native movie
+save/load and the Marcus C89, player, playback and sound edit tests passed.
+SDL movie save/load, sound import and recording passed.
+
+In playback suite 20261121T214811Z-50667555, both ports repeated the retained
+retail 12-frame sequence on the archive action fixture. SDL reproduced all
+four retail WAVE requests and its prior trace exactly. Both ports produced
+audible mixed output. Marcus request tracing is unavailable, and the mixed
+PCM comparisons differed from retail and from the prior port recordings.
+Evidence is under tmp/c89-cached-msnd.

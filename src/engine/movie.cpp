@@ -594,10 +594,10 @@ MMMovieEditServices Movie::_EditServices()
     s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
     s.play_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
     s.flush_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
-    s.fetch_sound = [](void *, const MMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd); };
-    s.sound_volume = [](void *p) -> MMI32 { return static_cast<PMovieSoundMSND>(p)->Vlm(); };
-    s.sound_style = [](void *p) -> MMI32 { return static_cast<PMovieSoundMSND>(p)->Sty(); };
-    s.release_sound = [](void *p) { auto sound = static_cast<PMovieSoundMSND>(p); ReleasePpo(&sound); };
+    s.fetch_sound = [](void *, const MMTag *value) -> void * { TAG tag; TagFromCore(&tag, *value); return EngineSound::Fetch(&tag); };
+    s.sound_volume = [](void *p) -> MMI32 { return EngineSound::Volume(static_cast<PMovieSoundMSND>(p)); };
+    s.sound_style = [](void *p) -> MMI32 { return EngineSound::Style(static_cast<PMovieSoundMSND>(p)); };
+    s.release_sound = [](void *p) { mm_sound_owner_release(static_cast<PMovieSoundMSND>(p)); };
     s.dirty = [](void *p) { static_cast<PMovie>(p)->SetDirty(); };
     s.invalidate = [](void *p, int bars) { if (bars) static_cast<PMovie>(p)->InvalViewsAndScb(); else static_cast<PMovie>(p)->InvalViews(); };
     s.actor_nuked = [](void *p) { static_cast<PMovie>(p)->Pmcc()->ActorNuked(); };
@@ -978,7 +978,7 @@ MMMovieSoundServices Movie::SoundServices()
         const auto writer = static_cast<PChunkyResourceFile>(destination)->ArchiveWriter();
         ChunkNumber value;
         std::memcpy(&value, out, sizeof(value));
-        bool ok = MovieSoundMSND::FCopyMidi(static_cast<PFileObject>(p), writer, &value, static_cast<PString>(name));
+        bool ok = EngineSound::CopyMidi(static_cast<PFileObject>(p), writer, &value, static_cast<PString>(name));
         std::memcpy(out, &value, sizeof(value));
         return ok;
     };
@@ -986,7 +986,7 @@ MMMovieSoundServices Movie::SoundServices()
         const auto writer = static_cast<PChunkyResourceFile>(destination)->ArchiveWriter();
         ChunkNumber value;
         std::memcpy(&value, out, sizeof(value));
-        bool ok = MovieSoundMSND::FCopyWave(static_cast<PFileObject>(p), writer, style, &value, static_cast<PString>(name));
+        bool ok = EngineSound::CopyWave(static_cast<PFileObject>(p), writer, style, &value, static_cast<PString>(name));
         std::memcpy(out, &value, sizeof(value));
         return ok;
     };

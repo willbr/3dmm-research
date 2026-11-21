@@ -1956,14 +1956,14 @@ bool BrowserMusic::_FUpdateLists(void)
         tag.cno = cki.cno;
 
         // Read the msnd chunk and continue if sty's do not match
-        pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+        pmsnd = EngineSound::Fetch(&tag);
         if (pvNil == pmsnd)
             goto LNext;
 
         // Don't add user sounds multiple times on mult reinstantiations
         if (_FSndListed(cki.cno, &ithdOld))
         {
-            if (pmsnd->FValid())
+            if (EngineSound::Valid(pmsnd))
                 goto LNext;
             // Remove invalid snds from the lists
             _pglthd->Delete(ithdOld);
@@ -1977,10 +1977,10 @@ bool BrowserMusic::_FUpdateLists(void)
             goto LNext;
         }
 
-        if (_sty != pmsnd->Sty())
+        if (_sty != EngineSound::Style(pmsnd))
             goto LNext;
 
-        if (!pmsnd->FValid())
+        if (!EngineSound::Valid(pmsnd))
             goto LNext;
 
         if (!_pcrf->FGetName(kctgMsnd, cki.cno, &stn))
@@ -1990,7 +1990,7 @@ bool BrowserMusic::_FUpdateLists(void)
             goto LNext;
 
     LNext:
-        ReleasePpo(&pmsnd);
+        mm_sound_owner_release(pmsnd);
     }
     return fTrue;
 }
@@ -2079,12 +2079,12 @@ void BrowserMusic::_ProcessSelection(void)
         return;
     }
 
-    pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+    pmsnd = EngineSound::Fetch(&tag);
 
     if (pvNil == pmsnd)
         return;
-    pmsnd->Play(0, fFalse, fFalse, pmsnd->Vlm(), fTrue);
-    ReleasePpo(&pmsnd);
+    EngineSound::Play(pmsnd, 0, fFalse, fFalse, EngineSound::Volume(pmsnd), fTrue);
+    mm_sound_owner_release(pmsnd);
 
     return;
 }
@@ -2153,11 +2153,11 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
                 goto LEnd;
             if (entry.type != kctgMsnd)
                 break;
-            auto sound = static_cast<PMovieSoundMSND>(pcrf->PbacoFetch(entry.type, entry.number, MovieSoundMSND::FReadMsnd));
+            auto sound = EngineSound::Fetch(pcrf, entry.type, entry.number);
             if (!sound)
                 goto LEnd;
-            const bool matches = sound->FValid() && sound->Sty() == _sty;
-            ReleasePpo(&sound);
+            const bool matches = EngineSound::Valid(sound) && EngineSound::Style(sound) == _sty;
+            mm_sound_owner_release(sound);
             if (matches)
                 goto LValidSnds; // There are valid user snds
         }
@@ -2262,13 +2262,13 @@ bool BrowserMusic::FCmdDel(PCommand pcmd)
     _GetThumFromIthum(_ithumSelect, &thumSelect, &sid);
     tag.cno = static_cast<ChunkNumber>(thumSelect);
 
-    pmsnd = (PMovieSoundMSND)vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+    pmsnd = EngineSound::Fetch(&tag);
     if (pvNil == pmsnd)
         return fTrue;
 
-    if (!pmsnd->FInvalidate())
+    if (!EngineSound::Invalidate(pmsnd))
         Warn("Error invalidating sound");
-    ReleasePpo(&pmsnd);
+    mm_sound_owner_release(pmsnd);
 
     if (!_FUpdateLists())
     {

@@ -95,10 +95,10 @@ MMSceneSoundPacketServices ScenePacketServices(PMovie movie)
     s.fetch = [](void *, const MMSceneSoundTag *record) -> void * {
         TAG tag;
         TagFromCore(&tag, record->tag);
-        return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+        return EngineSound::Fetch(&tag);
     };
     s.priority = [](void *, void *sound, int loopTool) -> MMI32 {
-        return static_cast<PMovieSoundMSND>(sound)->Spr(loopTool ? toolLooper : toolSounder);
+        return EngineSound::Priority(static_cast<PMovieSoundMSND>(sound), loopTool ? toolLooper : toolSounder);
     };
     s.enqueue = [](void *p, void *sound, int loop, int queue, MMI32 volume, MMI32 priority,
                    MMU32 start) {
@@ -106,8 +106,7 @@ MMSceneSoundPacketServices ScenePacketServices(PMovie movie)
                                                  priority, fFalse, start);
     };
     s.release = [](void *, void *sound) {
-        auto p = static_cast<PMovieSoundMSND>(sound);
-        ReleasePpo(&p);
+        mm_sound_owner_release(static_cast<PMovieSoundMSND>(sound));
     };
     return s;
 }
@@ -771,7 +770,7 @@ MMSceneSoundEditServices Scene::_SoundEditServices()
     s.fetch_input = [](void *, const MMTag *value) -> void * {
         TAG tag;
         TagFromCore(&tag, *value);
-        return vptagm->PbacoFetch(&tag, MovieSoundMSND::FReadMsnd);
+        return EngineSound::Fetch(&tag);
     };
     s.create_tag_list = [](void *, MMI32 count) -> void * { return DynamicArray::PglNew(size(TAG), count); };
     s.resize_tag_list = [](void *, void *list, MMI32 count) -> int {
