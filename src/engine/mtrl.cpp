@@ -72,33 +72,33 @@ MMMaterialServices Material_MTRL::_Services(void *context)
         }
     };
     s.decode = KauaiDecodeBlockHandle;
-    s.texture_reader = TextureMap::FReadTmap;
+    s.texture_reader = EngineTexture::Read;
+    s.texture_objects = mm_texture_owner_services();
     s.material_reader = Material_MTRL::FReadMtrl;
     s.model_reader = EngineModel::Read;
     s.model_objects = mm_model_owner_services();
     s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemClear, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
-    s.texture_pixelmap = [](void *, void *object) -> void * {
-        auto texture = static_cast<PTextureMap>(object);
-        return texture ? texture->Pbpmp() : nullptr;
+    s.texture_pixelmap = [](void *, void *texture) -> void * {
+        return EngineTexture::Pixelmap(static_cast<PTextureMap>(texture));
     };
     s.write_texture = [](void *, void *p, const MMChunkEdit *edit, const MMBlockFileServices *files,
                          MMU32 type, MMU32 *number) -> int {
         ChunkNumber n;
         std::memcpy(&n, number, sizeof(n));
-        const auto ok = static_cast<PTextureMap>(p)->FWrite(*edit, files, type, &n);
+        const auto ok = EngineTexture::Write(static_cast<PTextureMap>(p), *edit, files, type, &n);
         std::memcpy(number, &n, sizeof(n));
         return ok;
     };
     s.read_bitmap = [](void *, void *f, void *palette) -> void * {
-        return TextureMap::PtmapReadNative(static_cast<PFilename>(f), static_cast<PDynamicArray>(palette));
+        return EngineTexture::FromBitmap(static_cast<PFilename>(f), static_cast<PDynamicArray>(palette));
     };
     s.pixelmap_path = [](void *p, void *file) -> const void * {
         auto &path = static_cast<MaterialContext *>(p)->path;
         static_cast<PFilename>(file)->GetStnPath(&path);
         return path.Psz();
     };
-    s.wrap_pixelmap = [](void *, void *p) -> void * { return TextureMap::PtmapNewFromBpmp(static_cast<PBPMP>(p)); };
+    s.wrap_pixelmap = [](void *, void *p) -> void * { return EngineTexture::Wrap(static_cast<PBPMP>(p)); };
     s.input_material = [](void *, const void *p, MMI32 i) -> void * {
         return static_cast<PMaterial_MTRL const *>(p)[i];
     };
@@ -114,12 +114,12 @@ bool Material_MTRL::FSetShadeTable(PChunkyFile f, ChunkTagOrType t, ChunkNumber 
 {
     AssertPo(f, 0);
     auto s = _Services();
-    return mm_material_shade_set(&_shade, TextureMap::PtmapRead(f, t, n), &s) != 0;
+    return mm_material_shade_set(&_shade, EngineTexture::FromFile(f, t, n), &s) != 0;
 }
 bool Material_MTRL::FSetShadeTable(const MMReadStream &stream)
 {
     auto s = _Services();
-    return mm_material_shade_set(&_shade, TextureMap::PtmapRead(stream), &s) != 0;
+    return mm_material_shade_set(&_shade, EngineTexture::FromStream(stream), &s) != 0;
 }
 bool Material_MTRL::FSetShadeTable(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
 {
@@ -166,7 +166,9 @@ PMaterial_MTRL Material_MTRL::PmtrlNewFromPix(PFilename file)
 PMaterial_MTRL Material_MTRL::PmtrlNewFromBmp(PFilename file, PDynamicArray palette)
 {
     AssertPo(file, ffniFile);
-    AssertPo(static_cast<PTextureMap>(_shade.texture), 0);
+#ifdef DEBUG
+    EngineTexture::Validate(static_cast<PTextureMap>(_shade.texture));
+#endif
     auto s = _Services();
     return static_cast<PMaterial_MTRL>(mm_material_import(file, palette, 1, &_shade, &s));
 }
@@ -227,20 +229,19 @@ Material_MTRL::~Material_MTRL()
 void Material_MTRL::AssertValid(LegacyUlong)
 {
     Material_MTRL_PAR::AssertValid(fobjAllocated);
-    AssertNilOrPo(Ptmap(), 0);
+    if (auto texture = Ptmap())
+        EngineTexture::Validate(texture);
     Assert(_shade.texture != nullptr, "Why do we have MTRLs but no shade table?");
 }
 void Material_MTRL::MarkMem()
 {
     AssertThis(0);
     Material_MTRL_PAR::MarkMem();
-    auto texture = Ptmap();
-    if (texture)
-        MarkMemObj(texture);
+    EngineTexture::Mark(Ptmap());
 }
 void Material_MTRL::MarkShadeTable()
 {
-    MarkMemObj(static_cast<PTextureMap>(_shade.texture));
+    EngineTexture::Mark(static_cast<PTextureMap>(_shade.texture));
 }
 #endif
 bool CustomMaterial_CMTL::FHasModels(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)

@@ -2578,7 +2578,7 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PString pstnMtrl)
         if (!fni.FSetLeaf(&_stnT, kftgBmp))
             goto LFail;
 
-        ptmap = TextureMap::PtmapReadNative(&fni);
+        ptmap = EngineTexture::FromBitmap(&fni);
         if (ptmap == pvNil)
             goto LFail;
 
@@ -2589,14 +2589,14 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PString pstnMtrl)
             goto LFail;
         *tmapd.pstn = *pstnBmpFile;
         tmapd.ccnoPar = 1;
-        tmapd.xp = ptmap->Pbpmp()->width;
-        tmapd.yp = ptmap->Pbpmp()->height;
+        tmapd.xp = EngineTexture::Pixelmap(ptmap)->width;
+        tmapd.yp = EngineTexture::Pixelmap(ptmap)->height;
         if (!_pggtmapd->FAdd(size(ChunkNumber), pvNil, &cnoPar, &tmapd))
             goto LFailAdd;
 
         /* Write the file out last; it's easier to remove the reference to a
             failed file than to delete a file that's not referenced :) */
-        if (!ptmap->FWriteTmapChkFile(&fni, fTrue))
+        if (!EngineTexture::WriteStandalone(ptmap, &fni, fTrue))
         {
             _pggtmapd->Delete(itmapd);
         LFailAdd:
@@ -2649,7 +2649,7 @@ bool S2B::_FTmapFromBmp(PBMHR pbmhr, ChunkNumber cnoPar, PString pstnMtrl)
 
     fRet = fTrue;
 LFail:
-    ReleasePpo(&ptmap);
+    mm_texture_owner_release(ptmap);
     return fRet;
 }
 

@@ -14,6 +14,7 @@
 #include <stdio.h>
 #include "frame.h"
 #include "bren.h"
+#include "tmap.h"
 #include "mssio.h"
 ASSERTNAME
 
@@ -25,7 +26,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     Filename fniSrc, fniDst;
     String stn;
     char chs;
-    PTextureMap ptmap = pvNil;
+    BRender::PTextureMap ptmap = pvNil;
     long cfni = 0;
     bool fCompress = fFalse;
     MessageSinkIO mssioErr(stderr);
@@ -78,16 +79,16 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    ptmap = TextureMap::PtmapReadNative(&fniSrc);
+    ptmap = BRender::EngineTexture::FromBitmap(&fniSrc);
     if (pvNil == ptmap)
     {
         fprintf(stderr, "reading texture map failed\n\n");
         goto LFail;
     }
 
-    if (!ptmap->FWriteTmapChkFile(&fniDst, fCompress, &mssioErr))
+    if (!BRender::EngineTexture::WriteStandalone(ptmap, &fniDst, fCompress, &mssioErr))
         goto LFail;
-    ReleasePpo(&ptmap);
+    mm_texture_owner_release(ptmap);
 
     FileObject::ShutDown();
     return 0;
@@ -97,7 +98,7 @@ LUsage:
     fprintf(stderr, "%s", "Usage:  mktmap [-c] <srcBitmapFile> <dstTmapFile>\n\n");
 
 LFail:
-    ReleasePpo(&ptmap);
+    mm_texture_owner_release(ptmap);
 
     FileObject::ShutDown();
     return 1;

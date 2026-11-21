@@ -1,5 +1,6 @@
 /* Texture map policy converted from bren/tmap.cpp. */
 #include "mm/texture_resource.h"
+#include <stdlib.h>
 #include <string.h>
 static MMU32 word(const unsigned char *p, unsigned n, int big)
 {
@@ -67,12 +68,84 @@ MMI32 mm_texture_size(const MMTextureResource *m)
     MMI32 n;
     return mm_texture_payload(&m->description, &n) ? 20 + n : -1;
 }
-void *mm_texture_new(void *pixels, MMI32 width, MMI32 height, const MMTextureServices *s)
+static MMTextureOwner *create_texture(const MMTextureOwnerHost *host)
 {
+    const MMStorageAllocator *allocator = host->objects;
+    MMU32 bytes = host->object_bytes;
+    MMTextureOwner *owner;
+    if (bytes < sizeof(*owner))
+        return NULL;
+    owner = allocator ? allocator->resize(allocator->context, NULL, 0, bytes, MM_STORAGE_NORMAL) : malloc(bytes);
+    if (owner)
+    {
+        memset(owner, 0, bytes);
+        mm_reference_init(&owner->references);
+        owner->host = host;
+    }
+    return owner;
+}
+
+const MMTextureResource *mm_texture_owner_resource(MMTextureOwner *owner)
+{
+    const MMTextureServices *s = owner->host->services;
+    if (s->sync)
+        s->sync(s->context, owner, &owner->texture);
+    return &owner->texture;
+}
+
+static MMResourceObject *texture_binding(void *object) { return &((MMTextureOwner *)object)->binding; }
+static MMReference *texture_references(void *object) { return &((MMTextureOwner *)object)->references; }
+
+static void destroy_texture(void *object)
+{
+    MMTextureOwner *owner = object;
+    const MMTextureOwnerHost *host = owner->host;
+    const MMTextureServices *s = host->services;
+    const MMStorageAllocator *allocator = host->objects;
+    MMU32 bytes = host->object_bytes;
+    const MMTextureResource *texture = mm_texture_owner_resource(owner);
+    if (texture->imported_owner)
+        s->free_import(s->context, texture->imported_owner);
+    else
+        s->free_memory(s->context, &owner->texture.pixels);
+    mm_resource_object_dispose(owner, mm_texture_owner_services());
+    if (allocator)
+        allocator->release(allocator->context, owner, bytes);
+    else
+        free(owner);
+}
+
+static void mark_texture(void *object)
+{
+    MMTextureOwner *owner = object;
+    if (owner->host->mark_memory)
+    {
+        const MMTextureResource *texture = mm_texture_owner_resource(owner);
+        owner->host->mark_memory(owner);
+        if (!texture->imported_owner && texture->pixels)
+            owner->host->mark_memory(texture->pixels);
+    }
+}
+
+const MMResourceObjectServices *mm_texture_owner_services(void)
+{
+    static const MMResourceObjectServices services = {texture_binding, texture_references, destroy_texture,
+                                                       NULL, mark_texture};
+    return &services;
+}
+
+void mm_texture_owner_release(MMTextureOwner *owner)
+{
+    if (owner)
+        mm_resource_object_release(owner, mm_texture_owner_services());
+}
+
+MMTextureOwner *mm_texture_new(void *pixels, MMI32 width, MMI32 height, const MMTextureOwnerHost *host)
+{
+    const MMTextureServices *s = host->services;
     MMTextureDescription d;
     MMI32 n;
-    MMTextureResource *m;
-    void *object;
+    MMTextureOwner *owner;
     memset(&d, 0, sizeof(d));
     d.row_bytes = width;
     d.width = width;
@@ -81,44 +154,36 @@ void *mm_texture_new(void *pixels, MMI32 width, MMI32 height, const MMTextureSer
     d.flags = s->linear_flag;
     if (!mm_texture_payload(&d, &n) || (n && !pixels))
         return NULL;
-    object = s->create(s->context);
-    if (!object)
-        return NULL;
-    m = s->state(s->context, object);
-    m->pixels = pixels;
-    m->description = d;
-    s->publish(s->context, object, m);
-    return object;
-}
-void *mm_texture_wrap(void *owner, const MMTextureServices *s)
-{
-    void *object;
-    MMTextureResource *m;
+    owner = create_texture(host);
     if (!owner)
         return NULL;
-    object = s->create(s->context);
-    if (!object)
+    owner->texture.pixels = pixels;
+    owner->texture.description = d;
+    s->publish(s->context, owner, &owner->texture);
+    return owner;
+}
+
+MMTextureOwner *mm_texture_wrap(void *imported, const MMTextureOwnerHost *host)
+{
+    const MMTextureServices *s = host->services;
+    MMTextureOwner *owner;
+    MMTextureResource *texture;
+    if (!imported)
         return NULL;
-    m = s->state(s->context, object);
-    m->imported_owner = owner;
-    s->describe_import(s->context, owner, &m->description, &m->pixels);
-    s->publish(s->context, object, m);
-    return object;
+    owner = create_texture(host);
+    if (!owner)
+        return NULL;
+    texture = &owner->texture;
+    texture->imported_owner = imported;
+    s->describe_import(s->context, imported, &texture->description, &texture->pixels);
+    s->publish(s->context, owner, texture);
+    return owner;
 }
-void mm_texture_dispose(MMTextureResource *m, const MMTextureServices *s)
+
+static int load(MMTextureOwner *owner, const MMReadStream *stream)
 {
-    if (m->imported_owner)
-    {
-        s->free_import(s->context, m->imported_owner);
-        m->imported_owner = NULL;
-        m->pixels = NULL;
-    }
-    else
-        s->free_memory(s->context, &m->pixels);
-}
-static int load(void *object, const MMReadStream *stream, const MMTextureServices *s)
-{
-    MMTextureResource *m;
+    const MMTextureServices *s = owner->host->services;
+    MMTextureResource *m = &owner->texture;
     unsigned char b[20];
     MMTextureDescription d;
     MMI32 n;
@@ -130,67 +195,70 @@ static int load(void *object, const MMReadStream *stream, const MMTextureService
         s->diagnostic(s->context, MM_TEXTURE_ORDER);
     if (!valid || !mm_texture_payload(&d, &n))
         return 0;
-    m = s->state(s->context, object);
     if (!s->allocate(s->context, n, 1, &m->pixels))
         return 0;
     m->description = d;
-    s->publish(s->context, object, m);
+    s->publish(s->context, owner, m);
     return mm_read_exact(stream, sizeof(b), m->pixels, (size_t)n);
 }
-void *mm_texture_read_stream(const MMReadStream *stream, const MMTextureServices *s)
+MMTextureOwner *mm_texture_read_stream(const MMReadStream *stream, const MMTextureOwnerHost *host)
 {
-    void *object = s->create(s->context);
-    if (object && !load(object, stream, s))
+    MMTextureOwner *owner = create_texture(host);
+    if (owner && !load(owner, stream))
     {
-        s->release(s->context, object);
-        object = NULL;
+        mm_texture_owner_release(owner);
+        owner = NULL;
     }
-    return object;
+    return owner;
 }
-static int load_block(void *object, MMOwnedBlock *block, const MMTextureServices *s)
+
+static int load_block(MMTextureOwner *owner, MMOwnedBlock *block)
 {
-    const MMChunkPayloadServices *payloads = s->payloads;
+    const MMChunkPayloadServices *payloads = owner->host->services->payloads;
     MMBlockIO io;
     MMReadStream stream;
     return mm_owned_block_code(block, 0, payloads->decode_context, payloads->decode, NULL) == MM_DATA_OK &&
            mm_owned_block_io(block, &io) == MM_DATA_OK && mm_block_io_stream(&io, &stream) == MM_DATA_OK &&
-           load(object, &stream, s);
+           load(owner, &stream);
 }
-void *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureServices *s)
+
+MMTextureOwner *mm_texture_read(void *file, MMU32 type, MMU32 number, const MMTextureOwnerHost *host)
 {
+    const MMChunkPayloadServices *payloads = host->services->payloads;
     MMOwnedBlock block;
-    void *object;
-    if (mm_owned_block_init(&block, s->payloads->handles, s->payloads->files) != MM_DATA_OK)
+    MMTextureOwner *owner;
+    if (mm_owned_block_init(&block, payloads->handles, payloads->files) != MM_DATA_OK)
         return NULL;
-    object = s->create(s->context);
-    if (object && (mm_chunk_payload_bind_block(s->payloads, file, type, number, &block) != MM_CHUNK_PAYLOAD_OK ||
-                   !load_block(object, &block, s)))
+    owner = create_texture(host);
+    if (owner && (mm_chunk_payload_bind_block(payloads, file, type, number, &block) != MM_CHUNK_PAYLOAD_OK ||
+                  !load_block(owner, &block)))
     {
-        s->release(s->context, object);
-        object = NULL;
+        mm_texture_owner_release(owner);
+        owner = NULL;
     }
     mm_owned_block_clear(&block);
-    return object;
+    return owner;
 }
-int mm_texture_fetch(MMOwnedBlock *block, void *out, void *size, const MMTextureServices *s)
+
+int mm_texture_fetch(MMOwnedBlock *block, void **out, MMI32 *bytes, const MMTextureOwnerHost *host)
 {
-    MMI32 n = (MMI32)block->view.length;
-    void *object;
-    memcpy(size, &n, 4);
+    const MMTextureServices *s = host->services;
+    MMTextureOwner *owner;
+    *bytes = (MMI32)block->view.length;
     if (!out)
         return 1;
-    object = s->create(s->context);
-    if (!object || !load_block(object, block, s))
+    owner = create_texture(host);
+    if (!owner || !load_block(owner, block))
     {
-        if (object)
-            s->release(s->context, object);
-        s->invalidate(s->context, out, sizeof(object));
-        s->invalidate(s->context, size, 4);
+        mm_texture_owner_release(owner);
+        s->invalidate(s->context, out, sizeof(*out));
+        s->invalidate(s->context, bytes, sizeof(*bytes));
         return 0;
     }
-    memcpy(out, &object, sizeof(object));
+    *out = owner;
     return 1;
 }
+
 int mm_texture_write(const MMTextureResource *m, MMOwnedBlock *block, const MMTextureServices *s)
 {
     MMBlockIO io;
@@ -290,7 +358,7 @@ done:
     {
         if (!ok)
             s->make_temporary(s->context, file);
-        s->release(s->context, file);
+        s->release_aux(s->context, file);
     }
     return ok;
 }

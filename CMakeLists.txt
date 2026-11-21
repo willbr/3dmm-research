@@ -1160,7 +1160,7 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
 endif()
 
 # brender-core: BRender wrapper minus the World/PWorld gui binding.
-# Provides _BrDefault{Filesystem,Allocator,Diag} + the TextureMap and
+# Provides _BrDefault{Filesystem,Allocator,Diag} + the texture and
 # ZBMP wrappers + the std{file,err,mem} adapters that BRender::Libraries
 # needs at link time. No kauai-gui link dep -- pulls only kauai-core.
 add_library(brender-core)

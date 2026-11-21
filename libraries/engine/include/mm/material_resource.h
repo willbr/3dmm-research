@@ -71,7 +71,7 @@ extern "C"
         void (*diagnostic)(void *, int);
         MMBlockTransform decode;
         MMResourceBlockReader texture_reader, material_reader, model_reader;
-        const MMResourceObjectServices *model_objects;
+        const MMResourceObjectServices *texture_objects, *model_objects;
         int (*allocate)(void *, MMI32 bytes, void **);
         void (*free_memory)(void *, void **);
         void *(*allocate_material)(void *);

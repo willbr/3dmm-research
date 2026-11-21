@@ -47,7 +47,7 @@ static void State(PTextureMap t)
     Value(t != nullptr);
     if (!t)
         return;
-    auto p = t->Pbpmp();
+    auto p = EngineTexture::Pixelmap(t);
     LegacyLong fields[] = {p->row_bytes,
                            p->type,
                            p->flags,
@@ -59,12 +59,12 @@ static void State(PTextureMap t)
                            p->origin_y,
                            p->map != nullptr,
                            p->identifier == reinterpret_cast<char *>(t),
-                           t->CbOnFile()};
+                           EngineTexture::SizeOnFile(t)};
     Record(fields, sizeof(fields));
     auto f = ChunkyFile::PcflCreateTemp();
     CHECK(f);
     ChunkNumber n;
-    CHECK(t->FWrite(f, kctgTmap, &n));
+    CHECK(EngineTexture::Write(t, f, kctgTmap, &n));
     DataBlock b;
     CHECK(f->FFind(kctgTmap, n, &b));
     std::vector<byte> data(b.Cb());
@@ -131,14 +131,14 @@ static void Loads()
                     DataBlock block;
                     CHECK(f->FFind(kctgTmap, n, &block));
                     MMI32 estimate = -1;
-                    CHECK(TextureMap::FReadTmap(cache->CoreCache(), kctgTmap, n, block.CoreBlock(), nullptr, &estimate));
+                    CHECK(EngineTexture::Read(cache->CoreCache(), kctgTmap, n, block.CoreBlock(), nullptr, &estimate));
                     Value(estimate);
                     PTextureMap t = nullptr;
                     Inject(kind, failure);
                     void *output = nullptr;
-                    bool ok = factory ? TextureMap::FReadTmap(cache->CoreCache(), kctgTmap, n, block.CoreBlock(), &output,
+                    bool ok = factory ? EngineTexture::Read(cache->CoreCache(), kctgTmap, n, block.CoreBlock(), &output,
                                                               &estimate)
-                                      : (t = TextureMap::PtmapRead(f, kctgTmap, n)) != nullptr;
+                                      : (t = EngineTexture::FromFile(f, kctgTmap, n)) != nullptr;
                     Inject(kind, 0);
                     Value(ok);
                     if (factory)
@@ -146,7 +146,7 @@ static void Loads()
                     if (factory && ok)
                         Value(estimate);
                     State(t);
-                    ReleasePpo(&t);
+                    mm_texture_owner_release(t);
                     block.Free();
                     ReleasePpo(&cache);
                     ReleasePpo(&f);
@@ -156,7 +156,7 @@ static void Standalone(PTextureMap t, bool compress)
 {
     Filename name;
     CHECK(name.FGetTemp());
-    CHECK(t->FWriteTmapChkFile(&name, compress));
+    CHECK(EngineTexture::WriteStandalone(t, &name, compress));
     auto file = FileObject::PfilOpen(&name);
     CHECK(file);
     std::vector<byte> bytes(file->FpMac());
@@ -202,10 +202,10 @@ static void BitmapImports()
                     c = {};
                 CHECK(target->FAdd(&c));
             }
-            auto t = TextureMap::PtmapReadNative(&name, count == -1 ? nullptr : target);
+            auto t = EngineTexture::FromBitmap(&name, count == -1 ? nullptr : target);
             CHECK(t);
             State(t);
-            ReleasePpo(&t);
+            mm_texture_owner_release(t);
             ReleasePpo(&target);
         }
         CHECK(name.FDelete());
@@ -220,22 +220,22 @@ static void Constructors()
         CHECK(FAllocPv((void **)&pixels, width * 3, fmemClear, mprNormal));
         for (int i = 0; i < width * 3; ++i)
             pixels[i] = byte(i * 11);
-        auto t = TextureMap::PtmapNew(pixels, width, 3);
+        auto t = EngineTexture::New(pixels, width, 3);
         CHECK(t);
         State(t);
         Standalone(t, false);
         Standalone(t, true);
-        ReleasePpo(&t);
+        mm_texture_owner_release(t);
     }
     auto raw = BrPixelmapAllocate(BR_PMT_INDEX_8, 5, 3, nullptr, 0);
     CHECK(raw);
     std::memset(raw->pixels, 7, raw->row_bytes * raw->height);
     raw->origin_x = -7;
     raw->base_y = 3;
-    auto t = TextureMap::PtmapNewFromBpmp(raw);
+    auto t = EngineTexture::Wrap(raw);
     CHECK(t);
     State(t);
-    ReleasePpo(&t);
+    mm_texture_owner_release(t);
 #ifndef MM_ENGINE_TEXTURE_RESOURCE_H
     BrPixelmapFree(raw); // Baseline repair only: the original wrapper leaked this SDK owner.
 #endif
@@ -244,11 +244,11 @@ static void PackedRoundTrip()
 {
     byte *pixels = nullptr;
     CHECK(FAllocPv(reinterpret_cast<void **>(&pixels), 256, fmemClear, mprNormal));
-    auto t = TextureMap::PtmapNew(pixels, 16, 16);
+    auto t = EngineTexture::New(pixels, 16, 16);
     CHECK(t);
-    t->Pbpmp()->origin_x = -17; // The legacy renderer view remains writable.
+    EngineTexture::Pixelmap(t)->origin_x = -17; // The legacy renderer view remains writable.
     Filename name;
-    CHECK(name.FGetTemp() && t->FWriteTmapChkFile(&name, true));
+    CHECK(name.FGetTemp() && EngineTexture::WriteStandalone(t, &name, true));
     auto file = FileObject::PfilOpen(&name);
     CHECK(file);
     LegacyLong signature;
@@ -270,7 +270,7 @@ static void PackedRoundTrip()
         CHECK(bytes[i] == 0);
     block.Free();
     ReleasePpo(&file);
-    ReleasePpo(&t);
+    mm_texture_owner_release(t);
     CHECK(name.FDelete());
 }
 #ifdef MM_ENGINE_TEXTURE_RESOURCE_H
@@ -303,15 +303,15 @@ static void ImportedLifetime()
     underlying = BrAllocatorSet(&tracker);
     auto raw = BrPixelmapAllocate(BR_PMT_INDEX_8, 8, 3, nullptr, 0);
     CHECK(raw && !sdkBlocks.empty());
-    auto t = TextureMap::PtmapNewFromBpmp(raw);
+    auto t = EngineTexture::Wrap(raw);
     CHECK(t);
-    ReleasePpo(&t);
+    mm_texture_owner_release(t);
     CHECK(sdkBlocks.empty());
     raw = BrPixelmapAllocate(BR_PMT_INDEX_8, 8, 3, nullptr, 0);
     CHECK(raw);
 #ifdef DEBUG
     Inject(0, 1);
-    t = TextureMap::PtmapNewFromBpmp(raw);
+    t = EngineTexture::Wrap(raw);
     Inject(0, 0);
     CHECK(!t && !sdkBlocks.empty());
 #endif

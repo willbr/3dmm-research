@@ -1,6 +1,22 @@
 #include "texture_renderer.h"
 #include "brender.h"
 
+typedef struct BRenderTexture
+{
+    MMTextureOwner owner;
+    br_pixelmap view;
+} BRenderTexture;
+
+MMU32 mm_brender_texture_owner_size(void)
+{
+    return sizeof(BRenderTexture);
+}
+
+void *mm_brender_texture_view(MMTextureOwner *owner)
+{
+    return owner ? &((BRenderTexture *)owner)->view : NULL;
+}
+
 static void describe_pixelmap(const br_pixelmap *pixelmap, MMTextureDescription *out)
 {
     out->row_bytes = pixelmap->row_bytes;
@@ -28,19 +44,12 @@ static void free_import(void *context, void *handle)
     BrPixelmapFree((br_pixelmap *)handle);
 }
 
-void mm_brender_texture_services(MMTextureServices *s)
+static void publish(void *context, MMTextureOwner *owner, const MMTextureResource *resource)
 {
-    s->indexed_type = BR_PMT_INDEX_8;
-    s->linear_flag = BR_PMF_LINEAR;
-    s->describe_import = describe_import;
-    s->free_import = free_import;
-}
-
-void mm_brender_texture_publish(void *view, void *owner, const MMTextureResource *resource)
-{
-    br_pixelmap *pixelmap = (br_pixelmap *)view;
+    br_pixelmap *pixelmap = mm_brender_texture_view(owner);
     br_pixelmap *imported = (br_pixelmap *)resource->imported_owner;
     const MMTextureDescription *d = &resource->description;
+    (void)context;
     if (imported)
         *pixelmap = *imported;
     pixelmap->identifier = (char *)owner;
@@ -58,9 +67,20 @@ void mm_brender_texture_publish(void *view, void *owner, const MMTextureResource
         imported->identifier = (char *)owner;
 }
 
-void mm_brender_texture_sync(MMTextureResource *resource, const void *view)
+static void sync(void *context, MMTextureOwner *owner, MMTextureResource *resource)
 {
-    const br_pixelmap *pixelmap = (const br_pixelmap *)view;
+    const br_pixelmap *pixelmap = mm_brender_texture_view(owner);
+    (void)context;
     describe_pixelmap(pixelmap, &resource->description);
     resource->pixels = pixelmap->pixels;
+}
+
+void mm_brender_texture_services(MMTextureServices *s)
+{
+    s->indexed_type = BR_PMT_INDEX_8;
+    s->linear_flag = BR_PMF_LINEAR;
+    s->describe_import = describe_import;
+    s->free_import = free_import;
+    s->publish = publish;
+    s->sync = sync;
 }

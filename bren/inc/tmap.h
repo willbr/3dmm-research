@@ -1,6 +1,6 @@
 /*************************************************************************
 
-    Texture map (TextureMap)
+    BRender texture resource bindings
 
     This manages I/O and caching for BPMPs
 
@@ -45,69 +45,26 @@ const ByteOrderMask kbomTxxff = 0x5FFF0000;
 // REVIEW *****: should TMAPs have shade table chunks under them, or
 //   is the shade table a global animal?  Right now it's global.
 
-/****************************************
-    The TextureMap class
-****************************************/
-typedef class TextureMap *PTextureMap;
-#define TextureMap_PAR BaseCacheableObject
-#define kclsTextureMap 'TMAP'
-class TextureMap : public TextureMap_PAR
+using PTextureMap = MMTextureOwner *;
+namespace EngineTexture
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-  protected:
-    BPMP _bpmp;
-    MMTextureResource _texture;
-    static MMTextureServices _Services();
-    void _Sync();
-
-  protected:
-    TextureMap(void) : _bpmp{}, _texture{}
-    {
-    } // can't instantiate directly; must use PtmapRead
-#ifdef NOT_YET_REVIEWED
-    void TextureMap::_SortInverseTable(byte *prgb, br_int_32 cbRgb, BRCLR brclrLo, BRCLR brclrHi);
-#endif // NOT_YET_REVIEWED
-  public:
-    ~TextureMap(void);
-
-    static PTextureMap PtmapRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    static PTextureMap PtmapRead(const MMReadStream &stream);
-    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
-    bool FWrite(const MMChunkEdit &, const MMBlockFileServices *, ChunkTagOrType ctg, ChunkNumber *pcno);
-
-    //	a chunky resource reader for a TextureMap
-    static int FReadTmap(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                           void **object, MMI32 *bytes);
-
-    //	Given a BPMP (a Brender br_pixelmap), create a TextureMap
-    static PTextureMap PtmapNewFromBpmp(BPMP *pbpmp);
-
-    //	Give back the bpmp for this TextureMap
-    BPMP *Pbpmp(void)
-    {
-        return &_bpmp;
-    }
-
-    //	Reads a .bmp file.
-    static PTextureMap PtmapReadNative(Filename *pfni, PDynamicArray pglclr = pvNil);
-
-    // Writes a standalone TextureMap-chunk file (not a .chk)
-    bool FWriteTmapChkFile(PFilename pfniDst, bool fCompress, PMSNK pmsnkErr = pvNil);
-
-    // Creates a TextureMap from the width, height, and an array of bytes
-    static PTextureMap PtmapNew(byte *prgbPixels, br_int_32 dxWidth, br_int_32 dxHeight);
-
-    // Some useful file methods
-    br_int_32 CbOnFile(void);
-    bool FWrite(PDataBlock pblck);
-
-#ifdef NOT_YET_REVIEWED
-    // Useful shade-table type method
-    byte *PrgbBuildInverseTable(void);
-#endif // NOT_YET_REVIEWED
-};
+int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+PTextureMap FromFile(PChunkyFile, ChunkTagOrType, ChunkNumber);
+PTextureMap FromStream(const MMReadStream &);
+PTextureMap FromBitmap(PFilename, PDynamicArray palette = nullptr);
+PTextureMap Wrap(PBPMP);
+PTextureMap New(byte *pixels, LegacyLong width, LegacyLong height);
+PBPMP Pixelmap(PTextureMap);
+MMI32 SizeOnFile(PTextureMap);
+bool Write(PTextureMap, PChunkyFile, ChunkTagOrType, ChunkNumber *);
+bool Write(PTextureMap, const MMChunkEdit &, const MMBlockFileServices *, ChunkTagOrType, ChunkNumber *);
+bool Write(PTextureMap, PDataBlock);
+bool WriteStandalone(PTextureMap, PFilename, bool compress, PMSNK sink = nullptr);
+#ifdef DEBUG
+void Validate(PTextureMap);
+void Mark(PTextureMap);
+#endif
+}
 
 } // end of namespace BRender
 

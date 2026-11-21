@@ -92,12 +92,20 @@ void *mm_material_texture(const MMMaterialResource *m, const MMMaterialServices 
 {
     return m->handle ? s->texture(s->context, m->handle) : NULL;
 }
+static void release_texture(void *texture, const MMMaterialServices *s)
+{
+    if (s->texture_objects)
+        mm_resource_object_release(texture, s->texture_objects);
+    else
+        s->release(s->context, texture);
+}
+
 void mm_material_dispose(MMMaterialResource *m, const MMMaterialServices *s)
 {
     void *texture = mm_material_texture(m, s);
     if (texture)
     {
-        s->release(s->context, texture);
+        release_texture(texture, s);
         s->map(s->context, m->handle, NULL, NULL);
     }
     if (m->handle)
@@ -155,7 +163,8 @@ static int read_material(void *object, MMResourceCache *cache, MMU32 type, MMU32
     graph = mm_resource_cache_chunks(cache);
     if (mm_chunk_link_number(&graph, type, number, 0, s->texture_type, &child) == MM_CHUNK_OK)
     {
-        texture = mm_resource_cache_fetch_chunk(cache, s->texture_type, child, s->texture_reader);
+        texture = mm_resource_cache_fetch_owned_chunk(cache, s->texture_type, child,
+                                                      s->texture_reader, s->texture_objects);
         if (!texture)
             return 0;
         attach(m->handle, texture, NULL, shade, s);
@@ -165,7 +174,7 @@ static int read_material(void *object, MMResourceCache *cache, MMU32 type, MMU32
             if (mm_resource_cache_read_block(cache, s->transform_type, child, scratch) != MM_CHUNK_OK ||
                 !read_header(scratch, b, 28, s))
             {
-                s->release(s->context, texture);
+                release_texture(texture, s);
                 s->map(s->context, m->handle, NULL, NULL);
                 s->free_material(s->context, m->handle);
                 m->handle = NULL;
@@ -381,7 +390,7 @@ void mm_material_shade_dispose(MMMaterialShade *m, const MMMaterialServices *s)
 {
     if (m->texture)
     {
-        s->release(s->context, m->texture);
+        release_texture(m->texture, s);
         m->texture = NULL;
     }
 }

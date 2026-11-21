@@ -8,11 +8,6 @@ typedef struct Ref
 {
     int kind, refs;
 } Ref;
-typedef struct Object
-{
-    Ref ref;
-    MMTextureResource texture;
-} Object;
 typedef struct Palette
 {
     Ref ref;
@@ -33,6 +28,8 @@ typedef struct File
 typedef struct Test
 {
     MMTextureServices s;
+    MMTextureOwnerHost host;
+    MMStorageAllocator objects_allocator;
     MMChunkPayloadServices payloads;
     MMHandleServices handles;
     MMBlockFileServices io;
@@ -53,46 +50,42 @@ static int fail(Test *t)
 {
     return ++t->phase == t->fail;
 }
-static void *create(void *p)
+static void *allocate_owner(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Test *t = test(p);
-    Object *o;
+    void *owner;
+    assert(!old && !old_bytes && bytes == sizeof(MMTextureOwner) && priority == MM_STORAGE_NORMAL);
     if (fail(t) || t->object_fail)
         return NULL;
-    o = (Object *)calloc(1, sizeof(*o));
-    assert(o);
-    o->ref.kind = 1;
-    o->ref.refs = 1;
+    owner = malloc(bytes);
+    assert(owner);
     ++t->objects;
-    return o;
+    return owner;
 }
-static MMTextureResource *state(void *p, void *o)
+
+static void free_owner(void *p, void *owner, MMU32 bytes)
 {
-    (void)p;
-    return &((Object *)o)->texture;
+    Test *t = test(p);
+    assert(owner && t->objects > 0 && bytes == sizeof(MMTextureOwner));
+    --t->objects;
+    free(owner);
 }
+
 static void release(void *p, void *v)
 {
     Test *t = test(p);
     Ref *r = (Ref *)v;
     assert(r && r->refs > 0);
-    if (--r->refs)
-        return;
-    if (r->kind == 1)
-    {
-        mm_texture_dispose(&((Object *)v)->texture, &t->s);
-        --t->objects;
-        free(v);
-    }
-    else if (r->kind == 3)
+    if (--r->refs == 0 && r->kind == 3)
         --t->files;
 }
-static void publish(void *p, void *o, const MMTextureResource *m)
+
+static void publish(void *p, MMTextureOwner *owner, const MMTextureResource *m)
 {
-    (void)o;
-    (void)m;
+    assert(&owner->texture == m && owner->references.count == 1);
     ++test(p)->published;
 }
+
 static void describe_import(void *p, void *o, MMTextureDescription *d, void **pixels)
 {
     (void)p;
@@ -288,9 +281,13 @@ static void setup(Test *t)
     t->s.unpacked_signature = 0x6b617570UL;
     t->s.indexed_type = 3;
     t->s.linear_flag = 1;
-    t->s.create = create;
-    t->s.release = release;
-    t->s.state = state;
+    t->host.services = &t->s;
+    t->host.objects = &t->objects_allocator;
+    t->host.object_bytes = sizeof(MMTextureOwner);
+    t->objects_allocator.context = t;
+    t->objects_allocator.resize = allocate_owner;
+    t->objects_allocator.release = free_owner;
+    t->s.release_aux = release;
     t->s.publish = publish;
     t->s.describe_import = describe_import;
     t->s.free_import = free_import;
@@ -365,7 +362,7 @@ static void codecs_and_loads(void)
     unsigned char b[20];
     MMI32 n, estimate;
     int bad, i, big, ok;
-    Object *o;
+    MMTextureOwner *o;
     setup(&t);
     for (big = 0; big < 2; ++big)
     {
@@ -381,22 +378,23 @@ static void codecs_and_loads(void)
     assert(mm_texture_payload(&d, &n) && n == 2147385345);
     for (i = 0; i < 10; ++i)
     {
+        void *object = NULL;
         setup(&t);
         assert(mm_owned_block_init(&block, &t.handles, &t.io) == MM_DATA_OK);
         extent.file = &t.source_file;
         extent.offset = 0;
         extent.length = (MMU32)t.packed_size;
         assert(mm_owned_block_set_file(&block, &extent, 1) == MM_DATA_OK);
-        assert(mm_texture_fetch(&block, NULL, &estimate, &t.s) && estimate == 19 && !t.phase && block.view.packed);
+        assert(mm_texture_fetch(&block, NULL, &estimate, &t.host) && estimate == 19 && !t.phase && block.view.packed);
         t.fail = i;
-        o = NULL;
-        ok = mm_texture_fetch(&block, &o, &estimate, &t.s);
+        ok = mm_texture_fetch(&block, &object, &estimate, &t.host);
         if (ok)
         {
+            o = object;
             assert(estimate == 19 && o->texture.description.row_bytes == 4 &&
                    ((unsigned char *)o->texture.pixels)[7] == 17);
             assert(block.view.length == 28 && !block.view.packed && !block.file && t.handles_live == 1);
-            release(&t, o);
+            mm_texture_owner_release(o);
         }
         else
             assert(t.invalidated == 2);
@@ -407,45 +405,45 @@ static void codecs_and_loads(void)
     {
         setup(&t);
         t.input_size = i;
-        assert(!mm_texture_read(&t, 1, 0, &t.s));
+        assert(!mm_texture_read(&t, 1, 0, &t.host));
         balanced(&t);
     }
     setup(&t);
     t.input[4] = t.input[5] = 255;
-    assert(!mm_texture_read(&t, 1, 0, &t.s));
+    assert(!mm_texture_read(&t, 1, 0, &t.host));
     balanced(&t);
     setup(&t);
     t.input_size = 29;
-    o = (Object *)mm_texture_read(&t, 1, 0, &t.s);
+    o = mm_texture_read(&t, 1, 0, &t.host);
     assert(o);
-    release(&t, o);
+    mm_texture_owner_release(o);
     balanced(&t);
     {
         MMMemoryStream stream;
         setup(&t);
         assert(mm_memory_stream_init(&stream, t.input, 27));
-        assert(!mm_texture_read_stream(&stream.stream, &t.s));
+        assert(!mm_texture_read_stream(&stream.stream, &t.host));
         balanced(&t);
         assert(mm_memory_stream_init(&stream, t.input, 28));
-        o = (Object *)mm_texture_read_stream(&stream.stream, &t.s);
+        o = mm_texture_read_stream(&stream.stream, &t.host);
         assert(o && o->texture.description.row_bytes == 4 && ((unsigned char *)o->texture.pixels)[7] == 17);
         assert(!t.source_file.ref.refs && !t.handles_live);
-        release(&t, o);
+        mm_texture_owner_release(o);
         balanced(&t);
     }
 }
 static void constructors_and_import(void)
 {
     Test t;
-    Object *o;
+    MMTextureOwner *o;
     void *pixels = NULL;
     Imported *owner;
     int n, cache;
     setup(&t);
-    assert(!mm_texture_new(NULL, 4, 1, &t.s) && !mm_texture_wrap(NULL, &t.s));
+    assert(!mm_texture_new(NULL, 4, 1, &t.host) && !mm_texture_wrap(NULL, &t.host));
     assert(allocate(&t, 8, 1, &pixels));
     t.object_fail = 1;
-    assert(!mm_texture_new(pixels, 4, 2, &t.s) && t.memory == 1);
+    assert(!mm_texture_new(pixels, 4, 2, &t.host) && t.memory == 1);
     free_memory(&t, &pixels);
     balanced(&t);
     setup(&t);
@@ -456,11 +454,11 @@ static void constructors_and_import(void)
     owner->description.width = 4;
     owner->description.height = 2;
     t.object_fail = 1;
-    assert(!mm_texture_wrap(owner, &t.s) && t.imports == 1);
+    assert(!mm_texture_wrap(owner, &t.host) && t.imports == 1);
     t.object_fail = 0;
-    o = (Object *)mm_texture_wrap(owner, &t.s);
+    o = mm_texture_wrap(owner, &t.host);
     assert(o && o->texture.imported_owner == owner);
-    release(&t, o);
+    mm_texture_owner_release(o);
     balanced(&t);
     for (cache = 0; cache < 2; ++cache)
         for (n = 0; n < 7; ++n)
@@ -468,34 +466,34 @@ static void constructors_and_import(void)
             setup(&t);
             t.fail = n;
             t.cache_fail = cache;
-            o = (Object *)mm_texture_bitmap(&t, &t.target, &t.s);
+            o = mm_texture_bitmap(&t, &t.target, &t.host);
             if (o)
             {
                 assert(o->texture.description.row_bytes == 3);
                 assert(!memcmp(o->texture.pixels, "\3\3\3\3\3\3", 6));
-                release(&t, o);
+                mm_texture_owner_release(o);
             }
             balanced(&t);
         }
     setup(&t);
     t.target.count = 0;
-    o = (Object *)mm_texture_bitmap(&t, &t.target, &t.s);
+    o = mm_texture_bitmap(&t, &t.target, &t.host);
     assert(o && ((unsigned char *)o->texture.pixels)[0] == 1);
-    release(&t, o);
+    mm_texture_owner_release(o);
     balanced(&t);
     setup(&t);
     t.object_fail = 1;
-    assert(!mm_texture_bitmap(&t, NULL, &t.s));
+    assert(!mm_texture_bitmap(&t, NULL, &t.host));
     balanced(&t);
     setup(&t);
     t.source.count = 1;
-    assert(!mm_texture_bitmap(&t, &t.target, &t.s));
+    assert(!mm_texture_bitmap(&t, &t.target, &t.host));
     balanced(&t);
     setup(&t);
     t.bitmap_invalid = 1;
-    o = (Object *)mm_texture_bitmap(&t, NULL, &t.s);
+    o = mm_texture_bitmap(&t, NULL, &t.host);
     assert(o && t.diagnostic == MM_TEXTURE_UPSIDE_DOWN + 1);
-    release(&t, o);
+    mm_texture_owner_release(o);
     balanced(&t);
 }
 static void writes(void)

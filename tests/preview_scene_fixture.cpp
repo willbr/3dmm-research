@@ -35,13 +35,16 @@ static bool Texture(PChunkyFile file, int variant, ChunkNumber *material)
     for (int y = 0; y < 16; ++y)
         for (int x = 0; x < 16; ++x)
             pixels[y * 16 + x] = byte(32 + 32 * ((x / 4 + y / 4 + variant) % 4));
-    auto map = TextureMap::PtmapNew(pixels, 16, 16);
+    auto map = EngineTexture::New(pixels, 16, 16);
     ChunkNumber texture;
     MaterialOnFile header = {kboCur, koskCur, 0xffffff, BR_UFRACTION(.4), BR_UFRACTION(.6), 0, 15, 15, BR_SCALAR(50)};
-    const bool ok = map && map->FWrite(file, kctgTmap, &texture) &&
+    const bool ok = map && EngineTexture::Write(map, file, kctgTmap, &texture) &&
                     file->FAddPv(&header, sizeof(header), kctgMtrl, material) &&
                     file->FAdoptChild(kctgMtrl, *material, kctgTmap, texture, 0);
-    ReleasePpo(&map);
+    if (map)
+        mm_texture_owner_release(map);
+    else
+        FreePpv(reinterpret_cast<void **>(&pixels));
     return ok;
 }
 

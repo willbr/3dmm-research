@@ -20092,3 +20092,37 @@ The port runs are in `20261121T205719Z-935a6028` and
 `20261121T205813Z-94b9101a`, with the latter completing the Marcus Wave runs
 on the other volume. Evidence is under `tmp/c89-cached-model` and
 `D:/3DMMForever-generated-cache/c89-cached-model`.
+
+## C89 ownership for TMAP textures (21 November 2026)
+
+The C89 texture owner holds the reference count, archive binding and pixels
+for cached TMAP chunks, bitmap imports and shade tables. The renderer adapter
+stores the writable BRender view in the same allocation. An imported pixelmap
+keeps its original BRender allocation. Persistence and cleanup read the
+current view. The C++ TextureMap class was removed.
+
+The material cache fixture verified that a material and a direct texture
+lookup share the same owner. The direct reference survived material release,
+and lowering the cache budget evicted the released texture. Texture traces
+matched byte for byte on native x64, native x86 and SDL. Native x64 and SDL
+material traces also matched, including partial reads and fault injection.
+Both Preview builds retained the `D363793C` admission fingerprint across 45
+actors and 21 props. All seven Marcus insertion fixture saves matched the
+prior bytes, including the textured 3D text movie.
+
+All 193 standalone C89 checks passed. Five AddressSanitizer checks covered
+texture and material resources, resource caching, chunk storage and Preview
+rendering. Native and SDL movie save/load and BRender C89 syntax checks passed.
+Marcus player, insertion and costume checks passed. The standalone bitmap
+converter passed a syntax check. The legacy SoftImage converter's SDK build
+remains unverified.
+
+The SDL and Marcus runs in `20261121T210951Z-55cdc384` matched their previous
+seek canvases byte for byte for both textured-movie frames, with the same
+one-pixel difference from the retained retail canvases on each frame. Seek
+cameras agreed with retail, and both ports reproduced the retail frame sequence
+in continuous playback. Studio saved and reopened the movie and reproduced
+its visible actor states, including the 3D text texture hashes. Retail reopened
+that Studio save in `20261121T211210Z-54a37e92` and reproduced both original
+retail poses and seek canvases. Evidence is under `tmp/c89-cached-texture` and
+`D:/3DMMForever-generated-cache/c89-cached-texture`.

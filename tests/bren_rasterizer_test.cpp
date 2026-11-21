@@ -957,7 +957,7 @@ static void write_pgm_and_ppm(const char *out_path, const uint8_t *pixels, int w
  *   short bo, osk; short cbRow; byte type, grftmap;
  *   short xpLeft, ypTop, dxp, dyp, xpOrigin, ypOrigin;
  * followed immediately by `dyp * cbRow` bytes of pixels (8bpp indexed
- * for type==3). Matches what TextureMap::FWrite emits. The returned
+ * for type==3). Matches what the texture writer emits. The returned
  * pixelmap owns its pixel buffer (malloc'd) and an identifier string
  * pointing into the file's basename for debug. The test never frees
  * either; processes are short-lived. */

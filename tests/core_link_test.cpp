@@ -4915,13 +4915,13 @@ static void TestEngineServices()
     // the same asset service to be initialized as in the application.
     byte *pixels = pvNil;
     Check(FAllocPv(reinterpret_cast<void **>(&pixels), 256, fmemClear, mprNormal));
-    PTextureMap shade = TextureMap::PtmapNew(pixels, 256, 1);
+    PTextureMap shade = EngineTexture::New(pixels, 256, 1);
     PChunkyFile fixture = ChunkyFile::PcflCreateTemp();
     Check(shade != pvNil && fixture != pvNil);
     ChunkNumber shadeNumber;
-    Check(shade->FWrite(fixture, kctgTmap, &shadeNumber));
+    Check(EngineTexture::Write(shade, fixture, kctgTmap, &shadeNumber));
     Check(Material_MTRL::FSetShadeTable(fixture, kctgTmap, shadeNumber));
-    ReleasePpo(&shade);
+    mm_texture_owner_release(shade);
     ReleasePpo(&fixture);
     TestMaterialHeaders();
     RenderHost first = {BrActorAllocate(BR_ACTOR_NONE, 0), 0, 0};

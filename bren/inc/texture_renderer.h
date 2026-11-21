@@ -8,10 +8,10 @@ extern "C" {
 #endif
 
 void mm_brender_texture_services(MMTextureServices *);
-/* The view borrows storage. An imported renderer allocation stays the owner
- * recorded in the resource, including any palette or other renderer fields. */
-void mm_brender_texture_publish(void *view, void *owner, const MMTextureResource *);
-void mm_brender_texture_sync(MMTextureResource *, const void *view);
+/* The C owner and its BRender view share one allocation. The view borrows
+ * pixels and preserves imported renderer fields such as the palette. */
+MMU32 mm_brender_texture_owner_size(void);
+void *mm_brender_texture_view(MMTextureOwner *);
 
 #ifdef __cplusplus
 }

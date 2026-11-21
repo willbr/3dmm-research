@@ -143,7 +143,7 @@ static PTextureMap Map(int w, int h)
     CHECK(FAllocPv((void **)&p, w * h, fmemClear, mprNormal));
     for (int i = 0; i < w * h; ++i)
         p[i] = byte((i * 17) % 256);
-    auto t = TextureMap::PtmapNew(p, w, h);
+    auto t = EngineTexture::New(p, w, h);
     CHECK(t);
     return t;
 }
@@ -196,9 +196,9 @@ static PChunkyFile MaterialFile(int variant, ChunkNumber *number)
     {
         auto t = Map(4, 4);
         ChunkNumber child;
-        CHECK(t->FWrite(f, kctgTmap, &child));
+        CHECK(EngineTexture::Write(t, f, kctgTmap, &child));
         CHECK(f->FAdoptChild(kctgMtrl, *number, kctgTmap, child, 0));
-        ReleasePpo(&t);
+        mm_texture_owner_release(t);
     }
     if (variant >= 7)
     {
@@ -251,6 +251,29 @@ static void MaterialLoads()
                     ReleasePpo(&file);
                 }
 }
+static void CachedTextureOwnership()
+{
+    ChunkNumber number;
+    auto file = MaterialFile(6, &number);
+    auto cache = ChunkyResourceFile::PcrfNew(file, 1024);
+    auto material = MaterialAccess::Create();
+    CHECK(cache && material && material->Initialize(cache, number));
+    auto texture = material->Ptmap();
+    CHECK(texture && texture->binding.cache == cache->CoreCache() && texture->binding.attached);
+
+    const auto child = texture->binding.number;
+    auto peer = static_cast<PTextureMap>(mm_resource_cache_fetch_owned_chunk(
+        cache->CoreCache(), kctgTmap, child, EngineTexture::Read, mm_texture_owner_services()));
+    CHECK(peer == texture && texture->references.count == 2);
+    ReleasePpo(&material);
+    CHECK(texture->references.count == 1 && EngineTexture::Pixelmap(texture)->width == 4);
+    mm_texture_owner_release(peer);
+    cache->SetCbMax(0);
+    CHECK(!mm_resource_cache_find(cache->CoreCache(), kctgTmap, child, EngineTexture::Read, 0));
+    ReleasePpo(&cache);
+    ReleasePpo(&file);
+}
+
 static PChunkyFile CustomFile(int variant, ChunkNumber *number)
 {
     auto f = ChunkyFile::PcflCreateTemp();
@@ -457,8 +480,8 @@ int main()
     auto file = ChunkyFile::PcflCreateTemp();
     CHECK(file);
     ChunkNumber number;
-    CHECK(shade->FWrite(file, kctgTmap, &number) && Material_MTRL::FSetShadeTable(file, kctgTmap, number));
-    ReleasePpo(&shade);
+    CHECK(EngineTexture::Write(shade, file, kctgTmap, &number) && Material_MTRL::FSetShadeTable(file, kctgTmap, number));
+    mm_texture_owner_release(shade);
     ReleasePpo(&file);
     for (int i = 0; i < 6; ++i)
     {
@@ -468,6 +491,7 @@ int main()
         ReleasePpo(&m);
     }
     MaterialLoads();
+    CachedTextureOwnership();
     CustomLoads();
     MoreCases();
     Material_MTRL::ReleaseShadeTable();

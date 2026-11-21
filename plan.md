@@ -1741,12 +1741,14 @@ preserve those services through archive-local and content-pack lookups. Studio
 and Preview use C89-owned 3D fonts for metrics and glyph resolution. C89
 also owns models from BMDL chunks, authored geometry and DAT imports. Actor
 bodies, costume overrides, font glyphs and Preview poses retain those model
-owners directly. Studio's archive-backed actions and generated 3D text actions
-use the same C89 owner and playback readers for cels, matrices, distance,
-flags and motion sound tags. The C89 text generator owns the cached action
-reference and replaces it after text edits. Material and texture owners,
-native template subclasses, resource, object, HQ and Body facades remain
-part of final host integration.
+owners directly. Materials and shade tables retain C89 texture owners. The
+BRender adapter supplies a writable pixelmap view in the same allocation,
+and imported pixelmaps retain their original renderer allocation. Studio's
+archive-backed actions and generated 3D text actions use the same C89 owner
+and playback readers for cels, matrices, distance, flags and motion sound
+tags. The C89 text generator owns the cached action reference and replaces
+it after text edits. Material and costume owners, native template subclasses,
+resource, object, HQ and Body facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining

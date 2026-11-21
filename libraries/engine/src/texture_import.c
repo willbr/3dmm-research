@@ -1,12 +1,14 @@
 /* Bitmap import and palette matching converted from bren/tmap.cpp. */
 #include "mm/texture_resource.h"
 #include <string.h>
-void *mm_texture_bitmap(void *filename, void *palette, const MMTextureServices *s)
+MMTextureOwner *mm_texture_bitmap(void *filename, void *palette, const MMTextureOwnerHost *host)
 {
+    const MMTextureServices *s = host->services;
     MMTextureBitmap b;
     MMI32 *cache = NULL, count, source_count = 0, n, i, j, index, best, dist, min, dr, dg, db;
     MMTextureColour source, target;
-    void *object = NULL, *memory = NULL;
+    MMTextureOwner *object = NULL;
+    void *memory = NULL;
     MMTextureDescription d;
     memset(&b, 0, sizeof(b));
     if (!s->read_bitmap(s->context, filename, &b))
@@ -67,17 +69,17 @@ void *mm_texture_bitmap(void *filename, void *palette, const MMTextureServices *
     }
     if (b.palette)
     {
-        s->release(s->context, b.palette);
+        s->release_aux(s->context, b.palette);
         b.palette = NULL;
     }
-    object = mm_texture_new(b.pixels, b.width, b.height, s);
+    object = mm_texture_new(b.pixels, b.width, b.height, host);
     if (object)
         b.pixels = NULL;
 done:
     if (memory)
         s->free_memory(s->context, &memory);
     if (b.palette)
-        s->release(s->context, b.palette);
+        s->release_aux(s->context, b.palette);
     s->free_memory(s->context, &b.pixels);
     return object;
 }
