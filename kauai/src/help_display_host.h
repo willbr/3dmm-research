@@ -32,11 +32,11 @@ struct TextDocument::DisplayHost : HelpHost
         s.child = [](void *v, void *cache, const MMTextChunk *p, MMU32 id, MMTextChunk *out) -> int {
             auto &h = *static_cast<DisplayHost *>(v);
             return h.Guard([&] {
-                ChildChunkIdentification kid;
-                if (!static_cast<PChunkyResourceFile>(cache)->Pcfl()->FGetKidChidCtg(p->type, p->number, id, kctgMbmp,
-                                                                                     &kid))
+                const auto chunks = static_cast<PChunkyResourceFile>(cache)->ReadChunkAccess();
+                MMU32 bitmap;
+                if (mm_chunk_link_number(&chunks, p->type, p->number, id, kctgMbmp, &bitmap) != MM_CHUNK_OK)
                     return false;
-                *out = {kid.cki.ctg, kid.cki.cno};
+                *out = {kctgMbmp, bitmap};
                 return true;
             });
         };

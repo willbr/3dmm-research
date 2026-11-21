@@ -171,6 +171,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MMChunkEndpoint CopySource(MMResourceChunkCopy &binding);
     MMChunkEndpoint CopyTarget(MMChunkFileCopy &binding);
     PChunkyResourceFile PcrfNewSibling(LegacyLong budget);
+    PChunkyResourceFile PcrfOpenForest(ChunkTagOrType, ChunkNumber);
 
     LegacyLong CbMax(void)
     {

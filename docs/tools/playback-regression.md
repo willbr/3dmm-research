@@ -19637,3 +19637,33 @@ frame and camera indices in `20261121T174530Z-6a0d70c6`. The three known
 port canvas differences from retail persisted. SDL and Marcus matched
 all three archived V3dmm frames, cameras, and canvases in
 `20261121T174526Z-a183f745`. Evidence is in `tmp/c89-source-reopen/evidence`.
+
+## Studio startup and Help archives (21 November 2026)
+
+Studio opens the product archive and the shared, building, Studio, and Help
+archives through C89 resource caches. Startup strings, palettes, splash art,
+MIDI, and the renderer shade table use those caches. Help reads topic headers
+and rich-text links through the same owner. For a topic stored as an embedded
+chunk tree, C89 builds a separate read-only index over the decoded file extent.
+The owner keeps that file alive for readers borrowing the child payloads.
+
+All 193 standalone C89 checks passed. AddressSanitizer passed the chunk owner,
+forest, and Help text checks. The chunk owner fixture checks a forest embedded
+at a nonzero offset, its borrowed child payload, and file release when a forest
+is truncated. The movie integration fixture reads both packed and unpacked Help
+forests. Native x64, native x86, and SDL reproduced identical Help text and
+balloon fixture bytes. Studio resource and core link checks passed in all
+three builds. The Marcus player checks passed on native x64.
+
+SDL Studio selected a scene, edited a textbox, saved and reopened a movie,
+opened F1 Help, and exercised save and discard on exit. The F1 screenshot was
+pixel-identical to the previous Studio build. Studio also saved and reopened
+an edited portable storyboard. The authored `.3mm` matched the prior file
+byte for byte.
+
+Retail, SDL, and Marcus agreed on all 11 sampled frames and cameras in
+`20261121T175944Z-3d10ba4a`. Each reproduced its previous canvas hashes, with
+three known canvas differences from retail per port. SDL and Marcus matched
+all three archived V3dmm frames, cameras, and canvas hashes in
+`20261121T180000Z-e63ccfcd`. Evidence is in
+`tmp/c89-studio-startup-cache/evidence`.

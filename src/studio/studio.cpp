@@ -13,6 +13,7 @@
 
 #include <ctime>
 #include "studio.h"
+#include "studio_resources.h"
 #ifdef WIN
 #include <shlobj.h>
 #endif
@@ -96,7 +97,6 @@ PStudio Studio::PstdioNew(long hid, PChunkyResourceManager pcrmStudio, PFilename
     PStudio pstdio;
     PMovie pmvie = pvNil;
     GraphicsObjectBlock gcb;
-    DataBlock blck;
 
     gcb.Set(hid, ((Application *)vpappb)->Pkwa());
     pstdio = NewObj Studio(&gcb);
@@ -206,15 +206,9 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     vapp.BeginLongOp();
 
     // read miscellaneous message strings
-    for (icrf = 0; icrf < _pcrm->Ccrf(); icrf++)
-    {
-        pcrf = _pcrm->PcrfGet(icrf);
-        if (pcrf->Pcfl()->FFind(kctgGst, kcnoGstMisc, &blck))
-        {
-            _pgstMisc = StringTable_GST::PgstRead(&blck);
-            break;
-        }
-    }
+    pcrf = _pcrm->PcrfFindChunk(kctgGst, kcnoGstMisc);
+    if (pcrf)
+        _pgstMisc = StudioResources::ReadStringTable(pcrf, kcnoGstMisc);
     if (pvNil == _pgstMisc) // if not found or read error
         goto LFail;
 
@@ -229,14 +223,9 @@ bool Studio::_FOpenStudio(bool fPaletteFade)
     for (icrf = 0; icrf < _pcrm->Ccrf(); icrf++)
     {
         pcrf = _pcrm->PcrfGet(icrf);
-        if (pcrf->Pcfl()->FFind(kctgColorTable, kidPalette, &blck))
-        {
-            _pglclr = DynamicArray::PglRead(&blck);
-            if (_pglclr != pvNil)
-            {
-                break;
-            }
-        }
+        _pglclr = StudioResources::ReadPalette(pcrf, kidPalette);
+        if (_pglclr)
+            break;
     }
 
     // kidStudio should be kcnoStudio according to Hungarian, but the "kid"

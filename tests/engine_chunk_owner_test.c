@@ -867,6 +867,46 @@ static void private_archive_cases(void)
     CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
 }
 
+static void private_forest_cases(void)
+{
+    static const unsigned char forest[] = {
+        1,0,3,0, 'T','O','O','R', 0,0,0,0, 0,0,0,0, 1,0,0,0, 0,0,0,0,
+        1,0,3,0, 'F','A','E','L', 7,0,0,0, 4,0,0,0, 0,0,0,0, 0,0,0,0, 'd','a','t','a'
+    };
+    const MMPrivateArchiveProfile profile = {1, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, 0, 1, NULL, convert_text};
+    StorageHost host = {0};
+    MMChunkOwnerFileIO io = storage_io(&host);
+    MMBlockFileServices blocks = {NULL, retain_block, release_block, create_extra, read_block, write_block};
+    MMBlockFile extent;
+    MMPrivateArchive *archive;
+    MMChunkOwnerRead *reader;
+    MMChunkAccess chunks;
+    MMBlockFile payload;
+    MMU32 number = 0;
+    int packed;
+    const MMU32 root = 0x524f4f54UL, leaf = 0x4c454146UL;
+    io.trace = NULL;
+    blocks.context = &host;
+    extent.file = &host.main;
+    extent.offset = 7;
+    extent.length = sizeof(forest);
+    host.main.length = extent.offset + extent.length;
+    memcpy(host.main.bytes + extent.offset, forest, sizeof(forest));
+    archive = mm_private_archive_open_forest(&extent, &io, &blocks, &profile);
+    CHECK(archive && !host.main.releases && !mm_private_archive_save(archive, 0));
+    reader = mm_private_archive_reader(archive);
+    chunks = mm_chunk_owner_access(reader->storage);
+    CHECK(chunks.count == 2 && mm_chunk_link_number(&chunks, root, 0, 7, leaf, &number) == MM_CHUNK_OK);
+    CHECK(mm_chunk_owner_locate(reader->storage, leaf, number, &payload, &packed));
+    CHECK(payload.file == &host.main && payload.length == 4 && !packed &&
+          !memcmp(host.main.bytes + payload.offset, "data", 4));
+    mm_private_archive_close(archive);
+    CHECK(host.main.releases == 1);
+    retain_block(NULL, &host.main);
+    --extent.length;
+    CHECK(!mm_private_archive_open_forest(&extent, &io, &blocks, &profile) && host.main.releases == 2);
+}
+
 int main(void)
 {
     reopen_cases();
@@ -878,6 +918,7 @@ int main(void)
     persistence_cases(1);
     reader_cases();
     private_archive_cases();
+    private_forest_cases();
     puts("chunk owner C89 checks passed");
     return 0;
 }

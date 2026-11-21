@@ -148,7 +148,7 @@ struct Balloon::BalloonHost : TextDocumentFactoryHost
         s.read = [](void *v, void *p, MMU32 n, void **out) -> int {
             auto &h = *static_cast<BalloonHost *>(v);
             return h.Guard([&] {
-                *out = TextDocument::PtxhdReadChunk(h.cache, static_cast<PChunkyResourceFile>(p)->Pcfl(), kctgHelpTopic,
+                *out = TextDocument::PtxhdReadChunk(h.cache, static_cast<PChunkyResourceFile>(p), kctgHelpTopic,
                                                     n, h.world->Pstrg());
                 return *out != nullptr;
             });

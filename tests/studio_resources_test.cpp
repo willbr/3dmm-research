@@ -47,7 +47,15 @@ int main()
             DataBlock block;
             CHECK(file->FAdd(source->CbOnFile(), 'GST ', &number, &block));
             CHECK(source->FWrite(&block, order));
-            auto table = StudioResources::ReadStringTable(&block);
+            Filename name;
+            file->GetFni(&name);
+            CHECK(file->FSave('SOC '));
+            file->SetTemp(false);
+            block.Free();
+            ReleasePpo(&file);
+            auto cache = ChunkyResourceFile::PcrfOpenWorking(&name, false);
+            CHECK(cache && !cache->Pcfl());
+            auto table = StudioResources::ReadStringTable(cache, number, true);
             if (width == 8)
                 CHECK(!table); // Valid generic GST, unsupported Studio schema.
             else
@@ -72,7 +80,8 @@ int main()
             }
             ReleasePpo(&table);
             ReleasePpo(&source);
-            ReleasePpo(&file);
+            ReleasePpo(&cache);
+            CHECK(name.FDelete());
         }
     std::puts("Studio resources: native/swapped 32-bit extras, strings and unsupported-width rejection passed.");
     return 0;

@@ -296,6 +296,13 @@ MMPrivateArchive *KauaiFindWorkingArchive(PFileObject file)
     return mm_private_archive_find(&workingArchives, file);
 }
 
+MMPrivateArchive *KauaiOpenForest(const MMBlockFile &extent)
+{
+    const auto profile = KauaiPrivateArchiveProfile();
+    const auto io = ChunkOwnerFileIO();
+    return mm_private_archive_open_forest(&extent, &io, KauaiBlockFileServices(), &profile);
+}
+
 MMPrivateArchive *KauaiWorkingArchive(Filename *name, bool create)
 {
     AssertPo(name, ffniFile);

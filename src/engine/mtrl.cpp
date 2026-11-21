@@ -120,6 +120,12 @@ bool Material_MTRL::FSetShadeTable(const MMReadStream &stream)
     auto s = _Services();
     return mm_material_shade_set(&_shade, TextureMap::PtmapRead(stream), &s) != 0;
 }
+bool Material_MTRL::FSetShadeTable(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
+{
+    int read;
+    return mm_resource_cache_visit_payload(cache->CoreCache(), type, number, KauaiDecodeBlockHandle, nullptr,
+        [](void *, const MMReadStream *stream) -> int { return FSetShadeTable(*stream); }, nullptr, &read) == MM_CHUNK_OK && read;
+}
 PMaterial_MTRL Material_MTRL::PmtrlNew(LegacyLong base, LegacyLong range)
 {
     if (base != ivNil)

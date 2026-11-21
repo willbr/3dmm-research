@@ -429,6 +429,24 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
         return PcrfNewIndex(_cache.wire_index, _cache.wire_file, *_cache.services.block_files, _wirePath, budget);
     return _PcrfNew({Pcfl(), _cache.wire_index, _cache.wire_file}, budget);
 }
+PChunkyResourceFile ChunkyResourceFile::PcrfOpenForest(ChunkTagOrType type, ChunkNumber number)
+{
+    AssertThis(0);
+    const auto files = KauaiBlockFileServices();
+    MMOwnedBlock block;
+    if (_cache.services.block_files != files || mm_owned_block_init(&block, _cache.services.handles, files) != MM_DATA_OK)
+        return nullptr;
+    MMPrivateArchive *archive = nullptr;
+    MMBlockFile extent;
+    if (mm_resource_cache_read_block(&_cache, type, number, &block) == MM_CHUNK_OK &&
+        mm_owned_block_code(&block, 0, nullptr, KauaiDecodeBlockHandle, nullptr) == MM_DATA_OK &&
+        mm_owned_block_materialize(&block, 0, &extent) == MM_DATA_OK)
+        archive = KauaiOpenForest(extent);
+    mm_owned_block_clear(&block);
+    const auto cache = PcrfNewPrivate(archive, 0);
+    mm_private_archive_close(archive);
+    return cache;
+}
 bool ChunkyResourceFile::FReopenArchive()
 {
     AssertThis(0);

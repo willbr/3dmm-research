@@ -13,6 +13,7 @@
 #include <exception>
 #include <new>
 #include "kidframe.h"
+#include "handle_services.h"
 ASSERTNAME
 #include "rich_text_store_host.h"
 #include "text_document_host.h"
@@ -77,24 +78,25 @@ void TextDocument::MarkMem(void)
 #endif // DEBUG
 
 /***************************************************************************
-    Static method to read a help text document from the given (pcfl, ctg, cno)
+    Static method to read a help text document from the source cache
     and using the given prca as the source for pictures and buttons.
 ***************************************************************************/
-PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
+PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyResourceFile source, ChunkTagOrType ctg,
+                                          ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
 {
     AssertPo(prca, 0);
-    AssertPo(pcfl, 0);
+    AssertPo(source, 0);
     struct Factory : TextDocumentFactoryHost
     {
         PResourceCache cache;
-        PChunkyFile file;
+        PChunkyResourceFile file;
         ChunkTagOrType type;
         ChunkNumber number;
         PStringRegistry strings;
         ulong flags;
     } host;
     host.cache = prca;
-    host.file = pcfl;
+    host.file = source;
     host.type = ctg;
     host.number = cno;
     host.strings = pstrg;
@@ -111,7 +113,7 @@ PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl
         [](void *v, void *p) -> int {
             auto &h = *static_cast<Factory *>(v);
             return h.Guard([&] {
-                return static_cast<PTextDocument>(p)->_FReadChunk(h.file, h.type, h.number, h.strings, h.flags);
+                return static_cast<PTextDocument>(p)->_FReadResource(h.file, h.type, h.number, h.strings, h.flags);
             });
         },
         [](void *, void *p) { static_cast<BASE *>(p)->Release(); }, [](void *) { PushErc(ercHelpReadFailed); }};
@@ -126,15 +128,16 @@ PTextDocument TextDocument::PtxhdReadChunk(PResourceCache prca, PChunkyFile pcfl
 /***************************************************************************
     Read the given chunk into this RichTextDocument.
 ***************************************************************************/
-bool TextDocument::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, PStringRegistry pstrg, ulong grftxhd)
+bool TextDocument::_FReadResource(PChunkyResourceFile source, ChunkTagOrType ctg, ChunkNumber cno,
+                                 PStringRegistry pstrg, ulong grftxhd)
 {
-    AssertPo(pcfl, 0);
+    AssertPo(source, 0);
     AssertNilOrPo(pstrg, 0);
     HelpHost host(this);
     host.strings = pstrg;
     auto services = host.Read();
     auto config = host.Config();
-    int result = mm_help_read(&_topic, pcfl, ctg, cno, grftxhd, pstrg != nullptr, config.unit, config.big, &services);
+    int result = mm_help_read(&_topic, source, ctg, cno, grftxhd, pstrg != nullptr, config.unit, config.big, &services);
     host.Rethrow();
     return result > 0;
 }

@@ -57,6 +57,7 @@ MMChunkTitleIO KauaiChunkOwnerTitleIO();
 MMPrivateArchive *KauaiPrivateArchive(PFileObject);
 MMPrivateArchive *KauaiWorkingArchive(Filename *, bool create);
 MMPrivateArchive *KauaiFindWorkingArchive(PFileObject);
+MMPrivateArchive *KauaiOpenForest(const MMBlockFile &);
 bool KauaiSaveChunkOwner(MMChunkOwnerStorage *, ChunkTagOrType creator, Filename *);
 bool KauaiSetChunkOwnerOptions(MMChunkOwnerStorage *, LegacyUlong flags, LegacyUlong mask);
 LegacyLong KauaiChunkOwnerError(const MMChunkOwner *);

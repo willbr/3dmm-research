@@ -131,53 +131,73 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
         s.context = this;
         s.forest = [](void *v, void *f, MMU32 t, MMU32 n) -> int {
             auto &h = *static_cast<HelpHost *>(v);
-            return h.Guard([&] { return static_cast<PChunkyFile>(f)->FForest(t, n); });
+            return h.Guard([&] {
+                const auto chunks = static_cast<PChunkyResourceFile>(f)->ReadChunkAccess();
+                MMU32 position;
+                MMChunkEntry entry;
+                return mm_chunk_find(&chunks, t, n, &position) == MM_CHUNK_OK &&
+                       mm_chunk_at(&chunks, position, &entry) == MM_CHUNK_OK && (entry.flags & MM_CHUNK_FOREST) != 0;
+            });
         };
         s.open_forest = [](void *v, void *f, MMU32 t, MMU32 n, void **out) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                *out = static_cast<PChunkyFile>(f)->PcflReadForest(t, n, false);
+                *out = static_cast<PChunkyResourceFile>(f)->PcrfOpenForest(t, n);
                 return *out != nullptr;
             });
         };
         s.first = [](void *v, void *f, MMU32 t, MMU32 *out) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                ChunkIdentification id;
-                if (!static_cast<PChunkyFile>(f)->FGetCkiCtg(t, 0, &id))
+                const auto chunks = static_cast<PChunkyResourceFile>(f)->ReadChunkAccess();
+                MMChunkEntry entry;
+                MMU32 position;
+                if (mm_chunk_type_at(&chunks, t, 0, &entry, &position) != MM_CHUNK_OK)
                     return false;
-                *out = id.cno;
+                *out = entry.number;
                 return true;
             });
         };
-        s.retain = [](void *, void *f) { static_cast<PChunkyFile>(f)->AddRef(); };
-        s.release = [](void *, void *f) { static_cast<PChunkyFile>(f)->Release(); };
+        s.retain = [](void *, void *f) { static_cast<PChunkyResourceFile>(f)->AddRef(); };
+        s.release = [](void *, void *f) { static_cast<PChunkyResourceFile>(f)->Release(); };
         s.header = [](void *v, void *f, MMU32 t, MMU32 n, void *out, MMI32 *bytes) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                if (!static_cast<PChunkyFile>(f)->FFind(t, n, &h.block) || !h.block.FUnpackData())
-                    return false;
-                *bytes = h.block.Cb();
-                if (*bytes != 28 && *bytes != 36)
-                    return true;
-                return h.block.FRead(out);
+                struct Header
+                {
+                    void *output;
+                    MMI32 *bytes;
+                } header = {out, bytes};
+                int read;
+                return mm_resource_cache_visit_payload(static_cast<PChunkyResourceFile>(f)->CoreCache(), t, n,
+                    KauaiDecodeBlockHandle, nullptr, [](void *context, const MMReadStream *stream) -> int {
+                        auto header = static_cast<Header *>(context);
+                        *header->bytes = stream->length;
+                        return (stream->length != 28 && stream->length != 36) ||
+                               mm_read_exact(stream, 0, header->output, stream->length);
+                    }, &header, &read) == MM_CHUNK_OK && read;
             });
         };
         s.child = [](void *v, void *f, MMU32 t, MMU32 n, MMTextChunk *out) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                ChildChunkIdentification kid;
-                if (!static_cast<PChunkyFile>(f)->FGetKidChidCtg(t, n, 0, kctgRichText, &kid))
+                const auto chunks = static_cast<PChunkyResourceFile>(f)->ReadChunkAccess();
+                MMU32 number;
+                if (mm_chunk_link_number(&chunks, t, n, 0, kctgRichText, &number) != MM_CHUNK_OK)
                     return false;
-                *out = {kid.cki.ctg, kid.cki.cno};
+                *out = {kctgRichText, number};
                 return true;
             });
         };
         s.rich = [](void *v, void *f, const MMTextChunk *p, int copy) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {
-                return h.help->RichTextDocument::_FReadChunk(static_cast<PChunkyFile>(f), p->type, p->number,
-                                                             copy != 0);
+                const auto cache = static_cast<PChunkyResourceFile>(f);
+                const auto reader = cache->ReadOwner();
+                if (!reader)
+                    return false;
+                MovieArchiveHost archive(reader, cache->ArchiveWriter());
+                return h.help->_FReadArchive(archive.Editor(), reader, p->type, p->number, copy != 0);
             });
         };
         s.internal = [](void *v) -> int {

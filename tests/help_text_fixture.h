@@ -16,7 +16,14 @@ struct HelpTextProbe : Help::TextDocument
     bool Load(PChunkyFile file, ChunkIdentification root, ScriptCompiler::PStringRegistry strings = nullptr,
               ulong flags = 0)
     {
-        return _FReadChunk(file, root.ctg, root.cno, strings, flags);
+        auto cache = ChunkyResourceFile::PcrfNew(file, 0);
+        const bool ok = cache && _FReadResource(cache, root.ctg, root.cno, strings, flags);
+        ReleasePpo(&cache);
+        return ok;
+    }
+    bool Load(PChunkyResourceFile cache, ChunkIdentification root)
+    {
+        return _FReadResource(cache, root.ctg, root.cno, nullptr, 0);
     }
     bool Arg(LiveTextTrace &t, byte kind, const std::vector<byte> &bytes, short order)
     {
@@ -122,6 +129,9 @@ static bool TestHelpText()
     if (!p->FReplaceRgch(placeholders, sizeof(placeholders) / sizeof(achar), 0, p->CpMac() - 1, fdocNil) ||
         !p->FSaveToChunk(file, &root))
         return false;
+    const auto expectedLength = p->CpMac();
+    Help::Topic expectedTopic;
+    p->GetHtop(&expectedTopic);
     ReleasePpo(&p);
     ScriptCompiler::StringRegistry strings;
     String a(PszLit("one~99")), b(PszLit("zero"));
@@ -147,6 +157,31 @@ static bool TestHelpText()
                     return false;
                 ReleasePpo(&p);
             }
+    auto forestFile = FileObject::PfilCreateTemp();
+    LegacyLong forestBytes;
+    ChunkNumber forestNumber;
+    if (!forestFile || !file->FWriteChunkTree(root.ctg, root.cno, forestFile, 0, &forestBytes))
+        return false;
+    {
+        DataBlock forest(forestFile, 0, forestBytes);
+        if (!file->FAddBlck(&forest, root.ctg, &forestNumber))
+            return false;
+    }
+    ReleasePpo(&forestFile);
+    file->SetForest(root.ctg, forestNumber, true);
+    for (bool packed : {false, true})
+    {
+        if (packed && (!file->FPackData(root.ctg, forestNumber) || !file->FPacked(root.ctg, forestNumber)))
+            return false;
+        p = NewObj HelpTextProbe(cache);
+        Help::Topic loaded;
+        if (!p || !p->Load(cache, {root.ctg, forestNumber}) || p->CpMac() != expectedLength)
+            return false;
+        p->GetHtop(&loaded);
+        if (loaded.cnoBalloon != expectedTopic.cnoBalloon || loaded.hidThis != expectedTopic.hidThis)
+            return false;
+        ReleasePpo(&p);
+    }
     ReleasePpo(&cache);
     ReleasePpo(&file);
     bool golden = true;

@@ -1,6 +1,7 @@
 #include "mm/private_archive.h"
 #include "mm/chunk_table.h"
 #include "mm/chunk_copy.h"
+#include "mm/chunk_forest.h"
 #include "mm/handle_memory.h"
 #include "mm/reference.h"
 #include "mm/text_resource.h"
@@ -160,20 +161,14 @@ void mm_private_archive_close(MMPrivateArchive *archive)
         mm_reference_release(&archive->references, archive, destroy_archive);
 }
 
-MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwnerFileIO *io,
-                                         const MMBlockFileServices *blocks, const MMPrivateArchiveProfile *profile)
+static MMPrivateArchive *allocate_archive(void *file, const MMChunkOwnerFileIO *io,
+                                          const MMBlockFileServices *blocks, const MMPrivateArchiveProfile *profile)
 {
     MMPrivateArchive *archive;
-    MMChunkOwnerRead *reader;
-    MMChunkReopenState *files;
-    MMArchiveWriter writer;
     MMChunkPayloadServices payloads = {&handles, NULL, NULL, NULL, decode_handle};
     if (!file || !io || !io->release)
         return NULL;
-    if (!profile || (profile->unit != 1 && profile->unit != 2) || !profile->convert ||
-        !io->read_stream || !blocks ||
-        (mode < MM_PRIVATE_ARCHIVE_READ || mode > MM_PRIVATE_ARCHIVE_WORKING) ||
-        (mode != MM_PRIVATE_ARCHIVE_READ && (!io->resize || !io->write_at || !io->size || !io->create_extra)))
+    if (!profile || (profile->unit != 1 && profile->unit != 2) || !profile->convert || !io->read_stream || !blocks)
     {
         io->release(file);
         return NULL;
@@ -195,20 +190,51 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
     }
     mm_reference_init(&archive->references);
     mm_chunk_link_init(&archive->link, archive);
+    mm_private_archive_reader(archive)->storage->owner->files.main_file = file;
+    return archive;
+}
+
+static int create_index(MMPrivateArchive *archive)
+{
+    MMChunkTable *table;
+    const MMU32 width = archive->profile.expanded ? sizeof(MMChunkRecordBig) : sizeof(MMChunkRecordSmall);
+    if (mm_chunk_table_create(NULL, width, 0, archive->profile.trash_unused, &table) != MM_STORAGE_OK)
+        return 0;
+    mm_private_archive_reader(archive)->storage->owner->files.index = table;
+    return 1;
+}
+
+static int bind_editor(MMPrivateArchive *archive)
+{
+    MMChunkOwnerRead *reader = mm_private_archive_reader(archive);
+    const MMArchiveWriter writer = mm_private_archive_writer(archive);
+    archive->titles.context = archive;
+    archive->titles.encoding = archive->profile.encoding;
+    archive->titles.swapped_unicode_encoding = archive->profile.swapped_unicode_encoding;
+    archive->titles.convert = convert_title;
+    archive->titles.read = read_title;
+    archive->titles.write = write_title;
+    archive->editor_ready = mm_movie_archive_file_init(&archive->editor, reader, &writer, &archive->titles);
+    return archive->editor_ready;
+}
+
+MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwnerFileIO *io,
+                                         const MMBlockFileServices *blocks, const MMPrivateArchiveProfile *profile)
+{
+    MMPrivateArchive *archive = allocate_archive(file, io, blocks, profile);
+    MMChunkOwnerRead *reader;
+    if (!archive)
+        return NULL;
+    if ((mode < MM_PRIVATE_ARCHIVE_READ || mode > MM_PRIVATE_ARCHIVE_WORKING) ||
+        (mode != MM_PRIVATE_ARCHIVE_READ && (!io->resize || !io->write_at || !io->size || !io->create_extra)))
+        goto fail;
     reader = mm_private_archive_reader(archive);
-    files = &reader->storage->owner->files;
-    files->main_file = file;
     archive->writable = mode != MM_PRIVATE_ARCHIVE_READ;
     if (mode == MM_PRIVATE_ARCHIVE_CREATE)
     {
-        MMChunkTable *table;
-        const MMU32 width = profile->expanded ? sizeof(MMChunkRecordBig) : sizeof(MMChunkRecordSmall);
-        if (mm_chunk_table_create(NULL, width, 0, profile->trash_unused, &table) != MM_STORAGE_OK)
+        if (!create_index(archive) || !io->resize(file, MM_CHUNK_PREFIX_BYTES))
             goto fail;
-        files->index = table;
-        if (!io->resize(file, MM_CHUNK_PREFIX_BYTES))
-            goto fail;
-        files->main_end = MM_CHUNK_PREFIX_BYTES;
+        reader->storage->owner->files.main_end = MM_CHUNK_PREFIX_BYTES;
     }
     else
     {
@@ -219,17 +245,67 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
         else if (mode == MM_PRIVATE_ARCHIVE_WORKING)
             reader->storage->owner->add_to_extra = 1;
     }
-    archive->titles.context = archive;
-    archive->titles.encoding = profile->encoding;
-    archive->titles.swapped_unicode_encoding = profile->swapped_unicode_encoding;
-    archive->titles.convert = convert_title;
-    archive->titles.read = read_title;
-    archive->titles.write = write_title;
-    writer = mm_private_archive_writer(archive);
-    archive->editor_ready = mm_movie_archive_file_init(&archive->editor, reader, &writer, &archive->titles);
-    if (archive->editor_ready)
+    if (bind_editor(archive))
         return archive;
 fail:
+    mm_private_archive_close(archive);
+    return NULL;
+}
+
+static int add_forest_chunk(void *context, MMU32 type, MMU32 offset, MMU32 bytes, MMU32 flags,
+                            int copy, MMU32 *number)
+{
+    const MMChunkEdit *edit = context;
+    MMChunkEntry entry = {0};
+    MMU32 position;
+    (void)copy;
+    if (mm_chunk_unique(edit, type, &position, &entry.number) != MM_CHUNK_OK || !edit->insert(edit->context, position))
+        return 0;
+    entry.type = type;
+    entry.offset = bytes ? offset : 0;
+    entry.bytes = bytes;
+    entry.flags = MM_CHUNK_LONER | (flags & (MM_CHUNK_PACKED | MM_CHUNK_FOREST));
+    edit->store(edit->context, position, &entry, 1);
+    *number = entry.number;
+    return 1;
+}
+
+static int adopt_forest_chunk(void *context, MMU32 parent, MMU32 number, MMU32 type, MMU32 child, MMU32 slot)
+{
+    MMChunkChild link;
+    link.type = type;
+    link.number = child;
+    link.slot = slot;
+    return mm_chunk_adopt(context, parent, number, &link, 1) == MM_CHUNK_OK;
+}
+
+MMPrivateArchive *mm_private_archive_open_forest(const MMBlockFile *extent, const MMChunkOwnerFileIO *io,
+                                               const MMBlockFileServices *blocks, const MMPrivateArchiveProfile *profile)
+{
+    MMPrivateArchive *archive;
+    MMChunkOwnerStorage *storage;
+    MMChunkEdit edit;
+    MMReadStream stream;
+    MMForestImport importer = {NULL, add_forest_chunk, adopt_forest_chunk};
+    if (!extent)
+        return NULL;
+    archive = allocate_archive(extent->file, io, blocks, profile);
+    if (!archive)
+        return NULL;
+    storage = mm_private_archive_reader(archive)->storage;
+    stream = io->read_stream(extent->file);
+    if (create_index(archive))
+    {
+        storage->owner->files.invalid_main = 1;
+        edit = mm_chunk_owner_editor(storage, max_references(archive), profile->trash_unused);
+        importer.context = &edit;
+        if (mm_forest_read(&stream, extent->offset, extent->length, &importer, NULL, 0) == MM_CHUNK_OK &&
+            validate_index(archive) && bind_editor(archive))
+        {
+            storage->owner->files.main_end = extent->offset + extent->length;
+            return archive;
+        }
+    }
     mm_private_archive_close(archive);
     return NULL;
 }

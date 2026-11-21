@@ -28,6 +28,10 @@ enum { MM_PRIVATE_ARCHIVE_READ, MM_PRIVATE_ARCHIVE_EDIT, MM_PRIVATE_ARCHIVE_CREA
  * Publishing its edits requires a save target capable of replacing the file. */
 MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwnerFileIO *,
                                          const MMBlockFileServices *, const MMPrivateArchiveProfile *);
+/* Consume the decoded forest's file reference. Retain its stored child extents
+ * as a read-only archive with an independent index. */
+MMPrivateArchive *mm_private_archive_open_forest(const MMBlockFile *, const MMChunkOwnerFileIO *,
+                                               const MMBlockFileServices *, const MMPrivateArchiveProfile *);
 /* Borrow the owner whose live main file matches this token. The registry
  * follows save publication and automatically removes closed archives. */
 MMPrivateArchive *mm_private_archive_find(const MMChunkContext *, void *file);
