@@ -5,8 +5,12 @@
 #include <cstring>
 #include <map>
 #include <vector>
+#ifdef _WIN64
+#include <windows.h>
+#endif
 #include "soc_core.h"
 #undef size
+#include "body_renderer.h"
 #include "preview_actor_tree.h"
 ASSERTNAME
 
@@ -138,6 +142,83 @@ static void TestPickInverses(br_model *model)
     CHECK(count() == 0);
     BrActorFree(world);
 }
+
+static void CheckLiveBodyActorCopy(br_actor *source, br_actor *copy)
+{
+    constexpr int count = 6;
+    std::memset(source, 0, count * sizeof(*source));
+    std::memset(copy, 0, count * sizeof(*copy));
+    MMBodyEditServices services = {};
+    auto &shape = services.shape;
+    mm_brender_body_create_services(&shape);
+    mm_brender_body_edit_services(&services);
+    auto highlight = static_cast<br_material *>(shape.allocate_highlight(nullptr));
+    CHECK(highlight);
+    shape.install_highlight(nullptr, highlight);
+    mm_brender_body_highlight_colour(108);
+    CHECK(shape.highlight(nullptr) == highlight && highlight->index_base == 108);
+
+    int originalOwner, copyOwner, restoredOwner;
+    for (int i = 0; i < count; ++i)
+        shape.initialize_actor(nullptr, &originalOwner, source, i,
+                               i == 0 ? MM_BODY_ROOT : i == 1 ? MM_BODY_HIGHLIGHT : MM_BODY_PART);
+    shape.link(nullptr, source, 0, 1);
+    shape.link(nullptr, source, 0, 2);
+    shape.link(nullptr, source, 0, 3);
+    shape.link(nullptr, source, 3, 4);
+    shape.link(nullptr, source, 3, 5);
+    br_actor world = {}, following = {}, preceding = {};
+    BrActorAdd(&world, &following);
+    BrActorAdd(&world, source);
+    BrActorAdd(&world, &preceding);
+
+    services.copy_actors(nullptr, &copyOwner, copy, source, count);
+    CHECK(!copy[0].parent && !copy[0].prev && !copy[0].next);
+    CHECK(source[0].parent == &world && source[0].prev == &preceding.next && source[0].next == &following);
+    CHECK(copy[1].material == highlight && copy[1].render_style == BR_RSTYLE_BOUNDING_EDGES);
+    CHECK(copy[0].children == copy + 3 && copy[3].next == copy + 2 && copy[2].next == copy + 1);
+    CHECK(copy[3].children == copy + 5 && copy[5].next == copy + 4);
+    for (int i = 0; i < count; ++i)
+    {
+        CHECK(mm_brender_body_owner(copy + i) == &copyOwner);
+        CHECK(mm_brender_body_owner(source + i) == &originalOwner);
+        for (auto slot = &copy[i].children; *slot; slot = &(*slot)->next)
+            CHECK((*slot)->prev == slot && (*slot)->parent == copy + i);
+    }
+    BrActorRemove(copy + 5);
+    CHECK(copy[3].children == copy + 4 && copy[4].prev == &copy[3].children);
+    CHECK(source[3].children == source + 5 && source[4].prev == &source[5].next);
+    services.identify(nullptr, &restoredOwner, copy, count);
+    for (int i = 0; i < count; ++i)
+        CHECK(mm_brender_body_owner(copy + i) == &restoredOwner);
+    BrActorRemove(source);
+    mm_brender_body_release_highlight();
+}
+
+static void TestLiveBodyActorCopy()
+{
+    size_t bytes, offset;
+    CHECK(mm_brender_body_layout(6, 4096, &bytes, &offset));
+    CHECK(offset >= 6 * sizeof(br_actor) && offset % alignof(MMBodyPartBinding) == 0);
+    CHECK(bytes == offset + 6 * sizeof(MMBodyPartBinding));
+    CHECK(!mm_brender_body_layout(6, bytes - 1, &bytes, &offset));
+#ifdef _WIN64
+    // Commit only two pages. The large virtual gap exposes a truncated delta.
+    constexpr size_t gap = 0x90000000;
+    constexpr size_t page = 4096;
+    auto region = static_cast<unsigned char *>(VirtualAlloc(nullptr, gap + page, MEM_RESERVE, PAGE_NOACCESS));
+    CHECK(region);
+    auto source = static_cast<br_actor *>(VirtualAlloc(region, page, MEM_COMMIT, PAGE_READWRITE));
+    auto copy = static_cast<br_actor *>(VirtualAlloc(region + gap, page, MEM_COMMIT, PAGE_READWRITE));
+    CHECK(source && copy);
+    CheckLiveBodyActorCopy(source, copy);
+    CHECK(VirtualFree(region, 0, MEM_RELEASE));
+#else
+    br_actor source[6], copy[6];
+    CheckLiveBodyActorCopy(source, copy);
+#endif
+}
+
 void SameTree(const br_actor *source, const br_actor *copy, const std::map<br_actor *, int> &owners)
 {
     CHECK(source != copy && source->type == copy->type && source->model == copy->model);
@@ -160,6 +241,7 @@ int main()
 {
     BrBegin();
     BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
+    TestLiveBodyActorCopy();
     // Verified against the pinned retail EXE: BrMatrix34Mul (RVA 0x76ac4)
     // and BrMatrix4Pre34 (0x7c84a) shift each product before adding. Keep
     // this distinct from the standalone full-precision ASM primitive.

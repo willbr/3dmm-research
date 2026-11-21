@@ -38,7 +38,6 @@ class Body : public Body_PAR
     MARKMEM
 
   protected:
-    static BMTL *_pbmtlHilite; // hilight material
     MMBodyShape _shape; // Owns body bindings, draw actors and costume state.
     void *_pvRenderContext; // non-owning renderer binding, copied with the body
     void (*_pfnAttach)(void *, Body *);

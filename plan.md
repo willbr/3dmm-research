@@ -747,7 +747,9 @@ Keep host presentation and device output outside the session.
    hierarchy decoding. The live cache builds older templates' CMTL choices
    in child order. Generated 3D text uses the same part-index and costume
    collections. Body construction and reshaping consume borrowed index views,
-   and each live body owns its copy of the part sets. Live 3D text generates
+   and each live body owns its copy of the part sets. The C89 BRender binding
+   lays out, initializes, copies and relinks the live actor tree and owns the
+   shared selection material. Live 3D text generates
    its cels and matrices directly into the shared C action tables, which the
    action adopts. C resolves and reads its descriptor through the live cache
    or archive graph and writes the descriptor child through C-owned block I/O.

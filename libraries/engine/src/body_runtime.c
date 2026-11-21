@@ -15,10 +15,19 @@ void mm_body_hide(void *body,const MMBodyRuntimeServices *s)
 {
     MMBodyShape b; int visible; void *p=s->shape.context;
     b=*s->shape.state(p,body); visible=!b.hidden; ++b.hidden; *s->shape.state(p,body)=b;
-    if (visible) { s->clear_bounds(p,body); if (s->attached(p,body)) s->detach(p,body); s->changed(p,body); }
+    if (visible)
+    {
+        s->clear_bounds(p,body);
+        if (s->attached(p,b.actors)) s->detach(p,b.actors);
+        s->changed(p,body);
+    }
 }
 void mm_body_highlight(void *body,int enabled,const MMBodyRuntimeServices *s)
-{ s->highlight(s->shape.context,body,enabled); changed(body,s); }
+{
+    void *p=s->shape.context;
+    s->highlight(p,s->shape.state(p,body)->actors,enabled);
+    changed(body,s);
+}
 void mm_body_locate(void *body,const MMActorBodyPose *pose,const MMBodyRuntimeServices *s)
 {
     MMActorMatrix root;

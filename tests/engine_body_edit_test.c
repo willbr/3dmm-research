@@ -79,10 +79,15 @@ static void remove_material(void *p,void *object,MMI32 set)
 }
 static void free_memory(void *p,void **memory) { (void)p; free(*memory); *memory=NULL; }
 static void copy_bindings(void *p,void *to,void *from) { (void)p; ((Body *)to)->binding=((Body *)from)->binding; }
-static void copy_actors(void *p,void *to,void *from,MMI32 n) { (void)p; memcpy(to,from,(size_t)n*sizeof(Part)); }
-static void rebase(void *p,void *body,void *to,void *from,MMI32 i,int root)
+static void copy_actors(void *p,void *body,void *to,const void *from,MMI32 n)
 {
-    Fixture *f=p; Part *a=to; (void)from; CHECK(root==(i==0)); ++f->rebased; a[i].owner=body; if (root) a[i].parent=-1;
+    Fixture *f=p;
+    Part *actors=to;
+    MMI32 i;
+    memcpy(to,from,(size_t)n*sizeof(*actors));
+    actors[0].parent=-1;
+    for (i=0;i<n;++i) actors[i].owner=body;
+    f->rebased+=n;
 }
 static void copy_materials(void *p,void *to,void *from,MMI32 n) { (void)p; memcpy(to,from,(size_t)n*sizeof(Ref *)); }
 static void copy_bounds(void *p,void *to,void *from) { (void)p; memcpy(((Body *)to)->bounds,((Body *)from)->bounds,sizeof(((Body *)to)->bounds)); }
@@ -98,7 +103,12 @@ static void *material(void *p,void *object,MMI32 set,int *generic)
 static void retain(void *p,void *object) { (void)p; CHECK(object); ++((Ref *)object)->count; }
 static void swap_bodies(void *p,void *a,void *b)
 { Body temp=*(Body *)a; (void)p; CHECK(((Body *)b)->shape.hidden==1); *(Body *)a=*(Body *)b; *(Body *)b=temp; }
-static void identify(void *p,void *b,void *actors,MMI32 i) { ++((Fixture *)p)->identified; ((Part *)actors)[i].owner=b; }
+static void identify(void *p,void *b,void *actors,MMI32 n)
+{
+    MMI32 i;
+    for (i=0;i<n;++i) ((Part *)actors)[i].owner=b;
+    ((Fixture *)p)->identified+=n;
+}
 static void set_generic(void *p,void *object,MMI32 set,void *m)
 {
     Body *b=object; int i; remove_material(p,b,set);
@@ -134,7 +144,7 @@ static void setup(Fixture *f,int visible,int n,int hilite)
     c->count=count; c->item=item;
     c->allocate_materials=allocate_materials; c->allocate_actors=allocate_actors; c->initialize_actor=initialize;
     c->assign_matrix=assign_matrix; c->link=link_actor; c->hide=hide; c->remove_material=remove_material; c->free_memory=free_memory;
-    f->s.copy_bindings=copy_bindings; f->s.copy_actors=copy_actors; f->s.rebase_actor=rebase;
+    f->s.copy_bindings=copy_bindings; f->s.copy_actors=copy_actors;
     f->s.copy_materials=copy_materials; f->s.copy_bounds=copy_bounds; f->s.material=material; f->s.retain=retain;
     f->s.show=show; f->s.swap_bodies=swap_bodies; f->s.identify=identify; f->s.set_generic=set_generic; f->s.set_custom=set_custom;
     f->s.set_model=set_model; f->s.highlighted=highlighted; f->s.highlight=highlight;

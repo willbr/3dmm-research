@@ -120,41 +120,9 @@ ASSERTNAME
 RTCLASS(Body)
 RTCLASS(BodyCostume)
 
-static constexpr size_t kcbBodyActor = sizeof(BACT) + sizeof(MMBodyPartBinding);
-static constexpr size_t kBodyBindingAlign = alignof(MMBodyPartBinding);
-
-static size_t BodyBindingOffset(size_t count)
-{
-    const size_t bytes = count * sizeof(BACT);
-    return (bytes + kBodyBindingAlign - 1) & ~(kBodyBindingAlign - 1);
-}
-
-static size_t BodyStorageSize(size_t count)
-{
-    return BodyBindingOffset(count) + count * sizeof(MMBodyPartBinding);
-}
-
-// Specification of hilite color.  REVIEW *****: should these
-// values (or the PBMTL itself?) be passed in by the client?
-const br_colour kbrcHilite = BR_COLOUR_RGB(255, 255, 255);
-const byte kbOpaque = 0xff;
-const br_ufraction kbrufKaHilite = BR_UFRACTION(0.10);
-const br_ufraction kbrufKdHilite = BR_UFRACTION(0.60);
-const br_ufraction kbrufKsHilite = BR_UFRACTION(0.60);
-const BRS krPowerHilite = BR_SCALAR(50);
-const LegacyLong kiclrHilite = 0; // default to no highlighting
-
-// Hilighting material
-PBMTL Body::_pbmtlHilite = pvNil;
-
 void Body::ReleaseSharedMaterial(void)
 {
-    if (_pbmtlHilite != pvNil)
-    {
-        BrMaterialRemove(_pbmtlHilite);
-        BrMaterialFree(_pbmtlHilite);
-        _pbmtlHilite = pvNil;
-    }
+    mm_brender_body_release_highlight();
 }
 
 /***************************************************************************
@@ -174,19 +142,8 @@ void Body::SetRenderCallbacks(void *context, void (*attach)(void *, Body *), voi
 MMBodyCreateServices Body::_CreateServices(void)
 {
     MMBodyCreateServices s = {};
+    mm_brender_body_create_services(&s);
     s.state = [](void *, void *object) -> MMBodyShape * { return &static_cast<PBody>(object)->_shape; };
-    s.highlight = [](void *) -> void * { return _pbmtlHilite; };
-    s.allocate_highlight = [](void *) -> void * { return BrMaterialAllocate("Hilite"); };
-    s.install_highlight = [](void *, void *material) {
-        _pbmtlHilite = static_cast<PBMTL>(material);
-        _pbmtlHilite->colour = kbrcHilite;
-        _pbmtlHilite->ka = kbrufKaHilite;
-        _pbmtlHilite->kd = kbrufKdHilite; _pbmtlHilite->ks = kbrufKsHilite;
-        _pbmtlHilite->power = krPowerHilite;
-        _pbmtlHilite->flags = BR_MATF_LIGHT | BR_MATF_GOURAUD | BR_MATF_FORCE_Z_0;
-        _pbmtlHilite->index_base = kiclrHilite; _pbmtlHilite->index_range = 1;
-        BrMaterialAdd(_pbmtlHilite);
-    };
     s.create = [](void *) -> void * { return NewObj Body; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.validate_lists = [](void *, void *parents, void *sets) {
@@ -215,29 +172,20 @@ MMBodyCreateServices Body::_CreateServices(void)
         return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal);
     };
     s.allocate_actors = [](void *, MMI32 count, void **actors, MMBodyPartBinding **bindings) -> int {
-        if (count < 0 || static_cast<size_t>(count) > (kcbMax - kBodyBindingAlign) / kcbBodyActor ||
-            !FAllocPv(actors, static_cast<LegacyLong>(BodyStorageSize(count)), fmemClear, mprNormal))
+        size_t bytes, offset;
+        if (!mm_brender_body_layout(count, kcbMax, &bytes, &offset) ||
+            !FAllocPv(actors, static_cast<LegacyLong>(bytes), fmemClear, mprNormal))
             return 0;
-        auto storage = static_cast<unsigned char *>(*actors);
-        *bindings = reinterpret_cast<MMBodyPartBinding *>(storage + BodyBindingOffset(count));
+        *bindings = reinterpret_cast<MMBodyPartBinding *>(static_cast<unsigned char *>(*actors) + offset);
         return 1;
     };
-    s.initialize_actor = [](void *, void *body, void *actors, MMI32 index, int role) {
-        auto actor = static_cast<PBACT>(actors) + index;
-        actor->type = role == MM_BODY_PART ? BR_ACTOR_MODEL : BR_ACTOR_NONE;
-        actor->t.type = BR_TRANSFORM_MATRIX34;
-        actor->identifier = static_cast<schar *>(body);
-        if (role == MM_BODY_HIGHLIGHT) {
-            BrMatrix34Identity(&actor->t.t.mat);
-            actor->material = _pbmtlHilite; actor->render_style = BR_RSTYLE_BOUNDING_EDGES;
-        } else if (role == MM_BODY_PART) actor->render_style = BR_RSTYLE_FACES;
-    };
-    s.assign_matrix = mm_brender_body_matrix;
-    s.link = [](void *, void *actors, MMI32 parent, MMI32 child) {
+#ifdef DEBUG
+    s.link = [](void *context, void *actors, MMI32 parent, MMI32 child) {
         AssertIn(parent, 0, child);
         Assert(parent != 1, "body part parent cannot be highlight actor");
-        auto array = static_cast<PBACT>(actors); BrActorAdd(array + parent, array + child);
+        mm_brender_body_link(context, actors, parent, child);
     };
+#endif
     s.hide = [](void *, void *body) { static_cast<PBody>(body)->Hide(); };
     s.remove_material = [](void *, void *body, MMI32 set) { static_cast<PBody>(body)->_RemoveMaterial(set); };
     s.free_memory = [](void *, void **memory) { FreePpv(memory); };
@@ -323,24 +271,11 @@ MMBodyEditServices Body::_EditServices(void)
 {
     MMBodyEditServices s = {};
     s.shape = _CreateServices();
+    mm_brender_body_edit_services(&s);
     s.copy_bindings = [](void *, void *to, void *from) {
         auto dst = static_cast<PBody>(to); auto src = static_cast<PBody>(from);
         dst->_pvRenderContext = src->_pvRenderContext; dst->_pfnAttach = src->_pfnAttach;
         dst->_pfnChanged = src->_pfnChanged; dst->_geometry.found = src->_geometry.found; dst->_geometry.set = src->_geometry.set;
-    };
-    s.copy_actors = [](void *, void *to, void *from, MMI32 count) { CopyPb(from, to, LwMul(count, size(BACT))); };
-    s.rebase_actor = [](void *, void *body, void *to, void *from, MMI32 index, int root) {
-        auto actor = static_cast<PBACT>(to) + index;
-        const LegacyLong delta = BvSubPvs(to, from);
-        actor->identifier = static_cast<schar *>(body);
-        if (root) {
-            actor->parent = pvNil; actor->next = pvNil; actor->prev = pvNil;
-        } else {
-            if (actor->parent) actor->parent = static_cast<PBACT>(PvAddBv(actor->parent, delta));
-            if (actor->next) actor->next = static_cast<PBACT>(PvAddBv(actor->next, delta));
-            if (actor->prev) actor->prev = static_cast<PBACT *>(PvAddBv(actor->prev, delta));
-        }
-        if (actor->children) actor->children = static_cast<PBACT>(PvAddBv(actor->children, delta));
     };
     s.copy_materials = [](void *, void *to, void *from, MMI32 count) {
         CopyPb(from, to, LwMul(count, size(PCustomMaterial_CMTL)));
@@ -363,9 +298,6 @@ MMBodyEditServices Body::_EditServices(void)
         AssertPo(replacement, 0); Assert(replacement->_shape.hidden == 1, "dup hidden count must be 1");
         SwapVars(body, replacement);
     };
-    s.identify = [](void *, void *body, void *actors, MMI32 index) {
-        (static_cast<PBACT>(actors) + index)->identifier = static_cast<schar *>(body);
-    };
     s.set_generic = [](void *, void *body, MMI32 set, void *material) {
         static_cast<PBody>(body)->SetPartSetMtrl(set, static_cast<PMaterial_MTRL>(material));
     };
@@ -375,7 +307,6 @@ MMBodyEditServices Body::_EditServices(void)
     s.set_model = [](void *, void *body, MMI32 part, void *model) {
         static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model));
     };
-    s.highlighted = [](void *, void *actors) -> int { return static_cast<PBACT>(actors)[1].type == BR_ACTOR_MODEL; };
     s.highlight = [](void *, void *body) { static_cast<PBody>(body)->Hilite(); };
     return s;
 }
@@ -409,6 +340,7 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
 {
     MMBodyRuntimeServices s = {};
     s.shape = _CreateServices();
+    mm_brender_body_runtime_services(&s);
     s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
     s.model_handle = [](void *, void *object) -> void * {
         auto model = static_cast<PModel>(object);
@@ -416,8 +348,6 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
         Assert(Model::PmodlFromBmdl(handle) == model, "Model problem");
         return handle;
     };
-    s.assign_model = mm_brender_body_model;
-    s.assign_material = mm_brender_body_material;
     s.material_object = [](void *, void *raw) -> void * { return Material_MTRL::PmtrlFromBmtl(static_cast<PBMTL>(raw)); };
     s.material_handle = [](void *, void *object) -> void * { return static_cast<PMaterial_MTRL>(object)->Pbmtl(); };
     s.custom = [](void *, void *body, MMI32 set) -> void * { return static_cast<PBody>(body)->_Materials()[set]; };
@@ -427,10 +357,7 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
     s.custom_model = [](void *, void *object, MMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pmodl(i); };
     s.custom_material = [](void *, void *object, MMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pbmtl(i); };
     s.invalidate_output = [](void *, void **out) { TrashVar(out); };
-    s.highlight = [](void *, void *body, int enabled) { static_cast<PBody>(body)->_PbactHilite()->type = enabled ? BR_ACTOR_MODEL : BR_ACTOR_NONE; };
     s.attach = [](void *, void *object) { auto body = static_cast<PBody>(object); if (body->_pfnAttach) body->_pfnAttach(body->_pvRenderContext, body); };
-    s.attached = [](void *, void *body) -> int { return static_cast<PBody>(body)->_PbactRoot()->parent != pvNil; };
-    s.detach = [](void *, void *body) { BrActorRemove(static_cast<PBody>(body)->_PbactRoot()); };
     s.clear_bounds = [](void *, void *body) { mm_body_clear_bounds(&static_cast<PBody>(body)->_geometry); };
     s.changed = [](void *, void *body) { static_cast<PBody>(body)->_RenderChanged(); };
     s.is_generic = [](void *, void *object) -> int { return static_cast<BASE *>(object)->FIs(kclsMaterial_MTRL); };
@@ -466,10 +393,7 @@ void Body::Hide(void)
 ***************************************************************************/
 void Body::SetHiliteColor(LegacyLong iclr)
 {
-    if (_pbmtlHilite != pvNil)
-    {
-        _pbmtlHilite->index_base = (uint8_t)iclr;
-    }
+    mm_brender_body_highlight_colour(iclr);
 }
 
 /***************************************************************************
@@ -754,9 +678,11 @@ void Body::AssertValid(LegacyUlong grf)
     Body_PAR::AssertValid(fobjAllocated);
     AssertIn(_shape.hidden, 0, 100); // 100 is sanity check
     AssertIn(_shape.set_count, 0, _shape.part_count + 1);
-    AssertPvCb(_Actors(), static_cast<LegacyLong>(BodyStorageSize(_Cbact())));
+    size_t bytes = 0, offset = 0;
+    AssertDo(mm_brender_body_layout(_Cbact(), kcbMax, &bytes, &offset), "bad body actor storage size");
+    AssertPvCb(_Actors(), static_cast<LegacyLong>(bytes));
     const auto storage = static_cast<unsigned char *>(_shape.actors);
-    Assert(_shape.bindings == reinterpret_cast<MMBodyPartBinding *>(storage + BodyBindingOffset(_Cbact())),
+    Assert(_shape.bindings == reinterpret_cast<MMBodyPartBinding *>(storage + offset),
            "bad body binding storage");
     AssertPvCb(_Materials(), LwMul(_shape.set_count, size(PCustomMaterial_CMTL)));
     Assert(pvNil == _PbactRoot()->model, "Body root shouldn't have a model!!");

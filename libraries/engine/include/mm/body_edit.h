@@ -10,15 +10,14 @@ typedef struct MMBodyEditServices
 {
     MMBodyCreateServices shape;
     void (*copy_bindings)(void *,void *to,void *from);
-    void (*copy_actors)(void *,void *to,void *from,MMI32 count);
-    void (*rebase_actor)(void *,void *body,void *to,void *from,MMI32 index,int root);
+    void (*copy_actors)(void *,void *body,void *to,const void *from,MMI32 count);
     void (*copy_materials)(void *,void *to,void *from,MMI32 count);
     void (*copy_bounds)(void *,void *to,void *from);
     void *(*material)(void *,void *body,MMI32 set,int *generic);
     void (*retain)(void *,void *);
     void (*show)(void *,void *body);
     void (*swap_bodies)(void *,void *,void *);
-    void (*identify)(void *,void *body,void *actors,MMI32 index);
+    void (*identify)(void *,void *body,void *actors,MMI32 count);
     void (*set_generic)(void *,void *body,MMI32 set,void *material);
     void (*set_custom)(void *,void *body,void *material);
     void (*set_model)(void *,void *body,MMI32 part,void *model);
@@ -30,8 +29,8 @@ typedef struct MMBodyEditServices
  * Generic materials retain one reference per matching part; custom materials
  * retain one per set. The original is re-shown BEFORE failed-copy disposal.
  * The copy is hidden once and keeps native bindings/hit metadata/bounds.
- * Storage copies do not retain references; rebase_actor resets the root's
- * parent/next/prev and translates all internal links into the copied array.
+ * Storage copies do not retain references. copy_actors resets the root's
+ * parent/next/prev and translates internal links into the copied array.
  * Callbacks must not reenter or independently change unrelated body state. */
 void *mm_body_duplicate(void *,const MMBodyEditServices *);
 /* replacement is hidden once. swap_bodies preserves the existing native

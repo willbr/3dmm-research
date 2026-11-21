@@ -19,9 +19,8 @@ void *mm_body_duplicate(void *body,const MMBodyEditServices *s)
     if (!c->allocate_actors(c->context,b.part_count+2,&d.actors,&d.bindings))
     { *c->state(c->context,copy)=d; goto fail; }
     *c->state(c->context,copy)=d;
-    s->copy_actors(c->context,d.actors,b.actors,b.part_count+2);
     memcpy(d.bindings,b.bindings,(size_t)(b.part_count+2)*sizeof(*d.bindings));
-    for (i=0;i<b.part_count+2;++i) s->rebase_actor(c->context,copy,d.actors,b.actors,i,i==0);
+    s->copy_actors(c->context,copy,d.actors,b.actors,b.part_count+2);
     for (i=0;i<d.part_count;++i)
         if (d.bindings[i+2].model_owner)
             s->retain(c->context,d.bindings[i+2].model_owner);
@@ -53,10 +52,10 @@ void mm_body_restore(void *body,void *replacement,const MMBodyEditServices *s)
 {
     const MMBodyCreateServices *c=&s->shape;
     MMBodyShape b;
-    MMI32 hidden,i;
+    MMI32 hidden;
     b=*c->state(c->context,body); hidden=b.hidden;
     s->swap_bodies(c->context,body,replacement); b=*c->state(c->context,body);
-    for (i=0;i<b.part_count+2;++i) s->identify(c->context,body,b.actors,i);
+    s->identify(c->context,body,b.actors,b.part_count+2);
     if (!hidden) { s->show(c->context,body); b=*c->state(c->context,body); }
     b.hidden=hidden; *c->state(c->context,body)=b;
 }

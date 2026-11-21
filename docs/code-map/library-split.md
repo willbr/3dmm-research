@@ -5135,9 +5135,11 @@ remains published without rollback; the factory releases its failed body while
 direct initialization callers retain cleanup responsibility. Disposal clears
 ownership pointers while retaining counts, matching native behavior.
 
-Native services adapt allocation, BRender actor/material fields and links,
-reference release and renderer notifications. Body creation and reshaping
-read borrowed parent and set views. Each body owns a C89 copy of its part
+The C89 BRender binding lays out the live actor array and its adjacent draw
+bindings, initializes and links the actors, and owns the shared highlight
+material. Native services supply allocation, reference release and renderer
+notifications. Body creation and reshaping read borrowed parent and set views.
+Each body owns a C89 copy of its part
 sets. The native Body embeds `MMBodyShape` with actor and material allocation
 handles, the set-list reference, part and set counts, and the hidden count.
 One borrowed state accessor exposes this record to the C code. C value snapshots
@@ -5178,10 +5180,13 @@ Restoration retains native whole-object swapping, then rewrites only receiver
 actor identifiers and preserves its original hidden count. Reshape duplicates
 before destruction, reuses C shape construction/disposal, restores visibility
 before material/model/matrix edits, and rolls back through that same restoration
-operation when construction fails. Native adapters still provide BRender pointer
-rebasing, whole-object swapping, metadata/bounds/field copies, material internals
-and renderer notifications. These and the native Body representation are
-temporary dependencies, not the final C-only backend boundary.
+operation when construction fails. The C89 BRender binding copies internal
+parent, child and sibling links by actor index, rebuilds backlinks from the
+copied link slots, and clears the copied root's external links. The renderer
+fixture exercises a source and destination separated by more than 2 GiB on
+Win64 and verifies that removing a copied node leaves the source intact.
+Native callbacks still provide whole-object swapping, resource operations and
+renderer notifications.
 
 The 1,880,872-byte native trace matches C exactly across 1,404 cases: 1,278
 successes and 126 allocation-injected failures. Cases include empty/one/six-part
@@ -5212,10 +5217,9 @@ without dereferencing handles whose owner may have just been destroyed.
 
 Showing publishes the decremented hidden count before attaching/notifying.
 Hiding publishes its increment before clearing bounds, detaching and notifying.
+The C89 BRender binding updates the highlight actor and performs detachment.
 Nested hidden counts and repeated highlight/material notifications retain native
-behavior. Body geometry/render policy is now C as described below. Renderer
-resource providers, external BRender primitives and the native resource
-representations remain dependencies.
+behavior. The host provides world attachment and resource-object operations.
 
 `MMBodyCostume` now owns snapshot entries and references in C. Capture drops
 the previous snapshot before allocation; failed replacement leaves it empty.

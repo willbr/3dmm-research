@@ -17537,3 +17537,39 @@ retail frame identities in both ports' seek and continuous playback runs,
 including all retail seek camera indices and SDL's 12 retail sound requests.
 Each port also reproduced all 60 seek canvas hashes from the prior build.
 The comparison and fixture evidence are in `tmp/c89-pick-plane-depth`.
+
+## Live body actor-tree construction and copying in C89 (21 November 2026)
+
+The C89 BRender binding now lays out the live actor array and draw bindings,
+initializes and links each actor, manages the shared highlight material,
+updates highlight state, and detaches hidden bodies. Body duplication copies parent,
+child and sibling links by source actor index. It reconstructs the backlinks
+from the destination link slots and leaves the copied root detached. Body
+restoration rewrites the receiving tree's body identifiers in C.
+
+The native actor-tree fixture checks links, owners, highlight state, and
+removing a copied node while the source remains attached. On Win64 the
+fixture commits two small regions 2.25 GiB apart to exercise the renderer
+copy across a distance outside the old signed offset range. The fixture
+passed on native x64, native x86 and SDL.
+
+All 192 standalone C checks, four focused AddressSanitizer checks, strict
+C89 BRender syntax, the SDL runtime builds, and the focused Marcus checks
+passed. All 12 body construction, edit, geometry and runtime traces matched
+their previous bytes. Three Preview picking traces, 14 world and mesh
+traces, nine sound and actor traces, 54 movie and scene traces, three
+saved movie fixtures, the SDL authoring save, and 15 Studio pointer traces
+also matched. Ten Preview fingerprints matched on each build. The SDL
+Preview audio movie and six Studio drag saves varied only in unused
+chunk-index alignment bytes.
+
+Retail, SDL and Marcus matched three retained-background frame identities,
+camera indices and canvas hashes in `20261121T015455Z-16033928`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T015529Z-a685437b`.
+
+The actor-event suite `20261121T015438Z-5e553f94` matched all 60 archived
+retail frame identities in both ports' seek and continuous playback runs,
+including all retail seek camera indices and SDL's 12 retail sound requests.
+Each port also reproduced all 60 seek canvas hashes from the prior build.
+The comparison and fixture evidence are in `tmp/c89-body-actor-tree`.

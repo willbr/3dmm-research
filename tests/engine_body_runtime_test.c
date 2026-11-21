@@ -43,10 +43,11 @@ static void *custom_material(void *p,void *r,MMI32 i) { (void)p; CHECK(i>=0 && i
 static void invalidate(void *p,void **out) { *out=&((Fixture *)p)->poison; }
 static void matrix(void *p,void *actors,MMI32 i,const MMActorMatrix *m)
 { Fixture *f=p; CHECK(actors==f->parts && m==&f->bindings[i].matrix); f->parts[i].matrix=*m; }
-static void highlight(void *p,void *b,int enabled) { Fixture *f=p; CHECK(b==f); f->highlight=enabled; }
+static void highlight(void *p,void *actors,int enabled) { Fixture *f=p; CHECK(actors==f->parts); f->highlight=enabled; }
 static void attach(void *p,void *b) { Fixture *f=p; CHECK(b==f && !f->b.hidden); f->parent=1; ++f->attached; event(f,1); }
-static int attached(void *p,void *b) { Fixture *f=p; CHECK(b==f); return f->parent; }
-static void detach(void *p,void *b) { Fixture *f=p; CHECK(b==f && f->b.hidden && f->parent); f->parent=0; ++f->detached; event(f,3); }
+static int attached(void *p,void *actors) { Fixture *f=p; CHECK(actors==f->parts); return f->parent; }
+static void detach(void *p,void *actors)
+{ Fixture *f=p; CHECK(actors==f->parts && f->b.hidden && f->parent); f->parent=0; ++f->detached; event(f,3); }
 static void bounds(void *p,void *b) { Fixture *f=p; CHECK(b==f && f->b.hidden); f->bounds=0; event(f,2); }
 static void changed(void *p,void *b) { Fixture *f=p; CHECK(b==f); ++f->changed; event(f,4); }
 static int is_generic(void *p,void *r) { (void)p; return ((Ref *)r)->kind==1; }
