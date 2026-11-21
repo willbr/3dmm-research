@@ -14,9 +14,20 @@ extern "C"
 #endif
     enum
     {
+        MM_MOVIE_SCENE_UNDO_EMPTY,
         MM_MOVIE_INSERT_SCENE,
         MM_MOVIE_REMOVE_SCENE
     };
+    typedef struct MMMovieSceneUndoRecord
+    {
+        int operation;
+        MMI32 index;
+        union
+        {
+            MMTag background;
+            void *scene;
+        } saved;
+    } MMMovieSceneUndoRecord;
     enum
     {
         MM_MOVIE_ARCHIVE_MISSING_CHILD,
@@ -52,8 +63,8 @@ extern "C"
         void (*dirty)(void *), (*rollcall_changed)(void *), (*switch_error)(void *);
         int (*sounds_enabled)(void *);
         void (*play_sound)(void *), (*flush_sound)(void *);
-        void *(*new_undo)(void *);
-        void (*configure_undo)(void *, void *undo, MMI32 index, void *scene);
+        void *(*new_undo)(void *, MMMovieSceneUndoRecord **record);
+        const MMTagServices *undo_tags;
         int (*add_undo)(void *, void *undo);
         void (*release_undo)(void *undo), (*clear_undo)(void *);
     } MMMovieSceneServices;
@@ -62,8 +73,9 @@ extern "C"
      * client notifications must not re-enter editing. close releases one reference
      * and hides the scene; release only releases. read/create return one owner.
      * A failed removal read still calls close with null, including host diagnostics.
-     * new_undo returns one reference;
-     * configure_undo retains its scene, and successful add_undo retains the undo.
+     * new_undo returns one reference and a fresh record inside it. The C record
+     * retains the removed scene or local background tag. Successful add_undo
+     * retains the undo. undo_tags is required for a local tag with an open cache.
      * The host list releases committed records; C orders commit/release/clear.
      * Reads receive a resolved scene number. The live session is borrowed for
      * scene switching and NULL for direct reads during composition.
@@ -84,6 +96,9 @@ extern "C"
     int mm_movie_scene_new(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *);
+    int mm_movie_scene_record_insertion(MMI32 index, const MMTag *, const MMMovieSceneServices *);
+    void mm_movie_scene_undo_dispose(MMMovieSceneUndoRecord *, void (*release_scene)(void *),
+                                     const MMTagServices *);
 
     enum
     {
@@ -168,12 +183,11 @@ extern "C"
         MMSceneEditServices (*scene_edit)(void *scene);
         void (*notify)(void *movie, int removed), (*unknown)(void *movie);
     } MMMovieSceneUndoServices;
-    /* tag and scene are borrowed native undo payloads. clear may destroy both
-     * the undo object and its payload, so neither is accessed after that callback.
+    /* Clear may destroy the undo object and its record, so neither is accessed
+     * after that callback.
      * Successful redo of insertion creates a fresh scene, then sets its background;
      * undo of removal inserts the retained snapshot. Flush precedes clear on failure. */
-    int mm_movie_scene_undo(int kind, MMI32 index, void *scene, const MMTag *tag, int redo,
-                                  const MMMovieSceneUndoServices *);
+    int mm_movie_scene_undo(const MMMovieSceneUndoRecord *, int redo, const MMMovieSceneUndoServices *);
 #ifdef __cplusplus
 }
 #endif

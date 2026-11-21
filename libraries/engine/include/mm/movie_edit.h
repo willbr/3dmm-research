@@ -49,7 +49,6 @@ extern "C"
         MMMovieState *data;
         MMMovieScenes *scenes;
         MMMovieRollCallServices rollcall;
-        MMMovieUndoServices undo;
         void *(*selected_actor)(void *scene), *(*actor_from_id)(void *scene, MMI32);
         void (*select_actor)(void *scene, void *actor);
         void *(*first_view)(void *), *(*new_actor)(void *, const MMTag *);
@@ -72,9 +71,6 @@ extern "C"
         void (*long_op)(void *, int begin);
         int (*cache_tag)(void *, const MMTag *, int background);
         void (*default_title)(void *);
-        void *(*new_scene_undo)(void *);
-        void (*configure_scene_undo)(void *, void *undo, MMI32 index, const MMTag *);
-        void (*release_undo)(void *undo);
         int (*sounds_enabled)(void *);
         void (*play_sound)(void *), (*flush_sound)(void *);
         void *(*fetch_sound)(void *, const MMTag *);
@@ -185,7 +181,7 @@ extern "C"
      * actor edits require a selected actor. Time edits return failure when
      * there is no open scene or primary actor. Getter/result tags are borrowed.
      * Costume and sound requests require a tag.
-     * new_actor/new_scene_undo return one reference. Placement undo takes ownership
+     * new_actor returns one reference. Placement undo takes ownership
      * of the reset actor snapshot. Scene-add/paste/undo manage their own retains.
      * Callbacks for Scene/Actor operations may use the existing C controllers and
      * publish their documented state. No implicit rollback of failed edits occurs.

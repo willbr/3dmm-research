@@ -59,7 +59,6 @@ enum
     REMOVE_SCENE,
     BACKGROUND,
     NEW_UNDO,
-    CONFIGURE,
     UNDO_STATE,
     UNDO_VALIDATE,
     COMMIT,
@@ -94,11 +93,13 @@ typedef struct Undo
     MMSceneBackgroundUndo background;
     MMSceneTransitionUndo transition;
     MMSceneSoundUndo sound;
+    MMMovieSceneUndoRecord scene;
     int refs, bound, actor;
 } Undo;
 struct Test
 {
     MMMovieEditServices s;
+    MMMovieUndoServices undo_services;
     MMMovieState data;
     MMMovieScenes scenes;
     ChunkIndexFixture archive;
@@ -441,13 +442,12 @@ static void *new_undo(void *p)
     t->undo.refs = 1;
     return &t->undo;
 }
-static void configure(void *p, void *u, MMI32 index, const MMTag *tag)
+static void *new_scene_undo(void *p, MMMovieSceneUndoRecord **record)
 {
-    Test *t = p;
-    (void)u;
-    (void)tag;
-    t->removedIndex = index;
-    event(t, CONFIGURE);
+    Undo *u = new_undo(p);
+    if (u)
+        *record = &u->scene;
+    return u;
 }
 static void release_undo(void *p)
 {
@@ -536,6 +536,10 @@ static void undo_validate(void *p, void *u)
 static MMI32 scene_index(void *p)
 {
     return ((Test *)p)->scenes.index;
+}
+static int commit_scene_undo(void *p, void *u)
+{
+    return mm_movie_undo_add(u, &((Test *)p)->undo_services);
 }
 static int commit(void *p, void *u)
 {
@@ -879,15 +883,15 @@ static void init(Test *t)
     s->rollcall.set_actor_id = set_id;
     s->rollcall.actor_tag = actor_tag;
     s->rollcall.changed = changed_row;
-    s->undo.context = t;
-    s->undo.movie = t;
-    s->undo.state = undo_state;
-    s->undo.validate = undo_validate;
-    s->undo.scene_index = scene_index;
-    s->undo.frame = frame;
-    s->undo.commit = commit;
-    s->undo.clear = clear;
-    s->undo.notify = notify;
+    t->undo_services.context = t;
+    t->undo_services.movie = t;
+    t->undo_services.state = undo_state;
+    t->undo_services.validate = undo_validate;
+    t->undo_services.scene_index = scene_index;
+    t->undo_services.frame = frame;
+    t->undo_services.commit = commit;
+    t->undo_services.clear = clear;
+    t->undo_services.notify = notify;
     s->selected_actor = selected;
     s->actor_from_id = lookup;
     s->select_actor = select_actor;
@@ -920,9 +924,6 @@ static void init(Test *t)
     s->long_op = long_op;
     s->cache_tag = cache;
     s->default_title = title;
-    s->new_scene_undo = new_undo;
-    s->configure_scene_undo = configure;
-    s->release_undo = release_undo;
     s->sounds_enabled = sounds;
     s->play_sound = play;
     s->flush_sound = flush;
@@ -947,12 +948,12 @@ static int registration(void)
                 t.scenes.index = -1;
             if (fail)
                 t.fail = FAIL_COMMIT;
-            CHECK(mm_movie_undo_add(&t.undo, &t.s.undo) == !fail);
+            CHECK(mm_movie_undo_add(&t.undo, &t.undo_services) == !fail);
             CHECK(t.undo.bound && t.undo.base.scene == (current ? 2 : -1) && t.undo.base.frame == (current ? 9 : 77));
             CHECK(t.notify == (fail ? MM_MOVIE_UNDO_DISABLED : MM_MOVIE_UNDO_READY));
             CHECK(t.events[0] == UNDO_STATE && t.events[1] == UNDO_VALIDATE && t.events[t.eventCount - 2] == COMMIT &&
                   t.events[t.eventCount - 1] == NOTIFY);
-            mm_movie_undo_clear(&t.s.undo);
+            mm_movie_undo_clear(&t.undo_services);
             CHECK(t.clears == 1 && t.notify == MM_MOVIE_UNDO_DISABLED && !t.undo.refs &&
                   t.events[t.eventCount - 2] == CLEAR);
         }
@@ -1775,6 +1776,9 @@ static MMMovieSceneServices background_scenes(Test *t)
     s.save = s.remove_actors = s.add_actors = ignore_change;
     s.dirty = s.rollcall_changed = s.flush_sound = ignore_change;
     s.sounds_enabled = cannot_notify;
+    s.new_undo = new_scene_undo;
+    s.add_undo = commit_scene_undo;
+    s.release_undo = release_undo;
     return s;
 }
 static int seed_background(Test *t)
@@ -1827,7 +1831,9 @@ static int backgrounds(void)
                       t.events[t.eventCount - 1] == REMOVE_SCENE);
             if (!fault)
                 CHECK(t.undo.base.scene == 3 && t.undo.base.frame == 9 && t.bars &&
-                      t.scene_owner.background_tag.number == tag.number);
+                      t.scene_owner.background_tag.number == tag.number &&
+                      t.undo.scene.operation == MM_MOVIE_INSERT_SCENE && t.undo.scene.index == 3 &&
+                      same_tag(&t.undo.scene.saved.background, &tag));
             if (t.scenes.open)
                 dispose_scene(&t);
             mm_movie_session_close(t.data.session);

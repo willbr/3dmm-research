@@ -51,8 +51,8 @@ struct Test
     int change_index[8], change_open[8];
     int moves, from[8], to[8], saves, deletes, adds, removes;
     int dirty, rollcall, errors, enabled, played, flushed, hidden, cleared, missing;
-    int undo_refs, configured_index;
-    Scene *undo_scene;
+    int undo_refs, tag_refs;
+    MMMovieSceneUndoRecord undo;
 };
 static int succeeds(Test *t, int operation)
 {
@@ -269,21 +269,14 @@ static void flush(void *p)
 {
     ++((Test *)p)->flushed;
 }
-static void *new_undo(void *p)
+static void *new_undo(void *p, MMMovieSceneUndoRecord **record)
 {
     Test *t = p;
     if (!succeeds(t, UNDO))
         return 0;
     t->undo_refs = 1;
+    *record = &t->undo;
     return t;
-}
-static void configure(void *p, void *u, MMI32 i, void *s)
-{
-    Test *t = p;
-    (void)u;
-    t->configured_index = i;
-    t->undo_scene = s;
-    retain(s);
 }
 static int add_undo(void *p, void *u)
 {
@@ -298,11 +291,10 @@ static void release_undo(void *p)
 {
     Test *t = p;
     if (--t->undo_refs == 0)
-    {
-        release(t->undo_scene);
-        t->undo_scene = 0;
-    }
+        mm_movie_scene_undo_dispose(&t->undo, release, t->s.undo_tags);
 }
+static void retain_tag(void *p) { ++((Test *)p)->tag_refs; }
+static void release_tag(void *p) { --((Test *)p)->tag_refs; }
 static void clear(void *p)
 {
     Test *t = p;
@@ -367,7 +359,6 @@ static void init(Test *t, int count, int current)
     s->play_sound = play;
     s->flush_sound = flush;
     s->new_undo = new_undo;
-    s->configure_undo = configure;
     s->add_undo = add_undo;
     s->release_undo = release_undo;
     s->clear_undo = clear;
@@ -535,7 +526,8 @@ static int removal(void)
     {
         init(&t, 3, i);
         CHECK(mm_movie_scene_remove_undoable(0, &t.s));
-        CHECK(t.data.sceneCount == 2 && t.configured_index == 0 && t.undo_scene->refs == 1 && t.undo_refs == 1);
+        CHECK(t.data.sceneCount == 2 && t.undo.operation == MM_MOVIE_REMOVE_SCENE && t.undo.index == 0 &&
+              ((Scene *)t.undo.saved.scene)->refs == 1 && t.undo_refs == 1);
         CHECK(t.hidden == i && clean(&t));
     }
     init(&t, 3, 0);
@@ -619,21 +611,24 @@ static void unknown(void *p)
 }
 static int undoing(void)
 {
+    const int kinds[] = {MM_MOVIE_INSERT_SCENE, MM_MOVIE_REMOVE_SCENE, MM_MOVIE_SCENE_UNDO_EMPTY};
     MMMovieSceneUndoServices s;
     Undo u;
     MMTag tag = {2, NULL, 4, 5};
-    int kind, redo, fault;
+    int k, redo, fault;
     memset(&s, 0, sizeof(s));
     s.scenes = &u.movie.s;
     s.scene_edit = bind_scene_edit;
     s.notify = notify;
     s.unknown = unknown;
-    for (kind = 0; kind <= 2; ++kind)
+    for (k = 0; k < 3; ++k)
         for (redo = 0; redo <= 1; ++redo)
             for (fault = 0; fault <= CREATE; ++fault)
             {
                 Scene *snapshot;
                 MMSceneOwnerServices owners;
+                MMMovieSceneUndoRecord record = {0};
+                const int kind = kinds[k];
                 int result, removed = (kind == MM_MOVIE_REMOVE_SCENE) == redo;
                 memset(&u, 0, sizeof(u));
                 init(&u.movie, 3, 2);
@@ -646,8 +641,14 @@ static int undoing(void)
                 u.fail_background = fault == START;
                 snapshot = new_scene(&u.movie, 2);
                 owners = bind_scene_edit(snapshot).sound.events.owners;
-                result = mm_movie_scene_undo(kind, 2, snapshot, &tag, redo, &s);
-                if (kind == 2)
+                record.operation = kind;
+                record.index = 2;
+                if (kind == MM_MOVIE_REMOVE_SCENE)
+                    record.saved.scene = snapshot;
+                else if (kind == MM_MOVIE_INSERT_SCENE)
+                    record.saved.background = tag;
+                result = mm_movie_scene_undo(&record, redo, &s);
+                if (kind == MM_MOVIE_SCENE_UNDO_EMPTY)
                     CHECK(!result && u.unknown == 1 && u.movie.data.sceneCount == 3);
                 else if (removed)
                     CHECK(result == (fault != TEMP) && u.movie.deletes == result &&
@@ -671,6 +672,33 @@ static int undoing(void)
                 release(snapshot);
                 CHECK(clean(&u.movie));
             }
+    return 0;
+}
+static int undo_insertion_ownership(void)
+{
+    Test t;
+    MMTagServices tags = {0};
+    MMTag tag = {0};
+    const int failures[] = {0, UNDO, ADD_UNDO};
+    int i;
+    tags.retain = retain_tag;
+    tags.release = release_tag;
+    tag.cache = &t;
+    tag.type = BKGD;
+    tag.number = 17;
+    for (i = 0; i < 3; ++i)
+    {
+        init(&t, 3, 2);
+        t.s.undo_tags = &tags;
+        t.fail = failures[i];
+        t.failures = 1;
+        CHECK(mm_movie_scene_record_insertion(2, &tag, &t.s) == (i == 0));
+        CHECK(t.tag_refs == (i == 0) && t.undo_refs == (i == 0));
+        if (!i)
+            CHECK(t.undo.operation == MM_MOVIE_INSERT_SCENE && t.undo.index == 2 &&
+                  t.undo.saved.background.cache == &t && t.undo.saved.background.number == 17);
+        CHECK(clean(&t) && !t.tag_refs && t.undo.operation == MM_MOVIE_SCENE_UNDO_EMPTY);
+    }
     return 0;
 }
 typedef struct Cursor
@@ -1058,7 +1086,8 @@ static int remove_materials(void)
 
 int main(void)
 {
-    if (switching() || insertion() || removal() || remove_materials() || undoing() || cursor_operations() ||
+    if (switching() || insertion() || removal() || remove_materials() || undoing() || undo_insertion_ownership() ||
+        cursor_operations() ||
         extending() || journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");

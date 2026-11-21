@@ -599,7 +599,6 @@ int mm_movie_add_background(const MMTag *tag, const MMMovieEditServices *s, cons
     MMSceneEditServices edit;
     MMTag old;
     MMI32 index;
-    void *undo;
     if (!cache(tag, 1, s))
         return 0;
     if (!scenes->state->open && s->data->title.count == 0)
@@ -629,16 +628,8 @@ int mm_movie_add_background(const MMTag *tag, const MMMovieEditServices *s, cons
         s->play_sound(s->context);
     else
         s->flush_sound(s->context);
-    undo = s->new_scene_undo(s->context);
-    if (!undo)
+    if (!mm_movie_scene_record_insertion(index, tag, scenes))
         goto remove;
-    s->configure_scene_undo(s->context, undo, index, tag);
-    if (!mm_movie_undo_add(undo, &s->undo))
-    {
-        s->release_undo(undo);
-        goto remove;
-    }
-    s->release_undo(undo);
     changed(1, s);
     return 1;
 remove:

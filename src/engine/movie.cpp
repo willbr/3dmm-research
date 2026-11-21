@@ -71,13 +71,6 @@ typedef class MovieSceneUndo *PMovieSceneUndo;
 
 #define MovieSceneUndo_PAR MovieUndo
 
-enum MUNST
-{
-    munstInsScen,
-    munstRemScen,
-    munstSetBkgd
-};
-
 #define kclsMovieSceneUndo 'MUNS'
 class MovieSceneUndo : public MovieSceneUndo_PAR
 {
@@ -86,10 +79,7 @@ class MovieSceneUndo : public MovieSceneUndo_PAR
     ASSERT
 
   protected:
-    long _iscen;
-    TAG _tag;
-    PScene _pscen;
-    MUNST _munst;
+    MMMovieSceneUndoRecord _sceneUndo = {};
     bool _Apply(bool redo);
     MovieSceneUndo(void)
     {
@@ -99,23 +89,7 @@ class MovieSceneUndo : public MovieSceneUndo_PAR
     static PMovieSceneUndo PmunsNew(void);
     ~MovieSceneUndo(void);
 
-    void SetIscen(long iscen)
-    {
-        _iscen = iscen;
-    }
-    void SetPscen(PScene pscen)
-    {
-        _pscen = pscen;
-        _pscen->AddRef();
-    }
-    void SetMunst(MUNST munst)
-    {
-        _munst = munst;
-    }
-    void SetTag(PTAG ptag)
-    {
-        _tag = *ptag;
-    }
+    MMMovieSceneUndoRecord *CoreState() { return &_sceneUndo; }
 
     virtual bool FDo(PDocumentBase pdocb);
     virtual bool FUndo(PDocumentBase pdocb);
@@ -579,7 +553,7 @@ MMMovieEditServices Movie::_EditServices()
     static_assert(rOne == 65536 && vlmNil == -1 && styNil == 0 && styMidi == 4, "Movie edit scalar/sound ABI");
     MMMovieEditServices s = {};
     s.context = this; s.data = &_data; s.scenes = &_scenes;
-    s.rollcall = _RollCallServices(); s.undo = _UndoServices();
+    s.rollcall = _RollCallServices();
     s.selected_actor = [](void *p) -> void * { return static_cast<PScene>(p)->PactrSelected(); };
     s.actor_from_id = [](void *p, MMI32 id) -> void * { return static_cast<PScene>(p)->PactrFromArid(id); };
     s.select_actor = [](void *p, void *actor) { static_cast<PScene>(p)->SelectActr(static_cast<PActor>(actor)); };
@@ -614,12 +588,6 @@ MMMovieEditServices Movie::_EditServices()
         TAG tag; TagFromCore(&tag, *value); return background ? Background::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);
     };
     s.default_title = [](void *p) { static_cast<PMovie>(p)->_SetTitle(); };
-    s.new_scene_undo = [](void *) -> void * { return MovieSceneUndo::PmunsNew(); };
-    s.configure_scene_undo = [](void *, void *p, MMI32 index, const MMTag *value) {
-        auto undo = static_cast<PMovieSceneUndo>(p); TAG tag; TagFromCore(&tag, *value);
-        undo->SetMunst(munstInsScen); undo->SetIscen(index); undo->SetTag(&tag);
-    };
-    s.release_undo = [](void *p) { auto undo = static_cast<PMovieSceneUndo>(p); ReleasePpo(&undo); };
     s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
     s.play_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
     s.flush_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
@@ -859,8 +827,7 @@ void Movie::RemFromRollCall(Actor *pactr, bool fDelIfOnlyRef)
  ****************************************************/
 MMMovieSceneServices Movie::_SceneServices()
 {
-    static_assert(munstInsScen == MM_MOVIE_INSERT_SCENE && munstRemScen == MM_MOVIE_REMOVE_SCENE &&
-        ivNil == -1, "Movie scene ABI");
+    static_assert(ivNil == -1, "Movie scene ABI");
     MMMovieSceneServices s = {};
     s.context = this;
     s.state = &_scenes;
@@ -918,13 +885,13 @@ MMMovieSceneServices Movie::_SceneServices()
     s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
     s.play_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->PlayMsq(); };
     s.flush_sound = [](void *p) { static_cast<PMovie>(p)->Pmsq()->FlushMsq(); };
-    s.new_undo = [](void *) -> void * { return MovieSceneUndo::PmunsNew(); };
-    s.configure_undo = [](void *, void *p, MMI32 index, void *scene) {
-        auto undo = static_cast<PMovieSceneUndo>(p);
-        undo->SetIscen(index);
-        undo->SetPscen(static_cast<PScene>(scene));
-        undo->SetMunst(munstRemScen);
+    s.new_undo = [](void *, MMMovieSceneUndoRecord **record) -> void * {
+        const auto undo = MovieSceneUndo::PmunsNew();
+        if (undo)
+            *record = undo->CoreState();
+        return undo;
     };
+    s.undo_tags = &TagManager::CoreServices();
     s.add_undo = [](void *p, void *undo) -> int { return static_cast<PMovie>(p)->FAddUndo(static_cast<PMovieSceneUndo>(undo)); };
     s.release_undo = [](void *p) { auto undo = static_cast<PMovieSceneUndo>(p); ReleasePpo(&undo); };
     s.clear_undo = [](void *p) { static_cast<PMovie>(p)->ClearUndo(); };
@@ -5563,7 +5530,8 @@ PMovieSceneUndo MovieSceneUndo::PmunsNew()
 MovieSceneUndo::~MovieSceneUndo(void)
 {
     AssertBaseThis(0);
-    ReleasePpo(&_pscen);
+    mm_movie_scene_undo_dispose(&_sceneUndo, [](void *p) { static_cast<PScene>(p)->Release(); },
+                                &TagManager::CoreServices());
 }
 
 /****************************************************
@@ -5590,9 +5558,8 @@ bool MovieSceneUndo::_Apply(bool redo)
         if (removed) client->SceneNuked();
         else client->SceneUnnuked();
     };
-    s.unknown = [](void *) { Bug("Unknown munst"); };
-    const MMTag tag = redo && _munst == munstInsScen ? TagToCore(_tag) : MMTag{};
-    return mm_movie_scene_undo(_munst, _iscen, _pscen, &tag, redo, &s) != 0;
+    s.unknown = [](void *) { Bug("Unknown scene undo operation"); };
+    return mm_movie_scene_undo(&_sceneUndo, redo, &s) != 0;
 }
 
 bool MovieSceneUndo::FDo(PDocumentBase pdocb)
@@ -5633,7 +5600,10 @@ void MovieSceneUndo::MarkMem(void)
 {
     AssertThis(0);
     MovieSceneUndo_PAR::MarkMem();
-    MarkMemObj(_pscen);
+    if (_sceneUndo.operation == MM_MOVIE_REMOVE_SCENE)
+        MarkMemObj(static_cast<PScene>(_sceneUndo.saved.scene));
+    else if (_sceneUndo.operation == MM_MOVIE_INSERT_SCENE && !_sceneUndo.saved.background.sid)
+        MarkMemObj(static_cast<PChunkyResourceFile>(_sceneUndo.saved.background.cache));
 }
 
 /***************************************************************************
@@ -5649,7 +5619,10 @@ void MovieSceneUndo::MarkMem(void)
  **************************************************************************/
 void MovieSceneUndo::AssertValid(LegacyUlong grf)
 {
-    AssertNilOrPo(_pscen, 0);
+    if (_sceneUndo.operation == MM_MOVIE_REMOVE_SCENE)
+        AssertPo(static_cast<PScene>(_sceneUndo.saved.scene), 0);
+    else if (_sceneUndo.operation == MM_MOVIE_INSERT_SCENE && !_sceneUndo.saved.background.sid)
+        AssertNilOrPo(static_cast<PChunkyResourceFile>(_sceneUndo.saved.background.cache), 0);
 }
 #endif // DEBUG
 

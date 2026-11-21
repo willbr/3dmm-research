@@ -368,9 +368,54 @@ restore_scene:
         mm_movie_scene_switch(old, s);
     return 0;
 }
+/* Removal distinguishes allocation failure from a failed history commit. */
+static int record_undo(MMI32 index, void *scene, const MMTag *background, const MMMovieSceneServices *s)
+{
+    MMMovieSceneUndoRecord *record;
+    void *undo = s->new_undo(s->context, &record);
+    int added;
+    if (!undo)
+        return -1;
+    record->index = index;
+    if (background)
+    {
+        record->operation = MM_MOVIE_INSERT_SCENE;
+        record->saved.background = *background;
+        if (!background->sid && background->cache)
+            mm_tag_dup(background, s->undo_tags);
+    }
+    else
+    {
+        record->operation = MM_MOVIE_REMOVE_SCENE;
+        record->saved.scene = scene;
+        s->retain(scene);
+    }
+    added = s->add_undo(s->context, undo);
+    s->release_undo(undo);
+    return added != 0;
+}
+int mm_movie_scene_record_insertion(MMI32 index, const MMTag *tag, const MMMovieSceneServices *s)
+{
+    return record_undo(index, NULL, tag, s) > 0;
+}
+void mm_movie_scene_undo_dispose(MMMovieSceneUndoRecord *p, void (*release_scene)(void *),
+                                 const MMTagServices *tags)
+{
+    const MMMovieSceneUndoRecord record = *p;
+    p->operation = MM_MOVIE_SCENE_UNDO_EMPTY;
+    if (record.operation == MM_MOVIE_REMOVE_SCENE)
+        release_scene(record.saved.scene);
+    else if (record.operation == MM_MOVIE_INSERT_SCENE)
+    {
+        MMTag tag = record.saved.background;
+        if (!tag.sid && tag.cache)
+            mm_tag_close(&tag, tags);
+    }
+}
 int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *s)
 {
-    void *scene, *undo;
+    void *scene;
+    int added;
     if (s->state->index == index)
     {
         scene = s->state->open;
@@ -386,21 +431,10 @@ int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *s)
         }
         s->hide(scene);
     }
-    undo = s->new_undo(s->context);
-    if (!undo)
-    {
-        s->release(scene);
-        return 1;
-    }
-    s->configure_undo(s->context, undo, index, scene);
-    if (!s->add_undo(s->context, undo))
-    {
-        s->release_undo(undo);
-        s->release(scene);
-        return 0;
-    }
-    s->release_undo(undo);
+    added = record_undo(index, scene, NULL, s);
     s->release(scene);
+    if (added <= 0)
+        return added < 0;
     if (!mm_movie_scene_remove(index, s))
     {
         s->clear_undo(s->context);
@@ -408,11 +442,12 @@ int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *s)
     }
     return 1;
 }
-int mm_movie_scene_undo(int kind, MMI32 index, void *scene, const MMTag *tag, int redo,
-                        const MMMovieSceneUndoServices *s)
+int mm_movie_scene_undo(const MMMovieSceneUndoRecord *record, int redo, const MMMovieSceneUndoServices *s)
 {
     const MMMovieSceneServices *scenes = s->scenes;
     void *context = scenes->context;
+    const int kind = record->operation;
+    const MMI32 index = record->index;
     int removed;
     if (kind != MM_MOVIE_INSERT_SCENE && kind != MM_MOVIE_REMOVE_SCENE)
     {
@@ -432,13 +467,13 @@ int mm_movie_scene_undo(int kind, MMI32 index, void *scene, const MMTag *tag, in
         if (!mm_movie_scene_new(index, scenes))
             goto fail;
         edit = s->scene_edit(scenes->state->open);
-        if (!mm_scene_background_edit(tag, &old, &edit))
+        if (!mm_scene_background_edit(&record->saved.background, &old, &edit))
         {
             mm_movie_scene_remove(index, scenes);
             goto fail;
         }
     }
-    else if (!mm_movie_scene_insert(index, scene, scenes))
+    else if (!mm_movie_scene_insert(index, record->saved.scene, scenes))
         goto fail;
     s->notify(context, removed);
     scenes->flush_sound(context);

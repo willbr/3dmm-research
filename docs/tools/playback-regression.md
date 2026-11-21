@@ -19845,3 +19845,30 @@ Retail, Studio, and Marcus reopened both chopped movies in seek suite
 Studio and Marcus produced identical canvases. Retail matched 12 canvases
 immediately. The other 19 matched on the first or second delayed capture,
 using 550 ms intervals. Evidence is in `tmp/c89-chop-archive-owner`.
+
+## Shared C89 records for scene insertion and removal undo (21 November 2026)
+
+Scene insertion and removal use the same C89 record, registration, and release
+path. The insertion record owns the local background cache when one is present.
+The removal record owns a reference to the scene supplied by Studio. The C89
+fixtures exercise allocation and commit failures and check that failed
+registration releases the retained resources.
+
+All 193 standalone C89 checks passed. The movie scene, movie edit, and scene
+chop checks passed under AddressSanitizer. The native link, scene edit, save/load,
+Marcus syntax, and Marcus player checks passed. SDL scene edit and save/load
+also passed.
+
+The Studio background and scene lifecycle workflows reproduced all ten saved
+movies byte for byte. A separate Studio workflow removed a scene containing a
+prop, a caption, and imported WAVE audio. It exercised undo, redo and a second
+undo, then saved and reopened the restored scene. The reopened scene retained
+the prop and caption. Its frame-two sound event resolved to a valid embedded
+`MSND` child with the same header and audio payload as before removal.
+
+Retail, SDL, and Marcus agreed on all 12 seek frames and cameras in
+`20261121T192208Z-f2df44d4`. After allowing the retail display to settle, both
+ports matched all four insertion canvases. Marcus matched all eight restored
+scene canvases. SDL matched four exactly and differed by 48 pixels on each of
+the other four. Both ports reproduced every canvas from their own pre-removal
+control in `20261121T192343Z-a00308d5`. Evidence is in `tmp/c89-scene-undo-record`.
