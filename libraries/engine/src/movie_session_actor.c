@@ -129,7 +129,7 @@ static int action_table(void *p, int kind, MMActionTable **out)
     status = mm_session_payload(action->archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
-    mm_action_table_init(table, NULL, NULL, NULL);
+    mm_action_table_init(table, NULL);
     status = mm_action_table_read(table, payload.stream, kind);
     free(payload.decoded);
     if (status == MM_MOVIE_OK)

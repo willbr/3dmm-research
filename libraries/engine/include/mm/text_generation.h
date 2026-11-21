@@ -42,7 +42,6 @@ typedef struct MMTextGenerationServices
     MMI32 (*font_height)(void *,void *font,MMI32 character);
     MMI32 (*font_maximum)(void *,void *font);
     void *(*glyph)(void *,void *font,MMI32 character);
-    MMActionTable *(*table_new)(void *);
     /* Successful creation consumes both tables. Failure leaves them owned
      * by the caller. */
     void *(*action_new)(void *,MMActionTable *cels,MMActionTable *matrices,MMU32 flags);

@@ -196,7 +196,6 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.font_height = [](void *, void *font, MMI32 ch) -> MMI32 { return static_cast<PThreeDFont>(font)->DyrChar(ch); };
     s.font_maximum = [](void *, void *font) -> MMI32 { return static_cast<PThreeDFont>(font)->DyrMax(); };
     s.glyph = [](void *, void *font, MMI32 ch) -> void * { return static_cast<PThreeDFont>(font)->PmodlFetch(ch); };
-    s.table_new = [](void *) { return ActionDefinition::NewTable(); };
     s.action_new = [](void *, MMActionTable *cels, MMActionTable *matrices, MMU32 flags) -> void * {
         return ActionDefinition::PactnNew(cels, matrices, flags);
     };

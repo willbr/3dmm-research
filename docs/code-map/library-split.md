@@ -6079,10 +6079,14 @@ native byte order. Cel and matrix payloads retain the authored byte order,
 and accessors decode each requested record. Live reads resolve the ACTN root
 and the GGCL, GLXF and GLMS links through the C89 cache. C decodes the caller's
 root block in place and owns the scratch block used for direct reads and child
-tables. The native facade supplies the codec, allocation, diagnostics and TAG
-conversion at its sound query boundary. Generation writes the cel parts and
-matrices directly into native-order C tables. A successful action allocation
-takes both tables. The text builder releases them if allocation fails.
+tables. C89 allocates and releases the table records and buffers through a shared
+collection allocator. This includes the temporary wire sound list and the
+adopted runtime sound tags. The standalone movie session initializes its
+embedded cel and matrix records with the same C storage API. The native facade
+supplies the codec, action object factory, diagnostics and TAG conversion at
+its sound query boundary. Generation writes the cel parts and matrices
+directly into native-order C tables. A successful action allocation takes both
+tables. The text builder releases them if allocation fails.
 
 Header flags and partial table ownership publish in native order. Direct
 initialization failure leaves acquired tables owned by the caller; factories
@@ -6175,8 +6179,9 @@ of generated lists/material references, cel/matrix/action generation, the action
 cache, glyph fetch control, body adjustment/default costumes and generated-owner
 disposal. `MMTextGenerated` holds the material, cached action and cache ID;
 these share one C owner. Native services supply the collection allocator,
-action table factories, retained font providers, metric and glyph access, body
-operations and template field views. The standalone evaluator calls the same
+the action object factory, retained font providers, metric and glyph access,
+body operations and template field views. C89 creates the cel and matrix
+tables through the collection allocator. The standalone evaluator calls the same
 matrix generator for one cel and writes its outputs directly to the body.
 The template view now borrows the same persistent `MMTemplateState` used by
 ordinary templates. Text generation fills C89 parent and set lists with

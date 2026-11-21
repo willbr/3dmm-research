@@ -16,8 +16,7 @@ typedef struct MMActionTable
 {
     MMCollectionStorage storage;
     MMCollectionHeader header;
-    void *owner;
-    void (*release_owner)(void *);
+    int allocated;
 } MMActionTable;
 
 typedef struct MMActionDefinition
@@ -43,7 +42,8 @@ typedef struct MMActionRead
 int mm_action_read_cels(MMActionDefinition *, const MMActionRead *);
 int mm_action_read_matrices(MMActionDefinition *, const MMActionRead *);
 MMU32 mm_action_table_type(int kind);
-void mm_action_table_init(MMActionTable *, const MMStorageAllocator *, void *owner, void (*release_owner)(void *));
+int mm_action_table_init(MMActionTable *, const MMStorageAllocator *);
+MMActionTable *mm_action_table_new(const MMStorageAllocator *);
 void mm_action_table_dispose(MMActionTable *);
 /* Read into a fresh table. Record payloads retain their wire byte order, and
  * the cel location table uses native byte order. */
@@ -68,7 +68,7 @@ typedef struct MMActionDefinitionServices
     MMActionDefinition *(*state)(void *,void *object);
     void *(*create)(void *);
     void (*release)(void *,void *);
-    MMActionTable *(*new_table)(void *,int kind);
+    MMStorageAllocator table_allocator;
     MMBlockTransform decode;
     void (*clear_sound_type)(void *,void *out);
     void (*publish_sound)(void *,void *out,const MMTag *);

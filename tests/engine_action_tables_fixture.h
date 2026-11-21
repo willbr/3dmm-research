@@ -13,8 +13,9 @@ class FixtureActionTables
 
     bool Copy(PGeneralGroup sourceCels, PDynamicArray sourceMatrices)
     {
-        _cels = ActionDefinition::NewTable();
-        _matrices = ActionDefinition::NewTable();
+        const auto allocator = CollectionAllocator();
+        _cels = mm_action_table_new(&allocator);
+        _matrices = mm_action_table_new(&allocator);
         if (!_cels || !_matrices)
             return false;
         mm_action_cels_prepare(_cels);

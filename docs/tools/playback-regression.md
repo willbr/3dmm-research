@@ -17747,3 +17747,37 @@ ports matched all 60 archived retail frame identities in seek and continuous
 playback, including the retail seek camera indices. SDL matched all 12 retail
 sound requests. Both ports reproduced their 60 seek canvas hashes from the
 preceding build. Evidence is in `tmp/c89-template-tables`.
+
+## Action table allocation in C89 (21 November 2026)
+
+C89 now allocates the live ACTN cel, matrix, and sound table records and their
+buffers through the collection allocator. Generated 3D text uses the same
+factory. The standalone movie session continues to initialize its embedded
+cel and matrix records with the same storage API.
+
+The 2,268 action cases and 1,008 3D text allocation and resource cases per
+build matched every uninjected case and the set of outcomes for each faulted
+operation. Moving record allocation shifted 100 action rows and 26 generation
+rows on each native build. All 800 shape and action combinations and both SDL
+Release traces matched byte for byte. Each native actor creation fixture now
+reaches two more cold cases under BASE fault injection and still exercises ten
+body-binding failures. The actor copy fixture covers both allocators and
+produces the same trace.
+
+All 192 standalone C tests, four AddressSanitizer checks, 12 native C89 gates,
+and four Marcus application checks passed. All 54 movie and scene traces,
+three fixture saves, ten Preview fingerprints, and six Preview movies matched
+byte for byte. The live Studio workflow matched 13 sampled actor states and
+12 rendered images. Its reopened movie had identical structure. Two raw movie
+bytes varied at the same offsets when rerunning the preceding build.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T031439Z-777189dd`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T031515Z-170abd5f`.
+
+All four actor-event runs completed in `20261121T031421Z-8d83e934`. Each port
+matched all 60 archived retail frame identities in seek and continuous
+playback, including the retail seek camera indices. SDL matched all 12 retail
+sound requests. Both ports reproduced their 60 seek canvas hashes from the
+preceding build. Evidence is in `tmp/c89-action-tables`.

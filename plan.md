@@ -881,9 +881,11 @@ rest orientation, flags and counts live in persistent C state shared with
 ThreeDText generation. C89 allocates table records and their backing storage
 through the supplied collection allocator.
 String and resource/container providers and final facade removal remain work.
-ActionDefinition construction, header/list
-loading, byte-order conversion, primitive queries and sound-list ownership now
-also use a persistent C-owned action state. ThreeDFont metrics, resource loading,
+ActionDefinition construction, header/list loading, byte-order conversion and
+primitive queries use a persistent C-owned action state. C89 allocates cel,
+matrix and sound table records and buffers through the collection allocator.
+Live ACTN reads and generated 3D text use the same table factory.
+ThreeDFont metrics, resource loading,
 authoring, glyph lookup and lifetime now use persistent C-owned font state.
 Live font loads and the standalone movie session use one C89 metric reader.
 Glyph models load directly through the C89 resource cache, and authoring writes

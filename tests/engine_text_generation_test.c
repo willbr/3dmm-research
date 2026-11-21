@@ -6,8 +6,8 @@ typedef struct Object { int kind,id,refs; MMActionDefinition action; } Object;
 typedef struct Test
 {
     MMTextGenerated generated; MMTemplateState template_state;
-    int length,shape,phase,fail,live,buffers,next_id,events[128],event_count,missing_font,missing_glyph,body_fail,last_retain_id,last_release_id;
-    int shape_blocks;
+    int length,shape,phase,fail,live,next_id,events[128],event_count,missing_font,missing_glyph,body_fail,last_retain_id,last_release_id;
+    int table_blocks;
     void *retiring[3];
     unsigned char chars[2]; Object *font; MMTextGenerationServices services;
 } Test;
@@ -30,6 +30,10 @@ static MMI32 length(void *p,void *owner) { assert(p==owner); return t(p)->length
 static MMI32 character(void *p,void *owner,MMI32 i) { assert(p==owner && i>=0 && i<t(p)->length); return t(p)->chars[i]; }
 static MMI32 shape(void *p,void *owner) { assert(p==owner); return t(p)->shape; }
 static MMTemplateState *template_state(void *p,void *o) { assert(p==o); return &t(p)->template_state; }
+static void *material_new(void *p) { if (checkpoint(t(p))) return NULL; return object(t(p),3); }
+static void retain(void *p,void *v) { Object *o=(Object *)v; assert(o->refs>0); if (v==t(p)->generated.action) t(p)->last_retain_id=t(p)->generated.action_id; ++o->refs; t(p)->events[t(p)->event_count++]=o->id; }
+static void release(void *p,void *v)
+{ Object *o=(Object *)v; assert(o->refs>0); if (v==t(p)->generated.action) t(p)->last_release_id=t(p)->generated.action_id; t(p)->events[t(p)->event_count++]=-o->id; if (!--o->refs) { if (o->kind==4) mm_action_dispose(&o->action); free(o); --t(p)->live; } }
 static void *resize_table(void *p,void *data,MMU32 old,MMU32 bytes,int priority)
 {
     Test *x=t(p);
@@ -37,62 +41,25 @@ static void *resize_table(void *p,void *data,MMU32 old,MMU32 bytes,int priority)
     (void)priority;
     /* Keep a storage fault active through the allocator's exact-size retry. */
     ++x->phase;
-    if (x->fail && x->phase>=x->fail) return NULL;
-    result=realloc(data,bytes); assert(result);
-    if (!old) ++x->buffers;
-    return result;
-}
-static void free_table(void *p,void *data,MMU32 bytes)
-{ (void)bytes; assert(data && t(p)->buffers>0); free(data); --t(p)->buffers; }
-typedef struct TestActionTable { MMActionTable table; Test *context; } TestActionTable;
-static void release_table(void *p)
-{
-    TestActionTable *owner=p;
-    assert(owner->context->live>0);
-    --owner->context->live;
-    free(owner);
-}
-static MMActionTable *table_new(void *p)
-{
-    TestActionTable *owner;
-    MMStorageAllocator allocator={NULL,resize_table,free_table};
-    if (checkpoint(t(p))) return NULL;
-    owner=(TestActionTable *)calloc(1,sizeof(*owner)); assert(owner);
-    owner->context=t(p);
-    ++owner->context->live;
-    allocator.context=p;
-    mm_action_table_init(&owner->table,&allocator,owner,release_table);
-    return &owner->table;
-}
-static void *material_new(void *p) { if (checkpoint(t(p))) return NULL; return object(t(p),3); }
-static void retain(void *p,void *v) { Object *o=(Object *)v; assert(o->refs>0); if (v==t(p)->generated.action) t(p)->last_retain_id=t(p)->generated.action_id; ++o->refs; t(p)->events[t(p)->event_count++]=o->id; }
-static void release(void *p,void *v)
-{ Object *o=(Object *)v; assert(o->refs>0); if (v==t(p)->generated.action) t(p)->last_release_id=t(p)->generated.action_id; t(p)->events[t(p)->event_count++]=-o->id; if (!--o->refs) { if (o->kind==4) mm_action_dispose(&o->action); free(o); --t(p)->live; } }
-static void *resize_shape(void *p,void *data,MMU32 old,MMU32 bytes,int priority)
-{
-    Test *x=t(p);
-    void *result;
-    (void)priority;
-    ++x->phase;
     if (x->fail && x->phase>=x->fail)
         return NULL;
     result=realloc(data,bytes);
     assert(result);
-    if (!old) ++x->shape_blocks;
+    if (!old) ++x->table_blocks;
     return result;
 }
-static void free_shape(void *p,void *data,MMU32 bytes)
+static void free_table(void *p,void *data,MMU32 bytes)
 {
     Test *x=t(p);
     int i;
-    assert(data && bytes && x->shape_blocks>0);
+    assert(data && bytes && x->table_blocks>0);
     for (i=0;i<3;++i)
         if (x->retiring[i]==data)
         {
             x->events[x->event_count++]=-(101+i);
             x->retiring[i]=NULL;
         }
-    --x->shape_blocks;
+    --x->table_blocks;
     free(data);
 }
 static void *font(void *p,void *owner)
@@ -130,8 +97,7 @@ static MMTextGenerationServices setup(Test *x)
     MMTextGenerationServices s; memset(x,0,sizeof(*x)); memset(&s,0,sizeof(s)); x->length=2; x->chars[0]=233; x->chars[1]=65;
     x->template_state.flags=4; x->template_state.x=1234; x->font=object(x,5);
     s.context=x; s.state=state; s.length=length; s.character=character; s.shape=shape; s.template_state=template_state;
-    s.table_allocator.context=x; s.table_allocator.resize=resize_shape; s.table_allocator.release=free_shape;
-    s.table_new=table_new;
+    s.table_allocator.context=x; s.table_allocator.resize=resize_table; s.table_allocator.release=free_table;
     s.material_new=material_new; s.retain=retain; s.release=release; s.font=font; s.font_width=font_width; s.font_height=font_height; s.font_maximum=font_maximum;
     s.glyph=glyph; s.action_new=action_new; s.body_shape=body_shape; s.body_material=body_material; x->services=s; return s;
 }
@@ -141,7 +107,7 @@ static void cleanup(Test *x)
     mm_part_indices_dispose(x->template_state.parents);
     mm_part_indices_dispose(x->template_state.sets);
     mm_template_costumes_dispose(x->template_state.costumes);
-    release(x,x->font); assert(!x->live && !x->buffers && !x->shape_blocks);
+    release(x,x->font); assert(!x->live && !x->table_blocks);
 }
 typedef struct MatrixCapture { MMActorMatrix matrices[2]; int count; } MatrixCapture;
 static void capture_matrix(void *p,MMI32 index,const MMActorMatrix *matrix)
@@ -152,7 +118,7 @@ static void capture_matrix(void *p,MMI32 index,const MMActorMatrix *matrix)
 }
 int main(void)
 {
-    Test x; MMTextGenerationServices s; int fail,i,ok,ids[5],before,steps=0,init_steps=0,replace_steps=0,shape_id,cel;
+    Test x; MMTextGenerationServices s; int fail,i,ok,ids[5],before,shape_blocks,steps=0,init_steps=0,replace_steps=0,shape_id,cel;
     Object *old,*a,*again,*model;
     MMActionTable *table;
     MMActionDefinition view={NULL,NULL,NULL,0};
@@ -163,7 +129,7 @@ int main(void)
     for (fail=0;fail<=init_steps;++fail)
     {
         s=setup(&x); saved=x.template_state; x.fail=fail; ok=mm_text_initialize_lists(&x,&s); assert(ok==!fail);
-        if (!ok) assert(same_template(&x.template_state,&saved) && !x.generated.material && !x.template_state.parents && x.template_state.flags==4 && !x.shape_blocks);
+        if (!ok) assert(same_template(&x.template_state,&saved) && !x.generated.material && !x.template_state.parents && x.template_state.flags==4 && !x.table_blocks);
         else { assert(x.generated.action_id==-1 && x.template_state.flags==6 && x.template_state.x==1234 && x.template_state.set_count==1 && x.template_state.action_count==16);
             init_steps=x.phase;
             assert(x.template_state.parents->view.count==2 && x.template_state.sets->view.count==2);
@@ -186,9 +152,10 @@ int main(void)
     for (fail=0;fail<=steps;++fail)
     {
         s=setup(&x); assert(mm_text_initialize_lists(&x,&s)); old=object(&x,4); x.generated.action=old; x.generated.action_id=7; retain(&x,old);
+        shape_blocks=x.table_blocks;
         x.phase=0; x.fail=fail; a=(Object *)mm_text_fetch_action(&x,MM_TEXT_WAVE,&s); assert((a!=NULL)==!fail && old->refs==1 && x.font->refs==1 && x.last_release_id==7);
-        if (!a) assert(!x.generated.action && x.generated.action_id==-1 && !x.buffers);
-        else { steps=x.phase; assert(a->refs==2 && x.buffers==3 && x.generated.action_id==MM_TEXT_WAVE && x.last_retain_id==-1); before=x.phase; again=(Object *)mm_text_fetch_action(&x,MM_TEXT_WAVE,&s); assert(again==a && a->refs==3 && x.phase==before && x.last_retain_id==MM_TEXT_WAVE); release(&x,again); release(&x,a); }
+        if (!a) assert(!x.generated.action && x.generated.action_id==-1 && x.table_blocks==shape_blocks);
+        else { steps=x.phase; assert(a->refs==2 && x.table_blocks==shape_blocks+5 && x.generated.action_id==MM_TEXT_WAVE && x.last_retain_id==-1); before=x.phase; again=(Object *)mm_text_fetch_action(&x,MM_TEXT_WAVE,&s); assert(again==a && a->refs==3 && x.phase==before && x.last_retain_id==MM_TEXT_WAVE); release(&x,again); release(&x,a); }
         release(&x,old); cleanup(&x);
     }
     s=setup(&x); x.missing_font=1; assert(!mm_text_build_matrices(&x,0,&s) && !x.phase && x.font->refs==1); model=(Object *)mm_text_fetch_model(&x,0,&s); assert(!model); cleanup(&x);

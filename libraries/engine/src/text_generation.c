@@ -93,7 +93,7 @@ MMActionTable *mm_text_build_cels(void *object, MMI32 action, const MMTextGenera
     short indices[2];
     if (!text_action_size(n, cels))
         return NULL;
-    table = s->table_new(s->context);
+    table = mm_action_table_new(&s->table_allocator);
     if (!table)
         return NULL;
     mm_action_cels_prepare(table);
@@ -163,7 +163,7 @@ MMActionTable *mm_text_build_matrices(void *object, MMI32 action, const MMTextGe
     font = s->font(s->context, object);
     if (!font)
         return NULL;
-    table = s->table_new(s->context);
+    table = mm_action_table_new(&s->table_allocator);
     if (table && !mm_action_matrices_prepare(table, (MMU32)(cels * n)))
     {
         mm_action_table_dispose(table);

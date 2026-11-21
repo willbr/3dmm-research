@@ -548,12 +548,18 @@ class TrackTestActor : public Actor
         _owner.runtime.state.frame=(mode&64)?10:3; _owner.runtime.first=1; _owner.runtime.last=10; _owner.runtime.life_dirty=false;
         PActor copy=nullptr;
 #ifdef DEBUG
+        auto allocator=&vdmglob.dmaglBase;
         if (mode>=128 && mode<256)
-        { vmutxMem.Enter(); vdmglob.dmaglBase.cactDo=1+(mode/16)%3; vdmglob.dmaglBase.cactFail=1; vmutxMem.Leave(); }
+        {
+            const int site=(mode/16)%3;
+            // Exercise native object creation and the C collection allocation path.
+            if (site==2) allocator=&vdmglob.dmaglHq;
+            vmutxMem.Enter(); allocator->cactDo=site==2?0:site+1; allocator->cactFail=1; vmutxMem.Leave();
+        }
 #endif
         bool changed=(mode&1)?FCopyRte(&copy,(mode&2)!=0):FCopy(&copy,(mode&2)!=0);
 #ifdef DEBUG
-        vmutxMem.Enter(); vdmglob.dmaglBase.cactFail=0; vmutxMem.Leave();
+        vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
         bool expected=(mode<128 || mode>=256) && (mode<256 || (mode&1));
 #ifndef DEBUG

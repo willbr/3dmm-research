@@ -114,7 +114,6 @@ class ActionDefinition : public ActionDefinition_PAR
     bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
 
   public:
-    static MMActionTable *NewTable();
     // Transfers both tables on success.
     static PActionDefinition PactnNew(MMActionTable *cels, MMActionTable *matrices, LegacyUlong grfactn);
     static int FReadActn(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,

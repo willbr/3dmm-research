@@ -52,7 +52,7 @@ static bool TestTemplateRuntime()
         }
         auto action=ok?MakeFixtureAction(group,matrices,13):nullptr;
         MMActionTable sounds;
-        mm_action_table_init(&sounds,nullptr,nullptr,nullptr);
+        mm_action_table_init(&sounds,nullptr);
         ok=ok && mm_action_sounds_reserve(&sounds,2);
         for (int i=0;ok && i<2;++i) { MMTag sound={123+i,nullptr,kctgMsnd,static_cast<ChunkNumber>(456+i)}; ok=mm_action_sounds_append(&sounds,&sound); }
         if (action && cn%2) TemplateRuntimeActionAccess::Sounds(action,&sounds);

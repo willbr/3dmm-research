@@ -8,23 +8,16 @@ enum { ACTION_TYPE = 0x4143544eUL, ACTION_NUMBER = 7 };
 enum { HEADER = 3, STORED_PACKED_BYTES = 12, FILE_BASE = 17, FILE_STRIDE = 128 };
 typedef struct Block { unsigned char bytes[108]; MMU32 length; } Block;
 typedef struct Test Test;
-typedef struct TableOwner
-{
-    MMActionTable table;
-    Test *test;
-    int kind, live;
-} TableOwner;
 struct Test
 {
     MMActionDefinition state;
     MMActionDefinitionServices services;
-    TableOwner tables[4];
     Block blocks[4];
     ResourceTestBlock root;
     MMResourceCache source;
     int phase, fail, object_live, invalidations, bad, optional_absent, header_lookups;
     int lookup_phase[4], packed_kind, decodes, file_refs;
-    int released[4], releases, clears, publishes;
+    int allocated, released[3], releases, clears, publishes;
 };
 
 static int checkpoint(Test *x) { return ++x->phase == x->fail; }
@@ -55,37 +48,34 @@ static void release(void *p, void *object)
 
 static void *resize(void *p, void *bytes, MMU32 old_size, MMU32 size, int priority)
 {
-    (void)old_size;
-    if (priority == MM_STORAGE_SPEED || checkpoint((Test *)p))
+    Test *x=p;
+    void *result;
+    assert(x->state.flags==0x8000000dUL);
+    if (priority == MM_STORAGE_SPEED || checkpoint(x))
         return NULL;
-    return realloc(bytes, size);
+    result=realloc(bytes,size);
+    assert(result);
+    if (!old_size)
+        ++x->allocated;
+    return result;
 }
 static void free_bytes(void *p, void *bytes, MMU32 size)
-{ (void)p; (void)size; free(bytes); }
-
-static void release_table(void *p)
-{
-    TableOwner *owner=p;
-    Test *x=owner->test;
-    assert(owner->live);
-    owner->live=0;
-    x->released[x->releases++]=owner->kind;
-}
-
-static MMActionTable *new_table(void *p, int kind)
 {
     Test *x=p;
-    TableOwner *owner=&x->tables[kind];
-    MMStorageAllocator allocator={NULL,resize,free_bytes};
-    if (checkpoint(x))
-        return NULL;
-    assert(!owner->live && x->state.flags==0x8000000dUL);
-    owner->test=x;
-    owner->kind=kind;
-    owner->live=1;
-    allocator.context=x;
-    mm_action_table_init(&owner->table,&allocator,owner,release_table);
-    return &owner->table;
+    assert(bytes && size && x->allocated>0);
+    if (bytes==x->state.cels)
+        x->released[x->releases++]=MM_ACTION_CELS;
+    if (bytes==x->state.matrices)
+        x->released[x->releases++]=MM_ACTION_MATRICES;
+    if (bytes==x->state.sounds)
+        x->released[x->releases++]=MM_ACTION_SOUNDS;
+    --x->allocated;
+    free(bytes);
+}
+
+static int table_blocks(const MMActionTable *table)
+{
+    return table ? 1+(table->storage.buffers[0].data!=NULL)+(table->storage.buffers[1].data!=NULL) : 0;
 }
 
 static int graph_entry(void *p, MMU32 position, MMChunkEntry *out)
@@ -266,16 +256,16 @@ static void setup(Test *x, int header_big, int big, MMU32 count)
     x->source.services.locate = locate;
     x->source.services.live_chunks = live_chunks;
     s->context=x; s->host_big_endian=header_big; s->state=state; s->create=create; s->release=release;
-    s->decode=decode; s->new_table=new_table;
+    s->decode=decode;
+    s->table_allocator.context=x; s->table_allocator.resize=resize; s->table_allocator.release=free_bytes;
     s->clear_sound_type=clear_type; s->publish_sound=publish;
     s->object_size=object_size; s->invalidate=invalidate; s->bad_order=bad_order;
 }
 
 static void empty(Test *x)
 {
-    int i;
     assert(!x->state.cels && !x->state.matrices && !x->state.sounds && !x->object_live);
-    for (i=0;i<4;++i) assert(!x->tables[i].live);
+    assert(!x->allocated);
     assert(mm_owned_block_clear(&x->root.owner) == MM_DATA_OK && !x->file_refs);
 }
 
@@ -317,10 +307,10 @@ int main(void)
             if (i<2) assert(!tag.cache && tag.type==0x4d534e44UL && tag.number==123+(MMU32)i);
             else assert(tag.sid==77 && tag.cache==&x && !tag.type && tag.number==88);
         }
-        assert(x.publishes==2 && x.clears==4);
+        assert(x.publishes==2 && x.clears==4 && x.allocated==7);
         mm_action_dispose(&x.state); empty(&x);
-        assert(x.releases==4 && x.released[0]==2 && x.released[1]==0 && x.released[2]==1 && x.released[3]==3);
-        mm_action_dispose(&x.state); assert(x.releases==4 && x.state.flags==0x8000000dUL);
+        assert(x.releases==3 && x.released[0]==MM_ACTION_CELS && x.released[1]==MM_ACTION_MATRICES && x.released[2]==MM_ACTION_SOUNDS);
+        mm_action_dispose(&x.state); assert(x.releases==3 && x.state.flags==0x8000000dUL);
     }
     setup(&x,0,0,2);
     assert(initialize(&x));
@@ -336,7 +326,7 @@ int main(void)
         assert(x.state.flags==(fail>=flags_at?0x8000000dUL:0));
         assert((x.state.cels!=NULL)==(fail>=cels_at));
         assert((x.state.matrices!=NULL)==(fail>=matrices_at));
-        assert(!x.tables[2].live);
+        assert(x.allocated==table_blocks(x.state.cels)+table_blocks(x.state.matrices)+table_blocks(x.state.sounds));
         mm_action_dispose(&x.state); empty(&x);
     }
     setup(&x,0,0,2);
@@ -354,8 +344,8 @@ int main(void)
     for (fail=0;fail<=1;++fail)
     {
         setup(&x,0,native_big,2);
-        mm_action_table_init(&cels,NULL,NULL,NULL);
-        mm_action_table_init(&matrices,NULL,NULL,NULL);
+        assert(mm_action_table_init(&cels,NULL));
+        assert(mm_action_table_init(&matrices,NULL));
         assert(mm_memory_stream_init(&input,x.blocks[0].bytes,x.blocks[0].length));
         assert(mm_action_table_read(&cels,&input.stream,MM_ACTION_CELS)==MM_MOVIE_OK);
         assert(mm_memory_stream_init(&input,x.blocks[1].bytes,x.blocks[1].length));

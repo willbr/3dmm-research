@@ -75,37 +75,6 @@ RTCLASS(Template)
 /***************************************************************************
     Create a new action
 ***************************************************************************/
-namespace
-{
-class ActionTableAllocation : public BASE
-{
-  public:
-    MMActionTable table;
-
-    ActionTableAllocation()
-    {
-        const auto allocator = CollectionAllocator();
-        mm_action_table_init(&table, &allocator, this,
-                             [](void *owner) { static_cast<ActionTableAllocation *>(owner)->Release(); });
-    }
-
-#ifdef DEBUG
-    void MarkMem() override
-    {
-        BASE::MarkMem();
-        MarkPv(table.storage.buffers[0].data);
-        MarkPv(table.storage.buffers[1].data);
-    }
-#endif
-};
-}
-
-MMActionTable *ActionDefinition::NewTable()
-{
-    const auto allocation = NewObj ActionTableAllocation;
-    return allocation ? &allocation->table : nullptr;
-}
-
 MMActionDefinitionServices ActionDefinition::_Services()
 {
     MMActionDefinitionServices s = {};
@@ -114,7 +83,7 @@ MMActionDefinitionServices ActionDefinition::_Services()
     s.state = [](void *, void *object) { return &static_cast<PActionDefinition>(object)->_action; };
     s.create = [](void *) -> void * { return NewObj ActionDefinition; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
-    s.new_table = [](void *, int) { return NewTable(); };
+    s.table_allocator = CollectionAllocator();
     s.decode = KauaiDecodeBlockHandle;
     s.clear_sound_type = [](void *, void *out) { static_cast<PTAG>(out)->ctg = ctgNil; };
     s.publish_sound = [](void *, void *out, const MMTag *tag) { TagFromCore(static_cast<PTAG>(out), *tag); };
@@ -227,8 +196,12 @@ void ActionDefinition::MarkMem(void)
     AssertThis(0);
     ActionDefinition_PAR::MarkMem();
     for (auto table : {_action.cels, _action.matrices, _action.sounds})
-        if (table && table->owner)
-            MarkMemObj(static_cast<BASE *>(table->owner));
+        if (table && table->allocated)
+        {
+            MarkPv(table);
+            MarkPv(table->storage.buffers[0].data);
+            MarkPv(table->storage.buffers[1].data);
+        }
 }
 #endif // DEBUG
 

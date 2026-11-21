@@ -51,23 +51,33 @@ static int native_big_endian(void)
     return *(const unsigned char *)&one == 0;
 }
 
-void mm_action_table_init(MMActionTable *table, const MMStorageAllocator *allocator, void *owner,
-                          void (*release_owner)(void *))
+int mm_action_table_init(MMActionTable *table, const MMStorageAllocator *allocator)
 {
     memset(table, 0, sizeof(*table));
-    mm_storage_init(&table->storage, allocator);
-    table->owner = owner;
-    table->release_owner = release_owner;
+    return mm_storage_init(&table->storage, allocator) == MM_STORAGE_OK;
+}
+
+MMActionTable *mm_action_table_new(const MMStorageAllocator *allocator)
+{
+    MMActionTable empty, *table;
+    if (!mm_action_table_init(&empty, allocator))
+        return NULL;
+    table = (MMActionTable *)empty.storage.allocator.resize(empty.storage.allocator.context, NULL, 0,
+                                                           sizeof(*table), MM_STORAGE_NORMAL);
+    if (table)
+    {
+        *table = empty;
+        table->allocated = 1;
+    }
+    return table;
 }
 
 void mm_action_table_dispose(MMActionTable *table)
 {
-    if (table)
-    {
-        mm_storage_dispose(&table->storage);
-        if (table->release_owner)
-            table->release_owner(table->owner);
-    }
+    if (!table || mm_storage_dispose(&table->storage) != MM_STORAGE_OK)
+        return;
+    if (table->allocated)
+        table->storage.allocator.release(table->storage.allocator.context, table, sizeof(*table));
 }
 
 static MMGroup cel_group(const MMActionTable *table)
@@ -301,7 +311,7 @@ static int live_table(void *context, int kind, MMActionTable **out)
         return MM_MOVIE_ASSET_NOT_FOUND;
     if (mm_resource_cache_read_block(read->cache, type, child, &read->block) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
-    table = s->new_table(s->context, kind);
+    table = mm_action_table_new(&s->table_allocator);
     if (!table)
         return MM_MOVIE_MEMORY;
     if (mm_owned_block_code(&read->block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
@@ -352,7 +362,7 @@ int mm_action_initialize(MMActionDefinition *a, MMResourceCache *cache, MMU32 ty
     }
     count = wire->header.count;
     big = wire->header.big_endian;
-    sounds = s->new_table(s->context, MM_ACTION_SOUNDS);
+    sounds = mm_action_table_new(&s->table_allocator);
     if (!sounds)
         goto done;
     if (!mm_action_sounds_reserve(sounds, count))
