@@ -615,10 +615,10 @@ extraction checks cancellation between output blocks, including the legacy
 extraction so the main thread does not decompress the same movie again.
 The footer shows **Preparing movie** while a chosen movie is unpacked.
 
-Saved thumbnails and scene/frame counts are decoded in a cancellable
-`marcus-preview` subprocess launched by the browser worker. The separate process
-isolates legacy archive globals from the active player. It returns bounded
-metadata and RGBA pixels; the main thread only creates the display texture.
+The browser worker launches a cancellable `marcus-preview` subprocess to read
+saved thumbnails and scene/frame counts. The helper opens read-only SDL streams
+and uses the C89 archive and thumbnail decoders. It returns bounded metadata and
+RGBA pixels. The main thread creates the display texture.
 Preview file handles and temporary-file cleanup also stay on the worker.
 Scrolling pauses preview queuing until 250 ms after the last scroll input;
 dragging the scrollbar suspends it until release. A bounded cache evicts the

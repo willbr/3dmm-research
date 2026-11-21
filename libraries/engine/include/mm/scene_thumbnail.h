@@ -37,6 +37,11 @@ extern "C"
      * dimension limits apply to preview. image supplies width*height*4 bytes
      * synchronously or returns null for an allocation failure. RGBA is opaque. */
     int mm_scene_thumbnail_preview(MMU32 scene, const MMSceneThumbnailPreview *);
+    /* The browser picks a stored THUM by number and requires a palette from
+     * the resource archive. It tries GLCR 0x20001 and then GLCR 0 if the first
+     * cannot be read as an array. A missing palette succeeds without an image.
+     * The decoded thumbnail and palette limits are 1 MiB and 8 KiB. */
+    int mm_scene_thumbnail_poster(MMU32 number, const MMSceneThumbnailPreview *);
     typedef struct MMSceneDirtyServices
     {
         void *context;

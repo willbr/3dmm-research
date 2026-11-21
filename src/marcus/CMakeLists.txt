@@ -37,9 +37,10 @@ foreach(capture_target IN ITEMS marcus-regression marcus-capture)
   kauai_copy_midi_assets(${capture_target})
 endforeach()
 
-add_executable(marcus-preview preview_helper.cpp browser_preview.cpp)
+add_executable(marcus-preview preview_helper.cpp browser_preview.cpp browser_poster.c)
 target_compile_features(marcus-preview PRIVATE cxx_std_17)
-target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive engine-core)
+set_target_properties(marcus-preview PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
+target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive engine-core SDL3::SDL3-static)
 kauai_copy_midi_assets(marcus-preview)
 
 # Use the same indexed bitmaps as the original Studio resource scripts.

@@ -2188,6 +2188,13 @@ The saved-thumbnail comparison matches metadata and RGBA byte for byte across
 13,440 combinations of source rows, placement, clipping and mask flags. The
 comparison and sanitizer logs are in `tmp/c89-scene-thumbnails`.
 
+The Marcus movie browser's poster helper opens the movie and palette archive
+as read-only streams. C89 reads the first movie's title and scene/frame totals,
+then uses the shared thumbnail decoder for the first available saved THUM
+child. The browser tries palette GLCR 0x20001 before GLCR 0 and keeps the movie
+details available without pixels when neither supplies a usable palette.
+The helper retains its existing subprocess protocol and host code-page binding.
+
 `scene_thumbnail.c` owns thumbnail update/cache access and dirty propagation.
 It captures selected primary objects and sound time, mutes sound, checks for
 background/view/dirty state, creates indexed source/thumbnail ports, sets the

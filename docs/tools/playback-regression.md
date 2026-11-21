@@ -18966,3 +18966,30 @@ retail frame identities and SDL matched all four retail sound requests.
 The PCM16 peak remains 2,176 on both ports and 2,380 in the archived retail
 capture. SDL captured 521,280 PCM frames and Marcus captured 512,160.
 Evidence is in `tmp/c89-movie-save-tags`.
+
+## Marcus movie browser posters in C89 (21 November 2026)
+
+The browser subprocess now reads stored titles, scene/frame counts and saved
+posters through the C89 archive reader over read-only SDL streams. It uses
+the shared thumbnail decoder and preserves the browser's slot ordering,
+palette fallback and response protocol. The native code-page binding remains
+available for counted titles.
+
+Each rebuilt x64 and x86 helper reproduced all 16 pre-change responses byte
+for byte. Inputs include the retail starter movie, authored saves, missing
+files and missing palettes. The 144 by 81 actor-event and 8 by 6 sampled-audio
+posters matched pixel for pixel. Additional fixtures cover a thumbnail at
+slot 44, scene links stored out of order, palette zero, opposite-endian
+palette data, a malformed primary palette and a readable array of the wrong
+colour width.
+
+All 193 standalone C checks, four focused AddressSanitizer checks, six native
+checks and two SDL checks passed. The preview session and metadata fixtures
+also passed on x64, x86 and SDL.
+
+SDL and Marcus matched all three archived V3dmm storyboard frames, cameras
+and canvas hashes in suite `20261121T124216Z-832f56e2`. In actor-event suite
+`20261121T124221Z-a6220238`, both matched all 60 retail frame identities in
+seek and continuous playback. Their 60 seek camera indices matched retail and
+their seek canvas hashes matched prior captures. SDL matched all 12 retail
+sound requests. Evidence is in `tmp/c89-marcus-browser-poster`.
