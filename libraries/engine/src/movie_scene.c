@@ -269,17 +269,15 @@ int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *
     MMMovieState *movie = s->movie;
     MMI32 previous_count;
     int status;
-    void *file;
     if (!s->make_resources(s->context))
         return 0;
-    file = s->file(movie->resources);
     child.type = MM_SCENE_CHUNK;
     child.slot = (MMU32)index;
     if (!s->use_temporary(s->context) || !mm_movie_scene_close(s) || !s->write(s->context, scene, &child.number))
         return 0;
     s->retain(scene);
     s->close(scene);
-    edit = s->edit(file);
+    edit = s->edit(movie->resources);
     previous_count = movie->sceneCount;
     shift_scenes(index, previous_count, 1, &edit, s);
     ++movie->sceneCount;
@@ -293,13 +291,13 @@ int mm_movie_scene_insert(MMI32 index, void *scene, const MMMovieSceneServices *
             s->archive_issue(s->context, MM_MOVIE_ARCHIVE_DELETE_FAILED);
         return 0;
     }
-    s->save(file);
+    s->save(movie->resources);
     if (!mm_movie_scene_switch(index, s))
     {
         --movie->sceneCount;
         unlink_scene(&edit, &child, s);
         shift_scenes(index, movie->sceneCount, 0, &edit, s);
-        s->save(file);
+        s->save(movie->resources);
         if (movie->sceneCount > 0)
             mm_movie_scene_switch(index < movie->sceneCount ? index : movie->sceneCount - 1, s);
         return 0;
@@ -329,7 +327,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     MMI32 old;
     MMChunkChild child;
     MMMovieState *movie = s->movie;
-    void *scene, *file = s->file(movie->resources);
+    void *scene;
     if (!s->use_temporary(s->context))
         return 0;
     old = s->state->index;
@@ -347,7 +345,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
             s->missing_link(s->context);
         goto restore_scene;
     }
-    edit = s->edit(file);
+    edit = s->edit(movie->resources);
     if (!mm_movie_archive_preserve_scene_assets(&edit, child.number))
         goto restore_scene;
     s->retain(scene);
@@ -357,7 +355,7 @@ int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *s)
     unlink_scene(&edit, &child, s);
     --movie->sceneCount;
     shift_scenes(index, movie->sceneCount, 0, &edit, s);
-    s->save(file);
+    s->save(movie->resources);
     if (movie->sceneCount == 0)
         return 1;
     mm_movie_scene_switch(index < movie->sceneCount ? index : index - 1, s);

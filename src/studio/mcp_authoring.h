@@ -510,9 +510,9 @@ static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb, bool shaded)
     ChunkNumber materialNumber;
     MaterialOnFile material{kboCur, koskCur,    rgb,         BR_UFRACTION(.35), BR_UFRACTION(.65),
                             0,      byte(base), byte(range), BR_SCALAR(50)};
-    auto file = resources->Pcfl();
-    const bool written = file->FAddPv(&material, sizeof(material), kctgMtrl, &materialNumber);
-    if (!written)
+    const auto writer = resources->ArchiveWriter();
+    if (mm_chunk_add_bytes(&writer.edit, writer.payloads->files, kctgMtrl, &material, sizeof(material),
+                           &materialNumber) != MM_CHUNK_OK)
         return false;
     TAG tag{0, resources, kctgMtrl, materialNumber};
     for (long set = 0; set < actor->Pbody()->Cbset(); ++set)

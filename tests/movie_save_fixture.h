@@ -157,16 +157,22 @@ static bool TestMovieSave(PMovie parent)
     return ok;
 }
 
-static bool TestPrivateMovieSave(PMovie parent)
+static PChunkyResourceFile NewPrivateMovieResources()
 {
-    auto movie = Movie::PmvieNew(false, parent->Pmcc());
-    if (!movie)
-        return false;
     auto file = FileObject::PfilCreateTemp();
     auto archive = file ? KauaiPrivateArchive(file) : nullptr;
     auto resources = ChunkyResourceFile::PcrfNewPrivate(archive, 0);
     mm_private_archive_close(archive);
     ReleasePpo(&file);
+    return resources;
+}
+
+static bool TestPrivateMovieSave(PMovie parent)
+{
+    auto movie = Movie::PmvieNew(false, parent->Pmcc());
+    if (!movie)
+        return false;
+    auto resources = NewPrivateMovieResources();
     MovieSaveProbe::Data(movie)->resources = resources;
 
     Filename path, remembered;

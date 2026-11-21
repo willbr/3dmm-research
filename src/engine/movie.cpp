@@ -914,13 +914,12 @@ MMMovieSceneServices Movie::_SceneServices()
     };
     s.scene_change = [](void *p) { static_cast<PMovie>(p)->Pmcc()->SceneChange(); };
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
-    s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.edit = EditMovieArchive;
+    s.edit = [](void *p) { return static_cast<PChunkyResourceFile>(p)->ArchiveWriter().edit; };
     s.write = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
     };
     s.archive_issue = MovieArchiveIssue;
-    s.save = [](void *file) { static_cast<PChunkyFile>(file)->FSave(kctgSoc); };
+    s.save = [](void *p) { KauaiSaveChunkOwner(MovieArchiveReader(p)->storage, kctgSoc, nullptr); };
     s.missing_link = [](void *) { Bug("Missing movie scene link"); };
     s.remove_actors = [](void *scene) { static_cast<PScene>(scene)->RemActrsFromRollCall(); };
     s.add_actors = [](void *scene) { static_cast<PScene>(scene)->FAddActrsToRollCall(); };
@@ -1228,9 +1227,10 @@ MMMovieContentServices Movie::_ContentServices()
     };
     s.make_valid = [](void *p) -> int { return static_cast<PMovie>(p)->_FMakeCrfValid(); };
     s.use_temp = [](void *p) -> int { return static_cast<PMovie>(p)->_FUseTempFile(); };
-    s.file = [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
-    s.write_material = [](void *p, void *file, MMU32 *out) -> int {
-        ChunkNumber number; bool ok = static_cast<PMaterial_MTRL>(p)->FWrite(static_cast<PChunkyFile>(file), kctgMtrl, &number);
+    s.write_material = [](void *p, void *resources, MMU32 *out) -> int {
+        const auto writer = static_cast<PChunkyResourceFile>(resources)->ArchiveWriter();
+        ChunkNumber number;
+        bool ok = static_cast<PMaterial_MTRL>(p)->FWrite(writer, kctgMtrl, &number, nullptr, nullptr);
         if (ok) *out = number;
         return ok;
     };
@@ -1238,8 +1238,9 @@ MMMovieContentServices Movie::_ContentServices()
         return ThreeDText::PtdtNew(const_cast<PString>(static_cast<const String *>(name)), shape,
                                   const_cast<PTAG>(static_cast<const TAG *>(font)));
     };
-    s.write_text = [](void *p, void *file, MMU32 *out) -> int {
-        ChunkNumber number; bool ok = static_cast<PThreeDText>(p)->FWrite(static_cast<PChunkyFile>(file), kctgTmpl, &number);
+    s.write_text = [](void *p, void *resources, MMU32 *out) -> int {
+        const auto writer = static_cast<PChunkyResourceFile>(resources)->ArchiveWriter();
+        ChunkNumber number; bool ok = static_cast<PThreeDText>(p)->FWrite(writer, kctgTmpl, &number);
         if (ok) *out = number;
         return ok;
     };
@@ -2575,8 +2576,9 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.scenes = &_scenes;
     s.scene_control = _SceneServices();
     s.allocator = CollectionAllocator();
-    s.archive = [](void *file) { return static_cast<PChunkyFile>(file)->WriteIndex(); };
-    s.titles = KauaiChunkTitleIO();
+    s.archive = [](void *p) { return static_cast<PChunkyResourceFile>(p)->ArchiveWriter(); };
+    s.archive_context = [](void *p) -> void * { return MovieArchiveReader(p); };
+    s.titles = KauaiChunkOwnerTitleIO();
     s.rollcall = MovieData::_RollCallBinding();
     s.retain = [](void *object) { static_cast<BASE *>(object)->AddRef(); };
     s.release = ReleaseComposeObject;

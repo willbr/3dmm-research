@@ -17,7 +17,6 @@ enum
     ENSURE = 1,
     NEW_TEXT,
     VALID,
-    FILE_GET,
     TEMP,
     WRITE,
     TEXT_RELEASE,
@@ -90,7 +89,7 @@ struct Test
     int fail, events[128], n, refs, opened, closed, textRefs, writes, chunks;
     int dirty, invalidates, bars, releases, restored, removeActor, nuked, cacheBegin, cacheEnd;
     int captionCount, attached, missing, hidden, removed, queries, query[8], characterCalls;
-    void *writtenFile, *openedResources;
+    void *writtenResources, *openedResources;
 };
 static void note(Test *t, int e)
 {
@@ -109,12 +108,6 @@ static int valid(void *p)
     note(t, VALID);
     return t->fail != FAIL_VALID;
 }
-static void *file(void *p)
-{
-    Resource *r = p;
-    note(r->test, FILE_GET);
-    return r;
-}
 static int temp(void *p)
 {
     Test *t = p;
@@ -122,12 +115,12 @@ static int temp(void *p)
     t->data.resources = &t->after;
     return t->fail != FAIL_TEMP;
 }
-static int write_asset(void *p, void *f, MMU32 *number)
+static int write_asset(void *p, void *resources, MMU32 *number)
 {
     Test *t = p;
     note(t, WRITE);
     ++t->writes;
-    t->writtenFile = f;
+    t->writtenResources = resources;
     ++t->chunks;
     *number = 27;
     return t->fail != FAIL_WRITE;
@@ -467,7 +460,6 @@ static void init(Test *t)
     s->ensure = ensure;
     s->make_valid = valid;
     s->use_temp = temp;
-    s->file = file;
     s->write_material = write_asset;
     s->new_text = text;
     s->write_text = write_asset;
@@ -538,14 +530,14 @@ static int inserting(void)
         CHECK(!t.textRefs && !t.refs && t.opened == t.closed && t.dirty == !fault && t.invalidates == !fault);
         CHECK(t.inserted.refs == !fault && t.cacheBegin == t.cacheEnd);
         if (t.fail != FAIL_TEXT && t.fail != FAIL_VALID && t.fail != FAIL_TEMP)
-            CHECK(t.writtenFile == &t.before);
+            CHECK(t.writtenResources == &t.before);
         if (!fault || t.fail == FAIL_CACHE || t.fail == FAIL_ACTOR || t.fail == FAIL_ADD)
             CHECK(t.openedResources == &t.after);
         if (!fault)
         {
-            const int prefix[] = {NEW_TEXT,     VALID, FILE_GET,      TEMP,  WRITE,
-                                  TEXT_RELEASE, OPEN,  ACTOR_RELEASE, DIRTY, CLOSE};
-            CHECK(t.n == 10 && !memcmp(t.events, prefix, sizeof(prefix)) && t.bars && t.chunks == 1);
+            const int prefix[] = {NEW_TEXT, VALID, TEMP, WRITE, TEXT_RELEASE, OPEN, ACTOR_RELEASE, DIRTY, CLOSE};
+            CHECK(t.n == sizeof(prefix) / sizeof(prefix[0]) &&
+                  !memcmp(t.events, prefix, sizeof(prefix)) && t.bars && t.chunks == 1);
             release_actor(&t, &t.inserted);
         }
     }

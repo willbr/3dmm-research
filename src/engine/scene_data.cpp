@@ -71,18 +71,24 @@ bool SceneData::FWrite(PChunkyFile file, ChunkNumber number)
     const auto io = mm_scene_file_io(file, &archive, &titles);
     return mm_scene_write(this, number, &io) != 0;
 }
-bool SceneData::FReadTransition(PChunkyFile file, ChunkNumber number, MMI32 *out)
+bool SceneData::FReadTransition(PChunkyResourceFile resources, ChunkNumber number, MMI32 *out)
 {
-    const auto archive = file->WriteIndex();
-    const auto titles = KauaiChunkTitleIO();
-    const auto io = mm_scene_file_io(file, &archive, &titles);
+    const auto reader = resources->ReadOwner();
+    if (!reader)
+        return false;
+    const auto archive = resources->ArchiveWriter();
+    const auto titles = KauaiChunkOwnerTitleIO();
+    const auto io = mm_scene_file_io(reader, &archive, &titles);
     return mm_scene_transition_read(number, sizeof(achar), out, &io) != 0;
 }
-bool SceneData::FWriteTransition(PChunkyFile file, ChunkNumber number, MMI32 transition)
+bool SceneData::FWriteTransition(PChunkyResourceFile resources, ChunkNumber number, MMI32 transition)
 {
-    const auto archive = file->WriteIndex();
-    const auto titles = KauaiChunkTitleIO();
-    const auto io = mm_scene_file_io(file, &archive, &titles);
+    const auto reader = resources->ReadOwner();
+    if (!reader)
+        return false;
+    const auto archive = resources->ArchiveWriter();
+    const auto titles = KauaiChunkOwnerTitleIO();
+    const auto io = mm_scene_file_io(reader, &archive, &titles);
     return mm_scene_transition_write(number, sizeof(achar), transition, &io) != 0;
 }
 PGeneralGroup SceneData::PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents)

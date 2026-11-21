@@ -180,10 +180,6 @@ static void invalidate(void *p)
 {
     ++((Test *)p)->invalidates;
 }
-static void *file(void *p)
-{
-    return p;
-}
 static MMChunkAccess chunks(void *p)
 {
     return fixture_chunk_access(&((Test *)p)->archive);
@@ -357,7 +353,6 @@ static void init(Test *t, int count, int current)
     s->hide = hide;
     s->scene_change = change;
     s->invalidate = invalidate;
-    s->file = file;
     s->edit = edit_archive;
     s->write = write_scene;
     s->archive_issue = bad_archive_edit;

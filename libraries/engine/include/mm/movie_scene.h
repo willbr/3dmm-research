@@ -43,10 +43,9 @@ extern "C"
         void (*close)(void *scene), (*retain)(void *scene), (*release)(void *scene);
         void (*sound_frame)(void *scene), (*hide)(void *scene);
         void (*scene_change)(void *), (*invalidate)(void *);
-        void *(*file)(void *resources);
-        MMChunkEdit (*edit)(void *file);
+        MMChunkEdit (*edit)(void *resources);
         int (*write)(void *, void *scene, MMU32 *number);
-        void (*save)(void *file);
+        void (*save)(void *resources);
         void (*archive_issue)(void *, int issue);
         void (*missing_link)(void *);
         void (*remove_actors)(void *scene), (*add_actors)(void *scene);
@@ -68,7 +67,7 @@ extern "C"
      * The host list releases committed records; C orders commit/release/clear.
      * Reads receive a resolved scene number. The live session is borrowed for
      * scene switching and NULL for direct reads during composition.
-     * The C89 editor works on exact chunk identities. File handles remain borrowed
+     * The C89 editor works on exact chunk identities. Resources remain borrowed
      * throughout a transaction. start can fail
      * after changing the world. Scene publication precedes notification and index
      * publication follows it, including retry of the old scene after failure.

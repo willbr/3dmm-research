@@ -11,10 +11,9 @@ extern "C"
     {
         MMMovieEditServices edit;
         int (*ensure)(void *, void **resources), (*make_valid)(void *), (*use_temp)(void *);
-        void *(*file)(void *resources);
-        int (*write_material)(void *material, void *file, MMU32 *number);
+        int (*write_material)(void *material, void *resources, MMU32 *number);
         void *(*new_text)(const void *name, MMI32 shape, const void *font);
-        int (*write_text)(void *text, void *file, MMU32 *number);
+        int (*write_text)(void *text, void *resources, MMU32 *number);
         void (*release_text)(void *text);
         const MMTagServices *tags;
         const void *(*name_units)(const void *name, MMU32 *count);
@@ -37,7 +36,7 @@ extern "C"
      * Authored local tags retain the active document cache. Material output is
      * defined once writing succeeds. Before that it is untouched and written=0
      * (native hosts may poison output).
-     * Text creation captures the working file before use_temp, preserving the native
+     * Text creation captures the working cache before use_temp, preserving the native
      * transaction order. Failed writes/edits keep their authored chunk prefixes, but
      * release temporary templates, tags and actor snapshots on every exit.
      * Text change requires actor to be selected. Only ASCII spaces count as blank;

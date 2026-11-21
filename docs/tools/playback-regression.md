@@ -19437,3 +19437,34 @@ reproduced their 11 previous canvases of the Studio-authored movie,
 including the three known differences from retail, in
 `20261121T162207Z-c9f6d610`. Evidence is in
 `tmp/c89-movie-resource-open/evidence`.
+
+## Studio scene editing and composition on the C89 archive (21 November 2026)
+
+Studio scene insertion, removal and transition changes use the document
+cache's archive reader and writer. Composition uses the same reader for
+closed-scene thumbnails, metadata, and subtree copies. Material and
+3D-text authoring also write through the document cache. The headless
+integration fixture inserts into a private archive, imports scenes from
+a second movie, reorders them, checks transitions, and removes the
+original scene.
+
+All 193 standalone C checks and six focused AddressSanitizer checks
+passed. Native x64 passed seven integration checks including Marcus
+player tests. SDL passed five scene and movie checks. The native x64,
+native x86 and SDL save/load fixtures agreed byte for byte on the movie
+and the save, scene and composition traces. Studio's two-scene authoring
+workflow, which includes actor material changes, reproduced the prior
+movie byte for byte.
+
+Studio's scene sorter imported two scenes into the two-scene authored
+movie. Saving and reopening preserved the four-scene order, actors and
+transitions. Retail, SDL and Marcus agreed on all 22 seek frame identities
+and cameras in `20261121T163135Z-fef5eefd`. Within each player, the
+imported scenes matched the original scenes' canvas hashes. The six
+canvas differences from retail in each port repeat the three known
+differences in the two-scene source. The independent two-scene replay
+`20261121T163047Z-95453742` reproduced all 11 prior canvases per player.
+Both ports also matched the three recorded V3dmm frames, cameras and
+canvases after Studio edited and saved the portable storyboard in
+`20261121T163041Z-537d80f8`. Evidence is in
+`tmp/c89-scene-resource-edit/evidence`.

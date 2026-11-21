@@ -60,6 +60,43 @@ static bool TestComposeLiveIndex()
     ReleasePpo(&client);
     return ok;
 }
+
+static bool TestPrivateMovieCompose()
+{
+    auto client = NewObj MovieComposeClient();
+    auto sourceClient = NewObj MovieComposeClient();
+    auto movie = client ? Movie::PmvieNew(false, client) : nullptr;
+    auto source = sourceClient ? Movie::PmvieNew(false, sourceClient) : nullptr;
+    CompositeMovie composite = {};
+    bool ok = movie && source;
+    if (ok)
+    {
+        auto resources = NewPrivateMovieResources();
+        MovieSaveProbe::Data(movie)->resources = resources;
+        movie->SetDirty();
+        ok = resources && !resources->Pcfl() && movie->FAutoSave() && movie->FNewScenInsCore(0) &&
+             MovieComposeSceneAccess::Thumbnail(movie->Pscen(), 21);
+    }
+    for (int slot = 0; ok && slot < 2; ++slot)
+    {
+        ok = source->FNewScenInsCore(slot) && MovieComposeSceneAccess::Thumbnail(source->Pscen(), 22 + slot);
+        if (ok)
+            source->Pscen()->SetTransitionCore(TRANS(slot + 1));
+    }
+    long insertion = 0;
+    if (ok)
+        ok = movie->FAddToCmvi(&composite, &insertion) && source->FAddToCmvi(&composite, &insertion) &&
+             mm_composite_move_scene(&composite, 2, 1) && movie->FSetCmvi(&composite) &&
+             movie->Cscen() == 3 && movie->FSwitchScen(1) && movie->Pscen()->Trans() == TRANS(2) &&
+             movie->FSwitchScen(2) && movie->Pscen()->Trans() == TRANS(1) &&
+             movie->FRemScenCore(0) && movie->Cscen() == 2;
+    composite.Empty();
+    ReleasePpo(&movie);
+    ReleasePpo(&source);
+    ReleasePpo(&client);
+    ReleasePpo(&sourceClient);
+    return ok;
+}
 #endif
 static bool TestMovieCompose()
 {

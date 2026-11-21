@@ -158,11 +158,11 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
     movie.resources = s->data->resources;
     movie.number = s->data->movieNumber;
     movie.actor_limit = s->data->actorIdLimit;
-    file = s->scene_control.file(movie.resources);
     if (count)
     {
-        edit = s->scene_control.edit(file);
-        archive = s->archive(file);
+        file = s->archive_context(movie.resources);
+        edit = s->scene_control.edit(movie.resources);
+        archive = s->archive(movie.resources);
         io = mm_scene_file_io(file, &archive, &s->titles);
     }
     position = (MMU32)*insertion;
@@ -259,8 +259,9 @@ static int remap(MMU32 movie, MMI32 offset, ComposeAssets *imports, const MMMovi
     ComposeReference reference;
     MMU32 flags, i;
     int actor, background;
-    void *destination = s->scene_control.file(s->data->resources);
-    const MMArchiveWriter archive = s->archive(destination);
+    void *resources = s->data->resources;
+    void *destination = s->archive_context(resources);
+    const MMArchiveWriter archive = s->archive(resources);
     const MMChunkGraph graph = mm_chunk_edit_graph(&archive.edit);
     MMMovieEmbeddedArchive assets;
     MMMovieSessionGraph reader;
@@ -269,7 +270,7 @@ static int remap(MMU32 movie, MMI32 offset, ComposeAssets *imports, const MMMovi
     assets.copy_reference = copy_reference;
     assets.edit = archive.edit;
     if (offset > 0)
-        s->scene_control.session.graph(s->data->resources, &reader);
+        s->scene_control.session.graph(resources, &reader);
     if (mm_storage_init(&visited, compose_allocator(s)) != MM_STORAGE_OK)
         return 0;
     memset(&ids, 0, sizeof(ids));
@@ -408,9 +409,9 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
     int status, ok = 0;
     if (!state->movie_count || mm_storage_init(&cloned, compose_allocator(s)) != MM_STORAGE_OK)
         return 0;
-    file = scenes->file(resources);
-    edit = scenes->edit(file);
-    archive = s->archive(file);
+    file = s->archive_context(resources);
+    edit = scenes->edit(resources);
+    archive = s->archive(resources);
     io = mm_scene_file_io(file, &archive, &s->titles);
     if (mm_storage_ensure(&cloned, (state->movie_count - 1) * sizeof(*roots), 0, 0) != MM_STORAGE_OK)
         goto done;
@@ -420,8 +421,8 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         mm_composite_movie(state, i, &movie);
         if (i > 0)
         {
-            void *source = scenes->file(movie.resources);
-            const MMArchiveWriter source_archive = s->archive(source);
+            void *source = s->archive_context(movie.resources);
+            const MMArchiveWriter source_archive = s->archive(movie.resources);
             MMChunkFileCopy source_binding, destination_binding;
             ComposeAssets imports;
             MMMovieSessionGraph graph;

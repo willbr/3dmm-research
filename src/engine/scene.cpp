@@ -1941,7 +1941,6 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
     s.owners = _OwnerServices();
     s.packets = ScenePacketServices(pmvie);
     s.read = mm_movie_scene_reader(&host.source);
-    s.source_file = pcrf->Pcfl();
     s.resources = pcrf;
     s.tags = &TagManager::CoreServices();
     s.title_file = reader;
@@ -2650,7 +2649,7 @@ void Scene::StopPlaying()
 bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans)
 {
     MMI32 value;
-    if (!SceneData::FReadTransition(pcrf->Pcfl(), cno, &value))
+    if (!SceneData::FReadTransition(pcrf, cno, &value))
         return fFalse;
     *ptrans = static_cast<TRANS>(value);
     return fTrue;
@@ -2672,7 +2671,7 @@ bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptran
 ************************************************************ PETED ***********/
 bool Scene::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans)
 {
-    return SceneData::FWriteTransition(pcrf->Pcfl(), cno, trans);
+    return SceneData::FWriteTransition(pcrf, cno, trans);
 }
 
 //

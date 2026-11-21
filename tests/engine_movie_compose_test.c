@@ -132,7 +132,7 @@ static int save(void *p)
 {
     return !fails(p, SAVE);
 }
-static void *file(void *p)
+static void *archive_context(void *p)
 {
     return p;
 }
@@ -771,6 +771,7 @@ static void init(Test *t)
     s->decode_thumbnail = decode_thumbnail;
     s->thumbnail = thumbnail;
     s->archive = compose_archive;
+    s->archive_context = archive_context;
     s->titles.encoding = MM_TEXT_WINDOWS;
     s->titles.convert = convert_title;
     s->titles.read = load_scene_title;
@@ -798,7 +799,6 @@ static void init(Test *t)
     s->scene_control.context = t;
     s->scene_control.state = &t->scenes;
     s->scene_control.close = close_scene;
-    s->scene_control.file = file;
     s->scene_control.edit = edit_archive;
     s->scene_control.read = read_scene;
     s->scene_control.session.graph = compose_graph;

@@ -45,7 +45,8 @@ extern "C"
         MMMovieScenes *scenes;
         MMMovieSceneServices scene_control;
         MMStorageAllocator allocator;
-        MMArchiveWriter (*archive)(void *file);
+        MMArchiveWriter (*archive)(void *resources);
+        void *(*archive_context)(void *resources);
         MMChunkTitleIO titles;
         MMRollCallBinding rollcall;
         int temporary_before_save, validate_children;
@@ -75,6 +76,8 @@ extern "C"
     /* Initialized synchronous services and stable owners are required. Callbacks
      * cannot re-enter editing. Decode_thumbnail/read return one reference,
      * thumbnail is borrowed.
+     * Archive context identifies the backing shared by the writer, payload
+     * lookup, title I/O and same-archive checks during copies.
      * The roll-call binding reads the cloned root from the working cache.
      * Failure leaves it empty. Table disposal releases storage only.
      * Add requires working resources when temporary_before_save is enabled. On failure

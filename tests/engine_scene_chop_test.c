@@ -486,7 +486,6 @@ static int write_movie_scene(void *p, void *scene, MMU32 *number)
     fixture_chunk_add(&h->archive, MM_SCENE_CHUNK, *number);
     return 1;
 }
-static void *archive(void *p) { return p; }
 static MMChunkEdit edit_archive(void *p) { return fixture_chunk_edit(&((Host *)p)->archive); }
 static int succeed(void *p) { (void)p; return 1; }
 static void ignore(void *p) { (void)p; }
@@ -531,7 +530,6 @@ static MMMovieSceneServices scene_services(Host *h)
     s.release = release_movie_scene;
     s.close = close_scene;
     s.sound_frame = s.scene_change = ignore;
-    s.file = archive;
     s.edit = edit_archive;
     s.write = write_movie_scene;
     s.save = s.dirty = s.rollcall_changed = ignore;

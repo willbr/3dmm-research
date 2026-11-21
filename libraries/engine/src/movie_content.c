@@ -7,7 +7,7 @@ int mm_movie_insert_material(void *material, MMTag *output, int *written,
     void *resources;
     MMU32 number;
     *written = 0;
-    if (!s->ensure(s->edit.context, &resources) || !s->write_material(material, s->file(resources), &number))
+    if (!s->ensure(s->edit.context, &resources) || !s->write_material(material, resources, &number))
         return 0;
     output->sid = 0;
     output->cache = 0;
@@ -19,7 +19,7 @@ int mm_movie_insert_material(void *material, MMTag *output, int *written,
 static int author(const void *name, MMI32 shape, const void *font, MMTag *tag,
                   const MMMovieContentServices *s)
 {
-    void *text = s->new_text(name, shape, font), *file;
+    void *text = s->new_text(name, shape, font), *resources;
     MMU32 number;
     int ok;
     if (!text)
@@ -29,8 +29,8 @@ static int author(const void *name, MMI32 shape, const void *font, MMTag *tag,
         s->release_text(text);
         return 0;
     }
-    file = s->file(s->edit.data->resources);
-    ok = s->use_temp(s->edit.context) && s->write_text(text, file, &number);
+    resources = s->edit.data->resources;
+    ok = s->use_temp(s->edit.context) && s->write_text(text, resources, &number);
     s->release_text(text);
     if (!ok)
         return 0;
