@@ -24,7 +24,7 @@ typedef struct Fixture
     MMActorRoutePoint route[2];
     MMActorEvent event;
     Payload data;
-    MMI32 bytes;
+    MMI32 bytes, action_limit;
     MMActorState state, published, observed[16];
     int fail, count_writes, writes, calls, operations[16], body_costume, saved_costume, references;
     int resource;
@@ -58,60 +58,103 @@ static void write_event(void *p, MMI32 i, const MMActorEvent *value)
     f->event = *value;
 }
 static void publish(void *p, const MMActorState *state) { ((Fixture *)p)->published = *state; }
-static void run(void *p, const MMActorEffectCommand *c, MMActorEffectReply *r)
+enum
 {
-    Fixture *f = (Fixture *)p;
-    int ok = c->operation != f->fail;
+    MM_EFFECT_CLEAR_SOUNDS, MM_EFFECT_SET_ACTION_CEL, MM_EFFECT_CEL_COUNT, MM_EFFECT_ACTION_FLAGS,
+    MM_EFFECT_SAVE_COSTUME, MM_EFFECT_DEFAULT_COSTUME, MM_EFFECT_RESTORE_COSTUME, MM_EFFECT_SHOW, MM_EFFECT_HIDE,
+    MM_EFFECT_FETCH_CUSTOM, MM_EFFECT_FETCH_MATERIAL, MM_EFFECT_APPLY_CUSTOM, MM_EFFECT_APPLY_MATERIAL,
+    MM_EFFECT_RELEASE_CUSTOM, MM_EFFECT_RELEASE_MATERIAL, MM_EFFECT_ENQUEUE_SOUND
+};
+static int record(Fixture *f, int operation)
+{
     CHECK(f->calls < 16);
     f->observed[f->calls] = f->published;
-    f->operations[f->calls++] = c->operation;
-    r->success = ok;
-    switch (c->operation)
-    {
-    case MM_EFFECT_SET_ACTION_CEL:
-        CHECK(c->first == 7 && c->second == 3);
-        break;
-    case MM_EFFECT_CEL_COUNT:
-        CHECK(c->first == 7);
-        if (f->count_writes)
-            r->value = ok ? 19 : -71;
-        break;
-    case MM_EFFECT_ACTION_FLAGS:
-        CHECK(c->first == 7);
-        r->flags = 0x81234567U;
-        break;
-    case MM_EFFECT_SAVE_COSTUME:
-        f->saved_costume = f->body_costume;
-        break;
-    case MM_EFFECT_DEFAULT_COSTUME:
-        f->body_costume = 2;
-        break;
-    case MM_EFFECT_RESTORE_COSTUME:
-        f->body_costume = f->saved_costume;
-        break;
-    case MM_EFFECT_FETCH_CUSTOM:
-    case MM_EFFECT_FETCH_MATERIAL:
-        CHECK(c->first == 23 && c->tag && c->tag->sid == 9 && c->tag->number == 44);
-        if (ok)
-        {
-            r->resource = &f->resource;
-            ++f->references;
-        }
-        break;
-    case MM_EFFECT_APPLY_CUSTOM:
-    case MM_EFFECT_APPLY_MATERIAL:
-        CHECK(c->resource == &f->resource && c->first == 12 && f->references == 1);
-        break;
-    case MM_EFFECT_RELEASE_CUSTOM:
-    case MM_EFFECT_RELEASE_MATERIAL:
-        CHECK(c->resource == &f->resource && f->references == 1);
-        --f->references;
-        break;
-    case MM_EFFECT_ENQUEUE_SOUND:
-        CHECK(c->first == 0);
-        break;
-    }
+    f->operations[f->calls++] = operation;
+    return operation != f->fail;
 }
+static void clear(void *p) { record((Fixture *)p, MM_EFFECT_CLEAR_SOUNDS); }
+static int select_cel(void *p, MMI32 action, MMI32 cel)
+{
+    CHECK(action == 7 && cel == 3);
+    return record((Fixture *)p, MM_EFFECT_SET_ACTION_CEL);
+}
+static int cel_count(void *p, MMI32 action, MMI32 *out)
+{
+    Fixture *f = (Fixture *)p;
+    int ok = record(f, MM_EFFECT_CEL_COUNT);
+    CHECK(action == 7);
+    if (f->count_writes)
+        *out = ok ? 19 : -71;
+    return ok;
+}
+static int action_flags(void *p, MMI32 action, MMU32 *out)
+{
+    CHECK(action == 7);
+    *out = 0x81234567U;
+    return record((Fixture *)p, MM_EFFECT_ACTION_FLAGS);
+}
+static int save_costume(void *p)
+{
+    Fixture *f = (Fixture *)p;
+    f->saved_costume = f->body_costume;
+    return record(f, MM_EFFECT_SAVE_COSTUME);
+}
+static int default_costume(void *p)
+{
+    Fixture *f = (Fixture *)p;
+    f->body_costume = 2;
+    return record(f, MM_EFFECT_DEFAULT_COSTUME);
+}
+static void restore_costume(void *p)
+{
+    Fixture *f = (Fixture *)p;
+    f->body_costume = f->saved_costume;
+    record(f, MM_EFFECT_RESTORE_COSTUME);
+}
+static void visibility(void *p, int shown) { record((Fixture *)p, shown ? MM_EFFECT_SHOW : MM_EFFECT_HIDE); }
+static void *resource(Fixture *f, int operation)
+{
+    if (!record(f, operation))
+        return NULL;
+    ++f->references;
+    return &f->resource;
+}
+static void *fetch_custom(void *p, MMI32 costume)
+{
+    CHECK(costume == 23);
+    return resource((Fixture *)p, MM_EFFECT_FETCH_CUSTOM);
+}
+static void *fetch_material(void *p, const MMTag *tag)
+{
+    CHECK(tag && tag->sid == 9 && tag->number == 44);
+    return resource((Fixture *)p, MM_EFFECT_FETCH_MATERIAL);
+}
+static void apply_custom(void *p, void *resource)
+{
+    Fixture *f = (Fixture *)p;
+    CHECK(resource == &f->resource && f->references == 1);
+    record(f, MM_EFFECT_APPLY_CUSTOM);
+}
+static void apply_material(void *p, MMI32 set, void *resource)
+{
+    Fixture *f = (Fixture *)p;
+    CHECK(set == 12 && resource == &f->resource && f->references == 1);
+    record(f, MM_EFFECT_APPLY_MATERIAL);
+}
+static void release_resource(void *p, void *resource, int custom)
+{
+    Fixture *f = (Fixture *)p;
+    CHECK(resource == &f->resource && f->references == 1);
+    --f->references;
+    record(f, custom ? MM_EFFECT_RELEASE_CUSTOM : MM_EFFECT_RELEASE_MATERIAL);
+}
+static int enqueue(void *p, MMI32 event)
+{
+    CHECK(event == 0);
+    return record((Fixture *)p, MM_EFFECT_ENQUEUE_SOUND);
+}
+static MMI32 action_count(void *p) { return ((Fixture *)p)->action_limit; }
+
 static const MMActorMotionServices motion = {width, count, point, event_width, event_count, event, size, payload};
 static void init(Fixture *f, int kind)
 {
@@ -165,11 +208,25 @@ static void init(Fixture *f, int kind)
 static int apply_mode(Fixture *f, int body, int metadata)
 {
     const MMActorPoint origin = {8 * ONE, 4 * ONE, -ONE};
-    MMActorEffectServices effects;
+    MMActorEffectServices effects = {0};
     effects.context = f;
     effects.write_event = write_event;
-    effects.run = run;
     effects.publish = publish;
+    effects.action_count = f->action_limit ? action_count : NULL;
+    effects.select_cel = select_cel;
+    effects.cel_count = cel_count;
+    effects.action_flags = action_flags;
+    effects.save_costume = save_costume;
+    effects.default_costume = default_costume;
+    effects.restore_costume = restore_costume;
+    effects.visibility = visibility;
+    effects.fetch_custom = fetch_custom;
+    effects.fetch_material = fetch_material;
+    effects.apply_custom = apply_custom;
+    effects.apply_material = apply_material;
+    effects.release_resource = release_resource;
+    effects.clear_sounds = clear;
+    effects.enqueue_sound = enqueue;
     return mm_actor_effect_apply(&f->state, f, f, 0, &origin, body, metadata, &motion, &effects);
 }
 static int apply(Fixture *f, int body) { return apply_mode(f, body, 0); }
@@ -214,6 +271,12 @@ static void action_tests(void)
                 CHECK(f.observed[expected + 2].actionEvent == 0 && f.observed[expected + 2].position.dxr == 4 * ONE);
                 CHECK(f.state.actionFlags == (fail == MM_EFFECT_ACTION_FLAGS ? 55U : 0x81234567U));
             }
+    init(&f, MM_ACTOR_ACTION);
+    before = f.state;
+    f.action_limit = 7;
+    CHECK(!apply(&f, 1) && f.calls == 1 && f.operations[0] == MM_EFFECT_CLEAR_SOUNDS);
+    CHECK(!memcmp(&before, &f.state, sizeof(before)));
+    CHECK(!apply_mode(&f, 0, 1) && f.calls == 1 && f.state.action == 7 && f.state.celCount == 11);
 }
 static void entrance_tests(void)
 {

@@ -167,12 +167,19 @@ static void extend(void *p, MMWide end)
     assert(h->span_count);
     h->spans[h->span_count - 1].end = end;
 }
-static void effect(void *p, const MMActorEffectCommand *c, MMActorEffectReply *r)
+static int effect_cel_count(void *p, MMI32 action, MMI32 *count)
 {
     (void)p;
-    assert(c->operation == MM_EFFECT_CEL_COUNT || c->operation == MM_EFFECT_ACTION_FLAGS);
-    r->value = 4;
-    r->flags = 0;
+    (void)action;
+    *count = 4;
+    return 1;
+}
+static int effect_action_flags(void *p, MMI32 action, MMU32 *flags)
+{
+    (void)p;
+    (void)action;
+    *flags = 0;
+    return 1;
 }
 static int apply(void *p, MMActorState *state, const MMActorTrack *track, MMI32 index)
 {
@@ -185,7 +192,8 @@ static int apply(void *p, MMActorState *state, const MMActorTrack *track, MMI32 
     memset(&effects, 0, sizeof(effects));
     memset(&origin, 0, sizeof(origin));
     effects.context = h;
-    effects.run = effect;
+    effects.cel_count = effect_cel_count;
+    effects.action_flags = effect_action_flags;
     effects.write_event = put;
     return mm_actor_effect_apply(state, track->route, track->events, index, &origin, 0, 1, &h->services.timeline.motion, &effects);
 }

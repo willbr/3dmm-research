@@ -216,15 +216,32 @@ static int pose(void *v, void *t, void *b, MMI32 action, MMI32 cel)
     ++h->poses;
     return step(h);
 }
-static void effect(void *v, const MMActorEffectCommand *c, MMActorEffectReply *r)
+static int effect_select_cel(void *v, MMI32 action, MMI32 cel)
 {
     Host *h = (Host *)v;
-    if (c->operation == MM_EFFECT_CEL_COUNT)
-        r->value = 4;
-    if (c->operation == MM_EFFECT_ACTION_FLAGS)
-        r->flags = 0;
-    if (c->operation == MM_EFFECT_SET_ACTION_CEL)
-        ++h->poses;
+    (void)action;
+    (void)cel;
+    ++h->poses;
+    return 1;
+}
+static int effect_cel_count(void *v, MMI32 action, MMI32 *count)
+{
+    (void)v;
+    (void)action;
+    *count = 4;
+    return 1;
+}
+static int effect_action_flags(void *v, MMI32 action, MMU32 *flags)
+{
+    (void)v;
+    (void)action;
+    *flags = 0;
+    return 1;
+}
+static int effect_default_costume(void *v)
+{
+    (void)v;
+    return 1;
 }
 static void put_owned(void *events, MMI32 i, const MMActorEvent *value)
 {
@@ -242,7 +259,10 @@ static int apply(void *v, MMI32 i)
         return r;
     memset(&s, 0, sizeof(s));
     s.context = h;
-    s.run = effect;
+    s.select_cel = effect_select_cel;
+    s.cel_count = effect_cel_count;
+    s.action_flags = effect_action_flags;
+    s.default_costume = effect_default_costume;
     s.write_event = h->services.tags ? put_owned : put;
     origin.dxr = (MMI32)h->actor.header.translation[0];
     origin.dyr = (MMI32)h->actor.header.translation[1];

@@ -695,6 +695,9 @@ Keep host presentation and device output outside the session.
    display effects. It evaluates cached entrances, carries Studio's dirty pose
    across intermediate frames and preserves each host's quick-backup behavior.
    Studio also delegates current-frame actor sound replay to C89.
+   The actor event driver calls typed action, body, material, and sound
+   services. Studio and Marcus share the native body and template bindings,
+   and the standalone session supplies its C89 archive and body operations.
    The standalone seek returns one camera and actor snapshot after reading the
    scene start group once. Studio and Marcus now retain the validated C89
    session over their opened chunk graphs. Studio resolves live scene slots

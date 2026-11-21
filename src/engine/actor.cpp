@@ -117,7 +117,7 @@
 #include "body_world.h"
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
-#include "mm/actor_effect.h"
+#include "engine_actor_effect.h"
 #include "mm/actor_placement.h"
 
 ASSERTNAME
@@ -471,95 +471,26 @@ bool Actor::_FDoAevCore(long iaev)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, mm_actor_events_count(_owner.track.events));
-    struct Host
-    {
-        Actor *actor;
-        BodyCostume costume;
-    } host;
-    host.actor = this;
-    MMActorEffectServices effects = {};
-    effects.context = &host;
-    effects.write_event = [](void *events, MMI32 index, const MMActorEvent *value) {
-        Base event;
-        std::memcpy(&event, value, sizeof(event));
-        mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(events), index, &event);
+    EngineActorEffectHost host = {_Template(), _Body(), &_owner.sounds, this};
+    auto effects = host.Services();
+    effects.visibility = [](void *p, int shown) {
+        auto body = EngineActorEffectHost::From(p).body;
+        if (shown)
+            body->Show();
+        else
+            body->Hide();
     };
-    effects.run = [](void *context, const MMActorEffectCommand *command, MMActorEffectReply *reply) {
-        auto &host = *static_cast<Host *>(context);
-        auto actor = host.actor;
-        switch (command->operation)
-        {
-        case MM_EFFECT_CLEAR_SOUNDS:
-            mm_actor_sounds_clear(&actor->_owner.sounds);
-            break;
-        case MM_EFFECT_SET_ACTION_CEL:
-            reply->success = actor->_Template()->FSetActnCel(actor->_Body(), command->first, command->second);
-            break;
-        case MM_EFFECT_CEL_COUNT:
-        {
-            LegacyLong count = reply->value;
-            reply->success = actor->_Template()->FGetCcelActn(command->first, &count);
-            reply->value = count;
-            break;
-        }
-        case MM_EFFECT_ACTION_FLAGS:
-        {
-            LegacyUlong flags = 0;
-            reply->success = actor->_Template()->FGetGrfactn(command->first, &flags);
-            reply->flags = flags;
-            break;
-        }
-        case MM_EFFECT_SAVE_COSTUME:
-            reply->success = host.costume.FGet(actor->_Body());
-            break;
-        case MM_EFFECT_DEFAULT_COSTUME:
-            reply->success = actor->_Template()->FSetDefaultCost(actor->_Body());
-            break;
-        case MM_EFFECT_RESTORE_COSTUME:
-            host.costume.Set(actor->_Body());
-            break;
-        case MM_EFFECT_SHOW:
-            actor->_Body()->Show();
-            break;
-        case MM_EFFECT_HIDE:
-            actor->_Body()->Hide();
-            break;
-        case MM_EFFECT_FETCH_CUSTOM:
-            reply->resource = actor->_Template()->PcmtlFetch(command->first);
-            break;
-        case MM_EFFECT_FETCH_MATERIAL:
-        {
-            TAG tag;
-            std::memcpy(&tag, command->tag, sizeof(tag));
-            reply->resource = vptagm->PbacoFetch(&tag, Material_MTRL::FReadMtrl);
-            break;
-        }
-        case MM_EFFECT_APPLY_CUSTOM:
-            actor->_Body()->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
-            break;
-        case MM_EFFECT_APPLY_MATERIAL:
-            actor->_Body()->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
-            break;
-        case MM_EFFECT_RELEASE_CUSTOM:
-        {
-            auto resource = static_cast<PCustomMaterial_CMTL>(command->resource);
-            ReleasePpo(&resource);
-            break;
-        }
-        case MM_EFFECT_RELEASE_MATERIAL:
-        {
-            auto resource = static_cast<PMaterial_MTRL>(command->resource);
-            ReleasePpo(&resource);
-            break;
-        }
-        case MM_EFFECT_ENQUEUE_SOUND:
-            reply->success = actor->_FEnqueueSnd(command->first);
-            break;
-        }
+    effects.fetch_material = [](void *, const MMTag *value) -> void * {
+        TAG tag;
+        TagFromCore(&tag, *value);
+        return vptagm->PbacoFetch(&tag, Material_MTRL::FReadMtrl);
+    };
+    effects.enqueue_sound = [](void *p, MMI32 index) -> int {
+        return static_cast<Actor *>(EngineActorEffectHost::From(p).owner)->_FEnqueueSnd(index);
     };
     const auto tables = EngineActorMotion::Services();
-    return mm_actor_effect_apply(&_owner.runtime.state, _owner.track.route, _owner.track.events, iaev, &_owner.runtime.origin,
-                                 _Body() != pvNil, 0, &tables, &effects) != 0;
+    return mm_actor_effect_apply(&_owner.runtime.state, _owner.track.route, _owner.track.events, iaev,
+                                 &_owner.runtime.origin, host.body != nullptr, 0, &tables, &effects) != 0;
 }
 
 /***************************************************************************

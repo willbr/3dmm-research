@@ -277,70 +277,99 @@ static void apply_material(ActorInput *input, MMI32 set, const MMMovieAsset *mat
         mm_session_apply_material(input->evaluated_body, set, material);
 }
 
-static void effect(void *p, const MMActorEffectCommand *command, MMActorEffectReply *reply)
+static int effect_cel_count(void *p, MMI32 action, MMI32 *count)
+{
+    ActorInput *input = (ActorInput *)p;
+    if (!load_action(input, action))
+        return 0;
+    *count = input->cel_count;
+    return 1;
+}
+
+static int effect_flags(void *p, MMI32 action, MMU32 *flags)
+{
+    ActorInput *input = (ActorInput *)p;
+    if (!load_action(input, action))
+        return 0;
+    *flags = input->resources.definition.flags;
+    return 1;
+}
+
+static int effect_select_cel(void *p, MMI32 action, MMI32 cel)
 {
     ActorInput *input = (ActorInput *)p;
     MMMovieBodyInput args;
-    int status = MM_MOVIE_OK;
-    switch (command->operation)
-    {
-    case MM_EFFECT_CEL_COUNT:
-    case MM_EFFECT_ACTION_FLAGS:
-        reply->success = load_action(input, command->first);
-        if (reply->success)
-        {
-            reply->value = input->cel_count;
-            reply->flags = input->resources.definition.flags;
-        }
-        break;
-    case MM_EFFECT_SET_ACTION_CEL:
-        reply->success = load_action(input, command->first);
-        if (reply->success && !input->text)
-        {
-            args = body_input(input);
-            args.cel = mm_template_wrap_cel(command->second, input->cel_count);
-            status = mm_session_body_cel(&args, input->evaluated_body);
-        }
-        break;
-    case MM_EFFECT_DEFAULT_COSTUME:
-        reply->success = reset_costume(input, NULL, input->evaluated_body);
-        break;
-    case MM_EFFECT_FETCH_CUSTOM:
-        args = body_input(input);
-        status = mm_session_costume_find(&args, command->first, &input->custom);
-        if (status == MM_MOVIE_OK)
-            reply->resource = &input->custom;
-        break;
-    case MM_EFFECT_APPLY_CUSTOM:
-        args = body_input(input);
-        status = mm_session_costume_apply(&args, input->evaluated_body, (const MMMovieCustomCostume *)command->resource);
-        break;
-    case MM_EFFECT_FETCH_MATERIAL:
-        input->generic.source = command->tag->sid;
-        input->generic.type = command->tag->type;
-        input->generic.number = command->tag->number;
-        status = mm_session_costume_material(input->movie, input->source, &input->generic);
-        if (status == MM_MOVIE_OK)
-            reply->resource = &input->generic;
-        break;
-    case MM_EFFECT_APPLY_MATERIAL:
-        apply_material(input, command->first, (const MMMovieAsset *)command->resource);
-        break;
-    default:
-        break;
-    }
-    if (status != MM_MOVIE_OK)
-        reply->success = fail(input, status);
+    int status;
+    if (!load_action(input, action))
+        return 0;
+    if (input->text)
+        return 1;
+    args = body_input(input);
+    args.cel = mm_template_wrap_cel(cel, input->cel_count);
+    status = mm_session_body_cel(&args, input->evaluated_body);
+    return status == MM_MOVIE_OK || fail(input, status);
 }
+
+static int effect_default_costume(void *p)
+{
+    ActorInput *input = (ActorInput *)p;
+    return reset_costume(input, NULL, input->evaluated_body);
+}
+
+static void *effect_fetch_custom(void *p, MMI32 costume)
+{
+    ActorInput *input = (ActorInput *)p;
+    const MMMovieBodyInput args = body_input(input);
+    const int status = mm_session_costume_find(&args, costume, &input->custom);
+    if (status == MM_MOVIE_OK)
+        return &input->custom;
+    fail(input, status);
+    return NULL;
+}
+
+static void effect_apply_custom(void *p, void *costume)
+{
+    ActorInput *input = (ActorInput *)p;
+    const MMMovieBodyInput args = body_input(input);
+    const int status = mm_session_costume_apply(&args, input->evaluated_body, (const MMMovieCustomCostume *)costume);
+    if (status != MM_MOVIE_OK)
+        fail(input, status);
+}
+
+static void *effect_fetch_material(void *p, const MMTag *tag)
+{
+    ActorInput *input = (ActorInput *)p;
+    int status;
+    input->generic.source = tag->sid;
+    input->generic.type = tag->type;
+    input->generic.number = tag->number;
+    status = mm_session_costume_material(input->movie, input->source, &input->generic);
+    if (status == MM_MOVIE_OK)
+        return &input->generic;
+    fail(input, status);
+    return NULL;
+}
+
+static void effect_apply_material(void *p, MMI32 set, void *material)
+{
+    apply_material((ActorInput *)p, set, (const MMMovieAsset *)material);
+}
+
 static int apply(void *p, MMI32 index)
 {
     ActorInput *input = (ActorInput *)p;
-    MMActorEffectServices effects;
+    MMActorEffectServices effects = {0};
     MMActorPoint origin;
     effects.context = p;
     effects.write_event = put_event;
-    effects.run = effect;
-    effects.publish = NULL;
+    effects.select_cel = effect_select_cel;
+    effects.cel_count = effect_cel_count;
+    effects.action_flags = effect_flags;
+    effects.default_costume = effect_default_costume;
+    effects.fetch_custom = effect_fetch_custom;
+    effects.fetch_material = effect_fetch_material;
+    effects.apply_custom = effect_apply_custom;
+    effects.apply_material = effect_apply_material;
     origin.dxr = mm_signed_word(input->actor.header.translation[0]);
     origin.dyr = mm_signed_word(input->actor.header.translation[1]);
     origin.dzr = mm_signed_word(input->actor.header.translation[2]);

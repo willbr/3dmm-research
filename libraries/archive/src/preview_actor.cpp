@@ -10,7 +10,7 @@
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
 #include "handle_services.h"
-#include "mm/actor_effect.h"
+#include "engine_actor_effect.h"
 #include "mm/actor_costume_edit.h"
 #include "mm/actor_animation.h"
 #include "mm/sound_resource.h"
@@ -342,121 +342,54 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
     struct Host
     {
         const PreviewActor *actor;
-        const MMActorTrack *track;
+        MMActorEventTable *events;
         MMActorSounds *motion;
         std::vector<PreviewSoundCue> *cues;
-        BodyCostume costume;
-    } host;
-    host.actor = this;
-    host.track = &events;
-    host.motion = motion;
-    host.cues = cues;
-    MMActorEffectServices effects = {};
-    effects.context = &host;
-    effects.write_event = [](void *group, MMI32 row, const MMActorEvent *value) {
-        Base event;
-        std::memcpy(&event, value, sizeof(event));
-        mm_actor_events_set_fixed(static_cast<MMActorEventTable *>(group), row, &event);
-    };
-    effects.run = [](void *context, const MMActorEffectCommand *command, MMActorEffectReply *reply) {
-        auto &host = *static_cast<Host *>(context);
-        auto actor = host.actor;
-        switch (command->operation)
-        {
-        case MM_EFFECT_CLEAR_SOUNDS:
-            mm_actor_sounds_clear(host.motion);
-            break;
-        case MM_EFFECT_SET_ACTION_CEL:
-            reply->success = command->first >= 0 && command->first < actor->Ptmpl()->Cactn() &&
-                             actor->Ptmpl()->FSetActnCel(actor->Pbody(), command->first, command->second);
-            break;
-        case MM_EFFECT_CEL_COUNT:
-        {
-            LegacyLong count = reply->value;
-            reply->success = command->first >= 0 && command->first < actor->Ptmpl()->Cactn() &&
-                             actor->Ptmpl()->FGetCcelActn(command->first, &count);
-            reply->value = count;
-            break;
-        }
-        case MM_EFFECT_ACTION_FLAGS:
-        {
-            LegacyUlong flags = 0;
-            reply->success = command->first >= 0 && command->first < actor->Ptmpl()->Cactn() &&
-                             actor->Ptmpl()->FGetGrfactn(command->first, &flags);
-            reply->flags = flags;
-            break;
-        }
-        case MM_EFFECT_SAVE_COSTUME:
-            reply->success = host.costume.FGet(actor->Pbody());
-            break;
-        case MM_EFFECT_DEFAULT_COSTUME:
-            reply->success = actor->Ptmpl()->FSetDefaultCost(actor->Pbody());
-            break;
-        case MM_EFFECT_RESTORE_COSTUME:
-            host.costume.Set(actor->Pbody());
-            break;
-        case MM_EFFECT_SHOW:
-            // Native Body::Show attaches at the head of World's actor list.
-            // Keep attachment history even though preview bodies have no World.
+        std::exception_ptr failure;
+    } host = {this, events.events, motion, cues};
+    EngineActorEffectHost body = {Ptmpl(), Pbody(), motion, &host};
+    auto effects = body.Services();
+    effects.action_count = [](void *p) -> MMI32 { return EngineActorEffectHost::From(p).tmpl->Cactn(); };
+    effects.visibility = [](void *p, int shown) {
+        const auto actor = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->actor;
+        // Retain attachment order, as in the Studio world.
+        if (shown)
             actor->lastShown = ++*actor->visibilityClock;
-            break;
-        case MM_EFFECT_HIDE:
-            // Preview presentation uses the shared onStage value; Body has no World.
-            break;
-        case MM_EFFECT_FETCH_CUSTOM:
-            reply->resource = actor->Ptmpl()->PcmtlFetch(command->first);
-            break;
-        case MM_EFFECT_FETCH_MATERIAL:
-        {
-            TAG native;
-            std::memcpy(&native, command->tag, sizeof(native));
-            TAGOnFile tag;
-            tag.From(native);
-            auto source = actor->resolve(tag);
-            if (source)
-                reply->resource = source->PbacoFetch(tag.ctg, tag.cno, Material_MTRL::FReadMtrl);
-            break;
-        }
-        case MM_EFFECT_APPLY_CUSTOM:
-            actor->Pbody()->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(command->resource));
-            break;
-        case MM_EFFECT_APPLY_MATERIAL:
-            actor->Pbody()->SetPartSetMtrl(command->first, static_cast<PMaterial_MTRL>(command->resource));
-            break;
-        case MM_EFFECT_RELEASE_CUSTOM:
-        {
-            auto resource = static_cast<PCustomMaterial_CMTL>(command->resource);
-            ReleasePpo(&resource);
-            break;
-        }
-        case MM_EFFECT_RELEASE_MATERIAL:
-        {
-            auto resource = static_cast<PMaterial_MTRL>(command->resource);
-            ReleasePpo(&resource);
-            break;
-        }
-        case MM_EFFECT_ENQUEUE_SOUND:
-        {
-            MMActorSoundServices services = {};
-            services.context = &host;
-            services.cues_only = 1;
-            services.cue = [](void *context, const MMActorSound *value) {
-                auto &host = *static_cast<Host *>(context);
+    };
+    effects.fetch_material = [](void *p, const MMTag *tag) -> void * {
+        const auto actor = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->actor;
+        const auto source = actor->resolve({tag->sid, 0, tag->type, tag->number});
+        return source ? source->PbacoFetch(tag->type, tag->number, Material_MTRL::FReadMtrl) : nullptr;
+    };
+    effects.enqueue_sound = [](void *p, MMI32 index) -> int {
+        auto &host = *static_cast<Host *>(EngineActorEffectHost::From(p).owner);
+        MMActorSoundServices services = {};
+        services.context = &host;
+        services.cues_only = 1;
+        services.cue = [](void *context, const MMActorSound *value) -> int {
+            auto &host = *static_cast<Host *>(context);
+            try
+            {
                 if (host.actor->core.sound_display)
                     host.cues->push_back(host.actor->SoundCue(*value));
                 return 1;
-            };
-            reply->success = mm_actor_sound_event(host.motion, host.track->events, command->first, &services);
-            break;
-        }
-        }
+            }
+            catch (...)
+            {
+                host.failure = std::current_exception();
+                return 0;
+            }
+        };
+        return mm_actor_sound_event(host.motion, host.events, index, &services);
     };
     const MMActorPoint origin = {MMI32(core.header.translation[0]), MMI32(core.header.translation[1]),
                                  MMI32(core.header.translation[2])};
     const auto tables = EngineActorMotion::Services();
-    bool success = mm_actor_effect_apply(&value, events.route, events.events, index, &origin, Pbody() != nullptr,
-                                         metadataOnly, &tables, &effects) != 0;
-    return success;
+    const bool ok = mm_actor_effect_apply(&value, events.route, events.events, index, &origin, body.body != nullptr,
+                                          metadataOnly, &tables, &effects) != 0;
+    if (host.failure)
+        std::rethrow_exception(host.failure);
+    return ok;
 }
 PreviewSoundCue PreviewActor::SoundCue(const MMActorSound &sound) const
 {

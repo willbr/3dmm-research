@@ -19793,3 +19793,30 @@ SDL and Marcus produced identical seek canvases, each differing from retail
 at one pixel per frame. SDL's presentation interval was within 0.7 ms of
 retail's. The harness reported Marcus timing and both continuous pixel
 comparisons as inconclusive. Evidence is in `tmp/c89-text-materials`.
+
+## Typed actor playback effects (21 November 2026)
+
+The C89 actor event driver now calls typed services for action cels, costume
+reset and rollback, material application, visibility, and sound. Studio and
+Preview share the native body and template bindings. The standalone session
+supplies archive-backed action and body operations. Preview retains its action
+range check and its attachment order for rendering. The standalone fixture
+covers an invalid action during full evaluation and metadata-only evaluation.
+
+All 193 standalone C89 checks passed, including strict syntax. The actor
+effect, Preview actor, and Preview metadata checks passed under AddressSanitizer.
+The native engine link, movie save/load, Marcus syntax and player checks, and
+the native and SDL headless Preview checks passed.
+
+In `20261121T190223Z-c1ec4166`, retail, Studio, and Marcus agreed on all ten
+seek canvases, frames, and cameras for the authored costume movie. All three
+also visited the same ten frames in continuous playback. The standalone C89
+session matched retail's camera, action, cel, next event, route position and
+stage state at each seek, plus the local part matrices for all 12 on-stage
+actor snapshots. Retail additionally reported matrices for eight off-stage
+snapshots, where the standalone session returned actor metadata.
+
+Studio's continuous presentation interval was 108 ms longer than retail's,
+compared with 123 ms in the earlier capture of the same movie. The harness
+reported Marcus timing and continuous pixel comparisons as inconclusive.
+The database and standalone session dumps are in `tmp/c89-actor-effects`.
