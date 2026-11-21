@@ -40,8 +40,7 @@ extern "C"
         int (*undo)(void *, MMI32 first, MMI32 end, MMI32 inserted);
         int (*reserve)(void *, MMI32), (*cancel)(void *), (*commit)(void *);
         int (*group_name)(void *, void *buffer, MMI32 capacity, MMI32 *bytes);
-        const void *(*lock)(void *, MMI32 index, MMI32 *bytes);
-        void (*unlock)(void *);
+        MMGroup (*arguments)(void *);
         int (*read_name)(void *, const void *, MMI32 bytes), (*clear_name)(void *);
         void (*publish)(void *, int kind, MMU32 value);
         int (*allocate)(void *, MMI32 bytes, void **owned);

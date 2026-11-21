@@ -11,21 +11,19 @@ static MMI32 position(MMU32 key)
 }
 static int import(MMI32 index, unsigned kind, int lock_first, MMI32 *out, const MMTextCopyServices *s)
 {
+    MMGroup rows = s->source_arguments(s->context);
     const void *bytes;
     MMI32 count;
-    int r;
-    if (lock_first)
+    int r = 0;
+    if (lock_first && mm_storage_lock(rows.storage, 0) != MM_STORAGE_OK)
+        return 0;
+    bytes = mm_text_argument_payload(&rows, index, &count);
+    if (lock_first || (bytes && mm_storage_lock(rows.storage, 0) == MM_STORAGE_OK))
     {
-        bytes = s->lock_source(s->context, index);
-        count = s->source_bytes(s->context, index);
+        if (bytes)
+            r = mm_text_argument_ensure(kind, bytes, count, out, &s->target.edit.format.properties.arguments);
+        mm_storage_unlock(rows.storage, 0);
     }
-    else
-    {
-        count = s->source_bytes(s->context, index);
-        bytes = s->lock_source(s->context, index);
-    }
-    r = mm_text_argument_ensure(kind, bytes, count, out, &s->target.edit.format.properties.arguments);
-    s->unlock_source(s->context);
     return r;
 }
 static int apply(MMI32 at, MMI32 span, const MMTextPropertyChange *change, const MMTextCopyServices *s)
@@ -192,7 +190,7 @@ int mm_text_copy_document(MMI32 from, MMI32 count, MMI32 at, MMI32 deleted, MMU3
         {
             s->source.rows.get(s->source.rows.context, i++, &entry);
             cp = position(entry.key);
-            if (cp < from || cp >= from + count)
+            if (cp < from || cp >= from + count || entry.value < 1)
                 continue;
             kind = (unsigned)(entry.key >> 24);
             fresh.key = key(kind, at + cp - from);
@@ -228,8 +226,8 @@ int mm_text_object_fetch(MMI32 cp, MMI32 *at, void **owned, MMI32 *bytes, const 
 {
     const MMTextPropertyServices *p = &s->target.edit.format.properties;
     MMTextPropertyEntry entry;
-    MMI32 index, n, ignored;
-    void *group;
+    MMGroup rows;
+    MMI32 index, n, available;
     const void *data;
     int r;
     r = mm_text_property_find(key(192, cp), s->target.characters(s->target.context), &entry, at, &index, p);
@@ -245,25 +243,35 @@ int mm_text_object_fetch(MMI32 cp, MMI32 *at, void **owned, MMI32 *bytes, const 
             ++index;
         p->rows.get(p->rows.context, index, &entry);
     }
+    if (!bytes && !owned)
+        return 1;
+    if (entry.value < 1)
+        return 0;
+    rows = s->arguments(s->context);
+    if (!mm_text_argument_payload(&rows, entry.value - 1, &n))
+        return 0;
     if (bytes)
     {
-        *bytes = s->bytes(s->context, entry.value - 1);
+        *bytes = n;
         if (s->publish_bytes)
             s->publish_bytes(s->context, *bytes);
     }
     if (owned)
     {
-        if (s->check_reference)
-            s->check_reference(s->context, entry.value - 1);
-        n = s->bytes(s->context, entry.value - 1);
         r = s->allocate(s->context, n, owned);
         if (r < 0)
             return r;
         if (r)
         {
-            group = p->arguments.objects.get(p->arguments.objects.context, MM_TEXT_OWNER_ARGUMENTS);
-            data = p->arguments.rows.data(p->arguments.rows.context, group, entry.value - 1, &ignored);
-            memcpy(*owned, data, (size_t)n);
+            rows = s->arguments(s->context);
+            data = mm_text_argument_payload(&rows, entry.value - 1, &available);
+            if (!data || available < n)
+            {
+                s->free(s->context, *owned);
+                *owned = NULL;
+            }
+            else if (n)
+                memcpy(*owned, data, (size_t)n);
         }
     }
     return 1;

@@ -1,4 +1,5 @@
 #include "mm/text_materialize.h"
+#include "mm/text_properties.h"
 #include <string.h>
 static MMU32 swap(MMU32 v)
 {
@@ -97,20 +98,19 @@ done:
 int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgumentServices *s)
 {
     MMGroup arguments;
-    MMGroupLocation row;
     MMStringWire wire;
     MMMemoryStream memory;
     MMMovieTitle name;
     unsigned short counted[MM_STRING_MAX + 2];
     short system;
-    MMU32 bytes, count;
-    MMI32 font;
+    MMU32 count;
+    MMI32 bytes, font;
     unsigned char *data;
     int result;
     arguments = s->arguments(s->context);
-    if (mm_group_read_slot(&arguments, (MMU32)index, &row) != MM_GROUP_SLOT_PRESENT || kind != 2)
+    data = mm_text_argument_payload(&arguments, index, &bytes);
+    if (!data || kind != 2)
         return 0;
-    bytes = (MMU32)row.bytes - arguments.fixed_bytes;
     if (bytes < 6)
     {
         s->bad_entry(s->context);
@@ -118,7 +118,6 @@ int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgum
     }
     if (mm_storage_lock(arguments.storage, 0) != MM_STORAGE_OK)
         return 0;
-    data = arguments.storage->buffers[0].data + row.offset + arguments.fixed_bytes;
     memcpy(&system, data + 4, 2);
     wire = s->wire;
     wire.buffer = counted;
@@ -139,9 +138,9 @@ int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgum
     if (result <= 0)
         return result;
     arguments = s->arguments(s->context);
-    if (mm_group_read_slot(&arguments, (MMU32)index, &row) != MM_GROUP_SLOT_PRESENT ||
-        (MMU32)row.bytes - arguments.fixed_bytes < sizeof(font))
+    data = mm_text_argument_payload(&arguments, index, &bytes);
+    if (!data || bytes < (MMI32)sizeof(font))
         return 0;
-    memcpy(arguments.storage->buffers[0].data + row.offset + arguments.fixed_bytes, &font, sizeof(font));
+    memcpy(data, &font, sizeof(font));
     return result;
 }

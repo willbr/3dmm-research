@@ -64,35 +64,31 @@ void mm_help_topic_encode(const MMHelpTopic *p, int system, int big, unsigned ch
 int mm_help_open_argument(MMI32 index, unsigned kind, int order, int system, int big, const MMHelpArgumentServices *s)
 {
     MMGroup arguments;
-    MMGroupLocation row;
     unsigned char *data;
-    MMU32 type, bytes, n, i;
+    MMI32 bytes;
+    MMU32 type, n, i;
     int r = s->base(s->context, index, kind, order, system);
     if (r)
         return r;
     arguments = s->arguments(s->context);
-    if (mm_group_read_slot(&arguments, (MMU32)index, &row) != MM_GROUP_SLOT_PRESENT)
+    data = mm_text_argument_payload(&arguments, index, &bytes);
+    if (!data)
         return 0;
-    bytes = (MMU32)row.bytes - arguments.fixed_bytes;
     if (kind == 64)
     {
         if (bytes < 5)
             return 0;
         if (order == 256)
-        {
-            data = arguments.storage->buffers[0].data + row.offset + arguments.fixed_bytes + 1;
-            put(data, get(data, 4, !big), 4, big);
-        }
+            put(data + 1, get(data + 1, 4, !big), 4, big);
         return 1;
     }
     if (kind != 192 || bytes < 4)
         return 0;
-    data = arguments.storage->buffers[0].data + row.offset + arguments.fixed_bytes;
     type = get(data, 4, order == 256 ? !big : big);
     if (order == 256)
         put(data, type, 4, big);
     n = type == MM_HELP_BITMAP || type == MM_HELP_EDIT ? 1 : type == MM_HELP_BUTTON ? 2 : 0;
-    if (!n || bytes - 4 < n * 4)
+    if (!n || (MMU32)bytes - 4 < n * 4)
         return 0;
     if (order == 256)
         for (i = 1; i <= n; ++i)
@@ -156,6 +152,7 @@ fail:
 int mm_help_grouped(MMI32 cp, int big, int name, const MMHelpEditServices *s)
 {
     MMTextPropertyEntry entry;
+    MMGroup rows;
     const unsigned char *data;
     MMI32 end, bytes;
     unsigned group = 0;
@@ -168,16 +165,22 @@ int mm_help_grouped(MMI32 cp, int big, int name, const MMHelpEditServices *s)
     s->publish(s->context, MM_HELP_END, (MMU32)end);
     if (entry.value > 0)
     {
-        data = (const unsigned char *)s->lock(s->context, entry.value - 1, &bytes);
-        if (bytes < 5 || !(group = data[0]))
+        rows = s->arguments(s->context);
+        if (mm_storage_lock(rows.storage, 0) != MM_STORAGE_OK)
         {
             s->bad_group(s->context);
-            s->unlock(s->context);
+            goto none;
+        }
+        data = mm_text_argument_payload(&rows, entry.value - 1, &bytes);
+        if (!data || bytes < 5 || !(group = data[0]))
+        {
+            s->bad_group(s->context);
+            mm_storage_unlock(rows.storage, 0);
             goto none;
         }
         s->publish(s->context, MM_HELP_TARGET, get(data + 1, 4, big));
         r = name ? (bytes > 5 ? s->read_name(s->context, data + 5, bytes - 5) : s->clear_name(s->context)) : 1;
-        s->unlock(s->context);
+        mm_storage_unlock(rows.storage, 0);
         if (r < 0)
             return r;
     }

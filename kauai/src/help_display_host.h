@@ -21,10 +21,7 @@ struct TextDocument::DisplayHost : HelpHost
     {
         MMHelpDisplayServices s = {};
         s.context = this;
-        s.bytes = [](void *v, MMI32 i) -> MMI32 { return static_cast<DisplayHost *>(v)->help->_pagcact->Cb(i); };
-        s.header = [](void *v, MMI32 i, unsigned char *out) {
-            static_cast<DisplayHost *>(v)->help->_pagcact->GetRgb(i, 0, 8, out);
-        };
+        s.arguments = [](void *v) { return static_cast<DisplayHost *>(v)->ArgumentRows(); };
         s.find = [](void *v, const MMTextChunk *p, void **out) -> int {
             auto &h = *static_cast<DisplayHost *>(v);
             return h.Guard([&] {

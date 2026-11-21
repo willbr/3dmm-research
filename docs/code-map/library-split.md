@@ -3036,8 +3036,9 @@ work. Evidence and platform limits are in `docs/tools/playback-regression.md`.
 
 `text_copy.c` controls rich-document replacement, property-range copying and
 embedded-object fetch, dispatch, insertion and property edits. The native host
-supplies borrowed streams/maps, argument bytes/locks, allocation, virtual undo/
-replacement/render hooks and typed validation. The C property and formatting
+supplies borrowed streams, property maps, argument-group views, allocation,
+virtual undo/replacement/render hooks and typed validation. C89 reads and locks
+the argument payloads directly. The C property and formatting
 modules supply argument interning, reference control, masked range application
 and character batches. Native wrapper signatures and subclass dispatch remain.
 
@@ -3065,7 +3066,10 @@ properties and commits before notification. Ordinary replacement failure cancels
 undo; exceptions retain prior text, properties and references without rollback.
 Object queries concern built-in kind 192, publish position/size before allocation
 and report found even when allocation fails. The caller owns any allocation output
-published before an exception. Rectangle/draw queries use exact-position dispatch.
+published before an exception. After successful allocation C89 reads the current
+row again. If the payload shrank or disappeared, it releases the new buffer and
+reports the found position with null data. Rectangle/draw queries use
+exact-position dispatch.
 
 Object insertion stages its argument and optional character batch before reserve.
 Legacy reserve failure releases only the object reference; failed replacement
@@ -3303,7 +3307,8 @@ borrowed C collection directly after the base font hook returns ordinary false.
 Grouping sorts ranges before undo, reads the name
 after undo, consumes argument references through the shared property map and keeps
 partial effects on exceptions. Group queries publish end/target before name decode,
-ignore ordinary name decode failure and publish group/start last.
+ignore ordinary name decode failure and publish group/start last. They lock the
+C argument storage while reading the group payload and decoding the name.
 
 Expansion marks the document internal and leaves undo suspended. It skips inserted
 placeholders, wraps decimal IDs at 32 bits, warns on missing strings and continues
@@ -3330,7 +3335,9 @@ typed cache/file/bitmap, font measurement and graphics primitives shared by the
 Native and SDL adapters. Physical rasterization and font metrics remain providers.
 
 Only object kind 192 is handled; arguments shorter than eight bytes and unknown
-types leave bounds/cursor unchanged. Button bitmap lookup uses child `0x10000`.
+types leave bounds/cursor unchanged. C89 reads the object header directly from the
+argument group and copies out the type and number before creating graphics effects.
+Button bitmap lookup uses child `0x10000`.
 Bitmap bounds align their left/bottom to zero. Drawing aligns to the live cursor
 and baseline, fills nonclear backgrounds, optionally draws, releases the bitmap,
 then boxes and advances. Hidden buttons still resolve, measure, fill, frame and

@@ -44,6 +44,9 @@ extern "C"
     /* Live argument records use a native 32-bit fixed word. The group owner
      * publishes shape after edits. The binding must outlive the row services. */
     void mm_text_live_argument_rows(MMTextArgumentRows *, const MMTextLiveArgumentGroup *);
+    /* Borrow the variable payload of a live row until mutation. A missing row
+     * returns NULL and zero size. The caller controls the storage lock. */
+    unsigned char *mm_text_argument_payload(const MMGroup *, MMI32 index, MMI32 *bytes);
     typedef struct MMTextArgumentServices
     {
         void *context;

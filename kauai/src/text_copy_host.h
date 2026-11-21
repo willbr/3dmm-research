@@ -20,11 +20,7 @@ struct RichTextDocument::CopyHost : ReplaceHost
         s.target = Services();
         s.source = source.Properties();
         s.source_characters = [](void *v) -> MMI32 { return static_cast<CopyHost *>(v)->from->CpMac(); };
-        s.source_bytes = [](void *v, MMI32 i) -> MMI32 { return static_cast<CopyHost *>(v)->from->_pagcact->Cb(i); };
-        s.lock_source = [](void *v, MMI32 i) -> const void * {
-            return static_cast<CopyHost *>(v)->from->_pagcact->PvLock(i);
-        };
-        s.unlock_source = [](void *v) { static_cast<CopyHost *>(v)->from->_pagcact->Unlock(); };
+        s.source_arguments = [](void *v) { return static_cast<CopyHost *>(v)->source.ArgumentRows(); };
         s.source_stream = [](void *v) -> void * { return static_cast<CopyHost *>(v)->from->_pbsf; };
         s.check_tail = [](void *v, MMI32 cp, MMI32 inserted, MMI32 deleted) -> int {
             auto &h = *static_cast<CopyHost *>(v);
@@ -65,11 +61,12 @@ struct RichTextDocument::CopyHost : ReplaceHost
         s.context = this;
         s.unit = sizeof(achar);
         s.target = Services();
-        s.bytes = [](void *v, MMI32 i) -> MMI32 { return static_cast<CopyHost *>(v)->rich->_pagcact->Cb(i); };
+        s.arguments = [](void *v) { return static_cast<CopyHost *>(v)->ArgumentRows(); };
         s.allocate = [](void *v, MMI32 bytes, void **out) -> int {
             auto &h = *static_cast<CopyHost *>(v);
             return h.Guard([&] { return FAllocPv(out, bytes, fmemNil, mprNormal); });
         };
+        s.free = [](void *, void *p) { FreePpv(&p); };
         s.publish_at = [](void *v, MMI32 at) {
             auto &h = *static_cast<CopyHost *>(v);
             if (h.position)
@@ -79,9 +76,6 @@ struct RichTextDocument::CopyHost : ReplaceHost
             auto &h = *static_cast<CopyHost *>(v);
             if (h.byteCount)
                 *h.byteCount = bytes;
-        };
-        s.check_reference = [](void *v, MMI32 i) {
-            AssertIn(i, 0, static_cast<CopyHost *>(v)->rich->_pagcact->IvMac());
         };
         s.dispatch = [](void *v, int draw, MMI32 index, unsigned kind) -> int {
             auto &h = *static_cast<CopyHost *>(v);

@@ -34,7 +34,7 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
             return h.Guard(
                 [&] { return h.help->RichTextDocument::_FOpenArg(i, byte(kind), short(order), short(system)); });
         };
-        s.arguments = [](void *v) { return static_cast<HelpHost *>(v)->help->_pagcact->CoreRows(); };
+        s.arguments = [](void *v) { return static_cast<HelpHost *>(v)->ArgumentRows(); };
         return s;
     }
     MMHelpEditServices Edit()
@@ -75,13 +75,7 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
                 return 1;
             });
         };
-        s.lock = [](void *v, MMI32 i, MMI32 *n) -> const void * {
-            LegacyLong bytes;
-            auto data = static_cast<HelpHost *>(v)->help->_pagcact->PvLock(i, &bytes);
-            *n = bytes;
-            return data;
-        };
-        s.unlock = [](void *v) { static_cast<HelpHost *>(v)->help->_pagcact->Unlock(); };
+        s.arguments = [](void *v) { return static_cast<HelpHost *>(v)->ArgumentRows(); };
         s.read_name = [](void *v, const void *p, MMI32 n) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] { return h.groupName->FSetData(const_cast<void *>(p), n); });

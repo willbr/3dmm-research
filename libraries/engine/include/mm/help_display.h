@@ -14,8 +14,7 @@ extern "C"
     typedef struct MMHelpDisplayServices
     {
         void *context;
-        MMI32 (*bytes)(void *, MMI32 index);
-        void (*header)(void *, MMI32 index, unsigned char bytes[8]);
+        MMGroup (*arguments)(void *);
         int (*find)(void *, const MMTextChunk *, void **borrowed);
         int (*child)(void *, void *borrowed, const MMTextChunk *, MMU32 id, MMTextChunk *);
         int (*fetch)(void *, void *borrowed, const MMTextChunk *, void **owned);

@@ -225,11 +225,15 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
         else
             TextDocumentBase::DocumentHost::Set(slot, p);
     }
+    MMGroup ArgumentRows() const
+    {
+        return rich->_pagcact ? rich->_pagcact->CoreRows() : MMGroup{};
+    }
     MMTextFontArgumentServices FontArgument()
     {
         MMTextFontArgumentServices s = {};
         s.context = this;
-        s.arguments = [](void *v) { return static_cast<DocumentHost *>(v)->rich->_pagcact->CoreRows(); };
+        s.arguments = [](void *v) { return static_cast<DocumentHost *>(v)->ArgumentRows(); };
         s.wire = {nullptr, sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), RichTextStoreHost::NativeBig(),
                   nullptr, [](void *, const void *input, MMU32 bytes, int encoding, void *output, MMU32 capacity) -> MMI32 {
                       return CchTranslateRgb(const_cast<void *>(input), bytes, static_cast<short>(encoding),

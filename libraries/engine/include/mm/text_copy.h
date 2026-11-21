@@ -21,9 +21,8 @@ extern "C"
         void *context;
         MMTextReplaceRichServices target;
         MMTextPropertyServices source;
-        MMI32 (*source_characters)(void *), (*source_bytes)(void *, MMI32 index);
-        const void *(*lock_source)(void *, MMI32 index);
-        void (*unlock_source)(void *);
+        MMI32 (*source_characters)(void *);
+        MMGroup (*source_arguments)(void *);
         void *(*source_stream)(void *);
         int (*check_tail)(void *, MMI32 cp, MMI32 inserted, MMI32 deleted);
         void (*check_properties)(void *, MMI32 from, MMI32 at, MMI32 source_span, MMI32 target_span);
@@ -34,10 +33,10 @@ extern "C"
         void *context;
         unsigned unit;
         MMTextReplaceRichServices target;
-        MMI32 (*bytes)(void *, MMI32 index);
+        MMGroup (*arguments)(void *);
         int (*allocate)(void *, MMI32 bytes, void **owned);
+        void (*free)(void *, void *owned);
         void (*publish_at)(void *, MMI32), (*publish_bytes)(void *, MMI32);
-        void (*check_reference)(void *, MMI32 index);
         int (*dispatch)(void *, int draw, MMI32 index, unsigned kind);
         void (*diagnostic)(void *, int);
     } MMTextObjectServices;
@@ -55,7 +54,9 @@ extern "C"
     /* Object queries concern built-in kind 192. Miss publishes the next/end position
      * but leaves size/data outputs alone. Allocation failure still reports found;
      * the allocation service publishes its output (normally null) directly to the
-     * caller. Any owner returned on an exception remains caller-owned. */
+     * caller. Any owner returned on an exception remains caller-owned. If the row
+     * disappears or shrinks during successful allocation, discard the new
+     * buffer and report the already found position with null data. */
     int mm_text_object_fetch(MMI32 cp, MMI32 *at, void **owned, MMI32 *bytes, const MMTextObjectServices *);
     int mm_text_object_dispatch(MMI32 cp, int draw, const MMTextObjectServices *);
     /* Insert retains legacy staged-reference behavior: reservation failure releases

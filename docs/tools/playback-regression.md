@@ -18159,3 +18159,27 @@ seek and continuous playback and all retail seek cameras from
 known retail rendering differences. SDL also retained the edited text, right
 alignment, Times New Roman font, and three-frame visibility window. Logs are in
 `tmp/c89-property-array`.
+
+## C89 argument payload access for copy and Help (21 November 2026)
+
+Rich-text copying, object fetches, Help group queries, and Help drawing now read
+their payloads directly from the C89 argument group. Copy holds the source data
+lock through destination interning. Help group queries release their lock before
+publishing the last outputs. Object fetch checks the row again after allocation
+and releases the new buffer if the payload has shrunk or disappeared.
+
+The engine fixtures exercise actual C storage locks through successful and
+failing imports and Help name decoding. They also check truncated Help headers
+and an object payload that shrinks during allocation. Studio's authoring
+workflow reproduced the preceding saved movie byte for byte.
+
+All 192 standalone C checks, six focused AddressSanitizer checks, and 16 native
+C89 and Marcus checks passed. Native x64, native x86, and SDL reproduced 21
+binary traces and all three Help display fingerprints from the previous build.
+
+In `20261121T061708Z-fdc6d55c`, SDL and Marcus matched all 11 retail frame
+identities in seek and continuous playback and all 11 retail seek cameras.
+Both matched their 11 preceding seek canvases. The three visible-caption frames
+retain their retail rendering differences. SDL also kept the edited caption,
+right alignment, Times New Roman font, and visibility window. Logs are in
+`tmp/c89-argument-payload-access`.

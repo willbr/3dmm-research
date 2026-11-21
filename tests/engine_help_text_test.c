@@ -2,6 +2,7 @@
 #include "mm/help_text.h"
 #define MM_TEXT_FORMAT_NO_LATE_INPUT
 #include "text_format_test_host.h"
+#include "text_argument_view_fixture.h"
 typedef struct HelpHost
 {
     Host h;
@@ -12,10 +13,13 @@ typedef struct HelpHost
     MMHelpTopic topic, output;
     MMCollectionStorage argument_storage;
     MMGroup argument_rows;
+    MMCollectionStorage group_storage;
+    MMGroupLocation group_location;
+    unsigned char group_record[4 + 523];
     unsigned char wire[36], allocation[64], payload[64];
     MMI32 wire_size, payload_size;
     MMU32 published[4];
-    int locks, frees, bad, partial, forest, source, owned, base_result;
+    int frees, bad, partial, forest, source, owned, base_result;
     int name_size, decoded, cleared, missing, replacements, copy, erase_result, reject_adopt;
     char content[128];
     MMI32 length, ids[8];
@@ -34,26 +38,21 @@ static int name_bytes(void *v, void *out, MMI32 capacity, MMI32 *n)
     *n = h->name_size;
     return effect(&h->h, 'n');
 }
-static const void *lock_group(void *v, MMI32 i, MMI32 *n)
+static MMGroup group_view(void *v)
 {
     HelpHost *h = (HelpHost *)v;
-    CHECK(i == 0 && !h->locks);
-    ++h->locks;
-    *n = h->h.length;
-    event(&h->h, 'l');
-    return h->h.bytes;
-}
-static void unlock_group(void *v)
-{
-    HelpHost *h = (HelpHost *)v;
-    CHECK(h->locks == 1);
-    --h->locks;
-    event(&h->h, 'u');
+    CHECK(!h->group_storage.buffers[0].locks);
+    CHECK(h->h.length >= 0 && h->h.length <= (MMI32)sizeof(h->h.bytes));
+    h->group_location.offset = h->h.free ? -1 : 0;
+    h->group_location.bytes = h->h.free ? 0 : 4 + h->h.length;
+    memcpy(h->group_record + 4, h->h.bytes, (size_t)h->h.length);
+    event(&h->h, 'q');
+    return text_argument_view(&h->group_storage, h->group_record, sizeof(h->group_record), &h->group_location, 1);
 }
 static int read_name(void *v, const void *p, MMI32 n)
 {
     HelpHost *h = (HelpHost *)v;
-    CHECK(h->locks && h->published[MM_HELP_TARGET] == 0x12345678UL);
+    CHECK(h->group_storage.buffers[0].locks == 1 && h->published[MM_HELP_TARGET] == 0x12345678UL);
     CHECK(n == h->name_size && !memcmp(p, "name", (size_t)n));
     ++h->decoded;
     return effect(&h->h, 'd');
@@ -67,6 +66,8 @@ static int clear_name(void *v)
 static void help_publish(void *v, int kind, MMU32 value)
 {
     HelpHost *h = (HelpHost *)v;
+    if (kind != MM_HELP_TARGET)
+        CHECK(!h->group_storage.buffers[0].locks);
     h->published[kind] = value;
     event(&h->h, "fegt"[kind]);
 }
@@ -314,8 +315,8 @@ static void help_init(HelpHost *h, unsigned unit, int big)
     h->edit.cancel = cancel;
     h->edit.commit = commit;
     h->edit.group_name = name_bytes;
-    h->edit.lock = lock_group;
-    h->edit.unlock = unlock_group;
+    CHECK(mm_storage_init(&h->group_storage, NULL) == MM_STORAGE_OK);
+    h->edit.arguments = group_view;
     h->edit.read_name = read_name;
     h->edit.clear_name = clear_name;
     h->edit.publish = help_publish;
@@ -466,21 +467,21 @@ static void editing(int big)
     CHECK(h.h.length == 9 && h.h.bytes[0] == 3 && h.h.count == 2);
     h.h.used = 0;
     CHECK(mm_help_grouped(3, big, 1, &h.edit));
-    CHECK(!strcmp(h.h.log, "eltdugf"));
-    CHECK(h.published[MM_HELP_FIRST] == 2 && h.published[MM_HELP_END] == 5 && h.decoded == 1 && !h.locks);
+    CHECK(!strcmp(h.h.log, "eqtdgf"));
+    CHECK(h.published[MM_HELP_FIRST] == 2 && h.published[MM_HELP_END] == 5 && h.decoded == 1);
     h.h.used = 0;
     h.h.fail = 'd';
     h.h.result = 0;
     CHECK(mm_help_grouped(3, big, 1, &h.edit));
     h.h.seen = 0;
     h.h.result = -2;
-    CHECK(mm_help_grouped(3, big, 1, &h.edit) == -2 && !h.locks);
+    CHECK(mm_help_grouped(3, big, 1, &h.edit) == -2 && !h.group_storage.buffers[0].locks);
     h.h.fail = 0;
     h.h.bytes[0] = 0;
-    CHECK(!mm_help_grouped(3, big, 1, &h.edit) && h.bad == 1 && !h.locks);
+    CHECK(!mm_help_grouped(3, big, 1, &h.edit) && h.bad == 1 && !h.group_storage.buffers[0].locks);
     CHECK(h.published[MM_HELP_GROUP] == 0 && h.published[MM_HELP_TARGET] == MM_TEXT_NIL);
     h.h.length = 4;
-    CHECK(!mm_help_grouped(3, big, 0, &h.edit) && h.bad == 2 && !h.locks);
+    CHECK(!mm_help_grouped(3, big, 0, &h.edit) && h.bad == 2 && !h.group_storage.buffers[0].locks);
     for (i = 0; faults[i]; ++i)
         for (r = -2; r < 0; ++r)
         {

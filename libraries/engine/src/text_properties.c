@@ -18,31 +18,42 @@ static MMI32 live_count(void *context, void *owner)
     const MMTextLiveArgumentGroup *binding = context;
     return (MMI32)binding->view(owner).count;
 }
-static unsigned char *live_row(void *context, void *owner, MMI32 index, MMI32 *bytes)
+static unsigned char *live_record(const MMGroup *rows, MMI32 index, MMI32 *bytes)
+{
+    MMGroupLocation row;
+    if (bytes)
+        *bytes = 0;
+    if (!rows || rows->fixed_bytes != sizeof(MMU32) ||
+        mm_group_read_slot(rows, (MMU32)index, &row) != MM_GROUP_SLOT_PRESENT)
+        return NULL;
+    if (bytes)
+        *bytes = row.bytes - (MMI32)rows->fixed_bytes;
+    return rows->storage->buffers[0].data + row.offset;
+}
+unsigned char *mm_text_argument_payload(const MMGroup *rows, MMI32 index, MMI32 *bytes)
+{
+    unsigned char *record = live_record(rows, index, bytes);
+    return record ? record + sizeof(MMU32) : NULL;
+}
+static unsigned char *live_row(void *context, void *owner, MMI32 index)
 {
     const MMTextLiveArgumentGroup *binding = context;
     MMGroup rows = binding->view(owner);
-    MMGroupLocation row;
-    if (rows.fixed_bytes != sizeof(MMU32) || mm_group_read_slot(&rows, (MMU32)index, &row) != MM_GROUP_SLOT_PRESENT)
-        return NULL;
-    if (bytes)
-        *bytes = row.bytes - (MMI32)rows.fixed_bytes;
-    return rows.storage->buffers[0].data + row.offset;
+    return live_record(&rows, index, NULL);
 }
 static int live_free(void *context, void *owner, MMI32 index)
 {
-    return live_row(context, owner, index, NULL) == NULL;
+    return live_row(context, owner, index) == NULL;
 }
 static const void *live_data(void *context, void *owner, MMI32 index, MMI32 *bytes)
 {
-    const unsigned char *row = live_row(context, owner, index, bytes);
-    if (!row && bytes)
-        *bytes = 0;
-    return row ? row + sizeof(MMU32) : NULL;
+    const MMTextLiveArgumentGroup *binding = context;
+    MMGroup rows = binding->view(owner);
+    return mm_text_argument_payload(&rows, index, bytes);
 }
 static MMU32 live_fixed(void *context, void *owner, MMI32 index)
 {
-    const unsigned char *row = live_row(context, owner, index, NULL);
+    const unsigned char *row = live_row(context, owner, index);
     MMU32 value = 0;
     if (row)
         memcpy(&value, row, sizeof(value));
@@ -50,7 +61,7 @@ static MMU32 live_fixed(void *context, void *owner, MMI32 index)
 }
 static void live_put_fixed(void *context, void *owner, MMI32 index, MMU32 value)
 {
-    unsigned char *row = live_row(context, owner, index, NULL);
+    unsigned char *row = live_row(context, owner, index);
     if (row)
         memcpy(row, &value, sizeof(value));
 }

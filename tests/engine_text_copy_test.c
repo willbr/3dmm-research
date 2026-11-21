@@ -1,5 +1,6 @@
 #include "mm/text_copy.h"
 #include "mm/text.h"
+#include "text_argument_view_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,12 +17,13 @@ typedef struct Trace
 {
     char log[4096], fail;
     int used, ordinal, seen, result;
+    MMCollectionStorage *pending_source;
 } Trace;
 typedef struct Argument
 {
+    MMU32 fixed;
     unsigned char bytes[522];
     MMI32 length;
-    MMU32 fixed;
     int free;
 } Argument;
 typedef struct Doc
@@ -30,6 +32,8 @@ typedef struct Doc
     MMTextPropertyEntry entries[128];
     MMI32 count, characters, slots;
     Argument arguments[32];
+    MMCollectionStorage argument_storage;
+    MMGroupLocation argument_locations[32];
     void *group;
     MMTextReplaceRichServices rich;
     MMTextFormatConfig config;
@@ -37,8 +41,8 @@ typedef struct Doc
     MMI32 undo_at, undo_end, undo_inserted, notify_at, notify_inserted, notify_deleted;
     MMU32 flags;
     MMTextReplaceRequest replacement;
-    int warnings[2], diagnostics[4], undos, commits, cancels, notifications, bumps, locks, tail;
-    int alloc_partial, dispatched, draw, dispatch_index;
+    int warnings[2], diagnostics[4], undos, commits, cancels, notifications, bumps, tail;
+    int alloc_partial, shrink_on_allocate, freed, dispatched, draw, dispatch_index;
     MMI32 published_at, published_bytes;
     unsigned char allocation[522];
 } Doc;
@@ -148,8 +152,14 @@ static void diagnostic(void *v, int kind)
 }
 static void validate_input(void *v, unsigned kind, const void *bytes, MMI32 n)
 {
+    Doc *d = v;
     CHECK(kind < 256 && bytes && n > 0);
-    event((Doc *)v, 'i');
+    if (d->trace->pending_source)
+    {
+        CHECK(d->trace->pending_source->buffers[0].locks == 1);
+        d->trace->pending_source = NULL;
+    }
+    event(d, 'i');
 }
 static MMI32 count(void *v)
 {
@@ -293,27 +303,25 @@ static MMI32 source_characters(void *v)
 {
     return ((Pair *)v)->source.characters;
 }
-static MMI32 source_bytes(void *v, MMI32 index)
+static MMGroup argument_view(void *v)
 {
-    Doc *d = &((Pair *)v)->source;
-    CHECK(index >= 0 && index < d->slots && !d->arguments[index].free);
+    Doc *d = v;
+    MMI32 i;
     event(d, 's');
-    return d->arguments[index].length;
+    for (i = 0; i < d->slots; ++i)
+    {
+        Argument *slot = &d->arguments[i];
+        d->argument_locations[i].offset = slot->free ? -1 : (MMI32)(i * sizeof(*slot));
+        d->argument_locations[i].bytes = slot->free ? 0 : 4 + slot->length;
+    }
+    return text_argument_view(&d->argument_storage, d->arguments, sizeof(d->arguments),
+                              d->argument_locations, (MMU32)d->slots);
 }
-static const void *lock_source(void *v, MMI32 index)
+static MMGroup source_arguments(void *v)
 {
     Doc *d = &((Pair *)v)->source;
-    CHECK(index >= 0 && index < d->slots && !d->locks);
-    ++d->locks;
-    event(d, 'l');
-    return d->arguments[index].bytes;
-}
-static void unlock_source(void *v)
-{
-    Doc *d = &((Pair *)v)->source;
-    CHECK(d->locks == 1);
-    --d->locks;
-    event(d, 'u');
+    d->trace->pending_source = &d->argument_storage;
+    return argument_view(d);
 }
 static void *source_stream(void *v)
 {
@@ -333,20 +341,22 @@ static void warning(void *v, int kind)
     ++p->target.warnings[kind];
     event(&p->target, 'W');
 }
-static MMI32 object_bytes(void *v, MMI32 i)
-{
-    Doc *d = (Doc *)v;
-    CHECK(i >= 0 && i < d->slots && !d->arguments[i].free);
-    event(d, 's');
-    return d->arguments[i].length;
-}
 static int allocate(void *v, MMI32 bytes, void **out)
 {
     Doc *d = (Doc *)v;
     int r = effect(d, 'H');
     CHECK(bytes > 0 && bytes <= 522);
+    if (r > 0 && d->shrink_on_allocate)
+        d->arguments[0].length = 1;
     *out = r > 0 || d->alloc_partial ? d->allocation : 0;
     return r;
+}
+static void free_output(void *v, void *data)
+{
+    Doc *d = v;
+    CHECK(data == d->allocation);
+    ++d->freed;
+    event(d, 'f');
 }
 static void publish_at(void *v, MMI32 cp)
 {
@@ -372,6 +382,7 @@ static void init_doc(Doc *d, Trace *trace, unsigned unit)
     MMTextPropertyServices *p;
     MMTextArgumentServices *a;
     d->trace = trace;
+    CHECK(mm_storage_init(&d->argument_storage, NULL) == MM_STORAGE_OK);
     d->characters = 9;
     d->config.text.unit = unit;
     d->config.text.system = unit == 1 ? MM_TEXT_WINDOWS : MM_TEXT_UTF16_LE;
@@ -440,17 +451,16 @@ static void init(Pair *p, unsigned unit)
     p->copy.target = p->target.rich;
     p->copy.source = p->source.rich.edit.format.properties;
     p->copy.source_characters = source_characters;
-    p->copy.source_bytes = source_bytes;
-    p->copy.lock_source = lock_source;
-    p->copy.unlock_source = unlock_source;
+    p->copy.source_arguments = source_arguments;
     p->copy.source_stream = source_stream;
     p->copy.check_tail = check_tail;
     p->copy.warning = warning;
     p->object.context = &p->target;
     p->object.unit = unit;
     p->object.target = p->target.rich;
-    p->object.bytes = object_bytes;
+    p->object.arguments = argument_view;
     p->object.allocate = allocate;
+    p->object.free = free_output;
     p->object.publish_at = publish_at;
     p->object.publish_bytes = publish_bytes;
     p->object.dispatch = dispatch;
@@ -505,7 +515,7 @@ static void properties(unsigned unit)
     CHECK(value(&p.target, 1, 8) == 0 && p.source.count == 3);
     ref = value(&p.target, 64, 6);
     CHECK(ref > 0 && !strcmp((const char *)p.target.arguments[ref - 1].bytes, "client"));
-    CHECK(strstr(p.trace.log, "sliGpAu") && !p.source.locks);
+    CHECK(strstr(p.trace.log, "siGpA") && !p.source.argument_storage.buffers[0].locks);
     /* Clearing walks the mutating table: removing kind 1 shifts kind 3
      * past the cursor, so it remains. This is intentional legacy behavior. */
     init(&p, unit);
@@ -520,13 +530,13 @@ static void properties(unsigned unit)
         seed(&p.source, 64, 0, argument(&p.source, 64, "payload"));
         reset(&p, 'A', result);
         CHECK(mm_text_copy_properties(0, 0, 4, 6, 64, 128, &p.copy) == (result ? result : 1));
-        CHECK(!p.source.locks && strchr(p.trace.log, 'u'));
+        CHECK(!p.source.argument_storage.buffers[0].locks && !p.trace.pending_source);
         CHECK(p.target.count == 0 && p.target.warnings[MM_TEXT_COPY_ARGUMENT] == !result);
         init(&p, unit);
         seed(&p.source, 64, 0, argument(&p.source, 64, "payload"));
         reset(&p, 'R', result);
         CHECK(mm_text_copy_properties(0, 0, 4, 6, 64, 128, &p.copy) == (result ? result : 1));
-        CHECK(!p.source.locks && p.target.slots == 1 && p.target.arguments[0].free == !result);
+        CHECK(!p.source.argument_storage.buffers[0].locks && p.target.slots == 1 && p.target.arguments[0].free == !result);
         CHECK(p.target.warnings[MM_TEXT_COPY_GROW] == !result);
     }
 }
@@ -569,7 +579,7 @@ static void document(unsigned unit)
         CHECK(mm_text_copy_document(2, 3, 1, 0, 5, &p.copy) == 1);
         CHECK(p.target.count == 1 && p.target.entries[0].key == key(kind, 2));
         CHECK(p.target.arguments[0].fixed == ((MMU32)kind << 24) + 1);
-        CHECK(strstr(p.trace.log, "lsiGpAu") && !p.source.locks);
+        CHECK(strstr(p.trace.log, "siGpA") && !p.source.argument_storage.buffers[0].locks);
         for (result = 0; result >= -2; --result)
         {
             init(&p, unit);
@@ -582,7 +592,7 @@ static void document(unsigned unit)
             seed(&p.source, kind, 3, argument(&p.source, kind, "object"));
             reset(&p, 'A', result);
             CHECK(mm_text_copy_document(2, 3, 1, 0, 5, &p.copy) == (result ? result : 1));
-            CHECK(!p.source.locks && !p.target.warnings[MM_TEXT_COPY_ARGUMENT]);
+            CHECK(!p.source.argument_storage.buffers[0].locks && !p.target.warnings[MM_TEXT_COPY_ARGUMENT]);
         }
     }
 }
@@ -603,7 +613,7 @@ static void queries(unsigned unit)
     reset(&p, 0, 0);
     CHECK(mm_text_object_fetch(1, &at, &out, &bytes, &p.object) == 1);
     CHECK(at == 3 && bytes == 7 && out == p.target.allocation && !strcmp((const char *)out, "object"));
-    CHECK(!strcmp(p.trace.log, "aszsH") && p.target.published_at == 3 && p.target.published_bytes == 7);
+    CHECK(!strcmp(p.trace.log, "aszHs") && p.target.published_at == 3 && p.target.published_bytes == 7);
     CHECK(mm_text_object_fetch(3, &at, 0, 0, &p.object) == 1 && at == 3);
     CHECK(!mm_text_object_dispatch(2, 0, &p.object) && !mm_text_object_dispatch(6, 1, &p.object));
     CHECK(mm_text_object_dispatch(3, 0, &p.object) == 1 && !p.target.draw);
@@ -615,8 +625,14 @@ static void queries(unsigned unit)
         out = &p;
         CHECK(mm_text_object_fetch(3, &at, &out, &bytes, &p.object) == (result ? result : 1));
         CHECK(out == (result ? p.target.allocation : 0) && at == 3 && bytes == 7);
-        CHECK(!strcmp(p.trace.log, "aszsH"));
+        CHECK(!strcmp(p.trace.log, "aszH"));
     }
+    reset(&p, 0, 0);
+    p.target.shrink_on_allocate = 1;
+    memset(p.target.allocation, 0xa5, sizeof(p.target.allocation));
+    CHECK(mm_text_object_fetch(3, &at, &out, &bytes, &p.object) == 1);
+    CHECK(at == 3 && bytes == 7 && !out && p.target.freed == 1 && p.target.allocation[0] == 0xa5);
+    CHECK(!strcmp(p.trace.log, "aszHsf"));
 }
 static void objects(unsigned unit)
 {

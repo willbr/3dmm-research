@@ -1,5 +1,6 @@
 /* Independent geometry/event oracle and interrupted drawing transactions. */
 #include "mm/help_display.h"
+#include "text_argument_view_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,6 +17,9 @@ typedef struct Host
 {
     MMHelpDisplayServices s;
     MMHelpDisplay display;
+    MMCollectionStorage argument_storage;
+    MMGroupLocation argument_locations[4];
+    unsigned char argument_record[16];
     unsigned char header[8];
     MMI32 size, x;
     MMU32 type, number, back, fore, style;
@@ -42,19 +46,15 @@ static int equal(const MMMaskedRect *r, MMI32 l, MMI32 t, MMI32 right, MMI32 b)
 {
     return r->left == l && r->top == t && r->right == right && r->bottom == b;
 }
-static MMI32 bytes(void *v, MMI32 index)
+static MMGroup arguments(void *v)
 {
     Host *h = (Host *)v;
-    CHECK(index == 3);
+    CHECK(h->size >= 0 && h->size <= (MMI32)sizeof(h->argument_record) - 4);
+    h->argument_locations[3].bytes = 4 + h->size;
+    memcpy(h->argument_record + 4, h->header, sizeof(h->header));
     effect(h, 'q');
-    return h->size;
-}
-static void header(void *v, MMI32 index, unsigned char *out)
-{
-    Host *h = (Host *)v;
-    CHECK(index == 3 && h->size >= 8);
-    effect(h, 'h');
-    memcpy(out, h->header, 8);
+    return text_argument_view(&h->argument_storage, h->argument_record, sizeof(h->argument_record),
+                              h->argument_locations, 4);
 }
 static int find(void *v, const MMTextChunk *p, void **out)
 {
@@ -182,7 +182,11 @@ static int frame(void *v, const MMMaskedRect *p, int patterned, MMU32 c)
 }
 static void init(Host *h, MMU32 type, MMU32 number, int big)
 {
+    unsigned i;
     memset(h, 0, sizeof(*h));
+    CHECK(mm_storage_init(&h->argument_storage, NULL) == MM_STORAGE_OK);
+    for (i = 0; i < 3; ++i)
+        h->argument_locations[i].offset = -1;
     h->type = type;
     h->number = number;
     wire(h->header, type, big);
@@ -199,8 +203,7 @@ static void init(Host *h, MMU32 type, MMU32 number, int big)
     h->occurrence = 1;
     mm_help_display_init(&h->display);
     h->s.context = h;
-    h->s.bytes = bytes;
-    h->s.header = header;
+    h->s.arguments = arguments;
     h->s.find = find;
     h->s.child = child;
     h->s.fetch = fetch;
@@ -232,7 +235,7 @@ static void normal(int big)
             init(&h, button ? MM_HELP_BUTTON : MM_HELP_BITMAP, 42, big);
             CHECK(mm_help_object_bounds(3, 192, big, &r, &h.s));
             CHECK(equal(&r, 0, -5, 8, 0) && !h.refs);
-            CHECK(!strcmp(h.log, button ? "qhFCARr" : "qhARr"));
+            CHECK(!strcmp(h.log, button ? "qFCARr" : "qARr"));
             h.used = 0;
             h.style = flags & 1 ? 8 : 0;
             h.back = flags & 2 ? 0x01020304UL : 0xffffffffUL;
@@ -249,11 +252,11 @@ static void normal(int big)
         }
     init(&h, MM_HELP_EDIT, 18, big);
     CHECK(mm_help_object_bounds(3, 192, big, &r, &h.s));
-    CHECK(equal(&r, 0, -9, 18, 4) && !strcmp(h.log, "qhNM"));
+    CHECK(equal(&r, 0, -9, 18, 4) && !strcmp(h.log, "qNM"));
     h.used = 0;
     CHECK(paint(&h, big) && h.x == 24 && h.fills == 1 && !h.draws && h.frames == 1 && !h.frame_pattern);
     CHECK(equal(&h.framed, 6, 7, 24, 20) && equal(&h.filled, 7, 8, 23, 19));
-    CHECK(!strcmp(h.log, "qhNMxXPTbB"));
+    CHECK(!strcmp(h.log, "qNMxXPTbB"));
     init(&h, MM_HELP_EDIT, 0xfffffffcUL, big);
     CHECK(paint(&h, big) && h.x == 2 && equal(&h.framed, 6, 7, 2, 20));
     init(&h, MM_HELP_BUTTON, 42, big);
@@ -320,7 +323,7 @@ static void faults(int big)
     CHECK(!mm_help_object_bounds(3, 194, big, &r, &h.s) && !h.used);
     CHECK(!mm_help_object_draw(&h.display, 3, 64, 16, big, &h.s) && !h.used);
     init(&h, 0x3f3f3f3fUL, 42, big);
-    CHECK(!paint(&h, big) && !strcmp(h.log, "qh"));
+    CHECK(!paint(&h, big) && !strcmp(h.log, "q"));
     for (result = -2; result <= 0; ++result)
     {
         init(&h, MM_HELP_BITMAP, 42, big);

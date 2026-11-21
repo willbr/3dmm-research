@@ -25,12 +25,17 @@ static void offset(MMMaskedRect *p, MMI32 x, MMI32 y)
 }
 static int header(MMI32 index, unsigned kind, int big, MMTextChunk *p, const MMHelpDisplayServices *s)
 {
-    unsigned char bytes[8];
-    if (kind != 192 || s->bytes(s->context, index) < 8)
+    MMGroup rows;
+    const unsigned char *data;
+    MMI32 bytes;
+    if (kind != 192)
         return 0;
-    s->header(s->context, index, bytes);
-    p->type = word(bytes, big);
-    p->number = word(bytes + 4, big);
+    rows = s->arguments(s->context);
+    data = mm_text_argument_payload(&rows, index, &bytes);
+    if (!data || bytes < 8)
+        return 0;
+    p->type = word(data, big);
+    p->number = word(data + 4, big);
     return 1;
 }
 static int fetch(const MMTextChunk *p, void **owned, const MMHelpDisplayServices *s)
