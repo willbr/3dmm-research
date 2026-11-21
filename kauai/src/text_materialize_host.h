@@ -35,28 +35,9 @@ struct RichTextDocument::MaterializeHost : DocumentHost
                 return 1;
             });
         };
-        s.replace = [](void *v, const MMTextLocation *p, int copy, MMI32 count) -> int {
-            auto &h = *static_cast<MaterializeHost *>(v);
-            return h.Guard([&] {
-                auto location = RichTextStoreHost::Location(*p);
-                return h.rich->_pbsf->FReplaceFlo(&location, copy != 0, 0, count);
-            });
-        };
-        s.count = [](void *, MMU32 kind, void *p) -> MMI32 {
-            return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->IvMac()
-                                              : static_cast<PAllocatedGroup>(p)->IvMac();
-        };
-        s.properties = [](void *, void *p) -> void * { return static_cast<PDynamicArray>(p)->QvGet(0); };
-        s.free_argument = [](void *, void *p, MMI32 i) -> int { return static_cast<PAllocatedGroup>(p)->FFree(i); };
-        s.fixed = [](void *, void *p, MMI32 i) -> MMU32 {
-            LegacyLong fixed;
-            static_cast<PAllocatedGroup>(p)->GetFixed(i, &fixed);
-            return static_cast<MMU32>(fixed);
-        };
-        s.put_fixed = [](void *, void *p, MMI32 i, MMU32 value) {
-            LegacyLong fixed = static_cast<LegacyLong>(value);
-            static_cast<PAllocatedGroup>(p)->PutFixed(i, &fixed);
-        };
+        s.pieces = [](void *v) { return static_cast<MaterializeHost *>(v)->rich->_pbsf->CorePieces(); };
+        s.properties = [](void *p) { return static_cast<PDynamicArray>(p)->CoreRows(); };
+        s.arguments = [](void *p) { return static_cast<PAllocatedGroup>(p)->CoreRows(); };
         s.open_argument = [](void *v, MMI32 i, unsigned kind, int order, int system) -> int {
             auto &h = *static_cast<MaterializeHost *>(v);
             return h.Guard([&] {

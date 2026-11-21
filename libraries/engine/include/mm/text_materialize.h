@@ -1,6 +1,7 @@
 /* Stored rich text to live document ownership and argument normalization. */
 #ifndef MM_ENGINE_TEXT_MATERIALIZE_H
 #define MM_ENGINE_TEXT_MATERIALIZE_H
+#include "piece_table.h"
 #include "text_document.h"
 #ifdef __cplusplus
 extern "C"
@@ -13,12 +14,9 @@ extern "C"
         MMTextBaseServices base;
         int (*init_base)(void *);
         int (*defaults)(void *, const MMRichTextDefaults *, const MMMovieTitle *);
-        int (*replace)(void *, const MMTextLocation *, int copy, MMI32 delete_bytes);
-        MMI32 (*count)(void *, MMU32 kind, void *group);
-        void *(*properties)(void *, void *group);
-        int (*free_argument)(void *, void *group, MMI32 index);
-        MMU32 (*fixed)(void *, void *group, MMI32 index);
-        void (*put_fixed)(void *, void *group, MMI32 index, MMU32);
+        MMPieceTable *(*pieces)(void *);
+        MMArray (*properties)(void *group);
+        MMGroup (*arguments)(void *group);
         int (*open_argument)(void *, MMI32 index, unsigned kind, int order, int system);
     } MMTextMaterializeServices;
     typedef struct MMTextFontArgumentServices
@@ -38,7 +36,9 @@ extern "C"
      * location's independent owner releases before property/argument transfers.
      * Failures retain published defaults, text, groups and normalized prefixes.
      * The legacy character count is passed unchanged as the replacement byte count.
-     * Collection access/publication and release callbacks never throw. */
+     * The piece table is acquired after base initialization. Collection views
+     * borrow the published owners and are refreshed after virtual argument hooks.
+     * Piece I/O and collection access, publication and release never throw. */
     int mm_text_materialize(const MMTextDocumentConfig *, MMU32 type, MMU32 number, int copy,
                             const MMTextMaterializeServices *);
     /* Queries size even for unknown kinds. Font kind 2 uses the entry's native short

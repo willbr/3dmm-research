@@ -2843,10 +2843,12 @@ Evidence and platform limits are in `docs/tools/playback-regression.md`.
 ### Rich-text materialization and default font arguments
 
 `text_materialize.c` controls stored-to-live rich-text loading, property/fixed-word
-byte normalization and default font argument opening. Native adapters supply
-typed collections, font-table and string primitives, owner slots and virtual
-argument dispatch. Stored reads use the shared `text_store.c` transaction;
-base initialization and translation reuse the document services.
+byte normalization and default font argument opening. It replaces the text
+through the live C piece table and normalizes fixed-width rows through borrowed
+C collection views. Native adapters supply owner slots, stored collection
+factories, font-table and string primitives, and virtual argument dispatch.
+Stored reads use the shared `text_store.c` transaction. Base initialization
+and translation reuse the document services.
 
 Base initialization precedes reading. Defaults and the mapped default font publish
 before text translation. A separate retained location follows translated owner
@@ -2855,9 +2857,11 @@ is requested only when translation retains the original file identity. The legac
 `CpMac()-1` value remains the replacement byte count, including two-byte units.
 Properties transfer before byte normalization; arguments transfer before their
 descending traversal. Free slots are skipped, and each visited fixed word is
-normalized before the virtual hook. Failure retains the published defaults, text,
-collections and normalized prefix for later document destruction. Exceptions clean
-temporary owners before returning to the native rethrow boundary.
+normalized before the virtual hook. The argument view is refreshed after each
+hook. Reads accept a final argument row ending at the logical data boundary,
+even when its alignment padding is absent. Failure retains the published
+defaults, text, collections and normalized prefix for later document destruction.
+Exceptions clean temporary owners before returning to the native rethrow boundary.
 
 Default argument opening queries size even for unknown kinds. Font entries require
 the six-byte font-ID/system prefix, use its native short system without applying

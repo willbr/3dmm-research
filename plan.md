@@ -1135,6 +1135,8 @@ file-save transactions, base initialization/loading, rich initialization/factori
 and stream/file/archive/property/argument release control now also use C89.
 Stored-to-live rich-text loading, property/argument byte normalization and default
 font argument opening now also use C89, preserving virtual extension hooks.
+Studio reopens rich text through the C piece table and normalizes the published
+property and argument rows through C collection views.
 Rich-text property lookup, masked range application, edit-boundary adjustment,
 argument interning and reference-count control now also use C89.
 Character/paragraph delta packing, font descriptor creation, cached formatting

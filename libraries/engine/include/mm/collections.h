@@ -30,6 +30,12 @@ extern "C"
     {
         MMI32 offset, bytes;
     } MMGroupLocation;
+    enum
+    {
+        MM_GROUP_SLOT_INVALID,
+        MM_GROUP_SLOT_FREE,
+        MM_GROUP_SLOT_PRESENT
+    };
     int mm_array_reserve(MMArray *, MMU32 additional, int shrink);
     int mm_array_insert(MMArray *, MMU32 index, const void *, MMU32 count);
     int mm_array_delete(MMArray *, MMU32 index, MMU32 count);
@@ -38,6 +44,9 @@ extern "C"
     int mm_array_add(MMArray *, const void *, MMU32 *index);
     int mm_array_pop(MMArray *, void *output);
     int mm_group_reserve(MMGroup *, MMU32 additional, MMU32 variable_bytes, int shrink);
+    /* Read-only lookup permits a final record with no trailing alignment bytes.
+     * Out-of-range indices and allocated holes return MM_GROUP_SLOT_FREE. */
+    int mm_group_read_slot(const MMGroup *, MMU32 index, MMGroupLocation *);
     int mm_group_location(const MMGroup *, MMU32 index, MMGroupLocation *);
     int mm_group_insert(MMGroup *, MMU32 index, MMU32 variable_bytes, const void *,
                               const void *fixed);

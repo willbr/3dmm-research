@@ -18057,3 +18057,28 @@ SDL reproduced all 11 seek canvases and the caption text, alignment, font
 size and visibility from control `20261121T051735Z-84b17719`.
 All 11 Marcus seek canvases and cameras reproduced the archived build in
 `20261121T052103Z-9feebb78`. Logs are in `tmp/c89-live-caption-payloads`.
+
+## Studio rich-text reopening through the C89 piece table (21 November 2026)
+
+Studio now replaces the document text through the live C89 piece table during
+reopen. Property normalization and the descending argument walk use borrowed C
+collection views. Argument lookup accepts an unpadded last row and skips free
+slots. C89 preserves the historic replacement byte count for two-byte text and
+calls Studio's virtual argument hooks after the fixed words are normalized.
+
+The existing C test now uses the real piece table and collections. It covers
+both text-unit widths, translation and copy decisions for file-backed text,
+free slots, unpadded arguments, and partial publication after failure. All 192
+standalone C checks, six focused AddressSanitizer checks, and 16 native C89
+and Marcus checks passed. Native x64, native x86, and SDL reproduced the
+previous live-text and materialization trace fingerprints. Studio's authoring
+and reopen workflow reproduced the previous movie byte for byte.
+
+Retail and v3dmm agreed on all 11 seek canvases in the refreshed four-player
+capture `20261121T053116Z-dc0bdb99`. Final SDL (`20261121T053753Z-0861a5e6`)
+and Marcus (`20261121T053628Z-7012b552`) matched all 11 retail frame identities
+in seek and continuous playback and all 11 retail seek camera indices. Both
+reproduced their 11 prior seek canvas hashes. The three visible-caption frames
+retain the existing retail rendering differences. SDL also reproduced the
+caption text, size, alignment, and visibility. Logs are in
+`tmp/c89-live-text-materialization`.

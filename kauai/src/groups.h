@@ -163,6 +163,7 @@ class DynamicArray : public DynamicArray_PAR
 
     // duplication
     PDynamicArray PglDup(void);
+    MMArray CoreRows() { return _ArrayView(); }
 
     // methods required by parent class
     virtual bool FAdd(void *pv, LegacyLong *piv = pvNil);
@@ -376,6 +377,7 @@ class AllocatedGroup : public AllocatedGroup_PAR
 
     // duplication
     PAllocatedGroup PagDup(void);
+    MMGroup CoreRows() { return _GroupView(); }
 
     // methods required by parent class
     virtual bool FAdd(LegacyLong cb, LegacyLong *piv = pvNil, void *pv = pvNil, void *pvFixed = pvNil);

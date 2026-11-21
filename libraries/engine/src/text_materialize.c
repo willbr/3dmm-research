@@ -1,4 +1,5 @@
 #include "mm/text_materialize.h"
+#include <string.h>
 static MMU32 swap(MMU32 v)
 {
     return (v >> 24) | ((v >> 8) & 0xff00UL) | ((v << 8) & 0xff0000UL) | (v << 24);
@@ -8,11 +9,15 @@ int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 nu
 {
     MMRichTextState stored;
     MMTextLocation location;
-    void *original, *group, *stream;
-    MMI32 i, n;
-    MMU32 fixed;
-    unsigned char *bytes, b;
-    int result;
+    MMFilePiece piece;
+    MMPieceTable *pieces;
+    MMArray properties;
+    MMGroup arguments;
+    MMGroupLocation entry;
+    void *original, *group;
+    MMU32 i, words[2], fixed;
+    unsigned char *bytes;
+    int result, slot;
     result = s->init_base(s->context);
     if (result <= 0)
         return result;
@@ -29,9 +34,12 @@ int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 nu
     result = s->base.translate(s->base.context, &location, stored.text_system);
     if (result > 0)
     {
-        stream = s->base.objects.get(s->base.objects.context, MM_TEXT_OWNER_STREAM);
-        result = s->replace(s->context, &location, copy && original == location.file,
-                            s->base.stream_bytes(s->base.context, stream) / (MMI32)config->unit - 1);
+        pieces = s->pieces(s->context);
+        piece.file = location.file;
+        piece.offset = location.offset;
+        piece.length = (MMU32)location.bytes;
+        result = mm_piece_table_replace_file(pieces, 0, pieces->length / config->unit - 1, &piece,
+                                             copy && original == piece.file) == MM_DATA_OK;
     }
     if (location.file)
         s->base.objects.release(s->base.objects.context, MM_TEXT_OWNER_FILE, location.file);
@@ -42,25 +50,14 @@ int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 nu
     stored.properties = 0;
     if (stored.property_order == 256)
     {
-        n = s->count(s->context, MM_TEXT_PROPERTIES, group);
-        if (n)
+        properties = s->properties(group);
+        bytes = properties.storage->buffers[0].data;
+        for (i = 0; i < properties.count; ++i, bytes += sizeof(words))
         {
-            bytes = (unsigned char *)s->properties(s->context, group);
-            for (i = 0; i < n; ++i, bytes += 8)
-            {
-                b = bytes[0];
-                bytes[0] = bytes[3];
-                bytes[3] = b;
-                b = bytes[1];
-                bytes[1] = bytes[2];
-                bytes[2] = b;
-                b = bytes[4];
-                bytes[4] = bytes[7];
-                bytes[7] = b;
-                b = bytes[5];
-                bytes[5] = bytes[6];
-                bytes[6] = b;
-            }
+            memcpy(words, bytes, sizeof(words));
+            words[0] = swap(words[0]);
+            words[1] = swap(words[1]);
+            memcpy(bytes, words, sizeof(words));
         }
     }
     group = stored.arguments;
@@ -68,15 +65,23 @@ int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 nu
     {
         s->base.objects.set(s->base.objects.context, MM_TEXT_OWNER_ARGUMENTS, group);
         stored.arguments = 0;
-        for (i = s->count(s->context, MM_TEXT_ARGUMENTS, group); i-- > 0;)
+        arguments = s->arguments(group);
+        for (i = arguments.count; i-- > 0; arguments = s->arguments(group))
         {
-            if (s->free_argument(s->context, group, i))
+            slot = mm_group_read_slot(&arguments, i, &entry);
+            if (slot == MM_GROUP_SLOT_FREE)
                 continue;
-            fixed = s->fixed(s->context, group, i);
+            if (slot != MM_GROUP_SLOT_PRESENT)
+            {
+                result = 0;
+                goto done;
+            }
+            bytes = arguments.storage->buffers[0].data + entry.offset;
+            memcpy(&fixed, bytes, sizeof(fixed));
             if (stored.argument_order == 256)
             {
                 fixed = swap(fixed);
-                s->put_fixed(s->context, group, i, fixed);
+                memcpy(bytes, &fixed, sizeof(fixed));
             }
             result =
                 s->open_argument(s->context, i, (unsigned)(fixed >> 24), stored.argument_order, stored.argument_system);

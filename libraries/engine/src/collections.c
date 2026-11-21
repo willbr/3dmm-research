@@ -223,14 +223,27 @@ static void set_location(MMGroup *g, MMU32 i, MMGroupLocation loc)
 {
     memcpy(g->storage->buffers[1].data + i * 8, &loc, 8);
 }
+int mm_group_read_slot(const MMGroup *g, MMU32 index, MMGroupLocation *out)
+{
+    MMGroupLocation loc;
+    if (!group_shape(g) || !out)
+        return MM_GROUP_SLOT_INVALID;
+    if (index >= g->count)
+        return MM_GROUP_SLOT_FREE;
+    loc = location(g, index);
+    if (loc.offset == -1)
+        return MM_GROUP_SLOT_FREE;
+    if (loc.offset < 0 || loc.bytes < 0 || (MMU32)loc.bytes < g->fixed_bytes ||
+        (MMU32)loc.offset > g->bytes || (MMU32)loc.bytes > g->bytes - (MMU32)loc.offset)
+        return MM_GROUP_SLOT_INVALID;
+    *out = loc;
+    return MM_GROUP_SLOT_PRESENT;
+}
 int mm_group_location(const MMGroup *g, MMU32 index, MMGroupLocation *out)
 {
     MMGroupLocation loc;
-    if (!group_shape(g) || index >= g->count || !out)
-        return BAD;
-    loc = location(g, index);
-    if (loc.offset < 0 || loc.bytes < 0 || (MMU32)loc.bytes < g->fixed_bytes ||
-        (MMU32)loc.offset > g->bytes || round4((MMU32)loc.bytes) > g->bytes - (MMU32)loc.offset)
+    if (!out || mm_group_read_slot(g, index, &loc) != MM_GROUP_SLOT_PRESENT ||
+        round4((MMU32)loc.bytes) > g->bytes - (MMU32)loc.offset)
         return BAD;
     *out = loc;
     return OK;
