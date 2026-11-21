@@ -9,12 +9,12 @@ struct Ref { int refs,kind,set,count; Handle raw,parts[4]; Ref *models[4]; };
 typedef struct Part { Handle *model, *material; MMActorMatrix matrix; } Part;
 typedef struct Fixture
 {
-    MMBodyRuntimeServices s; MMBodyShape b; short sets[6]; Part parts[8]; MMBodyPartBinding bindings[8]; Ref *customs[3];
+    MMBodyRuntimeServices s; MMBodyState b; short sets[6]; Part parts[8]; MMBodyPartBinding bindings[8]; Ref *customs[3];
     Ref a,bmodel,ma,mb,custom,poison; int events[256],event_count;
-    int parent,attached,detached,changed,bounds,highlight,fail,freed,model_lookups,diagnostics[4];
+    int parent,attached,detached,changed,highlight,fail,freed,model_lookups,diagnostics[4];
 } Fixture;
 static void event(Fixture *f,int n) { CHECK(f->event_count<256); f->events[f->event_count++]=n; }
-static MMBodyShape *body_state(void *p,void *body) { Fixture *f=p; CHECK(body==f); return &f->b; }
+static MMBodyState *body_state(void *p,void *body) { Fixture *f=p; CHECK(body==f); return &f->b; }
 static MMI32 item(void *p,void *list,MMI32 i) { Fixture *f=p; CHECK(list==f->sets && i>=0 && i<6); return f->sets[i]; }
 static void retain(void *p,void *object) { Fixture *f=p; Ref *r=object; CHECK(r && r->refs>0); ++r->refs; event(f,7); }
 static void release(void *p,void *object)
@@ -44,12 +44,15 @@ static void invalidate(void *p,void **out) { *out=&((Fixture *)p)->poison; }
 static void matrix(void *p,void *actors,MMI32 i,const MMActorMatrix *m)
 { Fixture *f=p; CHECK(actors==f->parts && m==&f->bindings[i].matrix); f->parts[i].matrix=*m; }
 static void highlight(void *p,void *actors,int enabled) { Fixture *f=p; CHECK(actors==f->parts); f->highlight=enabled; }
-static void attach(void *p,void *b) { Fixture *f=p; CHECK(b==f && !f->b.hidden); f->parent=1; ++f->attached; event(f,1); }
+static void attach(void *p,void *b) { Fixture *f=p; CHECK(b==f && !f->b.shape.hidden); f->parent=1; ++f->attached; event(f,1); }
 static int attached(void *p,void *actors) { Fixture *f=p; CHECK(actors==f->parts); return f->parent; }
 static void detach(void *p,void *actors)
-{ Fixture *f=p; CHECK(actors==f->parts && f->b.hidden && f->parent); f->parent=0; ++f->detached; event(f,3); }
-static void bounds(void *p,void *b) { Fixture *f=p; CHECK(b==f && f->b.hidden); f->bounds=0; event(f,2); }
-static void changed(void *p,void *b) { Fixture *f=p; CHECK(b==f); ++f->changed; event(f,4); }
+{
+    Fixture *f=p;
+    CHECK(actors==f->parts && f->b.shape.hidden && f->parent && !f->b.geometry.bounds.right);
+    f->parent=0; ++f->detached; event(f,3);
+}
+static void changed(void *p) { Fixture *f=p; ++f->changed; event(f,4); }
 static int is_generic(void *p,void *r) { (void)p; return ((Ref *)r)->kind==1; }
 static void diagnostic(void *p,int n) { CHECK(n>=0 && n<4); ++((Fixture *)p)->diagnostics[n]; }
 static int allocate(void *p,MMI32 n,void **out)
@@ -65,16 +68,18 @@ static void setup(Fixture *f,int hidden)
     for (i=0;i<4;++i) { f->custom.parts[i].owner=&f->ma; f->custom.parts[i].live=1; }
     f->custom.models[0]=&f->bmodel; f->custom.models[2]=&f->a;
     for (i=0;i<6;++i) f->sets[i]=(short)(i%2);
-    f->b.sets=f->sets; f->b.part_count=6; f->b.set_count=2; f->b.hidden=hidden; f->bounds=99; f->parent=!hidden;
-    f->b.actors=f->parts; f->b.bindings=f->bindings;
+    f->b.shape.sets=f->sets; f->b.shape.part_count=6; f->b.shape.set_count=2; f->b.shape.hidden=hidden; f->parent=!hidden;
+    f->b.shape.actors=f->parts; f->b.shape.bindings=f->bindings;
+    f->b.geometry.bounds.right=99; f->b.geometry.last_visible.right=42;
+    f->b.render.context=f; f->b.render.attach=attach; f->b.render.changed=changed;
     f->s.shape.context=f; f->s.shape.state=body_state; f->s.shape.item=item;
     f->s.shape.release=release; f->s.shape.allocate_materials=allocate; f->s.shape.free_memory=free_memory;
     f->s.retain=retain; f->s.model_handle=model_handle; f->s.assign_model=assign_model;
     f->s.assign_material=assign_material; f->s.material_object=material_object; f->s.material_handle=material_handle;
     f->s.custom=custom; f->s.assign_custom=assign_custom; f->s.custom_set=custom_set; f->s.custom_count=custom_count;
     f->s.custom_model=custom_model; f->s.custom_material=custom_material; f->s.invalidate_output=invalidate;
-    f->s.shape.assign_matrix=matrix; f->s.highlight=highlight; f->s.attach=attach; f->s.attached=attached;
-    f->s.detach=detach; f->s.clear_bounds=bounds; f->s.changed=changed; f->s.is_generic=is_generic; f->s.diagnostic=diagnostic;
+    f->s.shape.assign_matrix=matrix; f->s.highlight=highlight; f->s.attached=attached;
+    f->s.detach=detach; f->s.is_generic=is_generic; f->s.diagnostic=diagnostic;
     mm_body_set_generic(f,0,&f->ma,&f->s); mm_body_set_generic(f,1,&f->mb,&f->s);
     mm_body_set_model(f,0,&f->a,&f->s); f->changed=f->event_count=0;
 }
@@ -110,8 +115,9 @@ int main(void)
         CHECK(!f.highlight && f.changed==initial+(h?0:5));
         f.event_count=0; initial=f.changed;
         mm_body_hide(&f,&f.s); mm_body_hide(&f,&f.s); mm_body_show(&f,&f.s); mm_body_show(&f,&f.s);
-        CHECK(f.b.hidden==h && f.changed==initial+(h?0:2) && f.bounds==(h?99:0));
-        if (!h) CHECK(f.events[0]==2 && f.events[1]==3 && f.events[2]==4 && f.events[3]==1 && f.events[4]==4);
+        CHECK(f.b.shape.hidden==h && f.changed==initial+(h?0:2));
+        CHECK(f.b.geometry.bounds.right==(h?99:0) && f.b.geometry.last_visible.right==42);
+        if (!h) CHECK(f.event_count==4 && f.events[0]==3 && f.events[1]==4 && f.events[2]==1 && f.events[3]==4);
         initial=f.changed; mm_body_set_custom(&f,&f.custom,&f.s);
         CHECK(f.custom.refs==2 && f.bmodel.refs==3 && f.a.refs==2 && f.changed==initial+(h?0:3));
         change=f.changed; mm_body_set_custom(&f,&f.custom,&f.s);
@@ -121,7 +127,7 @@ int main(void)
         mm_body_costume_init(&costume); CHECK(!costume.entries && !costume.count);
         CHECK(mm_body_costume_capture(&costume,&f,&f.s) && costume.count==2 && f.custom.refs==3 && f.ma.refs==5);
         mm_body_costume_apply(&costume,&f,0,&f.s); CHECK(f.custom.refs==3 && f.ma.refs==5);
-        f.b.set_count=1; mm_body_costume_apply(&costume,&f,1,&f.s); CHECK(f.custom.refs==3); f.b.set_count=2;
+        f.b.shape.set_count=1; mm_body_costume_apply(&costume,&f,1,&f.s); CHECK(f.custom.refs==3); f.b.shape.set_count=2;
         f.fail=1; CHECK(!mm_body_costume_capture(&costume,&f,&f.s));
         CHECK(!costume.entries && !costume.count && f.freed==1 && f.custom.refs==2 && f.ma.refs==4);
         f.fail=0; CHECK(mm_body_costume_capture(&costume,&f,&f.s));

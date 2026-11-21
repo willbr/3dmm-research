@@ -17573,3 +17573,38 @@ retail frame identities in both ports' seek and continuous playback runs,
 including all retail seek camera indices and SDL's 12 retail sound requests.
 Each port also reproduced all 60 seek canvas hashes from the prior build.
 The comparison and fixture evidence are in `tmp/c89-body-actor-tree`.
+
+## Body restoration and visibility state in C89 (21 November 2026)
+
+Body restoration exchanges the C-owned shape, geometry, and borrowed renderer
+binding. Both `Body` objects keep their original reference counts. Each tree
+identifies its current owner, including the displaced tree while the caller
+still holds it. The receiving body keeps its hidden count. The C visibility
+controller clears the current bounds before detaching a visible tree and
+notifies the bound renderer after each visibility transition.
+
+The native regression restores a visible body with two references from a
+snapshot with one reference. It checks both reference counts, the owner of
+each root and part, and that releasing the snapshot detaches its tree.
+The regression passed on native x64, native x86, and SDL. All 192 standalone
+C checks, four focused AddressSanitizer checks, 12 engine and Marcus C89 gates,
+four Marcus application checks, and the SDL runtime builds passed.
+
+All 12 body traces, three Preview picking traces, 14 world and mesh traces,
+nine sound and actor traces, 54 movie and scene traces, three saved movie
+fixtures, the SDL authoring save, and 15 Studio pointer traces matched the
+prior output byte for byte. Ten Preview fingerprints matched on each build,
+and the six x64 Preview movies matched byte for byte.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T020805Z-7e7c992a`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T020839Z-d83c7ec6`.
+
+The actor-event suite `20261121T020744Z-21ce61d5` completed all four port runs.
+An independent comparison with the archived retail runs matched all 60 frame
+identities in seek and continuous playback, both ports' retail seek camera
+indices, and SDL's 12 retail sound requests. Both ports also reproduced all 60
+seek canvas hashes from the prior build. The runner's suite status was
+inconclusive because that suite included only the two ports. Comparison scripts
+and fixture evidence are in `tmp/c89-body-state`.

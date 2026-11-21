@@ -6,7 +6,7 @@
 
 class BodyWorld
 {
-    static void Attach(void *context, Body *body);
+    static void Attach(void *context, void *body);
     static void Changed(void *context);
 
   public:

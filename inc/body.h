@@ -18,7 +18,6 @@
 #include "mm/part_indices.h"
 #include "mm/body_edit.h"
 #include "mm/body_runtime.h"
-#include "mm/body_geometry.h"
 #include "mm/render_frame.h"
 
 using namespace BRender;
@@ -38,26 +37,21 @@ class Body : public Body_PAR
     MARKMEM
 
   protected:
-    MMBodyShape _shape; // Owns body bindings, draw actors and costume state.
-    void *_pvRenderContext; // non-owning renderer binding, copied with the body
-    void (*_pfnAttach)(void *, Body *);
-    void (*_pfnChanged)(void *);
-    MMBodyGeometry _geometry; // C-owned bounds and hit-search state
+    MMBodyState _body;
 
   protected:
     Body(void)
     {
-        mm_body_shape_init(&_shape);
-        mm_body_geometry_init(&_geometry);
+        mm_body_state_init(&_body);
     } // can't instantiate directly; must use PbodyNew
     static MMBodyCreateServices _CreateServices(void);
     static MMBodyEditServices _EditServices(void);
     static MMBodyRuntimeServices _RuntimeServices(void);
     static MMBodyGeometryServices _GeometryServices(void);
     void _DestroyShape(void);
-    PBACT _Actors(void) const { return static_cast<PBACT>(_shape.actors); }
-    const MMPartIndexList *_Sets(void) const { return static_cast<const MMPartIndexList *>(_shape.sets); }
-    PCustomMaterial_CMTL *_Materials(void) const { return static_cast<PCustomMaterial_CMTL *>(_shape.materials); }
+    PBACT _Actors(void) const { return static_cast<PBACT>(_body.shape.actors); }
+    const MMPartIndexList *_Sets(void) const { return static_cast<const MMPartIndexList *>(_body.shape.sets); }
+    PCustomMaterial_CMTL *_Materials(void) const { return static_cast<PCustomMaterial_CMTL *>(_body.shape.materials); }
     PBACT _PbactRoot(void) // ptr to root BACT
     {
         return _Actors();
@@ -72,16 +66,11 @@ class Body : public Body_PAR
     }                 // skip root and hilite BACTs
     LegacyLong _Cbact(void) // count in _Actors()
     {
-        return 1 + 1 + _shape.part_count;
+        return 1 + 1 + _body.shape.part_count;
     }                       // root, hilite, and body part BACTs
     LegacyLong _Ibset(LegacyLong ipart) // body part set that this part belongs to
     {
         return mm_part_index_get(&_Sets()->view, ipart);
-    }
-    void _RenderChanged(void)
-    {
-        if (_pfnChanged != pvNil)
-            _pfnChanged(_pvRenderContext);
     }
     void _RemoveMaterial(LegacyLong ibset);
 
@@ -109,7 +98,7 @@ class Body : public Body_PAR
     bool FChangeShape(const MMPartIndexView &parents, const MMPartIndexView &sets);
     // Binding lifetime must cover the body and any duplicates. Configure
     // while hidden; the core owns its actor tree, the adapter owns its host.
-    void SetRenderCallbacks(void *context, void (*attach)(void *, Body *), void (*changed)(void *));
+    void SetRenderCallbacks(void *context, void (*attach)(void *, void *), void (*changed)(void *));
 
     void Show(void);
     void Hide(void);
@@ -122,8 +111,8 @@ class Body : public Body_PAR
 
     void LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34);
     void ApplyPose(const MMActorBodyPose &);
-    const MMActorMatrix &RootMatrix() const { return _shape.bindings[0].matrix; }
-    MMBodyDrawView DrawView() const { return {_shape.bindings, _shape.part_count}; }
+    const MMActorMatrix &RootMatrix() const { return _body.shape.bindings[0].matrix; }
+    MMBodyDrawView DrawView() const { return {_body.shape.bindings, _body.shape.part_count}; }
     void PartWorldMatrix(LegacyLong part, MMActorMatrix &) const;
     void SetPartModel(LegacyLong ibact, Model *pmodl);
     void SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34);
@@ -133,7 +122,7 @@ class Body : public Body_PAR
     void GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl);
     LegacyLong Cbset()
     {
-        return _shape.set_count;
+        return _body.shape.set_count;
     }
 
     void GetBcbBounds(BCB *pbcb, bool fWorld = fFalse);

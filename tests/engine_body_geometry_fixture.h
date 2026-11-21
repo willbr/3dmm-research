@@ -5,8 +5,8 @@ class BodyGeometryFixtureAccess : public Body
   public:
     static void Seed(PBody body, int mode)
     {
-        auto member = &BodyGeometryFixtureAccess::_geometry;
-        auto &g = body->*member;
+        auto member = &BodyGeometryFixtureAccess::_body;
+        auto &g = (body->*member).geometry;
         g.bounds = {mode == 0 ? 0 : -13, mode == 0 ? 0 : -7, mode < 2 ? 0 : 28, mode < 2 ? 0 : 22};
         g.last_visible = {-41, -32, 62, 51};
     }
@@ -26,9 +26,9 @@ class BodyGeometryFixtureAccess : public Body
     }
     static void State(PBody body, LegacyLong *out)
     {
-        auto member = &BodyGeometryFixtureAccess::_geometry;
-        out[0] = (body->*member).found;
-        out[1] = (body->*member).set;
+        auto member = &BodyGeometryFixtureAccess::_body;
+        out[0] = (body->*member).geometry.found;
+        out[1] = (body->*member).geometry.set;
     }
     static int Search(PBody target, PBACT actor)
     {
@@ -37,8 +37,8 @@ class BodyGeometryFixtureAccess : public Body
     }
     static void ResetSearch(PBody target)
     {
-        auto member = &BodyGeometryFixtureAccess::_geometry;
-        mm_body_search_begin(&(target->*member));
+        auto member = &BodyGeometryFixtureAccess::_body;
+        mm_body_search_begin(&(target->*member).geometry);
     }
     static void Closest(PBody a, PBody b, LegacyLong *out)
     {

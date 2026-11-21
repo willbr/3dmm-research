@@ -1771,10 +1771,10 @@ struct RenderHost
     int attachments;
     int changes;
 };
-static void Attach(void *context, Body *body)
+static void Attach(void *context, void *body)
 {
     RenderHost *host = static_cast<RenderHost *>(context);
-    BrActorAdd(host->root, body->PbactRoot());
+    BrActorAdd(host->root, static_cast<PBody>(body)->PbactRoot());
     ++host->attachments;
 }
 static void Changed(void *context)
@@ -4885,8 +4885,16 @@ static void TestEngineServices()
     PBody snapshot = body->PbodyDup(); // Original is hidden and reattached.
     Check(snapshot != pvNil && body->PbactRoot()->parent == second.root);
     Check(snapshot->PbactRoot()->parent == 0);
+    PBACT oldRoot = body->PbactRoot(), newRoot = snapshot->PbactRoot();
+    body->AddRef();
     body->Restore(snapshot);
-    ReleasePpo(&snapshot); // Releases the displaced, detached tree.
+    Check(body->CactRef() == 2 && snapshot->CactRef() == 1);
+    Check(body->PbactRoot() == newRoot && snapshot->PbactRoot() == oldRoot);
+    Check(oldRoot->parent == second.root && newRoot->parent == second.root);
+    Check(Body::PbodyFromBact(oldRoot) == snapshot && Body::PbodyFromBact(newRoot) == body);
+    Check(Body::PbodyFromBact(snapshot->PbactPart(0)) == snapshot && Body::PbodyFromBact(body->PbactPart(0)) == body);
+    body->Release();
+    ReleasePpo(&snapshot); // Releases and detaches the displaced tree.
     Check(body->PbactRoot()->parent == second.root);
     Check(body->FChangeShape(parents, sets));
     Check(body->PbactRoot()->parent == second.root);

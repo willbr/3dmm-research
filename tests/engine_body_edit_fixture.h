@@ -5,18 +5,18 @@ class BodyEditFixtureAccess : public Body
   public:
     static void Seed(PBody b)
     {
-        auto member=&BodyEditFixtureAccess::_geometry; auto &g=b->*member;
+        auto member=&BodyEditFixtureAccess::_body; auto &g=(b->*member).geometry;
         g.found=1; g.set=1; g.bounds={1,2,30,40}; g.last_visible={5,6,70,80};
     }
     static bool Record(PBody b,FILE *out,PBACT host)
     {
-        auto member=&BodyEditFixtureAccess::_geometry;
+        auto member=&BodyEditFixtureAccess::_body;
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
         LegacyLong fields[]={b!=nullptr,b?b->Cbact():0,b?b->Cbset():0,b?BodyCreateFixtureAccess::Hidden(b):0,
-            b && (b->*member).found,b?(b->*member).set:0};
+            b && (b->*member).geometry.found,b?(b->*member).geometry.set:0};
         if (!record(fields,sizeof(fields))) return false;
         if (!b) return true;
-        if (!record(&(b->*member).bounds,sizeof(RC)) || !record(&(b->*member).last_visible,sizeof(RC))) return false;
+        if (!record(&(b->*member).geometry.bounds,sizeof(RC)) || !record(&(b->*member).geometry.last_visible,sizeof(RC))) return false;
         auto root=b->PbactRoot();
         const auto draw=b->DrawView();
         auto index=[&](PBACT p)->LegacyLong { if (!p) return -1; for (int i=0;i<b->Cbact();++i) if (p==root+i) return i; return -2; };
@@ -36,7 +36,7 @@ class BodyEditFixtureAccess : public Body
     }
 };
 struct BodyEditRenderHost { PBACT root; int attached,changed; };
-static void BodyEditAttach(void *p,PBody body) { auto h=static_cast<BodyEditRenderHost *>(p); ++h->attached; BrActorAdd(h->root,body->PbactRoot()); }
+static void BodyEditAttach(void *p,void *body) { auto h=static_cast<BodyEditRenderHost *>(p); ++h->attached; BrActorAdd(h->root,static_cast<PBody>(body)->PbactRoot()); }
 static void BodyEditChanged(void *p) { ++static_cast<BodyEditRenderHost *>(p)->changed; }
 static bool TestBodyEditing()
 {

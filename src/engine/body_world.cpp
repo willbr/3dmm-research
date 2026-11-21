@@ -12,10 +12,10 @@ void BodyWorld::Bind(Body *body, PWorld world)
     body->SetRenderCallbacks(world, Attach, Changed);
 }
 
-void BodyWorld::Attach(void *context, Body *body)
+void BodyWorld::Attach(void *context, void *body)
 {
     PWorld world = static_cast<PWorld>(context);
-    world->AddActor(body->_PbactRoot());
+    world->AddActor(static_cast<PBody>(body)->_PbactRoot());
     world->SetBodyRenderCallbacks(Body::_ReadRenderBody, Body::_PrepareRenderBody);
     world->SetActorRenderedCallback(Body::_BactRendered);
     world->SetGetRcCallback(Body::_GetRc);
@@ -53,7 +53,7 @@ bool BodyWorld::FPtInBody(Body *body, PWorld world, long xp, long yp, long *pibs
     AssertPo(body, 0);
     AssertPo(world, 0);
     AssertVarMem(pibset);
-    mm_body_search_begin(&body->_geometry);
+    mm_body_search_begin(&body->_body.geometry);
     struct Search
     {
         Body *body;
@@ -63,6 +63,6 @@ bool BodyWorld::FPtInBody(Body *body, PWorld world, long xp, long yp, long *pibs
         auto &search = *static_cast<Search *>(context);
         return mm_body_search_visit(search.body, actor, &search.services);
     }, &search, xp, yp);
-    *pibset = body->_geometry.set;
-    return body->_geometry.found != 0;
+    *pibset = body->_body.geometry.set;
+    return body->_body.geometry.found != 0;
 }

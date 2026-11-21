@@ -35,11 +35,8 @@ typedef struct MMBodyRuntimeServices
     void *(*custom_material)(void *,void *,MMI32);
     void (*invalidate_output)(void *,void **);
     void (*highlight)(void *,void *actors,int);
-    void (*attach)(void *,void *body);
     int (*attached)(void *,void *actors);
     void (*detach)(void *,void *actors);
-    void (*clear_bounds)(void *,void *body);
-    void (*changed)(void *,void *body);
     int (*is_generic)(void *,void *material);
     void (*diagnostic)(void *,int);
 } MMBodyRuntimeServices;

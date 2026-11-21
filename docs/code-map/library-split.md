@@ -5168,7 +5168,7 @@ No Marcus UI tests were added.
 ### Body duplication, restoration and reshaping
 
 `body_edit.c` owns duplicate allocation/reference sequencing, original visibility
-restoration, receiver identifier repair, preserved hidden counts, reshape rollback
+restoration, actor identifier repair, preserved hidden counts, reshape rollback
 and the order in which materials/models/matrices/highlighting are restored.
 Duplication hides a visible original, copies bindings, allocates/rebases actors,
 retains models, duplicates the set list, allocates/copies material storage and
@@ -5176,17 +5176,20 @@ copies bounds. Generic materials retain one reference per part; custom materials
 retain one per set. Both success and failure re-show the original before failed
 copy disposal. A copy starts hidden once regardless of its source's hidden count.
 
-Restoration retains native whole-object swapping, then rewrites only receiver
-actor identifiers and preserves its original hidden count. Reshape duplicates
-before destruction, reuses C shape construction/disposal, restores visibility
-before material/model/matrix edits, and rolls back through that same restoration
-operation when construction fails. The C89 BRender binding copies internal
+Restoration exchanges the C-owned shape, bounds, hit state, and borrowed renderer
+binding. Each facade keeps its identity and reference count, and both actor trees
+identify their current owners. The receiver keeps its original hidden count.
+If the displaced tree was visible, it stays attached until its new owner hides
+or releases it. Reshape duplicates before destruction, reuses C shape
+construction/disposal, restores visibility before material/model/matrix edits,
+and rolls back through the same restoration operation when construction fails.
+The C89 BRender binding copies internal
 parent, child and sibling links by actor index, rebuilds backlinks from the
 copied link slots, and clears the copied root's external links. The renderer
 fixture exercises a source and destination separated by more than 2 GiB on
 Win64 and verifies that removing a copied node leaves the source intact.
-Native callbacks still provide whole-object swapping, resource operations and
-renderer notifications.
+The facade still provides typed resource operations. The C visibility controller
+clears bounds and dispatches optional notifications through the stored host binding.
 
 The 1,880,872-byte native trace matches C exactly across 1,404 cases: 1,278
 successes and 126 allocation-injected failures. Cases include empty/one/six-part

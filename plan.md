@@ -858,9 +858,11 @@ copy, route-paste, full actor-paste, clipboard, actor creation/binding and movie
 sound integration control and body construction/shape disposal, duplication,
 restoration, reshaping, body material/visibility updates, costume ownership,
 bounds/render preparation and hit-selection policy have also moved into C89.
-Body actor/material storage, duplicated set-list ownership, part/set counts and
-hidden count now live directly in persistent C shape state. Studio and Marcus
-Preview use one C89 BRender adapter to submit body matrices and draw handles.
+Body actor/material storage, duplicated set-list ownership, part/set counts,
+hidden count, geometry and the borrowed renderer binding live in persistent C
+state. Restoration exchanges this state while preserving facade reference counts
+and assigning both actor trees to their current owners. Studio and Marcus Preview
+use one C89 BRender adapter to submit body matrices and draw handles.
 C89 stores the borrowed model handle with its retained resource as part of
 model replacement. Typed resource providers and final Body facade removal
 remain work. Template resource factories,

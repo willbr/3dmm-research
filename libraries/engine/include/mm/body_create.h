@@ -4,6 +4,7 @@
 #define MM_ENGINE_BODY_CREATE_H
 #include "movie_data.h"
 #include "actor_math.h"
+#include "body_geometry.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -21,6 +22,18 @@ typedef struct MMBodyShape
     MMBodyPartBinding *bindings; /* Root at 0, reserved highlight at 1, then parts. */
     MMI32 set_count, part_count, hidden;
 } MMBodyShape;
+typedef struct MMBodyRenderBinding
+{
+    void *context;
+    void (*attach)(void *, void *body);
+    void (*changed)(void *);
+} MMBodyRenderBinding;
+typedef struct MMBodyState
+{
+    MMBodyShape shape;
+    MMBodyGeometry geometry;
+    MMBodyRenderBinding render;
+} MMBodyState;
 typedef struct MMBodyDrawView
 {
     const MMBodyPartBinding *bindings;
@@ -31,7 +44,7 @@ enum MMBodyActorRole { MM_BODY_ROOT, MM_BODY_HIGHLIGHT, MM_BODY_PART };
 typedef struct MMBodyCreateServices
 {
     void *context;
-    MMBodyShape *(*state)(void *,void *body);
+    MMBodyState *(*state)(void *,void *body);
     void *(*highlight)(void *);
     void *(*allocate_highlight)(void *);
     void (*install_highlight)(void *,void *);
@@ -61,11 +74,12 @@ typedef struct MMBodyCreateServices
  * free_memory accepts NULL slots and clears released slots.
  * Bodies start with zeroed ownership. state returns a stable borrowed C owner;
  * access cannot fail, reenter or mutate it. Local value snapshots preserve
- * publication points before renderer/resource callbacks. Do not copy live owners.
+ * publication points before renderer/resource callbacks. State owns its shape
+ * storage and borrows its renderer binding.
  * Writes publish partial state before renderer/resource callbacks. Callbacks
  * must not reenter or mutate unrelated body fields. Initialization does not
  * roll back: the factory releases its partial body on failure. */
-void mm_body_shape_init(MMBodyShape *);
+void mm_body_state_init(MMBodyState *);
 /* Publish the authoritative matrix and project it onto the draw actor. */
 void mm_body_shape_matrix(MMBodyShape *,MMI32,const MMActorMatrix *,const MMBodyCreateServices *);
 /* Compose a part through its parents and the root in renderer order. */
