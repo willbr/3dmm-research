@@ -223,25 +223,23 @@ typedef struct ComposeReference
 
 typedef struct ComposeAssets
 {
-    void *source, *destination;
-    const MMMovieComposeServices *services;
+    MMChunkEndpoint source, destination;
 } ComposeAssets;
 
 static int copy_reference(void *context, const MMTag *tag, MMU32 *copied, int *created)
 {
     const ComposeAssets *assets = context;
-    return assets->services->copy_reference(assets->source, assets->destination, tag->type, tag->number,
-                                           copied, created);
+    return mm_chunk_copy_reference(&assets->source, &assets->destination, tag->type, tag->number,
+                                   copied, created) == MM_CHUNK_OK;
 }
 
 static int rebind(const MMChunkChild *node, const MMArchiveWriter *archive,
-                   const MMMovieEmbeddedArchive *assets, const ComposeAssets *files)
+                   const MMMovieEmbeddedArchive *assets, void *destination, const MMMovieComposeServices *s)
 {
-    const MMMovieComposeServices *s = files->services;
     MMMovieArchiveFile file;
     MMMovieArchiveEditor editor;
     int ok;
-    if (!mm_movie_archive_file_init(&file, files->destination, archive, &s->titles))
+    if (!mm_movie_archive_file_init(&file, destination, archive, &s->titles))
         return 0;
     editor = mm_movie_archive_file_editor(&file, s->data->title.unit, s->rollcall.reader.convert);
     ok = node->type == MM_SCENE_CHUNK ? mm_movie_archive_rebind_backgrounds(&editor, assets, node->number)
@@ -250,7 +248,7 @@ static int rebind(const MMChunkChild *node, const MMArchiveWriter *archive,
     return ok;
 }
 
-static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeServices *s)
+static int remap(MMU32 movie, MMI32 offset, ComposeAssets *imports, const MMMovieComposeServices *s)
 {
     MMChunkWalk walk;
     MMCollectionStorage visited;
@@ -262,14 +260,10 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
     void *destination = s->scene_control.file(s->data->resources);
     const MMArchiveWriter archive = s->archive(destination);
     const MMChunkGraph graph = mm_chunk_edit_graph(&archive.edit);
-    ComposeAssets files;
     MMMovieEmbeddedArchive assets;
     MMMovieSessionGraph reader;
     int ok = 0;
-    files.source = source;
-    files.destination = destination;
-    files.services = s;
-    assets.context = &files;
+    assets.context = imports;
     assets.copy_reference = copy_reference;
     assets.edit = archive.edit;
     if (offset > 0)
@@ -286,10 +280,10 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
         goto done;
     while (mm_chunk_walk_next(&walk, 0, &node, &parent, &flags))
     {
-        if (source && (flags & MM_WALK_ERROR))
+        if (imports && (flags & MM_WALK_ERROR))
             goto done;
         actor = node.type == MM_ACTOR_CHUNK;
-        background = node.type == MM_SCENE_CHUNK && source;
+        background = node.type == MM_SCENE_CHUNK && imports;
         if (!(flags & MM_WALK_PRE) || (!actor && !background))
             continue;
         for (i = 0; i < ids.count; ++i)
@@ -304,7 +298,7 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
         reference.number = node.number;
         if (mm_array_add(&ids, &reference, 0) != MM_STORAGE_OK ||
             (actor && offset > 0 && !mm_actor_adjust_id(node.number, offset, &reader, &archive)) ||
-            (source && !rebind(&node, &archive, &assets, &files)))
+            (imports && !rebind(&node, &archive, &assets, destination, s)))
             goto done;
     }
     ok = 1;
@@ -320,7 +314,7 @@ static void close_source_row(MMRollCallTable *source, MMU32 index, const MMMovie
     if (mm_rollcall_table_extra(source, index, &row))
         s->rollcall.reader.close_actor(s->rollcall.reader.context, &row);
 }
-static int merge(MMU32 movie, MMI32 offset, void *source_file, const MMMovieComposeServices *s)
+static int merge(MMU32 movie, MMI32 offset, ComposeAssets *imports, const MMMovieComposeServices *s)
 {
     MMRollCallTable source, *destination = &s->data->actors;
     MMRollCallActor row;
@@ -343,7 +337,7 @@ static int merge(MMU32 movie, MMI32 offset, void *source_file, const MMMovieComp
         if (!mm_rollcall_table_add(destination, name, count, &row))
             goto fail;
     }
-    if ((offset > 0 || source_file) && !remap(movie, offset, source_file, s))
+    if ((offset > 0 || imports) && !remap(movie, offset, imports, s))
         goto fail;
     ok = 1;
     goto done;
@@ -422,12 +416,24 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         if (i > 0)
         {
             void *source = scenes->file(movie.resources);
+            const MMArchiveWriter source_archive = s->archive(source);
+            MMMovieArchiveCopy source_binding, destination_binding;
+            ComposeAssets imports;
             MMMovieSessionGraph graph;
-            if (!s->clone_movie(source, movie.number, file, &movie.number))
+            imports.source = mm_movie_archive_copy_endpoint(&source_binding, source, &source_archive,
+                                                            &s->titles, s->data->title.unit);
+            imports.destination = mm_movie_archive_copy_endpoint(&destination_binding, file, &archive,
+                                                                 &s->titles, s->data->title.unit);
+            status = mm_chunk_copy(&imports.source, &imports.destination, MM_MOVIE_CHUNK, movie.number, 1, &movie.number);
+            if (status != MM_CHUNK_OK)
+            {
+                if (status == MM_CHUNK_NOT_FOUND)
+                    s->diagnostic(s->context, MM_COMPOSE_MISSING_COPY_ROOT);
                 goto done;
+            }
             scenes->session.graph(file, &graph);
             if (!mm_movie_archive_link_imported_sounds(&graph, movie.number, &edit) ||
-                !merge(movie.number, offset, source, s))
+                !merge(movie.number, offset, &imports, s))
             {
                 delete_root(&edit, movie.number, scenes);
                 goto done;

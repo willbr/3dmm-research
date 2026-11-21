@@ -3867,9 +3867,11 @@ prefix, and preserves the prior descriptors and insertion position. Autosave's
 effects are retained.
 
 Application keeps just the cloned root numbers in temporary C storage. A
-composition of local scenes needs no clone table. The engine clones the external
-Movie graphs. C links root-level imported sounds to their scenes and reads
-each cloned roll call from the working resource cache before adopting,
+composition of local scenes needs no clone table. C binds live archive copy
+endpoints and clones the external movie graphs with the chunk copier. It
+preserves stored payloads, normalizes names to the host encoding, and keeps
+shared links within the clone. C links root-level imported sounds to their
+scenes and reads each cloned roll call from the working resource cache before adopting,
 renumbering or deleting scenes and writing transitions. C reads and writes
 the stored transition and scene name through the same file binding. Imported
 actor-start and registration errors remain diagnostic and non-fatal. Tool
@@ -3898,8 +3900,8 @@ The C chunk walker reads the working archive's live index and uses C-owned
 visited-ID storage. It rewrites ACTR headers through the archive writer.
 Shared and nested actors are each adjusted once. For imported scenes and
 actors, C binds the destination archive editor, rewrites document background
-and material tags, and updates their child links. The host supplies a generic
-chunk-reference copy between the source and destination files.
+and material tags, and updates their child links. The chunk copier reuses
+matching embedded resources through the same archive endpoints.
 Traversal error flags remain non-fatal as before; visited-set or actor-write
 failure aborts. Removing a C++ temporary allocation changes allocator-attempt
 ordinals, not the successful traversal contract.

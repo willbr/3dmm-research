@@ -1602,6 +1602,8 @@ traverses the live archive to rewrite shared and nested actor IDs. It also
 reads and writes stored scene transitions and rebinds embedded backgrounds
 and materials through the C archive editor. It resolves thumbnail payloads,
 adopts imported scene sounds and checks final scene-child order in C89.
+Composition binds both archives to the C chunk copier for movie clones and
+embedded references, including stored payloads and translated names.
 Native bitmap allocation and final resource and object integration remain.
 Background resource loading, exact child lookup, cache and light policy use
 C89. Studio selects cameras through the same cache and reads colour and depth

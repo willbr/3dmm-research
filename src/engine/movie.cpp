@@ -2598,16 +2598,6 @@ MMMovieComposeServices Movie::_ComposeServices()
         return MaskedBitmapMBMP::PmbmpReadStream(stream);
     };
     s.thumbnail=[](void *p)->void* { return static_cast<PScene>(p)->PmbmpThumbnail(); };
-    s.clone_movie=[](void *p,MMU32 number,void *out,MMU32 *copied)->int {
-        ChunkNumber value; bool ok=static_cast<PChunkyFile>(p)->FClone(kctgMvie,number,static_cast<PChunkyFile>(out),&value);
-        if(ok) *copied=value; return ok;
-    };
-    s.copy_reference = [](void *source, void *destination, MMU32 type, MMU32 number,
-                          MMU32 *copied, int *created) -> int {
-        auto file = static_cast<PChunkyFile>(source);
-        return file->FFind(type, number) &&
-               file->FCopyReference(type, number, static_cast<PChunkyFile>(destination), copied, created);
-    };
     s.sound_issue = MovieSoundIssue;
     s.start_scene=[](void *p)->int { return static_cast<PScene>(p)->FPlayStartEvents(true); };
     s.add_actors=[](void *p)->int { return static_cast<PScene>(p)->FAddActrsToRollCall(); };
@@ -2628,6 +2618,7 @@ MMMovieComposeServices Movie::_ComposeServices()
         case MM_COMPOSE_MISSING_THUMBNAIL: Bug("Scene doesn't have a thumbnail"); break;
         case MM_COMPOSE_SCENE_ENUM: Bug("Can't guarantee validity of Movie's Scene children"); break;
         case MM_COMPOSE_SCENE_ORDER: Assert(false, "Found duplicate ChildChunkID in scene children"); break;
+        case MM_COMPOSE_MISSING_COPY_ROOT: Bug("chunk not found"); break;
         }
     };
 #ifdef DEBUG

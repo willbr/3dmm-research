@@ -35,7 +35,8 @@ extern "C"
         MM_COMPOSE_REMOVE_ACTORS,
         MM_COMPOSE_MISSING_THUMBNAIL,
         MM_COMPOSE_SCENE_ENUM,
-        MM_COMPOSE_SCENE_ORDER
+        MM_COMPOSE_SCENE_ORDER,
+        MM_COMPOSE_MISSING_COPY_ROOT
     };
     typedef struct MMMovieComposeServices
     {
@@ -53,15 +54,12 @@ extern "C"
         MMI32 (*transition)(void *scene);
         void *(*decode_thumbnail)(void *, const MMReadStream *);
         void *(*thumbnail)(void *scene);
-        int (*clone_movie)(void *source, MMU32 number, void *destination, MMU32 *number_out);
         void (*sound_issue)(void *, int);
         int (*start_scene)(void *scene), (*add_actors)(void *scene);
         void (*remove_actors)(void *scene), (*actor_tools)(void *), (*text_tools)(void *);
         void (*set_transition)(void *scene, MMI32);
         void (*dirty)(void *), (*scene_nuked)(void *), (*invalidate)(void *), (*rollcall_changed)(void *),
             (*diagnostic)(void *, int);
-        int (*copy_reference)(void *source, void *destination, MMU32 type, MMU32 number,
-                              MMU32 *copied, int *created);
     } MMMovieComposeServices;
     /* Start with a zeroed composite. It owns one thumbnail/cache reference per
      * descriptor. Accessors copy the row with borrowed reference fields.

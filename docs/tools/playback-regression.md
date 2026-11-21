@@ -18702,3 +18702,24 @@ archived retail frame identities. SDL matched all four retail sound requests.
 The ports matched their previous PCM16 peak of 2,176. The archived retail
 peak is 2,380. The captures contain 510,240 SDL and 511,680 Marcus PCM frames.
 Logs and the comparison script are in `tmp/c89-compose-thumbnail-sound`.
+
+## Composition archive cloning and reference copies (21 November 2026)
+
+Studio composition binds both archives to the C89 chunk copier for movie
+clones and embedded references. The composition fixture exercises packed
+payload transfer, name conversion, chunk number collisions, shared links
+and cleanup after a failed reference copy.
+
+All 193 standalone C checks, five focused AddressSanitizer checks, three
+Marcus checks, and the native Archive API, Preview session and core-link
+checks passed. Native x64, x86 and SDL matched their 19,044-byte composition
+snapshots, all 27 save/reopen traces, sound-resource snapshots and the
+complete authoring save. Both ports matched the three archived V3dmm
+storyboard frames, cameras and canvas hashes in suite
+`20261121T104533Z-d5680c70`.
+
+In sampled-audio suite `20261121T104539Z-4b834ce5`, both ports matched all 60
+archived retail frame identities. SDL matched all four retail sound requests.
+The ports matched their previous PCM16 peak of 2,176. The archived retail
+peak is 2,380. The captures contain 521,760 SDL and 511,200 Marcus PCM frames.
+Logs and the comparison script are in `tmp/c89-compose-copy`.

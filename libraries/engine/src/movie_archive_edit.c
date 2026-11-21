@@ -38,6 +38,56 @@ void mm_movie_archive_file_clear(MMMovieArchiveFile *binding)
     mm_owned_block_clear(&binding->output);
 }
 
+static int bind_copy_payload(void *p, MMU32 position, const MMChunkEntry *entry, MMOwnedBlock *block)
+{
+    const MMMovieArchiveCopy *binding = p;
+    (void)position;
+    return mm_chunk_payload_bind_block(binding->archive->payloads, binding->file,
+                                       entry->type, entry->number, block) == MM_CHUNK_PAYLOAD_OK;
+}
+
+static const void *read_copy_name(void *p, MMU32 position)
+{
+    MMMovieArchiveCopy *binding = p;
+    const MMChunkAccess chunks = mm_chunk_edit_access(&binding->archive->edit);
+    MMChunkEntry entry;
+    if (mm_chunk_at(&chunks, position, &entry) != MM_CHUNK_OK)
+        return NULL;
+    mm_chunk_title_read(&binding->name, binding->file, entry.type, entry.number, binding->titles);
+    return binding->name.count ? &binding->name : NULL;
+}
+
+static int write_copy_name(void *p, MMU32 position, const void *name)
+{
+    const MMMovieArchiveCopy *binding = p;
+    const MMChunkAccess chunks = mm_chunk_edit_access(&binding->archive->edit);
+    MMChunkEntry entry;
+    return mm_chunk_at(&chunks, position, &entry) == MM_CHUNK_OK &&
+           mm_chunk_title_write(name, binding->file, entry.type, entry.number, binding->titles);
+}
+
+MMChunkEndpoint mm_movie_archive_copy_endpoint(MMMovieArchiveCopy *binding, void *file, const MMArchiveWriter *archive,
+                                               const MMChunkTitleIO *titles, unsigned text_unit)
+{
+    MMChunkEndpoint endpoint = {0};
+    if (!binding || !file || !archive || !archive->payloads || !titles || !titles->read || !titles->write ||
+        !mm_movie_title_init(&binding->name, text_unit))
+        return endpoint;
+    binding->file = file;
+    binding->archive = archive;
+    binding->titles = titles;
+    endpoint.edit = archive->edit;
+    endpoint.allocator = archive->transfer_allocator;
+    endpoint.handles = archive->payloads->handles;
+    endpoint.files = archive->payloads->files;
+    endpoint.identity = file;
+    endpoint.context = binding;
+    endpoint.bind_payload = bind_copy_payload;
+    endpoint.read_name = read_copy_name;
+    endpoint.write_name = write_copy_name;
+    return endpoint;
+}
+
 static int read_payload(void *p, MMU32 type, MMU32 number, MMReadStream *stream)
 {
     MMMovieArchiveFile *binding = p;
