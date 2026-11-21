@@ -406,9 +406,9 @@ static void *create_background_scene(void *p)
     event(t, NEW_SCENE);
     return t->fail == FAIL_NEW_SCENE ? NULL : t;
 }
-static int open_background_movie(void *p, void *file, MMU32 *number, MMMovieSession **out)
+static void background_movie_graph(void *file, MMMovieSessionGraph *out)
 {
-    return p == file && fixture_scene_open(&((Test *)p)->archive, number, out);
+    *out = fixture_scene_graph(&((Test *)file)->archive);
 }
 static void *read_background_scene(void *p, void *resources, MMU32 number, const MMMovieSession *session)
 {
@@ -1736,7 +1736,7 @@ static MMMovieSceneServices background_scenes(Test *t)
     s.autosave = s.make_resources = s.use_temporary = allow;
     s.stop_loops = s.memory_cleanup = ignore_change;
     s.create = create_background_scene;
-    s.open_session = open_background_movie;
+    s.session.graph = background_movie_graph;
     s.read = read_background_scene;
     s.start = s.seek_first = allow;
     s.close = s.retain = s.release = ignore_change;

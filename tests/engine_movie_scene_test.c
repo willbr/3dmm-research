@@ -116,10 +116,9 @@ static void memory(void *p)
 {
     ++((Test *)p)->memory;
 }
-static int open_session(void *p, void *file, MMU32 *number, MMMovieSession **out)
+static void movie_graph(void *file, MMMovieSessionGraph *out)
 {
-    Test *t = p;
-    return file == p && fixture_scene_open(&t->archive, number, out);
+    *out = fixture_scene_graph(&((Test *)file)->archive);
 }
 static void *read_scene(void *p, void *resources, MMU32 number, const MMMovieSession *session)
 {
@@ -346,7 +345,7 @@ static void init(Test *t, int count, int current)
     s->use_temporary = temporary;
     s->stop_loops = stop;
     s->memory_cleanup = memory;
-    s->open_session = open_session;
+    s->session.graph = movie_graph;
     s->read = read_scene;
     s->create = create;
     s->start = start;

@@ -36,7 +36,7 @@ extern "C"
         MMMovieState *movie;
         int (*autosave)(void *), (*make_resources)(void *), (*use_temporary)(void *);
         void (*stop_loops)(void *), (*memory_cleanup)(void *);
-        MMMovieOpenSession open_session;
+        MMMovieSessionBinding session;
         void *(*read)(void *, void *resources, MMU32 number, const struct MMMovieSession *);
         void *(*create)(void *);
         int (*start)(void *scene), (*seek_first)(void *scene);

@@ -24,7 +24,12 @@ extern "C"
         void (*close_actor)(void *, MMRollCallActor *);
     } MMRollCallReader;
     struct MMMovieSession;
-    typedef int (*MMMovieOpenSession)(void *context, void *file, MMU32 *, struct MMMovieSession **);
+    struct MMMovieSessionGraph;
+    typedef struct MMMovieSessionBinding
+    {
+        void (*graph)(void *file, struct MMMovieSessionGraph *);
+        void (*open_failed)(void *file, int status);
+    } MMMovieSessionBinding;
     typedef struct MMMovieState
     {
         void *resources;
@@ -41,7 +46,7 @@ extern "C"
         int actor_encoding, actor_trash;
         void *(*create_file)(void *);
         void *(*open_file)(void *, void *path);
-        MMMovieOpenSession open_session;
+        MMMovieSessionBinding session;
         void *(*new_resources)(void *, void *file);
         void (*release_file)(void *);
         void (*release_resources)(void *);
@@ -58,7 +63,8 @@ extern "C"
     /* Unique owning state. The session borrows its graph through the resource
      * reference and is closed before it. The actor table lives in the state and
      * owns its opened tags. Title and actor names use the same native unit width.
-     * The archive and cache bindings borrow the active file and resources. A zero
+     * The graph, archive and cache bindings borrow the active file and resources.
+     * The session failure diagnostic is optional. A zero
      * actor allocator uses the C heap. Replacement publishes the scratch state
      * on success and disposes the prior table and resources in order.
      * The missing-roll-call and unlink-failed diagnostics are optional.
@@ -74,7 +80,7 @@ extern "C"
     /* Resolve a scene from the live graph. A new or changed root is attached
      * only after validation. Failed lookups preserve the caller's number. */
     int mm_movie_state_scene_number(MMMovieState *, MMU32 slot, MMU32 *number, void *file,
-                                     void *context, MMMovieOpenSession);
+                                     const MMMovieSessionBinding *);
     int mm_movie_save(MMMovieState *, const MMMovieOwnerServices *);
 
     /* Borrows a decoded GST stream and fills an initialized, empty actor table.

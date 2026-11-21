@@ -18609,3 +18609,26 @@ archived retail frame identities, and SDL matched all four retail sound
 requests. The ports matched their previous PCM16 peak of 2,176. The archived
 retail peak is 2,380. The captures contain 521,760 SDL and 511,200 Marcus PCM
 frames. Logs and the comparison script are in `tmp/c89-movie-owner-archive`.
+
+## Movie session opening and root validation (21 November 2026)
+
+Studio movie load and scene switching now open sessions in C89 from a borrowed
+archive graph. Studio's version check reads the same graph root as the session
+opener used by Preview. The native binding still maps session failures to
+Studio's bad-version and bad-file messages. The owner fixture covers a missing
+explicit root, an unsupported version, and preservation of the existing session
+and scene output when validating a replacement fails.
+
+All 193 standalone C checks passed, along with six focused AddressSanitizer
+checks, three Marcus checks and the native Preview session test. The movie
+owner, roll-call and root snapshots matched all 736, 405 and 224 baseline bytes
+respectively. Native x64, x86 and SDL matched all 27 save/reopen traces, their
+sound-resource snapshots and the complete saved authoring fixture. Both ports
+matched the three archived V3dmm storyboard frames, cameras and canvas hashes
+in suite `20261121T095359Z-a420ee33`.
+
+In sampled-audio suite `20261121T095406Z-0a90a709`, both ports matched all 60
+archived retail frame identities. SDL matched all four retail sound requests.
+The ports matched their previous PCM16 peak of 2,176. The archived retail
+peak is 2,380. The captures contain 520,320 SDL and 512,160 Marcus PCM frames.
+Logs and the comparison script are in `tmp/c89-session-binding`.

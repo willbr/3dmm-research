@@ -411,9 +411,9 @@ static int play(void *p)
     Host *h = scene->host;
     return scene != &h->loaded || step(h, 7);
 }
-static int open_movie(void *p, void *file, MMU32 *number, MMMovieSession **out)
+static void movie_graph(void *file, MMMovieSessionGraph *out)
 {
-    return p == file && fixture_scene_open(&((Host *)p)->archive, number, out);
+    *out = fixture_scene_graph(&((Host *)file)->archive);
 }
 static void *read_movie_scene(void *p, void *resources, MMU32 number, const MMMovieSession *session)
 {
@@ -523,7 +523,7 @@ static MMMovieSceneServices scene_services(Host *h)
     s.make_resources = open_archive;
     s.use_temporary = temporary;
     s.stop_loops = s.memory_cleanup = ignore;
-    s.open_session = open_movie;
+    s.session.graph = movie_graph;
     s.read = read_movie_scene;
     s.start = play;
     s.seek_first = succeed;

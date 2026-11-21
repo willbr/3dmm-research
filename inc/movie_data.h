@@ -50,12 +50,12 @@ struct MovieData : MMMovieState
 
     static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
     static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
-    static int OpenSession(void *, void *file, MMU32 *number, MMMovieSession **);
     static bool FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors,
                               MMI32 *limit = nullptr);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written);
   private:
     friend class Movie;
+    static MMMovieSessionBinding _SessionBinding();
     static MMMovieOwnerServices _OwnerServices(void *);
 };
 #endif

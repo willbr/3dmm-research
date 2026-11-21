@@ -314,8 +314,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   now live in an owning C state. Empty initialization, transactional load/replace,
   save ordering and roll-call tag cleanup/marshalling use C89. The owner creates
   roots and replaces roll-call links through the shared archive writer. It loads
-  roll calls from the owning resource cache. Title selection and version policy
-  also use C89. The native file and session bindings and caller facades remain.
+  roll calls from the owning resource cache. Studio opens sessions for movie
+  loads and scene switches from the live graph in C89. Studio's version check
+  and Preview's session opening share the C89 graph root reader. Native file
+  bindings and caller facades remain.
   Runtime and wire roll-call names/extras, editing buffers, GST
   loading/translation and serialization use owning C storage. The runtime
   actor table lives directly in the C movie state.

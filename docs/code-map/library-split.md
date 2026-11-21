@@ -1503,9 +1503,12 @@ forty-two focused native checks pass. No Marcus UI tests were added.
 limit, title and scene count. Native MovieData now inherits this C state and exposes typed
 borrowed handle accessors. C performs empty initialization, transactional
 load/replace, contiguous scene counting and save ordering. Empty initialization
-creates the root through the working archive writer. Failed initialization or
-load preserves the old movie. On save, C finds the old roll-call link in the
-working graph, writes and adopts the replacement, and unlinks the old child.
+creates the root through the working archive writer. C opens and validates the
+session from the live graph for both movie loads and scene switches. Studio's
+version check and Preview session opening use the same graph root reader.
+Failed initialization or load preserves the old movie. On save, C finds the old
+roll-call link in the working graph, writes and adopts the replacement, and
+unlinks the old child.
 A later name or file save failure leaves the replacement visible. Only
 successful explicit save makes a temporary file persistent.
 
@@ -1517,8 +1520,8 @@ extras in either byte order, with a zero pointer slot. `movie_owner.c` resolves
 the roll-call link and decodes its payload from the same resource cache. On save
 it writes the new GST through an owned archive block, adopts the child after a
 successful write, and discards the new chunk if writing or adoption fails.
-The owner borrows the native resource cache and archive writer. Native services
-supply file I/O, session binding, text conversion and tag operations.
+The owner borrows the native graph, resource cache and archive writer. Native
+services supply file I/O, error reporting, text conversion and tag operations.
 
 Studio uses the same state and roll-call paths. Its existing early resource release
 during Movie destruction remains explicit, before closing the scene and actor list;

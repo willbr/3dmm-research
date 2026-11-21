@@ -26,10 +26,10 @@ static int fixture_scene_root(void *p, void *request, MMU32 position, const MMCh
     memcpy(bytes, header, sizeof(header));
     return MM_MOVIE_OK;
 }
-static int fixture_scene_open(ChunkIndexFixture *f, MMU32 *number, MMMovieSession **out)
+static MMMovieSessionGraph fixture_scene_graph(ChunkIndexFixture *f)
 {
     MMMovieSessionGraph graph = {NULL, fixture_scene_access, fixture_scene_root, NULL, NULL};
     graph.context = f;
-    return mm_movie_session_open_graph(&graph, NULL, number, out) == MM_MOVIE_OK;
+    return graph;
 }
 #endif

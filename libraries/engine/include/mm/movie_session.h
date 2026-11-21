@@ -131,6 +131,7 @@ void mm_movie_scene_event_tag(const MMMovieSceneEvent *, MMTag *);
 /* A null number or the nil chunk number selects the first MVIE. A successful
  * lookup publishes its number before validation, even if the header is invalid. */
 int mm_movie_view_root(const MMMovieChunkView *, MMU32 *number, MMMovieHeader *);
+int mm_movie_graph_root(const MMMovieSessionGraph *, void *request, MMU32 *number, MMMovieHeader *);
 
 /* Resolve a scene by its authored slot, without reading its payload. */
 int mm_movie_view_scene_number(const MMChunkAccess *, MMU32 root, MMU32 slot, MMU32 *number);

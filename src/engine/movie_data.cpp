@@ -14,16 +14,9 @@ struct NativeMovieHost
 {
     PFilename filename;
 };
-int ReadMovieRecord(void *context, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 count)
+void MovieOpenError(void *, int status)
 {
-    return EngineMovieGraph::Read(context, nullptr, position, entry, bytes, count);
-}
-bool CheckMovieOpen(int result)
-{
-    if (result == MM_MOVIE_OK)
-        return true;
-    PushErc(result == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
-    return false;
+    PushErc(status == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
 }
 TAG ActorTag(const MMRollCallActor &actor)
 {
@@ -55,6 +48,13 @@ const MMRollCallReader kRollCallReader = {
     CloseActor};
 } // namespace
 
+MMMovieSessionBinding MovieData::_SessionBinding()
+{
+    return {
+        [](void *file, MMMovieSessionGraph *graph) { *graph = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file)); },
+        MovieOpenError};
+}
+
 MMMovieOwnerServices MovieData::_OwnerServices(void *context)
 {
     return {
@@ -68,7 +68,7 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
 #endif
         [](void *) -> void * { return ChunkyFile::PcflCreateTemp(); },
         [](void *, void *path) -> void * { return ChunkyFile::PcflOpen(static_cast<PFilename>(path), fcflNil); },
-        OpenSession,
+        _SessionBinding(),
         [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
         [](void *p) { static_cast<PChunkyFile>(p)->Release(); },
         [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },
@@ -118,11 +118,6 @@ bool MovieData::FLoad(PFilename filename, ChunkNumber number)
     const auto s = _OwnerServices(nullptr);
     return mm_movie_load(this, filename, number, &s) != 0;
 }
-int MovieData::OpenSession(void *, void *file, MMU32 *number, MMMovieSession **out)
-{
-    const auto graph = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file));
-    return CheckMovieOpen(mm_movie_session_open_graph(&graph, nullptr, number, out));
-}
 bool MovieData::FSave(PFilename filename)
 {
     NativeMovieHost host = {filename};
@@ -136,8 +131,11 @@ bool MovieData::FCreateRoot(PChunkyFile file, ChunkNumber *number)
 }
 bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, MMMovieHeader *header)
 {
-    const MMMovieChunkView view = {file->ReadChunkAccess(), file, ReadMovieRecord};
-    return CheckMovieOpen(mm_movie_view_root(&view, number, header));
+    const auto graph = EngineMovieGraph::FromFile(file);
+    const int status = mm_movie_graph_root(&graph, nullptr, number, header);
+    if (status != MM_MOVIE_OK)
+        MovieOpenError(file, status);
+    return status == MM_MOVIE_OK;
 }
 
 bool MovieData::FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors, MMI32 *limit)

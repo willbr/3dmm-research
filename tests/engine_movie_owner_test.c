@@ -25,7 +25,7 @@ struct Host
     char log[512];
     int used, resources, fail, scenes, persistent;
     int open_calls;
-    int opening;
+    int open_error;
     MMU32 root_number;
     void *open_path;
     MMU32 rollcall_bytes;
@@ -67,6 +67,7 @@ static void reset(Host *h)
     h->used = 0;
     h->log[0] = 0;
     h->open_calls = 0;
+    h->open_error = MM_MOVIE_OK;
 }
 static void *create(void *c)
 {
@@ -106,8 +107,7 @@ static int graph_child(void *context, MMU32 parent, MMU32 position, MMChunkChild
 static void graph_access(void *context, MMChunkAccess *access)
 {
     Host *h = (Host *)context;
-    if (!h->opening)
-        event(h, 's');
+    event(h, 's');
     access->context = h;
     access->count = (MMU32)h->scenes + 1;
     access->entry = graph_entry;
@@ -115,32 +115,25 @@ static void graph_access(void *context, MMChunkAccess *access)
 }
 static int graph_read(void *context, void *request, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 size)
 {
-    const unsigned char header[] = {1, 0, 3, 3, 2, 0, 2, 0};
-    (void)context;
+    Host *h = context;
+    unsigned char header[] = {1, 0, 3, 3, 2, 0, 2, 0};
     (void)request;
     CHECK(!position && entry->type == 0x4d564945UL && size == sizeof(header));
+    event(h, 'v');
+    if (h->fail == FAIL_VERIFY)
+        header[6] = MM_MOVIE_CURRENT_VERSION + 1;
     memcpy(bytes, header, size);
     return MM_MOVIE_OK;
 }
-static int open_session(void *c, void *f, MMU32 *n, MMMovieSession **out)
+static void session_graph(void *file, MMMovieSessionGraph *out)
 {
-    Host *h = (Host *)c;
-    MMMovieSessionGraph graph;
-    int status;
-    CHECK(f == h);
-    event(h, 'v');
-    *n = h->root_number;
-    if (h->fail == FAIL_VERIFY)
-        return 0;
-    graph.context = h;
-    graph.access = graph_access;
-    graph.read = graph_read;
-    graph.payload = NULL;
-    graph.name = NULL;
-    h->opening = 1;
-    status = mm_movie_session_open_graph(&graph, NULL, n, out);
-    h->opening = 0;
-    return status == MM_MOVIE_OK;
+    MMMovieSessionGraph graph = {NULL, graph_access, graph_read, NULL, NULL};
+    graph.context = file;
+    *out = graph;
+}
+static void session_failed(void *file, int status)
+{
+    ((Host *)file)->open_error = status;
 }
 static void *new_resource(void *c, void *f)
 {
@@ -294,7 +287,7 @@ static MMMovieOwnerServices owners(Host *h)
 {
     MMMovieOwnerServices s = {
         NULL, {NULL, resize_rollcall, free_rollcall}, 0x0303, 0,
-        create, open_file, open_session, new_resource, release_file, release_resource,
+        create, open_file, {session_graph, session_failed}, new_resource, release_file, release_resource,
         file, owner_archive, owner_cache, {NULL, NULL, open_actor, close_actor},
         decode_rollcall, missing_rollcall, NULL,
         {NULL, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, NULL, load_name, set_name, NULL},
@@ -398,25 +391,29 @@ static void ownership(void)
     }
     h.fail = 0;
     seed_owner_movie(&h);
+    CHECK(!mm_movie_load(&m, &h, 99, &s) && !strcmp(h.log, "osf") &&
+          h.open_error == MM_MOVIE_ROOT_NOT_FOUND && m.resources == old_r && m.movieNumber == 0);
     for (i = 0; i < (int)(sizeof(load_failures) / sizeof(*load_failures)); ++i)
     {
         reset(&h);
         h.fail = load_failures[i];
-        CHECK(!mm_movie_load(&m, &h, 99, &s));
+        CHECK(!mm_movie_load(&m, &h, h.root_number, &s));
         CHECK(m.resources == old_r && m.actors.storage.buffers[1].data == old_entries && m.actors.count == 1 &&
               h.resources == 1 && h.buffers == 2 && ((Resource *)old_r)->refs == 2);
         CHECK(m.title.count == 3 && !memcmp(mm_movie_title_text(&m.title), "Old", 3));
+        if (h.fail == FAIL_VERIFY)
+            CHECK(!strcmp(h.log, "osvf") && h.open_error == MM_MOVIE_BAD_VERSION);
         if (h.fail == FAIL_MISSING)
-            CHECK(!strcmp(h.log, "ovrfi?R"));
+            CHECK(!strcmp(h.log, "osvrfi?R"));
         if (h.fail == FAIL_READ)
-            CHECK(!strcmp(h.log, "ovrfiR"));
+            CHECK(!strcmp(h.log, "osvrfiR"));
         CHECK(!h.archive.file_refs);
     }
     reset(&h);
     h.fail = 0;
     h.scenes = 2;
-    CHECK(mm_movie_load(&m, &h, 99, &s) && m.movieNumber == 7 && m.actorIdLimit == 1 && m.sceneCount == 2);
-    CHECK(!strcmp(h.log, "ovrfihnsssCRR") && h.resources == 1 && h.buffers == 2);
+    CHECK(mm_movie_load(&m, &h, 0xffffffffUL, &s) && m.movieNumber == 7 && m.actorIdLimit == 1 && m.sceneCount == 2);
+    CHECK(!strcmp(h.log, "osvrfihnsssCRR") && h.resources == 1 && h.buffers == 2);
     saved = owner_rollcall(&h);
     reset(&h);
     CHECK(mm_movie_save(&m, &s) && !strcmp(h.log, "jdNSP") && h.persistent == 1);
@@ -436,14 +433,17 @@ static void ownership(void)
     h.fail = 0;
     original = m.session;
     h.scenes = 3;
-    CHECK(mm_movie_state_scene_number(&m, 2, &number, &h, s.context, s.open_session) &&
+    CHECK(mm_movie_state_scene_number(&m, 2, &number, &h, &s.session) &&
           number == 3 && m.session == original);
+    m.movieNumber = 12;
+    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &h, &s.session) && h.open_error == MM_MOVIE_ROOT_NOT_FOUND &&
+          number == 3 && m.movieNumber == 12 && m.session == original);
     h.root_number = m.movieNumber = 11;
     h.fail = FAIL_VERIFY;
-    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &h, s.context, s.open_session) &&
-          number == 3 && m.session == original);
+    CHECK(!mm_movie_state_scene_number(&m, 0, &number, &h, &s.session) && h.open_error == MM_MOVIE_BAD_VERSION &&
+          number == 3 && m.movieNumber == 11 && m.session == original);
     h.fail = 0;
-    CHECK(mm_movie_state_scene_number(&m, 0, &number, &h, s.context, s.open_session) && number == 1 && m.session &&
+    CHECK(mm_movie_state_scene_number(&m, 0, &number, &h, &s.session) && number == 1 && m.session &&
           mm_movie_session_root(m.session)->number == 11);
     reset(&h);
     mm_movie_state_dispose(&m, &s);
@@ -956,12 +956,12 @@ static void runtime_lifecycle(void)
     RuntimeCase t;
     unsigned i;
     const char *failure_order[] = {
-        "kD", "kuD", "kuwD", "kuwqDW", "kuwq+[ovrfihnshg!fDRjAR-WQ]", "kuwq+[ovrfihnshgGymsKfDRFjAR-WQ]"};
+        "kD", "kuD", "kuwD", "kuwqDW", "kuwq+[osvrfihnshg!fDRjAR-WQ]", "kuwq+[osvrfihnshgGymsKfDRFjAR-WQ]"};
     for (i = PREPARE_FAILED; i <= CACHE_FAILED; ++i)
     {
         runtime_init(&t);
         t.fail = i;
-        CHECK(!mm_movie_runtime_open(&t.runtime, &t.client, &t.bundle, 99, 1, &t.services));
+        CHECK(!mm_movie_runtime_open(&t.runtime, &t.client, &t.bundle, 7, 1, &t.services));
         if (strcmp(t.archive.log, failure_order[i - 1]))
         {
             fprintf(stderr, "runtime failure %u: expected %s, saw %s\n", i, failure_order[i - 1], t.archive.log);
@@ -984,10 +984,10 @@ static void runtime_lifecycle(void)
     for (i = 0; i < 3; ++i)
     {
         runtime_init(&t);
-        CHECK(mm_movie_runtime_open(&t.runtime, &t.client, &t.bundle, 99, 1, &t.services));
+        CHECK(mm_movie_runtime_open(&t.runtime, &t.client, &t.bundle, 7, 1, &t.services));
         CHECK(t.movie.movieNumber == 7 && t.saved.containerNamed && t.saved.nameValid && !t.saved.readOnly &&
               t.container_name == &t.bundle && t.title_path == &t.bundle && !t.busy && !t.discarded);
-        CHECK(!strcmp(t.archive.log, "kuwq+[ovrfihnshgGymsKTyf]"));
+        CHECK(!strcmp(t.archive.log, "kuwq+[osvrfihnshgGymsKTyf]"));
         reset(&t.archive);
         mm_movie_runtime_set_ref(&t.runtime.thumbnail_palette, &t.palette, retain_runtime, release_runtime);
         mm_movie_runtime_set_ref(&t.runtime.thumbnail_palette, &t.palette, retain_runtime, release_runtime);

@@ -889,7 +889,7 @@ MMMovieSceneServices Movie::_SceneServices()
         }
 #endif
     };
-    s.open_session = MovieData::OpenSession;
+    s.session = MovieData::_SessionBinding();
     s.read = [](void *p, void *resources, MMU32 number, const MMMovieSession *session) -> void * {
         return Scene::PscenRead(static_cast<PMovie>(p), static_cast<PChunkyResourceFile>(resources), number, session);
     };

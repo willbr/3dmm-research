@@ -55,6 +55,16 @@ static void replace(MMMovieState *m, MMMovieState *fresh, const MMMovieOwnerServ
     *m = *fresh;
     mm_movie_state_init(fresh);
 }
+static int open_session(void *file, MMU32 *number, MMMovieSession **out, const MMMovieSessionBinding *s)
+{
+    MMMovieSessionGraph graph;
+    int status;
+    s->graph(file, &graph);
+    status = mm_movie_session_open_graph(&graph, NULL, number, out);
+    if (status != MM_MOVIE_OK && s->open_failed)
+        s->open_failed(file, status);
+    return status == MM_MOVIE_OK;
+}
 int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     MMMovieState fresh;
@@ -89,7 +99,7 @@ int mm_movie_load(MMMovieState *m, void *path, MMU32 number, const MMMovieOwnerS
     file = s->open_file(s->context, path);
     if (!file)
         return 0;
-    valid = s->open_session(s->context, file, &number, &loaded.session);
+    valid = open_session(file, &number, &loaded.session, &s->session);
     if (valid)
         loaded.resources = s->new_resources(s->context, file);
     if (!valid || !loaded.resources)
@@ -121,7 +131,7 @@ fail:
     return 0;
 }
 int mm_movie_state_scene_number(MMMovieState *m, MMU32 slot, MMU32 *number, void *file,
-                                 void *context, MMMovieOpenSession open_session)
+                                 const MMMovieSessionBinding *binding)
 {
     const MMMovieSessionRoot *root = mm_movie_session_root(m->session);
     MMMovieSession *opened;
@@ -130,7 +140,7 @@ int mm_movie_state_scene_number(MMMovieState *m, MMU32 slot, MMU32 *number, void
         return 0;
     if (!root || root->number != requested)
     {
-        if (!open_session(context, file, &requested, &opened))
+        if (!open_session(file, &requested, &opened, binding))
             return 0;
         mm_movie_session_close(m->session);
         m->session = opened;

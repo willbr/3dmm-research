@@ -160,7 +160,7 @@ int mm_movie_scene_close(const MMMovieSceneServices *s)
 }
 static int scene_number(MMI32 index, void *file, MMU32 *number, const MMMovieSceneServices *s)
 {
-    return mm_movie_state_scene_number(s->movie, (MMU32)index, number, file, s->context, s->open_session);
+    return mm_movie_state_scene_number(s->movie, (MMU32)index, number, file, &s->session);
 }
 static void *read_scene(MMI32 index, const MMMovieSceneServices *s)
 {
