@@ -16,6 +16,7 @@
 #include "clipboard_view_host.h"
 #include "mm/text_copy.h"
 ASSERTNAME
+#include "text_file_host.h"
 
 RTCLASS(TextDocumentByteStream)
 RTCLASS(TextDocumentByteStreamDisplay)
@@ -34,8 +35,9 @@ TextDocumentByteStream::TextDocumentByteStream(PDocumentBase pdocb, ulong grfdoc
 ***************************************************************************/
 TextDocumentByteStream::~TextDocumentByteStream(void)
 {
-    ReleasePpo(&_pbsf);
-    ReleasePpo(&_pfil);
+    TextFileDocumentHost host(this, _pbsf, _pfil);
+    auto objects = host.Objects();
+    mm_text_document_dispose(0, &objects);
 }
 
 /***************************************************************************
@@ -46,15 +48,35 @@ PTextDocumentByteStream TextDocumentByteStream::PtxdcNew(PFilename pfni, PFileBy
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
     AssertNilOrPo(pdocb, 0);
-    PTextDocumentByteStream ptxdc;
-
-    if (pvNil == (ptxdc = NewObj TextDocumentByteStream(pdocb, grfdoc)))
-        return pvNil;
-
-    if (!ptxdc->_FInit(pfni, pbsf))
-        ReleasePpo(&ptxdc);
-
-    return ptxdc;
+    struct Factory : TextDocumentFactoryHost
+    {
+        PFilename name;
+        PFileByteStream stream;
+        PDocumentBase parent;
+        ulong flags;
+    } host;
+    host.name = pfni;
+    host.stream = pbsf;
+    host.parent = pdocb;
+    host.flags = grfdoc;
+    const MMTextFactoryServices services = {
+        &host,
+        [](void *v, void **out) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard([&] {
+                *out = NewObj TextDocumentByteStream(h.parent, h.flags);
+                return *out != nullptr;
+            });
+        },
+        [](void *v, void *p) -> int {
+            auto &h = *static_cast<Factory *>(v);
+            return h.Guard([&] { return static_cast<PTextDocumentByteStream>(p)->_FInit(h.name, h.stream); });
+        },
+        [](void *, void *p) { static_cast<PTextDocumentByteStream>(p)->Release(); }, nullptr};
+    void *object;
+    mm_text_document_create(&object, 0, &services);
+    host.Rethrow();
+    return static_cast<PTextDocumentByteStream>(object);
 }
 
 /***************************************************************************
@@ -65,32 +87,13 @@ bool TextDocumentByteStream::_FInit(PFilename pfni, PFileByteStream pbsf)
     AssertNilOrPo(pfni, ffniFile);
     AssertNilOrPo(pbsf, 0);
 
-    if (pvNil != pfni)
-    {
-        if (pvNil == (_pfil = FileObject::PfilOpen(pfni)))
-            return fFalse;
-    }
-
-    if (pvNil != pbsf)
-    {
-        pbsf->AddRef();
-        _pbsf = pbsf;
-    }
-    else if (pvNil == (_pbsf = NewObj FileByteStream))
-        return fFalse;
-    else if (pvNil != _pfil && _pfil->FpMac() > 0)
-    {
-        // initialize the FileByteStream to just point to the file
-        FileLocation flo;
-
-        flo.pfil = _pfil;
-        flo.fp = 0;
-        flo.cb = _pfil->FpMac();
-        if (!_pbsf->FReplaceFlo(&flo, fFalse, 0, 0))
-            return fFalse;
-    }
-    AssertThis(0);
-    return fTrue;
+    TextFileDocumentHost host(this, _pbsf, _pfil);
+    auto services = host.Base();
+    int result = mm_text_base_init(MM_TEXT_RAW, nullptr, pfni, pbsf, 0, &services);
+    host.Rethrow();
+    if (result > 0)
+        AssertThis(0);
+    return result > 0;
 }
 
 /***************************************************************************
@@ -110,11 +113,11 @@ bool TextDocumentByteStream::FGetFni(Filename *pfni)
 {
     AssertThis(0);
     AssertBasePo(pfni, 0);
-    if (pvNil == _pfil || _pfil->FTemp())
-        return fFalse;
-
-    _pfil->GetFni(pfni);
-    return fTrue;
+    TextFileDocumentHost host(this, _pbsf, _pfil);
+    auto services = host.File();
+    int result = mm_text_document_name(MM_TEXT_RAW, pfni, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 /***************************************************************************
@@ -128,51 +131,12 @@ bool TextDocumentByteStream::FSaveToFni(Filename *pfni, bool fSetFni)
 {
     AssertThis(0);
     AssertNilOrPo(pfni, ffniFile);
-    FileLocation flo;
-    Filename fniT;
-
-    if (pvNil == pfni)
-    {
-        if (pvNil == _pfil)
-        {
-            Bug("Can't do a normal save - no file");
-            return fFalse;
-        }
-        _pfil->GetFni(&fniT);
-        pfni = &fniT;
-        fSetFni = fTrue;
-    }
-
-    if (pvNil == (flo.pfil = FileObject::PfilCreateTemp(pfni)))
-        goto LFail;
-
-    flo.fp = 0;
-    flo.cb = _pbsf->IbMac();
-    if (!_pbsf->FWriteRgb(&flo))
-        goto LFail;
-
-    // redirect the FileByteStream to the new file
-    if (fSetFni)
-        _pbsf->FReplaceFlo(&flo, fFalse, 0, flo.cb);
-
-    if (!flo.pfil->FSetFni(pfni))
-    {
-    LFail:
-        ReleasePpo(&flo.pfil);
-        return fFalse;
-    }
-    flo.pfil->SetTemp(fFalse);
-
-    if (fSetFni)
-    {
-        ReleasePpo(&_pfil);
-        _pfil = flo.pfil;
-        _fDirty = fFalse;
-    }
-    else
-        ReleasePpo(&flo.pfil);
-
-    return fTrue;
+    Filename fallback;
+    TextFileDocumentHost host(this, _pbsf, _pfil);
+    auto services = host.File();
+    int result = mm_text_document_save(MM_TEXT_RAW, nullptr, pfni, &fallback, fSetFni, &services);
+    host.Rethrow();
+    return result > 0;
 }
 
 #ifdef DEBUG

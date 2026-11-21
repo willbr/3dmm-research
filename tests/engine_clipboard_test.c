@@ -1,4 +1,5 @@
 #include "mm/clipboard.h"
+#include "mm/piece_table.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -230,7 +231,9 @@ typedef struct TextTransfer
     unsigned steps;
     int failure, deferred, foreign;
     MMI32 characters, inserted, deleted, requested;
-    unsigned char buffer[16];
+    MMPieceTable source, alternate, *published;
+    int switch_source, file_refs;
+    unsigned char buffer[2052];
 } TextTransfer;
 
 static int text_event(void *p, char code)
@@ -335,16 +338,39 @@ static int export_buffer(void *p, MMI32 bytes, MMI32 format, void **buffer)
     int status = text_event(p, 'a');
     CHECK(format == WIDE_FORMAT);
     t->requested = bytes;
+    if (t->switch_source)
+        t->published = &t->alternate;
     if (status > 0)
         *buffer = t->buffer;
     return status;
 }
 
-static int export_fetch(void *p, MMI32 bytes, void *buffer)
+static MMPieceTable *export_pieces(void *p)
 {
     TextTransfer *t = p;
-    CHECK(buffer == t->buffer && bytes == t->requested);
-    return text_event(p, 'f');
+    text_event(p, 'n');
+    return t->published;
+}
+
+static void export_retain(void *p, void *file)
+{
+    TextTransfer *t = p;
+    CHECK(file == t);
+    ++t->file_refs;
+}
+
+static void export_release(void *p, void *file)
+{
+    TextTransfer *t = p;
+    CHECK(file == t && t->file_refs > 0);
+    --t->file_refs;
+}
+
+static int export_read(void *p, const MMFilePiece *piece, void *buffer)
+{
+    TextTransfer *t = p;
+    CHECK(piece->file == t && !piece->offset && piece->length == 2048 && buffer == t->buffer);
+    return text_event(p, 'r') > 0;
 }
 
 static int export_end(void *p)
@@ -358,6 +384,9 @@ static void text_documents(void)
     unsigned char input[1026] = {0};
     MMClipboardTextImport import = {0};
     MMClipboardTextExport export = {0};
+    MMPieceFiles files = {0};
+    MMFilePiece piece;
+    unsigned i;
 
     memset(&t, 0, sizeof(t));
     t.input = input;
@@ -398,26 +427,50 @@ static void text_documents(void)
     CHECK(!strcmp(t.events, "gil0c0") && !t.slot);
 
     memset(&t, 0, sizeof(t));
+    files.context = &t;
+    files.retain = export_retain;
+    files.release = export_release;
+    files.read = export_read;
+    CHECK(mm_piece_table_init(&t.source, NULL, &files, 0) == MM_DATA_OK);
+    CHECK(mm_piece_table_init(&t.alternate, NULL, &files, 0) == MM_DATA_OK);
+    t.published = &t.source;
     export.context = &t;
     export.format = WIDE_FORMAT;
     export.unit = 2;
-    export.characters = export_characters;
+    export.pieces = export_pieces;
     export.begin = export_begin;
     export.buffer = export_buffer;
-    export.fetch = export_fetch;
     export.end = export_end;
-    t.characters = 1;
+    CHECK(mm_piece_table_replace(&t.source, 0, 0, "\r\0", 2) == MM_DATA_OK);
     CHECK(mm_clipboard_export_text(&export) == 1 && !strcmp(t.events, "n"));
     t.steps = 0;
-    t.characters = 5;
-    CHECK(mm_clipboard_export_text(&export) == 1 && !strcmp(t.events, "nbafe") && t.requested == 8);
+    CHECK(mm_piece_table_replace(&t.source, 0, 0, "a\0b\0\0\0c\0", 8) == MM_DATA_OK);
+    CHECK(mm_piece_table_replace(&t.alternate, 0, 0, "1\0\0\0\r\nX\0\r\0", 10) == MM_DATA_OK);
+    t.switch_source = 1;
+    memset(t.buffer, 0xa5, sizeof(t.buffer));
+    CHECK(mm_clipboard_export_text(&export) == 1 && !strcmp(t.events, "nbane") && t.requested == 8);
+    CHECK(!memcmp(t.buffer, "1\0\0\0\r\nX\0", 8) && t.buffer[8] == 0xa5);
+    t.switch_source = 0;
     t.steps = 0;
     t.fail = 'a';
     CHECK(mm_clipboard_export_text(&export) == 1 && !strcmp(t.events, "nbae"));
     t.steps = 0;
-    t.fail = 'f';
     t.failure = -2;
-    CHECK(mm_clipboard_export_text(&export) == -2 && !strcmp(t.events, "nbaf"));
+    CHECK(mm_clipboard_export_text(&export) == -2 && !strcmp(t.events, "nba"));
+
+    t.steps = 0;
+    t.published = &t.source;
+    t.fail = 'r';
+    t.failure = 0;
+    piece.file = &t;
+    piece.offset = 0;
+    piece.length = 2050;
+    CHECK(mm_piece_table_replace_file(&t.source, 0, t.source.length, &piece, 0) == MM_DATA_OK);
+    CHECK(mm_clipboard_export_text(&export) == 1 && !strcmp(t.events, "nbanre") && t.requested == 2048);
+    for (i = 0; i < 2048; ++i)
+        CHECK(t.buffer[i] == 0xa3);
+    CHECK(mm_piece_table_dispose(&t.alternate) == MM_DATA_OK);
+    CHECK(mm_piece_table_dispose(&t.source) == MM_DATA_OK && !t.file_refs);
 }
 
 int main(void)

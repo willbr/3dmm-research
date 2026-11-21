@@ -1,173 +1,32 @@
 #ifndef TEXT_DOCUMENT_HOST_H
 #define TEXT_DOCUMENT_HOST_H
-#include "handle_services.h"
-#include "mm/text_document.h"
+#include "text_file_host.h"
 #include "mm/text_materialize.h"
-// Typed owner slots and primitive I/O. C owns sequencing and reference transfers.
-struct TextDocumentFactoryHost
-{
-    std::exception_ptr exception;
-    template <class F> int Guard(F f)
-    {
-        try
-        {
-            return f();
-        }
-        catch (const std::bad_alloc &)
-        {
-            exception = std::current_exception();
-            return -1;
-        }
-        catch (...)
-        {
-            exception = std::current_exception();
-            return -2;
-        }
-    }
-    void Rethrow()
-    {
-        if (exception)
-            std::rethrow_exception(exception);
-    }
-};
-struct TextDocumentBase::DocumentHost : TextDocumentFactoryHost
+
+struct TextDocumentBase::DocumentHost : TextFileDocumentHost
 {
     TextDocumentBase *doc;
-    explicit DocumentHost(TextDocumentBase *p) : doc(p)
+    explicit DocumentHost(TextDocumentBase *p) : TextFileDocumentHost(p, p->_pbsf, p->_pfil), doc(p)
     {
-    }
-    virtual ~DocumentHost() = default;
-    virtual void *Get(int slot)
-    {
-        return slot == MM_TEXT_OWNER_STREAM ? static_cast<void *>(doc->_pbsf)
-               : slot == MM_TEXT_OWNER_FILE ? static_cast<void *>(doc->_pfil)
-                                            : nullptr;
-    }
-    virtual void Set(int slot, void *p)
-    {
-        if (slot == MM_TEXT_OWNER_STREAM)
-            doc->_pbsf = static_cast<PFileByteStream>(p);
-        else if (slot == MM_TEXT_OWNER_FILE)
-            doc->_pfil = static_cast<PFileObject>(p);
     }
     static MMTextDocumentConfig Config()
     {
         return {sizeof(achar), koskCur, RichTextStoreHost::NativeBig()};
     }
-    static MMPieceTable *Pieces(void *p)
-    {
-        return static_cast<PFileByteStream>(p)->CorePieces();
-    }
-    MMTextDocumentObjects Objects()
-    {
-        return {this, [](void *v, int slot) -> void * { return static_cast<DocumentHost *>(v)->Get(slot); },
-                [](void *v, int slot, void *p) { static_cast<DocumentHost *>(v)->Set(slot, p); },
-                [](void *, int, void *p) { static_cast<BASE *>(p)->AddRef(); },
-                [](void *, int, void *p) { static_cast<BASE *>(p)->Release(); }};
-    }
-    static void Diagnostic(void *, int kind)
-    {
-        if (kind == MM_TEXT_DOC_NO_FILE)
-            Bug("Can't do a normal save - no file");
-        else if (kind == MM_TEXT_DOC_ENCODING)
-            Bug("Can't translate a FileByteStream");
-        else
-            Bug("FileByteStream has a partial character");
-    }
     MMTextBaseServices Base()
     {
-        MMTextBaseServices s = {};
-        s.context = this;
-        s.objects = Objects();
-        s.diagnostic = Diagnostic;
-        s.pieces = Pieces;
-        s.file_bytes = [](void *, void *p) -> MMI32 { return static_cast<PFileObject>(p)->FpMac(); };
-        s.open = [](void *v, void *name, void **out) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                *out = FileObject::PfilOpen(static_cast<PFilename>(name));
-                return *out != nullptr;
-            });
-        };
-        s.new_stream = [](void *v, void **out) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                *out = NewObj FileByteStream;
-                return *out != nullptr;
-            });
-        };
+        auto s = TextFileDocumentHost::Base();
         s.load = [](void *v, int system) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
+            auto &h = *static_cast<DocumentHost *>(static_cast<TextFileDocumentHost *>(v));
             return h.Guard([&] { return h.doc->_FLoad(static_cast<short>(system)); });
         };
         s.translate = [](void *v, MMTextLocation *p, int system) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
+            auto &h = *static_cast<DocumentHost *>(static_cast<TextFileDocumentHost *>(v));
             auto location = RichTextStoreHost::Location(*p);
             int result = h.Guard([&] { return location.FTranslate(static_cast<short>(system)); });
             *p = RichTextStoreHost::Location(location);
             return result;
         };
-        return s;
-    }
-    MMTextFileServices File()
-    {
-        MMTextFileServices s = {};
-        s.context = this;
-        s.objects = Objects();
-        s.diagnostic = Diagnostic;
-        s.name = [](void *v, int profile, void *owner, void *out) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                if (profile == MM_TEXT_RICH)
-                    static_cast<PChunkyFile>(owner)->GetFni(static_cast<PFilename>(out));
-                else
-                    static_cast<PFileObject>(owner)->GetFni(static_cast<PFilename>(out));
-                return 1;
-            });
-        };
-        s.is_temp = [](void *, int profile, void *owner) -> int {
-            return profile == MM_TEXT_RICH ? 0 : static_cast<PFileObject>(owner)->FTemp();
-        };
-        s.pieces = Pieces;
-        s.handles = KauaiHandleServices();
-        s.files = KauaiBlockFileServices();
-        s.copy_allocator = KauaiCopyAllocator();
-        s.create = [](void *v, int profile, void *name, void **out) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                *out = profile == MM_TEXT_RICH
-                           ? static_cast<void *>(ChunkyFile::PcflCreateTemp(static_cast<PFilename>(name)))
-                           : static_cast<void *>(FileObject::PfilCreateTemp(static_cast<PFilename>(name)));
-                return *out != nullptr;
-            });
-        };
-        s.chunk = [](void *v, void *archive, int redirect) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                ChunkIdentification chunk;
-                return static_cast<RichTextDocument *>(h.doc)->FSaveToChunk(static_cast<PChunkyFile>(archive), &chunk,
-                                                                            redirect != 0);
-            });
-        };
-        s.save = [](void *v, void *archive) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] { return static_cast<PChunkyFile>(archive)->FSave(kctgFramework, nullptr); });
-        };
-        s.rename = [](void *v, int profile, void *owner, void *name) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                return profile == MM_TEXT_RICH ? static_cast<PChunkyFile>(owner)->FSetFni(static_cast<PFilename>(name))
-                                               : static_cast<PFileObject>(owner)->FSetFni(static_cast<PFilename>(name));
-            });
-        };
-        s.keep = [](void *, int profile, void *owner) {
-            if (profile == MM_TEXT_RICH)
-                static_cast<PChunkyFile>(owner)->SetTemp(false);
-            else
-                static_cast<PFileObject>(owner)->SetTemp(false);
-        };
-        s.clean = [](void *v) { static_cast<DocumentHost *>(v)->doc->_fDirty = false; };
-        s.error = [](void *, int kind) { PushErc(kind == MM_TEXT_DOC_READ ? ercRtxdReadFailed : ercRtxdSaveFailed); };
         return s;
     }
 };
@@ -197,6 +56,18 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
             rich->_pagcact = static_cast<PAllocatedGroup>(p);
         else
             TextDocumentBase::DocumentHost::Set(slot, p);
+    }
+    MMTextFileServices File()
+    {
+        auto s = TextFileDocumentHost::File();
+        s.chunk = [](void *v, void *archive, int redirect) -> int {
+            auto &h = *static_cast<DocumentHost *>(static_cast<TextFileDocumentHost *>(v));
+            return h.Guard([&] {
+                ChunkIdentification chunk;
+                return h.rich->FSaveToChunk(static_cast<PChunkyFile>(archive), &chunk, redirect != 0);
+            });
+        };
+        return s;
     }
     MMGroup ArgumentRows() const
     {

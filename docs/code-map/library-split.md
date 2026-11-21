@@ -2796,12 +2796,12 @@ final C-only host/facade removal remain work. Evidence and platform limits are i
 
 ### Text document file saves and resource lifecycle
 
-`text_document.c` controls plain/rich file-save transactions, base initialization/
-loading, rich initialization, document factory cleanup and stream/file/archive/
-property/argument release. Native host slots retain the current typed owners;
-C controls reference transfers and publication. Base initialization, plain-file
-load and save, and rich-text reopening share the C89 piece table access. File
-providers, font-table queries and virtual dispatch remain host services.
+`text_document.c` controls plain, rich and byte-stream file saves, initialization
+and loading, factory cleanup, and stream/file/archive/property/argument release.
+Native host slots retain the typed owners. C controls reference transfers and
+publication. Base initialization, plain and byte-stream I/O, and rich-text
+reopening share C89 piece table access. File providers, font-table queries and
+virtual dispatch remain host services.
 
 Base initialization opens the file before validating a borrowed stream, retains
 the stream before publishing it, and appends a native CR sentinel to that same
@@ -2810,6 +2810,8 @@ current piece table after the hook returns. Failure leaves partial owners for
 destruction. Default loading retains a mutable file location across translation,
 replaces the full piece table, and releases the translated location on every exit.
 Empty files skip translation. Empty translated output skips replacement.
+The byte-stream document retains borrowed streams as-is and loads named files
+directly into the piece table, with no translation or sentinel insertion.
 
 Rich opening holds its archive privately until the root read succeeds. Ordinary
 failure releases that archive before reporting a read error; partial live stream/
@@ -2819,11 +2821,12 @@ Factories release partial objects after failed initialization. The chunk-read
 factory reports an ordinary read error before release; allocation failure does not
 report a read error. Negative exception results unwind before native rethrow.
 
-Both file-save profiles select the current name and force adoption for normal
-saves. Copies preserve current owner and dirty state. Plain name queries reject
-temporary files; direct normal save still accepts an existing temporary owner.
+All file-save profiles select the current name and force adoption for normal
+saves. Copies preserve current owner and dirty state. Plain and byte-stream name
+queries reject temporary files. Direct normal save accepts an existing temporary owner.
 Plain output uses the C block writer to omit the sentinel and write a native
-UTF-16 BOM for two-byte units. The piece table redirects the saved payload on
+UTF-16 BOM for two-byte units. Byte-stream saves write the complete source byte
+range with no BOM insertion. The piece table redirects the saved payload on
 adoption. Plain stream redirection and rich chunk redirection precede renaming.
 Ordinary redirect failure remains best effort. Rename failure releases the
 temporary owner without rolling back prior stream redirection. Success clears
@@ -3283,8 +3286,9 @@ calls, and document factories and references.
 Clipboard text materialization and document export also run in C89. An import
 reuses a text document when possible and creates a rich-text document when
 needed. Deferred imports keep the document identity and defer replacement
-only above 1,024 bytes. Export omits the terminal character and ends the
-session even when allocating its payload buffer fails.
+only above 1,024 bytes. Export omits the terminal character and reads the current
+piece table after allocating the payload buffer. It ends the session on ordinary
+allocation and file-read failures.
 
 The SDL Studio probe matched before and after for external text import,
 mixed line endings, local document identity, staged export, and clearing.

@@ -2429,6 +2429,11 @@ static bool TestCaptionPersistence(PScene scene)
         goto done;
     if (!TestTextDocumentFiles(scene, file))
         goto done;
+    if (!TestByteDocumentFiles())
+    {
+        std::fprintf(stderr, "[document] byte-stream save or reopen changed the source bytes\n");
+        goto done;
+    }
     if (!TestTextMaterialization())
         goto done;
     if (!TestTextProperties())

@@ -10,7 +10,8 @@ extern "C"
     enum
     {
         MM_TEXT_PLAIN,
-        MM_TEXT_RICH
+        MM_TEXT_RICH,
+        MM_TEXT_RAW
     };
     enum
     {
@@ -99,12 +100,14 @@ extern "C"
      * before publication and gain a native CR sentinel. A virtual load hook may
      * replace the published stream; the sentinel is appended to its current owner.
      * Translation owns a retained, mutable file location and releases its final
-     * owner on all exits. Piece and block operations use nonthrowing services.
+     * owner on all exits. Raw initialization needs no character config, loads
+     * a named file as bytes, and skips alignment, translation and the sentinel.
+     * Piece and block operations use nonthrowing services.
      * Rich open holds its archive privately until a successful read, releasing before
      * ordinary read errors. New rich documents use width-eight groups, grow ten and
      * height twelve. Factory failures release the partial object before native rethrow;
      * ordinary chunk-read errors precede object release like the original factory. */
-    int mm_text_base_init(const MMTextDocumentConfig *, void *name, void *borrowed_stream, int encoding,
+    int mm_text_base_init(int profile, const MMTextDocumentConfig *, void *name, void *borrowed_stream, int encoding,
                           const MMTextBaseServices *);
     int mm_text_base_load(int encoding, const MMTextBaseServices *);
     int mm_text_rich_init(const MMTextDocumentConfig *, void *name, MMU32 type, const MMTextRichInitServices *);
@@ -112,7 +115,8 @@ extern "C"
     int mm_text_document_create(void **owned, int read_error, const MMTextFactoryServices *);
     /* Normal save selects the current name and forces adoption. Copies preserve the
      * current owner/dirty flag. Plain writes omit the stream sentinel, prepend a native
-     * UTF-16 BOM for two-byte units, and redirect before renaming; rich chunk saves also
+     * UTF-16 BOM for two-byte units, and redirect before renaming. Raw saves use all
+     * source bytes without a BOM or character config. Rich chunk saves also
      * redirect before container commit/rename. Ordinary redirect failure is ignored.
      * Failure releases the temporary owner but does not undo stream redirection.
      * Successful rename clears temporary status; adoption releases old owner, transfers

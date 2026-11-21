@@ -116,7 +116,7 @@ static int write_file(void *v, void *p, MMU32 offset, const void *data, size_t c
 {
     Host *h = (Host *)v;
     Token *t = (Token *)p;
-    int r = step(h, h->config.unit == 2 && offset == 0 ? 'B' : 'W');
+    int r = step(h, h->profile == MM_TEXT_PLAIN && h->config.unit == 2 && offset == 0 ? 'B' : 'W');
     CHECK(t == h->tokens + 5 && t->refs && offset == (MMU32)t->bytes && count <= sizeof(t->data) - offset);
     if (r <= 0)
         return 0;
@@ -508,12 +508,13 @@ static void file_owners(Host *h, int profile)
     h->tokens[profile == MM_TEXT_RICH ? 2 : 0].refs = 1;
     h->slots[1] = h->tokens + 1;
     h->tokens[1].refs = 1;
-    if (profile == MM_TEXT_PLAIN)
+    if (profile != MM_TEXT_RICH)
     {
         h->saving = 1;
         init_stream(h, h->tokens + 1);
         initial[h->config.unit == 2 && h->config.big ? 5 : 4] = 13;
-        CHECK(mm_piece_table_replace(pieces(h->slots[1]), 0, 0, initial, 4 + h->config.unit) == MM_DATA_OK);
+        CHECK(mm_piece_table_replace(pieces(h->slots[1]), 0, 0, initial,
+                                     profile == MM_TEXT_RAW ? 5 : 4 + h->config.unit) == MM_DATA_OK);
     }
 }
 static void saves(void)
@@ -521,8 +522,9 @@ static void saves(void)
     Host h;
     int profile, adopt, normal, big, partial, f, i, n, r, expected;
     const unsigned char *data;
+    const MMTextDocumentConfig *config;
     unsigned unit;
-    for (profile = 0; profile < 2; ++profile)
+    for (profile = MM_TEXT_PLAIN; profile <= MM_TEXT_RAW; ++profile)
         for (unit = 1; unit <= 2; ++unit)
             for (big = 0; big < 2; ++big)
                 for (adopt = 0; adopt < 2; ++adopt)
@@ -530,7 +532,8 @@ static void saves(void)
                     {
                         setup(&h, unit, big);
                         file_owners(&h, profile);
-                        CHECK(mm_text_document_save(profile, &h.config, normal ? 0 : &h.requested, &h.fallback, adopt,
+                        config = profile == MM_TEXT_RAW ? NULL : &h.config;
+                        CHECK(mm_text_document_save(profile, config, normal ? 0 : &h.requested, &h.fallback, adopt,
                                                     &h.file) == 1 &&
                               !h.save_errors);
                         CHECK(h.dirty == (!(adopt || normal)) && h.names == normal &&
@@ -538,6 +541,9 @@ static void saves(void)
                                                     h.tokens + (profile == MM_TEXT_RICH ? 7 : 5)));
                         if (profile == MM_TEXT_RICH)
                             CHECK(h.redirect_flag == (adopt || normal));
+                        else if (profile == MM_TEXT_RAW)
+                            CHECK(h.tokens[5].bytes == 5 && !memcmp(h.tokens[5].data, "ABCD", 4) &&
+                                  h.tokens[5].data[4] == (unit == 2 && big ? 0 : 13) && h.redirected == (adopt || normal));
                         else
                         {
                             data = h.tokens[5].data;
@@ -558,7 +564,7 @@ static void saves(void)
                                     h.partial = partial;
                                     h.fail_at = i;
                                     h.failure = f;
-                                    r = mm_text_document_save(profile, &h.config, normal ? 0 : &h.requested,
+                                    r = mm_text_document_save(profile, config, normal ? 0 : &h.requested,
                                                               &h.fallback, adopt, &h.file);
                                     if (h.failed == 'D')
                                         CHECK(r == 1 && !h.dirty && !h.save_errors);
@@ -571,7 +577,7 @@ static void saves(void)
                                         CHECK(h.save_errors == (!f && profile == MM_TEXT_RICH && h.failed != 'N'));
                                         if (h.save_errors && (h.partial || h.failed != 'C'))
                                             CHECK(strchr(h.log, 'x') < strchr(h.log, 'E'));
-                                        if (h.failed == 'R' && profile == MM_TEXT_PLAIN && (adopt || normal))
+                                        if (h.failed == 'R' && profile != MM_TEXT_RICH && (adopt || normal))
                                             CHECK(h.redirected && !h.tokens[5].refs && h.tokens[5].temp &&
                                                   strchr(h.log, 'D') < strchr(h.log, 'R'));
                                     }
@@ -581,7 +587,7 @@ static void saves(void)
     setup(&h, 1, 0);
     CHECK(!mm_text_document_save(MM_TEXT_RICH, &h.config, 0, &h.fallback, 0, &h.file) &&
           h.diagnostic == MM_TEXT_DOC_NO_FILE + 1 && !h.calls && !h.save_errors);
-    for (profile = 0; profile < 2; ++profile)
+    for (profile = MM_TEXT_PLAIN; profile <= MM_TEXT_RAW; ++profile)
     {
         setup(&h, 1, 0);
         file_owners(&h, profile);
@@ -589,7 +595,8 @@ static void saves(void)
         h.returned = 22;
         CHECK(mm_text_document_name(profile, &h.returned, &h.file) == (profile == MM_TEXT_RICH) &&
               h.returned == (profile == MM_TEXT_RICH ? 99 : 22));
-        CHECK(mm_text_document_save(profile, &h.config, 0, &h.fallback, 0, &h.file) == 1 && !h.dirty);
+        CHECK(mm_text_document_save(profile, profile == MM_TEXT_RAW ? NULL : &h.config, 0, &h.fallback, 0, &h.file) == 1 &&
+              !h.dirty);
         dispose(&h);
     }
 }
@@ -615,7 +622,7 @@ static void base_init(void)
                     {
                         setup(&h, unit, big);
                         h.change_file = change;
-                        CHECK(mm_text_base_init(&h.config, named ? &h.requested : 0, borrow ? borrowed(&h, 4) : 0,
+                        CHECK(mm_text_base_init(MM_TEXT_PLAIN, &h.config, named ? &h.requested : 0, borrow ? borrowed(&h, 4) : 0,
                                                 h.config.system, &h.base) == 1);
                         stream = pieces(h.slots[1]);
                         bytes = named || borrow ? 4 : 0;
@@ -636,37 +643,57 @@ static void base_init(void)
                                     h.partial = partial;
                                     h.fail_at = i;
                                     h.failure = f;
-                                    r = mm_text_base_init(&h.config, named ? &h.requested : 0,
+                                    r = mm_text_base_init(MM_TEXT_PLAIN, &h.config, named ? &h.requested : 0,
                                                           borrow ? borrowed(&h, 4) : 0, h.config.system, &h.base);
                                     CHECK(r == (h.failed == 'P' ? 0 : f));
                                     dispose(&h);
                                 }
                     }
     setup(&h, 2, 0);
-    CHECK(!mm_text_base_init(&h.config, &h.requested, h.tokens + 10, 0x202, &h.base) &&
+    CHECK(!mm_text_base_init(MM_TEXT_PLAIN, &h.config, &h.requested, h.tokens + 10, 0x202, &h.base) &&
           h.diagnostic == MM_TEXT_DOC_ENCODING + 1 && h.slots[0] && !h.slots[1]);
     dispose(&h);
     setup(&h, 2, 0);
-    CHECK(!mm_text_base_init(&h.config, 0, borrowed(&h, 3), h.config.system, &h.base) &&
+    CHECK(!mm_text_base_init(MM_TEXT_PLAIN, &h.config, 0, borrowed(&h, 3), h.config.system, &h.base) &&
           h.diagnostic == MM_TEXT_DOC_PARTIAL_CHAR + 1 && h.tokens[10].refs == 1 && !h.slots[1]);
     dispose(&h);
     setup(&h, 1, 0);
     h.translated_empty = 1;
-    CHECK(mm_text_base_init(&h.config, &h.requested, 0, h.config.system, &h.base) == 1 && !strchr(h.log, 'P'));
+    CHECK(mm_text_base_init(MM_TEXT_PLAIN, &h.config, &h.requested, 0, h.config.system, &h.base) == 1 && !strchr(h.log, 'P'));
     dispose(&h);
     setup(&h, 1, 0);
     h.tokens[5].bytes = 0;
-    CHECK(mm_text_base_init(&h.config, &h.requested, 0, h.config.system, &h.base) == 1 && !strchr(h.log, 'T'));
+    CHECK(mm_text_base_init(MM_TEXT_PLAIN, &h.config, &h.requested, 0, h.config.system, &h.base) == 1 && !strchr(h.log, 'T'));
     dispose(&h);
     setup(&h, 1, 0);
     h.load_replacement = 1;
-    CHECK(mm_text_base_init(&h.config, 0, 0, h.config.system, &h.base) == 1 && h.slots[1] == h.tokens + 11 &&
+    CHECK(mm_text_base_init(MM_TEXT_PLAIN, &h.config, 0, 0, h.config.system, &h.base) == 1 && h.slots[1] == h.tokens + 11 &&
           pieces(h.slots[1])->length == 3 && !h.tokens[6].refs && !h.tokens[6].live);
     CHECK(mm_piece_table_read(pieces(h.slots[1]), 0, content, 3) == MM_DATA_OK && !memcmp(content, "xy\r", 3));
     dispose(&h);
     setup(&h, 1, 0);
     h.refuse_allocation = 1;
-    CHECK(!mm_text_base_init(&h.config, 0, 0, h.config.system, &h.base) && h.slots[1] && !pieces(h.slots[1])->length);
+    CHECK(!mm_text_base_init(MM_TEXT_PLAIN, &h.config, 0, 0, h.config.system, &h.base) && h.slots[1] && !pieces(h.slots[1])->length);
+    dispose(&h);
+}
+static void raw_init(void)
+{
+    Host h;
+    unsigned char content[5];
+    static const unsigned char raw[] = {0xef, 0xbb, 0xbf, 0, 13};
+    MMPieceTable *stream;
+    setup(&h, 2, 1);
+    h.tokens[5].bytes = sizeof(raw);
+    memcpy(h.tokens[5].data, raw, sizeof(raw));
+    CHECK(mm_text_base_init(MM_TEXT_RAW, NULL, &h.requested, NULL, 0, &h.base) == 1);
+    stream = pieces(h.slots[1]);
+    CHECK(stream->length == sizeof(raw) && mm_piece_table_read(stream, 0, content, sizeof(content)) == MM_DATA_OK);
+    CHECK(!memcmp(raw, content, sizeof(content)) && !strchr(h.log, 'L') && !strchr(h.log, 'T'));
+    dispose(&h);
+    setup(&h, 2, 1);
+    CHECK(mm_text_base_init(MM_TEXT_RAW, NULL, &h.requested, borrowed(&h, 3), 0, &h.base) == 1);
+    CHECK(h.slots[1] == h.tokens + 10 && h.tokens[10].refs == 2 && pieces(h.slots[1])->length == 3);
+    CHECK(!strchr(h.log, 'P') && !strchr(h.log, 'T') && !strchr(h.log, 'S'));
     dispose(&h);
 }
 static void file_backed_text(void)
@@ -681,7 +708,7 @@ static void file_backed_text(void)
     h.tokens[5].bytes = 2048;
     h.tokens[9].bytes = 2050;
     memset(h.tokens[9].data + 2, 'T', 2048);
-    CHECK(mm_text_base_init(&h.config, &h.requested, NULL, h.config.system, &h.base) == 1);
+    CHECK(mm_text_base_init(MM_TEXT_PLAIN, &h.config, &h.requested, NULL, h.config.system, &h.base) == 1);
     stream = pieces(h.slots[1]);
     CHECK(mm_piece_table_get(stream, 0, &saved, NULL) == MM_DATA_OK);
     CHECK(saved.file == h.tokens + 9 && saved.offset == 2 && saved.length == 2048 && h.tokens[9].refs == 1);
@@ -784,6 +811,7 @@ int main(void)
 {
     saves();
     base_init();
+    raw_init();
     file_backed_text();
     rich_init();
     factories();

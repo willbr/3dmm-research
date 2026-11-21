@@ -106,15 +106,15 @@ typedef struct MMClipboardTextImport
     int (*resume)(void *, void *document);
 } MMClipboardTextImport;
 
+struct MMPieceTable;
 typedef struct MMClipboardTextExport
 {
     void *context;
     MMI32 format;
     unsigned unit;
-    int (*characters)(void *, MMI32 *count);
+    struct MMPieceTable *(*pieces)(void *);
     int (*begin)(void *);
     int (*buffer)(void *, MMI32 bytes, MMI32 format, void **out);
-    int (*fetch)(void *, MMI32 bytes, void *destination);
     int (*end)(void *);
 } MMClipboardTextExport;
 
@@ -123,8 +123,9 @@ typedef struct MMClipboardTextExport
  * document to the caller's slot. A delay callback allows inputs larger
  * than 1024 bytes to defer replacement. Ordinary replacement failure still
  * resumes undo and reports supported. Export closes a started session
- * even when there is no buffer. Negative callbacks return the native
- * exception immediately with the effects already completed. */
+ * even when there is no buffer. It reads the current piece table after buffer
+ * allocation and keeps its unreadable-byte behavior. Negative callbacks return
+ * the native exception immediately with the effects already completed. */
 int mm_clipboard_import_text(MMI32 format, void *data, MMI32 bytes, const MMClipboardTextImport *);
 int mm_clipboard_export_text(const MMClipboardTextExport *);
 

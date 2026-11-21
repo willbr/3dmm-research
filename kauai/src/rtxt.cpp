@@ -119,7 +119,7 @@ bool TextDocumentBase::_FInit(PFilename pfni, PFileByteStream pbsf, short osk)
     DocumentHost host(this);
     auto services = host.Base();
     auto config = host.Config();
-    int result = mm_text_base_init(&config, pfni, pbsf, osk, &services);
+    int result = mm_text_base_init(MM_TEXT_PLAIN, &config, pfni, pbsf, osk, &services);
     host.Rethrow();
     if (result > 0)
         AssertThis(fobjAssertFull);
@@ -615,9 +615,10 @@ void TextDocumentBase::ExportFormats(PClipboardObject pclip)
     host.clipboard = pclip;
     const MMClipboardTextExport services = {
         &host, kclfmText, sizeof(achar),
-        [](void *p, MMI32 *count) {
-            auto &h = ExportHost::Get(p);
-            return h.Guard([&] { *count = h.document->CpMac(); return 1; });
+        [](void *p) {
+            auto *pieces = ExportHost::Get(p).document->_pbsf->CorePieces();
+            Assert(pieces->length % sizeof(achar) == 0, "stream has a partial character");
+            return pieces;
         },
         [](void *p) {
             auto &h = ExportHost::Get(p);
@@ -626,10 +627,6 @@ void TextDocumentBase::ExportFormats(PClipboardObject pclip)
         [](void *p, MMI32 bytes, MMI32 format, void **out) {
             auto &h = ExportHost::Get(p);
             return h.Guard([&] { *out = h.clipboard->PvExport(bytes, format); return *out != nullptr; });
-        },
-        [](void *p, MMI32 bytes, void *destination) {
-            auto &h = ExportHost::Get(p);
-            return h.Guard([&] { h.document->_pbsf->FetchRgb(0, bytes, destination); return 1; });
         },
         [](void *p) {
             auto &h = ExportHost::Get(p);

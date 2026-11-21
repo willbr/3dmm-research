@@ -1135,6 +1135,8 @@ file-save transactions, base initialization/loading, rich initialization/factori
 and stream/file/archive/property/argument release control now also use C89.
 Plain initialization loads into and appends the sentinel through the C89 piece
 table. Plain saves write and redirect via C89 blocks and piece tables.
+Byte-stream documents share that ownership and save path and preserve all bytes
+without translation or a sentinel.
 Stored-to-live rich-text loading, property/argument byte normalization and default
 font argument opening now also use C89, preserving virtual extension hooks.
 Studio reopens rich text through the C piece table and normalizes the published
@@ -1163,6 +1165,7 @@ C89 reads and locks live argument payloads during copy, object fetch, help group
 queries and help drawing. Object fetch reacquires the argument after allocation.
 Line text, rich text and byte-stream views share C89 clipboard selection,
 format choice, reference handling, and edit sequencing.
+Text clipboard export reads the current C89 piece table after buffer allocation.
 Text undo counters, pending transactions and rich snapshot record construction,
 combination and undo/redo replay now also use C89 with plain C control/record data.
 Generic document undo admission, replay, redo clearing, limit trimming and release

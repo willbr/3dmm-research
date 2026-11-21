@@ -28,6 +28,56 @@ static bool RawDocumentFile(LiveTextTrace &t, Filename &name)
     ReleasePpo(&file);
     return ok && t.Word(unsigned(bytes.size())) && t.Raw(bytes.data(), bytes.size());
 }
+static bool TestByteDocumentFiles()
+{
+    byte expected[] = {0xef, 0xbb, 0xbf, 0, '\r'};
+    for (LegacyLong length : {LegacyLong(0), LegacyLong(sizeof(expected))})
+    {
+        Filename copy, adopt, current;
+        if (!copy.FGetTemp() || !adopt.FGetTemp())
+            return false;
+        auto matches_file = [&](Filename &name) {
+            auto file = FileObject::PfilOpen(&name);
+            byte bytes[sizeof(expected)];
+            const bool ok = file && file->FpMac() == length &&
+                            (!length || (file->FReadRgb(bytes, length, 0) && !std::memcmp(bytes, expected, length)));
+            ReleasePpo(&file);
+            return ok;
+        };
+        auto stream = NewObj FileByteStream;
+        auto doc = stream && stream->FReplace(expected, length, 0, 0)
+                       ? TextDocumentByteStream::PtxdcNew(nullptr, stream)
+                       : nullptr;
+        if (doc)
+            doc->SetDirty();
+        bool ok = doc && doc->Pbsf() == stream && stream->CactRef() == 2 && stream->IbMac() == length &&
+                  !doc->FGetFni(&current) && doc->FSaveToFni(&copy, false) && doc->FDirty() && !doc->FGetFni(&current) &&
+                  matches_file(copy) && doc->FSaveToFni(&adopt, true) && !doc->FDirty() && doc->FGetFni(&current) &&
+                  current.FEqual(&adopt) && matches_file(adopt);
+        if (ok)
+        {
+            doc->SetDirty();
+            ok = doc->FSaveToFni(nullptr, false) && !doc->FDirty() && matches_file(adopt);
+        }
+        ReleasePpo(&doc);
+        ReleasePpo(&stream);
+        if (ok)
+        {
+            doc = TextDocumentByteStream::PtxdcNew(&adopt);
+            ok = doc && doc->Pbsf()->IbMac() == length && doc->FGetFni(&current) && current.FEqual(&adopt);
+            if (ok && length)
+            {
+                byte bytes[sizeof(expected)];
+                doc->Pbsf()->FetchRgb(0, length, bytes);
+                ok = std::memcmp(bytes, expected, length) == 0;
+            }
+            ReleasePpo(&doc);
+        }
+        if (!ok || !copy.FDelete() || !adopt.FDelete())
+            return false;
+    }
+    return true;
+}
 static bool RichDocumentFile(LiveTextTrace &t, Filename &name)
 {
     auto file = ChunkyFile::PcflOpen(&name, fcflNil);

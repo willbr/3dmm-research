@@ -50,15 +50,31 @@ int mm_text_base_load(int encoding, const MMTextBaseServices *s)
         o->release(o->context, MM_TEXT_OWNER_FILE, location.file);
     return r;
 }
-int mm_text_base_init(const MMTextDocumentConfig *c, void *name, void *stream, int encoding,
+static int load_raw(const MMTextBaseServices *s)
+{
+    const MMTextDocumentObjects *o = &s->objects;
+    MMFilePiece piece;
+    MMI32 bytes;
+    piece.file = o->get(o->context, MM_TEXT_OWNER_FILE);
+    if (!piece.file)
+        return 1;
+    bytes = s->file_bytes(s->context, piece.file);
+    if (bytes <= 0)
+        return 1;
+    piece.offset = 0;
+    piece.length = (MMU32)bytes;
+    return mm_piece_table_replace_file(s->pieces(o->get(o->context, MM_TEXT_OWNER_STREAM)), 0, 0, &piece, 0) ==
+           MM_DATA_OK;
+}
+int mm_text_base_init(int profile, const MMTextDocumentConfig *c, void *name, void *stream, int encoding,
                       const MMTextBaseServices *s)
 {
     const MMTextDocumentObjects *o = &s->objects;
     MMPieceTable *pieces;
     void *owner = 0;
-    int r;
+    int r, raw = profile == MM_TEXT_RAW;
     unsigned char cr[2];
-    if (c->unit != 1 && c->unit != 2)
+    if (!raw && (c->unit != 1 && c->unit != 2))
         return 0;
     if (name)
     {
@@ -69,12 +85,12 @@ int mm_text_base_init(const MMTextDocumentConfig *c, void *name, void *stream, i
     }
     if (stream)
     {
-        if (encoding != c->system)
+        if (!raw && encoding != c->system)
         {
             s->diagnostic(s->context, MM_TEXT_DOC_ENCODING);
             return 0;
         }
-        if (s->pieces(stream)->length % c->unit)
+        if (!raw && s->pieces(stream)->length % c->unit)
         {
             s->diagnostic(s->context, MM_TEXT_DOC_PARTIAL_CHAR);
             return 0;
@@ -89,10 +105,12 @@ int mm_text_base_init(const MMTextDocumentConfig *c, void *name, void *stream, i
         o->set(o->context, MM_TEXT_OWNER_STREAM, owner);
         if (r <= 0)
             return r;
-        r = s->load(s->context, encoding);
+        r = raw ? load_raw(s) : s->load(s->context, encoding);
         if (r <= 0)
             return r;
     }
+    if (raw)
+        return 1;
     /* A virtual load hook may replace the published stream. */
     pieces = s->pieces(o->get(o->context, MM_TEXT_OWNER_STREAM));
     cr[0] = 13;
@@ -168,11 +186,11 @@ static int slot(int profile)
 int mm_text_document_name(int profile, void *name, const MMTextFileServices *s)
 {
     void *owner = s->objects.get(s->objects.context, slot(profile));
-    if (!owner || (profile == MM_TEXT_PLAIN && s->is_temp(s->context, profile, owner)))
+    if (!owner || (profile != MM_TEXT_RICH && s->is_temp(s->context, profile, owner)))
         return 0;
     return s->name(s->context, profile, owner, name);
 }
-static int save_plain(const MMTextDocumentConfig *c, void *temporary, int adopt, const MMTextFileServices *s)
+static int save_stream(const MMTextDocumentConfig *c, void *temporary, int adopt, const MMTextFileServices *s)
 {
     const MMTextDocumentObjects *o = &s->objects;
     MMPieceTable *pieces = s->pieces(o->get(o->context, MM_TEXT_OWNER_STREAM));
@@ -181,15 +199,16 @@ static int save_plain(const MMTextDocumentConfig *c, void *temporary, int adopt,
     MMFilePiece piece;
     MMBlockIO io;
     unsigned char bom[2];
+    unsigned sentinel = c ? c->unit : 0;
     int ok = 1;
-    if (pieces->length < c->unit || mm_owned_block_init(&block, s->handles, s->files) != MM_DATA_OK)
+    if (pieces->length < sentinel || mm_owned_block_init(&block, s->handles, s->files) != MM_DATA_OK)
         return 0;
     location.file = temporary;
     location.offset = 0;
-    location.length = c->unit == 2 ? pieces->length : pieces->length - c->unit;
+    location.length = sentinel == 2 ? pieces->length : pieces->length - sentinel;
     if (mm_owned_block_set_file(&block, &location, 0) != MM_DATA_OK)
         return 0;
-    if (c->unit == 2)
+    if (sentinel == 2)
     {
         bom[c->big ? 1 : 0] = 0xff;
         bom[c->big ? 0 : 1] = 0xfe;
@@ -212,7 +231,7 @@ int mm_text_document_save(int profile, const MMTextDocumentConfig *c, void *name
     const MMTextDocumentObjects *o = &s->objects;
     void *current, *temporary = 0;
     int r, kind = slot(profile);
-    if (c->unit != 1 && c->unit != 2)
+    if (profile != MM_TEXT_RAW && (c->unit != 1 && c->unit != 2))
         return 0;
     if (!name)
     {
@@ -242,7 +261,7 @@ int mm_text_document_save(int profile, const MMTextDocumentConfig *c, void *name
     }
     else
     {
-        r = save_plain(c, temporary, adopt, s);
+        r = save_stream(profile == MM_TEXT_RAW ? NULL : c, temporary, adopt, s);
         if (!r)
             goto fail;
     }

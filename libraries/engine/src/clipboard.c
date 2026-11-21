@@ -1,4 +1,5 @@
 #include "mm/clipboard.h"
+#include "mm/piece_table.h"
 
 #define CALL(op) s->call(s->context, op, &q)
 #define TRY(value) do { int status_ = (value); if (status_ < 0) return status_; } while (0)
@@ -403,23 +404,22 @@ int mm_clipboard_import_text(MMI32 format, void *data, MMI32 bytes, const MMClip
 
 int mm_clipboard_export_text(const MMClipboardTextExport *s)
 {
-    MMI32 count;
-    MMU32 bytes;
+    MMU32 count, bytes;
     void *buffer = 0;
     int result;
 
-    TRY(s->characters(s->context, &count));
+    if (s->unit != 1 && s->unit != 2)
+        return 0;
+    count = s->pieces(s->context)->length / s->unit;
     if (count <= 1)
         return 1;
-    bytes = (MMU32)(count - 1) * s->unit;
-    if (bytes > 0x7fffffffUL)
-        return 0;
+    bytes = (count - 1) * s->unit;
     result = s->begin(s->context);
     if (result <= 0)
         return result;
     TRY(s->buffer(s->context, (MMI32)bytes, s->format, &buffer));
     if (buffer)
-        TRY(s->fetch(s->context, (MMI32)bytes, buffer));
+        mm_piece_table_read(s->pieces(s->context), 0, buffer, bytes);
     return s->end(s->context);
 }
 

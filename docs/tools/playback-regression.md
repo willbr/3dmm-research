@@ -18244,3 +18244,24 @@ canvases and matched the archived retail frame identities in seek and continuous
 playback. All retail seek cameras matched. The three visible-caption frames
 still differ from retail. SDL retained the caption text, right alignment,
 Times New Roman font and visibility window. Logs are in `tmp/c89-text-cache-storage`.
+
+## C89 byte-stream documents and clipboard export (21 November 2026)
+
+Byte-stream documents share C89 file ownership, load, save and redirection with
+plain-text documents. Their copy, adopt, normal save and reopen fixture preserves
+empty data and an odd-length payload with BOM bytes, an embedded zero and a
+trailing carriage return. Clipboard export reads the published piece table after
+buffer allocation and excludes the document sentinel. Its C fixture checks
+source republishing, session completion on ordinary allocation and read failure,
+and poisoned bytes on a file-read failure.
+
+All 192 standalone C checks, eight focused AddressSanitizer checks, 16 native
+C89 and Marcus checks, and the SDL clipboard test passed. Native x64, native x86
+and SDL reproduced 27 earlier binary traces and the Help display fingerprints.
+Studio also reproduced its authored movie byte for byte.
+
+In `20261121T065251Z-260ac408`, SDL and Marcus reproduced all 11 previous seek
+canvases and matched the archived retail frame identities in seek and continuous
+playback and all retail seek cameras. The three visible-caption frames still
+differ from retail. SDL retained the caption text, alignment, font and visibility
+window. Logs are in `tmp/c89-byte-document-clipboard`.
