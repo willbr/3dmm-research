@@ -63,49 +63,40 @@ void mm_help_topic_encode(const MMHelpTopic *p, int system, int big, unsigned ch
 }
 int mm_help_open_argument(MMI32 index, unsigned kind, int order, int system, int big, const MMHelpArgumentServices *s)
 {
-    unsigned char b[8];
-    MMU32 type;
-    MMI32 bytes, n;
-    unsigned i;
+    MMGroup arguments;
+    MMGroupLocation row;
+    unsigned char *data;
+    MMU32 type, bytes, n, i;
     int r = s->base(s->context, index, kind, order, system);
     if (r)
         return r;
-    bytes = s->bytes(s->context, index);
+    arguments = s->arguments(s->context);
+    if (mm_group_read_slot(&arguments, (MMU32)index, &row) != MM_GROUP_SLOT_PRESENT)
+        return 0;
+    bytes = (MMU32)row.bytes - arguments.fixed_bytes;
     if (kind == 64)
     {
         if (bytes < 5)
             return 0;
         if (order == 256)
         {
-            s->get(s->context, index, 1, 4, b);
-            type = get(b, 4, !big);
-            put(b, type, 4, big);
-            s->put(s->context, index, 1, 4, b);
+            data = arguments.storage->buffers[0].data + row.offset + arguments.fixed_bytes + 1;
+            put(data, get(data, 4, !big), 4, big);
         }
         return 1;
     }
     if (kind != 192 || bytes < 4)
         return 0;
-    s->get(s->context, index, 0, 4, b);
-    type = get(b, 4, order == 256 ? !big : big);
+    data = arguments.storage->buffers[0].data + row.offset + arguments.fixed_bytes;
+    type = get(data, 4, order == 256 ? !big : big);
     if (order == 256)
-    {
-        put(b, type, 4, big);
-        s->put(s->context, index, 0, 4, b);
-    }
+        put(data, type, 4, big);
     n = type == MM_HELP_BITMAP || type == MM_HELP_EDIT ? 1 : type == MM_HELP_BUTTON ? 2 : 0;
     if (!n || bytes - 4 < n * 4)
         return 0;
     if (order == 256)
-    {
-        s->get(s->context, index, 4, n * 4, b);
-        for (i = 0; i < (unsigned)n; ++i)
-        {
-            type = get(b + i * 4, 4, !big);
-            put(b + i * 4, type, 4, big);
-        }
-        s->put(s->context, index, 4, n * 4, b);
-    }
+        for (i = 1; i <= n; ++i)
+            put(data + i * 4, get(data + i * 4, 4, !big), 4, big);
     return 1;
 }
 int mm_help_group(MMI32 first, MMI32 end, unsigned group, MMU32 topic, int big, const MMHelpEditServices *s)

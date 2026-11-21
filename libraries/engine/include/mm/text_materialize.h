@@ -22,14 +22,11 @@ extern "C"
     typedef struct MMTextFontArgumentServices
     {
         void *context;
-        MMI32 (*bytes)(void *, MMI32 index);
-        int (*system)(void *, MMI32 index);
-        const void *(*lock)(void *, MMI32 index);
-        void (*unlock)(void *);
-        int (*decode)(void *, const void *, MMI32 bytes, MMMovieTitle *);
+        MMGroup (*arguments)(void *);
+        MMStringWire wire; /* Native string settings and conversion. C supplies the buffer. */
         int (*map)(void *, const MMMovieTitle *, int system, MMI32 *font);
-        void (*put)(void *, MMI32 index, MMI32 font);
-        void (*diagnostic)(void *);
+        void (*bad_string)(void *);
+        void (*bad_entry)(void *);
     } MMTextFontArgumentServices;
     /* Same synchronous exception contract as text_document.h. Base initialization
      * precedes stored reads. Defaults publish before translation; the translated
@@ -41,10 +38,11 @@ extern "C"
      * Piece I/O and collection access, publication and release never throw. */
     int mm_text_materialize(const MMTextDocumentConfig *, MMU32 type, MMU32 number, int copy,
                             const MMTextMaterializeServices *);
-    /* Queries size even for unknown kinds. Font kind 2 uses the entry's native short
-     * system (not the collection encoding/order). Decode diagnostics occur locked;
-     * mapping occurs unlocked. Decode exceptions unlock without a diagnostic. */
-    int mm_text_open_font_argument(unsigned unit, MMI32 index, unsigned kind, const MMTextFontArgumentServices *);
+    /* Looks up the entry before testing its kind. Font kind 2 uses the entry's
+     * native short system. String diagnostics occur locked, then mapping runs
+     * unlocked and storage is looked up again before publishing the mapped ID.
+     * View, conversion and diagnostic callbacks never throw. */
+    int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgumentServices *);
 #ifdef __cplusplus
 }
 #endif

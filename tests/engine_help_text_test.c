@@ -10,6 +10,8 @@ typedef struct HelpHost
     MMHelpReadServices read;
     MMHelpSaveServices save;
     MMHelpTopic topic, output;
+    MMCollectionStorage argument_storage;
+    MMGroup argument_rows;
     unsigned char wire[36], allocation[64], payload[64];
     MMI32 wire_size, payload_size;
     MMU32 published[4];
@@ -114,23 +116,11 @@ static int base_argument(void *v, MMI32 i, unsigned kind, int order, int system)
     event(&h->h, 'B');
     return h->base_result;
 }
-static MMI32 argument_bytes(void *v, MMI32 i)
-{
-    CHECK(i == 0);
-    event((Host *)v, 's');
-    return ((HelpHost *)v)->h.length;
-}
-static void argument_get(void *v, MMI32 i, MMI32 at, MMI32 n, void *out)
+static MMGroup argument_rows(void *v)
 {
     HelpHost *h = (HelpHost *)v;
-    CHECK(i == 0 && at + n <= h->h.length);
-    memcpy(out, h->h.bytes + at, (size_t)n);
-}
-static void argument_put(void *v, MMI32 i, MMI32 at, MMI32 n, const void *p)
-{
-    HelpHost *h = (HelpHost *)v;
-    CHECK(i == 0 && at + n <= h->h.length);
-    memcpy(h->h.bytes + at, p, (size_t)n);
+    event(&h->h, 's');
+    return h->argument_rows;
 }
 static int is_forest(void *v, void *f, MMU32 t, MMU32 n)
 {
@@ -338,9 +328,7 @@ static void help_init(HelpHost *h, unsigned unit, int big)
     h->edit.dirty = help_dirty;
     h->arg.context = h;
     h->arg.base = base_argument;
-    h->arg.bytes = argument_bytes;
-    h->arg.get = argument_get;
-    h->arg.put = argument_put;
+    h->arg.arguments = argument_rows;
     h->read.context = h;
     h->read.forest = is_forest;
     h->read.open_forest = open_forest;
@@ -400,6 +388,26 @@ static void codecs(int big)
     CHECK(h.output.balloon == MM_TEXT_NIL && h.output.script == MM_TEXT_NIL && h.output.sound_number == MM_TEXT_NIL &&
           h.output.sound_type == 0);
 }
+static int open_argument(HelpHost *h, unsigned kind, int order, int big)
+{
+    const MMU32 fixed_word = 0x12345678UL;
+    MMU32 fixed;
+    int result;
+    memset(&h->argument_rows, 0, sizeof(h->argument_rows));
+    CHECK(mm_storage_init(&h->argument_storage, NULL) == MM_STORAGE_OK);
+    h->argument_rows.storage = &h->argument_storage;
+    h->argument_rows.fixed_bytes = 4;
+    CHECK(h->h.length >= 0 && h->h.length <= 16);
+    CHECK(mm_storage_ensure(&h->argument_storage, 20, 8, 0) == MM_STORAGE_OK);
+    memcpy(h->argument_storage.buffers[0].data + 4, h->h.bytes, 16);
+    CHECK(mm_group_add(&h->argument_rows, (MMU32)h->h.length, h->h.bytes, &fixed_word, NULL) == MM_STORAGE_OK);
+    result = mm_help_open_argument(0, kind, order, 3, big, &h->arg);
+    memcpy(&fixed, h->argument_storage.buffers[0].data, sizeof(fixed));
+    CHECK(fixed == fixed_word);
+    memcpy(h->h.bytes, h->argument_storage.buffers[0].data + 4, 16);
+    CHECK(mm_storage_dispose(&h->argument_storage) == MM_STORAGE_OK);
+    return result;
+}
 static void arguments(int big)
 {
     HelpHost h;
@@ -409,7 +417,7 @@ static void arguments(int big)
     {
         help_init(&h, 1, big);
         h.base_result = base;
-        CHECK(mm_help_open_argument(0, 64, 1, 3, big, &h.arg) == base);
+        CHECK(open_argument(&h, 64, 1, big) == base);
         CHECK(!strcmp(h.h.log, base ? "B" : "Bs"));
     }
     for (kind = 0; kind < 4; ++kind)
@@ -430,7 +438,7 @@ static void arguments(int big)
                 for (j = 0; j < 4; ++j)
                     h.h.bytes[i * 4 + j] = native[i * 4 + 3 - j];
             h.h.length = n;
-            CHECK(mm_help_open_argument(0, 192, 256, 3, big, &h.arg) == expected);
+            CHECK(open_argument(&h, 192, 256, big) == expected);
             if (n >= 4)
                 CHECK(!memcmp(h.h.bytes, native, 4));
             if (expected)
@@ -441,9 +449,9 @@ static void arguments(int big)
     help_init(&h, 1, big);
     h.h.length = 7;
     memcpy(h.h.bytes, "x\x12\x34\x56\x78yz", 7);
-    CHECK(mm_help_open_argument(0, 64, 256, 3, big, &h.arg));
+    CHECK(open_argument(&h, 64, 256, big));
     CHECK(h.h.bytes[0] == 'x' && h.h.bytes[1] == 0x78 && h.h.bytes[4] == 0x12 && h.h.bytes[5] == 'y');
-    CHECK(!mm_help_open_argument(0, 194, 1, 3, big, &h.arg));
+    CHECK(!open_argument(&h, 194, 1, big));
 }
 static void editing(int big)
 {

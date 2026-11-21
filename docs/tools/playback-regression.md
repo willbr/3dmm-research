@@ -18082,3 +18082,26 @@ reproduced their 11 prior seek canvas hashes. The three visible-caption frames
 retain the existing retail rendering differences. SDL also reproduced the
 caption text, size, alignment, and visibility. Logs are in
 `tmp/c89-live-text-materialization`.
+
+## Studio font and help argument storage (21 November 2026)
+
+C89 now locks the rich-text argument row, decodes the stored font name, and
+writes the mapped font ID through the live collection. Studio supplies code-page
+conversion, font lookup, and the original diagnostics. The font mapper runs
+after unlock. Help group and object arguments also normalize directly in C
+storage, including the legacy early write of a foreign object tag on rejection.
+
+The C tests exercise native and converted font names, truncated strings,
+diagnostic and lock ordering, storage replacement during mapping, and help
+normalization in both byte orders. All 192 standalone C checks, six focused
+AddressSanitizer checks, and 16 native C89 and Marcus checks passed. Four binary
+traces each from native x64, native x86, and SDL matched the preceding build.
+They cover live text, materialization, help text, and help topic loading.
+
+Studio's authoring and reopen workflow reproduced the preceding movie byte for
+byte. SDL and Marcus matched the 11 authored frame identities in seek and
+continuous playback, the 11 retail seek camera indices, and their respective
+11 seek canvas hashes from the preceding builds. The three visible-caption
+frames retain the existing retail rendering differences. Current suite
+`20261121T054627Z-825c7d56` was compared with retail and v3dmm data from
+`20261121T053116Z-dc0bdb99`. Logs are in `tmp/c89-argument-storage`.

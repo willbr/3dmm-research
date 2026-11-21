@@ -229,26 +229,12 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
     {
         MMTextFontArgumentServices s = {};
         s.context = this;
-        s.bytes = [](void *v, MMI32 i) -> MMI32 { return static_cast<DocumentHost *>(v)->rich->_pagcact->Cb(i); };
-        s.system = [](void *v, MMI32 i) -> int {
-            short system;
-            static_cast<DocumentHost *>(v)->rich->_pagcact->GetRgb(i, 4, 2, &system);
-            return system;
-        };
-        s.lock = [](void *v, MMI32 i) -> const void * {
-            return static_cast<DocumentHost *>(v)->rich->_pagcact->PvLock(i);
-        };
-        s.unlock = [](void *v) { static_cast<DocumentHost *>(v)->rich->_pagcact->Unlock(); };
-        s.decode = [](void *v, const void *p, MMI32 bytes, MMMovieTitle *out) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                String name;
-                if (!name.FSetData(const_cast<void *>(p), bytes))
-                    return false;
-                *out = RichTextStoreHost::Font(name);
-                return true;
-            });
-        };
+        s.arguments = [](void *v) { return static_cast<DocumentHost *>(v)->rich->_pagcact->CoreRows(); };
+        s.wire = {nullptr, sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), RichTextStoreHost::NativeBig(),
+                  nullptr, [](void *, const void *input, MMU32 bytes, int encoding, void *output, MMU32 capacity) -> MMI32 {
+                      return CchTranslateRgb(const_cast<void *>(input), bytes, static_cast<short>(encoding),
+                                             static_cast<achar *>(output), capacity);
+                  }};
         s.map = [](void *v, const MMMovieTitle *p, int system, MMI32 *out) -> int {
             auto &h = *static_cast<DocumentHost *>(v);
             return h.Guard([&] {
@@ -258,11 +244,11 @@ struct RichTextDocument::DocumentHost : TextDocumentBase::DocumentHost
                 return 1;
             });
         };
-        s.put = [](void *v, MMI32 i, MMI32 value) {
-            LegacyLong font = value;
-            static_cast<DocumentHost *>(v)->rich->_pagcact->PutRgb(i, 0, 4, &font);
+        s.bad_string = [](void *) {
+            PushErc(ercStnRead);
+            Warn("bad String data");
         };
-        s.diagnostic = [](void *) { Bug("bad font entry"); };
+        s.bad_entry = [](void *) { Bug("bad font entry"); };
         return s;
     }
     MMTextRichInitServices Init()

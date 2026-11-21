@@ -1,6 +1,7 @@
 /* Help topic wire data, argument extensions and document edit transactions. */
 #ifndef MM_ENGINE_HELP_TEXT_H
 #define MM_ENGINE_HELP_TEXT_H
+#include "collections.h"
 #include "text_properties.h"
 #ifdef __cplusplus
 extern "C"
@@ -22,9 +23,7 @@ extern "C"
     {
         void *context;
         int (*base)(void *, MMI32 index, unsigned kind, int order, int system);
-        MMI32 (*bytes)(void *, MMI32 index);
-        void (*get)(void *, MMI32 index, MMI32 offset, MMI32 count, void *);
-        void (*put)(void *, MMI32 index, MMI32 offset, MMI32 count, const void *);
+        MMGroup (*arguments)(void *);
     } MMHelpArgumentServices;
     enum
     {

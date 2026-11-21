@@ -2846,7 +2846,7 @@ Evidence and platform limits are in `docs/tools/playback-regression.md`.
 byte normalization and default font argument opening. It replaces the text
 through the live C piece table and normalizes fixed-width rows through borrowed
 C collection views. Native adapters supply owner slots, stored collection
-factories, font-table and string primitives, and virtual argument dispatch.
+factories, font lookup, code-page conversion, and virtual argument dispatch.
 Stored reads use the shared `text_store.c` transaction. Base initialization
 and translation reuse the document services.
 
@@ -2863,13 +2863,12 @@ even when its alignment padding is absent. Failure retains the published
 defaults, text, collections and normalized prefix for later document destruction.
 Exceptions clean temporary owners before returning to the native rethrow boundary.
 
-Default argument opening queries size even for unknown kinds. Font entries require
-the six-byte font-ID/system prefix, use its native short system without applying
-the collection byte order, and decode the following serialized string while locked.
-Malformed-data diagnostics occur before unlock; font mapping and runtime-ID storage
-occur after unlock. Decode exceptions unlock without an ordinary diagnostic.
-Help-document subclasses still receive their virtual hooks and retain their own
-object/group argument policy.
+C89 looks up the argument row even for unknown kinds. Font entries require the
+six-byte font-ID/system prefix and use its native short system. The C string codec
+decodes the name while C89 holds the collection data lock. For malformed strings,
+the string-read diagnostic precedes the font-entry diagnostic before unlock. The
+font mapper runs after unlock, and C89 refreshes the group view before writing the
+mapped ID. Virtual help hooks still dispatch through the native document class.
 
 The engine movie save/load fixture freezes ten success/failure cases against the
 original native/SDL paths, including foreign properties/fixed words, translation
@@ -2877,7 +2876,7 @@ failure, unknown argument kinds, subclass rejection and free slots. Logical grou
 payloads exclude legacy padding. C-only checks cover fallible effects and cleanup,
 partial publication/normalization, translated owner identity, copy flags, both
 text-unit sizes and byte orders, and font lock/diagnostic/map ordering.
-Editing/undo, help-document argument extensions, native output/descriptor storage,
+Editing/undo, native output/descriptor storage,
 physical providers, document/view/parent lifecycle and final C-only host/facade
 removal remain work. Evidence and platform limits are in
 `docs/tools/playback-regression.md`.
@@ -3291,7 +3290,9 @@ rich-text/undo/effect hooks and existing C property/argument services through
 Foreign headers swap the first six topic words only; the sound tail deliberately
 retains the legacy unswapped behavior. Older headers default the sound pair to
 zero/nil. Object argument normalization publishes a swapped tag before rejecting
-an unknown or truncated subtype. Grouping sorts ranges before undo, reads the name
+an unknown or truncated subtype. Help group and object argument opening edits the
+borrowed C collection directly after the base font hook returns ordinary false.
+Grouping sorts ranges before undo, reads the name
 after undo, consumes argument references through the shared property map and keeps
 partial effects on exceptions. Group queries publish end/target before name decode,
 ignore ordinary name decode failure and publish group/start last.

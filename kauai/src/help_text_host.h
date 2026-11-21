@@ -34,13 +34,7 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
             return h.Guard(
                 [&] { return h.help->RichTextDocument::_FOpenArg(i, byte(kind), short(order), short(system)); });
         };
-        s.bytes = [](void *v, MMI32 i) -> MMI32 { return static_cast<HelpHost *>(v)->help->_pagcact->Cb(i); };
-        s.get = [](void *v, MMI32 i, MMI32 at, MMI32 n, void *out) {
-            static_cast<HelpHost *>(v)->help->_pagcact->GetRgb(i, at, n, out);
-        };
-        s.put = [](void *v, MMI32 i, MMI32 at, MMI32 n, const void *p) {
-            static_cast<HelpHost *>(v)->help->_pagcact->PutRgb(i, at, n, const_cast<void *>(p));
-        };
+        s.arguments = [](void *v) { return static_cast<HelpHost *>(v)->help->_pagcact->CoreRows(); };
         return s;
     }
     MMHelpEditServices Edit()

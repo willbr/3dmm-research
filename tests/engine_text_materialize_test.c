@@ -19,7 +19,6 @@ typedef struct Token
 typedef struct Host
 {
     MMTextMaterializeServices s;
-    MMTextFontArgumentServices font;
     MMTextDocumentConfig config;
     Token file, translated, temporary, props, args;
     void *slots[5];
@@ -27,11 +26,10 @@ typedef struct Host
     MMCollectionStorage property_storage, argument_storage;
     MMArray property_rows;
     MMGroup argument_rows;
-    unsigned char header[16], marker[2], properties[16], normalized[16], argument[16];
+    unsigned char header[16], marker[2], properties[16], normalized[16];
     MMU32 fixed[3];
     int foreign, big, change, missing, empty, copy, base, defaults, replaced, opened, long_text, unpadded;
     int refs_at_publish, fail_index, fail_result, calls, fail_at, failed;
-    int locked, diagnostic, mapped, put, size, decoded, font_system;
     char log[256];
     unsigned used;
 } Host;
@@ -461,118 +459,180 @@ static void materialization(void)
             cleanup(&h);
         }
 }
-static MMI32 arg_bytes(void *v, MMI32 i)
+typedef struct FontHost
 {
-    Host *h = (Host *)v;
-    CHECK(i == 7);
-    event(h, 'S');
-    return h->size;
+    MMTextFontArgumentServices services;
+    MMCollectionStorage storage, replacement;
+    MMGroup rows;
+    unsigned lookups, conversions, mappings, strings, entries, count;
+    int converted, mapped, relocate;
+} FontHost;
+static MMGroup arg_rows(void *v)
+{
+    FontHost *h = (FontHost *)v;
+    ++h->lookups;
+    return h->rows;
 }
-static int arg_system(void *v, MMI32 i)
+static MMI32 arg_convert(void *v, const void *p, MMU32 n, int encoding, void *out, MMU32 capacity)
 {
-    Host *h = (Host *)v;
-    CHECK(i == 7);
-    event(h, 'Y');
-    return -123;
-}
-static const void *arg_lock(void *v, MMI32 i)
-{
-    Host *h = (Host *)v;
-    CHECK(i == 7 && !h->locked);
-    h->locked = 1;
-    event(h, 'L');
-    return h->argument;
-}
-static void arg_unlock(void *v)
-{
-    Host *h = (Host *)v;
-    CHECK(h->locked);
-    h->locked = 0;
-    event(h, 'U');
-}
-static int arg_decode(void *v, const void *p, MMI32 n, MMMovieTitle *out)
-{
-    Host *h = (Host *)v;
-    CHECK(h->locked && p == h->argument + 6 && n == h->size - 6);
-    CHECK(out->unit == h->config.unit && out->count == 0);
-    ++h->decoded;
-    return step(h, 'D');
+    FontHost *h = (FontHost *)v;
+    const unsigned short wide = 'Z';
+    CHECK(h->storage.buffers[0].locks == 1 && n == 1 && *(const unsigned char *)p == 'A');
+    CHECK(encoding == MM_TEXT_MAC && capacity == MM_STRING_MAX);
+    ++h->conversions;
+    if (h->services.wire.unit == 1)
+        *(unsigned char *)out = 'Z';
+    else
+        memcpy(out, &wide, sizeof(wide));
+    return h->converted;
 }
 static int arg_map(void *v, const MMMovieTitle *p, int system, MMI32 *out)
 {
-    Host *h = (Host *)v;
-    CHECK(!h->locked && system == -123 && p->unit == h->config.unit);
-    ++h->mapped;
+    FontHost *h = (FontHost *)v;
+    unsigned expected = h->conversions ? 'Z' : 'A';
+    CHECK(!h->storage.buffers[0].locks && system == -123 && p->unit == h->services.wire.unit);
+    CHECK(p->count == h->count);
+    if (p->count)
+        CHECK((p->unit == 1 ? *(const unsigned char *)p->text : p->text[0]) == expected);
+    if (h->relocate)
+    {
+        CHECK(mm_storage_copy(&h->replacement, &h->storage, h->rows.bytes, 8) == MM_STORAGE_OK);
+        h->rows.storage = &h->replacement;
+    }
+    ++h->mappings;
     *out = -17;
-    return step(h, 'M');
+    return h->mapped;
 }
-static void arg_put(void *v, MMI32 i, MMI32 font)
+static void arg_bad_string(void *v)
 {
-    Host *h = (Host *)v;
-    CHECK(!h->locked && i == 7 && font == -17);
-    ++h->put;
-    event(h, 'P');
+    FontHost *h = (FontHost *)v;
+    CHECK(h->storage.buffers[0].locks == 1 && !h->entries);
+    ++h->strings;
 }
-static void arg_diagnostic(void *v)
+static void arg_bad_entry(void *v)
 {
-    Host *h = (Host *)v;
-    ++h->diagnostic;
-    event(h, h->locked ? '!' : '?');
+    FontHost *h = (FontHost *)v;
+    CHECK(h->storage.buffers[0].locks == h->strings);
+    ++h->entries;
 }
-static void init_font(Host *h, unsigned unit)
+static void init_font(FontHost *h, unsigned unit, int foreign, unsigned count, int size_adjustment)
 {
-    MMTextFontArgumentServices *s;
-    init(h, unit, 0, 0);
-    s = &h->font;
-    h->size = 16;
+    MMTextFontArgumentServices *s = &h->services;
+    MMStringWire source;
+    unsigned char data[24];
+    unsigned short counted[3];
+    const short one = 1, system = -123;
+    const MMI32 original = 23, fixed_word = 0x02000001;
+    MMI32 payload_bytes;
+    memset(h, 0, sizeof(*h));
+    memset(data, 0, sizeof(data));
+    CHECK(mm_storage_init(&h->storage, NULL) == MM_STORAGE_OK);
+    CHECK(mm_storage_init(&h->replacement, NULL) == MM_STORAGE_OK);
+    h->rows.storage = &h->storage;
+    h->rows.fixed_bytes = 4;
+    h->mapped = h->converted = 1;
+    h->count = count;
     s->context = h;
-    s->bytes = arg_bytes;
-    s->system = arg_system;
-    s->lock = arg_lock;
-    s->unlock = arg_unlock;
-    s->decode = arg_decode;
+    s->arguments = arg_rows;
+    s->wire.unit = unit;
+    s->wire.native_big_endian = *(const unsigned char *)&one == 0;
+    s->wire.current_encoding = unit == 1 ? MM_TEXT_WINDOWS :
+                                s->wire.native_big_endian ? MM_TEXT_UTF16_BE : MM_TEXT_UTF16_LE;
+    s->wire.swapped_unicode_encoding = s->wire.native_big_endian ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE;
+    s->wire.context = h;
+    s->wire.convert = arg_convert;
     s->map = arg_map;
-    s->put = arg_put;
-    s->diagnostic = arg_diagnostic;
+    s->bad_string = arg_bad_string;
+    s->bad_entry = arg_bad_entry;
+    source = s->wire;
+    source.buffer = counted;
+    if (foreign)
+    {
+        source.unit = 1;
+        source.current_encoding = MM_TEXT_MAC;
+    }
+    memset(counted, 0, sizeof(counted));
+    if (source.unit == 1)
+    {
+        ((unsigned char *)counted)[0] = (unsigned char)count;
+        ((unsigned char *)counted)[1] = count ? 'A' : 0;
+    }
+    else
+    {
+        counted[0] = (unsigned short)count;
+        counted[1] = count ? 'A' : 0;
+    }
+    memcpy(data, &original, 4);
+    memcpy(data + 4, &system, 2);
+    CHECK(mm_string_wire_get(&source, data + 6, sizeof(data) - 6));
+    payload_bytes = 6 + (MMI32)mm_string_wire_size(&source) + size_adjustment;
+    CHECK(payload_bytes >= 0 && payload_bytes <= (MMI32)sizeof(data));
+    CHECK(mm_group_add(&h->rows, (MMU32)payload_bytes, data, &fixed_word, NULL) == MM_STORAGE_OK);
+}
+static MMI32 font_id(const MMCollectionStorage *storage)
+{
+    MMI32 id;
+    memcpy(&id, storage->buffers[0].data + sizeof(MMI32), sizeof(id));
+    return id;
+}
+static void dispose_font(FontHost *h)
+{
+    CHECK(!h->storage.buffers[0].locks && !h->replacement.buffers[0].locks);
+    CHECK(mm_storage_dispose(&h->storage) == MM_STORAGE_OK);
+    CHECK(mm_storage_dispose(&h->replacement) == MM_STORAGE_OK);
 }
 static void font_arguments(void)
 {
-    Host h;
+    FontHost h;
     unsigned unit, kind;
-    int n, failure;
+    int n, failure, foreign;
     for (unit = 1; unit <= 2; ++unit)
     {
-        init_font(&h, unit);
-        CHECK(mm_text_open_font_argument(unit, 7, 2, &h.font) == 1);
-        CHECK(!strcmp(h.log, "SYLDUMP") && h.put == 1 && !h.locked);
+        for (foreign = 0; foreign <= 1; ++foreign)
+        {
+            init_font(&h, unit, foreign, 1, 0);
+            h.relocate = foreign;
+            CHECK(mm_text_open_font_argument(0, 2, &h.services) == 1);
+            CHECK(h.lookups == 2 && h.mappings == 1 && h.conversions == (unsigned)foreign);
+            CHECK(font_id(h.rows.storage) == -17 && !h.strings && !h.entries);
+            if (foreign)
+                CHECK(font_id(&h.storage) == 23);
+            dispose_font(&h);
+        }
         for (kind = 0; kind < 256; ++kind)
             if (kind != 2)
             {
-                init_font(&h, unit);
-                CHECK(!mm_text_open_font_argument(unit, 7, kind, &h.font));
-                CHECK(!strcmp(h.log, "S") && !h.diagnostic);
+                init_font(&h, unit, 0, 1, 0);
+                CHECK(!mm_text_open_font_argument(0, kind, &h.services));
+                CHECK(h.lookups == 1 && !h.entries && !h.mappings && font_id(&h.storage) == 23);
+                dispose_font(&h);
             }
-        for (n = 0; n < 6; ++n)
+        for (n = 0; n < 6 + 2 + 3 * (int)unit; ++n)
         {
-            init_font(&h, unit);
-            h.size = n;
-            CHECK(!mm_text_open_font_argument(unit, 7, 2, &h.font));
-            CHECK(!strcmp(h.log, "S?") && h.diagnostic == 1);
+            init_font(&h, unit, 0, 1, n - 8 - 3 * (int)unit);
+            CHECK(!mm_text_open_font_argument(0, 2, &h.services));
+            CHECK(h.lookups == 1 && h.entries == 1 && h.strings == (unsigned)(n >= 6) && !h.mappings);
+            dispose_font(&h);
         }
-        for (n = 1; n <= 2; ++n)
-            for (failure = 0; failure >= -2; --failure)
-            {
-                init_font(&h, unit);
-                h.fail_at = n;
-                h.fail_result = failure;
-                CHECK(mm_text_open_font_argument(unit, 7, 2, &h.font) == failure && !h.locked && !h.put);
-                CHECK(!strcmp(h.log, n == 1 ? (failure ? "SYLDU" : "SYLD!U") : "SYLDUM"));
-                CHECK(h.diagnostic == (n == 1 && !failure));
-            }
-        init_font(&h, unit);
-        h.size = 6;
-        CHECK(mm_text_open_font_argument(unit, 7, 2, &h.font) == 1);
-        CHECK(h.decoded == 1 && h.mapped == 1 && h.put == 1);
+        for (failure = 0; failure >= -2; --failure)
+        {
+            init_font(&h, unit, 0, 1, 0);
+            h.mapped = failure;
+            CHECK(mm_text_open_font_argument(0, 2, &h.services) == failure);
+            CHECK(h.lookups == 1 && h.mappings == 1 && !h.entries && font_id(&h.storage) == 23);
+            dispose_font(&h);
+        }
+        init_font(&h, unit, 1, 1, 0);
+        h.converted = 0;
+        CHECK(!mm_text_open_font_argument(0, 2, &h.services));
+        CHECK(h.conversions == 1 && h.strings == 1 && h.entries == 1 && !h.mappings);
+        dispose_font(&h);
+        init_font(&h, unit, 0, 1, 1);
+        CHECK(!mm_text_open_font_argument(0, 2, &h.services) && h.strings == 1 && !h.mappings);
+        dispose_font(&h);
+        init_font(&h, unit, 0, 0, 0);
+        CHECK(mm_text_open_font_argument(0, 2, &h.services) == 1 && font_id(&h.storage) == -17);
+        dispose_font(&h);
     }
 }
 int main(void)

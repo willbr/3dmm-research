@@ -94,31 +94,54 @@ done:
     mm_rich_text_dispose(&stored, &s->read.objects);
     return result;
 }
-int mm_text_open_font_argument(unsigned unit, MMI32 index, unsigned kind, const MMTextFontArgumentServices *s)
+int mm_text_open_font_argument(MMI32 index, unsigned kind, const MMTextFontArgumentServices *s)
 {
-    MMI32 bytes, font;
+    MMGroup arguments;
+    MMGroupLocation row;
+    MMStringWire wire;
+    MMMemoryStream memory;
     MMMovieTitle name;
-    const unsigned char *data;
-    int result, system;
-    bytes = s->bytes(s->context, index);
-    if (kind != 2)
+    unsigned short counted[MM_STRING_MAX + 2];
+    short system;
+    MMU32 bytes, count;
+    MMI32 font;
+    unsigned char *data;
+    int result;
+    arguments = s->arguments(s->context);
+    if (mm_group_read_slot(&arguments, (MMU32)index, &row) != MM_GROUP_SLOT_PRESENT || kind != 2)
         return 0;
+    bytes = (MMU32)row.bytes - arguments.fixed_bytes;
     if (bytes < 6)
     {
-        s->diagnostic(s->context);
+        s->bad_entry(s->context);
         return 0;
     }
-    system = s->system(s->context, index);
-    data = (const unsigned char *)s->lock(s->context, index);
-    mm_movie_title_init(&name, unit);
-    result = s->decode(s->context, data + 6, bytes - 6, &name);
+    if (mm_storage_lock(arguments.storage, 0) != MM_STORAGE_OK)
+        return 0;
+    data = arguments.storage->buffers[0].data + row.offset + arguments.fixed_bytes;
+    memcpy(&system, data + 4, 2);
+    wire = s->wire;
+    wire.buffer = counted;
+    result = mm_memory_stream_init(&memory, data + 6, bytes - 6) &&
+             mm_string_wire_read(&wire, &memory.stream, 0, NULL);
     if (!result)
-        s->diagnostic(s->context);
-    s->unlock(s->context);
+    {
+        s->bad_string(s->context);
+        s->bad_entry(s->context);
+    }
+    mm_storage_unlock(arguments.storage, 0);
+    if (!result)
+        return 0;
+    mm_movie_title_init(&name, wire.unit);
+    count = wire.unit == 1 ? *(const unsigned char *)counted : counted[0];
+    mm_movie_title_set(&name, (const unsigned char *)counted + wire.unit, count);
+    result = s->map(s->context, &name, system, &font);
     if (result <= 0)
         return result;
-    result = s->map(s->context, &name, system, &font);
-    if (result > 0)
-        s->put(s->context, index, font);
+    arguments = s->arguments(s->context);
+    if (mm_group_read_slot(&arguments, (MMU32)index, &row) != MM_GROUP_SLOT_PRESENT ||
+        (MMU32)row.bytes - arguments.fixed_bytes < sizeof(font))
+        return 0;
+    memcpy(arguments.storage->buffers[0].data + row.offset + arguments.fixed_bytes, &font, sizeof(font));
     return result;
 }

@@ -1136,7 +1136,9 @@ and stream/file/archive/property/argument release control now also use C89.
 Stored-to-live rich-text loading, property/argument byte normalization and default
 font argument opening now also use C89, preserving virtual extension hooks.
 Studio reopens rich text through the C piece table and normalizes the published
-property and argument rows through C collection views.
+property and argument rows through C collection views. Font argument opening
+locks and decodes the stored name in C89 and updates the resolved font ID in
+the collection. The platform still supplies font lookup and code-page conversion.
 Rich-text property lookup, masked range application, edit-boundary adjustment,
 argument interning and reference-count control now also use C89.
 Character/paragraph delta packing, font descriptor creation, cached formatting
@@ -1168,7 +1170,8 @@ names share counted UTF-8 conversion. SDL and Win32 supply clipboard I/O
 and native document operations.
 Help topic metadata, wire codecs/read/save, string expansion, object/group argument
 normalization and picture/button/group edit transactions now also use C89 and
-plain C topic data. Help embedded-object bounds and drawing sequence now also use
+plain C topic data. Help argument byte swaps write directly to C collection rows.
+Help embedded-object bounds and drawing sequence now also use
 C89, with plain C button-visibility state. Help topic mouse/key/hit/cursor and
 script-dispatch policy now also use C89 and plain C tracking/base-handler state.
 Balloon creation/replacement/layout and button construction/hit dispatch now also
