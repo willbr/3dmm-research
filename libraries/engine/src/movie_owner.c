@@ -30,7 +30,7 @@ void mm_movie_clear_actors(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     if (!m->actors.stride)
         return;
-    close_rows(&m->actors, s->rollcall.context, s->rollcall.close_actor);
+    close_rows(&m->actors, s->rollcall.reader.context, s->rollcall.reader.close_actor);
     mm_rollcall_table_dispose(&m->actors);
     memset(&m->actors, 0, sizeof(m->actors));
 }
@@ -93,7 +93,7 @@ int mm_movie_load(MMMovieState *m, void *path, MMU32 number, const MMMovieOwnerS
     MMMovieState loaded;
     void *file;
     MMU32 scene_number;
-    int valid, status;
+    int valid;
     mm_movie_state_init(&loaded);
     mm_movie_title_init(&loaded.title, m->title.unit);
     file = s->open_file(s->context, path);
@@ -110,15 +110,11 @@ int mm_movie_load(MMMovieState *m, void *path, MMU32 number, const MMMovieOwnerS
     }
     s->release_file(file);
     loaded.movieNumber = number;
-    if (!mm_movie_init_actors(&loaded, s))
-        goto fail;
-    status = mm_movie_load_rollcall(s->cache(loaded.resources), number, loaded.resources, &loaded.actors,
-                                   &loaded.actorIdLimit, s->decode_rollcall, &s->rollcall);
-    if (status != MM_CHUNK_OK)
+    if (!mm_movie_init_actors(&loaded, s) ||
+        !mm_movie_load_bound_rollcall(loaded.resources, number, &loaded.actors, &loaded.actorIdLimit, &s->rollcall))
     {
-        if (status == MM_CHUNK_NOT_FOUND && s->missing_rollcall)
-            s->missing_rollcall(s->context);
-        goto fail;
+        mm_movie_state_dispose(&loaded, s);
+        return 0;
     }
     file = s->file(loaded.resources);
     mm_chunk_title_read(&loaded.title, file, MM_MOVIE_CHUNK, number, &s->titles);
@@ -126,9 +122,6 @@ int mm_movie_load(MMMovieState *m, void *path, MMU32 number, const MMMovieOwnerS
         ++loaded.sceneCount;
     replace(m, &loaded, s);
     return 1;
-fail:
-    mm_movie_state_dispose(&loaded, s);
-    return 0;
 }
 int mm_movie_state_scene_number(MMMovieState *m, MMU32 slot, MMU32 *number, void *file,
                                  const MMMovieSessionBinding *binding)
@@ -249,6 +242,16 @@ int mm_movie_load_rollcall(MMResourceCache *cache, MMU32 movie, void *resources,
     status = mm_resource_cache_visit_payload(cache, MM_ROLLCALL_CHUNK, number, decode, NULL,
                                              read_rollcall_payload, &load, &read);
     return status == MM_CHUNK_OK && !read ? MM_CHUNK_BAD_FILE : status;
+}
+
+int mm_movie_load_bound_rollcall(void *resources, MMU32 movie, MMRollCallTable *actors, MMI32 *limit,
+                                const MMRollCallBinding *binding)
+{
+    const int status = mm_movie_load_rollcall(binding->cache(resources), movie, resources, actors, limit,
+                                             binding->decode, &binding->reader);
+    if (status == MM_CHUNK_NOT_FOUND && binding->missing)
+        binding->missing(binding->reader.context);
+    return status == MM_CHUNK_OK;
 }
 
 int mm_movie_write_rollcall(const MMArchiveWriter *archive, MMU32 movie, MMRollCallTable *actors, MMU32 *written)

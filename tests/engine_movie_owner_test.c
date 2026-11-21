@@ -288,11 +288,11 @@ static MMMovieOwnerServices owners(Host *h)
     MMMovieOwnerServices s = {
         NULL, {NULL, resize_rollcall, free_rollcall}, 0x0303, 0,
         create, open_file, {session_graph, session_failed}, new_resource, release_file, release_resource,
-        file, owner_archive, owner_cache, {NULL, NULL, open_actor, close_actor},
-        decode_rollcall, missing_rollcall, NULL,
+        file, owner_archive, {owner_cache, decode_rollcall, {NULL, NULL, open_actor, close_actor}, missing_rollcall},
+        NULL,
         {NULL, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, NULL, load_name, set_name, NULL},
         save, persist};
-    s.context = s.actor_allocator.context = s.rollcall.context = h;
+    s.context = s.actor_allocator.context = s.rollcall.reader.context = h;
     h->owner_writer = chunk_writer_fixture(&h->archive, h, owner_extent, owner_write);
     h->owner_writer.system = MM_TEXT_WINDOWS;
     h->archive.block.files.read = owner_read;

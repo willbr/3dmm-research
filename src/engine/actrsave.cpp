@@ -113,21 +113,3 @@ PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
     AssertNilOrPo(actor, 0);
     return actor;
 }
-
-/******************************************************************************
-    FAdjustAridOnFile
-        Given a chunky file, a ChunkNumber and a delta for the arid, updates the
-        arid for the actor on file.
-
-    Arguments:
-        PChunkyFile pcfl   -- the file the actor's on
-        ChunkNumber cno     -- the ChunkNumber of the actor
-        long darid  -- the change of the arid
-
-    Returns: fTrue if everything went well, fFalse otherwise
-
-************************************************************ PETED ***********/
-bool Actor::FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid)
-{
-    return ActorData::FAdjustId(pcfl, cno, darid);
-}

@@ -23,6 +23,13 @@ extern "C"
         int (*open_actor)(void *, MMRollCallActor *, void *resources);
         void (*close_actor)(void *, MMRollCallActor *);
     } MMRollCallReader;
+    typedef struct MMRollCallBinding
+    {
+        MMResourceCache *(*cache)(void *resources);
+        MMBlockTransform decode;
+        MMRollCallReader reader;
+        void (*missing)(void *context);
+    } MMRollCallBinding;
     struct MMMovieSession;
     struct MMMovieSessionGraph;
     typedef struct MMMovieSessionBinding
@@ -52,10 +59,8 @@ extern "C"
         void (*release_resources)(void *);
         void *(*file)(void *resources);
         MMArchiveWriter (*archive)(void *file);
-        MMResourceCache *(*cache)(void *resources);
-        MMRollCallReader rollcall;
-        MMBlockTransform decode_rollcall;
-        void (*missing_rollcall)(void *), (*unlink_failed)(void *);
+        MMRollCallBinding rollcall;
+        void (*unlink_failed)(void *);
         MMChunkTitleIO titles;
         int (*save)(void *, void *file);
         void (*make_persistent)(void *file);
@@ -95,6 +100,10 @@ extern "C"
      * MM_CHUNK_NOT_FOUND. Tag operations borrow the separate host resource owner. */
     int mm_movie_load_rollcall(MMResourceCache *, MMU32 movie, void *resources, MMRollCallTable *, MMI32 *limit,
                                MMBlockTransform, const MMRollCallReader *);
+    /* Open through a borrowed cache binding. Missing links and extents report
+     * through the optional diagnostic using the reader's context. */
+    int mm_movie_load_bound_rollcall(void *resources, MMU32 movie, MMRollCallTable *, MMI32 *limit,
+                                     const MMRollCallBinding *);
     /* Borrows the runtime table and its tags. Serializes names in actor order,
      * with native-order GST extras and zero cache pads. An added chunk is
      * discarded if writing or adoption fails. Callbacks cannot change the source. */

@@ -2,7 +2,8 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_compose.h"
 #include "mm/movie_archive_edit.h"
-#include "mm/movie_rollcall.h"
+#include "mm/movie_session.h"
+#include "mm/movie_sound_archive.h"
 #include "mm/actor_data.h"
 #include "mm/scene_data.h"
 #include "mm/wide.h"
@@ -189,7 +190,12 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
     MMU32 flags, i;
     int actor, background;
     void *destination = s->scene_control.file(s->data->resources);
+    const MMArchiveWriter archive = s->archive(destination);
+    const MMChunkGraph graph = mm_chunk_edit_graph(&archive.edit);
+    MMMovieSessionGraph reader;
     int ok = 0;
+    if (offset > 0)
+        s->scene_control.session.graph(destination, &reader);
     if (mm_storage_init(&visited, compose_allocator(s)) != MM_STORAGE_OK)
         return 0;
     memset(&ids, 0, sizeof(ids));
@@ -198,7 +204,7 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
     ids.free_count = -1;
     if (mm_chunk_walk_init(&walk, compose_allocator(s)) != MM_CHUNK_OK)
         goto storage;
-    if (mm_chunk_walk_reset(&walk, &s->graph, 0x4d564945U, movie) != MM_CHUNK_OK)
+    if (mm_chunk_walk_reset(&walk, &graph, MM_MOVIE_CHUNK, movie) != MM_CHUNK_OK)
         goto done;
     while (mm_chunk_walk_next(&walk, 0, &node, &parent, &flags))
     {
@@ -220,7 +226,7 @@ static int remap(MMU32 movie, MMI32 offset, void *source, const MMMovieComposeSe
         reference.number = node.number;
         if (mm_array_add(&ids, &reference, 0) != MM_STORAGE_OK ||
             (background && !s->rebind_scene_backgrounds(source, destination, node.number)) ||
-            (actor && offset > 0 && !s->adjust_actor(destination, node.number, offset)) ||
+            (actor && offset > 0 && !mm_actor_adjust_id(node.number, offset, &reader, &archive)) ||
             (actor && source && s->rebind_actor_materials &&
              !s->rebind_actor_materials(source, destination, node.number)))
             goto done;
@@ -235,12 +241,8 @@ storage:
 static void close_source_row(MMRollCallTable *source, MMU32 index, const MMMovieComposeServices *s)
 {
     MMRollCallActor row;
-    MMTag tag;
     if (mm_rollcall_table_extra(source, index, &row))
-    {
-        tag = mm_movie_rollcall_tag(&row);
-        s->close_tag(&tag);
-    }
+        s->rollcall.reader.close_actor(s->rollcall.reader.context, &row);
 }
 static int merge(MMU32 movie, MMI32 offset, void *source_file, const MMMovieComposeServices *s)
 {
@@ -253,7 +255,7 @@ static int merge(MMU32 movie, MMI32 offset, void *source_file, const MMMovieComp
         mm_rollcall_table_init(&source, sizeof(row), destination->unit, destination->encoding,
                                destination->trash_unused, &destination->storage.allocator) != MM_STORAGE_OK)
         return 0;
-    if (!s->read_rollcall(s->data->resources, movie, &source))
+    if (!mm_movie_load_bound_rollcall(s->data->resources, movie, &source, NULL, &s->rollcall))
         goto done;
     for (; appended < source.count; ++appended)
     {
@@ -315,9 +317,11 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
         if (i > 0)
         {
             void *source = scenes->file(movie.resources);
+            MMMovieSessionGraph graph;
             if (!s->clone_movie(source, movie.number, file, &movie.number))
                 goto done;
-            if ((s->link_imported_sounds && !s->link_imported_sounds(file, movie.number)) ||
+            scenes->session.graph(file, &graph);
+            if (!mm_movie_archive_link_imported_sounds(&graph, movie.number, &edit) ||
                 !merge(movie.number, offset, s->rebind_actor_materials || s->rebind_scene_backgrounds ? source : NULL, s))
             {
                 delete_root(&edit, movie.number, scenes);

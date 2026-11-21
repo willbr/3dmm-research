@@ -55,6 +55,14 @@ MMMovieSessionBinding MovieData::_SessionBinding()
         MovieOpenError};
 }
 
+MMRollCallBinding MovieData::_RollCallBinding()
+{
+    return {
+        [](void *p) { return static_cast<PChunkyResourceFile>(p)->CoreCache(); },
+        KauaiDecodeBlockHandle, kRollCallReader,
+        [](void *) { PushErc(ercSocBadFile); }};
+}
+
 MMMovieOwnerServices MovieData::_OwnerServices(void *context)
 {
     return {
@@ -74,10 +82,7 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },
         [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); },
         [](void *file) { return static_cast<PChunkyFile>(file)->WriteIndex(); },
-        [](void *p) { return static_cast<PChunkyResourceFile>(p)->CoreCache(); },
-        kRollCallReader,
-        KauaiDecodeBlockHandle,
-        [](void *) { PushErc(ercSocBadFile); },
+        _RollCallBinding(),
         [](void *) { Bug("chunk or child link missing"); },
         KauaiChunkTitleIO(),
         [](void *c, void *file) -> int {
@@ -140,11 +145,8 @@ bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, MMMovieHea
 
 bool MovieData::FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors, MMI32 *limit)
 {
-    const int status = mm_movie_load_rollcall(resources->CoreCache(), number, resources, actors, limit,
-                                              KauaiDecodeBlockHandle, &kRollCallReader);
-    if (status == MM_CHUNK_NOT_FOUND)
-        PushErc(ercSocBadFile);
-    return status == MM_CHUNK_OK;
+    const auto binding = _RollCallBinding();
+    return mm_movie_load_bound_rollcall(resources, number, actors, limit, &binding) != 0;
 }
 bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written)
 {

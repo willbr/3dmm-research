@@ -234,7 +234,6 @@ class Actor : public Actor_PAR
     // ActrSave Routines
     static PActor PactrRead(PChunkyResourceFile pcrf, ChunkNumber cno);    // Construct from a document
     bool FWrite(PChunkyFile pcfl, ChunkNumber cno, ChunkNumber cnoScene); // Write to a document
-    static bool FAdjustAridOnFile(PChunkyFile pcfl, ChunkNumber cno, long darid);
 
     // Visibility
     void Hilite(void);

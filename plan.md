@@ -1596,9 +1596,10 @@ common undo registration/notification now also use C89. Movie material insertion
 3-D text creation/template replacement and caption insertion/removal/hiding/
 visible-index selection transactions now also use C89. Movie composition,
 descriptor storage, reorder, removal, and rollback now also use C89. The
-sorter accesses the same rows that composition reads. C89 also owns imported
-roll-call ownership and shared and nested actor-ID remapping. Final native
-resource and object integration remains.
+sorter accesses the same rows that composition reads. C89 links imported scene
+sounds, loads and transfers roll-call rows through the working cache, and
+traverses the live archive to rewrite shared and nested actor IDs. Final
+native resource and object integration remains.
 Background resource loading, exact child lookup, cache and light policy use
 C89. Studio selects cameras through the same cache and reads colour and depth
 through typed block readers. Preview background image, mesh and frame rendering

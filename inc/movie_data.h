@@ -56,6 +56,7 @@ struct MovieData : MMMovieState
   private:
     friend class Movie;
     static MMMovieSessionBinding _SessionBinding();
+    static MMRollCallBinding _RollCallBinding();
     static MMMovieOwnerServices _OwnerServices(void *);
 };
 #endif

@@ -18632,3 +18632,26 @@ archived retail frame identities. SDL matched all four retail sound requests.
 The ports matched their previous PCM16 peak of 2,176. The archived retail
 peak is 2,380. The captures contain 520,320 SDL and 512,160 Marcus PCM frames.
 Logs and the comparison script are in `tmp/c89-session-binding`.
+
+## Composition roll calls, actor records and sound links (21 November 2026)
+
+Studio composition links imported sounds, loads the cloned roll call through
+the working resource cache, and walks the live archive to rewrite actor IDs.
+The composition fixture exercises stored roll calls and ACTR headers. It
+checks shared and nested actor traversal, roll-call tag cleanup, and the
+completed write prefix when a later actor rewrite fails.
+
+All 193 standalone C checks, seven focused AddressSanitizer checks, three
+Marcus checks and the native Preview session test passed.
+Native x64, x86 and SDL matched their 19,044-byte composition snapshots, all
+27 save/reopen traces, sound-resource snapshots and the full authoring save.
+The native owner, roll-call and root snapshots matched all 736, 405 and 224
+baseline bytes respectively. Both ports matched the three archived V3dmm
+storyboard frames, cameras and canvas hashes in suite
+`20261121T100701Z-fd636efc`.
+
+In sampled-audio suite `20261121T100709Z-4e641f2a`, both ports matched all 60
+archived retail frame identities. SDL matched all four retail sound requests.
+The ports matched their previous PCM16 peak of 2,176. The archived retail
+peak is 2,380. The captures contain 519,360 SDL and 511,680 Marcus PCM frames.
+Logs and the comparison script are in `tmp/c89-compose-archive`.

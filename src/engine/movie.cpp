@@ -2580,6 +2580,8 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.scenes = &_scenes;
     s.scene_control = _SceneServices();
     s.allocator = CollectionAllocator();
+    s.archive = [](void *file) { return static_cast<PChunkyFile>(file)->WriteIndex(); };
+    s.rollcall = MovieData::_RollCallBinding();
     s.retain = [](void *object) { static_cast<BASE *>(object)->AddRef(); };
     s.release = ReleaseComposeObject;
 #ifdef BUG1929
@@ -2616,12 +2618,6 @@ MMMovieComposeServices Movie::_ComposeServices()
         const auto archive = assets.Services();
         return mm_movie_archive_rebind_backgrounds(&editor, &archive, scene);
     };
-    s.link_imported_sounds = [](void *p, MMU32 movie) {
-        auto file = static_cast<PChunkyFile>(p);
-        const auto graph = EngineMovieGraph::FromFile(file);
-        const auto edit = file->EditIndex();
-        return mm_movie_archive_link_imported_sounds(&graph, movie, &edit);
-    };
     s.adopt_sounds=[](void *p,void *file,MMU32 scene)->int { return static_cast<PMovie>(p)->_FAdoptMsndInMvie(static_cast<PChunkyFile>(file),scene); };
     s.start_scene=[](void *p)->int { return static_cast<PScene>(p)->FPlayStartEvents(true); };
     s.add_actors=[](void *p)->int { return static_cast<PScene>(p)->FAddActrsToRollCall(); };
@@ -2652,11 +2648,6 @@ MMMovieComposeServices Movie::_ComposeServices()
         }
     };
 #endif
-    s.read_rollcall = [](void *p, MMU32 number, MMRollCallTable *table) -> int {
-        return MovieData::FLoadRollCall(static_cast<PChunkyResourceFile>(p), number, table);
-    };
-    s.close_tag=[](MMTag *value) { TAG tag; TagFromCore(&tag,*value); TagManager::CloseTag(&tag); *value=TagToCore(tag); };
-    s.adjust_actor=[](void *p,MMU32 number,MMI32 offset)->int { return Actor::FAdjustAridOnFile(static_cast<PChunkyFile>(p),number,offset); };
     s.rebind_actor_materials = [](void *source, void *destination, MMU32 actor) {
         auto file = static_cast<PChunkyFile>(destination);
         MovieArchiveHost host{file};
@@ -2664,12 +2655,6 @@ MMMovieComposeServices Movie::_ComposeServices()
         const auto editor = host.Editor();
         const auto services = materials.Services();
         return mm_actor_archive_rebind_materials(&editor, actor, &services);
-    };
-    s.graph.context=_data.Resources()?_data.Resources()->Pcfl():nullptr;
-    s.graph.children=[](void *p,MMU32 type,MMU32 number)->MMU32 { return static_cast<PChunkyFile>(p)->Ckid(type,number); };
-    s.graph.child=[](void *p,MMU32 type,MMU32 number,MMU32 i,MMChunkChild *out)->int {
-        ChildChunkIdentification child; if(!static_cast<PChunkyFile>(p)->FGetKid(type,number,i,&child)) return 0;
-        *out={child.cki.ctg,child.cki.cno,child.chid}; return 1;
     };
     return s;
 }

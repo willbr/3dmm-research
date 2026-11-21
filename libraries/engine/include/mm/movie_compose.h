@@ -4,7 +4,6 @@
 #define MM_ENGINE_MOVIE_COMPOSE_H
 #include "movie_owner.h"
 #include "movie_scene.h"
-#include "chunk_graph.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -42,7 +41,8 @@ extern "C"
         MMMovieScenes *scenes;
         MMMovieSceneServices scene_control;
         MMStorageAllocator allocator;
-        MMChunkGraph graph;
+        MMArchiveWriter (*archive)(void *file);
+        MMRollCallBinding rollcall;
         int temporary_before_save;
         int (*use_temporary)(void *), (*autosave)(void *);
         void (*retain)(void *), (*release)(void *);
@@ -50,7 +50,6 @@ extern "C"
         MMI32 (*transition)(void *scene);
         void *(*read_thumbnail)(void *file, MMU32 number), *(*thumbnail)(void *scene);
         int (*clone_movie)(void *source, MMU32 number, void *destination, MMU32 *number_out);
-        int (*link_imported_sounds)(void *file, MMU32 movie);
         int (*adopt_sounds)(void *, void *file, MMU32 scene);
         int (*start_scene)(void *scene), (*add_actors)(void *scene);
         void (*remove_actors)(void *scene), (*actor_tools)(void *), (*text_tools)(void *);
@@ -58,9 +57,6 @@ extern "C"
         void (*set_transition)(void *scene, MMI32);
         void (*dirty)(void *), (*scene_nuked)(void *), (*invalidate)(void *), (*rollcall_changed)(void *),
             (*diagnostic)(void *, int), (*validate_children)(void *);
-        int (*read_rollcall)(void *resources, MMU32 movie, MMRollCallTable *);
-        void (*close_tag)(MMTag *);
-        int (*adjust_actor)(void *file, MMU32 actor, MMI32 offset);
         int (*rebind_actor_materials)(void *source, void *destination, MMU32 actor);
         int (*rebind_scene_backgrounds)(void *source, void *destination, MMU32 scene);
     } MMMovieComposeServices;
@@ -78,7 +74,7 @@ extern "C"
     /* Initialized synchronous services and stable owners are required. Callbacks
      * cannot re-enter editing. Read_thumbnail/read_scene return one reference,
      * thumbnail is borrowed.
-     * read_rollcall fills the initialized C table and acquires tags on success.
+     * The roll-call binding reads the cloned root from the working cache.
      * Failure leaves it empty. Table disposal releases storage only.
      * Add requires working resources when temporary_before_save is enabled. On failure
      * it rolls back inserted descriptors and releases empty lists, preserving autosave.

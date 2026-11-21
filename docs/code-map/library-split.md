@@ -3864,9 +3864,11 @@ effects are retained.
 
 Application keeps just the cloned root numbers in temporary C storage. A
 composition of local scenes needs no clone table. The engine clones the external
-Movie graphs and merges their roll calls before adopting, renumbering or deleting
-scenes and writing transitions. Imported actor-start and registration errors remain
-diagnostic and non-fatal; tool notifications and Scene release still occur.
+Movie graphs. C links root-level imported sounds to their scenes and reads
+each cloned roll call from the working resource cache before adopting,
+renumbering or deleting scenes and writing transitions. Imported actor-start
+and registration errors remain diagnostic and non-fatal. Tool notifications
+and scene release still occur.
 Current-scene removal uses the C Movie scene-owner helper. Final count/ID-limit,
 dirty, SceneNuked, view and roll-call publication retain their original order.
 Completed scene/file/actor prefixes are not implicitly rolled back on failure.
@@ -3884,9 +3886,9 @@ Roll-call merging transfers each loaded tag owner into its appended row, offsets
 IDs with explicit 32-bit wrapping and clears imported reference counts. Failure
 closes all loaded owners exactly once and removes its appended rows; actor-file
 edits already completed are retained for the caller to discard with the clone.
-The C chunk walker and C-owned visited-ID storage replace the native enumerator
-and temporary DynamicArray. Shared actors adjust once, including nested actor
-chunks: the native loop computed a skip flag but never passed it to its walker.
+The C chunk walker reads the working archive's live index and uses C-owned
+visited-ID storage. It rewrites ACTR headers through the archive writer.
+Shared and nested actors are each adjusted once.
 Traversal error flags remain non-fatal as before; visited-set or actor-write
 failure aborts. Removing a C++ temporary allocation changes allocator-attempt
 ordinals, not the successful traversal contract.
