@@ -361,10 +361,9 @@ void Body::ApplyPose(const MMActorBodyPose &pose)
     mm_body_locate(this, &pose, &s);
 }
 
-void Body::PartWorldMatrix(LegacyLong part, MMActorMatrix &out) const
+bool Body::FPartSetBounds(LegacyLong set, MMBodyBounds &out) const
 {
-    AssertIn(part, 0, _body.shape.part_count);
-    mm_body_shape_part_world(&_body.shape, part, &out);
+    return mm_body_set_bounds(&_body.shape, set, mm_brender_body_model_bounds, &out) != 0;
 }
 
 /***************************************************************************

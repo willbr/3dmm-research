@@ -116,6 +116,31 @@ extern "C"
     int mm_preview_actor_set_shape(MMPreviewActor *, const MMPreviewActorShape *, const MMPreviewActorServices *);
     void mm_preview_actor_shape(const MMPreviewActor *, MMPreviewActorShape *, float left[9], float right[9],
                                 const MMPreviewActorServices *);
+
+    enum MMPreviewCostumeResult
+    {
+        MM_PREVIEW_COSTUME_FAILED, MM_PREVIEW_COSTUME_OK, MM_PREVIEW_COSTUME_PREPARE,
+        MM_PREVIEW_COSTUME_APPLY, MM_PREVIEW_COSTUME_NO_SET
+    };
+    typedef struct MMPreviewCostumeServices
+    {
+        void *context;
+        int (*save)(void *, int selected);
+        void (*restore)(void *, int selected);
+        void (*rest_pose)(void *);
+        int (*apply)(void *);
+        int (*object_bounds)(void *, float corners[24]);
+        int (*variants)(void *, size_t *count);
+        MMI32 (*variant_set)(void *, size_t);
+        int (*apply_variant)(void *, size_t);
+        void (*vertical_bounds)(void *, float range[2]);
+        int (*part_bounds)(void *, MMI32 set, float low[3], float high[3]);
+        int (*render)(void *, const float corners[24], int crop);
+    } MMPreviewCostumeServices;
+    /* Synchronous isolated render. Capture the original costume and pose,
+     * frame the union of the requested set's variants, and restore the
+     * original state on every path after capture. Host callbacks do not throw. */
+    int mm_preview_costume_render(MMI32 set, const MMPreviewCostumeServices *);
 #ifdef __cplusplus
 }
 #endif

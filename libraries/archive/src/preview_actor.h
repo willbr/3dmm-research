@@ -75,7 +75,6 @@ class PreviewActor
                         int &lastEditedFrame, const SoundGraphResolver &);
     bool TryCostumes(const std::vector<PreviewCostume> &);
     void RestOrientation(BMAT34 &) const;
-    bool CostumeBounds(int bodySet, PreviewBounds &) const;
     bool WriteCostumes(const std::vector<PreviewCostume> &, const std::string &path);
     bool SetEventTrack(std::int32_t source);
     PMaterial_MTRL TextMaterial() const;

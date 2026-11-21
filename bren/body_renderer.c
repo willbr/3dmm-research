@@ -274,6 +274,17 @@ static void local_bounds(void *context, void *actor, MMBodyBounds *out)
     }
 }
 
+void mm_brender_body_model_bounds(const void *model, MMBodyBounds *out)
+{
+    const br_bounds *bounds = &((const br_model *)model)->bounds;
+    int axis;
+    for (axis = 0; axis < 3; ++axis)
+    {
+        out->min[axis] = bounds->min.v[axis];
+        out->max[axis] = bounds->max.v[axis];
+    }
+}
+
 static void highlight_matrix(void *context, void *actor, const MMBodyBounds *source)
 {
     br_bounds bounds;

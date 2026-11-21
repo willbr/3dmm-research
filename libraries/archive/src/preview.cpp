@@ -52,6 +52,7 @@ bool Fail(Error &error, ErrorCode code, const char *message)
 struct Preview::Impl
 {
     struct RenderHost;
+    struct CostumeRenderHost;
     struct LiveHost;
     struct AdmissionHost;
     struct SessionHost;
@@ -317,79 +318,136 @@ bool Preview::SetObjectEventTrack(int object, std::int32_t source, Error &error)
     return (_impl->live.status.ready && object >= 0 && std::size_t(object) < _impl->actors.size() && _impl->actors[object]->SetEventTrack(source)) ||
         Fail(error, ErrorCode::decode_failed, "Cannot apply this costume change.");
 }
+struct Preview::Impl::CostumeRenderHost
+{
+    Preview &preview;
+    Internal::PreviewActor &actor;
+    int object;
+    const std::vector<PreviewCostume> &values;
+    const PreviewView &view;
+    PreviewImage &image;
+    Error &error;
+    BodyCostume original, selected;
+    MMActorBodyPose pose = {};
+    std::vector<PreviewCostume> variants;
+    std::exception_ptr failure;
+
+    template<class Operation> int Guard(Operation operation)
+    {
+        try { return operation(); }
+        catch (...)
+        {
+            failure = std::current_exception();
+            return 0;
+        }
+    }
+    MMPreviewCostumeServices Services()
+    {
+        return {this,
+            [](void *p, int selected) -> int {
+                auto &host = *static_cast<CostumeRenderHost *>(p);
+                auto body = host.actor.Pbody();
+                return host.Guard([&] {
+                    if (selected)
+                        return host.selected.FGet(body);
+                    if (!host.original.FGet(body))
+                        return false;
+                    host.pose.orientation = body->RootMatrix();
+                    return true;
+                });
+            },
+            [](void *p, int selected) {
+                auto &host = *static_cast<CostumeRenderHost *>(p);
+                auto body = host.actor.Pbody();
+                if (selected)
+                    host.selected.Set(body);
+                else
+                {
+                    host.original.Set(body);
+                    body->ApplyPose(host.pose);
+                }
+            },
+            [](void *p) {
+                auto &actor = static_cast<CostumeRenderHost *>(p)->actor;
+                BMAT34 orientation;
+                actor.RestOrientation(orientation);
+                actor.Pbody()->LocateOrient(rZero, rZero, rZero, &orientation);
+            },
+            [](void *p) -> int {
+                auto &host = *static_cast<CostumeRenderHost *>(p);
+                return host.Guard([&] { return host.actor.TryCostumes(host.values); });
+            },
+            [](void *p, float *corners) -> int {
+                auto &host = *static_cast<CostumeRenderHost *>(p);
+                return host.Guard([&] {
+                    PreviewBounds bounds;
+                    if (!host.preview.ObjectBounds(host.object, bounds, host.error) || !bounds.valid)
+                        return false;
+                    std::copy_n(bounds.corners, 24, corners);
+                    return true;
+                });
+            },
+            [](void *p, std::size_t *count) -> int {
+                auto &host = *static_cast<CostumeRenderHost *>(p);
+                return host.Guard([&] {
+                    const auto ok = host.actor.Costumes(host.variants);
+                    *count = host.variants.size();
+                    return ok;
+                });
+            },
+            [](void *p, std::size_t i) -> MMI32 { return static_cast<CostumeRenderHost *>(p)->variants[i].bodySet; },
+            [](void *p, std::size_t i) -> int {
+                auto &host = *static_cast<CostumeRenderHost *>(p);
+                return host.Guard([&] { return host.actor.TryCostumes({host.variants[i]}); });
+            },
+            [](void *p, float *range) {
+                BCB bounds;
+                static_cast<CostumeRenderHost *>(p)->actor.Pbody()->GetBcbBounds(&bounds, fTrue);
+                range[0] = BrScalarToFloat(bounds.yrMin);
+                range[1] = BrScalarToFloat(bounds.yrMax);
+            },
+            [](void *p, MMI32 set, float *low, float *high) -> int {
+                MMBodyBounds bounds;
+                if (!static_cast<CostumeRenderHost *>(p)->actor.Pbody()->FPartSetBounds(set, bounds))
+                    return 0;
+                for (int axis = 0; axis < 3; ++axis)
+                {
+                    low[axis] = BrScalarToFloat(bounds.min[axis]);
+                    high[axis] = BrScalarToFloat(bounds.max[axis]);
+                }
+                return 1;
+            },
+            [](void *p, const float *corners, int crop) -> int {
+                auto &host = *static_cast<CostumeRenderHost *>(p);
+                return host.Guard([&] {
+                    PreviewBounds bounds;
+                    bounds.valid = true;
+                    std::copy_n(corners, 24, bounds.corners);
+                    return host.preview.RenderIsolatedObject(host.object, host.view, bounds, host.image,
+                                                            host.error, crop != 0);
+                });
+            }};
+    }
+};
+
 bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume> &values,
     const PreviewView &view, PreviewImage &image, Error &error, int bodySet)
 {
     error = {}; image = {};
     if (!_impl->live.status.ready || object < 0 || std::size_t(object) >= _impl->actors.size() || !_impl->actors[object]->Visible())
         return Fail(error, ErrorCode::invalid_argument, "Select a visible actor or prop.");
-    auto &actor = *_impl->actors[object]; BodyCostume costume;
-    if (!costume.FGet(actor.Pbody())) return Fail(error, ErrorCode::decode_failed, "Cannot prepare costume preview.");
-    const MMActorBodyPose pose = {{0, 0, 0}, actor.Pbody()->RootMatrix()};
-    struct Restore
-    {
-        BodyCostume &costume; PBody body;
-        MMActorBodyPose pose;
-        ~Restore()
-        {
-            costume.Set(body);
-            body->ApplyPose(pose);
-        }
-    } restore{costume, actor.Pbody(), pose};
-    BMAT34 orientation;
-    actor.RestOrientation(orientation);
-    actor.Pbody()->LocateOrient(rZero, rZero, rZero, &orientation);
-    if (!actor.TryCostumes(values)) return Fail(error, ErrorCode::decode_failed, "Cannot preview this costume.");
-    PreviewBounds bounds;
-    if (!ObjectBounds(object, bounds, error) || !bounds.valid) return false;
-    if (bodySet >= 0)
-    {
-        // Union the set's variants so removing a hat frames the same head area
-        // as adding it, and every thumbnail in a row uses the same camera.
-        std::vector<PreviewCostume> variants;
-        if (!actor.Costumes(variants)) return false;
-        BodyCostume selected;
-        if (!selected.FGet(actor.Pbody())) return false;
-        float low[3] = {}, high[3] = {}; bool found = false, hasSet = false;
-        float bodyLow = bounds.corners[1], bodyHigh = bodyLow;
-        for (int c = 1; c < 8; ++c)
-        { bodyLow = std::min(bodyLow, bounds.corners[c * 3 + 1]); bodyHigh = std::max(bodyHigh, bounds.corners[c * 3 + 1]); }
-        for (const auto &variant : variants) if (variant.bodySet == bodySet)
-        {
-            hasSet = true;
-            PreviewBounds part;
-            if (!actor.TryCostumes({variant})) return false;
-            BCB whole;
-            actor.Pbody()->GetBcbBounds(&whole, fTrue);
-            bodyLow = std::min(bodyLow, BrScalarToFloat(whole.yrMin));
-            bodyHigh = std::max(bodyHigh, BrScalarToFloat(whole.yrMax));
-            if (!actor.CostumeBounds(bodySet, part)) continue;
-            for (int c = 0; c < 8; ++c)
-            {
-                for (int a = 0; a < 3; ++a)
-                {
-                    low[a] = found ? std::min(low[a], part.corners[c * 3 + a]) : part.corners[c * 3 + a];
-                    high[a] = found ? std::max(high[a], part.corners[c * 3 + a]) : part.corners[c * 3 + a];
-                }
-                found = true;
-            }
-        }
-        selected.Set(actor.Pbody());
-        if (!hasSet) return Fail(error, ErrorCode::invalid_argument, "This object has no such costume body part.");
-        if (found)
-        {
-            const float minimum = (bodyHigh - bodyLow) * .15f;
-            for (int a = 0; a < 3; ++a)
-            {
-                const float center = (low[a] + high[a]) * .5f;
-                const float half = std::max(minimum, high[a] - low[a]) * .6f;
-                low[a] = center - half; high[a] = center + half;
-            }
-            for (int c = 0; c < 8; ++c) for (int a = 0; a < 3; ++a)
-                bounds.corners[c * 3 + a] = (c & (1 << a)) ? high[a] : low[a];
-        }
-    }
-    return RenderIsolatedObject(object, view, bounds, image, error, bodySet >= 0);
+    Impl::CostumeRenderHost host = {*this, *_impl->actors[object], object, values, view, image, error};
+    const auto services = host.Services();
+    const auto result = mm_preview_costume_render(bodySet, &services);
+    if (host.failure)
+        std::rethrow_exception(host.failure);
+    if (result == MM_PREVIEW_COSTUME_PREPARE)
+        return Fail(error, ErrorCode::decode_failed, "Cannot prepare costume preview.");
+    if (result == MM_PREVIEW_COSTUME_APPLY)
+        return Fail(error, ErrorCode::decode_failed, "Cannot preview this costume.");
+    if (result == MM_PREVIEW_COSTUME_NO_SET)
+        return Fail(error, ErrorCode::invalid_argument, "This object has no such costume body part.");
+    return result == MM_PREVIEW_COSTUME_OK;
 }
 bool Preview::RenderIsolatedObject(int object, const PreviewView &view, const PreviewBounds &bounds,
                                    PreviewImage &image, Error &error, bool crop)

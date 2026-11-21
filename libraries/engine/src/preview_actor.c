@@ -578,3 +578,79 @@ int mm_preview_actor_seek(MMPreviewActor *p, MMI32 target, const MMPreviewActorS
         return s->apply_material_override(s->context);
     return result;
 }
+
+static float lower(float a, float b) { return b < a ? b : a; }
+static float upper(float a, float b) { return a < b ? b : a; }
+
+static int costume_frame(const MMPreviewCostumeServices *s, MMI32 set, float corners[24])
+{
+    float low[3], high[3];
+    float body_low = corners[1], body_high = corners[1];
+    size_t count, i;
+    unsigned corner, axis;
+    int has_set = 0, has_bounds = 0;
+    if (!s->variants(s->context, &count) || !s->save(s->context, 1))
+        return MM_PREVIEW_COSTUME_FAILED;
+    for (corner = 1; corner < 8; ++corner)
+    {
+        body_low = lower(body_low, corners[corner * 3 + 1]);
+        body_high = upper(body_high, corners[corner * 3 + 1]);
+    }
+    for (i = 0; i < count; ++i)
+    {
+        float vertical[2], part_low[3], part_high[3];
+        if (s->variant_set(s->context, i) != set)
+            continue;
+        has_set = 1;
+        if (!s->apply_variant(s->context, i))
+            return MM_PREVIEW_COSTUME_FAILED;
+        s->vertical_bounds(s->context, vertical);
+        body_low = lower(body_low, vertical[0]);
+        body_high = upper(body_high, vertical[1]);
+        if (!s->part_bounds(s->context, set, part_low, part_high))
+            continue;
+        for (axis = 0; axis < 3; ++axis)
+        {
+            low[axis] = has_bounds ? lower(low[axis], part_low[axis]) : part_low[axis];
+            high[axis] = has_bounds ? upper(high[axis], part_high[axis]) : part_high[axis];
+        }
+        has_bounds = 1;
+    }
+    s->restore(s->context, 1);
+    if (!has_set)
+        return MM_PREVIEW_COSTUME_NO_SET;
+    if (has_bounds)
+    {
+        const float minimum = (body_high - body_low) * .15f;
+        for (axis = 0; axis < 3; ++axis)
+        {
+            const float center = (low[axis] + high[axis]) * .5f;
+            const float half = upper(minimum, high[axis] - low[axis]) * .6f;
+            low[axis] = center - half;
+            high[axis] = center + half;
+        }
+        for (corner = 0; corner < 8; ++corner)
+            for (axis = 0; axis < 3; ++axis)
+                corners[corner * 3 + axis] = corner & (1U << axis) ? high[axis] : low[axis];
+    }
+    return MM_PREVIEW_COSTUME_OK;
+}
+
+int mm_preview_costume_render(MMI32 set, const MMPreviewCostumeServices *s)
+{
+    int result = MM_PREVIEW_COSTUME_OK;
+    float corners[24];
+    if (!s->save(s->context, 0))
+        return MM_PREVIEW_COSTUME_PREPARE;
+    s->rest_pose(s->context);
+    if (!s->apply(s->context))
+        result = MM_PREVIEW_COSTUME_APPLY;
+    else if (!s->object_bounds(s->context, corners))
+        result = MM_PREVIEW_COSTUME_FAILED;
+    else if (set >= 0)
+        result = costume_frame(s, set, corners);
+    if (result == MM_PREVIEW_COSTUME_OK && !s->render(s->context, corners, set >= 0))
+        result = MM_PREVIEW_COSTUME_FAILED;
+    s->restore(s->context, 0);
+    return result;
+}

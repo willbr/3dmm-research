@@ -29,6 +29,7 @@ void *mm_brender_body_attach(void *, void *parent, MMI32 index, const MMBodyPart
 
 void *mm_brender_body_owner(const void *actor);
 void mm_brender_body_geometry_services(MMBodyGeometryServices *);
+void mm_brender_body_model_bounds(const void *model, MMBodyBounds *);
 
 #ifdef __cplusplus
 }

@@ -56,6 +56,10 @@ extern "C"
     void mm_body_center(const MMBodyGeometry *, MMI32 *x, MMI32 *y);
     void mm_body_bounds(const struct MMBodyShape *, int world, MMBodyBounds *, const MMBodyGeometryServices *);
     void mm_body_transform_bounds(const MMBodyBounds *, const MMActorMatrix *, MMBodyBounds *);
+    typedef void MMBodyModelBounds(const void *model, MMBodyBounds *);
+    /* Union placed model bounds for one set. A missing set or a set with no
+     * models leaves the caller's output untouched. */
+    int mm_body_set_bounds(const struct MMBodyShape *, MMI32 set, MMBodyModelBounds *, MMBodyBounds *);
     void mm_body_position(const struct MMBodyShape *, MMI32 out[3]);
     /* Picking uses an explicit caller-owned context. Strictly closer visible hits
      * win (first hit wins equal depth); root/highlight hits may select a body but

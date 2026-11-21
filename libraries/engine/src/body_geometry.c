@@ -117,36 +117,55 @@ void mm_body_center(const MMBodyGeometry *g, MMI32 *x, MMI32 *y)
     *x = half(mm_fixed_add(r.left, r.right));
     *y = half(mm_fixed_add(r.top, r.bottom));
 }
-void mm_body_transform_bounds(const MMBodyBounds *in, const MMActorMatrix *m, MMBodyBounds *out)
+static void include_transformed(const MMBodyBounds *in, const MMActorMatrix *m, MMBodyBounds *bounds)
 {
-    MMBodyBounds b = *in, result;
     MMI32 point[3], v;
     unsigned i, j;
-    for (j = 0; j < 3; ++j)
-    {
-        result.min[j] = 655360000L;
-        result.max[j] = -655360000L;
-    }
     for (i = 0; i < 8; ++i)
     {
-        /* Retain native corner order and the +/-10000 initial extrema. */
         for (j = 0; j < 3; ++j)
-            point[j] = i < 4 ? b.min[j] : b.max[j];
-        if (i > 0 && i < 4)
-            point[i - 1] = b.max[i - 1];
-        if (i > 4)
-            point[i - 5] = b.min[i - 5];
+            point[j] = i & (1U << j) ? in->max[j] : in->min[j];
         for (j = 0; j < 3; ++j)
         {
             v = mm_fixed_add(
                 mm_fixed_mac3(point[0], m->m[0][j], point[1], m->m[1][j], point[2], m->m[2][j]), m->m[3][j]);
-            if (v < result.min[j])
-                result.min[j] = v;
-            if (v > result.max[j])
-                result.max[j] = v;
+            if (v < bounds->min[j])
+                bounds->min[j] = v;
+            if (v > bounds->max[j])
+                bounds->max[j] = v;
         }
     }
+}
+void mm_body_transform_bounds(const MMBodyBounds *in, const MMActorMatrix *m, MMBodyBounds *out)
+{
+    /* Whole-body bounds preserve the retail +/-10000 sentinels. */
+    MMBodyBounds result = {{655360000L, 655360000L, 655360000L}, {-655360000L, -655360000L, -655360000L}};
+    include_transformed(in, m, &result);
     *out = result;
+}
+int mm_body_set_bounds(const MMBodyShape *shape, MMI32 set, MMBodyModelBounds *read, MMBodyBounds *out)
+{
+    MMBodyBounds result = {{2147483647L, 2147483647L, 2147483647L},
+                           {(-2147483647L - 1), (-2147483647L - 1), (-2147483647L - 1)}};
+    MMI32 i;
+    int have_bounds = 0;
+    if (set < 0 || set >= shape->set_count)
+        return 0;
+    for (i = 0; i < shape->part_count; ++i)
+    {
+        const MMBodyPartBinding *part = &shape->bindings[i + 2];
+        MMBodyBounds local;
+        MMActorMatrix world;
+        if (part->set != set || !part->model_handle)
+            continue;
+        read(part->model_handle, &local);
+        mm_body_shape_part_world(shape, i, &world);
+        include_transformed(&local, &world, &result);
+        have_bounds = 1;
+    }
+    if (have_bounds)
+        *out = result;
+    return have_bounds;
 }
 void mm_body_bounds(const MMBodyShape *shape, int world, MMBodyBounds *out, const MMBodyGeometryServices *s)
 {

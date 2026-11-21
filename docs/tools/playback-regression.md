@@ -19715,3 +19715,28 @@ frames and cameras. Each reproduced its prior canvas hashes, with three
 known differences from retail per port. In `20261121T182050Z-05b6750b`, SDL
 and Marcus matched all three archived V3dmm frames, cameras, and hashes.
 Evidence is in `tmp/c89-nick-pack-archives`.
+
+## Costume preview framing and rollback (21 November 2026)
+
+C89 frames a costume part using the union of its variants and restores the
+original costume and pose after the isolated render. Part bounds come from the
+shared body's retained model bindings, composed through the fixed-point
+parent and root transforms. Whole-body bounds retain the retail extrema
+initialization. The body geometry fixture checks a transformed set beyond
+those extrema, as well as empty and missing sets.
+
+The Marcus costume fixture reproduced all 51 full-object and part previews,
+including RGBA bytes, crop rectangles, and projection transforms. The `.3mm`
+containing the edited actor and prop costumes also matched byte for byte.
+All 193 standalone C89 checks passed, including strict syntax. AddressSanitizer
+passed body geometry and Preview actor checks. Native Preview, SDL scene
+Preview, and the Marcus player suite passed.
+
+Retail, SDL, and Marcus matched the scene, camera, and pixels at all ten
+seek frames in `20261121T183016Z-36f0298c`. All three visited the same ten
+frames in continuous playback. SDL's last presentation was 123 ms later
+relative to its first than retail's. The capture reported Marcus timing and
+both continuous pixel comparisons as inconclusive because the markers or
+samples need alignment. The capture and logs are in `tmp/c89-costume-framing`.
+The exact preview traces are under `c89-costume-framing/traces` in the
+generated cache on `D:`.

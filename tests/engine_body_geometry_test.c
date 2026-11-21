@@ -271,6 +271,42 @@ static void transform(void)
     mm_body_transform_bounds(&b, &m, &out);
     assert(out.min[0] == 655360000L && out.max[1] == -655360000L);
 }
+static void model_bounds(const void *model, MMBodyBounds *out)
+{
+    *out = *(const MMBodyBounds *)model;
+}
+
+static void set_bounds(void)
+{
+    MMBodyShape shape = {0};
+    MMBodyPartBinding parts[6] = {0};
+    MMBodyBounds model = {{0, 0, 0}, {65536L, 131072L, 196608L}}, out, previous;
+    int i;
+    shape.bindings = parts;
+    shape.part_count = 4;
+    shape.set_count = 3;
+    for (i = 0; i < 6; ++i)
+        mm_matrix_identity(&parts[i].matrix);
+    parts[0].matrix.m[3][0] = 786432000L;
+    parts[2].parent = -1;
+    parts[2].matrix.m[3][0] = 65536L;
+    parts[3].parent = 0;
+    parts[3].set = 1;
+    parts[3].matrix.m[3][1] = 655360L;
+    parts[4].parent = 1;
+    parts[4].matrix.m[3][0] = 131072L;
+    parts[4].matrix.m[3][1] = 131072L;
+    parts[2].model_handle = parts[3].model_handle = parts[4].model_handle = &model;
+    parts[5].set = 2;
+    assert(mm_body_set_bounds(&shape, 0, model_bounds, &out));
+    assert(out.min[0] == 786497536L && out.max[0] == 786694144L);
+    assert(out.min[1] == 0 && out.max[1] == 917504L);
+    assert(out.min[2] == 0 && out.max[2] == 196608L);
+    previous = out;
+    assert(!mm_body_set_bounds(&shape, 2, model_bounds, &out));
+    assert(!mm_body_set_bounds(&shape, 3, model_bounds, &out));
+    assert(!memcmp(&previous, &out, sizeof(out)));
+}
 int main(void)
 {
     MMBodyGeometryServices s;
@@ -292,6 +328,7 @@ int main(void)
     picking(&s);
     scanning(&s);
     transform();
+    set_bounds();
     assert(f.missing == 3);
     puts("C89 body geometry: render bounds, highlight ordering, fixed transforms and isolated hit contexts passed.");
     return 0;
