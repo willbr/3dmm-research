@@ -51,7 +51,6 @@ class Body : public Body_PAR
     void _DestroyShape(void);
     PBACT _Actors(void) const { return static_cast<PBACT>(_body.shape.actors); }
     const MMPartIndexList *_Sets(void) const { return static_cast<const MMPartIndexList *>(_body.shape.sets); }
-    PCustomMaterial_CMTL *_Materials(void) const { return static_cast<PCustomMaterial_CMTL *>(_body.shape.materials); }
     PBACT _PbactRoot(void) // ptr to root BACT
     {
         return _Actors();
@@ -72,7 +71,6 @@ class Body : public Body_PAR
     {
         return mm_part_index_get(&_Sets()->view, ipart);
     }
-    void _RemoveMaterial(LegacyLong ibset);
 
     // Callbacks from BRender:
     static void _BactRendered(PBACT pbact, RC *prc);

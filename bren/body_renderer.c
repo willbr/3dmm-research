@@ -131,6 +131,7 @@ void mm_brender_body_create_services(MMBodyCreateServices *s)
     s->install_highlight = install_highlight;
     s->initialize_actor = initialize_actor;
     s->assign_matrix = set_matrix;
+    s->assign_material = set_material;
     s->link = mm_brender_body_link;
 }
 
@@ -206,7 +207,6 @@ static void detach(void *context, void *actors)
 void mm_brender_body_runtime_services(MMBodyRuntimeServices *s)
 {
     s->assign_model = set_model;
-    s->assign_material = set_material;
     s->highlight = highlight;
     s->attached = attached;
     s->detach = detach;

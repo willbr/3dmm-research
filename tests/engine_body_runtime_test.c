@@ -9,7 +9,7 @@ struct Ref { int refs,kind,set,count; Handle raw,parts[4]; Ref *models[4]; };
 typedef struct Part { Handle *model, *material; MMActorMatrix matrix; } Part;
 typedef struct Fixture
 {
-    MMBodyRuntimeServices s; MMBodyState b; short sets[6]; Part parts[8]; MMBodyPartBinding bindings[8]; Ref *customs[3];
+    MMBodyRuntimeServices s; MMBodyState b; short sets[6]; Part parts[8]; MMBodyPartBinding bindings[8]; void *customs[3];
     Ref a,bmodel,ma,mb,custom,poison; int events[256],event_count;
     int parent,attached,detached,changed,highlight,fail,freed,model_lookups,diagnostics[4];
 } Fixture;
@@ -32,10 +32,7 @@ static void assign_model(void *p,void *actors,MMI32 i,void *raw)
 }
 static void assign_material(void *p,void *actors,MMI32 i,void *r)
 { Fixture *f=p; CHECK(actors==f->parts && f->bindings[i].material==r); f->parts[i].material=r; }
-static void *material_object(void *p,void *raw) { Handle *h=raw; (void)p; CHECK(h && h->live && h->owner->kind==1); return h->owner; }
 static void *material_handle(void *p,void *r) { (void)p; CHECK(((Ref *)r)->kind==1); return &((Ref *)r)->raw; }
-static void *custom(void *p,void *b,MMI32 i) { Fixture *f=p; CHECK(b==f); return f->customs[i]; }
-static void assign_custom(void *p,void *b,MMI32 i,void *r) { Fixture *f=p; CHECK(b==f); f->customs[i]=r; }
 static MMI32 custom_set(void *p,void *r) { (void)p; return ((Ref *)r)->set; }
 static MMI32 custom_count(void *p,void *r) { (void)p; return ((Ref *)r)->count; }
 static void *custom_model(void *p,void *r,MMI32 i) { (void)p; CHECK(i>=0 && i<4); return ((Ref *)r)->models[i]; }
@@ -55,7 +52,7 @@ static void detach(void *p,void *actors)
 static void changed(void *p) { Fixture *f=p; ++f->changed; event(f,4); }
 static int is_generic(void *p,void *r) { (void)p; return ((Ref *)r)->kind==1; }
 static void diagnostic(void *p,int n) { CHECK(n>=0 && n<4); ++((Fixture *)p)->diagnostics[n]; }
-static int allocate(void *p,MMI32 n,void **out)
+static int allocate(void *p,MMI32 n,void ***out)
 { Fixture *f=p; *out=NULL; if (f->fail) return 0; *out=calloc((size_t)n+1,sizeof(void *)); CHECK(*out); return 1; }
 static void free_memory(void *p,void **out) { Fixture *f=p; if (*out) ++f->freed; free(*out); *out=NULL; }
 static void setup(Fixture *f,int hidden)
@@ -69,14 +66,14 @@ static void setup(Fixture *f,int hidden)
     f->custom.models[0]=&f->bmodel; f->custom.models[2]=&f->a;
     for (i=0;i<6;++i) f->sets[i]=(short)(i%2);
     f->b.shape.sets=f->sets; f->b.shape.part_count=6; f->b.shape.set_count=2; f->b.shape.hidden=hidden; f->parent=!hidden;
-    f->b.shape.actors=f->parts; f->b.shape.bindings=f->bindings;
+    f->b.shape.actors=f->parts; f->b.shape.bindings=f->bindings; f->b.shape.custom_materials=f->customs;
     f->b.geometry.bounds.right=99; f->b.geometry.last_visible.right=42;
     f->b.render.context=f; f->b.render.attach=attach; f->b.render.changed=changed;
     f->s.shape.context=f; f->s.shape.state=body_state; f->s.shape.item=item;
     f->s.shape.release=release; f->s.shape.allocate_materials=allocate; f->s.shape.free_memory=free_memory;
     f->s.retain=retain; f->s.model_handle=model_handle; f->s.assign_model=assign_model;
-    f->s.assign_material=assign_material; f->s.material_object=material_object; f->s.material_handle=material_handle;
-    f->s.custom=custom; f->s.assign_custom=assign_custom; f->s.custom_set=custom_set; f->s.custom_count=custom_count;
+    f->s.shape.assign_material=assign_material; f->s.material_handle=material_handle;
+    f->s.custom_set=custom_set; f->s.custom_count=custom_count;
     f->s.custom_model=custom_model; f->s.custom_material=custom_material; f->s.invalidate_output=invalidate;
     f->s.shape.assign_matrix=matrix; f->s.highlight=highlight; f->s.attached=attached;
     f->s.detach=detach; f->s.is_generic=is_generic; f->s.diagnostic=diagnostic;
@@ -118,7 +115,9 @@ int main(void)
         CHECK(f.b.shape.hidden==h && f.changed==initial+(h?0:2));
         CHECK(f.b.geometry.bounds.right==(h?99:0) && f.b.geometry.last_visible.right==42);
         if (!h) CHECK(f.event_count==4 && f.events[0]==3 && f.events[1]==4 && f.events[2]==1 && f.events[3]==4);
+        CHECK(f.bindings[3].material_owner==&f.mb && f.bindings[3].material==&f.mb.raw);
         initial=f.changed; mm_body_set_custom(&f,&f.custom,&f.s);
+        CHECK(!f.bindings[3].material_owner && f.bindings[3].material==&f.custom.parts[0]);
         CHECK(f.custom.refs==2 && f.bmodel.refs==3 && f.a.refs==2 && f.changed==initial+(h?0:3));
         change=f.changed; mm_body_set_custom(&f,&f.custom,&f.s);
         CHECK(f.custom.refs==2 && f.changed==change+(h?0:1));
@@ -136,10 +135,9 @@ int main(void)
         CHECK(gen && m==&f.mb && c==&f.poison && f.diagnostics[MM_BODY_EMPTY_SET]==1);
         f.event_count=0; cleanup(&f); CHECK(f.custom.refs==1);
     }
-    /* The last custom reference can disappear before its raw handles clear.
-     * material_object rejects dead handles, detecting accidental dereference. */
+    /* The last custom reference can disappear before its raw handles clear. */
     setup(&f,1); mm_body_set_custom(&f,&f.custom,&f.s); release(&f,&f.custom);
     CHECK(f.custom.refs==1); mm_body_remove_material(&f,1,&f.s);
-    CHECK(!f.custom.refs && !f.custom.parts[0].live && !f.customs[1]); cleanup(&f);
+    CHECK(!f.custom.refs && !f.custom.parts[0].live && !f.customs[1] && !f.bindings[3].material); cleanup(&f);
     puts("C89 body materials, visibility and costume ownership checks passed"); return 0;
 }

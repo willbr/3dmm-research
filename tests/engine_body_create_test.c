@@ -11,6 +11,7 @@ typedef struct Fixture
     MMBodyState body;
     MMBodyCreateServices s;
     List sets,parents,copy;
+    int costumes[8];
     int fail,highlight,installed,created,released,duplicated,material_alloc,actor_alloc;
     int initialized,linked,hidden,models,materials,freed,sets_released,disposed;
     int events[64],event_count;
@@ -26,7 +27,12 @@ static void release(void *p,void *object)
     Fixture *f=p;
     if (object==&f->body) { ++f->released; mm_body_shape_dispose(object,&f->s); ++f->disposed; }
     else if (object==&f->copy)
-    { CHECK(!f->body.shape.actors && !f->body.shape.bindings && !f->body.shape.materials); ++f->sets_released; event(f,12); }
+    { CHECK(!f->body.shape.actors && !f->body.shape.bindings && !f->body.shape.custom_materials); ++f->sets_released; event(f,12); }
+    else if (f->materials<f->body.shape.set_count && object==&f->costumes[f->materials])
+    {
+        CHECK(f->models==f->body.shape.part_count && !f->freed);
+        ++f->materials; event(f,11);
+    }
     else
     {
         Part *part=object;
@@ -42,16 +48,16 @@ static void *duplicate(void *p,void *sets)
 }
 static MMI32 count(void *p,void *list) { (void)p; return ((List *)list)->count; }
 static MMI32 item(void *p,void *list,MMI32 i) { (void)p; CHECK(i>=0 && i<((List *)list)->count); return ((List *)list)->values[i]; }
-static int allocate_materials(void *p,MMI32 n,void **out)
+static int allocate_materials(void *p,MMI32 n,void ***out)
 {
     Fixture *f=p; CHECK(f->body.shape.set_count==n && f->body.shape.sets==&f->copy); ++f->material_alloc; event(f,5);
     if (f->fail==4) { *out=NULL; return 0; }
-    *out=calloc((size_t)n+1,sizeof(int)); CHECK(*out); return 1;
+    *out=calloc((size_t)n+1,sizeof(**out)); CHECK(*out); return 1;
 }
 static int allocate_actors(void *p,MMI32 n,void **out,MMBodyPartBinding **bindings)
 {
     ActorStorage *storage;
-    Fixture *f=p; CHECK(n==f->body.shape.part_count+2 && f->body.shape.materials); ++f->actor_alloc; event(f,6);
+    Fixture *f=p; CHECK(n==f->body.shape.part_count+2 && f->body.shape.custom_materials); ++f->actor_alloc; event(f,6);
     if (f->fail==5) { *out=NULL; return 0; }
     storage=calloc(1,sizeof(*storage)); CHECK(storage && n<=8);
     *out=storage; *bindings=storage->bindings; return 1;
@@ -68,6 +74,12 @@ static void assign_matrix(void *p,void *actors,MMI32 i,const MMActorMatrix *matr
     Fixture *f=p;
     CHECK(actors==f->body.shape.actors && matrix==&f->body.shape.bindings[i].matrix);
     CHECK(matrix->m[0][0]==65536 && matrix->m[3][0]==0);
+}
+static void clear_material(void *p,void *actors,MMI32 i,void *handle)
+{
+    Fixture *f=p;
+    CHECK(actors==f->body.shape.actors && !handle);
+    CHECK(!f->body.shape.custom_materials[f->copy.values[i-2]]);
 }
 static void link_actor(void *p,void *actors,MMI32 parent,MMI32 child)
 {
@@ -89,10 +101,6 @@ static void hide_body(void *p,void *body)
     Fixture *f=p; CHECK(body==&f->body && !f->body.shape.hidden && f->body.shape.actors);
     f->body.shape.hidden=1; ++f->hidden; event(f,9);
 }
-static void remove_material(void *p,void *body,MMI32 i)
-{
-    Fixture *f=p; CHECK(body==&f->body && f->models==f->body.shape.part_count && i==f->materials++ && !f->freed); event(f,11);
-}
 static void free_memory(void *p,void **memory)
 {
     Fixture *f=p;
@@ -108,14 +116,14 @@ static void setup(Fixture *f,int n,int fail)
     f->s.create=create; f->s.release=release; f->s.duplicate_sets=duplicate; f->s.release_sets=release;
     f->s.count=count; f->s.item=item;
     f->s.allocate_materials=allocate_materials; f->s.allocate_actors=allocate_actors; f->s.initialize_actor=initialize;
-    f->s.assign_matrix=assign_matrix; f->s.link=link_actor; f->s.hide=hide_body;
-    f->s.remove_material=remove_material; f->s.free_memory=free_memory;
+    f->s.assign_matrix=assign_matrix; f->s.assign_material=clear_material; f->s.link=link_actor; f->s.hide=hide_body;
+    f->s.free_memory=free_memory;
 }
 int main(void)
 {
     Fixture f; int n,fail,warm,mode,i,ok;
     memset(&f.body,0xa5,sizeof(f.body)); mm_body_state_init(&f.body);
-    CHECK(!f.body.shape.sets && !f.body.shape.materials && !f.body.shape.actors);
+    CHECK(!f.body.shape.sets && !f.body.shape.custom_materials && !f.body.shape.actors);
     CHECK(!f.body.shape.set_count && !f.body.shape.part_count && !f.body.shape.hidden);
     CHECK(!f.body.render.context && !f.body.render.attach && !f.body.render.changed);
     CHECK(!f.body.geometry.bounds.right && !f.body.geometry.last_visible.right && !f.body.geometry.found && !f.body.geometry.set);
@@ -141,9 +149,11 @@ int main(void)
             CHECK(mm_body_draw(&view,&draw,draw_part) && draw.submitted==n+1);
             draw.submitted=0; draw.fail=n?2:1;
             CHECK(!mm_body_draw(&view,&draw,draw_part) && draw.submitted==draw.fail);
+            for (i=0;i<f.body.shape.set_count;++i)
+                f.body.shape.custom_materials[i]=&f.costumes[i];
             f.body.shape.hidden=0; release(&f,body); CHECK(f.hidden==1 && f.models==n && f.materials==(n?5:0));
         }
-        CHECK(!f.body.shape.actors && !f.body.shape.materials && !f.body.shape.sets);
+        CHECK(!f.body.shape.actors && !f.body.shape.custom_materials && !f.body.shape.sets);
         CHECK(f.released==(ok || fail>=3));
         CHECK(f.created==(!(fail==1 && !warm)));
         CHECK(f.sets_released==(ok || fail>=4));
@@ -157,10 +167,10 @@ int main(void)
         ok=mode?mm_body_initialize(&f.body,&f.parents,&f.sets,&f.s):
             mm_body_shape_initialize(&f.body,&f.parents,&f.sets,&f.s);
         CHECK(!ok && !f.released && !f.freed && f.body.shape.hidden==(mode?1:7));
-        CHECK((f.body.shape.sets!=NULL)==(fail>3)); CHECK((f.body.shape.materials!=NULL)==(fail>4));
+        CHECK((f.body.shape.sets!=NULL)==(fail>3)); CHECK((f.body.shape.custom_materials!=NULL)==(fail>4));
         CHECK(f.body.shape.set_count==(fail>3?5:0) && f.body.shape.part_count==(fail>4?6:0));
         mm_body_shape_dispose(&f.body,&f.s);
-        CHECK(!f.body.shape.sets && !f.body.shape.materials && !f.body.shape.actors && !f.hidden);
+        CHECK(!f.body.shape.sets && !f.body.shape.custom_materials && !f.body.shape.actors && !f.hidden);
         CHECK(!f.materials && !f.models && f.freed==(fail==5));
     }
     puts("C89 body construction and partial ownership checks passed"); return 0;

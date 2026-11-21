@@ -9,6 +9,35 @@ void mm_body_shape_matrix(MMBodyShape *shape,MMI32 index,const MMActorMatrix *ma
     shape->bindings[index].matrix = *matrix;
     s->assign_matrix(s->context,shape->actors,index,&shape->bindings[index].matrix);
 }
+void mm_body_shape_material(MMBodyShape *shape,MMI32 part,void *owner,void *handle,const MMBodyCreateServices *s)
+{
+    MMI32 index=part+2;
+    shape->bindings[index].material_owner=owner;
+    shape->bindings[index].material=handle;
+    s->assign_material(s->context,shape->actors,index,handle);
+}
+void mm_body_shape_remove_material(MMBodyShape *shape,MMI32 set,const MMBodyCreateServices *s)
+{
+    void *custom=shape->custom_materials[set];
+    int had_custom=custom!=NULL;
+    MMI32 part;
+    if (custom)
+    {
+        s->release(s->context,custom);
+        shape->custom_materials[set]=NULL;
+    }
+    for (part=0;part<shape->part_count;++part)
+    {
+        MMBodyPartBinding *binding=&shape->bindings[part+2];
+        if (s->item(s->context,shape->sets,part)!=set)
+            continue;
+        if (binding->material_owner)
+            s->release(s->context,binding->material_owner);
+        else if (!had_custom && !binding->material)
+            continue;
+        mm_body_shape_material(shape,part,NULL,NULL,s);
+    }
+}
 void mm_body_shape_part_world(const MMBodyShape *shape,MMI32 part,MMActorMatrix *out)
 {
     const MMBodyPartBinding *bindings=shape->bindings;
@@ -58,7 +87,7 @@ int mm_body_shape_initialize(void *body,void *parents,void *sets,const MMBodyCre
     }
     ++b.set_count;
     *shape=b;
-    if (!s->allocate_materials(s->context,b.set_count,&b.materials))
+    if (!s->allocate_materials(s->context,b.set_count,&b.custom_materials))
     { *shape=b; return 0; }
     b.part_count=s->count(s->context,parents);
     *shape=b;
@@ -105,6 +134,7 @@ void mm_body_shape_dispose(void *body,const MMBodyCreateServices *s)
 {
     MMBodyShape *shape = &s->state(s->context,body)->shape;
     MMBodyShape b;
+    void *materials;
     MMI32 i;
     b=*shape;
     if (!b.hidden)
@@ -118,13 +148,14 @@ void mm_body_shape_dispose(void *body,const MMBodyCreateServices *s)
                 b.bindings[i+2].model_owner = NULL;
                 b.bindings[i+2].model_handle = NULL;
             }
-        if (b.materials)
-            for (i=0;i<b.set_count;++i) s->remove_material(s->context,body,i);
+        if (b.custom_materials)
+            for (i=0;i<b.set_count;++i) mm_body_shape_remove_material(shape,i,s);
         s->free_memory(s->context,&b.actors);
         b.bindings=NULL;
         *shape=b;
     }
-    s->free_memory(s->context,&b.materials); *shape=b;
+    materials=b.custom_materials;
+    s->free_memory(s->context,&materials); b.custom_materials=materials; *shape=b;
     if (b.sets) s->release_sets(s->context,b.sets);
     b.sets=NULL; *shape=b;
 }

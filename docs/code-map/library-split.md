@@ -5171,10 +5171,11 @@ No Marcus UI tests were added.
 restoration, actor identifier repair, preserved hidden counts, reshape rollback
 and the order in which materials/models/matrices/highlighting are restored.
 Duplication hides a visible original, copies bindings, allocates/rebases actors,
-retains models, duplicates the set list, allocates/copies material storage and
-copies bounds. Generic materials retain one reference per part; custom materials
-retain one per set. Both success and failure re-show the original before failed
-copy disposal. A copy starts hidden once regardless of its source's hidden count.
+retains models, duplicates the set list, allocates/copies costume storage and
+copies bounds. The C controller retains each generic part owner and each custom
+set owner from the copied state. It re-shows the original after either outcome
+and before disposing of a failed copy. A copy starts hidden once regardless of
+its source's hidden count.
 
 Restoration exchanges the C-owned shape, bounds, hit state, and borrowed renderer
 binding. Each facade keeps its identity and reference count, and both actor trees
@@ -5188,8 +5189,10 @@ parent, child and sibling links by actor index, rebuilds backlinks from the
 copied link slots, and clears the copied root's external links. The renderer
 fixture exercises a source and destination separated by more than 2 GiB on
 Win64 and verifies that removing a copied node leaves the source intact.
-The facade still provides typed resource operations. The C visibility controller
-clears bounds and dispatches optional notifications through the stored host binding.
+Reshape reuses the C runtime's material, model, visibility, and highlight
+operations. The facade provides typed resource operations. The C visibility
+controller clears bounds and dispatches optional notifications through the
+stored host binding.
 
 The 1,880,872-byte native trace matches C exactly across 1,404 cases: 1,278
 successes and 126 allocation-injected failures. Cases include empty/one/six-part
@@ -5208,10 +5211,12 @@ removal remain unfinished.
 
 `body_runtime.c` owns visibility counts and notification decisions, highlight
 updates, model replacement, matrix/translation sequencing, generic/custom
-material replacement and material queries. Model replacement records the draw
-handle alongside its retained resource in the C part binding. Reassigning the
-same model skips handle lookup, reference changes and notification. Generic
-materials retain per part. Custom materials retain before removing the old
+material replacement and material queries. Each C part binding records its
+retained model and generic material owners alongside the borrowed draw handles.
+A custom costume instead retains one owner in the C shape's set array. Material
+queries read the owners directly. Shape disposal and runtime replacement share
+one release path. Reassigning the same model skips handle lookup, reference
+changes and notification. Custom assignment retains before removing the old
 costume, supporting self-use.
 Accessory models update before their part material; absent accessory models
 leave the existing part model intact. Unused trailing custom entries remain

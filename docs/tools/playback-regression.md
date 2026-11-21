@@ -17608,3 +17608,38 @@ indices, and SDL's 12 retail sound requests. Both ports also reproduced all 60
 seek canvas hashes from the prior build. The runner's suite status was
 inconclusive because that suite included only the two ports. Comparison scripts
 and fixture evidence are in `tmp/c89-body-state`.
+
+## Live body material ownership in C89 (21 November 2026)
+
+The C body state now retains the generic material for each part and the
+costume for each set. Each draw actor receives the handle from that binding.
+Body queries read the stored owners. Disposal and runtime replacement share
+the same release path. A costume owner is released before its raw handles are
+cleared, and clearing those handles avoids reading their freed objects.
+Duplication retains the copied owners, including when some parts still have no
+material. Reshape uses the same C runtime operations as ordinary body edits.
+
+All 192 standalone C tests, four focused AddressSanitizer checks, 12 C89
+gates, and four Marcus application checks passed. Native x64, native x86, and
+SDL matched all 12 body traces, three Preview picking traces, 14 world and
+mesh traces, nine sound and actor traces, and 54 movie and scene traces. The
+three saved movie fixtures, SDL authoring save, and 15 Studio pointer traces
+matched byte for byte. Ten Preview fingerprints matched on each build, and
+all six x64 Preview movies matched byte for byte.
+
+The live SDL Studio movie workflow exercised costume changes, texture swaps,
+rewind, repeated seeks, continuous playback, and save/reopen. Its 13 sampled
+actor and appearance states, 12 captured PNGs, and saved round-trip movie
+matched the preceding build.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T022320Z-784e6336`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T022355Z-0f919278`.
+
+All four actor-event runs completed in `20261121T022300Z-16398c9b`. The
+comparison against archived retail captures matched all 60 frame identities
+per port in seek and continuous playback, both ports' seek camera indices,
+and SDL's 12 sound requests. Both ports kept all 60 seek canvas hashes from
+the preceding build. Exact canvas matches with retail stayed at 29 for SDL
+and 45 for Marcus. Evidence is in `tmp/c89-body-materials`.

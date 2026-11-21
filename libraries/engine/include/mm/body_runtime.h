@@ -24,11 +24,7 @@ typedef struct MMBodyRuntimeServices
     void (*retain)(void *,void *);
     void *(*model_handle)(void *,void *model);
     void (*assign_model)(void *,void *actors,MMI32 index,void *raw_model);
-    void (*assign_material)(void *,void *actors,MMI32 index,void *raw_material);
-    void *(*material_object)(void *,void *raw_material);
     void *(*material_handle)(void *,void *material_object);
-    void *(*custom)(void *,void *body,MMI32 set);
-    void (*assign_custom)(void *,void *body,MMI32 set,void *custom);
     MMI32 (*custom_set)(void *,void *);
     MMI32 (*custom_count)(void *,void *);
     void *(*custom_model)(void *,void *,MMI32);

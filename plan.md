@@ -862,9 +862,10 @@ Body actor/material storage, duplicated set-list ownership, part/set counts,
 hidden count, geometry and the borrowed renderer binding live in persistent C
 state. Restoration exchanges this state while preserving facade reference counts
 and assigning both actor trees to their current owners. Studio and Marcus Preview
-use one C89 BRender adapter to submit body matrices and draw handles.
-C89 stores the borrowed model handle with its retained resource as part of
-model replacement. Typed resource providers and final Body facade removal
+use one C89 BRender adapter to submit body matrices and draw handles. C89 stores
+retained model and generic material owners alongside their draw handles, holds
+costumes by set, and shares these operations across live edits and shape disposal.
+Typed resource providers and final Body facade removal
 remain work. Template resource factories,
 header I/O, normal initialization, body creation and default-costume prefetching,
 template action/model/custom resource routing, cel application/action queries

@@ -149,7 +149,7 @@ static void CheckLiveBodyActorCopy(br_actor *source, br_actor *copy)
     std::memset(source, 0, count * sizeof(*source));
     std::memset(copy, 0, count * sizeof(*copy));
     MMBodyEditServices services = {};
-    auto &shape = services.shape;
+    auto &shape = services.runtime.shape;
     mm_brender_body_create_services(&shape);
     mm_brender_body_edit_services(&services);
     auto highlight = static_cast<br_material *>(shape.allocate_highlight(nullptr));
