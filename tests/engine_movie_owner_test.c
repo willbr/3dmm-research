@@ -1,6 +1,7 @@
 #include "mm/movie_owner.h"
 #include "mm/movie_runtime.h"
 #include "mm/movie_session.h"
+#include "chunk_writer_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -29,7 +30,8 @@ struct Host
     void *open_path;
     MMU32 rollcall_bytes;
     unsigned char written_rollcall[512];
-    int buffers;
+    ChunkWriterFixture archive;
+    int buffers, packed, missing_extent;
 };
 enum
 {
@@ -397,19 +399,25 @@ static int write_rollcall(void *p, MMU32 offset, const void *data, size_t bytes)
     memcpy(h->written_rollcall + offset, data, bytes);
     return 1;
 }
-static int add_chunk(void *c, MMU32 bytes, MMU32 *n, MMStorageWriter *writer)
+static int rollcall_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
-    Host *h = (Host *)c;
+    Host *h = ((ChunkIndexFixture *)p)->observer;
     CHECK(bytes > 20 && bytes <= sizeof(h->written_rollcall));
     event(h, '+');
-    *n = 10;
     if (h->fail == FAIL_ADD)
         return 0;
     h->rollcall_bytes = bytes;
-    writer->context = h;
-    writer->length = bytes;
-    writer->write_at = write_rollcall;
+    extent->file = &h->archive;
+    extent->offset = 0;
+    extent->bytes = bytes;
+    extent->flags = 0;
     return 1;
+}
+static int rollcall_write_file(void *p, void *file, MMU32 offset, const void *data, size_t bytes)
+{
+    ChunkWriterFixture *fixture = p;
+    CHECK(file == p && fixture->file_refs == 1);
+    return write_rollcall(fixture->context, offset, data, bytes);
 }
 static void check_wire(Host *h)
 {
@@ -436,17 +444,19 @@ static void check_wire(Host *h)
     }
     CHECK(mm_rollcall_table_dispose(&table) == MM_STORAGE_OK);
 }
-static int adopt(void *c, MMU32 m, MMU32 n)
+static int adopt_rollcall(void *c, MMU32 movie, const MMChunkChild *child)
 {
     Host *h = (Host *)c;
-    CHECK(m == 7 && n == 10);
+    CHECK(movie == 7 && child->type == MM_ROLLCALL_CHUNK && child->slot == MM_ROLLCALL_SLOT && !child->number);
     event(h, '>');
     return h->fail != FAIL_ADOPT;
 }
-static void delete_chunk(void *c, MMU32 n)
+static void delete_rollcall(void *c, const MMChunkEntry *entry)
 {
     Host *h = (Host *)c;
-    CHECK(n == 10);
+    if (!entry->type)
+        return;
+    CHECK(entry->type == MM_ROLLCALL_CHUNK && !entry->number);
     event(h, '-');
 }
 static void make_wire_rollcall(Host *h, MMMemoryStream *memory, int big, int bad_row, MMU32 extra)
@@ -476,7 +486,74 @@ static void make_wire_rollcall(Host *h, MMMemoryStream *memory, int big, int bad
     CHECK(mm_rollcall_table_dispose(&wire) == MM_STORAGE_OK);
     CHECK(mm_memory_stream_init(memory, h->written_rollcall, h->rollcall_bytes));
 }
-static void write_rollcalls(Host *h, MMRollCallTable *source)
+
+static MMChunkAccess rollcall_graph(void *p)
+{
+    return fixture_chunk_access(&((Host *)p)->archive.index);
+}
+
+static int locate_rollcall(void *p, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
+{
+    Host *h = p;
+    CHECK(type == MM_ROLLCALL_CHUNK && number == 4);
+    if (h->missing_extent)
+        return 0;
+    extent->file = &h->archive;
+    extent->offset = 0;
+    extent->length = h->rollcall_bytes;
+    *packed = h->packed;
+    return 1;
+}
+
+static int rollcall_read_file(void *p, void *file, MMU32 offset, void *data, size_t bytes)
+{
+    ChunkWriterFixture *fixture = p;
+    Host *h = fixture->context;
+    CHECK(file == p && fixture->file_refs == 1 && offset <= h->rollcall_bytes && bytes <= h->rollcall_bytes - offset);
+    memcpy(data, h->written_rollcall + offset, bytes);
+    return 1;
+}
+
+static int decode_rollcall(void *p, void **handle)
+{
+    CHECK(!p && *handle && resource_handle_size(NULL, *handle) > 20);
+    return 1;
+}
+
+static int reject_rollcall_decode(void *p, void **handle)
+{
+    (void)p; (void)handle;
+    return 0;
+}
+
+static void load_rollcall(Host *h, Resource *r, MMRollCallTable *actors, MMI32 *limit, const MMRollCallReader *reader)
+{
+    MMResourceCache cache = {0};
+    const MMArchiveWriter archive = chunk_writer_fixture(&h->archive, h, rollcall_extent, rollcall_write_file);
+    const MMChunkChild selected = {MM_ROLLCALL_CHUNK, 4, MM_ROLLCALL_SLOT};
+    const MMChunkChild source = {MM_ROLLCALL_CHUNK, 3, 1};
+    h->archive.block.files.read = rollcall_read_file;
+    cache.file = h;
+    cache.services.handles = archive.payloads->handles;
+    cache.services.block_files = archive.payloads->files;
+    cache.services.live_chunks = rollcall_graph;
+    cache.services.locate = locate_rollcall;
+    fixture_chunk_add(&h->archive.index, MM_MOVIE_CHUNK, 7);
+    fixture_chunk_add(&h->archive.index, source.type, source.number);
+    fixture_chunk_add(&h->archive.index, selected.type, selected.number);
+    CHECK(mm_chunk_adopt(&archive.edit, MM_MOVIE_CHUNK, 7, &source, 1) == MM_CHUNK_OK);
+    CHECK(mm_movie_load_rollcall(&cache, 7, r, actors, limit, decode_rollcall, reader) == MM_CHUNK_NOT_FOUND);
+    CHECK(mm_chunk_adopt(&archive.edit, MM_MOVIE_CHUNK, 7, &selected, 1) == MM_CHUNK_OK);
+    h->missing_extent = 1;
+    CHECK(mm_movie_load_rollcall(&cache, 7, r, actors, limit, decode_rollcall, reader) == MM_CHUNK_NOT_FOUND);
+    h->missing_extent = 0;
+    h->packed = 1;
+    CHECK(mm_movie_load_rollcall(&cache, 7, r, actors, limit, reject_rollcall_decode, reader) == MM_CHUNK_BAD_FILE);
+    CHECK(!actors->count && !*limit && r->refs == 1 && !h->archive.file_refs);
+    CHECK(mm_movie_load_rollcall(&cache, 7, r, actors, limit, decode_rollcall, reader) == MM_CHUNK_OK &&
+          !h->archive.file_refs);
+}
+static void write_rollcalls(Host *h, MMRollCallTable *source, int big)
 {
     static const char *names[] = {"A", "B", "Third"};
     static const int failures[] = {FAIL_WIRE, FAIL_ADD, FAIL_TABLE_WRITE, FAIL_ADOPT};
@@ -484,9 +561,11 @@ static void write_rollcalls(Host *h, MMRollCallTable *source)
     MMRollCallTable input;
     MMRollCallActor actor;
     MMStorageAllocator allocator = {NULL, resize_rollcall, free_rollcall};
-    MMRollCallWriter writer = {NULL, add_chunk, adopt, delete_chunk};
+    MMArchiveWriter writer;
+    MMChunkAccess access;
+    MMChunkChild previous = {MM_ROLLCALL_CHUNK, 4, MM_ROLLCALL_SLOT};
     MMU32 i, written = 99;
-    allocator.context = writer.context = h;
+    allocator.context = h;
     CHECK(mm_rollcall_table_init(&input, sizeof(MMRollCallActor), 1, 0x0303, 0, &allocator) == MM_STORAGE_OK);
     for (i = 0; i < source->count; ++i)
     {
@@ -494,15 +573,27 @@ static void write_rollcalls(Host *h, MMRollCallTable *source)
         CHECK(mm_rollcall_table_add(&input, names[i], (MMU32)strlen(names[i]), &actor));
     }
     CHECK(mm_rollcall_table_rename(&input, 0, "Long first", 10));
-    reset(h);
-    CHECK(mm_movie_write_rollcall(7, &input, &written, &writer) && written == 10 && !strcmp(h->log, "+=>"));
-    check_wire(h);
-    for (i = 0; i < sizeof(failures) / sizeof(failures[0]); ++i)
+    for (i = 0; i <= sizeof(failures) / sizeof(failures[0]); ++i)
     {
-        h->fail = failures[i];
+        writer = chunk_writer_fixture(&h->archive, h, rollcall_extent, rollcall_write_file);
+        writer.big_endian = big;
+        fixture_chunk_add(&h->archive.index, MM_MOVIE_CHUNK, 7);
+        fixture_chunk_add(&h->archive.index, previous.type, previous.number);
+        CHECK(mm_chunk_adopt(&writer.edit, MM_MOVIE_CHUNK, 7, &previous, 1) == MM_CHUNK_OK);
+        h->archive.index.before_insert = adopt_rollcall;
+        h->archive.index.before_delete = delete_rollcall;
+        h->fail = i ? failures[i - 1] : 0;
         reset(h);
-        CHECK(!mm_movie_write_rollcall(7, &input, &written, &writer) && !strcmp(h->log, logs[i]) &&
-              h->buffers == 4);
+        written = 99;
+        CHECK(mm_movie_write_rollcall(&writer, 7, &input, &written) == (i == 0));
+        CHECK(!strcmp(h->log, i ? logs[i - 1] : "+=>") && h->buffers == 4 && !h->archive.file_refs);
+        CHECK(written == (i == 1 ? 99U : 0U));
+        access = fixture_chunk_access(&h->archive.index);
+        CHECK(access.count == (i ? 2U : 3U));
+        CHECK(mm_chunk_link_number(&access, MM_MOVIE_CHUNK, 7, MM_ROLLCALL_SLOT, MM_ROLLCALL_CHUNK,
+                                   &written) == MM_CHUNK_OK && written == (i ? previous.number : 0));
+        if (!i)
+            check_wire(h);
     }
     h->fail = 0;
     CHECK(mm_rollcall_table_dispose(&input) == MM_STORAGE_OK && h->buffers == 2);
@@ -529,10 +620,10 @@ static void rollcalls(void)
         make_wire_rollcall(&h, &memory, big, -2, MM_MOVIE_ACTOR_BYTES);
         reset(&h);
         limit = 0;
-        CHECK(mm_movie_read_rollcall(&memory.stream, r, &actors, &limit, &reader) && limit == 3 && actors.count == 3 &&
-              r->refs == 4 && h.buffers == 2);
+        load_rollcall(&h, r, &actors, &limit, &reader);
+        CHECK(limit == 3 && actors.count == 3 && r->refs == 4 && h.buffers == 2);
         CHECK(mm_rollcall_table_name(&actors, 1, &name, &length) && length == 160 && ((const char *)name)[159] == 'B');
-        write_rollcalls(&h, &actors);
+        write_rollcalls(&h, &actors, big);
         CHECK(r->refs == 4);
         for (row = 0; row < actors.count; ++row)
         {

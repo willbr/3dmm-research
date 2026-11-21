@@ -315,7 +315,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   services and typed caller facades remain to replace. Runtime and wire
   roll-call names/extras, editing buffers, GST loading/translation and serialization
   now use owning C storage. The runtime actor table lives directly in the
-  C movie state.
+  C movie state. C89 resolves and decodes that table through the owning resource
+  cache. Root creation and roll-call writes use the shared archive block writer.
 - Scene metadata and counted names now live in C state. Header read/write,
   event-layout validation, frame/start child replacement, create sequencing and
   failure cleanup use C89. Native file/group adapters and runtime scene-object,

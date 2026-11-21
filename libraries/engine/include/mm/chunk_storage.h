@@ -99,6 +99,9 @@ extern "C"
         void (*invalidate_number)(MMU32 *);
         const MMStorageAllocator *transfer_allocator;
     } MMArchiveWriter;
+    /* Native authoring add publishes the selected number before extent
+     * allocation. On failure the archive may invalidate that output. */
+    int mm_archive_add_block(const MMArchiveWriter *, MMU32 type, MMU32 bytes, MMU32 *number, MMOwnedBlock *);
     typedef int (*MMChunkWritePayload)(void *, const MMStorageWriter *);
     /* Write unpacked bytes to a staged extent. Publish it at the given key on
      * success and clear the packed flag. The synchronous callback borrows the

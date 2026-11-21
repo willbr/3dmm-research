@@ -1512,10 +1512,11 @@ C owns roll-call row conversion, extra-width checks, tag-open/append sequencing,
 partial-failure cleanup and output publication. It closes a just-opened tag before
 earlier rows on failed insertion, releases the wire table before unwinding runtime
 rows, and preserves caller ID limits on failure. `movie_data.c` writes 28-byte actor
-extras in either byte order, with a zero pointer slot. Roll-call storage, decoding
-and header writes now use the owning C table described below. Title/root/version
-policy now uses C as described below; physical I/O and typed tag/file thunks remain
-intermediate host dependencies.
+extras in either byte order, with a zero pointer slot. `movie_owner.c` resolves
+the roll-call link and decodes its payload from the same resource cache. On save
+it writes the new GST through an owned archive block, adopts the child after a
+successful write, and discards the new chunk if writing or adoption fails.
+Native services supply file I/O, text conversion and tag operations.
 
 Studio uses the same state and roll-call paths. Its existing early resource release
 during Movie destruction remains explicit, before closing the scene and actor list;
@@ -1565,12 +1566,12 @@ callbacks; native adapters copy their results into C state. Save-dialog callback
 mutations are published even when the dialog cancels, preserving legacy behavior.
 Studio now uses the existing copied-name query instead of a borrowed native title.
 
-`movie_root.c` owns first-movie selection, version-error classification and root
-creation, including explicit 8-byte prefix encoding. Selecting the first movie
-publishes its number before header validation; null number still selects the first
-movie. Failed verification preserves the header. Failed root writes delete the
-added chunk before publishing nil; failed addition retains callback output without
-extra cleanup. Existing version predicates remain in `movie_data.c`.
+`movie_root.c` encodes the 8-byte prefix and creates its chunk through the
+shared archive writer. Failed root writes delete the new chunk and publish
+the nil number. Failed allocation retains the selected number where the
+host's diagnostic permits it. The graph reader in `movie_session.c` selects
+the root and publishes its number before header validation. Failed validation
+preserves the header. `movie_data.c` applies the version predicates.
 
 Native file/block operations, locale/code-page conversion, localized text lookup,
 and frontend presentation remain host adapters. There is no persistent native

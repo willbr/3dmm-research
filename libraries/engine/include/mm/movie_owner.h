@@ -2,8 +2,10 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MOVIE_OWNER_H
 #define MM_ENGINE_MOVIE_OWNER_H
+#include "chunk_storage.h"
 #include "movie_data.h"
 #include "movie_title.h"
+#include "resource_cache.h"
 #include "rollcall_storage.h"
 #ifdef __cplusplus
 extern "C"
@@ -81,17 +83,16 @@ extern "C"
      * tag before closing earlier rows. Successful rows own their opened tags. */
     int mm_movie_read_rollcall(const MMReadStream *, void *resources, MMRollCallTable *actors, MMI32 *limit,
                                      const MMRollCallReader *);
-    typedef struct MMRollCallWriter
-    {
-        void *context;
-        int (*add)(void *, MMU32 bytes, MMU32 *number, MMStorageWriter *);
-        int (*adopt)(void *, MMU32 movie, MMU32 number);
-        void (*discard)(void *, MMU32 number);
-    } MMRollCallWriter;
+    enum { MM_ROLLCALL_CHUNK = 0x47535420, MM_ROLLCALL_SLOT = 0 };
+    /* Resolve the movie's roll-call child in the cache's current graph, then
+     * decode its payload from the same source. A missing link or extent returns
+     * MM_CHUNK_NOT_FOUND. Tag operations borrow the separate host resource owner. */
+    int mm_movie_load_rollcall(MMResourceCache *, MMU32 movie, void *resources, MMRollCallTable *, MMI32 *limit,
+                               MMBlockTransform, const MMRollCallReader *);
     /* Borrows the runtime table and its tags. Serializes names in actor order,
      * with native-order GST extras and zero cache pads. An added chunk is
      * discarded if writing or adoption fails. Callbacks cannot change the source. */
-    int mm_movie_write_rollcall(MMU32 movie, MMRollCallTable *, MMU32 *written, const MMRollCallWriter *);
+    int mm_movie_write_rollcall(const MMArchiveWriter *, MMU32 movie, MMRollCallTable *, MMU32 *written);
 #ifdef __cplusplus
 }
 #endif

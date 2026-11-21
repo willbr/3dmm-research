@@ -190,18 +190,53 @@ fail:
     mm_rollcall_table_dispose(actors);
     return 0;
 }
-int mm_movie_write_rollcall(MMU32 movie, MMRollCallTable *actors, MMU32 *written, const MMRollCallWriter *s)
+typedef struct RollCallLoad
 {
-    const unsigned short one = 1;
-    const int big = *(const unsigned char *)&one == 0;
+    void *resources;
+    MMRollCallTable *actors;
+    MMI32 *limit;
+    const MMRollCallReader *reader;
+} RollCallLoad;
+
+static int read_rollcall_payload(void *context, const MMReadStream *stream)
+{
+    const RollCallLoad *load = context;
+    return mm_movie_read_rollcall(stream, load->resources, load->actors, load->limit, load->reader);
+}
+
+int mm_movie_load_rollcall(MMResourceCache *cache, MMU32 movie, void *resources, MMRollCallTable *actors,
+                           MMI32 *limit, MMBlockTransform decode, const MMRollCallReader *reader)
+{
+    const MMChunkAccess chunks = mm_resource_cache_chunks(cache);
+    RollCallLoad load;
+    MMU32 number;
+    int status, read;
+    if (mm_chunk_link_number(&chunks, MM_MOVIE_CHUNK, movie, MM_ROLLCALL_SLOT, MM_ROLLCALL_CHUNK,
+                             &number) != MM_CHUNK_OK)
+        return MM_CHUNK_NOT_FOUND;
+    load.resources = resources;
+    load.actors = actors;
+    load.limit = limit;
+    load.reader = reader;
+    status = mm_resource_cache_visit_payload(cache, MM_ROLLCALL_CHUNK, number, decode, NULL,
+                                             read_rollcall_payload, &load, &read);
+    return status == MM_CHUNK_OK && !read ? MM_CHUNK_BAD_FILE : status;
+}
+
+int mm_movie_write_rollcall(const MMArchiveWriter *archive, MMU32 movie, MMRollCallTable *actors, MMU32 *written)
+{
+    MMChunkChild child = {MM_ROLLCALL_CHUNK, 0, MM_ROLLCALL_SLOT};
     MMRollCallTable wire;
+    MMOwnedBlock block;
+    MMBlockIO io;
     MMStorageWriter writer;
     const void *name;
     MMU32 i, count, size;
     MMRollCallActor actor;
     unsigned char bytes[MM_MOVIE_ACTOR_BYTES];
     int added = 0, ok = 0;
-    if (!actors || actors->stride != sizeof(actor) + 4)
+    if (!archive || !archive->payloads || !written || !actors || actors->stride != sizeof(actor) + 4 ||
+        mm_owned_block_init(&block, archive->payloads->handles, archive->payloads->files) != MM_DATA_OK)
         return 0;
     if (mm_rollcall_table_init(&wire, sizeof(bytes), actors->unit, actors->encoding, actors->trash_unused,
                                &actors->storage.allocator) != MM_STORAGE_OK)
@@ -210,18 +245,24 @@ int mm_movie_write_rollcall(MMU32 movie, MMRollCallTable *actors, MMU32 *written
     {
         if (!mm_rollcall_table_name(actors, i, &name, &count) || !mm_rollcall_table_extra(actors, i, &actor))
             goto done;
-        mm_movie_write_actor(&actor.data, bytes, big);
+        mm_movie_write_actor(&actor.data, bytes, archive->big_endian);
         if (!mm_rollcall_table_add(&wire, name, count, bytes))
             goto done;
     }
     size = mm_rollcall_table_wire_size(&wire);
-    if (!size || !s->add(s->context, size, written, &writer))
+    if (!size)
+        goto done;
+    if (mm_archive_add_block(archive, child.type, size, written, &block) != MM_CHUNK_OK)
         goto done;
     added = 1;
-    ok = mm_rollcall_table_write(&wire, &writer, big) == MM_STORAGE_OK && s->adopt(s->context, movie, *written);
+    child.number = *written;
+    ok = mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_io_writer(&io, &writer) == MM_DATA_OK &&
+         mm_rollcall_table_write(&wire, &writer, archive->big_endian) == MM_STORAGE_OK &&
+         mm_chunk_adopt(&archive->edit, MM_MOVIE_CHUNK, movie, &child, 1) == MM_CHUNK_OK;
 done:
+    mm_owned_block_clear(&block);
     mm_rollcall_table_dispose(&wire);
     if (added && !ok)
-        s->discard(s->context, *written);
+        mm_chunk_delete(&archive->edit, child.type, child.number);
     return ok;
 }

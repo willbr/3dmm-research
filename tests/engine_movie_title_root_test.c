@@ -3,7 +3,8 @@
 #include "mm/movie_archive_edit.h"
 #include "mm/collections.h"
 #include "mm/scene_data.h"
-#include "chunk_edit_fixture.h"
+#include "mm/movie_session.h"
+#include "chunk_writer_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -214,145 +215,121 @@ static void titles(void)
 }
 typedef struct RootHost
 {
-    char log[32];
-    int used, first_fail, read_fail, io_fail, add_fail, write_fail, error;
-    MMU32 *number;
-    unsigned char bytes[8];
-    MMU32 length;
+    ChunkWriterFixture archive;
+    unsigned char bytes[MM_MOVIE_PREFIX_BYTES];
+    int fail_add, fail_write, fail_read, deletes;
 } RootHost;
-static void root_event(RootHost *h, char c)
+
+static int root_extent(void *p, MMU32 bytes, MMChunkLocation *out)
 {
-    CHECK(h->used < 31);
-    h->log[h->used++] = c;
-    h->log[h->used] = 0;
-}
-static int first(void *c, MMU32 *out)
-{
-    RootHost *h = (RootHost *)c;
-    root_event(h, 'f');
-    *out = 17;
-    return !h->first_fail;
-}
-static int read_at(void *c, MMU32 offset, void *bytes, size_t size)
-{
-    RootHost *h = (RootHost *)c;
-    root_event(h, 'i');
-    if (h->io_fail)
+    RootHost *h = ((ChunkIndexFixture *)p)->observer;
+    CHECK(bytes == sizeof(h->bytes));
+    if (h->fail_add)
         return 0;
-    CHECK(offset + size <= 8);
-    memcpy(bytes, h->bytes + offset, size);
+    out->file = &h->archive;
+    out->offset = 0;
+    out->bytes = bytes;
+    out->flags = 0;
     return 1;
 }
-static int read_root(void *c, MMU32 number, MMReadStream *s)
+
+static int root_write(void *p, void *file, MMU32 offset, const void *bytes, size_t count)
 {
-    RootHost *h = (RootHost *)c;
-    root_event(h, 'r');
-    CHECK(number == 17 || number == 99);
-    s->context = h;
-    s->length = h->length;
-    s->read_at = read_at;
-    return !h->read_fail;
+    ChunkWriterFixture *fixture = p;
+    RootHost *h = fixture->context;
+    CHECK(file == fixture && fixture->file_refs == 1 && !offset && count == sizeof(h->bytes));
+    if (h->fail_write)
+        return 0;
+    memcpy(h->bytes, bytes, count);
+    return 1;
 }
-static int add(void *c, MMU32 bytes, MMU32 *number)
+
+static int root_read(void *p, MMU32 position, const MMChunkEntry *entry, void *bytes, MMU32 count)
 {
-    RootHost *h = (RootHost *)c;
-    root_event(h, 'a');
-    CHECK(bytes == 8);
-    *number = 17;
-    return !h->add_fail;
+    RootHost *h = p;
+    CHECK(!position && entry->type == MM_MOVIE_CHUNK && count == sizeof(h->bytes));
+    if (h->fail_read)
+        return MM_MOVIE_IO;
+    if (entry->bytes != count)
+        return MM_MOVIE_BAD_FILE;
+    memcpy(bytes, h->bytes, count);
+    return MM_MOVIE_OK;
 }
-static int write_root(void *c, const void *bytes, MMU32 count)
+
+static void delete_root(void *p, const MMChunkEntry *entry)
 {
-    RootHost *h = (RootHost *)c;
-    root_event(h, 'w');
-    CHECK(count == 8);
-    memcpy(h->bytes, bytes, 8);
-    return !h->write_fail;
+    RootHost *h = p;
+    if (!entry->type)
+        return;
+    CHECK(entry->type == MM_MOVIE_CHUNK);
+    ++h->deletes;
 }
-static void remove_root(void *c, MMU32 n)
+
+static void invalidate_root(MMU32 *number)
 {
-    RootHost *h = (RootHost *)c;
-    root_event(h, 'd');
-    CHECK(n == 17 && h->number && *h->number == 17);
+    *number = 0xeeeeeeeeUL;
 }
-static void error(void *c, int result)
-{
-    RootHost *h = (RootHost *)c;
-    root_event(h, 'e');
-    h->error = result;
-}
-static void reset(RootHost *h)
-{
-    h->used = 0;
-    h->log[0] = 0;
-    h->error = 0;
-}
+
 static void roots(void)
 {
     RootHost h;
-    MMMovieRootServices s = {NULL, first, read_root, add, write_root, remove_root, error};
+    MMMovieChunkView view;
+    MMArchiveWriter archive;
     MMMovieHeader header, unchanged;
     MMU32 number;
     int big;
-    memset(&h, 0, sizeof(h));
-    s.context = &h;
-    h.number = &number;
-    h.length = 8;
     for (big = 0; big < 2; ++big)
     {
-        reset(&h);
+        memset(&h, 0, sizeof(h));
+        archive = chunk_writer_fixture(&h.archive, &h, root_extent, root_write);
+        h.archive.index.before_delete = delete_root;
+        archive.big_endian = big;
+        archive.system = 0x0303;
+
+        h.fail_add = 1;
         number = 99;
-        CHECK(mm_movie_create_root(&number, 0x0303, big, &s) && number == 17 && !strcmp(h.log, "aw"));
-        reset(&h);
+        CHECK(!mm_movie_create_root(&archive, &number) && !number && !h.archive.index.count);
+        archive.invalidate_number = invalidate_root;
+        CHECK(!mm_movie_create_root(&archive, &number) && number == 0xeeeeeeeeUL && !h.archive.index.count);
+        h.fail_add = 0;
+        h.fail_write = 1;
+        CHECK(!mm_movie_create_root(&archive, &number) && number == 0xffffffffUL &&
+              h.deletes == 1 && !h.archive.index.count && !h.archive.file_refs);
+        h.fail_write = 0;
+
+        number = 99;
+        CHECK(mm_movie_create_root(&archive, &number) && !number && h.archive.index.count == 1 &&
+              h.archive.index.rows[0].entry.flags == MM_CHUNK_LONER && !h.archive.file_refs);
+        view.context = &h;
+        view.chunks = fixture_chunk_access(&h.archive.index);
+        view.read = root_read;
         number = 0xffffffffUL;
-        CHECK(mm_movie_verify_root(&number, &header, &s) && number == 17 && !strcmp(h.log, "fri"));
+        CHECK(mm_movie_view_root(&view, &number, &header) == MM_MOVIE_OK && !number);
         CHECK(header.current_version == 2 && header.backward_version == 2 && header.system == 0x0303 &&
               header.big_endian == big);
-        reset(&h);
-        CHECK(mm_movie_verify_root(&number, NULL, &s) && !strcmp(h.log, "ri"));
-        reset(&h);
-        CHECK(mm_movie_verify_root(NULL, &header, &s) && !strcmp(h.log, "fri"));
+        CHECK(mm_movie_view_root(&view, &number, NULL) == MM_MOVIE_OK);
+        CHECK(mm_movie_view_root(&view, NULL, &header) == MM_MOVIE_OK);
+
         unchanged = header;
-        h.read_fail = 1;
-        number = 0xffffffffUL;
-        reset(&h);
-        CHECK(!mm_movie_verify_root(&number, &header, &s) && number == 17 && h.error == MM_MOVIE_BAD_FILE &&
-              !memcmp(&header, &unchanged, sizeof(header)) && !strcmp(h.log, "fre"));
-        h.read_fail = 0;
-        h.first_fail = 1;
-        number = 0xffffffffUL;
-        reset(&h);
-        CHECK(!mm_movie_verify_root(&number, &header, &s) && number == 0xffffffffUL && !strcmp(h.log, "fe"));
-        h.first_fail = 0;
-        h.io_fail = 1;
         number = 99;
-        reset(&h);
-        CHECK(!mm_movie_verify_root(&number, &header, &s) && number == 99 && h.error == MM_MOVIE_BAD_FILE &&
-              !strcmp(h.log, "rie"));
-        h.io_fail = 0;
-        h.length = 7;
-        reset(&h);
-        CHECK(!mm_movie_verify_root(&number, &header, &s) && h.error == MM_MOVIE_BAD_FILE &&
-              !strcmp(h.log, "re"));
-        h.length = 8;
+        CHECK(mm_movie_view_root(&view, &number, &header) == MM_MOVIE_ROOT_NOT_FOUND && number == 99);
+        h.fail_read = 1;
+        number = 0xffffffffUL;
+        CHECK(mm_movie_view_root(&view, &number, &header) == MM_MOVIE_IO && !number &&
+              !memcmp(&header, &unchanged, sizeof(header)));
+        h.fail_read = 0;
+        h.archive.index.rows[0].entry.bytes--;
+        CHECK(mm_movie_view_root(&view, &number, &header) == MM_MOVIE_BAD_FILE);
+        h.archive.index.rows[0].entry.bytes++;
         h.bytes[big ? 5 : 4] = 0;
-        reset(&h);
         number = 0xffffffffUL;
-        CHECK(!mm_movie_verify_root(&number, &header, &s) && number == 17 &&
-              h.error == MM_MOVIE_BAD_VERSION && !memcmp(&header, &unchanged, sizeof(header)));
+        CHECK(mm_movie_view_root(&view, &number, &header) == MM_MOVIE_BAD_VERSION && !number &&
+              !memcmp(&header, &unchanged, sizeof(header)));
         h.bytes[0] = h.bytes[1] = 0;
-        reset(&h);
-        CHECK(!mm_movie_verify_root(&number, &header, &s) && h.error == MM_MOVIE_BAD_FILE);
-        reset(&h);
-        h.add_fail = 1;
-        number = 99;
-        CHECK(!mm_movie_create_root(&number, 0x0303, big, &s) && number == 17 && !strcmp(h.log, "a"));
-        h.add_fail = 0;
-        reset(&h);
-        h.write_fail = 1;
-        number = 99;
-        CHECK(!mm_movie_create_root(&number, 0x0303, big, &s) && number == 0xffffffffUL && !strcmp(h.log, "awd"));
-        h.write_fail = 0;
+        CHECK(mm_movie_view_root(&view, &number, &header) == MM_MOVIE_BAD_FILE);
+        view.chunks.count = 0;
+        number = 0xffffffffUL;
+        CHECK(mm_movie_view_root(&view, &number, &header) == MM_MOVIE_ROOT_NOT_FOUND && number == 0xffffffffUL);
     }
 }
 #define ARCHIVE_MOVIE 0x4d564945UL

@@ -18511,3 +18511,29 @@ archived retail frame identities, and SDL matched all four retail sound
 requests. PCM16 peaks matched the preceding builds at 2,176. The archived
 retail peak is 2,380. The capture contains 523,680 SDL and 511,680 Marcus PCM
 frames. Logs and the comparison script are in `tmp/c89-actor-track-archive`.
+
+## Movie root and roll-call archive I/O (21 November 2026)
+
+Studio creates the movie root and writes the actor roll call through the
+shared C89 archive writer. C89 selects the roll-call child and decodes its
+GST through the same resource cache. It adopts a newly written roll call
+after serialization succeeds and discards the new row on write or adoption
+failure.
+
+All 193 standalone C checks, five focused AddressSanitizer checks and three
+Marcus checks passed. Fixtures cover both byte orders, exact GST child selection,
+packed-block decoding, missing links and extents, allocation failure, and
+cleanup after a failed write or adoption. The 736-byte movie-owner and 405-byte roll-call snapshots
+matched their archived baselines. The new native code and the earlier x86
+build produced the same 224-byte root/version snapshot. Native x64, x86 and
+SDL reproduced all 27 save/reopen traces, the sound-resource snapshots and
+the saved authoring fixture byte for byte.
+
+Both ports matched all three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T091138Z-b05aed2c`.
+
+In sampled-audio suite `20261121T091147Z-e02ee68b`, both ports matched all 60
+archived retail frame identities, and SDL matched all four retail sound
+requests. PCM16 peaks matched the preceding builds at 2,176. The archived
+retail peak is 2,380. The capture contains 521,280 SDL and 512,160 Marcus PCM
+frames. Logs and the comparison script are in `tmp/c89-movie-rollcall-block`.

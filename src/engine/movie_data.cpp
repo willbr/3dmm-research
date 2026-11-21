@@ -3,7 +3,7 @@
 #include "soc_core.h"
 #include "movie_data.h"
 #include "engine_movie_graph.h"
-#include "engine_read_stream.h"
+#include "handle_services.h"
 #include "mm/movie_rollcall.h"
 #include "mm/movie_session.h"
 ASSERTNAME
@@ -127,36 +127,10 @@ bool MovieData::FSave(PFilename filename)
     const auto s = _OwnerServices(&host);
     return mm_movie_save(this, &s) != 0;
 }
-namespace
-{
-struct NativeMovieRootHost
-{
-    PChunkyFile file;
-    DataBlock block;
-};
-MMMovieRootServices MovieRootServices(NativeMovieRootHost *host)
-{
-    return {
-        host,
-        nullptr,
-        nullptr,
-        [](void *c, MMU32 bytes, MMU32 *number) -> int {
-            auto h = static_cast<NativeMovieRootHost *>(c);
-            return h->file->FAdd(bytes, kctgMvie, number, &h->block);
-        },
-        [](void *c, const void *bytes, MMU32 count) -> int {
-            return static_cast<NativeMovieRootHost *>(c)->block.FWriteRgb(const_cast<void *>(bytes), count, 0);
-        },
-        [](void *c, MMU32 number) { static_cast<NativeMovieRootHost *>(c)->file->Delete(kctgMvie, number); },
-        nullptr};
-}
-} // namespace
 bool MovieData::FCreateRoot(PChunkyFile file, ChunkNumber *number)
 {
-    NativeMovieRootHost host = {file};
-    const auto s = MovieRootServices(&host);
-    const unsigned short one = 1;
-    return mm_movie_create_root(number, koskCur, *reinterpret_cast<const byte *>(&one) == 0, &s) != 0;
+    const auto archive = file->WriteIndex();
+    return mm_movie_create_root(&archive, number) != 0;
 }
 bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, MMMovieHeader *header)
 {
@@ -166,18 +140,6 @@ bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, MMMovieHea
 
 bool MovieData::FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors, MMI32 *limit)
 {
-    auto file = resources->Pcfl();
-    ChildChunkIdentification child;
-    DataBlock block;
-    if (!file->FGetKidChidCtg(kctgMvie, number, 0, kctgGst, &child) ||
-        !file->FFind(child.cki.ctg, child.cki.cno, &block))
-    {
-        PushErc(ercSocBadFile);
-        return false;
-    }
-    if (!block.FUnpackData())
-        return false;
-    const auto stream = EngineReadStream::FromBlock(block);
     const MMRollCallReader reader = {
         nullptr,
         [](void *, const void *input, size_t bytes, int encoding, void *output, size_t capacity) -> size_t {
@@ -194,29 +156,14 @@ bool MovieData::FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number,
             return ok;
         },
         CloseActor};
-    return mm_movie_read_rollcall(&stream, resources, actors, limit, &reader) != 0;
+    const int status = mm_movie_load_rollcall(resources->CoreCache(), number, resources, actors, limit,
+                                              KauaiDecodeBlockHandle, &reader);
+    if (status == MM_CHUNK_NOT_FOUND)
+        PushErc(ercSocBadFile);
+    return status == MM_CHUNK_OK;
 }
 bool MovieData::FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written)
 {
-    struct Output
-    {
-        PChunkyFile file;
-        DataBlock block;
-    } output = {file};
-    const MMRollCallWriter writer = {
-        &output,
-        [](void *c, MMU32 bytes, MMU32 *n, MMStorageWriter *out) -> int {
-            auto h = static_cast<Output *>(c);
-            if (!h->file->FAdd(bytes, kctgGst, n, &h->block))
-                return 0;
-            *out = {&h->block, bytes, [](void *p, MMU32 offset, const void *data, size_t count) -> int {
-                return static_cast<PDataBlock>(p)->FWriteRgb(const_cast<void *>(data), count, offset);
-            }};
-            return 1;
-        },
-        [](void *c, MMU32 movie, MMU32 n) -> int {
-            return static_cast<Output *>(c)->file->FAdoptChild(kctgMvie, movie, kctgGst, n, 0);
-        },
-        [](void *c, MMU32 n) { static_cast<Output *>(c)->file->Delete(kctgGst, n); }};
-    return mm_movie_write_rollcall(number, actors, written, &writer) != 0;
+    const auto archive = file->WriteIndex();
+    return mm_movie_write_rollcall(&archive, number, actors, written) != 0;
 }
