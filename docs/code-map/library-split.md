@@ -2417,8 +2417,11 @@ failures. A fixed-point SDK inverse failure originally caused unwritten ray matr
 bogus orthographic hits. The SDK now skips failed inverses; a direct test covers
 singular models/cameras/bounds, orthographic determinant underflow and recovery.
 Original and converted controllers agree with that same guard; raw unguarded
-traces remain recorded separately. Evidence and coverage
-limits are recorded in `docs/tools/playback-regression.md`.
+traces remain recorded separately. The SDK ray-plane test calculates the full
+plane-to-origin difference and rejects depths outside the signed 16.16 range
+before narrowing. The x86 Preview fixture now completes with the same trace
+as x64 and SDL. Evidence and coverage limits are recorded in
+`docs/tools/playback-regression.md`.
 
 ### Preview camera interaction and guide metadata
 
@@ -5240,11 +5243,11 @@ policy. Body construction initializes this plain C state; duplication and restor
 retain the earlier C controllers' copy/swap sequencing. `bren/body_renderer.c`
 applies part matrices, models and materials from the C bindings. Studio submits
 the root and parts to its existing actor array. Marcus Preview attaches them to
-its temporary scene tree, using the same binding code. Native adapters still
-supply body references and SDK geometry services.
-`BrActorToBounds` traversal and `BrBoundsToMatrix34` remain external BRender
-primitive services. Native object/actor-tree and model/material representations
-remain temporary dependencies of the unfinished C-only backend.
+its temporary scene tree, using the same binding code. The C89 binding also
+reads local bounds through `BrActorToBounds`, publishes the highlight transform
+through `BrBoundsToMatrix34`, and finds the body association on a render actor.
+The Body adapter supplies actor handles, editable shape state and object
+diagnostics.
 
 Preparing a visible body saves its current rectangle and then clears it.
 Already-empty (including inverted) current rectangles remain untouched, and

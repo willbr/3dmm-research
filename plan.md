@@ -711,6 +711,9 @@ Keep host presentation and device output outside the session.
    The binding also performs both hosts' BRender pick queries. Studio consumes
    actor and depth hits, and Marcus Preview refines hits against prepared faces,
    transformed textures and the authored background depth.
+   Body bounds and highlight transforms now use the C89 renderer binding. The
+   shared fixed-point face test rejects unrepresentable ray depths, allowing
+   the complete Preview picking fixture to run on x86 as well as x64 and SDL.
    Both live scene loaders now read the SCEN header and its validated start
    and frame event rows through the retained session. The same C reader also
    supports individual scene chunks and Studio undo snapshots. Live timelines

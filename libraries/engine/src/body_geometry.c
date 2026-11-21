@@ -79,7 +79,7 @@ void mm_body_prepare_render(void *actor, const MMBodyGeometryServices *s)
     if (s->actor_type(s->context, highlight) == s->model_type)
     {
         mm_body_bounds(body, 0, &bounds, s);
-        s->highlight_matrix(s->context, body, &bounds);
+        s->highlight_matrix(s->context, highlight, &bounds);
     }
 }
 void mm_body_render_rect(void *actor, MMBodyRect *out, const MMBodyGeometryServices *s)
@@ -144,7 +144,7 @@ void mm_body_bounds(void *body, int world, MMBodyBounds *out, const MMBodyGeomet
     MMBodyBounds bounds;
     MMActorMatrix matrix;
     s->set_actor_type(s->context, highlight, s->none_type);
-    s->local_bounds(s->context, body, &bounds);
+    s->local_bounds(s->context, s->root(s->context, body), &bounds);
     s->set_actor_type(s->context, highlight, type);
     *out = bounds;
     if (world)

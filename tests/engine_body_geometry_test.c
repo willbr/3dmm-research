@@ -50,6 +50,11 @@ static MMI32 part_set(void *c, void *b, MMI32 i)
     (void)b;
     return i % 2;
 }
+static void *root(void *c, void *b)
+{
+    (void)c;
+    return ((Body *)b)->actors;
+}
 static void *highlight(void *c, void *b)
 {
     (void)c;
@@ -67,10 +72,11 @@ static void set_type(void *c, void *a, int type)
     ++actor->owner->type_changes;
     actor->type = type;
 }
-static void local_bounds(void *c, void *b, MMBodyBounds *out)
+static void local_bounds(void *c, void *root, MMBodyBounds *out)
 {
-    Body *body = (Body *)b;
+    Body *body = ((Actor *)root)->owner;
     (void)c;
+    assert(root == body->actors);
     ++body->queries;
     assert(body->actors[1].type == body->query_type);
     *out = body->local;
@@ -83,10 +89,11 @@ static void matrix(void *c, void *b, MMActorMatrix *out)
     assert(body->actors[1].type == body->restored_type);
     *out = body->matrix;
 }
-static void highlight_matrix(void *c, void *b, const MMBodyBounds *in)
+static void highlight_matrix(void *c, void *highlight, const MMBodyBounds *in)
 {
-    Body *body = (Body *)b;
+    Body *body = ((Actor *)highlight)->owner;
     (void)c;
+    assert(highlight == body->actors + 1);
     ++body->highlight_matrices;
     assert(body->actors[1].type == body->restored_type);
     body->highlight_bounds = *in;
@@ -250,6 +257,7 @@ int main(void)
     s.part_count = count;
     s.part = part;
     s.part_set = part_set;
+    s.root = root;
     s.highlight = highlight;
     s.actor_type = actor_type;
     s.set_actor_type = set_type;

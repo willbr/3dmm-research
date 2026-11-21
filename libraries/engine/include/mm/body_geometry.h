@@ -31,18 +31,19 @@ extern "C"
         MMI32 (*part_count)(void *, void *body);
         void *(*part)(void *, void *body, MMI32);
         MMI32 (*part_set)(void *, void *body, MMI32);
+        void *(*root)(void *, void *body);
         void *(*highlight)(void *, void *body);
         int (*actor_type)(void *, void *actor);
         void (*set_actor_type)(void *, void *actor, int);
-        void (*local_bounds)(void *, void *body, MMBodyBounds *);
+        void (*local_bounds)(void *, void *root, MMBodyBounds *);
         void (*root_matrix)(void *, void *body, MMActorMatrix *);
-        void (*highlight_matrix)(void *, void *body, const MMBodyBounds *);
+        void (*highlight_matrix)(void *, void *highlight, const MMBodyBounds *);
         void (*missing_owner)(void *);
         int none_type, model_type;
     } MMBodyGeometryServices;
-    /* Callbacks borrow all objects; local_bounds is synchronous and must not
-     * reenter or mutate the same body. Highlight type is restored before matrix
-     * queries/publication. Native actor-tree traversal remains a renderer service. */
+    /* Bounds callbacks borrow renderer actor handles. local_bounds is synchronous
+     * and must not reenter or mutate the same body. Highlight type is restored
+     * before matrix queries and publication. */
     void *mm_body_from_actor(void *, MMI32 *set, const MMBodyGeometryServices *);
     void mm_body_geometry_init(MMBodyGeometry *);
     int mm_body_in_view(const MMBodyGeometry *);

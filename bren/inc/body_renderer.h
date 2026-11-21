@@ -2,6 +2,7 @@
 #define MM_BRENDER_BODY_RENDERER_H
 
 #include "mm/body_create.h"
+#include "mm/body_geometry.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -16,6 +17,9 @@ void mm_brender_body_material(void *, void *actors, MMI32 index, void *material)
  * valid through both paths. The live selection highlight is handled separately. */
 void mm_brender_body_submit(const MMBodyDrawView *, void *actors);
 void *mm_brender_body_attach(void *, void *parent, MMI32 index, const MMBodyPartBinding *);
+
+void *mm_brender_body_owner(const void *actor);
+void mm_brender_body_geometry_services(MMBodyGeometryServices *);
 
 #ifdef __cplusplus
 }

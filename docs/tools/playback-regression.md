@@ -17500,3 +17500,40 @@ retail frame identities in both ports' seek and continuous playback runs,
 including all retail seek camera indices and SDL's 12 retail sound requests.
 Each port also reproduced all 60 seek canvas hashes from the prior build.
 The comparison and fixture evidence are in `tmp/c89-scene-pick`.
+
+## Fixed-point pick depth and body bounds in C89 (21 November 2026)
+
+`BrModelPick2D` now computes the full plane-to-origin difference and accepts
+only depths that fit signed 16.16. The common case uses the existing fixed
+divide. The remaining cases use an unsigned whole part and a bounded fractional
+divide. The ray interval's tolerance saturates at the fixed-point limits. The
+direct SDK fixture covers an out-of-range face followed by a valid face, a
+full-range ray interval, and a wide plane-to-origin difference with a valid
+depth. A separate arithmetic probe matched 2,000,006 signed ratios against a
+widened reference.
+
+The x86 Preview fixture now completes all 74,816 bytes and six hits, matching
+the x64 and SDL baselines. Body local bounds and highlight transforms now pass
+directly between the C geometry controller and the C89 BRender binding. All
+three builds matched the frozen 76,608-byte body-geometry trace. The 14
+world and mesh traces matched across the builds. SDL Release skips the
+debug-only export fixture. All 192
+standalone C checks, three focused AddressSanitizer checks, strict C89 BRender
+syntax, the SDL runtime builds, and the focused Marcus checks passed.
+
+All 15 Studio pointer-selection traces, 54 movie and scene traces, nine sound
+and actor traces, three saved movie fixtures and the SDL authoring save matched
+the prior output. Ten Preview fingerprints matched on each build. The six
+generated Preview movies match byte for byte on x64 and x86. Three SDL movies
+differ only in unused chunk-index or font-argument alignment bytes.
+
+Retail, SDL and Marcus matched three retained-background frame identities,
+camera indices and canvas hashes in `20261121T014148Z-6c74952f`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T014225Z-50e1891d`.
+
+The actor-event suite `20261121T014128Z-1d3f3615` matched all 60 archived
+retail frame identities in both ports' seek and continuous playback runs,
+including all retail seek camera indices and SDL's 12 retail sound requests.
+Each port also reproduced all 60 seek canvas hashes from the prior build.
+The comparison and fixture evidence are in `tmp/c89-pick-plane-depth`.

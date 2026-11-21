@@ -595,31 +595,22 @@ void Body::GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **pp
 MMBodyGeometryServices Body::_GeometryServices(void)
 {
     MMBodyGeometryServices s = {};
+    mm_brender_body_geometry_services(&s);
     s.owner = [](void *, void *actor) -> void * {
-        auto body = reinterpret_cast<PBody>(static_cast<PBACT>(actor)->identifier);
-        AssertNilOrPo(body, 0); return body;
+        auto body = static_cast<PBody>(mm_brender_body_owner(actor));
+        AssertNilOrPo(body, 0);
+        return body;
     };
     s.state = [](void *, void *body) -> MMBodyGeometry * { return &static_cast<PBody>(body)->_geometry; };
     s.part_count = [](void *, void *body) -> MMI32 { return static_cast<PBody>(body)->_shape.part_count; };
     s.part = [](void *, void *body, MMI32 part) -> void * { return static_cast<PBody>(body)->_PbactPart(part); };
     s.part_set = [](void *, void *body, MMI32 part) -> MMI32 { return static_cast<PBody>(body)->_Ibset(part); };
+    s.root = [](void *, void *body) -> void * { return static_cast<PBody>(body)->_PbactRoot(); };
     s.highlight = [](void *, void *body) -> void * { return static_cast<PBody>(body)->_PbactHilite(); };
-    s.actor_type = [](void *, void *actor) -> int { return static_cast<PBACT>(actor)->type; };
-    s.set_actor_type = [](void *, void *actor, int type) { static_cast<PBACT>(actor)->type = static_cast<byte>(type); };
-    s.local_bounds = [](void *, void *body, MMBodyBounds *out) {
-        BRB bounds; BrActorToBounds(&bounds, static_cast<PBody>(body)->_PbactRoot());
-        for (int i = 0; i < 3; ++i) { out->min[i] = bounds.min.v[i]; out->max[i] = bounds.max.v[i]; }
-    };
     s.root_matrix = [](void *, void *body, MMActorMatrix *out) {
         *out = static_cast<PBody>(body)->RootMatrix();
     };
-    s.highlight_matrix = [](void *, void *body, const MMBodyBounds *in) {
-        BRB bounds;
-        for (int i = 0; i < 3; ++i) { bounds.min.v[i] = in->min[i]; bounds.max.v[i] = in->max[i]; }
-        BrBoundsToMatrix34(&static_cast<PBody>(body)->_PbactHilite()->t.t.mat, &bounds);
-    };
     s.missing_owner = [](void *) { Bug("What actor is this?  It has no Body"); };
-    s.none_type = BR_ACTOR_NONE; s.model_type = BR_ACTOR_MODEL;
     return s;
 }
 

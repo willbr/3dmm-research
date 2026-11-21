@@ -454,6 +454,44 @@ int BR_PUBLIC_ENTRY BrScenePick3D(
 }
 
 /*
+ * Compute the ray parameter (plane - origin) / direction. Fixed-point
+ * subtraction may need 33 signed bits and an out-of-range quotient cannot
+ * intersect a representable ray segment.
+ */
+static int PickPlaneDepth(br_scalar plane, br_scalar origin, br_scalar direction, br_scalar *out)
+{
+#if BASED_FIXED
+	br_uint_32 distance, divisor, whole, magnitude;
+	br_scalar fraction;
+	int reverse = plane < origin;
+	int negative = reverse != (direction < 0);
+	distance = reverse ? (br_uint_32)origin - (br_uint_32)plane : (br_uint_32)plane - (br_uint_32)origin;
+	divisor = direction < 0 ? 0U - (br_uint_32)direction : (br_uint_32)direction;
+	/* Use the SDK divide directly when both operand and quotient fit. */
+	if(distance <= BR_SCALAR_MAX && (distance >> 15) < divisor) {
+		fraction = BR_DIV((br_scalar)distance, direction);
+		*out = reverse ? -fraction : fraction;
+		return 1;
+	}
+	whole = distance / divisor;
+	if(whole > 32768U)
+		return 0;
+	/* The remainder is smaller than the divisor, so this divide always fits. */
+	fraction = BR_DIV((br_scalar)(distance % divisor), direction);
+	magnitude = (whole << 16) + (br_uint_32)BR_ABS(fraction);
+	if(magnitude > (br_uint_32)BR_SCALAR_MAX + negative)
+		return 0;
+	if(magnitude == (br_uint_32)BR_SCALAR_MAX + 1U)
+		*out = -BR_SCALAR_MAX - 1;
+	else
+		*out = negative ? -(br_scalar)magnitude : (br_scalar)magnitude;
+#else
+	*out = BR_DIV(plane - origin, direction);
+#endif
+	return 1;
+}
+
+/*
  * Intersect a models's faces with a ray segment
  *
  * XXX Possible options -
@@ -481,9 +519,15 @@ int BR_PUBLIC_ENTRY BrModelPick2D(
 	br_vector2 map;
 	int v,e,r;
 	br_material *this_material;
+	const br_scalar tolerance = BR_SCALAR(0.001);
 
-	t_near -= BR_SCALAR(0.001);
-	t_far += BR_SCALAR(0.001);
+#if BASED_FIXED
+	t_near = t_near < -BR_SCALAR_MAX - 1 + tolerance ? -BR_SCALAR_MAX - 1 : t_near - tolerance;
+	t_far = t_far > BR_SCALAR_MAX - tolerance ? BR_SCALAR_MAX : t_far + tolerance;
+#else
+	t_near -= tolerance;
+	t_far += tolerance;
+#endif
 
 	/*
 	 * For each face in model...
@@ -502,7 +546,7 @@ int BR_PUBLIC_ENTRY BrModelPick2D(
 		/*
 		 * If ray is parallel to face, ignore it
 		 */
-		if(BR_ABS(d) < 2*BR_SCALAR_EPSILON)
+		if(d > -2*BR_SCALAR_EPSILON && d < 2*BR_SCALAR_EPSILON)
 			continue;
 
 		/*
@@ -511,7 +555,8 @@ int BR_PUBLIC_ENTRY BrModelPick2D(
 		if(!(this_material->flags & (BR_MATF_TWO_SIDED | BR_MATF_ALWAYS_VISIBLE)) && d > S0 )
 			continue;
 
-		t = -BR_DIV(BrFVector3Dot(&fp->n,ray_pos) - fp->d,d);
+		if(!PickPlaneDepth(fp->d, BrFVector3Dot(&fp->n,ray_pos), d, &t))
+			continue;
 
 		/*
 		 * Ignore face if intersection is outside ray segment

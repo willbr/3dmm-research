@@ -34,6 +34,65 @@ static int BR_CALLBACK CountPick(br_actor *, br_model *, br_material *, br_vecto
     ++*static_cast<int *>(context);
     return 0;
 }
+struct FaceHit
+{
+    int count, face;
+    br_scalar depth;
+};
+
+static int BR_CALLBACK RecordFaceHit(br_model *, br_material *, br_vector3 *, br_vector3 *, br_scalar depth,
+                                      int face, int, int, br_vector3 *, br_vector2 *, void *context)
+{
+    auto hit = static_cast<FaceHit *>(context);
+    ++hit->count;
+    hit->face = face;
+    hit->depth = depth;
+    return 0;
+}
+
+static void TestPickPlaneDepth()
+{
+    br_vector3 origin = {{0, 0, BR_SCALAR(-2)}}, direction = {{0, 0, 2}};
+    br_vertex vertices[6] = {};
+    br_face faces[2] = {};
+    br_model model = {};
+    br_material material = {};
+    material.flags = BR_MATF_TWO_SIDED;
+    model.vertices = vertices;
+    model.faces = faces;
+    model.nvertices = 6;
+    model.nfaces = 2;
+    vertices[0].p = {{BR_SCALAR(-1), BR_SCALAR(-1), 0}};
+    vertices[1].p = {{BR_SCALAR(1), BR_SCALAR(-1), 0}};
+    vertices[2].p = {{0, BR_SCALAR(1), 0}};
+    for (int i = 0; i < 3; ++i)
+    {
+        faces[0].vertices[i] = i;
+        faces[1].vertices[i] = i + 3;
+        vertices[i + 3].p = vertices[i].p;
+        vertices[i + 3].p.v[2] = origin.v[2] + 4;
+    }
+    faces[0].n.v[2] = faces[1].n.v[2] = BR_FRACTION(-1);
+    faces[1].d = -vertices[3].p.v[2];
+
+    // Face 0 intersects at 65536.0, beyond the fixed range. A wrap can
+    // report it at zero. Face 1 intersects the same ray at 2.0.
+    FaceHit hit = {};
+    BrModelPick2D(&model, &material, &origin, &direction, 0, BR_SCALAR_MAX, RecordFaceHit, &hit);
+    CHECK(hit.count == 1 && hit.face == 1 && hit.depth == BR_SCALAR(2));
+
+    // The plane-origin difference exceeds 32 signed bits, but the depth fits.
+    hit = {};
+    model.nfaces = 1;
+    faces[0].d = BR_SCALAR(30000);
+    origin.v[2] = BR_SCALAR(30000);
+    direction.v[2] = BR_SCALAR(-4);
+    for (int i = 0; i < 3; ++i)
+        vertices[i].p.v[2] = BR_SCALAR(-30000);
+    BrModelPick2D(&model, &material, &origin, &direction, 0, BR_SCALAR(20000), RecordFaceHit, &hit);
+    CHECK(hit.count == 1 && hit.face == 0 && hit.depth == BR_SCALAR(15000));
+}
+
 static void TestPickInverses(br_model *model)
 {
     auto world = BrActorAllocate(BR_ACTOR_NONE, nullptr);
@@ -129,6 +188,7 @@ int main()
     model->faces[0].vertices[2] = 2;
     BrModelAdd(model);
     TestPickInverses(model);
+    TestPickPlaneDepth();
     auto red = BrMaterialAllocate(nullptr);
     auto blue = BrMaterialAllocate(nullptr);
     CHECK(red && blue);
