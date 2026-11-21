@@ -45,7 +45,6 @@ enum
     FAIL_VALID,
     FAIL_TEMP,
     FAIL_WRITE,
-    FAIL_OPEN,
     FAIL_CACHE,
     FAIL_ACTOR,
     FAIL_ADD,
@@ -81,6 +80,7 @@ typedef struct Caption
 struct Test
 {
     MMMovieContentServices s;
+    MMTagServices tags;
     MMMovieState data;
     MMMovieScenes scenes;
     Resource before, after;
@@ -149,26 +149,22 @@ static void release_text(void *p)
     note(t, TEXT_RELEASE);
     --t->textRefs;
 }
-static int open_tag(MMTag *tag, void *p)
+static void retain_tag_cache(void *p)
 {
     Resource *r = p;
     Test *t = r->test;
     note(t, OPEN);
     t->openedResources = p;
-    if (t->fail == FAIL_OPEN)
-        return 0;
-    tag->cache = t;
     ++t->refs;
     ++t->opened;
-    return 1;
 }
-static void close_tag(MMTag *tag)
+static void release_tag_cache(void *p)
 {
-    Test *t = tag->cache;
+    const Resource *r = p;
+    Test *t = r->test;
     note(t, CLOSE);
     --t->refs;
     ++t->closed;
-    tag->cache = 0;
 }
 static const void *name_units(const void *p, MMU32 *count)
 {
@@ -278,11 +274,6 @@ static int seed_rollcall(Test *t)
     row.data.reference_count = 2;
     return mm_rollcall_table_init(&t->data.actors, sizeof(row), 1, 0x0303, 0, &allocator) == MM_STORAGE_OK &&
            mm_rollcall_table_add(&t->data.actors, "Before", 6, &row);
-}
-static void open_row(void *p, MMTag *tag, void *r)
-{
-    (void)p;
-    open_tag(tag, r);
 }
 static void roll_changed(void *p)
 {
@@ -454,8 +445,9 @@ static void init(Test *t)
     e->rollcall.actor_tag = actor_tag;
     e->rollcall.is_prop = is_prop;
     e->rollcall.is_text = is_prop;
-    e->rollcall.open_tag = open_row;
-    e->rollcall.close_tag = close_tag;
+    t->tags.retain = retain_tag_cache;
+    t->tags.release = release_tag_cache;
+    e->rollcall.tags = &t->tags;
     e->rollcall.changed = roll_changed;
     e->actors.context = t;
     e->actors.owner = actor_owner;
@@ -480,8 +472,7 @@ static void init(Test *t)
     s->new_text = text;
     s->write_text = write_asset;
     s->release_text = release_text;
-    s->open_tag = open_tag;
-    s->close_tag = close_tag;
+    s->tags = &t->tags;
     s->name_units = name_units;
     s->character = character;
     s->change_template = change;
@@ -509,14 +500,14 @@ static int material(void)
     Test t;
     MMTag output;
     int written, fault;
-    for (fault = 0; fault < 4; ++fault)
+    for (fault = 0; fault < 3; ++fault)
     {
         init(&t);
-        t.fail = fault == 1 ? FAIL_ENSURE : fault == 2 ? FAIL_WRITE : fault == 3 ? FAIL_OPEN : 0;
+        t.fail = fault == 1 ? FAIL_ENSURE : fault == 2 ? FAIL_WRITE : 0;
         memset(&output, 0, sizeof(output));
         output.number = 999;
         CHECK(mm_movie_insert_material(&t, &output, &written, &t.s) == !fault);
-        CHECK(written == (fault != 1 && fault != 2));
+        CHECK(written == !fault);
         CHECK(t.writes == (fault != 1) && t.chunks == (fault != 1) && !t.dirty && !t.invalidates);
         if (written)
             CHECK(output.sid == 0 && output.type == 0x4d54524cU && output.number == 27);
@@ -524,8 +515,8 @@ static int material(void)
             CHECK(output.number == 999);
         if (!fault)
         {
-            CHECK(t.refs == 1 && output.cache == &t);
-            close_tag(&output);
+            CHECK(t.refs == 1 && output.cache == &t.before);
+            mm_tag_close(&output, &t.tags);
         }
         CHECK(!t.refs);
     }
@@ -536,20 +527,19 @@ static int inserting(void)
     Test t;
     MMTag font;
     int fault;
+    const int faults[] = {0, FAIL_TEXT, FAIL_VALID, FAIL_TEMP, FAIL_WRITE, FAIL_CACHE, FAIL_ACTOR, FAIL_ADD};
     memset(&font, 0, sizeof(font));
     font.sid = 123;
-    for (fault = 0; fault < 9; ++fault)
+    for (fault = 0; fault < (int)(sizeof(faults) / sizeof(*faults)); ++fault)
     {
-        const int faults[] = {0,         FAIL_TEXT,  FAIL_VALID, FAIL_TEMP, FAIL_WRITE,
-                              FAIL_OPEN, FAIL_CACHE, FAIL_ACTOR, FAIL_ADD};
         init(&t);
         t.fail = faults[fault];
         CHECK(mm_movie_insert_text(&t.name, 4, &font, &t.s) == !fault);
         CHECK(!t.textRefs && !t.refs && t.opened == t.closed && t.dirty == !fault && t.invalidates == !fault);
         CHECK(t.inserted.refs == !fault && t.cacheBegin == t.cacheEnd);
-        if (fault != 1 && fault != 2 && fault != 3)
+        if (t.fail != FAIL_TEXT && t.fail != FAIL_VALID && t.fail != FAIL_TEMP)
             CHECK(t.writtenFile == &t.before);
-        if (!fault || fault >= 5)
+        if (!fault || t.fail == FAIL_CACHE || t.fail == FAIL_ACTOR || t.fail == FAIL_ADD)
             CHECK(t.openedResources == &t.after);
         if (!fault)
         {
@@ -570,13 +560,12 @@ static int changing(void)
     const void *name;
     MMU32 length;
     int fault;
-    const int faults[] = {0,         FAIL_TEXT, FAIL_VALID,    FAIL_TEMP,  FAIL_WRITE,
-                          FAIL_OPEN, FAIL_DUP,  FAIL_TEMPLATE, FAIL_APPEND};
+    const int faults[] = {0, FAIL_TEXT, FAIL_VALID, FAIL_TEMP, FAIL_WRITE, FAIL_DUP, FAIL_TEMPLATE, FAIL_APPEND};
     memset(&font, 0, sizeof(font));
     memset(long_name, 'X', sizeof(long_name) - 1);
     long_name[sizeof(long_name) - 1] = 0;
     font.sid = 123;
-    for (fault = 0; fault < 9; ++fault)
+    for (fault = 0; fault < (int)(sizeof(faults) / sizeof(*faults)); ++fault)
     {
         init(&t);
         CHECK(seed_rollcall(&t));
@@ -586,8 +575,8 @@ static int changing(void)
             t.name.text = long_name;
         CHECK(mm_movie_change_text(&t.actor, &t.name, 4, &font, &t.s) == !fault);
         CHECK(!t.copy.refs && !t.textRefs && t.refs == !fault && t.dirty == !fault && !t.invalidates);
-        CHECK(t.restored == (fault == 8) && t.data.actors.count == (MMU32)(1 + !fault) &&
-              t.data.actorIdLimit == (fault == 0 || fault == 8 ? 11 : 10));
+        CHECK(t.restored == (t.fail == FAIL_APPEND) && t.data.actors.count == (MMU32)(1 + !fault) &&
+              t.data.actorIdLimit == (!fault || t.fail == FAIL_APPEND ? 11 : 10));
         if (!fault)
         {
             const int suffix[] = {SET_ID, OPEN, ROLL_CHANGED, ACTOR_RELEASE, CLOSE, DIRTY};
@@ -598,16 +587,16 @@ static int changing(void)
             CHECK(mm_rollcall_table_name(&t.data.actors, 1, &name, &length) && length == 2 && !memcmp(name, " A", length));
             CHECK(mm_rollcall_table_extra(&t.data.actors, 1, &row));
             font = mm_movie_rollcall_tag(&row);
-            close_tag(&font);
+            mm_tag_close(&font, &t.tags);
             font.sid = 123;
         }
-        if (fault == 8)
+        if (t.fail == FAIL_APPEND)
         {
             CHECK(mm_rollcall_table_extra(&t.data.actors, 0, &row));
             CHECK(t.actor.owner.runtime.actor == 7 && t.actor.owner.runtime.state.cel == 11 &&
                   row.data.reference_count == 2);
         }
-        if (fault == 7)
+        if (t.fail == FAIL_TEMPLATE)
             CHECK(t.actor.owner.runtime.state.cel == 99 && t.actor.owner.runtime.actor == 7 &&
                   t.events[t.n - 2] == CLOSE &&
                   t.events[t.n - 1] == ACTOR_RELEASE);
@@ -628,7 +617,7 @@ static int changing(void)
     CHECK(mm_movie_change_text(&t.actor, &t.name, 4, &font, &t.s) && !t.removeActor && t.writes == 1);
     CHECK(mm_rollcall_table_extra(&t.data.actors, 1, &row));
     font = mm_movie_rollcall_tag(&row);
-    close_tag(&font);
+    mm_tag_close(&font, &t.tags);
     CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
     return 0;
 }

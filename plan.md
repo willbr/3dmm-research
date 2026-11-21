@@ -1406,12 +1406,14 @@ collection and disposal. Native Studio supplies archive and cache I/O.
 Studio autosave and headless movie saves serialize their roll-call rows from
 the C89 table. C rebuilds the wire names in actor order, clears cache pointer
 fields, and discards the new chunk if writing or adoption fails.
-Studio and headless loads also decode the roll call directly into the C89
-table. Native code supplies the decoded stream, platform text conversion,
-and tag operations. C closes each acquired tag on failure or movie teardown.
+Studio and headless loads decode the roll call into the C89 table. The shared
+tag service opens local rows against the document cache and closes them on
+failure or movie teardown. The host supplies archive I/O, platform text
+conversion and cache reference operations.
 Studio's roll-call lookup, rename, add, remove, and tag refresh use the C89
 table directly. The same code handles roll-call changes during actor placement
-and 3D text replacement.
+and 3D text replacement. Newly authored material and 3D text template tags
+retain the active document cache through the same C89 service.
 Studio autosave prunes the C89 table directly. Scene import reads source rows
 into a temporary C table, appends counted names and adjusted IDs, and closes
 the imported tags if the merge fails.

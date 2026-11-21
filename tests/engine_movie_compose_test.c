@@ -79,7 +79,8 @@ struct Test
     MMMovieScenes scenes;
     MMCompositeMovie composite;
     ChunkIndexFixture archives[2];
-    Object resources[3], thumbs[3], open, read, tags[3];
+    Object resources[3], thumbs[3], open, read;
+    MMTagServices rollcall_tags;
     int fail, failAt, calls[40], events[256], n, badRef;
     int withActors, actorIds[2], adjusted[8], adjustCount;
     int deleted[8], deletedCount, adopted, removedActors, closed;
@@ -535,14 +536,13 @@ static void erase_entry(void *p, const MMChunkEntry *entry)
         t->deleted[t->deletedCount++] = (int)entry->number;
     }
 }
-static int open_actor(void *p, MMRollCallActor *row, void *resources)
+static void retain_rollcall(void *p)
 {
-    Test *t = p;
-    if (resources != &t->resources[0] || !t->readingSource || row->data.template_number >= 2)
+    Object *resource = p;
+    Test *t = resource->test;
+    if (resource != &t->resources[0] || !t->readingSource)
         fixture_failure(__LINE__);
-    row->cache = &t->tags[row->data.template_number];
-    ++t->tags[row->data.template_number].refs;
-    return 1;
+    ++resource->refs;
 }
 static void *resize_actors(void *p, void *data, MMU32 before, MMU32 size, int priority)
 {
@@ -565,21 +565,23 @@ static void free_actors(void *p, void *data, MMU32 size)
     --t->actorBlocks;
     free(data);
 }
-static void close_tag(MMTag *tag)
+static void release_rollcall(void *p)
 {
-    Object *o = tag->cache;
-    Test *t = o->test;
-    t->closedTags[t->tagCloses++] = o->id;
-    note(o->test, CLOSE_TAG);
-    release(o);
-    tag->cache = 0;
-}
-static void close_actor(void *p, MMRollCallActor *row)
-{
-    MMTag tag = mm_movie_rollcall_tag(row);
-    if (((Object *)tag.cache)->test != p)
+    Object *resource = p;
+    if (resource != &resource->test->resources[0] || resource->refs < 2)
         fixture_failure(__LINE__);
-    close_tag(&tag);
+    --resource->refs;
+}
+static void publish_rollcall(void *p, const MMTag *tag)
+{
+    Test *t = p;
+    if (!tag->cache)
+    {
+        if (t->tagCloses >= 2)
+            fixture_failure(__LINE__);
+        t->closedTags[t->tagCloses++] = (int)tag->number;
+        note(t, CLOSE_TAG);
+    }
 }
 static int insert_link(void *p, MMU32 root, const MMChunkChild *child)
 {
@@ -714,7 +716,6 @@ static void init(Test *t)
     {
         object(&t->resources[i], t, 1 + i, 1);
         object(&t->thumbs[i], t, 4 + i, i == 1);
-        object(&t->tags[i], t, 20 + i, i == 2);
     }
     object(&t->open, t, 13, 1);
     object(&t->read, t, 14, 0);
@@ -777,8 +778,11 @@ static void init(Test *t)
     s->rollcall.cache = compose_cache;
     s->rollcall.decode = decode_payload;
     s->rollcall.reader.context = t;
-    s->rollcall.reader.open_actor = open_actor;
-    s->rollcall.reader.close_actor = close_actor;
+    t->rollcall_tags.context = t;
+    t->rollcall_tags.retain = retain_rollcall;
+    t->rollcall_tags.release = release_rollcall;
+    t->rollcall_tags.publish = publish_rollcall;
+    s->rollcall.reader.tags = &t->rollcall_tags;
     s->sound_issue = unexpected_sound_issue;
     s->start_scene = start;
     s->add_actors = add_actors;
@@ -845,9 +849,10 @@ static int cleanup_tags(Test *t)
     {
         CHECK(mm_rollcall_table_extra(&t->data.actors, i, &row));
         tag = mm_movie_rollcall_tag(&row);
-        close_tag(&tag);
+        CHECK(tag.cache == &t->resources[0]);
+        mm_tag_close(&tag, &t->rollcall_tags);
     }
-    CHECK(!t->tags[0].refs && !t->tags[1].refs && t->tags[2].refs == 1 && !t->badRef && !t->blocks);
+    CHECK(t->resources[0].refs == 1 && !t->badRef && !t->blocks);
     CHECK(mm_rollcall_table_dispose(&t->data.actors) == MM_STORAGE_OK && !t->actorBlocks);
     return 0;
 }
@@ -857,7 +862,7 @@ static int seed_destination(Test *t)
     memset(&row, 0, sizeof(row));
     row.data.actor_id = 1;
     row.data.reference_count = 2;
-    row.cache = &t->tags[2];
+    row.data.source_id = 3;
     return mm_rollcall_table_add(&t->data.actors, "Base", 4, &row);
 }
 static int adding(void)
@@ -967,8 +972,8 @@ static int merging(void)
         t.fail = APPEND_ACTOR;
         t.failAt = i;
         CHECK(!merge_fixture(&t, 10) && t.data.actors.count == 1);
-        CHECK(t.tagCloses == 2 && t.closedTags[0] == (i == 1 ? 21 : 20) &&
-              t.closedTags[1] == (i == 1 ? 20 : 21) && !t.adjustCount);
+        CHECK(t.tagCloses == 2 && t.closedTags[0] == (i == 1 ? 1 : 0) &&
+              t.closedTags[1] == (i == 1 ? 0 : 1) && !t.adjustCount);
         CHECK(!cleanup_tags(&t));
     }
     init(&t);
@@ -978,7 +983,7 @@ static int merging(void)
     t.failAt = 2;
     CHECK(!merge_fixture(&t, 10) && t.data.actors.count == 1 && t.actorIds[0] == 15 &&
           t.actorIds[1] == 7);
-    CHECK(t.tagCloses == 2 && t.closedTags[0] == 21 && t.closedTags[1] == 20 && !cleanup_tags(&t));
+    CHECK(t.tagCloses == 2 && t.closedTags[0] == 1 && t.closedTags[1] == 0 && !cleanup_tags(&t));
     init(&t);
     CHECK(seed_destination(&t));
     t.withActors = 1;

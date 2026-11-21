@@ -1,4 +1,5 @@
 #include "mm/movie_owner.h"
+#include "mm/movie_rollcall.h"
 #include "mm/movie_runtime.h"
 #include "mm/movie_session.h"
 #include "chunk_writer_fixture.h"
@@ -33,6 +34,7 @@ struct Host
     ChunkWriterFixture archive;
     MMArchiveWriter owner_writer;
     MMResourceCache owner_cache;
+    MMTagServices tags;
     unsigned char owner_bytes[512];
     MMU32 owner_size;
     int buffers, packed, missing_extent;
@@ -50,7 +52,6 @@ enum
     FAIL_NAME,
     FAIL_SAVE,
     FAIL_WIRE,
-    FAIL_TAG,
     FAIL_APPEND,
     FAIL_ADD,
     FAIL_TABLE_WRITE,
@@ -165,13 +166,24 @@ static void release_resource(void *p)
         free(r);
     }
 }
-static void close_actor(void *c, MMRollCallActor *a)
+static void retain_resource(void *p)
 {
-    Host *h = (Host *)c;
-    event(h, (char)('A' + a->data.actor_id));
-    if (a->cache)
-        release_resource(a->cache);
-    a->cache = NULL;
+    Resource *r = p;
+    event(r->host, 'h');
+    ++r->host->open_calls;
+    ++r->refs;
+}
+static void publish_tag(void *p, const MMTag *tag)
+{
+    if (!tag->cache)
+        event(p, (char)('A' + tag->number));
+}
+static void init_tags(Host *h)
+{
+    h->tags.context = h;
+    h->tags.retain = retain_resource;
+    h->tags.release = release_resource;
+    h->tags.publish = publish_tag;
 }
 static void *file(void *p)
 {
@@ -281,18 +293,19 @@ static void persist(void *f)
 }
 static void *resize_rollcall(void *, void *, MMU32, MMU32, int);
 static void free_rollcall(void *, void *, MMU32);
-static int open_actor(void *, MMRollCallActor *, void *);
 static int decode_rollcall(void *, void **);
 static MMMovieOwnerServices owners(Host *h)
 {
     MMMovieOwnerServices s = {
         NULL, {NULL, resize_rollcall, free_rollcall}, 0x0303, 0,
         create, open_file, {session_graph, session_failed}, new_resource, release_file, release_resource,
-        file, owner_archive, {owner_cache, decode_rollcall, {NULL, NULL, open_actor, close_actor}, missing_rollcall},
+        file, owner_archive, {owner_cache, decode_rollcall, {NULL, NULL, NULL}, missing_rollcall},
         NULL,
         {NULL, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, NULL, load_name, set_name, NULL},
         save, persist};
     s.context = s.actor_allocator.context = s.rollcall.reader.context = h;
+    init_tags(h);
+    s.rollcall.reader.tags = &h->tags;
     h->owner_writer = chunk_writer_fixture(&h->archive, h, owner_extent, owner_write);
     h->owner_writer.system = MM_TEXT_WINDOWS;
     h->archive.block.files.read = owner_read;
@@ -367,6 +380,7 @@ static void ownership(void)
     old_r = m.resources;
     memset(&actor, 0, sizeof(actor));
     actor.data.actor_id = 2;
+    actor.data.template_number = 2;
     actor.cache = old_r;
     CHECK(mm_rollcall_table_add(&m.actors, "Old actor", 9, &actor));
     ++((Resource *)old_r)->refs;
@@ -413,7 +427,7 @@ static void ownership(void)
     h.fail = 0;
     h.scenes = 2;
     CHECK(mm_movie_load(&m, &h, 0xffffffffUL, &s) && m.movieNumber == 7 && m.actorIdLimit == 1 && m.sceneCount == 2);
-    CHECK(!strcmp(h.log, "osvrfihnsssCRR") && h.resources == 1 && h.buffers == 2);
+    CHECK(!strcmp(h.log, "osvrfihnsssRCR") && h.resources == 1 && h.buffers == 2);
     saved = owner_rollcall(&h);
     reset(&h);
     CHECK(mm_movie_save(&m, &s) && !strcmp(h.log, "jdNSP") && h.persistent == 1);
@@ -447,21 +461,10 @@ static void ownership(void)
           mm_movie_session_root(m.session)->number == 11);
     reset(&h);
     mm_movie_state_dispose(&m, &s);
-    CHECK(!strcmp(h.log, "ARR") && !h.buffers && !h.resources && !m.session && !m.actors.stride);
+    CHECK(!strcmp(h.log, "RAR") && !h.buffers && !h.resources && !m.session && !m.actors.stride);
     reset(&h);
     mm_movie_state_dispose(&m, &s);
     CHECK(!h.used);
-}
-static int open_actor(void *c, MMRollCallActor *a, void *r)
-{
-    Host *h = (Host *)c;
-    event(h, 'h');
-    ++h->open_calls;
-    if (h->fail == FAIL_TAG && h->open_calls == 2)
-        return 0;
-    a->cache = r;
-    ++((Resource *)r)->refs;
-    return 1;
 }
 static void *resize_rollcall(void *p, void *old, MMU32 old_size, MMU32 new_size, int priority)
 {
@@ -565,11 +568,12 @@ static void make_wire_rollcall(Host *h, MMMemoryStream *memory, int big, int bad
     memset(long_name, 'B', sizeof(long_name));
     memset(&actor, 0, sizeof(actor));
     actor.reference_count = 3;
-    actor.template_number = 123;
     CHECK(mm_rollcall_table_init(&wire, extra, 1, 0x0303, 0, NULL) == MM_STORAGE_OK);
     for (i = 0; i < 3; ++i)
     {
         actor.actor_id = i == bad_row ? -1 : i;
+        actor.source_id = i == 2 ? 3 : 0;
+        actor.template_number = (MMU32)i;
         mm_movie_write_actor(&actor, row, big);
         CHECK(mm_rollcall_table_add(&wire, i == 1 ? long_name : "Actor", i == 1 ? sizeof(long_name) : 5, row));
     }
@@ -692,17 +696,20 @@ static void rollcalls(void)
 {
     Host h;
     Resource *r;
-    MMRollCallReader reader = {NULL, NULL, open_actor, close_actor};
+    MMRollCallReader reader = {NULL, NULL, NULL};
     MMStorageAllocator allocator = {NULL, resize_rollcall, free_rollcall};
     MMRollCallTable actors;
     MMRollCallActor actor;
+    MMTag tag;
     MMMemoryStream memory;
     const void *name;
     MMU32 length, row;
     MMI32 limit;
-    int big, failures[] = {FAIL_WIRE, FAIL_TAG, FAIL_APPEND}, i;
+    int big, failures[] = {FAIL_WIRE, FAIL_APPEND}, i;
     memset(&h, 0, sizeof(h));
     reader.context = allocator.context = &h;
+    init_tags(&h);
+    reader.tags = &h.tags;
     r = (Resource *)new_resource(&h, &h);
     CHECK(mm_rollcall_table_init(&actors, sizeof(MMRollCallActor), 1, 0x0303, 0, &allocator) == MM_STORAGE_OK);
     for (big = 0; big < 2; ++big)
@@ -711,15 +718,17 @@ static void rollcalls(void)
         reset(&h);
         limit = 0;
         load_rollcall(&h, r, &actors, &limit, &reader);
-        CHECK(limit == 3 && actors.count == 3 && r->refs == 4 && h.buffers == 2);
+        CHECK(limit == 3 && actors.count == 3 && r->refs == 3 && h.buffers == 2);
         CHECK(mm_rollcall_table_name(&actors, 1, &name, &length) && length == 160 && ((const char *)name)[159] == 'B');
         write_rollcalls(&h, &actors, big);
-        CHECK(r->refs == 4);
+        CHECK(r->refs == 3);
         for (row = 0; row < actors.count; ++row)
         {
-            CHECK(mm_rollcall_table_extra(&actors, row, &actor) && actor.cache == r &&
-                  actor.data.actor_id == (MMI32)row && actor.data.template_number == 123);
-            close_actor(&h, &actor);
+            CHECK(mm_rollcall_table_extra(&actors, row, &actor) && actor.cache == (row == 2 ? NULL : r) &&
+                  actor.data.actor_id == (MMI32)row && actor.data.source_id == (row == 2 ? 3 : 0) &&
+                  actor.data.template_number == row);
+            tag = mm_movie_rollcall_tag(&actor);
+            mm_tag_close(&tag, &h.tags);
         }
         CHECK(mm_rollcall_table_dispose(&actors) == MM_STORAGE_OK && r->refs == 1 && !h.buffers);
 
@@ -732,7 +741,7 @@ static void rollcalls(void)
             CHECK(!mm_movie_read_rollcall(&memory.stream, r, &actors, &limit, &reader) && !actors.count &&
                   limit == 42 && r->refs == 1 && !h.buffers);
             if (h.fail == FAIL_APPEND)
-                CHECK(!strcmp(h.log, "hhBRAR"));
+                CHECK(!strcmp(h.log, "hhRBRA"));
         }
         h.fail = 0;
         memory.stream.length = 19;
@@ -741,7 +750,7 @@ static void rollcalls(void)
         make_wire_rollcall(&h, &memory, big, 1, MM_MOVIE_ACTOR_BYTES);
         reset(&h);
         CHECK(!mm_movie_read_rollcall(&memory.stream, r, &actors, &limit, &reader) && !actors.count &&
-              limit == 42 && r->refs == 1 && !h.buffers && !strcmp(h.log, "hAR"));
+              limit == 42 && r->refs == 1 && !h.buffers && !strcmp(h.log, "hRA"));
         make_wire_rollcall(&h, &memory, big, -2, 4);
         reset(&h);
         CHECK(!mm_movie_read_rollcall(&memory.stream, r, &actors, &limit, &reader) && !h.used && !h.buffers);
@@ -956,7 +965,7 @@ static void runtime_lifecycle(void)
     RuntimeCase t;
     unsigned i;
     const char *failure_order[] = {
-        "kD", "kuD", "kuwD", "kuwqDW", "kuwq+[osvrfihnshg!fDRjAR-WQ]", "kuwq+[osvrfihnshgGymsKfDRFjAR-WQ]"};
+        "kD", "kuD", "kuwD", "kuwqDW", "kuwq+[osvrfihnshg!fDRjRA-WQ]", "kuwq+[osvrfihnshgGymsKfDRFjRA-WQ]"};
     for (i = PREPARE_FAILED; i <= CACHE_FAILED; ++i)
     {
         runtime_init(&t);
@@ -998,7 +1007,7 @@ static void runtime_lifecycle(void)
         t.disable_fades = i != 0;
         t.playback.fadeChangedVolume = i == 2;
         mm_movie_runtime_dispose(&t.runtime, &t.playback, &t.services);
-        CHECK(!strcmp(t.archive.log, i == 1 ? "+aRFpjzAR-WQL" : "+aRFpVjzAR-WQL"));
+        CHECK(!strcmp(t.archive.log, i == 1 ? "+aRFpjzRA-WQL" : "+aRFpVjzRA-WQL"));
         CHECK(!t.playback.fadeOriginalVolume && !t.scenes.open && t.scenes.index == -1 &&
               t.client.refs == 1 && !t.world.refs && !t.sounds.refs && t.palette.refs == 1 &&
               !t.archive.resources && !t.archive.buffers);

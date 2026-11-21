@@ -7,6 +7,7 @@
 #include "movie_title.h"
 #include "resource_cache.h"
 #include "rollcall_storage.h"
+#include "tag.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -20,8 +21,7 @@ extern "C"
     {
         void *context;
         MMStringConvert convert;
-        int (*open_actor)(void *, MMRollCallActor *, void *resources);
-        void (*close_actor)(void *, MMRollCallActor *);
+        const MMTagServices *tags;
     } MMRollCallReader;
     typedef struct MMRollCallBinding
     {
@@ -90,7 +90,7 @@ extern "C"
 
     /* Borrows a decoded GST stream and fills an initialized, empty actor table.
      * Failed reads restore an empty table and preserve the caller's ID limit.
-     * Failed tag opens acquire no reference. Failed insertions close the current
+     * Local tags retain the document cache. Failed insertions close the current
      * tag before closing earlier rows. Successful rows own their opened tags. */
     int mm_movie_read_rollcall(const MMReadStream *, void *resources, MMRollCallTable *actors, MMI32 *limit,
                                      const MMRollCallReader *);

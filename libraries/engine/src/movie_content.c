@@ -14,7 +14,7 @@ int mm_movie_insert_material(void *material, MMTag *output, int *written,
     output->type = 0x4d54524cU;
     output->number = number;
     *written = 1;
-    return s->open_tag(output, s->edit.data->resources);
+    return mm_tag_open(output, s->edit.data->resources, NULL, s->tags);
 }
 static int author(const void *name, MMI32 shape, const void *font, MMTag *tag,
                   const MMMovieContentServices *s)
@@ -38,7 +38,7 @@ static int author(const void *name, MMI32 shape, const void *font, MMTag *tag,
     tag->cache = 0;
     tag->type = 0x544d504cU;
     tag->number = number;
-    return s->open_tag(tag, s->edit.data->resources);
+    return mm_tag_open(tag, s->edit.data->resources, NULL, s->tags);
 }
 int mm_movie_insert_text(const void *name, MMI32 shape, const void *font,
                                const MMMovieContentServices *s)
@@ -48,7 +48,7 @@ int mm_movie_insert_text(const void *name, MMI32 shape, const void *font,
     if (!author(name, shape, font, &tag, s))
         return 0;
     ok = mm_movie_insert_actor(&tag, &s->edit);
-    s->close_tag(&tag);
+    mm_tag_close(&tag, s->tags);
     return ok;
 }
 int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void *font,
@@ -70,12 +70,12 @@ int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void 
         return 0;
     if (!mm_actor_owner_duplicate(actor, 0, &snapshot, actors))
     {
-        s->close_tag(&tag);
+        mm_tag_close(&tag, s->tags);
         return 0;
     }
     if (!s->change_template(actor, &tag))
     {
-        s->close_tag(&tag);
+        mm_tag_close(&tag, s->tags);
         actors->release(actors->context, snapshot.actor);
         return 0;
     }
@@ -88,7 +88,7 @@ int mm_movie_change_text(void *actor, const void *name, MMI32 shape, const void 
         ok = 1;
     }
     actors->release(actors->context, snapshot.actor);
-    s->close_tag(&tag);
+    mm_tag_close(&tag, s->tags);
     if (ok)
         s->edit.dirty(s->edit.context);
     return ok;

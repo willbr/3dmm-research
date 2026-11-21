@@ -1,6 +1,7 @@
 /* Movie ownership and persistence converted from engine movie_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_owner.h"
+#include "mm/movie_rollcall.h"
 #include "mm/movie_root.h"
 #include "mm/movie_session.h"
 #include <string.h>
@@ -10,13 +11,16 @@ void mm_movie_state_init(MMMovieState *m)
     m->movieNumber = 0xffffffffUL;
     mm_movie_title_init(&m->title, 1);
 }
-static void close_rows(MMRollCallTable *table, void *context, void (*close_actor)(void *, MMRollCallActor *))
+static void close_rows(MMRollCallTable *table, const MMTagServices *tags)
 {
     MMU32 i;
     MMRollCallActor actor;
     for (i = 0; i < table->count; ++i)
         if (mm_rollcall_table_extra(table, i, &actor))
-            close_actor(context, &actor);
+        {
+            MMTag tag = mm_movie_rollcall_tag(&actor);
+            mm_tag_close(&tag, tags);
+        }
 }
 int mm_movie_init_actors(MMMovieState *m, const MMMovieOwnerServices *s)
 {
@@ -30,7 +34,7 @@ void mm_movie_clear_actors(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     if (!m->actors.stride)
         return;
-    close_rows(&m->actors, s->rollcall.reader.context, s->rollcall.reader.close_actor);
+    close_rows(&m->actors, s->rollcall.reader.tags);
     mm_rollcall_table_dispose(&m->actors);
     memset(&m->actors, 0, sizeof(m->actors));
 }
@@ -178,6 +182,7 @@ int mm_movie_read_rollcall(const MMReadStream *stream, void *resources, MMRollCa
     const void *name;
     MMMemoryStream memory;
     MMRollCallActor actor;
+    MMTag tag;
     if (!actors || actors->count || actors->bytes || actors->stride != sizeof(actor) + 4 ||
         mm_rollcall_table_init(&wire, 0, actors->unit, actors->encoding, actors->trash_unused,
                                &actors->storage.allocator) != MM_STORAGE_OK)
@@ -193,11 +198,13 @@ int mm_movie_read_rollcall(const MMReadStream *stream, void *resources, MMRollCa
         if (mm_movie_read_actor(&memory.stream, big, &actor.data, &next) != MM_MOVIE_OK)
             goto fail;
         actor.cache = NULL;
-        if (!s->open_actor(s->context, &actor, resources))
+        tag = mm_movie_rollcall_tag(&actor);
+        if (!mm_tag_open(&tag, resources, NULL, s->tags))
             goto fail;
+        actor.cache = tag.cache;
         if (!mm_rollcall_table_add(actors, name, count, &actor))
         {
-            s->close_actor(s->context, &actor);
+            mm_tag_close(&tag, s->tags);
             goto fail;
         }
     }
@@ -207,7 +214,7 @@ int mm_movie_read_rollcall(const MMReadStream *stream, void *resources, MMRollCa
     return 1;
 fail:
     mm_rollcall_table_dispose(&wire);
-    close_rows(actors, s->context, s->close_actor);
+    close_rows(actors, s->tags);
     mm_rollcall_table_dispose(actors);
     return 0;
 }

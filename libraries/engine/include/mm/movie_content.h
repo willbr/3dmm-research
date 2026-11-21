@@ -16,8 +16,7 @@ extern "C"
         void *(*new_text)(const void *name, MMI32 shape, const void *font);
         int (*write_text)(void *text, void *file, MMU32 *number);
         void (*release_text)(void *text);
-        int (*open_tag)(MMTag *, void *resources);
-        void (*close_tag)(MMTag *);
+        const MMTagServices *tags;
         const void *(*name_units)(const void *name, MMU32 *count);
         MMI32 (*character)(const void *name, MMI32 index);
         int (*change_template)(void *actor, const MMTag *);
@@ -35,9 +34,9 @@ extern "C"
     /* Initialized synchronous services and stable Movie/Scene owners are required.
      * Names, bounds and font tags are borrowed host representations; new_text and
      * new_caption return one owned reference. Scene add retains its own reference.
-     * open_tag returns one owned tag on success and no reference on failure.
-     * Material output is defined once writing succeeds, including failed open_tag;
-     * before that it is untouched and written=0 (native hosts may poison output).
+     * Authored local tags retain the active document cache. Material output is
+     * defined once writing succeeds. Before that it is untouched and written=0
+     * (native hosts may poison output).
      * Text creation captures the working file before use_temp, preserving the native
      * transaction order. Failed writes/edits keep their authored chunk prefixes, but
      * release temporary templates, tags and actor snapshots on every exit.

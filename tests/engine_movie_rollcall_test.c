@@ -15,9 +15,9 @@
 enum
 {
     SET_ID = 1,
-    OPEN,
+    RETAIN_DOCUMENT,
     CLOSE,
-    DUPLICATE,
+    RETAIN_SOURCE,
     CHANGED,
     PROP,
     TEXT
@@ -25,6 +25,7 @@ enum
 typedef struct Test Test;
 typedef struct Cache
 {
+    Test *test;
     int refs;
 } Cache;
 typedef struct Actor
@@ -38,6 +39,7 @@ struct Test
 {
     MMMovieState data;
     MMMovieRollCallServices s;
+    MMTagServices tags;
     int changed, fail_allocation, issue, diagnostics;
     int events[64], eventCount, textCalls, idPublishedLimit;
     Cache source, destination;
@@ -100,39 +102,23 @@ static int text(void *p)
     event(a->test, TEXT);
     return a->text;
 }
-static int same(const MMTag *a, const MMTag *b)
+static int compare_cache(void *a, void *b)
 {
-    return a->sid == b->sid && a->cache == b->cache && a->type == b->type && a->number == b->number;
+    const Cache *cache = a;
+    return a == b ? 0 : cache == &cache->test->source ? -1 : 1;
 }
-static void open_tag(void *p, MMTag *tag, void *cache)
+static void retain_cache(void *p)
 {
-    Test *t = p;
-    event(t, OPEN);
-    if (!tag->sid)
-    {
-        tag->cache = cache;
-        ++((Cache *)cache)->refs;
-    }
+    Cache *cache = p;
+    Test *t = cache->test;
+    event(t, cache == &t->destination ? RETAIN_DOCUMENT : RETAIN_SOURCE);
+    ++cache->refs;
 }
-static void duplicate(const MMTag *tag)
+static void release_cache(void *p)
 {
-    if (!tag->sid)
-        ++((Cache *)tag->cache)->refs;
-}
-static Test *active;
-static void duplicate_tag(const MMTag *tag)
-{
-    event(active, DUPLICATE);
-    duplicate(tag);
-}
-static void close_tag(MMTag *tag)
-{
-    event(active, CLOSE);
-    if (!tag->sid)
-    {
-        --((Cache *)tag->cache)->refs;
-        tag->cache = 0;
-    }
+    Cache *cache = p;
+    event(cache->test, CLOSE);
+    --cache->refs;
 }
 static void changed(void *p)
 {
@@ -152,7 +138,7 @@ static void init(Test *t)
     MMStorageAllocator allocator = {NULL, resize, release};
     memset(t, 0, sizeof(*t));
     allocator.context = t;
-    active = t;
+    t->source.test = t->destination.test = t;
     t->source.refs = 10;
     t->destination.refs = 20;
     if (mm_rollcall_table_init(&t->data.actors, sizeof(MMRollCallActor), 1, 0x0303, 0, &allocator) != MM_STORAGE_OK)
@@ -172,10 +158,10 @@ static void init(Test *t)
     s->actor_tag = actor_tag;
     s->is_prop = prop;
     s->is_text = text;
-    s->same_tag = same;
-    s->open_tag = open_tag;
-    s->duplicate_tag = duplicate_tag;
-    s->close_tag = close_tag;
+    t->tags.compare_cache = compare_cache;
+    t->tags.retain = retain_cache;
+    t->tags.release = release_cache;
+    s->tags = &t->tags;
     s->changed = changed;
     s->diagnostic = diagnostic;
 }
@@ -188,7 +174,7 @@ static int clean(Test *t)
     {
         value = row(t, i);
         tag = mm_movie_rollcall_tag(&value);
-        close_tag(&tag);
+        mm_tag_close(&tag, &t->tags);
     }
     return mm_rollcall_table_dispose(&t->data.actors) == MM_STORAGE_OK && t->source.refs == 10 && t->destination.refs == 20;
 }
@@ -215,7 +201,7 @@ static int insertion(void)
     t.fail_allocation = 1;
     CHECK(!mm_movie_rollcall_add(&t.actor, "Actor", 5, &t.s));
     CHECK(t.actor.id == 7 && t.data.actorIdLimit == 8 && !t.data.actors.count && !t.changed && t.destination.refs == 20);
-    CHECK(t.events[t.eventCount - 2] == OPEN && t.events[t.eventCount - 1] == CLOSE && clean(&t));
+    CHECK(t.events[t.eventCount - 2] == RETAIN_DOCUMENT && t.events[t.eventCount - 1] == CLOSE && clean(&t));
     init(&t);
     t.actor.id = 99;
     CHECK(mm_movie_rollcall_add(&t.actor, "", 0, &t.s) && t.data.actorIdLimit == 7 && t.actor.id == 99 &&
@@ -231,11 +217,17 @@ static int refresh(void)
     t.eventCount = 0;
     CHECK(mm_movie_rollcall_add(&t.actor, NULL, 0, &t.s));
     CHECK(row(&t, 0).data.reference_count == 2 && t.changed == 2 && t.destination.refs == 20 && t.source.refs == 11);
-    CHECK(t.eventCount == 3 && t.events[0] == CLOSE && t.events[1] == DUPLICATE && t.events[2] == CHANGED);
+    CHECK(t.eventCount == 3 && t.events[0] == CLOSE && t.events[1] == RETAIN_SOURCE && t.events[2] == CHANGED);
     t.eventCount = 0;
     CHECK(mm_movie_rollcall_add(&t.actor, NULL, 0, &t.s));
     CHECK(row(&t, 0).data.reference_count == 3 && t.changed == 3 && t.source.refs == 11 &&
           t.eventCount == 1 && t.events[0] == CHANGED && named(&t, 0, "Actor", 5));
+    t.actor.tag.sid = 3;
+    t.actor.tag.cache = NULL;
+    t.eventCount = 0;
+    CHECK(mm_movie_rollcall_add(&t.actor, NULL, 0, &t.s));
+    CHECK(row(&t, 0).data.source_id == 3 && !row(&t, 0).cache && t.source.refs == 10 &&
+          t.eventCount == 2 && t.events[0] == CLOSE && t.events[1] == CHANGED);
     CHECK(clean(&t));
     return 0;
 }

@@ -18905,3 +18905,35 @@ retail frame identities and SDL matched all four retail sound requests.
 Both ports reproduced their earlier PCM16 peak of 2,176. The archived retail
 peak is 2,380. The captures contain 513,120 SDL and 512,160 Marcus PCM frames.
 Evidence is in `tmp/c89-scene-load-ownership`.
+
+## Movie roll-call and authored tag ownership in C89 (21 November 2026)
+
+Roll-call loading, refresh, removal and composition rollback use the common
+C89 tag service. New local rows retain the active document cache. Media rows
+carry their source ID without retaining the document. The C fixtures verify
+partial read and append cleanup, a refresh from a local tag to a media tag,
+and composition rollback after rows and actor IDs have been staged. Material
+and 3D text authoring also use the common service, including the document cache
+selected after switching to the temporary archive.
+
+All 193 standalone C checks, six AddressSanitizer checks, four x86 C fixtures,
+nine native checks and the SDL movie-sound import check passed. The movie
+owner, roll-call storage and movie-root traces each matched the pre-change
+build on x64, x86 and SDL, at 736, 405 and 224 bytes. The 91,484-byte
+movie-content and 19,044-byte composition traces matched on all three builds.
+All 27 other save/reopen traces, actor and sound snapshots, and the complete
+authoring saves matched their respective baselines.
+
+SDL and Marcus matched the three archived V3dmm storyboard frames, cameras
+and canvas hashes in suite `20261121T122041Z-32161218`.
+
+In `actor-event-edit` suite `20261121T122045Z-2fc5e73b`, both ports matched
+all 60 retail frame identities in seek and continuous playback. Seek camera
+indices matched retail and all 60 seek canvas hashes matched their prior
+captures. SDL matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T122207Z-bd90ad1a`, both ports matched all 60
+retail frame identities and SDL matched all four retail sound requests.
+The PCM16 peak remains 2,176 on both ports and 2,380 in the archived retail
+capture. SDL captured 511,200 PCM frames and Marcus captured 511,680.
+Evidence is in `tmp/c89-rollcall-tag-policy`.

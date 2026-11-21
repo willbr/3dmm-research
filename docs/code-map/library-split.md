@@ -7993,19 +7993,20 @@ Both save paths build the wire GST directly from C89 roll-call storage.
 Native code allocates the destination chunk and supplies the positional
 writer and graph edits.
 Loading borrows the decoded GST stream and builds the live table in C89.
-Native code locates and unpacks the chunk and supplies character conversion
-and tag operations. Load rollback and movie teardown close references from
-the C89 rows.
-Studio's roll-call queries and edits also use the typed C89 table. The native
-adapter translates between counted character buffers and Studio strings and
-supplies actor, tag, and notification services.
+The C89 tag service binds local rows to the document cache and releases their
+references on load rollback and movie teardown. The host supplies chunk I/O,
+character conversion and cache reference primitives.
+Studio's roll-call queries and edits also use the typed C89 table and the same
+tag service. The host supplies character conversion, actor access and
+notifications. Authored material and 3D text template tags use the same
+service to retain the active document cache.
 Autosave prunes unused actor rows from the typed table. Scene composition
 loads imported rows into a temporary C89 table and transfers their tag
 references to the destination when the merge succeeds.
 The C movie state embeds the live roll-call table. The movie owner initializes
 and disposes it, including tag references, and publishes a replacement only
-after loading succeeds. Native services provide storage allocation, tag
-operations, and archive I/O.
+after loading succeeds. Native services provide storage allocation and
+archive I/O.
 Headless saves, Studio autosave, and scene persistence also share C89 chunk
 title I/O. C encodes and decodes the existing counted strings and removes
 empty names. Kauai reads and writes the encoded bytes, invalidates the

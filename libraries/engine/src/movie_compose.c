@@ -3,6 +3,7 @@
 #include "mm/movie_compose.h"
 #include "mm/chunk_copy.h"
 #include "mm/movie_archive_edit.h"
+#include "mm/movie_rollcall.h"
 #include "mm/movie_session.h"
 #include "mm/movie_sound_archive.h"
 #include "mm/movie_sound.h"
@@ -313,7 +314,10 @@ static void close_source_row(MMRollCallTable *source, MMU32 index, const MMMovie
 {
     MMRollCallActor row;
     if (mm_rollcall_table_extra(source, index, &row))
-        s->rollcall.reader.close_actor(s->rollcall.reader.context, &row);
+    {
+        MMTag tag = mm_movie_rollcall_tag(&row);
+        mm_tag_close(&tag, s->rollcall.reader.tags);
+    }
 }
 static int merge(MMU32 movie, MMI32 offset, ComposeAssets *imports, const MMMovieComposeServices *s)
 {

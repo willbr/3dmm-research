@@ -26,16 +26,14 @@ extern "C"
         MMI32 (*actor_id)(void *actor);
         void (*set_actor_id)(void *actor, MMI32 id), (*actor_tag)(void *actor, MMTag *);
         int (*is_prop)(void *actor), (*is_text)(void *actor);
-        int (*same_tag)(const MMTag *, const MMTag *);
-        void (*open_tag)(void *, MMTag *, void *resources);
-        void (*duplicate_tag)(const MMTag *), (*close_tag)(MMTag *);
+        const MMTagServices *tags;
         void (*changed)(void *), (*diagnostic)(void *, int issue);
     } MMMovieRollCallServices;
     /* Runtime table and actor/tag services are initialized, synchronous and not
      * reentrant. New rows require a non-null counted name in the table's native
      * units. Mutation inputs do not alias the table. Query names are borrowed
      * until the next table mutation. Output tags are borrowed. Storage owns one
-     * opened tag per committed row. The native open_tag primitive must succeed.
+     * opened tag per committed row, with new local rows opened on the document cache.
      * Existing rows increment before tag refresh and notify even if already used.
      * New IDs publish before insertion, and remain assigned if insertion fails.
      * Failed append closes its newly opened tag instead of leaking that reference.

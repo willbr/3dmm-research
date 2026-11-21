@@ -94,11 +94,11 @@ int mm_movie_rollcall_add(void *actor, const void *name, MMU32 count, const MMMo
             row.data.reference_count = mm_signed_word((MMU32)row.data.reference_count + 1U);
             s->actor_tag(actor, &fresh);
             old = mm_movie_rollcall_tag(&row);
-            if (!s->same_tag(&old, &fresh))
+            if (mm_tag_compare(&old, &fresh, s->tags) != 0)
             {
-                s->close_tag(&old);
+                mm_tag_close(&old, s->tags);
                 set_tag(&row, &fresh);
-                s->duplicate_tag(&fresh);
+                mm_tag_dup(&fresh, s->tags);
             }
             mm_rollcall_table_set_extra(table, (MMU32)index, &row);
             s->changed(s->context);
@@ -121,11 +121,12 @@ int mm_movie_rollcall_add(void *actor, const void *name, MMU32 count, const MMMo
     }
     row.data.reference_count = 1;
     s->actor_tag(actor, &fresh);
-    s->open_tag(s->context, &fresh, s->data->resources);
+    if (!mm_tag_open(&fresh, s->data->resources, NULL, s->tags))
+        return 0;
     set_tag(&row, &fresh);
     if (!name || !mm_rollcall_table_add(table, name, count, &row))
     {
-        s->close_tag(&fresh);
+        mm_tag_close(&fresh, s->tags);
         return 0;
     }
     s->changed(s->context);
@@ -148,7 +149,7 @@ void mm_movie_rollcall_remove(void *actor, int delete_last, const MMMovieRollCal
     if (delete_last && row.data.reference_count == 0)
     {
         tag = mm_movie_rollcall_tag(&row);
-        s->close_tag(&tag);
+        mm_tag_close(&tag, s->tags);
         mm_rollcall_table_delete(table, (MMU32)index);
     }
     else

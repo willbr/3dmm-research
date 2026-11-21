@@ -538,20 +538,14 @@ MMMovieRollCallServices Movie::_RollCallServices()
     s.data = &_data;
     s.actor_id = [](void *p) -> MMI32 { return static_cast<PActor>(p)->Arid(); };
     s.set_actor_id = [](void *p, MMI32 id) { static_cast<PActor>(p)->SetArid(id); };
-    s.actor_tag = [](void *p, MMTag *out) { TAG tag; static_cast<PActor>(p)->GetTagTmpl(&tag); *out = TagToCore(tag); };
+    s.actor_tag = [](void *p, MMTag *out) {
+        *out = static_cast<PActor>(p)->_owner.runtime.template_tag;
+        if (out->sid != ksidUseCrf)
+            out->cache = nullptr;
+    };
     s.is_prop = [](void *p) -> int { return static_cast<PActor>(p)->FIsPropBrws(); };
     s.is_text = [](void *p) -> int { return static_cast<PActor>(p)->FIsTdt(); };
-    s.same_tag = [](const MMTag *a, const MMTag *b) -> int {
-        TAG first, second; TagFromCore(&first, *a); TagFromCore(&second, *b);
-        return TagManager::FcmpCompareTags(&first, &second) == fcmpEq;
-    };
-    s.open_tag = [](void *, MMTag *value, void *resources) {
-        TAG tag; TagFromCore(&tag, *value);
-        AssertDo(TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources)), "Should never fail when not copying the tag");
-        *value = TagToCore(tag);
-    };
-    s.duplicate_tag = [](const MMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::DupTag(&tag); };
-    s.close_tag = [](MMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::CloseTag(&tag); *value = TagToCore(tag); };
+    s.tags = &TagManager::CoreServices();
     s.changed = [](void *p) { static_cast<PMovie>(p)->Pmcc()->UpdateRollCall(); };
     s.diagnostic = [](void *, int issue) {
         switch (issue)
@@ -1239,12 +1233,7 @@ MMMovieContentServices Movie::_ContentServices()
         return ok;
     };
     s.release_text = [](void *p) { auto text = static_cast<PThreeDText>(p); ReleasePpo(&text); };
-    s.open_tag = [](MMTag *value, void *resources) -> int {
-        TAG tag; TagFromCore(&tag, *value);
-        bool ok = TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources));
-        *value = TagToCore(tag); return ok;
-    };
-    s.close_tag = [](MMTag *value) { TAG tag; TagFromCore(&tag, *value); TagManager::CloseTag(&tag); *value = TagToCore(tag); };
+    s.tags = &TagManager::CoreServices();
     s.name_units = [](const void *p, MMU32 *count) -> const void * {
         auto name = const_cast<PString>(static_cast<const String *>(p));
         *count = name->Cch();

@@ -4,7 +4,6 @@
 #include "movie_data.h"
 #include "engine_movie_graph.h"
 #include "handle_services.h"
-#include "mm/movie_rollcall.h"
 #include "mm/movie_session.h"
 ASSERTNAME
 
@@ -18,34 +17,6 @@ void MovieOpenError(void *, int status)
 {
     PushErc(status == MM_MOVIE_BAD_VERSION ? ercSocBadVersion : ercSocBadFile);
 }
-TAG ActorTag(const MMRollCallActor &actor)
-{
-    TAG tag;
-    TagFromCore(&tag, mm_movie_rollcall_tag(&actor));
-    return tag;
-}
-void CloseActor(void *, MMRollCallActor *a)
-{
-    auto tag = ActorTag(*a);
-    TagManager::CloseTag(&tag);
-    a->cache = tag.pcrf;
-}
-const MMRollCallReader kRollCallReader = {
-    nullptr,
-    [](void *, const void *input, size_t bytes, int encoding, void *output, size_t capacity) -> size_t {
-        return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(output), capacity);
-    },
-    [](void *, MMRollCallActor *a, void *resources) -> int {
-        auto tag = ActorTag(*a);
-        const bool ok = TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources));
-        const auto value = TagToCore(tag);
-        a->data.source_id = value.sid;
-        a->data.template_type = value.type;
-        a->data.template_number = value.number;
-        a->cache = value.cache;
-        return ok;
-    },
-    CloseActor};
 } // namespace
 
 MMMovieSessionBinding MovieData::_SessionBinding()
@@ -59,7 +30,12 @@ MMRollCallBinding MovieData::_RollCallBinding()
 {
     return {
         [](void *p) { return static_cast<PChunkyResourceFile>(p)->CoreCache(); },
-        KauaiDecodeBlockHandle, kRollCallReader,
+        KauaiDecodeBlockHandle,
+        {nullptr,
+         [](void *, const void *input, size_t bytes, int encoding, void *output, size_t capacity) -> size_t {
+             return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(output), capacity);
+         },
+         &TagManager::CoreServices()},
         [](void *) { PushErc(ercSocBadFile); }};
 }
 

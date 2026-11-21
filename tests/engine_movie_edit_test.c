@@ -878,7 +878,6 @@ static void init(Test *t)
     s->rollcall.actor_id = actor_id;
     s->rollcall.set_actor_id = set_id;
     s->rollcall.actor_tag = actor_tag;
-    s->rollcall.same_tag = same_tag;
     s->rollcall.changed = changed_row;
     s->undo.context = t;
     s->undo.movie = t;
