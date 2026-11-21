@@ -318,6 +318,8 @@ static void init(Fixture *f)
     actors->create=create_snapshot;
     actors->retain=retain;
     actors->release=release;
+    actors->retain_body=retain;
+    actors->release_body=release;
     actors->route_services=route_services;
     actors->invalidate_views=restored;
     undo=&f->transaction.undo;

@@ -1,10 +1,5 @@
 #ifndef ENGINE_BODY_CREATE_FIXTURE_H
 #define ENGINE_BODY_CREATE_FIXTURE_H
-class BodyCreateFixtureAccess : public Body
-{
-  public:
-    static LegacyLong Hidden(PBody body) { auto member=&BodyCreateFixtureAccess::_body; return (body->*member).shape.hidden; }
-};
 static bool TestBodyCreation()
 {
     FILE *snapshot=nullptr;
@@ -21,7 +16,7 @@ static bool TestBodyCreation()
         ok=par && set;
         for (int i=0;ok && i<counts[shape];++i) ok=par->FAdd(&parents[shape][i]) && set->FAdd(&sets[shape][i]);
         // Warm the shared highlight material before allocator failure injection.
-        auto warm=ok?Body::PbodyNew(par,set):nullptr; ok=ok && warm; ReleasePpo(&warm);
+        auto warm=ok?EngineBody::Create(par,set):nullptr; ok=ok && warm; mm_body_owner_release(warm);
         for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<9;++failure)
         {
 #ifdef DEBUG
@@ -31,19 +26,19 @@ static bool TestBodyCreation()
             if (failure) { allocator->cactDo=failure; allocator->cactFail=1; }
             vmutxMem.Leave();
 #endif
-            auto body=Body::PbodyNew(par,set);
+            auto body=EngineBody::Create(par,set);
 #ifdef DEBUG
             vmutxMem.Enter(); allocator->cactFail=0; vmutxMem.Leave();
 #endif
-            LegacyLong values[]={shape,kind,failure,body!=nullptr,body?body->Cbset():-1,
-                body?body->Cbact():-1,body?BodyCreateFixtureAccess::Hidden(body):-1};
+            LegacyLong values[]={shape,kind,failure,body!=nullptr,body?EngineBody::SetCount(body):-1,
+                body?EngineBody::ActorCount(body):-1,body?EngineBody::State(body).shape.hidden:-1};
             ok=record(values,sizeof(values)) && ok;
             if (body)
             {
-                ++successes; ok=ok && body->Cbact()==counts[shape]+2 && BodyCreateFixtureAccess::Hidden(body)==1;
-                auto root=body->PbactRoot();
+                ++successes; ok=ok && EngineBody::ActorCount(body)==counts[shape]+2 && EngineBody::State(body).shape.hidden==1;
+                auto root=EngineBody::Root(body);
                 auto index=[&](PBACT actor)->LegacyLong { return actor?static_cast<LegacyLong>(actor-root):-1; };
-                for (int i=0;ok && i<body->Cbact();++i)
+                for (int i=0;ok && i<EngineBody::ActorCount(body);++i)
                 {
                     auto actor=root+i;
                     LegacyLong fields[]={actor->type,actor->render_style,actor->t.type,index(actor->parent),
@@ -52,12 +47,12 @@ static bool TestBodyCreation()
                     ok=record(fields,sizeof(fields)) && record(&actor->t.t.mat,sizeof(actor->t.t.mat)) && ok;
                     if (i>=2) ok=ok && actor->parent==root+(parents[shape][i-2]<0?0:parents[shape][i-2]+2);
                     LegacyLong partSet=-2;
-                    ok=ok && Body::PbodyFromBact(actor,&partSet)==body && partSet==(i<2?-1:sets[shape][i-2]);
+                    ok=ok && EngineBody::FromActor(actor,&partSet)==body && partSet==(i<2?-1:sets[shape][i-2]);
                 }
-                if ((kind+failure)%2) body->Show(); // disposal must hide a visible body first
+                if ((kind+failure)%2) EngineBody::Show(body); // disposal must hide a visible body first
             }
             else ++failures;
-            ReleasePpo(&body);
+            mm_body_owner_release(body);
 #ifdef DEBUG
             ok=ok && vdmglob.dmaglBase.cv==beforeBase && vdmglob.dmaglHq.cv==beforeHq && vdmglob.dmaglPv.cv==beforePv;
 #endif

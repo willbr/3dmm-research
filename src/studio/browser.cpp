@@ -2461,7 +2461,7 @@ bool BrowserAction::FBuildApe(PActor pactr)
     AssertThis(0);
     AssertPo(pactr, 0);
 
-    BodyCostume cost;
+    ScopedBodyCostume cost;
     PKidspaceGraphicObject pgokFrame;
     RC rcRel;
     GraphicsObjectBlock gcb;

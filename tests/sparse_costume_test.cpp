@@ -50,8 +50,8 @@ int main()
     auto missing = tmpl ? tmpl->PcmtlFetch(1) : nullptr;
     if (!body || !sparse || missing) std::fputs("Sparse costume lookup/application failed.\n", stderr);
     ok = ok && body && sparse && !missing && EngineCostume::Set(sparse) == 0;
-    if (body && sparse) body->SetPartSetCmtl(sparse);
-    mm_material_owner_release(missing); mm_material_owner_release(sparse); ReleasePpo(&body); ReleasePpo(&tmpl);
+    if (body && sparse) EngineBody::SetPartSetCmtl(body, sparse);
+    mm_material_owner_release(missing); mm_material_owner_release(sparse); mm_body_owner_release(body); ReleasePpo(&tmpl);
     ReleasePpo(&cache); mm_material_owner_release(material); ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&costumes);
     ReleasePpo(&file);
     BrEnd();

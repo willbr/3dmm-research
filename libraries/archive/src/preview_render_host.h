@@ -123,15 +123,15 @@ struct Preview::Impl::RenderHost
             }
             if (!body)
                 return 0;
-            out->draw = body->DrawView();
-            out->resource = static_cast<BASE *>(body);
+            out->draw = EngineBody::DrawView(body);
+            out->resource = body;
             out->owner = static_cast<MMI32>(index) - 1;
             out->order_low = static_cast<MMU32>(order);
             out->order_high = static_cast<MMU32>(order >> 32);
             if (!h.readBodyBounds)
                 return 1;
             BCB b;
-            body->GetBcbBounds(&b, fTrue);
+            EngineBody::GetBcbBounds(body, &b, fTrue);
             out->low[0] = BrScalarToFloat(b.xrMin);
             out->low[1] = BrScalarToFloat(b.yrMin);
             out->low[2] = BrScalarToFloat(b.zrMin);
@@ -140,8 +140,8 @@ struct Preview::Impl::RenderHost
             out->high[2] = BrScalarToFloat(b.zrMax);
             return 1;
         };
-        s.retain_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
-        s.release_pose_resource = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+        s.retain_pose_resource = [](void *, void *object) { mm_body_owner_retain(static_cast<PBody>(object)); };
+        s.release_pose_resource = [](void *, void *object) { mm_body_owner_release(static_cast<PBody>(object)); };
         s.retain_model = [](void *, void *model) { mm_model_owner_retain(static_cast<PModel>(model)); };
         s.release_model = [](void *, void *model) { mm_model_owner_release(static_cast<PModel>(model)); };
         s.object_bounds = [](void *v, MMI32 object, float corners[24], int *valid) -> int {

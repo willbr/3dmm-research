@@ -130,13 +130,14 @@ MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
         return mm_template_costumes_append(table, ids, count);
     };
     s.create_body = [](void *, const MMPartIndexView *parents, const MMPartIndexView *sets) -> void * {
-        return Body::PbodyNew(*parents, *sets);
+        return EngineBody::Create(*parents, *sets);
     };
+    s.release_body = [](void *, void *body) { mm_body_owner_release(static_cast<PBody>(body)); };
     s.default_costume = [](void *, void *object, void *body) -> int { return static_cast<PTemplate>(object)->FSetDefaultCost(static_cast<PBody>(body)); };
     s.costume_id = [](void *, void *object, MMI32 set, MMI32 index) -> MMI32 { return static_cast<PTemplate>(object)->CmidOfBset(set, index); };
     s.custom = [](void *, void *object, MMI32 id) -> void * { return static_cast<PTemplate>(object)->PcmtlFetch(id); };
     s.allocate_refs = [](void *, MMI32 count, void **out) -> int { return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal); };
-    s.apply_custom = [](void *, void *body, void *custom) { static_cast<PBody>(body)->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(custom)); };
+    s.apply_custom = [](void *, void *body, void *custom) { EngineBody::SetPartSetCmtl(static_cast<PBody>(body), static_cast<PCustomMaterial_CMTL>(custom)); };
     s.free_memory = [](void *, void **data) { FreePpv(data); };
     s.diagnostic = [](void *, int code) {
         switch (code) {
@@ -255,9 +256,9 @@ MMTemplateRuntimeServices Template::_RuntimeServices()
     s.allocate_cel = [](void *, size_t bytes, void **out) -> int {
         return FAllocPv(out, static_cast<LegacyLong>(bytes), fmemClear, mprNormal);
     };
-    s.set_model = [](void *, void *body, MMI32 part, void *model) { static_cast<PBody>(body)->SetPartModel(part, static_cast<PModel>(model)); };
+    s.set_model = [](void *, void *body, MMI32 part, void *model) { EngineBody::SetPartModel(static_cast<PBody>(body), part, static_cast<PModel>(model)); };
     s.set_matrix = [](void *, void *body, MMI32 part, const MMActorMatrix *data) {
-        static_cast<PBody>(body)->SetPartMatrix(part, *data);
+        EngineBody::SetPartMatrix(static_cast<PBody>(body), part, *data);
     };
     s.sound_exists = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
     return s;
@@ -294,9 +295,9 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
     matrices for the given cel of the given action.  Also returns the
     distance to the next cel in *pdwr.
 ***************************************************************************/
-bool Template::FSetActnCel(Body *pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr)
+bool Template::FSetActnCel(PBody pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
-    AssertThis(0); AssertPo(pbody, 0); AssertIn(anid, 0, _template.action_count); AssertNilOrVarMem(pdwr);
+    AssertThis(0); Assert(pbody, "missing body"); AssertIn(anid, 0, _template.action_count); AssertNilOrVarMem(pdwr);
     auto s = _RuntimeServices();
     return mm_template_set_cel(this, pbody, anid, celn, pdwr, &s) != 0;
 }
@@ -361,9 +362,9 @@ void Template::GetRestOrien(BRA *pxa, BRA *pya, BRA *pza)
 /***************************************************************************
     Puts default costume on pbody
 ***************************************************************************/
-bool Template::FSetDefaultCost(Body *pbody)
+bool Template::FSetDefaultCost(PBody pbody)
 {
-    AssertThis(0); AssertPo(pbody, 0);
+    AssertThis(0); Assert(pbody, "missing body");
     auto s = _CreateServices();
     return mm_template_default_costume(this, pbody, &s) != 0;
 }

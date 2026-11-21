@@ -20182,3 +20182,31 @@ four retail WAVE requests and its prior trace exactly. Both ports produced
 audible mixed output. Marcus request tracing is unavailable, and the mixed
 PCM comparisons differed from retail and from the prior port recordings.
 Evidence is under tmp/c89-cached-msnd.
+
+## C89 actor body ownership (21 November 2026)
+
+Studio and Preview allocate and retain the same C89 body owner. The owner
+holds the body state and releases the actor tree and its model and material
+references. Actor duplicates and render scenes retain the body directly.
+Restoring a snapshot exchanges the body state and reassigns both renderer
+trees while preserving the two reference counts. The native adapter supplies
+BRender and Kauai services, and scoped costume snapshots delegate capture,
+restore and cleanup to C89.
+
+All eight native x64 and SDL body creation, edit, geometry and runtime
+traces matched their corresponding baselines byte for byte. Both builds
+reproduced the prior stock actor and spare-costume images. Native and SDL
+core-link, movie save/load, scene content and sparse-costume tests passed.
+All 193 standalone C89 checks and eight targeted AddressSanitizer checks
+passed. Native world render and export and Marcus C89, player and playback
+checks passed. The local Marcus build omitted linker debug symbols to fit
+the available disk space.
+
+In playback suite 20261121T220312Z-19251cb1, SDL Studio and Marcus matched
+the retained retail frame sequences when seeking and playing the 12-frame
+archive action and two-frame textured 3D text movies. The 28 seek canvases
+matched the prior port output byte for byte. The archive action retained an
+89-pixel difference per SDL frame and a one-pixel difference per Marcus frame
+against retail. Both ports retained a one-pixel difference per textured
+3D text frame. Continuous playback verification covered frame sequences.
+Evidence is under tmp/c89-body-owner.

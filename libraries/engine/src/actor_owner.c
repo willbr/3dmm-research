@@ -122,7 +122,7 @@ int mm_actor_owner_duplicate(void *source, int reset, MMActorOwnerResult *out, c
     runtime = &copy->runtime;
     *runtime = original->runtime;
     if (runtime->body)
-        s->retain(s->context, runtime->body);
+        s->retain_body(s->context, runtime->body);
     s->retain(s->context, runtime->template_object);
     mm_tag_dup(&runtime->template_tag, s->tags);
     runtime->time_frozen = 0;
@@ -151,7 +151,7 @@ void mm_actor_owner_reset(void *actor, const MMActorOwnerServices *s)
     MMActorRouteEditServices route;
     runtime->scene = NULL;
     if (runtime->body)
-        s->release(s->context, runtime->body);
+        s->release_body(s->context, runtime->body);
     runtime->body = NULL;
     runtime->state.frame = 2147483647L;
     state = runtime->state;
@@ -199,7 +199,7 @@ void mm_actor_owner_dispose(void *actor, const MMActorOwnerServices *s)
     mm_tag_close(&runtime->template_tag, s->tags);
     mm_actor_track_close_tags(&owner->track, s->tags);
     if (runtime->body)
-        s->release(s->context, runtime->body);
+        s->release_body(s->context, runtime->body);
     runtime->body = NULL;
     mm_actor_track_dispose(&owner->track, s->tags);
     if (runtime->template_object)

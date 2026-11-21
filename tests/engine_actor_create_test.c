@@ -147,7 +147,7 @@ static void init(Fixture *f)
     MMActorOwnerServices *o;
     memset(f,0,sizeof(*f)); f->cache=1; f->template_object.kind=2; f->body.kind=3;
     f->tag.sid=0; f->tag.cache=f; f->tag.type=17; f->tag.number=23;
-    o=&f->s.owner; o->context=f; o->owner=owner; o->create=create; o->release=release;
+    o=&f->s.owner; o->context=f; o->owner=owner; o->create=create; o->release=release; o->release_body=release;
     o->tags=&tags; o->route_services=route_services;
     f->s.track_allocator.context = f;
     f->s.track_allocator.resize = track_resize;

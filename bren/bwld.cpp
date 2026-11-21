@@ -98,8 +98,8 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
             return RenderWorld(p)->_pfnreadbody(static_cast<PBACT>(actor), out);
         };
         s.prepare_body = [](void *p, const MMRenderBody *body) { RenderWorld(p)->_pfnpreparebody(body); };
-        s.retain_body = [](void *, void *body) { static_cast<BASE *>(body)->AddRef(); };
-        s.release_body = [](void *, void *body) { static_cast<BASE *>(body)->Release(); };
+        s.retain_body = [](void *, void *body) { mm_body_owner_retain(static_cast<MMBodyOwner *>(body)); };
+        s.release_body = [](void *, void *body) { mm_body_owner_release(static_cast<MMBodyOwner *>(body)); };
     }
     s.has = [](void *p, int kind) -> int {
         auto w = RenderWorld(p);

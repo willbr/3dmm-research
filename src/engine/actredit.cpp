@@ -79,6 +79,8 @@ MMActorOwnerServices Actor::_OwnerServices()
     s.create = [](void *) -> void * { return NewObj Actor(); };
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    s.retain_body = [](void *, void *p) { mm_body_owner_retain(static_cast<PBody>(p)); };
+    s.release_body = [](void *, void *p) { mm_body_owner_release(static_cast<PBody>(p)); };
     s.route_services=[](void *,void *p,MMActorRouteEditServices *r) { *r=static_cast<Actor *>(p)->_RouteEditServices(); };
     s.invalidate_views=[](void *,void *scene) { static_cast<PScene>(scene)->Pmvie()->InvalViews(); };
     return s;

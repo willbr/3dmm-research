@@ -134,6 +134,7 @@ typedef struct MMTemplateCreateServices
     MMI32 (*custom_set)(void *,void *custom);
     int (*append_costumes)(void *,MMTemplateCostumeTable *,const MMI32 *,MMI32 count);
     void *(*create_body)(void *,const MMPartIndexView *parents,const MMPartIndexView *sets);
+    void (*release_body)(void *,void *body);
     int (*default_costume)(void *,void *object,void *body);
     MMI32 (*costume_id)(void *,void *object,MMI32 set,MMI32 index);
     void *(*custom)(void *,void *object,MMI32 id);

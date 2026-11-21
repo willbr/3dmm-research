@@ -81,6 +81,15 @@ typedef struct MMBodyCreateServices
  * must not reenter or mutate unrelated body fields. Initialization does not
  * roll back: the factory releases its partial body on failure. */
 void mm_body_state_init(MMBodyState *);
+
+/* The allocator and shape services outlive the body. The owner releases the
+ * renderer shape and its resource references when the last reference drops. */
+typedef struct MMBodyOwner MMBodyOwner;
+MMBodyOwner *mm_body_owner_create(const MMStorageAllocator *, const MMBodyCreateServices *);
+MMBodyState *mm_body_owner_state(MMBodyOwner *);
+MMI32 mm_body_owner_references(const MMBodyOwner *);
+void mm_body_owner_retain(MMBodyOwner *);
+void mm_body_owner_release(MMBodyOwner *);
 /* Publish the authoritative matrix and project it onto the draw actor. */
 void mm_body_shape_matrix(MMBodyShape *,MMI32,const MMActorMatrix *,const MMBodyCreateServices *);
 /* Publish a retained generic owner or borrowed costume handle and update the

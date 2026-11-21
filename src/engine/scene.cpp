@@ -1129,7 +1129,7 @@ MMSceneSelectionServices Scene::_SelectionServices()
         if (!actor->Pbody() || !actor->FIsInView())
             return 0;
         BRS x, y, z;
-        actor->Pbody()->GetPosition(&x, &y, &z);
+        EngineBody::GetPosition(actor->Pbody(), &x, &y, &z);
         *out = {x, y, z};
         return 1;
     };
@@ -1243,7 +1243,7 @@ MMActorGroupTransformServices Scene::_GroupTransformServices()
         },
         [](void *, void *body, MMActorPoint *point) {
             BRS x, y, z;
-            static_cast<PBody>(body)->GetPosition(&x, &y, &z);
+            EngineBody::GetPosition(static_cast<PBody>(body), &x, &y, &z);
             *point = {x, y, z};
         }};
 }
@@ -1607,7 +1607,7 @@ Actor *Scene::PactrFromPt(long xp, long yp, long *pibset)
         [](void *p) -> MMI32 { return static_cast<Host *>(p)->scene->Cactr(); },
         [](void *p, MMI32 index) -> void * { return static_cast<Host *>(p)->scene->PactrAt(index); },
         [](void *, void *actor, void *body) {
-            return int(static_cast<PActor>(actor)->FIsMyBody(static_cast<Body *>(body)));
+            return int(static_cast<PActor>(actor)->FIsMyBody(static_cast<PBody>(body)));
         },
         [](void *) { Bug("weird...we clicked a pbody, but we don't know whose it is!"); }};
     return static_cast<Actor *>(mm_scene_pick_actor(xp, yp, &services));

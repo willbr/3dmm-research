@@ -12,7 +12,7 @@ struct EngineActorEffectHost
     PBody body;
     MMActorSounds *sounds;
     void *owner;
-    BodyCostume saved;
+    ScopedBodyCostume saved;
 
     static EngineActorEffectHost &From(void *p) { return *static_cast<EngineActorEffectHost *>(p); }
 
@@ -44,10 +44,10 @@ struct EngineActorEffectHost
         s.restore_costume = [](void *p) { auto &h = From(p); h.saved.Set(h.body); };
         s.fetch_custom = [](void *p, MMI32 costume) -> void * { return From(p).tmpl->PcmtlFetch(costume); };
         s.apply_custom = [](void *p, void *resource) {
-            From(p).body->SetPartSetCmtl(static_cast<PCustomMaterial_CMTL>(resource));
+            EngineBody::SetPartSetCmtl(From(p).body, static_cast<PCustomMaterial_CMTL>(resource));
         };
         s.apply_material = [](void *p, MMI32 set, void *resource) {
-            From(p).body->SetPartSetMtrl(set, static_cast<PMaterial_MTRL>(resource));
+            EngineBody::SetPartSetMtrl(From(p).body, set, static_cast<PMaterial_MTRL>(resource));
         };
         s.release_resource = [](void *, void *resource, int) {
             mm_material_owner_release(static_cast<MMMaterialOwner *>(resource));

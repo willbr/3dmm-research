@@ -105,7 +105,7 @@ struct PreviewActor::Host
         s.duplicate_body = [](void *v, void *b, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = static_cast<PBody>(b)->PbodyDup();
+                *out = EngineBody::Duplicate(static_cast<PBody>(b));
                 return *out != nullptr;
             });
         };
@@ -116,8 +116,7 @@ struct PreviewActor::Host
         s.prop = [](void *, void *t) -> int { return static_cast<PTemplate>(t)->FIsProp(); };
         s.text = [](void *, void *t) -> int { return static_cast<PTemplate>(t)->FIsTdt(); };
         s.release_body = [](void *, void *b) {
-            auto value = static_cast<PBody>(b);
-            ReleasePpo(&value);
+            mm_body_owner_release(static_cast<PBody>(b));
         };
         s.release_template = [](void *, void *t) {
             auto value = static_cast<PTemplate>(t);
@@ -133,7 +132,7 @@ struct PreviewActor::Host
         s.scalar_float = [](MMI32 v) -> float { return BrScalarToFloat(v); };
         s.locate = [](void *v, void *b, const MMActorBodyPose *pose) {
             static_cast<Host *>(v)->Guard([&] {
-                static_cast<PBody>(b)->ApplyPose(*pose);
+                EngineBody::ApplyPose(static_cast<PBody>(b), *pose);
                 return 1;
             });
         };
@@ -162,7 +161,7 @@ struct PreviewActor::Host
         s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<PMaterial_MTRL>(material)); };
         s.apply_material = [](void *v, void *body, void *material) -> int {
             return static_cast<Host *>(v)->Guard([&] {
-                static_cast<PBody>(body)->SetPartSetMtrl(0, static_cast<PMaterial_MTRL>(material));
+                EngineBody::SetPartSetMtrl(static_cast<PBody>(body), 0, static_cast<PMaterial_MTRL>(material));
                 return 1;
             });
         };

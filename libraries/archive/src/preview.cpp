@@ -176,8 +176,8 @@ struct Preview::Impl
         s.actors = static_cast<MMU32>(actors.size());
         s.visible = [](void *v, MMU32 i) -> int { return static_cast<Impl *>(v)->actors[i]->Visible(); };
         s.actor_body = [](void *v, MMU32 i) -> void * { return static_cast<Impl *>(v)->actors[i]->Pbody(); };
-        s.body_parts = [](void *, void *b) -> MMI32 { return static_cast<PBody>(b)->Cbact(); };
-        s.part_model = [](void *, void *b, MMI32 i) -> void * { return static_cast<PBody>(b)->PbactPart(i)->model; };
+        s.body_parts = [](void *, void *b) -> MMI32 { return EngineBody::ActorCount(static_cast<PBody>(b)); };
+        s.part_model = [](void *, void *b, MMI32 i) -> void * { return EngineBody::Part(static_cast<PBody>(b), i)->model; };
         s.faces = [](void *, void *m) -> MMU32 { return static_cast<br_model *>(m)->nprepared_faces; };
         mm_preview_stats(&s, &info.parts, &info.triangles);
     }
@@ -191,7 +191,8 @@ struct Preview::Impl
         if (!preserveFraming)
             mm_preview_orbit_reset(&orbit);
         resolveError.clear();
-        ReleasePpo(&body);
+        mm_body_owner_release(body);
+        body = nullptr;
         ReleasePpo(&tmpl);
         mm_model_owner_release(model);
         model = nullptr;
@@ -327,7 +328,7 @@ struct Preview::Impl::IsolatedActorHost
     const PreviewView &view;
     PreviewImage &image;
     Error &error;
-    BodyCostume original, selected;
+    ScopedBodyCostume original, selected;
     MMActorBodyPose pose = {};
     std::vector<PreviewCostume> variants;
     std::exception_ptr failure;
@@ -377,7 +378,7 @@ struct Preview::Impl::IsolatedActorHost
                         return host.selected.FGet(body);
                     if (!host.original.FGet(body))
                         return false;
-                    host.pose.orientation = body->RootMatrix();
+                    host.pose.orientation = EngineBody::RootMatrix(body);
                     return true;
                 });
             },
@@ -389,7 +390,7 @@ struct Preview::Impl::IsolatedActorHost
                 else
                 {
                     host.original.Set(body);
-                    body->ApplyPose(host.pose);
+                    EngineBody::ApplyPose(body, host.pose);
                 }
             },
             [](void *p) -> int {
@@ -416,13 +417,13 @@ struct Preview::Impl::IsolatedActorHost
             },
             [](void *p, float *range) {
                 BCB bounds;
-                static_cast<IsolatedActorHost *>(p)->actor.Pbody()->GetBcbBounds(&bounds, fTrue);
+                EngineBody::GetBcbBounds(static_cast<IsolatedActorHost *>(p)->actor.Pbody(), &bounds, fTrue);
                 range[0] = BrScalarToFloat(bounds.yrMin);
                 range[1] = BrScalarToFloat(bounds.yrMax);
             },
             [](void *p, MMI32 set, float *low, float *high) -> int {
                 MMBodyBounds bounds;
-                if (!static_cast<IsolatedActorHost *>(p)->actor.Pbody()->FPartSetBounds(set, bounds))
+                if (!EngineBody::PartSetBounds(static_cast<IsolatedActorHost *>(p)->actor.Pbody(), set, bounds))
                     return 0;
                 for (int axis = 0; axis < 3; ++axis)
                 {
@@ -557,7 +558,7 @@ bool Preview::UseTextPreviewMaterial(Error &error)
     if (!_impl->body || !_impl->tmpl || !_impl->tmpl->FIsTdt()) return false;
     auto material = EngineMaterial::Fetch(_impl->cache, kctgMtrl, 0);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot load the preview material.");
-    _impl->body->SetPartSetMtrl(0, material); mm_material_owner_release(material); return true;
+    EngineBody::SetPartSetMtrl(_impl->body, 0, material); mm_material_owner_release(material); return true;
 }
 bool Preview::ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error)
 try
@@ -637,11 +638,11 @@ bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error 
     BCB before, after;
     auto &actor = *_impl->actors[object];
     const bool hold = mm_preview_orbit_follows(&_impl->orbit, object, actor.Visible()) != 0;
-    if (hold) actor.Pbody()->GetBcbBounds(&before, fTrue);
+    if (hold) EngineBody::GetBcbBounds(actor.Pbody(), &before, fTrue);
     if (!actor.SetShape(shape)) return Fail(error, ErrorCode::decode_failed, "Cannot transform the selected object.");
     if (hold)
     {
-        actor.Pbody()->GetBcbBounds(&after, fTrue);
+        EngineBody::GetBcbBounds(actor.Pbody(), &after, fTrue);
         const MMI32 a[6] = {before.xrMin,before.yrMin,before.zrMin,before.xrMax,before.yrMax,before.zrMax};
         const MMI32 b[6] = {after.xrMin,after.yrMin,after.zrMin,after.xrMax,after.yrMax,after.zrMax};
         Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
@@ -660,9 +661,9 @@ bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
     if (!actor.Visible() || !actor.Pbody())
         return true;
     BCB box;
-    actor.Pbody()->GetBcbBounds(&box);
+    EngineBody::GetBcbBounds(actor.Pbody(), &box);
     const MMI32 low[3] = {box.xrMin, box.yrMin, box.zrMin}, high[3] = {box.xrMax, box.yrMax, box.zrMax};
-    const auto &transform = actor.Pbody()->RootMatrix();
+    const auto &transform = EngineBody::RootMatrix(actor.Pbody());
     MMI32 matrix[12];
     static_assert(sizeof(matrix) == sizeof(transform), "Object bounds matrix layout");
     std::memcpy(matrix, &transform, sizeof(matrix));

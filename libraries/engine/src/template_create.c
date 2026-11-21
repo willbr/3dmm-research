@@ -528,7 +528,7 @@ void *mm_template_create_body(void *object,const MMTemplateCreateServices *s)
 {
     MMTemplateState t; void *body; t=*s->state(s->context,object);
     body=s->create_body(s->context,&t.parents->view,&t.sets->view);
-    if (!body || !s->default_costume(s->context,object,body)) { if (body) s->release(s->context,body); return NULL; }
+    if (!body || !s->default_costume(s->context,object,body)) { if (body) s->release_body(s->context,body); return NULL; }
     return body;
 }
 typedef struct DefaultCostumes

@@ -38,6 +38,8 @@ typedef struct MMActorOwnerServices
     void *(*create)(void *);
     void (*retain)(void *,void *object);
     void (*release)(void *,void *object);
+    void (*retain_body)(void *,void *body);
+    void (*release_body)(void *,void *body);
     void (*route_services)(void *,void *actor,MMActorRouteEditServices *);
     void (*invalidate_views)(void *,void *scene);
 } MMActorOwnerServices;

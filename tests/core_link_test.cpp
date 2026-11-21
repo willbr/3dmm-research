@@ -1777,7 +1777,7 @@ struct RenderHost
 static void Attach(void *context, void *body)
 {
     RenderHost *host = static_cast<RenderHost *>(context);
-    BrActorAdd(host->root, static_cast<PBody>(body)->PbactRoot());
+    BrActorAdd(host->root, EngineBody::Root(static_cast<PBody>(body)));
     ++host->attachments;
 }
 static void Changed(void *context)
@@ -4932,64 +4932,64 @@ static void TestEngineServices()
     Check(parents != pvNil && sets != pvNil);
     short parent = ivNil, set = 0;
     Check(parents->FAdd(&parent) && sets->FAdd(&set));
-    PBody body = Body::PbodyNew(parents, sets);
+    PBody body = EngineBody::Create(parents, sets);
     Check(body != pvNil);
     PMaterial_MTRL material = EngineMaterial::New();
     Check(material != pvNil);
-    body->SetPartSetMtrl(0, material);
+    EngineBody::SetPartSetMtrl(body, 0, material);
     mm_material_owner_release(material);
-    body->SetRenderCallbacks(&first, Attach, Changed);
-    body->Show();
+    EngineBody::SetRenderCallbacks(body, &first, Attach, Changed);
+    EngineBody::Show(body);
     Check(first.attachments == 1 && first.changes == 1);
     BMAT34 matrix;
     BrMatrix34Identity(&matrix);
-    body->SetPartMatrix(0, &matrix);
+    EngineBody::SetPartMatrix(body, 0, &matrix);
     Check(first.changes == 2);
-    body->Hide();
-    Check(first.changes == 3 && body->PbactRoot()->parent == 0);
-    body->SetPartMatrix(0, &matrix);
+    EngineBody::Hide(body);
+    Check(first.changes == 3 && EngineBody::Root(body)->parent == 0);
+    EngineBody::SetPartMatrix(body, 0, &matrix);
     Check(first.changes == 3); // Hidden edits do not invalidate a renderer.
-    PBody copy = body->PbodyDup();
+    PBody copy = EngineBody::Duplicate(body);
     Check(copy != pvNil);
-    copy->Show();
+    EngineBody::Show(copy);
     Check(first.attachments == 2 && first.changes == 4);
-    copy->Hide();
-    ReleasePpo(&copy);
+    EngineBody::Hide(copy);
+    mm_body_owner_release(copy);
     Check(first.changes == 5);
-    body->SetRenderCallbacks(&second, Attach, Changed);
-    body->Show();
-    body->SetPartMatrix(0, &matrix);
-    body->Hide();
+    EngineBody::SetRenderCallbacks(body, &second, Attach, Changed);
+    EngineBody::Show(body);
+    EngineBody::SetPartMatrix(body, 0, &matrix);
+    EngineBody::Hide(body);
     Check(second.attachments == 1 && second.changes == 3 && first.changes == 5);
-    body->Show();
-    PBody snapshot = body->PbodyDup(); // Original is hidden and reattached.
-    Check(snapshot != pvNil && body->PbactRoot()->parent == second.root);
-    Check(snapshot->PbactRoot()->parent == 0);
-    PBACT oldRoot = body->PbactRoot(), newRoot = snapshot->PbactRoot();
-    body->AddRef();
-    body->Restore(snapshot);
-    Check(body->CactRef() == 2 && snapshot->CactRef() == 1);
-    Check(body->PbactRoot() == newRoot && snapshot->PbactRoot() == oldRoot);
+    EngineBody::Show(body);
+    PBody snapshot = EngineBody::Duplicate(body); // Original is hidden and reattached.
+    Check(snapshot != pvNil && EngineBody::Root(body)->parent == second.root);
+    Check(EngineBody::Root(snapshot)->parent == 0);
+    PBACT oldRoot = EngineBody::Root(body), newRoot = EngineBody::Root(snapshot);
+    mm_body_owner_retain(body);
+    EngineBody::Restore(body, snapshot);
+    Check(mm_body_owner_references(body) == 2 && mm_body_owner_references(snapshot) == 1);
+    Check(EngineBody::Root(body) == newRoot && EngineBody::Root(snapshot) == oldRoot);
     Check(oldRoot->parent == second.root && newRoot->parent == second.root);
-    Check(Body::PbodyFromBact(oldRoot) == snapshot && Body::PbodyFromBact(newRoot) == body);
-    Check(Body::PbodyFromBact(snapshot->PbactPart(0)) == snapshot && Body::PbodyFromBact(body->PbactPart(0)) == body);
-    body->Release();
-    ReleasePpo(&snapshot); // Releases and detaches the displaced tree.
-    Check(body->PbactRoot()->parent == second.root);
-    Check(body->FChangeShape(parents, sets));
-    Check(body->PbactRoot()->parent == second.root);
+    Check(EngineBody::FromActor(oldRoot) == snapshot && EngineBody::FromActor(newRoot) == body);
+    Check(EngineBody::FromActor(EngineBody::Part(snapshot, 0)) == snapshot && EngineBody::FromActor(EngineBody::Part(body, 0)) == body);
+    mm_body_owner_release(body);
+    mm_body_owner_release(snapshot); // Releases and detaches the displaced tree.
+    Check(EngineBody::Root(body)->parent == second.root);
+    Check(EngineBody::ChangeShape(body, parents, sets));
+    Check(EngineBody::Root(body)->parent == second.root);
     material = EngineMaterial::New();
     Check(material != pvNil);
-    body->SetPartSetMtrl(0, material);
+    EngineBody::SetPartSetMtrl(body, 0, material);
     mm_material_owner_release(material);
-    body->Hide();
+    EngineBody::Hide(body);
     // An unbound body can also change visibility without any GUI stubs.
-    body->SetRenderCallbacks(0, 0, 0);
-    body->Show();
-    body->Hide();
-    body->SetRenderCallbacks(&second, Attach, Changed);
-    body->Show();
-    ReleasePpo(&body); // Visible destruction must detach its root from host.
+    EngineBody::SetRenderCallbacks(body, 0, 0, 0);
+    EngineBody::Show(body);
+    EngineBody::Hide(body);
+    EngineBody::SetRenderCallbacks(body, &second, Attach, Changed);
+    EngineBody::Show(body);
+    mm_body_owner_release(body); // Visible destruction must detach its root from host.
     Check(second.root->children == 0);
     ReleasePpo(&parents);
     ReleasePpo(&sets);

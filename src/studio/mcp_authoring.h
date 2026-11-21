@@ -61,7 +61,7 @@ static JVal AuthorActorInfo(PActor actor)
     result.Set("actor_id", JVal::MkInt(actor->Arid()));
     result.Set("name", JVal::MkStr(AuthorName(name)));
     BRS x, y, z;
-    actor->Pbody()->GetPosition(&x, &y, &z);
+    EngineBody::GetPosition(actor->Pbody(), &x, &y, &z);
     result.Set("position", AuthorVector(BrScalarToFloat(x), BrScalarToFloat(y), BrScalarToFloat(z)));
     const auto &pose = actor->EvaluatedFrameState().transform;
     const double scale = BrScalarToFloat(pose.rScaleStep);
@@ -78,12 +78,12 @@ static JVal AuthorActorInfo(PActor actor)
     actor->GetRcBounds(&bounds);
     result.Set("screen_bounds", AuthorVector(bounds.xpLeft, bounds.ypTop, bounds.Dxp()));
     result.Set("screen_height", JVal::MkInt(bounds.Dyp()));
-    const int count = actor->Pbody()->Cbact() - 2;
+    const int count = EngineBody::ActorCount(actor->Pbody()) - 2;
     result.Set("parts", JVal::MkInt(count));
     double largestVolume = -1;
     for (int part = 0; part < count; ++part)
     {
-        const auto model = actor->Pbody()->PbactPart(part)->model;
+        const auto model = EngineBody::Part(actor->Pbody(), part)->model;
         if (model)
         {
             const double dx = BrScalarToFloat(model->bounds.max.v[0] - model->bounds.min.v[0]);
@@ -515,7 +515,7 @@ static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb, bool shaded)
                            &materialNumber) != MM_CHUNK_OK)
         return false;
     TAG tag{0, resources, kctgMtrl, materialNumber};
-    for (long set = 0; set < actor->Pbody()->Cbset(); ++set)
+    for (long set = 0; set < EngineBody::SetCount(actor->Pbody()); ++set)
         if (!actor->FSetCostumeCore(set, &tag, 0, tNo))
             return false;
     return true;
@@ -577,7 +577,7 @@ static JVal Tool_TransformActor(const JVal &args)
     if (position || offset)
     {
         BRS x, y, z;
-        actor->Pbody()->GetPosition(&x, &y, &z);
+        EngineBody::GetPosition(actor->Pbody(), &x, &y, &z);
         if (position)
         {
             delta[0] = pos[0] - BrScalarToFloat(x);

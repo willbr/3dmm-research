@@ -56,8 +56,8 @@
 
 
     All these BACTs are allocated and released in one actor array.  The
-    root is _Actors()[0].  The hilite BACT is _Actors()[1].  The real
-    body parts start at _Actors()[2], with _body.shape.part_count entries.
+    root is Root(body)[0].  The hilite BACT is Root(body)[1].  The real
+    body parts start at Root(body)[2], with State(body).shape.part_count entries.
     There are APIs to access various members of this array more easily.
 
     The second parameter to PbodyNew is pglibset, which divides the body
@@ -72,55 +72,29 @@
     attached to each body part in the set.  When a CustomMaterial_CMTL is applied,
     the CustomMaterial_CMTL has a different Material_MTRL per body part in the set.
 
-    The way that MODLs, MTRLs, and CMTLs attach to the Body is a little
-    strange.  In the case of models, the br_actor's model needs to be set
-    to the Model's BMDL (which is a BRender data structure), not the
-    Model itself (which is a Socrates data structure).  When it is time
-    to remove the model, the Body has a pointer to the BMDL, but
-    not the Model!  Fortunately, Model sets the BMDL's identifier field
-    to point to its owning Model.  So ReleasePpo can then be called on the
-    Model.  But I don't want to set the BMDL's identifier to pvNil in
-    the process, because other Bodys might be counting on the BMDL's
-    identifier to point to the Model.  So this code has to be careful using
-    ReleasePpo, since that sets the given pointer to pvNil.  Same
-    problem for MTRLs:
-
-    Body
-     |					 Model<--+
-     v					   |	|
-     BACT   			   |	|
-      | |				   |	|
-      |	v				   v	|
-      |model------------>BMDL	|
-      |					   |	|
-      |					   v	|
-      |					  identifier
-      |
-      +--+
-         |			     Material_MTRL<--+
-         |                 |	|
-         v				   v	|
-       material--------->BMTL	|
-                           |	|
-                           v	|
-                          identifier
-
-    CMTLs are potentially even messier, since they're an abstraction on
-    top of MTRLs.  Here, an array of PCMTLs on the Body is explicitly kept
-    so it is easy to find out what CustomMaterial_CMTL is attached to what body part set
-    instead of working backwards from the BACT's material field.
+    Part bindings retain their models and generic materials. A set using a
+    custom costume retains the costume, which supplies the part materials.
+    BRender actors borrow the resulting draw handles.
 
 ***************************************************************************/
 #include "soc_core.h"
 #include "body_renderer.h"
 #include "engine_part_indices.h"
+#include "handle_services.h"
 #include <cstring>
 ASSERTNAME
 
-RTCLASS(Body)
-RTCLASS(BodyCostume)
+#ifdef DEBUG
+#define BODY_VALIDATE(body, flags) EngineBody::Validate(body, flags)
+#else
+#define BODY_VALIDATE(body, flags) ((void)0)
+#endif
 
-void Body::ReleaseSharedMaterial(void)
+static const MMBodyCreateServices &CreateServices();
+static MMBodyRuntimeServices RuntimeServices();
+static MMBodyEditServices EditServices();
+
+void EngineBody::ReleaseSharedMaterial(void)
 {
     mm_brender_body_release_highlight();
 }
@@ -128,22 +102,22 @@ void Body::ReleaseSharedMaterial(void)
 /***************************************************************************
     Set the optional renderer binding while this body is hidden.
 ***************************************************************************/
-void Body::SetRenderCallbacks(void *context, void (*attach)(void *, void *), void (*changed)(void *))
+void EngineBody::SetRenderCallbacks(PBody body, void *context, void (*attach)(void *, void *), void (*changed)(void *))
 {
-    Assert(_body.shape.hidden > 0, "Cannot rebind a visible body");
-    _body.render = {context, attach, changed};
+    Assert(State(body).shape.hidden > 0, "Cannot rebind a visible body");
+    State(body).render = {context, attach, changed};
 }
 
 /***************************************************************************
     Builds a tree of BACTs for the Body.
 ***************************************************************************/
-MMBodyCreateServices Body::_CreateServices(void)
+static MMBodyCreateServices MakeCreateServices()
 {
     MMBodyCreateServices s = {};
     mm_brender_body_create_services(&s);
-    s.state = _State;
-    s.create = [](void *) -> void * { return NewObj Body; };
-    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.state = [](void *, void *body) { return mm_body_owner_state(static_cast<PBody>(body)); };
+    s.create = [](void *) -> void * { return mm_body_owner_create(KauaiResourceObjectAllocator(), &CreateServices()); };
+    s.release = [](void *, void *object) { mm_body_owner_release(static_cast<PBody>(object)); };
     s.release_model = [](void *, void *model) { mm_model_owner_release(static_cast<PModel>(model)); };
     s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<MMMaterialOwner *>(material)); };
     s.allocate_materials = [](void *, MMI32 count, void ***out) -> int {
@@ -160,21 +134,29 @@ MMBodyCreateServices Body::_CreateServices(void)
         *bindings = reinterpret_cast<MMBodyPartBinding *>(static_cast<unsigned char *>(*actors) + offset);
         return 1;
     };
-    s.hide = [](void *, void *body) { static_cast<PBody>(body)->Hide(); };
+    s.hide = [](void *, void *body) { EngineBody::Hide(static_cast<PBody>(body)); };
     s.free_memory = [](void *, void **memory) { FreePpv(memory); };
     return s;
 }
 
-Body *Body::PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset)
+static const MMBodyCreateServices &CreateServices()
 {
-    return PbodyNew(EnginePartIndices::Borrow(pglibactPar), EnginePartIndices::Borrow(pglibset));
+    static const auto services = MakeCreateServices();
+    return services;
 }
 
-Body *Body::PbodyNew(const MMPartIndexView &parents, const MMPartIndexView &sets)
+PBody EngineBody::Create(PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
-    auto services = _CreateServices();
+    return Create(EnginePartIndices::Borrow(pglibactPar), EnginePartIndices::Borrow(pglibset));
+}
+
+PBody EngineBody::Create(const MMPartIndexView &parents, const MMPartIndexView &sets)
+{
+    auto services = CreateServices();
     auto body = static_cast<PBody>(mm_body_create(&parents, &sets, &services));
-    AssertNilOrPo(body, fobjAssertFull);
+#ifdef DEBUG
+    Validate(body, fobjAssertFull);
+#endif
     return body;
 }
 
@@ -183,17 +165,17 @@ Body *Body::PbodyNew(const MMPartIndexView &parents, const MMPartIndexView &sets
     Models, materials, and matrices are not changed for body parts that
     exist in both the old and reshaped Bodys.
 ***************************************************************************/
-bool Body::FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset)
+bool EngineBody::ChangeShape(PBody body, PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
-    return FChangeShape(EnginePartIndices::Borrow(pglibactPar), EnginePartIndices::Borrow(pglibset));
+    return ChangeShape(body, EnginePartIndices::Borrow(pglibactPar), EnginePartIndices::Borrow(pglibset));
 }
 
-bool Body::FChangeShape(const MMPartIndexView &parents, const MMPartIndexView &sets)
+bool EngineBody::ChangeShape(PBody body, const MMPartIndexView &parents, const MMPartIndexView &sets)
 {
-    AssertThis(fobjAssertFull);
-    auto services = _EditServices();
-    const bool ok = mm_body_change_shape(this, &parents, &sets, &services) != 0;
-    AssertThis(fobjAssertFull);
+    BODY_VALIDATE(body, fobjAssertFull);
+    auto services = EditServices();
+    const bool ok = mm_body_change_shape(body, &parents, &sets, &services) != 0;
+    BODY_VALIDATE(body, fobjAssertFull);
     return ok;
 }
 
@@ -202,12 +184,12 @@ bool Body::FChangeShape(const MMPartIndexView &parents, const MMPartIndexView &s
     nil, returns what body part set this BACT is in.  If the pbact is
     the hilite BACT, pibset is set to ivNil.
 ***************************************************************************/
-Body *Body::PbodyFromBact(BACT *pbact, LegacyLong *pibset)
+PBody EngineBody::FromActor(BACT *pbact, LegacyLong *pibset)
 {
     AssertVarMem(pbact);
     AssertNilOrVarMem(pibset);
 
-    auto services = _GeometryServices();
+    auto services = GeometryServices();
     MMI32 set;
     auto body = static_cast<PBody>(mm_body_from_actor(pbact, pibset ? &set : nullptr, &services));
     if (body && pibset) *pibset = set;
@@ -215,66 +197,49 @@ Body *Body::PbodyFromBact(BACT *pbact, LegacyLong *pibset)
 }
 
 /***************************************************************************
-    Destroy the Body's body parts, including their attached materials and
-    models.
-***************************************************************************/
-void Body::_DestroyShape(void)
-{
-    AssertBaseThis(0);
-    auto services = _CreateServices();
-    mm_body_shape_dispose(this, &services);
-}
-
-/***************************************************************************
-    Free the Body and all attached MODLs, MTRLs, and CMTLs.
-***************************************************************************/
-Body::~Body(void)
-{
-    AssertBaseThis(0);
-    _DestroyShape();
-}
-
-/***************************************************************************
     Create a duplicate of this Body.  The duplicate will be hidden
-    (_body.shape.hidden == 1) regardless of the state of this Body.
+    (hidden count 1) regardless of the state of this Body.
 ***************************************************************************/
-MMBodyEditServices Body::_EditServices(void)
+static MMBodyEditServices EditServices()
 {
     MMBodyEditServices s = {};
-    s.runtime = _RuntimeServices();
+    s.runtime = RuntimeServices();
     mm_brender_body_edit_services(&s);
     return s;
 }
 
-PBody Body::PbodyDup(void)
+PBody EngineBody::Duplicate(PBody body)
 {
-    AssertThis(0);
-    auto services = _EditServices();
-    auto body = static_cast<PBody>(mm_body_duplicate(this, &services));
-    AssertNilOrPo(body, 0);
-    return body;
+    BODY_VALIDATE(body, 0);
+    auto services = EditServices();
+    auto copy = static_cast<PBody>(mm_body_duplicate(body, &services));
+#ifdef DEBUG
+    Validate(copy);
+#endif
+    return copy;
 }
 
 /***************************************************************************
     Replace this Body with pbodyDup.  Preserve this Body's hidden-ness.
 ***************************************************************************/
-void Body::Restore(PBody pbodyDup)
+void EngineBody::Restore(PBody body, PBody pbodyDup)
 {
-    AssertBaseThis(0);
-    AssertPo(pbodyDup, 0);
-    Assert(pbodyDup->_body.shape.hidden == 1, "dup hidden count must be 1");
-    auto services = _EditServices();
-    mm_body_restore(this, pbodyDup, &services);
-    AssertThis(fobjAssertFull);
+#ifdef DEBUG
+    Validate(pbodyDup);
+#endif
+    Assert(State(pbodyDup).shape.hidden == 1, "dup hidden count must be 1");
+    auto services = EditServices();
+    mm_body_restore(body, pbodyDup, &services);
+    BODY_VALIDATE(body, fobjAssertFull);
 }
 
 /***************************************************************************
     Make this Body visible, if it was invisible.  Keeps a refcount.
 ***************************************************************************/
-MMBodyRuntimeServices Body::_RuntimeServices(void)
+static MMBodyRuntimeServices RuntimeServices()
 {
     MMBodyRuntimeServices s = {};
-    s.shape = _CreateServices();
+    s.shape = CreateServices();
     mm_brender_body_runtime_services(&s);
     s.retain = [](void *, void *material) { mm_material_owner_retain(static_cast<MMMaterialOwner *>(material)); };
     s.retain_model = [](void *, void *model) { mm_model_owner_retain(static_cast<PModel>(model)); };
@@ -302,26 +267,26 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
     return s;
 }
 
-void Body::Show(void)
+void EngineBody::Show(PBody body)
 {
-    AssertThis(0);
-    Assert(_body.shape.hidden > 0, "object is already visible!");
-    auto s = _RuntimeServices(); mm_body_show(this, &s);
+    BODY_VALIDATE(body, 0);
+    Assert(State(body).shape.hidden > 0, "object is already visible!");
+    auto s = RuntimeServices(); mm_body_show(body, &s);
 }
 
 /***************************************************************************
     Make this Body invisible, if it was visible.  Keeps a refcount.
 ***************************************************************************/
-void Body::Hide(void)
+void EngineBody::Hide(PBody body)
 {
-    AssertThis(0);
-    auto s = _RuntimeServices(); mm_body_hide(this, &s);
+    BODY_VALIDATE(body, 0);
+    auto s = RuntimeServices(); mm_body_hide(body, &s);
 }
 
 /***************************************************************************
     Sets the hilite color to use.
 ***************************************************************************/
-void Body::SetHiliteColor(LegacyLong iclr)
+void EngineBody::SetHiliteColor(LegacyLong iclr)
 {
     mm_brender_body_highlight_colour(iclr);
 }
@@ -329,99 +294,99 @@ void Body::SetHiliteColor(LegacyLong iclr)
 /***************************************************************************
     Hilites the Body
 ***************************************************************************/
-void Body::Hilite(void)
+void EngineBody::Hilite(PBody body)
 {
-    AssertThis(0);
-    auto s = _RuntimeServices(); mm_body_highlight(this, 1, &s);
+    BODY_VALIDATE(body, 0);
+    auto s = RuntimeServices(); mm_body_highlight(body, 1, &s);
 }
 
 /***************************************************************************
     Unhilites the Body
 ***************************************************************************/
-void Body::Unhilite(void)
+void EngineBody::Unhilite(PBody body)
 {
-    AssertThis(0);
-    auto s = _RuntimeServices(); mm_body_highlight(this, 0, &s);
+    BODY_VALIDATE(body, 0);
+    auto s = RuntimeServices(); mm_body_highlight(body, 0, &s);
 }
 
 /***************************************************************************
     Position the body at (xr, yr, zr) in worldspace	oriented by pbmat34
 ***************************************************************************/
-void Body::LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34)
+void EngineBody::LocateOrient(PBody body, BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34)
 {
-    AssertThis(0); AssertVarMem(pbmat34);
+    BODY_VALIDATE(body, 0); AssertVarMem(pbmat34);
     static_assert(sizeof(BRS) == sizeof(MMI32), "body scalar ABI");
     MMActorBodyPose pose;
     pose.translation = {static_cast<MMI32>(xr), static_cast<MMI32>(yr), static_cast<MMI32>(zr)};
     std::memcpy(&pose.orientation, pbmat34, sizeof(pose.orientation));
-    ApplyPose(pose);
+    ApplyPose(body, pose);
 }
 
-void Body::ApplyPose(const MMActorBodyPose &pose)
+void EngineBody::ApplyPose(PBody body, const MMActorBodyPose &pose)
 {
-    AssertThis(0);
-    auto s = _RuntimeServices();
-    mm_body_locate(this, &pose, &s);
+    BODY_VALIDATE(body, 0);
+    auto s = RuntimeServices();
+    mm_body_locate(body, &pose, &s);
 }
 
-bool Body::FPartSetBounds(LegacyLong set, MMBodyBounds &out) const
+bool EngineBody::PartSetBounds(PBody body, LegacyLong set, MMBodyBounds &out)
 {
-    return mm_body_set_bounds(&_body.shape, set, mm_brender_body_model_bounds, &out) != 0;
+    return mm_body_set_bounds(&State(body).shape, set, mm_brender_body_model_bounds, &out) != 0;
 }
 
 /***************************************************************************
     Set the ibact'th body part to use model pmodl
 ***************************************************************************/
-void Body::SetPartModel(LegacyLong ibact, PModel pmodl)
+void EngineBody::SetPartModel(PBody body, LegacyLong ibact, PModel pmodl)
 {
-    AssertThis(0); AssertIn(ibact, 0, _body.shape.part_count);
+    BODY_VALIDATE(body, 0); AssertIn(ibact, 0, State(body).shape.part_count);
 #ifdef DEBUG
     EngineModel::Validate(pmodl);
 #endif
-    auto s = _RuntimeServices(); mm_body_set_model(this, ibact, pmodl, &s);
+    auto s = RuntimeServices(); mm_body_set_model(body, ibact, pmodl, &s);
 }
 
 /***************************************************************************
     Set the ibact'th body part to use matrix pbmat34
 ***************************************************************************/
-void Body::SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34)
+void EngineBody::SetPartMatrix(PBody body, LegacyLong ibact, BMAT34 *pbmat34)
 {
-    AssertThis(0); AssertIn(ibact, 0, _body.shape.part_count); AssertVarMem(pbmat34);
+    BODY_VALIDATE(body, 0); AssertIn(ibact, 0, State(body).shape.part_count); AssertVarMem(pbmat34);
     MMActorMatrix matrix;
     std::memcpy(&matrix, pbmat34, sizeof(matrix));
-    SetPartMatrix(ibact, matrix);
+    SetPartMatrix(body, ibact, matrix);
 }
 
-void Body::SetPartMatrix(LegacyLong ibact, const MMActorMatrix &matrix)
+void EngineBody::SetPartMatrix(PBody body, LegacyLong ibact, const MMActorMatrix &matrix)
 {
-    AssertThis(0); AssertIn(ibact, 0, _body.shape.part_count);
-    auto s = _RuntimeServices();
-    mm_body_set_matrix(this, ibact, &matrix, &s);
+    BODY_VALIDATE(body, 0); AssertIn(ibact, 0, State(body).shape.part_count);
+    auto s = RuntimeServices();
+    mm_body_set_matrix(body, ibact, &matrix, &s);
 }
 
 /***************************************************************************
     Set the ibset'th body part set to use material pmtrl
 ***************************************************************************/
-void Body::SetPartSetMtrl(LegacyLong ibset, PMaterial_MTRL pmtrl)
+void EngineBody::SetPartSetMtrl(PBody body, LegacyLong ibset, PMaterial_MTRL pmtrl)
 {
-    AssertThis(0); AssertIn(ibset, 0, _body.shape.set_count);
+    BODY_VALIDATE(body, 0); AssertIn(ibset, 0, State(body).shape.set_count);
 #ifdef DEBUG
     EngineMaterial::Validate(pmtrl);
 #endif
-    auto s = _RuntimeServices(); mm_body_set_generic(this, ibset, pmtrl, &s);
+    auto s = RuntimeServices(); mm_body_set_generic(body, ibset, pmtrl, &s);
 }
 
 /***************************************************************************
     Apply the given CustomMaterial_CMTL to the appropriate body part set (the CustomMaterial_CMTL knows
     which body part set to apply to).
 ***************************************************************************/
-void Body::SetPartSetCmtl(PCustomMaterial_CMTL pcmtl)
+void EngineBody::SetPartSetCmtl(PBody body, PCustomMaterial_CMTL pcmtl)
 {
-    AssertThis(0);
+    BODY_VALIDATE(body, 0);
 #ifdef DEBUG
     EngineCostume::Validate(pcmtl);
 #endif
-    auto s = _RuntimeServices(); mm_body_set_custom(this, pcmtl, &s);
+    auto s = RuntimeServices(); mm_body_set_custom(body, pcmtl, &s);
 }
 
 /***************************************************************************
@@ -430,32 +395,27 @@ void Body::SetPartSetCmtl(PCustomMaterial_CMTL pcmtl)
     PCustomMaterial_CMTL.  If a Material_MTRL is attached, *pfMtrl is fTrue and *ppmtrl holds
     the PMaterial_MTRL.
 ***************************************************************************/
-void Body::GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, PMaterial_MTRL *ppmtrl, PCustomMaterial_CMTL *ppcmtl)
+void EngineBody::GetPartSetMaterial(PBody body, LegacyLong ibset, bool *pfMtrl, PMaterial_MTRL *ppmtrl, PCustomMaterial_CMTL *ppcmtl)
 {
-    AssertThis(0); AssertIn(ibset, 0, _body.shape.set_count);
+    BODY_VALIDATE(body, 0); AssertIn(ibset, 0, State(body).shape.set_count);
     AssertVarMem(pfMtrl); AssertVarMem(ppmtrl); AssertVarMem(ppcmtl);
     void *material, *custom; int generic;
     CopyPb(ppmtrl, &material, sizeof(material)); CopyPb(ppcmtl, &custom, sizeof(custom));
-    auto s = _RuntimeServices(); mm_body_get_material(this, ibset, &generic, &material, &custom, &s);
+    auto s = RuntimeServices(); mm_body_get_material(body, ibset, &generic, &material, &custom, &s);
     *pfMtrl = generic != 0;
     CopyPb(&material, ppmtrl, sizeof(material)); CopyPb(&custom, ppcmtl, sizeof(custom));
 }
 
-MMBodyState *Body::_State(void *, void *body)
-{
-    return &static_cast<PBody>(body)->_body;
-}
-
-MMBodyGeometryServices Body::_GeometryServices(void)
+MMBodyGeometryServices EngineBody::GeometryServices(void)
 {
     MMBodyGeometryServices s = {};
     mm_brender_body_geometry_services(&s);
     s.owner = [](void *, void *actor) -> void * {
         auto body = static_cast<PBody>(mm_brender_body_owner(actor));
-        AssertNilOrPo(body, 0);
+        BODY_VALIDATE(body, 0);
         return body;
     };
-    s.state = _State;
+    s.state = [](void *, void *body) { return mm_body_owner_state(static_cast<PBody>(body)); };
     s.missing_owner = [](void *) { Bug("What actor is this?  It has no Body"); };
     return s;
 }
@@ -465,33 +425,33 @@ MMBodyGeometryServices Body::_GeometryServices(void)
     (but save the last good bounds in its last-visible C rectangle).  Also size the
     bounding box correctly.
 ***************************************************************************/
-int Body::_ReadRenderBody(PBACT root, MMRenderBody *entry)
+int EngineBody::ReadRenderBody(PBACT root, MMRenderBody *entry)
 {
-    const auto services = _GeometryServices();
+    const auto services = GeometryServices();
     const auto body = static_cast<PBody>(mm_body_read_render(root, &entry->draw, &services));
     if (!body)
         return 0;
     entry->target = root;
-    entry->resource = static_cast<BASE *>(body);
+    entry->resource = body;
     return 1;
 }
 
-void Body::_PrepareRenderBody(const MMRenderBody *entry)
+void EngineBody::PrepareRenderBody(const MMRenderBody *entry)
 {
     mm_brender_body_submit(&entry->draw, entry->target);
-    const auto services = _GeometryServices();
+    const auto services = GeometryServices();
     mm_body_prepare_render(entry->target, &services);
 }
 
 /***************************************************************************
     Return the bounds of the Body contaning PBACT
 ***************************************************************************/
-void Body::_GetRc(PBACT pbact, RC *prc)
+void EngineBody::RenderRect(PBACT pbact, RC *prc)
 {
     AssertVarMem(pbact);
     AssertVarMem(prc);
 
-    auto services = _GeometryServices();
+    auto services = GeometryServices();
     MMBodyRect rect;
     if (mm_body_render_rect(pbact, &rect, &services))
         prc->Set(rect.left, rect.top, rect.right, rect.bottom);
@@ -503,14 +463,14 @@ void Body::_GetRc(PBACT pbact, RC *prc)
     doesn't include the size of the bounding box when computing the size of
     the actor.
 ***************************************************************************/
-void Body::GetBcbBounds(BCB *pbcb, bool fWorld)
+void EngineBody::GetBcbBounds(PBody body, BCB *pbcb, bool fWorld)
 {
-    AssertThis(0);
+    BODY_VALIDATE(body, 0);
     AssertVarMem(pbcb);
 
-    auto services = _GeometryServices();
+    auto services = GeometryServices();
     MMBodyBounds bounds;
-    mm_body_bounds(&_body.shape, fWorld, &bounds, &services);
+    mm_body_bounds(&State(body).shape, fWorld, &bounds, &services);
     pbcb->xrMin = bounds.min[0]; pbcb->yrMin = bounds.min[1]; pbcb->zrMin = bounds.min[2];
     pbcb->xrMax = bounds.max[0]; pbcb->yrMax = bounds.max[1]; pbcb->zrMax = bounds.max[2];
 }
@@ -519,11 +479,11 @@ void Body::GetBcbBounds(BCB *pbcb, bool fWorld)
     World calls this function when each BACT is rendered.  It unions the
     BACT bounds with the Body's current C rectangle
 ***************************************************************************/
-void Body::_BactRendered(PBACT pbact, RC *prc)
+void EngineBody::ActorRendered(PBACT pbact, RC *prc)
 {
     AssertVarMem(pbact);
     AssertVarMem(prc);
-    auto services = _GeometryServices();
+    auto services = GeometryServices();
     const MMBodyRect rect = {prc->xpLeft, prc->ypTop, prc->xpRight, prc->ypBottom};
     mm_body_rendered(pbact, &rect, &services);
 }
@@ -531,10 +491,10 @@ void Body::_BactRendered(PBACT pbact, RC *prc)
 /***************************************************************************
     Returns whether the Body was in view the last time it was rendered.
 ***************************************************************************/
-bool Body::FIsInView(void)
+bool EngineBody::IsInView(PBody body)
 {
-    AssertThis(0);
-    return mm_body_in_view(&_body.geometry) != 0;
+    BODY_VALIDATE(body, 0);
+    return mm_body_in_view(&State(body).geometry) != 0;
 }
 
 /***************************************************************************
@@ -542,13 +502,13 @@ bool Body::FIsInView(void)
     the Body was not in view at the last render, this function fills in the
     bounds of the Body the last time it was onstage.
 ***************************************************************************/
-void Body::GetRcBounds(RC *prc)
+void EngineBody::GetRcBounds(PBody body, RC *prc)
 {
-    AssertThis(0);
+    BODY_VALIDATE(body, 0);
     AssertVarMem(prc);
 
     MMBodyRect rect;
-    mm_body_visible_rect(&_body.geometry, &rect);
+    mm_body_visible_rect(&State(body).geometry, &rect);
     prc->Set(rect.left, rect.top, rect.right, rect.bottom);
 }
 
@@ -557,29 +517,29 @@ void Body::GetRcBounds(RC *prc)
     it was rendered.  If the Body was not in view at the last render, this
     function fills in the center of the Body the last time it was onstage.
 ***************************************************************************/
-void Body::GetCenter(LegacyLong *pxp, LegacyLong *pyp)
+void EngineBody::GetCenter(PBody body, LegacyLong *pxp, LegacyLong *pyp)
 {
-    AssertThis(0);
+    BODY_VALIDATE(body, 0);
     AssertVarMem(pxp);
     AssertVarMem(pyp);
 
     MMI32 x, y;
-    mm_body_center(&_body.geometry, &x, &y);
+    mm_body_center(&State(body).geometry, &x, &y);
     *pxp = x; *pyp = y;
 }
 
 /***************************************************************************
     Fills in the current position of the origin of this Body.
 ***************************************************************************/
-void Body::GetPosition(BRS *pxr, BRS *pyr, BRS *pzr)
+void EngineBody::GetPosition(PBody body, BRS *pxr, BRS *pyr, BRS *pzr)
 {
-    AssertThis(0);
+    BODY_VALIDATE(body, 0);
     AssertVarMem(pxr);
     AssertVarMem(pyr);
     AssertVarMem(pzr);
 
     MMI32 position[3];
-    mm_body_position(&_body.shape, position);
+    mm_body_position(&State(body).shape, position);
     *pxr = position[0]; *pyr = position[1]; *pzr = position[2];
 }
 
@@ -587,32 +547,33 @@ void Body::GetPosition(BRS *pxr, BRS *pyr, BRS *pzr)
 /***************************************************************************
     Assert the validity of the Body.
 ***************************************************************************/
-void Body::AssertValid(LegacyUlong grf)
+void EngineBody::Validate(PBody body, LegacyUlong grf)
 {
     LegacyLong ibact;
     LegacyLong ibset;
     BACT *pbact;
 
-    Body_PAR::AssertValid(fobjAllocated);
-    AssertIn(_body.shape.hidden, 0, 100); // 100 is sanity check
-    AssertIn(_body.shape.set_count, 0, _body.shape.part_count + 1);
+    if (!body)
+        return;
+    AssertIn(State(body).shape.hidden, 0, 100); // 100 is sanity check
+    AssertIn(State(body).shape.set_count, 0, State(body).shape.part_count + 1);
     size_t bytes = 0, offset = 0;
-    AssertDo(mm_brender_body_layout(_Cbact(), kcbMax, &bytes, &offset), "bad body actor storage size");
-    AssertPvCb(_Actors(), static_cast<LegacyLong>(bytes));
-    const auto storage = static_cast<unsigned char *>(_body.shape.actors);
-    Assert(_body.shape.bindings == reinterpret_cast<MMBodyPartBinding *>(storage + offset),
+    AssertDo(mm_brender_body_layout(ActorCount(body), kcbMax, &bytes, &offset), "bad body actor storage size");
+    AssertPvCb(Root(body), static_cast<LegacyLong>(bytes));
+    const auto storage = static_cast<unsigned char *>(State(body).shape.actors);
+    Assert(State(body).shape.bindings == reinterpret_cast<MMBodyPartBinding *>(storage + offset),
            "bad body binding storage");
-    AssertPvCb(_body.shape.custom_materials, LwMul(_body.shape.set_count, size(void *)));
-    Assert(pvNil == _PbactRoot()->model, "Body root shouldn't have a model!!");
-    Assert(pvNil == _PbactRoot()->material, "Body root shouldn't have a material!!");
+    AssertPvCb(State(body).shape.custom_materials, LwMul(State(body).shape.set_count, size(void *)));
+    Assert(pvNil == Root(body)->model, "Body root shouldn't have a model!!");
+    Assert(pvNil == Root(body)->material, "Body root shouldn't have a material!!");
 
     if (grf & fobjAssertFull)
     {
-        for (ibact = 0; ibact < _body.shape.part_count; ibact++)
+        for (ibact = 0; ibact < State(body).shape.part_count; ibact++)
         {
-            pbact = _PbactPart(ibact);
-            const auto &binding = _body.shape.bindings[ibact+2];
-            AssertIn(binding.set, 0, _body.shape.set_count);
+            pbact = Part(body, ibact);
+            const auto &binding = State(body).shape.bindings[ibact+2];
+            AssertIn(binding.set, 0, State(body).shape.set_count);
             if (pvNil != pbact->model)
                 EngineModel::Validate(EngineModel::FromHandle(pbact->model));
             Assert(binding.material == pbact->material, "body part material binding mismatch");
@@ -623,9 +584,9 @@ void Body::AssertValid(LegacyUlong grf)
                 Assert(!binding.material_owner || binding.material_owner == material, "body part material owner mismatch");
             }
         }
-        for (ibset = 0; ibset < _body.shape.set_count; ibset++)
+        for (ibset = 0; ibset < State(body).shape.set_count; ibset++)
         {
-            if (auto costume = static_cast<PCustomMaterial_CMTL>(_body.shape.custom_materials[ibset]))
+            if (auto costume = static_cast<PCustomMaterial_CMTL>(State(body).shape.custom_materials[ibset]))
                 EngineCostume::Validate(costume);
         }
     }
@@ -634,116 +595,43 @@ void Body::AssertValid(LegacyUlong grf)
 /***************************************************************************
     Mark memory used by the Body
 ***************************************************************************/
-void Body::MarkMem(void)
+void EngineBody::Mark(PBody body)
 {
-    AssertThis(0);
+    if (!body)
+        return;
+    Validate(body);
 
-    Body_PAR::MarkMem();
-    MarkPv(_Actors());
-    MarkPv(_body.shape.custom_materials);
-    for (LegacyLong part = 0; part < _body.shape.part_count; ++part)
+    MarkPv(body);
+    MarkPv(Root(body));
+    MarkPv(State(body).shape.custom_materials);
+    for (LegacyLong part = 0; part < State(body).shape.part_count; ++part)
     {
-        const auto &binding = _body.shape.bindings[part+2];
+        const auto &binding = State(body).shape.bindings[part+2];
         if (binding.model_owner)
             EngineModel::Mark(static_cast<PModel>(binding.model_owner));
         if (binding.material_owner)
             EngineMaterial::Mark(static_cast<PMaterial_MTRL>(binding.material_owner));
     }
-    for (LegacyLong set = 0; set < _body.shape.set_count; ++set)
-        if (_body.shape.custom_materials[set])
-            EngineMaterial::Mark(static_cast<PCustomMaterial_CMTL>(_body.shape.custom_materials[set]));
+    for (LegacyLong set = 0; set < State(body).shape.set_count; ++set)
+        if (State(body).shape.custom_materials[set])
+            EngineMaterial::Mark(static_cast<PCustomMaterial_CMTL>(State(body).shape.custom_materials[set]));
 }
 #endif // DEBUG
 
-/***************************************************************************
-    Create a blank costume -- no materials are attached yet
-***************************************************************************/
-BodyCostume::BodyCostume(void)
+ScopedBodyCostume::~ScopedBodyCostume()
 {
-    mm_body_costume_init(&_costume);
+    const auto services = RuntimeServices();
+    mm_body_costume_clear(&_costume, &services);
 }
 
-/***************************************************************************
-    Destroy a costume
-***************************************************************************/
-BodyCostume::~BodyCostume(void)
+bool ScopedBodyCostume::FGet(PBody body)
 {
-    AssertBaseThis(0);
-    _Clear();
+    const auto services = RuntimeServices();
+    return mm_body_costume_capture(&_costume, body, &services) != 0;
 }
 
-/***************************************************************************
-    Release all arrays and references
-***************************************************************************/
-void BodyCostume::_Clear(void)
+void ScopedBodyCostume::Set(PBody body, bool allowDifferentShape) const
 {
-    AssertBaseThis(0);
-    auto s = Body::_RuntimeServices(); mm_body_costume_clear(&_costume, &s);
+    const auto services = RuntimeServices();
+    mm_body_costume_apply(&_costume, body, allowDifferentShape, &services);
 }
-
-/***************************************************************************
-    Get a costume from a Body
-***************************************************************************/
-bool BodyCostume::FGet(Body *pbody)
-{
-    AssertThis(0); AssertPo(pbody, 0);
-    auto s = Body::_RuntimeServices();
-    const bool ok = mm_body_costume_capture(&_costume, pbody, &s) != 0;
-    AssertThis(0); return ok;
-}
-
-/***************************************************************************
-    Set a costume onto a Body.  The flag fAllowDifferentShape should usually
-    be fFalse; it should be fTrue in the rare cases where it is appropriate
-    to apply a costume with one number of body part sets to a Body with
-    a (possibly) different number of body part sets.  In that case, the
-    smaller number of materials are copied.  For example, when changing
-    the number of characters in a 3-D Text object, the code grabs the
-    current costume, resizes the ThreeDText and Body, sets the ThreeDText's Body to the
-    default costume, then restores the old costume to the Body as much as
-    is appropriate.
-***************************************************************************/
-void BodyCostume::Set(PBody pbody, bool fAllowDifferentShape)
-{
-    AssertThis(0); AssertPo(pbody, 0);
-    auto s = Body::_RuntimeServices(); mm_body_costume_apply(&_costume, pbody, fAllowDifferentShape, &s);
-}
-
-#ifdef DEBUG
-/***************************************************************************
-    Assert the validity of the BodyCostume.
-***************************************************************************/
-void BodyCostume::AssertValid(LegacyUlong grf)
-{
-    if (_costume.entries)
-    {
-        AssertPvCb(_costume.entries, LwMul(size(void *), _costume.count));
-        for (LegacyLong i = 0; i < _costume.count; ++i)
-        {
-            auto material = static_cast<MMMaterialOwner *>(_costume.entries[i]);
-            if (mm_material_owner_kind(material) == MM_MATERIAL)
-                EngineMaterial::Validate(material);
-            else
-                EngineCostume::Validate(material);
-        }
-    }
-}
-
-/***************************************************************************
-    Mark memory used by the BodyCostume
-***************************************************************************/
-void BodyCostume::MarkMem(void)
-{
-    AssertThis(0);
-
-    LegacyLong ibset;
-
-    if (pvNil != _costume.entries)
-    {
-        MarkPv(_costume.entries);
-        for (ibset = 0; ibset < _costume.count; ibset++)
-            EngineMaterial::Mark(static_cast<MMMaterialOwner *>(_costume.entries[ibset]));
-    }
-}
-
-#endif DEBUG

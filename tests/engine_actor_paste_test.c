@@ -282,6 +282,7 @@ static void init(Fixture *f)
     f->target.file.index.before_insert = adopt_sound;
     s->create.owner.owner = owner;
     s->create.owner.release = release;
+    s->create.owner.release_body = release;
     s->create.fetch_template = fetch_template;
     s->create.create_body = create_body;
     s->create.bind_body = bind_body;

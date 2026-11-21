@@ -56,8 +56,8 @@ static bool TestTemplateRuntime()
         if (t) { t->action=action; t->models[0]=a; t->models[1]=b; t->mode=mode; }
         auto parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         for (int i=0;ok && i<n;++i) { short p=i?static_cast<short>((i-1)/2):-1,s=static_cast<short>(i%2); ok=parents->FAdd(&p) && sets->FAdd(&s); }
-        body=ok?Body::PbodyNew(parents,sets):nullptr; ok=ok && action && body;
-        if (body) { for (int i=0;i<body->Cbset();++i) body->SetPartSetMtrl(i,material); for (int i=0;i<n;++i) body->SetPartModel(i,a); }
+        body=ok?EngineBody::Create(parents,sets):nullptr; ok=ok && action && body;
+        if (body) { for (int i=0;i<EngineBody::SetCount(body);++i) EngineBody::SetPartSetMtrl(body, i,material); for (int i=0;i<n;++i) EngineBody::SetPartModel(body, i,a); }
         BRS distance=BR_SCALAR(-33); bool applied=false;
         if (ok)
         {
@@ -72,13 +72,13 @@ static bool TestTemplateRuntime()
             if (applied) ++successes; else ++failures;
             LegacyLong values[]={shape,mode,cn,kind,failure,applied,distance,mm_model_owner_references(a),mm_model_owner_references(b),mm_action_resource_references(action),t->used};
             ok=record(values,sizeof(values)) && record(t->trace,t->used*sizeof(int)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
-            for (int i=0;i<n;++i) { LegacyLong identity=body->PbactPart(i)->model==EngineModel::Handle(a)?1:body->PbactPart(i)->model==EngineModel::Handle(b)?2:0; ok=record(&identity,sizeof(identity)) && ok; }
+            for (int i=0;i<n;++i) { LegacyLong identity=EngineBody::Part(body, i)->model==EngineModel::Handle(a)?1:EngineBody::Part(body, i)->model==EngineModel::Handle(b)?2:0; ok=record(&identity,sizeof(identity)) && ok; }
             LegacyLong count=-77; LegacyUlong flags=0x1357; bool exists=true; TAG tag={123,nullptr,0x12345678,456};
             BRS d=BR_SCALAR(-99); bool dOk=t->FGetDwrActnCel(0,cels[cn],&d),countOk=t->FGetCcelActn(0,&count),flagsOk=t->FGetGrfactn(0,&flags),soundOk=t->FGetSndActnCel(0,cels[cn],&exists,&tag);
             LegacyLong queries[]={dOk,d,countOk,count,flagsOk,static_cast<LegacyLong>(flags),soundOk,exists,tag.sid,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)};
             ok=record(queries,sizeof(queries)) && mm_action_resource_references(action)==1 && ok;
         }
-        ReleasePpo(&body); ReleasePpo(&t); mm_action_resource_release(action); ReleasePpo(&group); ReleasePpo(&matrices); ReleasePpo(&parents); ReleasePpo(&sets); vpers->Clear();
+        mm_body_owner_release(body); ReleasePpo(&t); mm_action_resource_release(action); ReleasePpo(&group); ReleasePpo(&matrices); ReleasePpo(&parents); ReleasePpo(&sets); vpers->Clear();
         ok=ok && mm_model_owner_references(a)==1 && mm_model_owner_references(b)==1 && mm_material_owner_references(material)==1;
         if (!ok) std::fprintf(stderr,"Template runtime failed: %d %d %d %d %d\n",shape,mode,cn,kind,failure);
     }

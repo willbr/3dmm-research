@@ -115,10 +115,10 @@ static bool TestTemplateConstruction()
 #endif
         LegacyLong values[]={shape,variant,stage,kind,failure,estimate,t!=nullptr,body!=nullptr,written};
         ok=record(values,sizeof(values)) && TemplateCreateFixtureAccess::Record(t,snapshot) && (!written || record(&wire,sizeof(wire))) && ok;
-        if (body) { ok=ok && body->Cbact()==(shape?8:2) && body->Cbset()==(shape?2:0);
-            for (int i=0;i<(shape?6:0);++i) ok=ok && body->PbactPart(i)->material!=nullptr;
+        if (body) { ok=ok && EngineBody::ActorCount(body)==(shape?8:2) && EngineBody::SetCount(body)==(shape?2:0);
+            for (int i=0;i<(shape?6:0);++i) ok=ok && EngineBody::Part(body, i)->material!=nullptr;
             ok=BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok; }
-        ReleasePpo(&body); ReleasePpo(&t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
+        mm_body_owner_release(body); ReleasePpo(&t); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
         if (!ok) std::fprintf(stderr,"Template construction failed: %d %d %d %d %d\n",shape,variant,stage,kind,failure);
     }
     std::fprintf(stderr,"[template construction] loaded=%d bodies=%d\n",loaded,bodies);

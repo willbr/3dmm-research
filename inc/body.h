@@ -1,16 +1,7 @@
 /* Copyright (c) Microsoft Corporation.
    Licensed under the MIT License. */
 
-/*************************************************************************
-
-    body.h: Body class
-
-    Primary Author: ******
-    Review Status: REVIEWED - any changes to this file must be reviewed!
-
-    BASE ---> Body
-
-*************************************************************************/
+// Native renderer adapter for C89 actor bodies and scoped costume snapshots.
 #ifndef Body_H
 #define Body_H
 
@@ -22,133 +13,74 @@
 
 using namespace BRender;
 
-/****************************************
-    The Body class
-****************************************/
-typedef class Body *PBody;
-#define Body_PAR BASE
-#define kclsBody 'BODY'
-class Body : public Body_PAR
+using PBody = MMBodyOwner *;
+
+namespace EngineBody
 {
-    friend class BodyWorld;
-    friend class BodyCostume;
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
+PBody Create(PDynamicArray parents, PDynamicArray sets);
+PBody Create(const MMPartIndexView &parents, const MMPartIndexView &sets);
+PBody FromActor(PBACT actor, LegacyLong *set = pvNil);
+PBody Duplicate(PBody);
+void Restore(PBody, PBody snapshot);
 
-  protected:
-    MMBodyState _body;
+bool ChangeShape(PBody, PDynamicArray parents, PDynamicArray sets);
+bool ChangeShape(PBody, const MMPartIndexView &parents, const MMPartIndexView &sets);
+// The renderer binding must outlive the body and any duplicates. Bind while hidden.
+void SetRenderCallbacks(PBody, void *context, void (*attach)(void *, void *), void (*changed)(void *));
+void Show(PBody);
+void Hide(PBody);
+void Hilite(PBody);
+void Unhilite(PBody);
+void SetHiliteColor(LegacyLong);
+void ReleaseSharedMaterial();
 
-  protected:
-    Body(void)
-    {
-        mm_body_state_init(&_body);
-    } // can't instantiate directly; must use PbodyNew
-    static MMBodyCreateServices _CreateServices(void);
-    static MMBodyEditServices _EditServices(void);
-    static MMBodyRuntimeServices _RuntimeServices(void);
-    static MMBodyGeometryServices _GeometryServices(void);
-    static MMBodyState *_State(void *, void *body);
-    void _DestroyShape(void);
-    PBACT _Actors(void) const { return static_cast<PBACT>(_body.shape.actors); }
-    PBACT _PbactRoot(void) // ptr to root BACT
-    {
-        return _Actors();
-    }
-    PBACT _PbactPart(LegacyLong ipart) // ptr to ipart'th body part
-    {
-        return _Actors() + 1 + 1 + ipart;
-    }                 // skip root and hilite BACTs
-    LegacyLong _Cbact(void) // count in _Actors()
-    {
-        return 1 + 1 + _body.shape.part_count;
-    }                       // root, hilite, and body part BACTs
-    // Callbacks from BRender:
-    static void _BactRendered(PBACT pbact, RC *prc);
-    static int _ReadRenderBody(PBACT, MMRenderBody *);
-    static void _PrepareRenderBody(const MMRenderBody *);
-    static void _GetRc(PBACT pbact, RC *prc);
+inline MMBodyState &State(PBody body) { return *mm_body_owner_state(body); }
+inline PBACT Root(PBody body) { return static_cast<PBACT>(State(body).shape.actors); }
+inline PBACT Part(PBody body, LegacyLong part) { return Root(body) + 2 + part; }
+inline LegacyLong ActorCount(PBody body) { return State(body).shape.part_count + 2; }
+inline LegacyLong SetCount(PBody body) { return State(body).shape.set_count; }
+inline const MMActorMatrix &RootMatrix(PBody body) { return State(body).shape.bindings[0].matrix; }
+inline MMBodyDrawView DrawView(PBody body) { return {State(body).shape.bindings, State(body).shape.part_count}; }
+
+void LocateOrient(PBody, BRS x, BRS y, BRS z, BMAT34 *);
+void ApplyPose(PBody, const MMActorBodyPose &);
+bool PartSetBounds(PBody, LegacyLong set, MMBodyBounds &);
+void SetPartModel(PBody, LegacyLong part, PModel);
+void SetPartMatrix(PBody, LegacyLong part, BMAT34 *);
+void SetPartMatrix(PBody, LegacyLong part, const MMActorMatrix &);
+void SetPartSetMtrl(PBody, LegacyLong set, PMaterial_MTRL);
+void SetPartSetCmtl(PBody, PCustomMaterial_CMTL);
+void GetPartSetMaterial(PBody, LegacyLong set, bool *generic, PMaterial_MTRL *, PCustomMaterial_CMTL *);
+void GetBcbBounds(PBody, BCB *, bool world = fFalse);
+void GetRcBounds(PBody, RC *);
+void GetCenter(PBody, LegacyLong *x, LegacyLong *y);
+void GetPosition(PBody, BRS *x, BRS *y, BRS *z);
+bool IsInView(PBody);
+
+MMBodyGeometryServices GeometryServices();
+int ReadRenderBody(PBACT, MMRenderBody *);
+void PrepareRenderBody(const MMRenderBody *);
+void ActorRendered(PBACT, RC *);
+void RenderRect(PBACT, RC *);
+
+#ifdef DEBUG
+void Validate(PBody, LegacyUlong flags = 0);
+void Mark(PBody);
+#endif
+}
+
+class ScopedBodyCostume
+{
+    MMBodyCostume _costume = {};
 
   public:
-    static PBody PbodyNew(PDynamicArray pglibactPar, PDynamicArray pglibset);
-    static PBody PbodyNew(const MMPartIndexView &parents, const MMPartIndexView &sets);
-    static PBody PbodyFromBact(BACT *pbact, LegacyLong *pibset = pvNil);
-    /* Public accessors for the BACT tree -- needed by headless test
-     * harnesses that walk the body to render via BrZbScene without
-     * going through the full World/PWorld playback runtime. */
-    PBACT PbactRoot(void) { return _PbactRoot(); }
-    PBACT PbactPart(LegacyLong ipart) { return _PbactPart(ipart); }
-    LegacyLong Cbact(void) { return _Cbact(); }
-    ~Body(void);
-    PBody PbodyDup(void);
-    void Restore(PBody pbodyDup);
-
-    bool FChangeShape(PDynamicArray pglibactPar, PDynamicArray pglibset);
-    bool FChangeShape(const MMPartIndexView &parents, const MMPartIndexView &sets);
-    // Binding lifetime must cover the body and any duplicates. Configure
-    // while hidden; the core owns its actor tree, the adapter owns its host.
-    void SetRenderCallbacks(void *context, void (*attach)(void *, void *), void (*changed)(void *));
-
-    void Show(void);
-    void Hide(void);
-    void Hilite(void);
-    void Unhilite(void);
-
-    static void SetHiliteColor(LegacyLong iclr);
-    // Release after all bodies, before shutting down BRender.
-    static void ReleaseSharedMaterial(void);
-
-    void LocateOrient(BRS xr, BRS yr, BRS zr, BMAT34 *pbmat34);
-    void ApplyPose(const MMActorBodyPose &);
-    const MMActorMatrix &RootMatrix() const { return _body.shape.bindings[0].matrix; }
-    MMBodyDrawView DrawView() const { return {_body.shape.bindings, _body.shape.part_count}; }
-    bool FPartSetBounds(LegacyLong set, MMBodyBounds &) const;
-    void SetPartModel(LegacyLong ibact, PModel pmodl);
-    void SetPartMatrix(LegacyLong ibact, BMAT34 *pbmat34);
-    void SetPartMatrix(LegacyLong ibact, const MMActorMatrix &);
-    void SetPartSetMtrl(LegacyLong ibset, PMaterial_MTRL pmtrl);
-    void SetPartSetCmtl(PCustomMaterial_CMTL pcmtl);
-    void GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, PMaterial_MTRL *ppmtrl, PCustomMaterial_CMTL *ppcmtl);
-    LegacyLong Cbset()
-    {
-        return _body.shape.set_count;
-    }
-
-    void GetBcbBounds(BCB *pbcb, bool fWorld = fFalse);
-    void GetRcBounds(RC *prc);
-    void GetCenter(LegacyLong *pxp, LegacyLong *pyp);
-    void GetPosition(BRS *pxr, BRS *pyr, BRS *pzr);
-    bool FIsInView(void);
+    ScopedBodyCostume() = default;
+    ScopedBodyCostume(const ScopedBodyCostume &) = delete;
+    ScopedBodyCostume &operator=(const ScopedBodyCostume &) = delete;
+    ~ScopedBodyCostume();
+    bool FGet(PBody);
+    void Set(PBody, bool allowDifferentShape = fFalse) const;
 };
-
-/****************************************
-    The BodyCostume class, which is used to
-    save and restore a Body's entire
-    costume for unwinding purposes
-****************************************/
-typedef class BodyCostume *PBodyCostume;
-#define BodyCostume_PAR BASE
-#define kclsBodyCostume 'COST'
-class BodyCostume : public BodyCostume_PAR
-{
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  private:
-    MMBodyCostume _costume; // C-owned material references
-
-  private:
-    void _Clear(void); // release C-owned entries and material references
-
-  public:
-    BodyCostume(void);
-    ~BodyCostume(void);
-
-    bool FGet(PBody pbody); // read and store Body's costume
-
-    // replace Body's costume with this one
-    void Set(PBody pbody, bool fAllowDifferentShape = fFalse);
-};
+using PBodyCostume = const ScopedBodyCostume *;
 
 #endif // !Body_H

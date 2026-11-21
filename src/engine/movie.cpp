@@ -3703,7 +3703,7 @@ void MovieView::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
                 // stale until mouseup.
                 BRS xr, yr, zr;
                 String stn;
-                pactrSel->Pbody()->GetPosition(&xr, &yr, &zr);
+                EngineBody::GetPosition(pactrSel->Pbody(), &xr, &yr, &zr);
                 stn.FFormatSz(PszLit("X=%d Y=%d Z=%d"), BrScalarToInt(xr), BrScalarToInt(yr), BrScalarToInt(zr));
                 pgnv->DrawStn(&stn, 4, 4, kacrBlack, kacrWhite);
             }
@@ -4392,7 +4392,7 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         BRS yr;
         BRS zr;
 
-        pactr->Pbody()->GetPosition(&xr, &yr, &zr);
+        EngineBody::GetPosition(pactr->Pbody(), &xr, &yr, &zr);
         if (!Pmvie()->Pscen()->Pbkgd()->FWritePlaceFile(xr, yr, zr))
         {
             Bug("ouch.  bkgd write failed.");

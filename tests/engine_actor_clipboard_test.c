@@ -299,6 +299,8 @@ static void init(Fixture *f, unsigned unit)
     o->create = create_actor;
     o->retain = retain;
     o->release = release;
+    o->retain_body = retain;
+    o->release_body = release;
     o->route_services = route_services;
     CHECK(mm_storage_init(&storage, NULL) == MM_STORAGE_OK);
     f->copy.create.track_allocator = storage.allocator;

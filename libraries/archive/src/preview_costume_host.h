@@ -35,7 +35,7 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         s.edits = EventEdits();
         s.current = [](void *v, MMI32 set, int *custom) -> void * {
             bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
-            static_cast<CostumeHost *>(v)->actor->Pbody()->GetPartSetMaterial(set, &plain, &material, &costume);
+            EngineBody::GetPartSetMaterial(static_cast<CostumeHost *>(v)->actor->Pbody(), set, &plain, &material, &costume);
             *custom = !plain; return plain ? static_cast<void *>(material) : static_cast<void *>(costume);
         };
         s.fetch_custom = [](void *v, MMI32 id) -> void * {

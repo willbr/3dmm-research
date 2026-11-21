@@ -10,8 +10,8 @@ class BodyWorld
     static void Changed(void *context);
 
   public:
-    static void Bind(Body *body, PWorld world);
-    static Body *PbodyClicked(long xp, long yp, PWorld world, long *pibset = pvNil);
-    static bool FPtInBody(Body *body, PWorld world, long xp, long yp, long *pibset);
+    static void Bind(PBody body, PWorld world);
+    static PBody PbodyClicked(long xp, long yp, PWorld world, long *pibset = pvNil);
+    static bool FPtInBody(PBody body, PWorld world, long xp, long yp, long *pibset);
 };
 #endif

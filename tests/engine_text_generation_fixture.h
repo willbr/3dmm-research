@@ -84,7 +84,7 @@ static bool TestTextGeneration()
             for (auto cel:positions) { BRS distance=-77; ok=t->FSetActnCel(body,action,cel,&distance) && ok; LegacyLong values[]={cel,distance}; ok=record(values,sizeof(values)) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok; }
             mm_action_resource_release(a);
         }
-        ReleasePpo(&body); ReleasePpo(&t); vpers->Clear();
+        mm_body_owner_release(body); ReleasePpo(&t); vpers->Clear();
     }
     for (int text=0;ok && text<2;++text) for (int operation=0;ok && operation<5;++operation)
     for (int missing=0;ok && missing<2;++missing) for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<24;++failure)
@@ -115,7 +115,7 @@ static bool TestTextGeneration()
         ok=record(values,sizeof(values)) && TextGenerationFixtureAccess::Record(t,snapshot) && BodyEditFixtureAccess::Record(body,snapshot,nullptr) && ok;
         if (result) ok=TextGenerationFixtureAccess::Resource(result,operation,normalized.Cch(),snapshot) && ok;
         if (result) { if (operation==2) mm_action_resource_release(static_cast<MMActionResource *>(result)); else mm_action_table_dispose(static_cast<MMActionTable *>(result)); }
-        mm_action_resource_release(held); ReleasePpo(&body); ReleasePpo(&t); vpers->Clear();
+        mm_action_resource_release(held); mm_body_owner_release(body); ReleasePpo(&t); vpers->Clear();
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv;
 #endif

@@ -120,7 +120,7 @@ class ActorPreviewEntity : public ActorPreviewEntity_PAR
     bool FDisplayCel(long celn);
     long Cbset(void)
     {
-        return _pbody->Cbset();
+        return EngineBody::SetCount(_pbody);
     }
 
     // Returns fTrue if a material was applied to this ibset

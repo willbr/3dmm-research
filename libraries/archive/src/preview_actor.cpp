@@ -108,7 +108,7 @@ PMaterial_MTRL PreviewActor::TextMaterial() const
 {
     if (!Ptmpl() || !Ptmpl()->FIsTdt() || !Pbody()) return nullptr;
     bool plain; PMaterial_MTRL material = nullptr; PCustomMaterial_CMTL custom = nullptr;
-    Pbody()->GetPartSetMaterial(0, &plain, &material, &custom);
+    EngineBody::GetPartSetMaterial(Pbody(), 0, &plain, &material, &custom);
     return plain ? material : nullptr;
 }
 bool PreviewActor::SetTextMaterial(std::int32_t source, std::uint32_t number)
@@ -128,10 +128,10 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 {
     out.clear();
     if (!Ptmpl() || !Pbody() || Ptmpl()->FIsTdt()) return false;
-    for (int set = 0; set < Pbody()->Cbset(); ++set)
+    for (int set = 0; set < EngineBody::SetCount(Pbody()); ++set)
     {
         bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL current;
-        Pbody()->GetPartSetMaterial(set, &plain, &material, &current);
+        EngineBody::GetPartSetMaterial(Pbody(), set, &plain, &material, &current);
         for (int i = 0; i < Ptmpl()->CcmidOfBset(set); ++i)
         {
             const auto id = Ptmpl()->CmidOfBset(set, i);
@@ -200,7 +200,7 @@ bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
             return c.bodySet == value.bodySet && c.costume == value.costume; })) return false;
         auto costume = Ptmpl()->PcmtlFetch(value.costume);
         if (!costume) return false;
-        Pbody()->SetPartSetCmtl(costume); mm_material_owner_release(costume);
+        EngineBody::SetPartSetCmtl(Pbody(), costume); mm_material_owner_release(costume);
     }
     return true;
 }
@@ -296,7 +296,7 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
     struct EventSource
     {
         Host host;
-        BodyCostume costume;
+        ScopedBodyCostume costume;
     } sourceTrack = {{this}};
     const auto services = sourceTrack.host.Services();
     const MMPreviewEventReplacement edit = {
@@ -443,7 +443,7 @@ bool PreviewActor::TrackPose(PreviewTrackPose &pose) const
     mm_matrix_identity(&rest);
     for (int axis = 0; axis < 3; ++axis) mm_matrix_rotate(&rest, axis, angles[axis], 0);
     const BRS stretch[] = {state.transform.aevpull.rScaleX, state.transform.aevpull.rScaleY, state.transform.aevpull.rScaleZ};
-    const auto &root = Pbody()->RootMatrix();
+    const auto &root = EngineBody::RootMatrix(Pbody());
     // Recover the world rotation after removing rest orientation and authored size.
     for (int row = 0; row < 3; ++row)
     {

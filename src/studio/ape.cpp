@@ -43,7 +43,6 @@ PActorPreviewEntity ActorPreviewEntity::PapeNew(PGraphicsObjectBlock pgcb, PTemp
 {
     AssertVarMem(pgcb);
     AssertPo(ptmpl, 0);
-    AssertNilOrPo(pcost, 0);
     AssertNilOrPo(prca, 0);
 
     PActorPreviewEntity pape;
@@ -66,7 +65,6 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
 {
     AssertBaseThis(0);
     AssertPo(ptmpl, 0);
-    AssertNilOrPo(pcost, 0);
 
     long cbset;
     LegacyLong ibset;
@@ -82,7 +80,7 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
         return fFalse;
     if (pvNil != pcost)
         pcost->Set(_pbody);
-    cbset = _pbody->Cbset();
+    cbset = EngineBody::SetCount(_pbody);
 
     // If there is exactly one accessory body part set, set _ibsetOnlyAcc
     // to that ibset.  Else set it to ivNil.
@@ -132,7 +130,7 @@ bool ActorPreviewEntity::_FInit(PTemplate ptmpl, PBodyCostume pcost, long anid, 
     _pbwld->AddActor(&_bact);
     BrLightEnable(&_bact);
     BodyWorld::Bind(_pbody, _pbwld);
-    _pbody->Show();
+    EngineBody::Show(_pbody);
 
     _InitView();
     if (!FSetAction(anid))
@@ -163,7 +161,7 @@ ActorPreviewEntity::~ActorPreviewEntity()
         BrActorRemove(&_bact);
     }
     ReleasePpo(&_ptmpl);
-    ReleasePpo(&_pbody);
+    mm_body_owner_release(_pbody);
     ReleasePpo(&_pbwld);
     ReleasePpo(&_pglgms);
 }
@@ -296,7 +294,7 @@ void ActorPreviewEntity::_InitView(void)
     BrMatrix34PostRotateX(&bmat34, xa);
     BrMatrix34PostRotateY(&bmat34, ya);
     BrMatrix34PostRotateZ(&bmat34, za);
-    _pbody->LocateOrient(rZero, rZero, rZero, &bmat34);
+    EngineBody::LocateOrient(_pbody, rZero, rZero, rZero, &bmat34);
     _SetScale();
     _UpdateView();
 }
@@ -320,7 +318,7 @@ void ActorPreviewEntity::SetCustomView(BRA xa, BRA ya, BRA za)
     BrMatrix34PostRotateX(&bmat34, xa);
     BrMatrix34PostRotateY(&bmat34, ya);
     BrMatrix34PostRotateZ(&bmat34, za);
-    _pbody->LocateOrient(rZero, rZero, rZero, &bmat34);
+    EngineBody::LocateOrient(_pbody, rZero, rZero, rZero, &bmat34);
     _SetScale();
     _UpdateView();
 }
@@ -361,7 +359,7 @@ void ActorPreviewEntity::ChangeView(void)
         break;
     }
 
-    _pbody->LocateOrient(rZero, rZero, rZero, &bmat34);
+    EngineBody::LocateOrient(_pbody, rZero, rZero, rZero, &bmat34);
     _SetScale();
     _UpdateView();
 }
@@ -385,7 +383,7 @@ void ActorPreviewEntity::_SetScale(void)
     BRA aFov;
     BRS rAtan;
 
-    _pbody->GetBcbBounds(&bcbBody, fTrue);
+    EngineBody::GetBcbBounds(_pbody, &bcbBody, fTrue);
     dxrBody = bcbBody.xrMax - bcbBody.xrMin;
     dyrBody = bcbBody.yrMax - bcbBody.yrMin;
     dzrBody = bcbBody.zrMax - bcbBody.zrMin;
@@ -476,7 +474,7 @@ bool ActorPreviewEntity::FCmdMouseMove(PCMD_MOUSE pcmd)
         SetCursCno(_prca, kcrsDefault);
         if (_pbwld->FClickedActor(pcmd->xp, pcmd->yp, &pbact))
         {
-            pbody = Body::PbodyFromBact(pbact, &ibset);
+            pbody = EngineBody::FromActor(pbact, &ibset);
             Assert(pbody == _pbody, "what Body is this?");
             if (_apet.apt == aptIncCmtl)
             {
@@ -518,7 +516,7 @@ bool ActorPreviewEntity::FCmdTrackMouse(PCMD_MOUSE pcmd)
     }
     if (!_pbwld->FClickedActor(pcmd->xp, pcmd->yp, &pbact))
         return fTrue;
-    pbody = Body::PbodyFromBact(pbact, &ibset);
+    pbody = EngineBody::FromActor(pbact, &ibset);
     Assert(pbody == _pbody, "what Body is this?");
 
     switch (_apet.apt)
@@ -566,7 +564,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
     AssertThis(0);
     AssertVarMem(pgms);
     Assert(pgms->fValid, "bad gms");
-    AssertIn(ibset, 0, _pbody->Cbset());
+    AssertIn(ibset, 0, EngineBody::SetCount(_pbody));
 
     PMaterial_MTRL pmtrl;
     PCustomMaterial_CMTL pcmtl;
@@ -576,7 +574,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
         pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(&pgms->tagMtrl, EngineMaterial::Read, mm_material_owner_services()));
         if (pvNil == pmtrl)
             return fFalse;
-        _pbody->SetPartSetMtrl(ibset, pmtrl);
+        EngineBody::SetPartSetMtrl(_pbody, ibset, pmtrl);
         mm_material_owner_release(pmtrl);
     }
     else // cmtl
@@ -584,7 +582,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
         pcmtl = _ptmpl->PcmtlFetch(pgms->cmid);
         if (pvNil == pcmtl)
             return fFalse;
-        _pbody->SetPartSetCmtl(pcmtl);
+        EngineBody::SetPartSetCmtl(_pbody, pcmtl);
         mm_material_owner_release(pcmtl);
     }
     return fTrue;
@@ -598,7 +596,7 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
 {
     AssertThis(0);
     AssertVarMem(pgms);
-    AssertIn(ibset, 0, _pbody->Cbset());
+    AssertIn(ibset, 0, EngineBody::SetCount(_pbody));
 
     long cmid;
     long cmidNext;
@@ -620,7 +618,7 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
     if (!pgms->fValid || pgms->fMtrl)
     {
         // GeneralMaterialSpec is useless...look at the body
-        _pbody->GetPartSetMaterial(ibset, &fMtrl, &pmtrlOld, &pcmtlOld);
+        EngineBody::GetPartSetMaterial(_pbody, ibset, &fMtrl, &pmtrlOld, &pcmtlOld);
         if (!fMtrl)
         {
             for (icmid = 0; icmid < ccmid; icmid++)
@@ -655,7 +653,7 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
     pcmtl = _ptmpl->PcmtlFetch(cmidNext);
     if (pvNil == pcmtl)
         return fFalse;
-    _pbody->SetPartSetCmtl(pcmtl);
+    EngineBody::SetPartSetCmtl(_pbody, pcmtl);
     mm_material_owner_release(pcmtl);
     pgms->cmid = cmidNext;
     pgms->fMtrl = fFalse;
@@ -716,7 +714,7 @@ bool ActorPreviewEntity::FChangeTdt(PString pstn, long tdts, PTAG ptagTdf)
     ptdtNew = ((PThreeDText)_ptmpl)->PtdtDup();
     if (pvNil == ptdtNew)
         goto LFail;
-    pbodyNew = _pbody->PbodyDup();
+    pbodyNew = EngineBody::Duplicate(_pbody);
     if (pvNil == pbodyNew)
         goto LFail;
 
@@ -729,14 +727,14 @@ bool ActorPreviewEntity::FChangeTdt(PString pstn, long tdts, PTAG ptagTdf)
 
     ReleasePpo(&_ptmpl);
     _ptmpl = ptdtNew;
-    _pbody->Restore(pbodyNew);
-    ReleasePpo(&pbodyNew);
+    EngineBody::Restore(_pbody, pbodyNew);
+    mm_body_owner_release(pbodyNew);
     _SetScale();
     _UpdateView();
     return fTrue;
 LFail:
     ReleasePpo(&ptdtNew);
-    ReleasePpo(&pbodyNew);
+    mm_body_owner_release(pbodyNew);
     return fFalse;
 }
 
@@ -747,7 +745,7 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
 {
     AssertThis(0);
     Assert(_ptmpl->FIsTdt(), "FSetTdtMtrl is only for ThreeDTexts");
-    Assert(_pbody->Cbset() == 1, "ThreeDTexts should only have one body part set");
+    Assert(EngineBody::SetCount(_pbody) == 1, "ThreeDTexts should only have one body part set");
     AssertVarMem(ptagMtrl);
 
     PMaterial_MTRL pmtrl;
@@ -756,7 +754,7 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
     pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(ptagMtrl, EngineMaterial::Read, mm_material_owner_services()));
     if (pvNil == pmtrl)
         return fFalse;
-    _pbody->SetPartSetMtrl(0, pmtrl);
+    EngineBody::SetPartSetMtrl(_pbody, 0, pmtrl);
     mm_material_owner_release(pmtrl);
 
     gms.fValid = fTrue;
@@ -783,7 +781,7 @@ bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
     PCustomMaterial_CMTL pcmtl;
     bool fMtrl;
 
-    _pbody->GetPartSetMaterial(0, &fMtrl, &pmtrl, &pcmtl);
+    EngineBody::GetPartSetMaterial(_pbody, 0, &fMtrl, &pmtrl, &pcmtl);
     if (!fMtrl)
         return fFalse;
     const auto binding = mm_material_owner_binding(pmtrl);
@@ -815,7 +813,7 @@ void ActorPreviewEntity::GetTdtInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTd
 bool ActorPreviewEntity::FGetMaterial(long ibset, tribool *pfMtrl, long *pcmid, TAG *ptagMtrl)
 {
     AssertThis(0);
-    AssertIn(ibset, 0, _pbody->Cbset());
+    AssertIn(ibset, 0, EngineBody::SetCount(_pbody));
     AssertVarMem(pfMtrl);
     AssertVarMem(pcmid);
     AssertVarMem(ptagMtrl);
@@ -841,9 +839,9 @@ void ActorPreviewEntity::AssertValid(LegacyUlong grf)
     ActorPreviewEntity_PAR::AssertValid(fobjAllocated);
     AssertPo(_pbwld, 0);
     AssertPo(_ptmpl, 0);
-    AssertPo(_pbody, 0);
+    EngineBody::Validate(_pbody);
     AssertPo(_pglgms, 0);
-    Assert(_pglgms->IvMac() == _pbody->Cbset(), "_pglgms wrong size");
+    Assert(_pglgms->IvMac() == EngineBody::SetCount(_pbody), "_pglgms wrong size");
     AssertNilOrPo(_prca, 0);
 }
 
@@ -856,7 +854,7 @@ void ActorPreviewEntity::MarkMem(void)
     ActorPreviewEntity_PAR::MarkMem();
     MarkMemObj(_pbwld);
     MarkMemObj(_ptmpl);
-    MarkMemObj(_pbody);
+    EngineBody::Mark(_pbody);
     MarkMemObj(_pglgms);
     MarkMemObj(_prca);
 }

@@ -309,7 +309,7 @@ MMActorPlaybackEffects Actor::_PlaybackEffects()
     effects.context = this;
     effects.hide = [](void *p) {
         if (auto body = static_cast<Actor *>(p)->_Body())
-            body->Hide();
+            EngineBody::Hide(body);
     };
     effects.reset_costume = [](void *p) -> int {
         auto actor = static_cast<Actor *>(p);
@@ -476,9 +476,9 @@ bool Actor::_FDoAevCore(long iaev)
     effects.visibility = [](void *p, int shown) {
         auto body = EngineActorEffectHost::From(p).body;
         if (shown)
-            body->Show();
+            EngineBody::Show(body);
         else
-            body->Hide();
+            EngineBody::Hide(body);
     };
     effects.fetch_material = [](void *, const MMTag *value) -> void * {
         TAG tag;
@@ -574,7 +574,7 @@ MMActorSubrouteEditServices Actor::_SubrouteEditServices()
         inputs->fixedPathOrientation=actor->_Template()->FIsTdt();
     };
     s.locate_body=[](void *p,const MMActorBodyPose *pose) {
-        static_cast<Actor *>(p)->_Body()->ApplyPose(*pose);
+        EngineBody::ApplyPose(static_cast<Actor *>(p)->_Body(), *pose);
     };
     s.live = &_owner;
     s.playback = _PlaybackEffects();
@@ -618,7 +618,7 @@ MMActorRouteEditServices Actor::_RouteEditServices()
     mm_actor_route_edit_bind_tables(&s);
     s.life_dirty=[](void *p) { static_cast<Actor *>(p)->_owner.runtime.life_dirty=true; };
     s.recording=[](void *p,int enabled) { static_cast<Actor *>(p)->_owner.runtime.recording.recording=enabled!=0; };
-    s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Body()) actor->_Body()->Hide(); };
+    s.hide_body=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Body()) EngineBody::Hide(actor->_Body()); };
     s.default_costume=[](void *p) { auto actor=static_cast<Actor *>(p); if (actor->_Template() && actor->_Body()) actor->_Template()->FSetDefaultCost(actor->_Body()); };
     s.diagnostic=[](void *,int fault) {
         switch (fault) {
@@ -1275,7 +1275,7 @@ MMActorCostumeEditServices Actor::_CostumeEditServices()
     MMActorCostumeEditServices services={}; services.context=this; services.edits=_EventEditServices();
     services.current=[](void *p,MMI32 set,int *custom)->void * {
         bool ordinary; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
-        static_cast<Actor *>(p)->_Body()->GetPartSetMaterial(set,&ordinary,&material,&costume);
+        EngineBody::GetPartSetMaterial(static_cast<Actor *>(p)->_Body(), set,&ordinary,&material,&costume);
         *custom=!ordinary;
         return ordinary ? static_cast<void *>(material) : static_cast<void *>(costume);
     };
@@ -1728,8 +1728,8 @@ void Actor::Hilite(void)
 {
     AssertThis(0);
 
-    Body::SetHiliteColor(_owner.runtime.time_frozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
-    _Body()->Hilite();
+    EngineBody::SetHiliteColor(_owner.runtime.time_frozen ? kiclrTimeFreezeHilite : kiclrNormalHilite);
+    EngineBody::Hilite(_Body());
 }
 
 /***************************************************************************
@@ -1763,7 +1763,7 @@ bool Actor::FChangeTagTmpl(const MMTag &tag)
         auto actor = static_cast<PActor>(p);
         actor->_PositionBody(&actor->_owner.runtime.state.position);
     };
-    services.body_sets = [](void *, void *body) -> MMI32 { return static_cast<PBody>(body)->Cbset(); };
+    services.body_sets = [](void *, void *body) -> MMI32 { return EngineBody::SetCount(static_cast<PBody>(body)); };
     const auto edits = _EventEditServices();
     return mm_actor_replace_template(&_owner.runtime, _owner.track.events, &tag, &services, &edits) != 0;
 }
@@ -1778,7 +1778,7 @@ void Actor::AssertValid(LegacyUlong grfobj)
 {
 
     Actor_PAR::AssertValid(fobjAllocated);
-    AssertNilOrPo(_Body(), 0);
+    EngineBody::Validate(_Body());
     AssertNilOrPo(_Template(), 0);
     Assert(_owner.track.events, "missing actor events");
     Assert(_owner.track.route, "missing actor path");
@@ -1935,7 +1935,7 @@ void Actor::MarkMem(void)
         MarkPv(_owner.track.route);
         MarkPv(_owner.track.route->storage.buffers[0].data);
     }
-    MarkMemObj(_Body());
+    EngineBody::Mark(_Body());
     MarkMemObj(_Template());
     if (_owner.runtime.template_tag.sid == ksidUseCrf && _owner.runtime.template_tag.cache)
         MarkMemObj(static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache));

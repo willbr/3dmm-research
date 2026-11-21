@@ -905,15 +905,16 @@ restoration, reshaping, body material/visibility updates, costume ownership,
 bounds/render preparation and hit-selection policy have also moved into C89.
 Body actor/material storage, per-part parent/set indices, part/set counts,
 hidden count, geometry and the borrowed renderer binding live in persistent C
-state. Restoration exchanges this state while preserving facade reference counts
-and assigning both actor trees to their current owners. Studio and Marcus Preview
+state owned by a reference-counted C89 body. Restoration exchanges this state
+while preserving the owner reference counts and assigning both actor trees to
+their current owners. Studio and Marcus Preview
 use one C89 BRender adapter to submit body matrices and draw handles. C89 stores
 retained model and generic material owners alongside their draw handles, holds
 costumes by set, and shares these operations across live edits and shape disposal.
 Render admission, bounds, and part-set lookup read that state directly. C89
 drives the nearest-hit and target-body queries over the host's ordered hit scan.
-Typed resource providers and final Body facade removal
-remain work. Template resource factories,
+Actor snapshots and render scenes retain the C89 body directly. The native
+adapter supplies BRender and Kauai services. Template resource factories,
 header I/O, normal initialization, body creation and default-costume prefetching,
 template action/model/custom resource routing, cel application/action queries
 and accessory graph operations also use C89. Both hosts resolve ordinary
@@ -1754,8 +1755,8 @@ edits. The C89 MSND owner holds the counted sound name, payload metadata and
 cache binding. Studio's sound browser, listener and frame sound queue use the
 C89 references. Preview reads the same sound state from its archive graph.
 The native sound manager and clock provide host services. Native template
-subclasses, resource, object, HQ and Body facades remain part of final host
-integration.
+subclasses and the resource, object and HQ facades remain part of final
+host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining

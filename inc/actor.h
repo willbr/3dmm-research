@@ -240,32 +240,32 @@ class Actor : public Actor_PAR
     void Unhilite(void)
     {
         AssertBaseThis(0);
-        _Body()->Unhilite();
+        EngineBody::Unhilite(_Body());
     }
     void Hide(void)
     {
         AssertBaseThis(0);
-        _Body()->Hide();
+        EngineBody::Hide(_Body());
     }
     void Show(void)
     {
         AssertBaseThis(0);
-        _Body()->Show();
+        EngineBody::Show(_Body());
     }
     bool FIsInView(void)
     {
         AssertBaseThis(0);
-        return _Body()->FIsInView();
+        return EngineBody::IsInView(_Body());
     }
     void GetCenter(LegacyLong *pxp, LegacyLong *pyp)
     {
         AssertBaseThis(0);
-        _Body()->GetCenter(pxp, pyp);
+        EngineBody::GetCenter(_Body(), pxp, pyp);
     }
     void GetRcBounds(RC *prc)
     {
         AssertBaseThis(0);
-        _Body()->GetRcBounds(prc);
+        EngineBody::GetRcBounds(_Body(), prc);
     }
     void SetPrerendered(bool fPrerendered)
     {
@@ -289,7 +289,7 @@ class Actor : public Actor_PAR
         AssertBaseThis(0);
         return (_owner.runtime.state.onStage);
     }
-    bool FIsMyBody(Body *pbody)
+    bool FIsMyBody(PBody pbody)
     {
         AssertBaseThis(0);
         return pbody == _Body();

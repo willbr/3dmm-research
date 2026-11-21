@@ -1,7 +1,64 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/body_create.h"
+#include "mm/reference.h"
 #include <stddef.h>
+#include <stdlib.h>
 #include <string.h>
+
+struct MMBodyOwner
+{
+    MMReference references;
+    MMBodyState state;
+    const MMStorageAllocator *allocator;
+    const MMBodyCreateServices *services;
+};
+
+MMBodyOwner *mm_body_owner_create(const MMStorageAllocator *allocator, const MMBodyCreateServices *services)
+{
+    MMBodyOwner *body = allocator ? allocator->resize(allocator->context, NULL, 0, sizeof(*body), MM_STORAGE_NORMAL)
+                                  : malloc(sizeof(*body));
+    if (body)
+    {
+        mm_reference_init(&body->references);
+        mm_body_state_init(&body->state);
+        body->allocator = allocator;
+        body->services = services;
+    }
+    return body;
+}
+
+MMBodyState *mm_body_owner_state(MMBodyOwner *body)
+{
+    return &body->state;
+}
+
+MMI32 mm_body_owner_references(const MMBodyOwner *body)
+{
+    return body->references.count;
+}
+
+void mm_body_owner_retain(MMBodyOwner *body)
+{
+    mm_reference_add(&body->references);
+}
+
+static void destroy_body(void *object)
+{
+    MMBodyOwner *body = object;
+    const MMStorageAllocator *allocator = body->allocator;
+    mm_body_shape_dispose(body, body->services);
+    if (allocator)
+        allocator->release(allocator->context, body, sizeof(*body));
+    else
+        free(body);
+}
+
+void mm_body_owner_release(MMBodyOwner *body)
+{
+    if (body)
+        mm_reference_release(&body->references, body, destroy_body);
+}
+
 void mm_body_state_init(MMBodyState *state)
 { memset(state, 0, sizeof(*state)); }
 void mm_body_shape_matrix(MMBodyShape *shape,MMI32 index,const MMActorMatrix *matrix,const MMBodyCreateServices *s)

@@ -325,7 +325,7 @@ int main(int argc, char **argv)
             }
         }
         auto body = animated ? animated->PbodyCreate() : pvNil;
-        for (LegacyLong set = 0; body && set < body->Cbset(); ++set)
+        for (LegacyLong set = 0; body && set < EngineBody::SetCount(body); ++set)
             if (!animated->FBsetIsAccessory(set) && animated->CcmidOfBset(set) > 1)
             {
                 costumeSet = set;
@@ -333,7 +333,7 @@ int main(int argc, char **argv)
                 alternateCostume = animated->CmidOfBset(set, 1);
                 break;
             }
-        ReleasePpo(&body);
+        mm_body_owner_release(body);
         ok = ok && found && costumeSet >= 0 && Texture(file, 0, &textures[0]) && Texture(file, 1, &textures[1]);
         std::printf("Feature fixture: action=%d costume_set=%d costumes=%d/%d\n", int(animation), int(costumeSet),
                     int(originalCostume), int(alternateCostume));
@@ -542,7 +542,7 @@ int main(int argc, char **argv)
     ReleasePpo(&templateResources);
     ReleasePpo(&templateFile);
     ReleasePpo(&shadeFile);
-    Body::ReleaseSharedMaterial();
+    EngineBody::ReleaseSharedMaterial();
     EngineMaterial::ReleaseShadeTable();
     BrZbEnd();
     BrEnd();

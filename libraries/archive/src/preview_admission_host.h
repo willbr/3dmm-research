@@ -204,7 +204,7 @@ struct Preview::Impl::AdmissionHost
         s.locate = [](void *, void *b, const MMActorMatrix *m) {
             BMAT34 native;
             std::memcpy(&native, m, sizeof(native));
-            static_cast<PBody>(b)->LocateOrient(rZero, rZero, rZero, &native);
+            EngineBody::LocateOrient(static_cast<PBody>(b), rZero, rZero, rZero, &native);
         };
         s.model_fetch = [](void *v, MMU32 type, MMU32 number, void **out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);

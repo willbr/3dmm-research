@@ -201,9 +201,9 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     };
     s.action_host = &ActionResourceHost();
     s.body_shape = [](void *, void *body, const MMPartIndexView *parents, const MMPartIndexView *sets) -> int {
-        return static_cast<PBody>(body)->FChangeShape(*parents, *sets);
+        return EngineBody::ChangeShape(static_cast<PBody>(body), *parents, *sets);
     };
-    s.body_material = [](void *, void *body, MMI32 set, void *material) { static_cast<PBody>(body)->SetPartSetMtrl(set, static_cast<PMaterial_MTRL>(material)); };
+    s.body_material = [](void *, void *body, MMI32 set, void *material) { EngineBody::SetPartSetMtrl(static_cast<PBody>(body), set, static_cast<PMaterial_MTRL>(material)); };
     return s;
 }
 
@@ -292,7 +292,7 @@ void ThreeDText::GetInfo(PString pstn, LegacyLong *ptdts, PTAG ptagTdf)
 ***************************************************************************/
 bool ThreeDText::FAdjustBody(PBody pbody)
 {
-    AssertThis(0); AssertPo(pbody, 0);
+    AssertThis(0); Assert(pbody, "missing body");
     auto services = _GenerationServices();
     return mm_text_adjust_body(this, pbody, &services) != 0;
 }
@@ -303,7 +303,7 @@ bool ThreeDText::FAdjustBody(PBody pbody)
 ***************************************************************************/
 bool ThreeDText::FSetDefaultCost(PBody pbody)
 {
-    AssertThis(0); AssertPo(pbody, 0);
+    AssertThis(0); Assert(pbody, "missing body");
     auto services = _GenerationServices();
     return mm_text_default_costume(this, pbody, &services) != 0;
 }

@@ -64,8 +64,8 @@ static bool TestActorCreation(PMovie movie)
             ok=ok && !beforeBody && !beforeScene && actor->Pscen()==movie->Pscen();
             if (actor->Pbody())
             {
-                auto body=actor->Pbody(); const long bodyRefs=body->CactRef(); actor->SetPscen(movie->Pscen());
-                ok=ok && actor->Pbody()==body && body->CactRef()==bodyRefs;
+                auto body=actor->Pbody(); const long bodyRefs=mm_body_owner_references(body); actor->SetPscen(movie->Pscen());
+                ok=ok && actor->Pbody()==body && mm_body_owner_references(body)==bodyRefs;
             }
         }
         LegacyLong values[]={mode,actor!=nullptr,bodyFail,beforeBody,beforeScene,actor && actor->Pbody(),
