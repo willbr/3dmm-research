@@ -84,8 +84,8 @@ class Model : public Model_PAR
 
   public:
     static PModel PmodlNew(LegacyLong cbrv, BRV *prgbrv, LegacyLong cbrf, BRF *prgbrf);
-    static bool FReadModl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                          PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadModl(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                           void **object, MMI32 *bytes);
     static PModel PmodlReadFromDat(Filename *pfni);
     static PModel PmodlFromBmdl(PBMDL pbmdl);
     ~Model(void);

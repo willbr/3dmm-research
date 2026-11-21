@@ -77,8 +77,8 @@ class TextureMap : public TextureMap_PAR
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
     //	a chunky resource reader for a TextureMap
-    static bool FReadTmap(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                          PBaseCacheableObject *ppbaco, br_int_32 *pcb);
+    static int FReadTmap(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                           void **object, MMI32 *bytes);
 
     //	Given a BPMP (a Brender br_pixelmap), create a TextureMap
     static PTextureMap PtmapNewFromBpmp(BPMP *pbpmp);

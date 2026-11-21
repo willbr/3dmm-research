@@ -84,7 +84,7 @@ static bool TestActionDefinition()
         if (ok && (variant==1 || variant==2)) ok=table(kctgGlms,sounds);
         if (ok && variant==6) { byte invalid=0; ChunkNumber child; ok=file->FAddChildPv(kctgActn,number,0,&invalid,1,kctgGlms,&child); }
         if (other) { for (int i=0;i<n;++i) { SwapBytesRglw(cels->QvFixedGet(i),2); SwapBytesRgsw(cels->QvGet(i),parts*2); } SwapBytesRglw(matrices->QvGet(0),n*12); SwapBytesRglw(sounds->QvGet(0),8); }
-        DataBlock block; LegacyLong estimate=-77; ok=ok && file->FFind(kctgActn,number,&block) && ActionDefinition::FReadActn(cache,kctgActn,number,&block,nullptr,&estimate);
+        DataBlock block; MMI32 estimate=-77; ok=ok && file->FFind(kctgActn,number,&block) && ActionDefinition::FReadActn(cache->CoreCache(),kctgActn,number,block.CoreBlock(),nullptr,&estimate);
         if (variant==7) { file->Delete(kctgActn,number); }
         PActionDefinition action=stage==1?ActionDefinitionFixtureAccess::Create():nullptr; bool initialized=false;
         FixtureActionTables tables;
@@ -93,7 +93,7 @@ static bool TestActionDefinition()
         vmutxMem.Enter(); auto allocator=kind==0?&vdmglob.dmaglBase:kind==1?&vdmglob.dmaglHq:&vdmglob.dmaglPv;
         allocator->cactDo=failure-1; allocator->cactFail=failure?1:0; vmutxMem.Leave();
 #endif
-        if (stage==0) { PBaseCacheableObject out=nullptr; initialized=ActionDefinition::FReadActn(cache,kctgActn,number,&block,&out,&estimate); if (initialized) action=static_cast<PActionDefinition>(out); }
+        if (stage==0) { void *out=nullptr; initialized=ActionDefinition::FReadActn(cache->CoreCache(),kctgActn,number,block.CoreBlock(),&out,&estimate); if (initialized) action=static_cast<PActionDefinition>(out); }
         else if (stage==1) initialized=static_cast<ActionDefinitionFixtureAccess *>(action)->Initialize(cache,number);
         else if (ok) { action=tables.Create(0x8000000d); initialized=action!=nullptr; }
 #ifdef DEBUG

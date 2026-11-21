@@ -60,15 +60,11 @@ PModel Model::PmodlNew(LegacyLong nv, BRV *vertices, LegacyLong nf, BRF *faces)
     auto s = _Services();
     return static_cast<PModel>(mm_model_new(nv, vertices, nf, faces, &s));
 }
-bool Model::FReadModl(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, PDataBlock block,
-                      PBaseCacheableObject *out, LegacyLong *bytes)
+int Model::FReadModl(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
+    void **out, MMI32 *bytes)
 {
-    AssertPo(cache, 0);
-    AssertPo(block, 0);
-    AssertNilOrVarMem(out);
-    AssertVarMem(bytes);
-    auto s = _Services();
-    return mm_model_fetch(block->CoreBlock(), out, bytes, &s) != 0;
+    const auto s = _Services();
+    return mm_model_fetch(block, out, bytes, &s);
 }
 bool Model::_FInit(PDataBlock block)
 {

@@ -6688,6 +6688,14 @@ estimate and final read use the same block, including mutations made during
 the estimate. Recursive reads open separate blocks. Cache hits and scope
 rejections skip block construction.
 
+Model, texture, material, custom material, template, action, font and
+sound factories accept that C block directly. The cache uses one reader key
+for preload, fetch, find and priority changes. A loader carries the typed
+callback alongside the key through the tag resolver, resource manager and
+child lookups. Readers with the legacy callback signature construct a
+native `DataBlock` view. The typed reader can reuse the exposed cache for
+child lookup and can mutate its borrowed block during the call.
+
 The cache also exposes a borrowed C graph for a synchronous operation. It uses
 the retained index for an immutable archive and acquires a fresh graph from
 the live file for each request. Template lookup uses that graph to select child
@@ -6708,13 +6716,12 @@ boundaries in the C test. Native and standalone checks hold 24 resources charged
 at 192 MiB each without allocating those payloads.
 
 `crf.cpp` supplies native class allocation, destructors, state accessors,
-diagnostics and typed readers. It forwards public cache operations to C,
-including release through the BASE interface. The host compares reader
-identities as typed function pointers and calls each reader through a borrowed
-`DataBlock` view. The view updates the C owner in place. The chunk provider uses
-the same extent and packed-bit lookup as the native `FFind` path. GenericHQ and
-generic-object wrappers remain native adapters. Container adapters, source
-discovery and engine objects remain migration work.
+diagnostics and reader key ordering. It forwards public cache operations to C,
+including release through the BASE interface. The legacy reader adapter uses
+a borrowed `DataBlock` view that updates the C owner in place. The chunk
+provider uses the same extent and packed-bit lookup as the native `FFind`
+path. GenericHQ and generic-object wrappers remain native adapters.
+Container adapters, source discovery and engine objects remain migration work.
 
 `engine-resource-cache-test` covers recursive reads, relocating storage,
 speculative allocation fallback, initial/growth failure, cleanup/lifetimes,

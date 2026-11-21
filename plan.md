@@ -1585,10 +1585,12 @@ integration remain work.
 The SDL release `pixel-canvas` scrolling reference failure is resolved by using
 signed 64-bit reference-loop coordinates and checking guard samples explicitly;
 the renderer is unchanged. Evidence is in `docs/tools/playback-regression.md`.
-Temporary native resource/object/HQ and
-Body facades still need removal during final host integration; these slices do
-not complete the whole backend. Validation and coverage limits are recorded in
-`docs/tools/playback-regression.md`.
+Model, texture, material, custom material, template, action, font and sound
+readers now take the cache-owned C block directly. Tag resolution, manager
+lookup and nested resource fetches carry the same typed callback and reader
+key. Legacy readers still use the native block adapter. Temporary native
+resource/object/HQ and Body facades remain part of final host integration.
+Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining
 body, template, resource and object dependencies by the operation that still

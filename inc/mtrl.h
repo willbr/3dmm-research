@@ -81,8 +81,8 @@ class Material_MTRL : public Material_MTRL_PAR
     // Release after all materials, before shutting down BRender.
     static void ReleaseShadeTable(void);
     static PMaterial_MTRL PmtrlNew(LegacyLong iclrBase = ivNil, LegacyLong cclr = ivNil);
-    static bool FReadMtrl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                          PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadMtrl(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                           void **object, MMI32 *bytes);
     static PMaterial_MTRL PmtrlNewFromPix(PFilename pfni);
     static PMaterial_MTRL PmtrlNewFromBmp(PFilename pfni, PDynamicArray pglclr = pvNil);
     static PMaterial_MTRL PmtrlFromBmtl(PBMTL pbmtl);
@@ -125,8 +125,8 @@ class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
 
   public:
     static PCustomMaterial_CMTL PcmtlNew(LegacyLong ibset, LegacyLong cbprt, PMaterial_MTRL *prgpmtrl);
-    static bool FReadCmtl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                          PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadCmtl(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                           void **object, MMI32 *bytes);
     static bool FHasModels(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     static bool FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2);
     ~CustomMaterial_CMTL(void);

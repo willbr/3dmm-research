@@ -117,7 +117,8 @@ class ActionDefinition : public ActionDefinition_PAR
     static MMActionTable *NewTable();
     // Transfers both tables on success.
     static PActionDefinition PactnNew(MMActionTable *cels, MMActionTable *matrices, LegacyUlong grfactn);
-    static bool FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadActn(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                           void **object, MMI32 *bytes);
     ~ActionDefinition(void);
 
     LegacyUlong Grfactn(void)
@@ -173,7 +174,8 @@ class Template : public Template_PAR
     bool _FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
 
   public:
-    static bool FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadTmpl(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                           void **object, MMI32 *bytes);
     ~Template(void);
 
     // Template / Body stuff

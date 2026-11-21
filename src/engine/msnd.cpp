@@ -101,15 +101,11 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices()
     A PFNRPO to read a MovieSoundMSND from a file
 
 ***************************************************************************/
-bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                               PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int MovieSoundMSND::FReadMsnd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *,
+    void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
     const auto services = _ResourceServices();
-    return mm_sound_fetch(pcrf->CoreCache(), ctg, cno, ppbaco, pcb, &services) != 0;
+    return mm_sound_fetch(cache, type, number, out, bytes, &services);
 }
 
 /***************************************************************************

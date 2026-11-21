@@ -478,9 +478,9 @@ static void setup(Test *t)
     t->s.invalidate = invalidate;
     t->s.diagnostic = diagnostic;
     t->s.decode = decode;
-    t->s.texture_reader = texture_reader;
-    t->s.material_reader = material_reader;
-    t->s.model_reader = model_reader;
+    t->s.texture_reader.key = texture_reader;
+    t->s.material_reader.key = material_reader;
+    t->s.model_reader.key = model_reader;
     t->s.allocate = allocate;
     t->s.free_memory = free_memory;
     t->s.allocate_material = allocate_material;
@@ -540,7 +540,7 @@ static void setup(Test *t)
     resources.handles = &t->storage;
     resources.block_files = &files;
     resources.locate = locate;
-    resources.read = read_resource;
+    resources.read_legacy = read_resource;
     resources.retain_file = retain_file;
     resources.release_file = release_file;
     resources.destroy_owner = destroy_cache;

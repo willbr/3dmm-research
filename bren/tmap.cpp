@@ -87,15 +87,11 @@ MMTextureServices TextureMap::_Services()
     };
     return s;
 }
-bool TextureMap::FReadTmap(PChunkyResourceFile cache, ChunkTagOrType, ChunkNumber, PDataBlock block,
-                           PBaseCacheableObject *out, br_int_32 *bytes)
+int TextureMap::FReadTmap(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
+    void **out, MMI32 *bytes)
 {
-    AssertPo(cache, 0);
-    AssertPo(block, 0);
-    AssertNilOrVarMem(out);
-    AssertVarMem(bytes);
-    auto s = _Services();
-    return mm_texture_fetch(block->CoreBlock(), out, bytes, &s) != 0;
+    const auto s = _Services();
+    return mm_texture_fetch(block, out, bytes, &s);
 }
 PTextureMap TextureMap::PtmapRead(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {

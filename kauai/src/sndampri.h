@@ -122,7 +122,8 @@ class CachedAudioManSound : public CachedAudioManSound_PAR
 
     IAMSound *psnd; // the sound to use
 
-    static bool FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, long *pcb);
+    static int FReadCams(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                           void **object, MMI32 *bytes);
     bool FInMemory(void)
     {
         return _pstbl->FInMemory();

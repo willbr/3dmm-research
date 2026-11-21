@@ -24,8 +24,7 @@ class SDLWave : public SDLWave_PAR
     RTCLASS_INLINE(SDLWave)
   public:
     std::shared_ptr<const KauaiAudio::Sample> sample;
-    static bool Read(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, PDataBlock block, PBaseCacheableObject *result,
-                     LegacyLong *bytes)
+    static int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **result, MMI32 *bytes)
     {
         MMSoundPayloadServices s = {};
         s.object_bytes = sizeof(SDLWave);
@@ -50,7 +49,7 @@ class SDLWave : public SDLWave_PAR
             return 1;
         };
         s.decoded = [](void *) { ++decodedSounds; };
-        return mm_wave_payload_fetch(block->CoreBlock(), result, bytes, &s) != 0;
+        return mm_wave_payload_fetch(block, result, bytes, &s);
     }
 };
 #define SDLWaveQueue_PAR SoundQueue

@@ -40,7 +40,8 @@ class ThreeDFont : public ThreeDFont_PAR
     bool _FInit(PDataBlock pblck);
 
   public:
-    static bool FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadTdf(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                           void **object, MMI32 *bytes);
     ~ThreeDFont(void);
 
     // This authoring-only API creates a new ThreeDFont based on a set of models

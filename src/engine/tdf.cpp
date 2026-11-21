@@ -69,7 +69,7 @@ MMFontResourceServices ThreeDFont::_Services()
         *out = number;
         return ok;
     };
-    s.model_reader = reinterpret_cast<MMResourceReader>(Model::FReadModl);
+    s.model_reader = ResourceReader(Model::FReadModl).Core();
     s.adopt = [](void *, void *file, MMU32 type, MMU32 number, const MMFontChild *child) -> int {
         return static_cast<PChunkyFile>(file)->FAdoptChild(type, number, child->type, child->number, child->id);
     };
@@ -81,12 +81,11 @@ MMFontResourceServices ThreeDFont::_Services()
     return s;
 }
 
-bool ThreeDFont::FReadTdf(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int ThreeDFont::FReadTdf(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
+    void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
-    (void)ctg; (void)cno;
     const auto s = _Services();
-    return mm_font_fetch(pblck->CoreBlock(), ppbaco, pcb, &s) != 0;
+    return mm_font_fetch(block, out, bytes, &s);
 }
 
 /***************************************************************************

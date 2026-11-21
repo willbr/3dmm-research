@@ -162,15 +162,11 @@ void MidiStream::MarkMem(void)
 /***************************************************************************
     A baco reader for a midi stream.
 ***************************************************************************/
-bool MidiStream::FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                           PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int MidiStream::FReadMids(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
+    void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, fblckReadable);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
     const auto services = _PayloadServices();
-    return mm_midi_payload_fetch(pblck->CoreBlock(), ppbaco, pcb, &services) != 0;
+    return mm_midi_payload_fetch(block, out, bytes, &services);
 }
 
 MMSoundPayloadServices MidiStream::_PayloadServices()

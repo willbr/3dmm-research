@@ -284,8 +284,8 @@ int main()
                         CHECK(cache);
                         DataBlock block;
                         CHECK(file->FFind('MODL', number, &block));
-                        LegacyLong estimate = -1;
-                        CHECK(Model::FReadModl(cache, 'MODL', number, &block, nullptr, &estimate));
+                        MMI32 estimate = -1;
+                        CHECK(Model::FReadModl(cache->CoreCache(), 'MODL', number, block.CoreBlock(), nullptr, &estimate));
                         Value(estimate);
                         PModel model = factory ? nullptr : ModelResourceAccess::Create();
                         CHECK(factory || model);
@@ -293,8 +293,8 @@ int main()
                         Inject(kind, failure);
                         if (factory)
                         {
-                            PBaseCacheableObject output = nullptr;
-                            ok = Model::FReadModl(cache, 'MODL', number, &block, &output, &estimate);
+                            void *output = nullptr;
+                            ok = Model::FReadModl(cache->CoreCache(), 'MODL', number, block.CoreBlock(), &output, &estimate);
                             model = ok ? static_cast<PModel>(output) : nullptr;
                         }
                         else

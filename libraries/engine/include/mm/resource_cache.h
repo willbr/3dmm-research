@@ -11,11 +11,18 @@
 extern "C"
 {
 #endif
-    /* Function-pointer keys are cast back by the host before comparison/calling.
-     * No function/data pointer conversions or ordered function comparisons enter C. */
+    /* Reader keys identify entries. The host supplies key ordering and can
+     * dispatch legacy keys. Block readers use their typed entry point. */
     typedef void (*MMResourceReader)(void);
     enum { MM_RESOURCE_NORMAL_PRIORITY = 2 };
     typedef struct MMResourceCache MMResourceCache;
+    typedef int (*MMResourceBlockReader)(MMResourceCache *, MMU32 type, MMU32 number,
+                                         MMOwnedBlock *, void **object, MMI32 *bytes);
+    typedef struct MMResourceLoader
+    {
+        MMResourceReader key;
+        MMResourceBlockReader read;
+    } MMResourceLoader;
     typedef struct MMResourceObject
     {
         MMResourceCache *cache;
@@ -56,7 +63,7 @@ extern "C"
     typedef struct MMResourceRequest
     {
         MMU32 type, number, scope;
-        MMResourceReader reader;
+        MMResourceLoader loader;
         MMI32 priority;
     } MMResourceRequest;
     typedef struct MMResourceServices
@@ -71,7 +78,7 @@ extern "C"
         /* Report an existing chunk's borrowed physical extent and packed bit.
          * The cache owns the temporary block from lookup through publication. */
         int (*locate)(void *file, MMU32 type, MMU32 number, MMBlockFile *, int *packed);
-        int (*read)(void *, MMResourceReader, MMU32 type, MMU32 number, MMOwnedBlock *,
+        int (*read_legacy)(void *, MMResourceReader, MMU32 type, MMU32 number, MMOwnedBlock *,
                     void **object, MMI32 *bytes);
         void (*retain_file)(void *file);
         void (*release_file)(void *file);
@@ -129,7 +136,7 @@ extern "C"
     int mm_resource_cache_load(MMResourceCache *, const MMResourceRequest *);
     void *mm_resource_cache_fetch(MMResourceCache *, const MMResourceRequest *, int *error);
     /* Fetch an unscoped chunk with normal priority and return its owned reference. */
-    void *mm_resource_cache_fetch_chunk(MMResourceCache *, MMU32 type, MMU32 number, MMResourceReader);
+    void *mm_resource_cache_fetch_chunk(MMResourceCache *, MMU32 type, MMU32 number, MMResourceLoader);
     int mm_resource_cache_contains(MMResourceCache *, MMU32 type, MMU32 number, MMU32 scope);
     void *mm_resource_cache_find(MMResourceCache *, MMU32 type, MMU32 number,
                                        MMResourceReader, MMU32 scope);

@@ -88,8 +88,8 @@ static bool TestTemplateConstruction()
     {
         auto file=ChunkyFile::PcflCreateTemp(); auto cache=file?ChunkyResourceFile::PcrfNew(file,4*1024*1024):nullptr; ChunkNumber number=0;
         ok=cache && TemplateCreateFixtureAccess::Author(file,&number,shape?6:0,variant);
-        DataBlock block; LegacyLong estimate=-1;
-        ok=ok && file->FFind(kctgTmpl,number,&block) && Template::FReadTmpl(cache,kctgTmpl,number,&block,nullptr,&estimate);
+        DataBlock block; MMI32 estimate=-1;
+        ok=ok && file->FFind(kctgTmpl,number,&block) && Template::FReadTmpl(cache->CoreCache(),kctgTmpl,number,block.CoreBlock(),nullptr,&estimate);
         auto inject=[&](bool enabled) {
 #ifdef DEBUG
             vmutxMem.Enter(); auto allocator=kind==0?&vdmglob.dmaglBase:kind==1?&vdmglob.dmaglHq:&vdmglob.dmaglPv;

@@ -62,7 +62,7 @@ extern "C"
         void (*invalidate)(void *, void *, size_t);
         void (*diagnostic)(void *, int);
         MMBlockTransform decode;
-        MMResourceReader texture_reader, material_reader, model_reader;
+        MMResourceLoader texture_reader, material_reader, model_reader;
         int (*allocate)(void *, MMI32 bytes, void **);
         void (*free_memory)(void *, void **);
         void *(*allocate_material)(void *);

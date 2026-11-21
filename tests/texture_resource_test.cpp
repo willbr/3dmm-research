@@ -130,18 +130,19 @@ static void Loads()
                     CHECK(cache);
                     DataBlock block;
                     CHECK(f->FFind(kctgTmap, n, &block));
-                    LegacyLong estimate = -1;
-                    CHECK(TextureMap::FReadTmap(cache, kctgTmap, n, &block, nullptr, &estimate));
+                    MMI32 estimate = -1;
+                    CHECK(TextureMap::FReadTmap(cache->CoreCache(), kctgTmap, n, block.CoreBlock(), nullptr, &estimate));
                     Value(estimate);
                     PTextureMap t = nullptr;
                     Inject(kind, failure);
-                    bool ok = factory ? TextureMap::FReadTmap(cache, kctgTmap, n, &block, (PBaseCacheableObject *)&t,
+                    void *output = nullptr;
+                    bool ok = factory ? TextureMap::FReadTmap(cache->CoreCache(), kctgTmap, n, block.CoreBlock(), &output,
                                                               &estimate)
                                       : (t = TextureMap::PtmapRead(f, kctgTmap, n)) != nullptr;
                     Inject(kind, 0);
                     Value(ok);
-                    if (factory && !ok)
-                        t = nullptr;
+                    if (factory)
+                        t = ok ? static_cast<PTextureMap>(output) : nullptr;
                     if (factory && ok)
                         Value(estimate);
                     State(t);

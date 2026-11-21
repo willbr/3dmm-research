@@ -72,9 +72,9 @@ MMMaterialServices Material_MTRL::_Services(void *context)
         }
     };
     s.decode = KauaiDecodeBlockHandle;
-    s.texture_reader = reinterpret_cast<MMResourceReader>(TextureMap::FReadTmap);
-    s.material_reader = reinterpret_cast<MMResourceReader>(Material_MTRL::FReadMtrl);
-    s.model_reader = reinterpret_cast<MMResourceReader>(Model::FReadModl);
+    s.texture_reader = ResourceReader(TextureMap::FReadTmap).Core();
+    s.material_reader = ResourceReader(Material_MTRL::FReadMtrl).Core();
+    s.model_reader = ResourceReader(Model::FReadModl).Core();
     s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemClear, mprNormal); };
     s.free_memory = [](void *, void **p) { FreePpv(p); };
     s.texture_pixelmap = [](void *, void *object) -> void * {
@@ -143,17 +143,13 @@ PMaterial_MTRL Material_MTRL::PmtrlNew(LegacyLong base, LegacyLong range)
     AssertNilOrPo(object, 0);
     return object;
 }
-bool Material_MTRL::FReadMtrl(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, PDataBlock block,
-                              PBaseCacheableObject *out, LegacyLong *bytes)
+int Material_MTRL::FReadMtrl(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+    void **out, MMI32 *bytes)
 {
-    AssertPo(cache, 0);
-    AssertPo(block, 0);
-    AssertVarMem(bytes);
-    AssertNilOrVarMem(out);
     const auto s = _Services();
-    bool ok = mm_material_fetch(cache->CoreCache(), type, number, block->CoreBlock(), out, bytes, &_shade, &s) != 0;
+    const int ok = mm_material_fetch(cache, type, number, block, out, bytes, &_shade, &s);
     if (ok && out)
-        AssertPo(*out, 0);
+        AssertPo(static_cast<PBaseCacheableObject>(*out), 0);
     return ok;
 }
 bool Material_MTRL::_FInit(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
@@ -251,17 +247,13 @@ PCustomMaterial_CMTL CustomMaterial_CMTL::PcmtlNew(LegacyLong set, LegacyLong co
     AssertNilOrPo(object, 0);
     return object;
 }
-bool CustomMaterial_CMTL::FReadCmtl(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number,
-                                    PDataBlock block, PBaseCacheableObject *out, LegacyLong *bytes)
+int CustomMaterial_CMTL::FReadCmtl(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+    void **out, MMI32 *bytes)
 {
-    AssertPo(cache, 0);
-    AssertPo(block, 0);
-    AssertVarMem(bytes);
-    AssertNilOrVarMem(out);
     const auto s = Material_MTRL::_Services();
-    bool ok = mm_custom_material_fetch(cache->CoreCache(), type, number, block->CoreBlock(), out, bytes, &s) != 0;
+    const int ok = mm_custom_material_fetch(cache, type, number, block, out, bytes, &s);
     if (ok && out)
-        AssertPo(*out, 0);
+        AssertPo(static_cast<PBaseCacheableObject>(*out), 0);
     return ok;
 }
 bool CustomMaterial_CMTL::_FInit(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)

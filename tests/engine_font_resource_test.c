@@ -208,7 +208,7 @@ static MMFontResourceServices setup(Test *x,int host,int other)
     resources.handles = x->block.owner.handles;
     resources.block_files = &x->block.files;
     resources.locate = locate;
-    resources.read = read_model;
+    resources.read_legacy = read_model;
     resources.retain_file = retain_file;
     resources.release_file = release_file;
     resources.destroy_owner = destroy_cache;
@@ -221,7 +221,7 @@ static MMFontResourceServices setup(Test *x,int host,int other)
     s.context=x; s.host_big_endian=host; s.system=17; s.leading=32768; s.object_bytes=80;
     s.state=state; s.create=create; s.release=release; s.decode=decode;
     s.allocate=allocate; s.free_memory=free_memory; s.invalidate=invalidate; s.bad_font=bad_font; s.bad_order=bad_order;
-    s.child_count=child_count; s.child_at=child_at; s.add=add; s.model_reader=model_reader; s.adopt=adopt;
+    s.child_count=child_count; s.child_at=child_at; s.add=add; s.model_reader.key=model_reader; s.adopt=adopt;
     s.model_width=model_width; s.model_height=model_height; s.missing_model=missing_model;
     x->services=s; return s;
 }

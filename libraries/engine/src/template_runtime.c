@@ -2,7 +2,7 @@
 #include "mm/template_runtime.h"
 #include "mm/movie_session.h"
 #include <string.h>
-void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int kind, MMResourceReader reader,
+void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int kind, MMResourceLoader reader,
                              MMMovieAsset *asset)
 {
     MMChunkAccess graph;
@@ -10,7 +10,7 @@ void *mm_template_fetch_child(const MMResourceObject *resource, MMU32 id, int ki
     MMMovieAsset resolved;
     MMU32 parent;
     void *object;
-    if (!resource || !resource->cache || !reader || kind < 0 || kind >= MM_TEMPLATE_RESOURCE_COUNT)
+    if (!resource || !resource->cache || !reader.key || kind < 0 || kind >= MM_TEMPLATE_RESOURCE_COUNT)
         return NULL;
     graph = mm_resource_cache_chunks(resource->cache);
     if (mm_chunk_find(&graph, resource->type, resource->number, &parent) != MM_CHUNK_OK)

@@ -145,11 +145,11 @@ PActionDefinition ActionDefinition::PactnNew(MMActionTable *cels, MMActionTable 
 /***************************************************************************
     A PFNRPO (chunky resource reader function) to read an ActionDefinition from a file
 ***************************************************************************/
-bool ActionDefinition::FReadActn(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int ActionDefinition::FReadActn(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+    void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
     const auto s = _Services();
-    return mm_action_fetch(pcrf->CoreCache(), ctg, cno, pblck->CoreBlock(), ppbaco, pcb, &s) != 0;
+    return mm_action_fetch(cache, type, number, block, out, bytes, &s);
 }
 
 bool ActionDefinition::_FInit(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
@@ -298,17 +298,11 @@ MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
     return s;
 }
 
-bool Template::FReadTmpl(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int Template::FReadTmpl(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+    void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0); AssertPo(pblck, 0); AssertNilOrVarMem(ppbaco); AssertVarMem(pcb);
-    auto s = _CreateServices(pcrf);
-    void *object; MMI32 bytes;
-    if (ppbaco) CopyPb(ppbaco, &object, sizeof(object));
-    const bool ok = mm_template_fetch(pcrf->CoreCache(), ctg, cno, pblck->CoreBlock(), ppbaco ? &object : nullptr,
-                                      &bytes, &s) != 0;
-    if (ppbaco) CopyPb(&object, ppbaco, sizeof(object));
-    CopyPb(&bytes, pcb, sizeof(bytes));
-    return ok;
+    const auto s = _CreateServices(static_cast<PChunkyResourceFile>(cache->owner));
+    return mm_template_fetch(cache, type, number, block, out, bytes, &s);
 }
 
 /***************************************************************************
@@ -378,8 +372,8 @@ MMTemplateRuntimeServices Template::_RuntimeServices()
     MMTemplateRuntimeServices s = {}; s.storage = _CreateServices();
     static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
     s.resource = ResourceBinding();
-    s.action_reader = reinterpret_cast<MMResourceReader>(ActionDefinition::FReadActn);
-    s.model_reader = reinterpret_cast<MMResourceReader>(Model::FReadModl);
+    s.action_reader = ResourceReader(ActionDefinition::FReadActn).Core();
+    s.model_reader = ResourceReader(Model::FReadModl).Core();
     s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
         return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, static_cast<PString>(out));
     };
@@ -448,7 +442,7 @@ PActionDefinition Template::_PactnFetch(LegacyLong anid)
 {
     AssertThis(0); AssertIn(anid, 0, _template.action_count);
     return static_cast<PActionDefinition>(mm_template_fetch_child(
-        ResourceBinding(), anid, MM_TEMPLATE_ACTION, reinterpret_cast<MMResourceReader>(ActionDefinition::FReadActn),
+        ResourceBinding(), anid, MM_TEMPLATE_ACTION, ResourceReader(ActionDefinition::FReadActn).Core(),
         nullptr));
 }
 
@@ -459,7 +453,7 @@ PModel Template::_PmodlFetch(ChildChunkID chidModl)
 {
     AssertThis(0);
     return static_cast<PModel>(mm_template_fetch_child(
-        ResourceBinding(), chidModl, MM_TEMPLATE_MODEL, reinterpret_cast<MMResourceReader>(Model::FReadModl), nullptr));
+        ResourceBinding(), chidModl, MM_TEMPLATE_MODEL, ResourceReader(Model::FReadModl).Core(), nullptr));
 }
 
 /***************************************************************************
@@ -608,7 +602,7 @@ PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
         return pvNil;
     return static_cast<PCustomMaterial_CMTL>(mm_template_fetch_child(
         ResourceBinding(), static_cast<MMU32>(cmid), MM_TEMPLATE_CUSTOM,
-        reinterpret_cast<MMResourceReader>(CustomMaterial_CMTL::FReadCmtl), nullptr));
+        ResourceReader(CustomMaterial_CMTL::FReadCmtl).Core(), nullptr));
 }
 
 /***************************************************************************

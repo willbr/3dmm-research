@@ -167,14 +167,14 @@ void *mm_resource_manager_find(MMResourceManager *m, const MMResourceRequest *q)
     MMResourceCache *p = mm_resource_manager_find_file(m, q->type, q->number, q->scope);
     if (!p)
         return NULL;
-    return mm_resource_cache_find(p, q->type, q->number, q->reader, 0);
+    return mm_resource_cache_find(p, q->type, q->number, q->loader.key, 0);
 }
 int mm_resource_manager_priority(MMResourceManager *m, const MMResourceRequest *q)
 {
     MMU32 i, count = m->count;
     for (i = 0; i < count; ++i)
         if (mm_resource_cache_priority(mm_resource_manager_at(m, i), q->priority, q->type,
-                                       q->number, q->reader, q->scope))
+                                       q->number, q->loader.key, q->scope))
             return 1;
     return 0;
 }

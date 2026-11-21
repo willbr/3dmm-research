@@ -83,8 +83,8 @@ class MidiStream : public MidiStream_PAR
     MidiStream(void);
 
   public:
-    static bool FReadMids(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                          PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadMids(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                           void **object, MMI32 *bytes);
     static PMidiStream PmidsRead(PDataBlock pblck);
     static PMidiStream PmidsReadNative(Filename *pfni);
     ~MidiStream(void);

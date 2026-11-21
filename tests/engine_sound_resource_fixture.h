@@ -177,12 +177,12 @@ static bool TestSoundResources()
             std::memcpy(packed,"KCDC\0\0\0\20",8); ok=file->FPutPv(packed,count+8,kctgMsnd,number) && ok; file->SetPacked(kctgMsnd,number,true); }
         DataBlock block; ok=file->FFind(kctgMsnd,number,&block) && ok;
         if (variant==4) file->Delete(kctgMsnd,number);
-        LegacyLong estimate=-77,style=-77,volume=-88; bool invalid=true,success=false;
+        MMI32 estimate=-77; LegacyLong style=-77,volume=-88; bool invalid=true,success=false;
         PMovieSoundMSND sound=stage==0?SoundResourceFixtureAccess::Create():nullptr;
-        if (stage==1) ok=MovieSoundMSND::FReadMsnd(cache,kctgMsnd,number,&block,nullptr,&estimate) && ok;
+        if (stage==1) ok=MovieSoundMSND::FReadMsnd(cache->CoreCache(),kctgMsnd,number,block.CoreBlock(),nullptr,&estimate) && ok;
         inject(kind,failure,true);
         if (!stage) success=static_cast<SoundResourceFixtureAccess *>(sound)->Initialize(file,number);
-        else if (stage==1) { PBaseCacheableObject out=nullptr; success=MovieSoundMSND::FReadMsnd(cache,kctgMsnd,number,&block,&out,&estimate); if (success) sound=static_cast<PMovieSoundMSND>(out); }
+        else if (stage==1) { void *out=nullptr; success=MovieSoundMSND::FReadMsnd(cache->CoreCache(),kctgMsnd,number,block.CoreBlock(),&out,&estimate); if (success) sound=static_cast<PMovieSoundMSND>(out); }
         else success=MovieSoundMSND::FGetMsndInfo(file,kctgMsnd,number,failure&1?&invalid:nullptr,failure&2?&style:nullptr,failure&4?&volume:nullptr);
         inject(kind,failure,false); ++attempts; loaded+=success;
         LegacyLong fields[]={variant,stage,kind,failure,success,estimate,invalid,style,volume,sound!=nullptr,cache->CactRef()};

@@ -131,11 +131,11 @@ static bool TestTextResources()
         if (variant==4) { String empty; ok=target->FSetName(kctgTmpl,number,&empty) && ok; }
         if (variant==5) ok=target->FPackData(kctgTdt,child.cki.cno) && ok;
         PThreeDText t=stage==0?TextResourceFixtureAccess::Create():nullptr; PDynamicArray tags=nullptr;
-        LegacyLong estimate=-77; bool error=true,success=false;
-        if (stage==1) ok=target->FFind(kctgTmpl,number,&block) && Template::FReadTmpl(crf,kctgTmpl,number,&block,nullptr,&estimate) && ok;
+        MMI32 estimate=-77; bool error=true,success=false;
+        if (stage==1) ok=target->FFind(kctgTmpl,number,&block) && Template::FReadTmpl(crf->CoreCache(),kctgTmpl,number,block.CoreBlock(),nullptr,&estimate) && ok;
         inject(kind,failure,true);
         if (!stage) success=static_cast<TextResourceFixtureAccess *>(t)->Initialize(crf,number);
-        else if (stage==1) { PBaseCacheableObject out=nullptr; success=Template::FReadTmpl(crf,kctgTmpl,number,&block,&out,&estimate); if (success) t=static_cast<PThreeDText>(out); }
+        else if (stage==1) { void *out=nullptr; success=Template::FReadTmpl(crf->CoreCache(),kctgTmpl,number,block.CoreBlock(),&out,&estimate); if (success) t=static_cast<PThreeDText>(out); }
         else { tags=ThreeDText::PgltagFetch(target,kctgTmpl,number,&error); success=!error; }
         inject(kind,failure,false); ++attempts; successful+=success;
         LegacyLong fields[]={variant,stage,kind,failure,success,error,estimate,t!=nullptr,tags?tags->IvMac():-1};

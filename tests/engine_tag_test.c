@@ -103,10 +103,10 @@ static int child(void *p, const MMTag *tag, MMU32 slot, MMU32 type, MMU32 *numbe
     *number = 10;
     return 1;
 }
-static void *fetch(void *p, int manager, const MMTag *tag, MMResourceReader reader)
+static void *fetch(void *p, int manager, const MMTag *tag, MMResourceLoader reader)
 {
     Host *h = ((Cache *)p)->host;
-    (void)reader;
+    CHECK(reader.key && !reader.read);
     CHECK(manager == (tag->sid != 0));
     event(h, 'T');
     return h->found ? h : NULL;
@@ -155,6 +155,7 @@ static void lifecycle(void)
     Host h;
     MMTagServices s = init(&h);
     MMTag tag, out, old;
+    const MMResourceLoader loader = {reader, NULL};
     Cache *a = h.caches, *b = h.caches + 1;
     memset(&tag, 0, sizeof(tag));
     tag.type = 7;
@@ -218,15 +219,15 @@ static void lifecycle(void)
     old = out;
     CHECK(!mm_tag_child(&tag, 9, 8, &out, &s) && out.number == old.number && !strcmp(h.log, "SK"));
     reset(&h);
-    CHECK(!mm_tag_fetch(&tag, reader, 0, &s) && h.local && h.missing == 1 && !strcmp(h.log, "STM"));
+    CHECK(!mm_tag_fetch(&tag, loader, 0, &s) && h.local && h.missing == 1 && !strcmp(h.log, "STM"));
     reset(&h);
     h.fail = 1;
-    CHECK(!mm_tag_fetch(&tag, reader, 1, &s) && !h.local && !strcmp(h.log, "SM"));
+    CHECK(!mm_tag_fetch(&tag, loader, 1, &s) && !h.local && !strcmp(h.log, "SM"));
     reset(&h);
     h.fail = 0;
     h.found = 1;
     tag.sid = 0;
-    CHECK(mm_tag_fetch(&tag, reader, 0, &s) == &h && !strcmp(h.log, "T"));
+    CHECK(mm_tag_fetch(&tag, loader, 0, &s) == &h && !strcmp(h.log, "T"));
     out = tag;
     out.cache = b;
     CHECK(mm_tag_compare(&tag, &out, &s) < 0);

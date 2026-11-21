@@ -31,7 +31,7 @@ typedef struct MMFontResourceServices
     MMI32 (*child_count)(void *,void *children);
     void (*child_at)(void *,void *children,MMI32,MMFontChild *);
     int (*add)(void *,void *file,MMI32 bytes,MMU32 type,MMU32 *number,MMOwnedBlock *);
-    MMResourceReader model_reader;
+    MMResourceLoader model_reader;
     int (*adopt)(void *,void *file,MMU32 type,MMU32 number,const MMFontChild *);
     MMI32 (*model_width)(void *,void *model);
     MMI32 (*model_height)(void *,void *model);

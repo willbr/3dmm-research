@@ -237,7 +237,8 @@ static Object *fetch(Host *h, MMU32 number, MMResourceReader reader, int *error)
     MMResourceRequest q;
     q.type = 1;
     q.number = number;
-    q.reader = reader;
+    q.loader.key = reader;
+    q.loader.read = NULL;
     q.scope = 0;
     q.priority = 2;
     return (Object *)mm_resource_cache_fetch(&h->cache, &q, error);
@@ -287,6 +288,13 @@ static int read_object(void *p, MMResourceReader reader, MMU32 type, MMU32 numbe
     *bytes = h->bytes;
     return 1;
 }
+static int read_block_object(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                             void **out, MMI32 *bytes)
+{
+    Host *h = (Host *)cache->owner;
+    CHECK(cache == &h->cache);
+    return read_object(h, reader_a, type, number, block, out, bytes);
+}
 static void retain_file(void *p)
 {
     ++((Host *)p)->file_refs;
@@ -333,7 +341,7 @@ static void init_source(Host *h, MMI32 budget, const MMResourceSource *source)
     h->handles.resize = resize_handle;
     s.handles = &h->handles;
     s.block_files = &block_files;
-    s.read = read_object;
+    s.read_legacy = read_object;
     if (source->live)
     {
         s.contains = contains;
@@ -363,17 +371,42 @@ static int load(Host *h, MMU32 number, MMI32 p)
     MMResourceRequest q;
     q.type = 1;
     q.number = number;
-    q.reader = reader_a;
+    q.loader.key = reader_a;
+    q.loader.read = NULL;
     q.scope = 0;
     q.priority = p;
     return mm_resource_cache_load(&h->cache, &q);
+}
+static void block_reader_cases(void)
+{
+    Host h;
+    MMResourceRequest request = {1, 2, 0, {reader_a, read_block_object}, 2};
+    Object *direct, *legacy;
+    int error;
+    init(&h, 300);
+    h.change_estimate_block = 1;
+    h.cache.services.read_legacy = NULL;
+    CHECK(mm_resource_cache_load(&h.cache, &request) == 1);
+    CHECK(h.estimates == 1 && h.reads == 1 && h.block_scans == 1);
+    CHECK(!h.active_blocks && !h.active_handles);
+    direct = (Object *)mm_resource_cache_fetch_chunk(&h.cache, 1, 2, request.loader);
+    CHECK(direct && h.reads == 1 && h.block_scans == 1);
+    CHECK(mm_resource_cache_priority(&h.cache, 3, 1, 2, request.loader.key, 0));
+    CHECK(direct->state.priority == 3);
+    h.change_estimate_block = 0;
+    h.cache.services.read_legacy = read_object;
+    legacy = fetch(&h, 2, reader_b, &error);
+    CHECK(!error && legacy && direct != legacy && h.cache.count == 2);
+    release(legacy);
+    release(direct);
+    finish(&h);
 }
 static void cache_cases(void)
 {
     Host h;
     Object *a, *b, *held[24];
     MMResourceEntry e;
-    MMResourceRequest scoped = {1, 99, 8, reader_a, 2};
+    MMResourceRequest scoped = {1, 99, 8, {reader_a, NULL}, 2};
     int error, i, full;
     init(&h, 300);
     CHECK(load(&h, 1, 1) == 1 && load(&h, 2, 2) == 1 && load(&h, 3, 3) == 1);
@@ -611,7 +644,7 @@ static void manager_cases(void)
     ManagerHost h;
     MMResourceManagerServices s;
     MMStorageAllocator a;
-    MMResourceRequest q = {1, 2, 7, reader_a, 2};
+    MMResourceRequest q = {1, 2, 7, {reader_a, NULL}, 2};
     Host *first = &h.files[0], *second = &h.files[1], *third = &h.files[2];
     Object *object;
     MMU32 slot = 99;
@@ -722,6 +755,7 @@ int main(void)
     objects.destroy = destroyed;
     objects.issue = object_issue;
     wide_cases();
+    block_reader_cases();
     cache_cases();
     last_detached_reference();
     wire_index_lifetime();

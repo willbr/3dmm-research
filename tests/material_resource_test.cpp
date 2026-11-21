@@ -230,17 +230,18 @@ static void MaterialLoads()
                     CHECK(file->FFind(kctgMtrl, n, &block));
                     PMaterial_MTRL m = factory ? nullptr : MaterialAccess::Create();
                     CHECK(factory || m);
-                    LegacyLong estimate = -1;
-                    CHECK(Material_MTRL::FReadMtrl(cache, kctgMtrl, n, &block, nullptr, &estimate));
+                    MMI32 estimate = -1;
+                    CHECK(Material_MTRL::FReadMtrl(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), nullptr, &estimate));
                     Value(estimate);
                     Inject(kind, failure);
-                    bool ok = factory ? Material_MTRL::FReadMtrl(cache, kctgMtrl, n, &block, (PBaseCacheableObject *)&m,
+                    void *output = nullptr;
+                    bool ok = factory ? Material_MTRL::FReadMtrl(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), &output,
                                                                  &estimate)
                                       : static_cast<MaterialAccess *>(m)->Initialize(cache, n);
                     Inject(kind, 0);
                     Value(ok);
-                    if (factory && !ok)
-                        m = nullptr;
+                    if (factory)
+                        m = ok ? static_cast<PMaterial_MTRL>(output) : nullptr;
                     if (factory && ok)
                         Value(estimate);
                     State(m, ok);
@@ -310,17 +311,18 @@ static void CustomLoads()
                     CHECK(file->FFind(kctgCmtl, n, &block));
                     PCustomMaterial_CMTL c = factory ? nullptr : CustomAccess::Create();
                     CHECK(factory || c);
-                    LegacyLong estimate = -1;
-                    CHECK(CustomMaterial_CMTL::FReadCmtl(cache, kctgCmtl, n, &block, nullptr, &estimate));
+                    MMI32 estimate = -1;
+                    CHECK(CustomMaterial_CMTL::FReadCmtl(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(), nullptr, &estimate));
                     Value(estimate);
                     Inject(kind, failure);
-                    bool ok = factory ? CustomMaterial_CMTL::FReadCmtl(cache, kctgCmtl, n, &block,
-                                                                       (PBaseCacheableObject *)&c, &estimate)
+                    void *output = nullptr;
+                    bool ok = factory ? CustomMaterial_CMTL::FReadCmtl(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(),
+                                                                       &output, &estimate)
                                       : static_cast<CustomAccess *>(c)->Initialize(cache, n);
                     Inject(kind, 0);
                     Value(ok);
-                    if (factory && !ok)
-                        c = nullptr;
+                    if (factory)
+                        c = ok ? static_cast<PCustomMaterial_CMTL>(output) : nullptr;
                     Value(c != nullptr);
                     if (c)
                     {

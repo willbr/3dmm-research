@@ -143,8 +143,8 @@ static void CachedMidi()
     auto cache = ChunkyResourceFile::PcrfNew(file, 1024);
     DataBlock packed;
     CHECK(cache && file->FFind('MIDS', number, &packed) && packed.FPacked());
-    LegacyLong estimate = -1;
-    CHECK(MidiStream::FReadMids(cache, 'MIDS', number, &packed, nullptr, &estimate) &&
+    MMI32 estimate = -1;
+    CHECK(MidiStream::FReadMids(cache->CoreCache(), 'MIDS', number, packed.CoreBlock(), nullptr, &estimate) &&
           packed.FPacked() && estimate == packed.Cb(true) && estimate < count);
 
     auto midi = static_cast<PMidiStream>(cache->PbacoFetch('MIDS', number, MidiStream::FReadMids));

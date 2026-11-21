@@ -17321,3 +17321,42 @@ In actor-event suite `20261121T001853Z-7fd93dc5`, both ports matched all
 all retail seek camera indices. SDL matched all 12 retail sound requests.
 Each port reproduced its 60 seek canvas hashes from the previous build.
 The comparison and fixture evidence are in `tmp/c89-sound-payload-block`.
+
+## Direct C89 resource readers (21 November 2026)
+
+The resource cache calls the model, texture, material, custom material,
+template, action, font, movie sound, MIDI, SDL WAVE and AudioMan readers with
+its owned C block. The reader key and callback travel together through the
+resource manager, tag lookup and nested fetches. Legacy readers retain the
+native block adapter. The focused cache fixture exercises preload and fetch
+with the legacy reader disabled, including an estimate that replaces the
+file block with decoded memory. It also checks that a different legacy reader
+for the same chunk remains a separate cache entry.
+
+All 192 standalone C checks, eight focused AddressSanitizer checks and 23
+selected checks on each of native x64 and SDL passed. Eight focused C fixtures
+and the core-link fixture passed on x86. The SDL runtime compile checks passed.
+The sparse-costume case passed on all three builds, and all six actor renders
+matched their archived images.
+
+The 15 focused model, texture, material, resource cache and sound payload
+traces matched on native x64, native x86 and SDL. The x86 material test
+emitted the same 102,316 bytes and the same fingerprint before and after
+the change. Its existing assertion expects a different fingerprint and exits
+with failure in both builds.
+
+All 24 action, template, font, 3D text, sound and actor traces matched. The 54
+other movie and scene traces, three saved movie fixtures, ten Preview
+fingerprints and six Preview movies matched. The SDL authoring save matched
+the prior output byte for byte.
+
+Retail, SDL and Marcus matched all three retained-background frame identities,
+camera indices and canvas hashes in `20261121T003518Z-78285506`. Both ports
+matched the original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261121T003557Z-2c8e2a06`.
+
+In actor-event suite `20261121T003502Z-ae76ad2d`, both ports matched all
+60 archived retail frame identities in seek and continuous playback and
+all retail seek camera indices. SDL matched all 12 retail sound requests.
+Each port reproduced its 60 seek canvas hashes from the previous build.
+The comparison and fixture evidence are in `tmp/c89-direct-resource-readers`.

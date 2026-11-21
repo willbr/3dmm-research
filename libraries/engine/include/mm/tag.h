@@ -28,7 +28,7 @@ extern "C"
         void *(*source)(void *, MMI32 sid, int local_only, const MMTag *asset);
         void *(*find_cache)(void *manager, MMU32 type, MMU32 number);
         int (*child)(void *cache, const MMTag *, MMU32 slot, MMU32 type, MMU32 *number);
-        void *(*fetch)(void *cache_or_manager, int manager, const MMTag *, MMResourceReader);
+        void *(*fetch)(void *cache_or_manager, int manager, const MMTag *, MMResourceLoader);
         void (*missing)(void *, const MMTag *);
         void (*publish)(void *, const MMTag *);
     } MMTagServices;
@@ -45,7 +45,7 @@ extern "C"
     int mm_tag_compare(const MMTag *, const MMTag *, const MMTagServices *);
     int mm_tag_child(const MMTag *, MMU32 slot, MMU32 type, MMTag *out,
                            const MMTagServices *);
-    void *mm_tag_fetch(const MMTag *, MMResourceReader, int use_media, const MMTagServices *);
+    void *mm_tag_fetch(const MMTag *, MMResourceLoader, int use_media, const MMTagServices *);
     /* File caching is currently disabled in the legacy engine. This does no I/O. */
     int mm_tag_cache_file(const MMTag *, int children);
     typedef struct MMTagCacheServices

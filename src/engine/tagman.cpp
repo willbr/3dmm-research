@@ -684,10 +684,9 @@ MMTagServices TagManager::_Services(void *context)
         *number = kid.cki.cno;
         return 1;
     };
-    s.fetch = [](void *c, int manager, const MMTag *tag, MMResourceReader reader) -> void * {
-        auto r = reinterpret_cast<PFNRPO>(reader);
-        return manager ? static_cast<PChunkyResourceManager>(c)->PbacoFetch(tag->type, tag->number, r)
-                       : static_cast<PChunkyResourceFile>(c)->PbacoFetch(tag->type, tag->number, r);
+    s.fetch = [](void *c, int manager, const MMTag *tag, MMResourceLoader reader) -> void * {
+        return manager ? static_cast<PChunkyResourceManager>(c)->PbacoFetch(tag->type, tag->number, reader)
+                       : static_cast<PChunkyResourceFile>(c)->PbacoFetch(tag->type, tag->number, reader);
     };
     s.missing = [](void *c, const MMTag *) {
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
@@ -749,17 +748,17 @@ bool TagManager::FCacheTagList(MMTagList *list)
         }};
     return mm_tag_list_cache(list, &services) != 0;
 }
-PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, PFNRPO reader, bool useMedia)
+PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, ResourceReader reader, bool useMedia)
 {
     AssertThis(0);
     AssertVarMem(tag);
     Assert(tag->sid >= 0, "Invalid sid");
-    Assert(reader != nullptr, "bad rpo");
+    Assert(reader.Core().key != nullptr, "bad rpo");
     NativeTagHost host = {this, nullptr, tag};
     const auto services = _Services(&host);
     auto value = TagToCore(*tag);
     return static_cast<PBaseCacheableObject>(
-        mm_tag_fetch(&value, reinterpret_cast<MMResourceReader>(reader), useMedia, &services));
+        mm_tag_fetch(&value, reader.Core(), useMedia, &services));
 }
 void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
 {

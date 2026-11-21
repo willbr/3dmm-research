@@ -264,13 +264,9 @@ CachedAudioManSound::~CachedAudioManSound(void)
 /***************************************************************************
     Static BaseCacheableObject reader method to put together a Cached AudioMan sound.
 ***************************************************************************/
-bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                                    PBaseCacheableObject *ppbaco, long *pcb)
+int CachedAudioManSound::FReadCams(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *,
+                                  void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
     MMSoundPayloadServices s = {};
     s.object_bytes = size(CachedAudioManSound) + size(DataBlockStream);
     s.open_stream = [](void *, const MMOwnedBlock *block) -> void * {
@@ -291,10 +287,7 @@ bool CachedAudioManSound::FReadCams(PChunkyResourceFile pcrf, ChunkTagOrType ctg
     s.adopt_stream = [](void *, void *object, void *stream) {
         static_cast<PCachedAudioManSound>(object)->_pstbl = static_cast<PDataBlockStream>(stream);
     };
-    MMI32 bytes;
-    const bool ok = mm_wave_stream_fetch(pcrf->CoreCache(), ctg, cno, ppbaco, &bytes, &s) != 0;
-    *pcb = bytes;
-    return ok;
+    return mm_wave_stream_fetch(cache, type, number, out, bytes, &s);
 }
 
 /***************************************************************************

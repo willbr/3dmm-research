@@ -50,11 +50,11 @@ static bool TestFontResources()
         const LegacyLong size=variant==3?11:static_cast<LegacyLong>((bytes.size)());
         ok=cache && block.FSetTemp(size) && block.FWriteRgb(bytes.data(),size,0);
         if (variant==5) ok=block.FPackData() && ok;
-        LegacyLong estimate=-77; ok=ok && ThreeDFont::FReadTdf(cache,kctgTdf,0,&block,nullptr,&estimate);
+        MMI32 estimate=-77; ok=ok && ThreeDFont::FReadTdf(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),nullptr,&estimate);
         PThreeDFont font=stage?nullptr:FontResourceFixtureAccess::Create(); bool initialized=false;
         inject(kind,failure,true);
         if (!stage) initialized=static_cast<FontResourceFixtureAccess *>(font)->Initialize(&block);
-        else { PBaseCacheableObject out=nullptr; initialized=ThreeDFont::FReadTdf(cache,kctgTdf,0,&block,&out,&estimate); if (initialized) font=static_cast<PThreeDFont>(out); }
+        else { void *out=nullptr; initialized=ThreeDFont::FReadTdf(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),&out,&estimate); if (initialized) font=static_cast<PThreeDFont>(out); }
         inject(kind,failure,false); ++attempts; if (initialized) ++loaded;
         LegacyLong values[]={shape,variant,stage,kind,failure,estimate,initialized,font!=nullptr};
         ok=record(values,sizeof(values)) && FontResourceFixtureAccess::Record(font,initialized,snapshot) && ok;
