@@ -18794,3 +18794,28 @@ all 60 archived retail frame identities in seek and continuous playback.
 Their seek camera indices agreed with retail and both reproduced their 60
 previous seek canvas hashes. SDL matched all 12 retail sound requests. Logs
 and comparison scripts are in `tmp/c89-tag-archive-copy`.
+
+## Movie sound tags and pasted templates through C89 (21 November 2026)
+
+The movie sound controller uses the shared C89 tag operations to resolve and
+redirect tags. Existing sound graphs go through the C89 chunk copier before
+movie adoption and save. The actor-paste controller uses the same tag saver
+for cross-file text templates. The C fixtures exercise a refreshed autosave
+destination, chunk-number collisions, reference transfer, missing roots,
+failed copy output, and failed adoption or save.
+
+All 193 standalone C checks, five focused AddressSanitizer checks, two x86 C
+fixtures, ten native checks and the SDL movie-sound import check passed.
+Each of the three 68-case movie-sound traces matched its pre-change build byte
+for byte. The x64 trace contained 15,580 bytes and the x86 and SDL traces
+contained 15,592 each. The 22,272-byte native actor-paste trace matched its
+recorded SHA-256, and all 336 native tag trace bytes matched. Native x64, x86
+and SDL matched all 27 save/reopen traces, composition and sound-resource
+snapshots, and the complete authoring save.
+
+SDL and Marcus matched the three archived V3dmm storyboard frames, cameras
+and canvas hashes in suite `20261121T113826Z-6c9f3c9f`. In `actor-event-edit`
+suite `20261121T113831Z-c374baee`, both ports matched all 60 archived retail
+frame identities in seek and continuous playback, and all 60 retail seek
+camera indices. Each port reproduced its prior seek canvas hashes. SDL
+matched all 12 retail sound requests. Evidence is in `tmp/c89-movie-sound-tags`.

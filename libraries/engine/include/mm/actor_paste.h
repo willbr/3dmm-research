@@ -21,7 +21,6 @@ typedef struct MMActorPasteServices
     int migrate_text;
     int (*is_text)(void *,void *template_object);
     int (*ensure_autosave)(void *,void *scene,void **cache);
-    int (*save_template)(void *,MMTag *,void *cache);
     void (*placement)(void *,MMActorPoint *);
     int (*sound_exists)(void *,const MMTag *);
     int (*save_sound)(void *,void *scene,MMTag *);
@@ -36,7 +35,7 @@ typedef struct MMActorPasteServices
  * diagnoses the legacy assertion at that point. migrate_text selects BUG1888.
  *
  * C owns template transfer/ownership, positioning, retiming and sound adoption.
- * save_template redirects a duplicated tag to the destination cache. Failed
+ * The tag service redirects a duplicated tag to the destination cache. Failed
  * save/fetch closes that duplicate; successful transfer closes the old tag and
  * releases the old template before publishing the new template pointer.
  * Sound removal uses the actor's table and the shared event editor, with cursor

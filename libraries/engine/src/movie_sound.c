@@ -1,6 +1,7 @@
 /* Movie sound integration converted from engine movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_sound.h"
+#include "mm/chunk_copy.h"
 #include <stddef.h>
 static int find_parent(const MMChunkAccess *chunks, MMU32 type, MMU32 number, MMU32 *position,
                        MMChunkEntry *entry)
@@ -58,7 +59,7 @@ MMU32 mm_movie_sound_next_scene(const MMMovieSoundServices *s)
     MMChunkAccess chunks;
     MMU32 scene, slot = 0;
     s->read(s->context, &state);
-    chunks = sound_chunks(s->file(state.cache), s);
+    chunks = sound_chunks(s->tags->file(state.cache), s);
     if (current_scene(&chunks, &state, &scene))
         mm_movie_sound_free_slot(&chunks, MM_SOUND_SCENE, scene, &slot);
     return slot;
@@ -70,7 +71,7 @@ MMU32 mm_movie_sound_next_movie(const MMMovieSoundServices *s)
     MMChunkAccess chunks;
     MMU32 slot = 0;
     s->read(s->context, &state);
-    chunks = sound_chunks(s->file(state.cache), s);
+    chunks = sound_chunks(s->tags->file(state.cache), s);
     mm_movie_sound_free_slot(&chunks, MM_SOUND_MOVIE, state.movie, &slot);
     return slot;
 }
@@ -161,7 +162,7 @@ int mm_movie_sound_resolve(MMTag *tag, MMU32 child, MMU32 scene, void *cache, co
     s->read(s->context, &state);
     if (!cache)
         cache = state.cache;
-    file = s->file(cache);
+    file = s->tags->file(cache);
     if (tag->sid != 0)
         return 1;
     chunks = sound_chunks(file, s);
@@ -172,15 +173,19 @@ int mm_movie_sound_resolve(MMTag *tag, MMU32 child, MMU32 scene, void *cache, co
     if (tag->number != number)
     {
         updated.number = number;
-        if (!s->open_tag(s->context, &updated, cache))
+        if (!mm_tag_open(&updated, cache, NULL, s->tags))
             return 0;
-        s->close_tag(s->context, tag);
+        mm_tag_close(tag, s->tags);
         *tag = updated;
     }
     return 1;
 }
-int mm_movie_sound_save(MMTag *tag,const MMMovieSoundServices *s)
-{ MMMovieSoundState state; s->read(s->context,&state); return s->save_tag(s->context,tag,state.cache,1); }
+int mm_movie_sound_save(MMTag *tag, const MMMovieSoundServices *s)
+{
+    MMMovieSoundState state;
+    s->read(s->context, &state);
+    return mm_tag_save(tag, state.cache, 1, s->tags);
+}
 int mm_movie_sound_child(MMU32 number, MMU32 *output, const MMMovieSoundServices *s)
 {
     MMMovieSoundState state;
@@ -190,7 +195,7 @@ int mm_movie_sound_child(MMU32 number, MMU32 *output, const MMMovieSoundServices
     MMChunkChild child;
     MMU32 scene, i, parent;
     s->read(s->context, &state);
-    edit = s->edit(s->file(state.cache));
+    edit = s->edit(s->tags->file(state.cache));
     chunks = mm_chunk_edit_access(&edit);
     if (!current_scene(&chunks, &state, &scene))
         return 0;
@@ -232,19 +237,36 @@ static int finish_copy(void *file, MMU32 number, const MMMovieSoundServices *s)
     }
     return s->save_file(file, MM_SOUND_CREATOR);
 }
-int mm_movie_sound_copy(void *source,MMU32 number,MMU32 *output,const MMMovieSoundServices *s)
+int mm_movie_sound_copy(void *source, MMU32 number, MMU32 *output, const MMMovieSoundServices *s)
 {
-    MMMovieSoundState state; void *file;
-    if (!s->ensure_autosave(s->context)) return 0;
-    s->read(s->context,&state); file=s->file(state.cache);
-    if (s->inspect_source) s->inspect_source(source);
-    if (!s->copy_chunk(source,MM_SOUND_CHUNK,number,file,output)) return 0;
-    return finish_copy(file,*output,s);
+    MMMovieSoundState state;
+    MMChunkFileCopy source_binding, target_binding;
+    MMChunkEndpoint from, to;
+    void *file;
+    int status;
+    if (!s->ensure_autosave(s->context))
+        return 0;
+    s->read(s->context, &state);
+    file = s->tags->file(state.cache);
+    if (s->inspect_source)
+        s->inspect_source(source);
+    from = s->tags->bind_file(source, &source_binding);
+    to = s->tags->bind_file(file, &target_binding);
+    status = mm_chunk_copy(&from, &to, MM_SOUND_CHUNK, number, 0, output);
+    if (status != MM_CHUNK_OK)
+    {
+        if (s->invalidate_number)
+            s->invalidate_number(output);
+        if (status == MM_CHUNK_NOT_FOUND && s->tags->missing_chunk)
+            s->tags->missing_chunk(s->tags->context);
+        return 0;
+    }
+    return finish_copy(file, *output, s);
 }
 int mm_movie_sound_import(void *source,MMI32 style,MMU32 *output,void *name,const MMMovieSoundServices *s)
 {
     MMMovieSoundState state; void *file; int ok;
-    s->read(s->context,&state); file=s->file(state.cache);
+    s->read(s->context,&state); file=s->tags->file(state.cache);
     if (!s->use_temp(s->context)) return 0;
     if (s->is_midi(source)) ok=s->copy_midi(source,file,output,name);
     else ok=s->copy_wave(source,file,style,output,name);
@@ -296,7 +318,7 @@ int mm_movie_sound_unused(int *valid, const MMMovieSoundServices *s)
     s->read(s->context, &state);
     if (state.cache)
     {
-        chunks = sound_chunks(s->file(state.cache), s);
+        chunks = sound_chunks(s->tags->file(state.cache), s);
         if (mm_movie_sound_scan_unused(&chunks, &unused, valid) != MM_CHUNK_OK)
             s->diagnostic(s->context, MM_SOUND_BAD_CHUNK_ENUM);
     }

@@ -160,10 +160,6 @@ MMActorPasteServices Actor::_PasteServices()
         PChunkyResourceFile resource=nullptr; bool ok=static_cast<PScene>(p)->Pmvie()->FEnsureAutosave(&resource);
         *cache=resource; return int(ok);
     };
-    s.save_template=[](void *,MMTag *v,void *cache) {
-        TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FSaveTag(&tag,static_cast<PChunkyResourceFile>(cache),true);
-        std::memcpy(v,&tag,sizeof(tag)); return int(ok);
-    };
     s.placement=[](void *p,MMActorPoint *point) {
         BRS x,y,z; static_cast<Actor *>(p)->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
     };
@@ -171,8 +167,7 @@ MMActorPasteServices Actor::_PasteServices()
         return int(static_cast<PChunkyResourceFile>(tag->cache)->Pcfl()->FFind(tag->type,tag->number));
     };
     s.save_sound=[](void *,void *scene,MMTag *v) {
-        TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=static_cast<PScene>(scene)->Pmvie()->FSaveTagSnd(&tag);
-        std::memcpy(v,&tag,sizeof(tag)); return int(ok);
+        return int(static_cast<PScene>(scene)->Pmvie()->FSaveTagSnd(*v));
     };
     s.sound_child=[](void *,void *scene,MMU32 number,MMU32 *child) {
         ChildChunkID value=*child; bool ok=static_cast<PScene>(scene)->Pmvie()->FChidFromUserSndCno(number,&value);

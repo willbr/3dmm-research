@@ -5029,8 +5029,9 @@ tag. Earlier frame writes, resource transfers and deletions remain. Final
 route translation and dirty notification occur only on success.
 
 Paste updates the live runtime record so body creation and cursor changes
-from event removal are visible immediately. Text transfer duplicates before
-saving and closes the duplicate on save or fetch failure. On success it
+from event removal are visible immediately. Text transfer duplicates the tag
+and saves through the shared C89 tag controller. It closes the duplicate on
+save or fetch failure. On success it
 closes the old tag and releases the old template before replacing the
 template pointer. Camera facing queries the replacement template's text flag.
 
@@ -5167,8 +5168,10 @@ runtime implementations and final facade removal remain unfinished.
 `movie_sound.c` owns sound tag resolution/saving, scene/movie child lookup and
 adoption, first-free IDs, cross-movie graph copying, physical MIDI/WAV import
 dispatch, failure cleanup, close-time GC marking and unused-sound discovery.
-The private C++ child/ID helpers are removed. Native adapters supply C-backed
-graph/tag operations, autosave/temp switching, physical sound-format factories,
+The sound controller resolves, closes and redirects tags through the shared
+C89 tag service. It copies existing sound subtrees directly through the C89
+chunk copier, then adopts and saves them. Native adapters bind the graphs,
+manage autosave/temp switching, and supply physical sound-format factories,
 file save, filenames and diagnostics. Decoder/encoder implementations, sound
 garbage collection itself, native representations and physical file adapters
 still require conversion; these are not final backend host services.

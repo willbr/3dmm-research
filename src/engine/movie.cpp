@@ -995,24 +995,12 @@ MMMovieSoundServices Movie::_SoundServices()
     s.read=[](void *p,MMMovieSoundState *state) {
         auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_scenes.index;
     };
-    s.file=[](void *p)->void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); };
+    s.tags = &TagManager::CoreServices();
     s.edit = EditMovieArchive;
-    s.open_tag=[](void *,MMTag *v,void *cache) {
-        TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FOpenTag(&tag,static_cast<PChunkyResourceFile>(cache));
-        std::memcpy(v,&tag,sizeof(tag)); return int(ok);
-    };
-    s.close_tag=[](void *,MMTag *v) { TAG tag; std::memcpy(&tag,v,sizeof(tag)); TagManager::CloseTag(&tag); std::memcpy(v,&tag,sizeof(tag)); };
-    s.save_tag=[](void *,MMTag *v,void *cache,int redirect) {
-        TAG tag; std::memcpy(&tag,v,sizeof(tag)); bool ok=TagManager::FSaveTag(&tag,static_cast<PChunkyResourceFile>(cache),redirect!=0);
-        std::memcpy(v,&tag,sizeof(tag)); return int(ok);
-    };
     s.ensure_autosave=[](void *p) { return int(static_cast<PMovie>(p)->FEnsureAutosave()); };
     s.use_temp=[](void *p) { return int(static_cast<PMovie>(p)->_FUseTempFile()); };
     s.inspect_source=[](void *p) { Filename filename; static_cast<PChunkyFile>(p)->GetFni(&filename); };
-    s.copy_chunk=[](void *p,MMU32 type,MMU32 number,void *destination,MMU32 *out) {
-        ChunkNumber value; std::memcpy(&value,out,sizeof(value)); bool ok=static_cast<PChunkyFile>(p)->FCopy(type,number,static_cast<PChunkyFile>(destination),&value);
-        std::memcpy(out,&value,sizeof(value)); return int(ok);
-    };
+    s.invalidate_number = [](MMU32 *number) { (void)number; TrashVar(number); };
     s.save_file=[](void *p,MMU32 creator) { return int(static_cast<PChunkyFile>(p)->FSave(creator)); };
     s.is_midi=[](void *p) { Filename filename; static_cast<PFileObject>(p)->GetFni(&filename); return int(filename.Ftg()==kftgMidi); };
     s.copy_midi=[](void *p,void *destination,MMU32 *out,void *name) {
@@ -1083,8 +1071,16 @@ bool Movie::FResolveSndTag(MMTag &tag, ChildChunkID chid, ChunkNumber cnoScen, P
 bool Movie::FSaveTagSnd(TAG *ptag)
 {
     AssertVarMem(ptag);
-    MMTag tag; std::memcpy(&tag,ptag,sizeof(tag)); const auto services=_SoundServices();
-    bool ok=mm_movie_sound_save(&tag,&services)!=0; std::memcpy(ptag,&tag,sizeof(tag)); return ok;
+    MMTag tag;
+    std::memcpy(&tag, ptag, sizeof(tag));
+    const bool ok = FSaveTagSnd(tag);
+    std::memcpy(ptag, &tag, sizeof(tag));
+    return ok;
+}
+bool Movie::FSaveTagSnd(MMTag &tag)
+{
+    const auto services = _SoundServices();
+    return mm_movie_sound_save(&tag, &services) != 0;
 }
 
 /****************************************************

@@ -195,6 +195,7 @@ class TagManager : public TagManager_PAR
     PChunkyFile _PcflFindTag(PTAG ptag);
 
   public:
+    static const MMTagServices &CoreServices();
     static PTagManager PtagmNew(PFilename pfniHDRoot, PFNINSCD pfninscd, LegacyLong cbCache);
     ~TagManager(void);
     void SetSourceResolver(TagSourceResolver resolver)

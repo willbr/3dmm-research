@@ -17,7 +17,7 @@ static int transfer_template(MMActorRuntime *r, void *scene, const MMActorPasteS
 
     tag = r->template_tag;
     mm_tag_dup(&tag, owner->tags);
-    if (!s->save_template(s->context, &tag, cache))
+    if (!mm_tag_save(&tag, cache, 1, owner->tags))
     {
         mm_tag_close(&tag, owner->tags);
         return 0;

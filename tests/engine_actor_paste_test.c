@@ -1,20 +1,31 @@
 #include "mm/actor_effect.h"
 #include "mm/actor_paste.h"
+#include "tag_copy_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define CHECK(c) do { if (!(c)) { fprintf(stderr, "paste check at %d: %s\n", __LINE__, #c); exit(1); } } while (0)
 
-typedef struct Fixture
+typedef struct Fixture Fixture;
+typedef struct PasteCache
+{
+    Fixture *owner;
+    TagCopyFile file;
+    int refs;
+} PasteCache;
+
+struct Fixture
 {
     MMActorOwner actor;
     MMActorPasteServices services;
-    int old_template, new_template, body, source_refs, target_refs, scene;
+    int old_template, new_template, body, scene;
+    PasteCache source, target;
+    MMTagServices tags;
     int fail, same_cache, text, new_text, old_refs, new_refs, released;
     int ensured, saved, fetched, bound, placed, dirty, exists, sounds, children, yaw, sound_updates;
     int diagnostics[4];
-} Fixture;
+};
 
 static int is_text(void *context, void *object)
 {
@@ -28,16 +39,12 @@ static int ensure(void *context, void *scene, void **cache)
     Fixture *f = (Fixture *)context;
     CHECK(scene == &f->scene && !f->bound && f->actor.runtime.first == 10);
     ++f->ensured;
-    *cache = f->same_cache ? &f->source_refs : &f->target_refs;
+    *cache = f->same_cache ? &f->source : &f->target;
     return f->fail != 1;
 }
 
-static void retain_cache(void *cache) { ++*(int *)cache; }
-static void release_cache(void *cache) { CHECK(--*(int *)cache >= 0); }
-
-static const MMTagServices tags = {
-    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
-};
+static void retain_cache(void *cache) { ++((PasteCache *)cache)->refs; }
+static void release_cache(void *cache) { CHECK(--((PasteCache *)cache)->refs >= 0); }
 
 static MMActorOwner *owner(void *context, void *actor)
 {
@@ -53,22 +60,29 @@ static void redirect_tag(MMTag *tag, void *cache, MMU32 number)
     tag->number = number;
 }
 
-static int save_template(void *context, MMTag *tag, void *cache)
+static void *file(void *cache)
 {
-    Fixture *f = (Fixture *)context;
-    CHECK(f->source_refs == 2 && !f->target_refs && cache == &f->target_refs);
+    return &((PasteCache *)cache)->file;
+}
+static MMChunkEndpoint bind_file(void *file, MMChunkFileCopy *binding)
+{
+    return tag_copy_file_endpoint(file, binding);
+}
+static MMChunkEndpoint bind_cache(void *cache, MMResourceChunkCopy *binding)
+{
+    const MMChunkEndpoint unavailable = {0};
+    PasteCache *source = cache;
+    Fixture *f = source->owner;
+    CHECK(f->source.refs == 2 && !f->target.refs && source == &f->source);
     ++f->saved;
-    if (f->fail == 2)
-        return 0;
-    redirect_tag(tag, cache, 77);
-    return 1;
+    return f->fail == 2 ? unavailable : bind_file(&source->file, &binding->live);
 }
 
 static void *fetch_template(void *context, const MMTag *tag)
 {
     Fixture *f = (Fixture *)context;
-    CHECK(tag->cache == &f->target_refs && tag->number == 77);
-    CHECK(f->old_refs == 1 && f->source_refs == 1 && f->target_refs == 1);
+    CHECK(tag->cache == &f->target && tag->number == 0);
+    CHECK(f->old_refs == 1 && f->source.refs == 1 && f->target.refs == 1);
     ++f->fetched;
     if (f->fail == 3)
         return NULL;
@@ -90,8 +104,8 @@ static void release(void *context, void *object)
     {
         if (r->template_tag.cache)
         {
-            CHECK(r->template_tag.cache == &f->target_refs);
-            CHECK(!f->source_refs && f->new_refs == 1 && !f->bound);
+            CHECK(r->template_tag.cache == &f->target);
+            CHECK(!f->source.refs && f->new_refs == 1 && !f->bound);
             ++f->released;
         }
         CHECK(--f->old_refs == 0);
@@ -132,7 +146,7 @@ static void placement(void *context, MMActorPoint *point)
 static int sound_exists(void *context, const MMTag *tag)
 {
     Fixture *f = (Fixture *)context;
-    CHECK(tag->cache == &f->source_refs);
+    CHECK(tag->cache == &f->source);
     ++f->exists;
     return tag->number != 2;
 }
@@ -144,7 +158,7 @@ static int save_sound(void *context, void *scene, MMTag *tag)
     ++f->sounds;
     if (tag->number == 3)
         return 0;
-    redirect_tag(tag, &f->target_refs, tag->number + 100);
+    redirect_tag(tag, &f->target, tag->number + 100);
     return 1;
 }
 
@@ -168,7 +182,7 @@ static int scene_frame(void *context, MMI32 *frame)
 static void update_sound_frame(void *context)
 {
     Fixture *f = (Fixture *)context;
-    CHECK(f->source_refs == 3 && f->actor.runtime.state.nextEvent == 4);
+    CHECK(f->source.refs == 3 && f->actor.runtime.state.nextEvent == 4);
     CHECK(mm_actor_events_count(f->actor.track.events) == 4);
     ++f->sound_updates;
 }
@@ -214,7 +228,17 @@ static void init(Fixture *f)
     memset(f, 0, sizeof(*f));
     s = &f->services;
     s->context = s->edits.context = s->create.owner.context = f;
-    s->create.owner.tags = &tags;
+    f->tags.file = file;
+    f->tags.retain = retain_cache;
+    f->tags.release = release_cache;
+    f->tags.bind_file = bind_file;
+    f->tags.bind_cache = bind_cache;
+    s->create.owner.tags = &f->tags;
+    f->source.owner = f->target.owner = f;
+    tag_copy_file_init(&f->source.file);
+    tag_copy_file_init(&f->target.file);
+    fixture_chunk_add(&f->source.file.index, 0x544d504cUL, 77);
+    fixture_chunk_add(&f->target.file.index, 0x544d504cUL, 77);
     s->create.owner.owner = owner;
     s->create.owner.release = release;
     s->create.fetch_template = fetch_template;
@@ -224,7 +248,6 @@ static void init(Fixture *f)
     s->edits.update_sound_frame = update_sound_frame;
     s->is_text = is_text;
     s->ensure_autosave = ensure;
-    s->save_template = save_template;
     s->placement = placement;
     s->sound_exists = sound_exists;
     s->save_sound = save_sound;
@@ -234,12 +257,14 @@ static void init(Fixture *f)
     s->diagnostic = diagnostic;
 
     mm_actor_owner_init(&f->actor);
-    CHECK(mm_actor_track_create(&f->actor.track, NULL, 0, &tags));
-    f->source_refs = f->old_refs = 1;
+    CHECK(mm_actor_track_create(&f->actor.track, NULL, 0, &f->tags));
+    f->source.refs = f->old_refs = 1;
     r = &f->actor.runtime;
     r->template_object = &f->old_template;
     r->template_tag.sid = 0;
-    r->template_tag.cache = &f->source_refs;
+    r->template_tag.cache = &f->source;
+    r->template_tag.type = 0x544d504cUL;
+    r->template_tag.number = 77;
     r->first = 10;
     r->last = 99;
     r->state.frame = 33;
@@ -258,7 +283,7 @@ static void init(Fixture *f)
 static void dispose(Fixture *f)
 {
     mm_actor_owner_dispose(&f->actor, &f->services.create.owner);
-    CHECK(!f->source_refs && !f->target_refs && !f->old_refs && !f->new_refs);
+    CHECK(!f->source.refs && !f->target.refs && !f->old_refs && !f->new_refs);
 }
 
 static void add_sound(Fixture *f, MMU32 number, MMI32 sid)
@@ -269,7 +294,7 @@ static void add_sound(Fixture *f, MMU32 number, MMI32 sid)
     sound.child = 55;
     if (!sid)
     {
-        sound.tag.cache = &f->source_refs;
+        sound.tag.cache = &f->source;
         retain_cache(sound.tag.cache);
     }
     append(f, MM_ACTOR_SOUND, 10 + mm_actor_events_count(f->actor.track.events), &sound, sizeof(sound));
@@ -328,7 +353,7 @@ static void test_templates(void)
         CHECK(f.actor.runtime.state.routeTranslation.dxr == 95 && f.actor.runtime.state.routeTranslation.dyr == 193);
         CHECK(f.actor.runtime.state.routeTranslation.dzr == -309);
         CHECK(f.ensured == (migrate && f.text) && f.saved == transfer && f.fetched == transfer && f.released == transfer);
-        CHECK(f.source_refs == !transfer && f.target_refs == transfer);
+        CHECK(f.source.refs == !transfer && f.target.refs == transfer);
         CHECK(f.old_refs == !transfer && f.new_refs == transfer);
         CHECK(f.yaw == (transfer ? f.new_text : f.text));
         CHECK(entrance_at(&f).y == (f.yaw ? 0x1234 : 321));
@@ -343,8 +368,8 @@ static void test_templates(void)
         f.fail = fail;
         CHECK(!paste(&f, 20, 1) && !f.bound && !f.placed && !f.dirty);
         CHECK(f.actor.runtime.first == 10 && f.actor.runtime.state.frame == 33);
-        CHECK(f.source_refs == 1 && !f.target_refs && f.old_refs == 1 && !f.new_refs);
-        CHECK(f.actor.runtime.template_object == &f.old_template && f.actor.runtime.template_tag.cache == &f.source_refs);
+        CHECK(f.source.refs == 1 && !f.target.refs && f.old_refs == 1 && !f.new_refs);
+        CHECK(f.actor.runtime.template_object == &f.old_template && f.actor.runtime.template_tag.cache == &f.source);
         dispose(&f);
     }
 }
@@ -406,8 +431,8 @@ static void test_sounds(void)
     CHECK(state->nextEvent == 3 && state->firstEventInFrame == 1 && state->routeTranslation.dxr == 95);
     CHECK(event_at(&f, 1).nfrm == 23 && event_at(&f, 2).nfrm == 24);
     sound = sound_at(&f, 1);
-    CHECK(sound.tag.number == 101 && sound.tag.cache == &f.target_refs && sound.child == 1101);
-    CHECK(sound_at(&f, 2).tag.number == 8 && f.source_refs == 1 && f.target_refs == 1);
+    CHECK(sound.tag.number == 101 && sound.tag.cache == &f.target && sound.child == 1101);
+    CHECK(sound_at(&f, 2).tag.number == 8 && f.source.refs == 1 && f.target.refs == 1);
     dispose(&f);
 
     /* Child failure leaves the retimed row with its original tag and the tail untouched. */
@@ -421,12 +446,12 @@ static void test_sounds(void)
     CHECK(event_at(&f, 1).nfrm == 21 && event_at(&f, 2).nfrm == 22 && event_at(&f, 3).nfrm == 13);
     CHECK(sound_at(&f, 1).tag.number == 101 && sound_at(&f, 2).tag.number == 4);
     sound = sound_at(&f, 2);
-    CHECK(sound.tag.cache == &f.source_refs && sound.child == 55);
+    CHECK(sound.tag.cache == &f.source && sound.child == 55);
     CHECK(f.actor.runtime.state.routeTranslation.dxr == 999 && entrance_at(&f).y == 321);
-    CHECK(f.source_refs == 2 && f.target_refs == 2);
+    CHECK(f.source.refs == 2 && f.target.refs == 2);
     /* Repair the test's synthetic references after observing the legacy partial failure. */
-    retain_cache(&f.source_refs);
-    release_cache(&f.target_refs);
+    retain_cache(&f.source);
+    release_cache(&f.target);
     dispose(&f);
 }
 

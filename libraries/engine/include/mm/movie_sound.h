@@ -21,15 +21,12 @@ typedef struct MMMovieSoundServices
 {
     void *context;
     void (*read)(void *,MMMovieSoundState *);
-    void *(*file)(void *cache);
+    const MMTagServices *tags;
     MMChunkEdit (*edit)(void *file);
-    int (*open_tag)(void *,MMTag *,void *cache);
-    void (*close_tag)(void *,MMTag *);
-    int (*save_tag)(void *,MMTag *,void *cache,int redirect);
     int (*ensure_autosave)(void *);
     int (*use_temp)(void *);
     void (*inspect_source)(void *file); /* Optional legacy unused filename query. */
-    int (*copy_chunk)(void *source,MMU32 type,MMU32 number,void *destination,MMU32 *);
+    void (*invalidate_number)(MMU32 *); /* Optional native failed-copy output poisoning. */
     int (*save_file)(void *file,MMU32 creator);
     int (*is_midi)(void *source_file);
     int (*copy_midi)(void *source_file,void *destination,MMU32 *,void *name);

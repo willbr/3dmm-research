@@ -481,6 +481,9 @@ priority over the older Project 0-4 ordering wherever they conflict.
   capture and release, with Studio handling template rollback.
 - Full actor paste uses the C89 owner and typed tables for retiming, sound
   adoption and row removal, with shared scene binding and tag ownership.
+  Text template transfer uses the shared C89 tag saver. Movie sound
+  resolution and saving use the same tag services, and cross-file sound
+  copies use the shared chunk copier before movie adoption.
   The scene controller calls the C89 paste operation before admitting the actor.
   Scene actor undo and redo use the C89 actor owner to clone and reset the
   snapshots for actor addition, deletion and replacement.

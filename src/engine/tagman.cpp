@@ -615,32 +615,41 @@ struct NativeTagHost
     const TAG *asset;
 };
 } // namespace
+const MMTagServices &TagManager::CoreServices()
+{
+    static const auto services = [] {
+        MMTagServices s = {};
+        s.file = [](void *c) -> void * { return static_cast<PChunkyResourceFile>(c)->Pcfl(); };
+        s.retain = [](void *c) { static_cast<PChunkyResourceFile>(c)->AddRef(); };
+        s.release = [](void *c) { static_cast<PChunkyResourceFile>(c)->Release(); };
+        s.compare_cache = [](void *a, void *b) -> int {
+            auto x = static_cast<PChunkyResourceFile>(a), y = static_cast<PChunkyResourceFile>(b);
+            return x == y ? 0 : x < y ? -1 : 1;
+        };
+        s.bind_file = [](void *file, MMChunkFileCopy *binding) {
+            return static_cast<PChunkyFile>(file)->CopyEndpoint(*binding);
+        };
+        s.bind_cache = [](void *cache, MMResourceChunkCopy *binding) {
+            return static_cast<PChunkyResourceFile>(cache)->CopySource(*binding);
+        };
+        s.cache = [](void *c) -> MMResourceCache * {
+            return c ? static_cast<PChunkyResourceFile>(c)->CoreCache() : nullptr;
+        };
+        s.missing_chunk = [](void *) { Bug("chunk not found"); };
+        return s;
+    }();
+    return services;
+}
+
 MMTagServices TagManager::_Services(void *context)
 {
-    MMTagServices s = {};
+    auto s = CoreServices();
     s.context = context;
-    s.file = [](void *c) -> void * { return static_cast<PChunkyResourceFile>(c)->Pcfl(); };
-    s.retain = [](void *c) { static_cast<PChunkyResourceFile>(c)->AddRef(); };
-    s.release = [](void *c) { static_cast<PChunkyResourceFile>(c)->Release(); };
-    s.compare_cache = [](void *a, void *b) -> int {
-        auto x = static_cast<PChunkyResourceFile>(a), y = static_cast<PChunkyResourceFile>(b);
-        return x == y ? 0 : x < y ? -1 : 1;
-    };
-    s.bind_file = [](void *file, MMChunkFileCopy *binding) {
-        return static_cast<PChunkyFile>(file)->CopyEndpoint(*binding);
-    };
-    s.bind_cache = [](void *cache, MMResourceChunkCopy *binding) {
-        return static_cast<PChunkyResourceFile>(cache)->CopySource(*binding);
-    };
-    s.cache = [](void *c) -> MMResourceCache * {
-        return c ? static_cast<PChunkyResourceFile>(c)->CoreCache() : nullptr;
-    };
     s.source = [](void *c, MMI32 sid, int local, const MMTag *) -> MMResourceManager * {
         auto h = static_cast<NativeTagHost *>(c);
         auto manager = h->manager->_PcrmSourceGet(sid, local != 0, h->asset);
         return manager ? manager->CoreManager() : nullptr;
     };
-    s.missing_chunk = [](void *) { Bug("chunk not found"); };
     s.missing = [](void *c, const MMTag *) {
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
         auto h = static_cast<NativeTagHost *>(c);
