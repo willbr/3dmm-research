@@ -22,16 +22,6 @@ static int image_child(void *context, MMU32 camera, int depth, MMU32 *number)
     return mm_background_camera_image_link(&chunks, camera, depth, number) == MM_CHUNK_OK;
 }
 
-typedef struct GraphBitmap
-{
-    int depth;
-    union
-    {
-        MMMaskedBitmap colour;
-        MMDepthBitmap depth;
-    } data;
-} GraphBitmap;
-
 static int host_big_endian(void)
 {
     const unsigned short one = 1;
@@ -54,58 +44,60 @@ static void free_pixels(void *context, void **pixels)
     *pixels = NULL;
 }
 
-static int read_bitmap(void *context, const MMReadStream *stream)
+static int read_colour(void *context, const MMReadStream *stream)
 {
-    GraphBitmap *bitmap = (GraphBitmap *)context;
-    if (bitmap->depth)
-    {
-        MMDepthServices services = {0};
-        services.host_big_endian = host_big_endian();
-        services.allocate = allocate_pixels;
-        services.free_memory = free_pixels;
-        return mm_depth_read_stream(stream, &bitmap->data.depth, &services);
-    }
-    else
-    {
-        MMMaskedServices services = {0};
-        services.host_big_endian = host_big_endian();
-        services.allocate = allocate_pixels;
-        services.free_memory = free_pixels;
-        return mm_masked_read_stream(stream, &bitmap->data.colour, &services);
-    }
+    MMMaskedServices services = {0};
+    services.host_big_endian = host_big_endian();
+    services.allocate = allocate_pixels;
+    services.free_memory = free_pixels;
+    return mm_masked_read_stream(stream, (MMMaskedBitmap *)context, &services);
 }
 
-static void release_bitmap(void *context, void *owner)
+static int read_depth(void *context, const MMReadStream *stream)
 {
-    GraphBitmap *bitmap = (GraphBitmap *)owner;
+    MMDepthOwner **out = (MMDepthOwner **)context;
+    *out = mm_depth_owner_read_stream(stream, mm_depth_native_big_endian(), NULL);
+    return *out != NULL;
+}
+
+static void release_bitmap(void *context, void *owner, int depth)
+{
     (void)context;
-    free(bitmap->depth ? bitmap->data.depth.pixels : bitmap->data.colour.data);
-    free(bitmap);
+    if (depth)
+        mm_depth_owner_release((MMDepthOwner *)owner);
+    else
+    {
+        free(((MMMaskedBitmap *)owner)->data);
+        free(owner);
+    }
 }
 
 static void *fetch_bitmap(void *context, MMU32 number, int depth)
 {
-    const MMU32 type = depth ? 0x5a424d50UL : 0x4d424d50UL;
-    GraphBitmap *bitmap = (GraphBitmap *)calloc(1, sizeof(*bitmap));
+    MMMaskedBitmap *colour;
     int decoded;
-    if (!bitmap)
-        return NULL;
-    bitmap->depth = depth;
-    if (graph_payload(context, type, number, read_bitmap, bitmap, &decoded) != MM_CHUNK_OK ||
-        !decoded)
+    if (depth)
     {
-        release_bitmap(context, bitmap);
+        MMDepthOwner *owner = NULL;
+        if (graph_payload(context, 0x5a424d50UL, number, read_depth, &owner, &decoded) == MM_CHUNK_OK && decoded)
+            return owner;
+        mm_depth_owner_release(owner);
         return NULL;
     }
-    return bitmap;
+    colour = (MMMaskedBitmap *)calloc(1, sizeof(*colour));
+    if (!colour)
+        return NULL;
+    if (graph_payload(context, 0x4d424d50UL, number, read_colour, colour, &decoded) == MM_CHUNK_OK && decoded)
+        return colour;
+    release_bitmap(context, colour, 0);
+    return NULL;
 }
 
 static void bitmap_bounds(void *context, void *owner, MMI32 out[4])
 {
-    const GraphBitmap *bitmap = (const GraphBitmap *)owner;
     MMMaskedRect rect;
     (void)context;
-    mm_masked_bounds(&bitmap->data.colour, host_big_endian(), &rect);
+    mm_masked_bounds((const MMMaskedBitmap *)owner, host_big_endian(), &rect);
     out[0] = rect.left;
     out[1] = rect.top;
     out[2] = rect.right;
@@ -114,23 +106,21 @@ static void bitmap_bounds(void *context, void *owner, MMI32 out[4])
 
 static void draw_colour(void *context, void *owner, unsigned char *pixels, MMU32 w, MMU32 h, MMI32 x, MMI32 y)
 {
-    const GraphBitmap *bitmap = (const GraphBitmap *)owner;
     MMMaskedRect rect;
     int big = host_big_endian();
     (void)context;
-    mm_masked_bounds(&bitmap->data.colour, big, &rect);
-    mm_masked_blit8(&bitmap->data.colour, big, pixels, w, h, rect.left + x, rect.top + y, NULL, NULL);
+    mm_masked_bounds((const MMMaskedBitmap *)owner, big, &rect);
+    mm_masked_blit8((const MMMaskedBitmap *)owner, big, pixels, w, h, rect.left + x, rect.top + y, NULL, NULL);
 }
 
 static void draw_depth(void *context, void *owner, unsigned short *pixels, MMU32 w, MMU32 h)
 {
-    const GraphBitmap *bitmap = (const GraphBitmap *)owner;
     MMDepthRect clip;
     (void)context;
     clip.left = clip.top = 0;
     clip.right = (MMI32)w;
     clip.bottom = (MMI32)h;
-    mm_depth_draw(&bitmap->data.depth, pixels, w * 2, h, 0, 0, &clip, NULL, 0);
+    mm_depth_draw(mm_depth_owner_bitmap((const MMDepthOwner *)owner), pixels, w * 2, h, 0, 0, &clip, NULL, 0);
 }
 
 void mm_background_preview_bind_graph(MMBackgroundPreviewServices *s, MMBackgroundPreviewGraph *context)
@@ -216,14 +206,14 @@ static int select_images(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundC
     s->bounds(s->context, bitmap, r);
     if (r[2] <= r[0] || r[3] <= r[1])
     {
-        s->release(s->context, bitmap);
+        s->release(s->context, bitmap, 0);
         return 0;
     }
     width = (MMU32)r[2] - (MMU32)r[0];
     height = (MMU32)r[3] - (MMU32)r[1];
     if (width > 1024U || height > 1024U || r[0] == MINIMUM || r[1] == MINIMUM)
     {
-        s->release(s->context, bitmap);
+        s->release(s->context, bitmap, 0);
         return 0;
     }
     p->width = width;
@@ -232,27 +222,27 @@ static int select_images(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundC
     s->publish(s->context, p);
     if (!ensure(&p->images, 0, n, 1))
     {
-        s->release(s->context, bitmap);
+        s->release(s->context, bitmap, 0);
         return 0;
     }
     memset(p->images.buffers[0].data, 0, n);
     p->rgb_count = n;
     s->publish(s->context, p);
     s->draw_rgb(s->context, bitmap, p->images.buffers[0].data, width, height, -r[0], -r[1]);
-    s->release(s->context, bitmap);
+    s->release(s->context, bitmap, 0);
     if (!mm_background_camera_binding_image(&p->camera, 1, s->child, s->context) ||
         !(bitmap = s->fetch(s->context, p->camera.images.depth, 1)))
         return 0;
     if (!ensure(&p->images, 1, n, 2))
     {
-        s->release(s->context, bitmap);
+        s->release(s->context, bitmap, 1);
         return 0;
     }
     memset(p->images.buffers[1].data, 255, n * 2);
     p->depth_count = n;
     s->publish(s->context, p);
     s->draw_depth(s->context, bitmap, (unsigned short *)p->images.buffers[1].data, width, height);
-    s->release(s->context, bitmap);
+    s->release(s->context, bitmap, 1);
     p->active = slot;
     s->publish(s->context, p);
     if (s->selected)

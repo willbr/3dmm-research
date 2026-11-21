@@ -149,6 +149,7 @@ static void setup(Fixture *f, MMWorldBuffers *w)
     f->s.create = create;
     f->s.retain = retain;
     f->s.release = release;
+    f->s.release_depth = release;
     f->s.lock = lock;
     f->s.unlock = unlock;
     f->s.depth_span = span;
@@ -156,6 +157,7 @@ static void setup(Fixture *f, MMWorldBuffers *w)
     f->s.changed = changed;
     f->s.fetch = fetch;
     f->s.priority = priority;
+    f->s.priority_depth = priority;
     f->s.draw_bitmap = bitmap;
     f->s.copy_rgb = copy;
     f->s.draw_depth = depth;

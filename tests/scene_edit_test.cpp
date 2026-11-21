@@ -185,11 +185,10 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
     CHECK(file->FAdd(bitmap->CbOnFile(), kctgMbmp, &rgb, &b) && bitmap->FWrite(&b));
     b.Free();
     ReleasePpo(&bitmap);
-    auto depth = ZBMP::PzbmpNew(32, 24);
+    auto depth = NewDepthBitmap(32, 24);
     CHECK(depth);
-    std::memset(depth->Prgb(), 0xff, depth->CbRow() * 24);
-    CHECK(depth->FWrite(file, kctgZbmp, &z));
-    ReleasePpo(&depth);
+    CHECK(WriteDepthBitmap(depth, file->WriteOwnerIndex(), kctgZbmp, &z));
+    mm_depth_owner_release(depth);
     for (int i = 0; i < 4; ++i)
     {
         CameraPosition cam = {};

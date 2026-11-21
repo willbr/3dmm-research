@@ -1,5 +1,6 @@
 /* Depth bitmap policy converted from bren/zbmp.cpp. */
 #include "mm/depth_bitmap.h"
+#include <stdlib.h>
 #include <string.h>
 #define MAXIMUM 2147483647
 #define MINIMUM (-2147483647 - 1)
@@ -37,103 +38,185 @@ int mm_depth_header(const unsigned char b[12], int big, MMDepthBitmap *m)
     m->bounds.bottom = m->bounds.top + h;
     return 1;
 }
-void *mm_depth_new(MMI32 w, MMI32 h, const void *initial, const MMDepthServices *s)
+struct MMDepthOwner
 {
-    void *object;
+    MMResourceObject binding;
+    MMReference references;
+    const MMDepthOwnerHost *host;
+    MMDepthBitmap bitmap;
+};
+
+static void *allocate(const MMStorageAllocator *allocator, MMU32 bytes)
+{
+    if (allocator)
+        return allocator->resize(allocator->context, NULL, 0, bytes, MM_STORAGE_NORMAL);
+    return malloc(bytes ? bytes : 1);
+}
+
+static void release(const MMStorageAllocator *allocator, void *memory, MMU32 bytes)
+{
+    if (memory)
+    {
+        if (allocator)
+            allocator->release(allocator->context, memory, bytes);
+        else
+            free(memory);
+    }
+}
+
+static MMDepthOwner *create(const MMDepthOwnerHost *host)
+{
+    MMDepthOwner *owner = allocate(host ? host->objects : NULL, sizeof(*owner));
+    if (owner)
+    {
+        memset(owner, 0, sizeof(*owner));
+        mm_reference_init(&owner->references);
+        owner->host = host;
+    }
+    return owner;
+}
+
+const MMDepthBitmap *mm_depth_owner_bitmap(const MMDepthOwner *owner) { return &owner->bitmap; }
+const MMResourceObject *mm_depth_owner_binding(const MMDepthOwner *owner) { return &owner->binding; }
+static MMResourceObject *binding(void *object) { return &((MMDepthOwner *)object)->binding; }
+static MMReference *references(void *object) { return &((MMDepthOwner *)object)->references; }
+
+static void destroy(void *object)
+{
+    MMDepthOwner *owner = object;
+    const MMDepthOwnerHost *host = owner->host;
+    release(host ? host->pixels : NULL, owner->bitmap.pixels, owner->bitmap.bytes);
+    mm_resource_object_dispose(owner, mm_depth_owner_services());
+    release(host ? host->objects : NULL, owner, sizeof(*owner));
+}
+
+static void mark(void *object)
+{
+    MMDepthOwner *owner = object;
+    if (owner->host && owner->host->mark)
+        owner->host->mark(owner);
+}
+
+static void issue(void *object, int kind)
+{
+    MMDepthOwner *owner = object;
+    if (owner->host && owner->host->issue)
+        owner->host->issue(owner, kind);
+}
+
+const MMResourceObjectServices *mm_depth_owner_services(void)
+{
+    static const MMResourceObjectServices services = { binding, references, destroy, issue, mark };
+    return &services;
+}
+
+void mm_depth_owner_release(MMDepthOwner *owner)
+{
+    if (owner)
+        mm_resource_object_release(owner, mm_depth_owner_services());
+}
+
+void mm_depth_owner_detach(MMDepthOwner *owner)
+{
+    mm_resource_object_detach(owner, mm_depth_owner_services());
+}
+
+void mm_depth_owner_priority(MMDepthOwner *owner, MMI32 priority)
+{
+    mm_resource_object_priority(owner, priority, mm_depth_owner_services());
+}
+
+MMDepthOwner *mm_depth_owner_new(MMI32 w, MMI32 h, const void *initial, const MMDepthOwnerHost *host)
+{
+    MMDepthOwner *owner;
     MMDepthBitmap *m;
     MMI32 row, n;
     if (w <= 0 || h <= 0 || !layout(w, h, &row, &n))
         return NULL;
-    object = s->create(s->context);
-    if (!object)
+    owner = create(host);
+    if (!owner)
         return NULL;
-    m = s->state(s->context, object);
-    m->bounds.left = m->bounds.top = 0;
+    m = &owner->bitmap;
     m->bounds.right = w;
     m->bounds.bottom = h;
     m->row_bytes = row;
     m->bytes = n;
-    if (!s->allocate(s->context, n, &m->pixels))
+    m->pixels = allocate(host ? host->pixels : NULL, n);
+    if (!m->pixels)
     {
-        s->release(s->context, object);
+        mm_depth_owner_release(owner);
         return NULL;
     }
     if (initial)
         memcpy(m->pixels, initial, (size_t)n);
     else
         memset(m->pixels, 255, (size_t)n);
-    return object;
+    return owner;
 }
-void mm_depth_dispose(MMDepthBitmap *m, const MMDepthServices *s)
+
+int mm_depth_native_big_endian(void)
 {
-    s->free_memory(s->context, &m->pixels);
+    const unsigned short one = 1;
+    return *(const unsigned char *)&one == 0;
 }
-static int read_layout(const unsigned char header[12], MMU32 length, int big, MMDepthBitmap *m)
+
+MMDepthOwner *mm_depth_owner_read_stream(const MMReadStream *stream, int big, const MMDepthOwnerHost *host)
 {
-    return mm_depth_header(header, big, m) && length == 12 + (MMU32)m->bytes;
-}
-static int read_depth(const MMReadStream *stream, MMDepthBitmap *m, const MMDepthServices *s)
-{
+    MMDepthOwner *owner = create(host);
+    MMDepthBitmap *m;
     unsigned char header[12];
-    return mm_read_exact(stream, 0, header, sizeof(header)) &&
-           read_layout(header, stream->length, s->host_big_endian, m) &&
-           s->allocate(s->context, m->bytes, &m->pixels) &&
-           mm_read_exact(stream, sizeof(header), m->pixels, (size_t)m->bytes);
-}
-int mm_depth_read_stream(const MMReadStream *stream, MMDepthBitmap *out, const MMDepthServices *s)
-{
-    MMDepthBitmap m = {0};
-    if (!read_depth(stream, &m, s))
-    {
-        if (m.pixels)
-            mm_depth_dispose(&m, s);
-        return 0;
-    }
-    *out = m;
-    return 1;
-}
-void *mm_depth_read(MMOwnedBlock *block, const MMDepthServices *s)
-{
-    void *object;
-    MMBlockIO io;
-    MMReadStream stream;
-    if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK ||
-        mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK)
+    if (!owner)
         return NULL;
-    object = s->create(s->context);
-    if (object && read_depth(&stream, s->state(s->context, object), s))
-        return object;
-    s->warning(s->context);
-    if (object)
-        s->release(s->context, object);
+    m = &owner->bitmap;
+    if (mm_read_exact(stream, 0, header, sizeof(header)) && mm_depth_header(header, big, m) &&
+        stream->length == sizeof(header) + (MMU32)m->bytes)
+    {
+        m->pixels = allocate(host ? host->pixels : NULL, m->bytes);
+        if (m->pixels && mm_read_exact(stream, sizeof(header), m->pixels, (size_t)m->bytes))
+            return owner;
+    }
+    mm_depth_owner_release(owner);
     return NULL;
 }
-int mm_depth_fetch(MMOwnedBlock *block, int want, const MMDepthServices *s)
+
+MMDepthOwner *mm_depth_owner_read_block(MMOwnedBlock *block, int big, const MMDepthOwnerHost *host)
 {
-    void *object;
-    MMI32 n;
-    if (!want)
+    MMDepthOwner *owner;
+    MMBlockIO io;
+    MMReadStream stream;
+    if (mm_owned_block_code(block, 0, host ? host->context : NULL, host ? host->decode : NULL, NULL) != MM_DATA_OK ||
+        mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK)
+        return NULL;
+    owner = mm_depth_owner_read_stream(&stream, big, host);
+    if (!owner && host && host->warning)
+        host->warning(host->context);
+    return owner;
+}
+
+int mm_depth_owner_fetch(MMOwnedBlock *block, void **out, MMI32 *bytes, MMI32 overhead, int big,
+                         const MMDepthOwnerHost *host)
+{
+    MMDepthOwner *owner;
+    if (!out)
     {
-        s->publish_fetch(s->context, 1, NULL, (MMI32)block->view.length);
+        *bytes = (MMI32)block->view.length;
         return 1;
     }
-    object = mm_depth_read(block, s);
-    if (!object)
-        goto fail;
-    n = s->state(s->context, object)->bytes;
-    if (s->object_bytes > MAXIMUM - n)
+    owner = mm_depth_owner_read_block(block, big, host);
+    if (!owner)
+        return 0;
+    if (overhead > MAXIMUM - owner->bitmap.bytes)
     {
-        s->release(s->context, object);
-        goto fail;
+        mm_depth_owner_release(owner);
+        return 0;
     }
-    s->publish_fetch(s->context, 1, object, s->object_bytes + n);
+    *out = owner;
+    *bytes = overhead + owner->bitmap.bytes;
     return 1;
-fail:
-    s->publish_fetch(s->context, 0, NULL, 0);
-    return 0;
 }
+
 int mm_depth_write(const MMDepthBitmap *m, void *file, MMU32 type, MMU32 *number,
-                         const MMDepthServices *s)
+                         const MMDepthWriteServices *s)
 {
     unsigned char header[12];
     MMStorageWriter writer;

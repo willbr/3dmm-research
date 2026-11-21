@@ -125,12 +125,12 @@ static void *fetch(void *p, MMU32 number, int depth)
     h->rgb = 1;
     return &h->rgb;
 }
-static void release(void *p, void *object)
+static void release(void *p, void *object, int depth)
 {
     Host *h = (Host *)p;
-    if (object == &h->rgb)
+    if (!depth)
     {
-        CHECK(h->rgb == 1);
+        CHECK(object == &h->rgb && h->rgb == 1);
         h->rgb = 0;
         event(h, RGB_RELEASE);
     }

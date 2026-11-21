@@ -152,10 +152,10 @@ static void *fetch(void *v, MMU32 n, int depth)
     ++h->refs;
     return &h->refs;
 }
-static void release(void *v, void *p)
+static void release(void *v, void *p, int depth)
 {
     Host *h = (Host *)v;
-    assert(p == &h->refs && h->refs == 1);
+    assert(!depth && p == &h->refs && h->refs == 1);
     --h->refs;
     ++h->releases;
 }

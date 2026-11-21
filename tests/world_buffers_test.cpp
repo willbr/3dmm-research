@@ -75,8 +75,8 @@ struct Access : World
         }
         if (pixels)
         {
-            auto depth = static_cast<PZBMP>(buffers.owners[MM_WORLD_DEPTH_BACKGROUND]);
-            Record(depth->Prgb(), depth->CbRow() * buffer.Dyp());
+            auto depth = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
+            Record(depth->pixels, depth->row_bytes * buffer.Dyp());
             auto rgb = static_cast<PGraphicsPort>(buffers.owners[MM_WORLD_RGB_BACKGROUND]);
             auto p = rgb->PrgbLockPixels();
             Record(p, rgb->CbRow() * buffer.Dyp());
@@ -122,12 +122,12 @@ int main()
     CHECK(file->FAdd(bitmap->CbOnFile(), kctgMbmp, &rgb, &b) && bitmap->FWrite(&b));
     b.Free();
     ReleasePpo(&bitmap);
-    auto depth = ZBMP::PzbmpNew(16, 12);
+    auto depth = NewDepthBitmap(16, 12);
     CHECK(depth);
     for (int i = 0; i < 384; ++i)
-        depth->Prgb()[i] = byte(i * 7);
-    CHECK(depth->FWrite(file, kctgZbmp, &z));
-    ReleasePpo(&depth);
+        static_cast<byte *>(mm_depth_owner_bitmap(depth)->pixels)[i] = byte(i * 7);
+    CHECK(WriteDepthBitmap(depth, file->WriteOwnerIndex(), kctgZbmp, &z));
+    mm_depth_owner_release(depth);
     for (int mode = 0; mode < 4; ++mode)
     {
         World::SetDefaultRenderScale(1);

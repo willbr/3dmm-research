@@ -12,69 +12,15 @@
 #define ZBMP_H
 #include "mm/depth_bitmap.h"
 
-namespace BRender {
-
-#define kcbPixelZbmp 2 // Z-buffers are 2 bytes per pixel (16 bit)
-
-// ZBMP on file
-struct ZBMPF
+namespace BRender
 {
-    short bo;
-    short osk;
-    short xpLeft;
-    short ypTop;
-    short dxp;
-    short dyp;
-    // void *rgb; 		// pixels follow immediately after ZBMPF
-};
-const br_uint_32 kbomZbmpf = 0x55500000;
+MMDepthOwner *NewDepthBitmap(MMI32 width, MMI32 height, const void *initial = nullptr);
+MMDepthOwner *ReadDepthBitmap(PDataBlock);
+int ReadCachedDepthBitmap(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+bool WriteDepthBitmap(const MMDepthOwner *, const MMArchiveWriter &, ChunkTagOrType, ChunkNumber *);
+#ifdef DEBUG
+void AssertDepthBitmap(const MMDepthOwner *);
+#endif
+} // namespace BRender
 
-/****************************************
-    ZBMP class
-****************************************/
-typedef class ZBMP *PZBMP;
-#define ZBMP_PAR BaseCacheableObject
-#define kclsZBMP 'ZBMP'
-class ZBMP : public ZBMP_PAR
-{
-    friend class World;
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  protected:
-    MMDepthBitmap _depth;
-    static MMDepthServices _Services(void *context = nullptr);
-    ZBMP(void)
-    {
-    }
-
-  public:
-    static PZBMP PzbmpNew(br_int_32 dxp, br_int_32 dyp);
-    static PZBMP PzbmpNewFromBpmp(BPMP *pbpmp);
-    static PZBMP PzbmpRead(PDataBlock pblck);
-    static int FReadZbmp(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                          void **object, MMI32 *bytes);
-    ~ZBMP(void);
-
-    byte *Prgb(void)
-    {
-        return static_cast<byte *>(_depth.pixels);
-    }
-    br_int_32 CbRow(void)
-    {
-        return _depth.row_bytes;
-    }
-
-    void Draw(byte *prgbPixels, br_int_32 cbRow, br_int_32 dyp, br_int_32 xpRef, br_int_32 ypRef, RC *prcClip = pvNil,
-              PRegion pregnClip = pvNil);
-    void DrawHalf(byte *prgbPixels, br_int_32 cbRow, br_int_32 dyp, br_int_32 xpRef, br_int_32 ypRef, RC *prcClip = pvNil,
-                  PRegion pregnClip = pvNil);
-
-    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
-    bool FWrite(const MMArchiveWriter &, ChunkTagOrType, ChunkNumber *);
-};
-
-} // end of namespace BRender
-
-#endif ZBMP_H
+#endif

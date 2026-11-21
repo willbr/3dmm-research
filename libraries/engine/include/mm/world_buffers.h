@@ -42,6 +42,7 @@ extern "C"
         unsigned rgb_type, depth_type;
         void *(*create)(void *, int kind, MMI32 width, MMI32 height);
         void (*retain)(void *, void *), (*release)(void *, void *);
+        void (*release_depth)(void *, void *);
         void *(*lock)(void *, void *);
         void (*unlock)(void *, void *);
         void (*depth_span)(void *, void *, MMWorldDepthSpan *);
@@ -49,6 +50,7 @@ extern "C"
         void (*changed)(void *);
         void *(*fetch)(void *, void *cache, int kind, MMU32 type, MMU32 number);
         void (*priority)(void *, void *);
+        void (*priority_depth)(void *, void *);
         void (*draw_bitmap)(void *, void *port, void *bitmap);
         void (*copy_rgb)(void *, void *source, void *destination, MMI32 source_width, MMI32 source_height,
                          MMI32 destination_width, MMI32 destination_height);

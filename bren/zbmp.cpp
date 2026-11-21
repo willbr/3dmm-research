@@ -12,7 +12,6 @@
 ASSERTNAME
 namespace BRender
 {
-RTCLASS(ZBMP)
 namespace
 {
 struct DepthWriteContext
@@ -20,147 +19,86 @@ struct DepthWriteContext
     DataBlock block;
     MMBlockIO io;
 };
-struct DepthFetchContext
+
+const MMDepthOwnerHost &DepthHost()
 {
-    void **object = nullptr;
-    MMI32 *bytes = nullptr;
-};
-MMDepthRect Rect(const RC &r)
+    static const MMDepthOwnerHost host = {
+        KauaiResourceObjectAllocator(), KauaiCopyAllocator(), nullptr, KauaiDecodeBlockHandle,
+        [](void *) { Warn("Couldn't load ZBMP"); },
+#ifdef DEBUG
+        [](MMDepthOwner *owner) {
+            AssertDepthBitmap(owner);
+            MarkPv(owner);
+            MarkPv(mm_depth_owner_bitmap(owner)->pixels);
+            const auto binding = mm_depth_owner_binding(owner);
+            if (binding->cache && !binding->attached)
+                MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
+        },
+        [](MMDepthOwner *, int) { Assert(false, "invalid ZBMP cache ownership"); }
+#else
+        nullptr, nullptr
+#endif
+    };
+    return host;
+}
+
+MMI32 DepthCacheOverhead()
 {
-    return {r.xpLeft, r.ypTop, r.xpRight, r.ypBottom};
+    // Preserve the historical ZBMP cache charge, independent of owner layout.
+#ifdef DEBUG
+    const MMI32 prefix = sizeof(void *) == 8 ? 40 : 32;
+#else
+    const MMI32 prefix = sizeof(void *) == 8 ? 40 : 28;
+#endif
+    return prefix + sizeof(MMDepthBitmap);
 }
 } // namespace
-MMDepthServices ZBMP::_Services(void *context)
+
+MMDepthOwner *NewDepthBitmap(MMI32 width, MMI32 height, const void *initial)
 {
-    MMDepthServices s = {};
-    s.context = context;
-    const unsigned short one = 1;
-    s.host_big_endian = !*reinterpret_cast<const byte *>(&one);
-    s.system = koskCur;
-    s.object_bytes = sizeof(ZBMP);
-    s.create = [](void *) -> void * { return NewObj ZBMP; };
-    s.state = [](void *, void *p) -> MMDepthBitmap * { return &static_cast<PZBMP>(p)->_depth; };
-    s.release = [](void *, void *p) { static_cast<PZBMP>(p)->Release(); };
-    s.allocate = [](void *, MMI32 n, void **p) -> int { return FAllocPv(p, n, fmemNil, mprNormal); };
-    s.free_memory = [](void *, void **p) { FreePpv(p); };
-    s.warning = [](void *) { Warn("Couldn't load ZBMP"); };
-    s.decode = KauaiDecodeBlockHandle;
-    s.add = [](void *p, void *file, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer) -> int {
+    return mm_depth_owner_new(width, height, initial, &DepthHost());
+}
+
+MMDepthOwner *ReadDepthBitmap(PDataBlock block)
+{
+    return mm_depth_owner_read_block(block->CoreBlock(), mm_depth_native_big_endian(), &DepthHost());
+}
+
+int ReadCachedDepthBitmap(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
+{
+    return mm_depth_owner_fetch(block, out, bytes, DepthCacheOverhead(), mm_depth_native_big_endian(), &DepthHost());
+}
+
+bool WriteDepthBitmap(const MMDepthOwner *owner, const MMArchiveWriter &archive, ChunkTagOrType type,
+                      ChunkNumber *number)
+{
+    DepthWriteContext context;
+    MMDepthWriteServices services = {};
+    services.context = &context;
+    services.host_big_endian = mm_depth_native_big_endian();
+    services.system = koskCur;
+    services.add = [](void *p, void *file, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer) -> int {
         auto &target = *static_cast<DepthWriteContext *>(p);
         auto archive = static_cast<const MMArchiveWriter *>(file);
         return mm_archive_add_block(archive, type, bytes, number, target.block.CoreBlock()) == MM_CHUNK_OK &&
                mm_owned_block_io(target.block.CoreBlock(), &target.io) == MM_DATA_OK &&
                mm_block_io_writer(&target.io, writer) == MM_DATA_OK;
     };
-    s.publish_fetch = [](void *p, int valid, void *object, MMI32 bytes) {
-        auto c = static_cast<DepthFetchContext *>(p);
-        if (valid)
-        {
-            if (c->object)
-                *c->object = static_cast<PZBMP>(object);
-            *c->bytes = bytes;
-        }
-        else
-        {
-            TrashVar(c->object);
-            TrashVar(c->bytes);
-        }
-    };
-    return s;
-}
-PZBMP ZBMP::PzbmpNew(LegacyLong w, LegacyLong h)
-{
-    AssertIn(w, 1, klwMax);
-    AssertIn(h, 1, klwMax);
-    auto s = _Services();
-    auto object = static_cast<PZBMP>(mm_depth_new(w, h, nullptr, &s));
-    AssertNilOrPo(object, 0);
-    return object;
-}
-PZBMP ZBMP::PzbmpNewFromBpmp(BPMP *p)
-{
-    AssertVarMem(p);
-    auto s = _Services();
-    return static_cast<PZBMP>(mm_depth_new(p->width, p->height, p->pixels, &s));
-}
-int ZBMP::FReadZbmp(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
-                        void **out, MMI32 *bytes)
-{
-    DepthFetchContext context;
-    context.object = out;
-    context.bytes = bytes;
-    const auto s = _Services(&context);
-    return mm_depth_fetch(block, out != nullptr, &s);
-}
-PZBMP ZBMP::PzbmpRead(PDataBlock block)
-{
-    AssertPo(block, 0);
-    auto s = _Services();
-    auto object = static_cast<PZBMP>(mm_depth_read(block->CoreBlock(), &s));
-    AssertNilOrPo(object, 0);
-    return object;
-}
-ZBMP::~ZBMP()
-{
-    AssertBaseThis(0);
-    auto s = _Services();
-    mm_depth_dispose(&_depth, &s);
-}
-void ZBMP::Draw(byte *pixels, LegacyLong row, LegacyLong height, LegacyLong x, LegacyLong y, RC *clip, PRegion region)
-{
-    AssertThis(0);
-    AssertPvCb(pixels, LwMul(row, height));
-    AssertNilOrVarMem(clip);
-    AssertNilOrVarMem(region);
-    MMDepthRect c;
-    if (clip)
-        c = Rect(*clip);
-    mm_depth_draw(&_depth, pixels, row, height, x, y, clip ? &c : nullptr, region ? region->Geometry() : nullptr, 0);
-}
-void ZBMP::DrawHalf(byte *pixels, LegacyLong row, LegacyLong height, LegacyLong x, LegacyLong y, RC *clip,
-                    PRegion region)
-{
-    AssertThis(0);
-    AssertPvCb(pixels, LwMul(row, height / 2));
-    AssertNilOrVarMem(clip);
-    AssertNilOrVarMem(region);
-    MMDepthRect c;
-    if (clip)
-        c = Rect(*clip);
-    mm_depth_draw(&_depth, pixels, row, height, x, y, clip ? &c : nullptr, region ? region->Geometry() : nullptr, 1);
-}
-bool ZBMP::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
-{
-    AssertPo(file, 0);
-    return FWrite(file->WriteOwnerIndex(), type, number);
-}
-bool ZBMP::FWrite(const MMArchiveWriter &archive, ChunkTagOrType type, ChunkNumber *number)
-{
-    AssertThis(0);
-    AssertVarMem(number);
-    DepthWriteContext context;
-    auto s = _Services(&context);
     auto writer = archive;
     MMU32 n;
     std::memcpy(&n, number, sizeof(n));
-    bool ok = mm_depth_write(&_depth, &writer, type, &n, &s) != 0;
+    bool ok = mm_depth_write(mm_depth_owner_bitmap(owner), &writer, type, &n, &services) != 0;
     std::memcpy(number, &n, sizeof(n));
     return ok;
 }
+
 #ifdef DEBUG
-void ZBMP::AssertValid(LegacyUlong grf)
+void AssertDepthBitmap(const MMDepthOwner *owner)
 {
-    ZBMP_PAR::AssertValid(fobjAllocated);
-    AssertPvCb(_depth.pixels, _depth.bytes);
-    Assert(_depth.row_bytes == LwMul(_depth.bounds.right - _depth.bounds.left, kcbPixelZbmp), "bad _cbRow");
-    Assert(_depth.bytes == LwMul(_depth.bounds.bottom - _depth.bounds.top, _depth.row_bytes), "bad _cb");
-    (void)grf;
-}
-void ZBMP::MarkMem()
-{
-    AssertThis(0);
-    ZBMP_PAR::MarkMem();
-    MarkPv(_depth.pixels);
+    const auto bitmap = mm_depth_owner_bitmap(owner);
+    AssertPvCb(bitmap->pixels, bitmap->bytes);
+    Assert(bitmap->row_bytes == LwMul(bitmap->bounds.right - bitmap->bounds.left, 2), "bad ZBMP row");
+    Assert(bitmap->bytes == LwMul(bitmap->bounds.bottom - bitmap->bounds.top, bitmap->row_bytes), "bad ZBMP size");
 }
 #endif
 } // namespace BRender

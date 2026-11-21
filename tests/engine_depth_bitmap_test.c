@@ -6,61 +6,55 @@
 #include <string.h>
 typedef struct Fixture
 {
-    MMDepthServices s;
+    MMDepthOwnerHost host;
+    MMStorageAllocator object_allocator, pixel_allocator;
+    MMDepthWriteServices writer;
+    MMI32 overhead;
     ResourceTestBlock block;
     MMBlockIO output_io;
     unsigned char input[128], output[128];
     MMI32 size, packed, output_size;
-    int phase, fail, objects, memory, warnings, published, valid, unpacks, reads, writes, adds;
-    void *result;
-    MMI32 estimate;
+    int phase, fail, objects, memory, warnings, unpacks, reads, writes, adds;
 } Fixture;
 static int fail(Fixture *f)
 {
     return ++f->phase == f->fail;
 }
-static void *create(void *p)
+static void *create(void *p, void *old, MMU32 old_bytes, MMU32 n, int priority)
 {
     Fixture *f = (Fixture *)p;
     void *v;
+    assert(!old && !old_bytes && n && priority == MM_STORAGE_NORMAL);
     if (fail(f))
         return NULL;
-    v = calloc(1, sizeof(MMDepthBitmap));
+    v = malloc(n);
     assert(v);
     ++f->objects;
     return v;
 }
-static MMDepthBitmap *state(void *p, void *o)
-{
-    (void)p;
-    return (MMDepthBitmap *)o;
-}
-static int allocate(void *p, MMI32 n, void **out)
+static void *allocate(void *p, void *old, MMU32 old_bytes, MMU32 n, int priority)
 {
     Fixture *f = (Fixture *)p;
+    void *pixels;
+    assert(!old && !old_bytes && n <= 128 && priority == MM_STORAGE_NORMAL);
     if (fail(f))
-        return 0;
-    assert(n >= 0 && n <= 128);
-    *out = malloc(n ? (size_t)n : 1);
-    assert(*out);
+        return NULL;
+    pixels = malloc(n ? n : 1);
+    assert(pixels);
     ++f->memory;
-    return 1;
+    return pixels;
 }
-static void free_memory(void *p, void **out)
+static void free_memory(void *p, void *pixels, MMU32 n)
 {
-    if (*out)
-    {
-        --((Fixture *)p)->memory;
-        free(*out);
-        *out = NULL;
-    }
+    assert(pixels && n <= 128);
+    --((Fixture *)p)->memory;
+    free(pixels);
 }
-static void release(void *p, void *o)
+static void release(void *p, void *o, MMU32 n)
 {
-    Fixture *f = (Fixture *)p;
-    mm_depth_dispose(state(p, o), &f->s);
+    assert(o && n);
     free(o);
-    --f->objects;
+    --((Fixture *)p)->objects;
 }
 static void warning(void *p)
 {
@@ -111,14 +105,6 @@ static int add(void *p, void *file, MMU32 type, MMU32 n, MMU32 *number, MMStorag
     return mm_owned_block_io(&f->block.owner, &f->output_io) == MM_DATA_OK &&
            mm_block_io_writer(&f->output_io, writer) == MM_DATA_OK;
 }
-static void publish(void *p, int valid, void *o, MMI32 n)
-{
-    Fixture *f = (Fixture *)p;
-    ++f->published;
-    f->valid = valid;
-    f->result = o;
-    f->estimate = n;
-}
 static void put(unsigned char *p, MMU32 n, int big)
 {
     p[big ? 1 : 0] = (unsigned char)n;
@@ -128,19 +114,22 @@ static void setup(Fixture *f, int big)
 {
     int i;
     memset(f, 0, sizeof(*f));
-    f->s.context = f;
-    f->s.host_big_endian = big;
-    f->s.system = 0x4321;
-    f->s.object_bytes = 100;
-    f->s.create = create;
-    f->s.state = state;
-    f->s.release = release;
-    f->s.allocate = allocate;
-    f->s.free_memory = free_memory;
-    f->s.warning = warning;
-    f->s.decode = decode;
-    f->s.add = add;
-    f->s.publish_fetch = publish;
+    f->object_allocator.context = f;
+    f->object_allocator.resize = create;
+    f->object_allocator.release = release;
+    f->pixel_allocator.context = f;
+    f->pixel_allocator.resize = allocate;
+    f->pixel_allocator.release = free_memory;
+    f->host.objects = &f->object_allocator;
+    f->host.pixels = &f->pixel_allocator;
+    f->host.context = f;
+    f->host.warning = warning;
+    f->host.decode = decode;
+    f->overhead = 100;
+    f->writer.context = f;
+    f->writer.host_big_endian = big;
+    f->writer.system = 0x4321;
+    f->writer.add = add;
     f->size = 24;
     f->packed = 9;
     resource_block_init(&f->block, f, read, write);
@@ -161,7 +150,8 @@ static void balanced(Fixture *f)
 static void constructors(void)
 {
     Fixture f;
-    MMDepthBitmap *m;
+    MMDepthOwner *owner;
+    const MMDepthBitmap *m;
     unsigned char pixels[12];
     int n, i;
     memset(pixels, 0x35, 12);
@@ -169,36 +159,40 @@ static void constructors(void)
     {
         setup(&f, 0);
         f.fail = n;
-        m = (MMDepthBitmap *)mm_depth_new(3, 2, pixels, &f.s);
-        if (m)
+        owner = mm_depth_owner_new(3, 2, pixels, &f.host);
+        if (owner)
         {
+            m = mm_depth_owner_bitmap(owner);
             assert(m->bytes == 12 && m->row_bytes == 6 && !memcmp(m->pixels, pixels, 12));
-            release(&f, m);
+            mm_depth_owner_release(owner);
         }
         else
             assert(n == 1 || n == 2);
         balanced(&f);
     }
     setup(&f, 0);
-    m = (MMDepthBitmap *)mm_depth_new(3, 2, NULL, &f.s);
-    assert(m);
+    owner = mm_depth_owner_new(3, 2, NULL, &f.host);
+    assert(owner);
+    m = mm_depth_owner_bitmap(owner);
     for (i = 0; i < 12; ++i)
         assert(((unsigned char *)m->pixels)[i] == 255);
-    release(&f, m);
+    mm_depth_owner_release(owner);
     balanced(&f);
-    assert(!mm_depth_new(0, 2, NULL, &f.s));
-    assert(!mm_depth_new(-1, 2, NULL, &f.s));
-    assert(!mm_depth_new(2147483647, 2, NULL, &f.s));
-    assert(!mm_depth_new(0x40000000, 2, NULL, &f.s));
-    assert(!mm_depth_new(32768, 32768, NULL, &f.s));
+    assert(!mm_depth_owner_new(0, 2, NULL, &f.host));
+    assert(!mm_depth_owner_new(-1, 2, NULL, &f.host));
+    assert(!mm_depth_owner_new(2147483647, 2, NULL, &f.host));
+    assert(!mm_depth_owner_new(0x40000000, 2, NULL, &f.host));
+    assert(!mm_depth_owner_new(32768, 32768, NULL, &f.host));
     balanced(&f);
 }
 static void loading(void)
 {
     const int failure_steps[] = {4, 4, 2};
     Fixture f;
-    MMDepthBitmap *m;
-    MMDepthBitmap decoded;
+    MMDepthOwner *owner;
+    const MMDepthBitmap *m;
+    void *result;
+    MMI32 estimate;
     MMMemoryStream stream;
     int big, factory, storage, n, i, ok;
     for (big = 0; big < 2; ++big)
@@ -209,31 +203,33 @@ static void loading(void)
                     setup(&f, big);
                     f.fail = n;
                     bitmap_block_source(&f.block, f.input, (MMU32)f.size, (MMU32)f.packed, storage);
+                    result = NULL;
                     if (factory)
                     {
-                        ok = mm_depth_fetch(&f.block.owner, 1, &f.s);
-                        m = (MMDepthBitmap *)f.result;
-                        assert(f.published == 1 && f.valid == ok);
+                        ok = mm_depth_owner_fetch(&f.block.owner, &result, &estimate, f.overhead, big, &f.host);
+                        owner = result;
                     }
                     else
                     {
-                        m = (MMDepthBitmap *)mm_depth_read(&f.block.owner, &f.s);
-                        ok = m != NULL;
+                        owner = mm_depth_owner_read_block(&f.block.owner, big, &f.host);
+                        ok = owner != NULL;
                     }
                     assert(ok == !n);
                     if (ok)
                     {
-                        assert(m && m->bounds.left == 2 && m->bounds.top == -1 && m->bounds.right == 5 &&
+                        assert(owner);
+                        m = mm_depth_owner_bitmap(owner);
+                        assert(m->bounds.left == 2 && m->bounds.top == -1 && m->bounds.right == 5 &&
                                m->bounds.bottom == 1 && m->bytes == 12 && !memcmp(m->pixels, f.input + 12, 12));
                         assert(f.unpacks == (storage == BITMAP_PACKED_FILE));
                         assert(f.block.owner.view.kind == (storage == BITMAP_FILE ? MM_BLOCK_FILE : MM_BLOCK_MEMORY));
                         if (factory)
-                            assert(f.estimate == 112);
-                        release(&f, m);
+                            assert(estimate == 112);
+                        mm_depth_owner_release(owner);
                     }
                     else
                     {
-                        assert(!m);
+                        assert(!owner);
                         assert(f.warnings == !(storage == BITMAP_PACKED_FILE && n <= 2));
                     }
                     balanced(&f);
@@ -241,21 +237,25 @@ static void loading(void)
     for (big = 0; big < 2; ++big)
     {
         setup(&f, big);
-        memset(&decoded, 0, sizeof(decoded));
         assert(mm_memory_stream_init(&stream, f.input, 23));
-        assert(!mm_depth_read_stream(&stream.stream, &decoded, &f.s) && !decoded.pixels);
+        assert(!mm_depth_owner_read_stream(&stream.stream, big, &f.host));
         assert(mm_memory_stream_init(&stream, f.input, 24));
         f.fail = f.phase + 1;
-        assert(!mm_depth_read_stream(&stream.stream, &decoded, &f.s) && !decoded.pixels);
-        assert(mm_depth_read_stream(&stream.stream, &decoded, &f.s));
-        assert(decoded.bounds.left == 2 && decoded.bounds.top == -1 && decoded.bytes == 12 &&
-               !memcmp(decoded.pixels, f.input + 12, 12));
-        mm_depth_dispose(&decoded, &f.s);
+        assert(!mm_depth_owner_read_stream(&stream.stream, big, &f.host));
+        f.fail = f.phase + 2;
+        assert(!mm_depth_owner_read_stream(&stream.stream, big, &f.host));
+        owner = mm_depth_owner_read_stream(&stream.stream, big, &f.host);
+        assert(owner);
+        m = mm_depth_owner_bitmap(owner);
+        assert(m->bounds.left == 2 && m->bounds.top == -1 && m->bytes == 12 &&
+               !memcmp(m->pixels, f.input + 12, 12));
+        mm_depth_owner_release(owner);
         balanced(&f);
     }
     setup(&f, 0);
     bitmap_block_file(&f.block, 3, (MMU32)f.packed, 1);
-    assert(mm_depth_fetch(&f.block.owner, 0, &f.s) && f.estimate == 9 && !f.result && !f.unpacks && !f.reads);
+    assert(mm_depth_owner_fetch(&f.block.owner, NULL, &estimate, f.overhead, 0, &f.host) &&
+           estimate == 9 && !f.unpacks && !f.reads);
     assert(f.block.owner.view.packed);
     balanced(&f);
     for (i = 0; i < 24; ++i)
@@ -263,31 +263,34 @@ static void loading(void)
         setup(&f, 0);
         f.size = i;
         bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
-        assert(!mm_depth_read(&f.block.owner, &f.s));
+        assert(!mm_depth_owner_read_block(&f.block.owner, 0, &f.host));
         balanced(&f);
     }
     setup(&f, 0);
     f.size = 25;
     bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
-    assert(!mm_depth_read(&f.block.owner, &f.s));
+    assert(!mm_depth_owner_read_block(&f.block.owner, 0, &f.host));
     balanced(&f);
     setup(&f, 0);
     put(f.input + 8, 0, 0);
     f.size = 12;
     bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
-    m = (MMDepthBitmap *)mm_depth_read(&f.block.owner, &f.s);
-    assert(m && !m->bytes && m->bounds.right == 2);
-    release(&f, m);
+    owner = mm_depth_owner_read_block(&f.block.owner, 0, &f.host);
+    assert(owner);
+    m = mm_depth_owner_bitmap(owner);
+    assert(!m->bytes && m->bounds.right == 2);
+    mm_depth_owner_release(owner);
     balanced(&f);
     setup(&f, 0);
     put(f.input + 8, 0xffff, 0);
     bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
-    assert(!mm_depth_read(&f.block.owner, &f.s));
+    assert(!mm_depth_owner_read_block(&f.block.owner, 0, &f.host));
     balanced(&f);
     setup(&f, 0);
-    f.s.object_bytes = 2147483647;
+    f.overhead = 2147483647;
+    result = NULL;
     bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
-    assert(!mm_depth_fetch(&f.block.owner, 1, &f.s) && !f.valid);
+    assert(!mm_depth_owner_fetch(&f.block.owner, &result, &estimate, f.overhead, 0, &f.host) && !result);
     balanced(&f);
 }
 static void writing(void)
@@ -312,7 +315,7 @@ static void writing(void)
             setup(&f, big);
             f.fail = n;
             number = 123;
-            ok = mm_depth_write(&m, &f, 0x12345678UL, &number, &f.s);
+            ok = mm_depth_write(&m, &f, 0x12345678UL, &number, &f.writer);
             if (ok)
             {
                 unsigned char header[12];

@@ -14,7 +14,10 @@ static void release_slot(MMWorldBuffers *w, int kind, const MMWorldBufferService
     {
         if (kind == MM_WORLD_RGB_WORKING)
             s->unlock(s->context, object);
-        s->release(s->context, object);
+        if (kind == MM_WORLD_DEPTH_WORKING || kind == MM_WORLD_DEPTH_BACKGROUND)
+            s->release_depth(s->context, object);
+        else
+            s->release(s->context, object);
     }
 }
 static void release_buffers(MMWorldBuffers *w, const MMWorldBufferServices *s)
@@ -150,7 +153,7 @@ static int scaled(MMWorldBuffers *w, void *bitmap, void *depth, const MMWorldBuf
     s->depth_span(s->context, native, &src);
     s->depth_span(s->context, w->owners[MM_WORLD_DEPTH_BACKGROUND], &dst);
     ok = mm_world_depth_resample(&src, &dst, w->buffer_width, w->buffer_height, w->scale, 0, 0);
-    s->release(s->context, native);
+    s->release_depth(s->context, native);
     return ok;
 }
 int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, MMU32 rgb_number,
@@ -168,12 +171,12 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
         return 0;
     }
     s->priority(s->context, bitmap);
-    s->priority(s->context, depth);
+    s->priority_depth(s->context, depth);
     if (w->scale > 1)
     {
         ok = scaled(w, bitmap, depth, s);
         s->release(s->context, bitmap);
-        s->release(s->context, depth);
+        s->release_depth(s->context, depth);
         if (!ok)
             return 0;
     }
@@ -184,7 +187,7 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
         if (!full)
         {
             s->release(s->context, bitmap);
-            s->release(s->context, depth);
+            s->release_depth(s->context, depth);
             return 0;
         }
         s->draw_bitmap(s->context, full, bitmap);
@@ -195,7 +198,7 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
         s->depth_span(s->context, depth, &src);
         s->depth_span(s->context, w->owners[MM_WORLD_DEPTH_BACKGROUND], &dst);
         ok = mm_world_depth_resample(&src, &dst, w->buffer_width, w->buffer_height, 1, w->half_x, w->half_y);
-        s->release(s->context, depth);
+        s->release_depth(s->context, depth);
         if (!ok)
             return 0;
     }

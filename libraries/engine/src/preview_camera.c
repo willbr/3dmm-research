@@ -347,7 +347,7 @@ int mm_preview_projection_cache_get(MMPreviewProjectionCache *c, const MMU32 *nu
             !(bitmap = s->fetch(s->context, binding->images.colour, 0)))
             return MM_PREVIEW_CAMERA_READ;
         s->bounds(s->context, bitmap, bounds);
-        s->release(s->context, bitmap);
+        s->release(s->context, bitmap, 0);
         if (bounds[2] <= bounds[0] || bounds[3] <= bounds[1])
             return MM_PREVIEW_CAMERA_READ;
         width = (MMU32)bounds[2] - (MMU32)bounds[0];

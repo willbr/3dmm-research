@@ -20272,3 +20272,35 @@ Studio checked both camera indices in each of the two scenes before saving
 the roundtrip movie and after reopening the save. Retail opened the new save
 in 20261121T223420Z-dccdd2ec and reproduced all 60 original seek camera
 indices and canvas hashes. Evidence is under tmp/c89-background-owner.
+
+## C89 depth bitmap ownership (21 November 2026)
+
+The C89 ZBMP owner holds depth pixels for Studio's working and background
+buffers and for Marcus Preview's background images. Studio uses a typed
+cache entry for the shared owner and keeps its historical cache charges.
+The native host supplies allocation, block decompression and heap diagnostics.
+Marcus storyboard output uses the same positional ZBMP writer as Studio.
+
+Native x64 and SDL depth construction, decode, clipping and World buffer
+and render snapshots matched the pre-change bytes. The native x64 World
+export and native x86 depth snapshots also matched their own pre-change
+builds. The native depth fixture checks cache reuse, priority, detachment,
+eviction and a detached bitmap surviving release of the caller's resource-file
+reference. All four native x86 depth and World tests passed.
+
+All 193 standalone C89 checks and six targeted AddressSanitizer checks
+passed. The native x64 and SDL scene edit, scene content and movie save/load
+tests passed, along with Marcus playback, player, storyboard and C89 checks.
+The Preview background check rendered 188 camera views across 12 retail
+backgrounds. Of those, 184 had finite depth and generated meshes.
+
+Fresh retail comparison suite 20261121T224603Z-67dee013 completed all
+14 runs. Across the actor-audio and Studio actor roundtrip movies, SDL Studio
+and Marcus each matched all 90 retail seek camera indices and continuous frame
+identities. Each matched all 90 prior port seek canvases and 88 of 90 retail
+seek canvases. V3dmm matched all 30 retail seek canvases on the actor-audio
+movie. SDL and V3dmm matched its six retail sound requests. Mixed PCM still
+differed on the audible fixture, Marcus sound request coverage was
+inconclusive, and the continuous image comparison requires temporal alignment.
+
+Evidence is under tmp/c89-depth-owner.

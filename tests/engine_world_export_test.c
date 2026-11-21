@@ -331,6 +331,7 @@ static void init(Fixture *f)
     b->context = f;
     b->create = create;
     b->release = release;
+    b->release_depth = release;
     b->fetch = fetch;
     b->depth_span = depth_span;
     b->draw_bitmap = draw_bitmap;

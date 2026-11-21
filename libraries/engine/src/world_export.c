@@ -44,7 +44,7 @@ cleanup:
     if (bitmap)
         s->release(s->context, bitmap);
     if (source)
-        s->release(s->context, source);
+        s->release_depth(s->context, source);
     if (full)
         s->release(s->context, full);
     return ok;
@@ -132,6 +132,6 @@ cleanup:
     if (rgb)
         buffers->release(buffers->context, rgb);
     if (depth)
-        buffers->release(buffers->context, depth);
+        buffers->release_depth(buffers->context, depth);
     return ok;
 }

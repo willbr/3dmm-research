@@ -985,11 +985,12 @@ through their original BRender owner; bitmap import failures release decoded
 pixels. Shared indexed-BMP header validation, padded pixel I/O, RLE8 decoding,
 palette admission, writing and failure cleanup now also use C89. The native
 bitmap facade supplies file/allocation and palette-object services.
-Depth-buffer construction, pixel ownership, native-order wire I/O, cache
-factory control, clipping and full/half-resolution drawing now use C89 as well.
-Live ZBMP reads decode through C89 blocks and share the Preview stream reader.
-Studio and the Marcus storyboard use the same positional depth writer. Depth
-drawing clips and scans C89 regions directly.
+Studio's working and background depth buffers and Marcus Preview's depth
+images use the same C89 ZBMP owner. Studio's cache uses typed reference,
+priority, detach and destruction operations and preserves its historical
+charges. Live reads decode through C89 blocks and share the Preview stream
+reader. Studio and the Marcus storyboard use the same positional depth writer.
+Depth drawing clips and scans C89 regions directly.
 Masked-bitmap construction/cropping, RLE encoding, wire validation/normalization,
 hit testing, cache factories, BMP import control and pixel lifetime now also use
 C89. Live masked bitmap readers use the same bounded stream transfer as Preview

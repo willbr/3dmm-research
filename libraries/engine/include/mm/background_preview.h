@@ -21,7 +21,7 @@ extern "C"
         MMBackgroundPayloadRead payload;
         MMBackgroundCameraImageRead child;
         void *(*fetch)(void *, MMU32 number, int depth);
-        void (*release)(void *, void *);
+        void (*release)(void *, void *, int depth);
         void (*bounds)(void *, void *, MMI32 rect[4]);
         void (*draw_rgb)(void *, void *, unsigned char *, MMU32, MMU32, MMI32 x, MMI32 y);
         void (*draw_depth)(void *, void *, unsigned short *, MMU32, MMU32);

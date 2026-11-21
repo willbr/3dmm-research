@@ -117,7 +117,7 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         *noTexture = World::NoTexture();
     };
     s.region_allocator = &static_cast<WorldRenderContext *>(context)->region_allocator;
-    s.depth_background = &static_cast<PZBMP>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND])->_depth;
+    s.depth_background = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
     s.lock = [](void *p, int kind, MMWorldPixels *out) -> int {
         auto port = static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind]);
         RC r;
@@ -127,7 +127,7 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         return out->pixels != nullptr;
     };
     s.unlock = [](void *p, int kind) { static_cast<PGraphicsPort>(RenderWorld(p)->_buffers.owners[kind])->Unlock(); };
-    s.detach_depth = [](void *, void *depth) { static_cast<PZBMP>(depth)->Detach(); };
+    s.detach_depth = [](void *, void *depth) { mm_depth_owner_detach(static_cast<MMDepthOwner *>(depth)); };
     s.flush = [](void *) { GraphicsPort::Flush(); };
     s.screen_mark = [](void *p, const MMRegion *region) {
         auto c = static_cast<WorldRenderContext *>(p);
@@ -156,16 +156,17 @@ MMWorldBufferServices World::_BufferServices()
     s.create = [](void *, int kind, MMI32 width, MMI32 height) -> void * {
         RC r(0, 0, width, height);
         if (kind == MM_WORLD_DEPTH_BACKGROUND || kind == MM_WORLD_DEPTH_WORKING)
-            return ZBMP::PzbmpNew(width, height);
+            return NewDepthBitmap(width, height);
         return GraphicsPort::PgptNewOffscreen(&r, kcbitPixelRGB);
     };
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
+    s.release_depth = [](void *, void *p) { mm_depth_owner_release(static_cast<MMDepthOwner *>(p)); };
     s.lock = [](void *, void *p) -> void * { return static_cast<PGraphicsPort>(p)->PrgbLockPixels(); };
     s.unlock = [](void *, void *p) { static_cast<PGraphicsPort>(p)->Unlock(); };
     s.depth_span = [](void *, void *p, MMWorldDepthSpan *out) {
-        auto d = static_cast<PZBMP>(p);
-        *out = {static_cast<byte *>(d->_depth.pixels), d->_depth.row_bytes, d->_depth.bytes};
+        const auto d = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(p));
+        *out = {static_cast<byte *>(d->pixels), d->row_bytes, d->bytes};
     };
     s.setup_scene = [](void *p) {
         auto w = static_cast<PWorld>(p);
@@ -173,10 +174,16 @@ MMWorldBufferServices World::_BufferServices()
     };
     s.changed = [](void *p) { static_cast<PWorld>(p)->MarkDirty(); };
     s.fetch = [](void *, void *p, int kind, MMU32 type, MMU32 number) -> void * {
-        return static_cast<PChunkyResourceFile>(p)->PbacoFetch(
-            type, number, kind == MM_WORLD_DEPTH_BACKGROUND ? ZBMP::FReadZbmp : MaskedBitmapMBMP::FReadMbmp);
+        const auto cache = static_cast<PChunkyResourceFile>(p);
+        if (kind == MM_WORLD_DEPTH_BACKGROUND)
+            return mm_resource_cache_fetch_owned_chunk(cache->CoreCache(), type, number, ReadCachedDepthBitmap,
+                                                       mm_depth_owner_services());
+        return cache->PbacoFetch(type, number, MaskedBitmapMBMP::FReadMbmp);
     };
     s.priority = [](void *, void *p) { static_cast<PBaseCacheableObject>(p)->SetCrep(crepTossFirst); };
+    s.priority_depth = [](void *, void *p) {
+        mm_depth_owner_priority(static_cast<MMDepthOwner *>(p), MM_RESOURCE_TOSS_PRIORITY);
+    };
     s.draw_bitmap = [](void *, void *port, void *bitmap) {
         GraphicsEnvironment gnv(static_cast<PGraphicsPort>(port));
         gnv.DrawMbmp(static_cast<PMaskedBitmapMBMP>(bitmap), 0, 0);
@@ -188,9 +195,10 @@ MMWorldBufferServices World::_BufferServices()
         dst.CopyPixels(&src, &sr, &dr);
     };
     s.draw_depth = [](void *, void *source, void *destination, MMI32 width, MMI32 height) {
-        auto dst = static_cast<PZBMP>(destination);
-        RC r(0, 0, width, height);
-        static_cast<PZBMP>(source)->Draw(dst->Prgb(), dst->CbRow(), height, 0, 0, &r);
+        const auto src = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(source));
+        const auto dst = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(destination));
+        const MMDepthRect clip = {0, 0, width, height};
+        mm_depth_draw(src, dst->pixels, dst->row_bytes, height, 0, 0, &clip, nullptr, 0);
     };
     return s;
 }
@@ -520,8 +528,8 @@ void World::AssertValid(LegacyUlong grf)
     World_PAR::AssertValid(fobjAllocated);
     AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_WORKING]), 0);
     AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_BACKGROUND]), 0);
-    AssertPo(static_cast<PZBMP>(_buffers.owners[MM_WORLD_DEPTH_WORKING]), 0);
-    AssertPo(static_cast<PZBMP>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]), 0);
+    AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_WORKING]));
+    AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
     AssertNilOrPo(static_cast<PChunkyResourceFile>(_buffers.owners[MM_WORLD_CACHE]), 0);
     if (_buffers.scale == 1 && !_buffers.half_x && _buffers.half_y)
         AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_STRETCH]), 0);
@@ -536,8 +544,13 @@ void World::MarkMem(void)
 {
     AssertThis(0);
     World_PAR::MarkMem();
-    for (void *owner : _buffers.owners)
-        MarkMemObj(static_cast<BASE *>(owner));
+    for (auto kind : {MM_WORLD_RGB_WORKING, MM_WORLD_RGB_BACKGROUND, MM_WORLD_RGB_STRETCH, MM_WORLD_CACHE})
+        MarkMemObj(static_cast<BASE *>(_buffers.owners[kind]));
+    for (auto kind : {MM_WORLD_DEPTH_WORKING, MM_WORLD_DEPTH_BACKGROUND})
+    {
+        if (_buffers.owners[kind])
+            mm_depth_owner_services()->mark_memory(_buffers.owners[kind]);
+    }
     for (auto region : {&_buffers.dirty_working, &_buffers.dirty_screen})
     {
         MarkPv(region->bands);

@@ -1,7 +1,7 @@
 /* Depth bitmap policy converted from bren/zbmp.cpp. */
 #ifndef MM_ENGINE_DEPTH_BITMAP_H
 #define MM_ENGINE_DEPTH_BITMAP_H
-#include "block_owner.h"
+#include "resource_cache.h"
 #include "region.h"
 #include "read_stream.h"
 #ifdef __cplusplus
@@ -15,35 +15,43 @@ extern "C"
         MMI32 row_bytes, bytes;
         void *pixels;
     } MMDepthBitmap;
-    typedef struct MMDepthServices
+    typedef struct MMDepthOwner MMDepthOwner;
+    typedef struct MMDepthOwnerHost
+    {
+        const MMStorageAllocator *objects, *pixels;
+        void *context;
+        MMBlockTransform decode;
+        void (*warning)(void *);
+        void (*mark)(MMDepthOwner *);
+        void (*issue)(MMDepthOwner *, int kind);
+    } MMDepthOwnerHost;
+    /* The optional host and allocators outlive their owners. Without a host,
+     * use the C heap. New fills with 0xff unless given contiguous pixels. */
+    MMDepthOwner *mm_depth_owner_new(MMI32 width, MMI32 height, const void *initial, const MMDepthOwnerHost *);
+    const MMDepthBitmap *mm_depth_owner_bitmap(const MMDepthOwner *);
+    const MMResourceObject *mm_depth_owner_binding(const MMDepthOwner *);
+    const MMResourceObjectServices *mm_depth_owner_services(void);
+    void mm_depth_owner_release(MMDepthOwner *);
+    void mm_depth_owner_detach(MMDepthOwner *);
+    void mm_depth_owner_priority(MMDepthOwner *, MMI32);
+    int mm_depth_native_big_endian(void);
+    int mm_depth_header(const unsigned char[12], int host_big, MMDepthBitmap *);
+    /* Decode shorts in host order and ignore bo/osk, matching the native reader.
+     * Accept zero-sized serialized layouts and reject negative layouts. */
+    MMDepthOwner *mm_depth_owner_read_stream(const MMReadStream *, int host_big, const MMDepthOwnerHost *);
+    MMDepthOwner *mm_depth_owner_read_block(MMOwnedBlock *, int host_big, const MMDepthOwnerHost *);
+    /* The size-only probe returns the stored size without decoding. A successful
+     * load uses the caller's cache overhead plus decoded pixel bytes. */
+    int mm_depth_owner_fetch(MMOwnedBlock *, void **, MMI32 *, MMI32 overhead, int host_big,
+                             const MMDepthOwnerHost *);
+    typedef struct MMDepthWriteServices
     {
         void *context;
         int host_big_endian;
         MMU32 system;
-        MMI32 object_bytes;
-        void *(*create)(void *);
-        MMDepthBitmap *(*state)(void *, void *);
-        void (*release)(void *, void *);
-        int (*allocate)(void *, MMI32, void **);
-        void (*free_memory)(void *, void **);
-        void (*warning)(void *);
-        MMBlockTransform decode;
         int (*add)(void *, void *file, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *);
-        void (*publish_fetch)(void *, int valid, void *object, MMI32 bytes);
-    } MMDepthServices;
-    /* Fresh host objects provide zeroed state. C owns pixel storage. New fills with
-     * 0xff unless initial is supplied (a contiguous copy, ignoring renderer stride).
-     * Read ignores bo/osk and decodes shorts in host order, as the native reader did.
-     * Zero-sized serialized layouts are accepted; negative layouts are rejected. */
-    void *mm_depth_new(MMI32 width, MMI32 height, const void *initial, const MMDepthServices *);
-    void mm_depth_dispose(MMDepthBitmap *, const MMDepthServices *);
-    int mm_depth_header(const unsigned char[12], int host_big, MMDepthBitmap *);
-    /* Read a decoded ZBMP into an empty owner. Failure leaves it unchanged. */
-    int mm_depth_read_stream(const MMReadStream *, MMDepthBitmap *, const MMDepthServices *);
-    void *mm_depth_read(MMOwnedBlock *, const MMDepthServices *);
-    int mm_depth_fetch(MMOwnedBlock *, int want_object, const MMDepthServices *);
-    int mm_depth_write(const MMDepthBitmap *, void *file, MMU32 type, MMU32 *number,
-                             const MMDepthServices *);
+    } MMDepthWriteServices;
+    int mm_depth_write(const MMDepthBitmap *, void *file, MMU32 type, MMU32 *number, const MMDepthWriteServices *);
     /* No clip/region means no draw. Half mode doubles only the bottom bound and
      * samples every other clip row, starting at its actual (possibly odd) top.
      * Source/destination addressing uses absolute coordinates, without subtracting

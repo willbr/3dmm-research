@@ -96,8 +96,8 @@ struct Access : World
         auto p = rgb->PrgbLockPixels();
         Record(p, rgb->CbRow() * buffers.buffer_height);
         rgb->Unlock();
-        auto z = static_cast<PZBMP>(buffers.owners[MM_WORLD_DEPTH_WORKING]);
-        Record(z->Prgb(), z->CbRow() * buffers.buffer_height);
+        auto z = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(buffers.owners[MM_WORLD_DEPTH_WORKING]));
+        Record(z->pixels, z->row_bytes * buffers.buffer_height);
         Materials();
     }
 };
@@ -169,10 +169,10 @@ int main()
     CHECK(file->FAdd(bitmap->CbOnFile(), kctgMbmp, &rgb, &block) && bitmap->FWrite(&block));
     block.Free();
     ReleasePpo(&bitmap);
-    auto depth = ZBMP::PzbmpNew(32, 24);
+    auto depth = NewDepthBitmap(32, 24);
     CHECK(depth);
-    CHECK(depth->FWrite(file, kctgZbmp, &z));
-    ReleasePpo(&depth);
+    CHECK(WriteDepthBitmap(depth, file->WriteOwnerIndex(), kctgZbmp, &z));
+    mm_depth_owner_release(depth);
     for (int mode = 0; mode < 6; ++mode)
     {
         auto w = World::PbwldNew(32, 24, mode == 1 || mode == 3, mode == 2 || mode == 3);

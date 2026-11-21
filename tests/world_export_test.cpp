@@ -102,8 +102,8 @@ struct Access : World
         auto p = rgb->PrgbLockPixels();
         Record(p, rgb->CbRow() * buffers.buffer_height);
         rgb->Unlock();
-        auto z = static_cast<PZBMP>(buffers.owners[MM_WORLD_DEPTH_WORKING]);
-        Record(z->Prgb(), z->CbRow() * buffers.buffer_height);
+        auto z = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(buffers.owners[MM_WORLD_DEPTH_WORKING]));
+        Record(z->pixels, z->row_bytes * buffers.buffer_height);
         Materials();
         BMAT34 matrix;
         BRS nearZ, farZ;
@@ -261,13 +261,13 @@ int main()
     CHECK(file->FAdd(bitmap->CbOnFile(), kctgMbmp, &rgb, &block) && bitmap->FWrite(&block));
     block.Free();
     ReleasePpo(&bitmap);
-    auto depth = ZBMP::PzbmpNew(32, 24);
+    auto depth = NewDepthBitmap(32, 24);
     CHECK(depth);
     for (int y = 8; y < 12; ++y)
         for (int x = 12; x < 16; ++x)
-            reinterpret_cast<ushort *>(depth->Prgb())[y * 32 + x] = 0;
-    CHECK(depth->FWrite(file, kctgZbmp, &z));
-    ReleasePpo(&depth);
+            reinterpret_cast<ushort *>(static_cast<byte *>(mm_depth_owner_bitmap(depth)->pixels))[y * 32 + x] = 0;
+    CHECK(WriteDepthBitmap(depth, file->WriteOwnerIndex(), kctgZbmp, &z));
+    mm_depth_owner_release(depth);
     for (int mode = 0; mode < 6; ++mode)
     {
         auto w = World::PbwldNew(32, 24, mode == 1 || mode == 3, mode == 2 || mode == 3);

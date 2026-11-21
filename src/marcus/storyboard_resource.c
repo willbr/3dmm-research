@@ -236,7 +236,7 @@ static int write_depth(const MMMovieArchiveEditor *target, MMU32 *number)
 {
     MMDepthBitmap depth = {{0, 0, MARCUS_BOARD_WIDTH, MARCUS_BOARD_HEIGHT},
                            MARCUS_BOARD_WIDTH * 2, MARCUS_BOARD_PIXELS * 2, NULL};
-    MMDepthServices services = {0};
+    MMDepthWriteServices services = {0};
     int ok;
     depth.pixels = malloc((size_t)depth.bytes);
     if (!depth.pixels)
