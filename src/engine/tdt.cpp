@@ -311,7 +311,7 @@ PCustomMaterial_CMTL ThreeDText::PcmtlFetch(LegacyLong cmid)
 bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
-    const auto writer = _Writer(pcfl);
+    const auto writer = pcfl->WriteIndex();
     byte wire[kcbMaxDataStn];
     const auto name = ChunkyFile::EncodeName(&_stn, wire);
     return mm_text_write(&_template, &_descriptor, &name, ctg, pcno, &writer) != 0;
@@ -325,7 +325,7 @@ bool ThreeDText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, c
     MMTextDescriptor draft = {};
     draft.shape = shape;
     TextTagToCore(&font, &draft.font);
-    const auto writer = _Writer(file);
+    const auto writer = file->WriteIndex();
     byte wire[kcbMaxDataStn];
     const auto encoded = ChunkyFile::EncodeName(name, wire);
     return mm_text_write_draft(&encoded, &draft, number, &writer) != 0;

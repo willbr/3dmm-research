@@ -3,6 +3,7 @@
 #include "mm/wave_import.h"
 #include "mm/sound_payload.h"
 #include "engine_resource_block_fixture.h"
+#include "chunk_writer_fixture.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -403,6 +404,7 @@ static void factories(void)
 }
 typedef struct WaveFile
 {
+    ChunkWriterFixture archive;
     int fail, step, bad, cleanup, deleted, opens_memory, force_memory;
     MMI32 style;
     MMU32 source_bytes, encoded_bytes, length, written;
@@ -427,51 +429,58 @@ static int read_source(void *p, MMU32 offset, void *bytes, size_t count)
     memcpy(bytes, f->source + offset, count);
     return file_step(f);
 }
-static int add_parent(void *p, const unsigned char *header, MMU32 *number)
+static int allocate_sound(void *p, MMU32 bytes, MMChunkLocation *out)
 {
-    WaveFile *f = (WaveFile *)p;
-    assert(header[4] == f->style && !header[12]);
-    if (!file_step(f)) return 0;
-    *number = 123;
+    WaveFile *f = ((ChunkIndexFixture *)p)->observer;
+    int child = f->archive.index.count == 3;
+    assert(child ? bytes <= sizeof(f->bytes) : bytes == MM_SOUND_HEADER_BYTES);
+    if (!file_step(f))
+        return 0;
+    out->file = &f->archive;
+    out->offset = child ? 256 : 128;
+    out->bytes = bytes;
+    out->flags = 0;
+    if (child)
+        f->length = bytes;
     return 1;
 }
-static int write_child(void *p, MMU32 offset, const void *bytes, size_t count)
+static int write_sound(void *p, void *file, MMU32 offset, const void *bytes, size_t count)
 {
-    WaveFile *f = (WaveFile *)p;
-    assert(offset == f->written && count <= f->length - offset);
+    ChunkWriterFixture *archive = p;
+    WaveFile *f = archive->context;
+    const unsigned char *header = bytes;
+    assert(file == p);
+    if (offset == 128)
+    {
+        assert(count == MM_SOUND_HEADER_BYTES && header[4] == f->style && !header[12]);
+        return 1;
+    }
+    assert(archive->file_refs == 1 && offset == 256 + f->written && count <= f->length - f->written);
     if (!file_step(f)) return 0;
-    memcpy(f->bytes + offset, bytes, count);
+    memcpy(f->bytes + f->written, bytes, count);
     f->written += (MMU32)count;
     return 1;
 }
-static int add_child(void *p, MMU32 number, MMU32 slot, MMU32 type, MMU32 bytes, MMStorageWriter *out)
+static int set_name(void *p)
 {
     WaveFile *f = (WaveFile *)p;
-    assert(number == 123 && !slot && type == MM_SOUND_WAVE && bytes <= sizeof(f->bytes));
-    if (!file_step(f)) return 0;
-    f->length = bytes;
-    out->context = p;
-    out->length = bytes;
-    out->write_at = write_child;
-    return 1;
-}
-static int set_name(void *p, MMU32 number, const void *name)
-{
-    WaveFile *f = (WaveFile *)p;
-    assert(number == 123 && name == p && f->written == f->length);
+    assert(f->written == f->length);
     return file_step(f);
 }
-static void delete_parent(void *p, MMU32 number)
+static void delete_parent(void *p, const MMChunkEntry *entry)
 {
-    assert(number == 123);
-    ++((WaveFile *)p)->deleted;
+    if (entry->type == MM_SOUND_TYPE)
+        ++((WaveFile *)p)->deleted;
 }
-static MMSoundWriteServices file_writer(WaveFile *f)
+static MMArchiveWriter file_writer(WaveFile *f)
 {
-    MMSoundWriteServices writer = {NULL, 0, 0, NULL, add_parent, add_child, set_name, delete_parent};
-    writer.context = f;
+    MMArchiveWriter writer = chunk_writer_fixture(&f->archive, f, allocate_sound, write_sound);
+    f->archive.grow_name = set_name;
+    f->archive.index.before_delete = delete_parent;
+    fixture_chunk_add(&f->archive.index, 1, 0);
     return writer;
 }
+static const MMChunkNameValue wave_name = {"wave", 4, 4};
 static void file_bad(void *p) { ++((WaveFile *)p)->bad; }
 static void native_format(MMNativeWaveFormat *format)
 {
@@ -530,17 +539,18 @@ static void cleanup(void *p)
     ++f->cleanup;
 }
 static int native_import(WaveFile *f, MMU32 *number, const MMNativeWaveServices *services,
-                         const MMSoundWriteServices *writer)
+                         const MMStorageAllocator *transfer)
 {
+    MMArchiveWriter writer = file_writer(f);
     MMReadStream source = {NULL, 0, read_source};
+    writer.transfer_allocator = transfer;
     source.context = f;
     source.length = f->source_bytes;
-    return mm_wave_native_import(&source, f->style, f, number, services, writer);
+    return mm_wave_native_import(&source, f->style, &wave_name, number, services, &writer);
 }
 static void native(void)
 {
     WaveFile f;
-    MMSoundWriteServices writer = file_writer(&f);
     MMNativeWaveServices services = {NULL, NULL, open_sound, NULL, native_convert, sample_count, activate,
                                      allocate_samples, read_samples, compress, file_bad, cleanup};
     Fault allocation = {0};
@@ -550,10 +560,10 @@ static void native(void)
     services.context = &f;
     file_init(&f, 2, 85);
     number = 9;
-    assert(native_import(&f, &number, &services, &writer));
+    assert(native_import(&f, &number, &services, NULL));
     /* Preserve the classic comparison of the RIFF payload (80 bytes) with the
      * original file (85 bytes), even though the whole encoded file is 88 bytes. */
-    assert(number == 123 && f.written == 88 && f.bytes[4] == 80 && f.cleanup == 1 && !f.deleted);
+    assert(number == 0 && f.written == 88 && f.bytes[4] == 80 && f.cleanup == 1 && !f.deleted);
     assert(!memcmp(f.bytes, "RIFF", 4) && !memcmp(f.bytes + 12, "fmt ", 4) &&
            !memcmp(f.bytes + 38, "fact", 4) && !memcmp(f.bytes + 50, "data", 4));
     assert(!memcmp(f.bytes + 58, f.encoded, f.encoded_bytes));
@@ -563,12 +573,13 @@ static void native(void)
         file_init(&f, 2, 85);
         f.fail = fail;
         number = 9;
-        assert(!native_import(&f, &number, &services, &writer) && f.cleanup == 1);
-        assert(number == (fail > 7 ? 123 : 9) && f.deleted == (fail > 7));
+        assert(!native_import(&f, &number, &services, NULL) && f.cleanup == 1);
+        assert(number == (fail > 7 ? 0 : 9) && f.deleted == (fail > 7));
+        assert(f.archive.index.count == 1 && !f.archive.file_refs);
         assert(f.bad == (fail == 1 || fail == 2 || fail == 3 || fail == 5 || fail == 6));
     }
     file_init(&f, 2, 70);
-    assert(native_import(&f, &number, &services, &writer));
+    assert(native_import(&f, &number, &services, NULL));
     assert(f.written == f.source_bytes && !memcmp(f.bytes, f.source, f.source_bytes));
 
     allocator.context = &allocation;
@@ -582,7 +593,7 @@ static void native(void)
         number = 9;
         allocation.fail = fail == 1;
         allocation.calls = 0;
-        assert(native_import(&f, &number, &services, &writer) == !fail);
+        assert(native_import(&f, &number, &services, NULL) == !fail);
         assert(f.cleanup == 1 && !allocation.live && f.opens_memory == (fail == 0 || fail == 3));
         assert(f.bad == (fail >= 2));
     }
@@ -593,8 +604,7 @@ static void native(void)
     f.encoded_bytes = sizeof(f.encoded);
     allocation.calls = 0;
     allocation.fail = 1;
-    writer.transfer_allocator = &allocator;
-    assert(native_import(&f, &number, &services, &writer));
+    assert(native_import(&f, &number, &services, &allocator));
     assert(f.written == f.encoded_bytes + 58 && !memcmp(f.bytes + 58, f.encoded, f.encoded_bytes));
     assert(allocation.calls == 1 && !allocation.live);
 }
@@ -608,7 +618,7 @@ static void physical(void)
 {
     WaveFile f;
     MMWaveFileServices s = {NULL, NULL, physical_prepare, file_bad};
-    MMSoundWriteServices writer = file_writer(&f);
+    MMArchiveWriter writer;
     MMReadStream source = {NULL, 12, read_source};
     MMStorageAllocator a;
     MMWaveBuffer b;
@@ -624,11 +634,13 @@ static void physical(void)
     for (fail = 0; fail <= 6; ++fail)
     {
         file_init(&f, 3, 12);
+        writer = file_writer(&f);
         f.fail = fail;
         number = 7;
-        ok = mm_wave_file_import(&source, 3, &f, &number, &s, &writer);
+        ok = mm_wave_file_import(&source, 3, &wave_name, &number, &s, &writer);
         assert(ok == !fail && f.bad == (fail == 1 || fail == 2));
-        assert(number == (fail == 0 || fail >= 4 ? 123 : 7) && f.deleted == (fail >= 4));
+        assert(number == (fail == 0 || fail >= 4 ? 0 : 7) && f.deleted == (fail >= 4));
+        assert(f.archive.index.count == (!fail ? 3U : 1U) && !f.archive.file_refs);
         if (ok) assert(!memcmp(f.bytes, f.source, source.length));
     }
     memset(&fault, 0, sizeof(fault));
@@ -637,8 +649,9 @@ static void physical(void)
     a.resize = resize;
     a.release = release;
     file_init(&f, 3, 12);
+    writer = file_writer(&f);
     s.allocator = &a;
-    assert(!mm_wave_file_import(&source, 3, &f, &number, &s, &writer) && !fault.live && !f.step && !f.bad);
+    assert(!mm_wave_file_import(&source, 3, &wave_name, &number, &s, &writer) && !fault.live && !f.step && !f.bad);
     /* C encoding failure releases converted host samples and preserves outputs. */
     memset(&input, 0, sizeof(input));
     memset(&fault, 0, sizeof(fault));

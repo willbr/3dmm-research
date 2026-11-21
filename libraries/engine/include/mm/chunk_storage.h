@@ -4,6 +4,7 @@
 #define MM_ENGINE_CHUNK_STORAGE_H
 #include "block_owner.h"
 #include "chunk_edit.h"
+#include "chunk_metadata.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -77,6 +78,17 @@ extern "C"
         void *decode_context;
         MMBlockTransform decode;
     } MMChunkPayloadServices;
+    /* Borrowed bindings for authoring into one mutable archive. */
+    typedef struct MMArchiveWriter
+    {
+        MMChunkEdit edit;
+        MMChunkNames names;
+        const MMChunkPayloadServices *payloads;
+        int big_endian;
+        MMU32 system;
+        void (*invalidate_number)(MMU32 *);
+        const MMStorageAllocator *transfer_allocator;
+    } MMArchiveWriter;
     /* Locate a borrowed extent by key, own the block through the receiver call,
      * and release it afterward. A NULL, zero-length extent is the legacy empty
      * extra-cache result. The receiver's result is published only on delivery.

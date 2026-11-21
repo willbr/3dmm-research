@@ -36,15 +36,14 @@ ChunkNumber Import(PChunkyFile file, const char *path, int style)
     std::transform(extension.begin(), extension.end(), extension.begin(), [](unsigned char c) { return char(std::tolower(c)); });
     const bool midi = extension == ".mid" || extension == ".midi";
     Require(midi == (style == MARCUS_SOUND_MUSIC), "Music cues use MIDI files; WAV/MP3 audio uses Effects or Speech.");
-    EngineSoundWriter writer{file, {}};
-    const auto services = writer.Services();
     String name;
     filename.GetLeaf(&name);
+    const EngineSoundWriter writer(file, &name);
     ChunkNumber sound;
     int written;
     if (midi)
     {
-        written = mm_sound_import_midi(&source, &name, &sound, &services);
+        written = mm_sound_import_midi(&source, &writer.name, &sound, &writer.archive);
         Require(written != MM_SOUND_BAD_MIDI, "Cannot import this MIDI file.");
     }
     else
@@ -58,7 +57,7 @@ ChunkNumber Import(PChunkyFile file, const char *path, int style)
         }
         MMMemoryStream payload;
         Require(mm_memory_stream_init(&payload, wave.data(), wave.size()), "Cannot encode this sound in the native movie format.");
-        written = mm_sound_write(&payload.stream, 1, style, &name, &sound, &services);
+        written = mm_sound_write(&payload.stream, 1, style, &writer.name, &sound, &writer.archive);
     }
     Require(written > 0, "Cannot encode this sound in the native movie format.");
     return sound;

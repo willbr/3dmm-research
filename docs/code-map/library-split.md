@@ -6300,9 +6300,11 @@ its slot-zero child through the C89 resource cache. It reads and decodes the
 header through an owned C block, so both mutable archives and read-only wire
 indices can supply cached sounds. Direct loads and catalog queries share that
 header decoder through the movie graph. Invalidation requires a mutable cache
-binding. Native sound authoring supplies a borrowed C block writer for the
-child payload. The hosts supply objects, names, physical file and codec
-services, and sound-device operations.
+binding. The shared C chunk editor writes the MSND parent, creates and links
+the slot-zero MIDI or WAVE child, and assigns the encoded name. C owns the
+child block during the transfer and removes incomplete graphs. The hosts
+supply object and name encoding, file and codec services, and sound-device
+operations.
 
 The reader retains native foreign-header semantics: only the order/system
 markers swap; style and volume remain in native byte order because the original

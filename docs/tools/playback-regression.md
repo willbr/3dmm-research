@@ -17912,3 +17912,44 @@ matched all 60 archived retail frame identities in seek and continuous
 playback, including the retail seek camera indices. SDL matched all 12 retail
 sound requests. Each port reproduced its 60 seek canvas hashes from the
 preceding build. Evidence is in `tmp/c89-template-chunk-authoring`.
+
+## Sound authoring through the C89 chunk editor (21 November 2026)
+
+The shared editor writes the MSND header, links the MIDI or WAVE child,
+streams the payload through an owned block and sets the encoded chunk name.
+The writer removes incomplete graphs. Invalidation replaces the header
+before unlinking the payload. A failed replacement preserves the original
+header and child.
+
+Sound authoring and invalidation traces matched the preceding build byte for
+byte on x64, x86, and SDL. Marcus saved a movie with embedded WAVE and MIDI,
+removed the source files and reopened the movie with both cues intact. All
+192 standalone C tests, five focused AddressSanitizer checks, 12 native C89
+gates, and four Marcus checks passed. The 54 movie and scene traces, three
+fixture saves, ten Preview fingerprints, and six Preview movies matched.
+Studio's live round trip reproduced 13 actor samples, 12 rendered images,
+and the saved movie bytes.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T042449Z-6b9a47cf`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T042532Z-bdabced2`.
+
+Marcus produced the same sound movie bytes as before the conversion. Retail
+reopened the movie in `20261121T042645Z-31d37e1c`. Both ports matched all four
+retail frame identities in seek and playback. SDL matched both retail sound
+requests. Both ports reproduced the preceding SDL build's four seek canvas
+hashes in control `20261121T042915Z-04eb7e4f`. Those canvases differ from
+retail. The SDL PCM16 peak was 7609 in both runs. The retail and Marcus
+captures peaked at 6328 and 6642.
+
+In sampled-audio suite `20261121T042424Z-312342d3`, both ports matched all 60
+archived retail frame identities. SDL matched all four retail sound requests.
+PCM16 peaks stayed at 2176 on both ports. The archived retail capture peaked
+at 2380 in `20261121T001853Z-13b9fd28`.
+
+In actor-event suite `20261121T042424Z-8cec6d9f`, both ports matched all 60
+archived retail frame identities in seek and continuous playback, including
+the retail seek camera indices. SDL matched all 12 retail sound requests.
+Each port reproduced its 60 seek canvas hashes from the preceding build.
+Evidence is in `tmp/c89-sound-chunk-authoring`.

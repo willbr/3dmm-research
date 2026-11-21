@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_SOUND_RESOURCE_H
 #define MM_ENGINE_SOUND_RESOURCE_H
 #include "chunky_file.h"
+#include "chunk_storage.h"
 #include "collection_storage.h"
 #include "resource_cache.h"
 #include <stddef.h>
@@ -54,8 +55,6 @@ typedef struct MMSoundResourceServices
     void (*graph)(void *,void *file,struct MMMovieSessionGraph *);
     int (*read_name)(void *,void *file,MMResourceCache *,MMU32 type,MMU32 number,void *object);
     void (*publish_invalid)(void *,void *output,int value);
-    int (*put)(void *,void *file,MMU32 type,MMU32 number,const void *header);
-    void (*delete_child)(void *,void *file,MMU32 type,MMU32 number,const MMChunkChild *);
     void (*bad_order)(void *);
     int (*playing)(void *,MMI32 instance);
     void (*stop)(void *,MMI32 queue);
@@ -73,29 +72,16 @@ int mm_sound_read(void *object,void *file,MMU32 type,MMU32 number,const MMSoundR
 int mm_sound_fetch(MMResourceCache *,MMU32 type,MMU32 number,void *object_out,void *size_out,
                    const MMSoundResourceServices *);
 int mm_sound_info(void *file,MMU32 type,MMU32 number,void *invalid_out,void *style_out,void *volume_out,const MMSoundResourceServices *);
-typedef struct MMSoundWriteServices
-{
-    void *context;
-    int host_big_endian;
-    MMU32 system;
-    const MMStorageAllocator *transfer_allocator;
-    int (*add_parent)(void *, const unsigned char header[MM_SOUND_HEADER_BYTES], MMU32 *number);
-    int (*add_child)(void *, MMU32 parent, MMU32 slot, MMU32 type, MMU32 bytes, MMStorageWriter *);
-    int (*set_name)(void *, MMU32 number, const void *name);
-    void (*delete_parent)(void *, MMU32 number);
-} MMSoundWriteServices;
 enum { MM_SOUND_BAD_MIDI = -1 };
-/* Borrow payload and name for the call. A successful add_child links the new
- * child and supplies its exact writer. The host rolls back a failed add_child.
- * Parent add failure leaves any number it published. Later failures remove
- * the parent and its child while retaining the output number. */
-int mm_sound_write(const MMReadStream *payload, int wave, MMI32 style, const void *name,
-                    MMU32 *number, const MMSoundWriteServices *);
+/* Borrow payload and encoded name for the call. Once the parent number is
+ * published, later failures remove the sound graph and retain that number. */
+int mm_sound_write(const MMReadStream *payload, int wave, MMI32 style, const MMChunkNameValue *name,
+                    MMU32 *number, const MMArchiveWriter *);
 /* Convert a standard MIDI file to millisecond track bytes in C-owned scratch.
  * Returns MM_SOUND_BAD_MIDI on read/parse failure before creating any chunks,
  * otherwise returns the writer's result. */
-int mm_sound_import_midi(const MMReadStream *, const void *name, MMU32 *number, const MMSoundWriteServices *);
-int mm_sound_invalidate(void *object,const MMResourceObject *,const MMSoundResourceServices *);
+int mm_sound_import_midi(const MMReadStream *, const MMChunkNameValue *name, MMU32 *number, const MMArchiveWriter *);
+int mm_sound_invalidate(void *object,const MMResourceObject *,const MMChunkEdit *,const MMSoundResourceServices *);
 MMI32 mm_sound_class(MMI32 style,int loop);
 /* Tool 0=Sounder, 1=Looper, 2=Matcher; MIDI matching is excluded by native bounds. */
 MMI32 mm_sound_priority(MMI32 style,int tool);

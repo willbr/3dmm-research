@@ -78,12 +78,6 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices()
         return static_cast<PChunkyFile>(file)->FGetName(type, number, name);
     };
     s.publish_invalid = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
-    s.put = [](void *, void *file, MMU32 type, MMU32 number, const void *header) -> int {
-        return static_cast<PChunkyFile>(file)->FPutPv(const_cast<void *>(header), 16, type, number);
-    };
-    s.delete_child = [](void *, void *file, MMU32 type, MMU32 number, const MMChunkChild *child) {
-        static_cast<PChunkyFile>(file)->DeleteChild(type, number, child->type, child->number);
-    };
     s.bad_order = [](void *) { Assert(false, "bad MovieSoundFile"); };
     s.playing = [](void *, MMI32 instance) -> int { return vpsndm->FPlaying(instance); };
     s.stop = [](void *, MMI32 queue) { vpsndm->StopAll(queue, sclNil); };
@@ -146,10 +140,9 @@ bool MovieSoundMSND::FWriteMidi(PChunkyFile pcflDest, PMidiStream pmids, String 
     AssertPo(pmids, 0);
     AssertVarMem(pstnName);
     AssertVarMem(pcno);
-    EngineSoundWriter writer{pcflDest, {}};
-    const auto services = writer.Services();
+    const EngineSoundWriter writer(pcflDest, pstnName);
     const auto payload = pmids->BorrowStream();
-    return mm_sound_write(&payload, 0, styMidi, pstnName, pcno, &services) != 0;
+    return mm_sound_write(&payload, 0, styMidi, &writer.name, pcno, &writer.archive) != 0;
 }
 
 /***************************************************************************
@@ -165,10 +158,9 @@ bool MovieSoundMSND::FWriteWave(PFileObject pfilSrc, PChunkyFile pcflDest, long 
     AssertIn(sty, 0, styLim);
     AssertVarMem(pstnName);
     AssertVarMem(pcno);
-    EngineSoundWriter writer{pcflDest, {}};
-    const auto services = writer.Services();
+    const EngineSoundWriter writer(pcflDest, pstnName);
     const auto payload = EngineReadStream::FromFile(*pfilSrc);
-    return mm_sound_write(&payload, 1, sty, pstnName, pcno, &services) != 0;
+    return mm_sound_write(&payload, 1, sty, &writer.name, pcno, &writer.archive) != 0;
 }
 
 /***************************************************************************
@@ -189,10 +181,9 @@ bool MovieSoundMSND::FCopyMidi(PFileObject pfilSrc, PChunkyFile pcflDest, ChunkN
         filename.GetLeaf(&leaf);
         pstn = &leaf;
     }
-    EngineSoundWriter writer{pcflDest, {}};
-    const auto services = writer.Services();
+    const EngineSoundWriter writer(pcflDest, pstn);
     const auto source = EngineReadStream::FromFile(*pfilSrc);
-    const int result = mm_sound_import_midi(&source, pstn, pcno, &services);
+    const int result = mm_sound_import_midi(&source, &writer.name, pcno, &writer.archive);
     if (result == MM_SOUND_BAD_MIDI)
         PushErc(ercSocBadSoundFile);
     return result > 0;
@@ -220,8 +211,7 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
         filename.GetLeaf(&leaf);
         pstn = &leaf;
     }
-    EngineSoundWriter writer{pcflDest, {}};
-    const auto output = writer.Services();
+    const EngineSoundWriter writer(pcflDest, pstn);
     const auto source = EngineReadStream::FromFile(*pfilSrc);
 #ifdef KAUAI_SDL3
     std::vector<std::uint8_t> prepared;
@@ -238,7 +228,7 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
     s.bad_sound = [](void *) { PushErc(ercSocBadSoundFile); };
     try
     {
-        return mm_wave_file_import(&source, sty, pstn, pcno, &s, &output) != 0;
+        return mm_wave_file_import(&source, sty, &writer.name, pcno, &s, &writer.archive) != 0;
     }
     catch (const std::bad_alloc &)
     {
@@ -362,7 +352,7 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
         FreePpv(reinterpret_cast<void **>(&c.samples));
         FreePpv(reinterpret_cast<void **>(&c.encoded));
     };
-    return mm_wave_native_import(&source, sty, pstn, pcno, &s, &output) != 0;
+    return mm_wave_native_import(&source, sty, &writer.name, pcno, &s, &writer.archive) != 0;
 #endif
 }
 
@@ -374,8 +364,12 @@ bool MovieSoundMSND::FCopyWave(PFileObject pfilSrc, PChunkyFile pcflDest, long s
 bool MovieSoundMSND::FInvalidate(void)
 {
     AssertThis(0);
+    const auto binding = ResourceBinding();
+    if (!binding->cache || !binding->cache->file)
+        return false;
+    const auto edit = static_cast<PChunkyFile>(binding->cache->file)->EditIndex();
     const auto services = _ResourceServices();
-    return mm_sound_invalidate(this, ResourceBinding(), &services) != 0;
+    return mm_sound_invalidate(this, binding, &edit, &services) != 0;
 }
 
 /***************************************************************************

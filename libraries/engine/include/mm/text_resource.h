@@ -77,11 +77,11 @@ void *mm_text_font(void *object,const MMTextResourceServices *);
 int mm_text_read(void *object,const MMTextResourceSource *,MMU32 type,MMU32 number,MMOwnedBlock *,
                  const MMTextResourceServices *);
 int mm_text_write(const MMTemplateState *, const MMTextDescriptor *, const MMChunkNameValue *,
-                  MMU32 type, MMU32 *number, const MMTemplateWriter *);
+                  MMU32 type, MMU32 *number, const MMArchiveWriter *);
 /* Write the two persisted chunks for new 3D text without generating renderer
  * state. Only a successful draft publishes its template number. */
 int mm_text_write_draft(const MMChunkNameValue *, const MMTextDescriptor *, MMU32 *number,
-                        const MMTemplateWriter *);
+                        const MMArchiveWriter *);
 typedef struct MMTextPreviewFontServices
 {
     void *context;

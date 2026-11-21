@@ -143,7 +143,7 @@ static int adopt_descriptor(const MMChunkEdit *edit, MMU32 type, MMU32 parent, c
 }
 
 int mm_text_write(const MMTemplateState *state, const MMTextDescriptor *descriptor, const MMChunkNameValue *name,
-                  MMU32 type, MMU32 *number, const MMTemplateWriter *writer)
+                  MMU32 type, MMU32 *number, const MMArchiveWriter *writer)
 {
     const MMChunkPayloadServices *payloads = writer->payloads;
     const MMChunkEdit *edit = &writer->edit;
@@ -168,7 +168,7 @@ int mm_text_write(const MMTemplateState *state, const MMTextDescriptor *descript
     return ok;
 }
 int mm_text_write_draft(const MMChunkNameValue *name, const MMTextDescriptor *d, MMU32 *number,
-                        const MMTemplateWriter *writer)
+                        const MMArchiveWriter *writer)
 {
     MMTemplateState state = {0};
     unsigned char descriptor[MM_TEXT_DESCRIPTOR_BYTES];

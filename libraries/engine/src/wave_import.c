@@ -8,8 +8,8 @@ static int valid_input(const MMReadStream *source)
     return source && source->read_at && source->length >= 12 && source->length <= 0x7fffffffUL;
 }
 
-int mm_wave_file_import(const MMReadStream *source, MMI32 style, const void *name, MMU32 *number,
-                        const MMWaveFileServices *s, const MMSoundWriteServices *writer)
+int mm_wave_file_import(const MMReadStream *source, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
+                        const MMWaveFileServices *s, const MMArchiveWriter *writer)
 {
     MMWaveBuffer storage;
     MMMemoryStream payload;
@@ -76,8 +76,8 @@ static int read_native_payload(void *p, MMU32 offset, void *out, size_t count)
     return count == 0;
 }
 
-int mm_wave_native_import(const MMReadStream *source, MMI32 style, const void *name, MMU32 *number,
-                          const MMNativeWaveServices *s, const MMSoundWriteServices *writer)
+int mm_wave_native_import(const MMReadStream *source, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
+                          const MMNativeWaveServices *s, const MMArchiveWriter *writer)
 {
     MMNativeWaveFormat format;
     MMWaveBuffer input;

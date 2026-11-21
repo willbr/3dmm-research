@@ -212,13 +212,13 @@ static void wire(void)
 {
     Context c; Object *o,*loaded; void *tags; MMTag font={-1,NULL,0xfedcba98U,0x87654321U}; MMU32 number; int endian,failure,error;
     TemplateWriterFixture output;
-    MMTemplateWriter writer;
+    MMArchiveWriter writer;
     const MMChunkNameValue name = {"saved",5,5};
     for (endian=0;endian<2;++endian)
     {
         init(&c); c.services.host_big_endian=endian; o=(Object *)mm_text_create("saved",9,&font,&c.services); assert(o);
         writer=writer_fixture(&output,endian,0x1234);
-        assert(mm_text_write(&o->template_state,&o->descriptor,&name,MM_TMPL,&number,&writer) && number==0 && !output.file_refs);
+        assert(mm_text_write(&o->template_state,&o->descriptor,&name,MM_TMPL,&number,&writer) && number==0 && !output.archive.file_refs);
         memcpy(c.wire,output.descriptor,sizeof(c.wire));
         assert(c.wire[endian?1:0]==1 && c.wire[2]==(endian?0x12:0x34) && c.wire[3]==(endian?0x34:0x12));
         assert(!c.wire[12] && !c.wire[13] && !c.wire[14] && !c.wire[15]);
@@ -279,7 +279,7 @@ static void drafts(void)
     Context c;
     DraftOutput output;
     TemplateWriterFixture normal, saved;
-    MMTemplateWriter writer;
+    MMArchiveWriter writer;
     const MMChunkNameValue name = {"saved", 5, 5};
     MMTextDescriptor draft = {9, {123, NULL, 0x54444620UL, 29}}, localized;
     MMTextPreviewFontServices preview = {NULL, preview_read, preview_copy, preview_write};
@@ -301,19 +301,19 @@ static void drafts(void)
             normal.fail = failure;
             number = 99;
             assert(!mm_text_write(&object->template_state, &object->descriptor, &name, MM_TMPL, &number, &writer));
-            assert(number == (failure < 3 ? 99U : 0U) && !normal.file_refs);
-            assert(normal.index.count == (failure >= 4 ? 1U : 0U));
+            assert(number == (failure < 3 ? 99U : 0U) && !normal.archive.file_refs);
+            assert(normal.archive.index.count == (failure >= 4 ? 1U : 0U));
             if (failure >= 4)
-                assert(normal.index.rows[0].entry.type == MM_TMPL && !normal.index.rows[0].entry.child_count);
+                assert(normal.archive.index.rows[0].entry.type == MM_TMPL && !normal.archive.index.rows[0].entry.child_count);
             if (failure >= 5)
                 assert(normal.deleted == 1 && normal.last_deleted == MM_TDT);
             writer = writer_fixture(&saved, big, 0x1234);
-            fixture_chunk_add(&saved.index, MM_GLPI, 0);
+            fixture_chunk_add(&saved.archive.index, MM_GLPI, 0);
             saved.fail = failure;
             number = 99;
             assert(!mm_text_write_draft(&name, &draft, &number, &writer));
-            assert(number == 99 && saved.index.count == 1 && !saved.file_refs);
-            assert(saved.index.rows[0].entry.type == MM_GLPI);
+            assert(number == 99 && saved.archive.index.count == 1 && !saved.archive.file_refs);
+            assert(saved.archive.index.rows[0].entry.type == MM_GLPI);
             assert(saved.deleted == (failure == 1 ? 0 : failure >= 5 ? 2 : 1));
         }
         writer = writer_fixture(&normal, big, 0x1234);
@@ -325,8 +325,8 @@ static void drafts(void)
         assert(!header.x && !header.y && !header.z && header.flags == MM_TEMPLATE_TEXT);
         assert(!memcmp(saved.header, normal.header, sizeof(saved.header)));
         assert(!memcmp(saved.descriptor, normal.descriptor, sizeof(saved.descriptor)));
-        assert(!memcmp(saved.name, normal.name, sizeof(saved.name)) && !saved.file_refs && !normal.file_refs);
-        graph = fixture_chunk_access(&saved.index);
+        assert(!memcmp(saved.archive.name, normal.archive.name, sizeof(saved.archive.name)) && !saved.archive.file_refs && !normal.archive.file_refs);
+        graph = fixture_chunk_access(&saved.archive.index);
         memset(&output, 0, sizeof(output));
         memcpy(output.descriptor, saved.descriptor, sizeof(output.descriptor));
         output.descriptor[0] = 127;

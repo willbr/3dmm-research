@@ -262,6 +262,7 @@ class ChunkyFile : public ChunkyFile_PAR
     // Borrow writable index primitives for a synchronous operation on this archive.
     MMChunkEdit EditIndex();
     MMChunkNames NameIndex();
+    MMArchiveWriter WriteIndex();
     // The caller supplies kcbMaxDataStn writable bytes for the encoded name.
     static MMChunkNameValue EncodeName(PString, void *wire);
     bool FGetCki(LegacyLong icki, ChunkIdentification *pcki, LegacyLong *pckid = pvNil, PDataBlock pblck = pvNil);

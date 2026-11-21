@@ -899,9 +899,10 @@ rollback, info queries, resource save/load/tag enumeration and localized
 action-name policy now also use a persistent C-owned descriptor and controller.
 MovieSoundMSND metadata loading/factories, MIDI/WAVE envelope and child writing,
 MIDI import control, invalidation, tool priorities/classes and playback dispatch
-now use C89 and C-owned metadata/status slots as well. MIDI event parsing and
-SMF import/track merging, sampled/MIDI payload factory control, RIFF parsing,
-PCM/ADPCM encoding and WAVE import control now also use C89. Cached MIDI and
+now use C89 and C-owned metadata/status slots as well. Sound authoring and
+invalidation edit the live archive through the shared chunk editor. MIDI event
+parsing and SMF import/track merging, sampled/MIDI payload factory control,
+RIFF parsing, PCM/ADPCM encoding and WAVE import control now also use C89. Cached MIDI and
 SDL WAVE payloads read through C-owned blocks. Classic AudioMan resolves its
 stream location through the same resource cache and supplies its COM stream
 adapter. Both WAVE importers feed the prepared or original stream into the C89 sound

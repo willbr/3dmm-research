@@ -2098,6 +2098,13 @@ MMChunkNames ChunkyFile::NameIndex()
         [](void *c, MMU32 i) -> void * { return ChunkLockVariable(static_cast<PChunkTable>(c), i); },
         [](void *c) { ChunkUnlock(static_cast<PChunkTable>(c)); }, kcbMaxDataStn};
 }
+MMArchiveWriter ChunkyFile::WriteIndex()
+{
+    const unsigned short order = 1;
+    return {EditIndex(), NameIndex(), KauaiChunkPayloadServices(),
+        *reinterpret_cast<const unsigned char *>(&order) == 0, koskCur,
+        [](MMU32 *number) { (void)number; TrashVar(number); }, KauaiCopyAllocator()};
+}
 bool ChunkyFile::_FSetName(LegacyLong icrp, PString pstn)
 {
     AssertBaseThis(0); AssertIn(icrp, 0, _Index()->count); AssertNilOrPo(pstn, 0);

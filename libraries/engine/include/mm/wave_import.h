@@ -17,8 +17,8 @@ extern "C"
         int (*prepare)(void *, const void *, MMU32, const void **, MMU32 *);
         void (*bad_sound)(void *);
     } MMWaveFileServices;
-    int mm_wave_file_import(const MMReadStream *, MMI32 style, const void *name, MMU32 *number,
-                            const MMWaveFileServices *, const MMSoundWriteServices *);
+    int mm_wave_file_import(const MMReadStream *, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
+                            const MMWaveFileServices *, const MMArchiveWriter *);
     /* The classic native host keeps AudioMan/ACM as external codec services. C
      * owns input fallback, conversion decisions, sample bounds, RIFF framing, source selection,
      * publication and cleanup. compress returns 1, 0 (memory), or -1 (bad sound).
@@ -45,8 +45,8 @@ extern "C"
         void (*bad_sound)(void *);
         void (*cleanup)(void *);
     } MMNativeWaveServices;
-    int mm_wave_native_import(const MMReadStream *, MMI32 style, const void *name, MMU32 *number,
-                              const MMNativeWaveServices *, const MMSoundWriteServices *);
+    int mm_wave_native_import(const MMReadStream *, MMI32 style, const MMChunkNameValue *name, MMU32 *number,
+                              const MMNativeWaveServices *, const MMArchiveWriter *);
 #ifdef __cplusplus
 }
 #endif

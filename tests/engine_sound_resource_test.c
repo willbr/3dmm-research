@@ -3,23 +3,25 @@
 #include "mm/text_store.h"
 #include "mm/midi.h"
 #include "engine_resource_block_fixture.h"
+#include "chunk_writer_fixture.h"
 #include <assert.h>
 #include <string.h>
-enum { CREATE = 1, FIND, UNPACK, READ, NAME, CHILD, ADD, ADD_CHILD, READ_SOURCE, WRITE_CHILD, SET_NAME, PUT };
+enum { CREATE = 1, FIND, UNPACK, READ, NAME, CHILD, ADD, ADD_CHILD, LINK_CHILD, READ_SOURCE, WRITE_CHILD, SET_NAME, PUT };
 typedef struct Object { MMSoundResource resource; MMI32 silent; unsigned char invalid; int named; } Object;
 typedef struct Context
 {
-    MMSoundResourceServices services; MMSoundWriteServices writer; Object object;
+    MMSoundResourceServices services; MMArchiveWriter writer; Object object;
+    ChunkWriterFixture archive;
     MMResourceCache cache;
     MMResourceObject binding;
     ResourceTestBlock block;
     unsigned char bytes[16], output[32];
     MMI32 length;
-    int fail,events[32],count,created,released,invalidations,deleted,deleted_child,order,packed,file_refs;
+    int fail,events[32],count,created,released,invalidations,deleted,deleted_child,order,packed,file_refs,editing;
     MMU32 child_type, payload_bytes;
     MMMemoryStream source;
     int playing,stopped,plays,queries,children; MMI32 queue,volume,repeat,priority,sound_class; MMU32 start,lookup_type;
-    void *object_slot,*size_slot; const void *name; int release_after_invalidation;
+    void *object_slot,*size_slot; int release_after_invalidation;
 } Context;
 static int event(Context *c,int n) { assert(c->count<32); c->events[c->count++]=n; return c->fail!=n; }
 static void owner(void *p,void *object,MMSoundOwner *out)
@@ -141,50 +143,63 @@ static int decode(void *p, void **handle)
     return 1;
 }
 static void publish_invalid(void *p,void *out,int invalid) { (void)p; *(int *)out=invalid; }
-static int add(void *p, const unsigned char *header, MMU32 *out)
+static int sound_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
-    Context *c = (Context *)p;
-    memcpy(c->bytes, header, sizeof(c->bytes));
-    *out = 37;
-    return event(c, ADD);
+    Context *c = ((ChunkIndexFixture *)p)->observer;
+    int child = !c->editing && c->archive.index.count == 2;
+    if (child && !event(c, ADD_CHILD))
+        return 0;
+    assert(child ? bytes <= sizeof(c->output) : bytes == sizeof(c->bytes));
+    extent->file = &c->archive;
+    extent->offset = child ? 256 : 128;
+    extent->bytes = bytes;
+    extent->flags = 0;
+    if (child)
+        c->payload_bytes = bytes;
+    return 1;
 }
-static int write_child(void *p, MMU32 offset, const void *bytes, size_t count)
+static int write_sound(void *p, void *file, MMU32 offset, const void *bytes, size_t count)
 {
-    Context *c = (Context *)p;
-    assert(!offset && count == c->payload_bytes && count <= sizeof(c->output));
+    ChunkWriterFixture *f = p;
+    Context *c = f->context;
+    assert(file == p && !c->object.invalid);
+    if (offset == 128)
+    {
+        assert(count == sizeof(c->bytes));
+        memcpy(c->bytes, bytes, count);
+        assert(c->bytes[12] == c->editing);
+        return event(c, c->editing ? PUT : ADD);
+    }
+    assert(offset == 256 && count == c->payload_bytes && f->file_refs == 1);
     if (!event(c, WRITE_CHILD))
         return 0;
     memcpy(c->output, bytes, count);
     return 1;
 }
-static int add_child(void *p, MMU32 parent, MMU32 slot, MMU32 type, MMU32 bytes, MMStorageWriter *out)
+static int link_sound(void *p, MMU32 parent, const MMChunkChild *child)
 {
-    Context *c = (Context *)p;
-    MMStorageWriter writer = {NULL, 0, write_child};
-    assert(parent == 37 && !slot && bytes <= sizeof(c->output));
-    c->child_type = type;
-    c->payload_bytes = bytes;
-    writer.context = p;
-    writer.length = bytes;
-    *out = writer;
-    return event(c, ADD_CHILD);
+    Context *c = p;
+    assert(!parent && !child->slot && !child->number);
+    c->child_type = child->type;
+    return event(c, LINK_CHILD);
 }
-static int set_name(void *p, MMU32 n, const void *name)
+static int set_name(void *p) { return event(p, SET_NAME); }
+static void deleted_sound(void *p, const MMChunkEntry *entry)
 {
-    Context *c = (Context *)p;
-    assert(n == 37 && name == c->name);
-    return event(c, SET_NAME);
+    Context *c = p;
+    if (entry->type == MM_SOUND_TYPE)
+        ++c->deleted;
+    else if (entry->type)
+    {
+        assert(!c->object.invalid);
+        ++c->deleted_child;
+    }
 }
-static void delete_parent(void *p, MMU32 n) { assert(n == 37); ++((Context *)p)->deleted; }
 static int read_source(void *p, MMU32 offset, void *bytes, size_t count)
 {
     Context *c = (Context *)p;
     return event(c, READ_SOURCE) && mm_read_exact(&c->source.stream, offset, bytes, count);
 }
-static int put(void *p,void *f,MMU32 type,MMU32 n,const void *header)
-{ Context *c=(Context *)p; assert(p==f && type==0x1234 && n==37 && !c->object.invalid); memcpy(c->bytes,header,16); assert(c->bytes[12]==1); return event(c,PUT); }
-static void delete_child(void *p,void *f,MMU32 type,MMU32 n,const MMChunkChild *kid)
-{ Context *c=(Context *)p; assert(p==f && type==0x1234 && n==37 && kid->number==19 && !c->object.invalid); ++c->deleted_child; }
 static void bad_order(void *p) { ++((Context *)p)->order; }
 static int playing(void *p,MMI32 instance) { Context *c=(Context *)p; assert(instance==8); ++c->queries; return c->playing; }
 static void stop(void *p,MMI32 queue) { Context *c=(Context *)p; ++c->stopped; c->queue=queue; }
@@ -208,12 +223,11 @@ static void initialize(Context *c)
     c->object.resource.type=17; c->object.resource.number=18; c->object.resource.style=1; c->object.resource.volume=123; c->object.silent=2;
     s=&c->services; s->context=c; s->owner=owner; s->create=create; s->release=release; s->object_size=object_size; s->invalidate_output=invalidate_output;
     s->decode=decode; s->graph=graph; s->read_name=read_name; s->publish_invalid=publish_invalid;
-    c->writer.context = c;
-    c->writer.add_parent = add;
-    c->writer.add_child = add_child;
-    c->writer.set_name = set_name;
-    c->writer.delete_parent = delete_parent;
-    s->put=put; s->delete_child=delete_child; s->bad_order=bad_order; s->playing=playing; s->stop=stop; s->play=play;
+    c->writer = chunk_writer_fixture(&c->archive, c, sound_extent, write_sound);
+    c->archive.grow_name = set_name;
+    c->archive.index.before_insert = link_sound;
+    c->archive.index.before_delete = deleted_sound;
+    s->bad_order=bad_order; s->playing=playing; s->stop=stop; s->play=play;
 }
 static void loads(void)
 {
@@ -278,7 +292,8 @@ static void writes(void)
     const unsigned char payload[] = {4, 1, 2, 3, 4, 0x80, 0x90};
     const unsigned char smf[] = {'M','T','h','d',0,0,0,6,0,0,0,1,0,96,
                                  'M','T','r','k',0,0,0,12,0,0x90,60,64,96,0x80,60,0,0,0xff,0x2f,0};
-    const int points[] = {0, ADD, ADD_CHILD, READ_SOURCE, WRITE_CHILD, SET_NAME};
+    const int points[] = {0, ADD, ADD_CHILD, LINK_CHILD, READ_SOURCE, WRITE_CHILD, SET_NAME};
+    const MMChunkNameValue name = {"sound", 5, 5};
     Context c;
     MMReadStream stream = {NULL, 0, read_source};
     MMMidiParser parser;
@@ -289,17 +304,18 @@ static void writes(void)
     stream.length = sizeof(payload);
     for (big = 0; big < 2; ++big)
         for (wave = 0; wave < 2; ++wave)
-            for (failure = 0; failure < 6; ++failure)
+            for (failure = 0; failure < (int)(sizeof(points) / sizeof(*points)); ++failure)
             {
                 initialize(&c);
                 assert(mm_memory_stream_init(&c.source, payload, sizeof(payload)));
-                c.writer.host_big_endian = big;
+                c.writer.big_endian = big;
                 c.writer.system = 0x1234;
                 c.fail = points[failure];
-                c.name = &c;
                 number = 99;
-                result = mm_sound_write(&stream, wave, 3, &c, &number, &c.writer);
-                assert(result == !failure && number == 37 && c.deleted == (failure >= 2));
+                result = mm_sound_write(&stream, wave, 3, &name, &number, &c.writer);
+                assert(result == !failure && number == (c.fail == ADD ? 99U : 0U) && c.deleted == !!failure);
+                assert(c.archive.index.count == (failure ? 0U : 2U) && !c.archive.file_refs);
+                assert(c.deleted_child == (failure >= 3));
                 assert(c.bytes[big ? 1 : 0] == 1 && c.bytes[2] == (big ? 0x12 : 0x34) &&
                        c.bytes[3] == (big ? 0x34 : 0x12));
                 assert(c.bytes[big ? 7 : 4] == (wave ? 3 : 4));
@@ -308,7 +324,8 @@ static void writes(void)
                 assert(c.events[0] == ADD);
                 if (!failure)
                     assert(c.child_type == (wave ? MM_SOUND_WAVE : MM_SOUND_MIDI) &&
-                           c.payload_bytes == sizeof(payload) && !memcmp(payload, c.output, sizeof(payload)));
+                           c.payload_bytes == sizeof(payload) && !memcmp(payload, c.output, sizeof(payload)) &&
+                           !memcmp(c.archive.name + 12, name.wire, name.bytes));
             }
     for (failure = 0; failure < 6; ++failure)
     {
@@ -317,11 +334,11 @@ static void writes(void)
         stream.length = failure == 1 ? 3 : sizeof(smf);
         c.fail = failure == 2 ? READ_SOURCE : failure == 3 ? ADD : failure == 4 ? WRITE_CHILD :
                  failure == 5 ? SET_NAME : 0;
-        c.name = &c;
         number = 99;
-        result = mm_sound_import_midi(&stream, &c, &number, &c.writer);
+        result = mm_sound_import_midi(&stream, &name, &number, &c.writer);
         assert(result == (!failure ? 1 : failure <= 2 ? MM_SOUND_BAD_MIDI : 0));
-        assert(number == (failure == 1 || failure == 2 ? 99U : 37U) && c.deleted == (failure >= 4));
+        assert(number == (failure >= 1 && failure <= 3 ? 99U : 0U) && c.deleted == (failure >= 3));
+        assert(c.archive.index.count == (failure ? 0U : 2U) && !c.archive.file_refs);
         if (!failure)
         {
             assert(c.child_type == MM_SOUND_MIDI);
@@ -332,14 +349,23 @@ static void writes(void)
     }
     for (failure = 0; failure < 3; ++failure)
     {
+        MMChunkChild child = {MM_SOUND_WAVE, 19, 0};
         initialize(&c);
+        c.editing = 1;
+        c.cache.services.block_files = &c.archive.block.files;
+        c.archive.index.before_insert = NULL;
+        fixture_chunk_add(&c.archive.index, c.binding.type, 37)->entry.offset = 64;
+        fixture_chunk_add(&c.archive.index, child.type, child.number);
+        assert(mm_chunk_adopt(&c.writer.edit, c.binding.type, 37, &child, 1) == MM_CHUNK_OK);
         c.fail = failure == 1 ? CHILD : failure == 2 ? PUT : 0;
-        assert(mm_sound_invalidate(&c.object, &c.binding, &c.services) == !failure &&
+        assert(mm_sound_invalidate(&c.object, &c.binding, &c.writer.edit, &c.services) == !failure &&
                c.object.invalid == !failure && c.deleted_child == !failure);
         assert(c.lookup_type == MM_SOUND_TYPE);
+        assert(c.archive.index.count == (failure ? 2U : 1U));
+        assert(c.archive.index.rows[0].entry.offset == (failure ? 64U : 128U));
     }
     initialize(&c); c.cache.file=NULL;
-    assert(!mm_sound_invalidate(&c.object, &c.binding, &c.services) && !c.object.invalid && !c.count);
+    assert(!mm_sound_invalidate(&c.object, &c.binding, NULL, &c.services) && !c.object.invalid && !c.count);
 }
 static void playback(void)
 {

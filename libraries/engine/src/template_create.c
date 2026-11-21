@@ -284,7 +284,7 @@ void mm_template_encode_header(unsigned char *bytes, int big, MMU32 system, cons
     bytes[10]=bytes[11]=0; put(bytes+12,4,state->flags,big);
 }
 int mm_template_write_header(const MMTemplateState *state, const MMChunkNameValue *name, MMU32 type,
-                             MMU32 *number, const MMTemplateWriter *writer)
+                             MMU32 *number, const MMArchiveWriter *writer)
 {
     unsigned char bytes[MM_TEMPLATE_HEADER_BYTES];
     mm_template_encode_header(bytes, writer->big_endian, writer->system, state);

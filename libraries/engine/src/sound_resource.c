@@ -186,25 +186,46 @@ int mm_sound_info(void *file,MMU32 type,MMU32 number,void *invalid_out,void *sty
     if (volume_out) memcpy(volume_out,&o.resource->volume,4);
     s->release(s->context,object); return 1;
 }
-int mm_sound_write(const MMReadStream *payload, int wave, MMI32 style, const void *name,
-                   MMU32 *number, const MMSoundWriteServices *s)
+int mm_sound_write(const MMReadStream *payload, int wave, MMI32 style, const MMChunkNameValue *name,
+                   MMU32 *number, const MMArchiveWriter *writer)
 {
+    const MMChunkEdit *edit = &writer->edit;
+    const MMChunkPayloadServices *files = writer->payloads;
     unsigned char header[MM_SOUND_HEADER_BYTES];
+    MMChunkChild child = {0};
+    MMOwnedBlock block;
+    MMBlockIO io;
     MMStorageWriter output;
+    int initialized, ok = 0;
     if (!payload || !payload->read_at || payload->length >= MM_STORAGE_LIMIT)
         return 0;
-    encode_header(header, wave ? style : MM_SOUND_STYLE_MUSIC, 65536L, 0, s->host_big_endian, s->system);
-    if (!s->add_parent(s->context, header, number))
+    encode_header(header, wave ? style : MM_SOUND_STYLE_MUSIC, 65536L, 0, writer->big_endian, writer->system);
+    if (mm_chunk_add_bytes(edit, files->files, MM_SOUND_TYPE, header, sizeof(header), number) != MM_CHUNK_OK)
+    {
+        if (writer->invalidate_number)
+            writer->invalidate_number(number);
         return 0;
-    if (s->add_child(s->context, *number, 0, wave ? MM_SOUND_WAVE : MM_SOUND_MIDI, payload->length, &output) &&
-        mm_stream_copy(payload, &output, s->transfer_allocator) == MM_DATA_OK &&
-        s->set_name(s->context, *number, name))
-        return 1;
-    s->delete_parent(s->context, *number);
-    return 0;
+    }
+    child.type = wave ? MM_SOUND_WAVE : MM_SOUND_MIDI;
+    initialized = mm_owned_block_init(&block, files->handles, files->files) == MM_DATA_OK;
+    if (initialized && mm_chunk_add_block(edit, child.type, payload->length, &child.number, &block) == MM_CHUNK_OK)
+    {
+        if (mm_chunk_adopt(edit, MM_SOUND_TYPE, *number, &child, 1) == MM_CHUNK_OK)
+            ok = mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_io_writer(&io, &output) == MM_DATA_OK &&
+                 mm_stream_copy(payload, &output, writer->transfer_allocator) == MM_DATA_OK &&
+                 mm_chunk_name_set_key(edit, &writer->names, MM_SOUND_TYPE, *number, name) == MM_CHUNK_OK;
+        else
+            mm_chunk_delete(edit, child.type, child.number);
+    }
+    if (!ok)
+        mm_chunk_delete(edit, MM_SOUND_TYPE, *number);
+    if (initialized)
+        mm_owned_block_clear(&block);
+    return ok;
 }
 
-int mm_sound_import_midi(const MMReadStream *source, const void *name, MMU32 *number, const MMSoundWriteServices *s)
+int mm_sound_import_midi(const MMReadStream *source, const MMChunkNameValue *name, MMU32 *number,
+                         const MMArchiveWriter *s)
 {
     MMCollectionStorage input, decoded;
     MMMemoryStream payload;
@@ -225,27 +246,26 @@ int mm_sound_import_midi(const MMReadStream *source, const void *name, MMU32 *nu
     return result;
 }
 
-int mm_sound_invalidate(void *object, const MMResourceObject *binding, const MMSoundResourceServices *s)
+int mm_sound_invalidate(void *object, const MMResourceObject *binding, const MMChunkEdit *edit,
+                        const MMSoundResourceServices *s)
 {
     MMResourceCache *cache = binding->cache;
     MMChunkAccess chunks;
     MMChunkChild child;
     MMSoundOwner owner;
-    void *file;
     MMU32 position;
     unsigned char b[MM_SOUND_HEADER_BYTES];
     if (!cache || !cache->file)
         return 0;
-    file = cache->file;
     chunks = mm_resource_cache_chunks(cache);
     if (mm_chunk_find(&chunks, MM_SOUND_TYPE, binding->number, &position) != MM_CHUNK_OK ||
         mm_chunk_child_type(&chunks, position, 0, 0, &child) != MM_CHUNK_OK)
         return 0;
     s->owner(s->context, object, &owner);
     encode_header(b, owner.resource->style, owner.resource->volume, 1, s->host_big_endian, s->system);
-    if (!s->put(s->context, file, binding->type, binding->number, b))
+    if (mm_chunk_put_bytes(edit, cache->services.block_files, binding->type, binding->number, b, sizeof(b)) != MM_CHUNK_OK)
         return 0;
-    s->delete_child(s->context, file, binding->type, binding->number, &child);
+    mm_chunk_unlink(edit, binding->type, binding->number, &child);
     *owner.invalid = 1;
     return 1;
 }

@@ -338,7 +338,7 @@ int main(void)
 {
     Fixture f; int other,host,failure,i,ok; void *out,*body; MMI32 bytes, id; MMU32 number;
     TemplateWriterFixture written;
-    MMTemplateWriter writer;
+    MMArchiveWriter writer;
     const MMChunkNameValue name = {"Template", 8, 8};
     memset(&f.t,0xa5,sizeof(f.t)); mm_template_state_init(&f.t);
     CHECK(!f.t.parents && !f.t.sets && !f.t.costumes);
@@ -361,7 +361,7 @@ int main(void)
         number=777; CHECK(mm_template_write_header(&f.t,&name,MM_TMPL,&number,&writer));
         CHECK(number==0 && !written.header[10] && !written.header[11] &&
               word(written.header+4,2,host)==0x1234 && word(written.header+12,4,host)==4);
-        CHECK(!memcmp(written.name,"Template",8) && !written.pins);
+        CHECK(!memcmp(written.archive.name,"Template",8) && !written.archive.pins);
         release(&f,&f.object); disposed(&f);
     }
     for (failure=1;failure<=10;++failure)
@@ -392,14 +392,14 @@ int main(void)
     for (failure=0;failure<=3;++failure)
     {
         setup(&f,0,0); number=777; writer=writer_fixture(&written,0,0x0303);
-        fixture_chunk_add(&written.index,MM_TMPL,0)->runtime=123;
+        fixture_chunk_add(&written.archive.index,MM_TMPL,0)->runtime=123;
         written.fail=failure;
         CHECK(mm_template_write_header(&f.t,&name,0x44415441U,&number,&writer)==!failure);
         CHECK(number==(failure==1 || failure==2 ? 777U : 0U));
-        CHECK(written.index.count==(failure?1U:2U));
+        CHECK(written.archive.index.count==(failure?1U:2U));
         if (failure>=2) CHECK(written.deleted==1 && written.last_deleted==0x44415441U);
-        CHECK(fixture_chunk_runtime(&written.index,MM_TMPL,0)==(failure?123:0));
-        if (!failure) CHECK(!memcmp(written.name,"Template",8));
+        CHECK(fixture_chunk_runtime(&written.archive.index,MM_TMPL,0)==(failure?123:0));
+        if (!failure) CHECK(!memcmp(written.archive.name,"Template",8));
     }
     setup(&f,0,0); f.fallback=1; f.gap=1;
     CHECK(mm_template_initialize(&f.object,&f.source,MM_TMPL,1,NULL,&f.s)); CHECK(f.t.custom_count==2 && f.t.costumes->rows==2 && f.fetched==8);

@@ -165,7 +165,6 @@ class Template : public Template_PAR
         mm_template_state_init(&_template);
     } // can't instantiate directly; must use FReadTmpl
     static MMTemplateCreateServices _CreateServices(PChunkyResourceFile cache = nullptr);
-    static MMTemplateWriter _Writer(PChunkyFile);
     MMTemplateRuntimeServices _RuntimeServices();
     bool _FReadTmplf(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);
     virtual bool _FInit(PChunkyResourceFile, ChunkTagOrType, ChunkNumber, MMOwnedBlock *);

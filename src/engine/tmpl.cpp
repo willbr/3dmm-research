@@ -284,18 +284,10 @@ bool Template::_FReadTmplf(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkN
     Note: In Socrates, normal actor templates are read-only, but this
     function will get called for ThreeDTexts.
 ***************************************************************************/
-MMTemplateWriter Template::_Writer(PChunkyFile file)
-{
-    const unsigned short order = 1;
-    return {file->EditIndex(), file->NameIndex(), KauaiChunkPayloadServices(),
-        *reinterpret_cast<const unsigned char *>(&order) == 0, koskCur,
-        [](MMU32 *number) { (void)number; TrashVar(number); }};
-}
-
 bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
-    const auto writer = _Writer(pcfl);
+    const auto writer = pcfl->WriteIndex();
     byte wire[kcbMaxDataStn];
     const auto name = ChunkyFile::EncodeName(&_stn, wire);
     return mm_template_write_header(&_template, &name, ctg, pcno, &writer) != 0;
