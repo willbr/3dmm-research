@@ -7,6 +7,7 @@
 #include "collections.h"
 #include "chunky_file.h"
 #include "movie_session.h"
+#include "source_names.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -37,7 +38,7 @@ extern "C"
         void *(*new_resources)(void *, void *file, MMU32 cache_bytes);
         int (*is_temp)(void *file), (*save)(void *file, void *path);
         void (*set_temp)(void *file, int), (*mark_temporary)(void *file), (*persistent)(void *file);
-        MMChunkEdit (*edit)(void *file);
+        MMArchiveWriter (*archive)(void *file);
         int (*create_root)(void *, void *file, MMU32 *);
         void *(*find_file)(void *, void *path);
         void (*retain_saved)(void *file), (*release_saved)(void *file), (*flush_saved)(void *file);
@@ -51,9 +52,7 @@ extern "C"
         void (*close_tag)(void *, MMTag *);
         void (*rollcall_changed)(void *);
         int (*write_rollcall)(void *, void *file, MMU32 root, MMRollCallTable *, MMU32 *);
-        MMU32 (*source_bytes)(void *);
-        int (*add_sources)(void *, void *file, MMU32 bytes, MMU32 *), (*write_sources)(void *);
-        void (*release_sources)(void *);
+        MMSourceNames *source_names;
         MMChunkTitleIO titles;
         int (*has_error)(void *file);
         void (*reset_error)(void *file), (*clear_errors)(void *), (*save_error)(void *), (*bad_file)(void *);
@@ -77,9 +76,8 @@ extern "C"
      * New resources remain published if their initial autosave fails.
      * Registry lookup returns borrowed values. Named saving releases/reacquires a matching saved file even on
      * save failure; unsuccessful bind retains the old nameValid/readOnly flags.
-     * Source-block allocation publishes host scratch consumed by write_sources;
-     * release_sources clears it after the long operation ends, including failure,
-     * before nested autosave returns to packaging/format-selection/publication.
+     * Source names are borrowed throughout autosave. Each write owns the
+     * destination block until its payload has been serialized.
      * Cleanup preserves completed destructive prefixes, including actor pruning.
      * After old children are removed, physical save failure keeps the new graph.
      * Native debug/physical I/O diagnostics remain host operations. */

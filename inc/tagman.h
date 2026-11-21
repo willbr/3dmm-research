@@ -219,8 +219,7 @@ class TagManager : public TagManager_PAR
     // GstSource stuff:
     LegacyLong CSourceNames() const { return _names.count; }
     bool FGetSourceSid(LegacyLong index, LegacyLong *sid);
-    LegacyLong CbSourceNames() const;
-    bool FWriteSourceNames(PDataBlock);
+    MMSourceNames *CoreSourceNames() { return &_names; }
     bool FMergeGstSource(PStringTable_GST pgst, short bo, short osk);
     bool FMergeMovieSources(PChunkyFile file, ChunkNumber movie);
     bool FAddStnSource(PString pstnMerged, LegacyLong sid);

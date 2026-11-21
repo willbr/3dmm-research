@@ -144,7 +144,6 @@ struct Movie::SaveHost
 {
     PMovie movie;
     Filename temporary, unique;
-    DataBlock sources;
     explicit SaveHost(PMovie value) : movie(value) {}
 };
 
@@ -206,7 +205,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.persistent = [](void *p) {
         AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
     };
-    s.edit = EditMovieArchive;
+    s.archive = [](void *file) { return static_cast<PChunkyFile>(file)->WriteIndex(); };
     s.create_root = [](void *, void *p, MMU32 *number) -> int { return MovieData::FCreateRoot(static_cast<PChunkyFile>(p), number); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
     s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
@@ -237,12 +236,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.write_rollcall = [](void *, void *p, MMU32 root, MMRollCallTable *table, MMU32 *number) -> int {
         return MovieData::FWriteRollCall(static_cast<PChunkyFile>(p), root, table, number);
     };
-    s.source_bytes = [](void *) -> MMU32 { return vptagm->CbSourceNames(); };
-    s.add_sources = [](void *p, void *file, MMU32 bytes, MMU32 *number) -> int {
-        return static_cast<PChunkyFile>(file)->FAdd(bytes, kctgGst, number, &static_cast<SaveHost *>(p)->sources);
-    };
-    s.write_sources = [](void *p) -> int { return vptagm->FWriteSourceNames(&static_cast<SaveHost *>(p)->sources); };
-    s.release_sources = [](void *p) { static_cast<SaveHost *>(p)->sources.Free(); };
+    s.source_names = vptagm ? vptagm->CoreSourceNames() : nullptr;
     s.titles = KauaiChunkTitleIO();
     s.has_error = [](void *p) -> int { return static_cast<PChunkyFile>(p)->ElError() != elNil; };
     s.reset_error = [](void *p) { static_cast<PChunkyFile>(p)->ResetEl(); };

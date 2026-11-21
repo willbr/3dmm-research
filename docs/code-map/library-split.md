@@ -3692,7 +3692,7 @@ limits are recorded in `docs/tools/playback-regression.md`.
 `movie_save.c` owns save flags and the saved-file reference, temporary-file and
 zero-cache working-resource setup, scene/roll-call/source replacement, rollback,
 roll-call pruning, save-as selection and named/VMM save publication. Native Movie
-methods provide typed file/path/block, Scene, registry, client, tag and packaging
+methods provide typed file/path, Scene, registry, client, tag and packaging
 services. Public save state and reference decisions use C; physical files and
 container sessions retain their host representations. Native construction still
 publishes loaded name/read-only metadata into the C state. DocumentBase's common
@@ -3701,8 +3701,9 @@ dirty flag remains a host field written by the C controller.
 Old children survive until title writing succeeds. Earlier failure removes new
 source, roll-call and scene links in that order; actor pruning remains committed.
 After old children are removed, physical save failure retains the new graph.
-C releases the source-name block after ending the long operation and before a
-nested autosave returns to format selection, packaging or save publication.
+C allocates the source-name block through the archive writer and releases it
+after serialization, before adopting the new source child. A failed write or
+adoption discards that chunk. Retry allocates a fresh block.
 Named saving releases a matching saved-file reference before saving and attempts
 reacquisition even on failure. Direct binding failure retains the previous
 name-valid/read-only flags, while autosave clears name-valid before reacquisition.
@@ -6612,9 +6613,11 @@ when required. Wire writes preserve native text/SID payloads and swap only heade
 and offsets, restoring offsets even after I/O failure. Provider calls use a stack
 copy so adding source names during a callback cannot invalidate the query.
 
-Movie saving writes this C table directly; Studio's managed-source enumerator
-uses count/SID queries. The borrowed native table getter has been removed.
-Read-side GST decoding still uses a temporary native string-table adapter.
+Movie saving borrows this C table and writes it into the archive's source GST.
+Studio's managed-source enumerator uses count/SID queries. Movie loading uses
+the shared graph reader to decode the source GST and merge its rows directly
+into the catalogue. Studio and Archive share native counted-text conversion.
+The host supplies platform conversion for differing character widths.
 
 `source_discovery.c` owns provider short circuits, local long-before-short search,
 media short-before-long search, skipping floppies, and verifying previously opened

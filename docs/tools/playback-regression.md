@@ -18537,3 +18537,30 @@ archived retail frame identities, and SDL matched all four retail sound
 requests. PCM16 peaks matched the preceding builds at 2,176. The archived
 retail peak is 2,380. The capture contains 521,280 SDL and 512,160 Marcus PCM
 frames. Logs and the comparison script are in `tmp/c89-movie-rollcall-block`.
+
+## Movie source-table archive I/O (21 November 2026)
+
+Studio autosave now allocates and writes the movie's source GST in C89. The
+save transaction releases the block after serialization and adopts the new
+child only after a successful write. A failed write or adoption discards the
+chunk. A retry uses a fresh block. Studio reload merges the source GST through
+the shared archive reader, and Studio and Archive use the same counted-text
+conversion for source names.
+
+All 193 standalone C checks, five focused AddressSanitizer checks and three
+Marcus checks passed. The fixtures cover failed writes and adoption, retry
+and packaging, a nonempty source-table save, duplicate IDs, and single-byte
+and cross-width source-name conversion. The rebuilt native source-name
+snapshot matched all 192 bytes from an earlier x86 build. Native x64, x86 and
+SDL matched all 27 save/reopen traces, the sound-resource snapshots and the
+saved authoring fixture byte for byte.
+
+Both ports matched all three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T092352Z-00ad6d68`. Fresh playback captures
+reused the verified retail ISO extraction.
+
+In sampled-audio suite `20261121T092359Z-a500b369`, both ports matched all 60
+archived retail frame identities, and SDL matched all four retail sound
+requests. PCM16 peaks matched the preceding builds at 2,176. The archived
+retail peak is 2,380. The capture contains 516,480 SDL and 515,040 Marcus PCM
+frames. Logs and the comparison script are in `tmp/c89-movie-source-table`.

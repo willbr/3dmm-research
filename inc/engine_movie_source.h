@@ -3,25 +3,19 @@
 
 #include "kauai_core.h"
 #include "mm/movie_session.h"
-#include "mm/string_ops.h"
-#include <cstring>
 
 namespace EngineMovieSource
 {
-// Preserve the native GST reader's character conversion for host source names.
+inline size_t ConvertWidth(void *, const void *bytes, size_t size, int encoding, void *text, size_t capacity)
+{
+    return CchTranslateRgb(const_cast<void *>(bytes), size, static_cast<short>(encoding),
+                           static_cast<achar *>(text), capacity);
+}
+
 inline void ToString(const MMMovieSourceName &row, String &out)
 {
     achar text[kcchMaxStn];
-    LegacyLong count;
-    if (CbCharOsk(static_cast<short>(row.encoding)) == sizeof(achar))
-    {
-        count = row.size / sizeof(achar);
-        std::memcpy(text, row.bytes, row.size);
-        mm_string_translate(text, count, sizeof(achar), row.encoding, koskCur, fTrue);
-    }
-    else
-        count = CchTranslateRgb(const_cast<unsigned char *>(row.bytes), row.size, static_cast<short>(row.encoding),
-                                text, kcchMaxStn);
+    const auto count = mm_movie_source_name_text(&row, koskCur, sizeof(achar), ConvertWidth, nullptr, text, kcchMaxStn);
     out.SetRgch(text, count);
 }
 } // namespace EngineMovieSource

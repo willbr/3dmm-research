@@ -42,6 +42,11 @@ extern "C"
     int mm_source_names_find_id(MMSourceNames *, MMI32 sid, MMU32 *position);
     int mm_source_names_add(MMSourceNames *, MMI32 sid, const void *, MMU32 count);
     int mm_source_names_merge(MMSourceNames *, const MMSourceNameInput *, int swap_sid);
+    struct MMMovieSessionGraph;
+    /* Merge the source GST from the movie's archive. An absent table succeeds.
+     * Earlier names stay published if a later row cannot be read or inserted. */
+    int mm_source_names_merge_movie(MMSourceNames *, const struct MMMovieSessionGraph *, MMU32 root,
+                                    MMStringConvert, void *context, void (*invalid_sid)(void *, MMI32));
     /* Split scans until the first zero for '/', like Psz. A slash suffix ends at
      * its first zero; with no slash both outputs retain the full counted string. */
     MMSourceNameParts mm_source_name_split(const void *, MMU32 count, unsigned unit);

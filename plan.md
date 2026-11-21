@@ -306,6 +306,8 @@ priority over the older Project 0-4 ordering wherever they conflict.
   Local/media decisions, cached misses, retry/install sequencing, ordered manager
   construction and file routing use C89. Source names now use owning C storage,
   including SID/name lookup, merging, splitting, provider dispatch and GST writes.
+  Studio loads movie source names through the shared archive reader and autosave
+  owns the source GST block through serialization and child adoption in C89.
   Local/media directory search order also uses C89. Physical filename/drive calls,
   native locale services, UI prompts, engine objects and final callers remain.
 - MovieData's resource handle, actor table, movie number, actor-ID limit, title and scene count

@@ -51,7 +51,7 @@ MMI32 mm_movie_save_command(MMI32 command, MMI32 save, MMI32 save_as,
 }
 static int refresh_root(void *file, const MMMovieSaveServices *s)
 {
-    const MMChunkEdit edit = s->edit(file);
+    const MMChunkEdit edit = s->archive(file).edit;
     const MMChunkAccess chunks = mm_chunk_edit_access(&edit);
     MMChunkEntry root;
     MMU32 row;
@@ -155,10 +155,34 @@ static void discard_chunk(const MMChunkEdit *edit, MMU32 type, MMU32 number, con
     if (mm_chunk_delete(edit, type, number) != MM_CHUNK_OK && s->archive_issue)
         s->archive_issue(s->context, MM_MOVIE_ARCHIVE_DELETE_FAILED);
 }
+
+static int write_source_table(const MMArchiveWriter *archive, MMChunkChild *child, const MMMovieSaveServices *s)
+{
+    MMOwnedBlock block;
+    MMBlockIO io;
+    MMStorageWriter writer;
+    MMU32 bytes;
+    int ok;
+    if (!s->source_names || !archive->payloads ||
+        mm_owned_block_init(&block, archive->payloads->handles, archive->payloads->files) != MM_DATA_OK)
+        return 0;
+    bytes = mm_source_names_wire_size(s->source_names);
+    if (!bytes || mm_archive_add_block(archive, child->type, bytes, &child->number, &block) != MM_CHUNK_OK)
+        return 0;
+    ok = mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_io_writer(&io, &writer) == MM_DATA_OK &&
+         mm_source_names_write(s->source_names, &writer, archive->big_endian) == MM_STORAGE_OK;
+    mm_owned_block_clear(&block);
+    if (ok && adopt_child(&archive->edit, child, s))
+        return 1;
+    discard_chunk(&archive->edit, child->type, child->number, s);
+    return 0;
+}
+
 int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices *s)
 {
     void *file, *saved, *retry_path;
-    MMChunkEdit edit;
+    MMArchiveWriter archive;
+    const MMChunkEdit *edit = &archive.edit;
     MMChunkChild scene = {MM_SAVE_SCENE, 0, 0}, actors = {MM_SAVE_TABLE, 0, 0}, sources = {MM_SAVE_TABLE, 0, 1};
     MMChunkChild old_scene = {MM_SAVE_SCENE, NIL_NUMBER, 0}, old_actors = {MM_SAVE_TABLE, 0, 0},
                  old_sources = {MM_SAVE_TABLE, 0, 1};
@@ -173,7 +197,7 @@ int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices 
     s->long_op(s->context, 1);
     if (!path && !s->is_temp(file) && !mm_movie_save_temporary(s))
         goto fail_end;
-    edit = s->edit(file);
+    archive = s->archive(file);
 retry_save:
     if (s->data->movieNumber == NIL_NUMBER && !s->create_root(s->context, file, &s->data->movieNumber))
         goto fail;
@@ -182,38 +206,33 @@ retry_save:
         if (!s->write_scene(s->context, s->scenes->open, &scene.number))
             goto fail;
         scene.slot = old_scene.slot = (MMU32)s->scenes->index;
-        old_scene.number = saved_child(&edit, scene.type, scene.slot, s);
+        old_scene.number = saved_child(edit, scene.type, scene.slot, s);
         if (old_scene.number == NIL_NUMBER)
             s->missing_scene(s->context);
-        if (!adopt_child(&edit, &scene, s))
+        if (!adopt_child(edit, &scene, s))
         {
-            discard_chunk(&edit, scene.type, scene.number, s);
+            discard_chunk(edit, scene.type, scene.number, s);
             goto fail;
         }
     }
     if (clean_rollcall && !clean_actors(s))
         goto fail_scene;
-    old_actors.number = saved_child(&edit, actors.type, actors.slot, s);
+    old_actors.number = saved_child(edit, actors.type, actors.slot, s);
     if (!s->write_rollcall(s->context, file, s->data->movieNumber, &s->data->actors, &actors.number))
         goto fail_scene;
-    old_sources.number = saved_child(&edit, sources.type, sources.slot, s);
-    if (!s->add_sources(s->context, file, s->source_bytes(s->context), &sources.number))
+    old_sources.number = saved_child(edit, sources.type, sources.slot, s);
+    if (!write_source_table(&archive, &sources, s))
         goto fail_actors;
-    if (!s->write_sources(s->context) || !adopt_child(&edit, &sources, s))
-    {
-        discard_chunk(&edit, sources.type, sources.number, s);
-        goto fail_actors;
-    }
-    if (old_scene.number != NIL_NUMBER && !mm_movie_archive_preserve_scene_assets(&edit, old_scene.number))
+    if (old_scene.number != NIL_NUMBER && !mm_movie_archive_preserve_scene_assets(edit, old_scene.number))
         goto fail_sources;
     if (!mm_chunk_title_write(&s->data->title, file, MM_MOVIE_CHUNK, s->data->movieNumber, &s->titles))
         goto fail_sources;
     if (old_scene.number != NIL_NUMBER)
-        unlink_child(&edit, s->data->movieNumber, &old_scene, s);
+        unlink_child(edit, s->data->movieNumber, &old_scene, s);
     if (old_actors.number != NIL_NUMBER)
-        unlink_child(&edit, s->data->movieNumber, &old_actors, s);
+        unlink_child(edit, s->data->movieNumber, &old_actors, s);
     if (old_sources.number != NIL_NUMBER)
-        unlink_child(&edit, s->data->movieNumber, &old_sources, s);
+        unlink_child(edit, s->data->movieNumber, &old_sources, s);
     if (path)
     {
         saved = s->find_file(s->context, path);
@@ -241,15 +260,14 @@ retry_save:
     s->document_dirty(s->context, 1);
     s->update_title(s->context, path);
     s->long_op(s->context, 0);
-    s->release_sources(s->context);
     return 1;
 fail_sources:
-    unlink_child(&edit, s->data->movieNumber, &sources, s);
+    unlink_child(edit, s->data->movieNumber, &sources, s);
 fail_actors:
-    unlink_child(&edit, s->data->movieNumber, &actors, s);
+    unlink_child(edit, s->data->movieNumber, &actors, s);
 fail_scene:
     if (s->scenes->open)
-        unlink_child(&edit, s->data->movieNumber, &scene, s);
+        unlink_child(edit, s->data->movieNumber, &scene, s);
 fail:
     if (s->has_error(file))
     {
@@ -269,7 +287,6 @@ fail:
     }
 fail_end:
     s->long_op(s->context, 0);
-    s->release_sources(s->context);
     return 0;
 }
 int mm_movie_save_to(void *path, int remember, const MMMovieSaveServices *s)
@@ -397,7 +414,7 @@ int mm_movie_save_assets(void *file, const MMMovieSaveServices *s)
     doomed.storage = &storage;
     doomed.width = sizeof(chunk);
     doomed.free_count = -1;
-    edit = s->edit(file);
+    edit = s->archive(file).edit;
     chunks = mm_chunk_edit_access(&edit);
     for (type = 0; type < sizeof(types) / sizeof(types[0]); ++type)
     {
@@ -449,7 +466,7 @@ void mm_movie_save_sounds(int purge_all, const MMMovieSaveServices *s)
     void *file;
     if (!s->data->resources || !(file = s->file(s->data->resources)))
         return;
-    edit = s->edit(file);
+    edit = s->archive(file).edit;
     chunks = mm_chunk_edit_access(&edit);
     if (mm_chunk_find(&chunks, MM_SOUND_MOVIE, movie, &root_row) != MM_CHUNK_OK ||
         mm_chunk_at(&chunks, root_row, &root) != MM_CHUNK_OK)
@@ -494,7 +511,7 @@ int mm_movie_save_gc(void *file, const MMMovieSaveServices *s)
     int unused, valid, result = mm_movie_save_assets(file, s);
     if (s->state->closing && s->data->resources && (working = s->file(s->data->resources)))
     {
-        const MMChunkEdit edit = s->edit(working);
+        const MMChunkEdit edit = s->archive(working).edit;
         const MMChunkAccess chunks = mm_chunk_edit_access(&edit);
         if (mm_movie_sound_scan_unused(&chunks, &unused, &valid) != MM_CHUNK_OK)
             s->bad_sound_index(s->context);

@@ -1,6 +1,7 @@
 /* Source-name policy converted from engine tagman.cpp and Kauai groups2.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/source_names.h"
+#include "mm/movie_session.h"
 #include "mm/wide.h"
 #include <string.h>
 static int reserve(void *context, MMStringTable *view, MMU32 first, MMU32 second)
@@ -109,6 +110,59 @@ int mm_source_names_merge(MMSourceNames *n, const MMSourceNameInput *input, int 
             return 0;
     }
     return 1;
+}
+
+typedef struct MovieSourceMerge
+{
+    MMSourceNames *names;
+    MMStringConvert convert;
+    void *context;
+    void (*invalid_sid)(void *, MMI32);
+} MovieSourceMerge;
+
+static int merge_movie_payload(void *p, const MMReadStream *stream)
+{
+    const MovieSourceMerge *merge = p;
+    MMSourceNames *names = merge->names;
+    MMMovieSourceTable table;
+    MMMovieSourceName row;
+    unsigned short text[255];
+    MMU32 i, count;
+    int status = mm_movie_source_table_open(stream, stream->length, &table);
+    for (i = 0; status == MM_MOVIE_OK && i < table.count; ++i)
+    {
+        status = mm_movie_source_table_at(&table, i, &row);
+        if (status != MM_MOVIE_OK)
+            break;
+        if (row.id < 0 && merge->invalid_sid)
+            merge->invalid_sid(merge->context, row.id);
+        count = mm_movie_source_name_text(&row, names->encoding, names->unit, merge->convert, merge->context,
+                                           text, sizeof(text) / sizeof(*text));
+        if (!mm_source_names_add(names, row.id, text, count))
+            return MM_MOVIE_MEMORY;
+    }
+    return status;
+}
+
+int mm_source_names_merge_movie(MMSourceNames *names, const MMMovieSessionGraph *graph, MMU32 root,
+                                MMStringConvert convert, void *context, void (*invalid_sid)(void *, MMI32))
+{
+    MMChunkAccess chunks;
+    MMChunkEntry entry;
+    MMU32 position;
+    MovieSourceMerge merge;
+    int status;
+    graph->access(graph->context, &chunks);
+    status = mm_movie_view_source_table(&chunks, root, &entry, &position);
+    if (status == MM_MOVIE_ASSET_NOT_FOUND)
+        return 1;
+    if (status != MM_MOVIE_OK)
+        return 0;
+    merge.names = names;
+    merge.convert = convert;
+    merge.context = context;
+    merge.invalid_sid = invalid_sid;
+    return graph->payload(graph->context, &entry, merge_movie_payload, &merge) == MM_MOVIE_OK;
 }
 static unsigned character(const void *text, MMU32 i, unsigned unit)
 {

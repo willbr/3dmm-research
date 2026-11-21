@@ -302,6 +302,10 @@ typedef struct MMMovieSourceName
 int mm_movie_source_table_open(const MMReadStream *, MMU32 max_bytes, MMMovieSourceTable *);
 int mm_movie_source_table_at(const MMMovieSourceTable *, MMU32 row, MMMovieSourceName *);
 int mm_movie_source_name_utf8(const MMMovieSourceName *, char name[MM_MOVIE_SOURCE_NAME_BYTES]);
+/* Return the number of native counted units written. Same-width translation
+ * uses the legacy character maps; convert supplies cross-width conversion. */
+MMU32 mm_movie_source_name_text(const MMMovieSourceName *, int encoding, unsigned unit,
+                                 MMStringConvert convert, void *context, void *text, MMU32 capacity);
 
 /* Read the first matching SID from MVIE's source table as UTF-8. A movie
  * with no source table uses the retail source name for SID 2. Failure leaves

@@ -4703,11 +4703,16 @@ static void TestSourceNamesBaseline()
         if (snapshot)
             Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
     }
-    DataBlock block;
-    Check(block.FSetTemp(manager->CbSourceNames()) && manager->FWriteSourceNames(&block));
     byte bytes[2048];
-    auto count = block.Cb();
-    Check(count < sizeof(bytes) && block.FReadRgb(bytes, count, 0));
+    auto namesTable = manager->CoreSourceNames();
+    const auto count = mm_source_names_wire_size(namesTable);
+    const unsigned short one = 1;
+    const MMStorageWriter writer = {bytes, count, [](void *p, MMU32 offset, const void *data, size_t size) -> int {
+        std::memcpy(static_cast<byte *>(p) + offset, data, size);
+        return 1;
+    }};
+    Check(count < sizeof(bytes) &&
+          mm_source_names_write(namesTable, &writer, *reinterpret_cast<const byte *>(&one) == 0) == MM_STORAGE_OK);
     if (snapshot)
         Check(std::fwrite(bytes, 1, count, snapshot) == static_cast<size_t>(count));
     ReleasePpo(&manager);

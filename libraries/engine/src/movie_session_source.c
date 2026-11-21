@@ -1,4 +1,5 @@
 #include "movie_session_internal.h"
+#include "mm/string_ops.h"
 #include "mm/text.h"
 #include "mm/wide.h"
 #include <stdlib.h>
@@ -103,6 +104,28 @@ int mm_movie_source_name_utf8(const MMMovieSourceName *row, char out[MM_MOVIE_SO
     name.bytes[name.written] = 0;
     memcpy(out, name.bytes, strlen(name.bytes) + 1);
     return MM_MOVIE_OK;
+}
+
+MMU32 mm_movie_source_name_text(const MMMovieSourceName *row, int encoding, unsigned unit,
+                                 MMStringConvert convert, void *context, void *text, MMU32 capacity)
+{
+    size_t count;
+    unsigned source_unit;
+    if (!row || row->size > sizeof(row->bytes) || (unit != 1 && unit != 2) || !text)
+        return 0;
+    source_unit = row->encoding == MM_TEXT_UTF16_BE || row->encoding == MM_TEXT_UTF16_LE ? 2 :
+                  row->encoding == MM_TEXT_MAC || row->encoding == MM_TEXT_WINDOWS ? 1 : 0;
+    if (source_unit == unit)
+    {
+        count = row->size / unit;
+        if (count > capacity)
+            count = capacity;
+        memcpy(text, row->bytes, count * unit);
+        mm_string_translate(text, (MMU32)count, unit, row->encoding, encoding, 1);
+        return (MMU32)count;
+    }
+    count = convert ? convert(context, row->bytes, row->size, row->encoding, text, capacity) : 0;
+    return count <= capacity ? (MMU32)count : 0;
 }
 
 static int find_source(const MMReadStream *stream, MMI32 sid, char *out)

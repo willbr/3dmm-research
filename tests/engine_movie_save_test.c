@@ -3,6 +3,7 @@
 #include "mm/movie_sound.h"
 #include "mm/movie_publish.h"
 #include "mm/scene_data.h"
+#include "engine_resource_block_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -48,8 +49,7 @@ enum
     UNDO_CLEAR,
     PACK,
     CACHE_TOSS,
-    DELETE_CHUNK,
-    RELEASE_SOURCE
+    DELETE_CHUNK
 };
 typedef struct Test Test;
 typedef struct Saved
@@ -88,7 +88,12 @@ struct Test
     MMU32 soundSlots[8];
     MMU32 materials[16], templates[16], materialChild, materialParent, materialFlags, materialReferences;
     int materialCount, templateCount, tossed, deletedChunks, allocations, failAlloc, liveAlloc;
-    int sourceActive, sourceReleases, badSourceLifetime;
+    MMSourceNames sourceNames;
+    ResourceTestBlock sourceBlock;
+    MMChunkPayloadServices sourcePayloads;
+    unsigned char sourceBytes[64];
+    MMU32 sourceLength;
+    int sourcePending, sourceActive, sourceReleases, badSourceLifetime;
     int events[512], eventCount, deletedCount;
     MMChunkChild deleted[64];
     MMU32 next;
@@ -311,6 +316,8 @@ static void long_op(void *p, int begin)
     else
     {
         ++t->ends;
+        if (t->sourceActive)
+            ++t->badSourceLifetime;
         event(t, END_LONG);
     }
 }
@@ -407,35 +414,47 @@ static int write_actors(void *p, void *f, MMU32 root_number, MMRollCallTable *ac
     append(t, MM_SAVE_TABLE, *n, 0);
     return 1;
 }
-static MMU32 source_bytes(void *p)
-{
-    (void)p;
-    return 42;
-}
-static int add_sources(void *p, void *f, MMU32 bytes, MMU32 *n)
+static int allocate_source(void *p, MMU32 bytes, MMChunkLocation *location)
 {
     Test *t = p;
-    (void)f;
-    (void)bytes;
+    if (!t->sourcePending || bytes > sizeof(t->sourceBytes))
+        abort();
     if (!succeeds(t, ADD_SOURCE))
         return 0;
-    t->sourceActive = 1;
-    *n = t->next++;
-    extra_chunk(t, MM_SAVE_TABLE, *n, 1);
+    t->sourceLength = bytes;
+    location->file = t;
+    location->offset = 0;
+    location->bytes = bytes;
+    location->flags = 0;
     return 1;
 }
-static int write_sources(void *p)
+static int read_source(void *p, void *f, MMU32 offset, void *bytes, size_t size)
 {
-    return succeeds(p, WRITE_SOURCE);
+    (void)p; (void)f; (void)offset; (void)bytes; (void)size;
+    return 0;
 }
-static void release_sources(void *p)
+static int write_source(void *p, void *f, MMU32 offset, const void *bytes, size_t size)
 {
     Test *t = p;
-    if (!t->eventCount || t->events[t->eventCount - 1] != END_LONG)
-        ++t->badSourceLifetime;
-    t->sourceActive = 0;
+    if (f != p || t->sourceActive != 1 || offset + size > t->sourceLength)
+        abort();
+    if (!succeeds(t, WRITE_SOURCE))
+        return 0;
+    memcpy(t->sourceBytes + offset, bytes, size);
+    return 1;
+}
+static void retain_source(void *p, void *f)
+{
+    Test *t = p;
+    if (f != p || t->sourceActive++)
+        abort();
+}
+static void release_source(void *p, void *f)
+{
+    Test *t = p;
+    if (f != p || t->sourceActive-- != 1)
+        abort();
     ++t->sourceReleases;
-    event(t, RELEASE_SOURCE);
 }
 static int write_title(void *f, MMU32 type, MMU32 number, const void *wire, MMU32 bytes)
 {
@@ -725,7 +744,13 @@ static void edit_store(void *p, MMU32 row, const MMChunkEntry *entry, int initia
     Test *t = p;
     (void)row;
     if (initialize)
-        abort();
+    {
+        if (!t->sourcePending || entry->type != MM_SAVE_TABLE)
+            abort();
+        t->sourcePending = 0;
+        *extra_chunk(t, entry->type, entry->number, 1) = *entry;
+        return;
+    }
     if (entry->type == MM_MOVIE_CHUNK)
         t->indexChildCount = entry->child_count;
     else if (entry->type == MM_SOUND_CHUNK)
@@ -742,6 +767,11 @@ static void edit_erase(void *p, MMU32 row)
 {
     Test *t = p;
     MMChunkEntry entry, *extra;
+    if (t->sourcePending)
+    {
+        t->sourcePending = 0;
+        return;
+    }
     if (!graph_entry(p, row, &entry))
         abort();
     if (entry.type == MM_SOUND_CHUNK)
@@ -770,21 +800,35 @@ static void edit_reset(void *p, MMU32 type, MMU32 number)
     (void)type;
     (void)number;
 }
-static MMChunkEdit edit_index(void *p)
+static int edit_insert(void *p, MMU32 row)
 {
+    Test *t = p;
+    if (t->sourcePending || row > edit_count(t))
+        abort();
+    t->sourcePending = 1;
+    return 1;
+}
+static MMArchiveWriter save_archive(void *p)
+{
+    Test *t = p;
+    MMArchiveWriter archive = {0};
     MMChunkEdit edit = {0};
     edit.context = p;
     edit.max_references = 65535;
     edit.count = edit_count;
     edit.entry = graph_entry;
     edit.child = graph_child;
+    edit.insert = edit_insert;
+    edit.allocate = allocate_source;
     edit.store = edit_store;
     edit.erase = edit_erase;
     edit.free_space = edit_free;
     edit.reset_runtime = edit_reset;
     edit.insert_child = insert_child;
     edit.erase_child = erase_child;
-    return edit;
+    archive.edit = edit;
+    archive.payloads = &t->sourcePayloads;
+    return archive;
 }
 static int purge(void *p)
 {
@@ -832,6 +876,13 @@ static void init(Test *t)
     t->data.resources = t;
     if (mm_rollcall_table_init(&t->data.actors, sizeof(MMRollCallActor), 1, 0x0303, 0, NULL) != MM_STORAGE_OK)
         abort();
+    if (mm_source_names_init(&t->sourceNames, 1, 0x0303, 0, NULL) != MM_STORAGE_OK)
+        abort();
+    resource_block_init(&t->sourceBlock, t, read_source, write_source);
+    t->sourceBlock.files.retain = retain_source;
+    t->sourceBlock.files.release = release_source;
+    t->sourcePayloads.handles = t->sourceBlock.owner.handles;
+    t->sourcePayloads.files = &t->sourceBlock.files;
     t->data.movieNumber = t->rootNumber = 9;
     t->scenes.open = t;
     t->scenes.index = 0;
@@ -875,14 +926,11 @@ static void init(Test *t)
     s->long_op = long_op;
     s->document_dirty = dirty;
     s->write_scene = scene;
-    s->edit = edit_index;
+    s->archive = save_archive;
     s->close_tag = close_tag;
     s->rollcall_changed = rollcall;
     s->write_rollcall = write_actors;
-    s->source_bytes = source_bytes;
-    s->add_sources = add_sources;
-    s->write_sources = write_sources;
-    s->release_sources = release_sources;
+    s->source_names = &t->sourceNames;
     s->titles.encoding = MM_TEXT_WINDOWS;
     s->titles.write = write_title;
     s->has_error = error;
@@ -912,6 +960,9 @@ static int autosaving(void)
 {
     Test t;
     MMRollCallActor actor;
+    MMMemoryStream sourceStream;
+    MMMovieSourceTable sourceTable;
+    MMMovieSourceName sourceName;
     int fault, with_scene, physical_error;
     for (with_scene = 0; with_scene <= 1; ++with_scene)
         for (physical_error = 0; physical_error <= 1; ++physical_error)
@@ -928,7 +979,8 @@ static int autosaving(void)
                 t.markError = physical_error;
                 CHECK(!mm_movie_autosave(0, 0, &t.s));
                 CHECK(t.begins == 1 && t.ends == 1 && t.updates == 0 && t.state.autosaveDirty && t.dirty == 0);
-                CHECK(t.sourceReleases == 1 && !t.sourceActive && !t.badSourceLifetime);
+                CHECK(t.sourceReleases == (fault >= WRITE_SOURCE) && !t.sourceActive &&
+                      !t.sourcePending && !t.badSourceLifetime);
                 CHECK(t.resets == physical_error && t.errors == physical_error && !t.error);
                 if (fault < SAVE)
                 {
@@ -962,7 +1014,12 @@ static int autosaving(void)
     }
     init(&t);
     CHECK(seed_actor(&t, 1, 0) && seed_actor(&t, 2, 1) && seed_actor(&t, 3, 0));
+    CHECK(mm_source_names_add(&t.sourceNames, 42, "Custom/CUST", 11));
     CHECK(mm_movie_autosave(0, 1, &t.s));
+    CHECK(mm_memory_stream_init(&sourceStream, t.sourceBytes, t.sourceLength));
+    CHECK(mm_movie_source_table_open(&sourceStream.stream, t.sourceLength, &sourceTable) == MM_MOVIE_OK &&
+          sourceTable.count == 1 && mm_movie_source_table_at(&sourceTable, 0, &sourceName) == MM_MOVIE_OK);
+    CHECK(sourceName.id == 42 && sourceName.size == 11 && !memcmp(sourceName.bytes, "Custom/CUST", 11));
     CHECK(mm_rollcall_table_extra(&t.data.actors, 0, &actor) && actor.data.actor_id == 2);
     CHECK(!t.state.autosaveDirty && t.dirty == 1 && t.data.actors.count == 1);
     CHECK(t.tagsClosed == 2 && t.rollcalls == 1 && t.childCount == 3 && t.savedCalls == 1);
@@ -973,6 +1030,7 @@ static int autosaving(void)
     CHECK(t.updates == 1 && t.lastTitle == 0 && t.begins == t.ends && t.errors == 0);
     CHECK(mm_movie_autosave(0, 1, &t.s) && t.savedCalls == 1 && t.rollcalls == 1);
     CHECK(mm_rollcall_table_dispose(&t.data.actors) == MM_STORAGE_OK);
+    CHECK(mm_source_names_dispose(&t.sourceNames) == MM_STORAGE_OK);
     init(&t);
     t.scenes.index = 2;
     t.next = 0;
@@ -1102,7 +1160,7 @@ static int retrying(void)
         CHECK(t.begins == 1 && t.ends == 1 && t.resets == count && t.clears == 1 && t.tempSets == 1);
         CHECK(t.errors == (count == 2) && t.savedCalls == (count == 1 ? 2 : 1));
         CHECK(t.childCount == 3 && !t.error && !t.liveAlloc);
-        CHECK(t.sourceReleases == 1 && !t.sourceActive && !t.badSourceLifetime);
+        CHECK(t.sourceReleases == 2 && !t.sourceActive && !t.badSourceLifetime);
     }
     init(&t);
     t.s.retry_enabled = 1;

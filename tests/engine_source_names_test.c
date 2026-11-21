@@ -1,5 +1,8 @@
 #include "mm/source_names.h"
 #include "mm/source_discovery.h"
+#include "mm/movie_session.h"
+#include "mm/text.h"
+#include "chunk_edit_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -177,6 +180,101 @@ static void names(void)
     m.fail = 0;
     CHECK(mm_source_names_dispose(&n) == MM_STORAGE_OK && m.live == 0);
 }
+
+typedef struct SourceMovie
+{
+    ChunkIndexFixture index;
+    Output output;
+    MMU32 length;
+    int reads, conversions, diagnostics, truncated;
+} SourceMovie;
+
+static void source_access(void *p, MMChunkAccess *access)
+{
+    *access = fixture_chunk_access(&((SourceMovie *)p)->index);
+}
+
+static int source_payload(void *p, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    SourceMovie *movie = p;
+    MMMemoryStream memory;
+    CHECK(entry->type == 0x47535420UL && entry->number == 4);
+    ++movie->reads;
+    CHECK(mm_memory_stream_init(&memory, movie->output.bytes, movie->length - movie->truncated));
+    return receive(out, &memory.stream);
+}
+
+static size_t widen_name(void *p, const void *input, size_t bytes, int encoding, void *text, size_t capacity)
+{
+    SourceMovie *movie = p;
+    const unsigned char *source = input;
+    unsigned short *out = text;
+    size_t i;
+    CHECK(encoding == MM_TEXT_MAC && bytes <= capacity);
+    ++movie->conversions;
+    for (i = 0; i < bytes; ++i)
+        out[i] = source[i] == 0x8e ? 0xe9 : source[i];
+    return bytes;
+}
+
+static void invalid_movie_sid(void *p, MMI32 sid)
+{
+    CHECK(sid == -3);
+    ++((SourceMovie *)p)->diagnostics;
+}
+
+static void movie_names(void)
+{
+    const unsigned char accent[] = {'C', 'a', 'f', 0x8e};
+    const unsigned char ansi[] = {'C', 'a', 'f', 0xe9};
+    const unsigned short wide[] = {'C', 'a', 'f', 0xe9};
+    const unsigned short one = 1;
+    SourceMovie movie;
+    MMMovieSessionGraph graph = {NULL, source_access, NULL, source_payload, NULL};
+    MMChunkEdit edit;
+    MMChunkChild link = {0x47535420UL, 0, 0};
+    MMSourceNames wire, names;
+    MMStorageWriter writer = {NULL, 0, write_at};
+    const void *text;
+    MMU32 count;
+    MMI32 sid;
+    memset(&movie, 0, sizeof(movie));
+    graph.context = &movie;
+    edit = fixture_chunk_edit(&movie.index);
+    fixture_chunk_add(&movie.index, MM_MOVIE_CHUNK, 7);
+    fixture_chunk_add(&movie.index, link.type, 0);
+    fixture_chunk_add(&movie.index, link.type, 4);
+    CHECK(mm_chunk_adopt(&edit, MM_MOVIE_CHUNK, 7, &link, 1) == MM_CHUNK_OK);
+    CHECK(mm_source_names_init(&names, 1, MM_TEXT_WINDOWS, 0, NULL) == MM_STORAGE_OK);
+    CHECK(mm_source_names_merge_movie(&names, &graph, 7, NULL, &movie, invalid_movie_sid) && !movie.reads);
+
+    CHECK(mm_source_names_init(&wire, 1, MM_TEXT_MAC, 0, NULL) == MM_STORAGE_OK);
+    CHECK(mm_source_names_add(&wire, 2, "Later", 5) && mm_source_names_add(&wire, 9, accent, 4) &&
+          mm_source_names_add(&wire, -3, "", 0));
+    writer.context = &movie.output;
+    writer.length = movie.length = mm_source_names_wire_size(&wire);
+    CHECK(mm_source_names_write(&wire, &writer, *(const unsigned char *)&one == 0) == MM_STORAGE_OK);
+    CHECK(mm_source_names_dispose(&wire) == MM_STORAGE_OK);
+    link.slot = 1;
+    link.number = 4;
+    CHECK(mm_chunk_adopt(&edit, MM_MOVIE_CHUNK, 7, &link, 1) == MM_CHUNK_OK);
+    CHECK(mm_source_names_add(&names, 2, "First", 5));
+    movie.truncated = 1;
+    CHECK(!mm_source_names_merge_movie(&names, &graph, 7, NULL, &movie, invalid_movie_sid) && names.count == 1);
+    movie.truncated = 0;
+    CHECK(mm_source_names_merge_movie(&names, &graph, 7, NULL, &movie, invalid_movie_sid));
+    CHECK(names.count == 3 && movie.reads == 2 && movie.diagnostics == 1 && !movie.conversions);
+    CHECK(mm_source_names_at(&names, 0, &text, &count, &sid) && sid == 2 && count == 5 && !memcmp(text, "First", 5));
+    CHECK(mm_source_names_at(&names, 1, &text, &count, &sid) && sid == 9 && count == 4 && !memcmp(text, ansi, 4));
+    CHECK(mm_source_names_at(&names, 2, &text, &count, &sid) && sid == -3 && !count);
+    CHECK(mm_source_names_dispose(&names) == MM_STORAGE_OK);
+
+    CHECK(mm_source_names_init(&names, 2, MM_TEXT_UTF16_LE, 0, NULL) == MM_STORAGE_OK);
+    CHECK(mm_source_names_merge_movie(&names, &graph, 7, widen_name, &movie, invalid_movie_sid));
+    CHECK(movie.conversions == 3 && movie.diagnostics == 2);
+    CHECK(mm_source_names_at(&names, 1, &text, &count, &sid) && sid == 9 && count == 4 && !memcmp(text, wide, sizeof(wide)));
+    CHECK(mm_source_names_dispose(&names) == MM_STORAGE_OK);
+}
 typedef struct Discovery
 {
     char log[128];
@@ -306,6 +404,7 @@ static void discovery(void)
 int main(void)
 {
     names();
+    movie_names();
     discovery();
     puts("source names/discovery passed");
     return 0;
