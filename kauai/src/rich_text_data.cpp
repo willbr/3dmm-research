@@ -56,7 +56,10 @@ bool RichTextData::FCreateRoot(PChunkyFile file, ChunkIdentification *written, R
 bool RichTextData::FWrite(PChunkyFile file, ChunkIdentification *written)
 {
     MovieArchiveHost movie{file};
-    const auto editor = movie.Editor();
+    return FWrite(movie.Editor(), written);
+}
+bool RichTextData::FWrite(const MMMovieArchiveEditor &editor, ChunkIdentification *written)
+{
     RichTextStoreHost::Host host{editor};
     auto state = RichTextStoreHost::State(*this);
     MMTextChunk out = {0, 0};

@@ -732,7 +732,7 @@ class Movie : public Movie_PAR
     bool FSetCmvi(PCompositeMovie pcmvi); // Re-build the movie from the CompositeMovie
     bool _FAddMvieToRollCall(ChunkNumber cno, long aridMin);
     // Updates roll call for an imported movie
-    bool _FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie
+    bool _FAdoptMsndInMvie(PChunkyResourceFile, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie
 
     bool FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm = vlmNil,
                      long sty = styNil);                                                              // Adds a sound

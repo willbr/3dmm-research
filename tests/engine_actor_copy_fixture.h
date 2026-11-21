@@ -13,10 +13,15 @@ static bool TestActorCopy(PMovie parent)
         ok=movie && actor && movie->FNewScenInsCore(0) && movie->FAutoSave() && movie->FEnsureAutosave(&resource);
         ChunkNumber templateNumber=0,materialNumber=0,soundNumber=0,targetSound=0; ChildChunkID child=0;
         MaterialOnFile material={kboCur,koskCur,0xffffff,0,0,0,32,15,rOne};
-        PChunkyFile file=resource?resource->Pcfl():nullptr;
-        ok=ok && file->FAddPv(&dummy,1,kctgTmpl,&templateNumber) && TrackTestTemplate::FWriteFixture(file,&templateNumber) &&
-            file->FAddPv(&material,sizeof(material),kctgMtrl,&materialNumber) && file->FAddPv(&dummy,1,kctgMsnd,&soundNumber) &&
-            file->FAddPv(&dummy,1,kctgMsnd,&targetSound) && movie->FChidFromUserSndCno(targetSound,&child);
+        if (ok)
+        {
+            const MovieArchiveFixture archive(resource);
+            ok = archive.AddBytes(&dummy,1,kctgTmpl,&templateNumber) &&
+                 TrackTestTemplate::FWriteFixture(archive,&templateNumber) &&
+                 archive.AddBytes(&material,sizeof(material),kctgMtrl,&materialNumber) &&
+                 archive.AddBytes(&dummy,1,kctgMsnd,&soundNumber) && archive.AddBytes(&dummy,1,kctgMsnd,&targetSound) &&
+                 movie->FChidFromUserSndCno(targetSound,&child);
+        }
         if (ok) ok=actor->FInitPlayback(movie->Pscen(),resource);
         if (ok) { std::fprintf(stderr,"[copy fixture] mode=%d\n",mode); ok=actor->FTestCopy(mode,snapshot,resource,templateNumber,materialNumber,soundNumber,child); }
         ReleasePpo(&actor); ReleasePpo(&movie);

@@ -16,12 +16,12 @@ static bool TestActorPaste(PMovie parent)
         { file=ChunkyFile::PcflCreateTemp(); source=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr; ok=source!=nullptr; }
         else if (ok) { source=target; source->AddRef(); }
         byte dummy=0; ChunkNumber soundNumber=0,templateNumber=0;
-        if (ok) ok=source->Pcfl()->FAddPv(&dummy,1,kctgMsnd,&soundNumber);
+        if (ok) ok=MovieArchiveFixture(source).AddBytes(&dummy,1,kctgMsnd,&soundNumber);
         if (ok && (mode&16))
         {
             String text; text.SetSzs(PszLit("Paste")); TAG font={1,nullptr,kctgTdf,0};
             auto tdt=ThreeDText::PtdtNew(&text,tdtsNormal,&font);
-            ok=tdt && tdt->FWrite(source->Pcfl(),kctgTmpl,&templateNumber); ReleasePpo(&tdt);
+            ok=tdt && tdt->FWrite(source->ArchiveWriter(),kctgTmpl,&templateNumber); ReleasePpo(&tdt);
             if (ok) { textTemplate=static_cast<PTemplate>(source->PbacoFetch(kctgTmpl,templateNumber,Template::FReadTmpl)); ok=textTemplate!=nullptr; }
         }
         if (ok) { scene=NewObj StageTestScene(movie); ok=scene && scene->Init() && actor->FInitPlayback(scene,source); }

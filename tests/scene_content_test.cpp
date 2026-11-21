@@ -10,6 +10,8 @@
 #include "scene_content_undo.h"
 #include "scene_chop_undo.h"
 #include "scene_control_undo.h"
+#include "movie_archive_fixture.h"
+#include "movie_archive_host.h"
 #undef size
 ASSERTNAME
 void FrameMain(void)
@@ -438,7 +440,9 @@ struct Access : Scene
 };
 static PTBOX Caption(PScene scene, PChunkyResourceFile resources)
 {
-    auto file = resources->Pcfl();
+    const MovieArchiveFixture archive(resources);
+    MovieArchiveHost host{archive.reader, archive.writer};
+    const auto editor = host.Editor();
     RichTextData text;
     text.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
     text.fontName.SetSzs(PszLit("Arial"));
@@ -447,24 +451,24 @@ static PTBOX Caption(PScene scene, PChunkyResourceFile resources)
     byte chars[] = {'H', 'i'};
     CHECK(text.properties && text.text.pfil && text.text.pfil->FSetFpMac(2) && text.text.FWriteRgb(chars, 2, 0));
     ChunkIdentification rich;
-    CHECK(text.FWrite(file, &rich));
+    CHECK(text.FWrite(editor, &rich));
     ChunkNumber n;
-    CHECK(file->FAdd(0, kctgTbox, &n));
+    CHECK(archive.Add(0, kctgTbox, &n));
     TextBoxData data;
     data.state.first = 20;
     data.state.end = 30;
     data.state.story = true;
     data.SetBounds(1, 2, 100, 80);
-    CHECK(data.FWrite(file, n) && file->FAdoptChild(kctgTbox, n, rich.ctg, rich.cno, 0));
+    CHECK(mm_text_box_write(&data.state, n, &editor) > 0 && archive.Adopt(kctgTbox, n, rich.ctg, rich.cno, 0));
     return TextBox::PtboxRead(resources, n, scene);
 }
-static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
+static void BackgroundFixture(const MovieArchiveFixture &archive, ChunkNumber *number, int id)
 {
     BackgroundFile header = {kboCur, koskCur, byte(id ? 0 : 20), 0, 0};
-    CHECK(file->FAddPv(&header, sizeof(header), kctgBkgd, number));
+    CHECK(archive.AddBytes(&header, sizeof(header), kctgBkgd, number));
     String name;
     name.SetSzs(id ? PszLit("Background B") : PszLit("Background A"));
-    CHECK(file->FSetName(kctgBkgd, *number, &name));
+    CHECK(archive.SetName(kctgBkgd, *number, &name));
     auto lights = DynamicArray::PglNew(sizeof(LightPosition));
     CHECK(lights);
     LightPosition light = {};
@@ -480,7 +484,7 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
     }
     ChunkNumber child;
     DataBlock b;
-    CHECK(file->FAddChild(kctgBkgd, *number, 0, lights->CbOnFile(), kctgGllt, &child, &b) && lights->FWrite(&b));
+    CHECK(archive.AddChild(kctgBkgd, *number, 0, lights->CbOnFile(), kctgGllt, &child, &b) && lights->FWrite(&b));
     ReleasePpo(&lights);
     b.Free();
     if (!id)
@@ -492,12 +496,12 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
         sound.fLoop = true;
         sound.tagSnd = {-1, 0x1BADB002U, kctgMsnd, 0xFEDC1234U};
         SwapBytesBom(&sound, kbomBds);
-        CHECK(file->FAddChildPv(kctgBkgd, *number, 0, &sound, sizeof(sound), kctgBds, &child));
+        CHECK(archive.AddChildBytes(kctgBkgd, *number, 0, &sound, sizeof(sound), kctgBds, &child));
         auto colors = DynamicArray::PglNew(sizeof(Color));
         CHECK(colors);
         Color a = {1, 2, 3, 0}, second = {4, 5, 6, 0};
         CHECK(colors->FAdd(&a) && colors->FAdd(&second));
-        CHECK(file->FAddChild(kctgBkgd, *number, 0, colors->CbOnFile(), kctgColorTable, &child, &b) &&
+        CHECK(archive.AddChild(kctgBkgd, *number, 0, colors->CbOnFile(), kctgColorTable, &child, &b) &&
               colors->FWrite(&b, kboOther));
         b.Free();
         ReleasePpo(&colors);
@@ -508,13 +512,13 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
     auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 32, 24, &r, 0, 0, 0);
     CHECK(bitmap);
     ChunkNumber rgb, z;
-    CHECK(file->FAdd(bitmap->CbOnFile(), kctgMbmp, &rgb, &b) && bitmap->FWrite(&b));
+    CHECK(archive.Add(bitmap->CbOnFile(), kctgMbmp, &rgb, &b) && bitmap->FWrite(&b));
     b.Free();
     ReleasePpo(&bitmap);
     auto depth = ZBMP::PzbmpNew(32, 24);
     CHECK(depth);
     std::memset(depth->Prgb(), 0xff, depth->CbRow() * 24);
-    CHECK(depth->FWrite(file, kctgZbmp, &z));
+    CHECK(depth->FWrite(archive.writer, kctgZbmp, &z));
     ReleasePpo(&depth);
     for (int i = 0; i < 4; ++i)
     {
@@ -535,8 +539,8 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
             points[1].xrPlace = BR_SCALAR(5); points[1].yrPlace = BR_SCALAR(6); points[1].zrPlace = BR_SCALAR(-7);
             std::memcpy(camera.data() + sizeof(cam), points, sizeof(points));
         }
-        CHECK(file->FAddChildPv(kctgBkgd, *number, i, camera.data(), camera.size(), kctgCam, &child));
-        CHECK(file->FAdoptChild(kctgCam, child, kctgMbmp, rgb, 0) && file->FAdoptChild(kctgCam, child, kctgZbmp, z, 0));
+        CHECK(archive.AddChildBytes(kctgBkgd, *number, i, camera.data(), camera.size(), kctgCam, &child));
+        CHECK(archive.Adopt(kctgCam, child, kctgMbmp, rgb, 0) && archive.Adopt(kctgCam, child, kctgZbmp, z, 0));
     }
 }
 static bool Missing(const MissingSourceRequest &)
@@ -586,7 +590,7 @@ int main()
     observed = MovieAccess::Resources(movie);
     CHECK(observed);
     observed->AddRef();
-    auto file = observed->Pcfl();
+    const MovieArchiveFixture archive(observed);
     ChunkNumber background;
     /* Actual snapshot save/swap and frame chopping, captured before extraction. */
     Access::ChopSetup(scene, false);
@@ -605,7 +609,7 @@ int main()
         Access::ChopState(scene);
     }
     ReleasePpo(&chopUndo);
-    BackgroundFixture(file, &background, 0);
+    BackgroundFixture(archive, &background, 0);
     TAG tag = {ksidUseCrf, observed, kctgBkgd, background}, old;
     CHECK(scene->FSetBkgdCore(&tag, &old));
     {
@@ -678,10 +682,10 @@ int main()
         }
         /* Foreign-order appended points used to be swapped past a stack header.
          * Exercise the real block/list bridge without changing the native trace. */
-        ChildChunkIdentification child;
+        ChunkNumber child;
         DataBlock block;
-        CHECK(file->FGetKidChidCtg(kctgBkgd, tag.cno, 1, kctgCam, &child));
-        CHECK(file->FFind(kctgCam, child.cki.cno, &block));
+        CHECK(archive.Link(kctgBkgd, tag.cno, 1, kctgCam, &child));
+        CHECK(archive.Find(kctgCam, child, &block));
         std::vector<byte> native(block.Cb()), foreign(block.Cb());
         CHECK(block.FReadRgb(native.data(), native.size(), 0));
         block.Free();
@@ -695,7 +699,7 @@ int main()
         SwapBytesRglw(points, 6);
         std::memcpy(foreign.data(), &camera, sizeof(camera));
         std::memcpy(foreign.data() + sizeof(camera), points, sizeof(points));
-        CHECK(file->FPutPv(foreign.data(), foreign.size(), kctgCam, child.cki.cno));
+        CHECK(archive.PutBytes(foreign.data(), foreign.size(), kctgCam, child));
         CHECK(background->FSetCamera(movie->Pbwld(), 1));
         BRS x, y, z;
         background->GetCameraPos(&x, &y, &z);
@@ -711,7 +715,7 @@ int main()
         CHECK(x == BR_SCALAR(5) && y == BR_SCALAR(6) && z == BR_SCALAR(-7));
         background->GetActorPlacePoint(&x, &y, &z);
         CHECK(x == 0 && y == 0 && z == 0);
-        CHECK(file->FPutPv(native.data(), native.size(), kctgCam, child.cki.cno));
+        CHECK(archive.PutBytes(native.data(), native.size(), kctgCam, child));
         CHECK(background->FSetCamera(movie->Pbwld(), 0));
         ReleasePpo(&background);
     }
@@ -739,9 +743,9 @@ int main()
                 CHECK(group->FAdd(sizeof(camera), nullptr, &camera, &e));
                 ChunkNumber n;
                 DataBlock block;
-                CHECK(file->FAdd(group->CbOnFile(), kctgFrmGg, &n, &block) && group->FWrite(&block, order));
+                CHECK(archive.Add(group->CbOnFile(), kctgFrmGg, &n, &block) && group->FWrite(&block, order));
                 block.Free();
-                CHECK(file->FFind(kctgFrmGg, n, &block));
+                CHECK(archive.Find(kctgFrmGg, n, &block));
                 short out = 0x7777;
                 auto loaded = SceneData::PggReadEvents(&block, &out, false);
                 Value(loaded != nullptr);
@@ -759,19 +763,19 @@ int main()
                 ReleasePpo(&loaded);
                 block.Free();
                 ReleasePpo(&group);
-                file->Delete(kctgFrmGg, n);
+                archive.Delete(kctgFrmGg, n);
             }
         byte invalid = 0;
         ChunkNumber n;
         DataBlock block;
-        CHECK(file->FAddPv(&invalid, 1, kctgFrmGg, &n) && file->FFind(kctgFrmGg, n, &block));
+        CHECK(archive.AddBytes(&invalid, 1, kctgFrmGg, &n) && archive.Find(kctgFrmGg, n, &block));
         short order = 0x7777;
         auto failed = SceneData::PggReadEvents(&block, &order, false);
         CHECK(!failed && order == 0x7777);
         Value(failed != nullptr);
         Value(order);
         block.Free();
-        file->Delete(kctgFrmGg, n);
+        archive.Delete(kctgFrmGg, n);
     }
     {
         String name;
@@ -815,7 +819,9 @@ int main()
         metadata.lastFrame = 9;
         metadata.SetName(&name);
         ChunkNumber number;
-        CHECK(metadata.FCreate(file, &number));
+        MovieArchiveHost host{archive.reader, archive.writer};
+        const auto editor = host.Editor();
+        CHECK(mm_scene_archive_create(&editor, &metadata, &number));
         for (int i = -1; i <= transLim; ++i)
         {
             Value(Scene::FSetTransOnFile(observed, number, static_cast<TRANS>(i)));
@@ -826,7 +832,7 @@ int main()
         TRANS out = transBlack;
         Value(Scene::FTransOnFile(observed, cnoNil, &out));
         Value(out);
-        file->Delete(kctgScen, number);
+        archive.Delete(kctgScen, number);
         Value(scene->FStartPlaying());
         scene->StopPlaying();
     }
@@ -841,7 +847,7 @@ int main()
     Access::ChopSetup(scene);
     scene->SetNfrmCur(1);
     ChunkNumber number;
-    CHECK(file->FAdd(0, kctgTmpl, &number));
+    CHECK(archive.Add(0, kctgTmpl, &number));
     auto makeActor = [&]() {
         auto a = NewObj ContentActor;
         CHECK(a && a->FInitClipboard(observed, number) && a->PrepareBody(scene));

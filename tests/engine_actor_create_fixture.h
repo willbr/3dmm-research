@@ -12,7 +12,8 @@ static bool TestActorCreation(PMovie movie)
         const int asset=mode/40,warm=(mode/20)%2,failure=mode%20;
         auto file=ChunkyFile::PcflCreateTemp(); auto resource=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr;
         byte dummy=0; ChunkNumber bad=0,number=0;
-        ok=resource && file->FAddPv(&dummy,1,kctgTmpl,&bad) && TrackTestTemplate::FWriteFixture(file,&number);
+        ok=resource && file->FAddPv(&dummy,1,kctgTmpl,&bad) &&
+           TrackTestTemplate::FWriteFixture(MovieArchiveFixture(resource),&number);
         if (ok && asset==2)
         {
             ChildChunkIdentification action,cel;

@@ -4,13 +4,17 @@
 class MovieContentTagAccess : public TagManager
 {
   public:
-    static bool FontSource(PChunkyFile file)
+    static bool FontSource(PChunkyResourceFile resources)
     {
         auto member = &MovieContentTagAccess::_sources;
         auto &sources = vptagm->*member;
         auto manager = ChunkyResourceManager::PcrmNew(1);
         auto paths = sources.owners.new_paths(sources.owners.context);
-        if (!manager || !paths || !manager->FAddCfl(file, 1024 * 1024) ||
+        auto sibling = resources->PcrfNewSibling(1024 * 1024);
+        const bool added = manager && sibling &&
+                           mm_resource_manager_add_cache(manager->CoreManager(), sibling->CoreCache(), nullptr) == MM_STORAGE_OK;
+        ReleasePpo(&sibling);
+        if (!added || !paths ||
             mm_storage_ensure(&sources.storage, (sources.count + 1) * sizeof(MMSourceRecord), 0, 0))
         {
             ReleasePpo(&manager);
@@ -168,15 +172,15 @@ static bool TestMovieContentCore()
         ChunkNumber fontNumber = 0, modelNumber = 0;
         if (ok)
         {
-            auto file = resource->Pcfl();
-            ok = model && file->FAddPv(wire.data(), LegacyLong((wire.size)()), kctgTdf, &fontNumber) &&
-                 file->FAdd(0, kctgBmdl, &modelNumber) && model->FWrite(file, kctgBmdl, modelNumber);
+            const MovieArchiveFixture archive(resource);
+            ok = model && archive.AddBytes(wire.data(), (wire.size)(), kctgTdf, &fontNumber) &&
+                 archive.Add(0, kctgBmdl, &modelNumber) && model->FWrite(archive.writer, kctgBmdl, modelNumber);
             for (int i = 0; ok && i < 256; ++i)
-                ok = file->FAdoptChild(kctgTdf, fontNumber, kctgBmdl, modelNumber, i);
+                ok = archive.Adopt(kctgTdf, fontNumber, kctgBmdl, modelNumber, i);
         }
         ReleasePpo(&model);
         if (ok)
-            ok = MovieContentTagAccess::FontSource(resource->Pcfl()) &&
+            ok = MovieContentTagAccess::FontSource(resource) &&
                  MovieContentSceneAccess::PlacePoints(movie->Pscen());
         TAG font = {123, nullptr, kctgTdf, fontNumber};
         String text;

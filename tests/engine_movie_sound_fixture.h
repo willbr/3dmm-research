@@ -104,11 +104,17 @@ static bool TestMovieSoundIntegration(PMovie parent)
     if (const char *path=std::getenv("MM_MOVIE_SOUND_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-    auto graph=[&](PChunkyFile file,ChunkTagOrType type,ChunkNumber number) {
-        LegacyLong count=file->Ckid(type,number); if (!record(&count,sizeof(count))) return false;
+    auto graph=[&](PChunkyResourceFile resources,ChunkTagOrType type,ChunkNumber number) {
+        const auto chunks = resources->ReadChunkAccess();
+        MMU32 position;
+        MMChunkEntry entry;
+        if (mm_chunk_find(&chunks, type, number, &position) != MM_CHUNK_OK ||
+            mm_chunk_at(&chunks, position, &entry) != MM_CHUNK_OK)
+            return false;
+        LegacyLong count = entry.child_count; if (!record(&count,sizeof(count))) return false;
         for (long i=0;i<count;++i)
-        { ChildChunkIdentification child; if (!file->FGetKid(type,number,i,&child)) return false;
-          LegacyLong row[]={static_cast<LegacyLong>(child.cki.ctg),static_cast<LegacyLong>(child.cki.cno),static_cast<LegacyLong>(child.chid)};
+        { MMChunkChild child; if (mm_chunk_child_at(&chunks,position,i,&child) != MM_CHUNK_OK) return false;
+          LegacyLong row[]={static_cast<LegacyLong>(child.type),static_cast<LegacyLong>(child.number),static_cast<LegacyLong>(child.slot)};
           if (!record(row,sizeof(row))) return false; }
         return true;
     };
@@ -118,16 +124,17 @@ static bool TestMovieSoundIntegration(PMovie parent)
         auto movie=Movie::PmvieNew(false,parent->Pmcc(),nullptr,cnoNil); PChunkyResourceFile resource=nullptr;
         auto source=ChunkyFile::PcflCreateTemp(); auto external=source?ChunkyResourceFile::PcrfNew(source,0):nullptr;
         ok=movie && external && movie->FNewScenInsCore(0) && movie->FNewScenInsCore(1) && movie->FSwitchScen(0) && movie->FAutoSave() && movie->FEnsureAutosave(&resource);
-        auto data=movie?MovieSoundFixtureAccess::Data(movie):nullptr; auto file=resource?resource->Pcfl():nullptr;
+        auto data=movie?MovieSoundFixtureAccess::Data(movie):nullptr;
+        const MovieArchiveFixture archive(resource);
         ChunkNumber sounds[3]={},foreign[3]={},other=0,sub=0; byte dummy=0;
-        ChildChunkIdentification scene;
-        ok=ok && file->FGetKidChidCtg(kctgMvie,data->movieNumber,0,kctgScen,&scene);
-        for (int i=0;ok && i<3;++i) ok=file->FAddPv(&dummy,1,kctgMsnd,&sounds[i]) && source->FAddPv(&dummy,1,kctgMsnd,&foreign[i]);
-        ok=ok && file->FAddPv(&dummy,1,kctgMtrl,&other) && file->FAdoptChild(kctgScen,scene.cki.cno,kctgMtrl,other,1);
-        if (ok && (mode&1)) ok=file->FAdoptChild(kctgScen,scene.cki.cno,kctgMsnd,sounds[0],0);
-        if (ok && (mode&2)) ok=file->FAdoptChild(kctgMvie,data->movieNumber,kctgMsnd,sounds[0],2);
-        if (ok && (mode&4)) ok=file->FAdoptChild(kctgScen,scene.cki.cno,kctgMsnd,sounds[1],2);
-        if (ok && (mode&16)) ok=file->FAddChild(kctgMsnd,sounds[2],0,1,kctgWave,&sub);
+        ChunkNumber scene;
+        ok=ok && archive.Link(kctgMvie,data->movieNumber,0,kctgScen,&scene);
+        for (int i=0;ok && i<3;++i) ok=archive.AddBytes(&dummy,1,kctgMsnd,&sounds[i]) && source->FAddPv(&dummy,1,kctgMsnd,&foreign[i]);
+        ok=ok && archive.AddBytes(&dummy,1,kctgMtrl,&other) && archive.Adopt(kctgScen,scene,kctgMtrl,other,1);
+        if (ok && (mode&1)) ok=archive.Adopt(kctgScen,scene,kctgMsnd,sounds[0],0);
+        if (ok && (mode&2)) ok=archive.Adopt(kctgMvie,data->movieNumber,kctgMsnd,sounds[0],2);
+        if (ok && (mode&4)) ok=archive.Adopt(kctgScen,scene,kctgMsnd,sounds[1],2);
+        if (ok && (mode&16)) ok=archive.AddChild(kctgMsnd,sounds[2],0,1,kctgWave,&sub);
         bool haveValid=false,unused=false,unusedFast=false; ChildChunkID child=777,repeat=888;
         if (ok)
         {
@@ -139,17 +146,17 @@ static bool TestMovieSoundIntegration(PMovie parent)
         if (ok)
         {
             TagManager::DupTag(&tag);
-            resolved=movie->FResolveSndTag(&tag,child,(mode&2)?scene.cki.cno:cnoNil,(mode&1)?resource:nullptr);
-            missing=movie->FResolveSndTag(&tag,999999,scene.cki.cno,resource);
+            resolved=movie->FResolveSndTag(&tag,child,(mode&2)?scene:cnoNil,(mode&1)?resource:nullptr);
+            missing=movie->FResolveSndTag(&tag,999999,scene,resource);
             ok=resolved && missing==((mode&32)!=0);
-            adopted=movie->_FAdoptMsndInMvie(file,scene.cki.cno); ok=ok && adopted;
+            adopted=movie->_FAdoptMsndInMvie(resource,scene); ok=ok && adopted;
             TAG transfer={ksidUseCrf,external,kctgMsnd,foreign[0]}; TagManager::DupTag(&transfer);
             saved=movie->FSaveTagSnd(&transfer); ok=ok && saved;
             copied=movie->FCopyMsndFromCrf(external,foreign[1],&copyNumber); ok=ok && copied;
             LegacyLong row[]={mode,unused,haveValid,unusedFast,static_cast<LegacyLong>(child),static_cast<LegacyLong>(repeat),resolved,missing,adopted,saved,copied,
                 static_cast<LegacyLong>(copyNumber),tag.sid,static_cast<LegacyLong>(tag.cno),tag.pcrf==resource,tag.pcrf==external,
                 static_cast<LegacyLong>(transfer.cno),transfer.pcrf==resource,resource->CactRef(),external->CactRef(),movie->FQueryGCSndsOnClose()};
-            ok=record(row,sizeof(row)) && graph(file,kctgMvie,data->movieNumber) && graph(file,kctgScen,scene.cki.cno) && ok;
+            ok=record(row,sizeof(row)) && graph(resource,kctgMvie,data->movieNumber) && graph(resource,kctgScen,scene) && ok;
             TagManager::CloseTag(&transfer); TagManager::CloseTag(&tag);
         }
         ReleasePpo(&movie); ReleasePpo(&external); ReleasePpo(&source); vpers->Clear();
@@ -193,7 +200,7 @@ static bool TestMovieSoundIntegration(PMovie parent)
 #if defined(WIN) && !defined(KAUAI_SDL3) && !defined(MM_TEST_NATIVE_AUDIOMAN)
             expected=mode==1; /* The fallback AudioMan implementation is an E_NOTIMPL stub. */
 #endif
-            ok=imported==expected && record(row,sizeof(row)) && graph(resource->Pcfl(),kctgMvie,MovieSoundFixtureAccess::Data(movie)->movieNumber);
+            ok=imported==expected && record(row,sizeof(row)) && graph(resource,kctgMvie,MovieSoundFixtureAccess::Data(movie)->movieNumber);
             if (ok && expected)
                 ok = TestPrivateSoundRoundTrip(parent, input, (mode & 1) ? styMidi : stySfx, &name);
         }

@@ -47,11 +47,9 @@ MMDepthServices ZBMP::_Services(void *context)
     s.decode = KauaiDecodeBlockHandle;
     s.add = [](void *p, void *file, MMU32 type, MMU32 bytes, MMU32 *number, MMStorageWriter *writer) -> int {
         auto &target = *static_cast<DepthWriteContext *>(p);
-        ChunkNumber n;
-        std::memcpy(&n, number, sizeof(n));
-        bool ok = static_cast<PChunkyFile>(file)->FAdd(bytes, type, &n, &target.block);
-        std::memcpy(number, &n, sizeof(n));
-        return ok && mm_owned_block_io(target.block.CoreBlock(), &target.io) == MM_DATA_OK &&
+        auto archive = static_cast<const MMArchiveWriter *>(file);
+        return mm_archive_add_block(archive, type, bytes, number, target.block.CoreBlock()) == MM_CHUNK_OK &&
+               mm_owned_block_io(target.block.CoreBlock(), &target.io) == MM_DATA_OK &&
                mm_block_io_writer(&target.io, writer) == MM_DATA_OK;
     };
     s.publish_fetch = [](void *p, int valid, void *object, MMI32 bytes) {
@@ -133,14 +131,19 @@ void ZBMP::DrawHalf(byte *pixels, LegacyLong row, LegacyLong height, LegacyLong 
 }
 bool ZBMP::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
 {
-    AssertThis(0);
     AssertPo(file, 0);
+    return FWrite(file->WriteOwnerIndex(), type, number);
+}
+bool ZBMP::FWrite(const MMArchiveWriter &archive, ChunkTagOrType type, ChunkNumber *number)
+{
+    AssertThis(0);
     AssertVarMem(number);
     DepthWriteContext context;
     auto s = _Services(&context);
+    auto writer = archive;
     MMU32 n;
     std::memcpy(&n, number, sizeof(n));
-    bool ok = mm_depth_write(&_depth, file, type, &n, &s) != 0;
+    bool ok = mm_depth_write(&_depth, &writer, type, &n, &s) != 0;
     std::memcpy(number, &n, sizeof(n));
     return ok;
 }

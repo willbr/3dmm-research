@@ -17,7 +17,8 @@ static bool TestActorClipboard(PMovie parent)
     auto client=static_cast<TestMcc *>(parent->Pmcc()); client->testingClipboard=true;
     PChunkyFile file=ChunkyFile::PcflCreateTemp(); PChunkyResourceFile resource=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr;
     byte dummy=0; ChunkNumber number=0;
-    bool ok=resource && file->FAddPv(&dummy,1,kctgTmpl,&number) && TrackTestTemplate::FWriteFixture(file,&number);
+    bool ok=resource && file->FAddPv(&dummy,1,kctgTmpl,&number) &&
+            TrackTestTemplate::FWriteFixture(MovieArchiveFixture(resource),&number);
     for (int mode=0;ok && mode<64;++mode)
     {
         const long refs=resource->CactRef(); auto movie=Movie::PmvieNew(false,client,nullptr,cnoNil);

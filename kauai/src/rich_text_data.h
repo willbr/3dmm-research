@@ -45,6 +45,7 @@ class RichTextData
     RichTextData &operator=(const RichTextData &) = delete;
     bool FRead(PChunkyFile file, ChunkTagOrType type, ChunkNumber number);
     bool FWrite(PChunkyFile file, ChunkIdentification *written);
+    bool FWrite(const struct MMMovieArchiveEditor &, ChunkIdentification *written);
     static bool FCreateRoot(PChunkyFile file, ChunkIdentification *written, RichTextProperties *defaults,
                             PString fontName);
 };

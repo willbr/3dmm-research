@@ -171,18 +171,20 @@ static bool TestMovieCompose()
                     return false;
             }
             if (data->Resources())
+            {
+                const MovieArchiveFixture archive(data->Resources());
                 for (long i = 0; i < movie->Cscen(); ++i)
                 {
-                    ChildChunkIdentification child;
+                    ChunkNumber scene;
                     TRANS transition;
-                    auto file = data->Resources()->Pcfl();
-                    if (!file->FGetKidChidCtg(kctgMvie, data->movieNumber, i, kctgScen, &child) ||
-                        !Scene::FTransOnFile(data->Resources(), child.cki.cno, &transition))
+                    if (!archive.Link(kctgMvie, data->movieNumber, i, kctgScen, &scene) ||
+                        !Scene::FTransOnFile(data->Resources(), scene, &transition))
                         return false;
-                    LegacyLong values[] = {LegacyLong(i), LegacyLong(child.cki.cno), LegacyLong(transition)};
+                    LegacyLong values[] = {LegacyLong(i), LegacyLong(scene), LegacyLong(transition)};
                     if (!record(values, sizeof(values)))
                         return false;
                 }
+            }
             return true;
         };
         if (ok)
@@ -230,9 +232,10 @@ static bool TestMovieCompose()
         PChunkyResourceFile resources = nullptr;
         MovieData table;
         ok = movie && table.FInitActors() && movie->FEnsureAutosave(&resources);
+        const MovieArchiveFixture archive(resources);
         ChunkNumber root = 0, scenes[2] = {}, actors[2] = {}, gst;
         if (ok)
-            ok = MovieData::FCreateRoot(resources->Pcfl(), &root);
+            ok = mm_movie_create_root(&archive.writer, &root) != 0;
         for (int i = 0; ok && i < 2; ++i)
         {
             MMRollCallActor row = {{i * 3, 1, 123, 1, kctgTmpl, ChunkNumber(100 + i)}, nullptr};
@@ -241,19 +244,17 @@ static bool TestMovieCompose()
             ActorChunkOnFile header = {kboCur, koskCur, {}, i * 3, 1, 1, {123, 0, kctgTmpl, ChunkNumber(100 + i)}};
             if (mode & 2)
                 SwapBytesBom(&header, kbomActf);
-            auto file = resources->Pcfl();
             byte empty = 0;
             ok = mm_rollcall_table_add(&table.actors, name.Prgch(), name.Cch(), &row) &&
-                 file->FAddPv(&header, sizeof(header), kctgActr, &actors[i]) &&
-                 file->FAddChildPv(kctgMvie, root, i, &empty, 1, kctgScen, &scenes[i]);
+                 archive.AddBytes(&header, sizeof(header), kctgActr, &actors[i]) &&
+                 archive.AddChildBytes(kctgMvie, root, i, &empty, 1, kctgScen, &scenes[i]);
         }
         if (ok)
         {
-            auto file = resources->Pcfl();
-            ok = MovieData::FWriteRollCall(file, root, &table.actors, &gst) &&
-                 file->FAdoptChild(kctgScen, scenes[0], kctgActr, actors[0], 0) &&
-                 file->FAdoptChild(kctgScen, scenes[1], kctgActr, actors[0], 0) &&
-                 file->FAdoptChild(kctgActr, actors[0], kctgActr, actors[1], 0) &&
+            ok = mm_movie_write_rollcall(&archive.writer, root, &table.actors, &gst) &&
+                 archive.Adopt(kctgScen, scenes[0], kctgActr, actors[0], 0) &&
+                 archive.Adopt(kctgScen, scenes[1], kctgActr, actors[0], 0) &&
+                 archive.Adopt(kctgActr, actors[0], kctgActr, actors[1], 0) &&
                  movie->_FAddMvieToRollCall(root, (mode & 1) ? 20 : 0);
             for (int i = 0; ok && i < 2; ++i)
             {
@@ -262,7 +263,7 @@ static bool TestMovieCompose()
                 long id = 0, refs = 0;
                 String name;
                 TAG tag = {};
-                ok = file->FFind(kctgActr, actors[i], &block) && ActorData::FReadHeader(&block, &header) &&
+                ok = archive.Find(kctgActr, actors[i], &block) && ActorData::FReadHeader(&block, &header) &&
                      movie->FGetArid(i, &id, &name, &refs, &tag);
                 LegacyLong values[] = {mode,
                                        i,

@@ -11,12 +11,12 @@ static bool TestActorSoundTransaction(PMovie parent)
     if (ok)
     {
         scene->Disable(fscenSounds);
-        auto file = resource->Pcfl();
+        const MovieArchiveFixture archive(resource);
         MovieSoundFile header = {kboCur, koskCur, stySfx, 32768, false};
         ChunkNumber number = 0;
         String name;
         name.SetSzs(PszLit("Silent actor sound"));
-        ok = file->FAddPv(&header, sizeof(header), kctgMsnd, &number) && file->FSetName(kctgMsnd, number, &name) &&
+        ok = archive.AddBytes(&header, sizeof(header), kctgMsnd, &number) && archive.SetName(kctgMsnd, number, &name) &&
              scene->TrackActor(actor, 2) && actor->FGotoFrame(2);
         TAG tag = {ksidUseCrf, resource, kctgMsnd, number};
         TAG missing = {ksidUseCrf, resource, kctgMsnd, 999999};

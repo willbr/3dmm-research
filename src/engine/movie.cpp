@@ -29,6 +29,7 @@ Actors, Text boxes, etc.
 #include <cstdio>
 #include <exception>
 #include "soc.h"
+#include "mm/private_archive.h"
 #include "engine_movie_graph.h"
 #include "studio_preferences.h"
 #include "mm/indexed_display.h"
@@ -194,12 +195,21 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         return h->unique.FGetUnique(destination->Ftg()) ? &h->unique : nullptr;
     };
     s.create_resources = [](void *, void *path) -> void * {
-        auto file = ChunkyFile::PcflCreate(static_cast<PFilename>(path), fcflTemp);
+        auto file = FileObject::PfilCreate(static_cast<PFilename>(path), ffilTemp | ffilDenyWrite | ffilDenyRead);
         if (!file)
+        {
+            PushErc(ercCflCreate);
             return nullptr;
-        Assert(file->FTemp(), "Bad ChunkyFile");
-        const auto resources = ChunkyResourceFile::PcrfNew(file, 0);
+        }
+        const auto archive = KauaiPrivateArchive(file);
         file->Release();
+        if (!archive)
+        {
+            PushErc(ercCflCreate);
+            return nullptr;
+        }
+        const auto resources = ChunkyResourceFile::PcrfNewPrivate(archive, 0);
+        mm_private_archive_close(archive);
         return resources;
     };
     s.is_temp = [](void *p) -> int { return MovieArchiveFile(p)->FTemp(); };
@@ -1039,10 +1049,12 @@ MMMovieSoundServices Movie::SoundServices()
  * success or failure
  *
  ****************************************************/
-bool Movie::_FAdoptMsndInMvie(PChunkyFile pcfl, ChunkNumber cnoScen)
+bool Movie::_FAdoptMsndInMvie(PChunkyResourceFile resources, ChunkNumber cnoScen)
 {
-    AssertThis(0); AssertPo(pcfl,0); const auto services=SoundServices();
-    const auto edit = pcfl->EditIndex();
+    AssertThis(0);
+    AssertPo(resources, 0);
+    const auto services = SoundServices();
+    const auto edit = resources->ArchiveWriter().edit;
     return mm_movie_sound_adopt(&edit, cnoScen, &services) != 0;
 }
 

@@ -89,11 +89,14 @@ Model::~Model(void)
 }
 bool Model::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
-    AssertThis(0);
     AssertPo(file, 0);
+    return FWrite(file->WriteOwnerIndex(), type, number);
+}
+bool Model::FWrite(const MMArchiveWriter &archive, ChunkTagOrType type, ChunkNumber number)
+{
+    AssertThis(0);
     auto s = _Services();
-    const auto edit = file->EditIndex();
-    return mm_model_write(&_model, &edit, KauaiBlockFileServices(), type, number, &s) != 0;
+    return mm_model_write(&_model, &archive.edit, archive.payloads->files, type, number, &s) != 0;
 }
 void Model::AdjustTdfCharacter(void)
 {

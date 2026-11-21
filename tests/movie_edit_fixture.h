@@ -79,8 +79,9 @@ static bool TestMovieEdit()
         {
             byte dummy = 0;
             ChunkNumber number;
-            ok = resource->Pcfl()->FAddPv(&dummy, 1, kctgTmpl, &number) &&
-                 resource->Pcfl()->FAddPv(&dummy, 1, kctgTmpl, &number) && number == 1 &&
+            const MovieArchiveFixture archive(resource);
+            ok = archive.AddBytes(&dummy, 1, kctgTmpl, &number) &&
+                 archive.AddBytes(&dummy, 1, kctgTmpl, &number) && number == 1 &&
                  actor->FInitPlayback(movie->Pscen(), resource);
         }
         String original, renamed;

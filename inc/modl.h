@@ -95,6 +95,7 @@ class Model : public Model_PAR
     }
     void AdjustTdfCharacter(void);
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    bool FWrite(const MMArchiveWriter &, ChunkTagOrType, ChunkNumber);
 
     BRS Dxr(void)
     {

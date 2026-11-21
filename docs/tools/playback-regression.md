@@ -19499,3 +19499,30 @@ The retail and SDL capture is `20261121T164507Z-8fdcf71b`. The Marcus
 capture is `20261121T164716Z-d43068e2`. Evidence is in
 `tmp/c89-sound-resource-io/evidence` and
 `tmp/c89-sound-resource-io/marcus-capture`.
+
+## New Studio movies use a private C89 working archive (21 November 2026)
+
+Studio creates a new movie's temporary file and binds its first autosave
+directly to the C89 archive owner. Named save, temporary relocation,
+scene editing, composition, and sound operations use that owner.
+The save fixture checks that the normal creation path provides a working
+cache with no native ChunkyFile wrapper. Fixture writers and graph
+recorders use the same archive interface, including depth bitmaps, model
+data, 3D font authoring, and caption data.
+
+All 193 standalone C checks passed. Native x64 passed nine targeted tests,
+SDL passed seven, and native x86 passed movie save/load, scene content,
+and scene sound editing. Movie save, scene, composition, content, and
+sound traces reproduced their previous bytes on all three configurations.
+The three movie save/load fixtures and the real Studio authoring workflow
+also reproduced their previous `.3mm` files byte for byte.
+
+Studio created new movies, imported MIDI and WAV, and copied both stored
+sound-bank payloads byte for byte after saving and reopening. Retail,
+SDL, and Marcus reproduced all 11 of their prior canvases and agreed on
+the seek frame and camera indices of the newly authored movie in
+`20261121T165959Z-de8da227`. That movie retained the three known port
+canvas differences from retail. Both ports matched the three archived
+V3dmm frames, cameras, and canvases of the saved portable storyboard in
+`20261121T165955Z-2c534064`. Evidence is in
+`tmp/c89-private-working/evidence`.

@@ -108,9 +108,8 @@ bool ThreeDFont::FCreate(PChunkyResourceFile pcrf, PDynamicArray pglkid, String 
 {
     AssertPo(pcrf, 0); AssertPo(pglkid, 0); AssertPo(pstn, 0); AssertNilOrVarMem(pckiTdf);
     const auto s = _Services();
-    const auto file = pcrf->Pcfl();
-    const auto edit = file ? file->EditIndex() : MMChunkEdit{};
-    return mm_font_author(pcrf->CoreCache(), &edit, pglkid, pckiTdf, &s) != 0;
+    const auto writer = pcrf->ArchiveWriter();
+    return mm_font_author(pcrf->CoreCache(), &writer.edit, pglkid, pckiTdf, &s) != 0;
 }
 
 /***************************************************************************

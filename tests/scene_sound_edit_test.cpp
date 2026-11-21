@@ -5,6 +5,7 @@
 #include "soc.h"
 #include "scene_sound.h"
 #include "scene_sound_undo.h"
+#include "movie_archive_fixture.h"
 #undef size
 ASSERTNAME
 void FrameMain(void)
@@ -244,7 +245,7 @@ int main()
     CHECK(observed);
     observed->AddRef();
     ChunkNumber number;
-    CHECK(observed->Pcfl()->FAdd(0, kctgMsnd, &number));
+    CHECK(MovieArchiveFixture(observed).Add(0, kctgMsnd, &number));
     auto scene = movie->Pscen();
     CHECK(scene);
     TAG tag = {0, observed, kctgMsnd, number};

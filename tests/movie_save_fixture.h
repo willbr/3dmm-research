@@ -2,6 +2,7 @@
 #ifndef MOVIE_SAVE_FIXTURE_H
 #define MOVIE_SAVE_FIXTURE_H
 #include "mm/private_archive.h"
+#include "movie_archive_fixture.h"
 class MovieSaveProbe
 {
   public:
@@ -19,6 +20,8 @@ class MovieSaveProbe
         Filename path;
         bool named = movie->FGetFni(&path);
         auto data = Data(movie);
+        const auto resources = data->Resources();
+        const auto backing = resources ? resources->ReadOwner()->storage->owner->files.main_file : nullptr;
         LegacyLong row[] = {operation,
                             result,
                             movie->_save.autosaveDirty,
@@ -33,28 +36,27 @@ class MovieSaveProbe
                             LegacyLong(movie->Iscen()),
                             LegacyLong(movie->Cscen()),
                             LegacyLong(data->movieNumber),
-                            data->Resources() ? data->Resources()->Pcfl()->FTemp() : -1};
+                            backing ? static_cast<PFileObject>(backing)->FTemp() : -1};
         trace.insert(trace.end(), row, row + sizeof(row) / sizeof(row[0]));
-        if (!data->Resources())
+        if (!resources)
             return;
-        auto file = data->Resources()->Pcfl();
-        for (long i = 0;; ++i)
+        const auto chunks = resources->ReadChunkAccess();
+        for (MMU32 i = 0; i < chunks.count; ++i)
         {
-            ChunkIdentification chunk;
-            if (!file->FGetCki(i, &chunk))
+            MMChunkEntry chunk;
+            if (mm_chunk_at(&chunks, i, &chunk) != MM_CHUNK_OK)
                 break;
-            LegacyLong item[] = {LegacyLong(chunk.ctg), LegacyLong(chunk.cno),
-                                 LegacyLong(file->Ckid(chunk.ctg, chunk.cno))};
+            LegacyLong item[] = {LegacyLong(chunk.type), LegacyLong(chunk.number), LegacyLong(chunk.child_count)};
             trace.insert(trace.end(), item, item + 3);
             for (long j = 0; j < item[2]; ++j)
             {
-                ChildChunkIdentification child;
-                if (!file->FGetKid(chunk.ctg, chunk.cno, j, &child))
+                MMChunkChild child;
+                if (mm_chunk_child_at(&chunks, i, j, &child) != MM_CHUNK_OK)
                 {
                     trace.push_back(-1);
                     break;
                 }
-                LegacyLong link[] = {LegacyLong(child.cki.ctg), LegacyLong(child.cki.cno), LegacyLong(child.chid)};
+                LegacyLong link[] = {LegacyLong(child.type), LegacyLong(child.number), LegacyLong(child.slot)};
                 trace.insert(trace.end(), link, link + 3);
             }
         }
@@ -122,7 +124,7 @@ static bool TestMovieSave(PMovie parent)
             record(5, movie->FAutoSave(&path, true));
             PChunkyResourceFile resource = nullptr;
             record(6, movie->FEnsureAutosave(&resource));
-            ok = resource && movie->FSwitchScen(ivNil) && movie->FSwitchScen(0) &&
+            ok = resource && !resource->Pcfl() && movie->FSwitchScen(ivNil) && movie->FSwitchScen(0) &&
                  movie->Pscen()->Trans() == transFadeToBlack;
             record(7, ok);
             movie->SetDocClosing(true);

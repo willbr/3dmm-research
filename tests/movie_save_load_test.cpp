@@ -154,25 +154,31 @@ class TrackTestTemplate : public Template
     }
 
   public:
-    static bool FWriteFixture(PChunkyFile file,ChunkNumber *number)
+    static bool FWriteFixture(const MovieArchiveFixture &archive,ChunkNumber *number)
     {
         auto tmpl=NewObj TrackTestTemplate();
         auto cels=GeneralGroup::PggNew(sizeof(AnimationCel)); auto matrices=DynamicArray::PglNew(sizeof(BMAT34));
         auto costumeWire = GeneralGroup::PggNew(sizeof(int32_t));
         auto indexWire = DynamicArray::PglNew(sizeof(short));
         bool ok=tmpl && tmpl->FInit() && cels && matrices && costumeWire && indexWire;
-        if (ok) { tmpl->_stn.SetSzs(PszLit("Fixture template")); ok=tmpl->_FWriteTmplf(file,kctgTmpl,number); }
+        if (ok)
+        {
+            tmpl->_stn.SetSzs(PszLit("Fixture template"));
+            byte wire[kcbMaxDataStn];
+            const auto name = ChunkyFile::EncodeName(&tmpl->_stn, wire);
+            ok = mm_template_write_header(&tmpl->_template, &name, kctgTmpl, number, &archive.writer) != 0;
+        }
         AnimationCel cel={chidNil,rOne}; BMAT34 matrix; BrMatrix34Identity(&matrix);
         for (int i=0;ok && i<4;++i) { cel.dwr=BR_SCALAR(i+1); ok=cels->FInsert(i,0,nullptr,&cel); }
         ok=ok && matrices->FAdd(&matrix);
         auto table=[&](ChunkTagOrType parent,ChunkNumber root,ChunkTagOrType type,auto *data) {
             ChunkNumber child; DataBlock block;
-            return file->FAddChild(parent,root,0,data->CbOnFile(),type,&child,&block) && data->FWrite(&block);
+            return archive.AddChild(parent,root,0,data->CbOnFile(),type,&child,&block) && data->FWrite(&block);
         };
         ChunkNumber action=0; ActionChunkOnFile header={kboCur,koskCur,factnRotateY};
         ok=ok && table(kctgTmpl,*number,kctgGlpi,indexWire) && table(kctgTmpl,*number,kctgGlbs,indexWire) &&
             table(kctgTmpl,*number,kctgGgcm,costumeWire) &&
-            file->FAddChild(kctgTmpl,*number,0,sizeof(header),kctgActn,&action) && file->FPutPv(&header,sizeof(header),kctgActn,action) &&
+            archive.AddChildBytes(kctgTmpl,*number,0,&header,sizeof(header),kctgActn,&action) &&
             table(kctgActn,action,kctgGgcl,cels) && table(kctgActn,action,kctgGlxf,matrices);
         ReleasePpo(&indexWire); ReleasePpo(&costumeWire); ReleasePpo(&tmpl); ReleasePpo(&cels); ReleasePpo(&matrices); return ok;
     }

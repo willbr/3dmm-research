@@ -72,6 +72,7 @@ class ZBMP : public ZBMP_PAR
                   PRegion pregnClip = pvNil);
 
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno);
+    bool FWrite(const MMArchiveWriter &, ChunkTagOrType, ChunkNumber *);
 };
 
 } // end of namespace BRender
