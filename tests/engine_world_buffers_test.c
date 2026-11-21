@@ -150,6 +150,7 @@ static void setup(Fixture *f, MMWorldBuffers *w)
     f->s.retain = retain;
     f->s.release = release;
     f->s.release_depth = release;
+    f->s.release_bitmap = release;
     f->s.lock = lock;
     f->s.unlock = unlock;
     f->s.depth_span = span;

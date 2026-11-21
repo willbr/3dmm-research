@@ -1818,12 +1818,11 @@ bool Application::_FDisplayHomeLogo(bool fSkipSplashScreen)
     ReleasePpo(&pglclr);
 
     if (!fSkipSplashScreen) {
-        auto pmbmp = static_cast<PMaskedBitmapMBMP>(_pcrfBoot->PbacoFetch(kctgMbmp, kcnoMbmpHomeLogo,
-                                                                       MaskedBitmapMBMP::FReadMbmp));
+        auto pmbmp = FetchMaskedBitmap(_pcrfBoot, kctgMbmp, kcnoMbmpHomeLogo);
         if (pvNil == pmbmp)
             return fFalse;
         _pkwa->SetMbmp(pmbmp);
-        ReleasePpo(&pmbmp);
+        ReleaseMaskedBitmap(&pmbmp);
         UpdateMarked();
     }
 
@@ -2057,12 +2056,11 @@ bool Application::_FShowSplashScreen(void)
 {
     AssertBaseThis(0);
 
-    auto pmbmp = static_cast<PMaskedBitmapMBMP>(_pcrfBoot->PbacoFetch(kctgMbmp, kcnoMbmpSplash,
-                                                                   MaskedBitmapMBMP::FReadMbmp));
+    auto pmbmp = FetchMaskedBitmap(_pcrfBoot, kctgMbmp, kcnoMbmpSplash);
     if (pvNil == pmbmp)
         return fFalse;
     _pkwa->SetMbmp(pmbmp);
-    ReleasePpo(&pmbmp);
+    ReleaseMaskedBitmap(&pmbmp);
     UpdateMarked();
     return fTrue;
 }
@@ -5873,7 +5871,7 @@ void Application::MarkMem(void)
 ***************************************************************************/
 KidWorld::~KidWorld(void)
 {
-    ReleasePpo(&_pmbmp);
+    ReleaseMaskedBitmap(&_pmbmp);
 }
 
 /***************************************************************************
@@ -5882,13 +5880,13 @@ KidWorld::~KidWorld(void)
 void KidWorld::SetMbmp(PMaskedBitmapMBMP pmbmp)
 {
     AssertThis(0);
-    AssertNilOrPo(pmbmp, 0);
+    AssertMaskedBitmap(pmbmp, true);
 
     RC rc;
 
     if (pvNil != pmbmp)
-        pmbmp->AddRef();
-    ReleasePpo(&_pmbmp);
+        mm_masked_owner_retain(pmbmp);
+    ReleaseMaskedBitmap(&_pmbmp);
     _pmbmp = pmbmp;
     GetRcVis(&rc, cooLocal);
     vpappb->MarkRc(&rc, this);
@@ -5956,7 +5954,7 @@ bool KidWorld::FModalTopic(PResourceCache prca, ChunkNumber cnoTopic, long *plwR
 void KidWorld::AssertValid(LegacyUlong grf)
 {
     KidWorld_PAR::AssertValid(0);
-    AssertNilOrPo(_pmbmp, 0);
+    AssertMaskedBitmap(_pmbmp, true);
 }
 
 /***************************************************************************
@@ -5966,6 +5964,6 @@ void KidWorld::MarkMem(void)
 {
     AssertThis(0);
     KidWorld_PAR::MarkMem();
-    MarkMemObj(_pmbmp);
+    MarkMaskedBitmap(_pmbmp);
 }
 #endif // DEBUG

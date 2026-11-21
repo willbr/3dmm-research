@@ -69,7 +69,7 @@ int mm_composite_set_transition(MMCompositeMovie *state, MMU32 index, MMI32 tran
     return 1;
 }
 
-void mm_composite_empty(MMCompositeMovie *state, void (*release)(void *))
+void mm_composite_empty(MMCompositeMovie *state, void (*release)(void *), void (*release_thumbnail)(void *))
 {
     MMComposeScene scene;
     MMComposeMovie movie;
@@ -77,7 +77,7 @@ void mm_composite_empty(MMCompositeMovie *state, void (*release)(void *))
     {
         mm_composite_scene(state, state->scene_count - 1, &scene);
         --state->scene_count;
-        release(scene.thumbnail);
+        release_thumbnail(scene.thumbnail);
     }
     while (state->movie_count)
     {
@@ -189,11 +189,11 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
             scene.thumbnail = s->thumbnail(s->scenes->open);
             if (!scene.thumbnail)
                 goto fail;
-            s->retain(scene.thumbnail);
+            s->retain_thumbnail(scene.thumbnail);
         }
         if (mm_array_insert(&array, position + (MMU32)inserted, &scene, 1) != MM_STORAGE_OK)
         {
-            s->release(scene.thumbnail);
+            s->release_thumbnail(scene.thumbnail);
             goto fail;
         }
         ++inserted;
@@ -210,12 +210,12 @@ fail:
         --inserted;
         position = (MMU32)(*insertion + inserted);
         memcpy(&scene, state->rows.buffers[0].data + position * sizeof(scene), sizeof(scene));
-        s->release(scene.thumbnail);
+        s->release_thumbnail(scene.thumbnail);
     }
     if (array.count > state->scene_count)
         mm_array_delete(&array, (MMU32)*insertion, array.count - state->scene_count);
     if (!state->movie_count)
-        mm_composite_empty(state, s->release);
+        mm_composite_empty(state, s->release, s->release_thumbnail);
     return 0;
 }
 typedef struct ComposeReference

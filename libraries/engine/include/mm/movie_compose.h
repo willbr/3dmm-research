@@ -52,6 +52,7 @@ extern "C"
         int temporary_before_save, validate_children;
         int (*use_temporary)(void *), (*autosave)(void *);
         void (*retain)(void *), (*release)(void *);
+        void (*retain_thumbnail)(void *), (*release_thumbnail)(void *);
         MMI32 (*transition)(void *scene);
         void *(*decode_thumbnail)(void *, const MMReadStream *);
         void *(*thumbnail)(void *scene);
@@ -72,7 +73,7 @@ extern "C"
     int mm_composite_move_scene(MMCompositeMovie *, MMU32 from, MMU32 before);
     int mm_composite_remove_scene(MMCompositeMovie *, MMU32 index);
     int mm_composite_set_transition(MMCompositeMovie *, MMU32 index, MMI32 transition);
-    void mm_composite_empty(MMCompositeMovie *, void (*release)(void *));
+    void mm_composite_empty(MMCompositeMovie *, void (*release)(void *), void (*release_thumbnail)(void *));
     /* Initialized synchronous services and stable owners are required. Callbacks
      * cannot re-enter editing. Decode_thumbnail/read return one reference,
      * thumbnail is borrowed.

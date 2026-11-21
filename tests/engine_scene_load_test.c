@@ -351,6 +351,7 @@ static void init_loader(Loader *f, int swap)
     o->create_scene = new_scene;
     o->state = owner_state;
     o->release = release_object;
+    o->release_thumbnail = release_object;
     o->diagnostic = diagnostic;
     o->sound.context = f;
     o->sound.close = close_tag;

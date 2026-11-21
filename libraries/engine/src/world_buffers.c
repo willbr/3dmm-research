@@ -167,7 +167,7 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
     depth = s->fetch(s->context, cache, MM_WORLD_DEPTH_BACKGROUND, z_type, z_number);
     if (!depth)
     {
-        s->release(s->context, bitmap);
+        s->release_bitmap(s->context, bitmap);
         return 0;
     }
     s->priority(s->context, bitmap);
@@ -175,7 +175,7 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
     if (w->scale > 1)
     {
         ok = scaled(w, bitmap, depth, s);
-        s->release(s->context, bitmap);
+        s->release_bitmap(s->context, bitmap);
         s->release_depth(s->context, depth);
         if (!ok)
             return 0;
@@ -186,12 +186,12 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
         /* The native path checked the existing destination instead of full. */
         if (!full)
         {
-            s->release(s->context, bitmap);
+            s->release_bitmap(s->context, bitmap);
             s->release_depth(s->context, depth);
             return 0;
         }
         s->draw_bitmap(s->context, full, bitmap);
-        s->release(s->context, bitmap);
+        s->release_bitmap(s->context, bitmap);
         s->copy_rgb(s->context, full, w->owners[MM_WORLD_RGB_BACKGROUND], w->width, w->height, w->buffer_width,
                     w->buffer_height);
         s->release(s->context, full);
@@ -205,7 +205,7 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
     else
     {
         s->draw_bitmap(s->context, w->owners[MM_WORLD_RGB_BACKGROUND], bitmap);
-        s->release(s->context, bitmap);
+        s->release_bitmap(s->context, bitmap);
         release_slot(w, MM_WORLD_DEPTH_BACKGROUND, s);
         w->owners[MM_WORLD_DEPTH_BACKGROUND] = depth;
     }

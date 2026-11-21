@@ -24,12 +24,12 @@ class GraphicsPort;
 class GraphicsObject;
 class GraphicsEnvironment;
 class Picture;
-class MaskedBitmapMBMP;
+struct MMMaskedOwner;
 typedef GraphicsPort *PGraphicsPort;
 typedef GraphicsObject *PGraphicsObject;
 typedef GraphicsEnvironment *PGraphicsEnvironment;
 typedef Picture *PPicture;
-typedef MaskedBitmapMBMP *PMaskedBitmapMBMP;
+typedef MMMaskedOwner *PMaskedBitmapMBMP;
 #ifdef KAUAI_SDL3
 namespace KauaiPixels
 {

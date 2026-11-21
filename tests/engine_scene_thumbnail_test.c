@@ -261,7 +261,7 @@ static MMSceneThumbnailServices init(Host *h)
     s.context = h;
     s.owner = &h->owner;
     s.owners.context = h;
-    s.owners.release = release_bitmap;
+    s.owners.release_thumbnail = release_bitmap;
     s.selection.context = h;
     s.selection.owner = &h->owner;
     s.selection.view_mode = selection_mode;

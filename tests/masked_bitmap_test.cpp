@@ -23,10 +23,16 @@ bool FAssertProc(schar *f, LegacyLong n, schar *s, void *, LegacyLong)
             std::exit(1);                                                                                              \
         }                                                                                                              \
     } while (0)
-struct Access : MaskedBitmapMBMP
+struct MaskedHeader
 {
-    using Header = MaskedBitmapOnFile;
+    short bo, osk;
+    byte fMask, bFill;
+    short swReserved;
+    RC rc;
+    LegacyLong cb;
 };
+static_assert(sizeof(MaskedHeader) == 28, "masked bitmap wire header");
+constexpr ByteOrderMask kbomMbmph = 0xAFFC0000;
 static FILE *snapshot;
 static unsigned hash = 2166136261U, recorded;
 static void Record(const void *p, size_t n)
@@ -45,7 +51,7 @@ static void Value(LegacyLong n)
 static std::vector<byte> Bytes(PMaskedBitmapMBMP m)
 {
     DataBlock b;
-    CHECK(b.FSetTemp(m->CbOnFile()) && m->FWrite(&b));
+    CHECK(b.FSetTemp(MaskedBitmapSize(m)) && WriteMaskedBitmap(m, &b));
     std::vector<byte> data(b.Cb());
     CHECK(b.FRead(data.data()));
     return data;
@@ -56,14 +62,14 @@ static void State(PMaskedBitmapMBMP m)
     if (!m)
         return;
     RC r;
-    m->GetRc(&r);
+    GetMaskedBitmapBounds(m, &r);
     Record(&r, sizeof(r));
     auto b = Bytes(m);
     Value(b.size());
     Record(b.data(), b.size());
     for (int y = r.ypTop - 1; y <= r.ypBottom; ++y)
         for (int x : {r.xpLeft - 1, r.xpLeft, r.xpLeft + 1, (r.xpLeft + r.xpRight) / 2, r.xpRight - 1, r.xpRight})
-            Value(m->FPtIn(x, y));
+            Value(MaskedBitmapContains(m, x, y));
 }
 static void Constructors()
 {
@@ -85,11 +91,11 @@ static void Constructors()
                                         data[y * (w + 3) + x] = byte(1 + (x * 11 + y * 17) % 254);
                                 }
                             RC r(crop && w > 3 ? 1 : 0, crop && h > 1 ? 1 : 0, crop && w > 3 ? w - 1 : w, h);
-                            auto m = MaskedBitmapMBMP::PmbmpNew(data.data(), w + 3, h, &r, ref ? 7 : 0, ref ? -3 : 0, 0,
+                            auto m = NewMaskedBitmap(data.data(), w + 3, h, &r, ref ? 7 : 0, ref ? -3 : 0, 0,
                                                                 flags, 37);
                             CHECK(m);
                             State(m);
-                            ReleasePpo(&m);
+                            ReleaseMaskedBitmap(&m);
                         }
 }
 static void Loads()
@@ -97,20 +103,20 @@ static void Loads()
     byte pixels[192];
     std::memset(pixels, 17, sizeof(pixels));
     RC r(0, 0, 32, 6);
-    auto m = MaskedBitmapMBMP::PmbmpNew(pixels, 32, 6, &r, 2, -1, 0);
+    auto m = NewMaskedBitmap(pixels, 32, 6, &r, 2, -1, 0);
     CHECK(m);
     auto raw = Bytes(m);
-    ReleasePpo(&m);
+    ReleaseMaskedBitmap(&m);
     for (int variant = 0; variant < 6; ++variant)
         for (int file = 0; file < 2; ++file)
             for (int factory = 0; factory < 2; ++factory)
             {
                 auto data = raw;
-                auto header = reinterpret_cast<Access::Header *>(data.data());
+                auto header = reinterpret_cast<MaskedHeader *>(data.data());
                 if (variant == 1)
                 {
                     SwapBytesBom(header, kbomMbmph);
-                    SwapBytesRgsw(data.data() + sizeof(Access::Header), 6);
+                    SwapBytesRgsw(data.data() + sizeof(MaskedHeader), 6);
                 }
                 if (variant == 2)
                     header->bo = 0x1234;
@@ -138,22 +144,22 @@ static void Loads()
                 auto cache = ChunkyResourceFile::PcrfNew(cf ? cf : (cf = ChunkyFile::PcflCreateTemp()), 0);
                 CHECK(cache);
                 MMI32 estimate = -1;
-                CHECK(MaskedBitmapMBMP::FReadMbmp(cache->CoreCache(), kctgMbmp, number, b.CoreBlock(), nullptr, &estimate));
+                CHECK(ReadCachedMaskedBitmap(cache->CoreCache(), kctgMbmp, number, b.CoreBlock(), nullptr, &estimate));
                 Value(estimate);
                 void *object = nullptr;
                 if (factory)
                 {
-                    bool ok = MaskedBitmapMBMP::FReadMbmp(cache->CoreCache(), kctgMbmp, number, b.CoreBlock(), &object, &estimate);
+                    bool ok = ReadCachedMaskedBitmap(cache->CoreCache(), kctgMbmp, number, b.CoreBlock(), &object, &estimate);
                     Value(ok);
                     m = ok ? static_cast<PMaskedBitmapMBMP>(object) : nullptr;
                     if (ok)
                         Value(estimate);
                 }
                 else
-                    m = MaskedBitmapMBMP::PmbmpRead(&b);
+                    m = ReadMaskedBitmap(&b);
                 Value(b.Cb());
                 State(m);
-                ReleasePpo(&m);
+                ReleaseMaskedBitmap(&m);
                 b.Free();
                 ReleasePpo(&cache);
                 ReleasePpo(&cf);
@@ -165,10 +171,10 @@ static void FailureCleanup()
     byte pixels[32];
     std::memset(pixels, 17, sizeof(pixels));
     RC r(0, 0, 8, 4);
-    auto original = MaskedBitmapMBMP::PmbmpNew(pixels, 8, 4, &r, 0, 0, 0);
+    auto original = NewMaskedBitmap(pixels, 8, 4, &r, 0, 0, 0);
     CHECK(original);
     auto raw = Bytes(original);
-    ReleasePpo(&original);
+    ReleaseMaskedBitmap(&original);
     for (int kind = 0; kind < 3; ++kind)
         for (int failure = 0; failure < 9; ++failure)
         {
@@ -181,16 +187,16 @@ static void FailureCleanup()
                 vmutxMem.Leave();
             };
             inject(true);
-            auto m = MaskedBitmapMBMP::PmbmpNew(pixels, 8, 4, &r, 0, 0, 0);
+            auto m = NewMaskedBitmap(pixels, 8, 4, &r, 0, 0, 0);
             inject(false);
-            ReleasePpo(&m);
+            ReleaseMaskedBitmap(&m);
             {
                 DataBlock block;
                 CHECK(block.FSetTemp(raw.size()) && block.FWrite(raw.data()));
                 inject(true);
-                m = MaskedBitmapMBMP::PmbmpRead(&block);
+                m = ReadMaskedBitmap(&block);
                 inject(false);
-                ReleasePpo(&m);
+                ReleaseMaskedBitmap(&m);
             }
             vpers->Clear();
             CHECK(vdmglob.dmaglBase.cv == base && vdmglob.dmaglHq.cv == hq && vdmglob.dmaglPv.cv == pv);
@@ -217,10 +223,10 @@ static void Imports()
                         pixels[i] = byte(i + 1);
                 Filename name;
                 CHECK(name.FGetTemp() && FWriteBitmap(&name, pixels.data(), palette, w, 3, flip));
-                auto m = MaskedBitmapMBMP::PmbmpReadNative(&name, 0, 4, -2, flags, 37);
+                auto m = ImportMaskedBitmap(&name, 0, 4, -2, flags, 37);
                 CHECK(m);
                 State(m);
-                ReleasePpo(&m);
+                ReleaseMaskedBitmap(&m);
                 CHECK(name.FDelete());
             }
     ReleasePpo(&palette);

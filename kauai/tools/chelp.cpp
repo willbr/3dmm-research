@@ -704,7 +704,7 @@ PMaskedBitmapMBMP LID::PmbmpGet(long icki)
     CACH cach;
 
     _pglcach->Get(icki, &cach);
-    return (PMaskedBitmapMBMP)cach.pcrf->PbacoFetch(kctgMbmp, cach.cnoMbmp, MaskedBitmapMBMP::FReadMbmp);
+    return FetchMaskedBitmap(cach.pcrf, kctgMbmp, cach.cnoMbmp);
 }
 
 /***************************************************************************
@@ -845,14 +845,14 @@ void LIG::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
         pmbmp = plid->PmbmpGet(icki);
         if (pvNil == pmbmp)
             continue;
-        pmbmp->GetRc(&rcT);
+        GetMaskedBitmapBounds(pmbmp, &rcT);
         rcT.CenterOnRc(&rcCell);
         if (rcClip.FIntersect(&rc, &rcCell))
         {
             pgnv->ClipRc(&rcClip);
             pgnv->DrawMbmp(pmbmp, &rcT);
         }
-        ReleasePpo(&pmbmp);
+        ReleaseMaskedBitmap(&pmbmp);
     }
 }
 

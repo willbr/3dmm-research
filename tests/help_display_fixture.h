@@ -33,7 +33,7 @@ static bool TestHelpDisplay()
     byte pixels[40];
     for (unsigned i = 0; i < sizeof(pixels); ++i)
         pixels[i] = i % 3 ? byte(i + 1) : 0;
-    auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 8, 5, &image, 3, -2, 0);
+    auto bitmap = NewMaskedBitmap(pixels, 8, 5, &image, 3, -2, 0);
     if (!p || !p->Init() || !port || !bitmap)
         return false;
     auto palette = DynamicArray::PglNew(sizeof(Color), 256);
@@ -49,11 +49,11 @@ static bool TestHelpDisplay()
     DataBlock block;
     ChunkNumber number, button, missing;
     byte empty = 0;
-    if (!file->FAdd(bitmap->CbOnFile(), kctgMbmp, &number, &block) || !bitmap->FWrite(&block) ||
+    if (!file->FAdd(MaskedBitmapSize(bitmap), kctgMbmp, &number, &block) || !WriteMaskedBitmap(bitmap, &block) ||
         !file->FAddPv(&empty, 1, kctgGokd, &button) || !file->FAddPv(&empty, 1, kctgGokd, &missing) ||
         !file->FAdoptChild(kctgGokd, button, kctgMbmp, number, 0x10000))
         return false;
-    ReleasePpo(&bitmap);
+    ReleaseMaskedBitmap(&bitmap);
     auto output = port->PrgbLockPixels();
     unsigned count = unsigned(port->CbRow() * 24);
     for (int mode = 0; mode < 10; ++mode)

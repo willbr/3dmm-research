@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #ifndef MM_ENGINE_MASKED_BITMAP_H
 #define MM_ENGINE_MASKED_BITMAP_H
-#include "block_owner.h"
+#include "resource_cache.h"
 #include "read_stream.h"
 #include "pixel_raster.h"
 #ifdef __cplusplus
@@ -31,14 +31,10 @@ extern "C"
         void *context;
         int host_big_endian;
         MMU32 system;
-        void *(*create)(void *);
-        MMMaskedBitmap *(*state)(void *, void *);
-        void (*release)(void *, void *);
         int (*allocate)(void *, MMI32, void **);
         void (*free_memory)(void *, void **);
         void (*diagnostic)(void *, int);
         MMBlockTransform decode;
-        void (*publish_fetch)(void *, int valid, void *, MMI32 bytes);
         int (*bitmap_read)(void *, void *filename, unsigned char transparent, MMMaskedSource *);
     } MMMaskedServices;
     /* C owns aligned, contiguous host-order header/row-table/RLE storage. Initialize
@@ -48,9 +44,6 @@ extern "C"
     int mm_masked_init(MMMaskedBitmap *, const unsigned char *, MMI32 row, MMI32 height,
                              const MMMaskedRect *, MMI32 x, MMI32 y, unsigned char transparent,
                              unsigned flags, unsigned char fill, const MMMaskedServices *);
-    void *mm_masked_new(const unsigned char *, MMI32 row, MMI32 height, const MMMaskedRect *,
-                              MMI32 x, MMI32 y, unsigned char transparent, unsigned flags, unsigned char fill,
-                              const MMMaskedServices *);
     void mm_masked_dispose(MMMaskedBitmap *, const MMMaskedServices *);
     /* Validate/normalize host/foreign wire bytes in place. Empty height normalizes
      * both extents to the original left/top. Bad runs and trailing bytes fail in all
@@ -93,15 +86,36 @@ extern "C"
     int mm_masked_stretch(const MMPixelSurface *, const MMMaskedRle *, const MMMaskedRect *destination,
                           const MMMaskedRect *clip, const struct MMRegion *, const unsigned char *palette, MMI32 count,
                           const MMMaskedTransfer *, int and_shrink);
-    /* Successful byte transfer consumes memory-backed blocks before validation or
-     * object creation; file-backed blocks stay intact. Allocation/read failure leaves
-     * the source block intact. Fetch estimates do not load/consume. Callbacks must
-     * not reenter or mutate the same transaction. */
-    void *mm_masked_read(MMOwnedBlock *, const MMMaskedServices *);
-    int mm_masked_fetch(MMOwnedBlock *, int want_object, const MMMaskedServices *);
-    int mm_masked_write(MMMaskedBitmap *, const MMStorageWriter *, const MMMaskedServices *);
-    void *mm_masked_import(void *filename, unsigned char transparent, MMI32 x, MMI32 y, unsigned flags,
-                                 unsigned char fill, const MMMaskedServices *);
+    int mm_masked_rle_view(const MMMaskedBitmap *, int host_big, MMMaskedRle *);
+    int mm_masked_native_big_endian(void);
+    int mm_masked_write(const MMMaskedBitmap *, const MMStorageWriter *, const MMMaskedServices *);
+    typedef struct MMMaskedOwner MMMaskedOwner;
+    typedef struct MMMaskedOwnerHost
+    {
+        MMMaskedServices bitmap;
+        const MMStorageAllocator *objects;
+        void (*mark)(MMMaskedOwner *);
+    } MMMaskedOwnerHost;
+    /* The host and allocators are borrowed for the owner's lifetime. A null
+     * host uses native byte order and the C heap. The bitmap view is borrowed. */
+    MMMaskedOwner *mm_masked_owner_new(const unsigned char *, MMI32 row, MMI32 height, const MMMaskedRect *,
+                                        MMI32 x, MMI32 y, unsigned char transparent, unsigned flags, unsigned char fill,
+                                        const MMMaskedOwnerHost *);
+    MMMaskedOwner *mm_masked_owner_import(void *filename, unsigned char transparent, MMI32 x, MMI32 y,
+                                           unsigned flags, unsigned char fill, const MMMaskedOwnerHost *);
+    MMMaskedOwner *mm_masked_owner_read_stream(const MMReadStream *, const MMMaskedOwnerHost *);
+    /* A successful byte transfer consumes memory-backed blocks before wire validation
+     * or object allocation. File-backed blocks stay intact. Allocation/read failure
+     * leaves the source block intact. Size probes neither decode nor transfer. */
+    MMMaskedOwner *mm_masked_owner_read_block(MMOwnedBlock *, const MMMaskedOwnerHost *);
+    int mm_masked_owner_fetch(MMOwnedBlock *, void **, MMI32 *, const MMMaskedOwnerHost *);
+    const MMMaskedBitmap *mm_masked_owner_bitmap(const MMMaskedOwner *);
+    const MMResourceObject *mm_masked_owner_binding(const MMMaskedOwner *);
+    const MMResourceObjectServices *mm_masked_owner_services(void);
+    void mm_masked_owner_retain(MMMaskedOwner *);
+    void mm_masked_owner_release(MMMaskedOwner *);
+    void mm_masked_owner_priority(MMMaskedOwner *, MMI32);
+    int mm_masked_owner_write(const MMMaskedOwner *, const MMStorageWriter *);
 #ifdef __cplusplus
 }
 #endif

@@ -126,14 +126,14 @@ struct Preview
         if (!bitmap || (palette.empty)())
             return false;
         RC bounds;
-        bitmap->GetRc(&bounds);
+        GetMaskedBitmapBounds(bitmap, &bounds);
         image.width = width ? width : bounds.Dxp();
         image.height = height ? height : bounds.Dyp();
         if (image.width <= 0 || image.height <= 0 || image.width > 4096 || image.height > 4096)
             return false;
         image.pixels.assign(static_cast<std::size_t>(image.width) * image.height, 0xFF000000);
         RC rectangle(0, 0, image.width, image.height);
-        if (!bitmap->FDraw32({image.pixels.data(), image.width, image.height, image.width * 4}, rectangle,
+        if (!DrawMaskedBitmap32(bitmap, {image.pixels.data(), image.width, image.height, image.width * 4}, rectangle,
                              palette.data(), static_cast<LegacyLong>((palette.size)())))
             return false;
         for (auto &pixel : image.pixels)
@@ -143,11 +143,11 @@ struct Preview
     void Asset(ChunkNumber number, KauaiSDL::DialogImage &image)
     {
         auto bitmap =
-            static_cast<PMaskedBitmapMBMP>(vapp.PcrmAll()->PbacoFetch(kctgMbmp, number, MaskedBitmapMBMP::FReadMbmp));
+            FetchMaskedBitmap(vapp.PcrmAll(), kctgMbmp, number);
         if (bitmap)
         {
             Image(bitmap, image);
-            ReleasePpo(&bitmap);
+            ReleaseMaskedBitmap(&bitmap);
         }
     }
     static bool Load(void *context, const std::string &path, KauaiSDL::DialogImage &image)
@@ -160,7 +160,7 @@ struct Preview
         if (!bitmap)
             return false;
         const bool result = preview.Image(bitmap, image, 144, 80);
-        ReleasePpo(&bitmap);
+        ReleaseMaskedBitmap(&bitmap);
         return result;
     }
 };

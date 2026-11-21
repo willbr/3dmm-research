@@ -1905,7 +1905,7 @@ void GraphicsPort::DrawPic(PPicture ppic, SystemRectangle *prcs, GraphicsDrawing
 void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
-    AssertPo(pmbmp, 0);
+    AssertMaskedBitmap(pmbmp);
     AssertVarMem(prcs);
     AssertVarMem(pgdd);
     RC rcSrc, rcDst, rcClip;
@@ -1919,7 +1919,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
     }
     else
         rcClip = rcDst;
-    pmbmp->GetRc(&rcSrc);
+    GetMaskedBitmapBounds(pmbmp, &rcSrc);
     if (rcSrc.FEmpty())
         return;
 
@@ -1943,7 +1943,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
             Flush();
         }
 #endif
-        pmbmp->Draw(_prgbPixels, _cbRow, _rcOff.Dyp(), rcDst.xpLeft - rcSrc.xpLeft, rcDst.ypTop - rcSrc.ypTop, &rcClip,
+        DrawMaskedBitmap(pmbmp, _prgbPixels, _cbRow, _rcOff.Dyp(), rcDst.xpLeft - rcSrc.xpLeft, rcDst.ypTop - rcSrc.ypTop, &rcClip,
                     _pregnClip);
     }
     else
@@ -1962,7 +1962,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
             return;
         }
         Assert(pgpt->_rcOff == rcSrc, 0);
-        pmbmp->DrawMask(pgpt->_prgbPixels, pgpt->_cbRow, rcSrc.Dyp(), -ptSrc.xp, -ptSrc.yp, &rcSrc);
+        DrawMaskedBitmapMask(pmbmp, pgpt->_prgbPixels, pgpt->_cbRow, rcSrc.Dyp(), -ptSrc.xp, -ptSrc.yp, &rcSrc);
 #ifdef KAUAI_SDL3
         pgpt->_UploadNativePixels();
 #endif
@@ -1998,7 +1998,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
 #endif
 
         Flush();
-        pmbmp->Draw(pgpt->_prgbPixels, pgpt->_cbRow, rcSrc.Dyp(), -ptSrc.xp, -ptSrc.yp, &rcSrc);
+        DrawMaskedBitmap(pmbmp, pgpt->_prgbPixels, pgpt->_cbRow, rcSrc.Dyp(), -ptSrc.xp, -ptSrc.yp, &rcSrc);
 #ifdef KAUAI_SDL3
         pgpt->_UploadNativePixels();
 #endif

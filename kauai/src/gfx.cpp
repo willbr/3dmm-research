@@ -1390,11 +1390,11 @@ void GraphicsEnvironment::DrawPic(PPicture ppic, RC *prc)
 void GraphicsEnvironment::DrawMbmp(PMaskedBitmapMBMP pmbmp, long xp, long yp)
 {
     AssertThis(0);
-    AssertPo(pmbmp, 0);
+    AssertMaskedBitmap(pmbmp);
     RC rc;
     SystemRectangle rcs;
 
-    pmbmp->GetRc(&rc);
+    GetMaskedBitmapBounds(pmbmp, &rc);
     rc.Offset(xp - rc.xpLeft, yp - rc.ypTop);
     if (!_FMapRcRcs(&rc, &rcs))
         return;
@@ -1407,7 +1407,7 @@ void GraphicsEnvironment::DrawMbmp(PMaskedBitmapMBMP pmbmp, long xp, long yp)
 void GraphicsEnvironment::DrawMbmp(PMaskedBitmapMBMP pmbmp, RC *prc)
 {
     AssertThis(0);
-    AssertPo(pmbmp, 0);
+    AssertMaskedBitmap(pmbmp);
     AssertVarMem(prc);
     SystemRectangle rcs;
 

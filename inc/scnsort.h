@@ -103,7 +103,7 @@ class MaskedBitmapGraphicsObject : public MaskedBitmapGraphicsObject_PAR
     ~MaskedBitmapGraphicsObject(void)
     {
         AssertThis(0);
-        ReleasePpo(&_pmbmp);
+        ReleaseMaskedBitmap(&_pmbmp);
     }
 
     static PMaskedBitmapGraphicsObject PgompNew(PGraphicsObject pgobPar, long hid);

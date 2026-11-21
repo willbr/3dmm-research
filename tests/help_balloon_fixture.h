@@ -63,12 +63,12 @@ static bool TestHelpBalloon()
         return false;
     byte pixels[8] = {1, 2, 3, 4, 5, 6, 7, 8};
     RC image(0, 0, 4, 2);
-    auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 4, 2, &image, 0, 0, 0);
+    auto bitmap = NewMaskedBitmap(pixels, 4, 2, &image, 0, 0, 0);
     DataBlock data;
-    if (!bitmap || !file->FPut(bitmap->CbOnFile(), kctgMbmp, 32, &data) || !bitmap->FWrite(&data) ||
+    if (!bitmap || !file->FPut(MaskedBitmapSize(bitmap), kctgMbmp, 32, &data) || !WriteMaskedBitmap(bitmap, &data) ||
         !file->FAdoptChild(kctgGokd, 31, kctgMbmp, 32, 0x10000))
         return false;
-    ReleasePpo(&bitmap);
+    ReleaseMaskedBitmap(&bitmap);
     auto first = NewObj HelpTextProbe(cache), second = NewObj HelpTextProbe(cache);
     if (!first || !second || !first->Init() || !second->Init())
         return false;

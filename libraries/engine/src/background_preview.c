@@ -22,35 +22,11 @@ static int image_child(void *context, MMU32 camera, int depth, MMU32 *number)
     return mm_background_camera_image_link(&chunks, camera, depth, number) == MM_CHUNK_OK;
 }
 
-static int host_big_endian(void)
-{
-    const unsigned short one = 1;
-    return *(const unsigned char *)&one == 0;
-}
-
-static int allocate_pixels(void *context, MMI32 bytes, void **out)
-{
-    (void)context;
-    if (bytes < 0 || (size_t)bytes != (MMU32)bytes)
-        return 0;
-    *out = bytes ? malloc((size_t)bytes) : NULL;
-    return !bytes || *out != NULL;
-}
-
-static void free_pixels(void *context, void **pixels)
-{
-    (void)context;
-    free(*pixels);
-    *pixels = NULL;
-}
-
 static int read_colour(void *context, const MMReadStream *stream)
 {
-    MMMaskedServices services = {0};
-    services.host_big_endian = host_big_endian();
-    services.allocate = allocate_pixels;
-    services.free_memory = free_pixels;
-    return mm_masked_read_stream(stream, (MMMaskedBitmap *)context, &services);
+    MMMaskedOwner **out = (MMMaskedOwner **)context;
+    *out = mm_masked_owner_read_stream(stream, NULL);
+    return *out != NULL;
 }
 
 static int read_depth(void *context, const MMReadStream *stream)
@@ -66,15 +42,12 @@ static void release_bitmap(void *context, void *owner, int depth)
     if (depth)
         mm_depth_owner_release((MMDepthOwner *)owner);
     else
-    {
-        free(((MMMaskedBitmap *)owner)->data);
-        free(owner);
-    }
+        mm_masked_owner_release((MMMaskedOwner *)owner);
 }
 
 static void *fetch_bitmap(void *context, MMU32 number, int depth)
 {
-    MMMaskedBitmap *colour;
+    MMMaskedOwner *colour = NULL;
     int decoded;
     if (depth)
     {
@@ -84,12 +57,9 @@ static void *fetch_bitmap(void *context, MMU32 number, int depth)
         mm_depth_owner_release(owner);
         return NULL;
     }
-    colour = (MMMaskedBitmap *)calloc(1, sizeof(*colour));
-    if (!colour)
-        return NULL;
-    if (graph_payload(context, 0x4d424d50UL, number, read_colour, colour, &decoded) == MM_CHUNK_OK && decoded)
+    if (graph_payload(context, 0x4d424d50UL, number, read_colour, &colour, &decoded) == MM_CHUNK_OK && decoded)
         return colour;
-    release_bitmap(context, colour, 0);
+    mm_masked_owner_release(colour);
     return NULL;
 }
 
@@ -97,7 +67,7 @@ static void bitmap_bounds(void *context, void *owner, MMI32 out[4])
 {
     MMMaskedRect rect;
     (void)context;
-    mm_masked_bounds((const MMMaskedBitmap *)owner, host_big_endian(), &rect);
+    mm_masked_bounds(mm_masked_owner_bitmap((const MMMaskedOwner *)owner), mm_masked_native_big_endian(), &rect);
     out[0] = rect.left;
     out[1] = rect.top;
     out[2] = rect.right;
@@ -107,10 +77,10 @@ static void bitmap_bounds(void *context, void *owner, MMI32 out[4])
 static void draw_colour(void *context, void *owner, unsigned char *pixels, MMU32 w, MMU32 h, MMI32 x, MMI32 y)
 {
     MMMaskedRect rect;
-    int big = host_big_endian();
+    int big = mm_masked_native_big_endian();
     (void)context;
-    mm_masked_bounds((const MMMaskedBitmap *)owner, big, &rect);
-    mm_masked_blit8((const MMMaskedBitmap *)owner, big, pixels, w, h, rect.left + x, rect.top + y, NULL, NULL);
+    mm_masked_bounds(mm_masked_owner_bitmap((const MMMaskedOwner *)owner), big, &rect);
+    mm_masked_blit8(mm_masked_owner_bitmap((const MMMaskedOwner *)owner), big, pixels, w, h, rect.left + x, rect.top + y, NULL, NULL);
 }
 
 static void draw_depth(void *context, void *owner, unsigned short *pixels, MMU32 w, MMU32 h)

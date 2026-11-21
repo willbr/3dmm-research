@@ -438,6 +438,7 @@ static void init(Test *t)
     o = &v->owners;
     o->context = t;
     o->release = release;
+    o->release_thumbnail = release;
     s->retain = retain;
     s->actor_id = actor_id;
     s->set_actor_id = set_id;

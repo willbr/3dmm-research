@@ -24,19 +24,6 @@ int mm_movie_first_scene_thumbnail(const MMChunkAccess *access, MMU32 *number)
     return status;
 }
 
-static int allocate_bitmap(void *context, MMI32 bytes, void **out)
-{
-    (void)context;
-    *out = malloc((size_t)bytes);
-    return *out != NULL;
-}
-static void dispose_bitmap(void *context, void **data)
-{
-    (void)context;
-    free(*data);
-    *data = NULL;
-}
-
 static int read_thumbnail_palette(MMArchiveReader *reader, int poster, unsigned char palette[1024])
 {
     static const MMU32 numbers[] = {0x20001UL, 0};
@@ -59,9 +46,9 @@ static int read_thumbnail_palette(MMArchiveReader *reader, int poster, unsigned 
 
 static int read_thumbnail(const MMSceneThumbnailPreview *preview, const MMReadStream *stream, int poster)
 {
-    const unsigned short one = 1;
-    MMMaskedServices services;
-    MMMaskedBitmap bitmap;
+    const int big = mm_masked_native_big_endian();
+    MMMaskedOwner *owner = mm_masked_owner_read_stream(stream, NULL);
+    const MMMaskedBitmap *bitmap;
     MMMaskedRect bounds;
     unsigned char palette[1024];
     const unsigned char *colours, *colour;
@@ -69,14 +56,10 @@ static int read_thumbnail(const MMSceneThumbnailPreview *preview, const MMReadSt
     MMU32 width, height, rgba_bytes;
     size_t pixels, i;
     int result;
-    memset(&services, 0, sizeof(services));
-    memset(&bitmap, 0, sizeof(bitmap));
-    services.host_big_endian = *(const unsigned char *)&one == 0;
-    services.allocate = allocate_bitmap;
-    services.free_memory = dispose_bitmap;
-    if (!mm_masked_read_stream(stream, &bitmap, &services))
+    if (!owner)
         return MM_SCENE_THUMBNAIL_DECODE;
-    mm_masked_bounds(&bitmap, services.host_big_endian, &bounds);
+    bitmap = mm_masked_owner_bitmap(owner);
+    mm_masked_bounds(bitmap, big, &bounds);
     width = (MMU32)bounds.right - (MMU32)bounds.left;
     height = (MMU32)bounds.bottom - (MMU32)bounds.top;
     result = MM_SCENE_THUMBNAIL_DIMENSIONS;
@@ -101,7 +84,7 @@ static int read_thumbnail(const MMSceneThumbnailPreview *preview, const MMReadSt
     rgba = preview->image(preview->context, width, height);
     if (rgba)
     {
-        mm_masked_blit8(&bitmap, services.host_big_endian, indices, (MMI32)width, (MMI32)height, 0, 0, NULL, NULL);
+        mm_masked_blit8(bitmap, big, indices, (MMI32)width, (MMI32)height, 0, 0, NULL, NULL);
         for (i = 0; i < pixels; ++i, rgba += 4)
         {
             colour = colours + 4 * (size_t)indices[i];
@@ -114,7 +97,7 @@ static int read_thumbnail(const MMSceneThumbnailPreview *preview, const MMReadSt
     }
     free(indices);
 done:
-    mm_masked_dispose(&bitmap, &services);
+    mm_masked_owner_release(owner);
     return result;
 }
 

@@ -179,12 +179,12 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
     byte pixels[32 * 24];
     std::memset(pixels, 17 + id, sizeof(pixels));
     RC r(0, 0, 32, 24);
-    auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 32, 24, &r, 0, 0, 0);
+    auto bitmap = NewMaskedBitmap(pixels, 32, 24, &r, 0, 0, 0);
     CHECK(bitmap);
     ChunkNumber rgb, z;
-    CHECK(file->FAdd(bitmap->CbOnFile(), kctgMbmp, &rgb, &b) && bitmap->FWrite(&b));
+    CHECK(file->FAdd(MaskedBitmapSize(bitmap), kctgMbmp, &rgb, &b) && WriteMaskedBitmap(bitmap, &b));
     b.Free();
-    ReleasePpo(&bitmap);
+    ReleaseMaskedBitmap(&bitmap);
     auto depth = NewDepthBitmap(32, 24);
     CHECK(depth);
     CHECK(WriteDepthBitmap(depth, file->WriteOwnerIndex(), kctgZbmp, &z));

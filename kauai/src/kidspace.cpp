@@ -2151,7 +2151,7 @@ PGraphicalObjectRepresentationBitmap GraphicalObjectRepresentationBitmap::PgorbN
 GraphicalObjectRepresentationBitmap::~GraphicalObjectRepresentationBitmap(void)
 {
     if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
-        _pcrf->FSetCrep(crepToss, _ctg, _cno, MaskedBitmapMBMP::FReadMbmp);
+        _pcrf->FSetCrep(crepToss, _ctg, _cno, ReadCachedMaskedBitmap);
     ReleasePpo(&_pcrf);
 }
 
@@ -2169,13 +2169,13 @@ void GraphicalObjectRepresentationBitmap::Draw(PGraphicsEnvironment pgnv, RC *pr
     if (kctgMbmp != _ctg)
         return;
 
-    if (pvNil != (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
+    if (pvNil != (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
     {
-        AssertPo(pmbmp, 0);
-        pmbmp->GetRc(&rc);
+        AssertMaskedBitmap(pmbmp);
+        GetMaskedBitmapBounds(pmbmp, &rc);
         rc.OffsetToOrigin();
         pgnv->DrawMbmp(pmbmp, &rc);
-        ReleasePpo(&pmbmp);
+        ReleaseMaskedBitmap(&pmbmp);
     }
     else
         Warn("Couldn't load kidspace bitmap");
@@ -2191,16 +2191,16 @@ bool GraphicalObjectRepresentationBitmap::FPtIn(long xp, long yp)
     RC rc;
     bool fRet;
 
-    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
     {
         Warn("Couldn't load kidspace bitmap");
         return fTrue;
     }
 
-    AssertPo(pmbmp, 0);
-    pmbmp->GetRc(&rc);
-    fRet = pmbmp->FPtIn(xp + rc.xpLeft, yp + rc.ypTop);
-    ReleasePpo(&pmbmp);
+    AssertMaskedBitmap(pmbmp);
+    GetMaskedBitmapBounds(pmbmp, &rc);
+    fRet = MaskedBitmapContains(pmbmp, xp + rc.xpLeft, yp + rc.ypTop);
+    ReleaseMaskedBitmap(&pmbmp);
     return fRet;
 }
 
@@ -2227,11 +2227,11 @@ void GraphicalObjectRepresentationBitmap::GetRc(RC *prc)
 
     PMaskedBitmapMBMP pmbmp;
 
-    if (pvNil != (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
+    if (pvNil != (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
     {
-        AssertPo(pmbmp, 0);
-        pmbmp->GetRc(prc);
-        ReleasePpo(&pmbmp);
+        AssertMaskedBitmap(pmbmp);
+        GetMaskedBitmapBounds(pmbmp, prc);
+        ReleaseMaskedBitmap(&pmbmp);
     }
     else
     {
@@ -2336,7 +2336,7 @@ PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew
 GraphicalObjectRepresentationTiled::~GraphicalObjectRepresentationTiled(void)
 {
     if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
-        _pcrf->FSetCrep(crepToss, _ctg, _cno, MaskedBitmapMBMP::FReadMbmp);
+        _pcrf->FSetCrep(crepToss, _ctg, _cno, ReadCachedMaskedBitmap);
     ReleasePpo(&_pcrf);
 }
 
@@ -2352,13 +2352,13 @@ void GraphicalObjectRepresentationTiled::Draw(PGraphicsEnvironment pgnv, RC *prc
     PMaskedBitmapMBMP pmbmp;
     RC rcRow;
 
-    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
     {
         Warn("Couldn't load kidspace bitmap");
         return;
     }
 
-    AssertPo(pmbmp, 0);
+    AssertMaskedBitmap(pmbmp);
     dyp = 0;
 
     // draw the top row
@@ -2397,7 +2397,7 @@ void GraphicalObjectRepresentationTiled::Draw(PGraphicsEnvironment pgnv, RC *prc
     dyp -= _rgdyp[idzpRightFlex];
     _DrawRow(pgnv, pmbmp, &rcRow, prcClip, 0, dyp);
 
-    ReleasePpo(&pmbmp);
+    ReleaseMaskedBitmap(&pmbmp);
 }
 
 /***************************************************************************
@@ -2407,7 +2407,7 @@ void GraphicalObjectRepresentationTiled::_DrawRow(PGraphicsEnvironment pgnv, PMa
 {
     AssertThis(0);
     AssertPo(pgnv, 0);
-    AssertPo(pmbmp, 0);
+    AssertMaskedBitmap(pmbmp);
     AssertVarMem(prcRow);
     AssertVarMem(prcClip);
     long xpLim;
@@ -2416,7 +2416,7 @@ void GraphicalObjectRepresentationTiled::_DrawRow(PGraphicsEnvironment pgnv, PMa
     if (!rcClip.FIntersect(prcRow, prcClip))
         return;
 
-    pmbmp->GetRc(&rcMbmp);
+    GetMaskedBitmapBounds(pmbmp, &rcMbmp);
 
     // draw the left cell
     xpLim = prcRow->xpLeft + _rgdxp[idzpLeft] + _dxpLeftFlex;
@@ -2495,19 +2495,19 @@ bool GraphicalObjectRepresentationTiled::FPtIn(long xp, long yp)
     if (!FIn(xp, 0, _dxp) || !FIn(yp, 0, _dyp))
         return fFalse;
 
-    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
     {
         Warn("Couldn't load kidspace bitmap");
         return fTrue;
     }
-    AssertPo(pmbmp, 0);
+    AssertMaskedBitmap(pmbmp);
 
     _MapZpToMbmp(&xp, _rgdxp, _dxpLeftFlex, _dxpRightFlex);
     _MapZpToMbmp(&yp, _rgdyp, _dypLeftFlex, _dypRightFlex);
 
-    pmbmp->GetRc(&rc);
-    fRet = pmbmp->FPtIn(xp + rc.xpLeft, yp + rc.ypTop);
-    ReleasePpo(&pmbmp);
+    GetMaskedBitmapBounds(pmbmp, &rc);
+    fRet = MaskedBitmapContains(pmbmp, xp + rc.xpLeft, yp + rc.ypTop);
+    ReleaseMaskedBitmap(&pmbmp);
     return fRet;
 }
 
@@ -2590,14 +2590,14 @@ void GraphicalObjectRepresentationTiled::GetRc(RC *prc)
     PMaskedBitmapMBMP pmbmp;
 
     prc->Set(0, 0, _dxp, _dyp);
-    if (pvNil == (pmbmp = (PMaskedBitmapMBMP)_pcrf->PbacoFetch(_ctg, _cno, MaskedBitmapMBMP::FReadMbmp)))
+    if (pvNil == (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
     {
         Warn("Couldn't load kidspace bitmap");
         return;
     }
-    AssertPo(pmbmp, 0);
-    pmbmp->GetRc(&rc);
-    ReleasePpo(&pmbmp);
+    AssertMaskedBitmap(pmbmp);
+    GetMaskedBitmapBounds(pmbmp, &rc);
+    ReleaseMaskedBitmap(&pmbmp);
 
     pt.xp = -rc.xpLeft;
     pt.yp = -rc.ypTop;

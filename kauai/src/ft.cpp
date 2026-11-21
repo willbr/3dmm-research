@@ -1774,7 +1774,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
     pgnv->FillOval(&rcT, kacrWhite);
 
     // Create an MaskedBitmapMBMP from the foreground.
-    pmbmp = MaskedBitmapMBMP::PmbmpNew(pgpt->PrgbLockPixels(), pgpt->CbRow(), rc.Dyp(), &rc, 0, 0, 100);
+    pmbmp = NewMaskedBitmap(pgpt->PrgbLockPixels(), pgpt->CbRow(), rc.Dyp(), &rc, 0, 0, 100);
     pgpt->Unlock();
 
     if (pvNil == pmbmp)
@@ -1810,7 +1810,7 @@ DOCGPT *DOCGPT::PdocgptNew(void)
 
 LFail:
     ReleasePpo(&pgnv);
-    ReleasePpo(&pmbmp);
+    ReleaseMaskedBitmap(&pmbmp);
     ReleasePpo(&pgpt);
 
     return pdocgpt;

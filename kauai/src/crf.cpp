@@ -307,12 +307,17 @@ tribool ChunkyResourceFile::TLoad(ChunkTagOrType type, ChunkNumber number, Resou
 PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, bool *error,
                                                     RSC scope)
 {
+    return static_cast<PBaseCacheableObject>(FetchOwned(type, number, reader, nullptr, error, scope));
+}
+void *ChunkyResourceFile::FetchOwned(ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
+                                  const MMResourceObjectServices *services, bool *error, RSC scope)
+{
     AssertThis(0);
     Assert(reader != nullptr, "bad object reader");
     AssertNilOrVarMem(error);
     const auto q = ResourceRequest(type, number, reader, scope);
     int failed = 0;
-    auto object = static_cast<PBaseCacheableObject>(mm_resource_cache_fetch(&_cache, &q, &failed));
+    auto object = mm_resource_cache_fetch_owned(&_cache, &q, services, &failed);
     if (error)
         *error = failed != 0;
     return object;
@@ -562,12 +567,17 @@ tribool ChunkyResourceManager::TLoad(ChunkTagOrType type, ChunkNumber number, Re
 PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
                                                        bool *error, RSC scope)
 {
+    return static_cast<PBaseCacheableObject>(FetchOwned(type, number, reader, nullptr, error, scope));
+}
+void *ChunkyResourceManager::FetchOwned(ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
+                                  const MMResourceObjectServices *services, bool *error, RSC scope)
+{
     AssertThis(0);
     Assert(reader != nullptr, "nil object reader");
     AssertNilOrVarMem(error);
     const auto q = ResourceRequest(type, number, reader, scope);
     int failed = 0;
-    auto object = static_cast<PBaseCacheableObject>(mm_resource_manager_fetch(&_manager, &q, &failed));
+    auto object = mm_resource_manager_fetch_owned(&_manager, &q, services, &failed);
     if (error)
         *error = failed != 0;
     return object;

@@ -254,13 +254,13 @@ int main()
     for (int i = 0; i < 32 * 24; ++i)
         pixels[i] = byte(1 + i % 14);
     RC view(0, 0, 32, 24);
-    auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 32, 24, &view, 0, 0, 0);
+    auto bitmap = NewMaskedBitmap(pixels, 32, 24, &view, 0, 0, 0);
     CHECK(bitmap);
     ChunkNumber rgb = 0, z = 0;
     DataBlock block;
-    CHECK(file->FAdd(bitmap->CbOnFile(), kctgMbmp, &rgb, &block) && bitmap->FWrite(&block));
+    CHECK(file->FAdd(MaskedBitmapSize(bitmap), kctgMbmp, &rgb, &block) && WriteMaskedBitmap(bitmap, &block));
     block.Free();
-    ReleasePpo(&bitmap);
+    ReleaseMaskedBitmap(&bitmap);
     auto depth = NewDepthBitmap(32, 24);
     CHECK(depth);
     for (int y = 8; y < 12; ++y)

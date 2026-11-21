@@ -31,8 +31,7 @@ void DrawBitmap(const MMMaskedBitmap &bitmap, const RC &bounds, byte *pixels, Le
     if (clip)
         rectangle = {clip->xpLeft, clip->ypTop, clip->xpRight, clip->ypBottom};
     const auto boundsClip = clip ? &rectangle : nullptr;
-    const unsigned short one = 1;
-    const bool big = !*reinterpret_cast<const byte *>(&one);
+    const bool big = mm_masked_native_big_endian();
     if (mask)
         mm_masked_blit_mask(&bitmap, big, pixels, stride, height, x, y, boundsClip);
     else
@@ -41,27 +40,31 @@ void DrawBitmap(const MMMaskedBitmap &bitmap, const RC &bounds, byte *pixels, Le
 }
 } // namespace
 
-void MaskedBitmapMBMP::Draw(byte *pixels, LegacyLong stride, LegacyLong height, LegacyLong xref, LegacyLong yref,
+void DrawMaskedBitmap(PMaskedBitmapMBMP owner, byte *pixels, LegacyLong stride, LegacyLong height, LegacyLong xref, LegacyLong yref,
                             RC *clip, PRegion region)
 {
-    AssertThis(0);
+    AssertMaskedBitmap(owner);
     AssertIn(stride, 1, kcbMax);
     AssertIn(height, 1, kcbMax);
     AssertPvCb(pixels, LwMul(stride, height));
     AssertNilOrVarMem(clip);
     AssertNilOrPo(region, 0);
 
-    DrawBitmap(_bitmap, _Qmbmph()->rc, pixels, stride, height, xref, yref, clip, region, false);
+    RC bounds;
+    GetMaskedBitmapBounds(owner, &bounds);
+    DrawBitmap(*mm_masked_owner_bitmap(owner), bounds, pixels, stride, height, xref, yref, clip, region, false);
 }
 
-void MaskedBitmapMBMP::DrawMask(byte *pixels, LegacyLong stride, LegacyLong height, LegacyLong xref, LegacyLong yref,
+void DrawMaskedBitmapMask(PMaskedBitmapMBMP owner, byte *pixels, LegacyLong stride, LegacyLong height, LegacyLong xref, LegacyLong yref,
                                 RC *clip)
 {
-    AssertThis(0);
+    AssertMaskedBitmap(owner);
     AssertIn(stride, 1, kcbMax);
     AssertIn(height, 1, kcbMax);
     AssertPvCb(pixels, LwMul(stride, height));
     AssertNilOrVarMem(clip);
 
-    DrawBitmap(_bitmap, _Qmbmph()->rc, pixels, stride, height, xref, yref, clip, nullptr, true);
+    RC bounds;
+    GetMaskedBitmapBounds(owner, &bounds);
+    DrawBitmap(*mm_masked_owner_bitmap(owner), bounds, pixels, stride, height, xref, yref, clip, nullptr, true);
 }

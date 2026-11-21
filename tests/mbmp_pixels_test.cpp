@@ -20,20 +20,20 @@ int main()
 {
     byte source[] = {1, 2, 0, 4, 5, 0, 7, 8, 9, 10, 11, 12};
     RC bounds(0, 0, 4, 3);
-    auto bitmap = MaskedBitmapMBMP::PmbmpNew(source, 4, 3, &bounds, 4, 3, 0);
+    auto bitmap = NewMaskedBitmap(source, 4, 3, &bounds, 4, 3, 0);
     if (!bitmap)
         return 1;
-    bitmap->GetRc(&bounds);
+    GetMaskedBitmapBounds(bitmap, &bounds);
     if (bounds.xpLeft != -4 || bounds.ypTop != -3 || bounds.Dxp() != 4 || bounds.Dyp() != 3)
         return 1;
     byte decoded[12] = {};
-    bitmap->Draw(decoded, 4, 3, 4, 3);
+    DrawMaskedBitmap(bitmap, decoded, 4, 3, 4, 3);
     if (std::memcmp(decoded, source, sizeof(source)))
         return 1;
     RC clip(1, 1, 3, 3);
     auto region = Region::PregnNew(&clip);
     std::memset(decoded, 77, sizeof(decoded));
-    bitmap->Draw(decoded, 4, 3, 4, 3, nullptr, region);
+    DrawMaskedBitmap(bitmap, decoded, 4, 3, 4, 3, nullptr, region);
     for (int y = 0; y < 3; ++y)
         for (int x = 0; x < 4; ++x)
         {
@@ -43,7 +43,7 @@ int main()
                 return 1;
         }
     byte mask[3] = {};
-    bitmap->DrawMask(mask, 1, 3, 4, 3);
+    DrawMaskedBitmapMask(bitmap, mask, 1, 3, 4, 3);
     if (mask[0] != 0xd0 || mask[1] != 0xb0 || mask[2] != 0xf0)
         return 1;
     Color palette[256] = {};
@@ -57,14 +57,14 @@ int main()
     std::uint32_t sprite[15 * 11];
     KauaiPixels::Surface32 surface = {sprite, 13, 11, 15 * 4};
     RC original(0, 0, 4, 3);
-    auto solid = MaskedBitmapMBMP::PmbmpNew(source, 4, 3, &original, 4, 3, 0, fmbmpMask, 17);
+    auto solid = NewMaskedBitmap(source, 4, 3, &original, 4, 3, 0, fmbmpMask, 17);
     if (!solid)
         return 1;
     for (int pass = 0; pass < 2; ++pass)
     {
         for (auto &pixel : sprite)
             pixel = 0x123456;
-        if (!(pass ? solid : bitmap)->FDraw32(surface, target, palette, 256, &clipping, spriteClip))
+        if (!DrawMaskedBitmap32(pass ? solid : bitmap, surface, target, palette, 256, &clipping, spriteClip))
             return 1;
         for (int y = 0; y < 11; ++y)
             for (int x = 0; x < 15; ++x)
@@ -99,7 +99,7 @@ int main()
     for (int pass = 0; pass < 2; ++pass)
     {
         std::memset(transferred, 125, sizeof(transferred));
-        if (!(pass ? solid : bitmap)->FDraw8(indexedTransfer, target, transfer, &clipping, spriteClip))
+        if (!DrawMaskedBitmap8(pass ? solid : bitmap, indexedTransfer, target, transfer, &clipping, spriteClip))
             return 1;
         for (int y = 0; y < 11; ++y)
             for (int x = 0; x < 15; ++x)
@@ -146,9 +146,9 @@ int main()
         if (pass == 1)
             reductionPixels[0] = 0;
         auto reduced =
-            MaskedBitmapMBMP::PmbmpNew(reductionPixels, 6, 3, &reductionBounds, 0, 0, 0, pass == 2 ? fmbmpMask : 0, 17);
+            NewMaskedBitmap(reductionPixels, 6, 3, &reductionBounds, 0, 0, 0, pass == 2 ? fmbmpMask : 0, 17);
         std::memset(transferred, 125, sizeof(transferred));
-        if (!reduced || !reduced->FDraw8(indexedTransfer, reducedTarget, transfer, nullptr, nullptr, true))
+        if (!reduced || !DrawMaskedBitmap8(reduced, indexedTransfer, reducedTarget, transfer, nullptr, nullptr, true))
             return 1;
         for (int y = 0; y < 11; ++y)
             for (int x = 0; x < 15; ++x)
@@ -161,12 +161,12 @@ int main()
                     return 1;
                 }
             }
-        ReleasePpo(&reduced);
+        ReleaseMaskedBitmap(&reduced);
     }
     // A near-size copy keeps source samples instead of redistributing them.
     RC nearTarget(0, 0, 3, 2);
     std::memset(transferred, 125, sizeof(transferred));
-    if (!bitmap->FDraw8(indexedTransfer, nearTarget, transfer, nullptr, nullptr, true))
+    if (!DrawMaskedBitmap8(bitmap, indexedTransfer, nearTarget, transfer, nullptr, nullptr, true))
         return 1;
     for (int y = 0; y < 2; ++y)
         for (int x = 0; x < 3; ++x)
@@ -182,7 +182,7 @@ int main()
     for (auto value : transferred)
         if (value != 125)
             return 1;
-    ReleasePpo(&solid);
+    ReleaseMaskedBitmap(&solid);
     ReleasePpo(&spriteClip);
     // Long transparent and opaque runs use zero-length continuation runs.
     // Exercise both kinds while stretching into an odd-pitch indexed surface.
@@ -192,11 +192,11 @@ int main()
     wideSource[0] = 1;
     wideSource[599] = 2;
     RC wideBounds(0, 0, 600, 2), wideTarget(0, 0, 1200, 4);
-    auto wide = MaskedBitmapMBMP::PmbmpNew(wideSource.data(), 600, 2, &wideBounds, 0, 0, 0);
+    auto wide = NewMaskedBitmap(wideSource.data(), 600, 2, &wideBounds, 0, 0, 0);
     if (!wide)
         return 1;
     KauaiPixels::Surface8 indexed = {wideDestination.data(), 1200, 4, 1201};
-    if (!wide->FDraw8(indexed, wideTarget))
+    if (!DrawMaskedBitmap8(wide, indexed, wideTarget))
         return 1;
     for (int y = 0; y < 4; ++y)
         for (int x = 0; x < 1201; ++x)
@@ -205,9 +205,9 @@ int main()
             if (wideDestination[y * 1201 + x] != expected)
                 return 1;
         }
-    ReleasePpo(&wide);
+    ReleaseMaskedBitmap(&wide);
     ReleasePpo(&region);
-    ReleasePpo(&bitmap);
+    ReleaseMaskedBitmap(&bitmap);
     std::puts("Core bitmap pixels: reference point, transparency, region clipping and mask passed.");
     return assertion ? 1 : 0;
 }

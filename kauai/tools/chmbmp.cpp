@@ -25,7 +25,7 @@ DOCMBMP::DOCMBMP(PDocumentBase pdocb, PChunkyFile pcfl, ChunkTagOrType ctg, Chun
 ****************************************************************************/
 DOCMBMP::~DOCMBMP(void)
 {
-    ReleasePpo(&_pmbmp);
+    ReleaseMaskedBitmap(&_pmbmp);
 }
 
 /****************************************************************************
@@ -59,7 +59,7 @@ PDocumentDisplayGraphicsObject DOCMBMP::PddgNew(PGraphicsObjectBlock pgcb)
 ***************************************************************************/
 long DOCMBMP::_CbOnFile(void)
 {
-    return _pmbmp->CbOnFile();
+    return MaskedBitmapSize(_pmbmp);
 }
 
 /****************************************************************************
@@ -70,7 +70,7 @@ bool DOCMBMP::_FWrite(PDataBlock pblck, bool fRedirect)
     AssertThis(0);
     AssertPo(pblck, 0);
 
-    return _pmbmp->FWrite(pblck);
+    return WriteMaskedBitmap(_pmbmp, pblck);
 }
 
 /*****************************************************************************
@@ -81,7 +81,7 @@ bool DOCMBMP::_FRead(PDataBlock pblck)
     Assert(pvNil == _pmbmp, "losing existing MaskedBitmapMBMP");
     AssertPo(pblck, 0);
 
-    _pmbmp = MaskedBitmapMBMP::PmbmpRead(pblck);
+    _pmbmp = ReadMaskedBitmap(pblck);
     return pvNil != _pmbmp;
 }
 
@@ -92,7 +92,7 @@ bool DOCMBMP::_FRead(PDataBlock pblck)
 void DOCMBMP::AssertValid(ulong grf)
 {
     DOCMBMP_PAR::AssertValid(0);
-    AssertPo(_pmbmp, 0);
+    AssertMaskedBitmap(_pmbmp);
 }
 
 /***************************************************************************
@@ -102,7 +102,7 @@ void DOCMBMP::MarkMem(void)
 {
     AssertValid(0);
     DOCMBMP_PAR::MarkMem();
-    MarkMemObj(_pmbmp);
+    MarkMaskedBitmap(_pmbmp);
 }
 #endif // DEBUG
 
@@ -152,7 +152,7 @@ void DCMBMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 
     // retrieve appropriate rectangles
     GetRc(&rcDdg, cooLocal);
-    _pmbmp->GetRc(&rcMbmp);
+    GetMaskedBitmapBounds(_pmbmp, &rcMbmp);
     rcMbmp.CenterOnRc(&rcDdg);
 
     // erase *prcClip
@@ -170,7 +170,7 @@ void DCMBMP::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 void DCMBMP::AssertValid(ulong grf)
 {
     DCMBMP_PAR::AssertValid(0);
-    AssertPo(_pmbmp, 0);
+    AssertMaskedBitmap(_pmbmp);
 }
 
 /***************************************************************************
@@ -180,6 +180,6 @@ void DCMBMP::MarkMem(void)
 {
     AssertValid(0);
     DCMBMP_PAR::MarkMem();
-    MarkMemObj(_pmbmp);
+    MarkMaskedBitmap(_pmbmp);
 }
 #endif // DEBUG

@@ -14,33 +14,28 @@
 #include <string.h>
 typedef struct Fixture
 {
-    MMMaskedServices s;
+    MMMaskedOwnerHost host;
+    MMStorageAllocator objects;
     ResourceTestBlock block;
     unsigned char input[4096], output[4096], bitmap[24];
     MMI32 size, packed, written;
-    int phase, fail, objects, memory, upside_down, unpacks, reads, writes, diagnostic, published, valid;
-    void *result;
-    MMI32 estimate;
+    int phase, fail, owners, memory, upside_down, unpacks, reads, writes, diagnostic;
 } Fixture;
 static int fail(Fixture *f)
 {
     return ++f->phase == f->fail;
 }
-static void *create(void *p)
+static void *create(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Fixture *f = (Fixture *)p;
     void *o;
+    assert(!old && !old_bytes && bytes && priority == MM_STORAGE_NORMAL);
     if (fail(f))
         return NULL;
-    o = calloc(1, sizeof(MMMaskedBitmap));
+    o = malloc(bytes);
     assert(o);
-    ++f->objects;
+    ++f->owners;
     return o;
-}
-static MMMaskedBitmap *state(void *p, void *o)
-{
-    (void)p;
-    return (MMMaskedBitmap *)o;
 }
 static int allocate(void *p, MMI32 n, void **out)
 {
@@ -62,12 +57,12 @@ static void free_memory(void *p, void **v)
         *v = NULL;
     }
 }
-static void release(void *p, void *o)
+static void release(void *p, void *o, MMU32 bytes)
 {
     Fixture *f = (Fixture *)p;
-    mm_masked_dispose((MMMaskedBitmap *)o, &f->s);
+    assert(o && bytes);
     free(o);
-    --f->objects;
+    --f->owners;
 }
 static void diagnostic(void *p, int reason)
 {
@@ -104,14 +99,6 @@ static int write(void *p, void *file, MMU32 at, const void *data, size_t n)
     f->written = (MMI32)n;
     return 1;
 }
-static void publish(void *p, int valid, void *o, MMI32 n)
-{
-    Fixture *f = (Fixture *)p;
-    ++f->published;
-    f->valid = valid;
-    f->result = o;
-    f->estimate = n;
-}
 static int bitmap_read(void *p, void *name, unsigned char transparent, MMMaskedSource *out)
 {
     Fixture *f = (Fixture *)p;
@@ -130,18 +117,18 @@ static int bitmap_read(void *p, void *name, unsigned char transparent, MMMaskedS
 static void setup(Fixture *f, int big)
 {
     memset(f, 0, sizeof(*f));
-    f->s.context = f;
-    f->s.host_big_endian = big;
-    f->s.system = 0x4321;
-    f->s.create = create;
-    f->s.state = state;
-    f->s.release = release;
-    f->s.allocate = allocate;
-    f->s.free_memory = free_memory;
-    f->s.diagnostic = diagnostic;
-    f->s.decode = decode;
-    f->s.publish_fetch = publish;
-    f->s.bitmap_read = bitmap_read;
+    f->host.bitmap.context = f;
+    f->host.bitmap.host_big_endian = big;
+    f->host.bitmap.system = 0x4321;
+    f->objects.context = f;
+    f->objects.resize = create;
+    f->objects.release = release;
+    f->host.objects = &f->objects;
+    f->host.bitmap.allocate = allocate;
+    f->host.bitmap.free_memory = free_memory;
+    f->host.bitmap.diagnostic = diagnostic;
+    f->host.bitmap.decode = decode;
+    f->host.bitmap.bitmap_read = bitmap_read;
     resource_block_init(&f->block, f, read, write);
 }
 static void put(unsigned char *b, unsigned n, MMU32 v, int big)
@@ -155,7 +142,7 @@ static void put(unsigned char *b, unsigned n, MMU32 v, int big)
 }
 static void balanced(Fixture *f)
 {
-    assert(!f->memory && !f->objects);
+    assert(!f->memory && !f->owners);
     assert(mm_owned_block_clear(&f->block.owner) == MM_DATA_OK);
 }
 static void seed(Fixture *f, int source_big)
@@ -197,7 +184,7 @@ static void encode(void)
         {
             setup(&f, big);
             memset(&m, 0, sizeof(m));
-            assert(mm_masked_init(&m, pixels, 5, 4, &r, 7, -2, 0, (unsigned)flags, 37, &f.s));
+            assert(mm_masked_init(&m, pixels, 5, 4, &r, 7, -2, 0, (unsigned)flags, 37, &f.host.bitmap));
             assert(mm_masked_validate(&m, big));
             mm_masked_bounds(&m, big, &bounds);
             assert(bounds.left == -6 && bounds.right == -3);
@@ -211,47 +198,47 @@ static void encode(void)
             bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
             assert(mm_owned_block_io(&f.block.owner, &io) == MM_DATA_OK &&
                    mm_block_io_writer(&io, &writer) == MM_DATA_OK);
-            assert(mm_masked_write(&m, &writer, &f.s) && f.written == m.bytes &&
+            assert(mm_masked_write(&m, &writer, &f.host.bitmap) && f.written == m.bytes &&
                    !memcmp(f.output, m.data, (size_t)m.bytes));
             --writer.length;
-            assert(!mm_masked_write(&m, &writer, &f.s) && f.diagnostic == MM_MASKED_WRONG_SIZE + 1);
-            mm_masked_dispose(&m, &f.s);
+            assert(!mm_masked_write(&m, &writer, &f.host.bitmap) && f.diagnostic == MM_MASKED_WRONG_SIZE + 1);
+            mm_masked_dispose(&m, &f.host.bitmap);
             balanced(&f);
         }
     for (n = 0; n < 4; ++n)
     {
-        void *o;
+        MMMaskedOwner *o;
         setup(&f, 0);
         f.fail = n;
-        o = mm_masked_new(pixels, 5, 4, &r, 0, 0, 0, 0, 0, &f.s);
+        o = mm_masked_owner_new(pixels, 5, 4, &r, 0, 0, 0, 0, 0, &f.host);
         if (o)
-            release(&f, o);
+            mm_masked_owner_release(o);
         else
             assert(n == 1 || n == 2);
         balanced(&f);
     }
     setup(&f, 0);
     memset(&m, 0, sizeof(m));
-    assert(mm_masked_init(&m, pixels, 5, 4, &r, 0, 0, 0, 0, 0, &f.s));
+    assert(mm_masked_init(&m, pixels, 5, 4, &r, 0, 0, 0, 0, 0, &f.host.bitmap));
     {
         void *old = m.data;
         f.fail = f.phase + 1;
-        assert(!mm_masked_init(&m, pixels, 5, 4, &r, 0, 0, 0, 2, 0, &f.s) && m.data == old &&
+        assert(!mm_masked_init(&m, pixels, 5, 4, &r, 0, 0, 0, 2, 0, &f.host.bitmap) && m.data == old &&
                mm_masked_hit(&m, 0, 1, 1));
     }
-    mm_masked_dispose(&m, &f.s);
+    mm_masked_dispose(&m, &f.host.bitmap);
     balanced(&f);
     setup(&f, 0);
     memset(&m, 0, sizeof(m));
     memset(pixels, 0, 20);
-    assert(mm_masked_init(&m, pixels, 5, 4, &r, 7, -2, 0, 0, 0, &f.s) && m.bytes == 28 && !m.row_bytes &&
+    assert(mm_masked_init(&m, pixels, 5, 4, &r, 7, -2, 0, 0, 0, &f.host.bitmap) && m.bytes == 28 && !m.row_bytes &&
            f.diagnostic == 1);
     mm_masked_bounds(&m, 0, &bounds);
     assert(bounds.left == -7 && bounds.right == -7 && bounds.top == 2 && bounds.bottom == 2);
     assert(!mm_masked_hit(&m, 0, -7, 2));
-    mm_masked_dispose(&m, &f.s);
-    assert(!mm_masked_init(&m, pixels, 2147483647, 2, &r, 0, 0, 0, 0, 0, &f.s));
-    assert(!mm_masked_init(&m, pixels, 5, 4, &r, (-2147483647 - 1), 0, 0, 0, 0, &f.s));
+    mm_masked_dispose(&m, &f.host.bitmap);
+    assert(!mm_masked_init(&m, pixels, 2147483647, 2, &r, 0, 0, 0, 0, 0, &f.host.bitmap));
+    assert(!mm_masked_init(&m, pixels, 5, 4, &r, (-2147483647 - 1), 0, 0, 0, 0, &f.host.bitmap));
     balanced(&f);
 }
 static void long_runs(void)
@@ -269,12 +256,12 @@ static void long_runs(void)
             memset(pixels, 17, sizeof(pixels));
             memset(pixels, 0, 600);
             pixels[0] = 3;
-            assert(mm_masked_init(&m, pixels, 700, 2, &r, 0, 0, 0, (unsigned)mask * 2, 37, &f.s));
+            assert(mm_masked_init(&m, pixels, 700, 2, &r, 0, 0, 0, (unsigned)mask * 2, 37, &f.host.bitmap));
             assert(mm_masked_validate(&m, big));
             for (y = 0; y < 2; ++y)
                 for (x = 0; x < 700; ++x)
                     assert(mm_masked_hit(&m, big, x, y) == (pixels[y * 700 + x] != 0));
-            mm_masked_dispose(&m, &f.s);
+            mm_masked_dispose(&m, &f.host.bitmap);
             balanced(&f);
         }
     {
@@ -285,7 +272,7 @@ static void long_runs(void)
         r.bottom = 1;
         setup(&f, 0);
         memset(&m, 0, sizeof(m));
-        assert(!mm_masked_init(&m, wide, 40000, 1, &r, 0, 0, 0, 0, 0, &f.s) && !m.data);
+        assert(!mm_masked_init(&m, wide, 40000, 1, &r, 0, 0, 0, 0, 0, &f.host.bitmap) && !m.data);
         free(wide);
         balanced(&f);
     }
@@ -294,7 +281,10 @@ static void loading(void)
 {
     const int failure_steps[] = {3, 4, 2};
     Fixture f;
-    MMMaskedBitmap *m;
+    MMMaskedOwner *owner;
+    const MMMaskedBitmap *m;
+    void *result;
+    MMI32 estimate;
     int big, foreign, storage, factory, n, ok;
     for (big = 0; big < 2; ++big)
         for (foreign = 0; foreign < 2; ++foreign)
@@ -306,27 +296,29 @@ static void loading(void)
                         seed(&f, big ^ foreign);
                         bitmap_block_source(&f.block, f.input, (MMU32)f.size, (MMU32)f.packed, storage);
                         f.fail = n;
+                        result = NULL;
                         if (factory)
                         {
-                            ok = mm_masked_fetch(&f.block.owner, 1, &f.s);
-                            m = (MMMaskedBitmap *)f.result;
-                            assert(f.published == 1 && f.valid == ok);
+                            ok = mm_masked_owner_fetch(&f.block.owner, &result, &estimate, &f.host);
+                            owner = result;
                         }
                         else
                         {
-                            m = (MMMaskedBitmap *)mm_masked_read(&f.block.owner, &f.s);
-                            ok = m != NULL;
+                            owner = mm_masked_owner_read_block(&f.block.owner, &f.host);
+                            ok = owner != NULL;
                         }
                         assert(ok == !n);
                         if (ok)
                         {
+                            assert(owner);
+                            m = mm_masked_owner_bitmap(owner);
                             assert(mm_masked_hit(m, big, -1, 3) && !mm_masked_hit(m, big, -2, 3) &&
                                    m->row_bytes == 4);
                             assert(f.block.owner.view.kind == (storage == BITMAP_FILE ? MM_BLOCK_FILE : MM_BLOCK_EMPTY));
                             assert(f.unpacks == (storage == BITMAP_PACKED_FILE));
                             if (factory)
-                                assert(f.estimate == 40);
-                            release(&f, m);
+                                assert(estimate == 40);
+                            mm_masked_owner_release(owner);
                         }
                         else if (storage == BITMAP_MEMORY)
                             assert(f.block.owner.view.kind == (n == 1 ? MM_BLOCK_MEMORY : MM_BLOCK_EMPTY));
@@ -335,7 +327,7 @@ static void loading(void)
     setup(&f, 0);
     seed(&f, 0);
     bitmap_block_file(&f.block, 3, (MMU32)f.packed, 1);
-    assert(mm_masked_fetch(&f.block.owner, 0, &f.s) && f.estimate == 17 && !f.reads && !f.unpacks);
+    assert(mm_masked_owner_fetch(&f.block.owner, NULL, &estimate, &f.host) && estimate == 17 && !f.reads && !f.unpacks);
     assert(f.block.owner.view.packed);
     balanced(&f);
     for (n = 0; n < 40; ++n)
@@ -344,14 +336,14 @@ static void loading(void)
         seed(&f, 0);
         f.size = n;
         bitmap_block_file(&f.block, 3, (MMU32)f.size, 0);
-        assert(!mm_masked_read(&f.block.owner, &f.s));
+        assert(!mm_masked_owner_read_block(&f.block.owner, &f.host));
         balanced(&f);
     }
     setup(&f, 0);
     seed(&f, 0);
     f.input[6] = 1;
     bitmap_block_memory(&f.block, f.input, (MMU32)f.size);
-    assert(!mm_masked_read(&f.block.owner, &f.s) && f.block.owner.view.kind == MM_BLOCK_EMPTY);
+    assert(!mm_masked_owner_read_block(&f.block.owner, &f.host) && f.block.owner.view.kind == MM_BLOCK_EMPTY);
     balanced(&f);
 }
 static void malformed(void)
@@ -417,7 +409,7 @@ static void malformed(void)
 static void imports(void)
 {
     Fixture f;
-    MMMaskedBitmap *m;
+    MMMaskedOwner *owner;
     int up, flags, n;
     for (up = 0; up < 2; ++up)
         for (flags = 0; flags < 4; ++flags)
@@ -428,12 +420,12 @@ static void imports(void)
                 f.bitmap[0] = 9;
                 f.bitmap[21] = 7;
                 f.fail = n;
-                m = (MMMaskedBitmap *)mm_masked_import(&f, 0, 0, 0, (unsigned)flags, 37, &f.s);
-                if (m)
+                owner = mm_masked_owner_import(&f, 0, 0, 0, (unsigned)flags, 37, &f.host);
+                if (owner)
                 {
                     int flip = up ? (flags & 1) : !(flags & 1);
-                    assert(mm_masked_hit(m, 0, 0, flip ? 5 : 0));
-                    release(&f, m);
+                    assert(mm_masked_hit(mm_masked_owner_bitmap(owner), 0, 0, flip ? 5 : 0));
+                    mm_masked_owner_release(owner);
                 }
                 balanced(&f);
             }
@@ -470,7 +462,7 @@ static void stream_blitting(void)
                 }
                 memset(&m, 0, sizeof(m));
                 assert(mm_memory_stream_init(&stream, f.input, (size_t)f.size));
-                assert(mm_masked_read_stream(&stream.stream, &m, &f.s));
+                assert(mm_masked_read_stream(&stream.stream, &m, &f.host.bitmap));
                 memset(f.input, 0, sizeof(f.input));
                 memset(expected, 0xa5, sizeof(expected));
                 expected[1] = mask ? 37 : 9;
@@ -495,8 +487,8 @@ static void stream_blitting(void)
                 memset(bits, 0xa5, sizeof(bits));
                 mm_masked_blit_mask(&m, big, bits, 1, 2, 4, 0, NULL);
                 assert(bits[0] == 0xa6 && bits[1] == 0xac);
-                mm_masked_dispose(&m, &f.s);
-                assert(!mm_masked_read_stream(&stream.stream, &m, &f.s) && !m.data);
+                mm_masked_dispose(&m, &f.host.bitmap);
+                assert(!mm_masked_read_stream(&stream.stream, &m, &f.host.bitmap) && !m.data);
                 balanced(&f);
             }
     mm_region_set_rect(&region, NULL);

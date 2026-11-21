@@ -28,12 +28,12 @@ static void CheckPixels(PMaskedBitmapMBMP bitmap, const byte *expected)
 {
     CHECK(bitmap != nullptr);
     RC bounds;
-    bitmap->GetRc(&bounds);
+    GetMaskedBitmapBounds(bitmap, &bounds);
     CHECK(bounds.Dxp() == 3 && bounds.Dyp() == 2);
     byte decoded[8] = {};
-    bitmap->Draw(decoded, 4, 2, -bounds.xpLeft, -bounds.ypTop);
+    DrawMaskedBitmap(bitmap, decoded, 4, 2, -bounds.xpLeft, -bounds.ypTop);
     CHECK(std::memcmp(decoded, expected, 8) == 0);
-    ReleasePpo(&bitmap);
+    ReleaseMaskedBitmap(&bitmap);
 }
 int main(int argc, char **argv)
 {
@@ -53,12 +53,12 @@ int main(int argc, char **argv)
     CHECK(file->FAddChild('MVIE', movieNumber, 0, 0, 'SCEN', &sceneNumber));
     byte pixels[8] = {1, 2, 3, 0, 4, 0, 6, 0};
     RC bounds(0, 0, 3, 2);
-    auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 4, 2, &bounds, 1, 1, 0);
+    auto bitmap = NewMaskedBitmap(pixels, 4, 2, &bounds, 1, 1, 0);
     CHECK(bitmap);
-    CHECK(file->FAddChild('SCEN', sceneNumber, 0, bitmap->CbOnFile(), 'THUM', &thumbNumber, &block));
-    CHECK(bitmap->FWrite(&block) && file->FSave('SOC '));
+    CHECK(file->FAddChild('SCEN', sceneNumber, 0, MaskedBitmapSize(bitmap), 'THUM', &thumbNumber, &block));
+    CHECK(WriteMaskedBitmap(bitmap, &block) && file->FSave('SOC '));
     block.Free();
-    ReleasePpo(&bitmap);
+    ReleaseMaskedBitmap(&bitmap);
     ReleasePpo(&file);
     PushErc(ercFniDelete); // An unrelated queued error must survive probing.
     const auto previous = vpers;

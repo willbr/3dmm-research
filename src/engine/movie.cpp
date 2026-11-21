@@ -2533,6 +2533,11 @@ static void ReleaseComposeObject(void *object)
     static_cast<BASE *>(object)->Release();
 }
 
+static void ReleaseComposeThumbnail(void *object)
+{
+    mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(object));
+}
+
 MMMovieComposeServices Movie::_ComposeServices()
 {
     static_assert(kctgMvie==0x4d564945U && kctgActr==0x41435452U && cnoNil==0xffffffffU, "Movie composition ABI");
@@ -2548,6 +2553,8 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.rollcall = MovieData::_RollCallBinding();
     s.retain = [](void *object) { static_cast<BASE *>(object)->AddRef(); };
     s.release = ReleaseComposeObject;
+    s.retain_thumbnail = [](void *object) { mm_masked_owner_retain(static_cast<PMaskedBitmapMBMP>(object)); };
+    s.release_thumbnail = ReleaseComposeThumbnail;
 #ifdef BUG1929
     s.temporary_before_save=1;
 #endif
@@ -2555,7 +2562,7 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.autosave=[](void *p)->int { return static_cast<PMovie>(p)->FAutoSave(nullptr,false); };
     s.transition=[](void *p)->MMI32 { return static_cast<PScene>(p)->Trans(); };
     s.decode_thumbnail = [](void *, const MMReadStream *stream) -> void * {
-        return MaskedBitmapMBMP::PmbmpReadStream(stream);
+        return ReadMaskedBitmap(stream);
     };
     s.thumbnail=[](void *p)->void* { return static_cast<PScene>(p)->PmbmpThumbnail(); };
     s.sound_issue = MovieSoundIssue;
@@ -2606,7 +2613,7 @@ void CompositeMovie::MarkMem(void)
     {
         MMComposeScene scene;
         mm_composite_scene(this, i, &scene);
-        MarkMemObj(static_cast<PMaskedBitmapMBMP>(scene.thumbnail));
+        MarkMaskedBitmap(static_cast<PMaskedBitmapMBMP>(scene.thumbnail));
     }
     MarkPv(rows.buffers[0].data);
     MarkPv(rows.buffers[1].data);
@@ -2688,7 +2695,7 @@ bool Movie::_FAddMvieToRollCall(ChunkNumber cno, long aridMin)
 ************************************************************ PETED ***********/
 void CompositeMovie::Empty(void)
 {
-    mm_composite_empty(this, ReleaseComposeObject);
+    mm_composite_empty(this, ReleaseComposeObject, ReleaseComposeThumbnail);
 }
 
 /***************************************************************************

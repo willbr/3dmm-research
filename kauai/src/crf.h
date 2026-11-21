@@ -116,6 +116,8 @@ class ResourceCache : public ResourceCache_PAR
                           LegacyLong crep = crepNormal) = 0;
     virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, bool *pfError = pvNil,
                                             RSC rsc = rscNil) = 0;
+    virtual void *FetchOwned(ChunkTagOrType, ChunkNumber, ResourceReader, const MMResourceObjectServices *,
+                             bool *error = nullptr, RSC scope = rscNil) = 0;
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil) = 0;
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil) = 0;
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
@@ -161,6 +163,8 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
                           LegacyLong crep = crepNormal);
     virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, bool *pfError = pvNil,
                                             RSC rsc = rscNil);
+    virtual void *FetchOwned(ChunkTagOrType, ChunkNumber, ResourceReader, const MMResourceObjectServices *,
+                             bool *error = nullptr, RSC scope = rscNil) override;
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
@@ -214,6 +218,8 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
                           LegacyLong crep = crepNormal);
     virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, bool *pfError = pvNil,
                                             RSC rsc = rscNil);
+    virtual void *FetchOwned(ChunkTagOrType, ChunkNumber, ResourceReader, const MMResourceObjectServices *,
+                             bool *error = nullptr, RSC scope = rscNil) override;
     virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
     virtual PChunkyResourceFile PcrfFindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);

@@ -151,7 +151,7 @@ struct Access : Scene
         }
         byte pixels[8] = {1, 2, 3, 4, 5, 6, 7, 8};
         RC rect(0, 0, 4, 2);
-        auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 4, 2, &rect, 0, 0, 0);
+        auto bitmap = NewMaskedBitmap(pixels, 4, 2, &rect, 0, 0, 0);
         CHECK(bitmap);
         auto frame = Sound(count);
         SceneEvent event = {2, sevtPlaySnd};

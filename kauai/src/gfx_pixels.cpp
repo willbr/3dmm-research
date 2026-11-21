@@ -377,7 +377,7 @@ bool GraphicsPort::_FDrawPixelMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prc
     RC rcSrc, rcDst(*prcs), rcClip = rcDst;
     if (pgdd->prcsClip && !rcClip.FIntersect(pgdd->prcsClip))
         return true;
-    pmbmp->GetRc(&rcSrc);
+    GetMaskedBitmapBounds(pmbmp, &rcSrc);
     if (rcSrc.FEmpty())
         return true;
     if ((_cbitPixel == 1 || _cbitPixel == 4 || _cbitPixel == 16 || _cbitPixel == 24) && _prgbPixels && _prgclr &&
@@ -385,7 +385,7 @@ bool GraphicsPort::_FDrawPixelMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prc
     {
         _EnsurePalette();
         Flush();
-        if (pmbmp->FDrawPacked({_prgbPixels, _rcOff.Dxp(), _rcOff.Dyp(), _cbRow, _cbitPixel,
+        if (DrawMaskedBitmapPacked(pmbmp, {_prgbPixels, _rcOff.Dxp(), _rcOff.Dyp(), _cbRow, _cbitPixel,
                                 _cbitPixel == 4 ? _rgclrPixels : nullptr, _cbitPixel == 4 ? 16 : 0},
                                rcDst, _prgclr, _cclrPal, &rcClip, _pregnClip, !_fPixelColorOnColor))
         {
@@ -400,7 +400,7 @@ bool GraphicsPort::_FDrawPixelMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prc
     {
         Flush();
         KauaiPixels::Surface32 surface = {_prgbPixels, _rcOff.Dxp(), _rcOff.Dyp(), _cbRow};
-        if (pmbmp->FDraw32(surface, rcDst, _prgclr, _cclrPal, &rcClip, _pregnClip))
+        if (DrawMaskedBitmap32(pmbmp, surface, rcDst, _prgclr, _cclrPal, &rcClip, _pregnClip))
             return true;
     }
     if (_cbitPixel == 8 && _prgbPixels && (rcSrc.Dxp() != rcDst.Dxp() || rcSrc.Dyp() != rcDst.Dyp()))
@@ -408,13 +408,13 @@ bool GraphicsPort::_FDrawPixelMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prc
         _EnsurePalette();
         Flush();
         KauaiPixels::Surface8 surface = {_prgbPixels, _rcOff.Dxp(), _rcOff.Dyp(), _cbRow};
-        if (!_PixelOwnPalette() && pmbmp->FDraw8(surface, rcDst, &rcClip, _pregnClip))
+        if (!_PixelOwnPalette() && DrawMaskedBitmap8(pmbmp, surface, rcDst, &rcClip, _pregnClip))
             return true;
         if (_PixelOwnPalette())
         {
             KauaiPixels::MaskedTransfer8 transfer;
             if (KauaiPixels::ResolveMaskedTransfer8(_prgclr, _cclrPal, _rgclrPixels, 256, transfer) &&
-                pmbmp->FDraw8(surface, rcDst, transfer, &rcClip, _pregnClip, !_fPixelColorOnColor))
+                DrawMaskedBitmap8(pmbmp, surface, rcDst, transfer, &rcClip, _pregnClip, !_fPixelColorOnColor))
                 return true;
         }
     }
@@ -423,7 +423,7 @@ bool GraphicsPort::_FDrawPixelMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prc
         if (!rcClip.FIntersect(&_rcOff))
             return true;
         Flush();
-        pmbmp->Draw(_prgbPixels, _cbRow, _rcOff.Dyp(), rcDst.xpLeft - rcSrc.xpLeft, rcDst.ypTop - rcSrc.ypTop, &rcClip,
+        DrawMaskedBitmap(pmbmp, _prgbPixels, _cbRow, _rcOff.Dyp(), rcDst.xpLeft - rcSrc.xpLeft, rcDst.ypTop - rcSrc.ypTop, &rcClip,
                     _pregnClip);
         return true;
     }

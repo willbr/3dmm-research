@@ -133,14 +133,14 @@ static int Test(int depth)
                 for (int mode = 0; mode < 4; ++mode)
                 {
                     RC spriteBounds(0, 0, 7, 5);
-                    auto mbmp = MaskedBitmapMBMP::PmbmpNew(sprite, 7, 5, &spriteBounds, 2, 3, 0, mode ? fmbmpMask : 0,
+                    auto mbmp = NewMaskedBitmap(sprite, 7, 5, &spriteBounds, 2, 3, 0, mode ? fmbmpMask : 0,
                                                            mode == 1   ? 0
                                                            : mode == 2 ? 17
                                                                        : 200);
                     if (!mbmp)
                         return 1;
                     RC sourceBounds;
-                    mbmp->GetRc(&sourceBounds);
+                    GetMaskedBitmapBounds(mbmp, &sourceBounds);
                     for (int target = 0; target < static_cast<int>(destinations.size()); ++target)
                     {
                         for (int y = 0; y < height; ++y)
@@ -164,7 +164,7 @@ static int Test(int depth)
                         {
                             // Unscaled private-palette drawing historically writes raw
                             // indices; preserve that separate path as well.
-                            mbmp->Draw(static_cast<byte *>(bits), pitch, height,
+                            DrawMaskedBitmap(mbmp, static_cast<byte *>(bits), pitch, height,
                                        destinations[target].xpLeft - sourceBounds.xpLeft,
                                        destinations[target].ypTop - sourceBounds.ypTop, &clip, region);
                         }
@@ -199,7 +199,7 @@ static int Test(int depth)
 #endif
                         ++cases;
                     }
-                    ReleasePpo(&mbmp);
+                    ReleaseMaskedBitmap(&mbmp);
                 }
             }
         }

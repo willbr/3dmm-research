@@ -162,6 +162,7 @@ MMWorldBufferServices World::_BufferServices()
     s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.release_depth = [](void *, void *p) { mm_depth_owner_release(static_cast<MMDepthOwner *>(p)); };
+    s.release_bitmap = [](void *, void *p) { mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(p)); };
     s.lock = [](void *, void *p) -> void * { return static_cast<PGraphicsPort>(p)->PrgbLockPixels(); };
     s.unlock = [](void *, void *p) { static_cast<PGraphicsPort>(p)->Unlock(); };
     s.depth_span = [](void *, void *p, MMWorldDepthSpan *out) {
@@ -178,11 +179,11 @@ MMWorldBufferServices World::_BufferServices()
         if (kind == MM_WORLD_DEPTH_BACKGROUND)
             return mm_resource_cache_fetch_owned_chunk(cache->CoreCache(), type, number, ReadCachedDepthBitmap,
                                                        mm_depth_owner_services());
-        return cache->PbacoFetch(type, number, MaskedBitmapMBMP::FReadMbmp);
+        return FetchMaskedBitmap(cache, type, number);
     };
-    s.priority = [](void *, void *p) { static_cast<PBaseCacheableObject>(p)->SetCrep(crepTossFirst); };
+    s.priority = [](void *, void *p) { mm_masked_owner_priority(static_cast<PMaskedBitmapMBMP>(p), crepTossFirst); };
     s.priority_depth = [](void *, void *p) {
-        mm_depth_owner_priority(static_cast<MMDepthOwner *>(p), MM_RESOURCE_TOSS_PRIORITY);
+        mm_depth_owner_priority(static_cast<MMDepthOwner *>(p), crepTossFirst);
     };
     s.draw_bitmap = [](void *, void *port, void *bitmap) {
         GraphicsEnvironment gnv(static_cast<PGraphicsPort>(port));

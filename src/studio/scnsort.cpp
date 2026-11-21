@@ -769,7 +769,7 @@ RTCLASS(MaskedBitmapGraphicsObject)
 void MaskedBitmapGraphicsObject::AssertValid(LegacyUlong grf)
 {
     MaskedBitmapGraphicsObject_PAR::AssertValid(0);
-    AssertNilOrPo(_pmbmp, 0);
+    AssertMaskedBitmap(_pmbmp, true);
 }
 
 void MaskedBitmapGraphicsObject::MarkMem(void)
@@ -777,7 +777,7 @@ void MaskedBitmapGraphicsObject::MarkMem(void)
     AssertThis(0);
 
     MaskedBitmapGraphicsObject_PAR::MarkMem();
-    MarkMemObj(_pmbmp);
+    MarkMaskedBitmap(_pmbmp);
 }
 #endif /* DEBUG */
 
@@ -855,7 +855,7 @@ void MaskedBitmapGraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     if (_pmbmp == pvNil)
         return;
 
-    _pmbmp->GetRc(&rc);
+    GetMaskedBitmapBounds(_pmbmp, &rc);
     rc.OffsetToOrigin();
     pgnv->DrawMbmp(_pmbmp, &rc);
 }
@@ -872,13 +872,13 @@ void MaskedBitmapGraphicsObject::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
 ************************************************************ PETED ***********/
 bool MaskedBitmapGraphicsObject::FSetMbmp(PMaskedBitmapMBMP pmbmp)
 {
-    AssertNilOrPo(pmbmp, 0);
+    AssertMaskedBitmap(pmbmp, true);
 
     bool fRedraw = (_pmbmp != pmbmp);
 
-    ReleasePpo(&_pmbmp);
+    ReleaseMaskedBitmap(&_pmbmp);
     if (pmbmp != pvNil)
-        pmbmp->AddRef();
+        mm_masked_owner_retain(pmbmp);
     _pmbmp = pmbmp;
 
     return fRedraw;

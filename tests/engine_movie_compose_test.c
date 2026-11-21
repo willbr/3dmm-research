@@ -767,6 +767,8 @@ static void init(Test *t)
     s->autosave = save;
     s->retain = retain;
     s->release = release;
+    s->retain_thumbnail = retain;
+    s->release_thumbnail = release;
     s->transition = transition;
     s->decode_thumbnail = decode_thumbnail;
     s->thumbnail = thumbnail;
@@ -889,7 +891,7 @@ static int adding(void)
             CHECK(t.thumbs[0].refs == 1 && t.thumbs[1].refs == 2 &&
                   mm_composite_scene(&t.composite, 1, &scene) && scene.transition == 4);
             CHECK(mm_composite_scene(&t.composite, 0, &scene) && scene.transition == 3);
-            mm_composite_empty(&t.composite, release);
+            mm_composite_empty(&t.composite, release, release);
         }
         else
             CHECK(!index && !t.composite.scene_count && !t.composite.movie_count);
@@ -921,7 +923,7 @@ static int adding(void)
           t.thumbs[0].refs == 1 && t.thumbs[1].refs == 2);
     CHECK(mm_composite_scene(&t.composite, 0, &scene) && scene.transition == 1);
     CHECK(mm_composite_scene(&t.composite, 1, &scene) && scene.transition == 2);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     CHECK(!t.blocks);
     init(&t);
     t.s.temporary_before_save = 0;
@@ -929,8 +931,8 @@ static int adding(void)
     index = 0;
     CHECK(mm_movie_compose_add(&t.composite, &index, &t.s) && !index && !t.calls[TEMP] && t.calls[SAVE] == 1);
     CHECK(!t.composite.scene_count && t.composite.movie_count == 1);
-    mm_composite_empty(&t.composite, release);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
+    mm_composite_empty(&t.composite, release, release);
     CHECK(!t.badRef && !t.blocks && t.resources[0].refs == 1);
     return 0;
 }
@@ -1091,7 +1093,7 @@ static int applying(void)
         if (t.fail == WRITE_TITLE)
             CHECK(stored_transition(&t.resources[0], 100) == 1 &&
                   position(&t, WRITE_TRANS) < position(&t, WRITE_TITLE));
-        mm_composite_empty(&t.composite, release);
+        mm_composite_empty(&t.composite, release, release);
         CHECK(!t.blocks && t.resources[0].refs == 1 && t.resources[1].refs == 1);
     }
     init(&t);
@@ -1101,12 +1103,12 @@ static int applying(void)
     index = live_chunks(&t.resources[0]);
     CHECK(mm_chunk_link_number(&index, MM_MOVIE_CHUNK, 10, 0, MM_SOUND_CHUNK, &row) == MM_CHUNK_OK && row == 27);
     CHECK(mm_chunk_link_number(&index, MM_MOVIE_CHUNK, 10, 1, MM_SOUND_CHUNK, &row) == MM_CHUNK_NOT_FOUND);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     init(&t);
     CHECK(apply_setup(&t, 1, 10));
     t.allocFailAt = t.memoryCalls + 1;
     CHECK(!apply_fixture(&t) && !t.calls[CLONE] && !t.deletedCount && t.blocks == 2);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     CHECK(!t.blocks);
     for (i = 0; i < 3; ++i)
     {
@@ -1116,7 +1118,7 @@ static int applying(void)
         t.fail = i == 1 ? REBIND_MATERIALS : i == 2 ? REBIND_BACKGROUND : 0;
         t.failAt = i == 1 ? 2 : 1;
         CHECK(apply_fixture(&t) == !i);
-        mm_composite_empty(&t.composite, release);
+        mm_composite_empty(&t.composite, release, release);
         CHECK(t.calls[REBIND_BACKGROUND] == 1 && t.calls[REBIND_MATERIALS] == (i == 2 ? 0 : i + 1) &&
               !t.adjustCount && t.deletedCount == 1 && t.deleted[0] == 20);
         if (!i)
@@ -1135,18 +1137,18 @@ static int applying(void)
     CHECK(!apply_fixture(&t));
     CHECK(position(&t, CLONE) >= 0 && position(&t, CLONE) < position(&t, DELETE_ROOT));
     CHECK(!t.calls[READ_TABLE] && !t.adopted && t.deletedCount == 1 && t.deleted[0] == 20);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     init(&t);
     CHECK(apply_setup(&t, 1, 2147483647));
     CHECK(apply_fixture(&t) && t.data.actorIdLimit == -2147483644);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     init(&t);
     CHECK(apply_setup(&t, 1, 10) && add_external(&t, 30, 0));
     t.fail = READ_TABLE;
     t.failAt = 2;
     CHECK(!apply_fixture(&t) && t.deletedCount == 2 && t.deleted[0] == 30 && t.deleted[1] == 20);
     CHECK(t.resources[0].refs == 2 && t.resources[1].refs == 3);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     CHECK(!t.blocks && t.resources[0].refs == 1 && t.resources[1].refs == 1);
     for (i = READ_SCENE; i <= ADD_ACTORS; ++i)
     {
@@ -1156,7 +1158,7 @@ static int applying(void)
         CHECK(apply_fixture(&t) && t.diagnostic[MM_COMPOSE_IMPORT_ACTORS] == 1);
         CHECK(t.calls[ACTOR_TOOLS] == 1 && t.calls[TEXT_TOOLS] == 1 && !t.read.refs);
         CHECK(t.calls[ADD_ACTORS] == (i == ADD_ACTORS));
-        mm_composite_empty(&t.composite, release);
+        mm_composite_empty(&t.composite, release, release);
     }
     init(&t);
     fixture_chunk_add(&t.archives[0], background.type, background.number);
@@ -1174,7 +1176,7 @@ static int applying(void)
     index = mm_chunk_edit_access(&edit);
     CHECK(mm_chunk_find(&index, background.type, background.number, &row) == MM_CHUNK_OK &&
           mm_chunk_at(&index, row, &asset) == MM_CHUNK_OK && (asset.flags & MM_CHUNK_LONER) && !asset.parent_count);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     init(&t);
     CHECK(apply_setup(&t, 0, 10));
     CHECK(mm_composite_remove_scene(&t.composite, 0) && mm_composite_remove_scene(&t.composite, 0));
@@ -1185,7 +1187,7 @@ static int applying(void)
     CHECK(t.removedActors == 2 && t.diagnostic[MM_COMPOSE_REMOVE_ACTORS] == 1 && t.closed == 1 &&
           t.calls[NUKED] == 1);
     CHECK(!t.open.refs && !t.read.refs && !t.badRef);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     CHECK(!t.blocks);
     init(&t);
     CHECK(apply_setup(&t, 0, 10));
@@ -1193,7 +1195,7 @@ static int applying(void)
     edit = edit_archive(&t.resources[0]);
     CHECK(mm_chunk_adopt(&edit, MM_MOVIE_CHUNK, 10, &extra_scene, 1) == MM_CHUNK_OK);
     CHECK(mm_movie_compose_apply(&t.composite, &t.s) && t.diagnostic[MM_COMPOSE_SCENE_ORDER] == 1);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     return 0;
 }
 static int emptying(void)
@@ -1209,12 +1211,12 @@ static int emptying(void)
     CHECK(mm_composite_scene(&t.composite, 2, &scene) && scene.number == 101 && scene.deleted);
     CHECK(!mm_composite_move_scene(&t.composite, 3, 0) && !mm_composite_set_transition(&t.composite, 3, 0));
     start = t.n;
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     CHECK(t.events[start] == 205 && t.events[start + 1] == 204 && t.events[start + 2] == 205 &&
           t.events[start + 3] == 202 && t.events[start + 4] == 201);
     CHECK(!t.composite.scene_count && !t.composite.movie_count && t.thumbs[1].refs == 1 &&
           t.resources[0].refs == 1 && t.resources[1].refs == 1 && !t.badRef && !t.blocks);
-    mm_composite_empty(&t.composite, release);
+    mm_composite_empty(&t.composite, release, release);
     return 0;
 }
 int main(void)

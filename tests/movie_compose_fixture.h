@@ -9,7 +9,7 @@ class MovieComposeSceneAccess : public Scene
         byte pixels[48];
         std::memset(pixels, color, sizeof(pixels));
         RC bounds(0, 0, 8, 6);
-        auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 8, 6, &bounds, 0, 0, 0);
+        auto bitmap = NewMaskedBitmap(pixels, 8, 6, &bounds, 0, 0, 0);
         if (!bitmap)
             return false;
         auto member = &MovieComposeSceneAccess::_owner;
@@ -166,7 +166,7 @@ static bool TestMovieCompose()
                     return false;
                 auto bitmap = static_cast<PMaskedBitmapMBMP>(row.thumbnail);
                 LegacyLong values[] = {LegacyLong(i), row.movie, LegacyLong(row.number), LegacyLong(row.child),
-                                       row.transition, row.deleted, bitmap->CactRef(), bitmap->CbOnFile()};
+                                       row.transition, row.deleted, mm_masked_owner_services()->references(bitmap)->count, MaskedBitmapSize(bitmap)};
                 if (!record(values, sizeof(values)))
                     return false;
             }

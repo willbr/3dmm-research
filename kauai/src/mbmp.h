@@ -31,103 +31,47 @@ enum
     fmbmpMask = 2,
 };
 
-typedef class MaskedBitmapMBMP *PMaskedBitmapMBMP;
-#define MaskedBitmapMBMP_PAR BaseCacheableObject
-#define kclsMaskedBitmapMBMP 'MBMP'
-class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
+typedef MMMaskedOwner *PMaskedBitmapMBMP;
+
+PMaskedBitmapMBMP NewMaskedBitmap(const byte *pixels, LegacyLong row, LegacyLong height, const RC *extract,
+                                 LegacyLong x, LegacyLong y, byte transparent, LegacyUlong flags = fmbmpNil,
+                                 byte fill = 0);
+PMaskedBitmapMBMP ImportMaskedBitmap(PFilename, byte transparent = 0, LegacyLong x = 0, LegacyLong y = 0,
+                                    LegacyUlong flags = fmbmpNil, byte fill = 0);
+PMaskedBitmapMBMP ReadMaskedBitmap(PDataBlock);
+PMaskedBitmapMBMP ReadMaskedBitmap(const MMReadStream *);
+PMaskedBitmapMBMP FetchMaskedBitmap(PResourceCache, ChunkTagOrType, ChunkNumber);
+int ReadCachedMaskedBitmap(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+
+inline void ReleaseMaskedBitmap(PMaskedBitmapMBMP *bitmap)
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
+    mm_masked_owner_release(*bitmap);
+    *bitmap = nullptr;
+}
+#ifdef DEBUG
+void AssertMaskedBitmap(PMaskedBitmapMBMP, bool allowNull = false);
+void MarkMaskedBitmap(PMaskedBitmapMBMP);
+#else
+inline void AssertMaskedBitmap(PMaskedBitmapMBMP, bool = false) {}
+inline void MarkMaskedBitmap(PMaskedBitmapMBMP) {}
+#endif
 
-  protected:
-    // rc (in the MaskedBitmapOnFile) is the bounding rectangle of the mbmp. It implicitly
-    // holds the reference point.
-
-    // C storage holds a MaskedBitmapOnFile followed by an array of the length of each row
-    // (rgcb) followed by the actual pixel data. The rgcb is an array of shorts
-    // of length rc.Dyp(). We store the whole MaskedBitmapOnFile in C storage so that
-    // loading the MaskedBitmapMBMP from a chunky file is fast. If the chunk is compressed,
-    // the host renderer can borrow one contiguous view.
-
-    // The pixel data is stored row by row with transparency encoded using
-    // an RLE scheme. For each row, the first byte is the number of consecutive
-    // tranparent pixels. The next byte is the number of consecutive
-    // non-transparent pixels (cb). The next cb bytes are the values of
-    // the non-transparent pixels. This order repeats itself for the rest of
-    // the row, and then the next row begins. Rows should never end with a
-    // transparent byte.
-
-    // If fMask is true, the non-transparent pixels are not in the buffer. Instead,
-    // all non-transparent pixels have the value bFill.
-    MMMaskedBitmap _bitmap;
-    static MMMaskedServices _Services(void *context = nullptr);
-
-    // MaskedBitmapMBMP header on file
-    struct MaskedBitmapOnFile
-    {
-        short bo;
-        short osk;
-        byte fMask;
-        byte bFill;       // if fMask, the color value to use
-        short swReserved; // should be zero on file
-        RC rc;
-        LegacyLong cb; // length of whole chunk, including the header
-    };
-
-    MaskedBitmapMBMP(void)
-    {
-    }
-    virtual bool _FInit(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, RC *prc, LegacyLong xpRef, LegacyLong ypRef, byte bTransparent,
-                        LegacyUlong grfmbmp = fmbmpNil, byte bDefault = 0);
-    bool _FGetRleBitmap(KauaiPixels::RleBitmap8 *bitmap);
-
-    short *_Qrgcb(void)
-    {
-        return (short *)PvAddBv(_bitmap.data, size(MaskedBitmapOnFile));
-    }
-    MaskedBitmapOnFile *_Qmbmph(void)
-    {
-        return (MaskedBitmapOnFile *)_bitmap.data;
-    }
-
-  public:
-    ~MaskedBitmapMBMP(void);
-
-    static PMaskedBitmapMBMP PmbmpNew(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, RC *prc, LegacyLong xpRef, LegacyLong ypRef, byte bTransparent,
-                          LegacyUlong grfmbmp = fmbmpNil, byte bDefault = 0);
-    static PMaskedBitmapMBMP PmbmpReadNative(Filename *pfni, byte bTransparent = 0, LegacyLong xp = 0, LegacyLong yp = 0, LegacyUlong grfmbmp = fmbmpNil,
-                                 byte bDefault = 0);
-
-    static PMaskedBitmapMBMP PmbmpRead(PDataBlock pblck);
-    static PMaskedBitmapMBMP PmbmpReadChunk(PChunkyFile, ChunkTagOrType, ChunkNumber);
-    static PMaskedBitmapMBMP PmbmpReadStream(const MMReadStream *);
-
-    void GetRc(RC *prc);
-    void Draw(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, LegacyLong xpRef, LegacyLong ypRef, RC *prcClip = pvNil,
-              PRegion pregnClip = pvNil);
-    void DrawMask(byte *prgbPixels, LegacyLong cbRow, LegacyLong dyp, LegacyLong xpRef, LegacyLong ypRef, RC *prcClip = pvNil);
-    bool FDrawPacked(const KauaiPixels::PackedSurface &destination, const RC &rectangle,
-                     const Color *palette, LegacyLong colors, const RC *clip = pvNil,
-                     PRegion region = pvNil, bool andShrink = false);
-    bool FDraw32(const KauaiPixels::Surface32 &destination, const RC &rectangle,
-                  const Color *palette, LegacyLong colors, const RC *clip = pvNil, PRegion region = pvNil);
-    bool FDraw8(const KauaiPixels::Surface8 &destination, const RC &rectangle,
-                 const RC *clip = pvNil, PRegion region = pvNil);
-    bool FDraw8(const KauaiPixels::Surface8 &destination, const RC &rectangle,
-                 const KauaiPixels::MaskedTransfer8 &transfer, const RC *clip = pvNil, PRegion region = pvNil,
-                 bool andShrink = false);
-    bool FPtIn(LegacyLong xp, LegacyLong yp);
-
-    virtual bool FWrite(PDataBlock pblck);
-    bool FWriteStream(MMStorageWriter writer);
-    virtual LegacyLong CbOnFile(void);
-
-    // a chunky resource reader for an MaskedBitmapMBMP
-    static int FReadMbmp(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                          void **object, MMI32 *bytes);
-};
-const ByteOrderMask kbomMbmph = 0xAFFC0000;
+LegacyLong MaskedBitmapSize(PMaskedBitmapMBMP);
+bool WriteMaskedBitmap(PMaskedBitmapMBMP, PDataBlock);
+void GetMaskedBitmapBounds(PMaskedBitmapMBMP, RC *);
+bool MaskedBitmapContains(PMaskedBitmapMBMP, LegacyLong x, LegacyLong y);
+void DrawMaskedBitmap(PMaskedBitmapMBMP, byte *pixels, LegacyLong row, LegacyLong height, LegacyLong x, LegacyLong y,
+                      RC *clip = nullptr, PRegion region = nullptr);
+void DrawMaskedBitmapMask(PMaskedBitmapMBMP, byte *pixels, LegacyLong row, LegacyLong height, LegacyLong x, LegacyLong y,
+                          RC *clip = nullptr);
+bool DrawMaskedBitmapPacked(PMaskedBitmapMBMP, const KauaiPixels::PackedSurface &, const RC &, const Color *,
+                            LegacyLong colors, const RC *clip = nullptr, PRegion region = nullptr, bool andShrink = false);
+bool DrawMaskedBitmap32(PMaskedBitmapMBMP, const KauaiPixels::Surface32 &, const RC &, const Color *,
+                        LegacyLong colors, const RC *clip = nullptr, PRegion region = nullptr);
+bool DrawMaskedBitmap8(PMaskedBitmapMBMP, const KauaiPixels::Surface8 &, const RC &,
+                       const RC *clip = nullptr, PRegion region = nullptr);
+bool DrawMaskedBitmap8(PMaskedBitmapMBMP, const KauaiPixels::Surface8 &, const RC &, const KauaiPixels::MaskedTransfer8 &,
+                       const RC *clip = nullptr, PRegion region = nullptr, bool andShrink = false);
 
 // reads a bitmap from the given file
 bool FReadBitmap(Filename *pfni, byte **pprgb, PDynamicArray *ppglclr, LegacyLong *pdxp, LegacyLong *pdyp, bool *pfUpsideDown,

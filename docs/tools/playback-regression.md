@@ -20304,3 +20304,40 @@ differed on the audible fixture, Marcus sound request coverage was
 inconclusive, and the continuous image comparison requires temporal alignment.
 
 Evidence is under tmp/c89-depth-owner.
+
+## C89 masked bitmap ownership (21 November 2026)
+
+Studio and Marcus Preview now use the C89 masked bitmap owner for colour
+backgrounds and thumbnails. Studio's masked graphics and resource tools use
+the same owner and RLE view. The typed resource-file and resource-manager
+lookups preserve search order, decoded cache charges, and the lifetime of
+bitmaps held by scene composition. World uses the historical toss-first
+priority for both backgrounds. The earlier depth-only cutover had applied
+immediate eviction when the depth reference was released.
+
+All 12 pre-change native x64 and SDL snapshots matched byte for byte across
+masked bitmap IO, World buffers, rendering and export, scene content and
+ownership, and the native movie composition trace. All 193 standalone C89
+checks passed, along with nine targeted AddressSanitizer checks, 15 native
+x64 tests, and three native x86 bitmap and World tests. Native GDI masked
+transfer and palette drawing, Marcus storyboard generation, and Studio
+scene editing and movie save/load were covered. The Windows portfolio source
+also passed a native syntax check.
+
+The chomp and mkmbmp tools built. mkmbmp wrote packed and unpacked output for
+the same source bitmap. The updated help and chunk editor bitmap units
+compiled. The full chelp target still stops at its existing
+RichTextDocument::_FReadChunk signature mismatch.
+
+Fresh suite 20261121T230118Z-ca84d009 completed all 14 capture runs.
+SDL Studio and Marcus each matched all 90 prior seek canvases and 88 of 90
+retail seek canvases. Both matched all 90 retail seek camera indices and
+continuous frame identities. V3dmm matched all 30 retail seek canvases in
+the actor-audio case. SDL and V3dmm matched the six retail sound requests.
+Mixed PCM differed on the audible case and Marcus sound-request comparison
+was inconclusive. SDL Studio saved and reopened the camera-cut movie,
+checking both camera indices in both scenes. Retail reopened the new save
+in suite 20261121T230354Z-1b4253c0 and matched all 60 original seek camera
+indices and canvases.
+
+Evidence is under tmp/c89-masked-owner.

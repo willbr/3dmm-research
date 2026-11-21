@@ -644,7 +644,7 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
         {
             // Select the appropriate bitmap to display.
 
-            if ((pmbmp = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoDisplay, MaskedBitmapMBMP::FReadMbmp)))
+            if ((pmbmp = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, cnoDisplay)))
             {
                 PGraphicsPort pgpt;
                 HPEN hpen, hpenold;
@@ -703,7 +703,7 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
                 SelectObject(pDrawItem->hDC, hbrold);
                 SelectObject(pDrawItem->hDC, hfntold);
 
-                ReleasePpo(&pmbmp);
+                ReleaseMaskedBitmap(&pmbmp);
             }
 
             return (1);
@@ -751,9 +751,9 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
             MapWindowPoints(hwndPreview, hwndCustom, (POINT *)&ptBtn, 1);
 
             // First the home button.
-            if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnHome, MaskedBitmapMBMP::FReadMbmp)))
+            if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, kcnoMbmpPortBtnHome)))
             {
-                pmbmpBtn->GetRc(&rcBmp);
+                GetMaskedBitmapBounds(pmbmpBtn, &rcBmp);
 
                 ptBtn.x += (3 * rcBmp.Dxp()) / 4;
                 ypBtn = min(ptBtn.y - (rcBmp.Dyp() / 2), rcsApp.bottom - (2 * rcBmp.Dyp()));
@@ -761,13 +761,13 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
                 SetWindowPos(GetDlgItem(hwndCustom, IDC_BUTTON3), 0, ptBtn.x, ypBtn, rcBmp.Dxp(), rcBmp.Dyp(),
                              SWP_NOZORDER);
 
-                ReleasePpo(&pmbmpBtn);
+                ReleaseMaskedBitmap(&pmbmpBtn);
             }
 
             // Now the cancel button.
-            if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnCancel, MaskedBitmapMBMP::FReadMbmp)))
+            if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, kcnoMbmpPortBtnCancel)))
             {
-                pmbmpBtn->GetRc(&rcBmp);
+                GetMaskedBitmapBounds(pmbmpBtn, &rcBmp);
 
                 ptBtn.x += (5 * rcBmp.Dxp()) / 4;
                 ypBtn = min(ptBtn.y - (rcBmp.Dyp() / 2), rcsApp.bottom - (2 * rcBmp.Dyp()));
@@ -775,13 +775,13 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
                 SetWindowPos(GetDlgItem(hwndCustom, IDC_BUTTON2), 0, ptBtn.x, ypBtn, rcBmp.Dxp(), rcBmp.Dyp(),
                              SWP_NOZORDER);
 
-                ReleasePpo(&pmbmpBtn);
+                ReleaseMaskedBitmap(&pmbmpBtn);
             }
 
             // Now the ok button.
-            if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, kcnoMbmpPortBtnOk, MaskedBitmapMBMP::FReadMbmp)))
+            if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, kcnoMbmpPortBtnOk)))
             {
-                pmbmpBtn->GetRc(&rcBmp);
+                GetMaskedBitmapBounds(pmbmpBtn, &rcBmp);
 
                 ptBtn.x += (5 * rcBmp.Dxp()) / 4;
                 ypBtn = min(ptBtn.y - (rcBmp.Dyp() / 2), rcsApp.bottom - (2 * rcBmp.Dyp()));
@@ -789,7 +789,7 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
                 SetWindowPos(GetDlgItem(hwndCustom, IDC_BUTTON1), 0, ptBtn.x, ypBtn, rcBmp.Dxp(), rcBmp.Dyp(),
                              SWP_NOZORDER);
 
-                ReleasePpo(&pmbmpBtn);
+                ReleaseMaskedBitmap(&pmbmpBtn);
             }
 
             // Note, win95 may have pushed the portfolio around depending on where the task bar is.
@@ -958,7 +958,7 @@ static void RepaintPortfolio(HWND hwndCustom)
     }
 
     // Get the background bitmap first.
-    if ((pmbmp = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBack, MaskedBitmapMBMP::FReadMbmp)))
+    if ((pmbmp = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, cnoBack)))
     {
         PGraphicsPort pgpt;
         HPEN hpen, hpenold;
@@ -1076,7 +1076,7 @@ static void RepaintPortfolio(HWND hwndCustom)
                             continue;
                         }
 
-                        if ((pmbmpBtn = (PMaskedBitmapMBMP)vpapp->PcrmAll()->PbacoFetch(kctgMbmp, cnoBtn, MaskedBitmapMBMP::FReadMbmp)))
+                        if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, cnoBtn)))
                         {
                             HWND hwndBtn = GetDlgItem(hwndCustom, iBtnId);
                             SystemRectangle rcsBtn;
@@ -1088,7 +1088,7 @@ static void RepaintPortfolio(HWND hwndCustom)
 
                             pgnvOff->DrawMbmp(pmbmpBtn, rcItem.xpLeft, rcItem.ypTop);
 
-                            ReleasePpo(&pmbmpBtn);
+                            ReleaseMaskedBitmap(&pmbmpBtn);
                         }
                     }
 
@@ -1113,7 +1113,7 @@ static void RepaintPortfolio(HWND hwndCustom)
         SelectObject(ps.hdc, hbrold);
         SelectObject(ps.hdc, hfntold);
 
-        ReleasePpo(&pmbmp);
+        ReleaseMaskedBitmap(&pmbmp);
     }
 
     EndPaint(hwndCustom, &ps);
@@ -1151,7 +1151,7 @@ static void OpenPreview(HWND hwndCustom, PGraphicsEnvironment pgnvOff, SystemRec
     if (bitmap)
     {
         pgnvOff->DrawMbmp(bitmap, &rectangle);
-        ReleasePpo(&bitmap);
+        ReleaseMaskedBitmap(&bitmap);
     }
 }
 /***************************************************************************

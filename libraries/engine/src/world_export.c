@@ -42,7 +42,7 @@ int mm_world_export_background(const MMWorldBuffers *b, void *rgb, void *depth, 
     ok = mm_world_depth_resample(&src, &dst, width, height, scale, 0, 0);
 cleanup:
     if (bitmap)
-        s->release(s->context, bitmap);
+        s->release_bitmap(s->context, bitmap);
     if (source)
         s->release_depth(s->context, source);
     if (full)

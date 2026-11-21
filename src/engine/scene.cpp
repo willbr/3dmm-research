@@ -210,6 +210,7 @@ MMSceneOwnerServices Scene::_OwnerServices()
     };
     s.lights_off = [](void *, void *p) { EngineBackground::TurnOffLights(static_cast<PBackground>(p)); };
     s.release_background = [](void *, void *p) { mm_background_owner_release(static_cast<PBackground>(p)); };
+    s.release_thumbnail = [](void *, void *p) { mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(p)); };
     s.text_lifetime = [](void *, void *p, MMI32 *first) -> int {
         auto text = static_cast<PTBOX>(p);
         AssertPo(text, 0);
@@ -335,7 +336,7 @@ void Scene::MarkMem(void)
         MarkPv(track.storage.buffers[0].data);
         MarkPv(track.storage.buffers[1].data);
     }
-    MarkMemObj(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]));
+    MarkMaskedBitmap(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]));
     MarkMemObj(static_cast<PChunkyResourceFile>(_owner.owned[MM_SCENE_BACKGROUND_CACHE]));
     EngineBackground::Mark(Pbkgd());
 
@@ -364,7 +365,7 @@ void Scene::AssertValid(LegacyUlong grf)
     for (MMI32 i = 0; i < mm_scene_member_count(&_owner, MM_SCENE_SELECTION); ++i)
         AssertPo(static_cast<PActor>(mm_scene_member_at(&_owner, MM_SCENE_SELECTION, i)), 0);
     EngineBackground::Validate(Pbkgd());
-    AssertNilOrPo(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]), 0);
+    AssertMaskedBitmap(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]), true);
     for (const auto &track : _owner.tracks)
         Assert(track.rows.storage == &track.storage, "bad scene track storage");
     AssertPo(Pmvie(), 0);
@@ -1953,7 +1954,7 @@ Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
         entry.type = kctgThumbMbmp;
         entry.number = number;
         graph.payload(graph.context, &entry, [](void *out, const MMReadStream *stream) -> int {
-            *static_cast<PMaskedBitmapMBMP *>(out) = MaskedBitmapMBMP::PmbmpReadStream(stream);
+            *static_cast<PMaskedBitmapMBMP *>(out) = ReadMaskedBitmap(stream);
             return MM_MOVIE_OK;
         }, &bitmap);
         return bitmap;
@@ -2052,9 +2053,9 @@ bool Scene::FWrite(const MMMovieArchiveEditor &editor, const MMArchiveWriter &wr
                                         : static_cast<PTBOX>(object)->FWrite(host.editor, host.writer, n);
     };
     s.update_thumbnail = [](void *p) { static_cast<Host *>(p)->scene->_UpdateThumbnail(); };
-    s.thumbnail_size = [](void *, void *p) -> MMI32 { return static_cast<PMaskedBitmapMBMP>(p)->CbOnFile(); };
+    s.thumbnail_size = [](void *, void *p) -> MMI32 { return MaskedBitmapSize(static_cast<PMaskedBitmapMBMP>(p)); };
     s.write_thumbnail = [](void *, void *p, const MMStorageWriter *writer) -> int {
-        return static_cast<PMaskedBitmapMBMP>(p)->FWriteStream(*writer);
+        return mm_masked_owner_write(static_cast<PMaskedBitmapMBMP>(p), writer);
     };
     s.diagnostic = [](void *, int) { Bug("Bad event in frame event list"); };
     return mm_scene_store(pcno, &s) != 0;
@@ -2199,7 +2200,7 @@ MMSceneThumbnailServices Scene::_ThumbnailServices(void *graphics)
     s.bitmap = [](void *, const void *pixels, MMI32 stride, const MMMaskedRect *r,
                   int transparent) -> void * {
         auto bounds = ThumbnailRect(*r);
-        return MaskedBitmapMBMP::PmbmpNew(const_cast<byte *>(static_cast<const byte *>(pixels)), stride, r->bottom,
+        return NewMaskedBitmap(static_cast<const byte *>(pixels), stride, r->bottom,
                                           &bounds, 0, 0, transparent);
     };
     s.unlock = [](void *, void *port) { static_cast<PGraphicsPort>(port)->Unlock(); };

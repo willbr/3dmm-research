@@ -143,7 +143,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LUsage;
     }
 
-    pmbmp = MaskedBitmapMBMP::PmbmpReadNative(&fniSrc, B0Lw(lwTrans), xp, yp);
+    pmbmp = ImportMaskedBitmap(&fniSrc, B0Lw(lwTrans), xp, yp);
     if (pvNil == pmbmp)
     {
         fprintf(stderr, "reading bitmap failed\n\n");
@@ -156,18 +156,18 @@ int __cdecl main(int cpszs, char *prgpszs[])
         goto LFail;
     }
     flo.fp = size(long);
-    flo.cb = pmbmp->CbOnFile();
+    flo.cb = MaskedBitmapSize(pmbmp);
 
     if (cfmtNil != cfmt)
     {
         DataBlock blck;
 
-        if (!blck.FSetTemp(flo.cb) || !pmbmp->FWrite(&blck))
+        if (!blck.FSetTemp(flo.cb) || !WriteMaskedBitmap(pmbmp, &blck))
         {
             fprintf(stderr, "allocation failure\n\n");
             goto LFail;
         }
-        ReleasePpo(&pmbmp);
+        ReleaseMaskedBitmap(&pmbmp);
         if (!blck.FPackData(cfmt))
             lwSig = klwSigUnpackedFile;
         else
@@ -184,12 +184,13 @@ int __cdecl main(int cpszs, char *prgpszs[])
     else
     {
         lwSig = klwSigUnpackedFile;
-        if (!flo.pfil->FWriteRgb(&lwSig, size(long), 0) || !pmbmp->FWriteFlo(&flo))
+        DataBlock blck(&flo);
+        if (!flo.pfil->FWriteRgb(&lwSig, size(long), 0) || !WriteMaskedBitmap(pmbmp, &blck))
         {
             fprintf(stderr, "writing to destination file failed\n\n");
             goto LFail;
         }
-        ReleasePpo(&pmbmp);
+        ReleaseMaskedBitmap(&pmbmp);
     }
 
     ReleasePpo(&flo.pfil);
@@ -202,7 +203,7 @@ LUsage:
             "Usage:  mkmbmp [-c[0|1|2]] [-p <format>] [-o <x> <y>] [-t <b>] <srcBitmapFile> <dstMbmpFile>\n\n");
 
 LFail:
-    ReleasePpo(&pmbmp);
+    ReleaseMaskedBitmap(&pmbmp);
     if (pvNil != flo.pfil)
         flo.pfil->SetTemp();
     ReleasePpo(&flo.pfil);

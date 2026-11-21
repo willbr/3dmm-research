@@ -1045,7 +1045,7 @@ void GraphicsPort::DrawPic(PPicture ppic, SystemRectangle *prcs, GraphicsDrawing
 void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GraphicsDrawingData *pgdd)
 {
     AssertThis(0);
-    AssertPo(pmbmp, 0);
+    AssertMaskedBitmap(pmbmp);
     AssertVarMem(prcs);
     AssertVarMem(pgdd);
     RC rc, rcT;
@@ -1053,7 +1053,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
 
     // REVIEW shonk: fix DrawMbmp to use the rcs.
 
-    pmbmp->GetRc(&rc);
+    GetMaskedBitmapBounds(pmbmp, &rc);
     rc.Offset(prcs->left, prcs->top);
     if (pvNil != pgdd->prcsClip)
     {
@@ -1071,7 +1071,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
 
         Lock();
         hpix = _Hpix();
-        pmbmp->Draw((byte *)(*hpix)->baseAddr, (*hpix)->rowBytes & 0x7FFF, rcT.Dyp(), prcs->left, prcs->top, &rc,
+        DrawMaskedBitmap(pmbmp, (byte *)(*hpix)->baseAddr, (*hpix)->rowBytes & 0x7FFF, rcT.Dyp(), prcs->left, prcs->top, &rc,
                     _pregnClip);
         Unlock();
     }
@@ -1096,7 +1096,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
         Assert(pgpt->_rcOff == rc, 0);
         pgpt->Lock();
         hpix = pgpt->_Hpix();
-        pmbmp->DrawMask((byte *)(*hpix)->baseAddr, (*hpix)->rowBytes & 0x7FFF, rc.Dyp(), prcs->left - ptDst.xp,
+        DrawMaskedBitmapMask(pmbmp, (byte *)(*hpix)->baseAddr, (*hpix)->rowBytes & 0x7FFF, rc.Dyp(), prcs->left - ptDst.xp,
                         prcs->top - ptDst.yp);
 
         // set the mask bits to black
@@ -1122,7 +1122,7 @@ void GraphicsPort::DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, Grap
             _pregnClip->Offset(-ptDst.xp, -ptDst.yp);
         pgpt->Lock();
         hpix = pgpt->_Hpix();
-        pmbmp->Draw((byte *)(*hpix)->baseAddr, (*hpix)->rowBytes & 0x7FFF, rc.Dyp(), prcs->left - ptDst.xp,
+        DrawMaskedBitmap(pmbmp, (byte *)(*hpix)->baseAddr, (*hpix)->rowBytes & 0x7FFF, rc.Dyp(), prcs->left - ptDst.xp,
                     prcs->top - ptDst.yp, &rc, _pregnClip);
         if (pvNil != _pregnClip)
             _pregnClip->Offset(ptDst.xp, ptDst.yp);

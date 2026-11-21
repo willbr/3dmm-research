@@ -42,7 +42,7 @@ extern "C"
         unsigned rgb_type, depth_type;
         void *(*create)(void *, int kind, MMI32 width, MMI32 height);
         void (*retain)(void *, void *), (*release)(void *, void *);
-        void (*release_depth)(void *, void *);
+        void (*release_depth)(void *, void *), (*release_bitmap)(void *, void *);
         void *(*lock)(void *, void *);
         void (*unlock)(void *, void *);
         void (*depth_span)(void *, void *, MMWorldDepthSpan *);

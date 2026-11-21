@@ -18,202 +18,152 @@
 #include "mm/bitmap_file.h"
 ASSERTNAME
 
-RTCLASS(MaskedBitmapMBMP)
-
-namespace {
-struct MaskedContext
+namespace
 {
-    void **object = nullptr;
-    MMI32 *bytes = nullptr;
-};
-MMMaskedRect MaskedRect(const RC &r)
+const MMMaskedOwnerHost &MaskedHost()
 {
-    return {r.xpLeft, r.ypTop, r.xpRight, r.ypBottom};
+    static const MMMaskedOwnerHost host = {
+        {nullptr, mm_masked_native_big_endian(), koskCur,
+         [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemNil, mprNormal); },
+         [](void *, void **p) { FreePpv(p); },
+         [](void *, int code) {
+             if (code == MM_MASKED_EMPTY)
+             {
+                 Warn("Empty source bitmap for MaskedBitmapMBMP");
+             }
+             else
+             {
+                 Bug("Wrong sized block");
+             }
+         },
+         KauaiDecodeBlockHandle,
+         [](void *, void *filename, unsigned char transparent, MMMaskedSource *out) -> int {
+             byte *pixels = nullptr;
+             LegacyLong width, height;
+             bool upsideDown;
+             if (!FReadBitmap(static_cast<PFilename>(filename), &pixels, nullptr, &width, &height, &upsideDown,
+                              transparent))
+                 return 0;
+             *out = {pixels, width, height, upsideDown};
+             return 1;
+         }},
+        KauaiResourceObjectAllocator(),
+#ifdef DEBUG
+        MarkMaskedBitmap
+#else
+        nullptr
+#endif
+    };
+    return host;
 }
 } // namespace
-MMMaskedServices MaskedBitmapMBMP::_Services(void *context)
-{
-    static_assert(sizeof(MaskedBitmapOnFile) == 28, "masked bitmap header layout");
-    MMMaskedServices s = {};
-    s.context = context;
-    const unsigned short one = 1;
-    s.host_big_endian = !*reinterpret_cast<const byte *>(&one);
-    s.system = koskCur;
-    s.create = [](void *) -> void * { return NewObj MaskedBitmapMBMP; };
-    s.state = [](void *, void *p) -> MMMaskedBitmap * { return &static_cast<PMaskedBitmapMBMP>(p)->_bitmap; };
-    s.release = [](void *, void *p) { static_cast<PMaskedBitmapMBMP>(p)->Release(); };
-    s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemNil, mprNormal); };
-    s.free_memory = [](void *, void **p) { FreePpv(p); };
-    s.diagnostic = [](void *, int code) {
-        if (code == MM_MASKED_EMPTY)
-        {
-            Warn("Empty source bitmap for MaskedBitmapMBMP");
-        }
-        else
-        {
-            Bug("Wrong sized block");
-        }
-    };
-    s.decode = KauaiDecodeBlockHandle;
-    s.publish_fetch = [](void *p, int valid, void *object, MMI32 bytes) {
-        auto c = static_cast<MaskedContext *>(p);
-        if (valid)
-        {
-            if (c->object)
-                *c->object = static_cast<PMaskedBitmapMBMP>(object);
-            *c->bytes = bytes;
-        }
-        else
-        {
-            TrashVar(c->object);
-            TrashVar(c->bytes);
-        }
-    };
-    s.bitmap_read = [](void *, void *filename, unsigned char transparent, MMMaskedSource *out) -> int {
-        byte *pixels = nullptr;
-        LegacyLong w, h;
-        bool up;
-        if (!FReadBitmap(static_cast<PFilename>(filename), &pixels, nullptr, &w, &h, &up, transparent))
-            return 0;
-        *out = {pixels, w, h, up};
-        return 1;
-    };
-    return s;
-}
-MaskedBitmapMBMP::~MaskedBitmapMBMP()
-{
-    AssertBaseThis(0);
-    auto s = _Services();
-    mm_masked_dispose(&_bitmap, &s);
-}
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpNew(byte *pixels, LegacyLong row, LegacyLong height, RC *extract, LegacyLong x,
-                                             LegacyLong y, byte transparent, LegacyUlong flags, byte fill)
+
+PMaskedBitmapMBMP NewMaskedBitmap(const byte *pixels, LegacyLong row, LegacyLong height, const RC *extract,
+                                 LegacyLong x, LegacyLong y, byte transparent, LegacyUlong flags, byte fill)
 {
     AssertIn(row, 1, kcbMax);
     AssertIn(height, 1, kcbMax);
-    AssertPvCb(pixels, LwMul(row, height));
-    AssertVarMem(extract);
-    auto r = MaskedRect(*extract);
-    auto s = _Services();
-    return static_cast<PMaskedBitmapMBMP>(
-        mm_masked_new(pixels, row, height, &r, x, y, transparent, flags, fill, &s));
+    AssertPvCb(const_cast<byte *>(pixels), LwMul(row, height));
+    AssertVarMem(const_cast<RC *>(extract));
+    if (!extract)
+        return nullptr;
+    const MMMaskedRect rect = {extract->xpLeft, extract->ypTop, extract->xpRight, extract->ypBottom};
+    return mm_masked_owner_new(pixels, row, height, &rect, x, y, transparent, flags, fill, &MaskedHost());
 }
-bool MaskedBitmapMBMP::_FInit(byte *pixels, LegacyLong row, LegacyLong height, RC *extract, LegacyLong x, LegacyLong y,
-                              byte transparent, LegacyUlong flags, byte fill)
-{
-    AssertVarMem(extract);
-    auto r = MaskedRect(*extract);
-    auto s = _Services();
-    return mm_masked_init(&_bitmap, pixels, row, height, &r, x, y, transparent, flags, fill, &s) != 0;
-}
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadNative(Filename *filename, byte transparent, LegacyLong x, LegacyLong y,
-                                                    LegacyUlong flags, byte fill)
+
+PMaskedBitmapMBMP ImportMaskedBitmap(PFilename filename, byte transparent, LegacyLong x, LegacyLong y,
+                                    LegacyUlong flags, byte fill)
 {
     AssertPo(filename, ffniFile);
-    auto s = _Services();
-    return static_cast<PMaskedBitmapMBMP>(mm_masked_import(filename, transparent, x, y, flags, fill, &s));
+    return mm_masked_owner_import(filename, transparent, x, y, flags, fill, &MaskedHost());
 }
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpRead(PDataBlock block)
+
+PMaskedBitmapMBMP ReadMaskedBitmap(PDataBlock block)
 {
     AssertPo(block, 0);
-    auto s = _Services();
-    return static_cast<PMaskedBitmapMBMP>(mm_masked_read(block->CoreBlock(), &s));
+    return mm_masked_owner_read_block(block->CoreBlock(), &MaskedHost());
 }
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadChunk(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
+
+PMaskedBitmapMBMP ReadMaskedBitmap(const MMReadStream *stream)
 {
-    PMaskedBitmapMBMP object = nullptr;
-    int result;
-    const auto read = [](void *out, const MMReadStream *stream) -> int {
-        auto object = PmbmpReadStream(stream);
-        *static_cast<PMaskedBitmapMBMP *>(out) = object;
-        return object != nullptr;
-    };
-    mm_chunk_read_payload(KauaiChunkPayloadServices(), file, type, number, read, &object, &result);
-    return object;
+    return mm_masked_owner_read_stream(stream, &MaskedHost());
 }
-PMaskedBitmapMBMP MaskedBitmapMBMP::PmbmpReadStream(const MMReadStream *stream)
+
+PMaskedBitmapMBMP FetchMaskedBitmap(PResourceCache cache, ChunkTagOrType type, ChunkNumber number)
 {
-    MMMaskedBitmap bitmap = {};
-    const auto services = _Services();
-    if (!mm_masked_read_stream(stream, &bitmap, &services))
-        return nullptr;
-    auto object = NewObj MaskedBitmapMBMP;
-    if (!object)
-    {
-        mm_masked_dispose(&bitmap, &services);
-        return nullptr;
-    }
-    object->_bitmap = bitmap;
-    return object;
+    return static_cast<PMaskedBitmapMBMP>(
+        cache->FetchOwned(type, number, ReadCachedMaskedBitmap, mm_masked_owner_services()));
 }
-LegacyLong MaskedBitmapMBMP::CbOnFile()
+
+int ReadCachedMaskedBitmap(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-    AssertThis(0);
-    return _bitmap.bytes;
+    return mm_masked_owner_fetch(block, out, bytes, &MaskedHost());
 }
-bool MaskedBitmapMBMP::FWrite(PDataBlock block)
+
+LegacyLong MaskedBitmapSize(PMaskedBitmapMBMP owner)
 {
-    AssertThis(0);
+    AssertMaskedBitmap(owner);
+    return mm_masked_owner_bitmap(owner)->bytes;
+}
+
+bool WriteMaskedBitmap(PMaskedBitmapMBMP owner, PDataBlock block)
+{
+    AssertMaskedBitmap(owner);
     AssertPo(block, 0);
     MMBlockIO io;
     MMStorageWriter writer;
     return mm_owned_block_io(block->CoreBlock(), &io) == MM_DATA_OK &&
-           mm_block_io_writer(&io, &writer) == MM_DATA_OK && FWriteStream(writer);
+           mm_block_io_writer(&io, &writer) == MM_DATA_OK && mm_masked_owner_write(owner, &writer);
 }
-bool MaskedBitmapMBMP::FWriteStream(MMStorageWriter writer)
+
+void GetMaskedBitmapBounds(PMaskedBitmapMBMP owner, RC *out)
 {
-    AssertThis(0);
-    auto s = _Services();
-    return mm_masked_write(&_bitmap, &writer, &s) != 0;
-}
-void MaskedBitmapMBMP::GetRc(RC *out)
-{
-    AssertThis(0);
+    AssertMaskedBitmap(owner);
     AssertVarMem(out);
-    auto s = _Services();
     MMMaskedRect r;
-    mm_masked_bounds(&_bitmap, s.host_big_endian, &r);
+    mm_masked_bounds(mm_masked_owner_bitmap(owner), mm_masked_native_big_endian(), &r);
     out->Set(r.left, r.top, r.right, r.bottom);
 }
-bool MaskedBitmapMBMP::FPtIn(LegacyLong x, LegacyLong y)
+
+bool MaskedBitmapContains(PMaskedBitmapMBMP owner, LegacyLong x, LegacyLong y)
 {
-    AssertThis(0);
-    auto s = _Services();
-    return mm_masked_hit(&_bitmap, s.host_big_endian, x, y) != 0;
+    AssertMaskedBitmap(owner);
+    return mm_masked_hit(mm_masked_owner_bitmap(owner), mm_masked_native_big_endian(), x, y) != 0;
 }
+
 #ifdef DEBUG
-void MaskedBitmapMBMP::AssertValid(LegacyUlong grf)
+void AssertMaskedBitmap(PMaskedBitmapMBMP owner, bool allowNull)
 {
-    MaskedBitmapMBMP_PAR::AssertValid(0);
-    AssertPvCb(_bitmap.data, _bitmap.bytes);
-    RC r = _Qmbmph()->rc;
-    Assert(_bitmap.row_bytes == LwMul(r.Dyp(), sizeof(short)), "wrong row table size");
-    LegacyLong total = 28 + _bitmap.row_bytes;
-    auto rows = _Qrgcb();
-    for (LegacyLong i = 0; i < r.Dyp(); ++i)
+    Assert(owner || allowNull, "missing masked bitmap");
+    if (!owner)
+        return;
+    const auto bitmap = mm_masked_owner_bitmap(owner);
+    AssertPvCb(bitmap->data, bitmap->bytes);
+    MMMaskedRle view = {};
+    AssertDo(mm_masked_rle_view(bitmap, mm_masked_native_big_endian(), &view), "wrong bitmap bounds");
+    size_t total = 28 + bitmap->row_bytes;
+    const auto rows = static_cast<const short *>(view.row_bytes);
+    for (LegacyLong i = 0; i < view.height; ++i)
     {
         AssertIn(rows[i], 0, kcbMax);
         total += rows[i];
     }
-    Assert(total == _bitmap.bytes, "wrong bitmap size");
-    (void)grf;
+    Assert(total == size_t(bitmap->bytes), "wrong bitmap size");
 }
-void MaskedBitmapMBMP::MarkMem()
+
+void MarkMaskedBitmap(PMaskedBitmapMBMP owner)
 {
-    AssertThis(0);
-    MaskedBitmapMBMP_PAR::MarkMem();
-    MarkPv(_bitmap.data);
+    if (!owner)
+        return;
+    AssertMaskedBitmap(owner);
+    MarkPv(owner);
+    MarkPv(mm_masked_owner_bitmap(owner)->data);
+    const auto binding = mm_masked_owner_binding(owner);
+    if (binding->cache && !binding->attached)
+        MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
 }
 #endif
-int MaskedBitmapMBMP::FReadMbmp(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
-                        void **out, MMI32 *bytes)
-{
-    MaskedContext context;
-    context.object = out;
-    context.bytes = bytes;
-    const auto s = _Services(&context);
-    return mm_masked_fetch(block, out != nullptr, &s);
-}
+
 /***************************************************************************
     Given an Filename refering to a bitmap file, returns the interesting parts of
     the header and the pixel data and palette.  Fails if the bitmap is not

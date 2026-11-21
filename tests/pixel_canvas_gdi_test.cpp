@@ -364,7 +364,7 @@ int main()
     int maskCases = 0;
     for (int mode = 0; mode < 3; ++mode)
     {
-        auto mbmp = MaskedBitmapMBMP::PmbmpNew(sprite, 7, 5, &spriteBounds, 5, 7, 0, mode ? fmbmpMask : fmbmpNil,
+        auto mbmp = NewMaskedBitmap(sprite, 7, 5, &spriteBounds, 5, 7, 0, mode ? fmbmpMask : fmbmpNil,
                                                mode == 1 ? 17 : 0);
         if (!mbmp)
             return 1;
@@ -378,7 +378,7 @@ int main()
             SystemRectangle nativeDestination = destinations[index];
             port->DrawMbmp(mbmp, &nativeDestination, &drawing);
             GraphicsPort::Flush();
-            if (!mbmp->FDraw32(surface, destinations[index], palette, 256, &clip, region))
+            if (!DrawMaskedBitmap32(mbmp, surface, destinations[index], palette, 256, &clip, region))
                 return 1;
             for (int i = 0; i < width * height; ++i)
                 if ((static_cast<std::uint32_t *>(bits)[i] & 0xFFFFFF) != (portable[i] & 0xFFFFFF))
@@ -393,7 +393,7 @@ int main()
             std::fill(indexedPixels.begin(), indexedPixels.end(), 125);
             indexedPort->DrawMbmp(mbmp, &nativeDestination, &drawing);
             GraphicsPort::Flush();
-            if (!mbmp->FDraw8(indexedSurface, destinations[index], &clip, region))
+            if (!DrawMaskedBitmap8(mbmp, indexedSurface, destinations[index], &clip, region))
                 return 1;
             for (int y = 0; y < height; ++y)
                 for (int x = 0; x < indexedPitch; ++x)
@@ -415,7 +415,7 @@ int main()
                 }
             ++maskCases;
         }
-        ReleasePpo(&mbmp);
+        ReleaseMaskedBitmap(&mbmp);
     }
     ReleasePpo(&indexedPort);
     SelectObject(indexedDc, previousIndexedBitmap);

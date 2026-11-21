@@ -3,60 +3,50 @@
 #include "kauai_core.h"
 #include "mbmp.h"
 ASSERTNAME
-bool MaskedBitmapMBMP::_FGetRleBitmap(KauaiPixels::RleBitmap8 *bitmap)
+namespace
 {
-    const auto header = _Qmbmph();
-    const auto width = std::int64_t(header->rc.xpRight) - header->rc.xpLeft;
-    const auto height = std::int64_t(header->rc.ypBottom) - header->rc.ypTop;
-    if (width <= 0 || height <= 0)
-    {
-        *bitmap = {};
-        return true;
-    }
-    const auto encodedOffset = std::int64_t(sizeof(MaskedBitmapOnFile)) + _bitmap.row_bytes;
-    const auto total = _bitmap.bytes;
-    if (width > INT32_MAX || height > INT32_MAX || _bitmap.row_bytes != height * sizeof(short) || encodedOffset > total)
+bool GetRleBitmap(PMaskedBitmapMBMP owner, KauaiPixels::RleBitmap8 *bitmap)
+{
+    MMMaskedRle view;
+    if (!mm_masked_rle_view(mm_masked_owner_bitmap(owner), mm_masked_native_big_endian(), &view))
         return false;
-    *bitmap = {reinterpret_cast<const std::uint8_t *>(header) + encodedOffset,
-               static_cast<std::size_t>(total - encodedOffset),
-               _Qrgcb(),
-               static_cast<std::int32_t>(width),
-               static_cast<std::int32_t>(height),
-               header->fMask != 0,
-               header->bFill};
+    *bitmap = {view.data, view.bytes, static_cast<const std::int16_t *>(view.row_bytes),
+               view.width, view.height, view.solid != 0, view.fill};
     return true;
 }
-bool MaskedBitmapMBMP::FDraw32(const KauaiPixels::Surface32 &destination, const RC &rectangle, const Color *palette,
+} // namespace
+
+bool DrawMaskedBitmap32(PMaskedBitmapMBMP owner, const KauaiPixels::Surface32 &destination, const RC &rectangle, const Color *palette,
                                LegacyLong colors, const RC *clip, PRegion region)
 {
     KauaiPixels::RleBitmap8 bitmap;
-    if (!_FGetRleBitmap(&bitmap))
+    if (!GetRleBitmap(owner, &bitmap))
         return false;
     return !bitmap.width || KauaiPixels::DrawRle(destination, bitmap, rectangle, palette, colors, clip, region);
 }
-bool MaskedBitmapMBMP::FDraw8(const KauaiPixels::Surface8 &destination, const RC &rectangle, const RC *clip,
+bool DrawMaskedBitmap8(PMaskedBitmapMBMP owner, const KauaiPixels::Surface8 &destination, const RC &rectangle, const RC *clip,
                               PRegion region)
 {
     KauaiPixels::RleBitmap8 bitmap;
-    if (!_FGetRleBitmap(&bitmap))
+    if (!GetRleBitmap(owner, &bitmap))
         return false;
     return !bitmap.width || KauaiPixels::DrawRle(destination, bitmap, rectangle, clip, region);
 }
-bool MaskedBitmapMBMP::FDraw8(const KauaiPixels::Surface8 &destination, const RC &rectangle,
+bool DrawMaskedBitmap8(PMaskedBitmapMBMP owner, const KauaiPixels::Surface8 &destination, const RC &rectangle,
                               const KauaiPixels::MaskedTransfer8 &transfer, const RC *clip, PRegion region,
                               bool andShrink)
 {
     KauaiPixels::RleBitmap8 bitmap;
-    if (!_FGetRleBitmap(&bitmap))
+    if (!GetRleBitmap(owner, &bitmap))
         return false;
     return !bitmap.width || KauaiPixels::DrawRle(destination, bitmap, rectangle, transfer, clip, region, andShrink);
 }
-bool MaskedBitmapMBMP::FDrawPacked(const KauaiPixels::PackedSurface &destination, const RC &rectangle,
+bool DrawMaskedBitmapPacked(PMaskedBitmapMBMP owner, const KauaiPixels::PackedSurface &destination, const RC &rectangle,
                                    const Color *palette, LegacyLong colors, const RC *clip, PRegion region,
                                    bool andShrink)
 {
     KauaiPixels::RleBitmap8 bitmap;
-    if (!_FGetRleBitmap(&bitmap))
+    if (!GetRleBitmap(owner, &bitmap))
         return false;
     return !bitmap.width ||
            KauaiPixels::DrawRle(destination, bitmap, rectangle, palette, colors, clip, region, andShrink);

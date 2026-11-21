@@ -115,13 +115,13 @@ int main()
     for (int i = 0; i < 192; ++i)
         pixels[i] = byte(1 + (i * 13) % 254);
     RC r(0, 0, 16, 12);
-    auto bitmap = MaskedBitmapMBMP::PmbmpNew(pixels, 16, 12, &r, 0, 0, 0);
+    auto bitmap = NewMaskedBitmap(pixels, 16, 12, &r, 0, 0, 0);
     CHECK(bitmap);
     ChunkNumber rgb = 0, z = 0;
     DataBlock b;
-    CHECK(file->FAdd(bitmap->CbOnFile(), kctgMbmp, &rgb, &b) && bitmap->FWrite(&b));
+    CHECK(file->FAdd(MaskedBitmapSize(bitmap), kctgMbmp, &rgb, &b) && WriteMaskedBitmap(bitmap, &b));
     b.Free();
-    ReleasePpo(&bitmap);
+    ReleaseMaskedBitmap(&bitmap);
     auto depth = NewDepthBitmap(16, 12);
     CHECK(depth);
     for (int i = 0; i < 384; ++i)
@@ -135,6 +135,20 @@ int main()
         CHECK(w);
         Access::State(w, false);
         CHECK(w->FSetBackground(cache, kctgMbmp, rgb, kctgZbmp, z));
+        if (mode == 0)
+        {
+            auto core = cache->CoreCache();
+            CHECK(core->count == 2);
+            for (MMU32 i = 0; i < core->count; ++i)
+            {
+                MMResourceEntry entry;
+                CHECK(mm_resource_cache_at(core, i, &entry) == MM_STORAGE_OK && entry.objects);
+                const auto binding = entry.objects->state(entry.object);
+                CHECK(binding->priority == crepTossFirst);
+                CHECK(entry.objects == (binding->type == kctgMbmp ? mm_masked_owner_services()
+                                                                 : mm_depth_owner_services()));
+            }
+        }
         Access::State(w, true);
         for (int change = 0; change < 4; ++change)
         {

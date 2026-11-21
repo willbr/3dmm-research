@@ -991,12 +991,13 @@ priority, detach and destruction operations and preserves its historical
 charges. Live reads decode through C89 blocks and share the Preview stream
 reader. Studio and the Marcus storyboard use the same positional depth writer.
 Depth drawing clips and scans C89 regions directly.
-Masked-bitmap construction/cropping, RLE encoding, wire validation/normalization,
-hit testing, cache factories, BMP import control and pixel lifetime now also use
-C89. Live masked bitmap readers use the same bounded stream transfer as Preview
-and C releases consumed memory blocks. Native block and archive writes use one
-positional writer. Native drawing adapters borrow the host-order
-header/row-table/RLE view.
+Studio and Marcus Preview share a C89 masked bitmap owner for colour
+backgrounds and scene thumbnails. Studio's masked sprites and tool bitmaps use
+the same owner through typed cache and file adapters. The C owner manages
+references and contiguous RLE storage, preserves stored-size probes and decoded
+cache charges, and consumes memory-backed blocks after a successful byte
+transfer. Native drawing borrows the C RLE view. Studio and Marcus use the
+same positional bitmap writer.
 World buffer/depth/region/background-cache ownership, construction order, mode
 transactions, background loading and depth resampling now also use C89. The C
 records are the live source for rendering, picking and export. Native adapters

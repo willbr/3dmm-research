@@ -762,7 +762,7 @@ void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTagOrType ctg, Chun
         goto LFail;
     }
 
-    if (pvNil == (pmbmp = MaskedBitmapMBMP::PmbmpReadNative(&fni, (byte)rgphp[0].lw, rgphp[1].lw, rgphp[2].lw,
+    if (pvNil == (pmbmp = ImportMaskedBitmap(&fni, (byte)rgphp[0].lw, rgphp[1].lw, rgphp[2].lw,
                                                 fMask ? fmbmpMask : fmbmpNil)))
     {
         String stn;
@@ -773,13 +773,13 @@ void Compiler::_ParseBodyBitmap(bool fPack, bool fMask, ChunkTagOrType ctg, Chun
 
     if (!FError())
     {
-        if (!_FPrepWrite(fPack, pmbmp->CbOnFile(), ctg, cno, &blck) || !pmbmp->FWrite(&blck) ||
+        if (!_FPrepWrite(fPack, MaskedBitmapSize(pmbmp), ctg, cno, &blck) || !WriteMaskedBitmap(pmbmp, &blck) ||
             !_FEndWrite(fPack, ctg, cno, &blck))
         {
             _Error(ertOom);
         }
     }
-    ReleasePpo(&pmbmp);
+    ReleaseMaskedBitmap(&pmbmp);
 
     if (_FGetCleanTok(&tok) && ttEndChunk != tok.tt)
     {

@@ -37,13 +37,12 @@ PMaskedBitmapMBMP LoadPreview(Filename *selection, LegacyUlong previews)
             const auto chunks = cache->ReadChunkAccess();
             MMU32 thumbnail;
             if (mm_movie_first_scene_thumbnail(&chunks, &thumbnail) == MM_CHUNK_OK)
-                result = static_cast<PMaskedBitmapMBMP>(cache->PbacoFetch(MM_SCENE_THUMBNAIL_TYPE, thumbnail,
-                                                                         MaskedBitmapMBMP::FReadMbmp));
+                result = FetchMaskedBitmap(cache, MM_SCENE_THUMBNAIL_TYPE, thumbnail);
             ReleasePpo(&cache);
         }
     }
     if (!result && (previews & fpfPortPrevTexture))
-        result = MaskedBitmapMBMP::PmbmpReadNative(selection, 0, 0, 0, fmbmpNil);
+        result = ImportMaskedBitmap(selection, 0, 0, 0, fmbmpNil);
     return result;
 }
 bool AppendSaveExtension(PString path, PZString extension, bool different)

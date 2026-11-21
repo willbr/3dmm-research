@@ -152,7 +152,7 @@ static bool Transfers()
         for (int mask : {0, 1})
         {
             auto bitmap =
-                MaskedBitmapMBMP::PmbmpNew(sprite, 4, 3, &spriteBounds, 4, 3, 0, mask ? fmbmpMask : fmbmpNil, 255);
+                NewMaskedBitmap(sprite, 4, 3, &spriteBounds, 4, 3, 0, mask ? fmbmpMask : fmbmpNil, 255);
             CHECK(bitmap);
             for (int scale : {1, 2})
             {
@@ -167,7 +167,7 @@ static bool Transfers()
                             WritePixel(expected.data(), pitch, depth, x, y, white);
                 CHECK(!std::memcmp(output, expected.data(), bytes));
             }
-            ReleasePpo(&bitmap);
+            ReleaseMaskedBitmap(&bitmap);
         }
         source->Unlock();
         destination->Unlock();
@@ -204,7 +204,7 @@ static bool PaletteTransfers()
     // indices, while stretching it into a private palette translates colors.
     byte sprite[] = {249, 249, 249, 249}; // Application identity red.
     RC spriteBounds(0, 0, 2, 2);
-    auto bitmap = MaskedBitmapMBMP::PmbmpNew(sprite, 2, 2, &spriteBounds, 0, 0, 0);
+    auto bitmap = NewMaskedBitmap(sprite, 2, 2, &spriteBounds, 0, 0, 0);
     CHECK(bitmap);
     SystemRectangle same{0, 0, 2, 2}, scaled{0, 0, 4, 4};
     indexed->DrawMbmp(bitmap, &same, &drawing);
@@ -213,7 +213,7 @@ static bool PaletteTransfers()
     for (int y = 0; y < 4; ++y)
         for (int x = 0; x < 4; ++x)
             CHECK(indices[y * indexed->CbRow() + x] == 19);
-    ReleasePpo(&bitmap);
+    ReleaseMaskedBitmap(&bitmap);
     // This existing conversion still requires a native quantization policy.
     // POSIX must report it without silently changing or erasing the pixels.
     LegacyLong error;

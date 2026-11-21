@@ -83,9 +83,33 @@ static void canonical(unsigned char *b, MMI32 n, const MMMaskedServices *s)
     put(b + 6, 2, 0, s->host_big_endian);
     put(b + 24, 4, (MMU32)n, s->host_big_endian);
 }
+static int allocate_data(const MMMaskedServices *s, MMI32 bytes, void **out)
+{
+    if (s && s->allocate)
+        return s->allocate(s->context, bytes, out);
+    if ((size_t)bytes != (MMU32)bytes)
+        return 0;
+    *out = malloc((size_t)bytes);
+    return *out != NULL;
+}
+static void free_data(const MMMaskedServices *s, void **data)
+{
+    if (s && s->free_memory)
+        s->free_memory(s->context, data);
+    else
+    {
+        free(*data);
+        *data = NULL;
+    }
+}
+static void diagnostic(const MMMaskedServices *s, int code)
+{
+    if (s->diagnostic)
+        s->diagnostic(s->context, code);
+}
 void mm_masked_dispose(MMMaskedBitmap *m, const MMMaskedServices *s)
 {
-    s->free_memory(s->context, &m->data);
+    free_data(s, &m->data);
     m->bytes = m->row_bytes = 0;
 }
 int mm_masked_init(MMMaskedBitmap *m, const unsigned char *pixels, MMI32 row, MMI32 height,
@@ -119,7 +143,7 @@ int mm_masked_init(MMMaskedBitmap *m, const unsigned char *pixels, MMI32 row, MM
     if (left == MAXIMUM)
     {
         left = top = right = bottom = 0;
-        s->diagnostic(s->context, MM_MASKED_EMPTY);
+        diagnostic(s, MM_MASKED_EMPTY);
     }
     if (!subtract(left, xref, &r.left) || !subtract(right, xref, &r.right) || !subtract(top, yref, &r.top) ||
         !subtract(bottom, yref, &r.bottom))
@@ -136,7 +160,7 @@ int mm_masked_init(MMMaskedBitmap *m, const unsigned char *pixels, MMI32 row, MM
             return 0;
         n += count;
     }
-    if (!s->allocate(s->context, n, &data))
+    if (!allocate_data(s, n, &data))
         return 0;
     b = (unsigned char *)data;
     memset(b, 0, 28);
@@ -160,18 +184,6 @@ int mm_masked_init(MMMaskedBitmap *m, const unsigned char *pixels, MMI32 row, MM
     m->bytes = n;
     m->row_bytes = table;
     return 1;
-}
-void *mm_masked_new(const unsigned char *pixels, MMI32 row, MMI32 height, const MMMaskedRect *r,
-                          MMI32 x, MMI32 y, unsigned char transparent, unsigned flags, unsigned char fill,
-                          const MMMaskedServices *s)
-{
-    void *o = s->create(s->context);
-    if (o && !mm_masked_init(s->state(s->context, o), pixels, row, height, r, x, y, transparent, flags, fill, s))
-    {
-        s->release(s->context, o);
-        o = NULL;
-    }
-    return o;
 }
 void mm_masked_bounds(const MMMaskedBitmap *m, int big, MMMaskedRect *r)
 {
@@ -676,7 +688,7 @@ static int read_masked_bytes(const MMReadStream *stream, MMMaskedBitmap *m, cons
     if (stream->length < 28 || stream->length > MAXIMUM || (size_t)stream->length != stream->length)
         return 0;
     m->bytes = (MMI32)stream->length;
-    if (!s->allocate(s->context, m->bytes, &m->data))
+    if (!allocate_data(s, m->bytes, &m->data))
         return 0;
     if (!mm_read_exact(stream, 0, m->data, (size_t)m->bytes))
     {
@@ -699,70 +711,223 @@ int mm_masked_read_stream(const MMReadStream *stream, MMMaskedBitmap *out, const
     return 1;
 }
 
-static void *read_masked_block(MMOwnedBlock *block, const MMMaskedServices *s)
+int mm_masked_rle_view(const MMMaskedBitmap *bitmap, int big, MMMaskedRle *out)
 {
-    MMMaskedBitmap m = {0};
+    const unsigned char *header = bitmap->data;
+    MMMaskedRect bounds;
+    MMU32 width, height;
+    if (!header || bitmap->bytes < 28)
+        return 0;
+    mm_masked_bounds(bitmap, big, &bounds);
+    width = (MMU32)bounds.right - (MMU32)bounds.left;
+    height = (MMU32)bounds.bottom - (MMU32)bounds.top;
+    memset(out, 0, sizeof(*out));
+    if (!width || !height)
+        return 1;
+    if (width > MAXIMUM || height > (MAXIMUM - 28) / 2 || bitmap->row_bytes != (MMI32)height * 2 ||
+        bitmap->row_bytes > bitmap->bytes - 28)
+        return 0;
+    out->data = header + 28 + bitmap->row_bytes;
+    out->bytes = (size_t)(bitmap->bytes - 28 - bitmap->row_bytes);
+    out->row_bytes = header + 28;
+    out->width = (MMI32)width;
+    out->height = (MMI32)height;
+    out->solid = header[4] != 0;
+    out->fill = header[5];
+    return 1;
+}
+
+int mm_masked_native_big_endian(void)
+{
+    const unsigned short one = 1;
+    return *(const unsigned char *)&one == 0;
+}
+
+struct MMMaskedOwner
+{
+    MMResourceObject binding;
+    MMReference references;
+    const MMMaskedOwnerHost *host;
+    MMMaskedBitmap bitmap;
+};
+
+static const MMMaskedServices *bitmap_services(const MMMaskedOwnerHost *host, MMMaskedServices *heap)
+{
+    if (host)
+        return &host->bitmap;
+    memset(heap, 0, sizeof(*heap));
+    heap->host_big_endian = mm_masked_native_big_endian();
+    return heap;
+}
+
+static MMMaskedOwner *create(const MMMaskedOwnerHost *host)
+{
+    const MMStorageAllocator *allocator = host ? host->objects : NULL;
+    MMMaskedOwner *owner = allocator ? allocator->resize(allocator->context, NULL, 0, sizeof(*owner), MM_STORAGE_NORMAL)
+                                    : malloc(sizeof(*owner));
+    if (owner)
+    {
+        memset(owner, 0, sizeof(*owner));
+        mm_reference_init(&owner->references);
+        owner->host = host;
+    }
+    return owner;
+}
+
+static MMResourceObject *binding(void *object) { return &((MMMaskedOwner *)object)->binding; }
+static MMReference *references(void *object) { return &((MMMaskedOwner *)object)->references; }
+
+static void destroy(void *object)
+{
+    MMMaskedOwner *owner = object;
+    const MMMaskedOwnerHost *host = owner->host;
+    const MMStorageAllocator *allocator = host ? host->objects : NULL;
+    mm_masked_dispose(&owner->bitmap, host ? &host->bitmap : NULL);
+    mm_resource_object_dispose(owner, mm_masked_owner_services());
+    if (allocator)
+        allocator->release(allocator->context, owner, sizeof(*owner));
+    else
+        free(owner);
+}
+
+static void mark(void *object)
+{
+    MMMaskedOwner *owner = object;
+    if (owner->host && owner->host->mark)
+        owner->host->mark(owner);
+}
+
+const MMResourceObjectServices *mm_masked_owner_services(void)
+{
+    static const MMResourceObjectServices services = {binding, references, destroy, NULL, mark};
+    return &services;
+}
+
+const MMMaskedBitmap *mm_masked_owner_bitmap(const MMMaskedOwner *owner) { return &owner->bitmap; }
+const MMResourceObject *mm_masked_owner_binding(const MMMaskedOwner *owner) { return &owner->binding; }
+
+void mm_masked_owner_retain(MMMaskedOwner *owner)
+{
+    if (owner)
+        mm_reference_add(&owner->references);
+}
+
+void mm_masked_owner_release(MMMaskedOwner *owner)
+{
+    if (owner)
+        mm_resource_object_release(owner, mm_masked_owner_services());
+}
+
+void mm_masked_owner_priority(MMMaskedOwner *owner, MMI32 priority)
+{
+    mm_resource_object_priority(owner, priority, mm_masked_owner_services());
+}
+
+MMMaskedOwner *mm_masked_owner_new(const unsigned char *pixels, MMI32 row, MMI32 height, const MMMaskedRect *r,
+                                   MMI32 x, MMI32 y, unsigned char transparent, unsigned flags, unsigned char fill,
+                                   const MMMaskedOwnerHost *host)
+{
+    MMMaskedServices heap;
+    MMMaskedOwner *owner = create(host);
+    if (owner && !mm_masked_init(&owner->bitmap, pixels, row, height, r, x, y, transparent, flags, fill,
+                                 bitmap_services(host, &heap)))
+    {
+        mm_masked_owner_release(owner);
+        return NULL;
+    }
+    return owner;
+}
+
+static MMMaskedOwner *adopt(MMMaskedBitmap *bitmap, const MMMaskedOwnerHost *host)
+{
+    MMMaskedOwner *owner = create(host);
+    if (owner)
+        owner->bitmap = *bitmap;
+    else
+        mm_masked_dispose(bitmap, host ? &host->bitmap : NULL);
+    return owner;
+}
+
+MMMaskedOwner *mm_masked_owner_read_stream(const MMReadStream *stream, const MMMaskedOwnerHost *host)
+{
+    MMMaskedServices heap;
+    MMMaskedBitmap bitmap = {0};
+    if (!mm_masked_read_stream(stream, &bitmap, bitmap_services(host, &heap)))
+        return NULL;
+    return adopt(&bitmap, host);
+}
+
+static MMMaskedOwner *read_masked_block(MMOwnedBlock *block, const MMMaskedOwnerHost *host,
+                                        const MMMaskedServices *s)
+{
+    MMMaskedBitmap bitmap = {0};
     MMBlockIO io;
     MMReadStream stream;
-    void *object = NULL;
     if (mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK ||
-        !read_masked_bytes(&stream, &m, s))
+        !read_masked_bytes(&stream, &bitmap, s))
         return NULL;
     if (io.view.kind == MM_BLOCK_MEMORY)
         mm_owned_block_clear(block);
-    if (mm_masked_validate(&m, s->host_big_endian))
-        object = s->create(s->context);
-    if (object)
-        *s->state(s->context, object) = m;
-    else
-        mm_masked_dispose(&m, s);
-    return object;
+    if (mm_masked_validate(&bitmap, s->host_big_endian))
+        return adopt(&bitmap, host);
+    mm_masked_dispose(&bitmap, s);
+    return NULL;
 }
-void *mm_masked_read(MMOwnedBlock *block, const MMMaskedServices *s)
+
+MMMaskedOwner *mm_masked_owner_read_block(MMOwnedBlock *block, const MMMaskedOwnerHost *host)
 {
-    if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK)
+    MMMaskedServices heap;
+    const MMMaskedServices *s = bitmap_services(host, &heap);
+    if (block->view.packed && mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK)
         return NULL;
-    return read_masked_block(block, s);
+    return read_masked_block(block, host, s);
 }
-int mm_masked_fetch(MMOwnedBlock *block, int want, const MMMaskedServices *s)
+
+int mm_masked_owner_fetch(MMOwnedBlock *block, void **out, MMI32 *bytes, const MMMaskedOwnerHost *host)
 {
-    MMI32 n;
-    void *o;
-    if (!want)
+    MMMaskedOwner *owner;
+    if (!out)
     {
-        s->publish_fetch(s->context, 1, NULL, (MMI32)block->view.length);
+        *bytes = (MMI32)block->view.length;
         return 1;
     }
-    if (mm_owned_block_code(block, 0, s->context, s->decode, NULL) != MM_DATA_OK)
-        goto fail;
-    n = (MMI32)block->view.length;
-    o = read_masked_block(block, s);
-    if (!o)
-        goto fail;
-    s->publish_fetch(s->context, 1, o, n);
+    owner = mm_masked_owner_read_block(block, host);
+    if (!owner)
+        return 0;
+    *out = owner;
+    *bytes = owner->bitmap.bytes;
     return 1;
-fail:
-    s->publish_fetch(s->context, 0, NULL, 0);
-    return 0;
 }
-int mm_masked_write(MMMaskedBitmap *m, const MMStorageWriter *writer, const MMMaskedServices *s)
+
+int mm_masked_write(const MMMaskedBitmap *m, const MMStorageWriter *writer, const MMMaskedServices *s)
 {
     if (!m->data || m->bytes < 28)
         return 0;
     canonical((unsigned char *)m->data, m->bytes, s);
     if ((MMU32)m->bytes != writer->length)
     {
-        s->diagnostic(s->context, MM_MASKED_WRONG_SIZE);
+        diagnostic(s, MM_MASKED_WRONG_SIZE);
         return 0;
     }
     return writer->write_at && writer->write_at(writer->context, 0, m->data, (size_t)m->bytes);
 }
-void *mm_masked_import(void *filename, unsigned char transparent, MMI32 x, MMI32 y, unsigned flags,
-                             unsigned char fill, const MMMaskedServices *s)
+
+int mm_masked_owner_write(const MMMaskedOwner *owner, const MMStorageWriter *writer)
 {
+    MMMaskedServices heap;
+    return mm_masked_write(&owner->bitmap, writer, bitmap_services(owner->host, &heap));
+}
+
+MMMaskedOwner *mm_masked_owner_import(void *filename, unsigned char transparent, MMI32 x, MMI32 y,
+                                      unsigned flags, unsigned char fill, const MMMaskedOwnerHost *host)
+{
+    const MMMaskedServices *s;
     MMMaskedSource input;
     MMMaskedRect r;
-    void *o = NULL;
+    MMMaskedOwner *owner = NULL;
+    if (!host || !host->bitmap.bitmap_read)
+        return NULL;
+    s = &host->bitmap;
     memset(&input, 0, sizeof(input));
     if (!s->bitmap_read(s->context, filename, transparent, &input))
         return NULL;
@@ -770,8 +935,8 @@ void *mm_masked_import(void *filename, unsigned char transparent, MMI32 x, MMI32
     r.right = input.width;
     r.bottom = input.height;
     if (input.width > 0 && input.width <= MAXIMUM - 3)
-        o = mm_masked_new((const unsigned char *)input.pixels, (input.width + 3) & ~3, input.height, &r, x, y,
-                                transparent, input.upside_down ? flags : flags ^ 1U, fill, s);
-    s->free_memory(s->context, &input.pixels);
-    return o;
+        owner = mm_masked_owner_new((const unsigned char *)input.pixels, (input.width + 3) & ~3, input.height,
+                                    &r, x, y, transparent, input.upside_down ? flags : flags ^ 1U, fill, host);
+    free_data(s, &input.pixels);
+    return owner;
 }

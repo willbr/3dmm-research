@@ -24,7 +24,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
     long cfni = 0;
     long cfmt = vpcodmUtil->CfmtDefault();
     long lwSwapped;
-    PMaskedBitmapMBMP mbmp;
+    PMaskedBitmapMBMP mbmp = nullptr;
     PDynamicArray pglclrSrc;
 
 #ifdef UNICODE
@@ -110,7 +110,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
 
     fprintf(stderr, "Reading MaskedBitmapMBMP...\n");
 
-    mbmp = MaskedBitmapMBMP::PmbmpRead(&blck);
+    mbmp = ReadMaskedBitmap(&blck);
     if (mbmp == pvNil)
     {
         fprintf(stderr, "Reading MaskedBitmapMBMP failed\n\n");
@@ -121,14 +121,14 @@ int __cdecl main(int cpszs, char *prgpszs[])
     {
         RC size;
         int buffer_size;
-        mbmp->GetRc(&size);
+        GetMaskedBitmapBounds(mbmp, &size);
         int stride = size.xpRight + ((size.xpRight % 4 == 0) ? 0 : (4 - (size.xpRight & 3)));
         fprintf(stderr, "Size is left=%d top=%d right=%d bottom=%d stride is %d\n", size.xpLeft, size.ypTop,
                 size.xpRight, size.ypBottom, stride);
         buffer_size = stride * size.ypBottom;
         byte *temp_buffer = new byte[buffer_size];
         memset(temp_buffer, 253, buffer_size);
-        mbmp->Draw(temp_buffer, stride, size.ypBottom, 0, 0);
+        DrawMaskedBitmap(mbmp, temp_buffer, stride, size.ypBottom, 0, 0);
         fprintf(stderr, "Drew %d bytes\n", stride * size.ypBottom);
         if (!FWriteBitmap(&fniDst, temp_buffer, pglclrSrc, size.xpRight, size.ypBottom))
         {
@@ -138,6 +138,7 @@ int __cdecl main(int cpszs, char *prgpszs[])
         fprintf(stderr, "wrote BMP\n\n");
     }
 
+    ReleaseMaskedBitmap(&mbmp);
     ReleasePpo(&floSrc.pfil);
     FileObject::ShutDown();
     return 0;
@@ -147,6 +148,7 @@ LUsage:
     fprintf(stderr, "%s", "Usage:  pbmtobmp <srcFile> <dstFile> <palette.bmp>\n\n");
 
 LFail:
+    ReleaseMaskedBitmap(&mbmp);
     ReleasePpo(&floSrc.pfil);
 
     FileObject::ShutDown();

@@ -43,9 +43,8 @@ struct TextDocument::DisplayHost : HelpHost
         s.fetch = [](void *v, void *cache, const MMTextChunk *p, void **out) -> int {
             auto &h = *static_cast<DisplayHost *>(v);
             return h.Guard([&] {
-                *out = cache ? static_cast<PChunkyResourceFile>(cache)->PbacoFetch(p->type, p->number,
-                                                                                   MaskedBitmapMBMP::FReadMbmp)
-                             : h.help->_prca->PbacoFetch(p->type, p->number, MaskedBitmapMBMP::FReadMbmp);
+                *out = cache ? FetchMaskedBitmap(static_cast<PChunkyResourceFile>(cache), p->type, p->number)
+                             : FetchMaskedBitmap(h.help->_prca, p->type, p->number);
                 return *out != nullptr;
             });
         };
@@ -53,11 +52,11 @@ struct TextDocument::DisplayHost : HelpHost
             auto &h = *static_cast<DisplayHost *>(v);
             RC rc;
             auto target = h.bounds ? h.bounds : &rc;
-            static_cast<PMaskedBitmapMBMP>(bitmap)->GetRc(target);
+            GetMaskedBitmapBounds(static_cast<PMaskedBitmapMBMP>(bitmap), target);
             *out = Rectangle(*target);
             return 1;
         };
-        s.release = [](void *, void *bitmap) { static_cast<PMaskedBitmapMBMP>(bitmap)->Release(); };
+        s.release = [](void *, void *bitmap) { mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(bitmap)); };
         s.font = [](void *v) -> int {
             auto &h = *static_cast<DisplayHost *>(v);
             return h.Guard([&] {
