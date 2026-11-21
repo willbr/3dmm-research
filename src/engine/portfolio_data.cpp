@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "portfolio_data.h"
+#include "mm/scene_thumbnail.h"
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error Portfolio data must not import the Windows SDK
 #endif
@@ -30,17 +31,15 @@ PMaskedBitmapMBMP LoadPreview(Filename *selection, LegacyUlong previews)
     PMaskedBitmapMBMP result = nullptr;
     if (previews & fpfPortPrevMovie)
     {
-        auto file = ChunkyFile::PcflOpen(selection, fcflNil);
-        if (file)
+        auto cache = ChunkyResourceFile::PcrfOpenWorking(selection, false);
+        if (cache)
         {
-            ChunkIdentification movie;
-            ChildChunkIdentification scene, thumbnail;
-            DataBlock block;
-            if (file->FGetCkiCtg('MVIE', 0, &movie) && file->FGetKidChidCtg('MVIE', movie.cno, 0, 'SCEN', &scene) &&
-                file->FGetKidChidCtg('SCEN', scene.cki.cno, 0, 'THUM', &thumbnail) &&
-                file->FFind(thumbnail.cki.ctg, thumbnail.cki.cno, &block))
-                result = MaskedBitmapMBMP::PmbmpRead(&block);
-            ReleasePpo(&file);
+            const auto chunks = cache->ReadChunkAccess();
+            MMU32 thumbnail;
+            if (mm_movie_first_scene_thumbnail(&chunks, &thumbnail) == MM_CHUNK_OK)
+                result = static_cast<PMaskedBitmapMBMP>(cache->PbacoFetch(MM_SCENE_THUMBNAIL_TYPE, thumbnail,
+                                                                         MaskedBitmapMBMP::FReadMbmp));
+            ReleasePpo(&cache);
         }
     }
     if (!result && (previews & fpfPortPrevTexture))

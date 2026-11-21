@@ -2,12 +2,26 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_thumbnail.h"
 #include "mm/indexed_display.h"
+#include "mm/movie_data.h"
 #include <stdlib.h>
 #include <string.h>
 
 int mm_scene_thumbnail_link(const MMChunkAccess *access, MMU32 scene, MMU32 *number)
 {
-    return mm_chunk_link_number(access, 0x5343454eUL, scene, 0, MM_SCENE_THUMBNAIL_TYPE, number);
+    return mm_chunk_link_number(access, MM_SCENE_CHUNK, scene, 0, MM_SCENE_THUMBNAIL_TYPE, number);
+}
+
+int mm_movie_first_scene_thumbnail(const MMChunkAccess *access, MMU32 *number)
+{
+    MMChunkEntry movie;
+    MMChunkChild scene;
+    MMU32 position;
+    int status = mm_chunk_type_at(access, MM_MOVIE_CHUNK, 0, &movie, &position);
+    if (status == MM_CHUNK_OK)
+        status = mm_chunk_child_exact(access, position, 0, MM_SCENE_CHUNK, &scene);
+    if (status == MM_CHUNK_OK)
+        status = mm_scene_thumbnail_link(access, scene.number, number);
+    return status;
 }
 
 static int allocate_bitmap(void *context, MMI32 bytes, void **out)

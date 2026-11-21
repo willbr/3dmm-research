@@ -1152,24 +1152,6 @@ bool Movie::FCopyMsndFromCrf(PChunkyResourceFile source, ChunkNumber cnoSrc, Chu
 
 /****************************************************
  *
- * Verify the version number of a file
- *
- * Parameters:
- *	pfni
- *	*pcno == cnoNil if using the first chunk in the file
- *
- * Returns:
- *  fFalse if there was a failure, else fTrue.
- *  *pcno updated
- *
- ****************************************************/
-bool Movie::FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno)
-{
-    return MovieData::FVerifyVersion(pcfl, pcno);
-}
-
-/****************************************************
- *
  * Removes a scene from the movie.
  *
  * Parameters:

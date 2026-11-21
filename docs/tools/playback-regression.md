@@ -19555,3 +19555,30 @@ retail are present in that capture. SDL and Marcus matched the three
 archived V3dmm frames, cameras, and canvas hashes for the edited portable
 movie in `20261121T170928Z-6f0f464e`. Evidence is in
 `tmp/c89-existing-working/evidence`.
+
+## Studio movie picker and sound import use the C89 archive (21 November 2026)
+
+The file picker uses the movie's C89 working archive to follow the first
+movie's slot-zero scene and thumbnail links. It preserves previews for
+movies with an unreadable version header, native BMP fallback, and the
+caller's pending errors. Movie sound import verifies the source version
+and reads the sound bank through the same archive path. The browser
+checks each sound's validity and style before offering it for import.
+
+All 193 standalone C checks and three focused AddressSanitizer checks
+passed. Native x64 passed four checks including the Marcus player, SDL
+passed three, and native x86 passed portfolio data and core link. The
+movie save fixture and owner traces reproduced the prior bytes.
+
+In SDL Studio, the scene sorter's picker rendered the selected movie's
+thumbnail. The sorter appended two scenes and reopened the four-scene
+result in order. The only changed byte compared with the previous sorter
+file was outside every referenced directory row. Studio also imported
+MIDI and WAV from a read-only movie. The copied payloads matched the
+source byte for byte, and the source retained its hash and read-only
+attribute.
+
+Retail, SDL, and Marcus agreed on all 22 seek frames and cameras of the
+composed movie in `20261121T171605Z-fecb8231`. Each player's canvases
+matched its prior results, including the six known port differences from
+retail. Evidence is in `tmp/c89-studio-archive-picker/evidence`.

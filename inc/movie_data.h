@@ -49,7 +49,7 @@ struct MovieData : MMMovieState
     bool FSave(PFilename filename);
 
     static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
-    static bool FVerifyVersion(PChunkyFile file, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
+    static bool FVerifyVersion(MMChunkOwnerRead *, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
     static bool FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors,
                               MMI32 *limit = nullptr);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written);

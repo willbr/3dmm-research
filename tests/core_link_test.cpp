@@ -2027,7 +2027,7 @@ static void TestMovieRootBaseline()
     if (snapshot) Check(std::fwrite(&prefix, sizeof(prefix), 1, snapshot) == 1);
     const auto record = [&](ChunkNumber requested, bool optional) {
         MMMovieHeader header = {-77, -77, -77, -77};
-        bool ok = MovieData::FVerifyVersion(file, optional ? nullptr : &requested, &header);
+        bool ok = MovieData::FVerifyVersion(file->ReadOwner(), optional ? nullptr : &requested, &header);
         uint32_t row[] = {ok, requested, static_cast<uint32_t>(header.system), static_cast<uint32_t>(header.current_version),
                           static_cast<uint32_t>(header.backward_version), static_cast<uint32_t>(header.big_endian)};
         if (snapshot) Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
@@ -2054,7 +2054,7 @@ static void TestMovieWireFormats()
     Check(block.FReadRgb(&prefix, sizeof(prefix), 0));
     SwapBytesBom(&prefix, kbomMfp);
     Check(block.FWriteRgb(&prefix, sizeof(prefix), 0));
-    Check(MovieData::FVerifyVersion(file, &root));
+    Check(MovieData::FVerifyVersion(file->ReadOwner(), &root));
 
     PChunkyResourceFile resources = ChunkyResourceFile::PcrfNew(file, 0);
     Check(resources != pvNil);

@@ -745,7 +745,6 @@ class Movie : public Movie_PAR
     MMMovieSoundServices SoundServices();
     bool FSaveTagSnd(TAG *ptag);
     bool FCopySndFileToMvie(PFileObject pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
-    bool FVerifyVersion(PChunkyFile pcfl, ChunkNumber *pcno = pvNil);
     bool FEnsureAutosave(PChunkyResourceFile *pcrf = pvNil);
     bool FCopyMsndFromCrf(PChunkyResourceFile source, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
     bool FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil, PChunkyResourceFile pcrf = pvNil);

@@ -2,7 +2,6 @@
    Licensed under the MIT License. */
 #include "soc_core.h"
 #include "movie_data.h"
-#include "engine_movie_graph.h"
 #include "handle_services.h"
 #include "mm/movie_session.h"
 ASSERTNAME
@@ -121,12 +120,12 @@ bool MovieData::FCreateRoot(PChunkyFile file, ChunkNumber *number)
     const auto archive = file->WriteIndex();
     return mm_movie_create_root(&archive, number) != 0;
 }
-bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, MMMovieHeader *header)
+bool MovieData::FVerifyVersion(MMChunkOwnerRead *reader, ChunkNumber *number, MMMovieHeader *header)
 {
-    const auto graph = EngineMovieGraph::FromFile(file);
+    const auto graph = mm_movie_owner_graph(reader);
     const int status = mm_movie_graph_root(&graph, nullptr, number, header);
     if (status != MM_MOVIE_OK)
-        MovieOpenError(file, status);
+        MovieOpenError(nullptr, status);
     return status == MM_MOVIE_OK;
 }
 

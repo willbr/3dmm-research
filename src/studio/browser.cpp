@@ -2257,9 +2257,7 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
     Filename fni;
     long kidBrws;
     PFileObject pfil = pvNil; // Wave or midi file
-    PChunkyFile pcfl = pvNil; // Movie file
-    long icki;
-    long ccki;
+    PChunkyResourceFile pcrf = pvNil; // Movie file
     String stn;
     ChunkIdentification cki;
     Command cmd;
@@ -2287,36 +2285,33 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
 
     case kftg3mm:
     default:
+    {
         // Import <user> sounds from a movie
         // Verify version numbers before accepting this file
-        pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
-
-        if (pvNil == pcfl)
+        pcrf = ChunkyResourceFile::PcrfOpenWorking(&fni, false);
+        if (!pcrf || !MovieData::FVerifyVersion(pcrf->ReadOwner()))
             goto LEnd;
-        if (!_pstdio->Pmvie()->FVerifyVersion(pcfl))
-        {
-            goto LEnd; // Erc already pushed
-        }
 
-        ccki = pcfl->CckiCtg(kctgMsnd);
-        if (ccki == 0)
-        {
-            // There may be sounds in the new movie, but no user sounds
-            PushErc(ercSocNoKidSndsInMovie);
+        const auto chunks = pcrf->ReadChunkAccess();
+        MMU32 first;
+        const int status = mm_chunk_find(&chunks, kctgMsnd, 0, &first);
+        if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
             goto LEnd;
-        }
 
         // Are the user sounds valid?
-        for (icki = 0; icki < ccki; icki++)
+        for (MMU32 row = first; row < chunks.count; ++row)
         {
-            bool fInvalid;
-            long sty;
-            if (!pcfl->FGetCkiCtg(kctgMsnd, icki, &cki))
+            MMChunkEntry entry;
+            if (mm_chunk_at(&chunks, row, &entry) != MM_CHUNK_OK)
                 goto LEnd;
-            if (!MovieSoundMSND::FGetMsndInfo(pcfl, kctgMsnd, cki.cno, &fInvalid, &sty))
+            if (entry.type != kctgMsnd)
+                break;
+            auto sound = static_cast<PMovieSoundMSND>(pcrf->PbacoFetch(entry.type, entry.number, MovieSoundMSND::FReadMsnd));
+            if (!sound)
                 goto LEnd;
-
-            if (!fInvalid && sty == _sty)
+            const bool matches = sound->FValid() && sound->Sty() == _sty;
+            ReleasePpo(&sound);
+            if (matches)
                 goto LValidSnds; // There are valid user snds
         }
 
@@ -2345,7 +2340,7 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
         // cidBrowserReady to kidBrws when ready
         vpcex->EnqueueCid(cidLaunchImport, pvNil, pvNil, kidBrws);
         goto LEnd;
-        break;
+    }
     }
 
     // Import sound from a wave or midi file
@@ -2374,7 +2369,7 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
 
 LEnd:
     vpappb->EndLongOp();
-    ReleasePpo(&pcfl);
+    ReleasePpo(&pcrf);
     ReleasePpo(&pfil);
     return fTrue;
 }
@@ -2797,9 +2792,7 @@ bool BrowserImportSound::FInit(PCommand pcmd, ChunkIdentification ckiRoot, PStud
 {
     AssertBaseThis(0);
 
-    PChunkyFile pcfl;
     Filename fni;
-    String stn;
 
     _pstdio = pstdio;
     //
@@ -2817,12 +2810,7 @@ bool BrowserImportSound::FInit(PCommand pcmd, ChunkIdentification ckiRoot, PStud
 
     // Fill the lists with sounds from the portfolio movie
     vapp.GetPortfolioDoc(&fni);
-    pcfl = ChunkyFile::PcflOpen(&fni, fcflNil);
-    if (pvNil == pcfl)
-        goto LFail; // Error already reported
-    _pcrf = ChunkyResourceFile::PcrfNew(pcfl, 0);
-    ReleasePpo(&pcfl);
-
+    _pcrf = ChunkyResourceFile::PcrfOpenWorking(&fni, false);
     if (pvNil == _pcrf)
         goto LFail;
     if (!_FUpdateLists()) // to include sounds from the selected movie

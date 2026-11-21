@@ -33,6 +33,9 @@ extern "C"
         unsigned char *(*image)(void *, MMU32 width, MMU32 height);
     } MMSceneThumbnailPreview;
     int mm_scene_thumbnail_link(const MMChunkAccess *, MMU32 scene, MMU32 *number);
+    /* Find the slot-zero thumbnail of the first movie's slot-zero scene.
+     * This only follows links. The picker can preview a movie of any version. */
+    int mm_movie_first_scene_thumbnail(const MMChunkAccess *, MMU32 *number);
     /* Missing links succeed without an image. The 1 MiB stored-size and 1024px
      * dimension limits apply to preview. image supplies width*height*4 bytes
      * synchronously or returns null for an allocation failure. RGBA is opaque. */
