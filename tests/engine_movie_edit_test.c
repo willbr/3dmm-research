@@ -682,6 +682,7 @@ static MMSceneOwnerServices scene_owners(Test *t)
     MMSceneOwnerServices s = {0};
     s.context = s.sound.context = t;
     s.release = release_resource;
+    s.release_background = release_resource;
     s.sound.close = scene_sound_close;
     s.sound.free = scene_sound_free;
     return s;

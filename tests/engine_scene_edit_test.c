@@ -352,6 +352,7 @@ static void init_edit(Edit *e)
     o = &v->owners;
     o->context = e;
     o->release = release_back;
+    o->release_background = release_back;
     o->lights_off = lights_off;
     o->sound.context = e;
     o->sound.close = close_sound_tag;

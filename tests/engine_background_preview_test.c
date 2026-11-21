@@ -33,6 +33,7 @@ typedef struct Mesh
 typedef struct Host
 {
     MMBackgroundPreview preview;
+    MMBackgroundCameraState placement;
     MMBackgroundPreviewServices services;
     MMMemoryStream memory;
     unsigned char wire[100];
@@ -247,7 +248,8 @@ static void init(Host *h)
     a.context = h;
     a.resize = resize;
     a.release = free_memory;
-    CHECK(mm_background_preview_init(&h->preview, &a));
+    CHECK(mm_background_camera_init(&h->placement, &a));
+    CHECK(mm_background_preview_init(&h->preview, &h->placement, &a));
     for (i = 0; i < 3; ++i)
         CHECK(mm_background_preview_camera(&h->preview, 100U + (MMU32)i));
     memset(&light, 0, sizeof(light));
@@ -296,6 +298,7 @@ static void dispose(Host *h)
 {
     int i;
     mm_background_preview_dispose(&h->preview, &h->services);
+    mm_background_camera_dispose(&h->placement);
     CHECK(!h->live_memory && !h->rgb && !h->depth);
     for (i = 0; i < h->created; ++i)
         CHECK(!h->meshes[i].live);
@@ -324,22 +327,22 @@ static void placement(void)
     word(h.wire + 88, 77);
     CHECK(select_camera(&h, 2));
     CHECK(h.traces == 11 && h.trace[1] == RGB_CHILD);
-    CHECK(h.preview.active == 2 && h.preview.placement.current == 1);
+    CHECK(h.preview.active == 2 && h.placement.current == 1);
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 7);
     h.traces = 0;
     h.fail_allocation = h.allocations + 1;
     CHECK(mm_background_preview_select_placement(&h.preview, 0, &h.services) == MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY);
-    CHECK(h.traces == 1 && h.preview.camera.number == 102 && h.preview.placement.current == 1);
+    CHECK(h.traces == 1 && h.preview.camera.number == 102 && h.placement.current == 1);
     h.fail_allocation = 0;
     h.traces = 0;
     h.fail = POINT_READ;
     CHECK(!mm_background_preview_select_placement(&h.preview, 0, &h.services));
-    CHECK(h.traces == 2 && h.preview.camera.number == 102 && h.preview.placement.current == 1);
+    CHECK(h.traces == 2 && h.preview.camera.number == 102 && h.placement.current == 1);
     h.fail = DEPTH_CHILD;
     h.traces = 0;
     CHECK(!mm_background_preview_select_placement(&h.preview, 0, &h.services));
     CHECK(h.preview.active == 2 && h.preview.camera.images.present == MM_BACKGROUND_HAS_COLOUR &&
-          h.preview.placement.current == 1);
+          h.placement.current == 1);
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 5);
     h.fail = h.traces = 0;
     CHECK(mm_background_preview_select_placement(&h.preview, 0, &h.services) == 1 &&
@@ -347,7 +350,7 @@ static void placement(void)
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 66);
     h.memory.stream.length = 76;
     h.traces = 0;
-    CHECK(mm_background_preview_select_placement(&h.preview, 1, &h.services) == 1 && !h.preview.placement.point_count);
+    CHECK(mm_background_preview_select_placement(&h.preview, 1, &h.services) == 1 && !h.placement.point_count);
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 55);
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 55);
     dispose(&h);

@@ -5,6 +5,7 @@
 #include "background_camera.h"
 #include "collection_storage.h"
 #include "tag.h"
+#include "string_value.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -80,6 +81,25 @@ extern "C"
         int (*select_camera)(void *, MMI32 index);
         void (*diagnostic)(void *, int issue);
     } MMBackgroundServices;
+    typedef struct MMBackgroundOwner MMBackgroundOwner;
+    typedef struct MMBackgroundOwnerHost
+    {
+        const MMStorageAllocator *allocator;
+        const MMBackgroundServices *teardown;
+        unsigned name_unit; /* Zero for graph-only owners, otherwise 1 or 2. */
+        void (*mark)(MMBackgroundOwner *);
+    } MMBackgroundOwnerHost;
+    /* The host and its teardown services outlive the owner. Graph-only owners
+     * omit the counted name and have no native light arrays to dispose. */
+    MMBackgroundOwner *mm_background_owner_create(const MMBackgroundOwnerHost *);
+    MMBackgroundResource *mm_background_owner_resource(MMBackgroundOwner *);
+    MMBackgroundCameraState *mm_background_owner_camera(MMBackgroundOwner *);
+    MMStringValue mm_background_owner_name(MMBackgroundOwner *);
+    const MMResourceObject *mm_background_owner_binding(const MMBackgroundOwner *);
+    const MMResourceObjectServices *mm_background_owner_services(void);
+    MMI32 mm_background_owner_references(const MMBackgroundOwner *);
+    void mm_background_owner_retain(MMBackgroundOwner *);
+    void mm_background_owner_release(MMBackgroundOwner *);
     /* Exact 8/28/56-byte records. Wire pointer slots and padding are ignored.
      * Header/sound failure leaves output unchanged. Light input is already bounded. */
     int mm_background_header_read(const MMReadStream *, MMBackgroundHeader *);

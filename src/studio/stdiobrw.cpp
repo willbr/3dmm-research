@@ -119,7 +119,7 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
         else
         {
             Assert(pvNil != _pmvie->Pscen()->Pbkgd(), "Pbkgd() Nil");
-            thumSelect = _pmvie->Pscen()->Pbkgd()->Cno();
+            thumSelect = mm_background_owner_binding(_pmvie->Pscen()->Pbkgd())->number;
             AssertDo(_pmvie->Pscen()->FGetTagBkgd(&tag), "Missing background event");
             sid = tag.sid;
         }
@@ -147,9 +147,9 @@ bool Studio::FCmdBrowserReady(PCommand pcmd)
 
         // Search for camera views, children of the current bkgd
         ckiRoot.ctg = kctgBkth;
-        ckiRoot.cno = _pmvie->Pscen()->Pbkgd()->Cno();
+        ckiRoot.cno = mm_background_owner_binding(_pmvie->Pscen()->Pbkgd())->number;
 
-        thumSelect = _pmvie->Pscen()->Pbkgd()->Icam();
+        thumSelect = EngineBackground::Icam(_pmvie->Pscen()->Pbkgd());
         pbrwd = (PBrowserDisplay)(BrowserCamera::PbrwcNew(_pcrm));
         if (pvNil == pbrwd)
             goto LFail;

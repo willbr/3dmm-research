@@ -627,6 +627,7 @@ static MMSceneEditServices bind_scene_edit(void *p)
     s.context = s.sound.context = s.sound.events.context = s.sound.events.owners.context = u;
     s.sound.events.owner = &u->owner;
     s.sound.events.owners.release = ignore_background;
+    s.sound.events.owners.release_background = ignore_background;
     s.sound.events.fetch_background = fetch_background;
     s.sound.events.set_camera = set_camera;
     s.sound.events.transition = transition;

@@ -199,6 +199,7 @@ static void init(Fixture *f)
     s->owner = &f->owner;
     s->owners.context = f;
     s->owners.release = release;
+    s->owners.release_background = release;
     s->owners.sound.context = f;
     s->owners.sound.free = free_sound;
     s->duplicate_sound = duplicate;

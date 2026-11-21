@@ -382,7 +382,7 @@ class Scene : public Scene_PAR
     //
     bool FSetBkgdCore(PTAG ptag, PTAG ptagOld); // Sets the background for this scene.
     bool FSetBkgd(PTAG ptag);                   // Sets the background for this scene, and undo
-    Background *Pbkgd(void)
+    PBackground Pbkgd(void)
     {
         return static_cast<PBackground>(_owner.owned[MM_SCENE_BACKGROUND]);
     }                                               // Gets the background for this scene.

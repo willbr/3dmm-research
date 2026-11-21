@@ -20242,3 +20242,33 @@ previous Studio save and differed in three bytes after two names in the
 chunk index. Retail reopened the new save in 20261121T221935Z-c976c1a3 and
 reproduced both original poses and seek canvases. Evidence is under
 tmp/c89-template-owner.
+
+## C89 background ownership (21 November 2026)
+
+Studio and Preview use a C89 background owner for palette data, light state
+and camera placement. Studio's cached owner also holds its counted name and
+archive binding. Preview's image and mesh controller borrows the placement
+state from that owner. Scenes and the cache release the C89 owner through
+typed callbacks. The native adapters provide BRender and display services,
+and Studio retains its historical cache charges.
+
+All eight native x64 and SDL traces for scene content, scene editing, movie
+content and actor placement matched the corresponding baselines byte for byte.
+Native x64 and SDL scene edit, scene content and movie save/load passed. Scene
+edit and scene content also passed on native x86. Both Preview mesh tests,
+the Marcus player, playback and C89 checks, the native engine link test, all
+193 standalone C89 checks and eight targeted AddressSanitizer checks passed.
+
+In suite 20261121T223145Z-b0859753, SDL Studio and Marcus matched all 90
+retail seek camera indices and continuous frame identities across the
+30-frame actor audio fixture and the 60-frame Studio actor roundtrip.
+Each port matched all 90 prior port seek canvas hashes and 88 of 90 retail
+canvas hashes. V3dmm matched all 30 retail seek canvases, camera indices and
+continuous frame identities for the actor audio fixture. SDL and V3dmm also
+matched that fixture's six retail sound requests. Mixed PCM on the audible
+fixture differed from retail, and Marcus request tracing was unavailable.
+
+Studio checked both camera indices in each of the two scenes before saving
+the roundtrip movie and after reopening the save. Retail opened the new save
+in 20261121T223420Z-dccdd2ec and reproduced all 60 original seek camera
+indices and canvas hashes. Evidence is under tmp/c89-background-owner.

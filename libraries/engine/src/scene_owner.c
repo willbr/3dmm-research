@@ -95,6 +95,8 @@ void mm_scene_owner_drop(MMSceneOwner *w, int slot, const MMSceneOwnerServices *
         return;
     if (slot == MM_SCENE_BACKGROUND_SOUND)
         mm_scene_sound_release(&p, &s->sound);
+    else if (slot == MM_SCENE_BACKGROUND)
+        s->release_background(s->context, p);
     else
         s->release(s->context, p);
     w->owned[slot] = NULL;

@@ -11,7 +11,7 @@ extern "C"
         MMCollectionStorage metadata, images;
         MMU32 camera_count, light_count, width, height, rgb_count, depth_count, active;
         MMBackgroundCameraBinding camera;
-        MMBackgroundCameraState placement;
+        MMBackgroundCameraState *placement;
         void *meshes[2];
         MMU32 keys[2], mesh_count;
     } MMBackgroundPreview;
@@ -46,13 +46,14 @@ extern "C"
      * must stay live through the call. Image allocations belong to the reader
      * until the matching release service. */
     void mm_background_preview_bind_graph(MMBackgroundPreviewServices *, MMBackgroundPreviewGraph *);
-    /* Unique C owners. Metadata append operations copy their inputs and do not alias
+    /* The initialized placement state is borrowed for the lifetime of the view.
+     * Unique C owners. Metadata append operations copy their inputs and do not alias
      * storage. Fresh image selection publishes decoded camera before clip validation,
      * dimensions before RGB allocation, and active camera only after both draws.
      * Completed image/metadata prefixes survive failures. Fetched references release
      * on every path, including buffer allocation failure. SDK services are synchronous,
      * non-reentrant, typed primitives; no exceptions cross the C boundary. */
-    int mm_background_preview_init(MMBackgroundPreview *, const MMStorageAllocator *);
+    int mm_background_preview_init(MMBackgroundPreview *, MMBackgroundCameraState *, const MMStorageAllocator *);
     void mm_background_preview_dispose(MMBackgroundPreview *, const MMBackgroundPreviewServices *);
     int mm_background_preview_camera(MMBackgroundPreview *, MMU32 number);
     int mm_background_preview_light(MMBackgroundPreview *, const MMBackgroundLight *);

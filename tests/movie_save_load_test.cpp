@@ -271,18 +271,17 @@ class TrackTestTemplate
     }
 };
 
-class StageTestBackground : public Background
+static bool InitializeStageBackground(PBackground background)
 {
-  public:
-    bool Init()
-    {
-        _camera.count=1; _resource.light_count=1;
-        _camera.place.dxr=BR_SCALAR(100); _camera.place.dyr=BR_SCALAR(2); _camera.place.dzr=-BR_SCALAR(30);
-        _camera.yaw=0x1234;
-        return FAllocPv(&_resource.actors,sizeof(BACT),fmemClear,mprNormal) &&
-               FAllocPv(&_resource.lights,sizeof(BLIT),fmemClear,mprNormal);
-    }
-};
+    auto &camera = EngineBackground::Camera(background);
+    auto &resource = EngineBackground::Resource(background);
+    camera.count = 1;
+    resource.light_count = 1;
+    camera.place = {BR_SCALAR(100), BR_SCALAR(2), BR_SCALAR(-30)};
+    camera.yaw = 0x1234;
+    return FAllocPv(&resource.actors, sizeof(BACT), fmemClear, mprNormal) &&
+           FAllocPv(&resource.lights, sizeof(BLIT), fmemClear, mprNormal);
+}
 class StageTestScene : public Scene
 {
   public:
@@ -296,9 +295,9 @@ class StageTestScene : public Scene
     }
     bool Init()
     {
-        auto background=NewObj StageTestBackground(); _owner.owned[MM_SCENE_BACKGROUND]=background;
+        auto background=mm_background_owner_create(&EngineBackground::Host()); _owner.owned[MM_SCENE_BACKGROUND]=background;
         _owner.data.firstFrame=1; _owner.data.lastFrame=20; _owner.data.currentFrame=3;
-        return background && background->Init();
+        return background && InitializeStageBackground(background);
     }
 };
 

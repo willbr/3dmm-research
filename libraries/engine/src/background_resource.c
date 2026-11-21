@@ -1,6 +1,9 @@
 /* Background resources converted from engine/bkgd.cpp and preview_background.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/background_resource.h"
+#include "mm/string_wire.h"
+#include <assert.h>
+#include <stdlib.h>
 #include "mm/movie_session.h"
 #include "mm/chunky_file.h"
 #include "mm/collections.h"
@@ -62,6 +65,101 @@ void mm_background_light_decode(const unsigned char *b, int big, MMBackgroundLig
     out->intensity = mm_signed_word(word(b + 48, 4, big));
     out->type = mm_signed_word(word(b + 52, 4, big));
 }
+struct MMBackgroundOwner
+{
+    MMResourceObject binding;
+    MMReference references;
+    const MMBackgroundOwnerHost *host;
+    MMBackgroundResource resource;
+    MMBackgroundCameraState camera;
+};
+
+static MMU32 owner_bytes(const MMBackgroundOwnerHost *host)
+{
+    return sizeof(MMBackgroundOwner) + (MM_STRING_MAX + 2) * host->name_unit;
+}
+
+MMBackgroundOwner *mm_background_owner_create(const MMBackgroundOwnerHost *host)
+{
+    const MMStorageAllocator *allocator = host->allocator;
+    MMBackgroundOwner *owner;
+    MMU32 bytes;
+    if (host->name_unit > 2)
+        return NULL;
+    bytes = owner_bytes(host);
+    owner = allocator ? allocator->resize(allocator->context, NULL, 0, bytes, MM_STORAGE_NORMAL)
+                      : malloc(bytes);
+    if (owner)
+    {
+        memset(owner, 0, bytes);
+        mm_reference_init(&owner->references);
+        owner->host = host;
+        mm_background_resource_init(&owner->resource);
+        mm_background_camera_init(&owner->camera, NULL);
+    }
+    return owner;
+}
+
+MMBackgroundResource *mm_background_owner_resource(MMBackgroundOwner *owner) { return &owner->resource; }
+MMBackgroundCameraState *mm_background_owner_camera(MMBackgroundOwner *owner) { return &owner->camera; }
+const MMResourceObject *mm_background_owner_binding(const MMBackgroundOwner *owner) { return &owner->binding; }
+MMI32 mm_background_owner_references(const MMBackgroundOwner *owner) { return owner->references.count; }
+
+MMStringValue mm_background_owner_name(MMBackgroundOwner *owner)
+{
+    MMStringValue name = {0};
+    if (owner->host->name_unit)
+    {
+        name.buffer = owner + 1;
+        name.unit = owner->host->name_unit;
+    }
+    return name;
+}
+
+static MMResourceObject *background_binding(void *object) { return &((MMBackgroundOwner *)object)->binding; }
+static MMReference *background_references(void *object) { return &((MMBackgroundOwner *)object)->references; }
+
+static void destroy_background(void *object)
+{
+    MMBackgroundOwner *owner = object;
+    const MMBackgroundOwnerHost *host = owner->host;
+    const MMStorageAllocator *allocator = host->allocator;
+    assert(!owner->resource.leave_on);
+    mm_background_resource_dispose(&owner->resource, host->teardown);
+    mm_background_camera_dispose(&owner->camera);
+    mm_resource_object_dispose(owner, mm_background_owner_services());
+    if (allocator)
+        allocator->release(allocator->context, owner, owner_bytes(host));
+    else
+        free(owner);
+}
+
+static void mark_background(void *object)
+{
+    MMBackgroundOwner *owner = object;
+    if (owner->host->mark)
+        owner->host->mark(owner);
+}
+
+const MMResourceObjectServices *mm_background_owner_services(void)
+{
+    static const MMResourceObjectServices services = {
+        background_binding, background_references, destroy_background, NULL, mark_background
+    };
+    return &services;
+}
+
+void mm_background_owner_retain(MMBackgroundOwner *owner)
+{
+    mm_reference_add(&owner->references);
+}
+
+void mm_background_owner_release(MMBackgroundOwner *owner)
+{
+    if (owner)
+        mm_resource_object_release(owner, mm_background_owner_services());
+}
+
 void mm_background_resource_init(MMBackgroundResource *b)
 {
     memset(b, 0, sizeof(*b));

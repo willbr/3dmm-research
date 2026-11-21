@@ -8,7 +8,7 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    BASE ---> BaseCacheableObject ---> Background
+    Native host services for C89 backgrounds.
 
 ***************************************************************************/
 #ifndef BKGD_H
@@ -36,82 +36,43 @@ struct BackgroundDefaultSoundOnFile
 static_assert(sizeof(BackgroundDefaultSoundOnFile) == 28, "BackgroundDefaultSoundOnFile wire format drift -- must stay 1995-compatible");
 const ByteOrderMask kbomBds = 0x5f000000 | kbomTag >> 8;
 
-/****************************************
-    The background class
-****************************************/
-typedef class Background *PBackground;
-#define Background_PAR BaseCacheableObject
-#define kclsBackground 'BKGD'
-class Background : public Background_PAR
+namespace EngineBackground
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
+const MMBackgroundOwnerHost &Host();
+int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
+PBackground Fetch(PTAG);
+PBackground Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
+bool FCacheToHD(PTAG);
+void GetName(PBackground, PString);
+void TurnOnLights(PBackground, PWorld);
+void TurnOffLights(PBackground);
+bool FSetCamera(PBackground, PWorld, long camera);
+void GetMouseMatrix(PBackground, BMAT34 *);
+void GetActorPlacePoint(PBackground, BRS *, BRS *, BRS *);
+void ReuseActorPlacePoint(PBackground);
+bool FGetPalette(PBackground, PDynamicArray *, long *base);
+void GetCameraPos(PBackground, BRS *, BRS *, BRS *);
 
-  protected:
-    MMBackgroundResource _resource; // C-owned arrays, palette, sound and light policy.
-    MMBackgroundCameraState _camera; // C-owned camera metadata/placement list.
-    String _stn;            // name of this background
-
-  protected:
-    Background(void)
-    {
-        mm_background_camera_init(&_camera, nullptr);
-        mm_background_resource_init(&_resource);
-    }
-    MMBackgroundCameraServices _CameraServices(void *host);
-    MMBackgroundServices _ResourceServices(void *host);
-    bool _FInit(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);
-
-  public:
-    static bool FCacheToHD(PTAG ptagBkgd);
-    static int FReadBkgd(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **object, MMI32 *bytes);
-    ~Background(void);
-    void GetName(PString pstn);
-
-    void TurnOnLights(PWorld pbwld);
-    void TurnOffLights(void);
-    bool FLeaveLitesOn(void)
-    {
-        return _resource.leave_on != 0;
-    }
-    void SetFLeaveLitesOn(bool fLeaveLitesOn)
-    {
-        _resource.leave_on = fLeaveLitesOn;
-    }
-
-    long Ccam(void)
-    {
-        return _camera.count;
-    } // count of cameras in background
-    long Icam(void)
-    {
-        return _camera.current;
-    }                                        // currently selected camera
-    bool FSetCamera(PWorld pbwld, long icam); // change camera to icam
-
-    void GetMouseMatrix(BMAT34 *pbmat34);
-    BRA BraRotYCamera(void)
-    {
-        return _camera.yaw;
-    }
-    void GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr);
-    void ReuseActorPlacePoint(void);
-
-    void GetDefaultSound(PTAG ptagSnd, long *pvlm, bool *pfLoop)
-    {
-        TagFromCore(ptagSnd, _resource.sound.tag);
-        *pvlm = _resource.sound.volume;
-        *pfLoop = _resource.sound.loop != 0;
-    }
-
-    bool FGetPalette(PDynamicArray *ppglclr, long *piclrMin);
-    void GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr);
+inline MMBackgroundResource &Resource(PBackground background) { return *mm_background_owner_resource(background); }
+inline MMBackgroundCameraState &Camera(PBackground background) { return *mm_background_owner_camera(background); }
+inline bool FLeaveLitesOn(PBackground background) { return Resource(background).leave_on != 0; }
+inline void SetFLeaveLitesOn(PBackground background, bool leaveOn) { Resource(background).leave_on = leaveOn; }
+inline long Ccam(PBackground background) { return Camera(background).count; }
+inline long Icam(PBackground background) { return Camera(background).current; }
+inline BRA BraRotYCamera(PBackground background) { return Camera(background).yaw; }
+inline void GetDefaultSound(PBackground background, PTAG tag, long *volume, bool *loop)
+{
+    const auto &sound = Resource(background).sound;
+    TagFromCore(tag, sound.tag);
+    *volume = sound.volume;
+    *loop = sound.loop != 0;
+}
 
 #ifdef DEBUG
-    // Authoring only.  Writes a special file with the given place info.
-    bool FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace);
-#endif // DEBUG
-};
+bool FWritePlaceFile(PBackground, BRS x, BRS y, BRS z);
+void Validate(PBackground);
+void Mark(PBackground);
+#endif
+}
 
-#endif BKGD_H
+#endif

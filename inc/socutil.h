@@ -23,7 +23,7 @@ extern "C"
 typedef class Actor *PActor;
 typedef class Scene *PScene;
 typedef class Movie *PMovie;
-typedef class Background *PBackground;
+typedef struct MMBackgroundOwner *PBackground;
 typedef class TextBox *PTBOX;
 typedef class Studio *PStudio;
 

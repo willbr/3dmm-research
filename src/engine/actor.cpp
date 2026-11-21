@@ -678,7 +678,7 @@ void Actor::_GetNewOrigin(BRS *pxr, BRS *pyr, BRS *pzr)
 
     static_assert(kzrDefault == -1638400, "Placement distance ABI");
     BRS x, y, z;
-    _Scene()->Pbkgd()->GetActorPlacePoint(&x, &y, &z);
+    EngineBackground::GetActorPlacePoint(_Scene()->Pbkgd(), &x, &y, &z);
     MMActorPoint point{x, y, z};
     MMActorPlacementServices services{};
     services.context = this;
@@ -718,7 +718,7 @@ MMActorStageEditServices Actor::_StageEditServices()
         auto actor=static_cast<Actor *>(p); BRS x,y,z;
         actor->_GetNewOrigin(&x,&y,&z); *point={x,y,z};
         std::memcpy(origin,&actor->_owner.runtime.origin,sizeof(*origin));
-        *yaw=actor->_Scene()->Pbkgd()->BraRotYCamera();
+        *yaw=EngineBackground::BraRotYCamera(actor->_Scene()->Pbkgd());
     };
     s.diagnostic=[](void *,int fault) { Assert(fault==MM_STAGE_INSERT_FAILED,"Unknown stage edit fault"); Bug("Logic error"); };
     return s;

@@ -22,7 +22,7 @@ class PreviewBackground
     MMBackgroundPreview preview;
     MMBackgroundPreviewServices Services(MMBackgroundPreviewGraph *host);
     void Publish(const MMBackgroundPreview &);
-    MMBackgroundResource resource = {};
+    MMBackgroundOwner *owner = nullptr;
     MMPreviewProjectionCache cameraProjections = {};
 
   public:

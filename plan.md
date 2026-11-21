@@ -1150,12 +1150,13 @@ resource factory/partial cleanup, tag-list/cache order, palette ownership and
 light attachment/lifetime now use C89 too. Marcus Preview uses the same resource
 loader with its existing stricter visual admission profile. Both hosts read
 background headers, sounds, palettes and lights through C-owned payload blocks.
-C89 retains Studio's palette in native byte order and owns the temporary light
-rows until publication. Studio creates a native list when a caller requests a
-palette. Preview background image/
-metadata buffers, image-selection control, mesh reconstruction, infinite-backdrop
-fill, SDK preparation/lifetime and the two-entry mesh cache now also use C89.
-Native background/mesh classes expose typed SDK services and borrowed views.
+The reference-counted C89 background owns the palette, lights and camera
+placement. Studio's cache entries also retain the counted name and archive
+binding. Preview borrows the placement state from the same owner type.
+Studio creates a native list when a caller requests a palette. Preview
+background image and metadata buffers, image selection, mesh reconstruction,
+infinite-backdrop fill, SDK preparation and the two-entry mesh cache also
+use C89. Native adapters expose graph and renderer services and borrowed views.
 Preview frame allocation/lifetime, camera framing and stable-orbit state, body
 instance ordering/tree copying, lighting/material overrides, frustum depth fitting,
 raster dispatch and indexed/depth output composition now also use C89. Typed
@@ -1755,8 +1756,10 @@ edits. The C89 MSND owner holds the counted sound name, payload metadata and
 cache binding. Studio's sound browser, listener and frame sound queue use the
 C89 references. Preview reads the same sound state from its archive graph.
 The native sound manager and clock provide host services. Actor template
-and 3D text objects use the same C89 owner in Studio and Preview. The
-resource, object and HQ facades remain part of final host integration.
+and 3D text objects use the same C89 owner in Studio and Preview. Background
+resources use a C89 owner for metadata, lights, palettes and placement
+points. The resource, object and HQ facades remain part of final host
+integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,
 captions, transitions, sound, editing, undo and saving. Track the remaining

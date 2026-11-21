@@ -167,11 +167,12 @@ static int ensure(MMCollectionStorage *s, unsigned section, MMU32 count, MMU32 s
     }
     return mm_storage_resize_exact(s, section, capacity, MM_STORAGE_NORMAL) == MM_STORAGE_OK;
 }
-int mm_background_preview_init(MMBackgroundPreview *p, const MMStorageAllocator *allocator)
+int mm_background_preview_init(MMBackgroundPreview *p, MMBackgroundCameraState *placement,
+                               const MMStorageAllocator *allocator)
 {
     memset(p, 0, sizeof(*p));
-    return mm_background_camera_init(&p->placement, allocator) &&
-           mm_storage_init(&p->metadata, allocator) == MM_STORAGE_OK &&
+    p->placement = placement;
+    return mm_storage_init(&p->metadata, allocator) == MM_STORAGE_OK &&
            mm_storage_init(&p->images, allocator) == MM_STORAGE_OK;
 }
 void mm_background_preview_dispose(MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
@@ -180,8 +181,7 @@ void mm_background_preview_dispose(MMBackgroundPreview *p, const MMBackgroundPre
     for (i = 0; i < p->mesh_count; ++i)
         s->mesh_release(s->context, p->meshes[i]);
     p->mesh_count = 0;
-    mm_background_camera_dispose(&p->placement);
-    p->placement.current = -1;
+    p->placement = NULL;
     mm_storage_dispose(&p->images);
     mm_storage_dispose(&p->metadata);
     p->camera_count = p->light_count = p->rgb_count = p->depth_count = p->width = p->height = 0;
@@ -267,7 +267,7 @@ static int stage_selection(MMBackgroundPreview *p, MMU32 slot, const MMBackgroun
         return 0;
     if (update_placement)
     {
-        status = mm_background_placement_stage(&p->placement, stream, &binding->data);
+        status = mm_background_placement_stage(p->placement, stream, &binding->data);
         if (status == MM_STORAGE_MEMORY)
             return MM_BACKGROUND_PREVIEW_PLACEMENT_MEMORY;
         if (status != MM_STORAGE_OK)
@@ -282,7 +282,7 @@ static int finish_selection(MMBackgroundPreview *p, MMU32 slot, const MMBackgrou
     if (!select_images(p, slot, binding, s))
         return 0;
     if (update_placement)
-        mm_background_placement_commit(&p->placement, (MMI32)slot, &p->camera, 1);
+        mm_background_placement_commit(p->placement, (MMI32)slot, &p->camera, 1);
     return 1;
 }
 
@@ -368,14 +368,15 @@ int mm_background_preview_select_placement(MMBackgroundPreview *p, MMU32 slot, c
 }
 int mm_background_preview_place(MMBackgroundPreview *p, MMActorPoint *out)
 {
-    if (!out || p->placement.current < 0)
+    if (!out || !p->placement || p->placement->current < 0)
         return 0;
-    mm_background_place(&p->placement, out);
+    mm_background_place(p->placement, out);
     return 1;
 }
 void mm_background_preview_reuse_place(MMBackgroundPreview *p)
 {
-    mm_background_reuse_place(&p->placement);
+    if (p->placement)
+        mm_background_reuse_place(p->placement);
 }
 void *mm_background_preview_mesh(MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
 {

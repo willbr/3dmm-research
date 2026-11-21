@@ -388,7 +388,7 @@ bool Studio::_FLoadMovie(PFilename pfni, ChunkNumber cno, bool *pfClosedOld)
         if ((pscen = pmvieOld->Pscen()) != pvNil)
         {
             if ((pbkgd = pscen->Pbkgd()) != pvNil)
-                pbkgd->SetFLeaveLitesOn(fTrue);
+                EngineBackground::SetFLeaveLitesOn(pbkgd, fTrue);
         }
     }
 
@@ -421,7 +421,7 @@ LFail:
     ReleasePpo(&pmvie);
 
     if (pbkgd != pvNil)
-        pbkgd->SetFLeaveLitesOn(fFalse);
+        EngineBackground::SetFLeaveLitesOn(pbkgd, fFalse);
 
     /* Restore old movie if loading new one failed */
     if (_pmvie == pvNil)
@@ -434,14 +434,14 @@ LFail:
     {
         bool fResetLites = (_pmvie->Pscen() != pvNil && _pmvie->Pscen()->Pbkgd() == pbkgd);
 
-        Assert(!fResetLites || pbkgd->CactRef() > 1, "Not enough refs for Background");
+        Assert(!fResetLites || mm_background_owner_references(pbkgd) > 1, "Not enough refs for Background");
         pmvieOld->CloseAllDdg();
         ReleasePpo(&pmvieOld);
 
         /* Turn lights back on, in new World (they got turned off when releasing
             the old movie) */
         if (fResetLites)
-            pbkgd->TurnOnLights(_pmvie->Pbwld());
+            EngineBackground::TurnOnLights(pbkgd, _pmvie->Pbwld());
     }
 
 #ifdef BUG1959

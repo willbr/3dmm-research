@@ -208,7 +208,8 @@ MMSceneOwnerServices Scene::_OwnerServices()
         else
             actor->Hide();
     };
-    s.lights_off = [](void *, void *p) { static_cast<PBackground>(p)->TurnOffLights(); };
+    s.lights_off = [](void *, void *p) { EngineBackground::TurnOffLights(static_cast<PBackground>(p)); };
+    s.release_background = [](void *, void *p) { mm_background_owner_release(static_cast<PBackground>(p)); };
     s.text_lifetime = [](void *, void *p, MMI32 *first) -> int {
         auto text = static_cast<PTBOX>(p);
         AssertPo(text, 0);
@@ -336,6 +337,7 @@ void Scene::MarkMem(void)
     }
     MarkMemObj(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]));
     MarkMemObj(static_cast<PChunkyResourceFile>(_owner.owned[MM_SCENE_BACKGROUND_CACHE]));
+    EngineBackground::Mark(Pbkgd());
 
     for (const auto &list : _owner.members)
         MarkPv(list.storage.buffers[0].data);
@@ -361,7 +363,7 @@ void Scene::AssertValid(LegacyUlong grf)
     AssertNilOrPo(PactrSelected(), 0);
     for (MMI32 i = 0; i < mm_scene_member_count(&_owner, MM_SCENE_SELECTION); ++i)
         AssertPo(static_cast<PActor>(mm_scene_member_at(&_owner, MM_SCENE_SELECTION, i)), 0);
-    AssertNilOrPo(Pbkgd(), 0);
+    EngineBackground::Validate(Pbkgd());
     AssertNilOrPo(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]), 0);
     for (const auto &track : _owner.tracks)
         Assert(track.rows.storage == &track.storage, "bad scene track storage");
@@ -684,12 +686,12 @@ MMSceneEventServices Scene::_EventServices()
     s.fetch_background = [](void *, MMTag *value) -> void * {
         TAG tag;
         TagFromCore(&tag, *value);
-        auto background = vptagm->PbacoFetch(&tag, Background::FReadBkgd);
+        auto background = EngineBackground::Fetch(&tag);
         *value = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
         return background;
     };
     s.set_camera = [](void *p, void *background, MMI32 camera) -> int {
-        return static_cast<PBackground>(background)->FSetCamera(static_cast<PScene>(p)->Pmvie()->Pbwld(), camera);
+        return EngineBackground::FSetCamera(static_cast<PBackground>(background), static_cast<PScene>(p)->Pmvie()->Pbwld(), camera);
     };
     s.transition = [](void *p) -> int { return static_cast<PScene>(p)->Pmvie()->Trans(); };
     s.set_transition = [](void *p, int value) { static_cast<PScene>(p)->Pmvie()->SetTrans(static_cast<TRANS>(value)); };
@@ -1741,13 +1743,13 @@ MMSceneEditServices Scene::_EditServices()
     s.background_name = [](void *p) {
         auto scene = static_cast<PScene>(p);
         String name;
-        scene->Pbkgd()->GetName(&name);
+        EngineBackground::GetName(scene->Pbkgd(), &name);
         scene->SetNameCore(&name);
     };
     s.scene_change = [](void *p) { static_cast<PScene>(p)->Pmvie()->Pmcc()->SceneChange(); };
     s.can_notify = [](void *) -> int { return vpcex != nullptr; };
     s.loaded = [](void *) { vpcex->EnqueueCid(cidSceneLoaded); };
-    s.current_camera = [](void *p) -> MMI32 { return static_cast<PScene>(p)->Pbkgd()->Icam(); };
+    s.current_camera = [](void *p) -> MMI32 { return EngineBackground::Icam(static_cast<PScene>(p)->Pbkgd()); };
     s.new_undo = [](void *, int kind) -> void * {
         return kind == MM_SCENE_UNDO_PAUSE ? static_cast<void *>(SceneUndoPause::PsunpNew())
                                                  : static_cast<void *>(SceneUndoBackground::PsunkNew());

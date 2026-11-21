@@ -588,7 +588,7 @@ MMMovieEditServices Movie::_EditServices()
     s.route_paste = [](void *p) { return static_cast<PActor>(p)->_RoutePasteServices(); };
     s.long_op = [](void *, int begin) { if (begin) vpappb->BeginLongOp(); else vpappb->EndLongOp(); };
     s.cache_tag = [](void *, const MMTag *value, int background) -> int {
-        TAG tag; TagFromCore(&tag, *value); return background ? Background::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);
+        TAG tag; TagFromCore(&tag, *value); return background ? EngineBackground::FCacheToHD(&tag) : vptagm->FCacheTagToHD(&tag);
     };
     s.default_title = [](void *p) { static_cast<PMovie>(p)->_SetTitle(); };
     s.sounds_enabled = [](void *p) -> int { return static_cast<PMovie>(p)->FSoundsEnabled(); };
@@ -2940,7 +2940,7 @@ void Movie::DoTrans(PGraphicsEnvironment pgnvDst, PGraphicsEnvironment pgnvSrc, 
     long iclrMin;
 
     pglclrSystem = GraphicsPort::PglclrGetPalette();
-    if (Pscen() == pvNil || !Pscen()->Pbkgd()->FGetPalette(&pglclrBkgd, &iclrMin))
+    if (Pscen() == pvNil || !EngineBackground::FGetPalette(Pscen()->Pbkgd(), &pglclrBkgd, &iclrMin))
     {
         pglclrBkgd = pvNil;
     }
@@ -3813,7 +3813,7 @@ void MovieView::MouseToWorld(MMActorPoint &delta, bool recording)
 
     BMAT34 native;
     MMActorMatrix camera;
-    Pmvie()->Pscen()->Pbkgd()->GetMouseMatrix(&native);
+    EngineBackground::GetMouseMatrix(Pmvie()->Pscen()->Pbkgd(), &native);
     static_assert(sizeof(camera) == sizeof(native), "Mouse matrix ABI");
     std::memcpy(&camera, &native, sizeof(camera));
     mm_actor_mouse_to_world(&delta, &_mouseAxes, &camera, recording);
@@ -4245,7 +4245,7 @@ void MovieView::_PositionActr(const MMActorPoint &delta)
     {
         Pmvie()->Pbwld()->MarkDirty();
         Pmvie()->MarkViews();
-        scene->Pbkgd()->ReuseActorPlacePoint();
+        EngineBackground::ReuseActorPlacePoint(scene->Pbkgd());
     }
 }
 
@@ -4393,7 +4393,7 @@ void MovieView::_MouseDown(CMD_MOUSE *pcmd)
         BRS zr;
 
         EngineBody::GetPosition(pactr->Pbody(), &xr, &yr, &zr);
-        if (!Pmvie()->Pscen()->Pbkgd()->FWritePlaceFile(xr, yr, zr))
+        if (!EngineBackground::FWritePlaceFile(Pmvie()->Pscen()->Pbkgd(), xr, yr, zr))
         {
             Bug("ouch.  bkgd write failed.");
         }
@@ -4796,7 +4796,7 @@ void MovieView::_MouseDrag(CMD_MOUSE *pcmd)
     // Scale movement based on selected actor
     //
     pactr->GetXyzWorld(pvNil, pvNil, &zrActr);
-    pscen->Pbkgd()->GetCameraPos(pvNil, pvNil, &zrCam);
+    EngineBackground::GetCameraPos(pscen->Pbkgd(), pvNil, pvNil, &zrCam);
     mm_actor_scale_drag_depth(&world, zrActr, zrCam);
 
     switch (Tool())

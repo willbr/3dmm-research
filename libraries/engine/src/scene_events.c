@@ -78,7 +78,7 @@ int mm_scene_play_event(MMI32 frame, int kind, void *payload, MMU32 disabled,
             return 0;
         if (!s->set_camera(c, object, 0))
         {
-            s->owners.release(s->owners.context, object);
+            s->owners.release_background(s->owners.context, object);
             return 0;
         }
         if (s->transition(c) == MM_SCENE_EVENT_NIL_TRANSITION)

@@ -44,7 +44,11 @@
 #include <cstring>
 ASSERTNAME
 
-RTCLASS(Background)
+#ifdef DEBUG
+#define BACKGROUND_VALIDATE(background) EngineBackground::Validate(background)
+#else
+#define BACKGROUND_VALIDATE(background) ((void)0)
+#endif
 
 const ChildChunkID kchidBds = 0;  // Background default sound
 const ChildChunkID kchidGllt = 0; // DynamicArray of LITEs
@@ -54,12 +58,12 @@ namespace
 {
 struct BackgroundResourceHost
 {
-    Background *background;
+    PBackground background;
     PChunkyResourceFile cache;
     PWorld world;
 };
 } // namespace
-MMBackgroundServices Background::_ResourceServices(void *host)
+static MMBackgroundServices ResourceServices(void *host)
 {
     MMBackgroundServices s = {};
     s.context = host;
@@ -72,7 +76,11 @@ MMBackgroundServices Background::_ResourceServices(void *host)
     s.light_bytes = sizeof(BLIT);
     s.name = [](void *p, MMU32 type, MMU32 number) {
         auto h = static_cast<BackgroundResourceHost *>(p);
-        return int(h->cache->FGetName(type, number, &h->background->_stn));
+        String name;
+        const bool found = h->cache->FGetName(type, number, &name);
+        const auto storage = mm_background_owner_name(h->background);
+        mm_string_value_copy(&storage, name.Pst());
+        return int(found);
     };
     s.allocate = [](void *, MMI32 bytes, void **out) { return int(FAllocPv(out, bytes, fmemClear, mprNormal)); };
     s.free_memory = [](void *, void **out) { FreePpv(out); };
@@ -92,10 +100,37 @@ MMBackgroundServices Background::_ResourceServices(void *host)
     return s;
 }
 
+const MMBackgroundOwnerHost &EngineBackground::Host()
+{
+    static const auto teardown = ResourceServices(nullptr);
+    static const MMBackgroundOwnerHost host = {
+        KauaiResourceObjectAllocator(), &teardown, sizeof(achar),
+#ifdef DEBUG
+        EngineBackground::Mark
+#else
+        nullptr
+#endif
+    };
+    return host;
+}
+
+static MMI32 LegacyBackgroundSize()
+{
+    // Preserve the cache charge of the former native background class.
+    size_t prefix = sizeof(void *) == 8 ? 40 : 28;
+#ifdef DEBUG
+    if (sizeof(void *) == 4)
+        prefix += 4;
+#endif
+    const size_t bytes = prefix + sizeof(MMBackgroundResource) + sizeof(MMBackgroundCameraState) + sizeof(String);
+    const size_t alignment = sizeof(void *);
+    return static_cast<MMI32>((bytes + alignment - 1) & ~(alignment - 1));
+}
+
 /***************************************************************************
     Cache the background's chunks (excluding camera views) to HD
 ***************************************************************************/
-bool Background::FCacheToHD(PTAG ptagBkgd)
+bool EngineBackground::FCacheToHD(PTAG ptagBkgd)
 {
     AssertVarMem(ptagBkgd);
     MMBackgroundTagServices s = {};
@@ -119,7 +154,7 @@ bool Background::FCacheToHD(PTAG ptagBkgd)
 /***************************************************************************
     Read a Background through its resource cache.
 ***************************************************************************/
-int Background::FReadBkgd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+int EngineBackground::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                          void **object, MMI32 *bytes)
 {
     struct Host
@@ -131,22 +166,27 @@ int Background::FReadBkgd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOw
     } host = {cache, block, object, bytes};
     MMBackgroundFactoryServices s = {};
     s.context = &host;
-    s.object_bytes = sizeof(Background);
+    s.object_bytes = LegacyBackgroundSize();
     s.actor_bytes = sizeof(BACT);
     s.light_bytes = sizeof(BLIT);
-    s.create = [](void *) -> void * { return NewObj Background; };
+    s.create = [](void *) -> void * { return mm_background_owner_create(&EngineBackground::Host()); };
     s.initialize = [](void *p, void *object, MMU32 type, MMU32 number) {
         auto host = static_cast<Host *>(p);
-        return int(static_cast<Background *>(object)->_FInit(host->cache, type, number, host->block));
+        auto background = static_cast<PBackground>(object);
+        BackgroundResourceHost resource = {background, static_cast<PChunkyResourceFile>(host->cache->owner), nullptr};
+        const auto services = ResourceServices(&resource);
+        return mm_background_read_cached(mm_background_owner_resource(background),
+                                         mm_background_owner_camera(background), type, number,
+                                         host->cache, host->block, KauaiDecodeBlockHandle, &services);
     };
     s.lights = [](void *, void *object) -> MMI32 {
-        return static_cast<Background *>(object)->_resource.light_count;
+        return Resource(static_cast<PBackground>(object)).light_count;
     };
-    s.release = [](void *, void *object) { static_cast<Background *>(object)->Release(); };
+    s.release = [](void *, void *object) { mm_background_owner_release(static_cast<PBackground>(object)); };
     s.size = [](void *p, MMI32 bytes) { *static_cast<Host *>(p)->bytes = bytes; };
     s.publish = [](void *p, void *object) {
-        auto background = static_cast<Background *>(object);
-        AssertPo(background, 0);
+        auto background = static_cast<PBackground>(object);
+        BACKGROUND_VALIDATE(background);
         *static_cast<Host *>(p)->object = background;
     };
     s.failure = [](void *p) {
@@ -157,42 +197,26 @@ int Background::FReadBkgd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOw
     return mm_background_factory(type, number, object != nullptr, &s);
 }
 
-/***************************************************************************
-    Read a Background from the given chunk of the given ChunkyFile.
-    Note: Although we read the data for the lights here, we don't turn
-    them on yet because we don't have a World to add them to.  The lights
-    are	turned on with the first FSetCamera() call.
-***************************************************************************/
-bool Background::_FInit(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block)
+PBackground EngineBackground::Fetch(PTAG tag)
 {
-    AssertBaseThis(0);
-    BackgroundResourceHost host = {this, static_cast<PChunkyResourceFile>(cache->owner), nullptr};
-    const auto services = _ResourceServices(&host);
-    return mm_background_read_cached(&_resource, &_camera, type, number, cache, block, KauaiDecodeBlockHandle,
-                                     &services) != 0;
+    return static_cast<PBackground>(vptagm->FetchResource(tag, Read, mm_background_owner_services()));
 }
 
-/***************************************************************************
-    Clean up and delete this background
-***************************************************************************/
-Background::~Background(void)
+PBackground EngineBackground::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number)
 {
-    AssertBaseThis(0);
-    Assert(!_resource.leave_on, "Shouldn't be freeing background now");
-    auto services = _ResourceServices(nullptr);
-    mm_background_resource_dispose(&_resource, &services);
-    mm_background_camera_dispose(&_camera);
+    return static_cast<PBackground>(mm_resource_cache_fetch_owned_chunk(file->CoreCache(), type, number, Read,
+                                                                        mm_background_owner_services()));
 }
 
 /***************************************************************************
     Get the background's name
 ***************************************************************************/
-void Background::GetName(PString pstn)
+void EngineBackground::GetName(PBackground background, PString pstn)
 {
-    AssertThis(0);
+    BACKGROUND_VALIDATE(background);
     AssertPo(pstn, 0);
 
-    *pstn = _stn;
+    pstn->SetSt(static_cast<PPascalString>(mm_background_owner_name(background).buffer));
 }
 
 /***************************************************************************
@@ -200,14 +224,14 @@ void Background::GetName(PString pstn)
     an error occurs.  Sets *ppglclr to an empty DynamicArray and *piclrMin to 0 if
     this background has no custom palette.
 ***************************************************************************/
-bool Background::FGetPalette(PDynamicArray *ppglclr, long *piclrMin)
+bool EngineBackground::FGetPalette(PBackground background, PDynamicArray *ppglclr, long *piclrMin)
 {
-    AssertThis(0);
+    BACKGROUND_VALIDATE(background);
     AssertVarMem(ppglclr);
     AssertVarMem(piclrMin);
     MMU32 count;
     MMI32 base;
-    const auto colours = mm_background_palette(&_resource, &count, &base);
+    const auto colours = mm_background_palette(mm_background_owner_resource(background), &count, &base);
     *piclrMin = base;
     *ppglclr = DynamicArray::PglNew(sizeof(Color), count);
     if (*ppglclr && count)
@@ -223,40 +247,40 @@ bool Background::FGetPalette(PDynamicArray *ppglclr, long *piclrMin)
 /***************************************************************************
     Get the camera position in worldspace
 ***************************************************************************/
-void Background::GetCameraPos(BRS *pxr, BRS *pyr, BRS *pzr)
+void EngineBackground::GetCameraPos(PBackground background, BRS *pxr, BRS *pyr, BRS *pzr)
 {
-    AssertThis(0);
+    BACKGROUND_VALIDATE(background);
     AssertNilOrVarMem(pxr);
     AssertNilOrVarMem(pyr);
     AssertNilOrVarMem(pzr);
     if (pxr)
-        *pxr = _camera.position.dxr;
+        *pxr = Camera(background).position.dxr;
     if (pyr)
-        *pyr = _camera.position.dyr;
+        *pyr = Camera(background).position.dyr;
     if (pzr)
-        *pzr = _camera.position.dzr;
+        *pzr = Camera(background).position.dzr;
 }
 
 /***************************************************************************
     Turn on lights in pbwld
 ***************************************************************************/
-void Background::TurnOnLights(PWorld pbwld)
+void EngineBackground::TurnOnLights(PBackground background, PWorld pbwld)
 {
-    AssertThis(0);
+    BACKGROUND_VALIDATE(background);
     AssertPo(pbwld, 0);
-    BackgroundResourceHost host = {this, nullptr, pbwld};
-    auto services = _ResourceServices(&host);
-    mm_background_lights_on(&_resource, &services);
+    BackgroundResourceHost host = {background, nullptr, pbwld};
+    auto services = ResourceServices(&host);
+    mm_background_lights_on(mm_background_owner_resource(background), &services);
 }
 
 /***************************************************************************
     Turn off lights in pbwld
 ***************************************************************************/
-void Background::TurnOffLights(void)
+void EngineBackground::TurnOffLights(PBackground background)
 {
-    AssertThis(0);
-    auto services = _ResourceServices(nullptr);
-    mm_background_lights_off(&_resource, &services);
+    BACKGROUND_VALIDATE(background);
+    auto services = ResourceServices(nullptr);
+    mm_background_lights_off(mm_background_owner_resource(background), &services);
 }
 
 /***************************************************************************
@@ -266,17 +290,19 @@ namespace
 {
 struct BackgroundCameraHost
 {
-    Background *background;
+    PBackground background;
     PWorld world;
 };
 } // namespace
-MMBackgroundCameraServices Background::_CameraServices(void *host)
+static MMBackgroundCameraServices CameraServices(void *host)
 {
     MMBackgroundCameraServices s = {};
     s.context = host;
     s.background = [](void *p, MMU32 rgb, MMU32 depth) {
         auto h = static_cast<BackgroundCameraHost *>(p);
-        return int(h->world->FSetBackground(h->background->Pcrf(), kctgMbmp, rgb, kctgZbmp, depth));
+        const auto binding = mm_background_owner_binding(h->background);
+        auto cache = static_cast<PChunkyResourceFile>(binding->cache->owner);
+        return int(h->world->FSetBackground(cache, kctgMbmp, rgb, kctgZbmp, depth));
     };
     s.euler_yxy = [](void *, const MMActorMatrix *value, unsigned short *a, unsigned short *c) {
         BMAT34 matrix;
@@ -314,40 +340,41 @@ MMBackgroundCameraServices Background::_CameraServices(void *host)
     return s;
 }
 
-bool Background::FSetCamera(PWorld pbwld, long icam)
+bool EngineBackground::FSetCamera(PBackground background, PWorld pbwld, long icam)
 {
-    AssertThis(0);
+    BACKGROUND_VALIDATE(background);
     AssertPo(pbwld, 0);
-    AssertIn(icam, 0, Ccam());
-    BackgroundCameraHost host = {this, pbwld};
-    const auto services = _CameraServices(&host);
-    TurnOnLights(pbwld);
-    return mm_background_select_cached(&_camera, Pcrf()->CoreCache(), Cno(), icam, KauaiDecodeBlockHandle,
-                                       &services) != 0;
+    AssertIn(icam, 0, Ccam(background));
+    BackgroundCameraHost host = {background, pbwld};
+    const auto services = CameraServices(&host);
+    TurnOnLights(background, pbwld);
+    const auto binding = mm_background_owner_binding(background);
+    return mm_background_select_cached(mm_background_owner_camera(background), binding->cache, binding->number,
+                                       icam, KauaiDecodeBlockHandle, &services) != 0;
 }
 
 /***************************************************************************
     Gets the matrix for mouse-dragging relative to the camera
 ***************************************************************************/
-void Background::GetMouseMatrix(BMAT34 *pbmat34)
+void EngineBackground::GetMouseMatrix(PBackground background, BMAT34 *pbmat34)
 {
-    AssertThis(0);
+    BACKGROUND_VALIDATE(background);
     AssertVarMem(pbmat34);
-    static_assert(sizeof(*pbmat34) == sizeof(_camera.mouse), "Camera matrix layout");
-    std::memcpy(pbmat34, &_camera.mouse, sizeof(*pbmat34));
+    static_assert(sizeof(*pbmat34) == sizeof(Camera(background).mouse), "Camera matrix layout");
+    std::memcpy(pbmat34, &Camera(background).mouse, sizeof(*pbmat34));
 }
 
 /***************************************************************************
     Gets the point at which to place new actors for this bkgd/view.
 ***************************************************************************/
-void Background::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
+void EngineBackground::GetActorPlacePoint(PBackground background, BRS *pxr, BRS *pyr, BRS *pzr)
 {
-    AssertThis(0);
+    BACKGROUND_VALIDATE(background);
     AssertVarMem(pxr);
     AssertVarMem(pyr);
     AssertVarMem(pzr);
     MMActorPoint point;
-    mm_background_place(&_camera, &point);
+    mm_background_place(mm_background_owner_camera(background), &point);
     *pxr = point.dxr;
     *pyr = point.dyr;
     *pzr = point.dzr;
@@ -359,18 +386,18 @@ void Background::GetActorPlacePoint(BRS *pxr, BRS *pyr, BRS *pzr)
         from the actor placement code if the actor was placed at a point other
         than the one you just asked for.
 ************************************************************ PETED ***********/
-void Background::ReuseActorPlacePoint(void)
+void EngineBackground::ReuseActorPlacePoint(PBackground background)
 {
-    mm_background_reuse_place(&_camera);
+    mm_background_reuse_place(mm_background_owner_camera(background));
 }
 
 #ifdef DEBUG
 /***************************************************************************
     Authoring only.  Writes a special file with the given place info.
 ***************************************************************************/
-bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
+bool EngineBackground::FWritePlaceFile(PBackground background, BRS xrPlace, BRS yrPlace, BRS zrPlace)
 {
-    AssertThis(0);
+    BACKGROUND_VALIDATE(background);
     Assert(yrPlace == rZero, "are you sure you want non-zero Y?");
 
     String stnFile;
@@ -385,7 +412,9 @@ bool Background::FWritePlaceFile(BRS xrPlace, BRS yrPlace, BRS zrPlace)
     LegacyLong zr1 = BrScalarToInt(zrPlace);
     LegacyLong zr2 = LwAbs((long)(1000000.0 * BrScalarToFloat(zrPlace - BrIntToScalar(zr1))));
 
-    if (!stnFile.FFormatSz("%s-cam.1-%d.pos", &_stn, static_cast<LegacyLong>(_camera.current + 1)))
+    String name;
+    GetName(background, &name);
+    if (!stnFile.FFormatSz("%s-cam.1-%d.pos", &name, static_cast<LegacyLong>(Camera(background).current + 1)))
         goto LFail;
     if (!fni.FBuildFromPath(&stnFile))
         goto LFail;
@@ -419,26 +448,31 @@ LFail:
 /***************************************************************************
     Assert the validity of the Background.
 ***************************************************************************/
-void Background::AssertValid(LegacyUlong grf)
+void EngineBackground::Validate(PBackground background)
 {
-    Background_PAR::AssertValid(fobjAllocated);
-    AssertIn(_resource.light_count, 1, 100); // 100 is sanity check
-    AssertIn(_camera.count, 1, 100);         // 100 is sanity check
-    Assert(_camera.current == ivNil || (_camera.current >= 0 && _camera.current < _camera.count),
-           "bad _camera.current");
-    AssertPvCb(_resource.actors, LwMul(_resource.light_count, size(BACT)));
-    AssertPvCb(_resource.lights, LwMul(_resource.light_count, size(BLIT)));
-    AssertPo(&_stn, 0);
+    if (!background)
+        return;
+    AssertIn(Resource(background).light_count, 1, 100); // 100 is sanity check
+    AssertIn(Camera(background).count, 1, 100);         // 100 is sanity check
+    Assert(Camera(background).current == ivNil || (Camera(background).current >= 0 && Camera(background).current < Camera(background).count),
+           "bad Camera(background).current");
+    AssertPvCb(Resource(background).actors, LwMul(Resource(background).light_count, size(BACT)));
+    AssertPvCb(Resource(background).lights, LwMul(Resource(background).light_count, size(BLIT)));
 }
 
 /***************************************************************************
     Mark memory used by the Background
 ***************************************************************************/
-void Background::MarkMem(void)
+void EngineBackground::Mark(PBackground background)
 {
-    AssertThis(0);
-    Background_PAR::MarkMem();
-    MarkPv(_resource.actors);
-    MarkPv(_resource.lights);
+    if (!background)
+        return;
+    Validate(background);
+    MarkPv(background);
+    const auto binding = mm_background_owner_binding(background);
+    if (binding->cache && !binding->attached)
+        MarkMemObj(static_cast<PChunkyResourceFile>(binding->cache->owner));
+    MarkPv(Resource(background).actors);
+    MarkPv(Resource(background).lights);
 }
 #endif // DEBUG

@@ -116,7 +116,7 @@ struct Access : Scene
         auto bg = p->Pbkgd();
         Value(bg != nullptr);
         if (bg)
-            Value(bg->Icam());
+            Value(EngineBackground::Icam(bg));
         auto &t = (p->*&Access::_owner).background_tag;
         Value(t.sid);
         Value(t.type);
@@ -242,18 +242,18 @@ static void CheckIndexedBackground(PChunkyFile source, ChunkNumber sourceNumber)
     CHECK(child.pcrf == cache && child.ctg == kctgCam && child.cno == camera.cki.cno);
     TagManager::CloseTag(&child);
 
-    auto background = static_cast<PBackground>(vptagm->PbacoFetch(&parent, Background::FReadBkgd));
-    CHECK(background && background->Ccam() == 4 && background->Icam() == ivNil);
+    auto background = EngineBackground::Fetch(&parent);
+    CHECK(background && EngineBackground::Ccam(background) == 4 && EngineBackground::Icam(background) == ivNil);
     String name;
-    background->GetName(&name);
+    EngineBackground::GetName(background, &name);
     CHECK(name.FEqualSz(PszLit("Background A")));
     auto world = World::PbwldNew(32, 24, false, false);
-    CHECK(world && background->FSetCamera(world, 3) && background->Icam() == 3);
+    CHECK(world && EngineBackground::FSetCamera(background, world, 3) && EngineBackground::Icam(background) == 3);
     BRS x, y, z;
-    background->GetCameraPos(&x, &y, &z);
+    EngineBackground::GetCameraPos(background, &x, &y, &z);
     CHECK(x == BR_SCALAR(3) && y == 0 && z == 0);
-    background->TurnOffLights();
-    ReleasePpo(&background);
+    EngineBackground::TurnOffLights(background);
+    mm_background_owner_release(background);
     ReleasePpo(&world);
 
     CHECK(!TagManager::FSaveTag(&parent, cache, true) && parent.pcrf == cache && parent.cno == number);

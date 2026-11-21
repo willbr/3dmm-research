@@ -35,12 +35,12 @@ class MovieContentSceneAccess : public Scene
     {
         if (scene->Pbkgd())
             return false;
-        auto background = NewObj StageTestBackground();
+        auto background = mm_background_owner_create(&EngineBackground::Host());
         if (!background)
             return false;
-        if (!background->Init())
+        if (!InitializeStageBackground(background))
         {
-            ReleasePpo(&background);
+            mm_background_owner_release(background);
             return false;
         }
         auto member = &MovieContentSceneAccess::_owner;

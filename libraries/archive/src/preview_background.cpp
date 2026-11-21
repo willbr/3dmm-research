@@ -59,30 +59,39 @@ bool PreviewBackground::Load(const MMMovieSessionGraph &archive, ChunkNumber bac
             return 0;
         }
     };
-    mm_background_resource_dispose(&resource, nullptr);
-    mm_background_resource_init(&resource);
-    return mm_background_read_graph(&resource, &preview.placement, kctgBkgd, background, &graph, &s) != 0;
+    auto resource = mm_background_owner_resource(owner);
+    mm_background_resource_dispose(resource, nullptr);
+    mm_background_resource_init(resource);
+    return mm_background_read_graph(resource, mm_background_owner_camera(owner), kctgBkgd, background, &graph, &s) != 0;
 }
 void PreviewBackground::OverlayAuthoredPalette(unsigned char bgrx[1024]) const
 {
     MMU32 count;
     MMI32 base;
-    const auto bytes = mm_background_palette(&resource, &count, &base);
+    const auto bytes = mm_background_palette(mm_background_owner_resource(owner), &count, &base);
     mm_display_palette_overlay(bgrx, 256, base, bytes, count);
 }
 
 PreviewBackground::PreviewBackground()
 {
-    if (!mm_preview_projection_cache_init(&cameraProjections, nullptr) ||
-        !mm_background_preview_init(&preview, nullptr))
+    static const MMBackgroundOwnerHost host = {};
+    owner = mm_background_owner_create(&host);
+    if (!owner)
         throw std::bad_alloc();
+    if (!mm_preview_projection_cache_init(&cameraProjections, nullptr) ||
+        !mm_background_preview_init(&preview, mm_background_owner_camera(owner), nullptr))
+    {
+        mm_preview_projection_cache_dispose(&cameraProjections);
+        mm_background_owner_release(owner);
+        throw std::bad_alloc();
+    }
 }
 PreviewBackground::~PreviewBackground()
 {
-    mm_background_resource_dispose(&resource, nullptr);
     mm_preview_projection_cache_dispose(&cameraProjections);
     auto s = Services(nullptr);
     mm_background_preview_dispose(&preview, &s);
+    mm_background_owner_release(owner);
 }
 void PreviewBackground::Publish(const MMBackgroundPreview &p)
 {

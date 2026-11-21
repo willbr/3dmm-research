@@ -643,12 +643,12 @@ int main()
     TAG tag = {ksidUseCrf, observed, kctgBkgd, background}, old;
     CHECK(scene->FSetBkgdCore(&tag, &old));
     {
-        auto background = static_cast<PBackground>(observed->PbacoFetch(kctgBkgd, tag.cno, Background::FReadBkgd));
+        auto background = EngineBackground::Fetch(observed, kctgBkgd, tag.cno);
         CHECK(background);
         TAG sound;
         long volume;
         bool loop;
-        background->GetDefaultSound(&sound, &volume, &loop);
+        EngineBackground::GetDefaultSound(background, &sound, &volume, &loop);
         Value(sound.sid);
         Value(sound.pcrf != nullptr);
         Value(sound.ctg);
@@ -659,7 +659,7 @@ int main()
         {
             PDynamicArray colors;
             long base;
-            Value(background->FGetPalette(&colors, &base));
+            Value(EngineBackground::FGetPalette(background, &colors, &base));
             Value(base);
             Value(colors->IvMac());
             for (long j = 0; j < colors->IvMac(); ++j)
@@ -675,39 +675,39 @@ int main()
             }
             ReleasePpo(&colors);
         }
-        background->TurnOffLights();
-        background->TurnOnLights(movie->Pbwld());
-        background->SetFLeaveLitesOn(true);
-        Value(background->FLeaveLitesOn());
-        background->TurnOffLights();
-        background->SetFLeaveLitesOn(false);
-        Value(background->FLeaveLitesOn());
-        background->TurnOffLights();
-        background->TurnOffLights();
-        background->TurnOnLights(movie->Pbwld());
-        background->TurnOnLights(movie->Pbwld());
+        EngineBackground::TurnOffLights(background);
+        EngineBackground::TurnOnLights(background, movie->Pbwld());
+        EngineBackground::SetFLeaveLitesOn(background, true);
+        Value(EngineBackground::FLeaveLitesOn(background));
+        EngineBackground::TurnOffLights(background);
+        EngineBackground::SetFLeaveLitesOn(background, false);
+        Value(EngineBackground::FLeaveLitesOn(background));
+        EngineBackground::TurnOffLights(background);
+        EngineBackground::TurnOffLights(background);
+        EngineBackground::TurnOnLights(background, movie->Pbwld());
+        EngineBackground::TurnOnLights(background, movie->Pbwld());
         for (long camera : {0, 1, 2, 1, 0})
         {
-            Value(background->FSetCamera(movie->Pbwld(), camera));
-            Value(background->Ccam());
-            Value(background->Icam());
+            Value(EngineBackground::FSetCamera(background, movie->Pbwld(), camera));
+            Value(EngineBackground::Ccam(background));
+            Value(EngineBackground::Icam(background));
             BRS x, y, z;
-            background->GetCameraPos(&x, &y, &z);
+            EngineBackground::GetCameraPos(background, &x, &y, &z);
             Value(x);
             Value(y);
             Value(z);
             BMAT34 mouse;
-            background->GetMouseMatrix(&mouse);
+            EngineBackground::GetMouseMatrix(background, &mouse);
             Record(&mouse, sizeof(mouse));
-            Value(background->BraRotYCamera());
+            Value(EngineBackground::BraRotYCamera(background));
             for (int i = 0; i < 5; ++i)
             {
-                background->GetActorPlacePoint(&x, &y, &z);
+                EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
                 Value(x);
                 Value(y);
                 Value(z);
                 if (i == 1)
-                    background->ReuseActorPlacePoint();
+                    EngineBackground::ReuseActorPlacePoint(background);
             }
         }
         /* Foreign-order appended points used to be swapped past a stack header.
@@ -730,24 +730,24 @@ int main()
         std::memcpy(foreign.data(), &camera, sizeof(camera));
         std::memcpy(foreign.data() + sizeof(camera), points, sizeof(points));
         CHECK(archive.PutBytes(foreign.data(), foreign.size(), kctgCam, child));
-        CHECK(background->FSetCamera(movie->Pbwld(), 1));
+        CHECK(EngineBackground::FSetCamera(background, movie->Pbwld(), 1));
         BRS x, y, z;
-        background->GetCameraPos(&x, &y, &z);
-        CHECK(x == BR_SCALAR(1) && y == 0 && z == 0 && background->Icam() == 1);
-        background->GetActorPlacePoint(&x, &y, &z);
+        EngineBackground::GetCameraPos(background, &x, &y, &z);
+        CHECK(x == BR_SCALAR(1) && y == 0 && z == 0 && EngineBackground::Icam(background) == 1);
+        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
         CHECK(x == 0 && y == 0 && z == 0);
-        background->GetActorPlacePoint(&x, &y, &z);
+        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
         CHECK(x == BR_SCALAR(2) && y == BR_SCALAR(-3) && z == BR_SCALAR(4));
-        background->ReuseActorPlacePoint();
-        background->GetActorPlacePoint(&x, &y, &z);
+        EngineBackground::ReuseActorPlacePoint(background);
+        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
         CHECK(x == BR_SCALAR(2) && y == BR_SCALAR(-3) && z == BR_SCALAR(4));
-        background->GetActorPlacePoint(&x, &y, &z);
+        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
         CHECK(x == BR_SCALAR(5) && y == BR_SCALAR(6) && z == BR_SCALAR(-7));
-        background->GetActorPlacePoint(&x, &y, &z);
+        EngineBackground::GetActorPlacePoint(background, &x, &y, &z);
         CHECK(x == 0 && y == 0 && z == 0);
         CHECK(archive.PutBytes(native.data(), native.size(), kctgCam, child));
-        CHECK(background->FSetCamera(movie->Pbwld(), 0));
-        ReleasePpo(&background);
+        CHECK(EngineBackground::FSetCamera(background, movie->Pbwld(), 0));
+        mm_background_owner_release(background);
     }
     {
         TAG found = {ksidInvalid, nullptr, 0, 0};

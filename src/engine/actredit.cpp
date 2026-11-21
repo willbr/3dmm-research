@@ -170,7 +170,7 @@ MMActorPasteServices Actor::_PasteServices()
     s.movie_sound=[](void *scene) {
         return static_cast<PScene>(scene)->Pmvie()->SoundServices();
     };
-    s.camera_yaw=[](void *,void *p) { return static_cast<PScene>(p)->Pbkgd()->BraRotYCamera(); };
+    s.camera_yaw=[](void *,void *p) { return EngineBackground::BraRotYCamera(static_cast<PScene>(p)->Pbkgd()); };
     s.dirty=[](void *,void *p) { static_cast<PScene>(p)->MarkDirty(); };
     s.diagnostic=[](void *,int fault) {
         switch (fault)
