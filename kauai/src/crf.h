@@ -164,6 +164,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MMResourceCache *CoreCache() { return &_cache; }
     MMChunkAccess ReadChunkAccess();
     MMChunkOwnerRead *ReadOwner();
+    bool FReopenArchive();
     MMArchiveWriter ArchiveWriter();
     static MMChunkTitleIO ResourceTitleIO();
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);

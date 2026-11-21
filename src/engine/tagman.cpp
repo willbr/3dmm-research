@@ -78,15 +78,14 @@ struct NativeDiscoveryHost
 PChunkyResourceFile OpenSourceArchive(Filename &filename, LegacyLong budget, bool media)
 {
     const auto existing = ChunkyFile::PcflFromFni(&filename);
+    if (existing)
+        return existing->FSetGrfcfl(fcflNil) ? ChunkyResourceFile::PcrfNew(existing, budget) : nullptr;
     const auto existingFile = FileObject::PfilFromFni(&filename);
-    if (media || existing || (existingFile && (existingFile->GrffilCur() & (ffilWriteEnable | ffilDenyRead))) ||
+    if (const auto owner = KauaiFindWorkingArchive(existingFile))
+        return ChunkyResourceFile::PcrfNewPrivate(owner, budget);
+    if (media || (existingFile && (existingFile->GrffilCur() & (ffilWriteEnable | ffilDenyRead))) ||
         (filename.Grfvk() & (fvkCD | fvkFloppy | fvkRemovable)))
-    {
-        auto file = ChunkyFile::PcflOpen(&filename, fcflNil);
-        auto cache = file ? ChunkyResourceFile::PcrfNew(file, budget) : nullptr;
-        ReleasePpo(&file);
-        return cache;
-    }
+        return ChunkyResourceFile::PcrfOpenWorking(&filename, false, budget);
 
     String path;
     filename.GetStnPath(&path);
@@ -791,7 +790,7 @@ void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
             auto manager = static_cast<PTagManager>(c)->_PcrmSourceGet(sid);
             return manager ? manager->CoreManager() : nullptr;
         },
-        [](void *f) { static_cast<PChunkyFile>(f)->FReopen(); }};
+        [](MMResourceCache *cache) { static_cast<PChunkyResourceFile>(cache->owner)->FReopenArchive(); }};
     mm_tag_clear_cache(sid, flags, &services);
 }
 bool TagManager::FOpenTag(PTAG tag, PChunkyResourceFile destination, PChunkyFile source)

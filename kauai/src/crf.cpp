@@ -429,6 +429,17 @@ PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
         return PcrfNewIndex(_cache.wire_index, _cache.wire_file, *_cache.services.block_files, _wirePath, budget);
     return _PcrfNew({Pcfl(), _cache.wire_index, _cache.wire_file}, budget);
 }
+bool ChunkyResourceFile::FReopenArchive()
+{
+    AssertThis(0);
+    if (_privateArchive)
+    {
+        const auto file = static_cast<PFileObject>(ReadOwner()->storage->owner->files.main_file);
+        return file && mm_private_archive_reopen(_privateArchive, (file->GrffilCur() & ffilWriteEnable) != 0) == MM_CHUNK_OK;
+    }
+    const auto file = Pcfl();
+    return file && file->FReopen();
+}
 #ifdef DEBUG
 void ChunkyResourceFile::AssertValid(LegacyUlong flags)
 {

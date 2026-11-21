@@ -210,7 +210,7 @@ void mm_tag_clear_cache(MMI32 sid, MMU32 flags, const MMTagCacheServices *s)
         {
             cache = mm_resource_manager_at(manager, j);
             if ((flags & 1) && cache->file)
-                s->reopen(cache->file);
+                s->reopen(cache);
             if (flags & 2)
             {
                 budget = cache->budget;

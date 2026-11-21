@@ -19609,3 +19609,31 @@ in `20261121T173333Z-cb2e1a43`. Both port canvases differed from retail at that
 frame. SDL and Marcus matched all three archived V3dmm frames, cameras, and
 canvas hashes in `20261121T173227Z-562bbb4d`. Evidence is in
 `tmp/c89-studio-thd/evidence`.
+
+## Studio resource sources reopen through the C89 archive (21 November 2026)
+
+Studio opens removable sources and sources with an existing file lock
+through the C89 working archive. Later caches for a live source share its
+owner. Ordinary local sources use the stored C89 index. A source
+with an already-open legacy `ChunkyFile` shares that existing owner.
+
+File cache clearing now dispatches through the resource cache. For a
+read-only backing file, a successful reload swaps the live index and
+discards staged data. A failed reload retains the prior index and staged
+data. A writable backing file keeps its staged data. The integration fixture
+exercises both cases through `TagManager::ClearCache` with physical files
+on a fixed drive.
+
+All 193 standalone C checks and four targeted AddressSanitizer checks
+passed. The source integration fixture passed on native x64, native x86,
+and SDL. All three reproduced the prior source discovery trace. The
+native and SDL resource cache checks, SDL content check, and Marcus player
+checks also passed.
+
+SDL Studio reproduced the five prior browser screens and the authored
+movie bytes, and saved and reopened the edited portable storyboard. Retail,
+SDL, and Marcus reproduced all 11 prior canvases per player and agreed on
+frame and camera indices in `20261121T174530Z-6a0d70c6`. The three known
+port canvas differences from retail persisted. SDL and Marcus matched
+all three archived V3dmm frames, cameras, and canvases in
+`20261121T174526Z-a183f745`. Evidence is in `tmp/c89-source-reopen/evidence`.

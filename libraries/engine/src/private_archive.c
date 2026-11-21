@@ -1,4 +1,5 @@
 #include "mm/private_archive.h"
+#include "mm/chunk_table.h"
 #include "mm/chunk_copy.h"
 #include "mm/handle_memory.h"
 #include "mm/reference.h"
@@ -90,6 +91,20 @@ static MMU32 max_title_bytes(const MMPrivateArchive *archive)
 static MMU32 max_references(const MMPrivateArchive *archive)
 {
     return archive->profile.expanded ? MM_STORAGE_LIMIT : 65535;
+}
+
+static int read_index(MMPrivateArchive *archive)
+{
+    MMChunkOwnerRead *reader = mm_private_archive_reader(archive);
+    return mm_chunk_owner_read_index(reader->storage, NULL, archive->profile.trash_unused, reader->max_name_bytes,
+                                       archive->profile.legacy_name, NULL) == MM_CHUNK_OK;
+}
+
+static int validate_index(void *context)
+{
+    MMPrivateArchive *archive = context;
+    return mm_chunk_owner_validate_index(mm_private_archive_reader(archive)->storage,
+                                          max_references(archive)) == MM_CHUNK_OK;
 }
 
 MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *archive)
@@ -197,9 +212,7 @@ MMPrivateArchive *mm_private_archive_open(void *file, int mode, const MMChunkOwn
     }
     else
     {
-        if (mm_chunk_owner_read_index(reader->storage, NULL, profile->trash_unused, reader->max_name_bytes,
-                                      profile->legacy_name, NULL) != MM_CHUNK_OK ||
-            mm_chunk_owner_validate_index(reader->storage, max_references(archive)) != MM_CHUNK_OK)
+        if (!read_index(archive) || !validate_index(archive))
             goto fail;
         if (mode == MM_PRIVATE_ARCHIVE_EDIT)
             mm_chunk_owner_read_free_map(reader->storage);
@@ -257,6 +270,71 @@ MMPrivateArchive *mm_private_archive_open_registered(MMChunkContext *registry, v
         return NULL;
     }
     return archive;
+}
+
+static int read_only(void *context, void *file)
+{
+    (void)context;
+    (void)file;
+    return 0;
+}
+
+static void retain_backing(void *context, void *file)
+{
+    const MMBlockFileServices *blocks = mm_private_archive_reader(context)->payloads.files;
+    blocks->retain(blocks->context, file);
+}
+
+static void release_backing(void *context, void *file)
+{
+    MMChunkOwnerStorage *storage = mm_private_archive_reader(context)->storage;
+    storage->io.release(file);
+}
+
+static void release_index(void *context, void *index)
+{
+    (void)context;
+    mm_chunk_table_close(index);
+}
+
+static int reopen_index(void *context, MMChunkReopenState *state)
+{
+    (void)state;
+    return read_index(context);
+}
+
+static void publish_index(void *context, const MMChunkReopenState *state)
+{
+    (void)context;
+    (void)state;
+}
+
+int mm_private_archive_reopen(MMPrivateArchive *archive, int backing_writable)
+{
+    MMChunkReopenServices services = {NULL, read_only, retain_backing, release_backing, release_index,
+                                      reopen_index, validate_index, publish_index};
+    MMChunkOwnerRead *reader;
+    MMChunkOwner *owner;
+    MMU32 map_offset, map_bytes;
+    int result;
+    if (!archive || backing_writable)
+        return MM_CHUNK_BAD_FILE;
+    reader = mm_private_archive_reader(archive);
+    if (!reader->payloads.files->retain)
+        return MM_CHUNK_BAD_FILE;
+    services.context = archive;
+    owner = reader->storage->owner;
+    map_offset = owner->map_offset;
+    map_bytes = owner->map_bytes;
+    result = mm_chunk_owner_reopen(owner, &services);
+    if (result == MM_CHUNK_OK)
+        mm_movie_archive_file_clear(&archive->editor);
+    else
+    {
+        owner->map_offset = map_offset;
+        owner->map_bytes = map_bytes;
+    }
+    return result;
 }
 
 MMMovieArchiveEditor mm_private_archive_editor(MMPrivateArchive *archive)

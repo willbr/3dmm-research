@@ -291,6 +291,11 @@ MMPrivateArchive *KauaiPrivateArchive(PFileObject file)
     return mm_private_archive_open(file, MM_PRIVATE_ARCHIVE_CREATE, &io, KauaiBlockFileServices(), &profile);
 }
 
+MMPrivateArchive *KauaiFindWorkingArchive(PFileObject file)
+{
+    return mm_private_archive_find(&workingArchives, file);
+}
+
 MMPrivateArchive *KauaiWorkingArchive(Filename *name, bool create)
 {
     AssertPo(name, ffniFile);
@@ -301,7 +306,7 @@ MMPrivateArchive *KauaiWorkingArchive(Filename *name, bool create)
     else
     {
         file = FileObject::PfilFromFni(name);
-        if (mm_private_archive_find(&workingArchives, file))
+        if (KauaiFindWorkingArchive(file))
             file->AddRef();
         else
             file = FileObject::PfilOpen(name, flags);

@@ -39,6 +39,10 @@ MMPrivateArchive *mm_private_archive_open_registered(MMChunkContext *, void *fil
 /* Archive references and borrowed views are confined to the owning thread. */
 void mm_private_archive_retain(MMPrivateArchive *);
 void mm_private_archive_close(MMPrivateArchive *);
+/* Reload the index of a read-only backing file and discard its staged data on
+ * success. Failed reloads leave the existing graph intact. The caller reports
+ * the backing file's current physical write flag. */
+int mm_private_archive_reopen(MMPrivateArchive *, int backing_writable);
 MMChunkOwnerRead *mm_private_archive_reader(MMPrivateArchive *);
 MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *);
 MMMovieArchiveEditor mm_private_archive_editor(MMPrivateArchive *);

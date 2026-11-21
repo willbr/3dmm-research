@@ -62,7 +62,7 @@ extern "C"
         MMU32 (*sources)(void *);
         void (*source_at)(void *, MMU32, MMI32 *, MMResourceManager **);
         MMResourceManager *(*resolve)(void *, MMI32);
-        void (*reopen)(void *file);
+        void (*reopen)(MMResourceCache *);
     } MMTagCacheServices;
     /* flags 1=file, 2=memory. File clearing resolves media first, then ignores
      * reopen failure; memory clearing sets zero budget then restores the old value.

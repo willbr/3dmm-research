@@ -189,6 +189,7 @@ static MMTagServices init(Host *h)
         c->id = i;
         c->refs = 1;
         tag_copy_file_init(&c->archive);
+        c->core.owner = c;
         c->core.file = i < 2 ? c : NULL;
         c->core.budget = 128;
         c->core.services.contains = contains;
@@ -456,9 +457,9 @@ static MMResourceManager *resolve(void *p, MMI32 sid)
     event(h, 'S');
     return h->fail ? NULL : &h->manager;
 }
-static void reopen(void *p)
+static void reopen(MMResourceCache *cache)
 {
-    Cache *c = (Cache *)p;
+    Cache *c = (Cache *)cache->owner;
     event(c->host, (char)('0' + c->id));
 }
 static void clear_cases(void)

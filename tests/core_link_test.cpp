@@ -4875,6 +4875,34 @@ static void TestEngineServices()
     });
     Check(manager->FFindFile(42, &leaf, &denied, false));
     ReleasePpo(&manager);
+
+    for (const bool writable : {true, false})
+    {
+        auto locked = writable ? FileObject::PfilOpen(&retryFile, ffilWriteEnable | ffilDenyWrite) : nullptr;
+        auto alias = writable ? nullptr : ChunkyResourceFile::PcrfOpenWorking(&retryFile, false);
+        auto backing = FileObject::PfilFromFni(&retryFile);
+        Check(backing && (writable ? locked == backing : alias != nullptr) && !ChunkyFile::PcflFromFni(&retryFile));
+        manager = TagManager::PtagmNew(&root, MissingSource, 2048);
+        Check(manager && manager->FAddStnSource(&missingName, 42));
+        auto liveResource = manager->PbacoFetch(&stored, GenericHQ::FReadGhq);
+        Check(liveResource && !liveResource->Pcrf()->Pcfl());
+        const auto cache = liveResource->Pcrf();
+        const auto reader = cache->ReadOwner();
+        Check(reader && reader->storage->owner->files.main_file == backing);
+        Check(!alias || alias->ReadOwner() == reader);
+        MMU32 position;
+        const auto graph = cache->ReadChunkAccess();
+        Check(mm_chunk_find(&graph, stored.ctg, stored.cno, &position) == MM_CHUNK_OK);
+        Check(mm_chunk_owner_cache(reader->storage, position, nullptr) == MM_CHUNK_OK);
+        Check(reader->storage->owner->files.extra_file != nullptr);
+        manager->ClearCache(42, ftagmFile);
+        Check((reader->storage->owner->files.extra_file != nullptr) == writable && cache->ReadOwner() == reader);
+        ReleasePpo(&liveResource);
+        ReleasePpo(&manager);
+        ReleasePpo(&alias);
+        ReleasePpo(&locked);
+    }
+
     String directoryPath;
     retryDirectory.GetStnPath(&directoryPath);
     Check(retryFile.FDelete() && KauaiFiles::DeleteDirectory(directoryPath.Psz()));

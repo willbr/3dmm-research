@@ -811,6 +811,7 @@ static void private_archive_cases(void)
     MMChunkEntry entry;
     MMU32 number;
     char value[4];
+    unsigned char magic;
 
     blocks.context = &host;
     archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks,
@@ -843,6 +844,24 @@ static void private_archive_cases(void)
     CHECK(editor.put(editor.context, 1, number, "edit", sizeof(value)));
     CHECK(mm_private_archive_reader(archive)->storage->owner->files.extra_file == &host.extra);
     memcpy(value, host.main.bytes + MM_CHUNK_PREFIX_BYTES, sizeof(value));
+    CHECK(!memcmp(value, "test", sizeof(value)));
+    graph = mm_movie_owner_graph(mm_private_archive_reader(archive));
+    CHECK(mm_private_archive_reopen(archive, 1) == MM_CHUNK_BAD_FILE);
+    magic = host.main.bytes[0];
+    host.main.bytes[0] ^= 0xff;
+    CHECK(mm_private_archive_reopen(archive, 0) == MM_CHUNK_IO);
+    CHECK(mm_private_archive_reader(archive)->storage->owner->files.extra_file == &host.extra);
+    graph.access(graph.context, &access);
+    CHECK(access.count == 1 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK);
+    CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
+    CHECK(!memcmp(value, "edit", sizeof(value)));
+    host.main.bytes[0] = magic;
+    CHECK(mm_private_archive_reopen(archive, 0) == MM_CHUNK_OK);
+    CHECK(!mm_private_archive_reader(archive)->storage->owner->files.extra_file &&
+          mm_private_archive_find(&registry, &host.main) == archive);
+    graph.access(graph.context, &access);
+    CHECK(access.count == 1 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK);
+    CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
     CHECK(!memcmp(value, "test", sizeof(value)));
     mm_private_archive_close(archive);
     CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
