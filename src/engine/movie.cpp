@@ -206,7 +206,6 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         AssertDo(static_cast<PChunkyFile>(p)->FSetGrfcfl(fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
     };
     s.archive = [](void *file) { return static_cast<PChunkyFile>(file)->WriteIndex(); };
-    s.create_root = [](void *, void *p, MMU32 *number) -> int { return MovieData::FCreateRoot(static_cast<PChunkyFile>(p), number); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
     s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
     s.release_saved = [](void *p) { auto file = static_cast<PFileObject>(p); ReleasePpo(&file); };
@@ -233,9 +232,6 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.archive_issue = MovieArchiveIssue;
     s.close_tag = [](void *, MMTag *value) { TAG tag; TagFromCore(&tag, *value); vptagm->CloseTag(&tag); };
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->Pmcc()->UpdateRollCall(); };
-    s.write_rollcall = [](void *, void *p, MMU32 root, MMRollCallTable *table, MMU32 *number) -> int {
-        return MovieData::FWriteRollCall(static_cast<PChunkyFile>(p), root, table, number);
-    };
     s.source_names = vptagm ? vptagm->CoreSourceNames() : nullptr;
     s.titles = KauaiChunkTitleIO();
     s.has_error = [](void *p) -> int { return static_cast<PChunkyFile>(p)->ElError() != elNil; };

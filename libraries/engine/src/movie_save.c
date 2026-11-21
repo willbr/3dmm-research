@@ -3,6 +3,7 @@
 #include "mm/movie_save.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_rollcall.h"
+#include "mm/movie_root.h"
 #include "mm/movie_sound.h"
 #include "mm/scene_store.h"
 #include <string.h>
@@ -183,9 +184,9 @@ int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices 
     void *file, *saved, *retry_path;
     MMArchiveWriter archive;
     const MMChunkEdit *edit = &archive.edit;
-    MMChunkChild scene = {MM_SAVE_SCENE, 0, 0}, actors = {MM_SAVE_TABLE, 0, 0}, sources = {MM_SAVE_TABLE, 0, 1};
-    MMChunkChild old_scene = {MM_SAVE_SCENE, NIL_NUMBER, 0}, old_actors = {MM_SAVE_TABLE, 0, 0},
-                 old_sources = {MM_SAVE_TABLE, 0, 1};
+    MMChunkChild scene = {MM_SAVE_SCENE, 0, 0}, sources = {MM_SAVE_TABLE, 0, 1};
+    MMChunkChild actors = {MM_ROLLCALL_CHUNK, 0, MM_ROLLCALL_SLOT}, old_actors = actors;
+    MMChunkChild old_scene = {MM_SAVE_SCENE, NIL_NUMBER, 0}, old_sources = {MM_SAVE_TABLE, 0, 1};
     int success, retry = 1;
     if (s->has_container(s->context) && s->is_vmm(path))
         return mm_movie_save_to(path, 0, s);
@@ -199,7 +200,7 @@ int mm_movie_autosave(void *path, int clean_rollcall, const MMMovieSaveServices 
         goto fail_end;
     archive = s->archive(file);
 retry_save:
-    if (s->data->movieNumber == NIL_NUMBER && !s->create_root(s->context, file, &s->data->movieNumber))
+    if (s->data->movieNumber == NIL_NUMBER && !mm_movie_create_root(&archive, &s->data->movieNumber))
         goto fail;
     if (s->scenes->open)
     {
@@ -218,7 +219,7 @@ retry_save:
     if (clean_rollcall && !clean_actors(s))
         goto fail_scene;
     old_actors.number = saved_child(edit, actors.type, actors.slot, s);
-    if (!s->write_rollcall(s->context, file, s->data->movieNumber, &s->data->actors, &actors.number))
+    if (!mm_movie_write_rollcall(&archive, s->data->movieNumber, &s->data->actors, &actors.number))
         goto fail_scene;
     old_sources.number = saved_child(edit, sources.type, sources.slot, s);
     if (!write_source_table(&archive, &sources, s))

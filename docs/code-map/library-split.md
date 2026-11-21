@@ -3701,9 +3701,11 @@ dirty flag remains a host field written by the C controller.
 Old children survive until title writing succeeds. Earlier failure removes new
 source, roll-call and scene links in that order; actor pruning remains committed.
 After old children are removed, physical save failure retains the new graph.
-C allocates the source-name block through the archive writer and releases it
-after serialization, before adopting the new source child. A failed write or
-adoption discards that chunk. Retry allocates a fresh block.
+Autosave uses the working archive's C writer to create a missing movie root and
+serialize the actor roll call and source names. Root write failure discards the
+new root. A failed table write or adoption discards the new table, and a retry
+allocates a fresh block. The movie owner and fixture entry points still use
+their typed MovieData methods for root and roll-call writes.
 Named saving releases a matching saved-file reference before saving and attempts
 reacquisition even on failure. Direct binding failure retains the previous
 name-valid/read-only flags, while autosave clears name-valid before reacquisition.

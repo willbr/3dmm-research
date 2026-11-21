@@ -39,7 +39,6 @@ extern "C"
         int (*is_temp)(void *file), (*save)(void *file, void *path);
         void (*set_temp)(void *file, int), (*mark_temporary)(void *file), (*persistent)(void *file);
         MMArchiveWriter (*archive)(void *file);
-        int (*create_root)(void *, void *file, MMU32 *);
         void *(*find_file)(void *, void *path);
         void (*retain_saved)(void *file), (*release_saved)(void *file), (*flush_saved)(void *file);
         int (*read_only)(void *, void *path);
@@ -51,7 +50,6 @@ extern "C"
         void (*archive_issue)(void *, int issue);
         void (*close_tag)(void *, MMTag *);
         void (*rollcall_changed)(void *);
-        int (*write_rollcall)(void *, void *file, MMU32 root, MMRollCallTable *, MMU32 *);
         MMSourceNames *source_names;
         MMChunkTitleIO titles;
         int (*has_error)(void *file);

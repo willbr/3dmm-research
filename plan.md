@@ -1274,8 +1274,10 @@ to release temporary imported roots while keeping the scenes linked to the
 destination movie. Movie autosave/save transactions, temporary-resource setup,
 saved-file ownership/flags, VMM save-format/publication policy, scene-tag collection
 and asset/sound garbage-collection control now also use C89. Autosave publishes
-and rolls back links through the C89 editor on the live index. Garbage collection
-uses the same editor to remove obsolete assets and sound trees. Actor and scene
+and rolls back links through the C89 editor on the live index. It creates the
+movie root and writes the actor roll call and source-name table through the
+shared archive writer. Garbage collection uses the same editor to remove
+obsolete assets and sound trees. Actor and scene
 serialization and Scene Sorter imports use it to attach embedded backgrounds,
 materials, templates, and sounds and discard failed copies. Scene removal,
 composition, and autosave use it to preserve embedded backgrounds and materials

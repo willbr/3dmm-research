@@ -18564,3 +18564,24 @@ archived retail frame identities, and SDL matched all four retail sound
 requests. PCM16 peaks matched the preceding builds at 2,176. The archived
 retail peak is 2,380. The capture contains 516,480 SDL and 515,040 Marcus PCM
 frames. Logs and the comparison script are in `tmp/c89-movie-source-table`.
+
+## Direct archive writes in Studio autosave (21 November 2026)
+
+Studio autosave now creates the movie root and serializes the actor roll call
+through the same C89 archive writer it uses for source names. The save fixture
+reads back the root version and surviving actor row. It also verifies rollback
+after root write, roll-call write and roll-call adoption failures, and the
+result after retrying a failed roll-call write.
+
+All 193 standalone C checks, five focused AddressSanitizer checks and three
+Marcus checks passed. The native owner, roll-call and root snapshots matched
+736, 405 and 224 baseline bytes respectively. Native x64, x86 and SDL matched their preceding
+save/reopen traces, sound-resource snapshots and complete authoring movie.
+Both ports matched the three archived V3dmm storyboard frames, cameras and
+canvas hashes in suite `20261121T093512Z-01d84f85`.
+
+Both ports matched all 60 archived retail frame identities in sampled-audio
+suite `20261121T093519Z-2558c71c`. SDL matched all four retail sound requests.
+The ports matched their previous PCM16 peak of 2,176. The archived retail
+peak is 2,380. The captures contain 510,720 SDL and 511,680 Marcus PCM frames.
+Logs and the comparison script are in `tmp/c89-direct-movie-save`.
