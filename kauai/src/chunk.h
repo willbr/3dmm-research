@@ -31,6 +31,7 @@
 
 struct MMChunkEdit;
 struct MMChunkEndpoint;
+struct MMChunkFileCopy;
 struct MMChunkTitleIO;
 
 namespace Chunky {
@@ -261,6 +262,7 @@ class ChunkyFile : public ChunkyFile_PAR
     MMChunkEdit EditIndex();
     MMChunkNames NameIndex();
     MMArchiveWriter WriteIndex();
+    MMChunkEndpoint CopyEndpoint(MMChunkFileCopy &binding);
     // The caller supplies kcbMaxDataStn writable bytes for the encoded name.
     static MMChunkNameValue EncodeName(PString, void *wire);
     bool FGetCki(LegacyLong icki, ChunkIdentification *pcki, LegacyLong *pckid = pvNil, PDataBlock pblck = pvNil);

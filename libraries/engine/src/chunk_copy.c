@@ -4,7 +4,7 @@ static int bind_file_payload(void *p, MMU32 position, const MMChunkEntry *entry,
 {
     const MMChunkFileCopy *binding = p;
     (void)position;
-    return mm_chunk_payload_bind_block(binding->archive->payloads, binding->file,
+    return mm_chunk_payload_bind_block(binding->payloads, binding->file,
                                        entry->type, entry->number, block) == MM_CHUNK_PAYLOAD_OK &&
            (binding->allow_unbacked_empty || block->view.kind == MM_BLOCK_FILE);
 }
@@ -12,21 +12,21 @@ static int bind_file_payload(void *p, MMU32 position, const MMChunkEntry *entry,
 static const void *read_file_name(void *p, MMU32 position)
 {
     MMChunkFileCopy *binding = p;
-    const MMChunkAccess chunks = mm_chunk_edit_access(&binding->archive->edit);
+    const MMChunkAccess chunks = mm_chunk_edit_access(&binding->edit);
     MMChunkEntry entry;
     if (mm_chunk_at(&chunks, position, &entry) != MM_CHUNK_OK)
         return NULL;
-    mm_chunk_title_read(&binding->name, binding->file, entry.type, entry.number, binding->titles);
+    mm_chunk_title_read(&binding->name, binding->file, entry.type, entry.number, &binding->titles);
     return binding->name.count ? &binding->name : NULL;
 }
 
 static int write_file_name(void *p, MMU32 position, const void *name)
 {
     const MMChunkFileCopy *binding = p;
-    const MMChunkAccess chunks = mm_chunk_edit_access(&binding->archive->edit);
+    const MMChunkAccess chunks = mm_chunk_edit_access(&binding->edit);
     MMChunkEntry entry;
     return mm_chunk_at(&chunks, position, &entry) == MM_CHUNK_OK &&
-           mm_chunk_title_write(name, binding->file, entry.type, entry.number, binding->titles);
+           mm_chunk_title_write(name, binding->file, entry.type, entry.number, &binding->titles);
 }
 
 MMChunkEndpoint mm_chunk_file_copy_endpoint(MMChunkFileCopy *binding, void *file, const MMArchiveWriter *archive,
@@ -37,8 +37,9 @@ MMChunkEndpoint mm_chunk_file_copy_endpoint(MMChunkFileCopy *binding, void *file
         !mm_movie_title_init(&binding->name, text_unit))
         return endpoint;
     binding->file = file;
-    binding->archive = archive;
-    binding->titles = titles;
+    binding->edit = archive->edit;
+    binding->payloads = archive->payloads;
+    binding->titles = *titles;
     binding->allow_unbacked_empty = allow_unbacked_empty;
     endpoint.edit = archive->edit;
     endpoint.allocator = archive->transfer_allocator;
@@ -66,9 +67,9 @@ static const void *read_stored_name(void *p, MMU32 position)
     const unsigned char *bytes;
     MMU32 count;
     if (mm_chunk_serialized_name(binding->cache->wire_index, position, binding->legacy_name,
-                                 binding->titles->context, scratch, &bytes, &count) != MM_CHUNK_OK || !count)
+                                 binding->titles.context, scratch, &bytes, &count) != MM_CHUNK_OK || !count)
         return NULL;
-    mm_movie_title_read_wire(&binding->name, bytes, count, binding->titles);
+    mm_movie_title_read_wire(&binding->name, bytes, count, &binding->titles);
     return binding->name.count ? &binding->name : NULL;
 }
 
@@ -81,7 +82,7 @@ MMChunkEndpoint mm_stored_chunk_copy_endpoint(MMStoredChunkCopy *binding, MMReso
         return endpoint;
     binding->cache = cache;
     binding->chunks = mm_resource_cache_chunks(cache);
-    binding->titles = titles;
+    binding->titles = *titles;
     binding->legacy_name = legacy_name;
     endpoint.stored = &binding->chunks;
     endpoint.allocator = allocator;

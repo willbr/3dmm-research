@@ -120,9 +120,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   block add and replace entry points use the same C payload transfer, including
   for packed chunks and copies within one editable archive.
 - Marcus creates text drafts directly from the shared TMPL and TDT codecs.
-  C89 binds copied fonts to local preview tags in the descriptor's byte order
-  and writes authored lighting, textures and placement through the shared
-  material writer. Renderer objects are generated when the template loads.
+  C89 binds the preview descriptor's stored block, copies the font subgraph
+  through the shared chunk copier, and patches the local tag in the original
+  byte order. Authored lighting, textures and placement use the shared material
+  writer. Renderer objects are generated when the template loads.
 - Marcus uses C89 for 3D-text name validation, clipboard name conversion and
   caption text encoding. Caption edits normalize line breaks and use ANSI
   when the native code page round-trips the text with equal byte and UTF-16

@@ -82,17 +82,13 @@ int mm_text_write(const MMTemplateState *, const MMTextDescriptor *, const MMChu
  * state. Only a successful draft publishes its template number. */
 int mm_text_write_draft(const MMChunkNameValue *, const MMTextDescriptor *, MMU32 *number,
                         const MMArchiveWriter *);
-typedef struct MMTextPreviewFontServices
-{
-    void *context;
-    int (*read)(void *, MMU32 descriptor, unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES]);
-    int (*copy_font)(void *, MMU32 font, MMU32 *copied);
-    int (*write)(void *, MMU32 descriptor, const unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES]);
-} MMTextPreviewFontServices;
+struct MMChunkEndpoint;
 /* Localize the font tag in an editable text preview. The descriptor must be
- * valid before the copy. Retains its byte order and fields outside the local
- * source and new font number. The caller saves or discards the working file. */
-int mm_text_bind_preview_font(const MMChunkAccess *, MMU32 tmpl, MMU32 font, const MMTextPreviewFontServices *);
+ * unpacked and valid before the copy. Retains its byte order and fields outside
+ * the local source and new font number. The caller saves or discards the draft.
+ * MM_CHUNK_NOT_FOUND identifies a missing source font. */
+int mm_text_bind_preview_font(const struct MMChunkEndpoint *source, const struct MMChunkEndpoint *draft,
+                              MMU32 tmpl, MMU32 font);
 void *mm_text_tags(const MMTextResourceSource *,MMU32 type,MMU32 number,void *error_out,
                    const MMTextResourceServices *);
 /* Set-once table publishes before retain. Lookup takes the first matching ID;

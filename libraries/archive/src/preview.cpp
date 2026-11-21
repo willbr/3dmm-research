@@ -26,6 +26,7 @@
 #include "mm/preview_media.h"
 #include "mm/scene_data.h"
 #include "mm/scene_thumbnail.h"
+#include "mm/chunk_copy.h"
 #include "mm/text_resource.h"
 #include "preview_actor.h"
 #include "preview_background.h"
@@ -533,31 +534,14 @@ bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSourc
     std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
     if (!file)
         return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
-    struct FontDraft
-    {
-        PChunkyResourceFile source;
-        PChunkyFile file;
-        DataBlock descriptor;
-    } draft{source, file.get(), {}};
-    const MMTextPreviewFontServices services = {
-        &draft,
-        [](void *p, MMU32 number, unsigned char *bytes) -> int {
-            auto &h = *static_cast<FontDraft *>(p);
-            return h.file->FFind(kctgTdt, number, &h.descriptor) && !h.descriptor.FPacked() &&
-                   h.descriptor.Cb() >= MM_TEXT_DESCRIPTOR_BYTES &&
-                   h.descriptor.FReadRgb(bytes, MM_TEXT_DESCRIPTOR_BYTES, 0);
-        },
-        [](void *p, MMU32 number, MMU32 *copied) -> int {
-            auto &h = *static_cast<FontDraft *>(p);
-            return h.source->FCopyChunk(kctgTdf, number, h.file, copied);
-        },
-        [](void *p, MMU32, const unsigned char *bytes) -> int {
-            return static_cast<FontDraft *>(p)->descriptor.FWriteRgb(const_cast<unsigned char *>(bytes),
-                                                                   MM_TEXT_DESCRIPTOR_BYTES, 0);
-        },
-    };
-    const auto chunks = file->ReadChunkAccess();
-    if (!mm_text_bind_preview_font(&chunks, 0, font, &services))
+    MMResourceChunkCopy sourceBinding;
+    MMChunkFileCopy draftBinding;
+    const auto sourceChunks = source->CopySource(sourceBinding);
+    const auto draftChunks = file->CopyEndpoint(draftBinding);
+    const int status = mm_text_bind_preview_font(&sourceChunks, &draftChunks, 0, font);
+    if (status == MM_CHUNK_NOT_FOUND)
+        Bug("chunk not found");
+    if (status != MM_CHUNK_OK)
         return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
     return file->FSave(kctgSoc) ||
         Fail(error, ErrorCode::decode_failed, "Cannot link the preview font.");

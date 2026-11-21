@@ -2446,15 +2446,21 @@ bool ChunkyFile::_FFindChild(LegacyLong icrpPar, ChunkTagOrType ctgChild, ChunkN
     return result == MM_CHUNK_OK;
 }
 
+MMChunkEndpoint ChunkyFile::CopyEndpoint(MMChunkFileCopy &binding)
+{
+    AssertThis(fcflFull);
+    const auto archive = WriteIndex();
+    const auto titles = KauaiChunkTitleIO();
+    return mm_chunk_file_copy_endpoint(&binding, this, &archive, &titles, sizeof(achar), false);
+}
+
 bool ChunkyFile::_FCopyFrom(const MMChunkEndpoint &source, ChunkTagOrType type, ChunkNumber number,
                           ChunkNumber *out, bool clone, int *created)
 {
     AssertThis(fcflFull);
     AssertVarMem(out);
     MMChunkFileCopy destination;
-    const auto archive = WriteIndex();
-    const auto titles = KauaiChunkTitleIO();
-    const auto dst = mm_chunk_file_copy_endpoint(&destination, this, &archive, &titles, sizeof(achar), false);
+    const auto dst = CopyEndpoint(destination);
     MMU32 copied;
     const int result = created ? mm_chunk_copy_reference(&source, &dst, type, number, &copied, created)
                                : mm_chunk_copy(&source, &dst, type, number, clone, &copied);
@@ -2469,9 +2475,7 @@ bool ChunkyFile::_FCopy(ChunkTagOrType ctgSrc, ChunkNumber cnoSrc, PChunkyFile p
     AssertThis(fcflFull);
     AssertPo(pcflDst, fcflFull);
     MMChunkFileCopy source;
-    const auto archive = WriteIndex();
-    const auto titles = KauaiChunkTitleIO();
-    const auto services = mm_chunk_file_copy_endpoint(&source, this, &archive, &titles, sizeof(achar), false);
+    const auto services = CopyEndpoint(source);
     const bool result = pcflDst->_FCopyFrom(services, ctgSrc, cnoSrc, pcnoDst, fClone, created);
     AssertThis(fcflFull);
     return result;

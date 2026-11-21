@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/text_resource.h"
+#include "mm/chunk_ops.h"
 #include "mm/font_resource.h"
 #include "mm/text.h"
 #include <string.h>
@@ -190,21 +191,41 @@ int mm_text_write_draft(const MMChunkNameValue *name, const MMTextDescriptor *d,
     *number = parent;
     return 1;
 }
-int mm_text_bind_preview_font(const MMChunkAccess *chunks, MMU32 tmpl, MMU32 font, const MMTextPreviewFontServices *s)
+int mm_text_bind_preview_font(const MMChunkEndpoint *source, const MMChunkEndpoint *draft, MMU32 tmpl, MMU32 font)
 {
+    MMChunkAccess chunks;
     unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES];
-    MMU32 descriptor, copied;
-    int big;
-    if (mm_chunk_link_number(chunks, MM_TMPL, tmpl, 0, MM_TDT, &descriptor) != MM_CHUNK_OK ||
-        !s->read(s->context, descriptor, bytes))
-        return 0;
+    MMOwnedBlock block;
+    MMBlockIO io;
+    MMChunkEntry entry;
+    MMU32 descriptor, position, copied;
+    int big, status = MM_CHUNK_BAD_FILE;
+    if (!draft || !draft->bind_payload)
+        return status;
+    chunks = mm_chunk_edit_access(&draft->edit);
+    if (mm_chunk_link_number(&chunks, MM_TMPL, tmpl, 0, MM_TDT, &descriptor) != MM_CHUNK_OK ||
+        mm_chunk_find(&chunks, MM_TDT, descriptor, &position) != MM_CHUNK_OK ||
+        mm_chunk_at(&chunks, position, &entry) != MM_CHUNK_OK ||
+        mm_owned_block_init(&block, draft->handles, draft->files) != MM_DATA_OK)
+        return status;
+    if (!draft->bind_payload(draft->context, position, &entry, &block) ||
+        mm_owned_block_io(&block, &io) != MM_DATA_OK ||
+        mm_block_read(&io, 0, bytes, sizeof(bytes), 0) != MM_DATA_OK)
+        goto done;
     big = bytes[0] == 0;
-    if (word(bytes, 2, big) != 1 || word(bytes + 16, 4, big) != MM_FONT_TYPE ||
-        !s->copy_font(s->context, font, &copied))
-        return 0;
-    put(bytes + 8, 4, 0, big);
-    put(bytes + 20, 4, copied, big);
-    return s->write(s->context, descriptor, bytes);
+    if (word(bytes, 2, big) != 1 || word(bytes + 16, 4, big) != MM_FONT_TYPE)
+        goto done;
+    status = mm_chunk_copy(source, draft, MM_FONT_TYPE, font, 0, &copied);
+    if (status == MM_CHUNK_OK)
+    {
+        put(bytes + 8, 4, 0, big);
+        put(bytes + 20, 4, copied, big);
+        if (mm_block_write(&io, 0, bytes, sizeof(bytes), 0) != MM_DATA_OK)
+            status = MM_CHUNK_IO;
+    }
+done:
+    mm_owned_block_clear(&block);
+    return status;
 }
 void *mm_text_tags(const MMTextResourceSource *source, MMU32 type, MMU32 number, void *error_out,
                    const MMTextResourceServices *s)

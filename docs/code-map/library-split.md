@@ -6339,7 +6339,12 @@ the `TDT` link through the live cache or standalone archive graph and owns the
 block through decoding and the bounded descriptor read. Regular and draft saves
 share the C template writer and the same editor for child creation and adoption.
 C owns the descriptor block through a regular save. A draft publishes its
-number after both chunks and their link are complete. Native services supply
+number after both chunks and their link are complete. To localize a font in a
+private preview draft, C89 validates the unpacked descriptor, retains its block
+across the copy, and patches the source and chunk number in its byte order.
+The shared copier accepts live and immutable font archives and preserves
+stored payloads and glyph links. The host opens and saves the draft.
+Native services supply
 String representation and encoding, object creation, base-template reads,
 font providers and string-table entries.
 

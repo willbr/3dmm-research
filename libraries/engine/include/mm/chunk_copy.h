@@ -13,14 +13,15 @@ extern "C" {
 typedef struct MMChunkFileCopy
 {
     void *file;
-    const MMArchiveWriter *archive;
-    const MMChunkTitleIO *titles;
+    MMChunkEdit edit;
+    const MMChunkPayloadServices *payloads;
+    MMChunkTitleIO titles;
     MMMovieTitle name;
     int allow_unbacked_empty;
 } MMChunkFileCopy;
 
-/* Borrow the live file and services. Keep the binding at a stable address
- * through the copy. File identity lets the copier recognize same-file requests.
+/* Copy the service descriptors and borrow the live file and index. Keep the
+ * binding at a stable address. File identity identifies same-file requests.
  * Legacy file copies require a backing extent even for an empty chunk. */
 MMChunkEndpoint mm_chunk_file_copy_endpoint(MMChunkFileCopy *, void *file, const MMArchiveWriter *,
                                            const MMChunkTitleIO *, unsigned text_unit, int allow_unbacked_empty);
@@ -29,16 +30,23 @@ typedef struct MMStoredChunkCopy
 {
     MMResourceCache *cache;
     MMChunkAccess chunks;
-    const MMChunkTitleIO *titles;
+    MMChunkTitleIO titles;
     MMChunkLegacyName legacy_name;
     MMMovieTitle name;
 } MMStoredChunkCopy;
 
-/* The cache must describe an immutable stored archive. The binding borrows
- * the archive and title codec. The codec's file read/write callbacks are unused. */
+/* The cache must describe an immutable stored archive, borrowed by the binding.
+ * The codec's file read/write callbacks are unused. */
 MMChunkEndpoint mm_stored_chunk_copy_endpoint(MMStoredChunkCopy *, MMResourceCache *, void *identity,
                                              const MMStorageAllocator *, const MMChunkTitleIO *,
                                              MMChunkLegacyName, unsigned text_unit);
+
+/* Scratch for a cache whose backing may be live or immutable. */
+typedef struct MMResourceChunkCopy
+{
+    MMChunkFileCopy live;
+    MMStoredChunkCopy stored;
+} MMResourceChunkCopy;
 
 #ifdef __cplusplus
 }

@@ -21,6 +21,9 @@
 
 #include "mm/resource_cache.h"
 
+struct MMChunkEndpoint;
+struct MMResourceChunkCopy;
+
 namespace Chunky
 {
 
@@ -149,6 +152,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MMResourceCache *CoreCache() { return &_cache; }
     MMChunkAccess ReadChunkAccess();
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);
+    MMChunkEndpoint CopySource(MMResourceChunkCopy &binding);
     bool FCopyChunk(ChunkTagOrType, ChunkNumber, PChunkyFile destination, ChunkNumber *copied);
     PChunkyResourceFile PcrfNewSibling(LegacyLong budget);
 

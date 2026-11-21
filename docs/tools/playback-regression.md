@@ -18746,3 +18746,28 @@ archived retail frame identities. SDL matched all four retail sound requests.
 The ports matched their previous PCM16 peak of 2,176. The archived retail
 peak is 2,380. The captures contain 517,920 SDL and 514,080 Marcus PCM frames.
 Logs and the comparison script are in `tmp/c89-common-chunk-copy`.
+
+## 3D text preview font embedding through C89 (21 November 2026)
+
+C89 retains the editable `TDT` block through font validation, graph copy and
+the descriptor patch. The native Preview adapter supplies the opened file
+and the live or immutable font archive. The C fixture checks both byte orders,
+packed font bytes and flags, chunk-number collisions, preservation of trailing
+descriptor bytes, rejection of a packed or malformed descriptor, a missing
+font, and a failed descriptor write.
+
+All 193 standalone C checks, five focused AddressSanitizer checks and eight
+native checks passed, along with three focused x86 C fixtures. The native
+insertion check exercises isolated and persistent preview rendering for an
+existing text object and gallery samples.
+The native x64, x86 and SDL authoring fixtures matched all 27 save/reopen
+traces, composition and sound-resource snapshots, and the full movie save.
+SDL and Marcus matched all three archived V3dmm storyboard frames, cameras
+and canvas hashes in suite `20261121T111347Z-814a98db`.
+
+The `actor-event-edit` fixture includes 3D text. In suite
+`20261121T111354Z-0008abda`, both ports matched all 60 archived retail frame
+identities in seeks and continuous playback. Their 60 seek camera indices
+matched retail and their 60 seek canvas hashes matched their earlier port
+captures. SDL matched all 12 archived retail sound requests. The logs and
+comparison scripts are in `tmp/c89-preview-font-archive`.

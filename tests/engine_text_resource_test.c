@@ -1,4 +1,5 @@
 #include "mm/text_resource.h"
+#include "mm/chunk_ops.h"
 #include "engine_resource_block_fixture.h"
 #include "template_writer_fixture.h"
 #include <assert.h>
@@ -249,46 +250,134 @@ static void wire(void)
 }
 typedef struct DraftOutput
 {
-    unsigned char descriptor[MM_TEXT_DESCRIPTOR_BYTES];
-    int copies;
+    ResourceTestBlock block;
+    unsigned char bytes[64];
+    int reject_patch;
 } DraftOutput;
-static int preview_read(void *p, MMU32 number, unsigned char *bytes)
+static int preview_read(void *p, void *file, MMU32 offset, void *bytes, size_t count)
 {
-    DraftOutput *d = p;
-    assert(number == 0);
-    memcpy(bytes, d->descriptor, sizeof(d->descriptor));
+    DraftOutput *o = p;
+    assert(file == o && offset + count <= sizeof(o->bytes));
+    memcpy(bytes, o->bytes + offset, count);
     return 1;
 }
-static int preview_copy(void *p, MMU32 number, MMU32 *copied)
+static int preview_write(void *p, void *file, MMU32 offset, const void *bytes, size_t count)
 {
-    DraftOutput *d = p;
-    assert(number == 29);
-    ++d->copies;
-    *copied = 0x87654321UL;
+    DraftOutput *o = p;
+    assert(file == o && offset + count <= sizeof(o->bytes));
+    if (!offset && o->reject_patch)
+        return 0;
+    memcpy(o->bytes + offset, bytes, count);
     return 1;
 }
-static int preview_write(void *p, MMU32 number, const unsigned char *bytes)
+static int preview_bind(void *p, MMU32 position, const MMChunkEntry *entry, MMOwnedBlock *block)
 {
-    DraftOutput *d = p;
-    assert(number == 0);
-    memcpy(d->descriptor, bytes, sizeof(d->descriptor));
+    MMBlockFile extent;
+    (void)position;
+    extent.file = p;
+    extent.offset = entry->offset;
+    extent.length = entry->bytes;
+    return mm_owned_block_set_file(block, &extent, entry->flags & MM_CHUNK_PACKED) == MM_DATA_OK;
+}
+static int preview_allocate(void *p, MMU32 bytes, MMChunkLocation *location)
+{
+    location->file = ((ChunkIndexFixture *)p)->observer;
+    location->offset = 32;
+    location->bytes = bytes;
+    location->flags = 0;
     return 1;
+}
+static const void *preview_name(void *p, MMU32 position)
+{
+    (void)p; (void)position;
+    return NULL;
+}
+static int preview_set_name(void *p, MMU32 position, const void *name)
+{
+    (void)p; (void)position; (void)name;
+    return 0;
+}
+static MMChunkEndpoint preview_endpoint(DraftOutput *output)
+{
+    MMChunkEndpoint endpoint = {0};
+    memset(output, 0, sizeof(*output));
+    resource_block_init(&output->block, output, preview_read, preview_write);
+    endpoint.handles = output->block.owner.handles;
+    endpoint.files = &output->block.files;
+    endpoint.identity = endpoint.context = output;
+    endpoint.bind_payload = preview_bind;
+    endpoint.read_name = preview_name;
+    endpoint.write_name = preview_set_name;
+    return endpoint;
+}
+static void localize_font(TemplateWriterFixture *saved, MMU32 type)
+{
+    DraftOutput font, output;
+    ChunkIndexFixture font_index = {0};
+    MMChunkEndpoint source = preview_endpoint(&font), target = preview_endpoint(&output);
+    MMChunkAccess graph, chunks;
+    MMChunkEntry copied;
+    MMChunkEntry *entry;
+    MMTextDescriptor localized;
+    MMU32 position, count;
+    const unsigned char payload[] = {43, 90, 11, 20};
+    const unsigned char *original = saved->descriptor;
+
+    entry = &fixture_chunk_add(&font_index, type, 29)->entry;
+    entry->offset = 32;
+    entry->bytes = sizeof(payload);
+    entry->flags |= MM_CHUNK_PACKED;
+    memcpy(font.bytes + 32, payload, sizeof(payload));
+    graph = fixture_chunk_access(&font_index);
+    source.stored = &graph;
+
+    target.edit = fixture_chunk_edit(&saved->archive.index);
+    target.edit.allocate = preview_allocate;
+    saved->archive.index.observer = &output;
+    fixture_chunk_add(&saved->archive.index, type, 0);
+    fixture_chunk_add(&saved->archive.index, type, 29);
+    count = saved->archive.index.count;
+    chunks = mm_chunk_edit_access(&target.edit);
+    assert(mm_chunk_find(&chunks, MM_TDT, 0, &position) == MM_CHUNK_OK);
+    entry = &saved->archive.index.rows[position].entry;
+    entry->offset = 0;
+    entry->bytes = MM_TEXT_DESCRIPTOR_BYTES + 1;
+    memcpy(output.bytes, original, MM_TEXT_DESCRIPTOR_BYTES);
+    output.bytes[MM_TEXT_DESCRIPTOR_BYTES] = 91;
+    output.bytes[0] = 127;
+    assert(mm_text_bind_preview_font(&source, &target, 0, 29) == MM_CHUNK_BAD_FILE);
+    output.bytes[0] = original[0];
+    entry->flags |= MM_CHUNK_PACKED;
+    assert(mm_text_bind_preview_font(&source, &target, 0, 29) == MM_CHUNK_BAD_FILE);
+    entry->flags &= ~MM_CHUNK_PACKED;
+    assert(mm_text_bind_preview_font(&source, &target, 0, 99) == MM_CHUNK_NOT_FOUND);
+    assert(saved->archive.index.count == count && !memcmp(output.bytes, original, MM_TEXT_DESCRIPTOR_BYTES));
+
+    output.bytes[12] = 37;
+    assert(mm_text_bind_preview_font(&source, &target, 0, 29) == MM_CHUNK_OK);
+    assert(saved->archive.index.count == count + 1 && !memcmp(output.bytes + 32, payload, sizeof(payload)));
+    chunks = mm_chunk_edit_access(&target.edit);
+    assert(mm_chunk_find(&chunks, type, 1, &position) == MM_CHUNK_OK &&
+           mm_chunk_at(&chunks, position, &copied) == MM_CHUNK_OK && (copied.flags & MM_CHUNK_PACKED));
+    assert(mm_text_decode_descriptor(output.bytes, 0, &localized));
+    assert(localized.shape == 9 && localized.font.sid == 0 && localized.font.type == type &&
+           localized.font.number == 1 && output.bytes[12] == 37 && output.bytes[MM_TEXT_DESCRIPTOR_BYTES] == 91);
+    assert(!memcmp(output.bytes, original, 8) && !memcmp(output.bytes + 16, original + 16, 4));
+    output.reject_patch = 1;
+    assert(mm_text_bind_preview_font(&source, &target, 0, 29) == MM_CHUNK_IO);
+    assert(mm_text_decode_descriptor(output.bytes, 0, &localized) && localized.font.number == 1);
 }
 static void drafts(void)
 {
     Context c;
-    DraftOutput output;
     TemplateWriterFixture normal, saved;
     MMArchiveWriter writer;
     const MMChunkNameValue name = {"saved", 5, 5};
-    MMTextDescriptor draft = {9, {123, NULL, 0x54444620UL, 29}}, localized;
-    MMTextPreviewFontServices preview = {NULL, preview_read, preview_copy, preview_write};
-    MMChunkAccess graph;
+    MMTextDescriptor draft = {9, {123, NULL, 0x54444620UL, 29}};
     MMTemplateState header;
     MMU32 number;
     Object *object;
     int big, failure;
-    preview.context = &output;
     for (big = 0; big < 2; ++big)
     {
         init(&c);
@@ -326,18 +415,7 @@ static void drafts(void)
         assert(!memcmp(saved.header, normal.header, sizeof(saved.header)));
         assert(!memcmp(saved.descriptor, normal.descriptor, sizeof(saved.descriptor)));
         assert(!memcmp(saved.archive.name, normal.archive.name, sizeof(saved.archive.name)) && !saved.archive.file_refs && !normal.archive.file_refs);
-        graph = fixture_chunk_access(&saved.archive.index);
-        memset(&output, 0, sizeof(output));
-        memcpy(output.descriptor, saved.descriptor, sizeof(output.descriptor));
-        output.descriptor[0] = 127;
-        assert(!mm_text_bind_preview_font(&graph, 0, 29, &preview) && !output.copies);
-        memcpy(output.descriptor, saved.descriptor, sizeof(output.descriptor));
-        output.descriptor[12] = 37;
-        assert(mm_text_bind_preview_font(&graph, 0, 29, &preview) && output.copies == 1);
-        assert(mm_text_decode_descriptor(output.descriptor, 0, &localized));
-        assert(localized.shape == 9 && localized.font.sid == 0 && localized.font.type == draft.font.type &&
-               localized.font.number == 0x87654321UL && output.descriptor[12] == 37);
-        assert(!memcmp(output.descriptor, saved.descriptor, 8) && !memcmp(output.descriptor + 16, saved.descriptor + 16, 4));
+        localize_font(&saved, draft.font.type);
     }
 }
 static void author_names(void)

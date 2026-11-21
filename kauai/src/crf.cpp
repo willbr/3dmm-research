@@ -300,19 +300,27 @@ bool ChunkyResourceFile::FGetName(ChunkTagOrType type, ChunkNumber number, PStri
     name->SetNil();
     return false;
 }
+MMChunkEndpoint ChunkyResourceFile::CopySource(MMResourceChunkCopy &binding)
+{
+    AssertThis(0);
+    if (Pcfl())
+        return Pcfl()->CopyEndpoint(binding.live);
+    if (static_cast<PFileObject>(_cache.wire_file)->GrffilCur() & ffilWriteEnable)
+        return {};
+    const auto titles = KauaiChunkTitleIO();
+    return mm_stored_chunk_copy_endpoint(&binding.stored, &_cache, this, KauaiCopyAllocator(),
+                                          &titles, KauaiEncodeLegacyChunkName, sizeof(achar));
+}
+
 bool ChunkyResourceFile::FCopyChunk(ChunkTagOrType type, ChunkNumber number, PChunkyFile destination, ChunkNumber *copied)
 {
     AssertThis(0);
     AssertPo(destination, fcflFull);
     if (Pcfl())
         return Pcfl()->FCopy(type, number, destination, copied);
-    if (static_cast<PFileObject>(_cache.wire_file)->GrffilCur() & ffilWriteEnable)
-        return false;
-    MMStoredChunkCopy binding;
-    const auto titles = KauaiChunkTitleIO();
-    const auto source = mm_stored_chunk_copy_endpoint(&binding, &_cache, this, KauaiCopyAllocator(),
-                                                       &titles, KauaiEncodeLegacyChunkName, sizeof(achar));
-    return destination->_FCopyFrom(source, type, number, copied, false, nullptr);
+    MMResourceChunkCopy binding;
+    const auto source = CopySource(binding);
+    return source.identity && destination->_FCopyFrom(source, type, number, copied, false, nullptr);
 }
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
 {
