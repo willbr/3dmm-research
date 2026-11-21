@@ -5,8 +5,24 @@
 struct RichTextDocument::PropertyHost : DocumentHost
 {
     const SPVM *changes = nullptr;
-    explicit PropertyHost(RichTextDocument *p) : DocumentHost(p)
+    MMTextPropertyArray propertyArray;
+    explicit PropertyHost(RichTextDocument *p)
+        : DocumentHost(p), propertyArray{
+              p,
+              [](void *v, int *big) {
+                  *big = RichTextStoreHost::NativeBig();
+                  return static_cast<RichTextDocument *>(v)->_pglmpe->CoreRows();
+              },
+              [](void *v, const MMArray *rows) {
+                  static_cast<RichTextDocument *>(v)->_pglmpe->PublishCoreRows(*rows);
+              },
+              [](void *) { Assert(false, "invalid property row mutation"); },
+              0}
     {
+    }
+    int ReserveProperties(MMI32 count)
+    {
+        return mm_text_property_array_reserve(&propertyArray, count);
     }
     static void Diagnostic(void *, int kind)
     {
@@ -57,24 +73,7 @@ struct RichTextDocument::PropertyHost : DocumentHost
         s.context = this;
         s.arguments = Arguments();
         s.diagnostic = Diagnostic;
-        s.count = [](void *v) -> MMI32 { return static_cast<PropertyHost *>(v)->rich->_pglmpe->IvMac(); };
-        s.get = [](void *v, MMI32 i, MMTextPropertyEntry *out) {
-            MPE p;
-            static_cast<PropertyHost *>(v)->rich->_pglmpe->Get(i, &p);
-            *out = {p.spcp, p.lw};
-        };
-        s.put = [](void *v, MMI32 i, const MMTextPropertyEntry *p) {
-            MPE value = {p->key, p->value};
-            static_cast<PropertyHost *>(v)->rich->_pglmpe->Put(i, &value);
-        };
-        s.insert = [](void *v, MMI32 i, const MMTextPropertyEntry *p) -> int {
-            auto &h = *static_cast<PropertyHost *>(v);
-            return h.Guard([&] {
-                MPE value = {p->key, p->value};
-                return h.rich->_pglmpe->FInsert(i, &value);
-            });
-        };
-        s.remove = [](void *v, MMI32 i) { static_cast<PropertyHost *>(v)->rich->_pglmpe->Delete(i); };
+        mm_text_property_array_rows(&s.rows, &propertyArray);
         s.clear_cache = [](void *v) {
             auto doc = static_cast<PropertyHost *>(v)->rich;
             doc->_cpMinChp = doc->_cpLimChp = doc->_cpMinPap = doc->_cpLimPap = 0;

@@ -313,11 +313,12 @@ static void init(Host *h, unsigned unit, int big)
     s->bad_font_record = bad_font_record;
     p = &s->properties;
     p->context = h;
-    p->count = count;
-    p->get = get;
-    p->put = put;
-    p->insert = insert;
-    p->remove = remove_entry;
+    p->rows.context = h;
+    p->rows.count = count;
+    p->rows.get = get;
+    p->rows.put = put;
+    p->rows.insert = insert;
+    p->rows.remove = remove_entry;
     p->clear_cache = clear_cache;
     p->diagnostic = diagnostic;
     a = &p->arguments;

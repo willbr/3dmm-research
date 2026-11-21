@@ -164,6 +164,7 @@ class DynamicArray : public DynamicArray_PAR
     // duplication
     PDynamicArray PglDup(void);
     MMArray CoreRows() { return _ArrayView(); }
+    void PublishCoreRows(const MMArray &rows) { _ApplyArray(rows); }
 
     // methods required by parent class
     virtual bool FAdd(void *pv, LegacyLong *piv = pvNil);

@@ -188,9 +188,9 @@ int mm_text_copy_document(MMI32 from, MMI32 count, MMI32 at, MMI32 deleted, MMU3
     if (count > 0)
     {
         mm_text_property_find(key(192, from), s->source_characters(s->context), 0, 0, &i, &s->source);
-        while (i < s->source.count(s->source.context))
+        while (i < s->source.rows.count(s->source.rows.context))
         {
-            s->source.get(s->source.context, i++, &entry);
+            s->source.rows.get(s->source.rows.context, i++, &entry);
             cp = position(entry.key);
             if (cp < from || cp >= from + count)
                 continue;
@@ -205,7 +205,7 @@ int mm_text_copy_document(MMI32 from, MMI32 count, MMI32 at, MMI32 deleted, MMU3
                 continue;
             if (mm_text_property_find(fresh.key, s->target.characters(s->target.context), 0, 0, &index, target))
                 ++index;
-            r = target->insert(target->context, index, &fresh);
+            r = target->rows.insert(target->rows.context, index, &fresh);
             if (r < 0)
                 return r;
             if (!r)
@@ -243,7 +243,7 @@ int mm_text_object_fetch(MMI32 cp, MMI32 *at, void **owned, MMI32 *bytes, const 
             return 0;
         if (r)
             ++index;
-        p->get(p->context, index, &entry);
+        p->rows.get(p->rows.context, index, &entry);
     }
     if (bytes)
     {
@@ -338,7 +338,7 @@ int mm_text_object_insert(const void *bytes, MMI32 length, MMI32 cp, MMI32 delet
     entry.value = reference;
     if (mm_text_property_find(entry.key, s->target.characters(s->target.context), 0, 0, &index, p))
         ++index;
-    r = p->insert(p->context, index, &entry);
+    r = p->rows.insert(p->rows.context, index, &entry);
     if (r < 0)
         return r;
     if (!r)
@@ -378,7 +378,7 @@ int mm_text_object_apply(const void *bytes, MMI32 length, MMI32 cp, MMU32 flags,
         t = s->target.edit.cancel(s->target.edit.context);
         return t < 0 ? t : 0;
     }
-    p->put(p->context, index, &entry);
+    p->rows.put(p->rows.context, index, &entry);
     mm_text_property_ref(192, old, 0, &p->arguments);
     r = s->target.edit.commit(s->target.edit.context);
     if (r <= 0)

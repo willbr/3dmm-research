@@ -265,12 +265,13 @@ MMI32 mm_caption_edit_paragraph_end(const unsigned short *text, MMI32 count, MMI
 
 static MMI32 inherit_first(const MMTextPropertyServices *s, MMTextPropertyChange *changes)
 {
-    MMI32 row, count = 0, rows = s->count(s->context);
+    const MMTextPropertyRows *properties = &s->rows;
+    MMI32 row, count = 0, rows = properties->count(properties->context);
     MMTextPropertyEntry entry;
     unsigned kind;
     for (row = 0; row < rows; ++row)
     {
-        s->get(s->context, row, &entry);
+        properties->get(properties->context, row, &entry);
         kind = entry.key >> 24;
         if (kind >= MM_CAPTION_ALIGNMENT)
             break;
@@ -293,42 +294,26 @@ static MMTextCollection *caption_properties(void *p)
     return ((MMCaptionPropertyMap *)p)->body->properties;
 }
 
-static MMI32 caption_property_count(void *p)
+static MMArray caption_property_view(void *p, int *big)
 {
-    return (MMI32)mm_text_collection_count(caption_properties(p));
+    const MMArray *rows = mm_text_collection_property_array(caption_properties(p), big);
+    MMArray empty = {0};
+    if (rows)
+        return *rows;
+    *big = 0;
+    return empty;
 }
 
-static void caption_property_get(void *p, MMI32 row, MMTextPropertyEntry *out)
+static void caption_property_publish(void *p, const MMArray *rows)
 {
-    MMU32 words[2] = {0, 0};
-    mm_text_collection_property(caption_properties(p), (MMU32)row, words);
-    out->key = words[0];
-    out->value = mm_signed_word(words[1]);
+    MMArray *array = mm_text_collection_property_array(caption_properties(p), NULL);
+    if (array)
+        *array = *rows;
 }
 
-static int caption_property_set(void *p, MMI32 row, const MMTextPropertyEntry *entry, int insert)
+static void caption_bad_property_mutation(void *p)
 {
-    MMU32 words[2];
-    words[0] = entry->key;
-    words[1] = (MMU32)entry->value;
-    return mm_text_collection_put_property(caption_properties(p), (MMU32)row, words, insert);
-}
-
-static void caption_property_put(void *p, MMI32 row, const MMTextPropertyEntry *entry)
-{
-    if (!caption_property_set(p, row, entry, 0))
-        ((MMCaptionPropertyMap *)p)->diagnosed = 1;
-}
-
-static int caption_property_insert(void *p, MMI32 row, const MMTextPropertyEntry *entry)
-{
-    return caption_property_set(p, row, entry, 1) ? 1 : -1;
-}
-
-static void caption_property_remove(void *p, MMI32 row)
-{
-    if (!mm_text_collection_delete(caption_properties(p), (MMU32)row))
-        ((MMCaptionPropertyMap *)p)->diagnosed = 1;
+    ((MMCaptionPropertyMap *)p)->diagnosed = 1;
 }
 
 static void caption_property_clear(void *p)
@@ -346,7 +331,7 @@ static int caption_property_paragraph_end(void *p, MMI32 at, MMI32 *end)
 static void caption_property_diagnostic(void *p, int kind)
 {
     (void)kind;
-    ((MMCaptionPropertyMap *)p)->diagnosed = 1;
+    caption_bad_property_mutation(p);
 }
 
 static void *caption_argument_owner(void *p, int kind)
@@ -390,11 +375,12 @@ void mm_caption_edit_property_services(MMCaptionPropertyMap *map, MMTextProperty
 {
     memset(s, 0, sizeof(*s));
     s->context = map;
-    s->count = caption_property_count;
-    s->get = caption_property_get;
-    s->put = caption_property_put;
-    s->insert = caption_property_insert;
-    s->remove = caption_property_remove;
+    map->array.owner = map;
+    map->array.view = caption_property_view;
+    map->array.publish = caption_property_publish;
+    map->array.bad_mutation = caption_bad_property_mutation;
+    map->array.insert_failure = -1;
+    mm_text_property_array_rows(&s->rows, &map->array);
     s->clear_cache = caption_property_clear;
     s->paragraph_end = caption_property_paragraph_end;
     s->diagnostic = caption_property_diagnostic;

@@ -404,11 +404,12 @@ static void init_doc(Doc *d, Trace *trace, unsigned unit)
     d->rich.edit.format.font_name = font_name;
     p = &d->rich.edit.format.properties;
     p->context = d;
-    p->count = count;
-    p->get = get;
-    p->put = put;
-    p->insert = insert;
-    p->remove = remove_entry;
+    p->rows.context = d;
+    p->rows.count = count;
+    p->rows.get = get;
+    p->rows.put = put;
+    p->rows.insert = insert;
+    p->rows.remove = remove_entry;
     p->clear_cache = clear_cache;
     p->paragraph_end = paragraph_end;
     p->diagnostic = diagnostic;

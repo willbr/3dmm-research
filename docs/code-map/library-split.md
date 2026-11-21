@@ -2888,9 +2888,13 @@ application, boundary adjustment after text edits, argument interning and refere
 counts. Studio's live argument binding uses the C allocated group for row lookup,
 reference-word updates, insertion, and deletion. The native owner supplies the
 view and receives the count, payload span, and free-slot count after mutations.
-The property map still uses native row adapters. Hosts also supply cache slots,
-borrowed change records and paragraph-end queries over the edited stream. The
-change records are converted one at a time without allocating another array.
+Studio's property map and Marcus's caption editor share the C dense-array
+binding. It reads and writes eight-byte rows in the owning collection's byte
+order and publishes the row count after insertion and deletion. Studio also
+reserves capacity through this binding. Marcus keeps the stored byte order when
+it edits a foreign-endian caption. Hosts supply cache slots, borrowed change
+records and paragraph-end queries over the edited stream. The change records are
+converted one at a time without allocating another array.
 
 Lookup preserves predecessor/insertion-index and next-boundary behavior; missing
 fetches leave outputs untouched. The native wrapper retains debug poisoning for a
@@ -2900,6 +2904,7 @@ the changed range. Reference ownership moves between entries and the saved rever
 value; each input change reference is consumed once. Releasing an unused batch
 processes its references forward. Callers still reserve twice the change count;
 ordinary insert failure retains the legacy diagnostic-and-continue policy.
+An insertion failure in Marcus stops the private caption edit before publication.
 
 Boundary adjustment uses the new stream after replacement. Character properties
 at the deleted interval collapse to the insertion end. Paragraph properties that

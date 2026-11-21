@@ -18132,3 +18132,30 @@ matched all retail seek canvases. SDL and Marcus matched the eight frames
 without visible captions and differed on frames 4 through 6. SDL reproduced
 the edited text, Times New Roman font, alignment, and visibility. Logs are in
 `tmp/c89-live-argument-group`.
+
+## Shared C89 caption property arrays (21 November 2026)
+
+Studio and Marcus's caption editor now share dense property-row lookup,
+overwrite, insertion, and deletion. Studio also reserves property capacity in
+C89. The common codec uses the collection's byte order. Studio retains its
+ordinary insertion-failure result, and Marcus returns failure from the private
+caption edit before publishing it.
+
+The Preview media fixture uses real little-endian and big-endian arrays. It
+checks that a locked buffer rejects growth, both insertion-failure results keep
+the row count, and reserve and insert succeed after unlock. The test also
+round-trips a negative property value and verifies the saved collection order.
+
+All 192 standalone C checks, seven focused AddressSanitizer checks, and 16
+native C89 and Marcus checks passed. Native x64, native x86, and SDL matched
+21 traces for properties, formatting, copying, undo, materialization, live
+text, and help text. Studio's authoring workflow reproduced its saved movie
+byte for byte.
+
+SDL and Marcus reproduced all 11 of their preceding seek canvases in
+`20261121T060652Z-accac66c`. They matched the 11 authored frame identities in
+seek and continuous playback and all retail seek cameras from
+`20261121T055731Z-1cbfb13e`. The three visible-caption frames retain the
+known retail rendering differences. SDL also retained the edited text, right
+alignment, Times New Roman font, and three-frame visibility window. Logs are in
+`tmp/c89-property-array`.

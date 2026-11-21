@@ -1143,6 +1143,9 @@ Rich-text property lookup, masked range application, edit-boundary adjustment,
 argument interning and reference-count control now also use C89. Studio's live
 argument row lookup, reference writes, slot allocation and deletion run through
 the C allocated group. The native document still owns and publishes the group.
+Studio and Marcus share C property-array lookup and mutation. Studio reserves
+property capacity through the same binding, and Marcus preserves the original
+byte order of stored caption properties.
 Character/paragraph delta packing, font descriptor creation, cached formatting
 fetches, paragraph-bound selection and formatting-application transactions now
 also use C89, preserving virtual undo/effect hooks.

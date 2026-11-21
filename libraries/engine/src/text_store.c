@@ -1,5 +1,5 @@
 #include "mm/text_store.h"
-#include "mm/collections.h"
+#include "mm/text_properties.h"
 #include "mm/movie_archive_edit.h"
 #include <stdlib.h>
 #include "mm/wide.h"
@@ -788,30 +788,58 @@ MMU32 mm_text_collection_count(const MMTextCollection *c)
     return c->kind == MM_TEXT_PROPERTIES ? c->rows.array.count : c->rows.group.count;
 }
 
+static unsigned char *property_address(const MMArray *rows, MMU32 row)
+{
+    if (rows->width != 8 || rows->allocated || !rows->storage || row >= rows->count ||
+        row >= rows->storage->buffers[0].capacity / 8)
+        return NULL;
+    return rows->storage->buffers[0].data + row * 8;
+}
+
+int mm_text_property_array_read(const MMArray *rows, MMU32 row, int big, MMU32 words[2])
+{
+    const unsigned char *p = property_address(rows, row);
+    if (!p)
+        return 0;
+    words[0] = get(p, 4, big);
+    words[1] = get(p + 4, 4, big);
+    return 1;
+}
+
+int mm_text_property_array_write(MMArray *rows, MMU32 row, int big, const MMU32 words[2], int insert)
+{
+    unsigned char wire[8];
+    unsigned char *p;
+    if (rows->width != sizeof(wire) || rows->allocated)
+        return 0;
+    put(wire, words[0], 4, big);
+    put(wire + 4, words[1], 4, big);
+    if (insert)
+        return mm_array_insert(rows, row, wire, 1) == MM_STORAGE_OK;
+    p = property_address(rows, row);
+    if (!p)
+        return 0;
+    memcpy(p, wire, sizeof(wire));
+    return 1;
+}
+
+MMArray *mm_text_collection_property_array(MMTextCollection *c, int *big)
+{
+    if (!c || c->kind != MM_TEXT_PROPERTIES)
+        return NULL;
+    if (big)
+        *big = c->big;
+    return &c->rows.array;
+}
+
 int mm_text_collection_property(const MMTextCollection *c, MMU32 row, MMU32 words[2])
 {
-    const unsigned char *p;
-    if (!c || c->kind != MM_TEXT_PROPERTIES || row >= c->rows.array.count)
-        return 0;
-    p = c->storage.buffers[0].data + row * 8;
-    words[0] = get(p, 4, c->big);
-    words[1] = get(p + 4, 4, c->big);
-    return 1;
+    return c && c->kind == MM_TEXT_PROPERTIES && mm_text_property_array_read(&c->rows.array, row, c->big, words);
 }
 
 int mm_text_collection_put_property(MMTextCollection *c, MMU32 row, const MMU32 words[2], int insert)
 {
-    unsigned char wire[8];
-    if (!c || c->kind != MM_TEXT_PROPERTIES)
-        return 0;
-    put(wire, words[0], 4, c->big);
-    put(wire + 4, words[1], 4, c->big);
-    if (insert)
-        return mm_array_insert(&c->rows.array, row, wire, 1) == MM_STORAGE_OK;
-    if (row >= c->rows.array.count)
-        return 0;
-    memcpy(c->storage.buffers[0].data + row * 8, wire, sizeof(wire));
-    return 1;
+    return c && c->kind == MM_TEXT_PROPERTIES && mm_text_property_array_write(&c->rows.array, row, c->big, words, insert);
 }
 
 static unsigned char *argument_location(const MMTextCollection *c, MMU32 row, MMI32 *bytes)

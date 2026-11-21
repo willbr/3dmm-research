@@ -198,11 +198,12 @@ static void init(Host *h)
     h->characters = 9;
     s = &h->s;
     s->context = h;
-    s->count = count;
-    s->get = get;
-    s->put = put;
-    s->insert = insert;
-    s->remove = remove_entry;
+    s->rows.context = h;
+    s->rows.count = count;
+    s->rows.get = get;
+    s->rows.put = put;
+    s->rows.insert = insert;
+    s->rows.remove = remove_entry;
     s->clear_cache = clear_cache;
     s->change = change;
     s->paragraph_end = paragraph_end;

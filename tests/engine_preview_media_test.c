@@ -262,6 +262,7 @@ static void edited_caption_collections(void)
     MMCaptionPropertyMap map = {0};
     MMTextPropertyServices services;
     MMTextCollection *properties, *arguments;
+    MMArray *property_array;
     MMTextPropertyEntry property;
     MMCollectionHeader table = {0};
     MMMemoryStream memory, text;
@@ -320,11 +321,24 @@ static void edited_caption_collections(void)
         assert(h.properties[1].kind == 2 && h.properties[1].position == 2 && h.properties[1].value == 1);
 
         mm_caption_edit_property_services(&map, &services);
-        services.get(services.context, 0, &property);
+        services.rows.get(services.rows.context, 0, &property);
         assert(property.key == 0x01000001U && property.value == 3);
-        assert(services.insert(services.context, 0, &property) == 1 && services.count(services.context) == 3);
-        services.remove(services.context, 0);
-        assert(services.count(services.context) == 2 && !map.diagnosed);
+        property_array = mm_text_collection_property_array(properties, NULL);
+        assert(mm_storage_lock(property_array->storage, 0) == MM_STORAGE_OK);
+        assert(!mm_text_property_array_reserve(&map.array, 1));
+        assert(services.rows.insert(services.rows.context, 0, &property) == -1);
+        map.array.insert_failure = 0;
+        assert(!services.rows.insert(services.rows.context, 0, &property));
+        map.array.insert_failure = -1;
+        assert(services.rows.count(services.rows.context) == 2 && !map.diagnosed);
+        assert(mm_storage_unlock(property_array->storage, 0) == MM_STORAGE_OK);
+        assert(mm_text_property_array_reserve(&map.array, 1));
+        property.value = -123;
+        assert(services.rows.insert(services.rows.context, 0, &property) == 1);
+        services.rows.get(services.rows.context, 0, &property);
+        assert(services.rows.count(services.rows.context) == 3 && property.value == -123);
+        services.rows.remove(services.rows.context, 0);
+        assert(services.rows.count(services.rows.context) == 2 && !map.diagnosed);
         mm_text_property_ref(2, 1, 1, &services.arguments);
         assert(mm_text_collection_argument_ref(arguments, 0) == 0x02000002U);
         mm_text_property_ref(2, 1, 0, &services.arguments);

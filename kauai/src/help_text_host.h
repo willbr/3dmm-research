@@ -47,10 +47,7 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] { return h.help->FSetUndo(a, b, n); });
         };
-        s.reserve = [](void *v, MMI32 n) -> int {
-            auto &h = *static_cast<HelpHost *>(v);
-            return h.Guard([&] { return h.help->_pglmpe->FEnsureSpace(n); });
-        };
+        s.reserve = [](void *v, MMI32 n) { return static_cast<HelpHost *>(v)->ReserveProperties(n); };
         s.cancel = [](void *v) -> int {
             auto &h = *static_cast<HelpHost *>(v);
             return h.Guard([&] {

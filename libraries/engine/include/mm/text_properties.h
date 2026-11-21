@@ -53,15 +53,35 @@ extern "C"
         void (*diagnostic)(void *, int);
         void (*validate_input)(void *, unsigned kind, const void *, MMI32 bytes);
     } MMTextArgumentServices;
-    typedef struct MMTextPropertyServices
+    typedef struct MMTextPropertyRows
     {
         void *context;
-        MMTextArgumentServices arguments;
         MMI32 (*count)(void *);
         void (*get)(void *, MMI32 index, MMTextPropertyEntry *);
         void (*put)(void *, MMI32 index, const MMTextPropertyEntry *);
         int (*insert)(void *, MMI32 index, const MMTextPropertyEntry *);
         void (*remove)(void *, MMI32 index);
+    } MMTextPropertyRows;
+    typedef struct MMTextPropertyArray
+    {
+        void *owner;
+        MMArray (*view)(void *owner, int *big);
+        void (*publish)(void *owner, const MMArray *);
+        void (*bad_mutation)(void *owner);
+        int insert_failure;
+    } MMTextPropertyArray;
+    /* Views expose dense eight-byte rows in the owner's byte order. The binding
+     * outlives the row services. Mutations publish the refreshed array view. */
+    void mm_text_property_array_rows(MMTextPropertyRows *, const MMTextPropertyArray *);
+    int mm_text_property_array_reserve(const MMTextPropertyArray *, MMI32 count);
+    int mm_text_property_array_read(const MMArray *, MMU32 row, int big, MMU32 words[2]);
+    int mm_text_property_array_write(MMArray *, MMU32 row, int big, const MMU32 words[2], int insert);
+    MMArray *mm_text_collection_property_array(MMTextCollection *, int *big);
+    typedef struct MMTextPropertyServices
+    {
+        void *context;
+        MMTextArgumentServices arguments;
+        MMTextPropertyRows rows;
         void (*clear_cache)(void *);
         void (*change)(void *, MMI32 index, MMTextPropertyChange *);
         int (*paragraph_end)(void *, MMI32 cp, MMI32 *end);

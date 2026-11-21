@@ -88,16 +88,83 @@ void mm_text_live_argument_rows(MMTextArgumentRows *s, const MMTextLiveArgumentG
     s->add = live_add;
     s->remove = live_remove;
 }
+static MMI32 property_count(void *context)
+{
+    const MMTextPropertyArray *binding = context;
+    int big;
+    return (MMI32)binding->view(binding->owner, &big).count;
+}
+static void property_get(void *context, MMI32 index, MMTextPropertyEntry *entry)
+{
+    const MMTextPropertyArray *binding = context;
+    int big;
+    MMArray rows = binding->view(binding->owner, &big);
+    MMU32 words[2] = {0, 0};
+    mm_text_property_array_read(&rows, (MMU32)index, big, words);
+    entry->key = words[0];
+    entry->value = mm_signed_word(words[1]);
+}
+static int property_write(const MMTextPropertyArray *binding, MMI32 index, const MMTextPropertyEntry *entry,
+                          int insert)
+{
+    int big, ok;
+    MMArray rows = binding->view(binding->owner, &big);
+    MMU32 words[2];
+    words[0] = entry->key;
+    words[1] = (MMU32)entry->value;
+    ok = mm_text_property_array_write(&rows, (MMU32)index, big, words, insert);
+    if (insert)
+        binding->publish(binding->owner, &rows);
+    return ok;
+}
+static void property_put(void *context, MMI32 index, const MMTextPropertyEntry *entry)
+{
+    const MMTextPropertyArray *binding = context;
+    if (!property_write(binding, index, entry, 0) && binding->bad_mutation)
+        binding->bad_mutation(binding->owner);
+}
+static int property_insert(void *context, MMI32 index, const MMTextPropertyEntry *entry)
+{
+    const MMTextPropertyArray *binding = context;
+    return property_write(binding, index, entry, 1) ? 1 : binding->insert_failure;
+}
+static void property_remove(void *context, MMI32 index)
+{
+    const MMTextPropertyArray *binding = context;
+    int big;
+    MMArray rows = binding->view(binding->owner, &big);
+    if (mm_array_delete(&rows, (MMU32)index, 1) != MM_STORAGE_OK && binding->bad_mutation)
+        binding->bad_mutation(binding->owner);
+    binding->publish(binding->owner, &rows);
+}
+int mm_text_property_array_reserve(const MMTextPropertyArray *binding, MMI32 count)
+{
+    int big;
+    MMArray rows = binding->view(binding->owner, &big);
+    int result = mm_array_reserve(&rows, (MMU32)count, 0);
+    binding->publish(binding->owner, &rows);
+    return result == MM_STORAGE_OK;
+}
+void mm_text_property_array_rows(MMTextPropertyRows *s, const MMTextPropertyArray *binding)
+{
+    s->context = (void *)binding;
+    s->count = property_count;
+    s->get = property_get;
+    s->put = property_put;
+    s->insert = property_insert;
+    s->remove = property_remove;
+}
 int mm_text_property_find(MMU32 key, MMI32 characters, MMTextPropertyEntry *out, MMI32 *end, MMI32 *index,
                           const MMTextPropertyServices *s)
 {
-    MMI32 lo = 0, hi = s->count(s->context), i;
+    const MMTextPropertyRows *rows = &s->rows;
+    MMI32 lo = 0, hi = rows->count(rows->context), i;
     MMTextPropertyEntry entry;
     int found = 0;
     while (lo < hi)
     {
         i = (lo + hi) / 2;
-        s->get(s->context, i, &entry);
+        rows->get(rows->context, i, &entry);
         if (entry.key < key)
             lo = i + 1;
         else if (entry.key > key)
@@ -111,7 +178,7 @@ int mm_text_property_find(MMU32 key, MMI32 characters, MMTextPropertyEntry *out,
     }
     if (index)
         *index = lo;
-    if (found || (lo > 0 && (s->get(s->context, lo - 1, &entry), kind(entry.key) == kind(key))))
+    if (found || (lo > 0 && (rows->get(rows->context, lo - 1, &entry), kind(entry.key) == kind(key))))
     {
         if (out)
             *out = entry;
@@ -122,9 +189,9 @@ int mm_text_property_find(MMU32 key, MMI32 characters, MMTextPropertyEntry *out,
     if (end)
     {
         *end = characters;
-        if (lo < s->count(s->context))
+        if (lo < rows->count(rows->context))
         {
-            s->get(s->context, lo, &entry);
+            rows->get(rows->context, lo, &entry);
             if (kind(entry.key) == kind(key))
                 *end = position(entry.key);
         }
@@ -134,18 +201,19 @@ int mm_text_property_find(MMU32 key, MMI32 characters, MMTextPropertyEntry *out,
 int mm_text_property_fetch(MMI32 index, MMI32 characters, MMTextPropertyEntry *out, MMI32 *end,
                            const MMTextPropertyServices *s)
 {
+    const MMTextPropertyRows *rows = &s->rows;
     MMTextPropertyEntry entry, next;
-    if (index < 0 || index >= s->count(s->context))
+    if (index < 0 || index >= rows->count(rows->context))
         return 0;
-    s->get(s->context, index, &entry);
+    rows->get(rows->context, index, &entry);
     if (out)
         *out = entry;
     if (end)
     {
         *end = characters;
-        if (index + 1 < s->count(s->context))
+        if (index + 1 < rows->count(rows->context))
         {
-            s->get(s->context, index + 1, &next);
+            rows->get(rows->context, index + 1, &next);
             if (kind(next.key) == kind(entry.key))
                 *end = position(next.key);
         }
@@ -240,14 +308,15 @@ void mm_text_properties_release(MMI32 count, const MMTextPropertyServices *s)
 }
 int mm_text_properties_adjust(MMI32 cp, MMI32 ins, MMI32 del, MMI32 characters, const MMTextPropertyServices *s)
 {
+    const MMTextPropertyRows *rows = &s->rows;
     MMTextPropertyEntry entry;
     MMI32 i = 0, first, at, end;
     unsigned type;
     int before, keep, result;
     s->clear_cache(s->context);
-    while (i < s->count(s->context))
+    while (i < rows->count(rows->context))
     {
-        s->get(s->context, i, &entry);
+        rows->get(rows->context, i, &entry);
         at = position(entry.key);
         if (at < cp)
         {
@@ -258,22 +327,22 @@ int mm_text_properties_adjust(MMI32 cp, MMI32 ins, MMI32 del, MMI32 characters, 
         if (at >= cp + del + (type < 192))
         {
             entry.key = key_at(type, at + ins - del);
-            s->put(s->context, i++, &entry);
+            rows->put(rows->context, i++, &entry);
             continue;
         }
         if (type >= 192)
         {
             mm_text_property_ref(type, entry.value, 0, &s->arguments);
-            s->remove(s->context, i);
+            rows->remove(rows->context, i);
             continue;
         }
         before = at == cp;
         first = i;
         while (at <= cp + del)
         {
-            if (++i >= s->count(s->context))
+            if (++i >= rows->count(rows->context))
                 break;
-            s->get(s->context, i, &entry);
+            rows->get(rows->context, i, &entry);
             if (kind(entry.key) != type)
                 break;
             at = position(entry.key);
@@ -281,9 +350,9 @@ int mm_text_properties_adjust(MMI32 cp, MMI32 ins, MMI32 del, MMI32 characters, 
         keep = 1;
         if (type < 128 || before)
         {
-            s->get(s->context, --i, &entry);
+            rows->get(rows->context, --i, &entry);
             entry.key = key_at(type, type < 128 ? cp + ins : cp);
-            s->put(s->context, i, &entry);
+            rows->put(rows->context, i, &entry);
         }
         else
         {
@@ -291,21 +360,21 @@ int mm_text_properties_adjust(MMI32 cp, MMI32 ins, MMI32 del, MMI32 characters, 
             if (result <= 0)
                 return result;
             if (end < characters &&
-                (i >= s->count(s->context) || (s->get(s->context, i, &entry), kind(entry.key) != type) ||
+                (i >= rows->count(rows->context) || (rows->get(rows->context, i, &entry), kind(entry.key) != type) ||
                  position(entry.key) + ins - del > end))
             {
-                s->get(s->context, --i, &entry);
+                rows->get(rows->context, --i, &entry);
                 entry.key = key_at(type, end);
-                s->put(s->context, i, &entry);
+                rows->put(rows->context, i, &entry);
             }
             else
                 keep = 0;
         }
         while (first < i)
         {
-            s->get(s->context, --i, &entry);
+            rows->get(rows->context, --i, &entry);
             mm_text_property_ref(type, entry.value, 0, &s->arguments);
-            s->remove(s->context, i);
+            rows->remove(rows->context, i);
         }
         if (keep)
             ++i;
@@ -314,7 +383,7 @@ int mm_text_properties_adjust(MMI32 cp, MMI32 ins, MMI32 del, MMI32 characters, 
 }
 static int insert(MMI32 *index, const MMTextPropertyEntry *entry, const MMTextPropertyServices *s)
 {
-    int result = s->insert(s->context, (*index)++, entry);
+    int result = s->rows.insert(s->rows.context, (*index)++, entry);
     if (!result)
         s->diagnostic(s->context, MM_TEXT_PROP_INSERT);
     return result < 0 ? result : 1;
@@ -322,6 +391,7 @@ static int insert(MMI32 *index, const MMTextPropertyEntry *entry, const MMTextPr
 static int apply(MMI32 cp, MMI32 span, MMI32 characters, const MMTextPropertyChange *changes,
                  MMI32 count, const MMTextPropertyServices *s)
 {
+    const MMTextPropertyRows *rows = &s->rows;
     MMTextPropertyEntry entry, current, previous;
     MMTextPropertyChange change;
     MMI32 n, i, end, limit = cp + span < characters ? cp + span : characters;
@@ -370,7 +440,7 @@ static int apply(MMI32 cp, MMI32 span, MMI32 characters, const MMTextPropertyCha
                 last = 0;
                 if (i > 0)
                 {
-                    s->get(s->context, i - 1, &previous);
+                    rows->get(rows->context, i - 1, &previous);
                     if (kind(previous.key) == change.kind)
                         last = (MMU32)previous.value;
                 }
@@ -379,12 +449,12 @@ static int apply(MMI32 cp, MMI32 span, MMI32 characters, const MMTextPropertyCha
         mm_text_property_ref(change.kind, mm_signed_word(revert), 1, &s->arguments);
         for (;;)
         {
-            if (i >= s->count(s->context))
+            if (i >= rows->count(rows->context))
             {
                 end = characters;
                 break;
             }
-            s->get(s->context, i, &current);
+            rows->get(rows->context, i, &current);
             if (kind(current.key) != change.kind)
             {
                 end = characters;
@@ -396,7 +466,7 @@ static int apply(MMI32 cp, MMI32 span, MMI32 characters, const MMTextPropertyCha
                 if (end == limit && last == (MMU32)current.value)
                 {
                     mm_text_property_ref(change.kind, current.value, 0, &s->arguments);
-                    s->remove(s->context, i);
+                    rows->remove(rows->context, i);
                 }
                 break;
             }
@@ -404,11 +474,11 @@ static int apply(MMI32 cp, MMI32 span, MMI32 characters, const MMTextPropertyCha
             revert = (MMU32)current.value;
             current.value = mm_signed_word(change.value | ((MMU32)current.value & ~change.mask));
             if (last == (MMU32)current.value)
-                s->remove(s->context, i);
+                rows->remove(rows->context, i);
             else
             {
                 mm_text_property_ref(change.kind, current.value, 1, &s->arguments);
-                s->put(s->context, i++, &current);
+                rows->put(rows->context, i++, &current);
                 last = (MMU32)current.value;
             }
         }

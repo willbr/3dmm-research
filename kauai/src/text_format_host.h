@@ -177,10 +177,7 @@ struct RichTextDocument::FormatHost : PropertyHost
                 return 1;
             });
         };
-        s.reserve = [](void *v, MMI32 count) -> int {
-            auto &h = *static_cast<FormatHost *>(v);
-            return h.Guard([&] { return h.rich->_pglmpe->FEnsureSpace(count); });
-        };
+        s.reserve = [](void *v, MMI32 count) { return static_cast<FormatHost *>(v)->ReserveProperties(count); };
         s.invalidate = [](void *v, MMI32 cp, MMI32 span, MMU32 flags) -> int {
             auto &h = *static_cast<FormatHost *>(v);
             return h.Guard([&] {
