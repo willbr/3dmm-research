@@ -61,11 +61,11 @@ class Background : public Background_PAR
     }
     MMBackgroundCameraServices _CameraServices(void *host);
     MMBackgroundServices _ResourceServices(void *host);
-    bool _FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
+    bool _FInit(MMResourceCache *, MMU32 type, MMU32 number);
 
   public:
     static bool FCacheToHD(PTAG ptagBkgd);
-    static bool FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadBkgd(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **object, MMI32 *bytes);
     ~Background(void);
     void GetName(PString pstn);
 

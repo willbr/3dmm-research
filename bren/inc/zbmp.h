@@ -53,7 +53,8 @@ class ZBMP : public ZBMP_PAR
     static PZBMP PzbmpNew(br_int_32 dxp, br_int_32 dyp);
     static PZBMP PzbmpNewFromBpmp(BPMP *pbpmp);
     static PZBMP PzbmpRead(PDataBlock pblck);
-    static bool FReadZbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, br_int_32 *pcb);
+    static int FReadZbmp(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                          void **object, MMI32 *bytes);
     ~ZBMP(void);
 
     byte *Prgb(void)

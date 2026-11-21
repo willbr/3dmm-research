@@ -110,13 +110,13 @@ static void Loads()
                     CHECK(cache);
                     DataBlock block;
                     CHECK(file->FFind(kctgZbmp, n, &block));
-                    LegacyLong estimate = -1;
-                    CHECK(ZBMP::FReadZbmp(cache, kctgZbmp, n, &block, nullptr, &estimate));
+                    MMI32 estimate = -1;
+                    CHECK(ZBMP::FReadZbmp(cache->CoreCache(), kctgZbmp, n, block.CoreBlock(), nullptr, &estimate));
                     Value(estimate);
-                    PBaseCacheableObject object = nullptr;
+                    void *object = nullptr;
                     PZBMP z = nullptr;
                     Inject(kind, failure);
-                    bool ok = factory ? ZBMP::FReadZbmp(cache, kctgZbmp, n, &block, &object, &estimate)
+                    bool ok = factory ? ZBMP::FReadZbmp(cache->CoreCache(), kctgZbmp, n, block.CoreBlock(), &object, &estimate)
                                       : (z = ZBMP::PzbmpRead(&block)) != nullptr;
                     Inject(kind, 0);
                     Value(ok);

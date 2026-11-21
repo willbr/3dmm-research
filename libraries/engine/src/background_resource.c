@@ -1,6 +1,7 @@
 /* Background resources converted from engine/bkgd.cpp and preview_background.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/background_resource.h"
+#include "mm/movie_session.h"
 #include "mm/chunky_file.h"
 #include "mm/collections.h"
 #include "mm/indexed_display.h"
@@ -66,21 +67,31 @@ void mm_background_resource_init(MMBackgroundResource *b)
     memset(b, 0, sizeof(*b));
     mm_storage_init(&b->palette, NULL);
 }
-static MMI32 cameras(MMU32 type, MMU32 number, int profile, const MMBackgroundServices *s)
+static int child_number(const MMChunkAccess *chunks, MMU32 parent, MMU32 slot, MMU32 type, MMU32 *number)
+{
+    MMChunkChild child;
+    if (mm_chunk_child_exact(chunks, parent, slot, type, &child) != MM_CHUNK_OK)
+        return 0;
+    *number = child.number;
+    return 1;
+}
+
+static MMI32 cameras(const MMChunkAccess *chunks, MMU32 parent, int profile, const MMBackgroundServices *s)
 {
     MMI32 count = 0, i, total = 0;
-    MMU32 child, child_type;
-    while (s->child(s->context, type, number, (MMU32)count, MM_BACKGROUND_CAMERA, &child))
+    MMU32 number;
+    MMChunkChild child;
+    while (child_number(chunks, parent, (MMU32)count, MM_BACKGROUND_CAMERA, &number))
     {
-        if (count == MAXIMUM || (profile == MM_BACKGROUND_PREVIEW && !s->append_camera(s->context, child)))
+        if (count == MAXIMUM || (profile == MM_BACKGROUND_PREVIEW && !s->append_camera(s->context, number)))
             return -1;
         ++count;
     }
     if (s->debug_checks && profile == MM_BACKGROUND_STUDIO)
     {
-        for (i = 0; s->child_at(s->context, type, number, i, &child_type); ++i)
+        for (i = 0; mm_chunk_child_at(chunks, parent, (MMU32)i, &child) == MM_CHUNK_OK; ++i)
         {
-            if (child_type == MM_BACKGROUND_CAMERA)
+            if (child.type == MM_BACKGROUND_CAMERA)
             {
                 if (total == MAXIMUM)
                     return -1;
@@ -102,7 +113,7 @@ static int read_sound(void *context, const MMReadStream *stream)
 {
     return mm_background_sound_read(stream, (MMBackgroundSound *)context);
 }
-static int read_record(const MMBackgroundServices *s, MMU32 type, MMU32 number, MMReadReceiver read, void *record)
+static int read_record(const MMBackgroundSource *s, MMU32 type, MMU32 number, MMReadReceiver read, void *record)
 {
     int decoded;
     return s->payload(s->context, type, number, read, record, &decoded) == MM_CHUNK_OK && decoded;
@@ -122,17 +133,17 @@ static int read_array(void *context, const MMReadStream *stream)
            mm_storage_read(array->storage, stream, header->header_bytes, header->first_bytes, 0) == MM_STORAGE_OK;
 }
 
-static int palette(MMBackgroundResource *b, MMU32 type, MMU32 number, unsigned base, int profile,
-                   const MMBackgroundServices *s)
+static int palette(MMBackgroundResource *b, MMU32 parent, unsigned base, int profile,
+                   const MMBackgroundSource *source, const MMBackgroundServices *s)
 {
     BackgroundArray array;
     unsigned char *bytes;
     MMU32 child, i;
     int decoded, status;
-    if (!s->child(s->context, type, number, 0, MM_BACKGROUND_COLORS, &child))
+    if (!child_number(&source->chunks, parent, 0, MM_BACKGROUND_COLORS, &child))
         return 1;
     array.storage = &b->palette;
-    status = s->payload(s->context, MM_BACKGROUND_COLORS, child, read_array, &array, &decoded);
+    status = source->payload(source->context, MM_BACKGROUND_COLORS, child, read_array, &array, &decoded);
     if (status == MM_CHUNK_NOT_FOUND)
         return 0;
     if (status != MM_CHUNK_OK || !decoded)
@@ -161,45 +172,47 @@ static int palette(MMBackgroundResource *b, MMU32 type, MMU32 number, unsigned b
     return 1;
 }
 int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera, MMU32 type,
-                             MMU32 number, int profile, const MMBackgroundServices *s)
+                       MMU32 number, int profile, const MMBackgroundSource *source, const MMBackgroundServices *s)
 {
     MMBackgroundHeader header;
     MMBackgroundLight light;
     MMCollectionStorage lights;
     BackgroundArray array;
     const unsigned char *bytes;
-    MMU32 child;
+    MMU32 parent, child;
     MMI32 i;
     mm_storage_init(&lights, NULL);
     array.storage = &lights;
+    if (mm_chunk_find(&source->chunks, type, number, &parent) != MM_CHUNK_OK)
+        goto fail;
     if (profile == MM_BACKGROUND_STUDIO)
     {
-        camera->count = cameras(type, number, profile, s);
+        camera->count = cameras(&source->chunks, parent, profile, s);
         camera->current = -1;
         if (camera->count < 0)
             goto fail;
     }
-    if (!read_record(s, type, number, read_header, &header))
+    if (!read_record(source, type, number, read_header, &header))
         goto fail;
     if (profile == MM_BACKGROUND_STUDIO)
     {
         if (!s->name(s->context, type, number))
             goto fail;
-        if (s->child(s->context, type, number, 0, MM_BACKGROUND_SOUND, &child))
+        if (child_number(&source->chunks, parent, 0, MM_BACKGROUND_SOUND, &child))
         {
-            if (!read_record(s, MM_BACKGROUND_SOUND, child, read_sound, &b->sound))
+            if (!read_record(source, MM_BACKGROUND_SOUND, child, read_sound, &b->sound))
                 goto fail;
         }
         else
             b->sound.tag.sid = -1;
     }
     /* Only a present palette publishes the stored base in Studio. */
-    if (!palette(b, type, number, header.palette_base, profile, s))
+    if (!palette(b, parent, header.palette_base, profile, source, s))
         goto fail;
     if (profile == MM_BACKGROUND_PREVIEW)
         s->resolve_palette(s->context);
-    if (!s->child(s->context, type, number, 0, MM_BACKGROUND_LIGHTS, &child) ||
-        !read_record(s, MM_BACKGROUND_LIGHTS, child, read_array, &array))
+    if (!child_number(&source->chunks, parent, 0, MM_BACKGROUND_LIGHTS, &child) ||
+        !read_record(source, MM_BACKGROUND_LIGHTS, child, read_array, &array))
         goto fail;
     b->light_count = (MMI32)array.header.count;
     if (array.header.width != 56 ||
@@ -223,7 +236,7 @@ int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera,
     mm_storage_dispose(&lights);
     if (profile == MM_BACKGROUND_PREVIEW)
     {
-        camera->count = cameras(type, number, profile, s);
+        camera->count = cameras(&source->chunks, parent, profile, s);
         return camera->count > 0 && s->select_camera(s->context, 0);
     }
     return 1;
@@ -233,6 +246,140 @@ fail:
     mm_storage_dispose(&lights);
     return 0;
 }
+typedef struct GraphRead
+{
+    MMReadReceiver receive;
+    void *context;
+    int called, result;
+} GraphRead;
+
+static int receive_graph_chunk(void *context, const MMReadStream *stream)
+{
+    GraphRead *read = (GraphRead *)context;
+    if (read->called)
+        return MM_MOVIE_BAD_FILE;
+    read->called = 1;
+    read->result = read->receive(read->context, stream);
+    return MM_MOVIE_OK;
+}
+
+int mm_background_graph_payload(const MMMovieSessionGraph *graph, MMU32 type, MMU32 number, MMReadReceiver receive,
+                                void *out, int *result)
+{
+    MMChunkAccess chunks;
+    MMChunkEntry entry;
+    MMU32 position;
+    GraphRead read;
+    int status;
+    graph->access(graph->context, &chunks);
+    status = mm_chunk_find(&chunks, type, number, &position);
+    if (status != MM_CHUNK_OK)
+        return status;
+    status = mm_chunk_at(&chunks, position, &entry);
+    if (status != MM_CHUNK_OK)
+        return status;
+    read.receive = receive;
+    read.context = out;
+    read.called = 0;
+    status = graph->payload(graph->context, &entry, receive_graph_chunk, &read);
+    if (status == MM_MOVIE_MEMORY)
+        return MM_CHUNK_MEMORY;
+    if (status != MM_MOVIE_OK || !read.called)
+        return MM_CHUNK_BAD_FILE;
+    *result = read.result;
+    return MM_CHUNK_OK;
+}
+
+static int graph_payload(void *context, MMU32 type, MMU32 number, MMReadReceiver receive, void *out, int *result)
+{
+    return mm_background_graph_payload((const MMMovieSessionGraph *)context, type, number, receive, out, result);
+}
+
+int mm_background_read_graph(MMBackgroundResource *b, MMBackgroundCameraState *camera, MMU32 type, MMU32 number,
+                             const MMMovieSessionGraph *graph, const MMBackgroundServices *s)
+{
+    MMBackgroundSource source;
+    graph->access(graph->context, &source.chunks);
+    source.context = (void *)graph;
+    source.payload = graph_payload;
+    return mm_background_read(b, camera, type, number, MM_BACKGROUND_PREVIEW, &source, s);
+}
+
+typedef struct CachedBackground
+{
+    MMResourceCache *cache;
+    MMBlockTransform decode;
+} CachedBackground;
+
+static int cache_payload(void *context, MMU32 type, MMU32 number, MMReadReceiver receive, void *out, int *result)
+{
+    CachedBackground *source = (CachedBackground *)context;
+    return mm_resource_cache_visit_payload(source->cache, type, number, source->decode, NULL, receive, out, result);
+}
+
+int mm_background_read_cached(MMBackgroundResource *b, MMBackgroundCameraState *camera, MMU32 type, MMU32 number,
+                              MMResourceCache *cache, MMBlockTransform decode, const MMBackgroundServices *s)
+{
+    CachedBackground context;
+    MMBackgroundSource source;
+    context.cache = cache;
+    context.decode = decode;
+    source.chunks = mm_resource_cache_chunks(cache);
+    source.context = &context;
+    source.payload = cache_payload;
+    return mm_background_read(b, camera, type, number, MM_BACKGROUND_STUDIO, &source, s);
+}
+
+static void cache_access(void *context, MMChunkAccess *out)
+{
+    *out = mm_resource_cache_chunks(((CachedBackground *)context)->cache);
+}
+
+static int camera_payload(void *context, const MMChunkEntry *entry, MMReadReceiver receive, void *out)
+{
+    int result;
+    return cache_payload(context, entry->type, entry->number, receive, out, &result) == MM_CHUNK_OK
+               ? result : MM_MOVIE_BAD_FILE;
+}
+
+typedef struct CachedCamera
+{
+    MMBackgroundCameraState *state;
+    MMU32 slot;
+    const MMBackgroundCameraServices *services;
+} CachedCamera;
+
+static int apply_camera(void *context, const MMBackgroundCameraBinding *binding, const MMReadStream *stream)
+{
+    CachedCamera *camera = (CachedCamera *)context;
+    return mm_background_camera_apply(camera->state, (MMI32)camera->slot, binding, stream, camera->services)
+               ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+}
+
+static void camera_diagnostic(void *context, int issue)
+{
+    const MMBackgroundCameraServices *s = ((CachedCamera *)context)->services;
+    if (s->diagnostic)
+        s->diagnostic(s->context, issue);
+}
+
+int mm_background_select_cached(MMBackgroundCameraState *camera, MMResourceCache *cache, MMU32 background,
+                                MMU32 slot, MMBlockTransform decode, const MMBackgroundCameraServices *s)
+{
+    CachedBackground source;
+    CachedCamera selection;
+    MMMovieSessionGraph graph = {0};
+    source.cache = cache;
+    source.decode = decode;
+    graph.context = &source;
+    graph.access = cache_access;
+    graph.payload = camera_payload;
+    selection.state = camera;
+    selection.slot = slot;
+    selection.services = s;
+    return mm_movie_camera_graph(&graph, background, slot, apply_camera, &selection, camera_diagnostic) == MM_MOVIE_OK;
+}
+
 void mm_background_lights_on(MMBackgroundResource *b, const MMBackgroundServices *s)
 {
     MMI32 i;

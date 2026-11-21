@@ -137,13 +137,13 @@ static void Loads()
                 }
                 auto cache = ChunkyResourceFile::PcrfNew(cf ? cf : (cf = ChunkyFile::PcflCreateTemp()), 0);
                 CHECK(cache);
-                LegacyLong estimate = -1;
-                CHECK(MaskedBitmapMBMP::FReadMbmp(cache, kctgMbmp, number, &b, nullptr, &estimate));
+                MMI32 estimate = -1;
+                CHECK(MaskedBitmapMBMP::FReadMbmp(cache->CoreCache(), kctgMbmp, number, b.CoreBlock(), nullptr, &estimate));
                 Value(estimate);
-                PBaseCacheableObject object = nullptr;
+                void *object = nullptr;
                 if (factory)
                 {
-                    bool ok = MaskedBitmapMBMP::FReadMbmp(cache, kctgMbmp, number, &b, &object, &estimate);
+                    bool ok = MaskedBitmapMBMP::FReadMbmp(cache->CoreCache(), kctgMbmp, number, b.CoreBlock(), &object, &estimate);
                     Value(ok);
                     m = ok ? static_cast<PMaskedBitmapMBMP>(object) : nullptr;
                     if (ok)

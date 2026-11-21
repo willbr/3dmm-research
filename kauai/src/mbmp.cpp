@@ -23,8 +23,8 @@ RTCLASS(MaskedBitmapMBMP)
 namespace {
 struct MaskedContext
 {
-    PBaseCacheableObject *object = nullptr;
-    LegacyLong *bytes = nullptr;
+    void **object = nullptr;
+    MMI32 *bytes = nullptr;
 };
 MMMaskedRect MaskedRect(const RC &r)
 {
@@ -200,20 +200,14 @@ void MaskedBitmapMBMP::MarkMem()
     MarkPv(_bitmap.data);
 }
 #endif
-bool MaskedBitmapMBMP::FReadMbmp(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, PDataBlock block,
-                                 PBaseCacheableObject *out, LegacyLong *bytes)
+int MaskedBitmapMBMP::FReadMbmp(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
+                        void **out, MMI32 *bytes)
 {
-    AssertPo(cache, 0);
-    AssertPo(block, fblckReadable);
-    AssertNilOrVarMem(out);
-    AssertVarMem(bytes);
-    (void)type;
-    (void)number;
     MaskedContext context;
     context.object = out;
     context.bytes = bytes;
-    auto s = _Services(&context);
-    return mm_masked_fetch(block->CoreBlock(), out != nullptr, &s) != 0;
+    const auto s = _Services(&context);
+    return mm_masked_fetch(block, out != nullptr, &s);
 }
 /***************************************************************************
     Given an Filename refering to a bitmap file, returns the interesting parts of

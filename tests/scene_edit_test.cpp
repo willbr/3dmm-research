@@ -203,6 +203,46 @@ static void BackgroundFixture(PChunkyFile file, ChunkNumber *number, int id)
         CHECK(file->FAdoptChild(kctgCam, child, kctgMbmp, rgb, 0) && file->FAdoptChild(kctgCam, child, kctgZbmp, z, 0));
     }
 }
+static void CheckIndexedBackground(PChunkyFile file, ChunkNumber number)
+{
+    ChildChunkIdentification camera;
+    CHECK(file->FGetKidChidCtg(kctgBkgd, number, 3, kctgCam, &camera));
+    CHECK(file->FPackData(kctgCam, camera.cki.cno) && file->FPacked(kctgCam, camera.cki.cno));
+    CHECK(file->FSave(kctgSoc));
+    Filename path;
+    file->GetFni(&path);
+    auto backing = FileObject::PfilOpen(&path);
+    CHECK(backing);
+    const unsigned short order = 1;
+    MMChunkPolicy policy = {};
+#ifdef CHUNK_BIG_INDEX
+    policy.expanded_runtime = 1;
+#endif
+    policy.native_big_endian = *reinterpret_cast<const byte *>(&order) == 0;
+    policy.max_name_bytes = kcbMaxDataStn;
+    const auto stream = backing->ReadStream();
+    MMChunkIndex *index = nullptr;
+    CHECK(mm_chunk_index_open(&stream, &policy, &index) == MM_CHUNK_OK);
+    auto cache = ChunkyResourceFile::PcrfNewIndex(index, backing, 1024 * 1024);
+    mm_chunk_index_close(index);
+    ReleasePpo(&backing);
+    CHECK(cache && !cache->Pcfl());
+
+    auto background = static_cast<PBackground>(cache->PbacoFetch(kctgBkgd, number, Background::FReadBkgd));
+    CHECK(background && background->Ccam() == 4 && background->Icam() == ivNil);
+    String name;
+    background->GetName(&name);
+    CHECK(name.FEqualSz(PszLit("Background A")));
+    auto world = World::PbwldNew(32, 24, false, false);
+    CHECK(world && background->FSetCamera(world, 3) && background->Icam() == 3);
+    BRS x, y, z;
+    background->GetCameraPos(&x, &y, &z);
+    CHECK(x == BR_SCALAR(3) && y == 0 && z == 0);
+    background->TurnOffLights();
+    ReleasePpo(&background);
+    ReleasePpo(&world);
+    ReleasePpo(&cache);
+}
 static bool Missing(const MissingSourceRequest &)
 {
     return false;
@@ -383,6 +423,7 @@ int main()
     movie->ClearUndo();
     ReleasePpo(&movie);
     ReleasePpo(&observed);
+    CheckIndexedBackground(file, a);
     ReleasePpo(&file);
     ReleasePpo(&client);
     ReleasePpo(&vptagm);

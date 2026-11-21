@@ -8,49 +8,10 @@
 #define MINIMUM (-2147483647 - 1)
 typedef char depth_sample_must_be_two_bytes[sizeof(unsigned short) == 2 ? 1 : -1];
 
-typedef struct GraphRead
+static int graph_payload(void *context, MMU32 type, MMU32 number, MMReadReceiver receive, void *out, int *result)
 {
-    MMReadReceiver receive;
-    void *context;
-    int called, result;
-} GraphRead;
-
-static int receive_graph_chunk(void *context, const MMReadStream *stream)
-{
-    GraphRead *read = (GraphRead *)context;
-    if (read->called)
-        return MM_MOVIE_BAD_FILE;
-    read->called = 1;
-    read->result = read->receive(read->context, stream);
-    return MM_MOVIE_OK;
-}
-
-int mm_background_preview_graph_payload(void *context, MMU32 type, MMU32 number, MMReadReceiver receive,
-                                         void *out, int *result)
-{
-    const MMMovieSessionGraph *graph = ((const MMBackgroundPreviewGraph *)context)->graph;
-    MMChunkAccess chunks;
-    MMChunkEntry entry;
-    MMU32 position;
-    GraphRead read;
-    int status;
-    graph->access(graph->context, &chunks);
-    status = mm_chunk_find(&chunks, type, number, &position);
-    if (status != MM_CHUNK_OK)
-        return status;
-    status = mm_chunk_at(&chunks, position, &entry);
-    if (status != MM_CHUNK_OK)
-        return status;
-    read.receive = receive;
-    read.context = out;
-    read.called = 0;
-    status = graph->payload(graph->context, &entry, receive_graph_chunk, &read);
-    if (status == MM_MOVIE_MEMORY)
-        return MM_CHUNK_MEMORY;
-    if (status != MM_MOVIE_OK || !read.called)
-        return MM_CHUNK_BAD_FILE;
-    *result = read.result;
-    return MM_CHUNK_OK;
+    return mm_background_graph_payload(((const MMBackgroundPreviewGraph *)context)->graph,
+                                       type, number, receive, out, result);
 }
 
 static int image_child(void *context, MMU32 camera, int depth, MMU32 *number)
@@ -130,7 +91,7 @@ static void *fetch_bitmap(void *context, MMU32 number, int depth)
     if (!bitmap)
         return NULL;
     bitmap->depth = depth;
-    if (mm_background_preview_graph_payload(context, type, number, read_bitmap, bitmap, &decoded) != MM_CHUNK_OK ||
+    if (graph_payload(context, type, number, read_bitmap, bitmap, &decoded) != MM_CHUNK_OK ||
         !decoded)
     {
         release_bitmap(context, bitmap);
@@ -175,7 +136,7 @@ static void draw_depth(void *context, void *owner, unsigned short *pixels, MMU32
 void mm_background_preview_bind_graph(MMBackgroundPreviewServices *s, MMBackgroundPreviewGraph *context)
 {
     s->context = context;
-    s->payload = mm_background_preview_graph_payload;
+    s->payload = graph_payload;
     s->child = image_child;
     s->fetch = fetch_bitmap;
     s->release = release_bitmap;

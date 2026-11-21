@@ -17360,3 +17360,39 @@ In actor-event suite `20261121T003502Z-ae76ad2d`, both ports matched all
 all retail seek camera indices. SDL matched all 12 retail sound requests.
 Each port reproduced its 60 seek canvas hashes from the previous build.
 The comparison and fixture evidence are in `tmp/c89-direct-resource-readers`.
+
+## Backgrounds and camera images through the C89 cache (21 November 2026)
+
+The shared background loader resolves exact camera, default sound, palette and
+light links in C. Studio reads the corresponding payloads through the resource
+cache and uses that cache to resolve and apply a camera. Both camera image
+readers receive the cache-owned C block directly. Preview supplies its decoded
+archive graph to the same background loader.
+
+The scene-edit fixture opens a saved read-only index, loads a named background,
+selects a packed camera and applies its colour and depth images to the world.
+The fixture passed on native x64, native x86 and SDL. All 192 standalone C
+checks and eight focused AddressSanitizer checks passed.
+
+All 24 selected x64 checks passed, including the movie save/reopen fixture
+in an isolated rerun after a failure in the parallel run. Twenty selected SDL
+checks passed. Eight focused C checks and the core-link fixture passed on x86.
+
+All 18 bitmap, world and mesh traces matched byte for byte. The x86 depth
+fixture still fails its existing fingerprint assertion and produces the same
+65,880-byte trace as its x86 baseline. The Release SDL build skips the
+debug-only world export fixture. The nine sound and actor traces, 54 movie
+and scene traces, three saved movie fixtures, ten Preview fingerprints and
+six Preview movies matched. The SDL authoring save matched the prior bytes.
+
+Retail, SDL and Marcus matched all three retained-background frame identities,
+camera indices and canvas hashes in `20261121T005142Z-f7284a4e`. Both ports
+matched original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261121T005216Z-d17d5a5d`. The VMM save and reopen passed on rerun with a
+fresh temp directory after a Windows directory rename failed.
+
+In actor-event suite `20261121T004952Z-033e4f64`, both ports matched all
+60 archived retail frame identities in seek and continuous playback and
+all retail seek camera indices. SDL matched all 12 retail sound requests.
+Each port reproduced its 60 seek canvas hashes from the previous build.
+The comparison and fixture evidence are in `tmp/c89-background-cache`.

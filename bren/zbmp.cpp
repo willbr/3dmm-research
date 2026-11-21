@@ -22,8 +22,8 @@ struct DepthWriteContext
 };
 struct DepthFetchContext
 {
-    PBaseCacheableObject *object = nullptr;
-    LegacyLong *bytes = nullptr;
+    void **object = nullptr;
+    MMI32 *bytes = nullptr;
 };
 MMDepthRect Rect(const RC &r)
 {
@@ -85,20 +85,14 @@ PZBMP ZBMP::PzbmpNewFromBpmp(BPMP *p)
     auto s = _Services();
     return static_cast<PZBMP>(mm_depth_new(p->width, p->height, p->pixels, &s));
 }
-bool ZBMP::FReadZbmp(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, PDataBlock block,
-                     PBaseCacheableObject *out, LegacyLong *bytes)
+int ZBMP::FReadZbmp(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block,
+                        void **out, MMI32 *bytes)
 {
-    AssertPo(cache, 0);
-    AssertPo(block, 0);
-    AssertNilOrVarMem(out);
-    AssertVarMem(bytes);
-    (void)type;
-    (void)number;
     DepthFetchContext context;
     context.object = out;
     context.bytes = bytes;
-    auto s = _Services(&context);
-    return mm_depth_fetch(block->CoreBlock(), out != nullptr, &s) != 0;
+    const auto s = _Services(&context);
+    return mm_depth_fetch(block, out != nullptr, &s);
 }
 PZBMP ZBMP::PzbmpRead(PDataBlock block)
 {

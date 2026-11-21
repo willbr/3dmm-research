@@ -46,7 +46,6 @@ extern "C"
      * must stay live through the call. Image allocations belong to the reader
      * until the matching release service. */
     void mm_background_preview_bind_graph(MMBackgroundPreviewServices *, MMBackgroundPreviewGraph *);
-    int mm_background_preview_graph_payload(void *, MMU32 type, MMU32 number, MMReadReceiver, void *, int *result);
     /* Unique C owners. Metadata append operations copy their inputs and do not alias
      * storage. Fresh image selection publishes decoded camera before clip validation,
      * dimensions before RGB allocation, and active camera only after both draws.

@@ -55,14 +55,17 @@ extern "C"
     /* Chunk status. A successful call supplies a decoded stream to the
      * receiver synchronously and publishes the receiver's result. */
     typedef int (*MMBackgroundPayloadRead)(void *, MMU32 type, MMU32 number, MMReadReceiver, void *, int *result);
+    typedef struct MMBackgroundSource
+    {
+        MMChunkAccess chunks;
+        void *context;
+        MMBackgroundPayloadRead payload;
+    } MMBackgroundSource;
     typedef struct MMBackgroundServices
     {
         void *context;
         int host_big_endian, debug_checks, retain_palette;
         MMI32 actor_bytes, light_bytes;
-        int (*child)(void *, MMU32 type, MMU32 number, MMU32 id, MMU32 child_type, MMU32 *out);
-        int (*child_at)(void *, MMU32 type, MMU32 number, MMI32 index, MMU32 *child_type);
-        MMBackgroundPayloadRead payload;
         int (*name)(void *, MMU32 type, MMU32 number);
         int (*allocate)(void *, MMI32 bytes, void **);
         void (*free_memory)(void *, void **);
@@ -91,7 +94,17 @@ extern "C"
      * callers can retain the authored palette for transition playback. Camera
      * numbering starts at zero and stops at the first missing ID. */
     int mm_background_read(MMBackgroundResource *, MMBackgroundCameraState *, MMU32 type,
-                                 MMU32 number, int profile, const MMBackgroundServices *);
+                           MMU32 number, int profile, const MMBackgroundSource *, const MMBackgroundServices *);
+    struct MMMovieSessionGraph;
+    int mm_background_read_graph(MMBackgroundResource *, MMBackgroundCameraState *, MMU32 type, MMU32 number,
+                                 const struct MMMovieSessionGraph *, const MMBackgroundServices *);
+    int mm_background_read_cached(MMBackgroundResource *, MMBackgroundCameraState *, MMU32 type, MMU32 number,
+                                  MMResourceCache *, MMBlockTransform, const MMBackgroundServices *);
+    int mm_background_graph_payload(const struct MMMovieSessionGraph *, MMU32 type, MMU32 number,
+                                    MMReadReceiver, void *, int *result);
+    /* Apply a camera and its exact image links through the same cache. */
+    int mm_background_select_cached(MMBackgroundCameraState *, MMResourceCache *, MMU32 background, MMU32 slot,
+                                    MMBlockTransform, const MMBackgroundCameraServices *);
     void mm_background_lights_on(MMBackgroundResource *, const MMBackgroundServices *);
     void mm_background_lights_off(MMBackgroundResource *, const MMBackgroundServices *);
     /* Caller must clear leave_on before teardown. Dispose after partial construction.

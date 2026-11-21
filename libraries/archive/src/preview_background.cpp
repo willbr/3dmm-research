@@ -39,13 +39,6 @@ bool PreviewBackground::Load(const MMMovieSessionGraph &archive, ChunkNumber bac
     const unsigned short one = 1;
     s.host_big_endian = *reinterpret_cast<const byte *>(&one) == 0;
     s.retain_palette = 1;
-    s.child = [](void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMU32 *out) {
-        const auto graph = static_cast<MMBackgroundPreviewGraph *>(p)->graph;
-        MMChunkAccess chunks;
-        graph->access(graph->context, &chunks);
-        return int(mm_chunk_link_number(&chunks, type, number, id, childType, out) == MM_CHUNK_OK);
-    };
-    s.payload = mm_background_preview_graph_payload;
     s.palette_color = [](void *p, MMI32 index, const unsigned char *bytes) {
         std::memcpy(&BackgroundHost(p).palette[index], bytes, 4);
     };
@@ -68,8 +61,7 @@ bool PreviewBackground::Load(const MMMovieSessionGraph &archive, ChunkNumber bac
     };
     mm_background_resource_dispose(&resource, nullptr);
     mm_background_resource_init(&resource);
-    return mm_background_read(&resource, &preview.placement, kctgBkgd, background, MM_BACKGROUND_PREVIEW, &s) !=
-           0;
+    return mm_background_read_graph(&resource, &preview.placement, kctgBkgd, background, &graph, &s) != 0;
 }
 void PreviewBackground::OverlayAuthoredPalette(unsigned char bgrx[1024]) const
 {

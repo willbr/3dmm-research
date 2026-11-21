@@ -1527,10 +1527,11 @@ descriptor storage, reorder, removal, and rollback now also use C89. The
 sorter accesses the same rows that composition reads. C89 also owns imported
 roll-call ownership and shared and nested actor-ID remapping. Final native
 resource and object integration remains.
-Background resource loading/cache/
-light policy and Preview background image/mesh/frame rendering control are now
-C89; Preview picking, camera interaction and guide metadata caching are now C89
-too. Live definition/actor ownership, reconciliation and timeline editing/seeking
+Background resource loading, exact child lookup, cache and light policy use
+C89. Studio selects cameras through the same cache and reads colour and depth
+through typed block readers. Preview background image, mesh and frame rendering
+control, picking, camera interaction and guide metadata caching use C89 too.
+Live definition/actor ownership, reconciliation and timeline editing/seeking
 control are now C89 as well. Dependency budgets, asset/scene selection, template
 action/rest-pose control, pose validation and geometry counts now use C89 too.
 PreviewActor state/resource ownership and load/create/frame/seek/placement control

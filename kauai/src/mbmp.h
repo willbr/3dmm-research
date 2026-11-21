@@ -123,7 +123,8 @@ class MaskedBitmapMBMP : public MaskedBitmapMBMP_PAR
     virtual LegacyLong CbOnFile(void);
 
     // a chunky resource reader for an MaskedBitmapMBMP
-    static bool FReadMbmp(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadMbmp(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
+                          void **object, MMI32 *bytes);
 };
 const ByteOrderMask kbomMbmph = 0xAFFC0000;
 

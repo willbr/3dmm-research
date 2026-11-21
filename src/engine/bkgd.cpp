@@ -39,7 +39,7 @@
 
 ***************************************************************************/
 #include "soc.h"
-#include "engine_movie_graph.h"
+#include "handle_services.h"
 #include <cstring>
 ASSERTNAME
 
@@ -55,7 +55,7 @@ namespace
 struct BackgroundResourceHost
 {
     Background *background;
-    PChunkyFile file;
+    PChunkyResourceFile cache;
     PWorld world;
 };
 } // namespace
@@ -70,24 +70,9 @@ MMBackgroundServices Background::_ResourceServices(void *host)
 #endif
     s.actor_bytes = sizeof(BACT);
     s.light_bytes = sizeof(BLIT);
-    s.child = [](void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 childType, MMU32 *out) {
-        const auto chunks = static_cast<BackgroundResourceHost *>(p)->file->ReadChunkAccess();
-        return int(mm_chunk_link_number(&chunks, type, number, id, childType, out) == MM_CHUNK_OK);
-    };
-    s.child_at = [](void *p, MMU32 type, MMU32 number, MMI32 index, MMU32 *out) {
-        ChildChunkIdentification child;
-        if (!static_cast<BackgroundResourceHost *>(p)->file->FGetKid(type, number, index, &child))
-            return 0;
-        *out = child.cki.ctg;
-        return 1;
-    };
-    s.payload = [](void *p, MMU32 type, MMU32 number, MMReadReceiver read, void *out, int *result) {
-        return mm_chunk_read_payload(KauaiChunkPayloadServices(), static_cast<BackgroundResourceHost *>(p)->file,
-                                     type, number, read, out, result);
-    };
     s.name = [](void *p, MMU32 type, MMU32 number) {
         auto h = static_cast<BackgroundResourceHost *>(p);
-        return int(h->file->FGetName(type, number, &h->background->_stn));
+        return int(h->cache->FGetName(type, number, &h->background->_stn));
     };
     s.allocate = [](void *, MMI32 bytes, void **out) { return int(FAllocPv(out, bytes, fmemClear, mprNormal)); };
     s.free_memory = [](void *, void **out) { FreePpv(out); };
@@ -151,21 +136,17 @@ bool Background::FCacheToHD(PTAG ptagBkgd)
 }
 
 /***************************************************************************
-    A PFNRPO to read a Background from a file
+    Read a Background through its resource cache.
 ***************************************************************************/
-bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck,
-                           PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int Background::FReadBkgd(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *,
+                         void **object, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, 0);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
     struct Host
     {
-        PChunkyResourceFile cache;
-        PBaseCacheableObject *object;
-        LegacyLong *bytes;
-    } host = {pcrf, ppbaco, pcb};
+        MMResourceCache *cache;
+        void **object;
+        MMI32 *bytes;
+    } host = {cache, object, bytes};
     MMBackgroundFactoryServices s = {};
     s.context = &host;
     s.object_bytes = sizeof(Background);
@@ -173,7 +154,7 @@ bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNu
     s.light_bytes = sizeof(BLIT);
     s.create = [](void *) -> void * { return NewObj Background; };
     s.initialize = [](void *p, void *object, MMU32 type, MMU32 number) {
-        return int(static_cast<Background *>(object)->_FInit(static_cast<Host *>(p)->cache->Pcfl(), type, number));
+        return int(static_cast<Background *>(object)->_FInit(static_cast<Host *>(p)->cache, type, number));
     };
     s.lights = [](void *, void *object) -> MMI32 {
         return static_cast<Background *>(object)->_resource.light_count;
@@ -190,7 +171,7 @@ bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNu
         TrashVar(h->object);
         TrashVar(h->bytes);
     };
-    return mm_background_factory(ctg, cno, ppbaco != nullptr, &s) != 0;
+    return mm_background_factory(type, number, object != nullptr, &s);
 }
 
 /***************************************************************************
@@ -199,13 +180,12 @@ bool Background::FReadBkgd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNu
     them on yet because we don't have a World to add them to.  The lights
     are	turned on with the first FSetCamera() call.
 ***************************************************************************/
-bool Background::_FInit(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
+bool Background::_FInit(MMResourceCache *cache, MMU32 type, MMU32 number)
 {
     AssertBaseThis(0);
-    AssertPo(pcfl, 0);
-    BackgroundResourceHost host = {this, pcfl, nullptr};
-    auto services = _ResourceServices(&host);
-    return mm_background_read(&_resource, &_camera, ctg, cno, MM_BACKGROUND_STUDIO, &services) != 0;
+    BackgroundResourceHost host = {this, static_cast<PChunkyResourceFile>(cache->owner), nullptr};
+    const auto services = _ResourceServices(&host);
+    return mm_background_read_cached(&_resource, &_camera, type, number, cache, KauaiDecodeBlockHandle, &services) != 0;
 }
 
 /***************************************************************************
@@ -357,23 +337,9 @@ bool Background::FSetCamera(PWorld pbwld, long icam)
     AssertIn(icam, 0, Ccam());
     BackgroundCameraHost host = {this, pbwld};
     const auto services = _CameraServices(&host);
-    struct Selection
-    {
-        MMBackgroundCameraState *state;
-        MMI32 slot;
-        const MMBackgroundCameraServices *services;
-    } selection = {&_camera, static_cast<MMI32>(icam), &services};
     TurnOnLights(pbwld);
-    const auto graph = EngineMovieGraph::FromFile(Pcrf()->Pcfl());
-    return mm_movie_camera_graph(&graph, Cno(), icam,
-        [](void *p, const MMBackgroundCameraBinding *binding, const MMReadStream *stream) -> int {
-            auto &s = *static_cast<Selection *>(p);
-            return mm_background_camera_apply(s.state, s.slot, binding, stream, s.services)
-                       ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
-        }, &selection, [](void *p, int issue) {
-            const auto &s = *static_cast<Selection *>(p);
-            s.services->diagnostic(s.services->context, issue);
-        }) == MM_MOVIE_OK;
+    return mm_background_select_cached(&_camera, Pcrf()->CoreCache(), Cno(), icam, KauaiDecodeBlockHandle,
+                                       &services) != 0;
 }
 
 /***************************************************************************

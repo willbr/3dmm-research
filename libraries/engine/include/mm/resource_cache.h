@@ -126,6 +126,11 @@ extern "C"
     /* Fill an initialized block with the stored extent from this cache's
      * source. The caller owns the block, which is empty on a miss. */
     int mm_resource_cache_read_block(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);
+    /* Visit a decoded extent while the cache holds its file or memory block.
+     * Lookup and decode failures leave the receiver's result unchanged. */
+    int mm_resource_cache_visit_payload(MMResourceCache *, MMU32 type, MMU32 number,
+                                        MMBlockTransform decode, void *decode_context,
+                                        MMReadReceiver, void *context, int *result);
     int mm_resource_cache_reserve(MMResourceCache *, MMU32 additional);
     /* A final release may destroy the owner and cache before returning. */
     void mm_resource_cache_release(MMResourceCache *);

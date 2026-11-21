@@ -2302,12 +2302,15 @@ enumeration, Studio resource construction/factory control, tag-list/cache order,
 palette ownership and light attach/enable/disable/remove control.
 Studio Background embeds the C owner for SDK actor/light allocations, palette,
 default-sound metadata and light flags. Its String is a temporary native view of
-the existing C-backed string storage. Both hosts use C-owned payload blocks to
-read the records and fixed-width arrays. C89 retains Studio's native-order colours
-and owns the temporary light rows. Studio's `FGetPalette` materializes an
-independent native list from the retained colours. Native callbacks supply file
-primitives, debug diagnostics, allocation and typed SDK field operations.
-`_Ccam` and `_SetupLights` no longer have native implementations.
+the existing C-backed string storage. C89 resolves the exact child links for
+both hosts and reads the records and arrays through bounded streams. Studio
+uses the resource cache to visit background metadata and to select and apply
+the camera. The world fetches colour and depth through typed block readers.
+The same path works with a mutable archive or a read-only wire index. Preview
+supplies its decoded graph. C89 retains Studio's native-order colours and owns
+the temporary light rows. Studio's `FGetPalette` materializes an independent
+native list from the retained colours. Native callbacks supply names, debug
+diagnostics, allocation and typed SDK field operations.
 
 Marcus PreviewBackground now calls the same C resource loader. The two profiles
 preserve the hosts' existing contracts and ordering: Studio counts cameras before

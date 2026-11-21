@@ -14,24 +14,15 @@
     } while (0)
 enum
 {
-    C0 = 1,
-    C1,
-    C2,
-    ENUM0,
-    ENUM1,
-    ENUM2,
-    FH,
+    FH = 1,
     RH,
     NAME,
-    CS,
     FS,
     RS,
-    CP,
     FP,
     DECODE_PALETTE,
     LP,
     GP,
-    CL,
     FL,
     LL,
     GL,
@@ -72,6 +63,8 @@ typedef struct Host
     MMBackgroundServices services;
     unsigned char header[8], sound[28], actors[32], lights[32];
     List palette, light_list;
+    MMChunkChild children[6];
+    MMU32 child_count;
     int trace[256], traces, fail, big, profile, has_palette, has_sound, no_lights, no_cameras, gap, block, allocations;
     int configured, appended, selected, diagnostics, actor_live, light_live, colors;
     int created, released, published, factory_fail;
@@ -105,41 +98,29 @@ static int read_at(void *p, MMU32 offset, void *out, size_t bytes)
     memcpy(out, code == RH ? h->header : h->sound, bytes);
     return 1;
 }
-static int child(void *p, MMU32 type, MMU32 number, MMU32 id, MMU32 kind, MMU32 *out)
+static int entry(void *p, MMU32 position, MMChunkEntry *out)
 {
     Host *h = (Host *)p;
-    (void)type;
-    CHECK(number == 42);
-    if (kind == MM_BACKGROUND_CAMERA)
-    {
-        event(h, C0 + (int)id);
-        *out = 80 + id;
-        return !h->no_cameras && id < 2;
-    }
-    CHECK(!id);
-    *out = kind;
-    if (kind == MM_BACKGROUND_SOUND)
-    {
-        event(h, CS);
-        return h->has_sound;
-    }
-    if (kind == MM_BACKGROUND_COLORS)
-    {
-        event(h, CP);
-        return h->has_palette;
-    }
-    CHECK(kind == MM_BACKGROUND_LIGHTS);
-    event(h, CL);
-    return !h->no_lights;
+    CHECK(position == 0);
+    memset(out, 0, sizeof(*out));
+    out->type = MM_BACKGROUND;
+    out->number = 42;
+    out->child_count = h->child_count;
+    return 1;
 }
-static int enumerate(void *p, MMU32 type, MMU32 number, MMI32 index, MMU32 *out)
+static int child_at(void *p, MMU32 parent, MMU32 position, MMChunkChild *out)
 {
     Host *h = (Host *)p;
-    (void)type;
-    (void)number;
-    event(h, ENUM0 + index);
-    *out = MM_BACKGROUND_CAMERA;
-    return index < (h->no_cameras ? 0 : 2) + h->gap;
+    CHECK(parent == 0 && position < h->child_count);
+    *out = h->children[position];
+    return 1;
+}
+static void add_child(Host *h, MMU32 slot, MMU32 type, MMU32 number)
+{
+    MMChunkChild *child = &h->children[h->child_count++];
+    child->slot = slot;
+    child->type = type;
+    child->number = number;
 }
 static MMReadStream stream(Host *h)
 {
@@ -349,9 +330,6 @@ static void init(Host *h, int big, int profile, int host_big)
     s->host_big_endian = host_big;
     s->actor_bytes = 6;
     s->light_bytes = 7;
-    s->child = child;
-    s->child_at = enumerate;
-    s->payload = payload;
     s->name = name;
     s->allocate = allocate;
     s->free_memory = free_memory;
@@ -368,7 +346,27 @@ static void init(Host *h, int big, int profile, int host_big)
 }
 static int load(Host *h)
 {
-    return mm_background_read(&h->resource, &h->camera, MM_BACKGROUND, 42, h->profile, &h->services);
+    MMBackgroundSource source;
+    h->child_count = 0;
+    if (h->has_sound)
+        add_child(h, 0, MM_BACKGROUND_SOUND, MM_BACKGROUND_SOUND);
+    if (!h->no_cameras)
+        add_child(h, 0, MM_BACKGROUND_CAMERA, 80);
+    if (h->has_palette)
+        add_child(h, 0, MM_BACKGROUND_COLORS, MM_BACKGROUND_COLORS);
+    if (!h->no_lights)
+        add_child(h, 0, MM_BACKGROUND_LIGHTS, MM_BACKGROUND_LIGHTS);
+    if (!h->no_cameras)
+        add_child(h, 1, MM_BACKGROUND_CAMERA, 81);
+    if (h->gap)
+        add_child(h, 3, MM_BACKGROUND_CAMERA, 83);
+    source.chunks.context = h;
+    source.chunks.count = 1;
+    source.chunks.entry = entry;
+    source.chunks.child = child_at;
+    source.context = h;
+    source.payload = payload;
+    return mm_background_read(&h->resource, &h->camera, MM_BACKGROUND, 42, h->profile, &source, &h->services);
 }
 static void expect(Host *h, const int *trace, size_t n)
 {
@@ -422,8 +420,7 @@ static void read_tests(int big, int host_big)
     unsigned char expected[4];
     MMU32 colour_count;
     MMI32 base;
-    const int native[] = {C0, C1, C2, FH, RH, NAME, CS, FS, RS, CP, FP, LP, GP,
-                          CL, FL, LL, GL, AA, AL, CONFIG0, CONFIG1};
+    const int native[] = {FH, RH, NAME, FS, RS, FP, LP, GP, FL, LL, GL, AA, AL, CONFIG0, CONFIG1};
     const int on[] = {ADD0, ENABLE0, ADD1, ENABLE1};
     const int off[] = {DISABLE0, REMOVE0, DISABLE1, REMOVE1};
     const int teardown[] = {DISABLE0, REMOVE0, DISABLE1, REMOVE1, FREE_A, FREE_L};

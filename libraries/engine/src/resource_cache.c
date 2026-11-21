@@ -1,6 +1,7 @@
 /* Resource caching converted from Kauai crf.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/resource_cache.h"
+#include "mm/chunk_storage.h"
 #include <string.h>
 #define SCOPE_TYPE 0x52534320UL
 
@@ -414,13 +415,18 @@ MMChunkAccess mm_resource_cache_chunks(const MMResourceCache *c)
     return empty;
 }
 
+static int locate_payload(void *context, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)
+{
+    MMResourceCache *c = (MMResourceCache *)context;
+    return c->wire_index ? wire_find(c, type, number, file, packed) :
+                           c->services.locate(c->file, type, number, file, packed);
+}
+
 int mm_resource_cache_read_block(MMResourceCache *c, MMU32 type, MMU32 number, MMOwnedBlock *out)
 {
     MMBlockFile file;
     int packed;
-    int found = c->wire_index ? wire_find(c, type, number, &file, &packed) :
-                                c->services.locate(c->file, type, number, &file, &packed);
-    if (!found)
+    if (!locate_payload(c, type, number, &file, &packed))
     {
         mm_owned_block_clear(out);
         return MM_CHUNK_NOT_FOUND;
@@ -431,6 +437,22 @@ int mm_resource_cache_read_block(MMResourceCache *c, MMU32 type, MMU32 number, M
     issue(c, MM_RESOURCE_BAD_BLOCK, type, number);
     return MM_CHUNK_BAD_FILE;
 }
+
+int mm_resource_cache_visit_payload(MMResourceCache *c, MMU32 type, MMU32 number,
+                                    MMBlockTransform decode, void *decode_context,
+                                    MMReadReceiver receive, void *context, int *result)
+{
+    MMChunkPayloadServices services;
+    if (!c)
+        return MM_CHUNK_BAD_FILE;
+    services.handles = c->services.handles;
+    services.files = c->services.block_files;
+    services.locate = locate_payload;
+    services.decode = decode;
+    services.decode_context = decode_context;
+    return mm_chunk_read_payload(&services, c, type, number, receive, context, result);
+}
+
 static int open_block(MMResourceCache *c, const MMResourceRequest *q, MMOwnedBlock *out)
 {
     if (mm_owned_block_init(out, c->services.handles, c->services.block_files) != MM_DATA_OK)
