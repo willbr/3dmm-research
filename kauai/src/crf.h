@@ -25,6 +25,7 @@ struct MMChunkEndpoint;
 struct MMChunkFileCopy;
 struct MMResourceChunkCopy;
 struct MMChunkOwnerRead;
+struct MMArchiveWriter;
 struct MMPrivateArchive;
 
 namespace Chunky
@@ -56,8 +57,6 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
 
   private:
     MMResourceObject _resource;
-    static const MMResourceObjectServices *_ObjectServices();
-
     friend class ChunkyResourceFile;
 
   protected:
@@ -68,6 +67,8 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
   public:
     void Release(void) override;
 
+    static const MMResourceObjectServices *ObjectServices();
+    MMResourceCache *CoreCache() const { return _resource.cache; }
     void SetCrep(LegacyLong crep);
     void Detach(void);
 
@@ -81,7 +82,7 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     }
     PChunkyResourceFile Pcrf(void)
     {
-        return _resource.cache ? static_cast<PChunkyResourceFile>(_resource.cache->owner) : nullptr;
+        return _resource.cache ? static_cast<PChunkyResourceFile>(_resource.cache->services.legacy_adapter) : nullptr;
     }
     LegacyLong Crep(void)
     {
@@ -153,7 +154,6 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     static PChunkyResourceFile PcrfOpenWorking(PFilename, bool create, LegacyLong budget = 0);
     // Use a live owner when one exists or when the file needs a shared handle.
     // A selected live path can still fail to open its resource cache.
-    static PChunkyResourceFile PcrfOpenShared(PFilename, LegacyLong budget, bool preferWorking, bool &selected);
     static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, PFileObject, LegacyLong cbMax);
     static PChunkyResourceFile PcrfNewIndex(const MMChunkIndex *, void *backing, const MMBlockFileServices &,
                                            String &path, LegacyLong cbMax);
@@ -171,7 +171,6 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MMResourceCache *CoreCache() { return &_cache; }
     MMChunkAccess ReadChunkAccess();
     MMChunkOwnerRead *ReadOwner();
-    bool FReopenArchive();
     MMArchiveWriter ArchiveWriter();
     static MMChunkTitleIO ResourceTitleIO();
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);
@@ -291,6 +290,9 @@ MMResourceCache *NewTypedWireCache(const MMChunkIndex *, void *file, const MMBlo
 MMResourceCache *NewTypedSiblingCache(const MMResourceCache *, MMI32 budget);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, PString);
 MMChunkEndpoint ResourceCopySource(MMResourceCache *, MMResourceChunkCopy &);
+MMChunkOwnerRead *ResourceArchiveReader(const MMResourceCache *);
+MMArchiveWriter ResourceArchiveWriter(const MMResourceCache *);
+void ReopenResourceArchive(MMResourceCache *);
 
 } // end of namespace Chunky
 

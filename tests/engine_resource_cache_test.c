@@ -841,6 +841,36 @@ static void manager_cases(void)
     CHECK(first->file_refs == 1 && second->file_refs == 1 && third->file_refs == 1);
     CHECK(!first->active_blocks && !second->active_blocks && !third->active_blocks);
 }
+static void owned_manager_cases(void)
+{
+    ManagerHost h;
+    MMStorageAllocator a;
+    MMResourceManager *manager;
+    MMResourceCache *cache;
+    MMU32 position = 99;
+    memset(&h, 0, sizeof(h));
+    a = allocator(&h.memory);
+    h.memory.fail = 1;
+    CHECK(!mm_resource_manager_create(&a, &a) && !h.memory.allocations);
+    h.memory.fail = 0;
+    manager = mm_resource_manager_create(&a, &a);
+    CHECK(manager && h.memory.allocations == 1);
+    CHECK(mm_resource_manager_add(manager, &h.files[0], 100, &position) == MM_STORAGE_ARGUMENT);
+    cache = create_cache(&h, &h.files[0], 100);
+    CHECK(cache && cache->references->count == 1);
+    h.memory.fail = 1;
+    CHECK(mm_resource_manager_add_cache(manager, cache, &position) == MM_STORAGE_MEMORY && position == 99);
+    CHECK(!manager->count && cache->references->count == 1);
+    h.memory.fail = 0;
+    CHECK(mm_resource_manager_add_cache(manager, cache, &position) == MM_STORAGE_OK && position == 0);
+    mm_resource_cache_release(cache);
+    cache = create_cache(&h, &h.files[1], 100);
+    CHECK(cache && mm_resource_manager_add_cache(manager, cache, NULL) == MM_STORAGE_OK);
+    mm_resource_manager_destroy(manager);
+    CHECK(h.closes == 1 && h.order[0] == 0 && cache->references->count == 1);
+    mm_resource_cache_release(cache);
+    CHECK(h.closes == 2 && h.order[1] == 1 && !h.memory.allocations);
+}
 static MMU32 word_hash(MMU32 hash, MMU32 word)
 {
     int i;
@@ -902,6 +932,7 @@ int main(void)
     last_detached_reference();
     wire_index_lifetime();
     manager_cases();
+    owned_manager_cases();
     puts("resource cache C89 checks passed");
     return 0;
 }

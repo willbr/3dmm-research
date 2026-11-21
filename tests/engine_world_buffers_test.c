@@ -147,7 +147,8 @@ static void setup(Fixture *f, MMWorldBuffers *w)
     f->s.rgb_type = 8;
     f->s.depth_type = 16;
     f->s.create = create;
-    f->s.retain = retain;
+    f->s.retain_cache = retain;
+    f->s.release_cache = release;
     f->s.release = release;
     f->s.release_depth = release;
     f->s.release_bitmap = release;

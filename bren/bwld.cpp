@@ -159,7 +159,8 @@ MMWorldBufferServices World::_BufferServices()
             return NewDepthBitmap(width, height);
         return GraphicsPort::PgptNewOffscreen(&r, kcbitPixelRGB);
     };
-    s.retain = [](void *, void *p) { static_cast<BASE *>(p)->AddRef(); };
+    s.retain_cache = [](void *, void *p) { mm_resource_cache_retain(static_cast<MMResourceCache *>(p)); };
+    s.release_cache = [](void *, void *p) { mm_resource_cache_release(static_cast<MMResourceCache *>(p)); };
     s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.release_depth = [](void *, void *p) { mm_depth_owner_release(static_cast<MMDepthOwner *>(p)); };
     s.release_bitmap = [](void *, void *p) { mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(p)); };
@@ -175,11 +176,11 @@ MMWorldBufferServices World::_BufferServices()
     };
     s.changed = [](void *p) { static_cast<PWorld>(p)->MarkDirty(); };
     s.fetch = [](void *, void *p, int kind, MMU32 type, MMU32 number) -> void * {
-        const auto cache = static_cast<PChunkyResourceFile>(p);
+        const auto cache = static_cast<MMResourceCache *>(p);
         if (kind == MM_WORLD_DEPTH_BACKGROUND)
-            return mm_resource_cache_fetch_owned_chunk(cache->CoreCache(), type, number, ReadCachedDepthBitmap,
+            return mm_resource_cache_fetch_owned_chunk(cache, type, number, ReadCachedDepthBitmap,
                                                        mm_depth_owner_services());
-        return FetchMaskedBitmap(cache, type, number);
+        return mm_resource_cache_fetch_owned_chunk(cache, type, number, ReadCachedMaskedBitmap, mm_masked_owner_services());
     };
     s.priority = [](void *, void *p) { mm_masked_owner_priority(static_cast<PMaskedBitmapMBMP>(p), crepTossFirst); };
     s.priority_depth = [](void *, void *p) {
@@ -314,11 +315,11 @@ void World::CloseBRender(void)
     }
 }
 
-bool World::FSetBackground(PChunkyResourceFile cache, ChunkTagOrType rgbType, ChunkNumber rgb, ChunkTagOrType zType,
+bool World::FSetBackground(MMResourceCache *cache, ChunkTagOrType rgbType, ChunkNumber rgb, ChunkTagOrType zType,
                            ChunkNumber z)
 {
     AssertThis(0);
-    AssertPo(cache, 0);
+    AssertVarMem(cache);
     auto s = _BufferServices();
     return mm_world_buffers_background(&_buffers, cache, rgbType, rgb, zType, z, &s) != 0;
 }
@@ -409,7 +410,7 @@ void World::Prerender(MMMovieSession *movie, const MMMovieLiveFrame *position)
 void World::Unprerender(void)
 {
     AssertThis(0);
-    AssertPo(static_cast<PChunkyResourceFile>(_buffers.owners[MM_WORLD_CACHE]), 0);
+    AssertVarMem(static_cast<MMResourceCache *>(_buffers.owners[MM_WORLD_CACHE]));
     const auto buffers = _BufferServices();
     mm_world_buffers_restore_background(&_buffers, &buffers);
 }
@@ -531,7 +532,7 @@ void World::AssertValid(LegacyUlong grf)
     AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_BACKGROUND]), 0);
     AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_WORKING]));
     AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
-    AssertNilOrPo(static_cast<PChunkyResourceFile>(_buffers.owners[MM_WORLD_CACHE]), 0);
+    AssertNilOrVarMem(static_cast<MMResourceCache *>(_buffers.owners[MM_WORLD_CACHE]));
     if (_buffers.scale == 1 && !_buffers.half_x && _buffers.half_y)
         AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_STRETCH]), 0);
     else
@@ -545,8 +546,9 @@ void World::MarkMem(void)
 {
     AssertThis(0);
     World_PAR::MarkMem();
-    for (auto kind : {MM_WORLD_RGB_WORKING, MM_WORLD_RGB_BACKGROUND, MM_WORLD_RGB_STRETCH, MM_WORLD_CACHE})
+    for (auto kind : {MM_WORLD_RGB_WORKING, MM_WORLD_RGB_BACKGROUND, MM_WORLD_RGB_STRETCH})
         MarkMemObj(static_cast<BASE *>(_buffers.owners[kind]));
+    mm_resource_cache_mark(static_cast<MMResourceCache *>(_buffers.owners[MM_WORLD_CACHE]));
     for (auto kind : {MM_WORLD_DEPTH_WORKING, MM_WORLD_DEPTH_BACKGROUND})
     {
         if (_buffers.owners[kind])

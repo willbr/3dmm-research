@@ -20409,3 +20409,33 @@ indices in each scene. Retail reopened that save in 20261121T233343Z-076beab4
 and reproduced all 60 reference camera indices and seek canvases.
 
 Evidence is under tmp/c89-live-archive.
+
+## C89 Studio source caches (21 November 2026)
+
+Studio's external content sources now own C89 resource managers and caches.
+Immutable packs retain the validated index and native file provider shared
+with Preview. Mutable and removable sources retain their live graph, including
+when Studio clears its file cache and reopens the backing file. Background
+drawing, World export, and sampled and MIDI sound queue lookups use the raw
+cache binding. The sound host also accepts the UI's resource manager for
+scripts and controls.
+
+All 193 standalone C89 checks and five targeted AddressSanitizer checks
+passed. The cache allocation fixture verifies that a failed registration
+preserves the caller's reference and that a retained cache survives manager
+destruction. Fourteen native x64 tests, four native x86 tests and four SDL
+tests passed. Native source lookup, scene content, and movie save/load
+snapshots matched their previous bytes.
+
+Fresh suite 20261121T234436Z-b3ca7d20 completed all 14 runs. SDL Studio and
+Marcus each reproduced all 90 prior seek canvases, 88 of 90 retail seek
+canvases, and all 90 retail camera indices and continuous frame identities.
+V3DMM reproduced all 30 retail seek canvases in the actor-audio case.
+SDL and V3DMM matched the six retail sound requests. Mixed PCM differed on
+the audible fixture. Continuous pixel alignment was inconclusive.
+
+SDL Studio checked both camera indices in each scene, saved the movie, and
+reopened it. Retail reopened that save in 20261121T234730Z-2b14fb8f and
+reproduced all 60 reference seek canvases and camera indices.
+
+Evidence is under tmp/c89-studio-source-owner.

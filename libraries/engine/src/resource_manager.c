@@ -2,7 +2,14 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/resource_cache.h"
 #include "mm/resource_lookup.h"
+#include <stdlib.h>
 #include <string.h>
+
+typedef struct MMOwnedResourceManager
+{
+    MMResourceManager manager;
+    const MMStorageAllocator *allocator;
+} MMOwnedResourceManager;
 static MMArray view(MMResourceManager *m)
 {
     MMArray a;
@@ -16,14 +23,45 @@ static MMArray view(MMResourceManager *m)
 int mm_resource_manager_init(MMResourceManager *m, const MMResourceManagerServices *s,
                                    const MMStorageAllocator *allocator)
 {
-    if (!m || !s || !s->create)
+    if (!m || (s && !s->create))
         return MM_STORAGE_ARGUMENT;
     memset(m, 0, sizeof(*m));
     if (mm_storage_init(&m->storage, allocator) != MM_STORAGE_OK)
         return MM_STORAGE_ARGUMENT;
-    m->services = *s;
+    if (s)
+        m->services = *s;
     m->storage.min_grow[0] = 128;
     return MM_STORAGE_OK;
+}
+static void free_owned_manager(MMOwnedResourceManager *owner)
+{
+    const MMStorageAllocator *allocator = owner->allocator;
+    if (allocator)
+        allocator->release(allocator->context, owner, sizeof(*owner));
+    else
+        free(owner);
+}
+MMResourceManager *mm_resource_manager_create(const MMStorageAllocator *allocator, const MMStorageAllocator *storage)
+{
+    MMOwnedResourceManager *owner;
+    if (allocator && (!allocator->resize || !allocator->release))
+        return NULL;
+    owner = allocator ? allocator->resize(allocator->context, NULL, 0, sizeof(*owner), MM_STORAGE_NORMAL)
+                      : malloc(sizeof(*owner));
+    if (!owner)
+        return NULL;
+    owner->allocator = allocator;
+    if (mm_resource_manager_init(&owner->manager, NULL, storage) != MM_STORAGE_OK)
+    {
+        free_owned_manager(owner);
+        return NULL;
+    }
+    return &owner->manager;
+}
+void mm_resource_manager_destroy(MMResourceManager *m)
+{
+    if (m && mm_resource_manager_dispose(m) == MM_STORAGE_OK)
+        free_owned_manager((MMOwnedResourceManager *)m);
 }
 int mm_resource_manager_reserve(MMResourceManager *m, MMU32 additional)
 {
@@ -72,7 +110,7 @@ int mm_resource_manager_add(MMResourceManager *m, void *file, MMI32 budget, MMU3
 {
     MMResourceCache *p;
     int result;
-    if (!m || !file || budget < 0)
+    if (!m || !m->services.create || !file || budget < 0)
         return MM_STORAGE_ARGUMENT;
     p = m->services.create(m->services.context, file, budget);
     if (!p)

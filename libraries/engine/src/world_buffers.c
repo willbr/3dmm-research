@@ -16,6 +16,8 @@ static void release_slot(MMWorldBuffers *w, int kind, const MMWorldBufferService
             s->unlock(s->context, object);
         if (kind == MM_WORLD_DEPTH_WORKING || kind == MM_WORLD_DEPTH_BACKGROUND)
             s->release_depth(s->context, object);
+        else if (kind == MM_WORLD_CACHE)
+            s->release_cache(s->context, object);
         else
             s->release(s->context, object);
     }
@@ -211,7 +213,7 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
     }
     mm_world_buffers_dirty(w, 0);
     s->changed(s->context);
-    s->retain(s->context, cache);
+    s->retain_cache(s->context, cache);
     release_slot(w, MM_WORLD_CACHE, s);
     w->owners[MM_WORLD_CACHE] = cache;
     w->rgb_type = rgb_type;

@@ -59,7 +59,7 @@ namespace
 struct BackgroundResourceHost
 {
     PBackground background;
-    PChunkyResourceFile cache;
+    MMResourceCache *cache;
     PWorld world;
 };
 } // namespace
@@ -77,7 +77,7 @@ static MMBackgroundServices ResourceServices(void *host)
     s.name = [](void *p, MMU32 type, MMU32 number) {
         auto h = static_cast<BackgroundResourceHost *>(p);
         String name;
-        const bool found = h->cache->FGetName(type, number, &name);
+        const bool found = ReadResourceName(h->cache, type, number, &name);
         const auto storage = mm_background_owner_name(h->background);
         mm_string_value_copy(&storage, name.Pst());
         return int(found);
@@ -173,7 +173,7 @@ int EngineBackground::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMO
     s.initialize = [](void *p, void *object, MMU32 type, MMU32 number) {
         auto host = static_cast<Host *>(p);
         auto background = static_cast<PBackground>(object);
-        BackgroundResourceHost resource = {background, static_cast<PChunkyResourceFile>(host->cache->owner), nullptr};
+        BackgroundResourceHost resource = {background, host->cache, nullptr};
         const auto services = ResourceServices(&resource);
         return mm_background_read_cached(mm_background_owner_resource(background),
                                          mm_background_owner_camera(background), type, number,
@@ -301,8 +301,7 @@ static MMBackgroundCameraServices CameraServices(void *host)
     s.background = [](void *p, MMU32 rgb, MMU32 depth) {
         auto h = static_cast<BackgroundCameraHost *>(p);
         const auto binding = mm_background_owner_binding(h->background);
-        auto cache = static_cast<PChunkyResourceFile>(binding->cache->owner);
-        return int(h->world->FSetBackground(cache, kctgMbmp, rgb, kctgZbmp, depth));
+        return int(h->world->FSetBackground(binding->cache, kctgMbmp, rgb, kctgZbmp, depth));
     };
     s.euler_yxy = [](void *, const MMActorMatrix *value, unsigned short *a, unsigned short *c) {
         BMAT34 matrix;

@@ -134,7 +134,7 @@ int main()
         auto w = World::PbwldNew(16, 12, mode & 1, mode & 2);
         CHECK(w);
         Access::State(w, false);
-        CHECK(w->FSetBackground(cache, kctgMbmp, rgb, kctgZbmp, z));
+        CHECK(w->FSetBackground(cache->CoreCache(), kctgMbmp, rgb, kctgZbmp, z));
         if (mode == 0)
         {
             auto core = cache->CoreCache();

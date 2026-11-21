@@ -4838,18 +4838,19 @@ static void TestEngineServices()
     Check(missingSourcePrompts == 1);
     TAG stored = {42, nullptr, 'TEST', 7};
     auto storedResource = static_cast<PGenericHQ>(manager->PbacoFetch(&stored, GenericHQ::FReadGhq));
-    Check(storedResource && !storedResource->Pcrf()->Pcfl() && CbOfHq(storedResource->hq) == 512);
+    Check(storedResource && !storedResource->Pcrf() && storedResource->CoreCache()->wire_index &&
+          CbOfHq(storedResource->hq) == 512);
     const auto bytes = static_cast<const byte *>(PvLockHq(storedResource->hq));
     for (int i = 0; i < 512; ++i)
         Check(bytes[i] == 42);
     UnlockHq(storedResource->hq);
-    auto storedCache = storedResource->Pcrf()->CoreCache();
+    auto storedCache = storedResource->CoreCache();
     ReleasePpo(&storedResource);
     Check(storedCache->count == 1);
     manager->ClearCache(42, ftagmMemory);
     Check(storedCache->count == 0 && storedCache->budget == 2048);
     auto reloadedResource = manager->PbacoFetch(&stored, GenericHQ::FReadGhq);
-    Check(reloadedResource && reloadedResource->Pcrf()->CoreCache() == storedCache && missingSourcePrompts == 1);
+    Check(reloadedResource && reloadedResource->CoreCache() == storedCache && missingSourcePrompts == 1);
     ReleasePpo(&reloadedResource);
     manager->ClearCache();
     // Host policy is checked before cached resource managers and path/CD
@@ -4885,18 +4886,18 @@ static void TestEngineServices()
         manager = TagManager::PtagmNew(&root, MissingSource, 2048);
         Check(manager && manager->FAddStnSource(&missingName, 42));
         auto liveResource = manager->PbacoFetch(&stored, GenericHQ::FReadGhq);
-        Check(liveResource && !liveResource->Pcrf()->Pcfl());
-        const auto cache = liveResource->Pcrf();
-        const auto reader = cache->ReadOwner();
+        Check(liveResource && !liveResource->Pcrf());
+        const auto cache = liveResource->CoreCache();
+        const auto reader = ResourceArchiveReader(cache);
         Check(reader && reader->storage->owner->files.main_file == backing);
         Check(!alias || alias->ReadOwner() == reader);
         MMU32 position;
-        const auto graph = cache->ReadChunkAccess();
+        const auto graph = mm_resource_cache_chunks(cache);
         Check(mm_chunk_find(&graph, stored.ctg, stored.cno, &position) == MM_CHUNK_OK);
         Check(mm_chunk_owner_cache(reader->storage, position, nullptr) == MM_CHUNK_OK);
         Check(reader->storage->owner->files.extra_file != nullptr);
         manager->ClearCache(42, ftagmFile);
-        Check((reader->storage->owner->files.extra_file != nullptr) == writable && cache->ReadOwner() == reader);
+        Check((reader->storage->owner->files.extra_file != nullptr) == writable && ResourceArchiveReader(cache) == reader);
         ReleasePpo(&liveResource);
         ReleasePpo(&manager);
         ReleasePpo(&alias);

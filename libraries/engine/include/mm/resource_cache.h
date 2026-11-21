@@ -15,6 +15,8 @@ extern "C"
     typedef struct MMResourceCache MMResourceCache;
     struct MMChunkEndpoint;
     struct MMChunkFileCopy;
+    struct MMChunkOwnerRead;
+    struct MMArchiveWriter;
     /* The typed callback also identifies the cache entry. */
     typedef int (*MMResourceBlockReader)(MMResourceCache *, MMU32 type, MMU32 number,
                                          MMOwnedBlock *, void **object, MMI32 *bytes);
@@ -79,6 +81,10 @@ extern "C"
         void (*release_file)(void *file);
         int (*live_name)(void *file, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *bytes);
         void (*live_copy_source)(void *file, struct MMChunkFileCopy *, struct MMChunkEndpoint *);
+        struct MMChunkOwnerRead *(*live_reader)(void *file);
+        struct MMArchiveWriter (*live_writer)(void *file);
+        void (*live_reopen)(void *file);
+        void *legacy_adapter; /* Optional host facade, unused by the cache. */
         void (*mark_source)(MMResourceCache *);
         void (*mark_owner)(MMResourceCache *);
         void (*destroy_owner)(void *owner);
@@ -183,8 +189,11 @@ extern "C"
      * caches but cannot remove entries or dispose the manager. Fetch stops on object
      * OR error; preload stops on YES or MAYBE; cached find only checks the first file
      * containing the requested chunk/scope and omits scope on the final cache find. */
+    /* A manager built with existing caches needs no file creation services. */
     int mm_resource_manager_init(MMResourceManager *, const MMResourceManagerServices *,
                                        const MMStorageAllocator *);
+    MMResourceManager *mm_resource_manager_create(const MMStorageAllocator *owner, const MMStorageAllocator *storage);
+    void mm_resource_manager_destroy(MMResourceManager *);
     int mm_resource_manager_reserve(MMResourceManager *, MMU32);
     int mm_resource_manager_dispose(MMResourceManager *);
     MMResourceCache *mm_resource_manager_at(const MMResourceManager *, MMU32);

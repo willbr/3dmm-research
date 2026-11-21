@@ -381,7 +381,7 @@ class MidiPlayerQueue : public MidiPlayerQueue_PAR
     virtual void _Leave(void);
 
     virtual bool _FInit(void);
-    virtual PBaseCacheableObject _PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno);
+    virtual PBaseCacheableObject _PbacoFetch(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno);
     virtual void _Queue(long isndinMin);
     virtual void _PauseQueue(long isndinMin);
     virtual void _ResumeQueue(long isndinMin);
@@ -531,12 +531,10 @@ void MidiPlayerQueue::_Leave(void)
 /***************************************************************************
     MT: Fetch the given sound chunk as a midi stream.
 ***************************************************************************/
-PBaseCacheableObject MidiPlayerQueue::_PbacoFetch(PResourceCache prca, ChunkTagOrType ctg, ChunkNumber cno)
+PBaseCacheableObject MidiPlayerQueue::_PbacoFetch(SoundChunkSource source, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    AssertPo(prca, 0);
-
-    return prca->PbacoFetch(ctg, cno, &MidiStream::FReadMids);
+    return source.Fetch(ctg, cno, &MidiStream::FReadMids);
 }
 
 /***************************************************************************

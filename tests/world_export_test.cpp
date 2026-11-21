@@ -274,7 +274,7 @@ int main()
         CHECK(w);
         if (mode > 3)
             CHECK(w->FSetRenderScale(mode == 4 ? 2 : 4));
-        CHECK(w->FSetBackground(cache, kctgMbmp, rgb, kctgZbmp, z));
+        CHECK(w->FSetBackground(cache->CoreCache(), kctgMbmp, rgb, kctgZbmp, z));
         BMAT34 camera;
         BrMatrix34Identity(&camera);
         camera.m[3][2] = BR_SCALAR(5);

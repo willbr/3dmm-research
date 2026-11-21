@@ -8,16 +8,17 @@ class MovieContentTagAccess : public TagManager
     {
         auto member = &MovieContentTagAccess::_sources;
         auto &sources = vptagm->*member;
-        auto manager = ChunkyResourceManager::PcrmNew(1);
+        auto manager = mm_resource_manager_create(KauaiResourceObjectAllocator(), KauaiCopyAllocator());
         auto paths = sources.owners.new_paths(sources.owners.context);
-        auto sibling = resources->PcrfNewSibling(1024 * 1024);
+        auto sibling = NewTypedSiblingCache(resources->CoreCache(), 1024 * 1024);
         const bool added = manager && sibling &&
-                           mm_resource_manager_add_cache(manager->CoreManager(), sibling->CoreCache(), nullptr) == MM_STORAGE_OK;
-        ReleasePpo(&sibling);
+                           mm_resource_manager_add_cache(manager, sibling, nullptr) == MM_STORAGE_OK;
+        if (sibling)
+            mm_resource_cache_release(sibling);
         if (!added || !paths ||
             mm_storage_ensure(&sources.storage, (sources.count + 1) * sizeof(MMSourceRecord), 0, 0))
         {
-            ReleasePpo(&manager);
+            mm_resource_manager_destroy(manager);
             if (paths)
                 sources.owners.release_paths(paths);
             return false;

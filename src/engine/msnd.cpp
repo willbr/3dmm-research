@@ -68,8 +68,8 @@ static MMSoundResourceServices SoundServices()
     };
     s.read_name = [](void *, void *file, MMResourceCache *cache, MMU32 type, MMU32 number, MMSoundOwner *sound) -> int {
         String name;
-        const bool found = cache ? static_cast<PChunkyResourceFile>(cache->owner)->FGetName(type, number, &name) :
-                                  static_cast<PChunkyFile>(file)->FGetName(type, number, &name);
+        const bool found = cache ? ReadResourceName(cache, type, number, &name) :
+                                   static_cast<PChunkyFile>(file)->FGetName(type, number, &name);
         const auto storage = mm_sound_owner_name(sound);
         mm_string_value_copy(&storage, name.Pst());
         return found;
@@ -80,8 +80,7 @@ static MMSoundResourceServices SoundServices()
     s.stop = [](void *, MMI32 queue) { vpsndm->StopAll(queue, sclNil); };
     s.play = [](void *, const MMSoundResource *sound, MMI32 queue, MMI32 volume, MMI32 repeat,
                 MMU32 start, MMI32 priority, MMI32 soundClass) -> MMI32 {
-        auto cache = sound->cache ? static_cast<PChunkyResourceFile>(sound->cache->owner) : nullptr;
-        return vpsndm->SiiPlay(cache, sound->type, sound->number, queue, volume,
+        return vpsndm->SiiPlay(sound->cache, sound->type, sound->number, queue, volume,
                                repeat, start, priority, soundClass);
     };
     return s;
@@ -386,8 +385,7 @@ bool EngineSound::Invalidate(PMovieSoundMSND sound)
     const auto binding = mm_sound_owner_binding(sound);
     if (!binding->cache)
         return false;
-    const auto cache = static_cast<PChunkyResourceFile>(binding->cache->owner);
-    const auto edit = cache->ArchiveWriter().edit;
+    const auto edit = ResourceArchiveWriter(binding->cache).edit;
     return mm_sound_invalidate(mm_sound_owner_state(sound), binding, &edit, Host().services) != 0;
 }
 

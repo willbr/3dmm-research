@@ -8,21 +8,11 @@
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
 
-    It is important to keep in mind that there are two layers of caching
-    going on in TagManager: Caching content from the CD (or other slow source)
-    to the local hard disk, and caching resources in RAM using chunky
-    resources (the ChunkyResourceFile and ChunkyResourceManager classes).
-
-    For each source, TagManager maintains (in the C source catalogue) a ChunkyResourceManager (Chunky Resource
-    Manager) of all the content	files on the source and a ChunkyResourceFile (Chunky
-    Resource File), which is a single file on the HD which can be used
-    for faster access to the source.  Both CRFs and CRMs can cache
-    resources in RAM.  Since Socrates copies *all* content from the CD
-    to the cache file, the ChunkyResourceManager is told not to cache its resources in
-    RAM.  However, if the source is actually on the HD, TagManager notices and
-    doesn't copy any content to a cache file, since that would be a waste
-    of time.  Instead, the content is read directly from the ChunkyResourceManager.  In this
-    case, TagManager does tell the ChunkyResourceManager to cache its resources in RAM.
+    TagManager resolves content from the local disk or removable media. The
+    C source catalogue owns a resource manager per source. Each manager keeps
+    an ordered set of archive caches. Local archives may retain decoded
+    resources in memory. Removable media use the source builder's media budget
+    and can reopen their live archive without replacing the resource cache.
 
     Source names: every source has a long and short name.  This is so we
     can use long names for the source directory on the HD (e.g., "3D Movie
@@ -43,6 +33,8 @@
 #include "mm/archive_reader.h"
 #include "mm/chunk_copy.h"
 #include "mm/native_archive_file.h"
+#include "resource_archive_host.h"
+#include "handle_services.h"
 PTagManager vptagm;
 
 ASSERTNAME
@@ -75,11 +67,11 @@ struct NativeDiscoveryHost
     FileNameEnumerator drives;
 };
 
-PChunkyResourceFile OpenSourceArchive(Filename &filename, LegacyLong budget, bool media)
+MMResourceCache *OpenSourceArchive(Filename &filename, LegacyLong budget, bool media)
 {
     bool selected;
-    const auto shared = ChunkyResourceFile::PcrfOpenShared(
-        &filename, budget, media || (filename.Grfvk() & (fvkCD | fvkFloppy | fvkRemovable)), selected);
+    const bool preferWorking = media || (filename.Grfvk() & (fvkCD | fvkFloppy | fvkRemovable));
+    const auto shared = OpenSharedTypedCache(&filename, preferWorking, selected, nullptr, budget);
     if (selected)
         return shared;
 
@@ -87,7 +79,7 @@ PChunkyResourceFile OpenSourceArchive(Filename &filename, LegacyLong budget, boo
     filename.GetStnPath(&path);
     auto file = mm_native_archive_file_open(reinterpret_cast<const MMNativePathChar *>(path.Psz()));
     MMReadStream stream;
-    PChunkyResourceFile cache = nullptr;
+    MMResourceCache *cache = nullptr;
     if (mm_native_archive_file_stream(file, &stream))
     {
         const unsigned short order = 1;
@@ -100,7 +92,7 @@ PChunkyResourceFile OpenSourceArchive(Filename &filename, LegacyLong budget, boo
         MMChunkIndex *index;
         if (mm_archive_read_index(&stream, &policy, &index) == MM_ARCHIVE_READ_OK)
         {
-            cache = ChunkyResourceFile::PcrfNewIndex(index, file, *mm_native_archive_file_blocks(), path, budget);
+            cache = NewTypedWireCache(index, file, mm_native_archive_file_blocks(), budget);
             mm_chunk_index_close(index);
         }
     }
@@ -118,7 +110,7 @@ MMSourceOwners TagManager::_SourceOwners()
                 to->media = from->media;
             },
             [](void *p) { static_cast<NativeSourcePaths *>(p)->Release(); },
-            [](void *p) { static_cast<PChunkyResourceManager>(p)->Release(); }};
+            [](void *p) { mm_resource_manager_destroy(static_cast<MMResourceManager *>(p)); }};
 }
 MMSourceServices TagManager::_SourceServices(void *context)
 {
@@ -168,7 +160,7 @@ MMSourceServices TagManager::_SourceServices(void *context)
     };
     s.new_manager = [](void *c, MMI32 sid, void *p, int media) -> void * {
         auto paths = static_cast<NativeSourcePaths *>(p);
-        return static_cast<NativeSourceHost *>(c)->manager->_PcrmSourceNew(sid, media ? &paths->media : &paths->local,
+        return static_cast<NativeSourceHost *>(c)->manager->_BuildSourceManager(sid, media ? &paths->media : &paths->local,
                                                                          media != 0);
     };
     s.output = [](void *c, void *p, int media) {
@@ -533,10 +525,9 @@ bool TagManager::_FRetry(LegacyLong sid, const TAG *asset)
 }
 
 /***************************************************************************
-    Builds the ChunkyResourceManager for the given sid's source.  pfniDir tells where the
-    content files are.
+    Builds the resource manager for the content in the source directory.
 ***************************************************************************/
-PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename directory, bool media)
+MMResourceManager *TagManager::_BuildSourceManager(LegacyLong sid, PFilename directory, bool media)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
@@ -552,7 +543,7 @@ PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename dire
     } host = {this, directory, media};
     const MMSourceBuildServices services = {
         &host,
-        [](void *) -> void * { return ChunkyResourceManager::PcrmNew(0); },
+        [](void *) -> void * { return mm_resource_manager_create(KauaiResourceObjectAllocator(), KauaiCopyAllocator()); },
         [](void *c, MMI32 sid) -> int { return static_cast<Host *>(c)->manager->HasArchiveSource(sid); },
         [](void *c) -> int {
             auto h = static_cast<Host *>(c);
@@ -567,26 +558,24 @@ PChunkyResourceManager TagManager::_PcrmSourceNew(LegacyLong sid, PFilename dire
             return OpenSourceArchive(h->current, budget, h->media);
         },
         [](void *m, void *f) -> int {
-            auto manager = static_cast<PChunkyResourceManager>(m)->CoreManager();
-            auto cache = static_cast<PChunkyResourceFile>(f)->CoreCache();
-            return mm_resource_manager_add_cache(manager, cache, nullptr) == MM_STORAGE_OK;
+            return mm_resource_manager_add_cache(static_cast<MMResourceManager *>(m),
+                                                 static_cast<MMResourceCache *>(f), nullptr) == MM_STORAGE_OK;
         },
-        [](void *f) { static_cast<PChunkyResourceFile>(f)->Release(); },
-        [](void *m) { static_cast<PChunkyResourceManager>(m)->Release(); }};
-    return static_cast<PChunkyResourceManager>(mm_source_build(sid, _cbCache, &services));
+        [](void *f) { mm_resource_cache_release(static_cast<MMResourceCache *>(f)); },
+        [](void *m) { mm_resource_manager_destroy(static_cast<MMResourceManager *>(m)); }};
+    return static_cast<MMResourceManager *>(mm_source_build(sid, _cbCache, &services));
 }
 
 /***************************************************************************
-    Returns the source ChunkyResourceManager for the given sid, creating (and remembering) a
-    new one if there isn't one already.  It verifies that the CD is still
-    in the drive, unless fDontHitCD is fTrue.
+    Looks up or builds the resource manager for a source. Unless localOnly
+    is set, lookups may access removable media.
 ***************************************************************************/
-PChunkyResourceManager TagManager::_PcrmSourceGet(LegacyLong sid, bool localOnly, const TAG *asset)
+MMResourceManager *TagManager::_GetSourceManager(LegacyLong sid, bool localOnly, const TAG *asset)
 {
     NativeSourceHost host = {this, nullptr, nullptr, asset};
     NativeSourcePaths paths;
     const auto services = _SourceServices(&host);
-    return static_cast<PChunkyResourceManager>(mm_source_manager(&_sources, sid, localOnly, &paths, &services));
+    return static_cast<MMResourceManager *>(mm_source_manager(&_sources, sid, localOnly, &paths, &services));
 }
 
 /***************************************************************************
@@ -646,7 +635,7 @@ bool TagManager::FFindFile(LegacyLong sid, PString leaf, PFilename output, bool 
 
 /***************************************************************************
     Build a tag for a child of another tag.  Note that this may hit the
-    CD if _PcrmSourceGet has not yet been called for ptagPar->sid.
+    CD if _GetSourceManager has not yet been called for ptagPar->sid.
 ***************************************************************************/
 namespace
 {
@@ -692,8 +681,7 @@ MMTagServices TagManager::_Services(void *context)
     s.context = context;
     s.source = [](void *c, MMI32 sid, int local, const MMTag *) -> MMResourceManager * {
         auto h = static_cast<NativeTagHost *>(c);
-        auto manager = h->manager->_PcrmSourceGet(sid, local != 0, h->asset);
-        return manager ? manager->CoreManager() : nullptr;
+        return h->manager->_GetSourceManager(sid, local != 0, h->asset);
     };
     s.missing = [](void *c, const MMTag *) {
 #if defined(DEBUG) || defined(STUDIO_TEST_TOOLS)
@@ -757,7 +745,7 @@ bool TagManager::FCacheTagList(MMTagList *list)
 }
 PBaseCacheableObject TagManager::PbacoFetch(PTAG tag, ResourceReader reader, bool useMedia)
 {
-    return static_cast<PBaseCacheableObject>(FetchResource(tag, reader, nullptr, useMedia));
+    return static_cast<PBaseCacheableObject>(FetchResource(tag, reader, BaseCacheableObject::ObjectServices(), useMedia));
 }
 void *TagManager::FetchResource(PTAG tag, ResourceReader reader, const MMResourceObjectServices *objects, bool useMedia)
 {
@@ -782,14 +770,12 @@ void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
             AssertDo(mm_source_at(&static_cast<PTagManager>(c)->_sources, i, &source) == MM_STORAGE_OK,
                      "invalid source index");
             *sid = source.sid;
-            auto native = static_cast<PChunkyResourceManager>(source.manager);
-            *manager = native ? native->CoreManager() : nullptr;
+            *manager = static_cast<MMResourceManager *>(source.manager);
         },
         [](void *c, MMI32 sid) -> MMResourceManager * {
-            auto manager = static_cast<PTagManager>(c)->_PcrmSourceGet(sid);
-            return manager ? manager->CoreManager() : nullptr;
+            return static_cast<PTagManager>(c)->_GetSourceManager(sid);
         },
-        [](MMResourceCache *cache) { static_cast<PChunkyResourceFile>(cache->owner)->FReopenArchive(); }};
+        ReopenResourceArchive};
     mm_tag_clear_cache(sid, flags, &services);
 }
 bool TagManager::FOpenTag(PTAG tag, PChunkyResourceFile destination, PChunkyFile source)
@@ -858,7 +844,10 @@ void TagManager::AssertValid(LegacyUlong flags)
         auto paths = static_cast<NativeSourcePaths *>(r.paths);
         AssertPo(&paths->local, ffniDir | ffniEmpty);
         AssertPo(&paths->media, ffniDir | ffniEmpty);
-        AssertNilOrPo(static_cast<PChunkyResourceManager>(r.manager), 0);
+        const auto manager = static_cast<MMResourceManager *>(r.manager);
+        AssertNilOrVarMem(manager);
+        Assert(!manager || manager->count <= manager->storage.buffers[0].capacity / sizeof(MMResourceCache *),
+               "bad source cache count");
     }
 }
 
@@ -877,7 +866,13 @@ void TagManager::MarkMem(void)
         MMSourceRecord r;
         AssertDo(mm_source_at(&_sources, i, &r) == MM_STORAGE_OK, "bad source index");
         MarkMemObj(static_cast<NativeSourcePaths *>(r.paths));
-        MarkMemObj(static_cast<PChunkyResourceManager>(r.manager));
+        if (const auto manager = static_cast<MMResourceManager *>(r.manager))
+        {
+            MarkPv(manager);
+            MarkPv(manager->storage.buffers[0].data);
+            for (MMU32 cache = 0; cache < manager->count; ++cache)
+                mm_resource_cache_mark(mm_resource_manager_at(manager, cache));
+        }
     }
 }
 #endif // DEBUG
