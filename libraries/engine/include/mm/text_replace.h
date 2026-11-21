@@ -1,6 +1,7 @@
-/* Plain/rich text replacement transactions over stream and virtual services. */
+/* Plain/rich text replacement transactions over piece tables and virtual services. */
 #ifndef MM_ENGINE_TEXT_REPLACE_H
 #define MM_ENGINE_TEXT_REPLACE_H
+#include "piece_table.h"
 #include "text_format.h"
 #ifdef __cplusplus
 extern "C"
@@ -33,9 +34,7 @@ extern "C"
         void *context;
         MMTextDocumentObjects objects;
         int (*translate)(void *, MMTextLocation *owned, int system);
-        int (*bytes)(void *, void *destination, const void *, MMI32 bytes, MMI32 at, MMI32 deleted);
-        int (*location)(void *, void *destination, const MMTextLocation *, int copy, MMI32 at, MMI32 deleted);
-        int (*stream)(void *, void *destination, void *source, MMI32 from, MMI32 bytes, MMI32 at, MMI32 deleted);
+        MMPieceTable *(*pieces)(void *stream);
         int (*invalidate)(void *, MMI32 at, MMI32 inserted, MMI32 deleted);
         void (*validate)(void *);
         int (*notify)(void *, MMI32 at, MMI32 inserted, MMI32 deleted, MMU32 flags);
@@ -50,7 +49,7 @@ extern "C"
         int (*replace_base)(void *, const MMTextReplaceRequest *);
         int (*replace_virtual)(void *, const MMTextReplaceRequest *);
         int (*adjust)(void *, MMI32 at, MMI32 inserted, MMI32 deleted);
-    void (*validate_apply)(void *, MMI32 at, MMI32 span);
+        void (*validate_apply)(void *, MMI32 at, MMI32 span);
         void (*too_much)(void *), (*diagnostic)(void *, int);
         int (*notify)(void *, MMI32 at, MMI32 inserted, MMI32 deleted, MMU32 flags);
     } MMTextReplaceRichServices;

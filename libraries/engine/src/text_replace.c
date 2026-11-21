@@ -9,7 +9,8 @@ static void drop(MMTextLocation *p, const MMTextReplaceBaseServices *s)
 int mm_text_replace_base(unsigned unit, const MMTextReplaceRequest *input, const MMTextReplaceBaseServices *s)
 {
     MMTextReplaceRequest q = *input;
-    void *stream;
+    MMPieceTable *destination;
+    MMFilePiece piece;
     int r;
     if (q.kind == MM_TEXT_REPLACE_LOCATION)
     {
@@ -19,16 +20,25 @@ int mm_text_replace_base(unsigned unit, const MMTextReplaceRequest *input, const
             goto done;
         q.inserted = q.location.bytes / (MMI32)unit;
     }
-    stream = s->objects.get(s->objects.context, MM_TEXT_OWNER_STREAM);
+    destination = s->pieces(s->objects.get(s->objects.context, MM_TEXT_OWNER_STREAM));
     if (q.kind == MM_TEXT_REPLACE_LOCATION)
-        r = s->location(s->context, stream, &q.location, q.copy && q.location.file == input->location.file, q.at * unit,
-                        q.deleted * unit);
+    {
+        piece.file = q.location.file;
+        piece.offset = (MMU32)q.location.offset;
+        piece.length = (MMU32)q.location.bytes;
+        r = mm_piece_table_replace_file(destination, q.at * unit, q.deleted * unit, &piece,
+                                        q.copy && piece.file == input->location.file);
+    }
     else if (q.kind == MM_TEXT_REPLACE_STREAM)
-        r = s->stream(s->context, stream, q.stream, q.source * unit, q.inserted * unit, q.at * unit, q.deleted * unit);
+        r = mm_piece_table_replace_table(destination, q.at * unit, q.deleted * unit, s->pieces(q.stream),
+                                         q.source * unit, q.inserted * unit);
     else
-        r = s->bytes(s->context, stream, q.data, q.inserted * unit, q.at * unit, q.deleted * unit);
-    if (r <= 0)
+        r = mm_piece_table_replace(destination, q.at * unit, q.deleted * unit, q.data, q.inserted * unit);
+    if (r != MM_DATA_OK)
+    {
+        r = 0;
         goto done;
+    }
     r = s->invalidate(s->context, q.at, q.inserted, q.deleted);
     if (r <= 0)
         goto done;

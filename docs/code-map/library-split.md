@@ -3000,11 +3000,12 @@ debug poisoning of failed search outputs; the C operation leaves them unchanged.
 `text_replace.c` controls plain/rich raw, file-location and stream replacement,
 including formatting, translated-file ownership, nested virtual dispatch, undo
 setup/cancellation/commit, map adjustment, validation and notification order.
-Base replacement scales character positions to native byte counts, invalidates
-through the virtual hook and notifies/marks dirty. Its translated file remains
-owned through notification. Copying is requested only if translation preserves
-the original owner. Rich unformatted file replacement translates before its size
-limit/undo checks and releases its retained view before adjusting properties.
+Base replacement scales character positions to native byte counts and edits the
+C89 piece table directly. It then invalidates through the virtual hook and
+notifies/marks dirty. Its translated file remains owned through notification.
+Copying is requested only if translation preserves the original owner. Rich
+unformatted file replacement translates before checking the size limit and
+setting up undo, then releases its retained view before adjusting properties.
 The nested base operation still performs its own translation and copy decision.
 
 Formatted replacement generates deltas before undo, selects contained old

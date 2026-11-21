@@ -9,14 +9,17 @@ typedef struct Replacement
 {
     Host host;
     MMTextReplaceRichServices s;
-    Token file, translated, stream, source;
-    MMI32 characters, translated_bytes, last_bytes, last_at, last_deleted, last_source;
+    Token file, translated, temporary;
+    MMPieceTable stream, source;
+    MMI32 characters, translated_bytes;
     MMI32 undo_first[4], undo_end[4], undo_inserted[4], notify_at[4], notify_inserted[4], notify_deleted[4];
     int notify_file_refs[4], notify_translated_refs[4], undos, notifies, adjusts, copy, change_owner, diagnostics[4],
         too_much;
     MMU32 notify_flags[4];
     MMTextReplaceRequest forwarded;
 } Replacement;
+static const char initial[] = "0123456789ABCDEFGH";
+static const char source[] = "STUVWXYZ";
 static void *r_owner(void *v, int slot)
 {
     Replacement *h = (Replacement *)v;
@@ -56,43 +59,45 @@ static int r_translate(void *v, MMTextLocation *p, int system)
         p->bytes = h->translated_bytes;
     return r;
 }
-static int r_io(Replacement *h, char tag, void *dest, MMI32 bytes, MMI32 at, MMI32 deleted)
+static MMPieceTable *r_pieces(void *p)
 {
-    int r;
-    CHECK(dest == &h->stream);
-    h->last_bytes = bytes;
-    h->last_at = at;
-    h->last_deleted = deleted;
-    CHECK(bytes >= 0 && at >= 0 && deleted >= 0);
-    r = effect(&h->host, tag);
-    if (r > 0)
-        h->characters += (bytes - deleted) / (MMI32)h->host.config.text.unit;
-    return r;
+    return (MMPieceTable *)p;
 }
-static int r_bytes(void *v, void *dest, const void *p, MMI32 bytes, MMI32 at, MMI32 deleted)
+static int r_read(void *v, const MMFilePiece *p, void *out)
 {
     Replacement *h = (Replacement *)v;
-    CHECK(p != 0 || !bytes);
-    return r_io(h, 'b', dest, bytes, at, deleted);
+    CHECK((p->file == &h->file && p->offset == 7) || (p->file == &h->translated && !p->offset));
+    memset(out, p->file == &h->file ? 'F' : 'T', p->length);
+    return effect(&h->host, 'l') > 0;
 }
-static int r_location(void *v, void *dest, const MMTextLocation *p, int copy, MMI32 at, MMI32 deleted)
+static void r_retain_piece(void *v, void *p)
+{
+    r_retain(v, MM_TEXT_OWNER_FILE, p);
+}
+static void r_drop_piece(void *v, void *p)
+{
+    r_drop(v, MM_TEXT_OWNER_FILE, p);
+}
+static void *r_temp(void *v)
 {
     Replacement *h = (Replacement *)v;
-    CHECK(p->file == &h->file || p->file == &h->translated);
-    h->copy = copy;
-    return r_io(h, 'l', dest, p->bytes, at, deleted);
+    CHECK(!h->temporary.refs);
+    h->temporary.refs = 1;
+    return &h->temporary;
 }
-static int r_stream(void *v, void *dest, void *source, MMI32 from, MMI32 bytes, MMI32 at, MMI32 deleted)
+static int r_copy(void *v, const MMFilePiece *from, const MMFilePiece *to)
 {
     Replacement *h = (Replacement *)v;
-    CHECK(source == &h->source);
-    h->last_source = from;
-    return r_io(h, 's', dest, bytes, at, deleted);
+    CHECK((from->file == &h->file && from->offset == 7) || (from->file == &h->translated && !from->offset));
+    CHECK(to->file == &h->temporary && !to->offset && to->length == from->length);
+    ++h->copy;
+    return effect(&h->host, 'l') > 0;
 }
 static int r_invalidate(void *v, MMI32 at, MMI32 ins, MMI32 del)
 {
     Replacement *h = (Replacement *)v;
     CHECK(at >= 0 && ins >= 0 && del >= 0);
+    h->characters = h->stream.length / h->host.config.text.unit;
     return effect(&h->host, 'i');
 }
 static void r_validate(void *v)
@@ -202,11 +207,23 @@ static void r_input(void *v, int paragraph, MMTextFormatConfig *c, void *value, 
 static void r_init(Replacement *h, unsigned unit)
 {
     MMTextReplaceBaseServices *b;
+    MMPieceFiles files;
     memset(h, 0, sizeof(*h));
     init(&h->host, unit, 0);
     h->characters = 9;
     h->file.refs = 1;
     h->translated_bytes = -1;
+    memset(&files, 0, sizeof(files));
+    files.context = h;
+    files.retain = r_retain_piece;
+    files.release = r_drop_piece;
+    files.create_temp = r_temp;
+    files.read = r_read;
+    files.copy = r_copy;
+    CHECK(mm_piece_table_init(&h->stream, NULL, &files, 0) == MM_DATA_OK);
+    CHECK(mm_piece_table_init(&h->source, NULL, &files, 0) == MM_DATA_OK);
+    CHECK(mm_piece_table_replace(&h->stream, 0, 0, initial, 9 * unit) == MM_DATA_OK);
+    CHECK(mm_piece_table_replace(&h->source, 0, 0, source, sizeof(source) - 1) == MM_DATA_OK);
     h->s.context = h;
     b = &h->s.base;
     b->context = h;
@@ -215,9 +232,7 @@ static void r_init(Replacement *h, unsigned unit)
     b->objects.retain = r_retain;
     b->objects.release = r_drop;
     b->translate = r_translate;
-    b->bytes = r_bytes;
-    b->location = r_location;
-    b->stream = r_stream;
+    b->pieces = r_pieces;
     b->invalidate = r_invalidate;
     b->validate = r_validate;
     b->notify = r_notify;
@@ -267,13 +282,25 @@ static int formatted(Replacement *h, const MMTextReplaceRequest *q)
 }
 static void released(Replacement *h)
 {
-    CHECK(h->file.refs == 1 && !h->translated.refs);
+    CHECK(mm_piece_table_dispose(&h->stream) == MM_DATA_OK);
+    CHECK(mm_piece_table_dispose(&h->source) == MM_DATA_OK);
+    CHECK(h->file.refs == 1 && !h->translated.refs && !h->temporary.refs);
+}
+static void fail_edit(Replacement *h, MMTextReplaceRequest *q)
+{
+    if (q->kind == MM_TEXT_REPLACE_LOCATION)
+        h->host.fail = 'l';
+    else if (q->kind == MM_TEXT_REPLACE_STREAM)
+        q->source = 99;
+    else
+        q->at = 99;
 }
 static void base_cases(void)
 {
     Replacement h;
     MMTextReplaceRequest q;
-    unsigned unit;
+    unsigned unit, first, added;
+    char bytes[32], replacement[12];
     int kind, change, failure, i, expected, r;
     for (unit = 1; unit <= 2; ++unit)
         for (kind = 0; kind < 3; ++kind)
@@ -285,33 +312,47 @@ static void base_cases(void)
                 if (change)
                     h.translated_bytes = 6 * unit;
                 CHECK(mm_text_replace_base(unit, &q, &h.s.base) == 1);
-                released(&h);
                 expected = kind == MM_TEXT_REPLACE_LOCATION ? (change ? 6 : 4) : 2;
-                CHECK(h.characters == 9 + expected - 1 && h.last_at == 2 * (MMI32)unit &&
-                      h.last_deleted == (MMI32)unit && h.last_bytes == expected * (MMI32)unit);
-                CHECK(h.notifies == 1 && h.notify_inserted[0] == expected && h.notify_flags[0] == 7 && h.host.dirty);
+                first = 2 * unit;
+                added = expected * unit;
+                CHECK(h.stream.length == 8 * unit + added);
+                CHECK(mm_piece_table_read(&h.stream, 0, bytes, h.stream.length) == MM_DATA_OK);
+                CHECK(!memcmp(bytes, initial, first));
                 if (kind == MM_TEXT_REPLACE_STREAM)
-                    CHECK(h.last_source == (MMI32)unit);
+                    CHECK(!memcmp(bytes + first, source + unit, added));
+                else if (kind == MM_TEXT_REPLACE_BYTES)
+                    CHECK(!memcmp(bytes + first, q.data, added));
+                else
+                {
+                    memset(replacement, change ? 'T' : 'F', added);
+                    CHECK(!memcmp(bytes + first, replacement, added));
+                }
+                CHECK(!memcmp(bytes + first + added, initial + 3 * unit, 6 * unit));
+                CHECK(h.notifies == 1 && h.notify_inserted[0] == expected && h.notify_flags[0] == 7 && h.host.dirty);
                 if (kind == MM_TEXT_REPLACE_LOCATION)
-                    CHECK(h.copy == !change &&
-                          (change ? h.notify_translated_refs[0] == 1 : h.notify_file_refs[0] == 2));
+                    CHECK(change ? h.notify_translated_refs[0] == 1 : h.notify_file_refs[0] == 2);
+                released(&h);
                 for (i = 0; i < 4; ++i)
                     for (failure = 0; failure >= -2; --failure)
                     {
+                        if ((!i && failure) || (i == 3 && kind != MM_TEXT_REPLACE_LOCATION))
+                            continue;
                         r_init(&h, unit);
                         q = request(&h, kind);
                         h.change_owner = change;
                         h.host.result = failure;
-                        h.host.fail = i == 0   ? (kind == 0   ? 'b'
-                                                  : kind == 1 ? 'l'
-                                                              : 's')
-                                      : i == 1 ? 'i'
-                                      : i == 2 ? 'n'
-                                               : 'T';
-                        if (i == 3 && kind != MM_TEXT_REPLACE_LOCATION)
-                            continue;
+                        if (!i)
+                            fail_edit(&h, &q);
+                        else
+                            h.host.fail = " inT"[i];
                         r = mm_text_replace_base(unit, &q, &h.s.base);
                         CHECK(r == failure);
+                        if (!i)
+                        {
+                            CHECK(h.stream.length == 9 * unit && !h.notifies);
+                            CHECK(mm_piece_table_read(&h.stream, 0, bytes, h.stream.length) == MM_DATA_OK);
+                            CHECK(!memcmp(bytes, initial, h.stream.length));
+                        }
                         released(&h);
                         if (i == 2)
                             CHECK(h.host.dirty);
@@ -341,19 +382,20 @@ static void rich_cases(void)
                       h.notify_flags[1] == 7);
                 CHECK(h.undo_inserted[0] == (kind == 1 ? (change ? 6 : 4) : 2));
                 if (kind == 1)
-                    CHECK(h.copy == 1 && (change ? (h.notify_translated_refs[0] == 2 && !h.notify_translated_refs[1])
-                                                 : (h.notify_file_refs[0] == 3 && h.notify_file_refs[1] == 1)));
+                    CHECK(change ? (h.notify_translated_refs[0] == 2 && !h.notify_translated_refs[1])
+                                 : (h.notify_file_refs[0] == 3 && h.notify_file_refs[1] == 1));
                 for (i = 0; i < 8; ++i)
                     for (failure = 0; failure >= -2; --failure)
                     {
+                        if ((i == 2 && failure) || (i == 7 && kind != MM_TEXT_REPLACE_LOCATION))
+                            continue;
                         r_init(&h, unit);
                         q = request(&h, kind);
                         h.change_owner = change;
-                        h.host.fail = "UBbijnMT"[i];
                         if (i == 2)
-                            h.host.fail = kind == 0 ? 'b' : kind == 1 ? 'l' : 's';
-                        if (i == 7 && kind != MM_TEXT_REPLACE_LOCATION)
-                            continue;
+                            fail_edit(&h, &q);
+                        else
+                            h.host.fail = "UB ijnMT"[i];
                         h.host.result = failure;
                         r = simple(&h, &q);
                         CHECK(r == failure);
@@ -386,7 +428,8 @@ static void formatted_cases(void)
               h.host.fixed == 0x02000001UL);
         CHECK(h.notify_flags[0] == 0 && h.notify_flags[1] == 0 && h.notify_flags[2] == 7 && h.undo_inserted[0] == 2 &&
               h.undo_inserted[1] == 2);
-        CHECK(strstr(h.host.log, "cFGpARUDUBbivnjMvnk") != 0);
+        CHECK(strstr(h.host.log, "cFGpARUDUBivnjMvnk") != 0);
+        released(&h);
         for (i = 0; i < 8; ++i)
             for (failure = 0; failure >= -2; --failure)
             {
@@ -423,18 +466,21 @@ static void formatted_cases(void)
         CHECK(formatted(&h, &q) == 1 && h.undo_first[0] == 0 && h.undo_end[0] == 6 && h.undo_inserted[0] == 3 &&
               h.host.count == 12);
         CHECK(h.notify_at[2] == 0 && h.notify_inserted[2] == 3 && h.notify_deleted[2] == 6);
+        released(&h);
         r_init(&h, unit);
         q = request(&h, 0);
         q.source = 0;
         q.inserted = 0;
         h.s.has_character = h.s.has_paragraph = 1;
         CHECK(formatted(&h, &q) == 1 && !strchr(h.host.log, 'F') && h.host.count == 0 && h.undos == 2);
+        released(&h);
         r_init(&h, unit);
         q = request(&h, 0);
         q.source = 0;
         h.s.has_character = 1;
         h.characters = 0x00800000L - 2;
         CHECK(formatted(&h, &q) == 0 && h.too_much == 1 && !strchr(h.host.log, 'c') && !h.undos);
+        released(&h);
     }
 }
 static void formatted_locations(void)
@@ -454,7 +500,7 @@ static void formatted_locations(void)
             CHECK(mm_text_replace_formatted_location(unit, h.host.config.text.system, &q, &h.s) == 1);
             released(&h);
             CHECK(h.undos == 2 && h.notifies == 3 && h.forwarded.inserted == 4 * (MMI32)unit &&
-                  h.forwarded.location.bytes == h.translated_bytes && h.copy == !change);
+                  h.forwarded.location.bytes == h.translated_bytes && h.forwarded.copy == !change);
             CHECK(h.undo_inserted[0] == 4 * (MMI32)unit && h.undo_inserted[1] == h.translated_bytes / (MMI32)unit);
             CHECK(h.diagnostics[MM_TEXT_REPLACE_BAD_LOCATION] == (4 * (MMI32)unit * (MMI32)unit != h.translated_bytes));
             CHECK(h.notify_inserted[2] == 4 * (MMI32)unit &&
@@ -473,12 +519,41 @@ static void formatted_locations(void)
             }
         }
 }
+static void long_locations(void)
+{
+    Replacement h;
+    MMTextReplaceRequest q;
+    MMFilePiece piece;
+    int change, mode, copies;
+    for (mode = 0; mode < 3; ++mode)
+        for (change = 0; change < 2; ++change)
+        {
+            r_init(&h, 2);
+            q = request(&h, MM_TEXT_REPLACE_LOCATION);
+            q.source = 0;
+            q.location.bytes = 2048;
+            h.change_owner = change;
+            if (mode == 0)
+                CHECK(mm_text_replace_base(2, &q, &h.s.base) == 1);
+            else if (mode == 1)
+                CHECK(simple(&h, &q) == 1);
+            else
+                CHECK(mm_text_replace_formatted_location(2, h.host.config.text.system, &q, &h.s) == 1);
+            copies = !change || mode == 1;
+            CHECK(h.copy == copies && h.stream.length == 2064);
+            CHECK(mm_piece_table_get(&h.stream, 1, &piece, NULL) == MM_DATA_OK);
+            CHECK(piece.file == (copies ? &h.temporary : &h.translated) && !piece.offset && piece.length == 2048);
+            CHECK(h.file.refs == 1 && h.translated.refs == !copies && h.temporary.refs == copies);
+            released(&h);
+        }
+}
 int main(void)
 {
     base_cases();
     rich_cases();
     formatted_cases();
     formatted_locations();
+    long_locations();
     puts("Text replacement checks passed");
     return 0;
 }

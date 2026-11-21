@@ -1151,7 +1151,8 @@ fetches, paragraph-bound selection and formatting-application transactions now
 also use C89, preserving virtual undo/effect hooks.
 Text cache filling/invalidation, paragraph/word navigation, counted search and
 plain/rich raw/file/stream replacement transactions now also use C89, including
-formatted replacement and translated-file ownership.
+formatted replacement and translated-file ownership. Base edits write directly
+to the C89 piece table through the existing stream owner.
 Rich-document/property copying and embedded-object fetch, dispatch, insertion and
 property edits now also use C89, retaining native partial-failure behavior.
 C89 reads and locks live argument payloads during copy, object fetch, help group

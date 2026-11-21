@@ -18183,3 +18183,23 @@ Both matched their 11 preceding seek canvases. The three visible-caption frames
 retain their retail rendering differences. SDL also kept the edited caption,
 right alignment, Times New Roman font, and visibility window. Logs are in
 `tmp/c89-argument-payload-access`.
+
+## C89 piece-table text edits (21 November 2026)
+
+Raw, file-backed and stream-backed text replacements now edit the C89 piece
+table directly. The replacement fixture checks exact splices at both character
+widths, failure before invalidation, and whether each plain, rich and formatted
+file replacement copies or retains its translated source.
+
+All 192 standalone C checks, six focused AddressSanitizer checks and 16 native
+C89 and Marcus checks passed. Native x64, native x86 and SDL reproduced 21
+binary traces and the text-document and Help display fingerprints from the
+previous build. Studio's authoring workflow reproduced its saved movie byte
+for byte.
+
+In `20261121T062656Z-110bcc9b`, SDL and Marcus matched all 11 frame identities
+in seek and continuous playback, all 11 archived retail seek cameras, and all
+11 of their preceding seek canvases. The three visible-caption frames retain
+their retail rendering differences. SDL also kept the edited caption, right
+alignment, Times New Roman font and visibility window. Logs are in
+`tmp/c89-text-piece-edits`.

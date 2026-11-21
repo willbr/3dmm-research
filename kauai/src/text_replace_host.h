@@ -16,26 +16,7 @@ struct TextDocumentBase::ReplaceHost : DocumentHost
             auto base = h.Base();
             return base.translate(base.context, p, system);
         };
-        s.bytes = [](void *v, void *dest, const void *bytes, MMI32 count, MMI32 at, MMI32 del) -> int {
-            auto &h = *static_cast<ReplaceHost *>(v);
-            return h.Guard([&] {
-                return static_cast<PFileByteStream>(dest)->FReplace(const_cast<void *>(bytes), count, at, del);
-            });
-        };
-        s.location = [](void *v, void *dest, const MMTextLocation *p, int copy, MMI32 at, MMI32 del) -> int {
-            auto &h = *static_cast<ReplaceHost *>(v);
-            return h.Guard([&] {
-                auto location = RichTextStoreHost::Location(*p);
-                return static_cast<PFileByteStream>(dest)->FReplaceFlo(&location, copy != 0, at, del);
-            });
-        };
-        s.stream = [](void *v, void *dest, void *source, MMI32 from, MMI32 count, MMI32 at, MMI32 del) -> int {
-            auto &h = *static_cast<ReplaceHost *>(v);
-            return h.Guard([&] {
-                return static_cast<PFileByteStream>(dest)->FReplaceBsf(static_cast<PFileByteStream>(source), from,
-                                                                       count, at, del);
-            });
-        };
+        s.pieces = [](void *stream) { return static_cast<PFileByteStream>(stream)->CorePieces(); };
         s.invalidate = [](void *v, MMI32 at, MMI32 ins, MMI32 del) -> int {
             auto &h = *static_cast<ReplaceHost *>(v);
             return h.Guard([&] {
