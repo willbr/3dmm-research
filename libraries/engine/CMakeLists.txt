@@ -320,7 +320,7 @@ target_sources(mm-engine-c89 PRIVATE src/text_document.c)
 target_sources(mm-engine-c89 PRIVATE src/text_materialize.c)
 target_sources(mm-engine-c89 PRIVATE src/text_properties.c)
 target_sources(mm-engine-c89 PRIVATE src/text_format.c)
-target_sources(mm-engine-c89 PRIVATE src/text_access.c src/text_replace.c)
+target_sources(mm-engine-c89 PRIVATE src/text_access.c src/byte_text.c src/text_replace.c)
 target_sources(mm-engine-c89 PRIVATE src/text_copy.c)
 target_sources(mm-engine-c89 PRIVATE src/text_undo.c)
 target_sources(mm-engine-c89 PRIVATE src/document_undo.c)
@@ -1343,6 +1343,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_properties.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_format.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_access.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/byte_text.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_replace.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_copy.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_undo.c"

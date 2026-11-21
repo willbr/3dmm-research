@@ -18265,3 +18265,20 @@ canvases and matched the archived retail frame identities in seek and continuous
 playback and all retail seek cameras. The three visible-caption frames still
 differ from retail. SDL retained the caption text, alignment, font and visibility
 window. Logs are in `tmp/c89-byte-document-clipboard`.
+
+## C89 byte-stream editor line cache and index (21 November 2026)
+
+The byte-stream editor reads the C89 piece table and keeps its byte windows
+and visible line offsets in C storage. The text-access fixture checks overlap,
+CR and LF scanning, bounded output, edits and scrolling offsets, recovery
+after index allocation failure, and the inserted-line count when a rebuild
+reaches the end of the document.
+
+All 192 standalone C checks, eight focused AddressSanitizer checks and 16
+native C89 and Marcus checks passed. Native x64, native x86 and SDL reproduced
+27 previous binary traces and the Help display fingerprints. Studio saved the
+same authored movie byte for byte.
+In `20261121T070515Z-e8b9cb0c`, SDL and Marcus reproduced all 11 previous seek
+canvases. Both matched the archived retail frame identities in seek and continuous
+playback and the retail seek cameras. The three frames with a visible caption
+still differ from retail. Logs are in `tmp/c89-byte-line-index`.

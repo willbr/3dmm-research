@@ -17,6 +17,7 @@
 ***************************************************************************/
 #ifndef TEXTDOC_H
 #define TEXTDOC_H
+#include "mm/byte_text.h"
 
 /***************************************************************************
     Text document.  A doc wrapper for a FileByteStream.
@@ -54,7 +55,7 @@ class TextDocumentByteStream : public TextDocumentByteStream_PAR
 /***************************************************************************
     Text document display GraphicsObject - DocumentDisplayGraphicsObject for a TextDocumentByteStream.
 ***************************************************************************/
-const long kcchMaxLine = 512;
+const long kcchMaxLine = MM_BYTE_TEXT_CACHE_BYTES;
 const long kdxpIndentTxdd = 5;
 
 typedef class TextDocumentByteStreamDisplay *PTextDocumentByteStreamDisplay;
@@ -70,7 +71,7 @@ class TextDocumentByteStreamDisplay : public TextDocumentByteStreamDisplay_PAR
     PFileByteStream _pbsf;
     long _clnDisp;
     long _clnDispWhole;
-    PDynamicArray _pglichStarts;
+    MMByteTextView _byteText;
 
     // the selection
     long _ichAnchor;
@@ -87,20 +88,13 @@ class TextDocumentByteStreamDisplay : public TextDocumentByteStreamDisplay_PAR
     long _dypLine;
     long _dxpTab;
 
-    // the cache
-    achar _rgchCache[kcchMaxLine];
-    LegacyLong _ichMinCache;
-    LegacyLong _ichLimCache;
-
     TextDocumentByteStreamDisplay(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont);
     ~TextDocumentByteStreamDisplay(void);
     virtual bool _FInit(void);
     virtual void _NewRc(void);
     virtual void _Activate(bool fActive);
 
-    void _Reformat(long lnMin, long *pclnIns = pvNil, long *pclnDel = pvNil);
-    void _ReformatEdit(long ichMinEdit, long cchIns, long cchDel, long *pln, long *pclnIns = pvNil,
-                       long *pclnDel = pvNil);
+    void _Reformat(long lnMin);
     bool _FFetchCh(long ich, achar *pch);
     void _FetchLineLn(long ln, achar *prgch, long cchMax, long *pcch, long *pichMin = pvNil);
     void _FetchLineIch(long ich, achar *prgch, long cchMax, long *pcch, long *pichMin = pvNil);
@@ -120,11 +114,6 @@ class TextDocumentByteStreamDisplay : public TextDocumentByteStreamDisplay_PAR
     long _IchFromLnXp(long ln, long xp);
     long _IchFromIchXp(long ich, long xp);
     long _IchFromRgchXp(achar *prgch, long cch, long ichMinLine, long xp);
-
-    long *_QichLn(long ln)
-    {
-        return (long *)_pglichStarts->QvGet(ln);
-    }
 
     void _InvalAllTxdd(long ich, long cchIns, long cchDel);
     void _InvalIch(long ich, long cchIns, long cchDel);

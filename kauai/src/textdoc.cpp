@@ -164,7 +164,8 @@ void TextDocumentByteStream::MarkMem(void)
 /***************************************************************************
     Constructor for a text document display gob.
 ***************************************************************************/
-TextDocumentByteStreamDisplay::TextDocumentByteStreamDisplay(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont) : DocumentDisplayGraphicsObject(pdocb, pgcb)
+TextDocumentByteStreamDisplay::TextDocumentByteStreamDisplay(PDocumentBase pdocb, PGraphicsObjectBlock pgcb, PFileByteStream pbsf, long onn, ulong grfont, long dypFont)
+    : DocumentDisplayGraphicsObject(pdocb, pgcb), _byteText{}
 {
     AssertPo(pbsf, 0);
     Assert(vntl.FValidOnn(onn), "bad onn");
@@ -191,7 +192,7 @@ TextDocumentByteStreamDisplay::TextDocumentByteStreamDisplay(PDocumentBase pdocb
 ***************************************************************************/
 TextDocumentByteStreamDisplay::~TextDocumentByteStreamDisplay(void)
 {
-    ReleasePpo(&_pglichStarts);
+    AssertDo(mm_byte_text_dispose(&_byteText), "freeing locked byte-stream view");
 }
 
 /***************************************************************************
@@ -220,16 +221,14 @@ PTextDocumentByteStreamDisplay TextDocumentByteStreamDisplay::PtxddNew(PDocument
 ***************************************************************************/
 bool TextDocumentByteStreamDisplay::_FInit(void)
 {
-    long ib;
-
     if (!TextDocumentByteStreamDisplay_PAR::_FInit())
         return fFalse;
-    if (pvNil == (_pglichStarts = DynamicArray::PglNew(size(long))))
-        return fFalse;
-
-    _pglichStarts->SetMinGrow(20);
-    ib = 0;
-    if (!_pglichStarts->FPush(&ib))
+    const auto allocator = Group::CollectionAllocator();
+    int trash = 0;
+#ifdef DEBUG
+    trash = 1;
+#endif
+    if (!mm_byte_text_init(&_byteText, &allocator, trash))
         return fFalse;
     _Reformat(0);
     AssertThis(0);
@@ -265,113 +264,12 @@ void TextDocumentByteStreamDisplay::_Activate(bool fActive)
 /***************************************************************************
     Find new line starts starting at lnMin.
 ***************************************************************************/
-void TextDocumentByteStreamDisplay::_Reformat(long lnMin, long *pclnIns, long *pclnDel)
+void TextDocumentByteStreamDisplay::_Reformat(long lnMin)
 {
     AssertThis(0);
     AssertIn(lnMin, 0, kcbMax);
-    long ich, ichT;
-    long ln, clnIns, clnDel;
-
-    lnMin = LwMin(lnMin, _pglichStarts->IvMac() - 1);
-    ich = *_QichLn(lnMin);
-    clnIns = clnDel = 0;
-    for (ln = lnMin + 1; ln <= _clnDisp; ln++)
-    {
-        if (!_FFindNextLineStart(ich, &ich))
-        {
-            _pglichStarts->FSetIvMac(ln);
-            return;
-        }
-
-        // delete starts that are before ich
-        for (;;)
-        {
-            if (ln >= _pglichStarts->IvMac())
-                break;
-            ichT = *_QichLn(ln);
-            if (ichT == ich)
-                goto LDone;
-            if (ichT > ich)
-                break;
-            _pglichStarts->Delete(ln);
-            clnDel++;
-        }
-
-        // add the new line start
-        if (!_pglichStarts->FInsert(ln, &ich))
-        {
-            if (ln >= _pglichStarts->IvMac())
-            {
-                Warn("Reformatting failed");
-                return;
-            }
-            *_QichLn(ln) = ich;
-        }
-        clnIns++;
-    }
-
-LDone:
-    // truncate the list of line starts
-    if (_pglichStarts->IvMac() > _clnDisp + 1)
-        _pglichStarts->FSetIvMac(_clnDisp + 1);
-    if (pvNil != pclnIns)
-        *pclnIns = clnIns;
-    if (pvNil != pclnDel)
-        *pclnDel = clnDel;
-}
-
-/***************************************************************************
-    Find new line starts starting at lnMin.
-***************************************************************************/
-void TextDocumentByteStreamDisplay::_ReformatEdit(long ichMinEdit, long cchIns, long cchDel, long *plnNew, long *pclnIns, long *pclnDel)
-{
-    AssertThis(0);
-    AssertIn(ichMinEdit, 0, kcbMax);
-    AssertIn(cchIns, 0, _pbsf->IbMac() - ichMinEdit + 1);
-    AssertIn(cchDel, 0, kcbMax);
-    AssertNilOrVarMem(plnNew);
-    AssertNilOrVarMem(pclnIns);
-    AssertNilOrVarMem(pclnDel);
-    long ich;
-    long ln, clnDel;
-
-    // if the first displayed character was affected, reset it
-    // to a valid line start
-    if (FIn(*_QichLn(0) - 1, ichMinEdit, ichMinEdit + cchDel))
-    {
-        AssertDo(_FFindLineStart(ichMinEdit, &ich), 0);
-        *_QichLn(0) = ich;
-    }
-
-    // skip unaffected lines
-    for (ln = 0; ln < _pglichStarts->IvMac() && *_QichLn(ln) <= ichMinEdit; ln++)
-        ;
-
-    clnDel = 0;
-    if (cchDel > 0)
-    {
-        // remove any deleted lines
-        while (ln < _pglichStarts->IvMac() && *_QichLn(ln) <= ichMinEdit + cchDel)
-        {
-            _pglichStarts->Delete(ln);
-            clnDel++;
-        }
-    }
-
-    if (cchIns != cchDel)
-    {
-        long lnT;
-
-        for (lnT = ln; lnT < _pglichStarts->IvMac(); lnT++)
-            *_QichLn(lnT) += cchIns - cchDel;
-    }
-
-    _Reformat(LwMax(0, ln - 1), pclnIns);
-    _Reformat(_clnDisp);
-    if (pvNil != plnNew)
-        *plnNew = ln;
-    if (pvNil != pclnDel)
-        *pclnDel = clnDel;
+    if (!mm_byte_text_reformat(&_byteText, _pbsf->CorePieces(), lnMin, _clnDisp))
+        Warn("Reformatting failed");
 }
 
 /***************************************************************************
@@ -380,60 +278,13 @@ void TextDocumentByteStreamDisplay::_ReformatEdit(long ichMinEdit, long cchIns, 
 bool TextDocumentByteStreamDisplay::_FFetchCh(long ich, achar *pch)
 {
     AssertThis(0);
-    AssertIn(_ichMinCache, 0, _pbsf->IbMac() + 1);
-    AssertIn(_ichLimCache, _ichMinCache, _pbsf->IbMac() + 1);
-
-    if (!FIn(ich, _ichMinCache, _ichLimCache))
+    unsigned char value;
+    if (!mm_byte_text_fetch(&_byteText, _pbsf->CorePieces(), ich, &value))
     {
-        // not a cache hit
-        long ichMinCache, ichLimCache;
-        long ichLim = _pbsf->IbMac();
-
-        if (!FIn(ich, 0, ichLim))
-        {
-            TrashVar(pch);
-            return fFalse;
-        }
-
-        // need to fetch some characters - try to center ich in the new cached data
-        ichMinCache = LwMax(0, LwMin(ich - size(_rgchCache) / 2, ichLim - size(_rgchCache)));
-        ichLimCache = LwMin(ichLim, ichMinCache + size(_rgchCache));
-        AssertIn(ich, ichMinCache, ichLimCache);
-
-        // see if we can use some of the currently cached characters
-        if (_ichMinCache >= _ichLimCache)
-            goto LFetchAll;
-        if (FIn(_ichMinCache, ich, ichLimCache))
-        {
-            if (ichLimCache > _ichLimCache)
-            {
-                ichLimCache = _ichLimCache;
-                ichMinCache = LwMax(0, ichLimCache - size(_rgchCache));
-            }
-            BltPb(_rgchCache, _rgchCache + (_ichMinCache - ichMinCache), ichLimCache - _ichMinCache);
-            _pbsf->FetchRgb(ichMinCache, _ichMinCache - ichMinCache, _rgchCache);
-        }
-        else if (FIn(_ichLimCache, ichMinCache, ich + 1))
-        {
-            if (ichMinCache < _ichMinCache)
-            {
-                ichMinCache = _ichMinCache;
-                ichLimCache = LwMin(ichLim, ichMinCache + size(_rgchCache));
-            }
-            BltPb(_rgchCache + (ichMinCache - _ichMinCache), _rgchCache, _ichLimCache - ichMinCache);
-            _pbsf->FetchRgb(_ichLimCache, ichLimCache - _ichLimCache, _rgchCache + (_ichLimCache - ichMinCache));
-        }
-        else
-        {
-        LFetchAll:
-            _pbsf->FetchRgb(ichMinCache, ichLimCache - ichMinCache, _rgchCache);
-        }
-        _ichMinCache = ichMinCache;
-        _ichLimCache = ichLimCache;
-        AssertIn(ich, _ichMinCache, _ichLimCache);
+        TrashVar(pch);
+        return fFalse;
     }
-
-    *pch = _rgchCache[ich - _ichMinCache];
+    *pch = static_cast<achar>(value);
     return fTrue;
 }
 
@@ -444,41 +295,14 @@ bool TextDocumentByteStreamDisplay::_FFindLineStart(long ich, long *pich)
 {
     AssertThis(0);
     AssertVarMem(pich);
-    achar ch;
-    long dichLine = 0;
-    long ichOrig = ich;
-
-    if (ich > 0 && _FFetchCh(ich, &ch) && ch == kchLineFeed)
-        dichLine++;
-
-    for (;;)
+    MMI32 first;
+    if (!mm_byte_text_line_start(&_byteText, _pbsf->CorePieces(), ich, &first))
     {
-        if (!_FFetchCh(--ich, &ch))
-        {
-            if (ich == -1)
-            {
-                *pich = 0;
-                return fTrue;
-            }
-            TrashVar(pich);
-            return fFalse;
-        }
-
-        switch (ch)
-        {
-        case kchLineFeed:
-            dichLine++;
-            break;
-        case kchReturn:
-            if ((*pich = ich + 1 + dichLine) <= ichOrig)
-                return fTrue;
-            // fall through
-        default:
-            dichLine = 0;
-            break;
-        }
+        TrashVar(pich);
+        return fFalse;
     }
-    Bug("How did we get here?");
+    *pich = first;
+    return fTrue;
 }
 
 /***************************************************************************
@@ -491,59 +315,21 @@ bool TextDocumentByteStreamDisplay::_FFindNextLineStart(long ich, long *pich, ac
     AssertThis(0);
     AssertVarMem(pich);
     AssertIn(cchMax, 0, kcbMax);
-    achar ch;
-    bool fCr = fFalse;
-
-    if (pvNil != prgch)
-        AssertPvCb(prgch, cchMax);
-    else
-        cchMax = 0;
-
-    for (;; ich++)
+    if (prgch)
+        AssertPvCb(prgch, cchMax * size(achar));
+    MMI32 next;
+    if (!mm_byte_text_next_line(&_byteText, _pbsf->CorePieces(), ich, &next, prgch, cchMax, sizeof(achar)))
     {
-        if (!_FFetchCh(ich, &ch))
-        {
-            if (fCr && ich == _pbsf->IbMac())
-            {
-                *pich = ich;
-                return fTrue;
-            }
-            TrashVar(pich);
-            return fFalse;
-        }
-
-        switch (ch)
-        {
-        case kchLineFeed:
-            break;
-        case kchReturn:
-            if (!fCr)
-            {
-                fCr = fTrue;
-                break;
-            }
-            // fall through
-        default:
-            if (fCr)
-            {
-                *pich = ich;
-                return fTrue;
-            }
-            break;
-        }
-
-        if (cchMax > 0)
-        {
-            *prgch++ = ch;
-            cchMax--;
-        }
+        TrashVar(pich);
+        return fFalse;
     }
-    Bug("how did we get here?");
+    *pich = next;
+    return fTrue;
 }
 
 /***************************************************************************
     Find the start of the line that ich is on.  This routine assumes
-    that _pglichStarts is valid and tries to use it.
+    that the visible line index is valid and tries to use it.
 ***************************************************************************/
 bool TextDocumentByteStreamDisplay::_FFindLineStartCached(long ich, long *pich)
 {
@@ -552,7 +338,7 @@ bool TextDocumentByteStreamDisplay::_FFindLineStartCached(long ich, long *pich)
 
     if (FIn(ln, 0, _clnDisp))
     {
-        *pich = *_QichLn(ln);
+        *pich = _IchMinLn(ln);
         return fTrue;
     }
     return _FFindLineStart(ich, pich);
@@ -570,9 +356,9 @@ bool TextDocumentByteStreamDisplay::_FFindNextLineStartCached(long ich, long *pi
     {
         long ln = _LnFromIch(ich);
 
-        if (FIn(ln, 0, _pglichStarts->IvMac() - 1))
+        if (FIn(ln, 0, _byteText.lines.count - 1))
         {
-            *pich = *_QichLn(ln + 1);
+            *pich = _IchMinLn(ln + 1);
             return fTrue;
         }
     }
@@ -601,10 +387,10 @@ void TextDocumentByteStreamDisplay::Draw(PGraphicsEnvironment pgnv, RC *prcClip)
     pgnv->SetFont(_onn, _grfont, _dypFont);
     ln = rc.ypTop / _dypLine;
     yp = LwMul(ln, _dypLine);
-    lnLim = LwMin(_pglichStarts->IvMac(), LwDivAway(rc.ypBottom, _dypLine));
+    lnLim = LwMin(_byteText.lines.count, LwDivAway(rc.ypBottom, _dypLine));
     for (; ln < lnLim; yp += _dypLine)
     {
-        _FetchLineLn(ln++, rgch, size(rgch), &cchDraw);
+        _FetchLineLn(ln++, rgch, kcchMaxLine, &cchDraw);
         _DrawLine(pgnv, prcClip, yp, rgch, cchDraw);
     }
     rc.ypTop = yp;
@@ -624,7 +410,8 @@ void TextDocumentByteStreamDisplay::_FetchLineLn(long ln, achar *prgch, long cch
     ichMin = _IchMinLn(ln);
     ichLim = _IchMinLn(ln + 1);
     *pcch = LwMin(cchMax, ichLim - ichMin);
-    _pbsf->FetchRgb(ichMin, *pcch, prgch);
+    const int result = mm_byte_text_read(_pbsf->CorePieces(), ichMin, *pcch, prgch, sizeof(achar));
+    Assert(result == MM_DATA_OK || result == MM_DATA_IO, "invalid line fetch");
     if (pvNil != pichMin)
         *pichMin = ichMin;
 }
@@ -777,7 +564,7 @@ void TextDocumentByteStreamDisplay::_Scroll(long scaHorz, long scaVert, long scv
         long cln;
         long ichT;
 
-        ichMin = *_QichLn(0);
+        ichMin = _IchMinLn(0);
         switch (scaVert)
         {
         default:
@@ -805,9 +592,9 @@ void TextDocumentByteStreamDisplay::_Scroll(long scaHorz, long scaVert, long scv
         case scaLineDown:
             cln = 1;
         LDown:
-            cln = LwMin(cln, _pglichStarts->IvMac() - 1);
+            cln = LwMin(cln, _byteText.lines.count - 1);
             dyp = LwMul(cln, _dypLine);
-            ichMinNew = *_QichLn(cln);
+            ichMinNew = _IchMinLn(cln);
             break;
 
         case scaPageUp:
@@ -827,7 +614,7 @@ void TextDocumentByteStreamDisplay::_Scroll(long scaHorz, long scaVert, long scv
         _scvVert = ichMinNew;
         if (ichMinNew != ichMin)
         {
-            *_QichLn(0) = ichMinNew;
+            mm_byte_text_set_first_line(&_byteText, ichMinNew);
             _Reformat(0);
             _Reformat(_clnDisp);
         }
@@ -1035,24 +822,7 @@ void TextDocumentByteStreamDisplay::_InvertIchRange(PGraphicsEnvironment pgnv, l
 long TextDocumentByteStreamDisplay::_LnFromIch(long ich)
 {
     AssertThis(0);
-    long lnMin, lnLim, ln;
-    long ichT;
-
-    lnMin = 0;
-    lnLim = LwMin(_clnDisp + 1, _pglichStarts->IvMac());
-    while (lnMin < lnLim)
-    {
-        ln = (lnMin + lnLim) / 2;
-        ichT = *_QichLn(ln);
-        if (ichT < ich)
-            lnMin = ln + 1;
-        else if (ichT > ich)
-            lnLim = ln;
-        else
-            return ln;
-    }
-
-    return lnMin - 1;
+    return mm_byte_text_line_index(&_byteText, ich, _clnDisp);
 }
 
 /***************************************************************************
@@ -1062,14 +832,7 @@ long TextDocumentByteStreamDisplay::_LnFromIch(long ich)
 long TextDocumentByteStreamDisplay::_IchMinLn(long ln)
 {
     AssertThis(0);
-    long ich;
-
-    if (ln < 0)
-        return 0;
-    if (ln >= _pglichStarts->IvMac())
-        return _pbsf->IbMac();
-    ich = *_QichLn(ln);
-    return ich;
+    return mm_byte_text_line_at(&_byteText, ln, _pbsf->CorePieces()->length);
 }
 
 /***************************************************************************
@@ -1083,11 +846,11 @@ long TextDocumentByteStreamDisplay::_XpFromLnIch(PGraphicsEnvironment pgnv, long
     long cch, ichT;
     achar rgch[kcchMaxLine];
 
-    if (!FIn(ln, 0, LwMin(_clnDisp, _pglichStarts->IvMac())))
+    if (!FIn(ln, 0, LwMin(_clnDisp, _byteText.lines.count)))
         return 0;
 
-    ichT = *_QichLn(ln);
-    _FetchLineLn(ln, rgch, LwMin(ich - ichT, size(rgch)), &cch);
+    ichT = _IchMinLn(ln);
+    _FetchLineLn(ln, rgch, LwMin(ich - ichT, kcchMaxLine), &cch);
     return _XpFromRgch(pgnv, rgch, cch);
 }
 
@@ -1105,8 +868,9 @@ long TextDocumentByteStreamDisplay::_XpFromIch(long ich)
 
     GraphicsEnvironment gnv(this);
 
-    cch = LwMin(size(rgch), ich - ichMin);
-    _pbsf->FetchRgb(ichMin, cch, rgch);
+    cch = LwMin(kcchMaxLine, ich - ichMin);
+    const int result = mm_byte_text_read(_pbsf->CorePieces(), ichMin, cch, rgch, sizeof(achar));
+    Assert(result == MM_DATA_OK || result == MM_DATA_IO, "invalid line fetch");
     return _XpFromRgch(&gnv, rgch, cch);
 }
 
@@ -1179,7 +943,7 @@ long TextDocumentByteStreamDisplay::_IchFromLnXp(long ln, long xp)
     if (ln < 0)
         return 0;
 
-    _FetchLineLn(ln, rgch, size(rgch), &cch, &ichMin);
+    _FetchLineLn(ln, rgch, kcchMaxLine, &cch, &ichMin);
     return _IchFromRgchXp(rgch, cch, ichMin, xp);
 }
 
@@ -1193,7 +957,7 @@ long TextDocumentByteStreamDisplay::_IchFromIchXp(long ich, long xp)
     long ichMin, cch;
     achar rgch[kcchMaxLine];
 
-    _FetchLineIch(ich, rgch, size(rgch), &cch, &ichMin);
+    _FetchLineIch(ich, rgch, kcchMaxLine, &cch, &ichMin);
     return _IchFromRgchXp(rgch, cch, ichMin, xp);
 }
 
@@ -1610,7 +1374,7 @@ void TextDocumentByteStreamDisplay::_InvalIch(long ich, long cchIns, long cchDel
     Assert(!_fSelOn, "why is the sel on during an invalidation?");
     RC rcLoc, rc;
     LegacyLong ichAnchor, ichOther;
-    long lnNew, clnIns, clnDel;
+    MMI32 lnNew, clnIns, clnDel;
     long yp, dypIns, dypDel;
 
     // adjust the sel
@@ -1621,19 +1385,10 @@ void TextDocumentByteStreamDisplay::_InvalIch(long ich, long cchIns, long cchDel
     if (ichAnchor != _ichAnchor || ichOther != _ichOther)
         SetSel(ichAnchor, ichOther, fFalse);
 
-    // adjust the cache
-    if (_ichLimCache > _ichMinCache)
-    {
-        if (FPure(_ichLimCache <= ich) != FPure(_ichMinCache <= ich) ||
-            FPure(_ichLimCache >= ich + cchDel) != FPure(_ichMinCache >= ich + cchDel) ||
-            !FAdjustIv(&_ichLimCache, ich, cchIns, cchDel) || !FAdjustIv(&_ichMinCache, ich, cchIns, cchDel))
-        {
-            _ichMinCache = _ichLimCache = 0;
-        }
-    }
-
-    // reformat
-    _ReformatEdit(ich, cchIns, cchDel, &lnNew, &clnIns, &clnDel);
+    mm_byte_text_invalidate(&_byteText, ich, cchIns, cchDel);
+    if (!mm_byte_text_reformat_edit(&_byteText, _pbsf->CorePieces(), _clnDisp, ich, cchIns, cchDel,
+                                   &lnNew, &clnIns, &clnDel))
+        Warn("Reformatting failed");
     if (lnNew > 0)
     {
         lnNew--;
@@ -1761,7 +1516,8 @@ void TextDocumentByteStreamDisplay::AssertValid(LegacyUlong grf)
     // REVIEW shonk: fill in more
     TextDocumentByteStreamDisplay_PAR::AssertValid(0);
     AssertPo(_pbsf, 0);
-    AssertPo(_pglichStarts, 0);
+    Assert(_byteText.lines.count > 0, "missing byte-stream line starts");
+    AssertPvAlloced(_byteText.storage.buffers[0].data, _byteText.storage.buffers[0].capacity);
 }
 
 /***************************************************************************
@@ -1772,6 +1528,6 @@ void TextDocumentByteStreamDisplay::MarkMem(void)
     AssertValid(0);
     TextDocumentByteStreamDisplay_PAR::MarkMem();
     MarkMemObj(_pbsf);
-    MarkMemObj(_pglichStarts);
+    MarkPv(_byteText.storage.buffers[0].data);
 }
 #endif // DEBUG

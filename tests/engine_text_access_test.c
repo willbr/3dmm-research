@@ -1,4 +1,5 @@
 #include "mm/text_access.h"
+#include "mm/byte_text.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -524,6 +525,114 @@ static void searches(void)
             }
     dispose(&h);
 }
+static void byte_line_index(void)
+{
+    Host h = {0};
+    MMByteTextView view;
+    MMI32 at, changed, added, removed, i;
+    unsigned short wide[6];
+    static const MMI32 starts[] = {0, 0, 0, 0, 4, 4, 4, 4, 8, 8, 10, 10};
+    static const char input[] = "A\r\n\nB\nC\r\r\nD";
+    init(&h, 1);
+    h.characters = sizeof(input) - 1;
+    memcpy(h.text, input, sizeof(input) - 1);
+    open_pieces(&h);
+    CHECK(mm_byte_text_init(&view, NULL, 1));
+    for (i = 0; i <= h.characters; ++i)
+        CHECK(mm_byte_text_line_start(&view, &h.pieces, i, &at) && at == starts[i]);
+    CHECK(!mm_byte_text_line_start(&view, &h.pieces, -1, &at) && at == 10);
+    CHECK(!mm_byte_text_line_start(&view, &h.pieces, h.characters + 1, &at) && at == 10);
+    wide[3] = 123;
+    CHECK(mm_byte_text_next_line(&view, &h.pieces, 0, &at, wide, 3, 2) && at == 4);
+    CHECK(wide[0] == 'A' && wide[1] == 13 && wide[2] == 10 && wide[3] == 123);
+    CHECK(!mm_byte_text_next_line(&view, &h.pieces, 10, &at, wide, 3, 2) && at == 4 && wide[0] == 'D');
+    CHECK(mm_byte_text_read(&h.pieces, 7, 4, wide, 2) == MM_DATA_OK);
+    CHECK(wide[0] == 13 && wide[1] == 13 && wide[2] == 10 && wide[3] == 'D');
+
+    CHECK(mm_byte_text_reformat(&view, &h.pieces, 0, 6) && view.lines.count == 4);
+    CHECK(mm_byte_text_line_at(&view, -1, 11) == 0 && mm_byte_text_line_at(&view, 4, 11) == 11);
+    CHECK(mm_byte_text_line_index(&view, -1, 6) == -1 && mm_byte_text_line_index(&view, 9, 6) == 2);
+    CHECK(mm_byte_text_line_at(&view, 1, 11) == 4 && mm_byte_text_line_at(&view, 3, 11) == 10);
+
+    CHECK(mm_piece_table_replace(&h.pieces, 11, 0, "\r", 1) == MM_DATA_OK);
+    mm_byte_text_invalidate(&view, 11, 1, 0);
+    CHECK(view.cache_first == view.cache_end);
+    CHECK(mm_byte_text_reformat_edit(&view, &h.pieces, 6, 11, 1, 0, &changed, &added, &removed));
+    CHECK(changed == 4 && added == 1 && !removed && view.lines.count == 5 && mm_byte_text_line_at(&view, 4, 0) == 12);
+    CHECK(mm_piece_table_replace(&h.pieces, 1, 3, NULL, 0) == MM_DATA_OK);
+    mm_byte_text_invalidate(&view, 1, 0, 3);
+    CHECK(mm_byte_text_reformat_edit(&view, &h.pieces, 6, 1, 0, 3, &changed, &added, &removed));
+    CHECK(changed == 1 && !added && removed == 1 && view.lines.count == 4);
+    CHECK(mm_byte_text_line_at(&view, 1, 0) == 5 && mm_byte_text_line_at(&view, 3, 0) == 9);
+    mm_byte_text_set_first_line(&view, 5);
+    CHECK(mm_byte_text_reformat(&view, &h.pieces, 0, 2) && view.lines.count == 3);
+    CHECK(mm_byte_text_line_at(&view, 0, 0) == 5 && mm_byte_text_line_at(&view, 1, 0) == 7);
+    CHECK(mm_byte_text_dispose(&view));
+    dispose(&h);
+}
+static void byte_cache_windows(void)
+{
+    Host h = {0};
+    MMByteTextView view;
+    unsigned char ch = 0;
+    init(&h, 1);
+    open_pieces(&h);
+    CHECK(mm_byte_text_init(&view, NULL, 0));
+    CHECK(mm_byte_text_fetch(&view, &h.pieces, 0, &ch) && ch == 'A' && h.fetches == 1);
+    CHECK(!mm_byte_text_fetch(&view, &h.pieces, h.characters, &ch) && ch == 'A' && h.fetches == 1);
+    CHECK(mm_byte_text_fetch(&view, &h.pieces, 700, &ch) && h.fetch_at == 512 && h.fetch_bytes == 444);
+    CHECK(view.cache_first == 444 && view.cache_end == 956 && !memcmp(view.cache, (char *)h.text + 444, 512));
+    CHECK(mm_byte_text_fetch(&view, &h.pieces, 400, &ch) && h.fetch_at == 144 && h.fetch_bytes == 300);
+    CHECK(view.cache_first == 144 && view.cache_end == 656 && !memcmp(view.cache, (char *)h.text + 144, 512));
+    mm_byte_text_invalidate(&view, 50, 2, 1);
+    CHECK(view.cache_first == 145 && view.cache_end == 657);
+    mm_byte_text_invalidate(&view, 657, 1, 0);
+    CHECK(view.cache_first == 0 && view.cache_end == 0);
+    h.fail_fetch = h.fetches + 1;
+    CHECK(mm_byte_text_fetch(&view, &h.pieces, 1000, &ch) && ch == 0xa3);
+    CHECK(view.cache_first == 744 && view.cache_end == 1256);
+    CHECK(mm_byte_text_dispose(&view));
+    dispose(&h);
+}
+static void *resize_lines(void *v, void *old, MMU32 before, MMU32 after, int priority)
+{
+    (void)before;
+    (void)priority;
+    return *(int *)v ? NULL : realloc(old, after);
+}
+static void free_lines(void *v, void *p, MMU32 bytes)
+{
+    (void)v;
+    (void)bytes;
+    free(p);
+}
+static void byte_index_failure(void)
+{
+    Host h = {0};
+    MMByteTextView view;
+    MMStorageAllocator allocator;
+    int fail = 0;
+    MMI32 i, partial;
+    init(&h, 1);
+    h.characters = 128;
+    memset(h.text, 13, h.characters);
+    open_pieces(&h);
+    allocator.context = &fail;
+    allocator.resize = resize_lines;
+    allocator.release = free_lines;
+    CHECK(mm_byte_text_init(&view, &allocator, 1));
+    fail = 1;
+    CHECK(!mm_byte_text_reformat(&view, &h.pieces, 0, 100));
+    partial = view.lines.count;
+    CHECK(partial > 1 && partial < 100);
+    for (i = 0; i < partial; ++i)
+        CHECK(mm_byte_text_line_at(&view, i, -1) == i);
+    fail = 0;
+    CHECK(mm_byte_text_reformat(&view, &h.pieces, partial - 1, 100) && view.lines.count == 101);
+    CHECK(mm_byte_text_line_at(&view, 100, -1) == 100);
+    CHECK(mm_byte_text_dispose(&view));
+    dispose(&h);
+}
 int main(void)
 {
     fills();
@@ -531,6 +640,9 @@ int main(void)
     invalidations();
     navigation();
     searches();
+    byte_line_index();
+    byte_cache_windows();
+    byte_index_failure();
     puts("Text access checks passed");
     return 0;
 }

@@ -2987,6 +2987,14 @@ remain work. Evidence and platform limits are in
 
 ### Text access, navigation and replacement
 
+The byte-stream editor uses `byte_text.c` for its 512-byte cache, CR/LF line
+scanning, direct line reads and visible line starts. A C array owns the 32-bit
+byte offsets. Viewport changes and edits rebuild that index through C89. The
+cache keeps the original overlap and invalidation rules, and line reads can
+widen raw bytes for the native renderer. Allocation failure leaves the valid
+prefix of the line index available for a later retry. Native code still owns
+selection, graphics and view notifications.
+
 `text_access.c` controls the 512-character stream cache, edit invalidation,
 character/block reads, paragraph/word navigation and counted literal search.
 The document holds the cache range and unit in a persistent C record. The C
