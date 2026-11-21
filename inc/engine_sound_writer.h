@@ -9,6 +9,7 @@ struct EngineSoundWriter
 {
     PChunkyFile file;
     DataBlock child;
+    MMBlockIO child_io{};
 
     MMSoundWriteServices Services()
     {
@@ -23,10 +24,8 @@ struct EngineSoundWriter
                 ChunkNumber number;
                 if (!writer.file->FAddChild(MM_SOUND_TYPE, parent, slot, bytes, type, &number, &writer.child))
                     return 0;
-                *out = {&writer.child, bytes, [](void *block, MMU32 offset, const void *data, size_t count) -> int {
-                    return static_cast<PDataBlock>(block)->FWriteRgb(const_cast<void *>(data), count, offset);
-                }};
-                return 1;
+                return mm_owned_block_io(writer.child.CoreBlock(), &writer.child_io) == MM_DATA_OK &&
+                       mm_block_io_writer(&writer.child_io, out) == MM_DATA_OK;
             },
             [](void *p, MMU32 number, const void *name) -> int {
                 return static_cast<EngineSoundWriter *>(p)->file->FSetName(

@@ -51,14 +51,6 @@ int mm_sound_read_header(const MMMovieSessionGraph *graph, const MMChunkEntry *e
     return MM_MOVIE_OK;
 }
 
-static int find_sound(const MMMovieSessionGraph *graph, MMU32 type, MMU32 number,
-                      MMChunkAccess *chunks, MMU32 *position, MMChunkEntry *entry)
-{
-    graph->access(graph->context, chunks);
-    return mm_chunk_find(chunks, type, number, position) == MM_CHUNK_OK &&
-           mm_chunk_at(chunks, *position, entry) == MM_CHUNK_OK;
-}
-
 int mm_sound_catalog_style(const MMMovieSessionGraph *graph, MMU32 number, int host_big_endian, MMI32 *style)
 {
     MMChunkAccess chunks;
@@ -66,7 +58,9 @@ int mm_sound_catalog_style(const MMMovieSessionGraph *graph, MMU32 number, int h
     MMChunkChild child;
     MMSoundHeader header;
     MMU32 parent, i;
-    if (!find_sound(graph, MM_SOUND_TYPE, number, &chunks, &parent, &entry) ||
+    graph->access(graph->context, &chunks);
+    if (mm_chunk_find(&chunks, MM_SOUND_TYPE, number, &parent) != MM_CHUNK_OK ||
+        mm_chunk_at(&chunks, parent, &entry) != MM_CHUNK_OK ||
         mm_sound_read_header(graph, &entry, host_big_endian, &header) != MM_MOVIE_OK ||
         header.invalid || header.style < MM_SOUND_STYLE_EFFECT || header.style > MM_SOUND_STYLE_MUSIC)
         return 0;
@@ -93,7 +87,29 @@ static void encode_header(unsigned char b[MM_SOUND_HEADER_BYTES], MMI32 style, M
     put(b + 8, 4, (MMU32)volume, host_big_endian);
     b[12] = (unsigned char)(invalid != 0);
 }
-int mm_sound_read(void *object, void *file, MMU32 type, MMU32 number, const MMSoundResourceServices *s)
+static int read_cached_header(MMResourceCache *cache, MMU32 type, MMU32 number, MMSoundHeader *out,
+                              const MMSoundResourceServices *s)
+{
+    SoundHeaderRead read = {0};
+    MMOwnedBlock block;
+    MMBlockIO io;
+    MMReadStream stream;
+    int status = MM_MOVIE_BAD_FILE;
+    if (mm_owned_block_init(&block, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
+        return status;
+    read.host_big_endian = s->host_big_endian;
+    if (mm_resource_cache_read_block(cache, type, number, &block) == MM_CHUNK_OK &&
+        mm_owned_block_code(&block, 0, s->context, s->decode, NULL) == MM_DATA_OK &&
+        mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_io_stream(&io, &stream) == MM_DATA_OK)
+        status = read_header(&read, &stream);
+    mm_owned_block_clear(&block);
+    if (status == MM_MOVIE_OK)
+        *out = read.header;
+    return status;
+}
+
+static int read_sound(void *object, void *file, MMResourceCache *cache, MMU32 type, MMU32 number,
+                      const MMSoundResourceServices *s)
 {
     MMMovieSessionGraph graph;
     MMChunkAccess chunks;
@@ -102,13 +118,29 @@ int mm_sound_read(void *object, void *file, MMU32 type, MMU32 number, const MMSo
     MMSoundOwner owner;
     MMChunkChild child;
     MMU32 position;
-    s->graph(s->context, file, &graph);
-    if (!find_sound(&graph, type, number, &chunks, &position, &entry) ||
-        mm_sound_read_header(&graph, &entry, s->host_big_endian, &decoded) != MM_MOVIE_OK)
+    int status;
+    if (cache)
+        chunks = mm_resource_cache_chunks(cache);
+    else
+    {
+        s->graph(s->context, file, &graph);
+        graph.access(graph.context, &chunks);
+    }
+    if (mm_chunk_find(&chunks, type, number, &position) != MM_CHUNK_OK)
+        return 0;
+    if (cache)
+        status = read_cached_header(cache, type, number, &decoded, s);
+    else
+    {
+        if (mm_chunk_at(&chunks, position, &entry) != MM_CHUNK_OK)
+            return 0;
+        status = mm_sound_read_header(&graph, &entry, s->host_big_endian, &decoded);
+    }
+    if (status != MM_MOVIE_OK)
         return 0;
     if (!decoded.valid_order && s->bad_order)
         s->bad_order(s->context);
-    if (!s->read_name(s->context, file, type, number, object))
+    if (!s->read_name(s->context, file, cache, type, number, object))
         return 0;
     s->owner(s->context, object, &owner);
     owner.resource->style = decoded.style;
@@ -126,12 +158,17 @@ int mm_sound_read(void *object, void *file, MMU32 type, MMU32 number, const MMSo
         *owner.silent = 1;
     return 1;
 }
-int mm_sound_fetch(void *cache,MMU32 type,MMU32 number,void *object_out,void *size_out,const MMSoundResourceServices *s)
+int mm_sound_read(void *object, void *file, MMU32 type, MMU32 number, const MMSoundResourceServices *s)
+{
+    return read_sound(object, file, NULL, type, number, s);
+}
+int mm_sound_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, void *object_out, void *size_out,
+                   const MMSoundResourceServices *s)
 {
     void *object; MMI32 bytes; MMSoundOwner o;
     bytes=s->object_size(s->context); memcpy(size_out,&bytes,4); if (!object_out) return 1;
     object=s->create(s->context);
-    if (!object || !mm_sound_read(object,s->file(s->context,cache),type,number,s))
+    if (!object || !read_sound(object, NULL, cache, type, number, s))
     {
         s->invalidate_output(s->context,object_out,sizeof(object)); s->invalidate_output(s->context,size_out,4);
         if (object) s->release(s->context,object); return 0;
@@ -188,26 +225,27 @@ int mm_sound_import_midi(const MMReadStream *source, const void *name, MMU32 *nu
     return result;
 }
 
-int mm_sound_invalidate(void *object, const MMSoundResourceServices *s)
+int mm_sound_invalidate(void *object, const MMResourceObject *binding, const MMSoundResourceServices *s)
 {
-    MMMovieSessionGraph graph;
+    MMResourceCache *cache = binding->cache;
     MMChunkAccess chunks;
     MMChunkChild child;
     MMSoundOwner owner;
     void *file;
-    MMU32 type, number, position;
+    MMU32 position;
     unsigned char b[MM_SOUND_HEADER_BYTES];
-    s->binding(s->context, object, &file, &type, &number);
-    s->graph(s->context, file, &graph);
-    graph.access(graph.context, &chunks);
-    if (mm_chunk_find(&chunks, MM_SOUND_TYPE, number, &position) != MM_CHUNK_OK ||
+    if (!cache || !cache->file)
+        return 0;
+    file = cache->file;
+    chunks = mm_resource_cache_chunks(cache);
+    if (mm_chunk_find(&chunks, MM_SOUND_TYPE, binding->number, &position) != MM_CHUNK_OK ||
         mm_chunk_child_type(&chunks, position, 0, 0, &child) != MM_CHUNK_OK)
         return 0;
     s->owner(s->context, object, &owner);
     encode_header(b, owner.resource->style, owner.resource->volume, 1, s->host_big_endian, s->system);
-    if (!s->put(s->context, file, type, number, b))
+    if (!s->put(s->context, file, binding->type, binding->number, b))
         return 0;
-    s->delete_child(s->context, file, type, number, &child);
+    s->delete_child(s->context, file, binding->type, binding->number, &child);
     *owner.invalid = 1;
     return 1;
 }

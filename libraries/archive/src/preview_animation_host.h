@@ -28,7 +28,7 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.graph = [](void *, void *f, MMMovieSessionGraph *out) {
             *out = *static_cast<const MMMovieSessionGraph *>(f);
         };
-        s.read_name = [](void *, void *, MMU32, MMU32, void *) { return 1; };
+        s.read_name = [](void *, void *, MMResourceCache *, MMU32, MMU32, void *) { return 1; };
         s.owner = [](void *v, void *, MMSoundOwner *out) {
             auto &h = *static_cast<AnimationHost *>(v);
             *out = {&h.sound, &h.silent, &h.invalid};

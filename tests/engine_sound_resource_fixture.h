@@ -28,7 +28,7 @@ class SoundResourceFixtureAccess : public MovieSoundMSND
         auto record=[&](const void *p,size_t n) { return !out || std::fwrite(p,1,n,out)==n; };
         auto field=&SoundResourceFixtureAccess::_resource; auto &r=o->*field;
         auto silent=&SoundResourceFixtureAccess::_silent; auto invalid=&SoundResourceFixtureAccess::_invalid; auto name=&SoundResourceFixtureAccess::_stn;
-        LegacyLong values[]={static_cast<LegacyLong>(r.type),static_cast<LegacyLong>(r.number),r.cache?(r.cache==cache?1:2):0,r.style,r.volume,o->*silent,o->*invalid,(o->*name).Cch()};
+        LegacyLong values[]={static_cast<LegacyLong>(r.type),static_cast<LegacyLong>(r.number),r.cache?(cache && r.cache==cache->CoreCache()?1:2):0,r.style,r.volume,o->*silent,o->*invalid,(o->*name).Cch()};
         return record(values,sizeof(values)) && record((o->*name).Psz(),(o->*name).Cch());
     }
 };
@@ -79,6 +79,54 @@ static bool TestSoundResourceDispatch()
     vpsndm=previous; ReleasePpo(&sound); ReleasePpo(&manager);
     std::fprintf(stderr,"[sound dispatch] cases=%d\n",cases); return ok && cases==96;
 }
+static bool TestIndexedSoundResource()
+{
+    auto file = ChunkyFile::PcflCreateTemp();
+    byte payload = 0;
+    MovieSoundFile header = {kboCur, koskCur, stySpeech, 0x12345, false};
+    ChunkNumber number = 0, child = 0;
+    String name;
+    name.SetSzs(PszLit("Indexed sound"));
+    bool ok = file && file->FAddPv(&header, sizeof(header), kctgMsnd, &number) &&
+              file->FSetName(kctgMsnd, number, &name) &&
+              file->FAddChildPv(kctgMsnd, number, 0, &payload, sizeof(payload), kctgWave, &child) &&
+              file->FSave(kctgSoc);
+    PFileObject backing = nullptr;
+    if (ok)
+    {
+        Filename path;
+        file->GetFni(&path);
+        backing = FileObject::PfilOpen(&path);
+    }
+    PChunkyResourceFile cache = nullptr;
+    if (backing)
+    {
+        const unsigned short order = 1;
+        MMChunkPolicy policy = {};
+#ifdef CHUNK_BIG_INDEX
+        policy.expanded_runtime = 1;
+#endif
+        policy.native_big_endian = !*reinterpret_cast<const unsigned char *>(&order);
+        policy.max_name_bytes = kcbMaxDataStn;
+        const auto stream = backing->ReadStream();
+        MMChunkIndex *index;
+        if (mm_chunk_index_open(&stream, &policy, &index) == MM_CHUNK_OK)
+        {
+            cache = ChunkyResourceFile::PcrfNewIndex(index, backing, 1024);
+            mm_chunk_index_close(index);
+        }
+    }
+    auto sound = cache ? static_cast<PMovieSoundMSND>(cache->PbacoFetch(kctgMsnd, number, MovieSoundMSND::FReadMsnd)) : nullptr;
+    ok = cache && !cache->Pcfl() && sound && sound->Pstn()->FEqual(&name) &&
+         sound->FValid() && sound->FNoSound() == tNo && sound->Sty() == stySpeech &&
+         sound->Vlm() == 0x12345 && !sound->FInvalidate() && sound->FValid();
+    ReleasePpo(&sound);
+    ReleasePpo(&cache);
+    ReleasePpo(&backing);
+    ReleasePpo(&file);
+    return ok;
+}
+
 static bool TestSoundResources()
 {
     FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_SOUND_RESOURCE_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
@@ -215,6 +263,7 @@ static bool TestSoundResources()
 #else
     ok=ok && loaded==540 && written==192 && copied==96 && invalidated==36;
 #endif
-    if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok && attempts==1320 && loaded && written && copied && invalidated;
+    if (snapshot) ok=std::fclose(snapshot)==0 && ok;
+    return ok && attempts==1320 && loaded && written && copied && invalidated && TestIndexedSoundResource();
 }
 #endif

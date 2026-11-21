@@ -6248,10 +6248,14 @@ MIDI/WAVE envelope and child writing, MIDI import orchestration, invalidation,
 tool priorities/classes and playback dispatch. `MMSoundResource` holds the
 weak source cache, child identity, style and volume. Separate C silent/invalid
 slots preserve the native String placement and 328-byte x64 cache estimate
-without packing pointers. Native adapters still supply object/String/block/
-chunk/file/HQ transfer and sound-device operations. MIDI parsing, sound payload
-factories and physical WAVE import policy now use the following C modules;
-temporary native facades still remain in the unfinished full C89 backend.
+without packing pointers. The cached loader resolves the current MSND key and
+its slot-zero child through the C89 resource cache. It reads and decodes the
+header through an owned C block, so both mutable archives and read-only wire
+indices can supply cached sounds. Direct loads and catalog queries share that
+header decoder through the movie graph. Invalidation requires a mutable cache
+binding. Native sound authoring supplies a borrowed C block writer for the
+child payload. The hosts supply objects, names, physical file and codec
+services, and sound-device operations.
 
 The reader retains native foreign-header semantics: only the order/system
 markers swap; style and volume remain in native byte order because the original

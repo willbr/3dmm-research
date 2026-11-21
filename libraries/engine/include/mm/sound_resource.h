@@ -4,6 +4,7 @@
 #define MM_ENGINE_SOUND_RESOURCE_H
 #include "chunky_file.h"
 #include "collection_storage.h"
+#include "resource_cache.h"
 #include <stddef.h>
 #ifdef __cplusplus
 extern "C" {
@@ -29,7 +30,7 @@ int mm_sound_catalog_style(const struct MMMovieSessionGraph *, MMU32 number, int
 typedef struct MMSoundResource
 {
     MMU32 type,number;
-    void *cache;
+    MMResourceCache *cache;
     MMI32 style,volume;
 } MMSoundResource;
 /* Separate slots allow the temporary native facade to retain its original
@@ -49,11 +50,10 @@ typedef struct MMSoundResourceServices
     void (*release)(void *,void *);
     MMI32 (*object_size)(void *);
     void (*invalidate_output)(void *,void *,size_t);
-    void *(*file)(void *,void *cache);
+    MMBlockTransform decode;
     void (*graph)(void *,void *file,struct MMMovieSessionGraph *);
-    int (*read_name)(void *,void *file,MMU32 type,MMU32 number,void *object);
+    int (*read_name)(void *,void *file,MMResourceCache *,MMU32 type,MMU32 number,void *object);
     void (*publish_invalid)(void *,void *output,int value);
-    void (*binding)(void *,void *object,void **file,MMU32 *type,MMU32 *number);
     int (*put)(void *,void *file,MMU32 type,MMU32 number,const void *header);
     void (*delete_child)(void *,void *file,MMU32 type,MMU32 number,const MMChunkChild *);
     void (*bad_order)(void *);
@@ -69,7 +69,9 @@ typedef struct MMSoundResourceServices
  * publish before allocation, failure invalidates outputs before release.
  * Callbacks must not reenter/mutate owners. */
 int mm_sound_read(void *object,void *file,MMU32 type,MMU32 number,const MMSoundResourceServices *);
-int mm_sound_fetch(void *cache,MMU32 type,MMU32 number,void *object_out,void *size_out,const MMSoundResourceServices *);
+/* Resolve the current cache entry by key, including for a stale caller block. */
+int mm_sound_fetch(MMResourceCache *,MMU32 type,MMU32 number,void *object_out,void *size_out,
+                   const MMSoundResourceServices *);
 int mm_sound_info(void *file,MMU32 type,MMU32 number,void *invalid_out,void *style_out,void *volume_out,const MMSoundResourceServices *);
 typedef struct MMSoundWriteServices
 {
@@ -93,7 +95,7 @@ int mm_sound_write(const MMReadStream *payload, int wave, MMI32 style, const voi
  * Returns MM_SOUND_BAD_MIDI on read/parse failure before creating any chunks,
  * otherwise returns the writer's result. */
 int mm_sound_import_midi(const MMReadStream *, const void *name, MMU32 *number, const MMSoundWriteServices *);
-int mm_sound_invalidate(void *object,const MMSoundResourceServices *);
+int mm_sound_invalidate(void *object,const MMResourceObject *,const MMSoundResourceServices *);
 MMI32 mm_sound_class(MMI32 style,int loop);
 /* Tool 0=Sounder, 1=Looper, 2=Matcher; MIDI matching is excluded by native bounds. */
 MMI32 mm_sound_priority(MMI32 style,int tool);

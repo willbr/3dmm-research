@@ -67,20 +67,17 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices()
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.object_size = [](void *) -> MMI32 { return sizeof(MovieSoundMSND); };
     s.invalidate_output = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
-    s.file = [](void *, void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->Pcfl(); };
+    s.decode = KauaiDecodeBlockHandle;
     s.graph = [](void *, void *file, MMMovieSessionGraph *out) {
         *out = EngineMovieGraph::FromFile(static_cast<PChunkyFile>(file));
     };
-    s.read_name = [](void *, void *file, MMU32 type, MMU32 number, void *object) -> int {
-        return static_cast<PChunkyFile>(file)->FGetName(type, number, &static_cast<PMovieSoundMSND>(object)->_stn);
+    s.read_name = [](void *, void *file, MMResourceCache *cache, MMU32 type, MMU32 number, void *object) -> int {
+        auto name = &static_cast<PMovieSoundMSND>(object)->_stn;
+        if (cache)
+            return static_cast<PChunkyResourceFile>(cache->owner)->FGetName(type, number, name);
+        return static_cast<PChunkyFile>(file)->FGetName(type, number, name);
     };
     s.publish_invalid = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
-    s.binding = [](void *, void *object, void **file, MMU32 *type, MMU32 *number) {
-        auto sound = static_cast<PMovieSoundMSND>(object);
-        *file = sound->Pcrf()->Pcfl();
-        *type = sound->Ctg();
-        *number = sound->Cno();
-    };
     s.put = [](void *, void *file, MMU32 type, MMU32 number, const void *header) -> int {
         return static_cast<PChunkyFile>(file)->FPutPv(const_cast<void *>(header), 16, type, number);
     };
@@ -92,7 +89,8 @@ MMSoundResourceServices MovieSoundMSND::_ResourceServices()
     s.stop = [](void *, MMI32 queue) { vpsndm->StopAll(queue, sclNil); };
     s.play = [](void *, const MMSoundResource *sound, MMI32 queue, MMI32 volume, MMI32 repeat,
                 MMU32 start, MMI32 priority, MMI32 soundClass) -> MMI32 {
-        return vpsndm->SiiPlay(static_cast<PResourceCache>(sound->cache), sound->type, sound->number, queue, volume,
+        auto cache = sound->cache ? static_cast<PChunkyResourceFile>(sound->cache->owner) : nullptr;
+        return vpsndm->SiiPlay(cache, sound->type, sound->number, queue, volume,
                                repeat, start, priority, soundClass);
     };
     return s;
@@ -111,7 +109,7 @@ bool MovieSoundMSND::FReadMsnd(PChunkyResourceFile pcrf, ChunkTagOrType ctg, Chu
     AssertNilOrVarMem(ppbaco);
     AssertVarMem(pcb);
     const auto services = _ResourceServices();
-    return mm_sound_fetch(pcrf, ctg, cno, ppbaco, pcb, &services) != 0;
+    return mm_sound_fetch(pcrf->CoreCache(), ctg, cno, ppbaco, pcb, &services) != 0;
 }
 
 /***************************************************************************
@@ -381,7 +379,7 @@ bool MovieSoundMSND::FInvalidate(void)
 {
     AssertThis(0);
     const auto services = _ResourceServices();
-    return mm_sound_invalidate(this, &services) != 0;
+    return mm_sound_invalidate(this, ResourceBinding(), &services) != 0;
 }
 
 /***************************************************************************
@@ -558,7 +556,8 @@ MovieSoundQueue::~MovieSoundQueue(void)
 void MovieSoundMSND::AssertValid(LegacyUlong grf)
 {
     MovieSoundMSND_PAR::AssertValid(fobjAllocated);
-    AssertNilOrPo(static_cast<PResourceCache>(_resource.cache), 0);
+    auto cache = _resource.cache ? static_cast<PChunkyResourceFile>(_resource.cache->owner) : nullptr;
+    AssertNilOrPo(cache, 0);
     AssertIn(_resource.style, 0, styLim);
 }
 

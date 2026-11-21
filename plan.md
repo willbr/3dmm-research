@@ -1286,13 +1286,15 @@ and live mixer use the same rule for stopping loops at scene cuts. Device
 access, decoded clip caching and SoundFont synthesis use host services.
 Marcus resolves user-sound links and reads the selected audio payload through
 the C89 movie graph. Studio playback, Marcus preview, and the built-in sound
-catalog share the graph reader for MSND headers. Studio resource invalidation
-also resolves its sound child through the graph. The hosts supply content
-sources, names, and native cache and output objects.
+catalog share the MSND header decoder. Studio's cached sounds resolve the live
+key and child through the C89 cache, including read-only wire indices.
+Invalidation uses the same graph and requires a mutable cache binding. The
+hosts supply content sources, names and native output objects.
 Studio and Marcus import standard MIDI into C-owned bytes and pass sampled
 and MIDI payloads to the same C89 sound writer. The writer owns the MSND
-envelope, slot-zero child and rollback. The hosts supply the file stream and
-chunk I/O. Marcus continues to use the shared audio decoder for WAV and MP3.
+envelope, slot-zero child and rollback. The native child payload uses a
+borrowed C block writer. Marcus continues to use the shared audio decoder for
+WAV and MP3.
 Studio resolves sound links, finds referenced sounds and scans for unused
 sounds directly through the C89 graph. Studio and Marcus share the free-slot
 calculation for scene and movie sound adoption. Studio still takes candidate

@@ -17247,3 +17247,37 @@ seek and continuous playback and all retail seek camera indices. SDL also
 matched all 12 retail sound requests. Each port reproduced all 60 seek canvas
 hashes from the previous build. The comparison and fixture evidence are in
 `tmp/c89-font-block`.
+
+## Movie sound resources through the C89 cache (21 November 2026)
+
+Studio now resolves the current MSND key through the C89 resource cache and
+reads the header through an owned C block. The direct movie-graph and cached
+paths share the same bounded decoder. The native fixture loads a named MSND
+and resolves its WAVE child from a read-only wire index. Invalidation refuses
+that binding and leaves the loaded sound valid. The C fixtures exercise packed
+reads, decode and I/O failures, and lookup after the live key is removed.
+Studio and Marcus also share the C block writer for authored sound payloads.
+
+All 192 standalone C checks, six focused AddressSanitizer checks, 17 selected
+x64 checks and 13 selected SDL checks passed. The SDL save fixture failed in
+the initial parallel run and passed in the sequential rerun and the explicit
+retail-content fixture run. Six focused C fixtures and the core-link test
+passed on x86.
+
+The nine pre-change sound resource, movie sound and actor event traces matched
+byte for byte across native x64, native x86 and SDL. The sound resource fixture
+made 1,320 attempts per build. All 54 other movie and scene traces, three saved
+movie fixtures, ten Preview fingerprints and six Preview movies matched. The
+SDL authoring and reopen check produced the same saved bytes.
+
+Retail, SDL and Marcus matched all three retained-background frame identities,
+camera indices and canvas hashes in `20261121T000625Z-24c78ecc`. Both ports
+matched original v3dmm 0.14 on all three Studio-saved VMM frames in
+`20261121T000659Z-1d82f47b`.
+
+All four `actor-event-edit` captures completed in `20261121T000607Z-66eb385d`.
+Both ports matched archived retail on all 60 frame identities in seek and
+continuous playback, and on all retail seek camera indices. SDL matched all
+12 retail sound requests. Each port reproduced all 60 seek canvas hashes from
+the previous build. The comparison and fixture evidence are in
+`tmp/c89-sound-cache`.
