@@ -18301,3 +18301,28 @@ In `20261121T071330Z-b9342ba2`, SDL and Marcus reproduced all 11 previous seek
 canvases and matched archived retail frame identities in seek and continuous
 playback and all retail seek cameras. The three frames with a visible caption
 still differ from retail. Logs are in `tmp/c89-byte-clipboard-edits`.
+
+## C89 cached script, registry and colour resources (21 November 2026)
+
+C89 reads script bytecode from the root block already opened by the resource
+cache and follows its optional slot-zero GSTX link through the same archive
+index. Standalone script loads use the same reader. All size probes report
+stored bytes. Loaded scripts keep that charge, and loaded string registries
+and colour tables charge decoded bytes.
+
+Fixtures check packed blocks, foreign-order bytecode and registry IDs, colour
+byte order, missing literal payloads and cleanup on failures. The native
+archive fixture checks the same foreign-order script and literals through
+standalone and cached loads.
+
+All 193 standalone C checks, six focused AddressSanitizer checks, 16 native
+C89 and Marcus checks, and the SDL script and Kidspace checks passed. Native
+x64, native x86 and SDL reproduced 27 prior binary traces and the Help display
+fingerprints. Studio reproduced its authored movie byte for byte.
+
+In `20261121T072801Z-62fbce32`, SDL and Marcus reproduced all 11 previous seek
+canvases and matched the archived retail frame identities in seek and
+continuous playback and all retail seek cameras. The three frames with a
+visible caption still differ from retail. SDL retained the caption text,
+alignment, font and visibility window. The archived V3dmm seek canvases match
+retail. Logs are in `tmp/c89-script-cache-blocks`.

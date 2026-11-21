@@ -1,6 +1,8 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "kauai_core.h"
 #include "scrcom.h"
+#include "screxe.h"
+#include "framedef.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -13,6 +15,69 @@ bool FAssertProc(schar *file, LegacyLong line, schar *message, void *, LegacyLon
 {
     WarnProc(file, line, message);
     std::exit(1);
+}
+
+class ScriptProbe : public ScriptInterpreter::Script
+{
+public:
+    static bool Matches(ScriptInterpreter::PScript script, const LegacyLong *expected, String *literal)
+    {
+        if (!script)
+            return false;
+        const auto wordsMember = &ScriptProbe::_pgllw;
+        const auto stringsMember = &ScriptProbe::_pgstLiterals;
+        auto words = script->*wordsMember;
+        auto strings = script->*stringsMember;
+        if (words->IvMac() != 3 || !strings || strings->IstnMac() != 1)
+            return false;
+        for (LegacyLong i = 0; i < 3; ++i)
+        {
+            LegacyLong word;
+            words->Get(i, &word);
+            if (word != expected[i])
+                return false;
+        }
+        String read;
+        strings->GetStn(0, &read);
+        return read.FEqual(literal);
+    }
+};
+
+static bool CheckScriptResources()
+{
+    using namespace Chunky;
+    using namespace Group;
+    using ScriptInterpreter::Script;
+    const LegacyLong expected[] = {0x11223344, -2, 0x01234567};
+    LegacyLong foreign[] = {expected[0], expected[1], expected[2]};
+    SwapBytesRglw(foreign, 3);
+    auto file = ChunkyFile::PcflCreateTemp();
+    auto words = DynamicArray::PglNew(sizeof(LegacyLong));
+    auto strings = StringTable_GST::PgstNew();
+    String literal(PszLit("Studio literal"));
+    DataBlock block;
+    ChunkNumber root, child;
+    bool ok = file && words && strings && words->FInsert(0, foreign, 3) && strings->FAddStn(&literal) &&
+              block.FSetTemp(words->CbOnFile()) && words->FWrite(&block, kboOther) &&
+              file->FAddBlck(&block, kctgScript, &root) && block.FSetTemp(strings->CbOnFile()) &&
+              strings->FWrite(&block, kboOther) && file->FAddBlck(&block, kctgScriptStrs, &child) &&
+              file->FAdoptChild(kctgScript, root, kctgScriptStrs, child, 0);
+    if (ok)
+    {
+        auto direct = Script::PscptRead(file, kctgScript, root);
+        auto cache = ChunkyResourceFile::PcrfNew(file, 4096);
+        auto cached = cache ? static_cast<ScriptInterpreter::PScript>(cache->PbacoFetch(kctgScript, root,
+                                                                                     Script::FReadScript))
+                            : nullptr;
+        ok = ScriptProbe::Matches(direct, expected, &literal) && ScriptProbe::Matches(cached, expected, &literal);
+        ReleasePpo(&cached);
+        ReleasePpo(&cache);
+        ReleasePpo(&direct);
+    }
+    ReleasePpo(&strings);
+    ReleasePpo(&words);
+    ReleasePpo(&file);
+    return ok;
 }
 int main()
 {
@@ -62,6 +127,11 @@ int main()
         if (!decoded.FEqual(&text))
             return 1;
     }
-    std::puts("Script names: original packed encodings, decoding and array-index suffixes passed.");
+    if (!CheckScriptResources())
+    {
+        std::fputs("Resource reader changed script words or literals.\n", stderr);
+        return 1;
+    }
+    std::puts("Script names and foreign-order script resources passed.");
     return 0;
 }

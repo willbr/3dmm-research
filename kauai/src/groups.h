@@ -435,6 +435,7 @@ class VirtualStringTable : public VirtualStringTable_PAR
     void _TranslateGrst(short osk, bool fToCur);
     bool _FTranslateGrst(short osk);
     bool _FRead(PDataBlock pblck, short *pbo, short *posk);
+    bool _FinishRead(const MMCollectionHeader &, short *pbo, short *posk);
 
     bool _FDup(PVirtualStringTable pgstbDst);
 
@@ -469,6 +470,7 @@ class VirtualStringTable : public VirtualStringTable_PAR
     void GetExtra(LegacyLong istn, void *pv);
     void PutExtra(LegacyLong istn, void *pv);
     bool FFindExtra(void *prgbFind, PString pstn = pvNil, LegacyLong *pistn = pvNil);
+    MMStringTable CoreStrings() { return _StringStorage(); }
 };
 
 /****************************************
@@ -491,6 +493,7 @@ class StringTable_GST : public StringTable_GST_PAR
     static PStringTable_GST PgstNew(LegacyLong cbExtra = 0, LegacyLong cstnInit = 0, LegacyLong cchInit = 0);
     static PStringTable_GST PgstRead(PDataBlock pblck, short *pbo = pvNil, short *posk = pvNil);
     static PStringTable_GST PgstRead(PFileObject pfil, FilePosition fp, LegacyLong cb, short *pbo = pvNil, short *posk = pvNil);
+    static PStringTable_GST PgstReadStream(const MMReadStream &, short *order, short *system);
 
     // duplication
     PStringTable_GST PgstDup(void);

@@ -178,6 +178,11 @@ bool VirtualStringTable::_FRead(PDataBlock pblck, short *pbo, short *posk)
     AssertThis(0);
     MMCollectionHeader header;
     if (!_ReadCollection(pblck, MM_COLLECTION_STRINGS, _cbstFree != cvNil, &header, pbo, posk)) return false;
+    return _FinishRead(header, pbo, posk);
+}
+
+bool VirtualStringTable::_FinishRead(const MMCollectionHeader &header, short *pbo, short *posk)
+{
     _cbEntry = header.width; _ivMac = header.count; _bstMac = header.bytes; _cbstFree = header.free_count;
     const short one = 1;
     const bool nativeBig = reinterpret_cast<const byte *>(&one)[0] == 0;
@@ -554,6 +559,22 @@ PStringTable_GST StringTable_GST::PgstRead(PFileObject pfil, FilePosition fp, Le
 {
     DataBlock blck(pfil, fp, cb);
     return PgstRead(&blck, pbo, posk);
+}
+
+PStringTable_GST StringTable_GST::PgstReadStream(const MMReadStream &stream, short *order, short *system)
+{
+    auto table = NewObj StringTable_GST(0);
+    MMCollectionHeader header;
+    if (!table || !table->_ReadCollection(stream, MM_COLLECTION_STRINGS, false, &header, order, system) ||
+        !table->_FinishRead(header, order, system))
+    {
+        ReleasePpo(&table);
+        TrashVar(order);
+        TrashVar(system);
+        return nullptr;
+    }
+    AssertPo(table, 0);
+    return table;
 }
 
 /***************************************************************************

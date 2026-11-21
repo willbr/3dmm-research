@@ -17,6 +17,8 @@
 #ifndef SCREXE_H
 #define SCREXE_H
 
+struct MMScriptResourceServices;
+
 namespace ScriptInterpreter {
 
 using namespace Chunky;
@@ -51,6 +53,7 @@ class Script : public Script_PAR
   protected:
     PDynamicArray _pgllw;
     PStringTable_GST _pgstLiterals;
+    static MMScriptResourceServices _ReadServices();
 
     Script(void)
     {
@@ -60,7 +63,7 @@ class Script : public Script_PAR
     friend class ScriptCompiler::CompilerBase;
 
   public:
-    static bool FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb);
+    static int FReadScript(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
     static PScript PscptRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
     ~Script(void);
 

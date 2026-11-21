@@ -12,6 +12,7 @@
 ***************************************************************************/
 #include "kidframe.h"
 ASSERTNAME
+#include "script_resource_host.h"
 
 namespace ScriptInterpreter {
 
@@ -1223,33 +1224,11 @@ PDynamicArray GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
     A chunky resource reader to read a color table. Wraps the color table in
     a GenericCacheableObject.
 ***************************************************************************/
-bool FReadColorTable(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int FReadColorTable(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-    PGenericCacheableObject pcabo;
-    PDynamicArray pglclr = pvNil;
-
-    *pcb = pblck->Cb(fTrue);
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    if (!pblck->FUnpackData())
-        goto LFail;
-    *pcb = pblck->Cb();
-
-    if (pvNil == (pglclr = DynamicArray::PglRead(pblck)) || pglclr->CbEntry() != size(Color))
-        goto LFail;
-
-    if (pvNil == (pcabo = NewObj GenericCacheableObject(pglclr)))
-    {
-    LFail:
-        ReleasePpo(&pglclr);
-        TrashVar(pcb);
-        TrashVar(ppbaco);
-        return fFalse;
-    }
-
-    *ppbaco = pcabo;
-    return fTrue;
+    static_assert(sizeof(Color) == 4, "script color row size");
+    const auto services = ScriptCollectionReaders();
+    return mm_script_colors_fetch(block, out, bytes, &services);
 }
 
 /***************************************************************************

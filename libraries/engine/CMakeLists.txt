@@ -620,6 +620,7 @@ target_sources(mm-engine-c89 PRIVATE src/template_create.c)
 target_sources(mm-engine-c89 PRIVATE src/template_runtime.c)
 target_sources(mm-engine-c89 PRIVATE src/action_definition.c)
 target_sources(mm-engine-c89 PRIVATE src/font_resource.c)
+target_sources(mm-engine-c89 PRIVATE src/script_resource.c)
 target_sources(mm-engine-c89 PRIVATE src/text_generation.c src/text_generation_math.c src/text_resource.c src/sound_resource.c src/wave.c src/midi.c src/sound_payload.c src/wave_import.c)
 set_target_properties(mm-engine-c89 PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 if(CMAKE_C_COMPILER_ID MATCHES "Clang|GNU")
@@ -975,6 +976,11 @@ add_executable(engine-font-resource-test EXCLUDE_FROM_ALL "${engine_font_resourc
 target_link_libraries(engine-font-resource-test PRIVATE mm-engine-c89)
 set_target_properties(engine-font-resource-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
 add_test(NAME engine-font-resource COMMAND engine-font-resource-test)
+get_filename_component(engine_script_resource_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_script_resource_test.c" ABSOLUTE)
+add_executable(engine-script-resource-test EXCLUDE_FROM_ALL "${engine_script_resource_test_source}")
+target_link_libraries(engine-script-resource-test PRIVATE mm-engine-c89)
+set_target_properties(engine-script-resource-test PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF LINKER_LANGUAGE C)
+add_test(NAME engine-script-resource COMMAND engine-script-resource-test)
 get_filename_component(engine_text_generation_test_source "${CMAKE_CURRENT_SOURCE_DIR}/../../tests/engine_text_generation_test.c" ABSOLUTE)
 add_executable(engine-text-generation-test EXCLUDE_FROM_ALL "${engine_text_generation_test_source}")
 target_link_libraries(engine-text-generation-test PRIVATE mm-engine-c89)
@@ -1498,6 +1504,7 @@ if(ENGINE_C89_COMPILER)
     "${CMAKE_CURRENT_SOURCE_DIR}/src/template_runtime.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/action_definition.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/font_resource.c"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/script_resource.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_generation.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_generation_math.c"
     "${CMAKE_CURRENT_SOURCE_DIR}/src/text_resource.c"
@@ -1574,6 +1581,7 @@ if(ENGINE_C89_COMPILER)
     "${engine_template_runtime_test_source}"
     "${engine_action_definition_test_source}"
     "${engine_font_resource_test_source}"
+    "${engine_script_resource_test_source}"
     "${engine_text_generation_test_source}"
     "${engine_text_resource_test_source}"
     "${engine_sound_resource_test_source}"

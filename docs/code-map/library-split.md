@@ -6797,6 +6797,14 @@ child lookups. Readers with the legacy callback signature construct a
 native `DataBlock` view. The typed reader can reuse the exposed cache for
 child lookup and can mutate its borrowed block during the call.
 
+Script, string registry and colour table readers also consume C blocks directly.
+`script_resource.c` reads the root script from the cache's open block and resolves
+the optional slot-zero `GSTX` child through the same graph. The authoring tools
+use the same loader with a borrowed archive index. A script charges its stored
+root bytes, while real registry and colour reads charge decoded bytes. C89
+swaps foreign bytecode words and registry IDs. Colour rows and script literal
+payloads retain their own existing byte order and string conversion rules.
+
 The cache also exposes a borrowed C graph for a synchronous operation. It uses
 the retained index for an immutable archive and acquires a fresh graph from
 the live file for each request. Template lookup uses that graph to select child

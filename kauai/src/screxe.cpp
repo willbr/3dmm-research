@@ -13,6 +13,7 @@
 ***************************************************************************/
 #include "util.h"
 ASSERTNAME
+#include "script_resource_host.h"
 
 namespace ScriptInterpreter {
 
@@ -1010,52 +1011,10 @@ void Interpreter::_LenStr(LegacyLong stid)
 /***************************************************************************
     ChunkyResourceFile reader function to read a string registry string table.
 ***************************************************************************/
-bool _FReadStringReg(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+static int ReadStringRegistry(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, fblckReadable);
-    AssertNilOrVarMem(ppbaco);
-    AssertVarMem(pcb);
-    PStringTable_GST pgst;
-    PGenericCacheableObject pcabo;
-    short bo;
-
-    *pcb = pblck->Cb(fTrue);
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    if (!pblck->FUnpackData())
-        return fFalse;
-    *pcb = pblck->Cb();
-
-    if (pvNil == (pgst = StringTable_GST::PgstRead(pblck, &bo)) || pgst->CbExtra() != size(LegacyLong))
-    {
-        goto LFail;
-    }
-
-    if (kboOther == bo)
-    {
-        LegacyLong istn, stid;
-
-        for (istn = pgst->IvMac(); istn-- > 0;)
-        {
-            pgst->GetExtra(istn, &stid);
-            SwapBytesRglw(&stid, 1);
-            pgst->PutExtra(istn, &stid);
-        }
-    }
-
-    if (pvNil == (pcabo = NewObj GenericCacheableObject(pgst)))
-    {
-    LFail:
-        ReleasePpo(&pgst);
-        TrashVar(pcb);
-        TrashVar(ppbaco);
-        return fFalse;
-    }
-
-    *ppbaco = pcabo;
-    return fTrue;
+    const auto services = ScriptCollectionReaders();
+    return mm_script_registry_fetch(block, out, bytes, &services);
 }
 
 /***************************************************************************
@@ -1087,7 +1046,7 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
         return;
     }
 
-    if (pvNil == (pcabo = (PGenericCacheableObject)_prca->PbacoFetch(kctgStringReg, cno, &_FReadStringReg, pvNil, rsc)))
+    if (pvNil == (pcabo = (PGenericCacheableObject)_prca->PbacoFetch(kctgStringReg, cno, ReadStringRegistry, pvNil, rsc)))
     {
         Debug(_WarnSz(PszLit("Reading string table failed (cno = 0x%x)"), cno));
         return;
@@ -1343,18 +1302,26 @@ bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong
 /***************************************************************************
     A chunky resource reader to read a script.
 ***************************************************************************/
-bool Script::FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno, PDataBlock pblck, PBaseCacheableObject *ppbaco, LegacyLong *pcb)
+int Script::FReadScript(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                        void **out, MMI32 *bytes)
 {
-    AssertPo(pcrf, 0);
-    AssertPo(pblck, fblckReadable);
-    AssertNilOrVarMem(ppbaco);
+    const auto services = _ReadServices();
+    return mm_script_resource_fetch(cache, type, number, block, out, bytes, &services);
+}
 
-    *pcb = pblck->Cb(fTrue);
-    if (pvNil == ppbaco)
-        return fTrue;
-
-    *ppbaco = PscptRead(pcrf->Pcfl(), ctg, cno);
-    return pvNil != *ppbaco;
+MMScriptResourceServices Script::_ReadServices()
+{
+    auto services = ScriptCollectionReaders();
+    services.create_script = [](void *, void *words, void *literals) -> void * {
+        auto script = NewObj Script;
+        if (script)
+        {
+            script->_pgllw = static_cast<PDynamicArray>(words);
+            script->_pgstLiterals = static_cast<PStringTable_GST>(literals);
+        }
+        return script;
+    };
+    return services;
 }
 
 /***************************************************************************
@@ -1363,40 +1330,10 @@ bool Script::FReadScript(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumb
 PScript Script::PscptRead(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pcfl, 0);
-    short bo;
-    ChildChunkIdentification kid;
-    DataBlock blck;
-    PScript pscpt = pvNil;
-    PDynamicArray pgllw = pvNil;
-    PStringTable_GST pgst = pvNil;
-
-    if (!pcfl->FFind(ctg, cno, &blck))
-        goto LFail;
-
-    if (pvNil == (pgllw = DynamicArray::PglRead(&blck, &bo)) || pgllw->CbEntry() != size(LegacyLong))
-    {
-        goto LFail;
-    }
-    if (pcfl->FGetKidChidCtg(ctg, cno, 0, kctgScriptStrs, &kid))
-    {
-        if (!pcfl->FFind(kid.cki.ctg, kid.cki.cno, &blck) || pvNil == (pgst = StringTable_GST::PgstRead(&blck)))
-        {
-            goto LFail;
-        }
-    }
-    if (pvNil == (pscpt = NewObj Script))
-    {
-    LFail:
-        ReleasePpo(&pgllw);
-        ReleasePpo(&pgst);
-        return pvNil;
-    }
-
-    if (kboOther == bo)
-        SwapBytesRglw(pgllw->QvGet(0), pgllw->IvMac());
-    pscpt->_pgllw = pgllw;
-    pscpt->_pgstLiterals = pgst;
-    return pscpt;
+    const auto chunks = pcfl->ReadChunkAccess();
+    const auto services = _ReadServices();
+    return static_cast<PScript>(mm_script_resource_archive(&chunks, KauaiChunkPayloadServices(), pcfl, ctg, cno,
+                                                          &services));
 }
 
 /***************************************************************************
