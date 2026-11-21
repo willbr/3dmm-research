@@ -1,6 +1,7 @@
 /* Movie ownership and persistence converted from engine movie_data.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_owner.h"
+#include "mm/movie_root.h"
 #include "mm/movie_session.h"
 #include <string.h>
 void mm_movie_state_init(MMMovieState *m)
@@ -29,7 +30,7 @@ void mm_movie_clear_actors(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     if (!m->actors.stride)
         return;
-    close_rows(&m->actors, s->context, s->close_actor);
+    close_rows(&m->actors, s->rollcall.context, s->rollcall.close_actor);
     mm_rollcall_table_dispose(&m->actors);
     memset(&m->actors, 0, sizeof(m->actors));
 }
@@ -57,6 +58,7 @@ static void replace(MMMovieState *m, MMMovieState *fresh, const MMMovieOwnerServ
 int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     MMMovieState fresh;
+    MMArchiveWriter archive;
     void *file;
     mm_movie_state_init(&fresh);
     mm_movie_title_init(&fresh.title, m->title.unit);
@@ -65,21 +67,23 @@ int mm_movie_init_empty(MMMovieState *m, const MMMovieOwnerServices *s)
         return 0;
     fresh.resources = s->new_resources(s->context, file);
     s->release_file(file);
-    if (!fresh.resources || !mm_movie_init_actors(&fresh, s) ||
-        !s->create_root(s->context, s->file(fresh.resources), &fresh.movieNumber))
-    {
-        mm_movie_state_dispose(&fresh, s);
-        return 0;
-    }
+    if (!fresh.resources || !mm_movie_init_actors(&fresh, s))
+        goto fail;
+    archive = s->archive(s->file(fresh.resources));
+    if (!mm_movie_create_root(&archive, &fresh.movieNumber))
+        goto fail;
     replace(m, &fresh, s);
     return 1;
+fail:
+    mm_movie_state_dispose(&fresh, s);
+    return 0;
 }
 int mm_movie_load(MMMovieState *m, void *path, MMU32 number, const MMMovieOwnerServices *s)
 {
     MMMovieState loaded;
     void *file;
     MMU32 scene_number;
-    int valid;
+    int valid, status;
     mm_movie_state_init(&loaded);
     mm_movie_title_init(&loaded.title, m->title.unit);
     file = s->open_file(s->context, path);
@@ -96,11 +100,15 @@ int mm_movie_load(MMMovieState *m, void *path, MMU32 number, const MMMovieOwnerS
     }
     s->release_file(file);
     loaded.movieNumber = number;
-    if (!mm_movie_init_actors(&loaded, s) ||
-        !s->read_rollcall(s->context, loaded.resources, number, &loaded.actors, &loaded.actorIdLimit))
+    if (!mm_movie_init_actors(&loaded, s))
+        goto fail;
+    status = mm_movie_load_rollcall(s->cache(loaded.resources), number, loaded.resources, &loaded.actors,
+                                   &loaded.actorIdLimit, s->decode_rollcall, &s->rollcall);
+    if (status != MM_CHUNK_OK)
     {
-        mm_movie_state_dispose(&loaded, s);
-        return 0;
+        if (status == MM_CHUNK_NOT_FOUND && s->missing_rollcall)
+            s->missing_rollcall(s->context);
+        goto fail;
     }
     file = s->file(loaded.resources);
     mm_chunk_title_read(&loaded.title, file, MM_MOVIE_CHUNK, number, &s->titles);
@@ -108,6 +116,9 @@ int mm_movie_load(MMMovieState *m, void *path, MMU32 number, const MMMovieOwnerS
         ++loaded.sceneCount;
     replace(m, &loaded, s);
     return 1;
+fail:
+    mm_movie_state_dispose(&loaded, s);
+    return 0;
 }
 int mm_movie_state_scene_number(MMMovieState *m, MMU32 slot, MMU32 *number, void *file,
                                  void *context, MMMovieOpenSession open_session)
@@ -130,16 +141,23 @@ int mm_movie_state_scene_number(MMMovieState *m, MMU32 slot, MMU32 *number, void
 int mm_movie_save(MMMovieState *m, const MMMovieOwnerServices *s)
 {
     void *file;
-    MMU32 previous, written;
+    MMArchiveWriter archive;
+    MMChunkAccess chunks;
+    MMChunkChild previous = {MM_ROLLCALL_CHUNK, 0, MM_ROLLCALL_SLOT};
+    MMU32 written;
     int had;
     if (!m->resources || !m->actors.stride)
         return 0;
     file = s->file(m->resources);
-    had = s->previous_rollcall(s->context, file, m->movieNumber, &previous);
-    if (!s->write_rollcall(s->context, file, m->movieNumber, &m->actors, &written))
+    archive = s->archive(file);
+    chunks = mm_chunk_edit_access(&archive.edit);
+    had = mm_chunk_link_number(&chunks, MM_MOVIE_CHUNK, m->movieNumber, previous.slot, previous.type,
+                               &previous.number) == MM_CHUNK_OK;
+    if (!mm_movie_write_rollcall(&archive, m->movieNumber, &m->actors, &written))
         return 0;
-    if (had)
-        s->delete_previous(s->context, file, m->movieNumber, previous);
+    if (had && mm_chunk_unlink(&archive.edit, MM_MOVIE_CHUNK, m->movieNumber, &previous) != MM_CHUNK_OK &&
+        s->unlink_failed)
+        s->unlink_failed(s->context);
     if (!mm_chunk_title_write(&m->title, file, MM_MOVIE_CHUNK, m->movieNumber, &s->titles) ||
         !s->save(s->context, file))
         return 0;

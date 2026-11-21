@@ -37,6 +37,22 @@ void CloseActor(void *, MMRollCallActor *a)
     TagManager::CloseTag(&tag);
     a->cache = tag.pcrf;
 }
+const MMRollCallReader kRollCallReader = {
+    nullptr,
+    [](void *, const void *input, size_t bytes, int encoding, void *output, size_t capacity) -> size_t {
+        return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(output), capacity);
+    },
+    [](void *, MMRollCallActor *a, void *resources) -> int {
+        auto tag = ActorTag(*a);
+        const bool ok = TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources));
+        const auto value = TagToCore(tag);
+        a->data.source_id = value.sid;
+        a->data.template_type = value.type;
+        a->data.template_number = value.number;
+        a->cache = value.cache;
+        return ok;
+    },
+    CloseActor};
 } // namespace
 
 MMMovieOwnerServices MovieData::_OwnerServices(void *context)
@@ -56,28 +72,14 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         [](void *, void *file) -> void * { return ChunkyResourceFile::PcrfNew(static_cast<PChunkyFile>(file), 0); },
         [](void *p) { static_cast<PChunkyFile>(p)->Release(); },
         [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },
-        CloseActor,
         [](void *p) -> void * { return static_cast<PChunkyResourceFile>(p)->Pcfl(); },
-        [](void *, void *file, MMU32 *number) -> int {
-            return FCreateRoot(static_cast<PChunkyFile>(file), number);
-        },
-        [](void *, void *resources, MMU32 number, MMRollCallTable *actors, MMI32 *limit) -> int {
-            return FLoadRollCall(static_cast<PChunkyResourceFile>(resources), number, actors, limit);
-        },
+        [](void *file) { return static_cast<PChunkyFile>(file)->WriteIndex(); },
+        [](void *p) { return static_cast<PChunkyResourceFile>(p)->CoreCache(); },
+        kRollCallReader,
+        KauaiDecodeBlockHandle,
+        [](void *) { PushErc(ercSocBadFile); },
+        [](void *) { Bug("chunk or child link missing"); },
         KauaiChunkTitleIO(),
-        [](void *, void *file, MMU32 movie, MMU32 *previous) -> int {
-            ChildChunkIdentification child;
-            const bool found = static_cast<PChunkyFile>(file)->FGetKidChidCtg(kctgMvie, movie, 0, kctgGst, &child);
-            if (found)
-                *previous = child.cki.cno;
-            return found;
-        },
-        [](void *, void *file, MMU32 movie, MMRollCallTable *actors, MMU32 *written) -> int {
-            return FWriteRollCall(static_cast<PChunkyFile>(file), movie, actors, written);
-        },
-        [](void *, void *file, MMU32 movie, MMU32 previous) {
-            static_cast<PChunkyFile>(file)->DeleteChild(kctgMvie, movie, kctgGst, previous, 0);
-        },
         [](void *c, void *file) -> int {
             return static_cast<PChunkyFile>(file)->FSave(kctgSoc, static_cast<NativeMovieHost *>(c)->filename);
         },
@@ -140,24 +142,8 @@ bool MovieData::FVerifyVersion(PChunkyFile file, ChunkNumber *number, MMMovieHea
 
 bool MovieData::FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors, MMI32 *limit)
 {
-    const MMRollCallReader reader = {
-        nullptr,
-        [](void *, const void *input, size_t bytes, int encoding, void *output, size_t capacity) -> size_t {
-            return CchTranslateRgb(const_cast<void *>(input), bytes, encoding, static_cast<achar *>(output), capacity);
-        },
-        [](void *, MMRollCallActor *a, void *resources) -> int {
-            auto tag = ActorTag(*a);
-            const bool ok = TagManager::FOpenTag(&tag, static_cast<PChunkyResourceFile>(resources));
-            const auto value = TagToCore(tag);
-            a->data.source_id = value.sid;
-            a->data.template_type = value.type;
-            a->data.template_number = value.number;
-            a->cache = value.cache;
-            return ok;
-        },
-        CloseActor};
     const int status = mm_movie_load_rollcall(resources->CoreCache(), number, resources, actors, limit,
-                                              KauaiDecodeBlockHandle, &reader);
+                                              KauaiDecodeBlockHandle, &kRollCallReader);
     if (status == MM_CHUNK_NOT_FOUND)
         PushErc(ercSocBadFile);
     return status == MM_CHUNK_OK;

@@ -23,7 +23,7 @@ typedef struct Resource
 struct Host
 {
     char log[512];
-    int used, resources, fail, scenes, previous, persistent;
+    int used, resources, fail, scenes, persistent;
     int open_calls;
     int opening;
     MMU32 root_number;
@@ -31,6 +31,10 @@ struct Host
     MMU32 rollcall_bytes;
     unsigned char written_rollcall[512];
     ChunkWriterFixture archive;
+    MMArchiveWriter owner_writer;
+    MMResourceCache owner_cache;
+    unsigned char owner_bytes[512];
+    MMU32 owner_size;
     int buffers, packed, missing_extent;
 };
 enum
@@ -41,6 +45,7 @@ enum
     FAIL_RESOURCE,
     FAIL_ROOT,
     FAIL_READ,
+    FAIL_MISSING,
     FAIL_WRITE,
     FAIL_NAME,
     FAIL_SAVE,
@@ -179,29 +184,76 @@ static void *file(void *p)
 {
     return ((Resource *)p)->host;
 }
-static int root(void *c, void *f, MMU32 *n)
+static int owner_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
-    Host *h = (Host *)c;
-    CHECK(f == h);
-    event(h, 'b');
-    *n = 7;
-    return h->fail != FAIL_ROOT;
+    Host *h = ((ChunkIndexFixture *)p)->observer;
+    CHECK(bytes <= sizeof(h->owner_bytes) - h->owner_size);
+    event(h, bytes == MM_MOVIE_PREFIX_BYTES ? 'b' : 'j');
+    extent->file = &h->archive;
+    extent->offset = h->owner_size;
+    extent->bytes = bytes;
+    extent->flags = 0;
+    h->owner_size += bytes;
+    return 1;
 }
-static int read_call(void *c, void *r, MMU32 n, MMRollCallTable *out, MMI32 *limit)
+static int owner_write(void *p, void *f, MMU32 offset, const void *data, size_t bytes)
 {
-    Host *h = (Host *)c;
-    MMRollCallActor actor;
-    CHECK(n == 7);
-    event(h, 'i');
+    ChunkWriterFixture *fixture = p;
+    Host *h = fixture->context;
+    CHECK(f == p && fixture->file_refs == 1 && offset <= h->owner_size && bytes <= h->owner_size - offset);
+    if (h->fail == FAIL_ROOT || h->fail == FAIL_WRITE)
+        return 0;
+    memcpy(h->owner_bytes + offset, data, bytes);
+    return 1;
+}
+static int owner_read(void *p, void *f, MMU32 offset, void *data, size_t bytes)
+{
+    ChunkWriterFixture *fixture = p;
+    Host *h = fixture->context;
+    CHECK(f == p && fixture->file_refs == 1 && offset <= h->owner_size && bytes <= h->owner_size - offset);
     if (h->fail == FAIL_READ)
         return 0;
-    memset(&actor, 0, sizeof(actor));
-    actor.cache = r;
-    if (!mm_rollcall_table_add(out, "Actor", 5, &actor))
-        return 0;
-    ++((Resource *)r)->refs;
-    *limit = 1;
+    memcpy(data, h->owner_bytes + offset, bytes);
     return 1;
+}
+static MMChunkAccess rollcall_graph(void *p)
+{
+    return fixture_chunk_access(&((Host *)p)->archive.index);
+}
+static int owner_locate(void *p, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
+{
+    Host *h = p;
+    const MMChunkAccess access = rollcall_graph(p);
+    MMChunkEntry entry;
+    MMU32 row;
+    CHECK(type == MM_ROLLCALL_CHUNK && mm_chunk_find(&access, type, number, &row) == MM_CHUNK_OK &&
+          mm_chunk_at(&access, row, &entry) == MM_CHUNK_OK);
+    event(h, 'i');
+    if (h->fail == FAIL_MISSING)
+        return 0;
+    extent->file = &h->archive;
+    extent->offset = entry.offset;
+    extent->length = entry.bytes;
+    *packed = 0;
+    return 1;
+}
+static MMArchiveWriter owner_archive(void *p)
+{
+    return ((Host *)p)->owner_writer;
+}
+static MMResourceCache *owner_cache(void *r)
+{
+    return &((Resource *)r)->host->owner_cache;
+}
+static void missing_rollcall(void *c)
+{
+    event(c, '?');
+}
+static void unlinked_rollcall(void *c, MMU32 parent, const MMChunkChild *child)
+{
+    Host *h = c;
+    CHECK(parent == h->root_number && child->type == MM_ROLLCALL_CHUNK && child->slot == MM_ROLLCALL_SLOT);
+    event(h, 'd');
 }
 static const unsigned char stored_name[] = {3, 3, 6, 'L', 'o', 'a', 'd', 'e', 'd', 0};
 static int load_name(void *f, MMU32 type, MMU32 n, void *wire, MMU32 capacity, MMU32 *written)
@@ -212,28 +264,6 @@ static int load_name(void *f, MMU32 type, MMU32 n, void *wire, MMU32 capacity, M
     memcpy(wire, stored_name, sizeof(stored_name));
     *written = sizeof(stored_name);
     return 1;
-}
-static int previous(void *c, void *f, MMU32 n, MMU32 *out)
-{
-    Host *h = (Host *)c;
-    CHECK(f == h && n == 7);
-    event(h, 'p');
-    *out = 9;
-    return h->previous;
-}
-static int write_call(void *c, void *f, MMU32 n, MMRollCallTable *table, MMU32 *out)
-{
-    Host *h = (Host *)c;
-    CHECK(f == h && n == 7 && table);
-    event(h, 'j');
-    *out = 10;
-    return h->fail != FAIL_WRITE;
-}
-static void delete_previous(void *c, void *f, MMU32 n, MMU32 old)
-{
-    Host *h = (Host *)c;
-    CHECK(f == h && n == 7 && old == 9);
-    event(h, 'd');
 }
 static int set_name(void *f, MMU32 type, MMU32 n, const void *wire, MMU32 bytes)
 {
@@ -258,16 +288,63 @@ static void persist(void *f)
 }
 static void *resize_rollcall(void *, void *, MMU32, MMU32, int);
 static void free_rollcall(void *, void *, MMU32);
+static int open_actor(void *, MMRollCallActor *, void *);
+static int decode_rollcall(void *, void **);
 static MMMovieOwnerServices owners(Host *h)
 {
     MMMovieOwnerServices s = {
         NULL, {NULL, resize_rollcall, free_rollcall}, 0x0303, 0,
         create, open_file, open_session, new_resource, release_file, release_resource,
-        close_actor, file, root, read_call,
+        file, owner_archive, owner_cache, {NULL, NULL, open_actor, close_actor},
+        decode_rollcall, missing_rollcall, NULL,
         {NULL, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, NULL, load_name, set_name, NULL},
-        previous, write_call, delete_previous, save, persist};
-    s.context = s.actor_allocator.context = h;
+        save, persist};
+    s.context = s.actor_allocator.context = s.rollcall.context = h;
+    h->owner_writer = chunk_writer_fixture(&h->archive, h, owner_extent, owner_write);
+    h->owner_writer.system = MM_TEXT_WINDOWS;
+    h->archive.block.files.read = owner_read;
+    h->archive.index.before_unlink = unlinked_rollcall;
+    h->owner_cache.file = h;
+    h->owner_cache.services.handles = h->owner_writer.payloads->handles;
+    h->owner_cache.services.block_files = h->owner_writer.payloads->files;
+    h->owner_cache.services.live_chunks = rollcall_graph;
+    h->owner_cache.services.locate = owner_locate;
     return s;
+}
+static void seed_owner_movie(Host *h)
+{
+    MMRollCallTable table;
+    MMRollCallActor actor;
+    const MMChunkChild source = {MM_ROLLCALL_CHUNK, 9, 1};
+    MMU32 written;
+    memset(&actor, 0, sizeof(actor));
+    fixture_chunk_add(&h->archive.index, MM_MOVIE_CHUNK, h->root_number);
+    fixture_chunk_add(&h->archive.index, source.type, source.number);
+    CHECK(mm_chunk_adopt(&h->owner_writer.edit, MM_MOVIE_CHUNK, h->root_number, &source, 1) == MM_CHUNK_OK);
+    CHECK(mm_rollcall_table_init(&table, sizeof(actor), 1, MM_TEXT_WINDOWS, 0, NULL) == MM_STORAGE_OK);
+    CHECK(mm_rollcall_table_add(&table, "Actor", 5, &actor));
+    CHECK(mm_movie_write_rollcall(&h->owner_writer, h->root_number, &table, &written));
+    CHECK(mm_rollcall_table_dispose(&table) == MM_STORAGE_OK);
+    reset(h);
+}
+static MMU32 owner_rollcall(Host *h)
+{
+    const MMChunkAccess chunks = rollcall_graph(h);
+    MMU32 number, source;
+    CHECK(mm_chunk_link_number(&chunks, MM_MOVIE_CHUNK, h->root_number, MM_ROLLCALL_SLOT, MM_ROLLCALL_CHUNK,
+                               &number) == MM_CHUNK_OK);
+    CHECK(mm_chunk_link_number(&chunks, MM_MOVIE_CHUNK, h->root_number, 1, MM_ROLLCALL_CHUNK,
+                               &source) == MM_CHUNK_OK && source == 9);
+    CHECK(!h->archive.file_refs);
+    return number;
+}
+static MMU32 replaced_rollcall(Host *h, MMU32 previous)
+{
+    const MMChunkAccess chunks = rollcall_graph(h);
+    const MMU32 next = owner_rollcall(h);
+    MMU32 row;
+    CHECK(next != previous && mm_chunk_find(&chunks, MM_ROLLCALL_CHUNK, previous, &row) == MM_CHUNK_NOT_FOUND);
+    return next;
 }
 static void ownership(void)
 {
@@ -277,9 +354,11 @@ static void ownership(void)
     void *old_r, *old_entries;
     MMRollCallActor actor;
     MMMovieSession *original;
-    MMU32 number = 99;
+    MMMemoryStream root;
+    MMMovieHeader header;
+    MMU32 saved, number = 99;
     int i;
-    const int load_failures[] = {FAIL_OPEN, FAIL_VERIFY, FAIL_RESOURCE, FAIL_READ, FAIL_WIRE};
+    const int load_failures[] = {FAIL_OPEN, FAIL_VERIFY, FAIL_RESOURCE, FAIL_READ, FAIL_MISSING, FAIL_WIRE};
     memset(&h, 0, sizeof(h));
     h.root_number = 7;
     s = owners(&h);
@@ -287,6 +366,10 @@ static void ownership(void)
     CHECK(m.movieNumber == 0xffffffffUL && !m.resources && !m.actors.stride);
     CHECK(!mm_movie_save(&m, &s) && !h.used);
     CHECK(mm_movie_init_empty(&m, &s) && !strcmp(h.log, "crfb") && m.actors.stride && !h.buffers);
+    CHECK(m.movieNumber == 0 && h.archive.index.count == 1 && !h.archive.file_refs &&
+          h.owner_size == MM_MOVIE_PREFIX_BYTES && mm_memory_stream_init(&root, h.owner_bytes, h.owner_size));
+    CHECK(mm_movie_read_header(&root.stream, &header) == MM_MOVIE_OK &&
+          header.current_version == MM_MOVIE_CURRENT_VERSION && header.system == MM_TEXT_WINDOWS);
     CHECK(mm_movie_title_set(&m.title, "Old", 3));
     old_r = m.resources;
     memset(&actor, 0, sizeof(actor));
@@ -310,8 +393,11 @@ static void ownership(void)
         if (i == FAIL_RESOURCE)
             CHECK(!strcmp(h.log, "crf"));
         if (i == FAIL_ROOT)
-            CHECK(!strcmp(h.log, "crfbR"));
+            CHECK(!strcmp(h.log, "crfbR") && m.movieNumber == 0 && h.archive.index.count == 1 &&
+                  !h.archive.file_refs);
     }
+    h.fail = 0;
+    seed_owner_movie(&h);
     for (i = 0; i < (int)(sizeof(load_failures) / sizeof(*load_failures)); ++i)
     {
         reset(&h);
@@ -320,24 +406,33 @@ static void ownership(void)
         CHECK(m.resources == old_r && m.actors.storage.buffers[1].data == old_entries && m.actors.count == 1 &&
               h.resources == 1 && h.buffers == 2 && ((Resource *)old_r)->refs == 2);
         CHECK(m.title.count == 3 && !memcmp(mm_movie_title_text(&m.title), "Old", 3));
+        if (h.fail == FAIL_MISSING)
+            CHECK(!strcmp(h.log, "ovrfi?R"));
+        if (h.fail == FAIL_READ)
+            CHECK(!strcmp(h.log, "ovrfiR"));
+        CHECK(!h.archive.file_refs);
     }
     reset(&h);
     h.fail = 0;
     h.scenes = 2;
     CHECK(mm_movie_load(&m, &h, 99, &s) && m.movieNumber == 7 && m.actorIdLimit == 1 && m.sceneCount == 2);
-    CHECK(!strcmp(h.log, "ovrfinsssCRR") && h.resources == 1 && h.buffers == 2);
-    h.previous = 1;
+    CHECK(!strcmp(h.log, "ovrfihnsssCRR") && h.resources == 1 && h.buffers == 2);
+    saved = owner_rollcall(&h);
     reset(&h);
-    CHECK(mm_movie_save(&m, &s) && !strcmp(h.log, "pjdNSP") && h.persistent == 1);
+    CHECK(mm_movie_save(&m, &s) && !strcmp(h.log, "jdNSP") && h.persistent == 1);
+    saved = replaced_rollcall(&h, saved);
     reset(&h);
     h.fail = FAIL_WRITE;
-    CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "pj"));
+    CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "j") && owner_rollcall(&h) == saved &&
+          h.archive.index.count == 4);
     reset(&h);
     h.fail = FAIL_NAME;
-    CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "pjdN"));
+    CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "jdN"));
+    saved = replaced_rollcall(&h, saved);
     reset(&h);
     h.fail = FAIL_SAVE;
-    CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "pjdNS") && h.persistent == 1);
+    CHECK(!mm_movie_save(&m, &s) && !strcmp(h.log, "jdNS") && h.persistent == 1);
+    replaced_rollcall(&h, saved);
     h.fail = 0;
     original = m.session;
     h.scenes = 3;
@@ -485,11 +580,6 @@ static void make_wire_rollcall(Host *h, MMMemoryStream *memory, int big, int bad
     CHECK(mm_rollcall_table_write(&wire, &writer, big) == MM_STORAGE_OK);
     CHECK(mm_rollcall_table_dispose(&wire) == MM_STORAGE_OK);
     CHECK(mm_memory_stream_init(memory, h->written_rollcall, h->rollcall_bytes));
-}
-
-static MMChunkAccess rollcall_graph(void *p)
-{
-    return fixture_chunk_access(&((Host *)p)->archive.index);
 }
 
 static int locate_rollcall(void *p, MMU32 type, MMU32 number, MMBlockFile *extent, int *packed)
@@ -838,6 +928,7 @@ static void runtime_init(RuntimeCase *t)
     mm_movie_scenes_init(&t->scenes);
     mm_playback_state_init(&t->playback);
     t->owners = owners(&t->archive);
+    seed_owner_movie(&t->archive);
     t->saves.context = t;
     t->saves.state = &t->saved;
     t->saves.data = &t->movie;
@@ -865,7 +956,7 @@ static void runtime_lifecycle(void)
     RuntimeCase t;
     unsigned i;
     const char *failure_order[] = {
-        "kD", "kuD", "kuwD", "kuwqDW", "kuwq+[ovrfinshg!fDRjAR-WQ]", "kuwq+[ovrfinshgGymsKfDRFjAR-WQ]"};
+        "kD", "kuD", "kuwD", "kuwqDW", "kuwq+[ovrfihnshg!fDRjAR-WQ]", "kuwq+[ovrfihnshgGymsKfDRFjAR-WQ]"};
     for (i = PREPARE_FAILED; i <= CACHE_FAILED; ++i)
     {
         runtime_init(&t);
@@ -896,7 +987,7 @@ static void runtime_lifecycle(void)
         CHECK(mm_movie_runtime_open(&t.runtime, &t.client, &t.bundle, 99, 1, &t.services));
         CHECK(t.movie.movieNumber == 7 && t.saved.containerNamed && t.saved.nameValid && !t.saved.readOnly &&
               t.container_name == &t.bundle && t.title_path == &t.bundle && !t.busy && !t.discarded);
-        CHECK(!strcmp(t.archive.log, "kuwq+[ovrfinshgGymsKTyf]"));
+        CHECK(!strcmp(t.archive.log, "kuwq+[ovrfihnshgGymsKTyf]"));
         reset(&t.archive);
         mm_movie_runtime_set_ref(&t.runtime.thumbnail_palette, &t.palette, retain_runtime, release_runtime);
         mm_movie_runtime_set_ref(&t.runtime.thumbnail_palette, &t.palette, retain_runtime, release_runtime);

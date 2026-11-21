@@ -16,6 +16,13 @@ extern "C"
         MMMovieActor data;
         void *cache;
     } MMRollCallActor;
+    typedef struct MMRollCallReader
+    {
+        void *context;
+        MMStringConvert convert;
+        int (*open_actor)(void *, MMRollCallActor *, void *resources);
+        void (*close_actor)(void *, MMRollCallActor *);
+    } MMRollCallReader;
     struct MMMovieSession;
     typedef int (*MMMovieOpenSession)(void *context, void *file, MMU32 *, struct MMMovieSession **);
     typedef struct MMMovieState
@@ -38,23 +45,23 @@ extern "C"
         void *(*new_resources)(void *, void *file);
         void (*release_file)(void *);
         void (*release_resources)(void *);
-        void (*close_actor)(void *, MMRollCallActor *);
         void *(*file)(void *resources);
-        int (*create_root)(void *, void *file, MMU32 *);
-        int (*read_rollcall)(void *, void *resources, MMU32, MMRollCallTable *, MMI32 *limit);
+        MMArchiveWriter (*archive)(void *file);
+        MMResourceCache *(*cache)(void *resources);
+        MMRollCallReader rollcall;
+        MMBlockTransform decode_rollcall;
+        void (*missing_rollcall)(void *), (*unlink_failed)(void *);
         MMChunkTitleIO titles;
-        int (*previous_rollcall)(void *, void *file, MMU32 movie, MMU32 *previous);
-        int (*write_rollcall)(void *, void *file, MMU32 movie, MMRollCallTable *, MMU32 *written);
-        void (*delete_previous)(void *, void *file, MMU32 movie, MMU32 previous);
         int (*save)(void *, void *file);
         void (*make_persistent)(void *file);
     } MMMovieOwnerServices;
     /* Unique owning state. The session borrows its graph through the resource
      * reference and is closed before it. The actor table lives in the state and
      * owns its opened tags. Title and actor names use the same native unit width.
-     * A zero actor allocator uses the C heap. Reading fills an initialized empty
-     * table and leaves it empty on failure. Replacement publishes the scratch state
+     * The archive and cache bindings borrow the active file and resources. A zero
+     * actor allocator uses the C heap. Replacement publishes the scratch state
      * on success and disposes the prior table and resources in order.
+     * The missing-roll-call and unlink-failed diagnostics are optional.
      * Callbacks cannot mutate/re-enter this state. No rollback after save publication:
      * successful roll-call replacement remains visible if naming/saving later fails. */
     void mm_movie_state_init(MMMovieState *);
@@ -70,13 +77,6 @@ extern "C"
                                      void *context, MMMovieOpenSession);
     int mm_movie_save(MMMovieState *, const MMMovieOwnerServices *);
 
-    typedef struct MMRollCallReader
-    {
-        void *context;
-        MMStringConvert convert;
-        int (*open_actor)(void *, MMRollCallActor *, void *resources);
-        void (*close_actor)(void *, MMRollCallActor *);
-    } MMRollCallReader;
     /* Borrows a decoded GST stream and fills an initialized, empty actor table.
      * Failed reads restore an empty table and preserve the caller's ID limit.
      * Failed tag opens acquire no reference. Failed insertions close the current

@@ -312,13 +312,13 @@ priority over the older Project 0-4 ordering wherever they conflict.
   native locale services, UI prompts, engine objects and final callers remain.
 - MovieData's resource handle, actor table, movie number, actor-ID limit, title and scene count
   now live in an owning C state. Empty initialization, transactional load/replace,
-  save ordering and roll-call tag cleanup/marshalling use C89. Title selection,
-  root creation and version-selection/error policy now also use C89; native file
-  services and typed caller facades remain to replace. Runtime and wire
-  roll-call names/extras, editing buffers, GST loading/translation and serialization
-  now use owning C storage. The runtime actor table lives directly in the
-  C movie state. C89 resolves and decodes that table through the owning resource
-  cache. Root creation and roll-call writes use the shared archive block writer.
+  save ordering and roll-call tag cleanup/marshalling use C89. The owner creates
+  roots and replaces roll-call links through the shared archive writer. It loads
+  roll calls from the owning resource cache. Title selection and version policy
+  also use C89. The native file and session bindings and caller facades remain.
+  Runtime and wire roll-call names/extras, editing buffers, GST
+  loading/translation and serialization use owning C storage. The runtime
+  actor table lives directly in the C movie state.
 - Scene metadata and counted names now live in C state. Header read/write,
   event-layout validation, frame/start child replacement, create sequencing and
   failure cleanup use C89. Native file/group adapters and runtime scene-object,

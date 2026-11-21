@@ -1501,12 +1501,13 @@ forty-two focused native checks pass. No Marcus UI tests were added.
 
 `movie_owner.c` owns MovieData's resource/table references, movie number, actor-ID
 limit, title and scene count. Native MovieData now inherits this C state and exposes typed
-borrowed handle accessors, with no duplicated native ownership fields. C performs
-empty initialization, transactional load/replace, contiguous scene counting and
-save ordering. Failed initialization/load preserves the old movie. Save retains
-legacy partial publication: after writing/adopting a new roll call and removing
-the old child, a name/save failure leaves that replacement visible. Only successful
-explicit save makes a temporary file persistent.
+borrowed handle accessors. C performs empty initialization, transactional
+load/replace, contiguous scene counting and save ordering. Empty initialization
+creates the root through the working archive writer. Failed initialization or
+load preserves the old movie. On save, C finds the old roll-call link in the
+working graph, writes and adopts the replacement, and unlinks the old child.
+A later name or file save failure leaves the replacement visible. Only
+successful explicit save makes a temporary file persistent.
 
 C owns roll-call row conversion, extra-width checks, tag-open/append sequencing,
 partial-failure cleanup and output publication. It closes a just-opened tag before
@@ -1516,7 +1517,8 @@ extras in either byte order, with a zero pointer slot. `movie_owner.c` resolves
 the roll-call link and decodes its payload from the same resource cache. On save
 it writes the new GST through an owned archive block, adopts the child after a
 successful write, and discards the new chunk if writing or adoption fails.
-Native services supply file I/O, text conversion and tag operations.
+The owner borrows the native resource cache and archive writer. Native services
+supply file I/O, session binding, text conversion and tag operations.
 
 Studio uses the same state and roll-call paths. Its existing early resource release
 during Movie destruction remains explicit, before closing the scene and actor list;
@@ -3704,8 +3706,7 @@ After old children are removed, physical save failure retains the new graph.
 Autosave uses the working archive's C writer to create a missing movie root and
 serialize the actor roll call and source names. Root write failure discards the
 new root. A failed table write or adoption discards the new table, and a retry
-allocates a fresh block. The movie owner and fixture entry points still use
-their typed MovieData methods for root and roll-call writes.
+allocates a fresh block. The movie owner uses the same root and roll-call writers.
 Named saving releases a matching saved-file reference before saving and attempts
 reacquisition even on failure. Direct binding failure retains the previous
 name-valid/read-only flags, while autosave clears name-valid before reacquisition.

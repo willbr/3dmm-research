@@ -18585,3 +18585,27 @@ suite `20261121T093519Z-2558c71c`. SDL matched all four retail sound requests.
 The ports matched their previous PCM16 peak of 2,176. The archived retail
 peak is 2,380. The captures contain 510,720 SDL and 511,680 Marcus PCM frames.
 Logs and the comparison script are in `tmp/c89-direct-movie-save`.
+
+## Movie owner archive and cache bindings (21 November 2026)
+
+The C89 owner creates empty movie roots through the archive writer. When
+loading, it reads the exact roll-call child from the owning resource cache
+and publishes the new movie after loading succeeds. Saving writes and adopts
+a replacement roll call before unlinking the previous one. The owner fixture
+uses real chunk and block operations to verify failed root writes, unreadable
+and missing roll-call extents, failed roll-call writes, and publication when
+title or physical save fails.
+
+All 193 standalone C checks, five focused AddressSanitizer checks and three
+Marcus checks passed. The native owner, roll-call and root snapshots matched
+all 736, 405 and 224 baseline bytes respectively. Native x64, x86 and SDL
+reproduced all 27 save/reopen traces, their sound-resource snapshots and the
+complete saved authoring fixture. Both ports matched the three archived
+V3dmm storyboard frames, cameras and canvas hashes in suite
+`20261121T094444Z-2bb58bdb`.
+
+In sampled-audio suite `20261121T094451Z-5506a3c5`, both ports matched all 60
+archived retail frame identities, and SDL matched all four retail sound
+requests. The ports matched their previous PCM16 peak of 2,176. The archived
+retail peak is 2,380. The captures contain 521,760 SDL and 511,200 Marcus PCM
+frames. Logs and the comparison script are in `tmp/c89-movie-owner-archive`.
