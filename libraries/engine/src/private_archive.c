@@ -1,6 +1,7 @@
 #include "mm/private_archive.h"
 #include "mm/chunk_copy.h"
 #include "mm/handle_memory.h"
+#include "mm/text_resource.h"
 #include <stdlib.h>
 
 struct MMPrivateArchive
@@ -318,17 +319,27 @@ MMRichTextArchive mm_private_archive_rich_text(MMPrivateArchive *archive, const 
     return text;
 }
 
+static MMChunkEndpoint copy_endpoint(MMPrivateArchive *archive, MMChunkFileCopy *binding)
+{
+    const MMArchiveWriter writer = mm_private_archive_writer(archive);
+    return mm_chunk_file_copy_endpoint(binding, archive, &writer, &archive->titles, archive->profile.unit, 0);
+}
+
 int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destination, MMU32 type,
                             MMU32 number, int clone, MMU32 *copy)
 {
-    const MMArchiveWriter from = mm_private_archive_writer(source), to = mm_private_archive_writer(destination);
     MMChunkFileCopy source_binding, destination_binding;
-    const MMChunkEndpoint source_end = mm_chunk_file_copy_endpoint(&source_binding, source, &from,
-                                         &source->titles, source->profile.unit, 0);
-    const MMChunkEndpoint destination_end = mm_chunk_file_copy_endpoint(&destination_binding, destination, &to,
-                                              &destination->titles, destination->profile.unit, 0);
+    const MMChunkEndpoint source_end = copy_endpoint(source, &source_binding);
+    const MMChunkEndpoint destination_end = copy_endpoint(destination, &destination_binding);
     return destination->writable &&
            mm_chunk_copy(&source_end, &destination_end, type, number, clone, copy) == MM_CHUNK_OK;
+}
+
+int mm_private_archive_bind_font(MMPrivateArchive *archive, const MMChunkEndpoint *source, MMU32 tmpl, MMU32 font)
+{
+    MMChunkFileCopy binding;
+    const MMChunkEndpoint draft = copy_endpoint(archive, &binding);
+    return archive->writable ? mm_text_bind_preview_font(source, &draft, tmpl, font) : MM_CHUNK_BAD_FILE;
 }
 
 int mm_private_archive_save(MMPrivateArchive *archive, MMU32 creator)

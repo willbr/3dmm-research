@@ -94,6 +94,8 @@ class Material_MTRL : public Material_MTRL_PAR
     }
     bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno,
                 const MMMaterialDescription *appearance = nullptr, const MMI32 mapping[6] = nullptr);
+    bool FWrite(const MMArchiveWriter &, ChunkTagOrType ctg, ChunkNumber *pcno,
+                const MMMaterialDescription *appearance, const MMI32 mapping[6]);
 #ifdef DEBUG
     static void MarkShadeTable(void);
 #endif // DEBUG

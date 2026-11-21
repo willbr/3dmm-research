@@ -114,12 +114,15 @@ TextureMap::~TextureMap()
 bool TextureMap::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number)
 {
     AssertPo(file, 0);
-    return FWrite(file->EditIndex(), type, number);
+    return FWrite(file->EditIndex(), KauaiBlockFileServices(), type, number);
 }
-bool TextureMap::FWrite(const MMChunkEdit &edit, ChunkTagOrType type, ChunkNumber *number)
+bool TextureMap::FWrite(const MMChunkEdit &edit, const MMBlockFileServices *files, ChunkTagOrType type, ChunkNumber *number)
 {
     AssertThis(0);
     auto s = _Services();
+    auto payloads = *s.payloads;
+    payloads.files = files;
+    s.payloads = &payloads;
     _Sync();
     MMU32 n;
     std::memcpy(&n, number, sizeof(n));

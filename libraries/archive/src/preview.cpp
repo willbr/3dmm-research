@@ -27,9 +27,9 @@
 #include "mm/scene_data.h"
 #include "mm/scene_thumbnail.h"
 #include "mm/chunk_copy.h"
-#include "mm/text_resource.h"
 #include "preview_actor.h"
 #include "preview_background.h"
+#include "preview_draft_host.h"
 #include "preview_presentation.h"
 #include "preview_audio_output.h"
 #undef size
@@ -499,9 +499,13 @@ bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, st
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot copy the text material.");
     struct Release { void operator()(BASE *p) const { if (p) p->Release(); } };
     std::unique_ptr<Material_MTRL, Release> owner(material);
-    String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
-    if (!filename.FBuildFromPath(&text)) return Fail(error, ErrorCode::invalid_argument, "Invalid text material path.");
-    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    String nativePath;
+    if (!PreviewDraftPath(path, nativePath))
+        return Fail(error, ErrorCode::invalid_argument, "Invalid text material path.");
+    const auto file = OpenPreviewDraft(nativePath);
+    if (!file)
+        return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
+    const auto writer = mm_private_archive_writer(file.get());
     MMMaterialDescription appearance = {};
     appearance.colour = value.colour;
     appearance.ambient = static_cast<br_ufraction>(std::lround(value.ambient * 65535));
@@ -516,9 +520,9 @@ bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, st
         for (int i = 0; i < 6; ++i)
             mapping[i] = BrFloatToScalar(value.mapping[i]);
     ChunkNumber chunk = 0;
-    if (!file || !material->FWrite(file.get(), kctgMtrl, &chunk, &appearance, textured ? mapping : nullptr) || chunk != 0)
+    if (!material->FWrite(writer, kctgMtrl, &chunk, &appearance, textured ? mapping : nullptr) || chunk != 0)
         return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
-    return file->FSave(kctgSoc) || Fail(error, ErrorCode::decode_failed, "Cannot save the text material.");
+    return mm_private_archive_save(file.get(), kctgSoc) || Fail(error, ErrorCode::decode_failed, "Cannot save the text material.");
 }
 bool Preview::SetObjectTextMaterial(int object, std::int32_t source, std::uint32_t number, Error &error)
 {
@@ -528,22 +532,20 @@ bool Preview::SetObjectTextMaterial(int object, std::int32_t source, std::uint32
 bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSource, std::uint32_t font, Error &error)
 {
     const TAGOnFile tag = {fontSource, 0, kctgTdf, font}; auto source = _impl->Resolve(tag);
-    String text; Filename filename; text.SetSzs(const_cast<char *>(path.c_str()));
-    if (!source || !filename.FBuildFromPath(&text)) return Fail(error, ErrorCode::decode_failed, "Cannot copy the preview font.");
-    struct Release { void operator()(ChunkyFile *p) const { if (p) p->Release(); } };
-    std::unique_ptr<ChunkyFile, Release> file(ChunkyFile::PcflOpen(&filename, fcflWriteEnable));
+    String nativePath;
+    if (!source || !PreviewDraftPath(path, nativePath))
+        return Fail(error, ErrorCode::decode_failed, "Cannot copy the preview font.");
+    const auto file = OpenPreviewDraft(nativePath);
     if (!file)
         return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
     MMResourceChunkCopy sourceBinding;
-    MMChunkFileCopy draftBinding;
     const auto sourceChunks = source->CopySource(sourceBinding);
-    const auto draftChunks = file->CopyEndpoint(draftBinding);
-    const int status = mm_text_bind_preview_font(&sourceChunks, &draftChunks, 0, font);
+    const int status = mm_private_archive_bind_font(file.get(), &sourceChunks, 0, font);
     if (status == MM_CHUNK_NOT_FOUND)
         Bug("chunk not found");
     if (status != MM_CHUNK_OK)
         return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
-    return file->FSave(kctgSoc) ||
+    return mm_private_archive_save(file.get(), kctgSoc) ||
         Fail(error, ErrorCode::decode_failed, "Cannot link the preview font.");
 }
 bool Preview::UseTextPreviewMaterial(Error &error)

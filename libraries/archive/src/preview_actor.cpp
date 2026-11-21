@@ -13,8 +13,8 @@
 #include "mm/actor_effect.h"
 #include "mm/actor_costume_edit.h"
 #include "mm/actor_animation.h"
-#include "mm/actor_persistence.h"
 #include "mm/sound_resource.h"
+#include "preview_draft_host.h"
 #undef size
 #include "preview_cue_view.h"
 ASSERTNAME
@@ -280,27 +280,13 @@ struct PreviewActor::TrackDraft
     }
     bool Write(const std::string &path, bool withRoute) const
     {
-        struct Output
-        {
-            const std::string &path;
-            PChunkyFile file = nullptr;
-            ~Output() { ReleasePpo(&file); }
-        } output = {path};
-        const MMActorTrackArchive archive = {
-            &output,
-            [](void *p, MMArchiveWriter *writer) -> int {
-                auto &out = *static_cast<Output *>(p);
-                String text;
-                Filename filename;
-                text.SetSzs(const_cast<char *>(out.path.c_str()));
-                if (!filename.FBuildFromPath(&text) || !(out.file = ChunkyFile::PcflCreate(&filename, fcflWriteEnable)))
-                    return false;
-                *writer = out.file->WriteIndex();
-                return true;
-            },
-            [](void *p) -> int { return static_cast<Output *>(p)->file->FSave(kctgSoc); }};
+        String nativePath;
+        if (!PreviewDraftPath(path, nativePath))
+            return false;
+        const auto profile = KauaiPrivateArchiveProfile();
         const auto track = actor.Track();
-        return mm_actor_store_edit_tracks(&track, withRoute, &archive) != 0;
+        return mm_preview_store_actor_tracks(reinterpret_cast<const MMNativePathChar *>(nativePath.Psz()),
+                                             &profile, kctgSoc, &track, withRoute) != 0;
     }
 };
 bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, const std::string &path)

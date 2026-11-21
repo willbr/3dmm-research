@@ -201,6 +201,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
 - Marcus reads and saves 2-D captions through the private archive. C owns
   the caption edit transaction and retains the stored TEXT extent through
   geometry and formatting edits.
+- Shared Preview writes animation and costume track drafts, 3-D text
+  materials and preview font bindings through the private C89 archive.
+  The native C file provider opens the drafts, and material textures use
+  the same destination file services as their headers and transforms.
 - The strict C89 syntax checks cover the migrated engine and native services
   and the Marcus C frontend. The standalone C-only probe exercises actual
   file open, seek and model reads. The live shared session still needs

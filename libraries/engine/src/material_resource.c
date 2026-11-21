@@ -241,7 +241,7 @@ int mm_material_write_appearance(const MMMaterialResource *m, const MMChunkEdit 
     {
         child.type = s->texture_type;
         child.number = 0;
-        if (!s->write_texture(s->context, texture, edit, child.type, &child.number))
+        if (!s->write_texture(s->context, texture, edit, files, child.type, &child.number))
         {
             mm_chunk_delete(edit, type, *number);
             return 0;

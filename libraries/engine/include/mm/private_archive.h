@@ -35,6 +35,9 @@ MMMovieArchiveEditor mm_private_archive_editor(MMPrivateArchive *);
 MMRichTextArchive mm_private_archive_rich_text(MMPrivateArchive *, const MMMovieArchiveEditor *);
 int mm_private_archive_copy(MMPrivateArchive *source, MMPrivateArchive *destination, MMU32 type,
                             MMU32 number, int clone, MMU32 *copy);
+struct MMChunkEndpoint;
+int mm_private_archive_bind_font(MMPrivateArchive *, const struct MMChunkEndpoint *source,
+                                MMU32 template_number, MMU32 font_number);
 int mm_private_archive_save(MMPrivateArchive *, MMU32 creator);
 
 #ifdef __cplusplus

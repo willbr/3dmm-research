@@ -1268,10 +1268,11 @@ target_link_libraries(mm-archive PRIVATE engine-core mm-native-files)
 add_library(mm-preview STATIC EXCLUDE_FROM_ALL
   libraries/archive/src/preview.cpp libraries/archive/src/preview_actor.cpp
   libraries/archive/src/preview_background.cpp libraries/archive/src/preview_background_mesh.cpp
-  libraries/archive/src/preview_presentation.cpp)
+  libraries/archive/src/preview_presentation.cpp libraries/archive/src/preview_draft.c)
 add_library(MM::Preview ALIAS mm-preview)
+set_target_properties(mm-preview PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_include_directories(mm-preview PRIVATE "${PROJECT_SOURCE_DIR}/src/engine")
-target_link_libraries(mm-preview PUBLIC MM::Archive PRIVATE engine-core mm-brender-resources)
+target_link_libraries(mm-preview PUBLIC MM::Archive PRIVATE engine-core mm-brender-resources mm-native-files)
 add_executable(preview-api-test EXCLUDE_FROM_ALL tests/preview_api_test.cpp tests/preview_api_include_order.cpp)
 target_link_libraries(preview-api-test PRIVATE MM::Preview)
 add_executable(preview-scene-fixture EXCLUDE_FROM_ALL tests/preview_scene_fixture.cpp)

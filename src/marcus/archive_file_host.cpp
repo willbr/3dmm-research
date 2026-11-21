@@ -1,17 +1,9 @@
 #include "archive_file.h"
-#include "kauai_core.h"
+#include "private_archive_host.h"
 
 MarcusArchive MarcusOpenArchive(const std::filesystem::path &path, int mode)
 {
-    MMPrivateArchiveProfile profile = {sizeof(achar), koskCur, MacWin(koskUniWin, koskUniMac), 0, 0,
-        KauaiEncodeLegacyChunkName,
-        [](void *, const void *bytes, size_t count, int encoding, void *out, size_t capacity) -> size_t {
-            return CchTranslateRgb(const_cast<void *>(bytes), count, encoding, static_cast<achar *>(out), capacity);
-        }};
-#ifdef CHUNK_BIG_INDEX
-    profile.expanded = 1;
-#endif
-    Debug(profile.trash_unused = 1;)
+    const auto profile = KauaiPrivateArchiveProfile();
     return MarcusArchive(marcus_archive_open(path.u8string().c_str(), mode, &profile), mm_private_archive_close);
 }
 

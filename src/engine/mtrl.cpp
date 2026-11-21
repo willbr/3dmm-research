@@ -81,10 +81,11 @@ MMMaterialServices Material_MTRL::_Services(void *context)
         auto texture = static_cast<PTextureMap>(object);
         return texture ? texture->Pbpmp() : nullptr;
     };
-    s.write_texture = [](void *, void *p, const MMChunkEdit *edit, MMU32 type, MMU32 *number) -> int {
+    s.write_texture = [](void *, void *p, const MMChunkEdit *edit, const MMBlockFileServices *files,
+                         MMU32 type, MMU32 *number) -> int {
         ChunkNumber n;
         std::memcpy(&n, number, sizeof(n));
-        const auto ok = static_cast<PTextureMap>(p)->FWrite(*edit, type, &n);
+        const auto ok = static_cast<PTextureMap>(p)->FWrite(*edit, files, type, &n);
         std::memcpy(number, &n, sizeof(n));
         return ok;
     };
@@ -178,14 +179,18 @@ PTextureMap Material_MTRL::Ptmap()
 bool Material_MTRL::FWrite(PChunkyFile file, ChunkTagOrType type, ChunkNumber *number,
                            const MMMaterialDescription *appearance, const MMI32 mapping[6])
 {
-    AssertThis(0);
     AssertPo(file, 0);
+    return FWrite(file->WriteIndex(), type, number, appearance, mapping);
+}
+bool Material_MTRL::FWrite(const MMArchiveWriter &writer, ChunkTagOrType type, ChunkNumber *number,
+                           const MMMaterialDescription *appearance, const MMI32 mapping[6])
+{
+    AssertThis(0);
     AssertVarMem(number);
     auto s = _Services();
     MMU32 n;
     std::memcpy(&n, number, sizeof(n));
-    const auto edit = file->EditIndex();
-    const bool ok = mm_material_write_appearance(&_material, &edit, KauaiBlockFileServices(), type, &n,
+    const bool ok = mm_material_write_appearance(&_material, &writer.edit, writer.payloads->files, type, &n,
                                                  appearance, mapping, &s) != 0;
     std::memcpy(number, &n, sizeof(n));
     return ok;

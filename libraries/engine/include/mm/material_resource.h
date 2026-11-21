@@ -76,7 +76,8 @@ extern "C"
         void (*map)(void *, void *handle, void *colour_map, void *shade_map);
         MMI32 (*height)(void *, void *pixelmap);
         void (*transform)(void *, void *handle, const MMI32 matrix[6]);
-        int (*write_texture)(void *, void *texture, const MMChunkEdit *, MMU32 type, MMU32 *number);
+        int (*write_texture)(void *, void *texture, const MMChunkEdit *, const MMBlockFileServices *,
+                             MMU32 type, MMU32 *number);
         void *(*read_bitmap)(void *, void *filename, void *palette);
         const void *(*pixelmap_path)(void *, void *filename);
         void *(*read_pixelmap)(void *, const void *path);

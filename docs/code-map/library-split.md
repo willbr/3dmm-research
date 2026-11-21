@@ -3827,6 +3827,14 @@ clones the selected box, applies the edit, updates the scene links and
 releases the text file and formatting collections. Geometry and formatting
 edits preserve the authored TEXT bytes and encoding.
 
+Shared Preview uses the C89 archive owner for editable track and 3-D text
+drafts. The native C file provider supplies the draft handle and exact byte
+I/O. The actor persistence code writes and saves the event and route chunks,
+and the font binder copies from the resource cache into the draft before
+patching its descriptor. Material serialization passes the destination block
+services through to texture writes, so MTRL, TMAP and TXXF use the same file
+owner. Native adapters supply resolved resources and BRender material data.
+
 `movie_content.c` owns material insertion, 3-D text authoring/insertion and selected
 actor template replacement, caption insertion/removal/hiding and indexed caption
 selection. It reuses `movie_edit.c` for actor insertion/removal and snapshot

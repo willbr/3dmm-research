@@ -386,10 +386,12 @@ static int write_chunk(void *p, void *file, MMU32 offset, const void *data, size
     return 1;
 }
 static const MMBlockFileServices author_files = {NULL, NULL, NULL, NULL, NULL, write_chunk};
-static int write_texture(void *p, void *o, const MMChunkEdit *edit, MMU32 type, MMU32 *number)
+static int write_texture(void *p, void *o, const MMChunkEdit *edit, const MMBlockFileServices *files,
+                         MMU32 type, MMU32 *number)
 {
     Test *t = test(p);
     assert(o == &t->texture && edit->context == &t->index && type == t->s.texture_type);
+    assert(files == &author_files);
     if (fail(t))
         return 0;
     fixture_chunk_add(&t->index, type, 0);

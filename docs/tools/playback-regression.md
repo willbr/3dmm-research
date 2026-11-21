@@ -19198,3 +19198,35 @@ In sampled-audio suite `20261121T141040Z-032776b0`, both hosts matched all
 The PCM16 peak matched prior host captures at 2,176. The archived retail
 peak is 2,380. SDL captured 511,680 PCM frames and Marcus captured
 512,640. Evidence is in `tmp/c89-private-caption-archive`.
+
+## Preview draft archives in C89 (21 November 2026)
+
+Preview authors actor event and route drafts, 3-D text materials and font
+bindings through the C89 archive owner. The material writer sends texture
+payloads through the same destination file services as the material header
+and transform.
+
+The Marcus insertion test passed against both builds. All seven saved `.3mm`
+files matched byte for byte, including the animated actor, textured text,
+and pasted text. The isolated and persistent text previews passed their
+exact-pixel comparisons. The rebuilt costume test preserved actor and prop
+costume pixels after save and reopen, and its saved file matched the archived
+costume fixture byte for byte. The SDL Studio save/load fixture matched its
+previous file byte for byte.
+
+All 193 standalone C checks, four AddressSanitizer checks, five focused
+native checks, the headless asset preview suite and the x86 C material
+check passed. The x86 Marcus player library built.
+
+Both playback hosts matched all three archived V3dmm storyboard frames,
+camera indices and canvas hashes in suite `20261121T141933Z-aea2ab8f`.
+In actor-event suite `20261121T141939Z-a0d844c0`, both matched all 60
+retail frame identities in seek and continuous playback. Seek camera
+indices matched retail, seek canvas hashes matched prior host captures,
+and SDL matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T142115Z-ef84f491`, both hosts matched all
+60 retail frame identities and SDL matched all four retail sound requests.
+The PCM16 peak matched prior host captures at 2,176. The archived retail
+peak is 2,380. SDL captured 521,760 PCM frames and Marcus captured
+512,640. Evidence is in `tmp/c89-preview-private-drafts`.
