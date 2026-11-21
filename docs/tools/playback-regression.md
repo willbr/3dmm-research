@@ -19901,3 +19901,32 @@ SDL matched retail's single sound request. Both ports produced audible PCM
 with 4,802 audible samples versus retail's 4,889 at 48 kHz. The harness
 reported differing PCM, inconclusive continuous pixels, and inconclusive
 Marcus timing and sound requests. Evidence is in `tmp/c89-undo-sound-assets`.
+
+## Archive-backed scene removal undo in C89 (21 November 2026)
+
+Scene removal uses the same C89 snapshot writer as scene chop. It stores the
+live scene when it is current and reads a detached scene
+when another scene is selected. The undo record holds the archive and its
+scene chunk number. Studio reads a temporary scene from the archive when
+inserting it back into the movie. The original native scene is released after
+removal. Archive open and write failures leave the movie and history intact.
+
+All 193 standalone C89 checks passed. Movie Scene, Scene Chop, and Scene Store
+passed under AddressSanitizer. Native and SDL scene edit, scene store, and
+movie save/load checks passed. Marcus syntax and player checks passed.
+
+Studio reproduced four baseline movies byte for byte after forward and
+backward chop and scene removal undo and redo. It also removed a scene after
+editing its caption without saving, then ran undo, redo, another undo, save,
+and reopen. The reopened scene retained the unsaved caption edit, the actor,
+and the same frame-two sound header and WAVE payload. The saved sound event
+referenced the `MSND` child at the correct scene slot.
+
+Retail, SDL, and Marcus agreed on all eight seek frames and cameras and on
+the continuous frame sequence in `20261121T194152Z-62c19ce8`. The ports
+produced identical seek canvases. Retail matched five immediately and three
+after a 550 ms settling interval. SDL matched the single retail sound request.
+Both ports produced the same audible sample-frame count as the previous
+snapshot test, 4,802 versus retail's 4,889 at 48 kHz. Mixed PCM still differed, and
+continuous pixel parity was inconclusive. Evidence is in
+`tmp/c89-scene-removal-snapshot`.

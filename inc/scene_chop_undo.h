@@ -13,7 +13,7 @@ class SceneUndoChop : public SceneUndoChop_PAR
     ASSERT
 
   protected:
-    MMSceneChopUndo _snapshot = {};
+    MMSceneSnapshot _snapshot = {};
     SceneUndoChop(void)
     {
     }

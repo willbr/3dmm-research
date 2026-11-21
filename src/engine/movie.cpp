@@ -35,6 +35,7 @@ Actors, Text boxes, etc.
 #include "mm/actor_archive.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_sound_archive.h"
+#include "mm/private_archive.h"
 ASSERTNAME
 
 static_assert(kdtsSecond / kfps == MM_RECORD_FRAME_TICKS && ivNil == -1, "Actor recording gesture ABI");
@@ -863,11 +864,6 @@ MMMovieSceneServices Movie::_SceneServices()
     s.retain = [](void *p) { static_cast<PScene>(p)->AddRef(); };
     s.release = [](void *p) { auto scene = static_cast<PScene>(p); ReleasePpo(&scene); };
     s.sound_frame = [](void *p) { static_cast<PScene>(p)->UpdateSndFrame(); };
-    s.hide = [](void *p) {
-        auto scene = static_cast<PScene>(p);
-        scene->HideActors();
-        scene->HideTboxes();
-    };
     s.scene_change = [](void *p) { static_cast<PMovie>(p)->Pmcc()->SceneChange(); };
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
     s.edit = [](void *p) { return static_cast<PChunkyResourceFile>(p)->ArchiveWriter().edit; };
@@ -892,6 +888,7 @@ MMMovieSceneServices Movie::_SceneServices()
         return undo;
     };
     s.undo_tags = &TagManager::CoreServices();
+    s.snapshot = Scene::SnapshotServices(this);
     s.add_undo = [](void *p, void *undo) -> int { return static_cast<PMovie>(p)->FAddUndo(static_cast<PMovieSceneUndo>(undo)); };
     s.release_undo = [](void *p) { auto undo = static_cast<PMovieSceneUndo>(p); ReleasePpo(&undo); };
     s.clear_undo = [](void *p) { static_cast<PMovie>(p)->ClearUndo(); };
@@ -5530,8 +5527,7 @@ PMovieSceneUndo MovieSceneUndo::PmunsNew()
 MovieSceneUndo::~MovieSceneUndo(void)
 {
     AssertBaseThis(0);
-    mm_movie_scene_undo_dispose(&_sceneUndo, [](void *p) { static_cast<PScene>(p)->Release(); },
-                                &TagManager::CoreServices());
+    mm_movie_scene_undo_dispose(&_sceneUndo, &TagManager::CoreServices());
 }
 
 /****************************************************
@@ -5600,8 +5596,12 @@ void MovieSceneUndo::MarkMem(void)
 {
     AssertThis(0);
     MovieSceneUndo_PAR::MarkMem();
-    if (_sceneUndo.operation == MM_MOVIE_REMOVE_SCENE)
-        MarkMemObj(static_cast<PScene>(_sceneUndo.saved.scene));
+    if (_sceneUndo.operation == MM_MOVIE_REMOVE_SCENE && _sceneUndo.saved.snapshot.archive)
+    {
+        const auto &files = mm_private_archive_reader(_sceneUndo.saved.snapshot.archive)->storage->owner->files;
+        MarkMemObj(static_cast<PFileObject>(files.main_file));
+        MarkMemObj(static_cast<PFileObject>(files.extra_file));
+    }
     else if (_sceneUndo.operation == MM_MOVIE_INSERT_SCENE && !_sceneUndo.saved.background.sid)
         MarkMemObj(static_cast<PChunkyResourceFile>(_sceneUndo.saved.background.cache));
 }
@@ -5619,8 +5619,12 @@ void MovieSceneUndo::MarkMem(void)
  **************************************************************************/
 void MovieSceneUndo::AssertValid(LegacyUlong grf)
 {
-    if (_sceneUndo.operation == MM_MOVIE_REMOVE_SCENE)
-        AssertPo(static_cast<PScene>(_sceneUndo.saved.scene), 0);
+    if (_sceneUndo.operation == MM_MOVIE_REMOVE_SCENE && _sceneUndo.saved.snapshot.archive)
+    {
+        const auto &files = mm_private_archive_reader(_sceneUndo.saved.snapshot.archive)->storage->owner->files;
+        AssertPo(static_cast<PFileObject>(files.main_file), grf);
+        AssertNilOrPo(static_cast<PFileObject>(files.extra_file), grf);
+    }
     else if (_sceneUndo.operation == MM_MOVIE_INSERT_SCENE && !_sceneUndo.saved.background.sid)
         AssertNilOrPo(static_cast<PChunkyResourceFile>(_sceneUndo.saved.background.cache), 0);
 }

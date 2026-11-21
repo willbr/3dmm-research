@@ -1,6 +1,7 @@
 /* Scene chopping and snapshot undo converted from engine/scene.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/scene_chop.h"
+#include "mm/private_archive.h"
 #include <stddef.h>
 int mm_scene_chop(int back, const MMSceneChopServices *s)
 {
@@ -122,24 +123,15 @@ int mm_scene_chop_edit(int back, const MMSceneChopServices *s)
     }
     return 1;
 }
-int mm_scene_chop_save(MMSceneChopUndo *p, void *scene, const MMSceneSnapshotServices *s)
+int mm_scene_chop_swap(MMSceneSnapshot *p, MMI32 index, MMI32 frame,
+                      const MMSceneChopSwapServices *s, const MMMovieSceneServices *scenes)
 {
-    int ok;
-    p->archive = s->open(s->context);
-    if (!p->archive)
-        return 0;
-    s->begin(s->context);
-    ok = s->write(s->context, scene, p->archive, &p->number);
-    s->end(s->context);
-    return ok;
-}
-int mm_scene_chop_swap(MMSceneChopUndo *p, MMI32 index, MMI32 frame,
-                       const MMSceneSnapshotServices *s, const MMMovieSceneServices *scenes)
-{
+    const MMSceneSnapshotServices *snapshot = &s->snapshot;
+    void *context = snapshot->context;
     MMArchiveWriter writer;
     void *loaded, *old;
-    s->begin(s->context);
-    loaded = s->read(s->context, p->archive, p->number);
+    snapshot->begin(context);
+    loaded = mm_scene_snapshot_read(p, snapshot);
     if (!loaded)
         goto fail;
     if (!scenes->start(loaded) || !mm_movie_scene_switch(index, scenes))
@@ -158,9 +150,9 @@ int mm_scene_chop_swap(MMSceneChopUndo *p, MMI32 index, MMI32 frame,
     scenes->close(loaded);
     writer = mm_private_archive_writer(p->archive);
     if (mm_chunk_delete(&writer.edit, MM_SCENE_CHUNK, p->number) != MM_CHUNK_OK && s->delete_failed)
-        s->delete_failed(s->context);
-    s->rewind(s->context, old);
-    if (!s->write(s->context, old, p->archive, &p->number))
+        s->delete_failed(context);
+    s->rewind(context, old);
+    if (!snapshot->write(context, old, p->archive, &p->number))
     {
         mm_movie_scene_remove(index + 1, scenes);
         scenes->close(old);
@@ -174,16 +166,11 @@ int mm_scene_chop_swap(MMSceneChopUndo *p, MMI32 index, MMI32 frame,
         s->seek(scenes->state->open, frame);
         scenes->invalidate(scenes->context);
     }
-    s->end(s->context);
+    snapshot->end(context);
     return 1;
 fail:
     scenes->flush_sound(scenes->context);
     scenes->clear_undo(scenes->context);
-    s->end(s->context);
+    snapshot->end(context);
     return 0;
-}
-void mm_scene_chop_dispose(MMSceneChopUndo *p)
-{
-    mm_private_archive_close(p->archive);
-    p->archive = NULL;
 }

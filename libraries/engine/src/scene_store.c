@@ -4,8 +4,33 @@
 #include "mm/background_resource.h"
 #include "mm/scene_data.h"
 #include "mm/movie_sound.h"
+#include "mm/private_archive.h"
+#include "mm/scene_snapshot.h"
 #include "mm/text_store.h"
 #include <string.h>
+
+int mm_scene_snapshot_save(MMSceneSnapshot *p, void *scene, const MMSceneSnapshotServices *s)
+{
+    int ok;
+    p->archive = s->open(s->context);
+    if (!p->archive)
+        return 0;
+    s->begin(s->context);
+    ok = s->write(s->context, scene, p->archive, &p->number);
+    s->end(s->context);
+    return ok;
+}
+
+void *mm_scene_snapshot_read(const MMSceneSnapshot *p, const MMSceneSnapshotServices *s)
+{
+    return p->archive ? s->read(s->context, p->archive, p->number) : NULL;
+}
+
+void mm_scene_snapshot_dispose(MMSceneSnapshot *p)
+{
+    mm_private_archive_close(p->archive);
+    p->archive = NULL;
+}
 typedef struct CollectActorTags
 {
     MMTagList *list;

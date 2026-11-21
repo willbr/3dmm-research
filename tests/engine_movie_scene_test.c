@@ -4,6 +4,7 @@
 #include "mm/movie_scene_journal.h"
 #include "mm/scene_runtime.h"
 #include "movie_scene_session_fixture.h"
+#include "scene_snapshot_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,7 +31,10 @@ enum
     CREATE,
     UNDO,
     ADD_UNDO,
-    PRESERVE_MATERIALS
+    PRESERVE_MATERIALS,
+    SNAPSHOT_OPEN,
+    SNAPSHOT_WRITE,
+    SNAPSHOT_READ
 };
 typedef struct Test Test;
 typedef struct Scene
@@ -50,9 +54,10 @@ struct Test
     int autosaves, reads, starts, seeks, stops, memory, changes, sound, invalidates;
     int change_index[8], change_open[8];
     int moves, from[8], to[8], saves, deletes, adds, removes;
-    int dirty, rollcall, errors, enabled, played, flushed, hidden, cleared, missing;
-    int undo_refs, tag_refs;
+    int dirty, rollcall, errors, enabled, played, flushed, cleared, missing;
+    int undo_refs, tag_refs, snapshot_reads, snapshot_writes;
     MMMovieSceneUndoRecord undo;
+    SnapshotFile snapshot_file;
 };
 static int succeeds(Test *t, int operation)
 {
@@ -165,10 +170,6 @@ static void close_scene(void *p)
 static void sound(void *p)
 {
     ++((Scene *)p)->test->sound;
-}
-static void hide(void *p)
-{
-    ++((Scene *)p)->test->hidden;
 }
 static void change(void *p)
 {
@@ -291,7 +292,30 @@ static void release_undo(void *p)
 {
     Test *t = p;
     if (--t->undo_refs == 0)
-        mm_movie_scene_undo_dispose(&t->undo, release, t->s.undo_tags);
+        mm_movie_scene_undo_dispose(&t->undo, t->s.undo_tags);
+}
+static MMPrivateArchive *open_snapshot(void *p)
+{
+    Test *t = p;
+    return succeeds(t, SNAPSHOT_OPEN) ? snapshot_file_open(&t->snapshot_file) : NULL;
+}
+static void snapshot_long_op(void *p) { (void)p; }
+static int write_snapshot(void *p, void *scene, MMPrivateArchive *archive, MMU32 *number)
+{
+    Test *t = p;
+    const Scene *value = scene;
+    ++t->snapshot_writes;
+    if (!succeeds(t, SNAPSHOT_WRITE))
+        return 0;
+    *number = (MMU32)value->index + 40U;
+    put_snapshot(archive, *number);
+    return 1;
+}
+static void *read_snapshot(void *p, MMPrivateArchive *archive, MMU32 number)
+{
+    Test *t = p;
+    ++t->snapshot_reads;
+    return succeeds(t, SNAPSHOT_READ) && has_snapshot(archive, number) ? new_scene(t, (int)number - 40) : NULL;
 }
 static void retain_tag(void *p) { ++((Test *)p)->tag_refs; }
 static void release_tag(void *p) { --((Test *)p)->tag_refs; }
@@ -342,7 +366,6 @@ static void init(Test *t, int count, int current)
     s->retain = retain;
     s->release = release;
     s->sound_frame = sound;
-    s->hide = hide;
     s->scene_change = change;
     s->invalidate = invalidate;
     s->edit = edit_archive;
@@ -359,6 +382,11 @@ static void init(Test *t, int count, int current)
     s->play_sound = play;
     s->flush_sound = flush;
     s->new_undo = new_undo;
+    s->snapshot.context = t;
+    s->snapshot.open = open_snapshot;
+    s->snapshot.begin = s->snapshot.end = snapshot_long_op;
+    s->snapshot.write = write_snapshot;
+    s->snapshot.read = read_snapshot;
     s->add_undo = add_undo;
     s->release_undo = release_undo;
     s->clear_undo = clear;
@@ -371,6 +399,8 @@ static int clean(Test *t)
     if (t->undo_refs)
         clear(t);
     mm_movie_session_close(t->data.session);
+    if (t->snapshot_file.refs)
+        return 0;
     for (i = 0; i < t->used; ++i)
         if (t->scenes[i].refs != 0)
             return 0;
@@ -524,11 +554,14 @@ static int removal(void)
           clean(&t));
     for (i = 0; i < 2; ++i)
     {
+        Scene *captured;
         init(&t, 3, i);
+        captured = i ? &t.scenes[1] : t.state.open;
         CHECK(mm_movie_scene_remove_undoable(0, &t.s));
         CHECK(t.data.sceneCount == 2 && t.undo.operation == MM_MOVIE_REMOVE_SCENE && t.undo.index == 0 &&
-              ((Scene *)t.undo.saved.scene)->refs == 1 && t.undo_refs == 1);
-        CHECK(t.hidden == i && clean(&t));
+              !captured->refs && t.undo_refs == 1 && t.snapshot_file.refs == 1 && t.snapshot_writes == 1 &&
+              has_snapshot(t.undo.saved.snapshot.archive, 40));
+        CHECK(t.starts == 1 + i && clean(&t));
     }
     init(&t, 3, 0);
     t.fail = UNDO;
@@ -546,6 +579,14 @@ static int removal(void)
     t.fail = START;
     t.failures = 1;
     CHECK(!mm_movie_scene_remove_undoable(0, &t.s) && !t.undo_refs && clean(&t));
+    for (i = SNAPSHOT_OPEN; i <= SNAPSHOT_WRITE; ++i)
+    {
+        init(&t, 3, 0);
+        t.fail = i;
+        t.failures = 1;
+        CHECK(!mm_movie_scene_remove_undoable(0, &t.s) && t.state.index == 0 && t.data.sceneCount == 3 &&
+              !t.removes && !t.undo_refs && !t.snapshot_file.refs && clean(&t));
+    }
     return 0;
 }
 
@@ -623,7 +664,7 @@ static int undoing(void)
     s.unknown = unknown;
     for (k = 0; k < 3; ++k)
         for (redo = 0; redo <= 1; ++redo)
-            for (fault = 0; fault <= CREATE; ++fault)
+            for (fault = 0; fault <= SNAPSHOT_READ; ++fault)
             {
                 Scene *snapshot;
                 MMSceneOwnerServices owners;
@@ -634,7 +675,8 @@ static int undoing(void)
                 init(&u.movie, 3, 2);
                 CHECK(mm_scene_owner_init(&u.owner, NULL, 1, NULL));
                 u.movie.s.clear_undo = uclear;
-                u.movie.fail = (removed && fault == TEMP) || (!removed && !redo && fault == WRITE) ||
+                u.movie.fail = (removed && fault == TEMP) ||
+                                   (!removed && !redo && (fault == WRITE || fault == SNAPSHOT_READ)) ||
                                    (!removed && redo && fault == CREATE)
                                ? fault : 0;
                 u.movie.failures = 1;
@@ -644,7 +686,7 @@ static int undoing(void)
                 record.operation = kind;
                 record.index = 2;
                 if (kind == MM_MOVIE_REMOVE_SCENE)
-                    record.saved.scene = snapshot;
+                    CHECK(mm_scene_snapshot_save(&record.saved.snapshot, snapshot, &u.movie.s.snapshot));
                 else if (kind == MM_MOVIE_INSERT_SCENE)
                     record.saved.background = tag;
                 result = mm_movie_scene_undo(&record, redo, &s);
@@ -654,8 +696,8 @@ static int undoing(void)
                     CHECK(result == (fault != TEMP) && u.movie.deletes == result &&
                           u.movie.data.sceneCount == 3 - result);
                 else if (!redo)
-                    CHECK(result == (fault != WRITE) && u.movie.adds == result &&
-                          u.movie.data.sceneCount == 3 + result);
+                    CHECK(result == (fault != WRITE && fault != SNAPSHOT_READ) && u.movie.adds == result &&
+                          u.movie.data.sceneCount == 3 + result && u.movie.snapshot_reads == 1);
                 else
                 {
                     CHECK(result == (fault != CREATE && fault != START));
@@ -669,6 +711,7 @@ static int undoing(void)
                 if (result)
                     CHECK(u.removed == removed);
                 mm_scene_owner_dispose(&u.owner, &owners);
+                mm_movie_scene_undo_dispose(&record, NULL);
                 release(snapshot);
                 CHECK(clean(&u.movie));
             }

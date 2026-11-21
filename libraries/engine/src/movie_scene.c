@@ -386,9 +386,14 @@ static int record_undo(MMI32 index, void *scene, const MMTag *background, const 
     }
     else
     {
+        const MMSceneSnapshot empty = {0};
         record->operation = MM_MOVIE_REMOVE_SCENE;
-        record->saved.scene = scene;
-        s->retain(scene);
+        record->saved.snapshot = empty;
+        if (!mm_scene_snapshot_save(&record->saved.snapshot, scene, &s->snapshot))
+        {
+            s->release_undo(undo);
+            return 0;
+        }
     }
     added = s->add_undo(s->context, undo);
     s->release_undo(undo);
@@ -398,13 +403,12 @@ int mm_movie_scene_record_insertion(MMI32 index, const MMTag *tag, const MMMovie
 {
     return record_undo(index, NULL, tag, s) > 0;
 }
-void mm_movie_scene_undo_dispose(MMMovieSceneUndoRecord *p, void (*release_scene)(void *),
-                                 const MMTagServices *tags)
+void mm_movie_scene_undo_dispose(MMMovieSceneUndoRecord *p, const MMTagServices *tags)
 {
-    const MMMovieSceneUndoRecord record = *p;
+    MMMovieSceneUndoRecord record = *p;
     p->operation = MM_MOVIE_SCENE_UNDO_EMPTY;
     if (record.operation == MM_MOVIE_REMOVE_SCENE)
-        release_scene(record.saved.scene);
+        mm_scene_snapshot_dispose(&record.saved.snapshot);
     else if (record.operation == MM_MOVIE_INSERT_SCENE)
     {
         MMTag tag = record.saved.background;
@@ -422,15 +426,9 @@ int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *s)
         s->retain(scene);
     }
     else
-    {
         scene = read_scene(index, s);
-        if (!scene || !s->start(scene))
-        {
-            s->close(scene);
-            return 0;
-        }
-        s->hide(scene);
-    }
+    if (!scene)
+        return 0;
     added = record_undo(index, scene, NULL, s);
     s->release(scene);
     if (added <= 0)
@@ -473,8 +471,17 @@ int mm_movie_scene_undo(const MMMovieSceneUndoRecord *record, int redo, const MM
             goto fail;
         }
     }
-    else if (!mm_movie_scene_insert(index, record->saved.scene, scenes))
-        goto fail;
+    else
+    {
+        int inserted;
+        void *scene = mm_scene_snapshot_read(&record->saved.snapshot, &scenes->snapshot);
+        if (!scene)
+            goto fail;
+        inserted = mm_movie_scene_insert(index, scene, scenes);
+        scenes->release(scene);
+        if (!inserted)
+            goto fail;
+    }
     s->notify(context, removed);
     scenes->flush_sound(context);
     return 1;

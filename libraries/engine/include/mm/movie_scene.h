@@ -6,6 +6,7 @@
 #include "movie_owner.h"
 #include "playback.h"
 #include "scene_edit.h"
+#include "scene_snapshot.h"
 #include "tag.h"
 #include <stddef.h>
 #ifdef __cplusplus
@@ -25,7 +26,7 @@ extern "C"
         union
         {
             MMTag background;
-            void *scene;
+            MMSceneSnapshot snapshot;
         } saved;
     } MMMovieSceneUndoRecord;
     enum
@@ -52,7 +53,7 @@ extern "C"
         void *(*create)(void *);
         int (*start)(void *scene), (*seek_first)(void *scene);
         void (*close)(void *scene), (*retain)(void *scene), (*release)(void *scene);
-        void (*sound_frame)(void *scene), (*hide)(void *scene);
+        void (*sound_frame)(void *scene);
         void (*scene_change)(void *), (*invalidate)(void *);
         MMChunkEdit (*edit)(void *resources);
         int (*write)(void *, void *scene, MMU32 *number);
@@ -65,6 +66,7 @@ extern "C"
         void (*play_sound)(void *), (*flush_sound)(void *);
         void *(*new_undo)(void *, MMMovieSceneUndoRecord **record);
         const MMTagServices *undo_tags;
+        MMSceneSnapshotServices snapshot;
         int (*add_undo)(void *, void *undo);
         void (*release_undo)(void *undo), (*clear_undo)(void *);
     } MMMovieSceneServices;
@@ -72,10 +74,10 @@ extern "C"
      * service storage are required. Nested scene helpers may use the same state;
      * client notifications must not re-enter editing. close releases one reference
      * and hides the scene; release only releases. read/create return one owner.
-     * A failed removal read still calls close with null, including host diagnostics.
      * new_undo returns one reference and a fresh record inside it. The C record
-     * retains the removed scene or local background tag. Successful add_undo
-     * retains the undo. undo_tags is required for a local tag with an open cache.
+     * owns a private scene snapshot or local background tag. A failed snapshot
+     * leaves the scene in the movie. Successful add_undo retains the undo.
+     * undo_tags is required for a local tag with an open cache.
      * The host list releases committed records; C orders commit/release/clear.
      * Reads receive a resolved scene number. The live session is borrowed for
      * scene switching and NULL for direct reads during composition.
@@ -97,8 +99,7 @@ extern "C"
     int mm_movie_scene_remove(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_remove_undoable(MMI32 index, const MMMovieSceneServices *);
     int mm_movie_scene_record_insertion(MMI32 index, const MMTag *, const MMMovieSceneServices *);
-    void mm_movie_scene_undo_dispose(MMMovieSceneUndoRecord *, void (*release_scene)(void *),
-                                     const MMTagServices *);
+    void mm_movie_scene_undo_dispose(MMMovieSceneUndoRecord *, const MMTagServices *);
 
     enum
     {
@@ -186,7 +187,7 @@ extern "C"
     /* Clear may destroy the undo object and its record, so neither is accessed
      * after that callback.
      * Successful redo of insertion creates a fresh scene, then sets its background;
-     * undo of removal inserts the retained snapshot. Flush precedes clear on failure. */
+     * undo of removal reads and inserts the archived scene. Flush precedes clear on failure. */
     int mm_movie_scene_undo(const MMMovieSceneUndoRecord *, int redo, const MMMovieSceneUndoServices *);
 #ifdef __cplusplus
 }

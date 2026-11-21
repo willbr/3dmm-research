@@ -195,6 +195,7 @@ class Scene : public Scene_PAR
     bool FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
     bool FWrite(const struct MMMovieArchiveEditor &, const MMArchiveWriter &,
                 const struct MMMovieEmbeddedArchive &, ChunkNumber *pcno);
+    static MMSceneSnapshotServices SnapshotServices(PMovie);
     static void Close(PScene *ppscen);                        // Public destructor
     void RemActrsFromRollCall(bool fDelIfOnlyRef = fFalse);  // Removes actors from movie roll call.
     bool FAddActrsToRollCall(void);                          // Adds actors from movie roll call.

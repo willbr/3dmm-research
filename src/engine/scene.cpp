@@ -3429,9 +3429,7 @@ void SceneUndoBackground::AssertValid(LegacyUlong grf)
  *  pvNil if failure, else a pointer to the movie undo.
  *
  ****************************************************/
-namespace
-{
-MMSceneSnapshotServices SceneSnapshotServices(PMovie movie)
+MMSceneSnapshotServices Scene::SnapshotServices(PMovie movie)
 {
     MMSceneSnapshotServices s = {};
     s.context = movie;
@@ -3454,15 +3452,8 @@ MMSceneSnapshotServices SceneSnapshotServices(PMovie movie)
         cache->Release();
         return scene;
     };
-    s.delete_failed = [](void *) { Bug("chunk not deletable or missing"); };
-    s.rewind = [](void *, void *scene) {
-        auto value = static_cast<PScene>(scene);
-        value->SetNfrmCur(mm_fixed_sub(value->NfrmFirst(), 1));
-    };
-    s.seek = [](void *scene, MMI32 frame) { static_cast<PScene>(scene)->FGotoFrm(frame); };
     return s;
 }
-} // namespace
 
 PSceneUndoChop SceneUndoChop::PsuncNew()
 {
@@ -3478,7 +3469,7 @@ PSceneUndoChop SceneUndoChop::PsuncNew()
  ****************************************************/
 SceneUndoChop::~SceneUndoChop(void)
 {
-    mm_scene_chop_dispose(&_snapshot);
+    mm_scene_snapshot_dispose(&_snapshot);
 }
 
 /****************************************************
@@ -3494,8 +3485,8 @@ SceneUndoChop::~SceneUndoChop(void)
  ****************************************************/
 bool SceneUndoChop::FSave(PScene pscen)
 {
-    auto s = SceneSnapshotServices(nullptr);
-    return mm_scene_chop_save(&_snapshot, pscen, &s) != 0;
+    const auto s = Scene::SnapshotServices(nullptr);
+    return mm_scene_snapshot_save(&_snapshot, pscen, &s) != 0;
 }
 
 /****************************************************
@@ -3513,7 +3504,14 @@ bool SceneUndoChop::FDo(PDocumentBase pdocb)
 {
     AssertThis(0);
     const auto scenes = Pmvie()->_SceneServices();
-    const auto s = SceneSnapshotServices(Pmvie());
+    MMSceneChopSwapServices s = {};
+    s.snapshot = Scene::SnapshotServices(Pmvie());
+    s.delete_failed = [](void *) { Bug("chunk not deletable or missing"); };
+    s.rewind = [](void *, void *scene) {
+        auto value = static_cast<PScene>(scene);
+        value->SetNfrmCur(mm_fixed_sub(value->NfrmFirst(), 1));
+    };
+    s.seek = [](void *scene, MMI32 frame) { static_cast<PScene>(scene)->FGotoFrm(frame); };
     return mm_scene_chop_swap(&_snapshot, Iscen(), Nfrm(), &s, &scenes) != 0;
 }
 

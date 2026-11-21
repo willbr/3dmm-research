@@ -3,17 +3,11 @@
 #ifndef MM_ENGINE_SCENE_CHOP_H
 #define MM_ENGINE_SCENE_CHOP_H
 #include "movie_scene.h"
-#include "private_archive.h"
 #include "scene_runtime.h"
 #ifdef __cplusplus
 extern "C"
 {
 #endif
-    typedef struct MMSceneChopUndo
-    {
-        MMPrivateArchive *archive;
-        MMU32 number;
-    } MMSceneChopUndo;
     typedef struct MMSceneChopServices
     {
         void *context;
@@ -40,27 +34,20 @@ extern "C"
      * undo reference before core, and clear undo only on a subsequent core failure. */
     int mm_scene_chop(int back, const MMSceneChopServices *);
     int mm_scene_chop_edit(int back, const MMSceneChopServices *);
-    typedef struct MMSceneSnapshotServices
+    typedef struct MMSceneChopSwapServices
     {
-        void *context;
-        MMPrivateArchive *(*open)(void *); /* Transfers an empty writable archive. */
-        void (*begin)(void *), (*end)(void *);
-        int (*write)(void *, void *scene, MMPrivateArchive *, MMU32 *number);
-        void *(*read)(void *, MMPrivateArchive *, MMU32 number);
+        MMSceneSnapshotServices snapshot;
         void (*delete_failed)(void *), (*rewind)(void *, void *scene);
         void (*seek)(void *scene, MMI32 frame);
-    } MMSceneSnapshotServices;
-    /* Fresh zero-initialized save records own their archive even on failed write.
-     * Swap inserts the restored Scene before deleting/rewriting the saved snapshot.
+    } MMSceneChopSwapServices;
+    /* Swap inserts the restored Scene before deleting/rewriting the saved snapshot.
      * Write/remove failures keep the original destructive prefixes. Failed final
      * switch is nonfatal; failed seek is ignored. Close and release are distinct.
      * Failure flushes then clears (which may destroy the record), then ends the
      * operation through independent, stable service context. No state access follows
-     * clear. The same swap implements do and undo. Dispose closes the archive. */
-    int mm_scene_chop_save(MMSceneChopUndo *, void *scene, const MMSceneSnapshotServices *);
-    int mm_scene_chop_swap(MMSceneChopUndo *, MMI32 index, MMI32 frame,
-                           const MMSceneSnapshotServices *, const MMMovieSceneServices *);
-    void mm_scene_chop_dispose(MMSceneChopUndo *);
+     * clear. The same swap implements do and undo. */
+    int mm_scene_chop_swap(MMSceneSnapshot *, MMI32 index, MMI32 frame,
+                          const MMSceneChopSwapServices *, const MMMovieSceneServices *);
 #ifdef __cplusplus
 }
 #endif

@@ -1309,10 +1309,12 @@ selection, chop/snapshot-undo, property/playback-lifecycle and thumbnail/dirty
 slices and Scene query/group-loading policy are complete. Movie scene switching,
 close/new/insert/remove transactions, undoable removal and scene undo/redo dispatch
 now also use C89, including current-scene reference/index control and failure
-retry/rollback order. Scene insertion and removal share a C89 undo record,
-including ownership of the background cache or retained scene. Studio still
-supplies the native scene for removal undo. Scene insertion, removal, and
-composition use the C89 editor to move, adopt, and unlink live scene links.
+retry/rollback order. Scene insertion and removal share a C89 undo record.
+An insertion retains its background cache and a removal owns a private scene
+archive. Removal and chop share the C89 snapshot writer, reader, and release
+path. Studio loads a temporary scene from the archive for reinsertion.
+Scene insertion, removal, and composition use the C89 editor to move, adopt,
+and unlink live scene links.
 Composition also uses it to release temporary imported roots while keeping
 the scenes linked to the destination movie. Movie autosave/save transactions,
 temporary-resource setup, saved-file ownership/flags, VMM save-format/publication
