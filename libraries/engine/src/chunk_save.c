@@ -134,7 +134,8 @@ int mm_chunk_save_copy(const MMChunkSaveIndex *index, const MMChunkCopyServices 
     if (!index || !index->entry || !io || !io->destination_file || !io->pin || !io->unpin || !io->copy || !io->insert ||
         !io->finish)
         return MM_CHUNK_BAD_FILE;
-    io->pin(io->context);
+    if (!io->pin(io->context))
+        return MM_CHUNK_BAD_FILE;
     end = MM_CHUNK_PREFIX_BYTES;
     for (i = 0; i < index->count; ++i)
     {

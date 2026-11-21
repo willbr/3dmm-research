@@ -124,11 +124,9 @@ class ChunkyFile : public ChunkyFile_PAR
     static MMChunkRegistry _RegistryServices();
     void _SetChunkFlag(ChunkTagOrType, ChunkNumber, MMU32, bool);
     bool _FReadIndex(void);
-    bool _FMaterializeIndex(const MMChunkIndex *);
     MMChunkAccess _ChunkAccess();
     MMChunkEdit _PayloadEdit(void *context);
     tribool _TValidIndex(void);
-    bool _FWriteIndex(ChunkTagOrType ctgCreator);
     bool _FFindCtgCno(ChunkTagOrType ctg, ChunkNumber cno, LegacyLong *picrp);
     void _GetUniqueCno(ChunkTagOrType ctg, LegacyLong *picrp, ChunkNumber *pcno);
     bool _FAdd(LegacyLong cb, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong icrp, PDataBlock pblck);

@@ -315,12 +315,15 @@ typedef struct CopyFixture
     unsigned char main[256], extra[256], output[256];
     int pinned, pins, unpins, copies, inserts, finished, fail;
 } CopyFixture;
-static void copy_pin(void *context)
+static int copy_pin(void *context)
 {
     CopyFixture *f = (CopyFixture *)context;
     CHECK(!f->pinned);
+    if (f->fail == 12)
+        return 0;
     f->pinned = 1;
     ++f->pins;
+    return 1;
 }
 static void copy_unpin(void *context)
 {
@@ -378,7 +381,7 @@ static void copies(void)
     MMChunkSaveIndex index;
     MMChunkCopyServices io;
     int fail, i, result;
-    for (fail = 0; fail <= 11; ++fail)
+    for (fail = 0; fail <= 12; ++fail)
     {
         memset(&f, 0, sizeof(f));
         f.fail = fail;
@@ -415,10 +418,13 @@ static void copies(void)
         io.finish = copy_finish;
         result = mm_chunk_save_copy(&index, &io, 0x434f5059UL);
         CHECK(result == (!fail || fail == 11      ? MM_CHUNK_OK
-                         : fail == 10             ? MM_CHUNK_BAD_FILE
+                         : fail == 10 || fail == 12 ? MM_CHUNK_BAD_FILE
                          : fail <= 4 || fail == 9 ? MM_CHUNK_IO
                                                   : MM_CHUNK_MEMORY));
-        CHECK(!f.pinned && f.pins == 1 && f.unpins == 1 && !memcmp(f.source, f.original, sizeof(f.source)));
+        CHECK(!f.pinned && f.pins == (fail != 12) && f.unpins == f.pins &&
+              !memcmp(f.source, f.original, sizeof(f.source)));
+        if (fail == 12)
+            CHECK(!f.copies && !f.inserts);
         CHECK(f.finished == (!fail || fail == 9 || fail == 11));
         if (!fail)
         {

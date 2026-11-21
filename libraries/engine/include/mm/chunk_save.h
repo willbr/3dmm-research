@@ -57,7 +57,7 @@ extern "C"
     {
         void *context;
         void *main_file, *extra_file, *destination_file;
-        void (*pin)(void *);
+        int (*pin)(void *);
         void (*unpin)(void *);
         int (*copy)(void *, void *source, MMU32 source_offset, void *destination, MMU32 destination_offset,
                     MMU32 bytes);
@@ -66,8 +66,9 @@ extern "C"
         int (*insert)(void *, MMU32 position, const MMChunkEntry *);
         int (*finish)(void *, MMU32 logical_end, MMU32 creator);
     } MMChunkCopyServices;
-    /* Destination creation/disposal stays with the host. Pin covers all reads,
-     * payload copies and insertions; finish runs after unpin. Empty copies still
+    /* Destination creation/disposal stays with the host. Failed pin returns
+     * without reading or copying. Pin covers all reads, payload copies and
+     * insertions; finish runs after unpin. Empty copies still
      * invoke copy and retain the running offset (unlike whole-file relocation).
      * Source records/files stay untouched; failure may leave partial destination
      * data/index for the host to discard. index.place is unused. */

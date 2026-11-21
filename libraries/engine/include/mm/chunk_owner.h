@@ -51,7 +51,12 @@ extern "C"
         MMReadStream (*read_stream)(void *file);
         MMU32 (*size)(void *file);
         int (*resize)(void *file, MMU32 bytes);
-        int (*copy)(void *, const MMChunkLocation *source, const MMChunkLocation *destination);
+        int (*copy)(void *, void *source, MMU32 source_offset, void *destination, MMU32 destination_offset,
+                    MMU32 bytes);
+        int (*write_at)(void *file, MMU32 offset, const void *bytes, size_t count);
+        void (*release)(void *file);
+        int (*is_temp)(void *file);
+        void (*set_temp)(void *file, int temporary);
         void (*trace)(void *, int kind, const MMChunkEntry *); /* Optional. */
         void (*issue)(void *, int kind); /* Optional storage or edit diagnostic. */
     } MMChunkOwnerFileIO;
@@ -65,17 +70,41 @@ extern "C"
     } MMChunkOwnerStorage;
     /* Bind once at a stable address to an initialized owner. Editing and
      * payload lookup require a live table.
-     * All file services except trace/issue are required. Their file arguments
-     * borrow the owner's current handles. No callback may re-enter or modify
-     * the owner. The binding follows file and table replacements on all calls. */
+     * write_at is required for saves. Relocating saves also require release and
+     * both temporary flag operations. trace and issue are optional. Other
+     * services are required for storage operations. No callback may re-enter
+     * or modify the owner. The binding follows file and table replacements. */
     void mm_chunk_owner_bind_storage(MMChunkOwnerStorage *, MMChunkOwner *,
                                     const MMStorageAllocator *, MMU32 max_bytes, const MMChunkOwnerFileIO *);
+    /* Load a live table on a new or detached owner with a main file. Publish
+     * the table, logical end and deferred free-map extent together on success.
+     * The table and scratch allocators may differ. */
+    int mm_chunk_owner_read_index(MMChunkOwnerStorage *, const MMStorageAllocator *table_allocator,
+                                 int trash_unused, MMU32 max_name_bytes, MMChunkLegacyName, void *name_context);
     /* Attempt a pending free-map load once. Its status is advisory and the
      * unread bit clears even if the map cannot be read. */
     int mm_chunk_owner_read_free_map(MMChunkOwnerStorage *);
     int mm_chunk_owner_cache(MMChunkOwnerStorage *, MMU32 position, MMChunkLocation *);
     int mm_chunk_owner_fetch(MMChunkOwnerStorage *, MMU32 position, MMChunkLocation *);
     MMChunkEdit mm_chunk_owner_editor(MMChunkOwnerStorage *, MMU32 max_references, int scan_all_references);
+
+    typedef struct MMChunkOwnerSaveTarget
+    {
+        void *context;
+        void *(*create_temp)(void *); /* New reference in the destination directory. */
+        int (*rename)(void *, void *file);
+        int (*swap_names)(void *, void *new_file, void *old_file);
+    } MMChunkOwnerSaveTarget;
+    /* NULL target supports direct saves. Relocation uses a host-resolved
+     * target, with named set for an explicit path different from the main file. */
+    int mm_chunk_owner_save(MMChunkOwnerStorage *, const MMChunkOwnerSaveTarget *,
+                            int named, MMU32 creator, int system);
+    /* Destination owns a fresh writable file and empty table of the same width.
+     * A failed copy may leave partial output for its owner to discard. The source
+     * is unchanged. Optional directory_failed reports failure after the payload
+     * and rows have been copied and the source has been unpinned. */
+    int mm_chunk_owner_save_copy(MMChunkOwnerStorage *source, MMChunkOwnerStorage *destination,
+                                 MMU32 creator, int system, int *directory_failed);
 
     typedef struct MMChunkErrorServices
     {

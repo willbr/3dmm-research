@@ -19059,3 +19059,41 @@ In sampled-audio suite `20261121T131948Z-d056d075`, both hosts matched all
 The PCM16 peak matched the previous host captures at 2,176. The archived
 retail peak is 2,380. SDL captured 522,240 PCM frames and Marcus captured
 511,680. Evidence is in `tmp/c89-chunk-owner-storage`.
+
+## Live archive open and save in C89 (21 November 2026)
+
+Studio and Marcus use the C owner to load the live index and run Save and
+Save a Copy. It publishes an index only after materialization succeeds.
+Save a Copy pins the source during transfer and unpins it before writing
+the destination directory. The native hosts supply file operations and
+resolve output paths.
+
+All 193 standalone C checks, seven focused AddressSanitizer checks, eight
+Marcus and native checks and three SDL checks passed. The compact and
+expanded fixtures cover malformed input, deferred free maps, a failed copy
+or prefix write, unchanged source rows and payloads, and a retry after
+rename failure. The combined expanded-index and chunk-statistics
+configuration passed a syntax check.
+
+A standalone C program used native file services to copy and reopen the
+retail starter movie and the authored actor-event movie. All three and
+72 index rows, respectively, preserved their logical metadata, child and
+name bytes, and complete stored payloads.
+
+All 17 authoring artifacts matched byte for byte on x64, x86 and SDL. All
+five persistence snapshots matched on x64 and x86 and four matched exactly
+on SDL. In the 572,367-byte SDL archive snapshot, seven bytes differed in
+GG row alignment padding.
+
+Both hosts matched all three archived V3dmm storyboard frames, camera
+indices and canvas hashes in suite `20261121T132844Z-ee05b071`. In
+actor-event suite `20261121T132850Z-9c0016f5`, both matched all 60 retail
+frame identities in seek and continuous playback. Seek camera indices
+matched retail and seek canvas hashes matched the previous host captures.
+SDL matched all 12 retail sound requests.
+
+In sampled-audio suite `20261121T133008Z-74497bb7`, both hosts matched all
+60 retail frame identities and SDL matched all four retail sound requests.
+The PCM16 peak matched the previous host captures at 2,176. The archived
+retail peak is 2,380. SDL captured 520,320 PCM frames and Marcus captured
+512,640. Evidence is in `tmp/c89-owner-persistence`.

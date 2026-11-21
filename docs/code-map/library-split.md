@@ -7357,13 +7357,12 @@ with logical end 128, and the copied data becomes temporary extra storage with
 every nonempty chunk marked on-extra. Without a valid old CHN2 main, the new
 temporary remains attached. Both paths support a later save retry.
 
-The native facade resolves target filenames, supplies file/map primitives and
-serializes the index through the preceding C89 commit policy. An optional state
-publication callback mirrors C ownership changes before detached references are
-released or services run, keeping native debug/lifetime tracking valid. This
-mirror does not acquire another owning reference. Existing target removal and
-filesystem rename/swap behavior remain host services; no atomic-save guarantee
-or new replacement protocol is implied.
+`mm_chunk_owner_save` binds this sequence to the live C table, writes the
+directory and publishes ownership changes before detached references are
+released. `mm_chunk_owner_save_copy` pins the source during payload and row
+transfer, preserves raw child/name bytes and expanded runtime IDs, and
+unpins before writing the destination directory. The native facade resolves
+target names and supplies physical file operations.
 
 Thirty native saved-file outputs match all 13,190 pre-conversion bytes, including
 interior free maps, shortened indexes, save-a-copy, read-only save-as, modified
@@ -7382,9 +7381,10 @@ migration.
 `mm_chunk_write_index` now owns the CHN2 index-commit policy shared by
 Studio and Marcus: checked index/free-map positions, the exact 128-byte v5/
 back-v4 prefix, byte order and zeroed reserved fields. It writes the index,
-optional free map, then the prefix. The native `_FWriteIndex` supplies collection
-serialization callbacks, which already use C89 collection headers/storage, and
-physical file writes. This removes native struct layout from prefix writing.
+optional free map, then the prefix. The C owner supplies the live collections
+and the host supplies positional writes. On open and reopen, the C owner
+materializes the validated index before publishing the table, payload end and
+deferred free-map extent together.
 
 The operation retains physical trailing bytes and does not flush, truncate or
 promise an atomic write. Failed index/map callbacks suppress prefix publication;
