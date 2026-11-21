@@ -32,27 +32,41 @@ static MMGroup costume_group(MMTemplateCostumeTable *table)
     return group;
 }
 
-void mm_template_costumes_init(MMTemplateCostumeTable *table, const MMStorageAllocator *allocator,
-                               void *owner, void (*release_owner)(void *))
+int mm_template_costumes_init(MMTemplateCostumeTable *table, const MMStorageAllocator *allocator)
 {
     const unsigned short one = 1;
     memset(table, 0, sizeof(*table));
-    mm_storage_init(&table->storage, allocator);
+    if (mm_storage_init(&table->storage, allocator) != MM_STORAGE_OK)
+        return 0;
     table->storage.min_grow[0] = 16 * MM_TEMPLATE_COSTUME_WORD_BYTES;
     table->storage.min_grow[1] = 16 * 8;
     table->big_endian = *(const unsigned char *)&one == 0;
-    table->owner = owner;
-    table->release_owner = release_owner;
+    return 1;
+}
+
+MMTemplateCostumeTable *mm_template_costumes_new(const MMStorageAllocator *allocator)
+{
+    MMTemplateCostumeTable empty, *table;
+    if (!mm_template_costumes_init(&empty, allocator))
+        return NULL;
+    table = (MMTemplateCostumeTable *)empty.storage.allocator.resize(empty.storage.allocator.context, NULL, 0,
+                                                                   sizeof(*table), MM_STORAGE_NORMAL);
+    if (table)
+    {
+        *table = empty;
+        table->allocated = 1;
+    }
+    return table;
 }
 
 void mm_template_costumes_dispose(MMTemplateCostumeTable *table)
 {
-    if (table)
-    {
-        mm_storage_dispose(&table->storage);
-        if (table->release_owner)
-            table->release_owner(table->owner);
-    }
+    if (!table || mm_storage_dispose(&table->storage) != MM_STORAGE_OK)
+        return;
+    if (table->allocated)
+        table->storage.allocator.release(table->storage.allocator.context, table, sizeof(*table));
+    else
+        table->rows = table->bytes = 0;
 }
 
 static const unsigned char *costume_row(const MMTemplateCostumeTable *table, MMI32 set, MMI32 *count)
@@ -360,7 +374,7 @@ static int build_costumes(void *object, const MMChunkAccess *chunks, MMU32 paren
     table.cache = s->create_cache(s->context);
     if (!table.cache)
         return 0;
-    state->costumes = s->create_costumes(s->context);
+    state->costumes = mm_template_costumes_new(&s->table_allocator);
     *s->state(s->context, object) = *state;
     if (!state->costumes)
         goto done;
@@ -407,7 +421,7 @@ static int read_live_table(void *context, int kind, MMPartIndexList **out)
         return MM_MOVIE_ASSET_NOT_FOUND;
     if (mm_resource_cache_read_block(read->cache, child.type, child.number, &read->block) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
-    list = s->create_part_indices(s->context, kind);
+    list = mm_part_indices_new(&s->table_allocator);
     if (!list)
         return MM_MOVIE_MEMORY;
     if (template_stream(&read->block, &io, &stream, s))
@@ -432,7 +446,7 @@ static int read_live_costumes(void *context, MMI32 expected, MMTemplateCostumeTa
         return MM_TEMPLATE_COSTUMES_ABSENT;
     if (mm_resource_cache_read_block(read->cache, child.type, child.number, &read->block) != MM_CHUNK_OK)
         return MM_MOVIE_BAD_FILE;
-    table = s->create_costumes(s->context);
+    table = mm_template_costumes_new(&s->table_allocator);
     if (!table)
         return MM_MOVIE_MEMORY;
     if (template_stream(&read->block, &io, &stream, s))

@@ -5,8 +5,6 @@
 #include <vector>
 #include "soc.h"
 #include "actor_track_fixture.h"
-#include "engine_template_costumes.h"
-#include "engine_part_indices.h"
 #include "engine_action_tables_fixture.h"
 #include "scene_sound.h"
 #include "scene_content_undo.h"
@@ -209,9 +207,10 @@ class TrackTestTemplate : public Template
     bool FInit()
     {
         _template.y = BR_ANGLE_DEG(90);
-        _template.parents = EnginePartIndices::Create();
-        _template.sets = EnginePartIndices::Create();
-        _template.costumes = EngineTemplateCostumes::Create();
+        const auto allocator = CollectionAllocator();
+        _template.parents = mm_part_indices_new(&allocator);
+        _template.sets = mm_part_indices_new(&allocator);
+        _template.costumes = mm_template_costumes_new(&allocator);
         return _template.parents && _template.sets && _template.costumes;
     }
     bool FInitAction()

@@ -64,8 +64,6 @@
 
 ***************************************************************************/
 #include "soc_core.h"
-#include "engine_template_costumes.h"
-#include "engine_part_indices.h"
 #include "handle_services.h"
 #include "mm/movie_session.h"
 #include <typeinfo>
@@ -269,9 +267,8 @@ MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
         (void)out; (void)count;
 #endif
     };
-    s.create_part_indices = [](void *, int) { return EnginePartIndices::Create(); };
+    s.table_allocator = CollectionAllocator();
     s.create_cache = [](void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->PcrfNewSibling(0); };
-    s.create_costumes = [](void *) { return EngineTemplateCostumes::Create(); };
     s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, CustomMaterial_CMTL::FReadCmtl); };
     s.custom_set = [](void *, void *custom) -> MMI32 { return static_cast<PCustomMaterial_CMTL>(custom)->Ibset(); };
     s.append_costumes = [](void *, MMTemplateCostumeTable *table, const MMI32 *ids, MMI32 count) -> int {
@@ -636,11 +633,18 @@ void Template::MarkMem(void)
 {
     AssertThis(0);
     Template_PAR::MarkMem();
-    if (_template.parents)
-        MarkMemObj(static_cast<BASE *>(_template.parents->owner));
-    if (_template.sets)
-        MarkMemObj(static_cast<BASE *>(_template.sets->owner));
+    MMPartIndexList *indices[] = {_template.parents, _template.sets};
+    for (auto list : indices)
+        if (list)
+        {
+            MarkPv(list);
+            MarkPv(list->storage.buffers[0].data);
+        }
     if (_template.costumes)
-        MarkMemObj(static_cast<BASE *>(_template.costumes->owner));
+    {
+        MarkPv(_template.costumes);
+        MarkPv(_template.costumes->storage.buffers[0].data);
+        MarkPv(_template.costumes->storage.buffers[1].data);
+    }
 }
 #endif // DEBUG

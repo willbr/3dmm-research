@@ -6,25 +6,39 @@
 #error Part indices require sixteen-bit shorts
 #endif
 
-void mm_part_indices_init(MMPartIndexList *list, const MMStorageAllocator *allocator, void *owner,
-                          void (*release_owner)(void *))
+int mm_part_indices_init(MMPartIndexList *list, const MMStorageAllocator *allocator)
 {
     memset(list, 0, sizeof(*list));
-    mm_storage_init(&list->storage, allocator);
+    if (mm_storage_init(&list->storage, allocator) != MM_STORAGE_OK)
+        return 0;
     list->storage.min_grow[0] = 128;
     list->storage.min_grow[1] = 16;
-    list->owner = owner;
-    list->release_owner = release_owner;
+    return 1;
+}
+
+MMPartIndexList *mm_part_indices_new(const MMStorageAllocator *allocator)
+{
+    MMPartIndexList empty, *list;
+    if (!mm_part_indices_init(&empty, allocator))
+        return NULL;
+    list = (MMPartIndexList *)empty.storage.allocator.resize(empty.storage.allocator.context, NULL, 0,
+                                                           sizeof(*list), MM_STORAGE_NORMAL);
+    if (list)
+    {
+        *list = empty;
+        list->allocated = 1;
+    }
+    return list;
 }
 
 void mm_part_indices_dispose(MMPartIndexList *list)
 {
-    if (list)
-    {
-        mm_storage_dispose(&list->storage);
-        if (list->release_owner)
-            list->release_owner(list->owner);
-    }
+    if (!list || mm_storage_dispose(&list->storage) != MM_STORAGE_OK)
+        return;
+    if (list->allocated)
+        list->storage.allocator.release(list->storage.allocator.context, list, sizeof(*list));
+    else
+        memset(&list->view, 0, sizeof(list->view));
 }
 
 static void publish(MMPartIndexList *list, MMI32 count)

@@ -6,35 +6,6 @@
 
 namespace EnginePartIndices
 {
-// Keep the BASE allocation and its diagnostics at the native boundary.
-class Allocation : public BASE
-{
-  public:
-    MMPartIndexList list;
-
-    Allocation()
-    {
-        const auto allocator = CollectionAllocator();
-        mm_part_indices_init(&list, &allocator, this,
-                             [](void *owner) { static_cast<Allocation *>(owner)->Release(); });
-    }
-
-#ifdef DEBUG
-    void MarkMem() override
-    {
-        BASE::MarkMem();
-        MarkPv(list.storage.buffers[0].data);
-    }
-#endif
-};
-
-inline MMPartIndexList *Create()
-{
-    ASSERTNAME
-    auto allocation = NewObj Allocation;
-    return allocation ? &allocation->list : nullptr;
-}
-
 inline MMPartIndexView Borrow(PDynamicArray list)
 {
     ASSERTNAME

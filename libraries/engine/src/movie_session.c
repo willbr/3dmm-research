@@ -837,7 +837,7 @@ static int read_template_table(void *context, int kind, MMPartIndexList **out)
     status = mm_session_payload(&tmpl->archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
-    mm_part_indices_init(list, NULL, NULL, NULL);
+    mm_part_indices_init(list, NULL);
     status = mm_part_indices_read(list, payload.stream);
     free(payload.decoded);
     if (status == MM_MOVIE_OK)
@@ -860,7 +860,7 @@ static int read_template_costumes(void *context, MMI32 expected, MMTemplateCostu
     status = mm_session_payload(&tmpl->archive, &entry, 0, &payload);
     if (status != MM_MOVIE_OK)
         return status;
-    mm_template_costumes_init(&tmpl->costumes, NULL, NULL, NULL);
+    mm_template_costumes_init(&tmpl->costumes, NULL);
     status = mm_template_costumes_read(&tmpl->costumes, payload.stream, expected);
     free(payload.decoded);
     if (status == MM_MOVIE_OK)

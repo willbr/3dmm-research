@@ -5988,8 +5988,9 @@ The live factory estimates from the stored root length, then the C loader
 decodes the borrowed or cache-resolved root block. C resolves child links and
 reads GLPI, GLBS and GGCM from bounded streams over one reusable owned block.
 The same root reader handles ordinary templates and the base header for 3D
-text. Native callbacks supply the object factory, name conversion, allocations
-and legacy sibling-cache creation.
+text. C89 allocates the part-index and costume records and their buffers through
+the supplied collection allocator. Native callbacks supply the template object
+factory, name conversion, and legacy sibling-cache creation.
 Parents, sets and costume groups publish in native order. Direct initialization
 failure retains partial ownership, while the factory releases its failed object.
 The C parent and set decoder converts opposite-endian indices. The costume
@@ -6013,14 +6014,15 @@ now diagnoses/fails instead of overflowing its stack array. These defined
 normalizations are explicit. The C cache and block owner control the lifetime
 of the native file extent or decoded memory across these reads.
 
-The normalized 306,048-byte before/after trace matches across 1,344 native cases,
-with 613 successful loads and 478 bodies. Only undefined header padding is masked;
-defined wire fields, groups, counts, names, body state and injected failures
-match. Fixtures cover empty/nonempty templates, opposite byte order, missing
-name/header/tables, generated GGCM rows, missing default resources and ownership
-cleanup. Standalone C tests additionally exercise factory output invalidation,
-virtual dispatch, direct-call partial ownership, header/name failures, dense gaps,
-opposite host order and the fallback's 50/51 boundary.
+The template fixture covers 1,344 cases per build, including empty and nonempty
+templates, opposite byte order, missing names and tables, generated GGCM rows,
+missing default resources, and ownership cleanup. It records defined wire
+fields, groups, names, and body state. The collection allocator now owns the
+table records, which shifts the native allocation fault sites. Uninjected
+cases and equivalent injected outcomes match the preceding build. Standalone C
+tests also cover table-record and backing-buffer failures, factory output
+invalidation, virtual dispatch, partial ownership, dense gaps, and the
+fallback's 50/51 boundary.
 
 The part-index storage change matched 31 native traces and the 480-byte
 save/reopen fixture against `58942077`. The standalone probe matched 300
@@ -6172,14 +6174,16 @@ evidence and remaining coverage limits are in `docs/tools/playback-regression.md
 of generated lists/material references, cel/matrix/action generation, the action
 cache, glyph fetch control, body adjustment/default costumes and generated-owner
 disposal. `MMTextGenerated` holds the material, cached action and cache ID;
-these are no longer separate C++ owner fields. Native services supply object and
-table allocation, retained font providers, metric and glyph access, body
+these share one C owner. Native services supply the collection allocator,
+action table factories, retained font providers, metric and glyph access, body
 operations and template field views. The standalone evaluator calls the same
 matrix generator for one cel and writes its outputs directly to the body.
 The template view now borrows the same persistent `MMTemplateState` used by
 ordinary templates. Text generation fills C89 parent and set lists with
-root parents and set zero. Generated list replacement publishes directly into
-the template state at the existing release, clear and replace points.
+root parents and set zero. C89 creates the replacement part-index and costume
+records through the same allocator interface as ordinary templates. Generated
+list replacement publishes directly into the template state at the existing
+release, clear and replace points.
 The generated-resource owner still holds the material and action references
 and preserves the cache publication order.
 The resource controller below owns

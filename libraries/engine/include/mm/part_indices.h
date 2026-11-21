@@ -19,13 +19,14 @@ typedef struct MMPartIndexList
 {
     MMPartIndexView view;
     MMCollectionStorage storage;
-    void *owner;
-    void (*release_owner)(void *);
+    int allocated;
 } MMPartIndexList;
 
 /* Use a fresh list for reading, filling or copying. The view borrows its
- * bytes until the next mutation or disposal. Disposal consumes the owner. */
-void mm_part_indices_init(MMPartIndexList *, const MMStorageAllocator *, void *owner, void (*release_owner)(void *));
+ * bytes until the next mutation or disposal. The allocator owns the buffers
+ * and, for lists returned by new, the list record. NULL selects the C heap. */
+int mm_part_indices_init(MMPartIndexList *, const MMStorageAllocator *);
+MMPartIndexList *mm_part_indices_new(const MMStorageAllocator *);
 void mm_part_indices_dispose(MMPartIndexList *);
 int mm_part_indices_read(MMPartIndexList *, const MMReadStream *);
 int mm_part_indices_copy(MMPartIndexList *, const MMPartIndexView *);

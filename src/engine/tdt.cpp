@@ -38,8 +38,6 @@
 
 ***************************************************************************/
 #include "soc_core.h"
-#include "engine_template_costumes.h"
-#include "engine_part_indices.h"
 ASSERTNAME
 
 RTCLASS(ThreeDText)
@@ -189,8 +187,7 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.character = [](void *, void *object, MMI32 i) -> MMI32 { return static_cast<uchar>(static_cast<PThreeDText>(object)->_stn.Psz()[i]); };
     s.shape = [](void *, void *object) -> MMI32 { return static_cast<PThreeDText>(object)->_descriptor.shape; };
     s.template_state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PThreeDText>(object)->_template; };
-    s.indices_new = [](void *) { return EnginePartIndices::Create(); };
-    s.costumes_new = [](void *) { return EngineTemplateCostumes::Create(); };
+    s.table_allocator = CollectionAllocator();
     s.material_new = [](void *) -> void * { return Material_MTRL::PmtrlNew(); };
     s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };

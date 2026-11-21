@@ -877,8 +877,9 @@ template actions, cel models and custom costumes directly from the template's
 C89 cache binding. The cache exposes its current graph for mutable files and
 its retained index for immutable archives. Generated ThreeDText continues to
 supply its own actions and font models. Template parent/set/costume ownership,
-rest orientation, flags and counts now live in persistent C state shared with
-ThreeDText generation; native read/write marshalling of those fields is removed.
+rest orientation, flags and counts live in persistent C state shared with
+ThreeDText generation. C89 allocates table records and their backing storage
+through the supplied collection allocator.
 String and resource/container providers and final facade removal remain work.
 ActionDefinition construction, header/list
 loading, byte-order conversion, primitive queries and sound-list ownership now

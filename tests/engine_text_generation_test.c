@@ -7,6 +7,8 @@ typedef struct Test
 {
     MMTextGenerated generated; MMTemplateState template_state;
     int length,shape,phase,fail,live,buffers,next_id,events[128],event_count,missing_font,missing_glyph,body_fail,last_retain_id,last_release_id;
+    int shape_blocks;
+    void *retiring[3];
     unsigned char chars[2]; Object *font; MMTextGenerationServices services;
 } Test;
 static Test *t(void *p) { return (Test *)p; }
@@ -66,60 +68,32 @@ static void *material_new(void *p) { if (checkpoint(t(p))) return NULL; return o
 static void retain(void *p,void *v) { Object *o=(Object *)v; assert(o->refs>0); if (v==t(p)->generated.action) t(p)->last_retain_id=t(p)->generated.action_id; ++o->refs; t(p)->events[t(p)->event_count++]=o->id; }
 static void release(void *p,void *v)
 { Object *o=(Object *)v; assert(o->refs>0); if (v==t(p)->generated.action) t(p)->last_release_id=t(p)->generated.action_id; t(p)->events[t(p)->event_count++]=-o->id; if (!--o->refs) { if (o->kind==4) mm_action_dispose(&o->action); free(o); --t(p)->live; } }
-typedef struct TestIndices
+static void *resize_shape(void *p,void *data,MMU32 old,MMU32 bytes,int priority)
 {
-    MMPartIndexList list;
-    Test *context;
-    Object *object;
-} TestIndices;
-static void release_indices(void *p)
-{
-    TestIndices *owner = (TestIndices *)p;
-    release(owner->context, owner->object);
-    free(owner);
-}
-static MMPartIndexList *indices_new(void *p)
-{
-    Test *x = (Test *)p;
-    TestIndices *owner;
-    if (checkpoint(x))
+    Test *x=t(p);
+    void *result;
+    (void)priority;
+    ++x->phase;
+    if (x->fail && x->phase>=x->fail)
         return NULL;
-    owner = (TestIndices *)calloc(1, sizeof(*owner));
-    assert(owner);
-    owner->context = x;
-    owner->object = object(x, 0);
-    mm_part_indices_init(&owner->list, NULL, owner, release_indices);
-    return &owner->list;
+    result=realloc(data,bytes);
+    assert(result);
+    if (!old) ++x->shape_blocks;
+    return result;
 }
-typedef struct TestCostume
+static void free_shape(void *p,void *data,MMU32 bytes)
 {
-    MMTemplateCostumeTable table;
-    Test *context;
-    Object *object;
-} TestCostume;
-static void release_costume(void *p)
-{
-    TestCostume *owner = (TestCostume *)p;
-    release(owner->context, owner->object);
-    free(owner);
-}
-static MMTemplateCostumeTable *costumes_new(void *p)
-{
-    Test *x = (Test *)p;
-    TestCostume *owner;
-    if (checkpoint(x))
-        return NULL;
-    owner = (TestCostume *)calloc(1, sizeof(*owner));
-    assert(owner);
-    owner->context = x;
-    owner->object = object(x, 2);
-    mm_template_costumes_init(&owner->table, NULL, owner, release_costume);
-    if (checkpoint(x))
-    {
-        mm_template_costumes_dispose(&owner->table);
-        return NULL;
-    }
-    return &owner->table;
+    Test *x=t(p);
+    int i;
+    assert(data && bytes && x->shape_blocks>0);
+    for (i=0;i<3;++i)
+        if (x->retiring[i]==data)
+        {
+            x->events[x->event_count++]=-(101+i);
+            x->retiring[i]=NULL;
+        }
+    --x->shape_blocks;
+    free(data);
 }
 static void *font(void *p,void *owner)
 { assert(owner==p); if (t(p)->missing_font) return NULL; retain(p,t(p)->font); return t(p)->font; }
@@ -156,7 +130,8 @@ static MMTextGenerationServices setup(Test *x)
     MMTextGenerationServices s; memset(x,0,sizeof(*x)); memset(&s,0,sizeof(s)); x->length=2; x->chars[0]=233; x->chars[1]=65;
     x->template_state.flags=4; x->template_state.x=1234; x->font=object(x,5);
     s.context=x; s.state=state; s.length=length; s.character=character; s.shape=shape; s.template_state=template_state;
-    s.indices_new=indices_new; s.costumes_new=costumes_new; s.table_new=table_new;
+    s.table_allocator.context=x; s.table_allocator.resize=resize_shape; s.table_allocator.release=free_shape;
+    s.table_new=table_new;
     s.material_new=material_new; s.retain=retain; s.release=release; s.font=font; s.font_width=font_width; s.font_height=font_height; s.font_maximum=font_maximum;
     s.glyph=glyph; s.action_new=action_new; s.body_shape=body_shape; s.body_material=body_material; x->services=s; return s;
 }
@@ -166,7 +141,7 @@ static void cleanup(Test *x)
     mm_part_indices_dispose(x->template_state.parents);
     mm_part_indices_dispose(x->template_state.sets);
     mm_template_costumes_dispose(x->template_state.costumes);
-    release(x,x->font); assert(!x->live && !x->buffers);
+    release(x,x->font); assert(!x->live && !x->buffers && !x->shape_blocks);
 }
 typedef struct MatrixCapture { MMActorMatrix matrices[2]; int count; } MatrixCapture;
 static void capture_matrix(void *p,MMI32 index,const MMActorMatrix *matrix)
@@ -177,7 +152,7 @@ static void capture_matrix(void *p,MMI32 index,const MMActorMatrix *matrix)
 }
 int main(void)
 {
-    Test x; MMTextGenerationServices s; int fail,i,ok,ids[5],before,steps=0,shape_id,cel;
+    Test x; MMTextGenerationServices s; int fail,i,ok,ids[5],before,steps=0,init_steps=0,replace_steps=0,shape_id,cel;
     Object *old,*a,*again,*model;
     MMActionTable *table;
     MMActionDefinition view={NULL,NULL,NULL,0};
@@ -185,25 +160,27 @@ int main(void)
     MMTemplateState saved; MMI32 row[2]; MMActorMatrix m;
     const int counts[]={1,12,12,12,12,12,12,12,24,24,24,24,24,24,12,12};
     for (i=0;i<16;++i) assert(mm_text_cel_count(i)==counts[i]); assert(!mm_text_cel_count(-1) && !mm_text_cel_count(16));
-    for (fail=0;fail<=5;++fail)
+    for (fail=0;fail<=init_steps;++fail)
     {
         s=setup(&x); saved=x.template_state; x.fail=fail; ok=mm_text_initialize_lists(&x,&s); assert(ok==!fail);
-        if (!ok) assert(same_template(&x.template_state,&saved) && !x.generated.material && !x.template_state.parents && x.template_state.flags==4);
+        if (!ok) assert(same_template(&x.template_state,&saved) && !x.generated.material && !x.template_state.parents && x.template_state.flags==4 && !x.shape_blocks);
         else { assert(x.generated.action_id==-1 && x.template_state.flags==6 && x.template_state.x==1234 && x.template_state.set_count==1 && x.template_state.action_count==16);
+            init_steps=x.phase;
             assert(x.template_state.parents->view.count==2 && x.template_state.sets->view.count==2);
             for (i=0;i<2;++i) { assert(mm_part_index_get(&x.template_state.parents->view,i)==-1); assert(mm_part_index_get(&x.template_state.sets->view,i)==0); }
             assert(mm_template_costumes_count(x.template_state.costumes,0)==1 && mm_template_costumes_id(x.template_state.costumes,0,0,&row[1]) && !row[1]); }
         cleanup(&x);
     }
-    for (fail=0;fail<=4;++fail)
+    for (fail=0;fail<=replace_steps;++fail)
     {
         s=setup(&x); assert(mm_text_initialize_lists(&x,&s)); x.generated.action=object(&x,4); x.generated.action_id=7;
         saved=x.template_state; old=(Object *)x.generated.material;
-        ids[0]=((TestIndices *)saved.parents->owner)->object->id; ids[1]=((TestIndices *)saved.sets->owner)->object->id; ids[2]=((TestCostume *)saved.costumes->owner)->object->id; ids[3]=old->id; ids[4]=((Object *)x.generated.action)->id;
+        x.retiring[0]=saved.parents; x.retiring[1]=saved.sets; x.retiring[2]=saved.costumes;
+        ids[0]=101; ids[1]=102; ids[2]=103; ids[3]=old->id; ids[4]=((Object *)x.generated.action)->id;
         x.phase=0; x.fail=fail; x.event_count=0; ok=mm_text_initialize_lists(&x,&s); assert(ok==!fail);
         assert(x.generated.material==old && old->refs==1);
         if (!ok) assert(same_template(&x.template_state,&saved) && x.template_state.parents==saved.parents && x.template_state.sets==saved.sets && x.template_state.costumes==saved.costumes && x.generated.action && x.generated.action_id==7);
-        else { assert(!x.generated.action && x.generated.action_id==-1 && x.events[0]==ids[3]); for (i=0;i<5;++i) assert(x.events[i+1]==-ids[i]); }
+        else { replace_steps=x.phase; assert(!x.generated.action && x.generated.action_id==-1 && x.events[0]==ids[3]); for (i=0;i<5;++i) assert(x.events[i+1]==-ids[i]); }
         cleanup(&x);
     }
     for (fail=0;fail<=steps;++fail)

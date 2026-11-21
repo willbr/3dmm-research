@@ -33,8 +33,7 @@ typedef struct MMTextGenerationServices
     MMI32 (*character)(void *,void *object,MMI32 index);
     MMI32 (*shape)(void *,void *object);
     MMTemplateState *(*template_state)(void *,void *object);
-    MMPartIndexList *(*indices_new)(void *);
-    MMTemplateCostumeTable *(*costumes_new)(void *);
+    MMStorageAllocator table_allocator;
     void *(*material_new)(void *);
     void (*retain)(void *,void *);
     void (*release)(void *,void *);

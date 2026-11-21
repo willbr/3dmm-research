@@ -262,7 +262,7 @@ int main(void)
     x.name_fail=1; out=-77; assert(!mm_template_action_name(0,&out,&s) && out==-77);
     assert(!mm_template_action_name(1,&out,&s) && out==-77);
     s=init(&x,4); x.sets_list[3]=2; x.parents[3]=0;
-    mm_template_costumes_init(&x.costumes, NULL, NULL, NULL);
+    assert(mm_template_costumes_init(&x.costumes, NULL));
     x.state.costumes = &x.costumes;
     for (i=0;i<3;++i)
     {

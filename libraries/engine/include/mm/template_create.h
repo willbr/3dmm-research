@@ -30,14 +30,13 @@ typedef struct MMTemplateCostumeTable
     MMCollectionStorage storage;
     MMU32 rows, bytes;
     int big_endian;
-    void *owner;
-    void (*release_owner)(void *);
+    int allocated;
 } MMTemplateCostumeTable;
 
 /* A dense GGCM table. The collection owns both buffers and retains the
  * authored word order. Appending requires a table constructed in host order. */
-void mm_template_costumes_init(MMTemplateCostumeTable *, const MMStorageAllocator *, void *owner,
-                               void (*release_owner)(void *));
+int mm_template_costumes_init(MMTemplateCostumeTable *, const MMStorageAllocator *);
+MMTemplateCostumeTable *mm_template_costumes_new(const MMStorageAllocator *);
 void mm_template_costumes_dispose(MMTemplateCostumeTable *);
 int mm_template_costumes_read(MMTemplateCostumeTable *, const MMReadStream *, MMI32 expected_rows);
 int mm_template_costumes_reserve(MMTemplateCostumeTable *, MMU32 rows, MMU32 variable_bytes);
@@ -130,9 +129,8 @@ typedef struct MMTemplateCreateServices
     int (*initialize)(void *,void *object,MMU32,MMU32,MMOwnedBlock *);
     MMI32 (*object_size)(void *,int text);
     void (*invalidate)(void *,void *,size_t);
-    MMPartIndexList *(*create_part_indices)(void *,int kind);
+    MMStorageAllocator table_allocator;
     void *(*create_cache)(void *);
-    MMTemplateCostumeTable *(*create_costumes)(void *);
     void *(*fetch_custom)(void *,void *cache,MMU32,MMU32);
     MMI32 (*custom_set)(void *,void *custom);
     int (*append_costumes)(void *,MMTemplateCostumeTable *,const MMI32 *,MMI32 count);

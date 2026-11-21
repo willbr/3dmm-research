@@ -56,52 +56,25 @@ static void *default_font(void *p,const MMTag *t) { (void)t; ++((Context *)p)->d
 static void publish_tag(void *p,void *out,const MMTag *t) { (void)p; memcpy(out,t,sizeof(*t)); }
 static MMTemplateState *template_state(void *p,void *o) { (void)p; return &((Object *)o)->template_state; }
 static void *list_new(void *p,MMI32 bytes,MMI32 count) { (void)bytes; (void)count; return allocate((Context *)p,sizeof(Root),0); }
-typedef struct IndicesOwner
+static void *resize_shape(void *p,void *data,MMU32 old_bytes,MMU32 bytes,int priority)
 {
-    Root root;
-    MMPartIndexList list;
-    Context *context;
-} IndicesOwner;
-static void release_indices(void *p)
-{
-    IndicesOwner *owner = (IndicesOwner *)p;
-    release(owner->context, owner);
-}
-static MMPartIndexList *indices_new(void *p)
-{
-    Context *c = (Context *)p;
-    IndicesOwner *owner = (IndicesOwner *)allocate(c, sizeof(*owner), 0);
-    if (!owner)
+    Context *c=p;
+    void *result;
+    (void)priority;
+    ++c->step;
+    if (c->fail && c->step>=c->fail)
         return NULL;
-    owner->context = c;
-    mm_part_indices_init(&owner->list, NULL, owner, release_indices);
-    return &owner->list;
+    result=realloc(data,bytes);
+    assert(result);
+    if (!old_bytes) ++c->live;
+    return result;
 }
-typedef struct CostumeOwner
+static void free_shape(void *p,void *data,MMU32 bytes)
 {
-    Root root;
-    MMTemplateCostumeTable table;
-    Context *context;
-} CostumeOwner;
-static void release_costume(void *p)
-{
-    CostumeOwner *owner = (CostumeOwner *)p;
-    release(owner->context, owner);
-}
-static MMTemplateCostumeTable *costumes_new(void *p)
-{
-    Context *c = (Context *)p;
-    CostumeOwner *owner = (CostumeOwner *)allocate(c, sizeof(*owner), 0);
-    if (!owner)
-        return NULL;
-    owner->context = c;
-    mm_template_costumes_init(&owner->table, NULL, owner, release_costume);
-    if (++c->step == c->fail)
-    {
-        mm_template_costumes_dispose(&owner->table);
-        return NULL;
-    }
-    return &owner->table;
+    Context *c=p;
+    assert(data && bytes && c->live>0);
+    --c->live;
+    free(data);
 }
 static void *material_new(void *p) { return list_new(p,0,0); }
 static int read_template(void *p,void *o,MMU32 type,MMU32 n,MMOwnedBlock *block)
@@ -221,7 +194,8 @@ static void init(Context *c)
     c->cache.services.live_chunks = live_chunks;
     c->cache.services.locate = locate;
     s->context=c; g->context=c; g->state=generated; g->length=length; g->template_state=template_state;
-    g->indices_new=indices_new; g->costumes_new=costumes_new; g->material_new=material_new; g->retain=retain; g->release=release;
+    g->table_allocator.context=c; g->table_allocator.resize=resize_shape; g->table_allocator.release=free_shape;
+    g->material_new=material_new; g->retain=retain; g->release=release;
     s->state=state; s->create=create; s->text=text; s->assign=assign; s->space=space; s->clear=clear; s->saved_text=saved; s->provider_copy=provider_copy;
     s->has_provider=has_provider; s->provider_font=provider; s->default_font=default_font; s->publish_tag=publish_tag; s->read_template=read_template; s->write_template=write_template;
     s->payloads=&c->payloads; s->add=add; s->delete_child=delete_child;
@@ -229,17 +203,20 @@ static void init(Context *c)
 }
 static void lifecycle(void)
 {
-    Context c; Object *o,*copy; MMTag font={123,NULL,0x54444620U,29},out; MMI32 shape; char value[256]; int failure;
+    Context c; Object *o,*copy; MMTag font={123,NULL,0x54444620U,29},out; MMI32 shape; char value[256]; int failure,create_steps=0,replace_steps;
     font.cache=&font;
-    for (failure=0;failure<=6;++failure)
+    for (failure=0;failure<=create_steps;++failure)
     {
         init(&c); c.fail=failure; o=(Object *)mm_text_create("",9,&font,&c.services);
-        assert((o!=NULL)==(failure==0)); if (o) { assert(!strcmp(o->text," ")); release(&c,o); } assert(!c.live);
+        assert((o!=NULL)==(failure==0)); if (o) { create_steps=c.step; assert(!strcmp(o->text," ")); release(&c,o); } assert(!c.live);
     }
     init(&c); o=(Object *)mm_text_create("old",9,&font,&c.services); assert(o); o->provider=1;
     assert(!mm_text_font(o,&c.services) && c.custom==1 && !c.defaults);
     o->provider=0; assert(mm_text_font(o,&c.services)==&c && c.defaults==1); o->provider=1;
-    for (failure=1;failure<=4;++failure)
+    c.step=0;
+    assert(mm_text_change(o,NULL,-1,NULL,&c.services));
+    replace_steps=c.step;
+    for (failure=1;failure<=replace_steps;++failure)
     {
         void *parents=o->template_state.parents; c.step=0; c.fail=failure;
         assert(!mm_text_change(o,"",0,NULL,&c.services));

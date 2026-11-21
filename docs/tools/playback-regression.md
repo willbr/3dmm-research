@@ -17711,3 +17711,39 @@ ports matched all 60 archived retail frame identities in seek and continuous
 playback, including the retail seek camera indices. SDL matched all 12 retail
 sound requests. Both ports reproduced their 60 seek canvas hashes from the
 preceding build. Evidence is in `tmp/c89-live-body-geometry`.
+
+## Template and 3D text table allocation in C89 (21 November 2026)
+
+C89 now allocates and disposes live parent, set, and costume table records and
+their backing buffers through the collection allocator. Ordinary template
+loading and generated 3D text use the same factories. The standalone movie
+session continues to initialize the table records it embeds. Native memory
+diagnostics mark the live table records and buffers directly.
+
+The 1,344-case template traces matched every uninjected case and each equivalent
+injected outcome. Moving records from the BASE allocator to the collection
+allocator shifted 45 fault rows per native build. The 2,400-case 3D text
+resource traces matched equivalent outcomes, with 276 shifted fault rows per
+native build. SDL release traces matched byte for byte. The generation fixture
+passed all 800 shape and action combinations and all 1,008 allocation and
+resource cases. The actor-creation fixture now reaches three more cold cases
+under BASE fault injection and tests ten body-binding failures per native build.
+
+All 192 standalone C tests, four focused AddressSanitizer checks, 12 C89
+gates, and four Marcus application checks passed. Twelve body traces, three
+template runtime traces, three Preview picking traces, nine sound and actor
+traces, 14 world and mesh traces, 54 movie and scene traces, three saved movies,
+and ten Preview fingerprints per build matched the preceding build.
+The 15 Studio pointer traces matched, as did the live workflow's 13 sampled
+actor states, 12 rendered images, and round-trip movie.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T030306Z-6a098757`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T030343Z-7b79991d`.
+
+All four actor-event runs completed in `20261121T030249Z-b95ab48e`. Both
+ports matched all 60 archived retail frame identities in seek and continuous
+playback, including the retail seek camera indices. SDL matched all 12 retail
+sound requests. Both ports reproduced their 60 seek canvas hashes from the
+preceding build. Evidence is in `tmp/c89-template-tables`.

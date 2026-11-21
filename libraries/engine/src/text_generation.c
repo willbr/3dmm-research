@@ -11,7 +11,7 @@ static MMI32 half(MMI32 value)
 { return mm_signed_word(((MMU32)value>>1)|((MMU32)value&0x80000000UL)); }
 static MMPartIndexList *build_indices(MMI32 count, short value, const MMTextGenerationServices *s)
 {
-    MMPartIndexList *list = s->indices_new(s->context);
+    MMPartIndexList *list = mm_part_indices_new(&s->table_allocator);
     if (list && !mm_part_indices_fill(list, count, value))
     {
         mm_part_indices_dispose(list);
@@ -22,7 +22,7 @@ static MMPartIndexList *build_indices(MMI32 count, short value, const MMTextGene
 static MMTemplateCostumeTable *build_costumes(const MMTextGenerationServices *s)
 {
     MMI32 id = 0;
-    MMTemplateCostumeTable *table = s->costumes_new(s->context);
+    MMTemplateCostumeTable *table = mm_template_costumes_new(&s->table_allocator);
     if (table && (!mm_template_costumes_reserve(table, 1, MM_TEMPLATE_COSTUME_WORD_BYTES) ||
                   !mm_template_costumes_append(table, &id, 1)))
     {

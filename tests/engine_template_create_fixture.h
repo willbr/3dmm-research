@@ -1,7 +1,5 @@
 #ifndef ENGINE_TEMPLATE_CREATE_FIXTURE_H
 #define ENGINE_TEMPLATE_CREATE_FIXTURE_H
-#include "engine_template_costumes.h"
-#include "engine_part_indices.h"
 #include "mm/resource_cache.h"
 class TemplateCreateFixtureAccess : public Template
 {
@@ -12,8 +10,9 @@ class TemplateCreateFixtureAccess : public Template
         if (!t) return false;
         t->_template.x=0x1234; t->_template.y=0xabcd; t->_template.z=0x8000; t->_template.flags=ftmplProp;
         t->_stn.SetSzs(PszLit("Template construction fixture")); t->_template.set_count=parts?2:0; t->_template.custom_count=parts?4:0; t->_template.action_count=1;
-        t->_template.parents=EnginePartIndices::Create(); t->_template.sets=EnginePartIndices::Create();
-        t->_template.costumes=EngineTemplateCostumes::Create();
+        const auto allocator = CollectionAllocator();
+        t->_template.parents = mm_part_indices_new(&allocator); t->_template.sets=mm_part_indices_new(&allocator);
+        t->_template.costumes=mm_template_costumes_new(&allocator);
         auto wireParents=DynamicArray::PglNew(sizeof(short)),wireSets=DynamicArray::PglNew(sizeof(short));
         auto wireCosts=GeneralGroup::PggNew(sizeof(int32_t));
         bool ok=t->_template.parents && t->_template.sets && t->_template.costumes && wireParents && wireSets && wireCosts;
@@ -125,7 +124,7 @@ static bool TestTemplateConstruction()
     std::fprintf(stderr,"[template construction] loaded=%d bodies=%d\n",loaded,bodies);
 #ifdef DEBUG
     const int recovered = cache_retries ? 2 : 0;
-    ok=ok && loaded==613+recovered && bodies==485+recovered;
+    ok=ok && loaded==610+recovered && bodies==482+recovered;
 #else
     ok=ok && loaded==672 && bodies==588;
 #endif
