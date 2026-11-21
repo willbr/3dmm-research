@@ -124,25 +124,22 @@ int mm_scene_chop_edit(int back, const MMSceneChopServices *s)
 }
 int mm_scene_chop_save(MMSceneChopUndo *p, void *scene, const MMSceneSnapshotServices *s)
 {
-    void *file = s->new_file(s->context);
     int ok;
-    if (!file)
-        return 0;
-    p->resource = s->new_resource(s->context, file);
-    s->release(s->context, file);
-    if (!p->resource)
+    p->archive = s->open(s->context);
+    if (!p->archive)
         return 0;
     s->begin(s->context);
-    ok = s->write(s->context, scene, p->resource, &p->number);
+    ok = s->write(s->context, scene, p->archive, &p->number);
     s->end(s->context);
     return ok;
 }
 int mm_scene_chop_swap(MMSceneChopUndo *p, MMI32 index, MMI32 frame,
                        const MMSceneSnapshotServices *s, const MMMovieSceneServices *scenes)
 {
+    MMArchiveWriter writer;
     void *loaded, *old;
     s->begin(s->context);
-    loaded = s->read(s->context, p->resource, p->number);
+    loaded = s->read(s->context, p->archive, p->number);
     if (!loaded)
         goto fail;
     if (!scenes->start(loaded) || !mm_movie_scene_switch(index, scenes))
@@ -159,9 +156,11 @@ int mm_scene_chop_swap(MMSceneChopUndo *p, MMI32 index, MMI32 frame,
         goto fail;
     }
     scenes->close(loaded);
-    s->delete_chunk(s->context, p->resource, p->number);
+    writer = mm_private_archive_writer(p->archive);
+    if (mm_chunk_delete(&writer.edit, MM_SCENE_CHUNK, p->number) != MM_CHUNK_OK && s->delete_failed)
+        s->delete_failed(s->context);
     s->rewind(s->context, old);
-    if (!s->write(s->context, old, p->resource, &p->number))
+    if (!s->write(s->context, old, p->archive, &p->number))
     {
         mm_movie_scene_remove(index + 1, scenes);
         scenes->close(old);
@@ -183,11 +182,8 @@ fail:
     s->end(s->context);
     return 0;
 }
-void mm_scene_chop_dispose(MMSceneChopUndo *p, const MMSceneSnapshotServices *s)
+void mm_scene_chop_dispose(MMSceneChopUndo *p)
 {
-    if (p->resource)
-    {
-        s->release(s->context, p->resource);
-        p->resource = NULL;
-    }
+    mm_private_archive_close(p->archive);
+    p->archive = NULL;
 }

@@ -54,7 +54,7 @@ const MMChunkPayloadServices *KauaiChunkPayloadServices();
 int KauaiEncodeLegacyChunkName(void *, const char *, void *, MMU32 capacity, MMU32 *written);
 MMChunkTitleIO KauaiChunkTitleIO();
 MMChunkTitleIO KauaiChunkOwnerTitleIO();
-MMPrivateArchive *KauaiPrivateArchive(PFileObject);
+MMPrivateArchive *KauaiTemporaryArchive();
 MMPrivateArchive *KauaiWorkingArchive(Filename *, bool create);
 MMPrivateArchive *KauaiFindWorkingArchive(PFileObject);
 MMPrivateArchive *KauaiOpenForest(const MMBlockFile &);

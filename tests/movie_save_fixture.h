@@ -161,11 +161,9 @@ static bool TestMovieSave(PMovie parent)
 
 static PChunkyResourceFile NewPrivateMovieResources()
 {
-    auto file = FileObject::PfilCreateTemp();
-    auto archive = file ? KauaiPrivateArchive(file) : nullptr;
+    auto archive = KauaiTemporaryArchive();
     auto resources = ChunkyResourceFile::PcrfNewPrivate(archive, 0);
     mm_private_archive_close(archive);
-    ReleasePpo(&file);
     return resources;
 }
 

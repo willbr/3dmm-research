@@ -19820,3 +19820,28 @@ Studio's continuous presentation interval was 108 ms longer than retail's,
 compared with 123 ms in the earlier capture of the same movie. The harness
 reported Marcus timing and continuous pixel comparisons as inconclusive.
 The database and standalone session dumps are in `tmp/c89-actor-effects`.
+
+## C89 ownership of scene chop undo archives (21 November 2026)
+
+The undo record retains the private C89 archive and scene chunk number.
+Scene snapshots write through the private archive editor and copy endpoint.
+C89 deletes the old scene chunk during each swap and closes the archive when
+the undo entry is discarded. Studio creates a resource cache during restore
+to load the scene, actors, captions, and their resource references.
+
+All 193 standalone C89 checks passed. The scene-chop and movie-scene checks
+passed under AddressSanitizer. The scene-chop fixture uses a real private
+archive and checks chunk replacement, failed archive creation, and release of
+the backing file after failed swaps. Native and SDL scene and save/load checks
+passed, as did the Marcus syntax and player checks.
+
+The three-scene Studio workflow chopped the middle scene in both directions,
+restored and reapplied the chop with Undo and Redo, then saved and reopened
+each result. Scene removal Undo and Redo also passed. All four `.3mm` files
+matched the previously captured files byte for byte.
+
+Retail, Studio, and Marcus reopened both chopped movies in seek suite
+`20261121T191132Z-0707fbd9`. They agreed on all 31 frame and camera records.
+Studio and Marcus produced identical canvases. Retail matched 12 canvases
+immediately. The other 19 matched on the first or second delayed capture,
+using 550 ms intervals. Evidence is in `tmp/c89-chop-archive-owner`.

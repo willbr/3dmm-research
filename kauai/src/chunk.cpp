@@ -282,12 +282,13 @@ MMChunkOwnerFileIO ChunkOwnerFileIO()
 }
 }
 
-MMPrivateArchive *KauaiPrivateArchive(PFileObject file)
+MMPrivateArchive *KauaiTemporaryArchive()
 {
-    AssertPo(file, 0);
+    const auto file = FileObject::PfilCreateTemp();
+    if (!file)
+        return nullptr;
     const auto profile = KauaiPrivateArchiveProfile();
     const auto io = ChunkOwnerFileIO();
-    file->AddRef();
     return mm_private_archive_open(file, MM_PRIVATE_ARCHIVE_CREATE, &io, KauaiBlockFileServices(), &profile);
 }
 

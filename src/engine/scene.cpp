@@ -3435,28 +3435,26 @@ MMSceneSnapshotServices SceneSnapshotServices(PMovie movie)
 {
     MMSceneSnapshotServices s = {};
     s.context = movie;
-    s.new_file = [](void *) -> void * { return FileObject::PfilCreateTemp(); };
-    s.new_resource = [](void *, void *file) -> void * {
-        auto archive = KauaiPrivateArchive(static_cast<PFileObject>(file));
-        auto cache = ChunkyResourceFile::PcrfNewPrivate(archive, 0);
-        mm_private_archive_close(archive);
-        return cache;
-    };
-    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.open = [](void *) { return KauaiTemporaryArchive(); };
     s.begin = [](void *) { vpappb->BeginLongOp(); };
     s.end = [](void *) { vpappb->EndLongOp(); };
-    s.write = [](void *, void *scene, void *resource, MMU32 *number) {
-        return int(static_cast<PScene>(scene)->FWrite(static_cast<PChunkyResourceFile>(resource), number));
+    s.write = [](void *, void *scene, MMPrivateArchive *archive, MMU32 *number) -> int {
+        MMChunkFileCopy binding;
+        const auto destination = mm_private_archive_copy_target(archive, &binding);
+        MMMovieArchiveAssets assets{&destination, &TagManager::CoreServices()};
+        return static_cast<PScene>(scene)->FWrite(mm_private_archive_editor(archive),
+                                                mm_private_archive_writer(archive),
+                                                mm_movie_archive_assets(&assets), number);
     };
-    s.read = [](void *p, void *resource, MMU32 number) -> void * {
-        return Scene::PscenRead(static_cast<PMovie>(p), static_cast<PChunkyResourceFile>(resource),
-                                number);
+    s.read = [](void *p, MMPrivateArchive *archive, MMU32 number) -> void * {
+        auto cache = ChunkyResourceFile::PcrfNewPrivate(archive, 0);
+        if (!cache)
+            return nullptr;
+        const auto scene = Scene::PscenRead(static_cast<PMovie>(p), cache, number);
+        cache->Release();
+        return scene;
     };
-    s.delete_chunk = [](void *, void *resource, MMU32 number) {
-        const auto writer = static_cast<PChunkyResourceFile>(resource)->ArchiveWriter();
-        if (mm_chunk_delete(&writer.edit, kctgScen, number) != MM_CHUNK_OK)
-            Bug("chunk not deletable or missing");
-    };
+    s.delete_failed = [](void *) { Bug("chunk not deletable or missing"); };
     s.rewind = [](void *, void *scene) {
         auto value = static_cast<PScene>(scene);
         value->SetNfrmCur(mm_fixed_sub(value->NfrmFirst(), 1));
@@ -3480,8 +3478,7 @@ PSceneUndoChop SceneUndoChop::PsuncNew()
  ****************************************************/
 SceneUndoChop::~SceneUndoChop(void)
 {
-    auto s = SceneSnapshotServices(nullptr);
-    mm_scene_chop_dispose(&_snapshot, &s);
+    mm_scene_chop_dispose(&_snapshot);
 }
 
 /****************************************************
@@ -3552,7 +3549,12 @@ void SceneUndoChop::MarkMem(void)
 {
     AssertThis(0);
     SceneUndoChop_PAR::MarkMem();
-    MarkMemObj(static_cast<PChunkyResourceFile>(_snapshot.resource));
+    if (_snapshot.archive)
+    {
+        const auto &files = mm_private_archive_reader(_snapshot.archive)->storage->owner->files;
+        MarkMemObj(static_cast<PFileObject>(files.main_file));
+        MarkMemObj(static_cast<PFileObject>(files.extra_file));
+    }
 }
 
 /***************************************************************************
@@ -3560,7 +3562,12 @@ void SceneUndoChop::MarkMem(void)
 ***************************************************************************/
 void SceneUndoChop::AssertValid(LegacyUlong grf)
 {
-    AssertNilOrPo(static_cast<PChunkyResourceFile>(_snapshot.resource), grf);
+    if (_snapshot.archive)
+    {
+        const auto &files = mm_private_archive_reader(_snapshot.archive)->storage->owner->files;
+        AssertPo(static_cast<PFileObject>(files.main_file), grf);
+        AssertNilOrPo(static_cast<PFileObject>(files.extra_file), grf);
+    }
 }
 #endif
 

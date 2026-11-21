@@ -32,7 +32,9 @@ typedef struct Host
     Obj objects[5];
     MMSceneTrack *frames;
     int trace[128], traces, fail, stage, removal_sticks, seek_fails, show_fails, write_calls, switch_calls, dead;
-    int file, resource, undo, has_resource, sought;
+    int undo, sought, file_refs;
+    MMU32 file_size;
+    unsigned char file_bytes[256];
     MMMovieScenes movie;
     MMMovieState data;
     ChunkIndexFixture archive;
@@ -56,11 +58,8 @@ static void close_tag(void *p, MMSceneSoundTag *tag)
 }
 static void release(void *p, void *obj)
 {
-    Host *h = (Host *)p;
     CHECK(obj);
-    event(h, obj == &h->file ? 21 : 23);
-    if (obj == &h->resource && h->record)
-        CHECK(h->record->resource == obj);
+    event((Host *)p, 23);
 }
 static int trim(void *p, void *o, int back)
 {
@@ -369,16 +368,106 @@ static int step(Host *h, int n)
     event(h, n);
     return h->fail != n;
 }
-static void *new_file(void *p)
+static void snapshot_file_release(void *p)
 {
-    Host *h = (Host *)p;
-    return step(h, 1) ? &h->file : NULL;
+    Host *h = p;
+    CHECK(h->file_refs > 0);
+    --h->file_refs;
 }
-static void *new_resource(void *p, void *f)
+static void snapshot_block_release(void *p, void *file)
 {
-    Host *h = (Host *)p;
-    CHECK(f == &h->file);
-    return step(h, 2) ? &h->resource : NULL;
+    (void)p;
+    snapshot_file_release(file);
+}
+static void snapshot_block_retain(void *p, void *file)
+{
+    Host *h = file;
+    (void)p;
+    CHECK(h->file_refs > 0);
+    ++h->file_refs;
+}
+static int snapshot_resize(void *p, MMU32 bytes)
+{
+    Host *h = p;
+    if (h->fail == 2 || bytes > sizeof(h->file_bytes))
+        return 0;
+    h->file_size = bytes;
+    return 1;
+}
+static MMU32 snapshot_size(void *p) { return ((Host *)p)->file_size; }
+static int snapshot_read(void *p, MMU32 at, void *bytes, size_t count)
+{
+    Host *h = p;
+    if (at > h->file_size || count > h->file_size - at)
+        return 0;
+    memcpy(bytes, h->file_bytes + at, count);
+    return 1;
+}
+static int snapshot_write(void *p, MMU32 at, const void *bytes, size_t count)
+{
+    Host *h = p;
+    if (at > sizeof(h->file_bytes) || count > sizeof(h->file_bytes) - at)
+        return 0;
+    memcpy(h->file_bytes + at, bytes, count);
+    if (at + count > h->file_size)
+        h->file_size = (MMU32)(at + count);
+    return 1;
+}
+static MMReadStream snapshot_stream(void *p)
+{
+    MMReadStream s;
+    s.context = p;
+    s.length = snapshot_size(p);
+    s.read_at = snapshot_read;
+    return s;
+}
+static void *snapshot_extra(void *p) { (void)p; return NULL; }
+static int snapshot_block_read(void *p, void *file, MMU32 at, void *bytes, size_t count)
+{
+    (void)p;
+    return snapshot_read(file, at, bytes, count);
+}
+static int snapshot_block_write(void *p, void *file, MMU32 at, const void *bytes, size_t count)
+{
+    (void)p;
+    return snapshot_write(file, at, bytes, count);
+}
+static size_t snapshot_convert(void *p, const void *bytes, size_t count, int encoding, void *out, size_t capacity)
+{
+    (void)p;
+    (void)bytes;
+    (void)count;
+    (void)encoding;
+    (void)out;
+    (void)capacity;
+    return 0;
+}
+static MMPrivateArchive *snapshot_open(void *p)
+{
+    static const MMBlockFileServices blocks = {NULL, snapshot_block_retain, snapshot_block_release,
+                                               snapshot_extra, snapshot_block_read, snapshot_block_write};
+    const MMChunkOwnerFileIO io = {NULL, snapshot_extra, snapshot_stream, snapshot_size, snapshot_resize,
+                                   NULL, snapshot_write, snapshot_file_release, NULL, NULL, NULL, NULL};
+    const MMPrivateArchiveProfile profile = {1, 0, 0, 0, 0, NULL, snapshot_convert};
+    Host *h = p;
+    if (!step(h, 1))
+        return NULL;
+    CHECK(!h->file_refs);
+    h->file_refs = 1;
+    return mm_private_archive_open(h, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks, &profile);
+}
+static void put_snapshot(MMPrivateArchive *archive, MMU32 number)
+{
+    const MMArchiveWriter writer = mm_private_archive_writer(archive);
+    const unsigned char marker = 0x1a;
+    CHECK(mm_chunk_put_bytes(&writer.edit, writer.payloads->files, MM_SCENE_CHUNK, number,
+                             &marker, 1) == MM_CHUNK_OK);
+}
+static int has_snapshot(MMPrivateArchive *archive, MMU32 number)
+{
+    const MMChunkAccess access = mm_chunk_owner_access(mm_private_archive_reader(archive)->storage);
+    MMU32 row;
+    return mm_chunk_find(&access, MM_SCENE_CHUNK, number, &row) == MM_CHUNK_OK;
 }
 static void begin(void *p)
 {
@@ -388,18 +477,21 @@ static void end(void *p)
 {
     event((Host *)p, 4);
 }
-static int write(void *p, void *scene, void *r, MMU32 *number)
+static int write(void *p, void *scene, MMPrivateArchive *archive, MMU32 *number)
 {
     Host *h = (Host *)p;
-    CHECK(scene == &h->old && r == &h->resource);
+    CHECK(scene == &h->old && archive == h->record->archive);
     ++h->write_calls;
     *number = 42;
-    return step(h, 5);
+    if (!step(h, 5))
+        return 0;
+    put_snapshot(archive, *number);
+    return 1;
 }
-static void *read_snapshot(void *p, void *r, MMU32 number)
+static void *read_snapshot(void *p, MMPrivateArchive *archive, MMU32 number)
 {
     Host *h = (Host *)p;
-    CHECK(r == &h->resource && number == 17);
+    CHECK(archive == h->record->archive && number == 17 && has_snapshot(archive, number));
     if (!step(h, 6))
         return NULL;
     h->loaded.refs = 1;
@@ -538,16 +630,11 @@ static MMMovieSceneServices scene_services(Host *h)
     s.play_sound = ignore;
     return s;
 }
-static void delete_chunk(void *p, void *r, MMU32 number)
-{
-    Host *h = (Host *)p;
-    CHECK(r == &h->resource && number == 17);
-    CHECK(step(h, 12));
-}
 static void rewind_scene(void *p, void *scene)
 {
     Host *h = (Host *)p;
     CHECK(scene == &h->old);
+    CHECK(!has_snapshot(h->record->archive, 17));
     CHECK(step(h, 13));
 }
 static void seek_scene(void *p, MMI32 frame)
@@ -572,6 +659,7 @@ static void clear_snapshot(void *p)
 {
     Host *h = (Host *)p;
     event(h, 20);
+    mm_scene_chop_dispose(h->record);
     free(h->record);
     h->record = NULL;
     h->dead = 1;
@@ -581,14 +669,11 @@ static MMSceneSnapshotServices snapshots(Host *h)
     MMSceneSnapshotServices s;
     memset(&s, 0, sizeof(s));
     s.context = h;
-    s.new_file = new_file;
-    s.new_resource = new_resource;
-    s.release = release;
+    s.open = snapshot_open;
     s.begin = begin;
     s.end = end;
     s.write = write;
     s.read = read_snapshot;
-    s.delete_chunk = delete_chunk;
     s.rewind = rewind_scene;
     s.seek = seek_scene;
     return s;
@@ -608,29 +693,26 @@ static void test_snapshot(void)
         h.record = &record;
         h.fail = i == 3 ? 5 : i;
         CHECK(mm_scene_chop_save(&record, &h.old, &s) == (i == 0));
-        CHECK(record.resource == ((i == 1 || i == 2) ? NULL : &h.resource));
         if (i == 0)
         {
-            const int e[] = {1, 2, 21, 3, 5, 4};
-            expect(&h, e, 6);
+            const int e[] = {1, 3, 5, 4};
+            CHECK(record.archive && has_snapshot(record.archive, record.number));
+            expect(&h, e, 4);
         }
-        if (i == 1)
+        if (i == 1 || i == 2)
         {
             const int e[] = {1};
+            CHECK(!record.archive);
             expect(&h, e, 1);
-        }
-        if (i == 2)
-        {
-            const int e[] = {1, 2, 21};
-            expect(&h, e, 3);
         }
         if (i == 3)
         {
-            const int e[] = {1, 2, 21, 3, 5, 4};
-            expect(&h, e, 6);
+            const int e[] = {1, 3, 5, 4};
+            CHECK(record.archive && !has_snapshot(record.archive, record.number));
+            expect(&h, e, 4);
         }
-        mm_scene_chop_dispose(&record, &s);
-        CHECK(!record.resource);
+        mm_scene_chop_dispose(&record);
+        CHECK(!record.archive && !h.file_refs);
     }
     for (i = 0; i < 8; ++i)
     {
@@ -645,8 +727,11 @@ static void test_snapshot(void)
         h.fail = failures[i];
         h.record = (MMSceneChopUndo *)malloc(sizeof(*h.record));
         CHECK(h.record);
-        h.record->resource = &h.resource;
+        h.record->archive = snapshot_open(&h);
+        CHECK(h.record->archive);
         h.record->number = 17;
+        put_snapshot(h.record->archive, h.record->number);
+        h.traces = 0;
         ok = mm_scene_chop_swap(h.record, 2, 9, &s, &scenes);
         CHECK(ok == (i == 0 || i == 7));
         if (!ok)
@@ -657,9 +742,9 @@ static void test_snapshot(void)
         }
         if (i == 0)
         {
-            const int e[] = {3, 6, 7, 8, 9, 10, 11, 25, 12, 13, 5, 26, 15, 16, 17, 18, 4};
-            expect(&h, e, 17);
-            CHECK(h.record->number == 42);
+            const int e[] = {3, 6, 7, 8, 9, 10, 11, 25, 13, 5, 26, 15, 16, 17, 18, 4};
+            expect(&h, e, 16);
+            CHECK(h.record->number == 42 && has_snapshot(h.record->archive, h.record->number));
         }
         if (i == 4)
         {
@@ -668,8 +753,8 @@ static void test_snapshot(void)
         }
         if (i == 5)
         {
-            const int e[] = {3, 6, 7, 8, 9, 10, 11, 25, 12, 13, 5, 15, 26, 19, 20, 4};
-            expect(&h, e, 16);
+            const int e[] = {3, 6, 7, 8, 9, 10, 11, 25, 13, 5, 15, 26, 19, 20, 4};
+            expect(&h, e, 15);
         }
         if (i == 7)
         {
@@ -677,12 +762,13 @@ static void test_snapshot(void)
         }
         if (h.record)
         {
-            mm_scene_chop_dispose(h.record, &s);
+            mm_scene_chop_dispose(h.record);
             free(h.record);
         }
         mm_movie_scene_close_open(&scenes);
         mm_movie_session_close(h.data.session);
         CHECK(!h.loaded.refs && !h.old.refs && !h.initial.refs && !h.restored.refs && !h.neighbor.refs);
+        CHECK(!h.file_refs);
     }
 }
 int main(void)
