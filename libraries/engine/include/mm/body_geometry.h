@@ -23,39 +23,40 @@ extern "C"
         MMBodyRect bounds, last_visible;
         MMI32 found, set;
     } MMBodyGeometry;
+    struct MMBodyState;
+    struct MMBodyShape;
+    struct MMBodyDrawView;
     typedef struct MMBodyGeometryServices
     {
         void *context;
         void *(*owner)(void *, void *actor);
-        MMBodyGeometry *(*state)(void *, void *body);
-        MMI32 (*part_count)(void *, void *body);
-        void *(*part)(void *, void *body, MMI32);
-        MMI32 (*part_set)(void *, void *body, MMI32);
-        void *(*root)(void *, void *body);
-        void *(*highlight)(void *, void *body);
+        struct MMBodyState *(*state)(void *, void *body);
+        void *(*actor_at)(void *, void *actors, MMI32);
         int (*actor_type)(void *, void *actor);
         void (*set_actor_type)(void *, void *actor, int);
         void (*local_bounds)(void *, void *root, MMBodyBounds *);
-        void (*root_matrix)(void *, void *body, MMActorMatrix *);
         void (*highlight_matrix)(void *, void *highlight, const MMBodyBounds *);
         void (*missing_owner)(void *);
         int none_type, model_type;
     } MMBodyGeometryServices;
-    /* Bounds callbacks borrow renderer actor handles. local_bounds is synchronous
-     * and must not reenter or mutate the same body. Highlight type is restored
-     * before matrix queries and publication. */
+    /* state returns the borrowed live state. actor_at indexes its renderer
+     * array, including the root at 0 and the highlight at 1.
+     * local_bounds is synchronous and must not reenter or mutate the same
+     * body. Highlight type is restored before consuming the root matrix. */
     void *mm_body_from_actor(void *, MMI32 *set, const MMBodyGeometryServices *);
-    void mm_body_geometry_init(MMBodyGeometry *);
+    /* Admit only the body's root actor. On success, return the borrowed owner
+     * and publish its draw view. On failure, leave the view untouched. */
+    void *mm_body_read_render(void *actor, struct MMBodyDrawView *, const MMBodyGeometryServices *);
     int mm_body_in_view(const MMBodyGeometry *);
     void mm_body_clear_bounds(MMBodyGeometry *);
     void mm_body_rendered(void *actor, const MMBodyRect *, const MMBodyGeometryServices *);
     void mm_body_prepare_render(void *actor, const MMBodyGeometryServices *);
-    void mm_body_render_rect(void *actor, MMBodyRect *, const MMBodyGeometryServices *);
+    int mm_body_render_rect(void *actor, MMBodyRect *, const MMBodyGeometryServices *);
     void mm_body_visible_rect(const MMBodyGeometry *, MMBodyRect *);
     void mm_body_center(const MMBodyGeometry *, MMI32 *x, MMI32 *y);
-    void mm_body_bounds(void *body, int world, MMBodyBounds *, const MMBodyGeometryServices *);
+    void mm_body_bounds(const struct MMBodyShape *, int world, MMBodyBounds *, const MMBodyGeometryServices *);
     void mm_body_transform_bounds(const MMBodyBounds *, const MMActorMatrix *, MMBodyBounds *);
-    void mm_body_position(void *body, MMI32 out[3], const MMBodyGeometryServices *);
+    void mm_body_position(const struct MMBodyShape *, MMI32 out[3]);
     /* Picking uses an explicit caller-owned context. Strictly closer visible hits
      * win (first hit wins equal depth); root/highlight hits may select a body but
      * publish set -1. Search marks found for highlight hits and keeps searching. */
@@ -69,6 +70,14 @@ extern "C"
     void *mm_body_pick_result(const MMBodyPick *, MMI32 *set, const MMBodyGeometryServices *);
     void mm_body_search_begin(MMBodyGeometry *);
     int mm_body_search_visit(void *target, void *actor, const MMBodyGeometryServices *);
+    /* The scan visits hits synchronously in renderer order and stops on a
+     * nonzero visitor result. A missed pick leaves the set output untouched.
+     * A search always publishes its set, including -1 for no part hit. */
+    typedef int MMBodyHitVisitor(void *, void *actor, MMI32 depth);
+    typedef void MMBodyHitScan(void *, MMBodyHitVisitor *, void *visitor_context);
+    void *mm_body_pick_at(MMBodyHitScan *, void *scan_context, MMI32 *set, const MMBodyGeometryServices *);
+    int mm_body_search_at(void *target, MMBodyHitScan *, void *scan_context, MMI32 *set,
+                          const MMBodyGeometryServices *);
 #ifdef __cplusplus
 }
 #endif

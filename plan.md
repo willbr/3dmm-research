@@ -866,6 +866,8 @@ and assigning both actor trees to their current owners. Studio and Marcus Previe
 use one C89 BRender adapter to submit body matrices and draw handles. C89 stores
 retained model and generic material owners alongside their draw handles, holds
 costumes by set, and shares these operations across live edits and shape disposal.
+Render admission, bounds, and part-set lookup read that state directly. C89
+drives the nearest-hit and target-body queries over the host's ordered hit scan.
 Typed resource providers and final Body facade removal
 remain work. Template resource factories,
 header I/O, normal initialization, body creation and default-costume prefetching,

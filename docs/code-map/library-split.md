@@ -5249,39 +5249,39 @@ the root and parts to its existing actor array. Marcus Preview attaches them to
 its temporary scene tree, using the same binding code. The C89 binding also
 reads local bounds through `BrActorToBounds`, publishes the highlight transform
 through `BrBoundsToMatrix34`, and finds the body association on a render actor.
-The Body adapter supplies actor handles, editable shape state and object
-diagnostics.
+The geometry controller reads part counts, set indices, root transforms, and
+rectangles from `MMBodyState`. Its frame reader admits only the body's root
+and publishes the draw view. The native adapter supplies the body-state accessor,
+reference retention, and diagnostics. The BRender binding indexes the actor array.
 
 Preparing a visible body saves its current rectangle and then clears it.
 Already-empty (including inverted) current rectangles remain untouched, and
 queries fall back to last-visible bounds. Rendered empty rectangles do not
 contribute to unions. Highlight actors are temporarily changed to the host's
-none type for bounds traversal and restored before matrix callbacks. World
+none type for bounds traversal and restored before reading the root matrix. World
 bounds retain all eight native corners and the original +/-10000 initial
 extrema; C uses the existing full-product 16.16 accumulator plus exact wrapped
 translation, matching native `BR_MAC4`. Rectangle centers preserve wrapped
 32-bit sums followed by truncation toward zero, using unsigned magnitudes
 rather than relying on C89's implementation-defined negative division.
 
-`BodyWorld` receives actor handles and near depths from the C89 BRender scan.
-Closest-hit state is a caller-owned `MMBodyPick`. A strictly closer visible hit
-wins, so the first equal-depth hit remains.
+`BodyWorld` provides the point and the ordered BRender hit scan. C89 owns
+the closest-hit context and starts and completes the target-body search. A
+strictly closer visible hit wins, so the first equal-depth hit remains.
 Root/highlight hits may select a body with set -1. Point-in-body search marks
 found for a highlight hit but continues looking for a real part. An unsuccessful
 closest-body query leaves the optional caller set output unchanged. C tests
-exercise two independent pick contexts and exact callback publication/order.
-No Marcus UI tests were added.
+exercise independent pick contexts, render admission, first-hit order,
+highlight-only searches, and output on a miss.
 
 The native 76,608-byte trace matches exactly over 144 real BRender body cases,
 SHA-256 `0EA33C3F9F3B7D6F22B857B6FBAB336B0EDA558DF19F1FD4F22B1C79AD519327`.
 It spans 1/3/6-part hierarchies, six root transforms, highlighting, visibility
 rectangles, local/world bounds, render unions, centers/positions, actor-to-set
 lookup and search/closest-hit callbacks. The committed fixture automatically
-checks frozen FNV-1a `ECFB9185` on little-endian hosts. Prior 1,880,872-byte
-body-edit and 427,368-byte body-runtime traces remain exact. Standalone C and
-AddressSanitizer checks, both hosts, 88 focused native checks, 51 CLI baselines
-and retail/SDL/Marcus actor-events/actor-audio comparisons are recorded with
-coverage limits in `docs/tools/playback-regression.md`.
+checks frozen FNV-1a `ECFB9185` on little-endian hosts. Standalone C and
+AddressSanitizer checks, format and playback comparisons, and the Studio pointer
+trace are recorded in `docs/tools/playback-regression.md`.
 
 ### Model resource ownership, wire I/O and prelighting
 

@@ -48,16 +48,13 @@ class Body : public Body_PAR
     static MMBodyEditServices _EditServices(void);
     static MMBodyRuntimeServices _RuntimeServices(void);
     static MMBodyGeometryServices _GeometryServices(void);
+    static MMBodyState *_State(void *, void *body);
     void _DestroyShape(void);
     PBACT _Actors(void) const { return static_cast<PBACT>(_body.shape.actors); }
     PBACT _PbactRoot(void) // ptr to root BACT
     {
         return _Actors();
     }
-    PBACT _PbactHilite(void) // ptr to hilite BACT
-    {
-        return _Actors() + 1;
-    }                            // skip root BACT
     PBACT _PbactPart(LegacyLong ipart) // ptr to ipart'th body part
     {
         return _Actors() + 1 + 1 + ipart;
@@ -66,13 +63,6 @@ class Body : public Body_PAR
     {
         return 1 + 1 + _body.shape.part_count;
     }                       // root, hilite, and body part BACTs
-    LegacyLong _Ibset(LegacyLong ipart) // body part set that this part belongs to
-    {
-        if (ipart < 0 || ipart >= _body.shape.part_count)
-            return ivNil;
-        return _body.shape.bindings[ipart+2].set;
-    }
-
     // Callbacks from BRender:
     static void _BactRendered(PBACT pbact, RC *prc);
     static int _ReadRenderBody(PBACT, MMRenderBody *);

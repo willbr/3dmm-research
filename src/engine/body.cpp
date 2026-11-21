@@ -141,7 +141,7 @@ MMBodyCreateServices Body::_CreateServices(void)
 {
     MMBodyCreateServices s = {};
     mm_brender_body_create_services(&s);
-    s.state = [](void *, void *object) -> MMBodyState * { return &static_cast<PBody>(object)->_body; };
+    s.state = _State;
     s.create = [](void *) -> void * { return NewObj Body; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.allocate_materials = [](void *, MMI32 count, void ***out) -> int {
@@ -430,6 +430,11 @@ void Body::GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **pp
     CopyPb(&material, ppmtrl, sizeof(material)); CopyPb(&custom, ppcmtl, sizeof(custom));
 }
 
+MMBodyState *Body::_State(void *, void *body)
+{
+    return &static_cast<PBody>(body)->_body;
+}
+
 MMBodyGeometryServices Body::_GeometryServices(void)
 {
     MMBodyGeometryServices s = {};
@@ -439,15 +444,7 @@ MMBodyGeometryServices Body::_GeometryServices(void)
         AssertNilOrPo(body, 0);
         return body;
     };
-    s.state = [](void *, void *body) -> MMBodyGeometry * { return &static_cast<PBody>(body)->_body.geometry; };
-    s.part_count = [](void *, void *body) -> MMI32 { return static_cast<PBody>(body)->_body.shape.part_count; };
-    s.part = [](void *, void *body, MMI32 part) -> void * { return static_cast<PBody>(body)->_PbactPart(part); };
-    s.part_set = [](void *, void *body, MMI32 part) -> MMI32 { return static_cast<PBody>(body)->_Ibset(part); };
-    s.root = [](void *, void *body) -> void * { return static_cast<PBody>(body)->_PbactRoot(); };
-    s.highlight = [](void *, void *body) -> void * { return static_cast<PBody>(body)->_PbactHilite(); };
-    s.root_matrix = [](void *, void *body, MMActorMatrix *out) {
-        *out = static_cast<PBody>(body)->RootMatrix();
-    };
+    s.state = _State;
     s.missing_owner = [](void *) { Bug("What actor is this?  It has no Body"); };
     return s;
 }
@@ -460,10 +457,9 @@ MMBodyGeometryServices Body::_GeometryServices(void)
 int Body::_ReadRenderBody(PBACT root, MMRenderBody *entry)
 {
     const auto services = _GeometryServices();
-    const auto body = static_cast<PBody>(services.owner(services.context, root));
-    if (!body || root != body->_PbactRoot())
+    const auto body = static_cast<PBody>(mm_body_read_render(root, &entry->draw, &services));
+    if (!body)
         return 0;
-    entry->draw = body->DrawView();
     entry->target = root;
     entry->resource = static_cast<BASE *>(body);
     return 1;
@@ -486,10 +482,8 @@ void Body::_GetRc(PBACT pbact, RC *prc)
 
     auto services = _GeometryServices();
     MMBodyRect rect;
-    static_assert(sizeof(rect) == sizeof(*prc), "body rectangle bridge");
-    CopyPb(prc, &rect, sizeof(rect));
-    mm_body_render_rect(pbact, &rect, &services);
-    CopyPb(&rect, prc, sizeof(rect));
+    if (mm_body_render_rect(pbact, &rect, &services))
+        prc->Set(rect.left, rect.top, rect.right, rect.bottom);
 }
 
 /***************************************************************************
@@ -505,7 +499,7 @@ void Body::GetBcbBounds(BCB *pbcb, bool fWorld)
 
     auto services = _GeometryServices();
     MMBodyBounds bounds;
-    mm_body_bounds(this, fWorld, &bounds, &services);
+    mm_body_bounds(&_body.shape, fWorld, &bounds, &services);
     pbcb->xrMin = bounds.min[0]; pbcb->yrMin = bounds.min[1]; pbcb->zrMin = bounds.min[2];
     pbcb->xrMax = bounds.max[0]; pbcb->yrMax = bounds.max[1]; pbcb->zrMax = bounds.max[2];
 }
@@ -573,9 +567,8 @@ void Body::GetPosition(BRS *pxr, BRS *pyr, BRS *pzr)
     AssertVarMem(pyr);
     AssertVarMem(pzr);
 
-    auto services = _GeometryServices();
     MMI32 position[3];
-    mm_body_position(this, position, &services);
+    mm_body_position(&_body.shape, position);
     *pxr = position[0]; *pyr = position[1]; *pzr = position[2];
 }
 

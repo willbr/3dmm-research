@@ -26,23 +26,27 @@ void BodyWorld::Changed(void *context)
     static_cast<PWorld>(context)->MarkDirty();
 }
 
+struct BodyWorldPoint
+{
+    PWorld world;
+    long x, y;
+};
+
+static void ScanBodyWorld(void *context, MMBodyHitVisitor *visit, void *visitorContext)
+{
+    const auto &point = *static_cast<const BodyWorldPoint *>(context);
+    point.world->IterateActorsInPt(visit, visitorContext, point.x, point.y);
+}
+
 Body *BodyWorld::PbodyClicked(long xp, long yp, PWorld pbwld, long *pibset)
 {
     AssertNilOrVarMem(pibset);
     AssertPo(pbwld, 0);
 
-    struct Pick
-    {
-        MMBodyPick state;
-        MMBodyGeometryServices services;
-    } pick = {{}, Body::_GeometryServices()};
-    mm_body_pick_begin(&pick.state);
-    pbwld->IterateActorsInPt([](void *context, void *actor, MMI32 depth) {
-        auto &pick = *static_cast<Pick *>(context);
-        return mm_body_pick_visit(&pick.state, actor, depth, &pick.services);
-    }, &pick, xp, yp);
+    BodyWorldPoint point = {pbwld, xp, yp};
+    const auto services = Body::_GeometryServices();
     MMI32 set;
-    auto body = static_cast<PBody>(mm_body_pick_result(&pick.state, pibset ? &set : nullptr, &pick.services));
+    auto body = static_cast<PBody>(mm_body_pick_at(ScanBodyWorld, &point, pibset ? &set : nullptr, &services));
     if (body && pibset)
         *pibset = set;
     return body;
@@ -53,16 +57,10 @@ bool BodyWorld::FPtInBody(Body *body, PWorld world, long xp, long yp, long *pibs
     AssertPo(body, 0);
     AssertPo(world, 0);
     AssertVarMem(pibset);
-    mm_body_search_begin(&body->_body.geometry);
-    struct Search
-    {
-        Body *body;
-        MMBodyGeometryServices services;
-    } search = {body, Body::_GeometryServices()};
-    world->IterateActorsInPt([](void *context, void *actor, MMI32) {
-        auto &search = *static_cast<Search *>(context);
-        return mm_body_search_visit(search.body, actor, &search.services);
-    }, &search, xp, yp);
-    *pibset = body->_body.geometry.set;
-    return body->_body.geometry.found != 0;
+    BodyWorldPoint point = {world, xp, yp};
+    const auto services = Body::_GeometryServices();
+    MMI32 set;
+    const bool found = mm_body_search_at(body, ScanBodyWorld, &point, &set, &services) != 0;
+    *pibset = set;
+    return found;
 }

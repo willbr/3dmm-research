@@ -243,6 +243,12 @@ void *mm_brender_body_owner(const void *actor)
     return ((const br_actor *)actor)->identifier;
 }
 
+static void *actor_at(void *context, void *actors, MMI32 index)
+{
+    (void)context;
+    return (br_actor *)actors + index;
+}
+
 static int actor_type(void *context, void *actor)
 {
     (void)context;
@@ -283,6 +289,7 @@ static void highlight_matrix(void *context, void *actor, const MMBodyBounds *sou
 
 void mm_brender_body_geometry_services(MMBodyGeometryServices *s)
 {
+    s->actor_at = actor_at;
     s->actor_type = actor_type;
     s->set_actor_type = set_actor_type;
     s->local_bounds = local_bounds;

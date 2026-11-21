@@ -17682,3 +17682,32 @@ sound requests. Both ports reproduced their 60 seek canvas hashes from the
 preceding build. Studio's live costume workflow reproduced all 13 sampled
 actor states, 12 rendered images, and its round-trip saved movie. Evidence is
 in `tmp/c89-live-body-indices`.
+
+## Live body geometry and hit queries over C89 state (21 November 2026)
+
+The geometry controller now reads the root transform, part-set indices, and
+rectangles directly from the live body state. C89 admits the body root into
+the render frame and runs nearest-body and target-body queries over the
+ordered BRender scan. The fixtures check root admission, fixed-point bounds,
+independent hit contexts, highlight-only searches, early termination on a
+part hit, and output on a miss.
+
+All 192 standalone C tests, four focused AddressSanitizer checks, 12 C89
+gates, and four Marcus application checks passed. The 76,608-byte geometry
+trace matched on x64, x86, and SDL. All 12 body traces, six template traces,
+three Preview picking traces, nine sound and actor traces, 14 world and mesh
+traces, 54 movie and scene traces, and three saved movies matched the preceding
+build. Ten Preview fingerprints matched on each build. All 15 Studio pointer
+traces and the costume workflow's 13 sampled actor states, 12 rendered images,
+and saved movie matched.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T024955Z-ee8fdb3b`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T025032Z-b26360c2`.
+
+All four actor-event runs completed in `20261121T024937Z-a20a7054`. Both
+ports matched all 60 archived retail frame identities in seek and continuous
+playback, including the retail seek camera indices. SDL matched all 12 retail
+sound requests. Both ports reproduced their 60 seek canvas hashes from the
+preceding build. Evidence is in `tmp/c89-live-body-geometry`.

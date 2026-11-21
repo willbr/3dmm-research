@@ -1,11 +1,18 @@
 /* Body geometry/render policy converted from engine body.cpp and body_world.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "mm/body_geometry.h"
+#include "mm/body_create.h"
 #include <string.h>
+static MMI32 actor_set(const MMBodyShape *shape, void *actor, const MMBodyGeometryServices *s)
+{
+    MMI32 i;
+    for (i = 2; i < shape->part_count + 2; ++i)
+        if (s->actor_at(s->context, shape->actors, i) == actor)
+            return shape->bindings[i].set;
+    return -1;
+}
 void *mm_body_from_actor(void *actor, MMI32 *set, const MMBodyGeometryServices *s)
 {
     void *body = s->owner(s->context, actor);
-    MMI32 i, n;
     if (!body)
     {
         if (s->missing_owner)
@@ -13,21 +20,21 @@ void *mm_body_from_actor(void *actor, MMI32 *set, const MMBodyGeometryServices *
         return NULL;
     }
     if (set)
-    {
-        *set = -1;
-        n = s->part_count(s->context, body);
-        for (i = 0; i < n; ++i)
-            if (s->part(s->context, body, i) == actor)
-            {
-                *set = s->part_set(s->context, body, i);
-                break;
-            }
-    }
+        *set = actor_set(&s->state(s->context, body)->shape, actor, s);
     return body;
 }
-void mm_body_geometry_init(MMBodyGeometry *g)
+void *mm_body_read_render(void *actor, MMBodyDrawView *draw, const MMBodyGeometryServices *s)
 {
-    memset(g, 0, sizeof(*g));
+    void *body = s->owner(s->context, actor);
+    const MMBodyShape *shape;
+    if (!body)
+        return NULL;
+    shape = &s->state(s->context, body)->shape;
+    if (actor != shape->actors)
+        return NULL;
+    draw->bindings = shape->bindings;
+    draw->part_count = shape->part_count;
+    return body;
 }
 static int empty(const MMBodyRect *r)
 {
@@ -47,7 +54,7 @@ void mm_body_rendered(void *actor, const MMBodyRect *r, const MMBodyGeometryServ
     MMBodyRect *bounds;
     if (!body || empty(r))
         return;
-    bounds = &s->state(s->context, body)->bounds;
+    bounds = &s->state(s->context, body)->geometry.bounds;
     if (empty(bounds))
         *bounds = *r;
     else
@@ -65,28 +72,32 @@ void mm_body_rendered(void *actor, const MMBodyRect *r, const MMBodyGeometryServ
 void mm_body_prepare_render(void *actor, const MMBodyGeometryServices *s)
 {
     void *body = mm_body_from_actor(actor, NULL, s), *highlight;
+    MMBodyState *state;
     MMBodyGeometry *g;
     MMBodyBounds bounds;
     if (!body)
         return;
-    g = s->state(s->context, body);
+    state = s->state(s->context, body);
+    g = &state->geometry;
     if (mm_body_in_view(g))
     {
         g->last_visible = g->bounds;
         mm_body_clear_bounds(g);
     }
-    highlight = s->highlight(s->context, body);
+    highlight = s->actor_at(s->context, state->shape.actors, 1);
     if (s->actor_type(s->context, highlight) == s->model_type)
     {
-        mm_body_bounds(body, 0, &bounds, s);
+        mm_body_bounds(&state->shape, 0, &bounds, s);
         s->highlight_matrix(s->context, highlight, &bounds);
     }
 }
-void mm_body_render_rect(void *actor, MMBodyRect *out, const MMBodyGeometryServices *s)
+int mm_body_render_rect(void *actor, MMBodyRect *out, const MMBodyGeometryServices *s)
 {
     void *body = mm_body_from_actor(actor, NULL, s);
-    if (body)
-        *out = s->state(s->context, body)->bounds;
+    if (!body)
+        return 0;
+    *out = s->state(s->context, body)->geometry.bounds;
+    return 1;
 }
 void mm_body_visible_rect(const MMBodyGeometry *g, MMBodyRect *out)
 {
@@ -137,27 +148,22 @@ void mm_body_transform_bounds(const MMBodyBounds *in, const MMActorMatrix *m, MM
     }
     *out = result;
 }
-void mm_body_bounds(void *body, int world, MMBodyBounds *out, const MMBodyGeometryServices *s)
+void mm_body_bounds(const MMBodyShape *shape, int world, MMBodyBounds *out, const MMBodyGeometryServices *s)
 {
-    void *highlight = s->highlight(s->context, body);
+    void *highlight = s->actor_at(s->context, shape->actors, 1);
     int type = s->actor_type(s->context, highlight);
     MMBodyBounds bounds;
-    MMActorMatrix matrix;
     s->set_actor_type(s->context, highlight, s->none_type);
-    s->local_bounds(s->context, s->root(s->context, body), &bounds);
+    s->local_bounds(s->context, shape->actors, &bounds);
     s->set_actor_type(s->context, highlight, type);
-    *out = bounds;
     if (world)
-    {
-        s->root_matrix(s->context, body, &matrix);
-        mm_body_transform_bounds(&bounds, &matrix, out);
-    }
+        mm_body_transform_bounds(&bounds, &shape->bindings[0].matrix, out);
+    else
+        *out = bounds;
 }
-void mm_body_position(void *body, MMI32 out[3], const MMBodyGeometryServices *s)
+void mm_body_position(const MMBodyShape *shape, MMI32 out[3])
 {
-    MMActorMatrix matrix;
-    s->root_matrix(s->context, body, &matrix);
-    memcpy(out, matrix.m[3], 3 * sizeof(*out));
+    memcpy(out, shape->bindings[0].matrix.m[3], 3 * sizeof(*out));
 }
 void mm_body_pick_begin(MMBodyPick *p)
 {
@@ -168,7 +174,7 @@ void mm_body_pick_begin(MMBodyPick *p)
 int mm_body_pick_visit(MMBodyPick *p, void *actor, MMI32 depth, const MMBodyGeometryServices *s)
 {
     void *body = mm_body_from_actor(actor, NULL, s);
-    if (depth < p->depth && body && mm_body_in_view(s->state(s->context, body)))
+    if (depth < p->depth && body && mm_body_in_view(&s->state(s->context, body)->geometry))
     {
         p->body = body;
         p->actor = actor;
@@ -178,18 +184,8 @@ int mm_body_pick_visit(MMBodyPick *p, void *actor, MMI32 depth, const MMBodyGeom
 }
 void *mm_body_pick_result(const MMBodyPick *p, MMI32 *set, const MMBodyGeometryServices *s)
 {
-    MMI32 i, n;
     if (p->body && set)
-    {
-        *set = -1;
-        n = s->part_count(s->context, p->body);
-        for (i = 0; i < n; ++i)
-            if (s->part(s->context, p->body, i) == p->actor)
-            {
-                *set = s->part_set(s->context, p->body, i);
-                break;
-            }
-    }
+        *set = actor_set(&s->state(s->context, p->body)->shape, p->actor, s);
     return p->body;
 }
 void mm_body_search_begin(MMBodyGeometry *g)
@@ -199,15 +195,61 @@ void mm_body_search_begin(MMBodyGeometry *g)
 }
 int mm_body_search_visit(void *target, void *actor, const MMBodyGeometryServices *s)
 {
-    MMI32 set;
-    void *body = mm_body_from_actor(actor, &set, s);
-    MMBodyGeometry *g;
+    void *body = mm_body_from_actor(actor, NULL, s);
+    MMBodyState *state;
     if (!body || target != body)
         return 0;
-    g = s->state(s->context, target);
-    g->found = 1;
-    if (actor == s->highlight(s->context, target))
+    state = s->state(s->context, target);
+    state->geometry.found = 1;
+    if (actor == s->actor_at(s->context, state->shape.actors, 1))
         return 0;
-    g->set = set;
+    state->geometry.set = actor_set(&state->shape, actor, s);
     return 1;
+}
+
+typedef struct BodyPickContext
+{
+    MMBodyPick pick;
+    const MMBodyGeometryServices *services;
+} BodyPickContext;
+
+static int pick_at_hit(void *context, void *actor, MMI32 depth)
+{
+    BodyPickContext *pick = (BodyPickContext *)context;
+    return mm_body_pick_visit(&pick->pick, actor, depth, pick->services);
+}
+
+void *mm_body_pick_at(MMBodyHitScan *scan, void *context, MMI32 *set, const MMBodyGeometryServices *s)
+{
+    BodyPickContext pick;
+    mm_body_pick_begin(&pick.pick);
+    pick.services = s;
+    scan(context, pick_at_hit, &pick);
+    return mm_body_pick_result(&pick.pick, set, s);
+}
+
+typedef struct BodySearchContext
+{
+    void *target;
+    const MMBodyGeometryServices *services;
+} BodySearchContext;
+
+static int search_at_hit(void *context, void *actor, MMI32 depth)
+{
+    const BodySearchContext *search = (const BodySearchContext *)context;
+    (void)depth;
+    return mm_body_search_visit(search->target, actor, search->services);
+}
+
+int mm_body_search_at(void *target, MMBodyHitScan *scan, void *context, MMI32 *set,
+                      const MMBodyGeometryServices *s)
+{
+    BodySearchContext search;
+    MMBodyGeometry *geometry = &s->state(s->context, target)->geometry;
+    mm_body_search_begin(geometry);
+    search.target = target;
+    search.services = s;
+    scan(context, search_at_hit, &search);
+    *set = geometry->set;
+    return geometry->found != 0;
 }

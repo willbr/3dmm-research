@@ -10,7 +10,7 @@ extern "C" {
 
 /* Hits follow the SDK traversal order. A nonzero visitor result stops the
  * scan. Actor handles are borrowed for the duration of the synchronous call. */
-typedef int MMBRenderActorHit(void *context, void *actor, MMI32 near_z);
+typedef MMBodyHitVisitor MMBRenderActorHit;
 struct MMPreviewPickServices;
 
 void mm_brender_world_visit(const MMWorldBuffers *, const MMRenderFrame *, MMI32 x, MMI32 y,
