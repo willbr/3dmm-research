@@ -1,5 +1,6 @@
 #include "mm/text_resource.h"
 #include "engine_resource_block_fixture.h"
+#include "template_writer_fixture.h"
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
@@ -16,7 +17,7 @@ typedef struct Context
     MMChunkPayloadServices payloads;
     MMResourceCache cache;
     MMTextResourceSource source;
-    MMI32 bytes; int fail,step,live,header,child,found,packed,unpacked,appended,deleted;
+    MMI32 bytes; int fail,step,live,header,child,found,packed,unpacked,appended;
     int file_refs;
     int error,released_error,bad,warnings,custom,defaults,names_published;
     MMTextNames *names;
@@ -79,8 +80,6 @@ static void free_shape(void *p,void *data,MMU32 bytes)
 static void *material_new(void *p) { return list_new(p,0,0); }
 static int read_template(void *p,void *o,MMU32 type,MMU32 n,MMOwnedBlock *block)
 { Context *c=(Context *)p; assert(block==&c->block.owner); (void)type; (void)n; copy_string(((Object *)o)->text,"loaded"); return c->header; }
-static int write_template(void *p,void *o,void *file,MMU32 type,void *out)
-{ MMU32 n=37; (void)o; (void)file; (void)type; memcpy(out,&n,4); return ((Context *)p)->header; }
 static int graph_entry(void *p, MMU32 pos, MMChunkEntry *out)
 {
     Context *c = (Context *)p;
@@ -143,28 +142,8 @@ static int decode(void *p, void **handle)
     resource_block_decode(handle, c->wire, sizeof(c->wire));
     return 1;
 }
-static int add(void *p, void *file, MMU32 type, MMU32 parent, MMU32 *out, MMOwnedBlock *block)
-{
-    Context *c = (Context *)p;
-    MMBlockFile extent;
-    assert(file == p && type == MM_TMPL && parent == 37);
-    if (!c->child)
-        return 0;
-    extent.file = file;
-    extent.offset = 5;
-    extent.length = sizeof(c->wire);
-    *out = 19;
-    return mm_owned_block_set_file(block, &extent, 0) == MM_DATA_OK;
-}
 static int write_block(void *p, void *file, MMU32 offset, const void *bytes, size_t count)
-{
-    Context *c = (Context *)p;
-    assert(file == p && c->file_refs == 1 && offset == 5 && count == sizeof(c->wire));
-    memcpy(c->wire, bytes, count);
-    return c->found;
-}
-static void delete_child(void *p,void *file,MMU32 type,MMU32 n,MMU32 kid)
-{ Context *c=(Context *)p; assert(file==p && type==MM_TMPL && n==37 && kid==19 && c->file_refs==1); ++c->deleted; }
+{ (void)p; (void)file; (void)offset; (void)bytes; (void)count; return 0; }
 static void publish_error(void *p,void *out,int v) { ((Context *)p)->error=v; *(int *)out=v; }
 static void *tag_list(void *p) { assert(!((Context *)p)->error); return list_new(p,0,0); }
 static int append_tag(void *p,void *list,const MMTag *t) { (void)list; assert(!t->cache); ++((Context *)p)->appended; return ((Context *)p)->child!=2; }
@@ -197,8 +176,8 @@ static void init(Context *c)
     g->table_allocator.context=c; g->table_allocator.resize=resize_shape; g->table_allocator.release=free_shape;
     g->material_new=material_new; g->retain=retain; g->release=release;
     s->state=state; s->create=create; s->text=text; s->assign=assign; s->space=space; s->clear=clear; s->saved_text=saved; s->provider_copy=provider_copy;
-    s->has_provider=has_provider; s->provider_font=provider; s->default_font=default_font; s->publish_tag=publish_tag; s->read_template=read_template; s->write_template=write_template;
-    s->payloads=&c->payloads; s->add=add; s->delete_child=delete_child;
+    s->has_provider=has_provider; s->provider_font=provider; s->default_font=default_font; s->publish_tag=publish_tag; s->read_template=read_template;
+    s->payloads=&c->payloads;
     s->publish_error=publish_error; s->tag_list=tag_list; s->append_tag=append_tag; s->name_count=name_count; s->name_id=name_id; s->name_text=name_text; s->missing_name=missing; s->bad_order=bad;
 }
 static void lifecycle(void)
@@ -232,10 +211,15 @@ static void lifecycle(void)
 static void wire(void)
 {
     Context c; Object *o,*loaded; void *tags; MMTag font={-1,NULL,0xfedcba98U,0x87654321U}; MMU32 number; int endian,failure,error;
+    TemplateWriterFixture output;
+    MMTemplateWriter writer;
+    const MMChunkNameValue name = {"saved",5,5};
     for (endian=0;endian<2;++endian)
     {
-        init(&c); c.services.host_big_endian=endian; c.services.system=0x1234; o=(Object *)mm_text_create("saved",9,&font,&c.services); assert(o);
-        assert(mm_text_write(o,&c,MM_TMPL,&number,&c.services) && number==37 && !c.file_refs);
+        init(&c); c.services.host_big_endian=endian; o=(Object *)mm_text_create("saved",9,&font,&c.services); assert(o);
+        writer=writer_fixture(&output,endian,0x1234);
+        assert(mm_text_write(&o->template_state,&o->descriptor,&name,MM_TMPL,&number,&writer) && number==0 && !output.file_refs);
+        memcpy(c.wire,output.descriptor,sizeof(c.wire));
         assert(c.wire[endian?1:0]==1 && c.wire[2]==(endian?0x12:0x34) && c.wire[3]==(endian?0x34:0x12));
         assert(!c.wire[12] && !c.wire[13] && !c.wire[14] && !c.wire[15]);
         c.source.cache = &c.cache;
@@ -256,9 +240,7 @@ static void wire(void)
             assert((tags!=NULL)==!failure && error==(failure!=0) && !c.file_refs);
             if (tags) release(&c,tags); else if (failure!=1) assert(c.released_error==1);
         }
-        c.fail=0; c.bytes=24; c.child=0; c.found=1;
-        assert(!mm_text_write(o,&c,MM_TMPL,&number,&c.services) && number==37 && !c.deleted && !c.file_refs);
-        c.child=1; c.found=0; assert(!mm_text_write(o,&c,MM_TMPL,&number,&c.services) && c.deleted==1 && !c.file_refs);
+        c.fail=0; c.bytes=24; c.child=1; c.found=1;
         c.header=0; c.found=1; loaded=(Object *)create(&c); assert(!mm_text_read(loaded,&c.source,MM_TMPL,37,&c.block.owner,&c.services) && !strcmp(loaded->text,"loaded")); release(&c,loaded);
         c.header=1; c.wire[0]=c.wire[1]=0x7f; loaded=(Object *)create(&c);
         assert(mm_text_read(loaded,&c.source,MM_TMPL,37,&c.block.owner,&c.services) && c.bad==1 && !c.file_refs); release(&c,loaded);
@@ -267,60 +249,13 @@ static void wire(void)
 }
 typedef struct DraftOutput
 {
-    unsigned char header[MM_TEMPLATE_HEADER_BYTES], descriptor[MM_TEXT_DESCRIPTOR_BYTES];
-    int step, fail, deleted, copies;
+    unsigned char descriptor[MM_TEXT_DESCRIPTOR_BYTES];
+    int copies;
 } DraftOutput;
-static int draft_add(void *p, MMU32 type, const void *bytes, size_t count, MMU32 *number)
-{
-    DraftOutput *d = p;
-    assert(type == MM_TMPL && count == sizeof(d->header));
-    memcpy(d->header, bytes, count);
-    *number = 37;
-    return ++d->step != d->fail;
-}
-static int draft_name(void *p, MMU32 type, MMU32 number, const void *name)
-{
-    DraftOutput *d = p;
-    assert(type == MM_TMPL && number == 37 && !strcmp(name, "saved"));
-    return ++d->step != d->fail;
-}
-static int draft_child(void *p, MMU32 type, MMU32 parent, MMU32 slot, MMU32 child_type,
-                       const void *bytes, size_t count)
-{
-    DraftOutput *d = p;
-    assert(type == MM_TMPL && parent == 37 && slot == 0 && child_type == MM_TDT && count == sizeof(d->descriptor));
-    memcpy(d->descriptor, bytes, count);
-    return ++d->step != d->fail;
-}
-static void draft_delete(void *p, MMU32 type, MMU32 number)
-{
-    DraftOutput *d = p;
-    assert(type == MM_TMPL && number == 37);
-    ++d->deleted;
-}
-static int draft_entry(void *p, MMU32 i, MMChunkEntry *e)
-{
-    (void)p;
-    assert(i == 0);
-    memset(e, 0, sizeof(*e));
-    e->type = MM_TMPL;
-    e->number = 37;
-    e->child_count = 1;
-    return 1;
-}
-static int draft_link(void *p, MMU32 parent, MMU32 i, MMChunkChild *e)
-{
-    (void)p;
-    assert(parent == 0 && i == 0);
-    e->type = MM_TDT;
-    e->number = 19;
-    e->slot = 0;
-    return 1;
-}
 static int preview_read(void *p, MMU32 number, unsigned char *bytes)
 {
     DraftOutput *d = p;
-    assert(number == 19);
+    assert(number == 0);
     memcpy(bytes, d->descriptor, sizeof(d->descriptor));
     return 1;
 }
@@ -335,7 +270,7 @@ static int preview_copy(void *p, MMU32 number, MMU32 *copied)
 static int preview_write(void *p, MMU32 number, const unsigned char *bytes)
 {
     DraftOutput *d = p;
-    assert(number == 19);
+    assert(number == 0);
     memcpy(d->descriptor, bytes, sizeof(d->descriptor));
     return 1;
 }
@@ -343,45 +278,66 @@ static void drafts(void)
 {
     Context c;
     DraftOutput output;
+    TemplateWriterFixture normal, saved;
+    MMTemplateWriter writer;
+    const MMChunkNameValue name = {"saved", 5, 5};
     MMTextDescriptor draft = {9, {123, NULL, 0x54444620UL, 29}}, localized;
-    MMTextDraftServices services = {NULL, 0, 0x1234, draft_add, draft_name, draft_child, draft_delete};
     MMTextPreviewFontServices preview = {NULL, preview_read, preview_copy, preview_write};
-    MMChunkAccess graph = {NULL, 1, draft_entry, draft_link};
+    MMChunkAccess graph;
     MMTemplateState header;
     MMU32 number;
     Object *object;
     int big, failure;
-    services.context = preview.context = &output;
+    preview.context = &output;
     for (big = 0; big < 2; ++big)
     {
         init(&c);
-        c.services.host_big_endian = services.big_endian = big;
-        c.services.system = services.system;
+        c.services.host_big_endian = big;
         object = mm_text_create("saved", draft.shape, &draft.font, &c.services);
-        assert(object && mm_text_write(object, &c, MM_TMPL, &number, &c.services));
-        release(&c, object);
-        for (failure = 1; failure <= 3; ++failure)
+        assert(object);
+        for (failure = 1; failure <= 6; ++failure)
         {
-            memset(&output, 0, sizeof(output));
-            output.fail = failure;
+            writer = writer_fixture(&normal, big, 0x1234);
+            normal.fail = failure;
             number = 99;
-            assert(!mm_text_write_draft("saved", &draft, &number, &services));
-            assert(number == 99 && output.deleted == (failure > 1));
+            assert(!mm_text_write(&object->template_state, &object->descriptor, &name, MM_TMPL, &number, &writer));
+            assert(number == (failure < 3 ? 99U : 0U) && !normal.file_refs);
+            assert(normal.index.count == (failure >= 4 ? 1U : 0U));
+            if (failure >= 4)
+                assert(normal.index.rows[0].entry.type == MM_TMPL && !normal.index.rows[0].entry.child_count);
+            if (failure >= 5)
+                assert(normal.deleted == 1 && normal.last_deleted == MM_TDT);
+            writer = writer_fixture(&saved, big, 0x1234);
+            fixture_chunk_add(&saved.index, MM_GLPI, 0);
+            saved.fail = failure;
+            number = 99;
+            assert(!mm_text_write_draft(&name, &draft, &number, &writer));
+            assert(number == 99 && saved.index.count == 1 && !saved.file_refs);
+            assert(saved.index.rows[0].entry.type == MM_GLPI);
+            assert(saved.deleted == (failure == 1 ? 0 : failure >= 5 ? 2 : 1));
         }
-        memset(&output, 0, sizeof(output));
-        assert(mm_text_write_draft("saved", &draft, &number, &services) && number == 37);
-        assert(mm_template_decode_header(output.header, 0, &header));
+        writer = writer_fixture(&normal, big, 0x1234);
+        assert(mm_text_write(&object->template_state, &object->descriptor, &name, MM_TMPL, &number, &writer));
+        release(&c, object);
+        writer = writer_fixture(&saved, big, 0x1234);
+        assert(mm_text_write_draft(&name, &draft, &number, &writer) && number == 0);
+        assert(mm_template_decode_header(saved.header, 0, &header));
         assert(!header.x && !header.y && !header.z && header.flags == MM_TEMPLATE_TEXT);
-        assert(!memcmp(output.descriptor, c.wire, sizeof(c.wire)));
+        assert(!memcmp(saved.header, normal.header, sizeof(saved.header)));
+        assert(!memcmp(saved.descriptor, normal.descriptor, sizeof(saved.descriptor)));
+        assert(!memcmp(saved.name, normal.name, sizeof(saved.name)) && !saved.file_refs && !normal.file_refs);
+        graph = fixture_chunk_access(&saved.index);
+        memset(&output, 0, sizeof(output));
+        memcpy(output.descriptor, saved.descriptor, sizeof(output.descriptor));
         output.descriptor[0] = 127;
-        assert(!mm_text_bind_preview_font(&graph, 37, 29, &preview) && !output.copies);
-        memcpy(output.descriptor, c.wire, sizeof(c.wire));
+        assert(!mm_text_bind_preview_font(&graph, 0, 29, &preview) && !output.copies);
+        memcpy(output.descriptor, saved.descriptor, sizeof(output.descriptor));
         output.descriptor[12] = 37;
-        assert(mm_text_bind_preview_font(&graph, 37, 29, &preview) && output.copies == 1);
+        assert(mm_text_bind_preview_font(&graph, 0, 29, &preview) && output.copies == 1);
         assert(mm_text_decode_descriptor(output.descriptor, 0, &localized));
         assert(localized.shape == 9 && localized.font.sid == 0 && localized.font.type == draft.font.type &&
                localized.font.number == 0x87654321UL && output.descriptor[12] == 37);
-        assert(!memcmp(output.descriptor, c.wire, 8) && !memcmp(output.descriptor + 16, c.wire + 16, 4));
+        assert(!memcmp(output.descriptor, saved.descriptor, 8) && !memcmp(output.descriptor + 16, saved.descriptor + 16, 4));
     }
 }
 static void author_names(void)

@@ -6013,9 +6013,10 @@ dispatch. ThreeDText generation and action/accessory evaluation use the C module
 below. Resource object internals, String adapters and final Template
 representation/facade removal remain dependencies.
 
-Header writes define the formerly uninitialized two-byte padding as zero.
-The name write deliberately targets TMPL even when given another chunk type;
-failure deletes the newly added chunk while retaining its published number.
+The C writer creates the header chunk through the live chunk editor and writes
+the supplied name through the index's name storage. It writes zero into the two
+header padding bytes. Name lookup uses the TMPL key. A name failure deletes the
+new chunk and retains its published number.
 The legacy GGCM builder's first 50 matches retain native behavior; the 51st
 now diagnoses/fails instead of overflowing its stack array. These defined
 normalizations are explicit. The C cache and block owner control the lifetime
@@ -6256,10 +6257,12 @@ enumeration and localized action-name policy. `MMTextDescriptor` holds shape
 and font tag. `MMTextNames` holds the optional retained names table. Both hosts
 use the same C controller through the ThreeDText facade. The C reader resolves
 the `TDT` link through the live cache or standalone archive graph and owns the
-block through decoding and the bounded descriptor read. C also owns the child
-block through a write and handles failure cleanup. Native services supply
-String primitives, object creation, base-template I/O, chunk creation, font
-providers and string-table entries.
+block through decoding and the bounded descriptor read. Regular and draft saves
+share the C template writer and the same editor for child creation and adoption.
+C owns the descriptor block through a regular save. A draft publishes its
+number after both chunks and their link are complete. Native services supply
+String representation and encoding, object creation, base-template reads,
+font providers and string-table entries.
 
 Construction/change normalize empty strings to one space; loading does not.
 Even a no-op change rebuilds generated owners. Failed changes restore text,

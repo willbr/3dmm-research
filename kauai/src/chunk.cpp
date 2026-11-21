@@ -2052,42 +2052,33 @@ void ChunkyFile::_FreeFpCb(bool fOnExtra, FilePosition fp, LegacyLong cb)
 /***************************************************************************
     Set the name of the chunk.
 ***************************************************************************/
-namespace {
-MMU32 EncodeChunkName(PString name, void *wire)
+MMChunkNameValue ChunkyFile::EncodeName(PString name, void *wire)
 {
-    if (!name || !name->Cch())
-        return 0;
-    name->GetData(wire);
-    return name->CbData();
-}
-MMChunkNames ChunkNameServices(PChunkTable group);
+    const auto count = name ? name->Cch() : 0;
+    if (count)
+        name->GetData(wire);
+    return {wire, count ? static_cast<MMU32>(name->CbData()) : 0U, static_cast<MMU32>(count)};
 }
 bool ChunkyFile::FSetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
 {
     AssertNilOrPo(pstn, 0);
     byte wire[kcbMaxDataStn];
-    const auto bytes = EncodeChunkName(pstn, wire);
-    return FWriteNameBytes(ctg, cno, wire, bytes);
+    const auto value = EncodeName(pstn, wire);
+    return FWriteNameBytes(ctg, cno, wire, value.bytes);
 }
 
 bool ChunkyFile::FWriteNameBytes(ChunkTagOrType ctg, ChunkNumber cno, const void *wire, MMU32 bytes)
 {
     AssertThis(0);
     AssertNilOrPvCb(const_cast<void *>(wire), bytes);
-    LegacyLong icrp;
-
-    if (!_FFindCtgCno(ctg, cno, &icrp))
-    {
-        Bug("chunk not there");
-        return fFalse;
-    }
-
-    const auto names = ChunkNameServices(_Index());
+    const auto edit = EditIndex();
+    const auto names = NameIndex();
     const MMChunkNameValue value = {wire, bytes, bytes != 0};
-    if (mm_chunk_name_set(&names, icrp, &value) != MM_CHUNK_OK)
+    const int status = mm_chunk_name_set_key(&edit, &names, ctg, cno, &value);
+    if (status == MM_CHUNK_NOT_FOUND)
+        Bug("chunk not there");
+    if (status != MM_CHUNK_OK)
         return fFalse;
-
-    _FSetRti(ctg, cno, rtiNil);
 
     AssertThis(0);
     return fTrue;
@@ -2096,10 +2087,9 @@ bool ChunkyFile::FWriteNameBytes(ChunkTagOrType ctg, ChunkNumber cno, const void
 /***************************************************************************
     Set the name of the chunk at the given index.
 ***************************************************************************/
-namespace {
-MMChunkNames ChunkNameServices(PChunkTable group)
+MMChunkNames ChunkyFile::NameIndex()
 {
-    return {group,
+    return {_Index(),
         [](void *c) -> MMU32 { return static_cast<PChunkTable>(c)->count; }, ReadRuntimeChunk,
         [](void *c, MMU32 i, MMU32 offset, MMU32 bytes) -> int {
             return ChunkInsertBytes(static_cast<PChunkTable>(c), i, offset, bytes, nullptr);
@@ -2108,14 +2098,12 @@ MMChunkNames ChunkNameServices(PChunkTable group)
         [](void *c, MMU32 i) -> void * { return ChunkLockVariable(static_cast<PChunkTable>(c), i); },
         [](void *c) { ChunkUnlock(static_cast<PChunkTable>(c)); }, kcbMaxDataStn};
 }
-}
 bool ChunkyFile::_FSetName(LegacyLong icrp, PString pstn)
 {
     AssertBaseThis(0); AssertIn(icrp, 0, _Index()->count); AssertNilOrPo(pstn, 0);
     byte wire[kcbMaxDataStn];
-    const auto bytes = EncodeChunkName(pstn, wire);
-    const MMChunkNameValue value = {wire, bytes, bytes != 0};
-    const auto names = ChunkNameServices(_Index());
+    const auto value = EncodeName(pstn, wire);
+    const auto names = NameIndex();
     return mm_chunk_name_set(&names, icrp, &value) == MM_CHUNK_OK;
 }
 
@@ -2147,7 +2135,7 @@ bool ChunkyFile::FGetName(ChunkTagOrType ctg, ChunkNumber cno, PString pstn)
 bool ChunkyFile::_FGetName(LegacyLong icrp, PString pstn)
 {
     AssertBaseThis(0); AssertIn(icrp, 0, _Index()->count); AssertPo(pstn, 0);
-    const auto names = ChunkNameServices(_Index());
+    const auto names = NameIndex();
     const MMChunkNameDecoder decoder = {pstn,
         [](void *c, const void *wire, MMU32 bytes) -> int { return static_cast<PString>(c)->FSetData(const_cast<void *>(wire), bytes); },
         [](void *c) { static_cast<PString>(c)->SetNil(); },
@@ -2172,7 +2160,7 @@ bool ChunkyFile::FReadNameBytes(ChunkTagOrType type, ChunkNumber number, void *w
         },
         [](void *p) { static_cast<Output *>(p)->written = 0; },
         [](void *p) -> MMU32 { return static_cast<Output *>(p)->written; }};
-    const auto names = ChunkNameServices(_Index());
+    const auto names = NameIndex();
     if (!mm_chunk_name_get(&names, position, &decoder))
         return false;
     *written = output.written;

@@ -42,7 +42,6 @@ ASSERTNAME
 
 RTCLASS(ThreeDText)
 
-const ChildChunkID kchidTdt = 0; // ChildChunkID of ThreeDText under Template chunk
 
 
 struct TextResourceContext
@@ -60,7 +59,7 @@ static void TextTagFromCore(TAG *tag, const MMTag *in)
 }
 MMTextResourceServices ThreeDText::_ResourceServices(void *context)
 {
-    MMTextResourceServices s = {}; s.context = context; s.system = koskCur; s.generation = _GenerationServices();
+    MMTextResourceServices s = {}; s.context = context; s.generation = _GenerationServices();
     const unsigned short order = 1;
     s.host_big_endian = *reinterpret_cast<const unsigned char *>(&order) == 0;
     s.payloads = KauaiChunkPayloadServices();
@@ -87,19 +86,6 @@ MMTextResourceServices ThreeDText::_ResourceServices(void *context)
         return static_cast<PThreeDText>(object)->_FReadTmplf(static_cast<TextResourceContext *>(p)->cache, type,
                                                             number, block);
     };
-    s.write_template = [](void *, void *object, void *file, MMU32 type, void *number) -> int {
-        return static_cast<PThreeDText>(object)->_FWriteTmplf(static_cast<PChunkyFile>(file), type, static_cast<ChunkNumber *>(number));
-    };
-    s.add = [](void *, void *file, MMU32 type, MMU32 number, MMU32 *out, MMOwnedBlock *block) -> int {
-        DataBlock view(*block);
-        ChunkNumber child;
-        if (!static_cast<PChunkyFile>(file)->FAddChild(type, number, kchidTdt, MM_TEXT_DESCRIPTOR_BYTES,
-                                                      kctgTdt, &child, &view))
-            return 0;
-        *out = child;
-        return 1;
-    };
-    s.delete_child = [](void *, void *file, MMU32 type, MMU32 number, MMU32 child) { static_cast<PChunkyFile>(file)->DeleteChild(type, number, kctgTdt, child, kchidTdt); };
     s.publish_error = [](void *, void *out, int error) { *static_cast<bool *>(out) = error != 0; };
     s.tag_list = [](void *) -> void * { return DynamicArray::PglNew(sizeof(TAG)); };
     s.append_tag = [](void *, void *list, const MMTag *in) -> int { TAG tag; TextTagFromCore(&tag, in); return static_cast<PDynamicArray>(list)->FAdd(&tag); };
@@ -325,8 +311,10 @@ PCustomMaterial_CMTL ThreeDText::PcmtlFetch(LegacyLong cmid)
 bool ThreeDText::FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
-    TextResourceContext context; auto services = _ResourceServices(&context);
-    return mm_text_write(this, pcfl, ctg, pcno, &services) != 0;
+    const auto writer = _Writer(pcfl);
+    byte wire[kcbMaxDataStn];
+    const auto name = ChunkyFile::EncodeName(&_stn, wire);
+    return mm_text_write(&_template, &_descriptor, &name, ctg, pcno, &writer) != 0;
 }
 
 bool ThreeDText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, const TAG &font, ChunkNumber *number)
@@ -337,24 +325,10 @@ bool ThreeDText::FWriteDraft(PChunkyFile file, PString name, LegacyLong shape, c
     MMTextDescriptor draft = {};
     draft.shape = shape;
     TextTagToCore(&font, &draft.font);
-    const unsigned short order = 1;
-    const MMTextDraftServices services = {
-        file, *reinterpret_cast<const unsigned char *>(&order) == 0, koskCur,
-        [](void *p, MMU32 type, const void *bytes, size_t count, MMU32 *out) -> int {
-            return static_cast<PChunkyFile>(p)->FAddPv(const_cast<void *>(bytes), static_cast<LegacyLong>(count),
-                                                    type, out);
-        },
-        [](void *p, MMU32 type, MMU32 chunk, const void *text) -> int {
-            return static_cast<PChunkyFile>(p)->FSetName(type, chunk, const_cast<PString>(static_cast<const String *>(text)));
-        },
-        [](void *p, MMU32 type, MMU32 parent, MMU32 slot, MMU32 child, const void *bytes, size_t count) -> int {
-            ChunkNumber out;
-            return static_cast<PChunkyFile>(p)->FAddChildPv(type, parent, slot, const_cast<void *>(bytes),
-                                                         static_cast<LegacyLong>(count), child, &out);
-        },
-        [](void *p, MMU32 type, MMU32 chunk) { static_cast<PChunkyFile>(p)->Delete(type, chunk); },
-    };
-    return mm_text_write_draft(name, &draft, number, &services) != 0;
+    const auto writer = _Writer(file);
+    byte wire[kcbMaxDataStn];
+    const auto encoded = ChunkyFile::EncodeName(name, wire);
+    return mm_text_write_draft(&encoded, &draft, number, &writer) != 0;
 }
 
 /***************************************************************************

@@ -134,45 +134,57 @@ int mm_text_read(void *object, const MMTextResourceSource *source, MMU32 type, M
     d=s->state(s->context,object); memcpy(&d->font,&read.font,sizeof(d->font)); d->shape=read.shape;
     return mm_text_initialize_lists(object,&s->generation);
 }
-int mm_text_write(void *object,void *file,MMU32 type,void *number_out,const MMTextResourceServices *s)
+static int adopt_descriptor(const MMChunkEdit *edit, MMU32 type, MMU32 parent, const MMChunkChild *child)
 {
-    const MMChunkPayloadServices *payloads = s->payloads;
+    if (mm_chunk_adopt(edit, type, parent, child, 1) == MM_CHUNK_OK)
+        return 1;
+    mm_chunk_delete(edit, child->type, child->number);
+    return 0;
+}
+
+int mm_text_write(const MMTemplateState *state, const MMTextDescriptor *descriptor, const MMChunkNameValue *name,
+                  MMU32 type, MMU32 *number, const MMTemplateWriter *writer)
+{
+    const MMChunkPayloadServices *payloads = writer->payloads;
+    const MMChunkEdit *edit = &writer->edit;
     unsigned char bytes[MM_TEXT_DESCRIPTOR_BYTES];
     MMOwnedBlock block;
     MMBlockIO io;
-    MMU32 number, child;
+    MMChunkChild child = {MM_TDT, 0, 0};
     int ok = 0;
-    if (!s->write_template(s->context, object, file, type, number_out) ||
+    if (!mm_template_write_header(state, name, type, number, writer) ||
         mm_owned_block_init(&block, payloads->handles, payloads->files) != MM_DATA_OK)
         return 0;
-    memcpy(&number, number_out, sizeof(number));
-    encode_descriptor(bytes, s->host_big_endian, s->system, s->state(s->context, object));
-    if (s->add(s->context, file, type, number, &child, &block))
+    encode_descriptor(bytes, writer->big_endian, writer->system, descriptor);
+    if (mm_chunk_add_block(edit, child.type, sizeof(bytes), &child.number, &block) == MM_CHUNK_OK &&
+        adopt_descriptor(edit, type, *number, &child))
     {
         ok = mm_owned_block_io(&block, &io) == MM_DATA_OK &&
              mm_block_write(&io, 0, bytes, sizeof(bytes), 0) == MM_DATA_OK;
         if (!ok)
-            s->delete_child(s->context, file, type, number, child);
+            mm_chunk_unlink(edit, type, *number, &child);
     }
     mm_owned_block_clear(&block);
     return ok;
 }
-int mm_text_write_draft(const void *name, const MMTextDescriptor *d, MMU32 *number, const MMTextDraftServices *s)
+int mm_text_write_draft(const MMChunkNameValue *name, const MMTextDescriptor *d, MMU32 *number,
+                        const MMTemplateWriter *writer)
 {
     MMTemplateState state = {0};
-    unsigned char header[MM_TEMPLATE_HEADER_BYTES], descriptor[MM_TEXT_DESCRIPTOR_BYTES];
+    unsigned char descriptor[MM_TEXT_DESCRIPTOR_BYTES];
+    const MMChunkEdit *edit = &writer->edit;
+    MMChunkChild child = {MM_TDT, 0, 0};
     MMU32 parent = 0;
     if (d->shape < 0 || d->shape >= MM_TEXT_SHAPE_COUNT || d->font.type != MM_FONT_TYPE)
         return 0;
     state.flags = MM_TEMPLATE_TEXT;
-    mm_template_encode_header(header, s->big_endian, s->system, &state);
-    encode_descriptor(descriptor, s->big_endian, s->system, d);
-    if (!s->add_chunk(s->context, MM_TMPL, header, sizeof(header), &parent))
+    encode_descriptor(descriptor, writer->big_endian, writer->system, d);
+    if (!mm_template_write_header(&state, name, MM_TMPL, &parent, writer))
         return 0;
-    if (!s->set_name(s->context, MM_TMPL, parent, name) ||
-        !s->add_child(s->context, MM_TMPL, parent, 0, MM_TDT, descriptor, sizeof(descriptor)))
+    if (mm_chunk_add_bytes(edit, writer->payloads->files, child.type, descriptor, sizeof(descriptor),
+                           &child.number) != MM_CHUNK_OK || !adopt_descriptor(edit, MM_TMPL, parent, &child))
     {
-        s->delete_chunk(s->context, MM_TMPL, parent);
+        mm_chunk_delete(edit, MM_TMPL, parent);
         return 0;
     }
     *number = parent;

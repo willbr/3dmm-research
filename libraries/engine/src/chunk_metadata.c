@@ -156,6 +156,23 @@ int mm_chunk_name_set(const MMChunkNames *names, MMU32 position, const MMChunkNa
     }
     return MM_CHUNK_OK;
 }
+int mm_chunk_name_set_key(const MMChunkEdit *edit, const MMChunkNames *names, MMU32 type, MMU32 number,
+                          const MMChunkNameValue *value)
+{
+    MMChunkAccess access = mm_chunk_edit_access(edit);
+    MMU32 position;
+    int status;
+    if (!edit || !edit->reset_runtime)
+        return MM_CHUNK_BAD_FILE;
+    status = mm_chunk_find(&access, type, number, &position);
+    if (status == MM_CHUNK_OK)
+    {
+        status = mm_chunk_name_set(names, position, value);
+        if (status == MM_CHUNK_OK)
+            edit->reset_runtime(edit->context, type, number);
+    }
+    return status;
+}
 int mm_chunk_name_get(const MMChunkNames *names, MMU32 position, const MMChunkNameDecoder *decoder)
 {
     MMU32 offset, bytes;

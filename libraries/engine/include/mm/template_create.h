@@ -5,6 +5,8 @@
 #include "types.h"
 #include "movie_data.h"
 #include "collection_storage.h"
+#include "chunk_storage.h"
+#include "chunk_metadata.h"
 #include "part_indices.h"
 #include "resource_cache.h"
 #include <stddef.h>
@@ -117,14 +119,10 @@ typedef struct MMTemplateCreateServices
 {
     void *context;
     int host_big_endian,debug_checks;
-    MMU32 system;
     MMTemplateState *(*state)(void *,void *object);
     void (*release)(void *,void *);
     MMBlockTransform decode;
     int (*read_name)(void *,void *object,MMU32,MMU32);
-    int (*add_chunk)(void *,void *file,MMU32,const void *,size_t,MMU32 *);
-    int (*set_name)(void *,void *object,void *file,MMU32,MMU32);
-    void (*delete_chunk)(void *,void *file,MMU32,MMU32);
     void *(*create)(void *,int text);
     int (*initialize)(void *,void *object,MMU32,MMU32,MMOwnedBlock *);
     MMI32 (*object_size)(void *,int text);
@@ -156,10 +154,20 @@ void mm_template_state_init(MMTemplateState *);
  * that behavior; a 51st match now diagnoses/fails instead of overflowing. */
 /* Read from a borrowed root block when supplied, or look it up on demand. */
 int mm_template_read_header(void *,MMResourceCache *,MMU32,MMU32,MMOwnedBlock *,const MMTemplateCreateServices *);
+typedef struct MMTemplateWriter
+{
+    MMChunkEdit edit;
+    MMChunkNames names;
+    const MMChunkPayloadServices *payloads;
+    int big_endian;
+    MMU32 system;
+    void (*invalidate_number)(MMU32 *);
+} MMTemplateWriter;
 /* Header padding is defined as zero; the native writer left two stack bytes
  * undefined. Name assignment deliberately uses TMPL even for another supplied
  * chunk type; failure deletes the added chunk and retains its published number. */
-int mm_template_write_header(void *,void *file,MMU32,MMU32 *,const MMTemplateCreateServices *);
+int mm_template_write_header(const MMTemplateState *, const MMChunkNameValue *, MMU32, MMU32 *,
+                             const MMTemplateWriter *);
 void mm_template_encode_header(unsigned char bytes[MM_TEMPLATE_HEADER_BYTES], int big_endian, MMU32 system,
                                const MMTemplateState *);
 int mm_template_fetch(MMResourceCache *,MMU32,MMU32,MMOwnedBlock *,void **object,MMI32 *bytes,

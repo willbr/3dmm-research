@@ -6,6 +6,7 @@
 #include "chunky_file.h"
 #include "resource_cache.h"
 #include "text_generation.h"
+#include "template_create.h"
 #include "tag.h"
 #ifdef __cplusplus
 extern "C" {
@@ -30,7 +31,7 @@ typedef struct MMTextResourceSource
 typedef struct MMTextResourceServices
 {
     void *context;
-    int host_big_endian; MMU32 system;
+    int host_big_endian;
     MMTextGenerationServices generation;
     MMTextDescriptor *(*state)(void *,void *object);
     void *(*create)(void *);
@@ -45,10 +46,7 @@ typedef struct MMTextResourceServices
     void *(*default_font)(void *,const MMTag *);
     void (*publish_tag)(void *,void *output,const MMTag *);
     int (*read_template)(void *,void *object,MMU32 type,MMU32 number,MMOwnedBlock *);
-    int (*write_template)(void *,void *object,void *file,MMU32 type,void *number_out);
     const MMChunkPayloadServices *payloads;
-    int (*add)(void *,void *file,MMU32 type,MMU32 number,MMU32 *child_number,MMOwnedBlock *);
-    void (*delete_child)(void *,void *file,MMU32 type,MMU32 number,MMU32 child_number);
     void (*publish_error)(void *,void *output,int value);
     void *(*tag_list)(void *);
     int (*append_tag)(void *,void *list,const MMTag *);
@@ -78,22 +76,12 @@ void *mm_text_font(void *object,const MMTextResourceServices *);
 /* Supply a live cache or a standalone archive and its chunk access. */
 int mm_text_read(void *object,const MMTextResourceSource *,MMU32 type,MMU32 number,MMOwnedBlock *,
                  const MMTextResourceServices *);
-int mm_text_write(void *object,void *file,MMU32 type,void *number_out,const MMTextResourceServices *);
-typedef struct MMTextDraftServices
-{
-    void *context;
-    int big_endian;
-    MMU32 system;
-    int (*add_chunk)(void *, MMU32 type, const void *bytes, size_t count, MMU32 *number);
-    int (*set_name)(void *, MMU32 type, MMU32 number, const void *name);
-    /* On failure the host removes any unlinked child it allocated. */
-    int (*add_child)(void *, MMU32 parent_type, MMU32 parent, MMU32 slot, MMU32 type,
-                     const void *bytes, size_t count);
-    void (*delete_chunk)(void *, MMU32 type, MMU32 number);
-} MMTextDraftServices;
+int mm_text_write(const MMTemplateState *, const MMTextDescriptor *, const MMChunkNameValue *,
+                  MMU32 type, MMU32 *number, const MMTemplateWriter *);
 /* Write the two persisted chunks for new 3D text without generating renderer
  * state. Only a successful draft publishes its template number. */
-int mm_text_write_draft(const void *name, const MMTextDescriptor *, MMU32 *number, const MMTextDraftServices *);
+int mm_text_write_draft(const MMChunkNameValue *, const MMTextDescriptor *, MMU32 *number,
+                        const MMTemplateWriter *);
 typedef struct MMTextPreviewFontServices
 {
     void *context;

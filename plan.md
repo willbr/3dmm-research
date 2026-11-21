@@ -880,6 +880,8 @@ supply its own actions and font models. Template parent/set/costume ownership,
 rest orientation, flags and counts live in persistent C state shared with
 ThreeDText generation. C89 allocates table records and their backing storage
 through the supplied collection allocator.
+The shared chunk editor writes template headers and names. Regular and draft
+3D text saves use it to create and link the descriptor and handle rollback.
 String and resource/container providers and final facade removal remain work.
 ActionDefinition construction, header/list loading, byte-order conversion and
 primitive queries use a persistent C-owned action state. C89 allocates cel,

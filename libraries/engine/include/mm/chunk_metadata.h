@@ -3,6 +3,7 @@
 #ifndef MM_ENGINE_CHUNK_METADATA_H
 #define MM_ENGINE_CHUNK_METADATA_H
 #include "chunky_file.h"
+#include "chunk_edit.h"
 #include "collections.h"
 #ifdef __cplusplus
 extern "C"
@@ -57,6 +58,8 @@ extern "C"
      * A null/empty value removes a name. get returns 1 only for a nonempty result;
      * absent/invalid names clear the output. Decoder diagnostics remain host policy. */
     int mm_chunk_name_set(const MMChunkNames *, MMU32 position, const MMChunkNameValue *);
+    int mm_chunk_name_set_key(const MMChunkEdit *, const MMChunkNames *, MMU32 type, MMU32 number,
+                              const MMChunkNameValue *);
     int mm_chunk_name_get(const MMChunkNames *, MMU32 position, const MMChunkNameDecoder *);
 #ifdef __cplusplus
 }

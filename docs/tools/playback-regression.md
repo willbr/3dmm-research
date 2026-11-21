@@ -17878,3 +17878,37 @@ matched all 60 archived retail frame identities in seek and continuous
 playback, including the retail seek camera indices. SDL matched all 12 retail
 sound requests. Each port reproduced its 60 seek canvas hashes from the
 preceding build. Evidence is in `tmp/c89-material-chunk-authoring`.
+
+## Template and 3D text saves through the C89 chunk editor (21 November 2026)
+
+Template headers and names now write through the C89 chunk index. Regular and
+draft 3D text saves share the template writer and adopt their TDT child through
+the same editor. Regular saves preserve the parent and its number when a child
+fails. Drafts remove incomplete graphs and only publish the number on success.
+The C fixture checks the order of adoption and payload writing for both paths.
+
+Template construction, text resource, and text generation traces matched the
+preceding build byte for byte on x64, x86, and SDL. The native fixture confirmed
+that regular and draft text authoring produced identical files. All 192
+standalone C tests, five focused AddressSanitizer checks, 12 native C89 gates,
+and five Marcus checks passed. The Marcus insertion check exercised text
+insertion, editing, undo, save, and reopen. The 54 movie and scene traces,
+three fixture saves, ten Preview fingerprints, and six Preview movies matched.
+Studio's live round trip reproduced 13 actor samples, 12 rendered images,
+and the saved movie bytes.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T040751Z-a9dd6a97`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T040828Z-e1537c7c`.
+
+Retail reopened the Studio-saved actor movie in `20261121T040922Z-bceeb5a2`.
+Each player reproduced all 60 frame identities, camera indices, and canvas
+hashes from its preceding run. Both ports matched 59 of the retail canvas
+hashes. Scene 0, frame 4 reproduced the existing difference from retail.
+
+All four actor-event runs completed in `20261121T040733Z-a2d0f183`. Each port
+matched all 60 archived retail frame identities in seek and continuous
+playback, including the retail seek camera indices. SDL matched all 12 retail
+sound requests. Each port reproduced its 60 seek canvas hashes from the
+preceding build. Evidence is in `tmp/c89-template-chunk-authoring`.

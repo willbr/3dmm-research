@@ -210,7 +210,7 @@ void ActionDefinition::MarkMem(void)
 ***************************************************************************/
 MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
 {
-    MMTemplateCreateServices s = {}; s.context = cache; s.system = koskCur;
+    MMTemplateCreateServices s = {}; s.context = cache;
     const unsigned short one = 1; s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
 #ifdef DEBUG
     s.debug_checks = 1;
@@ -221,13 +221,6 @@ MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
     s.read_name = [](void *cache, void *object, MMU32 type, MMU32 number) -> int {
         return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, &static_cast<PTemplate>(object)->_stn);
     };
-    s.add_chunk = [](void *, void *file, MMU32 type, const void *data, size_t count, MMU32 *out) -> int {
-        ChunkNumber number; CopyPb(out, &number, sizeof(number));
-        const bool ok = static_cast<PChunkyFile>(file)->FAddPv(const_cast<void *>(data), static_cast<LegacyLong>(count), type, &number);
-        CopyPb(&number, out, sizeof(number)); return ok;
-    };
-    s.set_name = [](void *, void *object, void *file, MMU32 type, MMU32 number) -> int { return static_cast<PChunkyFile>(file)->FSetName(type, number, &static_cast<PTemplate>(object)->_stn); };
-    s.delete_chunk = [](void *, void *file, MMU32 type, MMU32 number) { static_cast<PChunkyFile>(file)->Delete(type, number); };
     s.create = [](void *, int text) -> void * { return text ? static_cast<PTemplate>(NewObj ThreeDText) : NewObj Template; };
     s.initialize = [](void *cache, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
         return static_cast<PTemplate>(object)->_FInit(static_cast<PChunkyResourceFile>(cache), type, number, block);
@@ -291,13 +284,21 @@ bool Template::_FReadTmplf(PChunkyResourceFile cache, ChunkTagOrType ctg, ChunkN
     Note: In Socrates, normal actor templates are read-only, but this
     function will get called for ThreeDTexts.
 ***************************************************************************/
+MMTemplateWriter Template::_Writer(PChunkyFile file)
+{
+    const unsigned short order = 1;
+    return {file->EditIndex(), file->NameIndex(), KauaiChunkPayloadServices(),
+        *reinterpret_cast<const unsigned char *>(&order) == 0, koskCur,
+        [](MMU32 *number) { (void)number; TrashVar(number); }};
+}
+
 bool Template::_FWriteTmplf(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno)
 {
     AssertThis(0); AssertPo(pcfl, 0); AssertVarMem(pcno);
-    auto s = _CreateServices(); MMU32 number;
-    CopyPb(pcno, &number, sizeof(number));
-    const bool ok = mm_template_write_header(this, pcfl, ctg, &number, &s) != 0;
-    CopyPb(&number, pcno, sizeof(number)); return ok;
+    const auto writer = _Writer(pcfl);
+    byte wire[kcbMaxDataStn];
+    const auto name = ChunkyFile::EncodeName(&_stn, wire);
+    return mm_template_write_header(&_template, &name, ctg, pcno, &writer) != 0;
 }
 
 /***************************************************************************

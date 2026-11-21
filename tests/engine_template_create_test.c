@@ -1,5 +1,6 @@
 #include "mm/template_create.h"
 #include "engine_resource_block_fixture.h"
+#include "template_writer_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -19,9 +20,8 @@ typedef struct Fixture
     MMU32 child_count;
     int file,fail,fallback,other,text,gap,custom_count,child_calls,created,initialized;
     int file_refs, packed, decodes, read_failure;
-    int fetched,applied,freed,body_created,body_released,default_calls,deleted,diagnostics[5],invalidated;
+    int fetched,applied,freed,body_created,body_released,default_calls,diagnostics[5],invalidated;
     MMI32 applied_ids[2];
-    unsigned char encoded[16]; MMU32 written_type,delete_type; int name_calls;
 } Fixture;
 static void put(unsigned char *p,unsigned n,MMU32 v,int big)
 { unsigned i; for (i=0;i<n;++i) { p[big?n-i-1:i]=(unsigned char)(v&255U); v>>=8; } }
@@ -132,12 +132,6 @@ static int decode(void *p, void **handle)
 }
 static int read_name(void *p,void *o,MMU32 type,MMU32 number)
 { Fixture *f=p; CHECK(o==&f->object && type==MM_TMPL && number==1); CHECK(f->t.x==0x1234 && f->t.flags==4); return f->fail!=16; }
-static int add_chunk(void *p,void *file,MMU32 type,const void *data,size_t n,MMU32 *number)
-{ Fixture *f=p; CHECK(file==&f->file && n==16); f->written_type=type; memcpy(f->encoded,data,16); if (f->fail==19) return 0; *number=123; return 1; }
-static int set_name(void *p,void *o,void *file,MMU32 type,MMU32 number)
-{ Fixture *f=p; CHECK(o==&f->object && file==&f->file && type==MM_TMPL && number==123); ++f->name_calls; return f->fail!=20; }
-static void delete_chunk(void *p,void *file,MMU32 type,MMU32 number)
-{ Fixture *f=p; CHECK(file==&f->file && number==123); ++f->deleted; f->delete_type=type; }
 static void *create(void *p,int text) { Fixture *f=p; CHECK(text==f->text); ++f->created; if (f->fail==11) return NULL; f->object.refs=1; return &f->object; }
 static int initialize(void *p,void *o,MMU32 type,MMU32 number,MMOwnedBlock *block)
 {
@@ -307,7 +301,7 @@ static void free_memory(void *p,void **data) { Fixture *f=p; int i; void **refs=
 static void diagnose(void *p,int n) { CHECK(n>=0 && n<5); ++((Fixture *)p)->diagnostics[n]; }
 static void setup(Fixture *f,int other,int host_big)
 {
-    int i; memset(f,0,sizeof(*f)); f->other=other; f->s.host_big_endian=host_big; f->s.system=0x0303; f->custom_count=4;
+    int i; memset(f,0,sizeof(*f)); f->other=other; f->s.host_big_endian=host_big; f->custom_count=4;
     f->cache.kind=4; f->body.kind=5;
     f->parents.count=f->sets.count=6;
     f->blocks[TEMPLATE_HEADER].length = MM_TEMPLATE_HEADER_BYTES;
@@ -325,7 +319,7 @@ static void setup(Fixture *f,int other,int host_big)
     for (i=0;i<6;++i) { put(f->parents.data+i*2,2,i?(MMU32)(i-1):65535U,other!=host_big); put(f->sets.data+i*2,2,(MMU32)i%2,other!=host_big); }
     for (i=0;i<60;++i) { f->customs[i].kind=6; f->customs[i].set=i%2; }
     f->s.context=f; f->s.state=template_state; f->s.release=release; f->s.decode=decode; f->s.read_name=read_name;
-    f->s.add_chunk=add_chunk; f->s.set_name=set_name; f->s.delete_chunk=delete_chunk; f->s.create=create; f->s.initialize=initialize;
+    f->s.create=create; f->s.initialize=initialize;
     f->s.object_size=object_size; f->s.invalidate=invalidate;
     f->s.table_allocator.context=f; f->s.table_allocator.resize=resize_table; f->s.table_allocator.release=free_table;
     f->s.create_cache=create_cache; f->s.fetch_custom=fetch_custom; f->s.custom_set=custom_set;
@@ -343,6 +337,9 @@ static void disposed(Fixture *f)
 int main(void)
 {
     Fixture f; int other,host,failure,i,ok; void *out,*body; MMI32 bytes, id; MMU32 number;
+    TemplateWriterFixture written;
+    MMTemplateWriter writer;
+    const MMChunkNameValue name = {"Template", 8, 8};
     memset(&f.t,0xa5,sizeof(f.t)); mm_template_state_init(&f.t);
     CHECK(!f.t.parents && !f.t.sets && !f.t.costumes);
     CHECK(!f.t.set_count && !f.t.custom_count && !f.t.action_count);
@@ -360,8 +357,11 @@ int main(void)
         put(f.t.costumes->storage.buffers[0].data + 4,4,2,f.t.costumes->big_endian);
         body=mm_template_create_body(&f.object,&f.s); CHECK(body==&f.body && f.applied==2 && f.freed==1); release(&f,body);
         CHECK(f.applied_ids[0]==2 && f.applied_ids[1]==1);
-        number=777; CHECK(mm_template_write_header(&f.object,&f.file,MM_TMPL,&number,&f.s));
-        CHECK(number==123 && !f.encoded[10] && !f.encoded[11] && word(f.encoded+4,2,host)==0x1234 && word(f.encoded+12,4,host)==4);
+        writer=writer_fixture(&written,host,0x0303);
+        number=777; CHECK(mm_template_write_header(&f.t,&name,MM_TMPL,&number,&writer));
+        CHECK(number==0 && !written.header[10] && !written.header[11] &&
+              word(written.header+4,2,host)==0x1234 && word(written.header+12,4,host)==4);
+        CHECK(!memcmp(written.name,"Template",8) && !written.pins);
         release(&f,&f.object); disposed(&f);
     }
     for (failure=1;failure<=10;++failure)
@@ -389,11 +389,17 @@ int main(void)
     }
     for (failure=16;failure<=18;++failure)
     { setup(&f,0,0); f.fail=failure; CHECK(!mm_template_read_header(&f.object,&f.source,MM_TMPL,1,NULL,&f.s)); CHECK(f.t.flags==(failure==16?4U:0U)); disposed(&f); }
-    for (failure=19;failure<=20;++failure)
+    for (failure=0;failure<=3;++failure)
     {
-        setup(&f,0,0); f.fail=failure; number=777;
-        CHECK(!mm_template_write_header(&f.object,&f.file,0x44415441U,&number,&f.s));
-        CHECK(number==(failure==19?777U:123U) && f.deleted==(failure==20)); if (f.deleted) CHECK(f.delete_type==0x44415441U);
+        setup(&f,0,0); number=777; writer=writer_fixture(&written,0,0x0303);
+        fixture_chunk_add(&written.index,MM_TMPL,0)->runtime=123;
+        written.fail=failure;
+        CHECK(mm_template_write_header(&f.t,&name,0x44415441U,&number,&writer)==!failure);
+        CHECK(number==(failure==1 || failure==2 ? 777U : 0U));
+        CHECK(written.index.count==(failure?1U:2U));
+        if (failure>=2) CHECK(written.deleted==1 && written.last_deleted==0x44415441U);
+        CHECK(fixture_chunk_runtime(&written.index,MM_TMPL,0)==(failure?123:0));
+        if (!failure) CHECK(!memcmp(written.name,"Template",8));
     }
     setup(&f,0,0); f.fallback=1; f.gap=1;
     CHECK(mm_template_initialize(&f.object,&f.source,MM_TMPL,1,NULL,&f.s)); CHECK(f.t.custom_count==2 && f.t.costumes->rows==2 && f.fetched==8);

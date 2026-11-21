@@ -283,13 +283,22 @@ void mm_template_encode_header(unsigned char *bytes, int big, MMU32 system, cons
     put(bytes+4,2,state->x,big); put(bytes+6,2,state->y,big); put(bytes+8,2,state->z,big);
     bytes[10]=bytes[11]=0; put(bytes+12,4,state->flags,big);
 }
-int mm_template_write_header(void *object,void *file,MMU32 type,MMU32 *number,const MMTemplateCreateServices *s)
+int mm_template_write_header(const MMTemplateState *state, const MMChunkNameValue *name, MMU32 type,
+                             MMU32 *number, const MMTemplateWriter *writer)
 {
     unsigned char bytes[MM_TEMPLATE_HEADER_BYTES];
-    mm_template_encode_header(bytes, s->host_big_endian, s->system, s->state(s->context,object));
-    if (!s->add_chunk(s->context,file,type,bytes,sizeof(bytes),number)) return 0;
-    if (!s->set_name(s->context,object,file,MM_TMPL,*number))
-    { s->delete_chunk(s->context,file,type,*number); return 0; }
+    mm_template_encode_header(bytes, writer->big_endian, writer->system, state);
+    if (mm_chunk_add_bytes(&writer->edit, writer->payloads->files, type, bytes, sizeof(bytes), number) != MM_CHUNK_OK)
+    {
+        if (writer->invalidate_number)
+            writer->invalidate_number(number);
+        return 0;
+    }
+    if (mm_chunk_name_set_key(&writer->edit, &writer->names, MM_TMPL, *number, name) != MM_CHUNK_OK)
+    {
+        mm_chunk_delete(&writer->edit, type, *number);
+        return 0;
+    }
     return 1;
 }
 int mm_template_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out,
