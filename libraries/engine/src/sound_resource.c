@@ -208,15 +208,11 @@ int mm_sound_write(const MMReadStream *payload, int wave, MMI32 style, const MMC
     }
     child.type = wave ? MM_SOUND_WAVE : MM_SOUND_MIDI;
     initialized = mm_owned_block_init(&block, files->handles, files->files) == MM_DATA_OK;
-    if (initialized && mm_chunk_add_block(edit, child.type, payload->length, &child.number, &block) == MM_CHUNK_OK)
-    {
-        if (mm_chunk_adopt(edit, MM_SOUND_TYPE, *number, &child, 1) == MM_CHUNK_OK)
-            ok = mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_io_writer(&io, &output) == MM_DATA_OK &&
-                 mm_stream_copy(payload, &output, writer->transfer_allocator) == MM_DATA_OK &&
-                 mm_chunk_name_set_key(edit, &writer->names, MM_SOUND_TYPE, *number, name) == MM_CHUNK_OK;
-        else
-            mm_chunk_delete(edit, child.type, child.number);
-    }
+    if (initialized &&
+        mm_chunk_add_child_block(edit, MM_SOUND_TYPE, *number, &child, payload->length, &block) == MM_CHUNK_OK)
+        ok = mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_io_writer(&io, &output) == MM_DATA_OK &&
+             mm_stream_copy(payload, &output, writer->transfer_allocator) == MM_DATA_OK &&
+             mm_chunk_name_set_key(edit, &writer->names, MM_SOUND_TYPE, *number, name) == MM_CHUNK_OK;
     if (!ok)
         mm_chunk_delete(edit, MM_SOUND_TYPE, *number);
     if (initialized)

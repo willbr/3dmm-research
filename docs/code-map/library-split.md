@@ -1592,7 +1592,8 @@ The native SceneData adapter inherits this C record without duplicate fields.
 Header decoding/writing and scene read/write/create policy use C. A failed read
 preserves all old state; a successful read sets the cursor to firstFrame minus one.
 Frame/transition acceptance and the 16-byte header remain unchanged. Header writes
-precede names and are not rolled back on name failure.
+precede names and are not rolled back on name failure. Direct scene writes
+and transition edits replace the SCEN payload through the shared chunk editor.
 
 C validates scene event fixed widths, signed payload lengths, type/size combinations
 and sound tag-array lengths in either byte order. It retains legacy acceptance
@@ -3879,8 +3880,11 @@ same C path decoder and storage.
 The C store reads the current runtime and C track directly. It refreshes the
 lifetime, writes or links the template, writes ACTR and PATH, encodes and writes
 GGAE with embedded material links, then links available scene sounds. The caller
-owns cleanup of the candidate archive after a partial save. Native services
-supply resource lookups, chunk creation, byte I/O and diagnostics.
+owns cleanup of the candidate archive after a partial save. The shared editor
+replaces the ACTR header and adopts the PATH and GGAE children. The C store
+owns each output block through serialization and renumbers newly written
+embedded templates before adoption. Native services supply resource lookups,
+physical file bindings and diagnostics.
 
 `engine-actor-data-test` covers old/current headers, partial failed reads, invalid
 byte-order outputs, ID overflow, empty/foreign routes, all event layouts, Add padding,
@@ -7869,8 +7873,10 @@ appended scenes, empty roll calls, and storyboard metadata. The scene writer
 stages and adopts both replacement event groups before releasing either old
 link. If staging fails, it drops the new groups. Portable source tables and
 background start groups also adopt the new link before releasing the old link.
-Native source registration keeps its unlink-before-adopt order. Kauai still
-allocates chunks and supplies payload readers and writers.
+Native source registration keeps its unlink-before-adopt order. The native
+archive adapter uses the C chunk editor to allocate new chunks and replace
+raw payloads. Positional writes use the C block interface on the allocated
+extent. Kauai supplies physical file services and decoded readers.
 
 New scenes and actors move from their allocated numbers to their requested
 numbers through `mm_chunk_move`. The writable index supplies runtime ID

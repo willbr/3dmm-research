@@ -1,5 +1,5 @@
 #include "mm/actor_data.h"
-#include "chunk_edit_fixture.h"
+#include "chunk_writer_fixture.h"
 #include "mm/actor_persistence.h"
 #include "mm/collections.h"
 #include "mm/movie_data.h"
@@ -51,30 +51,55 @@ static int read_at(void *c, MMU32 offset, void *out, size_t bytes)
     memcpy(out, h->bytes + offset, h->fail_read ? 3 : bytes);
     return !h->fail_read;
 }
-static int find_header(void *c, MMU32 number, MMReadReceiver receive, void *out)
+static int read_header_payload(void *c, const MMChunkEntry *entry, MMReadReceiver receive, void *out)
 {
-    HeaderIO *h = (HeaderIO *)c;
+    HeaderIO *h = ((ChunkWriterFixture *)c)->context;
     MMReadStream stream;
-    CHECK(number == 7);
+    CHECK(entry->type == MM_ACTOR_CHUNK && entry->number == 7);
     stream.context = h;
     stream.length = h->length;
     stream.read_at = read_at;
-    return !h->fail_find && receive(out, &stream);
+    return receive(out, &stream);
 }
-static int put_header(void *c, MMU32 number, const void *bytes, MMU32 size)
+static void header_access(void *c, MMChunkAccess *chunks)
 {
-    HeaderIO *h = (HeaderIO *)c;
-    CHECK(number == 7 && size == 44);
+    ChunkWriterFixture *fixture = c;
+    *chunks = fixture_chunk_access(&fixture->index);
+    if (((const HeaderIO *)fixture->context)->fail_find)
+        chunks->count = 0;
+}
+static int header_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
+{
+    CHECK(bytes == MM_ACTOR_HEADER_BYTES);
+    extent->file = p;
+    extent->offset = 64;
+    extent->bytes = bytes;
+    extent->flags = 0;
+    return 1;
+}
+static int write_header(HeaderIO *h, const void *bytes, size_t size)
+{
+    CHECK(size == MM_ACTOR_HEADER_BYTES);
     ++h->writes;
-    memcpy(h->bytes, bytes, 44);
-    return !h->fail_write;
+    if (h->fail_write)
+        return 0;
+    memcpy(h->bytes, bytes, size);
+    return 1;
+}
+static int write_header_extent(void *p, void *file, MMU32 offset, const void *bytes, size_t size)
+{
+    ChunkWriterFixture *archive = p;
+    CHECK(file == p && offset == 64);
+    return write_header(archive->context, bytes, size);
 }
 static void headers(void)
 {
     HeaderIO h;
+    ChunkWriterFixture fixture;
+    MMArchiveWriter writer;
+    MMMovieSessionGraph graph = {NULL, header_access, NULL, read_header_payload, NULL};
     MMActorHeader original, out, before;
     MMReadStream s;
-    MMActorHeaderIO io = {NULL, find_header, put_header};
     unsigned char legacy[40];
     int other;
     MMI32 id;
@@ -92,7 +117,9 @@ static void headers(void)
     original.wire_pointer_pad = 0xdeadbeefUL;
     original.template_type = 0x544d504cUL;
     original.template_number = 99;
-    io.context = &h;
+    writer = chunk_writer_fixture(&fixture, &h, header_extent, write_header_extent);
+    graph.context = &fixture;
+    fixture_chunk_add(&fixture.index, MM_ACTOR_CHUNK, 7)->entry.offset = 32;
     s.context = &h;
     s.read_at = read_at;
     for (other = 0; other < 2; ++other)
@@ -149,19 +176,20 @@ static void headers(void)
     h.length = 44;
     memcpy(h.bytes, &original, 44);
     h.writes = 0;
-    CHECK(mm_actor_adjust_id(7, 3, &io) && h.writes == 1);
+    CHECK(mm_actor_adjust_id(7, 3, &graph, &writer) && h.writes == 1);
     memcpy(&id, h.bytes + 16, 4);
     CHECK(id == 20);
     out = original;
     out.actor_id = 2147483647L;
     memcpy(h.bytes, &out, 44);
     h.writes = 0;
-    CHECK(!mm_actor_adjust_id(7, 1, &io) && !h.writes);
+    CHECK(!mm_actor_adjust_id(7, 1, &graph, &writer) && !h.writes);
     h.fail_find = 1;
-    CHECK(!mm_actor_adjust_id(7, 0, &io) && !h.writes);
+    CHECK(!mm_actor_adjust_id(7, 0, &graph, &writer) && !h.writes);
     h.fail_find = 0;
     h.fail_write = 1;
-    CHECK(!mm_actor_write_header(7, &original, &io) && h.writes == 1);
+    CHECK(!mm_actor_write_header(7, &original, &writer) && h.writes == 1);
+    CHECK(fixture.index.rows[0].entry.offset == 64 && !memcmp(h.bytes, &out, sizeof(out)));
 }
 typedef struct Route
 {
@@ -595,35 +623,55 @@ static void event_streams(void)
 typedef struct ActorStore
 {
     HeaderIO header;
-    ChunkIndexFixture archive;
+    ChunkWriterFixture archive;
     unsigned char path[28], events[132];
     MMU32 event_bytes;
-    int copies, linked, tracks, discarded, reject, reuse;
+    int copies, linked, tracks, discarded, reject, reuse, reject_track, fail_track_write;
 } ActorStore;
 
-
-static int write_track_bytes(void *p, MMU32 offset, const void *data, size_t bytes)
+enum { header_offset = 64, path_offset = 128, events_offset = 256 };
+static int store_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
-    memcpy((unsigned char *)p + offset, data, bytes);
-    return 1;
-}
-
-static int store_track(void *p, MMU32 actor, MMU32 type, MMU32 bytes, MMStorageWriter *writer)
-{
-    ActorStore *store = (ActorStore *)p;
-    CHECK(actor == 7);
-    writer->length = bytes;
-    writer->write_at = write_track_bytes;
-    if (!store->tracks++)
+    ActorStore *store = ((ChunkIndexFixture *)p)->observer;
+    extent->file = &store->archive;
+    extent->offset = header_offset;
+    extent->flags = 0;
+    extent->bytes = bytes;
+    if (bytes == MM_ACTOR_HEADER_BYTES)
+        return 1;
+    if (++store->tracks == 1)
     {
-        CHECK(type == MM_ACTOR_ROUTE_CHUNK && bytes == sizeof(store->path));
-        writer->context = store->path;
+        CHECK(bytes == sizeof(store->path));
+        extent->offset = path_offset;
     }
     else
     {
-        CHECK(type == MM_ACTOR_EVENTS_CHUNK && store->linked && bytes <= sizeof(store->events));
+        CHECK(store->tracks == 2 && store->linked && bytes <= sizeof(store->events));
+        extent->offset = events_offset;
         store->event_bytes = bytes;
-        writer->context = store->events;
+    }
+    return 1;
+}
+
+static int store_write(void *p, void *file, MMU32 offset, const void *data, size_t bytes)
+{
+    ChunkWriterFixture *fixture = p;
+    ActorStore *store = fixture->context;
+    CHECK(file == p);
+    if (offset == header_offset)
+        return write_header(&store->header, data, bytes);
+    CHECK(fixture->file_refs == 1 && store->tracks >= 1 && store->tracks <= 2);
+    if (store->fail_track_write == store->tracks)
+        return 0;
+    if (store->tracks == 1)
+    {
+        CHECK(offset >= path_offset && offset - path_offset + bytes <= sizeof(store->path));
+        memcpy(store->path + offset - path_offset, data, bytes);
+    }
+    else
+    {
+        CHECK(offset >= events_offset && offset - events_offset + bytes <= store->event_bytes);
+        memcpy(store->events + offset - events_offset, data, bytes);
     }
     return 1;
 }
@@ -636,15 +684,20 @@ static int store_copy(void *p, const MMTag *tag, MMU32 *number, int *created)
     *number = 99;
     *created = !store->linked && !store->reuse;
     if (*created)
-        fixture_chunk_add(&store->archive, tag->type, *number);
+        fixture_chunk_add(&store->archive.index, tag->type, *number);
     return 1;
 }
 
 static int store_insert(void *p, MMU32 parent, const MMChunkChild *child)
 {
     ActorStore *store = (ActorStore *)p;
-    CHECK(parent == 7 && child->type == 0x4d54524cUL &&
-          child->number == 99 && child->slot == 0 && !store->linked);
+    CHECK(parent == 7 && child->slot == 0);
+    if (child->type == MM_ACTOR_ROUTE_CHUNK || child->type == MM_ACTOR_EVENTS_CHUNK)
+    {
+        CHECK(child->number == 0 && store->tracks == (child->type == MM_ACTOR_ROUTE_CHUNK ? 1 : 2));
+        return store->tracks != store->reject_track;
+    }
+    CHECK(child->type == 0x4d54524cUL && child->number == 99 && !store->linked);
     if (store->reject)
         return 0;
     store->linked = 1;
@@ -654,13 +707,17 @@ static int store_insert(void *p, MMU32 parent, const MMChunkChild *child)
 static void store_erase(void *p, const MMChunkEntry *entry)
 {
     ActorStore *store = (ActorStore *)p;
-    CHECK(entry->type == 0x4d54524cUL && entry->number == 99 && !entry->parent_count && !store->linked);
-    ++store->discarded;
+    if (entry->type == 0x4d54524cUL)
+    {
+        CHECK(entry->number == 99 && !entry->parent_count && !store->linked);
+        ++store->discarded;
+    }
 }
 
 static void store_actor(ActorStore *store)
 {
     MMActorStoreServices s = {0};
+    MMArchiveWriter archive;
     MMActorOwner owner;
     MMActorEventFactory factory = {NULL, 0};
     MMMemoryStream saved;
@@ -669,14 +726,12 @@ static void store_actor(ActorStore *store)
     MMActorCostume decoded;
     MMActorEvent event = {0};
     MMActorRoutePoint point = {0};
+    const MMU32 failed_track_children[] = {0, 2, 1, 3};
     void *out;
     int mode, reject, reuse;
     s.context = store;
-    s.header.context = &store->header;
-    s.header.put = put_header;
-    s.system = 0;
+    s.archive = &archive;
     s.materials.context = store;
-    s.add_track = store_track;
     s.materials.copy_reference = store_copy;
     mm_actor_owner_init(&owner);
     owner.runtime.template_tag.sid = 2;
@@ -692,26 +747,42 @@ static void store_actor(ActorStore *store)
     event.aet = MM_ACTOR_COSTUME;
     CHECK(mm_actor_events_insert(owner.track.events, 0, sizeof(costume), &costume, &event));
     CHECK(mm_actor_events_insert(owner.track.events, 1, sizeof(costume), &costume, &event));
-    for (mode = 3; mode >= 0; --mode)
+    for (mode = 7; mode >= 0; --mode)
     {
         MMChunkAccess index;
         MMChunkEntry entry;
         MMU32 row;
         memset(store, 0, sizeof(*store));
         store->header.length = sizeof(store->header.bytes);
-        store->reject = reject = mode & 1;
-        store->reuse = reuse = (mode & 2) != 0;
-        fixture_chunk_add(&store->archive, MM_ACTOR_CHUNK, 7);
+        store->reject = reject = mode < 4 && (mode & 1);
+        store->reuse = reuse = mode < 4 && (mode & 2);
+        if (mode >= 6)
+            store->fail_track_write = mode - 5;
+        else if (mode >= 4)
+            store->reject_track = mode - 3;
+        archive = chunk_writer_fixture(&store->archive, store, store_extent, store_write);
+        fixture_chunk_add(&store->archive.index, MM_ACTOR_CHUNK, 7);
         if (reuse)
-            fixture_chunk_add(&store->archive, costume.tag.type, 99);
-        store->archive.observer = store;
-        store->archive.before_insert = store_insert;
-        store->archive.before_delete = store_erase;
-        s.materials.edit = fixture_chunk_edit(&store->archive);
-        CHECK(mm_actor_store(7, 8, &owner, &s) == !reject);
+            fixture_chunk_add(&store->archive.index, costume.tag.type, 99);
+        store->archive.index.before_insert = store_insert;
+        store->archive.index.before_delete = store_erase;
+        s.materials.edit = archive.edit;
+        CHECK(mm_actor_store(7, 8, &owner, &s) == (mode < 4 && !reject));
+        CHECK(!store->archive.file_refs);
+        CHECK(!memcmp(mm_actor_events_payload(owner.track.events, 0, NULL), &costume, sizeof(costume)) &&
+              !memcmp(mm_actor_events_payload(owner.track.events, 1, NULL), &costume, sizeof(costume)));
+        index = fixture_chunk_access(&store->archive.index);
+        CHECK(mm_chunk_find(&index, MM_ACTOR_CHUNK, 7, &row) == MM_CHUNK_OK);
+        CHECK(mm_chunk_at(&index, row, &entry) == MM_CHUNK_OK);
+        if (mode >= 4)
+        {
+            CHECK(entry.child_count == failed_track_children[mode - 4]);
+            CHECK(store->tracks == 1 + (mode & 1));
+            continue;
+        }
         CHECK(store->header.writes == 1 && store->tracks == 2 - reject && store->copies == 2 - reject &&
               store->discarded == (reject && !reuse) && store->linked == !reject);
-        index = fixture_chunk_access(&store->archive);
+        CHECK(entry.child_count == (reject ? 1U : 3U));
         CHECK(mm_chunk_find(&index, costume.tag.type, 99, &row) ==
               (reject && !reuse ? MM_CHUNK_NOT_FOUND : MM_CHUNK_OK));
         if (!reject || reuse)
@@ -719,8 +790,6 @@ static void store_actor(ActorStore *store)
             CHECK(mm_chunk_at(&index, row, &entry) == MM_CHUNK_OK && entry.parent_count == (MMU32)!reject);
             CHECK((entry.flags & MM_CHUNK_LONER) == (reuse ? MM_CHUNK_LONER : 0));
         }
-        CHECK(!memcmp(mm_actor_events_payload(owner.track.events, 0, NULL), &costume, sizeof(costume)) &&
-              !memcmp(mm_actor_events_payload(owner.track.events, 1, NULL), &costume, sizeof(costume)));
     }
     CHECK(mm_memory_stream_init(&saved, store->events, store->event_bytes));
     CHECK(mm_actor_read_events_stream(&saved.stream, &services, &out) == MM_MOVIE_OK);

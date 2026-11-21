@@ -77,15 +77,11 @@ extern "C"
     int mm_actor_template_link(const MMChunkAccess *, MMU32 actor, MMI32 source, int require_target,
                                MMU32 *template_number);
     int mm_actor_adjust_header_id(void *header, MMI32 delta);
-    typedef struct MMActorHeaderIO
-    {
-        void *context;
-        /* Calls the receiver with the decoded ACTR and returns its success. */
-        int (*read)(void *, MMU32 number, MMReadReceiver, void *out);
-        int (*put)(void *, MMU32 number, const void *native_header, MMU32 bytes);
-    } MMActorHeaderIO;
-    int mm_actor_write_header(MMU32 number, const void *header, const MMActorHeaderIO *);
-    int mm_actor_adjust_id(MMU32 number, MMI32 delta, const MMActorHeaderIO *);
+    struct MMArchiveWriter;
+    struct MMMovieSessionGraph;
+    int mm_actor_write_header(MMU32 number, const void *header, const struct MMArchiveWriter *);
+    int mm_actor_adjust_id(MMU32 number, MMI32 delta, const struct MMMovieSessionGraph *,
+                           const struct MMArchiveWriter *);
     typedef struct MMActorRouteServices
     {
         MMU32 (*width)(void *);

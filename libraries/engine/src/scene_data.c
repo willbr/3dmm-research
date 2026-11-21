@@ -3,6 +3,7 @@
 #include "mm/scene_data.h"
 #include "mm/scene_track.h"
 #include "mm/background_resource.h"
+#include "mm/chunk_storage.h"
 #include "mm/collections.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_data.h"
@@ -84,12 +85,13 @@ int mm_scene_read(MMSceneState *s, MMU32 number, const MMSceneIO *io)
     *s = loaded;
     return 1;
 }
-int mm_scene_write(const MMSceneState *s, MMU32 number, int system, int big, const MMSceneIO *io)
+int mm_scene_write(const MMSceneState *s, MMU32 number, const MMSceneIO *io)
 {
-    unsigned char bytes[16];
-    if (!mm_scene_encode_header(s, system, big, bytes))
-        return 0;
-    return io->put_header(io->context, number, bytes) &&
+    const MMArchiveWriter *archive = io->archive;
+    unsigned char bytes[MM_SCENE_HEADER_BYTES];
+    return mm_scene_encode_header(s, archive->system, archive->big_endian, bytes) &&
+           mm_chunk_put_bytes(&archive->edit, archive->payloads->files, MM_SCENE_CHUNK,
+                              number, bytes, sizeof(bytes)) == MM_CHUNK_OK &&
            mm_chunk_title_write(&s->name, io->context, MM_SCENE_CHUNK, number, &io->titles);
 }
 int mm_scene_transition_read(MMU32 number, unsigned unit, MMI32 *out, const MMSceneIO *io)
@@ -100,14 +102,13 @@ int mm_scene_transition_read(MMU32 number, unsigned unit, MMI32 *out, const MMSc
     *out = data.transition;
     return 1;
 }
-int mm_scene_transition_write(MMU32 number, unsigned unit, MMI32 transition, int system, int big,
-                                    const MMSceneIO *io)
+int mm_scene_transition_write(MMU32 number, unsigned unit, MMI32 transition, const MMSceneIO *io)
 {
     MMSceneState data;
     if (!mm_scene_init(&data, unit) || !mm_scene_read(&data, number, io))
         return 0;
     data.transition = transition;
-    return mm_scene_write(&data, number, system, big, io);
+    return mm_scene_write(&data, number, io);
 }
 static int valid_event(MMI32 type, MMI32 bytes, int big, int start, const unsigned char *data)
 {

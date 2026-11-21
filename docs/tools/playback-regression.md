@@ -17953,3 +17953,38 @@ archived retail frame identities in seek and continuous playback, including
 the retail seek camera indices. SDL matched all 12 retail sound requests.
 Each port reproduced its 60 seek canvas hashes from the preceding build.
 Evidence is in `tmp/c89-sound-chunk-authoring`.
+
+## Actor and scene payloads through the C89 chunk editor (21 November 2026)
+
+The C store now replaces ACTR headers and writes PATH and GGAE through owned
+blocks. It renumbers newly written 3D text templates before adoption. A
+failed track adoption discards the unlinked child and releases its block.
+An adopted child belongs to the candidate scene through any later write
+failure. The scene archive adapter uses the same C allocation and block
+interfaces. Direct scene transition edits replace SCEN before writing the
+name, preserving the original publication order.
+
+All 192 standalone C tests, eight focused AddressSanitizer checks, 12 native
+C89 gates, and four Marcus application checks passed.
+The native scene-store check passed on x64, x86, and SDL. All 54 movie and
+scene traces, three fixture saves, ten Preview fingerprints, and six Preview
+movies matched the preceding build. Studio's live round trip reproduced all
+13 actor samples, 12 rendered images, and the reopened movie structure.
+Its only raw save difference was the two padding bytes after the TMPL index
+record. Archived runs of the same workflow varied at those same offsets.
+
+Retail reopened the Studio-saved actor movie in `20261121T044404Z-57def5bd`.
+Each player reproduced all 60 frame identities, camera indices, and canvas
+hashes from the archived run. Both ports matched 59 of the retail canvas
+hashes. Scene 0, frame 4 reproduced the existing difference from retail.
+
+Retail, SDL, and Marcus matched three retained-background frame identities,
+camera indices, and canvas hashes in `20261121T044404Z-a4225e6c`. Both ports
+matched original v3dmm 0.14 on three Studio-saved VMM frames in
+`20261121T044424Z-57c63a70`.
+
+In actor-event suite `20261121T044355Z-50d02f43`, both ports matched all 60
+archived retail frame identities in seek and continuous playback, and all
+retail seek camera indices. SDL matched all 12 retail sound requests. Each
+port reproduced its preceding 60 seek canvas hashes. Evidence is in
+`tmp/c89-actor-scene-authoring`.

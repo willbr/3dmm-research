@@ -45,14 +45,14 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
     struct Host
     {
         PActor actor;
-        MovieArchiveHost archive;
-    } host = {this, {pcfl}};
+        PChunkyFile file;
+    } host = {this, pcfl};
+    const auto archive = pcfl->WriteIndex();
     MovieEmbeddedArchive materials = {pcfl, nullptr};
     MMActorStoreServices services = {};
     services.context = &host;
-    services.header = ActorData::HeaderIO(pcfl);
+    services.archive = &archive;
     services.materials = materials.Services();
-    services.system = koskCur;
     services.refresh_lifetime = [](void *p) -> int {
         long first, last;
         return static_cast<Host *>(p)->actor->FGetLifetime(&first, &last);
@@ -60,24 +60,11 @@ bool Actor::FWrite(PChunkyFile pcfl, ChunkNumber cnoActr, ChunkNumber cnoScene)
 #ifdef DEBUG
     services.missing_first_frame = [](void *) { Warn("Saving an actor who has no first frame number"); };
 #endif
-    services.write_template = [](void *p, void *object, MMU32 type, MMU32 number) -> int {
-        auto file = static_cast<Host *>(p)->archive.file;
+    services.write_template = [](void *p, void *object, MMU32 type, MMU32 *number) -> int {
+        auto file = static_cast<Host *>(p)->file;
         auto tmpl = static_cast<PTemplate>(object);
         Assert(tmpl->FIsTdt(), "Expected an embedded ThreeDText template");
-        ChunkNumber written;
-        if (!static_cast<PThreeDText>(tmpl)->FWrite(file, type, &written))
-            return 0;
-        if (written != number)
-            file->Move(type, written, type, number);
-        return 1;
-    };
-    services.add_track = [](void *p, MMU32 actor, MMU32 type, MMU32 bytes, MMStorageWriter *writer) -> int {
-        auto &archive = static_cast<Host *>(p)->archive;
-        ChunkNumber number;
-        if (!archive.file->FAddChild(kctgActr, actor, 0, bytes, type, &number, &archive.output))
-            return 0;
-        *writer = archive.OutputWriter(bytes);
-        return 1;
+        return static_cast<PThreeDText>(tmpl)->FWrite(file, type, number);
     };
     return mm_actor_store(cnoActr, cnoScene, &_owner, &services) != 0;
 }

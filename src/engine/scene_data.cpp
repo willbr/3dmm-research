@@ -41,16 +41,13 @@ bool NativeBig()
     const unsigned short one = 1;
     return *reinterpret_cast<const byte *>(&one) == 0;
 }
-MMSceneIO SceneIO(PChunkyFile file)
+MMSceneIO SceneIO(PChunkyFile file, const MMArchiveWriter *archive = nullptr)
 {
     return {file,
             [](void *c, MMU32 number, MMReadReceiver receive, void *out) -> int {
                 return EngineMovieGraph::ReceivePayload(static_cast<PChunkyFile>(c), kctgScen, number, receive, out);
             },
-            [](void *c, MMU32 number, const unsigned char *bytes) -> int {
-                return static_cast<PChunkyFile>(c)->FPutPv(const_cast<unsigned char *>(bytes), 16, kctgScen, number);
-            },
-            KauaiChunkTitleIO()};
+            archive, KauaiChunkTitleIO()};
 }
 MMSceneGroupServices Groups()
 {
@@ -76,9 +73,9 @@ bool SceneData::FRead(PChunkyFile file, ChunkNumber number)
 }
 bool SceneData::FWrite(PChunkyFile file, ChunkNumber number)
 {
-    MovieArchiveHost host{file, {}, {}};
-    const auto editor = host.Editor();
-    return mm_scene_archive_write(&editor, number, this) != 0;
+    const auto archive = file->WriteIndex();
+    const auto io = SceneIO(file, &archive);
+    return mm_scene_write(this, number, &io) != 0;
 }
 bool SceneData::FReadTransition(PChunkyFile file, ChunkNumber number, MMI32 *out)
 {
@@ -87,8 +84,9 @@ bool SceneData::FReadTransition(PChunkyFile file, ChunkNumber number, MMI32 *out
 }
 bool SceneData::FWriteTransition(PChunkyFile file, ChunkNumber number, MMI32 transition)
 {
-    const auto io = SceneIO(file);
-    return mm_scene_transition_write(number, sizeof(achar), transition, koskCur, NativeBig(), &io) != 0;
+    const auto archive = file->WriteIndex();
+    const auto io = SceneIO(file, &archive);
+    return mm_scene_transition_write(number, sizeof(achar), transition, &io) != 0;
 }
 PGeneralGroup SceneData::PggReadEvents(PDataBlock block, short *byteOrder, bool startEvents)
 {

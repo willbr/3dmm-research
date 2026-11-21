@@ -65,10 +65,14 @@ extern "C"
     /* Create at the first unused number. A failed write removes the new chunk. */
     int mm_chunk_add_bytes(const MMChunkEdit *, const MMBlockFileServices *, MMU32 type,
                            const void *data, MMU32 bytes, MMU32 *number);
-    /* Create at the first unused number and give the caller an owned file block
-     * for writing. The initialized block must be empty. Success publishes the
-     * number and block, and the caller controls cleanup after later writes. */
+    /* Create at the first unused number. An optional initialized, empty block
+     * receives the owned extent for writing. Success publishes the number,
+     * and the caller controls cleanup after later writes. */
     int mm_chunk_add_block(const MMChunkEdit *, MMU32 type, MMU32 bytes, MMU32 *number, MMOwnedBlock *);
+    /* Create and adopt a child for streaming. On failure the initialized block
+     * remains empty, the child number is unchanged, and no new row remains. */
+    int mm_chunk_add_child_block(const MMChunkEdit *, MMU32 parent_type, MMU32 parent,
+                                  MMChunkChild *, MMU32 bytes, MMOwnedBlock *);
 
     typedef struct MMChunkPayloadServices
     {

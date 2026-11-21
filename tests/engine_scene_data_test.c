@@ -8,6 +8,7 @@
 #include "mm/text.h"
 #include "mm/text_store.h"
 #include "chunk_seed_fixture.h"
+#include "chunk_writer_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -375,9 +376,24 @@ static int set_name(void *c, MMU32 type, MMU32 n, const void *wire, MMU32 bytes)
     h->name_bytes = bytes;
     return 1;
 }
+static int scene_header_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
+{
+    CHECK(bytes == MM_SCENE_HEADER_BYTES);
+    extent->file = p;
+    extent->offset = 64;
+    extent->bytes = bytes;
+    extent->flags = 0;
+    return 1;
+}
+static int write_scene_header(void *p, void *file, MMU32 offset, const void *bytes, size_t size)
+{
+    ChunkWriterFixture *archive = p;
+    CHECK(file == p && offset == 64 && size == MM_SCENE_HEADER_BYTES);
+    return put_header(archive->context, 7, bytes);
+}
 static MMSceneIO scene_io(Host *h, unsigned unit)
 {
-    MMSceneIO io = {NULL, read_scene, put_header, {NULL, MM_TEXT_WINDOWS, 0, NULL, load_name, set_name, NULL}};
+    MMSceneIO io = {NULL, read_scene, NULL, {NULL, MM_TEXT_WINDOWS, 0, NULL, load_name, set_name, NULL}};
     const unsigned short one = 1;
     io.context = h;
     if (unit == 2)
@@ -387,6 +403,8 @@ static MMSceneIO scene_io(Host *h, unsigned unit)
 static void headers(void)
 {
     Host h;
+    ChunkWriterFixture fixture;
+    MMArchiveWriter archive;
     MMSceneIO io;
     MMSceneState state, old, loaded;
     MMReadStream stream;
@@ -401,13 +419,18 @@ static void headers(void)
         for (big = 0; big < 2; ++big)
         {
             io = scene_io(&h, unit);
+            archive = chunk_writer_fixture(&fixture, &h, scene_header_extent, write_scene_header);
+            fixture_chunk_add(&fixture.index, MM_SCENE_CHUNK, 7);
+            archive.system = 0x0303;
+            archive.big_endian = big;
+            io.archive = &archive;
             CHECK(mm_scene_init(&state, unit));
             state.firstFrame = -3;
             state.lastFrame = 18;
             state.currentFrame = 99;
             state.transition = 3;
             set_text(&state.name, "Name");
-            CHECK(mm_scene_write(&state, 7, 0x0303, big, &io));
+            CHECK(mm_scene_write(&state, 7, &io));
             CHECK(mm_scene_init(&loaded, unit) && mm_scene_read(&loaded, 7, &io));
             CHECK(loaded.currentFrame == -4 && loaded.firstFrame == -3 && loaded.lastFrame == 18 &&
                   loaded.transition == 3 && loaded.name.count == 4 && loaded.name.unit == unit);
@@ -448,11 +471,11 @@ static void headers(void)
             h.root_fail = 2;
             h.used = 0;
             h.log[0] = 0;
-            CHECK(!mm_scene_write(&state, 7, 0x0303, big, &io) && !strcmp(h.log, "h"));
+            CHECK(!mm_scene_write(&state, 7, &io) && !strcmp(h.log, "h"));
             h.root_fail = 3;
             h.used = 0;
             h.log[0] = 0;
-            CHECK(!mm_scene_write(&state, 7, 0x0303, big, &io) && !strcmp(h.log, "hn"));
+            CHECK(!mm_scene_write(&state, 7, &io) && !strcmp(h.log, "hn"));
             h.root_fail = 0;
         }
 }

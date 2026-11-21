@@ -84,20 +84,45 @@ int mm_chunk_add_block(const MMChunkEdit *edit, MMU32 type, MMU32 bytes, MMU32 *
     MMBlockFile extent;
     MMU32 added;
     int status;
-    if (!number || mm_owned_block_check(block) != MM_DATA_OK || block->view.kind != MM_BLOCK_EMPTY)
+    if (!number || (block && (mm_owned_block_check(block) != MM_DATA_OK || block->view.kind != MM_BLOCK_EMPTY)))
         return MM_CHUNK_BAD_FILE;
     status = add_chunk_extent(edit, type, bytes, &added, &location);
     if (status != MM_CHUNK_OK)
         return status;
-    extent.file = location.file;
-    extent.offset = location.offset;
-    extent.length = location.bytes;
-    if (extent.length != bytes || mm_owned_block_set_file(block, &extent, 0) != MM_DATA_OK)
+    if (block)
     {
-        mm_chunk_delete(edit, type, added);
-        return MM_CHUNK_IO;
+        extent.file = location.file;
+        extent.offset = location.offset;
+        extent.length = location.bytes;
+        if (extent.length != bytes || mm_owned_block_set_file(block, &extent, 0) != MM_DATA_OK)
+        {
+            mm_chunk_delete(edit, type, added);
+            return MM_CHUNK_IO;
+        }
     }
     *number = added;
+    return MM_CHUNK_OK;
+}
+
+int mm_chunk_add_child_block(const MMChunkEdit *edit, MMU32 parent_type, MMU32 parent,
+                              MMChunkChild *child, MMU32 bytes, MMOwnedBlock *block)
+{
+    MMChunkChild added;
+    int status;
+    if (!child)
+        return MM_CHUNK_BAD_FILE;
+    added = *child;
+    status = mm_chunk_add_block(edit, added.type, bytes, &added.number, block);
+    if (status != MM_CHUNK_OK)
+        return status;
+    status = mm_chunk_adopt(edit, parent_type, parent, &added, 1);
+    if (status != MM_CHUNK_OK)
+    {
+        mm_chunk_delete(edit, added.type, added.number);
+        mm_owned_block_clear(block);
+        return status;
+    }
+    child->number = added.number;
     return MM_CHUNK_OK;
 }
 

@@ -46,25 +46,24 @@ extern "C"
     /* Write the SCEN header followed by its counted name. */
     int mm_scene_archive_write(const struct MMMovieArchiveEditor *, MMU32 scene, const MMSceneState *);
     int mm_scene_encode_header(const MMSceneState *, int system, int big_endian, unsigned char bytes[16]);
+    struct MMArchiveWriter;
     typedef struct MMSceneIO
     {
         void *context;
         /* Calls the receiver with the decoded SCEN and returns its success. */
         int (*read)(void *, MMU32 number, MMReadReceiver, void *out);
-        int (*put_header)(void *, MMU32 number, const unsigned char bytes[16]);
+        const struct MMArchiveWriter *archive;
         MMChunkTitleIO titles;
     } MMSceneIO;
     /* Read commits name and metadata together; failure preserves the old state.
      * Header validation retains legacy frame/transition rules. Writing publishes
      * header before name and does not roll it back if setting the name fails. */
     int mm_scene_read(MMSceneState *, MMU32 number, const MMSceneIO *);
-    int mm_scene_write(const MMSceneState *, MMU32 number, int system, int big_endian,
-                             const MMSceneIO *);
+    int mm_scene_write(const MMSceneState *, MMU32 number, const MMSceneIO *);
     /* Transition file helpers retain full metadata/name read/write ordering.
      * Failed reads preserve output; failed name write may follow committed header. */
     int mm_scene_transition_read(MMU32, unsigned unit, MMI32 *, const MMSceneIO *);
-    int mm_scene_transition_write(MMU32, unsigned unit, MMI32 transition, int system, int big_endian,
-                                        const MMSceneIO *);
+    int mm_scene_transition_write(MMU32, unsigned unit, MMI32 transition, const MMSceneIO *);
     typedef struct MMSceneGroupServices
     {
         MMU32 (*fixed_width)(void *group);

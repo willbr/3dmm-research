@@ -1373,8 +1373,12 @@ Movie and scene titles use the C89 string codec for chunk names. The native
 archive adapter provides encoded bytes, code-page conversion, and diagnostics.
 Studio actor saves and scene undo snapshots use C89 to write the ACTR header
 and tracks and attach their embedded templates, costume materials, and scene
-sounds. Costume events store the destination material number and retain the
-material subtree before the old actor is removed.
+sounds. C89 owns the PATH and GGAE output blocks and renumbers embedded
+templates before linking them. Costume events store the destination material
+number and retain the material subtree before the old actor is removed.
+The live archive adapter allocates scene payloads and publishes raw header
+replacements through the shared chunk editor. Direct transition edits use
+the same SCEN write path.
 C89 also preserves background and material subtrees that would lose their
 final parent when Studio removes, replaces, or rearranges scenes. Older
 background and costume tags can then resolve the same chunk numbers through

@@ -41,14 +41,12 @@ void *mm_actor_load(const MMMovieSessionGraph *, MMU32 actor, void *cache, const
 typedef struct MMActorStoreServices
 {
     void *context;
-    MMActorHeaderIO header;
+    const MMArchiveWriter *archive;
     MMMovieEmbeddedArchive materials;
-    int system;
     int (*refresh_lifetime)(void *);
     void (*missing_first_frame)(void *);
-    int (*write_template)(void *, void *object, MMU32 type, MMU32 number);
-    /* Add PATH/0 or GGAE/0 and return a synchronous positional writer. */
-    int (*add_track)(void *, MMU32 actor, MMU32 type, MMU32 bytes, MMStorageWriter *);
+    /* Write the native template object and return its allocated chunk number. */
+    int (*write_template)(void *, void *object, MMU32 type, MMU32 *written);
 } MMActorStoreServices;
 
 /* Write into the new ACTR under a candidate scene. On failure the caller

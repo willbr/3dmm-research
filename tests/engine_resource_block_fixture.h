@@ -75,10 +75,13 @@ static void resource_block_init(ResourceTestBlock *block, void *context,
     block->files.write = write;
     assert(mm_owned_block_init(&block->owner, &handles, &block->files) == MM_DATA_OK);
 }
-static void resource_block_decode(void **handle, const void *data, MMU32 length)
-{
-    resource_handle_resize(NULL, handle, length);
-    memcpy(resource_handle_lock(NULL, *handle), data, (size_t)length);
-}
+#define resource_block_decode(handle, data, length)                              \
+    do                                                                         \
+    {                                                                          \
+        void **fixture_handle = (handle);                                      \
+        MMU32 fixture_length = (length);                                       \
+        resource_handle_resize(NULL, fixture_handle, fixture_length);          \
+        memcpy(resource_handle_lock(NULL, *fixture_handle), data, fixture_length); \
+    } while (0)
 
 #endif

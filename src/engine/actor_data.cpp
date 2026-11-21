@@ -30,16 +30,6 @@ static_assert(aetAdd == MM_ACTOR_ADD && aetActn == MM_ACTOR_ACTION && aetCost ==
                   aetStep == MM_ACTOR_STEP && aetRem == MM_ACTOR_REMOVE &&
                   aetRotH == MM_ACTOR_ROTATE_HERE,
               "actor event kinds");
-MMActorHeaderIO ActorData::HeaderIO(PChunkyFile file)
-{
-    return {file,
-            [](void *c, MMU32 number, MMReadReceiver receive, void *out) -> int {
-                return EngineMovieGraph::ReceivePayload(static_cast<PChunkyFile>(c), kctgActr, number, receive, out);
-            },
-            [](void *c, MMU32 number, const void *header, MMU32 bytes) -> int {
-                return static_cast<PChunkyFile>(c)->FPutPv(const_cast<void *>(header), bytes, kctgActr, number);
-            }};
-}
 bool ActorData::FReadHeader(PDataBlock block, ActorChunkOnFile *header)
 {
     AssertPo(block, 0);
@@ -56,13 +46,14 @@ bool ActorData::FReadHeader(PChunkyFile file, ChunkNumber actor, void *header)
 }
 bool ActorData::FWriteHeader(PChunkyFile file, ChunkNumber number, ActorChunkOnFile *header)
 {
-    const auto io = HeaderIO(file);
-    return mm_actor_write_header(number, header, &io) != 0;
+    const auto archive = file->WriteIndex();
+    return mm_actor_write_header(number, header, &archive) != 0;
 }
 bool ActorData::FAdjustId(PChunkyFile file, ChunkNumber number, LegacyLong delta)
 {
-    const auto io = HeaderIO(file);
-    return mm_actor_adjust_id(number, delta, &io) != 0;
+    const auto graph = EngineMovieGraph::FromFile(file);
+    const auto archive = file->WriteIndex();
+    return mm_actor_adjust_id(number, delta, &graph, &archive) != 0;
 }
 MMActorPath *ActorData::PpathRead(PDataBlock block)
 {

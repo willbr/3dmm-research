@@ -1,5 +1,6 @@
 #include "mm/scene_control.h"
 #include "scene_member_fixture.h"
+#include "chunk_writer_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -416,14 +417,23 @@ static int load_name(void *p, MMU32 type, MMU32 number, void *wire, MMU32 capaci
     *written = h->name_bytes;
     return 1;
 }
-static int put(void *p, MMU32 number, const unsigned char *bytes)
+static int scene_header_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
-    Host *h = (Host *)p;
-    CHECK(number == 7);
+    CHECK(bytes == MM_SCENE_HEADER_BYTES);
+    extent->file = p;
+    extent->offset = 64;
+    extent->bytes = bytes;
+    extent->flags = 0;
+    return 1;
+}
+static int put(void *p, void *file, MMU32 offset, const void *bytes, size_t size)
+{
+    Host *h = ((ChunkWriterFixture *)p)->context;
+    CHECK(file == p && offset == 64 && size == MM_SCENE_HEADER_BYTES);
     event(h, 112);
     if (h->fail == 2)
         return 0;
-    memcpy(h->header, bytes, 16);
+    memcpy(h->header, bytes, size);
     return 1;
 }
 static int set_name(void *p, MMU32 type, MMU32 number, const void *wire, MMU32 bytes)
@@ -443,7 +453,9 @@ static int set_name(void *p, MMU32 type, MMU32 number, const void *wire, MMU32 b
 static void test_files(void)
 {
     Host h;
-    MMSceneIO io = {NULL, read, put, {NULL, MM_TEXT_WINDOWS, 0, NULL, load_name, set_name, NULL}};
+    ChunkWriterFixture fixture;
+    MMArchiveWriter archive;
+    MMSceneIO io = {NULL, read, NULL, {NULL, MM_TEXT_WINDOWS, 0, NULL, load_name, set_name, NULL}};
     MMSceneState decoded;
     MMI32 value;
     unsigned unit;
@@ -457,7 +469,12 @@ static void test_files(void)
                 h.data.firstFrame = -2;
                 h.data.lastFrame = 19;
                 CHECK(mm_scene_encode_header(&h.data, 0x303, big, h.header));
+                archive = chunk_writer_fixture(&fixture, &h, scene_header_extent, put);
+                fixture_chunk_add(&fixture.index, MM_SCENE_CHUNK, 7);
+                archive.system = 0x303;
+                archive.big_endian = big;
                 io.context = &h;
+                io.archive = &archive;
                 io.titles.encoding = unit == 1 ? MM_TEXT_WINDOWS :
                     (*(const unsigned char *)&one ? MM_TEXT_UTF16_LE : MM_TEXT_UTF16_BE);
                 CHECK(mm_chunk_title_write(&h.other.name, &h, MM_SCENE_CHUNK, 7, &io.titles));
@@ -467,7 +484,7 @@ static void test_files(void)
                 CHECK(mm_scene_transition_read(7, unit, &value, &io) == (fail != 1));
                 CHECK(value == (fail == 1 ? 99 : 2));
                 h.traces = 0;
-                CHECK(mm_scene_transition_write(7, unit, 4, 0x303, big, &io) == (fail == 0));
+                CHECK(mm_scene_transition_write(7, unit, 4, &io) == (fail == 0));
                 if (fail == 1)
                 {
                     const int e[] = {110};
@@ -492,7 +509,7 @@ static void test_files(void)
                 CHECK(mm_scene_decode_header(&h.memory.stream, &decoded));
                 CHECK(decoded.firstFrame == -2 && decoded.lastFrame == 19);
                 h.traces = 0;
-                CHECK(!mm_scene_transition_write(7, unit, 5, 0x303, big, &io));
+                CHECK(!mm_scene_transition_write(7, unit, 5, &io));
                 {
                     const int e[] = {110, 111};
                     expect(&h, e, 2);
