@@ -121,6 +121,7 @@ typedef struct MMTemplateCreateServices
     int host_big_endian,debug_checks;
     MMTemplateState *(*state)(void *,void *object);
     void (*release)(void *,void *);
+    void (*release_custom)(void *,void *);
     MMBlockTransform decode;
     int (*read_name)(void *,void *object,MMU32,MMU32);
     void *(*create)(void *,int text);

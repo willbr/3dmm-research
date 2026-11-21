@@ -66,6 +66,8 @@ MMTextResourceServices ThreeDText::_ResourceServices(void *context)
     static_assert(sizeof(LegacyLong) == 4 && sizeof(ChunkNumber) == 4 && sizeof(TAG) == sizeof(MMTag), "text resource ABI");
     s.state = [](void *, void *object) { return &static_cast<PThreeDText>(object)->_descriptor; };
     s.create = [](void *) -> void * { return NewObj ThreeDText; };
+    s.retain_object = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
+    s.release_object = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.text = [](void *, void *object) -> void * { return &static_cast<PThreeDText>(object)->_stn; };
     s.assign = [](void *, void *to, const void *from) { *static_cast<PString>(to) = *const_cast<PString>(static_cast<const String *>(from)); };
     s.space = [](void *, void *text) { achar ch = ChLit(' '); static_cast<PString>(text)->SetRgch(&ch, 1); };
@@ -176,9 +178,9 @@ MMTextGenerationServices ThreeDText::_GenerationServices()
     s.shape = [](void *, void *object) -> MMI32 { return static_cast<PThreeDText>(object)->_descriptor.shape; };
     s.template_state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PThreeDText>(object)->_template; };
     s.table_allocator = CollectionAllocator();
-    s.material_new = [](void *) -> void * { return Material_MTRL::PmtrlNew(); };
-    s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
-    s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.material_new = [](void *) -> void * { return EngineMaterial::New(); };
+    s.retain_material = [](void *, void *material) { mm_material_owner_retain(static_cast<PMaterial_MTRL>(material)); };
+    s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<PMaterial_MTRL>(material)); };
     s.font = [](void *, void *object) -> void * { return static_cast<PThreeDText>(object)->_FetchFont(); };
     s.release_font = [](void *, void *font) { mm_font_owner_release(static_cast<MMFontOwner *>(font)); };
     s.font_width = [](void *, void *font, MMI32 ch) -> MMI32 {
@@ -397,7 +399,7 @@ void ThreeDText::AssertValid(LegacyUlong grf)
     ThreeDText_PAR::AssertValid(fobjAllocated);
     AssertNilOrPo(static_cast<PStringTable_GST>(_actionNames.table), 0); // Localized action names are optional in headless hosts.
     Assert(_descriptor.font.type != ctgNil, "ThreeDText has bad _tagTdf");
-    AssertPo(static_cast<PMaterial_MTRL>(_generated.material), 0);
+    EngineMaterial::Validate(static_cast<PMaterial_MTRL>(_generated.material));
     if (tdaNil != _generated.action_id)
     {
         AssertIn(_generated.action_id, 0, tdaLim);
@@ -419,7 +421,7 @@ void ThreeDText::MarkMem(void)
 
     ThreeDText_PAR::MarkMem();
 
-    MarkMemObj(static_cast<PMaterial_MTRL>(_generated.material));
+    EngineMaterial::Mark(static_cast<PMaterial_MTRL>(_generated.material));
     if (tdaNil != _generated.action_id)
         mm_action_resource_services()->mark_memory(_generated.action);
 }

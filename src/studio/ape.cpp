@@ -573,11 +573,11 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
 
     if (pgms->fMtrl)
     {
-        pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(&pgms->tagMtrl, Material_MTRL::FReadMtrl);
+        pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(&pgms->tagMtrl, EngineMaterial::Read, mm_material_owner_services()));
         if (pvNil == pmtrl)
             return fFalse;
         _pbody->SetPartSetMtrl(ibset, pmtrl);
-        ReleasePpo(&pmtrl);
+        mm_material_owner_release(pmtrl);
     }
     else // cmtl
     {
@@ -585,7 +585,7 @@ bool ActorPreviewEntity::_FApplyGms(GeneralMaterialSpec *pgms, long ibset)
         if (pvNil == pcmtl)
             return fFalse;
         _pbody->SetPartSetCmtl(pcmtl);
-        ReleasePpo(&pcmtl);
+        mm_material_owner_release(pcmtl);
     }
     return fTrue;
 }
@@ -631,11 +631,11 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
                     return fFalse;
                 if (pcmtl == pcmtlOld)
                 {
-                    ReleasePpo(&pcmtl);
+                    mm_material_owner_release(pcmtl);
                     cmidNext = _CmidNext(ibset, icmid, fNextAccessory);
                     break;
                 }
-                ReleasePpo(&pcmtl);
+                mm_material_owner_release(pcmtl);
             }
         }
     }
@@ -656,7 +656,7 @@ bool ActorPreviewEntity::_FIncCmtl(GeneralMaterialSpec *pgms, long ibset, bool f
     if (pvNil == pcmtl)
         return fFalse;
     _pbody->SetPartSetCmtl(pcmtl);
-    ReleasePpo(&pcmtl);
+    mm_material_owner_release(pcmtl);
     pgms->cmid = cmidNext;
     pgms->fMtrl = fFalse;
     pgms->fValid = fTrue;
@@ -753,11 +753,11 @@ bool ActorPreviewEntity::FSetTdtMtrl(PTAG ptagMtrl)
     PMaterial_MTRL pmtrl;
     GeneralMaterialSpec gms;
 
-    pmtrl = (PMaterial_MTRL)vptagm->PbacoFetch(ptagMtrl, Material_MTRL::FReadMtrl);
+    pmtrl = static_cast<PMaterial_MTRL>(vptagm->FetchResource(ptagMtrl, EngineMaterial::Read, mm_material_owner_services()));
     if (pvNil == pmtrl)
         return fFalse;
     _pbody->SetPartSetMtrl(0, pmtrl);
-    ReleasePpo(&pmtrl);
+    mm_material_owner_release(pmtrl);
 
     gms.fValid = fTrue;
     gms.fMtrl = fTrue;
@@ -786,9 +786,10 @@ bool ActorPreviewEntity::FGetTdtMtrlCno(ChunkNumber *pcno)
     _pbody->GetPartSetMaterial(0, &fMtrl, &pmtrl, &pcmtl);
     if (!fMtrl)
         return fFalse;
-    if (pvNil == pmtrl->Pcrf())
+    const auto binding = mm_material_owner_binding(pmtrl);
+    if (!binding->cache)
         return fFalse;
-    *pcno = pmtrl->Cno();
+    *pcno = binding->number;
     return fTrue;
 }
 

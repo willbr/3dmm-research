@@ -161,7 +161,7 @@ struct Preview::Impl::SessionHost
         s.shade_load = [](void *v, const MMReadStream *stream) -> int {
             auto &h = *static_cast<SessionHost *>(v);
             return h.Guard([&] {
-                return Material_MTRL::FSetShadeTable(*stream);
+                return EngineMaterial::SetShadeTable(*stream);
             });
         };
         s.publish = [](void *v, void **p) {
@@ -217,7 +217,7 @@ struct Preview::Impl::SessionHost
             h.impl->cache = nullptr;
         };
         s.shared_material_release = [](void *) { Body::ReleaseSharedMaterial(); };
-        s.shade_release = [](void *) { Material_MTRL::ReleaseShadeTable(); };
+        s.shade_release = [](void *) { EngineMaterial::ReleaseShadeTable(); };
         s.depth_end = [](void *) { BrZbEnd(); };
         s.runtime_end = [](void *) { BrEnd(); };
         return s;

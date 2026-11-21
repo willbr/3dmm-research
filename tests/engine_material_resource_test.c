@@ -18,15 +18,11 @@ typedef struct Handle
     void *raw;
     MMI32 matrix[6];
 } Handle;
-typedef struct Object
-{
-    Ref ref;
-    MMMaterialResource material;
-    MMCustomMaterial custom;
-} Object;
 typedef struct Test
 {
     MMMaterialServices s;
+    MMMaterialOwnerHost host;
+    MMStorageAllocator objects_allocator;
     MMMaterialShade shade;
     MMResourceCache cache;
     MMReference cache_refs;
@@ -54,18 +50,25 @@ static void event(Test *t, int e)
     if (t->ordered < 128)
         t->order[t->ordered++] = e;
 }
-static void *create(void *p, int kind)
+static void *allocate_owner(void *p, void *old, MMU32 old_bytes, MMU32 bytes, int priority)
 {
     Test *t = test(p);
-    Object *o;
+    void *object;
+    assert(!old && !old_bytes && bytes && priority == MM_STORAGE_NORMAL);
     if (fail(t))
         return NULL;
-    o = (Object *)calloc(1, sizeof(*o));
-    assert(o);
-    o->ref.kind = kind;
-    mm_reference_init(&o->ref.refs);
+    object = malloc(bytes);
+    assert(object);
     ++t->objects;
-    return o;
+    return object;
+}
+static void free_owner(void *p, void *object, MMU32 bytes)
+{
+    Test *t = test(p);
+    assert(object && bytes && t->objects > 0);
+    event(t, 20 + mm_material_owner_kind(object));
+    --t->objects;
+    free(object);
 }
 static void retain(void *p, void *o)
 {
@@ -82,27 +85,7 @@ static void release(void *p, void *v)
         mm_resource_object_release(r, &t->cache.services.objects);
         return;
     }
-    if (mm_reference_drop(&r->refs))
-        return;
-    if (r->kind >= 100)
-        return;
-    event(t, 20 + r->kind);
-    if (r->kind == MM_MATERIAL)
-        mm_material_dispose(&((Object *)v)->material, &t->s);
-    else
-        mm_custom_material_dispose(&((Object *)v)->custom, &t->s);
-    --t->objects;
-    free(v);
-}
-static MMMaterialResource *material_state(void *p, void *o)
-{
-    (void)p;
-    return &((Object *)o)->material;
-}
-static MMCustomMaterial *custom_state(void *p, void *o)
-{
-    (void)p;
-    return &((Object *)o)->custom;
+    mm_reference_drop(&r->refs);
 }
 static void invalidate(void *p, void *out, size_t n)
 {
@@ -435,11 +418,6 @@ static void *read_bitmap(void *p, void *filename, void *palette)
     mm_reference_add(&t->texture.refs);
     return &t->texture;
 }
-static const void *pixelmap_path(void *p, void *filename)
-{
-    assert(p == filename);
-    return pix_path;
-}
 static void *read_pixelmap(void *p, const void *path)
 {
     Test *t = test(p);
@@ -490,11 +468,14 @@ static void setup(Test *t)
     t->s.gouraud_flag = 2;
     t->s.smooth_flag = 4;
     t->s.map_flag = 8;
-    t->s.create = create;
+    t->host.services = &t->s;
+    t->host.shade = &t->shade;
+    t->host.objects = &t->objects_allocator;
+    t->objects_allocator.context = t;
+    t->objects_allocator.resize = allocate_owner;
+    t->objects_allocator.release = free_owner;
     t->s.retain = retain;
     t->s.release = release;
-    t->s.material_state = material_state;
-    t->s.custom_state = custom_state;
     t->s.invalidate = invalidate;
     t->s.diagnostic = diagnostic;
     t->s.decode = decode;
@@ -518,7 +499,6 @@ static void setup(Test *t)
     t->s.read_mapping = read_mapping;
     t->s.write_texture = write_texture;
     t->s.read_bitmap = read_bitmap;
-    t->s.pixelmap_path = pixelmap_path;
     t->s.read_pixelmap = read_pixelmap;
     t->s.wrap_pixelmap = wrap_pixelmap;
     t->s.free_pixelmap = free_pixelmap;
@@ -585,7 +565,7 @@ static void costume_slots(void)
     Test t;
     MMChunkAccess graph;
     MMCustomMaterialPart part;
-    Object *o = NULL;
+    void *o = NULL;
     MMI32 bytes;
     setup(&t);
     t.custom = 1;
@@ -600,7 +580,7 @@ static void costume_slots(void)
     assert(mm_custom_material_part(&graph, 1, 2, &part) == MM_CHUNK_BAD_FILE);
     assert(!part.material.type && part.model.number == 7);
     primary_block(&t, MM_CMTL);
-    assert(!mm_custom_material_fetch(&t.cache, MM_CMTL, 1, &t.input, &o, &bytes, &t.s));
+    assert(!mm_custom_material_fetch(&t.cache, MM_CMTL, 1, &t.input, &o, &bytes, &t.host));
     balanced(&t);
 }
 static void codecs(void)
@@ -626,7 +606,8 @@ static void codecs(void)
 static void loads(void)
 {
     Test t;
-    Object *o;
+    MMMaterialOwner *o;
+    void *object;
     MMI32 bytes;
     int n, ok;
     for (n = 0; n < 14; ++n)
@@ -635,14 +616,15 @@ static void loads(void)
         t.texture_child = t.transform_child = 1;
         primary_block(&t, 3);
         t.fail = n;
-        o = NULL;
-        ok = mm_material_fetch(&t.cache, 3, 1, &t.input, &o, &bytes, &t.shade, &t.s);
+        object = NULL;
+        ok = mm_material_fetch(&t.cache, 3, 1, &t.input, &object, &bytes, &t.host);
         if (ok)
         {
-            Handle *h = (Handle *)o->material.handle;
+            Handle *h = (Handle *)mm_material_owner_resource(object)->handle;
+            o = object;
             assert(bytes == 32 && h->texture == &t.texture && h->d.index_range == 7 && h->matrix[0] == 7);
             assert(!t.input.view.packed && t.input.view.length == t.header_size && t.payload_handles == 1);
-            release(&t, o);
+            mm_material_owner_release(o);
         }
         else if (t.ordered >= 3 && t.order[2] == 20)
             assert(t.order[0] == 10 && t.order[1] == 10);
@@ -654,55 +636,57 @@ static void loads(void)
         t.custom = 1;
         primary_block(&t, MM_CMTL);
         t.fail = n;
-        o = NULL;
-        ok = mm_custom_material_fetch(&t.cache, MM_CMTL, 1, &t.input, &o, &bytes, &t.s);
+        object = NULL;
+        ok = mm_custom_material_fetch(&t.cache, MM_CMTL, 1, &t.input, &object, &bytes, &t.host);
         if (ok)
         {
-            assert(o->custom.count == 5 && o->custom.set == 3 && bytes == 56 + 10 * (int)sizeof(void *));
-            assert(o->custom.materials[0] == &t.material && !o->custom.materials[1] && o->custom.models[2] == &t.model);
-            assert(mm_custom_material_has_models(&o->custom));
-            assert(mm_custom_material_model(&o->custom, 2) == &t.model);
-            assert(mm_custom_material_handle(&o->custom, 0, &t.s) == &t.material);
-            release(&t, o);
+            MMCustomMaterial *costume = mm_material_owner_custom(object);
+            o = object;
+            assert(costume->count == 5 && costume->set == 3 && bytes == 56 + 10 * (int)sizeof(void *));
+            assert(costume->materials[0] == &t.material && !costume->materials[1] && costume->models[2] == &t.model);
+            assert(mm_custom_material_has_models(mm_material_owner_custom(o)));
+            assert(mm_custom_material_model(mm_material_owner_custom(o), 2) == &t.model);
+            assert(mm_custom_material_handle(mm_material_owner_custom(o), 0, &t.s) == &t.material);
+            mm_material_owner_release(o);
         }
         else if (t.ordered >= 3)
             assert(t.order[0] == 21 && t.order[1] == 10 && t.order[2] == 10);
         balanced(&t);
     }
     setup(&t);
-    o = (Object *)create(&t, MM_MATERIAL);
+    o = mm_material_owner_create(&t.host, MM_MATERIAL);
     t.header_size = 19;
-    assert(!mm_material_read(o, &t.cache, 3, 1, NULL, &t.shade, &t.s) && !o->material.handle);
-    release(&t, o);
+    assert(!mm_material_read(o, &t.cache, 3, 1, NULL) && !mm_material_owner_resource(o)->handle);
+    mm_material_owner_release(o);
     balanced(&t);
     setup(&t);
-    o = (Object *)create(&t, MM_MATERIAL);
+    o = mm_material_owner_create(&t.host, MM_MATERIAL);
     t.texture_child = t.transform_child = 1;
     t.transform_size = 27;
-    assert(!mm_material_read(o, &t.cache, 3, 1, NULL, &t.shade, &t.s) && !o->material.handle && !t.texture.refs.count);
-    release(&t, o);
+    assert(!mm_material_read(o, &t.cache, 3, 1, NULL) && !mm_material_owner_resource(o)->handle && !t.texture.refs.count);
+    mm_material_owner_release(o);
     balanced(&t);
     setup(&t);
-    o = (Object *)create(&t, MM_MATERIAL);
+    o = mm_material_owner_create(&t.host, MM_MATERIAL);
     t.transform_child = 1;
     t.transform_size = 1;
-    assert(mm_material_read(o, &t.cache, 3, 1, NULL, &t.shade, &t.s) && !t.payload_handles && !t.cache.count);
-    release(&t, o);
+    assert(mm_material_read(o, &t.cache, 3, 1, NULL) && !t.payload_handles && !t.cache.count);
+    mm_material_owner_release(o);
     balanced(&t);
     setup(&t);
-    o = (Object *)create(&t, MM_CUSTOM_MATERIAL);
+    o = mm_material_owner_create(&t.host, MM_CUSTOM_MATERIAL);
     t.custom = 1;
     t.custom_size = 9;
-    assert(!mm_custom_material_read(o, &t.cache, MM_CMTL, 1, NULL, &t.s) &&
+    assert(!mm_custom_material_read(o, &t.cache, MM_CMTL, 1, NULL) &&
            t.diagnostic == MM_MATERIAL_BAD_CUSTOM_SIZE + 1);
-    release(&t, o);
+    mm_material_owner_release(o);
     balanced(&t);
 }
 static void construction_and_writes(void)
 {
     Test t;
     MMChunkEdit edit;
-    Object *o;
+    MMMaterialOwner *o;
     void *input[2];
     int n;
     MMU32 number;
@@ -711,30 +695,30 @@ static void construction_and_writes(void)
         setup(&t);
         input[0] = input[1] = &t.material;
         t.fail = n;
-        o = (Object *)mm_custom_material_new(-3, 2, input, &t.s);
+        o = mm_custom_material_new(-3, 2, input, &t.host);
         if (o)
         {
-            assert(o->custom.set == -3 && t.material.refs.count == 2);
-            release(&t, o);
+            assert(mm_material_owner_custom(o)->set == -3 && t.material.refs.count == 2);
+            mm_material_owner_release(o);
         }
         balanced(&t);
     }
     setup(&t);
-    assert(!mm_custom_material_new(0, 2147483647, NULL, &t.s));
+    assert(!mm_custom_material_new(0, 2147483647, NULL, &t.host));
     balanced(&t);
     for (n = 0; n < 4; ++n)
     {
         setup(&t);
-        o = (Object *)mm_material_new(-1, -1, &t.s);
+        o = mm_material_new(-1, -1, &t.host);
         assert(o);
-        assert(((Handle *)o->material.handle)->d.ambient == 6553 && ((Handle *)o->material.handle)->d.index_base == 15);
+        assert(((Handle *)mm_material_owner_resource(o)->handle)->d.ambient == 6553 && ((Handle *)mm_material_owner_resource(o)->handle)->d.index_base == 15);
         mm_reference_add(&t.texture.refs);
-        map(&t, o->material.handle, &t.texture_view, NULL);
+        map(&t, mm_material_owner_resource(o)->handle, &t.texture_view, NULL);
         t.step = 0;
         t.fail = n;
         number = 99;
         edit = author_editor(&t);
-        assert(mm_material_write(&o->material, &edit, &author_files, 3, &number, &t.s) == !n);
+        assert(mm_material_write(mm_material_owner_resource(o), &edit, &author_files, 3, &number, &t.s) == !n);
         if (!n)
             assert(number == 0 && t.deleted == 0 && t.index.count == 2 && t.index.rows[0].entry.parent_count == 1);
         else
@@ -744,7 +728,7 @@ static void construction_and_writes(void)
             if (n == 3)
                 assert(t.deletes[0] == 1);
         }
-        release(&t, o);
+        mm_material_owner_release(o);
         balanced(&t);
     }
 }
@@ -754,7 +738,7 @@ static void appearance_writes(void)
     static const int deletions[] = {0, 1, 1, 2, 3, 3};
     Test t;
     MMChunkEdit edit;
-    Object *o;
+    MMMaterialOwner *o;
     MMMaterialDescription appearance = {0}, decoded;
     MMU32 number;
     int big, n;
@@ -770,15 +754,15 @@ static void appearance_writes(void)
         {
             setup(&t);
             t.s.host_big_endian = big;
-            o = (Object *)mm_material_new(-1, -1, &t.s);
+            o = mm_material_new(-1, -1, &t.host);
             assert(o);
             mm_reference_add(&t.texture.refs);
-            map(&t, o->material.handle, &t.texture_view, NULL);
+            map(&t, mm_material_owner_resource(o)->handle, &t.texture_view, NULL);
             t.step = 0;
             t.fail = n;
             number = 99;
             edit = author_editor(&t);
-            assert(mm_material_write_appearance(&o->material, &edit, &author_files, 3, &number,
+            assert(mm_material_write_appearance(mm_material_owner_resource(o), &edit, &author_files, 3, &number,
                                                 &appearance, mapping, &t.s) == !n);
             assert(t.deleted == deletions[n]);
             assert(number == (n == 1 ? 0xa3a3a3a3UL : 0));
@@ -800,16 +784,16 @@ static void appearance_writes(void)
                 assert(t.written_transform[big ? 1 : 0] == 1 && t.written_transform[big ? 0 : 1] == 0);
                 assert(t.written_transform[big ? 4 : 7] == 255 && t.written_transform[big ? 7 : 4] == 0);
                 assert(t.written_transform[big ? 25 : 26] == 6);
-                assert(((Handle *)o->material.handle)->d.ambient == 6553);
+                assert(((Handle *)mm_material_owner_resource(o)->handle)->d.ambient == 6553);
             }
-            release(&t, o);
+            mm_material_owner_release(o);
             balanced(&t);
         }
 }
 static void editable_view(void)
 {
     Test t;
-    Object *o;
+    MMMaterialOwner *o;
     MMArchiveWriter writer = {0};
     MMChunkPayloadServices payload = {0};
     MMMaterialAppearance requested = {0}, read, close;
@@ -839,19 +823,19 @@ static void editable_view(void)
     for (textured = 0; textured < 2; ++textured)
     {
         setup(&t);
-        o = (Object *)mm_material_new(-1, -1, &t.s);
+        o = mm_material_new(-1, -1, &t.host);
         assert(o);
         if (textured)
         {
             mm_reference_add(&t.texture.refs);
-            map(&t, o->material.handle, &t.texture_view, NULL);
+            map(&t, mm_material_owner_resource(o)->handle, &t.texture_view, NULL);
         }
-        mm_material_read_view(&o->material, &read, &t.s);
+        mm_material_read_view(mm_material_owner_resource(o), &read, &t.s);
         assert(read.textured == textured && read.index_base == 15 && read.ambient == 6553 / 65535.f);
         requested.textured = !textured;
         writer.edit = author_editor(&t);
         number = 99;
-        assert(mm_material_write_view(&o->material, &writer, 3, &number, &requested, &t.s) && number == 0);
+        assert(mm_material_write_view(mm_material_owner_resource(o), &writer, 3, &number, &requested, &t.s) && number == 0);
         assert(t.index.count == (textured ? 3U : 1U));
         assert(mm_material_header_read(t.written, 0, 0x0303, &decoded));
         assert(decoded.ambient == 32768 && decoded.diffuse == 16384 && decoded.specular == 65535);
@@ -859,7 +843,7 @@ static void editable_view(void)
         if (textured)
             assert(t.written_transform[20] == 0 && t.written_transform[21] == 128 &&
                    t.written_transform[22] == 255 && t.written_transform[23] == 255);
-        release(&t, o);
+        mm_material_owner_release(o);
         balanced(&t);
     }
 }
@@ -867,7 +851,7 @@ static void editable_view(void)
 static void imports(void)
 {
     Test t;
-    Object *o;
+    MMMaterialOwner *o;
     int bitmap, n;
     void *raw;
     for (bitmap = 0; bitmap < 2; ++bitmap)
@@ -875,11 +859,11 @@ static void imports(void)
         {
             setup(&t);
             t.fail = n;
-            o = (Object *)mm_material_import(&t, NULL, bitmap, &t.shade, &t.s);
+            o = mm_material_import(bitmap ? (void *)&t : (void *)pix_path, NULL, bitmap, &t.host);
             if (o)
             {
-                raw = ((Handle *)o->material.handle)->raw;
-                release(&t, o);
+                raw = ((Handle *)mm_material_owner_resource(o)->handle)->raw;
+                mm_material_owner_release(o);
                 if (raw)
                     free_pixelmap(&t, raw);
             }

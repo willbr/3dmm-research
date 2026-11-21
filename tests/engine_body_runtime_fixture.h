@@ -1,11 +1,10 @@
 #ifndef ENGINE_BODY_RUNTIME_FIXTURE_H
 #define ENGINE_BODY_RUNTIME_FIXTURE_H
-class BodyRuntimeCustomAccess : public CustomMaterial_CMTL
+static void SetCostumeModel(PCustomMaterial_CMTL costume, int index, PModel model)
 {
-  public:
-    static void SetModel(PCustomMaterial_CMTL c,int i,PModel model)
-    { auto member=&BodyRuntimeCustomAccess::_custom; (c->*member).models[i]=model; mm_model_owner_retain(model); }
-};
+    mm_material_owner_custom(costume)->models[index] = model;
+    mm_model_owner_retain(model);
+}
 static bool TestBodyRuntime()
 {
     FILE *snapshot=nullptr;
@@ -13,13 +12,13 @@ static bool TestBodyRuntime()
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1); face.vertices[1]=1; face.vertices[2]=2;
     auto a=EngineModel::New(3,vertices,1,&face),b=EngineModel::New(3,vertices,1,&face);
-    auto ma=Material_MTRL::PmtrlNew(),mb=Material_MTRL::PmtrlNew();
+    auto ma=EngineMaterial::New(),mb=EngineMaterial::New();
     PMaterial_MTRL parts[]={ma,mb,ma,mb,ma,mb};
-    auto ca=ma && mb?CustomMaterial_CMTL::PcmtlNew(0,6,parts):nullptr;
-    auto cb=ma && mb?CustomMaterial_CMTL::PcmtlNew(1,6,parts):nullptr;
+    auto ca=ma && mb?EngineCostume::New(0,6,parts):nullptr;
+    auto cb=ma && mb?EngineCostume::New(1,6,parts):nullptr;
     bool ok=a && b && ma && mb && ca && cb; int captures=0,failed=0;
-    if (ok) { BodyRuntimeCustomAccess::SetModel(ca,0,a); BodyRuntimeCustomAccess::SetModel(ca,2,b);
-        BodyRuntimeCustomAccess::SetModel(cb,0,b); BodyRuntimeCustomAccess::SetModel(cb,2,a); }
+    if (ok) { SetCostumeModel(ca,0,a); SetCostumeModel(ca,2,b);
+        SetCostumeModel(cb,0,b); SetCostumeModel(cb,2,a); }
     const int counts[]={0,2,6};
     for (int shape=0;ok && shape<3;++shape) for (int visibility=0;ok && visibility<3;++visibility)
     for (int accessory=0;ok && accessory<2;++accessory) for (int failure=0;ok && failure<5;++failure)
@@ -37,7 +36,7 @@ static bool TestBodyRuntime()
         auto body=ok?Body::PbodyNew(parents,sets):nullptr; auto costume=NewObj BodyCostume;
         ok=ok && body && costume;
         auto state=[&](int stage) {
-            LegacyLong values[]={shape,visibility,accessory,failure,stage,mm_model_owner_references(a),mm_model_owner_references(b),ma->CactRef(),mb->CactRef(),ca->CactRef(),cb->CactRef(),host.attached,host.changed};
+            LegacyLong values[]={shape,visibility,accessory,failure,stage,mm_model_owner_references(a),mm_model_owner_references(b),mm_material_owner_references(ma),mm_material_owner_references(mb),mm_material_owner_references(ca),mm_material_owner_references(cb),host.attached,host.changed};
             return record(values,sizeof(values)) && BodyEditFixtureAccess::Record(body,snapshot,host.root);
         };
         if (ok)
@@ -79,7 +78,7 @@ static bool TestBodyRuntime()
             body->Hide(); body->Hide(); body->Show(); body->Show(); ok=state(8) && ok;
         }
         ReleasePpo(&costume); ReleasePpo(&body);
-        ok=ok && host.root->children==nullptr && mm_model_owner_references(a)==3 && mm_model_owner_references(b)==3 && ma->CactRef()==7 && mb->CactRef()==7 && ca->CactRef()==1 && cb->CactRef()==1;
+        ok=ok && host.root->children==nullptr && mm_model_owner_references(a)==3 && mm_model_owner_references(b)==3 && mm_material_owner_references(ma)==7 && mm_material_owner_references(mb)==7 && mm_material_owner_references(ca)==1 && mm_material_owner_references(cb)==1;
         ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&newParents); ReleasePpo(&newSets); BrActorFree(host.root);
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv;
@@ -93,7 +92,7 @@ static bool TestBodyRuntime()
 #else
     ok=ok && captures==90 && failed==0;
 #endif
-    ReleasePpo(&ca); ReleasePpo(&cb); mm_model_owner_release(a); mm_model_owner_release(b); ReleasePpo(&ma); ReleasePpo(&mb);
+    mm_material_owner_release(ca); mm_material_owner_release(cb); mm_model_owner_release(a); mm_model_owner_release(b); mm_material_owner_release(ma); mm_material_owner_release(mb);
     if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok && captures>0;
 }
 #endif

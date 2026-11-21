@@ -177,8 +177,8 @@ static void init(Context *c)
     c->cache.services.locate = locate;
     s->context=c; g->context=c; g->state=generated; g->length=length; g->template_state=template_state;
     g->table_allocator.context=c; g->table_allocator.resize=resize_shape; g->table_allocator.release=free_shape;
-    g->material_new=material_new; g->retain=retain; g->release=release;
-    s->state=state; s->create=create; s->text=text; s->assign=assign; s->space=space; s->clear=clear; s->saved_text=saved; s->provider_copy=provider_copy;
+    g->material_new=material_new; g->retain_material=retain; g->release_material=release;
+    s->state=state; s->create=create; s->retain_object=retain; s->release_object=release; s->text=text; s->assign=assign; s->space=space; s->clear=clear; s->saved_text=saved; s->provider_copy=provider_copy;
     s->has_provider=has_provider; s->provider_font=provider; s->default_font=default_font; s->publish_tag=publish_tag; s->read_template=read_template;
     s->payloads=&c->payloads;
     s->publish_error=publish_error; s->tag_list=tag_list; s->append_tag=append_tag; s->name_count=name_count; s->name_id=name_id; s->name_text=name_text; s->missing_name=missing; s->bad_order=bad;

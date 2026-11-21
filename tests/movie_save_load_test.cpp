@@ -915,14 +915,14 @@ class TrackTestActor : public Actor
         auto tmpl=static_cast<TrackTestTemplate *>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadSubrouteFixture));
         if (!tmpl) return false;
         if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl;
-        auto material=static_cast<PMaterial_MTRL>(resource->PbacoFetch(kctgMtrl,materialNumber,Material_MTRL::FReadMtrl));
+        auto material=EngineMaterial::Fetch(resource, kctgMtrl, materialNumber);
         PDynamicArray parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         short parent=-1,set=0;
         bool ok=material && parents && sets && parents->FAdd(&parent) && sets->FAdd(&set);
         if (_Body()) { _Body()->Release(); _owner.runtime.body = nullptr; } _owner.runtime.body = ok ? Body::PbodyNew(parents,sets) : pvNil;
         ReleasePpo(&parents); ReleasePpo(&sets);
-        if (!_Body()) { ReleasePpo(&material); return false; }
-        _Body()->SetPartSetMtrl(0,material); ReleasePpo(&material);
+        if (!_Body()) { mm_material_owner_release(material); return false; }
+        _Body()->SetPartSetMtrl(0,material); mm_material_owner_release(material);
         ActorTrack track; if (!track.FCreate()) return false;
         for (int i=0;i<3;++i)
         {
@@ -1138,10 +1138,10 @@ class TrackTestActor : public Actor
         auto tmpl=static_cast<PTemplate>(resource->PbacoFetch(kctgTmpl,templateNumber,TrackTestTemplate::FReadCostumeFixture));
         if (!tmpl) return false;
         if (_Template()) { _Template()->Release(); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl;
-        auto a=static_cast<PMaterial_MTRL>(resource->PbacoFetch(kctgMtrl,materials[0],Material_MTRL::FReadMtrl));
-        auto b=static_cast<PMaterial_MTRL>(resource->PbacoFetch(kctgMtrl,materials[1],Material_MTRL::FReadMtrl));
-        auto ca=static_cast<PCustomMaterial_CMTL>(resource->PbacoFetch(kctgCmtl,customs[0],CustomMaterial_CMTL::FReadCmtl));
-        auto cb=static_cast<PCustomMaterial_CMTL>(resource->PbacoFetch(kctgCmtl,customs[1],CustomMaterial_CMTL::FReadCmtl));
+        auto a=EngineMaterial::Fetch(resource, kctgMtrl, materials[0]);
+        auto b=EngineMaterial::Fetch(resource, kctgMtrl, materials[1]);
+        auto ca=EngineCostume::Fetch(resource, kctgCmtl, customs[0]);
+        auto cb=EngineCostume::Fetch(resource, kctgCmtl, customs[1]);
         if (!a || !b || !ca || !cb) return false;
         PDynamicArray parents=DynamicArray::PglNew(sizeof(short)),sets=DynamicArray::PglNew(sizeof(short));
         short parent=-1,set=0;
@@ -1219,9 +1219,11 @@ class TrackTestActor : public Actor
         LegacyLong body[]={ordinary,ordinary ? (material==a?0:material==b?1:2) : (custom==ca?0:custom==cb?1:2)};
         saved=saved && record(body,sizeof(body));
         mm_actor_track_dispose(&_owner.track, &EngineActorTagServices()); if (_Body()) { _Body()->Release(); _owner.runtime.body = nullptr; }
-        LegacyLong refs[]={a->CactRef(),b->CactRef(),ca->CactRef(),cb->CactRef()};
+        LegacyLong refs[]={mm_material_owner_references(a),mm_material_owner_references(b),
+                           mm_material_owner_references(ca),mm_material_owner_references(cb)};
         saved=saved && record(refs,sizeof(refs));
-        ReleasePpo(&a); ReleasePpo(&b); ReleasePpo(&ca); ReleasePpo(&cb);
+        mm_material_owner_release(a); mm_material_owner_release(b);
+        mm_material_owner_release(ca); mm_material_owner_release(cb);
         return saved && snapshotFailureSafe;
     }
     bool FTestFillEdit(int mode, FILE *snapshot)

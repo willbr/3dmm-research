@@ -98,7 +98,7 @@ static void setup(Fixture *f,int visible,int n,int hilite)
     for (i=0;i<6;++i) { f->parent_values[i]=(short)(i?((i-1)/2):-1); f->set_values[i]=(short)(i%2); }
     for (i=0;i<n;++i) { f->new_parent_values[i]=(short)(i?i-1:-1); f->new_set_values[i]=(short)(i%2); }
     c->context=f; c->state=body_state; c->highlight=highlight_material;
-    c->create=create; c->release=release; c->release_model=release;
+    c->create=create; c->release=release; c->release_model=release; c->release_material=release;
     c->allocate_materials=allocate_materials; c->allocate_actors=allocate_actors; c->initialize_actor=initialize;
     c->assign_matrix=assign_matrix; c->assign_material=assign_material;
     c->link=link_actor; c->hide=hide; c->free_memory=free_memory;

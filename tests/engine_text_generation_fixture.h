@@ -24,7 +24,7 @@ class TextGenerationFixtureAccess : public ThreeDText
         auto field=&TextGenerationFixtureAccess::_generated; auto &state=t->*field;
         auto material=static_cast<PMaterial_MTRL>(state.material); auto action=state.action;
         String text; LegacyLong shape; TAG font; t->GetInfo(&text,&shape,&font);
-        LegacyLong fields[]={shape,text.Cch(),font.sid,static_cast<LegacyLong>(font.ctg),static_cast<LegacyLong>(font.cno),font.pcrf!=nullptr,state.action_id,action!=nullptr,mm_action_resource_references(action),material->CactRef()};
+        LegacyLong fields[]={shape,text.Cch(),font.sid,static_cast<LegacyLong>(font.ctg),static_cast<LegacyLong>(font.cno),font.pcrf!=nullptr,state.action_id,action!=nullptr,mm_action_resource_references(action),mm_material_owner_references(material)};
         return record(fields,sizeof(fields)) && record(text.Psz(),text.Cch()) && TemplateCreateFixtureAccess::Record(t,out);
     }
     static bool Resource(void *resource,int kind,int chars,FILE *out)

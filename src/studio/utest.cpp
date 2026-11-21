@@ -541,7 +541,7 @@ bool Application::_FInit(ulong grfapp, ulong grfgob, long ginDef)
         goto LFail;
     }
 
-    if (!Material_MTRL::FSetShadeTable(_pcrfBoot, kctgTmap, 0))
+    if (!EngineMaterial::SetShadeTable(_pcrfBoot, kctgTmap, 0))
     {
         _FGenericError(PszLit("FSetShadeTable"));
         _fDontReportInitFailure = fTrue;
@@ -5841,7 +5841,7 @@ void Application::MarkMem(void)
     MarkMemObj(_pgptStudioSnapshot);
 #endif
     MarkMemObj(vptagm);
-    Material_MTRL::MarkShadeTable();
+    EngineMaterial::MarkShadeTable();
     ThreeDText::MarkActionNames();
     MarkMemObj(_pstdio);
     MarkMemObj(_ptatr);

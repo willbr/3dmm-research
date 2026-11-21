@@ -63,7 +63,7 @@ static bool TestMovieContentCore()
     {
         auto client = NewObj MovieEditClient();
         auto movie = client ? Movie::PmvieNew(false, client) : nullptr;
-        auto material = Material_MTRL::PmtrlNew(mode + 1, 8);
+        auto material = EngineMaterial::New(mode + 1, 8);
         PChunkyResourceFile resource = nullptr;
         ok = movie && material && movie->FNewScenInsCore(0) && movie->FEnsureAutosave(&resource);
         auto state = [&](int operation) {
@@ -199,7 +199,7 @@ static bool TestMovieContentCore()
         }
         if (movie)
             movie->ClearUndo();
-        ReleasePpo(&material);
+        mm_material_owner_release(material);
         ReleasePpo(&movie);
         ReleasePpo(&client);
         vptagm->InvalidateSource(123);

@@ -3,6 +3,7 @@
 #include "mm/material_resource.h"
 #include "mm/chunk_storage.h"
 #include "mm/wide.h"
+#include <stdlib.h>
 #include <string.h>
 static MMU32 word(const unsigned char *p, unsigned n, int big)
 {
@@ -65,28 +66,139 @@ static void defaults(void *handle, MMI32 base, MMI32 range, const MMMaterialServ
     d.flags = s->light_flag | s->gouraud_flag;
     s->configure(s->context, handle, &d);
 }
-static void *allocate(void *object, const MMMaterialServices *s)
+struct MMMaterialOwner
 {
-    MMMaterialResource *m = s->material_state(s->context, object);
+    MMResourceObject binding;
+    MMReference references;
+    int kind;
+    const MMMaterialOwnerHost *host;
+};
+
+static MMU32 owner_bytes(int kind)
+{
+    return sizeof(MMMaterialOwner) + (kind == MM_MATERIAL ? sizeof(MMMaterialResource) : sizeof(MMCustomMaterial));
+}
+
+MMMaterialOwner *mm_material_owner_create(const MMMaterialOwnerHost *host, int kind)
+{
+    const MMStorageAllocator *allocator = host->objects;
+    MMU32 bytes = owner_bytes(kind);
+    MMMaterialOwner *owner = allocator ? allocator->resize(allocator->context, NULL, 0, bytes, MM_STORAGE_NORMAL) :
+        malloc(bytes);
+    if (owner)
+    {
+        memset(owner, 0, bytes);
+        mm_reference_init(&owner->references);
+        owner->kind = kind;
+        owner->host = host;
+    }
+    return owner;
+}
+
+const MMMaterialOwnerHost *mm_material_owner_host(const MMMaterialOwner *owner) { return owner->host; }
+const MMResourceObject *mm_material_owner_binding(const MMMaterialOwner *owner) { return &owner->binding; }
+int mm_material_owner_kind(const MMMaterialOwner *owner) { return owner->kind; }
+MMI32 mm_material_owner_references(const MMMaterialOwner *owner) { return owner->references.count; }
+MMMaterialResource *mm_material_owner_resource(MMMaterialOwner *owner) { return (MMMaterialResource *)(owner + 1); }
+MMCustomMaterial *mm_material_owner_custom(MMMaterialOwner *owner) { return (MMCustomMaterial *)(owner + 1); }
+
+static MMResourceObject *binding(void *object) { return &((MMMaterialOwner *)object)->binding; }
+static MMReference *references(void *object) { return &((MMMaterialOwner *)object)->references; }
+static void dispose_material(MMMaterialResource *, const MMMaterialServices *);
+
+static void destroy(void *object)
+{
+    MMMaterialOwner *owner = object;
+    const MMMaterialOwnerHost *host = owner->host;
+    const MMStorageAllocator *allocator = host->objects;
+    MMU32 bytes = owner_bytes(owner->kind);
+    if (owner->kind == MM_MATERIAL)
+        dispose_material(mm_material_owner_resource(owner), host->services);
+    else
+        mm_custom_material_dispose(mm_material_owner_custom(owner), host->services);
+    mm_resource_object_dispose(owner, mm_material_owner_services());
+    if (allocator)
+        allocator->release(allocator->context, owner, bytes);
+    else
+        free(owner);
+}
+
+static void mark(void *object)
+{
+    MMMaterialOwner *owner = object;
+    const MMMaterialOwnerHost *host = owner->host;
+    const MMCustomMaterial *costume;
+    void *texture;
+    MMI32 i;
+    if (!host->mark_memory)
+        return;
+    host->mark_memory(owner);
+    if (host->mark_cache && !owner->binding.attached && owner->binding.cache)
+        host->mark_cache(owner->binding.cache);
+    if (owner->kind == MM_MATERIAL)
+    {
+        texture = mm_material_texture(mm_material_owner_resource(owner), host->services);
+        if (texture && host->mark_texture)
+            host->mark_texture(texture);
+        return;
+    }
+    costume = mm_material_owner_custom(owner);
+    if (costume->materials)
+        host->mark_memory(costume->materials);
+    if (costume->models)
+        host->mark_memory(costume->models);
+    for (i = 0; i < costume->count; ++i)
+    {
+        if (costume->materials && costume->materials[i] && host->services->material_objects &&
+            host->services->material_objects->mark_memory)
+            host->services->material_objects->mark_memory(costume->materials[i]);
+        if (costume->models && costume->models[i] && host->mark_model)
+            host->mark_model(costume->models[i]);
+    }
+}
+
+const MMResourceObjectServices *mm_material_owner_services(void)
+{
+    static const MMResourceObjectServices services = {binding, references, destroy, NULL, mark};
+    return &services;
+}
+
+void mm_material_owner_retain(MMMaterialOwner *owner)
+{
+    mm_reference_add(&owner->references);
+}
+
+void mm_material_owner_release(MMMaterialOwner *owner)
+{
+    if (owner)
+        mm_resource_object_release(owner, mm_material_owner_services());
+}
+
+static void *allocate(MMMaterialOwner *owner, const MMMaterialServices *s)
+{
+    MMMaterialResource *m = mm_material_owner_resource(owner);
     m->handle = s->allocate_material(s->context);
     if (m->handle)
-        s->identify(s->context, m->handle, object);
+        s->identify(s->context, m->handle, owner);
     return m->handle;
 }
-void *mm_material_new(MMI32 base, MMI32 range, const MMMaterialServices *s)
+
+MMMaterialOwner *mm_material_new(MMI32 base, MMI32 range, const MMMaterialOwnerHost *host)
 {
-    void *object = s->create(s->context, MM_MATERIAL), *handle;
-    if (!object)
+    const MMMaterialServices *s = host->services;
+    MMMaterialOwner *owner = mm_material_owner_create(host, MM_MATERIAL);
+    void *handle;
+    if (!owner)
         return NULL;
-    handle = allocate(object, s);
+    handle = allocate(owner, s);
     if (!handle)
     {
-        s->release(s->context, object);
+        mm_material_owner_release(owner);
         return NULL;
     }
     defaults(handle, base, range, s);
     s->add_material(s->context, handle);
-    return object;
+    return owner;
 }
 void *mm_material_texture(const MMMaterialResource *m, const MMMaterialServices *s)
 {
@@ -100,7 +212,7 @@ static void release_texture(void *texture, const MMMaterialServices *s)
         s->release(s->context, texture);
 }
 
-void mm_material_dispose(MMMaterialResource *m, const MMMaterialServices *s)
+static void dispose_material(MMMaterialResource *m, const MMMaterialServices *s)
 {
     void *texture = mm_material_texture(m, s);
     if (texture)
@@ -136,10 +248,10 @@ static int read_header(MMOwnedBlock *block, void *bytes, MMU32 size, const MMMat
            block->view.length >= size && mm_owned_block_io(block, &io) == MM_DATA_OK &&
            mm_block_read(&io, 0, bytes, size, 0) == MM_DATA_OK;
 }
-static int read_material(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+static int read_material(MMMaterialOwner *owner, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                          MMOwnedBlock *scratch, const MMMaterialShade *shade, const MMMaterialServices *s)
 {
-    MMMaterialResource *m = s->material_state(s->context, object);
+    MMMaterialResource *m = mm_material_owner_resource(owner);
     MMMaterialDescription d;
     MMChunkAccess graph;
     MMU32 child;
@@ -155,7 +267,7 @@ static int read_material(void *object, MMResourceCache *cache, MMU32 type, MMU32
         s->diagnostic(s->context, MM_MATERIAL_BAD_FILE);
         return 0;
     }
-    if (!allocate(object, s))
+    if (!allocate(owner, s))
         return 0;
     d.opacity = 255;
     d.flags = s->light_flag | s->smooth_flag;
@@ -193,35 +305,36 @@ static int read_material(void *object, MMResourceCache *cache, MMU32 type, MMU32
     s->add_material(s->context, m->handle);
     return 1;
 }
-int mm_material_read(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
-                     const MMMaterialShade *shade, const MMMaterialServices *s)
+int mm_material_read(MMMaterialOwner *owner, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block)
 {
+    const MMMaterialOwnerHost *host = owner->host;
     MMOwnedBlock scratch;
     int ok = 0;
     if (mm_owned_block_init(&scratch, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
         return 0;
     if (block || mm_resource_cache_read_block(cache, type, number, &scratch) == MM_CHUNK_OK)
-        ok = read_material(object, cache, type, number, block ? block : &scratch, &scratch, shade, s);
+        ok = read_material(owner, cache, type, number, block ? block : &scratch, &scratch, host->shade, host->services);
     mm_owned_block_clear(&scratch);
     return ok;
 }
-int mm_material_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void *out, void *size,
-                      const MMMaterialShade *shade, const MMMaterialServices *s)
+
+int mm_material_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes,
+                      const MMMaterialOwnerHost *host)
 {
-    void *object;
-    memcpy(size, &s->material_bytes, 4);
+    const MMMaterialServices *s = host->services;
+    MMMaterialOwner *owner;
+    *bytes = s->material_bytes;
     if (!out)
         return 1;
-    object = s->create(s->context, MM_MATERIAL);
-    if (!object || !mm_material_read(object, cache, type, number, block, shade, s))
+    owner = mm_material_owner_create(host, MM_MATERIAL);
+    if (!owner || !mm_material_read(owner, cache, type, number, block))
     {
-        s->invalidate(s->context, out, sizeof(object));
-        s->invalidate(s->context, size, 4);
-        if (object)
-            s->release(s->context, object);
+        s->invalidate(s->context, out, sizeof(*out));
+        s->invalidate(s->context, bytes, sizeof(*bytes));
+        mm_material_owner_release(owner);
         return 0;
     }
-    memcpy(out, &object, sizeof(object));
+    *out = owner;
     return 1;
 }
 static int within(float value, float low, float high)
@@ -394,30 +507,31 @@ void mm_material_shade_dispose(MMMaterialShade *m, const MMMaterialServices *s)
         m->texture = NULL;
     }
 }
-void *mm_material_import(void *filename, void *palette, int bitmap, const MMMaterialShade *shade,
-                               const MMMaterialServices *s)
+MMMaterialOwner *mm_material_import(void *source, void *palette, int bitmap, const MMMaterialOwnerHost *host)
 {
-    void *object, *handle, *texture, *raw = NULL;
+    const MMMaterialServices *s = host->services;
+    MMMaterialOwner *owner;
+    void *handle, *texture, *raw = NULL;
     MMMaterialDescription d;
-    object = bitmap ? mm_material_new(-1, -1, s) : s->create(s->context, MM_MATERIAL);
-    if (!object)
+    owner = bitmap ? mm_material_new(-1, -1, host) : mm_material_owner_create(host, MM_MATERIAL);
+    if (!owner)
         return NULL;
-    handle = bitmap ? s->material_state(s->context, object)->handle : allocate(object, s);
+    handle = bitmap ? mm_material_owner_resource(owner)->handle : allocate(owner, s);
     if (!handle)
         goto fail;
     if (bitmap)
-        texture = s->read_bitmap(s->context, filename, palette);
+        texture = s->read_bitmap(s->context, source, palette);
     else
     {
         defaults(handle, -1, -1, s);
         s->describe(s->context, handle, &d);
         d.colour = 0;
         s->configure(s->context, handle, &d);
-        raw = s->read_pixelmap(s->context, s->pixelmap_path(s->context, filename));
+        raw = s->read_pixelmap(s->context, source);
         if (!raw)
             goto fail;
         texture = s->wrap_pixelmap(s->context, raw);
-        /* Do not expose an unwrapped pixelmap to disposal as a TextureMap. */
+        /* Do not expose an unwrapped pixelmap to disposal as a texture owner. */
         if (!texture)
         {
             s->free_pixelmap(s->context, raw);
@@ -426,9 +540,9 @@ void *mm_material_import(void *filename, void *palette, int bitmap, const MMMate
     }
     if (!texture)
         goto fail;
-    attach(handle, texture, raw, shade, s);
-    return object;
+    attach(handle, texture, raw, host->shade, s);
+    return owner;
 fail:
-    s->release(s->context, object);
+    mm_material_owner_release(owner);
     return NULL;
 }

@@ -27,54 +27,18 @@ bool FAssertProc(schar *f, LegacyLong n, schar *s, void *, LegacyLong)
             std::exit(1);                                                                                              \
         }                                                                                                              \
     } while (0)
-class MaterialAccess : public Material_MTRL
+static PMaterial_MTRL MaterialAt(PCustomMaterial_CMTL costume, int index)
 {
-  public:
-    static MaterialAccess *Create()
-    {
-        return NewObj MaterialAccess;
-    }
-    bool Initialize(PChunkyResourceFile c, ChunkNumber n)
-    {
-        return _FInit(c, kctgMtrl, n);
-    }
-};
-class CustomAccess : public CustomMaterial_CMTL
+    const auto data = mm_material_owner_custom(costume);
+    return data->materials ? static_cast<PMaterial_MTRL>(data->materials[index]) : nullptr;
+}
+
+static PModel ModelAt(PCustomMaterial_CMTL costume, int index)
 {
-  public:
-    static CustomAccess *Create()
-    {
-        return NewObj CustomAccess;
-    }
-    bool Initialize(PChunkyResourceFile c, ChunkNumber n)
-    {
-        return _FInit(c, kctgCmtl, n);
-    }
-    static PMaterial_MTRL MaterialAt(PCustomMaterial_CMTL c, int i)
-    {
-#ifdef MM_ENGINE_MATERIAL_RESOURCE_H
-        auto member = &CustomAccess::_custom;
-        auto &s = c->*member;
-        return s.materials ? static_cast<PMaterial_MTRL>(s.materials[i]) : nullptr;
-#else
-        auto member = &CustomAccess::_prgpmtrl;
-        auto p = c->*member;
-        return p ? p[i] : nullptr;
-#endif
-    }
-    static PModel ModelAt(PCustomMaterial_CMTL c, int i)
-    {
-#ifdef MM_ENGINE_MATERIAL_RESOURCE_H
-        auto member = &CustomAccess::_custom;
-        auto &s = c->*member;
-        return s.models ? static_cast<PModel>(s.models[i]) : nullptr;
-#else
-        auto member = &CustomAccess::_prgpmodl;
-        auto p = c->*member;
-        return p ? p[i] : nullptr;
-#endif
-    }
-};
+    const auto data = mm_material_owner_custom(costume);
+    return data->models ? static_cast<PModel>(data->models[index]) : nullptr;
+}
+
 static FILE *snapshot;
 static unsigned hash = 2166136261U, bytesRecorded;
 static void Record(const void *p, std::size_t n)
@@ -104,7 +68,7 @@ static void State(PMaterial_MTRL m, bool complete)
     Value(m != nullptr);
     if (!m)
         return;
-    auto b = m->Pbmtl();
+    auto b = EngineMaterial::Handle(m);
     Value(b != nullptr);
     if (!b)
         return;
@@ -119,7 +83,7 @@ static void State(PMaterial_MTRL m, bool complete)
                       static_cast<LegacyLong>(b->flags),
                       b->colour_map != nullptr,
                       b->index_shade != nullptr,
-                      Material_MTRL::PmtrlFromBmtl(b) == m};
+                      EngineMaterial::FromHandle(b) == m};
     Record(v, sizeof(v));
     Record(&b->map_transform, sizeof(b->map_transform));
     if (complete)
@@ -127,7 +91,7 @@ static void State(PMaterial_MTRL m, bool complete)
         auto f = ChunkyFile::PcflCreateTemp();
         CHECK(f);
         ChunkNumber n;
-        CHECK(m->FWrite(f, kctgMtrl, &n));
+        CHECK(EngineMaterial::Write(m, f, kctgMtrl, &n));
         Chunk(f, kctgMtrl, n);
         ChildChunkIdentification child;
         bool texture = f->FGetKidChidCtg(kctgMtrl, n, 0, kctgTmap, &child);
@@ -228,16 +192,16 @@ static void MaterialLoads()
                     CHECK(cache);
                     DataBlock block;
                     CHECK(file->FFind(kctgMtrl, n, &block));
-                    PMaterial_MTRL m = factory ? nullptr : MaterialAccess::Create();
+                    PMaterial_MTRL m = factory ? nullptr : mm_material_owner_create(&EngineMaterial::Host(), MM_MATERIAL);
                     CHECK(factory || m);
                     MMI32 estimate = -1;
-                    CHECK(Material_MTRL::FReadMtrl(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), nullptr, &estimate));
+                    CHECK(EngineMaterial::Read(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), nullptr, &estimate));
                     Value(estimate);
                     Inject(kind, failure);
                     void *output = nullptr;
-                    bool ok = factory ? Material_MTRL::FReadMtrl(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), &output,
+                    bool ok = factory ? EngineMaterial::Read(cache->CoreCache(), kctgMtrl, n, block.CoreBlock(), &output,
                                                                  &estimate)
-                                      : static_cast<MaterialAccess *>(m)->Initialize(cache, n);
+                                      : mm_material_read(m, cache->CoreCache(), kctgMtrl, n, nullptr);
                     Inject(kind, 0);
                     Value(ok);
                     if (factory)
@@ -245,7 +209,7 @@ static void MaterialLoads()
                     if (factory && ok)
                         Value(estimate);
                     State(m, ok);
-                    ReleasePpo(&m);
+                    mm_material_owner_release(m);
                     block.Free();
                     ReleasePpo(&cache);
                     ReleasePpo(&file);
@@ -256,16 +220,16 @@ static void CachedTextureOwnership()
     ChunkNumber number;
     auto file = MaterialFile(6, &number);
     auto cache = ChunkyResourceFile::PcrfNew(file, 1024);
-    auto material = MaterialAccess::Create();
-    CHECK(cache && material && material->Initialize(cache, number));
-    auto texture = material->Ptmap();
+    auto material = mm_material_owner_create(&EngineMaterial::Host(), MM_MATERIAL);
+    CHECK(cache && material && mm_material_read(material, cache->CoreCache(), kctgMtrl, number, nullptr));
+    auto texture = EngineMaterial::Texture(material);
     CHECK(texture && texture->binding.cache == cache->CoreCache() && texture->binding.attached);
 
     const auto child = texture->binding.number;
     auto peer = static_cast<PTextureMap>(mm_resource_cache_fetch_owned_chunk(
         cache->CoreCache(), kctgTmap, child, EngineTexture::Read, mm_texture_owner_services()));
     CHECK(peer == texture && texture->references.count == 2);
-    ReleasePpo(&material);
+    mm_material_owner_release(material);
     CHECK(texture->references.count == 1 && EngineTexture::Pixelmap(texture)->width == 4);
     mm_texture_owner_release(peer);
     cache->SetCbMax(0);
@@ -284,11 +248,11 @@ static PChunkyFile CustomFile(int variant, ChunkNumber *number)
     CHECK(f->FAddPv(&h, sizeof(h), kctgCmtl, number));
     for (int i = 0; i < 3; ++i)
     {
-        auto m = Material_MTRL::PmtrlNew(i + 1, 12);
+        auto m = EngineMaterial::New(i + 1, 12);
         CHECK(m);
         ChunkNumber child;
-        CHECK(m->FWrite(f, kctgMtrl, &child) && f->FAdoptChild(kctgCmtl, *number, kctgMtrl, child, i));
-        ReleasePpo(&m);
+        CHECK(EngineMaterial::Write(m, f, kctgMtrl, &child) && f->FAdoptChild(kctgCmtl, *number, kctgMtrl, child, i));
+        mm_material_owner_release(m);
         if (variant >= 2 && i == 1)
         {
             BRV v[3] = {};
@@ -332,16 +296,16 @@ static void CustomLoads()
                     CHECK(cache);
                     DataBlock block;
                     CHECK(file->FFind(kctgCmtl, n, &block));
-                    PCustomMaterial_CMTL c = factory ? nullptr : CustomAccess::Create();
+                    PCustomMaterial_CMTL c = factory ? nullptr : mm_material_owner_create(&EngineMaterial::Host(), MM_CUSTOM_MATERIAL);
                     CHECK(factory || c);
                     MMI32 estimate = -1;
-                    CHECK(CustomMaterial_CMTL::FReadCmtl(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(), nullptr, &estimate));
+                    CHECK(EngineCostume::Read(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(), nullptr, &estimate));
                     Value(estimate);
                     Inject(kind, failure);
                     void *output = nullptr;
-                    bool ok = factory ? CustomMaterial_CMTL::FReadCmtl(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(),
+                    bool ok = factory ? EngineCostume::Read(cache->CoreCache(), kctgCmtl, n, block.CoreBlock(),
                                                                        &output, &estimate)
-                                      : static_cast<CustomAccess *>(c)->Initialize(cache, n);
+                                      : mm_custom_material_read(c, cache->CoreCache(), kctgCmtl, n, nullptr);
                     Inject(kind, 0);
                     Value(ok);
                     if (factory)
@@ -349,23 +313,23 @@ static void CustomLoads()
                     Value(c != nullptr);
                     if (c)
                     {
-                        Value(c->Ibset());
-                        Value(c->Cbprt());
+                        Value(EngineCostume::Set(c));
+                        Value(EngineCostume::Count(c));
                         if (factory && ok)
                             Value(estimate);
-                        for (int i = 0; i < c->Cbprt(); ++i)
+                        for (int i = 0; i < EngineCostume::Count(c); ++i)
                         {
-                            auto m = CustomAccess::MaterialAt(c, i);
-                            auto model = CustomAccess::ModelAt(c, i);
+                            auto m = MaterialAt(c, i);
+                            auto model = ModelAt(c, i);
                             Value(m != nullptr);
                             Value(model != nullptr);
                             if (m)
                                 State(m, true);
                         }
                         if (ok)
-                            Value(c->FHasModels());
+                            Value(EngineCostume::HasModels(c));
                     }
-                    ReleasePpo(&c);
+                    mm_material_owner_release(c);
                     block.Free();
                     ReleasePpo(&cache);
                     ReleasePpo(&file);
@@ -373,35 +337,35 @@ static void CustomLoads()
 }
 static void MoreCases()
 {
-    auto a = Material_MTRL::PmtrlNew(), b = Material_MTRL::PmtrlNew(3, 5);
+    auto a = EngineMaterial::New(), b = EngineMaterial::New(3, 5);
     CHECK(a && b);
     PMaterial_MTRL materials[] = {a, b, a};
     for (int kind = 0; kind < 2; ++kind)
         for (int failure = 0; failure < 7; ++failure)
         {
             Inject(kind, failure);
-            auto c = CustomMaterial_CMTL::PcmtlNew(-3, 3, materials);
+            auto c = EngineCostume::New(-3, 3, materials);
             Inject(kind, 0);
             Value(c != nullptr);
-            Value(a->CactRef());
-            Value(b->CactRef());
+            Value(mm_material_owner_references(a));
+            Value(mm_material_owner_references(b));
             if (c)
             {
-                Value(c->Ibset());
-                Value(c->Cbprt());
-                Value(c->FHasModels());
+                Value(EngineCostume::Set(c));
+                Value(EngineCostume::Count(c));
+                Value(EngineCostume::HasModels(c));
             }
-            ReleasePpo(&c);
-            Value(a->CactRef());
-            Value(b->CactRef());
+            mm_material_owner_release(c);
+            Value(mm_material_owner_references(a));
+            Value(mm_material_owner_references(b));
         }
-    ReleasePpo(&a);
-    ReleasePpo(&b);
+    mm_material_owner_release(a);
+    mm_material_owner_release(b);
     ChunkNumber n;
     auto source = MaterialFile(7, &n);
     auto cache = ChunkyResourceFile::PcrfNew(source, 0);
     CHECK(cache);
-    auto m = static_cast<PMaterial_MTRL>(cache->PbacoFetch(kctgMtrl, n, Material_MTRL::FReadMtrl));
+    auto m = EngineMaterial::Fetch(cache, kctgMtrl, n);
     CHECK(m);
     for (int kind = 0; kind < 2; ++kind)
         for (int failure = 0; failure < 18; ++failure)
@@ -410,7 +374,7 @@ static void MoreCases()
             CHECK(f);
             ChunkNumber output = 0;
             Inject(kind, failure);
-            bool ok = m->FWrite(f, kctgMtrl, &output);
+            bool ok = EngineMaterial::Write(m, f, kctgMtrl, &output);
             Inject(kind, 0);
             Value(ok);
             Value(output);
@@ -431,7 +395,7 @@ static void MoreCases()
             }
             ReleasePpo(&f);
         }
-    ReleasePpo(&m);
+    mm_material_owner_release(m);
     ReleasePpo(&cache);
     ReleasePpo(&source);
     auto raw = BrPixelmapAllocate(BR_PMT_INDEX_8, 4, 4, nullptr, 0);
@@ -443,13 +407,13 @@ static void MoreCases()
     path.GetStnPath(&text);
     CHECK(BrPixelmapSave(text.Psz(), raw));
     BrPixelmapFree(raw);
-    m = Material_MTRL::PmtrlNewFromPix(&path);
+    m = EngineMaterial::FromPix(&path);
     CHECK(m);
     State(m, true);
     // The original texture wrapper needed this explicit SDK-owner cleanup.
     // The C-owned texture releases it during material disposal.
-    raw = m->Pbmtl()->colour_map;
-    ReleasePpo(&m);
+    raw = EngineMaterial::Handle(m)->colour_map;
+    mm_material_owner_release(m);
 #ifndef MM_ENGINE_TEXTURE_RESOURCE_H
     BrPixelmapFree(raw);
 #endif
@@ -480,21 +444,21 @@ int main()
     auto file = ChunkyFile::PcflCreateTemp();
     CHECK(file);
     ChunkNumber number;
-    CHECK(EngineTexture::Write(shade, file, kctgTmap, &number) && Material_MTRL::FSetShadeTable(file, kctgTmap, number));
+    CHECK(EngineTexture::Write(shade, file, kctgTmap, &number) && EngineMaterial::SetShadeTable(file, kctgTmap, number));
     mm_texture_owner_release(shade);
     ReleasePpo(&file);
     for (int i = 0; i < 6; ++i)
     {
-        auto m = Material_MTRL::PmtrlNew(i % 2 ? -1 : 14, i % 3 ? -1 : 10);
+        auto m = EngineMaterial::New(i % 2 ? -1 : 14, i % 3 ? -1 : 10);
         CHECK(m);
         State(m, true);
-        ReleasePpo(&m);
+        mm_material_owner_release(m);
     }
     MaterialLoads();
     CachedTextureOwnership();
     CustomLoads();
     MoreCases();
-    Material_MTRL::ReleaseShadeTable();
+    EngineMaterial::ReleaseShadeTable();
     BrZbEnd();
     BrEnd();
     if (snapshot)

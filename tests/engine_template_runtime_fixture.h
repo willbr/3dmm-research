@@ -29,7 +29,7 @@ static bool TestTemplateRuntime()
     FILE *snapshot=nullptr; if (const char *path=std::getenv("MM_TEMPLATE_RUNTIME_SNAPSHOT")) if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1); face.vertices[1]=1; face.vertices[2]=2;
-    auto a=EngineModel::New(3,vertices,1,&face),b=EngineModel::New(3,vertices,1,&face); auto material=Material_MTRL::PmtrlNew();
+    auto a=EngineModel::New(3,vertices,1,&face),b=EngineModel::New(3,vertices,1,&face); auto material=EngineMaterial::New();
     bool ok=a && b && material; int successes=0,failures=0;
     const int counts[]={0,2,6},cels[]={-7,-1,0,2,7};
     for (int shape=0;ok && shape<3;++shape) for (int mode=0;ok && mode<3;++mode) for (int cn=0;ok && cn<5;++cn)
@@ -79,7 +79,7 @@ static bool TestTemplateRuntime()
             ok=record(queries,sizeof(queries)) && mm_action_resource_references(action)==1 && ok;
         }
         ReleasePpo(&body); ReleasePpo(&t); mm_action_resource_release(action); ReleasePpo(&group); ReleasePpo(&matrices); ReleasePpo(&parents); ReleasePpo(&sets); vpers->Clear();
-        ok=ok && mm_model_owner_references(a)==1 && mm_model_owner_references(b)==1 && material->CactRef()==1;
+        ok=ok && mm_model_owner_references(a)==1 && mm_model_owner_references(b)==1 && mm_material_owner_references(material)==1;
         if (!ok) std::fprintf(stderr,"Template runtime failed: %d %d %d %d %d\n",shape,mode,cn,kind,failure);
     }
     for (int variant=0;ok && variant<5;++variant)
@@ -105,7 +105,7 @@ static bool TestTemplateRuntime()
         }
         for (int i=0;ok && i<4;++i) for (int j=0;ok && j<4;++j)
         {
-            LegacyLong values[]={variant,i,j,t->FSameAccCmids(i,j),CustomMaterial_CMTL::FHasModels(file,kctgCmtl,costumes[i].cki.cno),CustomMaterial_CMTL::FEqualModels(file,costumes[i].cki.cno,costumes[j].cki.cno)};
+            LegacyLong values[]={variant,i,j,t->FSameAccCmids(i,j),EngineCostume::HasModels(file,kctgCmtl,costumes[i].cki.cno),EngineCostume::EqualModels(file,costumes[i].cki.cno,costumes[j].cki.cno)};
             ok=record(values,sizeof(values));
         }
         String name,expectedName; expectedName.SetSzs(PszLit("Runtime action")); ChildChunkIdentification actionChild;
@@ -119,7 +119,7 @@ static bool TestTemplateRuntime()
 #else
     ok=ok && successes==189 && failures==216;
 #endif
-    mm_model_owner_release(a); mm_model_owner_release(b); ReleasePpo(&material);
+    mm_model_owner_release(a); mm_model_owner_release(b); mm_material_owner_release(material);
     if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok && successes && failures;
 }
 #endif

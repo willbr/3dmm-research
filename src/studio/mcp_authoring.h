@@ -476,10 +476,10 @@ static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb, bool shaded)
     {
         ThumbnailDescriptor descriptor;
         catalog->GetThd(i, &descriptor);
-        auto existing = static_cast<PMaterial_MTRL>(vptagm->PbacoFetch(&descriptor.tag, Material_MTRL::FReadMtrl));
+        auto existing = static_cast<PMaterial_MTRL>(vptagm->FetchResource(&descriptor.tag, EngineMaterial::Read, mm_material_owner_services()));
         if (!existing)
             continue;
-        const auto material = existing->Pbmtl();
+        const auto material = EngineMaterial::Handle(existing);
         if (!material->colour_map && int(material->index_base) + material->index_range < 256)
         {
             const auto &color = colors[material->index_base + material->index_range];
@@ -494,7 +494,7 @@ static bool AuthorColor(PMovie movie, PActor actor, unsigned rgb, bool shaded)
                 range = material->index_range;
             }
         }
-        ReleasePpo(&existing);
+        mm_material_owner_release(existing);
     }
     ReleasePpo(&catalog);
     // Black facial details need the nearest dark entry, rather than the

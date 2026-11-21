@@ -3,13 +3,10 @@
 
 /*************************************************************************
 
-    mtrl.h: Material and custom material classes
+    mtrl.h: BRender material and costume bindings
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
-
-    BASE ---> BaseCacheableObject ---> Material_MTRL
-    BASE ---> BaseCacheableObject ---> CustomMaterial_CMTL
 
 *************************************************************************/
 #ifndef MTRL_H
@@ -46,106 +43,52 @@ struct MaterialOnFile
 static_assert(sizeof(MaterialOnFile) == 20, "MaterialOnFile on-disk layout drift");
 const ByteOrderMask kbomMtrlf = 0x5D530000;
 
-/****************************************
-    The Material_MTRL class.  There are two kinds
-    of MTRLs: solid-color MTRLs and
-    texmap materials.  Texmap MTRLs have
-    TMAPs under the Material_MTRL chunk with chid
-    0.
-****************************************/
-typedef class Material_MTRL *PMaterial_MTRL;
-#define Material_MTRL_PAR BaseCacheableObject
-#define kclsMaterial_MTRL 'MTRL'
-class Material_MTRL : public Material_MTRL_PAR
+using PMaterial_MTRL = MMMaterialOwner *;
+using PCustomMaterial_CMTL = MMMaterialOwner *;
+
+namespace EngineMaterial
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  protected:
-    friend class CustomMaterial_CMTL;
-    static MMMaterialShade _shade;
-    MMMaterialResource _material;
-    static MMMaterialServices _Services(void *context = nullptr);
-
-  protected:
-    Material_MTRL(void)
-    {
-        _material.handle = nullptr;
-    } // can't instantiate directly; must use FReadMtrl
-    bool _FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
-
-  public:
-    static bool FSetShadeTable(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    static bool FSetShadeTable(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
-    static bool FSetShadeTable(const MMReadStream &stream);
-    // Release after all materials, before shutting down BRender.
-    static void ReleaseShadeTable(void);
-    static PMaterial_MTRL PmtrlNew(LegacyLong iclrBase = ivNil, LegacyLong cclr = ivNil);
-    static int FReadMtrl(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                           void **object, MMI32 *bytes);
-    static PMaterial_MTRL PmtrlNewFromPix(PFilename pfni);
-    static PMaterial_MTRL PmtrlNewFromBmp(PFilename pfni, PDynamicArray pglclr = pvNil);
-    static PMaterial_MTRL PmtrlFromBmtl(PBMTL pbmtl);
-    ~Material_MTRL(void);
-    PTextureMap Ptmap(void);
-    PBMTL Pbmtl(void)
-    {
-        return static_cast<PBMTL>(_material.handle);
-    }
-    bool FWrite(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber *pcno,
-                const MMMaterialDescription *appearance = nullptr, const MMI32 mapping[6] = nullptr);
-    bool FWrite(const MMArchiveWriter &, ChunkTagOrType ctg, ChunkNumber *pcno,
-                const MMMaterialDescription *appearance, const MMI32 mapping[6]);
-    void GetAppearance(MMMaterialAppearance &) const;
-    bool FWriteView(const MMArchiveWriter &, ChunkTagOrType, ChunkNumber *, const MMMaterialAppearance &);
+const MMMaterialOwnerHost &Host();
+int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+PMaterial_MTRL Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
+bool SetShadeTable(PChunkyFile, ChunkTagOrType, ChunkNumber);
+bool SetShadeTable(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
+bool SetShadeTable(const MMReadStream &);
+void ReleaseShadeTable();
+PMaterial_MTRL New(LegacyLong base = ivNil, LegacyLong range = ivNil);
+PMaterial_MTRL FromPix(PFilename);
+PMaterial_MTRL FromBitmap(PFilename, PDynamicArray palette = nullptr);
+PMaterial_MTRL FromHandle(PBMTL);
+PBMTL Handle(PMaterial_MTRL);
+PTextureMap Texture(PMaterial_MTRL);
+bool Write(PMaterial_MTRL, PChunkyFile, ChunkTagOrType, ChunkNumber *,
+           const MMMaterialDescription *appearance = nullptr, const MMI32 mapping[6] = nullptr);
+bool Write(PMaterial_MTRL, const MMArchiveWriter &, ChunkTagOrType, ChunkNumber *,
+           const MMMaterialDescription *appearance = nullptr, const MMI32 mapping[6] = nullptr);
+void ReadView(PMaterial_MTRL, MMMaterialAppearance &);
+bool WriteView(PMaterial_MTRL, const MMArchiveWriter &, ChunkTagOrType, ChunkNumber *, const MMMaterialAppearance &);
 #ifdef DEBUG
-    static void MarkShadeTable(void);
-#endif // DEBUG
-};
+void Validate(PMaterial_MTRL);
+void Mark(MMMaterialOwner *);
+void MarkShadeTable();
+#endif
+}
 
-/****************************************
-    The CustomMaterial_CMTL (custom material) class
-    This manages a set of materials to
-    apply to a body part set
-****************************************/
-typedef class CustomMaterial_CMTL *PCustomMaterial_CMTL;
-#define CustomMaterial_CMTL_PAR BaseCacheableObject
-#define kclsCustomMaterial_CMTL 'CMTL'
-class CustomMaterial_CMTL : public CustomMaterial_CMTL_PAR
+namespace EngineCostume
 {
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
+int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+PCustomMaterial_CMTL Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
+PCustomMaterial_CMTL New(LegacyLong, LegacyLong, PMaterial_MTRL *);
+bool HasModels(PChunkyFile, ChunkTagOrType, ChunkNumber);
+bool EqualModels(PChunkyFile, ChunkNumber, ChunkNumber);
+PBMTL Handle(PCustomMaterial_CMTL, LegacyLong);
+PModel Model(PCustomMaterial_CMTL, LegacyLong);
+LegacyLong Set(PCustomMaterial_CMTL);
+LegacyLong Count(PCustomMaterial_CMTL);
+bool HasModels(PCustomMaterial_CMTL);
+#ifdef DEBUG
+void Validate(PCustomMaterial_CMTL);
+#endif
+}
 
-  protected:
-    friend class Material_MTRL;
-    MMCustomMaterial _custom;
-
-  protected:
-    bool _FInit(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
-    CustomMaterial_CMTL(void) : _custom{}
-    {
-    } // can't instantiate directly; must use PcmtlRead
-
-  public:
-    static PCustomMaterial_CMTL PcmtlNew(LegacyLong ibset, LegacyLong cbprt, PMaterial_MTRL *prgpmtrl);
-    static int FReadCmtl(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *,
-                           void **object, MMI32 *bytes);
-    static bool FHasModels(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno);
-    static bool FEqualModels(PChunkyFile pcfl, ChunkNumber cno1, ChunkNumber cno2);
-    ~CustomMaterial_CMTL(void);
-    PBMTL Pbmtl(LegacyLong ibmtl);
-    PModel Pmodl(LegacyLong imodl);
-    LegacyLong Ibset(void)
-    {
-        return _custom.set;
-    }
-    LegacyLong Cbprt(void)
-    {
-        return _custom.count;
-    }
-    bool FHasModels(void);
-};
-
-#endif // !MTRL_H
+#endif

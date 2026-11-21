@@ -105,6 +105,7 @@ MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
 #endif
     s.state = [](void *, void *object) -> MMTemplateState * { return &static_cast<PTemplate>(object)->_template; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
+    s.release_custom = [](void *, void *custom) { mm_material_owner_release(static_cast<PCustomMaterial_CMTL>(custom)); };
     s.decode = KauaiDecodeBlockHandle;
     s.read_name = [](void *cache, void *object, MMU32 type, MMU32 number) -> int {
         return static_cast<PChunkyResourceFile>(cache)->FGetName(type, number, &static_cast<PTemplate>(object)->_stn);
@@ -123,8 +124,8 @@ MMTemplateCreateServices Template::_CreateServices(PChunkyResourceFile cache)
     };
     s.table_allocator = CollectionAllocator();
     s.create_cache = [](void *cache) -> void * { return static_cast<PChunkyResourceFile>(cache)->PcrfNewSibling(0); };
-    s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return static_cast<PChunkyResourceFile>(cache)->PbacoFetch(type, number, CustomMaterial_CMTL::FReadCmtl); };
-    s.custom_set = [](void *, void *custom) -> MMI32 { return static_cast<PCustomMaterial_CMTL>(custom)->Ibset(); };
+    s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return EngineCostume::Fetch(static_cast<PChunkyResourceFile>(cache), type, number); };
+    s.custom_set = [](void *, void *custom) -> MMI32 { return EngineCostume::Set(static_cast<PCustomMaterial_CMTL>(custom)); };
     s.append_costumes = [](void *, MMTemplateCostumeTable *table, const MMI32 *ids, MMI32 count) -> int {
         return mm_template_costumes_append(table, ids, count);
     };
@@ -434,7 +435,7 @@ PCustomMaterial_CMTL Template::PcmtlFetch(LegacyLong cmid)
         return pvNil;
     return static_cast<PCustomMaterial_CMTL>(mm_template_fetch_child(
         ResourceBinding(), static_cast<MMU32>(cmid), MM_TEMPLATE_CUSTOM,
-        CustomMaterial_CMTL::FReadCmtl, nullptr, nullptr));
+        EngineCostume::Read, mm_material_owner_services(), nullptr));
 }
 
 /***************************************************************************

@@ -245,7 +245,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         else
             Bug("Bad event in frame event list");
     };
-    s.material_reader = Material_MTRL::FReadMtrl;
+    s.material_reader = EngineMaterial::Read;
     s.template_reader = Template::FReadTmpl;
     s.purge_sounds = [](void *p) -> int { return static_cast<SaveHost *>(p)->movie->Pmcc()->FQueryPurgeSounds(); };
     s.bad_child = [](void *) { Bug("ChunkyFile returned bogus Ckid()"); };
@@ -1196,7 +1196,7 @@ MMMovieContentServices Movie::_ContentServices()
     s.write_material = [](void *p, void *resources, MMU32 *out) -> int {
         const auto writer = static_cast<PChunkyResourceFile>(resources)->ArchiveWriter();
         ChunkNumber number;
-        bool ok = static_cast<PMaterial_MTRL>(p)->FWrite(writer, kctgMtrl, &number, nullptr, nullptr);
+        bool ok = EngineMaterial::Write(static_cast<PMaterial_MTRL>(p), writer, kctgMtrl, &number);
         if (ok) *out = number;
         return ok;
     };

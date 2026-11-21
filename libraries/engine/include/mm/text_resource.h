@@ -35,6 +35,8 @@ typedef struct MMTextResourceServices
     MMTextGenerationServices generation;
     MMTextDescriptor *(*state)(void *,void *object);
     void *(*create)(void *);
+    void (*retain_object)(void *,void *);
+    void (*release_object)(void *,void *);
     void *(*text)(void *,void *object);
     void (*assign)(void *,void *destination,const void *source);
     void (*space)(void *,void *text);

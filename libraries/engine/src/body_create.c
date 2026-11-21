@@ -23,7 +23,7 @@ void mm_body_shape_remove_material(MMBodyShape *shape,MMI32 set,const MMBodyCrea
     MMI32 part;
     if (custom)
     {
-        s->release(s->context,custom);
+        s->release_material(s->context,custom);
         shape->custom_materials[set]=NULL;
     }
     for (part=0;part<shape->part_count;++part)
@@ -32,7 +32,7 @@ void mm_body_shape_remove_material(MMBodyShape *shape,MMI32 set,const MMBodyCrea
         if (binding->set!=set)
             continue;
         if (binding->material_owner)
-            s->release(s->context,binding->material_owner);
+            s->release_material(s->context,binding->material_owner);
         else if (!had_custom && !binding->material)
             continue;
         mm_body_shape_material(shape,part,NULL,NULL,s);

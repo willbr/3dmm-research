@@ -46,9 +46,9 @@ static bool TestBodyEditing()
     BRV vertices[3]={}; BRF face={}; vertices[1].p.v[0]=BR_SCALAR(1); vertices[2].p.v[1]=BR_SCALAR(1);
     face.vertices[1]=1; face.vertices[2]=2;
     auto model=EngineModel::New(3,vertices,1,&face);
-    auto generic=Material_MTRL::PmtrlNew(),material=Material_MTRL::PmtrlNew();
+    auto generic=EngineMaterial::New(),material=EngineMaterial::New();
     PMaterial_MTRL customParts[6]={material,material,material,material,material,material};
-    auto custom=material?CustomMaterial_CMTL::PcmtlNew(1,6,customParts):nullptr;
+    auto custom=material?EngineCostume::New(1,6,customParts):nullptr;
     bool ok=model && generic && material && custom; int successes=0,failures=0;
     const int sourceCounts[]={0,1,6},targetCounts[]={0,1,4,8};
     for (int shape=0;ok && shape<3;++shape) for (int visibility=0;ok && visibility<3;++visibility)
@@ -76,7 +76,7 @@ static bool TestBodyEditing()
             if (!visibility) body->Show(); else if (visibility==2) { body->Hide(); body->Hide(); }
             BodyEditFixtureAccess::Seed(body);
         }
-        auto refs=[&]() { LegacyLong r[]={mm_model_owner_references(model),generic->CactRef(),material->CactRef(),custom->CactRef(),host.attached,host.changed}; return record(r,sizeof(r)); };
+        auto refs=[&]() { LegacyLong r[]={mm_model_owner_references(model),mm_material_owner_references(generic),mm_material_owner_references(material),mm_material_owner_references(custom),host.attached,host.changed}; return record(r,sizeof(r)); };
         LegacyLong mode[]={shape,visibility,highlight,operation,kind,failure,next}; ok=record(mode,sizeof(mode)) && refs() && ok;
         PBody copy=nullptr; bool result=false;
         if (ok)
@@ -96,7 +96,7 @@ static bool TestBodyEditing()
             ok=refs() && BodyEditFixtureAccess::Record(body,snapshot,host.root) && ok;
         }
         ReleasePpo(&copy); ReleasePpo(&body);
-        ok=ok && host.root->children==nullptr && mm_model_owner_references(model)==1 && generic->CactRef()==1 && material->CactRef()==7 && custom->CactRef()==1;
+        ok=ok && host.root->children==nullptr && mm_model_owner_references(model)==1 && mm_material_owner_references(generic)==1 && mm_material_owner_references(material)==7 && mm_material_owner_references(custom)==1;
         ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&newParents); ReleasePpo(&newSets); BrActorFree(host.root);
 #ifdef DEBUG
         ok=ok && vdmglob.dmaglBase.cv==beforeBase && vdmglob.dmaglHq.cv==beforeHq && vdmglob.dmaglPv.cv==beforePv;
@@ -111,7 +111,7 @@ static bool TestBodyEditing()
 #else
     ok=ok && successes==1404 && failures==0;
 #endif
-    ReleasePpo(&custom); mm_model_owner_release(model); ReleasePpo(&generic); ReleasePpo(&material);
+    mm_material_owner_release(custom); mm_model_owner_release(model); mm_material_owner_release(generic); mm_material_owner_release(material);
     if (snapshot) ok=std::fclose(snapshot)==0 && ok; return ok && successes>0;
 }
 #endif

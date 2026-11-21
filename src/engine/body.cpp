@@ -145,6 +145,7 @@ MMBodyCreateServices Body::_CreateServices(void)
     s.create = [](void *) -> void * { return NewObj Body; };
     s.release = [](void *, void *object) { static_cast<BASE *>(object)->Release(); };
     s.release_model = [](void *, void *model) { mm_model_owner_release(static_cast<PModel>(model)); };
+    s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<MMMaterialOwner *>(material)); };
     s.allocate_materials = [](void *, MMI32 count, void ***out) -> int {
         void *storage = nullptr;
         const bool ok = FAllocPv(&storage, LwMul(count, size(void *)), fmemClear, mprNormal);
@@ -275,7 +276,7 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
     MMBodyRuntimeServices s = {};
     s.shape = _CreateServices();
     mm_brender_body_runtime_services(&s);
-    s.retain = [](void *, void *object) { static_cast<BASE *>(object)->AddRef(); };
+    s.retain = [](void *, void *material) { mm_material_owner_retain(static_cast<MMMaterialOwner *>(material)); };
     s.retain_model = [](void *, void *model) { mm_model_owner_retain(static_cast<PModel>(model)); };
     s.model_handle = [](void *, void *object) -> void * {
         auto model = static_cast<PModel>(object);
@@ -283,13 +284,13 @@ MMBodyRuntimeServices Body::_RuntimeServices(void)
         Assert(EngineModel::FromHandle(handle) == model, "Model problem");
         return handle;
     };
-    s.material_handle = [](void *, void *object) -> void * { return static_cast<PMaterial_MTRL>(object)->Pbmtl(); };
-    s.custom_set = [](void *, void *object) -> MMI32 { return static_cast<PCustomMaterial_CMTL>(object)->Ibset(); };
-    s.custom_count = [](void *, void *object) -> MMI32 { return static_cast<PCustomMaterial_CMTL>(object)->Cbprt(); };
-    s.custom_model = [](void *, void *object, MMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pmodl(i); };
-    s.custom_material = [](void *, void *object, MMI32 i) -> void * { return static_cast<PCustomMaterial_CMTL>(object)->Pbmtl(i); };
+    s.material_handle = [](void *, void *object) -> void * { return EngineMaterial::Handle(static_cast<PMaterial_MTRL>(object)); };
+    s.custom_set = [](void *, void *object) -> MMI32 { return EngineCostume::Set(static_cast<PCustomMaterial_CMTL>(object)); };
+    s.custom_count = [](void *, void *object) -> MMI32 { return EngineCostume::Count(static_cast<PCustomMaterial_CMTL>(object)); };
+    s.custom_model = [](void *, void *object, MMI32 i) -> void * { return EngineCostume::Model(static_cast<PCustomMaterial_CMTL>(object), i); };
+    s.custom_material = [](void *, void *object, MMI32 i) -> void * { return EngineCostume::Handle(static_cast<PCustomMaterial_CMTL>(object), i); };
     s.invalidate_output = [](void *, void **out) { TrashVar(out); };
-    s.is_generic = [](void *, void *object) -> int { return static_cast<BASE *>(object)->FIs(kclsMaterial_MTRL); };
+    s.is_generic = [](void *, void *object) -> int { return mm_material_owner_kind(static_cast<MMMaterialOwner *>(object)) == MM_MATERIAL; };
     s.diagnostic = [](void *, int code) {
         switch (code) {
         case MM_BODY_MISSING_MATERIAL: Assert(false, "body set has no material"); break;
@@ -401,9 +402,12 @@ void Body::SetPartMatrix(LegacyLong ibact, const MMActorMatrix &matrix)
 /***************************************************************************
     Set the ibset'th body part set to use material pmtrl
 ***************************************************************************/
-void Body::SetPartSetMtrl(LegacyLong ibset, Material_MTRL *pmtrl)
+void Body::SetPartSetMtrl(LegacyLong ibset, PMaterial_MTRL pmtrl)
 {
-    AssertThis(0); AssertIn(ibset, 0, _body.shape.set_count); AssertPo(pmtrl, 0);
+    AssertThis(0); AssertIn(ibset, 0, _body.shape.set_count);
+#ifdef DEBUG
+    EngineMaterial::Validate(pmtrl);
+#endif
     auto s = _RuntimeServices(); mm_body_set_generic(this, ibset, pmtrl, &s);
 }
 
@@ -411,9 +415,12 @@ void Body::SetPartSetMtrl(LegacyLong ibset, Material_MTRL *pmtrl)
     Apply the given CustomMaterial_CMTL to the appropriate body part set (the CustomMaterial_CMTL knows
     which body part set to apply to).
 ***************************************************************************/
-void Body::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
+void Body::SetPartSetCmtl(PCustomMaterial_CMTL pcmtl)
 {
-    AssertThis(0); AssertPo(pcmtl, 0);
+    AssertThis(0);
+#ifdef DEBUG
+    EngineCostume::Validate(pcmtl);
+#endif
     auto s = _RuntimeServices(); mm_body_set_custom(this, pcmtl, &s);
 }
 
@@ -423,7 +430,7 @@ void Body::SetPartSetCmtl(CustomMaterial_CMTL *pcmtl)
     PCustomMaterial_CMTL.  If a Material_MTRL is attached, *pfMtrl is fTrue and *ppmtrl holds
     the PMaterial_MTRL.
 ***************************************************************************/
-void Body::GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, Material_MTRL **ppmtrl, CustomMaterial_CMTL **ppcmtl)
+void Body::GetPartSetMaterial(LegacyLong ibset, bool *pfMtrl, PMaterial_MTRL *ppmtrl, PCustomMaterial_CMTL *ppcmtl)
 {
     AssertThis(0); AssertIn(ibset, 0, _body.shape.set_count);
     AssertVarMem(pfMtrl); AssertVarMem(ppmtrl); AssertVarMem(ppcmtl);
@@ -611,14 +618,15 @@ void Body::AssertValid(LegacyUlong grf)
             Assert(binding.material == pbact->material, "body part material binding mismatch");
             if (pvNil != pbact->material)
             {
-                auto material = Material_MTRL::PmtrlFromBmtl(pbact->material);
-                AssertPo(material, 0);
+                auto material = EngineMaterial::FromHandle(pbact->material);
+                EngineMaterial::Validate(material);
                 Assert(!binding.material_owner || binding.material_owner == material, "body part material owner mismatch");
             }
         }
         for (ibset = 0; ibset < _body.shape.set_count; ibset++)
         {
-            AssertNilOrPo(static_cast<PCustomMaterial_CMTL>(_body.shape.custom_materials[ibset]), 0);
+            if (auto costume = static_cast<PCustomMaterial_CMTL>(_body.shape.custom_materials[ibset]))
+                EngineCostume::Validate(costume);
         }
     }
 }
@@ -639,11 +647,11 @@ void Body::MarkMem(void)
         if (binding.model_owner)
             EngineModel::Mark(static_cast<PModel>(binding.model_owner));
         if (binding.material_owner)
-            MarkMemObj(static_cast<PMaterial_MTRL>(binding.material_owner));
+            EngineMaterial::Mark(static_cast<PMaterial_MTRL>(binding.material_owner));
     }
     for (LegacyLong set = 0; set < _body.shape.set_count; ++set)
         if (_body.shape.custom_materials[set])
-            MarkMemObj(static_cast<PCustomMaterial_CMTL>(_body.shape.custom_materials[set]));
+            EngineMaterial::Mark(static_cast<PCustomMaterial_CMTL>(_body.shape.custom_materials[set]));
 }
 #endif // DEBUG
 
@@ -707,19 +715,16 @@ void BodyCostume::Set(PBody pbody, bool fAllowDifferentShape)
 ***************************************************************************/
 void BodyCostume::AssertValid(LegacyUlong grf)
 {
-    LegacyLong ibset;
-    BASE *po;
-
-    if (pvNil != _costume.entries)
+    if (_costume.entries)
     {
-        AssertPvCb(_costume.entries, LwMul(size(BASE *), _costume.count));
-        for (ibset = 0; ibset < _costume.count; ibset++)
+        AssertPvCb(_costume.entries, LwMul(size(void *), _costume.count));
+        for (LegacyLong i = 0; i < _costume.count; ++i)
         {
-            po = static_cast<BASE *>(_costume.entries[ibset]);
-            if (po->FIs(kclsMaterial_MTRL))
-                AssertPo((PMaterial_MTRL)po, 0);
+            auto material = static_cast<MMMaterialOwner *>(_costume.entries[i]);
+            if (mm_material_owner_kind(material) == MM_MATERIAL)
+                EngineMaterial::Validate(material);
             else
-                AssertPo((PCustomMaterial_CMTL)po, 0);
+                EngineCostume::Validate(material);
         }
     }
 }
@@ -737,7 +742,7 @@ void BodyCostume::MarkMem(void)
     {
         MarkPv(_costume.entries);
         for (ibset = 0; ibset < _costume.count; ibset++)
-            MarkMemObj(static_cast<BASE *>(_costume.entries[ibset]));
+            EngineMaterial::Mark(static_cast<MMMaterialOwner *>(_costume.entries[ibset]));
     }
 }
 

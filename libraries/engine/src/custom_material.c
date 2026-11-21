@@ -37,7 +37,10 @@ void mm_custom_material_dispose(MMCustomMaterial *m, const MMMaterialServices *s
         for (i = 0; i < m->count; ++i)
             if (m->materials[i])
             {
-                s->release(s->context, m->materials[i]);
+                if (s->material_objects)
+                    mm_resource_object_release(m->materials[i], s->material_objects);
+                else
+                    s->release(s->context, m->materials[i]);
                 m->materials[i] = NULL;
             }
         p = m->materials;
@@ -60,31 +63,35 @@ void mm_custom_material_dispose(MMCustomMaterial *m, const MMMaterialServices *s
         m->models = NULL;
     }
 }
-void *mm_custom_material_new(MMI32 set, MMI32 count, const void *materials,
-                                   const MMMaterialServices *s)
+MMMaterialOwner *mm_custom_material_new(MMI32 set, MMI32 count, const void *materials,
+                                         const MMMaterialOwnerHost *host)
 {
-    void *object;
+    const MMMaterialServices *s = host->services;
+    MMMaterialOwner *owner;
     MMCustomMaterial *m;
     MMI32 i;
     if (!valid_count(count, s))
         return NULL;
-    object = s->create(s->context, MM_CUSTOM_MATERIAL);
-    if (!object)
+    owner = mm_material_owner_create(host, MM_CUSTOM_MATERIAL);
+    if (!owner)
         return NULL;
-    m = s->custom_state(s->context, object);
+    m = mm_material_owner_custom(owner);
     m->set = set;
     m->count = count;
     if (!arrays(m, s))
     {
-        s->release(s->context, object);
+        mm_material_owner_release(owner);
         return NULL;
     }
     for (i = 0; i < count; ++i)
     {
         m->materials[i] = s->input_material(s->context, materials, i);
-        s->retain(s->context, m->materials[i]);
+        if (s->material_objects)
+            mm_reference_add(s->material_objects->references(m->materials[i]));
+        else
+            s->retain(s->context, m->materials[i]);
     }
-    return object;
+    return owner;
 }
 MMI32 mm_custom_material_read_set(const unsigned char b[8], int big, int *bad_order)
 {
@@ -128,10 +135,10 @@ int mm_custom_material_part(const MMChunkAccess *access, MMU32 position, MMU32 s
     return status;
 }
 
-static int read_custom(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+static int read_custom(MMMaterialOwner *owner, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                        const MMMaterialServices *s)
 {
-    MMCustomMaterial *m = s->custom_state(s->context, object);
+    MMCustomMaterial *m = mm_material_owner_custom(owner);
     unsigned char b[8];
     int bad_order;
     MMI32 i, id, set;
@@ -179,8 +186,8 @@ static int read_custom(void *object, MMResourceCache *cache, MMU32 type, MMU32 n
             return 0;
         if (part.material.type)
         {
-            m->materials[i] = mm_resource_cache_fetch_chunk(cache, part.material.type, part.material.number,
-                                                               s->material_reader);
+            m->materials[i] = mm_resource_cache_fetch_owned_chunk(cache, part.material.type, part.material.number,
+                                                                  s->material_reader, s->material_objects);
             if (!m->materials[i])
                 return 0;
         }
@@ -194,42 +201,39 @@ static int read_custom(void *object, MMResourceCache *cache, MMU32 type, MMU32 n
     }
     return 1;
 }
-int mm_custom_material_read(void *object, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
-                            const MMMaterialServices *s)
+int mm_custom_material_read(MMMaterialOwner *owner, MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block)
 {
+    const MMMaterialServices *s = mm_material_owner_host(owner)->services;
     MMOwnedBlock scratch;
     int ok;
     if (block)
-        return read_custom(object, cache, type, number, block, s);
+        return read_custom(owner, cache, type, number, block, s);
     if (mm_owned_block_init(&scratch, cache->services.handles, cache->services.block_files) != MM_DATA_OK)
         return 0;
     ok = mm_resource_cache_read_block(cache, type, number, &scratch) == MM_CHUNK_OK &&
-         read_custom(object, cache, type, number, &scratch, s);
+         read_custom(owner, cache, type, number, &scratch, s);
     mm_owned_block_clear(&scratch);
     return ok;
 }
-int mm_custom_material_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void *out,
-                             void *size, const MMMaterialServices *s)
+
+int mm_custom_material_fetch(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out,
+                             MMI32 *bytes, const MMMaterialOwnerHost *host)
 {
-    void *object;
-    MMI32 bytes = s->custom_bytes;
-    MMCustomMaterial *m;
-    memcpy(size, &bytes, 4);
+    const MMMaterialServices *s = host->services;
+    MMMaterialOwner *owner;
+    *bytes = s->custom_bytes;
     if (!out)
         return 1;
-    object = s->create(s->context, MM_CUSTOM_MATERIAL);
-    if (!object || !mm_custom_material_read(object, cache, type, number, block, s))
+    owner = mm_material_owner_create(host, MM_CUSTOM_MATERIAL);
+    if (!owner || !mm_custom_material_read(owner, cache, type, number, block))
     {
-        if (object)
-            s->release(s->context, object);
-        s->invalidate(s->context, out, sizeof(object));
-        s->invalidate(s->context, size, 4);
+        mm_material_owner_release(owner);
+        s->invalidate(s->context, out, sizeof(*out));
+        s->invalidate(s->context, bytes, sizeof(*bytes));
         return 0;
     }
-    m = s->custom_state(s->context, object);
-    bytes += (MMI32)(m->count * (2 * sizeof(void *)));
-    memcpy(out, &object, sizeof(object));
-    memcpy(size, &bytes, 4);
+    *bytes += (MMI32)(mm_material_owner_custom(owner)->count * (2 * sizeof(void *)));
+    *out = owner;
     return 1;
 }
 int mm_custom_material_has_models(const MMCustomMaterial *m)

@@ -300,7 +300,7 @@ int main(int argc, char **argv)
     BrBegin();
     BrZbBegin(BR_PMT_INDEX_8, BR_PMT_DEPTH_16);
     PChunkyFile shadeFile = Open(argv[3]);
-    ok = ok && shadeFile && Material_MTRL::FSetShadeTable(shadeFile, kctgTmap, 0);
+    ok = ok && shadeFile && EngineMaterial::SetShadeTable(shadeFile, kctgTmap, 0);
     PChunkyFile templateFile = movie ? Open(argv[4]) : pvNil;
     PChunkyResourceFile templateResources = templateFile ? ChunkyResourceFile::PcrfNew(templateFile, 0) : pvNil;
     PChunkyResourceFile document = movie ? ChunkyResourceFile::PcrfNew(file, 0) : pvNil;
@@ -543,7 +543,7 @@ int main(int argc, char **argv)
     ReleasePpo(&templateFile);
     ReleasePpo(&shadeFile);
     Body::ReleaseSharedMaterial();
-    Material_MTRL::ReleaseShadeTable();
+    EngineMaterial::ReleaseShadeTable();
     BrZbEnd();
     BrEnd();
     return ok ? 0 : 1;

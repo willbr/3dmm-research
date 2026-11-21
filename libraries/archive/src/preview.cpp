@@ -158,14 +158,13 @@ struct Preview::Impl
         if (preset)
         {
             auto file = Resolve({source, 0, kctgMtrl, number});
-            return file ? static_cast<PMaterial_MTRL>(file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl))
-                        : nullptr;
+            return file ? EngineMaterial::Fetch(file, kctgMtrl, number) : nullptr;
         }
         if (object < 0 || std::size_t(object) >= actors.size())
-            return Material_MTRL::PmtrlNew();
+            return EngineMaterial::New();
         auto material = actors[object]->TextMaterial();
         if (material)
-            material->AddRef();
+            mm_material_owner_retain(material);
         return material;
     }
     bool ResolveGraph(const TAGOnFile &tag, MMMovieSessionGraph &graph);
@@ -495,7 +494,7 @@ bool Preview::TextMaterial(int object, bool preset, std::int32_t source, std::ui
     auto material = _impl->FetchTextMaterial(object, preset, source, number);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot read the text material.");
     MMMaterialAppearance appearance;
-    material->GetAppearance(appearance);
+    EngineMaterial::ReadView(material, appearance);
     out.textured = appearance.textured != 0;
     out.colour = appearance.colour;
     out.indexBase = appearance.index_base;
@@ -505,7 +504,7 @@ bool Preview::TextMaterial(int object, bool preset, std::int32_t source, std::ui
     out.specular = appearance.specular;
     out.shininess = appearance.shininess;
     std::copy_n(appearance.mapping, 6, out.mapping);
-    material->Release(); return true;
+    mm_material_owner_release(material); return true;
 }
 bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, std::uint32_t number,
     const PreviewTextMaterial &value, const std::string &path, Error &error)
@@ -513,8 +512,7 @@ bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, st
     error = {};
     auto material = _impl->FetchTextMaterial(object, preset, source, number);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot copy the text material.");
-    struct Release { void operator()(BASE *p) const { if (p) p->Release(); } };
-    std::unique_ptr<Material_MTRL, Release> owner(material);
+    std::unique_ptr<MMMaterialOwner, decltype(&mm_material_owner_release)> owner(material, mm_material_owner_release);
     String nativePath;
     if (!PreviewDraftPath(path, nativePath))
         return Fail(error, ErrorCode::invalid_argument, "Invalid text material path.");
@@ -526,7 +524,7 @@ bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, st
                                       value.specular, value.shininess, {}, value.textured};
     std::copy_n(value.mapping, 6, appearance.mapping);
     ChunkNumber chunk = 0;
-    if (!material->FWriteView(writer, kctgMtrl, &chunk, appearance) || chunk != 0)
+    if (!EngineMaterial::WriteView(material, writer, kctgMtrl, &chunk, appearance) || chunk != 0)
         return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
     return mm_private_archive_save(file.get(), kctgSoc) || Fail(error, ErrorCode::decode_failed, "Cannot save the text material.");
 }
@@ -557,9 +555,9 @@ bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSourc
 bool Preview::UseTextPreviewMaterial(Error &error)
 {
     if (!_impl->body || !_impl->tmpl || !_impl->tmpl->FIsTdt()) return false;
-    auto material = static_cast<PMaterial_MTRL>(_impl->cache->PbacoFetch(kctgMtrl, 0, Material_MTRL::FReadMtrl));
+    auto material = EngineMaterial::Fetch(_impl->cache, kctgMtrl, 0);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot load the preview material.");
-    _impl->body->SetPartSetMtrl(0, material); material->Release(); return true;
+    _impl->body->SetPartSetMtrl(0, material); mm_material_owner_release(material); return true;
 }
 bool Preview::ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error)
 try

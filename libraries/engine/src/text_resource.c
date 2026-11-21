@@ -35,8 +35,6 @@ int mm_text_author_name(const char *utf8, char name[MM_TEXT_NAME_BYTES])
     return MM_TEXT_NAME_OK;
 }
 
-static void release(const MMTextResourceServices *s,void *object)
-{ s->generation.release(s->generation.context,object); }
 static void normalize(void *object,const MMTextResourceServices *s)
 { if (!s->generation.length(s->generation.context,object)) s->space(s->context,s->text(s->context,object)); }
 void *mm_text_create(const void *text,MMI32 shape,const MMTag *font,const MMTextResourceServices *s)
@@ -45,7 +43,7 @@ void *mm_text_create(const void *text,MMI32 shape,const MMTag *font,const MMText
     object=s->create(s->context); if (!object) return NULL;
     s->assign(s->context,s->text(s->context,object),text); normalize(object,s);
     d=s->state(s->context,object); d->shape=shape; memcpy(&d->font,font,sizeof(*font));
-    if (!mm_text_initialize_lists(object,&s->generation)) { release(s,object); return NULL; }
+    if (!mm_text_initialize_lists(object,&s->generation)) { s->release_object(s->context,object); return NULL; }
     return object;
 }
 void *mm_text_duplicate(void *object,const MMTextResourceServices *s)
@@ -233,11 +231,11 @@ void *mm_text_tags(const MMTextResourceSource *source, MMU32 type, MMU32 number,
     void *list; MMTextDescriptor d;
     s->publish_error(s->context,error_out,0); list=s->tag_list(s->context);
     if (list && descriptor(source,type,number,&d,s) && s->append_tag(s->context,list,&d.font)) return list;
-    s->publish_error(s->context,error_out,1); if (list) release(s,list); return NULL;
+    s->publish_error(s->context,error_out,1); if (list) s->release_object(s->context,list); return NULL;
 }
 int mm_text_set_names(MMTextNames *names,void *table,const MMTextResourceServices *s)
 {
-    names->table=table; s->generation.retain(s->generation.context,table); return 1;
+    names->table=table; s->retain_object(s->context,table); return 1;
 }
 int mm_text_action_name(const MMTextNames *names,MMI32 id,void *text,const MMTextResourceServices *s)
 {

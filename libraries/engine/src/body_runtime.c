@@ -179,7 +179,7 @@ void mm_body_costume_clear(MMBodyCostume *c,const MMBodyRuntimeServices *s)
     MMI32 i; void *storage;
     if (c->entries)
     {
-        for (i=0;i<c->count;++i) if (c->entries[i]) { s->shape.release(s->shape.context,c->entries[i]); c->entries[i]=NULL; }
+        for (i=0;i<c->count;++i) if (c->entries[i]) { s->shape.release_material(s->shape.context,c->entries[i]); c->entries[i]=NULL; }
         storage=c->entries; s->shape.free_memory(s->shape.context,&storage); c->entries=storage;
     }
     c->count=0;

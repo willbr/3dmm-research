@@ -355,7 +355,7 @@ static int table_costume_set(void *context, const MMTemplateChild *child, MMI32 
     if (!costume)
         return 0;
     *set = s->custom_set(s->context, costume);
-    s->release(s->context, costume);
+    s->release_custom(s->context, costume);
     return 1;
 }
 
@@ -586,7 +586,7 @@ int mm_template_default_costume(void *object, void *body, const MMTemplateCreate
     for (i = 0; i < sets; ++i)
         if (costumes.refs[i])
         {
-            s->release(s->context, costumes.refs[i]);
+            s->release_custom(s->context, costumes.refs[i]);
             costumes.refs[i] = NULL;
         }
     s->free_memory(s->context, &storage);

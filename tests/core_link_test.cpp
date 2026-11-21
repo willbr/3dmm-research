@@ -4679,18 +4679,18 @@ static void TestMaterialHeaders()
         }
         ChunkNumber number;
         Check(file->FAddPv(bytes, sizeof(bytes) - (index == 6 ? 1 : 0), kctgMtrl, &number));
-        PMaterial_MTRL material = (PMaterial_MTRL)resource->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl);
+        PMaterial_MTRL material = EngineMaterial::Fetch(resource, kctgMtrl, number);
         if (index < 3)
         {
             Check(material != pvNil);
-            PBMTL rendered = material->Pbmtl();
+            PBMTL rendered = EngineMaterial::Handle(material);
             Check(rendered->index_base == 21 && rendered->index_range == 7 && rendered->power == BR_SCALAR(50));
             Check(rendered->colour == (index == 0 ? 0 : 0x00112233));
             Check(rendered->ka == (index == 0 ? 0 : (br_ufraction)0x2000));
             Check(rendered->kd == (index == 0 ? (br_ufraction)0xffff : (br_ufraction)0xa000));
             Check(rendered->ks == (index == 0 ? 0 : (br_ufraction)0x1000));
             ChunkNumber written;
-            Check(material->FWrite(file, kctgMtrl, &written));
+            Check(EngineMaterial::Write(material, file, kctgMtrl, &written));
             MaterialOnFile header;
             DataBlock block;
             Check(file->FFind(kctgMtrl, written, &block) && block.FReadRgb(&header, sizeof(header), 0));
@@ -4698,7 +4698,7 @@ static void TestMaterialHeaders()
         }
         else
             Check(material == pvNil);
-        ReleasePpo(&material);
+        mm_material_owner_release(material);
     }
     ReleasePpo(&resource);
     ReleasePpo(&file);
@@ -4920,7 +4920,7 @@ static void TestEngineServices()
     Check(shade != pvNil && fixture != pvNil);
     ChunkNumber shadeNumber;
     Check(EngineTexture::Write(shade, fixture, kctgTmap, &shadeNumber));
-    Check(Material_MTRL::FSetShadeTable(fixture, kctgTmap, shadeNumber));
+    Check(EngineMaterial::SetShadeTable(fixture, kctgTmap, shadeNumber));
     mm_texture_owner_release(shade);
     ReleasePpo(&fixture);
     TestMaterialHeaders();
@@ -4934,10 +4934,10 @@ static void TestEngineServices()
     Check(parents->FAdd(&parent) && sets->FAdd(&set));
     PBody body = Body::PbodyNew(parents, sets);
     Check(body != pvNil);
-    PMaterial_MTRL material = Material_MTRL::PmtrlNew();
+    PMaterial_MTRL material = EngineMaterial::New();
     Check(material != pvNil);
     body->SetPartSetMtrl(0, material);
-    ReleasePpo(&material);
+    mm_material_owner_release(material);
     body->SetRenderCallbacks(&first, Attach, Changed);
     body->Show();
     Check(first.attachments == 1 && first.changes == 1);
@@ -4978,10 +4978,10 @@ static void TestEngineServices()
     Check(body->PbactRoot()->parent == second.root);
     Check(body->FChangeShape(parents, sets));
     Check(body->PbactRoot()->parent == second.root);
-    material = Material_MTRL::PmtrlNew();
+    material = EngineMaterial::New();
     Check(material != pvNil);
     body->SetPartSetMtrl(0, material);
-    ReleasePpo(&material);
+    mm_material_owner_release(material);
     body->Hide();
     // An unbound body can also change visibility without any GUI stubs.
     body->SetRenderCallbacks(0, 0, 0);

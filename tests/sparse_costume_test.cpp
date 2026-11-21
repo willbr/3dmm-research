@@ -18,7 +18,7 @@ int main()
     auto parents = DynamicArray::PglNew(sizeof(short));
     auto sets = DynamicArray::PglNew(sizeof(short));
     auto costumes = GeneralGroup::PggNew(sizeof(int32_t));
-    auto material = Material_MTRL::PmtrlNew();
+    auto material = EngineMaterial::New();
     short parent = -1, set = 0;
     int32_t ids[] = {0, 2}, count = 2;
     TemplateOnFile header = {};
@@ -37,7 +37,7 @@ int main()
     };
     CustomMaterialOnFile custom = {kboCur, koskCur, 0};
     ok = ok && table(kctgGlpi, parents) && table(kctgGlbs, sets) && table(kctgGgcm, costumes) &&
-         material->FWrite(file, kctgMtrl, &materialNumber) &&
+         EngineMaterial::Write(material, file, kctgMtrl, &materialNumber) &&
          file->FAddChildPv(kctgTmpl, number, 0, &custom, sizeof(custom), kctgCmtl, &customNumber) &&
          file->FAdoptChild(kctgCmtl, customNumber, kctgMtrl, materialNumber, 0) &&
          file->FAdoptChild(kctgTmpl, number, kctgCmtl, customNumber, 2);
@@ -49,10 +49,10 @@ int main()
     auto sparse = tmpl ? tmpl->PcmtlFetch(2) : nullptr;
     auto missing = tmpl ? tmpl->PcmtlFetch(1) : nullptr;
     if (!body || !sparse || missing) std::fputs("Sparse costume lookup/application failed.\n", stderr);
-    ok = ok && body && sparse && !missing && sparse->Ibset() == 0;
+    ok = ok && body && sparse && !missing && EngineCostume::Set(sparse) == 0;
     if (body && sparse) body->SetPartSetCmtl(sparse);
-    ReleasePpo(&missing); ReleasePpo(&sparse); ReleasePpo(&body); ReleasePpo(&tmpl);
-    ReleasePpo(&cache); ReleasePpo(&material); ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&costumes);
+    mm_material_owner_release(missing); mm_material_owner_release(sparse); ReleasePpo(&body); ReleasePpo(&tmpl);
+    ReleasePpo(&cache); mm_material_owner_release(material); ReleasePpo(&parents); ReleasePpo(&sets); ReleasePpo(&costumes);
     ReleasePpo(&file);
     BrEnd();
     if (!ok || assertions) return 1;

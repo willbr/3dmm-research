@@ -41,8 +41,8 @@ class TemplateCreateFixtureAccess : public Template
         if (ok && variant!=2) ok=table(kctgGgcm,wireCosts);
         byte action=0; ChunkNumber child;
         ok=ok && file->FAddChildPv(kctgTmpl,*number,0,&action,1,kctgActn,&child) && file->FAddChildPv(kctgTmpl,*number,2,&action,1,kctgActn,&child);
-        auto material=Material_MTRL::PmtrlNew(); ChunkNumber materialNumber=0;
-        ok=ok && material && material->FWrite(file,kctgMtrl,&materialNumber); ReleasePpo(&material);
+        auto material=EngineMaterial::New(); ChunkNumber materialNumber=0;
+        ok=ok && material && EngineMaterial::Write(material, file,kctgMtrl,&materialNumber); mm_material_owner_release(material);
         for (int i=0;ok && i<(parts?4:0);++i)
         {
             CustomMaterialOnFile costume={kboCur,koskCur,i%2};

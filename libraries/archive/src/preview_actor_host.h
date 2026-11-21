@@ -155,11 +155,11 @@ struct PreviewActor::Host
                 const auto file = h.actor->resolve({source, 0, kctgMtrl, number});
                 if (!file)
                     return false;
-                *out = file->PbacoFetch(kctgMtrl, number, Material_MTRL::FReadMtrl);
+                *out = EngineMaterial::Fetch(file, kctgMtrl, number);
                 return *out != nullptr;
             });
         };
-        s.release_material = [](void *, void *material) { static_cast<PMaterial_MTRL>(material)->Release(); };
+        s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<PMaterial_MTRL>(material)); };
         s.apply_material = [](void *v, void *body, void *material) -> int {
             return static_cast<Host *>(v)->Guard([&] {
                 static_cast<PBody>(body)->SetPartSetMtrl(0, static_cast<PMaterial_MTRL>(material));

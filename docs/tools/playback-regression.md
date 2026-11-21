@@ -20126,3 +20126,37 @@ its visible actor states, including the 3D text texture hashes. Retail reopened
 that Studio save in `20261121T211210Z-54a37e92` and reproduced both original
 retail poses and seek canvases. Evidence is under `tmp/c89-cached-texture` and
 `D:/3DMMForever-generated-cache/c89-cached-texture`.
+
+## C89 ownership for MTRL materials and CMTL costumes (21 November 2026)
+
+Ordinary materials and costumes share C89 cache and reference operations.
+Materials release their texture owners, and costumes retain their material
+and model owners. Body costume snapshots, actor effects, Preview overrides and
+Studio material edits use the same lifetime operations. The C++ Material_MTRL
+and CustomMaterial_CMTL classes were removed. BRender still supplies the
+renderer handles. Legacy cache charges and serialized material and transform
+bytes are preserved.
+
+Native x64, native x86 and SDL material traces matched byte for byte. Native
+and SDL sparse costume and movie save/load checks passed. The save/load
+fault injection covered failed 3D text creation and the separate release paths
+for templates, tag lists and generated materials. Native and SDL stock actor
+and spare-costume images matched the previous output. Preview retained its
+admission fingerprint across 45 actors and 21 props. All seven Marcus insertion
+and material-edit movie saves matched the previous bytes. All 193 standalone
+C89 checks and 12 targeted AddressSanitizer checks passed.
+
+In `20261121T212713Z-0703b98c`, both ports reproduced the retained retail frame
+identities during seeks and continuous playback on the 12-frame archive action
+and two-frame textured 3D text fixtures. The 28 seek canvases matched the
+previous port images byte for byte. The archive action retained its 89-pixel
+SDL and one-pixel Marcus differences per frame against retail. Both ports
+retained a one-pixel difference on each textured 3D text frame.
+
+The final Studio build saved and reopened the textured movie and reproduced
+both visible actor states and texture hashes on repeated seeks. The ports
+repeated their prior seek images in `20261121T213424Z-4b47a4ca`. Retail opened
+that Studio save and reproduced both original retail poses and seek canvases.
+Marcus player, headless insertion and costume tests passed after the rebuild.
+Evidence is under `tmp/c89-cached-material` and
+`D:/3DMMForever-generated-cache/c89-cached-material`.

@@ -116,7 +116,7 @@ static MMTextGenerationServices setup(Test *x)
     x->action_host.objects=&x->action_allocator; s.action_host=&x->action_host;
     s.context=x; s.state=state; s.length=length; s.character=character; s.shape=shape; s.template_state=template_state;
     s.table_allocator.context=x; s.table_allocator.resize=resize_table; s.table_allocator.release=free_table;
-    s.material_new=material_new; s.retain=retain; s.release=release; s.font=font; s.font_width=font_width; s.font_height=font_height; s.font_maximum=font_maximum;
+    s.material_new=material_new; s.retain_material=retain; s.release_material=release; s.font=font; s.font_width=font_width; s.font_height=font_height; s.font_maximum=font_maximum;
     s.release_font=release;
     s.glyph=glyph; s.body_shape=body_shape; s.body_material=body_material; x->services=s; return s;
 }

@@ -144,7 +144,7 @@ static MMTemplateRuntimeServices init(Test *x,int parts)
     x->set_indices.view.bytes=(const unsigned char *)x->sets_list; x->set_indices.view.count=parts;
     for (i=0;i<6;++i) { x->body_models[i]=-7; x->body_matrices[i]=-8; x->parents[i]=i?i-1:-1; x->sets_list[i]=i%3; }
     s.storage.context=x; s.storage.state=template_state;
-    s.storage.free_memory=free_memory; s.storage.release=release;
+    s.storage.free_memory=free_memory; s.storage.release=release; s.storage.release_custom=release;
     s.generated_action=action; s.generated_model=model;
     s.allocate_cel=allocate; s.cel_count=cel_count; s.distance=distance; s.flags=flags; s.part=part;
     s.matrix=matrix; s.set_model=set_model; s.set_matrix=set_matrix; s.sound=sound; s.sound_exists=sound_exists;

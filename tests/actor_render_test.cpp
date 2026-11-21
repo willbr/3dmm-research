@@ -72,7 +72,7 @@ int __cdecl main(int argc, char **argv)
     /* Load the shade table from the main 3dmovie.chk. The engine's
      * Material_MTRL keeps a static _ptmapShadeTable that every MTRL
      * load asserts non-nil. The studio sets this at startup via
-     * `Material_MTRL::FSetShadeTable(_pcfl, kctgTmap, 0)` (utest.cpp:452). */
+     * `EngineMaterial::SetShadeTable(_pcfl, kctgTmap, 0)` (utest.cpp:452). */
     stnPath.SetSzs(argv[1]);
     if (!fni.FBuildFromPath(&stnPath))
     {
@@ -85,7 +85,7 @@ int __cdecl main(int argc, char **argv)
         fprintf(stderr, "cannot open shade chk '%s'\n", argv[1]);
         goto LDone;
     }
-    if (!Material_MTRL::FSetShadeTable(pcflShade, kctgTmap, 0))
+    if (!EngineMaterial::SetShadeTable(pcflShade, kctgTmap, 0))
     {
         fprintf(stderr, "FSetShadeTable failed\n");
         goto LDone;
@@ -107,7 +107,7 @@ int __cdecl main(int argc, char **argv)
 
     /* Wrap in CRF with a generous cache (8 MB). The CRF resolves
      * BaseCacheableObject fetches via PFNRPO callbacks (Template::FReadTmpl
-     * here; EngineModel::Read and Material_MTRL::FReadMtrl also fire transitively
+     * here; EngineModel::Read and EngineMaterial::Read also fire transitively
      * through Template::_FInit when costume materials are loaded). */
     pcrf = ChunkyResourceFile::PcrfNew(pcfl, 8L << 20);
     if (pvNil == pcrf)
@@ -184,31 +184,31 @@ int __cdecl main(int argc, char **argv)
         PCustomMaterial_CMTL costume = ptmpl->PcmtlFetch((LegacyLong)strtol(argv[5], NULL, 0));
         if (costume == pvNil)
             goto LDone;
-        const bool spare = pbody->Cbact() == 3 && costume->Ibset() == 0 && costume->Cbprt() == 2;
+        const bool spare = pbody->Cbact() == 3 && EngineCostume::Set(costume) == 0 && EngineCostume::Count(costume) == 2;
         if (spare)
         {
             BodyCostume previous;
             if (!previous.FGet(pbody))
             {
-                ReleasePpo(&costume);
+                mm_material_owner_release(costume);
                 goto LDone;
             }
             pbody->SetPartSetCmtl(costume);
             PBody duplicate = pbody->PbodyDup();
-            const bool matched = duplicate != pvNil && pbody->PbactPart(0)->material == costume->Pbmtl(0) &&
-                                 duplicate->PbactPart(0)->material == costume->Pbmtl(0);
+            const bool matched = duplicate != pvNil && pbody->PbactPart(0)->material == EngineCostume::Handle(costume, 0) &&
+                                 duplicate->PbactPart(0)->material == EngineCostume::Handle(costume, 0);
             ReleasePpo(&duplicate);
             previous.Set(pbody);
             if (matched)
                 pbody->SetPartSetCmtl(costume);
-            ReleasePpo(&costume);
+            mm_material_owner_release(costume);
             if (!matched)
                 goto LDone;
         }
         else
         {
             fprintf(stderr, "Expected a one-part prop with a two-entry costume\n");
-            ReleasePpo(&costume);
+            mm_material_owner_release(costume);
             goto LDone;
         }
     }

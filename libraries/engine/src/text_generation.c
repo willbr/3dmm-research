@@ -42,7 +42,7 @@ int mm_text_initialize_lists(void *object,const MMTextGenerationServices *s)
     sets=build_indices(count,0,s); if (!sets) goto fail;
     costumes=build_costumes(s); if (!costumes) goto fail;
     if (!a->material) material=s->material_new(s->context);
-    else { material=a->material; s->retain(s->context,material); }
+    else { material=a->material; s->retain_material(s->context,material); }
     if (!material) goto fail;
     t=*s->template_state(s->context,object);
     if (t.parents) { mm_part_indices_dispose(t.parents); t.parents=NULL; *s->template_state(s->context,object)=t; }
@@ -51,7 +51,7 @@ int mm_text_initialize_lists(void *object,const MMTextGenerationServices *s)
     t.sets=sets; *s->template_state(s->context,object)=t;
     if (t.costumes) { mm_template_costumes_dispose(t.costumes); t.costumes=NULL; *s->template_state(s->context,object)=t; }
     t.costumes=costumes; *s->template_state(s->context,object)=t;
-    if (a->material) { s->release(s->context,a->material); a->material=NULL; }
+    if (a->material) { s->release_material(s->context,a->material); a->material=NULL; }
     a->material=material;
     mm_action_resource_release(a->action);
     a->action=NULL;
@@ -61,7 +61,7 @@ fail:
     mm_part_indices_dispose(parents);
     mm_part_indices_dispose(sets);
     mm_template_costumes_dispose(costumes);
-    if (material) s->release(s->context,material); return 0;
+    if (material) s->release_material(s->context,material); return 0;
 }
 MMI32 mm_text_cel_count(MMI32 action)
 {
@@ -230,7 +230,7 @@ int mm_text_default_costume(void *object,void *body,const MMTextGenerationServic
 { s->body_material(s->context,body,0,s->state(s->context,object)->material); return 1; }
 void mm_text_dispose(MMTextGenerated *a,const MMTextGenerationServices *s)
 {
-    if (a->material) { s->release(s->context,a->material); a->material=NULL; }
+    if (a->material) { s->release_material(s->context,a->material); a->material=NULL; }
     mm_action_resource_release(a->action);
     a->action=NULL;
 }

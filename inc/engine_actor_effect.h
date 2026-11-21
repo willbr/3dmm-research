@@ -49,11 +49,8 @@ struct EngineActorEffectHost
         s.apply_material = [](void *p, MMI32 set, void *resource) {
             From(p).body->SetPartSetMtrl(set, static_cast<PMaterial_MTRL>(resource));
         };
-        s.release_resource = [](void *, void *resource, int custom) {
-            if (custom)
-                static_cast<PCustomMaterial_CMTL>(resource)->Release();
-            else
-                static_cast<PMaterial_MTRL>(resource)->Release();
+        s.release_resource = [](void *, void *resource, int) {
+            mm_material_owner_release(static_cast<MMMaterialOwner *>(resource));
         };
         s.clear_sounds = [](void *p) { mm_actor_sounds_clear(From(p).sounds); };
         return s;

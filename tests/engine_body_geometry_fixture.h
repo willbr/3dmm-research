@@ -85,7 +85,7 @@ static bool TestBodyGeometry()
     faces[1].vertices[1] = 2;
     faces[1].vertices[2] = 3;
     auto model = EngineModel::New(4, vertices, 2, faces);
-    auto material = Material_MTRL::PmtrlNew();
+    auto material = EngineMaterial::New();
     ok = model && material;
     for (int shape = 0; ok && shape < 3; ++shape)
         for (int matrix = 0; ok && matrix < 6; ++matrix)
@@ -232,7 +232,7 @@ static bool TestBodyGeometry()
 #endif
                 }
     mm_model_owner_release(model);
-    ReleasePpo(&material);
+    mm_material_owner_release(material);
     if (snapshot)
         ok = std::fclose(snapshot) == 0 && ok;
     std::fprintf(stderr, "[body geometry] cases=%d\n", cases);

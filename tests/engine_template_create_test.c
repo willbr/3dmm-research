@@ -318,7 +318,7 @@ static void setup(Fixture *f,int other,int host_big)
     put(f->blocks[0].data+8,2,0x8000,other); put(f->blocks[0].data+12,4,4,other);
     for (i=0;i<6;++i) { put(f->parents.data+i*2,2,i?(MMU32)(i-1):65535U,other!=host_big); put(f->sets.data+i*2,2,(MMU32)i%2,other!=host_big); }
     for (i=0;i<60;++i) { f->customs[i].kind=6; f->customs[i].set=i%2; }
-    f->s.context=f; f->s.state=template_state; f->s.release=release; f->s.decode=decode; f->s.read_name=read_name;
+    f->s.context=f; f->s.state=template_state; f->s.release=release; f->s.release_custom=release; f->s.decode=decode; f->s.read_name=read_name;
     f->s.create=create; f->s.initialize=initialize;
     f->s.object_size=object_size; f->s.invalidate=invalidate;
     f->s.table_allocator.context=f; f->s.table_allocator.resize=resize_table; f->s.table_allocator.release=free_table;

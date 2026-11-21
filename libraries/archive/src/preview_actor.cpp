@@ -138,7 +138,7 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
             auto costume = Ptmpl()->PcmtlFetch(id);
             if (!costume) return false;
             const bool selected = !plain && current == costume;
-            costume->Release();
+            mm_material_owner_release(costume);
             out.push_back({set, int(id), selected, Ptmpl()->FBsetIsAccessory(set)});
         }
     }
@@ -200,7 +200,7 @@ bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
             return c.bodySet == value.bodySet && c.costume == value.costume; })) return false;
         auto costume = Ptmpl()->PcmtlFetch(value.costume);
         if (!costume) return false;
-        Pbody()->SetPartSetCmtl(costume); costume->Release();
+        Pbody()->SetPartSetCmtl(costume); mm_material_owner_release(costume);
     }
     return true;
 }
@@ -359,7 +359,7 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
     effects.fetch_material = [](void *p, const MMTag *tag) -> void * {
         const auto actor = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->actor;
         const auto source = actor->resolve({tag->sid, 0, tag->type, tag->number});
-        return source ? source->PbacoFetch(tag->type, tag->number, Material_MTRL::FReadMtrl) : nullptr;
+        return source ? EngineMaterial::Fetch(source, tag->type, tag->number) : nullptr;
     };
     effects.enqueue_sound = [](void *p, MMI32 index) -> int {
         auto &host = *static_cast<Host *>(EngineActorEffectHost::From(p).owner);
