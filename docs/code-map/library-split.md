@@ -2798,18 +2798,18 @@ final C-only host/facade removal remain work. Evidence and platform limits are i
 
 `text_document.c` controls plain/rich file-save transactions, base initialization/
 loading, rich initialization, document factory cleanup and stream/file/archive/
-property/argument release. Native host slots retain the current typed storage;
-C controls reference transfers and publication. File/stream/collection operations,
-font-table queries and virtual dispatch remain host services. The default load
-hook now uses C; subclass load/read hooks retain their dispatch behavior.
+property/argument release. Native host slots retain the current typed owners;
+C controls reference transfers and publication. Base initialization, plain-file
+load and save, and rich-text reopening share the C89 piece table access. File
+providers, font-table queries and virtual dispatch remain host services.
 
 Base initialization opens the file before validating a borrowed stream, retains
 the stream before publishing it, and appends a native CR sentinel to that same
-stream. A virtual load hook may replace that owner; sentinel insertion uses the
-current stream after the hook returns. Failure leaves partial owners for destruction. Default
-loading retains a mutable file location across translation, allows the translator
-to replace its owner, replaces the full stream, and releases the final location
-on every exit. Empty files skip translation; empty translated output skips replace.
+stream. A virtual load hook may replace that owner. Sentinel insertion uses the
+current piece table after the hook returns. Failure leaves partial owners for
+destruction. Default loading retains a mutable file location across translation,
+replaces the full piece table, and releases the translated location on every exit.
+Empty files skip translation. Empty translated output skips replacement.
 
 Rich opening holds its archive privately until the root read succeeds. Ordinary
 failure releases that archive before reporting a read error; partial live stream/
@@ -2822,20 +2822,22 @@ report a read error. Negative exception results unwind before native rethrow.
 Both file-save profiles select the current name and force adoption for normal
 saves. Copies preserve current owner and dirty state. Plain name queries reject
 temporary files; direct normal save still accepts an existing temporary owner.
-Plain output omits the sentinel and writes a native UTF-16 BOM for two-byte units.
-Plain stream redirection and rich chunk redirection precede renaming; ordinary
-redirect failure remains best effort. Rename failure releases the temporary owner
-without rolling back prior stream redirection. Success clears temporary status,
-then either releases a copy or releases the old owner, transfers the new owner and
-clears the dirty bit. Only rich ordinary failures report save errors. Destruction
+Plain output uses the C block writer to omit the sentinel and write a native
+UTF-16 BOM for two-byte units. The piece table redirects the saved payload on
+adoption. Plain stream redirection and rich chunk redirection precede renaming.
+Ordinary redirect failure remains best effort. Rename failure releases the
+temporary owner without rolling back prior stream redirection. Success clears
+temporary status, then either releases a copy or releases the old owner,
+transfers the new owner and clears the dirty bit. Only rich ordinary failures
+report save errors. Destruction
 releases properties, arguments, archive, then base stream/file in the original order.
 
 The expanded engine movie save/load fixture freezes copy/adopt/normal saves,
 empty and embedded-null/CRLF/ANSI content, dirty/name behavior, borrowed-stream
 reference/sentinel changes, reopen, and fresh rich-document creation. C-only tests
-cover every fallible effect, partial returned/published owners, translation owner
-replacement, redirection before failed rename, BOM/endian rules, factory error/
-release ordering and plain/rich name policies. Materialization is covered below.
+use real piece tables and block writes to cover partial owners, short and file-backed
+translated input, redirection before failed rename, BOM/endian rules, factory
+error/release ordering and plain/rich name policies. Materialization is covered below.
 Editing/undo, native representations, physical providers,
 document/view/parent lifecycle and final C-only host/facade removal remain work.
 Evidence and platform limits are in `docs/tools/playback-regression.md`.

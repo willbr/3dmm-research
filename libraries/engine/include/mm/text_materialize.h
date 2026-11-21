@@ -1,7 +1,6 @@
 /* Stored rich text to live document ownership and argument normalization. */
 #ifndef MM_ENGINE_TEXT_MATERIALIZE_H
 #define MM_ENGINE_TEXT_MATERIALIZE_H
-#include "piece_table.h"
 #include "text_document.h"
 #ifdef __cplusplus
 extern "C"
@@ -14,7 +13,6 @@ extern "C"
         MMTextBaseServices base;
         int (*init_base)(void *);
         int (*defaults)(void *, const MMRichTextDefaults *, const MMMovieTitle *);
-        MMPieceTable *(*pieces)(void *);
         MMArray (*properties)(void *group);
         MMGroup (*arguments)(void *group);
         int (*open_argument)(void *, MMI32 index, unsigned kind, int order, int system);

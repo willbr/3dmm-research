@@ -35,7 +35,6 @@ struct RichTextDocument::MaterializeHost : DocumentHost
                 return 1;
             });
         };
-        s.pieces = [](void *v) { return static_cast<MaterializeHost *>(v)->rich->_pbsf->CorePieces(); };
         s.properties = [](void *p) { return static_cast<PDynamicArray>(p)->CoreRows(); };
         s.arguments = [](void *p) { return static_cast<PAllocatedGroup>(p)->CoreRows(); };
         s.open_argument = [](void *v, MMI32 i, unsigned kind, int order, int system) -> int {

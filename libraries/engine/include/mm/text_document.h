@@ -1,6 +1,7 @@
 /* Text document ownership, initialization and file-save transactions. */
 #ifndef MM_ENGINE_TEXT_DOCUMENT_H
 #define MM_ENGINE_TEXT_DOCUMENT_H
+#include "piece_table.h"
 #include "text_store.h"
 #ifdef __cplusplus
 extern "C"
@@ -47,13 +48,12 @@ extern "C"
     {
         void *context;
         MMTextDocumentObjects objects;
-        MMI32 (*stream_bytes)(void *, void *), (*file_bytes)(void *, void *);
+        MMPieceTable *(*pieces)(void *stream);
+        MMI32 (*file_bytes)(void *, void *);
         int (*open)(void *, void *name, void **owned);
         int (*new_stream)(void *, void **owned);
         int (*load)(void *, int system);
         int (*translate)(void *, MMTextLocation *owned, int system);
-        int (*replace)(void *, void *stream, const MMTextLocation *, MMI32 delete_bytes);
-        int (*append)(void *, void *stream, const void *, MMU32 bytes);
         void (*diagnostic)(void *, int kind);
     } MMTextBaseServices;
     typedef struct MMTextRichInitServices
@@ -75,11 +75,11 @@ extern "C"
         MMTextDocumentObjects objects;
         int (*name)(void *, int profile, void *owner, void *output);
         int (*is_temp)(void *, int profile, void *owner);
-        MMI32 (*stream_bytes)(void *, void *stream);
+        MMPieceTable *(*pieces)(void *stream);
+        const MMHandleServices *handles;
+        const MMBlockFileServices *files;
+        const MMStorageAllocator *copy_allocator;
         int (*create)(void *, int profile, void *name, void **owned);
-        int (*put)(void *, const MMTextLocation *, const void *, MMU32 bytes);
-        int (*write)(void *, void *stream, const MMTextLocation *);
-        int (*redirect)(void *, void *stream, const MMTextLocation *);
         int (*chunk)(void *, void *archive, int redirect);
         int (*save)(void *, void *archive);
         int (*rename)(void *, int profile, void *owner, void *name);
@@ -98,8 +98,8 @@ extern "C"
      * published partial owners for the object's destructor; borrowed streams retain
      * before publication and gain a native CR sentinel. A virtual load hook may
      * replace the published stream; the sentinel is appended to its current owner.
-     * Translation owns a retained,
-     * mutable file location and releases its final owner on all exits.
+     * Translation owns a retained, mutable file location and releases its final
+     * owner on all exits. Piece and block operations use nonthrowing services.
      * Rich open holds its archive privately until a successful read, releasing before
      * ordinary read errors. New rich documents use width-eight groups, grow ten and
      * height twelve. Factory failures release the partial object before native rethrow;

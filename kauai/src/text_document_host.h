@@ -1,5 +1,6 @@
 #ifndef TEXT_DOCUMENT_HOST_H
 #define TEXT_DOCUMENT_HOST_H
+#include "handle_services.h"
 #include "mm/text_document.h"
 #include "mm/text_materialize.h"
 // Typed owner slots and primitive I/O. C owns sequencing and reference transfers.
@@ -53,6 +54,10 @@ struct TextDocumentBase::DocumentHost : TextDocumentFactoryHost
     {
         return {sizeof(achar), koskCur, RichTextStoreHost::NativeBig()};
     }
+    static MMPieceTable *Pieces(void *p)
+    {
+        return static_cast<PFileByteStream>(p)->CorePieces();
+    }
     MMTextDocumentObjects Objects()
     {
         return {this, [](void *v, int slot) -> void * { return static_cast<DocumentHost *>(v)->Get(slot); },
@@ -75,7 +80,7 @@ struct TextDocumentBase::DocumentHost : TextDocumentFactoryHost
         s.context = this;
         s.objects = Objects();
         s.diagnostic = Diagnostic;
-        s.stream_bytes = [](void *, void *p) -> MMI32 { return static_cast<PFileByteStream>(p)->IbMac(); };
+        s.pieces = Pieces;
         s.file_bytes = [](void *, void *p) -> MMI32 { return static_cast<PFileObject>(p)->FpMac(); };
         s.open = [](void *v, void *name, void **out) -> int {
             auto &h = *static_cast<DocumentHost *>(v);
@@ -102,20 +107,6 @@ struct TextDocumentBase::DocumentHost : TextDocumentFactoryHost
             *p = RichTextStoreHost::Location(location);
             return result;
         };
-        s.replace = [](void *v, void *stream, const MMTextLocation *p, MMI32 count) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                auto location = RichTextStoreHost::Location(*p);
-                return static_cast<PFileByteStream>(stream)->FReplaceFlo(&location, false, 0, count);
-            });
-        };
-        s.append = [](void *v, void *stream, const void *bytes, MMU32 n) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                auto p = static_cast<PFileByteStream>(stream);
-                return p->FReplace(const_cast<void *>(bytes), n, p->IbMac(), 0);
-            });
-        };
         return s;
     }
     MMTextFileServices File()
@@ -137,7 +128,10 @@ struct TextDocumentBase::DocumentHost : TextDocumentFactoryHost
         s.is_temp = [](void *, int profile, void *owner) -> int {
             return profile == MM_TEXT_RICH ? 0 : static_cast<PFileObject>(owner)->FTemp();
         };
-        s.stream_bytes = [](void *, void *p) -> MMI32 { return static_cast<PFileByteStream>(p)->IbMac(); };
+        s.pieces = Pieces;
+        s.handles = KauaiHandleServices();
+        s.files = KauaiBlockFileServices();
+        s.copy_allocator = KauaiCopyAllocator();
         s.create = [](void *v, int profile, void *name, void **out) -> int {
             auto &h = *static_cast<DocumentHost *>(v);
             return h.Guard([&] {
@@ -145,27 +139,6 @@ struct TextDocumentBase::DocumentHost : TextDocumentFactoryHost
                            ? static_cast<void *>(ChunkyFile::PcflCreateTemp(static_cast<PFilename>(name)))
                            : static_cast<void *>(FileObject::PfilCreateTemp(static_cast<PFilename>(name)));
                 return *out != nullptr;
-            });
-        };
-        s.put = [](void *v, const MMTextLocation *p, const void *bytes, MMU32 n) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                auto location = RichTextStoreHost::Location(*p);
-                return location.FWriteRgb(const_cast<void *>(bytes), n, 0);
-            });
-        };
-        s.write = [](void *v, void *stream, const MMTextLocation *p) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                auto location = RichTextStoreHost::Location(*p);
-                return static_cast<PFileByteStream>(stream)->FWriteRgb(&location);
-            });
-        };
-        s.redirect = [](void *v, void *stream, const MMTextLocation *p) -> int {
-            auto &h = *static_cast<DocumentHost *>(v);
-            return h.Guard([&] {
-                auto location = RichTextStoreHost::Location(*p);
-                return static_cast<PFileByteStream>(stream)->FReplaceFlo(&location, false, 0, p->bytes);
             });
         };
         s.chunk = [](void *v, void *archive, int redirect) -> int {

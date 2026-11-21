@@ -26,7 +26,8 @@ int mm_text_base_load(int encoding, const MMTextBaseServices *s)
 {
     const MMTextDocumentObjects *o = &s->objects;
     MMTextLocation location;
-    void *stream;
+    MMPieceTable *pieces;
+    MMFilePiece piece;
     int r;
     location.file = o->get(o->context, MM_TEXT_OWNER_FILE);
     if (!location.file)
@@ -37,10 +38,13 @@ int mm_text_base_load(int encoding, const MMTextBaseServices *s)
     location.offset = 0;
     o->retain(o->context, MM_TEXT_OWNER_FILE, location.file);
     r = s->translate(s->context, &location, encoding);
-    if (r > 0)
+    if (r > 0 && location.bytes)
     {
-        stream = o->get(o->context, MM_TEXT_OWNER_STREAM);
-        r = location.bytes ? s->replace(s->context, stream, &location, s->stream_bytes(s->context, stream)) : 1;
+        pieces = s->pieces(o->get(o->context, MM_TEXT_OWNER_STREAM));
+        piece.file = location.file;
+        piece.offset = location.offset;
+        piece.length = (MMU32)location.bytes;
+        r = mm_piece_table_replace_file(pieces, 0, pieces->length, &piece, 0) == MM_DATA_OK;
     }
     if (location.file)
         o->release(o->context, MM_TEXT_OWNER_FILE, location.file);
@@ -50,6 +54,7 @@ int mm_text_base_init(const MMTextDocumentConfig *c, void *name, void *stream, i
                       const MMTextBaseServices *s)
 {
     const MMTextDocumentObjects *o = &s->objects;
+    MMPieceTable *pieces;
     void *owner = 0;
     int r;
     unsigned char cr[2];
@@ -69,7 +74,7 @@ int mm_text_base_init(const MMTextDocumentConfig *c, void *name, void *stream, i
             s->diagnostic(s->context, MM_TEXT_DOC_ENCODING);
             return 0;
         }
-        if (s->stream_bytes(s->context, stream) % (MMI32)c->unit)
+        if (s->pieces(stream)->length % c->unit)
         {
             s->diagnostic(s->context, MM_TEXT_DOC_PARTIAL_CHAR);
             return 0;
@@ -84,13 +89,12 @@ int mm_text_base_init(const MMTextDocumentConfig *c, void *name, void *stream, i
         o->set(o->context, MM_TEXT_OWNER_STREAM, owner);
         if (r <= 0)
             return r;
-        stream = owner;
         r = s->load(s->context, encoding);
         if (r <= 0)
             return r;
     }
     /* A virtual load hook may replace the published stream. */
-    stream = o->get(o->context, MM_TEXT_OWNER_STREAM);
+    pieces = s->pieces(o->get(o->context, MM_TEXT_OWNER_STREAM));
     cr[0] = 13;
     cr[1] = 0;
     if (c->unit == 2 && c->big)
@@ -98,7 +102,7 @@ int mm_text_base_init(const MMTextDocumentConfig *c, void *name, void *stream, i
         cr[0] = 0;
         cr[1] = 13;
     }
-    return s->append(s->context, stream, cr, c->unit);
+    return mm_piece_table_replace(pieces, pieces->length, 0, cr, c->unit) == MM_DATA_OK;
 }
 int mm_text_rich_init(const MMTextDocumentConfig *c, void *name, MMU32 type, const MMTextRichInitServices *s)
 {
@@ -168,13 +172,45 @@ int mm_text_document_name(int profile, void *name, const MMTextFileServices *s)
         return 0;
     return s->name(s->context, profile, owner, name);
 }
+static int save_plain(const MMTextDocumentConfig *c, void *temporary, int adopt, const MMTextFileServices *s)
+{
+    const MMTextDocumentObjects *o = &s->objects;
+    MMPieceTable *pieces = s->pieces(o->get(o->context, MM_TEXT_OWNER_STREAM));
+    MMOwnedBlock block;
+    MMBlockFile location;
+    MMFilePiece piece;
+    MMBlockIO io;
+    unsigned char bom[2];
+    int ok = 1;
+    if (pieces->length < c->unit || mm_owned_block_init(&block, s->handles, s->files) != MM_DATA_OK)
+        return 0;
+    location.file = temporary;
+    location.offset = 0;
+    location.length = c->unit == 2 ? pieces->length : pieces->length - c->unit;
+    if (mm_owned_block_set_file(&block, &location, 0) != MM_DATA_OK)
+        return 0;
+    if (c->unit == 2)
+    {
+        bom[c->big ? 1 : 0] = 0xff;
+        bom[c->big ? 0 : 1] = 0xfe;
+        ok = mm_owned_block_io(&block, &io) == MM_DATA_OK && mm_block_write(&io, 0, bom, 2, 0) == MM_DATA_OK &&
+             mm_block_move_min(&block.view, 2) == MM_DATA_OK;
+    }
+    if (ok)
+        ok = mm_piece_table_write(pieces, 0, &block, s->copy_allocator) == MM_DATA_OK;
+    piece.file = temporary;
+    piece.offset = block.view.start;
+    piece.length = block.view.length;
+    mm_owned_block_clear(&block);
+    if (ok && adopt)
+        mm_piece_table_replace_file(pieces, 0, piece.length, &piece, 0);
+    return ok;
+}
 int mm_text_document_save(int profile, const MMTextDocumentConfig *c, void *name, void *fallback, int adopt,
                           const MMTextFileServices *s)
 {
     const MMTextDocumentObjects *o = &s->objects;
-    void *current, *temporary = 0, *stream;
-    MMTextLocation location;
-    unsigned char bom[2];
+    void *current, *temporary = 0;
     int r, kind = slot(profile);
     if (c->unit != 1 && c->unit != 2)
         return 0;
@@ -206,30 +242,9 @@ int mm_text_document_save(int profile, const MMTextDocumentConfig *c, void *name
     }
     else
     {
-        stream = o->get(o->context, MM_TEXT_OWNER_STREAM);
-        location.file = temporary;
-        location.offset = 0;
-        location.bytes = s->stream_bytes(s->context, stream) - (MMI32)c->unit;
-        if (c->unit == 2)
-        {
-            location.bytes += 2;
-            bom[c->big ? 1 : 0] = 0xff;
-            bom[c->big ? 0 : 1] = 0xfe;
-            r = s->put(s->context, &location, bom, 2);
-            if (r <= 0)
-                goto fail;
-            location.offset = 2;
-            location.bytes -= 2;
-        }
-        r = s->write(s->context, stream, &location);
-        if (r <= 0)
+        r = save_plain(c, temporary, adopt, s);
+        if (!r)
             goto fail;
-        if (adopt)
-        {
-            r = s->redirect(s->context, stream, &location);
-            if (r < 0)
-                goto fail;
-        }
     }
     r = s->rename(s->context, profile, temporary, name);
     if (r <= 0)

@@ -187,11 +187,15 @@ static int translate(void *v, MMTextLocation *p, int system)
     }
     return step(h, 'T');
 }
-static MMPieceTable *pieces(void *v)
+static void *get(void *v, int slot)
 {
     Host *h = (Host *)v;
-    CHECK(h->base && h->defaults);
+    CHECK(slot == MM_TEXT_OWNER_STREAM && h->base && h->defaults);
     return &h->pieces;
+}
+static MMPieceTable *pieces(void *p)
+{
+    return (MMPieceTable *)p;
 }
 static int piece_read(void *v, const MMFilePiece *p, void *out)
 {
@@ -306,13 +310,14 @@ static void init(Host *h, unsigned unit, int big, int foreign)
     s->read.group = group;
     s->base.context = h;
     s->base.objects.context = h;
+    s->base.objects.get = get;
     s->base.objects.set = set;
     s->base.objects.retain = retain;
     s->base.objects.release = release;
     s->base.translate = translate;
+    s->base.pieces = pieces;
     s->init_base = base;
     s->defaults = defaults;
-    s->pieces = pieces;
     s->properties = properties;
     s->arguments = arguments;
     s->open_argument = open_argument;

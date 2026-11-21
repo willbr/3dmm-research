@@ -16,7 +16,7 @@ struct TextDocumentBase::ReplaceHost : DocumentHost
             auto base = h.Base();
             return base.translate(base.context, p, system);
         };
-        s.pieces = [](void *stream) { return static_cast<PFileByteStream>(stream)->CorePieces(); };
+        s.pieces = Pieces;
         s.invalidate = [](void *v, MMI32 at, MMI32 ins, MMI32 del) -> int {
             auto &h = *static_cast<ReplaceHost *>(v);
             return h.Guard([&] {

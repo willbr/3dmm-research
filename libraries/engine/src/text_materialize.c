@@ -14,6 +14,7 @@ int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 nu
     MMPieceTable *pieces;
     MMArray properties;
     MMGroup arguments;
+    const MMTextDocumentObjects *objects = &s->base.objects;
     MMGroupLocation entry;
     void *original, *group;
     MMU32 i, words[2], fixed;
@@ -35,7 +36,7 @@ int mm_text_materialize(const MMTextDocumentConfig *config, MMU32 type, MMU32 nu
     result = s->base.translate(s->base.context, &location, stored.text_system);
     if (result > 0)
     {
-        pieces = s->pieces(s->context);
+        pieces = s->base.pieces(objects->get(objects->context, MM_TEXT_OWNER_STREAM));
         piece.file = location.file;
         piece.offset = location.offset;
         piece.length = (MMU32)location.bytes;

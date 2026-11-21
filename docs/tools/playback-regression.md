@@ -18203,3 +18203,25 @@ in seek and continuous playback, all 11 archived retail seek cameras, and all
 their retail rendering differences. SDL also kept the edited caption, right
 alignment, Times New Roman font and visibility window. Logs are in
 `tmp/c89-text-piece-edits`.
+
+## C89 plain-text document loading and file saves (21 November 2026)
+
+Text initialization loads through the C piece table and appends the native CR
+sentinel to the stream published by the virtual load hook. Plain-file saves
+write through the C block and piece-table APIs. They omit the sentinel, write
+the native UTF-16 BOM for two-byte text, and redirect before the rename on adoption.
+The fixture checks both byte orders, translated file ownership, ordinary write
+and allocation failures, and saved file references after rename failure.
+
+All 192 standalone C checks, seven focused AddressSanitizer checks and 16 native
+C89 and Marcus checks passed. Native x64, native x86 and SDL reproduced 21
+binary traces and the text-document and Help display fingerprints from the
+previous build. Studio's authoring workflow reproduced its saved movie byte
+for byte.
+
+In `20261121T063606Z-41052b7f`, SDL and Marcus matched their preceding 11 seek
+canvases and the archived retail frame identities in seek and continuous playback
+and the retail seek cameras. SDL kept the saved caption, right alignment, Times
+New Roman font and visibility window. Both ports still differ from retail where
+the caption is visible on frames 4 through 6. Logs are in
+`tmp/c89-text-document-pieces`.

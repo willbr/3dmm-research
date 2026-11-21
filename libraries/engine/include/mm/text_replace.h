@@ -1,7 +1,6 @@
 /* Plain/rich text replacement transactions over piece tables and virtual services. */
 #ifndef MM_ENGINE_TEXT_REPLACE_H
 #define MM_ENGINE_TEXT_REPLACE_H
-#include "piece_table.h"
 #include "text_format.h"
 #ifdef __cplusplus
 extern "C"

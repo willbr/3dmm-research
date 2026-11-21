@@ -1133,6 +1133,8 @@ resource ownership and write rollback now also use C89. Live rich-text chunk sav
 text redirection and text-box adoption/rollback now also use C89. Plain/rich text
 file-save transactions, base initialization/loading, rich initialization/factories
 and stream/file/archive/property/argument release control now also use C89.
+Plain initialization loads into and appends the sentinel through the C89 piece
+table. Plain saves write and redirect via C89 blocks and piece tables.
 Stored-to-live rich-text loading, property/argument byte normalization and default
 font argument opening now also use C89, preserving virtual extension hooks.
 Studio reopens rich text through the C piece table and normalizes the published

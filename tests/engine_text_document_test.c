@@ -13,9 +13,10 @@ static void check(int ok, int line)
 #define CHECK(x) check((x), __LINE__)
 typedef struct Token
 {
-    int refs, temp;
+    int refs, temp, live;
     MMI32 bytes;
-    struct Token *backing;
+    unsigned char data[2052];
+    MMPieceTable pieces;
 } Token;
 typedef struct Host
 {
@@ -23,13 +24,13 @@ typedef struct Host
     MMTextRichInitServices rich;
     MMTextFileServices file;
     MMTextFactoryServices factory;
+    MMBlockFileServices block_files;
     MMTextDocumentConfig config;
     Token tokens[12];
     void *slots[5];
     int calls, fail_at, failure, partial, change_file, translated_empty, profile, dirty, redirected, redirect_flag,
         read_errors, save_errors, diagnostic;
-    int names, requested, fallback, returned, load_replacement;
-    unsigned char bom[2], cr[2];
+    int names, requested, fallback, returned, load_replacement, saving, refuse_allocation;
     char failed, log[256];
     unsigned used;
 } Host;
@@ -75,16 +76,121 @@ static void release(void *v, int kind, void *p)
 {
     Host *h = (Host *)v;
     Token *t = (Token *)p;
-    (void)kind;
     CHECK(t->refs > 0);
     --t->refs;
     event(h, 'x');
-    if (!t->refs && t->backing)
+    if (kind == MM_TEXT_OWNER_STREAM && !t->refs && t->live)
     {
-        release(v, MM_TEXT_OWNER_FILE, t->backing);
-        t->backing = 0;
+        CHECK(mm_piece_table_dispose(&t->pieces) == MM_DATA_OK);
+        t->live = 0;
     }
 }
+static void retain_file(void *v, void *p)
+{
+    retain(v, MM_TEXT_OWNER_FILE, p);
+}
+static void release_file(void *v, void *p)
+{
+    release(v, MM_TEXT_OWNER_FILE, p);
+}
+static void *unexpected_temp(void *v)
+{
+    (void)v;
+    CHECK(0);
+    return NULL;
+}
+static int read_file(void *v, void *p, MMU32 offset, void *out, size_t count)
+{
+    Host *h = (Host *)v;
+    Token *t = (Token *)p;
+    int redirect = h->saving && t == h->tokens + 5;
+    int r = step(h, redirect ? 'D' : 'P');
+    CHECK(t->refs && offset <= (MMU32)t->bytes && count <= (MMU32)t->bytes - offset);
+    if (r <= 0)
+        return 0;
+    memcpy(out, t->data + offset, count);
+    h->redirected |= redirect;
+    return 1;
+}
+static int write_file(void *v, void *p, MMU32 offset, const void *data, size_t count)
+{
+    Host *h = (Host *)v;
+    Token *t = (Token *)p;
+    int r = step(h, h->config.unit == 2 && offset == 0 ? 'B' : 'W');
+    CHECK(t == h->tokens + 5 && t->refs && offset == (MMU32)t->bytes && count <= sizeof(t->data) - offset);
+    if (r <= 0)
+        return 0;
+    memcpy(t->data + offset, data, count);
+    t->bytes += (MMI32)count;
+    return 1;
+}
+static int read_piece(void *v, const MMFilePiece *p, void *out)
+{
+    return read_file(v, p->file, p->offset, out, p->length);
+}
+static void *resize_storage(void *v, void *p, MMU32 old, MMU32 bytes, int priority)
+{
+    Host *h = (Host *)v;
+    (void)old;
+    (void)priority;
+    return h->refuse_allocation ? NULL : realloc(p, bytes);
+}
+static void free_storage(void *v, void *p, MMU32 bytes)
+{
+    (void)v;
+    (void)bytes;
+    free(p);
+}
+static void init_stream(Host *h, Token *t)
+{
+    MMStorageAllocator allocator;
+    MMPieceFiles files;
+    allocator.context = h;
+    allocator.resize = resize_storage;
+    allocator.release = free_storage;
+    memset(&files, 0, sizeof(files));
+    files.context = h;
+    files.retain = retain_file;
+    files.release = release_file;
+    files.read = read_piece;
+    CHECK(!t->live && mm_piece_table_init(&t->pieces, &allocator, &files, 0) == MM_DATA_OK);
+    t->live = 1;
+}
+static MMPieceTable *pieces(void *p)
+{
+    Token *t = (Token *)p;
+    CHECK(t->live);
+    return &t->pieces;
+}
+static void unexpected_handle(void *v, void *p)
+{
+    (void)v;
+    (void)p;
+    CHECK(0);
+}
+static int allocate_handle(void *v, MMU32 bytes, void **out)
+{
+    (void)bytes;
+    unexpected_handle(v, out);
+    return 0;
+}
+static int resize_handle(void *v, void **p, MMU32 bytes)
+{
+    return allocate_handle(v, bytes, p);
+}
+static MMU32 size_handle(void *v, void *p)
+{
+    unexpected_handle(v, p);
+    return 0;
+}
+static void *lock_handle(void *v, void *p)
+{
+    unexpected_handle(v, p);
+    return NULL;
+}
+static const MMHandleServices handles = {
+    NULL, allocate_handle, unexpected_handle, size_handle, lock_handle, unexpected_handle, resize_handle
+};
 static MMI32 length(void *v, void *p)
 {
     (void)v;
@@ -110,7 +216,7 @@ static int new_stream(void *v, void **out)
     {
         *out = h->tokens + 6;
         h->tokens[6].refs = 1;
-        h->tokens[6].bytes = 0;
+        init_stream(h, h->tokens + 6);
     }
     return r;
 }
@@ -122,7 +228,8 @@ static int load(void *v, int system)
     {
         release(v, MM_TEXT_OWNER_STREAM, h->slots[1]);
         h->tokens[11].refs = 1;
-        h->tokens[11].bytes = 2;
+        init_stream(h, h->tokens + 11);
+        CHECK(mm_piece_table_replace(&h->tokens[11].pieces, 0, 0, "xy", 2) == MM_DATA_OK);
         set(v, MM_TEXT_OWNER_STREAM, h->tokens + 11);
         return 1;
     }
@@ -142,36 +249,6 @@ static int translate(void *v, MMTextLocation *p, int system)
     }
     if (r > 0 && h->translated_empty)
         p->bytes = 0;
-    return r;
-}
-static void backing(Host *h, Token *stream, Token *file)
-{
-    if (stream->backing)
-        release(h, MM_TEXT_OWNER_FILE, stream->backing);
-    stream->backing = file;
-    retain(h, MM_TEXT_OWNER_FILE, file);
-}
-static int replace(void *v, void *stream, const MMTextLocation *p, MMI32 bytes)
-{
-    Host *h = (Host *)v;
-    Token *s = (Token *)stream;
-    int r = step(h, 'P');
-    CHECK(bytes == s->bytes);
-    if (r > 0)
-    {
-        backing(h, s, (Token *)p->file);
-        s->bytes = p->bytes;
-    }
-    return r;
-}
-static int append(void *v, void *stream, const void *p, MMU32 bytes)
-{
-    Host *h = (Host *)v;
-    int r = step(h, 'A');
-    CHECK(bytes == h->config.unit);
-    memcpy(h->cr, p, bytes);
-    if (r > 0)
-        ((Token *)stream)->bytes += (MMI32)bytes;
     return r;
 }
 static void diagnostic(void *v, int kind)
@@ -217,32 +294,7 @@ static int create(void *v, int profile, void *name, void **out)
         *out = h->tokens + index;
         h->tokens[index].refs = 1;
         h->tokens[index].temp = 1;
-    }
-    return r;
-}
-static int put(void *v, const MMTextLocation *p, const void *bytes, MMU32 count)
-{
-    Host *h = (Host *)v;
-    CHECK(p->file == h->tokens + 5 && p->offset == 0 && p->bytes == 6 && count == 2);
-    memcpy(h->bom, bytes, 2);
-    return step(h, 'B');
-}
-static int write_stream(void *v, void *stream, const MMTextLocation *p)
-{
-    Host *h = (Host *)v;
-    CHECK(stream == h->tokens + 1 && p->file == h->tokens + 5 && p->bytes == 4 &&
-          p->offset == (h->config.unit == 2 ? 2U : 0U));
-    return step(h, 'W');
-}
-static int redirect(void *v, void *stream, const MMTextLocation *p)
-{
-    Host *h = (Host *)v;
-    int r = step(h, 'D');
-    CHECK(stream == h->tokens + 1 && p->file == h->tokens + 5 && p->bytes == 4);
-    if (r > 0)
-    {
-        backing(h, (Token *)stream, (Token *)p->file);
-        h->redirected = 1;
+        h->tokens[index].bytes = 0;
     }
     return r;
 }
@@ -384,7 +436,9 @@ static void setup(Host *h, unsigned unit, int big)
     h->dirty = 1;
     for (i = 0; i < 12; ++i)
         h->tokens[i].bytes = 4;
-    h->tokens[1].bytes = 4 + (MMI32)unit;
+    memcpy(h->tokens[5].data, "1234", 4);
+    memcpy(h->tokens[9].data, "--5678", 6);
+    h->tokens[9].bytes = 6;
     h->tokens[10].refs = 1;
     o.context = h;
     o.get = get;
@@ -393,14 +447,12 @@ static void setup(Host *h, unsigned unit, int big)
     o.release = release;
     h->base.context = h;
     h->base.objects = o;
-    h->base.stream_bytes = length;
+    h->base.pieces = pieces;
     h->base.file_bytes = length;
     h->base.open = open_file;
     h->base.new_stream = new_stream;
     h->base.load = load;
     h->base.translate = translate;
-    h->base.replace = replace;
-    h->base.append = append;
     h->base.diagnostic = diagnostic;
     h->rich.context = h;
     h->rich.objects = o;
@@ -416,11 +468,16 @@ static void setup(Host *h, unsigned unit, int big)
     h->file.objects = o;
     h->file.name = name;
     h->file.is_temp = is_temp;
-    h->file.stream_bytes = length;
+    h->block_files.context = h;
+    h->block_files.retain = retain_file;
+    h->block_files.release = release_file;
+    h->block_files.create_temp = unexpected_temp;
+    h->block_files.read = read_file;
+    h->block_files.write = write_file;
+    h->file.pieces = pieces;
+    h->file.handles = &handles;
+    h->file.files = &h->block_files;
     h->file.create = create;
-    h->file.put = put;
-    h->file.write = write_stream;
-    h->file.redirect = redirect;
     h->file.chunk = chunk;
     h->file.save = save;
     h->file.rename = rename_file;
@@ -441,19 +498,29 @@ static void dispose(Host *h)
     mm_text_document_dispose(0, &h->base.objects);
     for (i = 0; i < 12; ++i)
         CHECK(h->tokens[i].refs == (i == 10 ? 1 : 0));
+    release(h, MM_TEXT_OWNER_STREAM, h->tokens + 10);
 }
 static void file_owners(Host *h, int profile)
 {
+    unsigned char initial[6] = {'A', 'B', 'C', 'D', 0, 0};
     h->profile = profile;
     h->slots[profile == MM_TEXT_RICH ? 2 : 0] = h->tokens + (profile == MM_TEXT_RICH ? 2 : 0);
     h->tokens[profile == MM_TEXT_RICH ? 2 : 0].refs = 1;
     h->slots[1] = h->tokens + 1;
     h->tokens[1].refs = 1;
+    if (profile == MM_TEXT_PLAIN)
+    {
+        h->saving = 1;
+        init_stream(h, h->tokens + 1);
+        initial[h->config.unit == 2 && h->config.big ? 5 : 4] = 13;
+        CHECK(mm_piece_table_replace(pieces(h->slots[1]), 0, 0, initial, 4 + h->config.unit) == MM_DATA_OK);
+    }
 }
 static void saves(void)
 {
     Host h;
-    int profile, adopt, normal, big, partial, f, i, n, r;
+    int profile, adopt, normal, big, partial, f, i, n, r, expected;
+    const unsigned char *data;
     unsigned unit;
     for (profile = 0; profile < 2; ++profile)
         for (unit = 1; unit <= 2; ++unit)
@@ -471,8 +538,15 @@ static void saves(void)
                                                     h.tokens + (profile == MM_TEXT_RICH ? 7 : 5)));
                         if (profile == MM_TEXT_RICH)
                             CHECK(h.redirect_flag == (adopt || normal));
-                        if (profile == MM_TEXT_PLAIN && unit == 2)
-                            CHECK(h.bom[big ? 1 : 0] == 0xff && h.bom[big ? 0 : 1] == 0xfe);
+                        else
+                        {
+                            data = h.tokens[5].data;
+                            CHECK(h.tokens[5].bytes == (unit == 2 ? 6 : 4));
+                            if (unit == 2)
+                                CHECK(data[big ? 1 : 0] == 0xff && data[big ? 0 : 1] == 0xfe);
+                            CHECK(!memcmp(data + (unit == 2 ? 2 : 0), "ABCD", 4));
+                            CHECK(h.redirected == (adopt || normal));
+                        }
                         n = h.calls;
                         dispose(&h);
                         for (partial = 0; partial < 2; ++partial)
@@ -486,18 +560,20 @@ static void saves(void)
                                     h.failure = f;
                                     r = mm_text_document_save(profile, &h.config, normal ? 0 : &h.requested,
                                                               &h.fallback, adopt, &h.file);
-                                    if (!f && h.failed == 'D')
+                                    if (h.failed == 'D')
                                         CHECK(r == 1 && !h.dirty && !h.save_errors);
                                     else
                                     {
-                                        CHECK(r == f && h.dirty &&
+                                        expected = h.failed == 'B' || h.failed == 'W' ? 0 : f;
+                                        CHECK(r == expected && h.dirty &&
                                               h.slots[profile == MM_TEXT_RICH ? 2 : 0] ==
                                                   h.tokens + (profile == MM_TEXT_RICH ? 2 : 0));
                                         CHECK(h.save_errors == (!f && profile == MM_TEXT_RICH && h.failed != 'N'));
                                         if (h.save_errors && (h.partial || h.failed != 'C'))
                                             CHECK(strchr(h.log, 'x') < strchr(h.log, 'E'));
                                         if (h.failed == 'R' && profile == MM_TEXT_PLAIN && (adopt || normal))
-                                            CHECK(h.redirected && h.tokens[5].refs == 1 && h.tokens[5].temp);
+                                            CHECK(h.redirected && !h.tokens[5].refs && h.tokens[5].temp &&
+                                                  strchr(h.log, 'D') < strchr(h.log, 'R'));
                                     }
                                     dispose(&h);
                                 }
@@ -517,11 +593,20 @@ static void saves(void)
         dispose(&h);
     }
 }
+static Token *borrowed(Host *h, MMU32 length)
+{
+    Token *t = h->tokens + 10;
+    init_stream(h, t);
+    CHECK(mm_piece_table_replace(&t->pieces, 0, 0, "ABCD", length) == MM_DATA_OK);
+    return t;
+}
 static void base_init(void)
 {
     Host h;
     int named, borrow, big, partial, f, i, n, r, change;
-    unsigned unit;
+    unsigned unit, bytes;
+    unsigned char content[6];
+    MMPieceTable *stream;
     for (unit = 1; unit <= 2; ++unit)
         for (big = 0; big < 2; ++big)
             for (named = 0; named < 2; ++named)
@@ -530,9 +615,16 @@ static void base_init(void)
                     {
                         setup(&h, unit, big);
                         h.change_file = change;
-                        CHECK(mm_text_base_init(&h.config, named ? &h.requested : 0, borrow ? h.tokens + 10 : 0,
+                        CHECK(mm_text_base_init(&h.config, named ? &h.requested : 0, borrow ? borrowed(&h, 4) : 0,
                                                 h.config.system, &h.base) == 1);
-                        CHECK(h.cr[unit == 2 && big ? 1 : 0] == 13 && (unit == 1 || !h.cr[big ? 0 : 1]));
+                        stream = pieces(h.slots[1]);
+                        bytes = named || borrow ? 4 : 0;
+                        CHECK(stream->length == bytes + unit);
+                        CHECK(mm_piece_table_read(stream, 0, content, bytes + unit) == MM_DATA_OK);
+                        CHECK(content[bytes + (unit == 2 && big ? 1 : 0)] == 13 &&
+                              (unit == 1 || !content[bytes + (big ? 0 : 1)]));
+                        if (bytes)
+                            CHECK(!memcmp(content, borrow ? "ABCD" : change ? "5678" : "1234", bytes));
                         n = h.calls;
                         dispose(&h);
                         for (partial = 0; partial < 2; ++partial)
@@ -545,8 +637,8 @@ static void base_init(void)
                                     h.fail_at = i;
                                     h.failure = f;
                                     r = mm_text_base_init(&h.config, named ? &h.requested : 0,
-                                                          borrow ? h.tokens + 10 : 0, h.config.system, &h.base);
-                                    CHECK(r == f);
+                                                          borrow ? borrowed(&h, 4) : 0, h.config.system, &h.base);
+                                    CHECK(r == (h.failed == 'P' ? 0 : f));
                                     dispose(&h);
                                 }
                     }
@@ -555,9 +647,9 @@ static void base_init(void)
           h.diagnostic == MM_TEXT_DOC_ENCODING + 1 && h.slots[0] && !h.slots[1]);
     dispose(&h);
     setup(&h, 2, 0);
-    h.tokens[10].bytes = 3;
-    CHECK(!mm_text_base_init(&h.config, 0, h.tokens + 10, h.config.system, &h.base) &&
+    CHECK(!mm_text_base_init(&h.config, 0, borrowed(&h, 3), h.config.system, &h.base) &&
           h.diagnostic == MM_TEXT_DOC_PARTIAL_CHAR + 1 && h.tokens[10].refs == 1 && !h.slots[1]);
+    dispose(&h);
     setup(&h, 1, 0);
     h.translated_empty = 1;
     CHECK(mm_text_base_init(&h.config, &h.requested, 0, h.config.system, &h.base) == 1 && !strchr(h.log, 'P'));
@@ -569,8 +661,56 @@ static void base_init(void)
     setup(&h, 1, 0);
     h.load_replacement = 1;
     CHECK(mm_text_base_init(&h.config, 0, 0, h.config.system, &h.base) == 1 && h.slots[1] == h.tokens + 11 &&
-          h.tokens[11].bytes == 3 && !h.tokens[6].refs && !h.tokens[6].bytes);
+          pieces(h.slots[1])->length == 3 && !h.tokens[6].refs && !h.tokens[6].live);
+    CHECK(mm_piece_table_read(pieces(h.slots[1]), 0, content, 3) == MM_DATA_OK && !memcmp(content, "xy\r", 3));
     dispose(&h);
+    setup(&h, 1, 0);
+    h.refuse_allocation = 1;
+    CHECK(!mm_text_base_init(&h.config, 0, 0, h.config.system, &h.base) && h.slots[1] && !pieces(h.slots[1])->length);
+    dispose(&h);
+}
+static void file_backed_text(void)
+{
+    Host h;
+    MMPieceTable *stream;
+    MMFilePiece source, saved;
+    unsigned char tail[4];
+    int fail;
+    setup(&h, 1, 0);
+    h.change_file = 1;
+    h.tokens[5].bytes = 2048;
+    h.tokens[9].bytes = 2050;
+    memset(h.tokens[9].data + 2, 'T', 2048);
+    CHECK(mm_text_base_init(&h.config, &h.requested, NULL, h.config.system, &h.base) == 1);
+    stream = pieces(h.slots[1]);
+    CHECK(mm_piece_table_get(stream, 0, &saved, NULL) == MM_DATA_OK);
+    CHECK(saved.file == h.tokens + 9 && saved.offset == 2 && saved.length == 2048 && h.tokens[9].refs == 1);
+    CHECK(mm_piece_table_read(stream, 2046, tail, 3) == MM_DATA_OK && !memcmp(tail, "TT\r", 3));
+    dispose(&h);
+
+    for (fail = 0; fail <= 1; ++fail)
+    {
+        setup(&h, 2, 0);
+        file_owners(&h, MM_TEXT_PLAIN);
+        stream = pieces(h.slots[1]);
+        source.file = h.tokens;
+        source.offset = 0;
+        source.length = 2050;
+        h.tokens[0].bytes = 2050;
+        memset(h.tokens[0].data, 'P', 2050);
+        CHECK(mm_piece_table_replace_file(stream, 0, 4, &source, 0) == MM_DATA_OK);
+        if (fail)
+            h.fail_at = 5;
+        CHECK(mm_text_document_save(MM_TEXT_PLAIN, &h.config, &h.requested, &h.fallback, 1, &h.file) == !fail);
+        CHECK(h.dirty == fail && h.tokens[0].refs == fail && h.tokens[5].refs == 2 - fail);
+        CHECK(h.tokens[5].temp == fail && (h.failed == 'R') == fail);
+        CHECK(h.tokens[5].bytes == 2052 && h.tokens[5].data[0] == 0xff && h.tokens[5].data[1] == 0xfe);
+        CHECK(!memcmp(h.tokens[5].data + 2, h.tokens[0].data, 2050));
+        CHECK(mm_piece_table_get(stream, 0, &saved, NULL) == MM_DATA_OK);
+        CHECK(saved.file == h.tokens + 5 && saved.offset == 2 && saved.length == 2050);
+        CHECK(mm_piece_table_read(stream, 2048, tail, 4) == MM_DATA_OK && !memcmp(tail, "PP\r\0", 4));
+        dispose(&h);
+    }
 }
 static void rich_init(void)
 {
@@ -644,6 +784,7 @@ int main(void)
 {
     saves();
     base_init();
+    file_backed_text();
     rich_init();
     factories();
     puts("Text documents: file transactions, BOM/sentinel rules, partial owners, translated views, factories and "
