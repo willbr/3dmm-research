@@ -3,6 +3,7 @@
 #include "live_document.h"
 #include "sound_sheet.h"
 #include "caption_runs.h"
+#include "caption_raster.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -388,6 +389,106 @@ failed:
     return ok && scene_bytes == 0 && probe.available == probe.released;
 }
 
+typedef struct CaptionRasterProbe
+{
+    MMI32 height, advance;
+    int calls, released, fail;
+} CaptionRasterProbe;
+
+static int caption_raster_face(void *p, const MMCaptionStyle *style)
+{
+    (void)p;
+    return style->pixels == 48;
+}
+
+static int caption_raster_measure(void *p, const unsigned short *text, MMI32 count, MarcusCaptionMetrics *out)
+{
+    const CaptionRasterProbe *probe = p;
+    (void)text;
+    (void)count;
+    out->advance = probe->advance;
+    out->ascent = 21;
+    out->cell_height = probe->height;
+    out->leading = 0;
+    return 1;
+}
+
+static void caption_raster_release(void *p)
+{
+    ++((CaptionRasterProbe *)p)->released;
+}
+
+static int caption_raster_mask(void *p, const unsigned short *text, MMI32 count, MarcusCaptionMaskOwner *out)
+{
+    static const unsigned char coverage[] = {0, 2, 8, 10, 2, 4, 10, 12, 20, 22, 28, 30, 22, 24, 30, 32};
+    CaptionRasterProbe *probe = p;
+    (void)text;
+    (void)count;
+    ++probe->calls;
+    if (probe->fail)
+        return 0;
+    out->raster.geometry.width = out->raster.geometry.height = out->raster.geometry.pitch = 4;
+    out->raster.ink = coverage;
+    out->bytes = sizeof(coverage);
+    out->owner = p;
+    out->release = caption_raster_release;
+    return 1;
+}
+
+static int check_caption_rasters(MarcusPlayer *player)
+{
+    unsigned char ink[] = {10, 20, 99}, paper[] = {100, 150, 23};
+    unsigned short text[] = {'A'};
+    const unsigned char smoothed[] = {2, 10, 22, 30}, expanded[] = {10, 10, 20, 20, 10, 10, 20, 20};
+    const MMCaptionMask native = {-1, -2, 2, 1, 3};
+    CaptionRasterProbe probe = {26, 8, 0, 0, 0};
+    MarcusCaptionFonts fonts = {NULL, NULL, caption_raster_face, caption_raster_measure, caption_raster_mask};
+    MarcusCaptionRasterCache cache = {0};
+    MarcusCaptionRun run = {0};
+    MarcusCaptionRaster raster;
+    const unsigned char *previous;
+    int ok = 0;
+    fonts.context = &probe;
+    run.style.pixels = 12;
+    run.style.font.name = "Probe";
+    run.style.font.length = 5;
+    run.text = text;
+    run.length = 1;
+    run.ascent = 9;
+    run.height = 13;
+    run.mask.raster.geometry = native;
+    run.mask.raster.ink = ink;
+    run.mask.raster.paper = paper;
+    CHECK(marcus_caption_raster_get(&cache, &run, 2, 32768, &fonts, &raster) == MARCUS_CAPTION_RASTER_OK);
+    CHECK(raster.density == 2.f && raster.ascent == 21 && raster.geometry.width == 2 && raster.geometry.height == 2);
+    CHECK(!raster.paper && !memcmp(raster.ink, smoothed, sizeof(smoothed)) && probe.calls == 1 && probe.released == 1);
+    text[0] = 'B';
+    probe.height = 12;
+    CHECK(marcus_caption_raster_get(&cache, &run, 2, 32768, &fonts, &raster) == MARCUS_CAPTION_RASTER_OK);
+    CHECK(raster.density == 2.f && raster.ascent == 36 && raster.geometry.left == -2 && raster.geometry.top == -4);
+    CHECK(!memcmp(raster.ink, expanded, sizeof(expanded)) && raster.paper[7] == 150 && probe.released == 2);
+    text[0] = 'A';
+    probe.fail = 1;
+    CHECK(marcus_caption_raster_get(&cache, &run, 2, 32768, &fonts, &raster) == MARCUS_CAPTION_RASTER_OK);
+    CHECK(!memcmp(raster.ink, smoothed, sizeof(smoothed)) && probe.calls == 2);
+    previous = raster.ink;
+    text[0] = 'C';
+    CHECK(marcus_caption_raster_get(&cache, &run, 2, 32768, &fonts, &raster) == MARCUS_CAPTION_RASTER_SOURCE);
+    CHECK(raster.ink == previous && cache.count == 2 && probe.released == 2);
+    marcus_caption_raster_clear(&cache);
+    CHECK(marcus_caption_raster_get(&cache, &run, 2, 8, &fonts, &raster) == MARCUS_CAPTION_RASTER_OK);
+    CHECK(raster.density == 1.f && raster.ascent == 18 && raster.geometry.pitch == 3 && probe.calls == 3);
+    ink[0] = 0;
+    CHECK(raster.ink[0] == 10 && raster.ink[2] == 99);
+    text[0] = 'D';
+    CHECK(marcus_caption_raster_get(&cache, &run, 2, 8, &fonts, &raster) == MARCUS_CAPTION_RASTER_OK);
+    CHECK(!raster.ink[0] && cache.count == 1 && cache.bytes == 6);
+    ok = 1;
+failed:
+    marcus_caption_raster_clear(&cache);
+    return ok;
+}
+
 int main(int argc, char **argv)
 {
     MarcusPlayer *player, *other;
@@ -425,6 +526,7 @@ int main(int argc, char **argv)
     CHECK(check_live_document(player));
     CHECK(check_sound_sheet(player));
     CHECK(check_caption_runs(player));
+    CHECK(check_caption_rasters(player));
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
           movie_time.duration_seconds == 0);

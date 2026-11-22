@@ -1631,6 +1631,9 @@ retains positioned glyph runs, the total height used by scrolling, and draft
 caret stops. C89 owns the run masks through their host release callback,
 accounts for the per-scene budget, and paints the retained runs. Marcus
 supplies font metrics, native and high-resolution masks, and palette colours.
+C89 owns the enlarged raster cache. It reuses runs by font, size, and text,
+averages supersampled coverage, and expands the native mask when the font
+provider has no larger strike.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette

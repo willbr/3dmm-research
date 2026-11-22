@@ -22940,3 +22940,22 @@ port. Both ports reproduced the 240-frame seek and playback order from
 retail and V3DMM in `20261122T033140Z-2abe2197` and
 `20261122T033233Z-5e23a412`. Evidence is under `tmp/c89-caption-runs` and
 `tmp/c89-caption-presentation/capture`.
+
+## C89 Marcus enlarged caption rasters (22 November 2026)
+
+C89 owns the enlarged raster cache, including the copied font and UTF-16
+keys and the mask pixels. It averages supersampled masks, expands native
+bitmap strikes when the provider has no larger strike, and keeps native
+coverage when the estimated raster exceeds the cache budget.
+
+All 226 selected native tests passed and the x86 worker built. The standalone
+x86 test covered all three mask paths, reuse, eviction, and state retention
+on rasterization failure. Eight images across 1088-by-612 and 1920-by-1080
+renders matched before and after the change, including repeated draws.
+Three timing snapshots and the headless startup capture matched byte for byte.
+
+Marcus Text Acid candidate `20261122T212841Z-66b23ed5` matched
+`20261122T211926Z-d64c8541` on all 240 seek canvases and recorded states.
+It reproduced the 240-frame seek and playback order from retail and V3DMM
+in `20261122T033140Z-2abe2197` and `20261122T033233Z-5e23a412`. Evidence is
+under `tmp/c89-caption-raster` and `tmp/c89-caption-presentation/capture`.

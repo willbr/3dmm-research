@@ -5,6 +5,7 @@
 #include "mm/caption_layout.h"
 #include "mm/caption_render.h"
 #include "caption_quad.h"
+#include "caption_raster.h"
 #include "caption_runs.h"
 #include "sdl_audio.h"
 #include "midi_synth.h"
@@ -145,42 +146,11 @@ bool PlayAudio(MarcusPlaybackAudio *audio, Preview &preview, const PreviewSoundC
         return Fail(error, message);
     return status == MM_MOVIE_AUDIO_CACHE_OK;
 }
-struct CaptionRaster
+MarcusCaptionRaster CaptionMask(const KauaiFonts::Mask &mask)
 {
-    KauaiFonts::Mask mask;
-    int ascent = 0;
-    float density = 1;
-};
-MMCaptionMask MaskGeometry(const KauaiFonts::Mask &mask)
-{
-    return {mask.left, mask.top, mask.width, mask.height, mask.pitch};
-}
-MarcusCaptionRaster CaptionMask(const KauaiFonts::Mask &mask, int ascent = 0, float density = 1.f)
-{
-    return {MaskGeometry(mask), mask.coverage.empty() ? nullptr : mask.coverage.data(),
-            mask.background.empty() ? nullptr : mask.background.data(), ascent, density};
-}
-// Average supersampled coverage rather than magnifying monochrome font pixels.
-KauaiFonts::Mask ReduceCaptionMask(const KauaiFonts::Mask &source)
-{
-    const auto from = MaskGeometry(source);
-    MMCaptionMask to;
-    mm_caption_mask_half_size(&from, &to);
-    KauaiFonts::Mask result;
-    result.left = to.left;
-    result.top = to.top;
-    result.width = to.width;
-    result.height = to.height;
-    result.pitch = to.pitch;
-    const auto reduce = [&](const std::vector<std::uint8_t> &input, std::vector<std::uint8_t> &output) {
-        if (input.empty())
-            return;
-        output.resize(std::size_t(result.width) * result.height);
-        mm_caption_mask_half(&from, input.data(), &to, output.data());
-    };
-    reduce(source.coverage, result.coverage);
-    reduce(source.background, result.background);
-    return result;
+    return {{mask.left, mask.top, mask.width, mask.height, mask.pitch},
+            mask.coverage.empty() ? nullptr : mask.coverage.data(),
+            mask.background.empty() ? nullptr : mask.background.data(), 0, 1.f};
 }
 struct CaptionLayout : MarcusCaptionRuns
 {
@@ -226,8 +196,7 @@ struct MarcusPlayback::Impl
     MMCaptionPresentation captionPresentation{};
     std::map<FaceKey, std::unique_ptr<KauaiFonts::Face>> faces;
     std::shared_ptr<KauaiFonts::FontCatalog> fonts;
-    std::map<std::tuple<std::string, int, int, std::u16string>, CaptionRaster> captionRasters;
-    std::size_t rasterBytes = 0;
+    MarcusCaptionRasterCache captionRasters{};
     std::unique_ptr<MarcusPlaybackAudio, decltype(&marcus_playback_audio_destroy)> audio{
         nullptr, marcus_playback_audio_destroy};
     MMPolledPlayback clock = {};
@@ -240,6 +209,7 @@ struct MarcusPlayback::Impl
     }
     ~Impl()
     {
+        marcus_caption_raster_clear(&captionRasters);
         mm_caption_presentation_dispose(&captionPresentation);
         mm_graphics_movie_frames_dispose(&movieFrames);
     }
@@ -291,138 +261,91 @@ struct MarcusPlayback::Impl
         faces.emplace(key, std::move(face));
         return result;
     }
-    const CaptionRaster *Raster(const MarcusCaptionRun &glyph, int scale, Error &error)
+    struct CaptionFontHost
     {
-        const auto pixels = glyph.style.pixels * scale * 2;
-        const std::string font(glyph.style.font.name, glyph.style.font.length);
-        const auto key = std::make_tuple(font, pixels, glyph.style.flags,
-                                         std::u16string(glyph.text, glyph.text + glyph.length));
-        auto found = captionRasters.find(key);
-        if (found != captionRasters.end())
-            return &found->second;
-        auto face = Face(font, pixels, glyph.style.flags);
-        KauaiFonts::Metrics metrics;
-        KauaiFonts::Mask mask;
-        const KauaiFonts::Text text{glyph.text, static_cast<std::size_t>(glyph.length), KauaiFonts::Encoding::utf16};
-        if (!face || !face->Measure(text, metrics))
+        Impl &host;
+        const PreviewCaption *caption = nullptr;
+        KauaiFonts::Face *face = nullptr;
+        std::exception_ptr failure;
+
+        template<class Callback> int Read(Callback callback)
         {
-            Fail(error, "Cannot render a high-resolution caption glyph.");
-            return nullptr;
+            try { return callback(); }
+            catch (...) { failure = std::current_exception(); return 0; }
         }
-        CaptionRaster raster;
-        raster.density = float(scale);
-        const auto estimate = (std::int64_t(metrics.advance) + pixels * 2) *
-                              (metrics.cellHeight + pixels * 2) * 2;
-        const auto &native = *static_cast<const KauaiFonts::Mask *>(glyph.mask.owner);
-        if (estimate > 64u * 1024 * 1024)
+
+        MarcusCaptionFonts Services()
         {
-            // A whole run can be much wider than a single glyph. Keep a large
-            // inspection view within the raster cache's allocation budget.
-            raster.mask = native;
-            raster.ascent = glyph.ascent * 2;
-            raster.density = 1;
+            return {this,
+                [](void *p, std::size_t index, MMCaptionProperty *out) {
+                    const auto &property = static_cast<CaptionFontHost *>(p)->caption->properties[index];
+                    *out = {property.position, property.kind, property.value, {property.font.data(), property.font.size()}};
+                },
+                [](void *p, const MMCaptionStyle *style) -> int {
+                    auto &ctx = *static_cast<CaptionFontHost *>(p);
+                    return ctx.Read([&] {
+                        ctx.face = ctx.host.Face({style->font.name, style->font.length}, style->pixels, style->flags);
+                        return ctx.face != nullptr;
+                    });
+                },
+                [](void *p, const unsigned short *chars, MMI32 count, MarcusCaptionMetrics *out) -> int {
+                    auto &ctx = *static_cast<CaptionFontHost *>(p);
+                    return ctx.Read([&] {
+                        KauaiFonts::Metrics metrics;
+                        const KauaiFonts::Text text{chars, static_cast<std::size_t>(count), KauaiFonts::Encoding::utf16};
+                        if (!ctx.face->Measure(text, metrics))
+                            return false;
+                        *out = {metrics.advance, metrics.ascent, metrics.cellHeight, metrics.externalLeading};
+                        return true;
+                    });
+                },
+                [](void *p, const unsigned short *chars, MMI32 count, MarcusCaptionMaskOwner *out) -> int {
+                    auto &ctx = *static_cast<CaptionFontHost *>(p);
+                    return ctx.Read([&] {
+                        auto mask = std::make_unique<KauaiFonts::Mask>();
+                        const KauaiFonts::Text text{chars, static_cast<std::size_t>(count), KauaiFonts::Encoding::utf16};
+                        if (!ctx.face->Rasterize(text, *mask, true))
+                            return false;
+                        *out = {CaptionMask(*mask), mask->coverage.size() + mask->background.size(), mask.get(),
+                                [](void *value) { delete static_cast<KauaiFonts::Mask *>(value); }};
+                        mask.release();
+                        return true;
+                    });
+                }};
         }
-        else if (!face->Rasterize(text, mask, true))
+
+        void Check() const
         {
-            Fail(error, "Cannot render a high-resolution caption run.");
-            return nullptr;
+            if (failure)
+                std::rethrow_exception(failure);
         }
-        else if (metrics.cellHeight < glyph.height * scale)
-        {
-            // A legacy bitmap fallback has no larger strike. Preserve
-            // its native pixels rather than shrinking it after supersampling.
-            raster.mask = native;
-            auto &scaled = raster.mask;
-            scaled.left *= scale;
-            scaled.top *= scale;
-            scaled.width *= scale;
-            scaled.height *= scale;
-            scaled.pitch = scaled.width;
-            scaled.coverage.resize(std::size_t(scaled.width) * scaled.height);
-            if (!native.background.empty())
-                scaled.background.resize(scaled.coverage.size());
-            const auto from = MaskGeometry(native);
-            const auto to = MaskGeometry(scaled);
-            mm_caption_mask_expand(&from, native.coverage.data(), &to, scaled.coverage.data(), scale);
-            if (!scaled.background.empty())
-                mm_caption_mask_expand(&from, native.background.data(), &to, scaled.background.data(), scale);
-            raster.ascent = glyph.ascent * scale * 2;
-        }
-        else
-        {
-            raster.mask = ReduceCaptionMask(mask);
-            raster.ascent = metrics.ascent;
-        }
-        const auto bytes = raster.mask.coverage.size() + raster.mask.background.size();
-        // Share repeated runs and bound the cache across camera sizes.
-        if (rasterBytes + bytes > 64u * 1024 * 1024)
-        {
-            captionRasters.clear();
-            rasterBytes = 0;
-        }
-        rasterBytes += bytes;
-        return &captionRasters.emplace(key, std::move(raster)).first->second;
+    };
+    bool Raster(const MarcusCaptionRun &glyph, int scale, Error &error, MarcusCaptionRaster &out)
+    {
+        CaptionFontHost host{*this, nullptr, nullptr, {}};
+        const auto services = host.Services();
+        const auto status = marcus_caption_raster_get(&captionRasters, &glyph, scale, 64u * 1024 * 1024,
+                                                      &services, &out);
+        host.Check();
+        if (status == MARCUS_CAPTION_RASTER_MEMORY)
+            throw std::bad_alloc();
+        if (status == MARCUS_CAPTION_RASTER_METRICS)
+            return Fail(error, "Cannot render a high-resolution caption glyph.");
+        if (status == MARCUS_CAPTION_RASTER_SOURCE)
+            return Fail(error, "Cannot render a high-resolution caption run.");
+        return status == MARCUS_CAPTION_RASTER_OK;
     }
     bool Layout(CaptionImage &caption, Error &error, bool editing = false)
     {
-        struct Context
-        {
-            Impl &host;
-            const PreviewCaption &data;
-            KauaiFonts::Face *face = nullptr;
-            std::exception_ptr failure;
-        } context{*this, caption.data, nullptr, {}};
-        const auto &data = context.data;
+        const auto &data = caption.data;
+        CaptionFontHost host{*this, &data, nullptr, {}};
+        const auto services = host.Services();
         const MarcusCaptionInput input{
             {data.left, data.top, data.right, data.bottom}, data.text.data(), data.text.size(),
             data.fontSize, {data.font.data(), data.font.size()}, data.properties.size()};
-        const MarcusCaptionFonts services{
-            &context,
-            [](void *p, std::size_t index, MMCaptionProperty *out) {
-                const auto &property = static_cast<Context *>(p)->data.properties[index];
-                *out = {property.position, property.kind, property.value, {property.font.data(), property.font.size()}};
-            },
-            [](void *p, const MMCaptionStyle *style) -> int {
-                auto &ctx = *static_cast<Context *>(p);
-                try
-                {
-                    ctx.face = ctx.host.Face({style->font.name, style->font.length}, style->pixels, style->flags);
-                    return ctx.face != nullptr;
-                }
-                catch (...) { ctx.failure = std::current_exception(); return 0; }
-            },
-            [](void *p, const unsigned short *chars, MMI32 count, MarcusCaptionMetrics *out) -> int {
-                auto &ctx = *static_cast<Context *>(p);
-                try
-                {
-                    KauaiFonts::Metrics metrics;
-                    const KauaiFonts::Text text{chars, static_cast<std::size_t>(count), KauaiFonts::Encoding::utf16};
-                    if (!ctx.face->Measure(text, metrics))
-                        return 0;
-                    *out = {metrics.advance, metrics.ascent, metrics.cellHeight, metrics.externalLeading};
-                    return 1;
-                }
-                catch (...) { ctx.failure = std::current_exception(); return 0; }
-            },
-            [](void *p, const unsigned short *chars, MMI32 count, MarcusCaptionMaskOwner *out) -> int {
-                auto &ctx = *static_cast<Context *>(p);
-                try
-                {
-                    auto mask = std::make_unique<KauaiFonts::Mask>();
-                    const KauaiFonts::Text text{chars, static_cast<std::size_t>(count), KauaiFonts::Encoding::utf16};
-                    if (!ctx.face->Rasterize(text, *mask, true))
-                        return 0;
-                    *out = {CaptionMask(*mask), mask->coverage.size() + mask->background.size(), mask.get(),
-                            [](void *value) { delete static_cast<KauaiFonts::Mask *>(value); }};
-                    mask.release();
-                    return 1;
-                }
-                catch (...) { ctx.failure = std::current_exception(); return 0; }
-            }};
         const auto status = marcus_caption_runs_layout(&caption.runs, &input, &services, &captionBytes,
                                                        128u * 1024 * 1024, editing);
-        if (context.failure)
-            std::rethrow_exception(context.failure);
+        host.Check();
         switch (status)
         {
         case 0: return true;
@@ -449,8 +372,7 @@ MarcusPlayback::~MarcusPlayback() = default;
 void MarcusPlayback::SetFonts(std::shared_ptr<KauaiFonts::FontCatalog> fonts)
 {
     impl->faces.clear();
-    impl->captionRasters.clear();
-    impl->rasterBytes = 0;
+    marcus_caption_raster_clear(&impl->captionRasters);
     impl->fonts = std::move(fonts);
 }
 bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusSoundTiming &timing, Error &error,
@@ -516,8 +438,7 @@ bool MarcusPlayback::Select(MM::Preview &preview, MM::Error &error, bool preserv
     impl->captions.clear();
     mm_caption_presentation_clear(&impl->captionPresentation);
     ClearCaptionDraft();
-    impl->captionRasters.clear();
-    impl->rasterBytes = 0;
+    marcus_caption_raster_clear(&impl->captionRasters);
     if (!preview.ReadPresentation(impl->scene, error))
         return false;
     impl->captions.reserve(impl->scene.captions.size());
@@ -852,11 +773,7 @@ bool MarcusPlayback::Composite(MM::Preview &preview, bool authored, MM::PreviewI
                         auto &ctx = *static_cast<Paint *>(p);
                         try
                         {
-                            const auto raster = ctx.host.Raster(*run, scale, ctx.error);
-                            if (!raster)
-                                return 0;
-                            *out = CaptionMask(raster->mask, raster->ascent, raster->density);
-                            return 1;
+                            return ctx.host.Raster(*run, scale, ctx.error, *out);
                         }
                         catch (...) { ctx.failure = std::current_exception(); return 0; }
                     }};
