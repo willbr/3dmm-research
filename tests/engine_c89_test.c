@@ -810,7 +810,6 @@ static void check_sound_schedule_sources(void)
     CHECK(sheet.cues[0].track == 0 && sheet.cues[0].carried && sheet.cues[0].origin_scene == 0 &&
           sheet.cues[0].frame == 0 && sheet.cues[0].origin_frame == 1 &&
           sheet.cues[0].timeline_frame == -7 && sheet.cues[0].end_frame == 1);
-    mm_movie_sound_sheet_dispose(&sheet);
     CHECK(mm_movie_sound_schedule_resume(schedule, 1, 0, resume, &count) && count == 1 &&
           resume[0].scene == 0 && resume[0].source_row == 0 && resume[0].seconds == 1.75);
     ++range.chunk;
@@ -819,6 +818,9 @@ static void check_sound_schedule_sources(void)
     --range.chunk;
     CHECK(mm_movie_sound_schedule_reframe(schedule, &range, 1, &reframed) == MM_SOUND_REFRAME_OK);
     mm_movie_sound_schedule_destroy(schedule);
+    CHECK(sheet.cues[0].source.frame == 1 && sheet.cues[0].source.sound_number == 3 &&
+          sheet.cues[0].source.audio_kind == MM_SOUND_CLIP_SAMPLED && sheet.cues[0].source.seconds == 2.0);
+    mm_movie_sound_sheet_dispose(&sheet);
     CHECK(mm_movie_sound_schedule_size(reframed) == 1 && mm_movie_sound_schedule_sound_count(reframed, 0) == 2);
     sound = mm_movie_sound_schedule_sound(reframed, 0, 1);
     CHECK(sound.scene == 0 && sound.source_row == 1 && sound.start == 1.75);

@@ -1,6 +1,7 @@
 #include "player.h"
 #include "camera_guide.h"
 #include "live_document.h"
+#include "sound_sheet.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -230,6 +231,82 @@ failed:
     return ok && file == 1;
 }
 
+typedef struct SoundSheetProbe
+{
+    char actor[194];
+    int reads, reject;
+} SoundSheetProbe;
+
+static const char *sheet_actor(void *context, MMI32 actor)
+{
+    return actor == 4 ? ((SoundSheetProbe *)context)->actor : NULL;
+}
+
+static int sheet_sound(void *context, const MMMovieTimingCue *cue, const char **name)
+{
+    SoundSheetProbe *probe = (SoundSheetProbe *)context;
+    ++probe->reads;
+    *name = cue->sound_number == 7 ? "Authored sound" : NULL;
+    return !probe->reject;
+}
+
+static int check_sound_sheet(MarcusPlayer *player)
+{
+    MMMovieSoundSchedule *schedule = mm_movie_sound_schedule_create(.125);
+    MMMovieTimingCue cues[3] = {{0}};
+    MMMovieTimingScene scene = {0};
+    MarcusSoundSheet sheet = {0};
+    SoundSheetProbe probe = {{0}, 0, 0};
+    MarcusSoundSheetNames names = {NULL, sheet_actor, sheet_sound};
+    MarcusSoundTrack track;
+    MarcusSound sound;
+    int ok = 0;
+    CHECK(schedule);
+    names.context = &probe;
+    memset(probe.actor, 'A', 190);
+    memcpy(probe.actor + 190, "\xe2\x82\xac", 3);
+    scene.range.first = -2;
+    scene.range.last = 4;
+    scene.cues = cues;
+    scene.cue_count = 3;
+    cues[0].frame = -1;
+    cues[0].actor = 4;
+    cues[0].style = MARCUS_SOUND_EFFECT;
+    cues[0].flags = MM_TIMING_ACTOR_SOUND | MM_TIMING_MOTION;
+    cues[0].motion_cel = 2;
+    cues[0].sound_number = 7;
+    cues[0].source = 32;
+    cues[1].frame = -1;
+    cues[1].style = MARCUS_SOUND_EFFECT;
+    cues[1].sound_number = 8;
+    cues[2].frame = 0;
+    cues[2].style = MARCUS_SOUND_EFFECT;
+    cues[2].flags = MM_TIMING_SILENT;
+    CHECK(mm_movie_sound_schedule_append(schedule, &scene));
+    CHECK(marcus_sound_sheet_build(&sheet, schedule, 0, &names) == MARCUS_SOUND_SHEET_OK);
+    CHECK(probe.reads == 2 && sheet.model.cue_count == 3 && sheet.model.track_count == 2);
+    CHECK(marcus_sound_sheet_track(&sheet, 1, &track) && track.actor_sound &&
+          track.actor_id == 4 && strlen(track.name) == 190);
+    CHECK(marcus_sound_sheet_sound(&sheet, 0, &sound) && sound.motion && sound.motion_cel == 2 &&
+          sound.actor_id == 4 && sound.source_id == 32 && strlen(sound.owner) == 190 &&
+          !strcmp(sound.name, "Authored sound"));
+    CHECK(marcus_sound_sheet_last(&sheet, -1, MARCUS_SOUND_EFFECT) == 1);
+    CHECK(marcus_sound_sheet_sound(&sheet, 1, &sound) && !strcmp(sound.name, "Sound 8") &&
+          !strcmp(sound.owner, "Scene"));
+    CHECK(marcus_sound_sheet_sound(&sheet, 2, &sound) && sound.silent && !strcmp(sound.name, "Stop / silence"));
+    probe.reject = 1;
+    CHECK(marcus_sound_sheet_build(&sheet, schedule, 0, &names) == MARCUS_SOUND_SHEET_FAILED);
+    mm_movie_sound_schedule_destroy(schedule);
+    schedule = NULL;
+    CHECK(marcus_sound_sheet_cue(&sheet, 0)->source.sound_number == 7);
+    CHECK(marcus_sound_sheet_sound(&sheet, 0, &sound) && !strcmp(sound.name, "Authored sound"));
+    ok = 1;
+failed:
+    marcus_sound_sheet_clear(&sheet);
+    mm_movie_sound_schedule_destroy(schedule);
+    return ok;
+}
+
 int main(int argc, char **argv)
 {
     MarcusPlayer *player, *other;
@@ -265,6 +342,7 @@ int main(int argc, char **argv)
     pixels = NULL;
     CHECK(player);
     CHECK(check_live_document(player));
+    CHECK(check_sound_sheet(player));
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
           movie_time.duration_seconds == 0);

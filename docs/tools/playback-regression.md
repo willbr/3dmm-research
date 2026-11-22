@@ -22817,3 +22817,24 @@ retail and V3DMM in `20261122T033140Z-2abe2197` and
 The existing `scene-load` assertion repeated its 63,224-byte trace and
 fingerprint `0D666753`. Evidence is under `tmp/c89-timing-input`,
 `tmp/c89-aqcap` and `tmp/c89-caption-presentation/capture`.
+
+## C89 Marcus sound sheet (22 November 2026)
+
+Marcus uses one C89 sound sheet for display, cue selection, sound edits
+and audition. Each row retains its authored cue and scene index after the
+schedule is released. C89 formats the labels using names supplied by Marcus.
+
+All 240 selected x64, x86 and SDL Studio checks passed. The sound-edit test
+produced four byte-identical native movie saves and reopened its storyboard
+bundle with the authored sounds and painted pixels. The headless startup
+capture also matched byte for byte.
+
+Actor-audio candidate `20261122T203550Z-ba9acf2f` matched
+`20261122T202443Z-6ae460a0` on all 60 seek canvases and recorded states per
+port. Both ports reproduced the 60-frame seek and playback order from retail
+and V3DMM in `20261122T082301Z-c465fa98`. SDL also matched the 12 ordered sound
+requests. This run used SDL dummy audio.
+
+The existing `scene-load` assertion still failed with the same 63,224-byte
+trace and fingerprint `0D666753`. Evidence is under `tmp/c89-sound-sheet` and
+`tmp/c89-aqcap`.

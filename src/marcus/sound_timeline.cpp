@@ -40,14 +40,18 @@ MM::PreviewSoundCue PreviewCue(const MMMovieSoundSchedule *schedule, std::size_t
 {
     MMMovieTimingScene source;
     mm_movie_sound_schedule_source(schedule, scene, &source);
-    const auto &cue = source.cues[row];
+    return MarcusPreviewCue(source.cues[row]);
+}
+} // namespace
+
+MM::PreviewSoundCue MarcusPreviewCue(const MMMovieTimingCue &cue)
+{
     return {cue.frame, cue.source, cue.actor, cue.style, cue.volume,
             {cue.sound_type, cue.sound_number}, {cue.scene_type, cue.scene_number}, cue.child,
             bool(cue.flags & MM_TIMING_ACTOR_SOUND), bool(cue.flags & MM_TIMING_LOOP),
             bool(cue.flags & MM_TIMING_QUEUE), bool(cue.flags & MM_TIMING_SILENT),
             bool(cue.flags & MM_TIMING_MOTION), cue.motion_cel};
 }
-} // namespace
 
 bool MarcusSoundTimeline::Write(std::ostream &out) const
 {
@@ -195,9 +199,9 @@ MarcusSoundSpan MarcusSoundScene::Sound(std::size_t row) const
     return {PreviewCue(owner.schedule.get(), span.scene, span.source_row), span.scene, span.start, span.end};
 }
 
-bool MarcusSoundScene::BuildSheet(MMMovieSoundSheet &sheet) const
+int MarcusSoundScene::BuildSheet(MarcusSoundSheet &sheet, const MarcusSoundSheetNames &names) const
 {
-    return mm_movie_sound_schedule_sheet(owner.schedule.get(), index, &sheet) != 0;
+    return marcus_sound_sheet_build(&sheet, owner.schedule.get(), index, &names);
 }
 
 void MarcusSoundScene::ChapterTime(MarcusSceneTime &time) const

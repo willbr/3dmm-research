@@ -1497,7 +1497,10 @@ caption scroll at each start frame. It stages the measured sound cues before
 appending a scene. Marcus supplies the playback font layout and audio lengths.
 The schedule also builds the sound sheet's tracks and cue extents, computes
 chapter and movie progress, and resolves time seeks to scene and frame.
-Marcus supplies display names and performs the resulting seek.
+The C89 sound sheet retains each authored cue with its extent and source
+scene. It builds labels, supplies checked row access to the editor and
+waveforms, and finds the added cue. Marcus resolves archive and actor names
+and performs the resulting seek.
 The C89 engine also owns live Marcus playback voices, track mute and solo,
 loop and queue progression, and MIDI preroll and rendering decisions.
 Marcus and Studio share PCM accumulation and clipping. The Marcus schedule

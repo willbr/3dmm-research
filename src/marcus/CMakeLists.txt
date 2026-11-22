@@ -5,7 +5,7 @@ include(FreeTypeDependency)
 include(EmbedMarcusShaders)
 
 add_library(marcus-player STATIC player.cpp storyboard.cpp storyboard_edit_data.c storyboard_draft.c storyboard_resource.c storyboard_tools.cpp storyboard_export.cpp colour_picker.cpp camera_guide.c camera_controls.c content.cpp playback.cpp movie_input.cpp movie_zip.c scene_edit.cpp caption_edit.cpp sound_edit.cpp sound_recording.cpp caption_quad.cpp gpu_renderer.cpp asm_renderer.cpp renderer_ids.c waveform_core.c waveform.cpp sound_timeline.cpp timing_job.cpp frame_previews.cpp preview_protocol.cpp preview_worker.cpp preview_cache.cpp text_preview.cpp)
-target_sources(marcus-player PRIVATE archive_file.c archive_file_host.cpp storyboard_store.c live_document.c)
+target_sources(marcus-player PRIVATE archive_file.c archive_file_host.cpp storyboard_store.c live_document.c sound_sheet.c)
 if(WIN32)
   target_compile_definitions(marcus-player PRIVATE MARCUS_ASM_WORKER_PATH="${PROJECT_SOURCE_DIR}/build/marcus-x86/src/marcus/marcus-asm-worker.exe")
   if(CMAKE_SIZEOF_VOID_P EQUAL 4)

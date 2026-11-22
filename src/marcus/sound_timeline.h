@@ -3,6 +3,7 @@
 #include "player.h"
 #include "mm/movie_sound_schedule.h"
 #include "mm/preview.h"
+#include "sound_sheet.h"
 #include <functional>
 #include <memory>
 #include <optional>
@@ -15,6 +16,7 @@ struct MarcusSoundSpan
     std::size_t scene = 0;
     double start = 0, end = 0; // Seconds on the presentation clock.
 };
+MM::PreviewSoundCue MarcusPreviewCue(const MMMovieTimingCue &);
 class MarcusSoundTimeline;
 struct MarcusSoundScene
 {
@@ -24,7 +26,7 @@ struct MarcusSoundScene
     double FrameAt(double seconds) const;
     std::size_t SoundCount() const;
     MarcusSoundSpan Sound(std::size_t row) const;
-    bool BuildSheet(MMMovieSoundSheet &) const;
+    int BuildSheet(MarcusSoundSheet &, const MarcusSoundSheetNames &) const;
     void ChapterTime(MarcusSceneTime &) const;
     void MovieTime(MMI32 frame, double elapsed, bool finished, MarcusMovieTime &) const;
 

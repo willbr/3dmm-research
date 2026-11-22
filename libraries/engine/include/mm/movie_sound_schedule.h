@@ -74,6 +74,7 @@ typedef struct MMMovieSoundSheetCue
     MMI32 frame;
     int carried;
     double origin_frame, timeline_frame, end_frame;
+    MMMovieTimingCue source;
 } MMMovieSoundSheetCue;
 typedef struct MMMovieSoundSheet
 {
@@ -117,7 +118,8 @@ int mm_movie_sound_schedule_locate(const MMMovieSoundSchedule *, double seconds,
 size_t mm_movie_sound_schedule_sound_count(const MMMovieSoundSchedule *, size_t scene);
 MMScheduledSound mm_movie_sound_schedule_sound(const MMMovieSoundSchedule *, size_t scene, size_t index);
 /* Borrow the schedule and publish a new owning sheet on success. Cues stay
- * in schedule order. Tracks sort by scene/actor, then signed actor ID and style. */
+ * in schedule order with independent copies of their source cues. Tracks
+ * sort by scene/actor, then signed actor ID and style. */
 int mm_movie_sound_schedule_sheet(const MMMovieSoundSchedule *, size_t scene, MMMovieSoundSheet *);
 void mm_movie_sound_sheet_dispose(MMMovieSoundSheet *);
 /* The output array has room for sound_count entries. */

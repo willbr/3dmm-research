@@ -725,6 +725,7 @@ int mm_movie_sound_schedule_sheet(const MMMovieSoundSchedule *schedule, size_t i
         cue->origin_frame = (double)voice->cue->frame - schedule->scenes[cue->origin_scene].source.range.first + 1;
         cue->timeline_frame = mm_movie_sound_schedule_frame_at(schedule, index, voice->span.start);
         cue->end_frame = mm_movie_sound_schedule_frame_at(schedule, index, voice->span.end);
+        cue->source = *voice->cue;
         if (!(cue->end_frame < limit))
             cue->end_frame = limit;
         order[i].row = i;
