@@ -23,6 +23,7 @@ typedef struct Host
     int prop, text, child_calls, fetches, poses, locations, clears, motions, resets, applies;
     int fail_alloc, alloc_live, draft_bodies, costume_saved, costume_restored, material_overrides;
     int material_refs, material_failure;
+    MMBodyOwner *action_draft;
     MMStorageAllocator allocator;
     int token[4];
     MMActorPoint point;
@@ -1007,49 +1008,123 @@ static void replace_owned_track(void)
 static void locate_action_preview(void *p, void *body, const MMActorBodyPose *pose)
 {
     Host *h = (Host *)p;
-    assert(body == h->token + 3 && h->actor.body == body);
+    assert(body == h->action_draft && h->actor.body == body);
     assert(!pose->translation.dxr && !pose->translation.dyr && !pose->translation.dzr);
 }
 
 static int pose_action_preview(void *p, void *tmpl, void *body, MMI32 action, MMI32 cel)
 {
     Host *h = (Host *)p;
-    assert(tmpl == h->token && body == h->token + 3 && action == 0 && cel >= 0);
+    assert(tmpl == h->token && body == h->action_draft && action == 0 && cel >= 0);
     h->token[3] = cel;
     return step(h);
 }
 
-static int action_preview_bounds(void *p, float corners[24])
+static MMBodyState *action_body_state(void *p, void *body)
+{
+    (void)p;
+    return mm_body_owner_state((MMBodyOwner *)body);
+}
+
+static void action_body_free(void *p, void **handle)
+{
+    (void)p;
+    assert(!*handle);
+}
+
+static int duplicate_action_body(void *p, void *body, void **out)
+{
+    Host *h = (Host *)p;
+    int result = step(h);
+    assert(body == h->actor.body && body != h->action_draft);
+    if (result > 0)
+    {
+        mm_body_owner_retain(h->action_draft);
+        *out = h->action_draft;
+        ++h->draft_bodies;
+    }
+    return result;
+}
+
+static void release_action_body(void *p, void *body)
+{
+    Host *h = (Host *)p;
+    assert(body == h->action_draft && h->actor.body != body && h->draft_bodies == 1);
+    mm_body_owner_release((MMBodyOwner *)body);
+    --h->draft_bodies;
+}
+
+static void *action_geometry_at(void *p, void *actors, MMI32 index)
+{
+    assert(!actors && index == 1);
+    return p;
+}
+
+static int action_geometry_type(void *p, void *actor)
+{
+    assert(p == actor);
+    return ((Host *)p)->point.dxr;
+}
+
+static void action_geometry_set_type(void *p, void *actor, int type)
+{
+    assert(p == actor);
+    ((Host *)p)->point.dxr = type;
+}
+
+static void action_preview_bounds(void *p, void *root, MMBodyBounds *bounds)
 {
     Host *h = (Host *)p;
     int i;
-    for (i = 0; i < 24; ++i)
-        corners[i] = (float)h->token[3];
-    return 1;
+    assert(!root && !h->point.dxr);
+    for (i = 0; i < 3; ++i)
+        bounds->min[i] = bounds->max[i] = h->token[3];
 }
 
-static int action_preview_render(void *p, const float corners[24])
+static int action_preview_render(void *p, const float corners[24], int crop)
 {
     Host *h = (Host *)p;
-    assert(h->actor.body == h->token + 3 && h->token[3] == 7);
-    assert(corners[0] == 0 && corners[21] == (float)2147483646L);
+    assert(!crop && h->actor.body == h->action_draft && h->token[3] == 7 && h->point.dxr == 1);
+    assert(corners[0] == 0 && corners[21] == scalar_float(2147483646L));
     return !h->token[2];
 }
 
 static void action_preview(void)
 {
     Host h;
-    MMPreviewActionView view = {NULL, action_preview_bounds, action_preview_render};
+    MMBodyCreateServices create = {0};
+    MMBodyGeometryServices geometry = {0};
+    MMBodyPartBinding binding = {0};
+    MMPreviewIsolatedView view = {NULL, NULL, NULL, action_preview_render};
     MMPreviewActor before;
+    MMBodyOwner *original;
     float clip[24];
     int mode, valid, calls;
+    create.state = action_body_state;
+    create.free_memory = action_body_free;
+    geometry.context = &h;
+    geometry.actor_at = action_geometry_at;
+    geometry.actor_type = action_geometry_type;
+    geometry.set_actor_type = action_geometry_set_type;
+    geometry.local_bounds = action_preview_bounds;
+    mm_matrix_identity(&binding.matrix);
+    view.geometry = &geometry;
     view.context = &h;
     for (mode = 0; mode < 3; ++mode)
     {
         setup(&h);
         assert(mm_preview_actor_load(&h.actor, 8, &h.chunks, 0, &h.services));
-        h.services.duplicate_body = draft_body;
-        h.services.release_body = release_draft_body;
+        original = mm_body_owner_create(NULL, &create);
+        h.action_draft = mm_body_owner_create(NULL, &create);
+        assert(original && h.action_draft);
+        mm_body_owner_state(original)->shape.hidden = 1;
+        mm_body_owner_state(h.action_draft)->shape.hidden = 1;
+        mm_body_owner_state(h.action_draft)->shape.bindings = &binding;
+        h.actor.body = original;
+        h.actor.state.onStage = 1;
+        h.point.dxr = 1;
+        h.services.duplicate_body = duplicate_action_body;
+        h.services.release_body = release_action_body;
         h.services.locate = locate_action_preview;
         h.services.pose = pose_action_preview;
         h.fail_at = mode == 1 ? h.calls + 3 : 0;
@@ -1066,6 +1141,11 @@ static void action_preview(void)
                    MM_PREVIEW_ACTION_OK);
             assert(h.calls == calls + 2 && !h.draft_bodies);
         }
+        assert(mm_body_owner_references(h.action_draft) == 1 && h.point.dxr == 1);
+        mm_body_owner_release(h.action_draft);
+        mm_body_owner_release(original);
+        h.actor.body = h.token + 1;
+        h.services.release_body = release_body;
         mm_preview_actor_dispose(&h.actor, &h.services);
     }
 }

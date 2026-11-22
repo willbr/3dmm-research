@@ -199,7 +199,7 @@ LegacyLong PreviewActor::ActionCelCount(LegacyLong action) const
     return mm_preview_actor_action_cels(&core, action, mm_brender_template_cel_count);
 }
 int PreviewActor::RenderAction(LegacyLong action, LegacyLong cel, float *clip, int *clipValid,
-                               const MMPreviewActionView &view)
+                               const MMPreviewIsolatedView &view)
 {
     Host host = {this};
     const auto services = host.Services();
@@ -209,17 +209,17 @@ int PreviewActor::RenderAction(LegacyLong action, LegacyLong cel, float *clip, i
         std::rethrow_exception(host.exception);
     return result;
 }
-bool PreviewActor::RestPose()
+int PreviewActor::RenderCostumes(const std::vector<PreviewCostume> &values, MMI32 set,
+                                 const MMPreviewIsolatedView &view)
 {
     Host host = {this};
     const auto services = host.Services();
-    return host.Result(mm_preview_actor_rest_pose(&core, &services));
-}
-bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
-{
     const auto catalog = CostumeCatalog();
     const auto edits = CostumeEdits(values);
-    return mm_preview_actor_edit_costumes(&core, &catalog, &edits, nullptr, nullptr) != 0;
+    const int result = mm_preview_actor_costume_render(&core, set, &edits, &catalog, &services, &view);
+    if (host.exception)
+        std::rethrow_exception(host.exception);
+    return result;
 }
 struct PreviewActor::TrackDraft
 {

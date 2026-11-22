@@ -1209,7 +1209,10 @@ its posed root in C89. The C owner validates rotation and scale before posing
 the body and measures the bounds needed to preserve the followed orbit when
 shape or placement changes. Rendering reads the same world-space corners
 directly from the live actor. Isolated rendering binds the selected object and
-its supplied framing corners in C89.
+its supplied framing corners in C89. Action previews sample the duplicate
+body's bounds directly. Costume previews capture and restore the live costume
+and root pose in C89, measure the requested set's variants through the typed
+catalogue and body bindings, and publish the crop through the renderer.
 Preview picking uses C89 for validation, coordinates, camera ownership, stable
 body copying, nearest-hit and texture policy, and authored-background
 occlusion. Native adapters supply typed SDK primitives.

@@ -22389,3 +22389,29 @@ in `20261122T081603Z-7ffc4e8e`. All 251 selected test runs passed. The existing
 `0D666753`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-transforms`.
+
+## C89 isolated actor previews (22 November 2026)
+
+The Preview actor owner captures and restores the costume and root pose in
+C89. Focused costume previews measure the variants from the typed costume
+catalogue and body bindings. Action previews read the requested and sampled
+cel bounds directly from the duplicate body. The host publishes the rendered
+image and transports rendering errors after the C owner restores the actor.
+
+The 295,790-byte isolated render trace matched full and focused costume
+previews, restoration after rejected edits, and two action cels sharing one
+framing clip. The comparison included pixels, crop rectangles, camera
+transforms and clip corners. All Preview traces and the actor image matched
+50,035,072 bytes. The 188 retail-content camera traces, five World snapshots,
+Studio saves and canvases, and the headless Marcus startup canvas also matched.
+The 2,005-byte costume movie and 48 storyboard payloads and child links
+matched the preceding build.
+
+The four runs in suite `20261122T174247Z-b46434f7` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order matched the retained retail and V3DMM captures
+in `20261122T081603Z-7ffc4e8e`. All 251 selected test runs passed. The existing
+`scene-load` assertion reproduced its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-isolated-actor`.

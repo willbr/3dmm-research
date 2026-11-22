@@ -102,6 +102,16 @@ int mm_preview_actor_costumes(const MMPreviewActor *p, const MMPreviewCostumeCat
     return 1;
 }
 
+static int apply_costume(MMPreviewActor *actor, const MMPreviewCostumeCatalog *catalog, MMI32 id)
+{
+    MMMaterialOwner *costume = catalog->fetch((MMTemplateOwner *)actor->tmpl, id);
+    if (!costume)
+        return 0;
+    mm_body_set_custom(actor->body, costume, catalog->body);
+    mm_material_owner_release(costume);
+    return 1;
+}
+
 int mm_preview_actor_edit_costumes(MMPreviewActor *p, const MMPreviewCostumeCatalog *catalog,
                                   const MMPreviewCostumeEdits *edits, void *context, MMPreviewCostumeApply *apply)
 {
@@ -130,14 +140,8 @@ int mm_preview_actor_edit_costumes(MMPreviewActor *p, const MMPreviewCostumeCata
             if (result <= 0)
                 return result;
         }
-        else
-        {
-            MMMaterialOwner *costume = catalog->fetch(tmpl, choice.id);
-            if (!costume)
-                return 0;
-            mm_body_set_custom(p->body, costume, catalog->body);
-            mm_material_owner_release(costume);
-        }
+        else if (!apply_costume(p, catalog, choice.id))
+            return 0;
     }
     return 1;
 }
@@ -914,7 +918,7 @@ int mm_preview_actor_bounds(const MMPreviewActor *actor, float corners[24], cons
     return mm_preview_camera_bounds(&local, &body->bindings[0].matrix, corners, scalar_float);
 }
 
-int mm_preview_actor_rest_pose(const MMPreviewActor *actor, const MMPreviewActorServices *s)
+static int rest_pose(const MMPreviewActor *actor, const MMPreviewActorServices *s)
 {
     MMActorBodyPose pose = {0};
     unsigned short angle[3] = {0};
@@ -928,7 +932,7 @@ int mm_preview_actor_rest_pose(const MMPreviewActor *actor, const MMPreviewActor
 
 static int action_clip(const MMPreviewActor *actor, MMI32 action, MMI32 cel, MMI32 count,
                        const float pose[24], float clip[24], const MMPreviewActorServices *s,
-                       const MMPreviewActionView *v)
+                       const MMPreviewIsolatedView *v)
 {
     float low[3], high[3], bounds[24];
     MMI32 i, samples = count < 24 ? count : 24;
@@ -945,7 +949,8 @@ static int action_clip(const MMPreviewActor *actor, MMI32 action, MMI32 cel, MMI
         }
         if (sample == cel)
             continue;
-        if (s->pose(s->context, actor->tmpl, actor->body, action, sample) <= 0 || !v->bounds(v->context, bounds))
+        if (s->pose(s->context, actor->tmpl, actor->body, action, sample) <= 0 ||
+            !mm_preview_actor_bounds(actor, bounds, v->geometry, s->scalar_float))
             return MM_PREVIEW_ACTION_FRAME;
         include_corners(bounds, low, high);
     }
@@ -957,7 +962,7 @@ static int action_clip(const MMPreviewActor *actor, MMI32 action, MMI32 cel, MMI
 
 int mm_preview_actor_action_render(MMPreviewActor *actor, MMI32 action, MMI32 cel, MMI32 count,
                                    float clip[24], int *clip_valid, const MMPreviewActorServices *s,
-                                   const MMPreviewActionView *v)
+                                   const MMPreviewIsolatedView *v)
 {
     void *original = actor->body, *duplicate = NULL;
     float pose[24];
@@ -971,30 +976,42 @@ int mm_preview_actor_action_render(MMPreviewActor *actor, MMI32 action, MMI32 ce
         return MM_PREVIEW_ACTION_MEMORY;
     }
     actor->body = duplicate;
-    if (!mm_preview_actor_rest_pose(actor, s) || s->pose(s->context, actor->tmpl, duplicate, action, cel) <= 0 ||
-        !v->bounds(v->context, pose))
+    if (!rest_pose(actor, s) || s->pose(s->context, actor->tmpl, duplicate, action, cel) <= 0 ||
+        !mm_preview_actor_bounds(actor, pose, v->geometry, s->scalar_float))
         result = MM_PREVIEW_ACTION_POSE;
     else if (clip && !*clip_valid)
     {
         result = action_clip(actor, action, cel, count, pose, clip, s, v);
         *clip_valid = result == MM_PREVIEW_ACTION_OK;
     }
-    if (result == MM_PREVIEW_ACTION_OK && !v->render(v->context, clip ? clip : pose))
+    if (result == MM_PREVIEW_ACTION_OK && !v->render(v->context, clip ? clip : pose, 0))
         result = MM_PREVIEW_ACTION_FAILED;
     actor->body = original;
     s->release_body(s->context, duplicate);
     return result;
 }
 
-static int costume_frame(const MMPreviewCostumeServices *s, MMI32 set, float corners[24])
+static int costume_frame(MMPreviewActor *actor, MMI32 set, float corners[24], const MMPreviewCostumeCatalog *catalog,
+                         const MMPreviewActorServices *s, const MMPreviewIsolatedView *v)
 {
+    MMTemplateOwner *tmpl = (MMTemplateOwner *)actor->tmpl;
+    const MMBodyShape *shape = &mm_body_owner_state((MMBodyOwner *)actor->body)->shape;
+    MMBodyCostume selected;
+    MMBodyBounds bounds;
     float low[3], high[3];
     float body_low = corners[1], body_high = corners[1];
-    size_t count, i;
+    MMI32 count, i;
     unsigned corner, axis;
-    int has_set = 0, has_bounds = 0;
-    if (!s->variants(s->context, &count) || !s->save(s->context, 1))
+    int has_bounds = 0, result = MM_PREVIEW_COSTUME_OK;
+    if (!mm_preview_actor_costumes(actor, catalog, NULL, NULL))
         return MM_PREVIEW_COSTUME_FAILED;
+    mm_body_costume_init(&selected);
+    if (!mm_body_costume_capture(&selected, actor->body, catalog->body))
+    {
+        mm_body_costume_clear(&selected, catalog->body);
+        return MM_PREVIEW_COSTUME_FAILED;
+    }
+    count = set < shape->set_count ? catalog->count(tmpl, set) : 0;
     for (corner = 1; corner < 8; ++corner)
     {
         body_low = lower(body_low, corners[corner * 3 + 1]);
@@ -1002,26 +1019,31 @@ static int costume_frame(const MMPreviewCostumeServices *s, MMI32 set, float cor
     }
     for (i = 0; i < count; ++i)
     {
-        float vertical[2], part_low[3], part_high[3];
-        if (s->variant_set(s->context, i) != set)
-            continue;
-        has_set = 1;
-        if (!s->apply_variant(s->context, i))
-            return MM_PREVIEW_COSTUME_FAILED;
-        s->vertical_bounds(s->context, vertical);
-        body_low = lower(body_low, vertical[0]);
-        body_high = upper(body_high, vertical[1]);
-        if (!s->part_bounds(s->context, set, part_low, part_high))
+        if (!apply_costume(actor, catalog, catalog->id(tmpl, set, i)))
+        {
+            result = MM_PREVIEW_COSTUME_FAILED;
+            break;
+        }
+        mm_body_bounds(shape, 1, &bounds, v->geometry);
+        body_low = lower(body_low, s->scalar_float(bounds.min[1]));
+        body_high = upper(body_high, s->scalar_float(bounds.max[1]));
+        if (!mm_body_set_bounds(shape, set, v->model_bounds, &bounds))
             continue;
         for (axis = 0; axis < 3; ++axis)
         {
-            low[axis] = has_bounds ? lower(low[axis], part_low[axis]) : part_low[axis];
-            high[axis] = has_bounds ? upper(high[axis], part_high[axis]) : part_high[axis];
+            const float part_low = s->scalar_float(bounds.min[axis]);
+            const float part_high = s->scalar_float(bounds.max[axis]);
+            low[axis] = has_bounds ? lower(low[axis], part_low) : part_low;
+            high[axis] = has_bounds ? upper(high[axis], part_high) : part_high;
         }
         has_bounds = 1;
     }
-    s->restore(s->context, 1);
-    if (!has_set)
+    if (result == MM_PREVIEW_COSTUME_OK)
+        mm_body_costume_apply(&selected, actor->body, 0, catalog->body);
+    mm_body_costume_clear(&selected, catalog->body);
+    if (result != MM_PREVIEW_COSTUME_OK)
+        return result;
+    if (count <= 0)
         return MM_PREVIEW_COSTUME_NO_SET;
     if (has_bounds)
     {
@@ -1038,22 +1060,35 @@ static int costume_frame(const MMPreviewCostumeServices *s, MMI32 set, float cor
     return MM_PREVIEW_COSTUME_OK;
 }
 
-int mm_preview_costume_render(MMI32 set, const MMPreviewCostumeServices *s)
+int mm_preview_actor_costume_render(MMPreviewActor *actor, MMI32 set, const MMPreviewCostumeEdits *edits,
+                                    const MMPreviewCostumeCatalog *catalog, const MMPreviewActorServices *s,
+                                    const MMPreviewIsolatedView *v)
 {
+    MMBodyCostume original;
+    MMActorBodyPose pose = {0};
     int result = MM_PREVIEW_COSTUME_OK;
     float corners[24];
-    if (!s->save(s->context, 0))
+    if (!actor->body || !actor->tmpl)
         return MM_PREVIEW_COSTUME_PREPARE;
-    if (!s->rest_pose(s->context))
+    mm_body_costume_init(&original);
+    if (!mm_body_costume_capture(&original, actor->body, catalog->body))
+    {
+        mm_body_costume_clear(&original, catalog->body);
+        return MM_PREVIEW_COSTUME_PREPARE;
+    }
+    pose.orientation = mm_body_owner_state((MMBodyOwner *)actor->body)->shape.bindings[0].matrix;
+    if (!rest_pose(actor, s))
         result = MM_PREVIEW_COSTUME_PREPARE;
-    else if (!s->apply(s->context))
+    else if (!mm_preview_actor_edit_costumes(actor, catalog, edits, NULL, NULL))
         result = MM_PREVIEW_COSTUME_APPLY;
-    else if (!s->object_bounds(s->context, corners))
+    else if (!mm_preview_actor_bounds(actor, corners, v->geometry, s->scalar_float))
         result = MM_PREVIEW_COSTUME_FAILED;
     else if (set >= 0)
-        result = costume_frame(s, set, corners);
-    if (result == MM_PREVIEW_COSTUME_OK && !s->render(s->context, corners, set >= 0))
+        result = costume_frame(actor, set, corners, catalog, s, v);
+    if (result == MM_PREVIEW_COSTUME_OK && !v->render(v->context, corners, set >= 0))
         result = MM_PREVIEW_COSTUME_FAILED;
-    s->restore(s->context, 0);
+    mm_body_costume_apply(&original, actor->body, 0, catalog->body);
+    mm_body_locate(actor->body, &pose, catalog->body);
+    mm_body_costume_clear(&original, catalog->body);
     return result;
 }

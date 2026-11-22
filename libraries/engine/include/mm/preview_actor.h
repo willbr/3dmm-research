@@ -6,6 +6,7 @@
 #include "actor_effect.h"
 #include "actor_track.h"
 #include "actor_sound.h"
+#include "body_geometry.h"
 #include "resource_cache.h"
 #include "string_value.h"
 #include "wide.h"
@@ -183,7 +184,6 @@ extern "C"
     int mm_preview_actor_replay_track(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_position(MMPreviewActor *, int select_cel, const MMPreviewActorServices *);
     struct MMPreviewOrbit;
-    struct MMBodyGeometryServices;
     /* A placement edit moves the tracked anchor while preserving the camera fit. */
     int mm_preview_actor_translate(MMPreviewActor *, const float delta[3], struct MMPreviewOrbit *, MMI32 object,
                                     const MMPreviewActorServices *);
@@ -197,7 +197,7 @@ extern "C"
     /* Validate before editing. An optional orbit tracks the selected body's
      * center after a successful pose update. Negative service errors propagate. */
     int mm_preview_actor_set_shape(MMPreviewActor *, const MMPreviewActorShape *, struct MMPreviewOrbit *,
-                                   MMI32 object, const struct MMBodyGeometryServices *, const MMPreviewActorServices *);
+                                   MMI32 object, const MMBodyGeometryServices *, const MMPreviewActorServices *);
     void mm_preview_actor_shape(const MMPreviewActor *, MMPreviewActorShape *, float left[9], float right[9],
                                 const MMPreviewActorServices *);
     typedef struct MMPreviewTrackPose
@@ -211,52 +211,39 @@ extern "C"
     int mm_preview_actor_track_pose(const MMPreviewActor *, MMPreviewTrackPose *, const MMPreviewActorServices *);
     /* Read the visible body's local bounds and place their eight corners in
      * world space. An absent or offstage actor leaves the output untouched. */
-    int mm_preview_actor_bounds(const MMPreviewActor *, float corners[24], const struct MMBodyGeometryServices *,
+    int mm_preview_actor_bounds(const MMPreviewActor *, float corners[24], const MMBodyGeometryServices *,
                                 float (*scalar_float)(MMI32));
-    int mm_preview_actor_rest_pose(const MMPreviewActor *, const MMPreviewActorServices *);
 
     enum MMPreviewActionResult
     {
         MM_PREVIEW_ACTION_FAILED, MM_PREVIEW_ACTION_OK, MM_PREVIEW_ACTION_RANGE,
         MM_PREVIEW_ACTION_MEMORY, MM_PREVIEW_ACTION_POSE, MM_PREVIEW_ACTION_FRAME
     };
-    typedef struct MMPreviewActionView
+    typedef struct MMPreviewIsolatedView
     {
         void *context;
-        int (*bounds)(void *, float corners[24]);
-        int (*render)(void *, const float corners[24]);
-    } MMPreviewActionView;
+        const MMBodyGeometryServices *geometry;
+        MMBodyModelBounds *model_bounds; /* Used for focused costume sets. */
+        int (*render)(void *, const float corners[24], int crop);
+    } MMPreviewIsolatedView;
     /* Render with a duplicate body. Restore the live body before releasing the
      * duplicate. An empty optional clip is filled from up to 24 evenly spaced
      * cels and the requested pose, and remains reusable after a render failure. */
     int mm_preview_actor_action_render(MMPreviewActor *, MMI32 action, MMI32 cel, MMI32 count,
                                        float clip[24], int *clip_valid, const MMPreviewActorServices *,
-                                       const MMPreviewActionView *);
+                                       const MMPreviewIsolatedView *);
 
     enum MMPreviewCostumeResult
     {
         MM_PREVIEW_COSTUME_FAILED, MM_PREVIEW_COSTUME_OK, MM_PREVIEW_COSTUME_PREPARE,
         MM_PREVIEW_COSTUME_APPLY, MM_PREVIEW_COSTUME_NO_SET
     };
-    typedef struct MMPreviewCostumeServices
-    {
-        void *context;
-        int (*save)(void *, int selected);
-        void (*restore)(void *, int selected);
-        int (*rest_pose)(void *);
-        int (*apply)(void *);
-        int (*object_bounds)(void *, float corners[24]);
-        int (*variants)(void *, size_t *count);
-        MMI32 (*variant_set)(void *, size_t);
-        int (*apply_variant)(void *, size_t);
-        void (*vertical_bounds)(void *, float range[2]);
-        int (*part_bounds)(void *, MMI32 set, float low[3], float high[3]);
-        int (*render)(void *, const float corners[24], int crop);
-    } MMPreviewCostumeServices;
     /* Synchronous isolated render. Capture the original costume and pose,
      * frame the union of the requested set's variants, and restore the
      * original state on every path after capture. Host callbacks do not throw. */
-    int mm_preview_costume_render(MMI32 set, const MMPreviewCostumeServices *);
+    int mm_preview_actor_costume_render(MMPreviewActor *, MMI32 set, const MMPreviewCostumeEdits *,
+                                        const MMPreviewCostumeCatalog *, const MMPreviewActorServices *,
+                                        const MMPreviewIsolatedView *);
 #ifdef __cplusplus
 }
 #endif

@@ -1,5 +1,6 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/preview.h"
+#include <algorithm>
 #include <cstdio>
 #include <cstring>
 #include <cmath>
@@ -136,6 +137,61 @@ static bool CaptureActorTransforms(MM::Preview &preview)
         return false;
     preview.ResetOrbitFraming();
     return trace.Finish("actor transforms", 0, 0);
+}
+
+static bool CaptureIsolatedActorRenders(MM::Preview &preview)
+{
+    if (!std::getenv("MM_PREVIEW_ISOLATED_ACTOR_SNAPSHOT"))
+        return true;
+    AdmissionTrace trace("MM_PREVIEW_ISOLATED_ACTOR_SNAPSHOT");
+    MM::Error error;
+    MM::PreviewView view;
+    view.width = 96;
+    view.height = 128;
+    view.yaw = 25;
+    view.pitch = -10;
+    MM::PreviewImage image;
+    auto record = [&] {
+        return image.coveredPixels && trace.Image(image) && trace.Record(image.contentRect, sizeof(image.contentRect)) &&
+               trace.Record(image.projection.transform, sizeof(image.projection.transform));
+    };
+    std::vector<MM::PreviewCostume> choices;
+    if (!preview.ObjectCostumes(0, choices, error))
+        return false;
+    MM::PreviewCostume alternative;
+    bool found = false;
+    for (const auto &choice : choices)
+        if (!choice.selected)
+        {
+            alternative = choice;
+            found = true;
+            break;
+        }
+    if (!found || !preview.RenderObjectCostumes(0, {}, view, image, error) || !record() ||
+        !preview.RenderObjectCostumes(0, {alternative}, view, image, error) || !record() ||
+        !preview.RenderObjectCostumes(0, {alternative}, view, image, error, alternative.bodySet) || !record())
+        return false;
+    auto invalid = alternative;
+    invalid.costume = -12345;
+    const bool applied = preview.RenderObjectCostumes(0, {alternative, invalid}, view, image, error);
+    if (applied || error.code != MM::ErrorCode::decode_failed || !trace.Error(applied, error, preview))
+        return false;
+    const bool framed = preview.RenderObjectCostumes(0, {alternative}, view, image, error, 999);
+    if (framed || error.code != MM::ErrorCode::invalid_argument || !trace.Error(framed, error, preview) ||
+        !preview.RenderObjectCostumes(0, {}, view, image, error) || !record())
+        return false;
+    std::vector<MM::PreviewAction> actions;
+    if (!preview.ObjectActions(0, actions, error))
+        return false;
+    const auto it = std::find_if(actions.begin(), actions.end(), [](const auto &action) { return action.celCount > 2; });
+    if (it == actions.end())
+        return false;
+    const auto action = static_cast<int>(it - actions.begin());
+    MM::PreviewBounds clip;
+    return preview.RenderObjectAction(0, action, 0, view, image, error, &clip) && clip.valid && record() &&
+           trace.Record(clip.corners, sizeof(clip.corners)) &&
+           preview.RenderObjectAction(0, action, 2, view, image, error, &clip) && clip.valid && record() &&
+           trace.Record(clip.corners, sizeof(clip.corners)) && trace.Finish("isolated actor", 0, 0);
 }
 
 int main(int argc, char **argv)
@@ -294,7 +350,7 @@ int main(int argc, char **argv)
     if (!check(preview.SetFrame(1, error)) || !check(preview.Render(view, later, error)) ||
         std::memcmp(repeated.projection.transform, later.projection.transform, sizeof(later.projection.transform)))
         return 1;
-    if (!CaptureActorTransforms(preview))
+    if (!CaptureActorTransforms(preview) || !CaptureIsolatedActorRenders(preview))
         return 1;
     if (!check(preview.Select({0x41435452, 1}, error)) || preview.Info().firstFrame != 1 ||
         preview.Info().lastFrame <= 10 || !check(preview.Render(view, repeated, error)) || !repeated.coveredPixels)

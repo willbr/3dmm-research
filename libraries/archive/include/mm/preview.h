@@ -258,7 +258,7 @@ class Preview
         const MMPreviewLightValues *values;
         std::size_t count;
     };
-    bool RenderView(const PreviewView &, PreviewImage &, Error &, int object, const PreviewBounds *, bool crop,
+    bool RenderView(const PreviewView &, PreviewImage &, Error &, int object, const float bounds[24], bool crop,
                     const LightInput *lights = nullptr);
     struct Impl;
     std::unique_ptr<Impl> _impl;

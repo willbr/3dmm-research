@@ -318,118 +318,26 @@ bool Preview::SetObjectEventTrack(int object, std::int32_t source, Error &error)
 struct Preview::Impl::IsolatedActorHost
 {
     Preview &preview;
-    Internal::PreviewActor &actor;
     int object;
-    const std::vector<PreviewCostume> *values;
     const PreviewView &view;
     PreviewImage &image;
     Error &error;
-    ScopedBodyCostume original, selected;
-    MMActorBodyPose pose = {};
-    std::vector<PreviewCostume> variants;
     std::exception_ptr failure;
 
-    template<class Operation> int Guard(Operation operation)
+    MMPreviewIsolatedView Services()
     {
-        try { return operation(); }
-        catch (...)
-        {
-            failure = std::current_exception();
-            return 0;
-        }
-    }
-    int ReadBounds(float *corners)
-    {
-        return Guard([&] {
-            PreviewBounds bounds;
-            if (!preview.ObjectBounds(object, bounds, error) || !bounds.valid)
-                return false;
-            std::copy_n(bounds.corners, 24, corners);
-            return true;
-        });
-    }
-    int Render(const float *corners, bool crop)
-    {
-        return Guard([&] {
-            PreviewBounds bounds;
-            bounds.valid = true;
-            std::copy_n(corners, 24, bounds.corners);
-            return preview.RenderView(view, image, error, object, &bounds, crop);
-        });
-    }
-    MMPreviewActionView ActionView()
-    {
-        return {this,
-            [](void *p, float *corners) -> int { return static_cast<IsolatedActorHost *>(p)->ReadBounds(corners); },
-            [](void *p, const float *corners) -> int { return static_cast<IsolatedActorHost *>(p)->Render(corners, false); }};
-    }
-    MMPreviewCostumeServices CostumeServices()
-    {
-        return {this,
-            [](void *p, int selected) -> int {
-                auto &host = *static_cast<IsolatedActorHost *>(p);
-                auto body = host.actor.Pbody();
-                return host.Guard([&] {
-                    if (selected)
-                        return host.selected.FGet(body);
-                    if (!host.original.FGet(body))
-                        return false;
-                    host.pose.orientation = mm_body_owner_state(body)->shape.bindings[0].matrix;
-                    return true;
-                });
-            },
-            [](void *p, int selected) {
-                auto &host = *static_cast<IsolatedActorHost *>(p);
-                auto body = host.actor.Pbody();
-                if (selected)
-                    host.selected.Set(body);
-                else
-                {
-                    host.original.Set(body);
-                    mm_body_locate(body, &host.pose, &mm_kauai_body_renderer()->edit.runtime);
-                }
-            },
-            [](void *p) -> int {
-                auto &host = *static_cast<IsolatedActorHost *>(p);
-                return host.Guard([&] { return host.actor.RestPose(); });
-            },
-            [](void *p) -> int {
-                auto &host = *static_cast<IsolatedActorHost *>(p);
-                return host.Guard([&] { return host.actor.TryCostumes(*host.values); });
-            },
-            [](void *p, float *corners) -> int { return static_cast<IsolatedActorHost *>(p)->ReadBounds(corners); },
-            [](void *p, std::size_t *count) -> int {
-                auto &host = *static_cast<IsolatedActorHost *>(p);
-                return host.Guard([&] {
-                    const auto ok = host.actor.Costumes(host.variants);
-                    *count = host.variants.size();
-                    return ok;
-                });
-            },
-            [](void *p, std::size_t i) -> MMI32 { return static_cast<IsolatedActorHost *>(p)->variants[i].bodySet; },
-            [](void *p, std::size_t i) -> int {
-                auto &host = *static_cast<IsolatedActorHost *>(p);
-                return host.Guard([&] { return host.actor.TryCostumes({host.variants[i]}); });
-            },
-            [](void *p, float *range) {
-                MMBodyBounds bounds;
-                mm_brender_body_bounds(mm_kauai_body_renderer(), static_cast<IsolatedActorHost *>(p)->actor.Pbody(), 1, &bounds);
-                range[0] = BrScalarToFloat(bounds.min[1]);
-                range[1] = BrScalarToFloat(bounds.max[1]);
-            },
-            [](void *p, MMI32 set, float *low, float *high) -> int {
-                MMBodyBounds bounds;
-                if (!mm_brender_body_set_bounds(static_cast<IsolatedActorHost *>(p)->actor.Pbody(), set, &bounds))
-                    return 0;
-                for (int axis = 0; axis < 3; ++axis)
-                {
-                    low[axis] = BrScalarToFloat(bounds.min[axis]);
-                    high[axis] = BrScalarToFloat(bounds.max[axis]);
-                }
-                return 1;
-            },
+        return {this, &mm_kauai_body_renderer()->geometry, mm_brender_body_model_bounds,
             [](void *p, const float *corners, int crop) -> int {
-                return static_cast<IsolatedActorHost *>(p)->Render(corners, crop != 0);
+                auto &host = *static_cast<IsolatedActorHost *>(p);
+                try
+                {
+                    return host.preview.RenderView(host.view, host.image, host.error, host.object, corners, crop != 0);
+                }
+                catch (...)
+                {
+                    host.failure = std::current_exception();
+                    return 0;
+                }
             }};
     }
 };
@@ -440,9 +348,8 @@ bool Preview::RenderObjectCostumes(int object, const std::vector<PreviewCostume>
     error = {}; image = {};
     if (!_impl->live.status.ready || object < 0 || std::size_t(object) >= _impl->actors.size() || !_impl->actors[object]->Visible())
         return Fail(error, ErrorCode::invalid_argument, "Select a visible actor or prop.");
-    Impl::IsolatedActorHost host = {*this, *_impl->actors[object], object, &values, view, image, error};
-    const auto services = host.CostumeServices();
-    const auto result = mm_preview_costume_render(bodySet, &services);
+    Impl::IsolatedActorHost host = {*this, object, view, image, error};
+    const auto result = _impl->actors[object]->RenderCostumes(values, bodySet, host.Services());
     if (host.failure)
         std::rethrow_exception(host.failure);
     if (result == MM_PREVIEW_COSTUME_PREPARE)
@@ -460,10 +367,10 @@ bool Preview::RenderObjectAction(int object, int action, int cel, const PreviewV
     if (!_impl->live.status.ready || object < 0 || std::size_t(object) >= _impl->actors.size() ||
         !_impl->actors[object]->Visible())
         return Fail(error, ErrorCode::invalid_argument, "Select an on-stage object.");
-    Impl::IsolatedActorHost host = {*this, *_impl->actors[object], object, nullptr, view, image, error};
+    Impl::IsolatedActorHost host = {*this, object, view, image, error};
     int clipValid = clipBounds && clipBounds->valid;
-    const int result = host.actor.RenderAction(action, cel, clipBounds ? clipBounds->corners : nullptr, &clipValid,
-                                               host.ActionView());
+    const int result = _impl->actors[object]->RenderAction(action, cel, clipBounds ? clipBounds->corners : nullptr,
+                                                          &clipValid, host.Services());
     if (clipBounds)
         clipBounds->valid = clipValid != 0;
     if (host.failure)
@@ -1189,7 +1096,7 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
 }
 
 bool Preview::RenderView(const PreviewView &view, PreviewImage &image, Error &error, int object,
-                         const PreviewBounds *bounds, bool crop, const LightInput *lights)
+                         const float bounds[24], bool crop, const LightInput *lights)
 try
 {
     Impl::RenderHost host = {_impl.get(), &view, &error};
@@ -1233,7 +1140,7 @@ try
     v.axis = view.axisView;
     v.rasterizer = view.rasterizer != nullptr;
     MMPreviewImage rendered = {};
-    const auto result = bounds ? mm_preview_render_isolated(&v, &_impl->orbit, object, bounds->corners, crop,
+    const auto result = bounds ? mm_preview_render_isolated(&v, &_impl->orbit, object, bounds, crop,
                                                            host.image.contentRect, &rendered, &services) :
                                  mm_preview_render(&v, &_impl->orbit, &rendered, &services);
     if (host.exception)
