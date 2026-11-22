@@ -87,7 +87,7 @@ typedef struct LiveDocumentProbe
     char effects[24];
     size_t count;
     MMI32 reject_source;
-    int reject_allocations;
+    int reject_allocations, reject_text_names;
 } LiveDocumentProbe;
 
 static int live_effect(void *context, char effect)
@@ -113,15 +113,16 @@ static int live_install(void *p, const MMPreviewLiveDefinitions *definitions)
     definitions->scene(definitions->context, 0, &scene);
     return definitions->scene_count == 2 && definitions->prop_count == 2 && scene.number == 7 && live_effect(p, 'I');
 }
-static int live_reset_names(void *p) { return live_effect(p, 'N'); }
-static int live_name(void *p, MMI32 actor, const char *name)
+static int name_is(const MarcusActorNames *names, MMI32 actor, const char *expected)
 {
-    return ((actor == 9 && !strcmp(name, "Retail")) || (actor == 10 && !strcmp(name, "Generated"))) &&
-           live_effect(p, 'P');
+    const char *name = marcus_actor_names_get(names, actor, NULL);
+    return name && !strcmp(name, expected);
 }
-static int live_texts(void *p, const MMMovieTextJournal *texts)
+static int live_texts(void *p, const MMMovieTextJournal *texts, MarcusActorNames *names)
 {
-    return texts->count == 1 && live_effect(p, 'T');
+    const LiveDocumentProbe *probe = (const LiveDocumentProbe *)p;
+    return texts->count == 1 && name_is(names, 9, "Retail") && name_is(names, 10, "Generated") &&
+           marcus_actor_names_set(names, 10, "Edited", 6) && live_effect(p, 'T') && !probe->reject_text_names;
 }
 static void live_hold(void *p) { ++*(int *)p; }
 static void live_release(void *p) { --*(int *)p; }
@@ -158,14 +159,24 @@ static int check_live_document(MarcusPlayer *player)
     MarcusBoardStore boards = {0};
     MarcusBoardWire board = {0};
     MarcusSceneRows base = {0}, current = {0};
+    MarcusActorNames base_names = {0}, names = {0};
     MarcusScene *rows;
-    LiveDocumentProbe probe = {{0}, 0, 0, 0};
+    LiveDocumentProbe probe = {{0}, 0, 0, 0, 0};
     MMStorageAllocator allocator = {NULL, live_resize, live_dispose};
-    MarcusLiveDocumentServices s = {NULL, live_resources, live_retail, live_mount, live_install,
-                                    live_reset_names, live_name, live_texts};
+    MarcusLiveDocumentServices s = {NULL, live_resources, live_retail, live_mount, live_install, live_texts};
+    const char counted[] = {'A', 0, 'B', 0};
+    const char *name;
+    char label[16];
+    size_t bytes;
     int file = 1, ok = 0;
     allocator.context = s.context = &probe;
     CHECK(marcus_scene_rows_init(&base, NULL) && marcus_scene_rows_init(&current, &allocator));
+    CHECK(marcus_actor_names_init(&base_names, NULL) && marcus_actor_names_init(&names, NULL));
+    CHECK(marcus_actor_names_set(&base_names, 9, "Original", 8));
+    CHECK(marcus_actor_names_set(&base_names, -9, counted, 3));
+    CHECK(marcus_actor_names_set(&base_names, -10, "", 0));
+    CHECK(marcus_actor_names_set(&base_names, -11, "A\xe2\x82\xac", 4));
+    CHECK(marcus_actor_names_set(&names, 50, "Previous", 8));
     CHECK(mm_movie_scene_definitions_init(&definitions, NULL) && mm_movie_range_journal_init(&ranges, NULL) &&
           mm_movie_prop_journal_init(&props, NULL, &files) && mm_movie_text_journal_init(&texts, NULL, &files) &&
           mm_movie_track_journal_init(&tracks, NULL, &files) && marcus_board_store_init(&boards, NULL, &files));
@@ -207,18 +218,32 @@ static int check_live_document(MarcusPlayer *player)
     CHECK(marcus_live_document_mount_boards(&boards, &s) && !strcmp(probe.effects, "0"));
     probe.count = 0;
     probe.reject_source = 33;
-    CHECK(marcus_live_document_apply(&doc, &s, &current, &base) == MARCUS_LIVE_DOCUMENT_FAILED);
-    CHECK(!strcmp(probe.effects, "RL0123") && current.count == 1);
+    CHECK(marcus_live_document_apply(&doc, &s, &current, &base, &names, &base_names) == MARCUS_LIVE_DOCUMENT_FAILED);
+    CHECK(!strcmp(probe.effects, "RL0123") && current.count == 1 && name_is(&names, 50, "Previous"));
     probe.count = 0;
     probe.reject_source = 0;
+    probe.reject_text_names = 1;
+    CHECK(marcus_live_document_apply(&doc, &s, &current, &base, &names, &base_names) == MARCUS_LIVE_DOCUMENT_FAILED);
+    CHECK(!strcmp(probe.effects, "RL0123IT") && current.count == 1 && name_is(&names, 50, "Previous"));
+    probe.count = 0;
+    probe.reject_text_names = 0;
     probe.reject_allocations = 1;
-    CHECK(marcus_live_document_apply(&doc, &s, &current, &base) == MARCUS_LIVE_DOCUMENT_MEMORY);
+    CHECK(marcus_live_document_apply(&doc, &s, &current, &base, &names, &base_names) == MARCUS_LIVE_DOCUMENT_MEMORY);
     rows = (MarcusScene *)current.storage.buffers[0].data;
     CHECK(current.count == 1 && rows[0].first_frame == -4 && !strcmp(rows[0].name, "Authored"));
+    CHECK(name_is(&names, 50, "Previous") && !marcus_actor_names_get(&names, 10, NULL));
     probe.count = 0;
     probe.reject_allocations = 0;
-    CHECK(marcus_live_document_apply(&doc, &s, &current, &base) == MARCUS_LIVE_DOCUMENT_OK);
-    CHECK(!strcmp(probe.effects, "RL0123INPPT") && current.count == 3);
+    CHECK(marcus_live_document_apply(&doc, &s, &current, &base, &names, &base_names) == MARCUS_LIVE_DOCUMENT_OK);
+    CHECK(!strcmp(probe.effects, "RL0123IT") && current.count == 3);
+    CHECK(name_is(&names, 9, "Retail") && name_is(&names, 10, "Edited") && name_is(&base_names, 9, "Original"));
+    CHECK(name_is(&names, -10, "") && !marcus_actor_names_get(&names, 50, NULL));
+    name = marcus_actor_names_get(&names, -9, &bytes);
+    CHECK(name && bytes == 3 && !memcmp(name, counted, sizeof(counted)));
+    marcus_actor_display_name(&names, -11, 0, 0, label, 4);
+    CHECK(!strcmp(label, "A"));
+    marcus_actor_display_name(&names, 50, 0, 1, label, sizeof(label));
+    CHECK(!strcmp(label, "Prop 50"));
     rows = (MarcusScene *)current.storage.buffers[0].data;
     CHECK(rows[0].chunk == 40 && rows[0].first_frame == -6 && rows[0].last_frame == 83 &&
           rows[0].transition == MARCUS_TRANSITION_DISSOLVE && !strcmp(rows[0].name, "Authored"));
@@ -226,6 +251,8 @@ static int check_live_document(MarcusPlayer *player)
     CHECK(rows[2].chunk == 3 && rows[2].first_frame == 1 && rows[2].last_frame == 1 && !strcmp(rows[2].name, "Scene 3"));
     ok = 1;
 failed:
+    marcus_actor_names_dispose(&names);
+    marcus_actor_names_dispose(&base_names);
     marcus_scene_rows_dispose(&current);
     marcus_scene_rows_dispose(&base);
     marcus_board_store_dispose(&boards);

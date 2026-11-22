@@ -23259,3 +23259,23 @@ Actor Audio candidate `20261122T231254Z-6982f580` matched
 The seek and playback frame order matched retained retail and V3DMM run
 `20261122T082301Z-c465fa98`. Evidence is under `tmp/c89-movie-open` and
 `tmp/c89-aqcap`.
+
+## C89 Marcus actor names (22 November 2026)
+
+C89 owns the authored roll-call names and the live names used by object
+labels and the sound sheet. Document rebuilds copy the authored rows, apply
+inserted names and replay text names before publishing the staged table and
+scene rows. Failed rebuilds preserve the previous names.
+
+The headless test covers rejected text replay, allocation failure, counted
+names with embedded zero bytes, empty names and UTF-8 label boundaries. A
+separate probe verified 4,093 unordered actor IDs, replacement and failed
+copy. Actor metadata matched on six native and portable movies, and eleven
+native saves and the startup image matched byte for byte. All 226 selected
+tests passed, and the x86 Marcus worker built.
+
+Actor Audio candidate `20261122T231929Z-2d70e0a3` matched
+`20261122T231254Z-6982f580` on all 60 Marcus seek canvases and recorded
+states. Seek and playback frame order matched retained retail and V3DMM run
+`20261122T082301Z-c465fa98`. Evidence is under `tmp/c89-actor-names` and
+`tmp/c89-aqcap`.

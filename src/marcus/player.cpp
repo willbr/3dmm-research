@@ -118,6 +118,14 @@ struct MarcusScenes : MarcusSceneRows
     MMU32 Number(std::size_t index) const { return static_cast<MMU32>((*this)[index].chunk); }
     MM::Id Id(std::size_t index) const { return {sceneType, Number(index)}; }
 };
+struct ActorNames : MarcusActorNames
+{
+    ActorNames() { marcus_actor_names_init(this, nullptr); }
+    ~ActorNames() { marcus_actor_names_dispose(this); }
+    ActorNames(const ActorNames &) = delete;
+    ActorNames &operator=(const ActorNames &) = delete;
+    void Clear() { marcus_actor_names_clear(this); }
+};
 struct MarcusPlayer
 {
     // Destroy the renderer before deleting any private VMM working files.
@@ -207,7 +215,7 @@ struct MarcusPlayer
         ~UndoHistory() { mm_movie_snapshot_clear(&stack, Release); }
     } undo;
     float inspectionRoll = 0, inspectionFov = 45;
-    std::map<std::int32_t, std::string> names, baseNames;
+    ActorNames names, baseNames;
     char error[1024] = {};
     MMI32 selected = -1;
     unsigned long document = 0;
@@ -443,7 +451,8 @@ bool MountGeneratedSource(MarcusPlayer &player, MMI32 id, const MarcusSourceRegi
 }
 int PublishTextActorName(void *context, std::int32_t actor, const char *name)
 {
-    static_cast<MarcusPlayer *>(context)->names[actor] = name;
+    if (!marcus_actor_names_set(static_cast<MarcusActorNames *>(context), actor, name, std::strlen(name)))
+        throw std::bad_alloc();
     return 1;
 }
 struct LiveDocumentHost
@@ -471,15 +480,9 @@ struct LiveDocumentHost
             [](void *p, const MMPreviewLiveDefinitions *input) {
                 return Run(p, [&](auto &h) { return h.movie.preview.SetLiveDefinitions(*input, h.error); });
             },
-            [](void *p) {
-                return Run(p, [](auto &h) { h.movie.names = h.movie.baseNames; return 1; });
-            },
-            [](void *p, MMI32 actor, const char *name) {
-                return Run(p, [&](auto &h) { return PublishTextActorName(&h.movie, actor, name); });
-            },
-            [](void *p, const MMMovieTextJournal *texts) {
+            [](void *p, const MMMovieTextJournal *texts, MarcusActorNames *names) {
                 return Run(p, [&](auto &h) {
-                    return h.movie.preview.ReplayActorNames(*texts, &h.movie, PublishTextActorName, h.error);
+                    return h.movie.preview.ReplayActorNames(*texts, names, PublishTextActorName, h.error);
                 });
             }};
     }
@@ -499,7 +502,8 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
         edits.storyboards.get(), edits.texts.get(), edits.costumes.get(), player.frameRanges.get()};
     LiveDocumentHost host{player, error, {}};
     const auto services = host.Services();
-    return host.Result(marcus_live_document_apply(&input, &services, &player.sceneInfo, &player.baseSceneInfo));
+    return host.Result(marcus_live_document_apply(&input, &services, &player.sceneInfo, &player.baseSceneInfo,
+                                                  &player.names, &player.baseNames));
 }
 bool ApplyCameras(MarcusPlayer &player, int index, const MarcusLiveEdits::Cameras &cameras, MM::Error &error)
 {
@@ -512,7 +516,7 @@ bool ApplyCameras(MarcusPlayer &player, int index, MM::Error &error)
 bool ApplyPlacements(MarcusPlayer &player, int scene, const MMMoviePoseJournal &poses, MM::Error &error)
 {
     const MMMovieActorEdits edits{player.sceneInfo.Number(scene), player.edits->costumes.get(), player.edits->texts.get(), &poses};
-    if (!player.preview.ReplayActorEdits(edits, &player, PublishTextActorName, error))
+    if (!player.preview.ReplayActorEdits(edits, static_cast<MarcusActorNames *>(&player.names), PublishTextActorName, error))
         return false;
     player.objects = player.preview.Objects();
     player.playback.InvalidateMovieFrame();
@@ -638,8 +642,7 @@ bool ReadSoundSheet(MarcusPlayer *player, int index, const MarcusScenes &scenes,
     const MarcusSoundSheetNames names{&context,
         [](void *p, MMI32 actor) -> const char * {
             const auto &names = static_cast<Context *>(p)->movie.names;
-            const auto name = names.find(actor);
-            return name == names.end() ? nullptr : name->second.c_str();
+            return marcus_actor_names_get(&names, actor, nullptr);
         },
         [](void *p, const MMMovieTimingCue *cue, const char **out) -> int {
             auto &h = *static_cast<Context *>(p);
@@ -1048,7 +1051,7 @@ bool OpenEditedBase(MarcusPlayer *player, const std::shared_ptr<MarcusMovieFile>
             player->content = std::make_unique<MarcusContent>(empty, directory);
             player->timingInput.reset(); player->timingJob.reset();
             player->timingStarted = player->timingFailed = false;
-            player->baseSceneInfo.clear(); player->baseNames.clear(); player->names.clear();
+            player->baseSceneInfo.clear(); player->baseNames.Clear(); player->names.Clear();
             player->sceneInfo.clear(); player->objects.clear();
             player->soundTimeline.Clear(); player->waveforms.Clear(); player->playback.Stop();
             player->soundSheet.Clear();
@@ -2486,11 +2489,7 @@ extern "C"
             if (!archive.OpenForPreview(document, error))
                 return false;
             MarcusScenes sceneInfo, baseSceneInfo;
-            struct Names
-            {
-                std::map<std::int32_t, std::string> rows;
-                std::exception_ptr failure;
-            } names;
+            ActorNames baseNames, names;
             struct MovieOpen : MarcusMovieOpen
             {
                 MovieOpen() { marcus_movie_open_init(this); }
@@ -2501,16 +2500,11 @@ extern "C"
             MarcusSourceRegistry sourceIds;
             if (player->internalOpenDepth)
                 mm_movie_source_ids_limit(&sourceIds, player->sourceIds.next);
-            const auto openError = MarcusReadMovieOpen(movie, archive.Reader(), sceneInfo, sourceIds, &names,
-                [](void *context, MMI32 actor, const char *name, std::size_t bytes) noexcept -> int {
-                    auto &names = *static_cast<Names *>(context);
-                    try { names.rows[actor].assign(name, bytes); return 1; }
-                    catch (...) { names.failure = std::current_exception(); return 0; }
-                });
-            if (names.failure)
-                std::rethrow_exception(names.failure);
+            const auto openError = MarcusReadMovieOpen(movie, archive.Reader(), sceneInfo, sourceIds, baseNames);
             if (openError) { error.message = openError; return false; }
             baseSceneInfo = sceneInfo;
+            if (!marcus_actor_names_copy(&names, &baseNames))
+                throw std::bad_alloc();
             const auto sources = marcus_movie_open_sources(&movie);
             for (MMU32 i = 0; i < movie.source_count; ++i)
                 content->PrepareSource(std::string(sources[i].name, sources[i].name_bytes));
@@ -2581,7 +2575,7 @@ extern "C"
             player->materializedPoses.reset();
             player->materializedFile.reset();
             player->animations.clear();
-            player->names.clear();
+            player->names.Clear();
             player->soundSheet.Clear();
             player->soundTimeline.Clear();
             player->waveforms.Clear();
@@ -2596,8 +2590,8 @@ extern "C"
                 }
             player->sceneInfo.swap(sceneInfo);
             player->baseSceneInfo.swap(baseSceneInfo);
-            player->names.swap(names.rows);
-            player->baseNames = player->names;
+            marcus_actor_names_swap(&player->names, &names);
+            marcus_actor_names_swap(&player->baseNames, &baseNames);
             LiveDocumentHost host{*player, error, {}};
             const auto services = host.Services();
             if (!host.Result(marcus_live_document_mount_boards(player->edits->storyboards.get(), &services)))
@@ -2960,12 +2954,8 @@ extern "C"
                 return false;
             *object = {};
             const auto &source = player->objects[index];
-            const auto name = player->names.find(source.actorId);
-            Copy(object->name, name != player->names.end() ? name->second
-                                                           : std::string(source.text   ? "3D text "
-                                                                         : source.prop ? "Prop "
-                                                                                       : "Actor ") +
-                                                                 std::to_string(source.actorId));
+            marcus_actor_display_name(&player->names, source.actorId, source.text, source.prop,
+                                      object->name, sizeof(object->name));
             object->chunk = source.asset.number;
             object->template_chunk = source.templateAsset.number;
             object->actor_id = source.actorId;

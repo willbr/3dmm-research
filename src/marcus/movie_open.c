@@ -14,8 +14,7 @@ typedef struct MovieRead
     MMMovieSourceIds *source_ids;
     const MMPrivateArchiveProfile *profile;
     const struct MMTextHost *text;
-    void *context;
-    MarcusOpenActorName actor;
+    MarcusActorNames *names;
     int memory;
 } MovieRead;
 
@@ -120,8 +119,13 @@ static int read_actor(void *context, MMI32 actor, const void *text, MMU32 units)
     const MMPrivateArchiveProfile *profile = read->profile;
     char name[MM_MOVIE_SOURCE_NAME_BYTES];
     size_t bytes;
-    return marcus_archive_text_utf8(read->text, text, units * profile->unit, profile->encoding,
-                                    name, sizeof(name), &bytes) && read->actor(read->context, actor, name, bytes);
+    if (!marcus_archive_text_utf8(read->text, text, units * profile->unit, profile->encoding,
+                                  name, sizeof(name), &bytes))
+        return 0;
+    if (marcus_actor_names_set(read->names, actor, name, bytes))
+        return 1;
+    read->memory = 1;
+    return 0;
 }
 
 static const char *read_error(int status, int payload)
@@ -159,7 +163,7 @@ static const char *read_error(int status, int payload)
 
 const char *marcus_movie_open_read(MarcusMovieOpen *movie, MMArchiveReader *reader, MarcusSceneRows *scenes,
                                   MMMovieSourceIds *source_ids, const MMPrivateArchiveProfile *profile,
-                                  const struct MMTextHost *text, void *context, MarcusOpenActorName actor)
+                                  const struct MMTextHost *text, MarcusActorNames *names)
 {
     static const MMArchiveMovieOpenSink callbacks = {{NULL, read_root, read_scene, read_source}, read_actor};
     MMArchiveMovieOpenSink sink = callbacks;
@@ -175,8 +179,7 @@ const char *marcus_movie_open_read(MarcusMovieOpen *movie, MMArchiveReader *read
     read.source_ids = source_ids;
     read.profile = profile;
     read.text = text;
-    read.context = context;
-    read.actor = actor;
+    read.names = names;
     read.memory = 0;
     sink.directory.context = &read;
     status = mm_archive_reader_movie_open(reader, &sink, &movie->ids, &detail);

@@ -18,10 +18,10 @@ int MarcusLoadAssetCatalog(MarcusAssetCatalog &catalog, MarcusAssetKind kind, co
 }
 
 const char *MarcusReadMovieOpen(MarcusMovieOpen &movie, MMArchiveReader *reader, MarcusSceneRows &scenes,
-                                MMMovieSourceIds &sourceIds, void *context, MarcusOpenActorName actor)
+                                MMMovieSourceIds &sourceIds, MarcusActorNames &names)
 {
     const auto profile = KauaiPrivateArchiveProfile();
-    return marcus_movie_open_read(&movie, reader, &scenes, &sourceIds, &profile, KauaiText::Services(), context, actor);
+    return marcus_movie_open_read(&movie, reader, &scenes, &sourceIds, &profile, KauaiText::Services(), &names);
 }
 
 MMChunkNameValue MarcusArchiveName(String &name, void *wire)

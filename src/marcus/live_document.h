@@ -1,6 +1,7 @@
 #ifndef MARCUS_LIVE_DOCUMENT_H
 #define MARCUS_LIVE_DOCUMENT_H
 
+#include "actor_names.h"
 #include "player.h"
 #include "storyboard_store.h"
 
@@ -41,17 +42,16 @@ typedef struct MarcusLiveDocumentServices
     int (*retail)(void *);
     int (*mount)(void *, MMI32 source, const void *file);
     int (*install)(void *, const MMPreviewLiveDefinitions *);
-    int (*reset_names)(void *);
-    MMMovieActorNamePublish *name;
-    int (*text_names)(void *, const MMMovieTextJournal *);
+    int (*text_names)(void *, const MMMovieTextJournal *, MarcusActorNames *);
 } MarcusLiveDocumentServices;
 
 enum { MARCUS_LIVE_DOCUMENT_FAILED, MARCUS_LIVE_DOCUMENT_OK, MARCUS_LIVE_DOCUMENT_MEMORY };
 /* Effects run synchronously without reentry or exceptions. Failure stops the
- * sequence and keeps the previous scene rows. Source and Preview effects that
+ * sequence and keeps the previous scene rows and actor names. Source and Preview effects that
  * already ran are left for the caller's existing edit recovery. */
 int marcus_live_document_apply(const MarcusLiveDocument *, const MarcusLiveDocumentServices *,
-                               MarcusSceneRows *scenes, const MarcusSceneRows *base);
+                               MarcusSceneRows *scenes, const MarcusSceneRows *base,
+                               MarcusActorNames *names, const MarcusActorNames *base_names);
 /* The archive open path mounts regenerated boards before selecting the first
  * scene. It uses the same order and source rules as edit restoration. */
 int marcus_live_document_mount_boards(const MarcusBoardStore *, const MarcusLiveDocumentServices *);

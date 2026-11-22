@@ -93,19 +93,32 @@ static int mount_edit_sources(const MarcusLiveDocument *doc, const MarcusLiveDoc
 }
 
 int marcus_live_document_apply(const MarcusLiveDocument *doc, const MarcusLiveDocumentServices *s,
-                               MarcusSceneRows *scenes, const MarcusSceneRows *base)
+                               MarcusSceneRows *scenes, const MarcusSceneRows *base,
+                               MarcusActorNames *names, const MarcusActorNames *base_names)
 {
     MMMovieLiveDefinitions definitions = doc->definitions;
     MMPreviewLiveDefinitions preview = mm_movie_definitions_preview(&definitions);
     const MMMoviePropEdit *props = mm_movie_prop_journal_data(definitions.props);
     MMU32 i;
-    if (!mount_edit_sources(doc, s) || !s->install(s->context, &preview) || !s->reset_names(s->context))
+    MarcusActorNames staged;
+    int status = MARCUS_LIVE_DOCUMENT_MEMORY;
+    if (!mount_edit_sources(doc, s) || !s->install(s->context, &preview))
         return MARCUS_LIVE_DOCUMENT_FAILED;
+    if (!marcus_actor_names_init(&staged, &names->storage.allocator))
+        return MARCUS_LIVE_DOCUMENT_MEMORY;
+    if (!marcus_actor_names_copy(&staged, base_names))
+        goto done;
     for (i = 0; i < definitions.props->count; ++i)
-        if (!s->name(s->context, props[i].definition.actor_id, props[i].name))
-            return MARCUS_LIVE_DOCUMENT_FAILED;
-    if (!s->text_names(s->context, doc->texts))
-        return MARCUS_LIVE_DOCUMENT_FAILED;
-    return marcus_scene_rows_rebuild(scenes, base, definitions.scenes, doc->ranges) ?
-               MARCUS_LIVE_DOCUMENT_OK : MARCUS_LIVE_DOCUMENT_MEMORY;
+        if (!marcus_actor_names_set(&staged, props[i].definition.actor_id, props[i].name, strlen(props[i].name)))
+            goto done;
+    if (!s->text_names(s->context, doc->texts, &staged))
+        status = MARCUS_LIVE_DOCUMENT_FAILED;
+    else if (marcus_scene_rows_rebuild(scenes, base, definitions.scenes, doc->ranges))
+    {
+        marcus_actor_names_swap(names, &staged);
+        status = MARCUS_LIVE_DOCUMENT_OK;
+    }
+done:
+    marcus_actor_names_dispose(&staged);
+    return status;
 }

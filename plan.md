@@ -2043,6 +2043,10 @@ from the C89 movie reader. C89 registers the declared sources, chooses the
 retail alias, and reads scene names and roll-call names. The host mounts
 content from the ordered source rows and transfers the staged scene data to
 the live player.
+The C89 actor name table owns the authored roll call and the effective names
+used by object labels and the sound sheet. Live definition rebuilds stage the
+authored names, inserted names and text overlays, then publish the result
+with the scene rows. Undo uses the same rebuild path.
 Working archive lookup, cache retention and reload now use the C89
 registry and archive owner. Studio and Preview supply filename and
 physical access operations for the shared selection.

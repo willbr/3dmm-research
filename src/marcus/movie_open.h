@@ -29,18 +29,14 @@ void marcus_movie_open_init(MarcusMovieOpen *);
 void marcus_movie_open_dispose(MarcusMovieOpen *);
 const MarcusMovieSource *marcus_movie_open_sources(const MarcusMovieOpen *);
 
-typedef int (*MarcusOpenActorName)(void *, MMI32 actor, const char *name, size_t bytes);
-
 /* Read into fresh staging owners. Keep them private until the complete read
- * succeeds. A failure can leave a staged prefix and returns a diagnostic.
- * The actor callback borrows the name and must not re-enter the archive. */
+ * succeeds. A failure can leave a staged prefix and returns a diagnostic. */
 const char *marcus_movie_open_read(MarcusMovieOpen *, MMArchiveReader *, MarcusSceneRows *, MMMovieSourceIds *,
-                                   const MMPrivateArchiveProfile *, const struct MMTextHost *,
-                                   void *context, MarcusOpenActorName);
+                                   const MMPrivateArchiveProfile *, const struct MMTextHost *, MarcusActorNames *);
 
 #ifdef __cplusplus
 }
 const char *MarcusReadMovieOpen(MarcusMovieOpen &, MMArchiveReader *, MarcusSceneRows &, MMMovieSourceIds &,
-                                void *context, MarcusOpenActorName);
+                                MarcusActorNames &);
 #endif
 #endif
