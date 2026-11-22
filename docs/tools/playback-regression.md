@@ -23298,3 +23298,21 @@ and Marcus builds on all 60 seek canvases and recorded states for each port.
 Both ports' seek and playback frame orders matched retained retail and V3DMM
 run `20261122T082301Z-c465fa98`. Evidence is under
 `tmp/c89-object-snapshots` and `tmp/c89-aqcap`.
+
+## C89 x86 worker placement batches (22 November 2026)
+
+C89 assembles each worker batch from the published object rows, temporary
+placements and committed poses. It uses the live Preview shape where needed
+and publishes the sorted records only after the batch is complete. The
+regression covers combined offsets, identity and live shapes, and rejection
+after allocation or shape lookup fails.
+
+All 226 selected native tests and eleven SDL tests passed. The x86 worker
+passed the retail-movie protocol test and the placement and shape fixtures.
+Eleven native saves and the headless startup image matched byte for byte.
+
+Actor Audio candidate `20261122T233443Z-d0aac5bc` matched
+`20261122T232721Z-58eb4a6c` on all 60 seek canvases and recorded states
+for each port. Studio and Marcus matched the retained retail and V3DMM seek
+and playback order from `20261122T082301Z-c465fa98`. Evidence is under
+`tmp/c89-worker-placements` and `tmp/c89-aqcap`.

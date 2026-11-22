@@ -12,7 +12,7 @@ bool MarcusApplyLiveEdits(MarcusPlayer *, const std::vector<MMPreviewLiveScene> 
                          const std::vector<MMPreviewLiveProp> &, const std::vector<MarcusASM::CameraEdit> &,
                          std::uint64_t revision, MM::Error &);
 bool MarcusApplySceneRange(MarcusPlayer *, std::int32_t first, std::int32_t last, MM::Error &);
-bool MarcusApplyPropOffsets(MarcusPlayer *, const std::vector<MarcusASM::PropOffset> &, MM::Error &);
+bool MarcusApplyPropOffsets(MarcusPlayer *, const MarcusASM::PropOffset *, std::size_t count, MM::Error &);
 class MarcusASMRenderer
 {
     struct Impl;
@@ -23,6 +23,7 @@ class MarcusASMRenderer
     MarcusASMRenderer(const std::string &movie, const std::string &resources, const std::string &content, const std::string &origin = {});
     ~MarcusASMRenderer();
     bool Render(int scene, int frame, const MM::PreviewView &, MM::PreviewImage &, MM::Error &,
-                const std::vector<MarcusASM::PropOffset> &offsets = {}, std::int32_t firstFrame = 0, std::int32_t lastFrame = -1, const MarcusLiveEdits *edits = nullptr);
+                const MarcusASM::PropOffset *, std::uint32_t count, std::int32_t firstFrame, std::int32_t lastFrame,
+                const MarcusLiveEdits *);
 };
 #endif

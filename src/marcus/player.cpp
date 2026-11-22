@@ -4,6 +4,7 @@
 #include "mm/graphics_transition.h"
 #include "mm/material_resource.h"
 #include "mm/movie_data.h"
+#include "mm/movie_placement_batch.h"
 #include "mm/movie_publish.h"
 #include "mm/movie_scene.h"
 #include "mm/movie_source_ids.h"
@@ -184,6 +185,13 @@ struct MarcusPlayer
         SoundCatalog &operator=(const SoundCatalog &) = delete;
     } soundAssets;
     MarcusObjects objects;
+    struct WorkerPlacements : MMMovieWorkerPlacements
+    {
+        WorkerPlacements() { mm_movie_worker_placements_init(this, nullptr); }
+        ~WorkerPlacements() { mm_movie_worker_placements_dispose(this); }
+        WorkerPlacements(const WorkerPlacements &) = delete;
+        WorkerPlacements &operator=(const WorkerPlacements &) = delete;
+    } workerPlacements;
     std::vector<MM::PreviewAction> objectActions;
     struct PlacementDrafts : MMMoviePlacementDrafts
     {
@@ -588,9 +596,9 @@ bool MarcusApplySceneRange(MarcusPlayer *player, std::int32_t first, std::int32_
     scene.last_frame = last;
     return ApplyCameras(*player, player->selected, error);
 }
-bool MarcusApplyPropOffsets(MarcusPlayer *player, const std::vector<MarcusASM::PropOffset> &offsets, MM::Error &error)
+bool MarcusApplyPropOffsets(MarcusPlayer *player, const MarcusASM::PropOffset *offsets, std::size_t count, MM::Error &error)
 {
-    if (!player->preview.ReplayActorPlacements(offsets.data(), offsets.size(), error))
+    if (!player->preview.ReplayActorPlacements(offsets, count, error))
         return false;
     player->objects.Capture(player->preview);
     return true;
@@ -749,30 +757,26 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
             player->asmRenderer = std::make_unique<MarcusASMRenderer>((plan.materialized ? player->asmBoardFile->path : player->content->movie).u8string(),
                 player->timingResources, player->timingContent, player->content && player->content->bundled && player->timingInput
                     ? (player->timingInput->contentOrigin.empty() ? player->timingInput->path : player->timingInput->contentOrigin).u8string() : std::string{});
-        std::vector<MarcusASM::PropOffset> offsets;
-        for (std::size_t index = 0; !plan.materialized && index < player->objects.size(); ++index)
+        const MMMovieActorPlacement *offsets = nullptr;
+        MMU32 offsetCount = 0;
+        if (!plan.materialized)
         {
-            const auto &object = player->objects[index];
-            const auto pose = mm_movie_pose_journal_find(player->poses.get(), player->sceneInfo.Number(player->selected),
-                                                         object.number);
-            float position[3];
-            mm_preview_object_position(&object, position);
-            MarcusASM::PropOffset change{};
-            change.object = static_cast<MMI32>(index);
-            int shaped;
-            if (mm_movie_placement_worker(&player->placementDrafts, change.object, position,
-                                           pose, change.offset, &shaped))
+            auto &batch = player->workerPlacements;
+            const auto status = player->preview.CollectWorkerPlacements(batch, player->objects, player->placementDrafts,
+                *player->poses, player->sceneInfo.Number(player->selected));
+            if (status == MM_MOVIE_PLACEMENT_MEMORY) throw std::bad_alloc();
+            if (status != MM_MOVIE_PLACEMENT_OK)
             {
-                MM::PreviewObjectShape shape;
-                if (shaped && !player->preview.ObjectShape(static_cast<int>(index), shape, nullptr, nullptr, error))
-                    return false;
-                change.shape = CorePlacementShape(shape);
-                offsets.push_back(change);
+                error.message = "Select a scene object first.";
+                return false;
             }
+            offsets = mm_movie_worker_placements_data(&batch);
+            offsetCount = batch.count;
         }
         const auto &range = player->sceneInfo[player->selected];
         if (!player->asmRenderer->Render(player->selected, player->preview.Info().currentFrame, options, player->image, error,
-                                         offsets, range.first_frame, range.last_frame, plan.materialized ? nullptr : player->edits.get()))
+                                         offsets, offsetCount, range.first_frame, range.last_frame,
+                                         plan.materialized ? nullptr : player->edits.get()))
         { player->asmRenderer.reset(); return false; }
     }
     else if (!player->preview.Render(options, player->image, error)) return false;

@@ -100,13 +100,13 @@ MarcusASMRenderer::MarcusASMRenderer(const std::string &movie, const std::string
 }
 MarcusASMRenderer::~MarcusASMRenderer() = default;
 bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view, MM::PreviewImage &image,
-                               MM::Error &error, const std::vector<MarcusASM::PropOffset> &offsets,
+                               MM::Error &error, const MarcusASM::PropOffset *offsets, std::uint32_t count,
                                std::int32_t firstFrame, std::int32_t lastFrame, const MarcusLiveEdits *edits)
 {
     try
     {
         auto request = MarcusASM::Encode(scene, frame, view);
-        request.propCount = static_cast<std::uint32_t>(offsets.size());
+        request.propCount = count;
         request.firstFrame = firstFrame;
         request.lastFrame = lastFrame;
         const bool sendEdits = edits && edits->revision != impl->sentRevision;
@@ -119,7 +119,7 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
             request.cameraCount = edits->cameras->count;
         }
         Transfer(impl->input, &request, sizeof(request), true);
-        if (!offsets.empty()) Transfer(impl->input, const_cast<MarcusASM::PropOffset *>(offsets.data()), offsets.size() * sizeof(offsets[0]), true);
+        if (count) Transfer(impl->input, const_cast<MarcusASM::PropOffset *>(offsets), std::size_t(count) * sizeof(*offsets), true);
         if (sendEdits)
         {
             for (const auto &scene : *edits->scenes)

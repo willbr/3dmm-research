@@ -1,6 +1,7 @@
 /* Movie scene-container transactions, retry paths and ownership. */
 #include "mm/movie_scene.h"
 #include "mm/movie_archive_edit.h"
+#include "mm/movie_placement_batch.h"
 #include "mm/movie_scene_journal.h"
 #include "mm/material_resource.h"
 #include "mm/scene_runtime.h"
@@ -1465,6 +1466,74 @@ static int replay_shape(void *context, MMI32 object, const MMPreviewActorShape *
 static const MMPreviewActor *replay_actor_view(const void *actor) { return (const MMPreviewActor *)actor; }
 static void replay_actor_release(void *context, void *actor) { (void)context; (void)actor; }
 
+static int worker_placements(void)
+{
+    const MMPreviewActorShape identity = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {1, 1, 1}};
+    const MMPreviewActorShape saved = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {2, 1, 1}};
+    const float delta[3] = {2, -1, 3}, temporary[3] = {5, 1, 2};
+    MMPreviewLive live;
+    MMPreviewActor actors[3] = {0};
+    MMPreviewLiveServices live_services = {0};
+    MMPreviewObjectRows rows;
+    MMMoviePoseJournal poses;
+    MMMoviePlacementDrafts drafts;
+    MMMovieWorkerPlacements batch;
+    PlacementHost host = {0};
+    MaterialGraph memory = {0};
+    MMStorageAllocator allocator = {NULL, material_resize, material_release};
+    MMMoviePlacementServices services = {NULL, placement_read, placement_position, placement_shape,
+                                         placement_invalidate, placement_prepare, placement_publish};
+    const MMMovieActorPlacement *published;
+    float offset[3];
+    int i;
+    live_services.actor_release = replay_actor_release;
+    CHECK(mm_preview_live_init(&live, NULL));
+    live.status.ready = 1;
+    live.actor_view = replay_actor_view;
+    actors[0].number = 31;
+    actors[1].number = 12;
+    actors[2].number = 20;
+    actors[2].body = &host;
+    actors[2].shape = saved;
+    actors[2].shape.scale[0] = 3;
+    actors[2].state.position.dxr = 5 * 65536L;
+    actors[2].state.position.dyr = 65536L;
+    actors[2].state.position.dzr = 2 * 65536L;
+    for (i = 0; i < 3; ++i)
+        CHECK(mm_preview_live_adopt(&live, actors + i) == MM_PREVIEW_LIVE_OK);
+    CHECK(mm_preview_object_rows_init(&rows, NULL) && mm_preview_object_rows_capture(&rows, &live) == MM_STORAGE_OK);
+    CHECK(mm_movie_pose_journal_init(&poses, NULL) && mm_movie_placement_init(&drafts, NULL));
+    CHECK(mm_movie_pose_journal_move(&poses, 9, 31, delta, offset));
+    CHECK(mm_movie_pose_journal_move(&poses, 9, 20, delta, offset));
+    CHECK(mm_movie_pose_journal_shape(&poses, 9, 20, &saved));
+    memcpy(host.position[2], delta, sizeof(delta));
+    services.context = &host;
+    CHECK(mm_movie_placement_preview_position(&drafts, 2, delta, temporary, &services) == MM_MOVIE_PLACEMENT_OK);
+    allocator.context = &memory;
+    CHECK(mm_movie_worker_placements_init(&batch, &allocator));
+    CHECK(mm_movie_worker_placements_collect(&batch, &rows, &live, &drafts, &poses, 9) == MM_MOVIE_PLACEMENT_OK);
+    published = mm_movie_worker_placements_data(&batch);
+    CHECK(batch.count == 2 && published[0].object == 0 && published[1].object == 2);
+    CHECK(!memcmp(published[0].offset, delta, sizeof(delta)) && !memcmp(&published[0].shape, &identity, sizeof(identity)));
+    CHECK(!memcmp(published[1].offset, temporary, sizeof(temporary)) && published[1].shape.scale[0] == 3);
+    memory.failAt = memory.allocCalls + 1;
+    CHECK(mm_movie_worker_placements_collect(&batch, &rows, &live, &drafts, &poses, 9) == MM_MOVIE_PLACEMENT_MEMORY);
+    CHECK(batch.count == 2 && mm_movie_worker_placements_data(&batch) == published);
+    memory.failAt = 0;
+    actors[2].body = NULL;
+    CHECK(mm_movie_worker_placements_collect(&batch, &rows, &live, &drafts, &poses, 9) == MM_MOVIE_PLACEMENT_FAILED);
+    CHECK(batch.count == 2 && mm_movie_worker_placements_data(&batch) == published && published[1].shape.scale[0] == 3);
+    mm_movie_placement_clear(&drafts);
+    CHECK(mm_movie_worker_placements_collect(&batch, &rows, &live, &drafts, &poses, 8) == MM_MOVIE_PLACEMENT_OK && !batch.count);
+    mm_movie_worker_placements_dispose(&batch);
+    mm_movie_placement_dispose(&drafts);
+    mm_movie_pose_journal_dispose(&poses);
+    mm_preview_object_rows_dispose(&rows);
+    mm_preview_live_dispose(&live, &live_services);
+    CHECK(!memory.liveBlocks);
+    return 0;
+}
+
 static int replay_actor_edits(void)
 {
     const MMMovieEditFileServices files = {edit_file_retain, edit_file_release};
@@ -1684,7 +1753,7 @@ int main(void)
     if (switching() || insertion() || removal() || remove_materials() || undoing() || undo_insertion_ownership() ||
         cursor_operations() ||
         extending() || journal() || range_journal() || prop_journal() || track_journal() || pose_journal() ||
-        placement_drafts() || replay_actor_edits() || text_journal())
+        placement_drafts() || worker_placements() || replay_actor_edits() || text_journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

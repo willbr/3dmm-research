@@ -69,7 +69,7 @@ int main(int argc, char **argv)
             marcus_info(player.get(), &info);
             ok = info.frame == request.frame || marcus_seek(player.get(), request.frame);
         }
-        if (ok) ok = MarcusApplyPropOffsets(player.get(), offsets, error);
+        if (ok) ok = MarcusApplyPropOffsets(player.get(), offsets.data(), offsets.size(), error);
         if (ok)
             ok = MarcusRenderLocalWorld(player.get(), MarcusASM::Decode(request), image, error);
         if (!ok && error.message.empty())

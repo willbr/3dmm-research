@@ -19,6 +19,7 @@
 #include "engine_movie_graph.h"
 #include "mm/archive_reader.h"
 #include "mm/actor_animation.h"
+#include "mm/movie_placement_batch.h"
 #include "mm/scene_runtime.h"
 #include "mm/preview_pick.h"
 #include "mm/preview_camera.h"
@@ -297,6 +298,12 @@ bool Preview::ReadObjectState(int index, MMPreviewActorInfo &out) const
 int Preview::CaptureObjectStates(MMPreviewObjectRows &rows) const
 {
     return mm_preview_object_rows_capture(&rows, &_impl->live);
+}
+int Preview::CollectWorkerPlacements(MMMovieWorkerPlacements &batch, const MMPreviewObjectRows &rows,
+                                     const MMMoviePlacementDrafts &drafts, const MMMoviePoseJournal &poses,
+                                     std::uint32_t scene) const
+{
+    return mm_movie_worker_placements_collect(&batch, &rows, &_impl->live, &drafts, &poses, scene);
 }
 bool Preview::ObjectText(int object, PreviewObjectText &text, Error &error) const
 {

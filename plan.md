@@ -1242,6 +1242,9 @@ The C89 placement controller holds the original transforms for live gestures,
 restores them on cancellation, stages commits, and combines temporary offsets
 with saved placements for the ASM worker. Preview refreshes the edited actor's
 snapshot directly after each position change.
+The x86 worker placement batch is assembled in C89 from the published actor
+positions, the pose journal and the current Preview shapes. It sends changed
+placements in object order and retains its storage between renders.
 C89 replays costume, text, material and pose journals against the live actor
 list when a scene opens or an edit snapshot is restored. Native preview and
 the ASM worker share the default pose rule. The worker validates every

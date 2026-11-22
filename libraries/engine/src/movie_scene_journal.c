@@ -1,4 +1,5 @@
 #include "mm/movie_scene_journal.h"
+#include "mm/movie_placement_batch.h"
 #include "mm/material_resource.h"
 #include <math.h>
 #include <string.h>
@@ -710,13 +711,14 @@ failure:
     return 0;
 }
 
+static const MMPreviewActorShape identity_shape = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {1, 1, 1}};
+
 static int replay_transform(MMU32 index, const float *offset, const MMPreviewActorShape *shape,
                             const MMMovieActorReplayServices *s)
 {
     static const float zero[3] = {0, 0, 0};
-    static const MMPreviewActorShape identity = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {1, 1, 1}};
     return s->offset(s->context, (MMI32)index, offset ? offset : zero) &&
-           s->shape(s->context, (MMI32)index, shape ? shape : &identity);
+           s->shape(s->context, (MMI32)index, shape ? shape : &identity_shape);
 }
 
 static MMU32 replay_actor_count(const MMPreviewLive *live)
@@ -1078,4 +1080,61 @@ int mm_movie_placement_worker(const MMMoviePlacementDrafts *drafts, MMI32 object
     }
     *shape = (pose && pose->has_shape) || (entry && (entry->flags & PLACEMENT_SHAPE));
     return *shape || offset[0] || offset[1] || offset[2];
+}
+
+int mm_movie_worker_placements_init(MMMovieWorkerPlacements *batch, const MMStorageAllocator *allocator)
+{
+    batch->count = 0;
+    return mm_storage_init(&batch->storage, allocator) == MM_STORAGE_OK;
+}
+
+void mm_movie_worker_placements_dispose(MMMovieWorkerPlacements *batch)
+{
+    mm_storage_dispose(&batch->storage);
+    batch->count = 0;
+}
+
+const MMMovieActorPlacement *mm_movie_worker_placements_data(const MMMovieWorkerPlacements *batch)
+{
+    return (const MMMovieActorPlacement *)batch->storage.buffers[0].data;
+}
+
+int mm_movie_worker_placements_collect(MMMovieWorkerPlacements *batch, const MMPreviewObjectRows *objects,
+                                      const MMPreviewLive *live, const MMMoviePlacementDrafts *drafts,
+                                      const MMMoviePoseJournal *poses, MMU32 scene)
+{
+    const MMPreviewActorInfo *rows = mm_preview_object_rows_data(objects);
+    MMU32 i, count = 0;
+    for (i = 0; i < objects->count; ++i)
+    {
+        const MMMovieActorPoseEdit *pose = mm_movie_pose_journal_find(poses, scene, rows[i].number);
+        MMMovieActorPlacement placement;
+        float position[3];
+        int shaped;
+        placement.object = (MMI32)i;
+        mm_preview_object_position(rows + i, position);
+        if (!mm_movie_placement_worker(drafts, placement.object, position, pose, placement.offset, &shaped))
+            continue;
+        placement.shape = identity_shape;
+        if (shaped)
+        {
+            const MMPreviewActor *actor = mm_preview_live_actor_view(live, i);
+            if (!live->status.ready || !actor || !actor->body)
+                return MM_MOVIE_PLACEMENT_FAILED;
+            placement.shape = actor->shape;
+        }
+        batch->storage.min_grow[1] = batch->storage.buffers[1].capacity / 2;
+        if (count >= (MM_STORAGE_LIMIT - 1) / sizeof(placement) ||
+            mm_storage_ensure(&batch->storage, 0, (MMU32)((count + 1) * sizeof(placement)), 0) != MM_STORAGE_OK)
+            return MM_MOVIE_PLACEMENT_MEMORY;
+        ((MMMovieActorPlacement *)batch->storage.buffers[1].data)[count++] = placement;
+    }
+    if (count)
+    {
+        MMStorageBuffer previous = batch->storage.buffers[0];
+        batch->storage.buffers[0] = batch->storage.buffers[1];
+        batch->storage.buffers[1] = previous;
+    }
+    batch->count = count;
+    return MM_MOVIE_PLACEMENT_OK;
 }

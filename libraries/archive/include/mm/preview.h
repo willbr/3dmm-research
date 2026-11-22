@@ -9,6 +9,9 @@ struct MMPreviewLiveCameraEdits;
 struct MMPreviewLightValues;
 struct MMMovieActorEdits;
 struct MMMovieActorPlacement;
+struct MMMoviePlacementDrafts;
+struct MMMoviePoseJournal;
+struct MMMovieWorkerPlacements;
 struct MMMovieTextJournal;
 struct MMPreviewCue;
 struct MMPreviewActorInfo;
@@ -325,6 +328,8 @@ class Preview
     bool ReadObjectState(int index, MMPreviewActorInfo &) const;
     // Capture into an initialized C owner. Returns MMStorageResult.
     int CaptureObjectStates(MMPreviewObjectRows &) const;
+    int CollectWorkerPlacements(MMMovieWorkerPlacements &, const MMPreviewObjectRows &,
+                                const MMMoviePlacementDrafts &, const MMMoviePoseJournal &, std::uint32_t scene) const;
     bool ObjectText(int object, PreviewObjectText &, Error &) const;
     bool ObjectCostumes(int object, std::vector<PreviewCostume> &, Error &) const;
     bool ObjectActions(int object, std::vector<PreviewAction> &, Error &) const;
