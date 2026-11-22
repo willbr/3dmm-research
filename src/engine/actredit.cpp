@@ -161,7 +161,7 @@ MMActorPasteServices Actor::_PasteServices()
     s.edits = _EventEditServices();
     s.is_text=[](void *,void *p) { return int(EngineTemplate::FIsTdt(static_cast<PTemplate>(p))); };
     s.ensure_autosave=[](void *,void *p,void **cache) {
-        PChunkyResourceFile resource=nullptr; bool ok=static_cast<PScene>(p)->Pmvie()->FEnsureAutosave(&resource);
+        MMResourceCache *resource=nullptr; bool ok=static_cast<PScene>(p)->Pmvie()->FEnsureAutosave(&resource);
         *cache=resource; return int(ok);
     };
     s.placement=[](void *p,MMActorPoint *point) {

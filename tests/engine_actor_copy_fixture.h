@@ -8,7 +8,7 @@ static bool TestActorCopy(PMovie parent)
     bool ok=true;
     for (int mode=0;ok && mode<320;++mode)
     {
-        PMovie movie=Movie::PmvieNew(fFalse,parent->Pmcc(),nullptr,cnoNil); PChunkyResourceFile resource=nullptr;
+        PMovie movie=Movie::PmvieNew(fFalse,parent->Pmcc(),nullptr,cnoNil); MMResourceCache *resource=nullptr;
         auto actor=NewObj TrackTestActor(); byte dummy=0;
         ok=movie && actor && movie->FNewScenInsCore(0) && movie->FAutoSave() && movie->FEnsureAutosave(&resource);
         ChunkNumber templateNumber=0,materialNumber=0,soundNumber=0,targetSound=0; ChildChunkID child=0;

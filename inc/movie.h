@@ -732,7 +732,7 @@ class Movie : public Movie_PAR
     bool FSetCmvi(PCompositeMovie pcmvi); // Re-build the movie from the CompositeMovie
     bool _FAddMvieToRollCall(ChunkNumber cno, long aridMin);
     // Updates roll call for an imported movie
-    bool _FAdoptMsndInMvie(PChunkyResourceFile, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie
+    bool _FAdoptMsndInMvie(MMResourceCache *, ChunkNumber cnoScen); // Adopt msnd chunks as children of the movie
 
     bool FAddBkgdSnd(PTAG ptag, tribool fLoop, tribool fQueue, long vlm = vlmNil,
                      long sty = styNil);                                                              // Adds a sound
@@ -745,11 +745,11 @@ class Movie : public Movie_PAR
     MMMovieSoundServices SoundServices();
     bool FSaveTagSnd(TAG *ptag);
     bool FCopySndFileToMvie(PFileObject pfil, long sty, ChunkNumber *pcno, PString pstn = pvNil);
-    bool FEnsureAutosave(PChunkyResourceFile *pcrf = pvNil);
-    bool FCopyMsndFromCrf(PChunkyResourceFile source, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
-    bool FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil, PChunkyResourceFile pcrf = pvNil);
+    bool FEnsureAutosave(MMResourceCache **pcrf = pvNil);
+    bool FCopyMsndFromCrf(MMResourceCache *source, ChunkNumber cnoSrc, ChunkNumber *pcnoDest);
+    bool FResolveSndTag(PTAG ptag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil, MMResourceCache *pcrf = pvNil);
     bool FResolveSndTag(MMTag &tag, ChildChunkID chid, ChunkNumber cnoScen = cnoNil,
-                        PChunkyResourceFile pcrf = pvNil);
+                        MMResourceCache *pcrf = pvNil);
     bool FChidFromUserSndCno(ChunkNumber cno, ChildChunkID *pchid);
     void SetDocClosing(bool fClose)
     {

@@ -1926,7 +1926,7 @@ void Actor::MarkMem(void)
     MMTag tag;
     for (MMI32 i = 0; i < mm_actor_events_count(events); ++i)
         if (mm_actor_track_get_tag(events, i, &tag) && tag.sid == ksidUseCrf && tag.cache)
-            MarkMemObj(static_cast<PChunkyResourceFile>(tag.cache));
+            mm_resource_cache_mark(static_cast<MMResourceCache *>(tag.cache));
     MarkPv(events);
     MarkPv(events->storage.buffers[0].data);
     MarkPv(events->storage.buffers[1].data);
@@ -1938,7 +1938,7 @@ void Actor::MarkMem(void)
     EngineBody::Mark(_Body());
     EngineTemplate::Mark(_Template());
     if (_owner.runtime.template_tag.sid == ksidUseCrf && _owner.runtime.template_tag.cache)
-        MarkMemObj(static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache));
+        mm_resource_cache_mark(static_cast<MMResourceCache *>(_owner.runtime.template_tag.cache));
 }
 
 #endif // DEBUG

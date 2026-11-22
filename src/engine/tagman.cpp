@@ -35,6 +35,7 @@
 #include "mm/native_archive_file.h"
 #include "resource_archive_host.h"
 #include "handle_services.h"
+#include <functional>
 PTagManager vptagm;
 
 ASSERTNAME
@@ -334,9 +335,9 @@ bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
     return mm_source_names_merge(&_names, &input, bo == kboOther) != 0;
 }
 
-bool TagManager::FMergeMovieSources(PChunkyResourceFile resources, ChunkNumber movie)
+bool TagManager::FMergeMovieSources(MMResourceCache *resources, ChunkNumber movie)
 {
-    const auto graph = mm_movie_owner_graph(resources->ReadOwner());
+    const auto graph = mm_movie_owner_graph(ResourceArchiveReader(resources));
     return mm_source_names_merge_movie(&_names, &graph, movie, EngineMovieSource::ConvertWidth, nullptr,
                                        [](void *, MMI32) { Bug("Invalid sid"); }) != 0;
 }
@@ -650,25 +651,26 @@ const MMTagServices &TagManager::CoreServices()
 {
     static const auto services = [] {
         MMTagServices s = {};
-        s.file = [](void *c) -> void * { return static_cast<PChunkyResourceFile>(c)->Pcfl(); };
-        s.retain = [](void *c) { static_cast<PChunkyResourceFile>(c)->AddRef(); };
-        s.release = [](void *c) { static_cast<PChunkyResourceFile>(c)->Release(); };
+        s.file = [](void *c) -> void * {
+            const auto adapter = static_cast<PChunkyResourceFile>(static_cast<MMResourceCache *>(c)->services.legacy_adapter);
+            return adapter ? adapter->Pcfl() : nullptr;
+        };
+        s.retain = [](void *c) { mm_resource_cache_retain(static_cast<MMResourceCache *>(c)); };
+        s.release = [](void *c) { mm_resource_cache_release(static_cast<MMResourceCache *>(c)); };
         s.compare_cache = [](void *a, void *b) -> int {
-            auto x = static_cast<PChunkyResourceFile>(a), y = static_cast<PChunkyResourceFile>(b);
-            return x == y ? 0 : x < y ? -1 : 1;
+            const std::less<void *> before;
+            return a == b ? 0 : before(a, b) ? -1 : 1;
         };
         s.bind_file = [](void *file, MMChunkFileCopy *binding) {
             return static_cast<PChunkyFile>(file)->CopyEndpoint(*binding);
         };
         s.bind_cache = [](void *cache, MMResourceChunkCopy *binding) {
-            return static_cast<PChunkyResourceFile>(cache)->CopySource(*binding);
+            return ResourceCopySource(static_cast<MMResourceCache *>(cache), *binding);
         };
         s.bind_target = [](void *cache, MMChunkFileCopy *binding) {
-            return static_cast<PChunkyResourceFile>(cache)->CopyTarget(*binding);
+            return ResourceCopyTarget(static_cast<MMResourceCache *>(cache), *binding);
         };
-        s.cache = [](void *c) -> MMResourceCache * {
-            return c ? static_cast<PChunkyResourceFile>(c)->CoreCache() : nullptr;
-        };
+        s.cache = [](void *c) { return static_cast<MMResourceCache *>(c); };
         s.missing_chunk = [](void *) { Bug("chunk not found"); };
         return s;
     }();
@@ -698,7 +700,7 @@ MMTagServices TagManager::_Services(void *context)
             h->target->ctg = value->type;
             h->target->cno = value->number;
             if (value->sid == ksidUseCrf)
-                h->target->pcrf = static_cast<PChunkyResourceFile>(value->cache);
+                h->target->cache = static_cast<MMResourceCache *>(value->cache);
         }
     };
     return s;
@@ -778,22 +780,22 @@ void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
         ReopenResourceArchive};
     mm_tag_clear_cache(sid, flags, &services);
 }
-bool TagManager::FOpenTag(PTAG tag, PChunkyResourceFile destination, PChunkyFile source)
+bool TagManager::FOpenTag(PTAG tag, MMResourceCache *destination, PChunkyFile source)
 {
     AssertVarMem(tag);
     Assert(tag->sid >= 0, "Invalid sid");
-    AssertPo(destination, 0);
+    AssertVarMem(destination);
     AssertNilOrPo(source, 0);
     NativeTagHost host = {nullptr, tag, tag};
     const auto services = _Services(&host);
     MMTag value = {tag->sid, nullptr, tag->ctg, tag->cno};
     return mm_tag_open(&value, destination, source, &services) != 0;
 }
-bool TagManager::FSaveTag(PTAG tag, PChunkyResourceFile destination, bool redirect)
+bool TagManager::FSaveTag(PTAG tag, MMResourceCache *destination, bool redirect)
 {
     AssertVarMem(tag);
     Assert(tag->sid >= 0, "Invalid sid");
-    AssertPo(destination, 0);
+    AssertVarMem(destination);
     NativeTagHost host = {nullptr, tag, tag};
     const auto services = _Services(&host);
     auto value = TagToCore(*tag);
@@ -885,8 +887,8 @@ void TAG::MarkMem(void)
 {
     if (sid == ksidUseCrf)
     {
-        AssertPo(pcrf, 0);
-        MarkMemObj(pcrf);
+        AssertVarMem(cache);
+        mm_resource_cache_mark(cache);
     }
 }
 #endif // DEBUG

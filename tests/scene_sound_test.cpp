@@ -155,7 +155,7 @@ int main()
                 {
                     records[i].child = 17 + i;
                     records[i].tag.sid = i % 2 ? 3 : 0;
-                    records[i].tag.cache = observed;
+                    records[i].tag.cache = observed->CoreCache();
                     records[i].tag.type = kctgMsnd;
                     records[i].tag.number = 42 + i;
                 }
@@ -221,7 +221,7 @@ int main()
                     FreePpv(reinterpret_cast<void **>(&decoded));
                     FreePpv(&wire);
                 }
-                const MMSceneSoundTag tag = {99, {0, observed, kctgMsnd, 91}};
+                const MMSceneSoundTag tag = {99, {0, observed->CoreCache(), kctgMsnd, 91}};
                 Inject(failure != 0);
                 auto added = mm_scene_sound_append(sound, &tag, &services);
                 Inject(false);
@@ -241,7 +241,7 @@ int main()
     // allocation failure, so these deliberately sit outside the frozen trace.
     recording = false;
     MMSceneSoundTag one = {};
-    one.tag = {0, observed, kctgMsnd, 1};
+    one.tag = {0, observed->CoreCache(), kctgMsnd, 1};
     auto packet = mm_scene_sound_make(100, styMidi, false, 1, &one, &services);
     CHECK(packet);
     auto group = GeneralGroup::PggNew(sizeof(SceneEvent));

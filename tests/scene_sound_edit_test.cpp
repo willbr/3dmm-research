@@ -52,7 +52,7 @@ static FILE *snapshot;
 static unsigned hash = 2166136261U, recorded;
 static bool recording = true;
 static bool put_called;
-static PChunkyResourceFile observed;
+static MMResourceCache *observed;
 static void Record(const void *p, size_t n)
 {
     if (!recording)
@@ -71,7 +71,7 @@ static void Value(LegacyLong n)
 
 struct MovieAccess : Movie
 {
-    static PChunkyResourceFile Cache(PMovie p)
+    static MMResourceCache *Cache(PMovie p)
     {
         return (p->*&MovieAccess::_data).Resources();
     }
@@ -81,7 +81,7 @@ struct Access : Scene
     static bool Add(PScene scene, bool loop, bool queue, long volume, long style, PTAG tag, bool undo = false)
     {
         auto services = (scene->*&Access::_SoundEditServices)();
-        MMTag input = {tag->sid, tag->pcrf, tag->ctg, tag->cno};
+        MMTag input = {tag->sid, tag->cache, tag->ctg, tag->cno};
         const bool ok = undo ? mm_scene_sound_add_undo(loop, queue, volume, style, &input, &services)
                              : mm_scene_sound_add(loop, queue, volume, style, 1, &input, &services);
         TagFromCore(tag, input);
@@ -120,7 +120,7 @@ struct Access : Scene
         Value(r.disabled);
         Value(r.background_frame);
         Value(group->rows.count);
-        Value(observed->CactRef());
+        Value(observed->references->count);
         for (int i = 0; i < group->rows.count; ++i)
         {
             auto e = ReadSceneTrackEvent(group, i);
@@ -243,7 +243,7 @@ int main()
     CHECK(movie->FNewScenInsCore(0));
     observed = MovieAccess::Cache(movie);
     CHECK(observed);
-    observed->AddRef();
+    mm_resource_cache_retain(observed);
     ChunkNumber number;
     CHECK(MovieArchiveFixture(observed).Add(0, kctgMsnd, &number));
     auto scene = movie->Pscen();
@@ -325,9 +325,9 @@ int main()
     recording = false;
     CHECK(Access::Add(scene, false, false, 31, stySfx, &tag));
     vpers->Clear();
-    auto references = observed->CactRef();
+    auto references = observed->references->count;
     Access::FailPut(scene, &tag);
-    CHECK(observed->CactRef() == references && Access::Count(scene) == 1);
+    CHECK(observed->references->count == references && Access::Count(scene) == 1);
 #ifdef DEBUG
     auto failedUndo = SceneUndoSound::PsunsNew();
     CHECK(failedUndo);
@@ -343,7 +343,7 @@ int main()
     vmutxMem.Enter();
     vdmglob.dmaglPv.cactDo = vdmglob.dmaglPv.cactFail = 0;
     vmutxMem.Leave();
-    CHECK(!undone && observed->CactRef() == references && Access::Count(scene) == 1);
+    CHECK(!undone && observed->references->count == references && Access::Count(scene) == 1);
     ReleasePpo(&failedUndo);
     vpers->Clear();
 #endif
@@ -356,7 +356,8 @@ int main()
     scene->RemSndCore(stySfx);
     vpers->Clear();
 #endif
-    ReleasePpo(&observed);
+    mm_resource_cache_release(observed);
+    observed = nullptr;
     ReleasePpo(&movie);
     ReleasePpo(&client);
     ReleasePpo(&vptagm);

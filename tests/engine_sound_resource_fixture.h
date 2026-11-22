@@ -177,7 +177,7 @@ static bool TestIndexedSoundResource()
             mm_chunk_index_close(index);
         }
     }
-    auto sound = cache ? EngineSound::Fetch(cache, kctgMsnd, number) : nullptr;
+    auto sound = cache ? EngineSound::Fetch(cache->CoreCache(), kctgMsnd, number) : nullptr;
     String storedName;
     if (sound)
         EngineSound::GetName(sound, &storedName);
@@ -305,7 +305,7 @@ static bool TestSoundResources()
         MovieSoundFile header={kboCur,koskCur,stySfx,65536,false}; ChunkNumber number=0,child=0;
         String name; name.SetSzs(PszLit("Invalidate")); ok=cache && file->FAddPv(&header,sizeof(header),kctgMsnd,&number) && file->FSetName(kctgMsnd,number,&name);
         if (childPresent) ok=file->FAddChildPv(kctgMsnd,number,0,&header,3,kctgWave,&child) && ok;
-        auto sound=ok?EngineSound::Fetch(cache, kctgMsnd, number):nullptr; ok=sound && ok;
+        auto sound=ok?EngineSound::Fetch(cache->CoreCache(), kctgMsnd, number):nullptr; ok=sound && ok;
         inject(kind,failure,true); bool success=EngineSound::Invalidate(sound); inject(kind,failure,false); ++attempts; invalidated+=success;
         LegacyLong fields[]={childPresent,kind,failure,success}; ok=record(fields,sizeof(fields)) && SoundResourceFixtureAccess::Record(sound,snapshot,cache) && graph(file,true) && ok;
         mm_sound_owner_release(sound); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();

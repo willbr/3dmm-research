@@ -31,7 +31,7 @@ struct TextResourceFixtureAccess
         const auto &font = d.font;
         const auto &base = EngineTemplate::State(t);
         auto parents=base.parents,sets=base.sets;
-        LegacyLong fields[]={d.shape,text.Cch(),font.sid,static_cast<LegacyLong>(font.type),static_cast<LegacyLong>(font.number),font.cache?(font.cache==cache?1:2):0,
+        LegacyLong fields[]={d.shape,text.Cch(),font.sid,static_cast<LegacyLong>(font.type),static_cast<LegacyLong>(font.number),font.cache?(font.cache==cache->CoreCache()?1:2):0,
             base.set_count,base.custom_count,base.action_count,static_cast<LegacyLong>(base.flags),parents!=nullptr,sets!=nullptr,base.costumes!=nullptr,
             g.material!=nullptr,g.action!=nullptr,g.action_id,mm_action_resource_references(g.action)};
         if (!record(fields,sizeof(fields)) || !record(text.Psz(),text.Cch())) return false;
@@ -89,7 +89,7 @@ static bool TestTextResources()
     };
     auto file=ChunkyFile::PcflCreateTemp(); auto cache=file?ChunkyResourceFile::PcrfNew(file,1024*1024):nullptr;
     bool ok=cache!=nullptr; int attempts=0,successful=0;
-    TAG oldTag={ksidUseCrf,cache,kctgTdf,17},newTag={123,reinterpret_cast<PChunkyResourceFile>(0x1357),kctgTdf,29};
+    TAG oldTag={ksidUseCrf,cache->CoreCache(),kctgTdf,17},newTag={123,reinterpret_cast<MMResourceCache *>(0x1357),kctgTdf,29};
     ok = ok && TextDraftMatchesNative(newTag);
     for (int text=0;ok && text<2;++text) for (int shape=0;ok && shape<2;++shape) for (int operation=0;ok && operation<3;++operation)
     for (int mask=0;ok && mask<(operation==1?8:1);++mask) for (int kind=0;ok && kind<3;++kind) for (int failure=0;ok && failure<12;++failure)
@@ -142,7 +142,7 @@ static bool TestTextResources()
         inject(kind,failure,false); ++attempts; successful+=success;
         LegacyLong fields[]={variant,stage,kind,failure,success,error,estimate,t!=nullptr,tags?tags->IvMac():-1};
         ok=record(fields,sizeof(fields)) && TextResourceFixtureAccess::Record(t,snapshot,cache) && ok;
-        if (tags) { TAG tag; tags->Get(0,&tag); LegacyLong values[]={tag.sid,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno),tag.pcrf!=nullptr}; ok=record(values,sizeof(values)) && ok; }
+        if (tags) { TAG tag; tags->Get(0,&tag); LegacyLong values[]={tag.sid,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno),tag.cache!=nullptr}; ok=record(values,sizeof(values)) && ok; }
         mm_template_owner_release(t); ReleasePpo(&tags); block.Free(); ReleasePpo(&crf); ReleasePpo(&target); vpers->Clear();
 #ifdef DEBUG
         ok=vdmglob.dmaglBase.cv==base && vdmglob.dmaglHq.cv==hq && vdmglob.dmaglPv.cv==pv && ok;

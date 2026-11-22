@@ -9,9 +9,14 @@ struct MovieArchiveFixture
     MMChunkOwnerRead *reader;
     MMArchiveWriter writer;
 
+    explicit MovieArchiveFixture(MMResourceCache *cache)
+        : reader(cache ? ResourceArchiveReader(cache) : nullptr),
+          writer(cache ? ResourceArchiveWriter(cache) : MMArchiveWriter{})
+    {
+    }
+
     explicit MovieArchiveFixture(PChunkyResourceFile resources)
-        : reader(resources ? resources->ReadOwner() : nullptr),
-          writer(resources ? resources->ArchiveWriter() : MMArchiveWriter{})
+        : MovieArchiveFixture(resources ? resources->CoreCache() : nullptr)
     {
     }
 

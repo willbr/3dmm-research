@@ -765,8 +765,10 @@ static void init(Test *t)
     s->validate_children = 1;
     s->use_temporary = temporary;
     s->autosave = save;
-    s->retain = retain;
-    s->release = release;
+    s->retain_cache = retain;
+    s->release_cache = release;
+    s->retain_scene = retain;
+    s->release_scene = release;
     s->retain_thumbnail = retain;
     s->release_thumbnail = release;
     s->transition = transition;

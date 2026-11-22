@@ -147,6 +147,11 @@ static void cache_copy_source(void *context, MMChunkFileCopy *binding, MMChunkEn
     *out = mm_private_archive_copy_endpoint(context, binding);
 }
 
+static void cache_copy_target(void *context, MMChunkFileCopy *binding, MMChunkEndpoint *out)
+{
+    *out = mm_private_archive_copy_target(context, binding);
+}
+
 static MMChunkOwnerRead *cache_reader(void *context) { return mm_private_archive_reader(context); }
 static MMArchiveWriter cache_writer(void *context) { return mm_private_archive_writer(context); }
 
@@ -166,6 +171,7 @@ void mm_private_archive_cache_services(MMPrivateArchive *archive, const MMHandle
     services->release_file = cache_release;
     services->live_name = cache_name;
     services->live_copy_source = cache_copy_source;
+    services->live_copy_target = cache_copy_target;
     services->live_reader = cache_reader;
     services->live_writer = cache_writer;
 }

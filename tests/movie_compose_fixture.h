@@ -74,7 +74,7 @@ static bool TestPrivateMovieCompose()
         auto resources = NewPrivateMovieResources();
         MovieSaveProbe::Data(movie)->resources = resources;
         movie->SetDirty();
-        ok = resources && !resources->Pcfl() && movie->FAutoSave() && movie->FNewScenInsCore(0) &&
+        ok = resources && !resources->services.legacy_adapter && movie->FAutoSave() && movie->FNewScenInsCore(0) &&
              MovieComposeSceneAccess::Thumbnail(movie->Pscen(), 21);
     }
     for (int slot = 0; ok && slot < 2; ++slot)
@@ -143,7 +143,7 @@ static bool TestMovieCompose()
                                    LegacyLong(client->textTools),
                                    LegacyLong(client->sceneNuked),
                                    LegacyLong(client->rollcalls),
-                                   data->Resources() ? data->Resources()->CactRef() : 0,
+                                   data->Resources() ? data->Resources()->references->count : 0,
                                    composite.movie_count ? LegacyLong(composite.scene_count) : -1,
                                    composite.movie_count ? LegacyLong(composite.movie_count) : -1};
             if (!record(fields, sizeof(fields)) || !record(trace.data(), (trace.size)() * sizeof(trace[0])))
@@ -153,9 +153,9 @@ static bool TestMovieCompose()
                 MMComposeMovie row;
                 if (!mm_composite_movie(&composite, i, &row))
                     return false;
-                auto resources = static_cast<PChunkyResourceFile>(row.resources);
+                auto resources = static_cast<MMResourceCache *>(row.resources);
                 LegacyLong values[] = {LegacyLong(i), resources == data->Resources() ? 0 : resources == external ? 1 : 2,
-                                       LegacyLong(row.number), row.actor_limit, resources->CactRef()};
+                                       LegacyLong(row.number), row.actor_limit, resources->references->count};
                 if (!record(values, sizeof(values)))
                     return false;
             }
@@ -229,7 +229,7 @@ static bool TestMovieCompose()
     {
         auto client = NewObj MovieComposeClient();
         auto movie = client ? Movie::PmvieNew(false, client) : nullptr;
-        PChunkyResourceFile resources = nullptr;
+        MMResourceCache *resources = nullptr;
         MovieData table;
         ok = movie && table.FInitActors() && movie->FEnsureAutosave(&resources);
         const MovieArchiveFixture archive(resources);
@@ -273,7 +273,7 @@ static bool TestMovieCompose()
                                        tag.sid,
                                        LegacyLong(tag.cno),
                                        LegacyLong(name.Cch()),
-                                       LegacyLong(resources->CactRef())};
+                                       LegacyLong(resources->references->count)};
                 ok = ok && record(values, sizeof(values)) && record(name.Psz(), name.Cch() * sizeof(achar));
             }
         }

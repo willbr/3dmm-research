@@ -20439,3 +20439,32 @@ reopened it. Retail reopened that save in 20261121T234730Z-2b14fb8f and
 reproduced all 60 reference seek canvases and camera indices.
 
 Evidence is under tmp/c89-studio-source-owner.
+
+## C89 Studio document caches (22 November 2026)
+
+Studio opens and creates its working movie archive through the C89 cache
+factory. Local tags, roll calls, scene and actor data, captions, imported
+audio, and autosave use that cache. Composition and scene undo retain the
+document cache separately from scene objects. Native file services still
+supply archive open, save, and temporary-file operations. The 16-byte tag
+wire record is unchanged.
+
+All 193 standalone C89 checks and six targeted AddressSanitizer checks
+passed. Ten native x64 tests, four native x86 tests, and four SDL tests
+passed. Eleven native snapshots covering tag ownership, roll-call storage,
+scene loading and editing, costume edits, movie composition and save/load
+matched the baseline byte for byte. The SDL authoring workflow exercised
+actor transforms, keyframes, validation, save, and reopen.
+
+Fresh suite 20261121T235942Z-0a521810 completed all 14 runs. SDL Studio and
+Marcus each matched all 90 prior seek canvases, 88 of 90 retail seek
+canvases, and all 90 retail camera indices and continuous frame identities.
+V3DMM matched all 30 retail seek canvases in the actor-audio case. SDL and
+V3DMM matched the six retail sound requests. Mixed PCM still differed on
+the audible fixture. Continuous pixel alignment remained inconclusive.
+
+SDL Studio's two-scene save matched the previous build's bytes. Retail
+reopened that save in 20261122T000228Z-e7e5cebb and reproduced all 60
+reference seek canvases and camera indices.
+
+Evidence is under tmp/c89-document-caches.

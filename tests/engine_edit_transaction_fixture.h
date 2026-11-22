@@ -5,7 +5,7 @@ static bool TestActorSoundTransaction(PMovie parent)
     auto movie = Movie::PmvieNew(fFalse, parent->Pmcc(), nullptr, cnoNil);
     auto scene = movie ? NewObj StageTestScene(movie) : nullptr;
     auto actor = NewObj TrackTestActor();
-    PChunkyResourceFile resource = nullptr;
+    MMResourceCache *resource = nullptr;
     bool ok = scene && actor && movie->FNewScenInsCore(0) && movie->FSwitchScen(0) && movie->FAutoSave() &&
               movie->FEnsureAutosave(&resource) && scene->Init() && actor->FInitPlayback(scene, resource);
     if (ok)

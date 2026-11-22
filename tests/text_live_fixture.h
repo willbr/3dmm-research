@@ -159,7 +159,7 @@ static PTBOX LiveCaptionInput(PScene scene, PChunkyFile file, const std::vector<
     auto resources = ChunkyResourceFile::PcrfNew(file, 0);
     if (!resources)
         return nullptr;
-    auto box = TextBox::PtboxRead(resources, number, scene);
+    auto box = TextBox::PtboxRead(resources->CoreCache(), number, scene);
     ReleasePpo(&resources);
     return box;
 }

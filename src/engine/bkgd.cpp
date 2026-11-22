@@ -202,9 +202,9 @@ PBackground EngineBackground::Fetch(PTAG tag)
     return static_cast<PBackground>(vptagm->FetchResource(tag, Read, mm_background_owner_services()));
 }
 
-PBackground EngineBackground::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number)
+PBackground EngineBackground::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PBackground>(mm_resource_cache_fetch_owned_chunk(file->CoreCache(), type, number, Read,
+    return static_cast<PBackground>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
                                                                         mm_background_owner_services()));
 }
 

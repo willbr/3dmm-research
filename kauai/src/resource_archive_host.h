@@ -7,6 +7,8 @@ class Filename;
 
 namespace Chunky
 {
+MMResourceCache *OpenWorkingResourceCache(Filename *, bool create, int budget = 0);
+
 // A successful cache owns the source of the borrowed reader. When selected
 // is false, the caller can open a separate immutable stream instead.
 MMResourceCache *OpenSharedTypedCache(Filename *, bool preferWorking, bool &selected, MMChunkOwnerRead **reader,

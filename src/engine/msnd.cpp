@@ -119,9 +119,9 @@ PMovieSoundMSND EngineSound::Fetch(PTAG tag)
     return static_cast<PMovieSoundMSND>(vptagm->FetchResource(tag, Read, mm_sound_owner_services()));
 }
 
-PMovieSoundMSND EngineSound::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number)
+PMovieSoundMSND EngineSound::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PMovieSoundMSND>(mm_resource_cache_fetch_owned_chunk(file->CoreCache(), type, number, Read,
+    return static_cast<PMovieSoundMSND>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
                                                                           mm_sound_owner_services()));
 }
 

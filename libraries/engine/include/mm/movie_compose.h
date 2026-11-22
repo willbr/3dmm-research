@@ -51,7 +51,8 @@ extern "C"
         MMRollCallBinding rollcall;
         int temporary_before_save, validate_children;
         int (*use_temporary)(void *), (*autosave)(void *);
-        void (*retain)(void *), (*release)(void *);
+        void (*retain_cache)(void *), (*release_cache)(void *);
+        void (*retain_scene)(void *), (*release_scene)(void *);
         void (*retain_thumbnail)(void *), (*release_thumbnail)(void *);
         MMI32 (*transition)(void *scene);
         void *(*decode_thumbnail)(void *, const MMReadStream *);

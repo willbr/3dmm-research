@@ -85,7 +85,7 @@ int main()
     CHECK(block.FReadRgb(reopened.data(), static_cast<long>(reopened.size()), 0) && reopened == imported);
     auto resources = ChunkyResourceFile::PcrfNew(destination, 1024 * 1024);
     CHECK(resources);
-    auto sound = EngineSound::Fetch(resources, kctgMsnd, number);
+    auto sound = EngineSound::Fetch(resources->CoreCache(), kctgMsnd, number);
     vpsndm = SoundManager::PsndmNew();
     auto device = KauaiAudio::NewWaveDevice();
     CHECK(sound && vpsndm && device && vpsndm->FAddDevice(kctgWave, device));

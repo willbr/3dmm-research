@@ -55,7 +55,7 @@ static void Value(LegacyLong);
 static FILE *snapshot;
 static bool recording = true;
 static unsigned hash = 2166136261U, recorded;
-static PChunkyResourceFile observed;
+static MMResourceCache *observed;
 static void Record(const void *p, size_t n)
 {
     if (!recording)
@@ -279,11 +279,11 @@ class ContentActor : public Actor
         SetPscen(scene);
         return Pbody() != nullptr;
     }
-    bool FInitClipboard(PChunkyResourceFile resource, ChunkNumber number)
+    bool FInitClipboard(MMResourceCache *resource, ChunkNumber number)
     {
         using namespace ActorEvent;
         auto tmpl =
-            static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl, number, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
+            static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource, kctgTmpl, number, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
         if (!tmpl)
             return false;
         if (_Template())
@@ -331,7 +331,7 @@ class ContentActor : public Actor
 
 struct MovieAccess : Movie
 {
-    static PChunkyResourceFile Resources(PMovie m)
+    static MMResourceCache *Resources(PMovie m)
     {
         return (m->*&MovieAccess::_data).Resources();
     }
@@ -346,7 +346,7 @@ struct Access : Scene
         Value(d.name.count);
         Record(mm_movie_title_text(&d.name), d.name.count * d.name.unit);
     }
-    static void ChopSound(PScene p, PChunkyResourceFile cache, bool back)
+    static void ChopSound(PScene p, MMResourceCache *cache, bool back)
     {
         MMSceneSoundTag tag = {0, {ksidUseCrf, cache, kctgMsnd, 123}};
         auto services = ScenePacketServices();
@@ -465,10 +465,10 @@ struct Access : Scene
             Value(first);
             Value(last);
         }
-        Value(observed->CactRef());
+        Value(observed->references->count);
     }
 };
-static PTBOX Caption(PScene scene, PChunkyResourceFile resources)
+static PTBOX Caption(PScene scene, MMResourceCache *resources)
 {
     const MovieArchiveFixture archive(resources);
     MovieArchiveHost host{archive.reader, archive.writer};
@@ -618,7 +618,7 @@ int main()
     auto scene = movie->Pscen();
     observed = MovieAccess::Resources(movie);
     CHECK(observed);
-    observed->AddRef();
+    mm_resource_cache_retain(observed);
     const MovieArchiveFixture archive(observed);
     ChunkNumber background;
     /* Actual snapshot save/swap and frame chopping, captured before extraction. */
@@ -649,7 +649,7 @@ int main()
         bool loop;
         EngineBackground::GetDefaultSound(background, &sound, &volume, &loop);
         Value(sound.sid);
-        Value(sound.pcrf != nullptr);
+        Value(sound.cache != nullptr);
         Value(sound.ctg);
         Value(sound.cno);
         Value(volume);
@@ -750,13 +750,13 @@ int main()
     }
     {
         TAG found = {ksidInvalid, nullptr, 0, 0};
-        auto references = observed->CactRef();
+        auto references = observed->references->count;
         Value(scene->FGetTagBkgd(&found));
         Value(found.sid);
-        Value(found.pcrf == observed);
+        Value(found.cache == observed);
         Value(found.ctg == kctgBkgd);
         Value(found.cno == background);
-        CHECK(observed->CactRef() == references);
+        CHECK(observed->references->count == references);
         long part = 71;
         Value(scene->PactrFromPt(-7, 13, &part) != nullptr);
         Value(part);
@@ -1053,11 +1053,11 @@ int main()
     for (int back = 0; back < 2; ++back)
     {
         Access::ChopSetup(scene);
-        auto references = observed->CactRef();
+        auto references = observed->references->count;
         Access::ChopSound(scene, observed, back != 0);
-        CHECK(observed->CactRef() == references + 1);
+        CHECK(observed->references->count == references + 1);
         CHECK(back ? scene->FChopBackCore() : scene->FChopCore());
-        CHECK(observed->CactRef() == references);
+        CHECK(observed->references->count == references);
     }
     Access::ChopSetup(scene);
     scene->SetNfrmCur(1);
@@ -1104,7 +1104,7 @@ int main()
         TAG absent = {91, observed, kctgMsnd, 17};
         Value(scene->FGetTagBkgd(&absent));
         Value(absent.sid);
-        Value(absent.pcrf == observed);
+        Value(absent.cache == observed);
         Value(absent.ctg == kctgMsnd);
         Value(absent.cno);
         movie->DocumentBase::SetDirty(false);
@@ -1158,7 +1158,8 @@ int main()
     }
     movie->ClearUndo();
     ReleasePpo(&movie);
-    ReleasePpo(&observed);
+    mm_resource_cache_release(observed);
+    observed = nullptr;
     ReleasePpo(&client);
     ReleasePpo(&vptagm);
     ReleasePpo(&vpsndm);

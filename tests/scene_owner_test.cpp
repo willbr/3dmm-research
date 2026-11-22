@@ -91,7 +91,7 @@ static std::vector<byte> Sound(int count)
         t[i].tag.sid = i % 2 ? ksidInvalid : 0;
         if (!(i % 2))
         {
-            t[i].tag.pcrf = observed;
+            t[i].tag.cache = observed->CoreCache();
             observed->AddRef();
         }
     }

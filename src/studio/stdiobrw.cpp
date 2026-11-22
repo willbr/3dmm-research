@@ -478,7 +478,7 @@ void BrowserPropActor::_ApplySelection(long thumSelect, long sid)
 
     AssertPo(pmvu, 0);
     tag.sid = sid;
-    tag.pcrf = pvNil;
+    tag.cache = pvNil;
     tag.ctg = kctgTmpl;
     tag.cno = (ChunkNumber)thumSelect;
 
@@ -556,12 +556,12 @@ void BrowserMusic::_ApplySelection(long thumSelect, long sid)
     tag.cno = (ChunkNumber)thumSelect;
     tag.sid = sid;
     if (ksidUseCrf != sid)
-        tag.pcrf = pvNil;
+        tag.cache = pvNil;
     else
     {
-        if (!_pstdio->Pmvie()->FEnsureAutosave(&_pcrf))
+        if (!_pstdio->Pmvie()->FEnsureAutosave(&_resources))
             return;
-        AssertDo(vptagm->FOpenTag(&tag, _pcrf), "Should never fail when not copying the tag");
+        AssertDo(vptagm->FOpenTag(&tag, _resources), "Should never fail when not copying the tag");
     }
 
     // Set the tool to "play once", if necessary
@@ -624,12 +624,12 @@ void BrowserImportSound::_ApplySelection(long thumSelect, long sid)
         break;
     }
 
-    if (pvNil == _pcrf)
+    if (pvNil == _resources)
         return;
 
     // Copy sound from the source cache to the current movie.
     vpappb->BeginLongOp();
-    if (!_pstdio->Pmvie()->FCopyMsndFromCrf(_pcrf, (ChunkNumber)thumSelect, &cnoDest))
+    if (!_pstdio->Pmvie()->FCopyMsndFromCrf(_resources, (ChunkNumber)thumSelect, &cnoDest))
     {
         vpappb->EndLongOp();
         return;

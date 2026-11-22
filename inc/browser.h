@@ -675,7 +675,7 @@ class BrowserMusic : public BrowserMusic_PAR
 
   protected:
     long _sty;  // Identifies type of sound
-    PChunkyResourceFile _pcrf; // NOT created here (autosave or BrowserImportSound file)
+    MMResourceCache *_resources; // Borrowed autosave or owned by BrowserImportSound
 
     virtual void _ApplySelection(long thumSelect, long sid);
     virtual bool _FUpdateLists(); // By all entries in pcrf of correct type

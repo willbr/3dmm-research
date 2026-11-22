@@ -45,7 +45,7 @@ static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long sty
         auto resources = NewPrivateMovieResources();
         MovieSoundFixtureAccess::Data(document)->resources = resources;
         document->SetDirty();
-        ok = resources && !resources->Pcfl() && document->FAutoSave() && document->FNewScenInsCore(0);
+        ok = resources && !resources->services.legacy_adapter && document->FAutoSave() && document->FNewScenInsCore(0);
     }
     Filename path;
     const bool havePath = path.FGetTemp() && path.FChangeFtg(kftg3mm);
@@ -63,7 +63,7 @@ static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long sty
             ok = movie->FSaveTagSnd(&tag) && tag.cno == copied && movie->FChidFromUserSndCno(copied, &child);
             if (ok)
             {
-                const MMSceneSoundTag cue{child, {tag.sid, tag.pcrf, tag.ctg, tag.cno}};
+                const MMSceneSoundTag cue{child, {tag.sid, tag.cache, tag.ctg, tag.cno}};
                 ok = movie->Pscen()->FAddSndCoreTagc(false, false, kvlmFull, style, 1, &cue) &&
                      movie->FSaveToFni(&path, true);
             }
@@ -79,7 +79,7 @@ static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long sty
         if (ok)
         {
             auto resources = loaded.Resources();
-            const auto chunks = resources->ReadChunkAccess();
+            const auto chunks = mm_resource_cache_chunks(resources);
             MMU32 scene, number;
             ok = mm_chunk_link_number(&chunks, kctgMvie, loaded.movieNumber, 0, kctgScen, &scene) == MM_CHUNK_OK &&
                  mm_chunk_link_number(&chunks, kctgScen, scene, child, kctgMsnd, &number) == MM_CHUNK_OK;
@@ -88,7 +88,7 @@ static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long sty
                 auto sound = EngineSound::Fetch(resources, kctgMsnd, number);
                 String title;
                 ok = sound && EngineSound::Valid(sound) && EngineSound::Style(sound) == style &&
-                     resources->FGetName(kctgMsnd, number, &title) && title.FEqual(name);
+                     ReadResourceName(resources, kctgMsnd, number, &title) && title.FEqual(name);
                 mm_sound_owner_release(sound);
             }
         }
@@ -104,8 +104,8 @@ static bool TestMovieSoundIntegration(PMovie parent)
     if (const char *path=std::getenv("MM_MOVIE_SOUND_SNAPSHOT"))
         if (!(snapshot=std::fopen(path,"wb"))) return false;
     auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-    auto graph=[&](PChunkyResourceFile resources,ChunkTagOrType type,ChunkNumber number) {
-        const auto chunks = resources->ReadChunkAccess();
+    auto graph=[&](MMResourceCache *resources,ChunkTagOrType type,ChunkNumber number) {
+        const auto chunks = mm_resource_cache_chunks(resources);
         MMU32 position;
         MMChunkEntry entry;
         if (mm_chunk_find(&chunks, type, number, &position) != MM_CHUNK_OK ||
@@ -121,7 +121,7 @@ static bool TestMovieSoundIntegration(PMovie parent)
     bool ok=true;
     for (int mode=0;ok && mode<64;++mode)
     {
-        auto movie=Movie::PmvieNew(false,parent->Pmcc(),nullptr,cnoNil); PChunkyResourceFile resource=nullptr;
+        auto movie=Movie::PmvieNew(false,parent->Pmcc(),nullptr,cnoNil); MMResourceCache *resource=nullptr;
         auto source=ChunkyFile::PcflCreateTemp(); auto external=source?ChunkyResourceFile::PcrfNew(source,0):nullptr;
         ok=movie && external && movie->FNewScenInsCore(0) && movie->FNewScenInsCore(1) && movie->FSwitchScen(0) && movie->FAutoSave() && movie->FEnsureAutosave(&resource);
         auto data=movie?MovieSoundFixtureAccess::Data(movie):nullptr;
@@ -141,7 +141,7 @@ static bool TestMovieSoundIntegration(PMovie parent)
             unused=movie->FUnusedSndsUser(&haveValid); unusedFast=movie->FUnusedSndsUser();
             ok=unused && unusedFast && haveValid==((mode&16)!=0) && movie->FChidFromUserSndCno(sounds[2],&child) && movie->FChidFromUserSndCno(sounds[2],&repeat) && child==repeat;
         }
-        TAG tag={((mode&32)?1:ksidUseCrf),(mode&4)?external:resource,kctgMsnd,(mode&8)?sounds[2]:999999};
+        TAG tag={((mode&32)?1:ksidUseCrf),(mode&4)?external->CoreCache():resource,kctgMsnd,(mode&8)?sounds[2]:999999};
         bool resolved=false,missing=false,adopted=false,saved=false,copied=false; ChunkNumber copyNumber=999999;
         if (ok)
         {
@@ -150,12 +150,12 @@ static bool TestMovieSoundIntegration(PMovie parent)
             missing=movie->FResolveSndTag(&tag,999999,scene,resource);
             ok=resolved && missing==((mode&32)!=0);
             adopted=movie->_FAdoptMsndInMvie(resource,scene); ok=ok && adopted;
-            TAG transfer={ksidUseCrf,external,kctgMsnd,foreign[0]}; TagManager::DupTag(&transfer);
+            TAG transfer={ksidUseCrf,external->CoreCache(),kctgMsnd,foreign[0]}; TagManager::DupTag(&transfer);
             saved=movie->FSaveTagSnd(&transfer); ok=ok && saved;
-            copied=movie->FCopyMsndFromCrf(external,foreign[1],&copyNumber); ok=ok && copied;
+            copied=movie->FCopyMsndFromCrf(external->CoreCache(),foreign[1],&copyNumber); ok=ok && copied;
             LegacyLong row[]={mode,unused,haveValid,unusedFast,static_cast<LegacyLong>(child),static_cast<LegacyLong>(repeat),resolved,missing,adopted,saved,copied,
-                static_cast<LegacyLong>(copyNumber),tag.sid,static_cast<LegacyLong>(tag.cno),tag.pcrf==resource,tag.pcrf==external,
-                static_cast<LegacyLong>(transfer.cno),transfer.pcrf==resource,resource->CactRef(),external->CactRef(),movie->FQueryGCSndsOnClose()};
+                static_cast<LegacyLong>(copyNumber),tag.sid,static_cast<LegacyLong>(tag.cno),tag.cache==resource,tag.cache==external->CoreCache(),
+                static_cast<LegacyLong>(transfer.cno),transfer.cache==resource,resource->references->count,external->CactRef(),movie->FQueryGCSndsOnClose()};
             ok=record(row,sizeof(row)) && graph(resource,kctgMvie,data->movieNumber) && graph(resource,kctgScen,scene) && ok;
             TagManager::CloseTag(&transfer); TagManager::CloseTag(&tag);
         }
@@ -164,7 +164,7 @@ static bool TestMovieSoundIntegration(PMovie parent)
     }
     for (int mode=0;ok && mode<4;++mode)
     {
-        auto movie=Movie::PmvieNew(false,parent->Pmcc(),nullptr,cnoNil); PChunkyResourceFile resource=nullptr;
+        auto movie=Movie::PmvieNew(false,parent->Pmcc(),nullptr,cnoNil); MMResourceCache *resource=nullptr;
         Filename filename; auto temporary=FileObject::PfilCreateTemp(); if (temporary) temporary->GetFni(&filename);
         ok=movie && temporary; ReleasePpo(&temporary);
         ok=ok && filename.FChangeFtg((mode&1)?kftgMidi:kftgWave) && movie->FNewScenInsCore(0) && movie->FAutoSave() && movie->FEnsureAutosave(&resource);

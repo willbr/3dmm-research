@@ -71,7 +71,7 @@ namespace EngineSound
 const MMSoundResourceHost &Host();
 int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
 PMovieSoundMSND Fetch(PTAG);
-PMovieSoundMSND Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
+PMovieSoundMSND Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 bool Info(PChunkyFile, ChunkTagOrType, ChunkNumber, bool *invalid = nullptr, long *style = nullptr,
           long *volume = nullptr);
 bool CopyMidi(PFileObject, PChunkyFile, ChunkNumber *, PString name = nullptr);

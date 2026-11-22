@@ -198,7 +198,7 @@ int mm_movie_compose_add(MMCompositeMovie *state, MMI32 *insertion,
         }
         ++inserted;
     }
-    s->retain(movie.resources);
+    s->retain_cache(movie.resources);
     memcpy(state->rows.buffers[1].data + state->movie_count * sizeof(movie), &movie, sizeof(movie));
     ++state->movie_count;
     state->scene_count = array.count;
@@ -215,7 +215,7 @@ fail:
     if (array.count > state->scene_count)
         mm_array_delete(&array, (MMU32)*insertion, array.count - state->scene_count);
     if (!state->movie_count)
-        mm_composite_empty(state, s->release, s->release_thumbnail);
+        mm_composite_empty(state, s->release_cache, s->release_thumbnail);
     return 0;
 }
 typedef struct ComposeReference
@@ -444,7 +444,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
                 delete_root(&edit, movie.number, scenes);
                 goto done;
             }
-            s->retain(resources);
+            s->retain_cache(resources);
             roots[copied++] = movie.number;
         }
         else if (movie.resources != resources || movie.number != s->data->movieNumber)
@@ -481,7 +481,7 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
                 s->actor_tools(s->context);
                 s->text_tools(s->context);
                 if (scene)
-                    s->release(scene);
+                    s->release_scene(scene);
             }
         }
         else if (descriptor.deleted)
@@ -497,12 +497,12 @@ int mm_movie_compose_apply(const MMCompositeMovie *state, const MMMovieComposeSe
             else
             {
                 scene = s->scenes->open;
-                s->retain(scene);
+                s->retain_scene(scene);
             }
             if (scene)
             {
                 s->remove_actors(scene);
-                s->release(scene);
+                s->release_scene(scene);
             }
             link.number = descriptor.number;
             link.slot = descriptor.child;
@@ -546,7 +546,7 @@ done:
     while (copied)
     {
         delete_root(&edit, roots[--copied], scenes);
-        s->release(resources);
+        s->release_cache(resources);
     }
     mm_storage_dispose(&cloned);
     return ok;

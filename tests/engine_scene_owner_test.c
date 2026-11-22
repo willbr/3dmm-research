@@ -187,6 +187,7 @@ static void init(Fixture *f)
     s->lights_off = lights;
     s->release_background = s->release;
     s->release_thumbnail = s->release;
+    s->release_cache = s->release;
     s->text_lifetime = lifetime;
     s->text_seek = seek;
     s->diagnostic = diagnostic;

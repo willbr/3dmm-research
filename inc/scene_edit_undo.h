@@ -25,7 +25,7 @@ class SceneUndoBackground : public SceneUndoBackground_PAR
 
     void SetTag(PTAG ptag)
     {
-        _edit.tag = {ptag->sid, ptag->pcrf, ptag->ctg, ptag->cno};
+        _edit.tag = {ptag->sid, ptag->cache, ptag->ctg, ptag->cno};
     }
     void SetIcam(long icam)
     {

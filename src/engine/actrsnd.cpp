@@ -57,7 +57,7 @@ MMActorSoundEditServices Actor::_SoundEditServices()
         TAG tag; bool found = false;
         bool ok = EngineTemplate::FGetSndActnCel(static_cast<Actor *>(p)->_Template(), action, cel, &found, &tag);
         *exists = found;
-        if (ok && found) *value = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
+        if (ok && found) *value = {tag.sid, tag.cache, tag.ctg, tag.cno};
         return int(ok);
     };
     return s;
@@ -68,7 +68,7 @@ bool Actor::FSetSnd(PTAG ptag, tribool fLoop, tribool fQueue, tribool fMotionMat
     AssertVarMem(ptag);
     AssertIn(sty, 0, styLim);
     static_assert(styMidi == 4 && styNil == 0 && vlmNil == -1, "sound style ABI");
-    const MMTag tag = {ptag->sid, ptag->pcrf, ptag->ctg, ptag->cno};
+    const MMTag tag = {ptag->sid, ptag->cache, ptag->ctg, ptag->cno};
     const auto transaction = _TransactionServices();
     const auto edit = _SoundEditServices();
     ChildChunkID external = 0;

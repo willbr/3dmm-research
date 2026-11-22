@@ -48,7 +48,7 @@
 
 const LegacyLong ksidInvalid = -1; // negative SIDs imply an invalid TAG
 const LegacyLong sidNil = 0;
-const LegacyLong ksidUseCrf = 0; // chunk is in ptag->pcrf
+const LegacyLong ksidUseCrf = 0; // chunk is in ptag->cache
 
 typedef struct TAG *PTAG;
 struct TAG
@@ -60,16 +60,16 @@ struct TAG
 #endif // DEBUG
 
     LegacyLong sid;  // Source ID (or ksidUseCrf)
-    PChunkyResourceFile pcrf; // File to look in for this chunk if sid is ksidUseCrf
+    MMResourceCache *cache; // Document cache when sid is ksidUseCrf
     ChunkTagOrType ctg;   // ChunkTagOrType of chunk
     ChunkNumber cno;   // ChunkNumber of chunk
 };
 inline MMTag TagToCore(const TAG &tag)
-{ return {tag.sid, tag.sid == ksidUseCrf ? tag.pcrf : nullptr, tag.ctg, tag.cno}; }
+{ return {tag.sid, tag.sid == ksidUseCrf ? tag.cache : nullptr, tag.ctg, tag.cno}; }
 inline void TagFromCore(TAG *tag, const MMTag &value)
-{ tag->sid=value.sid;tag->pcrf=static_cast<PChunkyResourceFile>(value.cache);tag->ctg=value.type;tag->cno=value.number; }
+{ tag->sid=value.sid;tag->cache=static_cast<MMResourceCache *>(value.cache);tag->ctg=value.type;tag->cno=value.number; }
 const ByteOrderMask kbomTag = 0xFF000000;
-// TAG embeds a runtime PChunkyResourceFile pointer that's 4 bytes on x86 and
+// TAG embeds a runtime cache pointer that's 4 bytes on x86 and
 // 8 bytes on x64. Runtime TAG is allowed to grow on x64; nothing on disk
 // embeds it. On-disk structs and kauai containers store TAGOnFile (below) at
 // the wire-format size and convert at the I/O boundary. See
@@ -85,7 +85,7 @@ static_assert(sizeof(TAG) == 16, "TAG x86 layout drift");
     and the byte count baked into every TAG-embedding chunk header.
 
     Convert with TAGOnFile::From(const TAG&) on write and
-    TAG::FromOnFile(const TAGOnFile&, PChunkyResourceFile) on read.
+    TagFromOnFile on read.
 ****************************************/
 struct TAGOnFile
 {
@@ -104,10 +104,10 @@ struct TAGOnFile
 };
 static_assert(sizeof(TAGOnFile) == 16, "TAGOnFile must stay 16 bytes -- this is the 1995 wire format");
 
-inline void TagFromOnFile(TAG *ptag, const TAGOnFile &tof, PChunkyResourceFile pcrf = pvNil)
+inline void TagFromOnFile(TAG *ptag, const TAGOnFile &tof, MMResourceCache *cache = pvNil)
 {
     ptag->sid = tof.sid;
-    ptag->pcrf = pcrf;
+    ptag->cache = cache;
     ptag->ctg = tof.ctg;
     ptag->cno = tof.cno;
 }
@@ -192,7 +192,6 @@ class TagManager : public TagManager_PAR
     bool _FBuildFniHD(LegacyLong sid, PFilename pfniHD, bool *pfExists);
     MMResourceManager *_BuildSourceManager(LegacyLong sid, PFilename pfniInfo, bool media);
     MMResourceManager *_GetSourceManager(LegacyLong sid, bool fDontHitCD = fFalse, const TAG *asset = nullptr);
-    PChunkyFile _PcflFindTag(PTAG ptag);
 
   public:
     static const MMTagServices &CoreServices();
@@ -222,7 +221,7 @@ class TagManager : public TagManager_PAR
     bool FGetSourceSid(LegacyLong index, LegacyLong *sid);
     MMSourceNames *CoreSourceNames() { return &_names; }
     bool FMergeGstSource(PStringTable_GST pgst, short bo, short osk);
-    bool FMergeMovieSources(PChunkyResourceFile resources, ChunkNumber movie);
+    bool FMergeMovieSources(MMResourceCache *resources, ChunkNumber movie);
     bool FAddStnSource(PString pstnMerged, LegacyLong sid);
     bool FGetSid(PString pstn, LegacyLong *psid); // pstn can be short or long
 
@@ -241,8 +240,8 @@ class TagManager : public TagManager_PAR
                     LegacyUlong grftagm = ftagmFile | ftagmMemory); // sidNil clears all caches
 
     // For ksidUseCrf tags:
-    static bool FOpenTag(PTAG ptag, PChunkyResourceFile pcrfDest, PChunkyFile pcflSrc = pvNil);
-    static bool FSaveTag(PTAG ptag, PChunkyResourceFile pcrf, bool fRedirect);
+    static bool FOpenTag(PTAG ptag, MMResourceCache *destination, PChunkyFile pcflSrc = pvNil);
+    static bool FSaveTag(PTAG ptag, MMResourceCache *destination, bool fRedirect);
     static void DupTag(PTAG ptag); // call this when you're copying a tag
     static void CloseTag(PTAG ptag);
 

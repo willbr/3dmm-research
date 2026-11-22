@@ -58,7 +58,7 @@ static bool TestMovieEdit()
         auto movie = client ? Movie::PmvieNew(false, client) : nullptr;
         auto actor = NewObj TrackTestActor();
         auto undo = NewObj MovieEditUndo();
-        PChunkyResourceFile resource = nullptr;
+        MMResourceCache *resource = nullptr;
         ok = movie && actor && undo;
         if (ok)
         {
@@ -111,7 +111,7 @@ static bool TestMovieEdit()
                                 LegacyLong(client->nuked),
                                 LegacyLong(movie->AridSelected()),
                                 MovieSaveProbe::AutosaveDirty(movie),
-                                LegacyLong(resource->CactRef()),
+                                LegacyLong(resource->references->count),
                                 LegacyLong(name.Cch()),
                                 tag.sid,
                                 LegacyLong(tag.ctg),

@@ -73,7 +73,7 @@ int main()
 
     ThumbnailDescriptor descriptor = {};
     descriptor.tag.sid = -33;
-    descriptor.tag.pcrf = reinterpret_cast<PChunkyResourceFile>(&descriptor);
+    descriptor.tag.cache = reinterpret_cast<MMResourceCache *>(&descriptor);
     descriptor.tag.ctg = 0x11223344;
     descriptor.tag.cno = 0x55667788;
     byte prefix[offsetof(TAG, ctg)];
@@ -84,7 +84,7 @@ int main()
     CHECK(descriptor.tag.ctg == 0x87654321 && descriptor.tag.cno == 0x76543210);
     descriptor.chid = 0x12345678;
     CHECK(descriptor.tag.cno == 0x12345678 && !std::memcmp(prefix, &descriptor, sizeof(prefix)));
-    CHECK(descriptor.tag.sid == -33 && descriptor.tag.pcrf == reinterpret_cast<PChunkyResourceFile>(&descriptor));
+    CHECK(descriptor.tag.sid == -33 && descriptor.tag.cache == reinterpret_cast<MMResourceCache *>(&descriptor));
     std::puts("Studio thumbnails: both byte orders, malformed records, archive traversal, and TAG aliases passed.");
     return 0;
 }

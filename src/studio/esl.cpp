@@ -485,7 +485,7 @@ bool EaselText::FCmdSetFont(PCommand pcmd)
     TAG tagTdfNew;
 
     tagTdfNew.sid = pcmd->rglw[1];
-    tagTdfNew.pcrf = pvNil;
+    tagTdfNew.cache = pvNil;
     tagTdfNew.ctg = kctgTdf;
     tagTdfNew.cno = pcmd->rglw[0];
 
@@ -530,7 +530,7 @@ bool EaselText::FCmdSetColor(PCommand pcmd)
     TAG tagTdfNew;
 
     tagTdfNew.sid = pcmd->rglw[1];
-    tagTdfNew.pcrf = pvNil;
+    tagTdfNew.cache = pvNil;
     tagTdfNew.ctg = kctgMtrl;
     tagTdfNew.cno = pcmd->rglw[0];
 

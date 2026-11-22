@@ -309,7 +309,7 @@ int main()
                 }
             if (scenario == 0 || scenario == 6)
             {
-                auto scene = Scene::PscenRead(movie, observed, number);
+                auto scene = Scene::PscenRead(movie, observed->CoreCache(), number);
                 CHECK(scene);
                 auto refs = observed->CactRef();
                 for (int kind = 0; kind < 3; ++kind)
@@ -330,7 +330,7 @@ int main()
                         a.cactFail = failure ? 1 : 0;
                         vmutxMem.Leave();
 #endif
-                        bool ok = scene->FWrite(resources, &output);
+                        bool ok = scene->FWrite(resources->CoreCache(), &output);
 #ifdef DEBUG
                         vmutxMem.Enter();
                         a.cactDo = a.cactFail = 0;

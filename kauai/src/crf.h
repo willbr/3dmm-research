@@ -172,7 +172,6 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MMChunkAccess ReadChunkAccess();
     MMChunkOwnerRead *ReadOwner();
     MMArchiveWriter ArchiveWriter();
-    static MMChunkTitleIO ResourceTitleIO();
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);
     MMChunkEndpoint CopySource(MMResourceChunkCopy &binding);
     MMChunkEndpoint CopyTarget(MMChunkFileCopy &binding);
@@ -286,10 +285,13 @@ class GenericCacheableObject : public GenericCacheableObject_PAR
     }
 };
 
+MMResourceCache *NewTypedPrivateCache(MMPrivateArchive *, MMI32 budget);
 MMResourceCache *NewTypedWireCache(const MMChunkIndex *, void *file, const MMBlockFileServices *, MMI32 budget);
 MMResourceCache *NewTypedSiblingCache(const MMResourceCache *, MMI32 budget);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, PString);
 MMChunkEndpoint ResourceCopySource(MMResourceCache *, MMResourceChunkCopy &);
+MMChunkEndpoint ResourceCopyTarget(MMResourceCache *, MMChunkFileCopy &);
+MMChunkTitleIO ResourceTitleIO();
 MMChunkOwnerRead *ResourceArchiveReader(const MMResourceCache *);
 MMArchiveWriter ResourceArchiveWriter(const MMResourceCache *);
 void ReopenResourceArchive(MMResourceCache *);

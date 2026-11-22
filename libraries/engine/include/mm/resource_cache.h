@@ -81,6 +81,7 @@ extern "C"
         void (*release_file)(void *file);
         int (*live_name)(void *file, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *bytes);
         void (*live_copy_source)(void *file, struct MMChunkFileCopy *, struct MMChunkEndpoint *);
+        void (*live_copy_target)(void *file, struct MMChunkFileCopy *, struct MMChunkEndpoint *);
         struct MMChunkOwnerRead *(*live_reader)(void *file);
         struct MMArchiveWriter (*live_writer)(void *file);
         void (*live_reopen)(void *file);

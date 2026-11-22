@@ -4,13 +4,13 @@
 class MovieContentTagAccess : public TagManager
 {
   public:
-    static bool FontSource(PChunkyResourceFile resources)
+    static bool FontSource(MMResourceCache *resources)
     {
         auto member = &MovieContentTagAccess::_sources;
         auto &sources = vptagm->*member;
         auto manager = mm_resource_manager_create(KauaiResourceObjectAllocator(), KauaiCopyAllocator());
         auto paths = sources.owners.new_paths(sources.owners.context);
-        auto sibling = NewTypedSiblingCache(resources->CoreCache(), 1024 * 1024);
+        auto sibling = NewTypedSiblingCache(resources, 1024 * 1024);
         const bool added = manager && sibling &&
                            mm_resource_manager_add_cache(manager, sibling, nullptr) == MM_STORAGE_OK;
         if (sibling)
@@ -65,7 +65,7 @@ static bool TestMovieContentCore()
         auto client = NewObj MovieEditClient();
         auto movie = client ? Movie::PmvieNew(false, client) : nullptr;
         auto material = EngineMaterial::New(mode + 1, 8);
-        PChunkyResourceFile resource = nullptr;
+        MMResourceCache *resource = nullptr;
         ok = movie && material && movie->FNewScenInsCore(0) && movie->FEnsureAutosave(&resource);
         auto state = [&](int operation) {
             std::fprintf(stderr, "[movie content] mode=%d operation=%d\n", mode, operation);
@@ -73,7 +73,7 @@ static bool TestMovieContentCore()
             MovieSaveProbe::Record(movie, trace, operation, true);
             LegacyLong fields[] = {mode,
                                    operation,
-                                   LegacyLong(resource->CactRef()),
+                                   LegacyLong(resource->references->count),
                                    LegacyLong(movie->AridSelected()),
                                    LegacyLong(movie->CmactrMac()),
                                    LegacyLong(movie->Pscen()->Ctbox()),
@@ -91,7 +91,7 @@ static bool TestMovieContentCore()
                 if (!movie->FGetArid(i, &id, &name, &refs, &tag))
                     return false;
                 LegacyLong row[] = {LegacyLong(id),        LegacyLong(refs),    tag.sid,
-                                    LegacyLong(tag.ctg),   LegacyLong(tag.cno), tag.pcrf == resource,
+                                    LegacyLong(tag.ctg),   LegacyLong(tag.cno), tag.cache == resource,
                                     LegacyLong(name.Cch())};
                 if (!record(row, sizeof(row)) || !record(name.Psz(), name.Cch() * sizeof(achar)))
                     return false;
@@ -118,7 +118,7 @@ static bool TestMovieContentCore()
                                     font.sid,
                                     LegacyLong(font.ctg),
                                     LegacyLong(font.cno),
-                                    font.pcrf == resource,
+                                    font.cache == resource,
                                     LegacyLong(text.Cch())};
                 return record(row, sizeof(row)) && record(text.Psz(), text.Cch() * sizeof(achar));
             }
@@ -127,8 +127,8 @@ static bool TestMovieContentCore()
         TAG tag = {};
         if (ok)
         {
-            ok = movie->FInsertMtrl(material, &tag) && tag.sid == ksidUseCrf && tag.pcrf == resource && state(0);
-            if (tag.pcrf)
+            ok = movie->FInsertMtrl(material, &tag) && tag.sid == ksidUseCrf && tag.cache == resource && state(0);
+            if (tag.cache)
                 TagManager::CloseTag(&tag);
         }
         RC bounds = {10, 20, 210, 120};

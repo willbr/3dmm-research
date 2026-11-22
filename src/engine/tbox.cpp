@@ -1783,13 +1783,13 @@ void TextBox::SetDirty(bool fDirty)
  *  Pointer to a new tbox, else pvNil.
  *
  ****************************************************/
-PTBOX TextBox::PtboxRead(PChunkyResourceFile pcrf, ChunkNumber cno, PScene pscen)
+PTBOX TextBox::PtboxRead(MMResourceCache *pcrf, ChunkNumber cno, PScene pscen)
 {
-    AssertPo(pcrf, 0); AssertNilOrPo(pscen, 0);
-    const auto reader = pcrf->ReadOwner();
+    AssertVarMem(pcrf); AssertNilOrPo(pscen, 0);
+    const auto reader = ResourceArchiveReader(pcrf);
     if (!reader)
         return nullptr;
-    MovieArchiveHost archive{reader, pcrf->ArchiveWriter()};
+    MovieArchiveHost archive{reader, ResourceArchiveWriter(pcrf)};
     const auto editor = archive.Editor();
     PTBOX result = nullptr;
     TextBoxEditHost host;

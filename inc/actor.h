@@ -232,7 +232,7 @@ class Actor : public Actor_PAR
     }
 
     // ActrSave Routines
-    static PActor PactrRead(PChunkyResourceFile pcrf, ChunkNumber cno);    // Construct from a document
+    static PActor PactrRead(MMResourceCache *pcrf, ChunkNumber cno);    // Construct from a document
     bool FWrite(const MMArchiveWriter &, const struct MMMovieEmbeddedArchive &, ChunkNumber cno, ChunkNumber cnoScene);
 
     // Visibility

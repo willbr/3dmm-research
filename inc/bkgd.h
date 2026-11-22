@@ -41,7 +41,7 @@ namespace EngineBackground
 const MMBackgroundOwnerHost &Host();
 int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **, MMI32 *);
 PBackground Fetch(PTAG);
-PBackground Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
+PBackground Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 bool FCacheToHD(PTAG);
 void GetName(PBackground, PString);
 void TurnOnLights(PBackground, PWorld);

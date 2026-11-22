@@ -69,11 +69,11 @@ bool Actor::FWrite(const MMArchiveWriter &archive, const MMMovieEmbeddedArchive 
     Read the actor data from disk, (re-)construct the actor, and return a
     pointer to it.
 ***************************************************************************/
-PActor Actor::PactrRead(PChunkyResourceFile pcrf, ChunkNumber cnoActr)
+PActor Actor::PactrRead(MMResourceCache *pcrf, ChunkNumber cnoActr)
 {
-    AssertPo(pcrf, 0);
+    AssertVarMem(pcrf);
 
-    const auto reader = pcrf->ReadOwner();
+    const auto reader = ResourceArchiveReader(pcrf);
     if (!reader)
         return nullptr;
     const auto graph = mm_movie_owner_graph(reader);

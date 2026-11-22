@@ -13,7 +13,7 @@ static_assert(sizeof(ActorChunkOnFile) == sizeof(MMActorHeader) && offsetof(Acto
                   offsetof(ActorChunkOnFile, nfrmLast) == 24 && offsetof(ActorChunkOnFile, tagTmpl) == 28,
               "actor header ABI");
 static_assert(sizeof(TAG) == sizeof(MMTag) && offsetof(TAG, sid) == offsetof(MMTag, sid) &&
-                  offsetof(TAG, pcrf) == offsetof(MMTag, cache) &&
+                  offsetof(TAG, cache) == offsetof(MMTag, cache) &&
                   offsetof(TAG, ctg) == offsetof(MMTag, type) &&
                   offsetof(TAG, cno) == offsetof(MMTag, number),
               "actor tag ABI");

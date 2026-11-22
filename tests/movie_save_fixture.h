@@ -21,7 +21,7 @@ class MovieSaveProbe
         bool named = movie->FGetFni(&path);
         auto data = Data(movie);
         const auto resources = data->Resources();
-        const auto backing = resources ? resources->ReadOwner()->storage->owner->files.main_file : nullptr;
+        const auto backing = resources ? ResourceArchiveReader(resources)->storage->owner->files.main_file : nullptr;
         LegacyLong row[] = {operation,
                             result,
                             movie->_save.autosaveDirty,
@@ -40,7 +40,7 @@ class MovieSaveProbe
         trace.insert(trace.end(), row, row + sizeof(row) / sizeof(row[0]));
         if (!resources)
             return;
-        const auto chunks = resources->ReadChunkAccess();
+        const auto chunks = mm_resource_cache_chunks(resources);
         for (MMU32 i = 0; i < chunks.count; ++i)
         {
             MMChunkEntry chunk;
@@ -122,9 +122,9 @@ static bool TestMovieSave(PMovie parent)
             record(4, movie->FSaveToFni(&path, true));
             movie->SetDirty();
             record(5, movie->FAutoSave(&path, true));
-            PChunkyResourceFile resource = nullptr;
+            MMResourceCache *resource = nullptr;
             record(6, movie->FEnsureAutosave(&resource));
-            ok = resource && !resource->Pcfl() && movie->FSwitchScen(ivNil) && movie->FSwitchScen(0) &&
+            ok = resource && !resource->services.legacy_adapter && movie->FSwitchScen(ivNil) && movie->FSwitchScen(0) &&
                  movie->Pscen()->Trans() == transFadeToBlack;
             record(7, ok);
             movie->SetDocClosing(true);
@@ -159,10 +159,10 @@ static bool TestMovieSave(PMovie parent)
     return ok;
 }
 
-static PChunkyResourceFile NewPrivateMovieResources()
+static MMResourceCache *NewPrivateMovieResources()
 {
     auto archive = KauaiTemporaryArchive();
-    auto resources = ChunkyResourceFile::PcrfNewPrivate(archive, 0);
+    auto resources = NewTypedPrivateCache(archive, 0);
     mm_private_archive_close(archive);
     return resources;
 }
@@ -177,7 +177,7 @@ static bool TestPrivateMovieSave(PMovie parent)
 
     Filename path, remembered;
     const bool havePath = path.FGetTemp() && path.FChangeFtg(kftg3mm);
-    bool ok = resources && !resources->Pcfl() && havePath;
+    bool ok = resources && !resources->services.legacy_adapter && havePath;
     if (ok)
     {
         movie->SetDirty();
@@ -186,7 +186,7 @@ static bool TestPrivateMovieSave(PMovie parent)
     }
     if (ok)
     {
-        PChunkyResourceFile working = nullptr;
+        MMResourceCache *working = nullptr;
         ok = movie->FEnsureAutosave(&working) && working == resources;
         movie->SetDirty();
         ok = ok && movie->FAutoSave();

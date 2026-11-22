@@ -36,7 +36,7 @@ struct MovieData : MMMovieState
     MovieData() { mm_movie_state_init(this); mm_movie_title_init(&title, sizeof(achar)); }
     void GetTitle(PString) const;
     void SetTitle(PString);
-    PChunkyResourceFile Resources() const { return static_cast<PChunkyResourceFile>(resources); }
+    MMResourceCache *Resources() const { return static_cast<MMResourceCache *>(resources); }
     ~MovieData();
     MovieData(const MovieData &) = delete;
     MovieData &operator=(const MovieData &) = delete;
@@ -50,7 +50,7 @@ struct MovieData : MMMovieState
 
     static bool FCreateRoot(PChunkyFile file, ChunkNumber *number);
     static bool FVerifyVersion(MMChunkOwnerRead *, ChunkNumber *number = pvNil, MMMovieHeader *header = pvNil);
-    static bool FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors,
+    static bool FLoadRollCall(MMResourceCache *resources, ChunkNumber number, MMRollCallTable *actors,
                               MMI32 *limit = nullptr);
     static bool FWriteRollCall(PChunkyFile file, ChunkNumber number, MMRollCallTable *actors, ChunkNumber *written);
   private:

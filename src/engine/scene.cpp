@@ -211,6 +211,7 @@ MMSceneOwnerServices Scene::_OwnerServices()
     s.lights_off = [](void *, void *p) { EngineBackground::TurnOffLights(static_cast<PBackground>(p)); };
     s.release_background = [](void *, void *p) { mm_background_owner_release(static_cast<PBackground>(p)); };
     s.release_thumbnail = [](void *, void *p) { mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(p)); };
+    s.release_cache = [](void *, void *p) { mm_resource_cache_release(static_cast<MMResourceCache *>(p)); };
     s.text_lifetime = [](void *, void *p, MMI32 *first) -> int {
         auto text = static_cast<PTBOX>(p);
         AssertPo(text, 0);
@@ -337,7 +338,7 @@ void Scene::MarkMem(void)
         MarkPv(track.storage.buffers[1].data);
     }
     MarkMaskedBitmap(static_cast<PMaskedBitmapMBMP>(_owner.owned[MM_SCENE_THUMBNAIL]));
-    MarkMemObj(static_cast<PChunkyResourceFile>(_owner.owned[MM_SCENE_BACKGROUND_CACHE]));
+    mm_resource_cache_mark(static_cast<MMResourceCache *>(_owner.owned[MM_SCENE_BACKGROUND_CACHE]));
     EngineBackground::Mark(Pbkgd());
 
     for (const auto &list : _owner.members)
@@ -688,7 +689,7 @@ MMSceneEventServices Scene::_EventServices()
         TAG tag;
         TagFromCore(&tag, *value);
         auto background = EngineBackground::Fetch(&tag);
-        *value = {tag.sid, tag.pcrf, tag.ctg, tag.cno};
+        *value = {tag.sid, tag.cache, tag.ctg, tag.cno};
         return background;
     };
     s.set_camera = [](void *p, void *background, MMI32 camera) -> int {
@@ -1727,7 +1728,7 @@ TextBox *Scene::PtboxFromItbox(long i)
  ****************************************************/
 static MMTag SceneEditTag(const TAG &t)
 {
-    return {t.sid, t.pcrf, t.ctg, t.cno};
+    return {t.sid, t.cache, t.ctg, t.cno};
 }
 static void SceneEditPublishTag(void *p, const MMTag *tag, int first)
 {
@@ -1926,16 +1927,16 @@ bool Scene::FChangeCam(long icam)
  *  pvNil, if failure, else a pointer to the scene.
  *
  ****************************************************/
-Scene *Scene::PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno, const MMMovieSession *movie)
+Scene *Scene::PscenRead(PMovie pmvie, MMResourceCache *pcrf, ChunkNumber cno, const MMMovieSession *movie)
 {
     AssertPo(pmvie, 0);
-    AssertPo(pcrf, 0);
-    const auto reader = pcrf->ReadOwner();
+    AssertVarMem(pcrf);
+    const auto reader = ResourceArchiveReader(pcrf);
     if (!reader)
         return nullptr;
     struct Host
     {
-        PChunkyResourceFile resources;
+        MMResourceCache *resources;
         MMMovieSceneSource source;
     } host = {pcrf, {movie, mm_movie_owner_graph(reader)}};
     MMSceneLoadServices s = {};
@@ -2016,15 +2017,15 @@ bool Scene::FGetTagBkgd(PTAG ptag)
  *  fFalse if it fails, else fTrue.
  *
  ****************************************************/
-bool Scene::FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno)
+bool Scene::FWrite(MMResourceCache *pcrf, ChunkNumber *pcno)
 {
-    AssertPo(pcrf, 0);
-    const auto reader = pcrf->ReadOwner();
+    AssertVarMem(pcrf);
+    const auto reader = ResourceArchiveReader(pcrf);
     if (!reader)
         return false;
-    MovieArchiveHost archive{reader, pcrf->ArchiveWriter()};
+    MovieArchiveHost archive{reader, ResourceArchiveWriter(pcrf)};
     MMResourceChunkCopy binding;
-    const auto destination = pcrf->CopySource(binding);
+    const auto destination = ResourceCopySource(pcrf, binding);
     MMMovieArchiveAssets assets{&destination, &TagManager::CoreServices()};
     return FWrite(archive.Editor(), archive.Writer(), mm_movie_archive_assets(&assets), pcno);
 }
@@ -2641,14 +2642,14 @@ void Scene::StopPlaying()
         state for the scene.
 
     Arguments:
-        PChunkyResourceFile pcrf     -- the chunky resource file the Scene lives on
+        MMResourceCache *pcrf     -- the chunky resource file the Scene lives on
         ChunkNumber cno       -- the ChunkNumber of the Scene chunk
         TRANS *ptrans -- pointer to memory to take the transition setting
 
     Returns: fTrue if it was able to set *ptrans, fFalse if something failed
 
 ************************************************************ PETED ***********/
-bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans)
+bool Scene::FTransOnFile(MMResourceCache *pcrf, ChunkNumber cno, TRANS *ptrans)
 {
     MMI32 value;
     if (!SceneData::FReadTransition(pcrf, cno, &value))
@@ -2663,7 +2664,7 @@ bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptran
         state for the scene.
 
     Arguments:
-        PChunkyResourceFile pcrf   -- the chunky resource file the Scene lives on
+        MMResourceCache *pcrf   -- the chunky resource file the Scene lives on
         ChunkNumber cno     -- the ChunkNumber of the Scene chunk
         TRANS trans -- the transition state to use
 
@@ -2671,7 +2672,7 @@ bool Scene::FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptran
         given transition state.
 
 ************************************************************ PETED ***********/
-bool Scene::FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans)
+bool Scene::FSetTransOnFile(MMResourceCache *pcrf, ChunkNumber cno, TRANS trans)
 {
     return SceneData::FWriteTransition(pcrf, cno, trans);
 }

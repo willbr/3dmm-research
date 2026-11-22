@@ -31,11 +31,11 @@ struct TextResourceContext
 };
 static void TextTagToCore(const TAG *tag, MMTag *out)
 {
-    out->sid = tag->sid; std::memcpy(&out->cache, &tag->pcrf, sizeof(out->cache)); out->type = tag->ctg; out->number = tag->cno;
+    out->sid = tag->sid; std::memcpy(&out->cache, &tag->cache, sizeof(out->cache)); out->type = tag->ctg; out->number = tag->cno;
 }
 static void TextTagFromCore(TAG *tag, const MMTag *in)
 {
-    tag->sid = in->sid; std::memcpy(&tag->pcrf, &in->cache, sizeof(tag->pcrf)); tag->ctg = in->type; tag->cno = in->number;
+    tag->sid = in->sid; std::memcpy(&tag->cache, &in->cache, sizeof(tag->cache)); tag->ctg = in->type; tag->cno = in->number;
 }
 static MMTextResourceServices ResourceServices(void *context)
 {

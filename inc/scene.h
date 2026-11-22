@@ -190,9 +190,9 @@ class Scene : public Scene_PAR
     // Create and destroy
     //
     static Scene *PscenNew(PMovie pmvie);                      // Returns pvNil if it fails.
-    static Scene *PscenRead(PMovie pmvie, PChunkyResourceFile pcrf, ChunkNumber cno,
+    static Scene *PscenRead(PMovie pmvie, MMResourceCache *pcrf, ChunkNumber cno,
                            const MMMovieSession *movie = nullptr); // Returns pvNil if it fails.
-    bool FWrite(PChunkyResourceFile pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
+    bool FWrite(MMResourceCache *pcrf, ChunkNumber *pcno);                       // Returns fFalse if it fails, else the cno written.
     bool FWrite(const struct MMMovieArchiveEditor &, const MMArchiveWriter &,
                 const struct MMMovieEmbeddedArchive &, ChunkNumber *pcno);
     static MMSceneSnapshotServices SnapshotServices();
@@ -268,8 +268,8 @@ class Scene : public Scene_PAR
         return static_cast<TRANS>(_owner.data.transition);
     } // Returns the transition setting.
     // These two operate a specific Scene chunk rather than a Scene in memory
-    static bool FTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS *ptrans);
-    static bool FSetTransOnFile(PChunkyResourceFile pcrf, ChunkNumber cno, TRANS trans);
+    static bool FTransOnFile(MMResourceCache *pcrf, ChunkNumber cno, TRANS *ptrans);
+    static bool FSetTransOnFile(MMResourceCache *pcrf, ChunkNumber cno, TRANS trans);
 
     //
     // State functions

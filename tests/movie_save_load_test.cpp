@@ -310,7 +310,7 @@ class TrackTestActor : public Actor
         auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl,number, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
         if (!tmpl) return false;
         if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
-        _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,number}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
+        _owner.runtime.template_tag={ksidUseCrf,resource->CoreCache(),kctgTmpl,number}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
         ActorTrack track; if (!track.FCreate()) return false;
         RouteDistancePoint first={{rZero,rZero,rZero},BR_SCALAR(10)},last={{BR_SCALAR(10),rZero,rZero},rZero};
         ActorEvent::Base event={aetAdd,1,{0,rZero,0}}; ActorEvent::Add add={}; ActorEvent::Action action={0,0}; LegacyLong step=rOne;
@@ -331,7 +331,7 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={actor->Arid(),runtime.first,runtime.last,state.frame,state.nextEvent,state.firstEventInFrame,
             state.actionEvent,state.addEvent,state.location.irpt,state.location.dwrOffset,state.location.dnfrm,state.step,state.frozen,
-            mm_actor_path_count(track.route),mm_actor_events_count(track.events),mm_template_owner_references(static_cast<PTemplate>(runtime.template_object)),static_cast<PChunkyResourceFile>(tag.cache)->CactRef()};
+            mm_actor_path_count(track.route),mm_actor_events_count(track.events),mm_template_owner_references(static_cast<PTemplate>(runtime.template_object)),static_cast<MMResourceCache *>(tag.cache)->references->count};
         bool ok=record(values,sizeof(values)) && record(&state.position,sizeof(state.position)) && record(&state.transform,sizeof(state.transform));
         for (long i=0;ok && i<mm_actor_path_count(track.route);++i) { RouteDistancePoint point; mm_actor_path_get(track.route, i,&point); ok=record(&point,sizeof(point)); }
         for (long i=0;ok && i<mm_actor_events_count(track.events);++i)
@@ -372,7 +372,7 @@ class TrackTestActor : public Actor
         vmutxMem.Enter(); vdmglob.dmaglBase.cactFail=0; vmutxMem.Leave();
 #endif
         bool independent=copy && copy->Pbody()==(reset?nullptr:_Body()) && copy->Pscen()==(reset?nullptr:_Scene());
-        long templateRefs=mm_template_owner_references(_Template()),bodyRefs=_Body()?mm_body_owner_references(_Body()):0,cacheRefs=static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache)->CactRef();
+        long templateRefs=mm_template_owner_references(_Template()),bodyRefs=_Body()?mm_body_owner_references(_Body()):0,cacheRefs=static_cast<MMResourceCache *>(_owner.runtime.template_tag.cache)->references->count;
         if (copy)
         {
             if (reset)
@@ -389,7 +389,7 @@ class TrackTestActor : public Actor
         tmpl->FailAfter(0); vpers->Clear(); ReleasePpo(&copy);
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,ok,independent,templateRefs,bodyRefs,cacheRefs,mm_template_owner_references(_Template()),_Body()?mm_body_owner_references(_Body()):0,
-            static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache)->CactRef(),_owner.runtime.state.frame,_owner.runtime.state.nextEvent,_owner.runtime.state.firstEventInFrame,_owner.runtime.state.actionEvent,_owner.runtime.state.addEvent,
+            static_cast<MMResourceCache *>(_owner.runtime.template_tag.cache)->references->count,_owner.runtime.state.frame,_owner.runtime.state.nextEvent,_owner.runtime.state.firstEventInFrame,_owner.runtime.state.actionEvent,_owner.runtime.state.addEvent,
             _owner.runtime.state.location.irpt,_owner.runtime.state.location.dwrOffset,_owner.runtime.state.location.dnfrm,_owner.runtime.state.onStage,_owner.runtime.state.frozen,_owner.runtime.state.action,_owner.runtime.state.cel,
             _owner.runtime.first,_owner.runtime.last,_owner.runtime.actor,_owner.runtime.life_dirty,_owner.runtime.prerendered,_owner.runtime.time_frozen,_owner.runtime.recording.recording,_owner.runtime.recording.rejoining,_owner.runtime.recording.inserted,
             _owner.runtime.recording.insertion.irpt,_owner.runtime.recording.insertion.dwrOffset,_owner.runtime.recording.insertion.dnfrm,static_cast<LegacyLong>(_owner.runtime.recording.timestamp),_owner.runtime.recording.gap,
@@ -409,7 +409,7 @@ class TrackTestActor : public Actor
         }
         return saved;
     }
-    bool FTestPaste(int mode,FILE *snapshot,StageTestScene *scene,PChunkyResourceFile source,PChunkyResourceFile target,
+    bool FTestPaste(int mode,FILE *snapshot,StageTestScene *scene,MMResourceCache *source,MMResourceCache *target,
                     ChunkNumber soundNumber,PTemplate textTemplate,ChunkNumber templateNumber)
     {
         using namespace ActorEvent;
@@ -443,7 +443,7 @@ class TrackTestActor : public Actor
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,pasted,_owner.runtime.first,_owner.runtime.last,_owner.runtime.life_dirty,_owner.runtime.state.frame,_owner.runtime.state.nextEvent,
             _owner.runtime.state.firstEventInFrame,_owner.runtime.state.actionEvent,_owner.runtime.state.addEvent,mm_actor_events_count(_owner.track.events),
-            _owner.runtime.template_tag.sid,static_cast<LegacyLong>(_owner.runtime.template_tag.number),_owner.runtime.template_tag.cache==target,EngineTemplate::FIsTdt(_Template()),source->CactRef(),target->CactRef()};
+            _owner.runtime.template_tag.sid,static_cast<LegacyLong>(_owner.runtime.template_tag.number),_owner.runtime.template_tag.cache==target,EngineTemplate::FIsTdt(_Template()),source->references->count,target->references->count};
         bool ok=record(values,sizeof(values)) && record(&_owner.runtime.origin,sizeof(_owner.runtime.origin)) &&
             record(&_owner.runtime.state.routeTranslation,sizeof(_owner.runtime.state.routeTranslation)) && record(&_owner.runtime.state.subrouteTranslation,sizeof(_owner.runtime.state.subrouteTranslation));
         for (long i=0;ok && i<mm_actor_events_count(_owner.track.events);++i)
@@ -483,9 +483,9 @@ class TrackTestActor : public Actor
             case aetActn: bytes=sizeof(Action); break;
             case aetSize: case aetStep: data.scalar=rOne; break;
             case aetCost: bytes=sizeof(Costume); data.costume.ibset=0; data.costume.fCmtl=tNo;
-                data.costume.tag={ksidUseCrf,resource,kctgMtrl,material}; TagManager::DupTag(&data.costume.tag); break;
+                data.costume.tag={ksidUseCrf,resource->CoreCache(),kctgMtrl,material}; TagManager::DupTag(&data.costume.tag); break;
             case aetSnd: bytes=sizeof(MMActorSound); data.sound.cel=-1; data.sound.style=2; data.sound.volume=100;
-                data.sound.tag={ksidUseCrf,resource,kctgMsnd,soundNumber}; mm_tag_dup(&data.sound.tag, &EngineActorTagServices()); break;
+                data.sound.tag={ksidUseCrf,resource->CoreCache(),kctgMsnd,soundNumber}; mm_tag_dup(&data.sound.tag, &EngineActorTagServices()); break;
             }
             if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),bytes,&data,&event)) return true;
             if (kind==aetCost) TagManager::CloseTag(&data.costume.tag);
@@ -523,17 +523,17 @@ class TrackTestActor : public Actor
             Base event; mm_actor_events_get_fixed(_owner.track.events, i,&event); LegacyLong bytes=mm_actor_events_size(_owner.track.events, i);
             if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(_owner.track.events, i,payload);
             if (event.aet==aetAdd) payload[18]=payload[19]=0;
-            if (event.aet==aetCost) { Costume value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
+            if (event.aet==aetCost) { Costume value; std::memcpy(&value,payload,sizeof(value)); value.tag.cache=nullptr; std::memcpy(payload,&value,sizeof(value)); }
             if (event.aet==aetSnd) { MMActorSound value; std::memcpy(&value,payload,sizeof(value)); value.tag.cache=nullptr; std::memcpy(payload,&value,sizeof(value)); }
             saved=record(&event,sizeof(event)) && record(&bytes,sizeof(bytes)) && record(payload,bytes);
         }
         return saved;
     }
-    bool FTestCopy(int mode,FILE *snapshot,PChunkyResourceFile resource,ChunkNumber templateNumber,
+    bool FTestCopy(int mode,FILE *snapshot,MMResourceCache *resource,ChunkNumber templateNumber,
                    ChunkNumber materialNumber,ChunkNumber soundNumber,ChildChunkID child)
     {
         using namespace ActorEvent;
-        auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource->CoreCache(), kctgTmpl,templateNumber, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
+        auto tmpl=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(resource, kctgTmpl,templateNumber, TrackTestTemplate::FReadSubrouteFixture, mm_template_owner_services()));
         if (!tmpl) return false;
         if (_Template()) { mm_template_owner_release(_Template()); _owner.runtime.template_object = nullptr; } _owner.runtime.template_object = tmpl; mm_tag_close(&_owner.runtime.template_tag, &EngineActorTagServices());
         _owner.runtime.template_tag={ksidUseCrf,resource,kctgTmpl,templateNumber}; mm_tag_dup(&_owner.runtime.template_tag, &EngineActorTagServices());
@@ -602,7 +602,7 @@ class TrackTestActor : public Actor
         { std::fprintf(stderr,"Copy fixture outcome mismatch mode %d: %d expected %d\n",mode,changed,expected); ReleasePpo(&copy); return false; }
         vpers->Clear();
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
-        LegacyLong values[]={mode,changed,copy!=nullptr,mm_template_owner_references(_Template()),resource->CactRef(),_owner.runtime.state.frame,_owner.runtime.state.cel};
+        LegacyLong values[]={mode,changed,copy!=nullptr,mm_template_owner_references(_Template()),resource->references->count,_owner.runtime.state.frame,_owner.runtime.state.cel};
         bool saved=record(values,sizeof(values));
         auto ownerMember = &TrackTestActor::_owner;
         auto dump=[&](PActor actor) {
@@ -621,7 +621,7 @@ class TrackTestActor : public Actor
                 if (bytes>sizeof(payload)) return false; mm_actor_events_get_payload(track.events, i,payload);
                 if (event.aet==aetAdd) payload[18]=payload[19]=0;
                 if (event.aet==aetSnd) { MMActorSound value; std::memcpy(&value,payload,sizeof(value)); value.tag.cache=nullptr; std::memcpy(payload,&value,sizeof(value)); }
-                if (event.aet==aetCost) { Costume value; std::memcpy(&value,payload,sizeof(value)); value.tag.pcrf=nullptr; std::memcpy(payload,&value,sizeof(value)); }
+                if (event.aet==aetCost) { Costume value; std::memcpy(&value,payload,sizeof(value)); value.tag.cache=nullptr; std::memcpy(payload,&value,sizeof(value)); }
                 if (!record(&event,sizeof(event)) || !record(&bytes,sizeof(bytes)) || !record(payload,bytes)) return false;
             }
             return true;
@@ -664,7 +664,7 @@ class TrackTestActor : public Actor
         unsigned char aliveByte=0; std::memcpy(&aliveByte,&alive,sizeof(aliveByte));
         auto record=[&](const void *p,size_t n) { return !snapshot || std::fwrite(p,1,n,snapshot)==n; };
         LegacyLong values[]={mode,changed,aliveByte,output!=nullptr,output && output->Pbody(),output && output->Pscen(),
-            output?output->CactRef():0,mm_template_owner_references(_Template()),_Body()?mm_body_owner_references(_Body()):0,static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache)->CactRef(),
+            output?output->CactRef():0,mm_template_owner_references(_Template()),_Body()?mm_body_owner_references(_Body()):0,static_cast<MMResourceCache *>(_owner.runtime.template_tag.cache)->references->count,
             _owner.runtime.state.frame,_owner.runtime.state.onStage,_owner.runtime.state.action,_owner.runtime.state.cel,_owner.runtime.state.nextEvent,_owner.runtime.state.addEvent,_owner.runtime.state.actionEvent,_owner.runtime.state.firstEventInFrame,
             _owner.runtime.state.location.irpt,_owner.runtime.state.location.dwrOffset,_owner.runtime.state.location.dnfrm,_owner.runtime.first,_owner.runtime.last,_owner.runtime.life_dirty,
             mm_actor_path_count(_owner.track.route),mm_actor_events_count(_owner.track.events)};
@@ -967,7 +967,7 @@ class TrackTestActor : public Actor
             case aetActn: bytes=sizeof(Action); data.action={0,1}; break;
             case aetCost:
                 bytes=sizeof(Costume); data.costume.ibset=0; data.costume.cmid=scalar; data.costume.fCmtl=owningCopy?tNo:tYes;
-                if (owningCopy) { data.costume.tag={ksidUseCrf,resource,kctgMtrl,materialNumber}; TagManager::DupTag(&data.costume.tag); }
+                if (owningCopy) { data.costume.tag={ksidUseCrf,resource->CoreCache(),kctgMtrl,materialNumber}; TagManager::DupTag(&data.costume.tag); }
                 break;
             case aetSnd: bytes=sizeof(MMActorSound); data.sound.cel=-1; data.sound.style=2; data.sound.volume=100; data.sound.tag={2,pvNil,kctgMsnd,0}; break;
             case aetRotF: case aetRotH: bytes=sizeof(BMAT34); BrMatrix34Identity(&data.matrix); data.matrix.m[3][0]=BR_SCALAR(2); break;
@@ -1186,7 +1186,7 @@ class TrackTestActor : public Actor
         ok=ok && mm_actor_path_insert(track.Route(), 0,&point) && mm_actor_events_insert(track.Events(), 0,sizeof(add),&add,&event);
         auto append=[&](int type,int material,int bodySet,int frame) {
             Costume costume={}; costume.ibset=bodySet; costume.fCmtl=static_cast<tribool>(type); costume.cmid=material;
-            costume.tag={ksidUseCrf,resource,kctgMtrl,materials[material%2]};
+            costume.tag={ksidUseCrf,resource->CoreCache(),kctgMtrl,materials[material%2]};
             event={aetCost,frame,{0,rZero,frame-1}};
             if (!type) TagManager::DupTag(&costume.tag);
             if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()),sizeof(costume),&costume,&event)) return true;
@@ -1204,7 +1204,7 @@ class TrackTestActor : public Actor
         _owner.runtime.state.firstEventInFrame=_owner.runtime.state.nextEvent=1; _owner.runtime.state.actionEvent=-1; _owner.runtime.state.addEvent=0;
         _owner.runtime.first=1; _owner.runtime.last=8;
         Costume fresh={}; fresh.ibset=(mode&64)?1:0; fresh.fCmtl=static_cast<tribool>(mode%3);
-        fresh.cmid=(mode>=128 && (mode&8))?2:1; fresh.tag={ksidUseCrf,resource,kctgMtrl,materials[1]};
+        fresh.cmid=(mode>=128 && (mode&8))?2:1; fresh.tag={ksidUseCrf,resource->CoreCache(),kctgMtrl,materials[1]};
         bool snapshotFailureSafe = true;
 #ifdef DEBUG
         if (transaction && mode == 128)
@@ -1336,10 +1336,11 @@ class TrackTestActor : public Actor
         }
         return saved;
     }
-    bool FTestCostumeMergeOwnership(PChunkyResourceFile replacement)
+    bool FTestCostumeMergeOwnership(PChunkyResourceFile resources)
     {
-        auto original=static_cast<PChunkyResourceFile>(_owner.runtime.template_tag.cache);
-        const long originalRefs=original->CactRef(), replacementRefs=replacement->CactRef();
+        auto replacement = resources->CoreCache();
+        auto original = static_cast<MMResourceCache *>(_owner.runtime.template_tag.cache);
+        const long originalRefs=original->references->count, replacementRefs=replacement->references->count;
         ActorTrack track;
         if (!track.FCreate()) return false;
         RouteDistancePoint point={{rZero,rZero,rZero},rZero};
@@ -1358,13 +1359,13 @@ class TrackTestActor : public Actor
         mm_actor_track_swap(&_owner.track, &track.Core()); mm_actor_sounds_clear(&_owner.sounds);
         _owner.runtime.state.firstEventInFrame=1; _owner.runtime.state.nextEvent=2; _owner.runtime.state.actionEvent=-1; _owner.runtime.state.addEvent=0;
         long result=-1; _MergeAev(1,2,&result);
-        if (result!=1 || original->CactRef()!=originalRefs || replacement->CactRef()!=replacementRefs+1)
+        if (result!=1 || original->references->count!=originalRefs || replacement->references->count!=replacementRefs+1)
         {
             std::fprintf(stderr,"Costume merge lost owning TAG references\n");
             std::exit(1);
         }
         mm_actor_track_dispose(&_owner.track, &EngineActorTagServices());
-        return replacement->CactRef()==replacementRefs;
+        return replacement->references->count==replacementRefs;
     }
     bool FTestEventEdit(int mode, FILE *snapshot)
     {
@@ -1577,6 +1578,10 @@ class TrackTestActor : public Actor
     }
     bool FInitPlayback(PScene scene, PChunkyResourceFile resource)
     {
+        return FInitPlayback(scene, resource->CoreCache());
+    }
+    bool FInitPlayback(PScene scene, MMResourceCache *resource)
+    {
         if (!FInit(scene, resource) || !(TrackTestTemplate::From(_Template()))->FInitAction() ||
             !ActorFrameTest::FCreateTrack(_owner.track, false))
             return false;
@@ -1631,6 +1636,10 @@ class TrackTestActor : public Actor
                ActorFrameTest::SameState(_owner.runtime.state, before);
     }
     bool FInit(PScene scene, PChunkyResourceFile resource)
+    {
+        return FInit(scene, resource->CoreCache());
+    }
+    bool FInit(PScene scene, MMResourceCache *resource)
     {
         auto tmpl = TrackTestTemplate::Create();
         _owner.runtime.template_object = tmpl;
@@ -2442,7 +2451,7 @@ static bool TestCaptionPersistence(PScene scene)
     resources = ChunkyResourceFile::PcrfNew(file, 0);
     if (resources == pvNil)
         goto done;
-    caption = TextBox::PtboxRead(resources, number, scene);
+    caption = TextBox::PtboxRead(resources->CoreCache(), number, scene);
     if (caption == pvNil || caption->CpMac() != 6)
         goto done;
     caption->FetchRgch(0, 5, actual);
@@ -2659,7 +2668,7 @@ int __cdecl main(int argc, char **argv)
         if (!stored.FLoad(&fniMovie))
             BAIL("core movie load failed");
         const MovieArchiveFixture archive(stored.Resources());
-        if (stored.Resources()->Pcfl())
+        if (stored.Resources()->services.legacy_adapter)
             BAIL("core movie opened through the native archive wrapper");
         ChunkNumber scene;
         if (!archive.Link(kctgMvie, stored.movieNumber, 0, kctgScen, &scene))

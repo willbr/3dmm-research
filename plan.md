@@ -336,16 +336,19 @@ priority over the older Project 0-4 ordering wherever they conflict.
   sources use the validated C index and native C file provider shared with Preview.
   Media sources and open live archives keep their shared archive graph, including
   across file-cache reopen. Camera backgrounds and sound playback use those
-  caches directly. Studio's document-local tags still carry a native facade.
+  caches directly.
   Studio loads movie source names through the shared archive reader and autosave
   owns the source GST block through serialization and child adoption in C89.
   Local/media directory search order also uses C89. Physical filename/drive calls,
   native locale services, UI prompts, engine objects and final callers remain.
-- MovieData's resource handle, actor table, movie number, actor-ID limit, title and scene count
-  now live in an owning C state. Empty initialization, transactional load/replace,
-  save ordering and roll-call tag cleanup/marshalling use C89. The owner creates
-  roots and replaces roll-call links through the shared archive writer. It loads
-  roll calls from the owning resource cache. Studio opens sessions for movie
+- MovieData's working archive cache, actor table, movie number, actor-ID limit,
+  title and scene count live in an owning C state. Studio opens and creates the
+  working cache directly. Autosave, document-local tags, scene and actor
+  loading, and scene composition and undo borrow or retain that same C89 cache.
+  Empty initialization, transactional load/replace, save ordering and roll-call
+  tag cleanup and marshalling use C89. The owner creates roots and replaces
+  roll-call links through the shared archive writer. It loads roll calls from
+  the owning resource cache. Studio opens sessions for movie
   loads and scene switches from the live graph in C89. Studio's version check
   and Preview's session opening share the C89 graph root reader. Native file
   bindings and caller facades remain.

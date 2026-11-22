@@ -20,7 +20,7 @@ static bool TestTextBoxRuntime(PScene scene, PChunkyFile file, ChunkIdentificati
             ChunkNumber number;
             if (!file->FAdd(0, kctgTbox, &number) || !data.FWrite(file, number) ||
                 !file->FAdoptChild(kctgTbox, number, text.ctg, text.cno, 0)) { ok = false; break; }
-            auto box = TextBox::PtboxRead(resources, number, scene);
+            auto box = TextBox::PtboxRead(resources->CoreCache(), number, scene);
             if (!box) { ok = false; break; }
             auto snapshot = [&]() {
                 RC bounds;

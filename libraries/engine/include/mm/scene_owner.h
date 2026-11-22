@@ -80,6 +80,7 @@ extern "C"
         void (*release)(void *, void *object);
         void (*release_background)(void *, void *background);
         void (*release_thumbnail)(void *, void *bitmap);
+        void (*release_cache)(void *, void *cache);
         void (*actor_visibility)(void *, void *actor, int show), (*lights_off)(void *, void *background);
         int (*text_lifetime)(void *, void *text, MMI32 *first);
         int (*text_seek)(void *, void *text, MMI32 frame);

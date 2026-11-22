@@ -71,6 +71,7 @@
 ***************************************************************************/
 
 #include "soc.h"
+#include "resource_archive_host.h"
 #include "studio.h"
 #include "handle_services.h"
 #include "mm/browser_thumbnail.h"
@@ -1853,7 +1854,7 @@ bool BrowserNamedList::FCmdOk(PCommand pcmd)
         PMovieView pmvu;
         pmvu = (PMovieView)(_pstdio->Pmvie()->PddgGet(0));
         tag.sid = ksidInvalid;
-        tag.pcrf = pvNil;
+        tag.cache = pvNil;
         pmvu->SetTagTool(&tag); // No need to close tag with ksidInvalid
     }
 
@@ -1899,7 +1900,7 @@ PBrowserMusic BrowserMusic::PbrwmNew(PResourceCache prca, long kidGlass, long st
 
     pbrwm->_sty = sty;
     pbrwm->_pstdio = pstdio;
-    if (!pstdio->Pmvie()->FEnsureAutosave(&pbrwm->_pcrf))
+    if (!pstdio->Pmvie()->FEnsureAutosave(&pbrwm->_resources))
     {
         ReleasePpo(&pbrwm);
         return pvNil;
@@ -1911,7 +1912,7 @@ PBrowserMusic BrowserMusic::PbrwmNew(PResourceCache prca, long kidGlass, long st
 
 /****************************************************
  *
- * Add all of the sounds of the movie from _pcrf
+ * Add all of the sounds of the movie from _resources
  * to the current BrowserList lists:
  *	pglthd, pgst
  *
@@ -1933,7 +1934,7 @@ bool BrowserMusic::_FUpdateLists(void)
     ChunkIdentification cki;
     TAG tag;
     PMovieSoundMSND pmsnd = pvNil;
-    const auto chunks = _pcrf->ReadChunkAccess();
+    const auto chunks = mm_resource_cache_chunks(_resources);
     MMU32 first;
     const int status = mm_chunk_find(&chunks, kctgMsnd, 0, &first);
     if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
@@ -1951,7 +1952,7 @@ bool BrowserMusic::_FUpdateLists(void)
             break;
         cki = {kctgMsnd, entry.number};
         tag.sid = ksidUseCrf; // Non-CD-loaded content
-        tag.pcrf = _pcrf;
+        tag.cache = _resources;
         tag.ctg = kctgMsnd;
         tag.cno = cki.cno;
 
@@ -1983,7 +1984,7 @@ bool BrowserMusic::_FUpdateLists(void)
         if (!EngineSound::Valid(pmsnd))
             goto LNext;
 
-        if (!_pcrf->FGetName(kctgMsnd, cki.cno, &stn))
+        if (!ReadResourceName(_resources, kctgMsnd, cki.cno, &stn))
             goto LNext;
 
         if (!_FAddThd(&stn, &cki))
@@ -2035,7 +2036,7 @@ bool BrowserMusic::_FAddThd(String *pstn, ChunkIdentification *pcki)
     ;
 
     thd.tag.sid = ksidUseCrf;
-    thd.tag.pcrf = _pcrf;
+    thd.tag.cache = _resources;
     thd.tag.ctg = pcki->ctg;
     thd.tag.cno = pcki->cno;
     thd.cno = cnoNil;       // unused
@@ -2069,7 +2070,7 @@ void BrowserMusic::_ProcessSelection(void)
     _GetThumFromIthum(_ithumSelect, &thumSelect, &sid);
 
     tag.sid = sid;
-    tag.pcrf = (ksidUseCrf == sid) ? _pcrf : pvNil;
+    tag.cache = (ksidUseCrf == sid) ? _resources : pvNil;
     tag.ctg = kctgMsnd;
     tag.cno = (ChunkNumber)thumSelect;
 
@@ -2104,7 +2105,7 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
     Filename fni;
     long kidBrws;
     PFileObject pfil = pvNil; // Wave or midi file
-    PChunkyResourceFile pcrf = pvNil; // Movie file
+    MMResourceCache *cache = pvNil; // Movie file
     String stn;
     ChunkIdentification cki;
     Command cmd;
@@ -2135,11 +2136,11 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
     {
         // Import <user> sounds from a movie
         // Verify version numbers before accepting this file
-        pcrf = ChunkyResourceFile::PcrfOpenWorking(&fni, false);
-        if (!pcrf || !MovieData::FVerifyVersion(pcrf->ReadOwner()))
+        cache = OpenWorkingResourceCache(&fni, false);
+        if (!cache || !MovieData::FVerifyVersion(ResourceArchiveReader(cache)))
             goto LEnd;
 
-        const auto chunks = pcrf->ReadChunkAccess();
+        const auto chunks = mm_resource_cache_chunks(cache);
         MMU32 first;
         const int status = mm_chunk_find(&chunks, kctgMsnd, 0, &first);
         if (status != MM_CHUNK_OK && status != MM_CHUNK_NOT_FOUND)
@@ -2153,7 +2154,7 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
                 goto LEnd;
             if (entry.type != kctgMsnd)
                 break;
-            auto sound = EngineSound::Fetch(pcrf, entry.type, entry.number);
+            auto sound = EngineSound::Fetch(cache, entry.type, entry.number);
             if (!sound)
                 goto LEnd;
             const bool matches = EngineSound::Valid(sound) && EngineSound::Style(sound) == _sty;
@@ -2216,7 +2217,8 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
 
 LEnd:
     vpappb->EndLongOp();
-    ReleasePpo(&pcrf);
+    if (cache)
+        mm_resource_cache_release(cache);
     ReleasePpo(&pfil);
     return fTrue;
 }
@@ -2256,7 +2258,7 @@ bool BrowserMusic::FCmdDel(PCommand pcmd)
     // Delete the midi or wave child chunk from the msnd
     // Invalidate the sound
     tag.sid = ksidUseCrf; // Non-CD-loaded content
-    tag.pcrf = _pcrf;
+    tag.cache = _resources;
     tag.ctg = kctgMsnd;
     LegacyLong thumSelect;
     _GetThumFromIthum(_ithumSelect, &thumSelect, &sid);
@@ -2657,8 +2659,8 @@ bool BrowserImportSound::FInit(PCommand pcmd, ChunkIdentification ckiRoot, PStud
 
     // Fill the lists with sounds from the portfolio movie
     vapp.GetPortfolioDoc(&fni);
-    _pcrf = ChunkyResourceFile::PcrfOpenWorking(&fni, false);
-    if (pvNil == _pcrf)
+    _resources = OpenWorkingResourceCache(&fni, false);
+    if (pvNil == _resources)
         goto LFail;
     if (!_FUpdateLists()) // to include sounds from the selected movie
         goto LFail;
@@ -3291,7 +3293,8 @@ BrowserRollCall::~BrowserRollCall(void)
 BrowserImportSound::~BrowserImportSound(void)
 {
     AssertBaseThis(0);
-    ReleasePpo(&_pcrf);
+    if (_resources)
+        mm_resource_cache_release(_resources);
 }
 
 /****************************************************
@@ -3353,7 +3356,7 @@ void BrowserRollCall::MarkMem(void)
 void BrowserImportSound::MarkMem(void)
 {
     AssertThis(0);
-    MarkMemObj(_pcrf);
+    mm_resource_cache_mark(_resources);
     BrowserImportSound_PAR::MarkMem();
 }
 
@@ -3509,7 +3512,7 @@ void BrowserImportSound::AssertValid(LegacyUlong grfobj)
 {
 
     BrowserImportSound_PAR::AssertValid(fobjAllocated);
-    AssertNilOrPo(_pcrf, 0);
+    AssertNilOrVarMem(_resources);
 }
 
 /****************************************************

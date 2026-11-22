@@ -23,7 +23,7 @@ struct TextGenerationFixtureAccess
         const auto &state = *mm_template_owner_generated(t);
         auto material=static_cast<PMaterial_MTRL>(state.material); auto action=state.action;
         String text; LegacyLong shape; TAG font; EngineText::GetInfo(t, &text,&shape,&font);
-        LegacyLong fields[]={shape,text.Cch(),font.sid,static_cast<LegacyLong>(font.ctg),static_cast<LegacyLong>(font.cno),font.pcrf!=nullptr,state.action_id,action!=nullptr,mm_action_resource_references(action),mm_material_owner_references(material)};
+        LegacyLong fields[]={shape,text.Cch(),font.sid,static_cast<LegacyLong>(font.ctg),static_cast<LegacyLong>(font.cno),font.cache!=nullptr,state.action_id,action!=nullptr,mm_action_resource_references(action),mm_material_owner_references(material)};
         return record(fields,sizeof(fields)) && record(text.Psz(),text.Cch()) && TemplateCreateFixtureAccess::Record(t,out);
     }
     static bool Resource(void *resource,int kind,int chars,FILE *out)
@@ -64,7 +64,7 @@ static bool TestTextGeneration()
     auto model=EngineModel::New(3,vertices,1,&face); ChunkNumber number=0,modelNumber=0;
     bool ok=cache && model && file->FAddPv(wire.data(),static_cast<LegacyLong>((wire.size)()),kctgTdf,&number) && number==0 && file->FAdd(0,kctgBmdl,&modelNumber) && EngineModel::Write(model, file,kctgBmdl,modelNumber);
     for (int i=0;ok && i<256;++i) ok=file->FAdoptChild(kctgTdf,0,kctgBmdl,modelNumber,i);
-    mm_model_owner_release(model); TAG font={ksidUseCrf,cache,kctgTdf,0}; TextGenerationFontContext context={cache,false,0};
+    mm_model_owner_release(model); TAG font={ksidUseCrf,cache->CoreCache(),kctgTdf,0}; TextGenerationFontContext context={cache,false,0};
     const char *strings[]={"","A","AiB","\xe9 A","ABBAi"}; int generated=0,attempts=0,successful=0;
     for (int text=0;ok && text<5;++text) for (int shape=0;ok && shape<tdtsLim;++shape)
     {

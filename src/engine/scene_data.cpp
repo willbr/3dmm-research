@@ -71,22 +71,22 @@ bool SceneData::FWrite(PChunkyFile file, ChunkNumber number)
     const auto io = mm_scene_file_io(file, &archive, &titles);
     return mm_scene_write(this, number, &io) != 0;
 }
-bool SceneData::FReadTransition(PChunkyResourceFile resources, ChunkNumber number, MMI32 *out)
+bool SceneData::FReadTransition(MMResourceCache *resources, ChunkNumber number, MMI32 *out)
 {
-    const auto reader = resources->ReadOwner();
+    const auto reader = ResourceArchiveReader(resources);
     if (!reader)
         return false;
-    const auto archive = resources->ArchiveWriter();
+    const auto archive = ResourceArchiveWriter(resources);
     const auto titles = KauaiChunkOwnerTitleIO();
     const auto io = mm_scene_file_io(reader, &archive, &titles);
     return mm_scene_transition_read(number, sizeof(achar), out, &io) != 0;
 }
-bool SceneData::FWriteTransition(PChunkyResourceFile resources, ChunkNumber number, MMI32 transition)
+bool SceneData::FWriteTransition(MMResourceCache *resources, ChunkNumber number, MMI32 transition)
 {
-    const auto reader = resources->ReadOwner();
+    const auto reader = ResourceArchiveReader(resources);
     if (!reader)
         return false;
-    const auto archive = resources->ArchiveWriter();
+    const auto archive = ResourceArchiveWriter(resources);
     const auto titles = KauaiChunkOwnerTitleIO();
     const auto io = mm_scene_file_io(reader, &archive, &titles);
     return mm_scene_transition_write(number, sizeof(achar), transition, &io) != 0;

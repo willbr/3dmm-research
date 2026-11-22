@@ -3,6 +3,7 @@
 #include "soc_core.h"
 #include "movie_data.h"
 #include "handle_services.h"
+#include "resource_archive_host.h"
 #include "mm/movie_session.h"
 ASSERTNAME
 
@@ -22,7 +23,7 @@ MMMovieSessionBinding MovieData::_SessionBinding()
 {
     return {
         [](void *p, MMMovieSessionGraph *graph) {
-            *graph = mm_movie_owner_graph(static_cast<PChunkyResourceFile>(p)->ReadOwner());
+            *graph = mm_movie_owner_graph(ResourceArchiveReader(static_cast<MMResourceCache *>(p)));
         },
         MovieOpenError};
 }
@@ -30,7 +31,7 @@ MMMovieSessionBinding MovieData::_SessionBinding()
 MMRollCallBinding MovieData::_RollCallBinding()
 {
     return {
-        [](void *p) { return static_cast<PChunkyResourceFile>(p)->CoreCache(); },
+        [](void *p) { return static_cast<MMResourceCache *>(p); },
         KauaiDecodeBlockHandle,
         {nullptr,
          [](void *, const void *input, size_t bytes, int encoding, void *output, size_t capacity) -> size_t {
@@ -54,25 +55,25 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         [](void *) -> void * {
             Filename name;
             if (name.FGetTemp())
-                return ChunkyResourceFile::PcrfOpenWorking(&name, true);
+                return OpenWorkingResourceCache(&name, true);
             PushErc(ercCflCreate);
             return nullptr;
         },
         [](void *, void *path) -> void * {
-            return ChunkyResourceFile::PcrfOpenWorking(static_cast<PFilename>(path), false);
+            return OpenWorkingResourceCache(static_cast<PFilename>(path), false);
         },
         _SessionBinding(),
-        [](void *p) { static_cast<PChunkyResourceFile>(p)->Release(); },
-        [](void *p) { return static_cast<PChunkyResourceFile>(p)->ArchiveWriter(); },
+        [](void *p) { mm_resource_cache_release(static_cast<MMResourceCache *>(p)); },
+        [](void *p) { return ResourceArchiveWriter(static_cast<MMResourceCache *>(p)); },
         _RollCallBinding(),
         [](void *) { Bug("chunk or child link missing"); },
-        ChunkyResourceFile::ResourceTitleIO(),
+        ResourceTitleIO(),
         [](void *c, void *p) -> int {
-            auto reader = static_cast<PChunkyResourceFile>(p)->ReadOwner();
+            auto reader = ResourceArchiveReader(static_cast<MMResourceCache *>(p));
             return KauaiSaveChunkOwner(reader->storage, kctgSoc, static_cast<NativeMovieHost *>(c)->filename);
         },
         [](void *p) {
-            auto reader = static_cast<PChunkyResourceFile>(p)->ReadOwner();
+            auto reader = ResourceArchiveReader(static_cast<MMResourceCache *>(p));
             static_cast<PFileObject>(reader->storage->owner->files.main_file)->SetTemp(fFalse);
         }};
 }
@@ -129,7 +130,7 @@ bool MovieData::FVerifyVersion(MMChunkOwnerRead *reader, ChunkNumber *number, MM
     return status == MM_MOVIE_OK;
 }
 
-bool MovieData::FLoadRollCall(PChunkyResourceFile resources, ChunkNumber number, MMRollCallTable *actors, MMI32 *limit)
+bool MovieData::FLoadRollCall(MMResourceCache *resources, ChunkNumber number, MMRollCallTable *actors, MMI32 *limit)
 {
     const auto binding = _RollCallBinding();
     return mm_movie_load_bound_rollcall(resources, number, actors, limit, &binding) != 0;

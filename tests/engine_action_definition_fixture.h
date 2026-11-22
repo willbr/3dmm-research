@@ -35,8 +35,8 @@ class ActionDefinitionFixtureAccess
         const auto original=cel.chidSnd;
         bool ok=true;
         const ChildChunkID markers[]={0xffffffff,0x80000000};
-        for (auto marker:markers) { cel.chidSnd=marker; mm_action_decode_cel(&cel,other,row); TAG tag={123,reinterpret_cast<PChunkyResourceFile>(0x1357),kctgMsnd,456}; GetSound(action,0,&tag);
-            ok=ok && tag.sid==123 && tag.pcrf==reinterpret_cast<PChunkyResourceFile>(0x1357) && tag.ctg==ctgNil && tag.cno==456; }
+        for (auto marker:markers) { cel.chidSnd=marker; mm_action_decode_cel(&cel,other,row); TAG tag={123,reinterpret_cast<MMResourceCache *>(0x1357),kctgMsnd,456}; GetSound(action,0,&tag);
+            ok=ok && tag.sid==123 && tag.cache==reinterpret_cast<MMResourceCache *>(0x1357) && tag.ctg==ctgNil && tag.cno==456; }
         cel.chidSnd=original; mm_action_decode_cel(&cel,other,row); return ok;
     }
     static bool Record(const MMActionDefinition *action,bool valid,FILE *out)
@@ -56,7 +56,7 @@ class ActionDefinitionFixtureAccess
             LegacyLong n=mm_action_part_count(&state,i);
             if (!record(&cel,sizeof(cel)) || !record(&n,sizeof(n))) return false;
             for (int j=0;j<n;++j) { CelPartSpec part; if (!mm_action_get_part(action,i,j,&part) || !record(&part,sizeof(part))) return false; }
-            if (valid) { TAG tag={123,nullptr,0x12345678,456}; GetSound(action,i,&tag); LegacyLong values[]={tag.sid,tag.pcrf!=nullptr,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)}; if (!record(values,sizeof(values))) return false; }
+            if (valid) { TAG tag={123,nullptr,0x12345678,456}; GetSound(action,i,&tag); LegacyLong values[]={tag.sid,tag.cache!=nullptr,static_cast<LegacyLong>(tag.ctg),static_cast<LegacyLong>(tag.cno)}; if (!record(values,sizeof(values))) return false; }
         }
         for (int i=0;i<matrixCount;++i) { BMAT34 m; if (!mm_action_get_matrix(action,i,&m) || !record(&m,sizeof(m))) return false; }
         for (int i=0;i<soundCount;++i) { MMTag tag; if (!mm_action_sound_tag(sounds,i,&tag)) return false; LegacyLong values[]={tag.sid,tag.cache!=nullptr,static_cast<LegacyLong>(tag.type),static_cast<LegacyLong>(tag.number)}; if (!record(values,sizeof(values))) return false; }

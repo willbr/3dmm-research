@@ -122,7 +122,7 @@ struct Access : Scene
                 {
                     auto t = static_cast<PTAG>(payload);
                     Value(t->sid);
-                    Value(t->pcrf != nullptr);
+                    Value(t->cache != nullptr);
                     Value(t->ctg);
                     Value(t->cno);
                 }
@@ -274,7 +274,7 @@ int main()
                     a.cactFail = failure ? 1 : 0;
                     vmutxMem.Leave();
 #endif
-                    auto scene = Scene::PscenRead(movie, observed, number);
+                    auto scene = Scene::PscenRead(movie, observed->CoreCache(), number);
 #ifdef DEBUG
                     vmutxMem.Enter();
                     a.cactDo = a.cactFail = 0;
@@ -296,7 +296,7 @@ int main()
     // Corrected resolution-failure lock cleanup is outside the frozen trace.
     CHECK(movie->FNewScenInsCore(0));
     auto number = Fixture(file, 0, false);
-    auto scene = Scene::PscenRead(movie, observed, number);
+    auto scene = Scene::PscenRead(movie, observed->CoreCache(), number);
     CHECK(scene);
     CHECK(!scene->FResolveAllSndTags(number) && !Access::Locks(scene));
     ReleasePpo(&scene);

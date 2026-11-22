@@ -1828,7 +1828,7 @@ static void TestMoviePersistence()
         if (!snapshot) return;
         uint32_t row[] = {movie.movieNumber, static_cast<uint32_t>(movie.actorIdLimit),
                           static_cast<uint32_t>(movie.sceneCount), movie.actors.count,
-                          static_cast<uint32_t>(movie.Resources()->CactRef()), static_cast<uint32_t>(movie.title.count)};
+                          static_cast<uint32_t>(movie.Resources()->references->count), static_cast<uint32_t>(movie.title.count)};
         Check(std::fwrite(row, sizeof(row), 1, snapshot) == 1);
         Check(std::fwrite(mm_movie_title_text(&movie.title), sizeof(achar), movie.title.count, snapshot) == static_cast<size_t>(movie.title.count));
         ChunkNumber child;
@@ -1850,7 +1850,7 @@ static void TestMoviePersistence()
         Check(movie.FInitEmpty());
         record(movie);
         const MovieArchiveFixture archive(movie.Resources());
-        Check(!movie.Resources()->Pcfl());
+        Check(!movie.Resources()->services.legacy_adapter);
         String movieTitle(PszLit("Headless movie")); movie.SetTitle(&movieTitle);
         // Preserve an actual graph: a scene references an embedded actor
         // template; persistence treats their payloads as opaque, never UI.
@@ -1867,7 +1867,7 @@ static void TestMoviePersistence()
         Check(archive.Adopt(kctgMvie, movie.movieNumber, kctgScen, scene, 0));
         TAG tag = {ksidUseCrf, nullptr, kctgTmpl, actorTemplate};
         Check(TagManager::FOpenTag(&tag, movie.Resources()));
-        MMRollCallActor actor = {{42, 1, ksidUseCrf, 5, tag.ctg, tag.cno}, tag.pcrf};
+        MMRollCallActor actor = {{42, 1, ksidUseCrf, 5, tag.ctg, tag.cno}, tag.cache};
         String name;
         name.SetSzs(PszLit("Actor"));
         Check(mm_rollcall_table_add(&movie.actors, name.Prgch(), name.Cch(), &actor));
@@ -1876,7 +1876,7 @@ static void TestMoviePersistence()
         Check(movie.FSave(&destination)); // Replacing the roll call retains graph children.
         record(movie);
         MovieData alias;
-        Check(alias.FLoad(&destination) && alias.Resources()->ReadOwner() == archive.reader);
+        Check(alias.FLoad(&destination) && ResourceArchiveReader(alias.Resources()) == archive.reader);
     }
     {
         MovieData loaded;
@@ -1884,7 +1884,7 @@ static void TestMoviePersistence()
         record(loaded);
         Check(loaded.sceneCount == 1 && loaded.actorIdLimit == 43 && loaded.actors.count == 1);
         ChunkNumber explicitRoot = loaded.movieNumber;
-        Check(!loaded.Resources()->Pcfl());
+        Check(!loaded.Resources()->services.legacy_adapter);
         const MovieArchiveFixture archive(loaded.Resources());
         const auto graph = mm_movie_owner_graph(archive.reader);
         Check(mm_movie_graph_root(&graph, nullptr, &explicitRoot, nullptr) == MM_MOVIE_OK);
@@ -1901,7 +1901,7 @@ static void TestMoviePersistence()
         Check(loaded.FSave(&destination)); // Save back to the currently open file.
         record(loaded);
         Check(loaded.FLoad(&destination, explicitRoot));
-        Check(loaded.Resources()->ReadOwner() == archive.reader);
+        Check(ResourceArchiveReader(loaded.Resources()) == archive.reader);
         record(loaded);
         // A failed load leaves already-open state intact.
         const auto resources = loaded.Resources();
@@ -1923,12 +1923,12 @@ static void TestMoviePersistence()
         {
             MovieData movie, original, saved;
             Check(movie.FLoad(&destination));
-            const auto owner = movie.Resources()->ReadOwner();
+            const auto owner = ResourceArchiveReader(movie.Resources());
             String title(PszLit("Saved to a new path"));
             movie.SetTitle(&title);
             Check(movie.FSave(&copy));
-            Check(saved.FLoad(&copy) && saved.Resources()->ReadOwner() == owner);
-            Check(original.FLoad(&destination) && original.Resources()->ReadOwner() != owner);
+            Check(saved.FLoad(&copy) && ResourceArchiveReader(saved.Resources()) == owner);
+            Check(original.FLoad(&destination) && ResourceArchiveReader(original.Resources()) != owner);
             original.GetTitle(&title);
             Check(title.FEqualSz(PszLit("Saved after load")));
         }
@@ -1951,7 +1951,7 @@ static void TestMoviePersistence()
         Check(resource != pvNil);
         MovieData output;
         Check(output.FInitActors());
-        Check(!MovieData::FLoadRollCall(resource, number, &output.actors));
+        Check(!MovieData::FLoadRollCall(resource->CoreCache(), number, &output.actors));
         Check(output.actors.count == 0);
         ReleasePpo(&resource);
         ReleasePpo(&malformed);
@@ -1995,7 +1995,7 @@ static void TestRollCallStorageBaseline()
     auto resources = ChunkyResourceFile::PcrfNew(file, 0);
     MovieData loaded;
     MMI32 limit = 9;
-    Check(resources && loaded.FInitActors() && MovieData::FLoadRollCall(resources, root, &loaded.actors, &limit));
+    Check(resources && loaded.FInitActors() && MovieData::FLoadRollCall(resources->CoreCache(), root, &loaded.actors, &limit));
     for (MMU32 i = 0; i < loaded.actors.count; ++i)
     {
         const void *characters;
@@ -2078,12 +2078,12 @@ static void TestMovieWireFormats()
     MovieData decoded;
     MMI32 limit = 0;
     LegacyLong refs = resources->CactRef();
-    Check(decoded.FInitActors() && MovieData::FLoadRollCall(resources, root, &decoded.actors, &limit));
+    Check(decoded.FInitActors() && MovieData::FLoadRollCall(resources->CoreCache(), root, &decoded.actors, &limit));
     Check(limit == 28 && resources->CactRef() == refs + 1);
     MMRollCallActor actor;
     Check(mm_rollcall_table_extra(&decoded.actors, 0, &actor));
     Check(actor.data.actor_id == 27 && actor.data.reference_count == 2 && actor.data.browser_flags == 3);
-    Check(actor.data.template_number == 123 && actor.cache == resources);
+    Check(actor.data.template_number == 123 && actor.cache == resources->CoreCache());
     decoded.ClearActors();
     Check(resources->CactRef() == refs);
 
@@ -2104,10 +2104,10 @@ static void TestMovieWireFormats()
     Check(file->FAdoptChild(kctgMvie, root, kctgGst, number, 0));
     file->DeleteChild(kctgMvie, root, kctgGst, old.cki.cno, 0);
     limit = 0;
-    Check(decoded.FInitActors() && MovieData::FLoadRollCall(resources, root, &decoded.actors, &limit));
+    Check(decoded.FInitActors() && MovieData::FLoadRollCall(resources->CoreCache(), root, &decoded.actors, &limit));
     Check(limit == 28 && decoded.actors.count == 2);
     Check(mm_rollcall_table_extra(&decoded.actors, 1, &actor));
-    Check(actor.data.actor_id == -749027345 && actor.cache == resources);
+    Check(actor.data.actor_id == -749027345 && actor.cache == resources->CoreCache());
     decoded.ClearActors();
     Check(resources->CactRef() == refs);
 
@@ -2124,7 +2124,7 @@ static void TestMovieWireFormats()
     file->DeleteChild(kctgMvie, root, kctgGst, old.cki.cno, 0);
     limit = 8;
     Check(decoded.FInitActors());
-    Check(!MovieData::FLoadRollCall(resources, root, &decoded.actors, &limit));
+    Check(!MovieData::FLoadRollCall(resources->CoreCache(), root, &decoded.actors, &limit));
     Check(decoded.actors.count == 0 && limit == 8 && resources->CactRef() == refs);
     ReleasePpo(&wire);
     ReleasePpo(&resources);
@@ -2445,7 +2445,7 @@ static void TestActorPersistence()
         Check(gotEvent.rtel.irpt == 2 && gotEvent.rtel.dnfrm == 7 && gotEvent.rtel.dwrOffset == BR_SCALAR(1.25));
         Check(gotAdd.dxr == addition.dxr && gotAdd.dyr == addition.dyr && gotAdd.dzr == addition.dzr);
         Check(gotAdd.xa == addition.xa && gotAdd.ya == addition.ya && gotAdd.za == addition.za);
-        Check(gotCostume.cmid == 3 && gotCostume.tag.cno == 7 && gotCostume.tag.pcrf == pvNil);
+        Check(gotCostume.cmid == 3 && gotCostume.tag.cno == 7 && gotCostume.tag.cache == pvNil);
         Check(gotSound.volume == 234 && gotSound.child == 9 && gotSound.tag.number == 13 && gotSound.tag.cache == pvNil);
         mm_actor_events_release(decoded);
     }
@@ -2468,12 +2468,12 @@ static void TestActorPersistence()
         if (kind == ActorEvent::aetCost)
         {
             ActorEvent::Costume c = {}; c.ibset = -7; c.cmid = 99; c.fCmtl = static_cast<tribool>(2);
-            c.tag = {1, reinterpret_cast<PChunkyResourceFile>(uintptr_t(1)), kctgMtrl, 42}; std::memcpy(payload, &c, sizeof(c));
+            c.tag = {1, reinterpret_cast<MMResourceCache *>(uintptr_t(1)), kctgMtrl, 42}; std::memcpy(payload, &c, sizeof(c));
         }
         if (kind == ActorEvent::aetSnd)
         {
             MMActorSound s = {}; s.loop = static_cast<tribool>(2); s.queue = tMaybe; s.volume = -99; s.child = 73;
-            s.tag = {1, reinterpret_cast<PChunkyResourceFile>(uintptr_t(1)), kctgMsnd, 41}; std::memcpy(payload, &s, sizeof(s));
+            s.tag = {1, reinterpret_cast<MMResourceCache *>(uintptr_t(1)), kctgMsnd, 41}; std::memcpy(payload, &s, sizeof(s));
         }
         Check(mm_actor_events_insert(events, kind, widths[kind], payload, &e));
     }
@@ -2524,7 +2524,7 @@ static void TestActorTrackOwnership()
         sound.tag.sid = ksidUseCrf;
         sound.tag.type = kctgMsnd;
         sound.tag.number = 7;
-        sound.tag.cache = resource;
+        sound.tag.cache = resource->CoreCache();
         Check(mm_actor_events_insert(source.Events(), 0, sizeof(sound), &sound, &event));
         mm_tag_dup(&sound.tag, &EngineActorTagServices()); // Reference transferred to the inserted row.
         event.aet = ActorEvent::aetCost;
@@ -4761,22 +4761,22 @@ static void TestTagOwnershipBaseline()
     auto ca=ChunkyResourceFile::PcrfNew(a,128),cb=ChunkyResourceFile::PcrfNew(b,128);Check(ca&&cb);
     auto observe=[&](int event,const TAG &tag){
         uint32_t row[]={static_cast<uint32_t>(event),static_cast<uint32_t>(tag.sid),tag.ctg,tag.cno,
-            tag.sid?0U:tag.pcrf==ca?1U:tag.pcrf==cb?2U:0U,static_cast<uint32_t>(ca->CactRef()),static_cast<uint32_t>(cb->CactRef())};
+            tag.sid?0U:tag.cache==ca->CoreCache()?1U:tag.cache==cb->CoreCache()?2U:0U,static_cast<uint32_t>(ca->CactRef()),static_cast<uint32_t>(cb->CactRef())};
         if(snapshot)Check(std::fwrite(row,sizeof(row),1,snapshot)==1);
     };
     TAG tag={};tag.ctg='TAGR';tag.cno=7;
-    Check(TagManager::FOpenTag(&tag,ca));observe(1,tag);
+    Check(TagManager::FOpenTag(&tag,ca->CoreCache()));observe(1,tag);
     auto duplicate=tag;TagManager::DupTag(&duplicate);observe(2,duplicate);TagManager::CloseTag(&duplicate);observe(3,duplicate);
-    Check(TagManager::FSaveTag(&tag,cb,false));observe(4,tag);
-    Check(TagManager::FSaveTag(&tag,cb,true));observe(5,tag);
-    Check(TagManager::FSaveTag(&tag,cb,true));observe(6,tag);TagManager::CloseTag(&tag);observe(7,tag);
-    tag={};tag.ctg='TAGR';tag.cno=7;Check(TagManager::FOpenTag(&tag,cb,a));observe(8,tag);TagManager::CloseTag(&tag);
-    tag.sid=42;tag.pcrf=ca;Check(TagManager::FOpenTag(&tag,cb));Check(TagManager::FSaveTag(&tag,cb,true));
+    Check(TagManager::FSaveTag(&tag,cb->CoreCache(),false));observe(4,tag);
+    Check(TagManager::FSaveTag(&tag,cb->CoreCache(),true));observe(5,tag);
+    Check(TagManager::FSaveTag(&tag,cb->CoreCache(),true));observe(6,tag);TagManager::CloseTag(&tag);observe(7,tag);
+    tag={};tag.ctg='TAGR';tag.cno=7;Check(TagManager::FOpenTag(&tag,cb->CoreCache(),a));observe(8,tag);TagManager::CloseTag(&tag);
+    tag.sid=42;tag.cache=ca->CoreCache();Check(TagManager::FOpenTag(&tag,cb->CoreCache()));Check(TagManager::FSaveTag(&tag,cb->CoreCache(),true));
     TagManager::DupTag(&tag);TagManager::CloseTag(&tag);observe(9,tag);
     MMTagList list;
     const auto allocator=CollectionAllocator();
     Check(mm_tag_list_init(&list,&allocator)==MM_STORAGE_OK);
-    TAG tags[4]={{2,ca,9,3},{1,ca,8,4},{2,cb,9,3},{0,ca,7,1}};
+    TAG tags[4]={{2,ca->CoreCache(),9,3},{1,ca->CoreCache(),8,4},{2,cb->CoreCache(),9,3},{0,ca->CoreCache(),7,1}};
     for(auto &value:tags)
     {
         const auto core=TagToCore(value);

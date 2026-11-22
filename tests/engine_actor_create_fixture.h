@@ -21,7 +21,7 @@ static bool TestActorCreation(PMovie movie)
                 file->FGetKidChidCtg(kctgActn,action.cki.cno,0,kctgGgcl,&cel);
             if (ok) file->DeleteChild(kctgActn,action.cki.cno,kctgGgcl,cel.cki.cno,cel.chid);
         }
-        TAG tag={ksidUseCrf,resource,kctgTmpl,asset==1?bad:number};
+        TAG tag={ksidUseCrf,resource ? resource->CoreCache() : nullptr,kctgTmpl,asset==1?bad:number};
         if (ok && warm)
         {
             auto tmpl=EngineTemplate::Fetch(resource, tag.ctg,tag.cno);

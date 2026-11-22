@@ -92,7 +92,7 @@ struct Access : Scene
 {
     static void OwnedSound(PScene p, PChunkyResourceFile cache)
     {
-        MMSceneSoundTag tag = {0, {0, cache, kctgMsnd, 123}};
+        MMSceneSoundTag tag = {0, {0, cache->CoreCache(), kctgMsnd, 123}};
         auto services = ScenePacketServices();
         auto packet = mm_scene_sound_make(80, stySfx, false, 1, &tag, &services);
         CHECK(packet);
@@ -234,11 +234,11 @@ static void CheckIndexedBackground(PChunkyFile source, ChunkNumber sourceNumber)
 
     TAG parent = {ksidUseCrf, nullptr, kctgBkgd, number};
     TAG child;
-    CHECK(!TagManager::FOpenTag(&parent, cache, source) && !parent.pcrf && parent.cno == number);
-    CHECK(TagManager::FOpenTag(&parent, cache));
+    CHECK(!TagManager::FOpenTag(&parent, cache->CoreCache(), source) && !parent.cache && parent.cno == number);
+    CHECK(TagManager::FOpenTag(&parent, cache->CoreCache()));
     CHECK(!vptagm->FBuildChildTag(&parent, 3, kctgActn, &child));
     CHECK(vptagm->FBuildChildTag(&parent, 3, kctgCam, &child));
-    CHECK(child.pcrf == cache && child.ctg == kctgCam && child.cno == camera.cki.cno);
+    CHECK(child.cache == cache->CoreCache() && child.ctg == kctgCam && child.cno == camera.cki.cno);
     TagManager::CloseTag(&child);
 
     auto background = EngineBackground::Fetch(&parent);
@@ -255,12 +255,12 @@ static void CheckIndexedBackground(PChunkyFile source, ChunkNumber sourceNumber)
     mm_background_owner_release(background);
     ReleasePpo(&world);
 
-    CHECK(!TagManager::FSaveTag(&parent, cache, true) && parent.pcrf == cache && parent.cno == number);
+    CHECK(!TagManager::FSaveTag(&parent, cache->CoreCache(), true) && parent.cache == cache->CoreCache() && parent.cno == number);
     auto writable = ChunkyFile::PcflCreateTemp();
     CHECK(writable && writable->FPutPv(nullptr, 0, kctgBkgd, number));
     auto destination = ChunkyResourceFile::PcrfNew(writable, 0);
     const auto refs = cache->CactRef();
-    CHECK(destination && TagManager::FSaveTag(&parent, destination, true) && parent.pcrf == destination &&
+    CHECK(destination && TagManager::FSaveTag(&parent, destination->CoreCache(), true) && parent.cache == destination->CoreCache() &&
           parent.cno != number && cache->CactRef() == refs - 1 && destination->CactRef() == 2);
     CHECK(writable->FGetName(kctgBkgd, parent.cno, &name) && name.FEqualSz(PszLit("Background A")));
     CHECK(writable->FGetKidChidCtg(kctgBkgd, parent.cno, 3, kctgCam, &camera));
@@ -369,7 +369,7 @@ int main()
     ChunkNumber a, b;
     BackgroundFixture(file, &a, 0);
     BackgroundFixture(file, &b, 1);
-    TAG tags[] = {{0, observed, kctgBkgd, a}, {0, observed, kctgBkgd, b}};
+    TAG tags[] = {{0, observed->CoreCache(), kctgBkgd, a}, {0, observed->CoreCache(), kctgBkgd, b}};
     TAG old;
     CHECK(scene->FSetBkgdCore(&tags[0], &old));
     vpcex->FlushCid(cidSceneLoaded);
