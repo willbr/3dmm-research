@@ -210,6 +210,24 @@ int main(int argc, char **argv)
         require(materialPixels != editedPixels, "Changing appearance changes the rendered word");
         const auto materialPath = (std::filesystem::u8path(argv[3]).parent_path() / "material-text.3mm").u8string();
         require(marcus_save_copy(player.get(), materialPath.c_str()), "Save material and texture placement");
+        MarcusObject textBefore = {}, textAfter = {};
+        auto animatedText = readAppearance;
+        std::strcpy(animatedText.text, "Animated");
+        require(marcus_set_text(player.get(), editIndex, &animatedText) &&
+            marcus_object(player.get(), editIndex, &textBefore) &&
+            marcus_tweak_object_path(player.get(), editIndex, 1, 0, 0) &&
+            marcus_object(player.get(), editIndex, &textAfter) && textAfter.actor_id == textBefore.actor_id &&
+            std::abs(textAfter.x - textBefore.x - 1) < .001f &&
+            marcus_text(player.get(), editIndex, &readAppearance) && appearanceMatches(readAppearance.appearance) &&
+            std::strcmp(readAppearance.text, animatedText.text) == 0,
+            "Committing a text path edit retains its pending wording and transformed pattern");
+        require(marcus_undo(player.get()) && marcus_object(player.get(), editIndex, &textAfter) &&
+            textAfter.x == textBefore.x && marcus_text(player.get(), editIndex, &readAppearance) &&
+            appearanceMatches(readAppearance.appearance) && std::strcmp(readAppearance.text, animatedText.text) == 0,
+            "Undo the path edit while retaining its pending appearance");
+        require(marcus_undo(player.get()) && marcus_text(player.get(), editIndex, &readAppearance) &&
+            std::strcmp(readAppearance.text, appearanceEdit.text) == 0 && appearanceMatches(readAppearance.appearance),
+            "Undo the wording change while retaining the original pattern edit");
         require(marcus_undo(player.get()) && marcus_render(player.get(), 320, 180, 1, 0, 0, 1, &image) &&
             editedPixels == std::vector<unsigned char>(image.rgba, image.rgba + image.pitch * image.height), "Undo restores the original material pixels");
         require(marcus_open(player.get(), materialPath.c_str(), argv[1], argv[2]) && marcus_seek(player.get(), 2), "Reopen text appearance");

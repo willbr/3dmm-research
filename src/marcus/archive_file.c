@@ -1,7 +1,10 @@
 #include "archive_file.h"
 #include "mm/actor_archive.h"
+#include "mm/movie_scene_journal.h"
 #include "mm/scene_data.h"
+#include "mm/string_ops.h"
 #include <SDL3/SDL.h>
+#include <string.h>
 
 typedef struct ArchiveFile
 {
@@ -155,16 +158,94 @@ int marcus_archive_install_events(MMPrivateArchive *candidate, MMU32 actor, cons
     return result;
 }
 
+typedef struct TextArchives
+{
+    MMPrivateArchive *source, *destination;
+} TextArchives;
+
+static int copy_text_asset(void *p, MMU32 type, MMU32 number, MMU32 *copied)
+{
+    const TextArchives *archives = p;
+    return mm_private_archive_copy(archives->source, archives->destination, type, number, 0, copied);
+}
+
+int marcus_archive_replace_text(MMPrivateArchive *file, MMU32 actor, const char *path,
+                                const MMMovieActorTextEdit *edit, const MMPrivateArchiveProfile *profile,
+                                const MMTextHost *text, int *detail)
+{
+    TextArchives archives;
+    MMMovieArchiveEditor editor;
+    MMActorAuthorHost host = {0};
+    MMActorTextReplacement request;
+    MMStringValue name = {0};
+    unsigned short units[257];
+    int status;
+    *detail = 0;
+    archives.source = marcus_archive_open(path, MM_PRIVATE_ARCHIVE_READ, profile);
+    if (!archives.source)
+        return MARCUS_ARCHIVE_TEXT_OPEN;
+    archives.destination = file;
+    editor = mm_private_archive_editor(file);
+    name.buffer = units;
+    name.unit = editor.text_unit;
+    mm_string_from_ansi(&name, text, edit->name.legacy, strlen(edit->name.legacy));
+    request.actor = actor;
+    request.name = (const unsigned char *)units + name.unit;
+    request.characters = name.unit == 1 ? *(const unsigned char *)units : units[0];
+    request.retail_font = edit->retail_font;
+    request.custom_material = edit->custom_material;
+    host.destination = &editor;
+    host.text = text;
+    host.context = &archives;
+    host.copy = copy_text_asset;
+    status = mm_actor_archive_replace_text(&host, &request, detail);
+    mm_private_archive_close(archives.source);
+    return status;
+}
+
+typedef struct AnimationText
+{
+    const char *path;
+    const MMMovieActorTextEdit *edit;
+    const MMPrivateArchiveProfile *profile;
+    const MMTextHost *text;
+    MarcusArchiveAnimationResult *result;
+} AnimationText;
+
+static int apply_animation_text(void *p, MMPrivateArchive *file, MMU32 actor)
+{
+    const AnimationText *appearance = p;
+    MarcusArchiveAnimationResult *result = appearance->result;
+    result->text = marcus_archive_replace_text(file, actor, appearance->path, appearance->edit,
+                                               appearance->profile, appearance->text, &result->text_detail);
+    return result->text == MM_ACTOR_AUTHOR_OK;
+}
+
 int marcus_archive_animate(const char *path, const char *track, const MMPrivateArchiveProfile *profile,
-                           const MMActorArchiveAnimation *animation, MMU32 creator, int *edit, int *scene)
+                           const MMActorArchiveAnimation *animation, const char *text_path,
+                           const MMMovieActorTextEdit *text, const MMTextHost *text_host,
+                           MMU32 creator, MarcusArchiveAnimationResult *out)
 {
     MMPrivateArchive *candidate = marcus_archive_open(path, MM_PRIVATE_ARCHIVE_EDIT, profile);
     MMPrivateArchive *source = marcus_archive_open(track, MM_PRIVATE_ARCHIVE_READ, profile);
+    MMActorArchiveAnimation request = *animation;
+    AnimationText appearance;
     int result = MARCUS_ARCHIVE_ANIMATION_OPEN;
+    memset(out, 0, sizeof(*out));
+    if (text)
+    {
+        appearance.path = text_path;
+        appearance.edit = text;
+        appearance.profile = profile;
+        appearance.text = text_host;
+        appearance.result = out;
+        request.context = &appearance;
+        request.appearance = apply_animation_text;
+    }
     if (candidate && source)
     {
-        *edit = mm_actor_archive_animate(candidate, source, animation, scene);
-        if (*edit != MM_ACTOR_EDIT_ARCHIVE_OK || *scene != MM_SCENE_ARCHIVE_EDIT_OK)
+        out->actor = mm_actor_archive_animate(candidate, source, &request, &out->scene);
+        if (out->actor != MM_ACTOR_EDIT_ARCHIVE_OK || out->scene != MM_SCENE_ARCHIVE_EDIT_OK)
             result = MARCUS_ARCHIVE_ANIMATION_EDIT;
         else
             result = mm_private_archive_save(candidate, creator)

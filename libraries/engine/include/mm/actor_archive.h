@@ -190,7 +190,7 @@ typedef struct MMActorArchiveAnimation
 {
     MMU32 scene;
     MMI32 actor_id, previous_actor_last, actor_last, edited_last;
-    const float *rotation, *scale;
+    const float *rotation, *scale; /* NULL selects the identity rotation or unit scale. */
     void *context;
     int (*appearance)(void *, struct MMPrivateArchive *, MMU32 copied_actor); /* Optional, before shape. */
 } MMActorArchiveAnimation;

@@ -601,6 +601,8 @@ int mm_actor_archive_animate(MMPrivateArchive *candidate, MMPrivateArchive *sour
                              const MMActorArchiveAnimation *edit, int *scene_result)
 {
     const float offset[3] = {0};
+    static const float rotation[9] = {1, 0, 0, 0, 1, 0, 0, 0, 1};
+    static const float scale[3] = {1, 1, 1};
     const MMMovieArchiveEditor editor = mm_private_archive_editor(candidate);
     AnimationTrack track;
     MMActorArchivePose pose;
@@ -615,8 +617,8 @@ int mm_actor_archive_animate(MMPrivateArchive *candidate, MMPrivateArchive *sour
     track.edit = edit;
     pose.scene = edit->scene;
     pose.translation = offset;
-    pose.rotation = edit->rotation;
-    pose.scale = edit->scale;
+    pose.rotation = edit->rotation ? edit->rotation : rotation;
+    pose.scale = edit->scale ? edit->scale : scale;
     pose.context = &track;
     pose.appearance = install_animation_track;
     result = mm_actor_archive_place(&editor, &pose);

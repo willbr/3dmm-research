@@ -23111,3 +23111,28 @@ per port. Both ports matched the 60-frame seek and playback order in
 retained retail and V3DMM run `20261122T082301Z-c465fa98`. SDL matched
 all 12 ordered sound requests. Evidence is under
 `tmp/c89-animation-request` and `tmp/c89-aqcap`.
+
+## C89 animation archive publication (22 November 2026)
+
+The C89 archive writer now opens the staged 3D text template, converts its
+counted name to the destination archive's text format, and applies template
+and material changes while installing the drafted track. Movie materialization
+uses the same text replacement routine. The engine supplies identity rotation
+and unit scale for an animation request without a pose journal entry.
+
+All 226 selected native tests, five SDL checks and four x86 checks passed.
+The x86 Marcus worker built, and the headless startup image matched byte
+for byte.
+
+The Marcus integration check committed a path tweak with pending 3D text
+wording and a transformed pattern, then undid the path tweak and verified
+that both appearance edits remained live. Five native saves matched the
+previous build byte for byte. The animation save also matched the archive
+opened by retail in the insertion and frame-range regression.
+
+Actor Audio candidate `20261122T222748Z-6ebb919d` matched
+`20261122T221957Z-3b0bcc2a` on all 60 seek canvases and recorded states
+per port. Both ports matched the 60-frame seek and playback order in
+retained retail and V3DMM run `20261122T082301Z-c465fa98`. SDL matched all
+12 ordered sound requests. Evidence is under `tmp/c89-animation-publish`
+and `tmp/c89-aqcap`.

@@ -469,7 +469,22 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
     return result;
 }
 
-static void ApplyText(MMPrivateArchive *file, ChunkNumber actor, const MMMovieActorTextEdit &edit);
+static void CheckTextEdit(int status, int detail)
+{
+    Require(status != MARCUS_ARCHIVE_TEXT_OPEN, "Cannot open the edited text template.");
+    CheckActorAuthor(status, detail);
+}
+
+static void ApplyText(MMPrivateArchive *file, ChunkNumber actor, const MMMovieActorTextEdit &edit)
+{
+    const auto profile = KauaiPrivateArchiveProfile();
+    const auto path = MarcusEditFile::File(edit.file)->path.u8string();
+    int detail;
+    const int status = marcus_archive_replace_text(file, actor, path.c_str(), &edit, &profile, KauaiText::Services(),
+                                                   &detail);
+    CheckTextEdit(status, detail);
+}
+
 static void ApplyCostumes(MMPrivateArchive *file, ChunkNumber actor, const MMMovieActorTrackEdit &edit)
 {
     const auto profile = KauaiPrivateArchiveProfile();
@@ -480,55 +495,23 @@ static void ApplyCostumes(MMPrivateArchive *file, ChunkNumber actor, const MMMov
 }
 std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::path &path,
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusMovieFile &track,
-    unsigned long scene, long actorId, long previousActorFrame, int lastActorFrame, int lastEditedFrame,
-    const MM::PreviewObjectShape &shape, const MMMovieActorTextEdit *text)
+    const MMActorArchiveAnimation &animation, const MMMovieActorTextEdit *text)
 {
     auto result = WorkingCopy(path, origin);
-    struct Appearance
-    {
-        const MMMovieActorTextEdit *text;
-        std::exception_ptr failure;
-    } appearance{text, {}};
-    const MMActorArchiveAnimation edit{static_cast<MMU32>(scene), static_cast<MMI32>(actorId),
-        static_cast<MMI32>(previousActorFrame), lastActorFrame, lastEditedFrame,
-        shape.rotation, shape.scale, &appearance,
-        [](void *p, MMPrivateArchive *candidate, MMU32 actor) -> int {
-            auto &state = *static_cast<Appearance *>(p);
-            try
-            {
-                if (state.text) ApplyText(candidate, actor, *state.text);
-                return true;
-            }
-            catch (...) { state.failure = std::current_exception(); return false; }
-        }};
     const auto profile = KauaiPrivateArchiveProfile();
     const auto workingPath = result->path.u8string();
     const auto trackPath = track.path.u8string();
-    int resultCode, sceneResult;
-    const auto status = marcus_archive_animate(workingPath.c_str(), trackPath.c_str(), &profile, &edit, kctgSoc,
-                                               &resultCode, &sceneResult);
-    if (appearance.failure) std::rethrow_exception(appearance.failure);
+    const auto textPath = text ? MarcusEditFile::File(text->file)->path.u8string() : std::string{};
+    MarcusArchiveAnimationResult edit;
+    const auto status = marcus_archive_animate(workingPath.c_str(), trackPath.c_str(), &profile, &animation,
+                                               textPath.c_str(), text, KauaiText::Services(), kctgSoc, &edit);
     Require(status != MARCUS_ARCHIVE_ANIMATION_OPEN, "Cannot open the movie or the new animation track.");
-    Require(resultCode != MM_ACTOR_EDIT_ARCHIVE_SCENE, "Cannot find the selected actor in the working movie.");
-    CheckActorArchiveEdit(resultCode);
-    CheckSceneFrameEdit(sceneResult);
+    CheckTextEdit(edit.text, edit.text_detail);
+    Require(edit.actor != MM_ACTOR_EDIT_ARCHIVE_SCENE, "Cannot find the selected actor in the working movie.");
+    CheckActorArchiveEdit(edit.actor);
+    CheckSceneFrameEdit(edit.scene);
     Require(status == MARCUS_ARCHIVE_ANIMATION_OK, "Cannot save the animation edit.");
     return result;
-}
-static void ApplyText(MMPrivateArchive *file, ChunkNumber actorNumber, const MMMovieActorTextEdit &edit)
-{
-    auto source = MarcusOpenArchive(MarcusEditFile::File(edit.file)->path, MM_PRIVATE_ARCHIVE_READ);
-    Require(bool(source), "Cannot open the edited text template.");
-    const auto destinationEditor = mm_private_archive_editor(file);
-    ActorArchiveFiles files{source.get(), file};
-    const MMActorAuthorHost host{nullptr, &destinationEditor, KauaiText::Services(), &files, ActorArchiveFiles::Copy};
-    String caption;
-    caption.SetSzs(const_cast<char *>(edit.name.legacy));
-    const MMActorTextReplacement request{actorNumber, caption.Prgch(), static_cast<MMU32>(caption.Cch()),
-                                         edit.retail_font, edit.custom_material};
-    int detail = 0;
-    const int status = mm_actor_archive_replace_text(&host, &request, &detail);
-    CheckActorAuthor(status, detail);
 }
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const MMMoviePoseJournal &poses,

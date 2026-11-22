@@ -1,4 +1,5 @@
 #include "player.h"
+#include "mm/actor_archive.h"
 #include "mm/graphics_transition.h"
 #include "mm/material_resource.h"
 #include "mm/movie_data.h"
@@ -512,10 +513,6 @@ bool ApplyCameras(MarcusPlayer &player, int index, const MarcusLiveEdits::Camera
 bool ApplyCameras(MarcusPlayer &player, int index, MM::Error &error)
 {
     return ApplyCameras(player, index, *player.edits->cameras, error);
-}
-MM::PreviewObjectShape PoseShape(const MMMovieActorPoseEdit *pose)
-{
-    return pose ? NativePlacementShape(pose->shape) : MM::PreviewObjectShape{};
 }
 bool ApplyPlacements(MarcusPlayer &player, int scene, const MMMoviePoseJournal &poses, MM::Error &error)
 {
@@ -2160,8 +2157,10 @@ extern "C"
             const auto text = mm_movie_text_journal_find(player->edits->texts.get(), scene, actor);
             // The native draft contains live events. Replay appearance/shape
             // overlays that are only written as events when materializing a movie.
-            const auto changed = MarcusApplyAnimation(path, movie, *track, scene, selected.actor_id, selected.last_frame,
-                lastActorFrame, lastEditedFrame, PoseShape(pose), text);
+            const MMActorArchiveAnimation animation{static_cast<MMU32>(scene), static_cast<MMI32>(selected.actor_id),
+                static_cast<MMI32>(selected.last_frame), lastActorFrame, lastEditedFrame,
+                pose ? pose->shape.rotation : nullptr, pose ? pose->shape.scale : nullptr, nullptr, nullptr};
+            const auto changed = MarcusApplyAnimation(path, movie, *track, animation, text);
             return ReplaceEditedMovie(player, changed, error);
         });
     }

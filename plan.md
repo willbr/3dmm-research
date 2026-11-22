@@ -1654,6 +1654,9 @@ their original event table so their borrowed tag references remain valid.
 Marcus builds action, path tweak and path recording requests in C89. The
 draft editor borrows the caller's points through a typed reader and
 validates them before recording or editing the track.
+The C89 archive writer applies pending 3D text and material changes while
+installing an animation draft. It uses the same text replacement path
+when materializing a movie and supplies identity shape for untouched actors.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette

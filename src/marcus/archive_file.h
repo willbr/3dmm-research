@@ -22,11 +22,25 @@ void marcus_archive_input_close(MarcusArchiveInput *);
 int marcus_archive_install_events(MMPrivateArchive *, MMU32 actor, const char *track,
                                   const MMPrivateArchiveProfile *);
 
+struct MMMovieActorTextEdit;
+struct MMTextHost;
+enum { MARCUS_ARCHIVE_TEXT_OPEN = -1 };
+/* Returns an actor-author status or MARCUS_ARCHIVE_TEXT_OPEN. */
+int marcus_archive_replace_text(MMPrivateArchive *, MMU32 actor, const char *path,
+                                const struct MMMovieActorTextEdit *, const MMPrivateArchiveProfile *,
+                                const struct MMTextHost *, int *detail);
+
 enum { MARCUS_ARCHIVE_ANIMATION_OK, MARCUS_ARCHIVE_ANIMATION_OPEN, MARCUS_ARCHIVE_ANIMATION_EDIT,
        MARCUS_ARCHIVE_ANIMATION_SAVE };
 struct MMActorArchiveAnimation;
+typedef struct MarcusArchiveAnimationResult
+{
+    int actor, scene, text, text_detail;
+} MarcusArchiveAnimationResult;
 int marcus_archive_animate(const char *candidate, const char *track, const MMPrivateArchiveProfile *,
-                           const struct MMActorArchiveAnimation *, MMU32 creator, int *edit, int *scene);
+                           const struct MMActorArchiveAnimation *, const char *text_path,
+                           const struct MMMovieActorTextEdit *, const struct MMTextHost *,
+                           MMU32 creator, MarcusArchiveAnimationResult *);
 
 #ifdef __cplusplus
 }
