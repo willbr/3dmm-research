@@ -619,6 +619,10 @@ services. See the [current Marcus boundary](docs/tools/marcus.md#c89-boundary-an
   navigation, selection, filters, sorting, recents, favourites, preferences
   and thumbnail scheduling. Its worker exposes filesystem, ZIP and movie
   preparation services through a C interface.
+- The preview helper uses C89 to sequence frame, camera, model and live
+  text requests. C89 crops the fitted camera canvas and streams thumbnail
+  rows through the MPR1 codec shared with the browser cache and pipe
+  readers. The native adapter reads formatted input and binds Preview.
 - Prop transform gestures, numeric fields, edit previews, commits and restores
   now use C89. Cimgui owns the shared context and frame. Prop and storyboard
   light controls share C89 clipping and snapping through a narrow C binding

@@ -259,18 +259,9 @@ int main(int argc, char **argv)
         const auto previewDocument = marcus_document(player.get());
         auto previewFile = MarcusPrepareTextPreview(player.get(), editIndex, settings);
         require(bool(previewFile) && marcus_document(player.get()) == previewDocument, "Prepare preview without changing the movie");
-        const auto helper = (std::filesystem::u8path(SDL_GetBasePath()) / "marcus-preview.exe").u8string();
         const auto previewPath = previewFile->path.u8string();
-        const char *previewArgs[] = {helper.c_str(), previewPath.c_str(), argv[1], "--text", "20 -10 1", nullptr};
-        SDL_Process *process = SDL_CreateProcess(previewArgs, true);
-        require(process != nullptr, "Launch isolated text preview");
-        size_t previewBytes = 0; int previewStatus = -1;
-        void *output = SDL_ReadProcess(process, &previewBytes, &previewStatus);
-        SDL_DestroyProcess(process);
-        require(output && previewStatus == 0, "Read isolated text preview");
-        std::vector<std::uint8_t> previewData(static_cast<std::uint8_t *>(output), static_cast<std::uint8_t *>(output) + previewBytes);
-        SDL_free(output);
-        const auto preview = ReadPreview(previewData);
+        const auto preview = RunPreviewWorker(previewPath, argv[1], [] { return false; }, "20 -10 1",
+            false, {}, false, false, true);
         require(preview.error.empty() && preview.width == 480 && preview.height == 360 && !preview.rgba.empty(), "Text preview renders existing font and material independently");
         // Exercise the C worker boundary without creating a dialog or UI context.
         auto textPreview = std::unique_ptr<MarcusTextPreview, decltype(&text_preview_destroy)>(

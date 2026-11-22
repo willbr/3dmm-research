@@ -48,11 +48,10 @@ BrowserPreview RequestPreview(SDL_Process *process, const std::string &request, 
         }
         sent += count;
     }
-    std::array<unsigned char, 4> header;
+    std::array<unsigned char, MARCUS_PREVIEW_PREFIX_BYTES> header;
     ReadExact(stream, header.data(), header.size(), cancel);
-    std::uint32_t size = 0;
-    for (int i = 0; i < 4; ++i) size |= std::uint32_t(header[i]) << (i * 8);
-    if (size < 24 || size > 256 * 1024) throw std::runtime_error("Frame preview response exceeds its limit.");
+    const auto size = marcus_preview_wire_frame_size(header.data(), 256 * 1024);
+    if (!size) throw std::runtime_error("Frame preview response exceeds its limit.");
     std::vector<std::uint8_t> bytes(size);
     ReadExact(stream, bytes.data(), bytes.size(), cancel);
     return ReadPreview(bytes);

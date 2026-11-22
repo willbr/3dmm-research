@@ -1,4 +1,5 @@
 #include "preview_worker.h"
+#include "preview_commands.h"
 #include "player.h"
 #include "timing_job.h"
 #include "mm/preview.h"
@@ -13,7 +14,7 @@
 #include <iomanip>
 #include <memory>
 #include <limits>
-#include <algorithm>
+#include <exception>
 #ifdef _WIN32
 #include <fcntl.h>
 #include <io.h>
@@ -30,16 +31,32 @@ bool OpenPlayer(MarcusPlayer *player, char **argv, const char *fonts, const char
     if (fonts && *fonts) file->LoadFonts(std::filesystem::u8path(fonts));
     return marcus_open_input(player, &input, 0, argv[2], argv[4]) != 0;
 }
-bool FrameResponse(const BrowserPreview &preview)
+int FrameError(const char *message)
 {
-    std::ostringstream payload(std::ios::binary);
-    if (!WritePreview(payload, preview)) return false;
-    const auto bytes = payload.str();
-    for (int i = 0; i < 4; ++i) std::cout.put(static_cast<char>(bytes.size() >> (i * 8)));
-    std::cout.write(bytes.data(), bytes.size());
-    std::cout.flush();
-    return bool(std::cout);
+    MarcusPreviewPacket packet;
+    marcus_preview_packet_error(&packet, message);
+    marcus_preview_wire_write_file(&packet, 1, stdout);
+    return 1;
 }
+
+int ReadPosition(void *context, int *scene, long *frame, int *fits) noexcept
+{
+    try
+    {
+        long long value;
+        if (!(std::cin >> *scene >> value))
+            return MARCUS_PREVIEW_END;
+        *fits = value >= (std::numeric_limits<long>::min)() && value <= (std::numeric_limits<long>::max)();
+        *frame = *fits ? static_cast<long>(value) : 0;
+        return MARCUS_PREVIEW_REQUEST;
+    }
+    catch (...)
+    {
+        *static_cast<std::exception_ptr *>(context) = std::current_exception();
+        return MARCUS_PREVIEW_END;
+    }
+}
+
 int FramePreviews(char **argv, const char *fonts, const char *origin, bool cameras)
 {
     try
@@ -50,142 +67,161 @@ int FramePreviews(char **argv, const char *fonts, const char *origin, bool camer
         std::size_t consumed;
         const auto scene = std::stoi(argv[5], &consumed);
         if (argv[5][consumed] || scene < 0) throw std::runtime_error("Invalid frame thumbnail scene.");
-        if (!OpenPlayer(player.get(), argv, fonts, origin) ||
-            !marcus_select_scene(player.get(), scene)) throw std::runtime_error(marcus_error(player.get()));
-        int requestedScene, selectedScene = scene;
-        long long frame;
-        while (std::cin >> requestedScene >> frame)
-        {
-            BrowserPreview preview;
-            MarcusImage image = {};
-            bool selected = true;
-            if (!cameras && requestedScene != selectedScene)
-            {
-                selected = marcus_select_scene(player.get(), requestedScene) != 0;
-                if (selected) selectedScene = requestedScene;
-            }
-            if (!selected || frame < (std::numeric_limits<long>::min)() || frame > (std::numeric_limits<long>::max)() ||
-                !marcus_seek(player.get(), static_cast<long>(frame)) ||
-                !(cameras ? requestedScene >= 0 && marcus_camera_thumbnail(player.get(), requestedScene, &image)
-                           : marcus_render(player.get(), 160, 120, 1, 0, 0, 1, &image)))
-                preview.error = marcus_error(player.get())[0] ? marcus_error(player.get()) : "Invalid preview frame.";
-            else
-            {
-                preview.width = image.width;
-                preview.height = image.height;
-                // Remove only the renderer's fitted-camera canvas, never black
-                // pixels authored inside the shot (or empty space around actors).
-                const auto aspect = image.scene_camera.aspect;
-                if (image.scene_camera.valid && std::isfinite(aspect) && aspect > 0)
-                {
-                    if (aspect >= float(image.width) / image.height)
-                        preview.height = std::clamp(int(std::floor(image.width / aspect + 0.001f)), 1, image.height);
-                    else
-                        preview.width = std::clamp(int(std::floor(image.height * aspect + 0.001f)), 1, image.width);
-                }
-                const int left = (image.width - preview.width) / 2, top = (image.height - preview.height) / 2;
-                preview.rgba.reserve(preview.width * preview.height * 4);
-                for (int y = 0; y < preview.height; ++y)
-                {
-                    const auto row = image.rgba + (y + top) * image.pitch + left * 4;
-                    preview.rgba.insert(preview.rgba.end(), row, row + preview.width * 4);
-                }
-            }
-            if (!FrameResponse(preview)) return 1;
-        }
-        return 0;
+        if (!OpenPlayer(player.get(), argv, fonts, origin))
+            throw std::runtime_error(marcus_error(player.get()));
+        std::exception_ptr exception;
+        const int status = marcus_preview_run_frames(stdout, player.get(), scene, cameras, &exception, ReadPosition);
+        if (exception) std::rethrow_exception(exception);
+        return status;
     }
-    catch (const std::exception &e)
-    {
-        BrowserPreview preview;
-        preview.error = e.what();
-        FrameResponse(preview);
-        return 1;
-    }
+    catch (const std::exception &e) { return FrameError(e.what()); }
 }
+
+struct ThumbnailRenderer
+{
+    const char *resources;
+    MM::Preview renderer;
+    MM::Error error;
+    MM::PreviewImage image;
+    std::string path;
+    std::exception_ptr exception;
+    char failure[MARCUS_PREVIEW_MAX_TEXT + 2] = {};
+    bool hasFailure = false;
+
+    explicit ThumbnailRenderer(const char *resources) : resources(resources) {}
+
+    template <class Effect> int Run(Effect effect) noexcept
+    {
+        try { return effect(); }
+        catch (const std::exception &e) { std::snprintf(failure, sizeof(failure), "%s", e.what()); }
+        catch (...) { std::snprintf(failure, sizeof(failure), "Preview renderer raised an unknown exception."); }
+        hasFailure = true;
+        return -1;
+    }
+
+    bool LoadText(const char *file)
+    {
+        return renderer.Open(file, resources, error) && renderer.Select({0x544d504c, 0}, error) &&
+            renderer.UseTextPreviewMaterial(error);
+    }
+
+    bool Render(const MarcusThumbnailView &camera, MarcusPreviewPacket &packet)
+    {
+        MM::PreviewView view;
+        view.width = camera.width;
+        view.height = camera.height;
+        view.yaw = camera.yaw;
+        view.pitch = camera.pitch;
+        view.zoom = camera.zoom;
+        view.authoredCamera = false;
+        if (!renderer.Render(view, image, error))
+            return false;
+        packet.width = image.width;
+        packet.height = image.height;
+        packet.pitch = std::size_t(image.width) * 4;
+        packet.rgba = {image.rgba.data(), image.rgba.size()};
+        return true;
+    }
+
+    static const char *Error(void *context) noexcept
+    {
+        const auto &host = *static_cast<ThumbnailRenderer *>(context);
+        return host.hasFailure ? host.failure : host.error.message.c_str();
+    }
+};
+
+int ReadModel(void *context, MMU32 *chunk, int *fits) noexcept
+{
+    auto &host = *static_cast<ThumbnailRenderer *>(context);
+    host.hasFailure = false;
+    try
+    {
+        int slot;
+        long long value;
+        if (!(std::cin >> slot >> value))
+            return MARCUS_PREVIEW_END;
+        *fits = value >= 0 && value <= 0xffffffffLL;
+        *chunk = *fits ? static_cast<MMU32>(value) : 0;
+        return MARCUS_PREVIEW_REQUEST;
+    }
+    catch (...) { host.exception = std::current_exception(); return MARCUS_PREVIEW_END; }
+}
+
+int RenderModel(void *context, MMU32 chunk, const MarcusThumbnailView *view, MarcusPreviewPacket *packet) noexcept
+{
+    auto &host = *static_cast<ThumbnailRenderer *>(context);
+    return host.Run([&] { return host.renderer.Select({0x544d504c, chunk}, host.error) && host.Render(*view, *packet); });
+}
+
 int ModelPreviews(char **argv)
 {
     try
     {
-        MM::Preview renderer;
-        MM::Error error;
-        if (!renderer.Open(argv[1], argv[2], error)) throw std::runtime_error(error.message);
-        int slot;
-        long long chunk;
-        while (std::cin >> slot >> chunk)
-        {
-            BrowserPreview preview;
-            try
-            {
-                MM::PreviewView view;
-                MM::PreviewImage image;
-                view.width = 240; view.height = 180;
-                view.authoredCamera = false; view.yaw = 25; view.pitch = -10;
-                if (chunk < 0 || chunk > 0xffffffffLL ||
-                    !renderer.Select({0x544d504c, static_cast<std::uint32_t>(chunk)}, error) ||
-                    !renderer.Render(view, image, error))
-                    preview.error = error.message.empty() ? "Cannot preview this model." : error.message;
-                else
-                {
-                    preview.width = image.width; preview.height = image.height;
-                    preview.rgba = std::move(image.rgba);
-                }
-            }
-            catch (const std::exception &e) { preview.error = e.what(); }
-            if (!FrameResponse(preview)) return 1;
-        }
-        return 0;
+        ThumbnailRenderer host(argv[2]);
+        if (!host.renderer.Open(argv[1], host.resources, host.error))
+            throw std::runtime_error(host.error.message);
+        const MarcusPreviewModelServices services{&host, ReadModel, RenderModel, ThumbnailRenderer::Error};
+        const int status = marcus_preview_run_models(stdout, &services);
+        if (!status && host.exception) std::rethrow_exception(host.exception);
+        return status;
     }
-    catch (const std::exception &e)
+    catch (const std::exception &e) { return FrameError(e.what()); }
+}
+
+int ReadText(void *context, MarcusPreviewTextRequest *request) noexcept
+{
+    auto &host = *static_cast<ThumbnailRenderer *>(context);
+    try
     {
-        BrowserPreview preview; preview.error = e.what();
-        FrameResponse(preview); return 1;
+        std::string command;
+        if (!(std::cin >> command))
+            return MARCUS_PREVIEW_END;
+        host.hasFailure = false;
+        host.error.message.clear();
+        request->load_path = nullptr;
+        if (command == "load")
+        {
+            if (!(std::cin >> std::quoted(host.path)))
+                return MARCUS_PREVIEW_INVALID;
+            request->load_path = host.path.c_str();
+        }
+        auto &view = request->view;
+        if ((command != "view" && command != "load") ||
+            !(std::cin >> view.yaw >> view.pitch >> view.zoom >> view.width >> view.height))
+            return MARCUS_PREVIEW_INVALID;
+        return MARCUS_PREVIEW_REQUEST;
     }
+    catch (...) { host.exception = std::current_exception(); return MARCUS_PREVIEW_END; }
 }
+
+int LoadText(void *context, const char *path) noexcept
+{
+    auto &host = *static_cast<ThumbnailRenderer *>(context);
+    return host.Run([&] { return host.LoadText(path); });
 }
+
+int RenderText(void *context, const MarcusThumbnailView *view, MarcusPreviewPacket *packet) noexcept
+{
+    auto &host = *static_cast<ThumbnailRenderer *>(context);
+    return host.Run([&] { return host.Render(*view, *packet); });
+}
+
 int TextPreviews(char **argv)
 {
     try
     {
-        MM::Preview renderer;
-        MM::Error error;
-        if (!renderer.Open(argv[1], argv[2], error) || !renderer.Select({0x544d504c, 0}, error) ||
-            !renderer.UseTextPreviewMaterial(error)) throw std::runtime_error(error.message);
-        MM::PreviewView view;
-        view.width = 480; view.height = 360; view.authoredCamera = false;
-        std::string command, path;
-        while (std::cin >> command)
-        {
-            BrowserPreview preview;
-            MM::PreviewImage image;
-            error.message.clear();
-            if (command == "load" && !(std::cin >> std::quoted(path))) return 2;
-            if ((command != "view" && command != "load") ||
-                !(std::cin >> view.yaw >> view.pitch >> view.zoom >> view.width >> view.height)) return 2;
-            if (command == "load" && (!renderer.Open(path, argv[2], error) ||
-                !renderer.Select({0x544d504c, 0}, error) || !renderer.UseTextPreviewMaterial(error)))
-                preview.error = error.message.empty() ? "Cannot load this text preview." : error.message;
-            else if (!std::isfinite(view.yaw) || !std::isfinite(view.pitch) || !std::isfinite(view.zoom) ||
-                view.pitch < -89 || view.pitch > 89 || view.zoom < .25f || view.zoom > 4 ||
-                view.width < 1 || view.height < 1 || view.width > 1024 || view.height > 1024)
-                preview.error = "Invalid text preview camera.";
-            else if (!renderer.Render(view, image, error))
-                preview.error = error.message.empty() ? "Cannot preview this text." : error.message;
-            else
-            {
-                preview.width = image.width; preview.height = image.height;
-                preview.rgba = std::move(image.rgba);
-            }
-            if (!FrameResponse(preview)) return 1;
-        }
-        return 0;
+        ThumbnailRenderer host(argv[2]);
+        if (!host.LoadText(argv[1]))
+            throw std::runtime_error(host.error.message);
+        const MarcusPreviewTextServices services{&host, ReadText, LoadText, RenderText, ThumbnailRenderer::Error};
+        const int status = marcus_preview_run_text(stdout, &services);
+        if (!status && host.exception) std::rethrow_exception(host.exception);
+        return status;
     }
-    catch (const std::exception &e)
-    {
-        BrowserPreview preview; preview.error = e.what();
-        FrameResponse(preview); return 1;
-    }
+    catch (const std::exception &e) { return FrameError(e.what()); }
 }
+} // namespace
+
 int main(int argc, char **argv)
 {
     const bool duration = (argc == 5 || argc == 6) && !std::strcmp(argv[3], "--duration");
@@ -304,5 +340,5 @@ int main(int argc, char **argv)
     }
     catch (const std::exception &e) { preview.error = e.what(); }
     if (timeline) return 1;
-    return WritePreview(std::cout, preview) ? 0 : 1;
+    return WritePreview(stdout, preview) ? 0 : 1;
 }

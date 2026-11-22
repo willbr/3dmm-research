@@ -140,11 +140,10 @@ struct MarcusTextPreview
                 auto command = camera.str();
                 const auto deadline = SDL_GetTicks() + 30000;
                 Transfer(input, command.data(), command.size(), true, request.generation, deadline);
-                std::array<unsigned char, 4> header;
+                std::array<unsigned char, MARCUS_PREVIEW_PREFIX_BYTES> header;
                 Transfer(outputStream, header.data(), header.size(), false, request.generation, deadline);
-                std::uint32_t size = 0;
-                for (int i = 0; i < 4; ++i) size |= std::uint32_t(header[i]) << (i * 8);
-                if (size < 24 || size > 5 * 1024 * 1024) throw std::runtime_error("Text preview response exceeds its limit.");
+                const auto size = marcus_preview_wire_frame_size(header.data(), 5 * 1024 * 1024);
+                if (!size) throw std::runtime_error("Text preview response exceeds its limit.");
                 std::vector<std::uint8_t> bytes(size);
                 Transfer(outputStream, bytes.data(), bytes.size(), false, request.generation, deadline);
                 result = ReadPreview(bytes);

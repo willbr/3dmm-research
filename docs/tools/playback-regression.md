@@ -23338,3 +23338,27 @@ Actor Audio candidate `20261122T234434Z-778ead4b` matched the prior build
 Studio and Marcus matched the retained retail and V3DMM seek and playback
 frame order from `20261122T082301Z-c465fa98`. Evidence is under
 `tmp/c89-worker-loop` and `tmp/c89-aqcap`.
+
+## C89 thumbnail preview helper (22 November 2026)
+
+C89 sequences frame, camera, model and live text thumbnail requests. It
+validates live text camera values and crops thumbnails to the fitted scene
+camera. It writes the retained MPR1 payload from the source rows, including
+its length prefix for the persistent helper. The browser, disk cache and
+thumbnail clients share the decoder and its bounds checks.
+
+The old and new helpers produced byte-identical replies for browser,
+background and prop posters, frame and camera switches, model previews,
+and invalid requests followed by valid ones. The live text comparison
+matched 4,147,340 bytes through views, an invalid zoom and a draft reload.
+Both returned status 2 for an unrecognized text command. The startup
+screenshot also matched byte for byte. All 13 C89 checks passed. The
+parallel native run passed 226 of 227 checks. The sound-payload check
+passed on rerun in its own temporary directory, and the asset-preview
+check passed in a fresh fixture directory.
+
+Actor Audio candidate `20261122T235435Z-afdd0a5a` matched
+`20261122T234434Z-778ead4b` on all 60 seek canvases and scene states per
+port. Studio and Marcus matched the retained retail and V3DMM seek and
+playback frame order from `20261122T082301Z-c465fa98`. Evidence is under
+`tmp/c89-preview-helper` and `tmp/c89-aqcap`.

@@ -41,7 +41,7 @@ bool MarcusPreviewCache::Load(unsigned long chunk, BrowserPreview &preview) cons
     if (!available) return false;
     std::ifstream input(File(chunk), std::ios::binary | std::ios::ate);
     const auto size = input.tellg();
-    if (size < 24 || size > 5 * 1024 * 1024) return false;
+    if (size < MARCUS_PREVIEW_HEADER_BYTES || size > 5 * 1024 * 1024) return false;
     std::vector<std::uint8_t> bytes(static_cast<std::size_t>(size));
     input.seekg(0);
     if (!input.read(reinterpret_cast<char *>(bytes.data()), bytes.size())) return false;
