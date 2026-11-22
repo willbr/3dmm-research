@@ -1,6 +1,7 @@
 /* Interpreter dispatch converted from Kauai screxe.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/script_vm.h"
+#include "mm/script_kidspace.h"
 #include "mm/script_opcodes.h"
 #include "mm/string_format.h"
 #include "mm/wide.h"
@@ -545,6 +546,9 @@ static void execute(MMScriptVM *vm, unsigned opcode)
     default:
         if (opcode < kopAdd || opcode >= kopCopyStr)
         {
+            if (vm->kidspace && opcode >= kopCreateChildGob && opcode < kopLimSccg &&
+                mm_kidspace_script_execute(vm, opcode))
+                return;
             if (!services || !services->opcode || !services->opcode(vm->host, opcode))
                 mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
             return;

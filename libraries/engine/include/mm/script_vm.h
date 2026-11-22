@@ -53,6 +53,8 @@ extern "C"
         void (*string_notice)(void *, int reason, MMI32 value);
     } MMScriptVMServices;
 
+    struct MMKidspaceScriptServices;
+
     typedef struct MMScriptVM
     {
         MMScriptStack stack;
@@ -61,6 +63,9 @@ extern "C"
         MMScriptStrings *strings;
         const MMScriptVMServices *services;
         void *host;
+        /* Optional Kidspace operations use the same host context. */
+        const struct MMKidspaceScriptServices *kidspace;
+        MMI32 this_object;
         MMU32 pc, word_count;
         MMI32 result;
         int paused, error;

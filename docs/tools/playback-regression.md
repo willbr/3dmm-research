@@ -21414,3 +21414,36 @@ seek and continuous frame order of the retained retail and V3DMM runs in
 
 The disassembly, traces and Studio canvases are under `tmp/c89-random`.
 Playback captures are under `tmp/c89-kd`.
+
+## C89 Kidspace geometry and script calls (22 November 2026)
+
+The C89 VM now handles Kidspace movement and size, coordinate and hierarchy
+queries, command enqueueing, nested calls, and animation cell pauses. The
+compiler and VM share the Kidspace opcode values. The native bindings resolve
+and act on live objects.
+
+The retail ISO executable's nested call branch at RVA `0x600ab` copies and
+reverses stack arguments before dispatch. It consumes the operands and calls
+with zero arguments when the copy allocation fails. The VM fixture checks
+those rules, failure and missing-object results, command argument order,
+registration-point movement, fixed-window bounds, and resuming a cell script
+with an immediate operand.
+
+All 199 engine, core link and C89 checks passed, along with 13 native x64,
+12 SDL, seven native x86, and the Chomp pipeline check. All 470 generated
+Studio script payloads and nine movie saves matched their retained bytes.
+Marcus relaunched headlessly and matched its startup canvas. Studio passed
+the headless room, Help, ISO and authoring workflows. Five smoke canvases,
+the lobby and Studio room canvases, and the resource and Help traces matched.
+The ticket booth captures sampled a different image inside the AVI region.
+Sampling additional frames recovered the retained AVI crop in the rebuilt
+app, and the palette and room checks passed on both builds. The known
+`scene-load` failure retained fingerprint `0D666753` and its identical trace.
+
+Suite `20261122T120707Z-e22ab6fb` matched the preceding 60 seek images per
+port and their camera and actor state. Both ports matched the seek and
+continuous frame order of the retained retail and V3DMM runs in
+`20261122T081603Z-7ffc4e8e`. The fixture is silent.
+
+The disassembly, traces and Studio canvases are under
+`tmp/c89-kidspace-script`. Playback captures are under `tmp/c89-kd`.

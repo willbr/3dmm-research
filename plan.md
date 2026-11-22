@@ -1755,8 +1755,10 @@ and runs the string opcodes against the C89 registry shared with Help. Kidspace
 resolves the current, global, and remote objects and finds registry resources.
 The VM shares C89 random and shuffle state across interpreters. Studio's
 transitions and asset selection use the same algorithms with their own state.
-The native host supplies seed ticks and clock scaling and handles Kidspace
-opcodes that operate on Studio's objects.
+C89 also executes Kidspace's 2D geometry and hierarchy operations, command
+enqueueing, nested call parameter handling, and animation cell suspension.
+The native host supplies object access, seed ticks and clock scaling and
+handles the remaining Kidspace operations.
 The script string and colour tables use C-owned storage and cache references.
 C89 normalizes registry IDs, translates counted text through the host codec,
 and merges rows in reverse order. The transition adapter supplies native

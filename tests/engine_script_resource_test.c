@@ -1,4 +1,5 @@
 #include "mm/script_resource.h"
+#include "mm/script_kidspace.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_strings.h"
@@ -481,7 +482,8 @@ static MMScriptVariables *vm_variables(void *context, int scope, MMI32 object)
     return &fixture->remote;
 }
 
-static int attach_program(Host *host, MMScriptVM *vm, const MMU32 *words, size_t count)
+static int attach_versioned_program(Host *host, MMScriptVM *vm, const MMU32 *words, size_t count,
+                                    unsigned current, unsigned minimum)
 {
     MMCompiledScript *script = mm_script_create(&host->host);
     size_t i;
@@ -489,9 +491,14 @@ static int attach_program(Host *host, MMScriptVM *vm, const MMU32 *words, size_t
     CHECK(script);
     for (i = 0; i < count; ++i)
         CHECK(mm_script_add_word(script, mm_signed_word(words[i])));
-    ok = mm_script_vm_attach(vm, script, 10, 10, NULL, 0);
+    ok = mm_script_vm_attach(vm, script, current, minimum, NULL, 0);
     mm_script_release(script);
     return ok;
+}
+
+static int attach_program(Host *host, MMScriptVM *vm, const MMU32 *words, size_t count)
+{
+    return attach_versioned_program(host, vm, words, count, 10, 10);
 }
 
 static void execute_scripts(void)
@@ -662,23 +669,23 @@ static void execute_string_scripts(void)
     }
 }
 
-typedef struct DeckAllocator
+typedef struct FixtureAllocator
 {
     int fail;
     int releases;
-} DeckAllocator;
+} FixtureAllocator;
 
-static void *allocate_cards(void *context, void *old, MMU32 old_bytes, MMU32 new_bytes, int priority)
+static void *fixture_resize(void *context, void *old, MMU32 old_bytes, MMU32 new_bytes, int priority)
 {
-    DeckAllocator *allocator = context;
+    FixtureAllocator *allocator = context;
     (void)old_bytes;
     CHECK(priority == MM_STORAGE_NORMAL);
     return allocator->fail ? NULL : realloc(old, new_bytes);
 }
 
-static void release_cards(void *context, void *data, MMU32 bytes)
+static void fixture_release(void *context, void *data, MMU32 bytes)
 {
-    DeckAllocator *allocator = context;
+    FixtureAllocator *allocator = context;
     CHECK(bytes > 0);
     ++allocator->releases;
     free(data);
@@ -694,7 +701,7 @@ static void random_decks(void)
     MMRandom random;
     MMShuffle deck;
     MMStorageAllocator storage;
-    DeckAllocator allocator;
+    FixtureAllocator allocator;
     size_t i;
 
     CHECK(mm_random_seed_from_ticks(0x12345678UL) == 0x78563412UL);
@@ -703,8 +710,8 @@ static void random_decks(void)
     random.seed = 0x12345678UL;
     memset(&allocator, 0, sizeof(allocator));
     storage.context = &allocator;
-    storage.resize = allocate_cards;
-    storage.release = release_cards;
+    storage.resize = fixture_resize;
+    storage.release = fixture_release;
     CHECK(mm_shuffle_init(&deck, &random, &storage) == MM_STORAGE_OK);
     CHECK(mm_shuffle_next(&deck, 0) == 0 && random.seed == 0x12345678UL);
     for (i = 0; i < sizeof(first) / sizeof(*first); ++i)
@@ -791,6 +798,225 @@ static void execute_random_scripts(void)
     CHECK(!host.collections_live);
 }
 
+typedef struct KidObject
+{
+    MMI32 id;
+    MMPixelRect bounds;
+    int fixed;
+    struct KidObject *parent, *child;
+} KidObject;
+
+typedef struct KidFixture
+{
+    KidObject parent, child;
+    MMQueuedCommand command;
+    MMI32 params[2], count;
+    MMU32 script;
+    int by_number, runs, run_status;
+    int cells, missing, argument_failures, run_failures;
+} KidFixture;
+
+static void *kid_find(void *context, MMI32 id)
+{
+    KidFixture *fixture = context;
+    return id == 1 ? &fixture->parent : id == 2 ? &fixture->child : NULL;
+}
+
+static MMI32 kid_id(void *context, void *object)
+{
+    (void)context;
+    return ((KidObject *)object)->id;
+}
+
+static void *kid_relative(void *context, void *object, int relation)
+{
+    KidObject *gob = object;
+    (void)context;
+    return relation == MM_KIDSPACE_PARENT ? gob->parent :
+           relation == MM_KIDSPACE_FIRST_CHILD ? gob->child : NULL;
+}
+
+static int kid_rect(void *context, void *object, int mode, MMPixelRect *out)
+{
+    KidObject *gob = object;
+    (void)context;
+    if (mode == MM_KIDSPACE_MOVABLE_RECT && gob->fixed)
+        return 0;
+    *out = gob->bounds;
+    if (mode == MM_KIDSPACE_LOCAL_RECT)
+    {
+        out->right -= out->left;
+        out->bottom -= out->top;
+        out->left = out->top = 0;
+    }
+    return 1;
+}
+
+static void kid_set_rect(void *context, void *object, const MMPixelRect *in)
+{
+    (void)context;
+    ((KidObject *)object)->bounds = *in;
+}
+
+static int kid_point(void *context, void *object, int mode, MMPixelPoint *out)
+{
+    KidObject *gob = object;
+    (void)context;
+    if (mode == MM_KIDSPACE_MOUSE)
+    {
+        out->x = -7;
+        out->y = 6;
+    }
+    else if (!gob->parent)
+        return 0;
+    else
+    {
+        out->x = 3;
+        out->y = 4;
+        if (mode == MM_KIDSPACE_PARENT_REGISTRATION)
+        {
+            out->x += gob->bounds.left;
+            out->y += gob->bounds.top;
+        }
+    }
+    return 1;
+}
+
+static void kid_enqueue(void *context, const MMQueuedCommand *command)
+{
+    ((KidFixture *)context)->command = *command;
+}
+
+static int kid_run(void *context, void *object, MMU32 script, int by_number, void *params,
+                   MMI32 count, MMI32 *out)
+{
+    KidFixture *fixture = context;
+    CHECK(object == &fixture->child && (count == 0 || count == 2));
+    ++fixture->runs;
+    fixture->script = script;
+    fixture->by_number = by_number;
+    fixture->count = count;
+    if (params)
+        memcpy(fixture->params, params, sizeof(fixture->params));
+    else
+        CHECK(count == 0);
+    *out = 73;
+    return fixture->run_status;
+}
+
+static void kid_cell(void *context, void *object, MMU32 child, MMI32 dx, MMI32 dy, MMI32 delay)
+{
+    KidFixture *fixture = context;
+    CHECK(object == &fixture->child && child == 0x80000000UL && dx == 5 && dy == -2 && delay == 9);
+    ++fixture->cells;
+}
+
+static void kid_notice(void *context, int reason, unsigned opcode, MMI32 id, MMU32 script)
+{
+    KidFixture *fixture = context;
+    if (reason == MM_KIDSPACE_MISSING_OBJECT)
+    {
+        CHECK((opcode == kopResizeGob && id == 1) || (opcode == kopRunScriptGob && id == 99));
+        ++fixture->missing;
+    }
+    else
+    {
+        CHECK(opcode == kopRunScriptCnoThis && id == 2 && script == 701);
+        if (reason == MM_KIDSPACE_ARGUMENT_ALLOCATION)
+            ++fixture->argument_failures;
+        else if (reason == MM_KIDSPACE_NESTED_FAILURE)
+            ++fixture->run_failures;
+    }
+}
+
+static void execute_kidspace_scripts(void)
+{
+    static const MMKidspaceScriptServices services = {
+        kid_find, kid_id, kid_relative, NULL, kid_rect, kid_set_rect, kid_point,
+        kid_find, kid_enqueue, kid_run, kid_cell, kid_notice
+    };
+    static const MMU32 geometry[] = {
+        0x101d101dUL, VM_IMMEDIATES(3), 21, 22, 1, kopResizeGob,
+        VM_IMMEDIATES(3), 70, 60, 2, kopMoveAbsGob,
+        VM_IMMEDIATES(2), 0xfffffffcUL, 10, kopMoveRelThis,
+        VM_IMMEDIATES(2), 12, 0xfffffffdUL, kopResizeThis,
+        VM_IMMEDIATES(1), 1, kopXGob, kopWidthThis, kopAdd, kopHeightThis, kopAdd, kopGidParThis, kopAdd,
+        VM_IMMEDIATES(2), 1, 2, kopFIsDescendent, kopAdd,
+        VM_IMMEDIATES(1), 1, kopGidChild, kopAdd, kopYMouseThis, kopAdd, kopReturn
+    };
+    static const MMU32 command[] = {
+        0x101d101dUL, VM_IMMEDIATES(6), 44, 33, 0xffffffeaUL, 11, 2, 900, kopEnqueueCid, kopExit
+    };
+    static const MMU32 invoke[] = {
+        0x101d101dUL, VM_IMMEDIATES(4), 311, 0xffffff99UL, 701, 2, kopRunScriptCnoThis, kopReturn
+    };
+    static const MMU32 missing[] = {
+        0x101d101dUL, VM_IMMEDIATES(3), 701, 99, 0, kopRunScriptGob, kopReturn
+    };
+    static const MMU32 animation[] = {
+        0x101d101dUL, VM_IMMEDIATES(4), 9, 0xfffffffeUL, 5, 0x80000000UL, VM_IMMEDIATES(1) | kopCell, 17, kopReturn
+    };
+    static const MMPixelRect parent = {10, 20, 110, 220}, child = {20, 30, 50, 70};
+    const unsigned current = 0x101d, minimum = 0x1015;
+    Host host;
+    MMScriptVM vm;
+    KidFixture fixture;
+    FixtureAllocator failure;
+    MMStorageAllocator allocator;
+
+    init(&host);
+    memset(&fixture, 0, sizeof(fixture));
+    memset(&failure, 0, sizeof(failure));
+    fixture.parent.id = 1;
+    fixture.parent.bounds = parent;
+    fixture.parent.fixed = 1;
+    fixture.parent.child = &fixture.child;
+    fixture.child.id = 2;
+    fixture.child.bounds = child;
+    fixture.child.parent = &fixture.parent;
+    fixture.run_status = 1;
+    allocator.context = &failure;
+    allocator.resize = fixture_resize;
+    allocator.release = fixture_release;
+    CHECK(mm_script_vm_init(&vm, &allocator, 1, NULL, NULL, &fixture) == MM_STORAGE_OK);
+    vm.kidspace = &services;
+    vm.this_object = 2;
+
+    CHECK(attach_versioned_program(&host, &vm, geometry, sizeof(geometry) / sizeof(*geometry), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 32 && fixture.missing == 1);
+    CHECK(fixture.child.bounds.left == 67 && fixture.child.bounds.top == 62 &&
+          fixture.child.bounds.right == 67 && fixture.child.bounds.bottom == 74);
+    CHECK(fixture.parent.bounds.right == 110 && fixture.parent.bounds.bottom == 220);
+    mm_script_vm_dispose(&vm);
+
+    CHECK(attach_versioned_program(&host, &vm, command, sizeof(command) / sizeof(*command), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && fixture.command.id == 900 && fixture.command.target == &fixture.child);
+    CHECK(!fixture.command.group && fixture.command.arguments[0] == 11 && fixture.command.arguments[1] == -22 &&
+          fixture.command.arguments[2] == 33 && fixture.command.arguments[3] == 44);
+    mm_script_vm_dispose(&vm);
+
+    CHECK(attach_versioned_program(&host, &vm, invoke, sizeof(invoke) / sizeof(*invoke), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 73 && fixture.runs == 1 && fixture.count == 2);
+    CHECK(fixture.params[0] == -103 && fixture.params[1] == 311 && fixture.by_number && fixture.script == 701);
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_versioned_program(&host, &vm, invoke, sizeof(invoke) / sizeof(*invoke), current, minimum));
+    failure.fail = 1;
+    fixture.run_status = 0;
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 0 && fixture.runs == 2 && !fixture.count);
+    CHECK(fixture.argument_failures == 1 && fixture.run_failures == 1);
+    failure.fail = 0;
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_versioned_program(&host, &vm, missing, sizeof(missing) / sizeof(*missing), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 0 && fixture.runs == 2 && fixture.missing == 2);
+    mm_script_vm_dispose(&vm);
+
+    CHECK(attach_versioned_program(&host, &vm, animation, sizeof(animation) / sizeof(*animation), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.paused && fixture.cells == 1 && vm.stack.count == 1);
+    CHECK(mm_script_vm_resume(&vm) && !vm.paused && fixture.cells == 1 && vm.result == 17);
+    mm_script_vm_dispose(&vm);
+    CHECK(!host.collections_live);
+}
+
 int main(void)
 {
     scripts();
@@ -801,6 +1027,7 @@ int main(void)
     execute_string_scripts();
     random_decks();
     execute_random_scripts();
+    execute_kidspace_scripts();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }
