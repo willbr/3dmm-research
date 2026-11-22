@@ -1,7 +1,7 @@
 #include "mm/script_resource.h"
 #include "mm/script_compile.h"
 #include "mm/script_kidspace.h"
-#include "mm/lexer.h"
+#include "mm/chunky_lexer.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_strings.h"
@@ -2190,6 +2190,105 @@ static void lexer_tokens(void)
     check_lex_text(&token.text, 1, "b");
 }
 
+static void chunky_tokens(void)
+{
+    static const char source[] =
+        "SET LongName = - - 33 SET A = 0x7fffffff SET A++ A SET A-- A "
+        "SET A = 0x80000003 SET A >>= 33 A SET A <<= -1 A "
+        "SET A ^= -1 A SET A &= 3 A SET A |= 4 A SET A += LongName A "
+        "SET A -= 41 A SET A *= 7 A SET A /= 3 A SET A = -7 SET A %= 3 A "
+        "SET BYTE = 5 BYTE SET C = BYTE C CHUNK Chunk a set "
+        "SET R = missing R SET A /= 0 A "
+        "SET A = 0x80000000 SET A %= -1 A SET 123 tail SET Gap";
+    static const struct Expected
+    {
+        int kind;
+        MMI32 number;
+        const char *name;
+    } expected[] = {
+        {ttLong, (-2147483647 - 1), "A"}, {ttLong, 2147483647, "A"},
+        {ttLong, 0x40000001, "A"}, {ttLong, (-2147483647 - 1), "A"},
+        {ttLong, 2147483647, "A"}, {ttLong, 3, "A"}, {ttLong, 7, "A"},
+        {ttLong, 40, "A"}, {ttLong, -1, "A"}, {ttLong, -7, "A"},
+        {ttLong, -2, "A"}, {ttLong, -1, "A"}, {ttModeByte, 0, "BYTE"},
+        {ttLong, 5, "C"}, {ttChunk, 0, "CHUNK"}, {ttName, 0, "Chunk"},
+        {ttName, 0, "a"}, {ttName, 0, "set"}, {ttError, 0, "missing"},
+        {ttLong, 0, "R"}, {ttError, 0, ""}, {ttLong, -1, "A"},
+        {ttError, 0, ""}, {ttLong, (-2147483647 - 1), "A"}, {ttError, 0, ""},
+        {ttName, 0, "tail"}, {ttError, 0, ""}
+    };
+    static const char failed_insert[] = "SET First = 12 First SET Next = 7 Next";
+    unsigned short wide[sizeof(source)];
+    MMMemoryStream input;
+    MMLexer base;
+    MMChunkyLexer lexer;
+    MMLexToken token;
+    FixtureAllocator failure = {1, 1, 0};
+    MMStorageAllocator allocator;
+    unsigned i, width;
+
+    for (i = 0; i < sizeof(source) - 1; ++i)
+        wide[i] = (unsigned char)source[i];
+    for (width = 1; width <= 2; ++width)
+    {
+        CHECK(mm_memory_stream_init(&input, width == 1 ? (const void *)source : (const void *)wide,
+                                    (sizeof(source) - 1) * width));
+        CHECK(mm_lexer_init(&base, &input.stream, width, 1));
+        CHECK(mm_chunky_lexer_init(&lexer, width, NULL));
+        for (i = 0; i < sizeof(expected) / sizeof(*expected); ++i)
+        {
+            CHECK(mm_chunky_lexer_next(&lexer, &base, &token, NULL, NULL) && token.kind == expected[i].kind);
+            if (token.kind == ttLong)
+                CHECK(token.number == expected[i].number);
+            check_lex_text(&token.text, width, expected[i].name);
+        }
+        CHECK(!mm_chunky_lexer_next(&lexer, &base, &token, NULL, NULL) && token.kind == ttNil);
+        mm_chunky_lexer_dispose(&lexer);
+    }
+
+    CHECK(mm_memory_stream_init(&input, failed_insert, sizeof(failed_insert) - 1));
+    CHECK(mm_lexer_init(&base, &input.stream, 1, 1));
+    allocator.context = &failure;
+    allocator.resize = fixture_resize;
+    allocator.release = fixture_release;
+    CHECK(mm_chunky_lexer_init(&lexer, 1, &allocator));
+    CHECK(mm_chunky_lexer_next(&lexer, &base, &token, NULL, NULL) && token.kind == ttError);
+    CHECK(mm_chunky_lexer_next(&lexer, &base, &token, NULL, NULL) && token.kind == ttName);
+    check_lex_text(&token.text, 1, "First");
+    failure.fail = 0;
+    CHECK(mm_chunky_lexer_next(&lexer, &base, &token, NULL, NULL) && token.kind == ttLong && token.number == 7);
+    CHECK(!mm_chunky_lexer_next(&lexer, &base, &token, NULL, NULL));
+    mm_chunky_lexer_dispose(&lexer);
+    CHECK(failure.releases == 2);
+}
+
+static void chunky_modes(void)
+{
+    const MMChunkyFormats codes = {1, 2, 3, 4};
+    MMChunkyFormat format = {smStz, 4, 2, 4};
+    MMI32 number = -3;
+    int sign = 0;
+    unsigned char bytes[4], swapped[4];
+
+    CHECK(!mm_chunky_clean_token(&format, &codes, ttSub, &number, &sign) && sign != 0);
+    CHECK(!mm_chunky_clean_token(&format, &codes, ttModeStn, &number, &sign) && format.string_mode == smStn);
+    CHECK(!mm_chunky_clean_token(&format, &codes, ttModeShort, &number, &sign) && format.number_bytes == 2);
+    CHECK(!mm_chunky_clean_token(&format, &codes, ttMacBo, &number, &sign) && format.byte_order == 1);
+    CHECK(!mm_chunky_clean_token(&format, &codes, ttMacOsk, &number, &sign) && format.os_kind == 3);
+    CHECK(mm_chunky_clean_token(&format, &codes, ttLong, &number, &sign) && !sign && number == 3);
+    CHECK(!mm_chunky_clean_token(&format, &codes, ttSub, &number, &sign));
+    CHECK(!mm_chunky_clean_token(&format, &codes, ttSub, &number, &sign));
+    CHECK(mm_chunky_clean_token(&format, &codes, ttName, &number, &sign) && sign != 0);
+    CHECK(mm_chunky_clean_token(&format, &codes, ttLong, &number, &sign) && !sign && number == 3);
+    CHECK(mm_chunky_write_number(4, 0, 0x12345678, bytes) == MM_CHUNKY_NUMBER_OK);
+    CHECK(mm_chunky_write_number(4, 1, 0x12345678, swapped) == MM_CHUNKY_NUMBER_OK);
+    CHECK(bytes[0] == swapped[3] && bytes[1] == swapped[2] && bytes[2] == swapped[1] && bytes[3] == swapped[0]);
+    CHECK(mm_chunky_write_number(2, 0, 65535, bytes) == MM_CHUNKY_NUMBER_OK && bytes[0] == 255 && bytes[1] == 255);
+    CHECK(mm_chunky_write_number(2, 1, -32767, bytes) == MM_CHUNKY_NUMBER_OK);
+    CHECK(mm_chunky_write_number(2, 1, -32768, bytes) == MM_CHUNKY_NUMBER_SHORT_RANGE);
+    CHECK(mm_chunky_write_number(1, 0, 256, bytes) == MM_CHUNKY_NUMBER_BYTE_RANGE && !bytes[0]);
+}
+
 int main(void)
 {
     scripts();
@@ -2209,6 +2308,8 @@ int main(void)
     compile_infix();
     disassemble_script();
     lexer_tokens();
+    chunky_tokens();
+    chunky_modes();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

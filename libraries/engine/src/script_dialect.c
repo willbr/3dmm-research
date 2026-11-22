@@ -2,7 +2,7 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "script_compile_internal.h"
 #include "mm/script_opcodes.h"
-#include <string.h>
+#include "mm/string_ops.h"
 
 typedef struct OpcodeDescription
 {
@@ -201,24 +201,6 @@ static const OpcodeDescription kidspace[] = {
 #undef FN
 #undef OP
 
-int mm_script_name_matches(const char *ascii, const void *text, MMU32 length, unsigned unit)
-{
-    const unsigned char *bytes = text;
-    unsigned short ch;
-    MMU32 i;
-    if (length != strlen(ascii))
-        return 0;
-    if (unit == 1)
-        return !memcmp(text, ascii, length);
-    for (i = 0; i < length; ++i)
-    {
-        memcpy(&ch, bytes + i * 2, 2);
-        if (ch != (unsigned char)ascii[i])
-            return 0;
-    }
-    return 1;
-}
-
 static const OpcodeDescription *find_name(const OpcodeDescription *table, size_t count,
                                            const void *name, MMU32 length, unsigned unit, int infix)
 {
@@ -229,7 +211,7 @@ static const OpcodeDescription *find_name(const OpcodeDescription *table, size_t
         if (infix && table[i].function.fixed < 0)
             continue;
         spelling = infix && table[i].infix_alias ? table[i].infix_alias : table[i].name;
-        if (mm_script_name_matches(spelling, name, length, unit))
+        if (mm_string_equals_ascii(spelling, name, length, unit))
             return table + i;
     }
     return NULL;

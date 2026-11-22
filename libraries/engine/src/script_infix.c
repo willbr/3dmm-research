@@ -5,6 +5,7 @@
 #include "mm/lex_token.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_runtime.h"
+#include "mm/string_ops.h"
 #include "mm/wide.h"
 #include <string.h>
 
@@ -179,17 +180,6 @@ static CompileArray *clone_tree(const CompileArray *tree)
     return copy;
 }
 
-static int reserve_names(void *context, MMStringTable *table, MMU32 bytes, MMU32 entries)
-{
-    MMCollectionStorage *storage = context;
-    int status = mm_storage_ensure(storage, bytes, entries, 0);
-    table->strings = storage->buffers[0].data;
-    table->entries = storage->buffers[1].data;
-    table->string_capacity = storage->buffers[0].capacity;
-    table->entry_capacity = storage->buffers[1].capacity;
-    return status == MM_STORAGE_OK;
-}
-
 static MMI32 intern_name(InfixCompiler *compiler, const void *text, MMU32 length)
 {
     MMU32 index = compiler->names.count;
@@ -223,7 +213,7 @@ static int keyword(InfixCompiler *compiler, CompileName name)
     static const char *const names[] = {"If", "Elif", "Else", "End", "While", "Break", "Continue"};
     unsigned i;
     for (i = 0; i < sizeof(names) / sizeof(*names); ++i)
-        if (mm_script_name_matches(names[i], name.text, name.length, compiler->names.unit_bytes))
+        if (mm_string_equals_ascii(names[i], name.text, name.length, compiler->names.unit_bytes))
             return (int)i;
     return KEY_NONE;
 }
@@ -305,14 +295,6 @@ static void swap_expressions(Expression *left, Expression *right)
     *right = saved;
 }
 
-static MMI32 divide_constants(MMI32 opcode, MMI32 left, MMI32 right)
-{
-    MMU32 a = left < 0 ? 0U - (MMU32)left : (MMU32)left;
-    MMU32 b = right < 0 ? 0U - (MMU32)right : (MMU32)right;
-    MMU32 result = opcode == kopDiv ? a / b : a % b;
-    int negative = opcode == kopDiv ? (left < 0) != (right < 0) : left < 0;
-    return mm_signed_word(negative ? 0U - result : result);
-}
 /* operator precedence levels */
 enum
 {
@@ -829,18 +811,17 @@ static int fold_binary(InfixCompiler *compiler, MMI32 op, MMI32 lw1, MMI32 lw2, 
         break;
     case kopDiv:
     case kopMod:
-        if (lw2 == 0)
+        switch (mm_word_divide(lw1, lw2, op == kopMod, plw))
         {
+        case MM_WORD_DIVIDE_ZERO:
             report(compiler, MM_SCRIPT_COMPILE_DIVIDE_BY_ZERO);
             *plw = 0;
-        }
-        else if (lw1 == (-2147483647 - 1) && lw2 == -1)
-        {
+            break;
+        case MM_WORD_DIVIDE_OVERFLOW:
             report(compiler, MM_SCRIPT_COMPILE_DIVISION_OVERFLOW);
             *plw = 0;
+            break;
         }
-        else
-            *plw = divide_constants(op, lw1, lw2);
         break;
     case kopShr:
         *plw = mm_signed_word((MMU32)lw1 >> ((MMU32)lw2 & 31U));
@@ -1593,7 +1574,7 @@ void mm_script_compile_infix(MMScriptEmitter *emitter, const MMScriptInput *inpu
     compiler.names.free_count = -1;
     compiler.names.unit_bytes = host->unit_bytes;
     compiler.names.context = &compiler.name_storage;
-    compiler.names.reserve = reserve_names;
+    compiler.names.reserve = mm_strings_reserve_storage;
     while (next_token(&compiler, &token))
     {
         if (token.kind == ttSemi)

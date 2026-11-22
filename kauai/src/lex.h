@@ -18,6 +18,8 @@
 #include "mm/lexer.h"
 #include "mm/wide.h"
 
+struct MMChunkyLexer;
+
 struct Token
 {
     LegacyLong tt;
@@ -53,6 +55,7 @@ class LexerBase : public LexerBase_PAR
 
   protected:
     PFileObject _pfil; // exactly one of _pfil, _pbsf should be non-nil
+    bool _FReadToken(PToken ptok, MMChunkyLexer *chunky);
     bool _FFetchRgch(achar *pch);
     void _Advance()
     {

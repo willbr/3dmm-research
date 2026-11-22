@@ -1,6 +1,7 @@
 /* Storage policy converted from Kauai groups2.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/string_table.h"
+#include "mm/collection_storage.h"
 #include "mm/text.h"
 #include <stdlib.h>
 #include <string.h>
@@ -52,6 +53,16 @@ static int ensure(MMStringTable *t, MMU32 bytes, MMU32 count)
         return 1;
     return t->reserve && t->reserve(t->context, t, bytes, count * t->stride) && bytes <= t->string_capacity &&
            count * t->stride <= t->entry_capacity;
+}
+int mm_strings_reserve_storage(void *context, MMStringTable *table, MMU32 bytes, MMU32 entries)
+{
+    MMCollectionStorage *storage = context;
+    int status = mm_storage_ensure(storage, bytes, entries, 0);
+    table->strings = storage->buffers[0].data;
+    table->entries = storage->buffers[1].data;
+    table->string_capacity = storage->buffers[0].capacity;
+    table->entry_capacity = storage->buffers[1].capacity;
+    return status == MM_STORAGE_OK;
 }
 static void trash(const MMStringTable *t, void *data, size_t bytes)
 {

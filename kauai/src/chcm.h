@@ -16,58 +16,9 @@
 ***************************************************************************/
 #ifndef CHCM_H
 #define CHCM_H
+#include "mm/chunky_lexer.h"
 
 namespace Chunky {
-
-// token types
-enum
-{
-    ttChunk = ttLimBase, // chunk definition
-    ttChild,             // child descriptor
-    ttParent,            // parent descriptor
-    ttAlign,             // align command
-    ttFile,              // file import command
-    ttMeta,              // metafile import command
-    ttBitmap,            // bitmap import command
-    ttFree,              // for AllocatedArray, AllocatedGroup, AllocatedStringTable - item is free
-    ttItem,              // for DynamicArray, etc - start of data for new item
-    ttVar,               // for GeneralGroup and AllocatedGroup - variable sized data
-    ttGl,                // DynamicArray command
-    ttAl,                // AllocatedArray command
-    ttGg,                // GeneralGroup command
-    ttAg,                // AllocatedGroup command
-    ttGst,               // StringTable_GST command
-    ttAst,               // AllocatedStringTable command
-    ttScript,            // infix script
-    ttScriptP,           // postfix script
-    ttModeStn,           // change mode to store strings as stn's
-    ttModeStz,           // change mode to store strings as stz's
-    ttModeSz,            // change mode to store strings as sz's
-    ttModeSt,            // change mode to store strings as st's
-    ttModeByte,          // change mode to accept a byte
-    ttModeShort,         // change mode to accept a short
-    ttModeLong,          // change mode to accept a LegacyLong
-    ttEndChunk,          // end of chunk
-    ttAdopt,             // adopt command
-    ttMacBo,             // use Mac byte order and OSK
-    ttWinBo,             // use Win byte order and OSK
-    ttMacOsk,            // use Mac byte order and OSK
-    ttWinOsk,            // use Win byte order and OSK
-    ttBo,                // insert the current byte order
-    ttOsk,               // insert the current OSK
-    ttMask,              // MASK command
-    ttLoner,             // LONER command
-    ttCursor,            // CURSOR command
-    ttPalette,           // PALETTE command
-    ttPrePacked,         // mark the change as packed
-    ttPack,              // pack the data
-    ttPackedFile,        // packed file import command
-    ttMidi,              // midi file import command
-    ttPackFmt,           // format to pack in
-    ttSubFile,           // start an embedded chunk forest
-
-    ttLimChlx
-};
 
 // lookup table for keywords
 struct LexerKeywordEntry
@@ -89,18 +40,14 @@ class CompilerLexer : public CompilerLexer_PAR
     MARKMEM
     NOCOPY(CompilerLexer)
 
-  protected:
-    PStringTable_GST _pgstVariables;
-
-    bool _FDoSet(PToken ptok);
+  private:
+    MMChunkyLexer _chunky;
 
   public:
     CompilerLexer(PFileByteStream pbsf, PString pstnFile);
     ~CompilerLexer(void);
 
-    // override the LexerBase FGetTok to resolve variables, hande SET
-    // and recognize our additional key words
-    virtual bool FGetTok(PToken ptok);
+    bool FGetTok(PToken ptok) override;
     virtual bool FGetTokSkipSemi(PToken ptok); // also skip ';' & ','
     virtual bool FGetPath(Filename *pfni);        // read a path
 };
@@ -156,15 +103,6 @@ enum
     ertLim
 };
 
-// string modes
-enum
-{
-    smStn,
-    smStz,
-    smSz,
-    smSt
-};
-
 #define kcbMinAlign 2
 #define kcbMaxAlign 1024
 
@@ -198,10 +136,7 @@ class Compiler : public Compiler_PAR
 
     FileByteStream _bsf;     // temporary buffer for the chunk data
     PCompilerLexer _pchlx; // lexer for compiling
-    LegacyLong _sm;     // current string mode
-    LegacyLong _cbNum;  // current numerical size (1, 2, or 4)
-    short _bo;    // current byte order and osk
-    short _osk;
+    MMChunkyFormat _format;
     PMSNK _pmsnkError; // error message sink
     LegacyLong _cactError;   // how many errors we've encountered
 

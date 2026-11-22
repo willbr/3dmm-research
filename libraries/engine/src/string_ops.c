@@ -39,6 +39,23 @@ int mm_string_raw_equal(const MMStringOps *s, const void *a, MMU32 na, const voi
     range(s, a, bytes); range(s, b, bytes);
     return !bytes || !memcmp(a, b, bytes);
 }
+int mm_string_equals_ascii(const char *ascii, const void *text, MMU32 length, unsigned unit)
+{
+    const unsigned char *bytes = text;
+    unsigned short ch;
+    MMU32 i;
+    if (length != strlen(ascii) || (unit != 1 && unit != 2))
+        return 0;
+    if (unit == 1)
+        return !length || !memcmp(text, ascii, length);
+    for (i = 0; i < length; ++i)
+    {
+        memcpy(&ch, bytes + i * 2, 2);
+        if (ch != (unsigned char)ascii[i])
+            return 0;
+    }
+    return 1;
+}
 MMU32 mm_string_internal_compare(const MMStringOps *s, const void *a, MMU32 na, const void *b, MMU32 nb)
 {
     MMU32 i;

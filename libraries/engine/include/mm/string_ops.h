@@ -25,6 +25,7 @@ typedef struct MMStringOps {
 size_t mm_string_zero_length(const void *, unsigned unit);
 int mm_string_counted_valid(const MMStringOps *, const void *, int terminated);
 int mm_string_raw_equal(const MMStringOps *, const void *, MMU32, const void *, MMU32);
+int mm_string_equals_ascii(const char *ascii, const void *text, MMU32 length, unsigned unit);
 MMU32 mm_string_internal_compare(const MMStringOps *, const void *, MMU32, const void *, MMU32);
 /* Equality uppercases two copied blocks of at most 255 units before comparing
  * bytes; it is distinct from user collation. Null upper uses portable text case

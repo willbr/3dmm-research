@@ -27,17 +27,6 @@ struct MMScriptEmitter
     int force_opcode;
 };
 
-static int reserve_labels(void *context, MMStringTable *table, MMU32 bytes, MMU32 entries)
-{
-    MMCollectionStorage *storage = context;
-    int status = mm_storage_ensure(storage, bytes, entries, 0);
-    table->strings = storage->buffers[0].data;
-    table->entries = storage->buffers[1].data;
-    table->string_capacity = storage->buffers[0].capacity;
-    table->entry_capacity = storage->buffers[1].capacity;
-    return status == MM_STORAGE_OK;
-}
-
 static int init_labels(LabelTable *table, const MMScriptHost *host, MMU32 entries, MMU32 units)
 {
     if (mm_storage_init(&table->storage, host->storage) != MM_STORAGE_OK)
@@ -46,7 +35,7 @@ static int init_labels(LabelTable *table, const MMScriptHost *host, MMU32 entrie
     table->strings.free_count = -1;
     table->strings.unit_bytes = host->unit_bytes;
     table->strings.context = &table->storage;
-    table->strings.reserve = reserve_labels;
+    table->strings.reserve = mm_strings_reserve_storage;
     table->storage.min_grow[0] = units * host->unit_bytes;
     table->storage.min_grow[1] = entries * table->strings.stride;
     return 1;

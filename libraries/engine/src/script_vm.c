@@ -244,32 +244,19 @@ static MMU32 magnitude(MMI32 word)
 
 static void divide(MMScriptVM *vm, unsigned opcode, MMI32 right)
 {
-    MMI32 left;
-    MMU32 value;
-    int negative;
+    MMI32 value, left;
     if (!right)
     {
         mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPERAND);
         return;
     }
     left = mm_script_vm_pop(vm);
-    if (left == (-2147483647 - 1) && right == -1)
+    if (mm_word_divide(left, right, opcode == kopMod, &value) != MM_WORD_DIVIDED)
     {
         mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPERAND);
         return;
     }
-    /* Use unsigned operands to specify truncation toward zero on C89 hosts. */
-    if (opcode == kopDiv)
-    {
-        value = magnitude(left) / magnitude(right);
-        negative = (left < 0) != (right < 0);
-    }
-    else
-    {
-        value = magnitude(left) % magnitude(right);
-        negative = left < 0;
-    }
-    mm_script_vm_push(vm, mm_signed_word(negative ? 0U - value : value));
+    mm_script_vm_push(vm, value);
 }
 
 static void jump(MMScriptVM *vm, MMI32 label, int taken)

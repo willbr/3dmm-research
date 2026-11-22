@@ -1754,8 +1754,11 @@ C89 opcode descriptions for the base and Kidspace dialects. The VM and
 disassembler share version validation. C89 also owns Kauai's buffered
 base lexer, including comments, line directives, token text, and raw
 quoted archive paths. Native adapters supply positional input, source
-diagnostics, and the listing text sink. The native Chunky compiler
-implements the archive grammar and SET variable handling.
+diagnostics, and the listing text sink. The Chunky lexer resolves
+keywords and SET variable definitions with C89 string storage. C89
+applies string, numeric, byte-order and OSK modes and writes numeric
+payload bytes. The native Chunky compiler interprets the archive
+grammar and connects it to file, collection and resource services.
 The interpreter's operand stack, list operations, and local and
 graphics-object variable tables now use C89 storage and algorithms.
 The C89 interpreter retains the script and owns instruction decoding,

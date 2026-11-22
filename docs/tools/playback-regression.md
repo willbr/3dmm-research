@@ -21692,3 +21692,43 @@ order matched the retained retail and V3DMM captures in
 
 The lexer fixtures, traces, and Studio canvases are under `tmp/c89-lexer`.
 Playback captures are under `tmp/c89-kd`.
+
+## C89 Chunky lexer and numeric data (22 November 2026)
+
+The Chunky lexer resolves case-sensitive keywords and SET variables over
+the C89 base lexer. SET uses the shared string table, preserves zero
+initialization for new names and applies 32-bit arithmetic. The Chunky
+lexer, script constant folder, and VM use the same signed division rule.
+Chunky mode directives and numeric payload writes use C89. The native
+compiler supplies OSK and byte-order codes and reports source diagnostics.
+
+The C fixture checks one- and two-byte input, every SET operator, keyword
+precedence, missing values, zero division, signed overflow, allocation
+failure and recovery, sign handling through mode changes, and both byte
+orders. SHORT preserves the legacy accepted range of -32767 through
+65535. A failed variable allocation or overflowing division reports a
+lexical error.
+
+Chomp matched the retained build's payload regions, listings, and
+diagnostics for six valid archives. The fixtures cover a 192-name
+variable table, SET substitution in both script forms, and byte order,
+OSK, and string mode changes. Nine malformed fixtures matched the
+retained exit status and diagnostics. All 470 generated Studio script
+payloads matched. Both division and remainder overflow returned the
+source diagnostic and produced no archive in the rebuilt CLI.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. The headless room, F1 Help, ISO, and authoring workflows passed.
+Nine movie saves, Help and cache traces, five smoke canvases, and the
+Marcus startup canvas matched retained results. The two ticket booth
+frames sampled during and after the AVI matched other retained samples.
+The separate `scene-load` failure reproduced its 63,224-byte trace and
+fingerprint `0D666753`.
+
+Silent suite `20261122T134846Z-401364eb` matched both ports' preceding
+60 seek canvases and camera and actor state. Seek and continuous frame
+order matched the retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`.
+
+The Chunky fixtures, traces, and Studio canvases are under
+`tmp/c89-chunky-lexer`. Playback captures are under `tmp/c89-kd`.

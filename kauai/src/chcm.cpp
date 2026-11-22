@@ -10,6 +10,7 @@
 
 ***************************************************************************/
 #include "kidframe.h" //because we need scrcomg
+#include "handle_services.h"
 ASSERTNAME
 
 namespace Chunky {
@@ -167,29 +168,11 @@ void Compiler::_GetRgbFromLw(LegacyLong lw, byte *prgb)
     AssertThis(0);
     AssertPvCb(prgb, size(LegacyLong));
 
-    switch (_cbNum)
-    {
-    case size(byte):
-        if (lw < -128 || lw > kbMax)
-            _Error(ertRangeByte);
-        prgb[0] = B0Lw(lw);
-        break;
-
-    case size(short):
-        if ((lw < kswMin) || (lw > ksuMax))
-            _Error(ertRangeShort);
-        *(short *)prgb = SwLow(lw);
-        break;
-
-    default:
-        Assert(_cbNum == size(LegacyLong), "invalid numerical mode");
-        _cbNum = size(LegacyLong);
-        *(LegacyLong *)prgb = lw;
-        break;
-    }
-
-    if (_bo != kboCur && _cbNum > 1)
-        ReversePb(prgb, _cbNum);
+    const int result = mm_chunky_write_number(_format.number_bytes, _format.byte_order != kboCur, lw, prgb);
+    if (result == MM_CHUNKY_NUMBER_BYTE_RANGE)
+        _Error(ertRangeByte);
+    if (result == MM_CHUNKY_NUMBER_SHORT_RANGE)
+        _Error(ertRangeShort);
 }
 
 /***************************************************************************
@@ -220,67 +203,24 @@ bool Compiler::_FGetCleanTok(Token *ptok, bool fEofOk)
     AssertThis(0);
     AssertVarMem(ptok);
 
-    LegacyLong cactNegate = 0;
-
-    for (;;)
+    static const MMChunkyFormats formats{MacWin(kboCur, kboOther), MacWin(kboOther, kboCur), koskMac, koskWin};
+    int sign = 0;
+    while (_pchlx->FGetTokSkipSemi(ptok))
     {
-        if (!_pchlx->FGetTokSkipSemi(ptok))
-        {
-            if (cactNegate > 0)
-                _Error(ertSyntax);
-            if (!fEofOk)
-                _Error(ertEof);
-            return fFalse;
-        }
-
-        switch (ptok->tt)
-        {
-        default:
-            if (cactNegate > 0)
-                _Error(ertSyntax);
-            return fTrue;
-        case ttLong:
-            if (cactNegate & 1)
-                ptok->lw = -ptok->lw;
-            return fTrue;
-        case ttSub:
-            cactNegate++;
-            break;
-        case ttModeStn:
-            _sm = smStn;
-            break;
-        case ttModeStz:
-            _sm = smStz;
-            break;
-        case ttModeSz:
-            _sm = smSz;
-            break;
-        case ttModeSt:
-            _sm = smSt;
-            break;
-        case ttModeByte:
-            _cbNum = size(byte);
-            break;
-        case ttModeShort:
-            _cbNum = size(short);
-            break;
-        case ttModeLong:
-            _cbNum = size(LegacyLong);
-            break;
-        case ttMacBo:
-            _bo = MacWin(kboCur, kboOther);
-            break;
-        case ttWinBo:
-            _bo = MacWin(kboOther, kboCur);
-            break;
-        case ttMacOsk:
-            _osk = koskMac;
-            break;
-        case ttWinOsk:
-            _osk = koskWin;
-            break;
-        }
+        MMI32 value = ptok->tt == ttLong ? ptok->lw : 0;
+        if (!mm_chunky_clean_token(&_format, &formats, ptok->tt, &value, &sign))
+            continue;
+        if (ptok->tt == ttLong)
+            ptok->lw = value;
+        if (sign)
+            _Error(ertSyntax);
+        return fTrue;
     }
+    if (sign)
+        _Error(ertSyntax);
+    if (!fEofOk)
+        _Error(ertEof);
+    return fFalse;
 }
 
 /***************************************************************************
@@ -449,7 +389,7 @@ void Compiler::_AppendString(PString pstnValue)
     LegacyLong cb;
     byte rgb[kcbMaxDataStn];
 
-    switch (_sm)
+    switch (_format.string_mode)
     {
     default:
         Bug("Invalid string mode");
@@ -486,7 +426,7 @@ void Compiler::_AppendNumber(LegacyLong lwValue)
     byte rgb[size(LegacyLong)];
 
     _GetRgbFromLw(lwValue, rgb);
-    if (!FError() && !_bsf.FReplace(rgb, _cbNum, _bsf.IbMac(), 0))
+    if (!FError() && !_bsf.FReplace(rgb, _format.number_bytes, _bsf.IbMac(), 0))
         _Error(ertOom);
 }
 
@@ -1058,7 +998,7 @@ bool Compiler::_FParseData(PToken ptok)
 
     LegacyLong cbNum;
     LegacyLong lw;
-    LegacyLong cbNumPrev = _cbNum;
+    LegacyLong cbNumPrev = _format.number_bytes;
     LegacyLong ps = psNil;
     bool fRet = fFalse;
 
@@ -1080,21 +1020,21 @@ bool Compiler::_FParseData(PToken ptok)
         case ttLong:
             if (ps == psHaveLw)
             {
-                SwapVars(&_cbNum, &cbNumPrev);
+                SwapVars(&_format.number_bytes, &cbNumPrev);
                 _AppendNumber(lw);
-                _cbNum = cbNumPrev;
+                _format.number_bytes = cbNumPrev;
                 ps = psNil;
             }
             if (ps == psNil)
             {
                 lw = ptok->lw;
-                cbNumPrev = _cbNum;
+                cbNumPrev = _format.number_bytes;
                 ps = psHaveLw;
             }
             else
             {
                 Assert(ps == psHaveBOr, 0);
-                if (cbNumPrev != _cbNum)
+                if (cbNumPrev != _format.number_bytes)
                 {
                     ptok->tt = ttError;
                     return fRet;
@@ -1112,9 +1052,9 @@ bool Compiler::_FParseData(PToken ptok)
             }
             if (ps == psHaveLw)
             {
-                SwapVars(&_cbNum, &cbNumPrev);
+                SwapVars(&_format.number_bytes, &cbNumPrev);
                 _AppendNumber(lw);
-                _cbNum = cbNumPrev;
+                _format.number_bytes = cbNumPrev;
                 ps = psNil;
             }
 
@@ -1131,17 +1071,17 @@ bool Compiler::_FParseData(PToken ptok)
                 break;
             case ttBo:
                 // insert the current byte order
-                cbNum = _cbNum;
-                _cbNum = size(short);
+                cbNum = _format.number_bytes;
+                _format.number_bytes = size(short);
                 _AppendNumber(kboCur);
-                _cbNum = cbNum;
+                _format.number_bytes = cbNum;
                 break;
             case ttOsk:
                 // insert the current osk
-                cbNum = _cbNum;
-                _cbNum = size(short);
-                _AppendNumber(_osk);
-                _cbNum = cbNum;
+                cbNum = _format.number_bytes;
+                _format.number_bytes = size(short);
+                _AppendNumber(_format.os_kind);
+                _format.number_bytes = cbNum;
                 break;
             default:
                 return fRet;
@@ -1278,7 +1218,7 @@ void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTagOrType ctg, ChunkNum
     }
 
     // write list to disk
-    if (!_FPrepWrite(fPack, pglb->CbOnFile(), ctg, cno, &blck) || !pglb->FWrite(&blck, _bo, _osk) ||
+    if (!_FPrepWrite(fPack, pglb->CbOnFile(), ctg, cno, &blck) || !pglb->FWrite(&blck, _format.byte_order, _format.os_kind) ||
         !_FEndWrite(fPack, ctg, cno, &blck))
     {
         _Error(ertOom);
@@ -1435,7 +1375,7 @@ void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTagOrType ctg, ChunkNu
     }
 
     // write list to disk
-    if (!_FPrepWrite(fPack, pggb->CbOnFile(), ctg, cno, &blck) || !pggb->FWrite(&blck, _bo, _osk) ||
+    if (!_FPrepWrite(fPack, pggb->CbOnFile(), ctg, cno, &blck) || !pggb->FWrite(&blck, _format.byte_order, _format.os_kind) ||
         !_FEndWrite(fPack, ctg, cno, &blck))
     {
         _Error(ertOom);
@@ -1580,7 +1520,7 @@ void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, 
     }
 
     // write list to disk
-    if (!_FPrepWrite(fPack, pgstb->CbOnFile(), ctg, cno, &blck) || !pgstb->FWrite(&blck, _bo, _osk) ||
+    if (!_FPrepWrite(fPack, pgstb->CbOnFile(), ctg, cno, &blck) || !pgstb->FWrite(&blck, _format.byte_order, _format.os_kind) ||
         !_FEndWrite(fPack, ctg, cno, &blck))
     {
         _Error(ertOom);
@@ -2043,10 +1983,10 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFi
     }
 
     _pmsnkError = pmsnk;
-    _sm = smStz;
-    _cbNum = size(LegacyLong);
-    _bo = kboCur;
-    _osk = koskCur;
+    _format.string_mode = smStz;
+    _format.number_bytes = size(LegacyLong);
+    _format.byte_order = kboCur;
+    _format.os_kind = koskCur;
 
     fReportBadTok = fTrue;
     while (_FGetCleanTok(&tok, fTrue))
@@ -2136,95 +2076,20 @@ PChunkyFile Compiler::PcflCompile(PFileByteStream pbsfSrc, PString pstnFile, PFi
     return pcfl;
 }
 
-/***************************************************************************
-    Keyword-tokentype mappings
-***************************************************************************/
-static LexerKeywordEntry _rgkeytt[] = {
-    PszLit("ITEM"),      ttItem,      PszLit("FREE"),       ttFree,       PszLit("VAR"),     ttVar,
-    PszLit("BYTE"),      ttModeByte,  PszLit("SHORT"),      ttModeShort,  PszLit("LONG"),    ttModeLong,
-    PszLit("CHUNK"),     ttChunk,     PszLit("ENDCHUNK"),   ttEndChunk,   PszLit("ADOPT"),   ttAdopt,
-    PszLit("CHILD"),     ttChild,     PszLit("PARENT"),     ttParent,     PszLit("BO"),      ttBo,
-    PszLit("OSK"),       ttOsk,       PszLit("String"),        ttModeStn,    PszLit("STZ"),     ttModeStz,
-    PszLit("ZString"),        ttModeSz,    PszLit("PascalString"),         ttModeSt,     PszLit("ALIGN"),   ttAlign,
-    PszLit("FILE"),      ttFile,      PszLit("PACKEDFILE"), ttPackedFile, PszLit("META"),    ttMeta,
-    PszLit("BITMAP"),    ttBitmap,    PszLit("MASK"),       ttMask,       PszLit("MIDI"),    ttMidi,
-    PszLit("SCRIPT"),    ttScript,    PszLit("SCRIPTPF"),   ttScriptP,    PszLit("DynamicArray"),      ttGl,
-    PszLit("AllocatedArray"),        ttAl,        PszLit("GeneralGroup"),         ttGg,         PszLit("AllocatedGroup"),      ttAg,
-    PszLit("StringTable_GST"),       ttGst,       PszLit("AllocatedStringTable"),        ttAst,        PszLit("MACBO"),   ttMacBo,
-    PszLit("WINBO"),     ttWinBo,     PszLit("MACOSK"),     ttMacOsk,     PszLit("WINOSK"),  ttWinOsk,
-    PszLit("LONER"),     ttLoner,     PszLit("CURSOR"),     ttCursor,     PszLit("PALETTE"), ttPalette,
-    PszLit("PREPACKED"), ttPrePacked, PszLit("PACK"),       ttPack,       PszLit("PACKFMT"), ttPackFmt,
-    PszLit("SUBFILE"),   ttSubFile,
-};
-
-#define kckeytt (size(_rgkeytt) / size(_rgkeytt[0]))
-
-/***************************************************************************
-    Constructor for the chunky compiler lexer.
-***************************************************************************/
 CompilerLexer::CompilerLexer(PFileByteStream pbsf, PString pstnFile) : CompilerLexer_PAR(pbsf, pstnFile)
 {
-    _pgstVariables = pvNil;
+    mm_chunky_lexer_init(&_chunky, sizeof(achar), KauaiCopyAllocator());
     AssertThis(0);
 }
 
-/***************************************************************************
-    Destructor for the chunky compiler lexer.
-***************************************************************************/
 CompilerLexer::~CompilerLexer(void)
 {
-    ReleasePpo(&_pgstVariables);
+    mm_chunky_lexer_dispose(&_chunky);
 }
 
-/***************************************************************************
-    Reads in the next token.  Resolves certain names to keyword tokens.
-***************************************************************************/
 bool CompilerLexer::FGetTok(PToken ptok)
 {
-    AssertThis(0);
-    AssertVarMem(ptok);
-    LegacyLong ikeytt;
-    LegacyLong istn;
-
-    for (;;)
-    {
-        if (!CompilerLexer_PAR::FGetTok(ptok))
-            return fFalse;
-
-        if (ttName != ptok->tt)
-            return fTrue;
-
-        // check for a keyword
-        for (ikeytt = 0; ikeytt < kckeytt; ikeytt++)
-        {
-            if (ptok->stn.FEqualSz(_rgkeytt[ikeytt].pszKeyword))
-            {
-                ptok->tt = _rgkeytt[ikeytt].tt;
-                return fTrue;
-            }
-        }
-
-        // if the token isn't SET, check for a variable
-        if (!ptok->stn.FEqualSz(PszLit("SET")))
-        {
-            // check for a variable
-            if (pvNil != _pgstVariables && _pgstVariables->FFindStn(&ptok->stn, &istn, fgstSorted))
-            {
-                ptok->tt = ttLong;
-                _pgstVariables->GetExtra(istn, &ptok->lw);
-            }
-            break;
-        }
-
-        // handle a SET
-        if (!_FDoSet(ptok))
-        {
-            ptok->tt = ttError;
-            break;
-        }
-    }
-
-    return fTrue;
+    return _FReadToken(ptok, &_chunky);
 }
 
 /***************************************************************************
@@ -2282,130 +2147,6 @@ bool CompilerLexer::FGetPath(Filename *pfni)
 #endif
 }
 
-/***************************************************************************
-    Handle a set command.
-***************************************************************************/
-bool CompilerLexer::_FDoSet(PToken ptok)
-{
-    AssertThis(0);
-    AssertVarMem(ptok);
-    LegacyLong tt;
-    LegacyLong lw;
-    LegacyLong istn;
-    bool fNegate;
-
-    if (!CompilerLexer_PAR::FGetTok(ptok) || ttName != ptok->tt)
-        return fFalse;
-
-    lw = 0;
-    istn = ivNil;
-    if (pvNil != _pgstVariables || pvNil != (_pgstVariables = StringTable_GST::PgstNew(size(LegacyLong))))
-    {
-        if (_pgstVariables->FFindStn(&ptok->stn, &istn, fgstSorted))
-            _pgstVariables->GetExtra(istn, &lw);
-        else if (!_pgstVariables->FInsertStn(istn, &ptok->stn, &lw))
-            istn = ivNil;
-    }
-
-    if (!CompilerLexer_PAR::FGetTok(ptok))
-        return fFalse;
-
-    switch (ptok->tt)
-    {
-    case ttInc:
-        lw++;
-        break;
-    case ttDec:
-        lw--;
-        break;
-
-    case ttAssign:
-    case ttAAdd:
-    case ttASub:
-    case ttAMul:
-    case ttADiv:
-    case ttAMod:
-    case ttABOr:
-    case ttABAnd:
-    case ttABXor:
-    case ttAShr:
-    case ttAShl:
-        tt = ptok->tt;
-        fNegate = fFalse;
-        for (;;)
-        {
-            if (!CompilerLexer_PAR::FGetTok(ptok))
-                return fFalse;
-            if (ttLong == ptok->tt)
-                break;
-            if (ttName == ptok->tt)
-            {
-                LegacyLong istnT;
-                if (!_pgstVariables->FFindStn(&ptok->stn, &istnT, fgstSorted))
-                    return fFalse;
-                _pgstVariables->GetExtra(istnT, &ptok->lw);
-                ptok->tt = ttLong;
-                break;
-            }
-            if (ttSub != ptok->tt)
-                return fFalse;
-            fNegate = !fNegate;
-        }
-        if (fNegate)
-            ptok->lw = -ptok->lw;
-
-        switch (tt)
-        {
-        case ttAssign:
-            lw = ptok->lw;
-            break;
-        case ttAAdd:
-            lw += ptok->lw;
-            break;
-        case ttASub:
-            lw -= ptok->lw;
-            break;
-        case ttAMul:
-            lw *= ptok->lw;
-            break;
-        case ttADiv:
-            if (ptok->lw == 0)
-                return fFalse;
-            lw /= ptok->lw;
-            break;
-        case ttAMod:
-            if (ptok->lw == 0)
-                return fFalse;
-            lw %= ptok->lw;
-            break;
-        case ttABOr:
-            lw |= ptok->lw;
-            break;
-        case ttABAnd:
-            lw &= ptok->lw;
-            break;
-        case ttABXor:
-            lw ^= ptok->lw;
-            break;
-        case ttAShr:
-            // do logical shift
-            lw = (LegacyUlong)lw >> ptok->lw;
-            break;
-        case ttAShl:
-            lw <<= ptok->lw;
-            break;
-        }
-        break;
-
-    default:
-        return fFalse;
-    }
-
-    if (ivNil != istn)
-        _pgstVariables->PutExtra(istn, &lw);
-    return fTrue;
-}
-
 #ifdef DEBUG
 /***************************************************************************
     Assert that the CompilerLexer is a valid object.
@@ -2413,7 +2154,7 @@ bool CompilerLexer::_FDoSet(PToken ptok)
 void CompilerLexer::AssertValid(LegacyUlong grf)
 {
     CompilerLexer_PAR::AssertValid(grf);
-    AssertNilOrPo(_pgstVariables, 0);
+    Assert(_chunky.variables.unit_bytes == sizeof(achar), "bad Chunky lexer text width");
 }
 
 /***************************************************************************
@@ -2423,7 +2164,8 @@ void CompilerLexer::MarkMem(void)
 {
     AssertValid(0);
     CompilerLexer_PAR::MarkMem();
-    MarkMemObj(_pgstVariables);
+    MarkPv(_chunky.storage.buffers[0].data);
+    MarkPv(_chunky.storage.buffers[1].data);
 }
 #endif
 

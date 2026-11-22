@@ -2,6 +2,7 @@
    Licensed under the MIT License. */
 
 #include "util.h"
+#include "mm/chunky_lexer.h"
 #include <cstring>
 ASSERTNAME
 
@@ -120,16 +121,22 @@ void LexerBase::_ReadNumberToken(void *context, MMLexToken *token, unsigned firs
 
 bool LexerBase::FGetTok(PToken ptok)
 {
+    return _FReadToken(ptok, nullptr);
+}
+
+bool LexerBase::_FReadToken(PToken ptok, MMChunkyLexer *chunky)
+{
     AssertThis(0);
     AssertVarMem(ptok);
     NumberContext input{this, ptok};
     MMLexToken token;
     ptok->stn.SetNil();
-    const bool found = mm_lexer_next(&_lexer, &token, _ReadNumberToken, &input) != 0;
+    const bool found = chunky ? mm_chunky_lexer_next(chunky, &_lexer, &token, _ReadNumberToken, &input) != 0
+                              : mm_lexer_next(&_lexer, &token, _ReadNumberToken, &input) != 0;
     ptok->tt = token.kind;
     if (token.kind == ttLong)
         ptok->lw = token.number;
-    else if (token.text.length)
+    if (token.text.length)
         CopyLexText(token.text, &ptok->stn);
     return found;
 }

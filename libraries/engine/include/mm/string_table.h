@@ -37,6 +37,8 @@ extern "C"
      * comparison policy and midpoint behavior; a miss publishes insertion position. */
     int mm_strings_find(const MMStringTable *, const void *, MMU32, MMStringCompare, void *,
                               MMU32 *);
+    /* Reserve callback for a view whose context is an MMCollectionStorage. */
+    int mm_strings_reserve_storage(void *, MMStringTable *, MMU32, MMU32);
     /* Swap only offset words; extra bytes are never interpreted. */
     void mm_strings_swap_offsets(MMStringTable *);
     /* Same-width legacy conversion walks physical packed strings, independent of
