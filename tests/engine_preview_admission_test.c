@@ -3,6 +3,9 @@
 #include "mm/model_resource.h"
 #include "mm/preview_actor.h"
 #include "mm/scene_data.h"
+#include "mm/background_resource.h"
+#include "mm/template_create.h"
+#include "mm/template_runtime.h"
 #include "mm/text_resource.h"
 #include <assert.h>
 #include <stdio.h>
@@ -20,7 +23,7 @@ typedef struct Host
     int assets, partial_asset;
     int calls, fail_at, failure, clears, groups, owned, releases, stats;
     int body_missing, empty_actions, bad_cels, unhealthy, missing_child, group_result, header_result;
-    int offstage, names[4], appended, rotations, poses, saved, syncs, seeks, backgrounds;
+    int offstage, names[4], appended, rests, poses, saved, syncs, seeks, backgrounds;
     MMU32 loaded[4], background_number;
     int token[8], allocations, allocation_fail;
     unsigned char event_data[16];
@@ -116,7 +119,7 @@ static int fetch(void *v, MMU32 type, MMU32 number, MMTemplateOwner **out)
 {
     Host *h = (Host *)v;
     int r = step(h);
-    assert(type == 77 && number == 9);
+    assert(type == MM_TMPL && number == 9);
     if (r > 0 || h->partial_asset)
     {
         *out = mm_template_owner_create(&h->template_host, 0);
@@ -128,7 +131,7 @@ static int fetch_model(void *v, MMU32 type, MMU32 number, MMModelOwner **out)
 {
     Host *h = (Host *)v;
     int r = step(h);
-    assert(type == 77 && number == 9);
+    assert(type == MM_TEMPLATE_BMDL && number == 9);
     if (r > 0)
     {
         *out = mm_model_owner_create(&h->model_host);
@@ -171,16 +174,23 @@ static int cels(void *v, void *t, MMU32 i, MMI32 *out)
         return 0;
     return step(h);
 }
-static int action_child(void *v, MMU32 type, MMU32 number, MMU32 slot, MMPreviewChunk *out)
+static int action_entry(void *v, MMU32 i, MMChunkEntry *out)
 {
     (void)v;
-    (void)type;
-    assert(number == 9);
-    if (slot == 1)
-        return 0;
+    assert(i == 0);
     memset(out, 0, sizeof(*out));
-    out->type = 22;
+    out->type = MM_TMPL;
+    out->number = 9;
+    out->child_count = 1;
+    return 1;
+}
+static int action_link(void *v, MMU32 parent, MMU32 i, MMChunkChild *out)
+{
+    (void)v;
+    assert(parent == 0 && i == 0);
+    out->type = MM_ACTN;
     out->number = 50;
+    out->slot = 0;
     return 1;
 }
 static int scene_child(void *v, MMU32 number, MMU32 slot, MMU32 type, MMU32 *out)
@@ -192,35 +202,17 @@ static int scene_child(void *v, MMU32 number, MMU32 slot, MMU32 type, MMU32 *out
     *out = slot + 90;
     return 1;
 }
-static MMU32 chunks(void *v)
-{
-    (void)v;
-    return 4;
-}
-static void chunk(void *v, MMU32 i, MMPreviewChunk *out)
-{
-    (void)v;
-    memset(out, 0, sizeof(*out));
-    out->type = 22;
-    out->number = i ? 50 : 51;
-    out->named = i != 1;
-}
-static int action_add(void *v, MMU32 i, MMU32 n, MMI32 name)
+static int publish_action(void *v, MMU32 i, const MMPreviewLiveAction *action)
 {
     Host *h = (Host *)v;
     int r = step(h);
-    assert(n == i + 2);
+    assert(action == mm_preview_live_action(&h->live, i) && action->cels == i + 2);
     if (r > 0)
     {
-        h->names[i] = name;
+        h->names[i] = action->has_chunk ? (MMI32)action->chunk_number : -1;
         ++h->appended;
     }
     return r;
-}
-static MMU32 action_cels(void *v, MMU32 i)
-{
-    (void)v;
-    return i + 2;
 }
 static int pose(void *v, void *t, void *b, MMU32 action, MMU32 cel)
 {
@@ -230,26 +222,11 @@ static int pose(void *v, void *t, void *b, MMU32 action, MMU32 cel)
     ++h->poses;
     return step(h);
 }
-static void rest(void *v, void *t, unsigned short *a)
-{
-    (void)v;
-    (void)t;
-    a[0] = 11;
-    a[1] = 12;
-    a[2] = 13;
-}
-static void rotate(void *v, MMActorMatrix *m, int axis, unsigned short a, int post)
+static void rest_pose(void *v, MMTemplateOwner *t, MMBodyOwner *b)
 {
     Host *h = (Host *)v;
-    assert(axis == h->rotations++ && a == axis + 11 && post == (axis != 0));
-    if (!axis)
-        memset(m, 0, sizeof(*m));
-    m->m[axis][axis] = a;
-}
-static void locate(void *v, void *b, const MMActorMatrix *m)
-{
-    Host *h = (Host *)v;
-    assert(b == h->live.assets.body && m->m[0][0] == 11 && m->m[1][1] == 12 && m->m[2][2] == 13);
+    assert(t == h->live.assets.tmpl && b == h->live.assets.body);
+    ++h->rests;
 }
 static int background(void *v, const MMPreviewAdmissionTag *t, int virtual_scene)
 {
@@ -362,7 +339,7 @@ static void stats(void *v)
 {
     ++((Host *)v)->stats;
 }
-static void setup(Host *h, MMPreviewAdmission *p, MMPreviewAdmissionServices *s, MMStorageAllocator *a, int kind)
+static void setup(Host *h, MMPreviewAdmission *p, MMPreviewAdmissionServices *s, MMStorageAllocator *a, MMU32 type)
 {
     memset(h, 0, sizeof(*h));
     memset(p, 0, sizeof(*p));
@@ -382,10 +359,9 @@ static void setup(Host *h, MMPreviewAdmission *p, MMPreviewAdmissionServices *s,
     h->model_host.objects = &h->asset_storage;
     h->model_host.renderer = &h->models;
     p->live = &h->live;
-    p->type = 77;
+    p->type = type;
     p->number = 9;
     p->cache = 1;
-    p->kind = kind;
     s->context = h;
     s->allocator = a;
     s->clear = clear_asset;
@@ -398,15 +374,13 @@ static void setup(Host *h, MMPreviewAdmission *p, MMPreviewAdmissionServices *s,
     s->prop = prop;
     s->actions = actions;
     s->cels = cels;
-    s->action_child = action_child;
-    s->chunks = chunks;
-    s->chunk = chunk;
-    s->action_add = action_add;
-    s->action_cels = action_cels;
+    s->action_chunks.context = h;
+    s->action_chunks.count = 1;
+    s->action_chunks.entry = action_entry;
+    s->action_chunks.child = action_link;
+    s->publish_action = publish_action;
     s->pose = pose;
-    s->rest = rest;
-    s->rotate = rotate;
-    s->locate = locate;
+    s->rest_pose = rest_pose;
     s->model_fetch = fetch_model;
     s->background = background;
     s->scene.context = h;
@@ -439,10 +413,12 @@ static void admission_tests(void)
     MMPreviewAdmission p;
     MMPreviewAdmissionServices s;
     MMStorageAllocator a;
-    int kind, n, i, failure, r, allocations, actor_call = 0, sync_call = 0, seek_call = 0;
+    static const MMU32 types[] = {MM_TMPL, MM_TEMPLATE_BMDL, MM_BACKGROUND, MM_SCENE_CHUNK, MM_ACTOR_CHUNK};
+    size_t kind;
+    int n, i, failure, r, allocations, actor_call = 0, sync_call = 0, seek_call = 0;
     for (failure = -1; failure >= -2; --failure)
     {
-        setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
+        setup(&h, &p, &s, &a, MM_TMPL);
         h.fail_at = 1;
         h.failure = failure;
         h.partial_asset = 1;
@@ -451,14 +427,20 @@ static void admission_tests(void)
         assert(h.assets == (failure == -2) && !!h.live.assets.tmpl == (failure == -2));
         dispose(&h);
     }
-    for (kind = MM_PREVIEW_TEMPLATE; kind <= MM_PREVIEW_ACTOR; ++kind)
+    setup(&h, &p, &s, &a, MM_TMPL);
+    h.allocation_fail = 1;
+    assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_MEMORY);
+    assert(!h.live.actions.count && !h.appended && !h.assets && h.clears == 2);
+    dispose(&h);
+    for (kind = 0; kind < sizeof(types) / sizeof(types[0]); ++kind)
     {
-        setup(&h, &p, &s, &a, kind);
+        setup(&h, &p, &s, &a, types[kind]);
         assert(mm_preview_admit(&p, 1, &s) == MM_PREVIEW_ADMIT_OK && h.live.status.ready && h.stats == 1);
         n = h.calls;
-        if (kind == MM_PREVIEW_TEMPLATE)
-            assert(h.appended == 2 && h.names[0] == 2 && h.names[1] == -1 && h.rotations == 3 && h.live.status.prop);
-        if (kind == MM_PREVIEW_SCENE)
+        if (types[kind] == MM_TMPL)
+            assert(h.live.actions.count == 2 && h.appended == 2 && h.names[0] == 50 && h.names[1] == -1 &&
+                   h.rests == 1 && h.live.status.prop);
+        if (types[kind] == MM_SCENE_CHUNK)
         {
             assert(h.owned == 2 && h.loaded[0] == 100 && h.loaded[1] == 101 && h.background_number == 6 &&
                    h.live.initial_camera == 7 && h.live.cameras.count == 2 && h.live.original_actors == 2 &&
@@ -468,13 +450,13 @@ static void admission_tests(void)
             sync_call = n - 1;
             seek_call = n;
         }
-        if (kind == MM_PREVIEW_ACTOR)
+        if (types[kind] == MM_ACTOR_CHUNK)
             assert(h.live.status.first == 2 && h.live.status.last == 19 && h.loaded[0] == 9);
         dispose(&h);
         for (failure = -2; failure <= 0; ++failure)
             for (i = 1; i <= n; ++i)
             {
-                setup(&h, &p, &s, &a, kind);
+                setup(&h, &p, &s, &a, types[kind]);
                 h.fail_at = i;
                 h.failure = failure;
                 r = mm_preview_admit(&p, 0, &s);
@@ -482,71 +464,73 @@ static void admission_tests(void)
                 if (failure < 0)
                     assert(r == (failure == -1 ? MM_PREVIEW_ADMIT_MEMORY : MM_PREVIEW_ADMIT_EXCEPTION));
                 if (failure == -1)
-                    assert(!h.live.status.ready && !h.owned && h.clears == 2);
+                    assert(!h.live.status.ready && !h.owned && h.clears == 2 && !h.live.actions.count);
+                if (failure == -2 && types[kind] == MM_TMPL)
+                    assert(h.live.actions.count == (MMU32)h.appended);
                 dispose(&h);
             }
     }
-    setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
+    setup(&h, &p, &s, &a, MM_TMPL);
     h.body_missing = 1;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_DEPENDENCIES && p.mark_chunk && !h.poses && h.appended == 2);
     dispose(&h);
-    setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
+    setup(&h, &p, &s, &a, MM_TMPL);
     h.bad_cels = 1;
-    assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_OK && p.action_count == 1);
+    assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_OK && h.live.actions.count == 1);
     dispose(&h);
-    setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
+    setup(&h, &p, &s, &a, MM_TMPL);
     h.empty_actions = 1;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_DEPENDENCIES && !h.live.status.ready);
     dispose(&h);
-    setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
+    setup(&h, &p, &s, &a, MM_TMPL);
     h.unhealthy = 1;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_DEPENDENCIES && p.mark_chunk);
     dispose(&h);
-    setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
+    setup(&h, &p, &s, &a, MM_SCENE_CHUNK);
     h.missing_child = 1;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_ACTOR_CHILD && p.detail == 10 && p.mark_chunk &&
            h.clears == 1);
     dispose(&h);
     for (i = 2; i <= 3; ++i)
     {
-        setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
+        setup(&h, &p, &s, &a, MM_SCENE_CHUNK);
         h.group_result = i;
         assert(mm_preview_admit(&p, 0, &s) == (i == 2 ? MM_PREVIEW_ADMIT_START_READ : MM_PREVIEW_ADMIT_START_MISSING));
         dispose(&h);
     }
-    setup(&h, &p, &s, &a, MM_PREVIEW_ACTOR);
+    setup(&h, &p, &s, &a, MM_ACTOR_CHUNK);
     h.offstage = 1;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_OFFSTAGE && !h.owned);
     dispose(&h);
-    setup(&h, &p, &s, &a, MM_PREVIEW_UNKNOWN);
+    setup(&h, &p, &s, &a, 0x12345678);
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_UNSUPPORTED);
     p.cache = 0;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_CACHE);
     dispose(&h);
-    setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
+    setup(&h, &p, &s, &a, MM_SCENE_CHUNK);
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_OK);
     allocations = h.allocations;
     dispose(&h);
     for (i = 1; i <= allocations; ++i)
     {
-        setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
+        setup(&h, &p, &s, &a, MM_SCENE_CHUNK);
         h.allocation_fail = i;
         assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_MEMORY && !h.groups && h.clears == 2 && !h.owned);
         dispose(&h);
     }
-    setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
+    setup(&h, &p, &s, &a, MM_SCENE_CHUNK);
     h.fail_at = actor_call;
     h.failure = 0;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_ACTOR_LOAD && h.saved == 1 && h.clears == 2 &&
            h.releases == 2 && !p.mark_chunk);
     dispose(&h);
-    setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
+    setup(&h, &p, &s, &a, MM_SCENE_CHUNK);
     h.fail_at = sync_call;
     h.failure = 0;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_EXTERNAL && h.clears == 1 && h.owned == 2 &&
            h.live.original_actors == 2 && !h.live.status.ready);
     dispose(&h);
-    setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
+    setup(&h, &p, &s, &a, MM_SCENE_CHUNK);
     h.fail_at = seek_call;
     h.failure = 0;
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_DEPENDENCIES && h.clears == 2 && !h.owned && p.mark_chunk);
@@ -555,14 +539,14 @@ static void admission_tests(void)
     {
         if (i == 1)
             continue;
-        setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
+        setup(&h, &p, &s, &a, MM_SCENE_CHUNK);
         h.fail_at = 4;
         h.failure = i;
         assert(mm_preview_admit(&p, 0, &s) == (i ? MM_PREVIEW_ADMIT_FRAME_READ : MM_PREVIEW_ADMIT_FRAME_MISSING) &&
                h.backgrounds == 1 && h.clears == 1);
         dispose(&h);
     }
-    setup(&h, &p, &s, &a, MM_PREVIEW_SCENE);
+    setup(&h, &p, &s, &a, MM_SCENE_CHUNK);
     {
         MMPreviewLiveScene d;
         d.number = 9;
@@ -577,7 +561,7 @@ static void admission_tests(void)
                h.live.virtual_scene && h.live.status.frame == 1 && h.syncs == 1 && h.seeks == 1);
     }
     dispose(&h);
-    setup(&h, &p, &s, &a, MM_PREVIEW_TEMPLATE);
+    setup(&h, &p, &s, &a, MM_TMPL);
     assert(mm_preview_admit(&p, 0, &s) == MM_PREVIEW_ADMIT_OK);
     assert(mm_preview_admission_pose(&p, 2, 0, &s) == MM_PREVIEW_ADMIT_POSE_RANGE && h.live.status.ready);
     assert(mm_preview_admission_pose(&p, 1, 3, &s) == MM_PREVIEW_ADMIT_POSE_RANGE && h.live.status.ready);
@@ -689,7 +673,7 @@ static void stats_tests(void)
     MMBodyPartBinding bindings[5];
     MMBodyShape *shape;
     int i;
-    setup(&h, &admission, &services, &allocator, MM_PREVIEW_TEMPLATE);
+    setup(&h, &admission, &services, &allocator, MM_TMPL);
     h.live.assets.body = new_body(&h);
     shape = &mm_body_owner_state(h.live.assets.body)->shape;
     memset(bindings, 0, sizeof(bindings));

@@ -1,9 +1,12 @@
 #include "template_renderer.h"
 #include "asset_resources.h"
 #include "body_renderer.h"
+#include "brender.h"
 #include "mm/movie_session.h"
 #include "mm/template_runtime.h"
 #include <string.h>
+
+typedef char TemplateMatrixSize[sizeof(br_matrix34) == sizeof(MMActorMatrix) ? 1 : -1];
 
 MMTextNames *mm_brender_text_action_names(void)
 {
@@ -485,6 +488,19 @@ void mm_brender_template_rest(MMTemplateOwner *owner, unsigned short *x, unsigne
     *x = state->x;
     *y = state->y;
     *z = state->z;
+}
+
+void mm_brender_template_rest_pose(MMTemplateOwner *owner, MMBodyOwner *body)
+{
+    unsigned short x, y, z;
+    br_matrix34 matrix;
+    MMActorBodyPose pose = {0};
+    mm_brender_template_rest(owner, &x, &y, &z);
+    BrMatrix34RotateX(&matrix, x);
+    BrMatrix34PostRotateY(&matrix, y);
+    BrMatrix34PostRotateZ(&matrix, z);
+    memcpy(&pose.orientation, &matrix, sizeof(pose.orientation));
+    mm_body_locate(body, &pose, &mm_kauai_body_renderer()->edit.runtime);
 }
 
 int mm_brender_template_action_name(MMTemplateOwner *owner, MMI32 id, const MMStringValue *name)

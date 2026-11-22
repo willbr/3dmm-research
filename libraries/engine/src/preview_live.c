@@ -91,6 +91,7 @@ int mm_preview_live_init(MMPreviewLive *p, const MMStorageAllocator *a)
     array_init(&p->actors, sizeof(void *), a);
     array_init(&p->cameras, sizeof(MMPreviewLiveCamera), a);
     array_init(&p->original_cameras, sizeof(MMPreviewLiveCamera), a);
+    array_init(&p->actions, sizeof(MMPreviewLiveAction), a);
     return 1;
 }
 void mm_preview_live_clear(MMPreviewLive *p, const MMPreviewLiveServices *s)
@@ -100,6 +101,7 @@ void mm_preview_live_clear(MMPreviewLive *p, const MMPreviewLiveServices *s)
     memset(&p->assets, 0, sizeof(p->assets));
     p->original_actors = p->initial_camera = 0;
     p->cameras.count = p->original_cameras.count = 0;
+    p->actions.count = 0;
     p->virtual_scene = 0;
     memset(&p->status, 0, sizeof(p->status));
     memset(&p->publication, 0, sizeof(p->publication));
@@ -112,6 +114,7 @@ void mm_preview_live_clear(MMPreviewLive *p, const MMPreviewLiveServices *s)
 void mm_preview_live_dispose(MMPreviewLive *p, const MMPreviewLiveServices *s)
 {
     mm_preview_live_clear(p, s);
+    mm_storage_dispose(&p->actions.storage);
     mm_storage_dispose(&p->original_cameras.storage);
     mm_storage_dispose(&p->cameras.storage);
     mm_storage_dispose(&p->actors.storage);
@@ -128,6 +131,24 @@ const MMPreviewActor *mm_preview_live_actor_view(const MMPreviewLive *p, MMU32 i
 {
     const void *handle = mm_preview_live_actor(p, index);
     return handle && p->actor_view ? p->actor_view(handle) : NULL;
+}
+
+const MMPreviewLiveAction *mm_preview_live_action(const MMPreviewLive *p, MMU32 index)
+{
+    return index < p->actions.count ? (const MMPreviewLiveAction *)data(&p->actions) + index : NULL;
+}
+
+int mm_preview_live_action_add(MMPreviewLive *p, const MMPreviewLiveAction *action, void *context,
+                               MMPreviewActionPublish *publish_action)
+{
+    MMU32 index = p->actions.count;
+    int result;
+    if (!add(&p->actions, action))
+        return -1;
+    result = publish_action ? publish_action(context, index, mm_preview_live_action(p, index)) : 1;
+    if (result <= 0)
+        p->actions.count = index;
+    return result;
 }
 
 MMBackgroundPreviewOwner *mm_preview_live_exchange_background(MMPreviewLive *p, MMBackgroundPreviewOwner *next)

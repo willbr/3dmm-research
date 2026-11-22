@@ -1196,6 +1196,10 @@ entrance clock, and actor drafts restore both the clock and the actor's draw
 order. It owns the selected background, template, body and standalone model
 across admission, replacement and clear. It counts visible body parts and
 prepared model faces directly, and the facade publishes those counts.
+Preview classifies selected chunks in C89. Its live action catalogue owns the
+cel counts and linked action IDs used to admit poses. The facade publishes
+the display names, and the typed BRender C binding applies the template's
+initial rest pose.
 Preview picking now
 also uses C89 for validation, coordinates, camera/temporary ownership, stable
 body copying, nearest-hit/texture policy and

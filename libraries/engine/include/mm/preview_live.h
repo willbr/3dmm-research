@@ -24,6 +24,12 @@ extern "C"
         MMI32 frame;
         MMU32 camera;
     } MMPreviewLiveCamera;
+    typedef struct MMPreviewLiveAction
+    {
+        MMU32 cels, chunk_number;
+        int has_chunk;
+    } MMPreviewLiveAction;
+    typedef int MMPreviewActionPublish(void *, MMU32 action, const MMPreviewLiveAction *);
     typedef struct MMPreviewLiveArray
     {
         MMCollectionStorage storage;
@@ -51,7 +57,7 @@ extern "C"
     } MMPreviewAssets;
     typedef struct MMPreviewLive
     {
-        MMPreviewLiveArray scenes, props, actors, cameras, original_cameras;
+        MMPreviewLiveArray scenes, props, actors, cameras, original_cameras, actions;
         MMPreviewLiveStatus status;
         MMPreviewAssets assets;
         MMPreviewActorView *actor_view;
@@ -132,6 +138,10 @@ extern "C"
     void mm_preview_live_dispose(MMPreviewLive *, const MMPreviewLiveServices *);
     void *mm_preview_live_actor(const MMPreviewLive *, MMU32);
     const struct MMPreviewActor *mm_preview_live_actor_view(const MMPreviewLive *, MMU32);
+    const MMPreviewLiveAction *mm_preview_live_action(const MMPreviewLive *, MMU32);
+    /* Publish after staging the action. A failed presentation discards that
+     * action and retains the preceding prefix. Allocation failure returns -1. */
+    int mm_preview_live_action_add(MMPreviewLive *, const MMPreviewLiveAction *, void *, MMPreviewActionPublish *);
     void mm_preview_live_refresh_geometry(MMPreviewLive *);
     /* Take the prepared background and transfer the previous reference to the caller. */
     struct MMBackgroundPreviewOwner *mm_preview_live_exchange_background(MMPreviewLive *,

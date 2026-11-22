@@ -36,6 +36,7 @@ int mm_brender_template_is_accessory(MMTemplateOwner *, MMI32 set);
 int mm_brender_template_accessory_set(MMTemplateOwner *, MMI32 set, void *out);
 int mm_brender_template_same_accessory(MMTemplateOwner *, MMI32 first, MMI32 second);
 void mm_brender_template_rest(MMTemplateOwner *, unsigned short *x, unsigned short *y, unsigned short *z);
+void mm_brender_template_rest_pose(MMTemplateOwner *, struct MMBodyOwner *);
 int mm_brender_template_action_name(MMTemplateOwner *, MMI32 action, const MMStringValue *);
 /* Opaque scalar outputs use the C engine's four-byte fixed-point layout. */
 int mm_brender_template_set_cel(MMTemplateOwner *, struct MMBodyOwner *, MMI32 action, MMI32 cel, void *distance);

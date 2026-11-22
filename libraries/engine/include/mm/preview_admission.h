@@ -8,11 +8,6 @@
 extern "C"
 {
 #endif
-    typedef struct MMPreviewChunk
-    {
-        MMU32 type, number, stored;
-        int packed, named;
-    } MMPreviewChunk;
     typedef struct MMPreviewBudgetServices
     {
         void *context;
@@ -31,20 +26,11 @@ extern "C"
     int mm_preview_budget(const MMPreviewBudgetServices *, MMChunkEntry *failed);
     struct MMArchiveReader;
     int mm_preview_archive_budget(const struct MMArchiveReader *, MMChunkEntry *failed);
-    enum
-    {
-        MM_PREVIEW_TEMPLATE,
-        MM_PREVIEW_MODEL,
-        MM_PREVIEW_BACKGROUND,
-        MM_PREVIEW_SCENE,
-        MM_PREVIEW_ACTOR,
-        MM_PREVIEW_UNKNOWN
-    };
     typedef struct MMPreviewAdmission
     {
         MMPreviewLive *live;
-        MMU32 type, number, action_count, detail;
-        int kind, cache, mark_chunk;
+        MMU32 type, number, detail;
+        int cache, mark_chunk;
     } MMPreviewAdmission;
     typedef struct MMPreviewAdmissionTag
     {
@@ -65,15 +51,10 @@ extern "C"
         int (*prop)(void *, void *);
         MMI32 (*actions)(void *, void *);
         int (*cels)(void *, void *, MMU32, MMI32 *);
-        int (*action_child)(void *, MMU32 type, MMU32 number, MMU32 slot, MMPreviewChunk *);
-        MMU32 (*chunks)(void *);
-        void (*chunk)(void *, MMU32, MMPreviewChunk *);
-        int (*action_add)(void *, MMU32 action, MMU32 cels, MMI32 name_index);
-        MMU32 (*action_cels)(void *, MMU32);
+        MMChunkAccess action_chunks;
+        MMPreviewActionPublish *publish_action;
         int (*pose)(void *, void *tmpl, void *body, MMU32 action, MMU32 cel);
-        void (*rest)(void *, void *, unsigned short angles[3]);
-        void (*rotate)(void *, MMActorMatrix *, int axis, unsigned short, int post);
-        void (*locate)(void *, void *, const MMActorMatrix *);
+        void (*rest_pose)(void *, struct MMTemplateOwner *, struct MMBodyOwner *);
         int (*model_fetch)(void *, MMU32, MMU32, struct MMModelOwner **);
         int (*background)(void *, const MMPreviewAdmissionTag *, int virtual_scene);
         MMMovieSceneReader scene; /* Movie statuses, with negative host failures as below. */
@@ -117,7 +98,6 @@ extern "C"
      * Selection memory failure clears the asset; ordinary early failures retain completed
      * prefixes, and final dependency failure clears and marks the selected chunk.
      * Other exceptions retain asset prefixes and are rethrown by the typed host.
-     * Input kind is the host's classification of the original chunk type.
      * Pose exceptions retain state; ordinary pose-effect failure clears ready.
      * Admission is a transient borrowed record, not a second asset owner. */
     int mm_preview_admit(MMPreviewAdmission *, int preserve_framing, const MMPreviewAdmissionServices *);

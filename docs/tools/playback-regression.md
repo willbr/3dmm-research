@@ -22315,3 +22315,27 @@ order. Seek and playback order also matched the retained retail and V3DMM
 captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-assets`.
+
+## C89 Preview action catalogue (22 November 2026)
+
+Preview classifies selected chunk types in C89. Its live owner stores the
+action cel counts and linked ACTN identities. Pose admission reads the live
+catalogue. The facade formats named and unnamed actions for callers, and
+the C BRender binding applies the initial template rest matrix.
+
+The C89 fixtures cover catalogue allocation failure and partial action
+publication. The admission trace for 45 actors, 21 props and standalone
+geometry reproduced the action names, cel counts, pose results and selection
+errors byte for byte. All Preview traces and the actor image matched
+49,623,389 bytes. Three storyboard packages reproduced 48 payloads and their
+child links. The 188 retail-content camera traces, five World snapshots,
+Studio saves and canvas captures, and the headless Marcus startup canvas
+also matched. All 250 selected test runs passed. The existing `scene-load`
+assertion reproduced its 63,224-byte trace and fingerprint `0D666753`.
+
+The four runs in suite `20261122T170937Z-b14f5998` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order also matched the retained retail and V3DMM
+captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-actions`.

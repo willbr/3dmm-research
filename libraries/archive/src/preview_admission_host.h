@@ -37,13 +37,6 @@ struct Preview::Impl::AdmissionHost
         p.type = asset.type;
         p.number = asset.number;
         p.cache = impl->cache != nullptr;
-        p.action_count = static_cast<MMU32>(impl->info.actions.size());
-        p.kind = asset.type == kctgTmpl   ? MM_PREVIEW_TEMPLATE
-                 : asset.type == kctgBmdl ? MM_PREVIEW_MODEL
-                 : asset.type == kctgBkgd ? MM_PREVIEW_BACKGROUND
-                 : asset.type == kctgScen ? MM_PREVIEW_SCENE
-                 : asset.type == kctgActr ? MM_PREVIEW_ACTOR
-                                          : MM_PREVIEW_UNKNOWN;
         return p;
     }
     bool Result(const MMPreviewAdmission &p, int r)
@@ -140,63 +133,33 @@ struct Preview::Impl::AdmissionHost
                 return mm_brender_template_cel_count(static_cast<PTemplate>(t), action, out);
             });
         };
-        s.action_child = [](void *v, MMU32 type, MMU32 number, MMU32 slot, MMPreviewChunk *out) -> int {
-            auto &h = *static_cast<AdmissionHost *>(v);
-            const auto &graph = h.sceneSource.graph;
-            MMChunkAccess chunks;
-            graph.access(graph.context, &chunks);
-            MMU32 child;
-            if (mm_chunk_link_number(&chunks, type, number, slot, kctgActn, &child) != MM_CHUNK_OK)
-                return 0;
-            *out = {};
-            out->type = kctgActn;
-            out->number = child;
-            return 1;
-        };
-        s.chunks = [](void *v) -> MMU32 {
-            return static_cast<MMU32>(static_cast<AdmissionHost *>(v)->impl->assets.Chunks().size());
-        };
-        s.chunk = [](void *v, MMU32 n, MMPreviewChunk *out) {
-            const auto &c = static_cast<AdmissionHost *>(v)->impl->assets.Chunks()[n];
-            *out = {c.id.type, c.id.number, c.storedBytes, c.packed, !c.name.empty()};
-        };
-        s.action_add = [](void *v, MMU32 action, MMU32 count, MMI32 name) -> int {
+        s.publish_action = [](void *v, MMU32 action, const MMPreviewLiveAction *entry) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
+                const std::string *name = nullptr;
+                if (entry->has_chunk)
+                {
+                    const auto &chunks = h.impl->assets.Chunks();
+                    const Id id = {kctgActn, entry->chunk_number};
+                    const auto match = std::find_if(chunks.begin(), chunks.end(), [&](const Chunk &chunk) {
+                        return chunk.id == id && !chunk.name.empty();
+                    });
+                    if (match != chunks.end())
+                        name = &match->name;
+                }
                 PreviewAction a;
-                a.name = name < 0 ? "Action " + std::to_string(action)
-                                  : std::to_string(action) + ": " + h.impl->assets.Chunks()[name].name;
-                a.celCount = count;
-                h.impl->info.actions.push_back(a);
+                a.name = name ? std::to_string(action) + ": " + *name : "Action " + std::to_string(action);
+                a.celCount = entry->cels;
+                h.impl->info.actions.push_back(std::move(a));
                 return 1;
             });
-        };
-        s.action_cels = [](void *v, MMU32 n) -> MMU32 {
-            return static_cast<AdmissionHost *>(v)->impl->info.actions[n].celCount;
         };
         s.pose = [](void *v, void *t, void *b, MMU32 action, MMU32 cel) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] { return mm_brender_template_set_cel(static_cast<PTemplate>(t), static_cast<PBody>(b), action, cel, nullptr); });
         };
-        s.rest = [](void *, void *t, unsigned short *angles) {
-            mm_brender_template_rest(static_cast<PTemplate>(t), angles, angles + 1, angles + 2);
-        };
-        s.rotate = [](void *, MMActorMatrix *m, int axis, unsigned short angle, int post) {
-            BMAT34 native;
-            static_assert(sizeof(native) == sizeof(*m), "Admission matrix layout");
-            if (post)
-                std::memcpy(&native, m, sizeof(native));
-            if (axis == 0)
-                BrMatrix34RotateX(&native, angle);
-            else if (axis == 1)
-                BrMatrix34PostRotateY(&native, angle);
-            else
-                BrMatrix34PostRotateZ(&native, angle);
-            std::memcpy(m, &native, sizeof(native));
-        };
-        s.locate = [](void *, void *b, const MMActorMatrix *m) {
-            const MMActorBodyPose pose = {{0, 0, 0}, *m};
-            mm_body_locate(b, &pose, &mm_kauai_body_renderer()->edit.runtime);
+        s.rest_pose = [](void *, PTemplate t, PBody b) {
+            mm_brender_template_rest_pose(t, b);
         };
         s.model_fetch = [](void *v, MMU32 type, MMU32 number, PModel *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
@@ -224,6 +187,8 @@ struct Preview::Impl::AdmissionHost
         };
         if (impl->cache)
             sceneSource = {impl->assets.MovieSession(), impl->assets.PlaybackGraph()};
+        if (sceneSource.graph.access)
+            sceneSource.graph.access(sceneSource.graph.context, &s.action_chunks);
         s.scene = mm_movie_scene_reader(&sceneSource);
         s.actor_header = [](void *v, MMU32 number, MMI32 *first, MMI32 *last) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);

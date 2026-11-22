@@ -1,6 +1,10 @@
 #include "mm/preview_admission.h"
 #include "mm/archive_reader.h"
+#include "mm/actor_data.h"
+#include "mm/background_resource.h"
 #include "mm/scene_data.h"
+#include "mm/template_create.h"
+#include "mm/template_runtime.h"
 #include <string.h>
 int mm_preview_budget(const MMPreviewBudgetServices *s, MMChunkEntry *failed)
 {
@@ -51,7 +55,6 @@ static void clear(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissionS
 {
     s->clear(s->context, preserve);
     p->live->status.ready = p->live->status.prop = 0;
-    p->action_count = 0;
 }
 static int effect(int r)
 {
@@ -60,11 +63,8 @@ static int effect(int r)
 static int template_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s)
 {
     MMPreviewAssets *assets = &p->live->assets;
-    MMU32 i, j, n;
-    MMI32 count, name;
-    MMPreviewChunk child, c;
-    MMActorMatrix rest;
-    unsigned short angles[3];
+    MMU32 i;
+    MMI32 count;
     int r = s->template_fetch(s->context, p->type, p->number, &assets->tmpl);
     if (r <= 0)
         return r;
@@ -78,41 +78,26 @@ static int template_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices
     publish(p, s);
     for (i = 0; (MMI32)i < s->actions(s->context, assets->tmpl); ++i)
     {
+        MMPreviewLiveAction action = {0};
         count = 0;
         r = s->cels(s->context, assets->tmpl, i, &count);
         if (r < 0)
             return r;
         if (!r || count <= 0)
             break;
-        name = -1;
-        if (s->action_child(s->context, p->type, p->number, i, &child))
-        {
-            n = s->chunks(s->context);
-            for (j = 0; j < n; ++j)
-            {
-                s->chunk(s->context, j, &c);
-                if (c.type == child.type && c.number == child.number && c.named)
-                {
-                    name = (MMI32)j;
-                    break;
-                }
-            }
-        }
-        r = s->action_add(s->context, i, (MMU32)count, name);
+        action.cels = (MMU32)count;
+        action.has_chunk = s->action_chunks.entry &&
+            mm_chunk_link_number(&s->action_chunks, p->type, p->number, i, MM_ACTN, &action.chunk_number) == MM_CHUNK_OK;
+        r = mm_preview_live_action_add(p->live, &action, s->context, s->publish_action);
         if (r <= 0)
             return r;
-        ++p->action_count;
     }
-    if (!assets->body || !p->action_count)
+    if (!assets->body || !p->live->actions.count)
         return 0;
     r = s->pose(s->context, assets->tmpl, assets->body, 0, 0);
     if (r <= 0)
         return r;
-    s->rest(s->context, assets->tmpl, angles);
-    s->rotate(s->context, &rest, 0, angles[0], 0);
-    s->rotate(s->context, &rest, 1, angles[1], 1);
-    s->rotate(s->context, &rest, 2, angles[2], 1);
-    s->locate(s->context, assets->body, &rest);
+    s->rest_pose(s->context, assets->tmpl, assets->body);
     return 1;
 }
 static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s)
@@ -137,7 +122,7 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
     actors.storage = &storage;
     actors.width = sizeof(MMU32);
     actors.free_count = -1;
-    if (p->kind == MM_PREVIEW_SCENE)
+    if (p->type == MM_SCENE_CHUNK)
     {
         r = reader->header(reader->context, p->number, &header);
         if (r != MM_MOVIE_OK)
@@ -264,7 +249,7 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
         }
         actor = 0;
     }
-    if (p->kind == MM_PREVIEW_ACTOR)
+    if (p->type == MM_ACTOR_CHUNK)
         s->actor_range(s->context, mm_preview_live_actor(live, 0), &live->status.first, &live->status.last);
     if (mm_preview_live_seal(live) != MM_PREVIEW_LIVE_OK)
     {
@@ -272,7 +257,7 @@ static int scene_load(MMPreviewAdmission *p, const MMPreviewAdmissionServices *s
         goto done;
     }
     publish(p, s);
-    if (p->kind == MM_PREVIEW_SCENE)
+    if (p->type == MM_SCENE_CHUNK)
     {
         r = s->sync(s->context);
         if (r <= 0)
@@ -307,7 +292,7 @@ int mm_preview_admit(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissi
     clear(p, preserve, s);
     p->mark_chunk = 0;
     publish(p, s);
-    definition = p->kind == MM_PREVIEW_SCENE ? mm_preview_live_scene(p->live, p->number) : 0;
+    definition = p->type == MM_SCENE_CHUNK ? mm_preview_live_scene(p->live, p->number) : 0;
     if (definition)
     {
         tag.source = definition->source;
@@ -338,13 +323,13 @@ int mm_preview_admit(MMPreviewAdmission *p, int preserve, const MMPreviewAdmissi
     }
     if (!p->cache)
         return MM_PREVIEW_ADMIT_CACHE;
-    if (p->kind == MM_PREVIEW_TEMPLATE)
+    if (p->type == MM_TMPL)
         r = template_load(p, s);
-    else if (p->kind == MM_PREVIEW_MODEL)
+    else if (p->type == MM_TEMPLATE_BMDL)
         r = s->model_fetch(s->context, p->type, p->number, &p->live->assets.model);
-    else if (p->kind == MM_PREVIEW_BACKGROUND)
+    else if (p->type == MM_BACKGROUND)
         r = s->background(s->context, 0, 0);
-    else if (p->kind == MM_PREVIEW_SCENE || p->kind == MM_PREVIEW_ACTOR)
+    else if (p->type == MM_SCENE_CHUNK || p->type == MM_ACTOR_CHUNK)
     {
         result = scene_load(p, s);
         if (result != MM_PREVIEW_ADMIT_OK && result != MM_PREVIEW_ADMIT_DEPENDENCIES)
@@ -376,9 +361,11 @@ done:
 int mm_preview_admission_pose(MMPreviewAdmission *p, MMU32 action, MMU32 cel, const MMPreviewAdmissionServices *s)
 {
     const MMPreviewAssets *assets = &p->live->assets;
+    const MMPreviewLiveAction *entry;
     int r;
     s->begin(s->context);
-    if (!p->live->status.ready || !assets->tmpl || action >= p->action_count || cel >= s->action_cels(s->context, action))
+    entry = mm_preview_live_action(p->live, action);
+    if (!p->live->status.ready || !assets->tmpl || !entry || cel >= entry->cels)
         return MM_PREVIEW_ADMIT_POSE_RANGE;
     r = s->pose(s->context, assets->tmpl, assets->body, action, cel);
     if (r < 0)
