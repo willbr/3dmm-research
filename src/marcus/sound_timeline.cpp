@@ -132,17 +132,17 @@ MarcusSoundTimeline::MarcusSoundTimeline(Schedule data, std::vector<MarcusScene>
 {
 }
 
-bool MarcusSoundTimeline::Reframe(const std::vector<MarcusScene> &ranges)
+bool MarcusSoundTimeline::Reframe(const MarcusScene *ranges, std::size_t available)
 {
-    auto replacement = Reframed(ranges);
+    auto replacement = Reframed(ranges, available);
     if (!replacement) return false;
     *this = std::move(*replacement);
     return true;
 }
 
-std::optional<MarcusSoundTimeline> MarcusSoundTimeline::Reframed(const std::vector<MarcusScene> &ranges) const
+std::optional<MarcusSoundTimeline> MarcusSoundTimeline::Reframed(const MarcusScene *ranges, std::size_t available) const
 {
-    const auto count = std::min(Size(), ranges.size());
+    const auto count = std::min(Size(), available);
     std::vector<MMMovieTimingRange> geometry(count);
     for (std::size_t i = 0; i < count; ++i)
         if (!TimingRange(ranges[i], geometry[i])) return std::nullopt;
@@ -151,7 +151,9 @@ std::optional<MarcusSoundTimeline> MarcusSoundTimeline::Reframed(const std::vect
     if (status == MM_SOUND_REFRAME_MISMATCH) return std::nullopt;
     if (status == MM_SOUND_REFRAME_MEMORY) throw std::bad_alloc();
     Schedule replacement(result, mm_movie_sound_schedule_destroy);
-    return MarcusSoundTimeline(std::move(replacement), {ranges.begin(), ranges.begin() + count});
+    std::vector<MarcusScene> metadata;
+    if (count) metadata.assign(ranges, ranges + count);
+    return MarcusSoundTimeline(std::move(replacement), std::move(metadata));
 }
 
 void MarcusSoundTimeline::Clear()

@@ -1,5 +1,6 @@
 #include "player.h"
 #include "camera_guide.h"
+#include "live_document.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -74,6 +75,161 @@ static int matrices_match(const MarcusProjection *projection)
     }
     return 1;
 }
+typedef struct LiveDocumentProbe
+{
+    char effects[24];
+    size_t count;
+    MMI32 reject_source;
+    int reject_allocations;
+} LiveDocumentProbe;
+
+static int live_effect(void *context, char effect)
+{
+    LiveDocumentProbe *probe = (LiveDocumentProbe *)context;
+    if (probe->count >= sizeof(probe->effects) - 1) return 0;
+    probe->effects[probe->count++] = effect;
+    probe->effects[probe->count] = 0;
+    return 1;
+}
+
+static int live_resources(void *p) { return live_effect(p, 'R'); }
+static int live_retail(void *p) { return live_effect(p, 'L'); }
+static int live_mount(void *p, MMI32 source, const void *file)
+{
+    const LiveDocumentProbe *probe = (const LiveDocumentProbe *)p;
+    return file && source >= 30 && source <= 33 && live_effect(p, (char)('0' + source - 30)) &&
+           source != probe->reject_source;
+}
+static int live_install(void *p, const MMPreviewLiveDefinitions *definitions)
+{
+    MMPreviewLiveScene scene;
+    definitions->scene(definitions->context, 0, &scene);
+    return definitions->scene_count == 2 && definitions->prop_count == 2 && scene.number == 7 && live_effect(p, 'I');
+}
+static int live_reset_names(void *p) { return live_effect(p, 'N'); }
+static int live_name(void *p, MMI32 actor, const char *name)
+{
+    return ((actor == 9 && !strcmp(name, "Retail")) || (actor == 10 && !strcmp(name, "Generated"))) &&
+           live_effect(p, 'P');
+}
+static int live_texts(void *p, const MMMovieTextJournal *texts)
+{
+    return texts->count == 1 && live_effect(p, 'T');
+}
+static void live_hold(void *p) { ++*(int *)p; }
+static void live_release(void *p) { --*(int *)p; }
+static void *live_resize(void *p, void *previous, MMU32 old_bytes, MMU32 count, int priority)
+{
+    (void)old_bytes;
+    (void)priority;
+    return ((LiveDocumentProbe *)p)->reject_allocations ? NULL : realloc(previous, count);
+}
+static void live_dispose(void *p, void *block, MMU32 count)
+{
+    (void)p;
+    (void)count;
+    free(block);
+}
+
+/* Scene metadata and archive order only, with no renderer or UI input. */
+static int check_live_document(MarcusPlayer *player)
+{
+    static const unsigned char paint[MARCUS_BOARD_PIXELS] = {0};
+    const MMMovieEditFileServices files = {live_hold, live_release};
+    const MarcusScene authored = {"Authored", 40, -4, 80, MARCUS_TRANSITION_DISSOLVE};
+    const MMMovieSceneRange range = {40, -6, 83}, inserted_range = {7, 1, 5};
+    MMPreviewLiveScene definition = {7, 1, 2};
+    MMPreviewLiveProp prop = {7, 41, 42, 2, 9, 1, 5, {0, 0, 0}};
+    MMMovieActorTextEdit text = {0};
+    MMMovieActorTrackEdit track = {7, 41, 33, NULL};
+    MarcusLiveDocument doc;
+    MMMovieSceneDefinitions definitions = {0};
+    MMMovieRangeJournal ranges = {0};
+    MMMoviePropJournal props = {0};
+    MMMovieTextJournal texts = {0};
+    MMMovieActorTrackJournal tracks = {0};
+    MarcusBoardStore boards = {0};
+    MarcusBoardWire board = {0};
+    MarcusSceneRows base = {0}, current = {0};
+    MarcusScene *rows;
+    LiveDocumentProbe probe = {{0}, 0, 0, 0};
+    MMStorageAllocator allocator = {NULL, live_resize, live_dispose};
+    MarcusLiveDocumentServices s = {NULL, live_resources, live_retail, live_mount, live_install,
+                                    live_reset_names, live_name, live_texts};
+    int file = 1, ok = 0;
+    allocator.context = s.context = &probe;
+    CHECK(marcus_scene_rows_init(&base, NULL) && marcus_scene_rows_init(&current, &allocator));
+    CHECK(mm_movie_scene_definitions_init(&definitions, NULL) && mm_movie_range_journal_init(&ranges, NULL) &&
+          mm_movie_prop_journal_init(&props, NULL, &files) && mm_movie_text_journal_init(&texts, NULL, &files) &&
+          mm_movie_track_journal_init(&tracks, NULL, &files) && marcus_board_store_init(&boards, NULL, &files));
+    CHECK(marcus_scene_rows_resize(&base, 1) && marcus_scene_rows_resize(&current, 1));
+    *(MarcusScene *)base.storage.buffers[0].data = authored;
+    *(MarcusScene *)current.storage.buffers[0].data = authored;
+    CHECK(mm_movie_scene_definitions_append(&definitions, &definition));
+    definition.number = 3;
+    definition.source = 30;
+    CHECK(mm_movie_scene_definitions_append(&definitions, &definition));
+    CHECK(mm_movie_range_journal_set(&ranges, &range) && mm_movie_range_journal_set(&ranges, &inserted_range));
+    CHECK(mm_movie_prop_journal_append(&props, &prop, "Retail", NULL));
+    prop.number = 42;
+    prop.source = 31;
+    prop.actor_id = 10;
+    CHECK(mm_movie_prop_journal_append(&props, &prop, "Generated", &file));
+    text.scene = 7;
+    text.actor = 42;
+    text.source = 32;
+    text.file = track.file = &file;
+    CHECK(mm_movie_text_journal_set(&texts, &text) && mm_movie_track_journal_set(&tracks, &track));
+    board.values.angle_count = 1;
+    board.values.colour_count = MARCUS_BOARD_SWATCH_COUNT;
+    memcpy(board.values.colours, marcus_board_swatches, sizeof(marcus_board_swatches));
+    board.values.angles[0].fov = 45;
+    board.values.angles[0].near_clip = 1;
+    board.values.angles[0].far_clip = 100;
+    board.pixels[0] = paint;
+    CHECK(marcus_board_store_set(&boards, 3, 30, 1, &file, &board));
+    CHECK(marcus_board_store_set(&boards, 7, 0, 1, &file, &board));
+    doc.retail_source = 2;
+    doc.definitions.scenes = &definitions;
+    doc.definitions.props = &props;
+    doc.boards = &boards;
+    doc.texts = &texts;
+    doc.tracks = &tracks;
+    doc.ranges = &ranges;
+
+    CHECK(marcus_live_document_mount_boards(&boards, &s) && !strcmp(probe.effects, "0"));
+    probe.count = 0;
+    probe.reject_source = 33;
+    CHECK(marcus_live_document_apply(&doc, &s, &current, &base) == MARCUS_LIVE_DOCUMENT_FAILED);
+    CHECK(!strcmp(probe.effects, "RL0123") && current.count == 1);
+    probe.count = 0;
+    probe.reject_source = 0;
+    probe.reject_allocations = 1;
+    CHECK(marcus_live_document_apply(&doc, &s, &current, &base) == MARCUS_LIVE_DOCUMENT_MEMORY);
+    rows = (MarcusScene *)current.storage.buffers[0].data;
+    CHECK(current.count == 1 && rows[0].first_frame == -4 && !strcmp(rows[0].name, "Authored"));
+    probe.count = 0;
+    probe.reject_allocations = 0;
+    CHECK(marcus_live_document_apply(&doc, &s, &current, &base) == MARCUS_LIVE_DOCUMENT_OK);
+    CHECK(!strcmp(probe.effects, "RL0123INPPT") && current.count == 3);
+    rows = (MarcusScene *)current.storage.buffers[0].data;
+    CHECK(rows[0].chunk == 40 && rows[0].first_frame == -6 && rows[0].last_frame == 83 &&
+          rows[0].transition == MARCUS_TRANSITION_DISSOLVE && !strcmp(rows[0].name, "Authored"));
+    CHECK(rows[1].chunk == 7 && rows[1].last_frame == 5 && !strcmp(rows[1].name, "Scene 2"));
+    CHECK(rows[2].chunk == 3 && rows[2].first_frame == 1 && rows[2].last_frame == 1 && !strcmp(rows[2].name, "Scene 3"));
+    ok = 1;
+failed:
+    marcus_scene_rows_dispose(&current);
+    marcus_scene_rows_dispose(&base);
+    marcus_board_store_dispose(&boards);
+    mm_movie_track_journal_dispose(&tracks);
+    mm_movie_text_journal_dispose(&texts);
+    mm_movie_prop_journal_dispose(&props);
+    mm_movie_range_journal_dispose(&ranges);
+    mm_movie_scene_definitions_dispose(&definitions);
+    return ok && file == 1;
+}
+
 int main(int argc, char **argv)
 {
     MarcusPlayer *player, *other;
@@ -108,6 +264,7 @@ int main(int argc, char **argv)
     input = NULL;
     pixels = NULL;
     CHECK(player);
+    CHECK(check_live_document(player));
     CHECK(!marcus_info(player, &info));
     CHECK(!marcus_movie_time(player, &movie_time) && movie_time.position_seconds == 0 &&
           movie_time.duration_seconds == 0);

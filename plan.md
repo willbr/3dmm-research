@@ -1650,6 +1650,11 @@ C owns the insertion order, names and generated-template references across
 undo. Preview and the 32-bit worker consume the same typed definitions as
 native export. Scene frame ranges use a separate C89 journal keyed by scene.
 Undo, live scene publication and native export read those same range records.
+The authored and effective scene rows use C89 storage. C rebuilds the
+effective list in authored and insertion order, applies the range journal,
+and supplies scene identities, bounds and display names from those rows.
+C89 mounts storyboard, prop, text and costume archives in order before
+installing live definitions and restoring actor names.
 Ordinary scene insertion and storyboard scene edits publish through the C89
 snapshot transaction. It records undo only after the live scene is ready and
 restores the prior definitions, timing and position on failure. If recovery

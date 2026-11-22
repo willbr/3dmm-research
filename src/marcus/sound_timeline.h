@@ -62,8 +62,9 @@ class MarcusSoundTimeline
     void Clear();
     void SetRate(double fps);
     // Reschedule cached cues/lengths after edge edits, without decoding media.
-    bool Reframe(const std::vector<MarcusScene> &ranges);
-    std::optional<MarcusSoundTimeline> Reframed(const std::vector<MarcusScene> &ranges) const;
+    bool Reframe(const MarcusScene *ranges, std::size_t count);
+    bool Reframe(const std::vector<MarcusScene> &ranges) { return Reframe(ranges.data(), ranges.size()); }
+    std::optional<MarcusSoundTimeline> Reframed(const MarcusScene *ranges, std::size_t count) const;
     // Ephemeral IPC between matching Marcus/helper builds, never movie data.
     bool Write(std::ostream &output) const;
     bool Read(std::istream &input, const std::vector<MarcusScene> &expected);

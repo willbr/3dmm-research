@@ -22760,3 +22760,31 @@ from retail and V3DMM suite `20261122T081603Z-7ffc4e8e`. The existing
 
 Evidence is under `tmp/c89-actor-replay` and `tmp/c89-kd`. The retained
 retail and V3DMM captures are under `tmp/c89-rscap`.
+
+## C89 live scene rows and edit sources (22 November 2026)
+
+C89 owns the authored and effective scene rows. Scene selection, timing
+and the worker read scene identity and playback bounds from the effective
+rows. Rebuilding the list preserves authored order, appends inserted scenes
+and applies the saved range for each scene. C89 mounts generated storyboard,
+prop, text and costume archives before installing live edits and restoring
+the actor names. Archive open uses the same storyboard mounting order.
+
+All 227 selected x64 and 12 SDL Studio checks passed headlessly. A standalone
+32-bit C run of the same scene and source fixture passed, alongside the
+rebuilt 32-bit ASM worker integration. The fixture covers a rejected mount,
+failure to grow the scene rows, insertion order, and overriding frame
+ranges without changing authored names and transitions. The content,
+storyboard and player checks cover mounted resources, frame edits, reopen,
+undo and timing. The headless Marcus startup image matched the previous
+build byte for byte.
+
+The `resource-actors` candidate `20261122T201540Z-bfc22888` matched
+`20261122T200607Z-600c0c83` on all 60 seek canvases and recorded states per
+port. Both ports matched the frame order in seek and continuous playback
+from retail and V3DMM suite `20261122T081603Z-7ffc4e8e`. The existing
+`scene-load` assertion repeated its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Evidence is under `tmp/c89-live-document` and `tmp/c89-kd`. The retained
+retail and V3DMM captures are under `tmp/c89-rscap`.
