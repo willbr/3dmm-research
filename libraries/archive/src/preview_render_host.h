@@ -3,15 +3,12 @@
 // Preview freezes host data for the C89 frame owner. Included in MM.
 struct Preview::Impl::RenderHost
 {
-    Preview *preview;
     Impl *impl;
     const PreviewView *view;
     Error *error;
     PreviewImage image;
     br_camera camera = {};
     std::exception_ptr exception;
-    int onlyObject = view ? view->onlyObject : -1;
-    const PreviewBounds *orbitBounds = view ? view->orbitBounds : nullptr;
     static PreviewProjection Projection(const MMPreviewProjection &p)
     {
         PreviewProjection out;
@@ -35,7 +32,12 @@ struct Preview::Impl::RenderHost
         s.base_palette = impl->palette;
         s.live = &impl->live;
         s.body_geometry = &mm_kauai_body_renderer()->geometry;
-        s.only_object = onlyObject;
+        s.only_object = view ? view->onlyObject : -1;
+        if (view && view->orbitBounds)
+        {
+            s.object_corners = view->orbitBounds->corners;
+            s.object_corners_valid = view->orbitBounds->valid;
+        }
         s.math.sin = [](float x) { return std::sin(x); };
         s.math.cos = [](float x) { return std::cos(x); };
         s.math.tan = [](float x) { return std::tan(x); };
@@ -47,24 +49,6 @@ struct Preview::Impl::RenderHost
         s.math.scalar = [](float x) -> MMI32 { return BrFloatToScalar(x); };
         s.math.scalar_double = [](double x) -> MMI32 { return BrFloatToScalar(x); };
         s.math.angle = [](float x) -> unsigned short { return BR_ANGLE_DEG(x); };
-        s.object_bounds = [](void *v, MMI32 object, float corners[24], int *valid) -> int {
-            auto &h = *static_cast<RenderHost *>(v);
-            try
-            {
-                PreviewBounds b;
-                if (h.orbitBounds && h.onlyObject == object) b = *h.orbitBounds;
-                else if (!h.preview->ObjectBounds(object, b, *h.error))
-                    return 0;
-                *valid = b.valid;
-                std::copy(b.corners, b.corners + 24, corners);
-                return 1;
-            }
-            catch (...)
-            {
-                h.exception = std::current_exception();
-                return 0;
-            }
-        };
         s.camera = [](void *v, void *world, const MMPreviewCamera *c) -> void * {
             return mm_brender_preview_camera(world, &static_cast<RenderHost *>(v)->camera, c);
         };

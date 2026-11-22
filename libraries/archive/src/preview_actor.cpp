@@ -414,26 +414,28 @@ PreviewSoundCue PreviewActor::SoundCue(const MMActorSound &sound) const
     mm_preview_actor_cue(&cue, &sound, core.state.frame, core.header.actor_id);
     return PreviewCue(cue);
 }
-bool PreviewActor::Translate(const float delta[3])
+bool PreviewActor::Translate(const float delta[3], MMPreviewOrbit &orbit, MMI32 object)
 {
     Host host = {this};
     auto services = host.Services();
-    return host.Result(mm_preview_actor_translate(&core, delta, &services));
+    return host.Result(mm_preview_actor_translate(&core, delta, &orbit, object, &services));
 }
-bool PreviewActor::SetOffset(const float offset[3])
+bool PreviewActor::SetOffset(const float offset[3], MMPreviewOrbit &orbit, MMI32 object)
 {
     Host host = {this};
     auto services = host.Services();
-    return host.Result(mm_preview_actor_offset(&core, offset, &services));
+    return host.Result(mm_preview_actor_offset(&core, offset, &orbit, object, &services));
 }
-bool PreviewActor::SetShape(const PreviewObjectShape &value)
+int PreviewActor::SetShape(const PreviewObjectShape &value, MMPreviewOrbit &orbit, MMI32 object)
 {
     MMPreviewActorShape shape;
     static_assert(sizeof(shape) == sizeof(value), "Preview shape layout");
     std::memcpy(&shape, &value, sizeof(shape));
     Host host = {this};
     auto services = host.Services();
-    return host.Result(mm_preview_actor_set_shape(&core, &shape, &services));
+    const auto result = mm_preview_actor_set_shape(&core, &shape, &orbit, object,
+                                                   &mm_kauai_body_renderer()->geometry, &services);
+    return host.Result(result) ? result : MM_PREVIEW_SHAPE_FAILED;
 }
 void PreviewActor::Shape(PreviewObjectShape &value, float left[9], float right[9]) const
 {
@@ -445,37 +447,14 @@ void PreviewActor::Shape(PreviewObjectShape &value, float left[9], float right[9
 }
 bool PreviewActor::TrackPose(PreviewTrackPose &pose) const
 {
-    if (!Visible() || !Pbody() || !Ptmpl()) return false;
-    const auto &state = core.state;
-    pose.node = state.location.irpt;
-    pose.offset = state.location.dwrOffset;
-    pose.routeFrame = state.location.dnfrm;
-    const auto &position = state.position;
-    const auto &translation = state.routeTranslation;
-    pose.position[0] = position.dxr; pose.position[1] = position.dyr; pose.position[2] = position.dzr;
-    pose.translation[0] = translation.dxr; pose.translation[1] = translation.dyr; pose.translation[2] = translation.dzr;
-    BRA angles[3];
-    mm_brender_template_rest(Ptmpl(), angles, angles + 1, angles + 2);
-    MMActorMatrix rest;
-    mm_matrix_identity(&rest);
-    for (int axis = 0; axis < 3; ++axis) mm_matrix_rotate(&rest, axis, angles[axis], 0);
-    const BRS stretch[] = {state.transform.aevpull.rScaleX, state.transform.aevpull.rScaleY, state.transform.aevpull.rScaleZ};
-    const auto &root = mm_body_owner_state(Pbody())->shape.bindings[0].matrix;
-    // Recover the world rotation after removing rest orientation and authored size.
-    for (int row = 0; row < 3; ++row)
-    {
-        const auto scaled = mm_fixed_mul(mm_fixed_mul(stretch[row], BrFloatToScalar(core.shape.scale[row])),
-                                        state.transform.rScaleStep);
-        if (!scaled) return false;
-        for (int col = 0; col < 3; ++col)
-        {
-            double value = 0;
-            for (int i = 0; i < 3; ++i)
-                value += BrScalarToFloat(rest.m[i][row]) * double(BrScalarToFloat(root.m[i][col]));
-            pose.rotation[row * 3 + col] = static_cast<float>(value / BrScalarToFloat(scaled));
-        }
-    }
-    return true;
+    MMPreviewTrackPose nativePose;
+    static_assert(sizeof(nativePose) == sizeof(pose), "Preview track pose layout");
+    std::memcpy(&nativePose, &pose, sizeof(nativePose));
+    Host host = {const_cast<PreviewActor *>(this)};
+    const auto services = host.Services();
+    const auto result = mm_preview_actor_track_pose(&core, &nativePose, &services);
+    std::memcpy(&pose, &nativePose, sizeof(pose));
+    return host.Result(result);
 }
 bool PreviewActor::Seek(LegacyLong frame)
 {

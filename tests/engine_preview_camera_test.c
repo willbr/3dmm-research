@@ -313,10 +313,11 @@ int main(void)
     MMPreviewCameraPose pose;
     MMPreviewOrbit o, before;
     MMPreviewView v;
-    MMI32 low[3] = {-65536, -131072, -196608}, high[3] = {65536, 131072, 196608};
-    MMI32 matrix[12] = {0, 65536, 0, -65536, 0, 0, 0, 0, 65536, 65536, 131072, 196608};
-    MMI32 place[3] = {65536, -131072, 196608}, old_bounds[6] = {0, 0, 0, 65536, 65536, 65536};
-    MMI32 new_bounds[6] = {65536, 0, 0, 196608, 65536, 65536};
+    MMBodyBounds bounds = {{-65536, -131072, -196608}, {65536, 131072, 196608}};
+    MMActorMatrix matrix = {{{0, 65536, 0}, {-65536, 0, 0}, {0, 0, 65536}, {65536, 131072, 196608}}};
+    MMI32 place[3] = {65536, -131072, 196608};
+    MMBodyBounds old_bounds = {{0, 0, 0}, {65536, 65536, 65536}};
+    MMBodyBounds new_bounds = {{65536, 0, 0}, {196608, 65536, 65536}};
     float corners[24], start[3] = {1, 2, 3}, end[3] = {2, 4, 6}, point[3] = {-9, -9, -9};
     MMU32 current;
     int ready_value;
@@ -377,17 +378,18 @@ int main(void)
     assert(o.anchor[0] == 7);
     mm_preview_orbit_move(&o, 2, start, end);
     assert(o.anchor[0] == 8 && o.anchor[1] == 2 && o.anchor[2] == 3);
-    mm_preview_orbit_resize(&o, old_bounds, new_bounds, &s.math);
+    mm_preview_orbit_resize(&o, &old_bounds, &new_bounds, s.math.scalar_float);
     assert(o.anchor[0] == 9.5f);
     before = o;
     mm_preview_orbit_reset(&o);
     before.framed = 0;
     assert(!memcmp(&o, &before, sizeof(o)));
-    assert(mm_preview_camera_bounds(low, high, matrix, corners, &s.math));
+    assert(mm_preview_camera_bounds(&bounds, &matrix, corners, s.math.scalar_float));
     assert(corners[0] == 3 && corners[1] == 1 && corners[2] == 0 && corners[21] == -1 && corners[22] == 3 &&
            corners[23] == 6);
-    low[0] = high[0] + 1;
-    assert(!mm_preview_camera_bounds(low, high, matrix, corners, &s.math) && corners[0] == 0 && corners[23] == 0);
+    bounds.min[0] = bounds.max[0] + 1;
+    assert(!mm_preview_camera_bounds(&bounds, &matrix, corners, s.math.scalar_float) &&
+           corners[0] == 0 && corners[23] == 0);
     assert(!mm_preview_camera_placement(0, place, point, &s.math) && point[0] == -9);
     assert(!mm_preview_camera_placement(1, 0, point, &s.math) && !mm_preview_camera_placement(1, place, 0, &s.math));
     assert(mm_preview_camera_placement(1, place, point, &s.math) && point[0] == 1 && point[1] == -2 && point[2] == 3);

@@ -226,30 +226,30 @@ void mm_preview_orbit_move(MMPreviewOrbit *o, MMI32 object, const float before[3
         for (axis = 0; axis < 3; ++axis)
             o->anchor[axis] += after[axis] - before[axis];
 }
-void mm_preview_orbit_resize(MMPreviewOrbit *o, const MMI32 before[6], const MMI32 after[6], const MMPreviewMath *m)
+void mm_preview_orbit_resize(MMPreviewOrbit *o, const MMBodyBounds *before, const MMBodyBounds *after,
+                             float (*scalar_float)(MMI32))
 {
     int i;
     for (i = 0; i < 3; ++i)
-        o->anchor[i] += (m->scalar_float(after[i]) - m->scalar_float(before[i]) + m->scalar_float(after[i + 3]) -
-                         m->scalar_float(before[i + 3])) *
-                        .5f;
+        o->anchor[i] += (scalar_float(after->min[i]) - scalar_float(before->min[i]) + scalar_float(after->max[i]) -
+                         scalar_float(before->max[i])) * .5f;
 }
-int mm_preview_camera_bounds(const MMI32 low[3], const MMI32 high[3], const MMI32 matrix[12], float corners[24],
-                             const MMPreviewMath *m)
+int mm_preview_camera_bounds(const MMBodyBounds *bounds, const MMActorMatrix *matrix, float corners[24],
+                             float (*scalar_float)(MMI32))
 {
     int axis, corner, local;
     double position;
     memset(corners, 0, 24 * sizeof(*corners));
     for (axis = 0; axis < 3; ++axis)
-        if (low[axis] > high[axis])
+        if (bounds->min[axis] > bounds->max[axis])
             return 0;
     for (corner = 0; corner < 8; ++corner)
         for (axis = 0; axis < 3; ++axis)
         {
-            position = m->scalar_float(matrix[9 + axis]);
+            position = scalar_float(matrix->m[3][axis]);
             for (local = 0; local < 3; ++local)
-                position += m->scalar_float((corner & (1 << local)) ? high[local] : low[local]) *
-                            (double)m->scalar_float(matrix[local * 3 + axis]);
+                position += scalar_float((corner & (1 << local)) ? bounds->max[local] : bounds->min[local]) *
+                            (double)scalar_float(matrix->m[local][axis]);
             corners[corner * 3 + axis] = (float)position;
         }
     return 1;

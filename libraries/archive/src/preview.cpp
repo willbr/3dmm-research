@@ -119,15 +119,6 @@ struct Preview::Impl
         info.cameraCount = s.camera_count;
         info.currentCamera = s.current_camera;
     }
-    // Explicit placement edits move the prop through the existing camera.
-    // Advance the tracked anchor by the edit only, retaining animation follow.
-    void PreserveOrbitForPlacement(int object, const PreviewObject &before)
-    {
-        if (!mm_preview_orbit_follows(&orbit, object, 1)) return;
-        const auto after = actors[object]->Snapshot();
-        const float oldPosition[] = {before.x, before.y, before.z}, newPosition[] = {after.x, after.y, after.z};
-        mm_preview_orbit_move(&orbit, object, oldPosition, newPosition);
-    }
     std::string resolveError;
     void BindTemplate(PTemplate value)
     {
@@ -228,7 +219,7 @@ void Preview::ResetOrbitFraming()
 bool Preview::MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error &error)
 {
     error = {};
-    Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
+    Impl::RenderHost host = {_impl.get(), nullptr, &error};
     auto services = host.Services();
     MMPreviewCameraPose pose;
     auto result = mm_preview_camera_match(outputAspect, &_impl->orbit, &pose, &services,
@@ -244,7 +235,7 @@ bool Preview::MatchSceneCamera(float outputAspect, PreviewCamera &camera, Error 
 bool Preview::PanOrbit(const PreviewView &view, float right, float up, Error &error)
 {
     error = {};
-    Impl::RenderHost host = {this, _impl.get(), &view, &error};
+    Impl::RenderHost host = {_impl.get(), &view, &error};
     const auto services = host.Services();
     MMPreviewView v = {};
     v.width = view.width; v.height = view.height; v.yaw = view.yaw; v.pitch = view.pitch;
@@ -594,10 +585,8 @@ bool Preview::TranslateObject(int object, const float delta[3], Error &error)
     if (!_impl->live.status.ready || !_impl->live.status.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
         !delta)
         return Fail(error, ErrorCode::invalid_argument, "Select a visible object and a position within +/-32700 world units.");
-    const auto before = _impl->actors[object]->Snapshot();
-    if (!_impl->actors[object]->Translate(delta))
+    if (!_impl->actors[object]->Translate(delta, _impl->orbit, object))
         return Fail(error, ErrorCode::invalid_argument, "Select a visible object and a position within +/-32700 world units.");
-    _impl->PreserveOrbitForPlacement(object, before);
     return true;
 }
 bool Preview::SetObjectOffset(int object, const float offset[3], Error &error)
@@ -606,10 +595,8 @@ bool Preview::SetObjectOffset(int object, const float offset[3], Error &error)
     if (!_impl->live.status.ready || !_impl->live.status.scene || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
         !offset)
         return Fail(error, ErrorCode::invalid_argument, "The object placement is out of range.");
-    const auto before = _impl->actors[object]->Snapshot();
-    if (!_impl->actors[object]->SetOffset(offset))
+    if (!_impl->actors[object]->SetOffset(offset, _impl->orbit, object))
         return Fail(error, ErrorCode::invalid_argument, "The object placement is out of range.");
-    _impl->PreserveOrbitForPlacement(object, before);
     return true;
 }
 bool Preview::ObjectShape(int object, PreviewObjectShape &shape, float left[9], float right[9], Error &error) const
@@ -630,34 +617,20 @@ bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error 
     error = {};
     if (!_impl->live.status.ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size() ||
         !_impl->actors[object]->Pbody()) return Fail(error, ErrorCode::invalid_argument, "Select a scene object first.");
-    for (float n : shape.scale)
-        if (!std::isfinite(n) || n < .01f || n > 10) return Fail(error, ErrorCode::invalid_argument, "Size must be between 1% and 1000%.");
-    for (float n : shape.rotation)
-        if (!std::isfinite(n) || std::abs(n) > 1.01f) return Fail(error, ErrorCode::invalid_argument, "Invalid object rotation.");
-    const auto r=shape.rotation;
-    const float determinant=r[0]*(r[4]*r[8]-r[5]*r[7])-r[1]*(r[3]*r[8]-r[5]*r[6])+r[2]*(r[3]*r[7]-r[4]*r[6]);
-    if (determinant<.99f) return Fail(error, ErrorCode::invalid_argument, "Object rotation cannot mirror or collapse an axis.");
-    for (int a = 0; a < 3; ++a) for (int b = a; b < 3; ++b)
+    switch (_impl->actors[object]->SetShape(shape, _impl->orbit, object))
     {
-        float dot = 0;
-        for (int c = 0; c < 3; ++c) dot += shape.rotation[a*3+c] * shape.rotation[b*3+c];
-        if (std::abs(dot - (a == b ? 1.f : 0.f)) > .003f) return Fail(error, ErrorCode::invalid_argument, "Rotation must be orthonormal.");
+    case MM_PREVIEW_SHAPE_OK: return true;
+    case MM_PREVIEW_SHAPE_SCALE:
+        return Fail(error, ErrorCode::invalid_argument, "Size must be between 1% and 1000%.");
+    case MM_PREVIEW_SHAPE_ROTATION:
+        return Fail(error, ErrorCode::invalid_argument, "Invalid object rotation.");
+    case MM_PREVIEW_SHAPE_REFLECTION:
+        return Fail(error, ErrorCode::invalid_argument, "Object rotation cannot mirror or collapse an axis.");
+    case MM_PREVIEW_SHAPE_AXES:
+        return Fail(error, ErrorCode::invalid_argument, "Rotation must be orthonormal.");
+    default:
+        return Fail(error, ErrorCode::decode_failed, "Cannot transform the selected object.");
     }
-    MMBodyBounds before, after;
-    auto &actor = *_impl->actors[object];
-    const bool hold = mm_preview_orbit_follows(&_impl->orbit, object, actor.Visible()) != 0;
-    if (hold) mm_brender_body_bounds(mm_kauai_body_renderer(), actor.Pbody(), 1, &before);
-    if (!actor.SetShape(shape)) return Fail(error, ErrorCode::decode_failed, "Cannot transform the selected object.");
-    if (hold)
-    {
-        mm_brender_body_bounds(mm_kauai_body_renderer(), actor.Pbody(), 1, &after);
-        const MMI32 a[6] = {before.min[0], before.min[1], before.min[2], before.max[0], before.max[1], before.max[2]};
-        const MMI32 b[6] = {after.min[0], after.min[1], after.min[2], after.max[0], after.max[1], after.max[2]};
-        Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
-        const auto services = host.Services();
-        mm_preview_orbit_resize(&_impl->orbit, a, b, &services.math);
-    }
-    return true;
 }
 bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
 {
@@ -665,21 +638,12 @@ bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
     error = {};
     if (!_impl->live.status.ready || object < 0 || static_cast<std::size_t>(object) >= _impl->actors.size())
         return Fail(error, ErrorCode::invalid_argument, "Select a scene object before reading its bounds.");
-    const auto &actor = *_impl->actors[object];
-    if (!actor.Visible() || !actor.Pbody())
-        return true;
-    MMBodyBounds box;
-    mm_brender_body_bounds(mm_kauai_body_renderer(), actor.Pbody(), 0, &box);
-    const auto &transform = mm_body_owner_state(actor.Pbody())->shape.bindings[0].matrix;
-    MMI32 matrix[12];
-    static_assert(sizeof(matrix) == sizeof(transform), "Object bounds matrix layout");
-    std::memcpy(matrix, &transform, sizeof(matrix));
-    Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
-    const auto services = host.Services();
-    if (!mm_preview_camera_bounds(box.min, box.max, matrix, bounds.corners, &services.math)) return true;
-    // Palette entry 108 is kiclrNormalHilite in the original actor UI.
-    bounds.colour = mm_pixel_rgb(_impl->Palette() + 108 * 4);
-    bounds.valid = true;
+    const auto actor = mm_preview_live_actor_view(&_impl->live, object);
+    bounds.valid = mm_preview_actor_bounds(actor, bounds.corners, &mm_kauai_body_renderer()->geometry,
+                                           [](MMI32 x) { return BrScalarToFloat(x); }) != 0;
+    if (bounds.valid)
+        // Palette entry 108 is kiclrNormalHilite in the original actor UI.
+        bounds.colour = mm_pixel_rgb(_impl->Palette() + 108 * 4);
     return true;
 }
 bool Preview::Pick(const PreviewProjection &projection, bool authoredCamera, std::uint32_t width, std::uint32_t height,
@@ -690,7 +654,7 @@ try
     object = -1;
     distance = std::numeric_limits<float>::infinity();
     Internal::ClearDiagnostic();
-    Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
+    Impl::RenderHost host = {_impl.get(), nullptr, &error};
     auto render = host.Services();
     MMPreviewPickServices services = {};
     services.render = &render;
@@ -1228,12 +1192,7 @@ bool Preview::RenderView(const PreviewView &view, PreviewImage &image, Error &er
                          const PreviewBounds *bounds, bool crop, const LightInput *lights)
 try
 {
-    Impl::RenderHost host = {this, _impl.get(), &view, &error};
-    if (bounds)
-    {
-        host.onlyObject = object;
-        host.orbitBounds = bounds;
-    }
+    Impl::RenderHost host = {_impl.get(), &view, &error};
     auto services = host.Services();
     MMBackgroundLightRig rig;
     if (lights)
@@ -1291,6 +1250,8 @@ try
         return Fail(error, ErrorCode::invalid_argument, "Invalid object preview size or zoom.");
     case MM_PREVIEW_ISOLATED_FIT:
         return Fail(error, ErrorCode::invalid_argument, "Cannot fit this object preview.");
+    case MM_PREVIEW_OBJECT_INDEX:
+        return Fail(error, ErrorCode::invalid_argument, "Select a scene object before reading its bounds.");
     case MM_PREVIEW_BUFFERS:
         return Fail(error, ErrorCode::out_of_memory, "Cannot allocate preview buffers.");
     case MM_PREVIEW_ASSET_RANGE:

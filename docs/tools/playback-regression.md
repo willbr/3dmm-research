@@ -22364,3 +22364,28 @@ order. Seek and playback order also matched the retained retail and V3DMM
 captures in `20261122T081603Z-7ffc4e8e`. All 251 selected test runs passed.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-actors`.
+
+## C89 Preview actor transforms and framing (22 November 2026)
+
+The live actor owner reads the route cursor and removes authored scale and
+template rest orientation from the posed root. It validates shape edits and
+updates the followed orbit after placement or shape changes. Preview bounds
+queries and render framing read the same typed body geometry in C89. Isolated
+rendering binds its object and supplied framing corners in the C renderer.
+
+The 114,463-byte transform trace matched across five objects and three frames,
+including an offstage object, a rotation with nonuniform scale, rejected
+transforms, a stable followed orbit and optional framing overrides. All Preview
+traces and the actor image matched 49,739,282 bytes. The retail-content camera
+traces, synthetic background mesh and five World snapshots also matched.
+The saved costume movie, storyboard payloads and child links, Studio movies
+and canvases, and empty Marcus startup canvas matched the preceding build.
+
+The four runs in suite `20261122T173156Z-804c2a8f` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order matched the retained retail and V3DMM captures
+in `20261122T081603Z-7ffc4e8e`. All 251 selected test runs passed. The existing
+`scene-load` assertion reproduced its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-transforms`.

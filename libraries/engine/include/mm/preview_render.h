@@ -106,7 +106,8 @@ extern "C"
         MM_PREVIEW_ISOLATED_INVALID,
         MM_PREVIEW_ISOLATED_FIT,
         MM_PREVIEW_LIGHT_RIG_INVALID,
-        MM_PREVIEW_LIGHT_VALUE_INVALID
+        MM_PREVIEW_LIGHT_VALUE_INVALID,
+        MM_PREVIEW_OBJECT_INDEX
     };
     struct MMPreviewLive;
     typedef struct MMPreviewRenderServices
@@ -119,6 +120,9 @@ extern "C"
         const struct MMPreviewLive *live;
         const MMBodyGeometryServices *body_geometry;
         MMI32 only_object;
+        /* Optional framing override when the orbit follows only_object. */
+        const float *object_corners;
+        int object_corners_valid;
         /* With a base BGRX palette, the C frame reads its environment directly.
          * Otherwise describe/mesh/add_mesh supply an external environment.
          * The palette and background are borrowed during the call.
@@ -137,6 +141,7 @@ extern "C"
         void *(*attach_body_part)(void *, void *parent, MMI32 index, const MMBodyPartBinding *);
         void (*retain_pose_resource)(void *, void *), (*release_pose_resource)(void *, void *);
         void (*retain_model)(void *, void *), (*release_model)(void *, void *);
+        /* External geometry without a live source. */
         int (*object_bounds)(void *, MMI32, float corners[24], int *valid);
         MMRenderFrameFactory frame_factory;
         void (*fill)(void *, void *pixelmap, MMU32);
@@ -198,8 +203,8 @@ extern "C"
      * private copy of the current orbit. */
     int mm_preview_prepare_lights(const MMPreviewLightValues *, size_t count, int has_background,
                                   MMBackgroundLightRig *, const MMPreviewRenderServices *);
-    /* Fit and render a view through services already bound to the one object
-     * and its bounds. Use a private orbit so the live camera keeps its framing. */
+    /* Fit and render only the requested object using the supplied bounds.
+     * Use a private orbit so the live camera keeps its framing. */
     int mm_preview_render_isolated(const MMPreviewView *, const MMPreviewOrbit *, MMI32 object,
                                     const float bounds[24], int crop, int rect[4], MMPreviewImage *,
                                     const MMPreviewRenderServices *);

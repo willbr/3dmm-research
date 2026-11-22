@@ -182,11 +182,37 @@ extern "C"
     int mm_preview_actor_seek(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_replay_track(MMPreviewActor *, MMI32 frame, const MMPreviewActorServices *);
     int mm_preview_actor_position(MMPreviewActor *, int select_cel, const MMPreviewActorServices *);
-    int mm_preview_actor_translate(MMPreviewActor *, const float delta[3], const MMPreviewActorServices *);
-    int mm_preview_actor_offset(MMPreviewActor *, const float offset[3], const MMPreviewActorServices *);
-    int mm_preview_actor_set_shape(MMPreviewActor *, const MMPreviewActorShape *, const MMPreviewActorServices *);
+    struct MMPreviewOrbit;
+    struct MMBodyGeometryServices;
+    /* A placement edit moves the tracked anchor while preserving the camera fit. */
+    int mm_preview_actor_translate(MMPreviewActor *, const float delta[3], struct MMPreviewOrbit *, MMI32 object,
+                                    const MMPreviewActorServices *);
+    int mm_preview_actor_offset(MMPreviewActor *, const float offset[3], struct MMPreviewOrbit *, MMI32 object,
+                                 const MMPreviewActorServices *);
+    enum MMPreviewShapeResult
+    {
+        MM_PREVIEW_SHAPE_FAILED, MM_PREVIEW_SHAPE_OK, MM_PREVIEW_SHAPE_SCALE, MM_PREVIEW_SHAPE_ROTATION,
+        MM_PREVIEW_SHAPE_REFLECTION, MM_PREVIEW_SHAPE_AXES
+    };
+    /* Validate before editing. An optional orbit tracks the selected body's
+     * center after a successful pose update. Negative service errors propagate. */
+    int mm_preview_actor_set_shape(MMPreviewActor *, const MMPreviewActorShape *, struct MMPreviewOrbit *,
+                                   MMI32 object, const struct MMBodyGeometryServices *, const MMPreviewActorServices *);
     void mm_preview_actor_shape(const MMPreviewActor *, MMPreviewActorShape *, float left[9], float right[9],
                                 const MMPreviewActorServices *);
+    typedef struct MMPreviewTrackPose
+    {
+        MMI32 node, offset, route_frame;
+        MMI32 position[3], translation[3];
+        float rotation[9];
+    } MMPreviewTrackPose;
+    /* Read the live route cursor and recover world rotation from the posed root.
+     * A collapsed scale fails after publishing the cursor and any earlier rows. */
+    int mm_preview_actor_track_pose(const MMPreviewActor *, MMPreviewTrackPose *, const MMPreviewActorServices *);
+    /* Read the visible body's local bounds and place their eight corners in
+     * world space. An absent or offstage actor leaves the output untouched. */
+    int mm_preview_actor_bounds(const MMPreviewActor *, float corners[24], const struct MMBodyGeometryServices *,
+                                float (*scalar_float)(MMI32));
     int mm_preview_actor_rest_pose(const MMPreviewActor *, const MMPreviewActorServices *);
 
     enum MMPreviewActionResult

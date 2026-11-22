@@ -35,11 +35,12 @@ extern "C"
     void mm_preview_orbit_reset(MMPreviewOrbit *);
     int mm_preview_orbit_follows(const MMPreviewOrbit *, MMI32 object, int visible);
     void mm_preview_orbit_move(MMPreviewOrbit *, MMI32 object, const float before[3], const float after[3]);
-    void mm_preview_orbit_resize(MMPreviewOrbit *, const MMI32 before[6], const MMI32 after[6], const MMPreviewMath *);
+    void mm_preview_orbit_resize(MMPreviewOrbit *, const MMBodyBounds *, const MMBodyBounds *,
+                                 float (*scalar_float)(MMI32));
     /* Invalid local bounds publish zero corners and return false. Double precision
      * is retained through corner accumulation, then rounded once to float. */
-    int mm_preview_camera_bounds(const MMI32 low[3], const MMI32 high[3], const MMI32 matrix[12], float corners[24],
-                                 const MMPreviewMath *);
+    int mm_preview_camera_bounds(const MMBodyBounds *, const MMActorMatrix *, float corners[24],
+                                 float (*scalar_float)(MMI32));
     /* Fit every projected box corner inside a perspective view. Inset is a
      * fraction of each image edge; zoom is relative to the normal orbit fit. */
     int mm_preview_camera_fit_object(const float corners[24], float yaw, float pitch, float aspect, float fov,

@@ -4,6 +4,7 @@
 #include <cstring>
 #include <cmath>
 #include <cstdlib>
+#include <limits>
 #include "preview_admission_fixture.h"
 #include "preview_render_fixture.h"
 #include "preview_pick_fixture.h"
@@ -48,6 +49,93 @@ static bool CaptureActorCatalogue(MM::Preview &preview)
             return false;
     }
     return trace.Finish("actor catalogue", 0, 0);
+}
+
+static bool CaptureActorTransforms(MM::Preview &preview)
+{
+    if (!std::getenv("MM_PREVIEW_ACTOR_TRANSFORMS_SNAPSHOT"))
+        return true;
+    AdmissionTrace trace("MM_PREVIEW_ACTOR_TRANSFORMS_SNAPSHOT");
+    MM::Error error;
+    auto read = [&](int object) {
+        MM::PreviewTrackPose pose;
+        MM::PreviewBounds bounds;
+        const bool tracked = preview.ObjectTrackPose(object, pose);
+        if (!preview.ObjectBounds(object, bounds, error))
+            return false;
+        const std::int32_t route[] = {tracked, pose.node, pose.offset, pose.routeFrame};
+        const std::uint32_t box[] = {bounds.valid, bounds.colour};
+        return trace.Record(route, sizeof(route)) && trace.Record(pose.position, sizeof(pose.position)) &&
+               trace.Record(pose.translation, sizeof(pose.translation)) &&
+               trace.Record(pose.rotation, sizeof(pose.rotation)) && trace.Record(box, sizeof(box)) &&
+               trace.Record(bounds.corners, sizeof(bounds.corners));
+    };
+    for (int frame : {1, 5, 10})
+    {
+        if (!preview.SetFrame(frame, error))
+            return false;
+        const auto objects = preview.Objects();
+        for (std::size_t i = 0; i < objects.size(); ++i)
+            if (!read(static_cast<int>(i)))
+                return false;
+    }
+    if (!preview.SetFrame(1, error))
+        return false;
+    preview.ResetOrbitFraming();
+    MM::PreviewView view;
+    view.width = 96;
+    view.height = 72;
+    view.yaw = 24;
+    view.pitch = 17;
+    view.authoredCamera = false;
+    view.stableOrbit = true;
+    view.orbitObject = view.onlyObject = 0;
+    auto render = [&] {
+        MM::PreviewImage image;
+        return preview.Render(view, image, error) && image.coveredPixels &&
+               trace.Record(image.projection.transform, sizeof(image.projection.transform)) && trace.Image(image);
+    };
+    if (!render())
+        return false;
+    MM::PreviewObjectShape shape;
+    shape.scale[0] = 1.6f;
+    shape.scale[2] = .65f;
+    shape.rotation[0] = shape.rotation[8] = 0;
+    shape.rotation[2] = -1;
+    shape.rotation[6] = 1;
+    if (!preview.SetObjectShape(0, shape, error) || !read(0) || !render())
+        return false;
+    for (int i = 0; i < 5; ++i)
+    {
+        auto invalid = shape;
+        switch (i)
+        {
+        case 0: invalid.scale[0] = 0; break;
+        case 1: invalid.rotation[0] = std::numeric_limits<float>::quiet_NaN(); break;
+        case 2: invalid.rotation[2] = 1; break;
+        case 3: invalid.rotation[2] = -1.005f; break;
+        case 4: invalid.scale[0] = std::numeric_limits<float>::infinity(); break;
+        }
+        const bool applied = preview.SetObjectShape(0, invalid, error);
+        if (applied || error.code != MM::ErrorCode::invalid_argument || !trace.Error(applied, error, preview))
+            return false;
+    }
+    if (!read(0))
+        return false;
+    MM::PreviewBounds overrideBounds;
+    if (!preview.ObjectBounds(0, overrideBounds, error) || !overrideBounds.valid)
+        return false;
+    for (int i = 0; i < 24; i += 3)
+        overrideBounds.corners[i] += 4;
+    view.orbitBounds = &overrideBounds;
+    view.stableOrbit = false;
+    if (!render())
+        return false;
+    overrideBounds.valid = false;
+    if (!render() || !preview.SetObjectShape(0, {}, error))
+        return false;
+    preview.ResetOrbitFraming();
+    return trace.Finish("actor transforms", 0, 0);
 }
 
 int main(int argc, char **argv)
@@ -205,6 +293,8 @@ int main(int argc, char **argv)
         return 1;
     if (!check(preview.SetFrame(1, error)) || !check(preview.Render(view, later, error)) ||
         std::memcmp(repeated.projection.transform, later.projection.transform, sizeof(later.projection.transform)))
+        return 1;
+    if (!CaptureActorTransforms(preview))
         return 1;
     if (!check(preview.Select({0x41435452, 1}, error)) || preview.Info().firstFrame != 1 ||
         preview.Info().lastFrame <= 10 || !check(preview.Render(view, repeated, error)) || !repeated.coveredPixels)

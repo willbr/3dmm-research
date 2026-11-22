@@ -1,4 +1,5 @@
 #include "mm/preview_actor.h"
+#include "mm/preview_camera.h"
 #include "mm/actor_persistence.h"
 #include "mm/template_create.h"
 #include "mm/text_resource.h"
@@ -516,6 +517,7 @@ static void playback(void)
     Host h;
     MMActorState before;
     MMPreviewActorShape shape;
+    MMPreviewOrbit orbit = {0};
     float left[9], right[9];
     float delta[3] = {1, 2, 3}, bad[3] = {1, 2, 40000}, zero[3] = {0, 0, 0};
     int n, i, failure, r;
@@ -549,12 +551,18 @@ static void playback(void)
     assert(mm_preview_actor_seek(&h.actor, 100002, &h.services));
     h.actor.inactive = 0;
     before = h.actor.state;
-    assert(!mm_preview_actor_translate(&h.actor, bad, &h.services) && !memcmp(&before, &h.actor.state, sizeof(before)));
-    assert(mm_preview_actor_translate(&h.actor, delta, &h.services) && h.actor.header.translation[0] == 3 * ONE);
-    assert(mm_preview_actor_offset(&h.actor, zero, &h.services) && h.actor.header.translation[0] == 2 * ONE);
+    orbit.framed = 1;
+    orbit.object = 10;
+    assert(!mm_preview_actor_translate(&h.actor, bad, &orbit, 10, &h.services) && !orbit.anchor[0] &&
+           !memcmp(&before, &h.actor.state, sizeof(before)));
+    assert(mm_preview_actor_translate(&h.actor, delta, &orbit, 10, &h.services) &&
+           h.actor.header.translation[0] == 3 * ONE &&
+           orbit.anchor[0] == 1 && orbit.anchor[1] == 2 && orbit.anchor[2] == 3);
+    assert(mm_preview_actor_offset(&h.actor, zero, &orbit, 10, &h.services) &&
+           h.actor.header.translation[0] == 2 * ONE && !orbit.anchor[0] && !orbit.anchor[1] && !orbit.anchor[2]);
     h.actor.original[0] = (MMI32)0x7fffffff;
     h.actor.header.translation[0] = 0x7fffffff;
-    assert(mm_preview_actor_offset(&h.actor, zero, &h.services));
+    assert(mm_preview_actor_offset(&h.actor, zero, NULL, 0, &h.services));
     h.actor.original[0] = 2 * ONE;
     h.actor.header.translation[0] = 2 * ONE;
     assert(mm_preview_actor_seek(&h.actor, 2, &h.services));
@@ -565,8 +573,9 @@ static void playback(void)
     assert(mm_preview_actor_position(&h.actor, 0, &h.services) && !h.actor.orientation.useCurrentRotation);
     mm_preview_actor_shape(&h.actor, &shape, left, right, &h.services);
     shape.scale[0] = 2;
-    assert(mm_preview_actor_set_shape(&h.actor, &shape, &h.services) && h.actor.shape.scale[0] == 2);
-    assert(mm_preview_actor_translate(&h.actor, delta, &h.services));
+    assert(mm_preview_actor_set_shape(&h.actor, &shape, NULL, 0, NULL, &h.services) == MM_PREVIEW_SHAPE_OK &&
+           h.actor.shape.scale[0] == 2);
+    assert(mm_preview_actor_translate(&h.actor, delta, &orbit, 9, &h.services) && !orbit.anchor[0]);
     assert(h.point.dxr == mm_fixed_add(h.actor.state.routeTranslation.dxr, h.actor.state.position.dxr));
     h.fail_at = h.calls + 1;
     h.failure = -1;

@@ -747,7 +747,19 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     radius = maxf(.1f, m->sqrt(squared));
     if (!bg && !v->authored && !v->free_camera && v->object >= 0)
     {
-        if (!s->object_bounds(s->context, v->object, corners, &valid))
+        if (s->object_corners && s->only_object == v->object)
+        {
+            valid = s->object_corners_valid;
+            memcpy(corners, s->object_corners, sizeof(corners));
+        }
+        else if (s->live)
+        {
+            if ((MMU32)v->object >= s->live->actors.count)
+                return MM_PREVIEW_OBJECT_INDEX;
+            valid = mm_preview_actor_bounds(mm_preview_live_actor_view(s->live, (MMU32)v->object), corners,
+                                            s->body_geometry, m->scalar_float);
+        }
+        else if (!s->object_bounds(s->context, v->object, corners, &valid))
             return MM_PREVIEW_HOST;
         if (valid)
         {
@@ -983,6 +995,7 @@ int mm_preview_render_isolated(const MMPreviewView *view, const MMPreviewOrbit *
 {
     MMPreviewView isolated = *view;
     MMPreviewOrbit framing = *orbit;
+    MMPreviewRenderServices services = *s;
     float fit;
     int result;
     if (view->width < 64 || view->height < 64 || !finitef(view->zoom) || view->zoom < .1f || view->zoom > 10)
@@ -996,8 +1009,11 @@ int mm_preview_render_isolated(const MMPreviewView *view, const MMPreviewOrbit *
     isolated.near_clip = .01f;
     isolated.fit_depth = 1;
     isolated.zoom = fit * minf(1.f, view->zoom);
+    services.only_object = object;
+    services.object_corners = bounds;
+    services.object_corners_valid = 1;
     mm_preview_orbit_reset(&framing);
-    result = mm_preview_render(&isolated, &framing, out, s);
+    result = mm_preview_render(&isolated, &framing, out, &services);
     if (result == MM_PREVIEW_OK && crop)
         mm_preview_camera_crop(bounds, out->projection.transform, out->projection.vertical_fov,
                                out->projection.aspect, out->width, out->height, rect, &s->math);

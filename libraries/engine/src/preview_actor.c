@@ -2,6 +2,7 @@
 #include "mm/actor_persistence.h"
 #include "mm/body_runtime.h"
 #include "mm/material_resource.h"
+#include "mm/preview_camera.h"
 #include "mm/template_create.h"
 #include "mm/text_resource.h"
 #include "mm/wide.h"
@@ -572,22 +573,92 @@ static int move(MMPreviewActor *p, const float delta[3], int offset, const MMPre
     p->state.routeTranslation.dzr = translation[2];
     return !p->state.onStage ? 1 : mm_preview_actor_position(p, 0, s);
 }
-int mm_preview_actor_translate(MMPreviewActor *p, const float d[3], const MMPreviewActorServices *s)
+static int place(MMPreviewActor *p, const float delta[3], int offset, MMPreviewOrbit *orbit, MMI32 object,
+                 const MMPreviewActorServices *s)
 {
-    return move(p, d, 0, s);
+    MMActorPoint before, after;
+    float from[3], to[3];
+    int follow = orbit && mm_preview_orbit_follows(orbit, object, 1);
+    int result;
+    if (follow)
+        mm_actor_pose_translation(&p->state, &before);
+    result = move(p, delta, offset, s);
+    if (result > 0 && follow)
+    {
+        mm_actor_pose_translation(&p->state, &after);
+        from[0] = s->scalar_float(before.dxr);
+        from[1] = s->scalar_float(before.dyr);
+        from[2] = s->scalar_float(before.dzr);
+        to[0] = s->scalar_float(after.dxr);
+        to[1] = s->scalar_float(after.dyr);
+        to[2] = s->scalar_float(after.dzr);
+        mm_preview_orbit_move(orbit, object, from, to);
+    }
+    return result;
 }
-int mm_preview_actor_offset(MMPreviewActor *p, const float d[3], const MMPreviewActorServices *s)
+int mm_preview_actor_translate(MMPreviewActor *p, const float d[3], MMPreviewOrbit *orbit, MMI32 object,
+                                const MMPreviewActorServices *s)
 {
-    return move(p, d, 1, s);
+    return place(p, d, 0, orbit, object, s);
 }
-int mm_preview_actor_set_shape(MMPreviewActor *p, const MMPreviewActorShape *shape, const MMPreviewActorServices *s)
+int mm_preview_actor_offset(MMPreviewActor *p, const float d[3], MMPreviewOrbit *orbit, MMI32 object,
+                             const MMPreviewActorServices *s)
 {
+    return place(p, d, 1, orbit, object, s);
+}
+static int validate_shape(const MMPreviewActorShape *shape)
+{
+    const float *r = shape->rotation;
+    int a, b, c;
+    float determinant, dot;
+    for (a = 0; a < 3; ++a)
+        if (!(shape->scale[a] >= .01f && shape->scale[a] <= 10))
+            return MM_PREVIEW_SHAPE_SCALE;
+    for (a = 0; a < 9; ++a)
+        if (!(r[a] >= -1.01f && r[a] <= 1.01f))
+            return MM_PREVIEW_SHAPE_ROTATION;
+    determinant = r[0] * (r[4] * r[8] - r[5] * r[7]) - r[1] * (r[3] * r[8] - r[5] * r[6]) +
+                  r[2] * (r[3] * r[7] - r[4] * r[6]);
+    if (determinant < .99f)
+        return MM_PREVIEW_SHAPE_REFLECTION;
+    for (a = 0; a < 3; ++a)
+        for (b = a; b < 3; ++b)
+        {
+            dot = 0;
+            for (c = 0; c < 3; ++c)
+                dot += r[a * 3 + c] * r[b * 3 + c];
+            dot -= a == b ? 1.f : 0.f;
+            if (dot < -.003f || dot > .003f)
+                return MM_PREVIEW_SHAPE_AXES;
+        }
+    return MM_PREVIEW_SHAPE_OK;
+}
+int mm_preview_actor_set_shape(MMPreviewActor *p, const MMPreviewActorShape *shape, MMPreviewOrbit *orbit,
+                               MMI32 object, const MMBodyGeometryServices *geometry, const MMPreviewActorServices *s)
+{
+    const MMBodyShape *body;
+    MMBodyBounds before, after;
+    int follow, result = validate_shape(shape);
+    if (result != MM_PREVIEW_SHAPE_OK)
+        return result;
     if (!p->body || !p->tmpl)
-        return 0;
-    if (equal_shape(&p->shape, shape))
-        return 1;
-    p->shape = *shape;
-    return !p->state.onStage ? 1 : mm_preview_actor_position(p, 0, s);
+        return MM_PREVIEW_SHAPE_FAILED;
+    if (!equal_shape(&p->shape, shape))
+    {
+        follow = orbit && mm_preview_orbit_follows(orbit, object, p->state.onStage);
+        body = follow ? &mm_body_owner_state((MMBodyOwner *)p->body)->shape : NULL;
+        if (follow)
+            mm_body_bounds(body, 1, &before, geometry);
+        p->shape = *shape;
+        if (p->state.onStage)
+            result = mm_preview_actor_position(p, 0, s);
+        if (result == MM_PREVIEW_SHAPE_OK && follow)
+        {
+            mm_body_bounds(body, 1, &after, geometry);
+            mm_preview_orbit_resize(orbit, &before, &after, s->scalar_float);
+        }
+    }
+    return result;
 }
 void mm_preview_actor_shape(const MMPreviewActor *p, MMPreviewActorShape *shape, float left[9], float right[9],
                             const MMPreviewActorServices *s)
@@ -777,6 +848,72 @@ static void include_corners(const float corners[24], float low[3], float high[3]
         }
 }
 
+static void rest_orientation(MMActorMatrix *out, const unsigned short angle[3])
+{
+    mm_matrix_identity(out);
+    mm_matrix_rotate(out, MM_MATRIX_X, angle[0], 0);
+    mm_matrix_rotate(out, MM_MATRIX_Y, angle[1], 0);
+    mm_matrix_rotate(out, MM_MATRIX_Z, angle[2], 0);
+}
+
+int mm_preview_actor_track_pose(const MMPreviewActor *actor, MMPreviewTrackPose *out, const MMPreviewActorServices *s)
+{
+    const MMActorState *state = &actor->state;
+    const MMActorMatrix *root;
+    MMActorMatrix rest;
+    unsigned short angles[3] = {0};
+    MMI32 stretch[3], scaled;
+    int row, col, i;
+    double value;
+    if (!state->onStage || !actor->body || !actor->tmpl)
+        return 0;
+    out->node = state->location.irpt;
+    out->offset = state->location.dwrOffset;
+    out->route_frame = state->location.dnfrm;
+    out->position[0] = state->position.dxr;
+    out->position[1] = state->position.dyr;
+    out->position[2] = state->position.dzr;
+    out->translation[0] = state->routeTranslation.dxr;
+    out->translation[1] = state->routeTranslation.dyr;
+    out->translation[2] = state->routeTranslation.dzr;
+    s->rest(s->context, actor->tmpl, angles);
+    if (s->fault && s->fault(s->context))
+        return 0;
+    rest_orientation(&rest, angles);
+    stretch[0] = state->transform.aevpull.rScaleX;
+    stretch[1] = state->transform.aevpull.rScaleY;
+    stretch[2] = state->transform.aevpull.rScaleZ;
+    root = &mm_body_owner_state((MMBodyOwner *)actor->body)->shape.bindings[0].matrix;
+    /* Remove the template rest orientation and authored size from the posed root. */
+    for (row = 0; row < 3; ++row)
+    {
+        scaled = mm_fixed_mul(mm_fixed_mul(stretch[row], s->scalar(actor->shape.scale[row])),
+                              state->transform.rScaleStep);
+        if (!scaled)
+            return 0;
+        for (col = 0; col < 3; ++col)
+        {
+            value = 0;
+            for (i = 0; i < 3; ++i)
+                value += s->scalar_float(rest.m[i][row]) * (double)s->scalar_float(root->m[i][col]);
+            out->rotation[row * 3 + col] = (float)(value / s->scalar_float(scaled));
+        }
+    }
+    return 1;
+}
+
+int mm_preview_actor_bounds(const MMPreviewActor *actor, float corners[24], const MMBodyGeometryServices *geometry,
+                            float (*scalar_float)(MMI32))
+{
+    const MMBodyShape *body;
+    MMBodyBounds local;
+    if (!actor || !actor->state.onStage || !actor->body)
+        return 0;
+    body = &mm_body_owner_state((MMBodyOwner *)actor->body)->shape;
+    mm_body_bounds(body, 0, &local, geometry);
+    return mm_preview_camera_bounds(&local, &body->bindings[0].matrix, corners, scalar_float);
+}
+
 int mm_preview_actor_rest_pose(const MMPreviewActor *actor, const MMPreviewActorServices *s)
 {
     MMActorBodyPose pose = {0};
@@ -784,10 +921,7 @@ int mm_preview_actor_rest_pose(const MMPreviewActor *actor, const MMPreviewActor
     s->rest(s->context, actor->tmpl, angle);
     if (s->fault && s->fault(s->context))
         return 0;
-    mm_matrix_identity(&pose.orientation);
-    mm_matrix_rotate(&pose.orientation, MM_MATRIX_X, angle[0], 0);
-    mm_matrix_rotate(&pose.orientation, MM_MATRIX_Y, angle[1], 0);
-    mm_matrix_rotate(&pose.orientation, MM_MATRIX_Z, angle[2], 0);
+    rest_orientation(&pose.orientation, angle);
     s->locate(s->context, actor->body, &pose);
     return !s->fault || !s->fault(s->context);
 }

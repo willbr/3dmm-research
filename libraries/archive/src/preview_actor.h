@@ -48,9 +48,9 @@ class PreviewActor
     bool Create(const PreviewPropDefinition &, std::function<MMResourceCache *(const TAGOnFile &)> resolver,
                 std::function<void(PTemplate)> bindTemplate, MMWide &drawClock);
     bool Seek(LegacyLong frame);
-    bool Translate(const float delta[3]);
-    bool SetOffset(const float offset[3]);
-    bool SetShape(const PreviewObjectShape &);
+    bool Translate(const float delta[3], MMPreviewOrbit &, MMI32 object);
+    bool SetOffset(const float offset[3], MMPreviewOrbit &, MMI32 object);
+    int SetShape(const PreviewObjectShape &, MMPreviewOrbit &, MMI32 object);
     void Shape(PreviewObjectShape &, float left[9], float right[9]) const;
     bool TrackPose(PreviewTrackPose &) const;
     PreviewObject Snapshot() const;

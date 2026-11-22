@@ -1204,13 +1204,18 @@ initial rest pose. C89 owns each actor's chunk identity, publishes actor and
 animation edits. The actor catalogue reads action ranges and costume selection
 in C89. Live and saved costume edits validate their choices through the same
 catalogue before applying body changes or recording events.
-Preview picking now
-also uses C89 for validation, coordinates, camera/temporary ownership, stable
-body copying, nearest-hit/texture policy and
-authored-background occlusion. Native adapters supply typed SDK primitives.
-Camera matching/panning, orbit reset and placement/shape anchor updates, posed
-bounds conversion, camera selection/publication and guide metadata cache ownership
-now also use C89. Persistent live definitions, actor handle ownership and camera
+Preview reads the live actor's route cursor and recovers world rotation from
+its posed root in C89. The C owner validates rotation and scale before posing
+the body and measures the bounds needed to preserve the followed orbit when
+shape or placement changes. Rendering reads the same world-space corners
+directly from the live actor. Isolated rendering binds the selected object and
+its supplied framing corners in C89.
+Preview picking uses C89 for validation, coordinates, camera ownership, stable
+body copying, nearest-hit and texture policy, and authored-background
+occlusion. Native adapters supply typed SDK primitives.
+Camera matching, panning, orbit reset, camera selection and publication, and
+guide metadata cache ownership also use C89. Persistent live definitions,
+actor handle ownership and camera
 cue snapshots, prop reconciliation/rollback, range/camera edits and frame-seek
 failure/publication control now also use C89. Preview dependency budgets, asset/
 scene admission, template action discovery/rest pose, pose validation and geometry
