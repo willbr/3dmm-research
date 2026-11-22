@@ -2,11 +2,12 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/script_vm.h"
 #include "mm/script_opcodes.h"
+#include "mm/string_format.h"
 #include "mm/wide.h"
 #include <string.h>
 
 int mm_script_vm_init(MMScriptVM *vm, const MMStorageAllocator *allocator, int trash_unused,
-                      const MMScriptVMServices *services, void *host)
+                      MMScriptStrings *strings, const MMScriptVMServices *services, void *host)
 {
     int status;
     memset(vm, 0, sizeof(*vm));
@@ -14,6 +15,7 @@ int mm_script_vm_init(MMScriptVM *vm, const MMStorageAllocator *allocator, int t
     if (status != MM_STORAGE_OK)
         return status;
     status = mm_script_variables_init(&vm->locals, allocator);
+    vm->strings = strings;
     vm->services = services;
     vm->host = host;
     return status;
@@ -21,6 +23,12 @@ int mm_script_vm_init(MMScriptVM *vm, const MMStorageAllocator *allocator, int t
 
 void mm_script_vm_dispose(MMScriptVM *vm)
 {
+    MMU32 index;
+    MMI32 id;
+    if (vm->script && vm->strings && vm->locals.count)
+        for (index = mm_script_literal_count(vm->script); index-- > 0;)
+            if (mm_script_variables_get(&vm->locals, 0, index, &id))
+                mm_script_strings_delete(vm->strings, id);
     mm_script_stack_dispose(&vm->stack);
     mm_script_variables_dispose(&vm->locals);
     mm_script_release(vm->script);
@@ -37,7 +45,50 @@ void mm_script_vm_fail(MMScriptVM *vm, int reason)
         vm->services->error(vm->host, reason);
 }
 
-int mm_script_vm_attach(MMScriptVM *vm, MMCompiledScript *script, unsigned current, unsigned minimum)
+static int add_parameters(MMScriptVM *vm, const unsigned char *words, MMU32 count)
+{
+    MMU32 high, low, i;
+    MMI32 value;
+    if (!count)
+        return 1;
+    mm_script_variable_name("_cparm", 6, 1, &high, &low);
+    if (!mm_script_variables_set(&vm->locals, high, low, (MMI32)count))
+        return 0;
+    mm_script_variable_name("_parm", 5, 1, &high, &low);
+    for (i = 0; i < count; ++i)
+    {
+        memcpy(&value, words + i * sizeof(value), sizeof(value));
+        if (!mm_script_variables_set(&vm->locals, (i << 16) | high, low, value))
+            return 0;
+    }
+    return 1;
+}
+
+static int add_literals(MMScriptVM *vm)
+{
+    MMU32 index, count;
+    MMI32 id;
+    const void *text;
+    if (!mm_script_has_literals(vm->script))
+        return 1;
+    if (!vm->strings || vm->strings->unit_bytes != mm_script_unit_bytes(vm->script))
+        return 0;
+    for (index = 0; index < mm_script_literal_count(vm->script); ++index)
+    {
+        if (!mm_script_literal(vm->script, index, &text, &count) ||
+            !mm_script_strings_add(vm->strings, &id, text, count))
+            return 0;
+        if (!mm_script_variables_set(&vm->locals, 0, index, id))
+        {
+            mm_script_strings_delete(vm->strings, id);
+            return 0;
+        }
+    }
+    return 1;
+}
+
+int mm_script_vm_attach(MMScriptVM *vm, MMCompiledScript *script, unsigned current, unsigned minimum,
+                        const void *parameters, MMU32 parameter_count)
 {
     MMU32 version, written, compatible;
     if (vm->script)
@@ -69,6 +120,16 @@ int mm_script_vm_attach(MMScriptVM *vm, MMCompiledScript *script, unsigned curre
     }
     if (vm->error)
         return 0;
+    if ((parameter_count && !parameters) || parameter_count > MM_STORAGE_LIMIT / sizeof(MMI32))
+    {
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPERAND);
+        return 0;
+    }
+    if (!add_parameters(vm, parameters, parameter_count) || !add_literals(vm))
+    {
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_RESOURCE);
+        return 0;
+    }
     vm->pc = 1;
     vm->paused = 1;
     return 1;
@@ -269,12 +330,198 @@ static void shuffle(MMScriptVM *vm, unsigned opcode, MMI32 count)
     }
 }
 
+typedef union ScriptText
+{
+    unsigned char narrow[257];
+    unsigned short wide[257];
+} ScriptText;
+
+static void string_notice(MMScriptVM *vm, int reason, MMI32 value)
+{
+    if (vm->services && vm->services->string_notice)
+        vm->services->string_notice(vm->host, reason, value);
+}
+
+static MMU32 read_string(MMScriptVM *vm, MMI32 id, const void **text, int warn)
+{
+    MMU32 count;
+    if (!mm_script_strings_get(vm->strings, id, text, &count) && warn)
+        string_notice(vm, MM_SCRIPT_STRING_MISSING, id);
+    return count;
+}
+
+static void write_string(MMScriptVM *vm, MMI32 id, const ScriptText *text)
+{
+    MMU32 count;
+    const void *data;
+    if (vm->strings->unit_bytes == 1)
+    {
+        count = text->narrow[0];
+        data = text->narrow + 1;
+    }
+    else
+    {
+        count = text->wide[0];
+        data = text->wide + 1;
+    }
+    if (!mm_script_strings_put(vm->strings, id, data, count))
+    {
+        string_notice(vm, MM_SCRIPT_STRING_STORE_FAILED, id);
+        id = -1;
+    }
+    mm_script_vm_push(vm, id);
+}
+
+static void merge_strings(MMScriptVM *vm, MMI32 number, MMU32 scope)
+{
+    MMScriptCollection *table;
+    if (vm->error)
+        return;
+    if (!vm->services || !vm->services->string_resource)
+    {
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_RESOURCE);
+        return;
+    }
+    table = vm->services->string_resource(vm->host, (MMU32)number, scope);
+    if (!table)
+    {
+        if (!vm->error)
+            string_notice(vm, MM_SCRIPT_STRING_RESOURCE_MISSING, number);
+        return;
+    }
+    if (!mm_script_registry_import(table, vm->strings))
+        string_notice(vm, MM_SCRIPT_STRING_MERGE_FAILED, number);
+    mm_script_collection_priority(table, MM_RESOURCE_TOSS_PRIORITY);
+    mm_script_collection_release(table);
+}
+
+static int decimal_argument(void *context, unsigned control, MMStringFormatArgument *argument)
+{
+    (void)control;
+    argument->number = (MMU32)*(const MMI32 *)context;
+    return 1;
+}
+
+static void number_string(const MMStringValue *output, MMI32 number)
+{
+    static const unsigned char narrow[] = {'%', 'd'};
+    static const unsigned short wide[] = {'%', 'd'};
+    MMStringFormatArguments args;
+    const void *pattern = output->unit == 1 ? (const void *)narrow : (const void *)wide;
+    args.context = &number;
+    args.next = decimal_argument;
+    args.bad_format = NULL;
+    mm_string_format(output, pattern, 2, &args);
+}
+
+static void execute_string(MMScriptVM *vm, unsigned opcode)
+{
+    ScriptText buffer;
+    MMStringValue output;
+    const void *text;
+    MMI32 source, destination, start = 0, limit = 255, second, value;
+    MMU32 count;
+
+    source = mm_script_vm_pop(vm);
+    if (vm->error)
+        return;
+    if (!vm->strings)
+    {
+        if (opcode == kopMergeStrs)
+            string_notice(vm, MM_SCRIPT_STRING_NO_REGISTRY, source);
+        mm_script_vm_fail(vm, opcode == kopMergeStrs ? MM_SCRIPT_ERROR_RESOURCE : MM_SCRIPT_ERROR_OPERAND);
+        return;
+    }
+    output.buffer = &buffer;
+    output.unit = vm->strings->unit_bytes;
+    output.context = NULL;
+    output.check_copy = NULL;
+
+    switch (opcode)
+    {
+    case kopCopySubStr:
+        start = mm_script_vm_pop(vm);
+        limit = mm_script_vm_pop(vm);
+        /* fall through */
+    case kopCopyStr:
+        destination = mm_script_vm_pop(vm);
+        if (vm->error)
+            break;
+        count = read_string(vm, source, &text, 1);
+        mm_string_value_set(&output, text, (MMI32)count);
+        if (start > 0)
+            mm_string_value_delete(&output, 0, start);
+        if (limit < 0)
+            string_notice(vm, MM_SCRIPT_STRING_BAD_SLICE, limit);
+        else
+            mm_string_value_delete(&output, limit, 255);
+        write_string(vm, destination, &buffer);
+        break;
+    case kopMoveStr:
+        destination = mm_script_vm_pop(vm);
+        if (!vm->error)
+            mm_script_vm_push(vm, mm_script_strings_move(vm->strings, source, destination) ? destination : -1);
+        break;
+    case kopNukeStr:
+        mm_script_strings_delete(vm->strings, source);
+        break;
+    case kopMergeStrs:
+        merge_strings(vm, source, (MMU32)mm_script_vm_pop(vm));
+        break;
+    case kopNumToStr:
+        destination = mm_script_vm_pop(vm);
+        if (vm->error)
+            break;
+        number_string(&output, source);
+        write_string(vm, destination, &buffer);
+        break;
+    case kopStrToNum:
+        second = mm_script_vm_pop(vm);
+        destination = mm_script_vm_pop(vm);
+        if (vm->error)
+            break;
+        count = read_string(vm, source, &text, 0);
+        if (!count)
+            value = second;
+        else
+        {
+            mm_string_value_set(&output, text, (MMI32)count);
+            if (!mm_string_value_number(&output, 0, &value))
+                value = destination;
+        }
+        mm_script_vm_push(vm, value);
+        break;
+    case kopConcatStrs:
+        second = mm_script_vm_pop(vm);
+        destination = mm_script_vm_pop(vm);
+        if (vm->error)
+            break;
+        count = read_string(vm, source, &text, 1);
+        mm_string_value_set(&output, text, (MMI32)count);
+        count = read_string(vm, second, &text, 1);
+        mm_string_value_append(&output, text, (MMI32)count);
+        write_string(vm, destination, &buffer);
+        break;
+    case kopLenStr:
+        mm_script_vm_push(vm, (MMI32)read_string(vm, source, &text, 1));
+        break;
+    default:
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
+        break;
+    }
+}
+
 static void execute(MMScriptVM *vm, unsigned opcode)
 {
     const MMScriptVMServices *services = vm->services;
     MMI32 a, b, c;
     double ratio;
 
+    if (opcode >= kopCopyStr && opcode < kopLimSccb && opcode != kopScaleTime)
+    {
+        execute_string(vm, opcode);
+        return;
+    }
     switch (opcode)
     {
     case kopExit:

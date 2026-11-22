@@ -1750,9 +1750,11 @@ The interpreter's operand stack, list operations, and local and
 graphics-object variable tables now use C89 storage and algorithms.
 The C89 interpreter retains the script and owns instruction decoding,
 arithmetic, variable dispatch, jumps, pause/resume, and the return value.
-Kidspace resolves the current, global, and remote objects. The native host
-supplies registry, clock, random and shuffle services and handles Kidspace
-opcodes that operate on Studio's objects.
+It also packs variable names with the compiler, binds parameters and literals,
+and runs the string opcodes against the C89 registry shared with Help. Kidspace
+resolves the current, global, and remote objects and finds registry resources.
+The native host supplies clock, random and shuffle services and handles
+Kidspace opcodes that operate on Studio's objects.
 The script string and colour tables use C-owned storage and cache references.
 C89 normalizes registry IDs, translates counted text through the host codec,
 and merges rows in reverse order. The transition adapter supplies native

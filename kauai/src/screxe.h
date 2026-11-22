@@ -58,11 +58,7 @@ class StringRegistry : public StringRegistry_PAR
     NOCOPY(StringRegistry)
 
   protected:
-    LegacyLong _stidLast;
-    PStringTable_GST _pgst;
-
-    bool _FFind(LegacyLong stid, LegacyLong *pistn);
-    bool _FEnsureGst(void);
+    MMScriptStrings _strings;
 
   public:
     StringRegistry(void);
@@ -73,6 +69,10 @@ class StringRegistry : public StringRegistry_PAR
     bool FAdd(LegacyLong *pstid, PString pstn);
     bool FMove(LegacyLong stidSrc, LegacyLong stidDst);
     void Delete(LegacyLong stid);
+    MMScriptStrings *Storage()
+    {
+        return &_strings;
+    }
 };
 
 /***************************************************************************
@@ -105,17 +105,8 @@ class Interpreter : public Interpreter_PAR
     void _ReportScriptError(int reason);
 
     void _PopList(LegacyLong clw);
-    void _CopySubStr(LegacyLong stidSrc, LegacyLong ichMin, LegacyLong cch, LegacyLong stidDst);
-    void _MergeStrings(ChunkNumber cno, RSC rsc);
-    void _NumToStr(LegacyLong lw, LegacyLong stid);
-    void _StrToNum(LegacyLong stid, LegacyLong lwEmpty, LegacyLong lwError);
-    void _ConcatStrs(LegacyLong stidSrc1, LegacyLong stidSrc2, LegacyLong stidDst);
-    void _LenStr(LegacyLong stid);
-
-    virtual void _AddParameters(LegacyLong *prglw, LegacyLong clw);
-    void _AddStrings();
     virtual bool _FExecHostOp(LegacyLong op);
-    void _SetLocal(const RuntimeVariableName &name, LegacyLong lw);
+    MMScriptCollection *_FetchStringResource(MMU32 number, MMU32 scope);
     virtual MMScriptVariables *_ThisVariables(void);
     virtual MMScriptVariables *_GlobalVariables(void);
     virtual MMScriptVariables *_RemoteVariables(LegacyLong lw);
@@ -125,6 +116,7 @@ class Interpreter : public Interpreter_PAR
 
 #ifdef DEBUG
     void _WarnSz(PZString psz, ...);
+    void _ReportScriptString(int reason, LegacyLong value);
 #endif // DEBUG
 
   public:

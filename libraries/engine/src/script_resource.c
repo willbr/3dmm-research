@@ -1,6 +1,7 @@
 /* Script resource loading converted from Kauai screxe.cpp and screxeg.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/script_resource.h"
+#include "mm/script_strings.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -203,6 +204,17 @@ int mm_script_registry_merge(MMScriptCollection *table, MMScriptRegistryPut put,
             ok = 0;
     }
     return ok;
+}
+
+static int put_registry_string(void *registry, MMI32 id, const void *text, MMU32 count)
+{
+    return mm_script_strings_put(registry, id, text, count);
+}
+
+int mm_script_registry_import(MMScriptCollection *table, MMScriptStrings *registry)
+{
+    return registry->unit_bytes == table->host->unit_bytes &&
+           mm_script_registry_merge(table, put_registry_string, registry);
 }
 
 const void *mm_script_color_rows(const MMScriptCollection *table, MMU32 *count)
@@ -444,6 +456,7 @@ MMI32 mm_script_word(const MMCompiledScript *script, MMU32 index)
 }
 
 int mm_script_has_literals(const MMCompiledScript *script) { return script->has_literals; }
+unsigned mm_script_unit_bytes(const MMCompiledScript *script) { return script->host->unit_bytes; }
 MMU32 mm_script_literal_count(const MMCompiledScript *script) { return script->literals.header.count; }
 
 int mm_script_add_literal(MMCompiledScript *script, const void *text, MMU32 count, MMU32 *index)

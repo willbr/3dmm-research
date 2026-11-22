@@ -2717,54 +2717,10 @@ void RuntimeVariableName::SetFromStn(PString pstn)
 {
     AssertThisMem();
     AssertPo(pstn, 0);
-    byte rgb[8];
-    byte bT;
-    LegacyLong lw, ib, ibDst, cbit;
-    LegacyLong cch = pstn->Cch();
-    PZString psz = pstn->Psz();
-
-    // There are 52 letters, plus 10 digits, plus the underscore character,
-    // giving a total of 63 valid identifier characters.  We encode these
-    // from 1 to 63 and pack them into 6 bits each.  This lets us put 8
-    // characters in 6 bytes.  We pad the result with 0's.
-
-    ClearPb(rgb, 8);
-    ibDst = 0;
-    cbit = 8;
-    for (ib = 0; ib < 8; ib++)
-    {
-        // map the character to its encoded value
-        if (ib >= cch)
-            bT = 0;
-        else
-        {
-            bT = (byte)(schar)psz[ib];
-            if (FIn(bT, '0', '9' + 1))
-                bT -= '0' - 1;
-            else if (FIn(bT, 'A', 'Z' + 1))
-                bT -= 'A' - 11;
-            else if (FIn(bT, 'a', 'z' + 1))
-                bT -= 'a' - 37;
-            else
-            {
-                Assert(bT == '_', "bad identifier");
-                bT = 63;
-            }
-        }
-
-        // pack the encoded value into its 6 bit slot
-        AssertIn(bT, 0, 64);
-        lw = (LegacyLong)bT << (cbit + 2);
-        rgb[ibDst] = rgb[ibDst] & (~LegacyUlong(0) << cbit) | B1Lw(lw);
-        if ((cbit += 2) <= 8)
-            rgb[++ibDst] = B0Lw(lw);
-        else
-            cbit -= 8;
-    }
-
-    // put the bytes together into the rtvn's ulongs.
-    lu1 = LwFromBytes(0, 0, rgb[0], rgb[1]);
-    lu2 = LwFromBytes(rgb[2], rgb[3], rgb[4], rgb[5]);
+    MMU32 high, low;
+    AssertDo(mm_script_variable_name(pstn->Prgch(), pstn->Cch(), sizeof(achar), &high, &low), "bad identifier");
+    lu1 = high;
+    lu2 = low;
 }
 
 /***************************************************************************

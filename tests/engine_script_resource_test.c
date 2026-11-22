@@ -1,6 +1,7 @@
 #include "mm/script_resource.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
+#include "mm/script_strings.h"
 #include "mm/script_vm.h"
 #include "mm/text.h"
 #include "mm/wide.h"
@@ -372,8 +373,17 @@ static void collections(void)
                     CHECK(out && bytes == (MMI32)h.decoded_bytes && h.collections_live == 1);
                     if (registry)
                     {
+                        MMScriptStrings imported;
+                        const void *text;
+                        MMU32 units;
                         trace.calls = 0;
                         CHECK(!mm_script_registry_merge(out, put_string, &trace) && trace.calls == 2);
+                        CHECK(mm_script_strings_init(&imported, h.host.unit_bytes, 0, NULL) == MM_STORAGE_OK);
+                        CHECK(mm_script_registry_import(out, &imported));
+                        CHECK(mm_script_strings_get(&imported, -17, &text, &units) && units == 3);
+                        trace.calls = 0;
+                        CHECK(!put_string(&trace, -17, text, units));
+                        mm_script_strings_dispose(&imported);
                     }
                     else
                     {
@@ -479,14 +489,14 @@ static int attach_program(Host *host, MMScriptVM *vm, const MMU32 *words, size_t
     CHECK(script);
     for (i = 0; i < count; ++i)
         CHECK(mm_script_add_word(script, mm_signed_word(words[i])));
-    ok = mm_script_vm_attach(vm, script, 10, 10);
+    ok = mm_script_vm_attach(vm, script, 10, 10, NULL, 0);
     mm_script_release(script);
     return ok;
 }
 
 static void execute_scripts(void)
 {
-    static const MMScriptVMServices services = {vm_variables, NULL, NULL, NULL, NULL, NULL, NULL};
+    static const MMScriptVMServices services = {vm_variables, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
     static const MMU32 pause[] = {
         VM_VERSION, VM_IMMEDIATES(2), 0xfffffff1UL, 4, kopDiv,
         VM_IMMEDIATES(1) | kopPause, 0x7fffffffUL, kopInc,
@@ -521,7 +531,7 @@ static void execute_scripts(void)
     CHECK(mm_script_variables_init(&fixture.object, NULL) == MM_STORAGE_OK);
     CHECK(mm_script_variables_init(&fixture.global, NULL) == MM_STORAGE_OK);
     CHECK(mm_script_variables_init(&fixture.remote, NULL) == MM_STORAGE_OK);
-    CHECK(mm_script_vm_init(&vm, NULL, 1, &services, &fixture) == MM_STORAGE_OK);
+    CHECK(mm_script_vm_init(&vm, NULL, 1, NULL, &services, &fixture) == MM_STORAGE_OK);
 
     CHECK(attach_program(&host, &vm, pause, sizeof(pause) / sizeof(*pause)));
     CHECK(mm_script_vm_resume(&vm) && vm.paused && vm.pc == 7 && vm.stack.count == 2);
@@ -564,12 +574,102 @@ static void execute_scripts(void)
     CHECK(!host.collections_live);
 }
 
+static void runtime_strings(void)
+{
+    MMScriptStrings registry;
+    const void *text;
+    MMU32 count;
+    MMI32 id;
+    char large[255];
+
+    CHECK(mm_script_strings_init(&registry, 1, 1, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_strings_put(&registry, mm_signed_word(0x80000001UL), "occupied", 8));
+    CHECK(mm_script_strings_add(&registry, &id, "literal", 7) && (MMU32)id == 0x80000002UL);
+    CHECK(mm_script_strings_put(&registry, 10, "source", 6));
+    CHECK(mm_script_strings_put(&registry, 20, "destination", 11));
+    CHECK(mm_script_strings_put(&registry, 30, "next", 4));
+    CHECK(!mm_script_strings_move(&registry, 10, 15));
+    CHECK(mm_script_strings_move(&registry, 20, 20));
+    CHECK(mm_script_strings_move(&registry, 10, 20));
+    CHECK(mm_script_strings_get(&registry, 10, &text, &count) && count == 6 && !memcmp(text, "source", 6));
+    CHECK(mm_script_strings_get(&registry, 20, &text, &count) && count == 4 && !memcmp(text, "next", 4));
+    CHECK(!mm_script_strings_get(&registry, 30, &text, &count) && !text && !count);
+    CHECK(mm_script_strings_move(&registry, 10, 20));
+    CHECK(!mm_script_strings_get(&registry, 20, &text, &count));
+    CHECK(mm_script_strings_get(&registry, 10, &text, &count) && count == 6);
+
+    memset(large, 'x', sizeof(large));
+    CHECK(mm_storage_lock(&registry.storage, 0) == MM_STORAGE_OK);
+    CHECK(!mm_script_strings_add(&registry, &id, large, sizeof(large)) && (MMU32)id == 0x80000003UL);
+    CHECK(!mm_script_strings_get(&registry, id, &text, &count));
+    CHECK(mm_storage_unlock(&registry.storage, 0) == MM_STORAGE_OK);
+    CHECK(mm_script_strings_add(&registry, &id, large, sizeof(large)) && (MMU32)id == 0x80000004UL);
+    CHECK(mm_script_strings_get(&registry, id, &text, &count) && count == sizeof(large));
+    mm_script_strings_delete(&registry, id);
+    CHECK(!mm_script_strings_get(&registry, id, &text, &count));
+    mm_script_strings_dispose(&registry);
+}
+
+static void execute_string_scripts(void)
+{
+    static const MMU32 program[] = {
+        VM_VERSION, VM_IMMEDIATES(3), 100, 2, 1,
+        ((MMU32)kopPushLocVar << 24) | VM_IMMEDIATES(1), 0, kopCopySubStr, kopPop,
+        VM_IMMEDIATES(3), 100, 101, 100, kopConcatStrs, kopPop,
+        VM_IMMEDIATES(1), 100, kopLenStr, kopSetReturn, kopPause,
+        VM_IMMEDIATES(2), 102, 0x80000000UL, kopNumToStr, kopPop,
+        VM_IMMEDIATES(3), 9, 7, 102, kopStrToNum, kopReturn
+    };
+    static const unsigned char narrow[] = {'a', 'b', 'c', 'd'};
+    static const unsigned short wide[] = {'a', 'b', 'c', 'd'};
+    static const unsigned char suffix[] = {' ', 'x'};
+    static const unsigned short wide_suffix[] = {' ', 0x03a9};
+    static const unsigned char expected[] = {'b', 'c', ' ', 'x'};
+    static const unsigned short wide_expected[] = {'b', 'c', ' ', 0x03a9};
+    Host host;
+    MMScriptStrings registry;
+    MMScriptVM vm;
+    MMCompiledScript *script;
+    const void *text;
+    MMU32 i, count;
+    unsigned unit;
+
+    for (unit = 1; unit <= 2; ++unit)
+    {
+        init(&host);
+        host.host.unit_bytes = unit;
+        if (unit == 2)
+            host.host.encoding = MM_TEXT_UTF16_LE;
+        script = mm_script_create(&host.host);
+        CHECK(script && mm_script_add_literal(script, unit == 1 ? (const void *)narrow : wide, 4, &i) && !i);
+        for (i = 0; i < sizeof(program) / sizeof(*program); ++i)
+            CHECK(mm_script_add_word(script, mm_signed_word(program[i])));
+        CHECK(mm_script_strings_init(&registry, unit, 1, NULL) == MM_STORAGE_OK);
+        CHECK(mm_script_strings_put(&registry, 101, unit == 1 ? (const void *)suffix : wide_suffix, 2));
+        CHECK(mm_script_vm_init(&vm, NULL, 1, &registry, NULL, NULL) == MM_STORAGE_OK);
+        CHECK(mm_script_vm_attach(&vm, script, 10, 10, NULL, 0));
+        mm_script_release(script);
+        CHECK(mm_script_strings_get(&registry, mm_signed_word(0x80000001UL), &text, &count) && count == 4);
+        CHECK(mm_script_vm_resume(&vm) && vm.paused && vm.result == 4);
+        CHECK(mm_script_strings_get(&registry, 100, &text, &count) && count == 4 &&
+              !memcmp(text, unit == 1 ? (const void *)expected : wide_expected, 4 * unit));
+        CHECK(mm_script_vm_resume(&vm) && !vm.paused && vm.result == mm_signed_word(0x80000000UL));
+        mm_script_vm_dispose(&vm);
+        CHECK(!mm_script_strings_get(&registry, mm_signed_word(0x80000001UL), &text, &count));
+        CHECK(mm_script_strings_get(&registry, 100, &text, &count) && count == 4);
+        mm_script_strings_dispose(&registry);
+        CHECK(!host.collections_live);
+    }
+}
+
 int main(void)
 {
     scripts();
     collections();
     runtime();
     execute_scripts();
+    runtime_strings();
+    execute_string_scripts();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

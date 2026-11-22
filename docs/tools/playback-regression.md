@@ -21349,3 +21349,36 @@ playback in suite `20261122T081603Z-7ffc4e8e`. This fixture is silent.
 
 Traces and Studio canvases are under `tmp/c89-script-vm`.
 Playback captures are under `tmp/c89-kd`.
+
+## C89 runtime string registry (22 November 2026)
+
+C89 owns signed-ID lookup, temporary IDs, script parameters and literals,
+and the string opcodes. Help and Kidspace use the same registry through
+their native string interface. Registry resource rows merge directly into
+it in reverse order. The compiler and VM use the same 48-bit name encoder.
+
+The retail ISO executable's move routine at RVA `0x48b70` uses the
+destination ID in both lookups for distinct IDs. The C89 implementation
+preserves the resulting deletion and reassignment. Deleting the last row
+leaves the destination absent and returns success without accessing the
+discarded slot. The fixture checks missing, equal, replaced and final
+destination IDs, along with ID collisions, failed growth, one- and two-byte
+text, substring extraction, concatenation into a source ID, signed decimal
+conversion and literal cleanup.
+
+All 199 engine, core link and C89 checks passed, along with 13 native x64,
+12 SDL, seven native x86 and the Chomp pipeline check. All 470 script
+payloads from the eight generated Studio archives matched the retained
+build. Headless Studio room, F1 Help, ISO and authoring checks passed.
+The Help and resource-cache traces, five smoke canvases, nine movie saves
+and Marcus startup canvas matched the retained results. The existing
+`scene-load` failure retained fingerprint `0D666753` and its identical
+63,224-byte trace.
+
+In suite `20261122T114721Z-6301b7b7`, both ports matched their prior 60 seek
+images and camera and actor state. Seek and continuous frame order matched
+the retained retail and V3DMM runs in suite `20261122T081603Z-7ffc4e8e`.
+The playback fixture is silent.
+
+The disassembly, traces and Studio canvases are under `tmp/c89-script-strings`.
+Playback captures are under `tmp/c89-kd`.

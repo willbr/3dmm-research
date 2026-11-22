@@ -250,3 +250,44 @@ int mm_script_variables_set(MMScriptVariables *variables, MMU32 high, MMU32 low,
     variables->count = array.count;
     return 1;
 }
+
+int mm_script_variable_name(const void *text, MMU32 count, unsigned unit_bytes, MMU32 *high, MMU32 *low)
+{
+    const unsigned char *bytes = text;
+    MMU32 hi = 0, lo = 0;
+    unsigned i, ch, digit;
+    unsigned short wide;
+    int valid = 1;
+    for (i = 0; i < 8; ++i)
+    {
+        if (i >= count)
+            digit = 0;
+        else
+        {
+            if (unit_bytes == 1)
+                ch = bytes[i];
+            else
+            {
+                memcpy(&wide, bytes + i * 2, sizeof(wide));
+                ch = (unsigned char)wide;
+            }
+            if (ch >= '0' && ch <= '9')
+                digit = ch - '0' + 1;
+            else if (ch >= 'A' && ch <= 'Z')
+                digit = ch - 'A' + 11;
+            else if (ch >= 'a' && ch <= 'z')
+                digit = ch - 'a' + 37;
+            else
+            {
+                digit = 63;
+                if (ch != '_')
+                    valid = 0;
+            }
+        }
+        hi = (hi << 6) | (lo >> 26);
+        lo = (lo << 6) | digit;
+    }
+    *high = hi;
+    *low = lo;
+    return valid;
+}

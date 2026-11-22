@@ -3,6 +3,7 @@
 #define MM_ENGINE_SCRIPT_VM_H
 #include "script_resource.h"
 #include "script_runtime.h"
+#include "script_strings.h"
 #ifdef __cplusplus
 extern "C"
 {
@@ -26,6 +27,16 @@ extern "C"
         MM_SCRIPT_ERROR_RESOURCE
     };
 
+    enum MMScriptStringNotice
+    {
+        MM_SCRIPT_STRING_MISSING,
+        MM_SCRIPT_STRING_STORE_FAILED,
+        MM_SCRIPT_STRING_RESOURCE_MISSING,
+        MM_SCRIPT_STRING_MERGE_FAILED,
+        MM_SCRIPT_STRING_BAD_SLICE,
+        MM_SCRIPT_STRING_NO_REGISTRY
+    };
+
     typedef struct MMScriptVMServices
     {
         MMScriptVariables *(*variables)(void *, int scope, MMI32 object);
@@ -36,6 +47,9 @@ extern "C"
         void (*shuffle)(void *, MMI32 count, const void *words);
         MMI32 (*next_card)(void *);
         int (*opcode)(void *, unsigned opcode);
+        /* Return a retained registry resource. The VM releases the reference. */
+        MMScriptCollection *(*string_resource)(void *, MMU32 number, MMU32 scope);
+        void (*string_notice)(void *, int reason, MMI32 value);
     } MMScriptVMServices;
 
     typedef struct MMScriptVM
@@ -43,6 +57,7 @@ extern "C"
         MMScriptStack stack;
         MMScriptVariables locals;
         MMCompiledScript *script;
+        MMScriptStrings *strings;
         const MMScriptVMServices *services;
         void *host;
         MMU32 pc, word_count;
@@ -50,16 +65,19 @@ extern "C"
         int paused, error;
     } MMScriptVM;
 
-    /* Services and context are borrowed. Callbacks may use the operand helpers
-     * and pause execution, and may run a separate VM. */
+    /* Services, context and an optional shared registry are borrowed. The
+     * opcode callback may operate on operands and pause execution. Callbacks
+     * can run other VMs but must not attach, resume or dispose this VM. */
     int mm_script_vm_init(MMScriptVM *, const MMStorageAllocator *, int trash_unused,
-                          const MMScriptVMServices *, void *host);
-    /* Dispose releases the script, operands and locals. The result and error
-     * are available until the next attach. The owner can be reused. */
+                          MMScriptStrings *, const MMScriptVMServices *, void *host);
+    /* Dispose removes the script's literal IDs and releases the script,
+     * operands and locals. Result and error survive until the next attach. */
     void mm_script_vm_dispose(MMScriptVM *);
-    /* Attach to a detached VM and retain the script. Dispose after a failed
-     * attach or after running to completion. Return nonzero on success. */
-    int mm_script_vm_attach(MMScriptVM *, MMCompiledScript *, unsigned current, unsigned minimum);
+    /* Attach to a detached VM, retaining the script and installing parameters
+     * (native 32-bit words), then literals. Dispose after a failed attach or
+     * after running to completion. Return nonzero on success. */
+    int mm_script_vm_attach(MMScriptVM *, MMCompiledScript *, unsigned current, unsigned minimum,
+                            const void *parameters, MMU32 parameter_count);
     int mm_script_vm_resume(MMScriptVM *);
 
     void mm_script_vm_fail(MMScriptVM *, int reason);

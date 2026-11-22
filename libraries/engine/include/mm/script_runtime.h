@@ -43,6 +43,9 @@ extern "C"
     /* Return whether the key was found. On a miss, leave the output alone. */
     int mm_script_variables_get(const MMScriptVariables *, MMU32 high, MMU32 low, MMI32 *word);
     int mm_script_variables_set(MMScriptVariables *, MMU32 high, MMU32 low, MMI32 word);
+    /* Pack the first eight native character units into a 48-bit name. Invalid
+     * units encode as underscores and make the function return zero. */
+    int mm_script_variable_name(const void *text, MMU32 count, unsigned unit_bytes, MMU32 *high, MMU32 *low);
 #ifdef __cplusplus
 }
 #endif

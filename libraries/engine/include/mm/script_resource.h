@@ -42,6 +42,7 @@ extern "C"
     /* Borrow a span of native instruction words until the script is edited or released. */
     const void *mm_script_word_span(const MMCompiledScript *, MMU32 first, MMU32 count);
     int mm_script_has_literals(const MMCompiledScript *);
+    unsigned mm_script_unit_bytes(const MMCompiledScript *);
     MMU32 mm_script_literal_count(const MMCompiledScript *);
     int mm_script_add_literal(MMCompiledScript *, const void *text, MMU32 count, MMU32 *index);
     int mm_script_literal(const MMCompiledScript *, MMU32 index, const void **text, MMU32 *count);
@@ -63,6 +64,8 @@ extern "C"
      * previous call failed. Return zero if a row or insertion failed. */
     typedef int (*MMScriptRegistryPut)(void *, MMI32 id, const void *, MMU32 count);
     int mm_script_registry_merge(MMScriptCollection *, MMScriptRegistryPut, void *context);
+    struct MMScriptStrings;
+    int mm_script_registry_import(MMScriptCollection *, struct MMScriptStrings *);
     const void *mm_script_color_rows(const MMScriptCollection *, MMU32 *count);
 #ifdef __cplusplus
 }
