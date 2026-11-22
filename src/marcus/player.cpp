@@ -212,7 +212,7 @@ struct EditHistory : KeepHistory
 std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
 {
     if (player.placements->empty() && player.frameRanges->empty() && !player.edits->scenes->count &&
-        player.edits->props->empty() && !player.edits->cameras->count && player.edits->shapes->empty() && player.edits->texts->empty() && player.edits->costumes->empty() && player.edits->storyboards->empty()) return player.timingInput;
+        player.edits->props->empty() && !player.edits->cameras->count && player.edits->shapes->empty() && player.edits->texts->empty() && !player.edits->costumes->count && player.edits->storyboards->empty()) return player.timingInput;
     if (player.materializedPlacements == player.placements && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
     std::vector<MarcusPropPlacement> changes;
@@ -231,8 +231,8 @@ std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
     }
     for (const auto &entry : *player.edits->costumes)
     {
-        auto &change = combined[entry.first];
-        change.scene = entry.first.first; change.actor = entry.first.second;
+        auto &change = combined[{entry.scene, entry.actor}];
+        change.scene = entry.scene; change.actor = entry.actor;
     }
     for (const auto &entry : combined) changes.push_back(entry.second);
     std::vector<MarcusSceneRange> ranges;
@@ -327,11 +327,8 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
         const auto &edit = entry.second;
         if (!MountGeneratedSource(player, edit.source, edit.file, error)) return false;
     }
-    for (const auto &entry : *player.edits->costumes)
-    {
-        const auto &edit = entry.second;
-        if (!MountGeneratedSource(player, edit.source, edit.file, error)) return false;
-    }
+    for (const auto &edit : *player.edits->costumes)
+        if (!MountGeneratedSource(player, edit.source, MarcusEditedTracks::File(edit), error)) return false;
     const MMPreviewLiveDefinitions definitions{
         &player, player.edits->scenes->count, static_cast<MMU32>(player.edits->props->size()),
         [](void *p, MMU32 index, MMPreviewLiveScene *out) {
@@ -368,8 +365,9 @@ bool ApplyPlacements(MarcusPlayer &player, int scene, const MarcusPlayer::Placem
     for (std::size_t index = 0; index < objects.size(); ++index)
     {
         const auto &object = objects[index];
-        const auto costume = player.edits->costumes->find({player.scenes[scene].number, object.asset.number});
-        if (costume != player.edits->costumes->end() && !player.preview.SetObjectEventTrack(int(index), costume->second.source, error)) return false;
+        const auto costume = mm_movie_track_journal_find(player.edits->costumes.get(), player.scenes[scene].number,
+                                                        object.asset.number);
+        if (costume && !player.preview.SetObjectEventTrack(int(index), costume->source, error)) return false;
         const auto text = player.edits->texts->find({player.scenes[scene].number, object.asset.number});
         if (text != player.edits->texts->end())
         {
@@ -644,7 +642,7 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
     player->image.paletteIndices.clear();
     // Send live placements to the same worker as committed ones. Switching to
     // a different evaluator during a drag loses its cached orbit framing.
-    const bool nativeBoards = !player->edits->storyboards->empty() || !player->edits->costumes->empty();
+    const bool nativeBoards = !player->edits->storyboards->empty() || player->edits->costumes->count;
     if (player->renderer == MARCUS_RENDERER_BRENDER_ASM &&
         !(nativeBoards && (!player->propPreviews.empty() || !player->shapePreviews.empty())))
     {
@@ -2071,8 +2069,8 @@ extern "C"
             if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &source))
             { error.message = "No costume source IDs are available."; return false; }
             auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
-            auto costumes = std::make_shared<MarcusLiveEdits::Costumes>(*edits->costumes);
-            (*costumes)[{player->scenes[player->selected].number, selected.chunk}] = {file, source};
+            auto costumes = std::make_shared<MarcusEditedTracks>(*edits->costumes);
+            costumes->Set(player->scenes[player->selected].number, static_cast<MMU32>(selected.chunk), source, file);
             edits->costumes = costumes; edits->revision = player->nextEditRevision++;
             EditHistory history(*player); const auto previous = player->edits;
             const auto frame = player->preview.Info().currentFrame;
@@ -2828,8 +2826,7 @@ extern "C"
             if (first != player->placements->end() && first->first.first == player->scenes[index].number) return true;
             const auto shaped = player->edits->shapes->lower_bound({player->scenes[index].number, 0});
             if (shaped != player->edits->shapes->end() && shaped->first.first == player->scenes[index].number) return true;
-            const auto costumed = player->edits->costumes->lower_bound({player->scenes[index].number, 0});
-            if (costumed != player->edits->costumes->end() && costumed->first.first == player->scenes[index].number) return true;
+            if (mm_movie_track_journal_has_scene(player->edits->costumes.get(), player->scenes[index].number)) return true;
             if (static_cast<std::size_t>(index) >= player->baseSceneInfo.size()) return true;
             for (const auto &prop : *player->edits->props)
                 if (prop.definition.scene == player->scenes[index].number && prop.definition.first <= player->sceneInfo[index].first_frame)

@@ -22469,3 +22469,28 @@ Marcus path recording and movie reopen. The existing `scene-load` assertion
 reproduced its 63,224-byte trace and fingerprint `0D666753`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-actor-drafts`.
+
+## C89 actor track journal and archive commits (22 November 2026)
+
+The C89 track journal owns the file references for Marcus costume edits. It
+orders records by scene and actor and preserves references across undo copies,
+replacement and allocation failure. Preview, thumbnail invalidation and
+native export use the journal. Native animation commits now open and close
+both archives in C89, copy the draft PATH and GGAE, apply appearance and
+range changes, and save only after the actor and scene edits succeed.
+
+The journal ownership and allocation-failure checks passed on x64 and x86.
+All Preview traces, the actor image and four draft archives matched the
+preceding build. The headless Marcus startup canvas also matched.
+The five native movie fixtures matched byte for byte, including the saved
+costume and animation edits, and the Studio saves and canvases matched.
+The storyboard check reproduced all 48 payloads and their child links.
+
+The four runs in suite `20261122T181640Z-652315ca` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order matched the retained retail and V3DMM captures
+in `20261122T081603Z-7ffc4e8e`. All 252 selected test runs passed. The existing
+`scene-load` assertion reproduced its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Snapshots, workflows and checks are under `tmp/c89-actor-track-journal`.

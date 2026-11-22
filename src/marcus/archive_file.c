@@ -1,4 +1,6 @@
 #include "archive_file.h"
+#include "mm/actor_archive.h"
+#include "mm/scene_data.h"
 #include <SDL3/SDL.h>
 
 typedef struct ArchiveFile
@@ -102,4 +104,33 @@ MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivat
     }
     file->references = 1;
     return mm_private_archive_open(file, mode, &owner_io, &blocks, profile);
+}
+
+int marcus_archive_install_events(MMPrivateArchive *candidate, MMU32 actor, const char *track,
+                                  const MMPrivateArchiveProfile *profile)
+{
+    MMPrivateArchive *source = marcus_archive_open(track, MM_PRIVATE_ARCHIVE_READ, profile);
+    int result = source ? mm_actor_archive_import_events(candidate, actor, source) : MM_ACTOR_EDIT_ARCHIVE_COPY;
+    mm_private_archive_close(source);
+    return result;
+}
+
+int marcus_archive_animate(const char *path, const char *track, const MMPrivateArchiveProfile *profile,
+                           const MMActorArchiveAnimation *animation, MMU32 creator, int *edit, int *scene)
+{
+    MMPrivateArchive *candidate = marcus_archive_open(path, MM_PRIVATE_ARCHIVE_EDIT, profile);
+    MMPrivateArchive *source = marcus_archive_open(track, MM_PRIVATE_ARCHIVE_READ, profile);
+    int result = MARCUS_ARCHIVE_ANIMATION_OPEN;
+    if (candidate && source)
+    {
+        *edit = mm_actor_archive_animate(candidate, source, animation, scene);
+        if (*edit != MM_ACTOR_EDIT_ARCHIVE_OK || *scene != MM_SCENE_ARCHIVE_EDIT_OK)
+            result = MARCUS_ARCHIVE_ANIMATION_EDIT;
+        else
+            result = mm_private_archive_save(candidate, creator)
+                ? MARCUS_ARCHIVE_ANIMATION_OK : MARCUS_ARCHIVE_ANIMATION_SAVE;
+    }
+    mm_private_archive_close(source);
+    mm_private_archive_close(candidate);
+    return result;
 }

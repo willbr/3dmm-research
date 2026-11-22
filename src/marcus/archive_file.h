@@ -6,6 +6,14 @@ extern "C" {
 #endif
 
 MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivateArchiveProfile *);
+int marcus_archive_install_events(MMPrivateArchive *, MMU32 actor, const char *track,
+                                  const MMPrivateArchiveProfile *);
+
+enum { MARCUS_ARCHIVE_ANIMATION_OK, MARCUS_ARCHIVE_ANIMATION_OPEN, MARCUS_ARCHIVE_ANIMATION_EDIT,
+       MARCUS_ARCHIVE_ANIMATION_SAVE };
+struct MMActorArchiveAnimation;
+int marcus_archive_animate(const char *candidate, const char *track, const MMPrivateArchiveProfile *,
+                           const struct MMActorArchiveAnimation *, MMU32 creator, int *edit, int *scene);
 
 #ifdef __cplusplus
 }

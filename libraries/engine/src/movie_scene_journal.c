@@ -155,3 +155,103 @@ MMPreviewLiveCameraEdits mm_movie_camera_journal_preview(const MMMovieCameraJour
     result.get = preview_camera;
     return result;
 }
+
+int mm_movie_track_journal_init(MMMovieActorTrackJournal *journal, const MMStorageAllocator *allocator,
+                               const MMMovieTrackFileServices *files)
+{
+    journal->count = 0;
+    journal->files = files;
+    return mm_storage_init(&journal->storage, allocator) == MM_STORAGE_OK;
+}
+
+const MMMovieActorTrackEdit *mm_movie_track_journal_data(const MMMovieActorTrackJournal *journal)
+{
+    return (const MMMovieActorTrackEdit *)journal->storage.buffers[0].data;
+}
+
+void mm_movie_track_journal_dispose(MMMovieActorTrackJournal *journal)
+{
+    const MMMovieActorTrackEdit *items = mm_movie_track_journal_data(journal);
+    MMU32 i;
+    for (i = 0; i < journal->count; ++i)
+        journal->files->release(items[i].file);
+    mm_storage_dispose(&journal->storage);
+    journal->count = 0;
+}
+
+int mm_movie_track_journal_copy(MMMovieActorTrackJournal *destination, const MMMovieActorTrackJournal *source)
+{
+    MMMovieActorTrackJournal copy, old;
+    const MMMovieActorTrackEdit *items;
+    MMU32 i;
+    if (destination == source)
+        return 1;
+    if (destination->files != source->files ||
+        !mm_movie_track_journal_init(&copy, &destination->storage.allocator, destination->files))
+        return 0;
+    if (mm_storage_copy(&copy.storage, &source->storage, source->count * sizeof(*items), 0) != MM_STORAGE_OK)
+    {
+        mm_movie_track_journal_dispose(&copy);
+        return 0;
+    }
+    items = mm_movie_track_journal_data(&copy);
+    for (i = 0; i < source->count; ++i)
+        copy.files->retain(items[i].file);
+    copy.count = source->count;
+    old = *destination;
+    *destination = copy;
+    mm_movie_track_journal_dispose(&old);
+    return 1;
+}
+
+static MMU32 track_lower(const MMMovieActorTrackJournal *journal, MMU32 scene, MMU32 actor)
+{
+    const MMMovieActorTrackEdit *items = mm_movie_track_journal_data(journal);
+    MMU32 first = 0, last = journal->count, middle;
+    while (first < last)
+    {
+        middle = first + (last - first) / 2;
+        if (items[middle].scene < scene || (items[middle].scene == scene && items[middle].actor < actor))
+            first = middle + 1;
+        else
+            last = middle;
+    }
+    return first;
+}
+
+int mm_movie_track_journal_set(MMMovieActorTrackJournal *journal, const MMMovieActorTrackEdit *input)
+{
+    MMMovieActorTrackEdit *items = (MMMovieActorTrackEdit *)journal->storage.buffers[0].data;
+    MMMovieActorTrackEdit value = *input;
+    MMU32 position = track_lower(journal, value.scene, value.actor);
+    MMArray records;
+    if (position < journal->count && items[position].scene == value.scene && items[position].actor == value.actor)
+    {
+        void *old = items[position].file;
+        journal->files->retain(value.file);
+        items[position] = value;
+        journal->files->release(old);
+        return 1;
+    }
+    records = array(&journal->storage, sizeof(value), journal->count);
+    if (!insert(&records, position, &value))
+        return 0;
+    journal->files->retain(value.file);
+    journal->count = records.count;
+    return 1;
+}
+
+const MMMovieActorTrackEdit *mm_movie_track_journal_find(const MMMovieActorTrackJournal *journal, MMU32 scene, MMU32 actor)
+{
+    const MMMovieActorTrackEdit *items = mm_movie_track_journal_data(journal);
+    MMU32 position = track_lower(journal, scene, actor);
+    return position < journal->count && items[position].scene == scene && items[position].actor == actor
+        ? items + position : NULL;
+}
+
+int mm_movie_track_journal_has_scene(const MMMovieActorTrackJournal *journal, MMU32 scene)
+{
+    const MMMovieActorTrackEdit *items = mm_movie_track_journal_data(journal);
+    MMU32 position = track_lower(journal, scene, 0);
+    return position < journal->count && items[position].scene == scene;
+}

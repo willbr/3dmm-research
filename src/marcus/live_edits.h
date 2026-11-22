@@ -2,6 +2,7 @@
 #define MARCUS_LIVE_EDITS_H
 #include "mm/movie_scene_journal.h"
 #include "mm/preview.h"
+#include "mm/reference.h"
 #include "storyboard.h"
 #include <map>
 #include <memory>
@@ -46,6 +47,51 @@ struct MarcusEditedCameras : MMMovieCameraJournal
         if (!mm_movie_camera_journal_set(this, &edit)) throw std::bad_alloc();
     }
 };
+struct MarcusEditedTracks : MMMovieActorTrackJournal
+{
+    MarcusEditedTracks() { mm_movie_track_journal_init(this, nullptr, FileServices()); }
+    MarcusEditedTracks(const MarcusEditedTracks &other) : MarcusEditedTracks()
+    {
+        if (!mm_movie_track_journal_copy(this, &other)) throw std::bad_alloc();
+    }
+    MarcusEditedTracks &operator=(const MarcusEditedTracks &) = delete;
+    ~MarcusEditedTracks() { mm_movie_track_journal_dispose(this); }
+    const MMMovieActorTrackEdit *begin() const { return mm_movie_track_journal_data(this); }
+    const MMMovieActorTrackEdit *end() const { return count ? begin() + count : begin(); }
+    void Set(MMU32 scene, MMU32 actor, MMI32 source, const std::shared_ptr<MarcusMovieFile> &file)
+    {
+        const std::unique_ptr<FileLease, decltype(&Release)> lease(new FileLease(file), Release);
+        const MMMovieActorTrackEdit edit{scene, actor, source, lease.get()};
+        if (!mm_movie_track_journal_set(this, &edit)) throw std::bad_alloc();
+    }
+    static const std::shared_ptr<MarcusMovieFile> &File(const MMMovieActorTrackEdit &edit)
+    {
+        return static_cast<const FileLease *>(edit.file)->file;
+    }
+
+  private:
+    struct FileLease
+    {
+        MMReference references;
+        std::shared_ptr<MarcusMovieFile> file;
+        explicit FileLease(const std::shared_ptr<MarcusMovieFile> &owner) : file(owner)
+        {
+            mm_reference_init(&references);
+        }
+    };
+    static void Release(void *p)
+    {
+        auto lease = static_cast<FileLease *>(p);
+        mm_reference_release(&lease->references, lease, [](void *value) { delete static_cast<FileLease *>(value); });
+    }
+    static const MMMovieTrackFileServices *FileServices()
+    {
+        static const MMMovieTrackFileServices services{
+            [](void *p) { mm_reference_add(&static_cast<FileLease *>(p)->references); },
+            Release};
+        return &services;
+    }
+};
 struct MarcusTextEdit
 {
     MM::PreviewObjectText value;
@@ -61,15 +107,12 @@ struct MarcusLiveEdits
     using Cameras = MarcusEditedCameras;
     using Shapes = std::map<std::pair<unsigned long, unsigned long>, MM::PreviewObjectShape>;
     using Texts = std::map<std::pair<unsigned long, unsigned long>, MarcusTextEdit>;
-    // Immutable native event snapshots; undo keeps the private file alive.
-    struct CostumeEdit { std::shared_ptr<MarcusMovieFile> file; std::int32_t source = 0; };
-    using Costumes = std::map<std::pair<unsigned long, unsigned long>, CostumeEdit>;
     std::shared_ptr<const Scenes> scenes = std::make_shared<Scenes>();
     std::shared_ptr<const Props> props = std::make_shared<Props>();
     std::shared_ptr<const Cameras> cameras = std::make_shared<Cameras>();
     std::shared_ptr<const Shapes> shapes = std::make_shared<Shapes>();
     std::shared_ptr<const Texts> texts = std::make_shared<Texts>();
-    std::shared_ptr<const Costumes> costumes = std::make_shared<Costumes>();
+    std::shared_ptr<const MarcusEditedTracks> costumes = std::make_shared<MarcusEditedTracks>();
     std::shared_ptr<const MarcusStoryboards> storyboards = std::make_shared<MarcusStoryboards>();
     std::uint64_t revision = 0;
 };

@@ -182,8 +182,9 @@ typedef struct MMActorArchivePose
 int mm_actor_archive_place(const MMMovieArchiveEditor *, const MMActorArchivePose *);
 /* Replace the whole-word material after every Add event on the actor track. */
 int mm_actor_archive_set_material(const MMMovieArchiveEditor *, MMU32 actor, MMU32 material);
-/* Install a copied GGAE as the actor's track. */
-int mm_actor_archive_link_events(const MMMovieArchiveEditor *, MMU32 actor, MMU32 events);
+struct MMPrivateArchive;
+/* Import GGAE/0 into the candidate and install it as the actor's track. */
+int mm_actor_archive_import_events(struct MMPrivateArchive *, MMU32 actor, struct MMPrivateArchive *source);
 
 typedef struct MMActorArchiveAnimation
 {
@@ -191,14 +192,14 @@ typedef struct MMActorArchiveAnimation
     MMI32 actor_id, previous_actor_last, actor_last, edited_last;
     const float *rotation, *scale;
     void *context;
-    int (*copy)(void *, MMU32 type, MMU32 number, MMU32 *copied);
-    int (*appearance)(void *, MMU32 copied_actor); /* Optional, before shape. */
+    int (*appearance)(void *, struct MMPrivateArchive *, MMU32 copied_actor); /* Optional, before shape. */
 } MMActorArchiveAnimation;
 
 /* Copy PATH/0 and GGAE/0 into the candidate archive and update the actor
  * and scene lifetimes. If the actor edit succeeds, scene_result receives the
  * scene edit status. Discard the candidate on failure in either stage. */
-int mm_actor_archive_animate(const MMMovieArchiveEditor *, const MMActorArchiveAnimation *, int *scene_result);
+int mm_actor_archive_animate(struct MMPrivateArchive *candidate, struct MMPrivateArchive *track,
+                             const MMActorArchiveAnimation *, int *scene_result);
 
 #ifdef __cplusplus
 }

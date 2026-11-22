@@ -1223,6 +1223,11 @@ The draft binds the shared event editor, authored sound metadata and route
 recording services, then writes the event table and any edited route through
 the archive writer. It restores the live actor, motion state, cue list and
 draw order after every attempted edit or write.
+Marcus's costume track journal owns file references and orders the edits by
+scene and actor in C89. Preview source mounting, native export, undo snapshots
+and thumbnail invalidation all read that journal. Native animation commits
+open, install and save the edited tracks in C89, including both archive
+lifetimes and the existing actor and scene range updates.
 Preview picking uses C89 for validation, coordinates, camera ownership, stable
 body copying, nearest-hit and texture policy, and authored-background
 occlusion. Native adapters supply typed SDK primitives.

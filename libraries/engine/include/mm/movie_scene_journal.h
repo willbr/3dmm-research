@@ -50,6 +50,39 @@ int mm_movie_camera_journal_set(MMMovieCameraJournal *, const MMMovieCameraEdit 
 const MMMovieCameraEdit *mm_movie_camera_journal_find(const MMMovieCameraJournal *, MMU32 scene, MMU32 *count);
 MMPreviewLiveCameraEdits mm_movie_camera_journal_preview(const MMMovieCameraJournal *, MMU32 scene);
 
+typedef struct MMMovieTrackFileServices
+{
+    void (*retain)(void *file);
+    void (*release)(void *file);
+} MMMovieTrackFileServices;
+
+typedef struct MMMovieActorTrackEdit
+{
+    MMU32 scene, actor;
+    MMI32 source;
+    void *file;
+} MMMovieActorTrackEdit;
+
+typedef struct MMMovieActorTrackJournal
+{
+    MMCollectionStorage storage;
+    MMU32 count;
+    const MMMovieTrackFileServices *files;
+} MMMovieActorTrackJournal;
+
+/* Own one file reference per immutable event track, in scene/actor order.
+ * Copies use the same file services and retain independent references for undo.
+ * Failed copies or insertions preserve the destination and all references.
+ * Callbacks are synchronous and do not reenter the journal. */
+int mm_movie_track_journal_init(MMMovieActorTrackJournal *, const MMStorageAllocator *,
+                               const MMMovieTrackFileServices *);
+void mm_movie_track_journal_dispose(MMMovieActorTrackJournal *);
+int mm_movie_track_journal_copy(MMMovieActorTrackJournal *, const MMMovieActorTrackJournal *);
+int mm_movie_track_journal_set(MMMovieActorTrackJournal *, const MMMovieActorTrackEdit *);
+const MMMovieActorTrackEdit *mm_movie_track_journal_data(const MMMovieActorTrackJournal *);
+const MMMovieActorTrackEdit *mm_movie_track_journal_find(const MMMovieActorTrackJournal *, MMU32 scene, MMU32 actor);
+int mm_movie_track_journal_has_scene(const MMMovieActorTrackJournal *, MMU32 scene);
+
 #ifdef __cplusplus
 }
 #endif

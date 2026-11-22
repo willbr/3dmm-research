@@ -1102,6 +1102,53 @@ static void material_release(void *p, void *data, MMU32 bytes)
     free(data);
 }
 
+static void track_retain(void *file) { ++*(int *)file; }
+static void track_release(void *file) { --*(int *)file; }
+
+static int track_journal(void)
+{
+    const MMMovieTrackFileServices files = {track_retain, track_release};
+    MaterialGraph memory;
+    MMStorageAllocator allocator = {NULL, material_resize, material_release};
+    MMMovieActorTrackJournal current, undo, empty;
+    MMMovieActorTrackEdit edit = {9, 7, 20, NULL};
+    int original = 1, other = 1, replacement = 1;
+    memset(&memory, 0, sizeof(memory));
+    allocator.context = &memory;
+    CHECK(mm_movie_track_journal_init(&current, &allocator, &files) &&
+          mm_movie_track_journal_init(&undo, &allocator, &files) &&
+          mm_movie_track_journal_init(&empty, &allocator, &files));
+    edit.file = &original;
+    CHECK(mm_movie_track_journal_set(&current, &edit) && original == 2);
+    edit.actor = 3;
+    edit.file = &other;
+    CHECK(mm_movie_track_journal_set(&current, &edit) && other == 2 &&
+          mm_movie_track_journal_data(&current)[0].actor == 3);
+    edit.scene = (MMU32)-1;
+    edit.file = &replacement;
+    CHECK(mm_movie_track_journal_set(&undo, &edit) && replacement == 2);
+    memory.failAt = memory.allocCalls + 1;
+    CHECK(!mm_movie_track_journal_set(&empty, &edit) && !empty.count && replacement == 2);
+    CHECK(!mm_movie_track_journal_copy(&undo, &current) && undo.count == 1 &&
+          mm_movie_track_journal_has_scene(&undo, (MMU32)-1) && original == 2 && other == 2 && replacement == 2);
+    memory.failAt = 0;
+    CHECK(mm_movie_track_journal_copy(&undo, &current) && original == 3 && other == 3 && replacement == 1);
+    edit.scene = 9;
+    edit.actor = 7;
+    edit.source = 21;
+    CHECK(mm_movie_track_journal_set(&current, &edit) && original == 2 && replacement == 2 &&
+          mm_movie_track_journal_find(&undo, 9, 7)->source == 20);
+    CHECK(mm_movie_track_journal_set(&current, mm_movie_track_journal_find(&current, 9, 7)) && replacement == 2);
+    CHECK(mm_movie_track_journal_copy(&undo, &undo) && mm_movie_track_journal_has_scene(&current, 9) &&
+          !mm_movie_track_journal_has_scene(&current, 8) && !mm_movie_track_journal_find(&current, 9, 6));
+    mm_movie_track_journal_dispose(&current);
+    CHECK(mm_movie_track_journal_find(&undo, 9, 7)->file == &original && original == 2 && replacement == 1);
+    mm_movie_track_journal_dispose(&empty);
+    mm_movie_track_journal_dispose(&undo);
+    CHECK(original == 1 && other == 1 && !memory.liveBlocks);
+    return 0;
+}
+
 static int remove_materials(void)
 {
     MaterialGraph graph;
@@ -1141,7 +1188,7 @@ int main(void)
 {
     if (switching() || insertion() || removal() || remove_materials() || undoing() || undo_insertion_ownership() ||
         cursor_operations() ||
-        extending() || journal())
+        extending() || journal() || track_journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

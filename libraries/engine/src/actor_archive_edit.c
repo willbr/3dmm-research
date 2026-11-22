@@ -4,6 +4,7 @@
 #include "mm/actor_effect.h"
 #include "mm/actor_math.h"
 #include "mm/collections.h"
+#include "mm/private_archive.h"
 #include "mm/scene_data.h"
 #include "mm/wide.h"
 #include <stdlib.h>
@@ -231,7 +232,7 @@ static int replace_track(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 
         ? MM_ACTOR_EDIT_ARCHIVE_OK : MM_ACTOR_EDIT_ARCHIVE_LINK_EVENTS;
 }
 
-int mm_actor_archive_link_events(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 events)
+static int link_events(const MMMovieArchiveEditor *editor, MMU32 actor, MMU32 events)
 {
     MMChunkAccess chunks;
     MMU32 old;
@@ -239,6 +240,15 @@ int mm_actor_archive_link_events(const MMMovieArchiveEditor *editor, MMU32 actor
     if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, 0, EVENTS_TYPE, &old) != MM_CHUNK_OK)
         return MM_ACTOR_EDIT_ARCHIVE_READ_EVENTS;
     return replace_track(editor, actor, old, events);
+}
+
+int mm_actor_archive_import_events(MMPrivateArchive *candidate, MMU32 actor, MMPrivateArchive *source)
+{
+    MMMovieArchiveEditor editor = mm_private_archive_editor(candidate);
+    MMU32 number;
+    if (!mm_private_archive_copy(source, candidate, EVENTS_TYPE, 0, 0, &number))
+        return MM_ACTOR_EDIT_ARCHIVE_COPY;
+    return link_events(&editor, actor, number);
 }
 
 static int rewrite_track(const MMMovieArchiveEditor *editor, MMU32 actor,
@@ -558,6 +568,7 @@ int mm_actor_archive_place(const MMMovieArchiveEditor *editor, const MMActorArch
 
 typedef struct AnimationTrack
 {
+    MMPrivateArchive *candidate, *source;
     const MMMovieArchiveEditor *editor;
     const MMActorArchiveAnimation *edit;
 } AnimationTrack;
@@ -574,30 +585,33 @@ static int install_animation_track(void *context, MMU32 actor)
     chunks = mm_chunk_edit_access(&editor->edit);
     if (mm_chunk_link_number(&chunks, ACTOR_TYPE, actor, route.slot, route.type, &route.number) != MM_CHUNK_OK ||
         !mm_actor_archive_read_actor(editor, actor, &header) ||
-        !edit->copy(edit->context, route.type, 0, &replacement) ||
-        !edit->copy(edit->context, EVENTS_TYPE, 0, &events))
+        !mm_private_archive_copy(track->source, track->candidate, route.type, 0, 0, &replacement) ||
+        !mm_private_archive_copy(track->source, track->candidate, EVENTS_TYPE, 0, 0, &events))
         return 0;
     mm_chunk_unlink(&editor->edit, ACTOR_TYPE, actor, &route);
     route.number = replacement;
     header.last_frame = edit->actor_last;
     return mm_chunk_adopt(&editor->edit, ACTOR_TYPE, actor, &route, 1) == MM_CHUNK_OK &&
-        mm_actor_archive_link_events(editor, actor, events) == MM_ACTOR_EDIT_ARCHIVE_OK &&
+        link_events(editor, actor, events) == MM_ACTOR_EDIT_ARCHIVE_OK &&
         editor->put(editor->context, ACTOR_TYPE, actor, &header, sizeof(header)) &&
-        (!edit->appearance || edit->appearance(edit->context, actor));
+        (!edit->appearance || edit->appearance(edit->context, track->candidate, actor));
 }
 
-int mm_actor_archive_animate(const MMMovieArchiveEditor *editor, const MMActorArchiveAnimation *edit,
-                             int *scene_result)
+int mm_actor_archive_animate(MMPrivateArchive *candidate, MMPrivateArchive *source,
+                             const MMActorArchiveAnimation *edit, int *scene_result)
 {
     const float offset[3] = {0};
+    const MMMovieArchiveEditor editor = mm_private_archive_editor(candidate);
     AnimationTrack track;
     MMActorArchivePose pose;
     MMSceneState range;
     MMI32 last;
     int result;
-    if (!mm_actor_archive_find(editor, edit->scene, edit->actor_id, &pose.actor))
+    if (!mm_actor_archive_find(&editor, edit->scene, edit->actor_id, &pose.actor))
         return MM_ACTOR_EDIT_ARCHIVE_SCENE;
-    track.editor = editor;
+    track.candidate = candidate;
+    track.source = source;
+    track.editor = &editor;
     track.edit = edit;
     pose.scene = edit->scene;
     pose.translation = offset;
@@ -605,10 +619,10 @@ int mm_actor_archive_animate(const MMMovieArchiveEditor *editor, const MMActorAr
     pose.scale = edit->scale;
     pose.context = &track;
     pose.appearance = install_animation_track;
-    result = mm_actor_archive_place(editor, &pose);
+    result = mm_actor_archive_place(&editor, &pose);
     if (result != MM_ACTOR_EDIT_ARCHIVE_OK)
         return result;
-    if (!mm_scene_archive_read_header(editor, edit->scene, &range))
+    if (!mm_scene_archive_read_header(&editor, edit->scene, &range))
     {
         *scene_result = MM_SCENE_ARCHIVE_EDIT_READ_SCENE;
         return result;
@@ -617,7 +631,7 @@ int mm_actor_archive_animate(const MMMovieArchiveEditor *editor, const MMActorAr
     if (edit->previous_actor_last <= range.lastFrame && edit->actor_last > last)
         last = edit->actor_last;
     *scene_result = last > range.lastFrame
-        ? mm_scene_archive_set_range(editor, edit->scene, range.firstFrame, last)
+        ? mm_scene_archive_set_range(&editor, edit->scene, range.firstFrame, last)
         : MM_SCENE_ARCHIVE_EDIT_OK;
     return result;
 }

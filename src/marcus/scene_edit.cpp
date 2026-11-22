@@ -6,6 +6,7 @@
 #include <stdexcept>
 #include "soc_core.h"
 #include "archive_file.h"
+#include "private_archive_host.h"
 #include "platform_text.h"
 #include "mm/actor_archive.h"
 #include "mm/scene_data.h"
@@ -469,14 +470,13 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
 }
 
 static void ApplyText(MMPrivateArchive *file, ChunkNumber actor, const MarcusTextEdit &edit);
-static void ApplyCostumes(MMPrivateArchive *file, ChunkNumber actor, const MarcusLiveEdits::CostumeEdit &edit)
+static void ApplyCostumes(MMPrivateArchive *file, ChunkNumber actor, const MMMovieActorTrackEdit &edit)
 {
-    auto source = MarcusOpenArchive(edit.file->path, MM_PRIVATE_ARCHIVE_READ);
-    ChunkNumber number;
-    Require(source && mm_private_archive_copy(source.get(), file, kctgGgae, 0, 0, &number),
-            "Cannot copy costume events.");
-    const auto editor = mm_private_archive_editor(file);
-    CheckActorArchiveEdit(mm_actor_archive_link_events(&editor, actor, number));
+    const auto profile = KauaiPrivateArchiveProfile();
+    const auto path = MarcusEditedTracks::File(edit)->path.u8string();
+    const auto status = marcus_archive_install_events(file, actor, path.c_str(), &profile);
+    Require(status != MM_ACTOR_EDIT_ARCHIVE_COPY, "Cannot copy costume events.");
+    CheckActorArchiveEdit(status);
 }
 std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::path &path,
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusMovieFile &track,
@@ -484,40 +484,35 @@ std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::pat
     const MM::PreviewObjectShape &shape, const MarcusTextEdit *text)
 {
     auto result = WorkingCopy(path, origin);
-    auto file = MarcusOpenArchive(result->path, MM_PRIVATE_ARCHIVE_EDIT);
-    auto source = MarcusOpenArchive(track.path, MM_PRIVATE_ARCHIVE_READ);
-    Require(file && source, "Cannot open the movie or the new animation track.");
-    const auto editor = mm_private_archive_editor(file.get());
-    struct Track
+    struct Appearance
     {
-        MMPrivateArchive *file, *source;
         const MarcusTextEdit *text;
         std::exception_ptr failure;
-    } trackEdit{file.get(), source.get(), text, {}};
+    } appearance{text, {}};
     const MMActorArchiveAnimation edit{static_cast<MMU32>(scene), static_cast<MMI32>(actorId),
         static_cast<MMI32>(previousActorFrame), lastActorFrame, lastEditedFrame,
-        shape.rotation, shape.scale, &trackEdit,
-        [](void *p, MMU32 type, MMU32 number, MMU32 *copied) -> int {
-            auto &track = *static_cast<Track *>(p);
-            try { return mm_private_archive_copy(track.source, track.file, type, number, 0, copied); }
-            catch (...) { track.failure = std::current_exception(); return false; }
-        },
-        [](void *p, MMU32 actor) -> int {
-            auto &track = *static_cast<Track *>(p);
+        shape.rotation, shape.scale, &appearance,
+        [](void *p, MMPrivateArchive *candidate, MMU32 actor) -> int {
+            auto &state = *static_cast<Appearance *>(p);
             try
             {
-                if (track.text) ApplyText(track.file, actor, *track.text);
+                if (state.text) ApplyText(candidate, actor, *state.text);
                 return true;
             }
-            catch (...) { track.failure = std::current_exception(); return false; }
+            catch (...) { state.failure = std::current_exception(); return false; }
         }};
-    int sceneResult;
-    const int resultCode = mm_actor_archive_animate(&editor, &edit, &sceneResult);
-    if (trackEdit.failure) std::rethrow_exception(trackEdit.failure);
+    const auto profile = KauaiPrivateArchiveProfile();
+    const auto workingPath = result->path.u8string();
+    const auto trackPath = track.path.u8string();
+    int resultCode, sceneResult;
+    const auto status = marcus_archive_animate(workingPath.c_str(), trackPath.c_str(), &profile, &edit, kctgSoc,
+                                               &resultCode, &sceneResult);
+    if (appearance.failure) std::rethrow_exception(appearance.failure);
+    Require(status != MARCUS_ARCHIVE_ANIMATION_OPEN, "Cannot open the movie or the new animation track.");
     Require(resultCode != MM_ACTOR_EDIT_ARCHIVE_SCENE, "Cannot find the selected actor in the working movie.");
     CheckActorArchiveEdit(resultCode);
     CheckSceneFrameEdit(sceneResult);
-    Require(mm_private_archive_save(file.get(), kctgSoc), "Cannot save the animation edit.");
+    Require(status == MARCUS_ARCHIVE_ANIMATION_OK, "Cannot save the animation edit.");
     return result;
 }
 static void ApplyText(MMPrivateArchive *file, ChunkNumber actorNumber, const MarcusTextEdit &edit)
@@ -563,15 +558,15 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
     {
         const auto key = std::make_pair(placement.scene, placement.actor);
         const auto text = edits.texts->find(key);
-        const auto costume = edits.costumes->find(key);
+        const auto costume = mm_movie_track_journal_find(edits.costumes.get(), static_cast<MMU32>(placement.scene),
+                                                         static_cast<MMU32>(placement.actor));
         struct Appearance
         {
             MMPrivateArchive *file;
             const MarcusTextEdit *text;
-            const MarcusLiveEdits::CostumeEdit *costume;
+            const MMMovieActorTrackEdit *costume;
             std::exception_ptr failure;
-        } appearance{file.get(), text == edits.texts->end() ? nullptr : &text->second,
-                     costume == edits.costumes->end() ? nullptr : &costume->second, {}};
+        } appearance{file.get(), text == edits.texts->end() ? nullptr : &text->second, costume, {}};
         const MMActorArchivePose pose{
             static_cast<MMU32>(placement.scene), static_cast<MMU32>(placement.actor), placement.delta,
             placement.shape.rotation, placement.shape.scale, &appearance,
