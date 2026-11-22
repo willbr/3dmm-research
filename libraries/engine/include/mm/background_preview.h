@@ -37,15 +37,25 @@ extern "C"
                             MMI32 out[16]);
     } MMBackgroundPreviewServices;
     struct MMMovieSessionGraph;
-    typedef struct MMBackgroundPreviewGraph
-    {
-        const struct MMMovieSessionGraph *graph;
-        void *owner; /* Borrowed by the host publication service. */
-    } MMBackgroundPreviewGraph;
-    /* Bind decoded graph payloads and C bitmap services. The graph and context
-     * must stay live through the call. Image allocations belong to the reader
-     * until the matching release service. */
-    void mm_background_preview_bind_graph(MMBackgroundPreviewServices *, MMBackgroundPreviewGraph *);
+    struct MMPreviewProjection;
+    typedef struct MMBackgroundPreviewOwner MMBackgroundPreviewOwner;
+    /* Open a graph-backed background with camera zero selected. Success
+     * publishes one owned reference and failure leaves output untouched.
+     * Return 1 for success, 0 for unusable content, -1 for owner allocation
+     * failure. The graph's provider, renderer and allocator contexts outlive
+     * the owner. Returned views borrow storage until the next mutation. */
+    int mm_background_preview_open(MMBackgroundPreviewOwner **, const struct MMMovieSessionGraph *, MMU32 number,
+                                   const unsigned char base_palette[1024], const MMBackgroundPreviewServices *renderer,
+                                   const MMStorageAllocator *);
+    void mm_background_preview_close(MMBackgroundPreviewOwner *);
+    const MMBackgroundPreview *mm_background_preview_state(const MMBackgroundPreviewOwner *);
+    const unsigned char *mm_background_preview_palette(const MMBackgroundPreviewOwner *);
+    void mm_background_preview_overlay_palette(const MMBackgroundPreviewOwner *, unsigned char colours[1024]);
+    int mm_background_preview_set_camera(MMBackgroundPreviewOwner *, MMU32 slot, int update_placement);
+    int mm_background_preview_projection(MMBackgroundPreviewOwner *, MMU32 slot, struct MMPreviewProjection *);
+    int mm_background_preview_next_place(MMBackgroundPreviewOwner *, float point[3]);
+    void mm_background_preview_reuse_placement(MMBackgroundPreviewOwner *);
+    MMBackgroundMesh *mm_background_preview_owner_mesh(MMBackgroundPreviewOwner *);
     /* The initialized placement state is borrowed for the lifetime of the view.
      * Unique C owners. Metadata append operations copy their inputs and do not alias
      * storage. Fresh image selection publishes decoded camera before clip validation,

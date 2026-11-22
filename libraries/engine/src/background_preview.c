@@ -1,8 +1,10 @@
 /* Preview background image ownership and two-entry mesh cache. */
 #include "mm/background_preview.h"
 #include "mm/depth_bitmap.h"
+#include "mm/indexed_display.h"
 #include "mm/masked_bitmap.h"
 #include "mm/movie_session.h"
+#include "mm/preview_camera.h"
 #include <stdlib.h>
 #include <string.h>
 #define MINIMUM (-2147483647 - 1)
@@ -10,13 +12,12 @@ typedef char depth_sample_must_be_two_bytes[sizeof(unsigned short) == 2 ? 1 : -1
 
 static int graph_payload(void *context, MMU32 type, MMU32 number, MMReadReceiver receive, void *out, int *result)
 {
-    return mm_background_graph_payload(((const MMBackgroundPreviewGraph *)context)->graph,
-                                       type, number, receive, out, result);
+    return mm_background_graph_payload(context, type, number, receive, out, result);
 }
 
 static int image_child(void *context, MMU32 camera, int depth, MMU32 *number)
 {
-    const MMMovieSessionGraph *graph = ((const MMBackgroundPreviewGraph *)context)->graph;
+    const MMMovieSessionGraph *graph = context;
     MMChunkAccess chunks;
     graph->access(graph->context, &chunks);
     return mm_background_camera_image_link(&chunks, camera, depth, number) == MM_CHUNK_OK;
@@ -93,9 +94,9 @@ static void draw_depth(void *context, void *owner, unsigned short *pixels, MMU32
     mm_depth_draw(mm_depth_owner_bitmap((const MMDepthOwner *)owner), pixels, w * 2, h, 0, 0, &clip, NULL, 0);
 }
 
-void mm_background_preview_bind_graph(MMBackgroundPreviewServices *s, MMBackgroundPreviewGraph *context)
+static void bind_graph(MMBackgroundPreviewServices *s, MMMovieSessionGraph *graph)
 {
-    s->context = context;
+    s->context = graph;
     s->payload = graph_payload;
     s->child = image_child;
     s->fetch = fetch_bitmap;
@@ -103,6 +104,12 @@ void mm_background_preview_bind_graph(MMBackgroundPreviewServices *s, MMBackgrou
     s->bounds = bitmap_bounds;
     s->draw_rgb = draw_colour;
     s->draw_depth = draw_depth;
+}
+
+static void publish(const MMBackgroundPreview *p, const MMBackgroundPreviewServices *s)
+{
+    if (s->publish)
+        s->publish(s->context, p);
 }
 
 static int ensure(MMCollectionStorage *s, unsigned section, MMU32 count, MMU32 stride)
@@ -175,7 +182,7 @@ static int select_images(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundC
     MMI32 r[4];
     void *bitmap;
     p->camera = *binding;
-    s->publish(s->context, p);
+    publish(p, s);
     if (binding->data.near_z <= 0 || binding->data.far_z <= binding->data.near_z)
         return 0;
     if (!mm_background_camera_binding_image(&p->camera, 0, s->child, s->context) ||
@@ -197,7 +204,7 @@ static int select_images(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundC
     p->width = width;
     p->height = height;
     n = width * height;
-    s->publish(s->context, p);
+    publish(p, s);
     if (!ensure(&p->images, 0, n, 1))
     {
         s->release(s->context, bitmap, 0);
@@ -205,7 +212,7 @@ static int select_images(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundC
     }
     memset(p->images.buffers[0].data, 0, n);
     p->rgb_count = n;
-    s->publish(s->context, p);
+    publish(p, s);
     s->draw_rgb(s->context, bitmap, p->images.buffers[0].data, width, height, -r[0], -r[1]);
     s->release(s->context, bitmap, 0);
     if (!mm_background_camera_binding_image(&p->camera, 1, s->child, s->context) ||
@@ -218,11 +225,11 @@ static int select_images(MMBackgroundPreview *p, MMU32 slot, const MMBackgroundC
     }
     memset(p->images.buffers[1].data, 255, n * 2);
     p->depth_count = n;
-    s->publish(s->context, p);
+    publish(p, s);
     s->draw_depth(s->context, bitmap, (unsigned short *)p->images.buffers[1].data, width, height);
     s->release(s->context, bitmap, 1);
     p->active = slot;
-    s->publish(s->context, p);
+    publish(p, s);
     if (s->selected)
         s->selected(s->context, slot);
     return 1;
@@ -409,4 +416,168 @@ MMBackgroundMesh *mm_background_preview_mesh(MMBackgroundPreview *p, const MMBac
     p->meshes[p->mesh_count] = mesh;
     p->keys[p->mesh_count++] = p->active;
     return mesh;
+}
+
+struct MMBackgroundPreviewOwner
+{
+    MMStorageAllocator allocator;
+    MMBackgroundOwnerHost resource_host;
+    MMBackgroundOwner *resource;
+    MMMovieSessionGraph graph;
+    MMU32 number;
+    MMBackgroundPreview preview;
+    MMPreviewProjectionCache projections;
+    MMBackgroundPreviewServices services;
+    unsigned char palette[1024];
+};
+
+static void store_palette_colour(void *context, MMI32 index, const unsigned char *bytes)
+{
+    MMBackgroundPreviewOwner *owner = context;
+    memcpy(owner->palette + 4 * index, bytes, 4);
+}
+
+static void resolve_palette(void *context)
+{
+    MMBackgroundPreviewOwner *owner = context;
+    mm_display_palette_resolve_identity(owner->palette);
+}
+
+static int store_light(void *context, MMBackgroundResource *resource, MMI32 index, const MMBackgroundLight *light)
+{
+    MMBackgroundPreviewOwner *owner = context;
+    (void)resource;
+    (void)index;
+    return mm_background_preview_light(&owner->preview, light);
+}
+
+static int store_camera(void *context, MMU32 number)
+{
+    MMBackgroundPreviewOwner *owner = context;
+    return mm_background_preview_camera(&owner->preview, number);
+}
+
+static int select_initial_camera(void *context, MMI32 slot)
+{
+    return mm_background_preview_set_camera(context, (MMU32)slot, 1) > 0;
+}
+
+int mm_background_preview_open(MMBackgroundPreviewOwner **out, const MMMovieSessionGraph *graph, MMU32 number,
+                               const unsigned char base_palette[1024], const MMBackgroundPreviewServices *renderer,
+                               const MMStorageAllocator *allocator)
+{
+    MMCollectionStorage memory;
+    MMBackgroundPreviewOwner *owner;
+    MMBackgroundCameraState *placement;
+    MMBackgroundServices reader = {0};
+
+    if (!out || !graph || !base_palette || !renderer)
+        return 0;
+    if (mm_storage_init(&memory, allocator) != MM_STORAGE_OK)
+        return -1;
+    owner = memory.allocator.resize(memory.allocator.context, NULL, 0, sizeof(*owner), MM_STORAGE_NORMAL);
+    if (!owner)
+        return -1;
+    memset(owner, 0, sizeof(*owner));
+    owner->allocator = memory.allocator;
+    owner->resource_host.allocator = &owner->allocator;
+    owner->resource = mm_background_owner_create(&owner->resource_host);
+    placement = owner->resource ? mm_background_owner_camera(owner->resource) : NULL;
+    if (!placement || !mm_background_preview_init(&owner->preview, placement, &owner->allocator) ||
+        !mm_preview_projection_cache_init(&owner->projections, &owner->allocator))
+    {
+        mm_background_preview_close(owner);
+        return -1;
+    }
+
+    owner->graph = *graph;
+    owner->number = number;
+    memcpy(owner->palette, base_palette, sizeof(owner->palette));
+    owner->services.mesh_renderer = renderer->mesh_renderer;
+    owner->services.scalar_float = renderer->scalar_float;
+    owner->services.float_scalar = renderer->float_scalar;
+    owner->services.perspective = renderer->perspective;
+    bind_graph(&owner->services, &owner->graph);
+    reader.context = owner;
+    reader.host_big_endian = mm_masked_native_big_endian();
+    reader.retain_palette = 1;
+    reader.palette_color = store_palette_colour;
+    reader.resolve_palette = resolve_palette;
+    reader.configure_light = store_light;
+    reader.append_camera = store_camera;
+    reader.select_camera = select_initial_camera;
+    if (!mm_background_read_graph(mm_background_owner_resource(owner->resource), placement, MM_BACKGROUND,
+                                   number, &owner->graph, &reader))
+    {
+        mm_background_preview_close(owner);
+        return 0;
+    }
+    *out = owner;
+    return 1;
+}
+
+void mm_background_preview_close(MMBackgroundPreviewOwner *owner)
+{
+    if (owner)
+    {
+        mm_preview_projection_cache_dispose(&owner->projections);
+        mm_background_preview_dispose(&owner->preview, &owner->services);
+        mm_background_owner_release(owner->resource);
+        owner->allocator.release(owner->allocator.context, owner, sizeof(*owner));
+    }
+}
+
+const MMBackgroundPreview *mm_background_preview_state(const MMBackgroundPreviewOwner *owner)
+{
+    return &owner->preview;
+}
+
+const unsigned char *mm_background_preview_palette(const MMBackgroundPreviewOwner *owner)
+{
+    return owner->palette;
+}
+
+void mm_background_preview_overlay_palette(const MMBackgroundPreviewOwner *owner, unsigned char colours[1024])
+{
+    MMU32 count;
+    MMI32 base;
+    const unsigned char *bytes = mm_background_palette(mm_background_owner_resource(owner->resource), &count, &base);
+    mm_display_palette_overlay(colours, 256, base, bytes, count);
+}
+
+int mm_background_preview_set_camera(MMBackgroundPreviewOwner *owner, MMU32 slot, int update_placement)
+{
+    MMBackgroundPreviewServices services = owner->services;
+    services.child = NULL;
+    return mm_background_preview_select_graph(&owner->preview, &owner->graph, owner->number, slot, update_placement,
+                                               &services);
+}
+
+int mm_background_preview_projection(MMBackgroundPreviewOwner *owner, MMU32 slot, MMPreviewProjection *out)
+{
+    const MMBackgroundPreview *p = &owner->preview;
+    const MMU32 *numbers = (const MMU32 *)p->metadata.buffers[0].data;
+    return mm_preview_projection_cache_get(&owner->projections, numbers, p->camera_count, slot, out, &owner->services);
+}
+
+int mm_background_preview_next_place(MMBackgroundPreviewOwner *owner, float point[3])
+{
+    MMActorPoint place;
+    const MMBackgroundPreviewServices *services = &owner->services;
+    if (!point || !mm_background_preview_place(&owner->preview, &place))
+        return 0;
+    point[0] = services->scalar_float(services->context, place.dxr);
+    point[1] = services->scalar_float(services->context, place.dyr);
+    point[2] = services->scalar_float(services->context, place.dzr);
+    return 1;
+}
+
+void mm_background_preview_reuse_placement(MMBackgroundPreviewOwner *owner)
+{
+    mm_background_preview_reuse_place(&owner->preview);
+}
+
+MMBackgroundMesh *mm_background_preview_owner_mesh(MMBackgroundPreviewOwner *owner)
+{
+    return mm_background_preview_mesh(&owner->preview, &owner->services);
 }

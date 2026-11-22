@@ -4,7 +4,6 @@
 #include "scene_renderer.h"
 #include "scene_pick.h"
 #include "zb_capture.h"
-#include "preview_buffer_view.h"
 #include "preview_depth_range.h"
 #include "diagnostics.h"
 #include <algorithm>
@@ -28,7 +27,6 @@
 #include "mm/scene_thumbnail.h"
 #include "mm/chunk_copy.h"
 #include "preview_actor.h"
-#include "preview_background.h"
 #include "preview_draft_host.h"
 #include "preview_presentation.h"
 #include "preview_audio_output.h"
@@ -72,7 +70,7 @@ struct Preview::Impl
     PBody body = nullptr;
     PModel model = nullptr;
     PreviewInfo info;
-    Color palette[256] = {};
+    unsigned char palette[1024] = {};
     MMPreviewSession session = {};
     MMPreviewOrbit &orbit = session.orbit;
     MMPreviewLive live = {};
@@ -140,13 +138,32 @@ struct Preview::Impl
             }
         };
     }
-    std::unique_ptr<Internal::PreviewBackground> background;
+    struct BackgroundDeleter
+    {
+        void operator()(MMBackgroundPreviewOwner *owner) const { mm_background_preview_close(owner); }
+    };
+    using Background = std::unique_ptr<MMBackgroundPreviewOwner, BackgroundDeleter>;
+    Background background;
+
+    const unsigned char *Palette() const
+    {
+        return background ? mm_background_preview_palette(background.get()) : palette;
+    }
+    Background OpenBackground(const MMMovieSessionGraph &source, ChunkNumber number) const
+    {
+        MMBackgroundPreviewServices renderer = {};
+        mm_brender_preview_background_services(&renderer);
+        MMBackgroundPreviewOwner *owner = nullptr;
+        if (mm_background_preview_open(&owner, &source, number, palette, &renderer, nullptr) < 0)
+            throw std::bad_alloc();
+        return Background(owner);
+    }
     bool LoadBackground(const MMMovieSessionGraph &source, ChunkNumber number)
     {
-        std::unique_ptr<Internal::PreviewBackground> loaded(new Internal::PreviewBackground);
-        if (!loaded->Load(source, number, palette))
+        auto loaded = OpenBackground(source, number);
+        if (!loaded)
             return false;
-        const auto count = static_cast<MMU32>(loaded->cameras.size());
+        const auto count = mm_background_preview_state(loaded.get())->camera_count;
         background.swap(loaded);
         mm_preview_live_background_loaded(&live, count, 0);
         PublishInfo();
@@ -671,8 +688,7 @@ bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
     const auto services = host.Services();
     if (!mm_preview_camera_bounds(box.min, box.max, matrix, bounds.corners, &services.math)) return true;
     // Palette entry 108 is kiclrNormalHilite in the original actor UI.
-    const auto &colour = (_impl->background ? _impl->background->palette : _impl->palette)[108];
-    bounds.colour = (std::uint32_t(colour.bRed) << 16) | (std::uint32_t(colour.bGreen) << 8) | colour.bBlue;
+    bounds.colour = mm_pixel_rgb(_impl->Palette() + 108 * 4);
     bounds.valid = true;
     return true;
 }
@@ -809,8 +825,7 @@ std::uint32_t Preview::PresentationColour(std::uint32_t colour) const
 {
     if ((colour >> 24) == 0xfe)
     {
-        const auto &value = (_impl->background ? _impl->background->palette : _impl->palette)[colour & 255];
-        return 0x01000000 | (std::uint32_t(value.bRed) << 16) | (std::uint32_t(value.bGreen) << 8) | value.bBlue;
+        return 0x01000000 | mm_pixel_rgb(_impl->Palette() + (colour & 255) * 4);
     }
     return colour;
 }
@@ -818,15 +833,13 @@ bool Preview::CopyPresentationPalette(unsigned char bgrx[1024]) const
 {
     if (!bgrx || !_impl->live.status.ready)
         return false;
-    const auto *palette = _impl->background ? _impl->background->palette : _impl->palette;
-    static_assert(sizeof(Color) == 4, "Preview palette entries use BGRX layout");
-    std::memcpy(bgrx, palette, 256 * sizeof(Color));
+    std::memcpy(bgrx, _impl->Palette(), sizeof(_impl->palette));
     return true;
 }
 void Preview::OverlayTransitionPalette(unsigned char bgrx[1024]) const
 {
     if (bgrx && _impl->background)
-        _impl->background->OverlayAuthoredPalette(bgrx);
+        mm_background_preview_overlay_palette(_impl->background.get(), bgrx);
 }
 bool Preview::ReadSound(const PreviewSoundCue &cue, PreviewAudio &audio, Error &error)
 try
@@ -911,10 +924,9 @@ try
     if (!reader || scene.type != kctgScen)
         return Fail(error, ErrorCode::invalid_argument, "Open a movie before reading scene thumbnails.");
     Internal::ClearDiagnostic();
-    static_assert(sizeof(Color) == 4, "Thumbnail palette colour layout");
     const MMSceneThumbnailPreview preview = {
         reader, _impl->resources.Reader(),
-        reinterpret_cast<const unsigned char *>(_impl->palette), &image,
+        _impl->palette, &image,
         [](void *out, MMU32 width, MMU32 height) -> unsigned char * {
             auto &result = *static_cast<PreviewImage *>(out);
             try
@@ -1027,7 +1039,7 @@ bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error
         Impl::LiveHost &runtime;
         MMI32 source;
         MMU32 number;
-        std::unique_ptr<Internal::PreviewBackground> candidate;
+        Impl::Background candidate;
     } host = {runtime, source, background, nullptr};
     MMPreviewLiveBackgroundServices services = {};
     services.context = &host;
@@ -1040,10 +1052,10 @@ bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error
             MMMovieSessionGraph graph;
             if (!impl->ResolveGraph(tag, graph))
                 return 0;
-            h.candidate = std::make_unique<Internal::PreviewBackground>();
-            if (!h.candidate->Load(graph, h.number, impl->palette))
+            h.candidate = impl->OpenBackground(graph, h.number);
+            if (!h.candidate)
                 return 0;
-            *count = static_cast<MMU32>(h.candidate->cameras.size());
+            *count = mm_background_preview_state(h.candidate.get())->camera_count;
             return 1;
         }
         catch (...)
@@ -1053,8 +1065,7 @@ bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error
     };
     services.select = [](void *p, MMU32 camera) -> int {
         auto &h = *static_cast<Host *>(p);
-        try { return h.candidate->SetCamera(camera); }
-        catch (...) { return h.runtime.Exception(); }
+        return mm_background_preview_set_camera(h.candidate.get(), camera, 1);
     };
     services.commit = [](void *p) {
         auto &h = *static_cast<Host *>(p);
@@ -1075,7 +1086,8 @@ bool Preview::RenderWithLights(const PreviewView &view, const std::vector<Previe
 {
     if (!_impl->background || lights.size() > 16)
         return Fail(error, ErrorCode::invalid_argument, "A background and at most sixteen lights are required.");
-    std::vector<MMBackgroundLight> native;
+    MMBackgroundLight native[16];
+    MMU32 count = 0;
     for (const auto &l : lights)
     {
         if (!std::isfinite(l.x) || !std::isfinite(l.y) || !std::isfinite(l.z) || !std::isfinite(l.yaw) ||
@@ -1091,19 +1103,14 @@ bool Preview::RenderWithLights(const PreviewView &view, const std::vector<Previe
         MMBackgroundLight light = {};
         std::memcpy(&light.matrix, &matrix, sizeof(matrix));
         light.intensity = BrFloatToScalar(std::min(32700.f, 1.f / l.intensity)); light.type = l.point ? BR_LIGHT_POINT : BR_LIGHT_DIRECT;
-        native.push_back(light);
+        native[count++] = light;
     }
-    auto &background = *_impl->background;
-    const auto previous = background.lights;
-    const auto previousOrbit = _impl->orbit;
     struct Restore
     {
-        Internal::PreviewBackground &b; decltype(background.lights) old;
         MMPreviewOrbit &orbit, savedOrbit;
-        ~Restore() { b.lights = old; orbit = savedOrbit; }
-    } restore{background, previous, _impl->orbit, previousOrbit};
-    background.lights.Reset(native.data(), native.size());
-    return Render(view, image, error);
+        ~Restore() { orbit = savedOrbit; }
+    } restore{_impl->orbit, _impl->orbit};
+    return RenderView(view, image, error, -1, nullptr, false, native, count);
 }
 bool Preview::SetCameraEdits(const std::vector<PreviewCameraEdit> &edits, Error &error)
 {
@@ -1163,7 +1170,7 @@ bool Preview::PlacementPoint(float point[3]) const
     MMI32 place[3] = {};
     if (_impl->background)
     {
-        const auto &p = _impl->background->Camera().place;
+        const auto &p = mm_background_preview_state(_impl->background.get())->camera.data.place;
         place[0] = p.dxr; place[1] = p.dyr; place[2] = p.dzr;
     }
     MMPreviewMath math = {};
@@ -1179,7 +1186,12 @@ try
     const auto &status = _impl->live.status;
     if (!mm_preview_camera_admit(status.ready, status.background, status.camera_count, camera))
         return Fail(error, ErrorCode::invalid_argument, "Background camera is out of range.");
-    if (!_impl->background->CameraProjection(camera, projection))
+    MMPreviewProjection native;
+    const int result = mm_background_preview_projection(_impl->background.get(), camera, &native);
+    if (result == MM_PREVIEW_CAMERA_MEMORY)
+        throw std::bad_alloc();
+    projection = Impl::RenderHost::Projection(native);
+    if (result != MM_PREVIEW_CAMERA_OK)
         return Fail(error, ErrorCode::decode_failed, "Cannot read the background camera projection.");
     return true;
 }
@@ -1190,11 +1202,12 @@ catch (const std::bad_alloc &)
 }
 bool Preview::NextPlacementPoint(float point[3])
 {
-    return _impl->live.status.ready && _impl->background && _impl->background->NextPlacementPoint(point);
+    return _impl->live.status.ready && _impl->background && mm_background_preview_next_place(_impl->background.get(), point);
 }
 void Preview::ReusePlacementPoint()
 {
-    if (_impl->background) _impl->background->ReusePlacementPoint();
+    if (_impl->background)
+        mm_background_preview_reuse_placement(_impl->background.get());
 }
 bool Preview::SetCamera(std::uint32_t camera, Error &error, bool temporary)
 try
@@ -1207,13 +1220,19 @@ try
         &status.ready, &status.current_camera, status.background, status.camera_count, camera, &host,
         [](void *v, MMU32 index) -> int {
             auto &h = *static_cast<Host *>(v);
-            try { return h.impl->background->SetCamera(index, !h.temporary) && !Internal::AssertionFailed(); }
+            try
+            {
+                const int result = mm_background_preview_set_camera(h.impl->background.get(), index, !h.temporary);
+                return result <= 0 ? result : !Internal::AssertionFailed();
+            }
             catch (...) { h.exception = std::current_exception(); return -1; }
         });
     _impl->PublishInfo();
     if (host.exception) std::rethrow_exception(host.exception);
     if (result == MM_PREVIEW_CAMERA_INVALID)
         return Fail(error, ErrorCode::invalid_argument, "Background camera is out of range.");
+    if (result == MM_PREVIEW_CAMERA_MEMORY)
+        throw std::bad_alloc();
     if (result != MM_PREVIEW_CAMERA_OK)
         return Fail(error, ErrorCode::decode_failed, "Cannot load the background camera and depth image.");
     return true;
@@ -1228,13 +1247,16 @@ bool Preview::Render(const PreviewView &view, PreviewImage &image, Error &error)
 }
 
 bool Preview::RenderView(const PreviewView &view, PreviewImage &image, Error &error, int object,
-                         const PreviewBounds *bounds, bool crop)
+                         const PreviewBounds *bounds, bool crop, const MMBackgroundLight *lights,
+                         std::uint32_t lightCount)
 try
 {
     image = {};
     error = {};
     Internal::ClearDiagnostic();
     Impl::RenderHost host = {this, _impl.get(), &view, &error};
+    host.lights = lights;
+    host.lightCount = lightCount;
     if (bounds)
     {
         host.onlyObject = object;

@@ -3,7 +3,7 @@
 #include <array>
 #include <vector>
 #include "preview_depth_range.h"
-#include "preview_background.h"
+#include "mm/indexed_display.h"
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -57,11 +57,10 @@ static void BuildMesh(MMBackgroundMesh &mesh, unsigned width, unsigned height, c
                                    mm_brender_background_mesh_services()) == expected);
 }
 
-static PreviewBufferView<std::uint8_t> InfiniteColours(const MMBackgroundMesh &mesh)
+static bool BackdropEquals(const MMBackgroundMesh &mesh, const std::vector<std::uint8_t> &colours)
 {
-    PreviewBufferView<std::uint8_t> view;
-    view.Reset(mesh.pixels.buffers[1].data, mesh.infinite_count);
-    return view;
+    return mesh.infinite_count == colours.size() &&
+           std::equal(colours.begin(), colours.end(), mesh.pixels.buffers[1].data);
 }
 
 BackgroundMatrix Identity()
@@ -135,7 +134,7 @@ int main()
     display[10] = {91, 114, 128, 231};
     display[11] = {128, 128, 128, 0};
     display[12] = {127, 127, 0, 0};
-    ResolveDisplayPalette(display);
+    mm_display_palette_resolve_identity(reinterpret_cast<unsigned char *>(display));
     CHECK(display[10].bRed == 127 && display[10].bGreen == 114 && display[10].bBlue == 91);
     CHECK(display[11].bRed == 127 && display[12].bRed == 1);
     CHECK(display[0].bRed == 0 && display[255].bRed == 255 && display[10].bZero == 0);
@@ -177,7 +176,7 @@ int main()
     BuildMesh(mesh, Target::width, Target::height, colours, depths, Identity(), Projection());
     RecordMesh(mesh);
     CHECK(mesh.triangle_count != 0 && mesh.triangle_count < 100);
-    CHECK(InfiniteColours(mesh).empty());
+    CHECK(!mesh.infinite_count);
     CHECK(std::abs(mesh.low[2] + 10) < .01 && std::abs(mesh.high[2] + 10) < .01);
     Target same;
     same.Render(mesh, Projection());
@@ -304,12 +303,12 @@ int main()
     Target holes;
     holes.Render(mesh, Projection());
     CHECK(holes.Covered() && holes.Covered() < same.Covered());
-    CHECK(InfiniteColours(mesh).size() == colours.size());
+    CHECK(mesh.infinite_count == colours.size());
     for (unsigned y = 0; y < Target::height; ++y)
     {
         CHECK(holes.depth[y * Target::stride + 7] == 0xffff);
         for (unsigned x = 0; x < Target::width; ++x)
-            CHECK(InfiniteColours(mesh)[y * Target::width + x] == colours[y * Target::width + 7]);
+            CHECK(mesh.pixels.buffers[1].data[y * Target::width + x] == colours[y * Target::width + 7]);
     }
 
     // Two planes meet at a hard depth edge. A rotated inspection camera must
@@ -345,7 +344,7 @@ int main()
     std::vector<std::uint16_t> largeDepths(largeColours.size(), 26214);
     BuildMesh(mesh, 1024, 1024, largeColours, largeDepths, Identity(), Projection());
     RecordMesh(mesh);
-    CHECK(InfiniteColours(mesh).empty());
+    CHECK(!mesh.infinite_count);
     CHECK(mesh.triangle_count > 65535);
     Target large;
     large.Render(mesh, Projection());
@@ -360,16 +359,16 @@ int main()
     BuildMesh(mesh, Target::width, Target::height, colours, depths, Identity(), Projection());
     RecordMesh(mesh);
     CHECK(mesh.triangle_count == 0);
-    CHECK(std::vector<std::uint8_t>(InfiniteColours(mesh).begin(),InfiniteColours(mesh).end()) == colours); // Includes opaque palette index zero.
+    CHECK(BackdropEquals(mesh, colours)); // Includes opaque palette index zero.
     CHECK(BrModelCount(nullptr) == initialModels && BrMapCount(nullptr) == initialMaps &&
           BrMaterialCount(nullptr) == initialMaterials);
     BuildMesh(mesh, 1025, 2, colours, depths, Identity(), Projection(), 0);
     RecordMesh(mesh);
     CHECK(mesh.triangle_count == 0);
-    CHECK(InfiniteColours(mesh).empty());
+    CHECK(!mesh.infinite_count);
     BuildMesh(mesh, 1, 1, {0}, {0xffff}, Identity(), Projection());
     RecordMesh(mesh);
-    CHECK(mesh.triangle_count == 0 && std::vector<std::uint8_t>(InfiniteColours(mesh).begin(),InfiniteColours(mesh).end()) == std::vector<std::uint8_t>{0});
+    CHECK(mesh.triangle_count == 0 && BackdropEquals(mesh, {0}));
     mm_background_mesh_dispose(&mesh, mm_brender_background_mesh_services());
     BrZbEnd();
     BrEnd();

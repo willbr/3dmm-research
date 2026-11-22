@@ -1,4 +1,8 @@
 #include "mm/background_preview.h"
+#include "mm/masked_bitmap.h"
+#include "mm/movie_session.h"
+#include "mm/preview_camera.h"
+#include "chunk_seed_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -341,6 +345,133 @@ static void prepared_camera(void)
     CHECK(mm_background_preview_place(&h.preview, &point) && point.dxr == 6);
     dispose(&h);
 }
+
+typedef struct GraphFixture
+{
+    ChunkIndexFixture index;
+    const MMMaskedBitmap *bitmap;
+    unsigned char root[8], palette[16], lights[12], camera[88], depth[20];
+    int camera_reads;
+} GraphFixture;
+
+static void graph_access(void *p, MMChunkAccess *out)
+{
+    GraphFixture *graph = p;
+    *out = fixture_chunk_access(&graph->index);
+}
+
+static int graph_payload(void *p, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
+{
+    GraphFixture *graph = p;
+    MMMemoryStream stream;
+    const void *bytes;
+    size_t size;
+    switch (entry->type)
+    {
+    case MM_BACKGROUND: bytes = graph->root; size = sizeof(graph->root); break;
+    case MM_BACKGROUND_COLORS: bytes = graph->palette; size = sizeof(graph->palette); break;
+    case MM_BACKGROUND_LIGHTS: bytes = graph->lights; size = sizeof(graph->lights); break;
+    case MM_BACKGROUND_CAMERA:
+        ++graph->camera_reads;
+        bytes = graph->camera;
+        size = sizeof(graph->camera);
+        break;
+    case 0x4d424d50UL: bytes = graph->bitmap->data; size = graph->bitmap->bytes; break;
+    case 0x5a424d50UL: bytes = graph->depth; size = sizeof(graph->depth); break;
+    default: return MM_MOVIE_BAD_FILE;
+    }
+    CHECK(mm_memory_stream_init(&stream, bytes, size));
+    return receive(out, &stream.stream);
+}
+
+static float graph_scalar(void *p, MMI32 value)
+{
+    (void)p;
+    return value / 65536.0f;
+}
+
+static void graph_owner(void)
+{
+    Host allocation = {0};
+    GraphFixture graph = {0};
+    MMMovieSessionGraph source = {NULL, graph_access, NULL, graph_payload, NULL};
+    MMStorageAllocator allocator = {NULL, resize, free_memory};
+    MMBackgroundPreviewServices renderer = {0};
+    MMBackgroundPreviewOwner *owner = NULL, *previous;
+    const MMBackgroundPreview *view;
+    const unsigned char *palette;
+    MMPreviewProjection projection;
+    MMCollectionHeader header = {0};
+    MMMaskedOwner *bitmap;
+    MMMaskedRect bounds = {0, 0, 2, 2};
+    unsigned char colours[1024] = {0};
+    const unsigned char pixels[] = {7, 8, 9, 10}, authored[] = {11, 22, 128, 33};
+    float point[3];
+    int i, allocations;
+
+    source.context = &graph;
+    allocator.context = &allocation;
+    renderer.scalar_float = graph_scalar;
+    graph.root[0] = graph.camera[0] = graph.depth[0] = 1;
+    graph.root[4] = 42;
+    graph.depth[8] = graph.depth[10] = 2;
+    memset(graph.depth + 12, 255, 8);
+    word(graph.camera + 4, 65536);
+    word(graph.camera + 8, 65536000);
+    graph.camera[13] = 0x40;
+    word(graph.camera + 16, 2 * 65536);
+    word(graph.camera + 76, 3 * 65536);
+    for (i = 0; i < 3; ++i)
+        word(graph.camera + 28 + 16 * i, 65536);
+    header.kind = MM_COLLECTION_ARRAY;
+    header.big_endian = mm_masked_native_big_endian();
+    header.width = 4;
+    header.count = 1;
+    CHECK(mm_collection_header_write(&header, graph.palette, sizeof(graph.palette)) == MM_STORAGE_OK);
+    memcpy(graph.palette + 12, authored, sizeof(authored));
+    header.width = 56;
+    header.count = 0;
+    CHECK(mm_collection_header_write(&header, graph.lights, sizeof(graph.lights)) == MM_STORAGE_OK);
+    bitmap = mm_masked_owner_new(pixels, 2, 2, &bounds, 0, 0, 0, 0, 0, NULL);
+    CHECK(bitmap);
+    graph.bitmap = mm_masked_owner_bitmap(bitmap);
+    fixture_chunk_seed_link(&graph.index, MM_BACKGROUND, 1, MM_BACKGROUND_COLORS, 2, 0);
+    fixture_chunk_seed_link(&graph.index, MM_BACKGROUND, 1, MM_BACKGROUND_LIGHTS, 3, 0);
+    fixture_chunk_seed_link(&graph.index, MM_BACKGROUND, 1, MM_BACKGROUND_CAMERA, 4, 0);
+    fixture_chunk_seed_link(&graph.index, MM_BACKGROUND_CAMERA, 4, 0x4d424d50UL, 5, 0);
+    fixture_chunk_seed_link(&graph.index, MM_BACKGROUND_CAMERA, 4, 0x5a424d50UL, 6, 0);
+
+    for (i = 1; i <= 2; ++i)
+    {
+        allocation.fail_allocation = allocation.allocations + i;
+        CHECK(mm_background_preview_open(&owner, &source, 1, colours, &renderer, &allocator) == -1);
+        CHECK(!owner && !allocation.live_memory);
+    }
+    allocation.fail_allocation = 0;
+    CHECK(mm_background_preview_open(&owner, &source, 1, colours, &renderer, &allocator) == 1);
+    view = mm_background_preview_state(owner);
+    CHECK(view->camera_count == 1 && !view->active && view->width == 2 && view->height == 2);
+    CHECK(view->rgb_count == sizeof(pixels) && !memcmp(view->images.buffers[0].data, pixels, sizeof(pixels)));
+    palette = mm_background_preview_palette(owner);
+    CHECK(palette[42 * 4] == 11 && palette[42 * 4 + 2] == 127 && palette[42 * 4 + 3] == 0);
+    mm_background_preview_overlay_palette(owner, colours);
+    CHECK(!memcmp(colours + 42 * 4, authored, sizeof(authored)) && !colours[1020]);
+    CHECK(mm_background_preview_next_place(owner, point) && point[0] == 2.f);
+    CHECK(mm_background_preview_next_place(owner, point) && point[0] == 3.f);
+    mm_background_preview_reuse_placement(owner);
+    CHECK(mm_background_preview_next_place(owner, point) && point[0] == 3.f);
+    i = graph.camera_reads;
+    CHECK(mm_background_preview_projection(owner, 0, &projection) == MM_PREVIEW_CAMERA_OK && projection.aspect == 1.f);
+    CHECK(mm_background_preview_projection(owner, 0, &projection) == MM_PREVIEW_CAMERA_OK && graph.camera_reads == i + 1);
+    previous = owner;
+    allocations = allocation.live_memory;
+    CHECK(!mm_background_preview_open(&owner, &source, 99, colours, &renderer, &allocator));
+    CHECK(owner == previous && allocation.live_memory == allocations);
+    mm_background_preview_close(owner);
+    CHECK(!allocation.live_memory);
+    mm_masked_owner_release(bitmap);
+}
+
 int main(void)
 {
     Host h;
@@ -445,6 +576,7 @@ int main(void)
     dispose(&h);
     placement();
     prepared_camera();
+    graph_owner();
     puts("Background preview C passed");
     return 0;
 }

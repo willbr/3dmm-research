@@ -69,10 +69,8 @@ static int palette(void *candidate, const MMPreviewSessionServices *s)
         return failure(r);
     if (!r || !mm_palette_read_256(&stream, bytes))
         return MM_PREVIEW_SESSION_PALETTE;
+    mm_display_palette_resolve_identity(bytes);
     memcpy(s->palette_output(s->context, candidate), bytes, sizeof(bytes));
-    r = s->display_palette(s->context, candidate);
-    if (r <= 0)
-        return failure(r);
     r = s->resource(s->context, candidate, SHADE_TYPE, 0, NULL);
     if (r < 0)
         return failure(r);

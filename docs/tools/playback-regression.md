@@ -22158,3 +22158,33 @@ order. Seek and playback order matched retained retail and V3DMM captures in
 `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-mesh`.
+
+## C89 Preview background graph and palette ownership (22 November 2026)
+
+Preview opens the background graph, loads camera zero, and owns the authored
+palette, resolved display palette, camera images, projection cache, and
+placement cursor through one C89 owner. The preview session and background
+owner resolve their palettes with the same C89 identity-colour policy.
+The facade borrows the resulting views and passes temporary light overrides
+to the requested render.
+
+The synthetic mesh and retail-content catalogue traces matched all
+307,280,417 bytes, covering 12 backgrounds and 188 cameras. All five native
+and SDL World snapshots matched another 14,387,434 bytes. The C89 fixtures
+verify allocation rollback, authored palette overlays, projection cache hits,
+and placement cursor reuse. The native scene fixture verifies that temporary
+light overrides preserve the subsequent regular render.
+All 238 selected test runs passed across C89, native x64 and x86, SDL,
+and Chomp.
+
+The headless Studio ISO, authoring, and F1 Help workflows passed. Both saved
+movies and five Studio canvases matched retained files. Headless Marcus
+reproduced its startup canvas. The existing `scene-load` mismatch reproduced
+its 63,224-byte trace and fingerprint `0D666753`.
+
+The four runs in suite `20261122T161144Z-faa58bd1` matched both ports'
+preceding 60 seek canvases, camera and actor state, and continuous playback
+order. Seek and playback order matched retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-background-owner`.

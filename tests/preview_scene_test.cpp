@@ -85,6 +85,15 @@ int main(int argc, char **argv)
         info.currentFrame != 5 || info.currentCamera != 1 || !check(preview.Render(view, later, error)) ||
         !later.coveredPixels || later.rgba == first.rgba)
         return 1;
+    MM::PreviewLight light;
+    light.yaw = 42;
+    light.pitch = -20;
+    MM::PreviewImage lit, unlit;
+    if (!check(preview.RenderWithLights(view, {light}, lit, error)) ||
+        !check(preview.RenderWithLights(view, {}, unlit, error)) || !lit.coveredPixels ||
+        lit.depth != unlit.depth || !check(preview.Render(view, repeated, error)) || repeated.rgba != later.rgba ||
+        repeated.depth != later.depth)
+        return 1;
     const auto cameras = info.cameraCount;
     if (preview.SetBackground(999, 0, error) || error.code != MM::ErrorCode::decode_failed ||
         info.currentFrame != 5 || info.currentCamera != 1 || info.cameraCount != cameras ||

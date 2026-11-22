@@ -31,7 +31,7 @@ struct Host
     int calls, fail_at, failure, input, taken, candidates, published;
     int missing_palette, malformed_palette, short_palette, missing_shade, other_order, unhealthy;
     int begins, depths, ends, depth_ends, source_count, releases, report, report_failure;
-    int begin_calls, display_calls, root_queries, lookups, fail_alloc;
+    int begin_calls, palette_outputs, root_queries, lookups, fail_alloc;
     char log[256];
     unsigned logged;
 };
@@ -158,14 +158,8 @@ static int resource(void *v, void *p, MMU32 type, MMU32 number, MMReadStream *ou
 }
 static unsigned char *palette_output(void *v, void *p)
 {
-    (void)v;
+    ++host(v)->palette_outputs;
     return ((Owner *)p)->palette;
-}
-static int display(void *v, void *p)
-{
-    (void)p;
-    ++host(v)->display_calls;
-    return step(host(v));
 }
 static int shade_load(void *v, const MMReadStream *stream)
 {
@@ -358,7 +352,6 @@ static MMPreviewSessionServices services(Owner *o)
     s.budget = budget;
     s.resource = resource;
     s.palette_output = palette_output;
-    s.display_palette = display;
     s.shade_load = shade_load;
     s.runtime_begin = runtime_begin;
     s.depth_begin = depth_begin;
@@ -415,7 +408,9 @@ static void open_tests(void)
     assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_OK);
     n = h.calls;
     assert(h.current->state.running && h.begins == 1 && h.depths == 1 && h.published == 1 && h.taken == 1);
-    assert(!memcmp(h.current->palette, h.bytes, 1024));
+    assert(h.palette_outputs == 1 && h.current->palette[0] == 0 && h.current->palette[1020] == 255 &&
+           h.current->palette[40] == 40 && h.current->palette[41] == 41 &&
+           h.current->palette[42] == 42 && h.current->palette[43] == 0);
     dispose(&h);
     assert(h.ends == 1 && h.depth_ends == 1 && !memcmp(h.log + h.logged - 7, "ALCMHDB", 7));
     for (f = -2; f <= 0; ++f)
@@ -443,20 +438,21 @@ static void open_tests(void)
     dispose(&h);
     setup(&h);
     h.malformed_palette = 1;
-    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_PALETTE && !h.display_calls);
+    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_PALETTE && !h.palette_outputs);
     assert(h.logged == 3 && !memcmp(h.log, "EAL", 3));
     dispose(&h);
     setup(&h);
     h.short_palette = 1;
-    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_PALETTE && !h.display_calls);
+    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_PALETTE && !h.palette_outputs);
     dispose(&h);
     setup(&h);
     h.missing_shade = 1;
-    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_PALETTE && h.display_calls == 1);
+    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_PALETTE && h.palette_outputs == 1);
     dispose(&h);
     setup(&h);
     h.other_order = 1;
-    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_OK && h.current->palette[0] == 3 && h.current->palette[3] == 0);
+    assert(open_session(&h, 1, 0) == MM_PREVIEW_SESSION_OK && h.current->palette[40] == 43 &&
+           h.current->palette[41] == 42 && h.current->palette[42] == 41 && h.current->palette[43] == 0);
     dispose(&h);
     setup(&h);
     h.unhealthy = 1;

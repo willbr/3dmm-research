@@ -5,6 +5,7 @@
 
 struct MMPreviewLiveDefinitions;
 struct MMPreviewLiveCameraEdits;
+struct MMBackgroundLight;
 
 namespace MM
 {
@@ -251,7 +252,8 @@ struct PreviewAudio
 class Preview
 {
     bool OpenCore(Archive &&, const std::string &, Error &, bool, bool);
-    bool RenderView(const PreviewView &, PreviewImage &, Error &, int object, const PreviewBounds *, bool crop);
+    bool RenderView(const PreviewView &, PreviewImage &, Error &, int object, const PreviewBounds *, bool crop,
+                    const MMBackgroundLight *lights = nullptr, std::uint32_t lightCount = 0);
     struct Impl;
     std::unique_ptr<Impl> _impl;
 

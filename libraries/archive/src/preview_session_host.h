@@ -132,14 +132,7 @@ struct Preview::Impl::SessionHost
             });
         };
         s.palette_output = [](void *, void *p) {
-            return reinterpret_cast<unsigned char *>(static_cast<Impl *>(p)->palette);
-        };
-        s.display_palette = [](void *v, void *p) -> int {
-            auto &h = *static_cast<SessionHost *>(v);
-            return h.Guard([&] {
-                Internal::ResolveDisplayPalette(static_cast<Impl *>(p)->palette);
-                return 1;
-            });
+            return static_cast<Impl *>(p)->palette;
         };
         s.runtime_begin = [](void *) {
             BrBegin();

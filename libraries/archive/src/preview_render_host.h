@@ -10,6 +10,8 @@ struct Preview::Impl::RenderHost
     PreviewImage image;
     br_camera camera = {};
     MMBackgroundMesh *mesh = nullptr;
+    const MMBackgroundLight *lights = nullptr;
+    MMU32 lightCount = 0;
     std::exception_ptr exception;
     bool readBodyBounds = true;
     int onlyObject = view ? view->onlyObject : -1;
@@ -62,24 +64,25 @@ struct Preview::Impl::RenderHost
                     d->model_low[a] = BrScalarToFloat(model->bounds.min.v[a]);
                     d->model_high[a] = BrScalarToFloat(model->bounds.max.v[a]);
                 }
-            auto palette = i.background ? i.background->palette : i.palette;
+            const auto *palette = i.Palette();
             for (unsigned n = 0; n < 256; ++n)
             {
-                d->palette[n * 4] = palette[n].bRed;
-                d->palette[n * 4 + 1] = palette[n].bGreen;
-                d->palette[n * 4 + 2] = palette[n].bBlue;
+                d->palette[n * 4] = palette[n * 4 + 2];
+                d->palette[n * 4 + 1] = palette[n * 4 + 1];
+                d->palette[n * 4 + 2] = palette[n * 4];
                 d->palette[n * 4 + 3] = 255;
             }
             if (i.background && d->background)
             {
-                auto &b = *i.background;
+                const auto &b = *mm_background_preview_state(i.background.get());
                 d->width = b.width;
                 d->height = b.height;
-                d->light_count = static_cast<MMU32>(b.lights.size());
-                d->lights = b.lights.data();
-                d->colours = b.colours.data();
-                d->depths = b.depths.data();
-                const auto &camera = b.Camera();
+                d->light_count = h.lights ? h.lightCount : b.light_count;
+                d->lights = h.lights ? h.lights :
+                    reinterpret_cast<const MMBackgroundLight *>(b.metadata.buffers[1].data);
+                d->colours = b.images.buffers[0].data;
+                d->depths = reinterpret_cast<const unsigned short *>(b.images.buffers[1].data);
+                const auto &camera = b.camera.data;
                 static_assert(sizeof(d->camera.matrix) == sizeof(camera.matrix.m), "Camera matrix layout");
                 std::memcpy(d->camera.matrix, camera.matrix.m, sizeof(d->camera.matrix));
                 d->camera.fov = camera.fov;
@@ -92,7 +95,9 @@ struct Preview::Impl::RenderHost
             auto &h = *static_cast<RenderHost *>(v);
             try
             {
-                h.mesh = &h.impl->background->Mesh();
+                h.mesh = mm_background_preview_owner_mesh(h.impl->background.get());
+                if (!h.mesh)
+                    throw std::bad_alloc();
                 out->empty = h.mesh->triangle_count == 0;
                 std::copy(h.mesh->low, h.mesh->low + 3, out->low);
                 std::copy(h.mesh->high, h.mesh->high + 3, out->high);

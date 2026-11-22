@@ -195,6 +195,12 @@ int mm_display_palette_set(unsigned char current[1024], size_t *count, const uns
     return MM_DISPLAY_PALETTE_CHANGED;
 }
 
+void mm_display_palette_resolve_identity(unsigned char colours[1024])
+{
+    size_t count = 0;
+    mm_display_palette_set(colours, &count, colours, 256, MM_DISPLAY_PALETTE_IDENTITY);
+}
+
 int mm_display_palette_overlay(unsigned char *base, size_t base_count, size_t first,
                                const unsigned char *colours, size_t count)
 {

@@ -42,6 +42,8 @@ enum
  * may alias current entries. Animation limits updates to the current count. */
 int mm_display_palette_set(unsigned char current[1024], size_t *count, const unsigned char *requested,
                            size_t requested_count, MMU32 flags);
+/* Resolve a complete movie palette in place using Studio's identity colours. */
+void mm_display_palette_resolve_identity(unsigned char colours[1024]);
 /* Copy an authored BGRX range over the base palette, including the reserved
  * bytes. Invalid ranges leave the destination alone. */
 int mm_display_palette_overlay(unsigned char *base, size_t base_count, size_t first,
