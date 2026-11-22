@@ -1815,6 +1815,10 @@ Local tag opening also accepts a typed source archive and binds the destination
 cache in C89. Copies into private working archives preserve names, packed
 payloads and child references. Opening a tag within the same archive retains
 the cache without looking up or copying the chunk.
+Studio's Kidspace descriptors now give their C89 cache directly to script
+and artwork loaders. The C cache owns their references and streaming
+priorities. Studio movie thumbnails also load from a C-owned working cache.
+The C resource services no longer carry a back-pointer to a C++ cache wrapper.
 Studio and Marcus share the C89 rich-text binding for stored TEXT extents,
 file references and bounded reads. Preview uses the same decoder for the
 authored TEXT encoding marker. Studio's live property and argument tables

@@ -124,7 +124,7 @@ static bool TestMovieSave(PMovie parent)
             record(5, movie->FAutoSave(&path, true));
             MMResourceCache *resource = nullptr;
             record(6, movie->FEnsureAutosave(&resource));
-            ok = resource && !resource->services.legacy_adapter && movie->FSwitchScen(ivNil) && movie->FSwitchScen(0) &&
+            ok = resource && !resource->services.objects.state && movie->FSwitchScen(ivNil) && movie->FSwitchScen(0) &&
                  movie->Pscen()->Trans() == transFadeToBlack;
             record(7, ok);
             movie->SetDocClosing(true);
@@ -177,7 +177,7 @@ static bool TestPrivateMovieSave(PMovie parent)
 
     Filename path, remembered;
     const bool havePath = path.FGetTemp() && path.FChangeFtg(kftg3mm);
-    bool ok = resources && !resources->services.legacy_adapter && havePath;
+    bool ok = resources && !resources->services.objects.state && havePath;
     if (ok)
     {
         movie->SetDirty();

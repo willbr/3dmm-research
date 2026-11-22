@@ -80,7 +80,7 @@ class ProbeResource : public BaseCacheableObject
     }
     ~ProbeResource()
     {
-        Observe(3, _id, Ctg(), Cno(), static_cast<uint32_t>(Crep()), CactRef(), Pcrf() != nullptr);
+        Observe(3, _id, Ctg(), Cno(), static_cast<uint32_t>(Crep()), CactRef(), CoreCache() != nullptr);
         --probeResident;
         if (_id == 301 && cascade)
         {
@@ -163,7 +163,7 @@ int CacheCases()
     held = cache->PbacoFetch('RCHE', 11, ProbeResource::A);
     CHECK(held && cache->TLoad('RCHE', 12, ProbeResource::A) == tYes);
     ReleasePpo(&cache);
-    CHECK(held->Pcrf() == nullptr && held->CactRef() == 1 && probeResident == 1);
+    CHECK(held->CoreCache() == nullptr && held->CactRef() == 1 && probeResident == 1);
     ReleasePpo(&held);
     CHECK(!probeResident);
     cache = ChunkyResourceFile::PcrfNew(file, 100);
@@ -199,7 +199,7 @@ int ManagerCases()
           manager->PcrfFindChunk('RCHE', 1, 22) == manager->PcrfGet(1));
     bool error = true;
     auto first = manager->PbacoFetch('RCHE', 1, ProbeResource::A, &error);
-    CHECK(first && !error && first->Pcrf() == manager->PcrfGet(0));
+    CHECK(first && !error && first->CoreCache() == manager->PcrfGet(0)->CoreCache());
     auto second = manager->PcrfGet(1)->PbacoFetch('RCHE', 1, ProbeResource::A);
     CHECK(second);
     auto found = manager->PbacoFind('RCHE', 1, ProbeResource::A, 22);
@@ -210,7 +210,7 @@ int ManagerCases()
     CHECK(manager->TLoad('RCHE', 4, ProbeResource::A) == tMaybe &&
           manager->TLoad('RCHE', 3, ProbeResource::A, 22) == tYes);
     ReleasePpo(&manager);
-    CHECK(first->Pcrf() == nullptr && second->Pcrf() == nullptr && probeResident == 2);
+    CHECK(first->CoreCache() == nullptr && second->CoreCache() == nullptr && probeResident == 2);
     ReleasePpo(&first);
     ReleasePpo(&second);
     CHECK(!probeResident && a->CactRef() == 1 && b->CactRef() == 1);
@@ -382,7 +382,7 @@ static int WireSourceCase(bool native)
     CHECK(privatePath.FGetTemp());
     // The new working archive owns cleanup of its temporary file.
     const auto privateTarget = OpenWorkingResourceCache(&privatePath, true, 1024);
-    CHECK(privateTarget && !privateTarget->services.legacy_adapter);
+    CHECK(privateTarget && !privateTarget->services.objects.state);
     MMResourceChunkCopy sourceBinding;
     const auto source = mm_resource_cache_copy_source(core, &sourceBinding);
     tag = {0, nullptr, type, root};

@@ -1,6 +1,7 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "portfolio_data.h"
 #include "mm/scene_thumbnail.h"
+#include "resource_archive_host.h"
 #if defined(_WINDOWS_) || defined(_INC_WINDOWS)
 #error Portfolio data must not import the Windows SDK
 #endif
@@ -31,14 +32,14 @@ PMaskedBitmapMBMP LoadPreview(Filename *selection, LegacyUlong previews)
     PMaskedBitmapMBMP result = nullptr;
     if (previews & fpfPortPrevMovie)
     {
-        auto cache = ChunkyResourceFile::PcrfOpenWorking(selection, false);
+        auto cache = OpenWorkingResourceCache(selection, false);
         if (cache)
         {
-            const auto chunks = cache->ReadChunkAccess();
+            const auto chunks = mm_resource_cache_chunks(cache);
             MMU32 thumbnail;
             if (mm_movie_first_scene_thumbnail(&chunks, &thumbnail) == MM_CHUNK_OK)
                 result = FetchMaskedBitmap(cache, MM_SCENE_THUMBNAIL_TYPE, thumbnail);
-            ReleasePpo(&cache);
+            mm_resource_cache_release(cache);
         }
     }
     if (!result && (previews & fpfPortPrevTexture))

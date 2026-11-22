@@ -33,10 +33,10 @@ END_CMD_MAP(&KidspaceGraphicObject::FCmdAll, pvNil, kgrfcmmAll)
 
 const long kcmhlGok = -10000;
 
-static bool FindKidspaceChild(PChunkyResourceFile cache, ChunkTagOrType parentType, ChunkNumber parentNumber,
+static bool FindKidspaceChild(MMResourceCache *cache, ChunkTagOrType parentType, ChunkNumber parentNumber,
                               ChildChunkID slot, ChunkTagOrType type, ChildChunkIdentification *out)
 {
-    const auto chunks = cache->ReadChunkAccess();
+    const auto chunks = mm_resource_cache_chunks(cache);
     MMU32 number;
     if (mm_chunk_link_number(&chunks, parentType, parentNumber, slot, type, &number) != MM_CHUNK_OK)
         return false;
@@ -45,13 +45,20 @@ static bool FindKidspaceChild(PChunkyResourceFile cache, ChunkTagOrType parentTy
 }
 
 template <class Record>
-static bool ReadKidspaceRecord(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number, Record &record)
+static bool ReadKidspaceRecord(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number, Record &record)
 {
     int read;
-    return mm_resource_cache_visit_payload(cache->CoreCache(), type, number, KauaiDecodeBlockHandle, nullptr,
+    return mm_resource_cache_visit_payload(cache, type, number, KauaiDecodeBlockHandle, nullptr,
         [](void *out, const MMReadStream *stream) -> int {
             return stream->length == sizeof(Record) && mm_read_exact(stream, 0, out, sizeof(Record));
         }, &record, &read) == MM_CHUNK_OK && read;
+}
+
+static PScript FetchKidspaceScript(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number,
+                                   int *error = nullptr)
+{
+    const MMResourceRequest request = {type, number, rscNil, Script::FReadScript, MM_RESOURCE_NORMAL_PRIORITY};
+    return static_cast<PScript>(mm_resource_cache_fetch_owned(cache, &request, BaseCacheableObject::ObjectServices(), error));
 }
 
 /***************************************************************************
@@ -145,7 +152,8 @@ KidspaceGraphicObject::~KidspaceGraphicObject(void)
     }
 
     ReleasePpo(&_pgokd);
-    ReleasePpo(&_pcrf);
+    if (_resourceCache)
+        mm_resource_cache_release(_resourceCache);
     ReleasePpo(&_prca);
     ReleasePpo(&_pscegAnim);
     ReleasePpo(&_pgorp);
@@ -181,6 +189,9 @@ bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjec
     AssertPo(pwoks, 0);
     AssertPo(pgokd, 0);
     AssertPo(prca, 0);
+    const auto cache = pgokd->CoreCache();
+    if (!cache)
+        return fFalse;
     LOP lop;
 
     _pwoks = pwoks;
@@ -197,8 +208,8 @@ bool KidspaceGraphicObject::_FInit(PWorldOfKidspace pwoks, PKidspaceGraphicObjec
 
     _prca = prca;
     _prca->AddRef();
-    _pcrf = pgokd->Pcrf();
-    _pcrf->AddRef();
+    _resourceCache = cache;
+    mm_resource_cache_retain(cache);
     AssertThis(0);
     SetZPlane(lop.zp);
 
@@ -652,12 +663,12 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOr
             goto LAdjust;
         }
 
-        if (FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgAnimation, &kid))
+        if (FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgAnimation, &kid))
         {
             PScript pscpt;
             PGraphicsObjectInterpreter psceg = pvNil;
 
-            if (pvNil != (pscpt = (PScript)_pcrf->PbacoFetch(kid.cki.ctg, kid.cki.cno, Script::FReadScript)) &&
+            if (pvNil != (pscpt = FetchKidspaceScript(_resourceCache, kid.cki.ctg, kid.cki.cno)) &&
                 pvNil != (psceg = _pwoks->PscegNew(_prca, this)) && psceg->FAttachScript(pscpt))
             {
                 ReleasePpo(&pscpt);
@@ -686,7 +697,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOr
         goto LAdjust;
 
     {
-        const auto chunks = _pcrf->ReadChunkAccess();
+        const auto chunks = mm_resource_cache_chunks(_resourceCache);
         MMU32 parent, first;
         if (mm_chunk_find(&chunks, _pgokd->Ctg(), _pgokd->Cno(), &parent) != MM_CHUNK_OK)
             goto LAdjust;
@@ -707,7 +718,7 @@ bool KidspaceGraphicObject::_FSetRep(ChildChunkID chid, ulong grfgok, ChunkTagOr
                 break;
             }
 
-            if (pvNil != (pgorp = _PgorpNew(_pcrf, child.type, child.number)))
+            if (pvNil != (pgorp = _PgorpNew(_resourceCache, child.type, child.number)))
             {
                 _SetGorp(pgorp, dxp, dyp);
                 ReleasePpo(&pgorp);
@@ -1079,7 +1090,7 @@ bool KidspaceGraphicObject::FFilterCidHid(long cid, long hid, ChildChunkID chidS
     ChildChunkIdentification kid;
 
     if (chidNil == chidScript ||
-        !FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chidScript, kctgScript, &kid))
+        !FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chidScript, kctgScript, &kid))
     {
         // turn off filtering
         if (chidNil != chidScript)
@@ -1437,7 +1448,7 @@ bool KidspaceGraphicObject::FRunScript(ChildChunkID chid, LegacyLong *prglw, lon
     AssertNilOrVarMem(plwReturn);
     ChildChunkIdentification kid;
 
-    if (!FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgScript, &kid))
+    if (!FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgScript, &kid))
     {
         if (pvNil != ptSuccess)
             *ptSuccess = tNo;
@@ -1459,11 +1470,12 @@ bool KidspaceGraphicObject::FRunScriptCno(ChunkNumber cno, LegacyLong *prglw, lo
     AssertThis(0);
     AssertNilOrVarMem(plwReturn);
     PScript pscpt;
-    bool fError, fExists;
+    int fError;
+    bool fExists;
     tribool tRet;
 
     fExists = fTrue;
-    pscpt = (PScript)_pcrf->PbacoFetch(kctgScript, cno, Script::FReadScript, &fError);
+    pscpt = FetchKidspaceScript(_resourceCache, kctgScript, cno, &fError);
     if (pvNil != pscpt)
     {
         AssertPo(pscpt, 0);
@@ -1587,36 +1599,24 @@ bool KidspaceGraphicObject::FCmdClicked(PCMD_MOUSE pcmd)
     CAUTION: this KidspaceGraphicObject may not exist on return. Returns false iff the KidspaceGraphicObject
     doesn't exist on return.
 ***************************************************************************/
-PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+PGraphicalObjectRepresentation KidspaceGraphicObject::_PgorpNew(MMResourceCache *cache, ChunkTagOrType ctg,
+                                                                ChunkNumber cno)
 {
     AssertThis(0);
-    typedef PGraphicalObjectRepresentation (*PFNGORP)(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
-    PFNGORP pfngorp;
-
     switch (ctg)
     {
-    default:
-        return pvNil;
-
     case kctgMbmp:
     case kctgMask:
-        pfngorp = (PFNGORP)GraphicalObjectRepresentationBitmap::PgorbNew;
-        break;
-
+        return GraphicalObjectRepresentationBitmap::PgorbNew(this, cache, ctg, cno);
     case kctgFill:
-        pfngorp = (PFNGORP)GraphicalObjectRepresentationFill::PgorfNew;
-        break;
-
+        return GraphicalObjectRepresentationFill::PgorfNew(this, cache, ctg, cno);
     case kctgTile:
-        pfngorp = (PFNGORP)GraphicalObjectRepresentationTiled::PgortNew;
-        break;
-
+        return GraphicalObjectRepresentationTiled::PgortNew(this, cache, ctg, cno);
     case kctgVideo:
-        pfngorp = (PFNGORP)GraphicalObjectRepresentationVideo::PgorvNew;
-        break;
+        return GraphicalObjectRepresentationVideo::PgorvNew(this, cache, ctg, cno);
+    default:
+        return pvNil;
     }
-
-    return (*pfngorp)(this, pcrf, ctg, cno);
 }
 
 /***************************************************************************
@@ -1843,8 +1843,8 @@ void KidspaceGraphicObject::_PlayMouseSound(ChildChunkID chid)
     if (pvNil == vpsndm)
         return;
 
-    if (!FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgWave, &kid) &&
-        !FindKidspaceChild(_pcrf, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgMidi, &kid))
+    if (!FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgWave, &kid) &&
+        !FindKidspaceChild(_resourceCache, _pgokd->Ctg(), _pgokd->Cno(), chid, kctgMidi, &kid))
     {
         return;
     }
@@ -1903,7 +1903,7 @@ void KidspaceGraphicObject::AssertValid(LegacyUlong grf)
     KidspaceGraphicObject_PAR::AssertValid(0);
     AssertPo(_pwoks, 0);
     AssertNilOrPo(_pscegAnim, 0);
-    AssertPo(_pcrf, 0);
+    AssertVarMem(_resourceCache);
     AssertPo(_prca, 0);
     AssertNilOrPo(_pgorp, 0);
     AssertNilOrPo(_pglcmflt, 0);
@@ -1927,7 +1927,7 @@ void KidspaceGraphicObject::MarkMem(void)
     KidspaceGraphicObject_PAR::MarkMem();
     MarkMemObj(_pscegAnim);
     MarkMemObj(_prca);
-    MarkMemObj(_pcrf);
+    mm_resource_cache_mark(_resourceCache);
     MarkMemObj(_pgorp);
     MarkMemObj(_pglcmflt);
 }
@@ -2026,15 +2026,15 @@ const ByteOrderMask kbomGokfl = 0x5FFF0000;
 /***************************************************************************
     Static method to create a new fill representation.
 ***************************************************************************/
-PGraphicalObjectRepresentationFill GraphicalObjectRepresentationFill::PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+PGraphicalObjectRepresentationFill GraphicalObjectRepresentationFill::PgorfNew(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
-    AssertPo(pcrf, 0);
+    AssertVarMem(cache);
 
     GOKFL gokfl;
     PGraphicalObjectRepresentationFill pgorf;
 
-    if (!ReadKidspaceRecord(pcrf, ctg, cno, gokfl))
+    if (!ReadKidspaceRecord(cache, ctg, cno, gokfl))
     {
         Warn("couldn't load indicated fill");
         return pvNil;
@@ -2128,17 +2128,17 @@ void GraphicalObjectRepresentationFill::GetRcContent(RC *prc)
 /***************************************************************************
     Create a new masked bitmap representation of a graphical object.
 ***************************************************************************/
-PGraphicalObjectRepresentationBitmap GraphicalObjectRepresentationBitmap::PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+PGraphicalObjectRepresentationBitmap GraphicalObjectRepresentationBitmap::PgorbNew(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
-    AssertPo(pcrf, 0);
+    AssertVarMem(cache);
     PGraphicalObjectRepresentationBitmap pgorb;
 
     if (pvNil == (pgorb = NewObj GraphicalObjectRepresentationBitmap))
         return pvNil;
 
-    pgorb->_pcrf = pcrf;
-    pgorb->_pcrf->AddRef();
+    pgorb->_resourceCache = cache;
+    mm_resource_cache_retain(cache);
     pgorb->_ctg = ctg;
     pgorb->_cno = cno;
     AssertPo(pgorb, 0);
@@ -2150,9 +2150,10 @@ PGraphicalObjectRepresentationBitmap GraphicalObjectRepresentationBitmap::PgorbN
 ***************************************************************************/
 GraphicalObjectRepresentationBitmap::~GraphicalObjectRepresentationBitmap(void)
 {
-    if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
-        _pcrf->FSetCrep(crepToss, _ctg, _cno, ReadCachedMaskedBitmap);
-    ReleasePpo(&_pcrf);
+    if (_fStream && pvNil != _resourceCache && ctgNil != _ctg)
+        mm_resource_cache_priority(_resourceCache, crepToss, _ctg, _cno, ReadCachedMaskedBitmap, rscNil);
+    if (_resourceCache)
+        mm_resource_cache_release(_resourceCache);
 }
 
 /***************************************************************************
@@ -2169,7 +2170,7 @@ void GraphicalObjectRepresentationBitmap::Draw(PGraphicsEnvironment pgnv, RC *pr
     if (kctgMbmp != _ctg)
         return;
 
-    if (pvNil != (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
+    if (pvNil != (pmbmp = FetchMaskedBitmap(_resourceCache, _ctg, _cno)))
     {
         AssertMaskedBitmap(pmbmp);
         GetMaskedBitmapBounds(pmbmp, &rc);
@@ -2191,7 +2192,7 @@ bool GraphicalObjectRepresentationBitmap::FPtIn(long xp, long yp)
     RC rc;
     bool fRet;
 
-    if (pvNil == (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
+    if (pvNil == (pmbmp = FetchMaskedBitmap(_resourceCache, _ctg, _cno)))
     {
         Warn("Couldn't load kidspace bitmap");
         return fTrue;
@@ -2227,7 +2228,7 @@ void GraphicalObjectRepresentationBitmap::GetRc(RC *prc)
 
     PMaskedBitmapMBMP pmbmp;
 
-    if (pvNil != (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
+    if (pvNil != (pmbmp = FetchMaskedBitmap(_resourceCache, _ctg, _cno)))
     {
         AssertMaskedBitmap(pmbmp);
         GetMaskedBitmapBounds(pmbmp, prc);
@@ -2265,16 +2266,16 @@ void GraphicalObjectRepresentationBitmap::Stream(bool fStream)
 /***************************************************************************
     Create a new tile representation.
 ***************************************************************************/
-PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
-    AssertPo(pcrf, 0);
+    AssertVarMem(cache);
 
     GOTIL gotil;
     PGraphicalObjectRepresentationTiled pgort;
     ChildChunkIdentification kid;
 
-    if (!ReadKidspaceRecord(pcrf, ctg, cno, gotil))
+    if (!ReadKidspaceRecord(cache, ctg, cno, gotil))
     {
         Warn("couldn't load indicated tile chunk");
         return pvNil;
@@ -2308,7 +2309,7 @@ PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew
         return pvNil;
     }
 #pragma warning(pop)
-    if (!FindKidspaceChild(pcrf, ctg, cno, 0, kctgMbmp, &kid))
+    if (!FindKidspaceChild(cache, ctg, cno, 0, kctgMbmp, &kid))
     {
         Warn("no child MaskedBitmapMBMP of TILE chunk");
         return pvNil;
@@ -2319,8 +2320,8 @@ PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew
 
     CopyPb(gotil.rgdxp, pgort->_rgdxp, size(gotil.rgdxp));
     CopyPb(gotil.rgdyp, pgort->_rgdyp, size(gotil.rgdyp));
-    pgort->_pcrf = pcrf;
-    pgort->_pcrf->AddRef();
+    pgort->_resourceCache = cache;
+    mm_resource_cache_retain(cache);
     pgort->_ctg = kid.cki.ctg;
     pgort->_cno = kid.cki.cno;
     pgort->_dxp = pgort->_rgdxp[idzpLeft] + pgort->_rgdxp[idzpMid] + pgort->_rgdxp[idzpRight];
@@ -2335,9 +2336,10 @@ PGraphicalObjectRepresentationTiled GraphicalObjectRepresentationTiled::PgortNew
 ***************************************************************************/
 GraphicalObjectRepresentationTiled::~GraphicalObjectRepresentationTiled(void)
 {
-    if (_fStream && pvNil != _pcrf && ctgNil != _ctg)
-        _pcrf->FSetCrep(crepToss, _ctg, _cno, ReadCachedMaskedBitmap);
-    ReleasePpo(&_pcrf);
+    if (_fStream && pvNil != _resourceCache && ctgNil != _ctg)
+        mm_resource_cache_priority(_resourceCache, crepToss, _ctg, _cno, ReadCachedMaskedBitmap, rscNil);
+    if (_resourceCache)
+        mm_resource_cache_release(_resourceCache);
 }
 
 /***************************************************************************
@@ -2352,7 +2354,7 @@ void GraphicalObjectRepresentationTiled::Draw(PGraphicsEnvironment pgnv, RC *prc
     PMaskedBitmapMBMP pmbmp;
     RC rcRow;
 
-    if (pvNil == (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
+    if (pvNil == (pmbmp = FetchMaskedBitmap(_resourceCache, _ctg, _cno)))
     {
         Warn("Couldn't load kidspace bitmap");
         return;
@@ -2495,7 +2497,7 @@ bool GraphicalObjectRepresentationTiled::FPtIn(long xp, long yp)
     if (!FIn(xp, 0, _dxp) || !FIn(yp, 0, _dyp))
         return fFalse;
 
-    if (pvNil == (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
+    if (pvNil == (pmbmp = FetchMaskedBitmap(_resourceCache, _ctg, _cno)))
     {
         Warn("Couldn't load kidspace bitmap");
         return fTrue;
@@ -2590,7 +2592,7 @@ void GraphicalObjectRepresentationTiled::GetRc(RC *prc)
     PMaskedBitmapMBMP pmbmp;
 
     prc->Set(0, 0, _dxp, _dyp);
-    if (pvNil == (pmbmp = FetchMaskedBitmap(_pcrf, _ctg, _cno)))
+    if (pvNil == (pmbmp = FetchMaskedBitmap(_resourceCache, _ctg, _cno)))
     {
         Warn("Couldn't load kidspace bitmap");
         return;
@@ -2662,16 +2664,16 @@ void GraphicalObjectRepresentationTiled::Stream(bool fStream)
 /***************************************************************************
     Static method to create a new video representation.
 ***************************************************************************/
-PGraphicalObjectRepresentationVideo GraphicalObjectRepresentationVideo::PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+PGraphicalObjectRepresentationVideo GraphicalObjectRepresentationVideo::PgorvNew(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
-    AssertPo(pcrf, 0);
+    AssertVarMem(cache);
     PGraphicalObjectRepresentationVideo pgorv;
 
     if (pvNil == (pgorv = NewObj GraphicalObjectRepresentationVideo))
         return pvNil;
 
-    if (!pgorv->_FInit(pgok, pcrf, ctg, cno))
+    if (!pgorv->_FInit(pgok, cache, ctg, cno))
     {
         ReleasePpo(&pgorv);
         return pvNil;
@@ -2682,9 +2684,9 @@ PGraphicalObjectRepresentationVideo GraphicalObjectRepresentationVideo::PgorvNew
 }
 
 /***************************************************************************
-    Initialize the GraphicalObjectRepresentationVideo - load the movie indicated byt (pcrf, ctg, cno).
+    Initialize the GraphicalObjectRepresentationVideo - load the movie indicated by (cache, ctg, cno).
 ***************************************************************************/
-bool GraphicalObjectRepresentationVideo::_FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno)
+bool GraphicalObjectRepresentationVideo::_FInit(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertPo(pgok, 0);
     AssertBaseThis(0);
@@ -2698,7 +2700,7 @@ bool GraphicalObjectRepresentationVideo::_FInit(PKidspaceGraphicObject pgok, PCh
         byte window;
     } video = {&stn, 0};
     int read;
-    if (mm_resource_cache_visit_payload(pcrf->CoreCache(), ctg, cno, KauaiDecodeBlockHandle, nullptr,
+    if (mm_resource_cache_visit_payload(cache, ctg, cno, KauaiDecodeBlockHandle, nullptr,
         [](void *out, const MMReadStream *stream) -> int {
             auto video = static_cast<VideoRecord *>(out);
             byte wire[kcbMaxDataStn + 1];

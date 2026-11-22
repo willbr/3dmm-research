@@ -1841,7 +1841,7 @@ static void TestMoviePersistence()
         Check(movie.FInitEmpty());
         record(movie);
         const MovieArchiveFixture archive(movie.Resources());
-        Check(!movie.Resources()->services.legacy_adapter);
+        Check(!movie.Resources()->services.objects.state);
         String movieTitle(PszLit("Headless movie")); movie.SetTitle(&movieTitle);
         // Preserve an actual graph: a scene references an embedded actor
         // template; persistence treats their payloads as opaque, never UI.
@@ -1875,7 +1875,7 @@ static void TestMoviePersistence()
         record(loaded);
         Check(loaded.sceneCount == 1 && loaded.actorIdLimit == 43 && loaded.actors.count == 1);
         ChunkNumber explicitRoot = loaded.movieNumber;
-        Check(!loaded.Resources()->services.legacy_adapter);
+        Check(!loaded.Resources()->services.objects.state);
         const MovieArchiveFixture archive(loaded.Resources());
         const auto graph = mm_movie_owner_graph(archive.reader);
         Check(mm_movie_graph_root(&graph, nullptr, &explicitRoot, nullptr) == MM_MOVIE_OK);
@@ -4831,7 +4831,7 @@ static void TestEngineServices()
     Check(missingSourcePrompts == 1);
     TAG stored = {42, nullptr, 'TEST', 7};
     auto storedResource = static_cast<PGenericHQ>(manager->PbacoFetch(&stored, GenericHQ::FReadGhq));
-    Check(storedResource && !storedResource->Pcrf() && storedResource->CoreCache()->wire_index &&
+    Check(storedResource && !storedResource->CoreCache()->services.objects.state && storedResource->CoreCache()->wire_index &&
           CbOfHq(storedResource->hq) == 512);
     const auto bytes = static_cast<const byte *>(PvLockHq(storedResource->hq));
     for (int i = 0; i < 512; ++i)
@@ -4879,7 +4879,7 @@ static void TestEngineServices()
         manager = TagManager::PtagmNew(&root, MissingSource, 2048);
         Check(manager && manager->FAddStnSource(&missingName, 42));
         auto liveResource = manager->PbacoFetch(&stored, GenericHQ::FReadGhq);
-        Check(liveResource && !liveResource->Pcrf());
+        Check(liveResource && !liveResource->CoreCache()->services.objects.state);
         const auto cache = liveResource->CoreCache();
         const auto reader = mm_resource_cache_reader(cache);
         Check(reader && reader->storage->owner->files.main_file == backing);

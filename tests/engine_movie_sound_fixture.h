@@ -45,7 +45,7 @@ static bool TestPrivateSoundRoundTrip(PMovie parent, PFileObject input, long sty
         auto resources = NewPrivateMovieResources();
         MovieSoundFixtureAccess::Data(document)->resources = resources;
         document->SetDirty();
-        ok = resources && !resources->services.legacy_adapter && document->FAutoSave() && document->FNewScenInsCore(0);
+        ok = resources && !resources->services.objects.state && document->FAutoSave() && document->FNewScenInsCore(0);
     }
     Filename path;
     const bool havePath = path.FGetTemp() && path.FChangeFtg(kftg3mm);

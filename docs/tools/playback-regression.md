@@ -21014,3 +21014,37 @@ cases and captured SDL Studio and Marcus again.
 
 Traces and logs are under `tmp/c89-tag-open-from-archive`. Captures are
 under `tmp/c89-rscap`.
+
+## C89 cache ownership for Studio scripts and artwork (22 November 2026)
+
+Kidspace retains its descriptor archive through the C89 resource cache.
+Child lookup, script and bitmap fetches, and streaming eviction use that
+cache directly. Studio's portfolio loads movie thumbnails from the same
+C89 working cache path used to open movies. The C cache services no longer
+store a pointer back to the C++ facade.
+
+The engine, core link and C89 suite passed 199 checks across the parallel
+run and an isolated retry of `kauai-core-link`. The parallel run failed to
+create a temporary file in that test. Native x86, native x64 and SDL resource
+cache and Archive API checks passed. Native and SDL descriptor, masked
+bitmap, portfolio, and movie save/load tests passed. The resource cache and
+tag ownership traces were byte-identical. The separate x64 `scene-load`
+test reproduced the baseline fingerprint mismatch and exact output bytes.
+
+SDL Studio ran the retail ISO cold and warm, entered the ticket booth,
+lobby and studio, previewed MIDI, and saved and reopened an authored scene.
+The repeat runs reproduced identical ticket booth, lobby and studio room
+images. The in-video capture varied between runs, and the first rebuilt
+capture matched the repeated baseline. The rebuilt post-video frame also
+matched a frame sampled during the baseline's attendant animation.
+Both Studio saves and seven Marcus saves matched `7770d890` byte for byte.
+
+All eight runs of the 60-frame actor case in `20261122T074638Z-a3147ee8`
+reproduced the prior per-player seek canvases, camera and actor state, and
+continuous frame order. Prior timing and presentation limits and differences
+from retail reproduced. All four players reopened the copied 3D text save
+with identical canvases in `20261122T074857Z-643a0567`. Both suites reused
+the retained retail and V3DMM captures and ran SDL Studio and Marcus again.
+
+Traces and room captures are under `tmp/c89-cache-owner-boundary`.
+Playback captures are under `tmp/c89-rscap`.

@@ -41,6 +41,7 @@ PMaskedBitmapMBMP ImportMaskedBitmap(PFilename, byte transparent = 0, LegacyLong
 PMaskedBitmapMBMP ReadMaskedBitmap(PDataBlock);
 PMaskedBitmapMBMP ReadMaskedBitmap(const MMReadStream *);
 PMaskedBitmapMBMP FetchMaskedBitmap(PResourceCache, ChunkTagOrType, ChunkNumber);
+PMaskedBitmapMBMP FetchMaskedBitmap(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 int ReadCachedMaskedBitmap(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 
 inline void ReleaseMaskedBitmap(PMaskedBitmapMBMP *bitmap)

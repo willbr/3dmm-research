@@ -88,7 +88,6 @@ extern "C"
         struct MMChunkOwnerRead *(*live_reader)(void *file);
         struct MMArchiveWriter (*live_writer)(void *file);
         void (*live_reopen)(void *file);
-        void *legacy_adapter; /* Optional host facade, unused by the cache. */
         void (*mark_source)(MMResourceCache *);
         void (*mark_owner)(MMResourceCache *);
         void (*destroy_owner)(void *owner);

@@ -119,7 +119,6 @@ void BaseCacheableObject::AssertValid(LegacyUlong flags)
     BaseCacheableObject_PAR::AssertValid(fobjAllocated);
     Assert(!_resource.attached || _resource.cache != nullptr, "attached baco has no crf");
     AssertNilOrVarMem(_resource.cache);
-    AssertNilOrVarMem(Pcrf());
 }
 void BaseCacheableObject::MarkMem(void)
 {
@@ -148,7 +147,6 @@ const MMResourceCopyServices *ResourceCopyProfile(bool kauaiBacking)
 MMResourceServices TypedCacheServices(MMResourceServices services)
 {
     services.context = nullptr;
-    services.legacy_adapter = nullptr;
     services.objects = {};
     services.compare_reader = nullptr;
     services.issue = [](void *, int kind, MMU32, MMU32) {
@@ -316,7 +314,6 @@ MMResourceServices ChunkyResourceFile::_Services()
     if (_privateArchive)
         mm_private_archive_cache_services(_privateArchive, s.handles, &s);
     s.context = this;
-    s.legacy_adapter = this;
     s.objects = *BaseCacheableObject::ObjectServices();
     s.compare_reader = [](MMResourceBlockReader a, MMResourceBlockReader b) -> int {
         return a == b ? 0 : a < b ? -1 : 1;

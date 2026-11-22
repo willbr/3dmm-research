@@ -78,10 +78,6 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
     {
         return _resource.number;
     }
-    PChunkyResourceFile Pcrf(void)
-    {
-        return _resource.cache ? static_cast<PChunkyResourceFile>(_resource.cache->services.legacy_adapter) : nullptr;
-    }
     LegacyLong Crep(void)
     {
         return _resource.priority;

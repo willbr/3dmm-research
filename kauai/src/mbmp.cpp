@@ -95,6 +95,12 @@ PMaskedBitmapMBMP FetchMaskedBitmap(PResourceCache cache, ChunkTagOrType type, C
         cache->FetchOwned(type, number, ReadCachedMaskedBitmap, mm_masked_owner_services()));
 }
 
+PMaskedBitmapMBMP FetchMaskedBitmap(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
+{
+    return static_cast<PMaskedBitmapMBMP>(
+        mm_resource_cache_fetch_owned_chunk(cache, type, number, ReadCachedMaskedBitmap, mm_masked_owner_services()));
+}
+
 int ReadCachedMaskedBitmap(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
     return mm_masked_owner_fetch(block, out, bytes, &MaskedHost());

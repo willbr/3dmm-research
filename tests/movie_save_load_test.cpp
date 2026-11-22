@@ -2668,7 +2668,7 @@ int __cdecl main(int argc, char **argv)
         if (!stored.FLoad(&fniMovie))
             BAIL("core movie load failed");
         const MovieArchiveFixture archive(stored.Resources());
-        if (stored.Resources()->services.legacy_adapter)
+        if (stored.Resources()->services.objects.state)
             BAIL("core movie opened through the native archive wrapper");
         ChunkNumber scene;
         if (!archive.Link(kctgMvie, stored.movieNumber, 0, kctgScen, &scene))

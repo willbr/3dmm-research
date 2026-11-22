@@ -74,7 +74,7 @@ static bool TestPrivateMovieCompose()
         auto resources = NewPrivateMovieResources();
         MovieSaveProbe::Data(movie)->resources = resources;
         movie->SetDirty();
-        ok = resources && !resources->services.legacy_adapter && movie->FAutoSave() && movie->FNewScenInsCore(0) &&
+        ok = resources && !resources->services.objects.state && movie->FAutoSave() && movie->FNewScenInsCore(0) &&
              MovieComposeSceneAccess::Thumbnail(movie->Pscen(), 21);
     }
     for (int slot = 0; ok && slot < 2; ++slot)

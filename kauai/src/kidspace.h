@@ -72,7 +72,7 @@ class GraphicalObjectRepresentationFill : public GraphicalObjectRepresentationFi
     long _dyp;
 
   public:
-    static PGraphicalObjectRepresentationFill PgorfNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    static PGraphicalObjectRepresentationFill PgorfNew(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -92,7 +92,7 @@ class GraphicalObjectRepresentationBitmap : public GraphicalObjectRepresentation
     RTCLASS_DEC
 
   protected:
-    PChunkyResourceFile _pcrf;
+    MMResourceCache *_resourceCache = nullptr;
     ChunkTagOrType _ctg;
     ChunkNumber _cno;
     bool _fStream;
@@ -100,7 +100,7 @@ class GraphicalObjectRepresentationBitmap : public GraphicalObjectRepresentation
     ~GraphicalObjectRepresentationBitmap(void);
 
   public:
-    static PGraphicalObjectRepresentationBitmap PgorbNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    static PGraphicalObjectRepresentationBitmap PgorbNew(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -144,7 +144,7 @@ class GraphicalObjectRepresentationTiled : public GraphicalObjectRepresentationT
         short rgdyp[idzpLimGort];
     };
 
-    PChunkyResourceFile _pcrf;
+    MMResourceCache *_resourceCache = nullptr;
     ChunkTagOrType _ctg;
     ChunkNumber _cno;
     short _rgdxp[idzpLimGort];
@@ -166,7 +166,7 @@ class GraphicalObjectRepresentationTiled : public GraphicalObjectRepresentationT
     void _MapZpFlex(LegacyLong *pzp, short *prgdzp, long dzpLeftFlex, long dzpRightFlex);
 
   public:
-    static PGraphicalObjectRepresentationTiled PgortNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    static PGraphicalObjectRepresentationTiled PgortNew(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -198,10 +198,10 @@ class GraphicalObjectRepresentationVideo : public GraphicalObjectRepresentationV
 
     ~GraphicalObjectRepresentationVideo(void);
 
-    virtual bool _FInit(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    virtual bool _FInit(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno);
 
   public:
-    static PGraphicalObjectRepresentationVideo PgorvNew(PKidspaceGraphicObject pgok, PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    static PGraphicalObjectRepresentationVideo PgorvNew(PKidspaceGraphicObject pgok, MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno);
 
     virtual void Draw(PGraphicsEnvironment pgnv, RC *prcClip);
     virtual bool FPtIn(long xp, long yp);
@@ -310,7 +310,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
 
     PWorldOfKidspace _pwoks; // the kidspace world that this KidspaceGraphicObject belongs to
     PResourceCache _prca;   // Chunky resource chain
-    PChunkyResourceFile _pcrf;   // Chunky resource file
+    MMResourceCache *_resourceCache = nullptr; // Descriptor archive cache
 
     short _sno;       // state number
     short _cactMouse; // mouse click count of last mouse down
@@ -369,7 +369,7 @@ class KidspaceGraphicObject : public KidspaceGraphicObject_PAR
     virtual bool _FAdvanceFrame(void);
 
     virtual void _SetGorp(PGraphicalObjectRepresentation pgorp, long dxp, long dyp);
-    virtual PGraphicalObjectRepresentation _PgorpNew(PChunkyResourceFile pcrf, ChunkTagOrType ctg, ChunkNumber cno);
+    virtual PGraphicalObjectRepresentation _PgorpNew(MMResourceCache *cache, ChunkTagOrType ctg, ChunkNumber cno);
 
     bool _FFindCmflt(long cid, long hid, CMFLT *pcmflt = pvNil, long *picmflt = pvNil);
     bool _FFilterCmd(PCommand pcmd, ChildChunkID chidScript, bool *pfFilter);
