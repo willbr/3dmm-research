@@ -21,8 +21,7 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
     const std::shared_ptr<MarcusMovieFile> &origin, unsigned long scene, long frame,
     const MarcusProjection &work, const MarcusProjection &camera,
     const std::map<std::int32_t, MM::PreviewTrackPose> &poses);
-// Retail text uses Windows ANSI and at most fifty characters.
-std::string MarcusTextAnsi(const char *utf8);
+MMTextAuthorName MarcusPrepareTextName(const char *utf8);
 std::shared_ptr<MarcusMovieFile> MarcusCreateEventFile();
 std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::shared_ptr<MarcusMovieFile> &source);
 std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::filesystem::path &path,
@@ -30,8 +29,8 @@ std::shared_ptr<MarcusMovieFile> MarcusCopyMovie(const std::filesystem::path &pa
 std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::path &path,
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusMovieFile &track,
     unsigned long scene, long actorId, long previousActorFrame, int lastActorFrame, int lastEditedFrame,
-    const MM::PreviewObjectShape &shape, const MarcusTextEdit *text);
-std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsigned long font, long source, int shape);
+    const MM::PreviewObjectShape &shape, const MMMovieActorTextEdit *text);
+std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(MMTextAuthorName name, MMU32 font, MMI32 source, MMI32 shape);
 // Lazy materialization: copy once for all placement and frame-range edits.
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
     std::shared_ptr<MarcusMovieFile> origin, const MMMoviePoseJournal &poses, const MMMovieRangeJournal &ranges,

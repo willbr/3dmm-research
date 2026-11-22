@@ -209,15 +209,13 @@ struct EditHistory : KeepHistory
 std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
 {
     if (!player.poses->count && !player.frameRanges->count && !player.edits->scenes->count &&
-        !player.edits->props->count && !player.edits->cameras->count && player.edits->texts->empty() &&
+        !player.edits->props->count && !player.edits->cameras->count && !player.edits->texts->count &&
         !player.edits->costumes->count && player.edits->storyboards->empty()) return player.timingInput;
     if (player.materializedPoses == player.poses && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
-    MarcusEditedPoses changes(*player.poses);
-    for (const auto &entry : *player.edits->texts)
-        changes.Include(static_cast<MMU32>(entry.first.first), static_cast<MMU32>(entry.first.second));
-    for (const auto &entry : *player.edits->costumes)
-        changes.Include(entry.scene, entry.actor);
+    MarcusEditedPoses changes;
+    if (!mm_movie_pose_journal_export(&changes, player.poses.get(), player.edits->texts.get(), player.edits->costumes.get()))
+        throw std::bad_alloc();
     auto file = MarcusMaterializeEdits(player.content ? player.content->movie : std::filesystem::path{}, player.timingInput,
         changes, *player.frameRanges, *player.edits, std::filesystem::u8path(player.timingContent) / "tmpls.3cn");
     player.materializedFile = file;
@@ -303,11 +301,8 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
     for (const auto &prop : *player.edits->props)
         if (prop.file && !MountGeneratedSource(player, prop.definition.source, MarcusEditFile::File(prop.file), error))
             return false;
-    for (const auto &entry : *player.edits->texts)
-    {
-        const auto &edit = entry.second;
-        if (!MountGeneratedSource(player, edit.source, edit.file, error)) return false;
-    }
+    for (const auto &edit : *player.edits->texts)
+        if (!MountGeneratedSource(player, edit.source, MarcusEditFile::File(edit.file), error)) return false;
     for (const auto &edit : *player.edits->costumes)
         if (!MountGeneratedSource(player, edit.source, MarcusEditFile::File(edit.file), error)) return false;
     MMMovieLiveDefinitions definitions{player.edits->scenes.get(), player.edits->props.get()};
@@ -316,8 +311,9 @@ bool ApplyDefinitions(MarcusPlayer &player, MM::Error &error)
     for (const auto &prop : *player.edits->props) player.names[prop.definition.actor_id] = prop.name;
     for (const auto &object : player.preview.Objects())
     {
-        const auto edit = player.edits->texts->find({player.preview.Info().asset.number, object.asset.number});
-        if (edit != player.edits->texts->end()) player.names[object.actorId] = edit->second.value.text;
+        const auto edit = mm_movie_text_journal_find(player.edits->texts.get(), player.preview.Info().asset.number,
+                                                    object.asset.number);
+        if (edit) player.names[object.actorId] = edit->name.utf8;
     }
     UpdateSceneRanges(player);
     return true;
@@ -350,12 +346,13 @@ bool ApplyPlacements(MarcusPlayer &player, int scene, const MMMoviePoseJournal &
         const auto costume = mm_movie_track_journal_find(player.edits->costumes.get(), player.scenes[scene].number,
                                                         object.asset.number);
         if (costume && !player.preview.SetObjectEventTrack(int(index), costume->source, error)) return false;
-        const auto text = player.edits->texts->find({player.scenes[scene].number, object.asset.number});
-        if (text != player.edits->texts->end())
+        const auto text = mm_movie_text_journal_find(player.edits->texts.get(), player.scenes[scene].number,
+                                                    object.asset.number);
+        if (text)
         {
-            if (!player.preview.SetObjectTextTemplate(int(index), text->second.source, 0, error)) return false;
-            player.names[object.actorId] = text->second.value.text;
-            if (text->second.hasMaterial && !player.preview.SetObjectTextMaterial(int(index), text->second.source, 0, error)) return false;
+            if (!player.preview.SetObjectTextTemplate(int(index), text->source, 0, error)) return false;
+            player.names[object.actorId] = text->name.utf8;
+            if (text->custom_material && !player.preview.SetObjectTextMaterial(int(index), text->source, 0, error)) return false;
         }
         if (!object.hasLifetime) continue;
         const auto pose = mm_movie_pose_journal_find(&poses, player.scenes[scene].number, object.asset.number);
@@ -1396,13 +1393,6 @@ static bool ValidMaterial(const MarcusTextMaterial &m, MM::Error &error)
     { error.message = "Material lighting or texture placement is out of range."; return false; }
     return true;
 }
-static bool SameMaterial(const MarcusTextMaterial &a, const MM::PreviewTextMaterial &b)
-{
-    if (!a.enabled) return true;
-    const auto requested = CoreMaterial(NativeMaterial(a));
-    const auto current = CoreMaterial(b);
-    return !a.preset && mm_material_appearance_equal(&requested, &current);
-}
 static bool WriteMaterial(MarcusPlayer *p, int object, const MarcusTextMaterial &m, const MarcusMovieFile &file, MM::Error &error)
 {
     if (!ValidMaterial(m, error)) return false;
@@ -1414,8 +1404,9 @@ std::shared_ptr<MarcusMovieFile> MarcusPrepareTextPreview(MarcusPlayer *player, 
     std::shared_ptr<MarcusMovieFile> result;
     Guard(player, [&](MM::Error &error) {
         if (!EnsureRetailContent(*player, error)) return false;
-        const auto font = text.font_source == -1 ? player->retailSource : text.font_source;
-        auto file = MarcusCreateTextTemplate(text.text, text.font, font, text.shape);
+        const auto source = text.font_source == -1 ? player->retailSource : static_cast<MMI32>(text.font_source);
+        const auto name = MarcusPrepareTextName(text.text);
+        auto file = MarcusCreateTextTemplate(name, static_cast<MMU32>(text.font), source, text.shape);
         auto material = text.appearance;
         if (!material.enabled)
         {
@@ -1424,14 +1415,14 @@ std::shared_ptr<MarcusMovieFile> MarcusPrepareTextPreview(MarcusPlayer *player, 
             material = PublicMaterial(current);
         }
         if (!WriteMaterial(player, object, material, *file, error) ||
-            !player->preview.PrepareTextPreview(file->path.u8string(), font, text.font, error)) return false;
+            !player->preview.PrepareTextPreview(file->path.u8string(), source, text.font, error)) return false;
         result = file; return true;
     });
     return result;
 }
 static bool InsertObject(MarcusPlayer *player, MMPreviewLiveProp definition, const char *name, int &result,
                          MM::Error &error, const std::shared_ptr<MarcusMovieFile> &file = {},
-                         const MarcusTextEdit *initial = nullptr)
+                         const MMTextAuthorName *styledText = nullptr)
 {
     if (player->selected < 0) { error.message = "Create or open a scene before inserting an object."; return false; }
     if (!EnsureRetailContent(*player, error)) return false;
@@ -1454,15 +1445,23 @@ static bool InsertObject(MarcusPlayer *player, MMPreviewLiveProp definition, con
     auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
     auto props = std::make_shared<MarcusLiveEdits::Props>(*edits->props);
     props->Append(definition, name, file); edits->props = props; edits->revision = player->nextEditRevision++;
-    if (initial)
+    if (styledText)
     {
         auto texts = std::make_shared<MarcusLiveEdits::Texts>(*edits->texts);
-        (*texts)[{definition.scene, definition.number}] = *initial; edits->texts = texts;
+        const MMMovieActorTextEdit initial{definition.scene, definition.number, definition.source, nullptr,
+                                           *styledText, 1, 1};
+        texts->Set(initial, file);
+        edits->texts = texts;
     }
     EditHistory history(*player);
     const auto previous = player->edits;
     player->edits = edits;
-    if (!ApplyDefinitions(*player, error) || (initial && !ApplyPlacements(*player, player->selected, *player->poses, error))) { player->edits = previous; return false; }
+    if (!ApplyDefinitions(*player, error) ||
+        (styledText && !ApplyPlacements(*player, player->selected, *player->poses, error)))
+    {
+        player->edits = previous;
+        return false;
+    }
     player->objects = player->preview.Objects();
     player->animations.clear();
     for (std::size_t index = 0; index < player->objects.size(); ++index)
@@ -2126,14 +2125,13 @@ extern "C"
         const auto movie = MaterializedMovie(*player);
         const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
         const auto scene = player->scenes[player->selected].number;
-        const auto key = std::make_pair(static_cast<unsigned long>(scene), selected.chunk);
-        const auto pose = mm_movie_pose_journal_find(player->poses.get(), scene, static_cast<MMU32>(selected.chunk));
-        const auto text = player->edits->texts->find(key);
+        const auto actor = static_cast<MMU32>(selected.chunk);
+        const auto pose = mm_movie_pose_journal_find(player->poses.get(), scene, actor);
+        const auto text = mm_movie_text_journal_find(player->edits->texts.get(), scene, actor);
         // The native draft contains live events. Replay appearance/shape
         // overlays that are only written as events when materializing a movie.
         const auto changed = MarcusApplyAnimation(path, movie, *track, scene, selected.actor_id, selected.last_frame, lastActorFrame,
-            lastEditedFrame, PoseShape(pose),
-            text == player->edits->texts->end() ? nullptr : &text->second);
+            lastEditedFrame, PoseShape(pose), text);
         return ReplaceEditedMovie(player, changed, error);
     }
     int marcus_set_object_action(MarcusPlayer *player, int object, int action, int cel, int freeze)
@@ -2176,7 +2174,7 @@ extern "C"
     }
     int marcus_add_text_options(MarcusPlayer *player, const MarcusText *options)
     {
-        if (!options) return -1;
+        if (!options || !std::memchr(options->text, 0, sizeof(options->text))) return -1;
         const auto text = options->text; const auto font = options->font; const auto shape = options->shape;
         int result = -1;
         const bool ok = Guard(player, [&](MM::Error &error) {
@@ -2189,17 +2187,13 @@ extern "C"
             MMPreviewLiveProp definition{};
             if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &definition.source))
             { error.message = "No text source IDs are available."; return false; }
-            static_assert(3 * (MM_TEXT_NAME_BYTES - 1) + 1 <= MM_MOVIE_PROP_NAME_BYTES,
+            static_assert(MM_TEXT_NAME_UTF8_BYTES <= MM_MOVIE_PROP_NAME_BYTES,
                           "validated text must fit the insert journal");
-            const auto file = MarcusCreateTextTemplate(text, font, player->retailSource, shape);
-            MarcusTextEdit initial;
-            if (options->appearance.enabled)
-            {
-                if (!WriteMaterial(player, -1, options->appearance, *file, error)) return false;
-                initial.file = file; initial.source = definition.source; initial.hasMaterial = true; initial.retailFont = true;
-                initial.value = {text, player->retailSource, shape, static_cast<std::uint32_t>(font)};
-            }
-            return InsertObject(player, definition, text, result, error, file, options->appearance.enabled ? &initial : nullptr);
+            const auto name = MarcusPrepareTextName(text);
+            const auto file = MarcusCreateTextTemplate(name, static_cast<MMU32>(font), player->retailSource, shape);
+            const bool styled = options->appearance.enabled != 0;
+            if (styled && !WriteMaterial(player, -1, options->appearance, *file, error)) return false;
+            return InsertObject(player, definition, name.utf8, result, error, file, styled ? &name : nullptr);
         });
         return ok ? result : -1;
     }
@@ -2222,13 +2216,26 @@ extern "C"
             MarcusObject object = {}; MM::PreviewObjectText before;
             if (!text || !std::memchr(text->text, 0, sizeof(text->text)) || !marcus_object(player, index, &object) ||
                 !player->preview.ObjectText(index, before, error)) return false;
-            MarcusTextAnsi(text->text);
-            if (text->shape < 0 || text->shape >= 10) { error.message = "Choose a valid 3D text shape."; return false; }
-            const auto fontSource = text->font_source == -1 ? player->retailSource : text->font_source;
-            const bool sameFont = fontSource == before.fontSource && text->font == before.font;
-            if (!sameFont)
+            const auto name = MarcusPrepareTextName(text->text);
+            if (text->shape < 0 || text->shape >= MM_TEXT_SHAPE_COUNT)
+            { error.message = "Choose a valid 3D text shape."; return false; }
+            const auto source = text->font_source == -1 ? player->retailSource : text->font_source;
+            const bool fontInRange = text->font <= std::numeric_limits<MMU32>::max();
+            if (source < std::numeric_limits<MMI32>::min() || source > std::numeric_limits<MMI32>::max() ||
+                (!fontInRange && source != player->retailSource))
+            { error.message = "Choose an original 3D font or keep this text's current font."; return false; }
+            if (!fontInRange)
+            { error.message = "The selected 3D font is unavailable."; return false; }
+            const auto fontSource = static_cast<MMI32>(source);
+            const MMMovieTextDescription currentText{before.text.data(), before.text.size(), before.fontSource,
+                                                     before.shape, before.font};
+            const MMMovieTextDescription requestedText{name.utf8, std::strlen(name.utf8), fontSource, text->shape,
+                                                       static_cast<MMU32>(text->font)};
+            const auto fontChange = mm_movie_text_font_change(&currentText, &requestedText, player->retailSource);
+            if (fontChange == MM_MOVIE_TEXT_UNAVAILABLE_FONT)
+            { error.message = "Choose an original 3D font or keep this text's current font."; return false; }
+            if (fontChange == MM_MOVIE_TEXT_RETAIL_FONT)
             {
-                if (fontSource != player->retailSource) { error.message = "Choose an original 3D font or keep this text's current font."; return false; }
                 if (!EnsureRetailContent(*player, error)) return false;
                 if ((player->fonts.empty() || player->fontCatalogDirectory != player->timingContent) &&
                     ReadCatalogue(player, player->timingContent.c_str(), 2) < 0) { error.message = player->error; return false; }
@@ -2238,25 +2245,31 @@ extern "C"
             if (!ValidMaterial(text->appearance, error)) return false;
             MM::PreviewTextMaterial current;
             if (!player->preview.TextMaterial(index, false, 0, 0, current, error)) return false;
-            const bool materialChanged = !SameMaterial(text->appearance, current);
-            if (sameFont && before.text == text->text && before.shape == text->shape && !materialChanged) return true;
+            const auto currentMaterial = CoreMaterial(current);
+            const bool styled = text->appearance.enabled != 0;
+            const auto requestedMaterial = styled ? CoreMaterial(NativeMaterial(text->appearance)) : MMMaterialAppearance{};
+            MMMovieActorTextEdit change{};
+            change.scene = player->scenes[player->selected].number;
+            change.actor = static_cast<MMU32>(object.chunk);
+            const auto previousText = mm_movie_text_journal_find(player->edits->texts.get(), change.scene, change.actor);
+            const auto flags = mm_movie_text_change(&currentText, &requestedText, &currentMaterial,
+                styled ? &requestedMaterial : nullptr, styled && text->appearance.preset, previousText);
+            if (!(flags & MM_MOVIE_TEXT_CHANGED)) return true;
             if (!CancelPropPreviews(player, error)) return false;
-            MarcusTextEdit change;
             if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &change.source))
             { error.message = "No text source IDs are available."; return false; }
-            change.value = {text->text, fontSource, text->shape, static_cast<std::uint32_t>(text->font)};
-            change.retailFont = fontSource == player->retailSource;
-            change.file = MarcusCreateTextTemplate(text->text, text->font, fontSource, text->shape);
-            const auto oldText = player->edits->texts->find({player->scenes[player->selected].number, object.chunk});
-            change.hasMaterial = materialChanged || (oldText != player->edits->texts->end() && oldText->second.hasMaterial);
-            if (change.hasMaterial)
+            change.name = name;
+            change.retail_font = fontSource == player->retailSource;
+            change.custom_material = (flags & MM_MOVIE_TEXT_WRITE_MATERIAL) != 0;
+            const auto file = MarcusCreateTextTemplate(name, requestedText.font, fontSource, text->shape);
+            if (change.custom_material)
             {
                 const auto appearance = text->appearance.enabled ? text->appearance : PublicMaterial(current);
-                if (!WriteMaterial(player, index, appearance, *change.file, error)) return false;
+                if (!WriteMaterial(player, index, appearance, *file, error)) return false;
             }
             auto edits = std::make_shared<MarcusLiveEdits>(*player->edits);
             auto texts = std::make_shared<MarcusLiveEdits::Texts>(*edits->texts);
-            (*texts)[{player->scenes[player->selected].number, object.chunk}] = change;
+            texts->Set(change, file);
             edits->texts = texts; edits->revision = player->nextEditRevision++;
             EditHistory history(*player);
             const auto previous = player->edits;

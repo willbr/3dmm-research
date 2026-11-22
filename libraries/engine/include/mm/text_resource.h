@@ -51,11 +51,18 @@ MMTextGenerated *mm_template_owner_generated(MMTemplateOwner *);
 MMTemplateFontProvider *mm_template_owner_font(MMTemplateOwner *);
 MMTemplateProvider *mm_template_owner_provider(MMTemplateOwner *);
 enum { MM_TEXT_DESCRIPTOR_BYTES = 24 };
-enum { MM_TEXT_NAME_BYTES = 51 };
+enum { MM_TEXT_NAME_BYTES = 51, MM_TEXT_NAME_UTF8_BYTES = 3 * (MM_TEXT_NAME_BYTES - 1) + 1 };
 enum { MM_TEXT_NAME_OK, MM_TEXT_NAME_EMPTY, MM_TEXT_NAME_LENGTH, MM_TEXT_NAME_UTF8, MM_TEXT_NAME_CHARACTERS };
 /* Validate an authored 3D text name and publish its terminated legacy text.
  * Uses the fixed Windows character map used by the original glyph set. */
 int mm_text_author_name(const char *utf8, char name[MM_TEXT_NAME_BYTES]);
+typedef struct MMTextAuthorName
+{
+    char utf8[MM_TEXT_NAME_UTF8_BYTES];
+    char legacy[MM_TEXT_NAME_BYTES];
+} MMTextAuthorName;
+/* Publish both spellings after validation. Failure leaves the output unchanged. */
+int mm_text_author_prepare_name(const char *utf8, MMTextAuthorName *);
 /* Decodes the descriptor even when its marker is invalid. The result reports
  * whether the marker was valid. A bad marker uses the opposite host order. */
 int mm_text_decode_descriptor(const unsigned char bytes[24], int host_big, MMTextDescriptor *);

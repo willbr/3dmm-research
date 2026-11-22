@@ -228,9 +228,14 @@ static void ApplyNewProp(MMPrivateArchive *file, MMPrivateArchive *library, cons
     const auto source = mm_private_archive_editor(library);
     ActorArchiveFiles files{library, file};
     const MMActorAuthorHost host{&source, &destination, KauaiText::Services(), &files, ActorArchiveFiles::Copy};
-    const std::string name = prop.file ? MarcusTextAnsi(prop.name) : prop.name;
     String caption;
-    caption.SetSzs(const_cast<char *>(name.c_str()));
+    if (prop.file)
+    {
+        auto name = MarcusPrepareTextName(prop.name);
+        caption.SetSzs(name.legacy);
+    }
+    else
+        caption.SetSzs(const_cast<char *>(prop.name));
     const auto &definition = prop.definition;
     const MMActorInsert insert{definition.scene, definition.number, definition.template_number,
         definition.actor_id, definition.first, definition.last, definition.point, caption.Prgch(),
@@ -240,7 +245,7 @@ static void ApplyNewProp(MMPrivateArchive *file, MMPrivateArchive *library, cons
     CheckActorAuthor(status, detail);
 }
 
-std::string MarcusTextAnsi(const char *utf8)
+MMTextAuthorName MarcusPrepareTextName(const char *utf8)
 {
     static const char *const messages[] = {
         nullptr,
@@ -250,21 +255,20 @@ std::string MarcusTextAnsi(const char *utf8)
         "Use a single line of characters supported by the original 3D fonts."
     };
     static_assert(sizeof(messages) / sizeof(messages[0]) == MM_TEXT_NAME_CHARACTERS + 1, "3D text diagnostics");
-    char name[MM_TEXT_NAME_BYTES];
-    const auto status = mm_text_author_name(utf8, name);
+    MMTextAuthorName name;
+    const auto status = mm_text_author_prepare_name(utf8, &name);
     Require(status == MM_TEXT_NAME_OK, messages[status]);
     return name;
 }
-std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(const char *utf8, unsigned long font, long source, int shape)
+std::shared_ptr<MarcusMovieFile> MarcusCreateTextTemplate(MMTextAuthorName textName, MMU32 font, MMI32 source, MMI32 shape)
 {
-    const auto ansi = MarcusTextAnsi(utf8);
-    Require(shape >= 0 && shape < tdtsLim, "Choose a valid 3D text shape.");
+    Require(shape >= 0 && shape < MM_TEXT_SHAPE_COUNT, "Choose a valid 3D text shape.");
     auto result = WorkingCopy({}, nullptr);
     String text;
-    text.SetSzs(const_cast<char *>(ansi.c_str()));
+    text.SetSzs(textName.legacy);
     auto file = MarcusOpenArchive(result->path, MM_PRIVATE_ARCHIVE_CREATE);
     Require(bool(file), "Cannot create the 3D text template.");
-    const MMTextDescriptor draft{shape, {static_cast<MMI32>(source), nullptr, kctgTdf, static_cast<MMU32>(font)}};
+    const MMTextDescriptor draft{shape, {source, nullptr, kctgTdf, font}};
     const auto writer = mm_private_archive_writer(file.get());
     byte wire[kcbMaxDataStn];
     const auto name = MarcusArchiveName(text, wire);
@@ -465,7 +469,7 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
     return result;
 }
 
-static void ApplyText(MMPrivateArchive *file, ChunkNumber actor, const MarcusTextEdit &edit);
+static void ApplyText(MMPrivateArchive *file, ChunkNumber actor, const MMMovieActorTextEdit &edit);
 static void ApplyCostumes(MMPrivateArchive *file, ChunkNumber actor, const MMMovieActorTrackEdit &edit)
 {
     const auto profile = KauaiPrivateArchiveProfile();
@@ -477,12 +481,12 @@ static void ApplyCostumes(MMPrivateArchive *file, ChunkNumber actor, const MMMov
 std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::path &path,
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusMovieFile &track,
     unsigned long scene, long actorId, long previousActorFrame, int lastActorFrame, int lastEditedFrame,
-    const MM::PreviewObjectShape &shape, const MarcusTextEdit *text)
+    const MM::PreviewObjectShape &shape, const MMMovieActorTextEdit *text)
 {
     auto result = WorkingCopy(path, origin);
     struct Appearance
     {
-        const MarcusTextEdit *text;
+        const MMMovieActorTextEdit *text;
         std::exception_ptr failure;
     } appearance{text, {}};
     const MMActorArchiveAnimation edit{static_cast<MMU32>(scene), static_cast<MMI32>(actorId),
@@ -511,18 +515,17 @@ std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::pat
     Require(status == MARCUS_ARCHIVE_ANIMATION_OK, "Cannot save the animation edit.");
     return result;
 }
-static void ApplyText(MMPrivateArchive *file, ChunkNumber actorNumber, const MarcusTextEdit &edit)
+static void ApplyText(MMPrivateArchive *file, ChunkNumber actorNumber, const MMMovieActorTextEdit &edit)
 {
-    auto source = MarcusOpenArchive(edit.file->path, MM_PRIVATE_ARCHIVE_READ);
+    auto source = MarcusOpenArchive(MarcusEditFile::File(edit.file)->path, MM_PRIVATE_ARCHIVE_READ);
     Require(bool(source), "Cannot open the edited text template.");
     const auto destinationEditor = mm_private_archive_editor(file);
     ActorArchiveFiles files{source.get(), file};
     const MMActorAuthorHost host{nullptr, &destinationEditor, KauaiText::Services(), &files, ActorArchiveFiles::Copy};
-    const auto name = MarcusTextAnsi(edit.value.text.c_str());
     String caption;
-    caption.SetSzs(const_cast<char *>(name.c_str()));
+    caption.SetSzs(const_cast<char *>(edit.name.legacy));
     const MMActorTextReplacement request{actorNumber, caption.Prgch(), static_cast<MMU32>(caption.Cch()),
-                                         edit.retailFont, edit.hasMaterial};
+                                         edit.retail_font, edit.custom_material};
     int detail = 0;
     const int status = mm_actor_archive_replace_text(&host, &request, &detail);
     CheckActorAuthor(status, detail);
@@ -559,17 +562,15 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
     for (MMU32 index = 0; index < poses.count; ++index)
     {
         const auto &placement = changes[index];
-        const auto key = std::make_pair(static_cast<unsigned long>(placement.scene),
-                                        static_cast<unsigned long>(placement.actor));
-        const auto text = edits.texts->find(key);
+        const auto text = mm_movie_text_journal_find(edits.texts.get(), placement.scene, placement.actor);
         const auto costume = mm_movie_track_journal_find(edits.costumes.get(), placement.scene, placement.actor);
         struct Appearance
         {
             MMPrivateArchive *file;
-            const MarcusTextEdit *text;
+            const MMMovieActorTextEdit *text;
             const MMMovieActorTrackEdit *costume;
             std::exception_ptr failure;
-        } appearance{file.get(), text == edits.texts->end() ? nullptr : &text->second, costume, {}};
+        } appearance{file.get(), text, costume, {}};
         const MMActorArchivePose pose{
             placement.scene, placement.actor, placement.offset,
             placement.shape.rotation, placement.shape.scale, &appearance,

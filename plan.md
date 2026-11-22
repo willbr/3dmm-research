@@ -1230,8 +1230,12 @@ open, install and save the edited tracks in C89, including both archive
 lifetimes and the existing actor and scene range updates.
 Actor offsets and shapes now share a C89 journal keyed by scene and actor.
 Undo, preview, worker rendering and thumbnail invalidation read that journal.
-The export copy adds text and costume keys in C89 and visits each affected
-actor once in its established order.
+Marcus's generated 3D text edits retain the validated UTF-8 and retail names
+with the draft archive in a C89 journal. C89 decides whether a font can be
+replaced and whether an edit needs to write or retain an appearance override.
+Preview, undo, animation commits and native save read those records. C89
+combines pose, text and costume edits for export and visits each affected
+actor once in scene and actor number order.
 Preview picking uses C89 for validation, coordinates, camera ownership, stable
 body copying, nearest-hit and texture policy, and authored-background
 occlusion. Native adapters supply typed SDK primitives.

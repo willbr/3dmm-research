@@ -126,25 +126,31 @@ struct MarcusEditedPoses : MMMoviePoseJournal
     }
     MarcusEditedPoses &operator=(const MarcusEditedPoses &) = delete;
     ~MarcusEditedPoses() { mm_movie_pose_journal_dispose(this); }
-    void Include(MMU32 scene, MMU32 actor)
-    {
-        if (!mm_movie_pose_journal_include(this, scene, actor)) throw std::bad_alloc();
-    }
 };
-struct MarcusTextEdit
+struct MarcusEditedTexts : MMMovieTextJournal
 {
-    MM::PreviewObjectText value;
-    std::shared_ptr<MarcusMovieFile> file;
-    std::int32_t source = 0;
-    bool retailFont = false;
-    bool hasMaterial = false;
+    MarcusEditedTexts() { mm_movie_text_journal_init(this, nullptr, MarcusEditFile::Services()); }
+    MarcusEditedTexts(const MarcusEditedTexts &other) : MarcusEditedTexts()
+    {
+        if (!mm_movie_text_journal_copy(this, &other)) throw std::bad_alloc();
+    }
+    MarcusEditedTexts &operator=(const MarcusEditedTexts &) = delete;
+    ~MarcusEditedTexts() { mm_movie_text_journal_dispose(this); }
+    const MMMovieActorTextEdit *begin() const { return mm_movie_text_journal_data(this); }
+    const MMMovieActorTextEdit *end() const { return count ? begin() + count : begin(); }
+    void Set(MMMovieActorTextEdit edit, const std::shared_ptr<MarcusMovieFile> &file)
+    {
+        const auto lease = MarcusEditFile::Hold(file);
+        edit.file = lease.get();
+        if (!mm_movie_text_journal_set(this, &edit)) throw std::bad_alloc();
+    }
 };
 struct MarcusLiveEdits
 {
     using Scenes = MarcusEditedScenes;
     using Props = MarcusEditedProps;
     using Cameras = MarcusEditedCameras;
-    using Texts = std::map<std::pair<unsigned long, unsigned long>, MarcusTextEdit>;
+    using Texts = MarcusEditedTexts;
     std::shared_ptr<const Scenes> scenes = std::make_shared<Scenes>();
     std::shared_ptr<const Props> props = std::make_shared<Props>();
     std::shared_ptr<const Cameras> cameras = std::make_shared<Cameras>();

@@ -1,4 +1,5 @@
 #include "mm/movie_scene_journal.h"
+#include "mm/material_resource.h"
 #include <string.h>
 
 static MMArray array(MMCollectionStorage *storage, MMU32 width, MMU32 count)
@@ -437,6 +438,125 @@ int mm_movie_track_journal_has_scene(const MMMovieActorTrackJournal *journal, MM
     return position < journal->count && items[position].scene == scene;
 }
 
+int mm_movie_text_journal_init(MMMovieTextJournal *journal, const MMStorageAllocator *allocator,
+                               const MMMovieEditFileServices *files)
+{
+    journal->count = 0;
+    journal->files = files;
+    return mm_storage_init(&journal->storage, allocator) == MM_STORAGE_OK;
+}
+
+const MMMovieActorTextEdit *mm_movie_text_journal_data(const MMMovieTextJournal *journal)
+{
+    return (const MMMovieActorTextEdit *)journal->storage.buffers[0].data;
+}
+
+void mm_movie_text_journal_dispose(MMMovieTextJournal *journal)
+{
+    const MMMovieActorTextEdit *items = mm_movie_text_journal_data(journal);
+    MMU32 i;
+    for (i = 0; i < journal->count; ++i)
+        journal->files->release(items[i].file);
+    mm_storage_dispose(&journal->storage);
+    journal->count = 0;
+}
+
+int mm_movie_text_journal_copy(MMMovieTextJournal *destination, const MMMovieTextJournal *source)
+{
+    MMMovieTextJournal copy, old;
+    const MMMovieActorTextEdit *items;
+    MMU32 i;
+    if (destination == source)
+        return 1;
+    if (destination->files != source->files ||
+        !mm_movie_text_journal_init(&copy, &destination->storage.allocator, destination->files))
+        return 0;
+    if (mm_storage_copy(&copy.storage, &source->storage, source->count * sizeof(*items), 0) != MM_STORAGE_OK)
+    {
+        mm_movie_text_journal_dispose(&copy);
+        return 0;
+    }
+    items = mm_movie_text_journal_data(&copy);
+    for (i = 0; i < source->count; ++i)
+        copy.files->retain(items[i].file);
+    copy.count = source->count;
+    old = *destination;
+    *destination = copy;
+    mm_movie_text_journal_dispose(&old);
+    return 1;
+}
+
+static MMU32 text_lower(const MMMovieTextJournal *journal, MMU32 scene, MMU32 actor)
+{
+    const MMMovieActorTextEdit *items = mm_movie_text_journal_data(journal);
+    MMU32 first = 0, last = journal->count, middle;
+    while (first < last)
+    {
+        middle = first + (last - first) / 2;
+        if (items[middle].scene < scene || (items[middle].scene == scene && items[middle].actor < actor))
+            first = middle + 1;
+        else
+            last = middle;
+    }
+    return first;
+}
+
+const MMMovieActorTextEdit *mm_movie_text_journal_find(const MMMovieTextJournal *journal, MMU32 scene, MMU32 actor)
+{
+    const MMMovieActorTextEdit *items = mm_movie_text_journal_data(journal);
+    MMU32 position = text_lower(journal, scene, actor);
+    return position < journal->count && items[position].scene == scene && items[position].actor == actor
+        ? items + position : NULL;
+}
+
+int mm_movie_text_journal_set(MMMovieTextJournal *journal, const MMMovieActorTextEdit *input)
+{
+    MMMovieActorTextEdit *items = (MMMovieActorTextEdit *)journal->storage.buffers[0].data;
+    MMMovieActorTextEdit value = *input;
+    MMU32 position = text_lower(journal, value.scene, value.actor);
+    MMArray records;
+    if (!value.file || !journal->files)
+        return 0;
+    if (position < journal->count && items[position].scene == value.scene && items[position].actor == value.actor)
+    {
+        void *old = items[position].file;
+        journal->files->retain(value.file);
+        items[position] = value;
+        journal->files->release(old);
+        return 1;
+    }
+    records = array(&journal->storage, sizeof(value), journal->count);
+    if (!insert(&records, position, &value))
+        return 0;
+    journal->files->retain(value.file);
+    journal->count = records.count;
+    return 1;
+}
+
+static int same_font(const MMMovieTextDescription *before, const MMMovieTextDescription *after)
+{
+    return before->font_source == after->font_source && before->font == after->font;
+}
+
+int mm_movie_text_font_change(const MMMovieTextDescription *before, const MMMovieTextDescription *after,
+                              MMI32 retail_source)
+{
+    if (same_font(before, after))
+        return MM_MOVIE_TEXT_KEEP_FONT;
+    return after->font_source == retail_source ? MM_MOVIE_TEXT_RETAIL_FONT : MM_MOVIE_TEXT_UNAVAILABLE_FONT;
+}
+
+int mm_movie_text_change(const MMMovieTextDescription *before, const MMMovieTextDescription *after,
+                         const MMMaterialAppearance *current, const MMMaterialAppearance *requested,
+                         int preset, const MMMovieActorTextEdit *previous)
+{
+    int material = requested && (preset || !mm_material_appearance_equal(requested, current));
+    if (!material && same_font(before, after) && before->shape == after->shape && before->bytes == after->bytes &&
+        !memcmp(before->utf8, after->utf8, before->bytes))
+        return 0;
+    return MM_MOVIE_TEXT_CHANGED | ((material || (previous && previous->custom_material)) ? MM_MOVIE_TEXT_WRITE_MATERIAL : 0);
+}
+
 int mm_movie_pose_journal_init(MMMoviePoseJournal *journal, const MMStorageAllocator *allocator)
 {
     journal->count = 0;
@@ -561,4 +681,30 @@ int mm_movie_pose_journal_include(MMMoviePoseJournal *journal, MMU32 scene, MMU3
         return 1;
     pose = identity_pose(scene, actor);
     return put_pose(journal, index, 0, &pose);
+}
+
+int mm_movie_pose_journal_export(MMMoviePoseJournal *destination, const MMMoviePoseJournal *poses,
+                                 const MMMovieTextJournal *texts, const MMMovieActorTrackJournal *tracks)
+{
+    const MMMovieActorTextEdit *text = mm_movie_text_journal_data(texts);
+    const MMMovieActorTrackEdit *track = mm_movie_track_journal_data(tracks);
+    MMMoviePoseJournal result;
+    MMU32 i;
+    if (!mm_movie_pose_journal_init(&result, &destination->storage.allocator))
+        return 0;
+    if (!mm_movie_pose_journal_copy(&result, poses))
+        goto failure;
+    for (i = 0; i < texts->count; ++i)
+        if (!mm_movie_pose_journal_include(&result, text[i].scene, text[i].actor))
+            goto failure;
+    for (i = 0; i < tracks->count; ++i)
+        if (!mm_movie_pose_journal_include(&result, track[i].scene, track[i].actor))
+            goto failure;
+    mm_movie_pose_journal_dispose(destination);
+    *destination = result;
+    return 1;
+
+failure:
+    mm_movie_pose_journal_dispose(&result);
+    return 0;
 }

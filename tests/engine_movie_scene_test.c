@@ -2,6 +2,7 @@
 #include "mm/movie_scene.h"
 #include "mm/movie_archive_edit.h"
 #include "mm/movie_scene_journal.h"
+#include "mm/material_resource.h"
 #include "mm/scene_runtime.h"
 #include "movie_scene_session_fixture.h"
 #include "scene_snapshot_fixture.h"
@@ -1275,6 +1276,81 @@ static int pose_journal(void)
     return 0;
 }
 
+static int text_journal(void)
+{
+    const MMMovieEditFileServices files = {edit_file_retain, edit_file_release};
+    MaterialGraph memory;
+    MMStorageAllocator allocator = {NULL, material_resize, material_release};
+    MMMovieTextJournal live, undo;
+    MMMovieActorTrackJournal tracks;
+    MMMoviePoseJournal poses, exported;
+    MMMovieActorTextEdit edit = {0};
+    MMMovieActorTrackEdit track = {4, 10, 22, NULL};
+    MMMovieTextDescription before = {"Text", 4, 19, 0, 1}, after;
+    MMMaterialAppearance current = {0};
+    const float move[3] = {4, 0, 0};
+    float offset[3];
+    int old_file = 1, new_file = 1, track_file = 1;
+    int changed = MM_MOVIE_TEXT_CHANGED | MM_MOVIE_TEXT_WRITE_MATERIAL;
+    memset(&memory, 0, sizeof(memory));
+    allocator.context = &memory;
+    CHECK(mm_movie_text_journal_init(&live, &allocator, &files) &&
+          mm_movie_text_journal_init(&undo, &allocator, &files) &&
+          mm_movie_track_journal_init(&tracks, &allocator, &files) &&
+          mm_movie_pose_journal_init(&poses, &allocator) && mm_movie_pose_journal_init(&exported, &allocator));
+
+    after = before;
+    CHECK(mm_movie_text_font_change(&before, &after, 2) == MM_MOVIE_TEXT_KEEP_FONT);
+    CHECK(!mm_movie_text_change(&before, &after, &current, NULL, 0, NULL));
+    CHECK(mm_movie_text_change(&before, &after, &current, &current, 1, NULL) == changed);
+    after.font = 2;
+    CHECK(mm_movie_text_font_change(&before, &after, 2) == MM_MOVIE_TEXT_UNAVAILABLE_FONT);
+    after.font_source = 2;
+    CHECK(mm_movie_text_font_change(&before, &after, 2) == MM_MOVIE_TEXT_RETAIL_FONT);
+    CHECK(mm_movie_text_change(&before, &after, &current, NULL, 0, NULL) == MM_MOVIE_TEXT_CHANGED);
+    edit.custom_material = 1;
+    CHECK(mm_movie_text_change(&before, &after, &current, NULL, 0, &edit) == changed);
+
+    edit.scene = 4;
+    edit.actor = 8;
+    edit.source = 21;
+    edit.file = &old_file;
+    CHECK(mm_text_author_prepare_name("First", &edit.name) == MM_TEXT_NAME_OK);
+    CHECK(mm_movie_text_journal_set(&live, &edit) && old_file == 2);
+    memory.failAt = memory.allocCalls + 1;
+    CHECK(!mm_movie_text_journal_copy(&undo, &live) && !undo.count && old_file == 2);
+    memory.failAt = 0;
+    CHECK(mm_movie_text_journal_copy(&undo, &live) && old_file == 3);
+    edit.file = &new_file;
+    CHECK(mm_text_author_prepare_name("Second", &edit.name) == MM_TEXT_NAME_OK);
+    CHECK(mm_movie_text_journal_set(&live, &edit) && old_file == 2 && new_file == 2);
+    CHECK(!strcmp(mm_movie_text_journal_find(&undo, 4, 8)->name.utf8, "First"));
+    CHECK(!strcmp(mm_movie_text_journal_find(&live, 4, 8)->name.legacy, "Second"));
+    edit.actor = 3;
+    CHECK(mm_movie_text_journal_set(&live, &edit) && new_file == 3);
+    CHECK(mm_movie_text_journal_data(&live)[0].actor == 3);
+
+    track.file = &track_file;
+    CHECK(mm_movie_track_journal_set(&tracks, &track));
+    CHECK(mm_movie_pose_journal_move(&poses, 4, 8, move, offset));
+    CHECK(mm_movie_pose_journal_include(&exported, 9, 9));
+    memory.failAt = memory.allocCalls + 2;
+    CHECK(!mm_movie_pose_journal_export(&exported, &poses, &live, &tracks));
+    CHECK(exported.count == 1 && mm_movie_pose_journal_find(&exported, 9, 9));
+    memory.failAt = 0;
+    CHECK(mm_movie_pose_journal_export(&exported, &poses, &live, &tracks));
+    CHECK(poses.count == 1 && exported.count == 3 && mm_movie_pose_journal_data(&exported)[0].actor == 3 &&
+          mm_movie_pose_journal_find(&exported, 4, 8)->offset[0] == 4 &&
+          mm_movie_pose_journal_find(&exported, 4, 10)->shape.scale[1] == 1);
+    mm_movie_pose_journal_dispose(&poses);
+    mm_movie_pose_journal_dispose(&exported);
+    mm_movie_track_journal_dispose(&tracks);
+    mm_movie_text_journal_dispose(&live);
+    mm_movie_text_journal_dispose(&undo);
+    CHECK(old_file == 1 && new_file == 1 && track_file == 1 && !memory.liveBlocks);
+    return 0;
+}
+
 static int remove_materials(void)
 {
     MaterialGraph graph;
@@ -1314,7 +1390,7 @@ int main(void)
 {
     if (switching() || insertion() || removal() || remove_materials() || undoing() || undo_insertion_ownership() ||
         cursor_operations() ||
-        extending() || journal() || range_journal() || prop_journal() || track_journal() || pose_journal())
+        extending() || journal() || range_journal() || prop_journal() || track_journal() || pose_journal() || text_journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

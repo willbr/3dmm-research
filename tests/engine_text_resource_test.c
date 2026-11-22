@@ -425,6 +425,9 @@ static void author_names(void)
 {
     char name[MM_TEXT_NAME_BYTES] = "old";
     char long_name[MM_TEXT_NAME_BYTES + 1];
+    char max_utf8[MM_TEXT_NAME_UTF8_BYTES];
+    MMTextAuthorName authored;
+    int i;
     assert(mm_text_author_name(NULL, name) == MM_TEXT_NAME_EMPTY);
     assert(mm_text_author_name("", name) == MM_TEXT_NAME_EMPTY);
     assert(mm_text_author_name(" \t\r\n", name) == MM_TEXT_NAME_LENGTH);
@@ -440,6 +443,12 @@ static void author_names(void)
     assert(mm_text_author_name(long_name, name) == MM_TEXT_NAME_LENGTH);
     long_name[MM_TEXT_NAME_BYTES - 1] = '\0';
     assert(mm_text_author_name(long_name, name) == MM_TEXT_NAME_OK && !strcmp(name, long_name));
+    for (i = 0; i < MM_TEXT_NAME_BYTES - 1; ++i)
+        memcpy(max_utf8 + 3 * i, "\xe2\x82\xac", 3);
+    max_utf8[sizeof(max_utf8) - 1] = '\0';
+    assert(mm_text_author_prepare_name(max_utf8, &authored) == MM_TEXT_NAME_OK);
+    assert(!strcmp(max_utf8, authored.utf8) && strlen(authored.legacy) == MM_TEXT_NAME_BYTES - 1);
+    assert(mm_text_author_prepare_name("", &authored) == MM_TEXT_NAME_EMPTY && !strcmp(max_utf8, authored.utf8));
 }
 static void names(void)
 {

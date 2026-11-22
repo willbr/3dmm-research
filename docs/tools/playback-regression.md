@@ -22545,3 +22545,29 @@ previous port runs and the retained retail and V3DMM captures in
 the same 63,224-byte trace and fingerprint `0D666753`.
 
 Evidence is under `tmp/c89-live-insert-range`.
+
+## C89 live 3D text journal (22 November 2026)
+
+C89 retains the draft archive, validated UTF-8 and retail names, and
+appearance flags for each edited 3D text actor. It decides font eligibility,
+detects no-op edits, and preserves a pending material override when the
+template is replaced. Preview, undo, animation commits and native save read
+the same records. Export forms the sorted union of pose, text and costume
+edits while preserving the existing transforms.
+
+All 239 selected x64, x86 and SDL Studio checks passed. The C tests covered
+the 50-character UTF-8 boundary, draft lifetime across undo, and failed
+allocation during export. The Marcus integration checks exercised text
+edits, material overrides, insertion, undo and save/reopen. Eight native
+movie files and the default startup capture matched the previous build
+byte for byte. Retail reopened the wording, material and styled-insertion
+exports on a private Windows desktop. Actor state and the 640×480 frame-2
+captures matched their respective previous exports.
+
+Suite `20261122T185018Z-bb1d0a1f` reproduced both ports' 60 seek canvases
+and recorded scene state. Seek and continuous playback order matched the
+previous port runs and the retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`. The existing `scene-load` assertion repeated
+the same 63,224-byte trace and fingerprint `0D666753`.
+
+Evidence is under `tmp/c89-live-text`.

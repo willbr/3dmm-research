@@ -3,6 +3,7 @@
 
 #include "preview_live.h"
 #include "preview_actor.h"
+#include "text_resource.h"
 
 #ifdef __cplusplus
 extern "C"
@@ -140,6 +141,51 @@ const MMMovieActorTrackEdit *mm_movie_track_journal_data(const MMMovieActorTrack
 const MMMovieActorTrackEdit *mm_movie_track_journal_find(const MMMovieActorTrackJournal *, MMU32 scene, MMU32 actor);
 int mm_movie_track_journal_has_scene(const MMMovieActorTrackJournal *, MMU32 scene);
 
+typedef struct MMMovieActorTextEdit
+{
+    MMU32 scene, actor;
+    MMI32 source;
+    void *file;
+    MMTextAuthorName name;
+    int retail_font, custom_material;
+} MMMovieActorTextEdit;
+
+typedef struct MMMovieTextJournal
+{
+    MMCollectionStorage storage;
+    MMU32 count;
+    const MMMovieEditFileServices *files;
+} MMMovieTextJournal;
+
+/* Store one generated text draft per scene and actor. Undo copies keep the
+ * validated name and an independent reference to the completed draft. */
+int mm_movie_text_journal_init(MMMovieTextJournal *, const MMStorageAllocator *, const MMMovieEditFileServices *);
+void mm_movie_text_journal_dispose(MMMovieTextJournal *);
+int mm_movie_text_journal_copy(MMMovieTextJournal *, const MMMovieTextJournal *);
+const MMMovieActorTextEdit *mm_movie_text_journal_data(const MMMovieTextJournal *);
+const MMMovieActorTextEdit *mm_movie_text_journal_find(const MMMovieTextJournal *, MMU32 scene, MMU32 actor);
+int mm_movie_text_journal_set(MMMovieTextJournal *, const MMMovieActorTextEdit *);
+
+typedef struct MMMovieTextDescription
+{
+    const char *utf8;
+    size_t bytes;
+    MMI32 font_source, shape;
+    MMU32 font;
+} MMMovieTextDescription;
+
+enum { MM_MOVIE_TEXT_KEEP_FONT, MM_MOVIE_TEXT_RETAIL_FONT, MM_MOVIE_TEXT_UNAVAILABLE_FONT };
+int mm_movie_text_font_change(const MMMovieTextDescription *before, const MMMovieTextDescription *after,
+                              MMI32 retail_source);
+enum { MM_MOVIE_TEXT_CHANGED = 1, MM_MOVIE_TEXT_WRITE_MATERIAL = 2 };
+struct MMMaterialAppearance;
+/* A NULL requested material preserves the current appearance. A preset is a
+ * change even if its numeric appearance equals the current material. On any
+ * edit, an existing draft material must be carried over to the new template. */
+int mm_movie_text_change(const MMMovieTextDescription *before, const MMMovieTextDescription *after,
+                         const struct MMMaterialAppearance *current, const struct MMMaterialAppearance *requested,
+                         int preset, const MMMovieActorTextEdit *previous);
+
 typedef struct MMMovieActorPoseEdit
 {
     MMU32 scene, actor;
@@ -168,6 +214,10 @@ int mm_movie_pose_journal_shape(MMMoviePoseJournal *, MMU32 scene, MMU32 actor, 
 /* Include an actor with an appearance edit in a private export journal.
  * A preexisting row retains both its offset and its shape. */
 int mm_movie_pose_journal_include(MMMoviePoseJournal *, MMU32 scene, MMU32 actor);
+/* Export a sorted union of pose and appearance keys. The result keeps all
+ * transforms and the initialized destination survives allocation failure. */
+int mm_movie_pose_journal_export(MMMoviePoseJournal *, const MMMoviePoseJournal *,
+                                 const MMMovieTextJournal *, const MMMovieActorTrackJournal *);
 
 #ifdef __cplusplus
 }

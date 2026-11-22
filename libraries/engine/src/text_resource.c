@@ -154,6 +154,23 @@ int mm_text_author_name(const char *utf8, char name[MM_TEXT_NAME_BYTES])
     return MM_TEXT_NAME_OK;
 }
 
+int mm_text_author_prepare_name(const char *utf8, MMTextAuthorName *out)
+{
+    MMTextAuthorName name;
+    int result;
+    size_t bytes;
+    memset(&name, 0, sizeof(name));
+    result = mm_text_author_name(utf8, name.legacy);
+    if (result != MM_TEXT_NAME_OK)
+        return result;
+    bytes = strlen(utf8);
+    if (bytes >= sizeof(name.utf8))
+        return MM_TEXT_NAME_LENGTH;
+    memcpy(name.utf8, utf8, bytes + 1);
+    *out = name;
+    return MM_TEXT_NAME_OK;
+}
+
 static void normalize(void *object,const MMTextResourceServices *s)
 { if (!s->generation.length(s->generation.context,object)) s->space(s->context,s->text(s->context,object)); }
 void *mm_text_create(const void *text,MMI32 shape,const MMTag *font,const MMTextResourceServices *s)
