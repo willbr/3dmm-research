@@ -4,6 +4,7 @@
 #include "mm/model_resource.h"
 #include "mm/movie_session.h"
 #include "mm/preview_actor.h"
+#include "mm/preview_metadata.h"
 #include "mm/scene_runtime.h"
 #include "mm/scene_edit.h"
 #include "mm/text_resource.h"
@@ -131,6 +132,23 @@ const MMPreviewActor *mm_preview_live_actor_view(const MMPreviewLive *p, MMU32 i
 {
     const void *handle = mm_preview_live_actor(p, index);
     return handle && p->actor_view ? p->actor_view(handle) : NULL;
+}
+
+int mm_preview_live_visit_cues(const MMPreviewLive *p, void *context, MMPreviewFrameCueVisitor *visit)
+{
+    MMU32 i, j, count;
+    for (i = 0; i < p->actors.count; ++i)
+    {
+        const MMPreviewActor *actor = mm_preview_live_actor_view(p, i);
+        const MMPreviewCue *cues;
+        if (!actor)
+            continue;
+        cues = mm_preview_actor_frame_cues(actor, &count);
+        for (j = 0; j < count; ++j)
+            if (visit(context, cues + j) <= 0)
+                return 0;
+    }
+    return 1;
 }
 
 const MMPreviewLiveAction *mm_preview_live_action(const MMPreviewLive *p, MMU32 index)

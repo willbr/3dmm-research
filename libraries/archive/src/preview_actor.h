@@ -6,7 +6,6 @@
 #include "soc_core.h"
 #include "mm/actor_sound.h"
 #include "mm/preview_actor.h"
-#include "mm/preview_metadata.h"
 
 namespace MM
 {
@@ -36,7 +35,6 @@ class PreviewActor
     {
         return &static_cast<const PreviewActor *>(handle)->core;
     }
-    std::vector<MMPreviewCue> sounds;
     ~PreviewActor();
     bool Load(const MMMovieSessionGraph &, ChunkNumber number,
               std::function<MMResourceCache *(const TAGOnFile &)> resolver,

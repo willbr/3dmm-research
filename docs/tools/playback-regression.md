@@ -23032,3 +23032,29 @@ states. Seek and playback order matched retained retail and V3DMM runs
 `20261122T033140Z-2abe2197` and `20261122T033233Z-5e23a412`. Evidence is
 under `tmp/c89-playback-scene`, `tmp/c89-aqcap` and
 `tmp/c89-caption-presentation/capture`.
+
+## C89 Preview actor frame cues (22 November 2026)
+
+The C89 Preview actor owns the cues emitted for the current frame. The
+live session visits them in actor and emission order. Animation and
+costume drafts start with an empty cue table, discard it when they finish,
+and restore the original live cues. Track replacement retains the cue
+prefix emitted by a failed replay.
+
+The actor test forced a cue allocation failure in a private draft, then
+verified that ending the draft restored the live cue and released the
+draft storage. The 531-byte draft trace and four costume, action and path
+archives matched byte for byte. The metadata suite reproduced its
+1,045,462-byte trace and fingerprint `0BD333B2`. The headless Marcus
+startup image matched byte for byte.
+
+The parallel native run passed 225 of 226 tests. `depth-bitmap` failed
+while creating a temporary archive and passed all three isolated reruns.
+Five SDL and two x86 checks passed, and the x86 Marcus worker built.
+
+Actor-audio candidate `20261122T220613Z-f9a1a961` matched
+`20261122T215552Z-96466f3f` on all 60 seek canvases and recorded states
+per port. Both ports reproduced the 60-frame seek and playback order
+in retained retail and V3DMM run `20261122T082301Z-c465fa98`. SDL also
+matched all 12 ordered sound requests. Evidence is under
+`tmp/c89-actor-frame-cues` and `tmp/c89-aqcap`.

@@ -11,8 +11,6 @@ extern "C"
     {
         void *context;
         const MMPreviewActorServices *playback;
-        /* Exchange the host's output cue list with private scratch storage. */
-        void (*swap_cues)(void *);
         /* Publish the validated draft while its owned tables are still live. */
         int (*write)(void *, const MMActorTrack *, int with_route);
         /* Borrow the source graph for an external template sound. */

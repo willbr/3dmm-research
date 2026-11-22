@@ -48,6 +48,8 @@ extern "C"
     struct MMModelOwner;
     struct MMTemplateOwner;
     typedef const struct MMPreviewActor *MMPreviewActorView(const void *);
+    struct MMPreviewCue;
+    typedef int MMPreviewFrameCueVisitor(void *, const struct MMPreviewCue *);
     typedef struct MMPreviewAssets
     {
         struct MMBackgroundPreviewOwner *background;
@@ -138,6 +140,9 @@ extern "C"
     void mm_preview_live_dispose(MMPreviewLive *, const MMPreviewLiveServices *);
     void *mm_preview_live_actor(const MMPreviewLive *, MMU32);
     const struct MMPreviewActor *mm_preview_live_actor_view(const MMPreviewLive *, MMU32);
+    /* Borrow the frame cues in actor and emission order. A rejected cue stops
+     * the visit. The callback must not mutate the live session or unwind. */
+    int mm_preview_live_visit_cues(const MMPreviewLive *, void *, MMPreviewFrameCueVisitor *);
     const MMPreviewLiveAction *mm_preview_live_action(const MMPreviewLive *, MMU32);
     /* Publish after staging the action. A failed presentation discards that
      * action and retains the preceding prefix. Allocation failure returns -1. */

@@ -1645,6 +1645,9 @@ The preview reader streams authored sound cues and pauses into the C89
 playback scene. Frame entry gathers the current actor cues in C89 and calls
 the shared scheduler. The C audio owner builds each cache key from the
 authored cue and its origin scene.
+Preview actors own their current frame cue tables in C89. The C live session
+visits cues in actor and emission order. Animation and costume drafts have
+private cue tables and restore the live cues when the draft ends.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette

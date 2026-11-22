@@ -30,6 +30,8 @@ struct PreviewActor::Host
     {
         if (exception)
             std::rethrow_exception(exception);
+        if (r == -1)
+            throw std::bad_alloc();
         return r > 0;
     }
     MMPreviewActorServices Services()
@@ -146,14 +148,6 @@ struct PreviewActor::Host
             });
             return out;
         };
-        s.cue = [](void *v, const MMPreviewCue *cue) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                h.actor->sounds.push_back(*cue);
-                return 1;
-            });
-        };
-        s.clear_cues = [](void *v) { static_cast<Host *>(v)->actor->sounds.clear(); };
         s.fetch_material = [](void *v, MMI32 source, MMU32 number, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {

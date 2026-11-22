@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <exception>
 #include <functional>
 #include <limits>
 #include <map>
@@ -749,11 +750,20 @@ std::vector<PreviewSoundCue> Preview::FrameSounds() const
 }
 bool Preview::VisitFrameSounds(void *context, int (*visit)(void *, const MMPreviewCue *)) const
 {
-    for (const auto &actor : _impl->actors)
-        for (const auto &cue : actor->sounds)
-            if (visit(context, &cue) <= 0)
-                return false;
-    return true;
+    struct Visitor
+    {
+        void *context;
+        MMPreviewFrameCueVisitor *visit;
+        std::exception_ptr failure;
+    } visitor{context, visit, {}};
+    const int result = mm_preview_live_visit_cues(&_impl->live, &visitor, [](void *p, const MMPreviewCue *cue) -> int {
+        auto &visitor = *static_cast<Visitor *>(p);
+        try { return visitor.visit(visitor.context, cue); }
+        catch (...) { visitor.failure = std::current_exception(); return 0; }
+    });
+    if (visitor.failure)
+        std::rethrow_exception(visitor.failure);
+    return result != 0;
 }
 bool Preview::ReadSoundCues(std::vector<PreviewSoundCue> &cues, Error &error)
 {

@@ -11,6 +11,7 @@
 #include "engine_actor_timeline.h"
 #include "handle_services.h"
 #include "mm/preview_actor_edit.h"
+#include "mm/preview_metadata.h"
 #include "preview_draft_host.h"
 #undef size
 ASSERTNAME
@@ -219,7 +220,6 @@ struct PreviewActor::DraftHost : PreviewActor::Host
 {
     const std::string &path;
     const SoundGraphResolver *resolveSound;
-    std::vector<MMPreviewCue> cues;
 
     DraftHost(PreviewActor *actor, const std::string &path, const SoundGraphResolver *resolveSound = nullptr)
         : Host{actor}, path(path), resolveSound(resolveSound) {}
@@ -229,10 +229,6 @@ struct PreviewActor::DraftHost : PreviewActor::Host
         MMPreviewActorEditServices s = {};
         s.context = this;
         s.playback = &playback;
-        s.swap_cues = [](void *p) {
-            auto &h = *static_cast<DraftHost *>(p);
-            h.actor->sounds.swap(h.cues);
-        };
         s.write = [](void *p, const MMActorTrack *track, int withRoute) -> int {
             auto &h = *static_cast<DraftHost *>(p);
             return h.Guard([&] {

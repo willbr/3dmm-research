@@ -18,6 +18,12 @@ extern "C"
     {
         float rotation[9], scale[3];
     } MMPreviewActorShape;
+    typedef struct MMPreviewActorCues
+    {
+        MMCollectionStorage storage;
+        MMU32 count;
+        int allocation_failed;
+    } MMPreviewActorCues;
     typedef struct MMPreviewActor
     {
         MMActorHeader header;
@@ -29,6 +35,7 @@ extern "C"
         MMWide draw_order, *draw_clock;
         int inactive, orientation_reset, sound_display;
         MMI32 event_source;
+        MMPreviewActorCues cues;
     } MMPreviewActor;
     typedef struct MMPreviewActorDefinition
     {
@@ -62,10 +69,9 @@ extern "C"
         MMActorEffectRenderer renderer;
         MMActorSounds *motion;
         struct MMMaterialOwner *(*fetch_event_material)(void *, const MMTag *);
-        int (*cue)(void *, const struct MMPreviewCue *);
         /* Alternate effect hooks for callers supplying borrowed evaluator tables. */
         int (*apply)(void *, MMI32 index);
-        void (*clear_cues)(void *), (*clear_motion)(void *);
+        void (*clear_motion)(void *);
         int (*default_costume)(void *, void *, void *), (*motion_cues)(void *);
         int (*duplicate_body)(void *, void *original, void **draft);
         int (*adjust_text_body)(void *, void *text, void *body);
@@ -83,6 +89,8 @@ extern "C"
      * transferred. The native host transports exceptions after C returns. */
     void mm_preview_actor_init(MMPreviewActor *);
     void mm_preview_actor_dispose(MMPreviewActor *, const MMPreviewActorServices *);
+    /* Borrow cues in emission order until the next actor mutation. */
+    const struct MMPreviewCue *mm_preview_actor_frame_cues(const MMPreviewActor *, MMU32 *count);
     /* Record an entrance against the borrowed scene clock, with unsigned
      * ordering of the two words. Hides leave the last entrance alone. */
     void mm_preview_actor_shown(MMPreviewActor *);
@@ -159,7 +167,7 @@ extern "C"
         int active;
     } MMPreviewActorDraft;
     /* Use an actor with owned tracks and a zero-initialized draft. A successful begin installs a
-     * separate body, track, and motion list until end restores the original. */
+     * separate body, track, motion list and empty frame cue table. End restores the original. */
     int mm_preview_actor_begin_draft(MMPreviewActor *, MMActorSounds *, MMPreviewActorDraft *,
                                      const MMPreviewActorServices *);
     void mm_preview_actor_end_draft(MMPreviewActor *, MMActorSounds *, MMPreviewActorDraft *,
@@ -175,7 +183,7 @@ extern "C"
     } MMPreviewEventReplacement;
     /* Replace a preview's owned track events and replay its current frame.
      * Failure restores both original tables, evaluation state and costume.
-     * Cue and motion callbacks retain their replay side effects. */
+     * Frame cues and motion sounds retain their replay side effects. */
     int mm_preview_actor_replace_track(MMPreviewActor *, MMI32 source, const MMPreviewEventReplacement *,
                                        const MMPreviewActorServices *);
     /* Fetch/bind a text template, adjust a body draft, then pose it. Restore

@@ -447,7 +447,7 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     services.locate = locate;
     services.pose = pose;
     services.apply = apply;
-    services.clear_cues = services.clear_motion = clear;
+    services.clear_motion = clear;
     services.default_costume = reset_costume;
     services.motion_cues = cues;
     mm_preview_actor_init(&input->actor);

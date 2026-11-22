@@ -24,15 +24,29 @@ typedef struct PreviewEvent
     MMPreviewActor *actor;
     const MMPreviewActorServices *services;
     MMActorEventTable *events;
+    int cue_failed;
 } PreviewEvent;
 
 static int publish_sound(void *context, const MMActorSound *sound)
 {
-    const PreviewEvent *event = context;
-    const MMPreviewActorServices *s = event->services;
+    PreviewEvent *event = context;
+    MMPreviewActorCues *cues = &event->actor->cues;
+    MMArray rows = {0};
     MMPreviewCue cue;
     mm_preview_actor_cue(&cue, sound, event->actor->state.frame, event->actor->header.actor_id);
-    return s->cue(s->context, &cue) > 0;
+    rows.storage = &cues->storage;
+    rows.width = sizeof(cue);
+    rows.count = cues->count;
+    rows.free_count = -1;
+    rows.storage->min_grow[0] = rows.storage->buffers[0].capacity ?
+        rows.storage->buffers[0].capacity : 8 * rows.width;
+    if (mm_array_add(&rows, &cue, NULL) != MM_STORAGE_OK)
+    {
+        event->cue_failed = cues->allocation_failed = 1;
+        return 0;
+    }
+    cues->count = rows.count;
+    return 1;
 }
 static int event_cue(void *context, const MMActorSound *sound)
 {
@@ -76,6 +90,7 @@ int mm_preview_actor_event(MMPreviewActor *p, MMActorState *state, const MMActor
     event.actor = p;
     event.services = s;
     event.events = track->events;
+    event.cue_failed = 0;
     hooks.context = &event;
     origin.dxr = mm_signed_word(p->header.translation[0]);
     origin.dyr = mm_signed_word(p->header.translation[1]);
@@ -83,7 +98,7 @@ int mm_preview_actor_event(MMPreviewActor *p, MMActorState *state, const MMActor
     result = mm_actor_runtime_effect(state, track, index, &origin, p->tmpl, p->body, s->motion, 0,
                                      &s->renderer, &hooks);
     fault = s->fault ? s->fault(s->context) : 0;
-    return fault ? fault : result;
+    return fault ? fault : event.cue_failed ? -1 : result;
 }
 
 static MMU32 template_flags(const MMPreviewActor *p)
@@ -231,6 +246,7 @@ void mm_preview_actor_init(MMPreviewActor *p)
 {
     unsigned i;
     memset(p, 0, sizeof(*p));
+    mm_storage_init(&p->cues.storage, NULL);
     mm_actor_state_init(&p->state);
     mm_actor_state_init(&p->orientation);
     for (i = 0; i < 3; ++i)
@@ -265,7 +281,17 @@ void mm_preview_actor_dispose(MMPreviewActor *p, const MMPreviewActorServices *s
         s->release_material(s->context, p->material_override);
         p->material_override = NULL;
     }
+    mm_storage_dispose(&p->cues.storage);
+    p->cues.count = 0;
+    p->cues.allocation_failed = 0;
 }
+
+const MMPreviewCue *mm_preview_actor_frame_cues(const MMPreviewActor *p, MMU32 *count)
+{
+    *count = p->cues.count;
+    return (const MMPreviewCue *)p->cues.storage.buffers[0].data;
+}
+
 int mm_preview_actor_replay_track(MMPreviewActor *p, MMI32 frame, const MMPreviewActorServices *s)
 {
     int r;
@@ -273,7 +299,7 @@ int mm_preview_actor_replay_track(MMPreviewActor *p, MMI32 frame, const MMPrevie
     mm_actor_state_init(&p->orientation);
     mm_actor_state_rewind(&p->state, p->route, &s->timeline.motion);
     p->orientation_reset = 1;
-    s->clear_cues(s->context);
+    p->cues.count = 0;
     clear_motion(s);
     r = s->default_costume(s->context, p->tmpl, p->body);
     if (r <= 0) return r;
@@ -399,6 +425,9 @@ int mm_preview_actor_begin_draft(MMPreviewActor *p, MMActorSounds *motion, MMPre
     if (result <= 0)
         goto fail;
     draft->original = *p;
+    mm_storage_init(&p->cues.storage, &draft->original.cues.storage.allocator);
+    p->cues.count = 0;
+    p->cues.allocation_failed = 0;
     if (p->draw_clock)
         draft->draw_clock = *p->draw_clock;
     mm_actor_sounds_swap(motion, &draft->motion);
@@ -423,6 +452,7 @@ void mm_preview_actor_end_draft(MMPreviewActor *p, MMActorSounds *motion, MMPrev
         return;
     candidate = mm_preview_actor_track(p);
     s->release_body(s->context, p->body);
+    mm_storage_dispose(&p->cues.storage);
     *p = draft->original;
     mm_actor_sounds_swap(motion, &draft->motion);
     mm_actor_sounds_dispose(&draft->motion);
@@ -477,8 +507,9 @@ int mm_preview_actor_replace_track(MMPreviewActor *p, MMI32 source, const MMPrev
         mm_body_costume_clear(&costume, s->renderer.body);
         return 1;
     }
-    /* Replay may have completed an entrance before the failed event. */
+    /* Keep the cue prefix and any entrance completed by the failed replay. */
     original.draw_order = p->draw_order;
+    original.cues = p->cues;
     *p = original;
     mm_body_costume_apply(&costume, p->body, 0, s->renderer.body);
 
@@ -821,13 +852,14 @@ static int frame_motion_sounds(void *context)
     event.actor = host->actor;
     event.services = s;
     event.events = NULL;
+    event.cue_failed = 0;
     sound.context = &event;
     sound.cues_only = 1;
     sound.cel_count = motion_cels;
     sound.cue = publish_sound;
     result = mm_actor_sound_motion(s->motion, state->action, state->cel, &sound);
     fault = s->fault ? s->fault(s->context) : 0;
-    return fault ? fault : result;
+    return fault ? fault : event.cue_failed ? -1 : result;
 }
 
 static void frame_position(void *context)
@@ -845,8 +877,7 @@ static int frame_cel(void *context)
 static void prepare_frame(void *context, MMActorFrameInputs *inputs)
 {
     const PreviewActorHost *host = (const PreviewActorHost *)context;
-    const MMPreviewActorServices *s = host->services;
-    s->clear_cues(s->context);
+    host->actor->cues.count = 0;
     host->actor->sound_display = inputs->displayFrame;
 }
 
@@ -877,7 +908,7 @@ static int seek_actor(MMPreviewActor *p, MMI32 target, const MMPreviewActorServi
     PreviewActorHost host;
     MMActorPlaybackEffects effects;
     if (target != p->state.frame)
-        s->clear_cues(s->context);
+        p->cues.count = 0;
     if (p->inactive)
         return 1;
     if ((double)target - p->header.first_frame > 100000)
