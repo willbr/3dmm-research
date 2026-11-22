@@ -55,8 +55,8 @@ def resize_studio(pid):
 
 
 def focus_studio(pid):
-    """Capture checks require foreground input; Windows may deny it on launch."""
-    if os.name != "nt":
+    """Activate the Studio window for interactive Windows capture checks."""
+    if os.name != "nt" or os.environ.get("SDL_VIDEODRIVER") == "dummy":
         return
     import ctypes
     from ctypes import wintypes
@@ -198,6 +198,7 @@ def main():
     process = subprocess.Popen(
         [str(args.exe.resolve()), "--mcp-server"], cwd=args.content.resolve(),
         stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+        creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
         text=True, encoding="utf-8",
         env={**environment, "KAUAI_TEST_FAIL_FAST": "1", **({"SDL_AUDIODRIVER": "dummy"} if args.sdl_recording else {})},
     )
