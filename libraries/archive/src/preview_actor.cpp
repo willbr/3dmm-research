@@ -10,9 +10,7 @@
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
 #include "handle_services.h"
-#include "mm/actor_costume_edit.h"
-#include "mm/actor_animation.h"
-#include "mm/sound_resource.h"
+#include "mm/preview_actor_edit.h"
 #include "preview_draft_host.h"
 #undef size
 #include "preview_cue_view.h"
@@ -24,8 +22,6 @@ namespace MM
 namespace Internal
 {
 #include "preview_actor_host.h"
-#include "preview_costume_host.h"
-#include "preview_animation_host.h"
 #include "preview_timeline_host.h"
 PreviewActor::~PreviewActor()
 {
@@ -220,66 +216,58 @@ int PreviewActor::RenderCostumes(const std::vector<PreviewCostume> &values, MMI3
         std::rethrow_exception(host.exception);
     return result;
 }
-struct PreviewActor::TrackDraft
+struct PreviewActor::DraftHost : PreviewActor::Host
 {
-    PreviewActor &actor;
-    MMPreviewActorDraft draft = {};
+    const std::string &path;
+    const SoundGraphResolver *resolveSound;
     std::vector<PreviewSoundCue> cues;
-    explicit TrackDraft(PreviewActor &a) : actor(a) {}
-    bool Begin()
+
+    DraftHost(PreviewActor *actor, const std::string &path, const SoundGraphResolver *resolveSound = nullptr)
+        : Host{actor}, path(path), resolveSound(resolveSound) {}
+
+    MMPreviewActorEditServices EditServices(const MMPreviewActorServices &playback)
     {
-        Host host = {&actor};
-        const auto services = host.Services();
-        if (!host.Result(mm_preview_actor_begin_draft(&actor.core, &actor.motionSounds, &draft, &services)))
-            return false;
-        actor.sounds.swap(cues);
-        return true;
-    }
-    ~TrackDraft()
-    {
-        if (!draft.active)
-            return;
-        Host host = {&actor};
-        const auto services = host.Services();
-        mm_preview_actor_end_draft(&actor.core, &actor.motionSounds, &draft, &services);
-        actor.sounds.swap(cues);
-    }
-    bool Write(const std::string &path, bool withRoute) const
-    {
-        String nativePath;
-        if (!PreviewDraftPath(path, nativePath))
-            return false;
-        const auto profile = KauaiPrivateArchiveProfile();
-        const auto track = actor.Track();
-        return mm_preview_store_actor_tracks(reinterpret_cast<const MMNativePathChar *>(nativePath.Psz()),
-                                             &profile, kctgSoc, &track, withRoute) != 0;
+        MMPreviewActorEditServices s = {};
+        s.context = this;
+        s.playback = &playback;
+        s.swap_cues = [](void *p) {
+            auto &h = *static_cast<DraftHost *>(p);
+            h.actor->sounds.swap(h.cues);
+        };
+        s.write = [](void *p, const MMActorTrack *track, int withRoute) -> int {
+            auto &h = *static_cast<DraftHost *>(p);
+            return h.Guard([&] {
+                String nativePath;
+                if (!PreviewDraftPath(h.path, nativePath))
+                    return false;
+                const auto profile = KauaiPrivateArchiveProfile();
+                return mm_preview_store_actor_tracks(reinterpret_cast<const MMNativePathChar *>(nativePath.Psz()),
+                                                     &profile, kctgSoc, track, withRoute) != 0;
+            });
+        };
+        if (resolveSound)
+            s.sound_graph = [](void *p, const MMTag *tag, MMMovieSessionGraph *out) -> int {
+                auto &h = *static_cast<DraftHost *>(p);
+                return h.Guard([&] {
+                    return (*h.resolveSound)({tag->sid, 0, tag->type, tag->number}, *out);
+                });
+            };
+        s.template_sound = mm_brender_template_sound;
+        s.distance = [](const MMActorPoint *point) -> MMI32 { return BR_LENGTH3(point->dxr, point->dyr, point->dzr); };
+        return s;
     }
 };
+
 bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, const std::string &path)
 {
-    if (!Visible() || !Ptmpl() || EngineTemplate::FIsTdt(Ptmpl())) return false;
-    TrackDraft draft(*this);
-    if (!draft.Begin()) return false;
-    CostumeHost host(this);
-    struct Events
-    {
-        CostumeHost &host;
-        MMActorMotionServices motion;
-        MMActorCostumeEditServices services;
-    } events = {host, EngineActorMotion::Services(), host.Services()};
+    DraftHost host(this, path);
+    const auto playback = host.Services();
+    const auto services = host.EditServices(playback);
     const auto catalog = CostumeCatalog();
     const auto edits = CostumeEdits(values);
-    const int result = mm_preview_actor_edit_costumes(&core, &catalog, &edits, &events,
-        [](void *context, const MMPreviewCostumeChoice *choice) -> int {
-            const auto &writes = *static_cast<Events *>(context);
-            auto &actor = *writes.host.actor;
-            const MMTag tag = {};
-            const int applied = mm_actor_edit_set_costume(&actor.core.state, &actor.motionSounds, actor.Track().events,
-                actor.core.header.actor_id, choice->set, &tag, choice->id, 1, &writes.motion, &writes.services);
-            return writes.host.exception ? -2 : applied;
-        });
-    return host.Result(result) && draft.Write(path, false);
+    return host.Result(mm_preview_actor_write_costumes(&core, &edits, &catalog, &services));
 }
+
 bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::string &path,
                                   int &lastActorFrame, int &lastEditedFrame, const SoundGraphResolver &resolveSound)
 {
@@ -293,15 +281,11 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
         points.push_back({point.x, point.y, point.z});
     const MMActorAnimation request{int(edit.kind), edit.freeze, edit.replace, edit.action, edit.cel,
                                    points.data(), points.size()};
-    TrackDraft draft(*this);
-    if (!draft.Begin()) return false;
-    AnimationHost host(this, resolveSound);
-    const auto playback = host.Host::Services();
-    const auto services = host.Record(playback);
-    const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? mm_preview_actor_action_count(&core) : 0;
+    DraftHost host(this, path, &resolveSound);
+    const auto playback = host.Services();
+    const auto services = host.EditServices(playback);
     MMActorAnimationRange range;
-    if (!host.Result(mm_actor_animation_edit(&core, &motionSounds, &host.record, &request, actionCount,
-                                             &services, &range)) || !draft.Write(path, true))
+    if (!host.Result(mm_preview_actor_write_animation(&core, &request, &range, &services)))
         return false;
     lastActorFrame = range.actor_last;
     lastEditedFrame = range.edited_last;

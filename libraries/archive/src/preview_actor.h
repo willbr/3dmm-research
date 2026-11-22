@@ -16,9 +16,7 @@ class PreviewActor
 {
     struct Host;
     struct TimelineHost;
-    struct CostumeHost;
-    struct AnimationHost;
-    struct TrackDraft;
+    struct DraftHost;
     MMPreviewActor core;
     MMActorTrack Track() const { return mm_preview_actor_track(&core); }
     PTemplate Ptmpl() const { return static_cast<PTemplate>(core.tmpl); }

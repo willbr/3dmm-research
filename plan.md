@@ -1218,6 +1218,11 @@ its supplied framing corners in C89. Action previews sample the duplicate
 body's bounds directly. Costume previews capture and restore the live costume
 and root pose in C89, measure the requested set's variants through the typed
 catalogue and body bindings, and publish the crop through the renderer.
+Preview also owns the private costume and animation edit transaction in C89.
+The draft binds the shared event editor, authored sound metadata and route
+recording services, then writes the event table and any edited route through
+the archive writer. It restores the live actor, motion state, cue list and
+draw order after every attempted edit or write.
 Preview picking uses C89 for validation, coordinates, camera ownership, stable
 body copying, nearest-hit and texture policy, and authored-background
 occlusion. Native adapters supply typed SDK primitives.

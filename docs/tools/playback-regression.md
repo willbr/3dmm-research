@@ -22441,3 +22441,31 @@ ordinary and motion-bound actor sound editing and playback. The existing
 `0D666753`.
 
 Snapshots, workflows and checks are under `tmp/c89-actor-event-effects`.
+
+## C89 Preview actor draft writes (22 November 2026)
+
+The Preview owner clones the actor's body and track for private edits in C89,
+binds the shared costume, event and route editors, and reads default sound
+metadata from the borrowed source graph. The archive writer sees the validated
+private track.
+C89 restores the live body, track, motion list, cue list and draw clock before
+returning, and publishes animation ranges after the archive write succeeds.
+
+The 531-byte draft trace reproduced the original ranges, errors and scene
+state. Four private archives matched byte for byte. The costume archive
+contains only events, and the action, path tweak and path recording archives
+also contain a route. The four files total 1,832 bytes. A rejected costume
+sequence and an unavailable output directory left the live frame and rendered
+image intact. All Preview traces and the actor image matched 50,035,603 bytes.
+Studio saves and canvases, the saved costume movie, 48 storyboard payloads
+and their child links, the 188 retail-content camera traces, five World
+snapshots and the headless Marcus startup canvas also matched.
+
+The four runs in suite `20261122T180711Z-b2bbe65c` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order matched the retained retail and V3DMM captures
+in `20261122T081603Z-7ffc4e8e`. All 251 selected test runs passed, including
+Marcus path recording and movie reopen. The existing `scene-load` assertion
+reproduced its 63,224-byte trace and fingerprint `0D666753`.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-actor-drafts`.

@@ -194,6 +194,62 @@ static bool CaptureIsolatedActorRenders(MM::Preview &preview)
            trace.Record(clip.corners, sizeof(clip.corners)) && trace.Finish("isolated actor", 0, 0);
 }
 
+static bool CaptureActorDrafts(MM::Preview &preview)
+{
+    const auto *directory = std::getenv("MM_PREVIEW_ACTOR_DRAFT_DIR");
+    if (!directory)
+        return true;
+    AdmissionTrace trace("MM_PREVIEW_ACTOR_DRAFT_SNAPSHOT");
+    const std::string root = std::string(directory) + "/";
+    MM::Error error;
+    MM::PreviewView view;
+    view.width = 96;
+    view.height = 72;
+    MM::PreviewImage before;
+    std::vector<MM::PreviewCostume> costumes;
+    std::vector<MM::PreviewAction> actions;
+    if (!preview.Render(view, before, error) || !preview.ObjectCostumes(0, costumes, error) ||
+        !preview.ObjectActions(0, actions, error))
+        return false;
+    const auto frame = preview.Info().currentFrame;
+    const auto cues = preview.FrameSounds().size();
+    auto restored = [&] {
+        MM::PreviewImage after;
+        return preview.Info().currentFrame == frame && preview.FrameSounds().size() == cues &&
+               preview.Render(view, after, error) && before.rgba == after.rgba;
+    };
+    const auto costume = std::find_if(costumes.begin(), costumes.end(), [](const auto &c) { return !c.selected; });
+    const auto action = std::find_if(actions.begin(), actions.end(), [](const auto &a) { return a.celCount > 1; });
+    if (costume == costumes.end() || action == actions.end() ||
+        !preview.WriteObjectCostumes(0, {*costume}, root + "costume.3cn", error) || !restored())
+        return false;
+    auto invalid = *costume;
+    invalid.costume = -1;
+    const bool invalidCostume = preview.WriteObjectCostumes(0, {*costume, invalid}, root + "invalid.3cn", error);
+    if (invalidCostume || !trace.Error(invalidCostume, error, preview) || !restored())
+        return false;
+    MM::PreviewAnimationEdit edit;
+    edit.action = static_cast<int>(action - actions.begin());
+    edit.cel = 1;
+    const auto editAnimation = [&](const std::string &path, bool success) {
+        int range[2] = {-999, -999};
+        const bool written = preview.WriteObjectAnimation(0, edit, root + path, range[0], range[1], error);
+        if (written != success)
+            std::fprintf(stderr, "Draft %s: %s\n", path.c_str(), error.message.c_str());
+        return written == success && (success || (range[0] == -999 && range[1] == -999)) &&
+               trace.Record(range, sizeof(range)) && trace.Error(written, error, preview) && restored();
+    };
+    if (!editAnimation("action.3cn", true) || !editAnimation("missing/action.3cn", false))
+        return false;
+    edit.kind = MM::PreviewAnimationEdit::Kind::tweak;
+    edit.points = {{2, 0, 0}};
+    if (!editAnimation("tweak.3cn", true))
+        return false;
+    edit.kind = MM::PreviewAnimationEdit::Kind::record;
+    edit.points = {{14, 0, 0}, {24, 0, 8}};
+    return editAnimation("record.3cn", true) && trace.Finish("actor drafts", 0, 0);
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 6)
@@ -350,7 +406,7 @@ int main(int argc, char **argv)
     if (!check(preview.SetFrame(1, error)) || !check(preview.Render(view, later, error)) ||
         std::memcmp(repeated.projection.transform, later.projection.transform, sizeof(later.projection.transform)))
         return 1;
-    if (!CaptureActorTransforms(preview) || !CaptureIsolatedActorRenders(preview))
+    if (!CaptureActorTransforms(preview) || !CaptureIsolatedActorRenders(preview) || !CaptureActorDrafts(preview))
         return 1;
     if (!check(preview.Select({0x41435452, 1}, error)) || preview.Info().firstFrame != 1 ||
         preview.Info().lastFrame <= 10 || !check(preview.Render(view, repeated, error)) || !repeated.coveredPixels)
