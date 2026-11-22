@@ -36,6 +36,7 @@ extern "C"
         int inactive, orientation_reset, sound_display;
         MMI32 event_source;
         MMPreviewActorCues cues;
+        MMActorSounds motion;
     } MMPreviewActor;
     typedef struct MMPreviewActorDefinition
     {
@@ -67,11 +68,9 @@ extern "C"
         void (*locate)(void *, void *, const MMActorBodyPose *);
         int (*pose)(void *, void *, void *, MMI32 action, MMI32 cel);
         MMActorEffectRenderer renderer;
-        MMActorSounds *motion;
         struct MMMaterialOwner *(*fetch_event_material)(void *, const MMTag *);
         /* Alternate effect hooks for callers supplying borrowed evaluator tables. */
         int (*apply)(void *, MMI32 index);
-        void (*clear_motion)(void *);
         int (*default_costume)(void *, void *, void *), (*motion_cues)(void *);
         int (*duplicate_body)(void *, void *original, void **draft);
         int (*adjust_text_body)(void *, void *text, void *body);
@@ -79,7 +78,7 @@ extern "C"
         void (*release_material)(void *, void *);
         int (*apply_material)(void *, void *body, void *material);
     } MMPreviewActorServices;
-    /* Unique owning template/body handles. The track handles can also own
+    /* Unique owning template/body handles and sound tables. The track handles can also own
      * their tables when the services supply tags. Effects are synchronous
      * and do not throw: 1/0 success/failure, -1 allocation, -2 other exception.
      * Timeline resolvers report exceptions through fault after the shared evaluator
@@ -162,16 +161,13 @@ extern "C"
     typedef struct MMPreviewActorDraft
     {
         MMPreviewActor original;
-        MMActorSounds motion;
         MMWide draw_clock;
         int active;
     } MMPreviewActorDraft;
     /* Use an actor with owned tracks and a zero-initialized draft. A successful begin installs a
      * separate body, track, motion list and empty frame cue table. End restores the original. */
-    int mm_preview_actor_begin_draft(MMPreviewActor *, MMActorSounds *, MMPreviewActorDraft *,
-                                     const MMPreviewActorServices *);
-    void mm_preview_actor_end_draft(MMPreviewActor *, MMActorSounds *, MMPreviewActorDraft *,
-                                    const MMPreviewActorServices *);
+    int mm_preview_actor_begin_draft(MMPreviewActor *, MMPreviewActorDraft *, const MMPreviewActorServices *);
+    void mm_preview_actor_end_draft(MMPreviewActor *, MMPreviewActorDraft *, const MMPreviewActorServices *);
 
     typedef struct MMPreviewEventReplacement
     {
@@ -182,8 +178,8 @@ extern "C"
         MMBlockTransform decode;
     } MMPreviewEventReplacement;
     /* Replace a preview's owned track events and replay its current frame.
-     * Failure restores both original tables, evaluation state and costume.
-     * Frame cues and motion sounds retain their replay side effects. */
+     * Failure restores the original tracks, motion bindings, evaluation state
+     * and costume. Frame cues retain the emitted replay prefix. */
     int mm_preview_actor_replace_track(MMPreviewActor *, MMI32 source, const MMPreviewEventReplacement *,
                                        const MMPreviewActorServices *);
     /* Fetch/bind a text template, adjust a body draft, then pose it. Restore

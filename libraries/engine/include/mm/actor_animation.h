@@ -30,7 +30,7 @@ typedef struct MMActorAnimationRange
 
 /* Edit a private draft of the actor and its tables. The caller discards the
  * draft on failure. The range is published only when evaluation succeeds. */
-int mm_actor_animation_edit(MMPreviewActor *, MMActorSounds *, MMActorRecording *,
+int mm_actor_animation_edit(MMPreviewActor *, MMActorRecording *,
                             const MMActorAnimation *, MMI32 action_count,
                             const MMActorRecordServices *, MMActorAnimationRange *);
 

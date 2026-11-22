@@ -1648,6 +1648,9 @@ authored cue and its origin scene.
 Preview actors own their current frame cue tables in C89. The C live session
 visits cues in actor and emission order. Animation and costume drafts have
 private cue tables and restore the live cues when the draft ends.
+The C89 actor also owns motion sound bindings. Playback and editors use
+that same list. A failed track replay restores the original bindings with
+their original event table so their borrowed tag references remain valid.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette

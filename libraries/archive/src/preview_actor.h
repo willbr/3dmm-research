@@ -4,7 +4,6 @@
 #include <functional>
 #include "mm/preview.h"
 #include "soc_core.h"
-#include "mm/actor_sound.h"
 #include "mm/preview_actor.h"
 
 namespace MM
@@ -22,13 +21,11 @@ class PreviewActor
     PTemplate Ptmpl() const { return static_cast<PTemplate>(core.tmpl); }
     std::function<MMResourceCache *(const TAGOnFile &)> resolve;
     std::string ActionName(LegacyLong action) const;
-    MMActorSounds motionSounds;
 
   public:
     PreviewActor()
     {
         mm_preview_actor_init(&core);
-        mm_actor_sounds_init(&motionSounds, nullptr);
     }
     PBody Pbody() const { return static_cast<PBody>(core.body); }
     static const MMPreviewActor *View(const void *handle)

@@ -336,12 +336,12 @@ static void reject_invalid_path(void)
     actor.tmpl = &actor;
     actor.state.onStage = 1;
     actor.state.position.dxr = 32698L * 65536L;
-    CHECK(!mm_actor_animation_edit(&actor, NULL, &recording, &edit, 0, &host, &range));
+    CHECK(!mm_actor_animation_edit(&actor, &recording, &edit, 0, &host, &range));
     CHECK(actor.state.position.dxr == 32698L * 65536L && range.actor_last == 80 && range.edited_last == 90);
     actor.state.position.dxr = 0;
     edit.kind = MM_ACTOR_ANIMATION_RECORD;
     actor.state.frame = 2147483647L - 4095;
-    CHECK(!mm_actor_animation_edit(&actor, NULL, &recording, &edit, 0, &host, &range));
+    CHECK(!mm_actor_animation_edit(&actor, &recording, &edit, 0, &host, &range));
     CHECK(!recording.recording && range.actor_last == 80 && range.edited_last == 90);
 }
 

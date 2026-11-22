@@ -22,7 +22,7 @@ typedef struct Host
     unsigned char payload[8][64];
     MMI32 sizes[8], routes, count;
     int calls, fail_at, failure, fault, releases[4], released, templates, bodies;
-    int prop, text, child_calls, fetches, poses, locations, motions, resets, applies;
+    int prop, text, child_calls, fetches, poses, locations, resets, applies;
     int fail_alloc, alloc_live, draft_bodies, costume_saved, costume_restored, material_overrides;
     int material_refs, material_failure;
     MMBodyOwner *action_draft;
@@ -275,10 +275,6 @@ static int apply(void *v, MMI32 i)
     return mm_actor_effect_apply(&h->actor.state, h->actor.route, h->actor.events, i, &origin,
                                  1, 0, &h->services.timeline.motion, &s);
 }
-static void clear_motion(void *v)
-{
-    ++((Host *)v)->motions;
-}
 static int costume(void *v, void *t, void *b)
 {
     Host *h = (Host *)v;
@@ -352,7 +348,6 @@ static void setup(Host *h)
     s->locate = locate;
     s->pose = pose;
     s->apply = apply;
-    s->clear_motion = clear_motion;
     s->default_costume = costume;
     s->motion_cues = motion;
 }
@@ -639,7 +634,7 @@ static void replace_events(void)
     assert(h.material_overrides == 3);
     assert(h.actor.state.frame == expected.frame && h.actor.state.action == expected.action);
     assert(h.actor.state.nextEvent == expected.nextEvent && h.actor.state.onStage == expected.onStage);
-    assert(h.resets && h.motions && h.actor.events == &h);
+    assert(h.resets && h.actor.events == &h);
     dispose(&h);
     assert(!h.material_refs);
     for (failure = -2; failure <= 0; ++failure)
@@ -799,9 +794,9 @@ static void track_draft(void)
     MMPreviewActorDefinition d = definition();
     MMPreviewActor original;
     MMPreviewActorDraft draft = {0};
-    MMActorSounds motion;
     MMActorEvent event = {0};
     MMActorSound sound = {0};
+    MMActorMotionSound binding;
     MMWide clock = {(MMU32)-1, 1};
     MMActorTrack cue_track;
     const MMPreviewCue *cues;
@@ -811,19 +806,23 @@ static void track_draft(void)
     assert(mm_preview_actor_create(&h.actor, &d, &h.services));
     h.services.duplicate_body = draft_body;
     h.services.release_body = release_draft_body;
-    assert(mm_actor_sounds_init(&motion, NULL));
-    assert(mm_actor_sounds_insert(&motion, &event, &sound));
+    assert(mm_actor_sounds_init(&h.actor.motion, &h.allocator));
     assert(mm_storage_init(&h.actor.cues.storage, &h.allocator) == MM_STORAGE_OK);
-    h.services.motion = &motion;
     h.actor.sound_display = 1;
     h.actor.state.frame = 2;
     event.aet = MM_ACTOR_SOUND;
-    sound.cel = -1;
-    sound.tag.number = 42;
+    sound.cel = 2;
+    sound.tag.number = 17;
     sound.volume = ONE;
     cue_track = mm_preview_actor_track(&h.actor);
     assert(mm_actor_events_insert(cue_track.events, 3, sizeof(sound), &sound, &event));
     assert(mm_preview_actor_event(&h.actor, &h.actor.state, &cue_track, 3, &h.services) == 1);
+    assert(mm_actor_sounds_get(&h.actor.motion, 0, &binding) && binding.sound.tag.number == 17);
+    assert(!mm_preview_actor_frame_cues(&h.actor, &cue_count) && !cue_count);
+    sound.cel = -1;
+    sound.tag.number = 42;
+    assert(mm_actor_events_insert(cue_track.events, 4, sizeof(sound), &sound, &event));
+    assert(mm_preview_actor_event(&h.actor, &h.actor.state, &cue_track, 4, &h.services) == 1);
     cues = mm_preview_actor_frame_cues(&h.actor, &cue_count);
     assert(cue_count == 1 && cues[0].frame == 2 && cues[0].number == 42 && cues[0].actor_sound);
     h.actor.draw_clock = &clock;
@@ -833,45 +832,49 @@ static void track_draft(void)
     blocks = h.alloc_live;
 
     h.fail_alloc = 1;
-    assert(!mm_preview_actor_begin_draft(&h.actor, &motion, &draft, &h.services));
+    assert(!mm_preview_actor_begin_draft(&h.actor, &draft, &h.services));
     assert(!draft.active && !h.draft_bodies && h.alloc_live == blocks);
     h.fail_alloc = 0;
     h.fail_at = h.calls + 1;
     h.failure = -2;
-    assert(mm_preview_actor_begin_draft(&h.actor, &motion, &draft, &h.services) == -2);
+    assert(mm_preview_actor_begin_draft(&h.actor, &draft, &h.services) == -2);
     assert(!draft.active && !h.draft_bodies && h.alloc_live == blocks);
-    assert(!memcmp(&h.actor, &original, sizeof(original)) && motion.count == 1);
+    assert(!memcmp(&h.actor, &original, sizeof(original)));
 
     h.fault = 0;
-    assert(mm_preview_actor_begin_draft(&h.actor, &motion, &draft, &h.services) == 1);
+    assert(mm_preview_actor_begin_draft(&h.actor, &draft, &h.services) == 1);
     assert(draft.active && h.draft_bodies == 1 && h.actor.body != original.body);
     assert(h.actor.route != original.route && h.actor.events != original.events);
+    assert(h.actor.motion.storage.buffers[0].data != original.motion.storage.buffers[0].data);
+    assert(mm_actor_sounds_get(&h.actor.motion, 0, &binding) && binding.sound.tag.number == 17);
+    binding.sound.tag.number = 99;
+    assert(mm_actor_sounds_put(&h.actor.motion, 0, &binding));
     assert(!mm_preview_actor_frame_cues(&h.actor, &cue_count) && !cue_count);
     cue_track = mm_preview_actor_track(&h.actor);
     h.fail_alloc = 1;
-    assert(mm_preview_actor_event(&h.actor, &h.actor.state, &cue_track, 3, &h.services) == -1);
+    assert(mm_preview_actor_event(&h.actor, &h.actor.state, &cue_track, 4, &h.services) == -1);
     assert(!mm_preview_actor_frame_cues(&h.actor, &cue_count) && !cue_count);
     h.fail_alloc = 0;
     h.actor.state.frame = 33;
-    assert(mm_preview_actor_event(&h.actor, &h.actor.state, &cue_track, 3, &h.services) == 1);
+    assert(mm_preview_actor_event(&h.actor, &h.actor.state, &cue_track, 4, &h.services) == 1);
     cues = mm_preview_actor_frame_cues(&h.actor, &cue_count);
     assert(cue_count == 1 && cues[0].frame == 33 && cues[0].number == 42);
     assert(mm_actor_events_delete(cue_track.events, 1));
     mm_preview_actor_shown(&h.actor);
     assert(h.actor.draw_order.low == 1 && clock.low == 1);
-    mm_actor_sounds_clear(&motion);
-    mm_preview_actor_end_draft(&h.actor, &motion, &draft, &h.services);
+    mm_preview_actor_end_draft(&h.actor, &draft, &h.services);
     assert(!draft.active && !h.draft_bodies && h.alloc_live == blocks);
-    assert(!memcmp(&h.actor, &original, sizeof(original)) && motion.count == 1);
+    assert(!memcmp(&h.actor, &original, sizeof(original)));
+    assert(h.actor.motion.count == 1 && mm_actor_sounds_get(&h.actor.motion, 0, &binding));
+    assert(binding.sound.tag.number == 17 && binding.sound.cel == 2);
     assert(clock.low == 0 && clock.high == 2);
-    assert(mm_actor_events_count(mm_preview_actor_track(&h.actor).events) == 4);
+    assert(mm_actor_events_count(mm_preview_actor_track(&h.actor).events) == 5);
     cues = mm_preview_actor_frame_cues(&h.actor, &cue_count);
     assert(cue_count == 1 && cues[0].frame == 2 && cues[0].number == 42);
     h.actor.inactive = 1;
     assert(mm_preview_actor_seek(&h.actor, 3, &h.services) == 1);
     mm_preview_actor_frame_cues(&h.actor, &cue_count);
     assert(!cue_count);
-    mm_actor_sounds_dispose(&motion);
     dispose(&h);
 }
 
@@ -999,6 +1002,19 @@ static int allocate_track_costume(void *p, MMI32 sets, void ***out)
     return step(h) > 0;
 }
 
+static int fail_candidate_motion(void *p)
+{
+    Host *h = p;
+    MMActorEvent event = {0};
+    MMActorSound sound = {0};
+    event.aet = MM_ACTOR_SOUND;
+    sound.cel = 2;
+    sound.tag.number = 99;
+    assert(!h->actor.motion.count);
+    assert(mm_actor_sounds_insert(&h->actor.motion, &event, &sound));
+    return -2;
+}
+
 static void replace_owned_track(void)
 {
     Host h;
@@ -1007,18 +1023,26 @@ static void replace_owned_track(void)
     MMPreviewActor original;
     MMBodyRuntimeServices body = {0};
     MMPreviewEventReplacement edit = {NULL, resolve_track_source, NULL, decode_track_source};
+    MMActorEvent event = {0};
+    MMActorSound sound = {0};
+    MMActorMotionSound binding;
     int mode, blocks, expected;
     edit.context = edit.decode_context = &source;
     body.shape.context = &source;
     body.shape.state = track_body_state;
     body.shape.allocate_materials = allocate_track_costume;
-    for (mode = 0; mode <= 8; ++mode)
+    event.aet = MM_ACTOR_SOUND;
+    sound.cel = 2;
+    sound.tag.number = 17;
+    for (mode = 0; mode <= 9; ++mode)
     {
         setup_owned(&h);
         assert(mm_preview_actor_create(&h.actor, &d, &h.services));
         assert(mm_preview_actor_seek(&h.actor, 1, &h.services));
         setup_track_source(&source, &h);
         h.services.renderer.body = &body;
+        assert(mm_actor_sounds_init(&h.actor.motion, &h.allocator));
+        assert(mm_actor_sounds_insert(&h.actor.motion, &event, &sound));
         original = h.actor;
         blocks = h.alloc_live;
         h.fail_at = mode >= 1 && mode <= 3 ? h.calls + mode : 0;
@@ -1029,20 +1053,26 @@ static void replace_owned_track(void)
             memset(source.bytes, 0, source.length);
         source.packed = mode == 7 || mode == 8;
         source.fail_decode = mode == 8;
-        expected = mode == 0 || mode == 7 ? 1 : h.fail_at ? -2 : 0;
+        if (mode == 9)
+            h.services.motion_cues = fail_candidate_motion;
+        expected = mode == 0 || mode == 7 ? 1 : h.fail_at || mode == 9 ? -2 : 0;
         assert(mm_preview_actor_replace_track(&h.actor, 0, &edit, &h.services));
         assert(mm_preview_actor_replace_track(&h.actor, 9, &edit, &h.services) == expected);
         assert(!source.refs && source.decodes == source.packed);
         if (expected <= 0)
         {
             assert(!memcmp(&h.actor, &original, sizeof(original)) && h.alloc_live == blocks);
-            assert(h.costume_saved == (mode == 2 || mode == 3) && h.costume_restored == (mode == 3));
+            assert(h.actor.motion.count == 1 && mm_actor_sounds_get(&h.actor.motion, 0, &binding));
+            assert(binding.sound.tag.number == 17 && binding.sound.cel == 2);
+            assert(h.costume_saved == (mode == 2 || mode == 3 || mode == 9) &&
+                   h.costume_restored == (mode == 3 || mode == 9));
         }
         else
         {
             assert(h.actor.event_source == 9 && h.actor.state.frame == original.state.frame);
             assert(h.actor.route != original.route && h.actor.events != original.events);
-            assert(h.costume_saved == 1 && !h.costume_restored && h.alloc_live == blocks);
+            assert(!h.actor.motion.count && h.alloc_live == blocks - 1);
+            assert(h.costume_saved == 1 && !h.costume_restored);
         }
         dispose(&h);
     }

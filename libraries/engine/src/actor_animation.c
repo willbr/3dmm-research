@@ -110,10 +110,11 @@ static int record_path(MMPreviewActor *actor, MMActorSounds *sounds, MMActorReco
                             NULL, &timeline->motion, services);
 }
 
-int mm_actor_animation_edit(MMPreviewActor *actor, MMActorSounds *sounds, MMActorRecording *record,
+int mm_actor_animation_edit(MMPreviewActor *actor, MMActorRecording *record,
                             const MMActorAnimation *edit, MMI32 action_count,
                             const MMActorRecordServices *services, MMActorAnimationRange *range)
 {
+    MMActorSounds *sounds = &actor->motion;
     MMActorAnimationPoint start;
     size_t i;
     MMI32 last;

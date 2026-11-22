@@ -31,7 +31,7 @@ static int finish_draft(DraftEdit *edit, MMPreviewActorDraft *draft, int result,
         MMActorTrack track = mm_preview_actor_track(edit->actor);
         result = s->write(s->context, &track, with_route);
     }
-    mm_preview_actor_end_draft(edit->actor, play->motion, draft, play);
+    mm_preview_actor_end_draft(edit->actor, draft, play);
     return result;
 }
 
@@ -119,7 +119,7 @@ static int record_costume(void *context, const MMPreviewCostumeChoice *choice)
     MMPreviewActor *actor = edit->actor;
     const MMPreviewActorServices *play = edit->services->playback;
     const MMTag tag = {0};
-    int result = mm_actor_edit_set_costume(&actor->state, play->motion, actor->events,
+    int result = mm_actor_edit_set_costume(&actor->state, &actor->motion, actor->events,
                                           actor->header.actor_id, choice->set, &tag, choice->id, 1,
                                           &play->timeline.motion, s);
     int fault = play->fault ? play->fault(play->context) : 0;
@@ -138,7 +138,7 @@ int mm_preview_actor_write_costumes(MMPreviewActor *actor, const MMPreviewCostum
         return 0;
     edit.actor = actor;
     edit.services = s;
-    result = mm_preview_actor_begin_draft(actor, play->motion, &draft, play);
+    result = mm_preview_actor_begin_draft(actor, &draft, play);
     if (result <= 0)
         return result;
     costume.context = &edit;
@@ -296,12 +296,12 @@ int mm_preview_actor_write_animation(MMPreviewActor *actor, const MMActorAnimati
         return 0;
     edit.actor = actor;
     edit.services = s;
-    result = mm_preview_actor_begin_draft(actor, play->motion, &draft, play);
+    result = mm_preview_actor_begin_draft(actor, &draft, play);
     if (result <= 0)
         return result;
     record = record_services(&edit);
     actions = request->kind == MM_ACTOR_ANIMATION_ACTION ? mm_preview_actor_action_count(actor) : 0;
-    result = mm_actor_animation_edit(actor, play->motion, &edit.recording, request, actions, &record, &computed);
+    result = mm_actor_animation_edit(actor, &edit.recording, request, actions, &record, &computed);
     result = finish_draft(&edit, &draft, result, 1);
     if (result > 0)
         *range = computed;

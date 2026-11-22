@@ -23058,3 +23058,30 @@ per port. Both ports reproduced the 60-frame seek and playback order
 in retained retail and V3DMM run `20261122T082301Z-c465fa98`. SDL also
 matched all 12 ordered sound requests. Evidence is under
 `tmp/c89-actor-frame-cues` and `tmp/c89-aqcap`.
+
+## C89 Preview actor motion sounds (22 November 2026)
+
+The Preview actor owns the motion-sound list used by playback and the
+animation and costume editors. Private drafts clone that list and restore
+it with the original actor. Replacing a track builds its motion bindings
+separately. Failed replay restores the old bindings with the track that
+owns their tag references.
+
+The actor fixture changed a binding in a draft and verified that ending
+it restored the original. It also emitted a candidate binding before
+forcing a replacement replay failure, then checked that the original
+binding survived and the candidate storage was released. All 226 selected
+native tests, five SDL checks and two x86 checks passed. The x86 Marcus
+worker built.
+
+The four saved draft archives, the 531-byte draft trace, the 1,045,462-byte
+Preview metadata trace and the headless Marcus startup image matched byte
+for byte. The standalone movie session evaluated Actor Audio's first
+scene at frame five through both its actor and retained-body queries.
+
+Actor-audio candidate `20261122T221336Z-6ffe7ea1` matched
+`20261122T220613Z-f9a1a961` on all 60 seek canvases and recorded states
+per port. Both ports matched the 60-frame seek and playback order in the
+retained retail and V3DMM run `20261122T082301Z-c465fa98`. SDL matched
+all 12 ordered sound requests. Evidence is under `tmp/c89-actor-motion`
+and `tmp/c89-aqcap`.

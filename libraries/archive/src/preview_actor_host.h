@@ -137,7 +137,6 @@ struct PreviewActor::Host
             return h.Guard([&] { return mm_brender_template_set_cel(static_cast<PTemplate>(t), static_cast<PBody>(b), action, cel, nullptr); });
         };
         mm_brender_actor_effect_renderer(&s.renderer);
-        s.motion = &actor->motionSounds;
         s.fetch_event_material = [](void *v, const MMTag *tag) -> MMMaterialOwner * {
             auto &h = *static_cast<Host *>(v);
             MMMaterialOwner *out = nullptr;

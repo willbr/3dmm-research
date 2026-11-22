@@ -28,7 +28,6 @@ PreviewActor::~PreviewActor()
     Host host = {this};
     auto services = host.Services();
     mm_preview_actor_dispose(&core, &services);
-    mm_actor_sounds_dispose(&motionSounds);
 }
 bool PreviewActor::Load(const MMMovieSessionGraph &graph, ChunkNumber number,
                         std::function<MMResourceCache *(const TAGOnFile &)> resolver,

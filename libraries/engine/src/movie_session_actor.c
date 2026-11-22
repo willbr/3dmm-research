@@ -418,7 +418,7 @@ static int pose(void *p, void *t, void *b, MMI32 action, MMI32 cel)
     (void)cel;
     return load_action((ActorInput *)p, action);
 }
-static void clear(void *p) { (void)p; }
+static void release_borrowed(void *p, void *token) { (void)p; (void)token; }
 static int cues(void *p) { (void)p; return 1; }
 
 static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedActor *out)
@@ -442,25 +442,27 @@ static int seek(ActorInput *input, MMU32 number, MMI32 frame, MMMovieEvaluatedAc
     services.fetch = fetch_template;
     services.bind = bind;
     services.body_create = create_body;
+    services.release_body = services.release_template = release_borrowed;
     services.text = text;
     services.rest = rest;
     services.locate = locate;
     services.pose = pose;
     services.apply = apply;
-    services.clear_motion = clear;
     services.default_costume = reset_costume;
     services.motion_cues = cues;
     mm_preview_actor_init(&input->actor);
     ok = mm_preview_actor_load(&input->actor, number, &input->archive->access, 1, &services) > 0 &&
          mm_preview_actor_seek(&input->actor, frame, &services) > 0 && input->status == MM_MOVIE_OK;
-    if (!ok)
-        return input->status ? input->status : MM_MOVIE_BAD_FILE;
-    out->number = number;
-    out->header = input->actor.header;
-    out->state = input->actor.state;
-    out->translation = input->body_pose.translation;
-    out->orientation = input->body_pose.orientation;
-    return MM_MOVIE_OK;
+    if (ok)
+    {
+        out->number = number;
+        out->header = input->actor.header;
+        out->state = input->actor.state;
+        out->translation = input->body_pose.translation;
+        out->orientation = input->body_pose.orientation;
+    }
+    mm_preview_actor_dispose(&input->actor, &services);
+    return ok ? MM_MOVIE_OK : input->status ? input->status : MM_MOVIE_BAD_FILE;
 }
 
 static int evaluate_body(ActorInput *input, const MMMovieEvaluatedActor *actor)
