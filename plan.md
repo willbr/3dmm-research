@@ -1766,9 +1766,10 @@ loners, and walks forest roots in archive order. The native compiler
 provides file access, resource imports, codec selection, archive writes,
 and source diagnostics.
 Chunky raw payloads and collection byte rows share a C89 listing formatter.
-The native emitter supplies file and memory views and forwards each rendered
-line to the text sink. Collection decoding and archive traversal still use
-the native decompiler.
+C89 classifies collection tags, decodes their array, group and string-table
+records, and emits their pack, byte-order, OSK and row directives. The native
+emitter supplies decoded chunk views, code-page conversion, and the text
+sink. Archive traversal and adoption listing still use the native decompiler.
 The interpreter's operand stack, list operations, and local and
 graphics-object variable tables now use C89 storage and algorithms.
 The C89 interpreter retains the script and owns instruction decoding,

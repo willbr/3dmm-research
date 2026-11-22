@@ -137,16 +137,10 @@ class Decompiler : public Decompiler_PAR
     LegacyLong _ert;  // error type
     PChunkyFile _pcfl; // the chunky file to read from
     FileByteStream _bsf;   // temporary buffer for the chunk data
-    short _bo;  // current byte order and osk
-    short _osk;
     SourceEmitter _chse; // chunky source emitter
 
   protected:
     bool _FDumpScript(ChunkIdentification *pcki);
-    bool _FDumpList(PDataBlock pblck, bool fAl);
-    bool _FDumpGroup(PDataBlock pblck, bool fAg);
-    bool _FDumpStringTable(PDataBlock pblck, bool fAst);
-    void _WritePack(LegacyLong cfmt);
 
   public:
     Decompiler(void);

@@ -21890,3 +21890,36 @@ seek canvases and camera and actor state. The seek and continuous frame
 order matched the retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
 
 The fixture, listings, and checks are under `tmp/c89-chunky-listing`.
+
+## C89 Chunky collection listings (22 November 2026)
+
+C89 recognizes the GL, AL, GG, AG, GST, and AST chunk prefixes and lists
+their decoded collection records. It emits the original packing, byte-order,
+and OSK directives, bitmap and offset holes, fixed and variable group data,
+escaped strings, and opaque extra bytes. It validates group locations and
+string offsets before writing any directives. The decompiler can then fall
+back to the original raw chunk, including its packed bytes. The native
+emitter supplies decompression, code-page conversion, and the line sink.
+
+Chomp matched 14 retained listings and their diagnostics byte for byte,
+totaling 702,654,912 output bytes across the retail ISO, generated Studio
+archives, and a fixture covering all six collection types. The fixture
+includes a packed big-endian array, UTF-16 string tables in both byte
+orders, and quoted strings at the legacy formatting limit. Malformed packed
+array and truncated string table listings matched in SDL and native Debug.
+The Debug warning text matched, and its source location moved to the
+emitter. The C tests cover invalid locations, directive state on failure,
+and direct two-byte output.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. Headless Marcus reproduced its startup canvas and exited. The
+separate `scene-load` failure reproduced its 63,224-byte trace and
+fingerprint `0D666753`.
+
+Silent suite `20261122T144321Z-4ece4ed0` matched both ports' preceding 60
+seek canvases and camera and actor state. Seek and continuous frame order
+matched retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
+
+Fixture listings, hashes, and checks are under
+`tmp/c89-chunky-listing-collections`. The hash manifest references the
+retained retail and Studio listings under `tmp/c89-chunky-listing`.

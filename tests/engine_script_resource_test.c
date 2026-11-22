@@ -4,6 +4,7 @@
 #include "mm/chunky_assembly.h"
 #include "mm/chunky_collection.h"
 #include "mm/chunky_listing.h"
+#include "mm/collections.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_strings.h"
@@ -2836,12 +2837,12 @@ typedef struct ChunkyByteListing
     size_t expected_count, count;
 } ChunkyByteListing;
 
-static void check_byte_line(void *context, const unsigned char *line, size_t length)
+static void check_byte_line(void *context, const void *line, size_t length, unsigned unit)
 {
     ChunkyByteListing *listing = context;
     const char *expected;
 
-    CHECK(listing->count < listing->expected_count);
+    CHECK(unit == 1 && listing->count < listing->expected_count);
     expected = listing->expected[listing->count++];
     CHECK(length == strlen(expected) && !memcmp(line, expected, length));
 }
@@ -2869,6 +2870,81 @@ static void chunky_byte_listing(void)
     memory.stream.read_at = NULL;
     CHECK(!mm_chunky_list_bytes(&memory.stream, 2, check_byte_line, &listing));
     CHECK(listing.count == 1);
+}
+
+static void chunky_collection_listing(void)
+{
+    static const char *const expected[] = {
+        "PACKFMT (0x4B434431) PACK", "MACBO", "MACOSK", "\tAG(0)", "\tITEM", "\tFREE"
+    };
+    const unsigned short one = 1;
+    unsigned char wire[36] = {0};
+    MMCollectionHeader header;
+    ChunkyByteListing output = {expected, sizeof(expected) / sizeof(*expected), 0};
+    MMChunkyCollectionListing listing = {NULL, check_byte_line, NULL, 1, MM_TEXT_WINDOWS, MM_TEXT_WINDOWS, 1};
+    MMChunkyCollectionMode mode = {0, MM_TEXT_WINDOWS};
+    MMMemoryStream memory;
+
+    listing.context = &output;
+    CHECK(mm_chunky_list_kind(0x47535458UL) == MM_CHUNKY_LIST_GST);
+    CHECK(mm_chunky_list_kind(0x41473837UL) == MM_CHUNKY_LIST_AG);
+    CHECK(mm_chunky_list_kind(0x53435054UL) == MM_CHUNKY_LIST_NONE);
+    memset(&header, 0, sizeof(header));
+    header.kind = MM_COLLECTION_GROUP;
+    header.big_endian = *(const unsigned char *)&one != 0;
+    header.system = MM_TEXT_MAC;
+    header.count = 2;
+    header.free_count = 1;
+    CHECK(mm_collection_header_write(&header, wire, sizeof(wire)) == MM_STORAGE_OK);
+    memset(wire + 28, 255, 4);
+    CHECK(mm_memory_stream_init(&memory, wire, sizeof(wire)));
+    wire[20] = 1;
+    CHECK(mm_chunky_list_collection(&memory.stream, MM_CHUNKY_LIST_AG, 1, 0x4B434431UL, &listing, &mode) == MM_STORAGE_ARGUMENT);
+    CHECK(output.count == 0 && !mode.foreign_order && mode.system == MM_TEXT_WINDOWS);
+    wire[20] = 0;
+    CHECK(mm_chunky_list_collection(&memory.stream, MM_CHUNKY_LIST_AG, 1, 0x4B434431UL, &listing, &mode) == MM_STORAGE_OK);
+    CHECK(output.count == output.expected_count && mode.foreign_order && mode.system == MM_TEXT_MAC);
+}
+
+static void check_wide_collection_line(void *context, const void *line, size_t length, unsigned unit)
+{
+    static const unsigned short value[] = {'\t', '\t', '"', 0x03a9, '\\', '"', '"'};
+    size_t *count = context;
+
+    if (*count == 0)
+        CHECK(unit == 1 && length == 7 && !memcmp(line, "\tGST(0)", length));
+    else if (*count == 1)
+        CHECK(unit == 1 && length == 5 && !memcmp(line, "\tITEM", length));
+    else
+        CHECK(*count == 2 && unit == 2 && length == sizeof(value) / sizeof(*value) && !memcmp(line, value, sizeof(value)));
+    ++*count;
+}
+
+static void chunky_wide_collection_listing(void)
+{
+    static const unsigned short string[] = {2, 0x03a9, '"'};
+    const unsigned short one = 1;
+    unsigned char wire[20 + sizeof(string) + 4] = {0};
+    MMCollectionHeader header;
+    MMChunkyCollectionMode mode = {0, MM_TEXT_UTF16_LE};
+    MMChunkyCollectionListing listing = {NULL, check_wide_collection_line, NULL, 2, MM_TEXT_UTF16_LE, MM_TEXT_UTF16_LE, 1};
+    MMMemoryStream memory;
+    size_t lines = 0;
+
+    memset(&header, 0, sizeof(header));
+    header.kind = MM_COLLECTION_STRINGS;
+    header.big_endian = *(const unsigned char *)&one == 0;
+    header.system = listing.native_system;
+    header.width = 4;
+    header.count = 1;
+    header.bytes = sizeof(string);
+    header.free_count = -1;
+    listing.context = &lines;
+    CHECK(mm_collection_header_write(&header, wire, sizeof(wire)) == MM_STORAGE_OK);
+    memcpy(wire + 20, string, sizeof(string));
+    CHECK(mm_memory_stream_init(&memory, wire, sizeof(wire)));
+    CHECK(mm_chunky_list_collection(&memory.stream, MM_CHUNKY_LIST_GST, 0, 0, &listing, &mode) == MM_STORAGE_OK);
+    CHECK(lines == 3);
 }
 
 #undef SOURCE_KIND
@@ -2904,6 +2980,8 @@ int main(void)
     chunky_assembly();
     chunky_forest_roots();
     chunky_byte_listing();
+    chunky_collection_listing();
+    chunky_wide_collection_listing();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

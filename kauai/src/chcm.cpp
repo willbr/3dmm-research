@@ -1143,9 +1143,6 @@ bool Decompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
     _ert = ertNil;
     _chse.Init(pmsnk, pmsnkError);
 
-    _bo = kboCur;
-    _osk = koskCur;
-
     _chse.DumpSz(PszLit("BYTE"));
     _chse.DumpSz(PszLit(""));
     for (icki = 0; _pcfl->FGetCki(icki, &cki, pvNil, &blck); icki++)
@@ -1172,34 +1169,12 @@ bool Decompiler::FDecompile(PChunkyFile pcflSrc, PMSNK pmsnk, PMSNK pmsnkError)
             break;
         }
 
-        // handle 3 character ctg's
-        ctg = ctg & 0xFFFFFF00L | 0x00000020L;
-        switch (ctg)
         {
-        case kctgGst:
-        case kctgAst:
-            if (_FDumpStringTable(&blck, kctgAst == ctg))
+            const auto result = _chse.DumpCollection(cki.ctg, &blck);
+            if (result == SourceEmitter::CollectionResult::Dumped)
                 goto LEndChunk;
-            _pcfl->FGetCki(icki, &cki, pvNil, &blck);
-            break;
-        }
-
-        // handle 2 character ctg's
-        ctg = ctg & 0xFFFF0000L | 0x00002020L;
-        switch (ctg)
-        {
-        case kctgGl:
-        case kctgAl:
-            if (_FDumpList(&blck, kctgAl == ctg))
-                goto LEndChunk;
-            _pcfl->FGetCki(icki, &cki, pvNil, &blck);
-            break;
-        case kctgGg:
-        case kctgAg:
-            if (_FDumpGroup(&blck, kctgAg == ctg))
-                goto LEndChunk;
-            _pcfl->FGetCki(icki, &cki, pvNil, &blck);
-            break;
+            if (result == SourceEmitter::CollectionResult::Invalid)
+                _pcfl->FGetCki(icki, &cki, pvNil, &blck);
         }
 
         _chse.DumpBlck(&blck);
@@ -1247,145 +1222,13 @@ bool Decompiler::_FDumpScript(ChunkIdentification *pcki)
         return fFalse;
 
     if (fPacked)
-        _WritePack(cfmt);
+        _chse.DumpPack(cfmt);
 
     fRet = _chse.FDumpScript(pscpt, &sccg);
 
     ScriptInterpreter::ReleaseScript(&pscpt);
 
     return fRet;
-}
-
-/***************************************************************************
-    Try to read the chunk as a list and dump it out.  If the chunk isn't
-    a list, return false so it can be dumped in hex.
-***************************************************************************/
-bool Decompiler::_FDumpList(PDataBlock pblck, bool fAl)
-{
-    AssertThis(0);
-    AssertPo(pblck, fblckReadable);
-
-    PVirtualArray pglb;
-    short bo, osk;
-    LegacyLong cfmt;
-    bool fPacked = pblck->FPacked(&cfmt);
-
-    pglb = fAl ? (PVirtualArray)AllocatedArray::PalRead(pblck, &bo, &osk) : (PVirtualArray)DynamicArray::PglRead(pblck, &bo, &osk);
-    if (pvNil == pglb)
-        return fFalse;
-
-    if (fPacked)
-        _WritePack(cfmt);
-
-    if (bo != _bo)
-    {
-        _chse.DumpSz(const_cast<PZString>(MacWin(bo != kboCur, bo == kboCur) ? PszLit("WINBO") : PszLit("MACBO")));
-        _bo = bo;
-    }
-    if (osk != _osk)
-    {
-        _chse.DumpSz(const_cast<PZString>(osk == koskWin ? PszLit("WINOSK") : PszLit("MACOSK")));
-        _osk = osk;
-    }
-
-    _chse.DumpList(pglb);
-    ReleasePpo(&pglb);
-
-    return fTrue;
-}
-
-/***************************************************************************
-    Try to read the chunk as a group and dump it out.  If the chunk isn't
-    a group, return false so it can be dumped in hex.
-***************************************************************************/
-bool Decompiler::_FDumpGroup(PDataBlock pblck, bool fAg)
-{
-    AssertThis(0);
-    AssertPo(pblck, fblckReadable);
-
-    PVirtualGroup pggb;
-    short bo, osk;
-    LegacyLong cfmt;
-    bool fPacked = pblck->FPacked(&cfmt);
-
-    pggb = fAg ? (PVirtualGroup)AllocatedGroup::PagRead(pblck, &bo, &osk) : (PVirtualGroup)GeneralGroup::PggRead(pblck, &bo, &osk);
-    if (pvNil == pggb)
-        return fFalse;
-
-    if (fPacked)
-        _WritePack(cfmt);
-
-    if (bo != _bo)
-    {
-        _chse.DumpSz(const_cast<PZString>(MacWin(bo != kboCur, bo == kboCur) ? PszLit("WINBO") : PszLit("MACBO")));
-        _bo = bo;
-    }
-    if (osk != _osk)
-    {
-        _chse.DumpSz(const_cast<PZString>(osk == koskWin ? PszLit("WINOSK") : PszLit("MACOSK")));
-        _osk = osk;
-    }
-
-    _chse.DumpGroup(pggb);
-    ReleasePpo(&pggb);
-
-    return fTrue;
-}
-
-/***************************************************************************
-    Try to read the chunk as a string table and dump it out.  If the chunk
-    isn't a string table, return false so it can be dumped in hex.
-***************************************************************************/
-bool Decompiler::_FDumpStringTable(PDataBlock pblck, bool fAst)
-{
-    AssertThis(0);
-    AssertPo(pblck, fblckReadable);
-
-    PVirtualStringTable pgstb;
-    short bo, osk;
-    LegacyLong cfmt;
-    bool fPacked = pblck->FPacked(&cfmt);
-    bool fRet;
-
-    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastRead(pblck, &bo, &osk) : (PVirtualStringTable)StringTable_GST::PgstRead(pblck, &bo, &osk);
-    if (pvNil == pgstb)
-        return fFalse;
-
-    if (fPacked)
-        _WritePack(cfmt);
-
-    if (bo != _bo)
-    {
-        _chse.DumpSz(const_cast<PZString>(MacWin(bo != kboCur, bo == kboCur) ? PszLit("WINBO") : PszLit("MACBO")));
-        _bo = bo;
-    }
-    if (osk != _osk)
-    {
-        _chse.DumpSz(const_cast<PZString>(osk == koskWin ? PszLit("WINOSK") : PszLit("MACOSK")));
-        _osk = osk;
-    }
-
-    fRet = _chse.FDumpStringTable(pgstb);
-    ReleasePpo(&pgstb);
-
-    return fRet;
-}
-
-/***************************************************************************
-    Write out the PACKFMT and PACK commands
-***************************************************************************/
-void Decompiler::_WritePack(LegacyLong cfmt)
-{
-    AssertThis(0);
-    String stn;
-
-    if (cfmtNil == cfmt)
-        _chse.DumpSz(PszLit("PACK"));
-    else
-    {
-        stn.FFormatSz(PszLit("PACKFMT (0x%x) PACK"), cfmt);
-        _chse.DumpSz(stn.Psz());
-    }
 }
 
 } // end of namespace Chunky

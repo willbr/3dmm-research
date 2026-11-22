@@ -11,7 +11,9 @@
 
 ***************************************************************************/
 #include "util.h"
-#include "mm/chunky_listing.h"
+#include "engine_read_stream.h"
+#include "mm/collection_storage.h"
+#include <cstring>
 ASSERTNAME
 
 namespace Chunky {
@@ -24,11 +26,14 @@ namespace {
 
 static_assert(kcchMaxStn == MM_CHUNKY_LISTING_LINE_LIMIT, "Chunky listing line must fit a native string");
 
-void WriteByteLine(void *context, const unsigned char *text, size_t length)
+void WriteListingLine(void *context, const void *text, size_t length, unsigned unit)
 {
     ZString line;
-    for (size_t index = 0; index < length; ++index)
-        line[index] = static_cast<achar>(text[index]);
+    if (unit == sizeof(achar))
+        std::memcpy(line, text, length * unit);
+    else
+        for (size_t index = 0; index < length; ++index)
+            line[index] = static_cast<const unsigned char *>(text)[index];
     line[length] = 0;
     static_cast<SourceEmitter *>(context)->DumpSz(line);
 }
@@ -37,6 +42,11 @@ int ReadByteLocation(void *context, MMU32 offset, void *data, size_t length)
 {
     return static_cast<FileLocation *>(context)->FReadRgb(data, static_cast<LegacyLong>(length),
                                                          static_cast<FilePosition>(offset));
+}
+
+size_t TranslateListingString(void *, const void *input, size_t bytes, int system, void *output, size_t capacity)
+{
+    return CchTranslateRgb(const_cast<void *>(input), bytes, system, static_cast<achar *>(output), capacity);
 }
 
 } // namespace
@@ -76,6 +86,7 @@ void SourceEmitter::Init(PMSNK pmsnkDump, PMSNK pmsnkError)
     _pmsnkError = pmsnkError;
     if (_pmsnkError != pvNil)
         _pmsnkError->AddRef();
+    _collectionMode = {0, koskCur};
 
     AssertThis(fchseDump);
 }
@@ -158,7 +169,7 @@ void SourceEmitter::DumpBlck(PDataBlock pblck)
         return;
     }
     const MMReadStream stream = {&flo, static_cast<MMU32>(flo.cb), ReadByteLocation};
-    const bool dumped = mm_chunky_list_bytes(&stream, 1, WriteByteLine, this) != 0;
+    const bool dumped = mm_chunky_list_bytes(&stream, 1, WriteListingLine, this) != 0;
     ReleasePpo(&flo.pfil);
     if (!dumped)
         Error(PszLit("Dumping chunk failed"));
@@ -178,9 +189,36 @@ void SourceEmitter::DumpRgb(void *prgb, LegacyLong cb, LegacyLong cactTab)
     {
         MMMemoryStream memory;
         if (!mm_memory_stream_init(&memory, prgb, cb) ||
-            !mm_chunky_list_bytes(&memory.stream, cactTab, WriteByteLine, this))
+            !mm_chunky_list_bytes(&memory.stream, cactTab, WriteListingLine, this))
             Error(PszLit("Dumping bytes failed"));
     }
+}
+
+SourceEmitter::CollectionResult SourceEmitter::DumpCollection(ChunkTagOrType tag, PDataBlock block)
+{
+    const auto kind = mm_chunky_list_kind(tag);
+    if (kind == MM_CHUNKY_LIST_NONE)
+        return CollectionResult::NotCollection;
+
+    LegacyLong format;
+    const bool packed = block->FPacked(&format);
+    if (!block->FUnpackData())
+        return CollectionResult::Invalid;
+
+    const auto stream = EngineReadStream::FromBlock(*block);
+    const MMChunkyCollectionListing listing = {
+        this, WriteListingLine, TranslateListingString, sizeof(achar), koskCur, koskWin, MacWin(0, 1)
+    };
+    const int result = mm_chunky_list_collection(&stream, kind, packed, format, &listing, &_collectionMode);
+    if (result == MM_STORAGE_ARGUMENT)
+        Warn("file corrupt or not the requested collection");
+    return result == MM_STORAGE_OK ? CollectionResult::Dumped : CollectionResult::Invalid;
+}
+
+void SourceEmitter::DumpPack(LegacyLong format)
+{
+    static_assert(cfmtNil == 0, "Chunky default codec marker");
+    mm_chunky_list_pack(format, WriteListingLine, this);
 }
 
 /***************************************************************************
