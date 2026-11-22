@@ -248,13 +248,11 @@ bool GraphicsPort::FGetIndexedPalette(Color *colors)
     BltPb(_rgclrPixels, colors, sizeof(_rgclrPixels));
     return true;
 }
-bool GraphicsPort::_FDrawPackedCopy(PGraphicsPort source, SystemRectangle *sourceRect, SystemRectangle *destinationRect,
+bool GraphicsPort::_FDrawPackedCopy(const KauaiPixels::PackedSurface &input, SystemRectangle *sourceRect,
+                                    SystemRectangle *destinationRect,
                                     GraphicsDrawingData *drawing)
 {
-    if (!_prgbPixels || !source->_prgbPixels)
-        return false;
     _EnsurePalette();
-    source->_EnsurePalette();
     RC src(*sourceRect), dst(*destinationRect), clip;
     if (drawing->prcsClip)
         clip = *drawing->prcsClip;
@@ -266,13 +264,6 @@ bool GraphicsPort::_FDrawPackedCopy(PGraphicsPort source, SystemRectangle *sourc
                                               _cbitPixel,
                                               _cbitPixel <= 8 ? _rgclrPixels : nullptr,
                                               _cbitPixel <= 8 ? 1 << _cbitPixel : 0};
-    KauaiPixels::PackedSurface input = {source->_prgbPixels,
-                                        source->_rcOff.Dxp(),
-                                        source->_rcOff.Dyp(),
-                                        source->_cbRow,
-                                        source->_cbitPixel,
-                                        source->_cbitPixel <= 8 ? source->_rgclrPixels : nullptr,
-                                        source->_cbitPixel <= 8 ? 1 << source->_cbitPixel : 0};
     if (src.Dxp() == dst.Dxp() && src.Dyp() == dst.Dyp() && src.Dxp() > 0 && src.Dyp() > 0 &&
         (input.depth == 8 || input.depth == 32) && (destination.depth == 8 || destination.depth == 32))
     {
@@ -341,35 +332,18 @@ bool GraphicsPort::_FCopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc,
     if (!_prgbPixels || !pgptSrc->_prgbPixels)
         return false;
 
-    if ((_cbitPixel != 8 || pgptSrc->_cbitPixel != 8) && _FDrawPackedCopy(pgptSrc, prcsSrc, prcsDst, pgdd))
-    {
-        _fPixelColorOnColor = true;
+    const auto depth = pgptSrc->_cbitPixel;
+    const MMPixelSurface source{pgptSrc->_prgbPixels, pgptSrc->_rcOff.Dxp(), pgptSrc->_rcOff.Dyp(), pgptSrc->_cbRow,
+                                depth};
+    if (depth == 8 && _cbitPixel == 8 && !pgptSrc->_PixelOwnPalette() && !_PixelOwnPalette() &&
+        _FCopyIndexedDouble(source, RC(*prcsSrc), RC(*prcsDst), pgdd))
         return true;
-    }
 
-    if (pgptSrc->_cbitPixel == 8 && _cbitPixel == 8 && !pgptSrc->_PixelOwnPalette() && !_PixelOwnPalette())
-    {
-        RC source, clip, requestedClip;
-        if (pgdd->prcsClip)
-            requestedClip = *pgdd->prcsClip;
-        const auto mode = PlanDoubleStretch(pgptSrc->_rcOff, RC(*prcsSrc), RC(*prcsDst),
-                                            pgdd->prcsClip ? &requestedClip : nullptr, source, clip);
-        if (mode != IndexedDoubleStretch::unavailable)
-        {
-            if (mode == IndexedDoubleStretch::clipped)
-                return true;
-            Flush();
-            const auto stretch = mode == IndexedDoubleStretch::vertical ? DoubleVertStretch : DoubleStretch;
-            stretch(pgptSrc->_prgbPixels, pgptSrc->_cbRow, pgptSrc->_rcOff.Dyp(), &source, _prgbPixels, _cbRow,
-                    _rcOff.Dyp(), prcsDst->left, prcsDst->top, &clip, _pregnClip);
-            return true;
-        }
-    }
-
+    pgptSrc->_EnsurePalette();
+    const KauaiPixels::PackedSurface input{source.pixels, source.width, source.height, source.pitch, depth,
+                                          depth <= 8 ? pgptSrc->_rgclrPixels : nullptr, depth <= 8 ? 1 << depth : 0};
     _fPixelColorOnColor = true;
-    if (_FDrawPackedCopy(pgptSrc, prcsSrc, prcsDst, pgdd))
-        return true;
-    return false;
+    return _FDrawPackedCopy(input, prcsSrc, prcsDst, pgdd);
 }
 
 bool GraphicsPort::_FDrawPixelMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GraphicsDrawingData *pgdd)

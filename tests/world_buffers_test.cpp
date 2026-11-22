@@ -56,9 +56,9 @@ struct Access : World
         Value(w->FHalfY());
         Value(w->RenderScale());
         Value((w->*&Access::_render).changed);
-        const auto background = mm_world_background_pixels(&buffers);
+        const auto background = mm_world_buffer_pixels(&buffers.background);
         Value(background.pixels != nullptr);
-        Value(buffers.owners[MM_WORLD_RGB_WORKING] != nullptr);
+        Value(buffers.working.surface.pixels != nullptr);
         // Preserve the snapshot field for the vertical-only half-resolution mode.
         Value(buffers.scale == 1 && !buffers.half_x && buffers.half_y);
         Value(buffers.owners[MM_WORLD_DEPTH_WORKING] != nullptr);

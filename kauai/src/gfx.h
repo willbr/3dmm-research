@@ -36,6 +36,7 @@ namespace KauaiPixels
 struct Brush;
 struct Brush8;
 struct DibFrame;
+struct PackedSurface;
 class PixelBuffer;
 struct MonochromeBrushState;
 } // namespace KauaiPixels
@@ -564,6 +565,7 @@ class GraphicsEnvironment : public GraphicsEnvironment_PAR
 
     // bitmaps and pictures
     void CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, RC *prcDst);
+    void CopyIndexedPixels(const MMPixelSurface &, RC *destination);
     void DrawPic(PPicture ppic, RC *prc);
     void DrawMbmp(PMaskedBitmapMBMP pmbmp, long xp, long yp);
     void DrawMbmp(PMaskedBitmapMBMP pmbmp, RC *prc);

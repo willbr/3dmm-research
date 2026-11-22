@@ -92,10 +92,8 @@ struct Access : World
             Value(mm_region_empty(region) != 0);
             Record(&r, sizeof(r));
         }
-        auto rgb = static_cast<PGraphicsPort>(buffers.owners[MM_WORLD_RGB_WORKING]);
-        auto p = rgb->PrgbLockPixels();
-        Record(p, rgb->CbRow() * buffers.buffer_height);
-        rgb->Unlock();
+        const auto rgb = mm_world_buffer_pixels(&buffers.working);
+        Record(rgb.pixels, rgb.bytes);
         auto z = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(buffers.owners[MM_WORLD_DEPTH_WORKING]));
         Record(z->pixels, z->row_bytes * buffers.buffer_height);
         Materials();

@@ -12,13 +12,13 @@ extern "C"
         MMWorldBufferServices buffers;
         MMWorldRenderServices render;
         void *(*palette)(void *);
+        void (*release_palette)(void *, void *);
         void (*bounds_callback)(void *, int enabled);
         void (*raster)(void *, const MMRenderFrame *, const MMWorldPixelView *rgb, const MMWorldPixelView *depth);
         int (*write)(void *, const MMWorldPixels *, void *palette, MMI32 width, MMI32 height);
     } MMWorldExportServices;
-    /* Services provide retained cache fetches and owned palette copies. Release
-     * palettes through buffers.release. The current-frame export borrows the
-     * working port through buffers.lock/unlock. Callbacks must not reenter
+    /* Services provide retained cache fetches and owned palette copies. The
+     * current-frame export borrows the C working buffer. Callbacks must not reenter
      * rendering or replace/dispose the world, cache, actors or material registry. */
     int mm_world_export_size(const MMWorldBuffers *, MMI32 requested_scale, MMI32 *scale,
                                    MMI32 *width, MMI32 *height);

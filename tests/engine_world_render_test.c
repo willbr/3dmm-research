@@ -3,7 +3,6 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#define RGB MM_WORLD_RGB_WORKING
 typedef struct Actor
 {
     struct Actor *child, *next;
@@ -21,9 +20,9 @@ typedef struct Fixture
     unsigned char background[64], working[64], z_background[48], z_working[48];
     MMDepthBitmap depth_source, depth_working;
     MMPixelRect marked;
-    int events[512], n, live, allocations, fail_alloc, fail_lock, invalid_pixels;
+    int events[512], n, live, allocations, fail_alloc;
     int wire, flat, no_texture, begin_options, rect_enabled, rect_disable, rect_overflow;
-    int change_in_render, draw_source[4], draw_destination[4];
+    int change_in_render, draw_destination[4];
     int body_refs, prepared;
     size_t reported;
 } Fixture;
@@ -146,25 +145,6 @@ static void options(void *p, int *wire, int *flat, int *no_texture)
     *flat = f->flat;
     *no_texture = f->no_texture;
 }
-static int lock(void *p, void *port, MMWorldPixels *out)
-{
-    Fixture *f = (Fixture *)p;
-    assert(port == f->working);
-    assert(f->z_working[14] == f->z_background[14]);
-    event(f, 21);
-    if (f->fail_lock)
-        return 0;
-    out->pixels = f->working;
-    out->row = 9;
-    out->bytes = f->invalid_pixels ? 1 : 64;
-    return 1;
-}
-static void unlock(void *p, void *port)
-{
-    Fixture *f = (Fixture *)p;
-    assert(port == f->working);
-    event(f, 22);
-}
 static int body(void *p, void *actor, MMRenderBody *out)
 {
     Fixture *f = (Fixture *)p;
@@ -200,6 +180,7 @@ static void render(void *p, const MMRenderFrame *frame)
     const MMRenderBody *bodies;
     assert(frame->world == &f->a[0] && frame->camera == &f->a[6] &&
            frame->colour == f->working && frame->depth == f->background);
+    assert(f->z_working[14] == f->z_background[14] && f->working[11] == f->background[10]);
     assert(frame->scene && frame->scene->camera.matrix[9] == 1234 && frame->scene->camera.fov == 789);
     assert(frame->scene->bodies.count == (f->s.body ? 2U : 0U));
     if (f->s.body)
@@ -235,10 +216,11 @@ static void mark(void *p, const MMRegion *region)
     f->marked = region->bounds;
     event(f, 92);
 }
-static void draw(void *p, const MMI32 src[4], const MMI32 dst[4])
+static void draw(void *p, const MMPixelSurface *src, const MMI32 dst[4])
 {
     Fixture *f = (Fixture *)p;
-    memcpy(f->draw_source, src, sizeof(f->draw_source));
+    assert(src == &f->b.working.surface && src->pixels == f->working && src->width == 6 && src->height == 4 &&
+           src->pitch == 9 && src->depth == 8);
     memcpy(f->draw_destination, dst, sizeof(f->draw_destination));
     event(f, 94);
 }
@@ -267,17 +249,17 @@ static void init(Fixture *f)
     f->b.z.pixels = f->z_working;
     f->b.owners[MM_WORLD_DEPTH_WORKING] = f->z_working;
     f->b.owners[MM_WORLD_DEPTH_BACKGROUND] = f->z_background;
-    f->b.owners[RGB] = f->working;
     f->b.background.surface.pixels = f->background;
     f->b.background.surface.width = 6;
     f->b.background.surface.height = 4;
     f->b.background.surface.pitch = 8;
     f->b.background.surface.depth = 8;
     f->b.background.bytes = sizeof(f->background);
+    f->b.working = f->b.background;
+    f->b.working.surface.pixels = f->working;
+    f->b.working.surface.pitch = 9;
     f->buffers.context = f;
     f->buffers.depth_bitmap = depth_bitmap;
-    f->buffers.lock = lock;
-    f->buffers.unlock = unlock;
     memset(f->z_background, 0x52, sizeof(f->z_background));
     memset(f->z_working, 0xcc, sizeof(f->z_working));
     f->rect_enabled = 1;
@@ -410,7 +392,7 @@ static void clean_tests(void)
     for (y = 0; y < 4; ++y)
         for (x = 0; x < 12; ++x)
             assert(f.z_working[y * 12 + x] == (y >= 1 && x >= 2 && x < 6 ? 0x52 : 0xcc));
-    assert(f.n == 2 && f.events[0] == 21 && f.events[1] == 22);
+    assert(!f.n);
     dispose_regions(&f);
     for (scenario = 0; scenario < 4; ++scenario)
     {
@@ -420,16 +402,11 @@ static void clean_tests(void)
         if (scenario == 1)
             f.b.background.bytes = 1;
         if (scenario == 2)
-            f.fail_lock = 1;
+            f.b.working.surface.pixels = NULL;
         if (scenario == 3)
-            f.invalid_pixels = 1;
+            f.b.working.bytes = 1;
         assert(mm_world_render_clean(&f.b, &f.buffers) == (scenario == 0));
-        if (scenario < 2)
-            assert(!f.n);
-        if (scenario == 2)
-            assert(f.n == 1 && f.events[0] == 21);
-        if (scenario == 3)
-            assert(f.n == 2 && f.events[0] == 21 && f.events[1] == 22);
+        assert(!f.n);
         for (x = 0; x < 64; ++x)
             assert(f.working[x] == 0xcc);
         dispose_regions(&f);
@@ -453,8 +430,6 @@ static void render_tests(void)
         assert(!f.r.changed && !f.live);
         assert(f.a[0].style == 99 && f.a[5].style == bound_style && f.a[6].style == 7 && f.a[3].style == 7);
         assert(f.events[0] == 101 && f.events[1] == 102);
-        assert(position(&f, 21) >= 0 && position(&f, 22) > position(&f, 21) &&
-               position(&f, 50) > position(&f, 22));
         assert(position(&f, 200) < position(&f, 50) && position(&f, 151) > position(&f, 50));
         i = position(&f, 50);
         assert(f.events[i + 1] == 200 && f.events[i + 2] == 201 && f.events[i + 3] == 202);
@@ -484,8 +459,7 @@ static void render_tests(void)
     f.n = 0;
     assert(mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
     assert(!f.r.changed);
-    i = f.n - 4;
-    assert(f.events[i] == 81 && f.events[i + 1] == 21 && f.events[i + 2] == 22 && f.events[i + 3] == 83);
+    assert(f.events[f.n - 2] == 81 && f.events[f.n - 1] == 83);
     for (i = 0; i < 4; ++i)
     {
         assert(!memcmp(f.background + i * 8, f.working + i * 9, 6));
@@ -493,9 +467,9 @@ static void render_tests(void)
     }
     f.n = 0;
     f.working[0] = 0x99;
-    f.fail_lock = 1;
+    f.b.working.bytes = 1;
     assert(!mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
-    assert(f.n == 3 && f.events[0] == 81 && f.events[1] == 21 && f.events[2] == 83);
+    assert(f.n == 2 && f.events[0] == 81 && f.events[1] == 83);
     assert(f.background[0] == 0xcc);
     dispose_regions(&f);
     init(&f);
@@ -538,13 +512,15 @@ static void output_tests(void)
         assert(f.n == 1 && f.events[0] == 92 && mm_region_empty(&f.b.dirty_screen));
         assert(f.marked.left == -3 && f.marked.top == 4 && f.marked.right == w - 3 && f.marked.bottom == h + 4);
         assert(mm_world_render_draw(&f.b, 2, -1, &f.s));
-        assert(f.draw_source[2] == 6 && f.draw_source[3] == 4 && f.draw_destination[0] == -2 &&
-               f.draw_destination[1] == 1 && f.draw_destination[2] == 10 && f.draw_destination[3] == 9);
+        assert(f.draw_destination[0] == -2 && f.draw_destination[1] == 1 &&
+               f.draw_destination[2] == 10 && f.draw_destination[3] == 9);
         f.n = 0;
         assert(!mm_world_render_draw(&f.b, (-2147483647 - 1), 0, &f.s));
         assert(!f.n);
         assert(!mm_world_render_draw(&f.b, -2147483647, 0, &f.s));
         assert(!f.n);
+        f.b.working.bytes = 1;
+        assert(!mm_world_render_draw(&f.b, 0, 0, &f.s) && !f.n);
     }
 }
 int main(void)

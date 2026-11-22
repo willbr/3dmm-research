@@ -22071,3 +22071,32 @@ order. Seek and playback order matched the retained retail and V3DMM
 captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows, and checks are under `tmp/c89-world-retained`.
+
+## C89 World working framebuffer (22 November 2026)
+
+The C89 World record now owns the indexed working framebuffer as well as the
+retained background. BRender borrows the working pixels with the legacy tight
+renderer stride. Dirty-region restoration, prerender capture, and current-frame
+BMP export use the four-byte-aligned rows directly. Mode rollback restores
+both previous allocations and their descriptors.
+
+Studio's SDL display draws from the C89 surface through Kauai's existing
+packed copy and indexed double-stretch paths. The native GDI adapter uses
+the direct indexed stretch where applicable and stages other transfers
+through its existing DIB path.
+
+Five native and SDL World snapshots matched all 14,387,434 retained bytes.
+The C89 tests exercise invalid spans, row padding, and mode rollback. All
+241 selected test runs passed across C89, native x64 and x86, SDL, and
+Chomp, including the SDL pixel-port and native GDI transfer checks.
+Headless Studio ISO, authoring, and F1 Help workflows passed, with both saved
+movies and five canvases matching retained artifacts. Headless Marcus
+reproduced its startup canvas. The separate `scene-load` failure reproduced
+its 63,224-byte trace and fingerprint `0D666753`.
+
+The four port runs in suite `20261122T154001Z-01c826ac` matched the preceding
+60 seek canvases per port, camera and actor state, and continuous playback
+order. Seek and playback order matched the retained retail and V3DMM
+captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows, and checks are under `tmp/c89-world-working`.

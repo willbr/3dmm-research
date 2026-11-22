@@ -41,12 +41,6 @@ static br_diaghandler *PreviousDiagHandler;
 
 RTCLASS(World)
 
-const long kcbitPixelRGB = 8; // RGB buffers are 8 bits deep
-const long kcbPixelRGB = 1;
-
-const long kcbitPixelZ = 16; // Z buffers are 16 bits deep
-const long kcbPixelZ = 2;
-
 bool World::_fBRenderInited = fFalse;
 bool World::_fRenderWireframe = fFalse;
 bool World::_fFlatShading = fFalse;
@@ -123,11 +117,10 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         auto c = static_cast<WorldRenderContext *>(p);
         vpappb->MarkRegion(region, c->gob);
     };
-    s.draw = [](void *p, const MMI32 source[4], const MMI32 destination[4]) {
+    s.draw = [](void *p, const MMPixelSurface *source, const MMI32 destination[4]) {
         auto c = static_cast<WorldRenderContext *>(p);
-        auto src = RenderRect(source), dst = RenderRect(destination);
-        GraphicsEnvironment temp(static_cast<PGraphicsPort>(c->world->_buffers.owners[MM_WORLD_RGB_WORKING]));
-        c->destination->CopyPixels(&temp, &src, &dst);
+        auto dst = RenderRect(destination);
+        c->destination->CopyIndexedPixels(*source, &dst);
     };
     return s;
 }
@@ -143,28 +136,11 @@ MMWorldBufferServices World::_BufferServices()
     s.context = this;
     s.rgb_type = BR_PMT_INDEX_8;
     s.depth_type = BR_PMT_DEPTH_16;
-    s.create = [](void *, int kind, MMI32 width, MMI32 height) -> void * {
-        RC r(0, 0, width, height);
-        if (kind == MM_WORLD_DEPTH_BACKGROUND || kind == MM_WORLD_DEPTH_WORKING)
-            return NewDepthBitmap(width, height);
-        return GraphicsPort::PgptNewOffscreen(&r, kcbitPixelRGB);
-    };
+    s.create = [](void *, int, MMI32 width, MMI32 height) -> void * { return NewDepthBitmap(width, height); };
     s.retain_cache = [](void *, void *p) { mm_resource_cache_retain(static_cast<MMResourceCache *>(p)); };
     s.release_cache = [](void *, void *p) { mm_resource_cache_release(static_cast<MMResourceCache *>(p)); };
-    s.release = [](void *, void *p) { static_cast<BASE *>(p)->Release(); };
     s.release_depth = [](void *, void *p) { mm_depth_owner_release(static_cast<MMDepthOwner *>(p)); };
     s.release_bitmap = [](void *, void *p) { mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(p)); };
-    s.lock = [](void *, void *p, MMWorldPixels *out) -> int {
-        auto port = static_cast<PGraphicsPort>(p);
-        RC bounds;
-        auto pixels = port->PrgbLockPixels(&bounds);
-        if (!pixels)
-            return 0;
-        const auto row = static_cast<MMI32>(port->CbRow());
-        *out = {pixels, row, size_t(row) * bounds.Dyp()};
-        return 1;
-    };
-    s.unlock = [](void *, void *p) { static_cast<PGraphicsPort>(p)->Unlock(); };
     s.depth_bitmap = [](void *, void *p) { return mm_depth_owner_bitmap(static_cast<const MMDepthOwner *>(p)); };
     s.masked_bitmap = [](void *, void *p) { return mm_masked_owner_bitmap(static_cast<PMaskedBitmapMBMP>(p)); };
     s.setup_scene = [](void *p) {
@@ -510,8 +486,9 @@ bool World::FClickedActor(long xp, long yp, BACT **ppbact)
 void World::AssertValid(LegacyUlong grf)
 {
     World_PAR::AssertValid(fobjAllocated);
-    AssertPo(static_cast<PGraphicsPort>(_buffers.owners[MM_WORLD_RGB_WORKING]), 0);
-    const auto background = mm_world_background_pixels(&_buffers);
+    const auto working = mm_world_buffer_pixels(&_buffers.working);
+    Assert(mm_world_pixels_valid(&working, _buffers.buffer_width, _buffers.buffer_height), "Invalid World working buffer");
+    const auto background = mm_world_buffer_pixels(&_buffers.background);
     Assert(mm_world_pixels_valid(&background, _buffers.buffer_width, _buffers.buffer_height), "Invalid World background");
     AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_WORKING]));
     AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
@@ -525,7 +502,6 @@ void World::MarkMem(void)
 {
     AssertThis(0);
     World_PAR::MarkMem();
-    MarkMemObj(static_cast<BASE *>(_buffers.owners[MM_WORLD_RGB_WORKING]));
     mm_resource_cache_mark(static_cast<MMResourceCache *>(_buffers.owners[MM_WORLD_CACHE]));
     for (auto kind : {MM_WORLD_DEPTH_WORKING, MM_WORLD_DEPTH_BACKGROUND})
     {
@@ -546,6 +522,7 @@ MMWorldExportServices World::_ExportServices(void *context)
     s.buffers = _BufferServices();
     s.render = _RenderServices(context);
     s.palette = [](void *) -> void * { return GraphicsPort::PglclrGetPalette(); };
+    s.release_palette = [](void *, void *palette) { static_cast<PDynamicArray>(palette)->Release(); };
     s.bounds_callback = [](void *, int enabled) {
         BrZbSetRenderBoundsCallback(enabled ? World::_ActorRendered : nullptr);
     };

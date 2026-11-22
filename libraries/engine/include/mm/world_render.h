@@ -69,7 +69,7 @@ extern "C"
         void (*render)(void *, const MMRenderFrame *);
         void (*detach_depth)(void *, void *depth), (*flush)(void *);
         void (*screen_mark)(void *, const MMRegion *);
-        void (*draw)(void *, const MMI32 source[4], const MMI32 destination[4]);
+        void (*draw)(void *, const MMPixelSurface *source, const MMI32 destination[4]);
         MMWorldMaterialServices materials;
     } MMWorldRenderServices;
     /* Unique state; begin registration must stay callable during its pass.

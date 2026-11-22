@@ -1835,22 +1835,10 @@ void GraphicsPort::CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, S
 #else
     if (pgptSrc->_cbitPixel == 8 && _cbitPixel == 8 && !pgptSrc->_fOwnPalette && !_fOwnPalette)
     {
-        RC source, clip, requestedClip;
-        if (pgdd->prcsClip)
-            requestedClip = *pgdd->prcsClip;
-        const auto mode = PlanDoubleStretch(pgptSrc->_rcOff, RC(*prcsSrc), RC(*prcsDst),
-                                            pgdd->prcsClip ? &requestedClip : nullptr, source, clip);
-        if (mode != IndexedDoubleStretch::unavailable)
-        {
-            if (mode == IndexedDoubleStretch::clipped)
-                return;
-            if (_cactDraw >= _cactFlush || pgptSrc->_cactDraw >= _cactFlush)
-                Flush();
-            const auto stretch = mode == IndexedDoubleStretch::vertical ? DoubleVertStretch : DoubleStretch;
-            stretch(pgptSrc->_prgbPixels, pgptSrc->_cbRow, pgptSrc->_rcOff.Dyp(), &source, _prgbPixels, _cbRow,
-                    _rcOff.Dyp(), prcsDst->left, prcsDst->top, &clip, _pregnClip);
+        const MMPixelSurface source{pgptSrc->_prgbPixels, pgptSrc->_rcOff.Dxp(), pgptSrc->_rcOff.Dyp(), pgptSrc->_cbRow,
+                                    8};
+        if (_FCopyIndexedDouble(source, RC(*prcsSrc), RC(*prcsDst), pgdd))
             return;
-        }
     }
 #endif
     if (!_SetClip(pgdd->prcsClip))

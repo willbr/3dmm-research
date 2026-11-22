@@ -1021,6 +1021,13 @@ void GraphicsEnvironment::CopyPixels(PGraphicsEnvironment pgnvSrc, RC *prcSrc, R
     _pgpt->CopyPixels(pgnvSrc->_pgpt, &rcsSrc, &rcsDst, &_gdd);
 }
 
+void GraphicsEnvironment::CopyIndexedPixels(const MMPixelSurface &source, RC *destination)
+{
+    SystemRectangle mapped;
+    if (_FMapRcRcs(destination, &mapped))
+        _pgpt->CopyIndexedPixels(source, &mapped, &_gdd);
+}
+
 /***************************************************************************
     Get the old palette in *ppglclrOld, allocate a transitionary palette
     in *ppglclrTrans, and get init the palette animation.  On failure set

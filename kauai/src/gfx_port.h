@@ -53,6 +53,7 @@ class GraphicsPort : public GraphicsPort_PAR
     RC _rcOff;
     long _cactLock;
     void _EnsurePalette(void);
+    bool _FCopyIndexedDouble(const MMPixelSurface &, const RC &source, const RC &destination, GraphicsDrawingData *);
 #endif
 #ifdef KAUAI_SDL3
     KauaiFonts::Face *_fontFace;
@@ -82,7 +83,7 @@ class GraphicsPort : public GraphicsPort_PAR
     KauaiPixels::MonochromeBrushState _MonochromeBrushState(GraphicsDrawingData *drawing, bool selectBrush = false);
     bool _FGetPixelBrush8(GraphicsDrawingData *drawing, KauaiPixels::Brush8 &brush, bool hilite = false);
     bool _FDrawPixelPolygon(const OLY *polygon, GraphicsDrawingData *drawing);
-    bool _FDrawPackedCopy(PGraphicsPort source, SystemRectangle *sourceRect, SystemRectangle *destinationRect,
+    bool _FDrawPackedCopy(const KauaiPixels::PackedSurface &, SystemRectangle *sourceRect, SystemRectangle *destinationRect,
                           GraphicsDrawingData *drawing);
     bool _FCopyPixels(PGraphicsPort source, SystemRectangle *sourceRect, SystemRectangle *destinationRect,
                       GraphicsDrawingData *drawing);
@@ -285,6 +286,7 @@ class GraphicsPort : public GraphicsPort_PAR
 
     void CopyPixels(PGraphicsPort pgptSrc, SystemRectangle *prcsSrc, SystemRectangle *prcsDst,
                     GraphicsDrawingData *pgdd);
+    void CopyIndexedPixels(const MMPixelSurface &, SystemRectangle *destination, GraphicsDrawingData *);
     void DrawPic(PPicture ppic, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
     void DrawMbmp(PMaskedBitmapMBMP pmbmp, SystemRectangle *prcs, GraphicsDrawingData *pgdd);
 #ifdef KAUAI_SDL3

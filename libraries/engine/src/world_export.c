@@ -41,26 +41,22 @@ cleanup:
         s->release_depth(s->context, source);
     return ok;
 }
-static int write_pixels(void *port, const MMWorldPixels *pixels, MMI32 width, MMI32 height,
+static int write_pixels(const MMWorldPixels *pixels, MMI32 width, MMI32 height,
                         const MMWorldExportServices *s)
 {
-    MMWorldPixels locked;
     void *palette = s->palette(s->context);
     int ok = 0;
     if (!palette)
         return 0;
-    if (!pixels && s->buffers.lock(s->buffers.context, port, &locked))
-        pixels = &locked;
-    if (pixels && mm_world_pixels_valid(pixels, width, height))
+    if (mm_world_pixels_valid(pixels, width, height))
         ok = s->write(s->context, pixels, palette, width, height);
-    if (pixels == &locked)
-        s->buffers.unlock(s->buffers.context, port);
-    s->buffers.release(s->buffers.context, palette);
+    s->release_palette(s->context, palette);
     return ok;
 }
 int mm_world_export_current(const MMWorldBuffers *b, const MMWorldExportServices *s)
 {
-    return write_pixels(b->owners[MM_WORLD_RGB_WORKING], NULL, b->buffer_width, b->buffer_height, s);
+    MMWorldPixels pixels = mm_world_buffer_pixels(&b->working);
+    return write_pixels(&pixels, b->buffer_width, b->buffer_height, s);
 }
 int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
                                  const MMWorldExportServices *s)
@@ -83,9 +79,7 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
     if (!depth)
         goto cleanup;
     span = mm_depth_owner_bitmap(depth);
-    pixels.pixels = (unsigned char *)rgb.surface.pixels;
-    pixels.row = rgb.surface.pitch;
-    pixels.bytes = rgb.bytes;
+    pixels = mm_world_buffer_pixels(&rgb);
     if (!fill_background(b, &pixels, span, width, height, scale, buffers))
         goto cleanup;
     render->options(render->context, &wire, &flat, &no_texture);
@@ -111,7 +105,7 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
     s->bounds_callback(s->context, 1);
     render->flush(render->context);
     if (ready)
-        ok = write_pixels(NULL, &pixels, width, height, s);
+        ok = write_pixels(&pixels, width, height, s);
 cleanup:
     mm_pixel_buffer_reset(&rgb);
     mm_depth_owner_release(depth);

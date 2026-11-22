@@ -11,7 +11,7 @@ enum
 };
 typedef struct Object
 {
-    int kind, refs, locks, width, height, row, bytes;
+    int kind, refs, width, height, row, bytes;
     unsigned char *pixels;
     MMDepthBitmap depth;
     MMMaskedOwner *mask;
@@ -25,11 +25,11 @@ typedef struct Fixture
 {
     MMWorldBuffers b;
     MMWorldExportServices s;
-    Object *working, *bitmap, *source;
+    Object *bitmap, *source;
     MMWorldMaterial material, original;
     Actor root, model;
-    int phase, fail, live, material_live, bounds, locks, options, late, flat, no_texture;
-    int rasters, writes, width, height, current, bad_pixels, short_source, missing_depth, missing_colour;
+    int phase, fail, live, material_live, bounds, options, late, flat, no_texture;
+    int rasters, writes, width, height, current, short_source, missing_depth, missing_colour;
     int events[256], n, cache;
 } Fixture;
 static void event(Fixture *f, int n)
@@ -64,7 +64,7 @@ static void release(void *context, void *p)
     Fixture *f = (Fixture *)context;
     Object *o = (Object *)p;
     int i;
-    assert(o->refs > 0 && !o->locks);
+    assert(o->refs > 0);
     event(f, 1000 + o->kind);
     if (--o->refs)
         return;
@@ -107,29 +107,6 @@ static const MMMaskedBitmap *masked_bitmap(void *p, void *bitmap)
     Fixture *f = (Fixture *)p;
     assert(bitmap == f->bitmap);
     return f->missing_colour ? NULL : mm_masked_owner_bitmap(f->bitmap->mask);
-}
-static int lock(void *p, void *port, MMWorldPixels *out)
-{
-    Fixture *f = (Fixture *)p;
-    Object *o = (Object *)port;
-    assert(o == f->working);
-    ++f->locks;
-    if (phase(f))
-        return 0;
-    ++o->locks;
-    out->pixels = o->pixels;
-    out->row = o->row;
-    out->bytes = f->bad_pixels ? 1 : (size_t)o->bytes;
-    event(f, 300);
-    return 1;
-}
-static void unlock(void *p, void *port)
-{
-    Fixture *f = (Fixture *)p;
-    Object *o = (Object *)port;
-    assert(o == f->working && o->locks == 2);
-    --o->locks;
-    event((Fixture *)p, 301);
 }
 static void *palette(void *p)
 {
@@ -236,7 +213,7 @@ static void raster(void *p, const MMRenderFrame *frame, const MMWorldPixelView *
     assert(frame->world == &f->root && frame->camera == &f->model);
     assert(!f->bounds && rgb->width == f->b.width * scale && rgb->height == f->b.height * scale);
     assert(rgb->row == rgb->width && z->row == z->width * 2 && rgb->x == rgb->width / 2 && rgb->y == rgb->height / 2);
-    assert(rgb->type == 42 && z->type == 84 && indices && depth && indices != f->working->pixels);
+    assert(rgb->type == 42 && z->type == 84 && indices && depth && indices != f->b.working.surface.pixels);
     assert(f->model.style == 7 && f->root.style == 99);
     assert(f->material.flags == (f->flat ? 16U : 20U));
     assert(f->material.texture == (f->no_texture ? NULL : f->original.texture));
@@ -277,11 +254,10 @@ static void init(Fixture *f)
     int x, y;
     memset(f, 0, sizeof(*f));
     f->bounds = f->flat = f->no_texture = 1;
-    f->working = object(f, MM_WORLD_RGB_WORKING, 2, 1);
-    f->working->locks = 1; /* Retained renderer lock belongs to the world. */
+    assert(mm_pixel_buffer_init(&f->b.working, 2, 1, 8, 4));
     f->bitmap = object(f, BITMAP, 3, 2);
     f->source = object(f, SOURCE_Z, 3, 2);
-    memset(f->working->pixels, 0x55, (size_t)f->working->bytes);
+    memset(f->b.working.surface.pixels, 0x55, f->b.working.bytes);
     for (y = 0; y < 2; ++y)
         for (x = 0; x < 3; ++x)
         {
@@ -299,7 +275,6 @@ static void init(Fixture *f)
     f->b.half_x = f->b.half_y = 1;
     f->b.scale = 4;
     f->b.owners[MM_WORLD_CACHE] = &f->cache;
-    f->b.owners[MM_WORLD_RGB_WORKING] = f->working;
     f->b.rgb_type = 11;
     f->b.z_type = 22;
     f->b.rgb_number = 33;
@@ -316,19 +291,17 @@ static void init(Fixture *f)
     f->original = f->material;
     f->s.context = f;
     f->s.palette = palette;
+    f->s.release_palette = release;
     f->s.bounds_callback = bounds_callback;
     f->s.raster = raster;
     f->s.write = write;
     b = &f->s.buffers;
     b->context = f;
-    b->release = release;
     b->release_depth = release;
     b->release_bitmap = release;
     b->fetch = fetch;
     b->depth_bitmap = depth_bitmap;
     b->masked_bitmap = masked_bitmap;
-    b->lock = lock;
-    b->unlock = unlock;
     r = &f->s.render;
     r->context = f;
     mm_render_frame_borrow(&r->frame, &f->root, &f->model, NULL, NULL);
@@ -357,12 +330,11 @@ static void init(Fixture *f)
 }
 static void balanced(Fixture *f)
 {
-    assert(f->live == 3 && !f->material_live && f->bounds);
-    assert(f->bitmap->refs == 1 && f->source->refs == 1 && f->working->refs == 1 && f->working->locks == 1);
+    assert(f->live == 2 && !f->material_live && f->bounds);
+    assert(f->bitmap->refs == 1 && f->source->refs == 1);
     assert(f->material.texture == f->original.texture && f->material.flags == 20 && f->material.base == 11 &&
            f->material.range == 100);
-    f->working->locks = 0; /* World disposal, after the export transaction. */
-    release(f, f->working);
+    mm_pixel_buffer_reset(&f->b.working);
     release(f, f->bitmap);
     release(f, f->source);
     assert(!f->live);
@@ -371,16 +343,19 @@ static void transactions(void)
 {
     Fixture f;
     MMWorldBuffers before;
-    int fail, scale, scenario, i;
+    int fail, scale, scenario;
+    size_t i;
+    MMWorldPixels working;
     for (scale = 1; scale <= 16; ++scale)
     {
         init(&f);
         before = f.b;
         assert(mm_world_export_scaled(&f.b, scale, &f.s));
         assert(f.rasters == 1 && f.writes == 1 && f.width == 3 * scale && f.height == 2 * scale);
-        assert(f.phase == 5 && f.options == 2 && !f.locks && !memcmp(&before, &f.b, sizeof(before)));
-        for (i = 0; i < f.working->bytes; ++i)
-            assert(f.working->pixels[i] == 0x55);
+        assert(f.phase == 5 && f.options == 2 && !memcmp(&before, &f.b, sizeof(before)));
+        working = mm_world_buffer_pixels(&f.b.working);
+        for (i = 0; i < working.bytes; ++i)
+            assert(working.pixels[i] == 0x55);
         assert(f.events[f.n - 1] == 1000 + PALETTE);
         balanced(&f);
     }
@@ -389,22 +364,23 @@ static void transactions(void)
         init(&f);
         f.fail = fail;
         assert(!mm_world_export_scaled(&f.b, 2, &f.s));
-        assert(f.phase == fail && f.rasters == (fail >= 4) && f.writes == (fail == 5) && !f.locks);
+        assert(f.phase == fail && f.rasters == (fail >= 4) && f.writes == (fail == 5));
         balanced(&f);
     }
-    for (fail = 0; fail <= 3; ++fail)
+    for (fail = 0; fail <= 2; ++fail)
     {
         init(&f);
         f.fail = fail;
         f.current = 1;
         assert(mm_world_export_current(&f.b, &f.s) == (fail == 0));
         assert(!f.rasters && !f.options && (fail || (f.width == 2 && f.height == 1)));
-        assert(f.locks == (fail == 1 ? 0 : 1));
+        assert(f.phase == (fail == 1 ? 1 : 2));
         balanced(&f);
     }
     init(&f);
-    f.current = f.bad_pixels = 1;
-    assert(!mm_world_export_current(&f.b, &f.s) && f.locks == 1 && !f.writes);
+    f.current = 1;
+    --f.b.working.bytes;
+    assert(!mm_world_export_current(&f.b, &f.s) && f.phase == 1 && !f.writes);
     balanced(&f);
     for (scenario = 0; scenario < 5; ++scenario)
     {
@@ -517,6 +493,6 @@ int main(void)
     depth_copy();
     depth_placement();
     transactions();
-    puts("C89 World export: scaling, palette/lock/material ownership and transaction failures passed.");
+    puts("C89 World export: scaling, palette/material ownership and transaction failures passed.");
     return 0;
 }

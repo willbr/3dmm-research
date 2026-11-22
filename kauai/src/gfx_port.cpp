@@ -2,7 +2,10 @@
 // Port lifetime-independent geometry and clipping; no window-system operations.
 #ifdef KAUAI_SDL3
 #include "sdl_host.h"
+#include "pixel_canvas.h"
 #endif
+#include "pixel_stretch.h"
+#include <cstring>
 #include "frame.h"
 ASSERTNAME
 RTCLASS(GraphicsPort)
@@ -45,6 +48,61 @@ void GraphicsPort::GetPtBase(PT *ppt)
     AssertThis(0);
     AssertVarMem(ppt);
     *ppt = _ptBase;
+}
+
+#if defined(WIN) || defined(KAUAI_SDL3)
+bool GraphicsPort::_FCopyIndexedDouble(const MMPixelSurface &input, const RC &source, const RC &destination,
+                                       GraphicsDrawingData *drawing)
+{
+    RC bounds(0, 0, input.width, input.height), cropped, clip;
+    const auto mode = PlanDoubleStretch(bounds, source, destination, drawing->prcsClip, cropped, clip);
+    if (mode == IndexedDoubleStretch::unavailable)
+        return false;
+    if (mode != IndexedDoubleStretch::clipped)
+    {
+        Flush();
+        const auto stretch = mode == IndexedDoubleStretch::vertical ? DoubleVertStretch : DoubleStretch;
+        stretch(static_cast<byte *>(input.pixels), input.pitch, input.height, &cropped, _prgbPixels, _cbRow,
+                _rcOff.Dyp(), destination.xpLeft, destination.ypTop, &clip, _pregnClip);
+    }
+    return true;
+}
+#endif
+
+void GraphicsPort::CopyIndexedPixels(const MMPixelSurface &input, SystemRectangle *destination,
+                                     GraphicsDrawingData *drawing)
+{
+    if (input.depth != 8 || !mm_pixel_surface_valid(&input))
+        return;
+    SystemRectangle source{0, 0, input.width, input.height};
+    RC bounds(source);
+#ifdef KAUAI_SDL3
+    if (_prgbPixels && _cbitPixel == 8 && !_PixelOwnPalette() &&
+        _FCopyIndexedDouble(input, bounds, RC(*destination), drawing))
+        return;
+    if (_prgbPixels && _prgclr)
+    {
+        _fPixelColorOnColor = true;
+        KauaiPixels::PackedSurface pixels{input.pixels, input.width, input.height, input.pitch, 8, _prgclr, 256};
+        if (_FDrawPackedCopy(pixels, &source, destination, drawing))
+            return;
+    }
+#elif defined(WIN)
+    if (_cbitPixel == 8 && !_fOwnPalette && _FCopyIndexedDouble(input, bounds, RC(*destination), drawing))
+        return;
+#endif
+    auto port = PgptNewOffscreen(&bounds, 8);
+    if (!port)
+        return;
+    auto pixels = port->PrgbLockPixels();
+    const auto pitch = port->CbRow();
+    const auto *row = static_cast<const byte *>(input.pixels);
+    for (MMI32 y = 0; y < input.height; ++y)
+        std::memcpy(pixels + size_t(y) * pitch, row + size_t(y) * input.pitch, input.width);
+    port->Unlock();
+    CopyPixels(port, &source, destination, drawing);
+    Flush();
+    port->Release();
 }
 
 #ifdef DEBUG

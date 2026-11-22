@@ -11,22 +11,15 @@ static void release_slot(MMWorldBuffers *w, int kind, const MMWorldBufferService
     w->owners[kind] = NULL;
     if (object)
     {
-        if (kind == MM_WORLD_RGB_WORKING && w->rgb.pixels)
-        {
-            s->unlock(s->context, object);
-            w->rgb.pixels = NULL;
-        }
-        if (kind == MM_WORLD_DEPTH_WORKING || kind == MM_WORLD_DEPTH_BACKGROUND)
-            s->release_depth(s->context, object);
-        else if (kind == MM_WORLD_CACHE)
+        if (kind == MM_WORLD_CACHE)
             s->release_cache(s->context, object);
         else
-            s->release(s->context, object);
+            s->release_depth(s->context, object);
     }
 }
 static void release_buffers(MMWorldBuffers *w, const MMWorldBufferServices *s)
 {
-    release_slot(w, MM_WORLD_RGB_WORKING, s);
+    mm_pixel_buffer_reset(&w->working);
     mm_pixel_buffer_reset(&w->background);
     release_slot(w, MM_WORLD_DEPTH_WORKING, s);
     release_slot(w, MM_WORLD_DEPTH_BACKGROUND, s);
@@ -42,7 +35,6 @@ static int build(MMWorldBuffers *w, int hx, int hy, const MMWorldBufferServices 
 {
     MMI32 width, height;
     const MMDepthBitmap *depth;
-    MMWorldPixels rgb;
     if (!valid_scale(w->scale) || w->width <= 0 || w->height <= 0 || w->width > 4096 / w->scale ||
         w->height > 4096 / w->scale)
         return 0;
@@ -72,7 +64,7 @@ static int build(MMWorldBuffers *w, int hx, int hy, const MMWorldBufferServices 
     w->z.type = s->depth_type;
     w->z.pixels = depth->pixels;
     if (!mm_pixel_buffer_init(&w->background, width, height, 8, 4) ||
-        !create_slot(w, MM_WORLD_RGB_WORKING, width, height, s))
+        !mm_pixel_buffer_init(&w->working, width, height, 8, 4))
         return 0;
     w->rgb.row = width;
     w->rgb.width = width;
@@ -80,15 +72,7 @@ static int build(MMWorldBuffers *w, int hx, int hy, const MMWorldBufferServices 
     w->rgb.x = width / 2;
     w->rgb.y = height / 2;
     w->rgb.type = s->rgb_type;
-    if (!s->lock(s->context, w->owners[MM_WORLD_RGB_WORKING], &rgb))
-        return 0;
-    w->rgb.pixels = rgb.pixels;
-    if (!mm_world_pixels_valid(&rgb, width, height))
-    {
-        s->unlock(s->context, w->owners[MM_WORLD_RGB_WORKING]);
-        w->rgb.pixels = NULL;
-        return 0;
-    }
+    w->rgb.pixels = w->working.surface.pixels;
     return 1;
 }
 int mm_world_buffers_init(MMWorldBuffers *w, MMI32 width, MMI32 height, MMI32 scale, int hx,
@@ -128,12 +112,12 @@ int mm_world_pixels_valid(const MMWorldPixels *pixels, MMI32 width, MMI32 height
            pixels->bytes >= (size_t)pixels->row * (size_t)height;
 }
 
-MMWorldPixels mm_world_background_pixels(const MMWorldBuffers *w)
+MMWorldPixels mm_world_buffer_pixels(const MMPixelBuffer *buffer)
 {
     MMWorldPixels pixels;
-    pixels.pixels = (unsigned char *)w->background.surface.pixels;
-    pixels.row = w->background.surface.pitch;
-    pixels.bytes = w->background.bytes;
+    pixels.pixels = (unsigned char *)buffer->surface.pixels;
+    pixels.row = buffer->surface.pitch;
+    pixels.bytes = buffer->bytes;
     return pixels;
 }
 
@@ -186,9 +170,7 @@ int mm_world_fill_background_rgb(const MMMaskedBitmap *bitmap, MMI32 width, MMI3
     }
     if (!mm_pixel_buffer_init(&full, width, height, 8, 4))
         return 0;
-    pixels.pixels = (unsigned char *)full.surface.pixels;
-    pixels.row = full.surface.pitch;
-    pixels.bytes = full.bytes;
+    pixels = mm_world_buffer_pixels(&full);
     draw_background_rgb(bitmap, width, height, &pixels);
     copied = mm_world_copy_rgb(&pixels, width, height, target, target_width, target_height);
     mm_pixel_buffer_reset(&full);
@@ -259,7 +241,7 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
 {
     void *bitmap = s->fetch(s->context, cache, MM_WORLD_COLOR_ASSET, rgb_type, rgb_number), *depth;
     const MMDepthBitmap *src, *dst;
-    MMWorldPixels target = mm_world_background_pixels(w);
+    MMWorldPixels target = mm_world_buffer_pixels(&w->background);
     int ok, resized = w->scale > 1 || w->half_x || w->half_y;
     if (!bitmap)
         return 0;
@@ -311,7 +293,6 @@ int mm_world_buffers_mode(MMWorldBuffers *w, int hx, int hy, MMI32 scale,
                                 const MMWorldBufferServices *s)
 {
     MMWorldBuffers old;
-    unsigned i;
     if (!valid_scale(scale))
         return 0;
     hx = hx != 0;
@@ -321,10 +302,10 @@ int mm_world_buffers_mode(MMWorldBuffers *w, int hx, int hy, MMI32 scale,
     /* The snapshot borrows the region bands. A failing mode change has not
      * changed them, and releasing the old buffers never releases regions. */
     old = *w;
-    for (i = 0; i <= MM_WORLD_RGB_WORKING; ++i)
-        w->owners[i] = NULL;
+    w->owners[MM_WORLD_DEPTH_BACKGROUND] = NULL;
+    w->owners[MM_WORLD_DEPTH_WORKING] = NULL;
     memset(&w->background, 0, sizeof(w->background));
-    w->rgb.pixels = NULL;
+    memset(&w->working, 0, sizeof(w->working));
     w->scale = scale;
     if (!build(w, hx, hy, s) || (w->owners[MM_WORLD_CACHE] &&
                                  !mm_world_buffers_restore_background(w, s)))

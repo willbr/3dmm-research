@@ -13,7 +13,6 @@ extern "C"
     {
         MM_WORLD_DEPTH_BACKGROUND,
         MM_WORLD_DEPTH_WORKING,
-        MM_WORLD_RGB_WORKING,
         MM_WORLD_CACHE,
         MM_WORLD_OWNERS,
         MM_WORLD_COLOR_ASSET = MM_WORLD_OWNERS
@@ -36,7 +35,7 @@ extern "C"
         int half_x, half_y;
         void *owners[MM_WORLD_OWNERS];
         MMRegion dirty_working, dirty_screen;
-        MMPixelBuffer background;
+        MMPixelBuffer background, working;
         MMWorldPixelView rgb, z;
         MMU32 rgb_type, rgb_number, z_type, z_number;
     } MMWorldBuffers;
@@ -46,12 +45,7 @@ extern "C"
         unsigned rgb_type, depth_type;
         void *(*create)(void *, int kind, MMI32 width, MMI32 height);
         void (*retain_cache)(void *, void *), (*release_cache)(void *, void *);
-        void (*release)(void *, void *);
         void (*release_depth)(void *, void *), (*release_bitmap)(void *, void *);
-        /* A successful lock borrows the working indexed span until unlock.
-         * Failed locks acquire nothing. */
-        int (*lock)(void *, void *, MMWorldPixels *);
-        void (*unlock)(void *, void *);
         const MMDepthBitmap *(*depth_bitmap)(void *, void *);
         const MMMaskedBitmap *(*masked_bitmap)(void *, void *);
         void (*setup_scene)(void *);
@@ -62,8 +56,8 @@ extern "C"
     } MMWorldBufferServices;
     /* Initialize a zeroed, unique owning record. Native SDK pixelmaps borrow
      * the current buffer views. Viewports are capped at 4096 per axis.
-     * Working RGB retains one lock until replacement/disposal. Scene setup occurs
-     * after buffers and before dirty-region construction, matching the native order.
+     * Scene setup occurs after buffers and before dirty-region construction,
+     * matching the native order.
      * Callbacks must not reenter/mutate the same world. */
     int mm_world_buffers_init(MMWorldBuffers *, MMI32 width, MMI32 height, MMI32 scale,
                                     int half_x, int half_y, const MMWorldBufferServices *);
@@ -71,8 +65,8 @@ extern "C"
     /* Mark the full working buffer dirty and optionally the screen copy. */
     void mm_world_buffers_dirty(MMWorldBuffers *, int screen);
     int mm_world_pixels_valid(const MMWorldPixels *, MMI32 width, MMI32 height);
-    /* Borrow the indexed background until the next mode change or disposal. */
-    MMWorldPixels mm_world_background_pixels(const MMWorldBuffers *);
+    /* A view borrows the given buffer's current storage. */
+    MMWorldPixels mm_world_buffer_pixels(const MMPixelBuffer *);
     /* Copy indices between disjoint spans with COLORONCOLOR sampling.
      * Padding stays untouched. */
     int mm_world_copy_rgb(const MMWorldPixels *source, MMI32 source_width, MMI32 source_height,

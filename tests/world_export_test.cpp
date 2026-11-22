@@ -98,10 +98,8 @@ struct Access : World
             Value(mm_region_empty(region) != 0);
             Record(&r, sizeof(r));
         }
-        auto rgb = static_cast<PGraphicsPort>(buffers.owners[MM_WORLD_RGB_WORKING]);
-        auto p = rgb->PrgbLockPixels();
-        Record(p, rgb->CbRow() * buffers.buffer_height);
-        rgb->Unlock();
+        const auto rgb = mm_world_buffer_pixels(&buffers.working);
+        Record(rgb.pixels, rgb.bytes);
         auto z = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(buffers.owners[MM_WORLD_DEPTH_WORKING]));
         Record(z->pixels, z->row_bytes * buffers.buffer_height);
         Materials();
@@ -120,11 +118,10 @@ struct Access : World
     static void Seed(PWorld w)
     {
         const auto &buffers = w->*&Access::_buffers;
-        const auto background = mm_world_background_pixels(&buffers);
+        const auto background = mm_world_buffer_pixels(&buffers.background);
         std::memset(background.pixels, 3, background.bytes);
-        auto port = static_cast<PGraphicsPort>(buffers.owners[MM_WORLD_RGB_WORKING]);
-        std::memset(port->PrgbLockPixels(), 3, port->CbRow() * buffers.buffer_height);
-        port->Unlock();
+        const auto working = mm_world_buffer_pixels(&buffers.working);
+        std::memset(working.pixels, 3, working.bytes);
     }
 };
 static unsigned Live(PWorld w)
