@@ -117,7 +117,6 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         *noTexture = World::NoTexture();
     };
     s.region_allocator = &static_cast<WorldRenderContext *>(context)->region_allocator;
-    s.depth_background = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
     s.detach_depth = [](void *, void *depth) { mm_depth_owner_detach(static_cast<MMDepthOwner *>(depth)); };
     s.flush = [](void *) { GraphicsPort::Flush(); };
     s.screen_mark = [](void *p, const MMRegion *region) {
@@ -166,10 +165,8 @@ MMWorldBufferServices World::_BufferServices()
         return 1;
     };
     s.unlock = [](void *, void *p) { static_cast<PGraphicsPort>(p)->Unlock(); };
-    s.depth_span = [](void *, void *p, MMWorldDepthSpan *out) {
-        const auto d = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(p));
-        *out = {static_cast<byte *>(d->pixels), d->row_bytes, d->bytes};
-    };
+    s.depth_bitmap = [](void *, void *p) { return mm_depth_owner_bitmap(static_cast<const MMDepthOwner *>(p)); };
+    s.masked_bitmap = [](void *, void *p) { return mm_masked_owner_bitmap(static_cast<PMaskedBitmapMBMP>(p)); };
     s.setup_scene = [](void *p) {
         auto w = static_cast<PWorld>(p);
         mm_brender_world_init(&w->_bactWorld, &w->_bactCamera, &w->_bcam, w, w->_buffers.width, w->_buffers.height);
@@ -185,16 +182,6 @@ MMWorldBufferServices World::_BufferServices()
     s.priority = [](void *, void *p) { mm_masked_owner_priority(static_cast<PMaskedBitmapMBMP>(p), crepTossFirst); };
     s.priority_depth = [](void *, void *p) {
         mm_depth_owner_priority(static_cast<MMDepthOwner *>(p), crepTossFirst);
-    };
-    s.draw_bitmap = [](void *, void *port, void *bitmap) {
-        GraphicsEnvironment gnv(static_cast<PGraphicsPort>(port));
-        gnv.DrawMbmp(static_cast<PMaskedBitmapMBMP>(bitmap), 0, 0);
-    };
-    s.draw_depth = [](void *, void *source, void *destination, MMI32 width, MMI32 height) {
-        const auto src = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(source));
-        const auto dst = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(destination));
-        const MMDepthRect clip = {0, 0, width, height};
-        mm_depth_draw(src, dst->pixels, dst->row_bytes, height, 0, 0, &clip, nullptr, 0);
     };
     return s;
 }

@@ -20,7 +20,7 @@ typedef struct Fixture
     Actor a[7];
     MMBodyPartBinding bindings[2][2];
     unsigned char background[64], working[64], z_background[48], z_working[48];
-    MMDepthBitmap depth_source;
+    MMDepthBitmap depth_source, depth_working;
     MMPixelRect marked;
     int events[512], n, live, allocations, fail_alloc, fail_lock, invalid_pixels;
     int wire, flat, no_texture, begin_options, rect_enabled, rect_disable, rect_overflow;
@@ -213,16 +213,17 @@ static void render(void *p, const MMRenderFrame *frame)
     if (f->change_in_render)
         mm_world_render_dirty(&f->r);
 }
-static void snapshot_depth(void *p, void *source, void *destination, MMI32 width, MMI32 height)
+static const MMDepthBitmap *depth_bitmap(void *p, void *owner)
 {
     Fixture *f = (Fixture *)p;
-    assert(source == f->z_working && destination == f->z_background && width == 6 && height == 4);
-    event(f, 80);
+    assert(owner == f->z_working || owner == f->z_background);
+    return owner == f->z_working ? &f->depth_working : &f->depth_source;
 }
 static void detach(void *p, void *depth)
 {
     Fixture *f = (Fixture *)p;
     assert(depth == f->z_background);
+    assert(!memcmp(f->z_background, f->z_working, sizeof(f->z_background)));
     event(f, 81);
 }
 static void flush(void *p)
@@ -260,6 +261,8 @@ static void init(Fixture *f)
     f->depth_source.row_bytes = 12;
     f->depth_source.bytes = 48;
     f->depth_source.pixels = f->z_background;
+    f->depth_working = f->depth_source;
+    f->depth_working.pixels = f->z_working;
     f->b.z.height = 4;
     f->b.z.row = 12;
     f->b.z.pixels = f->z_working;
@@ -268,7 +271,7 @@ static void init(Fixture *f)
     f->b.owners[RGB] = f->working;
     f->b.owners[BG] = f->background;
     f->buffers.context = f;
-    f->buffers.draw_depth = snapshot_depth;
+    f->buffers.depth_bitmap = depth_bitmap;
     f->buffers.lock = lock;
     f->buffers.unlock = unlock;
     memset(f->z_background, 0x52, sizeof(f->z_background));
@@ -324,7 +327,6 @@ static void init(Fixture *f)
     s->begin = begin;
     s->rect = rect;
     s->options = options;
-    s->depth_background = &f->depth_source;
     s->render = render;
     s->detach_depth = detach;
     s->flush = flush;
@@ -398,7 +400,7 @@ static void clean_tests(void)
     init(&f);
     assert(mm_region_apply_rect(&f.b.dirty_working, MM_REGION_DIFFERENCE, &left_gap, NULL, 0, NULL));
     assert(mm_region_apply_rect(&f.b.dirty_working, MM_REGION_DIFFERENCE, &right_gap, NULL, 0, NULL));
-    assert(mm_world_render_clean(&f.b, &f.s, &f.buffers));
+    assert(mm_world_render_clean(&f.b, &f.buffers));
     for (y = 0; y < 7; ++y)
         for (x = 0; x < 9 && y * 9 + x < 64; ++x)
             assert(f.working[y * 9 + x] == (y >= 1 && y < 4 && x >= 1 && x < 3 ? f.background[y * 8 + x] : 0xcc));
@@ -418,7 +420,7 @@ static void clean_tests(void)
             f.fail_lock = RGB;
         if (scenario == 3)
             f.invalid_pixels = 1;
-        assert(mm_world_render_clean(&f.b, &f.s, &f.buffers) == (scenario == 0));
+        assert(mm_world_render_clean(&f.b, &f.buffers) == (scenario == 0));
         if (scenario == 0)
             assert(!f.n);
         if (scenario == 1)
@@ -475,14 +477,14 @@ static void render_tests(void)
     f.fail_alloc = f.flat = 1;
     mm_world_render_dirty(&f.r);
     assert(!mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
-    assert(f.r.changed && position(&f, 50) < 0 && position(&f, 80) < 0);
+    assert(f.r.changed && position(&f, 50) < 0 && position(&f, 81) < 0);
     f.fail_alloc = 0;
     f.n = 0;
     assert(mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
     assert(!f.r.changed);
-    i = f.n - 7;
-    assert(f.events[i] == 80 && f.events[i + 1] == 81 && f.events[i + 2] == 21 && f.events[i + 3] == 20 &&
-           f.events[i + 4] == 23 && f.events[i + 5] == 22 && f.events[i + 6] == 83);
+    i = f.n - 6;
+    assert(f.events[i] == 81 && f.events[i + 1] == 21 && f.events[i + 2] == 20 && f.events[i + 3] == 23 &&
+           f.events[i + 4] == 22 && f.events[i + 5] == 83);
     for (i = 0; i < 4; ++i)
         assert(!memcmp(f.background + i * 8, f.working + i * 9, 6));
     dispose_regions(&f);

@@ -7,12 +7,14 @@ typedef struct Object
 {
     int kind, width, height, row, bytes, refs, locks;
     unsigned char pixels[512];
+    MMMaskedOwner *mask;
+    MMDepthBitmap depth;
 } Object;
 typedef struct Fixture
 {
     MMWorldBufferServices s;
     MMWorldBuffers *world;
-    int phase, fail, objects, locks, setups, changed, priorities, short_depth, fail_lock, bad_lock;
+    int phase, fail, objects, locks, setups, changed, priorities, short_depth, fail_lock, bad_lock, transparent;
 } Fixture;
 static int fail(Fixture *f)
 {
@@ -30,6 +32,11 @@ static Object *object(Fixture *f, int kind, int w, int h)
     assert(o->bytes <= 512);
     o->refs = 1;
     memset(o->pixels, kind < 2 ? 255 : 0, (size_t)o->bytes);
+    o->depth.bounds.right = w;
+    o->depth.bounds.bottom = h;
+    o->depth.row_bytes = o->row;
+    o->depth.bytes = o->bytes;
+    o->depth.pixels = o->pixels;
     ++f->objects;
     return o;
 }
@@ -54,6 +61,7 @@ static void release(void *p, void *v)
     if (!--o->refs)
     {
         assert(!o->locks);
+        mm_masked_owner_release(o->mask);
         --f->objects;
         free(o);
     }
@@ -79,13 +87,11 @@ static void unlock(void *p, void *v)
     --o->locks;
     --f->locks;
 }
-static void span(void *p, void *v, MMWorldDepthSpan *out)
+static const MMDepthBitmap *depth_bitmap(void *p, void *v)
 {
     Object *o = (Object *)v;
     (void)p;
-    out->pixels = o->pixels;
-    out->row = o->row;
-    out->bytes = o->bytes;
+    return &o->depth;
 }
 static void scene(void *p)
 {
@@ -105,6 +111,7 @@ static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
     Fixture *f = (Fixture *)p;
     Object *o;
     int i;
+    const MMMaskedRect rect = {0, 0, 4, 4};
     assert(((Object *)cache)->refs > 0);
     assert(type == (kind == 0 ? 33U : 11U) && number == (kind == 0 ? 44U : 22U));
     if (fail(f))
@@ -112,6 +119,14 @@ static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
     o = object(f, kind, 4, kind == MM_WORLD_DEPTH_BACKGROUND && f->short_depth ? 3 : 4);
     for (i = 0; i < o->bytes; ++i)
         o->pixels[i] = (unsigned char)(i * 7 + 1);
+    if (kind == MM_WORLD_RGB_BACKGROUND)
+    {
+        memset(o->pixels, 0x31, (size_t)o->bytes);
+        if (f->transparent)
+            o->pixels[5] = 0;
+        o->mask = mm_masked_owner_new(o->pixels, o->row, o->height, &rect, 2, -3, 0, 0, 0, NULL);
+        assert(o->mask);
+    }
     return o;
 }
 static void priority(void *p, void *o)
@@ -119,19 +134,10 @@ static void priority(void *p, void *o)
     assert(o);
     ++((Fixture *)p)->priorities;
 }
-static void bitmap(void *p, void *port, void *image)
+static const MMMaskedBitmap *masked_bitmap(void *p, void *image)
 {
-    Object *o = (Object *)port;
     (void)p;
-    assert(image);
-    memset(o->pixels, 0x31, (size_t)o->bytes);
-}
-static void depth(void *p, void *sv, void *dv, MMI32 w, MMI32 h)
-{
-    Object *s = (Object *)sv, *d = (Object *)dv;
-    (void)p;
-    assert(s->width == w && s->height == h && d->width == w && d->height == h);
-    memcpy(d->pixels, s->pixels, (size_t)s->bytes);
+    return mm_masked_owner_bitmap(((Object *)image)->mask);
 }
 static void setup(Fixture *f, MMWorldBuffers *w)
 {
@@ -149,14 +155,13 @@ static void setup(Fixture *f, MMWorldBuffers *w)
     f->s.release_bitmap = release;
     f->s.lock = lock;
     f->s.unlock = unlock;
-    f->s.depth_span = span;
+    f->s.depth_bitmap = depth_bitmap;
+    f->s.masked_bitmap = masked_bitmap;
     f->s.setup_scene = scene;
     f->s.changed = changed;
     f->s.fetch = fetch;
     f->s.priority = priority;
     f->s.priority_depth = priority;
-    f->s.draw_bitmap = bitmap;
-    f->s.draw_depth = depth;
 }
 static void balanced(Fixture *f)
 {
@@ -298,6 +303,13 @@ static void restore_background(void)
     assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb->pixels[0] == 0x99 && f.changed == 1);
     assert(mm_world_buffers_restore_background(&w, &f.s));
     assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb->pixels[0] == 0x31 && f.changed == 2);
+    f.transparent = 1;
+    memset(rgb->pixels, 0x99, sizeof(rgb->pixels));
+    rgb->row = 6;
+    rgb->bytes = 24;
+    assert(mm_world_buffers_restore_background(&w, &f.s) && f.locks == 1);
+    assert(rgb->pixels[0] == 0x31 && rgb->pixels[6] == 0x31 && rgb->pixels[7] == 0x99);
+    assert(rgb->pixels[4] == 0x99 && rgb->pixels[5] == 0x99 && rgb->pixels[23] == 0x99);
     mm_world_buffers_dispose(&w, &f.s);
     release(&f, cache);
     balanced(&f);

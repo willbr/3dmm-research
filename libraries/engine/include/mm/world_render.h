@@ -66,7 +66,6 @@ extern "C"
         void (*rect)(void *, void *, MMI32 rect[4]);
         void (*options)(void *, int *wire, int *flat, int *no_texture);
         const MMStorageAllocator *region_allocator;
-        const MMDepthBitmap *depth_background;
         void (*render)(void *, const MMRenderFrame *);
         void (*detach_depth)(void *, void *depth), (*flush)(void *);
         void (*screen_mark)(void *, const MMRegion *);
@@ -79,7 +78,7 @@ extern "C"
     void mm_world_render_init(MMWorldRender *);
     void mm_world_render_dirty(MMWorldRender *);
     void mm_world_render_styles(void *root, int style, const MMWorldRenderServices *);
-    int mm_world_render_clean(const MMWorldBuffers *, const MMWorldRenderServices *, const MMWorldBufferServices *);
+    int mm_world_render_clean(const MMWorldBuffers *, const MMWorldBufferServices *);
     int mm_world_render(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *, const MMWorldBufferServices *);
     int mm_world_prerender(MMWorldRender *, MMWorldBuffers *, const MMWorldRenderServices *,
                            const MMWorldBufferServices *);

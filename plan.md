@@ -1847,8 +1847,10 @@ points. Studio's C89 BRender binding owns the cache reader, light attachment
 and teardown, and camera selection and mouse orientation. The World adapter
 publishes images, camera transforms and redraw requests. C89 copies indexed
 World buffers for background loading, prerendering and bitmap export. These
-paths and dirty-region rendering share the same bounded pixel view. Preview
-uses the same background decoders with its archive-graph renderer. Studio scene
+paths and dirty-region rendering share the same bounded pixel view. World
+background placement and prerender depth capture draw from the shared C89
+masked and depth bitmap records. Preview uses the same background decoders
+with its archive-graph renderer. Studio scene
 save, transition editing and undo snapshots bind their live or private
 archive in C89, including embedded asset copy and editor cleanup. Movie,
 scene and actor loads borrow the live graph through the C89 cache. Studio's

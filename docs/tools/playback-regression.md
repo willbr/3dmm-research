@@ -21989,3 +21989,31 @@ seek canvases and camera and actor state. Seek and continuous frame order
 matched retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
 
 World snapshots, workflow artifacts, and checks are under `tmp/c89-world-rgb`.
+
+## C89 World background drawing (22 November 2026)
+
+Studio's World draws masked palette indices and copies depth from C89 bitmap
+views. It draws colour at the viewport origin and clips to the drawable width,
+preserving transparent pixels and row padding. Live background scaling and BMP
+export share the same temporary-port drawing and scaling routine. Depth drawing
+preserves the legacy stored coordinates and keeps completed spans of short
+sources. Kauai supplies port allocation, bitmap owner bindings, and cache I/O.
+
+Five native and SDL World snapshots matched their retained output byte for byte,
+totaling 14,387,434 bytes. They cover background mode changes, dirty-region redraw,
+prerendering, and BMP export. The C tests use real masked bitmap records and cover
+shifted origins, transparent runs, row padding, short depth sources, and failed
+locks and mode changes.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. Both World camera checks and all three x86 C World checks also passed.
+Studio's headless ISO, authoring, and F1 Help workflows passed. Two saved movies
+and five canvases matched retained files. Marcus reproduced its startup canvas
+headlessly. The separate `scene-load` failure reproduced its 63,224-byte trace
+and fingerprint `0D666753`.
+
+Silent suite `20261122T151312Z-bcb5a3c9` matched both ports' preceding 60 seek
+canvases and camera and actor state. The seek and continuous frame order matched
+the retained retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows, and checks are under `tmp/c89-world-background`.

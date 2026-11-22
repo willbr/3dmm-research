@@ -1,7 +1,6 @@
 /* World buffer ownership/control converted from bren/bwld.cpp. */
 #include "mm/world_buffers.h"
 #include <string.h>
-#define MAXIMUM 2147483647
 static int valid_scale(MMI32 scale)
 {
     return scale == 1 || scale == 2 || scale == 4;
@@ -43,7 +42,7 @@ static int create_slot(MMWorldBuffers *w, int kind, MMI32 width, MMI32 height,
 static int build(MMWorldBuffers *w, int hx, int hy, const MMWorldBufferServices *s)
 {
     MMI32 width, height;
-    MMWorldDepthSpan span;
+    const MMDepthBitmap *depth;
     MMWorldPixels rgb;
     if (!valid_scale(w->scale) || w->width <= 0 || w->height <= 0 || w->width > 4096 / w->scale ||
         w->height > 4096 / w->scale)
@@ -63,14 +62,16 @@ static int build(MMWorldBuffers *w, int hx, int hy, const MMWorldBufferServices 
     if (!create_slot(w, MM_WORLD_DEPTH_BACKGROUND, width, height, s) ||
         !create_slot(w, MM_WORLD_DEPTH_WORKING, width, height, s))
         return 0;
-    s->depth_span(s->context, w->owners[MM_WORLD_DEPTH_WORKING], &span);
+    depth = s->depth_bitmap(s->context, w->owners[MM_WORLD_DEPTH_WORKING]);
+    if (!mm_world_depth_valid(depth, width, height) || depth->row_bytes != width * 2)
+        return 0;
     w->z.row = width * 2;
     w->z.width = width;
     w->z.height = height;
     w->z.x = width / 2;
     w->z.y = height / 2;
     w->z.type = s->depth_type;
-    w->z.pixels = span.pixels;
+    w->z.pixels = depth->pixels;
     if (!create_slot(w, MM_WORLD_RGB_BACKGROUND, width, height, s) ||
         !create_slot(w, MM_WORLD_RGB_WORKING, width, height, s))
         return 0;
@@ -166,60 +167,106 @@ release_source:
     return ok;
 }
 
-int mm_world_depth_resample(const MMWorldDepthSpan *src, const MMWorldDepthSpan *dst, MMI32 width,
+static int draw_background_rgb(const MMWorldBufferServices *s, void *bitmap, MMI32 width, MMI32 height, void *port)
+{
+    const MMMaskedBitmap *source = s->masked_bitmap(s->context, bitmap);
+    MMWorldPixels target;
+    MMMaskedRect clip = {0, 0, 0, 0};
+    int ok;
+
+    if (!source || !s->lock(s->context, port, &target))
+        return 0;
+    ok = mm_world_pixels_valid(&target, width, height);
+    if (ok)
+    {
+        clip.right = width;
+        clip.bottom = height;
+        mm_masked_blit8(source, mm_masked_native_big_endian(), target.pixels, target.row, height, 0, 0, &clip, NULL);
+    }
+    s->unlock(s->context, port);
+    return ok;
+}
+
+int mm_world_scale_background_rgb(const MMWorldBufferServices *s, void *bitmap, MMI32 width, MMI32 height,
+                                  void *target, MMI32 target_width, MMI32 target_height)
+{
+    void *full = s->create(s->context, MM_WORLD_RGB_BACKGROUND, width, height);
+    int ok;
+
+    if (!full)
+        return 0;
+    ok = draw_background_rgb(s, bitmap, width, height, full) &&
+         mm_world_copy_rgb(s, full, width, height, target, target_width, target_height);
+    s->release(s->context, full);
+    return ok;
+}
+
+int mm_world_depth_valid(const MMDepthBitmap *depth, MMI32 width, MMI32 height)
+{
+    return depth && depth->pixels && width > 0 && height > 0 && depth->row_bytes > 0 &&
+           width <= depth->row_bytes / 2 && height <= depth->bytes / depth->row_bytes;
+}
+
+int mm_world_draw_depth(const MMDepthBitmap *source, const MMDepthBitmap *target, MMI32 width, MMI32 height)
+{
+    MMDepthRect clip = {0, 0, 0, 0};
+
+    if (!source || !mm_world_depth_valid(target, width, height))
+        return 0;
+    clip.right = width;
+    clip.bottom = height;
+    /* Retain the valid prefix of a short or displaced cached source. */
+    mm_depth_draw(source, target->pixels, target->row_bytes, height, 0, 0, &clip, NULL, 0);
+    return 1;
+}
+
+int mm_world_depth_resample(const MMDepthBitmap *src, const MMDepthBitmap *dst, MMI32 width,
                                   MMI32 height, MMI32 scale, int hx, int hy)
 {
     MMI32 y, x, sy, sx, n;
-    if (width <= 0 || height <= 0 || width > MAXIMUM / 2 || src->row < 0 || dst->row < width * 2 || src->bytes < 0 ||
-        dst->bytes < 0 || !src->pixels || !dst->pixels || scale < 1 || scale > 16)
+    const unsigned char *source;
+    unsigned char *target;
+    if (!mm_world_depth_valid(dst, width, height) || !src || src->row_bytes < 0 || src->bytes < 0 ||
+        !src->pixels || scale < 1 || scale > 16)
         return 0;
-    if (height > MAXIMUM / dst->row || dst->row * height > dst->bytes)
-        return 0;
+    source = (const unsigned char *)src->pixels;
+    target = (unsigned char *)dst->pixels;
     for (y = 0; y < height; ++y)
     {
         sy = scale > 1 ? y / scale : y * (hy ? 2 : 1);
-        if (src->row && sy > src->bytes / src->row)
+        if (src->row_bytes && sy > src->bytes / src->row_bytes)
             return 0;
-        n = sy * src->row;
+        n = sy * src->row_bytes;
         for (x = 0; x < width; ++x)
         {
             sx = scale > 1 ? x / scale : x * (hx ? 2 : 1);
-            if (sx >= src->row / 2 || src->bytes - n < 2 || sx > (src->bytes - n - 2) / 2)
+            if (sx >= src->row_bytes / 2 || src->bytes - n < 2 || sx > (src->bytes - n - 2) / 2)
                 return 0;
-            memcpy(dst->pixels + y * dst->row + x * 2, src->pixels + n + sx * 2, 2);
+            memcpy(target + y * dst->row_bytes + x * 2, source + n + sx * 2, 2);
         }
     }
     return 1;
 }
-static int scaled(MMWorldBuffers *w, void *bitmap, void *depth, const MMWorldBufferServices *s)
+static int load_scaled_depth(const MMWorldBuffers *w, const MMDepthBitmap *src, const MMDepthBitmap *dst,
+                             const MMWorldBufferServices *s)
 {
-    void *full = s->create(s->context, MM_WORLD_RGB_BACKGROUND, w->width, w->height), *native;
-    MMWorldDepthSpan src, dst;
+    void *native = s->create(s->context, MM_WORLD_DEPTH_BACKGROUND, w->width, w->height);
+    const MMDepthBitmap *intermediate;
     int ok;
-    if (!full)
-        return 0;
-    s->draw_bitmap(s->context, full, bitmap);
-    ok = mm_world_copy_rgb(s, full, w->width, w->height, w->owners[MM_WORLD_RGB_BACKGROUND],
-                           w->buffer_width, w->buffer_height);
-    s->release(s->context, full);
-    if (!ok)
-        return 0;
-    native = s->create(s->context, MM_WORLD_DEPTH_BACKGROUND, w->width, w->height);
     if (!native)
         return 0;
-    s->draw_depth(s->context, depth, native, w->width, w->height);
-    s->depth_span(s->context, native, &src);
-    s->depth_span(s->context, w->owners[MM_WORLD_DEPTH_BACKGROUND], &dst);
-    ok = mm_world_depth_resample(&src, &dst, w->buffer_width, w->buffer_height, w->scale, 0, 0);
+    intermediate = s->depth_bitmap(s->context, native);
+    ok = mm_world_draw_depth(src, intermediate, w->width, w->height) &&
+         mm_world_depth_resample(intermediate, dst, w->buffer_width, w->buffer_height, w->scale, 0, 0);
     s->release_depth(s->context, native);
     return ok;
 }
 int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, MMU32 rgb_number,
                                       MMU32 z_type, MMU32 z_number, const MMWorldBufferServices *s)
 {
-    void *bitmap = s->fetch(s->context, cache, MM_WORLD_RGB_BACKGROUND, rgb_type, rgb_number), *depth, *full;
-    MMWorldDepthSpan src, dst;
-    int ok;
+    void *bitmap = s->fetch(s->context, cache, MM_WORLD_RGB_BACKGROUND, rgb_type, rgb_number), *depth;
+    const MMDepthBitmap *src, *dst;
+    int ok, resized = w->scale > 1 || w->half_x || w->half_y;
     if (!bitmap)
         return 0;
     depth = s->fetch(s->context, cache, MM_WORLD_DEPTH_BACKGROUND, z_type, z_number);
@@ -230,48 +277,26 @@ int mm_world_buffers_background(MMWorldBuffers *w, void *cache, MMU32 rgb_type, 
     }
     s->priority(s->context, bitmap);
     s->priority_depth(s->context, depth);
-    if (w->scale > 1)
+    ok = resized ? mm_world_scale_background_rgb(s, bitmap, w->width, w->height,
+                                                w->owners[MM_WORLD_RGB_BACKGROUND], w->buffer_width, w->buffer_height)
+                 : draw_background_rgb(s, bitmap, w->width, w->height, w->owners[MM_WORLD_RGB_BACKGROUND]);
+    s->release_bitmap(s->context, bitmap);
+    if (ok && resized)
     {
-        ok = scaled(w, bitmap, depth, s);
-        s->release_bitmap(s->context, bitmap);
-        s->release_depth(s->context, depth);
-        if (!ok)
-            return 0;
+        src = s->depth_bitmap(s->context, depth);
+        dst = s->depth_bitmap(s->context, w->owners[MM_WORLD_DEPTH_BACKGROUND]);
+        ok = w->scale > 1 ? load_scaled_depth(w, src, dst, s)
+                          : mm_world_depth_resample(src, dst, w->buffer_width, w->buffer_height, 1, w->half_x, w->half_y);
     }
-    else if (w->half_x || w->half_y)
-    {
-        full = s->create(s->context, MM_WORLD_RGB_BACKGROUND, w->width, w->height);
-        /* The native path checked the existing destination instead of full. */
-        if (!full)
-        {
-            s->release_bitmap(s->context, bitmap);
-            s->release_depth(s->context, depth);
-            return 0;
-        }
-        s->draw_bitmap(s->context, full, bitmap);
-        s->release_bitmap(s->context, bitmap);
-        ok = mm_world_copy_rgb(s, full, w->width, w->height, w->owners[MM_WORLD_RGB_BACKGROUND],
-                               w->buffer_width, w->buffer_height);
-        s->release(s->context, full);
-        if (!ok)
-        {
-            s->release_depth(s->context, depth);
-            return 0;
-        }
-        s->depth_span(s->context, depth, &src);
-        s->depth_span(s->context, w->owners[MM_WORLD_DEPTH_BACKGROUND], &dst);
-        ok = mm_world_depth_resample(&src, &dst, w->buffer_width, w->buffer_height, 1, w->half_x, w->half_y);
+    if (!ok || resized)
         s->release_depth(s->context, depth);
-        if (!ok)
-            return 0;
-    }
     else
     {
-        s->draw_bitmap(s->context, w->owners[MM_WORLD_RGB_BACKGROUND], bitmap);
-        s->release_bitmap(s->context, bitmap);
         release_slot(w, MM_WORLD_DEPTH_BACKGROUND, s);
         w->owners[MM_WORLD_DEPTH_BACKGROUND] = depth;
     }
+    if (!ok)
+        return 0;
     mm_world_buffers_dirty(w, 0);
     s->changed(s->context);
     s->retain_cache(s->context, cache);

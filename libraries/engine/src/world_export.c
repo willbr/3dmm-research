@@ -16,8 +16,8 @@ int mm_world_export_size(const MMWorldBuffers *b, MMI32 requested, MMI32 *scale,
 int mm_world_export_background(const MMWorldBuffers *b, void *rgb, void *depth, MMI32 scale,
                                      const MMWorldBufferServices *s)
 {
-    void *bitmap = NULL, *source = NULL, *full = NULL;
-    MMWorldDepthSpan src, dst;
+    void *bitmap = NULL, *source = NULL;
+    const MMDepthBitmap *src, *dst;
     MMI32 chosen, width, height;
     int ok = 0;
     if (!mm_world_export_size(b, scale, &chosen, &width, &height) || chosen != scale)
@@ -32,22 +32,16 @@ int mm_world_export_background(const MMWorldBuffers *b, void *rgb, void *depth, 
         s->fetch(s->context, b->owners[MM_WORLD_CACHE], MM_WORLD_DEPTH_BACKGROUND, b->z_type, b->z_number);
     if (!source)
         goto cleanup;
-    full = s->create(s->context, MM_WORLD_RGB_BACKGROUND, b->width, b->height);
-    if (!full)
+    if (!mm_world_scale_background_rgb(s, bitmap, b->width, b->height, rgb, width, height))
         goto cleanup;
-    s->draw_bitmap(s->context, full, bitmap);
-    if (!mm_world_copy_rgb(s, full, b->width, b->height, rgb, width, height))
-        goto cleanup;
-    s->depth_span(s->context, source, &src);
-    s->depth_span(s->context, depth, &dst);
-    ok = mm_world_depth_resample(&src, &dst, width, height, scale, 0, 0);
+    src = s->depth_bitmap(s->context, source);
+    dst = s->depth_bitmap(s->context, depth);
+    ok = mm_world_depth_resample(src, dst, width, height, scale, 0, 0);
 cleanup:
     if (bitmap)
         s->release_bitmap(s->context, bitmap);
     if (source)
         s->release_depth(s->context, source);
-    if (full)
-        s->release(s->context, full);
     return ok;
 }
 static int write_pixels(void *port, MMI32 width, MMI32 height, const MMWorldExportServices *s)
@@ -75,7 +69,7 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
 {
     void *rgb = NULL, *depth = NULL;
     MMWorldPixels pixels;
-    MMWorldDepthSpan span;
+    const MMDepthBitmap *span;
     MMWorldPixelView rgb_view, depth_view;
     MMWorldMaterials materials;
     MMI32 scale, width, height;
@@ -94,9 +88,9 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
     mm_world_render_styles(render->frame.world, wire ? render->edges : render->faces, render);
     if (!buffers->lock(buffers->context, rgb, &pixels))
         goto cleanup;
-    buffers->depth_span(buffers->context, depth, &span);
-    if (!mm_world_pixels_valid(&pixels, width, height) || !span.pixels || span.row != width * 2 ||
-        span.bytes < span.row * height)
+    span = buffers->depth_bitmap(buffers->context, depth);
+    if (!mm_world_pixels_valid(&pixels, width, height) || !mm_world_depth_valid(span, width, height) ||
+        span->row_bytes != width * 2)
     {
         buffers->unlock(buffers->context, rgb);
         goto cleanup;
@@ -112,7 +106,7 @@ int mm_world_export_scaled(const MMWorldBuffers *b, MMI32 requested,
     depth_view = rgb_view;
     depth_view.row = width * 2;
     depth_view.type = b->z.type;
-    depth_view.pixels = span.pixels;
+    depth_view.pixels = span->pixels;
     s->bounds_callback(s->context, 0);
     render->options(render->context, &wire, &flat, &no_texture);
     ready = mm_world_materials_begin(&materials, flat, no_texture, &render->materials);

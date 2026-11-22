@@ -13,6 +13,8 @@ typedef struct Object
 {
     int kind, refs, locks, width, height, row, bytes;
     unsigned char *pixels;
+    MMDepthBitmap depth;
+    MMMaskedOwner *mask;
 } Object;
 typedef struct Actor
 {
@@ -68,6 +70,7 @@ static void release(void *context, void *p)
         return;
     for (i = 0; i < 8; ++i)
         assert(o->pixels[o->bytes + i] == 0xcc);
+    mm_masked_owner_release(o->mask);
     free(o->pixels);
     free(o);
     --f->live;
@@ -96,24 +99,25 @@ static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
     ++o->refs;
     return o;
 }
-static void depth_span(void *p, void *depth, MMWorldDepthSpan *out)
+static const MMDepthBitmap *depth_bitmap(void *p, void *depth)
 {
     Fixture *f = (Fixture *)p;
     Object *o = (Object *)depth;
-    out->pixels = o->pixels;
-    out->row = o->row;
-    out->bytes = o->bytes;
+    o->depth.bounds.right = o->width;
+    o->depth.bounds.bottom = o->height;
+    o->depth.pixels = o->pixels;
+    o->depth.row_bytes = o->row;
+    o->depth.bytes = o->bytes;
     if (f->short_source && o == f->source)
-        --out->bytes;
-    if (f->bad_depth_late && f->locks >= 3 && o == f->depth)
-        ++out->row;
+        --o->depth.bytes;
+    if (f->bad_depth_late && f->locks >= 4 && o == f->depth)
+        ++o->depth.row_bytes;
+    return &o->depth;
 }
-static void draw_bitmap(void *p, void *port, void *bitmap)
+static const MMMaskedBitmap *masked_bitmap(void *p, void *bitmap)
 {
-    Object *o = (Object *)port, *source = (Object *)bitmap;
     (void)p;
-    assert(o->width == source->width && o->height == source->height);
-    memcpy(o->pixels, source->pixels, (size_t)o->bytes);
+    return mm_masked_owner_bitmap(((Object *)bitmap)->mask);
 }
 static int lock(void *p, void *port, MMWorldPixels *out)
 {
@@ -270,6 +274,7 @@ static int write(void *p, const MMWorldPixels *pixels, void *palette_object, MMI
 }
 static void init(Fixture *f)
 {
+    const MMMaskedRect rect = {0, 0, 3, 2};
     MMWorldBufferServices *b;
     MMWorldRenderServices *r;
     MMWorldMaterialServices *m;
@@ -288,6 +293,9 @@ static void init(Fixture *f)
             f->source->pixels[y * f->source->row + x * 2] = (unsigned char)(0x20 + x);
             f->source->pixels[y * f->source->row + x * 2 + 1] = (unsigned char)(0x80 + y);
         }
+    f->bitmap->mask = mm_masked_owner_new(f->bitmap->pixels, f->bitmap->row, f->bitmap->height, &rect,
+                                         2, -3, 0, 0, 0, NULL);
+    assert(f->bitmap->mask);
     f->b.width = 3;
     f->b.height = 2;
     f->b.buffer_width = 2;
@@ -322,8 +330,8 @@ static void init(Fixture *f)
     b->release_depth = release;
     b->release_bitmap = release;
     b->fetch = fetch;
-    b->depth_span = depth_span;
-    b->draw_bitmap = draw_bitmap;
+    b->depth_bitmap = depth_bitmap;
+    b->masked_bitmap = masked_bitmap;
     b->lock = lock;
     b->unlock = unlock;
     r = &f->s.render;
@@ -375,19 +383,19 @@ static void transactions(void)
         before = f.b;
         assert(mm_world_export_scaled(&f.b, scale, &f.s));
         assert(f.rasters == 1 && f.writes == 1 && f.width == 3 * scale && f.height == 2 * scale);
-        assert(f.phase == 12 && f.options == 2 && !memcmp(&before, &f.b, sizeof(before)));
+        assert(f.phase == 13 && f.options == 2 && !memcmp(&before, &f.b, sizeof(before)));
         for (i = 0; i < f.working->bytes; ++i)
             assert(f.working->pixels[i] == 0x55);
         assert(f.events[f.n - 3] == 1000 + PALETTE && f.events[f.n - 2] == 1000 + MM_WORLD_RGB_WORKING &&
                f.events[f.n - 1] == 1000 + MM_WORLD_DEPTH_WORKING);
         balanced(&f);
     }
-    for (fail = 1; fail <= 12; ++fail)
+    for (fail = 1; fail <= 13; ++fail)
     {
         init(&f);
         f.fail = fail;
         assert(!mm_world_export_scaled(&f.b, 2, &f.s));
-        assert(f.phase == fail && f.rasters == (fail >= 10) && f.writes == (fail == 12));
+        assert(f.phase == fail && f.rasters == (fail >= 11) && f.writes == (fail == 13));
         balanced(&f);
     }
     for (fail = 0; fail <= 3; ++fail)
@@ -400,7 +408,7 @@ static void transactions(void)
         assert(f.locks == (fail == 1 ? 0 : 1));
         balanced(&f);
     }
-    for (scenario = 0; scenario < 8; ++scenario)
+    for (scenario = 0; scenario < 9; ++scenario)
     {
         init(&f);
         if (scenario == 0)
@@ -408,7 +416,7 @@ static void transactions(void)
         if (scenario == 1)
             f.short_source = 1;
         if (scenario == 2 || scenario == 3)
-            f.bad_pixels = scenario + 1;
+            f.bad_pixels = scenario + 2;
         if (scenario == 4)
             f.bad_depth_late = 1;
         if (scenario == 5)
@@ -416,7 +424,7 @@ static void transactions(void)
             f.late = 1;
             f.flat = f.no_texture = 0;
         }
-        if (scenario == 6 || scenario == 7)
+        if (scenario >= 6)
             f.bad_pixels = scenario - 5;
         assert(mm_world_export_scaled(&f.b, 3, &f.s) == (scenario == 0 || scenario == 5));
         balanced(&f);
@@ -452,7 +460,7 @@ static void dimensions(void)
 static void depth_copy(void)
 {
     unsigned char src[16], dst[3200];
-    MMWorldDepthSpan source, destination;
+    MMDepthBitmap source = {0}, destination = {0};
     int scale, x, y, row, height;
     memset(src, 0xcc, sizeof(src));
     for (y = 0; y < 2; ++y)
@@ -462,7 +470,7 @@ static void depth_copy(void)
             src[y * 8 + x * 2 + 1] = (unsigned char)(y + 11);
         }
     source.pixels = src;
-    source.row = 8;
+    source.row_bytes = 8;
     source.bytes = 16;
     destination.pixels = dst;
     for (scale = 1; scale <= 16; ++scale)
@@ -470,7 +478,7 @@ static void depth_copy(void)
         row = 3 * scale * 2 + 2;
         height = 2 * scale;
         memset(dst, 0xcc, sizeof(dst));
-        destination.row = row;
+        destination.row_bytes = row;
         destination.bytes = row * height;
         assert(mm_world_depth_resample(&source, &destination, 3 * scale, height, scale, 0, 0));
         for (y = 0; y < height; ++y)
@@ -483,10 +491,35 @@ static void depth_copy(void)
     assert(dst[3136] == 0xcc);
     assert(!mm_world_depth_resample(&source, &destination, 48, 32, 17, 0, 0));
 }
+
+static void depth_placement(void)
+{
+    unsigned char src[32], dst[40];
+    MMDepthBitmap source = {{1, 1, 4, 4}, 8, 16, NULL};
+    MMDepthBitmap target = {{0, 0, 4, 4}, 10, 40, NULL};
+    int x, y;
+
+    for (x = 0; x < (int)sizeof(src); ++x)
+        src[x] = (unsigned char)(x + 1);
+    memset(dst, 0xff, sizeof(dst));
+    source.pixels = src;
+    target.pixels = dst;
+    assert(mm_world_draw_depth(&source, &target, 4, 4));
+    for (y = 0; y < 4; ++y)
+        for (x = 0; x < 10; ++x)
+            assert(dst[y * 10 + x] == (y == 1 && x >= 2 && x < 8 ? src[y * 8 + x] : 0xff));
+    target.bytes = 39;
+    memset(dst, 0xff, sizeof(dst));
+    assert(!mm_world_draw_depth(&source, &target, 4, 4));
+    for (x = 0; x < (int)sizeof(dst); ++x)
+        assert(dst[x] == 0xff);
+}
+
 int main(void)
 {
     dimensions();
     depth_copy();
+    depth_placement();
     transactions();
     puts("C89 World export: scaling, palette/lock/material ownership and transaction failures passed.");
     return 0;
