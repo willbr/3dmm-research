@@ -2,9 +2,7 @@
 #include "mm/caption_render.h"
 #include <algorithm>
 
-namespace
-{
-MMPreviewProjection Projection(const MM::PreviewProjection &source)
+MMPreviewProjection marcus_caption_projection(const MM::PreviewProjection &source)
 {
     MMPreviewProjection result{};
     result.valid = source.valid;
@@ -18,13 +16,12 @@ MMPreviewProjection Projection(const MM::PreviewProjection &source)
     result.ortho_height = source.orthoHeight;
     return result;
 }
-} // namespace
 
 void marcus_caption_quad(const MM::PreviewImage &texture, const MM::PreviewProjection &camera,
                          MM::PreviewImage &scene)
 {
-    const auto authored = Projection(camera);
-    const auto view = Projection(scene.projection);
+    const auto authored = marcus_caption_projection(camera);
+    const auto view = marcus_caption_projection(scene.projection);
     auto covered = static_cast<MMU32>(scene.coveredPixels);
     mm_caption_quad(texture.rgba.data(), texture.rgba.size(), texture.width, texture.height, &authored, &view,
                     scene.rgba.data(), scene.rgba.size(), scene.width, scene.height,

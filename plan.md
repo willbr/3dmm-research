@@ -1732,6 +1732,11 @@ and clamps draft scrolling to keep the active caret visible.
 The same presentation stack now drives caption hit-testing, draft
 substitution, and back-to-front drawing in C89. C89 also selects the
 credits that can scroll on each frame and tracks their scroll offsets.
+The C caption presentation owns the authored row table, visibility stack,
+draft scroll position and reusable work-view RGBA layer. It installs rows
+in authored order, chooses the final caret stop at a wrap, and draws directly
+in the movie view or projects the cleared layer into the work view. Marcus
+supplies positioned masks, palette colours and host camera values.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

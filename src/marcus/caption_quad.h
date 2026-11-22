@@ -1,6 +1,9 @@
 #ifndef MARCUS_CAPTION_QUAD_H
 #define MARCUS_CAPTION_QUAD_H
 #include "mm/preview.h"
+#include "mm/preview_render.h"
+
+MMPreviewProjection marcus_caption_projection(const MM::PreviewProjection &);
 
 // Project a transparent caption texture onto the authored camera's display
 // frame. Both faces are visible; projection, clipping and scene depth use the

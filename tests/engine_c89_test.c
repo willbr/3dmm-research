@@ -428,6 +428,117 @@ static void check_caption_render(void)
     CHECK(reduced[0] == 10 && reduced[1] == 20 && reduced[2] == 30 && reduced[3] == 40);
 }
 
+typedef struct CaptionOwnerFixture
+{
+    CaptionPresentation calls;
+    unsigned char *layer;
+    int deny, first_byte;
+} CaptionOwnerFixture;
+
+static void *caption_resize(void *context, void *old, MMU32 before, MMU32 bytes, int priority)
+{
+    (void)before;
+    (void)priority;
+    return ((CaptionOwnerFixture *)context)->deny ? NULL : realloc(old, bytes);
+}
+
+static void caption_release(void *context, void *bytes, MMU32 size)
+{
+    (void)context;
+    (void)size;
+    free(bytes);
+}
+
+static void caption_read_row(void *context, size_t index, MMCaptionRowInput *out)
+{
+    const MMCaptionRowInput *rows = (const MMCaptionRowInput *)context;
+    *out = rows[index];
+}
+
+static void caption_read_stop(void *context, size_t index, MMCaptionCaretStop *out)
+{
+    const MMCaptionCaretStop *stops = (const MMCaptionCaretStop *)context;
+    *out = stops[index];
+}
+
+static int caption_paint_row(void *context, size_t row, MMI32 scroll, MMCaptionCanvas *canvas)
+{
+    CaptionOwnerFixture *fixture = (CaptionOwnerFixture *)context;
+    if (!fixture->calls.count)
+    {
+        fixture->first_byte = canvas->rgba[0];
+        fixture->layer = canvas->rgba;
+        canvas->rgba[0] = 23;
+    }
+    return caption_draw(&fixture->calls, row, scroll);
+}
+
+static void check_caption_owner(void)
+{
+    unsigned char rgba[80 * 46 * 4];
+    MMCaptionOutput output = {0};
+    MMPreviewProjection camera = {0};
+    MMCaptionPresentation owner;
+    CaptionOwnerFixture fixture = {0};
+    MMStorageAllocator allocator = {NULL, caption_resize, caption_release};
+    MMCaptionRowInput rows[] = {
+        {3, 10, {5, 5, 60, 40}, 17, 0}, {6, 12, {20, 20, 60, 40}, 23, 1}
+    };
+    MMCaptionCaretStop stops[] = {{1, 10, 5, 12}, {1, 20, 70, 12}};
+    MMU32 id, hidden = 23;
+    unsigned char *layer;
+    int needs_scroll;
+    allocator.context = &fixture;
+    CHECK(mm_caption_presentation_init(&owner, &allocator));
+    CHECK(mm_caption_presentation_load(&owner, 2, caption_read_row, rows));
+    rows[0].chunk = 50;
+    mm_caption_presentation_observe(&owner, 7);
+    CHECK(mm_caption_presentation_hit(&owner, 25, 25, &hidden, &id) && id == 17);
+    fixture.deny = 1;
+    CHECK(!mm_caption_presentation_load(&owner, 4096, caption_read_row, rows));
+    CHECK(mm_caption_presentation_hit(&owner, 25, 25, NULL, &id) && id == 23);
+    CHECK(mm_caption_presentation_measure(&owner, 3, &needs_scroll, &fixture.calls, caption_height) && needs_scroll);
+    mm_caption_presentation_scroll(&owner, 3);
+    mm_caption_presentation_draft(&owner, 90, 100, 0, 40);
+    CHECK(owner.draft_scroll == 70);
+    CHECK(mm_caption_presentation_caret(&owner, 1, 100, 0, 40, 2, stops, caption_read_stop) &&
+          owner.draft_scroll == 65);
+    CHECK(mm_caption_presentation_caret(&owner, -1, 100, 0, 40, 2, stops, caption_read_stop) && !owner.draft_scroll);
+    CHECK(mm_caption_layout_width(&rows[0].bounds, 65536) == 27 &&
+          !mm_caption_layout_width(&rows[0].bounds, 65537));
+
+    memset(rgba, 0, sizeof(rgba));
+    output.rgba = rgba;
+    output.rgba_bytes = sizeof(rgba);
+    output.width = 80;
+    output.height = 46;
+    output.camera = &camera;
+    output.authored = 1;
+    fixture.calls.count = 0;
+    CHECK(mm_caption_presentation_paint(&owner, 7, &hidden, 1, &output, &fixture, caption_paint_row) ==
+          MM_CAPTION_PAINT_OK);
+    CHECK(fixture.calls.count == 2 && fixture.calls.rows[0] == 1 && fixture.calls.scrolls[0] == 1 &&
+          fixture.calls.rows[1] == 0 && fixture.layer == rgba);
+    output.authored = 0;
+    camera.valid = 1;
+    fixture.calls.count = 0;
+    CHECK(mm_caption_presentation_paint(&owner, 7, NULL, 0, &output, &fixture, caption_paint_row) ==
+          MM_CAPTION_PAINT_MEMORY && !fixture.calls.count);
+    fixture.deny = 0;
+    CHECK(mm_caption_presentation_paint(&owner, 7, NULL, 0, &output, &fixture, caption_paint_row) ==
+          MM_CAPTION_PAINT_OK && fixture.layer != rgba && !fixture.first_byte);
+    layer = fixture.layer;
+    fixture.deny = 1;
+    fixture.calls.count = 0;
+    fixture.calls.fail_at = 2;
+    CHECK(mm_caption_presentation_paint(&owner, 7, NULL, 0, &output, &fixture, caption_paint_row) ==
+          MM_CAPTION_PAINT_FAILED && fixture.layer == layer && !fixture.first_byte);
+    mm_caption_presentation_rewind(&owner);
+    mm_caption_presentation_clear(&owner);
+    CHECK(!mm_caption_presentation_hit(&owner, 25, 25, NULL, &id));
+    mm_caption_presentation_dispose(&owner);
+}
+
 typedef struct TimingBytes
 {
     unsigned char bytes[157];
@@ -1028,6 +1139,7 @@ int main(void)
     check_frame_sound();
     check_sound_output();
     check_caption_render();
+    check_caption_owner();
     check_timing_snapshot();
     check_sound_schedule_sources();
     check_sound_sheet_order();

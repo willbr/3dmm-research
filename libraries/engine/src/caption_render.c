@@ -1,6 +1,7 @@
 #include "mm/caption_render.h"
 #include <float.h>
 #include <math.h>
+#include <string.h>
 
 static MMI32 min_value(MMI32 a, MMI32 b) { return a < b ? a : b; }
 static MMI32 max_value(MMI32 a, MMI32 b) { return a > b ? a : b; }
@@ -130,6 +131,109 @@ void mm_caption_reset_scroll(MMCaptionRow *rows, size_t count)
         rows[i].scroll = 0;
 }
 
+static MMCaptionRow *caption_rows(MMCaptionPresentation *presentation)
+{
+    return (MMCaptionRow *)presentation->storage.buffers[0].data;
+}
+
+void mm_caption_presentation_clear(MMCaptionPresentation *presentation)
+{
+    presentation->count = 0;
+    presentation->stack.first = presentation->stack.last = 0;
+    presentation->draft_scroll = 0;
+}
+
+int mm_caption_presentation_init(MMCaptionPresentation *presentation, const MMStorageAllocator *allocator)
+{
+    mm_caption_presentation_clear(presentation);
+    return mm_storage_init(&presentation->storage, allocator) == MM_STORAGE_OK;
+}
+
+void mm_caption_presentation_dispose(MMCaptionPresentation *presentation)
+{
+    mm_storage_dispose(&presentation->storage);
+    mm_caption_presentation_clear(presentation);
+}
+
+int mm_caption_presentation_load(MMCaptionPresentation *presentation, size_t count, MMCaptionReadRow *read, void *context)
+{
+    MMCaptionRow *rows;
+    MMCaptionRowInput input;
+    size_t i;
+    if (count > MM_STORAGE_LIMIT / sizeof(*rows) ||
+        mm_storage_ensure(&presentation->storage, (MMU32)(count * sizeof(*rows)), 0, 0) != MM_STORAGE_OK)
+        return 0;
+    rows = caption_rows(presentation);
+    for (i = 0; i < count; ++i)
+    {
+        read(context, i, &input);
+        memset(rows + i, 0, sizeof(*rows));
+        rows[i].first = input.first;
+        rows[i].end = input.end;
+        rows[i].bounds = input.bounds;
+        rows[i].chunk = input.chunk;
+        rows[i].story = input.story;
+    }
+    mm_caption_presentation_clear(presentation);
+    presentation->count = (MMU32)count;
+    return 1;
+}
+
+void mm_caption_presentation_observe(MMCaptionPresentation *presentation, MMI32 frame)
+{
+    mm_caption_observe(&presentation->stack, caption_rows(presentation), presentation->count, frame);
+}
+
+int mm_caption_presentation_hit(const MMCaptionPresentation *presentation, MMI32 x, MMI32 y, const MMU32 *hidden,
+                                MMU32 *chunk)
+{
+    const MMCaptionRow *rows = (const MMCaptionRow *)presentation->storage.buffers[0].data;
+    return mm_caption_hit(&presentation->stack, rows, x, y, hidden, chunk);
+}
+
+int mm_caption_presentation_measure(MMCaptionPresentation *presentation, MMI32 frame, int *needs_scroll,
+                                     void *context, int (*layout)(void *, size_t row, MMI32 *height))
+{
+    return mm_caption_measure_scroll(caption_rows(presentation), presentation->count, frame, needs_scroll, context, layout);
+}
+
+void mm_caption_presentation_scroll(MMCaptionPresentation *presentation, MMI32 frame)
+{
+    mm_caption_step_scroll(caption_rows(presentation), presentation->count, frame);
+}
+
+void mm_caption_presentation_rewind(MMCaptionPresentation *presentation)
+{
+    mm_caption_reset_scroll(caption_rows(presentation), presentation->count);
+}
+
+void mm_caption_presentation_draft(MMCaptionPresentation *presentation, MMI32 prior_scroll, MMI32 height,
+                                   MMI32 top, MMI32 bottom)
+{
+    presentation->draft_scroll = min_value(prior_scroll, mm_caption_scroll_overflow(height, top, bottom));
+}
+
+int mm_caption_presentation_caret(MMCaptionPresentation *presentation, MMI32 offset, MMI32 height, MMI32 top,
+                                   MMI32 bottom, size_t count, void *context,
+                                   void (*read)(void *, size_t index, MMCaptionCaretStop *))
+{
+    const MMI32 before = presentation->draft_scroll;
+    MMCaptionCaretStop stop;
+    if (offset < 0)
+        presentation->draft_scroll = 0;
+    else
+        while (count)
+        {
+            read(context, --count, &stop);
+            if (stop.offset == offset)
+            {
+                presentation->draft_scroll = mm_caption_scroll_to_caret(before, height, top, bottom, stop.y, stop.height);
+                break;
+            }
+        }
+    return before != presentation->draft_scroll;
+}
+
 void mm_caption_caret_offsets(const unsigned short *text, MMI32 length, MMI32 *offsets)
 {
     MMI32 i, offset = 0;
@@ -254,6 +358,67 @@ int mm_caption_canvas(MMCaptionCanvas *canvas, unsigned char *rgba, size_t bytes
 int mm_caption_box_visible(const MMTextBoxBounds *box)
 {
     return box->right > 0 && box->left < MM_CAPTION_WIDTH && box->bottom > 0 && box->top < MM_CAPTION_HEIGHT;
+}
+
+MMI32 mm_caption_layout_width(const MMTextBoxBounds *box, size_t text_length)
+{
+    const double width = (double)box->right - box->left, height = (double)box->bottom - box->top;
+    if (width <= 0 || height <= 0 || width > 4096 || height > 4096 || text_length > 65536UL)
+        return 0;
+    return max_value(1, (MMI32)width - 2 * MM_CAPTION_INDENT);
+}
+
+typedef struct CaptionPaintState
+{
+    void *context;
+    MMCaptionPaint *paint;
+    MMCaptionCanvas canvas;
+} CaptionPaintState;
+
+static int paint_row(void *value, size_t row, MMI32 scroll)
+{
+    CaptionPaintState *state = (CaptionPaintState *)value;
+    return state->paint(state->context, row, scroll, &state->canvas);
+}
+
+int mm_caption_presentation_paint(MMCaptionPresentation *presentation, MMI32 frame, const MMU32 *hidden, int have_draft,
+                                  const MMCaptionOutput *output, void *context, MMCaptionPaint *paint)
+{
+    CaptionPaintState state;
+    unsigned char *pixels = output->rgba;
+    size_t bytes = output->rgba_bytes;
+    MMU32 width = output->width, height = output->height;
+    float aspect = (float)MM_CAPTION_WIDTH / MM_CAPTION_HEIGHT;
+    const int have_camera = output->camera && output->camera->valid;
+    mm_caption_presentation_observe(presentation, frame);
+    if ((!presentation->stack.first && !have_draft) || (!output->authored && !have_camera))
+        return MM_CAPTION_PAINT_OK;
+    if (output->authored)
+    {
+        if (have_camera)
+            aspect = output->camera->aspect;
+    }
+    else
+    {
+        mm_caption_layer_size(width, height, &width, &height);
+        bytes = (size_t)width * height * 4;
+        if (mm_storage_ensure(&presentation->storage, 0, (MMU32)bytes, 0) != MM_STORAGE_OK)
+            return MM_CAPTION_PAINT_MEMORY;
+        pixels = presentation->storage.buffers[1].data;
+        memset(pixels, 0, bytes);
+    }
+    if (!mm_caption_canvas(&state.canvas, pixels, bytes, width, height, aspect))
+        return MM_CAPTION_PAINT_OK;
+    state.context = context;
+    state.paint = paint;
+    if (!mm_caption_draw_stack(&presentation->stack, caption_rows(presentation), hidden, have_draft,
+                               presentation->draft_scroll, &state, paint_row))
+        return MM_CAPTION_PAINT_FAILED;
+    if (!output->authored && output->view)
+        mm_caption_quad(pixels, bytes, width, height, output->camera, output->view, output->rgba,
+                        output->rgba_bytes, output->width, output->height, output->depth, output->depth_count,
+                        output->covered);
+    return MM_CAPTION_PAINT_OK;
 }
 
 static MMI32 pixel_coordinate(MMI32 origin, float value, float scale)

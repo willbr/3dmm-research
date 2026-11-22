@@ -1,6 +1,7 @@
 #ifndef MM_CAPTION_RENDER_H
 #define MM_CAPTION_RENDER_H
 #include "caption_layout.h"
+#include "collection_storage.h"
 #include "pixel_raster.h"
 #include "preview_render.h"
 #include "text_box_runtime.h"
@@ -43,6 +44,37 @@ void mm_caption_step_scroll(MMCaptionRow *, size_t count, MMI32 frame);
 void mm_caption_reset_scroll(MMCaptionRow *, size_t count);
 MMI32 mm_caption_scroll_overflow(MMI32 layout_height, MMI32 top, MMI32 bottom);
 
+typedef struct MMCaptionRowInput
+{
+    MMI32 first, end;
+    MMTextBoxBounds bounds;
+    MMU32 chunk;
+    int story;
+} MMCaptionRowInput;
+
+typedef struct MMCaptionPresentation
+{
+    MMCollectionStorage storage;
+    MMU32 count;
+    MMCaptionStack stack;
+    MMI32 draft_scroll;
+} MMCaptionPresentation;
+
+typedef void MMCaptionReadRow(void *, size_t index, MMCaptionRowInput *);
+int mm_caption_presentation_init(MMCaptionPresentation *, const MMStorageAllocator *);
+void mm_caption_presentation_dispose(MMCaptionPresentation *);
+void mm_caption_presentation_clear(MMCaptionPresentation *);
+/* Install authored rows in source order. The zero-based reader supplies every
+ * row and does not reenter the presentation. Failure preserves the old rows. */
+int mm_caption_presentation_load(MMCaptionPresentation *, size_t count, MMCaptionReadRow *, void *);
+void mm_caption_presentation_observe(MMCaptionPresentation *, MMI32 frame);
+int mm_caption_presentation_hit(const MMCaptionPresentation *, MMI32 x, MMI32 y, const MMU32 *hidden, MMU32 *chunk);
+int mm_caption_presentation_measure(MMCaptionPresentation *, MMI32 frame, int *needs_scroll,
+                                     void *, int (*layout)(void *, size_t row, MMI32 *height));
+void mm_caption_presentation_scroll(MMCaptionPresentation *, MMI32 frame);
+void mm_caption_presentation_rewind(MMCaptionPresentation *);
+void mm_caption_presentation_draft(MMCaptionPresentation *, MMI32 prior_scroll, MMI32 height, MMI32 top, MMI32 bottom);
+
 typedef struct MMCaptionCaretStop
 {
     MMI32 offset;
@@ -71,6 +103,10 @@ void mm_caption_caret_offsets(const unsigned short *, MMI32 length, MMI32 *offse
  * Callbacks use the layout convention of zero success or negative failure. */
 int mm_caption_caret_run(MMCaptionCaretBuilder *, const MMCaptionLayoutRun *, const MMCaptionCaretServices *);
 MMI32 mm_caption_scroll_to_caret(MMI32 scroll, MMI32 layout_height, MMI32 top, MMI32 bottom, float y, float height);
+/* Select the last visual stop for a repeated offset at a wrap boundary.
+ * A negative offset resets draft scrolling. Returns whether scroll changed. */
+int mm_caption_presentation_caret(MMCaptionPresentation *, MMI32 offset, MMI32 height, MMI32 top, MMI32 bottom,
+                                   size_t count, void *, void (*read)(void *, size_t index, MMCaptionCaretStop *));
 
 typedef struct MMCaptionCanvas
 {
@@ -92,6 +128,30 @@ typedef struct MMCaptionGlyph
     int supersampled;
     MMU32 foreground, background;
 } MMCaptionGlyph;
+
+typedef struct MMCaptionOutput
+{
+    unsigned char *rgba;
+    size_t rgba_bytes;
+    MMU32 width, height;
+    const MMPreviewProjection *camera, *view;
+    const float *depth;
+    size_t depth_count;
+    MMU32 *covered;
+    int authored;
+} MMCaptionOutput;
+typedef int MMCaptionPaint(void *, size_t row, MMI32 scroll, MMCaptionCanvas *);
+
+enum { MM_CAPTION_PAINT_MEMORY = -1, MM_CAPTION_PAINT_FAILED, MM_CAPTION_PAINT_OK };
+/* Observe the frame and draw directly in the authored view or project the
+ * reusable work-view layer. Row zero selects the draft. A failed paint
+ * never projects an incomplete layer. The callback borrows the canvas
+ * during the call and must not reenter the presentation. */
+int mm_caption_presentation_paint(MMCaptionPresentation *, MMI32 frame, const MMU32 *hidden, int have_draft,
+                                  const MMCaptionOutput *, void *, MMCaptionPaint *);
+
+/* Return the usable line width, or zero for unsupported box or text sizes. */
+MMI32 mm_caption_layout_width(const MMTextBoxBounds *, size_t text_length);
 
 /* Surface and mask storage are borrowed. The RGBA surfaces are tightly
  * packed. Mask planes contain pitch * height bytes when present. */

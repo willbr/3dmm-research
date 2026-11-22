@@ -22598,3 +22598,30 @@ previous port runs and retained retail and V3DMM captures in
 its 63,224-byte trace and fingerprint `0D666753`.
 
 Evidence is under `tmp/c89-storyboard-store`.
+
+## C89 caption presentation (22 November 2026)
+
+The C caption presentation owns the live row table, visibility order, credit
+and draft scroll state, and reusable RGBA work-view layer. It validates layout
+dimensions, resolves repeated caret stops at wraps, and sequences authored
+drawing and work-view projection. Marcus supplies positioned glyph masks,
+palette colours and camera values.
+
+All 239 selected checks passed across x64, x86 and SDL Studio. The C tests
+covered row ownership, allocation failure, layer reuse and clearing, and
+caret selection at a wrap. Marcus's playback and caption quadrilateral
+checks included overlap, draft scrolling, work-view rendering and the
+authored capture path. Three generated presentation movies and the default
+startup capture matched the previous build byte for byte.
+
+Text Acid baseline `20261122T190845Z-8c7d1c4e` and candidate
+`20261122T191424Z-5ea041b2` matched all 240 seek canvases and recorded scene
+state per port. Both ports reproduced the authored frame order in seek and
+continuous playback, matching the retained retail and V3DMM runs in
+`20261122T033140Z-2abe2197` and `20261122T033233Z-5e23a412`. A fresh retail
+sample on a private Windows desktop reproduced the retained images and
+caption state at four frames across all four scenes. The existing
+`scene-load` assertion repeated its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Evidence is under `tmp/c89-caption-presentation`.
