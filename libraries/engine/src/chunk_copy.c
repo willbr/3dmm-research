@@ -73,24 +73,70 @@ static const void *read_stored_name(void *p, MMU32 position)
     return binding->name.count ? &binding->name : NULL;
 }
 
-MMChunkEndpoint mm_stored_chunk_copy_endpoint(MMStoredChunkCopy *binding, MMResourceCache *cache, void *identity,
-                                             const MMStorageAllocator *allocator, const MMChunkTitleIO *titles,
-                                             MMChunkLegacyName legacy_name, unsigned text_unit)
+static MMChunkEndpoint stored_copy_endpoint(MMStoredChunkCopy *binding, MMResourceCache *cache,
+                                             const MMResourceCopyServices *services)
 {
     MMChunkEndpoint endpoint = {0};
-    if (!binding || !cache || !cache->wire_index || !titles || !mm_movie_title_init(&binding->name, text_unit))
+    if (!mm_movie_title_init(&binding->name, services->text_unit))
         return endpoint;
     binding->cache = cache;
     binding->chunks = mm_resource_cache_chunks(cache);
-    binding->titles = *titles;
-    binding->legacy_name = legacy_name;
+    binding->titles = services->titles;
+    binding->legacy_name = services->legacy_name;
     endpoint.stored = &binding->chunks;
-    endpoint.allocator = allocator;
+    endpoint.allocator = services->allocator;
     endpoint.handles = cache->services.handles;
     endpoint.files = cache->services.block_files;
-    endpoint.identity = identity;
+    endpoint.identity = cache;
     endpoint.context = binding;
     endpoint.bind_payload = bind_stored_payload;
     endpoint.read_name = read_stored_name;
     return endpoint;
+}
+
+static MMChunkEndpoint live_copy_endpoint(const MMResourceCache *cache, MMChunkFileCopy *binding,
+                                           void (*bind)(void *, MMChunkFileCopy *, MMChunkEndpoint *))
+{
+    MMChunkEndpoint endpoint = {0};
+    const MMResourceCopyServices *services = cache->services.copy;
+    if (bind)
+        bind(cache->file, binding, &endpoint);
+    else if (services && !cache->services.live_copy_source && !cache->services.live_copy_target)
+    {
+        const MMArchiveWriter writer = mm_resource_cache_writer(cache);
+        return mm_chunk_file_copy_endpoint(binding, mm_resource_cache_reader(cache), &writer, &services->titles,
+                                           services->text_unit, 0);
+    }
+    return endpoint;
+}
+
+MMChunkEndpoint mm_resource_cache_live_copy_source(const MMResourceCache *cache, MMChunkFileCopy *binding)
+{
+    const MMChunkEndpoint denied = {0};
+    if (!cache || cache->wire_index || !cache->file || !binding)
+        return denied;
+    return live_copy_endpoint(cache, binding, cache->services.live_copy_source);
+}
+
+MMChunkEndpoint mm_resource_cache_live_copy_target(const MMResourceCache *cache, MMChunkFileCopy *binding)
+{
+    const MMChunkEndpoint denied = {0};
+    if (!cache || cache->wire_index || !cache->file || !binding)
+        return denied;
+    return live_copy_endpoint(cache, binding, cache->services.live_copy_target);
+}
+
+MMChunkEndpoint mm_resource_cache_copy_source(MMResourceCache *cache, MMResourceChunkCopy *binding)
+{
+    const MMChunkEndpoint denied = {0};
+    const MMResourceCopyServices *services;
+    if (!cache || !binding)
+        return denied;
+    if (!cache->wire_index)
+        return mm_resource_cache_live_copy_source(cache, &binding->live);
+    services = cache->services.copy;
+    if (!services || !cache->wire_file ||
+        (services->stored_writable && services->stored_writable(cache->wire_file)))
+        return denied;
+    return stored_copy_endpoint(&binding->stored, cache, services);
 }

@@ -685,12 +685,6 @@ const MMTagServices &TagManager::CoreServices()
         s.bind_file = [](void *file, MMChunkFileCopy *binding) {
             return static_cast<PChunkyFile>(file)->CopyEndpoint(*binding);
         };
-        s.bind_cache = [](void *cache, MMResourceChunkCopy *binding) {
-            return ResourceCopySource(static_cast<MMResourceCache *>(cache), *binding);
-        };
-        s.bind_target = [](void *cache, MMChunkFileCopy *binding) {
-            return mm_resource_cache_live_copy_target(static_cast<MMResourceCache *>(cache), binding);
-        };
         s.missing_chunk = [](void *) { Bug("chunk not found"); };
         return s;
     }();

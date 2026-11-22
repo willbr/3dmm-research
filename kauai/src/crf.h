@@ -21,9 +21,6 @@
 
 #include "mm/resource_cache.h"
 
-struct MMChunkEndpoint;
-struct MMChunkFileCopy;
-struct MMResourceChunkCopy;
 struct MMChunkOwnerRead;
 struct MMArchiveWriter;
 struct MMPrivateArchive;
@@ -174,8 +171,6 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     MMChunkOwnerRead *ReadOwner();
     MMArchiveWriter ArchiveWriter();
     bool FGetName(ChunkTagOrType, ChunkNumber, PString);
-    MMChunkEndpoint CopySource(MMResourceChunkCopy &binding);
-    MMChunkEndpoint CopyTarget(MMChunkFileCopy &binding);
     PChunkyResourceFile PcrfNewSibling(LegacyLong budget);
     PChunkyResourceFile PcrfOpenForest(ChunkTagOrType, ChunkNumber);
 
@@ -290,7 +285,6 @@ MMResourceCache *NewTypedPrivateCache(MMPrivateArchive *, MMI32 budget);
 MMResourceCache *NewTypedSiblingCache(const MMResourceCache *, MMI32 budget);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, PString);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, const MMStringValue &);
-MMChunkEndpoint ResourceCopySource(MMResourceCache *, MMResourceChunkCopy &);
 
 } // end of namespace Chunky
 

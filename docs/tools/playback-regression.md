@@ -20960,3 +20960,27 @@ retail and the continuous timing and presentation capture limits.
 
 Traces and logs are under tmp/c89-live-resource-source. Captures are
 under tmp/c89-rtcap and tmp/c89-rscap.
+
+## C89 resource archive copy endpoints (22 November 2026)
+
+The resource cache binds live archive writers and stored chunk extents in
+C89. Studio tag saves, embedded asset copies, and Marcus font drafts use
+the shared binding. The host supplies encoding and file-access primitives.
+The cache fixture copies and redirects a tag through the C API and checks
+that a stored index cannot be used for a copy once its file is writable.
+
+All 198 native engine and C89 checks passed. Resource cache and Archive
+checks passed on native x64, native x86, and SDL. The native scene edit,
+Marcus insertion and font preview, sound edit, and playback checks passed.
+Four native resource and Preview traces, seven Marcus .3MM saves, and the
+Studio authoring save matched b6d3340f byte for byte.
+
+All eight actor-event runs in 20261122T040205Z-16692ca1 reproduced their
+baseline seek canvases, camera indices and actor state, or continuous frame
+order. The recorded differences from retail and timing and presentation
+limits reproduced as well. Retail, V3DMM, SDL Studio, and Marcus reopened
+the new copied 3D text save in 20261122T040326Z-c1ad0d07. All four agreed
+on the single authored frame and its canvas.
+
+Traces and logs are under tmp/c89-resource-copy-binding. Captures are
+under tmp/c89-rscap.

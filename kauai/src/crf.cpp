@@ -131,6 +131,20 @@ void BaseCacheableObject::MarkMem(void)
 #endif
 namespace
 {
+const MMResourceCopyServices *ResourceCopyProfile(bool kauaiBacking)
+{
+    static const MMResourceCopyServices ordinary = {
+        KauaiCopyAllocator(), KauaiChunkOwnerTitleIO(), KauaiEncodeLegacyChunkName, sizeof(achar), nullptr};
+    static const auto kauai = [] {
+        auto profile = ordinary;
+        profile.stored_writable = [](void *file) -> int {
+            return (static_cast<PFileObject>(file)->GrffilCur() & ffilWriteEnable) != 0;
+        };
+        return profile;
+    }();
+    return kauaiBacking ? &kauai : &ordinary;
+}
+
 MMResourceServices TypedCacheServices(MMResourceServices services)
 {
     services.context = nullptr;
@@ -190,6 +204,7 @@ MMResourceCache *NewTypedSourceCache(const MMNativeArchiveSource *source, int bu
 {
     auto services = TypedCacheServices({});
     services.handles = KauaiHandleServices();
+    services.copy = ResourceCopyProfile(false);
     return mm_native_archive_source_cache(source, budget, &services,
                                            KauaiResourceObjectAllocator(), KauaiCopyAllocator());
 }
@@ -218,18 +233,6 @@ bool ReadResourceName(const MMResourceCache *cache, ChunkTagOrType type, ChunkNu
     return found;
 }
 
-MMChunkEndpoint ResourceCopySource(MMResourceCache *cache, MMResourceChunkCopy &binding)
-{
-    if (!cache->wire_index)
-        return mm_resource_cache_live_copy_source(cache, &binding.live);
-    if (cache->services.block_files == KauaiBlockFileServices() &&
-        (static_cast<PFileObject>(cache->wire_file)->GrffilCur() & ffilWriteEnable))
-        return {};
-    const auto titles = KauaiChunkTitleIO();
-    return mm_stored_chunk_copy_endpoint(&binding.stored, cache, cache, KauaiCopyAllocator(),
-                                          &titles, KauaiEncodeLegacyChunkName, sizeof(achar));
-}
-
 namespace
 {
 MMResourceServices LegacyCacheServices()
@@ -252,13 +255,7 @@ MMResourceServices LegacyCacheServices()
         const auto reader = static_cast<PChunkyFile>(file)->ReadOwner();
         return mm_chunk_owner_title_read(reader, type, number, out, capacity, bytes);
     };
-    s.live_copy_source = [](void *file, MMChunkFileCopy *binding, MMChunkEndpoint *out) {
-        const auto owner = static_cast<PChunkyFile>(file);
-        const auto writer = owner->WriteOwnerIndex();
-        const auto titles = KauaiChunkOwnerTitleIO();
-        *out = mm_chunk_file_copy_endpoint(binding, owner->ReadOwner(), &writer, &titles, sizeof(achar), false);
-    };
-    s.live_copy_target = s.live_copy_source;
+    s.copy = ResourceCopyProfile(false);
 #ifdef DEBUG
     s.mark_source = [](MMResourceCache *cache) { MarkMemObj(static_cast<PChunkyFile>(cache->file)); };
 #endif
@@ -430,6 +427,8 @@ PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source,
     }
     else if (source.index)
         cache->_legacyWireFile = static_cast<PFileObject>(source.backing);
+    if (source.index)
+        services.copy = ResourceCopyProfile(services.block_files == KauaiBlockFileServices());
     int diagnostic = 0;
     Debug(diagnostic = 1;)
     if (mm_resource_cache_init(&cache->_cache, cache, &cache->_references, &source, budget, &services,
@@ -522,18 +521,6 @@ bool ChunkyResourceFile::FGetName(ChunkTagOrType type, ChunkNumber number, PStri
         return Pcfl()->FGetName(type, number, name);
     return ReadResourceName(&_cache, type, number, name);
 }
-MMChunkEndpoint ChunkyResourceFile::CopySource(MMResourceChunkCopy &binding)
-{
-    AssertThis(0);
-    return ResourceCopySource(&_cache, binding);
-}
-
-MMChunkEndpoint ChunkyResourceFile::CopyTarget(MMChunkFileCopy &binding)
-{
-    AssertThis(0);
-    return mm_resource_cache_live_copy_target(&_cache, &binding);
-}
-
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)
 {
     AssertThis(0);

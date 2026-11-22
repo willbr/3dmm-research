@@ -8,6 +8,7 @@
 #include "resource_archive_host.h"
 #include "mm/chunk_copy.h"
 #include "mm/native_archive_file.h"
+#include "mm/tag.h"
 #undef size
 ASSERTNAME
 
@@ -334,13 +335,16 @@ static int WireSourceCase(bool native)
     CHECK(live && live->FPutPv(&changed, 1, type, glyph));
     live->SetPacked(type, glyph, false);
     auto writable = ChunkyFile::PcflCreateTemp();
-    ChunkNumber copied;
     CHECK(writable);
-    MMResourceChunkCopy sourceBinding;
-    MMChunkFileCopy targetBinding;
-    const auto source = cache->CopySource(sourceBinding);
-    const auto target = writable->CopyEndpoint(targetBinding);
-    CHECK(mm_chunk_copy(&source, &target, type, root, 0, &copied) == MM_CHUNK_OK);
+    auto target = ChunkyResourceFile::PcrfNew(writable, 1024);
+    CHECK(target);
+    MMTag tag = {0, nullptr, type, root};
+    const auto tags = mm_tag_local_cache_services();
+    CHECK(mm_tag_open(&tag, cache->CoreCache(), nullptr, tags));
+    CHECK(mm_tag_save(&tag, target->CoreCache(), 1, tags) && tag.cache == target->CoreCache());
+    const ChunkNumber copied = tag.number;
+    mm_tag_close(&tag, tags);
+    ReleasePpo(&target);
     CHECK(ChunkyFile::PcflFromFni(&path) == live);
     ChildChunkIdentification child;
     DataBlock block;
@@ -373,6 +377,13 @@ static int WireSourceCase(bool native)
     block.Free();
     ReleasePpo(&writable);
     ReleasePpo(&live);
+    if (!native)
+    {
+        auto backing = static_cast<PFileObject>(core->wire_file);
+        MMResourceChunkCopy sourceBinding;
+        CHECK(backing->FSetGrffil(ffilWriteEnable, ffilWriteEnable));
+        CHECK(!mm_resource_cache_copy_source(cache->CoreCache(), &sourceBinding).identity);
+    }
     ReleasePpo(&cache);
     CHECK(mm_block_read(&originalIO, 0, decoded.data(), packedBytes, 1) == MM_DATA_OK &&
           !std::memcmp(packed.data(), decoded.data(), packedBytes));

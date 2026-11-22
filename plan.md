@@ -1808,6 +1808,9 @@ binding. Resource caches retain the index and file independently.
 Working archive lookup, cache retention and reload now use the C89
 registry and archive owner. Studio and Preview supply filename and
 physical access operations for the shared selection.
+Live and immutable resource caches now bind their copy endpoints in C89.
+Studio's local tag saves and embedded asset copies and Preview's font
+drafts share that binding and use the cache's name codec and backing state.
 Studio and Marcus share the C89 rich-text binding for stored TEXT extents,
 file references and bounded reads. Preview uses the same decoder for the
 authored TEXT encoding marker. Studio's live property and argument tables

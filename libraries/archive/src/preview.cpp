@@ -545,7 +545,7 @@ bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSourc
     if (!file)
         return Fail(error, ErrorCode::decode_failed, "Cannot prepare the preview font.");
     MMResourceChunkCopy sourceBinding;
-    const auto sourceChunks = ResourceCopySource(source, sourceBinding);
+    const auto sourceChunks = mm_resource_cache_copy_source(source, &sourceBinding);
     const int status = mm_private_archive_bind_font(file.get(), &sourceChunks, 0, font);
     if (status == MM_CHUNK_NOT_FOUND)
         Bug("chunk not found");

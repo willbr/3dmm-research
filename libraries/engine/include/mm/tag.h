@@ -39,8 +39,8 @@ extern "C"
         struct MMChunkEndpoint (*bind_target)(void *cache, struct MMChunkFileCopy *);
     } MMTagServices;
     /* Shared operations for native MMResourceCache references. Use for local
-     * lookup and tag lifetime, and copy the table to add host source, archive
-     * copy or cache ordering callbacks. Positive tags require a source provider. */
+     * lookup, copy and tag lifetime. Copy this table to add a positive source
+     * provider, legacy file access or cache ordering. */
     const MMTagServices *mm_tag_local_cache_services(void);
     /* sid 0 owns a cache reference after open/child construction. Positive sids
      * resolve through the source provider and ignore cache identity. Open-copy failure

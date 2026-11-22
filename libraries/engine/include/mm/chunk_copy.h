@@ -35,11 +35,14 @@ typedef struct MMStoredChunkCopy
     MMMovieTitle name;
 } MMStoredChunkCopy;
 
-/* The cache must describe an immutable stored archive, borrowed by the binding.
- * The codec's file read/write callbacks are unused. */
-MMChunkEndpoint mm_stored_chunk_copy_endpoint(MMStoredChunkCopy *, MMResourceCache *, void *identity,
-                                             const MMStorageAllocator *, const MMChunkTitleIO *,
-                                             MMChunkLegacyName, unsigned text_unit);
+typedef struct MMResourceCopyServices
+{
+    const MMStorageAllocator *allocator;
+    MMChunkTitleIO titles;
+    MMChunkLegacyName legacy_name;
+    unsigned text_unit;
+    int (*stored_writable)(void *backing); /* Optional current write state. */
+} MMResourceCopyServices;
 
 /* Scratch for a cache whose backing may be live or immutable. */
 typedef struct MMResourceChunkCopy
@@ -47,6 +50,11 @@ typedef struct MMResourceChunkCopy
     MMChunkFileCopy live;
     MMStoredChunkCopy stored;
 } MMResourceChunkCopy;
+
+/* Borrow a live or immutable archive through its cache. Stored sources whose
+ * physical write access is enabled are denied. Keep the binding address stable
+ * through the copy. An empty endpoint reports a refused or unavailable source. */
+MMChunkEndpoint mm_resource_cache_copy_source(MMResourceCache *, MMResourceChunkCopy *);
 
 #ifdef __cplusplus
 }

@@ -1,7 +1,6 @@
 /* Resource caching converted from Kauai crf.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/resource_cache.h"
-#include "mm/chunk_copy.h"
 #include "mm/chunk_storage.h"
 #include <stdlib.h>
 #include <string.h>
@@ -560,22 +559,6 @@ void mm_resource_cache_reopen(MMResourceCache *cache)
 {
     if (cache && cache->file && !cache->wire_index && cache->services.live_reopen)
         cache->services.live_reopen(cache->file);
-}
-
-MMChunkEndpoint mm_resource_cache_live_copy_source(const MMResourceCache *c, MMChunkFileCopy *binding)
-{
-    MMChunkEndpoint source = {0};
-    if (c && !c->wire_index && c->services.live_copy_source)
-        c->services.live_copy_source(c->file, binding, &source);
-    return source;
-}
-
-MMChunkEndpoint mm_resource_cache_live_copy_target(const MMResourceCache *c, MMChunkFileCopy *binding)
-{
-    MMChunkEndpoint target = {0};
-    if (c && !c->wire_index && c->services.live_copy_target)
-        c->services.live_copy_target(c->file, binding, &target);
-    return target;
 }
 
 static int locate_payload(void *context, MMU32 type, MMU32 number, MMBlockFile *file, int *packed)

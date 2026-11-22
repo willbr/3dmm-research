@@ -15,6 +15,7 @@ extern "C"
     typedef struct MMResourceCache MMResourceCache;
     struct MMChunkEndpoint;
     struct MMChunkFileCopy;
+    struct MMResourceCopyServices;
     struct MMChunkOwnerRead;
     struct MMArchiveWriter;
     /* The typed callback also identifies the cache entry. */
@@ -80,8 +81,10 @@ extern "C"
         void (*retain_file)(void *file);
         void (*release_file)(void *file);
         int (*live_name)(void *file, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *bytes);
+        /* With either live override installed, an absent override denies that operation. */
         void (*live_copy_source)(void *file, struct MMChunkFileCopy *, struct MMChunkEndpoint *);
         void (*live_copy_target)(void *file, struct MMChunkFileCopy *, struct MMChunkEndpoint *);
+        const struct MMResourceCopyServices *copy; /* Borrowed codec and backing access services. */
         struct MMChunkOwnerRead *(*live_reader)(void *file);
         struct MMArchiveWriter (*live_writer)(void *file);
         void (*live_reopen)(void *file);

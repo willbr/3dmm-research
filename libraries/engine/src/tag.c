@@ -19,11 +19,21 @@ static void release_cache(void *cache)
     mm_resource_cache_release(cache);
 }
 
+static MMChunkEndpoint bind_cache(void *cache, MMResourceChunkCopy *binding)
+{
+    return mm_resource_cache_copy_source(cache, binding);
+}
+
+static MMChunkEndpoint bind_target(void *cache, MMChunkFileCopy *binding)
+{
+    return mm_resource_cache_live_copy_target(cache, binding);
+}
+
 const MMTagServices *mm_tag_local_cache_services(void)
 {
     static const MMTagServices services = {
-        NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, resource_cache,
-        NULL, NULL, NULL, NULL, NULL
+        NULL, NULL, retain_cache, release_cache, NULL, NULL, bind_cache, resource_cache,
+        NULL, NULL, NULL, NULL, bind_target
     };
     return &services;
 }
