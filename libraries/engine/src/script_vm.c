@@ -549,8 +549,7 @@ static void execute(MMScriptVM *vm, unsigned opcode)
             if (vm->kidspace && opcode >= kopCreateChildGob && opcode < kopLimSccg &&
                 mm_kidspace_script_execute(vm, opcode))
                 return;
-            if (!services || !services->opcode || !services->opcode(vm->host, opcode))
-                mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
+            mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
             return;
         }
     }

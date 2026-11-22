@@ -25,6 +25,16 @@ RTCLASS(GraphicsObjectInterpreter)
 static String _stn;
 #endif // DEBUG
 
+static PDynamicArray ScriptPalette(const MMKidspacePalette *source)
+{
+    if (!source)
+        return pvNil;
+    auto palette = DynamicArray::PglNew(sizeof(Color), source->count);
+    if (palette && source->count && !palette->FInsert(0, const_cast<void *>(source->rows), source->count))
+        ReleasePpo(&palette);
+    return palette;
+}
+
 /***************************************************************************
     Constructor for a GraphicsObject based script interpreter. We don't just keep
     the pgob in case the GraphicsObject goes away while the script is running.
@@ -47,13 +57,12 @@ GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRe
                   MM_KIDSPACE_REP_KILL_ANIMATION == unsigned(GraphicalObjectRepresentation::fgokKillAnim) &&
                   MM_KIDSPACE_REP_SKIP_ANIMATION == unsigned(GraphicalObjectRepresentation::fgokNoAnim),
                   "Kidspace representation values");
+    static_assert(kcchMaxStn == MM_KIDSPACE_TEXT_LIMIT && static_cast<MMU32>(cnoNil) == 0xffffffffUL,
+                  "Kidspace application values");
     static const MMKidspaceObjectServices objects = {
         [](void *context) -> void * {
             auto interpreter = static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context));
             return static_cast<PGraphicsObject>(interpreter->_pwoks);
-        },
-        [](void *context) {
-            static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context))->GobMayDie();
         },
         [](void *context, void *parent, MMI32 id, MMU32 descriptor) -> void * {
             auto interpreter = static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context));
@@ -119,6 +128,83 @@ GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRe
             *out = CallSoundDevice(vpsndm, operation, first, second);
             return 1;
         }
+    };
+    static const MMKidspaceAppServices app = {
+        [](void *context, MMU32 number) -> MMScriptCollection * {
+            auto interpreter = static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context));
+            const MMResourceRequest request = {kctgColorTable, number, rscNil, FReadColorTable, MM_RESOURCE_NORMAL_PRIORITY};
+            return static_cast<MMScriptCollection *>(mm_resource_access_fetch(
+                &interpreter->_prca->Resources(), &request, mm_script_collection_services(), nullptr));
+        },
+        [](void *, const MMKidspacePalette *source) {
+            auto palette = ScriptPalette(source);
+            if (palette)
+                GraphicsPort::SetActiveColors(palette, fpalIdentity);
+            ReleasePpo(&palette);
+        },
+        [](void *, MMI32 kind, MMI32 parameter, MMU32 milliseconds, MMU32 color, const MMKidspacePalette *source) {
+            AbstractColor acr;
+            auto palette = ScriptPalette(source);
+            acr.SetFromLw(mm_signed_word(color));
+            vpappb->SetGft(kind, parameter, milliseconds, palette, acr);
+            ReleasePpo(&palette);
+        },
+        [](void *context) -> MMU32 {
+            return static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context))->_pwoks->GrfcustCur();
+        },
+        [](void *context, MMU32 set, MMU32 toggle) {
+            static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context))->_pwoks->ModifyGrfcust(set, toggle);
+        },
+        [](void *, void *object) -> int { return static_cast<PGraphicsObject>(object)->FIs(kclsEditControlBase); },
+        [](void *, void *object, void *text, MMU32 capacity) -> MMU32 {
+            auto edit = static_cast<PEditControlBase>(static_cast<PGraphicsObject>(object));
+            return edit->CchFetch(static_cast<achar *>(text), 0, LwMin(capacity, edit->IchMac()));
+        },
+        [](void *, void *object, const void *text, MMU32 count) {
+            auto edit = static_cast<PEditControlBase>(static_cast<PGraphicsObject>(object));
+            String value;
+            if (count)
+                value.SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
+            edit->FReplace(value.Psz(), value.Cch(), 0, edit->IchMac());
+        },
+        [](void *, MMI32 id, MMI32 *result) -> int {
+            long value;
+            if (!vpappb->FGetProp(id, &value))
+                return 0;
+            *result = static_cast<LegacyLong>(value);
+            return 1;
+        },
+        [](void *, MMI32 id, MMI32 value) -> int { return vpappb->FSetProp(id, value); },
+        [](void *, const void *text, MMU32 count) -> int { return _FLaunch(text, count); },
+        [](void *) { vpappb->BeginLongOp(); },
+        [](void *, int all) { vpappb->EndLongOp(all != 0); },
+        [](void *context, MMU32 topic, MMI32 *out) -> int {
+            auto interpreter = static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context));
+            long result;
+            if (!interpreter->_pwoks->FModalTopic(interpreter->_prca, topic, &result))
+                return 0;
+            *out = static_cast<LegacyLong>(result);
+            return 1;
+        },
+        [](void *, MMU32 mask) { vpappb->FlushUserEvents(mask); },
+        [](void *context, int destination, const void *text, MMU32 count) {
+            auto world = static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context))->_pwoks;
+            String message;
+            message.SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
+            switch (destination)
+            {
+            case MM_KIDSPACE_ALERT: world->TGiveAlert(&message, bkOk, cokInformation); break;
+            case MM_KIDSPACE_PRINT: world->Print(&message); break;
+#ifdef CHUNK_STATS
+            case MM_KIDSPACE_STATISTICS: ChunkyFile::DumpStn(&message); break;
+#endif
+            }
+        },
+#ifdef CHUNK_STATS
+        1
+#else
+        0
+#endif
     };
     static const MMKidspaceScriptServices kidspace = {
         [](void *context, MMI32 id) -> void * {
@@ -234,6 +320,18 @@ GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRe
                             static_cast<LegacyLong>(id), static_cast<LegacyLong>(mm_signed_word(detail)));
             else if (reason == MM_KIDSPACE_FILTER_FAILED)
                 vm->_WarnSz(PszLit("Filtering failed (gid = %d)"), static_cast<LegacyLong>(id));
+            else if (reason == MM_KIDSPACE_MISSING_EDIT)
+                vm->_WarnSz(PszLit("Missing edit control for (Get|Set)Edit (gid = %d)"), static_cast<LegacyLong>(id));
+            else if (reason == MM_KIDSPACE_GET_PROPERTY_FAILED)
+                vm->_WarnSz(PszLit("GetProp failed (prid = %d)"), static_cast<LegacyLong>(id));
+            else if (reason == MM_KIDSPACE_SET_PROPERTY_FAILED)
+                vm->_WarnSz(PszLit("SetProp failed (prid = %d, val = %d)"), static_cast<LegacyLong>(id),
+                            static_cast<LegacyLong>(mm_signed_word(detail)));
+            else if (reason == MM_KIDSPACE_LAUNCH_STRING_MISSING)
+            {
+                vm->_WarnSz(PszLit("String missing for Launch (stid = %d)"), static_cast<LegacyLong>(id));
+                Warn("string missing");
+            }
             else
                 vm->_WarnSz(PszLit("Missing or incompatible GraphicsObject (opcode = 0x%x, gid = %d)"),
                             static_cast<LegacyLong>(opcode), static_cast<LegacyLong>(id));
@@ -244,7 +342,11 @@ GraphicsObjectInterpreter::GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PRe
         &clocks,
         &sound,
         [](void *, void *gob) -> int { return static_cast<PGraphicsObject>(gob)->FIs(kclsKidspaceGraphicObject); },
-        &objects
+        &objects,
+        [](void *context) {
+            static_cast<PGraphicsObjectInterpreter>(static_cast<PInterpreter>(context))->GobMayDie();
+        },
+        &app
     };
     _vm.kidspace = &kidspace;
     _vm.this_object = _hid;
@@ -361,280 +463,6 @@ short GraphicsObjectInterpreter::_SwMin(void)
 }
 
 /***************************************************************************
-    Execute a script command.
-***************************************************************************/
-bool GraphicsObjectInterpreter::_FExecHostOp(LegacyLong op)
-{
-    LegacyLong dtim;
-    LegacyLong lw1, lw2, lw3, lw4;
-
-    switch (op)
-    {
-    case kopAlert:
-    case kopPrint:
-    case kopPrintStat:
-    case kopAlertStr:
-    case kopPrintStr:
-    case kopPrintStrStat:
-        GobMayDie();
-        _DoAlert(op);
-        break;
-
-    case kopSetColorTable:
-        _SetColorTable(_LwPop());
-        break;
-
-    case kopGetModifierState:
-        _Push(_pwoks->GrfcustCur());
-        break;
-
-    case kopChangeModifierState:
-        lw1 = _LwPop();
-        lw2 = _LwPop();
-        if (!_vm.error)
-            _pwoks->ModifyGrfcust(lw1, lw2);
-        break;
-
-    case kopTransition:
-        lw1 = _LwPop();
-        lw2 = _LwPop();
-        dtim = _LwPop();
-        lw3 = _LwPop();
-        lw4 = _LwPop();
-        if (!_vm.error)
-        {
-            AbstractColor acr;
-            PDynamicArray pglclr = _PglclrGet((ChunkNumber)lw4);
-            acr.SetFromLw(lw3);
-            vpappb->SetGft(lw1, lw2, LuMulDiv(dtim, kdtsSecond, kdtimSecond), pglclr, acr);
-            ReleasePpo(&pglclr);
-        }
-        break;
-
-    case kopGetEdit:
-        lw1 = _LwPop();
-        _DoEditControl(lw1, _LwPop(), fTrue);
-        break;
-
-    case kopSetEdit:
-        lw1 = _LwPop();
-        _DoEditControl(lw1, _LwPop(), fFalse);
-        break;
-
-    case kopGetProp:
-        lw1 = _LwPop();
-        if (!_vm.error)
-        {
-            GobMayDie();
-            long property;
-            if (!vpappb->FGetProp(lw1, &property))
-            {
-                Debug(_WarnSz(PszLit("GetProp failed (prid = %d)"), lw1));
-                lw2 = 0;
-            }
-            else
-                lw2 = static_cast<LegacyLong>(property);
-            _Push(lw2);
-        }
-        break;
-
-    case kopSetProp:
-        lw1 = _LwPop();
-        lw2 = _LwPop();
-        GobMayDie();
-        if (!_vm.error && !vpappb->FSetProp(lw1, lw2))
-        {
-            Debug(_WarnSz(PszLit("SetProp failed (prid = %d, val = %d)"), lw1, lw2));
-        }
-        break;
-
-    case kopLaunch:
-        lw1 = _LwPop();
-        GobMayDie();
-        if (!_vm.error)
-            _Push(_FLaunch(lw1));
-        break;
-
-    case kopStartLongOp:
-        vpappb->BeginLongOp();
-        break;
-
-    case kopEndLongOp:
-        vpappb->EndLongOp(_LwPop());
-        break;
-
-    case kopModalHelp:
-        lw1 = _LwPop();
-        lw2 = _LwPop();
-        if (!_vm.error)
-        {
-            GobMayDie();
-            long result;
-            if (_pwoks->FModalTopic(_prca, lw1, &result))
-                lw2 = static_cast<LegacyLong>(result);
-            _Push(lw2);
-        }
-        break;
-
-    case kopFlushUserEvents:
-        vpappb->FlushUserEvents(_LwPop());
-        break;
-
-    default:
-        return GraphicsObjectInterpreter_PAR::_FExecHostOp(op);
-    }
-
-    return !_vm.error;
-}
-
-/***************************************************************************
-    Put up an alert containing a list of numbers.
-***************************************************************************/
-void GraphicsObjectInterpreter::_DoAlert(LegacyLong op)
-{
-    String stn1;
-    String stn2;
-    LegacyLong lw;
-    bool fStrings;
-    LegacyLong clw = _LwPop();
-
-    switch (op)
-    {
-    default:
-        return;
-
-#ifdef CHUNK_STATS
-    case kopPrintStat:
-#endif // CHUNK_STATS
-    case kopAlert:
-    case kopPrint:
-        fStrings = fFalse;
-        break;
-
-#ifdef CHUNK_STATS
-    case kopPrintStrStat:
-#endif // CHUNK_STATS
-    case kopAlertStr:
-    case kopPrintStr:
-        fStrings = fTrue;
-        break;
-    }
-
-    if (fStrings && pvNil == _pstrg)
-    {
-        _Error(fTrue);
-        return;
-    }
-
-    const auto binding = mm_script_binding(_vm.script);
-    stn1.FFormatSz(PszLit("Script Message ('%f', 0x%x, %d): "), binding->type, binding->number, static_cast<LegacyLong>(_vm.pc));
-
-    while (clw-- > 0)
-    {
-        lw = _LwPop();
-        if (fStrings)
-            _pstrg->FGet(lw, &stn2);
-        else
-            stn2.FFormatSz(PszLit("%d (0x%x) "), lw, lw);
-        stn1.FAppendStn(&stn2);
-    }
-
-    switch (op)
-    {
-#ifdef CHUNK_STATS
-    case kopPrintStat:
-    case kopPrintStrStat:
-        ChunkyFile::DumpStn(&stn1);
-        break;
-#endif // CHUNK_STATS
-
-    case kopAlert:
-    case kopAlertStr:
-        _pwoks->TGiveAlert(&stn1, bkOk, cokInformation);
-        break;
-
-    case kopPrint:
-    case kopPrintStr:
-        _pwoks->Print(&stn1);
-        break;
-    }
-}
-
-/***************************************************************************
-    Get or set the string in an edit control.
-***************************************************************************/
-void GraphicsObjectInterpreter::_DoEditControl(LegacyLong hid, LegacyLong stid, bool fGet)
-{
-    PEditControlBase pedcb;
-    LegacyLong cch;
-    achar rgch[kcchMaxStn];
-    String stn;
-
-    if (_vm.error || pvNil == (pedcb = (PEditControlBase)_PgobFromHid(hid)) || !pedcb->FIs(kclsEditControlBase))
-    {
-        Debug(_WarnSz(PszLit("Missing edit control for (Get|Set)Edit (gid = %d)"), hid));
-        return;
-    }
-
-    if (pvNil == _pstrg)
-    {
-        _Error(fTrue);
-        return;
-    }
-
-    cch = pedcb->IchMac();
-    if (fGet)
-    {
-        cch = pedcb->CchFetch(rgch, 0, LwMin(kcchMaxStn, cch));
-        stn.SetRgch(rgch, cch);
-        _pstrg->FPut(stid, &stn);
-    }
-    else
-    {
-        _pstrg->FGet(stid, &stn);
-        pedcb->FReplace(stn.Psz(), stn.Cch(), 0, cch);
-    }
-}
-
-/***************************************************************************
-    Set the current color table.
-***************************************************************************/
-void GraphicsObjectInterpreter::_SetColorTable(ChunkNumber cno)
-{
-    PDynamicArray pglclr;
-
-    if (pvNil == (pglclr = _PglclrGet(cno)))
-        return;
-
-    GraphicsPort::SetActiveColors(pglclr, fpalIdentity);
-    ReleasePpo(&pglclr);
-}
-
-/***************************************************************************
-    Read the indicated color table and return a reference to it.
-***************************************************************************/
-PDynamicArray GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
-{
-    if (cnoNil == cno)
-        return pvNil;
-
-    const MMResourceRequest request = {kctgColorTable, cno, rscNil, FReadColorTable, MM_RESOURCE_NORMAL_PRIORITY};
-    auto table = static_cast<MMScriptCollection *>(
-        mm_resource_access_fetch(&_prca->Resources(), &request, mm_script_collection_services(), nullptr));
-    if (!table)
-        return pvNil;
-
-    MMU32 count;
-    const auto rows = mm_script_color_rows(table, &count);
-    auto palette = DynamicArray::PglNew(sizeof(Color), count);
-    if (palette && count && !palette->FInsert(0, const_cast<void *>(rows), count))
-        ReleasePpo(&palette);
-    mm_script_collection_priority(table, crepTossFirst);
-    mm_script_collection_release(table);
-    return palette;
-}
-
-/***************************************************************************
     A chunky resource reader to read a color table into a C cache owner.
 ***************************************************************************/
 int FReadColorTable(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
@@ -647,23 +475,10 @@ int FReadColorTable(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void *
     Launch an app with the given command line. Return true iff the launch
     was successful.
 ***************************************************************************/
-bool GraphicsObjectInterpreter::_FLaunch(LegacyLong stid)
+bool GraphicsObjectInterpreter::_FLaunch(const void *text, MMU32 count)
 {
-    AssertThis(0);
     String stn;
-
-    if (pvNil == _pstrg)
-    {
-        _Error(fTrue);
-        return fFalse;
-    }
-
-    if (!_pstrg->FGet(stid, &stn))
-    {
-        Debug(_WarnSz(PszLit("String missing for Launch (stid = %d)"), stid));
-        Warn("string missing");
-        return fFalse;
-    }
+    stn.SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
 
 #ifdef WIN
     STARTUPINFO sui;

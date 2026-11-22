@@ -41,7 +41,6 @@ class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
     virtual PGraphicsObject _PgobThis(void);
     virtual PGraphicsObject _PgobFromHid(LegacyLong hid);
 
-    bool _FExecHostOp(LegacyLong op) override;
     MMScriptVariables *_ThisVariables(void) override;
     MMScriptVariables *_GlobalVariables(void) override;
     MMScriptVariables *_RemoteVariables(LegacyLong lw) override;
@@ -49,11 +48,7 @@ class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
     short _SwCur(void) override;
     short _SwMin(void) override;
 
-    void _DoAlert(LegacyLong op);
-    void _SetColorTable(ChildChunkID chid);
-    void _DoEditControl(LegacyLong hid, LegacyLong stid, bool fGet);
-    PDynamicArray _PglclrGet(ChunkNumber cno);
-    bool _FLaunch(LegacyLong stid);
+    static bool _FLaunch(const void *text, MMU32 count);
 
   public:
     GraphicsObjectInterpreter(PWorldOfKidspace pwoks, PResourceCache prca, PGraphicsObject pgob);

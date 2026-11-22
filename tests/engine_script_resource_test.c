@@ -503,7 +503,7 @@ static int attach_program(Host *host, MMScriptVM *vm, const MMU32 *words, size_t
 
 static void execute_scripts(void)
 {
-    static const MMScriptVMServices services = {vm_variables, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
+    static const MMScriptVMServices services = {vm_variables, NULL, NULL, NULL, NULL, NULL, NULL, NULL};
     static const MMU32 pause[] = {
         VM_VERSION, VM_IMMEDIATES(2), 0xfffffff1UL, 4, kopDiv,
         VM_IMMEDIATES(1) | kopPause, 0x7fffffffUL, kopInc,
@@ -935,7 +935,7 @@ static void execute_kidspace_scripts(void)
 {
     static const MMKidspaceScriptServices services = {
         kid_find, kid_id, kid_relative, NULL, kid_rect, kid_set_rect, kid_point,
-        kid_find, kid_enqueue, kid_run, kid_cell, kid_notice, NULL, NULL, NULL, NULL
+        kid_find, kid_enqueue, kid_run, kid_cell, kid_notice, NULL, NULL, NULL, NULL, NULL, NULL
     };
     static const MMU32 geometry[] = {
         0x101d101dUL, VM_IMMEDIATES(3), 21, 22, 1, kopResizeGob,
@@ -1189,7 +1189,7 @@ static void execute_timed_scripts(void)
     static const MMKidspaceSoundServices sound = {timed_play, timed_mouse, timed_control};
     static const MMKidspaceScriptServices services = {
         timed_find, NULL, NULL, timed_unique, NULL, NULL, NULL,
-        NULL, NULL, NULL, NULL, timed_notice, &clock, &sound, timed_sound_object, NULL
+        NULL, NULL, NULL, NULL, timed_notice, &clock, &sound, timed_sound_object, NULL, NULL, NULL
     };
     static const MMU32 clocks[] = {
         0x101d101dUL, VM_IMMEDIATES(1), 0, kopCreateClock, kopPop,
@@ -1475,14 +1475,15 @@ static void script_object_notice(void *context, int reason, unsigned opcode, MMI
 static void execute_kidspace_objects(void)
 {
     static const MMKidspaceObjectServices objects = {
-        script_object_world, script_object_forget, script_object_create_child, script_object_create_help,
+        script_object_world, script_object_create_child, script_object_create_help,
         script_object_release, script_object_change, script_object_state, script_object_plane, script_object_set_plane,
         script_object_play, script_object_playing, script_object_stop, script_object_frame, script_object_frames,
         script_object_goto, script_object_filter, script_object_no_slip, script_object_tooltip, script_object_stream
     };
     static const MMKidspaceScriptServices services = {
         script_object_find, script_object_id, script_object_relative, NULL, NULL, NULL, NULL,
-        NULL, NULL, NULL, script_object_rep, script_object_notice, NULL, NULL, script_object_kind, &objects
+        NULL, NULL, NULL, script_object_rep, script_object_notice, NULL, NULL, script_object_kind, &objects,
+        script_object_forget, NULL
     };
     static const MMU32 create[] = {
         0x101d101dUL, VM_IMMEDIATES(3), 0x80000001UL, 0xffffffefUL, 1, kopCreateChildGob,
@@ -1544,6 +1545,281 @@ static void execute_kidspace_objects(void)
     CHECK(!host.collections_live);
 }
 
+typedef struct AppFixture
+{
+    Host *host;
+    int palettes, loads, transitions, edit_reads, edit_writes, launches, helps;
+    int messages, destinations[3], forgotten, failures, begins, ends;
+    MMU32 modifiers, events;
+    unsigned text_unit;
+    char text[3][MM_KIDSPACE_TEXT_LIMIT + 1];
+} AppFixture;
+
+static MMScriptCollection *app_palette(void *context, MMU32 number)
+{
+    AppFixture *app = context;
+    Host *host = app->host;
+    MMI32 bytes;
+    void *palette;
+    ++app->loads;
+    if (number == 9)
+        return NULL;
+    CHECK(number == 8);
+    collection_wire(host, 0, 0, 0);
+    root(host);
+    CHECK(mm_script_colors_fetch(&host->block.owner, &palette, &bytes, &host->host));
+    CHECK(mm_owned_block_clear(&host->block.owner) == MM_DATA_OK);
+    return palette;
+}
+
+static void app_set_palette(void *context, const MMKidspacePalette *palette)
+{
+    CHECK(palette && palette->count == 2 && !memcmp(palette->rows, "abcdefgh", 8));
+    ++((AppFixture *)context)->palettes;
+}
+
+static void app_transition(void *context, MMI32 kind, MMI32 parameter, MMU32 milliseconds,
+                           MMU32 color, const MMKidspacePalette *palette)
+{
+    AppFixture *app = context;
+    CHECK(kind == 4 && parameter == -3 && color == 0x80230405UL);
+    if (app->transitions++ == 0)
+        CHECK(milliseconds == 1016 && palette && palette->count == 2 && !memcmp(palette->rows, "abcdefgh", 8));
+    else
+        CHECK(milliseconds == 2863311514UL && !palette);
+}
+
+static MMU32 app_modifiers(void *context)
+{
+    return ((AppFixture *)context)->modifiers;
+}
+
+static void app_change_modifiers(void *context, MMU32 set, MMU32 toggle)
+{
+    AppFixture *app = context;
+    CHECK(set == 0x10 && toggle == 0x04000000UL);
+    app->modifiers = (app->modifiers | set) ^ toggle;
+}
+
+static void *app_object(void *context, MMI32 id)
+{
+    AppFixture *app = context;
+    return id == 2 ? &app->edit_reads : id == 3 ? &app->edit_writes : NULL;
+}
+
+static int app_is_edit(void *context, void *object)
+{
+    return object == &((AppFixture *)context)->edit_reads;
+}
+
+static MMU32 app_read_edit(void *context, void *object, void *text, MMU32 capacity)
+{
+    CHECK(app_is_edit(context, object) && capacity == 255);
+    ++((AppFixture *)context)->edit_reads;
+    memset(text, 'e', capacity);
+    return capacity;
+}
+
+static void app_write_edit(void *context, void *object, const void *text, MMU32 count)
+{
+    AppFixture *app = context;
+    CHECK(app_is_edit(context, object));
+    if (app->edit_writes++ == 0)
+        CHECK(count == 255 && ((const char *)text)[0] == 'e' && ((const char *)text)[254] == 'e');
+    else
+        CHECK(!text && !count);
+}
+
+static int app_get_prop(void *context, MMI32 id, MMI32 *out)
+{
+    CHECK(((AppFixture *)context)->forgotten > 0 && (id == 5 || id == 6));
+    *out = -450;
+    return id == 5;
+}
+
+static int app_set_prop(void *context, MMI32 id, MMI32 value)
+{
+    CHECK(((AppFixture *)context)->forgotten > 0 && id == 7 && value == -22);
+    return 0;
+}
+
+static int app_launch(void *context, const void *text, MMU32 count)
+{
+    CHECK(count == 3 && !memcmp(text, "toy", 3));
+    ++((AppFixture *)context)->launches;
+    return -3;
+}
+
+static void app_begin(void *context)
+{
+    ++((AppFixture *)context)->begins;
+}
+
+static void app_end(void *context, int all)
+{
+    CHECK(all == 1);
+    ++((AppFixture *)context)->ends;
+}
+
+static int app_help(void *context, MMU32 topic, MMI32 *result)
+{
+    ++((AppFixture *)context)->helps;
+    CHECK(topic == 27 || topic == 28);
+    *result = 310;
+    return topic == 27;
+}
+
+static void app_flush(void *context, MMU32 mask)
+{
+    ((AppFixture *)context)->events = mask;
+}
+
+static void app_message(void *context, int destination, const void *text, MMU32 count)
+{
+    AppFixture *app = context;
+    int index = app->messages++;
+    MMU32 i;
+    CHECK(index < 3 && count <= MM_KIDSPACE_TEXT_LIMIT);
+    app->destinations[index] = destination;
+    if (app->text_unit == 1)
+        memcpy(app->text[index], text, count);
+    else
+    {
+        const unsigned short *wide = text;
+        CHECK(count > 0 && wide[count - 1] == 0x263a);
+        for (i = 0; i + 1 < count; ++i)
+        {
+            CHECK(wide[i] < 128);
+            app->text[index][i] = (char)wide[i];
+        }
+        app->text[index][count - 1] = '!';
+    }
+    app->text[index][count] = 0;
+}
+
+static void app_forget(void *context)
+{
+    ++((AppFixture *)context)->forgotten;
+}
+
+static void app_notice(void *context, int reason, unsigned opcode, MMI32 id, MMU32 detail)
+{
+    AppFixture *app = context;
+    CHECK(reason == MM_KIDSPACE_MISSING_EDIT || reason == MM_KIDSPACE_GET_PROPERTY_FAILED ||
+          reason == MM_KIDSPACE_SET_PROPERTY_FAILED || reason == MM_KIDSPACE_LAUNCH_STRING_MISSING);
+    if (reason == MM_KIDSPACE_MISSING_EDIT)
+        CHECK(opcode == kopGetEdit && id == 3);
+    else if (reason == MM_KIDSPACE_GET_PROPERTY_FAILED)
+        CHECK(opcode == kopGetProp && id == 6);
+    else if (reason == MM_KIDSPACE_SET_PROPERTY_FAILED)
+        CHECK(opcode == kopSetProp && id == 7 && mm_signed_word(detail) == -22);
+    else
+        CHECK(opcode == kopLaunch && id == 99);
+    app->failures |= 1 << (reason - MM_KIDSPACE_MISSING_EDIT);
+}
+
+static void execute_kidspace_app(void)
+{
+    static MMKidspaceAppServices app = {
+        app_palette, app_set_palette, app_transition, app_modifiers, app_change_modifiers,
+        app_is_edit, app_read_edit, app_write_edit, app_get_prop, app_set_prop, app_launch,
+        app_begin, app_end, app_help, app_flush, app_message, 0
+    };
+    static const MMKidspaceScriptServices services = {
+        app_object, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+        app_notice, NULL, NULL, NULL, NULL, app_forget, &app
+    };
+    static const MMU32 graphics[] = {
+        0x101d101dUL, VM_IMMEDIATES(1), 8, kopSetColorTable,
+        VM_IMMEDIATES(1), 9, kopSetColorTable,
+        VM_IMMEDIATES(1), 0xffffffffUL, kopSetColorTable,
+        VM_IMMEDIATES(5), 8, 0x80230405UL, 61, 0xfffffffdUL, 4, kopTransition,
+        VM_IMMEDIATES(5), 0xffffffffUL, 0x80230405UL, 0xffffffffUL, 0xfffffffdUL, 4, kopTransition,
+        VM_IMMEDIATES(2), 0x04000000UL, 0x10, kopChangeModifierState, kopGetModifierState, kopReturn
+    };
+    static const MMU32 commands[] = {
+        0x101d101dUL,
+        VM_IMMEDIATES(2), 93, 2, kopGetEdit, VM_IMMEDIATES(2), 93, 2, kopSetEdit,
+        VM_IMMEDIATES(2), 99, 2, kopSetEdit, VM_IMMEDIATES(2), 99, 3, kopGetEdit,
+        VM_IMMEDIATES(1), 5, kopGetProp, VM_IMMEDIATES(1), 6, kopGetProp, kopAdd,
+        VM_IMMEDIATES(2), 0xffffffeaUL, 7, kopSetProp,
+        VM_IMMEDIATES(1), 91, kopLaunch, kopAdd, VM_IMMEDIATES(1), 99, kopLaunch, kopAdd,
+        VM_IMMEDIATES(2), 71, 27, kopModalHelp, kopAdd,
+        VM_IMMEDIATES(2), 0xfffffff7UL, 28, kopModalHelp, kopAdd,
+        kopStartLongOp, VM_IMMEDIATES(1), 0x80000000UL, kopEndLongOp,
+        VM_IMMEDIATES(1), 0xf0000001UL, kopFlushUserEvents, kopReturn
+    };
+    static const MMU32 messages[] = {
+        0x101d101dUL, VM_IMMEDIATES(3), 0xfffffff7UL, 17, 2, kopAlert,
+        VM_IMMEDIATES(4), 91, 99, 92, 3, kopPrintStr,
+        VM_IMMEDIATES(3), 9, 17, 2, kopPrintStat, kopAdd, kopReturn
+    };
+    static const MMU32 statistics[] = {
+        0x101d101dUL, VM_IMMEDIATES(2), 91, 1, kopPrintStrStat, kopExit
+    };
+    static const MMU32 malformed[] = {0x101d101dUL, VM_IMMEDIATES(1), 0x7fffffffUL, kopAlert, kopExit};
+    static const MMU32 unused[] = {0x101d101dUL, kopUNUSED100, kopExit};
+    static const unsigned short wide[] = {'W', 'i', 'd', 'e', 0x263a};
+    const unsigned current = 0x101d, minimum = 0x1015;
+    AppFixture fixture;
+    MMScriptStrings registry;
+    Host host;
+    MMScriptVM vm;
+
+    init(&host);
+    memset(&fixture, 0, sizeof(fixture));
+    fixture.host = &host;
+    fixture.modifiers = 0x81234567UL;
+    fixture.text_unit = 1;
+    CHECK(mm_script_strings_init(&registry, 1, 0, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_strings_put(&registry, 91, "toy", 3) && mm_script_strings_put(&registry, 92, "World", 5));
+    CHECK(mm_script_vm_init(&vm, NULL, 1, &registry, NULL, &fixture) == MM_STORAGE_OK);
+    vm.kidspace = &services;
+    app.statistics_enabled = 0;
+
+    CHECK(attach_versioned_program(&host, &vm, graphics, sizeof(graphics) / sizeof(*graphics), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && (MMU32)vm.result == 0x85234577UL);
+    CHECK(fixture.loads == 3 && fixture.palettes == 1 && fixture.transitions == 2 && fixture.forgotten == 2);
+    mm_script_vm_dispose(&vm);
+    CHECK(!host.collections_live);
+    CHECK(attach_versioned_program(&host, &vm, commands, sizeof(commands) / sizeof(*commands), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == -148 && !vm.stack.count);
+    CHECK(fixture.edit_reads == 1 && fixture.edit_writes == 2 && fixture.launches == 1 && fixture.helps == 2);
+    CHECK(fixture.failures == 15 && fixture.begins == 1 && fixture.ends == 1 && fixture.events == 0xf0000001UL);
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_versioned_program(&host, &vm, messages, sizeof(messages) / sizeof(*messages), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 26 && !vm.stack.count && fixture.messages == 2);
+    CHECK(fixture.destinations[0] == MM_KIDSPACE_ALERT &&
+          !strcmp(fixture.text[0], "Script Message ('\001\001\001\001', 0x0, 6): 17 (0x11) -9 (0xFFFFFFF7) "));
+    CHECK(fixture.destinations[1] == MM_KIDSPACE_PRINT && strstr(fixture.text[1], "): Worldtoy"));
+    mm_script_vm_dispose(&vm);
+    app.statistics_enabled = 1;
+    CHECK(attach_versioned_program(&host, &vm, statistics, sizeof(statistics) / sizeof(*statistics), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && !vm.stack.count && fixture.messages == 3);
+    CHECK(fixture.destinations[2] == MM_KIDSPACE_STATISTICS && strstr(fixture.text[2], "): toy"));
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_versioned_program(&host, &vm, malformed, sizeof(malformed) / sizeof(*malformed), current, minimum));
+    CHECK(!mm_script_vm_resume(&vm) && vm.error == MM_SCRIPT_ERROR_OPERAND && fixture.messages == 3);
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_versioned_program(&host, &vm, unused, sizeof(unused) / sizeof(*unused), current, minimum));
+    CHECK(!mm_script_vm_resume(&vm) && vm.error == MM_SCRIPT_ERROR_OPCODE);
+    mm_script_vm_dispose(&vm);
+    mm_script_strings_dispose(&registry);
+
+    fixture.messages = 0;
+    fixture.text_unit = 2;
+    host.host.unit_bytes = 2;
+    host.host.encoding = MM_TEXT_UTF16_LE;
+    CHECK(mm_script_strings_init(&registry, 2, 0, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_strings_put(&registry, 91, wide, sizeof(wide) / sizeof(*wide)));
+    CHECK(attach_versioned_program(&host, &vm, statistics, sizeof(statistics) / sizeof(*statistics), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && fixture.messages == 1 && !vm.stack.count);
+    CHECK(fixture.destinations[0] == MM_KIDSPACE_STATISTICS && strstr(fixture.text[0], "): Wide!"));
+    mm_script_vm_dispose(&vm);
+    mm_script_strings_dispose(&registry);
+    CHECK(!host.collections_live);
+}
+
 int main(void)
 {
     scripts();
@@ -1557,6 +1833,7 @@ int main(void)
     execute_kidspace_scripts();
     execute_timed_scripts();
     execute_kidspace_objects();
+    execute_kidspace_app();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

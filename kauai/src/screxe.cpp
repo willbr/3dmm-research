@@ -58,7 +58,6 @@ Interpreter::Interpreter(PResourceCache prca, PStringRegistry pstrg)
         vrndUtil.RandomCore(),
         vsflUtil.ShuffleCore(),
         [](void *, MMU32 scale) { vpusac->Scale(scale); },
-        [](void *context, unsigned opcode) -> int { return static_cast<PInterpreter>(context)->_FExecHostOp(opcode); },
         [](void *context, MMU32 number, MMU32 scope) {
             return static_cast<PInterpreter>(context)->_FetchStringResource(number, scope);
         },
@@ -215,30 +214,6 @@ short Interpreter::_SwMin(void)
     return kswMinSccb;
 }
 
-/***************************************************************************
-    Host-specific opcodes are provided by derived interpreters.
-***************************************************************************/
-bool Interpreter::_FExecHostOp(LegacyLong)
-{
-    AssertThis(0);
-    return fFalse;
-}
-
-void Interpreter::_Push(LegacyLong lw)
-{
-    mm_script_vm_push(&_vm, lw);
-}
-
-LegacyLong Interpreter::_LwPop(void)
-{
-    return mm_script_vm_pop(&_vm);
-}
-
-const void *Interpreter::_StackWords(LegacyLong clw)
-{
-    return mm_script_vm_words(&_vm, clw);
-}
-
 void Interpreter::_Error(bool fAssert)
 {
     mm_script_vm_fail(&_vm, fAssert ? MM_SCRIPT_ERROR_OPERAND : MM_SCRIPT_ERROR_RESOURCE);
@@ -311,11 +286,6 @@ void Interpreter::_WarnSz(PZString psz, ...)
     Warn(szs);
 }
 #endif // DEBUG
-
-void Interpreter::_PopList(LegacyLong clw)
-{
-    mm_script_vm_drop(&_vm, clw);
-}
 
 static int ReadStringRegistry(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {

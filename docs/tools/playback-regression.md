@@ -21516,3 +21516,40 @@ V3DMM suite `20261122T081603Z-7ffc4e8e`.
 
 The disassembly, traces and Studio canvases are under
 `tmp/c89-kidspace-objects`. Playback captures are under `tmp/c89-kd`.
+
+## C89 Kidspace application commands (22 November 2026)
+
+The C89 VM handles all 117 defined Kidspace opcodes. Studio receives typed
+requests for palette changes, transitions, messages, edit controls, modal
+Help and operating-system actions. The script VM's native opcode fallback
+has been removed. The two reserved Kidspace slots report an opcode error.
+
+The retail ISO executable's `Transition` branch at RVA `0x606ef` uses
+unsigned `ticks * 1000 / 60` with a full-width product. Its `ModalHelp`
+branch at `0x611ee` keeps the script's fallback value if the dialog fails.
+The retail message routine at `0x61980` pops the argument count before
+dispatch and returns after that pop for the two statistics opcodes.
+
+The C89 fixture exercises those rules, retained colour rows, missing
+palettes, signed property and edit arguments, registry string exchange,
+and narrow and wide message text. A message count larger than the stack
+fails before display. An oversized transition duration keeps the low word
+of the unsigned quotient, matching the prior x64 narrowing.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. The headless room, F1 Help, ISO and authoring workflows passed.
+All 470 generated script payloads, nine movie saves, five smoke canvases,
+the Marcus startup canvas, and the Help and cache traces matched retained
+results. The independently sampled ticket booth AVI crops shared 17 exact
+images out of 23 per build. Each build reproduced the other's workflow
+sample, and the post-video canvas matched the retained build. The known
+`scene-load` failure reproduced its 63,224-byte trace and fingerprint
+`0D666753`.
+
+The silent fixture in suite `20261122T124540Z-af3d7093` matched the preceding
+60 seek canvases per port and their camera and actor state. Both seek and
+continuous frame order matched the retained retail and V3DMM runs in
+`20261122T081603Z-7ffc4e8e`.
+
+The disassembly, traces and Studio canvases are under `tmp/c89-kidspace-app`.
+Playback captures are under `tmp/c89-kd`.

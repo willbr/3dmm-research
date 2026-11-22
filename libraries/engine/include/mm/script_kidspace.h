@@ -42,14 +42,19 @@ extern "C"
         MM_KIDSPACE_SOUND_FALLBACK,
         MM_KIDSPACE_DESTROY_WORLD,
         MM_KIDSPACE_INVALID_STATE,
-        MM_KIDSPACE_FILTER_FAILED
+        MM_KIDSPACE_FILTER_FAILED,
+        MM_KIDSPACE_MISSING_EDIT,
+        MM_KIDSPACE_GET_PROPERTY_FAILED,
+        MM_KIDSPACE_SET_PROPERTY_FAILED,
+        MM_KIDSPACE_LAUNCH_STRING_MISSING
     };
 
     enum
     {
         MM_KIDSPACE_REP_KILL_ANIMATION = 1,
         MM_KIDSPACE_REP_SKIP_ANIMATION = 2,
-        MM_KIDSPACE_STATE_LIMIT = 0x7fff
+        MM_KIDSPACE_STATE_LIMIT = 0x7fff,
+        MM_KIDSPACE_TEXT_LIMIT = 255
     };
 
 #define MM_KIDSPACE_TAG_ANIMATION 0x474c5343UL /* GLSC */
@@ -58,7 +63,6 @@ extern "C"
     typedef struct MMKidspaceObjectServices
     {
         void *(*world)(void *);
-        void (*forget_current)(void *);
         void *(*create_child)(void *, void *parent, MMI32 id, MMU32 descriptor);
         void *(*create_help)(void *, void *parent, MMU32 topic);
         void (*release)(void *, void *object);
@@ -77,6 +81,44 @@ extern "C"
         void (*set_tooltip_source)(void *, void *object, MMI32 id);
         void (*stream)(void *, void *object, int enabled);
     } MMKidspaceObjectServices;
+
+    enum MMKidspaceMessageDestination
+    {
+        MM_KIDSPACE_ALERT,
+        MM_KIDSPACE_PRINT,
+        MM_KIDSPACE_STATISTICS
+    };
+
+    typedef struct MMKidspacePalette
+    {
+        const void *rows; /* Borrowed native four-byte colour records. */
+        MMU32 count;
+    } MMKidspacePalette;
+
+    struct MMScriptCollection;
+
+    typedef struct MMKidspaceAppServices
+    {
+        /* The VM holds the resource reference until after the palette call. */
+        struct MMScriptCollection *(*load_palette)(void *, MMU32 number);
+        void (*set_palette)(void *, const MMKidspacePalette *);
+        void (*transition)(void *, MMI32 kind, MMI32 parameter, MMU32 milliseconds,
+                           MMU32 color, const MMKidspacePalette *);
+        MMU32 (*modifiers)(void *);
+        void (*change_modifiers)(void *, MMU32 set, MMU32 toggle);
+        int (*is_edit)(void *, void *object);
+        MMU32 (*read_edit)(void *, void *object, void *text, MMU32 capacity);
+        void (*write_edit)(void *, void *object, const void *text, MMU32 count);
+        int (*get_property)(void *, MMI32 id, MMI32 *value);
+        int (*set_property)(void *, MMI32 id, MMI32 value);
+        int (*launch)(void *, const void *text, MMU32 count);
+        void (*begin_work)(void *);
+        void (*end_work)(void *, int all);
+        int (*modal_help)(void *, MMU32 topic, MMI32 *result);
+        void (*flush_events)(void *, MMU32 mask);
+        void (*message)(void *, int destination, const void *text, MMU32 count);
+        int statistics_enabled;
+    } MMKidspaceAppServices;
 
     typedef struct MMKidspaceClockServices
     {
@@ -124,6 +166,8 @@ extern "C"
         const MMKidspaceSoundServices *sound;
         int (*is_kidspace_object)(void *, void *object);
         const MMKidspaceObjectServices *objects;
+        void (*forget_current)(void *);
+        const MMKidspaceAppServices *app;
     } MMKidspaceScriptServices;
 
     struct MMScriptVM;

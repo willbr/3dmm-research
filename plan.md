@@ -1762,8 +1762,10 @@ reusing the clock and sound-manager policies. It also handles object creation
 and destruction, representation selection, state bounds, layer and video
 queries, command filters, tooltips and streaming commands. The native host
 supplies live object and clock bindings, sound devices, seed ticks and clock
-scaling. Application commands such as alerts and modal Help still use the
-native opcode handler.
+scaling. C89 handles all 117 defined Kidspace opcodes, including script
+messages, palette changes, transition timing, edit string exchange, modal
+Help and application commands. Studio supplies typed presentation and
+platform bindings. The native opcode dispatcher has been removed.
 The script string and colour tables use C-owned storage and cache references.
 C89 normalizes registry IDs, translates counted text through the host codec,
 and merges rows in reverse order. The transition adapter supplies native

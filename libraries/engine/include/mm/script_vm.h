@@ -47,7 +47,6 @@ extern "C"
         MMRandom *random;
         MMShuffle *deck;
         void (*scale_time)(void *, MMU32 scale);
-        int (*opcode)(void *, unsigned opcode);
         /* Return a retained registry resource. The VM releases the reference. */
         MMScriptCollection *(*string_resource)(void *, MMU32 number, MMU32 scope);
         void (*string_notice)(void *, int reason, MMI32 value);
@@ -71,9 +70,8 @@ extern "C"
         int paused, error;
     } MMScriptVM;
 
-    /* Services, context and an optional shared registry are borrowed. The
-     * opcode callback may operate on operands and pause execution. Callbacks
-     * can run other VMs but must not attach, resume or dispose this VM. */
+    /* Services, context and an optional shared registry are borrowed.
+     * Callbacks can run other VMs but must not attach, resume or dispose this VM. */
     int mm_script_vm_init(MMScriptVM *, const MMStorageAllocator *, int trash_unused,
                           MMScriptStrings *, const MMScriptVMServices *, void *host);
     /* Dispose removes the script's literal IDs and releases the script,

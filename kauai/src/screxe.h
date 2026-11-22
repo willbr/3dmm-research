@@ -98,14 +98,9 @@ class Interpreter : public Interpreter_PAR
     PStringRegistry _pstrg;
     MMScriptVM _vm;
 
-    void _Push(LegacyLong lw);
-    LegacyLong _LwPop(void);
-    const void *_StackWords(LegacyLong clw);
     void _Error(bool fAssert);
     void _ReportScriptError(int reason);
 
-    void _PopList(LegacyLong clw);
-    virtual bool _FExecHostOp(LegacyLong op);
     MMScriptCollection *_FetchStringResource(MMU32 number, MMU32 scope);
     virtual MMScriptVariables *_ThisVariables(void);
     virtual MMScriptVariables *_GlobalVariables(void);

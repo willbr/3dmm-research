@@ -3,6 +3,7 @@
 #include "mm/script_kidspace.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_vm.h"
+#include "mm/string_format.h"
 #include "mm/wide.h"
 #include <string.h>
 
@@ -235,7 +236,7 @@ static void object_lifetime(MMScriptVM *vm, unsigned opcode, int explicit_id)
         child = NULL;
         if (object)
         {
-            objects->forget_current(vm->host);
+            host->forget_current(vm->host);
             if (opcode == kopCreateChildThis)
                 child = objects->create_child(vm->host, object, child_id, resource);
             else
@@ -250,7 +251,7 @@ static void object_lifetime(MMScriptVM *vm, unsigned opcode, int explicit_id)
     object = find(vm, id);
     if (!object)
         return;
-    objects->forget_current(vm->host);
+    host->forget_current(vm->host);
     if (opcode == kopDestroyThis && object != objects->world(vm->host))
     {
         objects->release(vm->host, object);
@@ -314,7 +315,7 @@ static void object_control(MMScriptVM *vm, unsigned opcode, int explicit_id)
             notice(vm, MM_KIDSPACE_INVALID_STATE, opcode - explicit_id, id, (MMU32)first);
         else
         {
-            objects->forget_current(vm->host);
+            host->forget_current(vm->host);
             objects->change_state(vm->host, object, first);
         }
         break;
@@ -500,6 +501,239 @@ static void sound_command(MMScriptVM *vm, unsigned opcode)
         mm_script_vm_push(vm, result != 0);
 }
 
+typedef union KidspaceText
+{
+    unsigned char narrow[MM_KIDSPACE_TEXT_LIMIT + 2];
+    unsigned short wide[MM_KIDSPACE_TEXT_LIMIT + 2];
+} KidspaceText;
+
+static int message_number(void *context, unsigned control, MMStringFormatArgument *argument)
+{
+    const MMU32 **next = context;
+    (void)control;
+    argument->number = *(*next)++;
+    return 1;
+}
+
+static const char message_prefix[] = "Script Message ('%f', 0x%x, %d): ";
+
+static void format_message(const MMStringValue *out, const char *pattern, const MMU32 *words)
+{
+    unsigned short wide[sizeof(message_prefix)];
+    MMStringFormatArguments arguments;
+    MMI32 count = (MMI32)strlen(pattern), i;
+    const void *native = pattern;
+    if (out->unit == 2)
+    {
+        for (i = 0; i < count; ++i)
+            wide[i] = (unsigned char)pattern[i];
+        native = wide;
+    }
+    arguments.context = &words;
+    arguments.next = message_number;
+    arguments.bad_format = NULL;
+    mm_string_format(out, native, count, &arguments);
+}
+
+static void show_message(MMScriptVM *vm, unsigned opcode, const MMKidspaceAppServices *app)
+{
+    const MMResourceObject *binding = mm_script_binding(vm->script);
+    const int strings = opcode == kopAlertStr || opcode == kopPrintStr || opcode == kopPrintStrStat;
+    int destination = MM_KIDSPACE_PRINT;
+    MMI32 count = mm_script_vm_pop(vm), id;
+    MMU32 words[3], length;
+    const void *text;
+    KidspaceText message, item;
+    unsigned unit = vm->strings ? vm->strings->unit_bytes : mm_script_unit_bytes(vm->script);
+    MMStringValue output, number;
+
+    vm->kidspace->forget_current(vm->host);
+    if (opcode == kopPrintStat || opcode == kopPrintStrStat)
+    {
+        /* In builds without chunk statistics only the count is consumed. */
+        if (!app->statistics_enabled)
+            return;
+        destination = MM_KIDSPACE_STATISTICS;
+    }
+    else if (opcode == kopAlert || opcode == kopAlertStr)
+        destination = MM_KIDSPACE_ALERT;
+    if (strings && !vm->strings)
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPERAND);
+    if (vm->error || (count > 0 && !mm_script_vm_words(vm, count)))
+        return;
+
+    words[0] = binding->type;
+    words[1] = binding->number;
+    words[2] = vm->pc;
+    output.buffer = &message;
+    output.unit = unit;
+    output.context = NULL;
+    output.check_copy = NULL;
+    number = output;
+    number.buffer = &item;
+    format_message(&output, message_prefix, words);
+    while (count > 0)
+    {
+        id = mm_script_vm_pop(vm);
+        if (strings)
+            mm_script_strings_get(vm->strings, id, &text, &length);
+        else
+        {
+            words[0] = words[1] = (MMU32)id;
+            format_message(&number, "%d (0x%x) ", words);
+            length = unit == 1 ? item.narrow[0] : item.wide[0];
+            text = (const unsigned char *)&item + unit;
+        }
+        mm_string_value_append(&output, text, (MMI32)length);
+        --count;
+    }
+    length = unit == 1 ? message.narrow[0] : message.wide[0];
+    app->message(vm->host, destination, (const unsigned char *)&message + unit, length);
+}
+
+static void edit_control(MMScriptVM *vm, unsigned opcode, const MMKidspaceAppServices *app)
+{
+    MMI32 id = mm_script_vm_pop(vm);
+    MMI32 string_id = mm_script_vm_pop(vm);
+    void *object = find(vm, id);
+    KidspaceText output;
+    const void *text;
+    MMU32 count;
+
+    if (!object || !app->is_edit(vm->host, object))
+        notice(vm, MM_KIDSPACE_MISSING_EDIT, opcode, id, 0);
+    else if (!vm->strings)
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPERAND);
+    else if (opcode == kopGetEdit)
+    {
+        count = app->read_edit(vm->host, object, &output, MM_KIDSPACE_TEXT_LIMIT);
+        mm_script_strings_put(vm->strings, string_id, &output, count);
+    }
+    else
+    {
+        mm_script_strings_get(vm->strings, string_id, &text, &count);
+        app->write_edit(vm->host, object, text, count);
+    }
+}
+
+static void use_palette(MMScriptVM *vm, unsigned opcode, const MMKidspaceAppServices *app)
+{
+    MMScriptCollection *table = NULL;
+    MMKidspacePalette palette;
+    MMI32 kind = 0, parameter = 0;
+    MMU32 ticks = 0, color = 0, number, duration;
+    if (opcode == kopTransition)
+    {
+        kind = mm_script_vm_pop(vm);
+        parameter = mm_script_vm_pop(vm);
+        ticks = (MMU32)mm_script_vm_pop(vm);
+        color = (MMU32)mm_script_vm_pop(vm);
+    }
+    number = (MMU32)mm_script_vm_pop(vm);
+    if (vm->error)
+        return;
+    if (opcode == kopTransition)
+        vm->kidspace->forget_current(vm->host);
+    if (number != (MMU32)0xffffffffUL)
+        table = app->load_palette(vm->host, number);
+    if (table)
+    {
+        palette.rows = mm_script_color_rows(table, &palette.count);
+        mm_script_collection_priority(table, MM_RESOURCE_TOSS_PRIORITY);
+    }
+    if (opcode == kopTransition)
+    {
+        /* Unsigned scaling without a 64-bit type. Keep the low word when
+         * the quotient exceeds the 32-bit millisecond range. */
+        duration = ticks / MM_CLOCK_TICKS_PER_SECOND * MM_CLOCK_MILLISECONDS_PER_SECOND +
+                   ticks % MM_CLOCK_TICKS_PER_SECOND * MM_CLOCK_MILLISECONDS_PER_SECOND / MM_CLOCK_TICKS_PER_SECOND;
+        app->transition(vm->host, kind, parameter, duration, color, table ? &palette : NULL);
+    }
+    else if (table)
+        app->set_palette(vm->host, &palette);
+    mm_script_collection_release(table);
+}
+
+static void app_command(MMScriptVM *vm, unsigned opcode)
+{
+    const MMKidspaceScriptServices *host = vm->kidspace;
+    const MMKidspaceAppServices *app = host->app;
+    MMI32 first, second = 0, result = 0;
+    const void *text;
+    MMU32 count;
+    if (!app)
+    {
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
+        return;
+    }
+    switch (opcode)
+    {
+    case kopAlert: case kopPrint: case kopPrintStat: case kopAlertStr: case kopPrintStr: case kopPrintStrStat:
+        show_message(vm, opcode, app);
+        return;
+    case kopSetColorTable: case kopTransition:
+        use_palette(vm, opcode, app);
+        return;
+    case kopGetEdit: case kopSetEdit:
+        edit_control(vm, opcode, app);
+        return;
+    case kopGetModifierState:
+        mm_script_vm_push(vm, mm_signed_word(app->modifiers(vm->host)));
+        return;
+    case kopStartLongOp:
+        app->begin_work(vm->host);
+        return;
+    }
+
+    first = mm_script_vm_pop(vm);
+    if (opcode == kopChangeModifierState || opcode == kopSetProp || opcode == kopModalHelp)
+        second = mm_script_vm_pop(vm);
+    if (vm->error)
+        return;
+    switch (opcode)
+    {
+    case kopChangeModifierState:
+        app->change_modifiers(vm->host, (MMU32)first, (MMU32)second);
+        break;
+    case kopGetProp:
+        host->forget_current(vm->host);
+        if (!app->get_property(vm->host, first, &result))
+        {
+            notice(vm, MM_KIDSPACE_GET_PROPERTY_FAILED, opcode, first, 0);
+            result = 0;
+        }
+        mm_script_vm_push(vm, result);
+        break;
+    case kopSetProp:
+        host->forget_current(vm->host);
+        if (!app->set_property(vm->host, first, second))
+            notice(vm, MM_KIDSPACE_SET_PROPERTY_FAILED, opcode, first, (MMU32)second);
+        break;
+    case kopLaunch:
+        host->forget_current(vm->host);
+        if (!vm->strings)
+            mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPERAND);
+        else if (!mm_script_strings_get(vm->strings, first, &text, &count))
+            notice(vm, MM_KIDSPACE_LAUNCH_STRING_MISSING, opcode, first, 0);
+        else
+            result = app->launch(vm->host, text, count) != 0;
+        mm_script_vm_push(vm, result);
+        break;
+    case kopEndLongOp:
+        app->end_work(vm->host, first != 0);
+        break;
+    case kopModalHelp:
+        host->forget_current(vm->host);
+        if (app->modal_help(vm->host, (MMU32)first, &result))
+            second = result;
+        mm_script_vm_push(vm, second);
+        break;
+    case kopFlushUserEvents:
+        app->flush_events(vm->host, (MMU32)first);
+        break;
+    }
+}
+
 static void object_command(MMScriptVM *vm, unsigned opcode, int explicit_id)
 {
     if (!vm->kidspace->objects)
@@ -611,6 +845,12 @@ int mm_kidspace_script_execute(MMScriptVM *vm, unsigned opcode)
     case kopPauseSound: case kopPauseSoundClass: case kopResumeSound: case kopResumeSoundClass:
     case kopSetMasterVolume: case kopGetMasterVolume:
         sound_command(vm, opcode);
+        break;
+    case kopAlert: case kopPrint: case kopPrintStat: case kopAlertStr: case kopPrintStr: case kopPrintStrStat:
+    case kopSetColorTable: case kopTransition: case kopGetModifierState: case kopChangeModifierState:
+    case kopGetEdit: case kopSetEdit: case kopGetProp: case kopSetProp: case kopLaunch:
+    case kopStartLongOp: case kopEndLongOp: case kopModalHelp: case kopFlushUserEvents:
+        app_command(vm, opcode);
         break;
     default:
         return 0;
