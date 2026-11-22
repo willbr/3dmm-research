@@ -23201,3 +23201,24 @@ Marcus Actor Audio candidate `20261122T224647Z-38e9ac1d` matched
 Its 60-frame seek and playback order matched retained retail and V3DMM
 run `20261122T082301Z-c465fa98`. Evidence is under
 `tmp/c89-working-files` and `tmp/c89-aqcap`.
+
+## C89 archive catalogs (22 November 2026)
+
+The C89 archive reader enumerates chunk metadata and encoded names and
+resolves and sorts child links for live and immutable archives. The Archive
+API converts the names and publishes its public chunk rows after success.
+The C regression covers unordered links, missing targets, cancellation and
+parent identification when a child read fails.
+
+The previous and current Archive APIs produced identical catalogs for 19,188
+chunks across seven archives in both live and inspection modes. The inputs
+included retail resources and the animation and insertion movies previously
+opened in retail. All 226 selected native tests and ten SDL tests passed.
+The x86 Marcus worker built. The headless startup image and eleven native
+save fixtures matched byte for byte.
+
+Actor Audio candidate `20261122T225554Z-984cd334` matched the previous SDL
+and Marcus builds on all 60 seek canvases and recorded states for each port.
+Both ports' seek and playback frame orders matched retained retail and
+V3DMM run `20261122T082301Z-c465fa98`. Evidence is under
+`tmp/c89-archive-catalog` and `tmp/c89-aqcap`.

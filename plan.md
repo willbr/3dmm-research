@@ -2030,6 +2030,10 @@ walks the C source catalogue and reopens live resource caches directly.
 The immutable archive source now owns its native file and validated index
 in C89. Studio's source catalogue and the Archive/Preview reader use this
 binding. Resource caches retain the index and file independently.
+The C89 archive reader also enumerates chunk catalogs for live and immutable
+sources. It reads encoded names, resolves child targets and orders links with
+the same comparator used by the archive writer. Archive and Preview marshal
+the completed rows into their public C++ types.
 Working archive lookup, cache retention and reload now use the C89
 registry and archive owner. Studio and Preview supply filename and
 physical access operations for the shared selection.

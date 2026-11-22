@@ -475,6 +475,79 @@ int mm_archive_reader_name(MMArchiveReader *reader, MMU32 position, MMReadReceiv
     return reader->options.name(reader->archive, &entry, receive, out);
 }
 
+typedef struct CatalogName
+{
+    unsigned char bytes[MM_CHUNK_NAME_WIRE_BYTES];
+    MMU32 count;
+} CatalogName;
+
+static int read_catalog_name(void *context, const MMReadStream *stream)
+{
+    CatalogName *name = context;
+    if (stream->length > sizeof(name->bytes) || !mm_read_exact(stream, 0, name->bytes, stream->length))
+        return 0;
+    name->count = stream->length;
+    return 1;
+}
+
+static int compare_catalog_links(const void *first, const void *second)
+{
+    const MMArchiveCatalogLink *a = first, *b = second;
+    return mm_chunk_child_compare(&a->child, &b->child);
+}
+
+int mm_archive_reader_catalog(MMArchiveReader *reader, MMArchiveCatalogVisit visit, void *context,
+                              MMChunkEntry *failed_parent)
+{
+    const MMChunkAccess *chunks = &reader->chunks;
+    MMArchiveCatalogLink *links = NULL, *grown;
+    MMChunkEntry entry;
+    CatalogName name;
+    MMU32 i, j, target, capacity = 0;
+    int status = MM_ARCHIVE_CATALOG_OK;
+    for (i = 0; i < chunks->count; ++i)
+    {
+        status = MM_ARCHIVE_CATALOG_ENTRY;
+        if (mm_chunk_at(chunks, i, &entry) != MM_CHUNK_OK)
+            goto done;
+        if (capacity < entry.child_count)
+        {
+            status = MM_ARCHIVE_CATALOG_MEMORY;
+            if ((size_t)entry.child_count != entry.child_count ||
+                (size_t)entry.child_count > (size_t)-1 / sizeof(*links))
+                goto done;
+            grown = realloc(links, (size_t)entry.child_count * sizeof(*links));
+            if (!grown)
+                goto done;
+            links = grown;
+            capacity = entry.child_count;
+        }
+        for (j = 0; j < entry.child_count; ++j)
+        {
+            MMChunkChild *child = &links[j].child;
+            if (mm_chunk_child_at(chunks, i, j, child) != MM_CHUNK_OK)
+            {
+                if (failed_parent)
+                    *failed_parent = entry;
+                status = MM_ARCHIVE_CATALOG_CHILD;
+                goto done;
+            }
+            links[j].target_present = mm_chunk_find(chunks, child->type, child->number, &target) == MM_CHUNK_OK;
+        }
+        if (entry.child_count > 1)
+            qsort(links, entry.child_count, sizeof(*links), compare_catalog_links);
+        name.count = 0;
+        mm_archive_reader_name(reader, i, read_catalog_name, &name);
+        status = MM_ARCHIVE_CATALOG_STOPPED;
+        if (!visit(context, &entry, name.bytes, name.count, links))
+            goto done;
+        status = MM_ARCHIVE_CATALOG_OK;
+    }
+done:
+    free(links);
+    return status;
+}
+
 static int graph_name(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
 {
     MMArchiveReader *reader = (MMArchiveReader *)context;

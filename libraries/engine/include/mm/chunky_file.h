@@ -63,6 +63,7 @@ extern "C"
                                MMChunkEntry *entry, MMU32 *position);
     int mm_chunk_child_at(const MMChunkAccess *access, MMU32 parent, MMU32 position,
                                 MMChunkChild *child);
+    int mm_chunk_child_compare(const MMChunkChild *, const MMChunkChild *);
     int mm_chunk_find_child(const MMChunkAccess *access, MMU32 parent, MMU32 slot, MMU32 type,
                                   MMU32 number, MMU32 *position);
     /* First child at this slot with type >= requested type, matching retail's

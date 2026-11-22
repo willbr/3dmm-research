@@ -309,6 +309,46 @@ bool Fail(Error &error, ErrorCode code, const char *message, const Id *id = null
         error.chunk = *id;
     return false;
 }
+
+struct CatalogHost
+{
+    std::vector<Chunk> &chunks;
+    std::exception_ptr exception;
+
+    static int Visit(void *context, const MMChunkEntry *entry, void *encodedName, MMU32 nameBytes,
+                     const MMArchiveCatalogLink *links) noexcept
+    {
+        auto &host = *static_cast<CatalogHost *>(context);
+        try
+        {
+            Chunk chunk;
+            chunk.id = {entry->type, entry->number};
+            chunk.storedBytes = entry->bytes;
+            chunk.packed = (entry->flags & MM_CHUNK_PACKED) != 0;
+            chunk.loner = (entry->flags & MM_CHUNK_LONER) != 0;
+            chunk.forest = (entry->flags & MM_CHUNK_FOREST) != 0;
+            String name;
+            if (nameBytes)
+                name.FSetData(encodedName, nameBytes);
+            chunk.name = Utf8(name);
+            for (LegacyLong j = 0; j < name.Cch(); ++j)
+                chunk.nameUnits.push_back(sizeof(achar) == 1 ? static_cast<byte>(name.Psz()[j]) : name.Psz()[j]);
+            chunk.children.reserve(entry->child_count);
+            for (MMU32 j = 0; j < entry->child_count; ++j)
+            {
+                const auto &link = links[j];
+                chunk.children.push_back({link.child.slot, {link.child.type, link.child.number}, link.target_present != 0});
+            }
+            host.chunks.push_back(std::move(chunk));
+            return 1;
+        }
+        catch (...)
+        {
+            host.exception = std::current_exception();
+            return 0;
+        }
+    }
+};
 } // namespace
 std::uint32_t Archive::NameCodeUnitBits() const
 {
@@ -384,45 +424,20 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
                              Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
         opened->canPreview = mode != OpenMode::inspection;
         opened->path = utf8Path;
-        const auto access = mm_archive_reader_access(opened->reader);
-        for (MMU32 i = 0; i < access.count; ++i)
+        CatalogHost host{opened->chunks, {}};
+        MMChunkEntry failed;
+        const int catalog = mm_archive_reader_catalog(opened->reader, CatalogHost::Visit, &host, &failed);
+        if (host.exception)
+            std::rethrow_exception(host.exception);
+        if (catalog == MM_ARCHIVE_CATALOG_MEMORY)
+            throw std::bad_alloc();
+        if (catalog == MM_ARCHIVE_CATALOG_CHILD)
         {
-            MMChunkEntry entry;
-            if (mm_chunk_at(&access, i, &entry) != MM_CHUNK_OK)
-                return Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.");
-            Chunk chunk;
-            chunk.id = {entry.type, entry.number};
-            chunk.storedBytes = entry.bytes;
-            chunk.packed = (entry.flags & MM_CHUNK_PACKED) != 0;
-            chunk.loner = (entry.flags & MM_CHUNK_LONER) != 0;
-            chunk.forest = (entry.flags & MM_CHUNK_FOREST) != 0;
-            String name;
-            const auto decodeName = [](void *out, const MMReadStream *stream) -> int {
-                unsigned char bytes[kcbMaxDataStn];
-                return stream->length <= sizeof(bytes) && mm_read_exact(stream, 0, bytes, stream->length) &&
-                       static_cast<PString>(out)->FSetData(bytes, stream->length);
-            };
-            mm_archive_reader_name(opened->reader, i, decodeName, &name);
-            chunk.name = Utf8(name);
-            for (LegacyLong j = 0; j < name.Cch(); ++j)
-                chunk.nameUnits.push_back(sizeof(achar) == 1 ? static_cast<byte>(name.Psz()[j]) : name.Psz()[j]);
-            for (MMU32 j = 0; j < entry.child_count; ++j)
-            {
-                MMChunkChild child;
-                if (mm_chunk_child_at(&access, i, j, &child) != MM_CHUNK_OK)
-                    return Fail(error, ErrorCode::corrupt_archive, "Cannot read a child reference.", &chunk.id);
-                MMU32 position;
-                chunk.children.push_back({child.slot, {child.type, child.number},
-                                          mm_chunk_find(&access, child.type, child.number, &position) == MM_CHUNK_OK});
-            }
-            std::sort(chunk.children.begin(), chunk.children.end(), [](const Child &a, const Child &b) {
-                if (a.slot != b.slot)
-                    return a.slot < b.slot;
-                return a.target.type < b.target.type ||
-                       (a.target.type == b.target.type && a.target.number < b.target.number);
-            });
-            opened->chunks.push_back(std::move(chunk));
+            const Id parent{failed.type, failed.number};
+            return Fail(error, ErrorCode::corrupt_archive, "Cannot read a child reference.", &parent);
         }
+        if (catalog != MM_ARCHIVE_CATALOG_OK)
+            return Fail(error, ErrorCode::corrupt_archive, "Cannot read the chunk index.");
         if (Internal::AssertionFailed())
             return Fail(error, ErrorCode::corrupt_archive, "The legacy reader rejected the archive index.");
         _impl.swap(opened);

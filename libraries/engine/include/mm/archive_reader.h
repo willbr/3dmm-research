@@ -88,6 +88,32 @@ int mm_archive_reader_read_stored(const MMArchiveReader *, const MMChunkEntry *,
  * through the call and can consume decoded chunks through the same reader. */
 int mm_archive_reader_stored_payload(void *, const MMChunkEntry *, MMReadReceiver, void *out);
 int mm_archive_reader_name(MMArchiveReader *, MMU32 position, MMReadReceiver, void *out);
+
+typedef struct MMArchiveCatalogLink
+{
+    MMChunkChild child;
+    int target_present;
+} MMArchiveCatalogLink;
+
+enum MMArchiveCatalogResult
+{
+    MM_ARCHIVE_CATALOG_OK,
+    MM_ARCHIVE_CATALOG_ENTRY,
+    MM_ARCHIVE_CATALOG_CHILD,
+    MM_ARCHIVE_CATALOG_MEMORY,
+    MM_ARCHIVE_CATALOG_STOPPED
+};
+
+typedef int (*MMArchiveCatalogVisit)(void *, const MMChunkEntry *, void *encoded_name, MMU32 name_bytes,
+                                     const MMArchiveCatalogLink *);
+/* Visit chunks in index order, with child links sorted by slot, type and
+ * number. Absent targets remain visible. Each row, encoded name and child
+ * array is borrowed until the callback returns. Zero name bytes means no
+ * readable name. Callbacks must not re-enter the reader. Return zero to stop.
+ * On a child read failure, failed_parent
+ * receives its entry if supplied. Stage output to discard a failed prefix. */
+int mm_archive_reader_catalog(MMArchiveReader *, MMArchiveCatalogVisit, void *context, MMChunkEntry *failed_parent);
+
 /* The graph borrows the reader. Pass NULL for a direct graph read's request. */
 MMMovieSessionGraph mm_archive_reader_graph(MMArchiveReader *);
 int mm_archive_reader_payload(MMArchiveReader *, MMU32 position, MMReadStream *);

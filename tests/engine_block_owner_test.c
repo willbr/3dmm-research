@@ -592,6 +592,31 @@ static int directory_child(void *context, MMU32 parent, MMU32 position, MMChunkC
     return 1;
 }
 
+static int catalog_child(void *context, MMU32 parent, MMU32 position, MMChunkChild *out)
+{
+    const DirectoryFixture *fixture = context;
+    if (fixture->missing_scene && position == 1)
+        return 0;
+    return directory_child(context, parent, position, out);
+}
+
+static int catalog_visit(void *context, const MMChunkEntry *row, void *name, MMU32 bytes,
+                         const MMArchiveCatalogLink *links)
+{
+    DirectoryFixture *fixture = context;
+    (void)name;
+    CHECK(!bytes && row->type == fixture->rows[fixture->roots].type);
+    ++fixture->roots;
+    if (row->type == MM_MOVIE_CHUNK)
+    {
+        CHECK(row->child_count == 3);
+        CHECK(links[0].child.slot == 1 && links[0].child.number == 5 && links[0].target_present);
+        CHECK(links[1].child.slot == 1 && links[1].child.number == 17 && !links[1].target_present);
+        CHECK(links[2].child.slot == 4 && links[2].child.number == 12 && links[2].target_present);
+    }
+    return !fixture->cancel;
+}
+
 static int directory_locate(void *context, MMU32 type, MMU32 number, MMBlockFile *out, int *packed)
 {
     DirectoryFixture *fixture = (DirectoryFixture *)context;
@@ -671,6 +696,7 @@ static void archive_directory(void)
     MMArchiveDirectorySink sink = {0, directory_root, directory_scene, directory_source};
     MMArchiveReader *reader;
     MMArchiveDirectoryError error;
+    MMChunkEntry failed_parent;
     MMMovieSession *retained;
     MMMovieSessionScene selected;
     char name[MM_MOVIE_SOURCE_NAME_BYTES];
@@ -690,6 +716,30 @@ static void archive_directory(void)
     payload.decode_context = &host;
     payload.decode = transform;
     chunks.context = sink.context = &fixture;
+
+    chunks.child = catalog_child;
+    fixture.rows[ROOT_ROW].child_count = 3;
+    fixture.children[0] = children[1];
+    fixture.children[1] = children[0];
+    fixture.children[1].number = 17;
+    fixture.children[2] = children[0];
+    CHECK(mm_archive_reader_open(&chunks, &fixture, &payload, &options, &reader) == MM_ARCHIVE_READ_OK);
+    CHECK(mm_archive_reader_catalog(reader, catalog_visit, &fixture, NULL) == MM_ARCHIVE_CATALOG_OK &&
+          fixture.roots == DIRECTORY_ROWS);
+    fixture.roots = 0;
+    fixture.cancel = 1;
+    CHECK(mm_archive_reader_catalog(reader, catalog_visit, &fixture, NULL) == MM_ARCHIVE_CATALOG_STOPPED &&
+          fixture.roots == 1);
+    fixture.roots = fixture.cancel = 0;
+    fixture.missing_scene = 1;
+    CHECK(mm_archive_reader_catalog(reader, catalog_visit, &fixture, &failed_parent) == MM_ARCHIVE_CATALOG_CHILD &&
+          fixture.roots == 1 && failed_parent.type == MM_MOVIE_CHUNK && failed_parent.number == 7);
+    mm_archive_reader_close(reader);
+
+    fixture.roots = 0;
+    chunks.child = directory_child;
+    fixture.rows[ROOT_ROW] = rows[ROOT_ROW];
+    memcpy(fixture.children, children, sizeof(children));
     CHECK(mm_archive_reader_open(&chunks, &fixture, &payload, &options, &reader) == MM_ARCHIVE_READ_OK);
     fixture.missing_scene = 1;
     CHECK(mm_archive_reader_directory(reader, &sink, &error) == MM_ARCHIVE_DIRECTORY_PAYLOAD &&

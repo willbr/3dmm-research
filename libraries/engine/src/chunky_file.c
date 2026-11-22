@@ -585,14 +585,18 @@ static int compare_rekey_rows(const void *first, const void *second)
     return a->number == b->number ? 0 : a->number < b->number ? -1 : 1;
 }
 
-static int compare_rekey_children(const void *first, const void *second)
+int mm_chunk_child_compare(const MMChunkChild *a, const MMChunkChild *b)
 {
-    const MMChunkChild *a = (const MMChunkChild *)first, *b = (const MMChunkChild *)second;
     if (a->slot != b->slot)
         return a->slot < b->slot ? -1 : 1;
     if (a->type != b->type)
         return a->type < b->type ? -1 : 1;
     return a->number == b->number ? 0 : a->number < b->number ? -1 : 1;
+}
+
+static int compare_rekey_children(const void *first, const void *second)
+{
+    return mm_chunk_child_compare(first, second);
 }
 
 int mm_chunk_index_rekey(const MMChunkIndex *index, const MMU32 *numbers, MMChunkIndexWrite write, void *context)
@@ -666,7 +670,7 @@ int mm_chunk_index_rekey(const MMChunkIndex *index, const MMU32 *numbers, MMChun
         for (j = 0; j < entry.child_count; ++j)
         {
             unsigned char *child = row + index->stride + j * 12;
-            if (j && !compare_rekey_children(children + j - 1, children + j))
+            if (j && !mm_chunk_child_compare(children + j - 1, children + j))
                 goto done;
             write32(child, children[j].type, index->big);
             write32(child + 4, children[j].number, index->big);
