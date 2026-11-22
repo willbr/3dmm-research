@@ -284,11 +284,9 @@ void RangeScheduling()
     speech.frame = 14; speech.style = MARCUS_SOUND_SPEECH; speech.sound.number = 3;
     late = speech; late.frame = 17; late.sound.number = 4;
     const std::vector<std::vector<MM::PreviewSoundCue>> cues = {{loop, queued, speech, late}, {}};
-    std::vector<MarcusSoundTiming> timing(2);
-    timing[0].scrolling = {{11, .5}, {17, .25}};
-    timing[0].pauses = {{12, 2, 0}, {18, 3, 400}};
-    timing[0].transition = .75;
-    timing[1].pauses = {{-4, 2, 0}};
+    const MMMovieTimingScroll scrolls[] = {{11, .5}, {17, .25}};
+    const MMMovieTimingPause firstPauses[] = {{12, 2, 0}, {18, 3, 400}}, secondPauses[] = {{-4, 2, 0}};
+    const MMMovieTimingHolds timing[] = {{.75, 2, 2, scrolls, firstPauses}, {0, 0, 1, nullptr, secondPauses}};
     int reads = 0;
     auto read = [&](const MM::PreviewSoundCue &cue) {
         ++reads;
@@ -363,10 +361,9 @@ void PresentationClock()
         audio.kind = MARCUS_WAVEFORM_SAMPLED; audio.seconds = 20;
         return audio;
     };
-    MarcusSoundTiming timing;
-    timing.scrolling[11] = 2;
-    timing.pauses.push_back({12, 3, 500});
-    timing.transition = 4;
+    const MMMovieTimingScroll scrolls[] = {{11, 2}};
+    const MMMovieTimingPause pauses[] = {{12, 3, 500}, {13, 2, 0}};
+    MMMovieTimingHolds timing{4, 1, 1, scrolls, pauses};
     MarcusSoundTimeline timeline;
     timeline.Append(first, {cue}, read, timing);
     const auto &scene = timeline.Scene(0);
@@ -379,19 +376,20 @@ void PresentationClock()
     CHECK(resume.size() == 1 && std::abs(resume[0].seconds - 47.0 / 6) < 1e-6);
     timeline.Clear();
     timing.transition = 0;
-    timing.pauses.push_back({13, 2, 0});
+    timing.pause_count = 2;
     timeline.Append(first, {cue}, read, timing);
     CHECK(std::abs(timeline.Scene(0).TimeAt(16) - 20.5) < 1e-6);
     timeline.Append(later, {}, read);
     CHECK(timeline.Resume(1, -5).empty()); // Sound-wait audio has completed.
     MM::PreviewPresentation presentation;
     MM::Error error;
+    MarcusSoundTiming authored;
     for (int transition = 0; transition <= 5; ++transition)
     {
         presentation.transition = transition;
-        CHECK(MarcusPlayback::ReadTiming(presentation, timing, error));
+        CHECK(MarcusPlayback::ReadTiming(presentation, authored, error));
         const double expected = transition == 4 ? 1.0 / 6 : transition > 0 && transition < 4 ? 4 : 0;
-        CHECK(timing.transition == expected);
+        CHECK(authored.transition == expected);
     }
 }
 ChunkNumber Caption(PChunkyFile file, bool scrolling, bool edge = false, int layer = -1)
@@ -727,7 +725,7 @@ void Fixture(const char *path)
     CHECK(file->FSave(kctgSoc));
     ReleasePpo(&file);
 }
-MarcusSoundTiming FixtureTiming(const char *path, const char *resources, unsigned char palette[1024])
+double FixtureScrollSeconds(const char *path, const char *resources, unsigned char palette[1024])
 {
     MM::Archive archive;
     MM::Preview preview;
@@ -742,11 +740,16 @@ MarcusSoundTiming FixtureTiming(const char *path, const char *resources, unsigne
             MarcusSoundTiming timing;
             CHECK(preview.ReadPresentation(presentation, error));
             CHECK(MarcusPlayback::ReadTiming(presentation, timing, error));
-            CHECK(timing.scrolling.at(0) > 0);
-            return timing;
+            for (std::size_t row = 0; row < timing.scroll_count; ++row)
+                if (timing.scrolls[row].frame == 0)
+                {
+                    CHECK(timing.scrolls[row].seconds > 0);
+                    return timing.scrolls[row].seconds;
+                }
+            break;
         }
     CHECK(false);
-    return {};
+    return 0;
 }
 void CarryIntegration(const char *path, const char *resources, const char *content)
 {
@@ -1196,7 +1199,7 @@ int main(int argc, char **argv)
     InvalidMovieHeaders(argv[1], argv[2], argv[3]);
     Fixture(argv[1]);
     unsigned char fixturePalette[1024];
-    const auto authoredTiming = FixtureTiming(argv[1], argv[2], fixturePalette);
+    const double authoredScroll = FixtureScrollSeconds(argv[1], argv[2], fixturePalette);
     const auto movieBefore = Bytes(argv[1]), resourcesBefore = Bytes(argv[2]);
     PlaybackRates(argv[1], argv[2], argv[3]);
     PlaybackCadence(argv[1], argv[2], argv[3]);
@@ -1211,7 +1214,7 @@ int main(int argc, char **argv)
     BackgroundTiming();
     CHECK(Info().first_frame == -2 && Info().object_count == 0);
     CHECK(!marcus_movie_time(nullptr, nullptr) && !marcus_movie_time(player, nullptr));
-    const double sceneSeconds = 7.0 / 6 + authoredTiming.scrolling.at(0) + .4 + .2;
+    const double sceneSeconds = 7.0 / 6 + authoredScroll + .4 + .2;
     const double movieSeconds = 5 * sceneSeconds + 12 + 1.0 / 6;
     CHECK(MovieTime().position_seconds == 0);
     CHECK(std::abs(MovieTime().duration_seconds - movieSeconds) < 1e-6);
@@ -1350,7 +1353,7 @@ int main(int argc, char **argv)
     CHECK(Info().frame == 1);
     // Each deliberately late 100 ms callback advances just one pixel, plus
     // the completion-check alarm and ordinary authored-frame delay.
-    const auto scrollAlarms = std::lround(authoredTiming.scrolling.at(0) * 12);
+    const auto scrollAlarms = std::lround(authoredScroll * 12);
     CHECK(scrollElapsed >= scrollAlarms * 100 + 100);
     CHECK(scrollElapsed <= scrollAlarms * 100 + 200);
     CHECK(Tick(0).wait == 3);
@@ -1528,7 +1531,7 @@ int main(int argc, char **argv)
     CHECK(std::abs(previousEnd - movieSeconds) < 1e-6);
     CHECK(marcus_seek_time(player, -100) && Info().scene == 0 && Info().frame == -2);
     CHECK(MovieTime().position_seconds == 0);
-    CHECK(marcus_seek_time(player, 1.0 / 3 + authoredTiming.scrolling.at(0) / 2));
+    CHECK(marcus_seek_time(player, 1.0 / 3 + authoredScroll / 2));
     CHECK(Info().scene == 0 && Info().frame == 0); // Mid-scroll seeks to its displayed frame.
     CHECK(marcus_seek_time(player, movieSeconds + 100));
     CHECK(Info().scene == 4 && Info().frame == 4);

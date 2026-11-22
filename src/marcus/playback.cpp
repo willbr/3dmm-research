@@ -668,26 +668,44 @@ void MarcusPlayback::SetFonts(std::shared_ptr<KauaiFonts::FontCatalog> fonts)
 bool MarcusPlayback::ReadTiming(const PreviewPresentation &presentation, MarcusSoundTiming &timing, Error &error,
                                 const std::shared_ptr<KauaiFonts::FontCatalog> &fonts)
 {
-    timing = {};
-    timing.transition = mm_graphics_movie_transition(presentation.transition).duration_ms / 1000;
-    timing.pauses = presentation.pauses;
-    // Use the playback layout itself, including font metrics and rich-text
-    // wrapping, so restart offsets use the same scrolling distance and speed.
     Impl calculator;
     calculator.fonts = fonts;
-    for (const auto &data : presentation.captions)
-        if (!data.story)
-        {
-            CaptionImage caption;
-            caption.data = data;
-            if (!calculator.Layout(caption, error))
-                return false;
-            const int overflow = mm_caption_scroll_overflow(caption.height, data.top, data.bottom);
-            timing.scrolling[data.firstFrame] =
-                std::max(timing.scrolling[data.firstFrame], mm_scroll_nominal_seconds(overflow));
-            calculator.captionBytes -= caption.maskBytes;
-        }
-    return true;
+    struct Context
+    {
+        const PreviewPresentation &presentation;
+        Impl &calculator;
+        Error &error;
+        std::exception_ptr failure;
+    } context{presentation, calculator, error, {}};
+    // Supply the playback layout's actual font metrics and wrapping.
+    const MMMovieTimingPresentation input{&context, presentation.transition,
+        presentation.captions.size(), presentation.pauses.size(),
+        [](void *p, std::size_t row, MMMovieTimingCaption *out) {
+            const auto &caption = static_cast<Context *>(p)->presentation.captions[row];
+            *out = {caption.firstFrame, caption.top, caption.bottom, caption.story};
+        },
+        [](void *p, std::size_t row, MMI32 *height) -> int {
+            auto &h = *static_cast<Context *>(p);
+            try
+            {
+                CaptionImage caption;
+                caption.data = h.presentation.captions[row];
+                if (!h.calculator.Layout(caption, h.error))
+                    return 0;
+                *height = caption.height;
+                h.calculator.captionBytes -= caption.maskBytes;
+                return 1;
+            }
+            catch (...) { h.failure = std::current_exception(); return 0; }
+        },
+        [](void *p, std::size_t row, MMMovieTimingPause *out) {
+            const auto &pause = static_cast<Context *>(p)->presentation.pauses[row];
+            *out = {pause.frame, pause.kind, pause.milliseconds};
+        }};
+    const int status = mm_movie_timing_holds_collect(&timing, &input);
+    if (context.failure) std::rethrow_exception(context.failure);
+    if (status == MM_SOUND_COLLECT_MEMORY) throw std::bad_alloc();
+    return status == MM_SOUND_COLLECT_OK;
 }
 bool MarcusPlayback::RestoreAudio(Preview &preview, const std::vector<MarcusResumeSound> &sounds, Error &error)
 {

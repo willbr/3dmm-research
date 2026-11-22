@@ -6,7 +6,6 @@
 #include <functional>
 #include <memory>
 #include <optional>
-#include <map>
 #include <vector>
 #include <iosfwd>
 
@@ -35,11 +34,12 @@ struct MarcusSoundScene
     const MarcusSoundTimeline &owner;
     std::size_t index;
 };
-struct MarcusSoundTiming
+struct MarcusSoundTiming : MMMovieTimingHolds
 {
-    double transition = 0;
-    std::map<long, double> scrolling;
-    std::vector<MM::PreviewPause> pauses;
+    MarcusSoundTiming() : MMMovieTimingHolds{} {}
+    ~MarcusSoundTiming() { mm_movie_timing_holds_dispose(this); }
+    MarcusSoundTiming(const MarcusSoundTiming &) = delete;
+    MarcusSoundTiming &operator=(const MarcusSoundTiming &) = delete;
 };
 struct MarcusResumeSound
 {
@@ -74,6 +74,6 @@ class MarcusSoundTimeline
     std::vector<MarcusResumeSound> Resume(std::size_t scene, long frame) const;
     void Append(const MarcusScene &scene, const std::vector<MM::PreviewSoundCue> &cues,
                 const std::function<MarcusWaveformInfo(const MM::PreviewSoundCue &)> &read,
-                const MarcusSoundTiming &timing = {});
+                const MMMovieTimingHolds &timing = {});
 };
 #endif

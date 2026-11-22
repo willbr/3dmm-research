@@ -1,4 +1,6 @@
 #include "mm/movie_sound_schedule.h"
+#include "mm/caption_render.h"
+#include "mm/graphics_transition.h"
 #include "mm/playback.h"
 #include "mm/movie_audio.h"
 #include <float.h>
@@ -74,6 +76,74 @@ static void *rows(size_t count, size_t size)
     if (count == 0 || count > (size_t)-1 / size)
         return NULL;
     return malloc(count * size);
+}
+
+void mm_movie_timing_holds_dispose(MMMovieTimingHolds *holds)
+{
+    free((void *)holds->scrolls);
+    free((void *)holds->pauses);
+    memset(holds, 0, sizeof(*holds));
+}
+
+static int scroll_by_frame(const void *a, const void *b)
+{
+    MMI32 first = ((const MMMovieTimingScroll *)a)->frame;
+    MMI32 second = ((const MMMovieTimingScroll *)b)->frame;
+    return first < second ? -1 : first != second;
+}
+
+static size_t collect_longest_scrolls(MMMovieTimingScroll *scrolls, size_t count)
+{
+    size_t i, kept = 0;
+    if (count > 1)
+        qsort(scrolls, count, sizeof(*scrolls), scroll_by_frame);
+    for (i = 0; i < count; ++i)
+    {
+        if (!kept || scrolls[i].frame != scrolls[kept - 1].frame)
+            scrolls[kept++] = scrolls[i];
+        else if (scrolls[i].seconds > scrolls[kept - 1].seconds)
+            scrolls[kept - 1].seconds = scrolls[i].seconds;
+    }
+    return kept;
+}
+
+int mm_movie_timing_holds_collect(MMMovieTimingHolds *holds, const MMMovieTimingPresentation *input)
+{
+    MMMovieTimingScroll *scrolls = (MMMovieTimingScroll *)rows(input->caption_count, sizeof(*scrolls));
+    MMMovieTimingPause *pauses = (MMMovieTimingPause *)rows(input->pause_count, sizeof(*pauses));
+    size_t i, count = 0;
+    int status = MM_SOUND_COLLECT_MEMORY;
+    if ((input->caption_count && !scrolls) || (input->pause_count && !pauses))
+        goto failed;
+    for (i = 0; i < input->caption_count; ++i)
+    {
+        MMMovieTimingCaption caption;
+        MMI32 height;
+        input->caption(input->context, i, &caption);
+        if (caption.story)
+            continue;
+        if (!input->layout(input->context, i, &height))
+        {
+            status = MM_SOUND_COLLECT_SOURCE;
+            goto failed;
+        }
+        scrolls[count].frame = caption.first;
+        scrolls[count++].seconds = mm_scroll_nominal_seconds(mm_caption_scroll_overflow(height, caption.top, caption.bottom));
+    }
+    for (i = 0; i < input->pause_count; ++i)
+        input->pause(input->context, i, pauses + i);
+    mm_movie_timing_holds_dispose(holds);
+    holds->transition = mm_graphics_movie_transition(input->transition).duration_ms / 1000;
+    holds->scroll_count = collect_longest_scrolls(scrolls, count);
+    holds->pause_count = input->pause_count;
+    holds->scrolls = scrolls;
+    holds->pauses = pauses;
+    return MM_SOUND_COLLECT_OK;
+
+failed:
+    free(scrolls);
+    free(pauses);
+    return status;
 }
 
 static void dispose_scene(ScheduleScene *scene)
@@ -529,6 +599,35 @@ failed:
 size_t mm_movie_sound_schedule_size(const MMMovieSoundSchedule *schedule)
 {
     return schedule->scene_count;
+}
+
+int mm_movie_sound_schedule_append_cues(MMMovieSoundSchedule *schedule, const MMMovieTimingRange *range,
+                                        const MMMovieTimingHolds *holds, size_t count, void *context,
+                                        MMMovieTimingCueRead *read)
+{
+    MMMovieTimingScene scene;
+    MMMovieTimingCue *cues = (MMMovieTimingCue *)rows(count, sizeof(*cues));
+    size_t i;
+    int result;
+    if (count && !cues)
+        return MM_SOUND_COLLECT_MEMORY;
+    for (i = 0; i < count; ++i)
+        if (!read(context, i, cues + i))
+        {
+            free(cues);
+            return MM_SOUND_COLLECT_SOURCE;
+        }
+    scene.range = *range;
+    scene.transition = holds->transition;
+    scene.scroll_count = holds->scroll_count;
+    scene.pause_count = holds->pause_count;
+    scene.cue_count = count;
+    scene.scrolls = holds->scrolls;
+    scene.pauses = holds->pauses;
+    scene.cues = cues;
+    result = mm_movie_sound_schedule_append(schedule, &scene);
+    free(cues);
+    return result ? MM_SOUND_COLLECT_OK : MM_SOUND_COLLECT_MEMORY;
 }
 
 void mm_movie_sound_schedule_source(const MMMovieSoundSchedule *schedule, size_t scene, MMMovieTimingScene *source)

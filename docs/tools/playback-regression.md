@@ -22788,3 +22788,32 @@ from retail and V3DMM suite `20261122T081603Z-7ffc4e8e`. The existing
 
 Evidence is under `tmp/c89-live-document` and `tmp/c89-kd`. The retained
 retail and V3DMM captures are under `tmp/c89-rscap`.
+
+## C89 timing input collection (22 November 2026)
+
+C89 derives transition durations, retains authored pause order and keeps
+the longest measured caption scroll at each start frame. It collects sound
+cues before appending a scene to the schedule. Marcus supplies the caption
+height from the playback layout and the measured audio metadata.
+
+All 239 selected x64, x86 and SDL Studio checks passed. The C fixture
+covered skipping story captions, duplicate scroll frames, and failed
+caption and cue reads. The presentation, carried audio and stacked caption
+fixtures produced identical helper timing bytes before and after the change.
+The headless startup capture also matched byte for byte.
+
+The actor-audio candidate `20261122T202443Z-6ae460a0` matched
+`20261122T121947Z-248bd145` on all 60 seek canvases and recorded states per
+port. Both ports matched the retained retail and V3DMM frame order from
+`20261122T082301Z-c465fa98`. SDL also reproduced all 12 ordered sound
+requests from those references. This run used SDL dummy audio.
+
+Text Acid candidate `20261122T202443Z-949a7701` matched
+`20261122T191424Z-5ea041b2` on all 240 seek canvases and recorded states
+per port. Seek and continuous playback reproduced the frame order from
+retail and V3DMM in `20261122T033140Z-2abe2197` and
+`20261122T033233Z-5e23a412`.
+
+The existing `scene-load` assertion repeated its 63,224-byte trace and
+fingerprint `0D666753`. Evidence is under `tmp/c89-timing-input`,
+`tmp/c89-aqcap` and `tmp/c89-caption-presentation/capture`.

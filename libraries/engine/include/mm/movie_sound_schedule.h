@@ -10,6 +10,38 @@ typedef struct MMMovieSoundSchedule MMMovieSoundSchedule;
 
 enum { MM_SOUND_CLIP_SAMPLED = 1, MM_SOUND_CLIP_MIDI = 2 };
 enum { MM_SOUND_REFRAME_OK, MM_SOUND_REFRAME_MISMATCH, MM_SOUND_REFRAME_MEMORY };
+enum { MM_SOUND_COLLECT_OK, MM_SOUND_COLLECT_SOURCE, MM_SOUND_COLLECT_MEMORY };
+
+typedef struct MMMovieTimingHolds
+{
+    double transition;
+    size_t scroll_count, pause_count;
+    const MMMovieTimingScroll *scrolls;
+    const MMMovieTimingPause *pauses;
+} MMMovieTimingHolds;
+
+typedef struct MMMovieTimingCaption
+{
+    MMI32 first, top, bottom;
+    int story;
+} MMMovieTimingCaption;
+
+typedef struct MMMovieTimingPresentation
+{
+    void *context;
+    MMI32 transition;
+    size_t caption_count, pause_count;
+    void (*caption)(void *, size_t, MMMovieTimingCaption *);
+    int (*layout)(void *, size_t, MMI32 *height);
+    void (*pause)(void *, size_t, MMMovieTimingPause *);
+} MMMovieTimingPresentation;
+
+/* Start with a zeroed owner. Measure only scrolling captions, retain the
+ * longest scroll at each start frame and keep authored pause order. A layout
+ * callback returns 1 on success and 0 on failure. All callbacks are synchronous
+ * and must not throw. Failure preserves the previously published holds. */
+int mm_movie_timing_holds_collect(MMMovieTimingHolds *, const MMMovieTimingPresentation *);
+void mm_movie_timing_holds_dispose(MMMovieTimingHolds *);
 
 typedef struct MMScheduledSound
 {
@@ -60,6 +92,12 @@ size_t mm_movie_sound_schedule_size(const MMMovieSoundSchedule *);
 /* Append copies one scene's timing sources. The transition belongs to its
  * outgoing edge. Failure preserves all previously published scenes. */
 int mm_movie_sound_schedule_append(MMMovieSoundSchedule *, const MMMovieTimingScene *);
+/* Borrow the hold arrays and collect cues in presentation order. A source
+ * callback returns 1 on success and 0 on failure. No scene is appended if an
+ * input fails. The resulting schedule owns its own timing sources. */
+typedef int MMMovieTimingCueRead(void *, size_t, MMMovieTimingCue *);
+int mm_movie_sound_schedule_append_cues(MMMovieSoundSchedule *, const MMMovieTimingRange *,
+                                        const MMMovieTimingHolds *, size_t count, void *, MMMovieTimingCueRead *);
 /* Borrow the scene's inputs until the schedule is cleared or destroyed. */
 void mm_movie_sound_schedule_source(const MMMovieSoundSchedule *, size_t scene, MMMovieTimingScene *);
 /* Rebuild the common prefix using the new ranges and the stored inputs.

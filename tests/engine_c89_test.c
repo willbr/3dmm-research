@@ -621,6 +621,87 @@ static int timing_received(void *context, size_t index, const MMMovieTimingScene
     return 1;
 }
 
+typedef struct TimingInputHost
+{
+    unsigned measured;
+    size_t cue_reads;
+    int reject;
+} TimingInputHost;
+
+static void timing_caption(void *context, size_t row, MMMovieTimingCaption *out)
+{
+    static const MMMovieTimingCaption rows[] = {
+        {8, 10, 40, 0}, {3, 1, 10, 1}, {-3, 0, 100, 0}, {8, 10, 40, 0}, {1, 0, 40, 0}};
+    (void)context;
+    *out = rows[row];
+}
+
+static int timing_measure(void *context, size_t row, MMI32 *height)
+{
+    static const MMI32 heights[] = {32, 0, 30, 50, 45};
+    TimingInputHost *host = (TimingInputHost *)context;
+    CHECK(row != 1);
+    host->measured |= 1u << row;
+    *height = heights[row];
+    return !host->reject || row != 3;
+}
+
+static void timing_pause(void *context, size_t row, MMMovieTimingPause *out)
+{
+    static const MMMovieTimingPause rows[] = {{7, MM_PLAYBACK_WAIT_CLICK, 0}, {-1, MM_PLAYBACK_WAIT_SOUND, 0},
+                                            {7, MM_PLAYBACK_WAIT_TIME, 300}};
+    (void)context;
+    *out = rows[row];
+}
+
+static int timing_cue(void *context, size_t row, MMMovieTimingCue *out)
+{
+    TimingInputHost *host = (TimingInputHost *)context;
+    ++host->cue_reads;
+    memset(out, 0, sizeof(*out));
+    out->frame = row ? 11 : 6;
+    out->sound_number = (MMU32)row + 100;
+    out->audio_kind = MM_SOUND_CLIP_SAMPLED;
+    out->seconds = 1;
+    return !host->reject || row == 0;
+}
+
+static void check_timing_input(void)
+{
+    TimingInputHost host = {0};
+    MMMovieTimingPresentation input = {NULL, MM_GRAPHICS_MOVIE_DISSOLVE, 5, 3,
+                                       timing_caption, timing_measure, timing_pause};
+    const MMMovieTimingRange range = {9, -3, 12};
+    MMMovieTimingHolds holds = {0};
+    MMMovieTimingScene scene;
+    const MMMovieTimingScroll *saved;
+    MMMovieSoundSchedule *schedule = mm_movie_sound_schedule_create(1.0 / 6);
+    CHECK(schedule != NULL);
+    input.context = &host;
+    CHECK(mm_movie_timing_holds_collect(&holds, &input) == MM_SOUND_COLLECT_OK);
+    CHECK(host.measured == 29 && holds.transition == 4 && holds.scroll_count == 3 && holds.pause_count == 3);
+    CHECK(holds.scrolls[0].frame == -3 && holds.scrolls[0].seconds == 0);
+    CHECK(holds.scrolls[1].frame == 1 && holds.scrolls[1].seconds == mm_scroll_nominal_seconds(15));
+    CHECK(holds.scrolls[2].frame == 8 && holds.scrolls[2].seconds == mm_scroll_nominal_seconds(30));
+    CHECK(holds.pauses[0].frame == 7 && holds.pauses[1].frame == -1 && holds.pauses[2].milliseconds == 300);
+    saved = holds.scrolls;
+    host.reject = 1;
+    CHECK(mm_movie_timing_holds_collect(&holds, &input) == MM_SOUND_COLLECT_SOURCE);
+    CHECK(holds.scrolls == saved && holds.scroll_count == 3);
+    input.caption_count = (size_t)-1;
+    CHECK(mm_movie_timing_holds_collect(&holds, &input) == MM_SOUND_COLLECT_MEMORY && holds.scrolls == saved);
+    CHECK(mm_movie_sound_schedule_append_cues(schedule, &range, &holds, 2, &host, timing_cue) == MM_SOUND_COLLECT_SOURCE);
+    CHECK(host.cue_reads == 2 && !mm_movie_sound_schedule_size(schedule));
+    host.reject = 0;
+    CHECK(mm_movie_sound_schedule_append_cues(schedule, &range, &holds, 2, &host, timing_cue) == MM_SOUND_COLLECT_OK);
+    CHECK(host.cue_reads == 4 && mm_movie_sound_schedule_size(schedule) == 1);
+    mm_movie_timing_holds_dispose(&holds);
+    mm_movie_sound_schedule_source(schedule, 0, &scene);
+    CHECK(scene.range.chunk == 9 && scene.scroll_count == 3 && scene.pause_count == 3 && scene.cue_count == 2);
+    CHECK(scene.scrolls[2].frame == 8 && scene.cues[0].frame == 6 && scene.cues[1].sound_number == 101);
+    mm_movie_sound_schedule_destroy(schedule);
+}
+
 static void check_timing_snapshot(void)
 {
     TimingBytes data = {0};
@@ -1140,6 +1221,7 @@ int main(void)
     check_sound_output();
     check_caption_render();
     check_caption_owner();
+    check_timing_input();
     check_timing_snapshot();
     check_sound_schedule_sources();
     check_sound_sheet_order();
