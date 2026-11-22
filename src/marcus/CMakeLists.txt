@@ -41,7 +41,7 @@ endforeach()
 add_executable(marcus-preview preview_helper.cpp browser_preview.cpp browser_poster.c)
 target_compile_features(marcus-preview PRIVATE cxx_std_17)
 set_target_properties(marcus-preview PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
-target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive engine-core SDL3::SDL3-static)
+target_link_libraries(marcus-preview PRIVATE marcus-player MM::Archive kauai-core SDL3::SDL3-static)
 kauai_copy_midi_assets(marcus-preview)
 
 # Use the same indexed bitmaps as the original Studio resource scripts.
@@ -62,7 +62,7 @@ target_compile_features(marcus PRIVATE cxx_std_17)
 target_include_directories(marcus PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
 set_target_properties(marcus PROPERTIES C_STANDARD 90 C_STANDARD_REQUIRED ON C_EXTENSIONS OFF)
 target_compile_definitions(marcus PRIVATE MARCUS_SOURCE_DIR="${PROJECT_SOURCE_DIR}")
-target_link_libraries(marcus PRIVATE marcus-player cimgui-sdl3 imguizmo SDL3::SDL3-static engine-core MM::Archive mm-v3dmm Threads::Threads)
+target_link_libraries(marcus PRIVATE marcus-player cimgui-sdl3 imguizmo SDL3::SDL3-static mm-engine-c89 MM::Archive mm-v3dmm Threads::Threads)
 target_link_libraries(marcus PRIVATE studio-iso-cache studio-pack-store miniz)
 kauai_copy_midi_assets(marcus)
 add_custom_command(TARGET marcus POST_BUILD

@@ -57,7 +57,6 @@ static MMTextResourceServices ResourceServices(void *context)
         const achar ch = ChLit(' ');
         mm_string_value_set(&name, &ch, 1);
     };
-    s.clear = [](void *, void *text) { static_cast<PString>(text)->SetNil(); };
     s.saved_text = [](void *p) -> void * { return static_cast<TextResourceContext *>(p)->saved.Pst(); };
     s.provider_copy = [](void *, void *to, void *from) {
         *mm_template_owner_font(static_cast<PThreeDText>(to)) = *mm_template_owner_font(static_cast<PThreeDText>(from));
@@ -67,10 +66,6 @@ static MMTextResourceServices ResourceServices(void *context)
     s.release_tag_list = [](void *, void *list) { static_cast<PDynamicArray>(list)->Release(); };
     s.tag_list = [](void *) -> void * { return DynamicArray::PglNew(sizeof(TAG)); };
     s.append_tag = [](void *, void *list, const MMTag *in) -> int { TAG tag; TextTagFromCore(&tag, in); return static_cast<PDynamicArray>(list)->FAdd(&tag); };
-    s.name_count = [](void *, void *table) -> MMI32 { return static_cast<PStringTable_GST>(table)->IvMac(); };
-    s.name_id = [](void *, void *table, MMI32 i) -> MMI32 { LegacyLong id; static_cast<PStringTable_GST>(table)->GetExtra(i, &id); return id; };
-    s.name_text = [](void *, void *table, MMI32 i, void *text) { static_cast<PStringTable_GST>(table)->GetStn(i, static_cast<PString>(text)); };
-    s.missing_name = [](void *) { Warn("action name not found"); };
     return s;
 }
 
@@ -167,8 +162,8 @@ MMActionResource *EngineText::FetchAction(PThreeDText owner, LegacyLong tda)
 bool EngineText::ActionName(PThreeDText owner, LegacyLong anid, PString pstn)
 {
     TEXT_VALIDATE(owner); AssertIn(anid, 0, tdaLim); AssertPo(pstn, 0);
-    TextResourceContext context; auto services = ResourceServices(&context);
-    return mm_text_action_name(&ActionNames(), anid, pstn, &services) != 0;
+    const MMStringValue name = {pstn->Pst(), sizeof(achar)};
+    return mm_brender_template_action_name(owner, anid, &name) != 0;
 }
 
 /***************************************************************************
@@ -219,8 +214,7 @@ void EngineText::GetInfo(PThreeDText owner, PString pstn, LegacyLong *ptdts, PTA
 bool EngineText::FAdjustBody(PThreeDText owner, PBody pbody)
 {
     TEXT_VALIDATE(owner); Assert(pbody, "missing body");
-    auto services = GenerationServices();
-    return mm_text_adjust_body(owner, pbody, &services) != 0;
+    return mm_brender_text_adjust_body(owner, pbody) != 0;
 }
 
 /***************************************************************************
@@ -230,8 +224,7 @@ bool EngineText::FAdjustBody(PThreeDText owner, PBody pbody)
 bool EngineText::FSetDefaultCost(PThreeDText owner, PBody pbody)
 {
     TEXT_VALIDATE(owner); Assert(pbody, "missing body");
-    auto services = GenerationServices();
-    return mm_text_default_costume(owner, pbody, &services) != 0;
+    return mm_brender_template_default_costume(owner, pbody) != 0;
 }
 
 /***************************************************************************

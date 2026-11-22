@@ -132,15 +132,13 @@ struct Preview::Impl
     {
         if (!mm_template_owner_is_text(value))
             return;
-        EngineText::SetFontResolver(value, this, [](void *context, const MMTag *font) -> MMFontOwner * {
-            TAG tag;
-            TagFromCore(&tag, *font);
-            auto self = static_cast<Impl *>(context);
-            TAGOnFile wire;
-            wire.From(tag);
-            auto source = self->Resolve(wire);
-            return source ? mm_brender_font_fetch(source, tag.ctg, tag.cno) : nullptr;
-        });
+        *mm_template_owner_font(value) = {
+            this, [](void *context, const MMTag *font) -> MMFontOwner * {
+                auto self = static_cast<Impl *>(context);
+                auto source = self->Resolve({font->sid, 0, font->type, font->number});
+                return source ? mm_brender_font_fetch(source, font->type, font->number) : nullptr;
+            }
+        };
     }
     std::unique_ptr<Internal::PreviewBackground> background;
     bool LoadBackground(const MMMovieSessionGraph &source, ChunkNumber number)

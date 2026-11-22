@@ -109,12 +109,7 @@ struct PreviewActor::TimelineHost
         s.timeline.diagnostic = EngineActorTimeline::Diagnostic;
         s.timeline.resolve = [](void *v, MMI32 action, MMI32 cel, MMI32 *out) -> int {
             auto &h = *static_cast<TimelineHost *>(v);
-            return h.Guard([&] {
-                BRS value = *out;
-                bool ok = EngineTemplate::FGetDwrActnCel(h.actor->Ptmpl(), action, cel, &value);
-                *out = value;
-                return ok;
-            }) > 0;
+            return h.Guard([&] { return mm_brender_template_distance(h.actor->Ptmpl(), action, cel, out); }) > 0;
         };
         s.reset = [](void *v) { *static_cast<TimelineHost *>(v)->output = {}; };
         s.fault = [](void *v) { return static_cast<TimelineHost *>(v)->failure; };

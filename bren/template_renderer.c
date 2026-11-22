@@ -1,6 +1,9 @@
 #include "template_renderer.h"
 #include "asset_resources.h"
 #include "body_renderer.h"
+#include "mm/movie_session.h"
+#include "mm/template_runtime.h"
+#include <string.h>
 
 MMTextNames *mm_brender_text_action_names(void)
 {
@@ -248,4 +251,311 @@ void mm_brender_text_generation_services(MMTextGenerationServices *s)
     s->glyph = fetch_glyph;
     s->body_shape = text_body_shape;
     s->body_material = text_body_material;
+}
+
+int mm_brender_text_adjust_body(MMTemplateOwner *owner, MMBodyOwner *body)
+{
+    MMTextGenerationServices services = {0};
+    mm_kauai_template_validate(owner);
+    mm_brender_text_generation_services(&services);
+    return mm_text_adjust_body(owner, body, &services);
+}
+
+MMMaterialOwner *mm_brender_template_costume(MMTemplateOwner *owner, MMI32 id)
+{
+    mm_kauai_template_validate(owner);
+    /* Costume IDs are child slots and can have gaps. */
+    if (id < 0 || mm_template_owner_is_text(owner))
+        return NULL;
+    return mm_template_fetch_child(mm_template_owner_binding(owner), (MMU32)id, MM_TEMPLATE_CUSTOM,
+                                   mm_brender_costume_read, mm_material_owner_services(), NULL);
+}
+
+MMI32 mm_brender_template_costume_count(MMTemplateOwner *owner, MMI32 set)
+{
+    mm_kauai_template_validate(owner);
+    return mm_template_costumes_count(mm_template_owner_state(owner)->costumes, set);
+}
+
+MMI32 mm_brender_template_costume_id(MMTemplateOwner *owner, MMI32 set, MMI32 index)
+{
+    MMI32 id = -1;
+    mm_kauai_template_validate(owner);
+    mm_template_costumes_id(mm_template_owner_state(owner)->costumes, set, index, &id);
+    return id;
+}
+
+static void *create_body(void *context, const MMPartIndexView *parents, const MMPartIndexView *sets)
+{
+    (void)context;
+    return mm_brender_body_create(mm_kauai_body_renderer(), parents, sets);
+}
+
+static void release_body(void *context, void *body)
+{
+    (void)context;
+    mm_body_owner_release(body);
+}
+
+static void apply_custom(void *context, void *body, void *material)
+{
+    (void)context;
+    mm_body_set_custom(body, material, &mm_kauai_body_renderer()->edit.runtime);
+}
+
+static MMI32 costume_id(void *context, void *object, MMI32 set, MMI32 index)
+{
+    (void)context;
+    return mm_brender_template_costume_id(object, set, index);
+}
+
+static void *costume(void *context, void *object, MMI32 id)
+{
+    (void)context;
+    return mm_brender_template_costume(object, id);
+}
+
+static int allocate_cel(void *context, size_t bytes, void **out)
+{
+    const MMBRenderBodyHost *host = &mm_kauai_body_renderer()->host;
+    (void)context;
+    return bytes <= host->max_bytes && host->allocate((MMI32)bytes, out);
+}
+
+static int allocate_costumes(void *context, MMI32 count, void **out)
+{
+    const MMBRenderBodyHost *host = &mm_kauai_body_renderer()->host;
+    if (count < 0 || (MMU32)count > host->max_bytes / sizeof(MMMaterialOwner *))
+        return 0;
+    return allocate_cel(context, (size_t)count * sizeof(MMMaterialOwner *), out);
+}
+
+static void free_storage(void *context, void **out)
+{
+    (void)context;
+    mm_kauai_body_renderer()->host.free_memory(out);
+}
+
+static int default_costume(void *context, void *object, void *body)
+{
+    (void)context;
+    return mm_brender_template_default_costume(object, body);
+}
+
+static void body_services(MMTemplateCreateServices *s)
+{
+    s->state = template_state;
+    s->create_body = create_body;
+    s->release_body = release_body;
+    s->default_costume = default_costume;
+    s->costume_id = costume_id;
+    s->custom = costume;
+    s->custom_set = custom_set;
+    s->release_custom = release_material;
+    s->apply_custom = apply_custom;
+    s->allocate_refs = allocate_costumes;
+    s->free_memory = free_storage;
+    mm_kauai_template_read_services(s);
+}
+
+MMBodyOwner *mm_brender_template_body(MMTemplateOwner *owner)
+{
+    MMTemplateCreateServices services = {0};
+    mm_kauai_template_validate(owner);
+    body_services(&services);
+    return mm_template_create_body(owner, &services);
+}
+
+int mm_brender_template_default_costume(MMTemplateOwner *owner, MMBodyOwner *body)
+{
+    MMTemplateCreateServices services = {0};
+    mm_kauai_template_validate(owner);
+    if (mm_template_owner_is_text(owner))
+    {
+        MMTextGenerationServices generation = {0};
+        mm_brender_text_generation_services(&generation);
+        return mm_text_default_costume(owner, body, &generation);
+    }
+    body_services(&services);
+    return mm_template_default_costume(owner, body, &services);
+}
+
+static void *generated_action(void *context, void *object, MMI32 id)
+{
+    const MMTemplateProvider *provider = mm_template_owner_provider(object);
+    (void)context;
+    if (mm_template_owner_is_text(object))
+    {
+        MMTextGenerationServices services = {0};
+        mm_brender_text_generation_services(&services);
+        return mm_text_fetch_action(object, id, &services);
+    }
+    return provider->action(provider->context, id);
+}
+
+static void *generated_model(void *context, void *object, MMU32 id, MMMovieAsset *asset)
+{
+    const MMTemplateProvider *provider = mm_template_owner_provider(object);
+    MMModelOwner *model;
+    (void)context;
+    if (mm_template_owner_is_text(object))
+    {
+        MMTextGenerationServices services = {0};
+        mm_brender_text_generation_services(&services);
+        model = mm_text_fetch_model(object, id, &services);
+    }
+    else
+        model = provider->model(provider->context, id);
+    if (model)
+    {
+        asset->source = 0;
+        asset->type = MM_TEMPLATE_BMDL;
+        asset->number = mm_model_owner_binding(model)->number;
+    }
+    return model;
+}
+
+static void set_cel_model(void *context, void *body, MMI32 part, void *model)
+{
+    (void)context;
+    mm_body_set_model(body, part, model, &mm_kauai_body_renderer()->edit.runtime);
+}
+
+static void set_cel_matrix(void *context, void *body, MMI32 part, const MMActorMatrix *matrix)
+{
+    (void)context;
+    mm_body_set_matrix(body, part, matrix, &mm_kauai_body_renderer()->edit.runtime);
+}
+
+static int action_sound(void *context, void *action, MMI32 cel, void *out)
+{
+    MMTag *tag = out;
+    MMTag value;
+    (void)context;
+    tag->type = 0;
+    if (mm_action_cel_sound(mm_action_resource_definition(action), cel, &value))
+    {
+        tag->sid = value.sid;
+        tag->cache = value.cache;
+        tag->type = value.type;
+        tag->number = value.number;
+    }
+    return tag->type != 0;
+}
+
+static void sound_exists(void *context, void *out, int present)
+{
+    (void)context;
+    *(int *)out = present;
+}
+
+static int action_name(void *context, void *cache, MMU32 type, MMU32 number, void *out)
+{
+    (void)context;
+    return mm_kauai_resource_name(cache, type, number, out);
+}
+
+static void runtime_services(MMTemplateRuntimeServices *s, MMTemplateOwner *owner)
+{
+    const MMTemplateProvider *provider = mm_template_owner_provider(owner);
+    const int text = mm_template_owner_is_text(owner);
+    mm_kauai_template_validate(owner);
+    s->storage.state = template_state;
+    s->storage.free_memory = free_storage;
+    s->resource = mm_template_owner_binding(owner);
+    s->model_reader = mm_brender_model_read;
+    s->model_objects = mm_model_owner_services();
+    s->name = action_name;
+    mm_template_use_action_resource(s, mm_brender_action_read);
+    if (text || provider->action)
+        s->generated_action = generated_action;
+    if (text || provider->model)
+        s->generated_model = generated_model;
+    s->allocate_cel = allocate_cel;
+    s->set_model = set_cel_model;
+    s->set_matrix = set_cel_matrix;
+    s->sound = action_sound;
+    s->sound_exists = sound_exists;
+}
+
+void mm_brender_template_rest(MMTemplateOwner *owner, unsigned short *x, unsigned short *y, unsigned short *z)
+{
+    const MMTemplateState *state = mm_template_owner_state(owner);
+    mm_kauai_template_validate(owner);
+    *x = state->x;
+    *y = state->y;
+    *z = state->z;
+}
+
+int mm_brender_template_action_name(MMTemplateOwner *owner, MMI32 id, const MMStringValue *name)
+{
+    MMTemplateRuntimeServices services = {0};
+    runtime_services(&services, owner);
+    if (mm_template_owner_is_text(owner))
+    {
+        MMTextResourceServices text = {0};
+        mm_kauai_text_name_services(&text);
+        return mm_text_action_name(mm_brender_text_action_names(), id, (void *)name, &text);
+    }
+    return mm_template_action_name(id, (void *)name, &services);
+}
+
+int mm_brender_template_set_cel(MMTemplateOwner *owner, MMBodyOwner *body, MMI32 id, MMI32 cel, void *distance)
+{
+    MMTemplateRuntimeServices services = {0};
+    runtime_services(&services, owner);
+    return mm_template_set_cel(owner, body, id, cel, distance, &services);
+}
+
+int mm_brender_template_distance(MMTemplateOwner *owner, MMI32 id, MMI32 cel, void *distance)
+{
+    MMTemplateRuntimeServices services = {0};
+    MMI32 value;
+    runtime_services(&services, owner);
+    if (!mm_template_distance(owner, id, cel, &value, &services))
+        return 0;
+    memcpy(distance, &value, sizeof(value));
+    return 1;
+}
+
+int mm_brender_template_cel_count(MMTemplateOwner *owner, MMI32 id, void *count)
+{
+    MMTemplateRuntimeServices services = {0};
+    runtime_services(&services, owner);
+    return mm_template_cel_count(owner, id, count, &services);
+}
+
+int mm_brender_template_action_flags(MMTemplateOwner *owner, MMI32 id, void *flags)
+{
+    MMTemplateRuntimeServices services = {0};
+    runtime_services(&services, owner);
+    return mm_template_action_flags(owner, id, flags, &services);
+}
+
+int mm_brender_template_sound(MMTemplateOwner *owner, MMI32 id, MMI32 cel, int *exists, MMTag *tag)
+{
+    MMTemplateRuntimeServices services = {0};
+    runtime_services(&services, owner);
+    return mm_template_sound(owner, id, cel, exists, tag, &services);
+}
+
+int mm_brender_template_is_accessory(MMTemplateOwner *owner, MMI32 set)
+{
+    MMTemplateRuntimeServices services = {0};
+    runtime_services(&services, owner);
+    return mm_template_is_accessory(owner, set, &services);
+}
+
+int mm_brender_template_accessory_set(MMTemplateOwner *owner, MMI32 set, void *out)
+{
+    MMTemplateRuntimeServices services = {0};
+    runtime_services(&services, owner);
+    return mm_template_accessory_set(owner, set, out, &services);
+}
+
+int mm_brender_template_same_accessory(MMTemplateOwner *owner, MMI32 first, MMI32 second)
+{
+    MMTemplateRuntimeServices services = {0};
+    runtime_services(&services, owner);
+    return mm_template_same_accessory(first, second, &services);
 }

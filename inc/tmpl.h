@@ -104,7 +104,6 @@ namespace EngineTemplate
 {
 inline const MMTemplateOwnerHost &Host() { return *mm_kauai_template_host(); }
 inline const MMActionResourceHost &ActionResourceHost() { return *mm_kauai_action_host(); }
-MMTemplateCreateServices CreateServices();
 constexpr MMResourceBlockReader ReadActionResource = mm_brender_action_read;
 constexpr MMResourceBlockReader Read = mm_brender_template_read;
 PTemplate Fetch(PTAG);

@@ -52,11 +52,8 @@ void mm_kauai_template_read_services(MMTemplateCreateServices *s)
     s->decode = KauaiDecodeBlockHandle;
     s->table_allocator = Group::CollectionAllocator();
     s->read_name = [](void *cache, void *object, MMU32 type, MMU32 number) -> int {
-        String name;
-        const bool found = ReadResourceName(static_cast<MMResourceCache *>(cache), type, number, &name);
         const auto storage = mm_template_owner_name(static_cast<MMTemplateOwner *>(object));
-        mm_string_value_copy(&storage, name.Pst());
-        return found;
+        return mm_kauai_resource_name(static_cast<MMResourceCache *>(cache), type, number, &storage);
     };
     s->object_size = [](void *, int text) -> MMI32 {
         // Preserve cache charges for the former native object layouts.
@@ -81,6 +78,31 @@ void mm_kauai_template_read_services(MMTemplateCreateServices *s)
         case MM_TEMPLATE_WRONG_SET: Assert(false, "ibset's don't match"); break;
         }
     };
+}
+
+int mm_kauai_resource_name(const MMResourceCache *cache, MMU32 type, MMU32 number, const MMStringValue *out)
+{
+    String name;
+    const bool found = ReadResourceName(cache, type, number, &name);
+    mm_string_value_copy(out, name.Pst());
+    return found;
+}
+
+void mm_kauai_text_name_services(MMTextResourceServices *s)
+{
+    s->name_count = [](void *, void *table) -> MMI32 { return static_cast<PStringTable_GST>(table)->IvMac(); };
+    s->name_id = [](void *, void *table, MMI32 index) -> MMI32 {
+        LegacyLong id;
+        static_cast<PStringTable_GST>(table)->GetExtra(index, &id);
+        return id;
+    };
+    s->name_text = [](void *, void *table, MMI32 index, void *out) {
+        String name;
+        static_cast<PStringTable_GST>(table)->GetStn(index, &name);
+        mm_string_value_copy(static_cast<const MMStringValue *>(out), name.Pst());
+    };
+    s->clear = [](void *, void *out) { mm_string_value_clear(static_cast<const MMStringValue *>(out)); };
+    s->missing_name = [](void *) { Warn("action name not found"); };
 }
 
 void mm_kauai_text_read_services(MMTextResourceServices *s)

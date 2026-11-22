@@ -33,19 +33,18 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.sounds.runtime.cel_count = [](void *v, MMI32 action, MMI32 *out) -> int {
             auto &h = Get(v);
             return h.Guard([&] {
-                LegacyLong count = 0;
-                const auto ok = EngineTemplate::FGetCcelActn(h.actor->Ptmpl(), action, &count);
-                *out = count;
-                return ok;
+                *out = 0;
+                return mm_brender_template_cel_count(h.actor->Ptmpl(), action, out);
             }) > 0;
         };
         s.sounds.default_sound = [](void *v, MMI32 action, MMI32 cel, int *exists, MMTag *out) -> int {
             auto &h = Get(v);
             return h.Guard([&] {
-                TAG tag{}; bool available = false;
-                const auto ok = EngineTemplate::FGetSndActnCel(h.actor->Ptmpl(), action, cel, &available, &tag);
+                MMTag tag{};
+                int available = 0;
+                const auto ok = mm_brender_template_sound(h.actor->Ptmpl(), action, cel, &available, &tag);
                 *exists = ok && available && tag.sid != 0;
-                if (*exists) std::memcpy(out, &tag, sizeof(tag));
+                if (*exists) *out = tag;
                 return ok;
             }) > 0;
         };
@@ -68,10 +67,8 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.action_flags = [](void *v, MMI32 action, MMU32 *flags) -> int {
             auto &h = Get(v);
             return h.Guard([&] {
-                LegacyUlong flags32 = 0;
-                const auto ok = EngineTemplate::FGetGrfactn(h.actor->Ptmpl(), action, &flags32);
-                *flags = flags32;
-                return ok;
+                *flags = 0;
+                return mm_brender_template_action_flags(h.actor->Ptmpl(), action, flags);
             }) > 0;
         };
         s.text_template = [](void *v) { return int(EngineTemplate::FIsTdt(Get(v).actor->Ptmpl())); };
@@ -90,13 +87,13 @@ struct PreviewActor::AnimationHost : PreviewActor::CostumeHost
         s.route.hide_body = [](void *) {};
         s.route.default_costume = [](void *v) {
             auto &h = Get(v);
-            h.Guard([&] { return EngineTemplate::FSetDefaultCost(h.actor->Ptmpl(), h.actor->Pbody()); });
+            h.Guard([&] { return mm_brender_template_default_costume(h.actor->Ptmpl(), h.actor->Pbody()); });
         };
         auto &header = actor->core.header;
         s.lifetime = {&header.first_frame, &header.last_frame, &lifeDirty, &record.recording, &record.rejoining, 0};
         s.pose_inputs = [](void *v, MMActorPoseInputs *inputs) {
             auto tmpl = Get(v).actor->Ptmpl();
-            EngineTemplate::GetRestOrien(tmpl, &inputs->restX, &inputs->restY, &inputs->restZ);
+            mm_brender_template_rest(tmpl, &inputs->restX, &inputs->restY, &inputs->restZ);
             inputs->fixedPathOrientation = EngineTemplate::FIsTdt(tmpl);
         };
         s.locate_body = [](void *, const MMActorBodyPose *) {};

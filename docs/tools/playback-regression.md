@@ -20615,3 +20615,32 @@ Retail reopened the two-scene Studio save in 20261122T004918Z-3301711f and
 reproduced all 60 reference seek canvases and camera indices.
 
 Evidence is under tmp/c89-template-bindings.
+
+## Shared C89 template playback and Marcus link cutover (22 November 2026)
+
+Studio and Preview now share the C89 bindings for template body creation,
+default costumes, costume lookup, cel evaluation, action data and 3D text
+shape changes. The actor-effects adapter uses the same entry points. Kauai
+supplies native allocation, diagnostics and localized action names. The
+Marcus executable, Preview helper and regression runner have zero
+engine-core objects in their x64 link maps, and their build rules no longer
+link engine-core. Studio still links its editing and archive facades.
+
+All 193 standalone C89 checks and the strict BRender syntax check passed.
+Native x64 and x86 and SDL movie save/load passed. Six x64 snapshots and
+three x86 snapshots matched the prior bytes. The headless Preview suite
+and full Studio authoring workflow passed. Both Studio saves preserved
+the archive graph and payload bytes, with two TMPL index padding bytes
+differing in each.
+
+The eight actor-audio runs in 20261122T005746Z-bf7a87d5 completed. SDL and
+Marcus each matched all 30 prior seek canvases, 29 of 30 retail seek
+canvases, and all 30 retail camera indices and continuous frame identities.
+V3DMM matched all 30 retail seek canvases. SDL and V3DMM matched all six
+retail sound requests. Mixed PCM differed and continuous image alignment
+remained inconclusive.
+
+Retail reopened the two-scene Studio save in 20261122T005857Z-08d0f92c and
+reproduced all 60 reference seek canvases and camera indices.
+
+Evidence is under tmp/c89-template-playback.

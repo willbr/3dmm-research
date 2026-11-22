@@ -93,15 +93,19 @@ PreviewObject PreviewActor::Snapshot() const
 bool PreviewActor::Text(PreviewObjectText &out) const
 {
     if (!Ptmpl() || !EngineTemplate::FIsTdt(Ptmpl())) return false;
-    String text; LegacyLong shape; TAG font;
-    EngineText::GetInfo(static_cast<PThreeDText>(Ptmpl()), &text, &shape, &font);
+    const auto &descriptor = *mm_template_owner_descriptor(Ptmpl());
+    String text;
+    text.SetSt(static_cast<PPascalString>(mm_template_owner_name(Ptmpl()).buffer));
     const auto count = KauaiText::ToUtf16(text.Psz(), text.Cch(), KauaiText::Encoding::WindowsAnsi, nullptr, 0);
     if (text.Cch() && !count) return false;
     std::vector<std::uint16_t> units(count);
     if (count && KauaiText::ToUtf16(text.Psz(), text.Cch(), KauaiText::Encoding::WindowsAnsi,
         units.data(), count) != count) return false;
     std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
-    out.text = convert.to_bytes(std::u16string(units.begin(), units.end())); out.shape = shape; out.fontSource = font.sid; out.font = font.cno;
+    out.text = convert.to_bytes(std::u16string(units.begin(), units.end()));
+    out.shape = descriptor.shape;
+    out.fontSource = descriptor.font.sid;
+    out.font = descriptor.font.number;
     return true;
 }
 PMaterial_MTRL PreviewActor::TextMaterial() const
@@ -132,14 +136,14 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
     {
         int custom;
         const auto current = mm_brender_body_material(mm_kauai_body_renderer(), Pbody(), set, &custom);
-        for (int i = 0; i < EngineTemplate::CcmidOfBset(Ptmpl(), set); ++i)
+        for (int i = 0; i < mm_brender_template_costume_count(Ptmpl(), set); ++i)
         {
-            const auto id = EngineTemplate::CmidOfBset(Ptmpl(), set, i);
-            auto costume = EngineTemplate::PcmtlFetch(Ptmpl(), id);
+            const auto id = mm_brender_template_costume_id(Ptmpl(), set, i);
+            auto costume = mm_brender_template_costume(Ptmpl(), id);
             if (!costume) return false;
             const bool selected = custom && current == costume;
             mm_material_owner_release(costume);
-            out.push_back({set, int(id), selected, EngineTemplate::FBsetIsAccessory(Ptmpl(), set)});
+            out.push_back({set, int(id), selected, mm_brender_template_is_accessory(Ptmpl(), set) != 0});
         }
     }
     return true;
@@ -147,7 +151,9 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 std::string PreviewActor::ActionName(LegacyLong action) const
 {
     String name;
-    if (action >= 0 && action < EngineTemplate::Cactn(Ptmpl()) && EngineTemplate::FGetActnName(Ptmpl(), action, &name) && name.Cch())
+    const MMStringValue counted = {name.Pst(), sizeof(achar)};
+    if (action >= 0 && action < EngineTemplate::Cactn(Ptmpl()) &&
+        mm_brender_template_action_name(Ptmpl(), action, &counted) && name.Cch())
     {
         const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
         const auto count = KauaiText::ToUtf16(name.Psz(), name.Cch() * sizeof(achar), encoding, nullptr, 0);
@@ -169,7 +175,7 @@ bool PreviewActor::Actions(std::vector<PreviewAction> &out) const
 LegacyLong PreviewActor::ActionCelCount(LegacyLong action) const
 {
     LegacyLong count = 0;
-    if (Ptmpl() && action >= 0 && action < EngineTemplate::Cactn(Ptmpl()) && EngineTemplate::FGetCcelActn(Ptmpl(), action, &count))
+    if (Ptmpl() && action >= 0 && action < EngineTemplate::Cactn(Ptmpl()) && mm_brender_template_cel_count(Ptmpl(), action, &count))
         return std::max<LegacyLong>(0, count);
     return 0;
 }
@@ -198,7 +204,7 @@ bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
     {
         if (std::none_of(available.begin(), available.end(), [&](const PreviewCostume &c) {
             return c.bodySet == value.bodySet && c.costume == value.costume; })) return false;
-        auto costume = EngineTemplate::PcmtlFetch(Ptmpl(), value.costume);
+        auto costume = mm_brender_template_costume(Ptmpl(), value.costume);
         if (!costume) return false;
         mm_body_set_custom(Pbody(), costume, &mm_kauai_body_renderer()->edit.runtime);
         mm_material_owner_release(costume);
@@ -439,7 +445,7 @@ bool PreviewActor::TrackPose(PreviewTrackPose &pose) const
     pose.position[0] = position.dxr; pose.position[1] = position.dyr; pose.position[2] = position.dzr;
     pose.translation[0] = translation.dxr; pose.translation[1] = translation.dyr; pose.translation[2] = translation.dzr;
     BRA angles[3];
-    EngineTemplate::GetRestOrien(Ptmpl(), angles, angles + 1, angles + 2);
+    mm_brender_template_rest(Ptmpl(), angles, angles + 1, angles + 2);
     MMActorMatrix rest;
     mm_matrix_identity(&rest);
     for (int axis = 0; axis < 3; ++axis) mm_matrix_rotate(&rest, axis, angles[axis], 0);

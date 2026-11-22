@@ -43,12 +43,7 @@ struct PreviewActor::Host
         s.timeline.context = this;
         s.timeline.resolve = [](void *v, MMI32 action, MMI32 cel, MMI32 *out) -> int {
             auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                BRS value = *out;
-                bool ok = EngineTemplate::FGetDwrActnCel(h.actor->Ptmpl(), action, cel, &value);
-                *out = value;
-                return ok;
-            }) > 0;
+            return h.Guard([&] { return mm_brender_template_distance(h.actor->Ptmpl(), action, cel, out); }) > 0;
         };
         s.timeline.diagnostic = EngineActorTimeline::Diagnostic;
         s.fault = [](void *v) { return static_cast<Host *>(v)->failure; };
@@ -98,7 +93,7 @@ struct PreviewActor::Host
         s.body_create = [](void *v, void *t, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = EngineTemplate::PbodyCreate(static_cast<PTemplate>(t));
+                *out = mm_brender_template_body(static_cast<PTemplate>(t));
                 return *out != nullptr;
             });
         };
@@ -111,7 +106,7 @@ struct PreviewActor::Host
         };
         s.adjust_text_body = [](void *v, void *t, void *b) -> int {
             auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] { return EngineText::FAdjustBody(static_cast<PThreeDText>(t), static_cast<PBody>(b)); });
+            return h.Guard([&] { return mm_brender_text_adjust_body(static_cast<PThreeDText>(t), static_cast<PBody>(b)); });
         };
         s.prop = [](void *, void *t) -> int { return EngineTemplate::FIsProp(static_cast<PTemplate>(t)); };
         s.text = [](void *, void *t) -> int { return EngineTemplate::FIsTdt(static_cast<PTemplate>(t)); };
@@ -123,7 +118,7 @@ struct PreviewActor::Host
         };
         s.rest = [](void *v, void *t, unsigned short *a) {
             static_cast<Host *>(v)->Guard([&] {
-                EngineTemplate::GetRestOrien(static_cast<PTemplate>(t), a, a + 1, a + 2);
+                mm_brender_template_rest(static_cast<PTemplate>(t), a, a + 1, a + 2);
                 return 1;
             });
         };
@@ -137,7 +132,7 @@ struct PreviewActor::Host
         };
         s.pose = [](void *v, void *t, void *b, MMI32 action, MMI32 cel) -> int {
             auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] { return EngineTemplate::FSetActnCel(static_cast<PTemplate>(t), static_cast<PBody>(b), action, cel); });
+            return h.Guard([&] { return mm_brender_template_set_cel(static_cast<PTemplate>(t), static_cast<PBody>(b), action, cel, nullptr); });
         };
         s.apply = [](void *v, MMI32 index) -> int {
             auto &h = *static_cast<Host *>(v);
@@ -167,7 +162,7 @@ struct PreviewActor::Host
         s.clear_motion = [](void *v) { mm_actor_sounds_clear(&static_cast<Host *>(v)->actor->motionSounds); };
         s.default_costume = [](void *v, void *t, void *b) -> int {
             auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] { return EngineTemplate::FSetDefaultCost(static_cast<PTemplate>(t), static_cast<PBody>(b)); });
+            return h.Guard([&] { return mm_brender_template_default_costume(static_cast<PTemplate>(t), static_cast<PBody>(b)); });
         };
         s.motion_cues = [](void *v) -> int {
             auto &h = *static_cast<Host *>(v);

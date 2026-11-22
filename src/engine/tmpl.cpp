@@ -64,7 +64,6 @@
 
 ***************************************************************************/
 #include "soc_core.h"
-#include "mm/movie_session.h"
 ASSERTNAME
 
 #ifdef DEBUG
@@ -72,23 +71,6 @@ ASSERTNAME
 #else
 #define TEMPLATE_VALIDATE(owner) ((void)0)
 #endif
-
-MMTemplateCreateServices EngineTemplate::CreateServices()
-{
-    MMTemplateCreateServices s = {};
-    mm_brender_template_read_services(&s, nullptr);
-    s.create_body = [](void *, const MMPartIndexView *parents, const MMPartIndexView *sets) -> void * {
-        return mm_brender_body_create(mm_kauai_body_renderer(), parents, sets);
-    };
-    s.release_body = [](void *, void *body) { mm_body_owner_release(static_cast<PBody>(body)); };
-    s.default_costume = [](void *, void *object, void *body) -> int { return FSetDefaultCost(static_cast<PTemplate>(object), static_cast<PBody>(body)); };
-    s.costume_id = [](void *, void *object, MMI32 set, MMI32 index) -> MMI32 { return CmidOfBset(static_cast<PTemplate>(object), set, index); };
-    s.custom = [](void *, void *object, MMI32 id) -> void * { return PcmtlFetch(static_cast<PTemplate>(object), id); };
-    s.allocate_refs = [](void *, MMI32 count, void **out) -> int { return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal); };
-    s.apply_custom = [](void *, void *body, void *custom) { mm_body_set_custom(body, custom, &mm_kauai_body_renderer()->edit.runtime); };
-    s.free_memory = [](void *, void **data) { FreePpv(data); };
-    return s;
-}
 
 PTemplate EngineTemplate::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number, bool *error)
 {
@@ -119,75 +101,14 @@ bool EngineTemplate::WriteHeader(PTemplate owner, PChunkyFile file, ChunkTagOrTy
 ***************************************************************************/
 PBody EngineTemplate::PbodyCreate(PTemplate owner)
 {
-    TEMPLATE_VALIDATE(owner);
-    auto s = CreateServices();
-    return static_cast<PBody>(mm_template_create_body(owner, &s));
-}
-
-/***************************************************************************
-    Fills in the name of the given action
-***************************************************************************/
-static MMTemplateRuntimeServices RuntimeServices(PTemplate owner)
-{
-    MMTemplateRuntimeServices s = {}; s.storage = EngineTemplate::CreateServices();
-    static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
-    s.resource = mm_template_owner_binding(owner);
-    s.model_reader = mm_brender_model_read;
-    s.model_objects = mm_model_owner_services();
-    s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
-        return ReadResourceName(static_cast<MMResourceCache *>(cache), type, number, static_cast<PString>(out));
-    };
-    mm_template_use_action_resource(&s, EngineTemplate::ReadActionResource);
-    const auto provider = mm_template_owner_provider(owner);
-    if (mm_template_owner_is_text(owner) || provider->action)
-    {
-        s.generated_action = [](void *, void *object, MMI32 id) -> void * {
-            auto owner = static_cast<PTemplate>(object);
-            if (mm_template_owner_is_text(owner))
-                return EngineText::FetchAction(owner, id);
-            const auto provider = mm_template_owner_provider(owner);
-            return provider->action(provider->context, id);
-        };
-    }
-    if (mm_template_owner_is_text(owner) || provider->model)
-    {
-        s.generated_model = [](void *, void *object, MMU32 id, MMMovieAsset *asset) -> void * {
-            auto owner = static_cast<PTemplate>(object);
-            const auto provider = mm_template_owner_provider(owner);
-            auto model = mm_template_owner_is_text(owner) ? EngineText::FetchModel(owner, id) :
-                         static_cast<PModel>(provider->model(provider->context, id));
-            if (model)
-                *asset = {0, MM_TEMPLATE_BMDL, mm_model_owner_binding(model)->number};
-            return model;
-        };
-    }
-    s.sound = [](void *, void *action, MMI32 index, void *out) -> int {
-        auto tag = static_cast<PTAG>(out);
-        MMTag value;
-        const auto definition = mm_action_resource_definition(static_cast<MMActionResource *>(action));
-        tag->ctg = ctgNil;
-        if (mm_action_cel_sound(definition, index, &value))
-            TagFromCore(tag, value);
-        return tag->ctg != ctgNil;
-    };
-    s.allocate_cel = [](void *, size_t bytes, void **out) -> int {
-        return FAllocPv(out, static_cast<LegacyLong>(bytes), fmemClear, mprNormal);
-    };
-    s.set_model = [](void *, void *body, MMI32 part, void *model) { mm_body_set_model(body, part, model, &mm_kauai_body_renderer()->edit.runtime); };
-    s.set_matrix = [](void *, void *body, MMI32 part, const MMActorMatrix *data) {
-        mm_body_set_matrix(body, part, data, &mm_kauai_body_renderer()->edit.runtime);
-    };
-    s.sound_exists = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
-    return s;
+    return mm_brender_template_body(owner);
 }
 
 bool EngineTemplate::FGetActnName(PTemplate owner, LegacyLong anid, PString pstn)
 {
-    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertPo(pstn, 0);
-    auto s = RuntimeServices(owner);
-    if (mm_template_owner_is_text(owner))
-        return EngineText::ActionName(owner, anid, pstn);
-    return mm_template_action_name(anid, pstn, &s) != 0;
+    AssertIn(anid, 0, State(owner).action_count); AssertPo(pstn, 0);
+    const MMStringValue name = {pstn->Pst(), sizeof(achar)};
+    return mm_brender_template_action_name(owner, anid, &name) != 0;
 }
 
 /***************************************************************************
@@ -197,9 +118,8 @@ bool EngineTemplate::FGetActnName(PTemplate owner, LegacyLong anid, PString pstn
 ***************************************************************************/
 bool EngineTemplate::FSetActnCel(PTemplate owner, PBody pbody, LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
-    TEMPLATE_VALIDATE(owner); Assert(pbody, "missing body"); AssertIn(anid, 0, State(owner).action_count); AssertNilOrVarMem(pdwr);
-    auto s = RuntimeServices(owner);
-    return mm_template_set_cel(owner, pbody, anid, celn, pdwr, &s) != 0;
+    Assert(pbody, "missing body"); AssertIn(anid, 0, State(owner).action_count); AssertNilOrVarMem(pdwr);
+    return mm_brender_template_set_cel(owner, pbody, anid, celn, pdwr) != 0;
 }
 
 /***************************************************************************
@@ -207,11 +127,8 @@ bool EngineTemplate::FSetActnCel(PTemplate owner, PBody pbody, LegacyLong anid, 
 ***************************************************************************/
 bool EngineTemplate::FGetDwrActnCel(PTemplate owner, LegacyLong anid, LegacyLong celn, BRS *pdwr)
 {
-    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pdwr);
-    auto s = RuntimeServices(owner);
-    MMI32 distance;
-    if (!mm_template_distance(owner, anid, celn, &distance, &s)) return false;
-    std::memcpy(pdwr, &distance, sizeof(distance)); return true;
+    AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pdwr);
+    return mm_brender_template_distance(owner, anid, celn, pdwr) != 0;
 }
 
 /***************************************************************************
@@ -219,9 +136,8 @@ bool EngineTemplate::FGetDwrActnCel(PTemplate owner, LegacyLong anid, LegacyLong
 ***************************************************************************/
 bool EngineTemplate::FGetCcelActn(PTemplate owner, LegacyLong anid, LegacyLong *pccel)
 {
-    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pccel);
-    auto s = RuntimeServices(owner);
-    return mm_template_cel_count(owner, anid, pccel, &s) != 0;
+    AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pccel);
+    return mm_brender_template_cel_count(owner, anid, pccel) != 0;
 }
 
 /***************************************************************************
@@ -229,9 +145,17 @@ bool EngineTemplate::FGetCcelActn(PTemplate owner, LegacyLong anid, LegacyLong *
 ***************************************************************************/
 bool EngineTemplate::FGetSndActnCel(PTemplate owner, LegacyLong anid, LegacyLong celn, bool *pfSoundExists, PTAG ptag)
 {
-    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pfSoundExists); AssertVarMem(ptag);
-    auto s = RuntimeServices(owner);
-    return mm_template_sound(owner, anid, celn, pfSoundExists, ptag, &s) != 0;
+    AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pfSoundExists); AssertVarMem(ptag);
+    static_assert(sizeof(TAG) == sizeof(MMTag) && offsetof(TAG, sid) == offsetof(MMTag, sid) &&
+                      offsetof(TAG, cache) == offsetof(MMTag, cache) && offsetof(TAG, ctg) == offsetof(MMTag, type) &&
+                      offsetof(TAG, cno) == offsetof(MMTag, number), "sound tag layout");
+    MMTag tag;
+    std::memcpy(&tag, ptag, sizeof(tag));
+    int exists;
+    const int ok = mm_brender_template_sound(owner, anid, celn, &exists, &tag);
+    std::memcpy(ptag, &tag, sizeof(tag));
+    *pfSoundExists = exists != 0;
+    return ok != 0;
 }
 
 /***************************************************************************
@@ -239,9 +163,8 @@ bool EngineTemplate::FGetSndActnCel(PTemplate owner, LegacyLong anid, LegacyLong
 ***************************************************************************/
 bool EngineTemplate::FGetGrfactn(PTemplate owner, LegacyLong anid, LegacyUlong *pgrfactn)
 {
-    TEMPLATE_VALIDATE(owner); AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pgrfactn);
-    auto s = RuntimeServices(owner);
-    return mm_template_action_flags(owner, anid, pgrfactn, &s) != 0;
+    AssertIn(anid, 0, State(owner).action_count); AssertVarMem(pgrfactn);
+    return mm_brender_template_action_flags(owner, anid, pgrfactn) != 0;
 }
 
 /***************************************************************************
@@ -249,14 +172,11 @@ bool EngineTemplate::FGetGrfactn(PTemplate owner, LegacyLong anid, LegacyUlong *
 ***************************************************************************/
 void EngineTemplate::GetRestOrien(PTemplate owner, BRA *pxa, BRA *pya, BRA *pza)
 {
-    TEMPLATE_VALIDATE(owner);
     AssertVarMem(pxa);
     AssertVarMem(pya);
     AssertVarMem(pza);
 
-    *pxa = static_cast<BRA>(State(owner).x);
-    *pya = static_cast<BRA>(State(owner).y);
-    *pza = static_cast<BRA>(State(owner).z);
+    mm_brender_template_rest(owner, pxa, pya, pza);
 }
 
 /***************************************************************************
@@ -264,11 +184,8 @@ void EngineTemplate::GetRestOrien(PTemplate owner, BRA *pxa, BRA *pya, BRA *pza)
 ***************************************************************************/
 bool EngineTemplate::FSetDefaultCost(PTemplate owner, PBody pbody)
 {
-    TEMPLATE_VALIDATE(owner); Assert(pbody, "missing body");
-    if (mm_template_owner_is_text(owner))
-        return EngineText::FSetDefaultCost(owner, pbody);
-    auto s = CreateServices();
-    return mm_template_default_costume(owner, pbody, &s) != 0;
+    Assert(pbody, "missing body");
+    return mm_brender_template_default_costume(owner, pbody) != 0;
 }
 
 /***************************************************************************
@@ -276,9 +193,8 @@ bool EngineTemplate::FSetDefaultCost(PTemplate owner, PBody pbody)
 ***************************************************************************/
 LegacyLong EngineTemplate::CcmidOfBset(PTemplate owner, LegacyLong ibset)
 {
-    TEMPLATE_VALIDATE(owner); AssertIn(ibset, 0, State(owner).set_count);
-    auto s = RuntimeServices(owner);
-    return mm_template_costume_count(owner, ibset, &s);
+    AssertIn(ibset, 0, State(owner).set_count);
+    return mm_brender_template_costume_count(owner, ibset);
 }
 
 /***************************************************************************
@@ -286,9 +202,8 @@ LegacyLong EngineTemplate::CcmidOfBset(PTemplate owner, LegacyLong ibset)
 ***************************************************************************/
 LegacyLong EngineTemplate::CmidOfBset(PTemplate owner, LegacyLong ibset, LegacyLong icmid)
 {
-    TEMPLATE_VALIDATE(owner); AssertIn(ibset, 0, State(owner).set_count); AssertIn(icmid, 0, CcmidOfBset(owner, ibset));
-    auto s = RuntimeServices(owner);
-    return mm_template_costume_id(owner, ibset, icmid, &s);
+    AssertIn(ibset, 0, State(owner).set_count); AssertIn(icmid, 0, CcmidOfBset(owner, ibset));
+    return mm_brender_template_costume_id(owner, ibset, icmid);
 }
 
 /***************************************************************************
@@ -297,9 +212,8 @@ LegacyLong EngineTemplate::CmidOfBset(PTemplate owner, LegacyLong ibset, LegacyL
 ***************************************************************************/
 bool EngineTemplate::FBsetIsAccessory(PTemplate owner, LegacyLong ibset)
 {
-    TEMPLATE_VALIDATE(owner); AssertIn(ibset, 0, State(owner).set_count);
-    auto s = RuntimeServices(owner);
-    return mm_template_is_accessory(owner, ibset, &s) != 0;
+    AssertIn(ibset, 0, State(owner).set_count);
+    return mm_brender_template_is_accessory(owner, ibset) != 0;
 }
 
 /***************************************************************************
@@ -310,9 +224,8 @@ bool EngineTemplate::FBsetIsAccessory(PTemplate owner, LegacyLong ibset)
 ***************************************************************************/
 bool EngineTemplate::FIbsetAccOfIbset(PTemplate owner, LegacyLong ibset, LegacyLong *pibsetAcc)
 {
-    TEMPLATE_VALIDATE(owner); AssertIn(ibset, 0, State(owner).set_count); AssertVarMem(pibsetAcc);
-    auto s = RuntimeServices(owner);
-    return mm_template_accessory_set(owner, ibset, pibsetAcc, &s) != 0;
+    AssertIn(ibset, 0, State(owner).set_count); AssertVarMem(pibsetAcc);
+    return mm_brender_template_accessory_set(owner, ibset, pibsetAcc) != 0;
 }
 
 /***************************************************************************
@@ -321,9 +234,7 @@ bool EngineTemplate::FIbsetAccOfIbset(PTemplate owner, LegacyLong ibset, LegacyL
 ***************************************************************************/
 bool EngineTemplate::FSameAccCmids(PTemplate owner, LegacyLong cmid1, LegacyLong cmid2)
 {
-    TEMPLATE_VALIDATE(owner);
-    auto s = RuntimeServices(owner);
-    return mm_template_same_accessory(cmid1, cmid2, &s) != 0;
+    return mm_brender_template_same_accessory(owner, cmid1, cmid2) != 0;
 }
 
 /***************************************************************************
@@ -338,13 +249,7 @@ PCustomMaterial_CMTL EngineTemplate::PcmtlFetch(PTemplate owner, LegacyLong cmid
         Bug("Shouldn't fetch CMTLs from a ThreeDText");
         return pvNil;
     }
-    // A CMID is a child ID, not an ordinal. Imported templates may have gaps
-    // (for example, children 0 and 2), so State(owner).custom_count is not an upper bound on IDs.
-    if (cmid < 0)
-        return pvNil;
-    return static_cast<PCustomMaterial_CMTL>(mm_template_fetch_child(
-        mm_template_owner_binding(owner), static_cast<MMU32>(cmid), MM_TEMPLATE_CUSTOM,
-        mm_brender_costume_read, mm_material_owner_services(), nullptr));
+    return mm_brender_template_costume(owner, cmid);
 }
 
 /***************************************************************************

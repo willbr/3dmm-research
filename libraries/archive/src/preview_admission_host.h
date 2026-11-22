@@ -131,7 +131,7 @@ struct Preview::Impl::AdmissionHost
         s.body_create = [](void *v, void *t, void **out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                h.impl->body = EngineTemplate::PbodyCreate(static_cast<PTemplate>(t));
+                h.impl->body = mm_brender_template_body(static_cast<PTemplate>(t));
                 *out = h.impl->body;
                 return *out != nullptr;
             });
@@ -141,10 +141,8 @@ struct Preview::Impl::AdmissionHost
         s.cels = [](void *v, void *t, MMU32 action, MMI32 *out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
             return h.Guard([&] {
-                LegacyLong n = 0;
-                bool ok = EngineTemplate::FGetCcelActn(static_cast<PTemplate>(t), action, &n);
-                *out = n;
-                return ok;
+                *out = 0;
+                return mm_brender_template_cel_count(static_cast<PTemplate>(t), action, out);
             });
         };
         s.action_child = [](void *v, MMU32 type, MMU32 number, MMU32 slot, MMPreviewChunk *out) -> int {
@@ -183,10 +181,10 @@ struct Preview::Impl::AdmissionHost
         };
         s.pose = [](void *v, void *t, void *b, MMU32 action, MMU32 cel) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);
-            return h.Guard([&] { return EngineTemplate::FSetActnCel(static_cast<PTemplate>(t), static_cast<PBody>(b), action, cel); });
+            return h.Guard([&] { return mm_brender_template_set_cel(static_cast<PTemplate>(t), static_cast<PBody>(b), action, cel, nullptr); });
         };
         s.rest = [](void *, void *t, unsigned short *angles) {
-            EngineTemplate::GetRestOrien(static_cast<PTemplate>(t), angles, angles + 1, angles + 2);
+            mm_brender_template_rest(static_cast<PTemplate>(t), angles, angles + 1, angles + 2);
         };
         s.rotate = [](void *, MMActorMatrix *m, int axis, unsigned short angle, int post) {
             BMAT34 native;

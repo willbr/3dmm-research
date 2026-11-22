@@ -25,24 +25,18 @@ struct EngineActorEffectHost
         };
         s.select_cel = [](void *p, MMI32 action, MMI32 cel) -> int {
             auto &h = From(p);
-            return EngineTemplate::FSetActnCel(h.tmpl, h.body, action, cel);
+            return mm_brender_template_set_cel(h.tmpl, h.body, action, cel, nullptr);
         };
         s.cel_count = [](void *p, MMI32 action, MMI32 *out) -> int {
-            LegacyLong count = *out;
-            const auto ok = EngineTemplate::FGetCcelActn(From(p).tmpl, action, &count);
-            *out = count;
-            return ok;
+            return mm_brender_template_cel_count(From(p).tmpl, action, out);
         };
         s.action_flags = [](void *p, MMI32 action, MMU32 *out) -> int {
-            LegacyUlong flags = *out;
-            const auto ok = EngineTemplate::FGetGrfactn(From(p).tmpl, action, &flags);
-            *out = flags;
-            return ok;
+            return mm_brender_template_action_flags(From(p).tmpl, action, out);
         };
         s.save_costume = [](void *p) -> int { auto &h = From(p); return h.saved.FGet(h.body); };
-        s.default_costume = [](void *p) -> int { auto &h = From(p); return EngineTemplate::FSetDefaultCost(h.tmpl, h.body); };
+        s.default_costume = [](void *p) -> int { auto &h = From(p); return mm_brender_template_default_costume(h.tmpl, h.body); };
         s.restore_costume = [](void *p) { auto &h = From(p); h.saved.Set(h.body); };
-        s.fetch_custom = [](void *p, MMI32 costume) -> void * { return EngineTemplate::PcmtlFetch(From(p).tmpl, costume); };
+        s.fetch_custom = [](void *p, MMI32 costume) -> void * { return mm_brender_template_costume(From(p).tmpl, costume); };
         s.apply_custom = [](void *p, void *resource) {
             mm_body_set_custom(From(p).body, resource, &mm_kauai_body_renderer()->edit.runtime);
         };

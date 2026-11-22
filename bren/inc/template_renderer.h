@@ -15,6 +15,8 @@ void mm_kauai_text_read_services(MMTextResourceServices *);
 void mm_kauai_template_validate(MMTemplateOwner *);
 void mm_kauai_template_mark(MMTemplateOwner *);
 void mm_kauai_font_check_index(MMI32 index, MMI32 count);
+int mm_kauai_resource_name(const MMResourceCache *, MMU32 type, MMU32 number, const MMStringValue *);
+void mm_kauai_text_name_services(MMTextResourceServices *);
 
 void mm_brender_template_read_services(MMTemplateCreateServices *, MMResourceCache *);
 int mm_brender_template_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
@@ -23,6 +25,26 @@ int mm_brender_action_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void
 int mm_brender_text_initialize(MMTemplateOwner *, MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *);
 void mm_brender_text_generation_services(MMTextGenerationServices *);
 MMTextNames *mm_brender_text_action_names(void);
+
+struct MMBodyOwner;
+struct MMMaterialOwner;
+struct MMBodyOwner *mm_brender_template_body(MMTemplateOwner *);
+int mm_brender_template_default_costume(MMTemplateOwner *, struct MMBodyOwner *);
+struct MMMaterialOwner *mm_brender_template_costume(MMTemplateOwner *, MMI32 id);
+MMI32 mm_brender_template_costume_count(MMTemplateOwner *, MMI32 set);
+MMI32 mm_brender_template_costume_id(MMTemplateOwner *, MMI32 set, MMI32 index);
+int mm_brender_template_is_accessory(MMTemplateOwner *, MMI32 set);
+int mm_brender_template_accessory_set(MMTemplateOwner *, MMI32 set, void *out);
+int mm_brender_template_same_accessory(MMTemplateOwner *, MMI32 first, MMI32 second);
+void mm_brender_template_rest(MMTemplateOwner *, unsigned short *x, unsigned short *y, unsigned short *z);
+int mm_brender_template_action_name(MMTemplateOwner *, MMI32 action, const MMStringValue *);
+/* Opaque scalar outputs use the C engine's four-byte fixed-point layout. */
+int mm_brender_template_set_cel(MMTemplateOwner *, struct MMBodyOwner *, MMI32 action, MMI32 cel, void *distance);
+int mm_brender_template_distance(MMTemplateOwner *, MMI32 action, MMI32 cel, void *distance);
+int mm_brender_template_cel_count(MMTemplateOwner *, MMI32 action, void *count);
+int mm_brender_template_action_flags(MMTemplateOwner *, MMI32 action, void *flags);
+int mm_brender_template_sound(MMTemplateOwner *, MMI32 action, MMI32 cel, int *exists, MMTag *);
+int mm_brender_text_adjust_body(MMTemplateOwner *, struct MMBodyOwner *);
 
 #ifdef __cplusplus
 }
