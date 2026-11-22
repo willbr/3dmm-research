@@ -1,6 +1,9 @@
 #include "mm/script_resource.h"
 #include "mm/script_runtime.h"
+#include "mm/script_opcodes.h"
+#include "mm/script_vm.h"
 #include "mm/text.h"
+#include "mm/wide.h"
 #include "engine_resource_block_fixture.h"
 #include <stdio.h>
 
@@ -446,11 +449,127 @@ static void runtime(void)
     mm_script_variables_dispose(&object);
 }
 
+#define VM_IMMEDIATES(n) ((MMU32)(n) << 16)
+#define VM_VARIABLE(op) (((MMU32)(op) << 24) | VM_IMMEDIATES(1) | 0xabcdUL)
+#define VM_VERSION 0x000a000aUL
+
+typedef struct VMScopeFixture
+{
+    MMScriptVariables object, global, remote;
+    unsigned calls;
+} VMScopeFixture;
+
+static MMScriptVariables *vm_variables(void *context, int scope, MMI32 object)
+{
+    VMScopeFixture *fixture = context;
+    ++fixture->calls;
+    if (scope == MM_SCRIPT_SCOPE_THIS)
+        return &fixture->object;
+    if (scope == MM_SCRIPT_SCOPE_GLOBAL)
+        return &fixture->global;
+    CHECK(scope == MM_SCRIPT_SCOPE_REMOTE && object == 123);
+    return &fixture->remote;
+}
+
+static int attach_program(Host *host, MMScriptVM *vm, const MMU32 *words, size_t count)
+{
+    MMCompiledScript *script = mm_script_create(&host->host);
+    size_t i;
+    int ok;
+    CHECK(script);
+    for (i = 0; i < count; ++i)
+        CHECK(mm_script_add_word(script, mm_signed_word(words[i])));
+    ok = mm_script_vm_attach(vm, script, 10, 10);
+    mm_script_release(script);
+    return ok;
+}
+
+static void execute_scripts(void)
+{
+    static const MMScriptVMServices services = {vm_variables, NULL, NULL, NULL, NULL, NULL, NULL};
+    static const MMU32 pause[] = {
+        VM_VERSION, VM_IMMEDIATES(2), 0xfffffff1UL, 4, kopDiv,
+        VM_IMMEDIATES(1) | kopPause, 0x7fffffffUL, kopInc,
+        VM_IMMEDIATES(1), 0x80000000UL, kopEq, kopAdd, kopReturn
+    };
+    static const MMU32 branch[] = {
+        VM_VERSION, VM_IMMEDIATES(2), 0xcc000008UL, 1, VM_IMMEDIATES(1) | kopGoNz,
+        999, VM_IMMEDIATES(1), 888, VM_IMMEDIATES(1), 42, kopReturn
+    };
+    static const MMU32 scopes[] = {
+        VM_VERSION, VM_IMMEDIATES(2), 0xffffffa8UL, 0xffffffffUL,
+        VM_VARIABLE(kopPopLocArray), 9, VM_IMMEDIATES(1), 0xffffffffUL,
+        VM_VARIABLE(kopPushLocArray), 9, VM_VARIABLE(kopPopThisVar), 9,
+        VM_VARIABLE(kopPushThisVar), 9, VM_VARIABLE(kopPopGlobalVar), 9,
+        VM_VARIABLE(kopPushGlobalVar), 9, VM_IMMEDIATES(1), 123,
+        VM_VARIABLE(kopPopRemoteVar), 9, VM_IMMEDIATES(1), 123,
+        VM_VARIABLE(kopPushRemoteVar), 9, kopReturn
+    };
+    static const MMU32 short_instruction[] = {VM_VERSION, VM_IMMEDIATES(2), 1};
+    static const MMU32 short_variable[] = {VM_VERSION, (MMU32)kopPushLocVar << 24};
+    static const MMU32 underflow[] = {VM_VERSION, kopAdd};
+    static const MMU32 divide_overflow[] = {VM_VERSION, VM_IMMEDIATES(2), 0x80000000UL, 0xffffffffUL, kopDiv};
+    static const MMU32 invalid_label[] = {VM_VERSION, VM_IMMEDIATES(2), 0xc1000001UL, 0, kopGoNz};
+    static const MMU32 future[] = {0x000b000bUL, kopExit};
+    VMScopeFixture fixture;
+    MMScriptVM vm;
+    MMI32 value;
+    Host host;
+
+    memset(&fixture, 0, sizeof(fixture));
+    init(&host);
+    CHECK(mm_script_variables_init(&fixture.object, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_variables_init(&fixture.global, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_variables_init(&fixture.remote, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_vm_init(&vm, NULL, 1, &services, &fixture) == MM_STORAGE_OK);
+
+    CHECK(attach_program(&host, &vm, pause, sizeof(pause) / sizeof(*pause)));
+    CHECK(mm_script_vm_resume(&vm) && vm.paused && vm.pc == 7 && vm.stack.count == 2);
+    CHECK(mm_script_vm_resume(&vm) && !vm.paused && vm.result == -2);
+    mm_script_vm_dispose(&vm);
+    CHECK(!host.collections_live && vm.result == -2 && !vm.script);
+    CHECK(attach_program(&host, &vm, branch, sizeof(branch) / sizeof(*branch)));
+    CHECK(mm_script_vm_resume(&vm) && !vm.paused && vm.result == 42 && vm.stack.count == 0);
+    mm_script_vm_dispose(&vm);
+
+    CHECK(attach_program(&host, &vm, scopes, sizeof(scopes) / sizeof(*scopes)));
+    CHECK(mm_script_vm_resume(&vm) && !vm.paused && vm.result == -88 && fixture.calls == 6);
+    CHECK(mm_script_variables_get(&vm.locals, 0xffffabcdUL, 9, &value) && value == -88);
+    mm_script_vm_dispose(&vm);
+    CHECK(mm_script_variables_get(&fixture.object, 0xabcd, 9, &value) && value == -88);
+    CHECK(mm_script_variables_get(&fixture.global, 0xabcd, 9, &value) && value == -88);
+    CHECK(mm_script_variables_get(&fixture.remote, 0xabcd, 9, &value) && value == -88);
+    mm_script_variables_dispose(&fixture.object);
+    mm_script_variables_dispose(&fixture.global);
+    mm_script_variables_dispose(&fixture.remote);
+
+    CHECK(attach_program(&host, &vm, short_instruction, sizeof(short_instruction) / sizeof(*short_instruction)));
+    CHECK(!mm_script_vm_resume(&vm) && vm.error == MM_SCRIPT_ERROR_INSTRUCTION && !vm.paused);
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_program(&host, &vm, short_variable, sizeof(short_variable) / sizeof(*short_variable)));
+    CHECK(!mm_script_vm_resume(&vm) && vm.error == MM_SCRIPT_ERROR_VARIABLE);
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_program(&host, &vm, underflow, sizeof(underflow) / sizeof(*underflow)));
+    CHECK(!mm_script_vm_resume(&vm) && vm.error == MM_SCRIPT_ERROR_OPERAND);
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_program(&host, &vm, divide_overflow, sizeof(divide_overflow) / sizeof(*divide_overflow)));
+    CHECK(!mm_script_vm_resume(&vm) && vm.error == MM_SCRIPT_ERROR_OPERAND);
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_program(&host, &vm, invalid_label, sizeof(invalid_label) / sizeof(*invalid_label)));
+    CHECK(!mm_script_vm_resume(&vm) && vm.error == MM_SCRIPT_ERROR_OPERAND);
+    mm_script_vm_dispose(&vm);
+    CHECK(!attach_program(&host, &vm, future, sizeof(future) / sizeof(*future)) &&
+          vm.error == MM_SCRIPT_ERROR_VERSION);
+    mm_script_vm_dispose(&vm);
+    CHECK(!host.collections_live);
+}
+
 int main(void)
 {
     scripts();
     collections();
     runtime();
-    puts("C89 script resources, operand stack and variable scopes passed");
+    execute_scripts();
+    puts("C89 script resources and bytecode execution passed");
     return 0;
 }

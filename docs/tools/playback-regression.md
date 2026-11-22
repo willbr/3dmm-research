@@ -21317,3 +21317,35 @@ This fixture produces no sound requests.
 
 Traces and Studio canvases are under `tmp/c89-script-runtime`.
 Playback captures are under `tmp/c89-kd`.
+
+## C89 script bytecode dispatch (22 November 2026)
+
+The compiler and interpreter share the opcode definitions. The C89 VM
+retains the compiled script and owns the instruction cursor, operands,
+variable dispatch, jumps, pause/resume and return state. Kidspace resolves
+objects, and the native code still supplies string registry, clock, random
+and shuffle services. The bytecode fixture checks immediates on pause
+and taken branches, all four variable scopes, malformed encodings,
+version admission and arithmetic edge cases. Division by zero and signed
+division overflow report an operand error.
+
+Chomp rebuilt eight Studio archives. All 469 `GLOP` payloads and the
+`GSTX` payload matched the retained chunks byte for byte. The native x86
+Chunk and Help Editors also built.
+
+All 199 engine, core link and C89 checks passed, along with 13 native x64,
+12 SDL, seven native x86 and the Chomp pipeline check. Marcus relaunched
+with dummy video and produced an identical startup canvas. Headless
+Studio passed room navigation, F1 Help, cold and warm ISO startup,
+MIDI preview and authoring save/reopen. The smoke and room canvases,
+resource-cache and Help traces, and nine movie saves matched the retained
+results. The separate native x64 `scene-load` test still has fingerprint
+`0D666753` and the same 63,224-byte trace.
+
+Suite `20261122T113458Z-0decc3a4` matched the prior SDL Studio and Marcus
+seek images and camera and actor state for all 60 frames per port. Both
+ports matched retained retail and V3DMM frame order in seek and continuous
+playback in suite `20261122T081603Z-7ffc4e8e`. This fixture is silent.
+
+Traces and Studio canvases are under `tmp/c89-script-vm`.
+Playback captures are under `tmp/c89-kd`.

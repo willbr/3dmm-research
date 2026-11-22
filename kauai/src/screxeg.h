@@ -41,7 +41,7 @@ class GraphicsObjectInterpreter : public GraphicsObjectInterpreter_PAR
     virtual PGraphicsObject _PgobThis(void);
     virtual PGraphicsObject _PgobFromHid(LegacyLong hid);
 
-    bool _FExecOp(LegacyLong op) override;
+    bool _FExecHostOp(LegacyLong op) override;
     MMScriptVariables *_ThisVariables(void) override;
     MMScriptVariables *_GlobalVariables(void) override;
     MMScriptVariables *_RemoteVariables(LegacyLong lw) override;

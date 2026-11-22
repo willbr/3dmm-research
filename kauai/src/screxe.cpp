@@ -21,11 +21,6 @@ namespace ScriptInterpreter {
 RTCLASS(Interpreter)
 RTCLASS(StringRegistry)
 
-#ifdef DEBUG
-// these strings are for debug only error messages
-static String _stn;
-#endif // DEBUG
-
 /***************************************************************************
     Constructor for the script interpreter.
 ***************************************************************************/
@@ -34,10 +29,43 @@ Interpreter::Interpreter(PResourceCache prca, PStringRegistry pstrg)
     AssertNilOrPo(prca, 0);
     AssertNilOrPo(pstrg, 0);
 
-    AssertDo(mm_script_stack_init(&_stack, KauaiCopyAllocator(), Debug(1 +) 0) == MM_STORAGE_OK, 0);
-    AssertDo(mm_script_variables_init(&_locals, KauaiCopyAllocator()) == MM_STORAGE_OK, 0);
-    _pscpt = pvNil;
-    _fPaused = fFalse;
+    static const MMScriptVMServices services = {
+        [](void *context, int scope, MMI32 object) -> MMScriptVariables * {
+            auto vm = static_cast<PInterpreter>(context);
+            switch (scope)
+            {
+            case MM_SCRIPT_SCOPE_THIS:
+                return vm->_ThisVariables();
+            case MM_SCRIPT_SCOPE_GLOBAL:
+                return vm->_GlobalVariables();
+            case MM_SCRIPT_SCOPE_REMOTE:
+                return vm->_RemoteVariables(object);
+            default:
+                return nullptr;
+            }
+        },
+#ifdef DEBUG
+        [](void *context, MMU32 high, MMU32 low) {
+            RuntimeVariableName key = {high, low};
+            String name;
+            key.GetStn(&name);
+            static_cast<PInterpreter>(context)->_WarnSz(PszLit("Pushing uninitialized script variable: %s"), &name);
+        },
+#else
+        nullptr,
+#endif
+        [](void *context, int reason) { static_cast<PInterpreter>(context)->_ReportScriptError(reason); },
+        [](void *, MMI32 count) -> MMI32 { return vrndUtil.LwNext(count); },
+        [](void *, MMI32 count, const void *words) {
+            if (words)
+                vsflUtil.ShuffleRglw(count, words);
+            else
+                vsflUtil.Shuffle(count);
+        },
+        [](void *) -> MMI32 { return vsflUtil.LwNext(0); },
+        [](void *context, unsigned opcode) -> int { return static_cast<PInterpreter>(context)->_FExecHostOp(opcode); }
+    };
+    AssertDo(mm_script_vm_init(&_vm, KauaiCopyAllocator(), Debug(1 +) 0, &services, this) == MM_STORAGE_OK, 0);
 
     _prca = prca;
     if (pvNil != _prca)
@@ -67,23 +95,20 @@ void Interpreter::Free(void)
     AssertThis(0);
 
     // nuke literal strings left in the global string table
-    if (pvNil != _pscpt && pvNil != _pstrg && mm_script_has_literals(_pscpt) && _locals.count)
+    if (pvNil != _vm.script && pvNil != _pstrg && mm_script_has_literals(_vm.script) && _vm.locals.count)
     {
         RuntimeVariableName rtvn;
         MMI32 stid;
 
         rtvn.lu1 = 0;
-        for (rtvn.lu2 = mm_script_literal_count(_pscpt); rtvn.lu2-- > 0;)
+        for (rtvn.lu2 = mm_script_literal_count(_vm.script); rtvn.lu2-- > 0;)
         {
-            if (mm_script_variables_get(&_locals, rtvn.lu1, rtvn.lu2, &stid))
+            if (mm_script_variables_get(&_vm.locals, rtvn.lu1, rtvn.lu2, &stid))
                 _pstrg->Delete(stid);
         }
     }
 
-    mm_script_stack_dispose(&_stack);
-    mm_script_variables_dispose(&_locals);
-    ReleaseScript(&_pscpt);
-    _fPaused = fFalse;
+    mm_script_vm_dispose(&_vm);
 }
 
 #ifdef DEBUG
@@ -95,11 +120,11 @@ void Interpreter::AssertValid(LegacyUlong grfsceb)
     Interpreter_PAR::AssertValid(0);
     if (grfsceb & fscebRunnable)
     {
-        Assert(pvNil != _stack.storage.buffers[0].data, "nil stack");
-        Assert(pvNil != _pscpt, "nil script");
-        Assert(_ilwMac == static_cast<LegacyLong>(mm_script_word_count(_pscpt)), 0);
-        AssertIn(_ilwCur, 1, _ilwMac + 1);
-        Assert(!_fError, 0);
+        Assert(pvNil != _vm.stack.storage.buffers[0].data, "nil stack");
+        Assert(pvNil != _vm.script, "nil script");
+        Assert(_vm.word_count == mm_script_word_count(_vm.script), 0);
+        AssertIn(_vm.pc, 1, _vm.word_count + 1);
+        Assert(!_vm.error, 0);
     }
     AssertNilOrPo(_pstrg, 0);
     AssertNilOrPo(_prca, 0);
@@ -112,9 +137,9 @@ void Interpreter::MarkMem(void)
 {
     AssertValid(0);
     Interpreter_PAR::MarkMem();
-    MarkPv(_stack.storage.buffers[0].data);
-    MarkScript(_pscpt);
-    MarkPv(_locals.storage.buffers[0].data);
+    MarkPv(_vm.stack.storage.buffers[0].data);
+    MarkScript(_vm.script);
+    MarkPv(_vm.locals.storage.buffers[0].data);
     MarkMemObj(_prca);
 }
 #endif // DEBUG
@@ -138,50 +163,26 @@ bool Interpreter::FAttachScript(PScript pscpt, LegacyLong *prglw, LegacyLong clw
     Assert(pscpt, "nil script");
     AssertIn(clw, 0, kcbMax);
     AssertPvCb(prglw, LwMul(clw, size(LegacyLong)));
-    LegacyLong lw;
-    DataVersion dver;
 
-    // Keep the incoming script alive if this interpreter already owns it.
-    mm_script_retain(pscpt);
+    // Retain the incoming script across cleanup of the interpreter's old literals.
+    if (pscpt)
+        mm_script_retain(pscpt);
     Free();
-    _pscpt = pscpt;
-    _lwReturn = 0;
-    _fError = fFalse;
-
-    if (mm_script_stack_reserve(&_stack, 10) != MM_STORAGE_OK)
-        goto LFail;
-
-    // check the version
-    // get and check the version number
-    if ((_ilwMac = mm_script_word_count(_pscpt)) < 1)
+    const bool attached = mm_script_vm_attach(&_vm, pscpt, _SwCur(), _SwMin());
+    mm_script_release(pscpt);
+    if (attached)
     {
-        Bug("No version info on script");
-        goto LFail;
+        if (clw > 0)
+            _AddParameters(prglw, clw);
+        if (mm_script_has_literals(_vm.script) && !_vm.error)
+            _AddStrings();
     }
-    lw = mm_script_word(_pscpt, 0);
-    dver.Set(SwHigh(lw), SwLow(lw));
-    if (!dver.FReadable(_SwCur(), _SwMin()))
+    if (!attached || _vm.error)
     {
-        Bug("Script version doesn't match script interpreter version");
-        goto LFail;
-    }
-
-    // add the parameters and literal strings
-    if (clw > 0)
-        _AddParameters(prglw, clw);
-    if (mm_script_has_literals(_pscpt) && !_fError)
-        _AddStrings();
-
-    if (_fError)
-    {
-    LFail:
         Free();
         return fFalse;
     }
 
-    // set the pc and claim we're paused
-    _ilwCur = 1;
-    _fPaused = fTrue;
     AssertThis(fscebRunnable);
     return fTrue;
 }
@@ -194,78 +195,19 @@ bool Interpreter::FResume(LegacyLong *plwReturn, bool *pfPaused)
     AssertThis(fscebRunnable);
     AssertNilOrVarMem(plwReturn);
     AssertNilOrVarMem(pfPaused);
-    RuntimeVariableName rtvn;
-    LegacyLong ilw, clwPush;
-    LegacyLong lw;
-    LegacyLong op;
 
     TrashVar(plwReturn);
     TrashVar(pfPaused);
-    if (!_fPaused || _fError)
-    {
-        Bug("script not paused");
-        goto LFail;
-    }
-
-    AssertIn(_ilwCur, 1, _ilwMac + 1);
-    for (_fPaused = fFalse; _ilwCur < _ilwMac && !_fError && !_fPaused;)
-    {
-        lw = mm_script_word(_pscpt, _ilwCur++);
-        clwPush = B2Lw(lw);
-        if (!FIn(clwPush, 0, _ilwMac - _ilwCur + 1))
-        {
-            Bug("bad instruction");
-            goto LFail;
-        }
-
-        ilw = _ilwCur;
-        if (opNil != (op = B3Lw(lw)))
-        {
-            // this instruction acts on a variable
-            if (clwPush == 0)
-            {
-                Bug("bad var instruction");
-                goto LFail;
-            }
-            clwPush--;
-            rtvn.lu1 = (LegacyUlong)lw & 0x0000FFFF;
-            rtvn.lu2 = static_cast<LegacyUlong>(mm_script_word(_pscpt, _ilwCur++));
-            ilw = _ilwCur;
-            if (!_FExecVarOp(op, &rtvn))
-                goto LFail;
-        }
-        else if (opNil != (op = SuLow(lw)))
-        {
-            // normal opcode
-            if (!_FExecOp(op))
-                goto LFail;
-        }
-
-        // push the stack stuff (if we didn't do a jump)
-        if (clwPush > 0 && ilw == _ilwCur)
-        {
-            if (mm_script_stack_push(&_stack, mm_script_word_span(_pscpt, _ilwCur, clwPush), clwPush) !=
-                MM_STORAGE_OK)
-            {
-            LFail:
-                _Error(fFalse);
-                break;
-            }
-            _ilwCur += clwPush;
-        }
-    }
-
-    if (_ilwCur >= _ilwMac || _fError)
-        _fPaused = fFalse;
-    if (!_fPaused)
+    const bool ok = mm_script_vm_resume(&_vm);
+    if (!_vm.paused)
         Free();
-    if (!_fError && pvNil != plwReturn)
-        *plwReturn = _lwReturn;
+    if (ok && pvNil != plwReturn)
+        *plwReturn = _vm.result;
     if (pvNil != pfPaused)
-        *pfPaused = _fPaused;
+        *pfPaused = _vm.paused != 0;
 
     AssertThis(0);
-    return !_fError;
+    return ok;
 }
 
 /***************************************************************************
@@ -283,13 +225,13 @@ void Interpreter::_AddParameters(LegacyLong *prglw, LegacyLong clw)
     // put the parameters in the local variable gl
     stn = PszLit("_cparm");
     rtvn.SetFromStn(&stn);
-    _AssignVar(&_locals, &rtvn, clw);
+    _SetLocal(rtvn, clw);
     stn = PszLit("_parm");
     rtvn.SetFromStn(&stn);
     for (ilw = 0; ilw < clw; ilw++)
     {
         rtvn.lu1 = LwHighLow(SwLow(ilw), SwLow(rtvn.lu1));
-        _AssignVar(&_locals, &rtvn, prglw[ilw]);
+        _SetLocal(rtvn, prglw[ilw]);
     }
 }
 
@@ -311,15 +253,15 @@ void Interpreter::_AddStrings()
     }
 
     rtvn.lu1 = 0;
-    for (rtvn.lu2 = 0; rtvn.lu2 < mm_script_literal_count(_pscpt); rtvn.lu2++)
+    for (rtvn.lu2 = 0; rtvn.lu2 < mm_script_literal_count(_vm.script); rtvn.lu2++)
     {
-        if (!ReadScriptLiteral(_pscpt, rtvn.lu2, &stn) || !_pstrg->FAdd(&stid, &stn))
+        if (!ReadScriptLiteral(_vm.script, rtvn.lu2, &stn) || !_pstrg->FAdd(&stid, &stn))
         {
             _Error(fFalse);
             break;
         }
-        _AssignVar(&_locals, &rtvn, stid);
-        if (_fError)
+        _SetLocal(rtvn, stid);
+        if (_vm.error)
         {
             _pstrg->Delete(stid);
             break;
@@ -347,287 +289,18 @@ short Interpreter::_SwMin(void)
 }
 
 /***************************************************************************
-    Execute an instruction that has a variable as an argument.
+    Dispatch opcodes that use the native registry or application clock.
 ***************************************************************************/
-bool Interpreter::_FExecVarOp(LegacyLong op, RuntimeVariableName *prtvn)
+bool Interpreter::_FExecHostOp(LegacyLong op)
 {
     AssertThis(0);
-    AssertVarMem(prtvn);
-    LegacyLong lw;
+    LegacyLong lw2, lw3;
+    if (!FIn(op, kopCopyStr, kopLimSccb))
+        return fFalse;
 
-    if (FIn(op, kopMinArray, kopLimArray))
-    {
-        // an array access, munge the rtvn
-        lw = _LwPop();
-        if (_fError)
-            return fFalse;
-        prtvn->lu1 = LwHighLow(SwLow(lw), SwLow(prtvn->lu1));
-        op += kopPushLocVar - kopPushLocArray;
-    }
-
+    const LegacyLong lw1 = _LwPop();
     switch (op)
     {
-    case kopPushLocVar:
-        _PushVar(&_locals, prtvn);
-        break;
-    case kopPopLocVar:
-        _AssignVar(&_locals, prtvn, _LwPop());
-        break;
-    case kopPushThisVar:
-        _PushVar(_ThisVariables(), prtvn);
-        break;
-    case kopPopThisVar:
-        _AssignVar(_ThisVariables(), prtvn, _LwPop());
-        break;
-    case kopPushGlobalVar:
-        _PushVar(_GlobalVariables(), prtvn);
-        break;
-    case kopPopGlobalVar:
-        _AssignVar(_GlobalVariables(), prtvn, _LwPop());
-        break;
-    case kopPushRemoteVar:
-        lw = _LwPop();
-        if (!_fError)
-            _PushVar(_RemoteVariables(lw), prtvn);
-        break;
-    case kopPopRemoteVar:
-        lw = _LwPop();
-        if (!_fError)
-            _AssignVar(_RemoteVariables(lw), prtvn, _LwPop());
-        break;
-    default:
-        _Error(fTrue);
-        break;
-    }
-    return !_fError;
-}
-
-/***************************************************************************
-    Execute an instruction.
-***************************************************************************/
-bool Interpreter::_FExecOp(LegacyLong op)
-{
-    AssertThis(0);
-    double dou;
-    LegacyLong lw1, lw2, lw3;
-
-    // OP's that don't have any arguments
-    switch (op)
-    {
-    case kopExit:
-        // jump to the end
-        _ilwCur = _ilwMac;
-        return fTrue;
-    case kopNextCard:
-        _Push(vsflUtil.LwNext(0));
-        return fTrue;
-    case kopPause:
-        _fPaused = fTrue;
-        return fTrue;
-    }
-
-    // OP's that have at least one argument
-    lw1 = _LwPop();
-    switch (op)
-    {
-    case kopAdd:
-        _Push(_LwPop() + lw1);
-        break;
-    case kopSub:
-        _Push(_LwPop() - lw1);
-        break;
-    case kopMul:
-        _Push(_LwPop() * lw1);
-        break;
-    case kopDiv:
-        if (lw1 == 0)
-            _Error(fTrue);
-        else
-            _Push(_LwPop() / lw1);
-        break;
-    case kopMod:
-        if (lw1 == 0)
-            _Error(fTrue);
-        else
-            _Push(_LwPop() % lw1);
-        break;
-    case kopNeg:
-        _Push(-lw1);
-        break;
-    case kopInc:
-        _Push(lw1 + 1);
-        break;
-    case kopDec:
-        _Push(lw1 - 1);
-        break;
-    case kopShr:
-        _Push((LegacyUlong)_LwPop() >> lw1);
-        break;
-    case kopShl:
-        _Push((LegacyUlong)_LwPop() << lw1);
-        break;
-    case kopBOr:
-        _Push(_LwPop() | lw1);
-        break;
-    case kopBAnd:
-        _Push(_LwPop() & lw1);
-        break;
-    case kopBXor:
-        _Push(_LwPop() ^ lw1);
-        break;
-    case kopBNot:
-        _Push(~lw1);
-        break;
-    case kopLXor:
-        _Push(FPure(_LwPop()) != FPure(lw1));
-        break;
-    case kopLNot:
-        _Push(!lw1);
-        break;
-    case kopEq:
-        _Push(_LwPop() == lw1);
-        break;
-    case kopNe:
-        _Push(_LwPop() != lw1);
-        break;
-    case kopGt:
-        _Push(_LwPop() > lw1);
-        break;
-    case kopLt:
-        _Push(_LwPop() < lw1);
-        break;
-    case kopGe:
-        _Push(_LwPop() >= lw1);
-        break;
-    case kopLe:
-        _Push(_LwPop() <= lw1);
-        break;
-    case kopAbs:
-        _Push(LwAbs(lw1));
-        break;
-    case kopRnd:
-        if (lw1 <= 0)
-            _Error(fTrue);
-        else
-            _Push(vrndUtil.LwNext(lw1));
-        break;
-    case kopMulDiv:
-        lw2 = _LwPop();
-        lw3 = _LwPop();
-        if (lw3 == 0)
-            _Error(fTrue);
-        else
-        {
-            dou = (double)lw1 * lw2 / lw3;
-            if (dou < (double)klwMin || dou > (double)klwMax)
-                _Error(fTrue);
-            else
-                _Push((LegacyLong)dou);
-        }
-        break;
-    case kopDup:
-        _Push(lw1);
-        _Push(lw1);
-        break;
-    case kopPop:
-        break;
-    case kopSwap:
-        lw2 = _LwPop();
-        _Push(lw1);
-        _Push(lw2);
-        break;
-    case kopRot:
-        lw2 = _LwPop();
-        _Rotate(lw2, lw1);
-        break;
-    case kopRev:
-        _Reverse(lw1);
-        break;
-    case kopDupList:
-        _DupList(lw1);
-        break;
-    case kopPopList:
-        _PopList(lw1);
-        break;
-    case kopRndList:
-        _RndList(lw1);
-        break;
-    case kopSelect:
-        _Select(lw1, _LwPop());
-        break;
-    case kopGoEq:
-        lw1 = (_LwPop() == lw1);
-        goto LGoNz;
-    case kopGoNe:
-        lw1 = (_LwPop() != lw1);
-        goto LGoNz;
-    case kopGoGt:
-        lw1 = (_LwPop() > lw1);
-        goto LGoNz;
-    case kopGoLt:
-        lw1 = (_LwPop() < lw1);
-        goto LGoNz;
-    case kopGoGe:
-        lw1 = (_LwPop() >= lw1);
-        goto LGoNz;
-    case kopGoLe:
-        lw1 = (_LwPop() <= lw1);
-        goto LGoNz;
-    case kopGoZ:
-        lw1 = !lw1;
-        // fall through
-    case kopGoNz:
-    LGoNz:
-        lw2 = _LwPop();
-        // labels should have their high byte equal to kbLabel
-        if (B3Lw(lw2) != kbLabel || (lw2 &= 0x00FFFFFF) > _ilwMac)
-            _Error(fTrue);
-        else if (lw1 != 0)
-        {
-            // perform the goto
-            _ilwCur = lw2;
-        }
-        break;
-    case kopGo:
-        // labels should have their high byte equal to kbLabel
-        if (B3Lw(lw1) != kbLabel || (lw1 &= 0x00FFFFFF) > _ilwMac)
-            _Error(fTrue);
-        else
-        {
-            // perform the goto
-            _ilwCur = lw1;
-        }
-        break;
-    case kopReturn:
-        // jump to the end
-        _ilwCur = _ilwMac;
-        // fall through
-    case kopSetReturn:
-        _lwReturn = lw1;
-        break;
-    case kopShuffle:
-        if (lw1 <= 0)
-            _Error(fTrue);
-        else
-            vsflUtil.Shuffle(lw1);
-        break;
-    case kopShuffleList:
-        if (lw1 <= 0)
-            _Error(fTrue);
-        else
-        {
-            const void *words = _StackWords(lw1);
-            if (words)
-            {
-                AssertDo(mm_storage_lock(&_stack.storage, 0) == MM_STORAGE_OK, 0);
-                vsflUtil.ShuffleRglw(lw1, words);
-                AssertDo(mm_storage_unlock(&_stack.storage, 0) == MM_STORAGE_OK, 0);
-            }
-        }
-        break;
-    case kopMatch:
-        _Match(lw1);
-        break;
     case kopCopyStr:
         _CopySubStr(lw1, 0, kcchMaxStn, _LwPop());
         break;
@@ -676,49 +349,61 @@ bool Interpreter::_FExecOp(LegacyLong op)
         break;
     }
 
-    return !_fError;
+    return !_vm.error;
 }
 
 void Interpreter::_Push(LegacyLong lw)
 {
-    const MMI32 word = lw;
-    if (!_fError && mm_script_stack_push(&_stack, &word, 1) != MM_STORAGE_OK)
-        _Error(fFalse);
+    mm_script_vm_push(&_vm, lw);
 }
 
 LegacyLong Interpreter::_LwPop(void)
 {
-    MMI32 word;
-    if (_fError)
-        return 0;
-    if (mm_script_stack_pop(&_stack, &word) == MM_STORAGE_OK)
-        return word;
-    _Error(fTrue);
-    return 0;
+    return mm_script_vm_pop(&_vm);
 }
 
 const void *Interpreter::_StackWords(LegacyLong clw)
 {
-    if (_fError)
-        return pvNil;
-    const void *words = mm_script_stack_top(&_stack, clw);
-    if (!words)
-        _Error(fTrue);
-    return words;
+    return mm_script_vm_words(&_vm, clw);
 }
 
-/***************************************************************************
-    Register an error.
-***************************************************************************/
 void Interpreter::_Error(bool fAssert)
 {
+    mm_script_vm_fail(&_vm, fAssert ? MM_SCRIPT_ERROR_OPERAND : MM_SCRIPT_ERROR_RESOURCE);
+}
+
+void Interpreter::_ReportScriptError(int reason)
+{
     AssertThis(0);
-    if (!_fError)
+    switch (reason)
     {
-        Assert(!fAssert, "Runtime error in script");
-        Debug(_WarnSz(PszLit("Runtime error")));
-        _fError = fTrue;
+    case MM_SCRIPT_ERROR_STATE:
+        Bug("script not paused");
+        break;
+    case MM_SCRIPT_ERROR_VERSION:
+        if (_vm.word_count == 0)
+        {
+            Bug("No version info on script");
+        }
+        else
+        {
+            Bug("Script version doesn't match script interpreter version");
+        }
+        break;
+    case MM_SCRIPT_ERROR_INSTRUCTION:
+        Bug("bad instruction");
+        break;
+    case MM_SCRIPT_ERROR_VARIABLE:
+        Bug("bad var instruction");
+        break;
+    case MM_SCRIPT_ERROR_OPERAND:
+    case MM_SCRIPT_ERROR_OPCODE:
+        Bug("Runtime error in script");
+        break;
+    default:
+        break;
     }
+    Debug(_WarnSz(PszLit("Runtime error")));
 }
 
 #ifdef DEBUG
@@ -742,65 +427,22 @@ void Interpreter::_WarnSz(PZString psz, ...)
         stn1.FFormatRgch(psz, CchSz(psz), va);
         va_end(va);
     }
-    const auto binding = mm_script_binding(_pscpt);
-    stn2.FFormatSz(PszLit("Script ('%f', 0x%x, %d): %s"), binding->type, binding->number, _ilwCur, &stn1);
-    stn2.GetSzs(szs);
+    if (_vm.script)
+    {
+        const auto binding = mm_script_binding(_vm.script);
+        stn2.FFormatSz(PszLit("Script ('%f', 0x%x, %d): %s"), binding->type, binding->number,
+                       static_cast<LegacyLong>(_vm.pc), &stn1);
+        stn2.GetSzs(szs);
+    }
+    else
+        stn1.GetSzs(szs);
     Warn(szs);
 }
 #endif // DEBUG
 
-void Interpreter::_Rotate(LegacyLong clwTot, LegacyLong clwShift)
-{
-    if (!_fError && mm_script_stack_rotate(&_stack, clwTot, clwShift) != MM_STORAGE_OK)
-        _Error(fTrue);
-}
-
-void Interpreter::_Reverse(LegacyLong clw)
-{
-    if (!_fError && mm_script_stack_reverse(&_stack, clw) != MM_STORAGE_OK)
-        _Error(fTrue);
-}
-
-void Interpreter::_DupList(LegacyLong clw)
-{
-    if (_fError)
-        return;
-    const int result = mm_script_stack_duplicate(&_stack, clw);
-    if (result != MM_STORAGE_OK)
-        _Error(result == MM_STORAGE_ARGUMENT);
-}
-
 void Interpreter::_PopList(LegacyLong clw)
 {
-    if (!_fError && mm_script_stack_drop(&_stack, clw) != MM_STORAGE_OK)
-        _Error(fTrue);
-}
-
-void Interpreter::_Select(LegacyLong clw, LegacyLong ilw)
-{
-    if (!_fError && mm_script_stack_select(&_stack, clw, ilw) != MM_STORAGE_OK)
-        _Error(fTrue);
-}
-
-void Interpreter::_Match(LegacyLong clw)
-{
-    const LegacyLong key = _LwPop();
-    const LegacyLong fallback = _LwPop();
-    if (!_fError && mm_script_stack_match(&_stack, clw, key, fallback) != MM_STORAGE_OK)
-        _Error(fTrue);
-}
-
-/***************************************************************************
-    Generates a random entry from a list of numbers on the stack.
-***************************************************************************/
-void Interpreter::_RndList(LegacyLong clw)
-{
-    AssertThis(0);
-
-    if (clw <= 0)
-        _Error(fTrue);
-    else
-        _Select(clw, vrndUtil.LwNext(clw));
+    mm_script_vm_drop(&_vm, clw);
 }
 
 /***************************************************************************
@@ -814,7 +456,7 @@ void Interpreter::_CopySubStr(LegacyLong stidSrc, LegacyLong ichMin, LegacyLong 
     if (pvNil == _pstrg)
         _Error(fTrue);
 
-    if (_fError)
+    if (_vm.error)
         return;
 
     if (!_pstrg->FGet(stidSrc, &stn))
@@ -845,7 +487,7 @@ void Interpreter::_ConcatStrs(LegacyLong stidSrc1, LegacyLong stidSrc2, LegacyLo
     if (pvNil == _pstrg)
         _Error(fTrue);
 
-    if (_fError)
+    if (_vm.error)
         return;
 
     if (!_pstrg->FGet(stidSrc1, &stn1))
@@ -902,7 +544,7 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
 
-    if (_fError)
+    if (_vm.error)
         return;
 
     if (pvNil == _pstrg)
@@ -950,7 +592,7 @@ void Interpreter::_NumToStr(LegacyLong lw, LegacyLong stid)
     if (pvNil == _pstrg)
         _Error(fTrue);
 
-    if (_fError)
+    if (_vm.error)
         return;
 
     stn.FFormatSz(PszLit("%d"), lw);
@@ -975,7 +617,7 @@ void Interpreter::_StrToNum(LegacyLong stid, LegacyLong lwEmpty, LegacyLong lwEr
     if (pvNil == _pstrg)
         _Error(fTrue);
 
-    if (_fError)
+    if (_vm.error)
         return;
 
     _pstrg->FGet(stid, &stn);
@@ -986,40 +628,9 @@ void Interpreter::_StrToNum(LegacyLong stid, LegacyLong lwEmpty, LegacyLong lwEr
     _Push(lw);
 }
 
-/***************************************************************************
-    Push the value of a variable onto the runtime stack.
-***************************************************************************/
-void Interpreter::_PushVar(const MMScriptVariables *variables, RuntimeVariableName *prtvn)
+void Interpreter::_SetLocal(const RuntimeVariableName &name, LegacyLong lw)
 {
-    AssertThis(0);
-    AssertVarMem(prtvn);
-    MMI32 lw;
-
-    if (_fError)
-        return;
-
-    if (!mm_script_variables_get(variables, prtvn->lu1, prtvn->lu2, &lw))
-    {
-#ifdef DEBUG
-        prtvn->GetStn(&_stn);
-        _WarnSz(PszLit("Pushing uninitialized script variable: %s"), &_stn);
-#endif // DEBUG
-        _Push(0);
-    }
-    else
-        _Push(lw);
-}
-
-void Interpreter::_AssignVar(MMScriptVariables *variables, RuntimeVariableName *prtvn, LegacyLong lw)
-{
-    AssertThis(0);
-    AssertVarMem(prtvn);
-
-    if (_fError)
-        return;
-    if (!variables)
-        _Error(fTrue);
-    else if (!mm_script_variables_set(variables, prtvn->lu1, prtvn->lu2, lw))
+    if (!_vm.error && !mm_script_variables_set(&_vm.locals, name.lu1, name.lu2, lw))
         _Error(fFalse);
 }
 

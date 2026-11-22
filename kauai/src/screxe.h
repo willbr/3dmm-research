@@ -18,7 +18,7 @@
 #define SCREXE_H
 
 #include "mm/script_resource.h"
-#include "mm/script_runtime.h"
+#include "mm/script_vm.h"
 
 namespace ScriptInterpreter {
 
@@ -96,27 +96,15 @@ class Interpreter : public Interpreter_PAR
   protected:
     PResourceCache _prca; // the chunky resource file list (may be nil)
     PStringRegistry _pstrg;
-    MMScriptStack _stack;
-    MMScriptVariables _locals;
-    PScript _pscpt;      // the script
-    LegacyLong _ilwMac;      // the length of the script
-    LegacyLong _ilwCur;      // the current location in the script
-    bool _fError : 1;  // an error has occured
-    bool _fPaused : 1; // if we're paused
-    LegacyLong _lwReturn;    // the return value from the script
+    MMScriptVM _vm;
 
     void _Push(LegacyLong lw);
     LegacyLong _LwPop(void);
     const void *_StackWords(LegacyLong clw);
     void _Error(bool fAssert);
+    void _ReportScriptError(int reason);
 
-    void _Rotate(LegacyLong clwTot, LegacyLong clwShift);
-    void _Reverse(LegacyLong clw);
-    void _DupList(LegacyLong clw);
     void _PopList(LegacyLong clw);
-    void _Select(LegacyLong clw, LegacyLong ilw);
-    void _RndList(LegacyLong clw);
-    void _Match(LegacyLong clw);
     void _CopySubStr(LegacyLong stidSrc, LegacyLong ichMin, LegacyLong cch, LegacyLong stidDst);
     void _MergeStrings(ChunkNumber cno, RSC rsc);
     void _NumToStr(LegacyLong lw, LegacyLong stid);
@@ -126,10 +114,8 @@ class Interpreter : public Interpreter_PAR
 
     virtual void _AddParameters(LegacyLong *prglw, LegacyLong clw);
     void _AddStrings();
-    virtual bool _FExecVarOp(LegacyLong op, RuntimeVariableName *prtvn);
-    virtual bool _FExecOp(LegacyLong op);
-    void _PushVar(const MMScriptVariables *variables, RuntimeVariableName *prtvn);
-    void _AssignVar(MMScriptVariables *variables, RuntimeVariableName *prtvn, LegacyLong lw);
+    virtual bool _FExecHostOp(LegacyLong op);
+    void _SetLocal(const RuntimeVariableName &name, LegacyLong lw);
     virtual MMScriptVariables *_ThisVariables(void);
     virtual MMScriptVariables *_GlobalVariables(void);
     virtual MMScriptVariables *_RemoteVariables(LegacyLong lw);
