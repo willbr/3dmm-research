@@ -13,7 +13,7 @@
 #define MTRL_H
 
 #include <cstdint>
-#include "mm/material_resource.h"
+#include "asset_resources.h"
 
 using namespace BRender;
 
@@ -49,7 +49,7 @@ using PCustomMaterial_CMTL = MMMaterialOwner *;
 namespace EngineMaterial
 {
 const MMMaterialOwnerHost &Host();
-int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+constexpr MMResourceBlockReader Read = mm_brender_material_read;
 PMaterial_MTRL Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 PMaterial_MTRL Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
 bool SetShadeTable(PChunkyFile, ChunkTagOrType, ChunkNumber);
@@ -77,7 +77,7 @@ void MarkShadeTable();
 
 namespace EngineCostume
 {
-int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+constexpr MMResourceBlockReader Read = mm_brender_costume_read;
 PCustomMaterial_CMTL Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 PCustomMaterial_CMTL Fetch(PChunkyResourceFile, ChunkTagOrType, ChunkNumber);
 PCustomMaterial_CMTL New(LegacyLong, LegacyLong, PMaterial_MTRL *);

@@ -1156,7 +1156,8 @@ if(BUILD_TESTING AND ENGINE_C89_COMPILER)
         "${PROJECT_SOURCE_DIR}/bren/scene_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/model_renderer.c"
         "${PROJECT_SOURCE_DIR}/bren/material_renderer.c"
-        "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c")
+        "${PROJECT_SOURCE_DIR}/bren/texture_renderer.c"
+        "${PROJECT_SOURCE_DIR}/bren/asset_resources.c")
 endif()
 
 # brender-core: BRender wrapper minus the World/PWorld gui binding.
@@ -1170,10 +1171,13 @@ target_sources(brender-core
     "${PROJECT_SOURCE_DIR}/bren/stdfile.c"
     "${PROJECT_SOURCE_DIR}/bren/stdmem.c"
     "${PROJECT_SOURCE_DIR}/bren/body_host.cpp"
+    "${PROJECT_SOURCE_DIR}/bren/asset_resources.c"
+    "${PROJECT_SOURCE_DIR}/bren/asset_host.cpp"
     "${PROJECT_SOURCE_DIR}/bren/tmap.cpp"
     "${PROJECT_SOURCE_DIR}/bren/zbmp.cpp"
 )
-target_include_directories(brender-core PUBLIC "${PROJECT_SOURCE_DIR}/bren/inc")
+target_include_directories(brender-core PUBLIC "${PROJECT_SOURCE_DIR}/bren/inc"
+  PRIVATE "${PROJECT_SOURCE_DIR}/inc")
 target_link_libraries(brender-core
   PUBLIC kauai-core BRender::Libraries
   PRIVATE mm-brender-resources)

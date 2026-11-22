@@ -12,7 +12,7 @@
 #ifndef MODL_H
 #define MODL_H
 
-#include "mm/model_resource.h"
+#include "asset_resources.h"
 
 using namespace BRender;
 
@@ -61,7 +61,7 @@ using PModel = MMModelOwner *;
 namespace EngineModel
 {
 const MMModelOwnerHost &Host();
-int Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+constexpr MMResourceBlockReader Read = mm_brender_model_read;
 PModel Fetch(MMResourceCache *, ChunkTagOrType, ChunkNumber);
 PModel New(LegacyLong, BRV *, LegacyLong, BRF *);
 PModel FromDat(Filename *);

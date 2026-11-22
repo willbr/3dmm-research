@@ -17,111 +17,25 @@
 static_assert(sizeof(MaterialOnFile) == 20 && sizeof(CustomMaterialOnFile) == 8 && sizeof(TXXFF) == 28,
               "material wire layouts");
 ASSERTNAME
-namespace
-{
-MMMaterialShade shade;
-
-MMMaterialServices MaterialServices()
-{
-    MMMaterialServices s = {};
-    const unsigned short one = 1;
-    s.host_big_endian = !*reinterpret_cast<const byte *>(&one);
-    s.system = koskCur;
-    s.windows_system = koskSbWin;
-    s.texture_type = kctgTmap;
-    s.transform_type = kctgTxxf;
-    // Preserve the historic cache charges for unpacked MTRL and CMTL objects.
-    s.material_bytes = sizeof(void *) == 8 ? 48 : 32;
-    s.custom_bytes = sizeof(void *) == 8 ? 64 : 44;
-#ifdef DEBUG
-    if (sizeof(void *) == 4)
-    {
-        s.material_bytes += 4;
-        s.custom_bytes += 4;
-    }
-#endif
-    mm_brender_material_services(&s);
-    s.invalidate = [](void *, void *p, size_t n) { TrashPvCb(p, static_cast<LegacyLong>(n)); };
-    s.diagnostic = [](void *, int code) {
-        switch (code)
-        {
-        case MM_MATERIAL_BAD_FILE:
-            PushErc(ercSocBadFile);
-            break;
-        case MM_MATERIAL_BAD_CUSTOM_SIZE:
-            Bug("bad CustomMaterialOnFile...you may need to update tmpls.chk");
-            break;
-        case MM_MATERIAL_BAD_CUSTOM_ORDER:
-            Assert(false, "bad CustomMaterialOnFile");
-            break;
-        case MM_MATERIAL_BAD_TRANSFORM_ORDER:
-            Assert(false, "bad TXXFF");
-            break;
-        }
-    };
-    s.decode = KauaiDecodeBlockHandle;
-    s.texture_reader = EngineTexture::Read;
-    s.texture_objects = mm_texture_owner_services();
-    s.material_reader = EngineMaterial::Read;
-    s.material_objects = mm_material_owner_services();
-    s.model_reader = EngineModel::Read;
-    s.model_objects = mm_model_owner_services();
-    s.allocate = [](void *, MMI32 n, void **out) -> int { return FAllocPv(out, n, fmemClear, mprNormal); };
-    s.free_memory = [](void *, void **p) { FreePpv(p); };
-    s.texture_pixelmap = [](void *, void *texture) -> void * {
-        return EngineTexture::Pixelmap(static_cast<PTextureMap>(texture));
-    };
-    s.write_texture = [](void *, void *p, const MMChunkEdit *edit, const MMBlockFileServices *files,
-                         MMU32 type, MMU32 *number) -> int {
-        ChunkNumber n;
-        std::memcpy(&n, number, sizeof(n));
-        const auto ok = EngineTexture::Write(static_cast<PTextureMap>(p), *edit, files, type, &n);
-        std::memcpy(number, &n, sizeof(n));
-        return ok;
-    };
-    s.read_bitmap = [](void *, void *f, void *palette) -> void * {
-        return EngineTexture::FromBitmap(static_cast<PFilename>(f), static_cast<PDynamicArray>(palette));
-    };
-    s.wrap_pixelmap = [](void *, void *p) -> void * { return EngineTexture::Wrap(static_cast<PBPMP>(p)); };
-    s.input_material = [](void *, const void *p, MMI32 i) -> void * {
-        return static_cast<PMaterial_MTRL const *>(p)[i];
-    };
-    s.material_handle = [](void *, void *p) -> void * { return EngineMaterial::Handle(static_cast<PMaterial_MTRL>(p)); };
-    return s;
-}
-}
-
 const MMMaterialOwnerHost &EngineMaterial::Host()
 {
-    static const auto services = MaterialServices();
-    static const MMMaterialOwnerHost host = {
-        &services, &shade, KauaiResourceObjectAllocator(),
-#ifdef DEBUG
-        [](void *p) { MarkPv(p); },
-        [](MMResourceCache *cache) { mm_resource_cache_mark(cache); },
-        [](void *p) { EngineTexture::Mark(static_cast<PTextureMap>(p)); },
-        [](void *p) { EngineModel::Mark(static_cast<PModel>(p)); }
-#else
-        nullptr, nullptr, nullptr, nullptr
-#endif
-    };
-    return host;
+    return *mm_kauai_material_host();
 }
 
 void EngineMaterial::ReleaseShadeTable()
 {
-    mm_material_shade_dispose(&shade, Host().services);
+    mm_brender_material_shade_clear();
 }
 
 bool EngineMaterial::SetShadeTable(PChunkyFile file, ChunkTagOrType type, ChunkNumber number)
 {
     AssertPo(file, 0);
-    return mm_material_shade_set(&shade, EngineTexture::FromFile(file, type, number), Host().services) != 0;
+    return mm_brender_material_shade_take(EngineTexture::FromFile(file, type, number)) != 0;
 }
 
 bool EngineMaterial::SetShadeTable(const MMReadStream &stream)
 {
-    return mm_material_shade_set(&shade, EngineTexture::FromStream(stream), Host().services) != 0;
+    return mm_brender_material_shade_stream(&stream) != 0;
 }
 
 bool EngineMaterial::SetShadeTable(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
@@ -137,12 +51,7 @@ PMaterial_MTRL EngineMaterial::New(LegacyLong base, LegacyLong range)
         AssertIn(base, 0, kbMax);
     if (range != ivNil)
         AssertIn(range, 0, kbMax - base);
-    return mm_material_new(base, range, &Host());
-}
-
-int EngineMaterial::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
-{
-    return mm_material_fetch(cache, type, number, block, out, bytes, &Host());
+    return mm_brender_material_new(base, range);
 }
 
 PMaterial_MTRL EngineMaterial::Fetch(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
@@ -152,8 +61,7 @@ PMaterial_MTRL EngineMaterial::Fetch(PChunkyResourceFile cache, ChunkTagOrType t
 
 PMaterial_MTRL EngineMaterial::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PMaterial_MTRL>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
-                                                                          mm_material_owner_services()));
+    return mm_brender_material_fetch(cache, type, number);
 }
 
 PMaterial_MTRL EngineMaterial::FromPix(PFilename file)
@@ -168,7 +76,7 @@ PMaterial_MTRL EngineMaterial::FromBitmap(PFilename file, PDynamicArray palette)
 {
     AssertPo(file, ffniFile);
 #ifdef DEBUG
-    EngineTexture::Validate(static_cast<PTextureMap>(shade.texture));
+    EngineTexture::Validate(static_cast<PTextureMap>(mm_brender_material_shade()->texture));
 #endif
     return mm_material_import(file, palette, 1, &Host());
 }
@@ -216,15 +124,14 @@ bool EngineMaterial::Write(PMaterial_MTRL material, const MMArchiveWriter &write
 
 void EngineMaterial::ReadView(PMaterial_MTRL material, MMMaterialAppearance &out)
 {
-    mm_material_read_view(mm_material_owner_resource(material), &out, Host().services);
+    mm_brender_material_read_view(material, &out);
 }
 
 bool EngineMaterial::WriteView(PMaterial_MTRL material, const MMArchiveWriter &writer, ChunkTagOrType type,
                                ChunkNumber *number, const MMMaterialAppearance &view)
 {
     MMU32 n = *number;
-    const auto ok = mm_material_write_view(mm_material_owner_resource(material), &writer, type, &n, &view,
-                                           Host().services);
+    const auto ok = mm_brender_material_write_view(material, &writer, type, &n, &view);
     *number = n;
     return ok != 0;
 }
@@ -249,11 +156,6 @@ PCustomMaterial_CMTL EngineCostume::New(LegacyLong set, LegacyLong count, PMater
     return mm_custom_material_new(set, count, materials, &EngineMaterial::Host());
 }
 
-int EngineCostume::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block, void **out, MMI32 *bytes)
-{
-    return mm_custom_material_fetch(cache, type, number, block, out, bytes, &EngineMaterial::Host());
-}
-
 PCustomMaterial_CMTL EngineCostume::Fetch(PChunkyResourceFile cache, ChunkTagOrType type, ChunkNumber number)
 {
     return Fetch(cache->CoreCache(), type, number);
@@ -261,8 +163,7 @@ PCustomMaterial_CMTL EngineCostume::Fetch(PChunkyResourceFile cache, ChunkTagOrT
 
 PCustomMaterial_CMTL EngineCostume::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PCustomMaterial_CMTL>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
-                                                                               mm_material_owner_services()));
+    return mm_brender_costume_fetch(cache, type, number);
 }
 
 PBMTL EngineCostume::Handle(PCustomMaterial_CMTL costume, LegacyLong index)
@@ -296,25 +197,17 @@ bool EngineCostume::HasModels(PCustomMaterial_CMTL costume)
 #ifdef DEBUG
 void EngineMaterial::Validate(PMaterial_MTRL material)
 {
-    const bool valid = material && mm_material_owner_kind(material) == MM_MATERIAL;
-    Assert(valid, "Expected a material owner");
-    if (valid)
-        if (auto texture = Texture(material))
-        {
-            EngineTexture::Validate(texture);
-            Assert(shade.texture != nullptr, "Textured material needs a shade table");
-        }
+    mm_kauai_material_validate(material);
 }
 
 void EngineMaterial::Mark(MMMaterialOwner *owner)
 {
-    if (owner)
-        mm_material_owner_services()->mark_memory(owner);
+    mm_brender_material_mark(owner);
 }
 
 void EngineMaterial::MarkShadeTable()
 {
-    EngineTexture::Mark(static_cast<PTextureMap>(shade.texture));
+    EngineTexture::Mark(static_cast<PTextureMap>(mm_brender_material_shade()->texture));
 }
 
 void EngineCostume::Validate(PCustomMaterial_CMTL costume)

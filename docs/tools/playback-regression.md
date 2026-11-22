@@ -20532,3 +20532,33 @@ archive graph and chunk payloads matched the preceding build. The raw save
 differed in two TMPL index padding bytes.
 
 Evidence is under tmp/c89-preview-tag-binding.
+
+## Shared C89 model and material bindings (22 November 2026)
+
+Studio and Preview share the BRender cache readers for BMDL, MTRL and CMTL.
+They use one reader key per resource, including model and material dependencies
+of a custom costume, and share the shade table. Kauai supplies allocation,
+decompression, native file bridges and diagnostics. The x64 link maps for
+Marcus, its Preview helper and its regression runner contain the shared C89
+asset adapter and three legacy engine-core modules for actor templates, 3D
+text and 3D fonts.
+
+All 193 standalone C89 checks, the strict BRender C89 syntax check, the native
+x64 and x86 resource and movie tests, and the SDL resource and movie tests
+passed. Five native snapshots matched the prior bytes. The headless Preview
+suite passed, including 45 actors and 21 props. The Studio authoring workflow
+passed with costume changes, embedded textures and 3D text. Its round-trip
+movie matched the prior build byte for byte.
+
+The eight actor-audio runs in 20261122T003153Z-b587e152 completed. SDL and
+Marcus each matched all 30 prior seek canvases, 29 of 30 retail seek canvases,
+and all 30 retail camera indices and continuous frame identities. V3DMM matched
+all 30 retail seek canvases. SDL and V3DMM matched all six retail sound requests.
+Mixed PCM differed and continuous image alignment remained inconclusive.
+
+Retail reopened the fresh two-scene Studio save in 20261122T003334Z-d2dd4ced
+and reproduced all 60 reference seek canvases and camera indices. The save
+preserved the archive graph and payload bytes. One alignment padding byte
+in a TMPL index row differed.
+
+Evidence is under tmp/c89-render-assets.

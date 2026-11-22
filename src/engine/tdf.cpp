@@ -61,10 +61,10 @@ const MMFontResourceServices &GlyphServices()
             static_cast<PDynamicArray>(children)->Get(i, &child);
             *out = {child.cki.ctg, child.cki.cno, child.chid};
         };
-        s.model_reader = EngineModel::Read;
+        s.model_reader = mm_brender_model_read;
         s.model_objects = mm_model_owner_services();
-        s.model_width = [](void *, void *model) -> MMI32 { return EngineModel::Extent(static_cast<PModel>(model), 0); };
-        s.model_height = [](void *, void *model) -> MMI32 { return EngineModel::Extent(static_cast<PModel>(model), 1); };
+        s.model_width = [](void *, void *model) -> MMI32 { return mm_brender_model_extent(static_cast<PModel>(model), 0); };
+        s.model_height = [](void *, void *model) -> MMI32 { return mm_brender_model_extent(static_cast<PModel>(model), 1); };
         s.missing_model = [](void *, MMU32 id) {
             String message;
             message.FFormatSz(PszLit("Couldn't find BMDL for 3-D Font with chid %d."), id);

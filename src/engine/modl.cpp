@@ -10,7 +10,6 @@
 
 ***************************************************************************/
 #include "soc_core.h"
-#include "handle_services.h"
 #include "model_renderer.h"
 ASSERTNAME
 
@@ -18,31 +17,7 @@ static_assert(sizeof(BrFaceOnFile) == MM_MODEL_FACE_BYTES, "model face wire layo
 
 const MMModelOwnerHost &EngineModel::Host()
 {
-    static const auto renderer = [] {
-        MMModelServices s = {};
-        const unsigned short one = 1;
-        s.host_big_endian = !*reinterpret_cast<const unsigned char *>(&one);
-        s.system = koskCur;
-        mm_brender_model_services(&s);
-        s.decode = KauaiDecodeBlockHandle;
-        s.allocator = KauaiCopyAllocator();
-        s.invalidate = [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); };
-        s.diagnostic = [](void *, int code) {
-            if (code == MM_MODEL_BAD_ORDER)
-                Assert(false, "bad Model!");
-        };
-        s.save_failed = [](void *) { Warn("model save failed."); };
-        return s;
-    }();
-    static const MMModelOwnerHost host = {
-        &renderer, KauaiResourceObjectAllocator(),
-#ifdef DEBUG
-        [](void *memory) { MarkPv(memory); }
-#else
-        nullptr
-#endif
-    };
-    return host;
+    return *mm_kauai_model_host();
 }
 
 PModel EngineModel::New(LegacyLong nv, BRV *vertices, LegacyLong nf, BRF *faces)
@@ -54,15 +29,9 @@ PModel EngineModel::New(LegacyLong nv, BRV *vertices, LegacyLong nf, BRF *faces)
     return mm_model_new(nv, vertices, nf, faces, &Host());
 }
 
-int EngineModel::Read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
-{
-    return mm_model_fetch(block, out, bytes, &Host());
-}
-
 PModel EngineModel::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PModel>(mm_resource_cache_fetch_owned_chunk(cache, type, number, Read,
-                                                                  mm_model_owner_services()));
+    return mm_brender_model_fetch(cache, type, number);
 }
 
 PModel EngineModel::FromDat(Filename *filename)
@@ -111,7 +80,7 @@ void EngineModel::AdjustGlyph(PModel owner)
 
 BRS EngineModel::Extent(PModel owner, unsigned axis)
 {
-    return mm_model_extent(mm_model_owner_resource(owner), axis, Host().renderer);
+    return mm_brender_model_extent(owner, axis);
 }
 
 bool EngineModel::Prelight(PModel owner, LegacyLong count, BVEC3 *directions)
@@ -136,10 +105,7 @@ void EngineModel::Mark(PModel owner)
     if (owner)
     {
         Validate(owner);
-        mm_model_owner_services()->mark_memory(owner);
-        const auto binding = mm_model_owner_binding(owner);
-        if (binding->cache && !binding->attached)
-            mm_resource_cache_mark(binding->cache);
+        mm_brender_model_mark(owner);
     }
 }
 #endif

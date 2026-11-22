@@ -153,7 +153,7 @@ struct PreviewActor::Host
                 const auto file = h.actor->resolve({source, 0, kctgMtrl, number});
                 if (!file)
                     return false;
-                *out = EngineMaterial::Fetch(file, kctgMtrl, number);
+                *out = mm_brender_material_fetch(file, kctgMtrl, number);
                 return *out != nullptr;
             });
         };

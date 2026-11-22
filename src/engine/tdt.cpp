@@ -190,7 +190,7 @@ MMTextGenerationServices EngineText::GenerationServices()
     };
     s.template_state = [](void *, void *object) { return mm_template_owner_state(static_cast<PThreeDText>(object)); };
     s.table_allocator = CollectionAllocator();
-    s.material_new = [](void *) -> void * { return EngineMaterial::New(); };
+    s.material_new = [](void *) -> void * { return mm_brender_material_new(-1, -1); };
     s.retain_material = [](void *, void *material) { mm_material_owner_retain(static_cast<PMaterial_MTRL>(material)); };
     s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<PMaterial_MTRL>(material)); };
     s.font = [](void *, void *object) -> void * { return FetchFont(static_cast<PThreeDText>(object)); };
@@ -346,7 +346,7 @@ void EngineText::Validate(PThreeDText owner)
     const auto &generated = *mm_template_owner_generated(owner);
     AssertNilOrPo(static_cast<PStringTable_GST>(ActionNames().table), 0); // Localized action names are optional in headless hosts.
     Assert(descriptor.font.type != ctgNil, "ThreeDText has bad _tagTdf");
-    EngineMaterial::Validate(static_cast<PMaterial_MTRL>(generated.material));
+    mm_kauai_material_validate(static_cast<MMMaterialOwner *>(generated.material));
     if (tdaNil != generated.action_id)
     {
         AssertIn(generated.action_id, 0, tdaLim);
@@ -365,7 +365,7 @@ void EngineText::Validate(PThreeDText owner)
 void EngineText::Mark(PThreeDText owner)
 {
     const auto &generated = *mm_template_owner_generated(owner);
-    EngineMaterial::Mark(static_cast<PMaterial_MTRL>(generated.material));
+    mm_brender_material_mark(static_cast<MMMaterialOwner *>(generated.material));
     if (tdaNil != generated.action_id)
         mm_action_resource_services()->mark_memory(generated.action);
 }

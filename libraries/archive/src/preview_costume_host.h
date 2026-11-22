@@ -45,10 +45,10 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
             auto &h = *static_cast<CostumeHost *>(v); void *out = nullptr;
             h.Guard([&] { TAGOnFile tag = {value->sid, 0, value->type, value->number};
                 auto file = h.actor->resolve(tag);
-                if (file) out = EngineMaterial::Fetch(file, tag.ctg, tag.cno);
+                if (file) out = mm_brender_material_fetch(file, tag.ctg, tag.cno);
                 return 1; }); return out;
         };
-        s.body_set = [](void *, void *p) -> MMI32 { return EngineCostume::Set(static_cast<PCustomMaterial_CMTL>(p)); };
+        s.body_set = [](void *, void *p) -> MMI32 { return mm_material_owner_custom(static_cast<MMMaterialOwner *>(p))->set; };
         s.release = [](void *, void *p) { mm_material_owner_release(static_cast<MMMaterialOwner *>(p)); };
         return s;
     }

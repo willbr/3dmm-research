@@ -165,8 +165,8 @@ MMTemplateCreateServices EngineTemplate::CreateServices(MMResourceCache *cache)
     s.table_allocator = CollectionAllocator();
     s.create_cache = [](void *cache) -> void * { return NewTypedSiblingCache(static_cast<MMResourceCache *>(cache), 0); };
     s.release_cache = [](void *, void *cache) { mm_resource_cache_release(static_cast<MMResourceCache *>(cache)); };
-    s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return EngineCostume::Fetch(static_cast<MMResourceCache *>(cache), type, number); };
-    s.custom_set = [](void *, void *custom) -> MMI32 { return EngineCostume::Set(static_cast<PCustomMaterial_CMTL>(custom)); };
+    s.fetch_custom = [](void *, void *cache, MMU32 type, MMU32 number) -> void * { return mm_brender_costume_fetch(static_cast<MMResourceCache *>(cache), type, number); };
+    s.custom_set = [](void *, void *custom) -> MMI32 { return mm_material_owner_custom(static_cast<MMMaterialOwner *>(custom))->set; };
     s.append_costumes = [](void *, MMTemplateCostumeTable *table, const MMI32 *ids, MMI32 count) -> int {
         return mm_template_costumes_append(table, ids, count);
     };
@@ -250,7 +250,7 @@ static MMTemplateRuntimeServices RuntimeServices(PTemplate owner)
     MMTemplateRuntimeServices s = {}; s.storage = EngineTemplate::CreateServices();
     static_assert(sizeof(BRS) == sizeof(MMI32) && sizeof(BMAT34) == 12 * sizeof(MMI32), "fixed-point ABI");
     s.resource = mm_template_owner_binding(owner);
-    s.model_reader = EngineModel::Read;
+    s.model_reader = mm_brender_model_read;
     s.model_objects = mm_model_owner_services();
     s.name = [](void *, void *cache, MMU32 type, MMU32 number, void *out) -> int {
         return ReadResourceName(static_cast<MMResourceCache *>(cache), type, number, static_cast<PString>(out));
@@ -462,7 +462,7 @@ PCustomMaterial_CMTL EngineTemplate::PcmtlFetch(PTemplate owner, LegacyLong cmid
         return pvNil;
     return static_cast<PCustomMaterial_CMTL>(mm_template_fetch_child(
         mm_template_owner_binding(owner), static_cast<MMU32>(cmid), MM_TEMPLATE_CUSTOM,
-        EngineCostume::Read, mm_material_owner_services(), nullptr));
+        mm_brender_costume_read, mm_material_owner_services(), nullptr));
 }
 
 /***************************************************************************

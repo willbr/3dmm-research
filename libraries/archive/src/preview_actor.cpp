@@ -360,7 +360,7 @@ bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, L
     effects.fetch_material = [](void *p, const MMTag *tag) -> void * {
         const auto actor = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->actor;
         const auto source = actor->resolve({tag->sid, 0, tag->type, tag->number});
-        return source ? EngineMaterial::Fetch(source, tag->type, tag->number) : nullptr;
+        return source ? mm_brender_material_fetch(source, tag->type, tag->number) : nullptr;
     };
     effects.enqueue_sound = [](void *p, MMI32 index) -> int {
         auto &host = *static_cast<Host *>(EngineActorEffectHost::From(p).owner);

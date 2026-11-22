@@ -161,10 +161,10 @@ struct Preview::Impl
         if (preset)
         {
             auto file = Resolve({source, 0, kctgMtrl, number});
-            return file ? EngineMaterial::Fetch(file, kctgMtrl, number) : nullptr;
+            return file ? mm_brender_material_fetch(file, kctgMtrl, number) : nullptr;
         }
         if (object < 0 || std::size_t(object) >= actors.size())
-            return EngineMaterial::New();
+            return mm_brender_material_new(-1, -1);
         auto material = actors[object]->TextMaterial();
         if (material)
             mm_material_owner_retain(material);
@@ -175,7 +175,7 @@ struct Preview::Impl
     void RefreshStats()
     {
         MMPreviewStatsServices s = {};
-        s.context = this; s.body = body; s.model = model ? EngineModel::Handle(model) : nullptr;
+        s.context = this; s.body = body; s.model = model ? mm_model_owner_resource(model)->handle : nullptr;
         s.actors = static_cast<MMU32>(actors.size());
         s.visible = [](void *v, MMU32 i) -> int { return static_cast<Impl *>(v)->actors[i]->Visible(); };
         s.actor_body = [](void *v, MMU32 i) -> void * { return static_cast<Impl *>(v)->actors[i]->Pbody(); };
@@ -499,7 +499,7 @@ bool Preview::TextMaterial(int object, bool preset, std::int32_t source, std::ui
     auto material = _impl->FetchTextMaterial(object, preset, source, number);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot read the text material.");
     MMMaterialAppearance appearance;
-    EngineMaterial::ReadView(material, appearance);
+    mm_brender_material_read_view(material, &appearance);
     out.textured = appearance.textured != 0;
     out.colour = appearance.colour;
     out.indexBase = appearance.index_base;
@@ -529,7 +529,7 @@ bool Preview::WriteTextMaterial(int object, bool preset, std::int32_t source, st
                                       value.specular, value.shininess, {}, value.textured};
     std::copy_n(value.mapping, 6, appearance.mapping);
     ChunkNumber chunk = 0;
-    if (!EngineMaterial::WriteView(material, writer, kctgMtrl, &chunk, appearance) || chunk != 0)
+    if (!mm_brender_material_write_view(material, &writer, kctgMtrl, &chunk, &appearance) || chunk != 0)
         return Fail(error, ErrorCode::decode_failed, "Cannot write the text material.");
     return mm_private_archive_save(file.get(), kctgSoc) || Fail(error, ErrorCode::decode_failed, "Cannot save the text material.");
 }
@@ -560,7 +560,7 @@ bool Preview::PrepareTextPreview(const std::string &path, std::int32_t fontSourc
 bool Preview::UseTextPreviewMaterial(Error &error)
 {
     if (!_impl->body || !_impl->tmpl || !EngineTemplate::FIsTdt(_impl->tmpl)) return false;
-    auto material = EngineMaterial::Fetch(_impl->cache, kctgMtrl, 0);
+    auto material = mm_brender_material_fetch(_impl->cache, kctgMtrl, 0);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot load the preview material.");
     mm_body_set_generic(_impl->body, 0, material, &mm_kauai_body_renderer()->edit.runtime); mm_material_owner_release(material); return true;
 }

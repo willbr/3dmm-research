@@ -53,8 +53,8 @@ struct Preview::Impl::RenderHost
             auto &i = *h.impl;
             d->scene = i.live.status.scene;
             d->background = bool(i.background) && h.onlyObject < 0;
-            const auto model = i.model ? EngineModel::Handle(i.model) : nullptr;
-            d->model = model;
+            d->model = i.model ? mm_model_owner_resource(i.model)->handle : nullptr;
+            const auto *model = static_cast<const br_model *>(d->model);
             d->model_resource = i.model;
             if (i.model)
                 for (unsigned a = 0; a < 3; ++a)

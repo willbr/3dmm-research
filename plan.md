@@ -1764,10 +1764,14 @@ Loaded 3D text carries its host's font provider. Studio binds its catalogue
 and Preview binds the archive set for its session. Materials and shade
 tables retain C89 texture owners. The
 BRender adapter supplies a writable pixelmap view in the same allocation,
-and imported pixelmaps retain their original renderer allocation. C89 owns
-MTRL and CMTL cache records and retains their texture, material and model
-dependencies. Studio and Preview use those owners for body costume snapshots,
-actor effects, 3D text material edits and archive writes. Studio's archive-backed
+and imported pixelmaps retain their original renderer allocation. Studio and
+Preview share the C89 BRender cache readers for BMDL, MTRL and CMTL, including
+nested dependency references, material appearance edits and the shade table.
+Both hosts use these owners for body costume snapshots, actor effects, 3D text
+material edits and archive writes. Kauai provides native memory, codec, file
+and diagnostic callbacks. The x64 Marcus, Preview helper and regression runner
+link this shared adapter directly. The remaining linked engine-core modules
+provide actor templates, 3D text and 3D fonts. Studio's archive-backed
 actions and generated 3D text actions use the same C89 owner and playback
 readers for cels, matrices, distance, flags and motion sound tags. The C89
 text generator owns the cached action reference and replaces it after text
