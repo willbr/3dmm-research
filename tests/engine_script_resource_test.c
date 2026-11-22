@@ -1,5 +1,7 @@
 #include "mm/script_resource.h"
+#include "mm/script_compile.h"
 #include "mm/script_kidspace.h"
+#include "mm/lex_token.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_strings.h"
@@ -671,7 +673,7 @@ static void execute_string_scripts(void)
 
 typedef struct FixtureAllocator
 {
-    int fail;
+    int fail, speculate;
     int releases;
 } FixtureAllocator;
 
@@ -679,7 +681,7 @@ static void *fixture_resize(void *context, void *old, MMU32 old_bytes, MMU32 new
 {
     FixtureAllocator *allocator = context;
     (void)old_bytes;
-    CHECK(priority == MM_STORAGE_NORMAL);
+    CHECK(priority == MM_STORAGE_NORMAL || (allocator->speculate && priority == MM_STORAGE_SPEED));
     return allocator->fail ? NULL : realloc(old, new_bytes);
 }
 
@@ -1820,6 +1822,148 @@ static void execute_kidspace_app(void)
     CHECK(!host.collections_live);
 }
 
+typedef struct CompileTrace
+{
+    int errors[4], count;
+} CompileTrace;
+
+static void compile_diagnostic(void *context, int error)
+{
+    CompileTrace *trace = context;
+    CHECK(trace->count < 4);
+    trace->errors[trace->count++] = error;
+}
+
+static void emit_script(void)
+{
+    Host host;
+    MMScriptEmitter *emitter;
+    MMCompiledScript *script;
+    const void *text;
+    MMU32 units, i;
+    CompileTrace trace;
+    FixtureAllocator failure;
+    MMStorageAllocator allocator;
+
+    init(&host);
+    memset(&trace, 0, sizeof(trace));
+    emitter = mm_script_emitter_create(&host.host, 10, 9, compile_diagnostic, &trace);
+    CHECK(emitter);
+    mm_script_emit_label_reference(emitter, "exit", 4);
+    mm_script_emit_opcode(emitter, kopGo);
+    mm_script_emit_label(emitter, "body", 4);
+    mm_script_emit_variable(emitter, kopPushLocVar, 0xfe7d, 0x25db1000UL);
+    for (i = 0; i < 255; ++i)
+        mm_script_emit_immediate(emitter, (MMI32)i);
+    mm_script_emit_label(emitter, "Exit", 4);
+    mm_script_emit_literal(emitter, "x", 1);
+    mm_script_emit_label(emitter, "exit", 4);
+    mm_script_emit_immediate(emitter, 17);
+    mm_script_emit_label_reference(emitter, "Exit", 4);
+    mm_script_emit_opcode(emitter, kopReturn);
+    script = mm_script_emitter_finish(emitter);
+    mm_script_emitter_destroy(emitter);
+    CHECK(script && !trace.count && host.collections_live == 1 && mm_script_word_count(script) == 268);
+    CHECK(mm_script_word(script, 0) == 0x000a0009UL && mm_script_word(script, 1) == VM_IMMEDIATES(1));
+    CHECK((MMU32)mm_script_word(script, 2) == 0xcc000108UL && mm_script_word(script, 3) == kopGo);
+    CHECK(mm_script_word(script, 4) == 0x01fffe7dUL && mm_script_word(script, 5) == 0x25db1000UL);
+    for (i = 0; i < 254; ++i)
+        CHECK(mm_script_word(script, 6 + i) == (MMI32)i);
+    CHECK(mm_script_word(script, 260) == VM_IMMEDIATES(1) && mm_script_word(script, 261) == 254);
+    CHECK(mm_script_word(script, 262) == 0x01010000UL && mm_script_word(script, 263) == 0);
+    CHECK(mm_script_word(script, 264) == VM_IMMEDIATES(2) && mm_script_word(script, 265) == 17);
+    CHECK((MMU32)mm_script_word(script, 266) == 0xcc000106UL && mm_script_word(script, 267) == kopReturn);
+    CHECK(mm_script_literal(script, 0, &text, &units) && units == 1 && !memcmp(text, "x", 1));
+    mm_script_release(script);
+
+    emitter = mm_script_emitter_create(&host.host, 10, 10, compile_diagnostic, &trace);
+    CHECK(emitter);
+    mm_script_emit_label_reference(emitter, "missing", 7);
+    mm_script_emit_label_reference(emitter, "same", 4);
+    mm_script_emit_label(emitter, "same", 4);
+    mm_script_emit_label(emitter, "same", 4);
+    CHECK(!mm_script_emitter_finish(emitter) && trace.count == 2);
+    CHECK(trace.errors[0] == MM_SCRIPT_COMPILE_DUPLICATE_LABEL && trace.errors[1] == MM_SCRIPT_COMPILE_UNDEFINED_LABEL);
+    mm_script_emitter_destroy(emitter);
+    CHECK(!host.collections_live);
+
+    memset(&failure, 0, sizeof(failure));
+    allocator.context = &failure;
+    allocator.resize = fixture_resize;
+    allocator.release = fixture_release;
+    failure.speculate = 1;
+    host.host.storage = &allocator;
+    emitter = mm_script_emitter_create(&host.host, 10, 10, compile_diagnostic, &trace);
+    CHECK(emitter);
+    failure.fail = 1;
+    mm_script_emit_label_reference(emitter, "short", 5);
+    CHECK(!mm_script_emitter_finish(emitter) && trace.count == 3 && trace.errors[2] == MM_SCRIPT_COMPILE_MEMORY);
+    mm_script_emitter_destroy(emitter);
+    CHECK(!host.collections_live);
+}
+
+typedef struct PostfixSource
+{
+    const MMScriptToken *tokens;
+    MMU32 next;
+} PostfixSource;
+
+static int postfix_token(void *context, MMScriptToken *out)
+{
+    PostfixSource *input = context;
+    *out = input->tokens[input->next++];
+    return out->kind != ttNil;
+}
+
+static MMU32 postfix_opcode(void *context, const void *name, MMU32 length)
+{
+    (void)context;
+    if (length == 2 && !memcmp(name, "Go", 2))
+        return kopGo;
+    if (length == 6 && !memcmp(name, "Return", 6))
+        return kopReturn;
+    return 0;
+}
+
+static void compile_postfix(void)
+{
+    static const MMScriptToken tokens[] = {
+        {ttSub, 0, NULL, 0}, {ttLong, (-2147483647 - 1), NULL, 0},
+        {ttGt, 0, NULL, 0}, {ttName, 0, "value", 5},
+        {ttDollar, 0, NULL, 0}, {ttName, 0, "done", 4}, {ttName, 0, "Go", 2},
+        {ttLong, 99, NULL, 0}, {ttName, 0, "Return", 6},
+        {ttAt, 0, NULL, 0}, {ttName, 0, "done", 4},
+        {ttLt, 0, NULL, 0}, {ttName, 0, "value", 5}, {ttName, 0, "Return", 6}, {ttNil, 0, NULL, 0}
+    };
+    MMScriptPostfixInput input;
+    PostfixSource source;
+    CompileTrace trace;
+    Host host;
+    MMScriptEmitter *emitter;
+    MMCompiledScript *script;
+    MMScriptVM vm;
+
+    init(&host);
+    memset(&trace, 0, sizeof(trace));
+    source.tokens = tokens;
+    source.next = 0;
+    input.context = &source;
+    input.next = postfix_token;
+    input.opcode = postfix_opcode;
+    emitter = mm_script_emitter_create(&host.host, 10, 10, compile_diagnostic, &trace);
+    CHECK(emitter);
+    mm_script_compile_postfix(emitter, &input);
+    script = mm_script_emitter_finish(emitter);
+    mm_script_emitter_destroy(emitter);
+    CHECK(script && !trace.count && source.next == sizeof(tokens) / sizeof(*tokens));
+    CHECK(mm_script_vm_init(&vm, NULL, 1, NULL, NULL, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_vm_attach(&vm, script, 10, 10, NULL, 0));
+    mm_script_release(script);
+    CHECK(mm_script_vm_resume(&vm) && (MMU32)vm.result == 0x80000000UL);
+    mm_script_vm_dispose(&vm);
+    CHECK(!host.collections_live);
+}
+
 int main(void)
 {
     scripts();
@@ -1834,6 +1978,8 @@ int main(void)
     execute_timed_scripts();
     execute_kidspace_objects();
     execute_kidspace_app();
+    emit_script();
+    compile_postfix();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef LEX_H
 #define LEX_H
+#include "mm/lex_token.h"
 
 enum
 {
@@ -31,70 +32,6 @@ enum
     fctQuo = 512, // quote character
 };
 #define kgrfctDigit (fctOct | fctDec | fctHex)
-
-enum
-{
-    ttNil,
-    ttError,  // bad token
-    ttLong,   // numeric constant
-    ttName,   // identifier
-    ttString, // string constant
-
-    ttAdd,        // +
-    ttSub,        // -
-    ttMul,        // *
-    ttDiv,        // /
-    ttMod,        // %
-    ttInc,        // ++
-    ttDec,        // --
-    ttBOr,        // |
-    ttBAnd,       // &
-    ttBXor,       // ^
-    ttBNot,       // ~
-    ttShr,        // >>
-    ttShl,        // <<
-    ttLOr,        // ||
-    ttLAnd,       // &&
-    ttLXor,       // ^^
-    ttEq,         // ==
-    ttNe,         // !=
-    ttGt,         // >
-    ttGe,         // >=
-    ttLt,         // <
-    ttLe,         // <=
-    ttLNot,       // !
-    ttAssign,     // =
-    ttAAdd,       // +=
-    ttASub,       // -=
-    ttAMul,       // *=
-    ttADiv,       // /=
-    ttAMod,       // %=
-    ttABOr,       // |=
-    ttABAnd,      // &=
-    ttABXor,      // ^=
-    ttAShr,       // >>=
-    ttAShl,       // <<=
-    ttArrow,      // ->
-    ttDot,        // .
-    ttQuery,      // ?
-    ttColon,      // :
-    ttComma,      // ,
-    ttSemi,       // ;
-    ttOpenRef,    // [
-    ttCloseRef,   // ]
-    ttOpenParen,  // (
-    ttCloseParen, // )
-    ttOpenBrace,  // {
-    ttCloseBrace, // }
-    ttPound,      // #
-    ttDollar,     // $
-    ttAt,         // @
-    ttAccent,     // `
-    ttBackSlash,  // backslash character (\)
-    ttScope,      // ::
-
-    ttLimBase
-};
 
 struct Token
 {

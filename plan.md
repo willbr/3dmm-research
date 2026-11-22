@@ -1745,7 +1745,10 @@ selection. Script literals resolve in the same C archive graph as the root.
 Compiled scripts use C89 owners for instruction words, literal tables, cache
 binding and references. The compiler and interpreter share that representation,
 and C89 writes the legacy instruction and GSTX sections. The host supplies
-codec, archive placement, and runtime string registry services.
+codec, archive placement, and runtime string registry services. Both compiler
+modes use the C89 bytecode writer for instruction groups, literals, and label
+fixups. C89 parses postfix source from the shared lexer tokens. The infix
+expression and control-flow parser still supplies operations to that writer.
 The interpreter's operand stack, list operations, and local and
 graphics-object variable tables now use C89 storage and algorithms.
 The C89 interpreter retains the script and owns instruction decoding,

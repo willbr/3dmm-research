@@ -26,7 +26,6 @@ using namespace Chunky;
 using namespace ScriptCompiler;
 using namespace Group;
 
-PScript CreateScript();
 PScript FetchScript(const MMResourceAccess &, ChunkTagOrType, ChunkNumber, int *error = nullptr);
 PScript ReadScript(PChunkyFile, ChunkTagOrType, ChunkNumber);
 bool ReadScriptLiteral(PScript, MMU32 index, PString);

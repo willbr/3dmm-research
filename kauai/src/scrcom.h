@@ -15,6 +15,7 @@
 ***************************************************************************/
 #ifndef SCRCOM_H
 #define SCRCOM_H
+#include "mm/script_compile.h"
 #include "mm/script_opcodes.h"
 
 namespace ScriptCompiler {
@@ -85,18 +86,13 @@ class CompilerBase : public CompilerBase_PAR
     };
 
     PLexerBase _plexb;       // the lexer
-    PScript _pscpt;       // the script we're building
+    MMScriptEmitter *_emitter;
     PDynamicArray _pgletnTree;    // expression tree (in-fix only)
     PDynamicArray _pgletnStack;   // token stack for building expression tree (in-fix only)
     PDynamicArray _pglcstd;       // control structure stack (in-fix only)
     PStringTable_GST _pgstNames;    // encountered names (in-fix only)
-    PStringTable_GST _pgstLabel;    // encountered labels, sorted, extra long is label value
-    PStringTable_GST _pgstReq;      // label references, extra long is address of reference
-    LegacyLong _ilwOpLast;    // address of the last opcode
     LegacyLong _lwLastLabel;  // for internal temporary labels
     bool _fError : 1;   // whether an error has occured during compiling
-    bool _fForceOp : 1; // when pushing a constant, make sure the last long
-                        // is an opcode (because a label references this loc)
     bool _fHitEnd : 1;  // we've exhausted our input stream
     LegacyLong _ttEnd;        // stop compiling when we see this
     PMSNK _pmsnk;       // the message sink - for error reporting when compiling
@@ -108,9 +104,7 @@ class CompilerBase : public CompilerBase_PAR
     void _PushLw(LegacyLong lw);
     void _PushString(PString pstn);
     void _PushOp(LegacyLong op);
-    void _EndOp(void);
     void _PushVarOp(LegacyLong op, RuntimeVariableName *prtvn);
-    bool _FFindLabel(PString pstn, LegacyLong *plwLoc);
     void _AddLabel(PString pstn);
     void _PushLabelRequest(PString pstn);
     void _AddLabelLw(LegacyLong lw);

@@ -94,6 +94,7 @@
 
 ***************************************************************************/
 #include "util.h"
+#include "script_resource_host.h"
 ASSERTNAME
 
 namespace ScriptCompiler {
@@ -213,9 +214,6 @@ enum
     kipszContinue,
 };
 
-// An opcode long can be followed by at most 255 immediate values
-#define kclwLimPush 256
-
 // operator flags - for in-fix compilation
 enum
 {
@@ -269,13 +267,11 @@ CompilerBase::CompilerBase(void)
 {
     AssertBaseThis(0);
     _plexb = pvNil;
-    _pscpt = pvNil;
+    _emitter = nullptr;
     _pgletnTree = pvNil;
     _pgletnStack = pvNil;
     _pglcstd = pvNil;
     _pgstNames = pvNil;
-    _pgstLabel = pvNil;
-    _pgstReq = pvNil;
     _pmsnk = pvNil;
     AssertThis(0);
 }
@@ -301,8 +297,6 @@ void CompilerBase::AssertValid(LegacyUlong grf)
     AssertNilOrPo(_pgletnStack, 0);
     AssertNilOrPo(_pglcstd, 0);
     AssertNilOrPo(_pgstNames, 0);
-    AssertNilOrPo(_pgstLabel, 0);
-    AssertNilOrPo(_pgstReq, 0);
     AssertNilOrPo(_pmsnk, 0);
 }
 
@@ -315,7 +309,7 @@ void CompilerBase::MarkMem(void)
 
     CompilerBase_PAR::MarkMem();
     MarkMemObj(_plexb);
-    MarkScript(_pscpt);
+    mm_script_emitter_mark_memory(_emitter);
     MarkMemObj(_pgletnTree);
     MarkMemObj(_pgletnStack);
     if (pvNil != _pglcstd)
@@ -331,8 +325,6 @@ void CompilerBase::MarkMem(void)
         }
     }
     MarkMemObj(_pgstNames);
-    MarkMemObj(_pgstLabel);
-    MarkMemObj(_pgstReq);
     MarkMemObj(_pmsnk);
 }
 #endif // DEBUG
@@ -346,7 +338,6 @@ bool CompilerBase::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
     AssertThis(0);
     AssertPo(plexb, 0);
     AssertPo(pmsnk, 0);
-    LegacyLong lw;
 
     _Free();
     _fError = fFalse;
@@ -370,17 +361,17 @@ bool CompilerBase::_FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk)
         _pgletnStack->SetMinGrow(100);
     }
 
-    _pscpt = CreateScript();
-
-    // code starts at slot 1 because the version numbers are in slot 0.
-    _ilwOpLast = 1;
-
-    // compiled code must start with an operator
-    _fForceOp = fTrue;
-
-    // put version info in the script
-    lw = LwHighLow(_SwCur(), _SwBack());
-    if (pvNil == _pscpt || !mm_script_add_word(_pscpt, lw))
+    _emitter = mm_script_emitter_create(&ScriptHost(), _SwCur(), _SwBack(),
+        [](void *context, int reason) {
+            static const PZString messages[] = {
+                _pszOom, _pszSyntax, PszLit("Unknown name"), PszLit("Variable expected"),
+                PszLit("duplicate label"), PszLit("Undefined label"), PszLit("Script label out of range")
+            };
+            static_assert(sizeof(messages) / sizeof(*messages) == MM_SCRIPT_COMPILE_LABEL_RANGE + 1,
+                          "script compiler diagnostics");
+            static_cast<PCompilerBase>(context)->_ReportError(messages[reason]);
+        }, this);
+    if (!_emitter)
         _ReportError(_pszOom);
 
     _lwLastLabel = 0; // for internal labels
@@ -396,11 +387,10 @@ void CompilerBase::_Free(void)
     AssertThis(0);
     CSTD cstd;
 
-    ReleaseScript(&_pscpt);
+    mm_script_emitter_destroy(_emitter);
+    _emitter = nullptr;
     ReleasePpo(&_plexb);
     ReleasePpo(&_pmsnk);
-    ReleasePpo(&_pgstLabel);
-    ReleasePpo(&_pgstReq);
     ReleasePpo(&_pgletnTree);
     ReleasePpo(&_pgletnStack);
     if (pvNil != _pglcstd)
@@ -434,35 +424,7 @@ PScript CompilerBase::PscptCompileLex(PLexerBase plexb, bool fInFix, PMSNK pmsnk
     else
         _CompilePost();
 
-    // link all the label requests with the labels
-    if (pvNil != _pgstReq)
-    {
-        AssertPo(_pgstReq, 0);
-        LegacyLong istn;
-        LegacyLong lw, ilw;
-        String stn;
-
-        for (istn = _pgstReq->IstnMac(); istn-- > 0;)
-        {
-            _pgstReq->GetStn(istn, &stn);
-            if (!_FFindLabel(&stn, &lw))
-            {
-                // undefined label
-                _ReportError(PszLit("Undefined label"));
-            }
-            else if (pvNil != _pscpt)
-            {
-                Assert(_pscpt, "nil script");
-                _pgstReq->GetExtra(istn, &ilw);
-                Assert(B3Lw(lw) == kbLabel, 0);
-                AssertIn(ilw, 1, static_cast<LegacyLong>(mm_script_word_count(_pscpt)));
-                mm_script_set_word(_pscpt, ilw, lw);
-            }
-        }
-    }
-
-    pscpt = _pscpt;
-    _pscpt = pvNil;
+    pscpt = mm_script_emitter_finish(_emitter);
     _Free();
     return pscpt;
 }
@@ -560,7 +522,7 @@ void CompilerBase::_ReportError(PZString psz)
     String stn;
     String stnFile;
 
-    ReleaseScript(&_pscpt);
+    mm_script_emitter_abort(_emitter);
     _fError = fTrue;
     _plexb->GetStnFile(&stnFile);
     stn.FFormatSz(PszLit("%s(%d:%d) : error : %z"), &stnFile, _plexb->LwLine(), _plexb->IchLine() + 1, psz);
@@ -572,194 +534,32 @@ void CompilerBase::_ReportError(PZString psz)
 ***************************************************************************/
 void CompilerBase::_PushLw(LegacyLong lw)
 {
-    AssertThis(0);
-
-    if (_fError)
-        return;
-
-    Assert(_pscpt, "nil script");
-    if (_fForceOp || static_cast<LegacyLong>(mm_script_word_count(_pscpt)) - _ilwOpLast >= kclwLimPush)
-        _PushOp(opNil);
-    if (!_fError && !mm_script_add_word(_pscpt, lw))
-        _ReportError(_pszOom);
+    mm_script_emit_immediate(_emitter, lw);
 }
 
-/***************************************************************************
-    "Push" a string constant.  Puts the string in the string table and emits
-    code to push the corresponding internal variable.
-***************************************************************************/
 void CompilerBase::_PushString(PString pstn)
 {
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    RuntimeVariableName rtvn;
-    MMU32 istn;
-
-    if (_fError)
-        return;
-
-    Assert(_pscpt, "nil script");
-    if (!mm_script_add_literal(_pscpt, pstn->Psz(), pstn->Cch(), &istn))
-    {
-        _ReportError(_pszOom);
-        return;
-    }
-
-    rtvn.lu1 = 0;
-    rtvn.lu2 = istn;
-    _PushVarOp(kopPushLocVar, &rtvn);
+    mm_script_emit_literal(_emitter, pstn->Prgch(), pstn->Cch());
 }
 
-/***************************************************************************
-    Add an opcode to the compiled script.
-***************************************************************************/
 void CompilerBase::_PushOp(LegacyLong op)
 {
-    AssertThis(0);
-    Assert((LegacyLong)(short)op == op, "bad opcode");
-    LegacyLong lw;
-
-    if (_fError)
-        return;
-
-    Assert(_pscpt, "nil script");
-    _EndOp(); // complete the previous opcode
-    _ilwOpLast = static_cast<LegacyLong>(mm_script_word_count(_pscpt));
-    lw = LwHighLow(0, (short)op);
-    if (!mm_script_add_word(_pscpt, lw))
-        _ReportError(_pszOom);
-    _fForceOp = fFalse;
+    mm_script_emit_opcode(_emitter, op);
 }
 
-/***************************************************************************
-    Close out an opcode by setting the number of immediate longs that follow.
-***************************************************************************/
-void CompilerBase::_EndOp(void)
-{
-    AssertThis(0);
-    LegacyLong ilw;
-    LegacyLong lw;
-
-    if (_fError)
-        return;
-
-    Assert(_pscpt, "nil script");
-    ilw = static_cast<LegacyLong>(mm_script_word_count(_pscpt));
-    if (_ilwOpLast < ilw - 1)
-    {
-        // set the count of longs in the previous op
-        AssertIn(ilw - _ilwOpLast - 1, 1, kclwLimPush);
-        lw = mm_script_word(_pscpt, _ilwOpLast);
-        lw = LwHighLow(SuHighLow(B3Lw(lw), (byte)(ilw - _ilwOpLast - 1)), SuLow(lw));
-        mm_script_set_word(_pscpt, _ilwOpLast, lw);
-    }
-}
-
-/***************************************************************************
-    Add an opcode that acts on a variable.
-***************************************************************************/
 void CompilerBase::_PushVarOp(LegacyLong op, RuntimeVariableName *prtvn)
 {
-    AssertThis(0);
-    Assert((LegacyLong)(byte)op == op, "bad opcode");
-    AssertVarMem(prtvn);
-    LegacyLong lw;
-
-    _PushOp(opNil); // push a nil op, then fill it in below
-    if (_fError)
-        return;
-
-    // the high byte is op, the low word is part of the rtvn, the rest of the
-    // rtvn is in the next long
-    Assert(_pscpt, "nil script");
-    Assert(SuHigh(prtvn->lu1) == 0, "bad rtvn");
-    lw = prtvn->lu1 | (op << 24);
-    mm_script_set_word(_pscpt, _ilwOpLast, lw);
-    if (!mm_script_add_word(_pscpt, mm_signed_word(prtvn->lu2)))
-        _ReportError(_pszOom);
+    mm_script_emit_variable(_emitter, op, prtvn->lu1, prtvn->lu2);
 }
 
-/***************************************************************************
-    Look up the indicated label and put it's location in *plwLoc.
-***************************************************************************/
-bool CompilerBase::_FFindLabel(PString pstn, LegacyLong *plwLoc)
-{
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    AssertVarMem(plwLoc);
-    LegacyLong istn;
-
-    if (pvNil == _pgstLabel || !_pgstLabel->FFindStn(pstn, &istn, fgstSorted))
-    {
-        TrashVar(plwLoc);
-        return fFalse;
-    }
-    _pgstLabel->GetExtra(istn, plwLoc);
-    return fTrue;
-}
-
-/***************************************************************************
-    Add the given label, giving it the current location.
-***************************************************************************/
 void CompilerBase::_AddLabel(PString pstn)
 {
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    LegacyLong lw;
-    LegacyLong istn;
-
-    if (pvNil == _pgstLabel && pvNil == (_pgstLabel = StringTable_GST::PgstNew(size(LegacyLong), 5, 100)))
-    {
-        _ReportError(_pszOom);
-        return;
-    }
-    if (_pgstLabel->FFindStn(pstn, &istn, fgstSorted))
-    {
-        _ReportError(PszLit("duplicate label"));
-        return;
-    }
-    lw = LwFromBytes(kbLabel, 0, 0, 0);
-    if (pvNil != _pscpt)
-    {
-        Assert(_pscpt, "nil script");
-        lw |= static_cast<LegacyLong>(mm_script_word_count(_pscpt));
-    }
-    Assert(B3Lw(lw) == kbLabel, 0);
-
-    // a label must address an opcode, not immediate data
-    _fForceOp = fTrue;
-
-    if (!_pgstLabel->FInsertStn(istn, pstn, &lw))
-        _ReportError(_pszOom);
+    mm_script_emit_label(_emitter, pstn->Prgch(), pstn->Cch());
 }
 
-/***************************************************************************
-    Add the label request to the request gst and put an immediate value
-    of 0 in the compiled script.  When compilation is finished, we'll
-    write the actual value for the label.
-***************************************************************************/
 void CompilerBase::_PushLabelRequest(PString pstn)
 {
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    LegacyLong lw;
-
-    if (_fError)
-        return;
-
-    if (pvNil == _pgstReq && pvNil == (_pgstReq = StringTable_GST::PgstNew(size(LegacyLong), 10, 200)))
-    {
-        _ReportError(_pszOom);
-        return;
-    }
-    _PushLw(0);
-    if (_fError)
-        return;
-
-    Assert(_pscpt, "nil script");
-    lw = static_cast<LegacyLong>(mm_script_word_count(_pscpt)) - 1;
-    if (!_pgstReq->FAddStn(pstn, &lw))
-        _ReportError(_pszOom);
+    mm_script_emit_label_reference(_emitter, pstn->Prgch(), pstn->Cch());
 }
 
 /***************************************************************************
@@ -857,137 +657,32 @@ bool CompilerBase::_FGetStnFromOpRgszop(LegacyLong op, PString pstn, StringOpcod
 ***************************************************************************/
 void CompilerBase::_CompilePost(void)
 {
-    AssertThis(0);
-    AssertPo(_plexb, 0);
-    Token tok;
-    LegacyLong op;
-    RuntimeVariableName rtvn;
-
-    while (_FGetTok(&tok))
+    struct Source
     {
-        switch (tok.tt)
-        {
-        default:
-            _ReportError(_pszSyntax);
-            break;
-
-        case ttLong:
-            _PushLw(tok.lw);
-            break;
-
-        case ttString:
-            _PushString(&tok.stn);
-            break;
-
-        case ttSub:
-            // handle unary minus on constants only
-            if (!_FGetTok(&tok) || tok.tt != ttLong)
-                _ReportError(_pszSyntax);
-            else
-                _PushLw(-tok.lw);
-            break;
-
-        case ttName:
-            op = _OpFromStn(&tok.stn);
-            if (opNil == op)
-                _ReportError(PszLit("Unknown name"));
-            else
-                _PushOp(op);
-            break;
-
-        case ttGt:
-            // pop into a variable
-            if (!_FGetTok(&tok))
-            {
-                _ReportError(_pszSyntax);
-                break;
-            }
-            op = kopPopLocVar;
-            switch (tok.tt)
-            {
-            case ttBNot:
-                op = kopPopRemoteVar;
-                goto LGetName;
-            case ttDot:
-                op = kopPopThisVar;
-                goto LGetName;
-            case ttScope:
-                op = kopPopGlobalVar;
-                goto LGetName;
-            }
-            goto LAcceptName;
-
-        case ttLt:
-            // push a variable
-            if (!_FGetTok(&tok))
-            {
-                _ReportError(_pszSyntax);
-                break;
-            }
-            op = kopPushLocVar;
-            switch (tok.tt)
-            {
-            case ttBNot:
-                op = kopPushRemoteVar;
-                goto LGetName;
-            case ttDot:
-                op = kopPushThisVar;
-                goto LGetName;
-            case ttScope:
-                op = kopPushGlobalVar;
-            LGetName:
-                if (!_FGetTok(&tok))
-                {
-                    _ReportError(_pszSyntax);
-                    break;
-                }
-                break;
-            }
-
-        LAcceptName:
-            if (tok.tt == ttBAnd)
-            {
-                // an array access
-                op += kopPushLocArray - kopPushLocVar;
-                if (!_FGetTok(&tok))
-                {
-                    _ReportError(_pszSyntax);
-                    break;
-                }
-            }
-            if (tok.tt == ttName && _OpFromStn(&tok.stn) == opNil)
-            {
-                rtvn.SetFromStn(&tok.stn);
-                _PushVarOp(op, &rtvn);
-            }
-            else
-                _ReportError(PszLit("Variable expected"));
-            break;
-
-        case ttDollar:
-            // label reference
-            if (_FGetTok(&tok) && tok.tt == ttName && _OpFromStn(&tok.stn) == opNil)
-            {
-                _PushLabelRequest(&tok.stn);
-            }
-            else
-                _ReportError(_pszSyntax);
-            break;
-
-        case ttAt:
-            // label definition
-            if (_FGetTok(&tok) && tok.tt == ttName && _OpFromStn(&tok.stn) == opNil)
-            {
-                _AddLabel(&tok.stn);
-            }
-            else
-                _ReportError(_pszSyntax);
-            break;
+        PCompilerBase compiler;
+        Token token;
+    } source{this, {}};
+    const MMScriptPostfixInput input = {
+        &source,
+        [](void *context, MMScriptToken *out) -> int {
+            auto source = static_cast<Source *>(context);
+            auto &token = source->token;
+            if (!source->compiler->_FGetTok(&token))
+                return 0;
+            out->kind = token.tt;
+            out->value = token.tt == ttLong ? token.lw : 0;
+            out->text = token.stn.Prgch();
+            out->length = token.stn.Cch();
+            return 1;
+        },
+        [](void *context, const void *name, MMU32 length) -> MMU32 {
+            auto source = static_cast<Source *>(context);
+            String text;
+            text.SetRgch(const_cast<achar *>(static_cast<const achar *>(name)), length);
+            return source->compiler->_OpFromStn(&text);
         }
-    }
-
-    // complete the last opcode
-    _EndOp();
+    };
+    mm_script_compile_postfix(_emitter, &input);
 }
 
 /***************************************************************************
@@ -2454,7 +2149,6 @@ void CompilerBase::_CompileIn(void)
             _pgletnTree->FSetIvMac(0);
             if (fDone)
             {
-                _EndOp();
                 if (_pglcstd->IvMac() != 0)
                     _ReportError(PszLit("unexpected end of source"));
                 break;

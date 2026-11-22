@@ -69,17 +69,19 @@ static bool CheckScriptResources()
     ReleasePpo(&file);
     return ok;
 }
-static bool CheckInterpreterResume()
+static bool CheckInterpreterResume(bool infix)
 {
     using namespace ScriptCompiler;
     using namespace ScriptInterpreter;
 
-    char source[] = "value = _parm[0] + 7; Pause(); value = value * 2; Return(value);\r\n";
+    char infixSource[] = "value = _parm[0] + 7; Pause(); value = value * 2; Return(value);\r\n";
+    char postfixSource[] = "0 <&_parm 7 Add >value Pause $resume Go 99 Return @resume <value 2 Mul Return\r\n";
+    auto source = infix ? infixSource : postfixSource;
     auto input = FileObject::PfilCreateTemp();
     CompilerBase compiler;
     MessageSinkIO errors(stderr);
-    auto script = input && input->FWriteRgb(source, sizeof(source) - 1, 0)
-                      ? compiler.PscptCompileFil(input, fTrue, &errors)
+    auto script = input && input->FWriteRgb(source, std::strlen(source), 0)
+                      ? compiler.PscptCompileFil(input, infix, &errors)
                       : nullptr;
     ReleasePpo(&input);
     if (!script)
@@ -147,7 +149,7 @@ int main()
         std::fputs("Resource reader changed script words or literals.\n", stderr);
         return 1;
     }
-    if (!CheckInterpreterResume())
+    if (!CheckInterpreterResume(true) || !CheckInterpreterResume(false))
     {
         std::fputs("Script interpreter lost state across pause and resume.\n", stderr);
         return 1;

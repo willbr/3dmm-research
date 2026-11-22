@@ -347,11 +347,6 @@ MMScriptVariables *Interpreter::_RemoteVariables(LegacyLong)
     return pvNil;
 }
 
-PScript CreateScript()
-{
-    return mm_script_create(&ScriptHost());
-}
-
 static int ReadCachedScript(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
                             void **out, MMI32 *bytes)
 {

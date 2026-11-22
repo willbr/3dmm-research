@@ -21553,3 +21553,36 @@ continuous frame order matched the retained retail and V3DMM runs in
 
 The disassembly, traces and Studio canvases are under `tmp/c89-kidspace-app`.
 Playback captures are under `tmp/c89-kd`.
+
+## C89 compiler bytecode emission and postfix parsing (22 November 2026)
+
+Both Chomp compiler modes use the C89 emitter for the version word, opcode
+headers, immediate groups, literal IDs, and label definitions and fixups.
+C89 parses postfix tokens from the native lexer. The native infix parser
+uses the same emitter for user labels and its generated jumps.
+
+The C fixture checks the 255-word immediate boundary after a variable
+opcode, case-sensitive and forward labels, duplicate and missing labels,
+and allocation failure. It also compiles and runs a postfix program with
+the minimum signed word. The native compiler test exercises pause and
+resume from both source forms. Rebuilt Chomp produced the same 1,726-byte
+archive as the retained binary for a mixed-source fixture that includes
+260 consecutive immediates and a following non-script chunk. The invalid
+fixture matched the retained exit status and diagnostic text and locations.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. The headless room, F1 Help, ISO, and authoring workflows passed.
+All 470 generated script payloads, nine movie saves, five smoke canvases,
+the Marcus startup canvas, and the Help and cache traces matched retained
+results. The ticket booth captures differed during the AVI. Extended
+sampling yielded eight identical AVI crops across the two builds, and the
+post-video canvas matched. The existing `scene-load` failure reproduced
+its 63,224-byte trace and fingerprint `0D666753`.
+
+The silent fixture in suite `20261122T125809Z-9a562b3f` matched the preceding
+60 seek canvases per port and their camera and actor state. Seek and
+continuous frame order matched retained retail and V3DMM suite
+`20261122T081603Z-7ffc4e8e`.
+
+The compiler fixtures, traces, and Studio canvases are under
+`tmp/c89-script-compile`. Playback captures are under `tmp/c89-kd`.
