@@ -1,6 +1,5 @@
 /* Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/archive.h"
-#include "mm/native_sound.h"
 #include "diagnostics.h"
 #include <algorithm>
 #include <codecvt>
@@ -132,18 +131,6 @@ MMMovieSessionGraph Archive::PlaybackGraph() const
     if (_impl->live)
         return mm_movie_owner_graph(_impl->liveReader);
     return mm_archive_reader_graph(_impl->reader);
-}
-bool ReadSoundCatalogStyle(const Archive &archive, std::uint32_t number, std::int32_t &style)
-{
-    const auto reader = archive.Reader();
-    if (!reader)
-        return false;
-    const auto graph = mm_archive_reader_graph(reader);
-    MMI32 value;
-    if (!mm_sound_catalog_style(&graph, number, 0, &value))
-        return false;
-    style = value;
-    return true;
 }
 MMMovieSession *Archive::MovieSession() const
 {

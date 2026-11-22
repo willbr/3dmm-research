@@ -145,8 +145,13 @@ struct MarcusPlayer
     MarcusScenes sceneInfo, baseSceneInfo;
     std::vector<MarcusBackground> backgrounds;
     std::vector<MarcusProp> props, actors, fonts, materials;
-    std::vector<MarcusSoundAsset> soundAssets;
-    std::string soundAssetDirectory;
+    struct SoundCatalog : MarcusSoundCatalog
+    {
+        SoundCatalog() : MarcusSoundCatalog{} {}
+        ~SoundCatalog() { marcus_sound_catalog_clear(this); }
+        SoundCatalog(const SoundCatalog &) = delete;
+        SoundCatalog &operator=(const SoundCatalog &) = delete;
+    } soundAssets;
     std::string propCatalogDirectory, actorCatalogDirectory, fontCatalogDirectory, materialCatalogDirectory, backgroundCatalogDirectory;
     std::vector<MM::PreviewObject> objects;
     std::vector<MM::PreviewAction> objectActions;
@@ -1229,21 +1234,15 @@ bool ApplySceneEdit(MarcusPlayer &movie, std::shared_ptr<const MarcusLiveEdits> 
         std::rethrow_exception(host.failure);
     return applied != 0;
 }
-void ReadSoundAssets(MarcusPlayer *player)
-{
-    if (player->soundAssetDirectory == player->timingContent && !player->soundAssets.empty()) return;
-    auto assets = MarcusReadSoundAssets(std::filesystem::u8path(player->timingContent) / "snds.3cn");
-    player->soundAssets = std::move(assets); player->soundAssetDirectory = player->timingContent;
-}
 bool SoundAssetCue(MarcusPlayer *player, int index, MM::PreviewSoundCue &cue, MM::Error &error)
 {
-    ReadSoundAssets(player);
-    if (index < 0 || std::size_t(index) >= player->soundAssets.size())
+    MarcusLoadSoundCatalog(player->soundAssets, player->timingContent.c_str());
+    const auto asset = marcus_sound_catalog_asset(&player->soundAssets, index);
+    if (!asset)
     { error.message = "Choose a built-in sound from the library."; return false; }
     if (!EnsureRetailContent(*player, error)) return false;
-    const auto &asset = player->soundAssets[index];
-    cue.source = player->retailSource; cue.sound = {0x4d534e44, static_cast<std::uint32_t>(asset.chunk)};
-    cue.style = asset.style; return true;
+    cue.source = player->retailSource; cue.sound = {0x4d534e44, static_cast<std::uint32_t>(asset->chunk)};
+    cue.style = asset->style; return true;
 }
 bool SoundChange(MarcusPlayer *player, int index, const char *path, const MarcusSoundOptions &options, bool remove, MM::Error &error,
     const MarcusSoundAsset *asset = nullptr)
@@ -2906,20 +2905,24 @@ extern "C"
     }
     int marcus_sound_asset_count(MarcusPlayer *player)
     {
-        return Guard(player, [&](MM::Error &) { ReadSoundAssets(player); return true; }) ? static_cast<int>(player->soundAssets.size()) : -1;
+        return Guard(player, [&](MM::Error &) {
+            MarcusLoadSoundCatalog(player->soundAssets, player->timingContent.c_str());
+            return true;
+        }) ? player->soundAssets.count : -1;
     }
     int marcus_sound_asset(const MarcusPlayer *player, int index, MarcusSoundAsset *out)
     {
-        if (!player || !out || index < 0 || std::size_t(index) >= player->soundAssets.size()) return 0;
-        *out = player->soundAssets[index]; return 1;
+        const auto asset = player ? marcus_sound_catalog_asset(&player->soundAssets, index) : nullptr;
+        if (!out || !asset) return 0;
+        *out = *asset; return 1;
     }
     int marcus_add_sound_asset(MarcusPlayer *player, int index, const MarcusSoundOptions *options)
     {
         int result = -1;
         Guard(player, [&](MM::Error &error) {
-            ReadSoundAssets(player);
-            if (!options || index < 0 || std::size_t(index) >= player->soundAssets.size()) return false;
-            if (!SoundChange(player, -1, nullptr, *options, false, error, &player->soundAssets[index])) return false;
+            MarcusLoadSoundCatalog(player->soundAssets, player->timingContent.c_str());
+            const auto asset = marcus_sound_catalog_asset(&player->soundAssets, index);
+            if (!options || !asset || !SoundChange(player, -1, nullptr, *options, false, error, asset)) return false;
             result = marcus_sound_sheet_last(&player->soundSheet, options->frame, options->style);
             return true;
         });

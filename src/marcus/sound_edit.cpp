@@ -1,15 +1,11 @@
 #include "sound_edit.h"
 #include "scene_edit.h"
 #include "archive_file.h"
-#include <SDL3/SDL.h>
 #include "soc_core.h"
 #include "sdl_audio.h"
-#include "mm/native_sound.h"
+#include "platform_text.h"
 #include "private_archive_host.h"
-#include <algorithm>
-#include <cstring>
 #include <stdexcept>
-#include <vector>
 #undef size
 ASSERTNAME
 namespace
@@ -42,26 +38,15 @@ struct AudioInput
     }
 };
 }
-std::vector<MarcusSoundAsset> MarcusReadSoundAssets(const std::filesystem::path &path)
+void MarcusLoadSoundCatalog(MarcusSoundCatalog &catalog, const char *directory)
 {
-    MM::Archive archive; MM::Error error;
-    Require(archive.OpenForInspection(path.u8string(), error),
+    if (marcus_sound_catalog_matches(&catalog, directory)) return;
+    const auto path = (std::filesystem::u8path(directory) / "snds.3cn").u8string();
+    const auto profile = KauaiPrivateArchiveProfile();
+    const auto status = marcus_sound_catalog_load(&catalog, directory, path.c_str(), &profile, KauaiText::Services());
+    if (status == MARCUS_SOUND_CATALOG_MEMORY) throw std::bad_alloc();
+    Require(status == MARCUS_SOUND_CATALOG_OK,
             "Cannot open the built-in sound library (snds.3cn). Check the content directory.");
-    std::vector<MarcusSoundAsset> result;
-    for (const auto &chunk : archive.Chunks())
-    {
-        if (chunk.id.type != kctgMsnd) continue;
-        std::int32_t style;
-        if (!MM::ReadSoundCatalogStyle(archive, chunk.id.number, style))
-            continue;
-        MarcusSoundAsset asset = {}; asset.chunk = chunk.id.number; asset.style = style;
-        const auto name = chunk.name.empty() ? "Sound " + std::to_string(asset.chunk) : chunk.name;
-        std::strncpy(asset.name, name.c_str(), sizeof(asset.name) - 1); result.push_back(asset);
-    }
-    std::stable_sort(result.begin(), result.end(), [](const auto &a, const auto &b) {
-        return a.style != b.style ? a.style < b.style : SDL_strcasecmp(a.name, b.name) < 0;
-    });
-    return result;
 }
 std::shared_ptr<MarcusMovieFile> MarcusPrepareSound(const char *path, int style)
 {

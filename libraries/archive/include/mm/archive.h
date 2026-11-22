@@ -163,7 +163,6 @@ struct StringTablePage
 class Archive
 {
     friend class Preview;
-    friend bool ReadSoundCatalogStyle(const Archive &, std::uint32_t, std::int32_t &);
     bool CanPreview() const;
     MMResourceCache *NewResourceCache(std::int32_t budget) const;
     bool OpenResources(const std::string &utf8Path, Error &);

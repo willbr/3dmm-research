@@ -1508,8 +1508,11 @@ and live mixer use the same rule for stopping loops at scene cuts. Device
 access, decoded clip caching and SoundFont synthesis use host services.
 Marcus resolves user-sound links and reads the selected audio payload through
 the C89 movie graph. Studio playback, Marcus preview, and the built-in sound
-catalog share the MSND header decoder. Studio's cached sounds resolve the live
-key and child through the C89 cache, including read-only wire indices.
+catalog share the MSND header decoder. The catalog reads eligible sounds
+directly from the immutable C89 archive index. C89 decodes their names and
+owns the sorted rows and content-directory cache. Studio's cached sounds
+resolve the live key and child through the C89 cache, including read-only wire
+indices.
 Invalidation uses the same graph and requires a mutable cache binding. The
 hosts supply content sources, names and native output objects.
 Marcus validates sound edits against the cue's authored scene and stages

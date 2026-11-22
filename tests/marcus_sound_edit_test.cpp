@@ -150,9 +150,17 @@ int main(int argc, char **argv)
             const int count = marcus_sound_asset_count(p.get());
             check(count > 0, "List original sound library");
             int first[3] = {-1, -1, -1}, counts[3] = {};
+            MarcusSoundAsset previous = {};
             for (int i = 0; i < count; ++i) {
                 MarcusSoundAsset asset = {}; check(marcus_sound_asset(p.get(), i, &asset) && asset.name[0], "Read named original sound");
                 check(asset.style >= MARCUS_SOUND_EFFECT && asset.style <= MARCUS_SOUND_MUSIC, "Valid library category");
+                if (i && previous.style == asset.style) {
+                    const int order = SDL_strcasecmp(previous.name, asset.name);
+                    check(order < 0 || (order == 0 && previous.chunk < asset.chunk), "Stable name order within a sound category");
+                } else if (i) {
+                    check(previous.style < asset.style, "Sound categories appear in native order");
+                }
+                previous = asset;
                 const int style = asset.style - MARCUS_SOUND_EFFECT; ++counts[style];
                 if (first[style] < 0) first[style] = i;
             }

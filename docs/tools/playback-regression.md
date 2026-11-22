@@ -22858,3 +22858,23 @@ port. Both ports matched the retained retail and V3DMM frame order in seek
 and playback from `20261122T082301Z-c465fa98`. SDL matched the 12 ordered sound
 requests. The captures used SDL dummy audio. Evidence is under
 `tmp/c89-sound-edit-core` and `tmp/c89-aqcap`.
+
+## C89 Marcus built-in sound catalog (22 November 2026)
+
+Marcus reads `snds.3cn` through the immutable C89 archive reader. C89 owns
+the eligible rows and name order, and the browser poster uses the same
+read-only file binding.
+
+The public sound API returned the same 711 ordered entries as `d641da59`,
+including 384 effects, 28 speech assets, and 299 music assets. Four browser
+responses matched byte for byte, including the 8-by-6 saved poster. The four
+native sound-edit saves and the headless startup image also matched.
+All 226 selected native tests and the SDL archive API test passed. The x86
+Marcus worker built.
+
+Actor-audio candidate `20261122T205441Z-437cb4b4` matched
+`20261122T204507Z-4f52c175` on all 60 seek canvases and recorded states per
+port. Both ports reproduced the 60-frame seek and playback order from
+retail and V3DMM in `20261122T082301Z-c465fa98`. SDL reproduced the 12 ordered
+sound requests. The captures used SDL dummy audio. Evidence is under
+`tmp/c89-sound-catalog` and `tmp/c89-aqcap`.

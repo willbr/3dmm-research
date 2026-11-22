@@ -1,28 +1,9 @@
 #include "browser_poster.h"
-#include "mm/archive_reader.h"
+#include "archive_file.h"
 #include "mm/movie_title.h"
 #include "mm/scene_thumbnail.h"
 #include <SDL3/SDL.h>
 #include <string.h>
-
-typedef struct PosterArchive
-{
-    SDL_IOStream *file;
-    MMArchiveReader *reader;
-} PosterArchive;
-
-static int read_file(void *p, MMU32 offset, void *bytes, size_t count)
-{
-    SDL_IOStream *file = p;
-    return SDL_SeekIO(file, offset, SDL_IO_SEEK_SET) == offset && SDL_ReadIO(file, bytes, count) == count;
-}
-
-static void close_archive(PosterArchive *archive)
-{
-    mm_archive_reader_close(archive->reader);
-    if (archive->file)
-        SDL_CloseIO(archive->file);
-}
 
 static int text_encoding(int big_endian)
 {
@@ -34,30 +15,18 @@ static int text_encoding(int big_endian)
 #endif
 }
 
-static int open_archive(PosterArchive *archive, const char *path)
+static int open_archive(MarcusArchiveInput *archive, const char *path)
 {
     const unsigned short order = 1;
     MMArchiveReaderOptions options = {0};
-    MMChunkPolicy policy = {0};
-    MMReadStream stream;
-    Sint64 size;
-    if (!path || !*path || !(archive->file = SDL_IOFromFile(path, "rb")))
-        return MM_ARCHIVE_INVALID_PAYLOAD;
-    size = SDL_GetIOSize(archive->file);
-    if (size < 0 || size > 0x7fffffffL)
-        return MM_ARCHIVE_INVALID_PAYLOAD;
-    stream.context = archive->file;
-    stream.length = (MMU32)size;
-    stream.read_at = read_file;
-    policy.native_big_endian = *(const unsigned char *)&order == 0;
-    policy.max_name_bytes = MM_CHUNK_NAME_WIRE_BYTES;
+    int expanded = 0;
 #ifdef CHUNK_BIG_INDEX
-    policy.expanded_runtime = 1;
+    expanded = 1;
 #endif
     options.max_packed_bytes = 16UL * 1024UL * 1024UL;
     options.max_string_bytes = 1024UL * 1024UL;
-    options.encoding = text_encoding(policy.native_big_endian);
-    return mm_archive_reader_open_stream(&stream, &policy, &options, &archive->reader);
+    options.encoding = text_encoding(*(const unsigned char *)&order == 0);
+    return marcus_archive_input_open(archive, path, &options, expanded);
 }
 
 static MMI32 convert_title(void *p, const void *input, MMU32 bytes, int encoding, void *output, MMU32 capacity)
@@ -141,7 +110,7 @@ void marcus_browser_poster(const char *movie, const char *resources, const MMTex
                           unsigned char *(*image)(void *, MMU32, MMU32))
 {
     enum { frames_per_second = 6 };
-    PosterArchive document = {0}, colours = {0};
+    MarcusArchiveInput document = {0}, colours = {0};
     MMChunkAccess chunks;
     MMChunkEntry root, scene;
     MMChunkChild child, first_scene = {0};
@@ -209,6 +178,6 @@ void marcus_browser_poster(const char *movie, const char *resources, const MMTex
         mm_scene_thumbnail_poster(thumbnail, &preview);
     }
 done:
-    close_archive(&colours);
-    close_archive(&document);
+    marcus_archive_input_close(&colours);
+    marcus_archive_input_close(&document);
 }

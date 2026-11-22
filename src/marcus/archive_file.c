@@ -87,23 +87,63 @@ static int write_block(void *context, void *file, MMU32 offset, const void *data
     return write_at(file, offset, data, bytes);
 }
 
-MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivateArchiveProfile *profile)
+static ArchiveFile *open_file(const char *path, const char *mode)
 {
-    static const MMChunkOwnerFileIO owner_io = {NULL, create_temp, read_stream, size, extend, NULL,
-                                                write_at, release, NULL, NULL, NULL, NULL, NULL};
-    static const MMBlockFileServices blocks = {NULL, retain, release_block, create_temp, read_block, write_block};
-    const char *open_mode = mode == MM_PRIVATE_ARCHIVE_READ ? "rb" : mode == MM_PRIVATE_ARCHIVE_EDIT ? "r+b" : "w+b";
     ArchiveFile *file = SDL_malloc(sizeof(*file));
     if (!file)
         return NULL;
-    file->stream = SDL_IOFromFile(path, open_mode);
+    file->stream = SDL_IOFromFile(path, mode);
     if (!file->stream)
     {
         SDL_free(file);
         return NULL;
     }
     file->references = 1;
-    return mm_private_archive_open(file, mode, &owner_io, &blocks, profile);
+    return file;
+}
+
+MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivateArchiveProfile *profile)
+{
+    static const MMChunkOwnerFileIO owner_io = {NULL, create_temp, read_stream, size, extend, NULL,
+                                                write_at, release, NULL, NULL, NULL, NULL, NULL};
+    static const MMBlockFileServices blocks = {NULL, retain, release_block, create_temp, read_block, write_block};
+    const char *open_mode = mode == MM_PRIVATE_ARCHIVE_READ ? "rb" : mode == MM_PRIVATE_ARCHIVE_EDIT ? "r+b" : "w+b";
+    ArchiveFile *file = open_file(path, open_mode);
+    return file ? mm_private_archive_open(file, mode, &owner_io, &blocks, profile) : NULL;
+}
+
+int marcus_archive_input_open(MarcusArchiveInput *input, const char *path, const MMArchiveReaderOptions *options,
+                               int expanded)
+{
+    const unsigned short order = 1;
+    MMChunkPolicy policy = {0};
+    MarcusArchiveInput next = {0};
+    MMReadStream stream;
+    int status;
+    if (!path || !*path || !(next.file = open_file(path, "rb")))
+        return MM_ARCHIVE_INVALID_PAYLOAD;
+    stream = read_stream(next.file);
+    policy.expanded_runtime = expanded;
+    policy.native_big_endian = *(const unsigned char *)&order == 0;
+    policy.max_name_bytes = MM_CHUNK_NAME_WIRE_BYTES;
+    status = mm_archive_reader_open_stream(&stream, &policy, options, &next.reader);
+    if (status != MM_ARCHIVE_READ_OK)
+    {
+        marcus_archive_input_close(&next);
+        return status;
+    }
+    marcus_archive_input_close(input);
+    *input = next;
+    return MM_ARCHIVE_READ_OK;
+}
+
+void marcus_archive_input_close(MarcusArchiveInput *input)
+{
+    mm_archive_reader_close(input->reader);
+    if (input->file)
+        release(input->file);
+    input->file = NULL;
+    input->reader = NULL;
 }
 
 int marcus_archive_install_events(MMPrivateArchive *candidate, MMU32 actor, const char *track,

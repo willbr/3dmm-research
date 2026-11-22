@@ -1,11 +1,24 @@
 #ifndef MARCUS_ARCHIVE_FILE_H
 #define MARCUS_ARCHIVE_FILE_H
+#include "mm/archive_reader.h"
 #include "mm/private_archive.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivateArchiveProfile *);
+
+typedef struct MarcusArchiveInput
+{
+    void *file;
+    MMArchiveReader *reader;
+} MarcusArchiveInput;
+
+/* Start with a zeroed input. Failure preserves the current input. */
+int marcus_archive_input_open(MarcusArchiveInput *, const char *path, const MMArchiveReaderOptions *,
+                               int expanded);
+void marcus_archive_input_close(MarcusArchiveInput *);
+
 int marcus_archive_install_events(MMPrivateArchive *, MMU32 actor, const char *track,
                                   const MMPrivateArchiveProfile *);
 
