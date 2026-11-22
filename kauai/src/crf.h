@@ -292,11 +292,6 @@ MMResourceCache *NewTypedSiblingCache(const MMResourceCache *, MMI32 budget);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, PString);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, const MMStringValue &);
 MMChunkEndpoint ResourceCopySource(MMResourceCache *, MMResourceChunkCopy &);
-MMChunkEndpoint ResourceCopyTarget(MMResourceCache *, MMChunkFileCopy &);
-MMChunkTitleIO ResourceTitleIO();
-MMChunkOwnerRead *ResourceArchiveReader(const MMResourceCache *);
-MMArchiveWriter ResourceArchiveWriter(const MMResourceCache *);
-void ReopenResourceArchive(MMResourceCache *);
 
 } // end of namespace Chunky
 

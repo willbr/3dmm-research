@@ -378,7 +378,7 @@ bool TagManager::FMergeGstSource(PStringTable_GST pgst, short bo, short osk)
 
 bool TagManager::FMergeMovieSources(MMResourceCache *resources, ChunkNumber movie)
 {
-    const auto graph = mm_movie_owner_graph(ResourceArchiveReader(resources));
+    const auto graph = mm_movie_cache_graph(resources);
     return mm_source_names_merge_movie(&_names, &graph, movie, EngineMovieSource::ConvertWidth, nullptr,
                                        [](void *, MMI32) { Bug("Invalid sid"); }) != 0;
 }
@@ -707,7 +707,7 @@ const MMTagServices &TagManager::CoreServices()
             return ResourceCopySource(static_cast<MMResourceCache *>(cache), *binding);
         };
         s.bind_target = [](void *cache, MMChunkFileCopy *binding) {
-            return ResourceCopyTarget(static_cast<MMResourceCache *>(cache), *binding);
+            return mm_resource_cache_live_copy_target(static_cast<MMResourceCache *>(cache), binding);
         };
         s.missing_chunk = [](void *) { Bug("chunk not found"); };
         return s;
@@ -802,21 +802,9 @@ void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
 {
     AssertThis(0);
     Assert(sid >= 0, "Invalid sid");
-    const MMTagCacheServices services = {
-        this,
-        [](void *c) -> MMU32 { return static_cast<PTagManager>(c)->_sources.count; },
-        [](void *c, MMU32 i, MMI32 *sid, MMResourceManager **manager) {
-            MMSourceRecord source;
-            AssertDo(mm_source_at(&static_cast<PTagManager>(c)->_sources, i, &source) == MM_STORAGE_OK,
-                     "invalid source index");
-            *sid = source.sid;
-            *manager = static_cast<MMResourceManager *>(source.manager);
-        },
-        [](void *c, MMI32 sid) -> MMResourceManager * {
-            return static_cast<PTagManager>(c)->_GetSourceManager(sid);
-        },
-        ReopenResourceArchive};
-    mm_tag_clear_cache(sid, flags, &services);
+    mm_tag_clear_cache(&_sources, sid, flags, this, [](void *c, MMI32 source) {
+        return static_cast<PTagManager>(c)->_GetSourceManager(source);
+    });
 }
 bool TagManager::FOpenTag(PTAG tag, MMResourceCache *destination, PChunkyFile source)
 {

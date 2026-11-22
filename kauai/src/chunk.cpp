@@ -1859,15 +1859,8 @@ MMChunkTitleIO KauaiChunkTitleIO()
 MMChunkTitleIO KauaiChunkOwnerTitleIO()
 {
     auto titles = KauaiChunkTitleIO();
-    titles.read = [](void *context, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written) {
-        auto reader = static_cast<MMChunkOwnerRead *>(context);
-        return mm_chunk_owner_read_name(reader->storage, type, number, reader->max_name_bytes, wire, capacity, written);
-    };
-    titles.write = [](void *context, MMU32 type, MMU32 number, const void *wire, MMU32 bytes) -> int {
-        auto reader = static_cast<MMChunkOwnerRead *>(context);
-        return mm_chunk_owner_write_name(reader->storage, type, number, reader->max_name_bytes,
-                                         wire, bytes) == MM_CHUNK_OK;
-    };
+    titles.read = mm_chunk_owner_title_read;
+    titles.write = mm_chunk_owner_title_write;
     return titles;
 }
 

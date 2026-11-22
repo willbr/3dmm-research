@@ -10,8 +10,8 @@ struct MovieArchiveFixture
     MMArchiveWriter writer;
 
     explicit MovieArchiveFixture(MMResourceCache *cache)
-        : reader(cache ? ResourceArchiveReader(cache) : nullptr),
-          writer(cache ? ResourceArchiveWriter(cache) : MMArchiveWriter{})
+        : reader(cache ? mm_resource_cache_reader(cache) : nullptr),
+          writer(cache ? mm_resource_cache_writer(cache) : MMArchiveWriter{})
     {
     }
 

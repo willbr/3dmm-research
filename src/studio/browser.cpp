@@ -2137,7 +2137,7 @@ bool BrowserMusic::FCmdFile(PCommand pcmd)
         // Import <user> sounds from a movie
         // Verify version numbers before accepting this file
         cache = OpenWorkingResourceCache(&fni, false);
-        if (!cache || !MovieData::FVerifyVersion(ResourceArchiveReader(cache)))
+        if (!cache || !MovieData::FVerifyVersion(mm_resource_cache_reader(cache)))
             goto LEnd;
 
         const auto chunks = mm_resource_cache_chunks(cache);

@@ -1799,6 +1799,9 @@ scene and actor loads borrow the live graph through the C89 cache. Studio's
 in-place saves, same-name replacement and Save As use the same C89 archive
 owner as Marcus working-file saves. Native services provide title conversion,
 object rendering and filesystem operations.
+Movie title I/O binds the live resource cache in C89. Direct archive titles
+use the same chunk-owner callbacks as private archives. Tag cache clearing
+walks the C source catalogue and reopens live resource caches directly.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

@@ -114,12 +114,6 @@ MMArchiveWriter mm_private_archive_writer(MMPrivateArchive *archive)
                                  archive->profile.trash_unused, archive->profile.encoding, NULL);
 }
 
-static int read_title(void *context, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
-{
-    const MMChunkOwnerRead *reader = context;
-    return mm_chunk_owner_read_name(reader->storage, type, number, reader->max_name_bytes, wire, capacity, written);
-}
-
 static MMChunkAccess cache_chunks(void *context)
 {
     return mm_chunk_owner_access(mm_private_archive_reader(context)->storage);
@@ -139,7 +133,7 @@ static int cache_locate(void *context, MMU32 type, MMU32 number, MMBlockFile *fi
 
 static int cache_name(void *context, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
 {
-    return read_title(mm_private_archive_reader(context), type, number, wire, capacity, written);
+    return mm_chunk_owner_title_read(mm_private_archive_reader(context), type, number, wire, capacity, written);
 }
 
 static void cache_copy_source(void *context, MMChunkFileCopy *binding, MMChunkEndpoint *out)
@@ -174,13 +168,6 @@ void mm_private_archive_cache_services(MMPrivateArchive *archive, const MMHandle
     services->live_copy_target = cache_copy_target;
     services->live_reader = cache_reader;
     services->live_writer = cache_writer;
-}
-
-static int write_title(void *context, MMU32 type, MMU32 number, const void *wire, MMU32 bytes)
-{
-    const MMChunkOwnerRead *reader = context;
-    return mm_chunk_owner_write_name(reader->storage, type, number, reader->max_name_bytes,
-                                     wire, bytes) == MM_CHUNK_OK;
 }
 
 static MMI32 convert_title(void *context, const void *bytes, MMU32 count, int encoding, void *out, MMU32 capacity)
@@ -268,8 +255,8 @@ static int bind_editor(MMPrivateArchive *archive)
     archive->titles.encoding = archive->profile.encoding;
     archive->titles.swapped_unicode_encoding = archive->profile.swapped_unicode_encoding;
     archive->titles.convert = convert_title;
-    archive->titles.read = read_title;
-    archive->titles.write = write_title;
+    archive->titles.read = mm_chunk_owner_title_read;
+    archive->titles.write = mm_chunk_owner_title_write;
     archive->editor_ready = mm_movie_archive_file_init(&archive->editor, reader, &writer, &archive->titles);
     return archive->editor_ready;
 }

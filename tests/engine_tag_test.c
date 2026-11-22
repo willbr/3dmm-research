@@ -1,4 +1,5 @@
 #include "mm/tag.h"
+#include "mm/source.h"
 #include "tag_copy_fixture.h"
 #include <stdio.h>
 #include <stdlib.h>
@@ -439,17 +440,6 @@ static void lists(void)
     h.alloc_fail = 0;
     CHECK(mm_tag_list_dispose(&list) == MM_STORAGE_OK && !h.allocations);
 }
-static MMU32 sources(void *p)
-{
-    (void)p;
-    return 3;
-}
-static void source_at(void *p, MMU32 i, MMI32 *sid, MMResourceManager **manager)
-{
-    Host *h = (Host *)p;
-    *sid = (MMI32)i + 1;
-    *manager = i == 1 ? &h->manager : NULL;
-}
 static MMResourceManager *resolve(void *p, MMI32 sid)
 {
     Host *h = (Host *)p;
@@ -457,34 +447,37 @@ static MMResourceManager *resolve(void *p, MMI32 sid)
     event(h, 'S');
     return h->fail ? NULL : &h->manager;
 }
-static void reopen(MMResourceCache *cache)
+static void reopen(void *file)
 {
-    Cache *c = (Cache *)cache->owner;
+    Cache *c = file;
     event(c->host, (char)('0' + c->id));
 }
 static void clear_cases(void)
 {
     Host h;
     MMTagServices unused = init(&h);
-    MMTagCacheServices s;
+    MMSourceCatalogue sources = {0};
+    MMSourceRecord records[] = {{1, 0, NULL, NULL}, {2, 0, NULL, NULL}, {3, 0, NULL, NULL}};
     (void)unused;
     h.manager.count = 3;
-    s.context = &h;
-    s.sources = sources;
-    s.source_at = source_at;
-    s.resolve = resolve;
-    s.reopen = reopen;
-    mm_tag_clear_cache(2, 3, &s);
+    records[1].manager = &h.manager;
+    sources.storage.buffers[0].data = (unsigned char *)records;
+    sources.storage.buffers[0].capacity = sizeof(records);
+    sources.count = sizeof(records) / sizeof(records[0]);
+    h.caches[0].core.services.live_reopen = reopen;
+    h.caches[1].core.services.live_reopen = reopen;
+    h.caches[2].core.services.live_reopen = reopen;
+    mm_tag_clear_cache(&sources, 2, 3, &h, resolve);
     CHECK(!strcmp(h.log, "S0T1") && h.caches[0].core.budget == 128);
     reset(&h);
-    mm_tag_clear_cache(0, 2, &s);
+    mm_tag_clear_cache(&sources, 0, 2, &h, resolve);
     CHECK(!strcmp(h.log, "T") && h.caches[0].core.budget == 128);
     reset(&h);
     h.fail = 1;
-    mm_tag_clear_cache(2, 1, &s);
+    mm_tag_clear_cache(&sources, 2, 1, &h, resolve);
     CHECK(!strcmp(h.log, "S"));
     reset(&h);
-    mm_tag_clear_cache(3, 3, &s);
+    mm_tag_clear_cache(&sources, 3, 3, &h, resolve);
     CHECK(!h.used);
 }
 int main(void)

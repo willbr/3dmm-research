@@ -126,7 +126,7 @@ struct Movie::SaveHost
 
 static MMChunkOwnerRead *MovieArchiveReader(void *resources)
 {
-    return ResourceArchiveReader(static_cast<MMResourceCache *>(resources));
+    return mm_resource_cache_reader(static_cast<MMResourceCache *>(resources));
 }
 
 static PFileObject MovieArchiveFile(void *resources)
@@ -185,7 +185,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.persistent = [](void *p) {
         AssertDo(KauaiSetChunkOwnerOptions(MovieArchiveReader(p)->storage, fcflAddToExtra, fcflAddToExtra | fcflTemp), 0);
     };
-    s.archive = [](void *p) { return ResourceArchiveWriter(static_cast<MMResourceCache *>(p)); };
+    s.archive = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)); };
     s.find_file = [](void *, void *path) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(path)); };
     s.retain_saved = [](void *p) { static_cast<PFileObject>(p)->AddRef(); };
     s.release_saved = [](void *p) { auto file = static_cast<PFileObject>(p); ReleasePpo(&file); };
@@ -213,7 +213,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
     s.tags = &TagManager::CoreServices();
     s.rollcall_changed = [](void *p) { static_cast<SaveHost *>(p)->movie->Pmcc()->UpdateRollCall(); };
     s.source_names = vptagm ? vptagm->CoreSourceNames() : nullptr;
-    s.titles = ResourceTitleIO();
+    s.titles = mm_resource_cache_title_io(KauaiChunkOwnerTitleIO());
     s.has_error = [](void *p) -> int { return KauaiChunkOwnerError(MovieArchiveReader(p)->storage->owner) != elNil; };
     s.reset_error = [](void *p) { KauaiResetChunkOwnerError(MovieArchiveReader(p)->storage->owner, elNil); };
     s.clear_errors = [](void *) { vpers->Clear(); };
@@ -231,7 +231,7 @@ MMMovieSaveServices Movie::_SaveServices(SaveHost *host)
         Filename path;
         return vptagm && vptagm->SourceArchive(source, kftgContent, 0, &path);
     };
-    s.tag_graph = [](void *p) { return mm_movie_owner_graph(MovieArchiveReader(p)); };
+    s.tag_graph = [](void *p) { return mm_movie_cache_graph(static_cast<MMResourceCache *>(p)); };
     s.actor_tag_issue = [](void *, int issue) {
         if (issue == MM_ACTOR_TAG_TEMPLATE_LINK)
             Bug("where's the child Template?");
@@ -869,7 +869,7 @@ MMMovieSceneServices Movie::_SceneServices()
     s.sound_frame = [](void *p) { static_cast<PScene>(p)->UpdateSndFrame(); };
     s.scene_change = [](void *p) { static_cast<PMovie>(p)->Pmcc()->SceneChange(); };
     s.invalidate = [](void *p) { static_cast<PMovie>(p)->InvalViewsAndScb(); };
-    s.edit = [](void *p) { return ResourceArchiveWriter(static_cast<MMResourceCache *>(p)).edit; };
+    s.edit = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)).edit; };
     s.write = [](void *p, void *scene, MMU32 *number) -> int {
         return static_cast<PScene>(scene)->FWrite(static_cast<PMovie>(p)->_data.Resources(), number);
     };
@@ -960,7 +960,7 @@ MMMovieSoundServices Movie::SoundServices()
         auto movie=static_cast<PMovie>(p); state->cache=movie->_data.Resources(); state->movie=movie->_data.movieNumber; state->scene=movie->_scenes.index;
     };
     s.tags = &TagManager::CoreServices();
-    s.edit = [](void *p) { return ResourceArchiveWriter(static_cast<MMResourceCache *>(p)).edit; };
+    s.edit = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)).edit; };
     s.ensure_autosave=[](void *p) { return int(static_cast<PMovie>(p)->FEnsureAutosave()); };
     s.use_temp=[](void *p) { return int(static_cast<PMovie>(p)->_FUseTempFile()); };
     s.invalidate_number = [](MMU32 *number) { (void)number; TrashVar(number); };
@@ -969,7 +969,7 @@ MMMovieSoundServices Movie::SoundServices()
     };
     s.is_midi=[](void *p) { Filename filename; static_cast<PFileObject>(p)->GetFni(&filename); return int(filename.Ftg()==kftgMidi); };
     s.copy_midi = [](void *p, void *destination, MMU32 *out, void *name) -> int {
-        const auto writer = ResourceArchiveWriter(static_cast<MMResourceCache *>(destination));
+        const auto writer = mm_resource_cache_writer(static_cast<MMResourceCache *>(destination));
         ChunkNumber value;
         std::memcpy(&value, out, sizeof(value));
         bool ok = EngineSound::CopyMidi(static_cast<PFileObject>(p), writer, &value, static_cast<PString>(name));
@@ -977,7 +977,7 @@ MMMovieSoundServices Movie::SoundServices()
         return ok;
     };
     s.copy_wave = [](void *p, void *destination, MMI32 style, MMU32 *out, void *name) -> int {
-        const auto writer = ResourceArchiveWriter(static_cast<MMResourceCache *>(destination));
+        const auto writer = mm_resource_cache_writer(static_cast<MMResourceCache *>(destination));
         ChunkNumber value;
         std::memcpy(&value, out, sizeof(value));
         bool ok = EngineSound::CopyWave(static_cast<PFileObject>(p), writer, style, &value, static_cast<PString>(name));
@@ -1009,7 +1009,7 @@ bool Movie::_FAdoptMsndInMvie(MMResourceCache *resources, ChunkNumber cnoScen)
     AssertThis(0);
     AssertVarMem(resources);
     const auto services = SoundServices();
-    const auto edit = ResourceArchiveWriter(resources).edit;
+    const auto edit = mm_resource_cache_writer(resources).edit;
     return mm_movie_sound_adopt(&edit, cnoScen, &services) != 0;
 }
 
@@ -1188,7 +1188,7 @@ MMMovieContentServices Movie::_ContentServices()
     s.make_valid = [](void *p) -> int { return static_cast<PMovie>(p)->_FMakeCrfValid(); };
     s.use_temp = [](void *p) -> int { return static_cast<PMovie>(p)->_FUseTempFile(); };
     s.write_material = [](void *p, void *resources, MMU32 *out) -> int {
-        const auto writer = ResourceArchiveWriter(static_cast<MMResourceCache *>(resources));
+        const auto writer = mm_resource_cache_writer(static_cast<MMResourceCache *>(resources));
         ChunkNumber number;
         bool ok = EngineMaterial::Write(static_cast<PMaterial_MTRL>(p), writer, kctgMtrl, &number);
         if (ok) *out = number;
@@ -1199,7 +1199,7 @@ MMMovieContentServices Movie::_ContentServices()
                                   const_cast<PTAG>(static_cast<const TAG *>(font)));
     };
     s.write_text = [](void *p, void *resources, MMU32 *out) -> int {
-        const auto writer = ResourceArchiveWriter(static_cast<MMResourceCache *>(resources));
+        const auto writer = mm_resource_cache_writer(static_cast<MMResourceCache *>(resources));
         ChunkNumber number; bool ok = EngineText::FWrite(static_cast<PThreeDText>(p), writer, kctgTmpl, &number);
         if (ok) *out = number;
         return ok;
@@ -2541,7 +2541,7 @@ MMMovieComposeServices Movie::_ComposeServices()
     s.scenes = &_scenes;
     s.scene_control = _SceneServices();
     s.allocator = CollectionAllocator();
-    s.archive = [](void *p) { return ResourceArchiveWriter(static_cast<MMResourceCache *>(p)); };
+    s.archive = [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)); };
     s.archive_context = [](void *p) -> void * { return MovieArchiveReader(p); };
     s.titles = KauaiChunkOwnerTitleIO();
     s.rollcall = MovieData::_RollCallBinding();

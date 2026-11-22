@@ -1,6 +1,7 @@
 /* Tag policy converted from engine tagman.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/tag.h"
+#include "mm/source.h"
 #include "mm/chunk_copy.h"
 
 static MMResourceCache *resource_cache(void *cache)
@@ -217,20 +218,24 @@ int mm_tag_cache_file(const MMTag *tag, int children)
     (void)children;
     return 1;
 }
-void mm_tag_clear_cache(MMI32 sid, MMU32 flags, const MMTagCacheServices *s)
+void mm_tag_clear_cache(const MMSourceCatalogue *sources, MMI32 sid, MMU32 flags,
+                        void *context, MMResourceManager *(*resolve)(void *, MMI32))
 {
-    MMU32 i, j, count = s->sources(s->context), caches;
-    MMI32 source, budget;
+    MMU32 i, j, count = sources->count, caches;
+    MMSourceRecord source;
+    MMI32 budget;
     MMResourceManager *manager;
     MMResourceCache *cache;
     for (i = 0; i < count; ++i)
     {
-        s->source_at(s->context, i, &source, &manager);
-        if ((sid && sid != source) || !manager)
+        if (mm_source_at(sources, i, &source) != MM_STORAGE_OK)
+            return;
+        if ((sid && sid != source.sid) || !source.manager)
             continue;
+        manager = source.manager;
         if (flags & 1)
         {
-            manager = s->resolve(s->context, source);
+            manager = resolve(context, source.sid);
             if (!manager)
                 continue;
         }
@@ -238,8 +243,8 @@ void mm_tag_clear_cache(MMI32 sid, MMU32 flags, const MMTagCacheServices *s)
         for (j = 0; j < caches; ++j)
         {
             cache = mm_resource_manager_at(manager, j);
-            if ((flags & 1) && cache->file)
-                s->reopen(cache);
+            if (flags & 1)
+                mm_resource_cache_reopen(cache);
             if (flags & 2)
             {
                 budget = cache->budget;

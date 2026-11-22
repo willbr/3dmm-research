@@ -1786,10 +1786,10 @@ void TextBox::SetDirty(bool fDirty)
 PTBOX TextBox::PtboxRead(MMResourceCache *pcrf, ChunkNumber cno, PScene pscen)
 {
     AssertVarMem(pcrf); AssertNilOrPo(pscen, 0);
-    const auto reader = ResourceArchiveReader(pcrf);
+    const auto reader = mm_resource_cache_reader(pcrf);
     if (!reader)
         return nullptr;
-    MovieArchiveHost archive{reader, ResourceArchiveWriter(pcrf)};
+    MovieArchiveHost archive{reader, mm_resource_cache_writer(pcrf)};
     const auto editor = archive.Editor();
     PTBOX result = nullptr;
     TextBoxEditHost host;

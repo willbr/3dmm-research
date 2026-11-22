@@ -1,6 +1,6 @@
 #include "mm/chunk_owner.h"
 #include "mm/movie_session.h"
-#include "mm/private_archive.h"
+#include "mm/private_archive_cache.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -830,6 +830,9 @@ static void private_archive_cases(void)
     StorageHost host = {0};
     MMBlockFileServices blocks = {NULL, retain_block, release_block, create_extra, read_block, write_block};
     MMChunkContext registry = {0};
+    MMResourceCache cache = {0};
+    MMChunkTitleIO titles = {0};
+    MMMovieTitle title;
     const MMChunkOwnerFileIO io = storage_io(&host);
     MMPrivateArchive *archive, *alias;
     MMMovieArchiveEditor editor;
@@ -850,6 +853,13 @@ static void private_archive_cases(void)
     mm_private_archive_close(archive);
     CHECK(editor.add(editor.context, 1, 0, &number, NULL) && number == 0);
     CHECK(editor.put(editor.context, 1, number, "test", sizeof(value)));
+    cache.file = archive;
+    mm_private_archive_cache_services(archive, NULL, &cache.services);
+    titles.encoding = MM_TEXT_WINDOWS;
+    titles.swapped_unicode_encoding = MM_TEXT_UTF16_LE;
+    titles = mm_resource_cache_title_io(titles);
+    CHECK(mm_movie_title_init(&title, 1) && mm_movie_title_set(&title, "Title", 5));
+    CHECK(mm_chunk_title_write(&title, &cache, 1, number, &titles));
     graph.access(graph.context, &access);
     CHECK(access.count == 1 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK);
     CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
@@ -867,6 +877,10 @@ static void private_archive_cases(void)
     archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_WORKING, &io, &blocks,
                                                   &profile);
     CHECK(archive && mm_private_archive_reader(archive)->storage->owner->add_to_extra);
+    cache.file = archive;
+    mm_private_archive_cache_services(archive, NULL, &cache.services);
+    mm_chunk_title_read(&title, &cache, 1, number, &titles);
+    CHECK(title.count == 5 && !memcmp(mm_movie_title_text(&title), "Title", 5));
     editor = mm_private_archive_editor(archive);
     CHECK(editor.put(editor.context, 1, number, "edit", sizeof(value)));
     CHECK(mm_private_archive_reader(archive)->storage->owner->files.extra_file == &host.extra);
@@ -890,6 +904,10 @@ static void private_archive_cases(void)
     CHECK(access.count == 1 && mm_chunk_at(&access, 0, &entry) == MM_CHUNK_OK);
     CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
     CHECK(!memcmp(value, "test", sizeof(value)));
+    CHECK(mm_movie_title_set(&title, NULL, 0) && mm_chunk_title_write(&title, &cache, 1, number, &titles));
+    CHECK(mm_movie_title_set(&title, "Title", 5));
+    mm_chunk_title_read(&title, &cache, 1, number, &titles);
+    CHECK(!title.count);
     mm_private_archive_close(archive);
     CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
 }

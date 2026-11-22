@@ -1876,7 +1876,7 @@ static void TestMoviePersistence()
         Check(movie.FSave(&destination)); // Replacing the roll call retains graph children.
         record(movie);
         MovieData alias;
-        Check(alias.FLoad(&destination) && ResourceArchiveReader(alias.Resources()) == archive.reader);
+        Check(alias.FLoad(&destination) && mm_resource_cache_reader(alias.Resources()) == archive.reader);
     }
     {
         MovieData loaded;
@@ -1901,7 +1901,7 @@ static void TestMoviePersistence()
         Check(loaded.FSave(&destination)); // Save back to the currently open file.
         record(loaded);
         Check(loaded.FLoad(&destination, explicitRoot));
-        Check(ResourceArchiveReader(loaded.Resources()) == archive.reader);
+        Check(mm_resource_cache_reader(loaded.Resources()) == archive.reader);
         record(loaded);
         // A failed load leaves already-open state intact.
         const auto resources = loaded.Resources();
@@ -1923,12 +1923,12 @@ static void TestMoviePersistence()
         {
             MovieData movie, original, saved;
             Check(movie.FLoad(&destination));
-            const auto owner = ResourceArchiveReader(movie.Resources());
+            const auto owner = mm_resource_cache_reader(movie.Resources());
             String title(PszLit("Saved to a new path"));
             movie.SetTitle(&title);
             Check(movie.FSave(&copy));
-            Check(saved.FLoad(&copy) && ResourceArchiveReader(saved.Resources()) == owner);
-            Check(original.FLoad(&destination) && ResourceArchiveReader(original.Resources()) != owner);
+            Check(saved.FLoad(&copy) && mm_resource_cache_reader(saved.Resources()) == owner);
+            Check(original.FLoad(&destination) && mm_resource_cache_reader(original.Resources()) != owner);
             original.GetTitle(&title);
             Check(title.FEqualSz(PszLit("Saved after load")));
         }
@@ -4888,7 +4888,7 @@ static void TestEngineServices()
         auto liveResource = manager->PbacoFetch(&stored, GenericHQ::FReadGhq);
         Check(liveResource && !liveResource->Pcrf());
         const auto cache = liveResource->CoreCache();
-        const auto reader = ResourceArchiveReader(cache);
+        const auto reader = mm_resource_cache_reader(cache);
         Check(reader && reader->storage->owner->files.main_file == backing);
         Check(!alias || alias->ReadOwner() == reader);
         MMU32 position;
@@ -4897,7 +4897,7 @@ static void TestEngineServices()
         Check(mm_chunk_owner_cache(reader->storage, position, nullptr) == MM_CHUNK_OK);
         Check(reader->storage->owner->files.extra_file != nullptr);
         manager->ClearCache(42, ftagmFile);
-        Check((reader->storage->owner->files.extra_file != nullptr) == writable && ResourceArchiveReader(cache) == reader);
+        Check((reader->storage->owner->files.extra_file != nullptr) == writable && mm_resource_cache_reader(cache) == reader);
         ReleasePpo(&liveResource);
         ReleasePpo(&manager);
         ReleasePpo(&alias);

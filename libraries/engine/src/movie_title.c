@@ -1,7 +1,27 @@
 /* Movie title policy converted from engine movie.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/movie_title.h"
+#include "mm/chunk_owner.h"
+#include "mm/resource_cache.h"
 #include <string.h>
+
+static int read_live_title(void *cache, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written)
+{
+    return mm_chunk_owner_title_read(mm_resource_cache_reader(cache), type, number, wire, capacity, written);
+}
+
+static int write_live_title(void *cache, MMU32 type, MMU32 number, const void *wire, MMU32 bytes)
+{
+    return mm_chunk_owner_title_write(mm_resource_cache_reader(cache), type, number, wire, bytes);
+}
+
+MMChunkTitleIO mm_resource_cache_title_io(MMChunkTitleIO io)
+{
+    io.read = read_live_title;
+    io.write = write_live_title;
+    return io;
+}
+
 int mm_movie_title_init(MMMovieTitle *t, unsigned unit)
 {
     if (!t || (unit != 1 && unit != 2))

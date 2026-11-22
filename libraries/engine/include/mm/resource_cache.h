@@ -143,6 +143,8 @@ extern "C"
     /* Borrow the live archive. Stored indices have no live reader or writer. */
     struct MMChunkOwnerRead *mm_resource_cache_reader(const MMResourceCache *);
     struct MMArchiveWriter mm_resource_cache_writer(const MMResourceCache *);
+    /* Reopen the live source if it supports reload. Stored indices stay immutable. */
+    void mm_resource_cache_reopen(MMResourceCache *);
     /* Borrow the live copy services. Keep the scratch binding at a stable address. */
     struct MMChunkEndpoint mm_resource_cache_live_copy_source(const MMResourceCache *, struct MMChunkFileCopy *);
     struct MMChunkEndpoint mm_resource_cache_live_copy_target(const MMResourceCache *, struct MMChunkFileCopy *);

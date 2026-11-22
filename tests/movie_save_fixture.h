@@ -21,7 +21,7 @@ class MovieSaveProbe
         bool named = movie->FGetFni(&path);
         auto data = Data(movie);
         const auto resources = data->Resources();
-        const auto backing = resources ? ResourceArchiveReader(resources)->storage->owner->files.main_file : nullptr;
+        const auto backing = resources ? mm_resource_cache_reader(resources)->storage->owner->files.main_file : nullptr;
         LegacyLong row[] = {operation,
                             result,
                             movie->_save.autosaveDirty,

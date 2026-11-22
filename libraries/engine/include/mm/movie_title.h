@@ -27,6 +27,8 @@ extern "C"
         int (*write)(void *file, MMU32 type, MMU32 number, const void *wire, MMU32 bytes);
         void (*bad_string)(void *);
     } MMChunkTitleIO;
+    /* Preserve the text codec and bind name I/O to a live MMResourceCache. */
+    MMChunkTitleIO mm_resource_cache_title_io(MMChunkTitleIO);
     /* A missing stored name clears the title. Malformed bytes also clear it
      * and report the legacy string diagnostic. Empty titles remove the name. */
     void mm_movie_title_read_wire(MMMovieTitle *, const void *bytes, MMU32 size, const MMChunkTitleIO *);

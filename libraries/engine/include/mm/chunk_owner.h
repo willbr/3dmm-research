@@ -104,6 +104,9 @@ extern "C"
         MMU32 max_name_bytes;
     } MMChunkOwnerRead;
     MMChunkOwnerRead mm_chunk_owner_reader(MMChunkOwnerStorage *, const MMChunkPayloadServices *, MMU32 max_name_bytes);
+    /* MMChunkTitleIO callbacks for a borrowed MMChunkOwnerRead. */
+    int mm_chunk_owner_title_read(void *, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written);
+    int mm_chunk_owner_title_write(void *, MMU32 type, MMU32 number, const void *wire, MMU32 bytes);
     MMArchiveWriter mm_chunk_owner_writer(const MMChunkOwnerRead *, MMU32 max_references, int scan_all_references,
                                           MMU32 system, void (*invalidate_number)(MMU32 *));
 

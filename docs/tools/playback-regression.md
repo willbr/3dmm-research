@@ -20760,3 +20760,27 @@ the prior retail canvases and camera indices. The three runs reported in
 fresh V3DMM run matching all 60 retail camera-cut frames and camera indices.
 
 Evidence is under tmp/c89-archive-save-path.
+
+## C89 archive title and tag cache binding (22 November 2026)
+
+Studio's movie title I/O binds its live cache in C89. Live and private
+archives use the same name callbacks, and the session uses those callbacks
+when reading chunk names. Tag cache clearing reads the C source catalogue
+directly and reopens live sources through the cache. Native services supply
+the text codec, source resolution and physical reload. Studio and Kauai
+call the shared cache reader, writer and copy target directly.
+
+All 193 rebuilt C89 checks and strict C89 syntax passed. The chunk-owner
+fixture saves, reloads and removes a cached title, and the tag fixture
+checks source and cache selection during clearing. Native x64 Kauai and
+engine link checks passed. Native x64 and SDL movie save/load and
+scene-content passed. Four native snapshots matched their previous bytes.
+Studio reopened both the camera and caption saves. The caption archive
+matched byte for byte. The camera archive preserved its graph and payloads
+and differed in two TMPL index padding bytes.
+
+All three captures completed in 20261122T014655Z-7b87fef3. Retail matched
+all 60 camera-save and 11 caption-save reference canvases and camera
+indices. V3DMM matched all 60 retail camera-save canvases and indices.
+
+Evidence is under tmp/c89-cache-title.

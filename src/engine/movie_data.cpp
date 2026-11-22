@@ -67,13 +67,13 @@ MMMovieOwnerServices MovieData::_OwnerServices(void *context)
         [](void *p) { return mm_resource_cache_writer(static_cast<MMResourceCache *>(p)); },
         _RollCallBinding(),
         [](void *) { Bug("chunk or child link missing"); },
-        ResourceTitleIO(),
+        mm_resource_cache_title_io(KauaiChunkOwnerTitleIO()),
         [](void *c, void *p) -> int {
-            auto reader = ResourceArchiveReader(static_cast<MMResourceCache *>(p));
+            auto reader = mm_resource_cache_reader(static_cast<MMResourceCache *>(p));
             return KauaiSaveChunkOwner(reader->storage, kctgSoc, static_cast<NativeMovieHost *>(c)->filename);
         },
         [](void *p) {
-            auto reader = ResourceArchiveReader(static_cast<MMResourceCache *>(p));
+            auto reader = mm_resource_cache_reader(static_cast<MMResourceCache *>(p));
             static_cast<PFileObject>(reader->storage->owner->files.main_file)->SetTemp(fFalse);
         }};
 }

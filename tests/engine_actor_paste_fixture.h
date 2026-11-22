@@ -35,7 +35,7 @@ static bool TestActorPaste(PMovie parent)
         {
             String text; text.SetSzs(PszLit("Paste")); TAG font={1,nullptr,kctgTdf,0};
             auto tdt=EngineText::PtdtNew(&text,tdtsNormal,&font);
-            ok=tdt && EngineText::FWrite(tdt, ResourceArchiveWriter(source), kctgTmpl, &templateNumber); mm_template_owner_release(tdt);
+            ok=tdt && EngineText::FWrite(tdt, mm_resource_cache_writer(source), kctgTmpl, &templateNumber); mm_template_owner_release(tdt);
             if (ok) { textTemplate=static_cast<PTemplate>(mm_resource_cache_fetch_owned_chunk(
                 source, kctgTmpl, templateNumber, EngineTemplate::Read, mm_template_owner_services())); ok=textTemplate!=nullptr; }
         }

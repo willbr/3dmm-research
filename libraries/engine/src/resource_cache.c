@@ -556,6 +556,12 @@ MMArchiveWriter mm_resource_cache_writer(const MMResourceCache *c)
     return empty;
 }
 
+void mm_resource_cache_reopen(MMResourceCache *cache)
+{
+    if (cache && cache->file && !cache->wire_index && cache->services.live_reopen)
+        cache->services.live_reopen(cache->file);
+}
+
 MMChunkEndpoint mm_resource_cache_live_copy_source(const MMResourceCache *c, MMChunkFileCopy *binding)
 {
     MMChunkEndpoint source = {0};

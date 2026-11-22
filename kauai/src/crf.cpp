@@ -199,22 +199,6 @@ bool ReadResourceName(const MMResourceCache *cache, ChunkTagOrType type, ChunkNu
     return found;
 }
 
-MMChunkOwnerRead *ResourceArchiveReader(const MMResourceCache *cache)
-{
-    return mm_resource_cache_reader(cache);
-}
-
-MMArchiveWriter ResourceArchiveWriter(const MMResourceCache *cache)
-{
-    return mm_resource_cache_writer(cache);
-}
-
-void ReopenResourceArchive(MMResourceCache *cache)
-{
-    if (!cache->wire_index && cache->services.live_reopen)
-        cache->services.live_reopen(cache->file);
-}
-
 MMChunkEndpoint ResourceCopySource(MMResourceCache *cache, MMResourceChunkCopy &binding)
 {
     if (!cache->wire_index)
@@ -225,11 +209,6 @@ MMChunkEndpoint ResourceCopySource(MMResourceCache *cache, MMResourceChunkCopy &
     const auto titles = KauaiChunkTitleIO();
     return mm_stored_chunk_copy_endpoint(&binding.stored, cache, cache, KauaiCopyAllocator(),
                                           &titles, KauaiEncodeLegacyChunkName, sizeof(achar));
-}
-
-MMChunkEndpoint ResourceCopyTarget(MMResourceCache *cache, MMChunkFileCopy &binding)
-{
-    return mm_resource_cache_live_copy_target(cache, &binding);
 }
 
 namespace
@@ -252,7 +231,7 @@ MMResourceServices LegacyCacheServices()
     s.release_file = [](void *file) { static_cast<PChunkyFile>(file)->Release(); };
     s.live_name = [](void *file, MMU32 type, MMU32 number, void *out, MMU32 capacity, MMU32 *bytes) {
         const auto reader = static_cast<PChunkyFile>(file)->ReadOwner();
-        return mm_chunk_owner_read_name(reader->storage, type, number, reader->max_name_bytes, out, capacity, bytes);
+        return mm_chunk_owner_title_read(reader, type, number, out, capacity, bytes);
     };
     s.live_copy_source = [](void *file, MMChunkFileCopy *binding, MMChunkEndpoint *out) {
         const auto owner = static_cast<PChunkyFile>(file);
@@ -336,7 +315,7 @@ MMResourceCache *OpenSharedTypedCache(Filename *name, bool preferWorking, bool &
         mm_private_archive_close(source.working);
     }
     if (reader && cache)
-        *reader = ResourceArchiveReader(cache);
+        *reader = mm_resource_cache_reader(cache);
     return cache;
 }
 
@@ -533,25 +512,11 @@ MMChunkAccess ChunkyResourceFile::ReadChunkAccess()
 }
 MMChunkOwnerRead *ChunkyResourceFile::ReadOwner()
 {
-    return ResourceArchiveReader(&_cache);
+    return mm_resource_cache_reader(&_cache);
 }
 MMArchiveWriter ChunkyResourceFile::ArchiveWriter()
 {
-    return ResourceArchiveWriter(&_cache);
-}
-MMChunkTitleIO ResourceTitleIO()
-{
-    auto titles = KauaiChunkOwnerTitleIO();
-    titles.read = [](void *resources, MMU32 type, MMU32 number, void *wire, MMU32 capacity, MMU32 *written) {
-        auto reader = ResourceArchiveReader(static_cast<MMResourceCache *>(resources));
-        return mm_chunk_owner_read_name(reader->storage, type, number, reader->max_name_bytes, wire, capacity, written);
-    };
-    titles.write = [](void *resources, MMU32 type, MMU32 number, const void *wire, MMU32 bytes) -> int {
-        auto reader = ResourceArchiveReader(static_cast<MMResourceCache *>(resources));
-        return mm_chunk_owner_write_name(reader->storage, type, number, reader->max_name_bytes,
-                                         wire, bytes) == MM_CHUNK_OK;
-    };
-    return titles;
+    return mm_resource_cache_writer(&_cache);
 }
 bool ChunkyResourceFile::FGetName(ChunkTagOrType type, ChunkNumber number, PString name)
 {
@@ -570,7 +535,7 @@ MMChunkEndpoint ChunkyResourceFile::CopySource(MMResourceChunkCopy &binding)
 MMChunkEndpoint ChunkyResourceFile::CopyTarget(MMChunkFileCopy &binding)
 {
     AssertThis(0);
-    return ResourceCopyTarget(&_cache, binding);
+    return mm_resource_cache_live_copy_target(&_cache, &binding);
 }
 
 PChunkyResourceFile ChunkyResourceFile::PcrfNewSibling(LegacyLong budget)

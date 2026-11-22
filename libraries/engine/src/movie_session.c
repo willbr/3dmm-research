@@ -73,12 +73,11 @@ static int owner_payload(void *context, const MMChunkEntry *entry, MMMovieReceiv
 
 static int owner_name(void *context, const MMChunkEntry *entry, MMMovieReceiveBytes receive, void *out)
 {
-    const MMChunkOwnerRead *reader = context;
     unsigned char bytes[MM_CHUNK_NAME_WIRE_BYTES];
     MMU32 written;
     MMMemoryStream stream;
-    if (!mm_chunk_owner_read_name(reader->storage, entry->type, entry->number, reader->max_name_bytes,
-                                  bytes, sizeof(bytes), &written) || !mm_memory_stream_init(&stream, bytes, written))
+    if (!mm_chunk_owner_title_read(context, entry->type, entry->number, bytes, sizeof(bytes), &written) ||
+        !mm_memory_stream_init(&stream, bytes, written))
         return MM_MOVIE_BAD_FILE;
     return receive(out, &stream.stream);
 }
