@@ -21483,3 +21483,36 @@ presentation samples.
 The disassembly, traces and Studio canvases are under
 `tmp/c89-kidspace-timed`. Playback captures are under `tmp/c89-kd` and
 `tmp/c89-aqcap`.
+
+## C89 Kidspace object commands (22 November 2026)
+
+The C89 VM handles child and Help creation, destruction, object state and
+representation, layer queries, transport, and command filters. It selects
+the representation tag and animation flags and calls the same native
+binding for animation cells. Native bindings perform the operations on
+live Studio objects.
+
+The retail ISO executable's `DestroyGob` branch at RVA `0x5eae1` sends
+world destruction to the first-child release loop at `0x61307`.
+`ChangeStateGob` at `0x60265` accepts state IDs from 0 through 32,766.
+`AnimateGob`, `SetPictureGob` and `SetRepGob` at `0x602d0`, `0x60334` and
+`0x60398` pass distinct tag and flag combinations. The VM fixture checks
+these cases and covers child and Help creation failures, missing frame
+queries, play and stop, and command filter argument order.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. Headless Studio workflows exercised the ticket booth introduction,
+lobby and Studio palettes, ISO content loading, F1 Help, and authoring.
+The room and smoke canvases, Help and cache traces, nine movie saves,
+and 470 generated script payloads matched the retained bytes. Marcus
+relaunched headlessly with isolated default settings and matched its startup
+canvas. The known `scene-load` failure reproduced the identical 63,224-byte
+trace and fingerprint `0D666753`.
+
+The silent fixture in suite `20261122T123101Z-394be45c` matched all 60 seek
+canvases per port and their camera and actor state from the preceding
+capture. Both seek and continuous frame order matched retained retail and
+V3DMM suite `20261122T081603Z-7ffc4e8e`.
+
+The disassembly, traces and Studio canvases are under
+`tmp/c89-kidspace-objects`. Playback captures are under `tmp/c89-kd`.

@@ -39,8 +39,44 @@ extern "C"
         MM_KIDSPACE_CLOCK_RETAINED,
         MM_KIDSPACE_CLOCK_MISSING,
         MM_KIDSPACE_ALARM_FAILED,
-        MM_KIDSPACE_SOUND_FALLBACK
+        MM_KIDSPACE_SOUND_FALLBACK,
+        MM_KIDSPACE_DESTROY_WORLD,
+        MM_KIDSPACE_INVALID_STATE,
+        MM_KIDSPACE_FILTER_FAILED
     };
+
+    enum
+    {
+        MM_KIDSPACE_REP_KILL_ANIMATION = 1,
+        MM_KIDSPACE_REP_SKIP_ANIMATION = 2,
+        MM_KIDSPACE_STATE_LIMIT = 0x7fff
+    };
+
+#define MM_KIDSPACE_TAG_ANIMATION 0x474c5343UL /* GLSC */
+#define MM_KIDSPACE_TAG_BITMAP    0x4d424d50UL /* MBMP */
+
+    typedef struct MMKidspaceObjectServices
+    {
+        void *(*world)(void *);
+        void (*forget_current)(void *);
+        void *(*create_child)(void *, void *parent, MMI32 id, MMU32 descriptor);
+        void *(*create_help)(void *, void *parent, MMU32 topic);
+        void (*release)(void *, void *object);
+        void (*change_state)(void *, void *object, MMI32 state);
+        MMI32 (*state)(void *, void *object);
+        MMI32 (*z_plane)(void *, void *object);
+        void (*set_z_plane)(void *, void *object, MMI32 plane);
+        void (*play)(void *, void *object);
+        int (*playing)(void *, void *object);
+        void (*stop)(void *, void *object);
+        MMI32 (*current_frame)(void *, void *object);
+        MMI32 (*frame_count)(void *, void *object);
+        void (*go_to_frame)(void *, void *object, MMI32 frame);
+        int (*filter)(void *, void *object, MMI32 command, MMI32 id, MMU32 script);
+        void (*set_no_slip)(void *, void *object, int enabled);
+        void (*set_tooltip_source)(void *, void *object, MMI32 id);
+        void (*stream)(void *, void *object, int enabled);
+    } MMKidspaceObjectServices;
 
     typedef struct MMKidspaceClockServices
     {
@@ -55,7 +91,6 @@ extern "C"
 
     typedef struct MMKidspaceSoundServices
     {
-        int (*is_sound_object)(void *, void *object);
         /* The host resolves source. A null object uses the global mixer. */
         MMI32 (*play)(void *, void *object, const MMSoundPlay *);
         MMI32 (*play_mouse)(void *, void *object, MMU32 type, MMU32 number);
@@ -81,10 +116,14 @@ extern "C"
          * Parameters are mutable native words valid for this call. */
         int (*run)(void *, void *object, MMU32 script, int by_number, void *parameters,
                    MMI32 count, MMI32 *result);
-        void (*cell)(void *, void *object, MMU32 child, MMI32 dx, MMI32 dy, MMI32 delay);
+        /* May run a script that destroys object. */
+        void (*set_rep)(void *, void *object, MMU32 child, unsigned flags, MMU32 tag,
+                        MMI32 dx, MMI32 dy, MMU32 delay);
         void (*notice)(void *, int reason, unsigned opcode, MMI32 id, MMU32 detail);
         const MMKidspaceClockServices *clocks;
         const MMKidspaceSoundServices *sound;
+        int (*is_kidspace_object)(void *, void *object);
+        const MMKidspaceObjectServices *objects;
     } MMKidspaceScriptServices;
 
     struct MMScriptVM;

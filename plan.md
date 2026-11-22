@@ -1758,10 +1758,12 @@ transitions and asset selection use the same algorithms with their own state.
 C89 also executes Kidspace's 2D geometry and hierarchy operations, command
 enqueueing, nested call parameter handling, and animation cell suspension.
 C89 dispatches Kidspace clock and alarm operations and typed sound requests,
-reusing the clock and sound-manager policies. The host supplies clock
-lifetime and command-filter bindings, live object lookups, and sound devices.
-The native host supplies object access, seed ticks and clock scaling and
-handles the remaining Kidspace operations.
+reusing the clock and sound-manager policies. It also handles object creation
+and destruction, representation selection, state bounds, layer and video
+queries, command filters, tooltips and streaming commands. The native host
+supplies live object and clock bindings, sound devices, seed ticks and clock
+scaling. Application commands such as alerts and modal Help still use the
+native opcode handler.
 The script string and colour tables use C-owned storage and cache references.
 C89 normalizes registry IDs, translates counted text through the host codec,
 and merges rows in reverse order. The transition adapter supplies native

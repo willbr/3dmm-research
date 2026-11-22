@@ -18,6 +18,12 @@ static void *find(MMScriptVM *vm, MMI32 id)
     return vm->error ? NULL : vm->kidspace->find(vm->host, id);
 }
 
+static void *find_kidspace(MMScriptVM *vm, MMI32 id)
+{
+    void *object = find(vm, id);
+    return object && vm->kidspace->is_kidspace_object(vm->host, object) ? object : NULL;
+}
+
 static void notice(MMScriptVM *vm, int reason, unsigned opcode, MMI32 id, MMU32 detail)
 {
     if (vm->kidspace->notice)
@@ -206,9 +212,133 @@ static void play_cell(MMScriptVM *vm, unsigned opcode)
     delay = mm_script_vm_pop(vm);
     object = find(vm, vm->this_object);
     if (object)
-        vm->kidspace->cell(vm->host, object, child, x, y, delay);
+        vm->kidspace->set_rep(vm->host, object, child, MM_KIDSPACE_REP_SKIP_ANIMATION, 0, x, y, (MMU32)delay);
     else
         notice(vm, MM_KIDSPACE_MISSING_OBJECT, opcode, vm->this_object, 0);
+}
+
+static void object_lifetime(MMScriptVM *vm, unsigned opcode, int explicit_id)
+{
+    const MMKidspaceScriptServices *host = vm->kidspace;
+    const MMKidspaceObjectServices *objects = host->objects;
+    MMI32 id = target(vm, explicit_id);
+    MMI32 child_id = 0;
+    MMU32 resource = 0;
+    void *object, *child;
+
+    if (opcode == kopCreateChildThis)
+        child_id = mm_script_vm_pop(vm);
+    if (opcode == kopCreateChildThis || opcode == kopCreateHelpThis)
+    {
+        resource = (MMU32)mm_script_vm_pop(vm);
+        object = find(vm, id);
+        child = NULL;
+        if (object)
+        {
+            objects->forget_current(vm->host);
+            if (opcode == kopCreateChildThis)
+                child = objects->create_child(vm->host, object, child_id, resource);
+            else
+                child = objects->create_help(vm->host, object, resource);
+        }
+        else
+            notice(vm, MM_KIDSPACE_MISSING_OBJECT, opcode - explicit_id, id, resource);
+        mm_script_vm_push(vm, child ? host->id(vm->host, child) : 0);
+        return;
+    }
+
+    object = find(vm, id);
+    if (!object)
+        return;
+    objects->forget_current(vm->host);
+    if (opcode == kopDestroyThis && object != objects->world(vm->host))
+    {
+        objects->release(vm->host, object);
+        return;
+    }
+    if (opcode == kopDestroyThis)
+        notice(vm, MM_KIDSPACE_DESTROY_WORLD, opcode - explicit_id, id, 0);
+    while ((child = host->relative(vm->host, object, MM_KIDSPACE_FIRST_CHILD)) != NULL)
+        objects->release(vm->host, child);
+}
+
+static void object_query(MMScriptVM *vm, unsigned opcode, int explicit_id)
+{
+    const MMKidspaceObjectServices *objects = vm->kidspace->objects;
+    MMI32 id = target(vm, explicit_id);
+    void *object = find_kidspace(vm, id);
+    MMI32 result = 0;
+
+    if (!object)
+        notice(vm, MM_KIDSPACE_MISSING_OBJECT, opcode - explicit_id, id, 0);
+    else
+    {
+        switch (opcode)
+        {
+        case kopStateThis: result = objects->state(vm->host, object); break;
+        case kopZThis: result = objects->z_plane(vm->host, object); break;
+        case kopPlayingThis: result = objects->playing(vm->host, object) != 0; break;
+        case kopCurFrameThis: result = objects->current_frame(vm->host, object); break;
+        case kopCountFramesThis: result = objects->frame_count(vm->host, object); break;
+        }
+    }
+    mm_script_vm_push(vm, result);
+}
+
+static void object_control(MMScriptVM *vm, unsigned opcode, int explicit_id)
+{
+    const MMKidspaceScriptServices *host = vm->kidspace;
+    const MMKidspaceObjectServices *objects = host->objects;
+    MMI32 id = target(vm, explicit_id);
+    MMI32 first = 0, filter_id = 0;
+    MMU32 filter_script = 0;
+    void *object;
+
+    if (opcode != kopPlayThis && opcode != kopStopThis)
+        first = mm_script_vm_pop(vm);
+    if (opcode == kopFilterCmdsThis)
+    {
+        filter_id = mm_script_vm_pop(vm);
+        filter_script = (MMU32)mm_script_vm_pop(vm);
+    }
+    object = find_kidspace(vm, id);
+    if (!object)
+    {
+        notice(vm, MM_KIDSPACE_MISSING_OBJECT, opcode - explicit_id, id, 0);
+        return;
+    }
+    switch (opcode)
+    {
+    case kopChangeStateThis:
+        if ((MMU32)first >= MM_KIDSPACE_STATE_LIMIT)
+            notice(vm, MM_KIDSPACE_INVALID_STATE, opcode - explicit_id, id, (MMU32)first);
+        else
+        {
+            objects->forget_current(vm->host);
+            objects->change_state(vm->host, object, first);
+        }
+        break;
+    case kopAnimateThis:
+        host->set_rep(vm->host, object, (MMU32)first, 0, MM_KIDSPACE_TAG_ANIMATION, 0, 0, 0);
+        break;
+    case kopSetPictureThis:
+        host->set_rep(vm->host, object, (MMU32)first, MM_KIDSPACE_REP_KILL_ANIMATION, MM_KIDSPACE_TAG_BITMAP, 0, 0, 0);
+        break;
+    case kopSetRepThis:
+        host->set_rep(vm->host, object, (MMU32)first, MM_KIDSPACE_REP_KILL_ANIMATION, 0, 0, 0, 0);
+        break;
+    case kopSetZThis: objects->set_z_plane(vm->host, object, first); break;
+    case kopPlayThis: objects->play(vm->host, object); break;
+    case kopStopThis: objects->stop(vm->host, object); break;
+    case kopGotoFrameThis: objects->go_to_frame(vm->host, object, first); break;
+    case kopFilterCmdsThis:
+        if (!objects->filter(vm->host, object, first, filter_id, filter_script))
+            notice(vm, MM_KIDSPACE_FILTER_FAILED, opcode - explicit_id, id, 0);
+        break;
+    case kopSetNoSlipThis: objects->set_no_slip(vm->host, object, first != 0); break;
+    case kopSetToolTipSourceThis: objects->set_tooltip_source(vm->host, object, first); break;
+    case kopStreamThis: objects->stream(vm->host, object, first != 0); break;
+    }
 }
 
 static void set_alarm(MMScriptVM *vm, unsigned opcode, const MMKidspaceClockServices *clocks)
@@ -293,9 +423,7 @@ static void play_sound(MMScriptVM *vm, unsigned opcode, const MMKidspaceSoundSer
     MMSoundPlay play = {0};
     if (vm->error)
         return;
-    object = id ? find(vm, id) : NULL;
-    if (object && !sound->is_sound_object(vm->host, object))
-        object = NULL;
+    object = id ? find_kidspace(vm, id) : NULL;
     if (id && !object)
         notice(vm, MM_KIDSPACE_SOUND_FALLBACK, opcode, id, 0);
     words = mm_script_vm_words(vm, 7);
@@ -319,9 +447,9 @@ static void play_mouse_sound(MMScriptVM *vm, unsigned opcode, const MMKidspaceSo
     MMI32 id = target(vm, opcode == kopPlayMouseSoundGob);
     MMU32 type = (MMU32)mm_script_vm_pop(vm);
     MMU32 number = (MMU32)mm_script_vm_pop(vm);
-    void *object = find(vm, id);
+    void *object = find_kidspace(vm, id);
     MMI32 result = 0;
-    if (object && sound->is_sound_object(vm->host, object))
+    if (object)
         result = sound->play_mouse(vm->host, object, type, number);
     mm_script_vm_push(vm, result);
 }
@@ -372,10 +500,48 @@ static void sound_command(MMScriptVM *vm, unsigned opcode)
         mm_script_vm_push(vm, result != 0);
 }
 
+static void object_command(MMScriptVM *vm, unsigned opcode, int explicit_id)
+{
+    if (!vm->kidspace->objects)
+    {
+        mm_script_vm_fail(vm, MM_SCRIPT_ERROR_OPCODE);
+        return;
+    }
+    /* Each explicit-target opcode in this group immediately precedes its
+     * current-object counterpart in the bytecode format. */
+    opcode += explicit_id;
+    switch (opcode)
+    {
+    case kopCreateChildThis: case kopCreateHelpThis: case kopDestroyThis: case kopDestroyChildrenThis:
+        object_lifetime(vm, opcode, explicit_id);
+        break;
+    case kopStateThis: case kopZThis: case kopPlayingThis: case kopCurFrameThis: case kopCountFramesThis:
+        object_query(vm, opcode, explicit_id);
+        break;
+    default:
+        object_control(vm, opcode, explicit_id);
+        break;
+    }
+}
+
 int mm_kidspace_script_execute(MMScriptVM *vm, unsigned opcode)
 {
     switch (opcode)
     {
+    case kopCreateChildGob: case kopCreateHelpGob: case kopDestroyGob: case kopDestroyChildrenGob:
+    case kopStateGob: case kopZGob: case kopPlayingGob: case kopCurFrameGob: case kopCountFramesGob:
+    case kopChangeStateGob: case kopAnimateGob: case kopSetPictureGob: case kopSetRepGob: case kopSetZGob:
+    case kopPlayGob: case kopStopGob: case kopGotoFrameGob: case kopFilterCmdsGob: case kopSetNoSlipGob:
+    case kopSetToolTipSourceGob: case kopStreamGob:
+        object_command(vm, opcode, 1);
+        break;
+    case kopCreateChildThis: case kopCreateHelpThis: case kopDestroyThis: case kopDestroyChildrenThis:
+    case kopStateThis: case kopZThis: case kopPlayingThis: case kopCurFrameThis: case kopCountFramesThis:
+    case kopChangeStateThis: case kopAnimateThis: case kopSetPictureThis: case kopSetRepThis: case kopSetZThis:
+    case kopPlayThis: case kopStopThis: case kopGotoFrameThis: case kopFilterCmdsThis: case kopSetNoSlipThis:
+    case kopSetToolTipSourceThis: case kopStreamThis:
+        object_command(vm, opcode, 0);
+        break;
     case kopResizeGob: case kopResizeThis:
         change_rect(vm, opcode, RESIZE, opcode == kopResizeGob);
         break;

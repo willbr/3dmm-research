@@ -904,10 +904,12 @@ static int kid_run(void *context, void *object, MMU32 script, int by_number, voi
     return fixture->run_status;
 }
 
-static void kid_cell(void *context, void *object, MMU32 child, MMI32 dx, MMI32 dy, MMI32 delay)
+static void kid_cell(void *context, void *object, MMU32 child, unsigned flags, MMU32 tag,
+                     MMI32 dx, MMI32 dy, MMU32 delay)
 {
     KidFixture *fixture = context;
     CHECK(object == &fixture->child && child == 0x80000000UL && dx == 5 && dy == -2 && delay == 9);
+    CHECK(flags == MM_KIDSPACE_REP_SKIP_ANIMATION && !tag);
     ++fixture->cells;
 }
 
@@ -933,7 +935,7 @@ static void execute_kidspace_scripts(void)
 {
     static const MMKidspaceScriptServices services = {
         kid_find, kid_id, kid_relative, NULL, kid_rect, kid_set_rect, kid_point,
-        kid_find, kid_enqueue, kid_run, kid_cell, kid_notice, NULL, NULL
+        kid_find, kid_enqueue, kid_run, kid_cell, kid_notice, NULL, NULL, NULL, NULL
     };
     static const MMU32 geometry[] = {
         0x101d101dUL, VM_IMMEDIATES(3), 21, 22, 1, kopResizeGob,
@@ -1184,10 +1186,10 @@ static void execute_timed_scripts(void)
     static const MMKidspaceClockServices clock = {
         timed_clock, timed_create, timed_retain, timed_release, timed_start, timed_stop, timed_alarm
     };
-    static const MMKidspaceSoundServices sound = {timed_sound_object, timed_play, timed_mouse, timed_control};
+    static const MMKidspaceSoundServices sound = {timed_play, timed_mouse, timed_control};
     static const MMKidspaceScriptServices services = {
         timed_find, NULL, NULL, timed_unique, NULL, NULL, NULL,
-        NULL, NULL, NULL, NULL, timed_notice, &clock, &sound
+        NULL, NULL, NULL, NULL, timed_notice, &clock, &sound, timed_sound_object, NULL
     };
     static const MMU32 clocks[] = {
         0x101d101dUL, VM_IMMEDIATES(1), 0, kopCreateClock, kopPop,
@@ -1263,6 +1265,285 @@ static void execute_timed_scripts(void)
     CHECK(!host.collections_live);
 }
 
+typedef struct ScriptObject
+{
+    MMI32 id;
+    struct ScriptObject *parent, *first, *next;
+} ScriptObject;
+
+typedef struct ObjectFixture
+{
+    ScriptObject world, current, child, help;
+    MMI32 state, plane, frame;
+    int forgotten, releases, playing, reps, filtered, no_slip, streamed, tooltip;
+    int missing, invalid_states, destroyed_world, failed_filters;
+    MMI32 released[3];
+} ObjectFixture;
+
+static void *script_object_find(void *context, MMI32 id)
+{
+    ObjectFixture *fixture = context;
+    return id == 1 ? &fixture->world : id == 2 && fixture->current.parent ? &fixture->current : NULL;
+}
+
+static MMI32 script_object_id(void *context, void *object)
+{
+    (void)context;
+    return ((ScriptObject *)object)->id;
+}
+
+static void *script_object_relative(void *context, void *object, int relation)
+{
+    (void)context;
+    CHECK(relation == MM_KIDSPACE_FIRST_CHILD);
+    return ((ScriptObject *)object)->first;
+}
+
+static int script_object_kind(void *context, void *object)
+{
+    return object == &((ObjectFixture *)context)->current;
+}
+
+static void *script_object_world(void *context)
+{
+    return &((ObjectFixture *)context)->world;
+}
+
+static void script_object_forget(void *context)
+{
+    ++((ObjectFixture *)context)->forgotten;
+}
+
+static void *script_object_create_child(void *context, void *parent, MMI32 id, MMU32 descriptor)
+{
+    ObjectFixture *fixture = context;
+    ScriptObject *object = parent;
+    CHECK(fixture->forgotten > 0 && descriptor == 0x80000001UL && id == -17);
+    if (object == &fixture->current)
+        return NULL;
+    CHECK(object == &fixture->world && object->first == &fixture->current);
+    fixture->child.id = id;
+    fixture->child.parent = object;
+    fixture->child.next = object->first;
+    object->first = &fixture->child;
+    return object->first;
+}
+
+static void *script_object_create_help(void *context, void *parent, MMU32 topic)
+{
+    ObjectFixture *fixture = context;
+    ScriptObject *object = parent;
+    CHECK(object == &fixture->current && fixture->forgotten == 2 && topic == 52);
+    fixture->help.id = 81;
+    fixture->help.parent = object;
+    object->first = &fixture->help;
+    return object->first;
+}
+
+static void script_object_release(void *context, void *object)
+{
+    ObjectFixture *fixture = context;
+    ScriptObject *child = object;
+    CHECK(fixture->forgotten > 0 && child->parent && child->parent->first == child && fixture->releases < 3);
+    child->parent->first = child->next;
+    child->parent = NULL;
+    fixture->released[fixture->releases++] = child->id;
+}
+
+static void script_object_change(void *context, void *object, MMI32 state)
+{
+    ObjectFixture *fixture = context;
+    CHECK(object == &fixture->current && state == 32766 && fixture->forgotten == 4);
+    fixture->state = state;
+}
+
+static MMI32 script_object_state(void *context, void *object)
+{
+    CHECK(script_object_kind(context, object));
+    return ((ObjectFixture *)context)->state;
+}
+
+static MMI32 script_object_plane(void *context, void *object)
+{
+    CHECK(script_object_kind(context, object));
+    return ((ObjectFixture *)context)->plane;
+}
+
+static void script_object_set_plane(void *context, void *object, MMI32 plane)
+{
+    CHECK(script_object_kind(context, object));
+    ((ObjectFixture *)context)->plane = plane;
+}
+
+static void script_object_play(void *context, void *object)
+{
+    CHECK(script_object_kind(context, object));
+    ((ObjectFixture *)context)->playing = -1;
+}
+
+static int script_object_playing(void *context, void *object)
+{
+    CHECK(script_object_kind(context, object));
+    return ((ObjectFixture *)context)->playing;
+}
+
+static void script_object_stop(void *context, void *object)
+{
+    CHECK(script_object_kind(context, object));
+    ((ObjectFixture *)context)->playing = 0;
+}
+
+static void script_object_goto(void *context, void *object, MMI32 frame)
+{
+    CHECK(script_object_kind(context, object));
+    ((ObjectFixture *)context)->frame = frame;
+}
+
+static MMI32 script_object_frame(void *context, void *object)
+{
+    CHECK(script_object_kind(context, object));
+    return ((ObjectFixture *)context)->frame;
+}
+
+static MMI32 script_object_frames(void *context, void *object)
+{
+    CHECK(script_object_kind(context, object));
+    return 18;
+}
+
+static int script_object_filter(void *context, void *object, MMI32 command, MMI32 id, MMU32 script)
+{
+    CHECK(script_object_kind(context, object) && command == 102 && id == -9 && script == 0xffffffffUL);
+    ++((ObjectFixture *)context)->filtered;
+    return 0;
+}
+
+static void script_object_no_slip(void *context, void *object, int enabled)
+{
+    CHECK(script_object_kind(context, object) && enabled == 1);
+    ++((ObjectFixture *)context)->no_slip;
+}
+
+static void script_object_stream(void *context, void *object, int enabled)
+{
+    CHECK(script_object_kind(context, object) && !enabled);
+    ++((ObjectFixture *)context)->streamed;
+}
+
+static void script_object_tooltip(void *context, void *object, MMI32 id)
+{
+    CHECK(script_object_kind(context, object) && id == -21);
+    ++((ObjectFixture *)context)->tooltip;
+}
+
+static void script_object_rep(void *context, void *object, MMU32 child, unsigned flags, MMU32 tag,
+                              MMI32 dx, MMI32 dy, MMU32 delay)
+{
+    static const MMU32 tags[] = {MM_KIDSPACE_TAG_ANIMATION, MM_KIDSPACE_TAG_BITMAP, 0};
+    ObjectFixture *fixture = context;
+    int index = fixture->reps++;
+    CHECK(object == &fixture->current && index < 3 && child == 0xf0000000UL + index && !dx && !dy && !delay);
+    CHECK(tag == tags[index] && flags == (index ? MM_KIDSPACE_REP_KILL_ANIMATION : 0));
+}
+
+static void script_object_notice(void *context, int reason, unsigned opcode, MMI32 id, MMU32 detail)
+{
+    ObjectFixture *fixture = context;
+    switch (reason)
+    {
+    case MM_KIDSPACE_MISSING_OBJECT:
+        CHECK((opcode == kopCreateHelpGob && id == 99) || (opcode == kopCurFrameGob && id == 1));
+        ++fixture->missing;
+        break;
+    case MM_KIDSPACE_INVALID_STATE:
+        CHECK(opcode == kopChangeStateGob && id == 2 && (detail == 0xffffffffUL || detail == 32767));
+        ++fixture->invalid_states;
+        break;
+    case MM_KIDSPACE_FILTER_FAILED:
+        CHECK(opcode == kopFilterCmdsGob && id == 2);
+        ++fixture->failed_filters;
+        break;
+    case MM_KIDSPACE_DESTROY_WORLD:
+        CHECK(opcode == kopDestroyGob && id == 1);
+        ++fixture->destroyed_world;
+        break;
+    default:
+        CHECK(0);
+    }
+}
+
+static void execute_kidspace_objects(void)
+{
+    static const MMKidspaceObjectServices objects = {
+        script_object_world, script_object_forget, script_object_create_child, script_object_create_help,
+        script_object_release, script_object_change, script_object_state, script_object_plane, script_object_set_plane,
+        script_object_play, script_object_playing, script_object_stop, script_object_frame, script_object_frames,
+        script_object_goto, script_object_filter, script_object_no_slip, script_object_tooltip, script_object_stream
+    };
+    static const MMKidspaceScriptServices services = {
+        script_object_find, script_object_id, script_object_relative, NULL, NULL, NULL, NULL,
+        NULL, NULL, NULL, script_object_rep, script_object_notice, NULL, NULL, script_object_kind, &objects
+    };
+    static const MMU32 create[] = {
+        0x101d101dUL, VM_IMMEDIATES(3), 0x80000001UL, 0xffffffefUL, 1, kopCreateChildGob,
+        VM_IMMEDIATES(1), 52, kopCreateHelpThis, kopAdd,
+        VM_IMMEDIATES(2), 0x80000001UL, 0xffffffefUL, kopCreateChildThis, kopAdd,
+        VM_IMMEDIATES(2), 52, 99, kopCreateHelpGob, kopAdd, kopReturn
+    };
+    static const MMU32 control[] = {
+        0x101d101dUL, VM_IMMEDIATES(2), 0xffffffffUL, 2, kopChangeStateGob,
+        VM_IMMEDIATES(2), 32767, 2, kopChangeStateGob,
+        VM_IMMEDIATES(1), 32766, kopChangeStateThis, kopStateThis,
+        VM_IMMEDIATES(1), 0xf0000000UL, kopAnimateThis,
+        VM_IMMEDIATES(2), 0xf0000001UL, 2, kopSetPictureGob,
+        VM_IMMEDIATES(1), 0xf0000002UL, kopSetRepThis,
+        VM_IMMEDIATES(2), 0xfffffff7UL, 2, kopSetZGob, kopZThis, kopAdd,
+        kopPlayThis, VM_IMMEDIATES(1), 2, kopPlayingGob, kopAdd,
+        VM_IMMEDIATES(2), 3, 2, kopGotoFrameGob, kopCurFrameThis, kopAdd, kopCountFramesThis, kopAdd,
+        VM_IMMEDIATES(1), 1, kopCurFrameGob, kopAdd,
+        VM_IMMEDIATES(4), 0xffffffffUL, 0xfffffff7UL, 102, 2, kopFilterCmdsGob,
+        VM_IMMEDIATES(1), 0xfffffffbUL, kopSetNoSlipThis,
+        VM_IMMEDIATES(2), 0xffffffebUL, 2, kopSetToolTipSourceGob,
+        VM_IMMEDIATES(1), 0, kopStreamThis,
+        VM_IMMEDIATES(1), 2, kopStopGob, kopPlayingThis, kopAdd, kopReturn
+    };
+    static const MMU32 destroy[] = {
+        0x101d101dUL, kopDestroyChildrenThis,
+        VM_IMMEDIATES(1), 1, kopDestroyGob, kopDestroyThis, kopGidThis, kopReturn
+    };
+    const unsigned current = 0x101d, minimum = 0x1015;
+    ObjectFixture fixture;
+    Host host;
+    MMScriptVM vm;
+
+    init(&host);
+    memset(&fixture, 0, sizeof(fixture));
+    fixture.world.id = 1;
+    fixture.world.first = &fixture.current;
+    fixture.current.id = 2;
+    fixture.current.parent = &fixture.world;
+    CHECK(mm_script_vm_init(&vm, NULL, 1, NULL, NULL, &fixture) == MM_STORAGE_OK);
+    vm.kidspace = &services;
+    vm.this_object = 2;
+
+    CHECK(attach_versioned_program(&host, &vm, create, sizeof(create) / sizeof(*create), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 64 && !vm.stack.count);
+    CHECK(fixture.forgotten == 3 && fixture.missing == 1);
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_versioned_program(&host, &vm, control, sizeof(control) / sizeof(*control), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 32779 && !vm.stack.count);
+    CHECK(fixture.invalid_states == 2 && fixture.missing == 2 && fixture.reps == 3 && !fixture.playing);
+    CHECK(fixture.filtered == 1 && fixture.failed_filters == 1 && fixture.forgotten == 4);
+    CHECK(fixture.no_slip == 1 && fixture.streamed == 1 && fixture.tooltip == 1);
+    mm_script_vm_dispose(&vm);
+    CHECK(attach_versioned_program(&host, &vm, destroy, sizeof(destroy) / sizeof(*destroy), current, minimum));
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 2 && !vm.stack.count);
+    CHECK(fixture.destroyed_world == 1 && fixture.forgotten == 6 && fixture.releases == 3 && !fixture.world.first);
+    CHECK(fixture.released[0] == 81 && fixture.released[1] == -17 && fixture.released[2] == 2);
+    mm_script_vm_dispose(&vm);
+    CHECK(!host.collections_live);
+}
+
 int main(void)
 {
     scripts();
@@ -1275,6 +1556,7 @@ int main(void)
     execute_random_scripts();
     execute_kidspace_scripts();
     execute_timed_scripts();
+    execute_kidspace_objects();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }
