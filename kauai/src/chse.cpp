@@ -11,6 +11,7 @@
 
 ***************************************************************************/
 #include "util.h"
+#include "mm/chunky_listing.h"
 ASSERTNAME
 
 namespace Chunky {
@@ -18,6 +19,27 @@ namespace Chunky {
 using ScriptCompiler::PCompilerBase;
 
 RTCLASS(SourceEmitter)
+
+namespace {
+
+static_assert(kcchMaxStn == MM_CHUNKY_LISTING_LINE_LIMIT, "Chunky listing line must fit a native string");
+
+void WriteByteLine(void *context, const unsigned char *text, size_t length)
+{
+    ZString line;
+    for (size_t index = 0; index < length; ++index)
+        line[index] = static_cast<achar>(text[index]);
+    line[length] = 0;
+    static_cast<SourceEmitter *>(context)->DumpSz(line);
+}
+
+int ReadByteLocation(void *context, MMU32 offset, void *data, size_t length)
+{
+    return static_cast<FileLocation *>(context)->FReadRgb(data, static_cast<LegacyLong>(length),
+                                                         static_cast<FilePosition>(offset));
+}
+
+} // namespace
 
 /***************************************************************************
     Constructor for a chunky source emitter.
@@ -66,8 +88,6 @@ void SourceEmitter::Uninit(void)
     AssertThis(0);
     ReleasePpo(&_pmsnkDump);
     ReleasePpo(&_pmsnkError);
-    if (_bsf.IbMac() > 0)
-        _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
 }
 
 #ifdef DEBUG
@@ -77,7 +97,6 @@ void SourceEmitter::Uninit(void)
 void SourceEmitter::AssertValid(LegacyUlong grfchse)
 {
     SourceEmitter_PAR::AssertValid(0);
-    AssertPo(&_bsf, 0);
     if (grfchse & fchseDump)
         AssertPo(_pmsnkDump, 0);
     AssertNilOrPo(_pmsnkError, 0);
@@ -92,7 +111,6 @@ void SourceEmitter::MarkMem(void)
     SourceEmitter_PAR::MarkMem();
     MarkMemObj(_pmsnkError);
     MarkMemObj(_pmsnkDump);
-    MarkMemObj(&_bsf);
 }
 #endif // DEBUG
 
@@ -139,9 +157,11 @@ void SourceEmitter::DumpBlck(PDataBlock pblck)
         Error(PszLit("Dumping chunk failed"));
         return;
     }
-    _bsf.FReplaceFlo(&flo, fFalse, 0, _bsf.IbMac());
+    const MMReadStream stream = {&flo, static_cast<MMU32>(flo.cb), ReadByteLocation};
+    const bool dumped = mm_chunky_list_bytes(&stream, 1, WriteByteLine, this) != 0;
     ReleasePpo(&flo.pfil);
-    _DumpBsf(1);
+    if (!dumped)
+        Error(PszLit("Dumping chunk failed"));
 }
 
 /***************************************************************************
@@ -151,12 +171,15 @@ void SourceEmitter::DumpRgb(void *prgb, LegacyLong cb, LegacyLong cactTab)
 {
     AssertThis(fchseDump);
     AssertIn(cb, 0, kcbMax);
+    AssertIn(cactTab, 0, kcchMaxStn + 1);
     AssertPvCb(prgb, cb);
 
     if (cb > 0)
     {
-        _bsf.FReplace(prgb, cb, 0, _bsf.IbMac());
-        _DumpBsf(cactTab);
+        MMMemoryStream memory;
+        if (!mm_memory_stream_init(&memory, prgb, cb) ||
+            !mm_chunky_list_bytes(&memory.stream, cactTab, WriteByteLine, this))
+            Error(PszLit("Dumping bytes failed"));
     }
 }
 
@@ -220,65 +243,6 @@ void SourceEmitter::DumpAdoptCmd(ChunkIdentification *pcki, ChildChunkIdentifica
     DumpSz(stn.Psz());
 }
 
-/***************************************************************************
-    Dump the data in the _bsf
-***************************************************************************/
-void SourceEmitter::_DumpBsf(LegacyLong cactTab)
-{
-    AssertThis(fchseDump);
-    AssertIn(cactTab, 0, kcchMaxStn + 1);
-
-    byte rgb[8], bT;
-    String stn1;
-    String stn2;
-    LegacyLong cact;
-    LegacyLong ib, ibMac;
-    LegacyLong cb, ibT;
-
-    stn1.SetNil();
-    for (cact = cactTab; cact-- > 0;)
-        stn1.FAppendCh(kchTab);
-    stn1.FAppendSz(PszLit("BYTE"));
-    DumpSz(stn1.Psz());
-
-    ibMac = _bsf.IbMac();
-    for (ib = 0; ib < ibMac;)
-    {
-        stn1.SetNil();
-        for (cact = cactTab; cact-- > 0;)
-            stn1.FAppendCh(kchTab);
-
-        cb = LwMin(ibMac - ib, size(rgb));
-        _bsf.FetchRgb(ib, cb, rgb);
-
-        // append the hex
-        for (ibT = 0; ibT < size(rgb); ibT++)
-        {
-            if (ibT >= cb)
-                stn1.FAppendSz(PszLit("     "));
-            else
-            {
-                stn2.FFormatSz(PszLit("0x%02x "), rgb[ibT]);
-                stn1.FAppendStn(&stn2);
-            }
-        }
-        stn1.FAppendSz(PszLit("   // '"));
-
-        // append the ascii
-        for (ibT = 0; ibT < cb; ibT++)
-        {
-            bT = rgb[ibT];
-            if (bT < 0x20 || bT == 0x7F)
-                bT = '?';
-            stn1.FAppendCh((achar)bT);
-        }
-        stn1.FAppendSz(PszLit("' "));
-
-        DumpSz(stn1.Psz());
-        ib += cb;
-    }
-}
-
 /******************************************************************************
     Disassembles a script (pscpt) using the given script compiler (psccb)
     and dumps the result (including a "SCRIPTPF" directive).
@@ -330,9 +294,8 @@ void SourceEmitter::DumpList(PVirtualArray pglb)
         else
         {
             DumpSz(PszLit("\tITEM"));
-            _bsf.FReplace(pglb->PvLock(iv), cbEntry, 0, _bsf.IbMac());
+            DumpRgb(pglb->PvLock(iv), cbEntry, 2);
             pglb->Unlock();
-            _DumpBsf(2);
         }
     }
 }
@@ -372,16 +335,14 @@ void SourceEmitter::DumpGroup(PVirtualGroup pggb)
         DumpSz(PszLit("\tITEM"));
         if (cbFixed > 0)
         {
-            _bsf.FReplace(pggb->PvFixedLock(iv), cbFixed, 0, _bsf.IbMac());
+            DumpRgb(pggb->PvFixedLock(iv), cbFixed, 2);
             pggb->Unlock();
-            _DumpBsf(2);
         }
         if (0 < (cb = pggb->Cb(iv)))
         {
             DumpSz(PszLit("\tVAR"));
-            _bsf.FReplace(pggb->PvLock(iv), cb, 0, _bsf.IbMac());
+            DumpRgb(pggb->PvLock(iv), cb, 2);
             pggb->Unlock();
-            _DumpBsf(2);
         }
     }
 }
@@ -433,8 +394,7 @@ bool SourceEmitter::FDumpStringTable(PVirtualStringTable pgstb)
         if (cbExtra > 0)
         {
             pgstb->GetExtra(iv, pvExtra);
-            _bsf.FReplace(pvExtra, cbExtra, 0, _bsf.IbMac());
-            _DumpBsf(2);
+            DumpRgb(pvExtra, cbExtra, 2);
         }
     }
 

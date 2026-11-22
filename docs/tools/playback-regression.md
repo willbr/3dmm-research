@@ -21863,3 +21863,30 @@ order matched the retained retail and V3DMM captures in
 The assembly fixtures, rebuilt archives, traces, and Studio canvases
 are under `tmp/c89-chunky-assembly`. Playback captures are under
 `tmp/c89-kd`.
+
+## C89 Chunky byte listings (22 November 2026)
+
+The Chunky source emitter now uses C89 to format raw file blocks and
+collection bytes. The formatter reads bounded blocks and emits eight-byte
+rows with the original hexadecimal case, spacing, and comment bytes. The
+native emitter forwards complete lines to the text sink and retains the
+packed-file directive. The C fixture covers empty blocks, partial rows,
+control and high bytes, and read failures.
+
+Chomp matched 14 retained listings and their diagnostics byte for byte,
+totaling 702,582,258 output bytes. The inputs included three retail ISO
+archives, eight generated Studio archives, and a fixture with empty and
+packed chunks, a block crossing the read buffer boundary, and all six
+collection types. The fixture matched in the SDL build with both output
+sinks and in the native Debug build with file output.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp
+checks passed. Marcus reproduced its startup canvas with SDL's dummy
+video and audio drivers and exited after capture. The separate `scene-load`
+failure reproduced its 63,224-byte trace and fingerprint `0D666753`.
+
+Silent suite `20261122T143502Z-bf2ea826` matched both ports' preceding 60
+seek canvases and camera and actor state. The seek and continuous frame
+order matched the retail and V3DMM captures in `20261122T081603Z-7ffc4e8e`.
+
+The fixture, listings, and checks are under `tmp/c89-chunky-listing`.

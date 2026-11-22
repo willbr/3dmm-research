@@ -3,6 +3,7 @@
 #include "mm/script_kidspace.h"
 #include "mm/chunky_assembly.h"
 #include "mm/chunky_collection.h"
+#include "mm/chunky_listing.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_strings.h"
@@ -2829,6 +2830,47 @@ static void chunky_forest_roots(void)
     CHECK(!mm_chunky_write_roots(&host, position, &bytes) && bytes == 6);
 }
 
+typedef struct ChunkyByteListing
+{
+    const char *const *expected;
+    size_t expected_count, count;
+} ChunkyByteListing;
+
+static void check_byte_line(void *context, const unsigned char *line, size_t length)
+{
+    ChunkyByteListing *listing = context;
+    const char *expected;
+
+    CHECK(listing->count < listing->expected_count);
+    expected = listing->expected[listing->count++];
+    CHECK(length == strlen(expected) && !memcmp(line, expected, length));
+}
+
+static void chunky_byte_listing(void)
+{
+    static const unsigned char bytes[] = {0, 31, 32, 39, 92, 126, 127, 128, 255};
+    static const char *const expected[] = {
+        "\t\tBYTE",
+        "\t\t0x00 0x1F 0x20 0x27 0x5C 0x7E 0x7F 0x80    // '?? '\\~?\x80' ",
+        "\t\t0xFF " "     " "     " "     " "     " "     " "     " "     " "   // '\xFF' "
+    };
+    ChunkyByteListing listing = {expected, 3, 0};
+    MMMemoryStream memory;
+
+    CHECK(mm_memory_stream_init(&memory, bytes, sizeof(bytes)));
+    CHECK(mm_chunky_list_bytes(&memory.stream, 2, check_byte_line, &listing));
+    CHECK(listing.count == 3);
+    listing.count = 0;
+    CHECK(mm_memory_stream_init(&memory, NULL, 0));
+    CHECK(mm_chunky_list_bytes(&memory.stream, 2, check_byte_line, &listing));
+    CHECK(listing.count == 1);
+    listing.count = 0;
+    memory.stream.length = 1;
+    memory.stream.read_at = NULL;
+    CHECK(!mm_chunky_list_bytes(&memory.stream, 2, check_byte_line, &listing));
+    CHECK(listing.count == 1);
+}
+
 #undef SOURCE_KIND
 #undef SOURCE_NUMBER
 #undef SOURCE_TEXT
@@ -2861,6 +2903,7 @@ int main(void)
     chunky_collections();
     chunky_assembly();
     chunky_forest_roots();
+    chunky_byte_listing();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

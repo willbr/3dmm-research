@@ -45,11 +45,7 @@ class SourceEmitter : public SourceEmitter_PAR
   protected:
     PMSNK _pmsnkDump;
     PMSNK _pmsnkError;
-    FileByteStream _bsf;
     bool _fError;
-
-  protected:
-    void _DumpBsf(LegacyLong cactTab);
 
   public:
     SourceEmitter(void);
