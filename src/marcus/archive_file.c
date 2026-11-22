@@ -2,8 +2,10 @@
 #include "storyboard_store.h"
 #include "mm/actor_archive.h"
 #include "mm/movie_scene_journal.h"
+#include "mm/movie_title.h"
 #include "mm/scene_data.h"
 #include "mm/string_ops.h"
+#include "mm/text.h"
 #include <SDL3/SDL.h>
 #include <string.h>
 
@@ -168,6 +170,90 @@ void marcus_archive_input_close(MarcusArchiveInput *input)
         release(input->file);
     input->file = NULL;
     input->reader = NULL;
+}
+
+int marcus_archive_input_open_profile(MarcusArchiveInput *input, const char *path, const MMPrivateArchiveProfile *profile)
+{
+    MMArchiveReaderOptions options = {0};
+    options.max_packed_bytes = 0x7fffffffUL;
+    options.max_string_bytes = 64UL * 1024UL * 1024UL;
+    options.encoding = profile->encoding;
+    options.convert = profile->convert;
+    options.legacy_name = profile->legacy_name;
+    return marcus_archive_input_open(input, path, &options, profile->expanded);
+}
+
+typedef struct ArchiveName
+{
+    const MMPrivateArchiveProfile *profile;
+    const MMTextHost *text;
+    char *output;
+    size_t available;
+    int whole_characters;
+} ArchiveName;
+
+static MMI32 translate_archive_name(void *p, const void *input, MMU32 bytes, int encoding, void *output, MMU32 capacity)
+{
+    const MMPrivateArchiveProfile *profile = p;
+    return (MMI32)profile->convert(NULL, input, bytes, encoding, output, capacity);
+}
+
+static int write_archive_name(void *p, const char *bytes, size_t count)
+{
+    ArchiveName *name = p;
+    if (count > name->available)
+    {
+        if (name->whole_characters)
+            name->available = 0;
+        count = name->available;
+    }
+    memcpy(name->output, bytes, count);
+    name->output += count;
+    name->available -= count;
+    *name->output = '\0';
+    return 1;
+}
+
+static int read_archive_name(void *p, const MMReadStream *stream)
+{
+    ArchiveName *name = p;
+    const MMPrivateArchiveProfile *profile = name->profile;
+    unsigned char wire[MM_CHUNK_NAME_WIRE_BYTES];
+    unsigned short utf16[MM_STRING_MAX];
+    MMMovieTitle title;
+    MMChunkTitleIO io = {0};
+    size_t units;
+    if (stream->length > sizeof(wire) || !mm_read_exact(stream, 0, wire, stream->length))
+        return MM_MOVIE_BAD_FILE;
+    io.context = (void *)profile;
+    io.encoding = profile->encoding;
+    io.swapped_unicode_encoding = profile->swapped_unicode_encoding;
+    io.convert = translate_archive_name;
+    mm_movie_title_init(&title, profile->unit);
+    mm_movie_title_read_wire(&title, wire, stream->length, &io);
+    units = mm_text_utf16(name->text, mm_movie_title_text(&title), title.count * title.unit,
+                         io.encoding, utf16, sizeof(utf16) / sizeof(*utf16));
+    return mm_text_encode_utf8(utf16, units, name, write_archive_name) == 1 ? MM_MOVIE_OK : MM_MOVIE_BAD_FILE;
+}
+
+size_t marcus_archive_name_utf8(MMArchiveReader *reader, MMU32 position, const MMPrivateArchiveProfile *profile,
+                                const MMTextHost *text, char *output, size_t capacity, int whole_characters)
+{
+    ArchiveName name;
+    if (!capacity)
+        return 0;
+    name.profile = profile;
+    name.text = text;
+    name.output = output;
+    name.available = capacity - 1;
+    name.whole_characters = whole_characters;
+    *output = '\0';
+    if (mm_archive_reader_name(reader, position, read_archive_name, &name) != MM_MOVIE_OK)
+    {
+        memset(output, 0, capacity);
+        return 0;
+    }
+    return (size_t)(name.output - output);
 }
 
 typedef struct ActorArchives

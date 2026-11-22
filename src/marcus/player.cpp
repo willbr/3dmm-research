@@ -1,5 +1,6 @@
 #include "player.h"
 #include "mm/actor_archive.h"
+#include "mm/archive_reader.h"
 #include "mm/graphics_transition.h"
 #include "mm/material_resource.h"
 #include "mm/movie_data.h"
@@ -29,6 +30,7 @@
 #include "live_document.h"
 #include "live_edits.h"
 #include "animation_request.h"
+#include "asset_catalog.h"
 #include "mm/preview.h"
 #include <algorithm>
 #include <cstring>
@@ -61,15 +63,6 @@ template <std::size_t N> void Copy(char (&output)[N], const std::string &input)
         --count;
     std::memcpy(output, input.data(), count);
     output[count] = 0;
-}
-std::int32_t Word(const std::vector<std::uint8_t> &bytes, bool big)
-{
-    std::uint32_t value = 0;
-    for (int i = 0; i < 4; ++i)
-        value |= std::uint32_t(bytes[i]) << ((big ? 3 - i : i) * 8);
-    std::int32_t result;
-    std::memcpy(&result, &value, sizeof(result));
-    return result;
 }
 } // namespace
 struct SoundSheet : MarcusSoundSheet
@@ -145,8 +138,13 @@ struct MarcusPlayer
     MM::PreviewImage captionFontSample;
     MarcusPlayback playback;
     MarcusScenes sceneInfo, baseSceneInfo;
-    std::vector<MarcusBackground> backgrounds;
-    std::vector<MarcusProp> props, actors, fonts, materials;
+    struct AssetCatalog : MarcusAssetCatalog
+    {
+        AssetCatalog() : MarcusAssetCatalog{} {}
+        ~AssetCatalog() { marcus_asset_catalog_clear(this); }
+        AssetCatalog(const AssetCatalog &) = delete;
+        AssetCatalog &operator=(const AssetCatalog &) = delete;
+    } assets[MARCUS_ASSET_KIND_COUNT];
     struct SoundCatalog : MarcusSoundCatalog
     {
         SoundCatalog() : MarcusSoundCatalog{} {}
@@ -154,7 +152,6 @@ struct MarcusPlayer
         SoundCatalog(const SoundCatalog &) = delete;
         SoundCatalog &operator=(const SoundCatalog &) = delete;
     } soundAssets;
-    std::string propCatalogDirectory, actorCatalogDirectory, fontCatalogDirectory, materialCatalogDirectory, backgroundCatalogDirectory;
     std::vector<MM::PreviewObject> objects;
     std::vector<MM::PreviewAction> objectActions;
     struct PlacementDrafts : MMMoviePlacementDrafts
@@ -1495,49 +1492,45 @@ static bool InsertObject(MarcusPlayer *player, MMPreviewLiveProp definition, con
     placement.committed = true;
     return true;
 }
-static int ReadCatalogue(MarcusPlayer *player, const char *directory, int kind)
+static int ReadCatalogue(MarcusPlayer *player, const char *directory, MarcusAssetKind kind)
 {
     const bool ok = Guard(player, [&](MM::Error &error) {
         if (!directory) return false;
-        MM::Archive archive;
-        if (!archive.OpenForInspection((std::filesystem::u8path(directory) /
-            (kind == 3 ? "mtrls.3cn" : kind == 2 ? "tdfs.3cn" : "tmpls.3cn")).u8string(), error)) return false;
-        std::vector<MarcusProp> entries;
-        for (std::size_t index = 0; index < archive.Chunks().size(); ++index)
+        switch (MarcusLoadAssetCatalog(player->assets[kind], kind, directory))
         {
-            const auto &chunk = archive.Chunks()[index];
-            if (chunk.id.type != (kind == 3 ? 0x4d54524cU : kind == 2 ? 0x54444620U : 0x544d504cU)) continue;
-            if (kind < 2)
-            {
-                MM::PayloadPage header;
-                if (!archive.ReadPayload(index, 0, 16, header, error)) return false;
-                if (header.bytes.size() != 16 || !((header.bytes[0] == 1 && header.bytes[1] == 0) ||
-                    (header.bytes[0] == 0 && header.bytes[1] == 1))) continue;
-                const auto flags = Word(std::vector<std::uint8_t>(header.bytes.begin() + 12, header.bytes.end()), header.bytes[0] == 0);
-                if ((flags & 2) || bool(flags & 4) != (kind == 0)) continue;
-            }
-            MarcusProp entry = {};
-            entry.chunk = chunk.id.number;
-            Copy(entry.name, chunk.name.empty() ? std::string(kind == 0 ? "Prop " : kind == 1 ? "Actor " : kind == 2 ? "3D font " : "Material ") + std::to_string(entry.chunk) : chunk.name);
-            entries.push_back(entry);
+        case MM_ARCHIVE_READ_OK: return true;
+        case MM_ARCHIVE_MEMORY: error.message = "Insufficient memory to read the asset catalog."; break;
+        case MM_ARCHIVE_MISSING_PAYLOAD: error.message = "Cannot read this chunk."; break;
+        case MM_ARCHIVE_BAD_PACKED_HEADER: error.message = "Invalid compressed payload header."; break;
+        case MM_ARCHIVE_PACKED_LIMIT: error.message = "Packed payload exceeds this session's decode budget."; break;
+        case MM_ARCHIVE_DECODE_FAILED: error.message = "Cannot decode this payload."; break;
+        default: error.message = "Cannot open this file as a chunky archive."; break;
         }
-        std::sort(entries.begin(), entries.end(), [](const auto &a, const auto &b) { return std::strcmp(a.name, b.name) < 0; });
-        (kind == 0 ? player->props : kind == 1 ? player->actors : kind == 2 ? player->fonts : player->materials).swap(entries);
-        (kind == 0 ? player->propCatalogDirectory : kind == 1 ? player->actorCatalogDirectory : kind == 2 ? player->fontCatalogDirectory : player->materialCatalogDirectory) = directory;
-        return true;
+        return false;
     });
-    return ok ? static_cast<int>((kind == 0 ? player->props : kind == 1 ? player->actors : kind == 2 ? player->fonts : player->materials).size()) : -1;
+    return ok ? player->assets[kind].count : -1;
+}
+template <typename Row> int CatalogueRow(const MarcusPlayer *player, MarcusAssetKind kind, int index, Row *out)
+{
+    if (!player || !out) return 0;
+    const auto row = marcus_asset_catalog_row(&player->assets[kind], index);
+    if (!row) return 0;
+    static_assert(sizeof(out->name) == sizeof(row->name), "catalogue name sizes");
+    std::memcpy(out->name, row->name, sizeof(out->name));
+    out->chunk = row->chunk;
+    return 1;
 }
 static int InsertTemplate(MarcusPlayer *player, unsigned long chunk, bool actor)
 {
     int result = -1;
     const bool ok = Guard(player, [&](MM::Error &error) {
-        auto &entries = actor ? player->actors : player->props;
-        const auto &directory = actor ? player->actorCatalogDirectory : player->propCatalogDirectory;
-        if ((entries.empty() || directory != player->timingContent) && ReadCatalogue(player, player->timingContent.c_str(), actor ? 1 : 0) < 0)
+        const auto kind = actor ? MARCUS_ASSET_ACTOR : MARCUS_ASSET_PROP;
+        const auto &entries = player->assets[kind];
+        const auto directory = player->timingContent.c_str();
+        if (!marcus_asset_catalog_matches(&entries, directory) && ReadCatalogue(player, directory, kind) < 0)
         { error.message = player->error; return false; }
-        const auto found = std::find_if(entries.begin(), entries.end(), [&](const auto &entry) { return entry.chunk == chunk; });
-        if (found == entries.end()) { error.message = "The selected object is unavailable."; return false; }
+        const auto found = marcus_asset_catalog_find(&entries, chunk);
+        if (!found) { error.message = "The selected object is unavailable."; return false; }
         static_assert(sizeof(found->name) <= MM_MOVIE_PROP_NAME_BYTES, "catalogue name must fit the insert journal");
         MMPreviewLiveProp definition{};
         definition.source = player->retailSource;
@@ -1761,11 +1754,10 @@ extern "C"
             return restored != 0;
         });
     }
-    int marcus_material_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 3); }
+    int marcus_material_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, MARCUS_ASSET_MATERIAL); }
     int marcus_material(const MarcusPlayer *player, int index, MarcusProp *material)
     {
-        if (!player || !material || index < 0 || std::size_t(index) >= player->materials.size()) return 0;
-        *material = player->materials[index]; return 1;
+        return CatalogueRow(player, MARCUS_ASSET_MATERIAL, index, material);
     }
     int marcus_text_material_preset(MarcusPlayer *player, unsigned long chunk, MarcusTextMaterial *material)
     {
@@ -1775,23 +1767,20 @@ extern "C"
             *material = PublicMaterial(value); material->preset = 1; material->source = -1; material->chunk = chunk; return true;
         });
     }
-    int marcus_prop_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 0); }
-    int marcus_actor_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 1); }
-    int marcus_font_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, 2); }
+    int marcus_prop_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, MARCUS_ASSET_PROP); }
+    int marcus_actor_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, MARCUS_ASSET_ACTOR); }
+    int marcus_font_count(MarcusPlayer *player, const char *directory) { return ReadCatalogue(player, directory, MARCUS_ASSET_FONT); }
     int marcus_prop(const MarcusPlayer *player, int index, MarcusProp *prop)
     {
-        if (!player || !prop || index < 0 || static_cast<std::size_t>(index) >= player->props.size()) return 0;
-        *prop = player->props[index]; return 1;
+        return CatalogueRow(player, MARCUS_ASSET_PROP, index, prop);
     }
     int marcus_actor(const MarcusPlayer *player, int index, MarcusProp *actor)
     {
-        if (!player || !actor || index < 0 || static_cast<std::size_t>(index) >= player->actors.size()) return 0;
-        *actor = player->actors[index]; return 1;
+        return CatalogueRow(player, MARCUS_ASSET_ACTOR, index, actor);
     }
     int marcus_font(const MarcusPlayer *player, int index, MarcusProp *font)
     {
-        if (!player || !font || index < 0 || static_cast<std::size_t>(index) >= player->fonts.size()) return 0;
-        *font = player->fonts[index]; return 1;
+        return CatalogueRow(player, MARCUS_ASSET_FONT, index, font);
     }
     int marcus_add_prop(MarcusPlayer *player, unsigned long chunk) { return InsertTemplate(player, chunk, false); }
     int marcus_add_actor(MarcusPlayer *player, unsigned long chunk) { return InsertTemplate(player, chunk, true); }
@@ -2175,9 +2164,11 @@ extern "C"
         const bool ok = Guard(player, [&](MM::Error &error) {
             if (player->selected < 0) { error.message = "Create or open a scene before adding 3D text."; return false; }
             if (!EnsureRetailContent(*player, error)) return false;
-            if ((player->fonts.empty() || player->fontCatalogDirectory != player->timingContent) &&
-                ReadCatalogue(player, player->timingContent.c_str(), 2) < 0) { error.message = player->error; return false; }
-            if (std::none_of(player->fonts.begin(), player->fonts.end(), [&](const auto &entry) { return entry.chunk == font; }))
+            const auto &fonts = player->assets[MARCUS_ASSET_FONT];
+            const auto directory = player->timingContent.c_str();
+            if (!marcus_asset_catalog_matches(&fonts, directory) &&
+                ReadCatalogue(player, directory, MARCUS_ASSET_FONT) < 0) { error.message = player->error; return false; }
+            if (!marcus_asset_catalog_find(&fonts, font))
             { error.message = "The selected 3D font is unavailable."; return false; }
             MMPreviewLiveProp definition{};
             if (!mm_movie_source_ids_take(&player->sourceIds, player->retailSource, &definition.source))
@@ -2232,9 +2223,11 @@ extern "C"
             if (fontChange == MM_MOVIE_TEXT_RETAIL_FONT)
             {
                 if (!EnsureRetailContent(*player, error)) return false;
-                if ((player->fonts.empty() || player->fontCatalogDirectory != player->timingContent) &&
-                    ReadCatalogue(player, player->timingContent.c_str(), 2) < 0) { error.message = player->error; return false; }
-                if (std::none_of(player->fonts.begin(), player->fonts.end(), [&](const auto &entry) { return entry.chunk == text->font; }))
+                const auto &fonts = player->assets[MARCUS_ASSET_FONT];
+                const auto directory = player->timingContent.c_str();
+                if (!marcus_asset_catalog_matches(&fonts, directory) &&
+                    ReadCatalogue(player, directory, MARCUS_ASSET_FONT) < 0) { error.message = player->error; return false; }
+                if (!marcus_asset_catalog_find(&fonts, text->font))
                 { error.message = "The selected 3D font is unavailable."; return false; }
             }
             if (!ValidMaterial(text->appearance, error)) return false;
@@ -2450,39 +2443,20 @@ extern "C"
     }
     int marcus_background_count(MarcusPlayer *player, const char *directory)
     {
-        const bool ok = Guard(player, [&](MM::Error &error) {
-            if (!directory) return false;
-            MM::Archive archive;
-            if (!archive.OpenForInspection((std::filesystem::u8path(directory) / "bkgds.3cn").u8string(), error))
-                return false;
-            std::vector<MarcusBackground> backgrounds;
-            for (const auto &chunk : archive.Chunks())
-                if (chunk.id.type == 0x424b4744)
-                {
-                    MarcusBackground background = {};
-                    background.chunk = chunk.id.number;
-                    Copy(background.name, chunk.name.empty() ? "Background " + std::to_string(chunk.id.number) : chunk.name);
-                    backgrounds.push_back(background);
-                }
-            player->backgrounds.swap(backgrounds);
-            player->backgroundCatalogDirectory = directory;
-            return true;
-        });
-        return ok ? static_cast<int>(player->backgrounds.size()) : -1;
+        return ReadCatalogue(player, directory, MARCUS_ASSET_BACKGROUND);
     }
     int marcus_background(const MarcusPlayer *player, int index, MarcusBackground *background)
     {
-        if (!player || !background || index < 0 || static_cast<std::size_t>(index) >= player->backgrounds.size()) return 0;
-        *background = player->backgrounds[index];
-        return 1;
+        return CatalogueRow(player, MARCUS_ASSET_BACKGROUND, index, background);
     }
     int marcus_add_scene(MarcusPlayer *player, unsigned long background, const char *resources, const char *directory)
     {
         return Guard(player, [&](MM::Error &error) {
             if (!resources || !directory) return false;
-            if ((player->backgrounds.empty() || player->backgroundCatalogDirectory != directory) &&
+            const auto &backgrounds = player->assets[MARCUS_ASSET_BACKGROUND];
+            if (!marcus_asset_catalog_matches(&backgrounds, directory) &&
                 marcus_background_count(player, directory) < 0) { error.message = player->error; return false; }
-            if (std::none_of(player->backgrounds.begin(), player->backgrounds.end(), [&](const auto &value) { return value.chunk == background; }))
+            if (!marcus_asset_catalog_find(&backgrounds, background))
             { error.message = "The selected background is unavailable."; return false; }
             if (!player->resourcesReady) { player->timingResources = resources; player->timingContent = directory; }
             if (!EnsureRetailContent(*player, error)) return false;

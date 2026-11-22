@@ -28,10 +28,16 @@ typedef struct MarcusArchiveInput
     MMArchiveReader *reader;
 } MarcusArchiveInput;
 
+struct MMTextHost;
 /* Start with a zeroed input. Failure preserves the current input. */
 int marcus_archive_input_open(MarcusArchiveInput *, const char *path, const MMArchiveReaderOptions *,
                                int expanded);
 void marcus_archive_input_close(MarcusArchiveInput *);
+int marcus_archive_input_open_profile(MarcusArchiveInput *, const char *path, const MMPrivateArchiveProfile *);
+/* Read a counted archive name into a bounded UTF-8 buffer. Return the bytes
+ * written. Sound assets retain their historical byte truncation. */
+size_t marcus_archive_name_utf8(MMArchiveReader *, MMU32 position, const MMPrivateArchiveProfile *,
+                                const struct MMTextHost *, char *output, size_t capacity, int whole_characters);
 
 struct MMMovieActorTextEdit;
 struct MMMoviePoseJournal;
@@ -42,7 +48,6 @@ struct MMMovieRangeJournal;
 struct MMMoviePropJournal;
 struct MMMovieCameraJournal;
 struct MarcusBoardStore;
-struct MMTextHost;
 enum { MARCUS_ARCHIVE_TEXT_OPEN = -1 };
 
 typedef struct MarcusArchiveDrafts

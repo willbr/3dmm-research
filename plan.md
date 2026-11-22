@@ -2034,6 +2034,10 @@ The C89 archive reader also enumerates chunk catalogs for live and immutable
 sources. It reads encoded names, resolves child targets and orders links with
 the same comparator used by the archive writer. Archive and Preview marshal
 the completed rows into their public C++ types.
+Marcus reads props, actors, fonts, materials, backgrounds and sounds directly
+from the C89 archive reader. The catalog owners keep the previous rows on
+failure and share the encoded-name reader. Prop and actor filtering uses the
+same template header decoder as the live and standalone engine.
 Working archive lookup, cache retention and reload now use the C89
 registry and archive owner. Studio and Preview supply filename and
 physical access operations for the shared selection.

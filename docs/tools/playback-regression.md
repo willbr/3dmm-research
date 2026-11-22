@@ -23222,3 +23222,23 @@ and Marcus builds on all 60 seek canvases and recorded states for each port.
 Both ports' seek and playback frame orders matched retained retail and
 V3DMM run `20261122T082301Z-c465fa98`. Evidence is under
 `tmp/c89-archive-catalog` and `tmp/c89-aqcap`.
+
+## C89 Marcus asset catalogs (22 November 2026)
+
+C89 opens the retail template, font, material and background archives,
+owns the catalog rows and validates selected chunk IDs. Props and actors
+use the engine template decoder. All five catalogs share the read-only
+archive binding and name reader with the sound catalog.
+
+All 131 retail prop, actor, font, material and background rows matched by
+name, ID and order. Failed refreshes preserved the previous rows. A separate
+fixture covered mixed-endian and rejected template headers, missing names,
+equal names and UTF-8 truncation. All 711 sound rows matched by style, name,
+ID and order.
+
+All 226 selected tests passed, the x86 Marcus worker built, and the headless
+startup image and eleven native saves matched byte for byte. Actor Audio
+candidate `20261122T230406Z-2412aae8` matched `20261122T225554Z-984cd334`
+on all 60 Marcus seek canvases and recorded states. Seek and playback frame
+order matched retained retail and V3DMM run `20261122T082301Z-c465fa98`.
+Evidence is under `tmp/c89-asset-catalog` and `tmp/c89-aqcap`.
