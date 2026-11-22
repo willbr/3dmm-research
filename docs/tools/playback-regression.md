@@ -20834,3 +20834,24 @@ caption canvases on all 11 frames, including the three caption-area pixel
 differences from retail.
 
 Evidence is under tmp/c89-live-rich-text-collections.
+
+## Shared C89 rich-text row editing (22 November 2026)
+
+Studio and Marcus now bind property edits and reference-counted arguments
+directly to their C89 collections. The shared binding reserves and edits
+property rows, updates argument references in their stored byte order,
+and reuses freed slots. The C89 allocator sets up the live argument group.
+The fixtures cover allocation failure and retry, a final entry without
+alignment padding, and argument insertion and removal in both byte orders.
+
+All 193 rebuilt C89 checks passed. Movie save/load and text-store passed on
+native x64, native x86 and SDL. The Marcus playback check passed caption
+draft, edit, undo, save and reopen. All 14 native x64 traces and both Studio
+saves matched their prior bytes.
+
+All six seek runs in 20261122T021255Z-18362602 matched the corresponding
+prior canvases and camera indices. Retail and V3DMM agreed on all 60 camera
+frames and all 11 caption frames. SDL and Marcus retained the three
+caption-area differences from retail on the caption fixture.
+
+Evidence is under tmp/c89-rich-text-edit-rows.

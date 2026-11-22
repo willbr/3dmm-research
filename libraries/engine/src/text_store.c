@@ -741,6 +741,19 @@ MMTextCollection *mm_text_collection_new(MMU32 kind, const MMTextCollectionConfi
     return c;
 }
 
+MMTextCollection *mm_text_collection_new_arguments(MMU32 reserve_bytes, const MMTextCollectionConfig *config)
+{
+    MMTextCollection *c = mm_text_collection_new(MM_TEXT_ARGUMENTS, config);
+    if (!c)
+        return NULL;
+    c->storage.min_grow[0] = 16 * c->rows.group.fixed_bytes;
+    c->storage.min_grow[1] = 16 * sizeof(MMGroupLocation);
+    if (mm_group_reserve(&c->rows.group, 1, reserve_bytes, 0) == MM_STORAGE_OK)
+        return c;
+    mm_text_collection_dispose(c);
+    return NULL;
+}
+
 void mm_text_collection_dispose(MMTextCollection *c)
 {
     if (c)
@@ -912,9 +925,12 @@ int mm_text_collection_put_property(MMTextCollection *c, MMU32 row, const MMU32 
 static unsigned char *argument_location(const MMTextCollection *c, MMU32 row, MMI32 *bytes)
 {
     MMGroupLocation location;
-    if (!c || c->kind != MM_TEXT_ARGUMENTS || mm_group_location(&c->rows.group, row, &location) != MM_STORAGE_OK)
+    if (bytes)
+        *bytes = 0;
+    if (!c || c->kind != MM_TEXT_ARGUMENTS || mm_group_read_slot(&c->rows.group, row, &location) != MM_GROUP_SLOT_PRESENT)
         return NULL;
-    *bytes = location.bytes - 4;
+    if (bytes)
+        *bytes = location.bytes - 4;
     return c->storage.buffers[0].data + (MMU32)location.offset;
 }
 
@@ -926,19 +942,26 @@ const void *mm_text_collection_argument(const MMTextCollection *c, MMU32 row, MM
 
 MMU32 mm_text_collection_argument_ref(const MMTextCollection *c, MMU32 row)
 {
-    MMI32 bytes;
-    const unsigned char *p = argument_location(c, row, &bytes);
+    const unsigned char *p = argument_location(c, row, NULL);
     return p ? get(p, 4, c->big) : 0;
 }
 
 int mm_text_collection_put_argument_ref(MMTextCollection *c, MMU32 row, MMU32 ref)
 {
-    MMI32 bytes;
-    unsigned char *p = argument_location(c, row, &bytes);
+    unsigned char *p = argument_location(c, row, NULL);
     if (!p)
         return 0;
     put(p, ref, 4, c->big);
     return 1;
+}
+
+int mm_text_collection_add_argument(MMTextCollection *c, const void *data, MMU32 bytes, MMU32 ref, MMU32 *row)
+{
+    unsigned char fixed[4];
+    if (!c || c->kind != MM_TEXT_ARGUMENTS)
+        return 0;
+    put(fixed, ref, sizeof(fixed), c->big);
+    return mm_group_add(&c->rows.group, bytes, data, fixed, row) == MM_STORAGE_OK;
 }
 
 int mm_text_collection_delete(MMTextCollection *c, MMU32 row)

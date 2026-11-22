@@ -290,28 +290,6 @@ static MMI32 inherit_first(const MMTextPropertyServices *s, MMTextPropertyChange
     return count;
 }
 
-static MMTextCollection *caption_properties(void *p)
-{
-    return ((MMCaptionPropertyMap *)p)->body->properties;
-}
-
-static MMArray caption_property_view(void *p, int *big)
-{
-    const MMArray *rows = mm_text_collection_property_array(caption_properties(p), big);
-    MMArray empty = {0};
-    if (rows)
-        return *rows;
-    *big = 0;
-    return empty;
-}
-
-static void caption_property_publish(void *p, const MMArray *rows)
-{
-    MMArray *array = mm_text_collection_property_array(caption_properties(p), NULL);
-    if (array)
-        *array = *rows;
-}
-
 static void caption_bad_property_mutation(void *p)
 {
     ((MMCaptionPropertyMap *)p)->diagnosed = 1;
@@ -341,59 +319,22 @@ static void *caption_argument_owner(void *p, int kind)
     return ((MMCaptionPropertyMap *)p)->body->arguments;
 }
 
-static MMI32 caption_argument_count(void *p, void *group)
-{
-    (void)p;
-    return (MMI32)mm_text_collection_count(group);
-}
-
-static int caption_argument_free(void *p, void *group, MMI32 row)
-{
-    MMI32 bytes;
-    (void)p;
-    return mm_text_collection_argument(group, (MMU32)row, &bytes) == NULL;
-}
-
-static MMU32 caption_argument_ref(void *p, void *group, MMI32 row)
-{
-    (void)p;
-    return mm_text_collection_argument_ref(group, (MMU32)row);
-}
-
-static void caption_argument_put(void *p, void *group, MMI32 row, MMU32 value)
-{
-    if (!mm_text_collection_put_argument_ref(group, (MMU32)row, value))
-        ((MMCaptionPropertyMap *)p)->diagnosed = 1;
-}
-
-static void caption_argument_remove(void *p, void *group, MMI32 row)
-{
-    if (!mm_text_collection_delete(group, (MMU32)row))
-        ((MMCaptionPropertyMap *)p)->diagnosed = 1;
-}
-
 void mm_caption_edit_property_services(MMCaptionPropertyMap *map, MMTextPropertyServices *s)
 {
     memset(s, 0, sizeof(*s));
     s->context = map;
-    map->array.owner = map;
-    map->array.view = caption_property_view;
-    map->array.publish = caption_property_publish;
-    map->array.bad_mutation = caption_bad_property_mutation;
-    map->array.insert_failure = -1;
-    mm_text_property_array_rows(&s->rows, &map->array);
+    map->properties.collection = map->body->properties;
+    map->properties.context = map;
+    map->properties.bad_mutation = caption_bad_property_mutation;
+    map->properties.insert_failure = -1;
+    mm_text_collection_property_rows(&s->rows, &map->properties);
     s->clear_cache = caption_property_clear;
     s->paragraph_end = caption_property_paragraph_end;
     s->diagnostic = caption_property_diagnostic;
     s->arguments.context = map;
     s->arguments.objects.context = map;
     s->arguments.objects.get = caption_argument_owner;
-    s->arguments.rows.context = map;
-    s->arguments.rows.count = caption_argument_count;
-    s->arguments.rows.free_slot = caption_argument_free;
-    s->arguments.rows.fixed = caption_argument_ref;
-    s->arguments.rows.put_fixed = caption_argument_put;
-    s->arguments.rows.remove = caption_argument_remove;
+    mm_text_collection_argument_rows(&s->arguments.rows);
     s->arguments.diagnostic = caption_property_diagnostic;
 }
 

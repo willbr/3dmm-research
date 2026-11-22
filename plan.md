@@ -1807,6 +1807,9 @@ file references and bounded reads. Preview uses the same decoder for the
 authored TEXT encoding marker. Studio's live property and argument tables
 use the same C89 collection owners and wire codec as Marcus's captions.
 Studio supplies its document/view hooks, font mapping and allocator.
+Property edits in both hosts bind those C89 owners directly. Argument
+allocation, lookup, insertion and reference updates use shared collection
+operations that preserve the payload byte order.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

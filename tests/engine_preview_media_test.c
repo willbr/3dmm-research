@@ -269,7 +269,7 @@ static void edited_caption_collections(void)
     CaptionCollectionOutput output;
     MMStorageWriter writer;
     unsigned char gl[28], ag[60];
-    MMI32 argument_bytes;
+    MMI32 argument_bytes, added;
     const unsigned char *font_row;
     int big, order, system, arg_order, arg_system;
     assert(mm_memory_stream_init(&text, "ABCD", 4));
@@ -325,14 +325,14 @@ static void edited_caption_collections(void)
         assert(property.key == 0x01000001U && property.value == 3);
         property_array = mm_text_collection_property_array(properties, NULL);
         assert(mm_storage_lock(property_array->storage, 0) == MM_STORAGE_OK);
-        assert(!mm_text_property_array_reserve(&map.array, 1));
+        assert(!mm_text_collection_reserve_properties(properties, 1));
         assert(services.rows.insert(services.rows.context, 0, &property) == -1);
-        map.array.insert_failure = 0;
+        map.properties.insert_failure = 0;
         assert(!services.rows.insert(services.rows.context, 0, &property));
-        map.array.insert_failure = -1;
+        map.properties.insert_failure = -1;
         assert(services.rows.count(services.rows.context) == 2 && !map.diagnosed);
         assert(mm_storage_unlock(property_array->storage, 0) == MM_STORAGE_OK);
-        assert(mm_text_property_array_reserve(&map.array, 1));
+        assert(mm_text_collection_reserve_properties(properties, 1));
         property.value = -123;
         assert(services.rows.insert(services.rows.context, 0, &property) == 1);
         services.rows.get(services.rows.context, 0, &property);
@@ -356,6 +356,10 @@ static void edited_caption_collections(void)
         output.fail_at = 0xffffffffU;
         assert(mm_text_collection_write(arguments, &writer, order, system) && !memcmp(output.bytes, ag, sizeof(ag)));
 
+        assert(services.arguments.rows.add(services.arguments.rows.context, arguments, "new", 3, 0x40000001U, &added));
+        assert(added == 1 && mm_text_collection_argument_ref(arguments, added) == 0x40000001U);
+        mm_text_argument_ref(added + 1, 0, &services.arguments);
+        assert(!mm_text_collection_argument(arguments, added, &argument_bytes) && !map.diagnosed);
         mm_text_property_ref(2, 1, 0, &services.arguments);
         assert(!mm_text_collection_argument(arguments, 0, &argument_bytes));
         assert(mm_text_collection_argument_ref(arguments, 2) == 0x40000001U);

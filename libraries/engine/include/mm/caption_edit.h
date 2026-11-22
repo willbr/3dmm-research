@@ -105,7 +105,7 @@ typedef struct MMCaptionPropertyMap
     MMRichTextState *body;
     MMCaptionEditWords words;
     int diagnosed;
-    MMTextPropertyArray array;
+    MMTextPropertyBinding properties;
 } MMCaptionPropertyMap;
 
 /* The body owns C text collections. Words are the currently selected

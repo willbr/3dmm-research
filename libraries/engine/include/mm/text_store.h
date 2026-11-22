@@ -192,6 +192,7 @@ extern "C"
 
     typedef struct MMTextCollection MMTextCollection;
     MMTextCollection *mm_text_collection_new(MMU32 kind, const MMTextCollectionConfig *);
+    MMTextCollection *mm_text_collection_new_arguments(MMU32 reserve_bytes, const MMTextCollectionConfig *);
     void mm_text_collection_dispose(MMTextCollection *);
     int mm_text_collection_read(MMU32 kind, const MMReadStream *, MMTextCollection **, int *order, int *system,
                                 const MMTextCollectionConfig *);
@@ -210,6 +211,7 @@ extern "C"
     const void *mm_text_collection_argument(const MMTextCollection *, MMU32 row, MMI32 *bytes);
     MMU32 mm_text_collection_argument_ref(const MMTextCollection *, MMU32 row);
     int mm_text_collection_put_argument_ref(MMTextCollection *, MMU32 row, MMU32 ref);
+    int mm_text_collection_add_argument(MMTextCollection *, const void *data, MMU32 bytes, MMU32 ref, MMU32 *row);
     int mm_text_collection_delete(MMTextCollection *, MMU32 row);
 #ifdef __cplusplus
 }

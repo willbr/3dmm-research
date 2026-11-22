@@ -111,11 +111,12 @@ static MMU32 fixed(void *v, void *group, MMI32 i)
     CHECK(!free_slot(v, group, i));
     return ((Doc *)v)->arguments[i].fixed;
 }
-static void put_fixed(void *v, void *group, MMI32 i, MMU32 value)
+static int put_fixed(void *v, void *group, MMI32 i, MMU32 value)
 {
     CHECK(!free_slot(v, group, i));
     ((Doc *)v)->arguments[i].fixed = value;
     event((Doc *)v, 'r');
+    return 1;
 }
 static int add(void *v, void *group, const void *bytes, MMI32 length, MMU32 value, MMI32 *out)
 {
@@ -137,12 +138,13 @@ static int add(void *v, void *group, const void *bytes, MMI32 length, MMU32 valu
     *out = i;
     return 1;
 }
-static void remove_argument(void *v, void *group, MMI32 i)
+static int remove_argument(void *v, void *group, MMI32 i)
 {
     Doc *d = (Doc *)v;
     CHECK(!free_slot(v, group, i));
     event(d, (d->arguments[i].fixed >> 24) == 2 ? 'f' : 'o');
     d->arguments[i].free = 1;
+    return 1;
 }
 static void diagnostic(void *v, int kind)
 {

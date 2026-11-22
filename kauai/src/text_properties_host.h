@@ -5,23 +5,14 @@
 struct RichTextDocument::PropertyHost : DocumentHost
 {
     const SPVM *changes = nullptr;
-    MMTextPropertyArray propertyArray;
+    MMTextPropertyBinding properties;
     explicit PropertyHost(RichTextDocument *p)
-        : DocumentHost(p), propertyArray{
-              p,
-              [](void *v, int *big) {
-                  return *mm_text_collection_property_array(static_cast<RichTextDocument *>(v)->_properties, big);
-              },
-              [](void *v, const MMArray *rows) {
-                  *mm_text_collection_property_array(static_cast<RichTextDocument *>(v)->_properties, nullptr) = *rows;
-              },
-              [](void *) { Assert(false, "invalid property row mutation"); },
-              0}
+        : DocumentHost(p), properties{p->_properties, p, [](void *) { Assert(false, "invalid property row mutation"); }, 0}
     {
     }
     int ReserveProperties(MMI32 count)
     {
-        return mm_text_property_array_reserve(&propertyArray, count);
+        return mm_text_collection_reserve_properties(properties.collection, count);
     }
     static void Diagnostic(void *, int kind)
     {
@@ -37,6 +28,10 @@ struct RichTextDocument::PropertyHost : DocumentHost
         {
             Assert(false, "cact overflowed");
         }
+        else if (kind == MM_TEXT_ARG_MUTATION)
+        {
+            Assert(false, "invalid group mutation");
+        }
         else
         {
             Assert(false, 0);
@@ -44,12 +39,6 @@ struct RichTextDocument::PropertyHost : DocumentHost
     }
     MMTextArgumentServices Arguments()
     {
-        static const MMTextLiveArgumentGroup group = {
-            [](void *p) { return *mm_text_collection_argument_group(static_cast<MMTextCollection *>(p)); },
-            [](void *p, const MMGroup *rows) {
-                *mm_text_collection_argument_group(static_cast<MMTextCollection *>(p)) = *rows;
-            },
-            [](void *) { Assert(false, "invalid group mutation"); }};
         MMTextArgumentServices s = {};
         s.context = this;
         s.objects = Objects();
@@ -62,22 +51,11 @@ struct RichTextDocument::PropertyHost : DocumentHost
             auto &h = *static_cast<PropertyHost *>(v);
             return h.Guard([&] {
                 const auto config = RichTextStoreHost::LiveCollectionConfig();
-                auto owned = mm_text_collection_new(MM_TEXT_ARGUMENTS, &config);
-                if (!owned)
-                    return false;
-                auto rows = mm_text_collection_argument_group(owned);
-                rows->storage->min_grow[0] = 16 * rows->fixed_bytes;
-                rows->storage->min_grow[1] = 16 * sizeof(MMGroupLocation);
-                if (mm_group_reserve(rows, 1, bytes, 0) != MM_STORAGE_OK)
-                {
-                    mm_text_collection_dispose(owned);
-                    return false;
-                }
-                *out = owned;
-                return true;
+                *out = mm_text_collection_new_arguments(bytes, &config);
+                return *out != nullptr;
             });
         };
-        mm_text_live_argument_rows(&s.rows, &group);
+        mm_text_collection_argument_rows(&s.rows);
         return s;
     }
     MMTextPropertyServices Properties()
@@ -86,7 +64,7 @@ struct RichTextDocument::PropertyHost : DocumentHost
         s.context = this;
         s.arguments = Arguments();
         s.diagnostic = Diagnostic;
-        mm_text_property_array_rows(&s.rows, &propertyArray);
+        mm_text_collection_property_rows(&s.rows, &properties);
         s.clear_cache = [](void *v) {
             auto doc = static_cast<PropertyHost *>(v)->rich;
             doc->_cpMinChp = doc->_cpLimChp = doc->_cpMinPap = doc->_cpLimPap = 0;

@@ -12,7 +12,8 @@ extern "C"
         MM_TEXT_ARG_INDEX,
         MM_TEXT_ARG_REFS,
         MM_TEXT_ARG_OVERFLOW,
-        MM_TEXT_PROP_INSERT
+        MM_TEXT_PROP_INSERT,
+        MM_TEXT_ARG_MUTATION
     };
     typedef struct MMTextPropertyEntry
     {
@@ -31,19 +32,13 @@ extern "C"
         int (*free_slot)(void *, void *, MMI32);
         const void *(*data)(void *, void *, MMI32, MMI32 *bytes);
         MMU32 (*fixed)(void *, void *, MMI32);
-        void (*put_fixed)(void *, void *, MMI32, MMU32);
+        int (*put_fixed)(void *, void *, MMI32, MMU32);
         int (*add)(void *, void *, const void *, MMI32 bytes, MMU32 fixed, MMI32 *index);
-        void (*remove)(void *, void *, MMI32);
+        int (*remove)(void *, void *, MMI32);
     } MMTextArgumentRows;
-    typedef struct MMTextLiveArgumentGroup
-    {
-        MMGroup (*view)(void *owner);
-        void (*publish)(void *owner, const MMGroup *);
-        void (*bad_delete)(void *owner);
-    } MMTextLiveArgumentGroup;
-    /* Live argument records use a native 32-bit fixed word. The group owner
-     * publishes shape after edits. The binding must outlive the row services. */
-    void mm_text_live_argument_rows(MMTextArgumentRows *, const MMTextLiveArgumentGroup *);
+    /* Bind argument operations for C collections. References follow the
+     * collection's payload byte order. */
+    void mm_text_collection_argument_rows(MMTextArgumentRows *);
     /* Borrow the variable payload of a live row until mutation. A missing row
      * returns NULL and zero size. The caller controls the storage lock. */
     unsigned char *mm_text_argument_payload(const MMGroup *, MMI32 index, MMI32 *bytes);
@@ -65,18 +60,16 @@ extern "C"
         int (*insert)(void *, MMI32 index, const MMTextPropertyEntry *);
         void (*remove)(void *, MMI32 index);
     } MMTextPropertyRows;
-    typedef struct MMTextPropertyArray
+    typedef struct MMTextPropertyBinding
     {
-        void *owner;
-        MMArray (*view)(void *owner, int *big);
-        void (*publish)(void *owner, const MMArray *);
-        void (*bad_mutation)(void *owner);
+        MMTextCollection *collection;
+        void *context;
+        void (*bad_mutation)(void *);
         int insert_failure;
-    } MMTextPropertyArray;
-    /* Views expose dense eight-byte rows in the owner's byte order. The binding
-     * outlives the row services. Mutations publish the refreshed array view. */
-    void mm_text_property_array_rows(MMTextPropertyRows *, const MMTextPropertyArray *);
-    int mm_text_property_array_reserve(const MMTextPropertyArray *, MMI32 count);
+    } MMTextPropertyBinding;
+    /* Borrow the collection and binding for a synchronous edit. */
+    void mm_text_collection_property_rows(MMTextPropertyRows *, const MMTextPropertyBinding *);
+    int mm_text_collection_reserve_properties(MMTextCollection *, MMI32 count);
     int mm_text_property_array_read(const MMArray *, MMU32 row, int big, MMU32 words[2]);
     int mm_text_property_array_write(MMArray *, MMU32 row, int big, const MMU32 words[2], int insert);
     typedef struct MMTextPropertyServices

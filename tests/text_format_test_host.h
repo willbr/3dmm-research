@@ -93,11 +93,12 @@ static MMU32 fixed(void *v, void *p, MMI32 i)
     CHECK(!free_slot(v, p, i));
     return h->fixed;
 }
-static void put_fixed(void *v, void *p, MMI32 i, MMU32 n)
+static int put_fixed(void *v, void *p, MMI32 i, MMU32 n)
 {
     Host *h = (Host *)v;
     CHECK(!free_slot(v, p, i));
     h->fixed = n;
+    return 1;
 }
 static int add(void *v, void *p, const void *bytes, MMI32 length, MMU32 value, MMI32 *index)
 {
@@ -114,12 +115,13 @@ static int add(void *v, void *p, const void *bytes, MMI32 length, MMU32 value, M
     }
     return r;
 }
-static void remove_argument(void *v, void *p, MMI32 i)
+static int remove_argument(void *v, void *p, MMI32 i)
 {
     Host *h = (Host *)v;
     CHECK(!free_slot(v, p, i));
     h->free = 1;
     event(h, 'f');
+    return 1;
 }
 static void diagnostic(void *v, int kind)
 {
