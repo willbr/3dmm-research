@@ -1747,8 +1747,10 @@ binding and references. The compiler and interpreter share that representation,
 and C89 writes the legacy instruction and GSTX sections. The host supplies
 codec, archive placement, and runtime string registry services. Both compiler
 modes use the C89 bytecode writer for instruction groups, literals, and label
-fixups. C89 parses postfix source from the shared lexer tokens. The infix
-expression and control-flow parser still supplies operations to that writer.
+fixups. C89 parses infix and postfix source from the shared lexer tokens.
+Infix precedence, expression storage, constant folding, and control flow
+all feed the C89 emitter. Chomp supplies lexer tokens, opcode signatures,
+and source diagnostics.
 The interpreter's operand stack, list operations, and local and
 graphics-object variable tables now use C89 storage and algorithms.
 The C89 interpreter retains the script and owns instruction decoding,

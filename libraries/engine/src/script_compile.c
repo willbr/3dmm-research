@@ -1,6 +1,6 @@
 /* Compilation converted from Kauai scrcom.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
-#include "mm/script_compile.h"
+#include "script_compile_internal.h"
 #include "mm/lex_token.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_runtime.h"
@@ -123,7 +123,12 @@ void mm_script_emitter_mark_memory(const MMScriptEmitter *emitter)
         mm_script_object_services()->mark_memory(emitter->script);
 }
 
-static void compile_error(MMScriptEmitter *emitter, int error)
+const MMScriptHost *mm_script_emitter_host(MMScriptEmitter *emitter)
+{
+    return emitter->host;
+}
+
+void mm_script_emitter_error(MMScriptEmitter *emitter, int error)
 {
     mm_script_emitter_abort(emitter);
     if (emitter->diagnostic)
@@ -149,13 +154,13 @@ void mm_script_emit_opcode(MMScriptEmitter *emitter, MMU32 opcode)
         return;
     if (opcode > 0xffff)
     {
-        compile_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
         return;
     }
     end_opcode(emitter);
     emitter->last_opcode = mm_script_word_count(emitter->script);
     if (!mm_script_add_word(emitter->script, (MMI32)opcode))
-        compile_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
     emitter->force_opcode = 0;
 }
 
@@ -166,7 +171,7 @@ void mm_script_emit_immediate(MMScriptEmitter *emitter, MMI32 value)
     if (emitter->force_opcode || mm_script_word_count(emitter->script) - emitter->last_opcode >= 256)
         mm_script_emit_opcode(emitter, opNil);
     if (emitter->script && !mm_script_add_word(emitter->script, value))
-        compile_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
 }
 
 void mm_script_emit_variable(MMScriptEmitter *emitter, MMU32 opcode, MMU32 high, MMU32 low)
@@ -175,7 +180,7 @@ void mm_script_emit_variable(MMScriptEmitter *emitter, MMU32 opcode, MMU32 high,
         return;
     if (!opcode || opcode > 255 || high > 0xffff)
     {
-        compile_error(emitter, MM_SCRIPT_COMPILE_VARIABLE);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_VARIABLE);
         return;
     }
     mm_script_emit_opcode(emitter, opNil);
@@ -183,7 +188,7 @@ void mm_script_emit_variable(MMScriptEmitter *emitter, MMU32 opcode, MMU32 high,
     {
         mm_script_set_word(emitter->script, emitter->last_opcode, mm_signed_word((opcode << 24) | high));
         if (!mm_script_add_word(emitter->script, mm_signed_word(low)))
-            compile_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
+            mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
     }
 }
 
@@ -193,7 +198,7 @@ void mm_script_emit_literal(MMScriptEmitter *emitter, const void *text, MMU32 le
     if (!emitter || !emitter->script)
         return;
     if (!mm_script_add_literal(emitter->script, text, length, &index))
-        compile_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
     else
         mm_script_emit_variable(emitter, kopPushLocVar, 0, index);
 }
@@ -212,19 +217,19 @@ void mm_script_emit_label(MMScriptEmitter *emitter, const void *name, MMU32 leng
     index = emitter->labels.strings.count;
     if (mm_strings_find(&emitter->labels.strings, name, length, compare_name, &emitter->names, &index))
     {
-        compile_error(emitter, MM_SCRIPT_COMPILE_DUPLICATE_LABEL);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_DUPLICATE_LABEL);
         return;
     }
     target = emitter->script ? mm_script_word_count(emitter->script) : 0;
     if (target > 0x00ffffffUL)
     {
-        compile_error(emitter, MM_SCRIPT_COMPILE_LABEL_RANGE);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_LABEL_RANGE);
         return;
     }
     target |= (MMU32)MM_SCRIPT_LABEL_BYTE << 24;
     emitter->force_opcode = 1;
     if (!mm_strings_insert(&emitter->labels.strings, index, name, length, &target))
-        compile_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
 }
 
 void mm_script_emit_label_reference(MMScriptEmitter *emitter, const void *name, MMU32 length)
@@ -237,7 +242,7 @@ void mm_script_emit_label_reference(MMScriptEmitter *emitter, const void *name, 
         return;
     address = mm_script_word_count(emitter->script) - 1;
     if (!mm_strings_add(&emitter->references.strings, name, length, &address, NULL))
-        compile_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_MEMORY);
 }
 
 MMCompiledScript *mm_script_emitter_finish(MMScriptEmitter *emitter)
@@ -256,7 +261,7 @@ MMCompiledScript *mm_script_emitter_finish(MMScriptEmitter *emitter)
     {
         if (!mm_strings_get(refs, i, &name, &length) ||
             !mm_strings_find(labels, name, length, compare_name, &emitter->names, &index))
-            compile_error(emitter, MM_SCRIPT_COMPILE_UNDEFINED_LABEL);
+            mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_UNDEFINED_LABEL);
         else if (emitter->script)
         {
             memcpy(&address, refs->entries + i * refs->stride + 4, 4);
@@ -275,7 +280,7 @@ static void postfix_variable(MMScriptEmitter *emitter, const MMScriptPostfixInpu
     MMU32 opcode, high, low;
     if (!input->next(input->context, &token))
     {
-        compile_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
         return;
     }
     opcode = kopPushLocVar;
@@ -287,7 +292,7 @@ static void postfix_variable(MMScriptEmitter *emitter, const MMScriptPostfixInpu
     }
     if (opcode != kopPushLocVar && !input->next(input->context, &token))
     {
-        compile_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
         return;
     }
     if (token.kind == ttBAnd)
@@ -295,13 +300,13 @@ static void postfix_variable(MMScriptEmitter *emitter, const MMScriptPostfixInpu
         opcode += kopPushLocArray - kopPushLocVar;
         if (!input->next(input->context, &token))
         {
-            compile_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
+            mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
             return;
         }
     }
     if (token.kind != ttName || input->opcode(input->context, token.text, token.length) ||
         !mm_script_variable_name(token.text, token.length, emitter->host->unit_bytes, &high, &low))
-        compile_error(emitter, MM_SCRIPT_COMPILE_VARIABLE);
+        mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_VARIABLE);
     else
         mm_script_emit_variable(emitter, opcode + pop, high, low);
 }
@@ -327,14 +332,14 @@ void mm_script_compile_postfix(MMScriptEmitter *emitter, const MMScriptPostfixIn
             if (input->next(input->context, &token) && token.kind == ttLong)
                 mm_script_emit_immediate(emitter, mm_signed_word((MMU32)0 - (MMU32)token.value));
             else
-                compile_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
+                mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
             break;
         case ttName:
             opcode = input->opcode(input->context, token.text, token.length);
             if (opcode)
                 mm_script_emit_opcode(emitter, opcode);
             else
-                compile_error(emitter, MM_SCRIPT_COMPILE_UNKNOWN_NAME);
+                mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_UNKNOWN_NAME);
             break;
         case ttGt: case ttLt:
             postfix_variable(emitter, input, token.kind == ttGt);
@@ -343,14 +348,14 @@ void mm_script_compile_postfix(MMScriptEmitter *emitter, const MMScriptPostfixIn
             kind = token.kind;
             if (!input->next(input->context, &token) || token.kind != ttName ||
                 input->opcode(input->context, token.text, token.length))
-                compile_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
+                mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
             else if (kind == ttAt)
                 mm_script_emit_label(emitter, token.text, token.length);
             else
                 mm_script_emit_label_reference(emitter, token.text, token.length);
             break;
         default:
-            compile_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
+            mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
             break;
         }
     }

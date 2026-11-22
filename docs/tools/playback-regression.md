@@ -21586,3 +21586,35 @@ continuous frame order matched retained retail and V3DMM suite
 
 The compiler fixtures, traces, and Studio canvases are under
 `tmp/c89-script-compile`. Playback captures are under `tmp/c89-kd`.
+
+## C89 infix compiler (22 November 2026)
+
+C89 parses infix expressions, owns the operator stack, expression trees and
+names, folds constants, and emits code for assignments, function calls, and
+control flow. Conditional loops retain their test expression until `End`.
+Chomp supplies native lexer tokens, opcode signatures, and source diagnostics.
+Constant folding uses 32-bit wrapping and masked shifts as the VM does. A
+signed division overflow produces a compile error.
+
+Chomp matched all 470 generated Studio script payloads. The mixed-source
+and infix operator fixtures matched the preceding compiler's chunk payloads
+and decompiled text. Differences in the full fixture archives were confined
+to the chunk index. The two invalid fixtures matched the preceding diagnostic
+text, positions, and exit status. A seeded set of 256 infix assignments
+produced the same 15,360-byte script payload. The standalone C fixture
+executes a precedence, loop, and ternary case and checks division overflow.
+
+All 232 selected checks passed across C89, core linking, native x64 and x86,
+SDL, and Chomp. The headless room, F1 Help, ISO, and authoring workflows
+passed. Help and cache traces, nine movie saves, the smoke canvases, and
+the Marcus startup canvas matched retained results. The ticket booth's AVI
+crop matched a previously sampled frame, and the post-video canvas matched
+the preceding capture. The existing `scene-load` failure reproduced its
+63,224-byte trace and fingerprint `0D666753`.
+
+In silent suite `20261122T131104Z-9baaa569`, both ports matched their preceding
+60 seek canvases and camera and actor state. Seek and continuous frame order
+matched retail and V3DMM suite `20261122T081603Z-7ffc4e8e`.
+
+The compiler fixtures, traces, and Studio canvases are under
+`tmp/c89-script-infix`. Playback captures are under `tmp/c89-kd`.

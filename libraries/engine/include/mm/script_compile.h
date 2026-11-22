@@ -1,4 +1,4 @@
-/* Bytecode emission and postfix compilation for Kauai scripts. */
+/* Bytecode emission and compilation for Kauai scripts. */
 #ifndef MM_ENGINE_SCRIPT_COMPILE_H
 #define MM_ENGINE_SCRIPT_COMPILE_H
 #include "script_resource.h"
@@ -16,7 +16,19 @@ extern "C"
         MM_SCRIPT_COMPILE_VARIABLE,
         MM_SCRIPT_COMPILE_DUPLICATE_LABEL,
         MM_SCRIPT_COMPILE_UNDEFINED_LABEL,
-        MM_SCRIPT_COMPILE_LABEL_RANGE
+        MM_SCRIPT_COMPILE_LABEL_RANGE,
+        MM_SCRIPT_COMPILE_DIVIDE_BY_ZERO,
+        MM_SCRIPT_COMPILE_DIVISION_OVERFLOW,
+        MM_SCRIPT_COMPILE_UNKNOWN_FUNCTION,
+        MM_SCRIPT_COMPILE_ARGUMENT_COUNT,
+        MM_SCRIPT_COMPILE_VOID_VALUE,
+        MM_SCRIPT_COMPILE_KEYWORD_VARIABLE,
+        MM_SCRIPT_COMPILE_UNEXPECTED_ELIF,
+        MM_SCRIPT_COMPILE_UNEXPECTED_ELSE,
+        MM_SCRIPT_COMPILE_UNEXPECTED_END,
+        MM_SCRIPT_COMPILE_UNEXPECTED_CONTINUE,
+        MM_SCRIPT_COMPILE_UNEXPECTED_BREAK,
+        MM_SCRIPT_COMPILE_UNEXPECTED_EOF
     };
 
     typedef void (*MMScriptCompileDiagnostic)(void *, int error);
@@ -55,6 +67,23 @@ extern "C"
     } MMScriptPostfixInput;
 
     void mm_script_compile_postfix(MMScriptEmitter *, const MMScriptPostfixInput *);
+
+    typedef struct MMScriptFunction
+    {
+        MMU32 opcode;
+        MMI32 fixed, group, minimum_groups;
+        int returns_void;
+    } MMScriptFunction;
+
+    typedef struct MMScriptInfixInput
+    {
+        void *context;
+        /* Same token lifetime and end-of-source convention as postfix input. */
+        int (*next)(void *, MMScriptToken *);
+        int (*function)(void *, const void *name, MMU32 length, MMScriptFunction *);
+    } MMScriptInfixInput;
+
+    void mm_script_compile_infix(MMScriptEmitter *, const MMScriptInfixInput *);
 #ifdef __cplusplus
 }
 #endif

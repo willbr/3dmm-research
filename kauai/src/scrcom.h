@@ -78,37 +78,15 @@ class CompilerBase : public CompilerBase_PAR
     MARKMEM
 
   protected:
-    enum
-    {
-        fsccNil = 0,
-        fsccWantVoid = 1,
-        fsccTop = 2
-    };
-
     PLexerBase _plexb;       // the lexer
     MMScriptEmitter *_emitter;
-    PDynamicArray _pgletnTree;    // expression tree (in-fix only)
-    PDynamicArray _pgletnStack;   // token stack for building expression tree (in-fix only)
-    PDynamicArray _pglcstd;       // control structure stack (in-fix only)
-    PStringTable_GST _pgstNames;    // encountered names (in-fix only)
-    LegacyLong _lwLastLabel;  // for internal temporary labels
-    bool _fError : 1;   // whether an error has occured during compiling
     bool _fHitEnd : 1;  // we've exhausted our input stream
     LegacyLong _ttEnd;        // stop compiling when we see this
     PMSNK _pmsnk;       // the message sink - for error reporting when compiling
 
-    bool _FInit(PLexerBase plexb, bool fInFix, PMSNK pmsnk);
+    bool _FInit(PLexerBase plexb, PMSNK pmsnk);
     void _Free(void);
-
-    // general compilation methods
-    void _PushLw(LegacyLong lw);
-    void _PushString(PString pstn);
-    void _PushOp(LegacyLong op);
-    void _PushVarOp(LegacyLong op, RuntimeVariableName *prtvn);
-    void _AddLabel(PString pstn);
-    void _PushLabelRequest(PString pstn);
-    void _AddLabelLw(LegacyLong lw);
-    void _PushLabelRequestLw(LegacyLong lw);
+    void _Compile(bool infix);
 
     virtual void _ReportError(PZString psz);
     virtual short _SwCur(void);
@@ -117,37 +95,15 @@ class CompilerBase : public CompilerBase_PAR
 
     virtual bool _FGetTok(PToken ptok);
 
-    // post-fix compiler routines
-    virtual void _CompilePost(void);
+    // Opcode name and argument tables for the script dialect.
     LegacyLong _OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop);
     virtual LegacyLong _OpFromStn(PString pstn);
     bool _FGetStnFromOpRgszop(LegacyLong op, PString pstn, StringOpcodeMap *prgszop);
     virtual bool _FGetStnFromOp(LegacyLong op, PString pstn);
 
-    // in-fix compiler routines
-    virtual void _CompileIn(void);
-    bool _FResolveToOpl(LegacyLong opl, LegacyLong oplMin, LegacyLong *pietn);
-    void _EmitCode(LegacyLong ietnTop, LegacyUlong grfscc, LegacyLong *pclwArg);
-    void _EmitVarAccess(LegacyLong ietn, RuntimeVariableName *prtvn, LegacyLong *popPush, LegacyLong *popPop, LegacyLong *pclwStack);
     virtual bool _FGetOpFromName(PString pstn, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar, bool *pfVoid);
     bool _FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar,
                    bool *pfVoid);
-    void _PushLabelRequestIetn(LegacyLong ietn);
-    void _AddLabelIetn(LegacyLong ietn);
-    void _PushOpFromName(LegacyLong ietn, LegacyUlong grfscc, LegacyLong clwArg);
-    void _GetIstnNameFromIetn(LegacyLong ietn, LegacyLong *pistn);
-    void _GetRtvnFromName(LegacyLong istn, RuntimeVariableName *prtvn);
-    bool _FKeyWord(PString pstn);
-    void _GetStnFromIstn(LegacyLong istn, PString pstn);
-    void _AddNameRef(PString pstn, LegacyLong *pistn);
-    LegacyLong _CstFromName(LegacyLong ietn);
-    void _BeginCst(LegacyLong cst, LegacyLong ietn);
-    bool _FHandleCst(LegacyLong ietn);
-    bool _FAddToTree(struct ETN *petn, LegacyLong *pietn);
-    bool _FConstEtn(LegacyLong ietn, LegacyLong *plw);
-    bool _FCombineConstValues(LegacyLong op, LegacyLong lw1, LegacyLong lw2, LegacyLong *plw);
-    void _SetDepth(struct ETN *petn, bool fCommute = fFalse);
-    void _PushStringIstn(LegacyLong istn);
 
   public:
     CompilerBase(void);

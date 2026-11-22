@@ -1902,15 +1902,15 @@ static void emit_script(void)
     CHECK(!host.collections_live);
 }
 
-typedef struct PostfixSource
+typedef struct CompilerTokenSource
 {
     const MMScriptToken *tokens;
     MMU32 next;
-} PostfixSource;
+} CompilerTokenSource;
 
-static int postfix_token(void *context, MMScriptToken *out)
+static int compiler_token(void *context, MMScriptToken *out)
 {
-    PostfixSource *input = context;
+    CompilerTokenSource *input = context;
     *out = input->tokens[input->next++];
     return out->kind != ttNil;
 }
@@ -1936,7 +1936,7 @@ static void compile_postfix(void)
         {ttLt, 0, NULL, 0}, {ttName, 0, "value", 5}, {ttName, 0, "Return", 6}, {ttNil, 0, NULL, 0}
     };
     MMScriptPostfixInput input;
-    PostfixSource source;
+    CompilerTokenSource source;
     CompileTrace trace;
     Host host;
     MMScriptEmitter *emitter;
@@ -1948,7 +1948,7 @@ static void compile_postfix(void)
     source.tokens = tokens;
     source.next = 0;
     input.context = &source;
-    input.next = postfix_token;
+    input.next = compiler_token;
     input.opcode = postfix_opcode;
     emitter = mm_script_emitter_create(&host.host, 10, 10, compile_diagnostic, &trace);
     CHECK(emitter);
@@ -1963,6 +1963,80 @@ static void compile_postfix(void)
     mm_script_vm_dispose(&vm);
     CHECK(!host.collections_live);
 }
+
+static int infix_function(void *context, const void *name, MMU32 length, MMScriptFunction *function)
+{
+    (void)context;
+    if (length != 6 || memcmp(name, "Return", 6))
+        return 0;
+    function->opcode = kopReturn;
+    function->fixed = 1;
+    function->group = 0;
+    function->minimum_groups = 0;
+    function->returns_void = 1;
+    return 1;
+}
+
+#define TOKEN(kind) {kind, 0, NULL, 0}
+#define NUMBER(value) {ttLong, value, NULL, 0}
+#define IDENTIFIER(name) {ttName, 0, name, sizeof(name) - 1}
+static void compile_infix(void)
+{
+    static const MMScriptToken program[] = {
+        IDENTIFIER("x"), TOKEN(ttAssign), NUMBER(5), TOKEN(ttAdd), NUMBER(2), TOKEN(ttMul), NUMBER(3), TOKEN(ttSemi),
+        IDENTIFIER("y"), TOKEN(ttAssign), NUMBER(0), TOKEN(ttSemi),
+        IDENTIFIER("While"), TOKEN(ttOpenParen), IDENTIFIER("x"), TOKEN(ttGt), NUMBER(4), TOKEN(ttCloseParen), TOKEN(ttSemi),
+        IDENTIFIER("x"), TOKEN(ttASub), NUMBER(2), TOKEN(ttSemi),
+        IDENTIFIER("If"), TOKEN(ttOpenParen), IDENTIFIER("x"), TOKEN(ttEq), NUMBER(7), TOKEN(ttCloseParen), TOKEN(ttSemi),
+        IDENTIFIER("Continue"), TOKEN(ttSemi), IDENTIFIER("End"), TOKEN(ttSemi),
+        IDENTIFIER("y"), TOKEN(ttAAdd), IDENTIFIER("x"), TOKEN(ttSemi), IDENTIFIER("End"), TOKEN(ttSemi),
+        IDENTIFIER("Return"), TOKEN(ttOpenParen), IDENTIFIER("y"), TOKEN(ttGt), NUMBER(15), TOKEN(ttQuery),
+        IDENTIFIER("y"), TOKEN(ttColon), NUMBER(1), TOKEN(ttCloseParen), TOKEN(ttSemi), TOKEN(ttNil)
+    };
+    static const MMScriptToken overflow[] = {
+        IDENTIFIER("Return"), TOKEN(ttOpenParen), NUMBER((-2147483647 - 1)), TOKEN(ttDiv), TOKEN(ttSub), NUMBER(1),
+        TOKEN(ttCloseParen), TOKEN(ttSemi), TOKEN(ttNil)
+    };
+    CompilerTokenSource source;
+    MMScriptInfixInput input;
+    CompileTrace trace;
+    MMScriptEmitter *emitter;
+    MMCompiledScript *script;
+    MMScriptVM vm;
+    Host host;
+
+    init(&host);
+    memset(&trace, 0, sizeof(trace));
+    source.tokens = program;
+    source.next = 0;
+    input.context = &source;
+    input.next = compiler_token;
+    input.function = infix_function;
+    emitter = mm_script_emitter_create(&host.host, 10, 10, compile_diagnostic, &trace);
+    CHECK(emitter);
+    mm_script_compile_infix(emitter, &input);
+    script = mm_script_emitter_finish(emitter);
+    mm_script_emitter_destroy(emitter);
+    CHECK(script && !trace.count && source.next == sizeof(program) / sizeof(*program));
+    CHECK(mm_script_vm_init(&vm, NULL, 1, NULL, NULL, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_vm_attach(&vm, script, 10, 10, NULL, 0));
+    mm_script_release(script);
+    CHECK(mm_script_vm_resume(&vm) && vm.result == 17);
+    mm_script_vm_dispose(&vm);
+
+    source.tokens = overflow;
+    source.next = 0;
+    emitter = mm_script_emitter_create(&host.host, 10, 10, compile_diagnostic, &trace);
+    CHECK(emitter);
+    mm_script_compile_infix(emitter, &input);
+    CHECK(!mm_script_emitter_finish(emitter) && trace.count == 1);
+    CHECK(trace.errors[0] == MM_SCRIPT_COMPILE_DIVISION_OVERFLOW);
+    mm_script_emitter_destroy(emitter);
+    CHECK(!host.collections_live);
+}
+#undef IDENTIFIER
+#undef NUMBER
+#undef TOKEN
 
 int main(void)
 {
@@ -1980,6 +2054,7 @@ int main(void)
     execute_kidspace_app();
     emit_script();
     compile_postfix();
+    compile_infix();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }
