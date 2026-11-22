@@ -199,16 +199,6 @@ int EngineTemplate::Read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwn
     return mm_template_fetch(cache, type, number, block, out, bytes, &s);
 }
 
-PTemplate EngineTemplate::Fetch(PTAG tag)
-{
-    return static_cast<PTemplate>(vptagm->FetchResource(tag, Read, mm_template_owner_services()));
-}
-
-PTemplate EngineTemplate::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number, bool *error)
-{
-    return Fetch(file->CoreCache(), type, number, error);
-}
-
 PTemplate EngineTemplate::Fetch(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number, bool *error)
 {
     const MMResourceRequest request = {type, number, 0, Read, MM_RESOURCE_NORMAL_PRIORITY};

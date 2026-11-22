@@ -11,7 +11,25 @@ struct Host
     BRS *stepOutput = nullptr;
     LegacyLong *lastFrame = nullptr;
 };
-void Diagnostic(void *, int fault);
+inline void Diagnostic(void *, int fault)
+{
+    ASSERTNAME
+    switch (fault)
+    {
+    case MM_ACTOR_CORRUPT_ROUTE:
+        Bug("Corrupted event list");
+        break;
+    case MM_ACTOR_UNKNOWN_EVENT:
+        Assert(false, "Unknown event type");
+        break;
+    case MM_ACTOR_LIFETIME_LOGIC:
+        Assert(false, "Logic error");
+        break;
+    case MM_ACTOR_CORRUPT_ENTRANCE:
+        Assert(false, "Corrupt event list");
+        break;
+    }
+}
 inline MMActorTimelineServices Services(Host *host)
 {
     MMActorTimelineServices s = {EngineActorMotion::Services(),

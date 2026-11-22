@@ -1758,7 +1758,11 @@ bodies, costume overrides, font glyphs and Preview poses retain those model
 owners directly. The C89 BRender body adapter supplies body allocation,
 body-part materials and models, pose and geometry services for Studio and
 Preview. Marcus, its Preview helper and its regression runner link the C89
-body adapter directly. Kauai supplies allocation and diagnostic callbacks. Materials and shade tables retain C89 texture owners. The
+body adapter directly. Kauai supplies allocation and diagnostic callbacks.
+Actor-track editing in both hosts uses the shared C89 local tag operations.
+Loaded 3D text carries its host's font provider. Studio binds its catalogue
+and Preview binds the archive set for its session. Materials and shade
+tables retain C89 texture owners. The
 BRender adapter supplies a writable pixelmap view in the same allocation,
 and imported pixelmaps retain their original renderer allocation. C89 owns
 MTRL and CMTL cache records and retains their texture, material and model

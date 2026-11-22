@@ -74,6 +74,7 @@ void MarkActionNames();
 #endif
 
 PThreeDText PtdtNew(PString, LegacyLong shape, PTAG font);
+PThreeDText PtdtNew(PString, LegacyLong shape, PTAG font, const MMTemplateFontProvider &);
 PDynamicArray PgltagFetch(PChunkyFile, ChunkTagOrType, ChunkNumber, bool *error);
 PThreeDText PtdtDup(PThreeDText);
 void GetInfo(PThreeDText, PString, LegacyLong *shape, PTAG font);

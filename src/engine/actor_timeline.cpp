@@ -3,24 +3,6 @@
 #include "soc_core.h"
 #include "engine_actor_timeline.h"
 ASSERTNAME
-void EngineActorTimeline::Diagnostic(void *, int fault)
-{
-    switch (fault)
-    {
-    case MM_ACTOR_CORRUPT_ROUTE:
-        Bug("Corrupted event list");
-        break;
-    case MM_ACTOR_UNKNOWN_EVENT:
-        Assert(false, "Unknown event type");
-        break;
-    case MM_ACTOR_LIFETIME_LOGIC:
-        Assert(false, "Logic error");
-        break;
-    case MM_ACTOR_CORRUPT_ENTRANCE:
-        Assert(false, "Corrupt event list");
-        break;
-    }
-}
 bool ActorStepSource::FStep(LegacyLong action, LegacyLong cel, BRS *step) const
 {
     AssertVarMem(step);

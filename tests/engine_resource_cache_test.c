@@ -619,6 +619,8 @@ static void typed_cache_owner(void)
     MMResourceCache *first, *second;
     Object *a, *b;
     OwnedObject *c;
+    const MMTagServices *tags = mm_tag_local_cache_services();
+    MMTag local = {0, NULL, 1, 2}, external = {17, NULL, 1, 2}, child;
     int allocations;
     init(&h, 1000);
     services = h.cache.services;
@@ -641,7 +643,12 @@ static void typed_cache_owner(void)
     a = mm_resource_cache_fetch_owned_chunk(first, 1, 2, reader_b, &objects);
     b = mm_resource_cache_fetch_owned_chunk(first, 1, 2, reader_a, &objects);
     CHECK(a && b && a != b && first->count == 2 && h.reads == 2);
-    CHECK(mm_resource_cache_fetch_owned_chunk(first, 1, 2, reader_b, &objects) == a);
+    CHECK(mm_tag_open(&local, first, NULL, tags) && local.cache == first && first->references->count == 2);
+    CHECK(mm_tag_fetch_owned(&local, reader_b, &objects, 0, tags) == a);
+    CHECK(!mm_tag_fetch_owned(&external, reader_b, &objects, 1, tags));
+    CHECK(!mm_tag_child(&external, 0, 2, &child, tags));
+    mm_tag_close(&local, tags);
+    CHECK(!local.cache && first->references->count == 1);
     CHECK(mm_resource_cache_find(first, 1, 2, reader_a, 0) == b);
     CHECK(a->refs.count == 2 && b->refs.count == 2 && h.reads == 2);
     c = mm_resource_cache_fetch_owned_chunk(second, 1, 2, reader_owned, &owned_objects);

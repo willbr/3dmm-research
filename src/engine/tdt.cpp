@@ -73,9 +73,8 @@ static MMTextResourceServices ResourceServices(void *context)
         return provider->fetch(provider->context, font);
     };
     s.default_font = [](void *, const MMTag *in) -> void * {
-        TAG tag;
-        TextTagFromCore(&tag, in);
-        return vptagm ? vptagm->FetchResource(&tag, EngineFont::Read, mm_font_owner_services()) : nullptr;
+        return mm_tag_fetch_owned(in, EngineFont::Read, mm_font_owner_services(), 0,
+                                  mm_tag_local_cache_services());
     };
     s.publish_tag = [](void *, void *out, const MMTag *in) { TextTagFromCore(static_cast<PTAG>(out), in); };
     s.read_template = [](void *p, void *object, MMU32 type, MMU32 number, MMOwnedBlock *block) -> int {
@@ -142,12 +141,15 @@ PDynamicArray EngineText::PgltagFetch(PChunkyFile pcfl, ChunkTagOrType ctg, Chun
 /***************************************************************************
     Create a new ThreeDText
 ***************************************************************************/
-PThreeDText EngineText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf)
+PThreeDText EngineText::PtdtNew(PString pstn, LegacyLong tdts, PTAG ptagTdf, const MMTemplateFontProvider &provider)
 {
     AssertPo(pstn, 0); AssertIn(tdts, 0, tdtsLim); AssertVarMem(ptagTdf);
     TextResourceContext context; auto services = ResourceServices(&context); MMTag font;
     TextTagToCore(ptagTdf, &font);
-    return static_cast<PThreeDText>(mm_text_create(pstn->Pst(), tdts, &font, &services));
+    auto owner = static_cast<PThreeDText>(mm_text_create(pstn->Pst(), tdts, &font, &services));
+    if (owner)
+        *mm_template_owner_font(owner) = provider;
+    return owner;
 }
 
 /***************************************************************************

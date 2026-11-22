@@ -2,6 +2,31 @@
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/tag.h"
 #include "mm/chunk_copy.h"
+
+static MMResourceCache *resource_cache(void *cache)
+{
+    return cache;
+}
+
+static void retain_cache(void *cache)
+{
+    mm_resource_cache_retain(cache);
+}
+
+static void release_cache(void *cache)
+{
+    mm_resource_cache_release(cache);
+}
+
+const MMTagServices *mm_tag_local_cache_services(void)
+{
+    static const MMTagServices services = {
+        NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, resource_cache,
+        NULL, NULL, NULL, NULL, NULL
+    };
+    return &services;
+}
+
 static void publish(const MMTagServices *s, const MMTag *tag)
 {
     if (s->publish)
@@ -25,7 +50,7 @@ int mm_tag_open(MMTag *tag, void *destination, void *source, const MMTagServices
     MMU32 number;
     if (tag->sid)
         return 1;
-    file = source ? s->file(destination) : NULL;
+    file = source && s->file ? s->file(destination) : NULL;
     if (source && source != file)
     {
         MMChunkFileCopy source_binding, target_binding;
@@ -61,7 +86,7 @@ int mm_tag_save(MMTag *tag, void *destination, int redirect, const MMTagServices
     MMU32 number;
     if (tag->sid)
         return 1;
-    if (!destination || !tag->cache)
+    if (!destination || !tag->cache || !s->bind_cache || !s->bind_target)
         return 0;
     target = s->bind_target(destination, &target_binding);
     if (!target.identity)
@@ -124,7 +149,7 @@ int mm_tag_child(const MMTag *parent, MMU32 slot, MMU32 type, MMTag *out,
     MMU32 position;
     if (parent->sid)
     {
-        manager = s->source(s->context, parent->sid, 0, parent);
+        manager = s->source ? s->source(s->context, parent->sid, 0, parent) : NULL;
         if (!manager)
             return 0;
         cache = mm_resource_manager_find_file(manager, parent->type, parent->number, 0);
@@ -167,7 +192,7 @@ void *mm_tag_fetch_owned(const MMTag *tag, MMResourceBlockReader reader, const M
     }
     else
     {
-        manager = s->source(s->context, tag->sid, !use_media, tag);
+        manager = s->source ? s->source(s->context, tag->sid, !use_media, tag) : NULL;
         if (manager)
         {
             request.type = tag->type;

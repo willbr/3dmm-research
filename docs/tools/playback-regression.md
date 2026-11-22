@@ -20498,3 +20498,37 @@ Retail reopened that save in 20261122T001256Z-4b343bb0 and matched all 60
 reference seek canvases and camera indices.
 
 Evidence is under tmp/c89-body-renderer.
+
+## C89 Preview actor tags and 3D-text font binding (22 November 2026)
+
+Studio and Preview share the C89 operations for retaining, closing and
+fetching document-local tags. Studio adds its source discovery and archive
+copy callbacks. Studio binds its catalogue font provider to new and loaded
+3D-text templates. Preview supplies the provider for its active archive set.
+Timeline diagnostics share the native reporting adapter. The x64 link module
+lists for Marcus, its Preview helper and its regression runner show five
+engine-core objects remaining after removal of the actor-track, actor-timeline
+and Studio tag-manager objects.
+
+All 193 standalone C89 checks, five targeted AddressSanitizer checks, the
+native x64 and x86 save/load and core tests, and the SDL save/load test passed.
+Six native snapshots matched their prior bytes. The headless Preview suite
+passed its actor, text, costume, source-order and renderer restart checks.
+The Studio movie workflow exercised visible 3D text, costumes, textures,
+camera cuts, continuous playback and fresh-process save/reopen. Its decoded
+chunks matched the earlier authoring run apart from the source GST listing
+the installed packs.
+
+The eight runs in actor-audio suite 20261122T002013Z-30e20159 completed.
+Studio and Marcus each matched all 30 prior seek canvases, 29 of 30 retail
+seek canvases, and all 30 retail camera indices and continuous frame
+identities. V3DMM matched all 30 retail seek canvases. SDL and V3DMM matched
+all six retail sound requests. Mixed PCM differed, and continuous pixel
+alignment remained inconclusive.
+
+Retail reopened the fresh two-scene Studio save in 20261122T002244Z-3fa50152
+and reproduced all 60 reference seek canvases and camera indices. The
+archive graph and chunk payloads matched the preceding build. The raw save
+differed in two TMPL index padding bytes.
+
+Evidence is under tmp/c89-preview-tag-binding.

@@ -36,7 +36,7 @@ struct PreviewActor::Host
     {
         MMPreviewActorServices s = {};
         s.context = this;
-        s.tags = &EngineActorTagServices();
+        s.tags = mm_tag_local_cache_services();
         s.track_allocator = &trackAllocator;
         s.trash_unused = DebugShip(1, 0);
         s.timeline = mm_actor_track_timeline_services();

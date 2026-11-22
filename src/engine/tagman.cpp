@@ -40,6 +40,47 @@ PTagManager vptagm;
 
 ASSERTNAME
 
+static const MMTemplateFontProvider &StudioFontProvider()
+{
+    static const MMTemplateFontProvider provider = {
+        nullptr,
+        [](void *, const MMTag *font) -> MMFontOwner * {
+            TAG tag;
+            TagFromCore(&tag, *font);
+            return vptagm ? static_cast<MMFontOwner *>(
+                                vptagm->FetchResource(&tag, EngineFont::Read, mm_font_owner_services()))
+                          : nullptr;
+        }
+    };
+    return provider;
+}
+
+PThreeDText EngineText::PtdtNew(PString text, LegacyLong shape, PTAG font)
+{
+    return PtdtNew(text, shape, font, StudioFontProvider());
+}
+
+static PTemplate BindStudioFont(PTemplate owner)
+{
+    if (owner && EngineTemplate::FIsTdt(owner))
+    {
+        auto font = mm_template_owner_font(owner);
+        if (!font->fetch)
+            *font = StudioFontProvider();
+    }
+    return owner;
+}
+
+PTemplate EngineTemplate::Fetch(PTAG tag)
+{
+    return BindStudioFont(static_cast<PTemplate>(vptagm->FetchResource(tag, Read, mm_template_owner_services())));
+}
+
+PTemplate EngineTemplate::Fetch(PChunkyResourceFile file, ChunkTagOrType type, ChunkNumber number, bool *error)
+{
+    return BindStudioFont(Fetch(file->CoreCache(), type, number, error));
+}
+
 RTCLASS(TagManager)
 
 namespace
@@ -650,13 +691,11 @@ struct NativeTagHost
 const MMTagServices &TagManager::CoreServices()
 {
     static const auto services = [] {
-        MMTagServices s = {};
+        auto s = *mm_tag_local_cache_services();
         s.file = [](void *c) -> void * {
             const auto adapter = static_cast<PChunkyResourceFile>(static_cast<MMResourceCache *>(c)->services.legacy_adapter);
             return adapter ? adapter->Pcfl() : nullptr;
         };
-        s.retain = [](void *c) { mm_resource_cache_retain(static_cast<MMResourceCache *>(c)); };
-        s.release = [](void *c) { mm_resource_cache_release(static_cast<MMResourceCache *>(c)); };
         s.compare_cache = [](void *a, void *b) -> int {
             const std::less<void *> before;
             return a == b ? 0 : before(a, b) ? -1 : 1;
@@ -670,7 +709,6 @@ const MMTagServices &TagManager::CoreServices()
         s.bind_target = [](void *cache, MMChunkFileCopy *binding) {
             return ResourceCopyTarget(static_cast<MMResourceCache *>(cache), *binding);
         };
-        s.cache = [](void *c) { return static_cast<MMResourceCache *>(c); };
         s.missing_chunk = [](void *) { Bug("chunk not found"); };
         return s;
     }();

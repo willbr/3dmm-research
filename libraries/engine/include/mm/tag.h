@@ -38,6 +38,10 @@ extern "C"
         /* An empty endpoint denies writes to the destination cache. */
         struct MMChunkEndpoint (*bind_target)(void *cache, struct MMChunkFileCopy *);
     } MMTagServices;
+    /* Shared operations for native MMResourceCache references. Use for local
+     * lookup and tag lifetime, and copy the table to add host source, archive
+     * copy or cache ordering callbacks. Positive tags require a source provider. */
+    const MMTagServices *mm_tag_local_cache_services(void);
     /* sid 0 owns a cache reference after open/child construction. Positive sids
      * resolve through the source provider and ignore cache identity. Open-copy failure
      * clears cache, save-copy failure changes nothing. Redirect retains destination

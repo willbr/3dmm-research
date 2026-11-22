@@ -8,7 +8,7 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
     {
         MMActorEditServices e = {};
         e.context = this;
-        e.tables = mm_actor_edit_tables(actor->Track().events, &EngineActorTagServices());
+        e.tables = mm_actor_edit_tables(actor->Track().events, mm_tag_local_cache_services());
         e.scene_frame = [](void *v, MMI32 *f) { *f = static_cast<CostumeHost *>(v)->actor->core.state.frame; return 1; };
         e.update_sound_frame = [](void *) {};
         e.apply_event = [](void *v, MMActorState *state, MMI32 i) -> int {
