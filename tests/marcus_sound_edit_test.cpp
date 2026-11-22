@@ -142,6 +142,12 @@ int main(int argc, char **argv)
                 check(marcus_update(p.get(), 0, 0, 5, 0, &state), "Advance preview while movie is paused"); SDL_Delay(5);
             }
             check(!marcus_sound_preview_playing(p.get()) && marcus_document(p.get()) == revision, "Preview state resets at natural completion without document changes");
+            check(marcus_audition_sound_file(p.get(), previewPath.c_str(), MARCUS_SOUND_EFFECT, 65536) &&
+                  marcus_sound_preview_playing(p.get()), "Start a new preview before playing the movie");
+            check(marcus_update(p.get(), 1, 0, 0, 0, &state) && !marcus_sound_preview_playing(p.get()),
+                  "Starting the movie cancels the preview");
+            check(marcus_update(p.get(), 0, 0, 0, 0, &state) && marcus_document(p.get()) == revision,
+                  "Preview cancellation leaves the document unchanged");
         }
         {
             const auto revision = marcus_document(p.get());

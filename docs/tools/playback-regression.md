@@ -22899,3 +22899,24 @@ port. Both ports reproduced the 60-frame seek and playback order from
 retail and V3DMM in `20261122T082301Z-c465fa98`. SDL reproduced the 12 ordered
 sound requests. The captures used SDL dummy audio. Evidence is under
 `tmp/c89-audio-cache` and `tmp/c89-aqcap`.
+
+## C89 Marcus playback device (22 November 2026)
+
+C89 opens the SDL stream on the first cue with decoded audio, feeds the shared mixer
+under an SDL mutex, and closes the device before releasing the audio state.
+It also owns SoundFont file loading, playback suspension and one-shot
+audition. The C++ binding supplies the decoded archive media and synth.
+
+All 226 selected native tests passed, and the x86 worker built. The sound
+test verified that starting the movie cancels the active preview without
+changing the document. The packaged and fallback SoundFont runs produced
+the same four native saves as before, byte for byte. An unavailable SDL
+audio driver produced the same initialization error and exit status. The
+headless startup capture also matched byte for byte.
+
+Actor-audio candidate `20261122T211024Z-fd8aa962` matched
+`20261122T210304Z-19d23a07` on all 60 seek canvases and recorded states per
+port. Both ports reproduced the 60-frame seek and playback order from
+retail and V3DMM in `20261122T082301Z-c465fa98`. SDL reproduced the 12 ordered
+sound requests. These captures used SDL dummy audio. Evidence is under
+`tmp/c89-playback-device` and `tmp/c89-aqcap`.

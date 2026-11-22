@@ -1505,8 +1505,11 @@ The C89 engine also owns the decoded Marcus playback cache, voice lifetimes,
 track mute and solo, loop and queue progression, and MIDI preroll and
 rendering decisions.
 Marcus and Studio share PCM accumulation and clipping. The Marcus schedule
-and live mixer use the same rule for stopping loops at scene cuts. Device
-access, archive decoding and SoundFont synthesis use host services.
+and live mixer use the same rule for stopping loops at scene cuts. Marcus
+opens, feeds and releases its SDL playback stream in C89. C89 serializes
+the mixer against the device callback, loads the SoundFont bytes and manages
+one-shot audition and playback suspension. Archive decoding and SoundFont
+synthesis use host services.
 Marcus resolves user-sound links and reads the selected audio payload through
 the C89 movie graph. Studio playback, Marcus preview, and the built-in sound
 catalog share the MSND header decoder. The catalog reads eligible sounds
