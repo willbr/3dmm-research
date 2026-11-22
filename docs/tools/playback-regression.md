@@ -23136,3 +23136,26 @@ per port. Both ports matched the 60-frame seek and playback order in
 retained retail and V3DMM run `20261122T082301Z-c465fa98`. SDL matched all
 12 ordered sound requests. Evidence is under `tmp/c89-animation-publish`
 and `tmp/c89-aqcap`.
+
+## C89 actor edits during movie materialization (22 November 2026)
+
+The C89 archive writer merges pose, text and costume journals by scene and
+actor. It copies each actor with its updated placement, installs text and
+costume drafts on the copy, then applies shape before linking it into the
+scene. Animation commits use the same appearance routine. The file adapter
+opens retained draft archives for the writer.
+
+All 226 selected native tests passed, and the x86 Marcus worker built.
+The headless startup image matched byte for byte.
+
+Seven native saves matched byte for byte. The costume check saved a moved
+actor with edited clothing and a prop with a costume draft, then checked
+reopened pixels and costume event times. The animation and insertion saves
+matched the archives that retail reopened in the insertion and frame-range
+regression.
+
+Marcus Actor Audio candidate `20261122T223402Z-99258b0b` matched
+`20261122T222748Z-6ebb919d` on all 60 seek canvases and recorded states.
+Its 60-frame seek and playback order matched retained retail and V3DMM
+run `20261122T082301Z-c465fa98`. Evidence is under
+`tmp/c89-actor-publication` and `tmp/c89-aqcap`.

@@ -469,30 +469,39 @@ std::shared_ptr<MarcusMovieFile> MarcusReframeScene(const std::filesystem::path 
     return result;
 }
 
-static void CheckTextEdit(int status, int detail)
+static void CheckAppearanceEdit(const MarcusArchiveActorResult &edit)
 {
-    Require(status != MARCUS_ARCHIVE_TEXT_OPEN, "Cannot open the edited text template.");
-    CheckActorAuthor(status, detail);
+    Require(edit.text != MARCUS_ARCHIVE_TEXT_OPEN, "Cannot open the edited text template.");
+    CheckActorAuthor(edit.text, edit.text_detail);
+    Require(edit.costume != MM_ACTOR_EDIT_ARCHIVE_COPY, "Cannot copy costume events.");
+    CheckActorArchiveEdit(edit.costume);
 }
 
-static void ApplyText(MMPrivateArchive *file, ChunkNumber actor, const MMMovieActorTextEdit &edit)
+struct ArchiveDraftHost
 {
-    const auto profile = KauaiPrivateArchiveProfile();
-    const auto path = MarcusEditFile::File(edit.file)->path.u8string();
-    int detail;
-    const int status = marcus_archive_replace_text(file, actor, path.c_str(), &edit, &profile, KauaiText::Services(),
-                                                   &detail);
-    CheckTextEdit(status, detail);
-}
+    std::exception_ptr failure;
 
-static void ApplyCostumes(MMPrivateArchive *file, ChunkNumber actor, const MMMovieActorTrackEdit &edit)
-{
-    const auto profile = KauaiPrivateArchiveProfile();
-    const auto path = MarcusEditFile::File(edit.file)->path.u8string();
-    const auto status = marcus_archive_install_events(file, actor, path.c_str(), &profile);
-    Require(status != MM_ACTOR_EDIT_ARCHIVE_COPY, "Cannot copy costume events.");
-    CheckActorArchiveEdit(status);
-}
+    MarcusArchiveDrafts Services()
+    {
+        return {this, [](void *p, const void *file) -> MMPrivateArchive * {
+            try
+            {
+                return MarcusOpenArchive(MarcusEditFile::File(file)->path, MM_PRIVATE_ARCHIVE_READ).release();
+            }
+            catch (...)
+            {
+                static_cast<ArchiveDraftHost *>(p)->failure = std::current_exception();
+                return nullptr;
+            }
+        }, KauaiText::Services()};
+    }
+    void Check() const
+    {
+        if (failure)
+            std::rethrow_exception(failure);
+    }
+};
+
 std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::path &path,
     const std::shared_ptr<MarcusMovieFile> &origin, const MarcusMovieFile &track,
     const MMActorArchiveAnimation &animation, const MMMovieActorTextEdit *text)
@@ -501,14 +510,16 @@ std::shared_ptr<MarcusMovieFile> MarcusApplyAnimation(const std::filesystem::pat
     const auto profile = KauaiPrivateArchiveProfile();
     const auto workingPath = result->path.u8string();
     const auto trackPath = track.path.u8string();
-    const auto textPath = text ? MarcusEditFile::File(text->file)->path.u8string() : std::string{};
+    ArchiveDraftHost host;
+    const auto drafts = host.Services();
     MarcusArchiveAnimationResult edit;
     const auto status = marcus_archive_animate(workingPath.c_str(), trackPath.c_str(), &profile, &animation,
-                                               textPath.c_str(), text, KauaiText::Services(), kctgSoc, &edit);
+                                               text, &drafts, kctgSoc, &edit);
+    host.Check();
     Require(status != MARCUS_ARCHIVE_ANIMATION_OPEN, "Cannot open the movie or the new animation track.");
-    CheckTextEdit(edit.text, edit.text_detail);
-    Require(edit.actor != MM_ACTOR_EDIT_ARCHIVE_SCENE, "Cannot find the selected actor in the working movie.");
-    CheckActorArchiveEdit(edit.actor);
+    CheckAppearanceEdit(edit.actor);
+    Require(edit.actor.status != MM_ACTOR_EDIT_ARCHIVE_SCENE, "Cannot find the selected actor in the working movie.");
+    CheckActorArchiveEdit(edit.actor.status);
     CheckSceneFrameEdit(edit.scene);
     Require(status == MARCUS_ARCHIVE_ANIMATION_OK, "Cannot save the animation edit.");
     return result;
@@ -541,41 +552,14 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
             ApplyNewProp(file.get(), textFile.get(), editor, prop);
         }
     }
-    const auto changes = mm_movie_pose_journal_data(&poses);
-    for (MMU32 index = 0; index < poses.count; ++index)
-    {
-        const auto &placement = changes[index];
-        const auto text = mm_movie_text_journal_find(edits.texts.get(), placement.scene, placement.actor);
-        const auto costume = mm_movie_track_journal_find(edits.costumes.get(), placement.scene, placement.actor);
-        struct Appearance
-        {
-            MMPrivateArchive *file;
-            const MMMovieActorTextEdit *text;
-            const MMMovieActorTrackEdit *costume;
-            std::exception_ptr failure;
-        } appearance{file.get(), text, costume, {}};
-        const MMActorArchivePose pose{
-            placement.scene, placement.actor, placement.offset,
-            placement.shape.rotation, placement.shape.scale, &appearance,
-            [](void *value, MMU32 copied) -> int {
-                auto &edit = *static_cast<Appearance *>(value);
-                try
-                {
-                    if (edit.text) ApplyText(edit.file, copied, *edit.text);
-                    if (edit.costume) ApplyCostumes(edit.file, copied, *edit.costume);
-                    return true;
-                }
-                catch (...)
-                {
-                    edit.failure = std::current_exception();
-                    return false;
-                }
-            }
-        };
-        const auto result = mm_actor_archive_place(&editor, &pose);
-        if (appearance.failure) std::rethrow_exception(appearance.failure);
-        CheckActorArchiveEdit(result);
-    }
+    ArchiveDraftHost host;
+    const auto drafts = host.Services();
+    MarcusArchiveActorResult placement;
+    if (!marcus_archive_place_edits(file.get(), &poses, edits.texts.get(), edits.costumes.get(), &drafts, &placement))
+        throw std::bad_alloc();
+    host.Check();
+    CheckAppearanceEdit(placement);
+    CheckActorArchiveEdit(placement.status);
     for (const auto &entry : *edits.cameras)
         ApplyCamera(editor, entry.scene, entry.frame, entry.camera);
     Require(mm_movie_archive_ensure_empty_rollcall(&editor), "Cannot write the movie's empty roll call.");

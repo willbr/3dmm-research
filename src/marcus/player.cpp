@@ -385,11 +385,8 @@ std::shared_ptr<MarcusMovieFile> MaterializedMovie(MarcusPlayer &player)
         !player.edits->costumes->count && !player.edits->storyboards->count) return player.timingInput;
     if (player.materializedPoses == player.poses && player.materializedFrameRanges == player.frameRanges && player.materializedEdits == player.edits &&
         player.materializedFile) return player.materializedFile;
-    MarcusEditedPoses changes;
-    if (!mm_movie_pose_journal_export(&changes, player.poses.get(), player.edits->texts.get(), player.edits->costumes.get()))
-        throw std::bad_alloc();
     auto file = MarcusMaterializeEdits(player.content ? player.content->movie : std::filesystem::path{}, player.timingInput,
-        changes, *player.frameRanges, *player.edits, std::filesystem::u8path(player.timingContent) / "tmpls.3cn");
+        *player.poses, *player.frameRanges, *player.edits, std::filesystem::u8path(player.timingContent) / "tmpls.3cn");
     player.materializedFile = file;
     player.materializedPoses = player.poses;
     player.materializedFrameRanges = player.frameRanges;

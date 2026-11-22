@@ -19,27 +19,44 @@ int marcus_archive_input_open(MarcusArchiveInput *, const char *path, const MMAr
                                int expanded);
 void marcus_archive_input_close(MarcusArchiveInput *);
 
-int marcus_archive_install_events(MMPrivateArchive *, MMU32 actor, const char *track,
-                                  const MMPrivateArchiveProfile *);
-
 struct MMMovieActorTextEdit;
+struct MMMoviePoseJournal;
+struct MMMovieTextJournal;
+struct MMMovieActorTrackJournal;
 struct MMTextHost;
 enum { MARCUS_ARCHIVE_TEXT_OPEN = -1 };
-/* Returns an actor-author status or MARCUS_ARCHIVE_TEXT_OPEN. */
-int marcus_archive_replace_text(MMPrivateArchive *, MMU32 actor, const char *path,
-                                const struct MMMovieActorTextEdit *, const MMPrivateArchiveProfile *,
-                                const struct MMTextHost *, int *detail);
+
+typedef struct MarcusArchiveDrafts
+{
+    void *context;
+    /* Open a retained journal file for reading and transfer the archive reference. */
+    MMPrivateArchive *(*open)(void *, const void *file);
+    const struct MMTextHost *text;
+} MarcusArchiveDrafts;
+
+typedef struct MarcusArchiveActorResult
+{
+    int status, text, text_detail, costume;
+} MarcusArchiveActorResult;
+
+/* Apply actor edits in scene and actor order. Returns zero if the merged
+ * journal could not be allocated. Otherwise out describes the first failed
+ * actor edit or success. Discard the private archive on either failure. */
+int marcus_archive_place_edits(MMPrivateArchive *, const struct MMMoviePoseJournal *,
+                              const struct MMMovieTextJournal *, const struct MMMovieActorTrackJournal *,
+                              const MarcusArchiveDrafts *, MarcusArchiveActorResult *);
 
 enum { MARCUS_ARCHIVE_ANIMATION_OK, MARCUS_ARCHIVE_ANIMATION_OPEN, MARCUS_ARCHIVE_ANIMATION_EDIT,
        MARCUS_ARCHIVE_ANIMATION_SAVE };
 struct MMActorArchiveAnimation;
 typedef struct MarcusArchiveAnimationResult
 {
-    int actor, scene, text, text_detail;
+    MarcusArchiveActorResult actor;
+    int scene;
 } MarcusArchiveAnimationResult;
 int marcus_archive_animate(const char *candidate, const char *track, const MMPrivateArchiveProfile *,
-                           const struct MMActorArchiveAnimation *, const char *text_path,
-                           const struct MMMovieActorTextEdit *, const struct MMTextHost *,
+                           const struct MMActorArchiveAnimation *, const struct MMMovieActorTextEdit *,
+                           const MarcusArchiveDrafts *,
                            MMU32 creator, MarcusArchiveAnimationResult *);
 
 #ifdef __cplusplus

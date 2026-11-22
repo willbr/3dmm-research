@@ -149,15 +149,6 @@ void marcus_archive_input_close(MarcusArchiveInput *input)
     input->reader = NULL;
 }
 
-int marcus_archive_install_events(MMPrivateArchive *candidate, MMU32 actor, const char *track,
-                                  const MMPrivateArchiveProfile *profile)
-{
-    MMPrivateArchive *source = marcus_archive_open(track, MM_PRIVATE_ARCHIVE_READ, profile);
-    int result = source ? mm_actor_archive_import_events(candidate, actor, source) : MM_ACTOR_EDIT_ARCHIVE_COPY;
-    mm_private_archive_close(source);
-    return result;
-}
-
 typedef struct TextArchives
 {
     MMPrivateArchive *source, *destination;
@@ -169,9 +160,8 @@ static int copy_text_asset(void *p, MMU32 type, MMU32 number, MMU32 *copied)
     return mm_private_archive_copy(archives->source, archives->destination, type, number, 0, copied);
 }
 
-int marcus_archive_replace_text(MMPrivateArchive *file, MMU32 actor, const char *path,
-                                const MMMovieActorTextEdit *edit, const MMPrivateArchiveProfile *profile,
-                                const MMTextHost *text, int *detail)
+static int replace_text(MMPrivateArchive *file, MMU32 actor, const MMMovieActorTextEdit *edit,
+                        const MarcusArchiveDrafts *drafts, int *detail)
 {
     TextArchives archives;
     MMMovieArchiveEditor editor;
@@ -181,21 +171,21 @@ int marcus_archive_replace_text(MMPrivateArchive *file, MMU32 actor, const char 
     unsigned short units[257];
     int status;
     *detail = 0;
-    archives.source = marcus_archive_open(path, MM_PRIVATE_ARCHIVE_READ, profile);
+    archives.source = drafts->open(drafts->context, edit->file);
     if (!archives.source)
         return MARCUS_ARCHIVE_TEXT_OPEN;
     archives.destination = file;
     editor = mm_private_archive_editor(file);
     name.buffer = units;
     name.unit = editor.text_unit;
-    mm_string_from_ansi(&name, text, edit->name.legacy, strlen(edit->name.legacy));
+    mm_string_from_ansi(&name, drafts->text, edit->name.legacy, strlen(edit->name.legacy));
     request.actor = actor;
     request.name = (const unsigned char *)units + name.unit;
     request.characters = name.unit == 1 ? *(const unsigned char *)units : units[0];
     request.retail_font = edit->retail_font;
     request.custom_material = edit->custom_material;
     host.destination = &editor;
-    host.text = text;
+    host.text = drafts->text;
     host.context = &archives;
     host.copy = copy_text_asset;
     status = mm_actor_archive_replace_text(&host, &request, detail);
@@ -203,49 +193,107 @@ int marcus_archive_replace_text(MMPrivateArchive *file, MMU32 actor, const char 
     return status;
 }
 
-typedef struct AnimationText
+typedef struct ActorAppearance
 {
-    const char *path;
-    const MMMovieActorTextEdit *edit;
-    const MMPrivateArchiveProfile *profile;
-    const MMTextHost *text;
-    MarcusArchiveAnimationResult *result;
-} AnimationText;
+    MMPrivateArchive *file;
+    const MMMovieActorTextEdit *text;
+    const MMMovieActorTrackEdit *costume;
+    const MarcusArchiveDrafts *drafts;
+    MarcusArchiveActorResult *result;
+} ActorAppearance;
+
+static int apply_appearance(void *p, MMU32 actor)
+{
+    const ActorAppearance *appearance = p;
+    const MarcusArchiveDrafts *drafts = appearance->drafts;
+    MarcusArchiveActorResult *result = appearance->result;
+    if (appearance->text)
+    {
+        result->text = replace_text(appearance->file, actor, appearance->text, drafts, &result->text_detail);
+        if (result->text != MM_ACTOR_AUTHOR_OK)
+            return 0;
+    }
+    if (appearance->costume)
+    {
+        MMPrivateArchive *track = drafts->open(drafts->context, appearance->costume->file);
+        result->costume = track ? mm_actor_archive_import_events(appearance->file, actor, track)
+                                : MM_ACTOR_EDIT_ARCHIVE_COPY;
+        mm_private_archive_close(track);
+    }
+    return result->costume == MM_ACTOR_EDIT_ARCHIVE_OK;
+}
+
+int marcus_archive_place_edits(MMPrivateArchive *file, const MMMoviePoseJournal *poses,
+                              const MMMovieTextJournal *texts, const MMMovieActorTrackJournal *costumes,
+                              const MarcusArchiveDrafts *drafts, MarcusArchiveActorResult *out)
+{
+    const MMMovieArchiveEditor editor = mm_private_archive_editor(file);
+    MMMoviePoseJournal merged;
+    const MMMovieActorPoseEdit *rows;
+    MMU32 i;
+    int ready;
+    memset(out, 0, sizeof(*out));
+    mm_movie_pose_journal_init(&merged, NULL);
+    ready = mm_movie_pose_journal_export(&merged, poses, texts, costumes);
+    if (ready)
+    {
+        rows = mm_movie_pose_journal_data(&merged);
+        for (i = 0; i < merged.count; ++i)
+        {
+            const MMMovieActorPoseEdit *row = rows + i;
+            ActorAppearance appearance;
+            MMActorArchivePose pose;
+            appearance.file = file;
+            appearance.text = mm_movie_text_journal_find(texts, row->scene, row->actor);
+            appearance.costume = mm_movie_track_journal_find(costumes, row->scene, row->actor);
+            appearance.drafts = drafts;
+            appearance.result = out;
+            pose.scene = row->scene;
+            pose.actor = row->actor;
+            pose.translation = row->offset;
+            pose.rotation = row->shape.rotation;
+            pose.scale = row->shape.scale;
+            pose.context = &appearance;
+            pose.appearance = apply_appearance;
+            out->status = mm_actor_archive_place(&editor, &pose);
+            if (out->status != MM_ACTOR_EDIT_ARCHIVE_OK)
+                break;
+        }
+    }
+    mm_movie_pose_journal_dispose(&merged);
+    return ready;
+}
 
 static int apply_animation_text(void *p, MMPrivateArchive *file, MMU32 actor)
 {
-    const AnimationText *appearance = p;
-    MarcusArchiveAnimationResult *result = appearance->result;
-    result->text = marcus_archive_replace_text(file, actor, appearance->path, appearance->edit,
-                                               appearance->profile, appearance->text, &result->text_detail);
-    return result->text == MM_ACTOR_AUTHOR_OK;
+    ActorAppearance *appearance = p;
+    appearance->file = file;
+    return apply_appearance(appearance, actor);
 }
 
 int marcus_archive_animate(const char *path, const char *track, const MMPrivateArchiveProfile *profile,
-                           const MMActorArchiveAnimation *animation, const char *text_path,
-                           const MMMovieActorTextEdit *text, const MMTextHost *text_host,
+                           const MMActorArchiveAnimation *animation, const MMMovieActorTextEdit *text,
+                           const MarcusArchiveDrafts *drafts,
                            MMU32 creator, MarcusArchiveAnimationResult *out)
 {
     MMPrivateArchive *candidate = marcus_archive_open(path, MM_PRIVATE_ARCHIVE_EDIT, profile);
     MMPrivateArchive *source = marcus_archive_open(track, MM_PRIVATE_ARCHIVE_READ, profile);
     MMActorArchiveAnimation request = *animation;
-    AnimationText appearance;
+    ActorAppearance appearance = {0};
     int result = MARCUS_ARCHIVE_ANIMATION_OPEN;
     memset(out, 0, sizeof(*out));
     if (text)
     {
-        appearance.path = text_path;
-        appearance.edit = text;
-        appearance.profile = profile;
-        appearance.text = text_host;
-        appearance.result = out;
+        appearance.text = text;
+        appearance.drafts = drafts;
+        appearance.result = &out->actor;
         request.context = &appearance;
         request.appearance = apply_animation_text;
     }
     if (candidate && source)
     {
-        out->actor = mm_actor_archive_animate(candidate, source, &request, &out->scene);
-        if (out->actor != MM_ACTOR_EDIT_ARCHIVE_OK || out->scene != MM_SCENE_ARCHIVE_EDIT_OK)
+        out->actor.status = mm_actor_archive_animate(candidate, source, &request, &out->scene);
+        if (out->actor.status != MM_ACTOR_EDIT_ARCHIVE_OK || out->scene != MM_SCENE_ARCHIVE_EDIT_OK)
             result = MARCUS_ARCHIVE_ANIMATION_EDIT;
         else
             result = mm_private_archive_save(candidate, creator)
