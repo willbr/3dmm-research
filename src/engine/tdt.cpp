@@ -73,7 +73,7 @@ static MMTextResourceServices ResourceServices(void *context)
         return provider->fetch(provider->context, font);
     };
     s.default_font = [](void *, const MMTag *in) -> void * {
-        return mm_tag_fetch_owned(in, EngineFont::Read, mm_font_owner_services(), 0,
+        return mm_tag_fetch_owned(in, mm_brender_font_read, mm_font_owner_services(), 0,
                                   mm_tag_local_cache_services());
     };
     s.publish_tag = [](void *, void *out, const MMTag *in) { TextTagFromCore(static_cast<PTAG>(out), in); };
@@ -209,7 +209,7 @@ MMTextGenerationServices EngineText::GenerationServices()
         return mm_font_owner_metrics(static_cast<const MMFontOwner *>(font))->maximum_height;
     };
     s.glyph = [](void *, void *font, MMI32 ch) -> void * {
-        return EngineFont::Glyph(static_cast<const MMFontOwner *>(font), ch);
+        return mm_brender_font_glyph(static_cast<const MMFontOwner *>(font), ch);
     };
     s.action_host = &EngineTemplate::ActionResourceHost();
     s.body_shape = [](void *, void *body, const MMPartIndexView *parents, const MMPartIndexView *sets) -> int {

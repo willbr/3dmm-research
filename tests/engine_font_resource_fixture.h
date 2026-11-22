@@ -5,7 +5,7 @@ class FontResourceFixtureAccess
   public:
     static bool Initialize(MMFontResource &font, PDataBlock block)
     {
-        const auto &host=EngineFont::ReadHost();
+        const auto &host=*mm_kauai_font_host();
         const unsigned short one=1;
         MMFontResourceServices services={};
         services.host_big_endian=*reinterpret_cast<const unsigned char *>(&one)==0;
@@ -60,19 +60,19 @@ static bool TestFontResources()
         const LegacyLong size=variant==3?11:static_cast<LegacyLong>((bytes.size)());
         ok=cache && block.FSetTemp(size) && block.FWriteRgb(bytes.data(),size,0);
         if (variant==5) ok=block.FPackData() && ok;
-        MMI32 estimate=-77; ok=ok && EngineFont::Read(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),nullptr,&estimate);
+        MMI32 estimate=-77; ok=ok && mm_brender_font_read(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),nullptr,&estimate);
         MMFontResource direct={};
         MMFontOwner *font=nullptr;
         bool initialized=false;
         inject(kind,failure,true);
         if (!stage) initialized=FontResourceFixtureAccess::Initialize(direct,&block);
-        else { void *out=nullptr; initialized=EngineFont::Read(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),&out,&estimate); if (initialized) font=static_cast<MMFontOwner *>(out); }
+        else { void *out=nullptr; initialized=mm_brender_font_read(cache->CoreCache(),kctgTdf,0,block.CoreBlock(),&out,&estimate); if (initialized) font=static_cast<MMFontOwner *>(out); }
         inject(kind,failure,false); ++attempts; if (initialized) ++loaded;
         const auto metrics=stage?font?mm_font_owner_metrics(font):nullptr:&direct;
         LegacyLong values[]={shape,variant,stage,kind,failure,estimate,initialized,metrics!=nullptr};
         ok=record(values,sizeof(values)) && FontResourceFixtureAccess::Record(metrics,snapshot) && ok;
         MMFontResourceServices directServices={};
-        directServices.allocator=EngineFont::ReadHost().metrics;
+        directServices.allocator=mm_kauai_font_host()->metrics;
         mm_font_dispose(&direct,&directServices);
         mm_font_owner_release(font); block.Free(); ReleasePpo(&cache); ReleasePpo(&file); vpers->Clear();
 #ifdef DEBUG
@@ -110,14 +110,14 @@ static bool TestFontResources()
                 // Additional converted-path checks, outside the frozen trace:
                 // consume the authored font and resolve its actual glyph child.
                 auto font=static_cast<MMFontOwner *>(mm_resource_cache_fetch_owned_chunk(
-                    cache->CoreCache(),chunk.ctg,chunk.cno,EngineFont::Read,mm_font_owner_services()));
+                    cache->CoreCache(),chunk.ctg,chunk.cno,mm_brender_font_read,mm_font_owner_services()));
                 ok=font && ok;
                 if (font)
                 {
                     const auto metrics=mm_font_owner_metrics(font);
                     if (shape) { ok=mm_font_width(metrics,65)==EngineModel::Extent(letter, 0) && mm_font_height(metrics,65)==EngineModel::Extent(letter, 1)+BR_SCALAR(0.5) &&
                             mm_font_width(metrics,32)==(shape==1?EngineModel::Extent(letter, 0):0) && metrics->maximum_height==EngineModel::Extent(letter, 1)+BR_SCALAR(0.5) && ok;
-                        auto glyph=EngineFont::Glyph(font,65);
+                        auto glyph=mm_brender_font_glyph(font,65);
                         auto cached=EngineModel::Fetch(cache->CoreCache(),kctgBmdl,models[1]);
                         ok=glyph && glyph==cached && mm_model_owner_references(cached)==2 && ok;
                         mm_model_owner_release(cached); mm_model_owner_release(glyph); }

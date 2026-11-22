@@ -9,6 +9,30 @@ using namespace BRender;
 
 ASSERTNAME
 
+const MMFontOwnerHost *mm_kauai_font_host(void)
+{
+    static const MMFontOwnerHost host = {
+        KauaiResourceObjectAllocator(), KauaiCopyAllocator(), KauaiDecodeBlockHandle,
+#ifdef DEBUG
+        [](void *memory) { MarkPv(memory); },
+#else
+        nullptr,
+#endif
+        [](void *) { PushErc(ercSocBadTdf); },
+        [](void *) { Assert(false, "bad ThreeDFontF"); },
+        [](void *, void *out, size_t bytes) { TrashPvCb(out, static_cast<LegacyLong>(bytes)); }
+    };
+    return &host;
+}
+
+void mm_kauai_font_missing_model(void *, MMU32 id)
+{
+    String message;
+    message.FFormatSz(PszLit("Couldn't find BMDL for 3-D Font with chid %d."), id);
+    Warn(message.Psz());
+    PushErc(ercSocNoModlForChar);
+}
+
 const MMModelOwnerHost *mm_kauai_model_host(void)
 {
     static const auto renderer = [] {

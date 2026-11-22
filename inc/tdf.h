@@ -3,7 +3,7 @@
 
 /***************************************************************************
 
-    tdf.h: Studio bindings for Three-D Font resources
+    tdf.h: Native collection adapter for Three-D Font authoring
 
     Primary Author: ******
     Review Status: REVIEWED - any changes to this file must be reviewed!
@@ -15,9 +15,6 @@
 
 namespace EngineFont
 {
-int Read(MMResourceCache *, MMU32 type, MMU32 number, MMOwnedBlock *, void **object, MMI32 *bytes);
-const MMFontOwnerHost &ReadHost();
 bool Author(PChunkyResourceFile, PDynamicArray glyphs, ChunkIdentification * = nullptr);
-PModel Glyph(const MMFontOwner *, ChildChunkID);
 }
 #endif

@@ -1752,8 +1752,10 @@ The typed callback is the cache key throughout preload, lookup, tag resolution,
 manager dispatch and nested fetches. Individual cache entries can carry C89
 object ownership services alongside native entries. The tag and source manager
 preserve those services through archive-local and content-pack lookups. Studio
-and Preview use C89-owned 3D fonts for metrics and glyph resolution. C89
-also owns models from BMDL chunks, authored geometry and DAT imports. Actor
+and Preview share the C89 BRender reader for TDF chunks, glyph lookup, and
+model references used in font authoring. Kauai supplies memory, decoding, and
+diagnostics. C89 also owns models from BMDL chunks, authored geometry and DAT
+imports. Actor
 bodies, costume overrides, font glyphs and Preview poses retain those model
 owners directly. The C89 BRender body adapter supplies body allocation,
 body-part materials and models, pose and geometry services for Studio and
@@ -1771,7 +1773,7 @@ Both hosts use these owners for body costume snapshots, actor effects, 3D text
 material edits and archive writes. Kauai provides native memory, codec, file
 and diagnostic callbacks. The x64 Marcus, Preview helper and regression runner
 link this shared adapter directly. The remaining linked engine-core modules
-provide actor templates, 3D text and 3D fonts. Studio's archive-backed
+provide actor templates and 3D text. Studio's archive-backed
 actions and generated 3D text actions use the same C89 owner and playback
 readers for cels, matrices, distance, flags and motion sound tags. The C89
 text generator owns the cached action reference and replaces it after text

@@ -47,6 +47,56 @@ void mm_brender_model_mark(MMModelOwner *owner)
         mm_resource_cache_mark(binding->cache);
 }
 
+static void font_release_model(void *context, void *object)
+{
+    (void)context;
+    mm_model_owner_release(object);
+}
+
+static MMI32 font_model_width(void *context, void *object)
+{
+    (void)context;
+    return mm_brender_model_extent(object, 0);
+}
+
+static MMI32 font_model_height(void *context, void *object)
+{
+    (void)context;
+    return mm_brender_model_extent(object, 1);
+}
+
+void mm_brender_asset_font_bind(MMFontResourceServices *s)
+{
+    s->host_big_endian = native_big_endian();
+    s->release = font_release_model;
+    s->model_reader = mm_brender_model_read;
+    s->model_objects = mm_model_owner_services();
+    s->model_width = font_model_width;
+    s->model_height = font_model_height;
+    s->missing_model = mm_kauai_font_missing_model;
+}
+
+int mm_brender_font_read(MMResourceCache *cache, MMU32 type, MMU32 number, MMOwnedBlock *block,
+                         void **out, MMI32 *bytes)
+{
+    (void)cache;
+    (void)type;
+    (void)number;
+    return mm_font_owner_read(block, out, bytes, mm_kauai_font_host());
+}
+
+MMFontOwner *mm_brender_font_fetch(MMResourceCache *cache, MMU32 type, MMU32 number)
+{
+    return mm_resource_cache_fetch_owned_chunk(cache, type, number, mm_brender_font_read, mm_font_owner_services());
+}
+
+MMModelOwner *mm_brender_font_glyph(const MMFontOwner *font, MMU32 id)
+{
+    MMFontResourceServices services = {0};
+    mm_brender_asset_font_bind(&services);
+    return mm_font_owner_model(font, id, &services);
+}
+
 static void *texture_pixelmap(void *context, void *texture)
 {
     (void)context;

@@ -1,6 +1,7 @@
 #ifndef MM_BRENDER_ASSET_RESOURCES_H
 #define MM_BRENDER_ASSET_RESOURCES_H
 
+#include "mm/font_resource.h"
 #include "mm/material_resource.h"
 #include "mm/model_resource.h"
 #include "mm/texture_resource.h"
@@ -10,6 +11,8 @@ extern "C" {
 #endif
 
 /* Native memory, codec, file and diagnostic providers. */
+const MMFontOwnerHost *mm_kauai_font_host(void);
+void mm_kauai_font_missing_model(void *, MMU32 id);
 const MMModelOwnerHost *mm_kauai_model_host(void);
 const MMMaterialOwnerHost *mm_kauai_material_host(void);
 MMTextureOwner *mm_kauai_asset_texture_stream(const MMReadStream *);
@@ -18,6 +21,11 @@ void mm_kauai_material_validate(MMMaterialOwner *);
 /* Bind the cache readers and renderer operations before exposing a host. */
 void mm_brender_asset_model_bind(MMModelServices *);
 void mm_brender_asset_material_bind(MMMaterialServices *, int debug);
+
+void mm_brender_asset_font_bind(MMFontResourceServices *);
+int mm_brender_font_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
+MMFontOwner *mm_brender_font_fetch(MMResourceCache *, MMU32 type, MMU32 number);
+MMModelOwner *mm_brender_font_glyph(const MMFontOwner *, MMU32 id);
 
 int mm_brender_model_read(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 MMModelOwner *mm_brender_model_fetch(MMResourceCache *, MMU32 type, MMU32 number);

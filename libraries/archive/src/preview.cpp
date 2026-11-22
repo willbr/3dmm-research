@@ -139,8 +139,7 @@ struct Preview::Impl
             TAGOnFile wire;
             wire.From(tag);
             auto source = self->Resolve(wire);
-            return source ? static_cast<MMFontOwner *>(mm_resource_cache_fetch_owned_chunk(
-                       source, tag.ctg, tag.cno, EngineFont::Read, mm_font_owner_services())) : nullptr;
+            return source ? mm_brender_font_fetch(source, tag.ctg, tag.cno) : nullptr;
         });
     }
     std::unique_ptr<Internal::PreviewBackground> background;

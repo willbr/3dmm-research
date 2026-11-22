@@ -48,7 +48,7 @@ static const MMTemplateFontProvider &StudioFontProvider()
             TAG tag;
             TagFromCore(&tag, *font);
             return vptagm ? static_cast<MMFontOwner *>(
-                                vptagm->FetchResource(&tag, EngineFont::Read, mm_font_owner_services()))
+                                vptagm->FetchResource(&tag, mm_brender_font_read, mm_font_owner_services()))
                           : nullptr;
         }
     };

@@ -20562,3 +20562,28 @@ preserved the archive graph and payload bytes. One alignment padding byte
 in a TMPL index row differed.
 
 Evidence is under tmp/c89-render-assets.
+
+## Shared C89 3D font binding (22 November 2026)
+
+SDL Studio and Preview share one C89 TDF cache reader and the BMDL glyph lookup.
+The font author uses the same model reader and extent queries. Kauai provides
+allocation, decoding and diagnostics. The native collection adapter for the
+font authoring tool is outside the production engine-core target. The x64
+Marcus, Preview helper and regression runner each link only the actor template
+and 3D text objects from engine-core.
+
+All 193 standalone C89 checks and the strict BRender C89 syntax check passed.
+The x64 and x86 native and SDL movie checks passed, including font loading and
+authoring under injected allocation failures in the native debug builds.
+Font resource, text generation and movie content snapshots matched the prior
+bytes. The headless Preview suite and Studio's continuous playback and save
+workflow passed. Both new Studio saves preserved the archive graph and chunk
+payload bytes, with two TMPL index padding bytes differing in each.
+
+The four actor-audio seek runs in 20261122T003812Z-2da3f38f completed. SDL and
+Marcus each matched all 30 prior canvases, 29 of 30 retail canvases and all 30
+retail camera indices. V3DMM matched all 30 retail canvases. Retail reopened
+the new two-scene Studio save in 20261122T003923Z-07be6379 and reproduced
+all 60 reference seek canvases and camera indices.
+
+Evidence is under tmp/c89-font-bindings.
