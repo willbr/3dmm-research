@@ -23316,3 +23316,25 @@ Actor Audio candidate `20261122T233443Z-d0aac5bc` matched
 for each port. Studio and Marcus matched the retained retail and V3DMM seek
 and playback order from `20261122T082301Z-c465fa98`. Evidence is under
 `tmp/c89-worker-placements` and `tmp/c89-aqcap`.
+
+## C89 x86 worker protocol (22 November 2026)
+
+C89 owns request validation, payload storage, scene and frame selection,
+edit ordering and reply streaming. The x64 client and x86 worker use shared
+ASM6 records with explicit padding and layout checks. The native bridge
+opens the movie and supplies Preview rendering and live-edit effects.
+
+The old and new x86 workers produced matching reply fields, error messages,
+RGBA and depth bytes for a stream that included an invalid scene followed by
+successful renders. They also matched on partial headers, bad magic, invalid
+dimensions, excessive counts and incomplete payloads. The headless x86
+protocol, placement and shape fixtures passed. Of 226 selected native checks,
+225 passed on the first run and `asset-previews` passed with a fresh fixture
+directory. Eleven native saves and the headless startup screenshot matched
+the baseline byte for byte.
+
+Actor Audio candidate `20261122T234434Z-778ead4b` matched the prior build
+`20261122T233443Z-d0aac5bc` on 60 seek canvases and scene states per port.
+Studio and Marcus matched the retained retail and V3DMM seek and playback
+frame order from `20261122T082301Z-c465fa98`. Evidence is under
+`tmp/c89-worker-loop` and `tmp/c89-aqcap`.

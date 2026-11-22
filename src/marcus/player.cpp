@@ -568,20 +568,20 @@ bool MarcusPrepareEmpty(MarcusPlayer *player, const char *resources, const char 
     player->timingResources = resources; player->timingContent = content;
     return EnsureRetailContent(*player, error);
 }
-bool MarcusApplyLiveEdits(MarcusPlayer *player, const std::vector<MMPreviewLiveScene> &scenes,
-                         const std::vector<MMPreviewLiveProp> &props,
-                         const std::vector<MarcusASM::CameraEdit> &cameras, std::uint64_t revision, MM::Error &error)
+bool MarcusApplyLiveEdits(MarcusPlayer *player, const MarcusASMRequest &request, const MMPreviewLiveScene *scenes,
+                         const MMPreviewLiveProp *props, const MMMovieCameraEdit *cameras, MM::Error &error)
 {
     auto edits = std::make_shared<MarcusLiveEdits>();
     auto definitions = std::make_shared<MarcusLiveEdits::Scenes>();
-    for (const auto &scene : scenes) definitions->Append(scene);
+    for (MMU32 i = 0; i < request.scene_count; ++i) definitions->Append(scenes[i]);
     edits->scenes = definitions;
     auto named = std::make_shared<MarcusLiveEdits::Props>();
-    for (const auto &prop : props) named->Append(prop, "");
+    for (MMU32 i = 0; i < request.added_prop_count; ++i) named->Append(props[i], "");
     edits->props = named;
     auto changes = std::make_shared<MarcusLiveEdits::Cameras>();
-    for (const auto &camera : cameras) changes->Set({camera.scene, camera.frame, camera.camera});
-    edits->cameras = changes; edits->revision = revision;
+    for (MMU32 i = 0; i < request.camera_count; ++i) changes->Set(cameras[i]);
+    edits->cameras = changes;
+    edits->revision = MarcusASM::Revision(request);
     player->edits = edits;
     if (!ApplyDefinitions(*player, error)) return false;
     if (!player->preview.Info().scene) player->selected = -1;

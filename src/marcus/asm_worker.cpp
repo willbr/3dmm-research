@@ -2,13 +2,99 @@
 #include "asm_protocol.h"
 #include "player.h"
 #include "movie_input.h"
-#include <iostream>
+#include <cstdio>
+#include <cstring>
+#include <exception>
 #include <memory>
 #include <fcntl.h>
 #include <io.h>
 #ifndef MARCUS_X86_ASM
 #error The ASM worker must link the original 32-bit MASM implementation.
 #endif
+
+namespace
+{
+struct WorkerHost
+{
+    MarcusPlayer *player;
+    MM::Error error;
+    MM::PreviewImage image;
+    char exceptionMessage[1024] = {};
+
+    template <class Effect> int Run(Effect effect) noexcept
+    {
+        try { return effect(); }
+        catch (const std::exception &e)
+        {
+            std::snprintf(exceptionMessage, sizeof(exceptionMessage), "%s", e.what());
+        }
+        catch (...)
+        {
+            std::snprintf(exceptionMessage, sizeof(exceptionMessage), "ASM renderer raised an unknown exception.");
+        }
+        return 0;
+    }
+};
+
+void Begin(void *context) noexcept
+{
+    auto &host = *static_cast<WorkerHost *>(context);
+    host.error = {};
+    host.exceptionMessage[0] = '\0';
+}
+
+int ApplyEdits(void *context, const MarcusASMRequest *request, const MMPreviewLiveScene *scenes,
+               const MMPreviewLiveProp *props, const MMMovieCameraEdit *cameras) noexcept
+{
+    auto &host = *static_cast<WorkerHost *>(context);
+    return host.Run([&] { return MarcusApplyLiveEdits(host.player, *request, scenes, props, cameras, host.error); });
+}
+
+int ApplyRange(void *context, MMI32 first, MMI32 last) noexcept
+{
+    auto &host = *static_cast<WorkerHost *>(context);
+    return host.Run([&] { return MarcusApplySceneRange(host.player, first, last, host.error); });
+}
+
+int ApplyPlacements(void *context, const MMMovieActorPlacement *offsets, MMU32 count) noexcept
+{
+    auto &host = *static_cast<WorkerHost *>(context);
+    return host.Run([&] { return MarcusApplyPropOffsets(host.player, offsets, count, host.error); });
+}
+
+int Render(void *context, const MarcusASMRequest *request, MarcusASMOutput *frame) noexcept
+{
+    auto &host = *static_cast<WorkerHost *>(context);
+    if (!host.Run([&] { return MarcusRenderLocalWorld(host.player, MarcusASM::Decode(*request), host.image, host.error); }))
+        return 0;
+    const auto &image = host.image;
+    frame->reply.width = image.width;
+    frame->reply.height = image.height;
+    frame->reply.covered = image.coveredPixels;
+    frame->reply.depth = !image.depth.empty();
+    frame->reply.camera = MarcusASM::Encode(image.camera);
+    frame->reply.projection = MarcusASM::Encode(image.projection);
+    frame->reply.scene_camera = MarcusASM::Encode(image.sceneCamera);
+    frame->rgba = image.rgba.data();
+    frame->rgba_bytes = image.rgba.size();
+    frame->depth = image.depth.data();
+    frame->depth_bytes = image.depth.size() * sizeof(float);
+    return 1;
+}
+
+const char *ErrorMessage(void *context, size_t *bytes) noexcept
+{
+    const auto &host = *static_cast<WorkerHost *>(context);
+    if (host.exceptionMessage[0])
+    {
+        *bytes = std::strlen(host.exceptionMessage);
+        return host.exceptionMessage;
+    }
+    *bytes = host.error.message.size();
+    return host.error.message.c_str();
+}
+} // namespace
+
 int main(int argc, char **argv)
 {
     if (argc != 4 && argc != 5)
@@ -16,7 +102,6 @@ int main(int argc, char **argv)
     _setmode(_fileno(stdin), _O_BINARY);
     _setmode(_fileno(stdout), _O_BINARY);
     std::unique_ptr<MarcusPlayer, decltype(&marcus_destroy)> player(marcus_create(), marcus_destroy);
-    const std::uint32_t hello[2] = {MarcusASM::Magic, 32};
     MM::Error openingError;
     bool opened = false;
     if (player && argc == 5)
@@ -35,72 +120,12 @@ int main(int argc, char **argv)
                             : MarcusPrepareEmpty(player.get(), argv[2], argv[3], openingError);
     if (!opened)
     {
-        std::cerr << (player ? marcus_error(player.get()) : "Cannot create ASM player") << openingError.message << '\n';
+        std::fprintf(stderr, "%s%s\n", player ? marcus_error(player.get()) : "Cannot create ASM player",
+                     openingError.message.c_str());
         return 1;
     }
     marcus_set_muted(player.get(), 1);
-    std::cout.write(reinterpret_cast<const char *>(hello), sizeof(hello)).flush();
-    MarcusASM::Request request;
-    while (std::cin.read(reinterpret_cast<char *>(&request), sizeof(request)))
-    {
-        if (request.magic != MarcusASM::Magic || request.width < 64 || request.height < 64 || request.width > 4096 ||
-            request.height > 4096 || request.propCount > 100000 || request.sceneCount > 100000 ||
-            request.addedPropCount > 100000 || request.cameraCount > 100000)
-            return 2;
-        std::vector<MarcusASM::PropOffset> offsets(request.propCount);
-        if (!offsets.empty() && !std::cin.read(reinterpret_cast<char *>(offsets.data()), offsets.size() * sizeof(offsets[0])))
-            return 2;
-        std::vector<MMPreviewLiveScene> scenes(request.sceneCount);
-        std::vector<MMPreviewLiveProp> props(request.addedPropCount);
-        std::vector<MarcusASM::CameraEdit> cameras(request.cameraCount);
-        for (auto &scene : scenes) if (!std::cin.read(reinterpret_cast<char *>(&scene), sizeof(scene))) return 2;
-        for (auto &prop : props) if (!std::cin.read(reinterpret_cast<char *>(&prop), sizeof(prop))) return 2;
-        for (auto &camera : cameras) if (!std::cin.read(reinterpret_cast<char *>(&camera), sizeof(camera))) return 2;
-        MM::PreviewImage image;
-        MM::Error error;
-        MarcusInfo info = {};
-        bool ok = !(request.flags & 256) || MarcusApplyLiveEdits(player.get(), scenes, props, cameras, request.editRevision, error);
-        const bool loaded = marcus_info(player.get(), &info) != 0;
-        if (ok) ok = (loaded && info.scene == request.scene) || marcus_select_scene(player.get(), request.scene);
-        if (ok && request.firstFrame <= request.lastFrame)
-            ok = MarcusApplySceneRange(player.get(), request.firstFrame, request.lastFrame, error);
-        if (ok)
-        {
-            marcus_info(player.get(), &info);
-            ok = info.frame == request.frame || marcus_seek(player.get(), request.frame);
-        }
-        if (ok) ok = MarcusApplyPropOffsets(player.get(), offsets.data(), offsets.size(), error);
-        if (ok)
-            ok = MarcusRenderLocalWorld(player.get(), MarcusASM::Decode(request), image, error);
-        if (!ok && error.message.empty())
-            error.message = marcus_error(player.get());
-        if (!ok && error.message.empty())
-            error.message = "ASM geometry rendering failed.";
-        MarcusASM::Reply reply = {};
-        if (!ok)
-            reply.errorBytes = static_cast<std::uint32_t>(error.message.size());
-        else
-        {
-            reply.width = image.width;
-            reply.height = image.height;
-            reply.covered = image.coveredPixels;
-            reply.depth = !image.depth.empty();
-            reply.camera = image.camera;
-            reply.projection = image.projection;
-            reply.sceneCamera = image.sceneCamera;
-        }
-        std::cout.write(reinterpret_cast<const char *>(&reply), sizeof(reply));
-        if (!ok)
-            std::cout.write(error.message.data(), error.message.size());
-        else
-        {
-            std::cout.write(reinterpret_cast<const char *>(image.rgba.data()), image.rgba.size());
-            if (reply.depth)
-                std::cout.write(reinterpret_cast<const char *>(image.depth.data()), image.depth.size() * sizeof(float));
-        }
-        std::cout.flush();
-        if (!std::cout)
-            return 1;
-    }
-    return std::cin.eof() ? 0 : 1;
+    WorkerHost host{player.get(), {}, {}};
+    const MarcusASMWorkerServices services = {&host, Begin, ApplyEdits, ApplyRange, ApplyPlacements, Render, ErrorMessage};
+    return marcus_asm_worker_run(player.get(), stdin, stdout, &services);
 }

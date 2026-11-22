@@ -1245,6 +1245,10 @@ snapshot directly after each position change.
 The x86 worker placement batch is assembled in C89 from the published actor
 positions, the pose journal and the current Preview shapes. It sends changed
 placements in object order and retains its storage between renders.
+The x86 worker reads ASM6 packets, applies live definitions, selects the
+scene and frame, replays placements and writes replies in C89. The x64 host
+and x86 worker share fixed-layout request and reply records. C++ binds the
+movie session and native Preview renderer.
 C89 replays costume, text, material and pose journals against the live actor
 list when a scene opens or an edit snapshot is restored. Native preview and
 the ASM worker share the default pose rule. The worker validates every

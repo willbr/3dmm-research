@@ -95,7 +95,7 @@ MarcusASMRenderer::MarcusASMRenderer(const std::string &movie, const std::string
         throw std::runtime_error("Cannot open x86 ASM renderer streams.");
     std::uint32_t hello[2] = {};
     Transfer(impl->output, hello, sizeof(hello), false);
-    if (hello[0] != MarcusASM::Magic || hello[1] != 32)
+    if (hello[0] != MARCUS_ASM_MAGIC || hello[1] != 32)
         throw std::runtime_error("The x86 ASM renderer helper is outdated or incompatible. Rebuild marcus-asm-worker and Marcus together.");
 }
 MarcusASMRenderer::~MarcusASMRenderer() = default;
@@ -106,17 +106,17 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
     try
     {
         auto request = MarcusASM::Encode(scene, frame, view);
-        request.propCount = count;
-        request.firstFrame = firstFrame;
-        request.lastFrame = lastFrame;
+        request.prop_count = count;
+        request.first_frame = firstFrame;
+        request.last_frame = lastFrame;
         const bool sendEdits = edits && edits->revision != impl->sentRevision;
         if (sendEdits)
         {
-            request.flags |= 256;
-            request.editRevision = edits->revision;
-            request.sceneCount = edits->scenes->count;
-            request.addedPropCount = edits->props->count;
-            request.cameraCount = edits->cameras->count;
+            request.flags |= MARCUS_ASM_EDIT_DEFINITIONS;
+            MarcusASM::SetRevision(request, edits->revision);
+            request.scene_count = edits->scenes->count;
+            request.added_prop_count = edits->props->count;
+            request.camera_count = edits->cameras->count;
         }
         Transfer(impl->input, &request, sizeof(request), true);
         if (count) Transfer(impl->input, const_cast<MarcusASM::PropOffset *>(offsets), std::size_t(count) * sizeof(*offsets), true);
@@ -134,20 +134,20 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
             }
             for (const auto &entry : *edits->cameras)
             {
-                MarcusASM::CameraEdit camera{entry.scene, entry.frame, entry.camera};
+                auto camera = entry;
                 Transfer(impl->input, &camera, sizeof(camera), true);
             }
         }
         SDL_FlushIO(impl->input);
         MarcusASM::Reply reply;
         Transfer(impl->output, &reply, sizeof(reply), false);
-        if (reply.magic != MarcusASM::Magic || reply.errorBytes > 65536 || reply.depth > 1 || reply.width > 4096 ||
+        if (reply.magic != MARCUS_ASM_MAGIC || reply.error_bytes > 65536 || reply.depth > 1 || reply.width > 4096 ||
             reply.height > 4096)
             throw std::runtime_error("Invalid x86 ASM renderer response.");
-        if (reply.errorBytes)
+        if (reply.error_bytes)
         {
-            error.message.resize(reply.errorBytes);
-            Transfer(impl->output, error.message.data(), reply.errorBytes, false);
+            error.message.resize(reply.error_bytes);
+            Transfer(impl->output, error.message.data(), reply.error_bytes, false);
             return false;
         }
         if (reply.width != view.width || reply.height != view.height)
@@ -156,9 +156,9 @@ bool MarcusASMRenderer::Render(int scene, int frame, const MM::PreviewView &view
         image.width = reply.width;
         image.height = reply.height;
         image.coveredPixels = reply.covered;
-        image.camera = reply.camera;
-        image.projection = reply.projection;
-        image.sceneCamera = reply.sceneCamera;
+        image.camera = MarcusASM::Decode(reply.camera);
+        image.projection = MarcusASM::Decode(reply.projection);
+        image.sceneCamera = MarcusASM::Decode(reply.scene_camera);
         image.rgba.resize(std::size_t(reply.width) * reply.height * 4);
         Transfer(impl->output, image.rgba.data(), image.rgba.size(), false);
         if (reply.depth)

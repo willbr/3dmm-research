@@ -42,6 +42,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/animation_request.c"
   "${SOURCE}/src/marcus/asset_catalog.c"
   "${SOURCE}/src/marcus/actor_names.c"
+  "${SOURCE}/src/marcus/asm_worker_loop.c"
   "-I${SOURCE}/libraries/content/include" "${SOURCE}/src/marcus/movie_open.c"
   "${SOURCE}/src/marcus/sound_sheet.c"
   "${SOURCE}/src/marcus/sound_edit_core.c"
