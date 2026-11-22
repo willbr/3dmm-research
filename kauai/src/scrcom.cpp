@@ -33,7 +33,7 @@
     primitive is also supported to exit a While loop early.  The in-fix
     compiler also supports "IfGoto(exp, label$);" and "Goto(label$);".  These
     are compiled directly to single op-codes (plus operands) so are treated
-    differently than the control structures.  See the _rgarop array below
+    differently than the control structures.  See the opcode signatures in script_dialect.c
     for other function-like primitives supported by the in-fix compiler.
 
     Label references appear in the in-fix source as a name followed by a $ sign,
@@ -87,7 +87,7 @@
     long is used as part of the rtvn, so isn't placed on the stack.
 
     Label references are considered immediate data and consist of
-    kbLabel in the high byte and the destination index (into the gl) in
+    MM_SCRIPT_LABEL_BYTE in the high byte and the destination index (into the gl) in
     the low 3 bytes.
 
     The first long in the DynamicArray is version number information (a dver).
@@ -104,100 +104,6 @@ RTCLASS(CompilerBase)
 // common error messages
 PZString _pszOom = PszLit("Out of memory");
 PZString _pszSyntax = PszLit("Syntax error");
-
-// name to op lookup table for post-fix compilation
-StringOpcodeMap _rgszop[] = {
-    {kopAdd, PszLit("Add")},
-    {kopSub, PszLit("Sub")},
-    {kopMul, PszLit("Mul")},
-    {kopDiv, PszLit("Div")},
-    {kopMod, PszLit("Mod")},
-    {kopAbs, PszLit("Abs")},
-    {kopNeg, PszLit("Neg")},
-    {kopInc, PszLit("Inc")},
-    {kopDec, PszLit("Dec")},
-    {kopRnd, PszLit("Rnd")},
-    {kopMulDiv, PszLit("MulDiv")},
-    {kopBAnd, PszLit("BAnd")},
-    {kopBOr, PszLit("BOr")},
-    {kopBXor, PszLit("BXor")},
-    {kopBNot, PszLit("BNot")},
-    {kopLXor, PszLit("LXor")},
-    {kopLNot, PszLit("LNot")},
-    {kopEq, PszLit("Eq")},
-    {kopNe, PszLit("Ne")},
-    {kopGt, PszLit("Gt")},
-    {kopLt, PszLit("Lt")},
-    {kopGe, PszLit("Ge")},
-    {kopLe, PszLit("Le")},
-    {kopDup, PszLit("Dup")},
-    {kopPop, PszLit("Pop")},
-    {kopSwap, PszLit("Swap")},
-    {kopRot, PszLit("Rot")},
-    {kopRev, PszLit("Rev")},
-    {kopDupList, PszLit("DupList")},
-    {kopPopList, PszLit("PopList")},
-    {kopRndList, PszLit("RndList")},
-    {kopSelect, PszLit("Select")},
-    {kopGoEq, PszLit("GoEq")},
-    {kopGoNe, PszLit("GoNe")},
-    {kopGoGt, PszLit("GoGt")},
-    {kopGoLt, PszLit("GoLt")},
-    {kopGoGe, PszLit("GoGe")},
-    {kopGoLe, PszLit("GoLe")},
-    {kopGoZ, PszLit("GoZ")},
-    {kopGoNz, PszLit("GoNz")},
-    {kopGo, PszLit("Go")},
-    {kopExit, PszLit("Exit")},
-    {kopReturn, PszLit("Return")},
-    {kopSetReturn, PszLit("SetReturn")},
-    {kopShuffle, PszLit("Shuffle")},
-    {kopShuffleList, PszLit("ShuffleList")},
-    {kopNextCard, PszLit("NextCard")},
-    {kopMatch, PszLit("Match")},
-    {kopPause, PszLit("Pause")},
-    {kopCopyStr, PszLit("CopyStr")},
-    {kopMoveStr, PszLit("MoveStr")},
-    {kopNukeStr, PszLit("NukeStr")},
-    {kopMergeStrs, PszLit("MergeStrs")},
-    {kopScaleTime, PszLit("ScaleTime")},
-    {kopNumToStr, PszLit("NumToStr")},
-    {kopStrToNum, PszLit("StrToNum")},
-    {kopConcatStrs, PszLit("ConcatStrs")},
-    {kopLenStr, PszLit("LenStr")},
-    {kopCopySubStr, PszLit("CopySubStr")},
-    {opNil, pvNil},
-};
-
-// name to op look up table for in-fix compilation
-StringOpcodeArgumentMap _rgarop[] = {
-    {kopAbs, PszLit("Abs"), 1, 0, 0, fFalse},
-    {kopRnd, PszLit("Rnd"), 1, 0, 0, fFalse},
-    {kopMulDiv, PszLit("MulDiv"), 3, 0, 0, fFalse},
-    {kopRndList, PszLit("RndList"), 0, 1, 1, fFalse},
-    {kopSelect, PszLit("Select"), 1, 1, 1, fFalse},
-    {kopGoNz, PszLit("IfGoto"), 2, 0, 0, fTrue},
-    {kopGo, PszLit("Goto"), 1, 0, 0, fTrue},
-    {kopExit, PszLit("Exit"), 0, 0, 0, fTrue},
-    {kopReturn, PszLit("Return"), 1, 0, 0, fTrue},
-    {kopSetReturn, PszLit("SetReturn"), 1, 0, 0, fTrue},
-    {kopShuffle, PszLit("Shuffle"), 1, 0, 0, fTrue},
-    {kopShuffleList, PszLit("ShuffleList"), 0, 1, 1, fTrue},
-    {kopNextCard, PszLit("NextCard"), 0, 0, 0, fFalse},
-    {kopMatch, PszLit("Match"), 2, 2, 1, fFalse},
-    {kopPause, PszLit("Pause"), 0, 0, 0, fTrue},
-    {kopCopyStr, PszLit("CopyStr"), 2, 0, 0, fFalse},
-    {kopMoveStr, PszLit("MoveStr"), 2, 0, 0, fFalse},
-    {kopNukeStr, PszLit("NukeStr"), 1, 0, 0, fTrue},
-    {kopMergeStrs, PszLit("MergeStrs"), 2, 0, 0, fTrue},
-    {kopScaleTime, PszLit("ScaleTime"), 1, 0, 0, fTrue},
-    {kopNumToStr, PszLit("NumToStr"), 2, 0, 0, fFalse},
-    {kopStrToNum, PszLit("StrToNum"), 3, 0, 0, fFalse},
-    {kopConcatStrs, PszLit("ConcatStrs"), 3, 0, 0, fFalse},
-    {kopLenStr, PszLit("LenStr"), 1, 0, 0, fFalse},
-    {kopCopySubStr, PszLit("CopySubStr"), 4, 0, 0, fFalse},
-    {opNil, pvNil, 0, 0, 0, fTrue},
-};
 
 /***************************************************************************
     Constructor for a script compiler.
@@ -419,74 +325,11 @@ void CompilerBase::_ReportError(PZString psz)
     _pmsnk->ReportLine(stn.Psz());
 }
 
-/***************************************************************************
-    Find the opcode that corresponds to the given stn.
-***************************************************************************/
-LegacyLong CompilerBase::_OpFromStn(PString pstn)
+int CompilerBase::_Dialect(void)
 {
-    AssertThis(0);
-    AssertPo(pstn, 0);
-
-    return _OpFromStnRgszop(pstn, _rgszop);
+    return MM_SCRIPT_BASE;
 }
 
-/***************************************************************************
-    Check the pstn against the strings in the prgszop and return the
-    corresponding op code.
-***************************************************************************/
-LegacyLong CompilerBase::_OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop)
-{
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    AssertVarMem(prgszop);
-    StringOpcodeMap *pszop;
-
-    for (pszop = prgszop; pszop->psz != pvNil; pszop++)
-    {
-        if (pstn->FEqualSz(pszop->psz))
-            return pszop->op;
-    }
-    return opNil;
-}
-
-/***************************************************************************
-    Find the string corresponding to the given opcode.  This is used during
-    disassembly.
-***************************************************************************/
-bool CompilerBase::_FGetStnFromOp(LegacyLong op, PString pstn)
-{
-    AssertThis(0);
-    AssertPo(pstn, 0);
-
-    return _FGetStnFromOpRgszop(op, pstn, _rgszop);
-}
-
-/***************************************************************************
-    Check the op against the ops in the prgszop and return the corresponding
-    string.
-***************************************************************************/
-bool CompilerBase::_FGetStnFromOpRgszop(LegacyLong op, PString pstn, StringOpcodeMap *prgszop)
-{
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    AssertVarMem(prgszop);
-    StringOpcodeMap *pszop;
-
-    for (pszop = prgszop; pszop->psz != pvNil; pszop++)
-    {
-        if (op == pszop->op)
-        {
-            *pstn = pszop->psz;
-            return fTrue;
-        }
-    }
-    pstn->SetNil();
-    return fFalse;
-}
-
-/***************************************************************************
-    Compile source using the native lexer and opcode tables.
-***************************************************************************/
 void CompilerBase::_Compile(bool infix)
 {
     struct Source
@@ -494,261 +337,61 @@ void CompilerBase::_Compile(bool infix)
         PCompilerBase compiler;
         Token token;
     } source{this, {}};
-    auto next = [](void *context, MMScriptToken *out) -> int {
-        auto source = static_cast<Source *>(context);
-        auto &token = source->token;
-        if (!source->compiler->_FGetTok(&token))
-            return 0;
-        out->kind = token.tt;
-        out->value = token.tt == ttLong ? token.lw : 0;
-        out->text = token.stn.Prgch();
-        out->length = token.stn.Cch();
-        return 1;
+    const MMScriptInput input = {
+        &source,
+        [](void *context, MMScriptToken *out) -> int {
+            auto source = static_cast<Source *>(context);
+            auto &token = source->token;
+            if (!source->compiler->_FGetTok(&token))
+                return 0;
+            out->kind = token.tt;
+            out->value = token.tt == ttLong ? token.lw : 0;
+            out->text = token.stn.Prgch();
+            out->length = token.stn.Cch();
+            return 1;
+        },
+        _Dialect()
     };
     if (infix)
-    {
-        const MMScriptInfixInput input = {
-            &source, next,
-            [](void *context, const void *name, MMU32 length, MMScriptFunction *function) -> int {
-                auto source = static_cast<Source *>(context);
-                String text;
-                if (length)
-                    text.SetRgch(const_cast<achar *>(static_cast<const achar *>(name)), length);
-                LegacyLong opcode, fixed, group, minimum;
-                bool returnsVoid;
-                if (!source->compiler->_FGetOpFromName(&text, &opcode, &fixed, &group, &minimum, &returnsVoid))
-                    return 0;
-                *function = {static_cast<MMU32>(opcode), fixed, group, minimum, returnsVoid};
-                return 1;
-            }
-        };
         mm_script_compile_infix(_emitter, &input);
-    }
     else
-    {
-        const MMScriptPostfixInput input = {
-            &source, next,
-            [](void *context, const void *name, MMU32 length) -> MMU32 {
-                auto source = static_cast<Source *>(context);
-                String text;
-                if (length)
-                    text.SetRgch(const_cast<achar *>(static_cast<const achar *>(name)), length);
-                return source->compiler->_OpFromStn(&text);
-            }
-        };
         mm_script_compile_postfix(_emitter, &input);
-    }
 }
 
 /***************************************************************************
-    Find the string in the given rgarop and get the associated parameter
-    and return type information.
-***************************************************************************/
-bool CompilerBase::_FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar,
-                     bool *pfVoid)
-{
-    AssertThis(0);
-    AssertPo(pstn, 0);
-    AssertVarMem(prgarop);
-    AssertVarMem(pop);
-    AssertVarMem(pclwFixed);
-    AssertVarMem(pclwVar);
-    AssertVarMem(pcactMinVar);
-    AssertVarMem(pfVoid);
-    StringOpcodeArgumentMap *parop;
-
-    for (parop = prgarop; parop->psz != pvNil; parop++)
-    {
-        if (pstn->FEqualSz(parop->psz))
-        {
-            *pop = parop->op;
-            *pclwFixed = parop->clwFixed;
-            *pclwVar = parop->clwVar;
-            *pcactMinVar = parop->cactMinVar;
-            *pfVoid = parop->fVoid;
-            return fTrue;
-        }
-    }
-    return fFalse;
-}
-
-/***************************************************************************
-    See if the given name is a function and give argument and return type
-    information.
-***************************************************************************/
-bool CompilerBase::_FGetOpFromName(PString pstn, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar, bool *pfVoid)
-{
-    AssertThis(0);
-    return _FGetArop(pstn, _rgarop, pop, pclwFixed, pclwVar, pcactMinVar, pfVoid);
-}
-
-/***************************************************************************
-    Disassemble the script into a message sink (MessageSink) and return whether
-    there was an error.
+    Write a source listing into the message sink.
 ***************************************************************************/
 bool CompilerBase::FDisassemble(PScript pscpt, PMSNK pmsnk, PMSNK pmsnkError)
 {
     AssertThis(0);
-    Assert(pscpt, "nil script");
     AssertPo(pmsnk, 0);
-    AssertPo(pmsnkError, 0);
-    RuntimeVariableName rtvn;
-    LegacyLong ilwMac, ilw, clwPush;
-    LegacyLong lw;
-    LegacyLong op;
-    String stn;
-    DataVersion dver;
-    PZString pszError = pvNil;
-
-    ilwMac = mm_script_word_count(pscpt);
-    if (ilwMac < 1)
-    {
-        pszError = PszLit("No version numbers on script");
-        goto LFail;
-    }
-
-    // check the version
-    lw = mm_script_word(pscpt, 0);
-    dver.Set(SwHigh(lw), SwLow(lw));
-    if (!dver.FReadable(_SwCur(), _SwMin()))
-    {
-        pszError = PszLit("Script version doesn't match script compiler version");
-        goto LFail;
-    }
-
-    for (ilw = 1;;)
-    {
-        // write the label
-        stn.FFormatSz(PszLit("@L_%04x "), ilw);
-        pmsnk->Report(stn.Psz());
-        if (ilw >= ilwMac)
-            break;
-
-        lw = mm_script_word(pscpt, ilw++);
-        clwPush = B2Lw(lw);
-        if (!FIn(clwPush, 0, ilwMac - ilw + 1))
-        {
-            pszError = PszLit("bad instruction");
-            goto LFail;
-        }
-
-        // write the op string
-        if (opNil != (op = B3Lw(lw)))
-        {
-            // this instruction acts on a variable
-            if (clwPush == 0)
-            {
-                pszError = PszLit("bad var instruction");
-                goto LFail;
-            }
-            clwPush--;
-            rtvn.lu1 = (LegacyUlong)SuLow(lw);
-            rtvn.lu2 = static_cast<LegacyUlong>(mm_script_word(pscpt, ilw++));
-            if (rtvn.lu1 == 0)
-            {
-                if (op != kopPushLocVar)
-                {
-                    pszError = PszLit("bad variable");
-                    goto LFail;
-                }
-
-                // string literal
-                if (!ReadScriptLiteral(pscpt, rtvn.lu2, &stn))
-                {
-                    pszError = PszLit("bad internal variable");
-                    goto LFail;
-                }
-                stn.FExpandControls();
-                pmsnk->Report(PszLit("\""));
-                pmsnk->Report(stn.Psz());
-                pmsnk->Report(PszLit("\" "));
-            }
+    AssertNilOrPo(pmsnkError, 0);
+    const int result = mm_script_disassemble(pscpt, _Dialect(), _SwCur(), _SwMin(),
+        [](void *context, const void *text, MMU32 length, int endLine) {
+            auto sink = static_cast<PMSNK>(context);
+            String fragment;
+            if (length)
+                fragment.SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), length);
+            if (endLine)
+                sink->ReportLine(fragment.Psz());
             else
-            {
-                bool fArray = fFalse;
-
-                if (FIn(op, kopMinArray, kopLimArray))
-                {
-                    op += kopPushLocVar - kopPushLocArray;
-                    fArray = fTrue;
-                }
-
-                stn.SetNil();
-                switch (op)
-                {
-                case kopPushLocVar:
-                    stn.FAppendCh(ChLit('<'));
-                    break;
-                case kopPopLocVar:
-                    stn.FAppendCh(ChLit('>'));
-                    break;
-                case kopPushThisVar:
-                    stn.FAppendSz(PszLit("<."));
-                    break;
-                case kopPopThisVar:
-                    stn.FAppendSz(PszLit(">."));
-                    break;
-                case kopPushGlobalVar:
-                    stn.FAppendSz(PszLit("<::"));
-                    break;
-                case kopPopGlobalVar:
-                    stn.FAppendSz(PszLit(">::"));
-                    break;
-                case kopPushRemoteVar:
-                    stn.FAppendSz(PszLit("<~"));
-                    break;
-                case kopPopRemoteVar:
-                    stn.FAppendSz(PszLit(">~"));
-                    break;
-                default:
-                    pszError = PszLit("bad var op");
-                    goto LFail;
-                }
-                if (fArray)
-                    stn.FAppendCh(ChLit('&'));
-                pmsnk->Report(stn.Psz());
-
-                rtvn.GetStn(&stn);
-                stn.FAppendCh(kchSpace);
-                pmsnk->Report(stn.Psz());
-            }
-        }
-        else if (opNil != (op = SuLow(lw)))
-        {
-            // normal opcode
-            if (!_FGetStnFromOp(op, &stn))
-            {
-                pszError = PszLit("bad op in script");
-            LFail:
-                if (pmsnkError != pvNil && pszError != pvNil)
-                    pmsnkError->ReportLine(pszError);
-                return fFalse;
-            }
-            stn.FAppendCh(kchSpace);
-            pmsnk->Report(stn.Psz());
-        }
-
-        // dump the stack stuff
-        while (clwPush-- > 0)
-        {
-            lw = mm_script_word(pscpt, ilw++);
-            if (B3Lw(lw) == kbLabel && FIn(lw &= 0x00FFFFFF, 1, ilwMac + 1))
-            {
-                // REVIEW shonk: label identification: this isn't foolproof
-                stn.FFormatSz(PszLit("$L_%04x "), lw);
-                pmsnk->Report(stn.Psz());
-            }
-            else
-            {
-                stn.FFormatSz(PszLit("%d /*0x%x*/ "), lw, lw);
-                pmsnk->Report(stn.Psz());
-            }
-        }
-        pmsnk->ReportLine(PszLit(""));
+                sink->Report(fragment.Psz());
+        }, pmsnk);
+    if (result == MM_SCRIPT_DISASSEMBLED)
+        return true;
+    if (pmsnkError)
+    {
+        static const PZString messages[] = {
+            PszLit("No version numbers on script"),
+            PszLit("Script version doesn't match script compiler version"),
+            PszLit("bad instruction"), PszLit("bad var instruction"), PszLit("bad variable"),
+            PszLit("bad internal variable"), PszLit("bad var op"), PszLit("bad op in script")
+        };
+        static_assert(sizeof(messages) / sizeof(*messages) == MM_SCRIPT_DISASSEMBLE_OPCODE,
+                      "script listing diagnostics");
+        pmsnkError->ReportLine(messages[result - 1]);
     }
-    pmsnk->ReportLine(PszLit(""));
-
-    return fTrue;
+    return false;
 }
 
 /***************************************************************************
@@ -773,48 +416,12 @@ void RuntimeVariableName::GetStn(PString pstn)
 {
     AssertThisMem();
     AssertPo(pstn, 0);
-    byte rgb[8];
-    byte bT;
-    LegacyLong ib;
-
-    // unpack the individual bytes
-    rgb[0] = (byte)((lu1 & 0x0000FC00) >> 10);
-    rgb[1] = (byte)((lu1 & 0x000003F0) >> 4);
-    rgb[2] = (byte)(((lu1 & 0x0000000F) << 2) | ((lu2 & 0xC0000000) >> 30));
-    rgb[3] = (byte)((lu2 & 0x3F000000) >> 24);
-    rgb[4] = (byte)((lu2 & 0x00FC0000) >> 18);
-    rgb[5] = (byte)((lu2 & 0x0003F000) >> 12);
-    rgb[6] = (byte)((lu2 & 0x00000FC0) >> 6);
-    rgb[7] = (byte)(lu2 & 0x0000003F);
-
-    // convert the bytes to characters and append them to the stn
-    pstn->SetNil();
-    for (ib = 0; ib < 8; ib++)
-    {
-        bT = rgb[ib];
-        if (bT == 0)
-            break;
-        if (FIn(bT, 1, 11))
-            bT += '0' - 1;
-        else if (FIn(bT, 11, 37))
-            bT += 'A' - 11;
-        else if (FIn(bT, 37, 63))
-            bT += 'a' - 37;
-        else
-        {
-            Assert(bT == 63, 0);
-            bT = '_';
-        }
-        pstn->FAppendCh((achar)bT);
-    }
-
-    if (lu1 & 0xFFFF0000)
-    {
-        String stn;
-
-        stn.FFormatSz(PszLit("[%d]"), SuHigh(lu1));
-        pstn->FAppendStn(&stn);
-    }
+    char ascii[MM_SCRIPT_VARIABLE_TEXT_CAPACITY];
+    achar text[MM_SCRIPT_VARIABLE_TEXT_CAPACITY];
+    const auto length = mm_script_variable_text(lu1, lu2, ascii);
+    for (MMU32 i = 0; i < length; ++i)
+        text[i] = ascii[i];
+    pstn->SetRgch(text, length);
 }
 
 } // end of namespace ScriptCompiler

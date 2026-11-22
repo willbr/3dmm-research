@@ -1915,16 +1915,6 @@ static int compiler_token(void *context, MMScriptToken *out)
     return out->kind != ttNil;
 }
 
-static MMU32 postfix_opcode(void *context, const void *name, MMU32 length)
-{
-    (void)context;
-    if (length == 2 && !memcmp(name, "Go", 2))
-        return kopGo;
-    if (length == 6 && !memcmp(name, "Return", 6))
-        return kopReturn;
-    return 0;
-}
-
 static void compile_postfix(void)
 {
     static const MMScriptToken tokens[] = {
@@ -1935,7 +1925,7 @@ static void compile_postfix(void)
         {ttAt, 0, NULL, 0}, {ttName, 0, "done", 4},
         {ttLt, 0, NULL, 0}, {ttName, 0, "value", 5}, {ttName, 0, "Return", 6}, {ttNil, 0, NULL, 0}
     };
-    MMScriptPostfixInput input;
+    MMScriptInput input;
     CompilerTokenSource source;
     CompileTrace trace;
     Host host;
@@ -1949,7 +1939,7 @@ static void compile_postfix(void)
     source.next = 0;
     input.context = &source;
     input.next = compiler_token;
-    input.opcode = postfix_opcode;
+    input.dialect = MM_SCRIPT_BASE;
     emitter = mm_script_emitter_create(&host.host, 10, 10, compile_diagnostic, &trace);
     CHECK(emitter);
     mm_script_compile_postfix(emitter, &input);
@@ -1964,25 +1954,15 @@ static void compile_postfix(void)
     CHECK(!host.collections_live);
 }
 
-static int infix_function(void *context, const void *name, MMU32 length, MMScriptFunction *function)
-{
-    (void)context;
-    if (length != 6 || memcmp(name, "Return", 6))
-        return 0;
-    function->opcode = kopReturn;
-    function->fixed = 1;
-    function->group = 0;
-    function->minimum_groups = 0;
-    function->returns_void = 1;
-    return 1;
-}
-
 #define TOKEN(kind) {kind, 0, NULL, 0}
 #define NUMBER(value) {ttLong, value, NULL, 0}
 #define IDENTIFIER(name) {ttName, 0, name, sizeof(name) - 1}
 static void compile_infix(void)
 {
     static const MMScriptToken program[] = {
+        IDENTIFIER("Goto"), TOKEN(ttOpenParen), IDENTIFIER("start"), TOKEN(ttDollar), TOKEN(ttCloseParen), TOKEN(ttSemi),
+        IDENTIFIER("Return"), TOKEN(ttOpenParen), NUMBER(99), TOKEN(ttCloseParen), TOKEN(ttSemi),
+        IDENTIFIER("start"), TOKEN(ttAt),
         IDENTIFIER("x"), TOKEN(ttAssign), NUMBER(5), TOKEN(ttAdd), NUMBER(2), TOKEN(ttMul), NUMBER(3), TOKEN(ttSemi),
         IDENTIFIER("y"), TOKEN(ttAssign), NUMBER(0), TOKEN(ttSemi),
         IDENTIFIER("While"), TOKEN(ttOpenParen), IDENTIFIER("x"), TOKEN(ttGt), NUMBER(4), TOKEN(ttCloseParen), TOKEN(ttSemi),
@@ -1998,7 +1978,7 @@ static void compile_infix(void)
         TOKEN(ttCloseParen), TOKEN(ttSemi), TOKEN(ttNil)
     };
     CompilerTokenSource source;
-    MMScriptInfixInput input;
+    MMScriptInput input;
     CompileTrace trace;
     MMScriptEmitter *emitter;
     MMCompiledScript *script;
@@ -2011,7 +1991,7 @@ static void compile_infix(void)
     source.next = 0;
     input.context = &source;
     input.next = compiler_token;
-    input.function = infix_function;
+    input.dialect = MM_SCRIPT_BASE;
     emitter = mm_script_emitter_create(&host.host, 10, 10, compile_diagnostic, &trace);
     CHECK(emitter);
     mm_script_compile_infix(emitter, &input);
@@ -2038,6 +2018,97 @@ static void compile_infix(void)
 #undef NUMBER
 #undef TOKEN
 
+typedef struct ListingTrace
+{
+    char text[512];
+    MMU32 length;
+    unsigned unit;
+} ListingTrace;
+
+static void listing_text(void *context, const void *text, MMU32 length, int end_line)
+{
+    ListingTrace *trace = context;
+    MMU32 i;
+    unsigned short ch;
+    CHECK(trace->length + length + (end_line != 0) < sizeof(trace->text));
+    for (i = 0; i < length; ++i)
+    {
+        if (trace->unit == 1)
+            ch = ((const unsigned char *)text)[i];
+        else
+            memcpy(&ch, (const unsigned char *)text + i * 2, 2);
+        CHECK(ch < 128);
+        trace->text[trace->length++] = (char)ch;
+    }
+    if (end_line)
+        trace->text[trace->length++] = '\n';
+    trace->text[trace->length] = '\0';
+}
+
+static void disassemble_script(void)
+{
+    static const unsigned short label_wide[] = {'e', 'n', 'd'};
+    static const unsigned short literal_wide[] = {'x', '\t', '"', '\\', '\r', '\n'};
+    static const char expected[] = "@L_0001 $L_000A \n@L_0003 Go \n"
+                                   "@L_0004 \"x\\t\\\"\\\\\\n\n\" \n"
+                                   "@L_0006 <::&Bounds 43707 /*0xAABB*/ \n"
+                                   "@L_0009 PrintStrStat \n@L_000A \n";
+    Host host;
+    MMScriptEmitter *emitter;
+    MMCompiledScript *script;
+    ListingTrace trace;
+    const void *label, *literal;
+    MMU32 high, low, original;
+    unsigned unit;
+    const unsigned version = 0x101d;
+
+    for (unit = 1; unit <= 2; ++unit)
+    {
+        init(&host);
+        host.host.unit_bytes = unit;
+        host.host.encoding = unit == 1 ? MM_TEXT_WINDOWS : MM_TEXT_UTF16_LE;
+        memset(&trace, 0, sizeof(trace));
+        trace.unit = unit;
+        CHECK(mm_script_variable_name("Bounds", 6, 1, &high, &low));
+        label = unit == 1 ? (const void *)"end" : label_wide;
+        literal = unit == 1 ? (const void *)"x\t\"\\\r\n" : literal_wide;
+        emitter = mm_script_emitter_create(&host.host, version, version, NULL, NULL);
+        CHECK(emitter);
+        mm_script_emit_label_reference(emitter, label, 3);
+        mm_script_emit_opcode(emitter, kopGo);
+        mm_script_emit_literal(emitter, literal, 6);
+        mm_script_emit_variable(emitter, kopPushGlobalArray, high, low);
+        mm_script_emit_immediate(emitter, mm_signed_word(0xcc00aabbUL));
+        mm_script_emit_opcode(emitter, kopPrintStrStat);
+        mm_script_emit_label(emitter, label, 3);
+        script = mm_script_emitter_finish(emitter);
+        mm_script_emitter_destroy(emitter);
+        CHECK(script);
+        CHECK(mm_script_disassemble(script, MM_SCRIPT_KIDSPACE, version, version, listing_text, &trace) ==
+              MM_SCRIPT_DISASSEMBLED);
+        CHECK(!strcmp(expected, trace.text));
+        CHECK(mm_script_disassemble(script, MM_SCRIPT_BASE, version, version, NULL, NULL) ==
+              MM_SCRIPT_DISASSEMBLE_OPCODE);
+        CHECK(mm_script_disassemble(script, MM_SCRIPT_KIDSPACE, version - 1, version - 1, NULL, NULL) ==
+              MM_SCRIPT_DISASSEMBLE_VERSION);
+
+        original = (MMU32)mm_script_word(script, 4);
+        mm_script_set_word(script, 4, mm_signed_word(original & ~0xff0000UL));
+        CHECK(mm_script_disassemble(script, MM_SCRIPT_KIDSPACE, version, version, NULL, NULL) ==
+              MM_SCRIPT_DISASSEMBLE_VARIABLE_INSTRUCTION);
+        mm_script_set_word(script, 4, mm_signed_word(original));
+        mm_script_set_word(script, 5, 8);
+        CHECK(mm_script_disassemble(script, MM_SCRIPT_KIDSPACE, version, version, NULL, NULL) ==
+              MM_SCRIPT_DISASSEMBLE_LITERAL);
+        mm_script_set_word(script, 5, 0);
+        mm_script_set_word(script, 9, (MMI32)(VM_IMMEDIATES(1) | kopPrintStrStat));
+        CHECK(mm_script_disassemble(script, MM_SCRIPT_KIDSPACE, version, version, NULL, NULL) ==
+              MM_SCRIPT_DISASSEMBLE_INSTRUCTION);
+        mm_script_release(script);
+        CHECK(!host.collections_live);
+    }
+}
+
 int main(void)
 {
     scripts();
@@ -2055,6 +2126,7 @@ int main(void)
     emit_script();
     compile_postfix();
     compile_infix();
+    disassemble_script();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

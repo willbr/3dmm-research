@@ -38,9 +38,7 @@ class GraphicsObjectCompiler : public GraphicsObjectCompiler_PAR
     virtual short _SwBack(void);
     virtual short _SwMin(void);
 
-    virtual LegacyLong _OpFromStn(PString pstn);
-    virtual bool _FGetOpFromName(PString pstn, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar, bool *pfVoid);
-    virtual bool _FGetStnFromOp(LegacyLong op, PString pstn);
+    int _Dialect(void) override;
 };
 
 } // end of namespace ScriptCompiler

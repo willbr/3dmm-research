@@ -21618,3 +21618,39 @@ matched retail and V3DMM suite `20261122T081603Z-7ffc4e8e`.
 
 The compiler fixtures, traces, and Studio canvases are under
 `tmp/c89-script-infix`. Playback captures are under `tmp/c89-kd`.
+
+## C89 script dialects and disassembly (22 November 2026)
+
+The base and Kidspace dialects supply opcode names and infix signatures
+to both C89 compiler modes and the C89 disassembler. Infix source keeps
+`Goto` and `IfGoto`. Postfix source and listings keep `Go` and `GoNz`.
+The disassembler and VM share the script version check and variable name
+decoder. Chomp supplies lexer tokens, source diagnostics, and the listing
+text sink.
+
+The C fixture checks narrow and wide listing text, literal escapes, array
+scope prefixes, the final label, and malformed opcodes and operands. The
+rebuilt Chomp reproduced the retained binary's listings and diagnostics
+for three compiler fixtures and all three original ISO archives checked.
+The `STUDIO.CHK` listing matched all 40,379,586 bytes and the `SHARED.CHK`
+listing matched all 6,610,467 bytes, including two existing unknown-opcode
+diagnostics in the latter. `3DMOVIE.CHK` matched all 994,084 bytes. All 470
+generated Studio script payloads matched the retained build.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. The headless room, F1 Help, ISO, and authoring workflows passed.
+Nine movie saves, Help and cache traces, and the Marcus startup canvas
+matched retained results.
+Five smoke canvases and the room canvases before and during the ticket
+booth AVI matched the preceding build. After the AVI, the animation region
+differed from the preceding sample and the full canvas matched an earlier
+sample. The existing `scene-load` failure reproduced its 63,224-byte trace
+and fingerprint `0D666753`.
+
+Silent suite `20261122T132234Z-d8222fb7` matched both ports' preceding
+60 seek canvases and camera and actor state. Seek and continuous frame
+order matched retail and V3DMM suite `20261122T081603Z-7ffc4e8e`.
+
+The listings, compiler fixtures, traces, and Studio canvases are under
+`tmp/c89-script-listing` and `tmp/c89-script-infix`. Playback captures
+are under `tmp/c89-kd`.

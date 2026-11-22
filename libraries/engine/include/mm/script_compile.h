@@ -58,32 +58,42 @@ extern "C"
         MMU32 length;
     } MMScriptToken;
 
-    typedef struct MMScriptPostfixInput
+    enum MMScriptDialect
+    {
+        MM_SCRIPT_BASE,
+        MM_SCRIPT_KIDSPACE
+    };
+
+    typedef struct MMScriptInput
     {
         void *context;
         /* Zero marks end of source. Text remains valid until the next token. */
         int (*next)(void *, MMScriptToken *);
-        MMU32 (*opcode)(void *, const void *name, MMU32 length); /* Zero on miss. */
-    } MMScriptPostfixInput;
+        int dialect;
+    } MMScriptInput;
 
-    void mm_script_compile_postfix(MMScriptEmitter *, const MMScriptPostfixInput *);
+    void mm_script_compile_postfix(MMScriptEmitter *, const MMScriptInput *);
+    void mm_script_compile_infix(MMScriptEmitter *, const MMScriptInput *);
 
-    typedef struct MMScriptFunction
+    enum MMScriptDisassembleResult
     {
-        MMU32 opcode;
-        MMI32 fixed, group, minimum_groups;
-        int returns_void;
-    } MMScriptFunction;
+        MM_SCRIPT_DISASSEMBLED,
+        MM_SCRIPT_DISASSEMBLE_NO_VERSION,
+        MM_SCRIPT_DISASSEMBLE_VERSION,
+        MM_SCRIPT_DISASSEMBLE_INSTRUCTION,
+        MM_SCRIPT_DISASSEMBLE_VARIABLE_INSTRUCTION,
+        MM_SCRIPT_DISASSEMBLE_VARIABLE,
+        MM_SCRIPT_DISASSEMBLE_LITERAL,
+        MM_SCRIPT_DISASSEMBLE_VARIABLE_OPCODE,
+        MM_SCRIPT_DISASSEMBLE_OPCODE
+    };
 
-    typedef struct MMScriptInfixInput
-    {
-        void *context;
-        /* Same token lifetime and end-of-source convention as postfix input. */
-        int (*next)(void *, MMScriptToken *);
-        int (*function)(void *, const void *name, MMU32 length, MMScriptFunction *);
-    } MMScriptInfixInput;
-
-    void mm_script_compile_infix(MMScriptEmitter *, const MMScriptInfixInput *);
+    /* Each fragment uses the script's character width and is valid for the call.
+     * The sink adds a line break when end_line is set. The emitted prefix is
+     * retained by the sink when a malformed instruction interrupts the listing. */
+    typedef void (*MMScriptTextWrite)(void *, const void *text, MMU32 length, int end_line);
+    int mm_script_disassemble(const MMCompiledScript *, int dialect, unsigned current, unsigned minimum,
+                              MMScriptTextWrite, void *);
 #ifdef __cplusplus
 }
 #endif

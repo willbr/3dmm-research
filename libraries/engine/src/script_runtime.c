@@ -291,3 +291,45 @@ int mm_script_variable_name(const void *text, MMU32 count, unsigned unit_bytes, 
     *low = lo;
     return valid;
 }
+
+MMU32 mm_script_variable_text(MMU32 high, MMU32 low, char text[MM_SCRIPT_VARIABLE_TEXT_CAPACITY])
+{
+    static const char alphabet[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz_";
+    char digits[5];
+    MMU32 length = 0, index = high >> 16, count = 0;
+    unsigned i, code;
+
+    for (i = 0; i < 8; ++i)
+    {
+        if (i < 2)
+            code = (unsigned)((high >> (10 - i * 6)) & 63U);
+        else if (i == 2)
+            code = (unsigned)(((high << 2) | (low >> 30)) & 63U);
+        else
+            code = (unsigned)((low >> (24 - (i - 3) * 6)) & 63U);
+        if (!code)
+            break;
+        text[length++] = alphabet[code - 1];
+    }
+    if (index)
+    {
+        text[length++] = '[';
+        while (index)
+        {
+            digits[count++] = (char)('0' + index % 10);
+            index /= 10;
+        }
+        while (count)
+            text[length++] = digits[--count];
+        text[length++] = ']';
+    }
+    text[length] = '\0';
+    return length;
+}
+
+int mm_script_version_readable(MMU32 version, unsigned current, unsigned minimum)
+{
+    MMU32 written = version >> 16;
+    MMU32 compatible = version & 0xffffU;
+    return written >= minimum && written < 0x7fffU && compatible <= written && compatible <= current;
+}

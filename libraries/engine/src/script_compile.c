@@ -274,14 +274,14 @@ MMCompiledScript *mm_script_emitter_finish(MMScriptEmitter *emitter)
     return script;
 }
 
-static void postfix_variable(MMScriptEmitter *emitter, const MMScriptPostfixInput *input, int pop)
+static int postfix_variable(MMScriptEmitter *emitter, const MMScriptInput *input, int pop)
 {
     MMScriptToken token;
     MMU32 opcode, high, low;
     if (!input->next(input->context, &token))
     {
         mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
-        return;
+        return 0;
     }
     opcode = kopPushLocVar;
     switch (token.kind)
@@ -293,7 +293,7 @@ static void postfix_variable(MMScriptEmitter *emitter, const MMScriptPostfixInpu
     if (opcode != kopPushLocVar && !input->next(input->context, &token))
     {
         mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
-        return;
+        return 0;
     }
     if (token.kind == ttBAnd)
     {
@@ -301,17 +301,18 @@ static void postfix_variable(MMScriptEmitter *emitter, const MMScriptPostfixInpu
         if (!input->next(input->context, &token))
         {
             mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
-            return;
+            return 0;
         }
     }
-    if (token.kind != ttName || input->opcode(input->context, token.text, token.length) ||
+    if (token.kind != ttName || mm_script_find_opcode(input->dialect, token.text, token.length, emitter->host->unit_bytes) ||
         !mm_script_variable_name(token.text, token.length, emitter->host->unit_bytes, &high, &low))
         mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_VARIABLE);
     else
         mm_script_emit_variable(emitter, opcode + pop, high, low);
+    return 1;
 }
 
-void mm_script_compile_postfix(MMScriptEmitter *emitter, const MMScriptPostfixInput *input)
+void mm_script_compile_postfix(MMScriptEmitter *emitter, const MMScriptInput *input)
 {
     MMScriptToken token;
     MMU32 opcode;
@@ -329,25 +330,36 @@ void mm_script_compile_postfix(MMScriptEmitter *emitter, const MMScriptPostfixIn
             mm_script_emit_literal(emitter, token.text, token.length);
             break;
         case ttSub:
-            if (input->next(input->context, &token) && token.kind == ttLong)
+            if (!input->next(input->context, &token))
+            {
+                mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
+                return;
+            }
+            if (token.kind == ttLong)
                 mm_script_emit_immediate(emitter, mm_signed_word((MMU32)0 - (MMU32)token.value));
             else
                 mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
             break;
         case ttName:
-            opcode = input->opcode(input->context, token.text, token.length);
+            opcode = mm_script_find_opcode(input->dialect, token.text, token.length, emitter->host->unit_bytes);
             if (opcode)
                 mm_script_emit_opcode(emitter, opcode);
             else
                 mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_UNKNOWN_NAME);
             break;
         case ttGt: case ttLt:
-            postfix_variable(emitter, input, token.kind == ttGt);
+            if (!postfix_variable(emitter, input, token.kind == ttGt))
+                return;
             break;
         case ttDollar: case ttAt:
             kind = token.kind;
-            if (!input->next(input->context, &token) || token.kind != ttName ||
-                input->opcode(input->context, token.text, token.length))
+            if (!input->next(input->context, &token))
+            {
+                mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
+                return;
+            }
+            if (token.kind != ttName ||
+                mm_script_find_opcode(input->dialect, token.text, token.length, emitter->host->unit_bytes))
                 mm_script_emitter_error(emitter, MM_SCRIPT_COMPILE_SYNTAX);
             else if (kind == ttAt)
                 mm_script_emit_label(emitter, token.text, token.length);

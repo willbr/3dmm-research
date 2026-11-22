@@ -23,32 +23,11 @@ namespace ScriptCompiler {
 using namespace ScriptInterpreter;
 using namespace Group;
 
-// structure to map a string to an opcode (post-fix)
-struct StringOpcodeMap
-{
-    LegacyLong op;
-    PZString psz;
-};
-
-// structure to map a string to an opcode and argument information (in-fix)
-struct StringOpcodeArgumentMap
-{
-    LegacyLong op;
-    PZString psz;
-    LegacyLong clwFixed;   // number of fixed arguments
-    LegacyLong clwVar;     // number of arguments per variable group
-    LegacyLong cactMinVar; // minimum number of variable groups
-    bool fVoid;      // return a value?
-};
-
 // script version numbers
 // if you bump these, also bump the numbers in scrcomg.h
 const short kswCurSccb = 0xA;  // this version
 const short kswBackSccb = 0xA; // we can be read back to this version
 const short kswMinSccb = 0xA;  // we can read back to this version
-
-// high byte of a label value
-const byte kbLabel = MM_SCRIPT_LABEL_BYTE;
 
 /***************************************************************************
     Run-time variable name.  The first 8 characters of the name are
@@ -95,15 +74,7 @@ class CompilerBase : public CompilerBase_PAR
 
     virtual bool _FGetTok(PToken ptok);
 
-    // Opcode name and argument tables for the script dialect.
-    LegacyLong _OpFromStnRgszop(PString pstn, StringOpcodeMap *prgszop);
-    virtual LegacyLong _OpFromStn(PString pstn);
-    bool _FGetStnFromOpRgszop(LegacyLong op, PString pstn, StringOpcodeMap *prgszop);
-    virtual bool _FGetStnFromOp(LegacyLong op, PString pstn);
-
-    virtual bool _FGetOpFromName(PString pstn, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar, bool *pfVoid);
-    bool _FGetArop(PString pstn, StringOpcodeArgumentMap *prgarop, LegacyLong *pop, LegacyLong *pclwFixed, LegacyLong *pclwVar, LegacyLong *pcactMinVar,
-                   bool *pfVoid);
+    virtual int _Dialect(void);
 
   public:
     CompilerBase(void);

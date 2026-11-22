@@ -79,7 +79,7 @@ enum { KEY_NONE = -1, KEY_IF, KEY_ELIF, KEY_ELSE, KEY_END, KEY_WHILE, KEY_BREAK,
 typedef struct InfixCompiler
 {
     MMScriptEmitter *emitter;
-    const MMScriptInfixInput *input;
+    const MMScriptInput *input;
     CompileArray expressions, operators, controls;
     CompileArray *tree;
     MMCollectionStorage name_storage;
@@ -222,37 +222,16 @@ static int keyword(InfixCompiler *compiler, CompileName name)
 {
     static const char *const names[] = {"If", "Elif", "Else", "End", "While", "Break", "Continue"};
     unsigned i;
-    MMU32 j;
-    unsigned short ch;
     for (i = 0; i < sizeof(names) / sizeof(*names); ++i)
-    {
-        if (name.length != strlen(names[i]))
-            continue;
-        if (compiler->names.unit_bytes == 1)
-        {
-            if (!memcmp(name.text, names[i], name.length))
-                return (int)i;
-        }
-        else
-        {
-            for (j = 0; j < name.length; ++j)
-            {
-                memcpy(&ch, (const unsigned char *)name.text + j * 2, 2);
-                if (ch != (unsigned char)names[i][j])
-                    break;
-            }
-            if (j == name.length)
-                return (int)i;
-        }
-    }
+        if (mm_script_name_matches(names[i], name.text, name.length, compiler->names.unit_bytes))
+            return (int)i;
     return KEY_NONE;
 }
 
 static void variable_name(InfixCompiler *compiler, CompileName name, VariableName *variable)
 {
-    MMScriptFunction function;
     if (keyword(compiler, name) != KEY_NONE ||
-        compiler->input->function(compiler->input->context, name.text, name.length, &function))
+        mm_script_find_function(compiler->input->dialect, name.text, name.length, compiler->names.unit_bytes))
         report(compiler, MM_SCRIPT_COMPILE_KEYWORD_VARIABLE);
     if (!mm_script_variable_name(name.text, name.length, compiler->names.unit_bytes, &variable->high, &variable->low))
         report(compiler, MM_SCRIPT_COMPILE_VARIABLE);
@@ -1469,23 +1448,24 @@ static void emit_variable_access(InfixCompiler *compiler, MMI32 ietn, VariableNa
 static void emit_function(InfixCompiler *compiler, MMI32 node, MMU32 flags, MMI32 arguments)
 {
     CompileName name = node_name(compiler, node);
-    MMScriptFunction function;
+    const MMScriptFunction *function = mm_script_find_function(compiler->input->dialect, name.text, name.length,
+                                                               compiler->names.unit_bytes);
 
-    if (!compiler->input->function(compiler->input->context, name.text, name.length, &function))
+    if (!function)
         report(compiler, MM_SCRIPT_COMPILE_UNKNOWN_FUNCTION);
-    else if (arguments < function.fixed ||
-             (function.group == 0 && arguments != function.fixed) ||
-             (function.group != 0 && ((arguments - function.fixed) % function.group != 0 ||
-              (arguments - function.fixed) / function.group < function.minimum_groups)))
+    else if (arguments < function->fixed ||
+             (function->group == 0 && arguments != function->fixed) ||
+             (function->group != 0 && ((arguments - function->fixed) % function->group != 0 ||
+              (arguments - function->fixed) / function->group < function->minimum_groups)))
         report(compiler, MM_SCRIPT_COMPILE_ARGUMENT_COUNT);
-    else if (!(flags & fsccWantVoid) && function.returns_void)
+    else if (!(flags & fsccWantVoid) && function->returns_void)
         report(compiler, MM_SCRIPT_COMPILE_VOID_VALUE);
     else
     {
-        if (function.group > 0)
-            mm_script_emit_immediate(compiler->emitter, (arguments - function.fixed) / function.group);
-        mm_script_emit_opcode(compiler->emitter, function.opcode);
-        if ((flags & fsccWantVoid) && !function.returns_void)
+        if (function->group > 0)
+            mm_script_emit_immediate(compiler->emitter, (arguments - function->fixed) / function->group);
+        mm_script_emit_opcode(compiler->emitter, function->opcode);
+        if ((flags & fsccWantVoid) && !function->returns_void)
             mm_script_emit_opcode(compiler->emitter, kopPop);
     }
 }
@@ -1576,7 +1556,7 @@ static int parse_token(InfixCompiler *compiler, const MMScriptToken *token)
     return 1;
 }
 
-void mm_script_compile_infix(MMScriptEmitter *emitter, const MMScriptInfixInput *input)
+void mm_script_compile_infix(MMScriptEmitter *emitter, const MMScriptInput *input)
 {
     const MMScriptHost *host;
     InfixCompiler compiler;

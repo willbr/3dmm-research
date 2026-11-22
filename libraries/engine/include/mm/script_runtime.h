@@ -46,6 +46,10 @@ extern "C"
     /* Pack the first eight native character units into a 48-bit name. Invalid
      * units encode as underscores and make the function return zero. */
     int mm_script_variable_name(const void *text, MMU32 count, unsigned unit_bytes, MMU32 *high, MMU32 *low);
+    enum { MM_SCRIPT_VARIABLE_TEXT_CAPACITY = 16 };
+    /* Write the ASCII name and optional [index], then a terminator. */
+    MMU32 mm_script_variable_text(MMU32 high, MMU32 low, char text[MM_SCRIPT_VARIABLE_TEXT_CAPACITY]);
+    int mm_script_version_readable(MMU32 version, unsigned current, unsigned minimum);
 #ifdef __cplusplus
 }
 #endif

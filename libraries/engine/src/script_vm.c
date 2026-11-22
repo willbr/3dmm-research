@@ -91,7 +91,6 @@ static int add_literals(MMScriptVM *vm)
 int mm_script_vm_attach(MMScriptVM *vm, MMCompiledScript *script, unsigned current, unsigned minimum,
                         const void *parameters, MMU32 parameter_count)
 {
-    MMU32 version, written, compatible;
     if (vm->script)
     {
         mm_script_vm_fail(vm, MM_SCRIPT_ERROR_STATE);
@@ -109,16 +108,8 @@ int mm_script_vm_attach(MMScriptVM *vm, MMCompiledScript *script, unsigned curre
     }
     if (mm_script_stack_reserve(&vm->stack, 10) != MM_STORAGE_OK)
         mm_script_vm_fail(vm, MM_SCRIPT_ERROR_RESOURCE);
-    else if (!vm->word_count)
+    else if (!vm->word_count || !mm_script_version_readable((MMU32)mm_script_word(script, 0), current, minimum))
         mm_script_vm_fail(vm, MM_SCRIPT_ERROR_VERSION);
-    else
-    {
-        version = (MMU32)mm_script_word(script, 0);
-        written = version >> 16;
-        compatible = version & 0xffffU;
-        if (written < minimum || written >= 0x7fffU || compatible > written || compatible > current)
-            mm_script_vm_fail(vm, MM_SCRIPT_ERROR_VERSION);
-    }
     if (vm->error)
         return 0;
     if ((parameter_count && !parameters) || parameter_count > MM_STORAGE_LIMIT / sizeof(MMI32))
