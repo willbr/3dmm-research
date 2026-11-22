@@ -11,7 +11,7 @@
 extern "C"
 {
 #endif
-    enum { MM_RESOURCE_TOSS_PRIORITY = 0, MM_RESOURCE_NORMAL_PRIORITY = 2 };
+    enum { MM_RESOURCE_TOSS_PRIORITY = 0, MM_RESOURCE_TOSS_FIRST_PRIORITY = 1, MM_RESOURCE_NORMAL_PRIORITY = 2 };
     typedef struct MMResourceCache MMResourceCache;
     struct MMChunkEndpoint;
     struct MMChunkFileCopy;

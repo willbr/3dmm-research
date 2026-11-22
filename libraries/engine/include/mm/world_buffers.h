@@ -9,14 +9,6 @@
 extern "C"
 {
 #endif
-    enum
-    {
-        MM_WORLD_DEPTH_BACKGROUND,
-        MM_WORLD_DEPTH_WORKING,
-        MM_WORLD_CACHE,
-        MM_WORLD_OWNERS,
-        MM_WORLD_COLOR_ASSET = MM_WORLD_OWNERS
-    };
     typedef struct MMWorldPixelView
     {
         MMI32 row, width, height, x, y;
@@ -33,7 +25,8 @@ extern "C"
     {
         MMI32 width, height, buffer_width, buffer_height, scale;
         int half_x, half_y;
-        void *owners[MM_WORLD_OWNERS];
+        MMDepthOwner *depth_background, *depth_working;
+        MMResourceCache *cache;
         MMRegion dirty_working, dirty_screen;
         MMPixelBuffer background, working;
         MMWorldPixelView rgb, z;
@@ -43,16 +36,10 @@ extern "C"
     {
         void *context;
         unsigned rgb_type, depth_type;
-        void *(*create)(void *, int kind, MMI32 width, MMI32 height);
-        void (*retain_cache)(void *, void *), (*release_cache)(void *, void *);
-        void (*release_depth)(void *, void *), (*release_bitmap)(void *, void *);
-        const MMDepthBitmap *(*depth_bitmap)(void *, void *);
-        const MMMaskedBitmap *(*masked_bitmap)(void *, void *);
+        const MMDepthOwnerHost *depth_host;
+        MMResourceBlockReader read_colour, read_depth;
         void (*setup_scene)(void *);
         void (*changed)(void *);
-        void *(*fetch)(void *, void *cache, int kind, MMU32 type, MMU32 number);
-        void (*priority)(void *, void *);
-        void (*priority_depth)(void *, void *);
     } MMWorldBufferServices;
     /* Initialize a zeroed, unique owning record. Native SDK pixelmaps borrow
      * the current buffer views. Viewports are capped at 4096 per axis.
@@ -61,7 +48,7 @@ extern "C"
      * Callbacks must not reenter/mutate the same world. */
     int mm_world_buffers_init(MMWorldBuffers *, MMI32 width, MMI32 height, MMI32 scale,
                                     int half_x, int half_y, const MMWorldBufferServices *);
-    void mm_world_buffers_dispose(MMWorldBuffers *, const MMWorldBufferServices *);
+    void mm_world_buffers_dispose(MMWorldBuffers *);
     /* Mark the full working buffer dirty and optionally the screen copy. */
     void mm_world_buffers_dirty(MMWorldBuffers *, int screen);
     int mm_world_pixels_valid(const MMWorldPixels *, MMI32 width, MMI32 height);
@@ -91,7 +78,7 @@ extern "C"
                                     const MMWorldBufferServices *);
     int mm_world_buffers_resolution(MMWorldBuffers *, MMI32 scale, int reduced,
                                           const MMWorldBufferServices *);
-    int mm_world_buffers_background(MMWorldBuffers *, void *cache, MMU32 rgb_type,
+    int mm_world_buffers_background(MMWorldBuffers *, MMResourceCache *, MMU32 rgb_type,
                                           MMU32 rgb_number, MMU32 z_type, MMU32 z_number,
                                           const MMWorldBufferServices *);
     /* Reload the retained background. Returns zero if it is absent or fails to load. */

@@ -97,7 +97,7 @@ void mm_world_render_styles(void *root, int style, const MMWorldRenderServices *
         mm_world_render_styles(actor, style, s);
     }
 }
-int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldBufferServices *buffers)
+int mm_world_render_clean(const MMWorldBuffers *b)
 {
     MMPixelRect rect = b->dirty_working.bounds;
     MMPixelRect viewport;
@@ -113,9 +113,9 @@ int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldBufferServices *
     mm_pixel_rect_intersect(&rect, &viewport);
     if (rect.left >= rect.right || rect.top >= rect.bottom)
         return 1;
-    depth = buffers->depth_bitmap(buffers->context, b->owners[MM_WORLD_DEPTH_BACKGROUND]);
-    if (!depth)
+    if (!b->depth_background)
         return 0;
+    depth = mm_depth_owner_bitmap(b->depth_background);
     mm_depth_draw(depth, b->z.pixels, b->z.row, b->z.height, 0, 0, &rect, &b->dirty_working, 0);
     if (!mm_world_pixels_valid(&source, b->buffer_width, b->buffer_height) ||
         !mm_world_pixels_valid(&destination, b->buffer_width, b->buffer_height))
@@ -139,8 +139,7 @@ int mm_world_render_clean(const MMWorldBuffers *b, const MMWorldBufferServices *
     mm_region_cursor_close(&cursor);
     return ok;
 }
-int mm_world_render(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s,
-                    const MMWorldBufferServices *buffers)
+int mm_world_render(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s)
 {
     void *actor;
     MMI32 rect[4];
@@ -173,7 +172,7 @@ int mm_world_render(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServ
     if (s->prepare_body)
         for (index = 0; index < frame.scene->bodies.count; ++index)
             s->prepare_body(s->context, &bodies[index]);
-    if (!mm_world_render_clean(b, buffers))
+    if (!mm_world_render_clean(b))
         goto done;
     mm_region_apply(&b->dirty_screen, MM_REGION_UNION, &b->dirty_working, NULL, s->region_allocator);
     mm_region_set_rect(&b->dirty_working, NULL);
@@ -207,21 +206,19 @@ done:
     mm_movie_render_scene_dispose(&scene);
     return ok;
 }
-int mm_world_prerender(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s,
-                        const MMWorldBufferServices *buffers)
+int mm_world_prerender(MMWorldRender *r, MMWorldBuffers *b, const MMWorldRenderServices *s)
 {
-    void *target = b->owners[MM_WORLD_DEPTH_BACKGROUND];
     const MMDepthBitmap *src, *dst;
     MMWorldPixels working, background;
     int copied;
-    if (!mm_world_render(r, b, s, buffers))
+    if (!mm_world_render(r, b, s))
         return 0;
-    src = buffers->depth_bitmap(buffers->context, b->owners[MM_WORLD_DEPTH_WORKING]);
-    dst = buffers->depth_bitmap(buffers->context, target);
+    src = b->depth_working ? mm_depth_owner_bitmap(b->depth_working) : NULL;
+    dst = b->depth_background ? mm_depth_owner_bitmap(b->depth_background) : NULL;
     copied = mm_world_draw_depth(src, dst, b->buffer_width, b->buffer_height);
     if (copied)
     {
-        s->detach_depth(s->context, target);
+        mm_depth_owner_detach(b->depth_background);
         working = mm_world_buffer_pixels(&b->working);
         background = mm_world_buffer_pixels(&b->background);
         copied = mm_world_copy_rgb(&working, b->buffer_width, b->buffer_height,

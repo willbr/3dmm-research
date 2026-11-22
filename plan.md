@@ -1018,10 +1018,14 @@ traversal and rendered bounds conversion now also use C89. The render-changed
 latch, begin/render/bounds sequencing, model-style traversal, temporary material
 overrides, clipped dirty RGB/depth cleanup, prerendering and screen/draw control
 now also use C89.
-The C world buffer record directly owns the retained and working indexed
-buffers and both damage regions. It supplies the viewport origin for picking
-and the pixels for rendering, prerendering, and export. Mode changes stage
-both buffers and preserve the previous pixels if allocation or reload fails.
+The C world buffer record directly owns the retained and working indexed and
+depth buffers, the background resource-cache reference, and both damage
+regions. It supplies the viewport origin for picking and the pixels for
+rendering, prerendering, and export. Mode changes stage the buffers and
+preserve the previous pixels if allocation or reload fails. World loads
+typed bitmap objects through the C cache, applies their eviction priority,
+and detaches retained depth during prerendering. Kauai supplies allocator
+and decoder bindings.
 Kauai presents the working surface with the existing indexed copy and window
 invalidation services. BRender borrows the working pixels through its
 pixelmap binding.
@@ -1852,10 +1856,11 @@ publishes images, camera transforms and redraw requests. C89 copies indexed
 World buffers for background loading, prerendering and bitmap export. These
 paths and dirty-region rendering share the same bounded pixel view. World
 background placement and prerender depth capture draw from the shared C89
-masked and depth bitmap records. C89 also owns both live indexed buffers and
-the temporary RGB and depth buffers for background scaling and scaled BMP
-export. Preview uses the same background decoders with its archive-graph
-renderer. Studio scene save, transition editing and undo snapshots bind their
+masked and depth bitmap records. C89 owns the live indexed and depth buffers,
+retains the cache for background restoration, and allocates the temporary RGB
+and depth buffers for background scaling and scaled BMP export. Preview uses
+the same background decoders with its archive-graph renderer. Studio scene
+save, transition editing and undo snapshots bind their
 live or private archive in C89, including embedded asset copy and editor cleanup.
 Movie, scene and actor loads borrow the live graph through the C89 cache. Studio's
 in-place saves, same-name replacement and Save As use the same C89 archive

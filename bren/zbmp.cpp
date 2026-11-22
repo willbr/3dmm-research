@@ -54,9 +54,14 @@ MMI32 DepthCacheOverhead()
 }
 } // namespace
 
+const MMDepthOwnerHost *DepthBitmapHost()
+{
+    return &DepthHost();
+}
+
 MMDepthOwner *NewDepthBitmap(MMI32 width, MMI32 height, const void *initial)
 {
-    return mm_depth_owner_new(width, height, initial, &DepthHost());
+    return mm_depth_owner_new(width, height, initial, DepthBitmapHost());
 }
 
 MMDepthOwner *ReadDepthBitmap(PDataBlock block)

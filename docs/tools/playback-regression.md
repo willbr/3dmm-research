@@ -22100,3 +22100,32 @@ order. Seek and playback order matched the retained retail and V3DMM
 captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows, and checks are under `tmp/c89-world-working`.
+
+## C89 World depth and background cache (22 November 2026)
+
+World now stores typed C89 depth owners and a retained resource-cache
+reference. C89 allocates and releases both live depth buffers, fetches
+the masked colour and depth chunks, sets their eviction priority, and
+detaches cached depth during prerendering. The live and scaled export paths
+use the same cache object types. The native adapters supply allocation,
+decoding, and memory diagnostics.
+
+Five native and SDL World snapshots matched all 14,387,434 retained bytes.
+The native and SDL render fixtures verified that prerendering detaches depth
+and restoration loads a cached replacement. The C89 fixtures exercise allocation
+and reload rollback, short depth, padding, and cache-reference cleanup
+through the real cache.
+
+All 239 selected C89, core link, native x64 and x86, SDL, and Chomp test runs
+passed, including the depth bitmap and World camera checks.
+Headless Studio ISO, authoring, and F1 Help workflows passed, and the two
+saved movies and five canvases matched retained artifacts. Headless Marcus
+reproduced its startup canvas. The existing `scene-load` fingerprint mismatch
+reproduced the same 63,224-byte trace and fingerprint `0D666753`.
+
+Suite `20261122T155144Z-1f42fac9` matched each port's preceding 60 seek
+canvases, camera and actor state, and continuous playback order. Seek and
+playback order also matched retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows, and checks are under `tmp/c89-world-owners`.

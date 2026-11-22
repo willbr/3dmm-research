@@ -1,82 +1,41 @@
-#include "mm/world_buffers.h"
+#include "engine_world_background_fixture.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-typedef struct Object
-{
-    int kind, width, height, row, bytes, refs;
-    unsigned char pixels[512];
-    MMMaskedOwner *mask;
-    MMDepthBitmap depth;
-} Object;
 typedef struct Fixture
 {
     MMWorldBufferServices s;
     MMWorldBuffers *world;
-    int phase, fail, objects, setups, changed, priorities, short_depth, bad_working_depth, transparent;
+    MMDepthOwnerHost host;
+    MMStorageAllocator allocator;
+    WorldTestAssets assets;
+    int phase, fail, allocations, setups, changed;
 } Fixture;
-static int fail(Fixture *f)
-{
-    return ++f->phase == f->fail;
-}
-static Object *object(Fixture *f, int kind, int w, int h)
-{
-    Object *o = (Object *)calloc(1, sizeof(*o));
-    assert(o);
-    o->kind = kind;
-    o->width = w;
-    o->height = h;
-    o->row = w * ((kind == 0 || kind == 1) ? 2 : 1);
-    o->bytes = o->row * h;
-    assert(o->bytes <= 512);
-    o->refs = 1;
-    memset(o->pixels, kind < 2 ? 255 : 0, (size_t)o->bytes);
-    o->depth.bounds.right = w;
-    o->depth.bounds.bottom = h;
-    o->depth.row_bytes = o->row;
-    o->depth.bytes = o->bytes;
-    o->depth.pixels = o->pixels;
-    ++f->objects;
-    return o;
-}
-static void *create(void *p, int kind, MMI32 w, MMI32 h)
+static void *allocate(void *p, void *old, MMU32 before, MMU32 bytes, int priority)
 {
     Fixture *f = (Fixture *)p;
-    if (fail(f))
+    void *allocation;
+    assert(!old && !before && bytes && priority == MM_STORAGE_NORMAL);
+    if (++f->phase == f->fail)
         return NULL;
-    return object(f, kind, w, h);
+    allocation = malloc(bytes);
+    assert(allocation);
+    ++f->allocations;
+    return allocation;
 }
-static void retain(void *p, void *v)
-{
-    (void)p;
-    assert(v);
-    ++((Object *)v)->refs;
-}
-static void release(void *p, void *v)
+static void release(void *p, void *memory, MMU32 bytes)
 {
     Fixture *f = (Fixture *)p;
-    Object *o = (Object *)v;
-    assert(o && o->refs > 0);
-    if (!--o->refs)
-    {
-        mm_masked_owner_release(o->mask);
-        --f->objects;
-        free(o);
-    }
-}
-static const MMDepthBitmap *depth_bitmap(void *p, void *v)
-{
-    Fixture *f = (Fixture *)p;
-    Object *o = (Object *)v;
-    if (o->kind == MM_WORLD_DEPTH_WORKING && f->bad_working_depth)
-        return NULL;
-    return &o->depth;
+    assert(f->allocations > 0 && bytes);
+    --f->allocations;
+    free(memory);
 }
 static void scene(void *p)
 {
     Fixture *f = (Fixture *)p;
-    assert(f->world->rgb.pixels == f->world->working.surface.pixels && f->world->z.pixels);
+    assert(f->world->rgb.pixels == f->world->working.surface.pixels);
+    assert(f->world->z.pixels == mm_depth_owner_bitmap(f->world->depth_working)->pixels);
     assert(mm_region_empty(&f->world->dirty_working) && mm_region_empty(&f->world->dirty_screen));
     ++f->setups;
 }
@@ -86,39 +45,6 @@ static void changed(void *p)
     assert(f->world->dirty_working.bounds.right == f->world->buffer_width);
     ++f->changed;
 }
-static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
-{
-    Fixture *f = (Fixture *)p;
-    Object *o;
-    int i;
-    const MMMaskedRect rect = {0, 0, 4, 4};
-    assert(((Object *)cache)->refs > 0);
-    assert(type == (kind == 0 ? 33U : 11U) && number == (kind == 0 ? 44U : 22U));
-    if (fail(f))
-        return NULL;
-    o = object(f, kind, 4, kind == MM_WORLD_DEPTH_BACKGROUND && f->short_depth ? 3 : 4);
-    for (i = 0; i < o->bytes; ++i)
-        o->pixels[i] = (unsigned char)(i * 7 + 1);
-    if (kind == MM_WORLD_COLOR_ASSET)
-    {
-        memset(o->pixels, 0x31, (size_t)o->bytes);
-        if (f->transparent)
-            o->pixels[5] = 0;
-        o->mask = mm_masked_owner_new(o->pixels, o->row, o->height, &rect, 2, -3, 0, 0, 0, NULL);
-        assert(o->mask);
-    }
-    return o;
-}
-static void priority(void *p, void *o)
-{
-    assert(o);
-    ++((Fixture *)p)->priorities;
-}
-static const MMMaskedBitmap *masked_bitmap(void *p, void *image)
-{
-    (void)p;
-    return mm_masked_owner_bitmap(((Object *)image)->mask);
-}
 static void setup(Fixture *f, MMWorldBuffers *w)
 {
     memset(f, 0, sizeof(*f));
@@ -127,22 +53,29 @@ static void setup(Fixture *f, MMWorldBuffers *w)
     f->s.context = f;
     f->s.rgb_type = 8;
     f->s.depth_type = 16;
-    f->s.create = create;
-    f->s.retain_cache = retain;
-    f->s.release_cache = release;
-    f->s.release_depth = release;
-    f->s.release_bitmap = release;
-    f->s.depth_bitmap = depth_bitmap;
-    f->s.masked_bitmap = masked_bitmap;
+    f->s.depth_host = &f->host;
+    f->s.read_colour = world_test_read_colour;
+    f->s.read_depth = world_test_read_depth;
     f->s.setup_scene = scene;
     f->s.changed = changed;
-    f->s.fetch = fetch;
-    f->s.priority = priority;
-    f->s.priority_depth = priority;
+    f->allocator.context = f;
+    f->allocator.resize = allocate;
+    f->allocator.release = release;
+    f->host.objects = f->host.pixels = &f->allocator;
+}
+static MMResourceCache *make_cache(Fixture *f)
+{
+    size_t i;
+    f->assets.width = f->assets.colour_height = f->assets.depth_height = 4;
+    memset(f->assets.colour, 0x31, sizeof(f->assets.colour));
+    for (i = 0; i < sizeof(f->assets.depth); ++i)
+        f->assets.depth[i] = (unsigned char)(i * 7 + 1);
+    world_test_cache_init(&f->assets, 0, &f->phase, &f->fail);
+    return f->assets.cache;
 }
 static void balanced(Fixture *f)
 {
-    assert(!f->objects);
+    assert(!f->allocations);
 }
 static void initialization(void)
 {
@@ -158,7 +91,7 @@ static void initialization(void)
                     setup(&f, &w);
                     f.fail = n;
                     ok = mm_world_buffers_init(&w, 4, 4, scale, hx, hy, &f.s);
-                    assert(ok == (n == 0 || n > 2));
+                    assert(ok == (n == 0 || n > 4));
                     if (ok)
                     {
                         assert(w.buffer_width == 4 * scale / (scale == 1 && hx ? 2 : 1));
@@ -174,47 +107,46 @@ static void initialization(void)
                                working.pixels != background.pixels && working.pixels == w.rgb.pixels &&
                                !working.pixels[working.bytes - 1]);
                     }
-                    mm_world_buffers_dispose(&w, &f.s);
+                    mm_world_buffers_dispose(&w);
                     balanced(&f);
                 }
     setup(&f, &w);
     assert(!mm_world_buffers_init(&w, 8192, 4, 1, 0, 0, &f.s) && !f.phase);
-    mm_world_buffers_dispose(&w, &f.s);
+    mm_world_buffers_dispose(&w);
     balanced(&f);
     setup(&f, &w);
-    f.bad_working_depth = 1;
-    assert(!mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s) && !f.setups);
-    mm_world_buffers_dispose(&w, &f.s);
+    assert(!mm_world_buffers_init(&w, 1, 4, 1, 1, 0, &f.s) && !f.phase && !f.setups);
+    mm_world_buffers_dispose(&w);
     balanced(&f);
 }
 static void check_depth(const MMWorldBuffers *w)
 {
-    Object *o = (Object *)w->owners[MM_WORLD_DEPTH_BACKGROUND];
+    const MMDepthBitmap *depth = mm_depth_owner_bitmap(w->depth_background);
+    const unsigned char *pixels = (const unsigned char *)depth->pixels;
     int x, y, sx, sy;
-    for (y = 0; y < o->height; ++y)
-        for (x = 0; x < o->width; ++x)
+    for (y = 0; y < w->buffer_height; ++y)
+        for (x = 0; x < w->buffer_width; ++x)
         {
             sy = w->scale > 1 ? y / w->scale : y * (w->half_y ? 2 : 1);
             sx = w->scale > 1 ? x / w->scale : x * (w->half_x ? 2 : 1);
-            assert(o->pixels[y * o->row + x * 2] == (unsigned char)((sy * 8 + sx * 2) * 7 + 1));
-            assert(o->pixels[y * o->row + x * 2 + 1] == (unsigned char)((sy * 8 + sx * 2 + 1) * 7 + 1));
+            assert(pixels[y * depth->row_bytes + x * 2] == (unsigned char)((sy * 8 + sx * 2) * 7 + 1));
+            assert(pixels[y * depth->row_bytes + x * 2 + 1] == (unsigned char)((sy * 8 + sx * 2 + 1) * 7 + 1));
         }
 }
 static void modes(void)
 {
     Fixture f;
     MMWorldBuffers w, old;
-    Object *cache;
+    MMResourceCache *cache;
     MMWorldPixels retained, working;
     const MMPixelRect viewport = {0, 0, 4, 4}, hole = {1, 1, 3, 3};
     int target, n, ok, count, changed;
-    unsigned i;
     for (target = 0; target < 5; ++target)
         for (n = 1; n < 13; ++n)
         {
             setup(&f, &w);
-            assert(mm_world_buffers_init(&w, 4, 4, 1, 0, 0, &f.s));
-            cache = object(&f, MM_WORLD_CACHE, 0, 0);
+            assert(mm_world_buffers_init(&w, 4, 4, 2, 0, 0, &f.s));
+            cache = make_cache(&f);
             assert(mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
             check_depth(&w);
             mm_region_set_rect(&w.dirty_screen, &viewport);
@@ -227,22 +159,19 @@ static void modes(void)
             retained.pixels[0] = 0x99;
             working.pixels[0] = 0x77;
             old = w;
-            count = f.objects;
+            count = f.allocations;
             changed = f.changed;
             f.fail = f.phase + n;
             ok = mm_world_buffers_mode(&w, target < 3 ? (target != 1) : 0, target < 3 ? (target != 0) : 0,
-                                             target < 3    ? 1
-                                             : target == 3 ? 2
-                                                           : 4,
-                                             &f.s);
-            assert(ok == (n > 4));
+                                       target == 4 ? 4 : 1, &f.s);
+            assert(ok == (n > 6));
             if (!ok)
             {
-                for (i = 0; i < MM_WORLD_OWNERS; ++i)
-                    assert(w.owners[i] == old.owners[i]);
+                assert(w.depth_background == old.depth_background && w.depth_working == old.depth_working &&
+                       w.cache == old.cache);
                 assert(w.rgb.pixels == old.rgb.pixels && w.z.pixels == old.z.pixels && w.scale == old.scale &&
                        w.half_x == old.half_x && w.half_y == old.half_y && w.buffer_width == old.buffer_width &&
-                       w.buffer_height == old.buffer_height && f.objects == count && f.changed == changed);
+                       w.buffer_height == old.buffer_height && f.allocations == count && f.changed == changed);
                 assert(w.dirty_working.bands == old.dirty_working.bands && w.dirty_screen.bands == old.dirty_screen.bands);
                 assert(w.background.surface.pixels == retained.pixels && retained.pixels[0] == 0x99 &&
                        w.background.bytes == retained.bytes);
@@ -258,10 +187,10 @@ static void modes(void)
                 assert(f.changed == changed + 2 && w.dirty_screen.bounds.right == w.buffer_width);
                 assert(!w.dirty_working.bands && !w.dirty_screen.bands);
             }
-            assert(cache->refs == 2);
-            mm_world_buffers_dispose(&w, &f.s);
-            assert(cache->refs == 1);
-            release(&f, cache);
+            assert(cache->references->count == 2);
+            mm_world_buffers_dispose(&w);
+            assert(cache->references->count == 1);
+            mm_resource_cache_release(cache);
             balanced(&f);
         }
 }
@@ -278,87 +207,95 @@ static void noops(void)
     assert(!mm_world_buffers_resolution(&w, 2, 1, &f.s));
     assert(!mm_world_buffers_restore_background(&w, &f.s));
     assert(f.phase == phase && !f.changed);
-    mm_world_buffers_dispose(&w, &f.s);
+    mm_world_buffers_dispose(&w);
     balanced(&f);
 }
 static void restore_background(void)
 {
     Fixture f;
     MMWorldBuffers w;
-    Object *cache;
+    MMResourceCache *cache;
     MMWorldPixels rgb;
     setup(&f, &w);
     assert(mm_world_buffers_init(&w, 6, 4, 1, 0, 0, &f.s));
-    cache = object(&f, MM_WORLD_CACHE, 0, 0);
+    cache = make_cache(&f);
     assert(mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
     rgb = mm_world_buffer_pixels(&w.background);
     rgb.pixels[0] = 0x99;
+    assert(mm_depth_owner_binding(w.depth_background)->attached &&
+           mm_depth_owner_binding(w.depth_background)->priority == MM_RESOURCE_TOSS_FIRST_PRIORITY);
+    mm_depth_owner_detach(w.depth_background);
+    assert(!cache->count);
     f.fail = f.phase + 2;
     assert(!mm_world_buffers_restore_background(&w, &f.s));
-    assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb.pixels[0] == 0x99 && f.changed == 1);
+    assert(cache->references->count == 3 && w.cache == cache && rgb.pixels[0] == 0x99 && f.changed == 1);
     assert(mm_world_buffers_restore_background(&w, &f.s));
-    assert(cache->refs == 2 && w.owners[MM_WORLD_CACHE] == cache && rgb.pixels[0] == 0x31 && f.changed == 2);
-    f.transparent = 1;
+    assert(cache->references->count == 2 && w.cache == cache && rgb.pixels[0] == 0x31 && f.changed == 2);
+    f.assets.colour[5] = 0;
     memset(rgb.pixels, 0x99, rgb.bytes);
     assert(mm_world_buffers_restore_background(&w, &f.s));
     assert(rgb.row == 8 && rgb.pixels[0] == 0x31 && rgb.pixels[8] == 0x31 && rgb.pixels[9] == 0x99);
     assert(rgb.pixels[4] == 0x99 && rgb.pixels[6] == 0x99 && rgb.pixels[31] == 0x99);
-    mm_world_buffers_dispose(&w, &f.s);
-    release(&f, cache);
+    mm_world_buffers_dispose(&w);
+    mm_resource_cache_release(cache);
     balanced(&f);
 }
 static void partial_background(void)
 {
     Fixture f;
     MMWorldBuffers w;
-    Object *cache;
+    MMResourceCache *cache;
     MMWorldPixels bg;
     int count, phase;
     setup(&f, &w);
     assert(mm_world_buffers_init(&w, 4, 4, 2, 0, 0, &f.s));
-    cache = object(&f, MM_WORLD_CACHE, 0, 0);
-    count = f.objects;
+    cache = make_cache(&f);
+    mm_depth_owner_release(w.depth_background);
+    w.depth_background = mm_depth_owner_new(8, 7, NULL, &f.host);
+    assert(w.depth_background);
+    count = f.allocations;
     phase = f.phase;
-    --((Object *)w.owners[MM_WORLD_DEPTH_BACKGROUND])->depth.bytes;
     assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
-    assert(!w.owners[MM_WORLD_CACHE] && cache->refs == 1 && f.objects == count && !f.changed && f.phase == phase + 2);
+    assert(!w.cache && cache->references->count == 1 && f.allocations == count && !f.changed && f.phase == phase + 2);
     bg = mm_world_buffer_pixels(&w.background);
     assert(bg.pixels[0] == 0x31 && bg.pixels[bg.bytes - 1] == 0x31);
-    mm_world_buffers_dispose(&w, &f.s);
-    release(&f, cache);
+    mm_world_buffers_dispose(&w);
+    mm_resource_cache_release(cache);
     balanced(&f);
     setup(&f, &w);
     assert(mm_world_buffers_init(&w, 4, 4, 1, 1, 1, &f.s));
-    cache = object(&f, MM_WORLD_CACHE, 0, 0);
-    count = f.objects;
+    cache = make_cache(&f);
+    count = f.allocations;
     --w.background.bytes;
-    assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s) && f.objects == count && !w.owners[MM_WORLD_CACHE] &&
+    assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s) && f.allocations == count && !w.cache &&
            !f.changed);
-    mm_world_buffers_dispose(&w, &f.s);
-    release(&f, cache);
+    mm_world_buffers_dispose(&w);
+    mm_resource_cache_release(cache);
     balanced(&f);
 }
 static void short_depth(void)
 {
     Fixture f;
     MMWorldBuffers w;
-    Object *cache, *bg;
+    MMResourceCache *cache;
+    const MMDepthBitmap *bg;
+    const unsigned char *pixels;
     int count, x, y;
     setup(&f, &w);
     assert(mm_world_buffers_init(&w, 4, 4, 1, 1, 0, &f.s));
-    cache = object(&f, MM_WORLD_CACHE, 0, 0);
-    count = f.objects;
-    f.short_depth = 1;
+    cache = make_cache(&f);
+    count = f.allocations;
+    f.assets.depth_height = 3;
     assert(!mm_world_buffers_background(&w, cache, 11, 22, 33, 44, &f.s));
-    assert(!w.owners[MM_WORLD_CACHE] && !f.changed && f.objects == count && cache->refs == 1);
-    bg = (Object *)w.owners[MM_WORLD_DEPTH_BACKGROUND];
+    assert(!w.cache && !f.changed && f.allocations == count && cache->references->count == 1);
+    bg = mm_depth_owner_bitmap(w.depth_background);
+    pixels = (const unsigned char *)bg->pixels;
     for (y = 0; y < 4; ++y)
         for (x = 0; x < 4; ++x)
-            assert(bg->pixels[y * 4 + x] == (y < 3 ? (unsigned char)((y * 8 + (x / 2) * 4 + x % 2) * 7 + 1) : 255));
-    for (x = bg->bytes; x < 512; ++x)
-        assert(!bg->pixels[x]);
-    mm_world_buffers_dispose(&w, &f.s);
-    release(&f, cache);
+            assert(pixels[y * 4 + x] == (y < 3 ? (unsigned char)((y * 8 + (x / 2) * 4 + x % 2) * 7 + 1) : 255));
+    assert(bg->bytes == 16);
+    mm_world_buffers_dispose(&w);
+    mm_resource_cache_release(cache);
     balanced(&f);
 }
 

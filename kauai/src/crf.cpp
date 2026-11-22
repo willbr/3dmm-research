@@ -428,6 +428,7 @@ PChunkyResourceFile ChunkyResourceFile::_PcrfNew(const MMResourceSource &source,
 {
     AssertIn(budget, 0, kcbMax);
     static_assert(kctgRsc == 0x52534320 && tNo == 0 && tYes == 1 && tMaybe == 2 &&
+                      int(crepTossFirst) == MM_RESOURCE_TOSS_FIRST_PRIORITY &&
                       int(crepNormal) == MM_RESOURCE_NORMAL_PRIORITY, "resource C contract");
     auto cache = NewObj ChunkyResourceFile;
     if (!cache)

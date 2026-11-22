@@ -100,7 +100,7 @@ struct Access : World
         }
         const auto rgb = mm_world_buffer_pixels(&buffers.working);
         Record(rgb.pixels, rgb.bytes);
-        auto z = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(buffers.owners[MM_WORLD_DEPTH_WORKING]));
+        auto z = mm_depth_owner_bitmap(buffers.depth_working);
         Record(z->pixels, z->row_bytes * buffers.buffer_height);
         Materials();
         BMAT34 matrix;

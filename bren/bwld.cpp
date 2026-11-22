@@ -111,7 +111,6 @@ MMWorldRenderServices World::_RenderServices(void *context, MMMovieSession *movi
         *noTexture = World::NoTexture();
     };
     s.region_allocator = &static_cast<WorldRenderContext *>(context)->region_allocator;
-    s.detach_depth = [](void *, void *depth) { mm_depth_owner_detach(static_cast<MMDepthOwner *>(depth)); };
     s.flush = [](void *) { GraphicsPort::Flush(); };
     s.screen_mark = [](void *p, const MMRegion *region) {
         auto c = static_cast<WorldRenderContext *>(p);
@@ -136,29 +135,14 @@ MMWorldBufferServices World::_BufferServices()
     s.context = this;
     s.rgb_type = BR_PMT_INDEX_8;
     s.depth_type = BR_PMT_DEPTH_16;
-    s.create = [](void *, int, MMI32 width, MMI32 height) -> void * { return NewDepthBitmap(width, height); };
-    s.retain_cache = [](void *, void *p) { mm_resource_cache_retain(static_cast<MMResourceCache *>(p)); };
-    s.release_cache = [](void *, void *p) { mm_resource_cache_release(static_cast<MMResourceCache *>(p)); };
-    s.release_depth = [](void *, void *p) { mm_depth_owner_release(static_cast<MMDepthOwner *>(p)); };
-    s.release_bitmap = [](void *, void *p) { mm_masked_owner_release(static_cast<PMaskedBitmapMBMP>(p)); };
-    s.depth_bitmap = [](void *, void *p) { return mm_depth_owner_bitmap(static_cast<const MMDepthOwner *>(p)); };
-    s.masked_bitmap = [](void *, void *p) { return mm_masked_owner_bitmap(static_cast<PMaskedBitmapMBMP>(p)); };
+    s.depth_host = DepthBitmapHost();
+    s.read_colour = ReadCachedMaskedBitmap;
+    s.read_depth = ReadCachedDepthBitmap;
     s.setup_scene = [](void *p) {
         auto w = static_cast<PWorld>(p);
         mm_brender_world_init(&w->_bactWorld, &w->_bactCamera, &w->_bcam, w, w->_buffers.width, w->_buffers.height);
     };
     s.changed = [](void *p) { static_cast<PWorld>(p)->MarkDirty(); };
-    s.fetch = [](void *, void *p, int kind, MMU32 type, MMU32 number) -> void * {
-        const auto cache = static_cast<MMResourceCache *>(p);
-        if (kind == MM_WORLD_DEPTH_BACKGROUND)
-            return mm_resource_cache_fetch_owned_chunk(cache, type, number, ReadCachedDepthBitmap,
-                                                       mm_depth_owner_services());
-        return mm_resource_cache_fetch_owned_chunk(cache, type, number, ReadCachedMaskedBitmap, mm_masked_owner_services());
-    };
-    s.priority = [](void *, void *p) { mm_masked_owner_priority(static_cast<PMaskedBitmapMBMP>(p), crepTossFirst); };
-    s.priority_depth = [](void *, void *p) {
-        mm_depth_owner_priority(static_cast<MMDepthOwner *>(p), crepTossFirst);
-    };
     return s;
 }
 
@@ -225,8 +209,7 @@ bool World::_FInit(long dxp, long dyp, long scale, bool fHalfX, bool fHalfY)
 World::~World()
 {
     AssertBaseThis(0);
-    auto s = _BufferServices();
-    mm_world_buffers_dispose(&_buffers, &s);
+    mm_world_buffers_dispose(&_buffers);
 }
 bool World::FSetHalfMode(bool x, bool y)
 {
@@ -344,8 +327,7 @@ void World::Render(MMMovieSession *movie, const MMMovieLiveFrame *position)
     AssertThis(0);
     WorldRenderContext context = {this};
     auto services = _RenderServices(&context, movie, position);
-    const auto buffers = _BufferServices();
-    mm_world_render(&_render, &_buffers, &services, &buffers);
+    mm_world_render(&_render, &_buffers, &services);
 }
 
 /***************************************************************************
@@ -357,8 +339,7 @@ void World::Prerender(MMMovieSession *movie, const MMMovieLiveFrame *position)
     AssertThis(0);
     WorldRenderContext context = {this};
     auto services = _RenderServices(&context, movie, position);
-    const auto buffers = _BufferServices();
-    mm_world_prerender(&_render, &_buffers, &services, &buffers);
+    mm_world_prerender(&_render, &_buffers, &services);
 }
 
 /***************************************************************************
@@ -368,7 +349,7 @@ void World::Prerender(MMMovieSession *movie, const MMMovieLiveFrame *position)
 void World::Unprerender(void)
 {
     AssertThis(0);
-    AssertVarMem(static_cast<MMResourceCache *>(_buffers.owners[MM_WORLD_CACHE]));
+    AssertVarMem(_buffers.cache);
     const auto buffers = _BufferServices();
     mm_world_buffers_restore_background(&_buffers, &buffers);
 }
@@ -490,9 +471,9 @@ void World::AssertValid(LegacyUlong grf)
     Assert(mm_world_pixels_valid(&working, _buffers.buffer_width, _buffers.buffer_height), "Invalid World working buffer");
     const auto background = mm_world_buffer_pixels(&_buffers.background);
     Assert(mm_world_pixels_valid(&background, _buffers.buffer_width, _buffers.buffer_height), "Invalid World background");
-    AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_WORKING]));
-    AssertDepthBitmap(static_cast<MMDepthOwner *>(_buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
-    AssertNilOrVarMem(static_cast<MMResourceCache *>(_buffers.owners[MM_WORLD_CACHE]));
+    AssertDepthBitmap(_buffers.depth_working);
+    AssertDepthBitmap(_buffers.depth_background);
+    AssertNilOrVarMem(_buffers.cache);
 }
 
 /***************************************************************************
@@ -502,12 +483,10 @@ void World::MarkMem(void)
 {
     AssertThis(0);
     World_PAR::MarkMem();
-    mm_resource_cache_mark(static_cast<MMResourceCache *>(_buffers.owners[MM_WORLD_CACHE]));
-    for (auto kind : {MM_WORLD_DEPTH_WORKING, MM_WORLD_DEPTH_BACKGROUND})
-    {
-        if (_buffers.owners[kind])
-            mm_depth_owner_services()->mark_memory(_buffers.owners[kind]);
-    }
+    mm_resource_cache_mark(_buffers.cache);
+    for (auto depth : {_buffers.depth_working, _buffers.depth_background})
+        if (depth)
+            mm_depth_owner_services()->mark_memory(depth);
     for (auto region : {&_buffers.dirty_working, &_buffers.dirty_screen})
     {
         MarkPv(region->bands);

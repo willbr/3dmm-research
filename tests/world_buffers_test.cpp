@@ -61,8 +61,8 @@ struct Access : World
         Value(buffers.working.surface.pixels != nullptr);
         // Preserve the snapshot field for the vertical-only half-resolution mode.
         Value(buffers.scale == 1 && !buffers.half_x && buffers.half_y);
-        Value(buffers.owners[MM_WORLD_DEPTH_WORKING] != nullptr);
-        Value(buffers.owners[MM_WORLD_DEPTH_BACKGROUND] != nullptr);
+        Value(buffers.depth_working != nullptr);
+        Value(buffers.depth_background != nullptr);
         (w->*&Access::_SyncPixelmaps)();
         for (auto field : {&Access::_bpmpRGB, &Access::_bpmpZ})
         {
@@ -79,7 +79,7 @@ struct Access : World
         }
         if (pixels)
         {
-            auto depth = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(buffers.owners[MM_WORLD_DEPTH_BACKGROUND]));
+            auto depth = mm_depth_owner_bitmap(buffers.depth_background);
             Record(depth->pixels, depth->row_bytes * buffer.Dyp());
             Record(background.pixels, background.bytes);
         }

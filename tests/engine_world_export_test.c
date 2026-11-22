@@ -1,21 +1,9 @@
 #include "mm/world_export.h"
+#include "engine_world_background_fixture.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-enum
-{
-    BITMAP = 100,
-    SOURCE_Z,
-    PALETTE
-};
-typedef struct Object
-{
-    int kind, refs, width, height, row, bytes;
-    unsigned char *pixels;
-    MMDepthBitmap depth;
-    MMMaskedOwner *mask;
-} Object;
 typedef struct Actor
 {
     struct Actor *child;
@@ -25,12 +13,12 @@ typedef struct Fixture
 {
     MMWorldBuffers b;
     MMWorldExportServices s;
-    Object *bitmap, *source;
+    WorldTestAssets assets;
     MMWorldMaterial material, original;
     Actor root, model;
-    int phase, fail, live, material_live, bounds, options, late, flat, no_texture;
-    int rasters, writes, width, height, current, short_source, missing_depth, missing_colour;
-    int events[256], n, cache;
+    int phase, fail, palettes, material_live, bounds, options, late, flat, no_texture;
+    int rasters, writes, width, height, current;
+    int events[256], n, palette_token;
 } Fixture;
 static void event(Fixture *f, int n)
 {
@@ -41,79 +29,21 @@ static int phase(Fixture *f)
 {
     return ++f->phase == f->fail;
 }
-static Object *object(Fixture *f, int kind, int width, int height)
-{
-    Object *o = (Object *)calloc(1, sizeof(*o));
-    int depth = kind == SOURCE_Z;
-    assert(o);
-    o->kind = kind;
-    o->refs = 1;
-    o->width = width;
-    o->height = height;
-    o->row = depth ? width * 2 : (width + 3) & ~3;
-    o->bytes = o->row * height;
-    o->pixels = (unsigned char *)malloc((size_t)o->bytes + 8);
-    assert(o->pixels);
-    memset(o->pixels, depth ? 255 : 0, (size_t)o->bytes);
-    memset(o->pixels + o->bytes, 0xcc, 8);
-    ++f->live;
-    return o;
-}
-static void release(void *context, void *p)
-{
-    Fixture *f = (Fixture *)context;
-    Object *o = (Object *)p;
-    int i;
-    assert(o->refs > 0);
-    event(f, 1000 + o->kind);
-    if (--o->refs)
-        return;
-    for (i = 0; i < 8; ++i)
-        assert(o->pixels[o->bytes + i] == 0xcc);
-    mm_masked_owner_release(o->mask);
-    free(o->pixels);
-    free(o);
-    --f->live;
-}
-static void *fetch(void *p, void *cache, int kind, MMU32 type, MMU32 number)
-{
-    Fixture *f = (Fixture *)p;
-    Object *o = kind == MM_WORLD_COLOR_ASSET ? f->bitmap : f->source;
-    assert(cache == &f->cache && type == (kind == MM_WORLD_COLOR_ASSET ? 11U : 22U));
-    assert(number == (kind == MM_WORLD_COLOR_ASSET ? 33U : 44U));
-    if (phase(f))
-        return NULL;
-    ++o->refs;
-    return o;
-}
-static const MMDepthBitmap *depth_bitmap(void *p, void *depth)
-{
-    Fixture *f = (Fixture *)p;
-    Object *o = (Object *)depth;
-    assert(o == f->source);
-    if (f->missing_depth)
-        return NULL;
-    o->depth.bounds.right = o->width;
-    o->depth.bounds.bottom = o->height;
-    o->depth.pixels = o->pixels;
-    o->depth.row_bytes = o->row;
-    o->depth.bytes = o->bytes;
-    if (f->short_source)
-        --o->depth.bytes;
-    return &o->depth;
-}
-static const MMMaskedBitmap *masked_bitmap(void *p, void *bitmap)
-{
-    Fixture *f = (Fixture *)p;
-    assert(bitmap == f->bitmap);
-    return f->missing_colour ? NULL : mm_masked_owner_bitmap(f->bitmap->mask);
-}
 static void *palette(void *p)
 {
     Fixture *f = (Fixture *)p;
     if (phase(f))
         return NULL;
-    return object(f, PALETTE, 0, 0);
+    assert(!f->palettes);
+    ++f->palettes;
+    return &f->palette_token;
+}
+static void release_palette(void *p, void *palette_object)
+{
+    Fixture *f = (Fixture *)p;
+    assert(f->palettes == 1 && palette_object == &f->palette_token);
+    --f->palettes;
+    event(f, 1000);
 }
 static size_t material_count(void *p)
 {
@@ -222,9 +152,9 @@ static void raster(void *p, const MMRenderFrame *frame, const MMWorldPixelView *
         for (x = 0; x < rgb->width; ++x)
         {
             int index = y * z->row + x * 2;
-            assert(indices[y * pitch + x] == (f->b.owners[MM_WORLD_CACHE] ? 0x10 + (y / scale) * 3 + x / scale : 0));
-            assert(depth[index] == (f->b.owners[MM_WORLD_CACHE] ? 0x20 + x / scale : 255));
-            assert(depth[index + 1] == (f->b.owners[MM_WORLD_CACHE] ? 0x80 + y / scale : 255));
+            assert(indices[y * pitch + x] == (f->b.cache ? 0x10 + (y / scale) * 3 + x / scale : 0));
+            assert(depth[index] == (f->b.cache ? 0x20 + x / scale : 255));
+            assert(depth[index + 1] == (f->b.cache ? 0x80 + y / scale : 255));
         }
         for (; x < pitch; ++x)
             assert(indices[y * pitch + x] == 0);
@@ -236,8 +166,8 @@ static void raster(void *p, const MMRenderFrame *frame, const MMWorldPixelView *
 static int write(void *p, const MMWorldPixels *pixels, void *palette_object, MMI32 width, MMI32 height)
 {
     Fixture *f = (Fixture *)p;
-    Object *pal = (Object *)palette_object;
-    assert(pal->kind == PALETTE && f->bounds && !f->material_live && f->material.flags == 20);
+    assert(palette_object == &f->palette_token && f->palettes == 1 && f->bounds &&
+           !f->material_live && f->material.flags == 20);
     assert(pixels->pixels[0] == (f->current ? 0x55 : 99));
     f->width = width;
     f->height = height;
@@ -247,7 +177,6 @@ static int write(void *p, const MMWorldPixels *pixels, void *palette_object, MMI
 }
 static void init(Fixture *f)
 {
-    const MMMaskedRect rect = {0, 0, 3, 2};
     MMWorldBufferServices *b;
     MMWorldRenderServices *r;
     MMWorldMaterialServices *m;
@@ -255,53 +184,47 @@ static void init(Fixture *f)
     memset(f, 0, sizeof(*f));
     f->bounds = f->flat = f->no_texture = 1;
     assert(mm_pixel_buffer_init(&f->b.working, 2, 1, 8, 4));
-    f->bitmap = object(f, BITMAP, 3, 2);
-    f->source = object(f, SOURCE_Z, 3, 2);
+    f->assets.width = 3;
+    f->assets.colour_height = f->assets.depth_height = 2;
     memset(f->b.working.surface.pixels, 0x55, f->b.working.bytes);
     for (y = 0; y < 2; ++y)
         for (x = 0; x < 3; ++x)
         {
-            f->bitmap->pixels[y * f->bitmap->row + x] = (unsigned char)(0x10 + y * 3 + x);
-            f->source->pixels[y * f->source->row + x * 2] = (unsigned char)(0x20 + x);
-            f->source->pixels[y * f->source->row + x * 2 + 1] = (unsigned char)(0x80 + y);
+            f->assets.colour[y * 3 + x] = (unsigned char)(0x10 + y * 3 + x);
+            f->assets.depth[y * 6 + x * 2] = (unsigned char)(0x20 + x);
+            f->assets.depth[y * 6 + x * 2 + 1] = (unsigned char)(0x80 + y);
         }
-    f->bitmap->mask = mm_masked_owner_new(f->bitmap->pixels, f->bitmap->row, f->bitmap->height, &rect,
-                                         2, -3, 0, 0, 0, NULL);
-    assert(f->bitmap->mask);
+    world_test_cache_init(&f->assets, 0, &f->phase, &f->fail);
     f->b.width = 3;
     f->b.height = 2;
     f->b.buffer_width = 2;
     f->b.buffer_height = 1;
     f->b.half_x = f->b.half_y = 1;
     f->b.scale = 4;
-    f->b.owners[MM_WORLD_CACHE] = &f->cache;
-    f->b.rgb_type = 11;
-    f->b.z_type = 22;
-    f->b.rgb_number = 33;
-    f->b.z_number = 44;
+    f->b.cache = f->assets.cache;
+    f->b.rgb_type = WORLD_TEST_COLOUR_TYPE;
+    f->b.z_type = WORLD_TEST_DEPTH_TYPE;
+    f->b.rgb_number = WORLD_TEST_COLOUR_NUMBER;
+    f->b.z_number = WORLD_TEST_DEPTH_NUMBER;
     f->b.rgb.type = 42;
     f->b.z.type = 84;
     f->root.child = &f->model;
     f->root.style = 99;
     f->material.object = &f->material;
-    f->material.texture = f->bitmap;
+    f->material.texture = f->assets.colour;
     f->material.flags = 20;
     f->material.base = 11;
     f->material.range = 100;
     f->original = f->material;
     f->s.context = f;
     f->s.palette = palette;
-    f->s.release_palette = release;
+    f->s.release_palette = release_palette;
     f->s.bounds_callback = bounds_callback;
     f->s.raster = raster;
     f->s.write = write;
     b = &f->s.buffers;
-    b->context = f;
-    b->release_depth = release;
-    b->release_bitmap = release;
-    b->fetch = fetch;
-    b->depth_bitmap = depth_bitmap;
-    b->masked_bitmap = masked_bitmap;
+    b->read_colour = world_test_read_colour;
+    b->read_depth = world_test_read_depth;
     r = &f->s.render;
     r->context = f;
     mm_render_frame_borrow(&r->frame, &f->root, &f->model, NULL, NULL);
@@ -330,14 +253,12 @@ static void init(Fixture *f)
 }
 static void balanced(Fixture *f)
 {
-    assert(f->live == 2 && !f->material_live && f->bounds);
-    assert(f->bitmap->refs == 1 && f->source->refs == 1);
+    assert(!f->palettes && !f->material_live && f->bounds);
+    assert(f->assets.cache->references->count == 1 && !f->assets.cache->count);
     assert(f->material.texture == f->original.texture && f->material.flags == 20 && f->material.base == 11 &&
            f->material.range == 100);
     mm_pixel_buffer_reset(&f->b.working);
-    release(f, f->bitmap);
-    release(f, f->source);
-    assert(!f->live);
+    mm_resource_cache_release(f->assets.cache);
 }
 static void transactions(void)
 {
@@ -356,7 +277,7 @@ static void transactions(void)
         working = mm_world_buffer_pixels(&f.b.working);
         for (i = 0; i < working.bytes; ++i)
             assert(working.pixels[i] == 0x55);
-        assert(f.events[f.n - 1] == 1000 + PALETTE);
+        assert(f.events[f.n - 1] == 1000);
         balanced(&f);
     }
     for (fail = 1; fail <= 5; ++fail)
@@ -386,13 +307,13 @@ static void transactions(void)
     {
         init(&f);
         if (scenario == 0)
-            f.b.owners[MM_WORLD_CACHE] = NULL;
+            f.b.cache = NULL;
         if (scenario == 1)
-            f.short_source = 1;
+            f.assets.depth_height = 1;
         if (scenario == 2)
-            f.missing_colour = 1;
+            f.assets.colour_height = 0;
         if (scenario == 3)
-            f.missing_depth = 1;
+            f.assets.depth_height = 0;
         if (scenario == 4)
         {
             f.late = 1;

@@ -19,26 +19,21 @@ int mm_world_export_size(const MMWorldBuffers *b, MMI32 requested, MMI32 *scale,
 static int fill_background(const MMWorldBuffers *b, const MMWorldPixels *rgb, const MMDepthBitmap *depth,
                            MMI32 width, MMI32 height, MMI32 scale, const MMWorldBufferServices *s)
 {
-    void *bitmap = NULL, *source = NULL;
+    MMMaskedOwner *bitmap;
+    MMDepthOwner *source;
     int ok = 0;
-    if (!b->owners[MM_WORLD_CACHE])
+    if (!b->cache)
         return 1;
-    bitmap = s->fetch(s->context, b->owners[MM_WORLD_CACHE], MM_WORLD_COLOR_ASSET, b->rgb_type,
-                      b->rgb_number);
+    bitmap = mm_resource_cache_fetch_owned_chunk(b->cache, b->rgb_type, b->rgb_number, s->read_colour,
+                                                 mm_masked_owner_services());
     if (!bitmap)
-        goto cleanup;
-    source =
-        s->fetch(s->context, b->owners[MM_WORLD_CACHE], MM_WORLD_DEPTH_BACKGROUND, b->z_type, b->z_number);
-    if (!source)
-        goto cleanup;
-    if (!mm_world_fill_background_rgb(s->masked_bitmap(s->context, bitmap), b->width, b->height, rgb, width, height))
-        goto cleanup;
-    ok = mm_world_depth_resample(s->depth_bitmap(s->context, source), depth, width, height, scale, 0, 0);
-cleanup:
-    if (bitmap)
-        s->release_bitmap(s->context, bitmap);
-    if (source)
-        s->release_depth(s->context, source);
+        return 0;
+    source = mm_resource_cache_fetch_owned_chunk(b->cache, b->z_type, b->z_number, s->read_depth,
+                                                 mm_depth_owner_services());
+    if (source && mm_world_fill_background_rgb(mm_masked_owner_bitmap(bitmap), b->width, b->height, rgb, width, height))
+        ok = mm_world_depth_resample(mm_depth_owner_bitmap(source), depth, width, height, scale, 0, 0);
+    mm_masked_owner_release(bitmap);
+    mm_depth_owner_release(source);
     return ok;
 }
 static int write_pixels(const MMWorldPixels *pixels, MMI32 width, MMI32 height,

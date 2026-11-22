@@ -78,6 +78,11 @@ static void Rendered(PBACT a, RC *r)
 }
 struct Access : World
 {
+    static bool DepthAttached(PWorld w)
+    {
+        const auto &buffers = w->*&Access::_buffers;
+        return mm_depth_owner_binding(buffers.depth_background)->attached != 0;
+    }
     static void State(PWorld w)
     {
         Value((w->*&Access::_render).changed);
@@ -94,7 +99,7 @@ struct Access : World
         }
         const auto rgb = mm_world_buffer_pixels(&buffers.working);
         Record(rgb.pixels, rgb.bytes);
-        auto z = mm_depth_owner_bitmap(static_cast<MMDepthOwner *>(buffers.owners[MM_WORLD_DEPTH_WORKING]));
+        auto z = mm_depth_owner_bitmap(buffers.depth_working);
         Record(z->pixels, z->row_bytes * buffers.buffer_height);
         Materials();
     }
@@ -213,9 +218,12 @@ int main()
             Value(rects);
             Value(rendered);
         }
+        CHECK(Access::DepthAttached(w) == (mode == 0));
         w->Prerender();
+        CHECK(!Access::DepthAttached(w));
         Access::State(w);
         w->Unprerender();
+        CHECK(Access::DepthAttached(w) == (mode == 0));
         w->Render();
         Access::State(w);
         auto target = GraphicsPort::PgptNewOffscreen(&view, 8);

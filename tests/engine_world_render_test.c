@@ -13,12 +13,10 @@ typedef struct Fixture
     MMWorldRender r;
     MMWorldBuffers b;
     MMWorldRenderServices s;
-    MMWorldBufferServices buffers;
     MMWorldMaterial m[4], original[4];
     Actor a[7];
     MMBodyPartBinding bindings[2][2];
-    unsigned char background[64], working[64], z_background[48], z_working[48];
-    MMDepthBitmap depth_source, depth_working;
+    unsigned char background[64], working[64], *z_background, *z_working;
     MMPixelRect marked;
     int events[512], n, live, allocations, fail_alloc;
     int wire, flat, no_texture, begin_options, rect_enabled, rect_disable, rect_overflow;
@@ -193,19 +191,6 @@ static void render(void *p, const MMRenderFrame *frame)
     if (f->change_in_render)
         mm_world_render_dirty(&f->r);
 }
-static const MMDepthBitmap *depth_bitmap(void *p, void *owner)
-{
-    Fixture *f = (Fixture *)p;
-    assert(owner == f->z_working || owner == f->z_background);
-    return owner == f->z_working ? &f->depth_working : &f->depth_source;
-}
-static void detach(void *p, void *depth)
-{
-    Fixture *f = (Fixture *)p;
-    assert(depth == f->z_background);
-    assert(!memcmp(f->z_background, f->z_working, sizeof(f->z_background)));
-    event(f, 81);
-}
 static void flush(void *p)
 {
     event((Fixture *)p, 83);
@@ -237,18 +222,6 @@ static void init(Fixture *f)
     f->b.buffer_height = 4;
     f->b.scale = 1;
     mm_region_set_rect(&f->b.dirty_working, &dirty);
-    f->depth_source.bounds.right = 6;
-    f->depth_source.bounds.bottom = 4;
-    f->depth_source.row_bytes = 12;
-    f->depth_source.bytes = 48;
-    f->depth_source.pixels = f->z_background;
-    f->depth_working = f->depth_source;
-    f->depth_working.pixels = f->z_working;
-    f->b.z.height = 4;
-    f->b.z.row = 12;
-    f->b.z.pixels = f->z_working;
-    f->b.owners[MM_WORLD_DEPTH_WORKING] = f->z_working;
-    f->b.owners[MM_WORLD_DEPTH_BACKGROUND] = f->z_background;
     f->b.background.surface.pixels = f->background;
     f->b.background.surface.width = 6;
     f->b.background.surface.height = 4;
@@ -258,10 +231,6 @@ static void init(Fixture *f)
     f->b.working = f->b.background;
     f->b.working.surface.pixels = f->working;
     f->b.working.surface.pitch = 9;
-    f->buffers.context = f;
-    f->buffers.depth_bitmap = depth_bitmap;
-    memset(f->z_background, 0x52, sizeof(f->z_background));
-    memset(f->z_working, 0xcc, sizeof(f->z_working));
     f->rect_enabled = 1;
     f->reported = 4;
     for (i = 0; i < 64; ++i)
@@ -313,7 +282,6 @@ static void init(Fixture *f)
     s->rect = rect;
     s->options = options;
     s->render = render;
-    s->detach_depth = detach;
     s->flush = flush;
     s->screen_mark = mark;
     s->draw = draw;
@@ -372,8 +340,26 @@ static void materials_tests(void)
         assert(equal_material(&f.m[i], &f.original[i]));
     assert(!f.live && f.n == 3 && f.events[1] == 200 && f.events[2] == 200);
 }
-static void dispose_regions(Fixture *f)
+static void init_depth(Fixture *f)
 {
+    const MMDepthBitmap *working, *background;
+    f->b.depth_background = mm_depth_owner_new(6, 4, NULL, NULL);
+    f->b.depth_working = mm_depth_owner_new(6, 4, NULL, NULL);
+    assert(f->b.depth_background && f->b.depth_working);
+    working = mm_depth_owner_bitmap(f->b.depth_working);
+    background = mm_depth_owner_bitmap(f->b.depth_background);
+    f->z_background = (unsigned char *)background->pixels;
+    f->z_working = (unsigned char *)working->pixels;
+    memset(f->z_background, 0x52, (size_t)background->bytes);
+    memset(f->z_working, 0xcc, (size_t)working->bytes);
+    f->b.z.height = 4;
+    f->b.z.row = working->row_bytes;
+    f->b.z.pixels = working->pixels;
+}
+static void dispose_buffers(Fixture *f)
+{
+    mm_depth_owner_release(f->b.depth_working);
+    mm_depth_owner_release(f->b.depth_background);
     mm_region_set_rect(&f->b.dirty_working, NULL);
     mm_region_set_rect(&f->b.dirty_screen, NULL);
 }
@@ -383,9 +369,10 @@ static void clean_tests(void)
     const MMPixelRect left_gap = {-3, 1, 1, 4}, right_gap = {3, 1, 6, 4};
     int x, y, scenario;
     init(&f);
+    init_depth(&f);
     assert(mm_region_apply_rect(&f.b.dirty_working, MM_REGION_DIFFERENCE, &left_gap, NULL, 0, NULL));
     assert(mm_region_apply_rect(&f.b.dirty_working, MM_REGION_DIFFERENCE, &right_gap, NULL, 0, NULL));
-    assert(mm_world_render_clean(&f.b, &f.buffers));
+    assert(mm_world_render_clean(&f.b));
     for (y = 0; y < 7; ++y)
         for (x = 0; x < 9 && y * 9 + x < 64; ++x)
             assert(f.working[y * 9 + x] == (y >= 1 && y < 4 && x >= 1 && x < 3 ? f.background[y * 8 + x] : 0xcc));
@@ -393,10 +380,11 @@ static void clean_tests(void)
         for (x = 0; x < 12; ++x)
             assert(f.z_working[y * 12 + x] == (y >= 1 && x >= 2 && x < 6 ? 0x52 : 0xcc));
     assert(!f.n);
-    dispose_regions(&f);
+    dispose_buffers(&f);
     for (scenario = 0; scenario < 4; ++scenario)
     {
         init(&f);
+        init_depth(&f);
         if (scenario == 0)
             mm_region_set_rect(&f.b.dirty_working, NULL);
         if (scenario == 1)
@@ -405,11 +393,11 @@ static void clean_tests(void)
             f.b.working.surface.pixels = NULL;
         if (scenario == 3)
             f.b.working.bytes = 1;
-        assert(mm_world_render_clean(&f.b, &f.buffers) == (scenario == 0));
+        assert(mm_world_render_clean(&f.b) == (scenario == 0));
         assert(!f.n);
         for (x = 0; x < 64; ++x)
             assert(f.working[x] == 0xcc);
-        dispose_regions(&f);
+        dispose_buffers(&f);
     }
 }
 static void render_tests(void)
@@ -417,16 +405,19 @@ static void render_tests(void)
     Fixture f;
     int bound_style, i;
     init(&f);
-    assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
+    init_depth(&f);
+    assert(mm_world_render(&f.r, &f.b, &f.s));
     assert(!f.n);
+    dispose_buffers(&f);
     for (bound_style = 10; bound_style <= 12; ++bound_style)
     {
         init(&f);
+        init_depth(&f);
         f.a[5].style = bound_style;
         f.begin_options = 1;
         f.change_in_render = 1;
         mm_world_render_dirty(&f.r);
-        assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
+        assert(mm_world_render(&f.r, &f.b, &f.s));
         assert(!f.r.changed && !f.live);
         assert(f.a[0].style == 99 && f.a[5].style == bound_style && f.a[6].style == 7 && f.a[3].style == 7);
         assert(f.events[0] == 101 && f.events[1] == 102);
@@ -438,28 +429,30 @@ static void render_tests(void)
         for (i = 0; i < 4; ++i)
             assert(equal_material(&f.m[i], &f.original[i]));
         f.n = 0;
-        assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
+        assert(mm_world_render(&f.r, &f.b, &f.s));
         assert(!f.n);
-        dispose_regions(&f);
+        dispose_buffers(&f);
     }
     init(&f);
+    init_depth(&f);
     f.b.scale = 4;
     f.rect_disable = 1;
     mm_world_render_dirty(&f.r);
-    assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
+    assert(mm_world_render(&f.r, &f.b, &f.s));
     assert(position(&f, 151) >= 0 && position(&f, 152) < 0);
     assert(f.b.dirty_working.bounds.left == -4 && f.b.dirty_working.bounds.right == 12);
-    dispose_regions(&f);
+    dispose_buffers(&f);
     init(&f);
+    init_depth(&f);
     f.fail_alloc = f.flat = 1;
     mm_world_render_dirty(&f.r);
-    assert(!mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
-    assert(f.r.changed && position(&f, 50) < 0 && position(&f, 81) < 0);
+    assert(!mm_world_prerender(&f.r, &f.b, &f.s));
+    assert(f.r.changed && position(&f, 50) < 0 && position(&f, 83) < 0);
     f.fail_alloc = 0;
     f.n = 0;
-    assert(mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
+    assert(mm_world_prerender(&f.r, &f.b, &f.s));
     assert(!f.r.changed);
-    assert(f.events[f.n - 2] == 81 && f.events[f.n - 1] == 83);
+    assert(f.events[f.n - 1] == 83 && !memcmp(f.z_background, f.z_working, 48));
     for (i = 0; i < 4; ++i)
     {
         assert(!memcmp(f.background + i * 8, f.working + i * 9, 6));
@@ -468,20 +461,22 @@ static void render_tests(void)
     f.n = 0;
     f.working[0] = 0x99;
     f.b.working.bytes = 1;
-    assert(!mm_world_prerender(&f.r, &f.b, &f.s, &f.buffers));
-    assert(f.n == 2 && f.events[0] == 81 && f.events[1] == 83);
+    assert(!mm_world_prerender(&f.r, &f.b, &f.s));
+    assert(f.n == 1 && f.events[0] == 83 && !memcmp(f.z_background, f.z_working, 48));
     assert(f.background[0] == 0xcc);
-    dispose_regions(&f);
+    dispose_buffers(&f);
     init(&f);
+    init_depth(&f);
     f.b.scale = 4;
     f.rect_overflow = 1;
     mm_world_render_dirty(&f.r);
-    assert(!mm_world_render(&f.r, &f.b, &f.s, &f.buffers));
+    assert(!mm_world_render(&f.r, &f.b, &f.s));
     assert(f.r.changed && !f.live);
-    dispose_regions(&f);
+    dispose_buffers(&f);
     for (i = 0; i < 2; ++i)
     {
         init(&f);
+        init_depth(&f);
         f.s.body = body;
         f.s.retain_body = retain_body;
         f.s.release_body = release_body;
@@ -489,9 +484,9 @@ static void render_tests(void)
         if (i)
             f.b.background.bytes = 1;
         mm_world_render_dirty(&f.r);
-        assert(mm_world_render(&f.r, &f.b, &f.s, &f.buffers) == !i);
+        assert(mm_world_render(&f.r, &f.b, &f.s) == !i);
         assert(!f.body_refs && f.prepared == 2 && f.r.changed == i);
-        dispose_regions(&f);
+        dispose_buffers(&f);
     }
 }
 static void output_tests(void)
