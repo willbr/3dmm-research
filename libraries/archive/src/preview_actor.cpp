@@ -10,7 +10,6 @@
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
 #include "handle_services.h"
-#include "engine_actor_effect.h"
 #include "mm/actor_costume_edit.h"
 #include "mm/actor_animation.h"
 #include "mm/sound_resource.h"
@@ -310,19 +309,15 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
 }
 bool PreviewActor::SetEventTrack(std::int32_t source)
 {
-    struct EventSource
-    {
-        Host host;
-        ScopedBodyCostume costume;
-    } sourceTrack = {{this}};
-    const auto services = sourceTrack.host.Services();
+    Host host = {this};
+    const auto services = host.Services();
     const MMPreviewEventReplacement edit = {
-        &sourceTrack,
+        &host,
         [](void *p, MMI32 source, MMU32 type, MMU32 number, MMResourceCache **out) -> int {
-            auto &input = *static_cast<EventSource *>(p);
-            return input.host.Guard([&] {
+            auto &input = *static_cast<Host *>(p);
+            return input.Guard([&] {
                 const TAGOnFile tag = {source, 0, type, number};
-                auto cache = input.host.actor->resolve(tag);
+                auto cache = input.actor->resolve(tag);
                 if (!cache)
                     return false;
                 *out = cache;
@@ -330,19 +325,8 @@ bool PreviewActor::SetEventTrack(std::int32_t source)
             });
         },
         nullptr,
-        KauaiDecodeBlockHandle,
-        [](void *p) -> int {
-            auto &input = *static_cast<EventSource *>(p);
-            return input.host.Guard([&] { return input.costume.FGet(input.host.actor->Pbody()); });
-        },
-        [](void *p) {
-            auto &input = *static_cast<EventSource *>(p);
-            input.host.Guard([&] {
-                input.costume.Set(input.host.actor->Pbody());
-                return true;
-            });
-        }};
-    return sourceTrack.host.Result(mm_preview_actor_replace_track(&core, source, &edit, &services));
+        KauaiDecodeBlockHandle};
+    return host.Result(mm_preview_actor_replace_track(&core, source, &edit, &services));
 }
 bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimationTimeline &timeline) const
 {
@@ -352,67 +336,6 @@ bool PreviewActor::ReadTimeline(LegacyLong first, LegacyLong last, PreviewAnimat
     const int result = mm_preview_actor_timeline(&core, &track, first, last, &services);
     if (host.exception) std::rethrow_exception(host.exception);
     return result > 0;
-}
-bool PreviewActor::ApplyEvent(MMActorState &value, const MMActorTrack &events, LegacyLong index, bool metadataOnly,
-                              MMActorSounds *motion, std::vector<PreviewSoundCue> *cues) const
-{
-    struct Host
-    {
-        const PreviewActor *actor;
-        MMPreviewActor *live;
-        MMActorEventTable *events;
-        MMActorSounds *motion;
-        std::vector<PreviewSoundCue> *cues;
-        std::exception_ptr failure;
-    } host = {this, metadataOnly ? nullptr : const_cast<MMPreviewActor *>(&core), events.events, motion, cues};
-    EngineActorEffectHost body = {Ptmpl(), Pbody(), motion, &host};
-    auto effects = body.Services();
-    effects.action_count = [](void *p) -> MMI32 { return EngineTemplate::Cactn(EngineActorEffectHost::From(p).tmpl); };
-    effects.visibility = [](void *p, int shown) {
-        auto *live = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->live;
-        if (shown && live)
-            mm_preview_actor_shown(live);
-    };
-    effects.fetch_material = [](void *p, const MMTag *tag) -> void * {
-        const auto actor = static_cast<Host *>(EngineActorEffectHost::From(p).owner)->actor;
-        const auto source = actor->resolve({tag->sid, 0, tag->type, tag->number});
-        return source ? mm_brender_material_fetch(source, tag->type, tag->number) : nullptr;
-    };
-    effects.enqueue_sound = [](void *p, MMI32 index) -> int {
-        auto &host = *static_cast<Host *>(EngineActorEffectHost::From(p).owner);
-        MMActorSoundServices services = {};
-        services.context = &host;
-        services.cues_only = 1;
-        services.cue = [](void *context, const MMActorSound *value) -> int {
-            auto &host = *static_cast<Host *>(context);
-            try
-            {
-                if (host.actor->core.sound_display)
-                    host.cues->push_back(host.actor->SoundCue(*value));
-                return 1;
-            }
-            catch (...)
-            {
-                host.failure = std::current_exception();
-                return 0;
-            }
-        };
-        return mm_actor_sound_event(host.motion, host.events, index, &services);
-    };
-    const MMActorPoint origin = {MMI32(core.header.translation[0]), MMI32(core.header.translation[1]),
-                                 MMI32(core.header.translation[2])};
-    const auto tables = EngineActorMotion::Services();
-    const bool ok = mm_actor_effect_apply(&value, events.route, events.events, index, &origin, body.body != nullptr,
-                                          metadataOnly, &tables, &effects) != 0;
-    if (host.failure)
-        std::rethrow_exception(host.failure);
-    return ok;
-}
-PreviewSoundCue PreviewActor::SoundCue(const MMActorSound &sound) const
-{
-    MMPreviewCue cue;
-    mm_preview_actor_cue(&cue, &sound, core.state.frame, core.header.actor_id);
-    return PreviewCue(cue);
 }
 bool PreviewActor::Translate(const float delta[3], MMPreviewOrbit &orbit, MMI32 object)
 {

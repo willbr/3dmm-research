@@ -8,6 +8,7 @@ struct PreviewActor::TimelineHost
     std::exception_ptr exception;
     int failure = 0;
     std::map<LegacyLong, std::string> names;
+    MMActorEffectRenderer renderer;
     template <class F> int Guard(F f)
     {
         try
@@ -114,10 +115,8 @@ struct PreviewActor::TimelineHost
         s.reset = [](void *v) { *static_cast<TimelineHost *>(v)->output = {}; };
         s.fault = [](void *v) { return static_cast<TimelineHost *>(v)->failure; };
         s.tags = mm_tag_local_cache_services();
-        s.apply = [](void *v, MMActorState *state, const MMActorTrack *track, MMI32 index) -> int {
-            auto &h = *static_cast<TimelineHost *>(v);
-            return h.Guard([&] { return h.actor->ApplyEvent(*state, *track, index, true); });
-        };
+        mm_brender_actor_effect_renderer(&renderer);
+        s.renderer = &renderer;
         s.marker = [](void *v, const MMPreviewMarker *e) -> int {
             auto &h = *static_cast<TimelineHost *>(v);
             return h.Guard([&] {

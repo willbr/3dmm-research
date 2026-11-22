@@ -3,6 +3,7 @@
 #include "mm/body_runtime.h"
 #include "mm/material_resource.h"
 #include "mm/preview_camera.h"
+#include "mm/preview_metadata.h"
 #include "mm/template_create.h"
 #include "mm/text_resource.h"
 #include "mm/wide.h"
@@ -16,6 +17,73 @@ MMActorTrack mm_preview_actor_track(const MMPreviewActor *p)
     track.route = (MMActorPath *)p->route;
     track.events = (MMActorEventTable *)p->events;
     return track;
+}
+
+typedef struct PreviewEvent
+{
+    MMPreviewActor *actor;
+    const MMPreviewActorServices *services;
+    MMActorEventTable *events;
+} PreviewEvent;
+
+static int publish_sound(void *context, const MMActorSound *sound)
+{
+    const PreviewEvent *event = context;
+    const MMPreviewActorServices *s = event->services;
+    MMPreviewCue cue;
+    mm_preview_actor_cue(&cue, sound, event->actor->state.frame, event->actor->header.actor_id);
+    return s->cue(s->context, &cue) > 0;
+}
+static int event_cue(void *context, const MMActorSound *sound)
+{
+    const PreviewEvent *event = context;
+    return !event->actor->sound_display || publish_sound(context, sound);
+}
+static int event_sound(void *context, MMI32 index)
+{
+    const PreviewEvent *event = context;
+    MMActorSoundServices sound = {0};
+    sound.context = context;
+    sound.cues_only = 1;
+    sound.cue = event_cue;
+    return mm_actor_sound_event(event->services->motion, event->events, index, &sound);
+}
+static void event_visibility(void *context, int shown)
+{
+    if (shown)
+        mm_preview_actor_shown(((PreviewEvent *)context)->actor);
+}
+static MMMaterialOwner *event_material(void *context, const MMTag *tag)
+{
+    const MMPreviewActorServices *s = ((PreviewEvent *)context)->services;
+    return s->fetch_event_material(s->context, tag);
+}
+static void clear_motion(const MMPreviewActorServices *s)
+{
+    if (s->motion)
+        mm_actor_sounds_clear(s->motion);
+    else
+        s->clear_motion(s->context);
+}
+
+int mm_preview_actor_event(MMPreviewActor *p, MMActorState *state, const MMActorTrack *track, MMI32 index,
+                           const MMPreviewActorServices *s)
+{
+    PreviewEvent event;
+    MMActorPoint origin;
+    MMActorEffectHooks hooks = {NULL, event_material, event_visibility, event_sound, 1};
+    int result, fault;
+    event.actor = p;
+    event.services = s;
+    event.events = track->events;
+    hooks.context = &event;
+    origin.dxr = mm_signed_word(p->header.translation[0]);
+    origin.dyr = mm_signed_word(p->header.translation[1]);
+    origin.dzr = mm_signed_word(p->header.translation[2]);
+    result = mm_actor_runtime_effect(state, track, index, &origin, p->tmpl, p->body, s->motion, 0,
+                                     &s->renderer, &hooks);
+    fault = s->fault ? s->fault(s->context) : 0;
+    return fault ? fault : result;
 }
 
 static MMU32 template_flags(const MMPreviewActor *p)
@@ -206,7 +274,7 @@ int mm_preview_actor_replay_track(MMPreviewActor *p, MMI32 frame, const MMPrevie
     mm_actor_state_rewind(&p->state, p->route, &s->timeline.motion);
     p->orientation_reset = 1;
     s->clear_cues(s->context);
-    s->clear_motion(s->context);
+    clear_motion(s);
     r = s->default_costume(s->context, p->tmpl, p->body);
     if (r <= 0) return r;
     return seek_actor(p, frame, s);
@@ -373,6 +441,7 @@ int mm_preview_actor_replace_track(MMPreviewActor *p, MMI32 source, const MMPrev
     MMActorEventFactory factory;
     MMResourceCache *cache = NULL;
     MMOwnedBlock block;
+    MMBodyCostume costume = {0};
     int result;
     if (source == p->event_source)
         return 1;
@@ -393,9 +462,11 @@ int mm_preview_actor_replace_track(MMPreviewActor *p, MMI32 source, const MMPrev
     if (!result)
         goto fail;
     mm_actor_track_adopt_events(&candidate, events, s->tags);
-    result = edit->save_costume(edit->context);
-    if (result <= 0)
+    if (!mm_body_costume_capture(&costume, p->body, s->renderer.body))
+    {
+        result = s->fault ? s->fault(s->context) : 0;
         goto fail;
+    }
     original = *p;
     install_track(p, &candidate);
     result = mm_preview_actor_replay_track(p, original.state.frame, s);
@@ -403,15 +474,17 @@ int mm_preview_actor_replace_track(MMPreviewActor *p, MMI32 source, const MMPrev
     {
         p->event_source = source;
         mm_actor_track_dispose(&live, s->tags);
+        mm_body_costume_clear(&costume, s->renderer.body);
         return 1;
     }
     /* Replay may have completed an entrance before the failed event. */
     original.draw_order = p->draw_order;
     *p = original;
-    edit->restore_costume(edit->context);
+    mm_body_costume_apply(&costume, p->body, 0, s->renderer.body);
 
 fail:
     mm_actor_track_dispose(&candidate, s->tags);
+    mm_body_costume_clear(&costume, s->renderer.body);
     return result;
 }
 
@@ -719,13 +792,42 @@ static int frame_event(void *context, MMI32 index)
         p->orientation_reset = 1;
     if (event.aet == MM_ACTOR_ROTATE_HERE)
         p->orientation_reset = 2;
-    return s->apply(s->context, index);
+    if (s->apply)
+        return s->apply(s->context, index);
+    {
+        MMActorTrack track = mm_preview_actor_track(p);
+        return mm_preview_actor_event(p, &p->state, &track, index, s);
+    }
+}
+
+static int motion_cels(void *context, MMI32 action, MMI32 *out)
+{
+    const PreviewEvent *event = context;
+    (void)action;
+    *out = event->actor->state.celCount;
+    return 1;
 }
 
 static int frame_motion_sounds(void *context)
 {
     const PreviewActorHost *host = (const PreviewActorHost *)context;
-    return host->services->motion_cues(host->services->context);
+    const MMPreviewActorServices *s = host->services;
+    MMActorState *state = &host->actor->state;
+    PreviewEvent event;
+    MMActorSoundServices sound = {0};
+    int result, fault;
+    if (s->motion_cues)
+        return s->motion_cues(s->context);
+    event.actor = host->actor;
+    event.services = s;
+    event.events = NULL;
+    sound.context = &event;
+    sound.cues_only = 1;
+    sound.cel_count = motion_cels;
+    sound.cue = publish_sound;
+    result = mm_actor_sound_motion(s->motion, state->action, state->cel, &sound);
+    fault = s->fault ? s->fault(s->context) : 0;
+    return fault ? fault : result;
 }
 
 static void frame_position(void *context)
@@ -766,7 +868,7 @@ static int seek_default_costume(void *context)
     MMPreviewActor *p = host->actor;
     const MMPreviewActorServices *s = host->services;
     p->orientation_reset = 1;
-    s->clear_motion(s->context);
+    clear_motion(s);
     return s->default_costume(s->context, p->tmpl, p->body);
 }
 

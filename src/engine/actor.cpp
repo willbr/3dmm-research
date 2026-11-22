@@ -117,7 +117,7 @@
 #include "body_world.h"
 #include "engine_actor_motion.h"
 #include "engine_actor_timeline.h"
-#include "engine_actor_effect.h"
+#include "mm/actor_effect.h"
 #include "mm/actor_placement.h"
 
 ASSERTNAME
@@ -471,26 +471,27 @@ bool Actor::_FDoAevCore(long iaev)
 {
     AssertBaseThis(0);
     AssertIn(iaev, 0, mm_actor_events_count(_owner.track.events));
-    EngineActorEffectHost host = {_Template(), _Body(), &_owner.sounds, this};
-    auto effects = host.Services();
-    effects.visibility = [](void *p, int shown) {
-        auto body = EngineActorEffectHost::From(p).body;
+    MMActorEffectRenderer renderer;
+    mm_brender_actor_effect_renderer(&renderer);
+    MMActorEffectHooks hooks = {};
+    hooks.context = this;
+    hooks.visibility = [](void *p, int shown) {
+        auto body = static_cast<Actor *>(p)->_Body();
         if (shown)
             EngineBody::Show(body);
         else
             EngineBody::Hide(body);
     };
-    effects.fetch_material = [](void *, const MMTag *value) -> void * {
+    hooks.fetch_material = [](void *, const MMTag *value) -> MMMaterialOwner * {
         TAG tag;
         TagFromCore(&tag, *value);
-        return vptagm->FetchResource(&tag, EngineMaterial::Read, mm_material_owner_services());
+        return static_cast<MMMaterialOwner *>(vptagm->FetchResource(&tag, EngineMaterial::Read, mm_material_owner_services()));
     };
-    effects.enqueue_sound = [](void *p, MMI32 index) -> int {
-        return static_cast<Actor *>(EngineActorEffectHost::From(p).owner)->_FEnqueueSnd(index);
+    hooks.enqueue_sound = [](void *p, MMI32 index) -> int {
+        return static_cast<Actor *>(p)->_FEnqueueSnd(index);
     };
-    const auto tables = EngineActorMotion::Services();
-    return mm_actor_effect_apply(&_owner.runtime.state, _owner.track.route, _owner.track.events, iaev,
-                                 &_owner.runtime.origin, host.body != nullptr, 0, &tables, &effects) != 0;
+    return mm_actor_runtime_effect(&_owner.runtime.state, &_owner.track, iaev, &_owner.runtime.origin,
+                                   _Template(), _Body(), &_owner.sounds, 0, &renderer, &hooks) != 0;
 }
 
 /***************************************************************************

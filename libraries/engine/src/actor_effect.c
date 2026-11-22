@@ -1,6 +1,11 @@
 /* Actor event effects converted from engine actor.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/actor_effect.h"
+#include "mm/actor_sound.h"
+#include "mm/actor_track.h"
+#include "mm/body_runtime.h"
+#include "mm/material_resource.h"
+#include "mm/text_resource.h"
 #include <string.h>
 typedef char EntranceWidth[(sizeof(MMActorEntrance) == 20) ? 1 : -1];
 void mm_actor_stationary_track(MMActorStationaryTrack *track, MMI32 frame, const unsigned short angles[3])
@@ -189,4 +194,134 @@ int mm_actor_effect_apply(MMActorState *state, void *route, void *events, MMI32 
         return s->enqueue_sound(s->context, index);
     }
     return 1;
+}
+
+typedef struct RuntimeEffect
+{
+    MMTemplateOwner *tmpl;
+    MMBodyOwner *body;
+    MMActorSounds *sounds;
+    const MMActorEffectRenderer *renderer;
+    const MMActorEffectHooks *hooks;
+    MMBodyCostume saved;
+} RuntimeEffect;
+
+static void runtime_write(void *events, MMI32 i, const MMActorEvent *event)
+{
+    mm_actor_events_set_fixed(events, i, event);
+}
+static MMI32 runtime_actions(void *p)
+{
+    MMTemplateOwner *tmpl = ((RuntimeEffect *)p)->tmpl;
+    return tmpl ? mm_template_owner_state(tmpl)->action_count : 0;
+}
+static int runtime_pose(void *p, MMI32 action, MMI32 cel)
+{
+    RuntimeEffect *r = p;
+    return r->renderer->pose(r->tmpl, r->body, action, cel, NULL);
+}
+static int runtime_cels(void *p, MMI32 action, MMI32 *count)
+{
+    RuntimeEffect *r = p;
+    return r->renderer->cel_count(r->tmpl, action, count);
+}
+static int runtime_flags(void *p, MMI32 action, MMU32 *flags)
+{
+    RuntimeEffect *r = p;
+    return r->renderer->action_flags(r->tmpl, action, flags);
+}
+static int runtime_save(void *p)
+{
+    RuntimeEffect *r = p;
+    return mm_body_costume_capture(&r->saved, r->body, r->renderer->body);
+}
+static int runtime_defaults(void *p)
+{
+    RuntimeEffect *r = p;
+    return r->renderer->default_costume(r->tmpl, r->body);
+}
+static void runtime_restore(void *p)
+{
+    RuntimeEffect *r = p;
+    mm_body_costume_apply(&r->saved, r->body, 0, r->renderer->body);
+}
+static void runtime_visibility(void *p, int shown)
+{
+    const MMActorEffectHooks *h = ((RuntimeEffect *)p)->hooks;
+    h->visibility(h->context, shown);
+}
+static void *runtime_fetch_custom(void *p, MMI32 id)
+{
+    RuntimeEffect *r = p;
+    return r->renderer->fetch_custom(r->tmpl, id);
+}
+static void *runtime_fetch_material(void *p, const MMTag *tag)
+{
+    const MMActorEffectHooks *h = ((RuntimeEffect *)p)->hooks;
+    return h && h->fetch_material ? h->fetch_material(h->context, tag) : NULL;
+}
+static void runtime_custom(void *p, void *costume)
+{
+    RuntimeEffect *r = p;
+    mm_body_set_custom(r->body, costume, r->renderer->body);
+}
+static void runtime_material(void *p, MMI32 set, void *material)
+{
+    RuntimeEffect *r = p;
+    mm_body_set_generic(r->body, set, material, r->renderer->body);
+}
+static void runtime_release(void *p, void *resource, int custom)
+{
+    (void)p; (void)custom;
+    mm_material_owner_release(resource);
+}
+static void runtime_clear(void *p)
+{
+    mm_actor_sounds_clear(((RuntimeEffect *)p)->sounds);
+}
+static int runtime_sound(void *p, MMI32 index)
+{
+    const MMActorEffectHooks *h = ((RuntimeEffect *)p)->hooks;
+    return h->enqueue_sound(h->context, index);
+}
+
+int mm_actor_runtime_effect(MMActorState *state, const MMActorTrack *track, MMI32 index, const MMActorPoint *origin,
+                            MMTemplateOwner *tmpl, MMBodyOwner *body, MMActorSounds *sounds, int metadata_only,
+                            const MMActorEffectRenderer *renderer, const MMActorEffectHooks *hooks)
+{
+    MMActorMotionServices motion = mm_actor_track_motion_services();
+    MMActorEffectServices s = {0};
+    RuntimeEffect runtime;
+    int result;
+    runtime.tmpl = tmpl;
+    runtime.body = body;
+    runtime.sounds = sounds;
+    runtime.renderer = renderer;
+    runtime.hooks = hooks;
+    mm_body_costume_init(&runtime.saved);
+    s.context = &runtime;
+    s.write_event = runtime_write;
+    s.action_count = metadata_only || (hooks && hooks->check_actions) ? runtime_actions : NULL;
+    s.cel_count = runtime_cels;
+    s.action_flags = runtime_flags;
+    if (!metadata_only)
+    {
+        s.select_cel = runtime_pose;
+        s.save_costume = runtime_save;
+        s.default_costume = runtime_defaults;
+        s.restore_costume = runtime_restore;
+        s.visibility = hooks && hooks->visibility ? runtime_visibility : NULL;
+        s.fetch_custom = runtime_fetch_custom;
+        s.fetch_material = runtime_fetch_material;
+        s.apply_custom = runtime_custom;
+        s.apply_material = runtime_material;
+        s.release_resource = runtime_release;
+        s.clear_sounds = sounds ? runtime_clear : NULL;
+        s.enqueue_sound = hooks && hooks->enqueue_sound ? runtime_sound : NULL;
+    }
+    result = mm_actor_effect_apply(state, track->route, track->events, index, origin, body != NULL,
+                                  metadata_only, &motion, &s);
+    if (!metadata_only)
+        mm_body_costume_clear(&runtime.saved, renderer->body);
+    return result;
 }

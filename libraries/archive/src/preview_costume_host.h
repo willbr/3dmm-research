@@ -13,8 +13,9 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         e.update_sound_frame = [](void *) {};
         e.apply_event = [](void *v, MMActorState *state, MMI32 i) -> int {
             auto &h = *static_cast<CostumeHost *>(v);
-            return h.Guard([&] { return int(h.actor->ApplyEvent(*state, h.actor->Track(), i, false,
-                                                               &h.actor->motionSounds, &h.actor->sounds)); }) > 0;
+            const auto effects = h.Host::Services();
+            const auto track = h.actor->Track();
+            return mm_preview_actor_event(&h.actor->core, state, &track, i, &effects) > 0;
         };
         e.dirty = [](void *) {};
         e.get_range = [](void *v, MMActorEditRange *r) {

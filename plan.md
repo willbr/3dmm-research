@@ -395,17 +395,22 @@ priority over the older Project 0-4 ordering wherever they conflict.
   now use C89. Native pose code supplies table views and copies matrices into
   BRender at the SDK boundary. The C implementation uses fixed-point arithmetic.
 - Actor event dispatch, partial action/cache state, entrance costume rollback and
-  material fetch/apply/release ordering now use shared C89 policy in Studio and
-  Marcus. Marcus timeline evaluation uses the same state policy with body/sound
-  effects disabled. Native template/body/resource and sound adapters remain.
+  material fetch/apply/release ordering use one typed C89 binding in Studio and
+  Marcus. The C binding owns the entrance costume snapshot, applies material
+  effects through the body owner and reads template action metadata. Marcus
+  timeline evaluation uses the same state policy on its private track with
+  body and sound effects disabled. Preview track replacement owns its costume
+  rollback snapshot in C89. Hosts supply resource lookup, visibility and
+  audio or cue publication hooks.
 - Actor runtime sound dispatch and motion-match selection now use C89, with
   C-owned motion-list storage shared by Studio and Marcus. Replacement, cloning,
   imported-tag updates, priority choice and fetch/queue/release failure ordering
   execute in C; native resource/device implementations remain.
 - Studio and Marcus dispatch sound events directly from the C89 actor event
   table. Ordinary playback resolves local tags and writes them back to the
-  table before fetching audio. Motion-match bindings borrow their tags from the
-  track. Studio sound edits use the existing C89 event editor to update rows,
+  table before fetching audio. Preview selects ordinary and motion cues and
+  attaches the actor and frame in C89. Motion-match bindings borrow their tags
+  from the track. Studio sound edits use the existing C89 event editor to update rows,
   and actor and scene sounds use the same typed movie tag resolver.
 - Sound setting/default insertion, volume edits, queries, deletions, frame sound
   detection and bulk tag-resolution policy now execute in C89. General event

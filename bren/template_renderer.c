@@ -2,6 +2,7 @@
 #include "asset_resources.h"
 #include "body_renderer.h"
 #include "brender.h"
+#include "mm/actor_effect.h"
 #include "mm/movie_session.h"
 #include "mm/template_runtime.h"
 #include <string.h>
@@ -479,6 +480,16 @@ static void runtime_services(MMTemplateRuntimeServices *s, MMTemplateOwner *owne
     s->set_matrix = set_cel_matrix;
     s->sound = action_sound;
     s->sound_exists = sound_exists;
+}
+
+void mm_brender_actor_effect_renderer(MMActorEffectRenderer *s)
+{
+    s->body = &mm_kauai_body_renderer()->edit.runtime;
+    s->pose = mm_brender_template_set_cel;
+    s->cel_count = mm_brender_template_cel_count;
+    s->action_flags = mm_brender_template_action_flags;
+    s->default_costume = mm_brender_template_default_costume;
+    s->fetch_custom = mm_brender_template_costume;
 }
 
 void mm_brender_template_rest(MMTemplateOwner *owner, unsigned short *x, unsigned short *y, unsigned short *z)

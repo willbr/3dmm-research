@@ -45,6 +45,8 @@ int mm_brender_template_cel_count(MMTemplateOwner *, MMI32 action, void *count);
 int mm_brender_template_action_flags(MMTemplateOwner *, MMI32 action, void *flags);
 int mm_brender_template_sound(MMTemplateOwner *, MMI32 action, MMI32 cel, int *exists, MMTag *);
 int mm_brender_text_adjust_body(MMTemplateOwner *, struct MMBodyOwner *);
+struct MMActorEffectRenderer;
+void mm_brender_actor_effect_renderer(struct MMActorEffectRenderer *);
 
 #ifdef __cplusplus
 }

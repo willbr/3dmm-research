@@ -39,7 +39,9 @@ extern "C"
         void *context;
         MMActorTimelineServices timeline;
         const MMTagServices *tags;
+        const MMActorEffectRenderer *renderer;
         void (*reset)(void *);
+        /* Alternate effect for caller-supplied metadata evaluators. */
         int (*apply)(void *, MMActorState *, const MMActorTrack *, MMI32 index);
         int (*marker)(void *, const MMPreviewMarker *), (*span)(void *, const MMPreviewSpan *);
         void (*extend)(void *, MMWide end);

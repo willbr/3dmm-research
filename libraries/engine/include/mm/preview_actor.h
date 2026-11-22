@@ -36,6 +36,7 @@ extern "C"
         MMU32 number;
         float point[3];
     } MMPreviewActorDefinition;
+    struct MMPreviewCue;
     typedef struct MMPreviewActorServices
     {
         void *context;
@@ -58,6 +59,11 @@ extern "C"
         float (*scalar_float)(MMI32);
         void (*locate)(void *, void *, const MMActorBodyPose *);
         int (*pose)(void *, void *, void *, MMI32 action, MMI32 cel);
+        MMActorEffectRenderer renderer;
+        MMActorSounds *motion;
+        struct MMMaterialOwner *(*fetch_event_material)(void *, const MMTag *);
+        int (*cue)(void *, const struct MMPreviewCue *);
+        /* Alternate effect hooks for callers supplying borrowed evaluator tables. */
         int (*apply)(void *, MMI32 index);
         void (*clear_cues)(void *), (*clear_motion)(void *);
         int (*default_costume)(void *, void *, void *), (*motion_cues)(void *);
@@ -86,6 +92,8 @@ extern "C"
     int mm_preview_actor_create(MMPreviewActor *, const MMPreviewActorDefinition *, const MMPreviewActorServices *);
     /* Borrow typed handles from an actor with owned tracks. */
     MMActorTrack mm_preview_actor_track(const MMPreviewActor *);
+    int mm_preview_actor_event(MMPreviewActor *, MMActorState *, const MMActorTrack *, MMI32 index,
+                               const MMPreviewActorServices *);
 
     typedef struct MMPreviewActorInfo
     {
@@ -164,8 +172,6 @@ extern "C"
         int (*resolve)(void *, MMI32 source, MMU32 type, MMU32 number, MMResourceCache **);
         void *decode_context;
         MMBlockTransform decode;
-        int (*save_costume)(void *);
-        void (*restore_costume)(void *);
     } MMPreviewEventReplacement;
     /* Replace a preview's owned track events and replay its current frame.
      * Failure restores both original tables, evaluation state and costume.

@@ -82,6 +82,7 @@ int mm_preview_actor_timeline(const MMPreviewActor *p, const MMActorTrack *live,
     MMActorFrameInputs inputs;
     MMActorFrame sequence;
     MMActorFrameCommand command;
+    MMActorPoint origin;
     MMActorEvent event;
     MMPreviewMarker mark;
     MMPreviewSpan span;
@@ -101,6 +102,9 @@ int mm_preview_actor_timeline(const MMPreviewActor *p, const MMActorTrack *live,
     events = track.events;
     mm_actor_state_init(&cursor);
     mm_actor_state_rewind(&cursor, route, m);
+    origin.dxr = mm_signed_word(p->header.translation[0]);
+    origin.dyr = mm_signed_word(p->header.translation[1]);
+    origin.dzr = mm_signed_word(p->header.translation[2]);
     frame = p->header.first_frame;
     for (;;)
     {
@@ -128,7 +132,11 @@ int mm_preview_actor_timeline(const MMPreviewActor *p, const MMActorTrack *live,
                 r = event.nfrm <= cursor.frame;
             else
             {
-                r = s->apply(s->context, &cursor, &track, command.eventIndex);
+                if (s->renderer)
+                    r = mm_actor_runtime_effect(&cursor, &track, command.eventIndex, &origin, p->tmpl, NULL, NULL,
+                                                 1, s->renderer, NULL);
+                else
+                    r = s->apply(s->context, &cursor, &track, command.eventIndex);
                 if (r < 0)
                 {
                     result = r;

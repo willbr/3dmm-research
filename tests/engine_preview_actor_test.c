@@ -1,5 +1,6 @@
 #include "mm/preview_actor.h"
 #include "mm/preview_camera.h"
+#include "mm/body_runtime.h"
 #include "mm/actor_persistence.h"
 #include "mm/template_create.h"
 #include "mm/text_resource.h"
@@ -851,6 +852,7 @@ typedef struct TrackSource
     Host *host;
     MMResourceCache cache;
     ResourceTestBlock block;
+    MMBodyState body;
     unsigned char bytes[512];
     MMU32 length;
     int missing, fail_read, packed, fail_decode, refs, decodes;
@@ -950,14 +952,24 @@ static void setup_track_source(TrackSource *source, Host *h)
     source->cache.services.locate = locate_track_source;
 }
 
-static int save_track_costume(void *p)
+static MMBodyState *track_body_state(void *p, void *body)
 {
-    Host *h = ((TrackSource *)p)->host;
-    ++h->costume_saved;
-    return step(h);
+    TrackSource *source = p;
+    Host *h = source->host;
+    assert(body == h->token + 1);
+    if (h->costume_saved)
+        ++h->costume_restored;
+    return &source->body;
 }
 
-static void restore_track_costume(void *p) { ++((TrackSource *)p)->host->costume_restored; }
+static int allocate_track_costume(void *p, MMI32 sets, void ***out)
+{
+    Host *h = ((TrackSource *)p)->host;
+    assert(!sets);
+    *out = NULL;
+    ++h->costume_saved;
+    return step(h) > 0;
+}
 
 static void replace_owned_track(void)
 {
@@ -965,17 +977,20 @@ static void replace_owned_track(void)
     TrackSource source;
     MMPreviewActorDefinition d = definition();
     MMPreviewActor original;
-    MMPreviewEventReplacement edit = {
-        NULL, resolve_track_source, NULL, decode_track_source, save_track_costume, restore_track_costume
-    };
+    MMBodyRuntimeServices body = {0};
+    MMPreviewEventReplacement edit = {NULL, resolve_track_source, NULL, decode_track_source};
     int mode, blocks, expected;
     edit.context = edit.decode_context = &source;
+    body.shape.context = &source;
+    body.shape.state = track_body_state;
+    body.shape.allocate_materials = allocate_track_costume;
     for (mode = 0; mode <= 8; ++mode)
     {
         setup_owned(&h);
         assert(mm_preview_actor_create(&h.actor, &d, &h.services));
         assert(mm_preview_actor_seek(&h.actor, 1, &h.services));
         setup_track_source(&source, &h);
+        h.services.renderer.body = &body;
         original = h.actor;
         blocks = h.alloc_live;
         h.fail_at = mode >= 1 && mode <= 3 ? h.calls + mode : 0;

@@ -22415,3 +22415,29 @@ in `20261122T081603Z-7ffc4e8e`. All 251 selected test runs passed. The existing
 `0D666753`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-isolated-actor`.
+
+## Shared C89 actor event effects (22 November 2026)
+
+Studio and Preview use the same typed C89 actor effect binding. C89 owns
+entrance costume snapshots, template action queries and material application
+and release. Preview track replacement also captures and restores the costume
+through the body owner. Live Preview selects ordinary and motion-bound sound
+cues and adds their actor and frame in C89. Timeline inspection applies the
+same event policy to a private track with body and sound effects disabled.
+
+All Preview traces and the actor image matched 50,035,072 bytes.
+Studio's authored and ISO-only movies, canvas captures and help workflow
+matched the preceding build. The 188 retail-content camera traces, synthetic
+background mesh and five World snapshots matched, along with the headless
+Marcus startup canvas. The saved costume movie matched byte for byte. The
+three storyboard packages reproduced 48 payloads and their child links.
+
+The four runs in suite `20261122T175420Z-6c9a7ffb` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order matched the retained retail and V3DMM captures
+in `20261122T081603Z-7ffc4e8e`. All 251 selected test runs passed, including
+ordinary and motion-bound actor sound editing and playback. The existing
+`scene-load` assertion reproduced its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Snapshots, workflows and checks are under `tmp/c89-actor-event-effects`.

@@ -59,6 +59,35 @@ extern "C"
     int mm_actor_effect_apply(MMActorState *, void *route, void *events, MMI32 index,
                                     const MMActorPoint *origin, int body_present, int metadata_only,
                                     const MMActorMotionServices *, const MMActorEffectServices *);
+    struct MMActorTrack;
+    struct MMActorSounds;
+    struct MMBodyOwner;
+    struct MMBodyRuntimeServices;
+    struct MMTemplateOwner;
+    struct MMMaterialOwner;
+    typedef struct MMActorEffectRenderer
+    {
+        const struct MMBodyRuntimeServices *body;
+        int (*pose)(struct MMTemplateOwner *, struct MMBodyOwner *, MMI32 action, MMI32 cel, void *distance);
+        int (*cel_count)(struct MMTemplateOwner *, MMI32 action, void *count);
+        int (*action_flags)(struct MMTemplateOwner *, MMI32 action, void *flags);
+        int (*default_costume)(struct MMTemplateOwner *, struct MMBodyOwner *);
+        struct MMMaterialOwner *(*fetch_custom)(struct MMTemplateOwner *, MMI32 costume);
+    } MMActorEffectRenderer;
+    typedef struct MMActorEffectHooks
+    {
+        void *context;
+        struct MMMaterialOwner *(*fetch_material)(void *, const MMTag *);
+        void (*visibility)(void *, int shown);
+        int (*enqueue_sound)(void *, MMI32 event);
+        int check_actions;
+    } MMActorEffectHooks;
+    /* The shared renderer binding uses owned tracks and a scoped costume
+     * snapshot. Hosts supply synchronous material, visibility and sound hooks.
+     * Metadata replay supplies only the template and renderer queries. */
+    int mm_actor_runtime_effect(MMActorState *, const struct MMActorTrack *, MMI32 index, const MMActorPoint *origin,
+                                struct MMTemplateOwner *, struct MMBodyOwner *, struct MMActorSounds *,
+                                int metadata_only, const MMActorEffectRenderer *, const MMActorEffectHooks *);
     /* Used by entrances and editing. no_reset composes onto the current matrix;
      * zero-angle rotations retain their original BRender rounding. */
     void mm_actor_add_orientation(MMActorState *, const MMActorEntrance *, int no_reset);

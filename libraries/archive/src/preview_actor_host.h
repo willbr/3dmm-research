@@ -134,11 +134,23 @@ struct PreviewActor::Host
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] { return mm_brender_template_set_cel(static_cast<PTemplate>(t), static_cast<PBody>(b), action, cel, nullptr); });
         };
-        s.apply = [](void *v, MMI32 index) -> int {
+        mm_brender_actor_effect_renderer(&s.renderer);
+        s.motion = &actor->motionSounds;
+        s.fetch_event_material = [](void *v, const MMTag *tag) -> MMMaterialOwner * {
+            auto &h = *static_cast<Host *>(v);
+            MMMaterialOwner *out = nullptr;
+            h.Guard([&] {
+                const auto file = h.actor->resolve({tag->sid, 0, tag->type, tag->number});
+                out = file ? mm_brender_material_fetch(file, tag->type, tag->number) : nullptr;
+                return out != nullptr;
+            });
+            return out;
+        };
+        s.cue = [](void *v, const MMPreviewCue *cue) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                return h.actor->ApplyEvent(h.actor->core.state, h.actor->Track(), index, false, &h.actor->motionSounds,
-                                           &h.actor->sounds);
+                h.actor->sounds.push_back(PreviewCue(*cue));
+                return 1;
             });
         };
         s.clear_cues = [](void *v) { static_cast<Host *>(v)->actor->sounds.clear(); };
@@ -159,29 +171,9 @@ struct PreviewActor::Host
                 return 1;
             });
         };
-        s.clear_motion = [](void *v) { mm_actor_sounds_clear(&static_cast<Host *>(v)->actor->motionSounds); };
         s.default_costume = [](void *v, void *t, void *b) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] { return mm_brender_template_default_costume(static_cast<PTemplate>(t), static_cast<PBody>(b)); });
-        };
-        s.motion_cues = [](void *v) -> int {
-            auto &h = *static_cast<Host *>(v);
-            return h.Guard([&] {
-                MMActorSoundServices sound = {};
-                sound.context = h.actor;
-                sound.cues_only = 1;
-                sound.cel_count = [](void *a, MMI32, MMI32 *out) {
-                    *out = static_cast<PreviewActor *>(a)->core.state.celCount;
-                    return 1;
-                };
-                sound.cue = [](void *a, const MMActorSound *value) {
-                    auto actor = static_cast<PreviewActor *>(a);
-                    actor->sounds.push_back(actor->SoundCue(*value));
-                    return 1;
-                };
-                return mm_actor_sound_motion(&h.actor->motionSounds, h.actor->core.state.action,
-                                             h.actor->core.state.cel, &sound);
-            });
         };
         return s;
     }
