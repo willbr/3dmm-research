@@ -63,28 +63,6 @@ bool PreviewActor::Create(const PreviewPropDefinition &definition,
     return host.Result(mm_preview_actor_create(&core, &d, &services));
 }
 
-PreviewObject PreviewActor::Snapshot() const
-{
-    MMPreviewActorInfo info;
-    mm_preview_actor_info(&core, &info);
-    PreviewObject object;
-    object.asset = {kctgActr, info.number};
-    object.templateAsset = {info.template_type, info.template_number};
-    object.actorId = info.actor;
-    object.sourceId = info.source;
-    object.hasLifetime = info.has_lifetime;
-    object.firstFrame = info.first;
-    object.lastFrame = info.last;
-    object.prop = info.prop;
-    object.text = info.text;
-    object.visible = info.visible;
-    object.action = info.action;
-    object.cel = info.cel;
-    object.x = BrScalarToFloat(info.position.dxr);
-    object.y = BrScalarToFloat(info.position.dyr);
-    object.z = BrScalarToFloat(info.position.dzr);
-    return object;
-}
 bool PreviewActor::Text(PreviewObjectText &out) const
 {
     MMPreviewActorText descriptor;

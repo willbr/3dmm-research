@@ -23279,3 +23279,22 @@ Actor Audio candidate `20261122T231929Z-2d70e0a3` matched
 states. Seek and playback frame order matched retained retail and V3DMM run
 `20261122T082301Z-c465fa98`. Evidence is under `tmp/c89-actor-names` and
 `tmp/c89-aqcap`.
+
+## C89 actor state snapshots (22 November 2026)
+
+Marcus publishes its actor states from the shared C89 Preview reader. The
+snapshot reuses its storage between frames, preserves display order and
+refreshes individual rows during placement. Frame-range edits stage the
+replacement until commit. The C regression covers inactive actors, duplicate
+IDs and preservation after a failed capture.
+
+All 226 selected native tests and ten SDL tests passed. The x86 worker passed
+the placement and shape fixtures. Actor metadata matched on six native and
+portable movies. Eleven native saves and the headless startup image matched
+byte for byte.
+
+Actor Audio candidate `20261122T232721Z-58eb4a6c` matched the previous SDL
+and Marcus builds on all 60 seek canvases and recorded states for each port.
+Both ports' seek and playback frame orders matched retained retail and V3DMM
+run `20261122T082301Z-c465fa98`. Evidence is under
+`tmp/c89-object-snapshots` and `tmp/c89-aqcap`.

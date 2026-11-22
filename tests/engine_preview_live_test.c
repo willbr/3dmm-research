@@ -1,4 +1,5 @@
 #include "mm/preview_live.h"
+#include "mm/preview_objects.h"
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -546,6 +547,60 @@ static void background_tests(void)
     dispose(&h);
 }
 
+static const MMPreviewActor *object_view(const void *actor)
+{
+    return (const MMPreviewActor *)actor;
+}
+
+static void object_snapshot_tests(void)
+{
+    Host host = {0};
+    MMPreviewActor actors[3] = {0};
+    void *handles[3];
+    MMPreviewObjectRows rows;
+    MMPreviewActorInfo actor;
+    MMStorageAllocator allocator = {NULL, resize, release_memory};
+    float position[3];
+    allocator.context = &host;
+    handles[0] = actors;
+    handles[1] = actors + 1;
+    handles[2] = actors + 2;
+    host.live.actors.storage.buffers[0].data = (unsigned char *)handles;
+    host.live.actors.count = 2;
+    host.live.actor_view = object_view;
+    actors[0].header.actor_id = actors[1].header.actor_id = 4;
+    actors[0].number = 7;
+    actors[0].state.onStage = 1;
+    actors[0].state.position.dxr = -32768;
+    actors[0].state.routeTranslation.dxr = 98304;
+    actors[1].number = 3;
+    actors[1].inactive = 1;
+    assert(mm_preview_object_rows_init(&rows, &allocator));
+    assert(!mm_preview_object_count(&host.live) && !mm_preview_object_at(&host.live, 0, &actor));
+    host.live.status.ready = 1;
+    assert(mm_preview_object_rows_capture(&rows, &host.live) == MM_STORAGE_OK && rows.count == 2);
+    assert(mm_preview_object_rows_data(&rows)[0].number == 7 && mm_preview_object_rows_data(&rows)[0].visible);
+    assert(mm_preview_object_rows_data(&rows)[1].number == 3 && !mm_preview_object_rows_data(&rows)[1].has_lifetime);
+    assert(mm_preview_object_rows_find(&rows, 4, 0) == 0 && mm_preview_object_rows_find(&rows, 4, 1) == 1);
+    mm_preview_object_position(mm_preview_object_rows_data(&rows), position);
+    assert(position[0] == 1.0f && position[1] == 0.0f && position[2] == 0.0f);
+    actors[0].number = 12;
+    host.live.actors.count = 3;
+    host.fail_at = host.attempts + 1;
+    assert(mm_preview_object_rows_capture(&rows, &host.live) == MM_STORAGE_MEMORY && rows.count == 2);
+    assert(mm_preview_object_rows_data(&rows)[0].number == 7);
+    handles[2] = NULL;
+    host.fail_at = 0;
+    assert(mm_preview_object_rows_capture(&rows, &host.live) == MM_STORAGE_ARGUMENT && rows.count == 2);
+    assert(mm_preview_object_rows_data(&rows)[0].number == 7);
+    assert(mm_preview_object_at(&host.live, 0, &actor) && mm_preview_object_rows_replace(&rows, 0, &actor));
+    assert(mm_preview_object_rows_data(&rows)[0].number == 12 && mm_preview_object_rows_data(&rows)[1].number == 3);
+    host.live.status.ready = 0;
+    assert(mm_preview_object_rows_capture(&rows, &host.live) == MM_STORAGE_OK && !rows.count);
+    mm_preview_object_rows_dispose(&rows);
+    assert(!host.memory);
+}
+
 int main(void)
 {
     MMPreviewLive invalid;
@@ -556,6 +611,7 @@ int main(void)
     seek_tests();
     camera_tests();
     background_tests();
+    object_snapshot_tests();
     puts("C89 live Preview: definitions/actor ownership, retained prefixes, cue edits, seek failures and allocation "
          "recovery passed.");
     return 0;

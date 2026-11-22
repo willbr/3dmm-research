@@ -44,7 +44,6 @@ class PreviewActor
     int SetShape(const PreviewObjectShape &, MMPreviewOrbit &, MMI32 object);
     void Shape(PreviewObjectShape &, float left[9], float right[9]) const;
     bool TrackPose(PreviewTrackPose &) const;
-    PreviewObject Snapshot() const;
     bool Text(PreviewObjectText &) const;
     bool Costumes(std::vector<PreviewCostume> &) const;
     bool Actions(std::vector<PreviewAction> &) const;

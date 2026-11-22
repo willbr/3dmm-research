@@ -23,6 +23,7 @@
 #include "mm/preview_pick.h"
 #include "mm/preview_camera.h"
 #include "mm/preview_live.h"
+#include "mm/preview_objects.h"
 #include "mm/preview_admission.h"
 #include "mm/preview_session.h"
 #include "mm/preview_media.h"
@@ -81,16 +82,6 @@ struct Preview::Impl
         std::size_t size() const { return live->actors.count; }
         Internal::PreviewActor *operator[](std::size_t i) const
         { return static_cast<Internal::PreviewActor *>(mm_preview_live_actor(live, static_cast<MMU32>(i))); }
-        struct Iterator
-        {
-            const ActorView *view;
-            std::size_t index;
-            Internal::PreviewActor *operator*() const { return (*view)[index]; }
-            Iterator &operator++() { ++index; return *this; }
-            bool operator!=(const Iterator &other) const { return index != other.index; }
-        };
-        Iterator begin() const { return {this, 0}; }
-        Iterator end() const { return {this, size()}; }
     } actors = {&live};
     Impl()
     {
@@ -252,20 +243,60 @@ bool Preview::PanOrbit(const PreviewView &view, float right, float up, Error &er
                     "Render an orbit view with valid camera values before panning.");
     return true;
 }
+namespace
+{
+PreviewObject PublicObject(const MMPreviewActorInfo &info)
+{
+    PreviewObject object;
+    object.asset = {kctgActr, info.number};
+    object.templateAsset = {info.template_type, info.template_number};
+    object.actorId = info.actor;
+    object.sourceId = info.source;
+    object.hasLifetime = info.has_lifetime;
+    object.firstFrame = info.first;
+    object.lastFrame = info.last;
+    object.prop = info.prop;
+    object.text = info.text;
+    object.visible = info.visible;
+    object.action = info.action;
+    object.cel = info.cel;
+    float position[3];
+    mm_preview_object_position(&info, position);
+    object.x = position[0];
+    object.y = position[1];
+    object.z = position[2];
+    return object;
+}
+} // namespace
 std::vector<PreviewObject> Preview::Objects() const
 {
-    std::vector<PreviewObject> result;
-    if (_impl->live.status.ready)
-        for (const auto &actor : _impl->actors)
-            result.push_back(actor->Snapshot());
-    return result;
+    const auto count = mm_preview_object_count(&_impl->live);
+    std::vector<PreviewObject> objects;
+    objects.reserve(count);
+    for (MMU32 index = 0; index < count; ++index)
+    {
+        MMPreviewActorInfo info;
+        if (!ReadObjectState(static_cast<MMI32>(index), info))
+            return {};
+        objects.push_back(PublicObject(info));
+    }
+    return objects;
 }
 bool Preview::ObjectAt(int index, PreviewObject &out) const
 {
-    if (!_impl->live.status.ready || index < 0 || std::size_t(index) >= _impl->actors.size())
+    MMPreviewActorInfo info;
+    if (!ReadObjectState(index, info))
         return false;
-    out = _impl->actors[index]->Snapshot();
+    out = PublicObject(info);
     return true;
+}
+bool Preview::ReadObjectState(int index, MMPreviewActorInfo &out) const
+{
+    return mm_preview_object_at(&_impl->live, index, &out) != 0;
+}
+int Preview::CaptureObjectStates(MMPreviewObjectRows &rows) const
+{
+    return mm_preview_object_rows_capture(&rows, &_impl->live);
 }
 bool Preview::ObjectText(int object, PreviewObjectText &text, Error &error) const
 {

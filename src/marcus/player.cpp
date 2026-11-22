@@ -11,6 +11,7 @@
 #include "mm/scene_edit.h"
 #include "mm/playback.h"
 #include "mm/preview_render.h"
+#include "mm/preview_objects.h"
 #include "mm/text_resource.h"
 #include "mm/vmm_dependencies.h"
 #include "content.h"
@@ -126,6 +127,27 @@ struct ActorNames : MarcusActorNames
     ActorNames &operator=(const ActorNames &) = delete;
     void Clear() { marcus_actor_names_clear(this); }
 };
+struct MarcusObjects : MMPreviewObjectRows
+{
+    MarcusObjects() { mm_preview_object_rows_init(this, nullptr); }
+    ~MarcusObjects() { mm_preview_object_rows_dispose(this); }
+    MarcusObjects(const MarcusObjects &) = delete;
+    MarcusObjects &operator=(const MarcusObjects &) = delete;
+    std::size_t size() const { return count; }
+    bool empty() const { return count == 0; }
+    void clear() { count = 0; }
+    void swap(MarcusObjects &other)
+    {
+        std::swap(static_cast<MMPreviewObjectRows &>(*this), static_cast<MMPreviewObjectRows &>(other));
+    }
+    const MMPreviewActorInfo &operator[](std::size_t index) const { return mm_preview_object_rows_data(this)[index]; }
+    void Capture(const MM::Preview &preview)
+    {
+        const auto status = preview.CaptureObjectStates(*this);
+        if (status == MM_STORAGE_MEMORY) throw std::bad_alloc();
+        if (status != MM_STORAGE_OK) throw std::runtime_error("Cannot read the current scene's objects.");
+    }
+};
 struct MarcusPlayer
 {
     // Destroy the renderer before deleting any private VMM working files.
@@ -161,7 +183,7 @@ struct MarcusPlayer
         SoundCatalog(const SoundCatalog &) = delete;
         SoundCatalog &operator=(const SoundCatalog &) = delete;
     } soundAssets;
-    std::vector<MM::PreviewObject> objects;
+    MarcusObjects objects;
     std::vector<MM::PreviewAction> objectActions;
     struct PlacementDrafts : MMMoviePlacementDrafts
     {
@@ -273,13 +295,7 @@ template <typename Shape> MMPreviewActorShape CorePlacementShape(const Shape &sh
     std::copy_n(shape.scale, 3, result.scale);
     return result;
 }
-void ReadPlacementPosition(const MM::PreviewObject &object, float position[3])
-{
-    position[0] = object.x;
-    position[1] = object.y;
-    position[2] = object.z;
-}
-const MM::PreviewObject *VisiblePlacementObject(const MarcusPlayer &player, int object)
+const MMPreviewActorInfo *VisiblePlacementObject(const MarcusPlayer &player, int object)
 {
     if (object < 0 || static_cast<std::size_t>(object) >= player.objects.size() || !player.objects[object].visible)
         return nullptr;
@@ -300,7 +316,7 @@ struct PlacementHost
                 const auto &movie = static_cast<PlacementHost *>(p)->movie;
                 if (object < 0 || static_cast<std::size_t>(object) >= movie.objects.size())
                     return 0;
-                ReadPlacementPosition(movie.objects[object], position);
+                mm_preview_object_position(&movie.objects[object], position);
                 return 1;
             },
             [](void *p, MMI32 object, const float value[3], int absolute, float position[3]) -> int {
@@ -311,10 +327,11 @@ struct PlacementHost
                     if (absolute ? !preview.SetObjectOffset(object, value, h.error)
                                  : !preview.TranslateObject(object, value, h.error))
                         return 0;
-                    auto &published = h.movie.objects[object];
-                    if (!preview.ObjectAt(object, published))
+                    MMPreviewActorInfo published;
+                    if (!preview.ReadObjectState(object, published) ||
+                        !mm_preview_object_rows_replace(&h.movie.objects, object, &published))
                         return 0;
-                    if (position) ReadPlacementPosition(published, position);
+                    if (position) mm_preview_object_position(&published, position);
                     return 1;
                 }
                 catch (...) { h.failure = std::current_exception(); return 0; }
@@ -360,10 +377,10 @@ struct PlacementHost
             return false;
         }
         float current[3];
-        ReadPlacementPosition(*entry, current);
+        mm_preview_object_position(entry, current);
         const auto services = Services();
         return Result(commit ? mm_movie_placement_commit_position(&movie.placementDrafts, object,
-                                    movie.sceneInfo.Number(movie.selected), entry->asset.number, current, requested, &services)
+                                    movie.sceneInfo.Number(movie.selected), entry->number, current, requested, &services)
                              : mm_movie_placement_preview_position(&movie.placementDrafts, object,
                                     current, requested, &services));
     }
@@ -376,7 +393,7 @@ struct PlacementHost
         const auto current = CorePlacementShape(evaluated), desired = CorePlacementShape(*requested);
         const auto services = Services();
         return Result(commit ? mm_movie_placement_commit_shape(&movie.placementDrafts, object,
-                                    movie.sceneInfo.Number(movie.selected), entry->asset.number, &current, &desired, &services)
+                                    movie.sceneInfo.Number(movie.selected), entry->number, &current, &desired, &services)
                              : mm_movie_placement_preview_shape(&movie.placementDrafts, object,
                                     &current, &desired, &services));
     }
@@ -518,7 +535,7 @@ bool ApplyPlacements(MarcusPlayer &player, int scene, const MMMoviePoseJournal &
     const MMMovieActorEdits edits{player.sceneInfo.Number(scene), player.edits->costumes.get(), player.edits->texts.get(), &poses};
     if (!player.preview.ReplayActorEdits(edits, static_cast<MarcusActorNames *>(&player.names), PublishTextActorName, error))
         return false;
-    player.objects = player.preview.Objects();
+    player.objects.Capture(player.preview);
     player.playback.InvalidateMovieFrame();
     return true;
 }
@@ -560,7 +577,7 @@ bool MarcusApplyLiveEdits(MarcusPlayer *player, const std::vector<MMPreviewLiveS
     player->edits = edits;
     if (!ApplyDefinitions(*player, error)) return false;
     if (!player->preview.Info().scene) player->selected = -1;
-    player->objects = player->preview.Objects();
+    player->objects.Capture(player->preview);
     return true;
 }
 bool MarcusApplySceneRange(MarcusPlayer *player, std::int32_t first, std::int32_t last, MM::Error &error)
@@ -575,7 +592,7 @@ bool MarcusApplyPropOffsets(MarcusPlayer *player, const std::vector<MarcusASM::P
 {
     if (!player->preview.ReplayActorPlacements(offsets.data(), offsets.size(), error))
         return false;
-    player->objects = player->preview.Objects();
+    player->objects.Capture(player->preview);
     return true;
 }
 bool MarcusWriteTiming(MarcusPlayer *player, std::ostream &output)
@@ -737,9 +754,9 @@ bool Render(MarcusPlayer *player, const MM::PreviewView &view, MarcusImage *imag
         {
             const auto &object = player->objects[index];
             const auto pose = mm_movie_pose_journal_find(player->poses.get(), player->sceneInfo.Number(player->selected),
-                                                         object.asset.number);
+                                                         object.number);
             float position[3];
-            ReadPlacementPosition(object, position);
+            mm_preview_object_position(&object, position);
             MarcusASM::PropOffset change{};
             change.object = static_cast<MMI32>(index);
             int shaped;
@@ -844,7 +861,7 @@ struct RangeEditHost
     MarcusScenes scenes;
     std::optional<MarcusSoundTimeline> timeline;
     SoundSheet sheet;
-    std::vector<MM::PreviewObject> objects;
+    MarcusObjects objects;
     std::exception_ptr failure;
 
     bool Prepare(const MMMovieRangeEdit &edit)
@@ -876,7 +893,7 @@ struct RangeEditHost
             case MM_MOVIE_RANGE_SET_BOUNDS: return movie.preview.SetSceneRange(edit->first, edit->last, error);
             case MM_MOVIE_RANGE_SET_FRAME: return movie.preview.SetFrame(edit->frame, error);
             case MM_MOVIE_RANGE_PREPARE_FRAME:
-                h.objects = movie.preview.Objects();
+                h.objects.Capture(movie.preview);
                 movie.playback.Seek(&movie.preview);
                 break;
             case MM_MOVIE_RANGE_ABANDON:
@@ -976,7 +993,7 @@ struct SceneCursorHost
             case MM_MOVIE_SCENE_SET_PLAYBACK:
                 return movie.playback.Select(movie.preview, host.error, request->keep_audio != 0);
             case MM_MOVIE_SCENE_SYNC_OBJECTS:
-                movie.objects = movie.preview.Objects();
+                movie.objects.Capture(movie.preview);
                 break;
             case MM_MOVIE_SCENE_READ_SOUNDS:
                 return ReadSoundSheet(&movie, request->scene, host.error);
@@ -1135,14 +1152,12 @@ struct SnapshotHost
             case MM_MOVIE_SNAPSHOT_VERIFY:
                 if (h.outputObject)
                 {
-                    const auto found = std::find_if(movie.objects.begin(), movie.objects.end(),
-                        [&](const auto &object) { return object.actorId == h.pastedActor; });
-                    if (found == movie.objects.end())
+                    h.matchedObject = mm_preview_object_rows_find(&movie.objects, h.pastedActor, 0);
+                    if (h.matchedObject < 0)
                     {
                         error.message = "Cannot load the pasted object and its content.";
                         return 0;
                     }
-                    h.matchedObject = static_cast<int>(found - movie.objects.begin());
                 }
                 break;
             }
@@ -1486,10 +1501,9 @@ static bool InsertObject(MarcusPlayer *player, MMPreviewLiveProp definition, con
         player->edits = previous;
         return false;
     }
-    player->objects = player->preview.Objects();
+    player->objects.Capture(player->preview);
     player->animations.clear();
-    for (std::size_t index = 0; index < player->objects.size(); ++index)
-        if (player->objects[index].actorId == definition.actor_id) result = static_cast<int>(index);
+    result = mm_preview_object_rows_find(&player->objects, definition.actor_id, 1);
     if (result < 0) { error.message = "The new object could not be selected."; return false; }
     ++player->document; player->playback.InvalidateMovieFrame();
     history.Commit();
@@ -1841,7 +1855,7 @@ extern "C"
                 if (!player->objects[i].visible) continue;
                 if (!player->preview.ObjectTrackPose(static_cast<int>(i), pose))
                 { error.message = "Cannot read a visible object's track at the current frame."; return false; }
-                poses.emplace(player->objects[i].actorId, pose);
+                poses.emplace(player->objects[i].actor, pose);
             }
             const auto movie = MaterializedMovie(*player);
             const auto &path = movie == player->timingInput ? player->content->movie : movie->path;
@@ -2954,23 +2968,25 @@ extern "C"
                 return false;
             *object = {};
             const auto &source = player->objects[index];
-            marcus_actor_display_name(&player->names, source.actorId, source.text, source.prop,
+            marcus_actor_display_name(&player->names, source.actor, source.text, source.prop,
                                       object->name, sizeof(object->name));
-            object->chunk = source.asset.number;
-            object->template_chunk = source.templateAsset.number;
-            object->actor_id = source.actorId;
-            object->source_id = source.sourceId;
-            object->first_frame = source.firstFrame;
-            object->last_frame = source.lastFrame;
+            object->chunk = source.number;
+            object->template_chunk = source.template_number;
+            object->actor_id = source.actor;
+            object->source_id = source.source;
+            object->first_frame = source.first;
+            object->last_frame = source.last;
             object->action = source.action;
             object->cel = source.cel;
             object->prop = source.prop;
             object->text = source.text;
             object->visible = source.visible;
-            object->has_lifetime = source.hasLifetime;
-            object->x = source.x;
-            object->y = source.y;
-            object->z = source.z;
+            object->has_lifetime = source.has_lifetime;
+            float position[3];
+            mm_preview_object_position(&source, position);
+            object->x = position[0];
+            object->y = position[1];
+            object->z = position[2];
             return true;
         });
     }
@@ -3137,7 +3153,7 @@ extern "C"
                         case MM_POLLED_MOVIE_SET_FRAME:
                             if (!movie.preview.SetFrame(value, h.error))
                                 return 0;
-                            movie.objects = movie.preview.Objects();
+                            movie.objects.Capture(movie.preview);
                             break;
                         case MM_POLLED_MOVIE_REWIND:
                             if (!marcus_seek(&movie, value))

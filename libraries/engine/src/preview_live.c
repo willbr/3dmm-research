@@ -5,6 +5,7 @@
 #include "mm/movie_session.h"
 #include "mm/preview_actor.h"
 #include "mm/preview_metadata.h"
+#include "mm/preview_objects.h"
 #include "mm/scene_runtime.h"
 #include "mm/scene_edit.h"
 #include "mm/text_resource.h"
@@ -132,6 +133,93 @@ const MMPreviewActor *mm_preview_live_actor_view(const MMPreviewLive *p, MMU32 i
 {
     const void *handle = mm_preview_live_actor(p, index);
     return handle && p->actor_view ? p->actor_view(handle) : NULL;
+}
+
+MMU32 mm_preview_object_count(const MMPreviewLive *live)
+{
+    return live->status.ready ? live->actors.count : 0;
+}
+
+int mm_preview_object_at(const MMPreviewLive *live, MMI32 index, MMPreviewActorInfo *out)
+{
+    const MMPreviewActor *actor;
+    if (index < 0 || (MMU32)index >= mm_preview_object_count(live))
+        return 0;
+    actor = mm_preview_live_actor_view(live, (MMU32)index);
+    if (!actor)
+        return 0;
+    mm_preview_actor_info(actor, out);
+    return 1;
+}
+
+void mm_preview_object_position(const MMPreviewActorInfo *actor, float position[3])
+{
+    position[0] = (float)actor->position.dxr / 65536.0f;
+    position[1] = (float)actor->position.dyr / 65536.0f;
+    position[2] = (float)actor->position.dzr / 65536.0f;
+}
+
+int mm_preview_object_rows_init(MMPreviewObjectRows *rows, const MMStorageAllocator *allocator)
+{
+    rows->count = 0;
+    return mm_storage_init(&rows->storage, allocator) == MM_STORAGE_OK;
+}
+
+void mm_preview_object_rows_dispose(MMPreviewObjectRows *rows)
+{
+    mm_storage_dispose(&rows->storage);
+    rows->count = 0;
+}
+
+int mm_preview_object_rows_capture(MMPreviewObjectRows *rows, const MMPreviewLive *live)
+{
+    const MMU32 count = mm_preview_object_count(live);
+    MMPreviewActorInfo *actors;
+    MMU32 i;
+    int status;
+    if (count > (MM_STORAGE_LIMIT - 1) / sizeof(*actors))
+        return MM_STORAGE_MEMORY;
+    /* Validate the entire borrowed scene before changing any published row. */
+    for (i = 0; i < count; ++i)
+        if (!mm_preview_live_actor_view(live, i))
+            return MM_STORAGE_ARGUMENT;
+    status = mm_storage_ensure(&rows->storage, (MMU32)(count * sizeof(*actors)), 0, 0);
+    if (status != MM_STORAGE_OK)
+        return status;
+    actors = (MMPreviewActorInfo *)rows->storage.buffers[0].data;
+    for (i = 0; i < count; ++i)
+        mm_preview_actor_info(mm_preview_live_actor_view(live, i), actors + i);
+    rows->count = count;
+    return MM_STORAGE_OK;
+}
+
+int mm_preview_object_rows_replace(MMPreviewObjectRows *rows, MMI32 index, const MMPreviewActorInfo *actor)
+{
+    MMPreviewActorInfo *actors = (MMPreviewActorInfo *)rows->storage.buffers[0].data;
+    if (index < 0 || (MMU32)index >= rows->count)
+        return 0;
+    actors[index] = *actor;
+    return 1;
+}
+
+const MMPreviewActorInfo *mm_preview_object_rows_data(const MMPreviewObjectRows *rows)
+{
+    return (const MMPreviewActorInfo *)rows->storage.buffers[0].data;
+}
+
+MMI32 mm_preview_object_rows_find(const MMPreviewObjectRows *rows, MMI32 actor, int prefer_last)
+{
+    const MMPreviewActorInfo *actors = mm_preview_object_rows_data(rows);
+    MMU32 i;
+    MMI32 found = -1;
+    for (i = 0; i < rows->count; ++i)
+        if (actors[i].actor == actor)
+        {
+            found = (MMI32)i;
+            if (!prefer_last)
+                break;
+        }
+    return found;
 }
 
 int mm_preview_live_visit_cues(const MMPreviewLive *p, void *context, MMPreviewFrameCueVisitor *visit)

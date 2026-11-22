@@ -2047,6 +2047,10 @@ The C89 actor name table owns the authored roll call and the effective names
 used by object labels and the sound sheet. Live definition rebuilds stage the
 authored names, inserted names and text overlays, then publish the result
 with the scene rows. Undo uses the same rebuild path.
+Preview exposes evaluated actor states through the C89 live scene. Marcus
+captures them in reusable C89 storage when publishing scene and frame changes,
+and frame-range edits stage their own snapshot until the edit succeeds.
+Placement updates replace the affected row in the same owner.
 Working archive lookup, cache retention and reload now use the C89
 registry and archive owner. Studio and Preview supply filename and
 physical access operations for the shared selection.

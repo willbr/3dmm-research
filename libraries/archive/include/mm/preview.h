@@ -11,6 +11,8 @@ struct MMMovieActorEdits;
 struct MMMovieActorPlacement;
 struct MMMovieTextJournal;
 struct MMPreviewCue;
+struct MMPreviewActorInfo;
+struct MMPreviewObjectRows;
 struct MMActorAnimation;
 
 namespace MM
@@ -319,6 +321,10 @@ class Preview
     const PreviewInfo &Info() const;
     std::vector<PreviewObject> Objects() const;
     bool ObjectAt(int index, PreviewObject &) const;
+    // Read native actor state through the same ready-scene gate as Objects().
+    bool ReadObjectState(int index, MMPreviewActorInfo &) const;
+    // Capture into an initialized C owner. Returns MMStorageResult.
+    int CaptureObjectStates(MMPreviewObjectRows &) const;
     bool ObjectText(int object, PreviewObjectText &, Error &) const;
     bool ObjectCostumes(int object, std::vector<PreviewCostume> &, Error &) const;
     bool ObjectActions(int object, std::vector<PreviewAction> &, Error &) const;
