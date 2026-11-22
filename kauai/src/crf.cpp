@@ -35,7 +35,6 @@ RTCLASS(GenericHQ)
 RTCLASS(ResourceCache)
 RTCLASS(ChunkyResourceFile)
 RTCLASS(ChunkyResourceManager)
-RTCLASS(GenericCacheableObject)
 
 namespace
 {
@@ -715,26 +714,6 @@ void GenericHQ::MarkMem(void)
 {
     GenericHQ_PAR::MarkMem();
     MarkHq(hq);
-}
-#endif // DEBUG
-
-#ifdef DEBUG
-/***************************************************************************
-    Assert the validity of a GenericCacheableObject.
-***************************************************************************/
-void GenericCacheableObject::AssertValid(LegacyUlong grf)
-{
-    GenericCacheableObject_PAR::AssertValid(grf);
-    AssertNilOrPo(po, 0);
-}
-
-/***************************************************************************
-    Mark memory used by the GenericCacheableObject.
-***************************************************************************/
-void GenericCacheableObject::MarkMem(void)
-{
-    GenericCacheableObject_PAR::MarkMem();
-    MarkMemObj(po);
 }
 #endif // DEBUG
 

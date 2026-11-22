@@ -1013,8 +1013,7 @@ void Interpreter::_LenStr(LegacyLong stid)
 ***************************************************************************/
 static int ReadStringRegistry(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
-    const auto services = ScriptCollectionReaders();
-    return mm_script_registry_fetch(block, out, bytes, &services);
+    return mm_script_registry_fetch(block, out, bytes, &ScriptCollectionHost());
 }
 
 /***************************************************************************
@@ -1023,11 +1022,6 @@ static int ReadStringRegistry(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *blo
 void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
 {
     AssertThis(0);
-    PGenericCacheableObject pcabo;
-    PStringTable_GST pgst;
-    LegacyLong istn, stid;
-    String stn;
-    bool fFail;
 
     if (_fError)
         return;
@@ -1046,31 +1040,24 @@ void Interpreter::_MergeStrings(ChunkNumber cno, RSC rsc)
         return;
     }
 
-    if (pvNil == (pcabo = (PGenericCacheableObject)_prca->PbacoFetch(kctgStringReg, cno, ReadStringRegistry, pvNil, rsc)))
+    const MMResourceRequest request = {kctgStringReg, cno, rsc, ReadStringRegistry, MM_RESOURCE_NORMAL_PRIORITY};
+    auto table = static_cast<MMScriptCollection *>(
+        mm_resource_access_fetch(&_prca->Resources(), &request, mm_script_collection_services(), nullptr));
+    if (!table)
     {
         Debug(_WarnSz(PszLit("Reading string table failed (cno = 0x%x)"), cno));
         return;
     }
 
-    Assert(pcabo->po->FIs(kclsStringTable_GST), 0);
-    pgst = (PStringTable_GST)pcabo->po;
-    Assert(pgst->CbExtra() == size(LegacyLong), 0);
-
-    fFail = fFalse;
-    for (istn = pgst->IvMac(); istn-- > 0;)
-    {
-        pgst->GetStn(istn, &stn);
-        pgst->GetExtra(istn, &stid);
-        fFail |= !_pstrg->FPut(stid, &stn);
-    }
-
-#ifdef DEBUG
-    if (fFail)
-        _WarnSz(PszLit("Merging string table failed"));
-#endif // DEBUG
-
-    pcabo->SetCrep(crepTossFirst);
-    ReleasePpo(&pcabo);
+    const int ok = mm_script_registry_merge(table, [](void *registry, MMI32 id, const void *text, MMU32 count) -> int {
+        String stn;
+        stn.SetRgch(const_cast<achar *>(static_cast<const achar *>(text)), count);
+        return static_cast<PStringRegistry>(registry)->FPut(id, &stn);
+    }, _pstrg);
+    if (!ok)
+        Debug(_WarnSz(PszLit("Merging string table failed")));
+    mm_script_collection_priority(table, crepTossFirst);
+    mm_script_collection_release(table);
 }
 
 /***************************************************************************

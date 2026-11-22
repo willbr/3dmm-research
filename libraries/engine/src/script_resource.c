@@ -1,6 +1,8 @@
 /* Script resource loading converted from Kauai screxe.cpp and screxeg.cpp.
  * Copyright (c) Microsoft Corporation. Licensed under the MIT License. */
 #include "mm/script_resource.h"
+#include <stdlib.h>
+#include <string.h>
 
 #define GSTX 0x47535458UL
 
@@ -118,15 +120,139 @@ void *mm_script_resource_archive(const MMChunkAccess *chunks, const MMChunkPaylo
     return object;
 }
 
+struct MMScriptCollection
+{
+    MMCollectionStorage storage;
+    MMCollectionHeader header;
+    MMResourceObject binding;
+    MMReference references;
+    const MMScriptCollectionHost *host;
+};
+
+static MMResourceObject *collection_binding(void *p) { return &((MMScriptCollection *)p)->binding; }
+static MMReference *collection_refs(void *p) { return &((MMScriptCollection *)p)->references; }
+
+static void collection_destroy(void *p)
+{
+    MMScriptCollection *table = p;
+    const MMStorageAllocator *objects = table->host->objects;
+    mm_storage_dispose(&table->storage);
+    mm_resource_object_dispose(table, mm_script_collection_services());
+    if (objects)
+        objects->release(objects->context, table, sizeof(*table));
+    else
+        free(table);
+}
+
+static void collection_mark(void *p)
+{
+    MMScriptCollection *table = p;
+    if (table->host->mark)
+        table->host->mark(table, &table->storage, &table->binding);
+}
+
+const MMResourceObjectServices *mm_script_collection_services(void)
+{
+    static const MMResourceObjectServices services = {
+        collection_binding, collection_refs, collection_destroy, NULL, collection_mark};
+    return &services;
+}
+
+void mm_script_collection_release(MMScriptCollection *table)
+{
+    if (table)
+        mm_resource_object_release(table, mm_script_collection_services());
+}
+
+void mm_script_collection_priority(MMScriptCollection *table, MMI32 priority)
+{
+    mm_resource_object_priority(table, priority, mm_script_collection_services());
+}
+
+static void bind_strings(MMStringTable *view, const MMCollectionStorage *storage)
+{
+    view->strings = storage->buffers[0].data;
+    view->entries = storage->buffers[1].data;
+    view->string_capacity = storage->buffers[0].capacity;
+    view->entry_capacity = storage->buffers[1].capacity;
+}
+
+static int reserve_strings(void *context, MMStringTable *view, MMU32 strings, MMU32 entries)
+{
+    MMCollectionStorage *storage = context;
+    int result = mm_storage_ensure(storage, strings, entries, 0);
+    bind_strings(view, storage);
+    return result == MM_STORAGE_OK;
+}
+
+static MMStringTable registry_view(MMScriptCollection *table)
+{
+    MMStringTable view;
+    memset(&view, 0, sizeof(view));
+    bind_strings(&view, &table->storage);
+    view.bytes = table->header.bytes;
+    view.count = table->header.count;
+    view.stride = table->header.width;
+    view.free_count = table->header.free_count;
+    view.unit_bytes = table->host->unit_bytes;
+    view.context = &table->storage;
+    view.reserve = reserve_strings;
+    return view;
+}
+
+static int normalize_registry(MMScriptCollection *table)
+{
+    const unsigned short one = 1;
+    const MMScriptCollectionHost *host = table->host;
+    MMStringTable view = registry_view(table);
+    if (table->header.big_endian != (*(const unsigned char *)&one == 0))
+    {
+        mm_strings_swap_offsets(&view);
+        if (view.count)
+            swap_words(view.entries + 4, view.count, view.stride);
+    }
+    if (table->header.system != host->encoding &&
+        !mm_strings_translate(&view, table->header.system, host->encoding, host->convert, host->context))
+        return 0;
+    table->header.bytes = view.bytes;
+    return 1;
+}
+
+int mm_script_registry_merge(MMScriptCollection *table, MMScriptRegistryPut put, void *context)
+{
+    MMStringTable view = registry_view(table);
+    MMU32 i = view.count, count;
+    const void *text;
+    MMI32 id;
+    int ok = 1;
+    while (i--)
+    {
+        if (!mm_strings_get(&view, i, &text, &count))
+        {
+            ok = 0;
+            continue;
+        }
+        memcpy(&id, view.entries + i * view.stride + 4, 4);
+        if (!put(context, id, text, count))
+            ok = 0;
+    }
+    return ok;
+}
+
+const void *mm_script_color_rows(const MMScriptCollection *table, MMU32 *count)
+{
+    *count = table->header.count;
+    return table->storage.buffers[0].data;
+}
+
 static int fetch_collection(MMOwnedBlock *block, void **out, MMI32 *bytes, int registry,
-                            const MMScriptResourceServices *s)
+                            const MMScriptCollectionHost *s)
 {
     MMBlockIO io;
     MMReadStream stream;
-    MMStringTable strings;
-    MMArray rows;
-    void *collection = NULL, *object;
-    int other;
+    MMCollectionHeader header;
+    MMScriptCollection *table = NULL;
+    const MMStorageAllocator *objects = s->objects;
     *bytes = (MMI32)block->view.length;
     if (!out)
         return 1;
@@ -137,30 +263,29 @@ static int fetch_collection(MMOwnedBlock *block, void **out, MMI32 *bytes, int r
         goto fail;
     }
     *bytes = (MMI32)block->view.length;
-    if (mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK)
+    if (mm_owned_block_io(block, &io) != MM_DATA_OK || mm_block_io_stream(&io, &stream) != MM_DATA_OK ||
+        mm_collection_header_read(&stream, registry ? MM_COLLECTION_STRINGS : MM_COLLECTION_ARRAY, 0, &header) !=
+            MM_STORAGE_OK || header.width != (registry ? 8U : 4U))
         goto fail;
-    if (registry)
-    {
-        collection = s->read_strings(s->context, &stream, &strings, &other);
-        if (!collection || strings.stride != 8)
-            goto fail;
-        if (other && strings.count)
-            swap_words(strings.entries + 4, strings.count, strings.stride);
-    }
-    else
-    {
-        collection = s->read_rows(s->context, &stream, &rows, &other);
-        if (!collection || rows.width != 4)
-            goto fail;
-    }
-    object = s->wrap_collection(s->context, collection);
-    if (!object)
+    if (objects && (!objects->resize || !objects->release))
         goto fail;
-    *out = object;
+    table = objects ? objects->resize(objects->context, NULL, 0, sizeof(*table), MM_STORAGE_NORMAL)
+                    : malloc(sizeof(*table));
+    if (!table)
+        goto fail;
+    memset(table, 0, sizeof(*table));
+    table->host = s;
+    table->header = header;
+    mm_reference_init(&table->references);
+    mm_resource_object_init(&table->binding);
+    if (mm_storage_init(&table->storage, s->storage) != MM_STORAGE_OK ||
+        mm_storage_read(&table->storage, &stream, header.header_bytes, header.first_bytes, header.second_bytes) !=
+            MM_STORAGE_OK || (registry && !normalize_registry(table)))
+        goto fail;
+    *out = table;
     return 1;
 fail:
-    if (collection)
-        s->release(s->context, collection);
+    mm_script_collection_release(table);
     if (s->invalidate)
     {
         s->invalidate(s->context, out, sizeof(*out));
@@ -169,12 +294,12 @@ fail:
     return 0;
 }
 
-int mm_script_registry_fetch(MMOwnedBlock *block, void **out, MMI32 *bytes, const MMScriptResourceServices *s)
+int mm_script_registry_fetch(MMOwnedBlock *block, void **out, MMI32 *bytes, const MMScriptCollectionHost *s)
 {
     return fetch_collection(block, out, bytes, 1, s);
 }
 
-int mm_script_colors_fetch(MMOwnedBlock *block, void **out, MMI32 *bytes, const MMScriptResourceServices *s)
+int mm_script_colors_fetch(MMOwnedBlock *block, void **out, MMI32 *bytes, const MMScriptCollectionHost *s)
 {
     return fetch_collection(block, out, bytes, 0, s);
 }

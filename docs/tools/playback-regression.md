@@ -21229,3 +21229,33 @@ V3DMM references came from retained four-player suite
 
 Traces and Studio canvases are under `tmp/c89-resource-access`.
 Playback captures are under `tmp/c89-kd`.
+
+## C89 script string and colour tables (22 November 2026)
+
+The script registry and colour table readers own their decoded storage and
+cache references in C89. The registry preserves scoped lookup and reverse
+insertion order. Native palette transitions receive a copy of the cached
+colour rows. The script fixture checks packed reads, both byte orders,
+Windows ANSI to UTF-16 conversion, byte-exact colours, reverse merge after
+an insertion failure, malformed tables, and owner allocation failure.
+
+All 199 engine, core link, and C89 checks passed, along with 12 native x64,
+11 SDL, and six native x86 checks. The x86 Help and Chunk Editors built.
+Studio's headless retail ISO workflow passed cold and warm, including
+bundled MIDI preview. Five Studio smoke canvases, the ISO lobby canvas,
+nine movie saves, and the Help and resource cache traces matched `3fa8d037`.
+The headless room checks passed on both builds. The lobby, Studio, and
+ticket-booth captures outside the intro video matched. The video capture
+sampled a different frame, as in earlier repeated room checks. The separate
+native x64 `scene-load` test reproduced the existing fingerprint mismatch
+and identical trace.
+
+The headless SDL Studio and Marcus runs in `20261122T105524Z-bbd2cd7a`
+matched the 60 seek canvases per port, camera and actor state, continuous
+frame order, and available sound request observations from
+`20261122T104418Z-b8a6fa67`. The retail and V3DMM evidence came from retained
+four-player suite `20261122T081603Z-7ffc4e8e`. Marcus relaunched with SDL
+dummy video.
+
+Traces and Studio canvases are under `tmp/c89-script-collections`.
+Playback captures are under `tmp/c89-kd`.

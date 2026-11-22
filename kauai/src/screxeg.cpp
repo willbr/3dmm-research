@@ -1201,34 +1201,32 @@ void GraphicsObjectInterpreter::_SetColorTable(ChunkNumber cno)
 ***************************************************************************/
 PDynamicArray GraphicsObjectInterpreter::_PglclrGet(ChunkNumber cno)
 {
-    PGenericCacheableObject pcabo;
-    PDynamicArray pglclr;
-
     if (cnoNil == cno)
         return pvNil;
 
-    pcabo = (PGenericCacheableObject)_prca->PbacoFetch(kctgColorTable, cno, FReadColorTable);
-    if (pvNil == pcabo)
+    const MMResourceRequest request = {kctgColorTable, cno, rscNil, FReadColorTable, MM_RESOURCE_NORMAL_PRIORITY};
+    auto table = static_cast<MMScriptCollection *>(
+        mm_resource_access_fetch(&_prca->Resources(), &request, mm_script_collection_services(), nullptr));
+    if (!table)
         return pvNil;
 
-    pglclr = (PDynamicArray)pcabo->po;
-    AssertPo(pglclr, 0);
-    pglclr->AddRef();
-    pcabo->SetCrep(crepTossFirst);
-    ReleasePpo(&pcabo);
-
-    return pglclr;
+    MMU32 count;
+    const auto rows = mm_script_color_rows(table, &count);
+    auto palette = DynamicArray::PglNew(sizeof(Color), count);
+    if (palette && count && !palette->FInsert(0, const_cast<void *>(rows), count))
+        ReleasePpo(&palette);
+    mm_script_collection_priority(table, crepTossFirst);
+    mm_script_collection_release(table);
+    return palette;
 }
 
 /***************************************************************************
-    A chunky resource reader to read a color table. Wraps the color table in
-    a GenericCacheableObject.
+    A chunky resource reader to read a color table into a C cache owner.
 ***************************************************************************/
 int FReadColorTable(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)
 {
     static_assert(sizeof(Color) == 4, "script color row size");
-    const auto services = ScriptCollectionReaders();
-    return mm_script_colors_fetch(block, out, bytes, &services);
+    return mm_script_colors_fetch(block, out, bytes, &ScriptCollectionHost());
 }
 
 /***************************************************************************

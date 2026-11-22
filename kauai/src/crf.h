@@ -237,31 +237,6 @@ class GenericHQ : public GenericHQ_PAR
     static int FReadGhq(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *, void **, MMI32 *);
 };
 
-/***************************************************************************
-    A BaseCacheableObject wrapper around a generic object.
-***************************************************************************/
-#define GenericCacheableObject_PAR BaseCacheableObject
-typedef class GenericCacheableObject *PGenericCacheableObject;
-#define kclsGenericCacheableObject 'CABO'
-class GenericCacheableObject : public GenericCacheableObject_PAR
-{
-    RTCLASS_DEC
-    ASSERT
-    MARKMEM
-
-  public:
-    BASE *po;
-
-    GenericCacheableObject(BASE *poT)
-    {
-        po = poT;
-    }
-    ~GenericCacheableObject(void)
-    {
-        ReleasePpo(&po);
-    }
-};
-
 MMResourceCache *NewTypedPrivateCache(MMPrivateArchive *, MMI32 budget);
 MMResourceCache *NewTypedSiblingCache(const MMResourceCache *, MMI32 budget);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, PString);

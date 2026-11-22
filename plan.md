@@ -1742,6 +1742,10 @@ readers now take the cache-owned C block directly. Scripts, string registries,
 colour tables, Kidspace descriptors and cursors also use typed C block
 readers. C89 owns the descriptor records and performs the SDL cursor image
 selection. Script literals resolve in the same C archive graph as the root.
+The script string and colour tables use C-owned storage and cache references.
+C89 normalizes registry IDs, translates counted text through the host codec,
+and merges rows in reverse order. The transition adapter supplies native
+palette data from the cached colour rows.
 Streamed MIDI builds device events directly from the cached track in C89.
 Background and MSND headers use the already-bound cache block. C89 prepares
 the retained file, memory or temporary-file backing for classic AudioMan.
