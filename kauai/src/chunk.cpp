@@ -1014,15 +1014,6 @@ int KauaiEncodeLegacyChunkName(void *, const char *text, void *wire, MMU32 capac
     return 1;
 }
 
-/***************************************************************************
-    Bind the native path operations for publishing an archive save.
-***************************************************************************/
-namespace {
-struct ChunkSavePath
-{
-    Filename *directory, *target;
-};
-}
 bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
 {
     AssertThis(fcflFull | fcflGraph);
@@ -1034,35 +1025,36 @@ bool ChunkyFile::FSave(ChunkTagOrType ctgCreator, Filename *pfni)
 
 bool KauaiSaveChunkOwner(MMChunkOwnerStorage *storage, ChunkTagOrType creator, Filename *pfni)
 {
-    const auto &files = storage->owner->files;
-    Filename fni;
-    if (files.invalid_main)
-    {
-        if (!pfni) { Bug("can't save a ChunkyFile that has no file attached!"); return fFalse; }
-        fni = *pfni;
-    }
-    else
-    {
-        static_cast<PFileObject>(files.main_file)->GetFni(&fni);
-        if (pfni)
-        {
-            if (pfni->FEqual(&fni)) pfni = nullptr;
-            else fni = *pfni;
-        }
-    }
-    ChunkSavePath path = {&fni, pfni};
-    const MMChunkOwnerSaveTarget target = {&path,
-        [](void *context) -> void * { return FileObject::PfilCreateTemp(static_cast<ChunkSavePath *>(context)->directory); },
-        [](void *context, void *file) -> int {
-            auto name = static_cast<ChunkSavePath *>(context)->target;
+    const MMChunkOwnerSavePaths paths = {nullptr,
+        [](void *, void *file, void *path) -> int {
+            Filename name;
+            static_cast<PFileObject>(file)->GetFni(&name);
+            return static_cast<PFilename>(path)->FEqual(&name);
+        },
+        [](void *, void *current, void *path) -> void * {
+            Filename directory;
+            if (path)
+                directory = *static_cast<PFilename>(path);
+            else
+                static_cast<PFileObject>(current)->GetFni(&directory);
+            return FileObject::PfilCreateTemp(&directory);
+        },
+        [](void *, void *file, void *path) -> int {
+            auto name = static_cast<PFilename>(path);
             if (name->TExists() != tNo) name->FDelete();
             return static_cast<PFileObject>(file)->FRename(name);
         },
         [](void *, void *file, void *old) -> int {
             return static_cast<PFileObject>(file)->FSwapNames(static_cast<PFileObject>(old));
         }};
-    const bool ok = mm_chunk_owner_save(storage, &target, pfni != nullptr, creator, koskCur) == MM_CHUNK_OK;
-    if (!ok) PushErc(ercCflSave);
+    const bool ok = mm_chunk_owner_save(storage, &paths, pfni, creator, koskCur) == MM_CHUNK_OK;
+    if (!ok)
+    {
+        if (!pfni && storage->owner->files.invalid_main)
+            Bug("can't save a ChunkyFile that has no file attached!");
+        else
+            PushErc(ercCflSave);
+    }
     return ok;
 }
 

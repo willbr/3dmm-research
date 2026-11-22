@@ -20733,3 +20733,30 @@ indices. The caption and pause save rendered all 11 frames across two
 scenes, including both lines of the caption at frame 4.
 
 Evidence is under tmp/c89-scene-save-binding.
+
+## C89 archive save destinations (22 November 2026)
+
+The shared chunk owner now chooses direct saves, staged same-name replacement
+and Save As from the requested path and current main file. Studio supplies
+native path comparison, temporary-file creation, rename and name swap.
+Marcus working archives use the same owner for direct saves. The chunk-owner
+fixture covers an unnamed invalid main file, direct and staged same-name
+saves, and a failed Save As followed by a successful retry, for both index
+widths.
+
+All 193 rebuilt C89 checks and the strict C89 syntax check passed. Native
+x64 movie save/load, scene-content and Marcus storyboard export passed.
+SDL movie save/load, scene-content, V3DMM packaging and both Studio workflows
+passed. Four native snapshots matched their prior bytes, including the
+29,440-byte movie save trace. The camera fixture preserved its graph and
+payload bytes, with two TMPL index padding bytes differing. The full Studio
+workflow loaded additional optional libraries in this run. Its saved movie
+differs from the prior run in the registered source-name table.
+
+Retail reopened the resulting camera and caption saves in
+20261122T013916Z-53799d02. The 60 camera frames and 11 caption frames matched
+the prior retail canvases and camera indices. The three runs reported in
+20261122T014010Z-3a508152 include those two retained retail captures and a
+fresh V3DMM run matching all 60 retail camera-cut frames and camera indices.
+
+Evidence is under tmp/c89-archive-save-path.

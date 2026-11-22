@@ -544,7 +544,8 @@ int mm_chunk_archive_close(MMChunkArchive *archive)
 typedef struct OwnerSave
 {
     MMChunkOwnerStorage *storage;
-    const MMChunkOwnerSaveTarget *target;
+    const MMChunkOwnerSavePaths *paths;
+    void *path;
     int system;
 } OwnerSave;
 
@@ -570,8 +571,8 @@ static MMChunkSaveIndex save_index(MMChunkTable *table)
 
 static void *save_temp(void *p)
 {
-    const MMChunkOwnerSaveTarget *target = ((const OwnerSave *)p)->target;
-    return target->create_temp(target->context);
+    const OwnerSave *save = p;
+    return save->paths->create_temp(save->paths->context, save->storage->owner->files.main_file, save->path);
 }
 
 static int save_resize(void *p, void *file, MMU32 bytes)
@@ -624,14 +625,14 @@ static int save_directory(void *p, const MMChunkSaveState *state, MMU32 creator)
 
 static int save_rename(void *p, void *file)
 {
-    const MMChunkOwnerSaveTarget *target = ((const OwnerSave *)p)->target;
-    return target->rename(target->context, file);
+    const OwnerSave *save = p;
+    return save->paths->rename(save->paths->context, file, save->path);
 }
 
 static int save_swap(void *p, void *file, void *old)
 {
-    const MMChunkOwnerSaveTarget *target = ((const OwnerSave *)p)->target;
-    return target->swap_names(target->context, file, old);
+    const OwnerSave *save = p;
+    return save->paths->swap_names(save->paths->context, file, old);
 }
 
 static void save_publish(void *p, const MMChunkSaveState *state)
@@ -639,8 +640,8 @@ static void save_publish(void *p, const MMChunkSaveState *state)
     mm_chunk_owner_publish_save(((const OwnerSave *)p)->storage->owner, state);
 }
 
-int mm_chunk_owner_save(MMChunkOwnerStorage *storage, const MMChunkOwnerSaveTarget *target,
-                        int named, MMU32 creator, int system)
+int mm_chunk_owner_save(MMChunkOwnerStorage *storage, const MMChunkOwnerSavePaths *paths,
+                        void *path, MMU32 creator, int system)
 {
     MMChunkSaveState state = mm_chunk_owner_save_state(storage->owner);
     MMChunkTable *table = owner_table(storage);
@@ -651,18 +652,26 @@ int mm_chunk_owner_save(MMChunkOwnerStorage *storage, const MMChunkOwnerSaveTarg
                                     save_release_map, save_is_temp, save_set_temp, save_directory,
                                     save_rename, save_swap, save_publish};
     int status;
-    if (!table || !io->write_at)
+    if (!table || !io->write_at || (state.invalid_main ? !path : !state.main_file))
         return MM_CHUNK_BAD_FILE;
-    if ((named || state.add_to_extra || state.extra_file) &&
-        (!target || !target->create_temp || (named ? !target->rename : !target->swap_names) ||
+    if (path && !state.invalid_main)
+    {
+        if (!paths || !paths->matches)
+            return MM_CHUNK_BAD_FILE;
+        if (paths->matches(paths->context, state.main_file, path))
+            path = NULL;
+    }
+    if ((path || state.add_to_extra || state.extra_file) &&
+        (!paths || !paths->create_temp || (path ? !paths->rename : !paths->swap_names) ||
          !io->resize || !io->copy || !io->release || !io->is_temp || !io->set_temp))
         return MM_CHUNK_BAD_FILE;
     save.storage = storage;
-    save.target = target;
+    save.paths = paths;
+    save.path = path;
     save.system = system;
     index = save_index(table);
     services.context = &save;
-    status = mm_chunk_save(&state, &index, &services, creator, named);
+    status = mm_chunk_save(&state, &index, &services, creator, path != NULL);
     save_publish(&save, &state);
     return status;
 }

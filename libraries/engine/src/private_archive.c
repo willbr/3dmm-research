@@ -558,6 +558,6 @@ int mm_private_archive_bind_font(MMPrivateArchive *archive, const MMChunkEndpoin
 int mm_private_archive_save(MMPrivateArchive *archive, MMU32 creator)
 {
     return archive->writable &&
-           mm_chunk_owner_save(mm_private_archive_reader(archive)->storage, NULL, 0, creator,
+           mm_chunk_owner_save(mm_private_archive_reader(archive)->storage, NULL, NULL, creator,
                                archive->profile.encoding) == MM_CHUNK_OK;
 }

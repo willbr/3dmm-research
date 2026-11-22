@@ -334,10 +334,10 @@ typedef struct TestFile
 
 typedef struct StorageHost
 {
-    TestFile main, extra, staging[2];
+    TestFile main, extra, staging[3];
     const MMChunkOwner *saving;
     int create_fails, copy_fails, last_issue, creates, copies;
-    int saved, rename_fails;
+    int saved, swapped, rename_fails;
     int trace[3];
 } StorageHost;
 
@@ -578,22 +578,41 @@ static void bind_archive(MMChunkOwnerStorage *storage, MMChunkOwner *owner, cons
     mm_chunk_owner_bind_storage(storage, owner, NULL, 32, io);
 }
 
-static void *create_save_temp(void *p)
+static int save_path_matches(void *p, void *file, void *path)
+{
+    (void)p;
+    return file == path;
+}
+
+static void *create_save_temp(void *p, void *current, void *path)
 {
     StorageHost *host = p;
     TestFile *file;
-    CHECK(host->saved < 2);
+    CHECK(host->saving->files.main_file == current);
+    CHECK(path == (host->saved < 2 ? &host->main : NULL));
+    CHECK(host->saved < 3);
     file = host->staging + host->saved++;
     file->temporary = 1;
     return file;
 }
 
-static int rename_save(void *p, void *file)
+static int rename_save(void *p, void *file, void *path)
 {
     const StorageHost *host = p;
+    CHECK(path == &host->main);
     CHECK(host->saving->files.main_file == file && !host->saving->files.extra_file);
     CHECK(!memcmp(((TestFile *)file)->bytes, "CHN2", 4));
     return !host->rename_fails;
+}
+
+static int swap_save(void *p, void *file, void *old)
+{
+    StorageHost *host = p;
+    CHECK(host->saving->files.main_file == file && !host->saving->files.extra_file);
+    CHECK(old == &host->staging[1] && file == &host->staging[2]);
+    CHECK(!memcmp(((TestFile *)file)->bytes, "CHN2", 4));
+    ++host->swapped;
+    return 1;
 }
 
 static void persistence_cases(int expanded)
@@ -605,7 +624,7 @@ static void persistence_cases(int expanded)
     MMChunkOwner owner, loaded, destination;
     MMChunkOwnerStorage storage, source, target;
     MMChunkOwnerFileIO io;
-    MMChunkOwnerSaveTarget save_target = {NULL, create_save_temp, rename_save, NULL};
+    MMChunkOwnerSavePaths save_paths = {NULL, save_path_matches, create_save_temp, rename_save, swap_save};
     MMChunkLocation location;
     MMChunkEdit edit;
     MMChunkNames names;
@@ -633,7 +652,12 @@ static void persistence_cases(int expanded)
     CHECK(mm_chunk_add(&edit, 1, 3, 2, 0, NULL) == MM_CHUNK_OK);
     names = mm_chunk_table_names(owner.files.index, 32);
     CHECK(mm_chunk_name_set(&names, 0, &value) == MM_CHUNK_OK);
-    CHECK(mm_chunk_owner_save(&storage, NULL, 0, save_creator, system) == MM_CHUNK_OK);
+    owner.files.invalid_main = 1;
+    CHECK(mm_chunk_owner_save(&storage, NULL, NULL, save_creator, system) == MM_CHUNK_BAD_FILE);
+    owner.files.invalid_main = 0;
+    CHECK(mm_chunk_owner_save(&storage, NULL, NULL, save_creator, system) == MM_CHUNK_OK);
+    CHECK(mm_chunk_owner_save(&storage, &save_paths, &host.main, save_creator, system) == MM_CHUNK_OK);
+    CHECK(owner.files.main_file == &host.main && !host.saved);
     stream = file_stream(&host.main);
     CHECK(mm_chunk_read_header(&stream, &header) == MM_CHUNK_OK &&
           header.creator == save_creator && header.index_offset == 142 && header.map_bytes == 20);
@@ -699,19 +723,22 @@ static void persistence_cases(int expanded)
     }
 
     host.saving = &loaded;
-    save_target.context = &host;
+    save_paths.context = &host;
     host.rename_fails = 1;
-    CHECK(mm_chunk_owner_save(&source, &save_target, 1, save_creator, system) == MM_CHUNK_IO);
+    CHECK(mm_chunk_owner_save(&source, &save_paths, &host.main, save_creator, system) == MM_CHUNK_IO);
     CHECK(loaded.files.main_file == &reopened && loaded.files.main_end == 128 && !loaded.files.main_map);
     CHECK(loaded.files.extra_file == host.staging && loaded.files.extra_end == 138 && host.staging[0].temporary);
     CHECK(!reopened.releases && host.extra.releases == 1 && edit.runtime(edit.context, 1, 0) == 29);
     CHECK(edit.entry(edit.context, 2, &row) && row.number == 3 && !row.offset && !(row.flags & 1));
     host.rename_fails = 0;
-    CHECK(mm_chunk_owner_save(&source, &save_target, 1, save_creator, system) == MM_CHUNK_OK);
+    CHECK(mm_chunk_owner_save(&source, &save_paths, &host.main, save_creator, system) == MM_CHUNK_OK);
     CHECK(loaded.files.main_file == host.staging + 1 && loaded.files.main_end == 138 && !loaded.files.extra_file);
     CHECK(reopened.releases == 1 && host.staging[0].releases == 1 && edit.runtime(edit.context, 1, 0) == 29);
     CHECK(!memcmp(host.staging[1].bytes + 128, "onelastout", 10));
-    CHECK(mm_chunk_owner_dispose(&loaded, &storage_disposal) == MM_CHUNK_OK && host.staging[1].releases == 1);
+    CHECK(mm_chunk_owner_save(&source, &save_paths, loaded.files.main_file, save_creator, system) == MM_CHUNK_OK);
+    CHECK(host.swapped == 1 && loaded.files.main_file == host.staging + 2 && loaded.files.main_end == 138);
+    CHECK(host.staging[1].releases == 1 && !memcmp(host.staging[2].bytes + 128, "onelastout", 10));
+    CHECK(mm_chunk_owner_dispose(&loaded, &storage_disposal) == MM_CHUNK_OK && host.staging[2].releases == 1);
     CHECK(mm_chunk_owner_dispose(&owner, &storage_disposal) == MM_CHUNK_OK && host.main.releases == 1);
 }
 

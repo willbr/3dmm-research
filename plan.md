@@ -1795,8 +1795,10 @@ publishes images, camera transforms and redraw requests. Preview uses the
 same background decoders with its archive-graph renderer. Studio scene
 save, transition editing and undo snapshots bind their live or private
 archive in C89, including embedded asset copy and editor cleanup. Movie,
-scene and actor loads borrow the live graph through the C89 cache. Native
-services provide title conversion, object rendering and file publication.
+scene and actor loads borrow the live graph through the C89 cache. Studio's
+in-place saves, same-name replacement and Save As use the same C89 archive
+owner as Marcus working-file saves. Native services provide title conversion,
+object rendering and filesystem operations.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

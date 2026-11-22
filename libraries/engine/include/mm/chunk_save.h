@@ -27,7 +27,7 @@ extern "C"
     typedef struct MMChunkSaveServices
     {
         void *context;
-        void *(*create_temp)(void *); /* Same directory as the host-resolved target. */
+        void *(*create_temp)(void *); /* Same directory as the selected target. */
         int (*resize)(void *, void *file, MMU32 bytes);
         int (*copy)(void *, void *source, MMU32 source_offset, void *destination, MMU32 destination_offset,
                     MMU32 bytes);
@@ -43,8 +43,8 @@ extern "C"
         void (*publish)(void *, const MMChunkSaveState *);
     } MMChunkSaveServices;
     /* State owns the file/map references on entry and return, including failure.
-     * Non-null release callbacks consume one reference. Named means the host has
-     * resolved an explicit target different from the current name. Direct saves
+     * Non-null release callbacks consume one reference. Named selects an explicit
+     * target different from the current name. Direct saves
      * write only the index. Relocation copies nonempty chunks before changing any
      * index/state, normalizes empty offsets to zero, and retains runtime flag bits.
      * On commit/naming failure a valid old main becomes main again and the copied

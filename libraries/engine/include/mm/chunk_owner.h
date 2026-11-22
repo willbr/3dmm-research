@@ -115,17 +115,20 @@ extern "C"
     MMChunkOwnerRead *mm_chunk_archive_reader(MMChunkArchive *);
     int mm_chunk_archive_close(MMChunkArchive *);
 
-    typedef struct MMChunkOwnerSaveTarget
+    typedef struct MMChunkOwnerSavePaths
     {
         void *context;
-        void *(*create_temp)(void *); /* New reference in the destination directory. */
-        int (*rename)(void *, void *file);
+        int (*matches)(void *, void *file, void *path);
+        /* New reference in the directory of path, or of current when path is NULL. */
+        void *(*create_temp)(void *, void *current, void *path);
+        int (*rename)(void *, void *file, void *path);
         int (*swap_names)(void *, void *new_file, void *old_file);
-    } MMChunkOwnerSaveTarget;
-    /* NULL target supports direct saves. Relocation uses a host-resolved
-     * target, with named set for an explicit path different from the main file. */
-    int mm_chunk_owner_save(MMChunkOwnerStorage *, const MMChunkOwnerSaveTarget *,
-                            int named, MMU32 creator, int system);
+    } MMChunkOwnerSavePaths;
+    /* An omitted path or a match for the current main file keeps the current name.
+     * Relocation uses the supplied path operations. A direct save without a
+     * path needs no path services. Path and services are borrowed for the call. */
+    int mm_chunk_owner_save(MMChunkOwnerStorage *, const MMChunkOwnerSavePaths *,
+                            void *path, MMU32 creator, int system);
     /* Destination owns a fresh writable file and empty table of the same width.
      * A failed copy may leave partial output for its owner to discard. The source
      * is unchanged. Optional directory_failed reports failure after the payload
