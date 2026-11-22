@@ -3,13 +3,13 @@
 #define MM_TEXT_FORMAT_NO_LATE_INPUT
 #include "text_format_test_host.h"
 #include "text_argument_view_fixture.h"
+#include "chunk_writer_fixture.h"
 typedef struct HelpHost
 {
     Host h;
     MMHelpEditServices edit;
     MMHelpArgumentServices arg;
     MMHelpReadServices read;
-    MMHelpSaveServices save;
     MMHelpTopic topic, output;
     MMCollectionStorage argument_storage;
     MMGroup argument_rows;
@@ -20,7 +20,7 @@ typedef struct HelpHost
     MMI32 wire_size, payload_size;
     MMU32 published[4];
     int frees, bad, partial, forest, source, owned, base_result;
-    int name_size, decoded, cleared, missing, replacements, copy, erase_result, reject_adopt;
+    int name_size, decoded, cleared, missing, replacements, copy;
     char content[128];
     MMI32 length, ids[8];
     unsigned id_count, unit;
@@ -247,48 +247,64 @@ static void missing_string(void *v)
 {
     ++((HelpHost *)v)->missing;
 }
-static void save_type(void *v, MMU32 type)
+typedef struct HelpSaveFixture
 {
-    CHECK(type == MM_HELP_TOPIC);
-    event((Host *)v, 'Y');
+    HelpHost help;
+    ChunkWriterFixture archive;
+    MMU32 type, number;
+} HelpSaveFixture;
+
+static int save_extent(void *v, MMU32 bytes, MMChunkLocation *out)
+{
+    ChunkIndexFixture *index = v;
+    HelpSaveFixture *f = index->observer;
+    CHECK(f->type == MM_HELP_TOPIC && f->number == 1 && bytes == 36);
+    out->file = &f->archive;
+    out->offset = 64;
+    out->bytes = bytes;
+    out->flags = 0;
+    return effect(&f->help.h, 'A');
 }
-static int save_add(void *v, MMU32 type, MMU32 *number)
+static int save_write(void *v, void *file, MMU32 offset, const void *bytes, size_t count)
 {
-    CHECK(type == MM_HELP_TOPIC);
-    *number = 9;
-    return effect((Host *)v, 'A');
-}
-static int save_write(void *v, const unsigned char *bytes)
-{
-    HelpHost *h = (HelpHost *)v;
-    CHECK(!memcmp(bytes, h->wire, 36));
-    return effect(&h->h, 'W');
+    ChunkWriterFixture *archive = v;
+    HelpSaveFixture *f = archive->context;
+    CHECK(file == archive && archive->file_refs == 1 && offset == 64 && count == 36);
+    CHECK(!memcmp(bytes, f->help.wire, count));
+    return effect(&f->help.h, 'W');
 }
 static int save_rich(void *v, MMTextChunk *out)
 {
-    out->type = 17;
-    out->number = 23;
-    return effect((Host *)v, 'R');
-}
-static int save_adopt(void *v, const MMTextChunk *p, const MMTextChunk *c)
-{
-    HelpHost *h = (HelpHost *)v;
-    CHECK(p->type == MM_HELP_TOPIC && p->number == 9 && c->type == 17 && c->number == 23);
-    return h->reject_adopt ? (event(&h->h, 'J'), 0) : effect(&h->h, 'J');
-}
-static int save_erase(void *v, const MMTextChunk *p)
-{
-    HelpHost *h = (HelpHost *)v;
-    if (h->erase_result && p->type != MM_HELP_TOPIC)
+    HelpSaveFixture *f = v;
+    const int result = effect(&f->help.h, 'R');
+    CHECK(f->type == MM_HELP_TOPIC && f->number == 1 && f->archive.index.count == 2 && !f->archive.file_refs);
+    if (result > 0)
     {
-        event(&h->h, 'c');
-        return h->erase_result;
+        out->type = MM_TEXT_ROOT;
+        out->number = 23;
+        fixture_chunk_add(&f->archive.index, out->type, out->number);
     }
-    return effect((Host *)v, p->type == MM_HELP_TOPIC ? 'p' : 'c');
+    return result;
+}
+static int save_adopt(void *v, MMU32 parent, const MMChunkChild *child)
+{
+    HelpSaveFixture *f = v;
+    CHECK(parent == 1 && child->type == MM_TEXT_ROOT && child->number == 23 && child->slot == 0);
+    return effect(&f->help.h, 'J');
+}
+static void save_erase(void *v, const MMChunkEntry *entry)
+{
+    HelpSaveFixture *f = v;
+    if (entry->type)
+        event(&f->help.h, entry->type == MM_HELP_TOPIC ? 'p' : 'c');
+}
+static void save_invalidate(MMU32 *number)
+{
+    *number = 0xdeadbeefUL;
 }
 static void save_error(void *v)
 {
-    event((Host *)v, '!');
+    event(&((HelpSaveFixture *)v)->help.h, '!');
 }
 static void help_init(HelpHost *h, unsigned unit, int big)
 {
@@ -347,14 +363,6 @@ static void help_init(HelpHost *h, unsigned unit, int big)
     h->read.replace = replace_text;
     h->read.missing = missing_string;
     h->read.validate = validate;
-    h->save.context = h;
-    h->save.publish_type = save_type;
-    h->save.add = save_add;
-    h->save.write = save_write;
-    h->save.rich = save_rich;
-    h->save.adopt = save_adopt;
-    h->save.erase = save_erase;
-    h->save.error = save_error;
 }
 static int read_topic(HelpHost *h, int flags)
 {
@@ -577,43 +585,49 @@ static void reading(unsigned unit, int big)
     h.length = 12;
     CHECK(read_topic(&h, 2) && h.ids[0] == 0 && h.length == 5);
 }
+static int save_topic(HelpSaveFixture *f, int big, int fail, int result)
+{
+    MMHelpSaveServices services = {NULL, save_rich, save_error};
+    MMArchiveWriter writer = chunk_writer_fixture(&f->archive, f, save_extent, save_write);
+    help_init(&f->help, 1, big);
+    f->type = f->number = 99;
+    f->archive.index.before_insert = save_adopt;
+    f->archive.index.before_delete = save_erase;
+    fixture_chunk_add(&f->archive.index, MM_HELP_TOPIC, 0);
+    writer.invalidate_number = save_invalidate;
+    f->help.h.fail = fail;
+    f->help.h.result = result;
+    services.context = f;
+    return mm_help_save(&f->help.topic, &f->type, &f->number, 3, big, &writer, &services);
+}
+
 static void saving(int big)
 {
-    HelpHost h;
-    MMTextChunk out;
+    HelpSaveFixture f;
     const char *faults = "AWRJ";
-    const char *logs[] = {"YA!", "YAWp!", "YAWRp!", "YAWRJcp!"};
+    const char *logs[] = {"A!", "AWp!", "AWRp!", "AWRJcp!"};
+    MMChunkAccess chunks;
+    MMChunkEntry child;
+    MMU32 number, position;
     unsigned i;
     int r;
-    help_init(&h, 1, big);
-    CHECK(mm_help_save(&h.topic, &out, 3, big, &h.save));
-    CHECK(!strcmp(h.h.log, "YAWRJ") && out.type == MM_HELP_TOPIC && out.number == 9);
+    CHECK(save_topic(&f, big, 0, 0) == 1);
+    CHECK(!strcmp(f.help.h.log, "AWRJ") && f.type == MM_HELP_TOPIC && f.number == 1 && !f.archive.file_refs);
+    chunks = fixture_chunk_access(&f.archive.index);
+    CHECK(chunks.count == 3 && mm_chunk_link_number(&chunks, MM_HELP_TOPIC, 1, 0, MM_TEXT_ROOT, &number) == MM_CHUNK_OK &&
+          number == 23 && mm_chunk_find(&chunks, MM_TEXT_ROOT, number, &position) == MM_CHUNK_OK &&
+          mm_chunk_at(&chunks, position, &child) == MM_CHUNK_OK && child.parent_count == 1 && !(child.flags & MM_CHUNK_LONER));
     for (i = 0; i < 4; ++i)
-        for (r = -2; r <= 0; ++r)
-        {
-            help_init(&h, 1, big);
-            h.h.fail = faults[i];
-            h.h.result = r;
-            CHECK(mm_help_save(&h.topic, &out, 3, big, &h.save) == r);
-            CHECK(out.type == MM_HELP_TOPIC && out.number == 9);
-            if (!r)
-                CHECK(!strcmp(h.h.log, logs[i]));
-            else
-                CHECK(!strchr(h.h.log, '!') && !strchr(h.h.log, 'p') && !strchr(h.h.log, 'c'));
-        }
+    {
+        CHECK(!save_topic(&f, big, faults[i], 0));
+        CHECK(f.type == MM_HELP_TOPIC && f.number == (i ? 1UL : 0xdeadbeefUL) && !f.archive.file_refs);
+        CHECK(!strcmp(f.help.h.log, logs[i]) && f.archive.index.count == 1 && f.archive.index.rows[0].entry.number == 0);
+    }
     for (r = -2; r < 0; ++r)
     {
-        help_init(&h, 1, big);
-        h.reject_adopt = 1;
-        h.erase_result = r;
-        CHECK(mm_help_save(&h.topic, &out, 3, big, &h.save) == r);
-        CHECK(!strcmp(h.h.log, "YAWRJc"));
-        help_init(&h, 1, big);
-        h.reject_adopt = 1;
-        h.h.fail = 'p';
-        h.h.result = r;
-        CHECK(mm_help_save(&h.topic, &out, 3, big, &h.save) == r);
-        CHECK(!strcmp(h.h.log, "YAWRJcp"));
+        CHECK(save_topic(&f, big, 'R', r) == r);
+        CHECK(!strcmp(f.help.h.log, "AWR") && f.type == MM_HELP_TOPIC && f.number == 1 && !f.archive.file_refs &&
+              f.archive.index.count == 2);
     }
 }
 int main(void)

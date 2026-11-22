@@ -66,15 +66,11 @@ extern "C"
         int (*replace)(void *, const MMMovieTitle *, MMI32 cp, MMI32 deleted);
         void (*missing)(void *), (*validate)(void *);
     } MMHelpReadServices;
+    struct MMArchiveWriter;
     typedef struct MMHelpSaveServices
     {
         void *context;
-        void (*publish_type)(void *, MMU32);
-        int (*add)(void *, MMU32 type, MMU32 *number);
-        int (*write)(void *, const unsigned char bytes[36]);
         int (*rich)(void *, MMTextChunk *);
-        int (*adopt)(void *, const MMTextChunk *, const MMTextChunk *);
-        int (*erase)(void *, const MMTextChunk *);
         void (*error)(void *);
     } MMHelpSaveServices;
     /* Valid native ranges and initialized owners. Services are synchronous 1/0 or
@@ -99,7 +95,8 @@ extern "C"
      * file/buffer owners and group locks release before native rethrow. */
     int mm_help_read(MMHelpTopic *, void *file, MMU32 type, MMU32 number, MMU32 flags, int strings, unsigned unit,
                      int big, const MMHelpReadServices *);
-    int mm_help_save(const MMHelpTopic *, MMTextChunk *, int system, int big, const MMHelpSaveServices *);
+    int mm_help_save(const MMHelpTopic *, MMU32 *type, MMU32 *number, int system, int big,
+                     const struct MMArchiveWriter *, const MMHelpSaveServices *);
 #ifdef __cplusplus
 }
 #endif

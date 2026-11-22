@@ -1823,6 +1823,9 @@ Studio loads embedded help archives through the C89 resource cache and
 read-only archive owner. The owner decodes and retains the forest's file
 extent independently of the outer cache. Help text and artwork read from
 the C cache, with the host supplying file access, decoding and drawing.
+Help topic saves use the C89 archive writer to allocate the root, write its
+header, link the rich-text child and clean up failed writes. The native
+document supplies its live rich-text view to the existing shared writer.
 Studio and Marcus share the C89 rich-text binding for stored TEXT extents,
 file references and bounded reads. Preview uses the same decoder for the
 authored TEXT encoding marker. Studio's live property and argument tables

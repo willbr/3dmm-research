@@ -1,5 +1,7 @@
 #ifndef HELP_TEXT_FIXTURE_H
 #define HELP_TEXT_FIXTURE_H
+#include "movie_archive_host.h"
+#include "resource_archive_host.h"
 #pragma push_macro("size")
 #undef size
 struct HelpTextProbe : Help::TextDocument
@@ -23,7 +25,11 @@ struct HelpTextProbe : Help::TextDocument
     }
     bool Load(PChunkyResourceFile cache, ChunkIdentification root)
     {
-        return _FReadResource(cache->CoreCache(), root.ctg, root.cno, nullptr, 0);
+        return Load(cache->CoreCache(), root);
+    }
+    bool Load(MMResourceCache *cache, ChunkIdentification root)
+    {
+        return _FReadResource(cache, root.ctg, root.cno, nullptr, 0);
     }
     bool Arg(LiveTextTrace &t, byte kind, const std::vector<byte> &bytes, short order)
     {
@@ -180,6 +186,39 @@ static bool TestHelpText()
         if (loaded.cnoBalloon != expectedTopic.cnoBalloon || loaded.hidThis != expectedTopic.hidThis)
             return false;
         ReleasePpo(&p);
+    }
+    {
+        Filename path;
+        if (!path.FGetTemp())
+            return false;
+        auto target = OpenWorkingResourceCache(&path, true);
+        if (!target)
+            return false;
+        auto copy = NewObj HelpTextProbe(cache);
+        p = NewObj HelpTextProbe(cache);
+        std::vector<achar> original(expectedLength);
+        bool saved = false;
+        if (p && copy && p->Load(cache, root) && p->CpMac() == expectedLength)
+        {
+            p->FetchRgch(0, expectedLength, original.data());
+            MovieArchiveHost archive(mm_resource_cache_reader(target), mm_resource_cache_writer(target));
+            ChunkIdentification written;
+            saved = p->FSaveHelpArchive(archive.Editor(), archive.Writer(), &written, true) &&
+                    written.ctg == root.ctg && copy->Load(target, written);
+        }
+        mm_resource_cache_release(target);
+        saved = saved && p->CpMac() == expectedLength && copy->CpMac() == expectedLength;
+        if (saved)
+        {
+            std::vector<achar> redirected(expectedLength), reopened(expectedLength);
+            p->FetchRgch(0, expectedLength, redirected.data());
+            copy->FetchRgch(0, expectedLength, reopened.data());
+            saved = redirected == original && reopened == original;
+        }
+        ReleasePpo(&copy);
+        ReleasePpo(&p);
+        if (!saved)
+            return false;
     }
     ReleasePpo(&cache);
     ReleasePpo(&file);

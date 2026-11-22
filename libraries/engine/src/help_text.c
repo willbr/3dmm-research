@@ -1,4 +1,5 @@
 #include "mm/help_text.h"
+#include "mm/chunk_storage.h"
 #include "mm/wide.h"
 #include <string.h>
 static MMU32 get(const unsigned char *p, unsigned n, int big)
@@ -329,44 +330,44 @@ done:
         s->release(s->context, owned);
     return r;
 }
-int mm_help_save(const MMHelpTopic *topic, MMTextChunk *out, int system, int big, const MMHelpSaveServices *s)
+int mm_help_save(const MMHelpTopic *topic, MMU32 *type, MMU32 *number, int system, int big,
+                 const MMArchiveWriter *archive, const MMHelpSaveServices *s)
 {
     unsigned char bytes[36];
     MMTextChunk child;
-    int r, t;
-    out->type = MM_HELP_TOPIC;
-    s->publish_type(s->context, out->type);
-    mm_help_topic_encode(topic, system, big, bytes);
-    r = s->add(s->context, out->type, &out->number);
-    if (r < 0)
-        return r;
-    if (!r)
-    {
-        s->error(s->context);
-        return 0;
-    }
-    r = s->write(s->context, bytes);
-    if (r < 0)
-        return r;
-    if (!r)
+    MMChunkChild link;
+    MMOwnedBlock block;
+    MMBlockIO io;
+    int r;
+    *type = MM_HELP_TOPIC;
+    if (!archive->payloads ||
+        mm_owned_block_init(&block, archive->payloads->handles, archive->payloads->files) != MM_DATA_OK)
         goto fail;
+    mm_help_topic_encode(topic, system, big, bytes);
+    if (mm_archive_add_block(archive, *type, sizeof(bytes), number, &block) != MM_CHUNK_OK)
+    {
+        mm_owned_block_clear(&block);
+        goto fail;
+    }
+    r = mm_owned_block_io(&block, &io) == MM_DATA_OK &&
+        mm_block_write(&io, 0, bytes, sizeof(bytes), 0) == MM_DATA_OK;
+    mm_owned_block_clear(&block);
+    if (!r)
+        goto remove_root;
     r = s->rich(s->context, &child);
     if (r < 0)
         return r;
     if (!r)
-        goto fail;
-    r = s->adopt(s->context, out, &child);
-    if (r < 0)
-        return r;
-    if (r)
+        goto remove_root;
+    link.type = child.type;
+    link.number = child.number;
+    link.slot = 0;
+    if (mm_chunk_adopt(&archive->edit, *type, *number, &link, 1) == MM_CHUNK_OK)
         return 1;
-    t = s->erase(s->context, &child);
-    if (t < 0)
-        return t;
+    mm_chunk_delete(&archive->edit, child.type, child.number);
+remove_root:
+    mm_chunk_delete(&archive->edit, *type, *number);
 fail:
-    t = s->erase(s->context, out);
-    if (t < 0)
-        return t;
     s->error(s->context);
     return 0;
 }

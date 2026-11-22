@@ -21077,3 +21077,30 @@ and V3DMM captures and reran SDL Studio and Marcus.
 
 Traces and Studio canvases are under `tmp/c89-help-archive`. Playback
 captures are under `tmp/c89-rscap`.
+
+## C89 Help topic archive writes (22 November 2026)
+
+The C89 writer allocates the Help topic root, writes its header, and adopts
+the rich-text child at slot zero. The fixtures cover both byte orders, early
+chunk number publication, and cleanup after allocation, write, child save or
+link failures. The native document also saves into a C-owned working archive
+and verifies that redirected and reopened text remains readable after the
+archive cache closes.
+
+All 199 engine, core link and C89 checks passed. The Help text transaction
+passed in native x86, native x64 and SDL. Native x64 and SDL movie save/load
+passed and produced identical 5,324-byte Help text traces to `1122afe4`.
+The five Studio smoke-test canvases, including the retail Help Book, matched
+the previous build. The Studio authoring save and seven Marcus saves also
+matched byte for byte. The separate x64 `scene-load` test reproduced its
+existing fingerprint mismatch and exact output bytes.
+
+The eight 60-frame actor runs in `20261122T080602Z-1ee79a07` matched their
+prior seek canvases, camera and actor state, and continuous frame order.
+Prior retail differences and timing and presentation limits reproduced.
+The four players reopened the copied 3D text save with identical canvases
+in `20261122T080756Z-daa81641`. Both suites reused the retained retail
+and V3DMM captures and reran SDL Studio and Marcus.
+
+Traces and Studio canvases are under `tmp/c89-help-save`. Playback captures
+are under `tmp/c89-rscap`.

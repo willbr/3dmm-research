@@ -162,18 +162,40 @@ bool TextDocument::_FOpenArg(long icact, byte sprm, short bo, short osk)
 ***************************************************************************/
 bool TextDocument::FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText)
 {
-    AssertThis(0);
     AssertPo(pcfl, 0);
+    MovieArchiveHost archive(pcfl);
+    return FSaveHelpArchive(archive.Editor(), archive.Writer(), pcki, fRedirectText);
+}
+
+bool TextDocument::FSaveHelpArchive(const MMMovieArchiveEditor &editor, const MMArchiveWriter &writer,
+                                    ChunkIdentification *pcki, bool redirectText)
+{
+    AssertThis(0);
     AssertVarMem(pcki);
-    HelpHost host(this);
-    host.file = pcfl;
-    host.output = pcki;
-    host.flags = fRedirectText;
-    auto services = host.Save();
-    auto config = host.Config();
-    MMTextChunk root = {};
-    int result = mm_help_save(&_topic, &root, config.system, config.big, &services);
-    host.Rethrow();
+    struct SaveHost
+    {
+        TextDocumentFactoryHost exceptions;
+        TextDocument *help;
+        const MMMovieArchiveEditor &editor;
+        const MMArchiveWriter &writer;
+        bool redirect;
+    } host = {{}, this, editor, writer, redirectText};
+    const MMHelpSaveServices services = {
+        &host,
+        [](void *p, MMTextChunk *out) -> int {
+            auto &h = *static_cast<SaveHost *>(p);
+            return h.exceptions.Guard([&] {
+                ChunkIdentification child;
+                if (!h.help->RichTextDocument::FSaveToArchive(h.editor, h.writer, &child, h.redirect))
+                    return false;
+                *out = {child.ctg, child.cno};
+                return true;
+            });
+        },
+        [](void *) { PushErc(ercHelpSaveFailed); }};
+    const int result = mm_help_save(&_topic, &pcki->ctg, &pcki->cno, koskCur, RichTextStoreHost::NativeBig(),
+                                    &writer, &services);
+    host.exceptions.Rethrow();
     return result > 0;
 }
 

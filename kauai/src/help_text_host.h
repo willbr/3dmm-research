@@ -3,13 +3,10 @@
 struct TextDocument::HelpHost : RichTextDocument::PropertyHost
 {
     TextDocument *help;
-    PChunkyFile file = nullptr;
     PStringRegistry strings = nullptr;
     PString groupName = nullptr;
     PCHP chp = nullptr;
     ulong flags = 0;
-    ChunkIdentification *output = nullptr;
-    DataBlock block;
     String text;
     long *first = nullptr, *end = nullptr;
     byte *group = nullptr;
@@ -238,48 +235,6 @@ struct TextDocument::HelpHost : RichTextDocument::PropertyHost
         };
         s.missing = [](void *) { Warn("string missing"); };
         s.validate = [](void *v) { AssertPo(static_cast<HelpHost *>(v)->help, 0); };
-        return s;
-    }
-    MMHelpSaveServices Save()
-    {
-        MMHelpSaveServices s = {};
-        s.context = this;
-        s.publish_type = [](void *v, MMU32 t) { static_cast<HelpHost *>(v)->output->ctg = t; };
-        s.add = [](void *v, MMU32 t, MMU32 *out) -> int {
-            auto &h = *static_cast<HelpHost *>(v);
-            return h.Guard([&] {
-                if (!h.file->FAdd(36, t, &h.output->cno, &h.block))
-                    return false;
-                *out = h.output->cno;
-                return true;
-            });
-        };
-        s.write = [](void *v, const unsigned char *p) -> int {
-            auto &h = *static_cast<HelpHost *>(v);
-            return h.Guard([&] { return h.block.FWrite(const_cast<unsigned char *>(p)); });
-        };
-        s.rich = [](void *v, MMTextChunk *out) -> int {
-            auto &h = *static_cast<HelpHost *>(v);
-            return h.Guard([&] {
-                ChunkIdentification id;
-                if (!h.help->RichTextDocument::FSaveToChunk(h.file, &id, h.flags != 0))
-                    return false;
-                *out = {id.ctg, id.cno};
-                return true;
-            });
-        };
-        s.adopt = [](void *v, const MMTextChunk *p, const MMTextChunk *c) -> int {
-            auto &h = *static_cast<HelpHost *>(v);
-            return h.Guard([&] { return h.file->FAdoptChild(p->type, p->number, c->type, c->number); });
-        };
-        s.erase = [](void *v, const MMTextChunk *p) -> int {
-            auto &h = *static_cast<HelpHost *>(v);
-            return h.Guard([&] {
-                h.file->Delete(p->type, p->number);
-                return 1;
-            });
-        };
-        s.error = [](void *) { PushErc(ercHelpSaveFailed); };
         return s;
     }
 };

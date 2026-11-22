@@ -103,6 +103,8 @@ class TextDocument : public TextDocument_PAR
                                        ChunkNumber cno, PStringRegistry pstrg = pvNil, ulong grftxhd = ftxhdExpandStrings);
 
     virtual bool FSaveToChunk(PChunkyFile pcfl, ChunkIdentification *pcki, bool fRedirectText = fFalse);
+    bool FSaveHelpArchive(const MMMovieArchiveEditor &, const MMArchiveWriter &, ChunkIdentification *,
+                          bool redirectText = false);
 
     bool FInsertPicture(ChunkNumber cno, void *pvExtra, long cbExtra, long cp, long ccpDel, PCHP pchp = pvNil,
                         ulong grfdoc = fdocUpdate);
