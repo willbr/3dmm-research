@@ -4,7 +4,6 @@
 #include "background_resource.h"
 #include "body_create.h"
 #include "collections.h"
-#include "preview_light.h"
 #include "render_frame.h"
 #include <stddef.h>
 #ifdef __cplusplus
@@ -39,12 +38,6 @@ extern "C"
         unsigned short (*angle)(float);
     } MMPreviewMath;
     typedef MMRenderBody MMPreviewBody;
-    enum { MM_PREVIEW_LIGHT_LIMIT = 16 };
-    typedef struct MMPreviewLightRig
-    {
-        MMBackgroundLight lights[MM_PREVIEW_LIGHT_LIMIT];
-        MMU32 count;
-    } MMPreviewLightRig;
     typedef struct MMPreviewData
     {
         int scene, background;
@@ -128,7 +121,7 @@ extern "C"
         const unsigned char *base_palette;
         struct MMBackgroundPreviewOwner *background;
         /* A borrowed override with count zero suppresses the authored lights. */
-        const MMPreviewLightRig *light_override;
+        const MMBackgroundLightRig *light_override;
         int omit_background;
         MMStorageAllocator allocator;
         MMPreviewMath math;
@@ -148,8 +141,7 @@ extern "C"
         void *(*camera)(void *, void *world, const MMPreviewCamera *);
         void (*update_camera)(void *, void *camera, const MMPreviewCamera *);
         MMU32 light_bytes;
-        MMI32 direct_light_type, point_light_type;
-        void (*light_rotation)(unsigned short pitch, unsigned short yaw, MMActorMatrix *);
+        MMBackgroundLightRotation light_rotation;
         void *(*light)(void *, void *world, void *data, const MMBackgroundLight *);
         void (*enable_light)(void *, void *), (*disable_light)(void *, void *);
         int (*add_model)(void *, void *world, void *model), (*add_mesh)(void *, void *world);
@@ -202,7 +194,7 @@ extern "C"
      * Failure leaves the destination untouched. Rendering with a rig uses a
      * private copy of the current orbit. */
     int mm_preview_prepare_lights(const MMPreviewLightValues *, size_t count, int has_background,
-                                  MMPreviewLightRig *, const MMPreviewRenderServices *);
+                                  MMBackgroundLightRig *, const MMPreviewRenderServices *);
     /* Fit and render a view through services already bound to the one object
      * and its bounds. Use a private orbit so the live camera keeps its framing. */
     int mm_preview_render_isolated(const MMPreviewView *, const MMPreviewOrbit *, MMI32 object,

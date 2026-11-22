@@ -551,8 +551,6 @@ static MMPreviewRenderServices services(Host *h)
     s.camera = camera;
     s.update_camera = update_camera;
     s.light_bytes = 16;
-    s.direct_light_type = 0;
-    s.point_light_type = 1;
     s.light_rotation = light_rotation;
     s.light = light;
     s.enable_light = enable;
@@ -643,7 +641,7 @@ static void lighting_test(Host *h)
     MMPreviewLightValues input[3] = {{-32700, .5f, 32700, 360, -89, .25f, 0},
                                      {0, 0, 0, 0, 0, 0, 1},
                                      {3, 2, 1, -42.5f, 89, .00001f, 1}};
-    MMPreviewLightRig rig;
+    MMBackgroundLightRig rig;
     MMPreviewView view;
     MMPreviewOrbit orbit;
     MMPreviewImage image;
@@ -655,16 +653,16 @@ static void lighting_test(Host *h)
     CHECK(rig.lights[0].matrix.m[0][0] == 16201 && rig.lights[0].matrix.m[1][0] == 0);
     CHECK(rig.lights[0].matrix.m[3][0] == scalar(-32700) && rig.lights[0].matrix.m[3][1] == scalar(.5f) &&
           rig.lights[0].matrix.m[3][2] == scalar(32700) && rig.lights[0].intensity == scalar(4) &&
-          rig.lights[0].type == s.direct_light_type);
+          rig.lights[0].type == MM_BACKGROUND_LIGHT_DIRECT);
     CHECK(rig.lights[1].matrix.m[0][0] == 49335 && rig.lights[1].matrix.m[1][0] == 57800 &&
-          rig.lights[1].intensity == scalar(32700) && rig.lights[1].type == s.point_light_type);
+          rig.lights[1].intensity == scalar(32700) && rig.lights[1].type == MM_BACKGROUND_LIGHT_POINT);
     CHECK(mm_preview_prepare_lights(input, 3, 0, &rig, &s) == MM_PREVIEW_LIGHT_RIG_INVALID);
-    CHECK(mm_preview_prepare_lights(input, MM_PREVIEW_LIGHT_LIMIT + 1, 1, &rig, &s) == MM_PREVIEW_LIGHT_RIG_INVALID);
+    CHECK(mm_preview_prepare_lights(input, MM_BACKGROUND_LIGHT_RIG_LIMIT + 1, 1, &rig, &s) == MM_PREVIEW_LIGHT_RIG_INVALID);
     input[1].pitch = 90;
     CHECK(mm_preview_prepare_lights(input, 3, 1, &rig, &s) == MM_PREVIEW_LIGHT_VALUE_INVALID);
     input[1].pitch = (float)HUGE_VAL;
     CHECK(mm_preview_prepare_lights(input, 3, 1, &rig, &s) == MM_PREVIEW_LIGHT_VALUE_INVALID);
-    CHECK(rig.count == 2 && rig.lights[1].type == s.point_light_type);
+    CHECK(rig.count == 2 && rig.lights[1].type == MM_BACKGROUND_LIGHT_POINT);
 
     s.light_override = &rig;
     CHECK(mm_preview_render(&view, &orbit, &image, &s) == MM_PREVIEW_OK);

@@ -1,4 +1,5 @@
 #include "storyboard_resource.h"
+#include "scene_renderer.h"
 #include "mm/background_resource.h"
 #include "mm/collections.h"
 #include "mm/depth_bitmap.h"
@@ -11,7 +12,7 @@ enum
 {
     BLACK_BACKGROUND = 11,
     PALETTE_BASE = 10, PALETTE_COUNT = 236, COLOUR_BYTES = 4, ARRAY_HEADER = 12,
-    LIGHT_BYTES = 56, SOUND_BYTES = 28,
+    SOUND_BYTES = 28,
     PAINT_BITMAP = 0x4d424d50, DEPTH_BITMAP = 0x5a424d50
 };
 
@@ -178,37 +179,16 @@ static int make_palette(const MMMovieArchiveEditor *resources, const MMMovieArch
 }
 
 static int write_lights(const MMMovieArchiveEditor *target, MMU32 background,
-                        const MarcusBoardEditValues *values, const MarcusBoardTransforms *math)
+                        const MarcusBoardEditValues *values)
 {
-    unsigned char bytes[ARRAY_HEADER + LIGHT_BYTES * MARCUS_BOARD_LIGHT_LIMIT];
-    MMCollectionHeader table = {0};
-    MMU32 number;
-    int i;
-    table.kind = MM_COLLECTION_ARRAY;
-    table.system = target->system;
-    table.big_endian = target->big_endian;
-    table.width = LIGHT_BYTES;
-    for (i = 0; i < values->light_count; ++i)
-    {
-        const MarcusBoardLightValues *light = &values->lights[i];
-        MMActorMatrix matrix;
-        float attenuation;
-        unsigned char *row;
-        if (light->intensity == 0)
-            continue;
-        math->matrix(&matrix, light->x, light->y, light->z, angle(light->yaw), angle(-light->pitch), 0);
-        /* Retail's intensity is BRender's constant attenuation divisor. */
-        attenuation = 1.f / light->intensity;
-        if (attenuation > 32700.f)
-            attenuation = 32700.f;
-        row = bytes + ARRAY_HEADER + LIGHT_BYTES * table.count++;
-        put_matrix(row, &matrix, target->big_endian);
-        put32(row + 48, fixed(attenuation), target->big_endian);
-        put32(row + 52, light->point ? 0 : 1, target->big_endian); /* BR_LIGHT_POINT / BR_LIGHT_DIRECT */
-    }
-    return mm_collection_header_write(&table, bytes, ARRAY_HEADER) == MM_STORAGE_OK &&
-           add_child(target, MM_BACKGROUND, background, MM_BACKGROUND_LIGHTS, 0,
-                     bytes, ARRAY_HEADER + LIGHT_BYTES * table.count, &number);
+    unsigned char bytes[MM_BACKGROUND_LIGHT_TABLE_BYTES];
+    MMBackgroundLightRig rig;
+    MMU32 number, size;
+    if (!mm_background_light_rig_prepare(values->lights, (size_t)values->light_count,
+                                         mm_brender_background_light_rotation, &rig))
+        return 0;
+    size = mm_background_light_rig_encode(&rig, target->system, target->big_endian, bytes, sizeof(bytes));
+    return size && add_child(target, MM_BACKGROUND, background, MM_BACKGROUND_LIGHTS, 0, bytes, size, &number);
 }
 
 static int allocate(void *context, MMI32 bytes, void **memory)
@@ -274,16 +254,15 @@ static int write_paint(const MMMovieArchiveEditor *target, MMU32 camera, MMU32 d
 }
 
 static void make_camera(const MMMovieArchiveEditor *target, const MarcusBoardPose *pose, unsigned short ref_fov,
-                        const MMActorPoint *points, MMI32 count, const MarcusBoardTransforms *math,
-                        unsigned char *bytes)
+                        const MMActorPoint *points, MMI32 count, unsigned char *bytes)
 {
     const int big = target->big_endian;
     const float margin = (pose->far_clip - pose->near_clip) * .001f;
     const float lens = SDL_tanf(pose->fov * .00872664626f) / SDL_tanf(ref_fov * (3.14159265358979323846f / 65536));
     MMActorMatrix matrix;
     MMI32 i;
-    math->matrix(&matrix, pose->camera.x, pose->camera.y, pose->camera.z,
-                 angle(pose->camera.yaw), angle(-pose->camera.pitch), angle(pose->roll));
+    mm_brender_camera_matrix(&matrix, pose->camera.x, pose->camera.y, pose->camera.z,
+                            angle(pose->camera.yaw), angle(-pose->camera.pitch), angle(pose->roll));
     resource_header(bytes, target);
     put32(bytes + 4, fixed(pose->near_clip), big);
     put32(bytes + 8, fixed(pose->far_clip), big);
@@ -305,7 +284,7 @@ static void make_camera(const MMMovieArchiveEditor *target, const MarcusBoardPos
         local.dxr = fixed((points[i].dxr / 65536.f) * scale);
         local.dyr = fixed((points[i].dyr / 65536.f) * scale);
         local.dzr = fixed(-distance);
-        math->apply(&world, &local, &matrix);
+        mm_brender_matrix_apply_point(&world, &local, &matrix);
         put32(point, world.dxr, big);
         put32(point + 4, world.dyr, big);
         put32(point + 8, world.dzr, big);
@@ -313,8 +292,8 @@ static void make_camera(const MMMovieArchiveEditor *target, const MarcusBoardPos
 }
 
 static const char *write_cameras(const MarcusBoardWire *board, const MMMovieArchiveEditor *retail,
-                                 const MMMovieArchiveEditor *target, const MarcusBoardTransforms *math,
-                                 const MarcusBoardInk *inks, MMU32 background, MMU32 depth)
+                                 const MMMovieArchiveEditor *target, const MarcusBoardInk *inks,
+                                 MMU32 background, MMU32 depth)
 {
     MMReadStream stream;
     MMBackgroundCameraData camera;
@@ -325,7 +304,7 @@ static const char *write_cameras(const MarcusBoardWire *board, const MMMovieArch
     MMI32 i;
     if (!read_reference(retail, MM_BACKGROUND_CAMERA, &stream) || !mm_background_camera_decode(&stream, &camera))
         return "Cannot read the black scene's insertion camera.";
-    if (!math->inverse(&inverse, &camera.matrix))
+    if (!mm_brender_matrix_inverse(&inverse, &camera.matrix))
         return "Invalid black scene camera transform.";
     error = "Cannot allocate storyboard camera and painting.";
     points = (MMActorPoint *)malloc((size_t)(camera.point_count + 1) * sizeof(*points));
@@ -340,14 +319,14 @@ static const char *write_cameras(const MarcusBoardWire *board, const MMMovieArch
         if (i && !mm_background_point_decode(&stream, &camera, i - 1, &place))
             goto done;
         error = "Invalid black scene insertion depth.";
-        math->apply(&points[i], &place, &inverse);
+        mm_brender_matrix_apply_point(&points[i], &place, &inverse);
         if (points[i].dzr >= 0)
             goto done;
     }
     for (i = 0; i < board->values.angle_count; ++i)
     {
         MMU32 number;
-        make_camera(target, &board->values.angles[i], camera.fov, points, camera.point_count + 1, math, bytes);
+        make_camera(target, &board->values.angles[i], camera.fov, points, camera.point_count + 1, bytes);
         error = "Cannot write storyboard camera.";
         if (!add_child(target, MM_BACKGROUND, background, MM_BACKGROUND_CAMERA, (MMU32)i, bytes, stream.length, &number))
             goto done;
@@ -365,7 +344,7 @@ done:
 
 const char *marcus_board_write_resources(const MarcusBoardWire *board, const MMMovieArchiveEditor *resources,
                                          const MMMovieArchiveEditor *retail, const MMMovieArchiveEditor *target,
-                                         const MarcusBoardTransforms *math, MMU32 *background)
+                                         MMU32 *background)
 {
     static const unsigned short wide_name[] = {'S', 't', 'o', 'r', 'y', 'b', 'o', 'a', 'r', 'd'};
     MMReadStream stream;
@@ -392,11 +371,11 @@ const char *marcus_board_write_resources(const MarcusBoardWire *board, const MMM
         return "Cannot name storyboard background.";
     if (!add_child(target, MM_BACKGROUND, number, MM_BACKGROUND_COLORS, 0, colours, sizeof(colours), &child))
         return "Cannot write storyboard colours.";
-    if (!write_lights(target, number, &board->values, math))
+    if (!write_lights(target, number, &board->values))
         return "Cannot write storyboard lights.";
     if (!write_depth(target, &depth))
         return "Cannot write empty storyboard depth.";
-    error = write_cameras(board, retail, target, math, inks, number, depth);
+    error = write_cameras(board, retail, target, inks, number, depth);
     if (error)
         return error;
     /* Retail and v3dmm collect this child as a tag. Keep the base-content sound

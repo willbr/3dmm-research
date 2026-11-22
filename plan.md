@@ -1386,7 +1386,11 @@ available.
 Marcus generates storyboard backgrounds in C89. The writer reads the retail
 black scene palette and insertion anchors, maps paint inks to indexed pixels,
 and writes the linked palette, lights, depth, cameras, paintings, and muted
-default sound. The host supplies archive I/O and BRender fixed-point transforms.
+default sound. Storyboard export and Preview share C89 light admission,
+angle quantization and attenuation. The background codec writes the prepared
+GLLT table in the archive's byte order. The typed BRender C binding preserves
+the zero-roll step in exported light matrices and supplies the camera pose,
+inverse and insertion-point transforms. The host supplies archive I/O.
 The storyboard draft owns editable paint planes and its staged and accepted
 snapshots in C89. Preview borrows the live planes. Apply reads the validated
 snapshot, and a failed stage preserves the previously staged edit.

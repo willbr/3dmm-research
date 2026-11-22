@@ -22237,3 +22237,29 @@ order. Seek and playback order also matched the retained retail and V3DMM
 captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-lights`.
+
+## Shared C89 storyboard and Preview lights (22 November 2026)
+
+Storyboard export and Preview share light validation, full-turn angle
+quantization, 16.16 translations and attenuation. The background codec writes
+GLLT records in the target byte order. The C BRender adapter preserves the
+zero-roll operation and its rounding in saved lights, and supplies the camera
+pose and insertion-point transforms directly.
+
+Three storyboard exports matched all 48 packaged payloads and their child
+links after resolving the allocated chunk numbers. The comparison covered four
+GLLT tables and fourteen CAM records. The codec fixture also checks empty
+tables, short buffers and both byte orders. The five custom-light renders
+matched all 6,912,000 colour and depth bytes. The 188 retail-content camera
+traces, five World snapshots, and the headless Studio saves and canvas captures
+matched their preceding results. Headless Marcus reproduced its startup canvas.
+All 246 selected test runs passed across C89, native x64 and x86, SDL, and Chomp.
+The existing `scene-load` assertion reproduced its 63,224-byte trace and
+fingerprint `0D666753`.
+
+The four runs in suite `20261122T163935Z-34b41e78` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order also matched the retained retail and V3DMM
+captures in `20261122T081603Z-7ffc4e8e`.
+
+Snapshots, workflows and checks are under `tmp/c89-storyboard-lights`.

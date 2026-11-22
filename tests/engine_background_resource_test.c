@@ -495,6 +495,33 @@ static void decoder_tests(int big)
     r.length = 27;
     CHECK(!mm_background_sound_read(&r, &sound));
 }
+static void light_codec_tests(int big)
+{
+    Host h;
+    MMBackgroundLightRig rig;
+    unsigned char bytes[MM_BACKGROUND_LIGHT_TABLE_BYTES], header[12];
+    MMU32 size;
+    init(&h, big, 0, 0);
+    rig.count = 2;
+    mm_background_light_decode(h.light_list.bytes, big, &rig.lights[0]);
+    mm_background_light_decode(h.light_list.bytes + MM_BACKGROUND_LIGHT_BYTES, big, &rig.lights[1]);
+    memset(bytes, 0xa5, sizeof(bytes));
+    CHECK(!mm_background_light_rig_encode(&rig, 0x0303, big, bytes, 123) && bytes[0] == 0xa5);
+    size = mm_background_light_rig_encode(&rig, 0x0303, big, bytes, sizeof(bytes));
+    put_word(header, 1, 2, big);
+    put_word(header + 2, 0x0303, 2, big);
+    put_word(header + 4, MM_BACKGROUND_LIGHT_BYTES, 4, big);
+    put_word(header + 8, 2, 4, big);
+    CHECK(size == sizeof(header) + sizeof(h.light_list.bytes));
+    CHECK(!memcmp(bytes, header, sizeof(header)));
+    CHECK(!memcmp(bytes + sizeof(header), h.light_list.bytes, sizeof(h.light_list.bytes)));
+    CHECK(bytes[size] == 0xa5);
+    rig.count = 0;
+    put_word(header + 8, 0, 4, big);
+    CHECK(mm_background_light_rig_encode(&rig, 0x0303, big, bytes, sizeof(bytes)) == sizeof(header));
+    CHECK(!memcmp(bytes, header, sizeof(header)));
+}
+
 static void read_tests(int big, int host_big)
 {
     Host h;
@@ -805,6 +832,7 @@ int main(void)
     for (big = 0; big < 2; ++big)
     {
         decoder_tests(big);
+        light_codec_tests(big);
         for (host = 0; host < 2; ++host)
             read_tests(big, host);
     }

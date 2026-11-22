@@ -31,6 +31,11 @@ int mm_brender_background_light(void *, MMBackgroundResource *, MMI32, const MMB
 void mm_brender_background_light_enable(void *, MMBackgroundResource *, MMI32);
 void mm_brender_background_light_disable(void *, MMBackgroundResource *, MMI32);
 void mm_brender_background_light_remove(void *, MMBackgroundResource *, MMI32);
+void mm_brender_background_light_rotation(unsigned short pitch, unsigned short yaw, MMActorMatrix *);
+void mm_brender_camera_matrix(MMActorMatrix *, float x, float y, float z, unsigned short yaw,
+                              unsigned short pitch, unsigned short roll);
+int mm_brender_matrix_inverse(MMActorMatrix *, const MMActorMatrix *);
+void mm_brender_matrix_apply_point(MMActorPoint *, const MMActorPoint *, const MMActorMatrix *);
 
 struct br_actor *mm_brender_preview_camera(void *world, struct br_camera *, const MMRenderCamera *);
 void mm_brender_preview_tree(MMPreviewTreeServices *);

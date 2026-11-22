@@ -8,6 +8,9 @@
 typedef char SceneMatrixSize[sizeof(br_matrix34) == sizeof(MMActorMatrix) &&
                                  sizeof(br_matrix34) == sizeof(((MMRenderCamera *)0)->matrix) ? 1 : -1];
 typedef char ProjectionMatrixSize[sizeof(br_matrix4) == 16 * sizeof(MMI32) ? 1 : -1];
+typedef char ScenePointSize[sizeof(br_vector3) == sizeof(MMActorPoint) ? 1 : -1];
+typedef char SceneLightTypes[(int)BR_LIGHT_POINT == (int)MM_BACKGROUND_LIGHT_POINT &&
+                            (int)BR_LIGHT_DIRECT == (int)MM_BACKGROUND_LIGHT_DIRECT ? 1 : -1];
 
 void mm_brender_world_init(br_actor *world, br_actor *camera, br_camera *data,
                            void *owner, MMI32 width, MMI32 height)
@@ -657,6 +660,45 @@ static void preview_light_rotation(unsigned short pitch, unsigned short yaw, MMA
     memcpy(out->m, matrix.m, sizeof(out->m));
 }
 
+void mm_brender_background_light_rotation(unsigned short pitch, unsigned short yaw, MMActorMatrix *out)
+{
+    /* Exported light matrices include the zero-roll step and its fixed-point rounding. */
+    mm_brender_camera_matrix(out, 0, 0, 0, yaw, pitch, 0);
+}
+
+void mm_brender_camera_matrix(MMActorMatrix *out, float x, float y, float z, unsigned short yaw,
+                              unsigned short pitch, unsigned short roll)
+{
+    br_matrix34 matrix;
+    BrMatrix34RotateZ(&matrix, roll);
+    BrMatrix34PostRotateX(&matrix, pitch);
+    BrMatrix34PostRotateY(&matrix, yaw);
+    matrix.m[3][0] = BrFloatToScalar(x);
+    matrix.m[3][1] = BrFloatToScalar(y);
+    matrix.m[3][2] = BrFloatToScalar(z);
+    memcpy(out, &matrix, sizeof(matrix));
+}
+
+int mm_brender_matrix_inverse(MMActorMatrix *out, const MMActorMatrix *in)
+{
+    br_matrix34 matrix, inverse;
+    memcpy(&matrix, in, sizeof(matrix));
+    if (!BrMatrix34Inverse(&inverse, &matrix))
+        return 0;
+    memcpy(out, &inverse, sizeof(inverse));
+    return 1;
+}
+
+void mm_brender_matrix_apply_point(MMActorPoint *out, const MMActorPoint *in, const MMActorMatrix *transform)
+{
+    br_matrix34 matrix;
+    br_vector3 point, result;
+    memcpy(&matrix, transform, sizeof(matrix));
+    memcpy(&point, in, sizeof(point));
+    BrMatrix34ApplyP(&result, &point, &matrix);
+    memcpy(out, &result, sizeof(result));
+}
+
 void mm_brender_preview_services(MMPreviewRenderServices *s)
 {
     mm_brender_preview_tree(&s->tree);
@@ -670,8 +712,6 @@ void mm_brender_preview_services(MMPreviewRenderServices *s)
     s->buffers = preview_buffers;
     s->update_camera = update_camera;
     s->light_bytes = sizeof(br_light);
-    s->direct_light_type = BR_LIGHT_DIRECT;
-    s->point_light_type = BR_LIGHT_POINT;
     s->light_rotation = preview_light_rotation;
     s->light = attach_light;
     s->enable_light = enable_light;

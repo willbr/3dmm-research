@@ -511,7 +511,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     const MMPreviewRenderServices *s = f->s;
     const MMPreviewMath *m = &s->math;
     const MMPreviewData *d = &f->pose.scene;
-    const MMPreviewLightRig *rig = s->light_override;
+    const MMBackgroundLightRig *rig = s->light_override;
     MMPreviewMesh mesh;
     MMPreviewBuffer buffers;
     MMPreviewCamera camera;
@@ -762,7 +762,7 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
         {
             memset(&light, 0, sizeof(light));
             memcpy(&light.matrix, camera.matrix, sizeof(camera.matrix));
-            light.type = s->direct_light_type;
+            light.type = MM_BACKGROUND_LIGHT_DIRECT;
             light.intensity = m->scalar(1.f);
         }
         actor = s->light(s->context, f->targets.world, (unsigned char *)data(&f->light_data) + i * s->light_bytes, &light);
@@ -839,41 +839,13 @@ static int render(PreviewFrame *f, const MMPreviewView *v, MMPreviewOrbit *orbit
     output_pixels(image, v, d, &mesh, &buffers, s, f->targets.camera, width, height, bg, infinite);
     return MM_PREVIEW_OK;
 }
-static unsigned short light_angle(float degrees)
-{
-    /* Light controls use the full turn, including negative fractions of a degree. */
-    return (unsigned short)(int)(degrees * (65536.f / 360));
-}
-
 int mm_preview_prepare_lights(const MMPreviewLightValues *values, size_t count, int has_background,
-                              MMPreviewLightRig *out, const MMPreviewRenderServices *s)
+                              MMBackgroundLightRig *out, const MMPreviewRenderServices *s)
 {
-    MMPreviewLightRig rig;
-    size_t i;
-    if (!has_background || count > MM_PREVIEW_LIGHT_LIMIT)
+    if (!has_background || count > MM_BACKGROUND_LIGHT_RIG_LIMIT)
         return MM_PREVIEW_LIGHT_RIG_INVALID;
-    if (count && !values)
-        return MM_PREVIEW_LIGHT_VALUE_INVALID;
-    memset(&rig, 0, sizeof(rig));
-    for (i = 0; i < count; ++i)
-    {
-        const MMPreviewLightValues *v = &values[i];
-        MMBackgroundLight *light;
-        if (!(fabs(v->x) <= 32700 && fabs(v->y) <= 32700 && fabs(v->z) <= 32700 &&
-              fabs(v->yaw) <= 360 && fabs(v->pitch) <= 89 && v->intensity >= 0 && v->intensity <= 1))
-            return MM_PREVIEW_LIGHT_VALUE_INVALID;
-        if (v->intensity == 0)
-            continue;
-        light = &rig.lights[rig.count++];
-        s->light_rotation(light_angle(-v->pitch), light_angle(v->yaw), &light->matrix);
-        light->matrix.m[3][0] = s->math.scalar(v->x);
-        light->matrix.m[3][1] = s->math.scalar(v->y);
-        light->matrix.m[3][2] = s->math.scalar(v->z);
-        light->intensity = s->math.scalar(minf(32700.f, 1.f / v->intensity));
-        light->type = v->point ? s->point_light_type : s->direct_light_type;
-    }
-    *out = rig;
-    return MM_PREVIEW_OK;
+    return mm_background_light_rig_prepare(values, count, s->light_rotation, out) ?
+        MM_PREVIEW_OK : MM_PREVIEW_LIGHT_VALUE_INVALID;
 }
 
 int mm_preview_render(const MMPreviewView *v, MMPreviewOrbit *orbit, MMPreviewImage *output,

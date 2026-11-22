@@ -1084,8 +1084,8 @@ bool Preview::SetBackground(std::int32_t source, std::uint32_t background, Error
 }
 bool Preview::RenderWithLights(const PreviewView &view, const std::vector<PreviewLight> &lights, PreviewImage &image, Error &error)
 {
-    MMPreviewLightValues values[MM_PREVIEW_LIGHT_LIMIT];
-    const auto copied = std::min(lights.size(), std::size_t(MM_PREVIEW_LIGHT_LIMIT));
+    MMPreviewLightValues values[MM_BACKGROUND_LIGHT_RIG_LIMIT];
+    const auto copied = std::min(lights.size(), std::size_t(MM_BACKGROUND_LIGHT_RIG_LIMIT));
     for (std::size_t i = 0; i < copied; ++i)
     {
         const auto &light = lights[i];
@@ -1244,7 +1244,7 @@ try
         host.orbitBounds = bounds;
     }
     auto services = host.Services();
-    MMPreviewLightRig rig;
+    MMBackgroundLightRig rig;
     if (lights)
     {
         const auto result = mm_preview_prepare_lights(lights->values, lights->count, services.background != nullptr,

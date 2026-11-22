@@ -1,4 +1,5 @@
 #include "storyboard_edit_data.h"
+#include "mm/background_resource.h"
 #include <SDL3/SDL.h>
 #include <float.h>
 #include <math.h>
@@ -45,10 +46,7 @@ static int valid_wire(const MarcusBoardWire *board)
     for (i = 0; i < v->light_count; ++i)
     {
         light = &v->lights[i];
-        if (!board_range(light->x, -32700, 32700) || !board_range(light->y, -32700, 32700) ||
-            !board_range(light->z, -32700, 32700) || !board_range(light->yaw, -360, 360) ||
-            !board_range(light->pitch, -89, 89) || !board_range(light->intensity, 0, 1) ||
-            (light->point != 0 && light->point != 1))
+        if (!mm_background_light_values_valid(light) || (light->point != 0 && light->point != 1))
             return 0;
     }
     return 1;

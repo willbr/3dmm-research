@@ -4,6 +4,7 @@
 #define MM_ENGINE_BACKGROUND_RESOURCE_H
 #include "background_camera.h"
 #include "collection_storage.h"
+#include "preview_light.h"
 #include "tag.h"
 #include "string_value.h"
 #ifdef __cplusplus
@@ -43,6 +44,26 @@ extern "C"
         MMActorMatrix matrix;
         MMI32 intensity, type;
     } MMBackgroundLight;
+    enum
+    {
+        MM_BACKGROUND_LIGHT_POINT = 0, MM_BACKGROUND_LIGHT_DIRECT = 1,
+        MM_BACKGROUND_LIGHT_BYTES = 56, MM_BACKGROUND_LIGHT_RIG_LIMIT = 16,
+        MM_BACKGROUND_LIGHT_TABLE_BYTES = 12 + MM_BACKGROUND_LIGHT_BYTES * MM_BACKGROUND_LIGHT_RIG_LIMIT
+    };
+    typedef struct MMBackgroundLightRig
+    {
+        MMBackgroundLight lights[MM_BACKGROUND_LIGHT_RIG_LIMIT];
+        MMU32 count;
+    } MMBackgroundLightRig;
+    typedef void (*MMBackgroundLightRotation)(unsigned short pitch, unsigned short yaw, MMActorMatrix *);
+    int mm_background_light_values_valid(const MMPreviewLightValues *);
+    /* Prepare a rig in authored order. Zero brightness omits the light.
+     * Invalid values leave the destination untouched. */
+    int mm_background_light_rig_prepare(const MMPreviewLightValues *, size_t count, MMBackgroundLightRotation,
+                                        MMBackgroundLightRig *);
+    /* Emit the GLLT array and return the bytes written, or zero on failure. */
+    MMU32 mm_background_light_rig_encode(const MMBackgroundLightRig *, int system, int big,
+                                        unsigned char *, size_t capacity);
     typedef struct MMBackgroundResource
     {
         void *actors, *lights;
@@ -104,7 +125,7 @@ extern "C"
      * Header/sound failure leaves output unchanged. Light input is already bounded. */
     int mm_background_header_read(const MMReadStream *, MMBackgroundHeader *);
     int mm_background_sound_read(const MMReadStream *, MMBackgroundSound *);
-    void mm_background_light_decode(const unsigned char bytes[56], int big, MMBackgroundLight *);
+    void mm_background_light_decode(const unsigned char bytes[MM_BACKGROUND_LIGHT_BYTES], int big, MMBackgroundLight *);
     void mm_background_resource_init(MMBackgroundResource *);
     /* Services are synchronous, non-reentrant and bound to one file/object.
      * Fresh owners are required. Studio retains partial SDK arrays on failure

@@ -3,7 +3,6 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
-#include <cstring>
 #include <stdexcept>
 #include "storyboard_native.h"
 #include "storyboard_resource.h"
@@ -14,35 +13,6 @@ namespace
 {
 void Require(bool ok, const char *message) { if (!ok) throw std::runtime_error(message); }
 bool Range(float v, float a, float b) { return std::isfinite(v) && v >= a && v <= b; }
-const MarcusBoardTransforms BoardTransforms = {
-    [](MMActorMatrix *out, float x, float y, float z, unsigned short yaw, unsigned short pitch, unsigned short roll) {
-        BMAT34 matrix;
-        BrMatrix34RotateZ(&matrix, roll);
-        BrMatrix34PostRotateX(&matrix, pitch);
-        BrMatrix34PostRotateY(&matrix, yaw);
-        matrix.m[3][0] = BrFloatToScalar(x);
-        matrix.m[3][1] = BrFloatToScalar(y);
-        matrix.m[3][2] = BrFloatToScalar(z);
-        static_assert(sizeof(matrix) == sizeof(*out));
-        std::memcpy(out, &matrix, sizeof(matrix));
-    },
-    [](MMActorMatrix *out, const MMActorMatrix *in) -> int {
-        BMAT34 matrix, inverse;
-        std::memcpy(&matrix, in, sizeof(matrix));
-        if (!BrMatrix34Inverse(&inverse, &matrix)) return false;
-        std::memcpy(out, &inverse, sizeof(inverse));
-        return true;
-    },
-    [](MMActorPoint *out, const MMActorPoint *in, const MMActorMatrix *transform) {
-        BMAT34 matrix;
-        BVEC3 point, result;
-        static_assert(sizeof(point) == sizeof(*in));
-        std::memcpy(&matrix, transform, sizeof(matrix));
-        std::memcpy(&point, in, sizeof(point));
-        BrMatrix34ApplyP(&result, &point, &matrix);
-        std::memcpy(out, &result, sizeof(result));
-    }
-};
 }
 
 bool MarcusBoardView(const MarcusStoryboard &board, MarcusBoardWire &view)
@@ -266,8 +236,7 @@ MarcusBoardResource MarcusBoardContent(const MarcusStoryboard &board, long sourc
     MarcusBoardWire view{};
     Require(MarcusBoardView(board, view), "Invalid storyboard.");
     ChunkNumber background;
-    const auto error = marcus_board_write_resources(&view, &resourceEditor, &retailEditor, &outputEditor,
-                                                    &BoardTransforms, &background);
+    const auto error = marcus_board_write_resources(&view, &resourceEditor, &retailEditor, &outputEditor, &background);
     Require(!error, error);
     Require(mm_private_archive_save(chunks.get(), kctgSoc), "Cannot save storyboard working file.");
     return {std::make_shared<MarcusStoryboard>(board), file, background, source};

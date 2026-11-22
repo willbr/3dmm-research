@@ -65,6 +65,95 @@ void mm_background_light_decode(const unsigned char *b, int big, MMBackgroundLig
     out->intensity = mm_signed_word(word(b + 48, 4, big));
     out->type = mm_signed_word(word(b + 52, 4, big));
 }
+
+int mm_background_light_values_valid(const MMPreviewLightValues *v)
+{
+    return v->x >= -32700 && v->x <= 32700 && v->y >= -32700 && v->y <= 32700 &&
+           v->z >= -32700 && v->z <= 32700 && v->yaw >= -360 && v->yaw <= 360 &&
+           v->pitch >= -89 && v->pitch <= 89 && v->intensity >= 0 && v->intensity <= 1;
+}
+
+static unsigned short light_angle(float degrees)
+{
+    return (unsigned short)(int)(degrees * (65536.f / 360));
+}
+
+static MMI32 light_scalar(float value)
+{
+    return (MMI32)(value * 65536.f);
+}
+
+int mm_background_light_rig_prepare(const MMPreviewLightValues *values, size_t count,
+                                    MMBackgroundLightRotation rotate, MMBackgroundLightRig *out)
+{
+    MMBackgroundLightRig rig;
+    size_t i;
+    if (count > MM_BACKGROUND_LIGHT_RIG_LIMIT || (count && !values))
+        return 0;
+    memset(&rig, 0, sizeof(rig));
+    for (i = 0; i < count; ++i)
+    {
+        const MMPreviewLightValues *v = &values[i];
+        MMBackgroundLight *light;
+        float attenuation;
+        if (!mm_background_light_values_valid(v))
+            return 0;
+        if (v->intensity == 0)
+            continue;
+        light = &rig.lights[rig.count++];
+        rotate(light_angle(-v->pitch), light_angle(v->yaw), &light->matrix);
+        light->matrix.m[3][0] = light_scalar(v->x);
+        light->matrix.m[3][1] = light_scalar(v->y);
+        light->matrix.m[3][2] = light_scalar(v->z);
+        /* Retail stores the constant attenuation divisor in its intensity field. */
+        attenuation = 1.f / v->intensity;
+        light->intensity = light_scalar(attenuation > 32700.f ? 32700.f : attenuation);
+        light->type = v->point ? MM_BACKGROUND_LIGHT_POINT : MM_BACKGROUND_LIGHT_DIRECT;
+    }
+    *out = rig;
+    return 1;
+}
+
+static void put_light_word(unsigned char *p, MMU32 value, int big)
+{
+    int i;
+    for (i = 0; i < 4; ++i)
+    {
+        p[big ? 3 - i : i] = (unsigned char)value;
+        value >>= 8;
+    }
+}
+
+MMU32 mm_background_light_rig_encode(const MMBackgroundLightRig *rig, int system, int big,
+                                    unsigned char *out, size_t capacity)
+{
+    MMCollectionHeader header = {0};
+    MMU32 i, size;
+    int j;
+    if (rig->count > MM_BACKGROUND_LIGHT_RIG_LIMIT)
+        return 0;
+    header.kind = MM_COLLECTION_ARRAY;
+    header.system = system;
+    header.big_endian = big;
+    header.width = MM_BACKGROUND_LIGHT_BYTES;
+    header.count = rig->count;
+    if (mm_collection_layout(&header) != MM_STORAGE_OK)
+        return 0;
+    size = header.header_bytes + header.first_bytes;
+    if (capacity < size || mm_collection_header_write(&header, out, capacity) != MM_STORAGE_OK)
+        return 0;
+    for (i = 0; i < rig->count; ++i)
+    {
+        const MMBackgroundLight *light = &rig->lights[i];
+        unsigned char *row = out + header.header_bytes + i * MM_BACKGROUND_LIGHT_BYTES;
+        for (j = 0; j < 12; ++j)
+            put_light_word(row + j * 4, (MMU32)light->matrix.m[j / 3][j % 3], big);
+        put_light_word(row + 48, (MMU32)light->intensity, big);
+        put_light_word(row + 52, (MMU32)light->type, big);
+    }
+    return size;
+}
+
 struct MMBackgroundOwner
 {
     MMResourceObject binding;
@@ -313,8 +402,8 @@ int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera,
         !read_record(source, MM_BACKGROUND_LIGHTS, child, read_array, &array))
         goto fail;
     b->light_count = (MMI32)array.header.count;
-    if (array.header.width != 56 ||
-        (profile == MM_BACKGROUND_PREVIEW && b->light_count > 16))
+    if (array.header.width != MM_BACKGROUND_LIGHT_BYTES ||
+        (profile == MM_BACKGROUND_PREVIEW && b->light_count > MM_BACKGROUND_LIGHT_RIG_LIMIT))
         goto fail;
     if (profile == MM_BACKGROUND_STUDIO)
     {
@@ -325,7 +414,7 @@ int mm_background_read(MMBackgroundResource *b, MMBackgroundCameraState *camera,
             goto fail;
     }
     bytes = lights.buffers[0].data;
-    for (i = 0; i < b->light_count; ++i, bytes += 56)
+    for (i = 0; i < b->light_count; ++i, bytes += MM_BACKGROUND_LIGHT_BYTES)
     {
         mm_background_light_decode(bytes, array.header.big_endian, &light);
         if (!s->configure_light(s->context, b, i, &light))
