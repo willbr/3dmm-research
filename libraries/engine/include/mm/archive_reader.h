@@ -118,7 +118,11 @@ enum MMArchiveDirectoryResult
     MM_ARCHIVE_DIRECTORY_SOURCE_ROW,
     MM_ARCHIVE_DIRECTORY_PAYLOAD,
     MM_ARCHIVE_DIRECTORY_MEMORY,
-    MM_ARCHIVE_DIRECTORY_CANCELLED
+    MM_ARCHIVE_DIRECTORY_CANCELLED,
+    MM_ARCHIVE_DIRECTORY_INDEX,
+    MM_ARCHIVE_DIRECTORY_NO_SCENES,
+    MM_ARCHIVE_DIRECTORY_ROLLCALL,
+    MM_ARCHIVE_DIRECTORY_ROLLCALL_LIMIT
 };
 
 typedef struct MMArchiveDirectoryError
@@ -133,6 +137,27 @@ typedef struct MMArchiveDirectoryError
  * have visited a prefix, so callers stage their output. The reader retains its
  * movie session only after the whole visit succeeds. error is required. */
 int mm_archive_reader_directory(MMArchiveReader *, const MMArchiveDirectorySink *, MMArchiveDirectoryError *error);
+
+typedef struct MMArchiveMovieOpenSink
+{
+    MMArchiveDirectorySink directory;
+    int (*actor_name)(void *, MMI32 actor, const void *text, MMU32 units);
+} MMArchiveMovieOpenSink;
+
+typedef struct MMArchiveMovieIds
+{
+    MMU32 next_scene, next_actor_chunk, next_actor_id;
+    int scene_exhausted, actor_chunk_exhausted;
+} MMArchiveMovieIds;
+
+/* Validate the movie directory, roll-call entries and every ACTR header
+ * before publishing the next available edit IDs and retaining the movie.
+ * Rootless scene fixtures use SCEN index order and retail source 1. Actor
+ * names are counted in the reader's current text encoding and borrow its
+ * string table. The directory callback contract applies to all callbacks.
+ * Failure leaves IDs and the previously retained movie unchanged. */
+int mm_archive_reader_movie_open(MMArchiveReader *, const MMArchiveMovieOpenSink *, MMArchiveMovieIds *,
+                                 MMArchiveDirectoryError *);
 /* Borrow the retained movie until the reader closes. */
 MMMovieSession *mm_archive_reader_movie(const MMArchiveReader *);
 

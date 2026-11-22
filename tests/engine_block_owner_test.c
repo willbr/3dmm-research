@@ -2,6 +2,7 @@
 #include "mm/block_owner.h"
 #include "mm/movie_session.h"
 #include "mm/scene_data.h"
+#include "mm/text.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -564,15 +565,16 @@ static void payload_cache(void)
     release_file(&h, archive.file);
     CHECK(!h.files && !h.handles && !h.locks);
 }
-enum { SOURCE_ROW, ROOT_ROW, SCENE_ROW, DIRECTORY_ROWS };
+enum { SOURCE_ROW, ROOT_ROW, SCENE_ROW, DIRECTORY_ROWS, ADMISSION_ROWS = 6 };
 
 typedef struct DirectoryFixture
 {
     File *file;
-    MMChunkEntry rows[DIRECTORY_ROWS];
-    MMChunkChild children[2];
-    unsigned roots, scenes, sources;
-    int cancel, missing_scene, fallback;
+    MMChunkEntry rows[ADMISSION_ROWS];
+    MMChunkChild children[3];
+    MMU32 count;
+    unsigned roots, scenes, sources, names;
+    int cancel, missing_scene, fallback, rootless;
 } DirectoryFixture;
 
 static int directory_entry(void *context, MMU32 position, MMChunkEntry *out)
@@ -585,7 +587,7 @@ static int directory_entry(void *context, MMU32 position, MMChunkEntry *out)
 static int directory_child(void *context, MMU32 parent, MMU32 position, MMChunkChild *out)
 {
     const DirectoryFixture *fixture = (const DirectoryFixture *)context;
-    CHECK(parent == ROOT_ROW);
+    CHECK(fixture->rows[parent].type == MM_MOVIE_CHUNK);
     *out = fixture->children[position];
     return 1;
 }
@@ -595,7 +597,7 @@ static int directory_locate(void *context, MMU32 type, MMU32 number, MMBlockFile
     DirectoryFixture *fixture = (DirectoryFixture *)context;
     const MMChunkEntry *entry;
     MMU32 i;
-    for (i = 0; i < DIRECTORY_ROWS; ++i)
+    for (i = 0; i < fixture->count; ++i)
     {
         entry = &fixture->rows[i];
         if (entry->type != type || entry->number != number)
@@ -681,6 +683,7 @@ static void archive_directory(void)
     CHECK(write_file(&host, fixture.file, rows[SCENE_ROW].offset, scene, sizeof(scene)));
     memcpy(fixture.rows, rows, sizeof(rows));
     memcpy(fixture.children, children, sizeof(children));
+    fixture.count = DIRECTORY_ROWS;
     payload.handles = &handles;
     payload.files = &files;
     payload.locate = directory_locate;
@@ -731,6 +734,120 @@ static void archive_directory(void)
     CHECK(!host.files);
 }
 
+static int admission_scene(void *context, MMU32 slot, const MMMovieSessionScene *scene)
+{
+    DirectoryFixture *fixture = (DirectoryFixture *)context;
+    CHECK(scene->first_frame == 2 && scene->last_frame == 9 && scene->transition == 1);
+    CHECK(slot == (fixture->rootless ? fixture->scenes : 4));
+    CHECK(scene->number == (fixture->scenes ? 0xffffffffUL : 12));
+    ++fixture->scenes;
+    return 1;
+}
+
+static int admission_source(void *context, const MMMovieSourceName *source)
+{
+    DirectoryFixture *fixture = (DirectoryFixture *)context;
+    CHECK(source->id == (fixture->rootless ? 1 : MM_MOVIE_RETAIL_SOURCE_ID));
+    CHECK(source->size == sizeof(MM_MOVIE_RETAIL_SOURCE_NAME) - 1 &&
+          !memcmp(source->bytes, MM_MOVIE_RETAIL_SOURCE_NAME, source->size));
+    ++fixture->sources;
+    return 1;
+}
+
+static int admission_name(void *context, MMI32 id, const void *text, MMU32 units)
+{
+    DirectoryFixture *fixture = (DirectoryFixture *)context;
+    CHECK(id == 20 && units == 1 && *(const char *)text == (fixture->names ? 'B' : 'A'));
+    ++fixture->names;
+    return !fixture->cancel;
+}
+
+static void movie_admission(void)
+{
+    unsigned char actor[44] = {1, 0, 3, 3};
+    unsigned char little[56] = {
+        1, 0, 3, 3, 32, 0, 0, 0, 1, 0, 0, 0, 4, 0, 0, 0, 255, 255, 255, 255, 1, 'A', 0, 0
+    };
+    unsigned char big[56] = {
+        0, 1, 3, 3, 0, 0, 0, 32, 0, 0, 0, 1, 0, 0, 0, 4, 255, 255, 255, 255, 1, 'B', 0, 0
+    };
+    const unsigned char root[] = {1, 0, 3, 3, 2, 0, 2, 0};
+    const unsigned char scene[] = {1, 0, 3, 3, 9, 0, 0, 0, 2, 0, 0, 0, 1, 0, 0, 0};
+    const MMChunkEntry rows[] = {
+        {0x41435452UL, 0xffffffffUL, 0, sizeof(actor), 0, 0, 0, 0},
+        {0x47535420UL, 5, 44, sizeof(little), 0, 0, 1, 0},
+        {0x47535420UL, 6, 100, sizeof(big), 0, 0, 1, 0},
+        {MM_MOVIE_CHUNK, 7, 156, sizeof(root), 0, 3, 0, 36},
+        {MM_SCENE_CHUNK, 12, 164, sizeof(scene), 0, 0, 1, 0},
+        {MM_SCENE_CHUNK, 0xffffffffUL, 180, sizeof(scene), 0, 0, 0, 0}
+    };
+    const MMChunkChild children[] = {{0x47535420UL, 5, 0}, {0x47535420UL, 6, 0}, {MM_SCENE_CHUNK, 12, 4}};
+    const MMMovieActor roll = {20, 1, 2, 0, 0x544d504cUL, 4};
+    DirectoryFixture fixture = {0};
+    Host host = {0};
+    MMHandleServices handles;
+    MMBlockFileServices files;
+    MMChunkPayloadServices payload = {0};
+    MMChunkAccess chunks = {NULL, ADMISSION_ROWS, directory_entry, directory_child};
+    const MMArchiveReaderOptions options = {1024, 1024, MM_TEXT_WINDOWS, NULL, NULL, NULL, NULL, NULL};
+    MMArchiveMovieOpenSink sink = {{NULL, directory_root, admission_scene, admission_source}, admission_name};
+    MMArchiveReader *reader;
+    MMArchiveDirectoryError error;
+    MMArchiveMovieIds ids = {101, 102, 103, 0, 0};
+    services(&host, &handles, &files);
+    fixture.file = (File *)create_temp(&host);
+    CHECK(fixture.file);
+    actor[16] = 10;
+    mm_movie_write_actor(&roll, little + 28, 0);
+    mm_movie_write_actor(&roll, big + 28, 1);
+    CHECK(write_file(&host, fixture.file, rows[0].offset, actor, sizeof(actor)));
+    CHECK(write_file(&host, fixture.file, rows[1].offset, little, sizeof(little)));
+    CHECK(write_file(&host, fixture.file, rows[2].offset, big, sizeof(big)));
+    CHECK(write_file(&host, fixture.file, rows[3].offset, root, sizeof(root)));
+    CHECK(write_file(&host, fixture.file, rows[4].offset, scene, sizeof(scene)));
+    CHECK(write_file(&host, fixture.file, rows[5].offset, scene, sizeof(scene)));
+    memcpy(fixture.rows, rows, sizeof(rows));
+    memcpy(fixture.children, children, sizeof(children));
+    fixture.count = ADMISSION_ROWS;
+    payload.handles = &handles;
+    payload.files = &files;
+    payload.locate = directory_locate;
+    payload.decode_context = &host;
+    payload.decode = transform;
+    chunks.context = sink.directory.context = &fixture;
+    CHECK(mm_archive_reader_open(&chunks, &fixture, &payload, &options, &reader) == MM_ARCHIVE_READ_OK);
+    fixture.cancel = 1;
+    CHECK(mm_archive_reader_movie_open(reader, &sink, &ids, &error) == MM_ARCHIVE_DIRECTORY_CANCELLED);
+    CHECK(fixture.names == 1 && ids.next_actor_id == 103 && !mm_archive_reader_movie(reader));
+    fixture.cancel = fixture.names = fixture.scenes = 0;
+    CHECK(mm_archive_reader_movie_open(reader, &sink, &ids, &error) == MM_ARCHIVE_DIRECTORY_OK);
+    CHECK(fixture.roots == 2 && fixture.scenes == 1 && fixture.sources == 2 && fixture.names == 2);
+    CHECK(ids.next_scene == 13 && ids.scene_exhausted && ids.actor_chunk_exhausted && ids.next_actor_id == 21);
+    CHECK(mm_archive_reader_movie(reader));
+    mm_archive_reader_close(reader);
+
+    fixture.rootless = 1;
+    fixture.scenes = fixture.sources = fixture.names = 0;
+    memmove(fixture.rows + 3, fixture.rows + 4, 2 * sizeof(*fixture.rows));
+    chunks.count = --fixture.count;
+    CHECK(mm_archive_reader_open(&chunks, &fixture, &payload, &options, &reader) == MM_ARCHIVE_READ_OK);
+    CHECK(mm_archive_reader_movie_open(reader, &sink, &ids, &error) == MM_ARCHIVE_DIRECTORY_OK);
+    CHECK(fixture.scenes == 2 && fixture.sources == 1 && !fixture.names && !mm_archive_reader_movie(reader));
+    CHECK(ids.next_actor_id == 11 && ids.scene_exhausted && ids.actor_chunk_exhausted);
+    mm_archive_reader_close(reader);
+
+    actor[0] = 0;
+    CHECK(write_file(&host, fixture.file, rows[0].offset, actor, sizeof(actor)));
+    fixture.scenes = 0;
+    CHECK(mm_archive_reader_open(&chunks, &fixture, &payload, &options, &reader) == MM_ARCHIVE_READ_OK);
+    CHECK(mm_archive_reader_movie_open(reader, &sink, &ids, &error) == MM_ARCHIVE_DIRECTORY_PAYLOAD);
+    CHECK(error.position == 0 && error.payload_status == MM_ARCHIVE_INVALID_RECORD && ids.next_actor_id == 11);
+    mm_archive_reader_close(reader);
+    CHECK(fixture.file->refs == 1 && !host.handles && !host.locks);
+    release_file(&host, fixture.file);
+    CHECK(!host.files);
+}
+
 int main(void)
 {
     golden();
@@ -739,5 +856,6 @@ int main(void)
     payloads();
     payload_cache();
     archive_directory();
+    movie_admission();
     return 0;
 }

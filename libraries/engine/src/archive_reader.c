@@ -495,6 +495,16 @@ MMMovieSessionGraph mm_archive_reader_graph(MMArchiveReader *reader)
     return graph;
 }
 
+static int default_source(const MMArchiveDirectorySink *sink, MMI32 id)
+{
+    MMMovieSourceName row = {0};
+    row.id = id;
+    row.encoding = MM_TEXT_WINDOWS;
+    row.size = sizeof(MM_MOVIE_RETAIL_SOURCE_NAME) - 1;
+    memcpy(row.bytes, MM_MOVIE_RETAIL_SOURCE_NAME, row.size);
+    return sink->source(sink->context, &row) > 0 ? MM_ARCHIVE_DIRECTORY_OK : MM_ARCHIVE_DIRECTORY_CANCELLED;
+}
+
 static int directory_sources(MMArchiveReader *reader, const MMMovieSession *movie, const MMArchiveDirectorySink *sink,
                               MMArchiveDirectoryError *error)
 {
@@ -505,13 +515,7 @@ static int directory_sources(MMArchiveReader *reader, const MMMovieSession *movi
     MMU32 position, i;
     int status = mm_movie_session_source_table(movie, &entry, &position);
     if (status == MM_MOVIE_ASSET_NOT_FOUND)
-    {
-        row.id = MM_MOVIE_RETAIL_SOURCE_ID;
-        row.encoding = MM_TEXT_WINDOWS;
-        row.size = sizeof(MM_MOVIE_RETAIL_SOURCE_NAME) - 1;
-        memcpy(row.bytes, MM_MOVIE_RETAIL_SOURCE_NAME, row.size);
-        return sink->source(sink->context, &row) > 0 ? MM_ARCHIVE_DIRECTORY_OK : MM_ARCHIVE_DIRECTORY_CANCELLED;
-    }
+        return default_source(sink, MM_MOVIE_RETAIL_SOURCE_ID);
     if (status != MM_MOVIE_OK)
         return MM_ARCHIVE_DIRECTORY_SOURCE_LINK;
     status = directory_payload(reader, position, &entry, &stream, error);
@@ -536,7 +540,7 @@ static int directory_sources(MMArchiveReader *reader, const MMMovieSession *movi
 }
 
 static int directory_rows(MMArchiveReader *reader, const MMMovieSession *movie, const MMArchiveDirectorySink *sink,
-                           MMArchiveDirectoryError *error)
+                           MMU32 *scene_count, MMArchiveDirectoryError *error)
 {
     MMMovieSessionScene scene;
     MMU32 cursor = 0, slot;
@@ -545,8 +549,11 @@ static int directory_rows(MMArchiveReader *reader, const MMMovieSession *movie, 
     if (sink->root(sink->context, error->root) <= 0)
         return MM_ARCHIVE_DIRECTORY_CANCELLED;
     while ((status = mm_movie_session_next_scene(movie, error, &cursor, &scene, &slot)) == MM_MOVIE_OK)
+    {
         if (sink->scene(sink->context, slot, &scene) <= 0)
             return MM_ARCHIVE_DIRECTORY_CANCELLED;
+        ++*scene_count;
+    }
     if (status == MM_MOVIE_MEMORY)
         return MM_ARCHIVE_DIRECTORY_MEMORY;
     if (error->payload_status != MM_ARCHIVE_READ_OK)
@@ -556,11 +563,149 @@ static int directory_rows(MMArchiveReader *reader, const MMMovieSession *movie, 
     return directory_sources(reader, movie, sink, error);
 }
 
-int mm_archive_reader_directory(MMArchiveReader *reader, const MMArchiveDirectorySink *sink,
-                                MMArchiveDirectoryError *error)
+static int admission_record_error(MMArchiveDirectoryError *error, MMU32 position, int status)
+{
+    error->position = position;
+    error->payload_status = status;
+    return MM_ARCHIVE_DIRECTORY_PAYLOAD;
+}
+
+static int rootless_scenes(MMArchiveReader *reader, const MMArchiveDirectorySink *sink, MMU32 *count,
+                           MMArchiveDirectoryError *error)
+{
+    MMChunkEntry entry;
+    MMU32 position;
+    int status;
+    while ((status = mm_chunk_type_at(&reader->chunks, MM_SCENE_CHUNK, *count, &entry, &position)) == MM_CHUNK_OK)
+    {
+        MMMovieSessionScene scene;
+        MMArchiveRecord record;
+        const int read = mm_archive_reader_record(reader, position, &record);
+        if (read != MM_ARCHIVE_READ_OK)
+            return admission_record_error(error, position, read);
+        scene.number = entry.number;
+        scene.first_frame = record.value.scene.first;
+        scene.last_frame = record.value.scene.last;
+        scene.transition = record.value.scene.transition;
+        if (sink->scene(sink->context, *count, &scene) <= 0)
+            return MM_ARCHIVE_DIRECTORY_CANCELLED;
+        ++*count;
+    }
+    if (status != MM_CHUNK_NOT_FOUND)
+        return MM_ARCHIVE_DIRECTORY_INDEX;
+    return default_source(sink, 1);
+}
+
+static void advance_actor_id(MMArchiveMovieIds *ids, MMI32 actor)
+{
+    if (actor >= 0 && (MMU32)actor >= ids->next_actor_id)
+        ids->next_actor_id = (MMU32)actor + 1;
+}
+
+static int rollcall_names(MMArchiveReader *reader, MMU32 position, const MMArchiveMovieOpenSink *sink,
+                          MMArchiveMovieIds *ids, MMArchiveDirectoryError *error)
+{
+    MMReadStream stream;
+    const MMMovieStringTable *table;
+    MMMovieStringPage page;
+    unsigned char order;
+    MMU32 i;
+    int status = mm_archive_reader_payload(reader, position, &stream);
+    if (status != MM_ARCHIVE_READ_OK)
+        return admission_record_error(error, position, status);
+    if (!mm_read_exact(&stream, 0, &order, 1))
+        return admission_record_error(error, position, MM_ARCHIVE_INVALID_STRINGS);
+    status = mm_archive_reader_strings(reader, position, &table);
+    if (status != MM_ARCHIVE_READ_OK)
+        return admission_record_error(error, position, status);
+    mm_movie_string_table_page(table, 0, 0, &page);
+    error->position = position;
+    /* The previous reader admitted one final 128-entry page after 65536 rows. */
+    if (page.total > 65536UL + 128)
+        return MM_ARCHIVE_DIRECTORY_ROLLCALL_LIMIT;
+    if (page.extra_bytes != MM_MOVIE_ACTOR_BYTES)
+        return MM_ARCHIVE_DIRECTORY_OK;
+    for (i = 0; i < page.total; ++i)
+    {
+        MMMovieStringRow row;
+        MMMovieActor actor;
+        MMMemoryStream extra;
+        if (!mm_movie_string_table_row(table, i, &row) ||
+            !mm_memory_stream_init(&extra, row.extra, page.extra_bytes) ||
+            mm_movie_read_actor(&extra.stream, !order, &actor, NULL) != MM_MOVIE_OK)
+            return MM_ARCHIVE_DIRECTORY_ROLLCALL;
+        advance_actor_id(ids, actor.actor_id);
+        if (sink->actor_name(sink->directory.context, actor.actor_id, row.text, row.units) <= 0)
+            return MM_ARCHIVE_DIRECTORY_CANCELLED;
+    }
+    return MM_ARCHIVE_DIRECTORY_OK;
+}
+
+static int movie_rollcall(MMArchiveReader *reader, MMU32 root, const MMArchiveMovieOpenSink *sink,
+                           MMArchiveMovieIds *ids, MMArchiveDirectoryError *error)
+{
+    MMChunkEntry entry;
+    MMU32 parent, i, position;
+    if (mm_chunk_find(&reader->chunks, MM_MOVIE_CHUNK, root, &parent) != MM_CHUNK_OK ||
+        mm_chunk_at(&reader->chunks, parent, &entry) != MM_CHUNK_OK)
+        return MM_ARCHIVE_DIRECTORY_INDEX;
+    for (i = 0; i < entry.child_count; ++i)
+    {
+        MMChunkChild child;
+        int status;
+        if (mm_chunk_child_at(&reader->chunks, parent, i, &child) != MM_CHUNK_OK)
+            return MM_ARCHIVE_DIRECTORY_INDEX;
+        if (child.slot)
+            break;
+        if (child.type != STRING_TABLE_TYPE)
+            continue;
+        if (mm_chunk_find(&reader->chunks, child.type, child.number, &position) != MM_CHUNK_OK)
+            return MM_ARCHIVE_DIRECTORY_ROLLCALL;
+        status = rollcall_names(reader, position, sink, ids, error);
+        if (status != MM_ARCHIVE_DIRECTORY_OK)
+            return status;
+    }
+    return MM_ARCHIVE_DIRECTORY_OK;
+}
+
+static void advance_chunk_number(MMU32 number, MMU32 *next, int *exhausted)
+{
+    if (number == 0xffffffffUL)
+        *exhausted = 1;
+    else if (number >= *next)
+        *next = number + 1;
+}
+
+static int movie_ids(MMArchiveReader *reader, MMArchiveMovieIds *ids, MMArchiveDirectoryError *error)
+{
+    MMU32 i;
+    for (i = 0; i < reader->chunks.count; ++i)
+    {
+        MMChunkEntry entry;
+        if (mm_chunk_at(&reader->chunks, i, &entry) != MM_CHUNK_OK)
+            return MM_ARCHIVE_DIRECTORY_INDEX;
+        if (entry.type == MM_SCENE_CHUNK)
+            advance_chunk_number(entry.number, &ids->next_scene, &ids->scene_exhausted);
+        if (entry.type == ACTOR_TYPE)
+        {
+            MMArchiveRecord record;
+            const int status = mm_archive_reader_record(reader, i, &record);
+            if (status != MM_ARCHIVE_READ_OK)
+                return admission_record_error(error, i, status);
+            advance_chunk_number(entry.number, &ids->next_actor_chunk, &ids->actor_chunk_exhausted);
+            advance_actor_id(ids, record.value.actor.id);
+        }
+    }
+    return MM_ARCHIVE_DIRECTORY_OK;
+}
+
+static int read_directory(MMArchiveReader *reader, const MMArchiveDirectorySink *sink,
+                          const MMArchiveMovieOpenSink *open, MMArchiveMovieIds *ids, MMArchiveDirectoryError *error)
 {
     MMMovieSessionGraph graph;
     MMMovieSession *movie = reader->movie;
+    MMArchiveMovieIds staged = {0};
+    MMU32 scenes = 0;
     int status;
     error->root = error->position = 0xffffffffUL;
     error->payload_status = MM_ARCHIVE_READ_OK;
@@ -568,20 +713,42 @@ int mm_archive_reader_directory(MMArchiveReader *reader, const MMArchiveDirector
     {
         graph = mm_archive_reader_graph(reader);
         status = mm_movie_session_open_graph(&graph, error, &error->root, &movie);
-        if (status == MM_MOVIE_ROOT_NOT_FOUND)
-            return MM_ARCHIVE_DIRECTORY_OK;
         if (status == MM_MOVIE_MEMORY)
             return MM_ARCHIVE_DIRECTORY_MEMORY;
-        if (status != MM_MOVIE_OK)
+        if (status != MM_MOVIE_OK && status != MM_MOVIE_ROOT_NOT_FOUND)
             return error->payload_status == MM_ARCHIVE_READ_OK ? MM_ARCHIVE_DIRECTORY_ROOT :
                                                                 MM_ARCHIVE_DIRECTORY_PAYLOAD;
     }
-    status = directory_rows(reader, movie, sink, error);
+    status = movie ? directory_rows(reader, movie, sink, &scenes, error) :
+             open ? rootless_scenes(reader, sink, &scenes, error) : MM_ARCHIVE_DIRECTORY_OK;
+    if (open && status == MM_ARCHIVE_DIRECTORY_OK)
+    {
+        if (movie)
+            status = movie_rollcall(reader, error->root, open, &staged, error);
+        if (status == MM_ARCHIVE_DIRECTORY_OK)
+            status = scenes ? movie_ids(reader, &staged, error) : MM_ARCHIVE_DIRECTORY_NO_SCENES;
+    }
     if (status == MM_ARCHIVE_DIRECTORY_OK)
+    {
+        if (ids)
+            *ids = staged;
         reader->movie = movie;
+    }
     else if (movie != reader->movie)
         mm_movie_session_close(movie);
     return status;
+}
+
+int mm_archive_reader_directory(MMArchiveReader *reader, const MMArchiveDirectorySink *sink,
+                                MMArchiveDirectoryError *error)
+{
+    return read_directory(reader, sink, NULL, NULL, error);
+}
+
+int mm_archive_reader_movie_open(MMArchiveReader *reader, const MMArchiveMovieOpenSink *sink, MMArchiveMovieIds *ids,
+                                 MMArchiveDirectoryError *error)
+{
+    return read_directory(reader, &sink->directory, sink, ids, error);
 }
 
 MMMovieSession *mm_archive_reader_movie(const MMArchiveReader *reader)

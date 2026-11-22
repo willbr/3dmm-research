@@ -109,6 +109,19 @@ struct MovieDirectory
     std::vector<MovieSceneEntry> scenes;
     std::vector<MovieSourceEntry> sources;
 };
+struct MovieActorName
+{
+    std::int32_t id;
+    std::string name;
+};
+struct MovieOpenInfo
+{
+    MovieDirectory directory;
+    std::vector<std::string> sceneNames;
+    std::vector<MovieActorName> actorNames;
+    std::uint64_t nextScene = 0, nextActorChunk = 0;
+    std::int64_t nextActorId = 0;
+};
 struct ActorHeader
 {
     std::int32_t actorId = 0, firstFrame = 0, lastFrame = 0;
@@ -158,6 +171,7 @@ class Archive
     MMMovieSession *MovieSession() const;
     enum class OpenMode { live, inspection, preview, resources };
     bool OpenCore(const std::string &utf8Path, Error &, OpenMode);
+    bool ReadMovieMetadata(MovieDirectory &, MovieOpenInfo *, Error &);
     struct Impl;
     std::unique_ptr<Impl> _impl;
 
@@ -189,6 +203,9 @@ class Archive
     // Rootless resource archives have an empty directory. Failure preserves
     // the output.
     bool ReadMovieDirectory(MovieDirectory &directory, Error &error);
+    // Includes authored or rootless scene rows, roll-call names and edit ID limits.
+    // A failed read leaves the output unchanged.
+    bool ReadMovieOpenInfo(MovieOpenInfo &, Error &);
     bool ReadStrings(std::size_t index, std::uint32_t first, std::uint32_t count, StringTablePage &page, Error &error);
 };
 std::string TypeLabel(std::uint32_t type);

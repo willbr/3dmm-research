@@ -571,6 +571,9 @@ namespace
 struct DirectoryHost
 {
     MovieDirectory directory;
+    MovieOpenInfo *open = nullptr;
+    const std::vector<Chunk> *chunks = nullptr;
+    MMChunkAccess access{};
     std::exception_ptr exception;
 
     template <class Write> int Append(Write write)
@@ -602,6 +605,13 @@ struct DirectoryHost
                 return host.Append([&] {
                     host.directory.scenes.push_back({{MM_SCENE_CHUNK, scene->number}, slot,
                                                      {scene->first_frame, scene->last_frame, scene->transition}});
+                    if (host.open)
+                    {
+                        MMU32 position;
+                        if (mm_chunk_find(&host.access, MM_SCENE_CHUNK, scene->number, &position) != MM_CHUNK_OK)
+                            throw std::runtime_error("Movie scene is missing from the index.");
+                        host.open->sceneNames.push_back((*host.chunks)[position].name);
+                    }
                 });
             },
             [](void *context, const MMMovieSourceName *row) -> int {
@@ -619,6 +629,18 @@ struct DirectoryHost
 
 bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
 {
+    return ReadMovieMetadata(directory, nullptr, error);
+}
+bool Archive::ReadMovieOpenInfo(MovieOpenInfo &out, Error &error)
+{
+    MovieOpenInfo opened;
+    if (!ReadMovieMetadata(opened.directory, &opened, error))
+        return false;
+    out = std::move(opened);
+    return true;
+}
+bool Archive::ReadMovieMetadata(MovieDirectory &directory, MovieOpenInfo *open, Error &error)
+{
     error = {};
     Internal::ClearDiagnostic();
     if (!_impl->reader)
@@ -626,15 +648,30 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
     try
     {
         DirectoryHost host;
+        host.open = open;
+        host.chunks = &_impl->chunks;
+        host.access = mm_archive_reader_access(_impl->reader);
         const auto sink = host.Sink();
         MMArchiveDirectoryError detail;
-        const int status = mm_archive_reader_directory(_impl->reader, &sink, &detail);
+        MMArchiveMovieIds ids;
+        const MMArchiveMovieOpenSink movieSink{sink, [](void *context, MMI32 id, const void *text, MMU32 units) {
+            auto &host = *static_cast<DirectoryHost *>(context);
+            return host.Append([&] { host.open->actorNames.push_back({id, Utf8(text, units)}); });
+        }};
+        const int status = open ? mm_archive_reader_movie_open(_impl->reader, &movieSink, &ids, &detail)
+                                : mm_archive_reader_directory(_impl->reader, &sink, &detail);
         if (host.exception)
             std::rethrow_exception(host.exception);
         const Id root = {MM_MOVIE_CHUNK, detail.root};
         switch (status)
         {
         case MM_ARCHIVE_DIRECTORY_OK:
+            if (open)
+            {
+                open->nextScene = ids.scene_exhausted ? std::uint64_t{1} << 32 : ids.next_scene;
+                open->nextActorChunk = ids.actor_chunk_exhausted ? std::uint64_t{1} << 32 : ids.next_actor_chunk;
+                open->nextActorId = ids.next_actor_id;
+            }
             directory = std::move(host.directory);
             return true;
         case MM_ARCHIVE_DIRECTORY_ROOT:
@@ -655,6 +692,14 @@ bool Archive::ReadMovieDirectory(MovieDirectory &directory, Error &error)
             return _impl->Check(detail.payload_status, detail.position, error);
         case MM_ARCHIVE_DIRECTORY_MEMORY:
             throw std::bad_alloc();
+        case MM_ARCHIVE_DIRECTORY_INDEX:
+            return Fail(error, ErrorCode::corrupt_archive, "Cannot read the movie chunk index.");
+        case MM_ARCHIVE_DIRECTORY_NO_SCENES:
+            return Fail(error, ErrorCode::corrupt_archive, "This document contains no movie scenes.");
+        case MM_ARCHIVE_DIRECTORY_ROLLCALL:
+            return Fail(error, ErrorCode::corrupt_archive, "The movie roll-call record is invalid.");
+        case MM_ARCHIVE_DIRECTORY_ROLLCALL_LIMIT:
+            return Fail(error, ErrorCode::resource_limit, "The movie roll-call table has too many entries.");
         default:
             return Fail(error, ErrorCode::unsupported_format, "Movie source names cannot be decoded.");
         }

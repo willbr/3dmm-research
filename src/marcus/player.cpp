@@ -43,7 +43,7 @@
 
 namespace
 {
-const std::uint32_t sceneType = 0x5343454e, gstType = 0x47535420;
+const std::uint32_t sceneType = 0x5343454e;
 template <std::size_t N> void Copy(char (&output)[N], const char *input)
 {
     const auto count = std::min(N - 1, std::strlen(input));
@@ -1303,35 +1303,6 @@ bool SoundChange(MarcusPlayer *player, int index, const char *path, const Marcus
     auto file = MarcusEditSound(MaterializedMovie(*player), player->scenes[sceneIndex].number, adding ? nullptr : &cue, options, path, remove,
         asset ? library.c_str() : nullptr, asset ? asset->chunk : 0);
     return ReplaceEditedMovie(player, file, error);
-}
-std::size_t Find(const MM::Archive &archive, MM::Id id)
-{
-    const auto &chunks = archive.Chunks();
-    const auto found = std::lower_bound(chunks.begin(), chunks.end(), id, [](const auto &chunk, MM::Id key) {
-        return chunk.id.type < key.type || (chunk.id.type == key.type && chunk.id.number < key.number);
-    });
-    return found != chunks.end() && found->id == id ? static_cast<std::size_t>(found - chunks.begin()) : chunks.size();
-}
-bool Strings(MM::Archive &archive, MM::Id id, std::vector<MM::StringTableEntry> &entries, bool &big,
-             MM::Error &error)
-{
-    const auto index = Find(archive, id);
-    MM::PayloadPage header;
-    if (index == archive.Chunks().size() || !archive.ReadPayload(index, 0, 2, header, error) ||
-        header.bytes.size() != 2)
-        return false;
-    big = header.bytes[0] == 0;
-    MM::StringTablePage page;
-    for (std::uint32_t first = 0;; first += static_cast<std::uint32_t>(page.entries.size()))
-    {
-        if (!archive.ReadStrings(index, first, 128, page, error))
-            return false;
-        entries.insert(entries.end(), page.entries.begin(), page.entries.end());
-        if (first + page.entries.size() >= page.totalEntries)
-            return true;
-        if (entries.size() > 65536 || page.entries.empty())
-            return false;
-    }
 }
 } // namespace
 const MarcusBoardWire *MarcusGetStoryboardView(const MarcusPlayer *player)
@@ -2612,93 +2583,30 @@ extern "C"
             MM::Archive archive;
             if (!archive.OpenForPreview(document, error))
                 return false;
-            MM::MovieDirectory movie;
-            if (!archive.ReadMovieDirectory(movie, error))
+            MM::MovieOpenInfo movie;
+            if (!archive.ReadMovieOpenInfo(movie, error))
                 return false;
             std::vector<MM::Id> scenes;
             std::vector<MarcusScene> sceneInfo;
             std::map<std::int32_t, std::string> names;
-            auto sources = std::move(movie.sources);
-            const auto &chunks = archive.Chunks();
-            const auto addScene = [&](const MM::Chunk &chunk, const MM::SceneHeader &header) {
+            const auto &sources = movie.directory.sources;
+            scenes.reserve(movie.directory.scenes.size());
+            sceneInfo.reserve(movie.directory.scenes.size());
+            for (std::size_t i = 0; i < movie.directory.scenes.size(); ++i)
+            {
+                const auto &entry = movie.directory.scenes[i];
+                const auto &name = movie.sceneNames[i];
                 MarcusScene scene = {};
-                scene.chunk = chunk.id.number;
-                scene.first_frame = header.firstFrame;
-                scene.last_frame = header.lastFrame;
-                scene.transition = header.transition;
-                Copy(scene.name, chunk.name.empty() ? "Scene " + std::to_string(sceneInfo.size() + 1) : chunk.name);
-                scenes.push_back(chunk.id);
+                scene.chunk = entry.id.number;
+                scene.first_frame = entry.header.firstFrame;
+                scene.last_frame = entry.header.lastFrame;
+                scene.transition = entry.header.transition;
+                Copy(scene.name, name.empty() ? "Scene " + std::to_string(i + 1) : name);
+                scenes.push_back(entry.id);
                 sceneInfo.push_back(scene);
-            };
-            if (movie.hasRoot)
-            {
-                for (const auto &scene : movie.scenes)
-                {
-                    const auto sceneIndex = Find(archive, scene.id);
-                    if (sceneIndex == chunks.size())
-                        return false;
-                    addScene(chunks[sceneIndex], scene.header);
-                }
-                const auto rootIndex = Find(archive, movie.root);
-                if (rootIndex == chunks.size())
-                    return false;
-                for (const auto &child : chunks[rootIndex].children)
-                {
-                    if (child.target.type != gstType || child.slot != 0)
-                        continue;
-                    std::vector<MM::StringTableEntry> entries;
-                    bool big = false;
-                    if (!Strings(archive, child.target, entries, big, error))
-                        return false;
-                    for (const auto &entry : entries)
-                        if (entry.extra.size() == MM_MOVIE_ACTOR_BYTES)
-                        {
-                            MMMemoryStream memory;
-                            MMMovieActor actor;
-                            if (!mm_memory_stream_init(&memory, entry.extra.data(), entry.extra.size()) ||
-                                mm_movie_read_actor(&memory.stream, big, &actor, nullptr) != MM_MOVIE_OK)
-                            {
-                                error.code = MM::ErrorCode::corrupt_archive;
-                                error.message = "The movie roll-call record is invalid.";
-                                return false;
-                            }
-                            names[actor.actor_id] = entry.text;
-                        }
-                }
             }
-            else
-            {
-                // Also accept headless scene fixtures, which use source 1.
-                for (std::size_t i = 0; i < chunks.size(); ++i)
-                    if (chunks[i].id.type == sceneType)
-                    {
-                        MM::RecordHeader record;
-                        if (!archive.ReadRecord(i, record, error))
-                            return false;
-                        addScene(chunks[i], record.scene);
-                    }
-                sources.push_back({1, "3dmovie"});
-            }
-            if (scenes.empty())
-            {
-                error.message = "This document contains no movie scenes.";
-                return false;
-            }
-            std::uint64_t nextScene = 0, nextObject = 0;
-            std::int64_t nextActor = 0;
-            for (std::size_t index = 0; index < archive.Chunks().size(); ++index)
-            {
-                const auto &chunk = archive.Chunks()[index];
-                if (chunk.id.type == sceneType) nextScene = std::max(nextScene, std::uint64_t(chunk.id.number) + 1);
-                if (chunk.id.type == 0x41435452)
-                {
-                    nextObject = std::max(nextObject, std::uint64_t(chunk.id.number) + 1);
-                    MM::RecordHeader record;
-                    if (!archive.ReadRecord(index, record, error)) return false;
-                    nextActor = std::max(nextActor, std::int64_t(record.actor.actorId) + 1);
-                }
-            }
-            for (const auto &name : names) nextActor = std::max(nextActor, std::int64_t(name.first) + 1);
+            for (auto &actor : movie.actorNames)
+                names[actor.id] = std::move(actor.name);
             MarcusSourceRegistry sourceIds;
             if (player->internalOpenDepth)
                 mm_movie_source_ids_limit(&sourceIds, player->sourceIds.next);
@@ -2771,7 +2679,9 @@ extern "C"
             mm_movie_source_ids_swap(&player->sourceIds, &sourceIds);
             player->asmBoardFile.reset();
             player->materializedEdits.reset();
-            player->nextScene = nextScene; player->nextObject = nextObject; player->nextActorId = nextActor;
+            player->nextScene = movie.nextScene;
+            player->nextObject = movie.nextActorChunk;
+            player->nextActorId = movie.nextActorId;
             player->resourcesReady = true; player->retailPrepared = retailPrepared; player->retailSource = retailSource;
             player->materializedFrameRanges.reset();
             player->materializedPoses.reset();

@@ -22707,3 +22707,30 @@ integration checks. The existing `scene-load` assertion repeated its
 
 Evidence is under `tmp/c89-live-placement` and `tmp/c89-kd`. The retained
 retail and V3DMM captures are under `tmp/c89-rscap`.
+
+## C89 movie metadata at open (22 November 2026)
+
+The C89 archive reader visits authored scene and source links, lists SCEN
+chunks for rootless fixtures, and decodes roll-call names from slot-zero
+tables. It validates all actor headers and computes the next scene, actor
+chunk and actor IDs, including IDs used by unlinked chunks. It publishes
+those limits and retains the session after the complete read. Marcus
+supplies name conversion and publishes the scene and actor display records.
+
+All 239 selected x64, x86 and SDL Studio checks passed. The C archive test
+covered little- and big-endian roll-call extras, duplicate actor name rows,
+rootless scenes, exhausted chunk IDs, and failed or cancelled reads. The
+headless Marcus checks covered open, reopen, isolated previews, native
+snapshot rendering, generated content and the rebuilt 32-bit ASM worker.
+Four generated movie fixtures and the startup capture matched the previous
+build byte for byte.
+
+The `resource-actors` candidate `20261122T195805Z-eaf866ea` matched
+`20261122T194707Z-a0c6a40e` on all 60 seek canvases and recorded states per
+port. Both ports matched the frame order in seek and continuous playback
+from retail and V3DMM suite `20261122T081603Z-7ffc4e8e`. The existing
+`scene-load` assertion repeated its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Evidence is under `tmp/c89-movie-admission` and `tmp/c89-kd`. The retained
+retail and V3DMM captures are under `tmp/c89-rscap`.

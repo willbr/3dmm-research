@@ -85,6 +85,10 @@ priority over the older Project 0-4 ordering wherever they conflict.
   movie session used by Marcus Preview. It validates authored scene and source
   links, applies the source-table budget and supplies the retail source for a
   movie without a source table. The adapter publishes the public directory.
+  For movie open it also lists rootless fixture scenes, decodes the roll-call
+  rows in their stored byte order, and computes available scene, actor chunk
+  and actor IDs. It publishes the limits and retains the movie only after
+  those checks succeed.
 - Preview checks archive budgets against C89 index entries and stored packed
   headers. Its common palette, shade table, and saved scene thumbnails load
   through the C89 archive reader. The common resource archive can stay a
