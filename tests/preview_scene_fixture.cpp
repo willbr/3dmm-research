@@ -55,7 +55,7 @@ static bool Costume(ActorTrack &track, int frame, int set, int cmid, PChunkyReso
     costume.ibset = set;
     costume.cmid = cmid;
     costume.fCmtl = resource == pvNil ? tYes : tNo;
-    costume.tag = {resource ? 0 : 2, resource, kctgMtrl, material};
+    costume.tag = {resource ? 0 : 2, resource ? resource->CoreCache() : nullptr, kctgMtrl, material};
     TagManager::DupTag(&costume.tag);
     if (mm_actor_events_insert(track.Events(), mm_actor_events_count(track.Events()), sizeof(costume), &costume, &event))
         return true;
@@ -212,7 +212,7 @@ static bool ActorAudioEvents(ActorTrack &track, PChunkyResourceFile resource, co
         sound.volume = volumes[i];
         sound.queue = cels[i] < 0 ? tYes : tNo;
         sound.child = cels[i] < 0 ? 0 : 1;
-        sound.tag = {0, resource, kctgMsnd, sounds[sound.child]};
+        sound.tag = {0, resource->CoreCache(), kctgMsnd, sounds[sound.child]};
         mm_tag_dup(&sound.tag, &EngineActorTagServices());
         LegacyLong index = 0;
         for (; index < mm_actor_events_count(track.Events()); ++index)

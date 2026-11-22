@@ -179,8 +179,8 @@ struct Preview::Impl
         s.actors = static_cast<MMU32>(actors.size());
         s.visible = [](void *v, MMU32 i) -> int { return static_cast<Impl *>(v)->actors[i]->Visible(); };
         s.actor_body = [](void *v, MMU32 i) -> void * { return static_cast<Impl *>(v)->actors[i]->Pbody(); };
-        s.body_parts = [](void *, void *b) -> MMI32 { return EngineBody::ActorCount(static_cast<PBody>(b)); };
-        s.part_model = [](void *, void *b, MMI32 i) -> void * { return EngineBody::Part(static_cast<PBody>(b), i)->model; };
+        s.body_parts = [](void *, void *b) -> MMI32 { return mm_body_owner_state(static_cast<PBody>(b))->shape.part_count + 2; };
+        s.part_model = [](void *, void *b, MMI32 i) -> void * { return mm_body_owner_state(static_cast<PBody>(b))->shape.bindings[i + 2].model_handle; };
         s.faces = [](void *, void *m) -> MMU32 { return static_cast<br_model *>(m)->nprepared_faces; };
         mm_preview_stats(&s, &info.parts, &info.triangles);
     }
@@ -382,7 +382,7 @@ struct Preview::Impl::IsolatedActorHost
                         return host.selected.FGet(body);
                     if (!host.original.FGet(body))
                         return false;
-                    host.pose.orientation = EngineBody::RootMatrix(body);
+                    host.pose.orientation = mm_body_owner_state(body)->shape.bindings[0].matrix;
                     return true;
                 });
             },
@@ -394,7 +394,7 @@ struct Preview::Impl::IsolatedActorHost
                 else
                 {
                     host.original.Set(body);
-                    EngineBody::ApplyPose(body, host.pose);
+                    mm_body_locate(body, &host.pose, &mm_kauai_body_renderer()->edit.runtime);
                 }
             },
             [](void *p) -> int {
@@ -420,14 +420,14 @@ struct Preview::Impl::IsolatedActorHost
                 return host.Guard([&] { return host.actor.TryCostumes({host.variants[i]}); });
             },
             [](void *p, float *range) {
-                BCB bounds;
-                EngineBody::GetBcbBounds(static_cast<IsolatedActorHost *>(p)->actor.Pbody(), &bounds, fTrue);
-                range[0] = BrScalarToFloat(bounds.yrMin);
-                range[1] = BrScalarToFloat(bounds.yrMax);
+                MMBodyBounds bounds;
+                mm_brender_body_bounds(mm_kauai_body_renderer(), static_cast<IsolatedActorHost *>(p)->actor.Pbody(), 1, &bounds);
+                range[0] = BrScalarToFloat(bounds.min[1]);
+                range[1] = BrScalarToFloat(bounds.max[1]);
             },
             [](void *p, MMI32 set, float *low, float *high) -> int {
                 MMBodyBounds bounds;
-                if (!EngineBody::PartSetBounds(static_cast<IsolatedActorHost *>(p)->actor.Pbody(), set, bounds))
+                if (!mm_brender_body_set_bounds(static_cast<IsolatedActorHost *>(p)->actor.Pbody(), set, &bounds))
                     return 0;
                 for (int axis = 0; axis < 3; ++axis)
                 {
@@ -562,7 +562,7 @@ bool Preview::UseTextPreviewMaterial(Error &error)
     if (!_impl->body || !_impl->tmpl || !EngineTemplate::FIsTdt(_impl->tmpl)) return false;
     auto material = EngineMaterial::Fetch(_impl->cache, kctgMtrl, 0);
     if (!material) return Fail(error, ErrorCode::decode_failed, "Cannot load the preview material.");
-    EngineBody::SetPartSetMtrl(_impl->body, 0, material); mm_material_owner_release(material); return true;
+    mm_body_set_generic(_impl->body, 0, material, &mm_kauai_body_renderer()->edit.runtime); mm_material_owner_release(material); return true;
 }
 bool Preview::ReadAnimationTimeline(int object, PreviewAnimationTimeline &timeline, Error &error)
 try
@@ -639,16 +639,16 @@ bool Preview::SetObjectShape(int object, const PreviewObjectShape &shape, Error 
         for (int c = 0; c < 3; ++c) dot += shape.rotation[a*3+c] * shape.rotation[b*3+c];
         if (std::abs(dot - (a == b ? 1.f : 0.f)) > .003f) return Fail(error, ErrorCode::invalid_argument, "Rotation must be orthonormal.");
     }
-    BCB before, after;
+    MMBodyBounds before, after;
     auto &actor = *_impl->actors[object];
     const bool hold = mm_preview_orbit_follows(&_impl->orbit, object, actor.Visible()) != 0;
-    if (hold) EngineBody::GetBcbBounds(actor.Pbody(), &before, fTrue);
+    if (hold) mm_brender_body_bounds(mm_kauai_body_renderer(), actor.Pbody(), 1, &before);
     if (!actor.SetShape(shape)) return Fail(error, ErrorCode::decode_failed, "Cannot transform the selected object.");
     if (hold)
     {
-        EngineBody::GetBcbBounds(actor.Pbody(), &after, fTrue);
-        const MMI32 a[6] = {before.xrMin,before.yrMin,before.zrMin,before.xrMax,before.yrMax,before.zrMax};
-        const MMI32 b[6] = {after.xrMin,after.yrMin,after.zrMin,after.xrMax,after.yrMax,after.zrMax};
+        mm_brender_body_bounds(mm_kauai_body_renderer(), actor.Pbody(), 1, &after);
+        const MMI32 a[6] = {before.min[0], before.min[1], before.min[2], before.max[0], before.max[1], before.max[2]};
+        const MMI32 b[6] = {after.min[0], after.min[1], after.min[2], after.max[0], after.max[1], after.max[2]};
         Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
         const auto services = host.Services();
         mm_preview_orbit_resize(&_impl->orbit, a, b, &services.math);
@@ -664,16 +664,15 @@ bool Preview::ObjectBounds(int object, PreviewBounds &bounds, Error &error)
     const auto &actor = *_impl->actors[object];
     if (!actor.Visible() || !actor.Pbody())
         return true;
-    BCB box;
-    EngineBody::GetBcbBounds(actor.Pbody(), &box);
-    const MMI32 low[3] = {box.xrMin, box.yrMin, box.zrMin}, high[3] = {box.xrMax, box.yrMax, box.zrMax};
-    const auto &transform = EngineBody::RootMatrix(actor.Pbody());
+    MMBodyBounds box;
+    mm_brender_body_bounds(mm_kauai_body_renderer(), actor.Pbody(), 0, &box);
+    const auto &transform = mm_body_owner_state(actor.Pbody())->shape.bindings[0].matrix;
     MMI32 matrix[12];
     static_assert(sizeof(matrix) == sizeof(transform), "Object bounds matrix layout");
     std::memcpy(matrix, &transform, sizeof(matrix));
     Impl::RenderHost host = {this, _impl.get(), nullptr, &error};
     const auto services = host.Services();
-    if (!mm_preview_camera_bounds(low, high, matrix, bounds.corners, &services.math)) return true;
+    if (!mm_preview_camera_bounds(box.min, box.max, matrix, bounds.corners, &services.math)) return true;
     // Palette entry 108 is kiclrNormalHilite in the original actor UI.
     const auto &colour = (_impl->background ? _impl->background->palette : _impl->palette)[108];
     bounds.colour = (std::uint32_t(colour.bRed) << 16) | (std::uint32_t(colour.bGreen) << 8) | colour.bBlue;

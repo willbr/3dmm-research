@@ -123,21 +123,21 @@ struct Preview::Impl::RenderHost
             }
             if (!body)
                 return 0;
-            out->draw = EngineBody::DrawView(body);
+            const auto &shape = mm_body_owner_state(body)->shape;
+            out->draw = {shape.bindings, shape.part_count};
             out->resource = body;
             out->owner = static_cast<MMI32>(index) - 1;
             out->order_low = static_cast<MMU32>(order);
             out->order_high = static_cast<MMU32>(order >> 32);
             if (!h.readBodyBounds)
                 return 1;
-            BCB b;
-            EngineBody::GetBcbBounds(body, &b, fTrue);
-            out->low[0] = BrScalarToFloat(b.xrMin);
-            out->low[1] = BrScalarToFloat(b.yrMin);
-            out->low[2] = BrScalarToFloat(b.zrMin);
-            out->high[0] = BrScalarToFloat(b.xrMax);
-            out->high[1] = BrScalarToFloat(b.yrMax);
-            out->high[2] = BrScalarToFloat(b.zrMax);
+            MMBodyBounds bounds;
+            mm_brender_body_bounds(mm_kauai_body_renderer(), body, 1, &bounds);
+            for (int axis = 0; axis < 3; ++axis)
+            {
+                out->low[axis] = BrScalarToFloat(bounds.min[axis]);
+                out->high[axis] = BrScalarToFloat(bounds.max[axis]);
+            }
             return 1;
         };
         s.retain_pose_resource = [](void *, void *object) { mm_body_owner_retain(static_cast<PBody>(object)); };

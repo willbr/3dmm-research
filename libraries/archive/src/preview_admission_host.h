@@ -202,9 +202,8 @@ struct Preview::Impl::AdmissionHost
             std::memcpy(m, &native, sizeof(native));
         };
         s.locate = [](void *, void *b, const MMActorMatrix *m) {
-            BMAT34 native;
-            std::memcpy(&native, m, sizeof(native));
-            EngineBody::LocateOrient(static_cast<PBody>(b), rZero, rZero, rZero, &native);
+            const MMActorBodyPose pose = {{0, 0, 0}, *m};
+            mm_body_locate(b, &pose, &mm_kauai_body_renderer()->edit.runtime);
         };
         s.model_fetch = [](void *v, MMU32 type, MMU32 number, void **out) -> int {
             auto &h = *static_cast<AdmissionHost *>(v);

@@ -80,7 +80,6 @@
 #include "soc_core.h"
 #include "body_renderer.h"
 #include "engine_part_indices.h"
-#include "handle_services.h"
 #include <cstring>
 ASSERTNAME
 
@@ -90,9 +89,15 @@ ASSERTNAME
 #define BODY_VALIDATE(body, flags) ((void)0)
 #endif
 
-static const MMBodyCreateServices &CreateServices();
-static MMBodyRuntimeServices RuntimeServices();
-static MMBodyEditServices EditServices();
+static const MMBodyRuntimeServices &RuntimeServices()
+{
+    return mm_kauai_body_renderer()->edit.runtime;
+}
+
+static const MMBodyEditServices &EditServices()
+{
+    return mm_kauai_body_renderer()->edit;
+}
 
 void EngineBody::ReleaseSharedMaterial(void)
 {
@@ -111,40 +116,6 @@ void EngineBody::SetRenderCallbacks(PBody body, void *context, void (*attach)(vo
 /***************************************************************************
     Builds a tree of BACTs for the Body.
 ***************************************************************************/
-static MMBodyCreateServices MakeCreateServices()
-{
-    MMBodyCreateServices s = {};
-    mm_brender_body_create_services(&s);
-    s.state = [](void *, void *body) { return mm_body_owner_state(static_cast<PBody>(body)); };
-    s.create = [](void *) -> void * { return mm_body_owner_create(KauaiResourceObjectAllocator(), &CreateServices()); };
-    s.release = [](void *, void *object) { mm_body_owner_release(static_cast<PBody>(object)); };
-    s.release_model = [](void *, void *model) { mm_model_owner_release(static_cast<PModel>(model)); };
-    s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<MMMaterialOwner *>(material)); };
-    s.allocate_materials = [](void *, MMI32 count, void ***out) -> int {
-        void *storage = nullptr;
-        const bool ok = FAllocPv(&storage, LwMul(count, size(void *)), fmemClear, mprNormal);
-        *out = static_cast<void **>(storage);
-        return ok;
-    };
-    s.allocate_actors = [](void *, MMI32 count, void **actors, MMBodyPartBinding **bindings) -> int {
-        size_t bytes, offset;
-        if (!mm_brender_body_layout(count, kcbMax, &bytes, &offset) ||
-            !FAllocPv(actors, static_cast<LegacyLong>(bytes), fmemClear, mprNormal))
-            return 0;
-        *bindings = reinterpret_cast<MMBodyPartBinding *>(static_cast<unsigned char *>(*actors) + offset);
-        return 1;
-    };
-    s.hide = [](void *, void *body) { EngineBody::Hide(static_cast<PBody>(body)); };
-    s.free_memory = [](void *, void **memory) { FreePpv(memory); };
-    return s;
-}
-
-static const MMBodyCreateServices &CreateServices()
-{
-    static const auto services = MakeCreateServices();
-    return services;
-}
-
 PBody EngineBody::Create(PDynamicArray pglibactPar, PDynamicArray pglibset)
 {
     return Create(EnginePartIndices::Borrow(pglibactPar), EnginePartIndices::Borrow(pglibset));
@@ -152,8 +123,7 @@ PBody EngineBody::Create(PDynamicArray pglibactPar, PDynamicArray pglibset)
 
 PBody EngineBody::Create(const MMPartIndexView &parents, const MMPartIndexView &sets)
 {
-    auto services = CreateServices();
-    auto body = static_cast<PBody>(mm_body_create(&parents, &sets, &services));
+    auto body = mm_brender_body_create(mm_kauai_body_renderer(), &parents, &sets);
 #ifdef DEBUG
     Validate(body, fobjAssertFull);
 #endif
@@ -173,7 +143,7 @@ bool EngineBody::ChangeShape(PBody body, PDynamicArray pglibactPar, PDynamicArra
 bool EngineBody::ChangeShape(PBody body, const MMPartIndexView &parents, const MMPartIndexView &sets)
 {
     BODY_VALIDATE(body, fobjAssertFull);
-    auto services = EditServices();
+    const auto &services = EditServices();
     const bool ok = mm_body_change_shape(body, &parents, &sets, &services) != 0;
     BODY_VALIDATE(body, fobjAssertFull);
     return ok;
@@ -200,18 +170,10 @@ PBody EngineBody::FromActor(BACT *pbact, LegacyLong *pibset)
     Create a duplicate of this Body.  The duplicate will be hidden
     (hidden count 1) regardless of the state of this Body.
 ***************************************************************************/
-static MMBodyEditServices EditServices()
-{
-    MMBodyEditServices s = {};
-    s.runtime = RuntimeServices();
-    mm_brender_body_edit_services(&s);
-    return s;
-}
-
 PBody EngineBody::Duplicate(PBody body)
 {
     BODY_VALIDATE(body, 0);
-    auto services = EditServices();
+    const auto &services = EditServices();
     auto copy = static_cast<PBody>(mm_body_duplicate(body, &services));
 #ifdef DEBUG
     Validate(copy);
@@ -228,7 +190,7 @@ void EngineBody::Restore(PBody body, PBody pbodyDup)
     Validate(pbodyDup);
 #endif
     Assert(State(pbodyDup).shape.hidden == 1, "dup hidden count must be 1");
-    auto services = EditServices();
+    const auto &services = EditServices();
     mm_body_restore(body, pbodyDup, &services);
     BODY_VALIDATE(body, fobjAssertFull);
 }
@@ -236,42 +198,11 @@ void EngineBody::Restore(PBody body, PBody pbodyDup)
 /***************************************************************************
     Make this Body visible, if it was invisible.  Keeps a refcount.
 ***************************************************************************/
-static MMBodyRuntimeServices RuntimeServices()
-{
-    MMBodyRuntimeServices s = {};
-    s.shape = CreateServices();
-    mm_brender_body_runtime_services(&s);
-    s.retain = [](void *, void *material) { mm_material_owner_retain(static_cast<MMMaterialOwner *>(material)); };
-    s.retain_model = [](void *, void *model) { mm_model_owner_retain(static_cast<PModel>(model)); };
-    s.model_handle = [](void *, void *object) -> void * {
-        auto model = static_cast<PModel>(object);
-        auto handle = EngineModel::Handle(model);
-        Assert(EngineModel::FromHandle(handle) == model, "Model problem");
-        return handle;
-    };
-    s.material_handle = [](void *, void *object) -> void * { return EngineMaterial::Handle(static_cast<PMaterial_MTRL>(object)); };
-    s.custom_set = [](void *, void *object) -> MMI32 { return EngineCostume::Set(static_cast<PCustomMaterial_CMTL>(object)); };
-    s.custom_count = [](void *, void *object) -> MMI32 { return EngineCostume::Count(static_cast<PCustomMaterial_CMTL>(object)); };
-    s.custom_model = [](void *, void *object, MMI32 i) -> void * { return EngineCostume::Model(static_cast<PCustomMaterial_CMTL>(object), i); };
-    s.custom_material = [](void *, void *object, MMI32 i) -> void * { return EngineCostume::Handle(static_cast<PCustomMaterial_CMTL>(object), i); };
-    s.invalidate_output = [](void *, void **out) { TrashVar(out); };
-    s.is_generic = [](void *, void *object) -> int { return mm_material_owner_kind(static_cast<MMMaterialOwner *>(object)) == MM_MATERIAL; };
-    s.diagnostic = [](void *, int code) {
-        switch (code) {
-        case MM_BODY_MISSING_MATERIAL: Assert(false, "body set has no material"); break;
-        case MM_BODY_EMPTY_SET: Assert(false, "empty body set"); break;
-        case MM_BODY_SHORT_COSTUME: Assert(false, "not enough custom materials!"); break;
-        case MM_BODY_COSTUME_SHAPE: Assert(false, "different Body shapes!"); break;
-        }
-    };
-    return s;
-}
-
 void EngineBody::Show(PBody body)
 {
     BODY_VALIDATE(body, 0);
     Assert(State(body).shape.hidden > 0, "object is already visible!");
-    auto s = RuntimeServices(); mm_body_show(body, &s);
+    const auto &s = RuntimeServices(); mm_body_show(body, &s);
 }
 
 /***************************************************************************
@@ -280,7 +211,7 @@ void EngineBody::Show(PBody body)
 void EngineBody::Hide(PBody body)
 {
     BODY_VALIDATE(body, 0);
-    auto s = RuntimeServices(); mm_body_hide(body, &s);
+    const auto &s = RuntimeServices(); mm_body_hide(body, &s);
 }
 
 /***************************************************************************
@@ -297,7 +228,7 @@ void EngineBody::SetHiliteColor(LegacyLong iclr)
 void EngineBody::Hilite(PBody body)
 {
     BODY_VALIDATE(body, 0);
-    auto s = RuntimeServices(); mm_body_highlight(body, 1, &s);
+    const auto &s = RuntimeServices(); mm_body_highlight(body, 1, &s);
 }
 
 /***************************************************************************
@@ -306,7 +237,7 @@ void EngineBody::Hilite(PBody body)
 void EngineBody::Unhilite(PBody body)
 {
     BODY_VALIDATE(body, 0);
-    auto s = RuntimeServices(); mm_body_highlight(body, 0, &s);
+    const auto &s = RuntimeServices(); mm_body_highlight(body, 0, &s);
 }
 
 /***************************************************************************
@@ -325,13 +256,13 @@ void EngineBody::LocateOrient(PBody body, BRS xr, BRS yr, BRS zr, BMAT34 *pbmat3
 void EngineBody::ApplyPose(PBody body, const MMActorBodyPose &pose)
 {
     BODY_VALIDATE(body, 0);
-    auto s = RuntimeServices();
+    const auto &s = RuntimeServices();
     mm_body_locate(body, &pose, &s);
 }
 
 bool EngineBody::PartSetBounds(PBody body, LegacyLong set, MMBodyBounds &out)
 {
-    return mm_body_set_bounds(&State(body).shape, set, mm_brender_body_model_bounds, &out) != 0;
+    return mm_brender_body_set_bounds(body, set, &out) != 0;
 }
 
 /***************************************************************************
@@ -343,7 +274,7 @@ void EngineBody::SetPartModel(PBody body, LegacyLong ibact, PModel pmodl)
 #ifdef DEBUG
     EngineModel::Validate(pmodl);
 #endif
-    auto s = RuntimeServices(); mm_body_set_model(body, ibact, pmodl, &s);
+    const auto &s = RuntimeServices(); mm_body_set_model(body, ibact, pmodl, &s);
 }
 
 /***************************************************************************
@@ -360,7 +291,7 @@ void EngineBody::SetPartMatrix(PBody body, LegacyLong ibact, BMAT34 *pbmat34)
 void EngineBody::SetPartMatrix(PBody body, LegacyLong ibact, const MMActorMatrix &matrix)
 {
     BODY_VALIDATE(body, 0); AssertIn(ibact, 0, State(body).shape.part_count);
-    auto s = RuntimeServices();
+    const auto &s = RuntimeServices();
     mm_body_set_matrix(body, ibact, &matrix, &s);
 }
 
@@ -373,7 +304,7 @@ void EngineBody::SetPartSetMtrl(PBody body, LegacyLong ibset, PMaterial_MTRL pmt
 #ifdef DEBUG
     EngineMaterial::Validate(pmtrl);
 #endif
-    auto s = RuntimeServices(); mm_body_set_generic(body, ibset, pmtrl, &s);
+    const auto &s = RuntimeServices(); mm_body_set_generic(body, ibset, pmtrl, &s);
 }
 
 /***************************************************************************
@@ -386,7 +317,7 @@ void EngineBody::SetPartSetCmtl(PBody body, PCustomMaterial_CMTL pcmtl)
 #ifdef DEBUG
     EngineCostume::Validate(pcmtl);
 #endif
-    auto s = RuntimeServices(); mm_body_set_custom(body, pcmtl, &s);
+    const auto &s = RuntimeServices(); mm_body_set_custom(body, pcmtl, &s);
 }
 
 /***************************************************************************
@@ -401,22 +332,21 @@ void EngineBody::GetPartSetMaterial(PBody body, LegacyLong ibset, bool *pfMtrl, 
     AssertVarMem(pfMtrl); AssertVarMem(ppmtrl); AssertVarMem(ppcmtl);
     void *material, *custom; int generic;
     CopyPb(ppmtrl, &material, sizeof(material)); CopyPb(ppcmtl, &custom, sizeof(custom));
-    auto s = RuntimeServices(); mm_body_get_material(body, ibset, &generic, &material, &custom, &s);
+    const auto &s = RuntimeServices(); mm_body_get_material(body, ibset, &generic, &material, &custom, &s);
     *pfMtrl = generic != 0;
     CopyPb(&material, ppmtrl, sizeof(material)); CopyPb(&custom, ppcmtl, sizeof(custom));
 }
 
 MMBodyGeometryServices EngineBody::GeometryServices(void)
 {
-    MMBodyGeometryServices s = {};
-    mm_brender_body_geometry_services(&s);
+    auto s = mm_kauai_body_renderer()->geometry;
+#ifdef DEBUG
     s.owner = [](void *, void *actor) -> void * {
         auto body = static_cast<PBody>(mm_brender_body_owner(actor));
-        BODY_VALIDATE(body, 0);
+        Validate(body);
         return body;
     };
-    s.state = [](void *, void *body) { return mm_body_owner_state(static_cast<PBody>(body)); };
-    s.missing_owner = [](void *) { Bug("What actor is this?  It has no Body"); };
+#endif
     return s;
 }
 
@@ -468,9 +398,8 @@ void EngineBody::GetBcbBounds(PBody body, BCB *pbcb, bool fWorld)
     BODY_VALIDATE(body, 0);
     AssertVarMem(pbcb);
 
-    auto services = GeometryServices();
     MMBodyBounds bounds;
-    mm_body_bounds(&State(body).shape, fWorld, &bounds, &services);
+    mm_brender_body_bounds(mm_kauai_body_renderer(), body, fWorld, &bounds);
     pbcb->xrMin = bounds.min[0]; pbcb->yrMin = bounds.min[1]; pbcb->zrMin = bounds.min[2];
     pbcb->xrMax = bounds.max[0]; pbcb->yrMax = bounds.max[1]; pbcb->zrMax = bounds.max[2];
 }
@@ -617,21 +546,3 @@ void EngineBody::Mark(PBody body)
             EngineMaterial::Mark(static_cast<PCustomMaterial_CMTL>(State(body).shape.custom_materials[set]));
 }
 #endif // DEBUG
-
-ScopedBodyCostume::~ScopedBodyCostume()
-{
-    const auto services = RuntimeServices();
-    mm_body_costume_clear(&_costume, &services);
-}
-
-bool ScopedBodyCostume::FGet(PBody body)
-{
-    const auto services = RuntimeServices();
-    return mm_body_costume_capture(&_costume, body, &services) != 0;
-}
-
-void ScopedBodyCostume::Set(PBody body, bool allowDifferentShape) const
-{
-    const auto services = RuntimeServices();
-    mm_body_costume_apply(&_costume, body, allowDifferentShape, &services);
-}

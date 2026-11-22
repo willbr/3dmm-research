@@ -1,5 +1,6 @@
 #include "body_renderer.h"
 #include "brender.h"
+#include "mm/model_resource.h"
 #include <string.h>
 
 typedef char BodyMatrixSize[sizeof(br_matrix34) == sizeof(MMActorMatrix) ? 1 : -1];
@@ -307,4 +308,212 @@ void mm_brender_body_geometry_services(MMBodyGeometryServices *s)
     s->highlight_matrix = highlight_matrix;
     s->none_type = BR_ACTOR_NONE;
     s->model_type = BR_ACTOR_MODEL;
+}
+
+static MMBodyState *body_state(void *context, void *body)
+{
+    (void)context;
+    return mm_body_owner_state(body);
+}
+
+static void *body_owner(void *context, void *actor)
+{
+    (void)context;
+    return mm_brender_body_owner(actor);
+}
+
+static void *create_body(void *context)
+{
+    MMBRenderBody *renderer = context;
+    return mm_body_owner_create(renderer->host.objects, &renderer->edit.runtime.shape);
+}
+
+static void release_body(void *context, void *body)
+{
+    (void)context;
+    mm_body_owner_release(body);
+}
+
+static void retain_model(void *context, void *object)
+{
+    (void)context;
+    mm_model_owner_retain(object);
+}
+
+static void release_model(void *context, void *object)
+{
+    (void)context;
+    mm_model_owner_release(object);
+}
+
+static void retain_material(void *context, void *object)
+{
+    (void)context;
+    mm_material_owner_retain(object);
+}
+
+static void release_material(void *context, void *object)
+{
+    (void)context;
+    mm_material_owner_release(object);
+}
+
+static int allocate_materials(void *context, MMI32 count, void ***out)
+{
+    MMBRenderBody *renderer = context;
+    void *storage = NULL;
+    int ok = count >= 0 && (size_t)count <= renderer->host.max_bytes / sizeof(void *) &&
+             renderer->host.allocate((MMI32)(count * sizeof(void *)), &storage);
+    *out = storage;
+    return ok;
+}
+
+static int allocate_actors(void *context, MMI32 count, void **actors, MMBodyPartBinding **bindings)
+{
+    MMBRenderBody *renderer = context;
+    size_t bytes, offset;
+    if (!mm_brender_body_layout(count, renderer->host.max_bytes, &bytes, &offset) ||
+        !renderer->host.allocate((MMI32)bytes, actors))
+        return 0;
+    *bindings = (MMBodyPartBinding *)((unsigned char *)*actors + offset);
+    return 1;
+}
+
+static void hide_body(void *context, void *body)
+{
+    MMBRenderBody *renderer = context;
+    mm_body_hide(body, &renderer->edit.runtime);
+}
+
+static void free_memory(void *context, void **memory)
+{
+    MMBRenderBody *renderer = context;
+    renderer->host.free_memory(memory);
+}
+
+static void *model_handle(void *context, void *object)
+{
+    (void)context;
+    return mm_model_owner_resource(object)->handle;
+}
+
+static void *material_handle(void *context, void *object)
+{
+    (void)context;
+    return mm_material_owner_resource(object)->handle;
+}
+
+static int generic_material(void *context, void *object)
+{
+    (void)context;
+    return mm_material_owner_kind(object) == MM_MATERIAL;
+}
+
+static MMI32 custom_set(void *context, void *object)
+{
+    (void)context;
+    return mm_material_owner_custom(object)->set;
+}
+
+static MMI32 custom_count(void *context, void *object)
+{
+    (void)context;
+    return mm_material_owner_custom(object)->count;
+}
+
+static void *custom_model(void *context, void *object, MMI32 part)
+{
+    (void)context;
+    return mm_custom_material_model(mm_material_owner_custom(object), part);
+}
+
+static void *custom_material(void *context, void *object, MMI32 part)
+{
+    return material_handle(context, mm_material_owner_custom(object)->materials[part]);
+}
+
+static void invalidate_output(void *context, void **out)
+{
+    MMBRenderBody *renderer = context;
+    if (renderer->host.invalidate)
+        renderer->host.invalidate(out);
+}
+
+static void diagnose(void *context, int code)
+{
+    MMBRenderBody *renderer = context;
+    if (renderer->host.diagnostic)
+        renderer->host.diagnostic(code);
+}
+
+static void missing_owner(void *context)
+{
+    MMBRenderBody *renderer = context;
+    if (renderer->host.missing_owner)
+        renderer->host.missing_owner();
+}
+
+void mm_brender_body_init(MMBRenderBody *renderer, const MMBRenderBodyHost *host)
+{
+    MMBodyRuntimeServices *runtime = &renderer->edit.runtime;
+    MMBodyCreateServices *shape = &runtime->shape;
+    MMBodyGeometryServices *geometry = &renderer->geometry;
+    memset(renderer, 0, sizeof(*renderer));
+    renderer->host = *host;
+    mm_brender_body_create_services(shape);
+    shape->context = renderer;
+    shape->state = body_state;
+    shape->create = create_body;
+    shape->release = release_body;
+    shape->release_model = release_model;
+    shape->release_material = release_material;
+    shape->allocate_materials = allocate_materials;
+    shape->allocate_actors = allocate_actors;
+    shape->hide = hide_body;
+    shape->free_memory = free_memory;
+
+    mm_brender_body_runtime_services(runtime);
+    runtime->retain = retain_material;
+    runtime->retain_model = retain_model;
+    runtime->model_handle = model_handle;
+    runtime->material_handle = material_handle;
+    runtime->custom_set = custom_set;
+    runtime->custom_count = custom_count;
+    runtime->custom_model = custom_model;
+    runtime->custom_material = custom_material;
+    runtime->invalidate_output = invalidate_output;
+    runtime->is_generic = generic_material;
+    runtime->diagnostic = diagnose;
+
+    mm_brender_body_edit_services(&renderer->edit);
+    mm_brender_body_geometry_services(geometry);
+    geometry->context = renderer;
+    geometry->owner = body_owner;
+    geometry->state = body_state;
+    geometry->missing_owner = missing_owner;
+}
+
+MMBodyOwner *mm_brender_body_create(const MMBRenderBody *renderer, const MMPartIndexView *parents,
+                                    const MMPartIndexView *sets)
+{
+    return mm_body_create(parents, sets, &renderer->edit.runtime.shape);
+}
+
+void mm_brender_body_bounds(const MMBRenderBody *renderer, MMBodyOwner *body, int world, MMBodyBounds *out)
+{
+    mm_body_bounds(&mm_body_owner_state(body)->shape, world, out, &renderer->geometry);
+}
+
+int mm_brender_body_set_bounds(MMBodyOwner *body, MMI32 set, MMBodyBounds *out)
+{
+    return mm_body_set_bounds(&mm_body_owner_state(body)->shape, set, mm_brender_body_model_bounds, out);
+}
+
+MMMaterialOwner *mm_brender_body_material(const MMBRenderBody *renderer, MMBodyOwner *body, MMI32 set, int *custom)
+{
+    void *material = NULL, *costume = NULL;
+    int generic = 0;
+    mm_body_get_material(body, set, &generic, &material, &costume, &renderer->edit.runtime);
+    *custom = !generic;
+    return generic ? material : costume;
 }

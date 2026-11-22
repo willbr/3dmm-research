@@ -215,7 +215,7 @@ struct Preview::Impl::SessionHost
             mm_resource_cache_release(static_cast<MMResourceCache *>(p));
             h.impl->cache = nullptr;
         };
-        s.shared_material_release = [](void *) { EngineBody::ReleaseSharedMaterial(); };
+        s.shared_material_release = [](void *) { mm_brender_body_release_highlight(); };
         s.shade_release = [](void *) { EngineMaterial::ReleaseShadeTable(); };
         s.depth_end = [](void *) { BrZbEnd(); };
         s.runtime_end = [](void *) { BrEnd(); };

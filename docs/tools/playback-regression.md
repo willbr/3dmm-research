@@ -20468,3 +20468,33 @@ reopened that save in 20261122T000228Z-e7e5cebb and reproduced all 60
 reference seek canvases and camera indices.
 
 Evidence is under tmp/c89-document-caches.
+
+## Shared C89 BRender body adapter (22 November 2026)
+
+Studio and Preview use the C89 BRender body adapter for template body
+allocation, pose updates, costume and model references, and bounds queries.
+Kauai supplies the native allocation and diagnostic callbacks. The x64 link
+module lists for Marcus, its Preview helper and its regression runner show
+the shared C renderer in place of the Studio C++ body implementation. Studio
+retains its legacy view and debug interfaces.
+
+All 193 standalone C89 checks and the strict BRender C89 syntax check passed.
+Native x64, native x86 and SDL passed save/load and sparse-costume checks.
+Body creation, editing, runtime and geometry snapshots and both movie snapshots
+matched their previous bytes. The headless Preview suite exercised 45 actors,
+21 props, body picking, costume changes, renderer restart and source resolution.
+Studio's authoring workflow passed its transform, keyframe and save/reopen checks.
+
+Capture 20261122T000953Z-1df274fe completed all 14 runs. Both ports matched all
+90 prior seek canvases, 88 of 90 retail seek canvases, and all 90 retail camera
+indices and continuous frame identities. V3DMM matched all 30 retail seek
+canvases in the actor-audio case. SDL and V3DMM matched all six retail sound
+requests. Mixed PCM still differed in the audible case, and continuous image
+alignment was inconclusive.
+
+The new Studio save preserved the archive graph, names and payload bytes.
+The two differing raw bytes were alignment padding in the TMPL index row.
+Retail reopened that save in 20261122T001256Z-4b343bb0 and matched all 60
+reference seek canvases and camera indices.
+
+Evidence is under tmp/c89-body-renderer.

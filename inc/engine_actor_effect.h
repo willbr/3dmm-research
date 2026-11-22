@@ -44,10 +44,10 @@ struct EngineActorEffectHost
         s.restore_costume = [](void *p) { auto &h = From(p); h.saved.Set(h.body); };
         s.fetch_custom = [](void *p, MMI32 costume) -> void * { return EngineTemplate::PcmtlFetch(From(p).tmpl, costume); };
         s.apply_custom = [](void *p, void *resource) {
-            EngineBody::SetPartSetCmtl(From(p).body, static_cast<PCustomMaterial_CMTL>(resource));
+            mm_body_set_custom(From(p).body, resource, &mm_kauai_body_renderer()->edit.runtime);
         };
         s.apply_material = [](void *p, MMI32 set, void *resource) {
-            EngineBody::SetPartSetMtrl(From(p).body, set, static_cast<PMaterial_MTRL>(resource));
+            mm_body_set_generic(From(p).body, set, resource, &mm_kauai_body_renderer()->edit.runtime);
         };
         s.release_resource = [](void *, void *resource, int) {
             mm_material_owner_release(static_cast<MMMaterialOwner *>(resource));

@@ -107,9 +107,9 @@ bool PreviewActor::Text(PreviewObjectText &out) const
 PMaterial_MTRL PreviewActor::TextMaterial() const
 {
     if (!Ptmpl() || !EngineTemplate::FIsTdt(Ptmpl()) || !Pbody()) return nullptr;
-    bool plain; PMaterial_MTRL material = nullptr; PCustomMaterial_CMTL custom = nullptr;
-    EngineBody::GetPartSetMaterial(Pbody(), 0, &plain, &material, &custom);
-    return plain ? material : nullptr;
+    int custom;
+    auto material = mm_brender_body_material(mm_kauai_body_renderer(), Pbody(), 0, &custom);
+    return custom ? nullptr : material;
 }
 bool PreviewActor::SetTextMaterial(std::int32_t source, std::uint32_t number)
 {
@@ -128,16 +128,16 @@ bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 {
     out.clear();
     if (!Ptmpl() || !Pbody() || EngineTemplate::FIsTdt(Ptmpl())) return false;
-    for (int set = 0; set < EngineBody::SetCount(Pbody()); ++set)
+    for (int set = 0; set < mm_body_owner_state(Pbody())->shape.set_count; ++set)
     {
-        bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL current;
-        EngineBody::GetPartSetMaterial(Pbody(), set, &plain, &material, &current);
+        int custom;
+        const auto current = mm_brender_body_material(mm_kauai_body_renderer(), Pbody(), set, &custom);
         for (int i = 0; i < EngineTemplate::CcmidOfBset(Ptmpl(), set); ++i)
         {
             const auto id = EngineTemplate::CmidOfBset(Ptmpl(), set, i);
             auto costume = EngineTemplate::PcmtlFetch(Ptmpl(), id);
             if (!costume) return false;
-            const bool selected = !plain && current == costume;
+            const bool selected = custom && current == costume;
             mm_material_owner_release(costume);
             out.push_back({set, int(id), selected, EngineTemplate::FBsetIsAccessory(Ptmpl(), set)});
         }
@@ -200,7 +200,8 @@ bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
             return c.bodySet == value.bodySet && c.costume == value.costume; })) return false;
         auto costume = EngineTemplate::PcmtlFetch(Ptmpl(), value.costume);
         if (!costume) return false;
-        EngineBody::SetPartSetCmtl(Pbody(), costume); mm_material_owner_release(costume);
+        mm_body_set_custom(Pbody(), costume, &mm_kauai_body_renderer()->edit.runtime);
+        mm_material_owner_release(costume);
     }
     return true;
 }
@@ -443,7 +444,7 @@ bool PreviewActor::TrackPose(PreviewTrackPose &pose) const
     mm_matrix_identity(&rest);
     for (int axis = 0; axis < 3; ++axis) mm_matrix_rotate(&rest, axis, angles[axis], 0);
     const BRS stretch[] = {state.transform.aevpull.rScaleX, state.transform.aevpull.rScaleY, state.transform.aevpull.rScaleZ};
-    const auto &root = EngineBody::RootMatrix(Pbody());
+    const auto &root = mm_body_owner_state(Pbody())->shape.bindings[0].matrix;
     // Recover the world rotation after removing rest orientation and authored size.
     for (int row = 0; row < 3; ++row)
     {

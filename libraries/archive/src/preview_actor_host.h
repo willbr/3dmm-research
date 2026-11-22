@@ -105,7 +105,7 @@ struct PreviewActor::Host
         s.duplicate_body = [](void *v, void *b, void **out) -> int {
             auto &h = *static_cast<Host *>(v);
             return h.Guard([&] {
-                *out = EngineBody::Duplicate(static_cast<PBody>(b));
+                *out = mm_body_duplicate(b, &mm_kauai_body_renderer()->edit);
                 return *out != nullptr;
             });
         };
@@ -131,7 +131,7 @@ struct PreviewActor::Host
         s.scalar_float = [](MMI32 v) -> float { return BrScalarToFloat(v); };
         s.locate = [](void *v, void *b, const MMActorBodyPose *pose) {
             static_cast<Host *>(v)->Guard([&] {
-                EngineBody::ApplyPose(static_cast<PBody>(b), *pose);
+                mm_body_locate(b, pose, &mm_kauai_body_renderer()->edit.runtime);
                 return 1;
             });
         };
@@ -160,7 +160,7 @@ struct PreviewActor::Host
         s.release_material = [](void *, void *material) { mm_material_owner_release(static_cast<PMaterial_MTRL>(material)); };
         s.apply_material = [](void *v, void *body, void *material) -> int {
             return static_cast<Host *>(v)->Guard([&] {
-                EngineBody::SetPartSetMtrl(static_cast<PBody>(body), 0, static_cast<PMaterial_MTRL>(material));
+                mm_body_set_generic(body, 0, material, &mm_kauai_body_renderer()->edit.runtime);
                 return 1;
             });
         };

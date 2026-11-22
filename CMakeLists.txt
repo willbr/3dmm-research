@@ -1169,6 +1169,7 @@ target_sources(brender-core
     "${PROJECT_SOURCE_DIR}/bren/stderr.c"
     "${PROJECT_SOURCE_DIR}/bren/stdfile.c"
     "${PROJECT_SOURCE_DIR}/bren/stdmem.c"
+    "${PROJECT_SOURCE_DIR}/bren/body_host.cpp"
     "${PROJECT_SOURCE_DIR}/bren/tmap.cpp"
     "${PROJECT_SOURCE_DIR}/bren/zbmp.cpp"
 )

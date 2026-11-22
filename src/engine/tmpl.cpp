@@ -171,14 +171,14 @@ MMTemplateCreateServices EngineTemplate::CreateServices(MMResourceCache *cache)
         return mm_template_costumes_append(table, ids, count);
     };
     s.create_body = [](void *, const MMPartIndexView *parents, const MMPartIndexView *sets) -> void * {
-        return EngineBody::Create(*parents, *sets);
+        return mm_brender_body_create(mm_kauai_body_renderer(), parents, sets);
     };
     s.release_body = [](void *, void *body) { mm_body_owner_release(static_cast<PBody>(body)); };
     s.default_costume = [](void *, void *object, void *body) -> int { return FSetDefaultCost(static_cast<PTemplate>(object), static_cast<PBody>(body)); };
     s.costume_id = [](void *, void *object, MMI32 set, MMI32 index) -> MMI32 { return CmidOfBset(static_cast<PTemplate>(object), set, index); };
     s.custom = [](void *, void *object, MMI32 id) -> void * { return PcmtlFetch(static_cast<PTemplate>(object), id); };
     s.allocate_refs = [](void *, MMI32 count, void **out) -> int { return FAllocPv(out, LwMul(count, size(PCustomMaterial_CMTL)), fmemClear, mprNormal); };
-    s.apply_custom = [](void *, void *body, void *custom) { EngineBody::SetPartSetCmtl(static_cast<PBody>(body), static_cast<PCustomMaterial_CMTL>(custom)); };
+    s.apply_custom = [](void *, void *body, void *custom) { mm_body_set_custom(body, custom, &mm_kauai_body_renderer()->edit.runtime); };
     s.free_memory = [](void *, void **data) { FreePpv(data); };
     s.diagnostic = [](void *, int code) {
         switch (code) {
@@ -301,9 +301,9 @@ static MMTemplateRuntimeServices RuntimeServices(PTemplate owner)
     s.allocate_cel = [](void *, size_t bytes, void **out) -> int {
         return FAllocPv(out, static_cast<LegacyLong>(bytes), fmemClear, mprNormal);
     };
-    s.set_model = [](void *, void *body, MMI32 part, void *model) { EngineBody::SetPartModel(static_cast<PBody>(body), part, static_cast<PModel>(model)); };
+    s.set_model = [](void *, void *body, MMI32 part, void *model) { mm_body_set_model(body, part, model, &mm_kauai_body_renderer()->edit.runtime); };
     s.set_matrix = [](void *, void *body, MMI32 part, const MMActorMatrix *data) {
-        EngineBody::SetPartMatrix(static_cast<PBody>(body), part, *data);
+        mm_body_set_matrix(body, part, data, &mm_kauai_body_renderer()->edit.runtime);
     };
     s.sound_exists = [](void *, void *out, int value) { *static_cast<bool *>(out) = value != 0; };
     return s;

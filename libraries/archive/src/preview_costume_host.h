@@ -34,9 +34,8 @@ struct PreviewActor::CostumeHost : PreviewActor::Host
         s.context = this;
         s.edits = EventEdits();
         s.current = [](void *v, MMI32 set, int *custom) -> void * {
-            bool plain; PMaterial_MTRL material; PCustomMaterial_CMTL costume;
-            EngineBody::GetPartSetMaterial(static_cast<CostumeHost *>(v)->actor->Pbody(), set, &plain, &material, &costume);
-            *custom = !plain; return plain ? static_cast<void *>(material) : static_cast<void *>(costume);
+            auto body = static_cast<CostumeHost *>(v)->actor->Pbody();
+            return mm_brender_body_material(mm_kauai_body_renderer(), body, set, custom);
         };
         s.fetch_custom = [](void *v, MMI32 id) -> void * {
             auto &h = *static_cast<CostumeHost *>(v); void *out = nullptr;

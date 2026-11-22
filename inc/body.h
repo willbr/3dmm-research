@@ -5,7 +5,7 @@
 #ifndef Body_H
 #define Body_H
 
-#include "mm/body_create.h"
+#include "body_renderer.h"
 #include "mm/part_indices.h"
 #include "mm/body_edit.h"
 #include "mm/body_runtime.h"
@@ -77,9 +77,18 @@ class ScopedBodyCostume
     ScopedBodyCostume() = default;
     ScopedBodyCostume(const ScopedBodyCostume &) = delete;
     ScopedBodyCostume &operator=(const ScopedBodyCostume &) = delete;
-    ~ScopedBodyCostume();
-    bool FGet(PBody);
-    void Set(PBody, bool allowDifferentShape = fFalse) const;
+    ~ScopedBodyCostume()
+    {
+        mm_body_costume_clear(&_costume, &mm_kauai_body_renderer()->edit.runtime);
+    }
+    bool FGet(PBody body)
+    {
+        return mm_body_costume_capture(&_costume, body, &mm_kauai_body_renderer()->edit.runtime) != 0;
+    }
+    void Set(PBody body, bool allowDifferentShape = fFalse) const
+    {
+        mm_body_costume_apply(&_costume, body, allowDifferentShape, &mm_kauai_body_renderer()->edit.runtime);
+    }
 };
 using PBodyCostume = const ScopedBodyCostume *;
 

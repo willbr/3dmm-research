@@ -211,9 +211,9 @@ MMTextGenerationServices EngineText::GenerationServices()
     };
     s.action_host = &EngineTemplate::ActionResourceHost();
     s.body_shape = [](void *, void *body, const MMPartIndexView *parents, const MMPartIndexView *sets) -> int {
-        return EngineBody::ChangeShape(static_cast<PBody>(body), *parents, *sets);
+        return mm_body_change_shape(body, parents, sets, &mm_kauai_body_renderer()->edit);
     };
-    s.body_material = [](void *, void *body, MMI32 set, void *material) { EngineBody::SetPartSetMtrl(static_cast<PBody>(body), set, static_cast<PMaterial_MTRL>(material)); };
+    s.body_material = [](void *, void *body, MMI32 set, void *material) { mm_body_set_generic(body, set, material, &mm_kauai_body_renderer()->edit.runtime); };
     return s;
 }
 
