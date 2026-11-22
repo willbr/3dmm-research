@@ -1149,6 +1149,46 @@ static int track_journal(void)
     return 0;
 }
 
+static int pose_journal(void)
+{
+    MMMoviePoseJournal live, undo;
+    const MMMovieActorPoseEdit *pose;
+    const MMPreviewActorShape changed = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {2, 1, 1}};
+    const MMPreviewActorShape identity = {{1, 0, 0, 0, 1, 0, 0, 0, 1}, {1, 1, 1}};
+    const float forward[3] = {2, 0, -3}, back[3] = {-2, 0, 3};
+    float offset[3] = {99, 99, 99};
+    MaterialGraph memory;
+    MMStorageAllocator allocator = {NULL, material_resize, material_release};
+    memset(&memory, 0, sizeof(memory));
+    allocator.context = &memory;
+    CHECK(mm_movie_pose_journal_init(&live, &allocator) && mm_movie_pose_journal_init(&undo, &allocator));
+    memory.failAt = 1;
+    CHECK(!mm_movie_pose_journal_move(&live, 4, 8, forward, offset) && !live.count && offset[0] == 99);
+    memory.failAt = 0;
+    CHECK(mm_movie_pose_journal_move(&live, 4, 8, forward, offset) && offset[0] == 2 && offset[2] == -3);
+    CHECK(mm_movie_pose_journal_move(&live, 4, 8, back, offset) && !live.count && !offset[0] && !offset[2]);
+    CHECK(mm_movie_pose_journal_shape(&live, 4, 8, &changed));
+    CHECK(mm_movie_pose_journal_move(&live, 4, 8, forward, offset));
+    CHECK(mm_movie_pose_journal_copy(&undo, &live));
+    CHECK(mm_movie_pose_journal_include(&live, 4, 8) && live.count == 1);
+    CHECK(mm_movie_pose_journal_move(&live, 4, 8, back, offset) && live.count == 1);
+    pose = mm_movie_pose_journal_find(&live, 4, 8);
+    CHECK(pose && pose->has_shape && !pose->offset[0] && pose->shape.scale[0] == 2);
+    CHECK(mm_movie_pose_journal_shape(&live, 4, 8, &identity) && live.count == 1);
+    CHECK(mm_movie_pose_journal_include(&live, (MMU32)-1, 0));
+    CHECK(mm_movie_pose_journal_include(&live, 4, 3) && live.count == 3);
+    CHECK(mm_movie_pose_journal_data(&live)[0].actor == 3);
+    pose = mm_movie_pose_journal_find(&live, (MMU32)-1, 0);
+    CHECK(pose && !pose->has_shape && pose->shape.rotation[4] == 1 && pose->shape.scale[2] == 1);
+    CHECK(mm_movie_pose_journal_has_scene(&live, 4) && !mm_movie_pose_journal_has_scene(&live, 5));
+    mm_movie_pose_journal_dispose(&live);
+    pose = mm_movie_pose_journal_find(&undo, 4, 8);
+    CHECK(pose && pose->offset[0] == 2 && pose->shape.scale[0] == 2);
+    mm_movie_pose_journal_dispose(&undo);
+    CHECK(!memory.liveBlocks);
+    return 0;
+}
+
 static int remove_materials(void)
 {
     MaterialGraph graph;
@@ -1188,7 +1228,7 @@ int main(void)
 {
     if (switching() || insertion() || removal() || remove_materials() || undoing() || undo_insertion_ownership() ||
         cursor_operations() ||
-        extending() || journal() || track_journal())
+        extending() || journal() || track_journal() || pose_journal())
         return 1;
     puts("Movie scene ownership, retry, rollback and undo passed");
     return 0;

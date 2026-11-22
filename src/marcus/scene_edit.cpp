@@ -532,7 +532,7 @@ static void ApplyText(MMPrivateArchive *file, ChunkNumber actorNumber, const Mar
     CheckActorAuthor(status, detail);
 }
 std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::path &source,
-    std::shared_ptr<MarcusMovieFile> origin, const std::vector<MarcusPropPlacement> &placements,
+    std::shared_ptr<MarcusMovieFile> origin, const MMMoviePoseJournal &poses,
     const std::vector<MarcusSceneRange> &ranges, const MarcusLiveEdits &edits, const std::filesystem::path &templates)
 {
     auto result = WorkingCopy(source, std::move(origin));
@@ -554,12 +554,14 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
             ApplyNewProp(file.get(), textFile.get(), editor, prop);
         }
     }
-    for (const auto &placement : placements)
+    const auto changes = mm_movie_pose_journal_data(&poses);
+    for (MMU32 index = 0; index < poses.count; ++index)
     {
-        const auto key = std::make_pair(placement.scene, placement.actor);
+        const auto &placement = changes[index];
+        const auto key = std::make_pair(static_cast<unsigned long>(placement.scene),
+                                        static_cast<unsigned long>(placement.actor));
         const auto text = edits.texts->find(key);
-        const auto costume = mm_movie_track_journal_find(edits.costumes.get(), static_cast<MMU32>(placement.scene),
-                                                         static_cast<MMU32>(placement.actor));
+        const auto costume = mm_movie_track_journal_find(edits.costumes.get(), placement.scene, placement.actor);
         struct Appearance
         {
             MMPrivateArchive *file;
@@ -568,7 +570,7 @@ std::shared_ptr<MarcusMovieFile> MarcusMaterializeEdits(const std::filesystem::p
             std::exception_ptr failure;
         } appearance{file.get(), text == edits.texts->end() ? nullptr : &text->second, costume, {}};
         const MMActorArchivePose pose{
-            static_cast<MMU32>(placement.scene), static_cast<MMU32>(placement.actor), placement.delta,
+            placement.scene, placement.actor, placement.offset,
             placement.shape.rotation, placement.shape.scale, &appearance,
             [](void *value, MMU32 copied) -> int {
                 auto &edit = *static_cast<Appearance *>(value);

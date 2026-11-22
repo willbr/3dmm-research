@@ -22494,3 +22494,29 @@ in `20261122T081603Z-7ffc4e8e`. All 252 selected test runs passed. The existing
 `0D666753`.
 
 Snapshots, workflows and checks are under `tmp/c89-actor-track-journal`.
+
+## C89 actor pose journal (22 November 2026)
+
+Marcus stores actor offsets and explicit shapes in one C89 journal keyed by
+scene and actor. Undo retains independent copies. Returning to zero removes
+an offset-only record and retains an explicit shape. Export adds the actors
+with text or costume edits to a private journal and visits each affected
+actor once in the same scene and actor order.
+
+The journal checks passed on x64 and x86, including allocation failure,
+snapshot independence and identity-shape preservation. All Preview traces,
+four private drafts and five native movie fixtures matched the previous
+build byte for byte. Studio saves and canvases and the headless Marcus
+startup canvas also matched. The storyboard comparison reproduced all 48
+payloads and their child links. The focused move and shape checks passed
+with software rendering and a freshly built 32-bit ASM worker, exercising
+preview, commit, cancellation, undo, reload, timing and materialized frames.
+
+The four runs in suite `20261122T182332Z-630af491` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order matched the retained retail and V3DMM captures
+in `20261122T081603Z-7ffc4e8e`. All 252 selected test runs passed. The existing
+`scene-load` assertion reproduced its 63,224-byte trace and fingerprint
+`0D666753`.
+
+Snapshots, workflows and checks are under `tmp/c89-actor-pose-journal`.

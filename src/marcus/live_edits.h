@@ -92,6 +92,20 @@ struct MarcusEditedTracks : MMMovieActorTrackJournal
         return &services;
     }
 };
+struct MarcusEditedPoses : MMMoviePoseJournal
+{
+    MarcusEditedPoses() { mm_movie_pose_journal_init(this, nullptr); }
+    MarcusEditedPoses(const MarcusEditedPoses &other) : MarcusEditedPoses()
+    {
+        if (!mm_movie_pose_journal_copy(this, &other)) throw std::bad_alloc();
+    }
+    MarcusEditedPoses &operator=(const MarcusEditedPoses &) = delete;
+    ~MarcusEditedPoses() { mm_movie_pose_journal_dispose(this); }
+    void Include(MMU32 scene, MMU32 actor)
+    {
+        if (!mm_movie_pose_journal_include(this, scene, actor)) throw std::bad_alloc();
+    }
+};
 struct MarcusTextEdit
 {
     MM::PreviewObjectText value;
@@ -105,12 +119,10 @@ struct MarcusLiveEdits
     using Scenes = MarcusEditedScenes;
     using Props = std::vector<MarcusNamedProp>;
     using Cameras = MarcusEditedCameras;
-    using Shapes = std::map<std::pair<unsigned long, unsigned long>, MM::PreviewObjectShape>;
     using Texts = std::map<std::pair<unsigned long, unsigned long>, MarcusTextEdit>;
     std::shared_ptr<const Scenes> scenes = std::make_shared<Scenes>();
     std::shared_ptr<const Props> props = std::make_shared<Props>();
     std::shared_ptr<const Cameras> cameras = std::make_shared<Cameras>();
-    std::shared_ptr<const Shapes> shapes = std::make_shared<Shapes>();
     std::shared_ptr<const Texts> texts = std::make_shared<Texts>();
     std::shared_ptr<const MarcusEditedTracks> costumes = std::make_shared<MarcusEditedTracks>();
     std::shared_ptr<const MarcusStoryboards> storyboards = std::make_shared<MarcusStoryboards>();
