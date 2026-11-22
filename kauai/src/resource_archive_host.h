@@ -2,6 +2,7 @@
 #define KAUAI_RESOURCE_ARCHIVE_HOST_H
 
 struct MMChunkOwnerRead;
+struct MMNativeArchiveSource;
 struct MMResourceCache;
 class Filename;
 
@@ -13,6 +14,10 @@ MMResourceCache *OpenWorkingResourceCache(Filename *, bool create, int budget = 
 // is false, the caller can open a separate immutable stream instead.
 MMResourceCache *OpenSharedTypedCache(Filename *, bool preferWorking, bool &selected, MMChunkOwnerRead **reader,
                                       int budget = 0);
+
+// Supply the host path and chunk dialect for a C-owned immutable source.
+int OpenNativeArchiveSource(Filename *, MMNativeArchiveSource *);
+MMResourceCache *NewTypedSourceCache(const MMNativeArchiveSource *, int budget);
 }
 
 #endif

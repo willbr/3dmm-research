@@ -1,6 +1,7 @@
 #include "mm/archive_reader.h"
 #include "mm/chunky_file.h"
 #include "mm/movie_content_resolver.h"
+#include "mm/native_archive_file.h"
 #include "mm/native_files.h"
 #include <errno.h>
 #include <stdio.h>
@@ -406,12 +407,14 @@ static int check_seek(const MMReadStream *stream, const MMChunkPolicy *policy, S
     return ok;
 }
 
-static int check_index(void *file, MMU32 type, int movie, SeekInput *seek, int actors, int auto_content, int bodies)
+static int check_index(void *file, const char *path, MMU32 type, int movie, SeekInput *seek, int actors,
+                       int auto_content, int bodies)
 {
     const unsigned short native_order = 1;
     MMChunkPolicy policy = {0, 0, 516}; /* Legacy counted name plus terminator and encoding. */
     const MMArchiveReaderOptions options = {0x7fffffffUL, 0x7fffffffUL, 0x0303, NULL, NULL, NULL, NULL, NULL};
     MMReadStream stream;
+    MMNativeArchiveSource source = {0};
     MMArchiveReader *reader;
     MMChunkAccess access;
     MMChunkEntry entry;
@@ -431,8 +434,13 @@ static int check_index(void *file, MMU32 type, int movie, SeekInput *seek, int a
         return check_movie(&stream, &policy);
     if (seek)
         return check_seek(&stream, &policy, seek, actors, auto_content, bodies);
-    if (mm_archive_reader_open_stream(&stream, &policy, &options, &reader) != MM_ARCHIVE_READ_OK)
+    if (mm_native_archive_source_open(&source, path, policy.expanded_runtime, policy.max_name_bytes) !=
+            MM_ARCHIVE_READ_OK ||
+        mm_native_archive_source_reader(&source, &options, &reader) != MM_ARCHIVE_READ_OK)
+    {
+        mm_native_archive_source_clear(&source);
         return 0;
+    }
 
     access = mm_archive_reader_access(reader);
     ok = mm_chunk_type_at(&access, type, 0, &entry, &position) == MM_CHUNK_OK &&
@@ -445,6 +453,7 @@ static int check_index(void *file, MMU32 type, int movie, SeekInput *seek, int a
         printf("%lu indexed chunks, first requested type at chunk 0x%08lx (%lu stored bytes)\n",
                (unsigned long)access.count, (unsigned long)entry.number, (unsigned long)entry.bytes);
     mm_archive_reader_close(reader);
+    mm_native_archive_source_clear(&source);
     return ok;
 }
 
@@ -485,7 +494,7 @@ int main(int argc, char **argv)
         fprintf(stderr, "Cannot open %s\n", argv[1]);
         return 1;
     }
-    ok = check_index(file, type, movie, seek ? &input : NULL, actors, auto_content, bodies);
+    ok = check_index(file, argv[1], type, movie, seek ? &input : NULL, actors, auto_content, bodies);
     mm_native_file_close(file);
     if (!ok)
         fprintf(stderr, "Cannot read %s from %s\n", movie ? "movie metadata" : argv[2], argv[1]);

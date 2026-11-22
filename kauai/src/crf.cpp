@@ -20,6 +20,7 @@
 #include <cstring>
 #include "handle_services.h"
 #include "mm/chunk_copy.h"
+#include "mm/native_archive_file.h"
 #include "mm/private_archive_cache.h"
 #include "mm/string_value.h"
 #include "resource_archive_host.h"
@@ -130,7 +131,7 @@ void BaseCacheableObject::MarkMem(void)
 #endif
 namespace
 {
-MMResourceCache *NewTypedCache(const MMResourceSource &source, MMResourceServices services, MMI32 budget)
+MMResourceServices TypedCacheServices(MMResourceServices services)
 {
     services.context = nullptr;
     services.legacy_adapter = nullptr;
@@ -162,17 +163,35 @@ MMResourceCache *NewTypedCache(const MMResourceSource &source, MMResourceService
         }
     };
 #endif
+    return services;
+}
+
+MMResourceCache *NewTypedCache(const MMResourceSource &source, const MMResourceServices &profile, MMI32 budget)
+{
+    const auto services = TypedCacheServices(profile);
     return mm_resource_cache_create(&source, budget, &services, KauaiResourceObjectAllocator(), KauaiCopyAllocator());
 }
 }
 
-MMResourceCache *NewTypedWireCache(const MMChunkIndex *index, void *file, const MMBlockFileServices *files,
-                                   MMI32 budget)
+int OpenNativeArchiveSource(Filename *filename, MMNativeArchiveSource *out)
 {
-    MMResourceServices services = {};
+    String path;
+    filename->GetStnPath(&path);
+#ifdef CHUNK_BIG_INDEX
+    const int expanded = 1;
+#else
+    const int expanded = 0;
+#endif
+    return mm_native_archive_source_open(out, reinterpret_cast<const MMNativePathChar *>(path.Psz()), expanded,
+                                          kcbMaxDataStn);
+}
+
+MMResourceCache *NewTypedSourceCache(const MMNativeArchiveSource *source, int budget)
+{
+    auto services = TypedCacheServices({});
     services.handles = KauaiHandleServices();
-    services.block_files = files;
-    return NewTypedCache({nullptr, index, file}, services, budget);
+    return mm_native_archive_source_cache(source, budget, &services,
+                                           KauaiResourceObjectAllocator(), KauaiCopyAllocator());
 }
 
 MMResourceCache *NewTypedSiblingCache(const MMResourceCache *cache, MMI32 budget)

@@ -1020,6 +1020,7 @@ target_compile_definitions(kauai-core PUBLIC
 # Allocation, synchronization and ticks use the portable core_platform layer.
 find_package(Threads REQUIRED)
 target_link_libraries(kauai-core
+  PRIVATE mm-native-archive-file
   PUBLIC
     mm-engine-c89
     mm-native-files

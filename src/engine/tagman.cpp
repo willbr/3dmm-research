@@ -30,7 +30,6 @@
 #include "soc_core.h"
 #include "engine_movie_source.h"
 #include "mm/movie_session.h"
-#include "mm/archive_reader.h"
 #include "mm/chunk_copy.h"
 #include "mm/native_archive_file.h"
 #include "resource_archive_host.h"
@@ -117,28 +116,11 @@ MMResourceCache *OpenSourceArchive(Filename &filename, LegacyLong budget, bool m
     if (selected)
         return shared;
 
-    String path;
-    filename.GetStnPath(&path);
-    auto file = mm_native_archive_file_open(reinterpret_cast<const MMNativePathChar *>(path.Psz()));
-    MMReadStream stream;
-    MMResourceCache *cache = nullptr;
-    if (mm_native_archive_file_stream(file, &stream))
-    {
-        const unsigned short order = 1;
-        MMChunkPolicy policy = {};
-#ifdef CHUNK_BIG_INDEX
-        policy.expanded_runtime = 1;
-#endif
-        policy.native_big_endian = *reinterpret_cast<const byte *>(&order) == 0;
-        policy.max_name_bytes = kcbMaxDataStn;
-        MMChunkIndex *index;
-        if (mm_archive_read_index(&stream, &policy, &index) == MM_ARCHIVE_READ_OK)
-        {
-            cache = NewTypedWireCache(index, file, mm_native_archive_file_blocks(), budget);
-            mm_chunk_index_close(index);
-        }
-    }
-    mm_native_archive_file_release(file);
+    MMNativeArchiveSource source = {};
+    if (OpenNativeArchiveSource(&filename, &source) != MM_ARCHIVE_READ_OK)
+        return nullptr;
+    const auto cache = NewTypedSourceCache(&source, budget);
+    mm_native_archive_source_clear(&source);
     return cache;
 }
 } // namespace

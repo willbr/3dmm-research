@@ -13,7 +13,6 @@
 #include "mm/movie_data.h"
 #include "mm/scene_data.h"
 #include "engine_movie_source.h"
-#include "mm/archive_reader.h"
 #include "mm/native_archive_file.h"
 #include "mm/sound_resource.h"
 #include "platform_text.h"
@@ -28,7 +27,7 @@ struct Archive::Impl
     Options options;
     MMResourceCache *live = nullptr;
     MMChunkOwnerRead *liveReader = nullptr;
-    MMNativeArchiveFile *streamFile = nullptr;
+    MMNativeArchiveSource stored = {};
     bool canPreview = false;
     std::string path;
     std::vector<Chunk> chunks;
@@ -41,7 +40,7 @@ struct Archive::Impl
         mm_archive_reader_close(reader);
         if (live)
             mm_resource_cache_release(live);
-        mm_native_archive_file_release(streamFile);
+        mm_native_archive_source_clear(&stored);
     }
     bool Check(int status, std::size_t index, Error &error) const;
     bool Load(std::size_t index, MMReadStream &stream, Error &error);
@@ -122,8 +121,7 @@ MMResourceCache *Archive::NewResourceCache(std::int32_t budget) const
         return NewTypedSiblingCache(_impl->live, budget);
     if (!_impl->canPreview)
         return nullptr;
-    return NewTypedWireCache(mm_archive_reader_wire_index(_impl->reader), _impl->streamFile,
-                             mm_native_archive_file_blocks(), budget);
+    return NewTypedSourceCache(&_impl->stored, budget);
 }
 MMArchiveReader *Archive::Reader() const
 {
@@ -388,21 +386,9 @@ bool Archive::OpenCore(const std::string &utf8Path, Error &error, OpenMode mode)
         }
         else
         {
-            MMReadStream stream = {};
-            String nativePath;
-            filename.GetStnPath(&nativePath);
-            opened->streamFile = mm_native_archive_file_open(
-                reinterpret_cast<const MMNativePathChar *>(nativePath.Psz()));
-            if (!mm_native_archive_file_stream(opened->streamFile, &stream))
-                return Fail(error, ErrorCode::open_failed, "Cannot open this file as a chunky archive.");
-            const unsigned short order = 1;
-            MMChunkPolicy policy = {};
-#ifdef CHUNK_BIG_INDEX
-            policy.expanded_runtime = 1;
-#endif
-            policy.native_big_endian = *reinterpret_cast<const unsigned char *>(&order) == 0;
-            policy.max_name_bytes = kcbMaxDataStn;
-            status = mm_archive_reader_open_stream(&stream, &policy, &readerOptions, &opened->reader);
+            status = OpenNativeArchiveSource(&filename, &opened->stored);
+            if (status == MM_ARCHIVE_READ_OK)
+                status = mm_native_archive_source_reader(&opened->stored, &readerOptions, &opened->reader);
         }
         if (status == MM_ARCHIVE_MEMORY)
             throw std::bad_alloc();

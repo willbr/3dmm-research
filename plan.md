@@ -1802,6 +1802,9 @@ object rendering and filesystem operations.
 Movie title I/O binds the live resource cache in C89. Direct archive titles
 use the same chunk-owner callbacks as private archives. Tag cache clearing
 walks the C source catalogue and reopens live resource caches directly.
+The immutable archive source now owns its native file and validated index
+in C89. Studio's source catalogue and the Archive/Preview reader use this
+binding. Resource caches retain the index and file independently.
 Studio and Marcus share the C89 rich-text binding for stored TEXT extents,
 file references and bounded reads. Preview uses the same decoder for the
 authored TEXT encoding marker. Studio's live property and argument tables

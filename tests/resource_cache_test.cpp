@@ -270,35 +270,59 @@ static int WireSourceCase(bool native)
 
     String nativePath;
     path.GetStnPath(&nativePath);
-    PFileObject backing = nullptr;
-    MMNativeArchiveFile *nativeBacking = nullptr;
-    MMReadStream stream = {};
+    PChunkyResourceFile cache;
     if (native)
     {
-        nativeBacking = mm_native_archive_file_open(reinterpret_cast<const MMNativePathChar *>(nativePath.Psz()));
-        CHECK(mm_native_archive_file_stream(nativeBacking, &stream));
+        MMNativeArchiveSource source = {};
+        CHECK(OpenNativeArchiveSource(&path, &source) == MM_ARCHIVE_READ_OK);
+        Filename invalid;
+        CHECK(invalid.FGetTemp());
+        auto empty = FileObject::PfilCreate(&invalid);
+        CHECK(empty);
+        ReleasePpo(&empty);
+        CHECK(OpenNativeArchiveSource(&invalid, &source) == MM_ARCHIVE_INVALID_PAYLOAD && invalid.FDelete());
+
+        MMArchiveReaderOptions options = {};
+        options.max_packed_bytes = stored.size();
+        MMArchiveReader *reader = nullptr;
+        CHECK(mm_native_archive_source_reader(&source, &options, &reader) == MM_ARCHIVE_READ_OK);
+        CHECK(mm_archive_reader_wire_index(reader) == source.index);
+        const auto chunks = mm_archive_reader_access(reader);
+        MMU32 position;
+        CHECK(mm_chunk_find(&chunks, type, glyph, &position) == MM_CHUNK_OK);
+        MMReadStream payload;
+        std::array<unsigned char, 512> decoded;
+        CHECK(mm_archive_reader_payload(reader, position, &payload) == MM_ARCHIVE_READ_OK &&
+              payload.length == decoded.size() && mm_read_exact(&payload, 0, decoded.data(), decoded.size()) &&
+              decoded == stored);
+        mm_archive_reader_close(reader);
+
+        auto typed = NewTypedSourceCache(&source, 1024);
+        CHECK(typed && typed->wire_index == source.index && typed->wire_file == source.file);
+        cache = ChunkyResourceFile::PcrfNewIndex(source.index, source.file, *mm_native_archive_file_blocks(),
+                                                nativePath, 1024);
+        mm_native_archive_source_clear(&source);
+        CHECK(ReadResourceName(typed, type, root, &name) && name.FEqual(&authored));
+        mm_resource_cache_release(typed);
     }
     else
     {
-        backing = FileObject::PfilOpen(&path);
+        auto backing = FileObject::PfilOpen(&path);
         CHECK(backing);
-        stream = backing->ReadStream();
-    }
-    const unsigned short order = 1;
-    MMChunkPolicy policy = {};
+        const auto stream = backing->ReadStream();
+        const unsigned short order = 1;
+        MMChunkPolicy policy = {};
 #ifdef CHUNK_BIG_INDEX
-    policy.expanded_runtime = 1;
+        policy.expanded_runtime = 1;
 #endif
-    policy.native_big_endian = !*reinterpret_cast<const unsigned char *>(&order);
-    policy.max_name_bytes = kcbMaxDataStn;
-    MMChunkIndex *index;
-    CHECK(mm_chunk_index_open(&stream, &policy, &index) == MM_CHUNK_OK);
-    auto cache = native ? ChunkyResourceFile::PcrfNewIndex(index, nativeBacking, *mm_native_archive_file_blocks(),
-                                                          nativePath, 1024) :
-                          ChunkyResourceFile::PcrfNewIndex(index, backing, 1024);
-    mm_chunk_index_close(index);
-    ReleasePpo(&backing);
-    mm_native_archive_file_release(nativeBacking);
+        policy.native_big_endian = !*reinterpret_cast<const unsigned char *>(&order);
+        policy.max_name_bytes = kcbMaxDataStn;
+        MMChunkIndex *index;
+        CHECK(mm_chunk_index_open(&stream, &policy, &index) == MM_CHUNK_OK);
+        cache = ChunkyResourceFile::PcrfNewIndex(index, backing, 1024);
+        mm_chunk_index_close(index);
+        ReleasePpo(&backing);
+    }
     CHECK(cache && !cache->Pcfl() && !ChunkyFile::PcflFromFni(&path));
     auto sibling = cache->PcrfNewSibling(1024);
     CHECK(sibling && !sibling->Pcfl());

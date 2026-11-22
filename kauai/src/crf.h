@@ -287,7 +287,6 @@ class GenericCacheableObject : public GenericCacheableObject_PAR
 };
 
 MMResourceCache *NewTypedPrivateCache(MMPrivateArchive *, MMI32 budget);
-MMResourceCache *NewTypedWireCache(const MMChunkIndex *, void *file, const MMBlockFileServices *, MMI32 budget);
 MMResourceCache *NewTypedSiblingCache(const MMResourceCache *, MMI32 budget);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, PString);
 bool ReadResourceName(const MMResourceCache *, ChunkTagOrType, ChunkNumber, const MMStringValue &);

@@ -1,6 +1,7 @@
 #include "mm/native_archive_file.h"
 #include "mm/native_runtime.h"
 #include <stdlib.h>
+#include <string.h>
 
 struct MMNativeArchiveFile
 {
@@ -177,6 +178,63 @@ static MMNativeArchiveFile *open_file(const MMNativePathChar *path, int mode)
 MMNativeArchiveFile *mm_native_archive_file_open(const MMNativePathChar *path)
 {
     return open_file(path, MM_PRIVATE_ARCHIVE_READ);
+}
+
+void mm_native_archive_source_clear(MMNativeArchiveSource *source)
+{
+    if (!source)
+        return;
+    mm_chunk_index_close(source->index);
+    mm_native_archive_file_release(source->file);
+    memset(source, 0, sizeof(*source));
+}
+
+int mm_native_archive_source_open(MMNativeArchiveSource *source, const MMNativePathChar *path,
+                                  int expanded, MMU32 max_name_bytes)
+{
+    const unsigned short order = 1;
+    MMChunkPolicy policy = {0};
+    MMNativeArchiveSource opened = {0};
+    int status = MM_ARCHIVE_INVALID_PAYLOAD;
+    if (!source)
+        return status;
+    policy.expanded_runtime = expanded;
+    policy.native_big_endian = *(const unsigned char *)&order == 0;
+    policy.max_name_bytes = max_name_bytes;
+    opened.file = mm_native_archive_file_open(path);
+    if (mm_native_archive_file_stream(opened.file, &opened.stream))
+        status = mm_archive_read_index(&opened.stream, &policy, &opened.index);
+    if (status == MM_ARCHIVE_READ_OK)
+    {
+        mm_native_archive_source_clear(source);
+        *source = opened;
+    }
+    else
+        mm_native_archive_source_clear(&opened);
+    return status;
+}
+
+int mm_native_archive_source_reader(const MMNativeArchiveSource *source, const MMArchiveReaderOptions *options,
+                                    MMArchiveReader **out)
+{
+    return source ? mm_archive_reader_open_wire(source->index, &source->stream, options, out) :
+                    MM_ARCHIVE_INVALID_PAYLOAD;
+}
+
+MMResourceCache *mm_native_archive_source_cache(const MMNativeArchiveSource *source, MMI32 budget,
+                                                 const MMResourceServices *profile,
+                                                 const MMStorageAllocator *owner, const MMStorageAllocator *storage)
+{
+    MMResourceSource wire;
+    MMResourceServices services;
+    if (!source || !source->index || !source->file || !profile)
+        return NULL;
+    wire.live = NULL;
+    wire.index = source->index;
+    wire.backing = source->file;
+    services = *profile;
+    services.block_files = mm_native_archive_file_blocks();
+    return mm_resource_cache_create(&wire, budget, &services, owner, storage);
 }
 
 MMPrivateArchive *mm_native_private_archive_open(const MMNativePathChar *path, int mode,

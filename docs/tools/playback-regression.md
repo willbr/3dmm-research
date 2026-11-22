@@ -20910,3 +20910,28 @@ inconclusive continuous pixel comparisons.
 
 Traces and logs are under tmp/c89-rich-text-archive-collections. Captures are
 under tmp/c89-rtcap.
+
+## C89 immutable archive source ownership (22 November 2026)
+
+The immutable source owns the native backing file and the validated index.
+Studio's tag manager and the Archive/Preview path use the same C89 open.
+Readers bind the already validated index, and resource caches retain their
+own index and file references. The native cache fixture checks a failed
+reopen, packed payload decoding, and cache reads after source release.
+
+All 198 native engine and C89 checks passed. The C-only native archive probe
+indexed 612 retail background chunks without Kauai. Archive API and resource
+cache checks passed on native x64, native x86 and SDL. The native x64 resource
+cache, Preview media, admission and session traces matched 31b5afe2 byte
+for byte. SDL Studio's authored caption save reopened and produced identical
+movie bytes.
+
+The 60-frame actor-events fixture completed eight runs in both
+20261122T034205Z-c176f5ef and 20261122T034419Z-f680da03. Retail, V3DMM,
+SDL Studio and Marcus each reproduced their earlier seek canvases, camera
+indices, actor states and continuous authored-frame sequences. Comparison
+verdicts also matched, including the existing SDL and Marcus pixel
+differences from retail and the timing and continuous capture limits.
+
+Traces and logs are under tmp/c89-native-resource-source. Captures are
+under tmp/c89-rscap.
