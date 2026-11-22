@@ -21774,3 +21774,50 @@ order matched the retained retail and V3DMM captures in
 
 The Chunky fixtures, traces, and Studio canvases are under
 `tmp/c89-chunky-source`. Playback captures are under `tmp/c89-kd`.
+
+## C89 Chunky collection bodies (22 November 2026)
+
+C89 parses fixed array rows, group fixed and variable spans, and string
+tables with extra data. It assembles them with the shared collection
+storage and writes the legacy headers, data, slot maps, and offsets.
+Chomp supplies source tokens, the scratch file stream, and archive
+placement and packing. FREE slots are removed in reverse order after
+all rows have been built, preserving internal holes and trimming
+trailing ones.
+
+The retained Chomp failed to compile a populated AllocatedArray because
+it added a null row through the allocated collection interface. The C89
+writer emits the completed rows and bitmap. The fixture emits a
+26-byte collection with a middle hole, a trimmed trailing hole, and
+zero-filled short rows. The C fixture also checks zero-width group fixed
+data, variable records, foreign-order string offsets, and failed writes.
+
+Ten valid command-line fixtures matched their retained payloads after
+accounting for group alignment bytes. Thirteen malformed fixtures
+matched the retained exit status and diagnostics. The rebuilt native
+Debug compiler also compiled the populated allocated array and the
+mixed collection fixture.
+
+All 7,615 chunks from eight generated Studio archives were compared
+against archives recompiled with the retained Chomp. The 2,008 differing
+bytes were confined to group padding inside 526 embedded Help forests.
+The rebuilt release writer initializes that padding to zero, while
+the Debug writer uses the legacy poison value. All 470 generated
+script payloads were byte-identical.
+
+All 232 selected C89, core link, native x64 and x86, SDL, and Chomp checks
+passed. The headless room, F1 Help, ISO, and authoring workflows passed.
+Nine movie saves, Help and cache traces, five smoke canvases, and the
+Marcus startup canvas matched retained results. The post-video ticket
+booth matched the preceding run, and the AVI sample matched an earlier
+capture. The separate `scene-load` failure reproduced its 63,224-byte
+trace and fingerprint `0D666753`.
+
+Silent suite `20261122T141200Z-6c6578e2` matched both ports' preceding
+60 seek canvases and camera and actor state. Seek and continuous frame
+order matched the retained retail and V3DMM captures in
+`20261122T081603Z-7ffc4e8e`.
+
+The collection fixtures, rebuilt archives, traces, and Studio canvases
+are under `tmp/c89-chunky-collections`. Playback captures are under
+`tmp/c89-kd`.

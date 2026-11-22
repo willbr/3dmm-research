@@ -1,7 +1,7 @@
 #include "mm/script_resource.h"
 #include "mm/script_compile.h"
 #include "mm/script_kidspace.h"
-#include "mm/chunky_source.h"
+#include "mm/chunky_collection.h"
 #include "mm/script_runtime.h"
 #include "mm/script_opcodes.h"
 #include "mm/script_strings.h"
@@ -2300,6 +2300,9 @@ typedef struct ChunkySourceTrace
     int fail_append;
     unsigned char bytes[MM_CHUNKY_ALIGN_MAX + 516];
     MMU32 size;
+    unsigned char wire[128];
+    MMU32 wire_size;
+    int saves, fail_save;
 } ChunkySourceTrace;
 
 static void source_report(void *context, int error)
@@ -2516,6 +2519,135 @@ static void chunky_source_strings(void)
         }
 }
 
+static int collection_error(void *context)
+{
+    return ((ChunkySourceTrace *)context)->error_count != 0;
+}
+
+static void collection_clear(void *context)
+{
+    ((ChunkySourceTrace *)context)->size = 0;
+}
+
+static void collection_read(void *context, void *out, MMU32 count)
+{
+    ChunkySourceTrace *trace = context;
+    CHECK(count <= trace->size);
+    memcpy(out, trace->bytes, count);
+}
+
+static int collection_write(void *context, MMU32 offset, const void *bytes, size_t count)
+{
+    ChunkySourceTrace *trace = context;
+    CHECK(offset <= trace->wire_size && count <= trace->wire_size - offset);
+    if (trace->fail_save && offset)
+        return 0;
+    memcpy(trace->wire + offset, bytes, count);
+    return 1;
+}
+
+static int collection_save(void *context, MMU32 bytes, MMChunkyCollectionWrite write, void *collection)
+{
+    ChunkySourceTrace *trace = context;
+    MMStorageWriter writer;
+    CHECK(bytes <= sizeof(trace->wire));
+    ++trace->saves;
+    trace->wire_size = bytes;
+    writer.context = trace;
+    writer.length = bytes;
+    writer.write_at = collection_write;
+    return write(collection, &writer);
+}
+
+static void parse_chunky_collection(MMChunkySource *source, ChunkySourceTrace *trace, int kind)
+{
+    MMChunkyCollectionHost host;
+    host.context = trace;
+    host.allocator = NULL;
+    host.trash_unused = 1;
+    host.has_error = collection_error;
+    host.clear_payload = collection_clear;
+    host.read_payload = collection_read;
+    host.save = collection_save;
+    mm_chunky_parse_collection(source, &host, kind);
+}
+
+static void chunky_collections(void)
+{
+    static const MMChunkySourceToken array[] = {
+        SOURCE_KIND(ttOpenParen), SOURCE_NUMBER(3), SOURCE_KIND(ttCloseParen),
+        SOURCE_KIND(ttItem), SOURCE_KIND(ttModeByte), SOURCE_NUMBER(1), SOURCE_KIND(ttFree),
+        SOURCE_KIND(ttItem), SOURCE_NUMBER(2), SOURCE_KIND(ttAlign), SOURCE_NUMBER(3),
+        SOURCE_KIND(ttFree), SOURCE_KIND(ttEndChunk)
+    };
+    static const unsigned char array_rows[] = {1, 0, 0, 0xa3, 0xa3, 0xa3, 2, 0, 0};
+    static const MMChunkySourceToken group[] = {
+        SOURCE_KIND(ttOpenParen), SOURCE_NUMBER(0), SOURCE_KIND(ttCloseParen),
+        SOURCE_KIND(ttItem), SOURCE_KIND(ttVar), SOURCE_KIND(ttModeByte), SOURCE_NUMBER(0xba),
+        SOURCE_KIND(ttFree), SOURCE_KIND(ttItem), SOURCE_KIND(ttVar), SOURCE_NUMBER(0xda),
+        SOURCE_NUMBER(0xdb), SOURCE_KIND(ttFree), SOURCE_KIND(ttEndChunk)
+    };
+    static const MMChunkySourceToken strings[] = {
+        SOURCE_KIND(ttOpenParen), SOURCE_NUMBER(4), SOURCE_KIND(ttCloseParen),
+        SOURCE_KIND(ttItem), SOURCE_TEXT("east"), SOURCE_KIND(ttModeByte), SOURCE_NUMBER(9),
+        SOURCE_KIND(ttFree), SOURCE_KIND(ttItem), SOURCE_TEXT("west"), SOURCE_KIND(ttMacBo),
+        SOURCE_KIND(ttMacOsk), SOURCE_KIND(ttEndChunk)
+    };
+    static const unsigned char table_rows[] = {
+        0, 0, 0, 0, 9, 0, 0, 0, 255, 255, 255, 255, 0xa3, 0xa3, 0xa3, 0xa3, 0, 0, 0, 5, 0, 0, 0, 0
+    };
+    static const unsigned char table_strings[] = {4, 'e', 'a', 's', 't', 4, 'w', 'e', 's', 't'};
+    ChunkySourceTrace trace;
+    MMChunkySource source;
+    MMMemoryStream wire;
+    MMCollectionHeader header;
+    MMU32 offset;
+    MMI32 count;
+
+    source_init(&source, &trace, array, SOURCE_COUNT(array));
+    parse_chunky_collection(&source, &trace, ttAl);
+    CHECK(!trace.error_count && trace.saves == 1);
+    CHECK(mm_memory_stream_init(&wire, trace.wire, trace.wire_size));
+    CHECK(mm_collection_header_read(&wire.stream, MM_COLLECTION_ALLOCATED_ARRAY, 1, &header) == MM_STORAGE_OK);
+    CHECK(header.width == 3 && header.count == 3 && header.free_count == 1 && header.second_bytes == 1);
+    CHECK(!memcmp(trace.wire + header.header_bytes, array_rows, sizeof(array_rows)));
+    CHECK(trace.wire[header.header_bytes + header.first_bytes] == 5);
+
+    source_init(&source, &trace, group, SOURCE_COUNT(group));
+    parse_chunky_collection(&source, &trace, ttAg);
+    CHECK(!trace.error_count && trace.saves == 1);
+    CHECK(mm_memory_stream_init(&wire, trace.wire, trace.wire_size));
+    CHECK(mm_collection_header_read(&wire.stream, MM_COLLECTION_GROUP, 1, &header) == MM_STORAGE_OK);
+    CHECK(!header.width && header.count == 3 && header.free_count == 1 && header.first_bytes == 8);
+    CHECK(mm_collection_group_read_row(&wire.stream, &header, 0, &offset, &count) == MM_STORAGE_OK);
+    CHECK(!offset && count == 1 && trace.wire[header.header_bytes] == 0xba);
+    CHECK(trace.wire[header.header_bytes + 1] == 0xa3 && trace.wire[header.header_bytes + 3] == 0xa3);
+    CHECK(mm_collection_group_read_row(&wire.stream, &header, 1, &offset, &count) == MM_STORAGE_ARGUMENT);
+    CHECK(mm_collection_group_read_row(&wire.stream, &header, 2, &offset, &count) == MM_STORAGE_OK);
+    CHECK(offset == 4 && count == 2 && trace.wire[header.header_bytes + offset] == 0xda);
+    CHECK(trace.wire[header.header_bytes + offset + 2] == 0xa3 &&
+          trace.wire[header.header_bytes + offset + 3] == 0xa3);
+
+    source_init(&source, &trace, strings, SOURCE_COUNT(strings));
+    parse_chunky_collection(&source, &trace, ttAst);
+    CHECK(!trace.error_count && trace.saves == 1);
+    CHECK(mm_memory_stream_init(&wire, trace.wire, trace.wire_size));
+    CHECK(mm_collection_header_read(&wire.stream, MM_COLLECTION_STRINGS, 1, &header) == MM_STORAGE_OK);
+    CHECK(header.big_endian && header.system == MM_TEXT_MAC && header.width == 8 &&
+          header.count == 3 && header.free_count == 1 && header.first_bytes == sizeof(table_strings));
+    CHECK(!memcmp(trace.wire + header.header_bytes, table_strings, sizeof(table_strings)));
+    CHECK(!memcmp(trace.wire + header.header_bytes + header.first_bytes, table_rows, sizeof(table_rows)));
+
+    source_init(&source, &trace, array, SOURCE_COUNT(array));
+    parse_chunky_collection(&source, &trace, ttGl);
+    CHECK(!trace.saves && trace.error_count == 2 && trace.errors[0] == ertBadFree && trace.errors[1] == ertBadFree);
+
+    source_init(&source, &trace, array, SOURCE_COUNT(array));
+    trace.fail_save = 1;
+    parse_chunky_collection(&source, &trace, ttAl);
+    CHECK(trace.saves == 1 && trace.error_count == 1 && trace.errors[0] == ertOom);
+}
+
 #undef SOURCE_KIND
 #undef SOURCE_NUMBER
 #undef SOURCE_TEXT
@@ -2545,6 +2677,7 @@ int main(void)
     chunky_source_headers();
     chunky_source_payload();
     chunky_source_strings();
+    chunky_collections();
     puts("C89 script resources and bytecode execution passed");
     return 0;
 }

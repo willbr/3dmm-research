@@ -11,6 +11,7 @@
 ***************************************************************************/
 #include "kidframe.h" //because we need scrcomg
 #include "handle_services.h"
+#include "mm/chunky_collection.h"
 ASSERTNAME
 
 namespace Chunky {
@@ -860,438 +861,49 @@ bool Compiler::_FParseData(PToken ptok)
     return consumed;
 }
 
-/***************************************************************************
-    Parse a list structure from the source file.
-***************************************************************************/
-void Compiler::_ParseBodyList(bool fPack, bool fAl, ChunkTagOrType ctg, ChunkNumber cno)
+void Compiler::_ParseBodyCollection(bool fPack, int kind, ChunkTagOrType ctg, ChunkNumber cno)
 {
     AssertThis(0);
-    Token tok;
-    PHP rgphp[1];
-    LegacyLong cphp;
-    LegacyLong cbEntry, cb;
-    byte *prgb;
-    LegacyLong iv, iiv;
-    DataBlock blck;
-    PVirtualArray pglb = pvNil;
-    PDynamicArray pglivFree = pvNil;
-
-    // get size of entry data
-    ClearPb(rgphp, size(rgphp));
-    if (!_FParseParenHeader(rgphp, 1, &cphp) || cphp < 1)
+    struct Target
     {
-        _Error(ertListHead);
-        _SkipPastTok(ttEndChunk);
-        return;
-    }
+        Compiler *compiler;
+        bool pack;
+        ChunkTagOrType tag;
+        ChunkNumber number;
+    } target{this, fPack, ctg, cno};
 
-    if (!FIn(cbEntry = rgphp[0].number, 1, kcbMax))
-    {
-        _Error(ertListEntrySize);
-        _SkipPastTok(ttEndChunk);
-        return;
-    }
-
-    pglb = fAl ? (PVirtualArray)AllocatedArray::PalNew(cbEntry) : (PVirtualArray)DynamicArray::PglNew(cbEntry);
-    if (pvNil == pglb)
-    {
-        _Error(ertOom);
-        _SkipPastTok(ttEndChunk);
-        return;
-    }
-    pglb->SetMinGrow(20);
-
-    // prefetch a token
-    if (!_FGetCleanTok(&tok))
-        goto LFail;
-
-    for (;;)
-    {
-        // empty the FileByteStream
-        _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
-
-        if (ttFree == tok.tt)
-        {
-            if (!fAl)
-                _Error(ertBadFree);
-            else if (!FError())
-            {
-                iv = pglb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(LegacyLong))) || !pglivFree->FAdd(&iv))
-                {
-                    _Error(ertOom);
-                }
-            }
-
-            if (!_FGetCleanTok(&tok))
-                goto LFail;
-        }
-        else if (ttItem != tok.tt)
-            break;
-        else
-        {
-            if (!_FGetCleanTok(&tok))
-                goto LFail;
-            _FParseData(&tok);
-        }
-
-        if ((cb = _bsf.IbMac()) > cbEntry)
-        {
-            _Error(ertItemOverflow);
-            continue;
-        }
-
-        AssertIn(cb, 0, cbEntry + 1);
-        if (FError())
-            continue;
-
-        if (!pglb->FAdd(pvNil, &iv))
-            _Error(ertOom);
-        else
-        {
-            Assert(iv == pglb->IvMac() - 1, "what?");
-            prgb = (byte *)pglb->PvLock(iv);
-            if (cb > 0)
-                _bsf.FetchRgb(0, cb, prgb);
-            if (cb < cbEntry)
-                ClearPb(prgb + cb, cbEntry - cb);
-            pglb->Unlock();
-        }
-    }
-
-    if (ttEndChunk != tok.tt)
-    {
-        _Error(ertNeedEndChunk);
-        _SkipPastTok(ttEndChunk);
-    }
-
-    if (FError())
-        goto LFail;
-
-    if (pvNil != pglivFree)
-    {
-        Assert(fAl, "why did DynamicArray have free entries?");
-        for (iiv = pglivFree->IvMac(); iiv-- > 0;)
-        {
-            pglivFree->Get(iiv, &iv);
-            AssertIn(iv, 0, pglb->IvMac());
-            pglb->Delete(iv);
-        }
-    }
-
-    // write list to disk
-    if (!_FPrepWrite(fPack, pglb->CbOnFile(), ctg, cno, &blck) || !pglb->FWrite(&blck, _format.byte_order, _format.os_kind) ||
-        !_FEndWrite(fPack, ctg, cno, &blck))
-    {
-        _Error(ertOom);
-    }
-
-LFail:
-    ReleasePpo(&pglb);
-    ReleasePpo(&pglivFree);
-}
-
-/***************************************************************************
-    Parse a group structure from the source file.
-***************************************************************************/
-void Compiler::_ParseBodyGroup(bool fPack, bool fAg, ChunkTagOrType ctg, ChunkNumber cno)
-{
-    AssertThis(0);
-    Token tok;
-    PHP rgphp[1];
-    LegacyLong cphp;
-    LegacyLong cbFixed, cb;
-    byte *prgb;
-    LegacyLong iv, iiv;
-    DataBlock blck;
-    bool fFree;
-    PVirtualGroup pggb = pvNil;
-    PDynamicArray pglivFree = pvNil;
-
-    // get size of fixed data
-    ClearPb(rgphp, size(rgphp));
-    if (!_FParseParenHeader(rgphp, 1, &cphp) || cphp < 1)
-    {
-        _Error(ertGroupHead);
-        _SkipPastTok(ttEndChunk);
-        return;
-    }
-
-    if (!FIn(cbFixed = rgphp[0].number, 0, kcbMax))
-    {
-        _Error(ertGroupEntrySize);
-        _SkipPastTok(ttEndChunk);
-        return;
-    }
-
-    pggb = fAg ? (PVirtualGroup)AllocatedGroup::PagNew(cbFixed) : (PVirtualGroup)GeneralGroup::PggNew(cbFixed);
-    if (pvNil == pggb)
-    {
-        _Error(ertOom);
-        _SkipPastTok(ttEndChunk);
-        return;
-    }
-    pggb->SetMinGrow(10, 100);
-
-    // prefetch a token
-    if (!_FGetCleanTok(&tok))
-        goto LFail;
-
-    for (;;)
-    {
-        // empty the FileByteStream
-        _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
-
-        fFree = (ttFree == tok.tt);
-        if (fFree)
-        {
-            if (!fAg)
-                _Error(ertBadFree);
-            else if (!FError())
-            {
-                iv = pggb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(LegacyLong))) || !pglivFree->FAdd(&iv))
-                {
-                    _Error(ertOom);
-                }
-            }
-
-            if (!_FGetCleanTok(&tok))
-                goto LFail;
-        }
-        else if (ttItem != tok.tt)
-            break;
-        else
-        {
-            // get the fixed part
-            if (!_FGetCleanTok(&tok))
-                goto LFail;
-            _FParseData(&tok);
-        }
-
-        if ((cb = _bsf.IbMac()) > cbFixed)
-        {
-            _Error(ertItemOverflow);
-            cb = cbFixed;
-        }
-
-        AssertIn(cb, 0, cbFixed + 1);
-        if (!FError())
-        {
-            // add the item
-            if (!pggb->FAdd(pvNil, &iv))
-                _Error(ertOom);
-            else
-            {
-                Assert(iv == pggb->IvMac() - 1, "what?");
-                prgb = (byte *)pggb->PvFixedLock(iv);
-                if (cb > 0)
-                    _bsf.FetchRgb(0, cb, prgb);
-                if (cb < cbFixed)
-                    ClearPb(prgb + cb, cbFixed - cb);
-                pggb->Unlock();
-            }
-        }
-
-        // check for a variable part
-        if (fFree || ttVar != tok.tt)
-            continue;
-
-        if (!_FGetCleanTok(&tok))
-            goto LFail;
-        _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
-        _FParseData(&tok);
-
-        if (FError() || (cb = _bsf.IbMac()) <= 0)
-            continue;
-
-        Assert(iv == pggb->IvMac() - 1, "iv wrong");
-        if (!pggb->FInsertRgb(iv, 0, cb, pvNil))
-            _Error(ertOom);
-        else
-        {
-            prgb = (byte *)pggb->PvLock(iv);
-            _bsf.FetchRgb(0, cb, prgb);
-            pggb->Unlock();
-        }
-    }
-
-    if (ttEndChunk != tok.tt)
-    {
-        _Error(ertNeedEndChunk);
-        _SkipPastTok(ttEndChunk);
-    }
-
-    if (FError())
-        goto LFail;
-
-    if (pvNil != pglivFree)
-    {
-        Assert(fAg, "why did GeneralGroup have free entries?");
-        for (iiv = pglivFree->IvMac(); iiv-- > 0;)
-        {
-            pglivFree->Get(iiv, &iv);
-            AssertIn(iv, 0, pggb->IvMac());
-            pggb->Delete(iv);
-        }
-    }
-
-    // write list to disk
-    if (!_FPrepWrite(fPack, pggb->CbOnFile(), ctg, cno, &blck) || !pggb->FWrite(&blck, _format.byte_order, _format.os_kind) ||
-        !_FEndWrite(fPack, ctg, cno, &blck))
-    {
-        _Error(ertOom);
-    }
-
-LFail:
-    ReleasePpo(&pggb);
-    ReleasePpo(&pglivFree);
-}
-
-/***************************************************************************
-    Parse a string table from the source file.
-***************************************************************************/
-void Compiler::_ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, ChunkNumber cno)
-{
-    AssertThis(0);
-    Token tok;
-    PHP rgphp[1];
-    LegacyLong cphp;
-    LegacyLong cbExtra, cb;
-    LegacyLong iv, iiv;
-    String stn;
-    DataBlock blck;
-    bool fFree;
-    PVirtualStringTable pgstb = pvNil;
-    PDynamicArray pglivFree = pvNil;
-    void *pvExtra = pvNil;
-
-    // get size of attached data
-    ClearPb(rgphp, size(rgphp));
-    if (!_FParseParenHeader(rgphp, 1, &cphp) || cphp < 1)
-    {
-        _Error(ertGstHead);
-        _SkipPastTok(ttEndChunk);
-        return;
-    }
-
-    if (!FIn(cbExtra = rgphp[0].number, 0, kcbMax) || cbExtra % size(LegacyLong) != 0)
-    {
-        _Error(ertGstEntrySize);
-        _SkipPastTok(ttEndChunk);
-        return;
-    }
-
-    pgstb = fAst ? (PVirtualStringTable)AllocatedStringTable::PastNew(cbExtra) : (PVirtualStringTable)StringTable_GST::PgstNew(cbExtra);
-    if (pvNil == pgstb || cbExtra > 0 && !FAllocPv(&pvExtra, cbExtra, fmemNil, mprNormal))
-    {
-        _Error(ertOom);
-        _SkipPastTok(ttEndChunk);
-        goto LFail;
-    }
-    pgstb->SetMinGrow(10, 100);
-
-    // prefetch a token
-    if (!_FGetCleanTok(&tok))
-        goto LFail;
-
-    for (;;)
-    {
-        fFree = (ttFree == tok.tt);
-        if (fFree)
-        {
-            if (!fAst)
-                _Error(ertBadFree);
-            else if (!FError())
-            {
-                iv = pgstb->IvMac();
-                if (pvNil == pglivFree && pvNil == (pglivFree = DynamicArray::PglNew(size(LegacyLong))) || !pglivFree->FAdd(&iv))
-                {
-                    _Error(ertOom);
-                }
-            }
-
-            if (!_FGetCleanTok(&tok))
-                goto LFail;
-            stn.SetNil();
-        }
-        else if (ttItem != tok.tt)
-            break;
-        else
-        {
-            if (!_FGetCleanTok(&tok))
-                goto LFail;
-            if (ttString != tok.tt)
-            {
-                _Error(ertNeedString);
-                _SkipPastTok(ttEndChunk);
-                goto LFail;
-            }
-            stn = tok.stn;
-            if (!_FGetCleanTok(&tok))
-                goto LFail;
-        }
-
-        if (!FError() && !pgstb->FAddStn(&stn, pvNil, &iv))
-            _Error(ertOom);
-
-        if (cbExtra <= 0 || fFree)
-            continue;
-
-        // empty the FileByteStream and get the extra data
-        _bsf.FReplace(pvNil, 0, 0, _bsf.IbMac());
-        _FParseData(&tok);
-
-        if ((cb = _bsf.IbMac()) > cbExtra)
-        {
-            _Error(ertItemOverflow);
-            cb = cbExtra;
-        }
-
-        AssertIn(cb, 0, cbExtra + 1);
-        if (!FError())
-        {
-            // add the item
-            Assert(iv == pgstb->IvMac() - 1, "what?");
-            if (cb > 0)
-                _bsf.FetchRgb(0, cb, pvExtra);
-            if (cb < cbExtra)
-                ClearPb(PvAddBv(pvExtra, cb), cbExtra - cb);
-            pgstb->PutExtra(iv, pvExtra);
-        }
-    }
-
-    if (ttEndChunk != tok.tt)
-    {
-        _Error(ertNeedEndChunk);
-        _SkipPastTok(ttEndChunk);
-    }
-
-    if (FError())
-        goto LFail;
-
-    if (pvNil != pglivFree)
-    {
-        Assert(fAst, "why did StringTable_GST have free entries?");
-        for (iiv = pglivFree->IvMac(); iiv-- > 0;)
-        {
-            pglivFree->Get(iiv, &iv);
-            AssertIn(iv, 0, pgstb->IvMac());
-            pgstb->Delete(iv);
-        }
-    }
-
-    // write list to disk
-    if (!_FPrepWrite(fPack, pgstb->CbOnFile(), ctg, cno, &blck) || !pgstb->FWrite(&blck, _format.byte_order, _format.os_kind) ||
-        !_FEndWrite(fPack, ctg, cno, &blck))
-    {
-        _Error(ertOom);
-    }
-
-LFail:
-    ReleasePpo(&pgstb);
-    ReleasePpo(&pglivFree);
-    FreePpv(&pvExtra);
+    Token token;
+    SourceCursor cursor{this, &token};
+    const auto source = _ChunkySource(&cursor);
+    const auto allocator = Group::CollectionAllocator();
+    MMChunkyCollectionHost host{};
+    host.context = &target;
+    host.allocator = &allocator;
+#ifdef DEBUG
+    host.trash_unused = 1;
+#endif
+    host.has_error = [](void *context) -> int {
+        return static_cast<Target *>(context)->compiler->FError();
+    };
+    host.clear_payload = [](void *context) {
+        auto &buffer = static_cast<Target *>(context)->compiler->_bsf;
+        buffer.FReplace(pvNil, 0, 0, buffer.IbMac());
+    };
+    host.read_payload = [](void *context, void *output, MMU32 bytes) {
+        static_cast<Target *>(context)->compiler->_bsf.FetchRgb(0, bytes, output);
+    };
+    host.save = [](void *context, MMU32 bytes, MMChunkyCollectionWrite write, void *collection) -> int {
+        auto out = static_cast<Target *>(context);
+        DataBlock block;
+        if (!out->compiler->_FPrepWrite(out->pack, bytes, out->tag, out->number, &block))
+            return 0;
+        const MMStorageWriter writer{&block, bytes,
+            [](void *target, MMU32 offset, const void *data, size_t count) -> int {
+                return static_cast<PDataBlock>(target)->FWriteRgb(const_cast<void *>(data), count, offset);
+            }};
+        return write(collection, &writer) && out->compiler->_FEndWrite(out->pack, out->tag, out->number, &block);
+    };
+    mm_chunky_parse_collection(&source, &host, kind);
 }
 
 /***************************************************************************
@@ -1611,17 +1223,17 @@ void Compiler::_ParseChunkBody(ChunkTagOrType ctg, ChunkNumber cno)
         case ttAl:
         case ttGl:
             _ErrorOnData(PszLit("List"));
-            _ParseBodyList(fPack, ttAl == tok.tt, ctg, cno);
+            _ParseBodyCollection(fPack, tok.tt, ctg, cno);
             return;
         case ttAg:
         case ttGg:
             _ErrorOnData(PszLit("Group"));
-            _ParseBodyGroup(fPack, ttAg == tok.tt, ctg, cno);
+            _ParseBodyCollection(fPack, tok.tt, ctg, cno);
             return;
         case ttAst:
         case ttGst:
             _ErrorOnData(PszLit("String Table"));
-            _ParseBodyStringTable(fPack, ttAst == tok.tt, ctg, cno);
+            _ParseBodyCollection(fPack, tok.tt, ctg, cno);
             return;
         case ttScript:
         case ttScriptP:

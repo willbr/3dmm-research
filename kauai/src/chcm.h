@@ -116,9 +116,7 @@ class Compiler : public Compiler_PAR
     void _ParseBodyMidi(bool fPack, ChunkTagOrType ctg, ChunkNumber cno);
     void _ParseBodyCursor(bool fPack, ChunkTagOrType ctg, ChunkNumber cno);
     bool _FParseData(PToken ptok);
-    void _ParseBodyList(bool fPack, bool fAl, ChunkTagOrType ctg, ChunkNumber cno);
-    void _ParseBodyGroup(bool fPack, bool fAg, ChunkTagOrType ctg, ChunkNumber cno);
-    void _ParseBodyStringTable(bool fPack, bool fAst, ChunkTagOrType ctg, ChunkNumber cno);
+    void _ParseBodyCollection(bool fPack, int kind, ChunkTagOrType ctg, ChunkNumber cno);
     void _ParseBodyScript(bool fPack, bool fInfix, ChunkTagOrType ctg, ChunkNumber cno);
     void _ParseBodyPackedFile(bool *pfPacked);
     void _ParseChunkBody(ChunkTagOrType ctg, ChunkNumber cno);
