@@ -1,6 +1,7 @@
 #include "playback.h"
 #include "mm/playback.h"
 #include "mm/movie_audio.h"
+#include "mm/movie_audio_cache.h"
 #include "mm/frame_sound.h"
 #include "mm/caption_layout.h"
 #include "mm/caption_render.h"
@@ -51,27 +52,31 @@ MMGraphicsMoviePaletteSource TransitionPalettes(const Preview &preview)
             static_cast<const Preview *>(p)->OverlayTransitionPalette(colours);
         }};
 }
-struct AudioClip
+struct DecodedAudio
 {
-    MMMovieAudioClip data = {};
     std::shared_ptr<const KauaiAudio::Sample> sample;
     std::vector<PreviewMidiEvent> midi;
 };
-struct AudioOwner
-{
-    std::shared_ptr<AudioClip> clip;
-    std::unique_ptr<KauaiMidi::Synth> synth;
-};
 class Audio
 {
+    static constexpr std::size_t clipBudget = 256u * 1024 * 1024;
     mutable std::mutex mutex;
     std::unique_ptr<MMMovieAudio, decltype(&mm_movie_audio_destroy)> mixer{
         mm_movie_audio_create(), mm_movie_audio_destroy};
-    std::map<std::tuple<int, unsigned, unsigned, int, unsigned>, std::shared_ptr<AudioClip>> clips;
+    std::unique_ptr<MMMovieAudioCache, decltype(&mm_movie_audio_cache_destroy)> clips{
+        mm_movie_audio_cache_create(clipBudget), mm_movie_audio_cache_destroy};
     std::vector<std::uint8_t> bank;
-    std::size_t cachedBytes = 0;
     SDL_AudioStream *stream = nullptr;
     bool initialized = false;
+
+    struct DecodeContext
+    {
+        Audio &audio;
+        Preview &preview;
+        const PreviewSoundCue &cue;
+        Error &error;
+        std::exception_ptr failure;
+    };
 
     static void SDLCALL Feed(void *context, SDL_AudioStream *stream, int additional, int)
     {
@@ -109,78 +114,75 @@ class Audio
         return true;
     }
 
-    std::shared_ptr<AudioClip> LoadClip(Preview &preview, const PreviewSoundCue &cue, Error &error)
+    static int ReadMedia(void *p, MMMovieAudioMedia *out)
     {
-        const auto key =
-            std::make_tuple(cue.source, cue.sound.type, cue.sound.number,
-                            cue.source == 0 ? static_cast<int>(cue.scene.type ? cue.scene.number : preview.Info().asset.number)
-                                            : -1, cue.child);
-        const auto found = clips.find(key);
-        if (found != clips.end())
-            return found->second;
-        PreviewAudio data;
-        if (!preview.ReadSound(cue, data, error))
-            return {};
-        auto clip = std::make_shared<AudioClip>();
-        clip->data.source = data.source;
-        clip->data.type = data.asset.type;
-        clip->data.number = data.asset.number;
-        if (!data.silent)
+        auto &ctx = *static_cast<DecodeContext *>(p);
+        try
         {
-            if (data.midi)
+            PreviewAudio data;
+            if (!ctx.preview.ReadSound(ctx.cue, data, ctx.error))
+                return 0;
+            auto media = std::make_unique<DecodedAudio>();
+            MMMovieAudioClip clip{data.source, data.asset.type, data.asset.number, nullptr, 0, 0};
+            if (!data.silent)
             {
-                clip->midi = std::move(data.events);
-                clip->data.midi_events = clip->midi.size();
-            }
-            else
-            {
-                if (!KauaiAudio::DecodeWave(data.wave.data(), data.wave.size(), clip->sample))
+                if (data.midi)
                 {
-                    Fail(error, std::string("Cannot decode movie WAVE audio: ") + SDL_GetError());
-                    return {};
+                    media->midi = std::move(data.events);
+                    clip.midi_events = media->midi.size();
                 }
-                clip->data.stereo = clip->sample->stereo.data();
-                clip->data.sample_frames = clip->sample->stereo.size() / 2;
+                else
+                {
+                    if (!KauaiAudio::DecodeWave(data.wave.data(), data.wave.size(), media->sample))
+                        return Fail(ctx.error, std::string("Cannot decode movie WAVE audio: ") + SDL_GetError());
+                    clip.stereo = media->sample->stereo.data();
+                    clip.sample_frames = media->sample->stereo.size() / 2;
+                }
             }
+            *out = {clip, media.release(),
+                [](void *p) { delete static_cast<DecodedAudio *>(p); },
+                [](void *p, std::size_t index) {
+                    const auto &event = static_cast<const DecodedAudio *>(p)->midi[index];
+                    return MMMovieAudioEvent{event.milliseconds, event.message};
+                }};
+            return 1;
         }
-        const auto bytes = clip->sample ? clip->sample->stereo.size() * sizeof(float)
-                                        : clip->midi.size() * sizeof(PreviewMidiEvent);
-        constexpr std::size_t budget = 256u * 1024 * 1024;
-        if (bytes > budget)
-        {
-            Fail(error, "A decoded movie sound exceeds the 256 MiB audio budget.");
-            return {};
-        }
-        if (cachedBytes + bytes > budget)
-        {
-            clips.clear();
-            cachedBytes = 0;
-        }
-        clips.emplace(key, clip);
-        cachedBytes += bytes;
-        return clip;
+        catch (...) { ctx.failure = std::current_exception(); return 0; }
     }
 
-    bool LoadSynth(AudioOwner &owner, Error &error)
+    static int CreateSynth(void *p, MMMovieAudioSynth *out)
     {
-        if (bank.empty())
+        auto &ctx = *static_cast<DecodeContext *>(p);
+        try
         {
-            const auto base = SDL_GetBasePath();
-            std::ifstream input(std::string(base ? base : "") + "assets/GeneralUserGS.sf2", std::ios::binary);
-            if (!input)
-                input.open(MARCUS_MIDI_BANK, std::ios::binary);
-            bank.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+            auto &bank = ctx.audio.bank;
+            if (bank.empty())
+            {
+                const auto base = SDL_GetBasePath();
+                std::ifstream input(std::string(base ? base : "") + "assets/GeneralUserGS.sf2", std::ios::binary);
+                if (!input)
+                    input.open(MARCUS_MIDI_BANK, std::ios::binary);
+                bank.assign(std::istreambuf_iterator<char>(input), std::istreambuf_iterator<char>());
+            }
+            auto synth = std::make_unique<KauaiMidi::Synth>();
+            if (!synth->Load(bank.data(), bank.size(), KauaiAudio::SampleRate))
+                return Fail(ctx.error, "Cannot load the General MIDI instrument bank (assets/GeneralUserGS.sf2).");
+            *out = {synth.release(),
+                [](void *p) { delete static_cast<KauaiMidi::Synth *>(p); },
+                [](void *p, MMU32 message) { static_cast<KauaiMidi::Synth *>(p)->Message(message); },
+                [](void *p, float *output, std::size_t frames) {
+                    static_cast<KauaiMidi::Synth *>(p)->Render(output, frames);
+                },
+                [](void *p) { static_cast<KauaiMidi::Synth *>(p)->Reset(); }};
+            return 1;
         }
-        owner.synth = std::make_unique<KauaiMidi::Synth>();
-        if (!owner.synth->Load(bank.data(), bank.size(), KauaiAudio::SampleRate))
-            return Fail(error, "Cannot load the General MIDI instrument bank (assets/GeneralUserGS.sf2).");
-        return true;
+        catch (...) { ctx.failure = std::current_exception(); return 0; }
     }
 
   public:
     Audio()
     {
-        if (!mixer)
+        if (!mixer || !clips)
             throw std::bad_alloc();
     }
     ~Audio()
@@ -240,8 +242,7 @@ class Audio
         }
         if (stream)
             SDL_ClearAudioStream(stream);
-        clips.clear();
-        cachedBytes = 0;
+        mm_movie_audio_cache_clear(clips.get());
     }
     void SceneBoundary()
     {
@@ -256,39 +257,26 @@ class Audio
 
     bool Play(Preview &preview, const PreviewSoundCue &cue, MMAudioCounter offset, Error &error)
     {
+        DecodeContext ctx{*this, preview, cue, error, {}};
+        const MMMovieAudioDecode decode{&ctx, ReadMedia, CreateSynth};
+        const MMMovieAudioKey key{cue.source, cue.sound.type, cue.sound.number,
+            cue.source == 0 && !cue.silent ? (cue.scene.type ? cue.scene.number : preview.Info().asset.number) : 0,
+            cue.child};
+        MMMovieAudioVoice *ready = nullptr;
+        const int status = mm_movie_audio_cache_voice(clips.get(), cue.silent ? nullptr : &key, &decode,
+            offset, cue.volume, cue.loop, &ready);
+        if (ctx.failure)
+            std::rethrow_exception(ctx.failure);
+        if (status == MM_MOVIE_AUDIO_CACHE_LIMIT)
+            return Fail(error, "A decoded movie sound exceeds the 256 MiB audio budget.");
+        if (status == MM_MOVIE_AUDIO_CACHE_MEMORY)
+            throw std::bad_alloc();
+        if (status != MM_MOVIE_AUDIO_CACHE_OK)
+            return false;
         std::unique_ptr<MMMovieAudioVoice, decltype(&mm_movie_audio_voice_destroy)> voice(
-            nullptr, mm_movie_audio_voice_destroy);
-        if (!cue.silent)
-        {
-            auto clip = LoadClip(preview, cue, error);
-            if (!clip)
-                return false;
-            if (clip->data.sample_frames || clip->data.midi_events)
-            {
-                auto owner = std::make_unique<AudioOwner>();
-                owner->clip = clip;
-                if (clip->data.midi_events && !LoadSynth(*owner, error))
-                    return false;
-                const MMMovieAudioServices services = {
-                    owner.get(),
-                    [](void *p) { delete static_cast<AudioOwner *>(p); },
-                    [](void *p, std::size_t index) {
-                        const auto &event = static_cast<AudioOwner *>(p)->clip->midi[index];
-                        return MMMovieAudioEvent{event.milliseconds, event.message};
-                    },
-                    [](void *p, MMU32 message) { static_cast<AudioOwner *>(p)->synth->Message(message); },
-                    [](void *p, float *output, std::size_t frames) {
-                        static_cast<AudioOwner *>(p)->synth->Render(output, frames);
-                    },
-                    [](void *p) { static_cast<AudioOwner *>(p)->synth->Reset(); }};
-                voice.reset(mm_movie_audio_prepare(&clip->data, &services, offset, cue.volume, cue.loop));
-                if (!voice)
-                    throw std::bad_alloc();
-                owner.release();
-                if (!Open(error))
-                    return false;
-            }
-        }
+            ready, mm_movie_audio_voice_destroy);
+        if (voice && !Open(error))
+            return false;
         const auto lane = mm_movie_audio_lane(cue.actorSound, cue.actor, cue.style);
         std::lock_guard<std::mutex> lock(mutex);
         if (!mm_movie_audio_submit(mixer.get(), lane, cue.queue, voice.release()))

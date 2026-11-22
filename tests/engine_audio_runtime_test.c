@@ -5,6 +5,7 @@
 #include "mm/sound_manager.h"
 #include "mm/midi_mix.h"
 #include "mm/movie_audio.h"
+#include "mm/movie_audio_cache.h"
 #include <assert.h>
 #include <float.h>
 #include <stdio.h>
@@ -258,6 +259,105 @@ static void movie_mixer(void)
     mm_movie_audio_stats(audio, &stats);
     assert(stats.midi_sounds == 1 && stats.rendered_frames == 7 && stats.audible_frames == 5);
     mm_movie_audio_destroy(audio);
+}
+
+typedef struct CachedAudioFixture
+{
+    Fixture media, synths[2];
+    size_t frames;
+    int reads, midi, reject_media, reject_synth, synth_count;
+} CachedAudioFixture;
+
+static int read_cached_audio(void *p, MMMovieAudioMedia *out)
+{
+    static const float samples[] = {.5f, -.5f, .25f, -.25f};
+    CachedAudioFixture *f = p;
+    ++f->reads;
+    if (f->reject_media)
+        return 0;
+    out->clip.stereo = samples;
+    out->clip.sample_frames = f->midi ? 0 : f->frames;
+    out->clip.midi_events = f->midi ? 2 : 0;
+    out->owner = &f->media;
+    out->release = movie_release;
+    out->event = movie_event;
+    return 1;
+}
+
+static int create_cached_synth(void *p, MMMovieAudioSynth *out)
+{
+    CachedAudioFixture *f = p;
+    if (f->reject_synth || f->synth_count == 2)
+        return 0;
+    out->owner = f->synths + f->synth_count++;
+    out->release = movie_release;
+    out->message = message;
+    out->render = movie_render;
+    out->reset = reset;
+    return 1;
+}
+
+static void movie_audio_cache(void)
+{
+    const MMAudioCounter zero = {0, 0}, seek = {48, 0};
+    CachedAudioFixture f;
+    MMMovieAudioDecode decode = {NULL, read_cached_audio, create_cached_synth};
+    MMMovieAudioKey key = {0, 1, 9, 3, 4};
+    MMMovieAudioVoice *playing, *voice, *other;
+    MMMovieAudioCache *cache = mm_movie_audio_cache_create(4 * sizeof(float));
+    MMMovieAudio *audio = mm_movie_audio_create();
+    float output[4];
+    assert(cache && audio);
+    memset(&f, 0, sizeof(f));
+    f.frames = 2;
+    decode.context = &f;
+    assert(mm_movie_audio_cache_voice(cache, NULL, &decode, zero, 65536, 0, &voice) == MM_MOVIE_AUDIO_CACHE_OK);
+    assert(!voice && !f.reads);
+    assert(mm_movie_audio_cache_voice(cache, &key, &decode, zero, 65536, 0, &playing) == MM_MOVIE_AUDIO_CACHE_OK);
+    assert(playing && f.reads == 1 && mm_movie_audio_submit(audio, zero, 0, playing));
+    assert(mm_movie_audio_cache_voice(cache, &key, &decode, zero, 65536, 0, &voice) == MM_MOVIE_AUDIO_CACHE_OK);
+    assert(voice && f.reads == 1);
+    ++key.scene;
+    other = voice;
+    f.reject_media = 1;
+    assert(mm_movie_audio_cache_voice(cache, &key, &decode, zero, 65536, 0, &other) == MM_MOVIE_AUDIO_CACHE_SOURCE);
+    assert(other == voice && f.reads == 2);
+    mm_movie_audio_voice_destroy(voice);
+    f.reject_media = 0;
+    f.frames = 3;
+    assert(mm_movie_audio_cache_voice(cache, &key, &decode, zero, 65536, 0, &voice) == MM_MOVIE_AUDIO_CACHE_LIMIT);
+    assert(f.media.releases == 1);
+    --key.scene;
+    f.frames = 2;
+    assert(mm_movie_audio_cache_voice(cache, &key, &decode, zero, 65536, 0, &voice) == MM_MOVIE_AUDIO_CACHE_OK);
+    assert(f.reads == 3);
+    mm_movie_audio_voice_destroy(voice);
+    ++key.scene;
+    assert(mm_movie_audio_cache_voice(cache, &key, &decode, zero, 65536, 0, &voice) == MM_MOVIE_AUDIO_CACHE_OK);
+    assert(f.reads == 4 && f.media.releases == 1);
+    mm_movie_audio_voice_destroy(voice);
+    mm_movie_audio_suspend(audio, 0);
+    mm_movie_audio_render(audio, output, 2);
+    assert(output[0] == .5f && output[3] == -.25f);
+    mm_movie_audio_collect(audio);
+    assert(f.media.releases == 2);
+    mm_movie_audio_destroy(audio);
+
+    key.source = 7;
+    f.midi = f.reject_synth = 1;
+    assert(mm_movie_audio_cache_voice(cache, &key, &decode, seek, 65536, 0, &voice) == MM_MOVIE_AUDIO_CACHE_SOURCE);
+    assert(f.reads == 5 && f.media.releases == 3);
+    f.reject_synth = 0;
+    assert(mm_movie_audio_cache_voice(cache, &key, &decode, seek, 65536, 0, &voice) == MM_MOVIE_AUDIO_CACHE_OK);
+    ++key.scene;
+    assert(mm_movie_audio_cache_voice(cache, &key, &decode, zero, 65536, 0, &other) == MM_MOVIE_AUDIO_CACHE_OK);
+    assert(f.reads == 5 && f.synth_count == 2 && f.synths[0].current == 48 && !f.synths[1].current);
+    mm_movie_audio_cache_destroy(cache);
+    assert(f.media.releases == 3);
+    mm_movie_audio_voice_destroy(voice);
+    assert(f.media.releases == 3 && f.synths[0].releases == 1 && !f.synths[1].releases);
+    mm_movie_audio_voice_destroy(other);
+    assert(f.media.releases == 4 && f.synths[1].releases == 1);
 }
 
 static void midi(void)
@@ -1008,6 +1108,7 @@ int main(void)
     arithmetic();
     mixer();
     movie_mixer();
+    movie_audio_cache();
     midi();
     queue();
     audioman_queue();

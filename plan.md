@@ -1501,11 +1501,12 @@ The C89 sound sheet retains each authored cue with its extent and source
 scene. It builds labels, supplies checked row access to the editor and
 waveforms, and finds the added cue. Marcus resolves archive and actor names
 and performs the resulting seek.
-The C89 engine also owns live Marcus playback voices, track mute and solo,
-loop and queue progression, and MIDI preroll and rendering decisions.
+The C89 engine also owns the decoded Marcus playback cache, voice lifetimes,
+track mute and solo, loop and queue progression, and MIDI preroll and
+rendering decisions.
 Marcus and Studio share PCM accumulation and clipping. The Marcus schedule
 and live mixer use the same rule for stopping loops at scene cuts. Device
-access, decoded clip caching and SoundFont synthesis use host services.
+access, archive decoding and SoundFont synthesis use host services.
 Marcus resolves user-sound links and reads the selected audio payload through
 the C89 movie graph. Studio playback, Marcus preview, and the built-in sound
 catalog share the MSND header decoder. The catalog reads eligible sounds

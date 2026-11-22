@@ -22878,3 +22878,24 @@ port. Both ports reproduced the 60-frame seek and playback order from
 retail and V3DMM in `20261122T082301Z-c465fa98`. SDL reproduced the 12 ordered
 sound requests. The captures used SDL dummy audio. Evidence is under
 `tmp/c89-sound-catalog` and `tmp/c89-aqcap`.
+
+## C89 Marcus playback audio cache (22 November 2026)
+
+C89 caches decoded PCM and MIDI by the authored sound key, including the
+origin scene for local sounds. Prepared voices retain their decoded media
+across cache eviction and each MIDI voice owns its own synth. Marcus
+supplies the archive decoder, synth and device.
+
+All 240 selected checks passed across native x64, SDL Studio and x86. The
+audio test exercised cache hits, local sound identity, oversized clips,
+failed loads and eviction during playback. It also checked that MIDI
+preroll is independent across voices using the same decoded events.
+The x86 worker built, and four native sound saves and the headless startup
+image matched byte for byte.
+
+Actor-audio candidate `20261122T210304Z-19d23a07` matched
+`20261122T205441Z-437cb4b4` on all 60 seek canvases and recorded states per
+port. Both ports reproduced the 60-frame seek and playback order from
+retail and V3DMM in `20261122T082301Z-c465fa98`. SDL reproduced the 12 ordered
+sound requests. The captures used SDL dummy audio. Evidence is under
+`tmp/c89-audio-cache` and `tmp/c89-aqcap`.
