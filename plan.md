@@ -1512,6 +1512,10 @@ catalog share the MSND header decoder. Studio's cached sounds resolve the live
 key and child through the C89 cache, including read-only wire indices.
 Invalidation uses the same graph and requires a mutable cache binding. The
 hosts supply content sources, names and native output objects.
+Marcus validates sound edits against the cue's authored scene and stages
+native sound changes in C89. The C writer opens the private copy, embeds or
+imports the sound, updates the scene or actor records, and saves the archive
+before the host publishes the edit. File audition uses the same import path.
 Studio and Marcus import standard MIDI into C-owned bytes and pass sampled
 and MIDI payloads to the same C89 sound writer. The writer owns the MSND
 envelope, slot-zero child and rollback. The native child payload uses a

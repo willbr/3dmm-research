@@ -39,6 +39,7 @@ execute_process(COMMAND "${COMPILER}" -std=c89 -pedantic-errors
   "${SOURCE}/src/marcus/storyboard_store.c"
   "${SOURCE}/src/marcus/live_document.c"
   "${SOURCE}/src/marcus/sound_sheet.c"
+  "${SOURCE}/src/marcus/sound_edit_core.c"
   "${SOURCE}/src/marcus/ribbon.c"
   "${SOURCE}/src/marcus/camera_guide.c"
   "${SOURCE}/src/marcus/camera_controls.c"

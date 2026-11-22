@@ -1248,34 +1248,18 @@ bool SoundAssetCue(MarcusPlayer *player, int index, MM::PreviewSoundCue &cue, MM
 bool SoundChange(MarcusPlayer *player, int index, const char *path, const MarcusSoundOptions &options, bool remove, MM::Error &error,
     const MarcusSoundAsset *asset = nullptr)
 {
-    if (player->selected < 0 || options.volume < 0 || options.volume > 65536 ||
-        options.style < MARCUS_SOUND_EFFECT || options.style > MARCUS_SOUND_MUSIC ||
-        (options.loop != 0 && options.loop != 1) || (options.queue != 0 && options.queue != 1))
-    { error.message = "Choose a scene and valid sound settings."; return false; }
-    MM::PreviewSoundCue cue;
-    const bool adding = path || asset;
-    int sceneIndex = player->selected;
-    if (asset && (options.style == MARCUS_SOUND_MUSIC) != (asset->style == MARCUS_SOUND_MUSIC))
-    { error.message = "Music uses MIDI; sampled sounds use Effects or Speech."; return false; }
-    if (!adding)
+    MarcusSoundEditPlan plan;
+    const char *message;
+    const auto status = marcus_sound_edit_plan(player->sceneInfo.Data(), player->sceneInfo.size(),
+        player->selected, &player->soundSheet, index, &options, remove, path != nullptr, asset, &plan, &message);
+    if (status != MARCUS_SOUND_EDIT_READY)
     {
-        const auto entry = player->soundSheet.Cue(index);
-        if (!entry) return false;
-        cue = MarcusPreviewCue(entry->source);
-        sceneIndex = static_cast<int>(entry->origin_scene);
-        if (!remove && (options.style == MARCUS_SOUND_MUSIC) != (cue.style == MARCUS_SOUND_MUSIC))
-        { error.message = "Music uses MIDI; sampled sounds can switch between Effects and Speech."; return false; }
-        if (cue.actorSound && (options.frame != cue.frame || options.style != cue.style))
-        { error.message = "Actor sounds retain their animation binding and category."; return false; }
-        if (!remove && cue.frame == options.frame && cue.volume == options.volume && cue.style == options.style &&
-            cue.loop == bool(options.loop) && (cue.actorSound ? cue.queue == bool(options.queue) : true)) return true;
+        if (message) error.message = message;
+        return status == MARCUS_SOUND_EDIT_UNCHANGED;
     }
-    if (sceneIndex < 0 || std::size_t(sceneIndex) >= player->sceneInfo.size() ||
-        options.frame < player->sceneInfo[sceneIndex].first_frame || options.frame > player->sceneInfo[sceneIndex].last_frame)
-    { error.message = "The cue frame must be inside its scene."; return false; }
     if (!CancelPropPreviews(player, error)) return false;
-    const auto library = (std::filesystem::u8path(player->timingContent) / "snds.3cn").u8string();
-    auto file = MarcusEditSound(MaterializedMovie(*player), player->sceneInfo.Number(sceneIndex), adding ? nullptr : &cue, options, path, remove,
+    const auto library = asset ? (std::filesystem::u8path(player->timingContent) / "snds.3cn").u8string() : std::string{};
+    auto file = MarcusEditSound(MaterializedMovie(*player), plan, path,
         asset ? library.c_str() : nullptr, asset ? asset->chunk : 0);
     return ReplaceEditedMovie(player, file, error);
 }

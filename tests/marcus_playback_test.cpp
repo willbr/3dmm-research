@@ -837,6 +837,18 @@ void CarryIntegration(const char *path, const char *resources, const char *conte
     CHECK(marcus_sound_track(player, sound.track, &carriedTrack) && carriedTrack.muted && !carriedTrack.audible);
     CHECK(marcus_select_scene(player, 0));
     CHECK(marcus_sound_track(player, 0, &carriedTrack) && carriedTrack.muted); // Same scene-effects lane at its origin.
+    CHECK(marcus_select_scene(player, 2) && marcus_sound(player, 0, &sound) && sound.carried);
+    const long originalVolume = sound.volume;
+    const auto revision = marcus_document(player);
+    MarcusSoundOptions edit = {-10, 12345, sound.style, sound.loop, sound.queue};
+    CHECK(!marcus_set_sound(player, 0, &edit) && marcus_document(player) == revision);
+    edit.frame = 0;
+    CHECK(marcus_set_sound(player, 0, &edit));
+    CHECK(marcus_info(player, &info) && info.scene == 2);
+    CHECK(marcus_sound(player, 0, &sound) && sound.carried && sound.volume == edit.volume);
+    CHECK(marcus_select_scene(player, 0) && marcus_sound(player, 0, &sound) && sound.volume == edit.volume);
+    CHECK(marcus_undo(player) && marcus_select_scene(player, 0));
+    CHECK(marcus_sound(player, 0, &sound) && sound.volume == originalVolume);
     marcus_destroy(player);
     player = nullptr;
 }

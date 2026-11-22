@@ -22838,3 +22838,23 @@ requests. This run used SDL dummy audio.
 The existing `scene-load` assertion still failed with the same 63,224-byte
 trace and fingerprint `0D666753`. Evidence is under `tmp/c89-sound-sheet` and
 `tmp/c89-aqcap`.
+
+## C89 Marcus sound editing (22 November 2026)
+
+Marcus uses C89 to validate settings, select the authored scene for a cue,
+and stage edits in a private archive. Import and file audition share the
+same C89 input and native write path, with the host supplying the encoded
+file name and sampled audio decoder.
+
+All 226 selected x64 tests passed and the x86 Marcus worker built. The
+headless playback fixture rejected a frame outside the carried cue's authored
+scene, applied a valid edit to that scene, and restored the cue on undo.
+Four native sound-edit saves and the Marcus startup capture matched the
+previous build byte for byte.
+
+Actor-audio candidate `20261122T204507Z-4f52c175` matched
+`20261122T203550Z-ba9acf2f` on all 60 seek canvases and recorded states per
+port. Both ports matched the retained retail and V3DMM frame order in seek
+and playback from `20261122T082301Z-c465fa98`. SDL matched the 12 ordered sound
+requests. The captures used SDL dummy audio. Evidence is under
+`tmp/c89-sound-edit-core` and `tmp/c89-aqcap`.
