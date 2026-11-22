@@ -1813,6 +1813,9 @@ operations that preserve the payload byte order.
 Studio's document loader now transfers and normalizes these collections in
 C89. Font argument lookup uses the live collection before and after the
 native font mapping call, so buffer relocation keeps the mapped ID current.
+The stored rich-text path also owns its property and argument tables
+directly in C89. The archive binding uses the same collection codec for
+Studio, Preview and Marcus, including authored byte order.
 The resource, object and HQ facades remain part of final host integration.
 Validation and coverage limits are recorded in `docs/tools/playback-regression.md`.
 After the first cutover, extend the same session through continuous playback,

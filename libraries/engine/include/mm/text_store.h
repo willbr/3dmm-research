@@ -48,20 +48,20 @@ extern "C"
     /* Initialize before use. Owns the text-file reference and both collections;
      * do not duplicate owners by copying this record. Dispose releases handles
      * without clearing scalar metadata. Counted font units are native 1/2-byte text. */
+    typedef struct MMTextCollection MMTextCollection;
     typedef struct MMRichTextState
     {
         MMRichTextDefaults defaults;
         MMMovieTitle font;
         MMTextLocation text;
-        void *properties, *arguments;
+        MMTextCollection *properties, *arguments;
         int text_system, property_order, property_system, argument_order, argument_system;
     } MMRichTextState;
     typedef struct MMRichTextObjects
     {
         void *context;
         void (*retain_file)(void *, void *);
-        void (*release)(void *, MMU32 kind, void *);
-        MMI32 (*width)(void *, MMU32 kind, void *);
+        void (*release_file)(void *, void *);
     } MMRichTextObjects;
     typedef struct MMRichTextReadServices
     {
@@ -72,7 +72,7 @@ extern "C"
         int (*child)(void *, MMU32 type, MMU32 number, MMU32 kind, MMU32 *);
         int (*location)(void *, MMU32 type, MMU32 number, MMTextLocation *borrowed);
         int (*read_text)(void *, const MMTextLocation *, void *, MMU32 bytes);
-        int (*group)(void *, MMU32 kind, MMU32 number, void **owned, int *order, int *system);
+        int (*group)(void *, MMU32 kind, MMU32 number, MMTextCollection **owned, int *order, int *system);
     } MMRichTextReadServices;
     typedef struct MMRichTextWriteServices
     {
@@ -86,9 +86,7 @@ extern "C"
         int (*add_child)(void *, MMU32 root, MMU32 kind, MMU32 bytes);
         int (*destination)(void *, MMTextLocation *owned);
         int (*copy)(void *, const MMTextLocation *source, const MMTextLocation *destination);
-        MMU32 (*group_bytes)(void *, MMU32 kind, void *);
-        MMI32 (*count)(void *, void *arguments);
-        int (*group)(void *, MMU32 kind, void *, int order, int system);
+        int (*group)(void *, MMTextCollection *, int order, int system);
     } MMRichTextWriteServices;
     int mm_rich_text_init(MMRichTextState *, unsigned unit, int system);
     int mm_rich_text_decode(const MMReadStream *, MMRichTextDefaults *);
@@ -129,16 +127,8 @@ extern "C"
     {
         MMStorageAllocator allocator; /* Zero selects the C heap. */
         int trash_unused;
+        int swapped_payload; /* Order for new collections. Reads take the stored order. */
     } MMTextCollectionConfig;
-    typedef struct MMRichTextArchiveCollections
-    {
-        void (*release)(void *, MMU32 kind, void *);
-        MMI32 (*width)(void *, MMU32 kind, void *);
-        int (*read)(void *, MMU32 kind, const MMReadStream *, void **, int *order, int *system);
-        MMU32 (*bytes)(void *, MMU32 kind, void *);
-        MMI32 (*count)(void *, void *);
-        int (*write)(void *, MMU32 kind, const MMStorageWriter *, void *, int order, int system);
-    } MMRichTextArchiveCollections;
     struct MMChunkOwnerRead;
     struct MMBlockFileServices;
     typedef struct MMRichTextArchive
@@ -151,7 +141,6 @@ extern "C"
         /* Native hosts can wrap these in a guard for exception reporting. */
         int (*location)(const struct MMRichTextArchive *, MMU32 number, MMTextLocation *borrowed);
         int (*read_at)(const struct MMRichTextArchive *, const MMTextLocation *, MMU32 offset, void *, size_t);
-        const MMRichTextArchiveCollections *collections; /* NULL uses C collections. */
         MMTextCollectionConfig collection_config;
     } MMRichTextArchive;
     /* The owner supplies the stored TEXT extent, including when flagged packed.
@@ -183,14 +172,13 @@ extern "C"
         const MMTextLocation *location;
     } MMRichTextStream;
     void mm_rich_text_archive_stream(MMRichTextStream *, const MMRichTextArchive *, const MMTextLocation *);
-    /* Uses the configured collections. Archive callbacks are synchronous and do not throw.
+    /* Archive callbacks are synchronous and do not throw.
      * The editable archive supplies discard for partial tree cleanup. */
     int mm_rich_text_archive_read(MMRichTextState *, const MMTextChunk *, const MMRichTextArchive *);
     int mm_rich_text_archive_write(const MMRichTextState *, const MMTextEncoded *, MMTextChunk *,
                                    const MMRichTextArchive *);
     void mm_rich_text_archive_dispose(MMRichTextState *, const MMRichTextArchive *);
 
-    typedef struct MMTextCollection MMTextCollection;
     MMTextCollection *mm_text_collection_new(MMU32 kind, const MMTextCollectionConfig *);
     MMTextCollection *mm_text_collection_new_arguments(MMU32 reserve_bytes, const MMTextCollectionConfig *);
     void mm_text_collection_dispose(MMTextCollection *);

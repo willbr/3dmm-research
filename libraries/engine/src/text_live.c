@@ -13,10 +13,10 @@ static int write_text(const MMArchiveWriter *archive, MMPieceTable *text, MMU32 
            mm_piece_table_write(text, 0, block, archive->transfer_allocator) == MM_DATA_OK;
 }
 
-static int group(MMU32 root, MMU32 kind, void *p, int order, int system, const MMRichTextWriteServices *s)
+static int group(MMU32 root, MMU32 kind, MMTextCollection *p, int system, const MMRichTextWriteServices *s)
 {
-    int r = s->add_child(s->context, root, kind, s->group_bytes(s->context, kind, p));
-    return r > 0 ? s->group(s->context, kind, p, order, system) : r;
+    int r = s->add_child(s->context, root, kind, mm_text_collection_bytes(p));
+    return r > 0 ? s->group(s->context, p, 1, system) : r;
 }
 int mm_rich_text_save(const MMRichTextState *state, MMTextLiveOutput *out, int big, int redirect,
                       const MMRichTextLiveServices *s)
@@ -56,12 +56,12 @@ int mm_rich_text_save(const MMRichTextState *state, MMTextLiveOutput *out, int b
     r = write_text(s->archive, s->text, created.number, bytes, marker, &text);
     if (!r)
         goto fail;
-    r = group(created.number, MM_TEXT_PROPERTIES, state->properties, 1, state->text_system, w);
+    r = group(created.number, MM_TEXT_PROPERTIES, state->properties, state->text_system, w);
     if (r <= 0)
         goto fail;
-    if (state->arguments && w->count(w->context, state->arguments) > 0)
+    if (mm_text_collection_count(state->arguments))
     {
-        r = group(created.number, MM_TEXT_ARGUMENTS, state->arguments, 1, state->text_system, w);
+        r = group(created.number, MM_TEXT_ARGUMENTS, state->arguments, state->text_system, w);
         if (r <= 0)
             goto fail;
     }

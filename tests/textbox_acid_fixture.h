@@ -22,7 +22,7 @@ bool WriteBox(PChunkyFile file, const Box &spec, ChunkNumber *number)
     text.defaults.lwAcrBack = spec.background < 0 ? -1 : (0x01000000 | spec.background);
     text.text.pfil = FileObject::PfilCreateTemp();
     text.text.cb = static_cast<LegacyLong>(std::strlen(spec.text));
-    text.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
+    text.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, nullptr);
     if (!text.text.pfil || !text.properties || !text.text.pfil->FSetFpMac(text.text.cb) ||
         !text.text.FWriteRgb(const_cast<char *>(spec.text), text.text.cb, 0))
         return false;
@@ -42,19 +42,18 @@ bool WriteBox(PChunkyFile file, const Box &spec, ChunkNumber *number)
         short osk = koskCur;
         std::memcpy(argument.data() + 4, &osk, 2);
         font.GetData(argument.data() + 6);
-        text.arguments = AllocatedGroup::PagNew(sizeof(int32_t));
-        LegacyLong index, references = 0x02000001;
-        if (!text.arguments ||
-            !text.arguments->FAdd(static_cast<LegacyLong>((argument.size)()), &index, argument.data(), &references))
+        text.arguments = mm_text_collection_new(MM_TEXT_ARGUMENTS, nullptr);
+        MMU32 index;
+        if (!mm_text_collection_add_argument(text.arguments, argument.data(), (argument.size)(), 0x02000001, &index))
             return false;
-        properties.push_back({0x02000000u | static_cast<uint32_t>(content.find("Courier")), index + 1});
+        properties.push_back({0x02000000u | static_cast<uint32_t>(content.find("Courier")), static_cast<int32_t>(index + 1)});
         properties.push_back({0x03000000u | static_cast<uint32_t>(content.find("Bold")), 0x01ff0000});
         properties.push_back({0x03000000u | static_cast<uint32_t>(content.find("Italic")), 0x01008000});
         properties.push_back({0x03000000u | static_cast<uint32_t>(content.find("Both")), 0x010000ff});
     }
     std::sort(properties.begin(), properties.end(), [](const auto &a, const auto &b) { return a.spcp < b.spcp; });
     for (auto &property : properties)
-        if (!text.properties->FAdd(&property))
+        if (!text.FAddProperty(property))
             return false;
     ChunkIdentification rich;
     TextBoxData box;

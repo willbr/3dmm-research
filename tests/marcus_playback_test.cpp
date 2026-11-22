@@ -409,12 +409,12 @@ ChunkNumber Caption(PChunkyFile file, bool scrolling, bool edge = false, int lay
     text.text.cb = static_cast<LegacyLong>(content.size() * 2);
     CHECK(text.text.pfil && text.text.pfil->FSetFpMac(text.text.cb));
     CHECK(text.text.FWriteRgb(const_cast<char16_t *>(content.data()), text.text.cb, 0));
-    text.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
+    text.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, nullptr);
     CHECK(text.properties);
     RichTextPropertyEntry style = {0x01000000, 1}; // Bold.
     RichTextPropertyEntry foreground = {0x03000000, scrolling ? 0xffffff : 0x0000ff};
     RichTextPropertyEntry alignment = {0x80000000, 0x02000000}; // Centered.
-    CHECK(text.properties->FAdd(&style) && text.properties->FAdd(&foreground) && text.properties->FAdd(&alignment));
+    CHECK(text.FAddProperty(style) && text.FAddProperty(foreground) && text.FAddProperty(alignment));
     ChunkIdentification rich;
     CHECK(text.FWrite(file, &rich));
     TextBoxData box;

@@ -24,7 +24,7 @@ typedef struct Host
     ChunkWriterFixture chunks;
     MMArchiveWriter archive;
     MMPieceTable pieces;
-    int calls, fail_at, failure, remaining, removed, errors, args;
+    int calls, fail_at, failure, remaining, removed, errors;
     int source_refs, archive_refs;
     char log[32];
     unsigned used;
@@ -159,7 +159,8 @@ static int child(void *v, MMU32 number, MMU32 kind, MMU32 bytes)
     Host *h = v;
     MMChunkChild link = {0};
     const int r = step(h, kind == MM_TEXT_PROPERTIES ? 'p' : 'a');
-    CHECK(number == 77 && h->remaining && h->chunks.file_refs == 1 && bytes == 20 &&
+    CHECK(number == 77 && h->remaining && h->chunks.file_refs == 1 &&
+          bytes == (kind == MM_TEXT_PROPERTIES ? 20 : 32) &&
           (kind == MM_TEXT_PROPERTIES || kind == MM_TEXT_ARGUMENTS));
     if (r > 0)
     {
@@ -170,25 +171,12 @@ static int child(void *v, MMU32 number, MMU32 kind, MMU32 bytes)
     return r;
 }
 
-static MMU32 group_size(void *v, MMU32 kind, void *p)
+static int group(void *v, MMTextCollection *p, int order, int system)
 {
     Host *h = v;
-    CHECK(p == (kind == MM_TEXT_PROPERTIES ? (void *)&h->state.properties : (void *)&h->args));
-    return 20;
-}
-
-static MMI32 count(void *v, void *p)
-{
-    Host *h = v;
-    CHECK(p == &h->args);
-    return h->args;
-}
-
-static int group(void *v, MMU32 kind, void *p, int order, int system)
-{
-    (void)p;
     CHECK(order == 1 && system == 0x1234);
-    return step(v, kind == MM_TEXT_PROPERTIES ? 'g' : 'b');
+    CHECK(p == h->state.properties || p == h->state.arguments);
+    return step(h, p == h->state.properties ? 'g' : 'b');
 }
 
 static void error(void *v)
@@ -204,15 +192,17 @@ static void setup(Host *h, unsigned unit, MMU32 bytes)
     MMRichTextLiveServices *s = &h->services;
     MMPieceFiles files = {NULL, retain_piece, release_piece, NULL, read_piece, NULL, NULL};
     MMFilePiece file;
+    const MMU32 words[] = {0x01000000, 1};
     memset(h, 0, sizeof(*h));
     CHECK(mm_rich_text_init(&h->state, unit, 0x303));
     h->state.text_system = 0x1234;
     h->bytes = bytes;
-    h->args = 1;
     h->state.property_order = h->state.argument_order = 256;
     h->state.property_system = h->state.argument_system = 0x202;
-    h->state.properties = &h->state.properties;
-    h->state.arguments = &h->args;
+    h->state.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, NULL);
+    h->state.arguments = mm_text_collection_new(MM_TEXT_ARGUMENTS, NULL);
+    CHECK(mm_text_collection_put_property(h->state.properties, 0, words, 1));
+    CHECK(mm_text_collection_add_argument(h->state.arguments, NULL, 0, 1, NULL));
     h->output.chunk.type = 22;
     h->output.chunk.number = 33;
     h->archive = chunk_writer_fixture(&h->chunks, h, text_extent, text_write);
@@ -237,8 +227,6 @@ static void setup(Host *h, unsigned unit, MMU32 bytes)
     s->write.font = font;
     s->write.remove = remove_root;
     s->write.add_child = child;
-    s->write.group_bytes = group_size;
-    s->write.count = count;
     s->write.group = group;
     s->text = &h->pieces;
     s->archive = &h->archive;
@@ -248,6 +236,8 @@ static void setup(Host *h, unsigned unit, MMU32 bytes)
 
 static void dispose(Host *h)
 {
+    mm_text_collection_dispose(h->state.properties);
+    mm_text_collection_dispose(h->state.arguments);
     CHECK(!h->chunks.file_refs);
     CHECK(mm_piece_table_dispose(&h->pieces) == MM_DATA_OK);
     CHECK(!h->source_refs && !h->archive_refs);
@@ -310,12 +300,13 @@ static void saves(void)
           h.output.chunk.type == MM_TEXT_ROOT && h.output.chunk.number == 33 && !h.output.number_changed);
     dispose(&h);
     setup(&h, 2, 0);
-    h.args = 0;
+    CHECK(mm_text_collection_delete(h.state.arguments, 0));
     CHECK(mm_rich_text_save(&h.state, &h.output, 0, 1, &h.services) == 1 && h.chunks.index.count == 3 &&
           h.pieces.length == 2 && !strcmp(h.log, "nhftlmpg"));
     CHECK(mm_piece_table_read(&h.pieces, 0, bytes, 2) == MM_DATA_OK && !memcmp(bytes, short_text + 4, 2));
     dispose(&h);
     setup(&h, 1, 4);
+    mm_text_collection_dispose(h.state.arguments);
     h.state.arguments = NULL;
     CHECK(mm_rich_text_save(&h.state, &h.output, 0, 0, &h.services) == 1 && h.chunks.index.count == 3);
     dispose(&h);

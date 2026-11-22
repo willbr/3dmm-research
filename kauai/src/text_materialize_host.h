@@ -8,7 +8,6 @@ struct RichTextDocument::MaterializeHost : DocumentHost
     MaterializeHost(RichTextDocument *p, const MMMovieArchiveEditor &editor, MMChunkOwnerRead *reader)
         : DocumentHost(p), stored{editor, reader}
     {
-        stored.UseLiveCollections();
     }
     void Rethrow()
     {

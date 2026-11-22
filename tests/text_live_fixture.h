@@ -124,7 +124,7 @@ static PTBOX LiveCaptionInput(PScene scene, PChunkyFile file, const std::vector<
     source.fontName.SetSzs(PszLit("Arial"));
     source.defaults.dypFont = 16 + (kind & 1);
     source.defaults.dxpDef = 170;
-    source.properties = DynamicArray::PglNew(8);
+    source.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, nullptr);
     source.text.pfil = FileObject::PfilCreateTemp();
     source.text.cb = LegacyLong(bytes.size() * sizeof(achar));
     if (!source.properties || !source.text.pfil || !source.text.pfil->FSetFpMac(source.text.cb) ||
@@ -139,11 +139,9 @@ static PTBOX LiveCaptionInput(PScene scene, PChunkyFile file, const std::vector<
         short osk = koskCur;
         std::memcpy(argument.data() + 4, &osk, 2);
         font.GetData(argument.data() + 6);
-        source.arguments = AllocatedGroup::PagNew(4);
-        LegacyLong refs = 0x02000001;
-        if (!source.arguments ||
-            !source.arguments->FAdd(LegacyLong(argument.size()), nullptr, argument.data(), &refs) ||
-            !source.properties->FAdd(&style) || !source.properties->FAdd(&fontProperty))
+        source.arguments = mm_text_collection_new(MM_TEXT_ARGUMENTS, nullptr);
+        if (!mm_text_collection_add_argument(source.arguments, argument.data(), argument.size(), 0x02000001, nullptr) ||
+            !source.FAddProperty(style) || !source.FAddProperty(fontProperty))
             return nullptr;
     }
     ChunkIdentification root;

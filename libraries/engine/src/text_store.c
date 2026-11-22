@@ -151,12 +151,11 @@ int mm_rich_text_encoding(const unsigned char marker[2], int big)
 void mm_rich_text_dispose(MMRichTextState *s, const MMRichTextObjects *o)
 {
     if (s->text.file)
-        o->release(o->context, MM_TEXT_BYTES, s->text.file);
-    if (s->properties)
-        o->release(o->context, MM_TEXT_PROPERTIES, s->properties);
-    if (s->arguments)
-        o->release(o->context, MM_TEXT_ARGUMENTS, s->arguments);
-    s->text.file = s->properties = s->arguments = 0;
+        o->release_file(o->context, s->text.file);
+    mm_text_collection_dispose(s->properties);
+    mm_text_collection_dispose(s->arguments);
+    s->text.file = NULL;
+    s->properties = s->arguments = NULL;
 }
 int mm_rich_text_read(MMRichTextState *state, MMU32 type, MMU32 number, int system, int big,
                       const MMRichTextReadServices *s)
@@ -226,7 +225,7 @@ int mm_rich_text_read(MMRichTextState *state, MMU32 type, MMU32 number, int syst
         result = r;
         goto done;
     }
-    if (!loaded.properties || o->width(o->context, MM_TEXT_PROPERTIES, loaded.properties) != 8)
+    if (!mm_text_collection_property_array(loaded.properties, NULL))
         goto done;
     r = s->child(s->context, type, number, MM_TEXT_ARGUMENTS, &child);
     if (r < 0)
@@ -243,7 +242,7 @@ int mm_rich_text_read(MMRichTextState *state, MMU32 type, MMU32 number, int syst
             result = r;
             goto done;
         }
-        if (!loaded.arguments || o->width(o->context, MM_TEXT_ARGUMENTS, loaded.arguments) != 4)
+        if (!mm_text_collection_argument_group(loaded.arguments))
             goto done;
     }
     mm_rich_text_dispose(state, o);
@@ -308,9 +307,8 @@ int mm_rich_text_write_encoded(const MMRichTextState *state, const MMTextEncoded
     int r;
     if (bytes > MM_TEXT_LIMIT - 2 ||
         (replacement && bytes && !replacement->text && (!replacement->stream || replacement->stream->length != bytes)) ||
-        !state->properties ||
-        o->width(o->context, MM_TEXT_PROPERTIES, state->properties) != 8 ||
-        (state->arguments && o->width(o->context, MM_TEXT_ARGUMENTS, state->arguments) != 4))
+        !mm_text_collection_property_array(state->properties, NULL) ||
+        (state->arguments && !mm_text_collection_argument_group(state->arguments)))
         return 0;
     r = mm_rich_text_create(&state->defaults, &state->font, written, big, s);
     if (r <= 0)
@@ -339,24 +337,24 @@ int mm_rich_text_write_encoded(const MMRichTextState *state, const MMTextEncoded
             r = s->copy(s->context, &state->text, &destination);
         }
         if (destination.file)
-            o->release(o->context, MM_TEXT_BYTES, destination.file);
+            o->release_file(o->context, destination.file);
         if (r <= 0)
             goto fail;
     }
     r = s->add_child(s->context, written->number, MM_TEXT_PROPERTIES,
-                     s->group_bytes(s->context, MM_TEXT_PROPERTIES, state->properties));
+                     mm_text_collection_bytes(state->properties));
     if (r <= 0)
         goto fail;
-    r = s->group(s->context, MM_TEXT_PROPERTIES, state->properties, state->property_order, state->property_system);
+    r = s->group(s->context, state->properties, state->property_order, state->property_system);
     if (r <= 0)
         goto fail;
-    if (state->arguments && s->count(s->context, state->arguments) > 0)
+    if (mm_text_collection_count(state->arguments))
     {
         r = s->add_child(s->context, written->number, MM_TEXT_ARGUMENTS,
-                         s->group_bytes(s->context, MM_TEXT_ARGUMENTS, state->arguments));
+                         mm_text_collection_bytes(state->arguments));
         if (r <= 0)
             goto fail;
-        r = s->group(s->context, MM_TEXT_ARGUMENTS, state->arguments, state->argument_order, state->argument_system);
+        r = s->group(s->context, state->arguments, state->argument_order, state->argument_system);
         if (r <= 0)
             goto fail;
     }
@@ -435,23 +433,10 @@ static void archive_retain_file(void *p, void *file)
     archive->files->retain(archive->files->context, file);
 }
 
-static void archive_release(void *p, MMU32 kind, void *object)
+static void archive_release_file(void *p, void *file)
 {
     const MMRichTextArchive *archive = p;
-    if (kind == MM_TEXT_BYTES)
-        archive->files->release(archive->files->context, object);
-    else if (archive->collections)
-        archive->collections->release(archive->context, kind, object);
-    else
-        mm_text_collection_dispose(object);
-}
-
-static MMI32 archive_collection_width(void *p, MMU32 kind, void *group)
-{
-    const MMRichTextArchive *archive = p;
-    if (archive->collections)
-        return archive->collections->width(archive->context, kind, group);
-    return mm_text_collection_width(group);
+    archive->files->release(archive->files->context, file);
 }
 
 static MMRichTextObjects archive_objects(const MMRichTextArchive *archive)
@@ -459,8 +444,7 @@ static MMRichTextObjects archive_objects(const MMRichTextArchive *archive)
     MMRichTextObjects objects = {0};
     objects.context = (void *)archive;
     objects.retain_file = archive_retain_file;
-    objects.release = archive_release;
-    objects.width = archive_collection_width;
+    objects.release_file = archive_release_file;
     return objects;
 }
 
@@ -530,21 +514,15 @@ static int archive_rich_read_text(void *p, const MMTextLocation *location, void 
     return archive->read_at(archive, location, 0, out, bytes);
 }
 
-static int archive_rich_read_group(void *p, MMU32 kind, MMU32 number, void **out, int *order, int *system)
+static int archive_rich_read_group(void *p, MMU32 kind, MMU32 number, MMTextCollection **out, int *order, int *system)
 {
     const MMRichTextArchive *archive = ((const MMRichTextArchiveReader *)p)->archive;
     const MMMovieArchiveEditor *editor = archive->editor;
     MMReadStream stream;
-    MMTextCollection *collection;
     int result = editor->read(editor->context, kind, number, &stream);
     if (result <= 0)
         return result;
-    if (archive->collections)
-        return archive->collections->read(archive->context, kind, &stream, out, order, system);
-    result = mm_text_collection_read(kind, &stream, &collection, order, system, &archive->collection_config);
-    if (result > 0)
-        *out = collection;
-    return result;
+    return mm_text_collection_read(kind, &stream, out, order, system, &archive->collection_config);
 }
 
 void mm_rich_text_archive_reader(MMRichTextArchiveReader *read, const MMRichTextArchive *archive,
@@ -629,27 +607,9 @@ static int archive_rich_add_child(void *p, MMU32 root, MMU32 kind, MMU32 bytes)
     return 0;
 }
 
-static MMU32 archive_rich_group_bytes(void *p, MMU32 kind, void *collection)
-{
-    const MMRichTextArchive *archive = ((const MMRichTextArchiveWriter *)p)->archive;
-    if (archive->collections)
-        return archive->collections->bytes(archive->context, kind, collection);
-    return mm_text_collection_bytes(collection);
-}
-
-static MMI32 archive_rich_group_count(void *p, void *collection)
-{
-    const MMRichTextArchive *archive = ((const MMRichTextArchiveWriter *)p)->archive;
-    if (archive->collections)
-        return archive->collections->count(archive->context, collection);
-    return mm_text_collection_count(collection);
-}
-
-static int archive_rich_write_group(void *p, MMU32 kind, void *collection, int order, int system)
+static int archive_rich_write_group(void *p, MMTextCollection *collection, int order, int system)
 {
     const MMRichTextArchiveWriter *write = p;
-    if (write->archive->collections)
-        return write->archive->collections->write(write->archive->context, kind, &write->writer, collection, order, system);
     return mm_text_collection_write(collection, &write->writer, order, system);
 }
 
@@ -666,8 +626,6 @@ void mm_rich_text_archive_writer(MMRichTextArchiveWriter *write, const MMRichTex
     services->font = archive_rich_write_font;
     services->remove = archive_rich_remove;
     services->add_child = archive_rich_add_child;
-    services->group_bytes = archive_rich_group_bytes;
-    services->count = archive_rich_group_count;
     services->group = archive_rich_write_group;
 }
 
@@ -724,7 +682,7 @@ MMTextCollection *mm_text_collection_new(MMU32 kind, const MMTextCollectionConfi
         return NULL;
     }
     c->kind = kind;
-    c->big = native_big();
+    c->big = native_big() != (config && config->swapped_payload);
     if (kind == MM_TEXT_PROPERTIES)
     {
         c->rows.array.storage = &c->storage;

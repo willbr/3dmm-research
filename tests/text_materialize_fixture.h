@@ -67,10 +67,12 @@ static bool MaterializeInput(PChunkyFile file, int kind, ChunkIdentification *ro
     text.defaults.dypFont = 19;
     text.defaults.lwAcrBack = 0x01010203;
     text.fontName.SetSzs(PszLit("Arial"));
-    text.properties = DynamicArray::PglNew(8);
     text.text.pfil = FileObject::PfilCreateTemp();
     std::vector<byte> bytes = {'A', 0, 'B', '\r'};
     const bool foreign = kind == 1 || kind == 4 || kind == 6 || kind == 9;
+    MMTextCollectionConfig config = {};
+    config.swapped_payload = foreign;
+    text.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, &config);
     if (kind == 1)
     {
         bytes = {'A', 0, 0, 0, 'B', 0, '\r', 0};
@@ -84,17 +86,17 @@ static bool MaterializeInput(PChunkyFile file, int kind, ChunkIdentification *ro
         return false;
     if (kind != 2 && kind != 9)
     {
-        text.arguments = AllocatedGroup::PagNew(4);
+        text.arguments = mm_text_collection_new(MM_TEXT_ARGUMENTS, &config);
         if (!text.arguments)
             return false;
         for (int i = 0; i < 3; ++i)
         {
             std::vector<byte> data;
-            LegacyLong refs;
+            MMU32 refs;
             if (i == 1)
             {
                 data = {1, 2, 3, 4};
-                refs = kind == 5 ? 0x7e000001 : LegacyLong(0x80000001U);
+                refs = kind == 5 ? 0x7e000001 : 0x80000001U;
             }
             else
             {
@@ -106,13 +108,11 @@ static bool MaterializeInput(PChunkyFile file, int kind, ChunkIdentification *ro
                 font.GetData(data.data() + 6);
                 refs = 0x02000001;
             }
-            if (foreign)
-                SwapBytesRglw(&refs, 1);
-            if (!text.arguments->FAdd(LegacyLong(data.size()), nullptr, data.data(), &refs))
+            if (!mm_text_collection_add_argument(text.arguments, data.data(), data.size(), refs, nullptr))
                 return false;
         }
-        if (kind == 6)
-            text.arguments->Delete(1);
+        if (kind == 6 && !mm_text_collection_delete(text.arguments, 1))
+            return false;
     }
     std::vector<RichTextPropertyEntry> p = {{0x01000000, 1}, {0x03000002, 0x010000ff}};
     if (kind != 2 && kind != 9)
@@ -125,12 +125,8 @@ static bool MaterializeInput(PChunkyFile file, int kind, ChunkIdentification *ro
         text.propertyOsk = text.argumentOsk = koskSbMac;
     }
     for (auto entry : p)
-    {
-        if (foreign)
-            SwapBytesRglw(&entry, 2);
-        if (!text.properties->FAdd(&entry))
+        if (!text.FAddProperty(entry))
             return false;
-    }
     if (!text.FWrite(file, root))
         return false;
     if (foreign)

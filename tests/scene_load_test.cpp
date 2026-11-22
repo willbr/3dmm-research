@@ -181,7 +181,7 @@ static ChunkNumber Fixture(PChunkyFile file, int scenario, bool swap)
     if (scenario == 6)
     {
         RichTextData text;
-        text.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
+        text.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, nullptr);
         text.fontName.SetSzs(PszLit("Arial"));
         text.text.pfil = FileObject::PfilCreateTemp();
         text.text.cb = 2;

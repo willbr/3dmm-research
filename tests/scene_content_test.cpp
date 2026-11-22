@@ -474,7 +474,7 @@ static PTBOX Caption(PScene scene, MMResourceCache *resources)
     MovieArchiveHost host{archive.reader, archive.writer};
     const auto editor = host.Editor();
     RichTextData text;
-    text.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
+    text.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, nullptr);
     text.fontName.SetSzs(PszLit("Arial"));
     text.text.pfil = FileObject::PfilCreateTemp();
     text.text.cb = 2;

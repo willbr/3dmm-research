@@ -16,20 +16,28 @@ static void check(int ok, int line)
 typedef struct Token
 {
     int refs;
-    MMI32 width, count;
 } Token;
+typedef struct TrackedRows
+{
+    struct Host *host;
+    char label;
+    int blocks;
+} TrackedRows;
 typedef struct Host
 {
     MMRichTextReadServices read;
     MMRichTextWriteServices write;
-    Token old[3], fresh[3], destination;
+    Token old, fresh, destination;
+    TrackedRows old_properties, old_arguments, fresh_properties, fresh_arguments;
+    MMTextCollection *properties, *arguments;
+    int wrong_properties, wrong_arguments;
     unsigned char header[64], marker[2], written[36];
     unsigned char payload[4];
     const unsigned char *large_payload;
     MMU32 large_bytes, large_written;
     MMU32 length;
     int calls, fail_at, failure, own_failure, font_empty, missing_args, big;
-    int root, removed, children, active, releases;
+    int root, removed, children, active;
     char log[256];
     unsigned used;
 } Host;
@@ -48,43 +56,51 @@ static void retain(void *v, void *p)
 {
     Host *h = (Host *)v;
     Token *t = (Token *)p;
-    CHECK(t == h->fresh && t->refs == 1);
+    CHECK(t == &h->fresh && t->refs == 1);
     ++t->refs;
     event(h, '+');
 }
-static void release(void *v, MMU32 kind, void *p)
+static void release(void *v, void *p)
 {
     Host *h = (Host *)v;
     Token *t = (Token *)p;
-    unsigned i;
     CHECK(t->refs > 0);
     --t->refs;
-    ++h->releases;
-    if (t == &h->destination)
-    {
-        CHECK(kind == MM_TEXT_BYTES);
-        event(h, 'z');
-        return;
-    }
-    for (i = 0; i < 3; ++i)
-        if (t == h->old + i)
-        {
-            event(h, (char)('X' + i));
-            return;
-        }
-    for (i = 0; i < 3; ++i)
-        if (t == h->fresh + i)
-        {
-            event(h, (char)('x' + i));
-            return;
-        }
-    CHECK(0);
+    CHECK(t == &h->destination || t == &h->old || t == &h->fresh);
+    event(h, t == &h->destination ? 'z' : t == &h->old ? 'X' : 'x');
 }
-static MMI32 width(void *v, MMU32 kind, void *p)
+static void *resize_rows(void *v, void *p, MMU32 old_bytes, MMU32 bytes, int priority)
 {
-    (void)v;
-    CHECK(kind == MM_TEXT_PROPERTIES || kind == MM_TEXT_ARGUMENTS);
-    return ((Token *)p)->width;
+    TrackedRows *rows = v;
+    void *result = realloc(p, bytes);
+    (void)priority;
+    if (result && !old_bytes)
+        ++rows->blocks;
+    return result;
+}
+static void release_rows(void *v, void *p, MMU32 bytes)
+{
+    TrackedRows *rows = v;
+    CHECK(bytes && rows->blocks > 0);
+    if (!--rows->blocks)
+        event(rows->host, rows->label);
+    free(p);
+}
+static MMTextCollection *make_rows(Host *h, TrackedRows *rows, char label, MMU32 kind)
+{
+    MMTextCollectionConfig config = {{NULL, resize_rows, release_rows}, 0, 1};
+    const MMU32 property[2] = {0x01000000UL, 1};
+    MMTextCollection *collection;
+    config.allocator.context = rows;
+    collection = mm_text_collection_new(kind, &config);
+    rows->host = h;
+    rows->label = label;
+    CHECK(collection != NULL);
+    if (kind == MM_TEXT_PROPERTIES)
+        CHECK(mm_text_collection_put_property(collection, 0, property, 1));
+    else
+        CHECK(mm_text_collection_add_argument(collection, NULL, 0, 1, NULL));
+    return collection;
 }
 static int root_read(void *v, MMU32 type, MMU32 number, MMReadStream *out);
 static int root_bytes(void *v, MMU32 offset, void *out, size_t n)
@@ -140,7 +156,7 @@ static int location(void *v, MMU32 type, MMU32 number, MMTextLocation *out)
     Host *h = (Host *)v;
     int r = step(h, 'L');
     CHECK(type == MM_TEXT_BYTES && number == 100);
-    out->file = h->fresh;
+    out->file = &h->fresh;
     out->offset = 40;
     out->bytes = 6;
     return r;
@@ -149,22 +165,21 @@ static int text_read(void *v, const MMTextLocation *p, void *out, MMU32 n)
 {
     Host *h = (Host *)v;
     int r = step(h, 'E');
-    CHECK(p->file == h->fresh && p->offset == 40 && n == 2);
+    CHECK(p->file == &h->fresh && p->offset == 40 && n == 2);
     if (r > 0)
         memcpy(out, h->marker, 2);
     return r;
 }
-static int group_read(void *v, MMU32 kind, MMU32 number, void **out, int *order, int *system)
+static int group_read(void *v, MMU32 kind, MMU32 number, MMTextCollection **out, int *order, int *system)
 {
     Host *h = (Host *)v;
-    int index = kind == MM_TEXT_PROPERTIES ? 1 : 2;
-    int r = step(h, index == 1 ? 'G' : 'B');
+    int prop = kind == MM_TEXT_PROPERTIES;
+    int r = step(h, prop ? 'G' : 'B');
     CHECK(number == 100);
     if (r > 0 || h->own_failure)
     {
-        *out = h->fresh + index;
-        CHECK(!h->fresh[index].refs);
-        h->fresh[index].refs = 1;
+        *out = prop ? make_rows(h, &h->fresh_properties, 'y', h->wrong_properties ? MM_TEXT_ARGUMENTS : kind)
+                    : make_rows(h, &h->fresh_arguments, 'z', h->wrong_arguments ? MM_TEXT_PROPERTIES : kind);
         *order = 256;
         *system = 0x202;
     }
@@ -229,7 +244,8 @@ static int add_child(void *v, MMU32 root, MMU32 kind, MMU32 bytes)
     Host *h = (Host *)v;
     int r = step(h, kind == MM_TEXT_BYTES ? 't' : kind == MM_TEXT_PROPERTIES ? 'p' : 'a');
     CHECK(root == 41 && h->root && (kind == MM_TEXT_BYTES ?
-          (h->large_payload ? bytes == h->large_bytes + 2 : bytes == 6 || bytes == 2) : bytes == 20));
+          (h->large_payload ? bytes == h->large_bytes + 2 : bytes == 6 || bytes == 2) :
+          bytes == (kind == MM_TEXT_PROPERTIES ? 20 : 32)));
     if (r > 0)
     {
         ++h->children;
@@ -253,31 +269,18 @@ static int destination(void *v, MMTextLocation *out)
 static int copy(void *v, const MMTextLocation *from, const MMTextLocation *to)
 {
     Host *h = (Host *)v;
-    CHECK(from->file == h->old && from->bytes == 4 && to->offset == 82 && to->bytes == 4);
+    CHECK(from->file == &h->old && from->bytes == 4 && to->offset == 82 && to->bytes == 4);
     return step(h, 'c');
 }
-static MMU32 group_bytes(void *v, MMU32 kind, void *p)
-{
-    (void)v;
-    (void)kind;
-    (void)p;
-    return 20;
-}
-static MMI32 count(void *v, void *p)
-{
-    (void)v;
-    return ((Token *)p)->count;
-}
-static int group_write(void *v, MMU32 kind, void *p, int order, int system)
+static int group_write(void *v, MMTextCollection *p, int order, int system)
 {
     Host *h = (Host *)v;
-    CHECK(p == h->old + (kind == MM_TEXT_PROPERTIES ? 1 : 2) && order == 256 && system == 0x202);
-    return step(h, kind == MM_TEXT_PROPERTIES ? 'g' : 'j');
+    CHECK((p == h->properties || p == h->arguments) && order == 256 && system == 0x202);
+    return step(h, p == h->properties ? 'g' : 'j');
 }
 static void setup(Host *h, MMRichTextState *s, unsigned unit, int big)
 {
     MMRichTextObjects objects;
-    unsigned i;
     memset(h, 0, sizeof(*h));
     CHECK(mm_rich_text_init(s, unit, 0x303));
     h->big = big;
@@ -288,24 +291,17 @@ static void setup(Host *h, MMRichTextState *s, unsigned unit, int big)
     h->length = 24;
     h->marker[0] = 0x34;
     h->marker[1] = 0x12;
-    s->text.file = h->old;
+    s->text.file = &h->old;
     s->text.offset = 20;
     s->text.bytes = 4;
-    s->properties = h->old + 1;
-    s->arguments = h->old + 2;
+    s->properties = h->properties = make_rows(h, &h->old_properties, 'Y', MM_TEXT_PROPERTIES);
+    s->arguments = h->arguments = make_rows(h, &h->old_arguments, 'Z', MM_TEXT_ARGUMENTS);
     s->property_order = s->argument_order = 256;
     s->property_system = s->argument_system = 0x202;
-    for (i = 0; i < 3; ++i)
-    {
-        h->old[i].refs = 1;
-        h->old[i].count = h->fresh[i].count = 1;
-        h->old[i].width = h->fresh[i].width = i == 1 ? 8 : 4;
-    }
-    h->fresh[0].refs = 1;
+    h->old.refs = h->fresh.refs = 1;
     objects.context = h;
     objects.retain_file = retain;
-    objects.release = release;
-    objects.width = width;
+    objects.release_file = release;
     h->read.context = h;
     h->read.objects = objects;
     h->read.root = root_read;
@@ -324,8 +320,6 @@ static void setup(Host *h, MMRichTextState *s, unsigned unit, int big)
     h->write.add_child = add_child;
     h->write.destination = destination;
     h->write.copy = copy;
-    h->write.group_bytes = group_bytes;
-    h->write.count = count;
     h->write.group = group_write;
 }
 static void read_tests(void)
@@ -341,7 +335,7 @@ static void read_tests(void)
         {
             setup(&h, &s, unit, big);
             CHECK(mm_rich_text_read(&s, MM_TEXT_ROOT, 9, 0x303, big, &h.read) == 1);
-            CHECK(s.text.file == h.fresh && s.text.offset == 42 && s.text.bytes == 4 &&
+            CHECK(s.text.file == &h.fresh && s.text.offset == 42 && s.text.bytes == 4 &&
                   s.text_system == (big ? 0x3412 : 0x1234));
             CHECK(s.font.count == 5 && s.property_order == 256 && s.argument_system == 0x202 && strstr(h.log, "XYZ"));
             n = h.calls;
@@ -351,7 +345,7 @@ static void read_tests(void)
                     effects[used++] = h.log[i];
             effects[used] = 0;
             mm_rich_text_dispose(&s, &h.read.objects);
-            CHECK(h.fresh[0].refs == 1 && !h.fresh[1].refs && !h.fresh[2].refs && !s.text.file && !s.properties &&
+            CHECK(h.fresh.refs == 1 && !h.fresh_properties.blocks && !h.fresh_arguments.blocks && !s.text.file && !s.properties &&
                   !s.arguments);
             for (own = 0; own < 2; ++own)
                 for (f = -2; f <= 0; ++f)
@@ -370,33 +364,39 @@ static void read_tests(void)
                                 CHECK(!s.font.count && s.defaults.font_system == 0x303);
                             if (effects[i - 1] == 'A')
                                 CHECK(!s.arguments);
-                            mm_rich_text_dispose(&s, &h.read.objects);
                         }
                         else
                         {
                             CHECK(r == (effects[i - 1] == 'H' ? 0 : f) && !memcmp(&s, &before, sizeof(s)));
-                            CHECK(h.old[0].refs == 1 && h.old[1].refs == 1 && h.old[2].refs == 1);
+                            CHECK(h.old.refs == 1 && h.old_properties.blocks == 1 && h.old_arguments.blocks == 2);
                         }
-                        CHECK(h.fresh[0].refs == 1 && !h.fresh[1].refs && !h.fresh[2].refs);
+                        mm_rich_text_dispose(&s, &h.read.objects);
+                        CHECK(h.fresh.refs == 1 && !h.fresh_properties.blocks && !h.fresh_arguments.blocks &&
+                              !h.old.refs && !h.old_properties.blocks && !h.old_arguments.blocks);
                     }
         }
     setup(&h, &s, 1, 0);
     h.font_empty = 1;
     CHECK(mm_rich_text_read(&s, MM_TEXT_ROOT, 9, 0x303, 0, &h.read) == 1 && !s.font.count);
+    mm_rich_text_dispose(&s, &h.read.objects);
     setup(&h, &s, 1, 0);
-    h.fresh[1].width = 4;
+    h.wrong_properties = 1;
     before = s;
     CHECK(!mm_rich_text_read(&s, MM_TEXT_ROOT, 9, 0x303, 0, &h.read) && !memcmp(&before, &s, sizeof(s)) &&
-          !h.fresh[1].refs && h.fresh[0].refs == 1);
+          !h.fresh_properties.blocks && h.fresh.refs == 1);
+    mm_rich_text_dispose(&s, &h.read.objects);
     setup(&h, &s, 1, 0);
-    h.fresh[2].width = 8;
+    h.wrong_arguments = 1;
     CHECK(!mm_rich_text_read(&s, MM_TEXT_ROOT, 9, 0x303, 0, &h.read) && strstr(h.log, "xyz"));
+    mm_rich_text_dispose(&s, &h.read.objects);
     setup(&h, &s, 1, 0);
     h.length = 15;
     CHECK(!mm_rich_text_read(&s, MM_TEXT_ROOT, 9, 0x303, 0, &h.read) && h.calls == 1);
+    mm_rich_text_dispose(&s, &h.read.objects);
     setup(&h, &s, 1, 0);
     h.header[0] = 2;
     CHECK(!mm_rich_text_read(&s, MM_TEXT_ROOT, 9, 0x303, 0, &h.read) && h.calls == 2);
+    mm_rich_text_dispose(&s, &h.read.objects);
 }
 static void write_tests(void)
 {
@@ -415,6 +415,7 @@ static void write_tests(void)
                   h.children == 3 && !h.removed && !h.destination.refs);
             n = h.calls;
             CHECK(!strcmp(h.log, "nwftmdczpgaj"));
+            mm_rich_text_dispose(&s, &h.read.objects);
             for (own = 0; own < 2; ++own)
                 for (f = -2; f <= 0; ++f)
                     for (i = 1; i <= n; ++i)
@@ -428,9 +429,10 @@ static void write_tests(void)
                         r = mm_rich_text_write(&s, &out, big, &h.write);
                         CHECK(r == f && out.type == MM_TEXT_ROOT && out.number == MM_TEXT_NIL && !h.destination.refs &&
                               !h.root && !h.children && h.removed == (i != 1));
-                        CHECK(h.old[0].refs == 1 && h.old[1].refs == 1 && h.old[2].refs == 1);
+                        CHECK(h.old.refs == 1 && h.old_properties.blocks == 1 && h.old_arguments.blocks == 2);
                         if (strchr(h.log, 'z'))
                             CHECK(strchr(h.log, 'z') < strchr(h.log, '!'));
+                        mm_rich_text_dispose(&s, &h.read.objects);
                     }
         }
     for (i = 0; i < 7; ++i)
@@ -445,23 +447,29 @@ static void write_tests(void)
         if (i == 2)
             s.properties = 0;
         if (i == 3)
-            h.old[1].width = 4;
+            s.properties = h.arguments;
         if (i == 4)
-            h.old[2].width = 8;
+            s.arguments = h.properties;
         if (i == 5)
             s.defaults.height = 256;
         if (i == 6)
             s.defaults.width = MM_TEXT_LIMIT;
         CHECK(!mm_rich_text_write(&s, &out, 0, &h.write) && !h.calls && out.type == 22 && out.number == 33);
+        s.properties = h.properties;
+        s.arguments = h.arguments;
+        mm_rich_text_dispose(&s, &h.read.objects);
     }
     setup(&h, &s, 1, 0);
+    mm_text_collection_dispose(s.arguments);
     s.arguments = 0;
     s.text.bytes = 0;
     CHECK(mm_rich_text_write(&s, &out, 0, &h.write) == 1 && h.children == 2 && !strchr(h.log, 'd') &&
           !strchr(h.log, 'a'));
+    mm_rich_text_dispose(&s, &h.read.objects);
     setup(&h, &s, 1, 0);
-    h.old[2].count = 0;
+    CHECK(mm_text_collection_delete(s.arguments, 0));
     CHECK(mm_rich_text_write(&s, &out, 0, &h.write) == 1 && h.children == 2 && !strchr(h.log, 'a'));
+    mm_rich_text_dispose(&s, &h.read.objects);
 }
 
 static void encoded_tests(void)
@@ -479,13 +487,15 @@ static void encoded_tests(void)
         CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, big, &h.write) == 1);
         CHECK(chunk.type == MM_TEXT_ROOT && chunk.number == 41 && h.children == 3);
         CHECK(!strcmp(h.log, "nwftmbpgaj") && !memcmp(h.payload, words, 4));
-        CHECK(h.written[0] == 5 && h.written[1] == 5 && h.old[0].refs == 1);
+        CHECK(h.written[0] == 5 && h.written[1] == 5 && h.old.refs == 1);
+        mm_rich_text_dispose(&state, &h.read.objects);
 
         setup(&h, &state, 1, big);
         h.fail_at = 6;
         h.failure = -2;
         CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, big, &h.write) == -2);
         CHECK(!strcmp(h.log, "nwftmb!") && chunk.number == MM_TEXT_NIL && h.removed == 1 && !h.children);
+        mm_rich_text_dispose(&state, &h.read.objects);
     }
     setup(&h, &state, 1, 0);
     CHECK(mm_memory_stream_init(&memory, words, sizeof(words)));
@@ -493,11 +503,13 @@ static void encoded_tests(void)
     replacement.stream = &memory.stream;
     CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, 0, &h.write) == 1);
     CHECK(!strcmp(h.log, "nwftmbpgaj") && !memcmp(h.payload, words, sizeof(words)));
+    mm_rich_text_dispose(&state, &h.read.objects);
     setup(&h, &state, 1, 0);
     replacement.bytes = 0;
     replacement.text = NULL;
     CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, 0, &h.write) == 1);
     CHECK(!strcmp(h.log, "nwftmpgaj") && state.text.bytes == 4);
+    mm_rich_text_dispose(&state, &h.read.objects);
 }
 
 static void streamed_text_tests(void)
@@ -520,6 +532,7 @@ static void streamed_text_tests(void)
     h.large_bytes = sizeof(words);
     CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, 0, &h.write) == 1);
     CHECK(!strcmp(h.log, "nwftmbbbpgaj") && h.large_written == sizeof(words));
+    mm_rich_text_dispose(&state, &h.read.objects);
 
     setup(&h, &state, 1, 0);
     h.large_payload = words;
@@ -529,6 +542,7 @@ static void streamed_text_tests(void)
     CHECK(mm_rich_text_write_encoded(&state, &replacement, &chunk, 0, &h.write) == -2);
     CHECK(!strcmp(h.log, "nwftmbb!") && chunk.number == MM_TEXT_NIL && h.removed == 1 && !h.children);
     CHECK(h.large_written == 4096);
+    mm_rich_text_dispose(&state, &h.read.objects);
 }
 typedef struct Box
 {

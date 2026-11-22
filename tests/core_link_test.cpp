@@ -1667,14 +1667,7 @@ static void TestRichTextPersistence()
     source.fontName.SetSzs(PszLit("Arial"));
     source.defaults.dxpDef = 240;
     source.defaults.dypFont = 16;
-    source.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
-    source.arguments = AllocatedGroup::PagNew(sizeof(int32_t));
-    Check(source.properties != pvNil && source.arguments != pvNil);
-    RichTextPropertyEntry entry = {0x02000000, 21};
-    Check(source.properties->FAdd(&entry));
-    int32_t fixed = 3;
     byte argument[] = {3, 1, 4};
-    Check(source.arguments->FAdd(sizeof(argument), pvNil, argument, &fixed));
     source.text.pfil = FileObject::PfilCreateTemp();
     Check(source.text.pfil != pvNil);
     byte caption[] = {'H', 'e', 'l', 'l', 'o'};
@@ -1683,14 +1676,18 @@ static void TestRichTextPersistence()
     Check(source.text.FWriteRgb(caption, sizeof(caption), 0));
     for (int foreign = 0; foreign < 2; ++foreign)
     {
+        MMTextCollectionConfig config = {};
+        config.swapped_payload = foreign;
+        mm_text_collection_dispose(source.properties);
+        mm_text_collection_dispose(source.arguments);
+        source.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, &config);
+        source.arguments = mm_text_collection_new(MM_TEXT_ARGUMENTS, &config);
+        Check(source.FAddProperty({0x02000000, 21}));
+        Check(mm_text_collection_add_argument(source.arguments, argument, sizeof(argument), 3, nullptr));
         if (foreign)
         {
             source.propertyBo = source.argumentBo = kboOther;
             source.propertyOsk = koskSbMac;
-            SwapBytesRglw(&entry, 2);
-            source.properties->Put(0, &entry);
-            SwapBytesRglw(&fixed, 1);
-            source.arguments->PutFixed(0, &fixed);
         }
         ChunkIdentification root;
         Check(source.FWrite(file, &root));
@@ -1711,19 +1708,12 @@ static void TestRichTextPersistence()
         Check(loaded.propertyOsk == source.propertyOsk);
         byte text[5];
         Check(loaded.text.FReadRgb(text, sizeof(text), 0) && std::memcmp(text, caption, sizeof(text)) == 0);
-        RichTextPropertyEntry got;
-        loaded.properties->Get(0, &got);
-        if (loaded.propertyBo == kboOther)
-            SwapBytesRglw(&got, 2);
-        Check(got.spcp == 0x02000000 && got.lw == 21);
-        int32_t gotFixed;
-        loaded.arguments->GetFixed(0, &gotFixed);
-        if (loaded.argumentBo == kboOther)
-            SwapBytesRglw(&gotFixed, 1);
-        Check(gotFixed == 3);
-        byte gotArg[3];
-        loaded.arguments->Get(0, gotArg);
-        Check(std::memcmp(gotArg, argument, sizeof(argument)) == 0);
+        MMU32 got[2];
+        Check(mm_text_collection_property(loaded.properties, 0, got) && got[0] == 0x02000000 && got[1] == 21);
+        Check(mm_text_collection_argument_ref(loaded.arguments, 0) == 3);
+        MMI32 gotBytes;
+        const void *gotArg = mm_text_collection_argument(loaded.arguments, 0, &gotBytes);
+        Check(gotArg && gotBytes == sizeof(argument) && std::memcmp(gotArg, argument, sizeof(argument)) == 0);
         ChunkIdentification copy;
         Check(loaded.FWrite(file, &copy));
         RichTextData reread;
@@ -4610,7 +4600,7 @@ static void TestTextBoxPersistence()
     PChunkyFile file = ChunkyFile::PcflCreateTemp();
     Check(file != pvNil);
     RichTextData content;
-    content.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
+    content.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, nullptr);
     Check(content.properties != pvNil);
     ChunkIdentification richText;
     Check(content.FWrite(file, &richText));

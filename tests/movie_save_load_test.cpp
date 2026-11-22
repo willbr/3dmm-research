@@ -2433,7 +2433,7 @@ static bool TestCaptionPersistence(PScene scene)
     byte text[] = {'H', 'e', 'l', 'l', 'o'};
     achar actual[5];
     file = ChunkyFile::PcflCreateTemp();
-    content.properties = DynamicArray::PglNew(size(RichTextPropertyEntry));
+    content.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, nullptr);
     content.fontName.SetSzs(PszLit("Arial"));
     content.text.pfil = FileObject::PfilCreateTemp();
     content.text.cb = sizeof(text);

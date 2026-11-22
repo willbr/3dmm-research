@@ -110,7 +110,7 @@ static bool BatchCredits(PChunkyFile file, ChunkNumber *number, bool story = fal
     text.defaults.dypFont = 16;
     text.defaults.dxpDef = 180;
     text.defaults.lwAcrBack = 0x00ffffff;
-    text.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
+    text.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, nullptr);
     text.text.pfil = FileObject::PfilCreateTemp();
     char credits[4096];
     int count = 0;

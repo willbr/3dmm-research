@@ -969,7 +969,6 @@ bool RichTextDocument::FSaveToArchive(const MMMovieArchiveEditor &editor, const 
     AssertThis(fobjAssertFull);
     AssertVarMem(pcki);
     RichTextStoreHost::Host host{editor};
-    host.UseLiveCollections();
     MMRichTextLiveServices services{};
     services.write = host.Write();
     services.text = _pbsf->CorePieces();

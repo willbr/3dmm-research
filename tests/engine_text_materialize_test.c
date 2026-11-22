@@ -21,7 +21,7 @@ typedef struct Host
     MMTextDocumentConfig config;
     Token file, translated, temporary;
     MMTextCollection *props, *args;
-    int returned_props, returned_args;
+    int returned_props, returned_args, buffers;
     void *slots[5];
     MMPieceTable pieces;
     MMArray *property_rows;
@@ -57,30 +57,29 @@ static void retain_file(void *v, void *p)
     ++t->refs;
     event(h, '+');
 }
-static void drop(void *v, MMU32 kind, void *p)
+static void drop_file(void *v, void *p)
 {
     Host *h = (Host *)v;
-    if (kind == MM_TEXT_BYTES)
-    {
-        Token *t = p;
-        CHECK(t->refs > 0);
-        --t->refs;
-        event(h, t == &h->file ? 'f' : 't');
-    }
-    else
-    {
-        MMTextCollection **owner = kind == MM_TEXT_PROPERTIES ? &h->props : &h->args;
-        CHECK(*owner == p);
-        mm_text_collection_dispose(*owner);
-        *owner = NULL;
-        event(h, kind == MM_TEXT_PROPERTIES ? 'p' : 'a');
-    }
+    Token *t = p;
+    CHECK(t->refs > 0);
+    --t->refs;
+    event(h, t == &h->file ? 'f' : 't');
 }
-static MMI32 width(void *v, MMU32 kind, void *p)
+static void *resize_rows(void *v, void *p, MMU32 old_bytes, MMU32 bytes, int priority)
 {
-    Host *h = (Host *)v;
-    CHECK(p == (kind == MM_TEXT_PROPERTIES ? h->props : h->args));
-    return mm_text_collection_width(p);
+    Host *h = v;
+    void *result = realloc(p, bytes);
+    (void)priority;
+    if (result && !old_bytes)
+        ++h->buffers;
+    return result;
+}
+static void release_rows(void *v, void *p, MMU32 bytes)
+{
+    Host *h = v;
+    CHECK(bytes && h->buffers > 0);
+    --h->buffers;
+    free(p);
 }
 static int header_read(void *v, MMU32 off, void *p, size_t n)
 {
@@ -133,7 +132,7 @@ static int read_text(void *v, const MMTextLocation *p, void *out, MMU32 n)
     memcpy(out, h->marker, 2);
     return step(h, 'E');
 }
-static int group(void *v, MMU32 kind, MMU32 number, void **out, int *order, int *system)
+static int group(void *v, MMU32 kind, MMU32 number, MMTextCollection **out, int *order, int *system)
 {
     Host *h = (Host *)v;
     int *returned = kind == MM_TEXT_PROPERTIES ? &h->returned_props : &h->returned_args;
@@ -164,7 +163,7 @@ static void retain(void *v, int kind, void *p)
 static void release(void *v, int kind, void *p)
 {
     CHECK(kind == MM_TEXT_OWNER_FILE);
-    drop(v, MM_TEXT_BYTES, p);
+    drop_file(v, p);
 }
 static int base(void *v)
 {
@@ -189,7 +188,7 @@ static int translate(void *v, MMTextLocation *p, int system)
     CHECK(system == 0x505 && p->offset == 12 && p->bytes == (h->long_text ? 2048 : 4));
     if (h->change)
     {
-        drop(h, MM_TEXT_BYTES, p->file);
+        drop_file(h, p->file);
         p->file = &h->translated;
         p->offset = 0;
         p->bytes = h->long_text ? 2048 : 8;
@@ -229,7 +228,7 @@ static void piece_retain(void *v, void *p)
 }
 static void piece_release(void *v, void *p)
 {
-    drop(v, MM_TEXT_BYTES, p);
+    drop_file(v, p);
 }
 static void *piece_temp(void *v)
 {
@@ -274,7 +273,7 @@ static int open_argument(void *v, MMI32 i, unsigned kind, int order, int system)
     if (h->relocate && i == 2)
     {
         MMCollectionStorage replacement;
-        CHECK(mm_storage_init(&replacement, NULL) == MM_STORAGE_OK);
+        CHECK(mm_storage_init(&replacement, &h->argument_rows->storage->allocator) == MM_STORAGE_OK);
         replace_payload_buffer(h->argument_rows->storage, &replacement, h->argument_rows->bytes);
         CHECK(mm_storage_dispose(&replacement) == MM_STORAGE_OK);
     }
@@ -318,8 +317,7 @@ static void init(Host *h, unsigned unit, int big, int foreign)
     s->read.context = h;
     s->read.objects.context = h;
     s->read.objects.retain_file = retain_file;
-    s->read.objects.release = drop;
-    s->read.objects.width = width;
+    s->read.objects.release_file = drop_file;
     s->read.root = root;
     s->read.font = font_read;
     s->read.child = child;
@@ -342,7 +340,9 @@ static int run(Host *h)
 {
     MMPieceFiles files;
     const unsigned char payload = 0x61;
+    MMTextCollectionConfig config = {{NULL, resize_rows, release_rows}, 0, 0};
     unsigned i;
+    config.allocator.context = h;
     memset(&files, 0, sizeof(files));
     files.context = h;
     files.retain = piece_retain;
@@ -351,8 +351,8 @@ static int run(Host *h)
     files.create_temp = piece_temp;
     files.copy = piece_copy;
     CHECK(mm_piece_table_init(&h->pieces, NULL, &files, 0) == MM_DATA_OK);
-    h->props = mm_text_collection_new(MM_TEXT_PROPERTIES, NULL);
-    h->args = mm_text_collection_new(MM_TEXT_ARGUMENTS, NULL);
+    h->props = mm_text_collection_new(MM_TEXT_PROPERTIES, &config);
+    h->args = mm_text_collection_new(MM_TEXT_ARGUMENTS, &config);
     CHECK(h->props && h->args);
     h->property_rows = mm_text_collection_property_array(h->props, NULL);
     h->argument_rows = mm_text_collection_argument_group(h->args);
@@ -367,15 +367,14 @@ static int run(Host *h)
 }
 static void cleanup(Host *h)
 {
-    if (h->slots[MM_TEXT_OWNER_PROPERTIES])
-        drop(h, MM_TEXT_PROPERTIES, h->slots[MM_TEXT_OWNER_PROPERTIES]);
-    if (h->slots[MM_TEXT_OWNER_ARGUMENTS])
-        drop(h, MM_TEXT_ARGUMENTS, h->slots[MM_TEXT_OWNER_ARGUMENTS]);
+    mm_text_collection_dispose(h->slots[MM_TEXT_OWNER_PROPERTIES]);
+    mm_text_collection_dispose(h->slots[MM_TEXT_OWNER_ARGUMENTS]);
+    if (!h->returned_props)
+        mm_text_collection_dispose(h->props);
+    if (!h->returned_args)
+        mm_text_collection_dispose(h->args);
     CHECK(mm_piece_table_dispose(&h->pieces) == MM_DATA_OK);
-    CHECK(!h->props || !h->returned_props);
-    CHECK(!h->args || !h->returned_args);
-    mm_text_collection_dispose(h->props);
-    mm_text_collection_dispose(h->args);
+    CHECK(!h->buffers);
     CHECK(h->file.refs == 1 && !h->translated.refs && !h->temporary.refs);
 }
 static void materialization(void)

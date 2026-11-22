@@ -5,7 +5,7 @@
 #include "movie_archive_host.h"
 #include "handle_services.h"
 #include "mm/text_store.h"
-// Native representations and primitive file/collection operations for C persistence.
+// Native representations and file services for C persistence.
 namespace RichTextStoreHost
 {
 inline bool NativeBig()
@@ -67,8 +67,8 @@ inline void Publish(RichTextData &v, const MMRichTextState &s)
                   s.defaults.width, s.defaults.height, static_cast<int32_t>(s.defaults.background)};
     Font(s.font, &v.fontName);
     v.text = Location(s.text);
-    v.properties = static_cast<PDynamicArray>(s.properties);
-    v.arguments = static_cast<PAllocatedGroup>(s.arguments);
+    v.properties = s.properties;
+    v.arguments = s.arguments;
     v.textOsk = static_cast<short>(s.text_system);
     v.propertyBo = static_cast<short>(s.property_order);
     v.propertyOsk = static_cast<short>(s.property_system);
@@ -78,11 +78,7 @@ inline void Publish(RichTextData &v, const MMRichTextState &s)
 inline MMRichTextObjects Objects()
 {
     return {nullptr, [](void *, void *p) { static_cast<PFileObject>(p)->AddRef(); },
-            [](void *, MMU32, void *p) { static_cast<BASE *>(p)->Release(); },
-            [](void *, MMU32 kind, void *p) -> MMI32 {
-                return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->CbEntry()
-                                                  : static_cast<PAllocatedGroup>(p)->CbFixed();
-            }};
+            [](void *, void *p) { static_cast<PFileObject>(p)->Release(); }};
 }
 struct Host
 {
@@ -96,7 +92,7 @@ struct Host
                                              MacWin(koskUniWin, koskUniMac)))
     {
         archive.context = this;
-        archive.collections = &Collections();
+        archive.collection_config = LiveCollectionConfig();
         archive.location = [](const MMRichTextArchive *source, MMU32 number, MMTextLocation *out) {
             auto &host = *static_cast<Host *>(source->context);
             return host.Guard([&] { return mm_rich_text_file_location(source, number, out); });
@@ -113,12 +109,6 @@ struct Host
         try { return f(); }
         catch (const std::bad_alloc &) { exception = std::current_exception(); return -1; }
         catch (...) { exception = std::current_exception(); return -2; }
-    }
-
-    void UseLiveCollections()
-    {
-        archive.collections = nullptr;
-        archive.collection_config = LiveCollectionConfig();
     }
 
     void Rethrow()
@@ -141,42 +131,6 @@ struct Host
         return services;
     }
 
-  private:
-    static const MMRichTextArchiveCollections &Collections()
-    {
-        static const MMRichTextArchiveCollections services{
-            [](void *, MMU32, void *p) { static_cast<BASE *>(p)->Release(); },
-            [](void *, MMU32 kind, void *p) -> MMI32 {
-                return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->CbEntry()
-                                                  : static_cast<PAllocatedGroup>(p)->CbFixed();
-            },
-            [](void *v, MMU32 kind, const MMReadStream *stream, void **out, int *order, int *system) {
-                auto &h = *static_cast<Host *>(v);
-                return h.Guard([&] {
-                    short bo, osk;
-                    *out = kind == MM_TEXT_PROPERTIES ? static_cast<void *>(DynamicArray::PglReadStream(*stream, &bo, &osk))
-                                                      : static_cast<void *>(AllocatedGroup::PagReadStream(*stream, &bo, &osk));
-                    if (!*out)
-                        return false;
-                    *order = bo;
-                    *system = osk;
-                    return true;
-                });
-            },
-            [](void *, MMU32 kind, void *p) -> MMU32 {
-                return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->CbOnFile()
-                                                  : static_cast<PAllocatedGroup>(p)->CbOnFile();
-            },
-            [](void *, void *p) -> MMI32 { return static_cast<PAllocatedGroup>(p)->IvMac(); },
-            [](void *v, MMU32 kind, const MMStorageWriter *writer, void *p, int order, int system) {
-                auto &h = *static_cast<Host *>(v);
-                return h.Guard([&] {
-                    return kind == MM_TEXT_PROPERTIES ? static_cast<PDynamicArray>(p)->FWriteStream(*writer, order, system)
-                                                      : static_cast<PAllocatedGroup>(p)->FWriteStream(*writer, order, system);
-                });
-            }};
-        return services;
-    }
 };
 } // namespace RichTextStoreHost
 #endif

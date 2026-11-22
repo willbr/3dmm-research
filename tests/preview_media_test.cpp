@@ -122,7 +122,9 @@ static bool Caption(PChunkyFile file, int kind, ChunkNumber *scene)
     text.defaults.lwAcrBack = 0xfe00006c;
     text.text.pfil = FileObject::PfilCreateTemp();
     text.text.cb = LegacyLong(bytes.size());
-    text.properties = DynamicArray::PglNew(sizeof(RichTextPropertyEntry));
+    MMTextCollectionConfig config = {};
+    config.swapped_payload = kind == 9;
+    text.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, &config);
     if (!text.text.pfil || !text.properties || !text.text.pfil->FSetFpMac(text.text.cb) ||
         (!bytes.empty() && !text.text.FWriteRgb(bytes.data(), text.text.cb, 0)))
         return false;
@@ -151,18 +153,13 @@ static bool Caption(PChunkyFile file, int kind, ChunkNumber *scene)
             argument.resize(7);
             argument[6] = 0xff;
         }
-        text.arguments = AllocatedGroup::PagNew(sizeof(int32_t));
-        LegacyLong index, references = 0x02000001;
-        if (!text.arguments || !text.arguments->FAdd(LegacyLong(argument.size()), &index, argument.data(), &references))
+        text.arguments = mm_text_collection_new(MM_TEXT_ARGUMENTS, nullptr);
+        if (!mm_text_collection_add_argument(text.arguments, argument.data(), argument.size(), 0x02000001, nullptr))
             return false;
     }
     for (auto entry : entries)
-    {
-        if (kind == 9)
-            SwapBytesRglw(&entry, 2);
-        if (!text.properties->FAdd(&entry))
+        if (!text.FAddProperty(entry))
             return false;
-    }
     box.state.first = -3;
     box.state.end = 7;
     box.state.story = true;

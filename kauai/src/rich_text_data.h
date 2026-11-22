@@ -3,6 +3,7 @@
 #ifndef RICH_TEXT_DATA_H
 #define RICH_TEXT_DATA_H
 #include "kauai_core.h"
+#include "mm/text_store.h"
 #include <cstdint>
 
 struct RichTextProperties
@@ -33,16 +34,21 @@ class RichTextData
     String fontName;
     FileLocation text = {};
     short textOsk = koskCur;
-    PDynamicArray properties = pvNil;
+    MMTextCollection *properties = nullptr;
     short propertyBo = kboCur;
     short propertyOsk = koskCur;
-    PAllocatedGroup arguments = pvNil;
+    MMTextCollection *arguments = nullptr;
     short argumentBo = kboCur;
     short argumentOsk = koskCur;
     RichTextData() = default;
     ~RichTextData();
     RichTextData(const RichTextData &) = delete;
     RichTextData &operator=(const RichTextData &) = delete;
+    bool FAddProperty(const RichTextPropertyEntry &entry)
+    {
+        const MMU32 words[] = {entry.spcp, static_cast<MMU32>(entry.lw)};
+        return mm_text_collection_put_property(properties, mm_text_collection_count(properties), words, 1);
+    }
     bool FRead(PChunkyFile file, ChunkTagOrType type, ChunkNumber number);
     bool FWrite(PChunkyFile file, ChunkIdentification *written);
     bool FWrite(const struct MMMovieArchiveEditor &, ChunkIdentification *written);

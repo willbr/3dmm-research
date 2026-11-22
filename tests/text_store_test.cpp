@@ -82,31 +82,31 @@ struct Trace
         if (!text.empty())
             Check(s.text.FReadRgb(text.data(), s.text.cb, 0));
         Raw(text.data(), text.size());
-        Word(s.properties ? s.properties->IvMac() : 0);
-        if (s.properties)
-            for (LegacyLong i = 0; i < s.properties->IvMac(); ++i)
+        Word(mm_text_collection_count(s.properties));
+        for (MMU32 i = 0; i < mm_text_collection_count(s.properties); ++i)
+        {
+            MMU32 p[2];
+            Check(mm_text_collection_property(s.properties, i, p));
+            if (s.propertyBo == kboOther)
+                SwapBytesRglw(p, 2);
+            Raw(p, sizeof(p));
+        }
+        Word(mm_text_collection_count(s.arguments));
+        for (MMU32 i = 0; i < mm_text_collection_count(s.arguments); ++i)
+        {
+            MMI32 bytes;
+            const void *p = mm_text_collection_argument(s.arguments, i, &bytes);
+            Word(!p);
+            if (p)
             {
-                std::vector<byte> p(s.properties->CbEntry());
-                s.properties->Get(i, p.data());
-                Raw(p.data(), p.size());
+                Word(bytes);
+                Raw(p, bytes);
+                MMU32 fixed = mm_text_collection_argument_ref(s.arguments, i);
+                if (s.argumentBo == kboOther)
+                    SwapBytesRglw(&fixed, 1);
+                Raw(&fixed, sizeof(fixed));
             }
-        Word(s.arguments ? s.arguments->IvMac() : 0);
-        if (s.arguments)
-            for (LegacyLong i = 0; i < s.arguments->IvMac(); ++i)
-            {
-                bool free = s.arguments->FFree(i);
-                Word(free);
-                if (!free)
-                {
-                    std::vector<byte> p(s.arguments->Cb(i));
-                    s.arguments->Get(i, p.data());
-                    Word(unsigned(p.size()));
-                    Raw(p.data(), p.size());
-                    std::vector<byte> fixed(s.arguments->CbFixed());
-                    s.arguments->GetFixed(i, fixed.data());
-                    Raw(fixed.data(), fixed.size());
-                }
-            }
+        }
     }
     void Finish()
     {
@@ -121,23 +121,22 @@ static void Source(RichTextData &s, int foreign)
 {
     s.defaults = {kboOther, koskCur, 240, 16, int32_t(0xfe001122)};
     s.fontName.SetSzs(PszLit("Arial"));
-    s.properties = DynamicArray::PglNew(8);
-    s.arguments = AllocatedGroup::PagNew(4);
-    Check(s.properties && s.arguments);
-    RichTextPropertyEntry p = {0x03000002, 0x010000ff};
-    int32_t fixed = 0x02000001;
+    MMTextCollectionConfig config = {};
+    config.swapped_payload = foreign;
+    s.properties = mm_text_collection_new(MM_TEXT_PROPERTIES, &config);
+    s.arguments = mm_text_collection_new(MM_TEXT_ARGUMENTS, &config);
+    const MMU32 fixed = 0x02000001;
     byte argument[] = {6, 0, 4, 0, 2, 0, 9, 8, 7, 0, 0, 0};
     if (foreign)
     {
         s.propertyBo = s.argumentBo = kboOther;
         s.propertyOsk = s.argumentOsk = koskSbMac;
-        SwapBytesRglw(&p, 2);
-        SwapBytesRglw(&fixed, 1);
     }
-    Check(s.properties->FAdd(&p) && s.arguments->FAdd(sizeof(argument), nullptr, argument, &fixed));
-    LegacyLong hole;
-    Check(s.arguments->FAdd(0, &hole, nullptr, &fixed));
-    s.arguments->Delete(hole);
+    Check(s.FAddProperty({0x03000002, 0x010000ff}));
+    Check(mm_text_collection_add_argument(s.arguments, argument, sizeof(argument), fixed, nullptr));
+    MMU32 hole;
+    Check(mm_text_collection_add_argument(s.arguments, nullptr, 0, fixed, &hole));
+    Check(mm_text_collection_delete(s.arguments, hole));
     s.text.pfil = FileObject::PfilCreateTemp();
     Check(s.text.pfil != nullptr);
     const byte text[] = {'A', 0, 'B', '\r'};
@@ -240,7 +239,7 @@ static void RichCases(Trace &trace)
             }
             else if (kind == 21)
             {
-                source.arguments->Delete(0);
+                Check(mm_text_collection_delete(source.arguments, 0));
                 ChunkIdentification emptyRoot;
                 Check(source.FWrite(file, &emptyRoot));
                 root = emptyRoot;
@@ -285,17 +284,20 @@ static void RichCases(Trace &trace)
             s.text.cb = kcbMax - 1;
         if (kind == 2)
         {
-            ReleasePpo(&s.properties);
+            mm_text_collection_dispose(s.properties);
+            s.properties = nullptr;
         }
         if (kind == 3)
         {
-            ReleasePpo(&s.properties);
-            s.properties = DynamicArray::PglNew(4);
+            mm_text_collection_dispose(s.properties);
+            s.properties = mm_text_collection_new(MM_TEXT_ARGUMENTS, nullptr);
+            Check(s.properties != nullptr);
         }
         if (kind == 4)
         {
-            ReleasePpo(&s.arguments);
-            s.arguments = AllocatedGroup::PagNew(8);
+            mm_text_collection_dispose(s.arguments);
+            s.arguments = mm_text_collection_new(MM_TEXT_PROPERTIES, nullptr);
+            Check(s.arguments != nullptr);
         }
         if (kind == 5)
             s.defaults.dypFont = 256;

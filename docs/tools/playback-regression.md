@@ -20877,3 +20877,36 @@ and camera indices. Retail and V3DMM agreed on all 60 camera frames and all
 differences from retail.
 
 Evidence is under tmp/c89-text-materialize-owners.
+
+## C89 stored rich-text collections (22 November 2026)
+
+The stored rich-text archive binding now reads and writes typed C89 property
+and argument collections for Studio, Preview and Marcus. The binding keeps
+the authored byte order and encoding with each table and releases both C
+owners directly. The fixtures exercise invalid table kinds, foreign byte
+order, failed reads returning partial owners, and child-write rollback.
+
+All 198 native engine and C89 checks passed, including Marcus syntax.
+Native x64, native x86 and SDL save/load and text-store passed, along with
+the Marcus caption edit, undo, save, and reopen checks and the Preview media
+check. All 16 native x64 traces matched 9e1c2a69 byte for byte. That includes
+the 63,224-byte scene-load trace, which fails its older frozen fingerprint
+check on both revisions. SDL Studio saved and reopened the authored styled
+caption. Its complete .3MM file matched the baseline build byte for byte.
+
+Retail and V3DMM agreed on all 240 Text Acid seek canvases and all 11
+styled-caption save canvases. The before and after suites
+20261122T032822Z-9f88dc89 and 20261122T033140Z-2abe2197 match on all eight
+seek runs, including canvas pixels, camera indices, and recorded actor
+and caption state. SDL and Marcus had existing pixel differences from
+retail on Text Acid and on three frames of the caption save.
+
+All four continuous Text Acid runs completed and showed the same 240
+authored frame identities before and after in suites
+20261122T032915Z-fbcb9caa and 20261122T033233Z-5e23a412. The comparison
+verdicts reproduced the timing differences for SDL and V3DMM, the
+inconclusive Marcus timing and sound-request comparisons, and the
+inconclusive continuous pixel comparisons.
+
+Traces and logs are under tmp/c89-rich-text-archive-collections. Captures are
+under tmp/c89-rtcap.
