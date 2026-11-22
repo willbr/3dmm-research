@@ -88,7 +88,7 @@ static int write_block(void *context, void *file, MMU32 offset, const void *data
 MMPrivateArchive *marcus_archive_open(const char *path, int mode, const MMPrivateArchiveProfile *profile)
 {
     static const MMChunkOwnerFileIO owner_io = {NULL, create_temp, read_stream, size, extend, NULL,
-                                                write_at, release, NULL, NULL, NULL, NULL};
+                                                write_at, release, NULL, NULL, NULL, NULL, NULL};
     static const MMBlockFileServices blocks = {NULL, retain, release_block, create_temp, read_block, write_block};
     const char *open_mode = mode == MM_PRIVATE_ARCHIVE_READ ? "rb" : mode == MM_PRIVATE_ARCHIVE_EDIT ? "r+b" : "w+b";
     ArchiveFile *file = SDL_malloc(sizeof(*file));

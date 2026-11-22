@@ -1,4 +1,5 @@
 #include "mm/chunk_owner.h"
+#include "mm/file_owner.h"
 #include "mm/movie_session.h"
 #include "mm/private_archive_cache.h"
 #include <stdio.h>
@@ -327,7 +328,7 @@ typedef struct TestFile
 {
     unsigned char bytes[512];
     const MMChunkTable *source;
-    MMU32 length;
+    MMU32 length, flags;
     int resize_fails, stream_calls, resize_calls, retains, releases;
     int prefix_fails, temporary;
 } TestFile;
@@ -441,10 +442,16 @@ static void file_set_temp(void *file, int temporary)
     ((TestFile *)file)->temporary = temporary;
 }
 
+static int file_is_writable(void *file)
+{
+    return (((TestFile *)file)->flags & MM_FILE_WRITE) != 0;
+}
+
 static MMChunkOwnerFileIO storage_io(StorageHost *host)
 {
     MMChunkOwnerFileIO io = {NULL, create_extra, file_stream, file_size, resize_file, copy_extent, write_file,
-                             release_storage_file, file_is_temp, file_set_temp, storage_trace, storage_issue};
+                             release_storage_file, file_is_temp, file_set_temp, storage_trace, storage_issue,
+                             file_is_writable};
     io.context = host;
     return io;
 }
@@ -824,6 +831,47 @@ static size_t convert_text(void *context, const void *bytes, size_t count, int e
     memcpy(out, bytes, count);
     return count;
 }
+typedef struct NamedFiles
+{
+    TestFile *file;
+    int opens, legacy_lookups, legacy_prepares, has_legacy, fail_open;
+} NamedFiles;
+
+static void *find_named_file(void *name)
+{
+    return ((NamedFiles *)name)->file;
+}
+
+static void *open_named_file(void *name, int create, MMU32 flags)
+{
+    NamedFiles *files = name;
+    const MMU32 expected = MM_FILE_DENY_WRITE | (create ? MM_FILE_WRITE | MM_FILE_DENY_READ | MM_FILE_TEMP : 0);
+    CHECK(flags == expected);
+    ++files->opens;
+    if (files->fail_open)
+        return NULL;
+    retain_block(NULL, files->file);
+    return files->file;
+}
+
+static MMU32 named_file_flags(void *file)
+{
+    return ((TestFile *)file)->flags;
+}
+
+static void *find_legacy_archive(void *name)
+{
+    NamedFiles *files = name;
+    ++files->legacy_lookups;
+    return files->has_legacy ? files : NULL;
+}
+
+static int refuse_legacy_archive(void *archive)
+{
+    ++((NamedFiles *)archive)->legacy_prepares;
+    return 0;
+}
+
 static void private_archive_cases(void)
 {
     const MMPrivateArchiveProfile profile = {1, MM_TEXT_WINDOWS, MM_TEXT_UTF16_LE, 0, 1, NULL, convert_text};
@@ -834,7 +882,12 @@ static void private_archive_cases(void)
     MMChunkTitleIO titles = {0};
     MMMovieTitle title;
     MMChunkOwnerFileIO io = storage_io(&host);
+    MMNamedArchiveServices files = {NULL, NULL, NULL, NULL, find_named_file, open_named_file, named_file_flags, NULL};
+    MMSharedArchiveCacheServices shared = {NULL, NULL, NULL, find_legacy_archive, refuse_legacy_archive, NULL, NULL};
+    NamedFiles name = {0};
     MMPrivateArchive *archive, *alias;
+    MMResourceCache *shared_cache;
+    MMChunkOwnerRead *borrowed = NULL;
     MMMovieArchiveEditor editor;
     MMRichTextArchive rich;
     MMTextLocation text;
@@ -845,9 +898,16 @@ static void private_archive_cases(void)
     MMU32 number;
     char value[4];
     unsigned char magic;
+    int live;
 
     io.trace = NULL;
     blocks.context = &host;
+    files.registry = &registry;
+    files.io = &io;
+    files.blocks = &blocks;
+    files.profile = &profile;
+    shared.files = &files;
+    name.file = &host.main;
     archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_CREATE, &io, &blocks,
                                                   &profile);
     CHECK(archive != NULL && mm_private_archive_find(&registry, &host.main) == archive);
@@ -873,13 +933,34 @@ static void private_archive_cases(void)
                                                 &profile);
     CHECK(alias == archive && !mm_private_archive_reader(alias)->storage->owner->add_to_extra);
     mm_private_archive_close(alias);
+    alias = mm_private_archive_open_named(&files, &name, 0);
+    CHECK(alias == archive && !name.opens);
+    mm_private_archive_close(alias);
     CHECK(mm_private_archive_save(archive, 0));
     mm_private_archive_close(archive);
     CHECK(host.main.releases == host.main.retains + 1 && !mm_private_archive_find(&registry, &host.main));
 
-    retain_block(NULL, &host.main);
-    archive = mm_private_archive_open_registered(&registry, &host.main, MM_PRIVATE_ARCHIVE_WORKING, &io, &blocks,
-                                                  &profile);
+    CHECK(!mm_shared_archive_cache_open(&shared, &name, 0, 0, &live, &borrowed) && !live && !borrowed && !name.opens);
+    name.has_legacy = 1;
+    CHECK(!mm_shared_archive_cache_open(&shared, &name, 1, 0, &live, &borrowed) && live && !borrowed && !name.opens &&
+          name.legacy_prepares == 1);
+    name.has_legacy = 0;
+    name.fail_open = 1;
+    host.main.flags = MM_FILE_DENY_READ;
+    CHECK(!mm_shared_archive_cache_open(&shared, &name, 0, 0, &live, &borrowed) && live && !borrowed &&
+          name.opens == 1);
+    host.main.flags = 0;
+    name.fail_open = 0;
+    shared_cache = mm_shared_archive_cache_open(&shared, &name, 1, 0, &live, &borrowed);
+    CHECK(shared_cache && live && borrowed && name.opens == 2);
+    archive = mm_private_archive_open_named(&files, &name, 0);
+    CHECK(archive && borrowed == mm_private_archive_reader(archive) && name.opens == 2);
+    mm_resource_cache_release(shared_cache);
+    name.has_legacy = 1;
+    shared_cache = mm_shared_archive_cache_open(&shared, &name, 0, 0, &live, &borrowed);
+    CHECK(shared_cache && live && borrowed == mm_private_archive_reader(archive) && name.opens == 2 &&
+          name.legacy_lookups == 4 && name.legacy_prepares == 1);
+    mm_resource_cache_release(shared_cache);
     CHECK(archive && mm_private_archive_reader(archive)->storage->owner->add_to_extra);
     cache.file = archive;
     mm_private_archive_cache_services(archive, NULL, &cache.services);
@@ -892,6 +973,10 @@ static void private_archive_cases(void)
     CHECK(!memcmp(value, "test", sizeof(value)));
     graph = mm_movie_owner_graph(mm_private_archive_reader(archive));
     CHECK(mm_private_archive_reopen(archive, 1) == MM_CHUNK_BAD_FILE);
+    host.main.flags = MM_FILE_WRITE;
+    mm_resource_cache_reopen(&cache);
+    CHECK(mm_private_archive_reader(archive)->storage->owner->files.extra_file == &host.extra);
+    host.main.flags = 0;
     magic = host.main.bytes[0];
     host.main.bytes[0] ^= 0xff;
     CHECK(mm_private_archive_reopen(archive, 0) == MM_CHUNK_IO);
@@ -901,7 +986,7 @@ static void private_archive_cases(void)
     CHECK(graph.read(graph.context, NULL, 0, &entry, value, sizeof(value)) == MM_MOVIE_OK);
     CHECK(!memcmp(value, "edit", sizeof(value)));
     host.main.bytes[0] = magic;
-    CHECK(mm_private_archive_reopen(archive, 0) == MM_CHUNK_OK);
+    mm_resource_cache_reopen(&cache);
     CHECK(!mm_private_archive_reader(archive)->storage->owner->files.extra_file &&
           mm_private_archive_find(&registry, &host.main) == archive);
     graph.access(graph.context, &access);

@@ -40,6 +40,20 @@ MMPrivateArchive *mm_private_archive_find(const MMChunkContext *, void *file);
 MMPrivateArchive *mm_private_archive_open_registered(MMChunkContext *, void *file, int mode,
                                                     const MMChunkOwnerFileIO *, const MMBlockFileServices *,
                                                     const MMPrivateArchiveProfile *);
+typedef struct MMNamedArchiveServices
+{
+    MMChunkContext *registry;
+    const MMChunkOwnerFileIO *io;
+    const MMBlockFileServices *blocks;
+    const MMPrivateArchiveProfile *profile;
+    void *(*find_file)(void *name);
+    void *(*open_file)(void *name, int create, MMU32 flags);
+    MMU32 (*file_flags)(void *file);
+    void (*open_failed)(int create);
+} MMNamedArchiveServices;
+/* Reuse a registered working owner or open a file and register its archive.
+ * Lookup borrows the file, open transfers it. Callers serialize registry use. */
+MMPrivateArchive *mm_private_archive_open_named(const MMNamedArchiveServices *, void *name, int create);
 /* Archive references and borrowed views are confined to the owning thread. */
 void mm_private_archive_retain(MMPrivateArchive *);
 void mm_private_archive_close(MMPrivateArchive *);

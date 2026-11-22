@@ -91,7 +91,7 @@ static MMPrivateArchive *snapshot_file_open(SnapshotFile *file)
     static const MMBlockFileServices blocks = {NULL, snapshot_block_retain, snapshot_block_release,
                                                snapshot_extra, snapshot_block_read, snapshot_block_write};
     const MMChunkOwnerFileIO io = {NULL, snapshot_extra, snapshot_stream, snapshot_size, snapshot_resize,
-                                   NULL, snapshot_write, snapshot_file_release, NULL, NULL, NULL, NULL};
+                                   NULL, snapshot_write, snapshot_file_release, NULL, NULL, NULL, NULL, NULL};
     const MMPrivateArchiveProfile profile = {1, 0, 0, 0, 0, NULL, snapshot_convert};
     assert(!file->refs);
     file->refs = 1;

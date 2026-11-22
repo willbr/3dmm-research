@@ -265,16 +265,10 @@ MMResourceServices LegacyCacheServices()
     return s;
 }
 
-MMResourceServices PrivateCacheServices(MMPrivateArchive *archive)
+MMResourceServices PrivateCacheProfile()
 {
     MMResourceServices s = {};
-    mm_private_archive_cache_services(archive, KauaiHandleServices(), &s);
-    s.live_reopen = [](void *p) {
-        const auto archive = static_cast<MMPrivateArchive *>(p);
-        const auto file = static_cast<PFileObject>(mm_private_archive_reader(archive)->storage->owner->files.main_file);
-        if (file)
-            mm_private_archive_reopen(archive, (file->GrffilCur() & ffilWriteEnable) != 0);
-    };
+    s.handles = KauaiHandleServices();
 #ifdef DEBUG
     s.mark_source = [](MMResourceCache *cache) {
         const auto reader = mm_private_archive_reader(static_cast<MMPrivateArchive *>(cache->file));
@@ -286,31 +280,13 @@ MMResourceServices PrivateCacheServices(MMPrivateArchive *archive)
     return s;
 }
 
-struct SharedArchive
-{
-    MMPrivateArchive *working; // Owned.
-    PChunkyFile legacy;        // Borrowed until attached to a cache.
-};
-
-SharedArchive SelectSharedArchive(PFilename name, bool preferWorking, bool &selected)
-{
-    selected = true;
-    const auto file = FileObject::PfilFromFni(name);
-    if (const auto owner = KauaiFindWorkingArchive(file))
-    {
-        mm_private_archive_retain(owner);
-        return {owner, nullptr};
-    }
-    if (const auto legacy = ChunkyFile::PcflFromFni(name))
-        return {nullptr, legacy->FSetGrfcfl(fcflNil) ? legacy : nullptr};
-    selected = preferWorking || (file && (file->GrffilCur() & (ffilWriteEnable | ffilDenyRead)));
-    return {selected ? KauaiWorkingArchive(name, false) : nullptr, nullptr};
-}
 }
 
 MMResourceCache *NewTypedPrivateCache(MMPrivateArchive *archive, MMI32 budget)
 {
-    return archive ? NewTypedCache({archive, nullptr, nullptr}, PrivateCacheServices(archive), budget) : nullptr;
+    const auto services = TypedCacheServices(PrivateCacheProfile());
+    return mm_private_archive_cache_create(archive, budget, &services, KauaiResourceObjectAllocator(),
+                                           KauaiCopyAllocator());
 }
 
 MMResourceCache *OpenWorkingResourceCache(Filename *name, bool create, MMI32 budget)
@@ -324,23 +300,24 @@ MMResourceCache *OpenWorkingResourceCache(Filename *name, bool create, MMI32 bud
 MMResourceCache *OpenSharedTypedCache(Filename *name, bool preferWorking, bool &selected, MMChunkOwnerRead **reader,
                                       MMI32 budget)
 {
-    const auto source = SelectSharedArchive(name, preferWorking, selected);
-    MMResourceCache *cache = nullptr;
-    if (source.legacy)
-        cache = NewTypedCache({source.legacy, nullptr, nullptr}, LegacyCacheServices(), budget);
-    else if (source.working)
-    {
-        cache = NewTypedPrivateCache(source.working, budget);
-        mm_private_archive_close(source.working);
-    }
-    if (reader && cache)
-        *reader = mm_resource_cache_reader(cache);
+    const auto working = TypedCacheServices(PrivateCacheProfile());
+    const auto legacy = TypedCacheServices(LegacyCacheServices());
+    const MMSharedArchiveCacheServices services = {
+        KauaiNamedArchiveServices(), &working, &legacy,
+        [](void *name) -> void * { return ChunkyFile::PcflFromFni(static_cast<PFilename>(name)); },
+        [](void *archive) -> int { return static_cast<PChunkyFile>(archive)->FSetGrfcfl(fcflNil); },
+        KauaiResourceObjectAllocator(), KauaiCopyAllocator()};
+    int live;
+    const auto cache = mm_shared_archive_cache_open(&services, name, preferWorking, budget, &live, reader);
+    selected = live != 0;
     return cache;
 }
 
 MMResourceServices ChunkyResourceFile::_Services()
 {
-    auto s = _privateArchive ? PrivateCacheServices(_privateArchive) : LegacyCacheServices();
+    auto s = _privateArchive ? PrivateCacheProfile() : LegacyCacheServices();
+    if (_privateArchive)
+        mm_private_archive_cache_services(_privateArchive, s.handles, &s);
     s.context = this;
     s.legacy_adapter = this;
     s.objects = *BaseCacheableObject::ObjectServices();

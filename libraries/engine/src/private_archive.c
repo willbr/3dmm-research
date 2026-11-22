@@ -2,6 +2,7 @@
 #include "mm/chunk_table.h"
 #include "mm/chunk_copy.h"
 #include "mm/chunk_forest.h"
+#include "mm/file_owner.h"
 #include "mm/handle_memory.h"
 #include "mm/reference.h"
 #include "mm/text_resource.h"
@@ -152,10 +153,19 @@ static MMArchiveWriter cache_writer(void *context) { return mm_private_archive_w
 static void cache_retain(void *context) { mm_private_archive_retain(context); }
 static void cache_release(void *context) { mm_private_archive_close(context); }
 
+static void cache_reopen(void *context)
+{
+    MMChunkOwnerStorage *storage = mm_private_archive_reader(context)->storage;
+    void *file = storage->owner->files.main_file;
+    if (file)
+        mm_private_archive_reopen(context, storage->io.is_writable(file));
+}
+
 void mm_private_archive_cache_services(MMPrivateArchive *archive, const MMHandleServices *handles,
                                        MMResourceServices *services)
 {
-    const MMChunkPayloadServices *payloads = &mm_private_archive_reader(archive)->payloads;
+    const MMChunkOwnerRead *reader = mm_private_archive_reader(archive);
+    const MMChunkPayloadServices *payloads = &reader->payloads;
     services->handles = handles ? handles : payloads->handles;
     services->block_files = payloads->files;
     services->live_chunks = cache_chunks;
@@ -168,6 +178,23 @@ void mm_private_archive_cache_services(MMPrivateArchive *archive, const MMHandle
     services->live_copy_target = cache_copy_target;
     services->live_reader = cache_reader;
     services->live_writer = cache_writer;
+    if (reader->storage->io.is_writable)
+        services->live_reopen = cache_reopen;
+}
+
+MMResourceCache *mm_private_archive_cache_create(MMPrivateArchive *archive, MMI32 budget,
+                                                 const MMResourceServices *profile,
+                                                 const MMStorageAllocator *owner, const MMStorageAllocator *storage)
+{
+    MMResourceServices services = {0};
+    MMResourceSource source = {0};
+    if (!archive)
+        return NULL;
+    if (profile)
+        services = *profile;
+    source.live = archive;
+    mm_private_archive_cache_services(archive, services.handles, &services);
+    return mm_resource_cache_create(&source, budget, &services, owner, storage);
 }
 
 static MMI32 convert_title(void *context, const void *bytes, MMU32 count, int encoding, void *out, MMU32 capacity)
@@ -389,6 +416,66 @@ MMPrivateArchive *mm_private_archive_open_registered(MMChunkContext *registry, v
         return NULL;
     }
     return archive;
+}
+
+static MMPrivateArchive *open_named_file(const MMNamedArchiveServices *s, void *name, int create)
+{
+    const MMU32 flags = mm_chunk_file_flags(create ? MM_CHUNK_WRITE | MM_CHUNK_TEMP : 0);
+    void *file = s->open_file(name, create, flags);
+    const int mode = create ? MM_PRIVATE_ARCHIVE_CREATE : MM_PRIVATE_ARCHIVE_WORKING;
+    MMPrivateArchive *archive = mm_private_archive_open_registered(s->registry, file, mode, s->io,
+                                                                   s->blocks, s->profile);
+    if (!archive && s->open_failed)
+        s->open_failed(create);
+    return archive;
+}
+
+MMPrivateArchive *mm_private_archive_open_named(const MMNamedArchiveServices *s, void *name, int create)
+{
+    MMPrivateArchive *archive = NULL;
+    if (!create)
+        archive = mm_private_archive_find(s->registry, s->find_file(name));
+    if (!archive)
+        return open_named_file(s, name, create);
+    mm_private_archive_retain(archive);
+    return archive;
+}
+
+MMResourceCache *mm_shared_archive_cache_open(const MMSharedArchiveCacheServices *s, void *name, int prefer_working,
+                                              MMI32 budget, int *selected, MMChunkOwnerRead **reader)
+{
+    const MMNamedArchiveServices *files = s->files;
+    void *file = files->find_file(name);
+    MMPrivateArchive *archive = mm_private_archive_find(files->registry, file);
+    MMResourceCache *cache = NULL;
+    MMResourceSource source = {0};
+    *selected = 1;
+    if (archive)
+        mm_private_archive_retain(archive);
+    else
+    {
+        source.live = s->find_legacy(name);
+        if (source.live)
+        {
+            if (s->prepare_legacy(source.live))
+                cache = mm_resource_cache_create(&source, budget, s->legacy, s->owner_allocator,
+                                                 s->storage_allocator);
+        }
+        else
+        {
+            *selected = prefer_working || (file && (files->file_flags(file) & (MM_FILE_WRITE | MM_FILE_DENY_READ)));
+            if (*selected)
+                archive = open_named_file(files, name, 0);
+        }
+    }
+    if (archive)
+    {
+        cache = mm_private_archive_cache_create(archive, budget, s->working, s->owner_allocator, s->storage_allocator);
+        mm_private_archive_close(archive);
+    }
+    if (reader && cache)
+        *reader = mm_resource_cache_reader(cache);
+    return cache;
 }
 
 static int read_only(void *context, void *file)

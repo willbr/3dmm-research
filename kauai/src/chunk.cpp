@@ -80,6 +80,7 @@
 #include "mm/chunk_ops.h"
 #include "mm/chunk_copy.h"
 #include "private_archive_host.h"
+#include "resource_archive_host.h"
 #include "mm/chunk_forest.h"
 #include "mm/movie_title.h"
 #include "handle_services.h"
@@ -278,7 +279,8 @@ MMChunkOwnerFileIO ChunkOwnerFileIO()
                 Assert(false, "free map not read yet");
             else
                 Bug("invalid chunk deletion reference");
-        }};
+        },
+        [](void *file) -> int { return (static_cast<PFileObject>(file)->GrffilCur() & ffilWriteEnable) != 0; }};
 }
 }
 
@@ -292,9 +294,23 @@ MMPrivateArchive *KauaiTemporaryArchive()
     return mm_private_archive_open(file, MM_PRIVATE_ARCHIVE_CREATE, &io, KauaiBlockFileServices(), &profile);
 }
 
-MMPrivateArchive *KauaiFindWorkingArchive(PFileObject file)
+const MMNamedArchiveServices *KauaiNamedArchiveServices()
 {
-    return mm_private_archive_find(&workingArchives, file);
+    static const auto io = ChunkOwnerFileIO();
+    static const auto profile = KauaiPrivateArchiveProfile();
+    static const MMNamedArchiveServices services = {
+        &workingArchives,
+        &io,
+        KauaiBlockFileServices(),
+        &profile,
+        [](void *name) -> void * { return FileObject::PfilFromFni(static_cast<PFilename>(name)); },
+        [](void *name, int create, MMU32 flags) -> void * {
+            const auto filename = static_cast<PFilename>(name);
+            return create ? FileObject::PfilCreate(filename, flags) : FileObject::PfilOpen(filename, flags);
+        },
+        [](void *file) -> MMU32 { return static_cast<PFileObject>(file)->GrffilCur(); },
+        [](int create) { PushErc(create ? ercCflCreate : ercCflOpen); }};
+    return &services;
 }
 
 MMPrivateArchive *KauaiOpenForest(const MMBlockFile &extent)
@@ -307,26 +323,7 @@ MMPrivateArchive *KauaiOpenForest(const MMBlockFile &extent)
 MMPrivateArchive *KauaiWorkingArchive(Filename *name, bool create)
 {
     AssertPo(name, ffniFile);
-    const auto flags = mm_chunk_file_flags(create ? MM_CHUNK_WRITE | MM_CHUNK_TEMP : 0);
-    PFileObject file;
-    if (create)
-        file = FileObject::PfilCreate(name, flags);
-    else
-    {
-        file = FileObject::PfilFromFni(name);
-        if (KauaiFindWorkingArchive(file))
-            file->AddRef();
-        else
-            file = FileObject::PfilOpen(name, flags);
-    }
-    const auto profile = KauaiPrivateArchiveProfile();
-    const auto io = ChunkOwnerFileIO();
-    const int mode = create ? MM_PRIVATE_ARCHIVE_CREATE : MM_PRIVATE_ARCHIVE_WORKING;
-    const auto archive =
-        mm_private_archive_open_registered(&workingArchives, file, mode, &io, KauaiBlockFileServices(), &profile);
-    if (!archive)
-        PushErc(create ? ercCflCreate : ercCflOpen);
-    return archive;
+    return mm_private_archive_open_named(KauaiNamedArchiveServices(), name, create);
 }
 
 PChunkyFile ChunkyFile::_PcflNew()

@@ -59,6 +59,7 @@ extern "C"
         void (*set_temp)(void *file, int temporary);
         void (*trace)(void *, int kind, const MMChunkEntry *); /* Optional. */
         void (*issue)(void *, int kind); /* Optional storage or edit diagnostic. */
+        int (*is_writable)(void *file); /* Optional physical write state for reload. */
     } MMChunkOwnerFileIO;
     typedef struct MMChunkOwnerStorage
     {

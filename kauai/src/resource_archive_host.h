@@ -2,6 +2,7 @@
 #define KAUAI_RESOURCE_ARCHIVE_HOST_H
 
 struct MMChunkOwnerRead;
+struct MMNamedArchiveServices;
 struct MMNativeArchiveSource;
 struct MMResourceCache;
 class Filename;
@@ -9,6 +10,7 @@ class Filename;
 namespace Chunky
 {
 MMResourceCache *OpenWorkingResourceCache(Filename *, bool create, int budget = 0);
+const MMNamedArchiveServices *KauaiNamedArchiveServices();
 
 // A successful cache owns the source of the borrowed reader. When selected
 // is false, the caller can open a separate immutable stream instead.

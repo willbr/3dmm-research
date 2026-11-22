@@ -1805,6 +1805,9 @@ walks the C source catalogue and reopens live resource caches directly.
 The immutable archive source now owns its native file and validated index
 in C89. Studio's source catalogue and the Archive/Preview reader use this
 binding. Resource caches retain the index and file independently.
+Working archive lookup, cache retention and reload now use the C89
+registry and archive owner. Studio and Preview supply filename and
+physical access operations for the shared selection.
 Studio and Marcus share the C89 rich-text binding for stored TEXT extents,
 file references and bounded reads. Preview uses the same decoder for the
 authored TEXT encoding marker. Studio's live property and argument tables

@@ -20935,3 +20935,28 @@ differences from retail and the timing and continuous capture limits.
 
 Traces and logs are under tmp/c89-native-resource-source. Captures are
 under tmp/c89-rscap.
+
+## C89 working archive source selection (22 November 2026)
+
+The C89 registry and cache binding select and retain the working archive for
+Studio and Preview. Registered private owners take precedence over open
+legacy owners. The selection distinguishes a failed live open from an
+archive that can use the immutable path. The cache reload uses the backing
+file's current write access. Fixtures exercise registry precedence, refused
+legacy preparation, failed constrained opens, and staged data across reload.
+
+All 198 native engine and C89 checks passed. Archive and resource-cache
+checks passed on native x64, native x86 and SDL. Four native x64 resource and
+Preview traces matched a839cceb byte for byte. Studio's authored caption
+save reopened and matched the previous .3MM bytes.
+
+The four caption seek runs in 20261122T035243Z-ed319558 reproduced all 11
+canvases, camera indices and recorded actor and caption state per player
+from 20261122T035110Z-e066c23d. All eight actor-event runs in
+20261122T035252Z-824ff7a7 matched 20261122T034419Z-f680da03 on 60 seek
+canvases, actor states and camera indices, or 60 continuous frame identities.
+Both comparisons reproduced the previously recorded differences from
+retail and the continuous timing and presentation capture limits.
+
+Traces and logs are under tmp/c89-live-resource-source. Captures are
+under tmp/c89-rtcap and tmp/c89-rscap.
