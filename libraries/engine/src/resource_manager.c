@@ -237,3 +237,44 @@ int mm_resource_manager_priority(MMResourceManager *m, const MMResourceRequest *
             return 1;
     return 0;
 }
+
+void *mm_resource_access_fetch(const MMResourceAccess *a, const MMResourceRequest *q,
+                               const MMResourceObjectServices *objects, int *error)
+{
+    if (a->cache)
+        return mm_resource_cache_fetch_owned(a->cache, q, objects, error);
+    if (a->manager)
+        return mm_resource_manager_fetch_owned(a->manager, q, objects, error);
+    if (error)
+        *error = 0;
+    return NULL;
+}
+
+int mm_resource_access_load(const MMResourceAccess *a, const MMResourceRequest *q,
+                            const MMResourceObjectServices *objects)
+{
+    if (a->cache)
+        return mm_resource_cache_load_owned(a->cache, q, objects);
+    return a->manager ? mm_resource_manager_load_owned(a->manager, q, objects) : 0;
+}
+
+void *mm_resource_access_find(const MMResourceAccess *a, const MMResourceRequest *q)
+{
+    if (a->cache)
+        return mm_resource_cache_find(a->cache, q->type, q->number, q->reader, q->scope);
+    return a->manager ? mm_resource_manager_find(a->manager, q) : NULL;
+}
+
+int mm_resource_access_priority(const MMResourceAccess *a, const MMResourceRequest *q)
+{
+    if (a->cache)
+        return mm_resource_cache_priority(a->cache, q->priority, q->type, q->number, q->reader, q->scope);
+    return a->manager ? mm_resource_manager_priority(a->manager, q) : 0;
+}
+
+MMResourceCache *mm_resource_access_find_cache(const MMResourceAccess *a, MMU32 type, MMU32 number, MMU32 scope)
+{
+    if (a->cache)
+        return mm_resource_cache_contains(a->cache, type, number, scope) ? a->cache : NULL;
+    return a->manager ? mm_resource_manager_find_file(a->manager, type, number, scope) : NULL;
+}

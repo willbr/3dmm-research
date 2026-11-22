@@ -1545,7 +1545,7 @@ bool DCD::FCmdAddBitmapChunk(PCommand pcmd)
     byte bTransparent;
     long xp, yp;
     bool fMask = pcmd->cid != cidAddMbmpChunk;
-    PBaseCacheableObject pbaco = pvNil;
+    PMaskedBitmapMBMP bitmap = nullptr;
     ChunkTagOrType ctg;
     PDialog pdlg = pvNil;
 
@@ -1585,7 +1585,7 @@ bool DCD::FCmdAddBitmapChunk(PCommand pcmd)
     yp = lw;
     ReleasePpo(&pdlg);
 
-    if (pvNil == (pbaco = ImportMaskedBitmap(&fni, bTransparent, xp, yp, fMask ? fmbmpMask : fmbmpNil)))
+    if (pvNil == (bitmap = ImportMaskedBitmap(&fni, bTransparent, xp, yp, fMask ? fmbmpMask : fmbmpNil)))
     {
         vpappb->TGiveAlertSz(PszLit("Reading bitmap file failed"), bkOk, cokExclamation);
         goto LCancel;
@@ -1596,18 +1596,18 @@ bool DCD::FCmdAddBitmapChunk(PCommand pcmd)
     if (!_FAddChunk(ctg, &cki, &fCreated))
         goto LCancel;
 
-    if (!_pcfl->FPut(pbaco->CbOnFile(), cki.ctg, cki.cno, &blck) || !pbaco->FWrite(&blck))
+    if (!_pcfl->FPut(MaskedBitmapSize(bitmap), cki.ctg, cki.cno, &blck) || !WriteMaskedBitmap(bitmap, &blck))
     {
         if (fCreated)
             _pcfl->Delete(cki.ctg, cki.cno);
         vpappb->TGiveAlertSz(PszLit("Writing chunk failed"), bkOk, cokExclamation);
     LCancel:
-        ReleasePpo(&pbaco);
+        ReleaseMaskedBitmap(&bitmap);
         pcmd->cid = cidNil; // don't record
         _SetSel(lnOld);
         return fTrue;
     }
-    ReleasePpo(&pbaco);
+    ReleaseMaskedBitmap(&bitmap);
 
     InvalAllDcd(_pdocb, _pcfl);
     _SetSel(lnNil, &cki);
@@ -2371,7 +2371,7 @@ void DCD::_EditCki(ChunkIdentification *pcki, long cid)
                 break;
             }
 
-            vpsndm->SiiPlay(pcrf->SoundSource(), pcki->ctg, pcki->cno);
+            vpsndm->SiiPlay(pcrf->Resources(), pcki->ctg, pcki->cno);
             ReleasePpo(&pcrf);
             return;
         }

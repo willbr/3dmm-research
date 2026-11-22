@@ -118,12 +118,7 @@ void mm_sound_enqueue_resource(const MMSoundQueueServices *s, const MMSoundPlay 
     request.scope = 0;
     request.reader = reader;
     request.priority = MM_RESOURCE_NORMAL_PRIORITY;
-    if (p->source.cache)
-        e.object = mm_resource_cache_fetch_owned(p->source.cache, &request, objects, NULL);
-    else if (p->source.manager)
-        e.object = mm_resource_manager_fetch_owned(p->source.manager, &request, objects, NULL);
-    else
-        return;
+    e.object = mm_resource_access_fetch(&p->source, &request, objects, NULL);
     if (!e.object)
         return;
     e.id = id;

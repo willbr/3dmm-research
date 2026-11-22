@@ -143,7 +143,7 @@ struct Preview
     void Asset(ChunkNumber number, KauaiSDL::DialogImage &image)
     {
         auto bitmap =
-            FetchMaskedBitmap(vapp.PcrmAll(), kctgMbmp, number);
+            FetchMaskedBitmap(vapp.PcrmAll()->Resources(), kctgMbmp, number);
         if (bitmap)
         {
             Image(bitmap, image);

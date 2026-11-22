@@ -22,7 +22,6 @@
 #include "mm/chunk_copy.h"
 #include "mm/native_archive_file.h"
 #include "mm/private_archive_cache.h"
-#include "mm/sound_manager.h"
 #include "mm/string_value.h"
 #include "resource_archive_host.h"
 #include "util.h"
@@ -278,6 +277,12 @@ MMResourceServices PrivateCacheProfile()
 
 }
 
+MMResourceCache *NewTypedLiveCache(PChunkyFile file, MMI32 budget)
+{
+    const MMResourceSource source = {file, nullptr, nullptr};
+    return NewTypedCache(source, LegacyCacheServices(), budget);
+}
+
 MMResourceCache *NewTypedPrivateCache(MMPrivateArchive *archive, MMI32 budget)
 {
     const auto services = TypedCacheServices(PrivateCacheProfile());
@@ -463,56 +468,49 @@ void ChunkyResourceFile::SetCbMax(LegacyLong budget)
     AssertIn(budget, 0, kcbMax);
     mm_resource_cache_budget(&_cache, budget);
 }
-tribool ChunkyResourceFile::TLoad(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, RSC scope,
-                                  LegacyLong priority)
+tribool ResourceCache::TLoad(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, RSC scope,
+                             LegacyLong priority)
 {
     AssertThis(0);
     Assert(reader != nullptr, "bad object reader");
-    Assert(priority > crepToss, "crep too small");
+    Assert((_access.manager && _access.manager->count == 0) || priority > crepToss, "crep too small");
     const auto q = ResourceRequest(type, number, reader, scope, priority);
-    return static_cast<tribool>(mm_resource_cache_load(&_cache, &q));
+    const auto objects = _access.manager ? BaseCacheableObject::ObjectServices() : nullptr;
+    return static_cast<tribool>(mm_resource_access_load(&_access, &q, objects));
 }
-PBaseCacheableObject ChunkyResourceFile::PbacoFetch(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, bool *error,
-                                                    RSC scope)
-{
-    return static_cast<PBaseCacheableObject>(FetchOwned(type, number, reader, nullptr, error, scope));
-}
-void *ChunkyResourceFile::FetchOwned(ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
-                                  const MMResourceObjectServices *services, bool *error, RSC scope)
+PBaseCacheableObject ResourceCache::PbacoFetch(ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
+                                               bool *error, RSC scope)
 {
     AssertThis(0);
     Assert(reader != nullptr, "bad object reader");
     AssertNilOrVarMem(error);
     const auto q = ResourceRequest(type, number, reader, scope);
     int failed = 0;
-    auto object = mm_resource_cache_fetch_owned(&_cache, &q, services, &failed);
+    const auto objects = _access.manager ? BaseCacheableObject::ObjectServices() : nullptr;
+    auto object = mm_resource_access_fetch(&_access, &q, objects, &failed);
     if (error)
         *error = failed != 0;
-    return object;
+    return static_cast<PBaseCacheableObject>(object);
 }
-PBaseCacheableObject ChunkyResourceFile::PbacoFind(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, RSC scope)
+PBaseCacheableObject ResourceCache::PbacoFind(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, RSC scope)
 {
     AssertThis(0);
     Assert(reader != nullptr, "bad object reader");
-    return static_cast<PBaseCacheableObject>(
-        mm_resource_cache_find(&_cache, type, number, reader, scope));
+    const auto q = ResourceRequest(type, number, reader, scope);
+    return static_cast<PBaseCacheableObject>(mm_resource_access_find(&_access, &q));
 }
-bool ChunkyResourceFile::FSetCrep(LegacyLong priority, ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
-                                  RSC scope)
+bool ResourceCache::FSetCrep(LegacyLong priority, ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
+                             RSC scope)
 {
     AssertThis(0);
     Assert(reader != nullptr, "bad object reader");
-    return mm_resource_cache_priority(&_cache, priority, type, number,
-                                            reader, scope) != 0;
+    const auto q = ResourceRequest(type, number, reader, scope, priority);
+    return mm_resource_access_priority(&_access, &q) != 0;
 }
-MMResourceCache *ChunkyResourceFile::FindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
+MMResourceCache *ResourceCache::FindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
 {
     AssertThis(0);
-    return mm_resource_cache_contains(&_cache, type, number, scope) ? &_cache : nullptr;
-}
-MMSoundSource ChunkyResourceFile::SoundSource()
-{
-    return {&_cache, nullptr};
+    return mm_resource_access_find_cache(&_access, type, number, scope);
 }
 MMChunkAccess ChunkyResourceFile::ReadChunkAccess()
 {
@@ -609,6 +607,7 @@ ChunkyResourceManager::ChunkyResourceManager(void)
     const auto services = _Services();
     AssertDo(mm_resource_manager_init(&_manager, &services, KauaiCopyAllocator()) == MM_STORAGE_OK,
              "invalid resource manager");
+    _access.manager = &_manager;
 }
 ChunkyResourceManager::~ChunkyResourceManager(void)
 {
@@ -623,58 +622,6 @@ PChunkyResourceManager ChunkyResourceManager::PcrmNew(LegacyLong reserve)
         ReleasePpo(&manager);
     AssertNilOrPo(manager, 0);
     return manager;
-}
-tribool ChunkyResourceManager::TLoad(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, RSC scope,
-                                     LegacyLong priority)
-{
-    AssertThis(0);
-    Assert(reader != nullptr, "nil object reader");
-    Assert(_manager.count == 0 || priority > crepToss, "crep too small");
-    const auto q = ResourceRequest(type, number, reader, scope, priority);
-    return static_cast<tribool>(mm_resource_manager_load_owned(&_manager, &q, BaseCacheableObject::ObjectServices()));
-}
-PBaseCacheableObject ChunkyResourceManager::PbacoFetch(ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
-                                                       bool *error, RSC scope)
-{
-    return static_cast<PBaseCacheableObject>(
-        FetchOwned(type, number, reader, BaseCacheableObject::ObjectServices(), error, scope));
-}
-void *ChunkyResourceManager::FetchOwned(ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
-                                  const MMResourceObjectServices *services, bool *error, RSC scope)
-{
-    AssertThis(0);
-    Assert(reader != nullptr, "nil object reader");
-    AssertNilOrVarMem(error);
-    const auto q = ResourceRequest(type, number, reader, scope);
-    int failed = 0;
-    auto object = mm_resource_manager_fetch_owned(&_manager, &q, services, &failed);
-    if (error)
-        *error = failed != 0;
-    return object;
-}
-PBaseCacheableObject ChunkyResourceManager::PbacoFind(ChunkTagOrType type, ChunkNumber number, ResourceReader reader, RSC scope)
-{
-    AssertThis(0);
-    Assert(reader != nullptr, "nil object reader");
-    const auto q = ResourceRequest(type, number, reader, scope);
-    return static_cast<PBaseCacheableObject>(mm_resource_manager_find(&_manager, &q));
-}
-bool ChunkyResourceManager::FSetCrep(LegacyLong priority, ChunkTagOrType type, ChunkNumber number, ResourceReader reader,
-                                     RSC scope)
-{
-    AssertThis(0);
-    Assert(reader != nullptr, "nil object reader");
-    const auto q = ResourceRequest(type, number, reader, scope, priority);
-    return mm_resource_manager_priority(&_manager, &q) != 0;
-}
-MMResourceCache *ChunkyResourceManager::FindChunk(ChunkTagOrType type, ChunkNumber number, RSC scope)
-{
-    AssertThis(0);
-    return mm_resource_manager_find_file(&_manager, type, number, scope);
-}
-MMSoundSource ChunkyResourceManager::SoundSource()
-{
-    return {nullptr, &_manager};
 }
 bool ChunkyResourceManager::FAddCfl(PChunkyFile file, LegacyLong budget, LegacyLong *position)
 {

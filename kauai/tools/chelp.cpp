@@ -704,7 +704,7 @@ PMaskedBitmapMBMP LID::PmbmpGet(long icki)
     CACH cach;
 
     _pglcach->Get(icki, &cach);
-    return FetchMaskedBitmap(cach.pcrf, kctgMbmp, cach.cnoMbmp);
+    return FetchMaskedBitmap(cach.pcrf->Resources(), kctgMbmp, cach.cnoMbmp);
 }
 
 /***************************************************************************

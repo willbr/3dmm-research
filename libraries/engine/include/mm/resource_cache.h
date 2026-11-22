@@ -224,6 +224,21 @@ extern "C"
                                                     MMU32 number, MMU32 scope);
     void *mm_resource_manager_find(MMResourceManager *, const MMResourceRequest *);
     int mm_resource_manager_priority(MMResourceManager *, const MMResourceRequest *);
+
+    /* Borrow one cache or an ordered manager for synchronous queries. An empty
+     * access behaves like a missing resource. The selected source supplies
+     * scope matching, load, and early-error behavior. */
+    typedef struct MMResourceAccess
+    {
+        MMResourceCache *cache;
+        MMResourceManager *manager;
+    } MMResourceAccess;
+    void *mm_resource_access_fetch(const MMResourceAccess *, const MMResourceRequest *,
+                                   const MMResourceObjectServices *, int *error);
+    int mm_resource_access_load(const MMResourceAccess *, const MMResourceRequest *, const MMResourceObjectServices *);
+    void *mm_resource_access_find(const MMResourceAccess *, const MMResourceRequest *);
+    int mm_resource_access_priority(const MMResourceAccess *, const MMResourceRequest *);
+    MMResourceCache *mm_resource_access_find_cache(const MMResourceAccess *, MMU32 type, MMU32 number, MMU32 scope);
 #ifdef __cplusplus
 }
 #endif

@@ -871,7 +871,7 @@ bool GraphicsObjectInterpreter::_FExecOp(LegacyLong op)
                 if (pvNil != vpsndm && pvNil != (qrglw = _QlwGet(7)))
                 {
                     lw1 =
-                        vpsndm->SiiPlay(_prca->SoundSource(), qrglw[6], qrglw[5], qrglw[4], qrglw[3], qrglw[2], 0, qrglw[1], qrglw[0]);
+                        vpsndm->SiiPlay(_prca->Resources(), qrglw[6], qrglw[5], qrglw[4], qrglw[3], qrglw[2], 0, qrglw[1], qrglw[0]);
                 }
             }
             _PopList(7);

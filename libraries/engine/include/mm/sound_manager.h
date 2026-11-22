@@ -36,15 +36,9 @@ extern "C"
         void *object;
         MMU32 tag;
     } MMSoundEndpoint;
-    /* Borrow one cache or an ordered manager during synchronous lookup. */
-    typedef struct MMSoundSource
-    {
-        MMResourceCache *cache;
-        MMResourceManager *manager;
-    } MMSoundSource;
     typedef struct MMSoundPlay
     {
-        MMSoundSource source;
+        MMResourceAccess source;
         MMU32 type, number;
         MMI32 queue, volume, plays;
         MMU32 offset;

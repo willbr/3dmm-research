@@ -18,9 +18,11 @@ struct HelpTextProbe : Help::TextDocument
     bool Load(PChunkyFile file, ChunkIdentification root, ScriptCompiler::PStringRegistry strings = nullptr,
               ulong flags = 0)
     {
-        auto cache = ChunkyResourceFile::PcrfNew(file, 0);
-        const bool ok = cache && _FReadResource(cache->CoreCache(), root.ctg, root.cno, strings, flags);
-        ReleasePpo(&cache);
+        auto cache = NewTypedLiveCache(file, 0);
+        if (!cache)
+            return false;
+        const bool ok = _FReadResource(cache, root.ctg, root.cno, strings, flags);
+        mm_resource_cache_release(cache);
         return ok;
     }
     bool Load(PChunkyResourceFile cache, ChunkIdentification root)

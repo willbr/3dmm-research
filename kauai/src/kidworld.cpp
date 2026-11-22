@@ -93,7 +93,7 @@ MMKidspaceOwner *WorldOfKidspace::PgokdFetch(ChunkTagOrType ctg, ChunkNumber cno
     AssertThis(0);
     AssertPo(prca, 0);
 
-    return FetchKidspaceDescriptor(prca, ctg, cno);
+    return FetchKidspaceDescriptor(prca->Resources(), ctg, cno);
 }
 
 /***************************************************************************

@@ -66,8 +66,8 @@ int main()
     ReleasePpo(&emptyFile);
     ReleasePpo(&resources);
     mm_resource_cache_release(typed);
-    const MMSoundSource single = {typed, nullptr};
-    const MMSoundSource ordered = {nullptr, catalog};
+    const MMResourceAccess single = {typed, nullptr};
+    const MMResourceAccess ordered = {nullptr, catalog};
     auto device = KauaiAudio::NewWaveDevice();
     CHECK(device && KauaiAudio::StudioStats().active);
     device->BeginSynch();

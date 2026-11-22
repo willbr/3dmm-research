@@ -31,9 +31,10 @@ static int ReadKidspaceDescriptor(MMResourceCache *, MMU32, MMU32, MMOwnedBlock 
     return mm_kidspace_owner_fetch(block, out, bytes, &host);
 }
 
-MMKidspaceOwner *FetchKidspaceDescriptor(Chunky::PResourceCache cache, ChunkTagOrType type, ChunkNumber number,
-                                        bool *error)
+MMKidspaceOwner *FetchKidspaceDescriptor(const MMResourceAccess &resources, ChunkTagOrType type, ChunkNumber number,
+                                        int *error)
 {
+    const MMResourceRequest request = {type, number, 0, ReadKidspaceDescriptor, MM_RESOURCE_NORMAL_PRIORITY};
     return static_cast<MMKidspaceOwner *>(
-        cache->FetchOwned(type, number, ReadKidspaceDescriptor, mm_kidspace_owner_services(), error));
+        mm_resource_access_fetch(&resources, &request, mm_kidspace_owner_services(), error));
 }

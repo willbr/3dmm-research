@@ -44,7 +44,7 @@ struct TextDocument::DisplayHost : HelpHost
             auto &h = *static_cast<DisplayHost *>(v);
             return h.Guard([&] {
                 *out = cache ? FetchMaskedBitmap(static_cast<MMResourceCache *>(cache), p->type, p->number)
-                             : FetchMaskedBitmap(h.help->_prca, p->type, p->number);
+                             : FetchMaskedBitmap(h.help->_prca->Resources(), p->type, p->number);
                 return *out != nullptr;
             });
         };

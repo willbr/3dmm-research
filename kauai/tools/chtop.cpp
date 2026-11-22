@@ -6,7 +6,9 @@
     Chunky help topic editor documents and their DDGs.
 
 ***************************************************************************/
+#include <memory>
 #include "chelp.h"
+#include "resource_archive_host.h"
 ASSERTNAME
 
 RTCLASS(HEDO)
@@ -1739,7 +1741,9 @@ bool HETD::_FReadChunk(PChunkyFile pcfl, ChunkTagOrType ctg, ChunkNumber cno, bo
     DataBlock blck;
     ChildChunkIdentification kid;
 
-    if (!HETD_PAR::_FReadChunk(pcfl, ctg, cno, pvNil, fCopyText ? ftxhdCopyText : ftxhdNil))
+    const std::unique_ptr<MMResourceCache, decltype(&mm_resource_cache_release)> source(
+        NewTypedLiveCache(pcfl, 0), mm_resource_cache_release);
+    if (!source || !_FReadResource(source.get(), ctg, cno, nullptr, fCopyText ? ftxhdCopyText : ftxhdNil))
     {
         return fFalse;
     }

@@ -80,9 +80,10 @@ int main()
         ReleasePpo(&empty);
         ReleasePpo(&file);
 
-        auto owner = FetchKidspaceDescriptor(manager, 'GOKD', number);
+        const auto &access = manager->Resources();
+        auto owner = FetchKidspaceDescriptor(access, 'GOKD', number);
         CHECK(owner);
-        auto same = FetchKidspaceDescriptor(manager, 'GOKD', number);
+        auto same = FetchKidspaceDescriptor(access, 'GOKD', number);
         CHECK(same == owner);
         mm_kidspace_owner_release(same);
         const auto binding = mm_kidspace_owner_binding(owner);
@@ -101,10 +102,10 @@ int main()
               cursor.cnoTopic == 0x98765432);
         CHECK(!mm_kidspace_cursor(descriptor, 0x40, 31, &cursor) && !mm_kidspace_cursor(descriptor, 0x80, 30, &cursor));
         CHECK(mm_kidspace_cursor(descriptor, 0x80, -1, &cursor));
-        bool error = true;
-        CHECK(!FetchKidspaceDescriptor(manager, 'GOKD', packedNumber + 1, &error) && !error);
-        CHECK(!FetchKidspaceDescriptor(manager, 'GOKD', malformed, &error) && error);
-        auto packed = FetchKidspaceDescriptor(manager, 'GOKD', packedNumber);
+        int error = 1;
+        CHECK(!FetchKidspaceDescriptor(access, 'GOKD', packedNumber + 1, &error) && !error);
+        CHECK(!FetchKidspaceDescriptor(access, 'GOKD', malformed, &error) && error);
+        auto packed = FetchKidspaceDescriptor(access, 'GOKD', packedNumber);
         CHECK(packed && mm_kidspace_owner_descriptor(packed)->cursors == 33 && cache->count == 2);
         mm_kidspace_owner_priority(packed, MM_RESOURCE_TOSS_PRIORITY);
         mm_kidspace_owner_release(packed);

@@ -11,6 +11,8 @@ class Filename;
 
 namespace Chunky
 {
+class ChunkyFile;
+MMResourceCache *NewTypedLiveCache(ChunkyFile *, MMI32 budget);
 MMResourceCache *OpenWorkingResourceCache(Filename *, bool create, int budget = 0);
 MMResourceCache *OpenForestResourceCache(MMResourceCache *, MMU32 type, MMU32 number);
 const MMNamedArchiveServices *KauaiNamedArchiveServices();

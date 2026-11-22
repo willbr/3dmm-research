@@ -644,7 +644,7 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
         {
             // Select the appropriate bitmap to display.
 
-            if ((pmbmp = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, cnoDisplay)))
+            if ((pmbmp = FetchMaskedBitmap(vpapp->PcrmAll()->Resources(), kctgMbmp, cnoDisplay)))
             {
                 PGraphicsPort pgpt;
                 HPEN hpen, hpenold;
@@ -750,7 +750,7 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
             MapWindowPoints(hwndPreview, hwndCustom, (POINT *)&ptBtn, 1);
 
             // First the home button.
-            if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, kcnoMbmpPortBtnHome)))
+            if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll()->Resources(), kctgMbmp, kcnoMbmpPortBtnHome)))
             {
                 GetMaskedBitmapBounds(pmbmpBtn, &rcBmp);
 
@@ -764,7 +764,7 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
             }
 
             // Now the cancel button.
-            if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, kcnoMbmpPortBtnCancel)))
+            if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll()->Resources(), kctgMbmp, kcnoMbmpPortBtnCancel)))
             {
                 GetMaskedBitmapBounds(pmbmpBtn, &rcBmp);
 
@@ -778,7 +778,7 @@ static UINT_PTR CALLBACK OpenHookProc(HWND hwndCustom, UINT msg, WPARAM wParam, 
             }
 
             // Now the ok button.
-            if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, kcnoMbmpPortBtnOk)))
+            if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll()->Resources(), kctgMbmp, kcnoMbmpPortBtnOk)))
             {
                 GetMaskedBitmapBounds(pmbmpBtn, &rcBmp);
 
@@ -957,7 +957,7 @@ static void RepaintPortfolio(HWND hwndCustom)
     }
 
     // Get the background bitmap first.
-    if ((pmbmp = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, cnoBack)))
+    if ((pmbmp = FetchMaskedBitmap(vpapp->PcrmAll()->Resources(), kctgMbmp, cnoBack)))
     {
         PGraphicsPort pgpt;
         HPEN hpen, hpenold;
@@ -1075,7 +1075,7 @@ static void RepaintPortfolio(HWND hwndCustom)
                             continue;
                         }
 
-                        if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll(), kctgMbmp, cnoBtn)))
+                        if ((pmbmpBtn = FetchMaskedBitmap(vpapp->PcrmAll()->Resources(), kctgMbmp, cnoBtn)))
                         {
                             HWND hwndBtn = GetDlgItem(hwndCustom, iBtnId);
                             SystemRectangle rcsBtn;

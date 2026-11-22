@@ -46,7 +46,7 @@ class SoundDevice : public SoundDevice_PAR
     virtual void SetVlm(LegacyLong vlm) = 0;
     virtual LegacyLong VlmCur(void) = 0;
 
-    virtual LegacyLong SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
+    virtual LegacyLong SiiPlay(MMResourceAccess source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
                                LegacyLong vlm = kvlmFull, LegacyLong cactPlay = 1, LegacyUlong dtsStart = 0,
                                LegacyLong spr = 0, LegacyLong scl = sclNil) = 0;
 
@@ -133,7 +133,7 @@ class SoundManager : public SoundManager_PAR
     virtual void SetVlm(LegacyLong vlm);
     virtual LegacyLong VlmCur(void);
 
-    virtual LegacyLong SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
+    virtual LegacyLong SiiPlay(MMResourceAccess source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
                                LegacyLong vlm = kvlmFull, LegacyLong cactPlay = 1, LegacyUlong dtsStart = 0,
                                LegacyLong spr = 0, LegacyLong scl = sclNil);
 
@@ -195,7 +195,7 @@ class SoundManagerQueue : public SoundManagerQueue_PAR
     virtual void Activate(bool fActive);
     virtual void Suspend(bool fSuspend);
 
-    virtual LegacyLong SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
+    virtual LegacyLong SiiPlay(MMResourceAccess source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn = ksqnNone,
                                LegacyLong vlm = kvlmFull, LegacyLong cactPlay = 1, LegacyUlong dtsStart = 0,
                                LegacyLong spr = 0, LegacyLong scl = sclNil);
 

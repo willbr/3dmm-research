@@ -232,7 +232,7 @@ LegacyLong SoundManager::VlmCur(void)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-LegacyLong SoundManager::SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
+LegacyLong SoundManager::SiiPlay(MMResourceAccess source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
                                  LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr,
                                  LegacyLong scl)
 {
@@ -459,7 +459,7 @@ void SoundManagerQueue::Suspend(bool fSuspend)
 /***************************************************************************
     Play the given sound.
 ***************************************************************************/
-LegacyLong SoundManagerQueue::SiiPlay(MMSoundSource source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
+LegacyLong SoundManagerQueue::SiiPlay(MMResourceAccess source, ChunkTagOrType ctg, ChunkNumber cno, LegacyLong sqn,
                                       LegacyLong vlm, LegacyLong cactPlay, LegacyUlong dtsStart, LegacyLong spr,
                                       LegacyLong scl)
 {

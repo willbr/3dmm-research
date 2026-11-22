@@ -50,6 +50,9 @@ def cancel(studio, current):
     while json.loads(studio.call('get_sdl_dialog')['content'][0]['text'])['active']:
         assert time.monotonic() < deadline
         time.sleep(.02)
+    # The dialog publishes its closure before the portfolio saves the folder.
+    # A main-loop request waits for the portfolio command to return.
+    studio.call('wait_ms', ms=0)
 
 
 def saved(ini, key):

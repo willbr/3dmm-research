@@ -769,6 +769,7 @@ static MMResourceManager *tag_source(void *context, MMI32 sid, int local_only, c
 static void manager_cases(void)
 {
     ManagerHost h;
+    MMResourceAccess access = {0};
     MMResourceManagerServices s;
     MMStorageAllocator a;
     MMResourceRequest q = {1, 2, 7, reader_a, 2};
@@ -781,6 +782,7 @@ static void manager_cases(void)
     s.create = create_cache;
     a = allocator(&h.memory);
     CHECK(mm_resource_manager_init(&h.manager, &s, &a) == 0);
+    access.manager = &h.manager;
     h.fail_create = 1;
     CHECK(mm_resource_manager_add(&h.manager, first, 100, &slot) == MM_STORAGE_IO && slot == 99);
     h.fail_create = 0;
@@ -795,9 +797,9 @@ static void manager_cases(void)
     CHECK(mm_resource_manager_at(&h.manager, 0) == &first->cache);
     CHECK(!mm_resource_manager_at(&h.manager, 2));
     first->fail_estimate = 1;
-    CHECK(mm_resource_manager_load(&h.manager, &q) == 2 && !second->scope_calls);
+    CHECK(mm_resource_access_load(&access, &q, NULL) == 2 && !second->scope_calls);
     first->fail_read = 1;
-    CHECK(!mm_resource_manager_fetch(&h.manager, &q, &error) && error && !second->scope_calls);
+    CHECK(!mm_resource_access_fetch(&access, &q, NULL, &error) && error && !second->scope_calls);
     first->fail_read = 0;
     first->fail = 1;
     object = (Object *)mm_resource_manager_fetch(&h.manager, &q, &error);
@@ -809,10 +811,10 @@ static void manager_cases(void)
     release(object);
     mm_resource_cache_budget(&first->cache, 0);
     CHECK(load(second, 2, 2) == 1 && second->block_scans == 1);
-    CHECK(mm_resource_manager_find_file(&h.manager, q.type, q.number, q.scope) == &first->cache);
-    CHECK(!mm_resource_manager_find(&h.manager, &q) && !second->scope_calls);
+    CHECK(mm_resource_access_find_cache(&access, q.type, q.number, q.scope) == &first->cache);
+    CHECK(!mm_resource_access_find(&access, &q) && !second->scope_calls);
     q.priority = 3;
-    CHECK(mm_resource_manager_priority(&h.manager, &q) && second->scope_calls == 1);
+    CHECK(mm_resource_access_priority(&access, &q) && second->scope_calls == 1);
     first->missing = 1;
     scopes = second->scope_calls;
     object = (Object *)mm_resource_manager_find(&h.manager, &q);

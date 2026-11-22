@@ -184,6 +184,12 @@ int CacheCases()
 }
 int ManagerCases()
 {
+    const MMResourceAccess empty = {};
+    const MMResourceRequest request = {'RCHE', 1, 0, ProbeResource::A, MM_RESOURCE_NORMAL_PRIORITY};
+    int missing = 1;
+    CHECK(!mm_resource_access_fetch(&empty, &request, nullptr, &missing) && !missing);
+    CHECK(!mm_resource_access_load(&empty, &request, nullptr) && !mm_resource_access_find(&empty, &request) &&
+          !mm_resource_access_priority(&empty, &request) && !mm_resource_access_find_cache(&empty, 'RCHE', 1, 0));
     auto a = ChunkyFile::PcflCreateTemp(), b = ChunkyFile::PcflCreateTemp();
     CHECK(a && b);
     CHECK(Put(a, 1, 1, 4, 8) && Put(b, 1, 2, 4, 8) && Put(a, 2, 5, 4, 8, 0, 1) && Put(b, 2, 6, 4, 8) &&

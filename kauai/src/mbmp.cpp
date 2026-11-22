@@ -89,16 +89,16 @@ PMaskedBitmapMBMP ReadMaskedBitmap(const MMReadStream *stream)
     return mm_masked_owner_read_stream(stream, &MaskedHost());
 }
 
-PMaskedBitmapMBMP FetchMaskedBitmap(PResourceCache cache, ChunkTagOrType type, ChunkNumber number)
+PMaskedBitmapMBMP FetchMaskedBitmap(const MMResourceAccess &resources, ChunkTagOrType type, ChunkNumber number)
 {
+    const MMResourceRequest request = {type, number, 0, ReadCachedMaskedBitmap, MM_RESOURCE_NORMAL_PRIORITY};
     return static_cast<PMaskedBitmapMBMP>(
-        cache->FetchOwned(type, number, ReadCachedMaskedBitmap, mm_masked_owner_services()));
+        mm_resource_access_fetch(&resources, &request, mm_masked_owner_services(), nullptr));
 }
 
 PMaskedBitmapMBMP FetchMaskedBitmap(MMResourceCache *cache, ChunkTagOrType type, ChunkNumber number)
 {
-    return static_cast<PMaskedBitmapMBMP>(
-        mm_resource_cache_fetch_owned_chunk(cache, type, number, ReadCachedMaskedBitmap, mm_masked_owner_services()));
+    return FetchMaskedBitmap({cache, nullptr}, type, number);
 }
 
 int ReadCachedMaskedBitmap(MMResourceCache *, MMU32, MMU32, MMOwnedBlock *block, void **out, MMI32 *bytes)

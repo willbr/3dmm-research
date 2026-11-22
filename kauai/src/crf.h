@@ -11,9 +11,9 @@
     Copyright (c) Microsoft Corporation
 
     Chunky resource file management. A ChunkyResourceFile is a cache wrapped around a
-    chunky file. A ChunkyResourceManager is a list of CRFs. A BaseCacheableObject is an object that
-    can be cached in a ChunkyResourceFile. ResourceCache is the interface implemented
-    by both ChunkyResourceFile and ChunkyResourceManager.
+    chunky file. A ChunkyResourceManager is a list of caches. A BaseCacheableObject
+    can be cached in a ChunkyResourceFile. ResourceCache provides the common
+    resource view to legacy callers.
 
 ***************************************************************************/
 #ifndef CHRES_H
@@ -25,7 +25,6 @@ struct MMChunkOwnerRead;
 struct MMArchiveWriter;
 struct MMPrivateArchive;
 struct MMStringValue;
-struct MMSoundSource;
 
 namespace Chunky
 {
@@ -93,8 +92,8 @@ class BaseCacheableObject : public BaseCacheableObject_PAR
 };
 
 /***************************************************************************
-    Chunky resource cache - this is a pure virtual class that supports
-    the crf and crm classes.
+    Legacy owner of a borrowed resource view. The C access functions query
+    either the file cache or ordered manager bound during construction.
 ***************************************************************************/
 // Object reader function - must handle ppo == pvNil, in which case, the
 // *pcb should be set to an estimate of the size when read.
@@ -107,17 +106,19 @@ class ResourceCache : public ResourceCache_PAR
 {
     RTCLASS_DEC
 
+  protected:
+    MMResourceAccess _access = {};
+    ResourceCache() = default;
+
   public:
-    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil,
-                          LegacyLong crep = crepNormal) = 0;
-    virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, bool *pfError = pvNil,
-                                            RSC rsc = rscNil) = 0;
-    virtual void *FetchOwned(ChunkTagOrType, ChunkNumber, ResourceReader, const MMResourceObjectServices *,
-                             bool *error = nullptr, RSC scope = rscNil) = 0;
-    virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil) = 0;
-    virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil) = 0;
-    virtual MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) = 0;
-    virtual MMSoundSource SoundSource() = 0;
+    const MMResourceAccess &Resources() const { return _access; }
+    tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil,
+                  LegacyLong crep = crepNormal);
+    PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, bool *pfError = pvNil,
+                                   RSC rsc = rscNil);
+    PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
+    bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
+    MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil);
 };
 
 /***************************************************************************
@@ -139,7 +140,7 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
     String _wirePath;
     MMResourceServices _Services();
     static void _Destroy(void *);
-    ChunkyResourceFile() = default;
+    ChunkyResourceFile() { _access.cache = &_cache; }
     static PChunkyResourceFile _PcrfNew(const MMResourceSource &, LegacyLong budget,
                                        const MMBlockFileServices *files = nullptr, String *path = nullptr,
                                        MMPrivateArchive *archive = nullptr);
@@ -156,16 +157,6 @@ class ChunkyResourceFile : public ChunkyResourceFile_PAR
                                            String &path, LegacyLong cbMax);
     void Release(void) override;
 
-    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil,
-                          LegacyLong crep = crepNormal);
-    virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, bool *pfError = pvNil,
-                                            RSC rsc = rscNil);
-    virtual void *FetchOwned(ChunkTagOrType, ChunkNumber, ResourceReader, const MMResourceObjectServices *,
-                             bool *error = nullptr, RSC scope = rscNil) override;
-    virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
-    virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
-    MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) override;
-    MMSoundSource SoundSource() override;
     MMResourceCache *CoreCache() { return &_cache; }
     MMChunkAccess ReadChunkAccess();
     MMChunkOwnerRead *ReadOwner();
@@ -206,17 +197,6 @@ class ChunkyResourceManager : public ChunkyResourceManager_PAR
   public:
     ~ChunkyResourceManager(void);
     static PChunkyResourceManager PcrmNew(LegacyLong ccrfInit);
-
-    virtual tribool TLoad(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil,
-                          LegacyLong crep = crepNormal);
-    virtual PBaseCacheableObject PbacoFetch(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, bool *pfError = pvNil,
-                                            RSC rsc = rscNil);
-    virtual void *FetchOwned(ChunkTagOrType, ChunkNumber, ResourceReader, const MMResourceObjectServices *,
-                             bool *error = nullptr, RSC scope = rscNil) override;
-    virtual PBaseCacheableObject PbacoFind(ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
-    virtual bool FSetCrep(LegacyLong crep, ChunkTagOrType ctg, ChunkNumber cno, ResourceReader reader, RSC rsc = rscNil);
-    MMResourceCache *FindChunk(ChunkTagOrType ctg, ChunkNumber cno, RSC rsc = rscNil) override;
-    MMSoundSource SoundSource() override;
 
     bool FAddCfl(PChunkyFile pcfl, LegacyLong cbMax, LegacyLong *piv = pvNil);
     LegacyLong Ccrf(void)

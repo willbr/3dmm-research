@@ -21197,3 +21197,35 @@ with SDL dummy video.
 
 Traces and Studio canvases are under `tmp/c89-kidspace-owner`.
 Playback captures are under `tmp/c89-kd`.
+
+## Shared C89 resource access (22 November 2026)
+
+One C resource view handles fetch, preload, cached lookup, priority changes,
+and cache discovery for file caches and ordered managers. Kidspace, masked
+bitmaps, and sound use the same view. The C fixture checks that a decode
+error stops ordered fetch, that preload preserves `Maybe`, and that scoped
+cache discovery, cached lookup, and priority changes keep their ordering.
+
+The native x86 Help and Chunk Editors built and linked. Help topic loading
+passes the archive being edited to the C89 reader. Masked bitmap import
+uses the C owner's size, write, and release operations. The native Windows
+Studio portfolio source also passed an MSVC syntax check.
+
+All 199 engine, core link, and C89 checks passed, along with 15 native x64,
+11 SDL, and five native x86 checks. The resource-cache and Help traces,
+nine movie saves, five Studio smoke canvases, and ISO lobby canvas matched
+the prior results. Cold and warm ISO runs verified the bundled MIDI preview.
+The headless portfolio workflow passed on both builds after synchronizing
+its settings check with completion of the portfolio command. The dialog
+publishes closure before the command persists the last folder.
+The separate native x64 `scene-load` test reproduced the existing fingerprint
+mismatch and identical trace.
+
+The headless port runs in `20261122T104418Z-b8a6fa67` matched all 60 seek
+canvases, camera and actor state, continuous frame order, and available
+sound request observations from `20261122T102859Z-10121823`. The retail and
+V3DMM references came from retained four-player suite
+`20261122T081603Z-7ffc4e8e`. Marcus also relaunched with dummy video.
+
+Traces and Studio canvases are under `tmp/c89-resource-access`.
+Playback captures are under `tmp/c89-kd`.

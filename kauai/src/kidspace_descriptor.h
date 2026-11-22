@@ -5,7 +5,7 @@
 #include "framedef.h"
 #include "mm/studio_resource.h"
 using namespace Chunky;
-MMKidspaceOwner *FetchKidspaceDescriptor(Chunky::PResourceCache, ChunkTagOrType, ChunkNumber, bool *error = nullptr);
+MMKidspaceOwner *FetchKidspaceDescriptor(const MMResourceAccess &, ChunkTagOrType, ChunkNumber, int *error = nullptr);
 #ifdef DEBUG
 void MarkKidspaceDescriptor(MMKidspaceOwner *);
 #endif
