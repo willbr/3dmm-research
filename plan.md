@@ -1627,7 +1627,10 @@ and depth-tested camera-plane projection. The host supplies font faces,
 glyph masks and palette colours.
 Marcus caption layout now decodes authored character and paragraph properties
 in C89. It uses the same C rich-text line and run formatter as Studio and
-publishes positioned glyph runs and the total height used by scrolling.
+retains positioned glyph runs, the total height used by scrolling, and draft
+caret stops. C89 owns the run masks through their host release callback,
+accounts for the per-scene budget, and paints the retained runs. Marcus
+supplies font metrics, native and high-resolution masks, and palette colours.
 The shared C89 transition engine dispatches Studio's indexed cut, black,
 fade and dissolve effects. It also prepares Marcus's outgoing dissolve
 snapshot and owns its palette indices. Both players apply authored palette
@@ -1778,7 +1781,7 @@ The C caption presentation owns the authored row table, visibility stack,
 draft scroll position and reusable work-view RGBA layer. It installs rows
 in authored order, chooses the final caret stop at a wrap, and draws directly
 in the movie view or projects the cleared layer into the work view. Marcus
-supplies positioned masks, palette colours and host camera values.
+supplies mask bytes, palette colours and host camera values.
 Work-view reframing now uses C89 for camera projection, route splitting,
 event rebasing, and replacement of the selected scene's actor tracks.
 The native adapter supplies evaluated poses and calls BRender's Euler

@@ -22920,3 +22920,23 @@ port. Both ports reproduced the 60-frame seek and playback order from
 retail and V3DMM in `20261122T082301Z-c465fa98`. SDL reproduced the 12 ordered
 sound requests. These captures used SDL dummy audio. Evidence is under
 `tmp/c89-playback-device` and `tmp/c89-aqcap`.
+
+## C89 Marcus caption runs (22 November 2026)
+
+C89 owns the positioned text, native masks, and caret stops for a caption
+layout. It accounts for the shared scene budget, releases staged runs on
+failure, and paints retained runs with native or enlarged masks supplied by
+the font host.
+
+All 226 selected native tests passed and the x86 worker built. A standalone
+32-bit test verified that failed rasterization and budget rejection release
+the staging allocation and preserve an existing layout. Three timing
+snapshots, four 1088-by-612 Text Acid images, and the headless startup
+capture matched byte for byte.
+
+Text Acid candidate `20261122T211926Z-d64c8541` matched
+`20261122T202443Z-949a7701` on all 240 seek canvases and recorded states per
+port. Both ports reproduced the 240-frame seek and playback order from
+retail and V3DMM in `20261122T033140Z-2abe2197` and
+`20261122T033233Z-5e23a412`. Evidence is under `tmp/c89-caption-runs` and
+`tmp/c89-caption-presentation/capture`.

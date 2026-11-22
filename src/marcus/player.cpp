@@ -1974,9 +1974,7 @@ extern "C"
         *count = *scroll = 0;
         if (!player)
             return nullptr;
-        const auto &stops = player->playback.CaptionPositions(*scroll);
-        *count = static_cast<int>(stops.size());
-        return stops.data();
+        return player->playback.CaptionPositions(*count, *scroll);
     }
     int marcus_caption_caret(MarcusPlayer *player, int offset)
     {

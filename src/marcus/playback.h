@@ -53,7 +53,7 @@ class MarcusPlayback
     bool CaptionAt(int x, int y, std::uint32_t &chunk, const std::uint32_t *hiddenCaption) const;
     bool CaptionDraft(MM::PreviewCaption, MM::Error &);
     void ClearCaptionDraft();
-    const std::vector<MarcusCaptionStop> &CaptionPositions(int &scroll) const;
+    const MarcusCaptionStop *CaptionPositions(int &count, int &scroll) const;
     bool CaptionCaret(int offset);
     bool CaptionFontSample(const std::string &family, MM::PreviewImage &image);
 };
