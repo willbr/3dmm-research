@@ -17,6 +17,7 @@
 #define GOB_H
 #include "gfx.h"
 #include "cmd.h"
+#include "mm/script_runtime.h"
 class Cursor;
 typedef Cursor *PCursor;
 
@@ -118,7 +119,7 @@ class GraphicsObject : public GraphicsObject_PAR
     PGraphicsObject _pgobSib;
 
     // variables
-    PDynamicArray _pglrtvm;
+    MMScriptVariables _scriptVariables;
 
     void _SetRcCur(void);
     CoreNative::WindowHandle _HwndGetDptFromCoo(PT *pdpt, long coo);
@@ -228,7 +229,7 @@ class GraphicsObject : public GraphicsObject_PAR
     void MapRc(RC *prc, long cooSrc, long cooDst);
 
     // variables
-    virtual PDynamicArray *Ppglrtvm(void);
+    MMScriptVariables *ScriptVariables(void);
 
     PGraphicsPort Pgpt(void)
     {

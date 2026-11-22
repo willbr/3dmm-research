@@ -62,7 +62,7 @@ class Shuffler : public Shuffler_PAR
     Shuffler(LegacyUlong luSeed = 0L);
     ~Shuffler(void);
     void Shuffle(LegacyLong lwLim);
-    void ShuffleRglw(LegacyLong clw, LegacyLong *prglw);
+    void ShuffleRglw(LegacyLong clw, const void *words);
 
     virtual LegacyLong LwNext(LegacyLong lwLim = 0);
 };

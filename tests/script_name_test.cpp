@@ -3,6 +3,7 @@
 #include "scrcom.h"
 #include "screxe.h"
 #include "framedef.h"
+#include "mssio.h"
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
@@ -68,6 +69,31 @@ static bool CheckScriptResources()
     ReleasePpo(&file);
     return ok;
 }
+static bool CheckInterpreterResume()
+{
+    using namespace ScriptCompiler;
+    using namespace ScriptInterpreter;
+
+    char source[] = "value = _parm[0] + 7; Pause(); value = value * 2; Return(value);\r\n";
+    auto input = FileObject::PfilCreateTemp();
+    CompilerBase compiler;
+    MessageSinkIO errors(stderr);
+    auto script = input && input->FWriteRgb(source, sizeof(source) - 1, 0)
+                      ? compiler.PscptCompileFil(input, fTrue, &errors)
+                      : nullptr;
+    ReleasePpo(&input);
+    if (!script)
+        return false;
+
+    Interpreter interpreter;
+    LegacyLong argument = -3;
+    LegacyLong result = 0;
+    bool paused = false;
+    bool ran = interpreter.FRunScript(script, &argument, 1, &result, &paused) && paused;
+    ReleaseScript(&script);
+    return ran && interpreter.FResume(&result, &paused) && !paused && result == 8;
+}
+
 int main()
 {
     auto input = FileObject::PfilCreateTemp();
@@ -121,6 +147,11 @@ int main()
         std::fputs("Resource reader changed script words or literals.\n", stderr);
         return 1;
     }
-    std::puts("Script names and foreign-order script resources passed.");
+    if (!CheckInterpreterResume())
+    {
+        std::fputs("Script interpreter lost state across pause and resume.\n", stderr);
+        return 1;
+    }
+    std::puts("Script names, foreign-order resources and interpreter resume passed.");
     return 0;
 }

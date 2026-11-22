@@ -18,24 +18,13 @@
 #define SCREXE_H
 
 #include "mm/script_resource.h"
+#include "mm/script_runtime.h"
 
 namespace ScriptInterpreter {
 
 using namespace Chunky;
 using namespace ScriptCompiler;
 using namespace Group;
-
-/****************************************
-    Run-Time Variable Map structure
-****************************************/
-struct RunTimeVariableMap
-{
-    RuntimeVariableName rtvn;
-    LegacyLong lwValue;
-};
-
-bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, LegacyLong *plwValue, LegacyLong *pirtvm);
-bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong lw);
 
 PScript CreateScript();
 PScript FetchScript(const MMResourceAccess &, ChunkTagOrType, ChunkNumber, int *error = nullptr);
@@ -107,8 +96,8 @@ class Interpreter : public Interpreter_PAR
   protected:
     PResourceCache _prca; // the chunky resource file list (may be nil)
     PStringRegistry _pstrg;
-    PDynamicArray _pgllwStack;   // the execution stack
-    PDynamicArray _pglrtvm;      // the local variables
+    MMScriptStack _stack;
+    MMScriptVariables _locals;
     PScript _pscpt;      // the script
     LegacyLong _ilwMac;      // the length of the script
     LegacyLong _ilwCur;      // the current location in the script
@@ -116,13 +105,9 @@ class Interpreter : public Interpreter_PAR
     bool _fPaused : 1; // if we're paused
     LegacyLong _lwReturn;    // the return value from the script
 
-    void _Push(LegacyLong lw)
-    {
-        if (!_fError && !_pgllwStack->FPush(&lw))
-            _Error(fFalse);
-    }
+    void _Push(LegacyLong lw);
     LegacyLong _LwPop(void);
-    LegacyLong *_QlwGet(LegacyLong clw);
+    const void *_StackWords(LegacyLong clw);
     void _Error(bool fAssert);
 
     void _Rotate(LegacyLong clwTot, LegacyLong clwShift);
@@ -143,14 +128,11 @@ class Interpreter : public Interpreter_PAR
     void _AddStrings();
     virtual bool _FExecVarOp(LegacyLong op, RuntimeVariableName *prtvn);
     virtual bool _FExecOp(LegacyLong op);
-    virtual void _PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn);
-    virtual void _AssignVar(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong lw);
-    virtual PDynamicArray _PglrtvmThis(void);
-    virtual PDynamicArray *_PpglrtvmThis(void);
-    virtual PDynamicArray _PglrtvmGlobal(void);
-    virtual PDynamicArray *_PpglrtvmGlobal(void);
-    virtual PDynamicArray _PglrtvmRemote(LegacyLong lw);
-    virtual PDynamicArray *_PpglrtvmRemote(LegacyLong lw);
+    void _PushVar(const MMScriptVariables *variables, RuntimeVariableName *prtvn);
+    void _AssignVar(MMScriptVariables *variables, RuntimeVariableName *prtvn, LegacyLong lw);
+    virtual MMScriptVariables *_ThisVariables(void);
+    virtual MMScriptVariables *_GlobalVariables(void);
+    virtual MMScriptVariables *_RemoteVariables(LegacyLong lw);
 
     virtual short _SwCur(void);
     virtual short _SwMin(void);

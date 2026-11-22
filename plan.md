@@ -1746,6 +1746,11 @@ Compiled scripts use C89 owners for instruction words, literal tables, cache
 binding and references. The compiler and interpreter share that representation,
 and C89 writes the legacy instruction and GSTX sections. The host supplies
 codec, archive placement, and runtime string registry services.
+The interpreter's operand stack, list operations, and local and
+graphics-object variable tables now use C89 storage and algorithms.
+Kidspace resolves the current, global, and remote objects for the same
+variable table API. Opcode dispatch and the runtime string registry
+remain in the native interpreter.
 The script string and colour tables use C-owned storage and cache references.
 C89 normalizes registry IDs, translates counted text through the host codec,
 and merges rows in reverse order. The transition adapter supplies native

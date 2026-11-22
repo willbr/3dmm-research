@@ -1,4 +1,5 @@
 #include "mm/script_resource.h"
+#include "mm/script_runtime.h"
 #include "mm/text.h"
 #include "engine_resource_block_fixture.h"
 #include <stdio.h>
@@ -385,10 +386,71 @@ static void collections(void)
                 CHECK(mm_owned_block_clear(&h.block.owner) == MM_DATA_OK);
             }
 }
+static void runtime(void)
+{
+    MMScriptStack stack;
+    MMScriptVariables local, object;
+    MMI32 values[] = {10, 20, 30, 40, 50, 60};
+    MMI32 rotated[] = {10, 20, 60, 30, 40, 50};
+    MMI32 reversed[] = {10, 20, 50, 40, 30, 60};
+    MMI32 pairs[] = {100, 7, 200, -8, 300, 7};
+    MMI32 value;
+
+    CHECK(mm_script_stack_init(&stack, NULL, 1) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_pop(&stack, &value) == MM_STORAGE_ARGUMENT);
+    CHECK(mm_script_stack_rotate(&stack, 1, -2) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_reserve(&stack, 6) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_push(&stack, values, 6) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_rotate(&stack, 4, -1) == MM_STORAGE_OK);
+    CHECK(!memcmp(mm_script_stack_top(&stack, 6), rotated, sizeof(rotated)));
+    CHECK(mm_script_stack_reverse(&stack, 4) == MM_STORAGE_OK);
+    CHECK(!memcmp(mm_script_stack_top(&stack, 6), reversed, sizeof(reversed)));
+    CHECK(mm_storage_lock(&stack.storage, 0) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_duplicate(&stack, 6) == MM_STORAGE_LOCKED);
+    CHECK(stack.count == 6 && !memcmp(mm_script_stack_top(&stack, 6), reversed, sizeof(reversed)));
+    CHECK(mm_storage_unlock(&stack.storage, 0) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_duplicate(&stack, 6) == MM_STORAGE_OK);
+    CHECK(stack.count == 12 && !memcmp(mm_script_stack_top(&stack, 6), reversed, sizeof(reversed)));
+    CHECK(mm_script_stack_drop(&stack, 13) == MM_STORAGE_ARGUMENT);
+    CHECK(mm_script_stack_select(&stack, 6, 1) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_pop(&stack, &value) == MM_STORAGE_OK && value == 30);
+    CHECK(!memcmp(mm_script_stack_top(&stack, 6), reversed, sizeof(reversed)));
+    CHECK(mm_script_stack_drop(&stack, 6) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_push(&stack, pairs, 6) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_match(&stack, 0x7fffffff, 7, 41) == MM_STORAGE_ARGUMENT);
+    CHECK(mm_script_stack_match(&stack, 3, 7, 41) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_pop(&stack, &value) == MM_STORAGE_OK && value == 300);
+    CHECK(mm_script_stack_push(&stack, pairs, 6) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_match(&stack, 3, 6, 41) == MM_STORAGE_OK);
+    CHECK(mm_script_stack_pop(&stack, &value) == MM_STORAGE_OK && value == 41);
+    mm_script_stack_dispose(&stack);
+    CHECK(stack.count == 0 && !stack.storage.buffers[0].data);
+    CHECK(mm_script_stack_push(&stack, &value, 1) == MM_STORAGE_OK);
+    mm_script_stack_dispose(&stack);
+
+    CHECK(mm_script_variables_init(&local, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_variables_init(&object, NULL) == MM_STORAGE_OK);
+    CHECK(mm_script_variables_set(&local, 0xffffffffUL, 0, -2));
+    CHECK(mm_script_variables_set(&local, 0, 0xffffffffUL, -3));
+    CHECK(mm_script_variables_set(&local, 0, 1, 10));
+    CHECK(mm_script_variables_set(&local, 0, 0xffffffffUL, 12));
+    CHECK(mm_script_variables_set(&object, 0, 1, 45));
+    CHECK(local.count == 3 && object.count == 1);
+    CHECK(mm_script_variables_get(&local, 0xffffffffUL, 0, &value) && value == -2);
+    CHECK(mm_script_variables_get(&local, 0, 0xffffffffUL, &value) && value == 12);
+    CHECK(mm_script_variables_get(&local, 0, 1, &value) && value == 10);
+    CHECK(mm_script_variables_get(&object, 0, 1, &value) && value == 45);
+    CHECK(!mm_script_variables_get(&object, 0, 0xffffffffUL, &value) && value == 45);
+    mm_script_variables_dispose(&local);
+    CHECK(!mm_script_variables_get(&local, 0, 1, &value) && value == 45);
+    mm_script_variables_dispose(&object);
+}
+
 int main(void)
 {
     scripts();
     collections();
-    puts("C89 script, literal, registry and colour resource reads passed");
+    runtime();
+    puts("C89 script resources, operand stack and variable scopes passed");
     return 0;
 }

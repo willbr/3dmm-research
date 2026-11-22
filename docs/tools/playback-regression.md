@@ -21291,3 +21291,29 @@ The retail and V3DMM evidence came from retained four-player suite
 
 Traces and Studio canvases are under `tmp/c89-compiled-script`.
 Playback captures are under `tmp/c89-kd`.
+
+## C89 script execution storage (22 November 2026)
+
+The operand stack and variable tables now use shared C89 storage. The stack
+also handles list rotation, reversal, duplication, selection and matching.
+The fixtures exercise signed rotation, duplicate growth and failure, match
+precedence and fallback, unsigned variable keys, and resuming a compiled
+script after its caller releases it.
+
+The 199 engine, core link and C89 checks passed, along with 13 native x64,
+12 SDL, seven native x86 and Chomp pipeline checks. The x86 Help and Chunk
+Editors built. Marcus relaunched with SDL dummy video. Headless Studio
+passed the original room and Help workflows, cold and warm ISO runs with
+MIDI preview, and authoring save/reopen. Five smoke canvases, the ISO lobby,
+the Help and cache traces, and nine movie saves matched the retained build.
+The native x64 `scene-load` test reproduced fingerprint `0D666753` and
+its identical 63,224-byte trace.
+
+The SDL Studio and Marcus runs in `20261122T112458Z-b1facc15` matched the
+60 seek canvases per port, camera and actor state, and continuous frame
+order from `20261122T110934Z-09f42cc2`. Both ports also matched the frame
+order of the retained retail and V3DMM runs in `20261122T081603Z-7ffc4e8e`.
+This fixture produces no sound requests.
+
+Traces and Studio canvases are under `tmp/c89-script-runtime`.
+Playback captures are under `tmp/c89-kd`.

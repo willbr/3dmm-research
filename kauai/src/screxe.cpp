@@ -11,10 +11,10 @@
     of compiled scripts.
 
 ***************************************************************************/
-#include <cstring>
 #include "util.h"
 ASSERTNAME
 #include "script_resource_host.h"
+#include "handle_services.h"
 
 namespace ScriptInterpreter {
 
@@ -34,8 +34,8 @@ Interpreter::Interpreter(PResourceCache prca, PStringRegistry pstrg)
     AssertNilOrPo(prca, 0);
     AssertNilOrPo(pstrg, 0);
 
-    _pgllwStack = pvNil;
-    _pglrtvm = pvNil;
+    AssertDo(mm_script_stack_init(&_stack, KauaiCopyAllocator(), Debug(1 +) 0) == MM_STORAGE_OK, 0);
+    AssertDo(mm_script_variables_init(&_locals, KauaiCopyAllocator()) == MM_STORAGE_OK, 0);
     _pscpt = pvNil;
     _fPaused = fFalse;
 
@@ -67,21 +67,21 @@ void Interpreter::Free(void)
     AssertThis(0);
 
     // nuke literal strings left in the global string table
-    if (pvNil != _pscpt && pvNil != _pstrg && mm_script_has_literals(_pscpt) && pvNil != _pglrtvm)
+    if (pvNil != _pscpt && pvNil != _pstrg && mm_script_has_literals(_pscpt) && _locals.count)
     {
         RuntimeVariableName rtvn;
-        LegacyLong stid;
+        MMI32 stid;
 
         rtvn.lu1 = 0;
         for (rtvn.lu2 = mm_script_literal_count(_pscpt); rtvn.lu2-- > 0;)
         {
-            if (FFindRtvm(_pglrtvm, &rtvn, &stid, pvNil))
+            if (mm_script_variables_get(&_locals, rtvn.lu1, rtvn.lu2, &stid))
                 _pstrg->Delete(stid);
         }
     }
 
-    ReleasePpo(&_pgllwStack);
-    ReleasePpo(&_pglrtvm);
+    mm_script_stack_dispose(&_stack);
+    mm_script_variables_dispose(&_locals);
     ReleaseScript(&_pscpt);
     _fPaused = fFalse;
 }
@@ -95,14 +95,12 @@ void Interpreter::AssertValid(LegacyUlong grfsceb)
     Interpreter_PAR::AssertValid(0);
     if (grfsceb & fscebRunnable)
     {
-        Assert(pvNil != _pgllwStack, "nil stack");
+        Assert(pvNil != _stack.storage.buffers[0].data, "nil stack");
         Assert(pvNil != _pscpt, "nil script");
         Assert(_ilwMac == static_cast<LegacyLong>(mm_script_word_count(_pscpt)), 0);
         AssertIn(_ilwCur, 1, _ilwMac + 1);
         Assert(!_fError, 0);
     }
-    AssertNilOrPo(_pgllwStack, 0);
-    AssertNilOrPo(_pglrtvm, 0);
     AssertNilOrPo(_pstrg, 0);
     AssertNilOrPo(_prca, 0);
 }
@@ -114,9 +112,9 @@ void Interpreter::MarkMem(void)
 {
     AssertValid(0);
     Interpreter_PAR::MarkMem();
-    MarkMemObj(_pgllwStack);
+    MarkPv(_stack.storage.buffers[0].data);
     MarkScript(_pscpt);
-    MarkMemObj(_pglrtvm);
+    MarkPv(_locals.storage.buffers[0].data);
     MarkMemObj(_prca);
 }
 #endif // DEBUG
@@ -150,10 +148,8 @@ bool Interpreter::FAttachScript(PScript pscpt, LegacyLong *prglw, LegacyLong clw
     _lwReturn = 0;
     _fError = fFalse;
 
-    // create the stack DynamicArray
-    if (pvNil == (_pgllwStack = DynamicArray::PglNew(size(LegacyLong), 10)))
+    if (mm_script_stack_reserve(&_stack, 10) != MM_STORAGE_OK)
         goto LFail;
-    _pgllwStack->SetMinGrow(10);
 
     // check the version
     // get and check the version number
@@ -248,15 +244,13 @@ bool Interpreter::FResume(LegacyLong *plwReturn, bool *pfPaused)
         // push the stack stuff (if we didn't do a jump)
         if (clwPush > 0 && ilw == _ilwCur)
         {
-            ilw = _pgllwStack->IvMac();
-            if (!_pgllwStack->FSetIvMac(ilw + clwPush))
+            if (mm_script_stack_push(&_stack, mm_script_word_span(_pscpt, _ilwCur, clwPush), clwPush) !=
+                MM_STORAGE_OK)
             {
             LFail:
                 _Error(fFalse);
                 break;
             }
-            std::memcpy(_pgllwStack->QvGet(ilw), mm_script_word_span(_pscpt, _ilwCur, clwPush),
-                        LwMul(clwPush, size(LegacyLong)));
             _ilwCur += clwPush;
         }
     }
@@ -289,13 +283,13 @@ void Interpreter::_AddParameters(LegacyLong *prglw, LegacyLong clw)
     // put the parameters in the local variable gl
     stn = PszLit("_cparm");
     rtvn.SetFromStn(&stn);
-    _AssignVar(&_pglrtvm, &rtvn, clw);
+    _AssignVar(&_locals, &rtvn, clw);
     stn = PszLit("_parm");
     rtvn.SetFromStn(&stn);
     for (ilw = 0; ilw < clw; ilw++)
     {
         rtvn.lu1 = LwHighLow(SwLow(ilw), SwLow(rtvn.lu1));
-        _AssignVar(&_pglrtvm, &rtvn, prglw[ilw]);
+        _AssignVar(&_locals, &rtvn, prglw[ilw]);
     }
 }
 
@@ -324,7 +318,7 @@ void Interpreter::_AddStrings()
             _Error(fFalse);
             break;
         }
-        _AssignVar(&_pglrtvm, &rtvn, stid);
+        _AssignVar(&_locals, &rtvn, stid);
         if (_fError)
         {
             _pstrg->Delete(stid);
@@ -374,32 +368,32 @@ bool Interpreter::_FExecVarOp(LegacyLong op, RuntimeVariableName *prtvn)
     switch (op)
     {
     case kopPushLocVar:
-        _PushVar(_pglrtvm, prtvn);
+        _PushVar(&_locals, prtvn);
         break;
     case kopPopLocVar:
-        _AssignVar(&_pglrtvm, prtvn, _LwPop());
+        _AssignVar(&_locals, prtvn, _LwPop());
         break;
     case kopPushThisVar:
-        _PushVar(_PglrtvmThis(), prtvn);
+        _PushVar(_ThisVariables(), prtvn);
         break;
     case kopPopThisVar:
-        _AssignVar(_PpglrtvmThis(), prtvn, _LwPop());
+        _AssignVar(_ThisVariables(), prtvn, _LwPop());
         break;
     case kopPushGlobalVar:
-        _PushVar(_PglrtvmGlobal(), prtvn);
+        _PushVar(_GlobalVariables(), prtvn);
         break;
     case kopPopGlobalVar:
-        _AssignVar(_PpglrtvmGlobal(), prtvn, _LwPop());
+        _AssignVar(_GlobalVariables(), prtvn, _LwPop());
         break;
     case kopPushRemoteVar:
         lw = _LwPop();
         if (!_fError)
-            _PushVar(_PglrtvmRemote(lw), prtvn);
+            _PushVar(_RemoteVariables(lw), prtvn);
         break;
     case kopPopRemoteVar:
         lw = _LwPop();
         if (!_fError)
-            _AssignVar(_PpglrtvmRemote(lw), prtvn, _LwPop());
+            _AssignVar(_RemoteVariables(lw), prtvn, _LwPop());
         break;
     default:
         _Error(fTrue);
@@ -622,13 +616,13 @@ bool Interpreter::_FExecOp(LegacyLong op)
             _Error(fTrue);
         else
         {
-            LegacyLong *prglw;
-
-            _pgllwStack->Lock();
-            prglw = _QlwGet(lw1);
-            if (pvNil != prglw)
-                vsflUtil.ShuffleRglw(lw1, prglw);
-            _pgllwStack->Unlock();
+            const void *words = _StackWords(lw1);
+            if (words)
+            {
+                AssertDo(mm_storage_lock(&_stack.storage, 0) == MM_STORAGE_OK, 0);
+                vsflUtil.ShuffleRglw(lw1, words);
+                AssertDo(mm_storage_unlock(&_stack.storage, 0) == MM_STORAGE_OK, 0);
+            }
         }
         break;
     case kopMatch:
@@ -685,43 +679,32 @@ bool Interpreter::_FExecOp(LegacyLong op)
     return !_fError;
 }
 
-/***************************************************************************
-    Pop a long off the stack.
-***************************************************************************/
-LegacyLong Interpreter::_LwPop(void)
+void Interpreter::_Push(LegacyLong lw)
 {
-    LegacyLong lw, ilw;
-
-    if (_fError)
-        return 0;
-
-    // this is faster than just doing FPop
-    if ((ilw = _pgllwStack->IvMac()) == 0)
-    {
-        _Error(fTrue);
-        return 0;
-    }
-    lw = *(LegacyLong *)_pgllwStack->QvGet(--ilw);
-    AssertDo(_pgllwStack->FSetIvMac(ilw), 0);
-    return lw;
+    const MMI32 word = lw;
+    if (!_fError && mm_script_stack_push(&_stack, &word, 1) != MM_STORAGE_OK)
+        _Error(fFalse);
 }
 
-/***************************************************************************
-    Get a pointer to the element that is clw elements down from the top.
-***************************************************************************/
-LegacyLong *Interpreter::_QlwGet(LegacyLong clw)
+LegacyLong Interpreter::_LwPop(void)
 {
-    LegacyLong ilwMac;
+    MMI32 word;
+    if (_fError)
+        return 0;
+    if (mm_script_stack_pop(&_stack, &word) == MM_STORAGE_OK)
+        return word;
+    _Error(fTrue);
+    return 0;
+}
 
+const void *Interpreter::_StackWords(LegacyLong clw)
+{
     if (_fError)
         return pvNil;
-    ilwMac = _pgllwStack->IvMac();
-    if (!FIn(clw, 1, ilwMac + 1))
-    {
+    const void *words = mm_script_stack_top(&_stack, clw);
+    if (!words)
         _Error(fTrue);
-        return pvNil;
-    }
-    return (LegacyLong *)_pgllwStack->QvGet(ilwMac - clw);
+    return words;
 }
 
 /***************************************************************************
@@ -766,147 +749,45 @@ void Interpreter::_WarnSz(PZString psz, ...)
 }
 #endif // DEBUG
 
-/***************************************************************************
-    Rotate clwTot entries on the stack left by clwShift positions.
-***************************************************************************/
 void Interpreter::_Rotate(LegacyLong clwTot, LegacyLong clwShift)
 {
-    AssertThis(0);
-    LegacyLong *qlw;
-
-    if (clwTot == 0 || clwTot == 1)
-        return;
-
-    qlw = _QlwGet(clwTot);
-    if (qlw != pvNil)
-    {
-        clwShift %= clwTot;
-        if (clwShift < 0)
-            clwShift += clwTot;
-        AssertIn(clwShift, 0, clwTot);
-        if (clwShift != 0)
-        {
-            SwapBlocks(qlw, LwMul(clwShift, size(LegacyLong)), LwMul(clwTot - clwShift, size(LegacyLong)));
-        }
-    }
+    if (!_fError && mm_script_stack_rotate(&_stack, clwTot, clwShift) != MM_STORAGE_OK)
+        _Error(fTrue);
 }
 
-/***************************************************************************
-    Reverse clw entries on the stack.
-***************************************************************************/
 void Interpreter::_Reverse(LegacyLong clw)
 {
-    AssertThis(0);
-    LegacyLong *qlw, *qlw2;
-    LegacyLong lw;
-
-    if (clw == 0 || clw == 1)
-        return;
-
-    qlw = _QlwGet(clw);
-    if (qlw != pvNil)
-    {
-        for (qlw2 = qlw + clw - 1; qlw2 > qlw;)
-        {
-            lw = *qlw;
-            *qlw++ = *qlw2;
-            *qlw2-- = lw;
-        }
-    }
+    if (!_fError && mm_script_stack_reverse(&_stack, clw) != MM_STORAGE_OK)
+        _Error(fTrue);
 }
 
-/***************************************************************************
-    Duplicate clw entries on the stack.
-***************************************************************************/
 void Interpreter::_DupList(LegacyLong clw)
 {
-    AssertThis(0);
-    LegacyLong *qlw;
-
-    if (clw == 0)
+    if (_fError)
         return;
-
-    //_QlwGet checks for bad values of clw
-    if (_QlwGet(clw) == pvNil)
-        return;
-
-    if (!_pgllwStack->FSetIvMac(_pgllwStack->IvMac() + clw))
-        _Error(fFalse);
-    else
-    {
-        qlw = _QlwGet(clw * 2);
-        Assert(qlw != pvNil, "why did _QlwGet fail?");
-        CopyPb(qlw, qlw + clw, LwMul(clw, size(LegacyLong)));
-    }
+    const int result = mm_script_stack_duplicate(&_stack, clw);
+    if (result != MM_STORAGE_OK)
+        _Error(result == MM_STORAGE_ARGUMENT);
 }
 
-/***************************************************************************
-    Removes clw entries from the stack.
-***************************************************************************/
 void Interpreter::_PopList(LegacyLong clw)
 {
-    AssertThis(0);
-    LegacyLong ilwMac;
-
-    if (clw == 0 || _fError)
-        return;
-
-    ilwMac = _pgllwStack->IvMac();
-    if (!FIn(clw, 1, ilwMac + 1))
+    if (!_fError && mm_script_stack_drop(&_stack, clw) != MM_STORAGE_OK)
         _Error(fTrue);
-    else
-        AssertDo(_pgllwStack->FSetIvMac(ilwMac - clw), "why fail?");
 }
 
-/***************************************************************************
-    Select the ilw'th entry from the top clw entries.  ilw is indexed from
-    the top entry in and is zero based.
-***************************************************************************/
 void Interpreter::_Select(LegacyLong clw, LegacyLong ilw)
 {
-    AssertThis(0);
-    LegacyLong *qlw;
-
-    if (pvNil == (qlw = _QlwGet(clw)))
-        return;
-
-    if (!FIn(ilw, 0, clw))
+    if (!_fError && mm_script_stack_select(&_stack, clw, ilw) != MM_STORAGE_OK)
         _Error(fTrue);
-    else if (clw > 1)
-    {
-        qlw[0] = qlw[clw - 1 - ilw];
-        _PopList(clw - 1);
-    }
 }
 
-/***************************************************************************
-    The top value is the key, the next is the default return, then come
-    clw pairs of test values and return values.  If the key matches a
-    test value, push the correspongind return value.  Otherwise, push
-    the default return value.
-***************************************************************************/
 void Interpreter::_Match(LegacyLong clw)
 {
-    AssertThis(0);
-    LegacyLong *qrglw;
-    LegacyLong lwKey, lwPush, ilwTest;
-
-    lwKey = _LwPop();
-    lwPush = _LwPop();
-    if (pvNil == (qrglw = _QlwGet(2 * clw)))
-        return;
-
-    // start at high memory (top of the stack).
-    for (ilwTest = 2 * clw - 1; ilwTest > 0; ilwTest -= 2)
-    {
-        if (qrglw[ilwTest] == lwKey)
-        {
-            lwPush = qrglw[ilwTest - 1];
-            break;
-        }
-    }
-    qrglw[0] = lwPush;
-    _PopList(2 * clw - 1);
+    const LegacyLong key = _LwPop();
+    const LegacyLong fallback = _LwPop();
+    if (!_fError && mm_script_stack_match(&_stack, clw, key, fallback) != MM_STORAGE_OK)
+        _Error(fTrue);
 }
 
 /***************************************************************************
@@ -1108,17 +989,16 @@ void Interpreter::_StrToNum(LegacyLong stid, LegacyLong lwEmpty, LegacyLong lwEr
 /***************************************************************************
     Push the value of a variable onto the runtime stack.
 ***************************************************************************/
-void Interpreter::_PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn)
+void Interpreter::_PushVar(const MMScriptVariables *variables, RuntimeVariableName *prtvn)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
-    AssertNilOrPo(pglrtvm, 0);
-    LegacyLong lw;
+    MMI32 lw;
 
     if (_fError)
         return;
 
-    if (pvNil == pglrtvm || !FFindRtvm(pglrtvm, prtvn, &lw, pvNil))
+    if (!mm_script_variables_get(variables, prtvn->lu1, prtvn->lu2, &lw))
     {
 #ifdef DEBUG
         prtvn->GetStn(&_stn);
@@ -1130,158 +1010,32 @@ void Interpreter::_PushVar(PDynamicArray pglrtvm, RuntimeVariableName *prtvn)
         _Push(lw);
 }
 
-/***************************************************************************
-    Pop the top value off the runtime stack into a variable.
-***************************************************************************/
-void Interpreter::_AssignVar(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong lw)
+void Interpreter::_AssignVar(MMScriptVariables *variables, RuntimeVariableName *prtvn, LegacyLong lw)
 {
     AssertThis(0);
     AssertVarMem(prtvn);
-    AssertNilOrVarMem(ppglrtvm);
 
     if (_fError)
         return;
-
-    if (pvNil == ppglrtvm)
-    {
+    if (!variables)
         _Error(fTrue);
-        return;
-    }
-
-    if (!FAssignRtvm(ppglrtvm, prtvn, lw))
+    else if (!mm_script_variables_set(variables, prtvn->lu1, prtvn->lu2, lw))
         _Error(fFalse);
 }
 
-/***************************************************************************
-    Get the variable map for "this" object.
-***************************************************************************/
-PDynamicArray Interpreter::_PglrtvmThis(void)
-{
-    PDynamicArray *ppgl = _PpglrtvmThis();
-    if (pvNil == ppgl)
-        return pvNil;
-    return *ppgl;
-}
-
-/***************************************************************************
-    Get the adress of the variable map master pointer for "this" object
-    (so we can create the variable map if need be).
-***************************************************************************/
-PDynamicArray *Interpreter::_PpglrtvmThis(void)
+MMScriptVariables *Interpreter::_ThisVariables(void)
 {
     return pvNil;
 }
 
-/***************************************************************************
-    Get the variable map for "global" variables.
-***************************************************************************/
-PDynamicArray Interpreter::_PglrtvmGlobal(void)
-{
-    PDynamicArray *ppgl = _PpglrtvmGlobal();
-    if (pvNil == ppgl)
-        return pvNil;
-    return *ppgl;
-}
-
-/***************************************************************************
-    Get the adress of the variable map master pointer for "global" variables
-    (so we can create the variable map if need be).
-***************************************************************************/
-PDynamicArray *Interpreter::_PpglrtvmGlobal(void)
+MMScriptVariables *Interpreter::_GlobalVariables(void)
 {
     return pvNil;
 }
 
-/***************************************************************************
-    Get the variable map for a remote object.
-***************************************************************************/
-PDynamicArray Interpreter::_PglrtvmRemote(LegacyLong lw)
-{
-    PDynamicArray *ppgl = _PpglrtvmRemote(lw);
-    if (pvNil == ppgl)
-        return pvNil;
-    return *ppgl;
-}
-
-/***************************************************************************
-    Get the adress of the variable map master pointer for a remote object
-    (so we can create the variable map if need be).
-***************************************************************************/
-PDynamicArray *Interpreter::_PpglrtvmRemote(LegacyLong lw)
+MMScriptVariables *Interpreter::_RemoteVariables(LegacyLong)
 {
     return pvNil;
-}
-
-/***************************************************************************
-    Find a RunTimeVariableMap in the pglrtvm.  Assumes the pglrtvm is sorted by rtvn.
-    If the RuntimeVariableName is not in the DynamicArray, sets *pirtvm to where it would be if
-    it were.
-***************************************************************************/
-bool FFindRtvm(PDynamicArray pglrtvm, RuntimeVariableName *prtvn, LegacyLong *plw, LegacyLong *pirtvm)
-{
-    AssertPo(pglrtvm, 0);
-    AssertVarMem(prtvn);
-    AssertNilOrVarMem(plw);
-    AssertNilOrVarMem(pirtvm);
-    RunTimeVariableMap *qrgrtvm, *qrtvm;
-    LegacyLong irtvm, irtvmMin, irtvmLim;
-
-    qrgrtvm = (RunTimeVariableMap *)pglrtvm->QvGet(0);
-    for (irtvmMin = 0, irtvmLim = pglrtvm->IvMac(); irtvmMin < irtvmLim;)
-    {
-        irtvm = (irtvmMin + irtvmLim) / 2;
-        qrtvm = qrgrtvm + irtvm;
-        if (qrtvm->rtvn.lu1 < prtvn->lu1)
-            irtvmMin = irtvm + 1;
-        else if (qrtvm->rtvn.lu1 > prtvn->lu1)
-            irtvmLim = irtvm;
-        else if (qrtvm->rtvn.lu2 < prtvn->lu2)
-            irtvmMin = irtvm + 1;
-        else if (qrtvm->rtvn.lu2 > prtvn->lu2)
-            irtvmLim = irtvm;
-        else
-        {
-            // we found it
-            if (pvNil != plw)
-                *plw = qrtvm->lwValue;
-            if (pvNil != pirtvm)
-                *pirtvm = irtvm;
-            return fTrue;
-        }
-    }
-    TrashVar(plw);
-    if (pvNil != pirtvm)
-        *pirtvm = irtvmMin;
-    return fFalse;
-}
-
-/***************************************************************************
-    Put the given value into a runtime variable.
-***************************************************************************/
-bool FAssignRtvm(PDynamicArray *ppglrtvm, RuntimeVariableName *prtvn, LegacyLong lw)
-{
-    AssertVarMem(ppglrtvm);
-    AssertNilOrPo(*ppglrtvm, 0);
-    AssertVarMem(prtvn);
-    RunTimeVariableMap rtvm;
-    LegacyLong irtvm;
-
-    rtvm.lwValue = lw;
-    rtvm.rtvn = *prtvn;
-    if (pvNil == *ppglrtvm)
-    {
-        if (pvNil == (*ppglrtvm = DynamicArray::PglNew(size(RunTimeVariableMap))))
-            return fFalse;
-        (*ppglrtvm)->SetMinGrow(10);
-        irtvm = 0;
-    }
-    else if (FFindRtvm(*ppglrtvm, prtvn, pvNil, &irtvm))
-    {
-        (*ppglrtvm)->Put(irtvm, &rtvm);
-        return fTrue;
-    }
-
-    return (*ppglrtvm)->FInsert(irtvm, &rtvm);
 }
 
 PScript CreateScript()

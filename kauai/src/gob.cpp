@@ -16,6 +16,7 @@
 #include <cmath>
 #endif
 #include "frame.h"
+#include "handle_services.h"
 ASSERTNAME
 
 BEGIN_CMD_MAP(GraphicsObject, CommandHandler)
@@ -88,6 +89,7 @@ void GraphicsObject::_Init(PGraphicsObjectBlock pgcb)
     AssertVarMem(pgcb);
     AssertNilOrPo(pgcb->_pgob, 0);
 
+    AssertDo(mm_script_variables_init(&_scriptVariables, KauaiCopyAllocator()) == MM_STORAGE_OK, 0);
     _grid = ++_gridLast;
     _ginDefault = pgcb->_gin;
     _fCreating = fTrue;
@@ -178,7 +180,7 @@ GraphicsObject::~GraphicsObject(void)
         ReleasePpo(&_pgpt);
     if (_hwnd != hNil)
         _DestroyHwnd(_hwnd);
-    ReleasePpo(&_pglrtvm);
+    mm_script_variables_dispose(&_scriptVariables);
     ReleasePpo(&_pcurs);
 }
 
@@ -1924,10 +1926,10 @@ void GraphicsObject::SetCursCno(PResourceCache prca, ChunkNumber cno)
     Return the address of the variable list belonging to this gob.  When the
     gob is freed, the pointer is no longer valid.
 ***************************************************************************/
-PDynamicArray *GraphicsObject::Ppglrtvm(void)
+MMScriptVariables *GraphicsObject::ScriptVariables(void)
 {
     AssertThis(0);
-    return &_pglrtvm;
+    return &_scriptVariables;
 }
 
 /***************************************************************************
@@ -1976,7 +1978,7 @@ void GraphicsObject::MarkMem(void)
     AssertValid(0);
     GraphicsObject_PAR::MarkMem();
     MarkMemObj(_pgpt);
-    MarkMemObj(_pglrtvm);
+    MarkPv(_scriptVariables.storage.buffers[0].data);
 }
 
 /***************************************************************************

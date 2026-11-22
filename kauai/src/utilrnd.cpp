@@ -10,6 +10,7 @@
     Some "random" stuff
 
 ***************************************************************************/
+#include <cstring>
 #include "util.h"
 
 ASSERTNAME
@@ -143,21 +144,20 @@ void Shuffler::Shuffle(LegacyLong lwLim)
 }
 
 /***************************************************************************
-    Fill the Shuffler with the values in prglw and shuffle them.
+    Fill the Shuffler with the given words and shuffle them.
 ***************************************************************************/
-void Shuffler::ShuffleRglw(LegacyLong clw, LegacyLong *prglw)
+void Shuffler::ShuffleRglw(LegacyLong clw, const void *words)
 {
     AssertThis(0);
     AssertIn(clw, 0, kcbMax);
-    AssertPvCb(prglw, LwMul(clw, size(LegacyLong)));
+    AssertPvCb(const_cast<void *>(words), LwMul(clw, size(LegacyLong)));
 
     if (!_FEnsureHq(clw))
         return;
     _ilw = 0;
     Assert(_clw == clw, "wrong _clw");
 
-    // fill the HQ with the stuff in prglw
-    CopyPb(prglw, QvFromHq(_hqrglw), LwMul(clw, size(LegacyLong)));
+    std::memcpy(QvFromHq(_hqrglw), words, LwMul(clw, size(LegacyLong)));
 
     _fCustom = fTrue;
     _ShuffleCore();

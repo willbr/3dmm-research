@@ -39,7 +39,7 @@ struct TopicGraphicsObject::BuildHost : TextDocumentFactoryHost
                 String name(PszLit("_gidBase"));
                 RuntimeVariableName key;
                 key.SetFromStn(&name);
-                return FAssignRtvm(h.owner->PgobPar()->Ppglrtvm(), &key, value);
+                return mm_script_variables_set(h.owner->PgobPar()->ScriptVariables(), key.lu1, key.lu2, value);
             });
         };
         s.cache = [](void *v) {

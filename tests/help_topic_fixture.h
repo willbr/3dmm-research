@@ -10,13 +10,11 @@ struct HelpTopicWorld : HelpTraceWorld
     }
     long Base()
     {
-        if (!*Ppglrtvm())
-            return 0;
         String name(PszLit("_gidBase"));
         RuntimeVariableName key;
         key.SetFromStn(&name);
-        LegacyLong value = 0;
-        FFindRtvm(*Ppglrtvm(), &key, &value, nullptr);
+        MMI32 value = 0;
+        mm_script_variables_get(ScriptVariables(), key.lu1, key.lu2, &value);
         return value;
     }
     PCommandHandler PcmhFromHid(long id) override

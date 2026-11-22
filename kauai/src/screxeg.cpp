@@ -10,6 +10,7 @@
     Script interpreter for GraphicsObject based scripts.
 
 ***************************************************************************/
+#include <cstring>
 #include "kidframe.h"
 ASSERTNAME
 #include "script_resource_host.h"
@@ -104,36 +105,36 @@ PGraphicsObject GraphicsObjectInterpreter::_PgobFromHid(LegacyLong hid)
     Return the address of the variable table for the GraphicsObject associated with
     this script interpreter.
 ***************************************************************************/
-PDynamicArray *GraphicsObjectInterpreter::_PpglrtvmThis(void)
+MMScriptVariables *GraphicsObjectInterpreter::_ThisVariables(void)
 {
     PGraphicsObject pgob = _PgobThis();
 
     if (pvNil == pgob)
         return pvNil;
-    return pgob->Ppglrtvm();
+    return pgob->ScriptVariables();
 }
 
 /***************************************************************************
     Return the address of the variable table for the WorldOfKidspace associated with
     this script interpreter.
 ***************************************************************************/
-PDynamicArray *GraphicsObjectInterpreter::_PpglrtvmGlobal(void)
+MMScriptVariables *GraphicsObjectInterpreter::_GlobalVariables(void)
 {
     AssertThis(0);
 
-    return _pwoks->Ppglrtvm();
+    return _pwoks->ScriptVariables();
 }
 
 /***************************************************************************
     Return the address of the variable table for the GraphicsObject with given hid.
 ***************************************************************************/
-PDynamicArray *GraphicsObjectInterpreter::_PpglrtvmRemote(LegacyLong lw)
+MMScriptVariables *GraphicsObjectInterpreter::_RemoteVariables(LegacyLong lw)
 {
     PGraphicsObject pgob = _PgobFromHid(lw);
 
     if (pvNil == pgob)
         return pvNil;
-    return pgob->Ppglrtvm();
+    return pgob->ScriptVariables();
 }
 
 /***************************************************************************
@@ -165,7 +166,7 @@ bool GraphicsObjectInterpreter::_FExecOp(LegacyLong op)
     LegacyLong dtim;
     LegacyLong dxp, dyp;
     LegacyLong lw1, lw2, lw3, lw4, clw;
-    LegacyLong *qrglw;
+    const void *words;
     void *pv;
 
     hid = _hid; // for "this" operations
@@ -312,7 +313,7 @@ bool GraphicsObjectInterpreter::_FExecOp(LegacyLong op)
 
         if (clw > 0)
         {
-            if (pvNil == _QlwGet(clw))
+            if (!_StackWords(clw))
                 break;
             if (!FAllocPv(&pv, LwMul(size(LegacyLong), clw), fmemNil, mprNormal))
             {
@@ -323,7 +324,7 @@ bool GraphicsObjectInterpreter::_FExecOp(LegacyLong op)
             }
             else
             {
-                CopyPb(_QlwGet(clw), pv, LwMul(size(LegacyLong), clw));
+                std::memcpy(pv, _StackWords(clw), LwMul(size(LegacyLong), clw));
                 ReverseRglw(pv, clw);
                 _PopList(clw);
             }
@@ -853,10 +854,12 @@ bool GraphicsObjectInterpreter::_FExecOp(LegacyLong op)
 
             if (pvNil != pgob && pgob->FIs(kclsKidspaceGraphicObject))
             {
-                if (pvNil != (qrglw = _QlwGet(7)))
+                if (pvNil != (words = _StackWords(7)))
                 {
+                    MMI32 args[7];
+                    std::memcpy(args, words, sizeof(args));
                     lw1 = ((PKidspaceGraphicObject)pgob)
-                              ->SiiPlaySound(qrglw[6], qrglw[5], qrglw[4], qrglw[3], qrglw[2], 0, qrglw[1], qrglw[0]);
+                              ->SiiPlaySound(args[6], args[5], args[4], args[3], args[2], 0, args[1], args[0]);
                 }
             }
             else
@@ -868,10 +871,12 @@ bool GraphicsObjectInterpreter::_FExecOp(LegacyLong op)
                 }
 #endif // DEBUG
 
-                if (pvNil != vpsndm && pvNil != (qrglw = _QlwGet(7)))
+                if (pvNil != vpsndm && pvNil != (words = _StackWords(7)))
                 {
-                    lw1 =
-                        vpsndm->SiiPlay(_prca->Resources(), qrglw[6], qrglw[5], qrglw[4], qrglw[3], qrglw[2], 0, qrglw[1], qrglw[0]);
+                    MMI32 args[7];
+                    std::memcpy(args, words, sizeof(args));
+                    lw1 = vpsndm->SiiPlay(_prca->Resources(), args[6], args[5], args[4], args[3], args[2], 0,
+                                          args[1], args[0]);
                 }
             }
             _PopList(7);

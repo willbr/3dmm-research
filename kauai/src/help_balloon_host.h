@@ -207,7 +207,8 @@ struct Balloon::BalloonHost : TextDocumentFactoryHost
                 String name(number ? PszLit("_cnoSound") : PszLit("_ctgSound"));
                 RuntimeVariableName key;
                 key.SetFromStn(&name);
-                return FAssignRtvm(static_cast<PTopicGraphicsObject>(p)->Ppglrtvm(), &key, mm_signed_word(value));
+                return mm_script_variables_set(static_cast<PTopicGraphicsObject>(p)->ScriptVariables(),
+                                               key.lu1, key.lu2, mm_signed_word(value));
             });
         };
         s.info = [](void *v, MMHelpTopic *out) { *out = BalloonTopicData(*static_cast<BalloonHost *>(v)->input); };
