@@ -22339,3 +22339,28 @@ order. Seek and playback order also matched the retained retail and V3DMM
 captures in `20261122T081603Z-7ffc4e8e`.
 
 Snapshots, workflows and checks are under `tmp/c89-preview-actions`.
+
+## C89 Preview actor metadata and costumes (22 November 2026)
+
+C89 owns the actor chunk identity and reads actor lifetime, visibility,
+template and 3D text metadata. Actor information, body posing and animation
+editing share the evaluated fixed-point translation. The C89 catalogue reads
+action ranges and selected costumes, and validates choices for both preview
+body edits and saved costume events.
+
+The added actor catalogue trace reproduced 67 actions, 17 costume entries
+and a 3D text template across five scene objects. All Preview traces and the
+actor image matched 49,624,819 bytes. The headless costume check reproduced
+isolated previews, undo and the native save round trip. Its 2,005-byte movie
+matched exactly. Three storyboard packages reproduced 48 payloads and their
+child links. The 188 retail-content camera traces, five World snapshots,
+Studio saves and canvas captures, and the headless Marcus startup canvas
+also matched. The existing `scene-load` assertion reproduced its
+63,224-byte trace and fingerprint `0D666753`.
+
+The four runs in suite `20261122T172041Z-5a48e354` reproduced both ports'
+60 seek canvases, camera, actor and caption state, and continuous playback
+order. Seek and playback order also matched the retained retail and V3DMM
+captures in `20261122T081603Z-7ffc4e8e`. All 251 selected test runs passed.
+
+Snapshots, workflows and checks are under `tmp/c89-preview-actors`.

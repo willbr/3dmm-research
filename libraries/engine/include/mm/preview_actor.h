@@ -7,6 +7,7 @@
 #include "actor_track.h"
 #include "actor_sound.h"
 #include "resource_cache.h"
+#include "string_value.h"
 #include "wide.h"
 #ifdef __cplusplus
 extern "C"
@@ -19,6 +20,7 @@ extern "C"
     typedef struct MMPreviewActor
     {
         MMActorHeader header;
+        MMU32 number;
         MMActorState state, orientation;
         MMPreviewActorShape shape;
         MMI32 original[3];
@@ -30,6 +32,7 @@ extern "C"
     typedef struct MMPreviewActorDefinition
     {
         MMActorHeader header;
+        MMU32 number;
         float point[3];
     } MMPreviewActorDefinition;
     typedef struct MMPreviewActorServices
@@ -82,6 +85,62 @@ extern "C"
     int mm_preview_actor_create(MMPreviewActor *, const MMPreviewActorDefinition *, const MMPreviewActorServices *);
     /* Borrow typed handles from an actor with owned tracks. */
     MMActorTrack mm_preview_actor_track(const MMPreviewActor *);
+
+    typedef struct MMPreviewActorInfo
+    {
+        MMU32 number, template_type, template_number;
+        MMI32 actor, source, first, last, action, cel;
+        int has_lifetime, prop, text, visible;
+        MMActorPoint position;
+    } MMPreviewActorInfo;
+    void mm_preview_actor_info(const MMPreviewActor *, MMPreviewActorInfo *);
+    typedef struct MMPreviewActorText
+    {
+        MMStringValue name;
+        MMI32 shape, font_source;
+        MMU32 font_number;
+    } MMPreviewActorText;
+    /* The text view borrows the template's counted name. Failure leaves it untouched. */
+    int mm_preview_actor_text(const MMPreviewActor *, MMPreviewActorText *);
+    struct MMTemplateOwner;
+    typedef int MMPreviewActorCelCount(struct MMTemplateOwner *, MMI32, void *);
+    MMI32 mm_preview_actor_action_count(const MMPreviewActor *);
+    MMI32 mm_preview_actor_action_cels(const MMPreviewActor *, MMI32, MMPreviewActorCelCount *);
+
+    struct MMBodyRuntimeServices;
+    struct MMMaterialOwner;
+    typedef struct MMPreviewCostumeCatalog
+    {
+        const struct MMBodyRuntimeServices *body;
+        MMI32 (*count)(struct MMTemplateOwner *, MMI32 set);
+        MMI32 (*id)(struct MMTemplateOwner *, MMI32 set, MMI32 index);
+        struct MMMaterialOwner *(*fetch)(struct MMTemplateOwner *, MMI32 id);
+        int (*accessory)(struct MMTemplateOwner *, MMI32 set);
+    } MMPreviewCostumeCatalog;
+    typedef struct MMPreviewCostumeChoice
+    {
+        MMI32 set, id;
+    } MMPreviewCostumeChoice;
+    typedef struct MMPreviewCostumeEntry
+    {
+        MMPreviewCostumeChoice choice;
+        int selected, accessory;
+    } MMPreviewCostumeEntry;
+    typedef int MMPreviewCostumeVisit(void *, const MMPreviewCostumeEntry *);
+    /* A null visitor validates the catalogue without publishing rows. */
+    int mm_preview_actor_costumes(const MMPreviewActor *, const MMPreviewCostumeCatalog *,
+                                 void *, MMPreviewCostumeVisit *);
+    typedef struct MMPreviewCostumeEdits
+    {
+        const void *context;
+        size_t count;
+        void (*get)(const void *, size_t, MMPreviewCostumeChoice *);
+    } MMPreviewCostumeEdits;
+    typedef int MMPreviewCostumeApply(void *, const MMPreviewCostumeChoice *);
+    /* Validate the catalogue, then apply choices in input order. Failure retains
+     * the completed prefix. A null effect applies the costume to the live body. */
+    int mm_preview_actor_edit_costumes(MMPreviewActor *, const MMPreviewCostumeCatalog *,
+                                      const MMPreviewCostumeEdits *, void *, MMPreviewCostumeApply *);
 
     typedef struct MMPreviewActorDraft
     {

@@ -1,6 +1,9 @@
 #include "mm/preview_actor.h"
 #include "mm/actor_persistence.h"
+#include "mm/body_runtime.h"
+#include "mm/material_resource.h"
 #include "mm/template_create.h"
+#include "mm/text_resource.h"
 #include "mm/wide.h"
 #include <string.h>
 
@@ -12,6 +15,130 @@ MMActorTrack mm_preview_actor_track(const MMPreviewActor *p)
     track.route = (MMActorPath *)p->route;
     track.events = (MMActorEventTable *)p->events;
     return track;
+}
+
+static MMU32 template_flags(const MMPreviewActor *p)
+{
+    return p->tmpl ? mm_template_owner_state((MMTemplateOwner *)p->tmpl)->flags : 0;
+}
+
+void mm_preview_actor_info(const MMPreviewActor *p, MMPreviewActorInfo *out)
+{
+    MMU32 flags = template_flags(p);
+    out->number = p->number;
+    out->template_type = p->header.template_type;
+    out->template_number = p->header.template_number;
+    out->actor = p->header.actor_id;
+    out->source = p->header.source_id;
+    out->has_lifetime = !p->inactive;
+    out->first = p->inactive ? 0 : p->header.first_frame;
+    out->last = p->inactive ? 0 : p->header.last_frame;
+    out->prop = (flags & MM_TEMPLATE_PROP) != 0;
+    out->text = (flags & MM_TEMPLATE_TEXT) != 0;
+    out->visible = !p->inactive && p->state.onStage;
+    out->action = p->state.action;
+    out->cel = p->state.cel;
+    mm_actor_pose_translation(&p->state, &out->position);
+}
+
+int mm_preview_actor_text(const MMPreviewActor *p, MMPreviewActorText *out)
+{
+    MMTemplateOwner *tmpl = (MMTemplateOwner *)p->tmpl;
+    const MMTextDescriptor *text;
+    if (!(template_flags(p) & MM_TEMPLATE_TEXT) || !mm_template_owner_is_text(tmpl))
+        return 0;
+    text = mm_template_owner_descriptor(tmpl);
+    out->name = mm_template_owner_name(tmpl);
+    out->shape = text->shape;
+    out->font_source = text->font.sid;
+    out->font_number = text->font.number;
+    return 1;
+}
+
+MMI32 mm_preview_actor_action_count(const MMPreviewActor *p)
+{
+    return p->tmpl ? mm_template_owner_state((MMTemplateOwner *)p->tmpl)->action_count : 0;
+}
+
+MMI32 mm_preview_actor_action_cels(const MMPreviewActor *p, MMI32 action, MMPreviewActorCelCount *cels)
+{
+    MMI32 count = 0;
+    if (action < 0 || action >= mm_preview_actor_action_count(p) || !cels((MMTemplateOwner *)p->tmpl, action, &count))
+        return 0;
+    return count > 0 ? count : 0;
+}
+
+int mm_preview_actor_costumes(const MMPreviewActor *p, const MMPreviewCostumeCatalog *catalog,
+                             void *context, MMPreviewCostumeVisit *visit)
+{
+    MMTemplateOwner *tmpl = (MMTemplateOwner *)p->tmpl;
+    MMI32 set, sets;
+    if (!tmpl || !p->body || (template_flags(p) & MM_TEMPLATE_TEXT))
+        return 0;
+    sets = mm_body_owner_state((MMBodyOwner *)p->body)->shape.set_count;
+    for (set = 0; set < sets; ++set)
+    {
+        void *material = NULL, *current = NULL;
+        int generic = 0;
+        MMI32 index;
+        mm_body_get_material(p->body, set, &generic, &material, &current, catalog->body);
+        for (index = 0; index < catalog->count(tmpl, set); ++index)
+        {
+            MMPreviewCostumeEntry entry;
+            MMMaterialOwner *costume;
+            entry.choice.set = set;
+            entry.choice.id = catalog->id(tmpl, set, index);
+            costume = catalog->fetch(tmpl, entry.choice.id);
+            if (!costume)
+                return 0;
+            entry.selected = !generic && current == costume;
+            mm_material_owner_release(costume);
+            entry.accessory = catalog->accessory(tmpl, set) != 0;
+            if (visit && !visit(context, &entry))
+                return 0;
+        }
+    }
+    return 1;
+}
+
+int mm_preview_actor_edit_costumes(MMPreviewActor *p, const MMPreviewCostumeCatalog *catalog,
+                                  const MMPreviewCostumeEdits *edits, void *context, MMPreviewCostumeApply *apply)
+{
+    MMTemplateOwner *tmpl = (MMTemplateOwner *)p->tmpl;
+    MMI32 sets;
+    size_t i;
+    if (!mm_preview_actor_costumes(p, catalog, NULL, NULL))
+        return 0;
+    sets = mm_body_owner_state((MMBodyOwner *)p->body)->shape.set_count;
+    for (i = 0; i < edits->count; ++i)
+    {
+        MMPreviewCostumeChoice choice;
+        MMI32 index, count;
+        edits->get(edits->context, i, &choice);
+        if (choice.set < 0 || choice.set >= sets)
+            return 0;
+        count = catalog->count(tmpl, choice.set);
+        for (index = 0; index < count; ++index)
+            if (catalog->id(tmpl, choice.set, index) == choice.id)
+                break;
+        if (index >= count)
+            return 0;
+        if (apply)
+        {
+            int result = apply(context, &choice);
+            if (result <= 0)
+                return result;
+        }
+        else
+        {
+            MMMaterialOwner *costume = catalog->fetch(tmpl, choice.id);
+            if (!costume)
+                return 0;
+            mm_body_set_custom(p->body, costume, catalog->body);
+            mm_material_owner_release(costume);
+        }
+    }
+    return 1;
 }
 
 static void install_track(MMPreviewActor *p, const MMActorTrack *track)
@@ -98,7 +225,9 @@ int mm_preview_actor_load(MMPreviewActor *p, MMU32 number, const MMChunkAccess *
     const MMActorMotionServices *m = &s->timeline.motion;
     MMActorEvent e;
     MMI32 i, n, last;
-    int r = s->header(s->context, number, &p->header);
+    int r;
+    p->number = number;
+    r = s->header(s->context, number, &p->header);
     if (r <= 0)
         return r;
     r = s->route(s->context, number, &p->route);
@@ -150,6 +279,7 @@ int mm_preview_actor_create(MMPreviewActor *p, const MMPreviewActorDefinition *d
     unsigned short angles[3];
     unsigned i;
     int r;
+    p->number = d->number;
     p->header = d->header;
     for (i = 0; i < 3; ++i)
         p->header.translation[i] = (MMU32)s->scalar(d->point[i]);

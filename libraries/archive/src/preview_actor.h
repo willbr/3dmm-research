@@ -35,7 +35,6 @@ class PreviewActor
         mm_preview_actor_init(&core);
         mm_actor_sounds_init(&motionSounds, nullptr);
     }
-    ChunkNumber number = 0;
     PBody Pbody() const { return static_cast<PBody>(core.body); }
     static const MMPreviewActor *View(const void *handle)
     {

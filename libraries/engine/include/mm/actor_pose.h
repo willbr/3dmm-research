@@ -34,6 +34,7 @@ extern "C"
                                     const MMActorMotionServices *);
     /* Evaluate the body placement from the live motion state, including route
      * translation. Position may alias state.position. */
+    void mm_actor_pose_translation(const MMActorState *, MMActorPoint *);
     void mm_actor_pose_evaluate(MMActorState *, void *route, void *events, const MMActorPoseInputs *,
                                const MMActorPoint *position, MMActorBodyPose *,
                                const MMActorMotionServices *);

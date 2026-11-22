@@ -1199,7 +1199,11 @@ prepared model faces directly, and the facade publishes those counts.
 Preview classifies selected chunks in C89. Its live action catalogue owns the
 cel counts and linked action IDs used to admit poses. The facade publishes
 the display names, and the typed BRender C binding applies the template's
-initial rest pose.
+initial rest pose. C89 owns each actor's chunk identity, publishes actor and
+3D text metadata, and shares evaluated translation with body posing and
+animation edits. The actor catalogue reads action ranges and costume selection
+in C89. Live and saved costume edits validate their choices through the same
+catalogue before applying body changes or recording events.
 Preview picking now
 also uses C89 for validation, coordinates, camera/temporary ownership, stable
 body copying, nearest-hit/texture policy and

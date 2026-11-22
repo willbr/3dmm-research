@@ -40,7 +40,6 @@ bool PreviewActor::Load(const MMMovieSessionGraph &graph, ChunkNumber number,
                         std::function<void(PTemplate)> bindTemplate, MMWide &drawClock)
 {
     core.draw_clock = &drawClock;
-    this->number = number;
     resolve = resolver;
     Host host = {this, &graph, &bindTemplate};
     auto services = host.Services();
@@ -54,8 +53,8 @@ bool PreviewActor::Create(const PreviewPropDefinition &definition,
 {
     resolve = std::move(resolver);
     core.draw_clock = &drawClock;
-    number = definition.number;
     MMPreviewActorDefinition d = {};
+    d.number = definition.number;
     d.header.order = kboCur;
     d.header.system = koskCur;
     d.header.actor_id = definition.actorId;
@@ -72,30 +71,32 @@ bool PreviewActor::Create(const PreviewPropDefinition &definition,
 
 PreviewObject PreviewActor::Snapshot() const
 {
+    MMPreviewActorInfo info;
+    mm_preview_actor_info(&core, &info);
     PreviewObject object;
-    object.asset = {kctgActr, number};
-    object.templateAsset = {core.header.template_type, core.header.template_number};
-    object.actorId = core.header.actor_id;
-    object.sourceId = core.header.source_id;
-    object.hasLifetime = !core.inactive;
-    object.firstFrame = core.inactive ? 0 : core.header.first_frame;
-    object.lastFrame = core.inactive ? 0 : core.header.last_frame;
-    object.prop = Ptmpl() && EngineTemplate::FIsProp(Ptmpl());
-    object.text = Ptmpl() && EngineTemplate::FIsTdt(Ptmpl());
-    object.visible = !core.inactive && core.state.onStage;
-    object.action = core.state.action;
-    object.cel = core.state.cel;
-    object.x = BrScalarToFloat(BrsAdd(core.state.routeTranslation.dxr, core.state.position.dxr));
-    object.y = BrScalarToFloat(BrsAdd(core.state.routeTranslation.dyr, core.state.position.dyr));
-    object.z = BrScalarToFloat(BrsAdd(core.state.routeTranslation.dzr, core.state.position.dzr));
+    object.asset = {kctgActr, info.number};
+    object.templateAsset = {info.template_type, info.template_number};
+    object.actorId = info.actor;
+    object.sourceId = info.source;
+    object.hasLifetime = info.has_lifetime;
+    object.firstFrame = info.first;
+    object.lastFrame = info.last;
+    object.prop = info.prop;
+    object.text = info.text;
+    object.visible = info.visible;
+    object.action = info.action;
+    object.cel = info.cel;
+    object.x = BrScalarToFloat(info.position.dxr);
+    object.y = BrScalarToFloat(info.position.dyr);
+    object.z = BrScalarToFloat(info.position.dzr);
     return object;
 }
 bool PreviewActor::Text(PreviewObjectText &out) const
 {
-    if (!Ptmpl() || !EngineTemplate::FIsTdt(Ptmpl())) return false;
-    const auto &descriptor = *mm_template_owner_descriptor(Ptmpl());
+    MMPreviewActorText descriptor;
+    if (!mm_preview_actor_text(&core, &descriptor)) return false;
     String text;
-    text.SetSt(static_cast<PPascalString>(mm_template_owner_name(Ptmpl()).buffer));
+    text.SetSt(static_cast<PPascalString>(descriptor.name.buffer));
     const auto count = KauaiText::ToUtf16(text.Psz(), text.Cch(), KauaiText::Encoding::WindowsAnsi, nullptr, 0);
     if (text.Cch() && !count) return false;
     std::vector<std::uint16_t> units(count);
@@ -104,8 +105,8 @@ bool PreviewActor::Text(PreviewObjectText &out) const
     std::wstring_convert<std::codecvt_utf8_utf16<char16_t>, char16_t> convert;
     out.text = convert.to_bytes(std::u16string(units.begin(), units.end()));
     out.shape = descriptor.shape;
-    out.fontSource = descriptor.font.sid;
-    out.font = descriptor.font.number;
+    out.fontSource = descriptor.font_source;
+    out.font = descriptor.font_number;
     return true;
 }
 PMaterial_MTRL PreviewActor::TextMaterial() const
@@ -128,31 +129,52 @@ bool PreviewActor::SetTextTemplate(std::int32_t source, std::uint32_t number, st
     return host.Result(mm_preview_actor_replace_template(&core, source, number, &services));
 }
 
+static MMPreviewCostumeCatalog CostumeCatalog()
+{
+    return {&mm_kauai_body_renderer()->edit.runtime, mm_brender_template_costume_count,
+            mm_brender_template_costume_id, mm_brender_template_costume, mm_brender_template_is_accessory};
+}
+
+static MMPreviewCostumeEdits CostumeEdits(const std::vector<PreviewCostume> &values)
+{
+    return {&values, values.size(), [](const void *context, std::size_t i, MMPreviewCostumeChoice *out) {
+        const auto &value = (*static_cast<const std::vector<PreviewCostume> *>(context))[i];
+        *out = {value.bodySet, value.costume};
+    }};
+}
+
 bool PreviewActor::Costumes(std::vector<PreviewCostume> &out) const
 {
-    out.clear();
-    if (!Ptmpl() || !Pbody() || EngineTemplate::FIsTdt(Ptmpl())) return false;
-    for (int set = 0; set < mm_body_owner_state(Pbody())->shape.set_count; ++set)
+    struct Host
     {
-        int custom;
-        const auto current = mm_brender_body_material(mm_kauai_body_renderer(), Pbody(), set, &custom);
-        for (int i = 0; i < mm_brender_template_costume_count(Ptmpl(), set); ++i)
-        {
-            const auto id = mm_brender_template_costume_id(Ptmpl(), set, i);
-            auto costume = mm_brender_template_costume(Ptmpl(), id);
-            if (!costume) return false;
-            const bool selected = custom && current == costume;
-            mm_material_owner_release(costume);
-            out.push_back({set, int(id), selected, mm_brender_template_is_accessory(Ptmpl(), set) != 0});
-        }
-    }
-    return true;
+        std::vector<PreviewCostume> &out;
+        std::exception_ptr exception;
+    } host = {out, {}};
+    out.clear();
+    const auto catalog = CostumeCatalog();
+    const int result = mm_preview_actor_costumes(&core, &catalog, &host,
+        [](void *context, const MMPreviewCostumeEntry *entry) -> int {
+            auto &h = *static_cast<Host *>(context);
+            try
+            {
+                h.out.push_back({entry->choice.set, entry->choice.id, entry->selected != 0, entry->accessory != 0});
+                return 1;
+            }
+            catch (...)
+            {
+                h.exception = std::current_exception();
+                return 0;
+            }
+        });
+    if (host.exception)
+        std::rethrow_exception(host.exception);
+    return result != 0;
 }
 std::string PreviewActor::ActionName(LegacyLong action) const
 {
     String name;
     const MMStringValue counted = {name.Pst(), sizeof(achar)};
-    if (action >= 0 && action < EngineTemplate::Cactn(Ptmpl()) &&
+    if (action >= 0 && action < mm_preview_actor_action_count(&core) &&
         mm_brender_template_action_name(Ptmpl(), action, &counted) && name.Cch())
     {
         const auto encoding = sizeof(achar) == 1 ? KauaiText::Encoding::WindowsAnsi : KauaiText::Encoding::Utf16LE;
@@ -168,16 +190,13 @@ bool PreviewActor::Actions(std::vector<PreviewAction> &out) const
 {
     out.clear();
     if (!Ptmpl()) return false;
-    for (LegacyLong i = 0; i < EngineTemplate::Cactn(Ptmpl()); ++i)
+    for (LegacyLong i = 0; i < mm_preview_actor_action_count(&core); ++i)
         out.push_back({ActionName(i), static_cast<std::uint32_t>(ActionCelCount(i))});
     return true;
 }
 LegacyLong PreviewActor::ActionCelCount(LegacyLong action) const
 {
-    LegacyLong count = 0;
-    if (Ptmpl() && action >= 0 && action < EngineTemplate::Cactn(Ptmpl()) && mm_brender_template_cel_count(Ptmpl(), action, &count))
-        return std::max<LegacyLong>(0, count);
-    return 0;
+    return mm_preview_actor_action_cels(&core, action, mm_brender_template_cel_count);
 }
 int PreviewActor::RenderAction(LegacyLong action, LegacyLong cel, float *clip, int *clipValid,
                                const MMPreviewActionView &view)
@@ -198,18 +217,9 @@ bool PreviewActor::RestPose()
 }
 bool PreviewActor::TryCostumes(const std::vector<PreviewCostume> &values)
 {
-    std::vector<PreviewCostume> available;
-    if (!Costumes(available)) return false;
-    for (const auto &value : values)
-    {
-        if (std::none_of(available.begin(), available.end(), [&](const PreviewCostume &c) {
-            return c.bodySet == value.bodySet && c.costume == value.costume; })) return false;
-        auto costume = mm_brender_template_costume(Ptmpl(), value.costume);
-        if (!costume) return false;
-        mm_body_set_custom(Pbody(), costume, &mm_kauai_body_renderer()->edit.runtime);
-        mm_material_owner_release(costume);
-    }
-    return true;
+    const auto catalog = CostumeCatalog();
+    const auto edits = CostumeEdits(values);
+    return mm_preview_actor_edit_costumes(&core, &catalog, &edits, nullptr, nullptr) != 0;
 }
 struct PreviewActor::TrackDraft
 {
@@ -251,19 +261,25 @@ bool PreviewActor::WriteCostumes(const std::vector<PreviewCostume> &values, cons
     if (!Visible() || !Ptmpl() || EngineTemplate::FIsTdt(Ptmpl())) return false;
     TrackDraft draft(*this);
     if (!draft.Begin()) return false;
-    std::vector<PreviewCostume> available;
-    if (!Costumes(available)) return false;
-    CostumeHost host(this); const auto services = host.Services();
-    const auto motion = EngineActorMotion::Services(); const MMTag tag = {};
-    for (const auto &value : values)
+    CostumeHost host(this);
+    struct Events
     {
-        auto found = std::find_if(available.begin(), available.end(), [&](const PreviewCostume &c) {
-            return c.bodySet == value.bodySet && c.costume == value.costume; });
-        if (found == available.end()) return false;
-        if (!host.Result(mm_actor_edit_set_costume(&core.state, &motionSounds, Track().events, core.header.actor_id,
-            value.bodySet, &tag, value.costume, 1, &motion, &services))) return false;
-    }
-    return draft.Write(path, false);
+        CostumeHost &host;
+        MMActorMotionServices motion;
+        MMActorCostumeEditServices services;
+    } events = {host, EngineActorMotion::Services(), host.Services()};
+    const auto catalog = CostumeCatalog();
+    const auto edits = CostumeEdits(values);
+    const int result = mm_preview_actor_edit_costumes(&core, &catalog, &edits, &events,
+        [](void *context, const MMPreviewCostumeChoice *choice) -> int {
+            const auto &writes = *static_cast<Events *>(context);
+            auto &actor = *writes.host.actor;
+            const MMTag tag = {};
+            const int applied = mm_actor_edit_set_costume(&actor.core.state, &actor.motionSounds, actor.Track().events,
+                actor.core.header.actor_id, choice->set, &tag, choice->id, 1, &writes.motion, &writes.services);
+            return writes.host.exception ? -2 : applied;
+        });
+    return host.Result(result) && draft.Write(path, false);
 }
 bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::string &path,
                                   int &lastActorFrame, int &lastEditedFrame, const SoundGraphResolver &resolveSound)
@@ -283,7 +299,7 @@ bool PreviewActor::WriteAnimation(const PreviewAnimationEdit &edit, const std::s
     AnimationHost host(this, resolveSound);
     const auto playback = host.Host::Services();
     const auto services = host.Record(playback);
-    const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? EngineTemplate::Cactn(Ptmpl()) : 0;
+    const auto actionCount = edit.kind == PreviewAnimationEdit::Kind::action ? mm_preview_actor_action_count(&core) : 0;
     MMActorAnimationRange range;
     if (!host.Result(mm_actor_animation_edit(&core, &motionSounds, &host.record, &request, actionCount,
                                              &services, &range)) || !draft.Write(path, true))

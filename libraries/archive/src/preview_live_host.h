@@ -102,7 +102,7 @@ struct Preview::Impl::LiveHost
                 return h.Exception();
             }
         };
-        s.actor_number = [](void *, void *a) -> MMU32 { return static_cast<Internal::PreviewActor *>(a)->number; };
+        s.actor_number = [](void *, void *a) -> MMU32 { return Internal::PreviewActor::View(a)->number; };
         s.actor_release = [](void *, void *a) { delete static_cast<Internal::PreviewActor *>(a); };
         s.camera = [](void *v, MMU32 camera) -> int {
             auto &h = *static_cast<LiveHost *>(v);

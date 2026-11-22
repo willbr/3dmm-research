@@ -1,6 +1,7 @@
 #include "mm/preview_actor.h"
 #include "mm/actor_persistence.h"
 #include "mm/template_create.h"
+#include "mm/text_resource.h"
 #include "engine_resource_block_fixture.h"
 #include <assert.h>
 #include <stdio.h>
@@ -1060,8 +1061,68 @@ static void action_preview(void)
     }
 }
 
+static int catalogue_cels(MMTemplateOwner *owner, MMI32 action, void *count)
+{
+    assert(owner && (action == 0 || action == 1));
+    *(MMI32 *)count = action ? -1 : 7;
+    return 1;
+}
+
+static void catalogue_views(void)
+{
+    MMPreviewActor actor;
+    MMPreviewActorInfo info;
+    MMPreviewActorText text;
+    const MMTemplateOwnerHost host = {NULL, 1, NULL};
+    MMTemplateOwner *owner = mm_template_owner_create(&host, 1);
+    MMStringValue name;
+    MMTemplateState *state;
+    MMTextDescriptor *descriptor;
+    assert(owner);
+    mm_preview_actor_init(&actor);
+    assert(!mm_preview_actor_action_count(&actor) && !mm_preview_actor_text(&actor, &text));
+    actor.number = 81;
+    actor.header.template_type = MM_TDT;
+    actor.header.template_number = 9;
+    actor.header.actor_id = 5;
+    actor.header.source_id = 6;
+    actor.header.first_frame = 3;
+    actor.header.last_frame = 12;
+    actor.state.onStage = 1;
+    actor.state.action = 1;
+    actor.state.cel = 4;
+    actor.state.routeTranslation.dxr = 2147483647L;
+    actor.state.position.dxr = 1;
+    actor.tmpl = owner;
+    state = mm_template_owner_state(owner);
+    state->flags = MM_TEMPLATE_PROP | MM_TEMPLATE_TEXT;
+    state->action_count = 2;
+    descriptor = mm_template_owner_descriptor(owner);
+    descriptor->shape = 4;
+    descriptor->font.sid = 6;
+    descriptor->font.number = 22;
+    name = mm_template_owner_name(owner);
+    mm_string_value_set(&name, "Set", 3);
+    mm_preview_actor_info(&actor, &info);
+    assert(info.number == 81 && info.template_type == MM_TDT && info.template_number == 9 &&
+           info.actor == 5 && info.source == 6 && info.first == 3 && info.last == 12 &&
+           info.has_lifetime && info.visible && info.prop && info.text && info.action == 1 && info.cel == 4);
+    assert(info.position.dxr == (-2147483647L - 1) && !info.position.dyr && !info.position.dzr);
+    actor.inactive = 1;
+    mm_preview_actor_info(&actor, &info);
+    assert(!info.has_lifetime && !info.visible && !info.first && !info.last);
+    assert(mm_preview_actor_text(&actor, &text) && text.name.buffer == name.buffer &&
+           text.shape == 4 && text.font_source == 6 && text.font_number == 22);
+    assert(mm_preview_actor_action_count(&actor) == 2 && mm_preview_actor_action_cels(&actor, 0, catalogue_cels) == 7);
+    assert(!mm_preview_actor_action_cels(&actor, -1, catalogue_cels) &&
+           !mm_preview_actor_action_cels(&actor, 1, catalogue_cels) &&
+           !mm_preview_actor_action_cels(&actor, 2, catalogue_cels));
+    mm_template_owner_release(owner);
+}
+
 int main(void)
 {
+    catalogue_views();
     loading();
     playback();
     replace_events();

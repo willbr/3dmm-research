@@ -4,10 +4,52 @@
 #include <cstring>
 #include <cmath>
 #include <cstdlib>
+#include "preview_admission_fixture.h"
 #include "preview_render_fixture.h"
 #include "preview_pick_fixture.h"
 #include "preview_camera_fixture.h"
 #include "preview_live_fixture.h"
+
+static bool CaptureActorCatalogue(MM::Preview &preview)
+{
+    if (!std::getenv("MM_PREVIEW_ACTOR_CATALOGUE_SNAPSHOT"))
+        return true;
+    AdmissionTrace trace("MM_PREVIEW_ACTOR_CATALOGUE_SNAPSHOT");
+    MM::Error error;
+    auto string = [&](const std::string &value) {
+        const auto count = static_cast<std::uint32_t>(value.size());
+        return trace.Record(&count, sizeof(count)) && trace.Record(value.data(), count);
+    };
+    const auto objects = preview.Objects();
+    for (std::size_t i = 0; i < objects.size(); ++i)
+    {
+        const int object = static_cast<int>(i);
+        std::vector<MM::PreviewAction> actions;
+        std::vector<MM::PreviewCostume> costumes;
+        MM::PreviewObjectText text;
+        const bool hasActions = preview.ObjectActions(object, actions, error);
+        const bool hasCostumes = preview.ObjectCostumes(object, costumes, error);
+        const bool hasText = preview.ObjectText(object, text, error);
+        const std::uint32_t fields[] = {hasActions, static_cast<std::uint32_t>(actions.size()),
+                                        hasCostumes, static_cast<std::uint32_t>(costumes.size()), hasText};
+        if (!trace.Record(fields, sizeof(fields)))
+            return false;
+        for (const auto &action : actions)
+            if (!string(action.name) || !trace.Record(&action.celCount, sizeof(action.celCount)))
+                return false;
+        for (const auto &costume : costumes)
+        {
+            const int row[] = {costume.bodySet, costume.costume, costume.selected, costume.accessory};
+            if (!trace.Record(row, sizeof(row)))
+                return false;
+        }
+        if (hasText && (!string(text.text) || !trace.Record(&text.shape, sizeof(text.shape)) ||
+                        !trace.Record(&text.font, sizeof(text.font)) || !trace.Record(&text.fontSource, sizeof(text.fontSource))))
+            return false;
+    }
+    return trace.Finish("actor catalogue", 0, 0);
+}
+
 int main(int argc, char **argv)
 {
     if (argc != 6)
@@ -32,7 +74,7 @@ int main(int argc, char **argv)
         return 1;
     MM::PreviewImage first, later, repeated;
     MM::PreviewView view;
-    if (!check(preview.Render(view, first, error)) || !first.coveredPixels)
+    if (!check(preview.Render(view, first, error)) || !first.coveredPixels || !CaptureActorCatalogue(preview))
         return 1;
     // Metadata evaluation must use a private track and leave the live pose intact.
     const auto objects = preview.Objects();

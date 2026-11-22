@@ -7,9 +7,11 @@
 static MMActorAnimationPoint position(const MMActorState *state)
 {
     MMActorAnimationPoint p;
-    p.x = (float)mm_fixed_add(state->routeTranslation.dxr, state->position.dxr) / 65536.0f;
-    p.y = (float)mm_fixed_add(state->routeTranslation.dyr, state->position.dyr) / 65536.0f;
-    p.z = (float)mm_fixed_add(state->routeTranslation.dzr, state->position.dzr) / 65536.0f;
+    MMActorPoint world;
+    mm_actor_pose_translation(state, &world);
+    p.x = (float)world.dxr / 65536.0f;
+    p.y = (float)world.dyr / 65536.0f;
+    p.z = (float)world.dzr / 65536.0f;
     return p;
 }
 
