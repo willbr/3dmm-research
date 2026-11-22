@@ -7,6 +7,7 @@
 #include "actor_track_fixture.h"
 #include "movie_archive_fixture.h"
 #include "movie_archive_host.h"
+#include "mm/chunk_copy.h"
 #include "mm/movie_session.h"
 #elif defined(TEST_BRENDER_CORE)
 #include "bren_core.h"
@@ -4760,7 +4761,9 @@ static void TestTagOwnershipBaseline()
     Check(TagManager::FSaveTag(&tag,cb->CoreCache(),false));observe(4,tag);
     Check(TagManager::FSaveTag(&tag,cb->CoreCache(),true));observe(5,tag);
     Check(TagManager::FSaveTag(&tag,cb->CoreCache(),true));observe(6,tag);TagManager::CloseTag(&tag);observe(7,tag);
-    tag={};tag.ctg='TAGR';tag.cno=7;Check(TagManager::FOpenTag(&tag,cb->CoreCache(),a));observe(8,tag);TagManager::CloseTag(&tag);
+    MMChunkFileCopy sourceBinding;
+    const auto source = a->CopyEndpoint(sourceBinding);
+    tag={};tag.ctg='TAGR';tag.cno=7;Check(TagManager::FOpenTag(&tag,cb->CoreCache(),&source));observe(8,tag);TagManager::CloseTag(&tag);
     tag.sid=42;tag.cache=ca->CoreCache();Check(TagManager::FOpenTag(&tag,cb->CoreCache()));Check(TagManager::FSaveTag(&tag,cb->CoreCache(),true));
     TagManager::DupTag(&tag);TagManager::CloseTag(&tag);observe(9,tag);
     MMTagList list;

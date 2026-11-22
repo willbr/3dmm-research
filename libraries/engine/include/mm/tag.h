@@ -23,12 +23,10 @@ extern "C"
     typedef struct MMTagServices
     {
         void *context;
-        void *(*file)(void *cache);
         void (*retain)(void *cache);
         void (*release)(void *cache);
         int (*compare_cache)(void *, void *);
         /* Borrow the archive through the copy. An empty endpoint denies access. */
-        struct MMChunkEndpoint (*bind_file)(void *file, struct MMChunkFileCopy *);
         struct MMChunkEndpoint (*bind_cache)(void *cache, struct MMResourceChunkCopy *);
         MMResourceCache *(*cache)(void *owner);
         MMResourceManager *(*source)(void *, MMI32 sid, int local_only, const MMTag *asset);
@@ -40,7 +38,7 @@ extern "C"
     } MMTagServices;
     /* Shared operations for native MMResourceCache references. Use for local
      * lookup, copy and tag lifetime. Copy this table to add a positive source
-     * provider, legacy file access or cache ordering. */
+     * provider or cache ordering. */
     const MMTagServices *mm_tag_local_cache_services(void);
     /* sid 0 owns a cache reference after open/child construction. Positive sids
      * resolve through the source provider and ignore cache identity. Open-copy failure
@@ -48,7 +46,9 @@ extern "C"
      * before releasing old cache; close clears cache after release. Optional publish
      * mirrors state at legacy callback points; callbacks must not mutate/re-enter it.
      * Close accepts sid -1. Other operations require initialized nonnegative tags. */
-    int mm_tag_open(MMTag *, void *destination, void *source_file, const MMTagServices *);
+    /* An optional source endpoint is borrowed through open. Matching archive
+     * identities attach the tag without copying or looking up the chunk. */
+    int mm_tag_open(MMTag *, void *destination, const struct MMChunkEndpoint *source, const MMTagServices *);
     int mm_tag_save(MMTag *, void *destination, int redirect, const MMTagServices *);
     /* Look up a local tag in its live or immutable archive without loading it. */
     int mm_tag_local_exists(const MMTag *, const MMTagServices *);

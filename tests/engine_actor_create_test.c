@@ -113,7 +113,7 @@ static void release_cache(void *p)
 }
 
 static const MMTagServices tags = {
-    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 static void publish(void *p,const MMActorState *state) { ((Actor *)p)->owner.runtime.state=*state; }
 static void recording(void *p,int enabled)

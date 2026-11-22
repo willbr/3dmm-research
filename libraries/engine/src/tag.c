@@ -32,7 +32,7 @@ static MMChunkEndpoint bind_target(void *cache, MMChunkFileCopy *binding)
 const MMTagServices *mm_tag_local_cache_services(void)
 {
     static const MMTagServices services = {
-        NULL, NULL, retain_cache, release_cache, NULL, NULL, bind_cache, resource_cache,
+        NULL, retain_cache, release_cache, NULL, bind_cache, resource_cache,
         NULL, NULL, NULL, NULL, bind_target
     };
     return &services;
@@ -55,35 +55,36 @@ static int copy_local_tag(const MMTag *tag, const MMChunkEndpoint *source, const
     return status == MM_CHUNK_OK;
 }
 
-int mm_tag_open(MMTag *tag, void *destination, void *source, const MMTagServices *s)
+static int open_from_archive(const MMTag *tag, void *destination, const MMChunkEndpoint *source,
+                             MMU32 *number, const MMTagServices *s)
 {
-    void *file;
+    MMChunkFileCopy target_binding;
+    MMResourceChunkCopy read_binding;
+    MMChunkEndpoint target = {0};
+    if (!source->identity || !destination)
+        return 0;
+    if (s->bind_target)
+        target = s->bind_target(destination, &target_binding);
+    if (target.identity)
+        return source->identity == target.identity || copy_local_tag(tag, source, &target, number, s);
+    if (s->bind_cache)
+        target = s->bind_cache(destination, &read_binding);
+    return source->identity == target.identity;
+}
+
+int mm_tag_open(MMTag *tag, void *destination, const MMChunkEndpoint *source, const MMTagServices *s)
+{
     MMU32 number;
     if (tag->sid)
         return 1;
-    file = source && s->file ? s->file(destination) : NULL;
-    if (source && source != file)
+    number = tag->number;
+    if (source && !open_from_archive(tag, destination, source, &number, s))
     {
-        MMChunkFileCopy source_binding, target_binding;
-        MMChunkEndpoint from, to;
-        int copied = 0;
-        if (file)
-        {
-            from = s->bind_file(source, &source_binding);
-            if (from.identity)
-            {
-                to = s->bind_file(file, &target_binding);
-                copied = copy_local_tag(tag, &from, &to, &number, s);
-            }
-        }
-        if (!copied)
-        {
-            tag->cache = NULL;
-            publish(s, tag);
-            return 0;
-        }
-        tag->number = number;
+        tag->cache = NULL;
+        publish(s, tag);
+        return 0;
     }
+    tag->number = number;
     tag->cache = destination;
     publish(s, tag);
     s->retain(destination);

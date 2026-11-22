@@ -148,10 +148,6 @@ static void read_movie(void *p, MMMovieSoundState *state)
     state->movie = 10;
     state->scene = e->fail_child ? 99 : 0;
 }
-static void *archive_file(void *p)
-{
-    return &((Editor *)p)->archive;
-}
 static MMChunkEdit edit_archive(void *p)
 {
     return fixture_chunk_edit(&((Editor *)p)->archive);
@@ -377,7 +373,6 @@ static void editor_init(Editor *e)
     for (i = 0; i < 3; ++i)
         e->tags[i] = e->base.input[i].tag;
     e->input_refs = 2;
-    e->movie_tags.file = archive_file;
     e->movie_tags.retain = retain_input;
     e->movie_tags.release = release_input;
     fixture_chunk_seed_link(&e->archive, MM_SOUND_MOVIE, 10, MM_SOUND_SCENE, 20, 0);

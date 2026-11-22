@@ -1811,6 +1811,10 @@ physical access operations for the shared selection.
 Live and immutable resource caches now bind their copy endpoints in C89.
 Studio's local tag saves and embedded asset copies and Preview's font
 drafts share that binding and use the cache's name codec and backing state.
+Local tag opening also accepts a typed source archive and binds the destination
+cache in C89. Copies into private working archives preserve names, packed
+payloads and child references. Opening a tag within the same archive retains
+the cache without looking up or copying the chunk.
 Studio and Marcus share the C89 rich-text binding for stored TEXT extents,
 file references and bounded reads. Preview uses the same decoder for the
 authored TEXT encoding marker. Studio's live property and argument tables

@@ -258,10 +258,8 @@ static void init(Fixture *f)
     memset(f, 0, sizeof(*f));
     s = &f->services;
     s->context = s->edits.context = s->create.owner.context = f;
-    f->tags.file = file;
     f->tags.retain = retain_cache;
     f->tags.release = release_cache;
-    f->tags.bind_file = bind_file;
     f->tags.bind_cache = bind_cache;
     f->tags.bind_target = bind_target;
     f->tags.cache = resource_cache;

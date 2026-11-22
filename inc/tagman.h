@@ -240,7 +240,7 @@ class TagManager : public TagManager_PAR
                     LegacyUlong grftagm = ftagmFile | ftagmMemory); // sidNil clears all caches
 
     // For ksidUseCrf tags:
-    static bool FOpenTag(PTAG ptag, MMResourceCache *destination, PChunkyFile pcflSrc = pvNil);
+    static bool FOpenTag(PTAG ptag, MMResourceCache *destination, const MMChunkEndpoint *source = nullptr);
     static bool FSaveTag(PTAG ptag, MMResourceCache *destination, bool fRedirect);
     static void DupTag(PTAG ptag); // call this when you're copying a tag
     static void CloseTag(PTAG ptag);

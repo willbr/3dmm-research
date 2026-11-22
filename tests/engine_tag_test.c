@@ -46,12 +46,6 @@ static void reset(Host *h)
     h->used = 0;
     h->log[0] = 0;
 }
-static void *file(void *p)
-{
-    Cache *c = (Cache *)p;
-    event(c->host, (char)('1' + c->id));
-    return c->core.file;
-}
 static void retain(void *p)
 {
     Cache *c = (Cache *)p;
@@ -69,12 +63,6 @@ static int compare(void *a, void *b)
 {
     int x = ((Cache *)a)->id, y = ((Cache *)b)->id;
     return (x > y) - (x < y);
-}
-static MMChunkEndpoint bind_file(void *p, MMChunkFileCopy *binding)
-{
-    Cache *c = p;
-    event(c->host, 'F');
-    return tag_copy_file_endpoint(&c->archive, binding);
 }
 static MMChunkEndpoint bind_cache(void *p, MMResourceChunkCopy *binding)
 {
@@ -217,11 +205,9 @@ static MMTagServices init(Host *h)
     fixture_chunk_add(&h->caches[1].archive.index, 7, 0);
     fixture_chunk_add(&h->caches[1].archive.index, 7, 1);
     s.context = h;
-    s.file = file;
     s.retain = retain;
     s.release = release;
     s.compare_cache = compare;
-    s.bind_file = bind_file;
     s.bind_cache = bind_cache;
     s.bind_target = bind_target;
     s.publish = publish;
@@ -237,6 +223,10 @@ static void lifecycle(void)
     MMTagServices s = init(&h);
     MMTag tag, out, old;
     Cache *a = h.caches, *b = h.caches + 1;
+    MMChunkFileCopy a_binding, b_binding;
+    MMChunkEndpoint a_source = tag_copy_file_endpoint(&a->archive, &a_binding);
+    MMChunkEndpoint b_source = tag_copy_file_endpoint(&b->archive, &b_binding);
+    const MMChunkEndpoint denied = {0};
     memset(&tag, 0, sizeof(tag));
     tag.type = 7;
     tag.number = 1;
@@ -267,20 +257,29 @@ static void lifecycle(void)
     tag.cache = a;
     tag.number = 99;
     reset(&h);
-    CHECK(!mm_tag_open(&tag, b, a, &s) && !tag.cache && tag.number == 99 && a->refs == 1 && b->refs == 1 &&
-          !strcmp(h.log, "2FF!P"));
+    CHECK(!mm_tag_open(&tag, b, &a_source, &s) && !tag.cache && tag.number == 99 && a->refs == 1 && b->refs == 1 &&
+          !strcmp(h.log, "T!P"));
+    reset(&h);
+    CHECK(!mm_tag_open(&tag, b, &denied, &s) && !tag.cache && tag.number == 99 && !strcmp(h.log, "P"));
+    reset(&h);
+    CHECK(mm_tag_open(&tag, b, &b_source, &s) && tag.cache == b && tag.number == 99 && !strcmp(h.log, "TPB"));
+    mm_tag_close(&tag, &s);
     tag.number = 1;
     reset(&h);
-    CHECK(mm_tag_open(&tag, b, a, &s) && tag.cache == b && tag.number == 2 && !strcmp(h.log, "2FFPB"));
+    CHECK(mm_tag_open(&tag, b, &a_source, &s) && tag.cache == b && tag.number == 2 && !strcmp(h.log, "TPB"));
     mm_tag_close(&tag, &s);
+    b->core.file = NULL;
     reset(&h);
-    CHECK(mm_tag_open(&tag, b, b, &s) && tag.cache == b && tag.number == 2 && !strcmp(h.log, "2PB"));
+    CHECK(!mm_tag_open(&tag, b, &a_source, &s) && !tag.cache && tag.number == 2 && !strcmp(h.log, "TCP"));
+    reset(&h);
+    CHECK(mm_tag_open(&tag, b, &b_source, &s) && tag.cache == b && tag.number == 2 && !strcmp(h.log, "TCPB"));
     mm_tag_close(&tag, &s);
+    b->core.file = b;
     tag.sid = 42;
     tag.cache = a;
     reset(&h);
     old = tag;
-    CHECK(mm_tag_open(&tag, b, a, &s) && mm_tag_save(&tag, b, 1, &s));
+    CHECK(mm_tag_open(&tag, b, &denied, &s) && mm_tag_save(&tag, b, 1, &s));
     mm_tag_dup(&tag, &s);
     mm_tag_close(&tag, &s);
     CHECK(!h.used && tag.cache == old.cache && tag.number == old.number);

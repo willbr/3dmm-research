@@ -26,7 +26,8 @@ extern "C"
     void mm_actor_track_dispose(MMActorTrack *, const MMTagServices *);
     /* Open tags in a newly decoded track. On failure close the completed prefix
      * in reverse order. A source file is optional for embedded resource copies. */
-    int mm_actor_track_open_tags(MMActorTrack *, void *destination, void *source_file, const MMTagServices *);
+    int mm_actor_track_open_tags(MMActorTrack *, void *destination, const struct MMChunkEndpoint *source,
+                                 const MMTagServices *);
     void mm_actor_track_close_tags(MMActorTrack *, const MMTagServices *);
     int mm_actor_track_get_tag(const MMActorEventTable *, MMU32 index, MMTag *);
     void mm_actor_track_retain_tag(MMActorEventTable *, MMU32 index, const MMTagServices *);

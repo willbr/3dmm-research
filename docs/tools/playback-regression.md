@@ -20984,3 +20984,33 @@ on the single authored frame and its canvas.
 
 Traces and logs are under tmp/c89-resource-copy-binding. Captures are
 under tmp/c89-rscap.
+
+## C89 local tag opening (22 November 2026)
+
+Local tag opening accepts a borrowed C archive endpoint and uses the C
+resource cache to bind the destination. The cache fixture imports a named
+root with a packed child directly from a stored index into a C-owned working
+archive. It checks the name, child link and packed bytes. The tag fixture
+also covers same-archive attachment, a missing chunk, a denied source and a
+read-only destination. The actor track fixture checks rollback after a
+partial copy.
+
+All 199 engine, core link and C89 checks passed. Archive API and resource
+cache checks passed on native x64, native x86 and SDL. Native scene editing,
+asset previews, Marcus insertion, sound editing and playback, and native
+and SDL movie save/load checks passed. Tag ownership and the three resource
+cache traces matched the previous build byte for byte. The separate x64
+scene-load test still reports its frozen fingerprint mismatch. Its output
+matched the baseline at 63,224 bytes and fingerprint `0D666753`.
+
+The Studio authoring save and seven Marcus saves matched `eec68a49` byte for
+byte. The copied 3D text save reopened in retail, V3DMM, SDL Studio and
+Marcus with matching canvases in `20261122T074018Z-37003395`. The 60-frame
+actor case in `20261122T073907Z-d5672df4` reproduced the previous per-player
+seek canvas hashes, camera indices, actor state and continuous frame order.
+The existing differences from retail and timing and presentation limits
+also reproduced. The runner reused the retail and V3DMM captures for both
+cases and captured SDL Studio and Marcus again.
+
+Traces and logs are under `tmp/c89-tag-open-from-archive`. Captures are
+under `tmp/c89-rscap`.

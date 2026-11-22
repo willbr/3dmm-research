@@ -113,7 +113,7 @@ static void release(void *p,void *a)
 static void retain_cache(void *p) { ++((Fixture *)p)->tags; }
 static void release_cache(void *p) { CHECK(--((Fixture *)p)->tags >= 0); }
 static const MMTagServices owner_tags = {
-    NULL, NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, retain_cache, release_cache, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 static void publish_result(void *p,void *a) { Fixture *f=(Fixture *)p; CHECK(f->result.actor==a); ++f->published; }
 static void publish_state(void *p,const MMActorState *s) { ((Actor *)p)->owner.runtime.state=*s; }
@@ -182,7 +182,7 @@ typedef struct Replacement
 static void retain_tag(void *p) { ++*(int *)p; }
 static void release_tag(void *p) { CHECK(--*(int *)p >= 0); }
 static const MMTagServices replacement_tags = {
-    NULL, NULL, retain_tag, release_tag, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, retain_tag, release_tag, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 static void *fetch_replacement(void *p, const MMTag *tag)

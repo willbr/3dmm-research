@@ -30,7 +30,6 @@
 #include "soc_core.h"
 #include "engine_movie_source.h"
 #include "mm/movie_session.h"
-#include "mm/chunk_copy.h"
 #include "mm/native_archive_file.h"
 #include "resource_archive_host.h"
 #include "handle_services.h"
@@ -674,16 +673,9 @@ const MMTagServices &TagManager::CoreServices()
 {
     static const auto services = [] {
         auto s = *mm_tag_local_cache_services();
-        s.file = [](void *c) -> void * {
-            const auto adapter = static_cast<PChunkyResourceFile>(static_cast<MMResourceCache *>(c)->services.legacy_adapter);
-            return adapter ? adapter->Pcfl() : nullptr;
-        };
         s.compare_cache = [](void *a, void *b) -> int {
             const std::less<void *> before;
             return a == b ? 0 : before(a, b) ? -1 : 1;
-        };
-        s.bind_file = [](void *file, MMChunkFileCopy *binding) {
-            return static_cast<PChunkyFile>(file)->CopyEndpoint(*binding);
         };
         s.missing_chunk = [](void *) { Bug("chunk not found"); };
         return s;
@@ -782,12 +774,11 @@ void TagManager::ClearCache(LegacyLong sid, LegacyUlong flags)
         return static_cast<PTagManager>(c)->_GetSourceManager(source);
     });
 }
-bool TagManager::FOpenTag(PTAG tag, MMResourceCache *destination, PChunkyFile source)
+bool TagManager::FOpenTag(PTAG tag, MMResourceCache *destination, const MMChunkEndpoint *source)
 {
     AssertVarMem(tag);
     Assert(tag->sid >= 0, "Invalid sid");
     AssertVarMem(destination);
-    AssertNilOrPo(source, 0);
     NativeTagHost host = {nullptr, tag, tag};
     const auto services = _Services(&host);
     MMTag value = {tag->sid, nullptr, tag->ctg, tag->cno};

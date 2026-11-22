@@ -377,10 +377,36 @@ static int WireSourceCase(bool native)
     block.Free();
     ReleasePpo(&writable);
     ReleasePpo(&live);
+
+    Filename privatePath;
+    CHECK(privatePath.FGetTemp());
+    // The new working archive owns cleanup of its temporary file.
+    const auto privateTarget = OpenWorkingResourceCache(&privatePath, true, 1024);
+    CHECK(privateTarget && !privateTarget->services.legacy_adapter);
+    MMResourceChunkCopy sourceBinding;
+    const auto source = mm_resource_cache_copy_source(core, &sourceBinding);
+    tag = {0, nullptr, type, root};
+    CHECK(mm_tag_open(&tag, privateTarget, &source, tags) && tag.cache == privateTarget);
+    CHECK(ReadResourceName(privateTarget, type, tag.number, &name) && name.FEqual(&authored));
+    MMTag copiedChild = {};
+    CHECK(mm_tag_child(&tag, 0, type, &copiedChild, tags));
+    MMOwnedBlock privateBlock;
+    MMBlockIO privateIO;
+    CHECK(mm_owned_block_init(&privateBlock, privateTarget->services.handles,
+                              privateTarget->services.block_files) == MM_DATA_OK);
+    CHECK(mm_resource_cache_read_block(privateTarget, type, copiedChild.number, &privateBlock) == MM_CHUNK_OK &&
+          privateBlock.view.packed && privateBlock.view.length == packedBytes);
+    CHECK(mm_owned_block_io(&privateBlock, &privateIO) == MM_DATA_OK &&
+          mm_block_read(&privateIO, 0, decoded.data(), packedBytes, 1) == MM_DATA_OK &&
+          !std::memcmp(packed.data(), decoded.data(), packedBytes));
+    CHECK(mm_owned_block_clear(&privateBlock) == MM_DATA_OK);
+    mm_tag_close(&copiedChild, tags);
+    mm_tag_close(&tag, tags);
+    mm_resource_cache_release(privateTarget);
+
     if (!native)
     {
         auto backing = static_cast<PFileObject>(core->wire_file);
-        MMResourceChunkCopy sourceBinding;
         CHECK(backing->FSetGrffil(ffilWriteEnable, ffilWriteEnable));
         CHECK(!mm_resource_cache_copy_source(cache->CoreCache(), &sourceBinding).identity);
     }

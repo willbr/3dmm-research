@@ -68,7 +68,6 @@ static void read_movie(void *p, MMMovieSoundState *state)
     state->movie = 10;
     state->scene = 0;
 }
-static void *movie_file(void *p) { return p; }
 static MMChunkEdit edit_movie(void *p)
 {
     return fixture_chunk_edit(&((Fixture *)p)->archive);
@@ -125,7 +124,6 @@ static MMActorSoundEditServices init(Fixture *f)
     mm_actor_state_init(&f->state); CHECK(mm_actor_sounds_init(&f->list,NULL));
     f->state.action=0; f->state.cel=5; f->state.frame=4; f->state.actionEvent=0;
     f->volume_seen=-7; f->info.style=2; f->info.volume=222; f->suppressed=1;
-    f->movie_tags.file = movie_file;
     f->movie_tags.retain = retain_tag;
     f->movie_tags.release = release_tag;
     fixture_chunk_seed_link(&f->archive, MM_SOUND_MOVIE, 10, MM_SOUND_SCENE, 88, 0);

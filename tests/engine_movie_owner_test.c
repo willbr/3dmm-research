@@ -179,10 +179,6 @@ static void init_tags(Host *h)
     h->tags.release = release_resource;
     h->tags.publish = publish_tag;
 }
-static void *file(void *p)
-{
-    return ((Resource *)p)->host;
-}
 static int owner_extent(void *p, MMU32 bytes, MMChunkLocation *extent)
 {
     Host *h = ((ChunkIndexFixture *)p)->observer;
@@ -299,7 +295,6 @@ static MMMovieOwnerServices owners(Host *h)
         save, persist};
     s.context = s.actor_allocator.context = s.rollcall.reader.context = h;
     init_tags(h);
-    h->tags.file = file;
     h->tags.cache = owner_cache;
     s.rollcall.reader.tags = &h->tags;
     h->owner_writer = chunk_writer_fixture(&h->archive, h, owner_extent, owner_write);

@@ -37,7 +37,7 @@ static int load_group(void *scene, MMSceneOwner *owner, MMU32 number, int start,
             for (j = 0; j < sound->ctagc; ++j)
             {
                 mm_scene_sound_get_tag(sound, j, &sound_tag);
-                ok = mm_tag_open(&sound_tag.tag, s->resources, s->source_file, s->tags);
+                ok = mm_tag_open(&sound_tag.tag, s->resources, s->source_archive, s->tags);
                 mm_scene_sound_put_tag(sound, j, &sound_tag);
                 if (!ok)
                     break;

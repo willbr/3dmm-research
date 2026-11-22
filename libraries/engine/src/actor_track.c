@@ -72,7 +72,8 @@ void mm_actor_track_close_tag(MMActorEventTable *events, MMU32 index, const MMTa
     update_row_tag(events, index, 1, s);
 }
 
-int mm_actor_track_open_tags(MMActorTrack *t, void *destination, void *source, const MMTagServices *s)
+int mm_actor_track_open_tags(MMActorTrack *t, void *destination, const struct MMChunkEndpoint *source,
+                             const MMTagServices *s)
 {
     MMActorEventTable *events = t->events;
     MMU32 i;

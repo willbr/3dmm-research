@@ -610,10 +610,6 @@ static MMI32 current_camera(void *p) { return ((Test *)p)->camera; }
 static int scene_transition(void *p) { return ((Test *)p)->scene_owner.data.transition; }
 static int cannot_notify(void *p) { (void)p; return 0; }
 static void ignore_change(void *p) { (void)p; }
-static void *scene_sound_file(void *p)
-{
-    return &((Test *)p)->archive;
-}
 static MMChunkEdit scene_sound_archive(void *p)
 {
     return fixture_chunk_edit(&((Test *)p)->archive);
@@ -627,7 +623,7 @@ static void read_scene_sound_movie(void *p, MMMovieSoundState *state)
 static MMMovieSoundServices scene_sound_movie(void *p)
 {
     static const MMTagServices tags = {
-        NULL, scene_sound_file, ignore_change, ignore_change, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+        NULL, ignore_change, ignore_change, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
     };
     Test *t = p;
     MMMovieSoundServices s = {0};

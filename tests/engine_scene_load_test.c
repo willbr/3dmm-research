@@ -38,6 +38,8 @@ struct Loader
     int actor_calls, resolve_calls, actor_fail, resolve_refs, no_thumbnail, bad_kind;
     ChunkIndexFixture archive;
     LoadFile source, destination;
+    MMChunkFileCopy source_binding;
+    MMChunkEndpoint source_endpoint;
     MMTagServices load_tags, movie_tags;
     int cache_refs, released_tag, cross_file;
     int track_allocations, fail_track;
@@ -212,14 +214,10 @@ static void *read_object(void *p, MMU32 number, int kind, void *scene)
     CHECK(number == (kind == MM_SCENE_ADD_ACTOR ? 100 + MM_SCENE_ACTORS : 100 + MM_SCENE_TEXTS));
     return new_object(f, 300 + kind);
 }
-static void *cache_file(void *p)
+static MMChunkEndpoint bind_target(void *p, MMChunkFileCopy *binding)
 {
     Loader *f = p;
-    return f->cross_file ? &f->destination : &f->source;
-}
-static MMChunkEndpoint bind_file(void *p, MMChunkFileCopy *binding)
-{
-    LoadFile *file = p;
+    LoadFile *file = f->cross_file ? &f->destination : &f->source;
     return tag_copy_file_endpoint(&file->archive, binding);
 }
 static void retain_cache(void *p)
@@ -329,14 +327,14 @@ static void init_loader(Loader *f, int swap)
     f->source.loader = f;
     tag_copy_file_init(&f->source.archive);
     tag_copy_file_init(&f->destination.archive);
+    f->source_endpoint = tag_copy_file_endpoint(&f->source.archive, &f->source_binding);
     f->load_tags.context = f;
-    f->load_tags.file = cache_file;
-    f->load_tags.bind_file = bind_file;
+    f->load_tags.bind_target = bind_target;
     f->load_tags.retain = retain_cache;
     f->load_tags.release = release_tag_cache;
     f->load_tags.missing_chunk = missing_chunk;
     f->load_tags.publish = publish_tag;
-    s->source_file = &f->source;
+    s->source_archive = &f->source_endpoint;
     s->title_file = &f->source;
     s->resources = f;
     s->tags = &f->load_tags;
@@ -485,10 +483,6 @@ static void read_resolve_movie(void *p, MMMovieSoundState *state)
     state->movie = 0;
     state->scene = 0;
 }
-static void *resolve_file(void *p)
-{
-    return &((Loader *)p)->archive;
-}
 static MMChunkEdit resolve_edit(void *p)
 {
     return fixture_chunk_edit(&((Loader *)p)->archive);
@@ -538,7 +532,6 @@ static void test_resolve(void)
         s.movie_sound = movie_sound;
         f.actor_fail = fail <= 2 ? fail : 0;
         f.resolve_refs = 2;
-        f.movie_tags.file = resolve_file;
         f.movie_tags.retain = retain_resolve_cache;
         f.movie_tags.release = release_resolve_cache;
         if (fail != 3)

@@ -77,23 +77,14 @@ static void release(void *cache)
     log_call('-');
 }
 
-static void *file(void *cache)
-{
-    CHECK(cache == &h);
-    return &destination_file;
-}
-
-static MMChunkEndpoint bind_file(void *file, MMChunkFileCopy *binding)
+static MMChunkEndpoint bind_target(void *cache, MMChunkFileCopy *binding)
 {
     const MMChunkEndpoint unavailable = {0};
-    CHECK(file == &source_file || file == &destination_file);
-    if (file == &source_file)
-    {
-        log_call('c');
-        if (++h.copies == h.fail_copy)
-            return unavailable;
-    }
-    return tag_copy_file_endpoint(file, binding);
+    CHECK(cache == &h);
+    log_call('c');
+    if (++h.copies == h.fail_copy)
+        return unavailable;
+    return tag_copy_file_endpoint(&destination_file, binding);
 }
 
 static void publish(void *context, const MMTag *tag)
@@ -104,7 +95,7 @@ static void publish(void *context, const MMTag *tag)
 
 static const MMStorageAllocator allocator = {&h, resize, free_bytes};
 static const MMTagServices tags = {
-    NULL, NULL, retain, release, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
+    NULL, retain, release, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL
 };
 
 static void row(MMActorEventTable *events, MMI32 type, MMI32 custom, MMI32 sid, void *cache, MMU32 number)
@@ -257,16 +248,18 @@ static void open_rows(void)
     MMActorTrack t;
     MMTag tag;
     MMTagServices services = tags;
+    MMChunkFileCopy source_binding;
+    MMChunkEndpoint source;
     const MMU32 order[] = {0, 1, 30, 1, 0};
     services.context = &h;
-    services.file = file;
-    services.bind_file = bind_file;
+    services.bind_target = bind_target;
     services.publish = publish;
     tag_copy_file_init(&source_file);
     tag_copy_file_init(&destination_file);
     fixture_chunk_add(&source_file.index, 123, 10);
     fixture_chunk_add(&source_file.index, 123, 20);
     fixture_chunk_add(&source_file.index, 123, 30);
+    source = tag_copy_file_endpoint(&source_file, &source_binding);
     fixture_chunk_add(&destination_file.index, 123, 10);
     fixture_chunk_add(&destination_file.index, 123, 20);
     reset_log();
@@ -278,7 +271,7 @@ static void open_rows(void)
     row(t.events, MM_ACTOR_COSTUME, 0, 0, NULL, 30);
     h.copies = h.publish_count = 0;
     h.fail_copy = 3;
-    CHECK(!mm_actor_track_open_tags(&t, &h, &source_file, &services));
+    CHECK(!mm_actor_track_open_tags(&t, &h, &source, &services));
     CHECK(strcmp(h.log, "c+c+c--") == 0 && !h.refs);
     CHECK(h.publish_count == 5 && !memcmp(h.published, order, sizeof(order)));
     CHECK(!t.events->storage.buffers[0].locks);

@@ -6,6 +6,7 @@
 #include "scene_sound.h"
 #include "scene_edit_undo.h"
 #include "scene_chop_undo.h"
+#include "mm/chunk_copy.h"
 #undef size
 ASSERTNAME
 void FrameMain(void)
@@ -234,7 +235,9 @@ static void CheckIndexedBackground(PChunkyFile source, ChunkNumber sourceNumber)
 
     TAG parent = {ksidUseCrf, nullptr, kctgBkgd, number};
     TAG child;
-    CHECK(!TagManager::FOpenTag(&parent, cache->CoreCache(), source) && !parent.cache && parent.cno == number);
+    MMChunkFileCopy sourceBinding;
+    const auto endpoint = source->CopyEndpoint(sourceBinding);
+    CHECK(!TagManager::FOpenTag(&parent, cache->CoreCache(), &endpoint) && !parent.cache && parent.cno == number);
     CHECK(TagManager::FOpenTag(&parent, cache->CoreCache()));
     CHECK(!vptagm->FBuildChildTag(&parent, 3, kctgActn, &child));
     CHECK(vptagm->FBuildChildTag(&parent, 3, kctgCam, &child));

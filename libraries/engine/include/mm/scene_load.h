@@ -15,7 +15,7 @@ extern "C"
         MMSceneOwnerServices owners;
         MMSceneSoundPacketServices packets;
         MMMovieSceneReader read;
-        void *source_file;
+        const struct MMChunkEndpoint *source_archive;
         void *resources;
         const MMTagServices *tags;
         void *title_file;
@@ -32,7 +32,7 @@ extern "C"
      * unchanged, including opposite-order payloads. Document-owned background
      * MMTag payloads borrow one resource-cache reference retained by the scene.
      * Sound decoding normalizes its private wire payload before allocation and opens tags
-     * against the same cache, copying embedded chunks if the borrowed source file differs.
+     * against the same cache, copying embedded chunks if the borrowed source archive differs.
      * Track insertion copies payload bytes and transfers embedded references only on success.
      * Callbacks must not reenter loading, mutate input groups or resize live temporary packets.
      * Failure closes the current sound's opened prefix in reverse order, releases
